@@ -1,0 +1,270 @@
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>입찰 인텔리전스 화면 명세</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+<style>
+:root{--bg:#eceff2;--panel:#fff;--panel2:#f4f6f8;--ink:#0f1519;--ink2:#2c3a44;--muted:#4d5b65;--line:#cfd7dd;--line2:#e2e7eb;
+--us:#3f37c9;--us-s:#3f37c912;--a:#0b6e49;--as:#0b6e4914;--b:#946609;--bs:#94660914;--no:#b5341f;--nos:#b5341f12;
+--sans:"IBM Plex Sans KR",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0c1216;--panel:#141d22;--panel2:#101a1f;--ink:#e9eff2;--ink2:#c6d2d9;--muted:#9fb0ba;--line:#2a373f;--line2:#1c272e;
+--us:#8b83ff;--us-s:#8b83ff1e;--a:#37c495;--as:#37c4951a;--b:#e0b45a;--bs:#e0b45a1a;--no:#ff7060;--nos:#ff70601a}}
+:root[data-theme=dark]{--bg:#0c1216;--panel:#141d22;--panel2:#101a1f;--ink:#e9eff2;--ink2:#c6d2d9;--muted:#9fb0ba;--line:#2a373f;--line2:#1c272e;--us:#8b83ff;--us-s:#8b83ff1e;--a:#37c495;--as:#37c4951a;--b:#e0b45a;--bs:#e0b45a1a;--no:#ff7060;--nos:#ff70601a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.7;font-size:15.5px}
+.wrap{max-width:880px;margin:0 auto;padding:0 22px 100px}
+h1{font-size:clamp(26px,4vw,38px);font-weight:600;letter-spacing:-.02em;margin:0;line-height:1.25;text-wrap:balance}
+h2{font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em}
+h3{font-size:15px;font-weight:600;margin:0 0 6px}
+p{margin:0 0 .9em}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--mono)}
+header{padding:64px 0 30px;border-bottom:1px solid var(--line)}
+.lede{color:var(--ink2);margin-top:14px;max-width:60ch}
+.charter{background:var(--us-s);border-left:3px solid var(--us);padding:16px 20px;margin-top:22px;font-size:15px}
+section{padding:44px 0 0}
+.shead{display:flex;gap:12px;align-items:baseline;margin-bottom:14px;border-bottom:1px solid var(--line2);padding-bottom:8px}
+.shead .num{font-family:var(--mono);color:var(--us);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+.scroll{overflow-x:auto}
+.win{font-weight:700}
+.win.a{color:var(--a)}.win.b{color:var(--b)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin:14px 0}
+.goal{font-size:16px;font-weight:600;margin-bottom:10px}
+.flow{background:var(--panel2);border:1px dashed var(--line);border-radius:6px;padding:12px 16px;font-family:var(--mono);font-size:13px;line-height:1.9;overflow-x:auto;white-space:nowrap;margin:10px 0}
+ol.el{margin:8px 0;padding-left:20px}
+ol.el li{margin-bottom:7px}
+ul.cut{margin:6px 0;padding-left:18px;color:var(--muted);font-size:13.5px}
+ul.cut li{margin-bottom:4px}
+.chart{background:var(--bs);border-left:3px solid var(--b);padding:12px 16px;margin:10px 0;font-size:14px}
+.chart .q{font-weight:700}
+.nochart{color:var(--muted);font-size:13.5px;font-style:normal;background:var(--panel2);border-radius:6px;padding:8px 14px;display:inline-block}
+.copy{background:var(--as);border-left:3px solid var(--a);padding:12px 16px;margin:10px 0;font-size:14px}
+.copy i{color:var(--muted);font-style:normal;font-size:12.5px}
+.badge{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;vertical-align:2px}
+.badge.core{background:var(--nos);color:var(--no)}
+.badge.free{background:var(--as);color:var(--a)}
+.badge.paid{background:var(--bs);color:var(--b)}
+.rule{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:14px 0}
+.rule div{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 16px;font-size:13.5px}
+.rule b{display:block;margin-bottom:3px}
+.backlog li{margin-bottom:6px}
+.disc{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);margin-top:48px;padding-top:18px}
+</style>
+<div class="wrap">
+<header>
+<div class="eyebrow">화면 명세서 v1.5 · +품목 필터·인식 설계 · 구현 착수판</div>
+<h1>입찰 인텔리전스 — 7화면 명세</h1>
+<p class="lede">기획자 A(아버지 실전파)와 B(유료전환 상품파)의 독립 명세를 대조·판정해 종합했다.
+양쪽이 일치한 결론: <b>승부처는 ② 공고 상세 하나다. 나머지 여섯은 그 화면에 사람을 데려다 놓거나 재료를 쌓는다.</b></p>
+<div class="charter"><b>제품 헌법 — "판단은 당신이, 재료는 전부 우리가."</b><br>
+사용자가 스스로 추측할 수 있게 재료를 최대로 제공한다. 아버지가 차트를 응시해 자기 위치를 찾았듯이.
+면책 문구는 <b>설정 구석의 한 줄</b>이 전부("저희는 값을 골라드리지 않습니다. 재료를 다 보여드리고, 판단은 사장님이 합니다"). 금지는 둘 — ① 우리가 특정 금액을 추천·예측으로 출력하는 것 ② <b>해석 라벨</b>(강자 배지·공고 점수·별점) — 재료 맥시멀과 해석 라벨링은 다르다. 사실은 전부 깐다, 딱지는 안 붙인다. 공통 푸터 한 줄(면책이 아니라 셀링 라인): <b>"예정가는 추첨입니다. 그래서 추천가는 없습니다 — 판단 재료는 전부 있습니다."</b> 그리고 <b>아버지 툴 복제 금지(n=1 상품)</b> — 재료는 맥시멀하되 구조는 표준 스택(몰림→착지→흐름→단골→나)으로, 아버지의 읽는 법은 배치가 아니라 카피에 이식한다.</div>
+</header>
+
+<section>
+<div class="shead"><span class="num">§0</span><h2>토론 판정 — 충돌 5건</h2></div>
+<div class="scroll"><table>
+<tr><th>쟁점</th><th>A 실전파</th><th>B 전환파</th><th>판정</th></tr>
+<tr><td>단골 로스터에 낙찰 횟수</td><td>참여 횟수만</td><td>참여+낙찰</td><td><span class="win">재판정</span> — A가 스탠스 반영 후 입장 변경: <b>사실은 전부 공개(참여·낙찰·낙찰값), 해석 라벨만 금지.</b> "두 번 연속 낙찰한 업체 없음" 같은 사실 문장도 병기</td></tr>
+<tr><td>시장지도 차트</td><td>0개 (숫자면 충분)</td><td>판두께 분포 1개</td><td><span class="win b">B 승</span> — 승률차 97%가 판두께(검증). 단 지역 상세에서만, 우선순위 최하 유지</td></tr>
+<tr><td>성적표 차트</td><td>월별 막대 or 표</td><td>나 vs 승자 위치 도트</td><td><span class="win b">B 승</span> — 진단 문장("높게 쓴다")을 눈으로 재확인시키는 유일한 그림. 월별은 표로</td></tr>
+<tr><td>학교 찾기 기본 정렬</td><td>발주 예보 임박순</td><td>연 공고 많은 순</td><td><span class="win a">A 승</span> — 오늘 행동으로 이어지는 정렬. 열 클릭 정렬은 유지</td></tr>
+<tr><td>② 흐름 차트 추가 여부</td><td>문장 나열+스트립 최근성</td><td>시계열 2개째</td><td><span class="win a">A 승</span> — 한 화면 한 질문. 흐름은 "90.11→90.03→…" 문장으로, 시계열은 ③에서 ("전체 기록 보기" 링크)</td></tr>
+<tr><td>로스터에 "보통 쓰는 자리"</td><td>낙찰값까지</td><td>+업체별 착지 중앙값</td><td><span class="win b">B 채택</span> — 집계 사실(잘 나온 구간과 동급). 라벨 아님</td></tr>
+<tr><td>⑥ 연도별 공고·업체수 차트</td><td>탈락</td><td>"판이 커지나 마르나"로 부활</td><td><span class="win b">B 승</span> — 통영 72→4곳 붕괴를 발견한 게 이 차트. 지역 상세에 2번째 차트로</td></tr>
+<tr><td>⑦ 온보딩 맛보기 그림</td><td>0개</td><td>도트 축소판 1장</td><td><span class="win b">B 승</span> — ⑤ 컴포넌트 재사용(개발 0). "읽을 판이 이런 식" 딱 1장</td></tr>
+<tr><td>결제 벽</td><td>—</td><td>①⑤ 무료 / ② 결정블록·알림 유료 / 14일 체험 / 가격 1일차 고지</td><td><span class="win b">B 채택+확장</span> — 유료 코어 = <b>②+③</b>. ①⑤ 무료(습관·진단), ⑤의 도트·차이 분포는 유료. §0.5 엔진 참조</td></tr>
+<tr><td>⑥ 실제 지도</td><td>장식, 기각</td><td>④에서만 기각</td><td><span class="win" style="color:var(--no)">발주자 오버라이드</span> — 실지도 라이브러리로 전국을 뿌린다. 단 원칙 유지: 지도의 질문 = "어느 권역이 비어 있고, 지금 어디에 공고가 열려 있나"</td></tr>
+</table></div>
+<p style="font-size:13.5px;color:var(--muted)">양쪽 일치 항목은 전부 자동 채택: 공고카드→공고 상세로 진짜 이동 · 차트는 화면당 최대 1개 · 밀림/무효 구분 · "어제 채점" 리듬 · 온보딩 "이미 있다" 순간 · 표본수(n) 명시 · 하한 기준선 의무 · 예보는 근거 붙은 문장.</p>
+</section>
+
+<section>
+<div class="shead"><span class="num">§0.5</span><h2>지속 결제 엔진 — 왜 "매달" 내는가</h2></div>
+<p style="font-size:14px;color:var(--ink2)">일회성 감탄("내 기록이 있네")은 첫 결제까지만 간다. 구독을 유지시키는 건 <b>끊기는 순간 낡아버리는 것들</b>이다:</p>
+<div class="rule">
+<div><b>① 시장의 리듬이 곧 갱신 주기</b>학교 77%가 월간 발주 — 매달 새 판이 열린다. 이번 달 재료로 다음 달을 읽을 수 없다. 구독 해지 = 다음 달 판을 못 본다.</div>
+<div><b>② 매일 아침 채점</b>[투찰함] → 익일 결과·차이. 끊으면 채점이 멈춘다 — 습관이 든 뒤에는 이게 제일 아프다.</div>
+<div><b>③ 자격 레이더는 실시간 자산</b>열린 공고·마감·자격은 오늘만 유효한 정보. 김해 밖 연 20건+ 같은 발견은 끊기면 다시 놓친다.</div>
+<div><b>④ 학교 상세는 쌓이는 자산</b>매 회차 새 점이 찍히고 내 기록이 겹쳐 쌓인다. 6개월 쓴 사람의 ③은 처음 온 사람의 ③보다 "내 판"이다 — 갈아타기 비용이 매달 커진다.</div>
+<div><b>⑤ 예보 → 준비 → 투찰 → 채점 루프</b>"다음 주 장유고 유력" → 미리 학교 상세 응시 → 공고 뜨면 ② → 다음날 채점. 이 루프가 월 사이클로 돈다.</div>
+<div><b>⑥ 월간 정산 문장</b>"이번 달 12투찰 1낙찰, 밀림 차이 중앙값 +0.15 — 지난달보다 승자 구간에 가까워졌습니다." 내 추측이 나아지는 걸 매달 확인.</div>
+</div>
+<p style="font-size:13.5px;color:var(--muted)">유료 코어 = <b>② 공고 상세 + ③ 학교 상세</b> (재료 스택·전 회차 기록·로스터·예보 알림). 무료 = ①(습관 형성)·⑤(진단 문장·기본 KPI, 단 나vs승자 도트와 차이 분포는 유료). 데이터 신선도 자체가 구독 상품이다 — 매일 크롤·익일 채점의 원가가 여기서 회수된다.</p>
+</section>
+
+<section>
+<div class="shead"><span class="num">§0.6</span><h2>인식 설계 — "없으면 투찰 못 하겠다"</h2></div>
+<p style="font-size:14px;color:var(--ink2)">발주자 직언: 이 툴의 하드한 효용은 제한적일 수 있다(승률은 수학적으로 못 올림). 그래서 상품의 본체는 <b>의존 인식</b>이다 — 아버지가 차트 없이 투찰 못 하듯, 사용자에게 "이거 없이 쓰는 건 눈감고 쓰는 것"이라는 감각을 설계한다. 단, 현혹은 <b>진짜 데이터의 밀도로 연출</b>한다 — 거짓 주장은 한 줄도 없이.</p>
+<div class="rule">
+<div><b>의존 ① 결정의 장소 독점</b>투찰 결정이 일어나는 물리적 장소를 이 툴로 만든다: 값 입력→차트에 ▼ 박힘→투찰함 기록. 결정의 근육기억이 여기 생기면, 다른 데서 쓰는 투찰은 "허전한" 투찰이 된다.</div>
+<div><b>의존 ② 기록의 인질</b>투찰함 기록·관심 학교·메모·채점 이력이 쌓일수록 떠나는 비용 증가. 내 반년치 결정의 흔적이 여기 있다.</div>
+<div><b>의존 ③ 불안 해소 담당</b>"자격 되는 공고를 놓친 게 없나"(레이더) · "내가 요즘 너무 높게 쓰나"(진단) — 이 불안 둘을 이 툴만 꺼준다. 없으면 불안해지는 게 의존이다.</div>
+<div><b>의존 ④ 아침 의식(ritual)</b>채점 확인→오늘 공고→값 놓아보기→투찰함. 4단계 의식이 매일 반복되면 툴은 도구가 아니라 습관이 된다.</div>
+<div><b>현혹 ① 스케일 과시</b>"전국 9.6만 공고 · 630만 투찰 위에서 계산됩니다" — 화면 곳곳에 진짜 규모를 명시. 혼자서는 못 모으는 물량임을 체감시킴.</div>
+<div><b>현혹 ② 실지도·밀도 연출</b>지도(⑥)·꽉 찬 재료 스택(②)은 "있어 보이는" 표면 담당 — 첫인상에서 "이건 물건이다"를 만든다. 장식이되, 내용물이 진짜인 장식.</div>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">§0.7</span><h2>품목 필터 — 전역 요구사항</h2></div>
+<p style="font-size:14px;color:var(--ink2)"><b>축산/수산/농산/공산/김치/기타</b> — 사용자마다 자기 품목이 기본, 다른 품목도 전환해 볼 수 있다.</p>
+<ul style="font-size:13.5px;padding-left:18px">
+<li><b>온보딩(⑦)</b>: 참여 이력에서 <b>내 품목 자동 추정</b> → 확인 한 번 ("주로 축산 공고에 참여하셨습니다. 맞습니까?").</li>
+<li><b>전역 헤더</b>: 품목 스위처 상시 노출 — ①②③④⑥ 전 화면이 선택 품목 기준으로 필터.</li>
+<li><b>데이터</b>: v1 = 공고명 키워드 분류(축산·육류·정육 / 수산 / 농산 / 공산 / 김치). v2 = 원본 아카이브의 품목분류 코드(MLFD_CLASS_NM) 재파싱으로 정밀화.</li>
+</ul>
+</section>
+
+<section>
+<div class="shead"><span class="num">§1</span><h2>차트 공통 규격 (협상 불가)</h2></div>
+<div class="rule">
+<div><b>제목 = 답하는 질문</b>"회차별 낙찰률" ❌ → "이 학교 승자는 어디에 착지했나" ⭕. 질문을 못 쓰면 차트 탈락.</div>
+<div><b>하한 기준선 항상</b>모든 이야기가 하한선 위 0.10폭에서 벌어진다. 기준선 없는 차트는 좌표 없는 지도.</div>
+<div><b>값은 마크 위에 직접</b>툴팁은 보조. 범례 색 대조로 읽게 하는 차트 금지.</div>
+<div><b>n 명시 의무</b>"14번 중 11번" — 표본을 숨기면 가짜 예측 장사와 같아진다. 4회 미만이면 차트 숨기고 문장으로.</div>
+<div><b>노안 기준</b>본문 16px+, 축 라벨 13px+, 터치 44px+. 1차 고객이 못 읽는 차트는 0원.</div>
+<div><b>패턴 유도 금지</b>난수(예정가 추첨)·판두께 추이(CV 0.85) 시각화 금지 — 없는 패턴을 읽게 만드는 건 거짓말 유도.</div>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">①</span><h2>오늘 (홈)</h2><span class="badge free">무료</span></div>
+<div class="card">
+<p class="goal">아침에 열면 3분 안에 "어느 공고에 들어갈지" 고르고 ②로 넘어간다. 첫 10초: "어제가 채점돼 있고, 오늘 할 일이 골라져 있다."</p>
+<ol class="el">
+<li><b>어제 개찰 결과</b> (있을 때만): 낙찰 / 밀림 / 무효 3분류 — <b>숫자까지</b>: "장유고 — 밀림. 사장님 90.31, 낙찰 90.05 — <b>0.26 차이</b>." 이 숫자가 다음 투찰의 재료다. 제목은 "어제 개찰 결과" — 알림처럼 꾸미지 않는다(실시간 아니므로). 클릭 → 해당 공고 상세.</li>
+<li><b>지금 열려 있는 공고</b> (자격 통과분만, 마감 임박순): 학교명·소재지 / 기초금액(크게) / 하한율 / 개찰일 / "자격 됩니다" 배지 / <b>내 전적 뱃지</b>("7번 투찰·1번 낙찰") + <b>재료 미리보기 한 줄</b> "최근 낙찰 90.03 · 90.11 · 90.05 (잘 나온 구간 90.00~90.10)" — 카드 단계에서 이미 감이 오게. <b>카드 클릭 = ② 공고 상세로 이동.</b></li>
+<li><b>곧 나올 학교</b> (3~5곳): 근거 붙은 한 문장 — "장유고 — 보통 한 달마다 냅니다. 지난 발주 7/29 → 이번 주 유력. <b>지난 회 낙찰 90.03.</b>" — 예보에도 낙찰값을 붙여 미리 감 잡게. 면책 대신 근거가 신뢰다.</li>
+</ol>
+<div class="nochart">차트 0개 — 홈은 리스트다. 문장·숫자·배지로 충분.</div>
+<ul class="cut"><li>버림: 공고→학교 이동(② 신설로 대체) · 알림풍 빨간 점 · 밋밋한 예보 날짜 나열</li></ul>
+<div class="copy">"어제 개찰 3건 — 1건 낙찰, 2건은 더 낮게 쓴 업체에 밀렸습니다." <i>(미로그인 배너)</i> "사업자번호 10자리를 넣으면 이 화면이 당신 것이 됩니다."</div>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">②</span><h2>공고 상세 (신설)</h2><span class="badge core">앱의 심장</span> <span class="badge paid">결정블록 유료</span></div>
+<div class="card">
+<p class="goal">"이 공고, 얼마 쓸까"를 이 화면 안에서 끝내고 투찰 표시까지 남긴다. 첫 10초: "엑셀에 손으로 모으던 게 전부 정리돼 있다."</p>
+<div class="flow">공고 사실 → 이 학교의 과거 → 경쟁 상황 → 내 과거 → 결정(계산) → [투찰함]</div>
+<ol class="el">
+<li><b>헤더</b>: 학교명 / 기초금액(화면 최대 숫자) / 하한율 / 개찰일·마감 / 허용지역 + "참여 가능" 배지 / (확장 후) 품목.</li>
+<li><b>이 학교의 과거 — 잘 나온 구간</b>: <b>현재 공고와 같은 하한율 회차만</b> 집계. "최근 14회 중 11회가 90.00~90.10 사이에서 낙찰" + <b>이번 기초금액 기준 원화 환산 병기</b> ("41,850,000~41,897,000원").</li>
+<li><b>자주 걸린 값</b> (2회 이상 전부 나열): "90.03 ×6 · 90.07 ×3 · 90.12 ×2".</li>
+<li><b>최근 흐름</b>: 최근 5회를 시간순 그대로 "90.11 → 90.03 → 90.05 → 90.03 → 90.07" — 오르는지 몰리는지는 사용자 눈이 판단한다. 우리는 순서대로 놓기만 한다.</li>
+<li><b>누가 오나</b> (로더 확장 필요): "보통 7곳이 들어옵니다(최근 10회)" + 단골 로스터 <b>이력 전부</b> — "○○축산: 참여 9회, 낙찰 2회 (90.03·90.15), <b>보통 90.0X대에 씀</b>(투찰 중앙값)" — 참여·낙찰·낙찰값·착지 자리까지. 딱지만 안 붙인다. 사실 문장 병기: "이 학교에서 두 번 연속 낙찰한 업체는 최근 3년간 없었습니다." + "회차마다 들쭉날쭉합니다"(CV 0.85).</li>
+<li><b>내 전적</b>: "12번 — 낙찰 2 / 밀림 8 / 무효 2" + 밀림 과반이면 "이 학교에선 대체로 높게 쓰셨습니다."</li>
+<li><b>결정 — 금액 계산기</b>: <b>투찰률 입력 ↔ 금액 자동 (양방향)</b>. 하한 미만 즉시 빨간 경고 "이 금액은 무효입니다(하한 아래)". 입력하는 순간 <b>위 차트에 내 값이 실시간 마커(▼)로 박힌다</b> — 과거 분포 위 어디 놓이는지 눈으로 확인. 그림이 말하게 두고 평가 문구는 안 붙인다.</li>
+<li><b>[이 공고에 투찰함]</b> + 쓴 투찰률 기록 → 익일 채점의 연료. 하단에 "이 학교 다음 공고 알림 받기" 토글(결정 직후가 승낙율 최고).</li>
+</ol>
+<div class="chart"><span class="q">차트 1: "이 학교 승자들은 하한선 위 어디에 착지했나?"</span><br>
+가로 1차원 <b>도트 스트립</b> (x=낙찰 투찰률, 하한~하한+0.15). 하한선 굵은 수직선 + 0.10폭 음영. 자주 걸린 값은 점 쌓기+"90.03 ×6" 라벨. 음영 위 "14번 중 11번". 점=n. <b>최근성 인코딩</b>: 최근 3회 진한 색+테두리, 오래될수록 옅게 — 몰림과 최근 흐름을 한 그림에. 과거 <b>내 투찰 점은 △</b>, 입력 중인 값은 <b>실시간 ▼</b>. 현재 하한율 회차만, 다른 하한은 접힘 영역.</div>
+<ul class="cut"><li>넣지 않음: 학교 산점도 재탕(링크로) · 예정가 추첨 시각화(난수에 패턴 유도=소음) · "비슷한 공고" 추천 · <b>강자 배지·점수·별점(해석 라벨)</b> · 영역마다 붙는 면책 문구</li></ul>
+<div class="copy">"누가 이길지는 아무도 모릅니다. 누가 오는지는 보여드립니다." · "그 안의 어디가 이길지는 예정가 추첨입니다 — 저희는 찍어드리지 않습니다." <i>(미로그인, 내 전적 자리)</i> "이 학교에서의 당신 기록이 여기 나타납니다. 이미 저장돼 있습니다 — 사업자번호만 넣으세요."</div>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">③</span><h2>학교 상세</h2><span class="badge paid">유료 코어</span></div>
+<div class="card">
+<p class="goal">공고가 없을 때 이 학교를 미리 파악한다 — <b>쌓이는 자산</b>: 매 회차 새 점이 찍히고 내 기록이 겹쳐, 오래 쓸수록 "내 판"이 된다(지속 결제 엔진 ④). 간판 = 다음 발주 예보. 열린 공고가 있으면 예보 자리에 ②로 가는 버튼.</p>
+<ol class="el">
+<li>헤더: 학교명·소재지 / 연 공고 수 / "보통 31일 간격" / <b>다음 발주 예보 카드</b> ("지난 발주 8/1 → 9월 초 예상. 확정 아닙니다").</li>
+<li><b>잘 나온 구간 — 하한별 분리</b> (90/88 절대 안 섞음): 카드 2장, 각 "N회 중 M회가 {구간}".</li>
+<li>자주 걸린 값 (2회+).</li>
+<li><b>회차 기록 표</b> (화면의 몸통): 날짜/기초금액/하한/낙찰률/<b>낙찰 업체명</b>/참여 수/내 참여(내 값·결과·낙찰과 차이). 최신 위 — 낙찰 업체명도 사실이니 싣는다.</li>
+<li>차트(아래) → 단골 참여 업체(② 컴포넌트 재사용) → 내 전적 상세.</li>
+<li>기준금액 입력 계산기 — 맨 아래 강등(공고 없는 날의 시뮬레이션).</li>
+</ol>
+<div class="chart"><span class="q">차트 1: "착지 구간이 회차마다 유지되는가, 그리고 내 점은 어디 있었나?"</span><br>
+<b>시간축 도트</b> (x=개찰일, y=투찰률). 하한선+음영, 하한율 변경 시 배경 밴드("이때부터 하한 88"). <b>내 투찰 점은 △</b> — 내 점이 늘 위에 떠 있으면 말보다 눈이 먼저 안다. <b>각 점 아래 작은 숫자로 그 회 참여 업체 수 병기</b>(추이선은 금지, 점별 사실 표기는 재료). 최근 3점 값 라벨, 점 탭→표 행 하이라이트.</div>
+<ul class="cut"><li>버림: 기초가 추이 차트(표 숫자로 충분, 결정에 무영향) · 업체 수 추이선(CV 0.85 노이즈에 패턴 유도 — 유해)</li></ul>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">④</span><h2>학교 찾기</h2></div>
+<div class="card">
+<p class="goal">"내 자격으로 갈 수 있는데 몰랐던 학교" 발견. 첫 10초: 검색 전에 이미 제안이 와 있다.</p>
+<ol class="el">
+<li><b>제안 스트립</b>: "당신 자격으로 참여 가능 · 발주 잦은 순" 상위 5곳 — 소재지 밖(진해용원고류) 우선 노출.</li>
+<li>검색창 + <b>"내 자격 되는 학교만" 토글 (기본 켜짐, 허용지역 기준)</b> — 소재지 필터는 쓰지 않는다(연 20건+ 놓침 증명).</li>
+<li><b>표 (7열)</b>: 학교명/지역/연 공고/보통 업체 수(<b>10곳 이하 강조</b>)/<b>최근 낙찰값 3개</b>("90.03 · 90.11 · 90.05" — 이 열이 있어야 훑기만 해도 궁금증이 생긴다)/마지막 발주/다음 예보. 기본 정렬 = 예보 임박순.</li>
+</ol>
+<div class="nochart">차트 0개 — 지도 시각화 기각. 위치는 납품업자가 안다. 모르는 건 "저 학교가 우릴 받아주는가"고 그건 배지 하나로 답한다.</div>
+<div class="copy">"김해 밖에도 당신 자격으로 들어갈 수 있는 공고가 연 20건 넘게 있습니다. 소재지만 보면 놓칩니다."</div>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">⑤</span><h2>내 성적표</h2><span class="badge free">무료</span></div>
+<div class="card">
+<p class="goal">"내가 대체로 높게 쓰나"를 인정하게 만든다 — 유일하게 행동을 바꾸는 화면. 리텐션(해지 방어) 담당.</p>
+<ol class="el">
+<li><b>진단 문장</b> (최상단, 최대 글씨): "최근 3달, 24번 중 15번 밀림 — 대체로 높게 쓰셨습니다." + <b>차이 분포 병기</b>: "밀린 15번의 차이: 중간값 +0.21, 가장 아까웠던 건 <b>+0.02</b>(○○초)." — 얼마나 내릴지를 스스로 가늠하게. 무효 多면 "하한 계산부터 확인하십시오."</li>
+<li><b>KPI 3장</b> (5장→3장): 투찰 / 낙찰(율) / 진 것 분해("밀림 15 · 무효 3"). "평균 투찰률" 삭제(하한 섞여 오염).</li>
+<li><b>사업자 탭</b>: 합산(기본) | 개별. 토글 옆 "합치면 낙찰 기회가 1.9배였습니다 — 두 개 모두 등록하세요."</li>
+<li>차트(아래).</li>
+<li><b>최근 결과 표</b>: 날짜/학교/내 투찰률/낙찰률/결과/<b>차이</b>("+0.31 높게 씀") — 버릇의 증거물.</li>
+<li>월별 요약은 <b>표 두 줄</b>(투찰/낙찰)로. ComposedChart 탈락.</li>
+</ol>
+<div class="chart"><span class="q">차트 1: "나는 승자들이 서는 자리 대비 어디에 쓰고 있나?"</span><br>
+하한 기준 정규화 축 하나에 <b>내 투찰(회색 점) vs 그 회차 승자(색 점)</b> 도트 플롯. 진단 문장을 눈으로 재확인시키는 유일한 그림 — 진단과 그림이 같은 말을 하면 신뢰가 생긴다. 내 평균 위치·승자 밀집 구간 직접 라벨.</div>
+<div class="copy">"'밀림'은 남이 더 낮게 쓴 것, '무효'는 하한 아래로 써서 무효 처리된 것입니다. 무효는 고칠 수 있는 실수입니다." <i>부제</i> "어제 개찰분까지"</div>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">⑥</span><h2>시장 지도</h2></div>
+<div class="card">
+<p class="goal">"어디로 넓힐까" — 월 1회 전략 화면임을 인정, 그 이상 키우지 않는다. 개발 우선순위 최하.</p>
+<ol class="el">
+<li><b>실지도 (화면의 히어로 — 발주자 지시)</b>: 전국 지도 위 시군구 버블 — <b>크기 = 연간 공고량, 색 = 업체당 기대낙찰</b>(진할수록 빈 판) + <b>지금 열린 공고 핀</b>(개수 배지) + 내 지역 ★. 버블 클릭 → 지역 상세. 질문: "어느 권역이 비어 있고, 지금 어디에 공고가 열려 있나."<br><span style="font-size:12.5px;color:var(--muted)">기술: v1 = react-leaflet + OSM 타일 + 시군구 중심좌표 번들(API 키 불필요). v2 = 학교 단위 점(주소 지오코딩, VWorld/카카오 키 필요 — 로더 1회 캐시). 카카오맵 교체는 키 발급 후 옵션.</span></li>
+<li><b>내 지역 카드</b> (지도 아래 고정): 업체 수/연 공고/<b>업체당 연 공고 수</b>(핵심 숫자). 남의 랭킹부터 보여주지 않는다.</li>
+<li>지역 표: 지역/업체 수/연 공고/업체당 + "김해의 1.6배" 배수 표기. '랭킹' 프레임 아닌 '내 지역 대비'.</li>
+<li>지역 클릭 → 판두께 분포 차트(아래) + 학교 목록 → ④로 연결.</li>
+<li>한계 문구: "저희가 수집한 범위 안의 숫자입니다."</li>
+</ol>
+<div class="chart"><span class="q">차트 2개 (지역 상세에서만) — ⓐ "이 지역 판은 얇은가?" ⓑ "이 판이 커지나, 마르나?"</span><br>ⓑ = 연도별 공고량 막대 + 참여 업체수 선 — <b>통영 72→4곳 붕괴를 발견한 바로 그 차트.</b> 확장 판단의 핵심 흐름 재료. 값 직접 라벨.<br>ⓐ = 
+공고별 참여 업체 수 <b>분포 막대</b>. 근거: 승률차의 97%가 판두께(지속성 0.97) — 지역 선택의 검증된 유일 변수. "업체 10곳 이하" 구간 비율 직접 라벨. 막대 탭→해당 두께 학교 목록.</div>
+<ul class="cut"><li>버림: '승자 칩' 이름(→ <b>"이 지역 활동 업체"</b>로 개명, 참여·낙찰 건수 유지) · 월별 차트(계절성은 예보가 소화) · '랭킹' 프레임</li></ul>
+<div class="copy">"통영은 업체 5곳이 연 176건을 나눕니다. 한 곳당 35건 — 김해(21건)의 1.6배. 판이 얇은 곳이 유리한 건 예측이 아니라 나눗셈입니다."</div>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">⑦</span><h2>내 사업자 (온보딩)</h2><span class="badge core">전환의 심장 2</span></div>
+<div class="card">
+<p class="goal">번호 10자리 → 3초 뒤 "당신 기록이 이미 있다." 첫 10초: "가입이 아니라 확인이구나."</p>
+<div class="flow">입력창 1개 → 즉시 조회("OO축산 — 투찰 1,847건") → 진단 문장 <b>하나</b> 맛보기 → 2번째 사업자 제안(1.9배) → 알림 채널(문자/카카오) → 홈</div>
+<ol class="el">
+<li>입력창 <b>하나</b>. 이름·이메일·비밀번호 선요구 금지 — 단계 하나마다 60대 이탈률로 갚는다.</li>
+<li>조회 지연 시 스피너 대신 문장: "공개 입찰 기록을 찾는 중입니다."</li>
+<li>확인 직후 <b>맛보기: 진단 문장 1개 + ⑤의 나vs승자 도트 축소판 1장</b>("회색이 당신입니다") — ⑤ 컴포넌트 재사용, 그 이상 그림은 입장 지연이라 금지.</li>
+<li>가격은 1일차 고지, 과금은 나중: "14일 무료. 이후 월 3만원."</li>
+</ol>
+<div class="nochart">차트 0개 — 설득 도구는 그림이 아니라 "1,847건"이라는 본인의 숫자.</div>
+<div class="copy">"사업자등록번호 10자리. 그게 전부입니다." · "찾았습니다. 투찰 3,925건, 낙찰 75건. <b>가장 최근 낙찰: 7월 12일 가락중, 90.07.</b>" — 최근 한 건까지 짚어주면 신뢰가 박힌다. · "월 3만원 — 낙찰 한 건 마진의 20분의 1입니다."</div>
+</div>
+</section>
+
+<section>
+<div class="shead"><span class="num">§8</span><h2>구현 백로그 (명세 → 작업)</h2></div>
+<div class="scroll"><table class="backlog">
+<tr><th>#</th><th>작업</th><th>층</th><th>비고</th></tr>
+<tr><td>1</td><td>로더 확장: <b>품목 분류(키워드 v1)</b> + 학교별 로스터 풀이력(참여·낙찰·낙찰값·보통 쓰는 자리) + 공고별 참여 수</td><td>data-plane</td><td>전 화면 재료. 해석 라벨은 UI에서 금지</td></tr>
+<tr><td>2</td><td><b>② 공고 상세 신설</b> — 서사 블록(최근 흐름 포함) + 도트 스트립(최근성·△·<b>실시간 ▼ 마커</b>) + 양방향 계산기 + [투찰함](률 기록)</td><td>web+api</td><td>최우선</td></tr>
+<tr><td>3</td><td>① 오늘 개편: 채점 스트립 3분류·전적 뱃지·근거 문장 예보·카드→② 연결</td><td>web</td><td></td></tr>
+<tr><td>4</td><td>③ 학교 상세 개편: 예보 카드 승격·하한별 분리·시간축 도트(내 점 구분·하한 밴드)·계산기 강등</td><td>web</td><td></td></tr>
+<tr><td>5</td><td>⑤ 성적표 개편: 진단 문장·KPI 3장·나 vs 승자 도트·차이 열·월별은 표</td><td>web</td><td>ComposedChart 삭제</td></tr>
+<tr><td>6</td><td>④ 찾기 개편: 제안 스트립·자격 토글·6열 표(10곳 이하 강조)</td><td>web+api</td><td>자격 판정 API 필요</td></tr>
+<tr><td>7</td><td>⑥ 시장지도: <b>실지도(react-leaflet) 히어로</b> — 시군구 버블(공고량×기대낙찰) + 열린 공고 핀 + 내 지역 ★ · 지역 상세(판두께 분포·연도 추이)</td><td>web+loader</td><td>시군구 중심좌표 번들. 학교 지오코딩은 v2</td></tr>
+<tr><td>8</td><td>⑦ 온보딩 플로우: 1입력→확인→맛보기→2번째 제안</td><td>web</td><td>알림 채널은 C단계 자리만</td></tr>
+<tr><td>9</td><td>[투찰함] 투찰률 기록 → results 채점에 내 값 비교 반영</td><td>api+web</td><td>습관 고리의 연료</td></tr>
+</table></div>
+</section>
+
+<div class="disc">기획자 A·B 독립 명세 + 상호 반박 교차 검증 후 종합. 근거 데이터: 전국 9.6만 공고·630만 투찰 전수 분석(CONTEXT-PACK.md). 이 문서 컨펌 후 백로그 순서대로 구현.</div>
+</div>
