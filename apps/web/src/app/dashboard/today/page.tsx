@@ -79,6 +79,28 @@ export default function TodayPage() {
         </p>
       </div>
 
+      {/* 결정 대기 열 — 히어로: 오늘·내일 마감 (DESIGN.md C표) */}
+      {open.length > 0 && (() => {
+        const end = new Date(); end.setDate(end.getDate() + 2); end.setHours(0, 0, 0, 0);
+        const dueSoonN = open.filter(o => o.deadline && new Date(o.deadline) < end).length;
+        const basket = open.filter(o => marks[o.bidNo]);
+        const unfilled = basket.filter(o => marks[o.bidNo]?.rate == null).length;
+        return (
+          <Card className='border-primary'>
+            <CardContent className='flex flex-wrap items-end justify-between gap-3 py-4'>
+              <div>
+                <div className='text-muted-foreground text-xs'>오늘·내일 마감</div>
+                <div className='text-3xl font-bold tabular-nums'>{dueSoonN}건</div>
+              </div>
+              <div className='text-right text-sm tabular-nums'>
+                <div>진행 중 {open.length}건 · 바구니 {basket.length}건</div>
+                {unfilled > 0 && <div className='text-amber-600'>바구니 {unfilled}건 값 미입력</div>}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {ready && bizNos.length === 0 && (
         <Card className='border-primary'>
           <CardContent className='py-4'>

@@ -700,7 +700,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
               {crowdN != null && crowd && (
                 <p className='text-[13px] tabular-nums'>
                   이 값 자리에 최근 {crowd.days}일 <b className={crowdN > 200 ? 'text-destructive' : 'text-primary'}>{crowdN.toLocaleString()}건</b>
-                  {crowdN === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전장 {crowd.total.toLocaleString()}건 중 · 동가는 추첨)</span>
+                  {crowdN === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(최근 {crowd.days}일 전장 {crowd.total.toLocaleString()}건의 사실 · 동가는 추첨)</span>
                 </p>
               )}
               {base > 0 && floor != null && pprLo != null && pprHi != null && (

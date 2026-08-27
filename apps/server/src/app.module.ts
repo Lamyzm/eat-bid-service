@@ -1,8 +1,10 @@
-import { Module, Controller, Get, Query, Param } from "@nestjs/common";
+import { Module, Controller, Get, Post, Body, Query, Param } from "@nestjs/common";
 import { createZodDto } from "nestjs-zod";
+import { z } from "zod";
 import { eq, ilike, and, desc, inArray, sql, gte } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
-  SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster,
+  SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster, events,
 } from "@eatbid/shared";
 import { db } from "./db";
 
@@ -179,6 +181,12 @@ class ResultsController {
   }
 }
 
+const SGG_RE = /^[가-힣]{1,6}(시|군|구)$/;
+/** 콤마 목록에서 정규 시군구 형식만 통과 */
+function cleanSggs(csv?: string): string[] {
+  return (csv ?? "").split(",").map(x => x.trim()).filter(x => SGG_RE.test(x));
+}
+
 @Controller("wins")
 class WinsController {
   /** 적재된 지역 목록 (데이터 유도 — 거짓 '전국' 방지) */
@@ -189,7 +197,12 @@ class WinsController {
       n: sql<number>`count(*)`,
     }).from(schoolAuctions).groupBy(sql`split_part(school_id, '|', 1)`)
       .orderBy(desc(sql`count(*)`));
-    return rows.filter(r => r.sgg && r.sgg.trim()).map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
+    // 정규 시군구만: 형식(한글 1~6자 + 시/군/구) AND schools.sigungu 실존
+    const canon = new Set((await db.selectDistinct({ s: schools.sigungu }).from(schools))
+      .map(r => r.s).filter(Boolean));
+    return rows
+      .filter(r => r.sgg && SGG_RE.test(r.sgg) && canon.has(r.sgg))
+      .map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
   }
 
   /** 몰림 지도 — 최근 N일 전 지역 투찰값 분포 (0.01 단위). 동가 위험·빈 자리의 사실 */
@@ -219,18 +232,21 @@ class WinsController {
   /** 개찰 속보 — 최근 개찰 결과 전량 (낙찰 업체명·1-2등차 포함) */
   @Get("recent")
   async recent(@Query("days") daysStr?: string, @Query("category") category?: string,
-    @Query("sigungu") sigungu?: string) {
+    @Query("sigungu") sigungu?: string, @Query("limit") limitStr?: string,
+    @Query("withTotal") withTotal?: string) {
     const days = Math.min(Number(daysStr) || 30, 180);
+    const limit = Math.min(Number(limitStr) || 400, 1000);
     const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
     const conds = [gte(schoolAuctions.openedAt, cutoff)];
     if (category) conds.push(eq(schoolAuctions.category, category));
-    if (sigungu) {
-      const sggs = sigungu.split(",").map(x => x.trim()).filter(Boolean);
-      if (sggs.length === 1) conds.push(ilike(schoolAuctions.schoolId, `${sggs[0]}|%`));
-      else if (sggs.length > 1) conds.push(inArray(sql`split_part(school_id, '|', 1)`, sggs));
-    }
+    const sggs = cleanSggs(sigungu);
+    if (sggs.length === 1) conds.push(ilike(schoolAuctions.schoolId, `${sggs[0]}|%`));
+    else if (sggs.length > 1) conds.push(inArray(sql`split_part(school_id, '|', 1)`, sggs));
+    const total = withTotal === "1"
+      ? Number((await db.select({ n: sql<number>`count(*)` }).from(schoolAuctions).where(and(...conds)))[0].n)
+      : null;
     const rows = await db.select().from(schoolAuctions)
-      .where(and(...conds)).orderBy(desc(schoolAuctions.openedAt)).limit(400);
+      .where(and(...conds)).orderBy(desc(schoolAuctions.openedAt)).limit(limit);
     const ids = rows.map(r => r.bidId);
     const agg = ids.length ? await db.select({
       bidId: firmBids.bidId,
@@ -242,7 +258,7 @@ class WinsController {
     const names = bizs.length ? await db.select({ bizNo: firms.bizNo, name: firms.name })
       .from(firms).where(inArray(firms.bizNo, bizs)) : [];
     const nm = new Map(names.map(n => [n.bizNo, n.name]));
-    return rows.map(r => {
+    const out = rows.map(r => {
       const g = byId.get(r.bidId);
       return {
         bidId: r.bidId, schoolId: r.schoolId, schoolName: r.schoolId.split("|")[1] ?? r.schoolId,
@@ -251,8 +267,10 @@ class WinsController {
         winnerName: r.winnerBizNo ? (nm.get(r.winnerBizNo) ?? null) : null,
         nValid: r.nValid, nBids: g ? Number(g.nBids) : null,
         gap12: g?.secondRate != null && r.winRate != null ? +(g.secondRate - r.winRate).toFixed(3) : null,
+        dlvryStart: r.dlvryStart ?? null, dlvryEnd: r.dlvryEnd ?? null,
       };
     });
+    return total != null ? { rows: out, total } : out;
   }
 
   /** 월별 보드 — 월×품목 집계 (건수·낙찰률 중앙값·기초금액 합계) */
@@ -263,8 +281,8 @@ class WinsController {
       openedAt: schoolAuctions.openedAt, category: schoolAuctions.category,
       winRate: schoolAuctions.winRate, basePrice: schoolAuctions.basePrice,
     }).from(schoolAuctions)
-      .where(sigungu
-        ? inArray(sql`split_part(school_id, '|', 1)`, sigungu.split(",").map(x => x.trim()).filter(Boolean))
+      .where(cleanSggs(sigungu).length
+        ? inArray(sql`split_part(school_id, '|', 1)`, cleanSggs(sigungu))
         : undefined);
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
     const co = cutoff.toISOString().slice(0, 7);
@@ -303,10 +321,14 @@ class FirmsController {
 
   /** 투찰 상세 — 행당 3단(낙찰가/2등가/내 값) 재료 */
   @Get("bids")
-  async bids(@Query("bizNos") bizNosCsv: string, @Query("limit") limitStr?: string) {
+  async bids(@Query("bizNos") bizNosCsv: string, @Query("limit") limitStr?: string,
+    @Query("withTotal") withTotal?: string) {
     const bizNos = this.parse(bizNosCsv);
     if (!bizNos.length) return [];
-    const limit = Math.min(Number(limitStr) || 300, 1000);
+    const limit = Math.min(Number(limitStr) || 2000, 5000);
+    const total = withTotal === "1"
+      ? Number((await db.select({ n: sql<number>`count(*)` }).from(firmBids).where(inArray(firmBids.bizNo, bizNos)))[0].n)
+      : null;
     const rows = await db.select().from(firmBids)
       .where(inArray(firmBids.bizNo, bizNos))
       .orderBy(desc(firmBids.openedAt)).limit(limit);
@@ -319,12 +341,13 @@ class FirmsController {
     const byId = new Map(agg.map(a => [a.bidId, a]));
     const sas = ids.length ? await db.select().from(schoolAuctions).where(inArray(schoolAuctions.bidId, ids)) : [];
     const saById = new Map(sas.map(a => [a.bidId, a]));
-    return rows.map(r => {
+    const out = rows.map(r => {
       const g = byId.get(r.bidId);
       const sa = saById.get(r.bidId);
       const effFloor = sa?.plannedPrice != null && sa.basePrice
         ? +(sa.floorRate! * sa.plannedPrice / sa.basePrice).toFixed(4) : null;
       return {
+        dlvryStart: sa?.dlvryStart ?? null, dlvryEnd: sa?.dlvryEnd ?? null,
         bidId: r.bidId, bizNo: r.bizNo, openedAt: r.openedAt, schoolName: r.schoolName,
         sigungu: r.sigungu, category: sa?.category ?? null,
         basePrice: r.basePrice, floorRate: r.floorRate,
@@ -333,6 +356,31 @@ class FirmsController {
         effFloor,
       };
     });
+    return total != null ? { rows: out, total } : out;
+  }
+
+  /** 동가 이력 — 같은 회차·같은 값에 나 포함 2곳 이상 선 회차 (사실 나열, 집계 없음) */
+  @Get("ties")
+  async ties(@Query("bizNos") bizNosCsv: string) {
+    const bizNos = this.parse(bizNosCsv);
+    if (!bizNos.length) return [];
+    const other = alias(firmBids, "tie_other");
+    const rows = await db.select({
+      openedAt: firmBids.openedAt, schoolName: firmBids.schoolName, sigungu: firmBids.sigungu,
+      bidRate: firmBids.bidRate, won: firmBids.won, winRate: firmBids.winRate,
+      nTied: sql<number>`count(*)`,
+    }).from(firmBids)
+      .innerJoin(other, and(eq(other.bidId, firmBids.bidId), sql`${other.bidRate} = ${firmBids.bidRate}`))
+      .where(and(inArray(firmBids.bizNo, bizNos), sql`${firmBids.bidRate} is not null`))
+      .groupBy(firmBids.bidId, firmBids.bizNo, firmBids.openedAt, firmBids.schoolName,
+        firmBids.sigungu, firmBids.bidRate, firmBids.won, firmBids.winRate)
+      .having(sql`count(*) >= 2`)
+      .orderBy(desc(firmBids.openedAt))
+      .limit(100);
+    return rows.map(r => ({
+      openedAt: r.openedAt, schoolName: r.schoolName, sigungu: r.sigungu,
+      bidRate: r.bidRate, nTied: Number(r.nTied), won: r.won === 1, winRate: r.winRate,
+    }));
   }
 
   /** 성적표 — 사업자번호 콤마목록(워크스페이스 합산) */
@@ -517,6 +565,41 @@ class RoundsController {
   }
 }
 
+@Controller("events")
+class EventsController {
+  /** 화면 열람 배치 수신 — 게이트 측정. 개인정보 없음(익명 세션 키만) */
+  @Post()
+  async ingest(@Body() body: unknown) {
+    const Row = z.object({
+      session: z.string().min(1).max(64),
+      screen: z.string().min(1).max(40),
+      meta: z.record(z.string(), z.unknown()).optional(),
+    });
+    const Batch = z.object({ rows: z.array(Row).min(1).max(50) });
+    const parsed = Batch.safeParse(body);
+    if (!parsed.success) return { ok: false };
+    await db.insert(events).values(parsed.data.rows.map(r => ({
+      session: r.session, screen: r.screen, meta: r.meta ?? null,
+    })));
+    return { ok: true, n: parsed.data.rows.length };
+  }
+
+  /** 화면별·일별 열람 수 (최근 30일) */
+  @Get("summary")
+  async summary() {
+    const rows = await db.select({
+      day: sql<string>`to_char(ts, 'YYYY-MM-DD')`,
+      screen: events.screen,
+      n: sql<number>`count(*)`,
+      sessions: sql<number>`count(distinct session)`,
+    }).from(events)
+      .where(sql`ts >= now() - interval '30 days'`)
+      .groupBy(sql`to_char(ts, 'YYYY-MM-DD')`, events.screen)
+      .orderBy(sql`to_char(ts, 'YYYY-MM-DD') desc`);
+    return rows.map(r => ({ day: r.day, screen: r.screen, n: Number(r.n), sessions: Number(r.sessions) }));
+  }
+}
+
 @Controller()
 class HealthController {
   @Get("healthz")
@@ -524,6 +607,6 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
+  controllers: [HealthController, EventsController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
 })
 export class AppModule {}

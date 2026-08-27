@@ -228,8 +228,8 @@ export function AuctionDetail({ open, auctions, roster }: {
           <CardHeader className='pb-2'>
             <CardTitle className='text-base'>요즘 다들 어디에 쓰나</CardTitle>
             <CardDescription>
-              최근 {crowd.days}일 · 하한 {floor} 공고 전체 · <b className='text-foreground'>{crowd.total.toLocaleString()}건</b> 투찰의 자리.
-              같은 값이 겹치면 추첨입니다 — 몰린 자리와 빈 자리를 보세요.
+              최근 {crowd.days}일 하한 {floor} 공고 전체에서 <b className='text-foreground'>{crowd.total.toLocaleString()}건</b>의
+              투찰이 선 자리의 사실입니다. 같은 값이 겹치면 추첨입니다.
             </CardDescription>
           </CardHeader>
           <CardContent>

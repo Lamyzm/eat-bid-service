@@ -4,7 +4,7 @@
  * web이 도메인 zod 타입으로 소비한다.
  */
 import {
-  pgTable, varchar, integer, bigint, doublePrecision, jsonb, date, timestamp, primaryKey,
+  pgTable, varchar, integer, bigint, doublePrecision, jsonb, date, timestamp, primaryKey, serial,
 } from "drizzle-orm/pg-core";
 
 /** 공급업체 — 자격 풋프린트(투찰해온 시군구)는 데이터에서 역추론 */
@@ -47,6 +47,8 @@ export const schoolAuctions = pgTable("school_auctions", {
   nValid: integer("n_valid").notNull(),
   winnerBizNo: varchar("winner_biz_no", { length: 16 }),
   plannedPrice: bigint("planned_price", { mode: "number" }),
+  dlvryStart: date("dlvry_start"),
+  dlvryEnd: date("dlvry_end"),
   /** 복수예가 15개: [{r: 예가/기초 비율, c: 추첨 여부}] */
   reserves: jsonb("reserves").$type<{ r: number; c: boolean }[]>(),
 });
@@ -110,3 +112,12 @@ export const schoolRoster = pgTable("school_roster", {
   winRates: jsonb("win_rates").$type<number[]>().notNull().default([]),  // 낙찰했던 값들
   medRate: doublePrecision("med_rate"),        // 보통 쓰는 자리(투찰 중앙값)
 }, (t) => [primaryKey({ columns: [t.schoolId, t.bizNo] })]);
+
+/** 사용 이벤트 — 게이트 측정(화면 열람). 재적재 시 초기화하지 않는다 */
+export const events = pgTable("events", {
+  id: serial("id").primaryKey(),
+  ts: timestamp("ts", { withTimezone: true }).notNull().defaultNow(),
+  session: varchar("session", { length: 64 }).notNull(),
+  screen: varchar("screen", { length: 40 }).notNull(),
+  meta: jsonb("meta").$type<Record<string, unknown>>(),
+});

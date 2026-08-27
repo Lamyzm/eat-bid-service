@@ -70,6 +70,8 @@ CREATE TABLE "school_auctions" (
 	"n_valid" integer NOT NULL,
 	"winner_biz_no" varchar(16),
 	"planned_price" bigint,
+	"dlvry_start" date,
+	"dlvry_end" date,
 	"reserves" jsonb
 );
 --> statement-breakpoint
@@ -111,3 +113,13 @@ CREATE INDEX IF NOT EXISTS idx_firm_bids_floor_opened ON firm_bids (floor_rate, 
 CREATE INDEX IF NOT EXISTS idx_firm_bids_school ON firm_bids (school_name);
 CREATE INDEX IF NOT EXISTS idx_school_auctions_school ON school_auctions (school_id);
 CREATE INDEX IF NOT EXISTS idx_school_auctions_opened ON school_auctions (opened_at);
+
+-- 사용 이벤트 (게이트 측정) — DROP 프리앰블에서 제외: 재적재에도 보존
+CREATE TABLE IF NOT EXISTS "events" (
+	"id" serial PRIMARY KEY,
+	"ts" timestamptz DEFAULT now() NOT NULL,
+	"session" varchar(64) NOT NULL,
+	"screen" varchar(40) NOT NULL,
+	"meta" jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_events_screen_ts ON "events" (screen, ts);
