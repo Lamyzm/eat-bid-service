@@ -53,6 +53,12 @@ export const firmBids = pgTable("firm_bids", {
   bizNo: varchar("biz_no", { length: 16 }).notNull(),
   bidRate: doublePrecision("bid_rate"),
   won: integer("won").notNull().default(0),
+  openedAt: date("opened_at"),
+  floorRate: doublePrecision("floor_rate"),
+  winRate: doublePrecision("win_rate"),      // 그 공고의 실제 낙찰률
+  basePrice: bigint("base_price", { mode: "number" }),
+  sigungu: varchar("sigungu", { length: 40 }),
+  schoolName: varchar("school_name", { length: 160 }),
 }, (t) => [primaryKey({ columns: [t.bidId, t.bizNo] })]);
 
 /** 자격 레이더 — 열린 공고 (수집 시점 스냅샷) */

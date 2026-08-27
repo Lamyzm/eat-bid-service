@@ -1,8 +1,22 @@
+-- dev reset
+DROP TABLE IF EXISTS "firm_bids" CASCADE;
+DROP TABLE IF EXISTS "firms" CASCADE;
+DROP TABLE IF EXISTS "market_regions" CASCADE;
+DROP TABLE IF EXISTS "open_auctions" CASCADE;
+DROP TABLE IF EXISTS "school_auctions" CASCADE;
+DROP TABLE IF EXISTS "schools" CASCADE;
+DROP TABLE IF EXISTS "workspace_biz" CASCADE;
 CREATE TABLE "firm_bids" (
 	"bid_id" varchar(32),
 	"biz_no" varchar(16),
 	"bid_rate" double precision,
 	"won" integer DEFAULT 0 NOT NULL,
+	"opened_at" date,
+	"floor_rate" double precision,
+	"win_rate" double precision,
+	"base_price" bigint,
+	"sigungu" varchar(40),
+	"school_name" varchar(160),
 	CONSTRAINT "firm_bids_pkey" PRIMARY KEY("bid_id","biz_no")
 );
 --> statement-breakpoint

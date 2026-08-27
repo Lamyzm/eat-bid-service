@@ -68,6 +68,15 @@ export const MarketRegion = z.object({
 export type MarketRegion = z.infer<typeof MarketRegion>;
 
 /** 성적표 — 워크스페이스(사업자 N개 합산) 기준 */
+export const FirmWinRow = z.object({
+  openedAt: z.string().nullable(),
+  schoolName: z.string().nullable(),
+  sigungu: z.string().nullable(),
+  basePrice: z.number().nullable(),
+  bidRate: z.number().nullable(),
+});
+export type FirmWinRow = z.infer<typeof FirmWinRow>;
+
 export const FirmRecord = z.object({
   bizNos: z.array(z.string()),
   totalBids: z.number().int(),
@@ -76,8 +85,17 @@ export const FirmRecord = z.object({
   pushedOut: z.number().int(),
   belowFloor: z.number().int(),
   regions: z.array(z.string()),
+  recentWins: z.array(FirmWinRow),
 });
 export type FirmRecord = z.infer<typeof FirmRecord>;
+
+/** 월별 투찰/낙찰 추이 */
+export const FirmTimelinePoint = z.object({
+  ym: z.string(),               // "2025-03"
+  bids: z.number().int(),
+  wins: z.number().int(),
+});
+export type FirmTimelinePoint = z.infer<typeof FirmTimelinePoint>;
 
 /** 조회 쿼리 계약 */
 export const SchoolsQuery = z.object({

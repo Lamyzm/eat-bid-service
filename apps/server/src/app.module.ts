@@ -61,22 +61,61 @@ class MarketController {
 
 @Controller("firms")
 class FirmsController {
+  private parse(csv: string) {
+    return (csv ?? "").split(",").map(s => s.trim().replace(/-/g, "")).filter(Boolean);
+  }
+
   /** 성적표 — 사업자번호 콤마목록(워크스페이스 합산) */
   @Get("record")
   async record(@Query("bizNos") bizNosCsv: string) {
-    const bizNos = (bizNosCsv ?? "").split(",").map(s => s.trim()).filter(Boolean);
-    if (!bizNos.length) return { bizNos: [], totalBids: 0, totalWins: 0, pushedOut: 0, belowFloor: 0, regions: [] };
-    const rows = await db.select().from(firmBids)
-      .where(inArray(firmBids.bizNo, bizNos));
+    const bizNos = this.parse(bizNosCsv);
+    if (!bizNos.length) return { bizNos: [], totalBids: 0, totalWins: 0, pushedOut: 0, belowFloor: 0, regions: [], recentWins: [] };
+    const rows = await db.select().from(firmBids).where(inArray(firmBids.bizNo, bizNos));
     const fs = await db.select().from(firms).where(inArray(firms.bizNo, bizNos));
+    const lost = rows.filter(r => !r.won);
+    // 진 이유: 투찰률 < 하한율 → 하한 미달(무효), 그 외 → 더 낮은 업체에 밀림
+    const belowFloor = lost.filter(r => r.bidRate != null && r.floorRate != null && r.bidRate < r.floorRate).length;
+    const recentWins = rows.filter(r => r.won)
+      .sort((a, b) => (b.openedAt ?? "").localeCompare(a.openedAt ?? ""))
+      .slice(0, 10)
+      .map(r => ({ openedAt: r.openedAt, schoolName: r.schoolName, sigungu: r.sigungu, basePrice: r.basePrice, bidRate: r.bidRate }));
     return {
       bizNos,
       totalBids: rows.length,
-      totalWins: rows.filter(r => r.won).length,
-      pushedOut: 0,   // TODO: 적재 시 하한 대비 분해 반영
-      belowFloor: 0,
+      totalWins: rows.length - lost.length,
+      pushedOut: lost.length - belowFloor,
+      belowFloor,
       regions: [...new Set(fs.flatMap(f => f.regions ?? []))],
+      recentWins,
     };
+  }
+
+  /** 월별 투찰/낙찰 추이 */
+  @Get("timeline")
+  async timeline(@Query("bizNos") bizNosCsv: string) {
+    const bizNos = this.parse(bizNosCsv);
+    if (!bizNos.length) return [];
+    const rows = await db.select({ openedAt: firmBids.openedAt, won: firmBids.won })
+      .from(firmBids).where(inArray(firmBids.bizNo, bizNos));
+    const byYm = new Map<string, { bids: number; wins: number }>();
+    for (const r of rows) {
+      const ym = (r.openedAt ?? "").slice(0, 7);
+      if (!ym) continue;
+      const e = byYm.get(ym) ?? { bids: 0, wins: 0 };
+      e.bids++; if (r.won) e.wins++;
+      byYm.set(ym, e);
+    }
+    return [...byYm.entries()].sort(([a], [b]) => a.localeCompare(b))
+      .map(([ym, v]) => ({ ym, ...v }));
+  }
+
+  /** 사업자번호 확인(온보딩): 존재 여부 + 이름 */
+  @Get("lookup")
+  async lookup(@Query("bizNo") bizNo: string) {
+    const bz = (bizNo ?? "").replace(/-/g, "").trim();
+    const [f] = await db.select().from(firms).where(eq(firms.bizNo, bz)).limit(1);
+    return f ? { found: true, bizNo: f.bizNo, name: f.name, totalBids: f.totalBids, totalWins: f.totalWins }
+             : { found: false, bizNo: bz };
   }
 }
 

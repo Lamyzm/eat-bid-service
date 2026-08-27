@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "f1ccdc52-d477-4d64-95e0-7bd3c372271e",
+  "id": "4fa1c470-6d27-4835-80a8-d0c25457d530",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -96,6 +96,84 @@
       "generated": null,
       "identity": null,
       "name": "won",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "firm_bids"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "opened_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "firm_bids"
+    },
+    {
+      "type": "double precision",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "floor_rate",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "firm_bids"
+    },
+    {
+      "type": "double precision",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "win_rate",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "firm_bids"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_price",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "firm_bids"
+    },
+    {
+      "type": "varchar(40)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sigungu",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "firm_bids"
+    },
+    {
+      "type": "varchar(160)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "school_name",
       "entityType": "columns",
       "schema": "public",
       "table": "firm_bids"

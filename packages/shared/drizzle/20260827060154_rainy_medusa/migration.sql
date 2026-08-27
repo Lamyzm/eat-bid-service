@@ -3,6 +3,12 @@ CREATE TABLE "firm_bids" (
 	"biz_no" varchar(16),
 	"bid_rate" double precision,
 	"won" integer DEFAULT 0 NOT NULL,
+	"opened_at" date,
+	"floor_rate" double precision,
+	"win_rate" double precision,
+	"base_price" bigint,
+	"sigungu" varchar(40),
+	"school_name" varchar(160),
 	CONSTRAINT "firm_bids_pkey" PRIMARY KEY("bid_id","biz_no")
 );
 --> statement-breakpoint

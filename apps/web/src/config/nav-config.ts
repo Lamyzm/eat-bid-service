@@ -38,11 +38,35 @@ export const navGroups: NavGroup[] = [
     label: '입찰 인텔리전스',
     items: [
       {
+        title: '현재 공고',
+        url: '/dashboard/open',
+        icon: 'page',
+        isActive: false,
+        shortcut: ['o', 'o'],
+        items: []
+      },
+      {
+        title: '내 성적표',
+        url: '/dashboard/record',
+        icon: 'checks',
+        isActive: false,
+        shortcut: ['r', 'r'],
+        items: []
+      },
+      {
         title: '시장 지도',
         url: '/dashboard/market',
         icon: 'dashboard',
         isActive: false,
         shortcut: ['m', 'm'],
+        items: []
+      },
+      {
+        title: '내 사업자',
+        url: '/dashboard/my',
+        icon: 'settings',
+        isActive: false,
+        shortcut: ['b', 'b'],
         items: []
       }
     ]
