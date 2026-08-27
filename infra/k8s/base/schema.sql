@@ -123,3 +123,7 @@ CREATE TABLE IF NOT EXISTS "events" (
 	"meta" jsonb
 );
 CREATE INDEX IF NOT EXISTS idx_events_screen_ts ON "events" (screen, ts);
+
+-- 라이브 마이그레이션 병기 (qa 사고 교훈: 컬럼 추가는 CREATE와 함께 ALTER도)
+ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "dlvry_start" date;
+ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "dlvry_end" date;

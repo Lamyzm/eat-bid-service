@@ -201,7 +201,7 @@ class WinsController {
     const canon = new Set((await db.selectDistinct({ s: schools.sigungu }).from(schools))
       .map(r => r.s).filter(Boolean));
     return rows
-      .filter(r => r.sgg && SGG_RE.test(r.sgg) && canon.has(r.sgg))
+      .filter(r => r.sgg && SGG_RE.test(r.sgg) && canon.has(r.sgg) && Number(r.n) >= 20)
       .map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
   }
 
