@@ -6,7 +6,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
-import { useTrack, trackAction } from '@/lib/track';
+import { useTrack, getSid } from '@/lib/track';
+import { toast } from 'sonner';
 import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -93,17 +94,18 @@ export default function RecordPage() {
           ))}
           <Button size='sm' variant='outline' onClick={async () => {
             try {
+              // 계약: {bizNo(10자리 단일), session} — 합산이 아닌 대표 사업자 1개 발급
               const res = await fetch('/api/share', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bizNos }),
+                body: JSON.stringify({ bizNo: biz ?? bizNos[0], session: getSid() }),
               });
-              if (!res.ok) throw new Error();
-              const { token } = await res.json();
-              await navigator.clipboard?.writeText(`${location.origin}/s/${token}`);
-              trackAction('share_create');
-              alert('조회 요약 링크가 복사됐습니다.');
+              const d = await res.json();
+              if (d?.ok !== true || !d.token) throw new Error(d?.error);
+              await navigator.clipboard?.writeText(`${location.origin}/s/${d.token}`);
+              // share_create 이벤트는 서버(ShareController.create)가 기록 — 클라 중복 집계 금지
+              toast.success('조회 요약 링크가 복사됐습니다.');
             } catch {
-              alert('공유 준비 중입니다.');
+              toast.error('공유 링크를 만들지 못했습니다. 잠시 후 다시 시도하세요.');
             }
           }}>조회 요약 공유</Button>
           <Button size='sm' variant='outline' onClick={() => {

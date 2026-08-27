@@ -57,6 +57,9 @@ export function track(screen: string, meta?: object) {
   } catch {}
 }
 
+/** 익명 세션 키 조회 (share 발급 등 계약상 session이 필요한 곳) */
+export function getSid(): string { return sid(); }
+
 /** 액션 이벤트 — meta 없이 액션명만 (값·공고번호 저장 금지 규칙) */
 export function trackAction(name: 'basket_add' | 'basket_save' | 'share_create') {
   try {
