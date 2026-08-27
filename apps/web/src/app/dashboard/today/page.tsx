@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
 import { useMarks } from '@/lib/marks';
-import { useTrack } from '@/lib/track';
+import { useTrack, trackAction } from '@/lib/track';
 import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -167,7 +167,7 @@ export default function TodayPage() {
                       {m.rate != null && o.basePrice && <span className='text-muted-foreground w-24 text-right'>{won(o.basePrice * m.rate / 100)}원</span>}
                       <Button size='sm' variant={m.s === 'done' ? 'secondary' : 'default'} className='h-7'
                         disabled={m.rate == null || (o.floorRate != null && m.rate < o.floorRate)}
-                        onClick={() => set(o.bidNo, { s: m.s === 'done' ? 'watch' : 'done', rate: m.rate })}>
+                        onClick={() => { if (m.s !== 'done') trackAction('basket_save'); set(o.bidNo, { s: m.s === 'done' ? 'watch' : 'done', rate: m.rate }); }}>
                         {m.s === 'done' ? '✓ 투찰함' : '투찰함'}
                       </Button>
                       <button className='text-muted-foreground px-1 hover:text-destructive' title='바구니에서 빼기'
@@ -222,7 +222,7 @@ export default function TodayPage() {
                       {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
                       <div className='mt-1 flex justify-end gap-2 text-xs'>
                         <button className={marks[o.bidNo] ? 'text-muted-foreground' : 'text-primary font-semibold hover:underline'}
-                          onClick={e => { e.preventDefault(); e.stopPropagation(); set(o.bidNo, marks[o.bidNo] ? null : { s: 'watch' }); }}>
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); if (!marks[o.bidNo]) trackAction('basket_add'); set(o.bidNo, marks[o.bidNo] ? null : { s: 'watch' }); }}>
                           {marks[o.bidNo] ? '바구니에서 빼기' : '+ 바구니'}
                         </button>
                         {o.schoolId && (

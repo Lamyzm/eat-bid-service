@@ -57,6 +57,14 @@ export function track(screen: string, meta?: object) {
   } catch {}
 }
 
+/** 액션 이벤트 — meta 없이 액션명만 (값·공고번호 저장 금지 규칙) */
+export function trackAction(name: 'basket_add' | 'basket_save' | 'share_create') {
+  try {
+    queue.push({ session: sid(), screen: name });
+    if (!timer) timer = setTimeout(() => { timer = null; flush(); }, 5000);
+  } catch {}
+}
+
 /** 화면 진입 1회 기록 */
 export function useTrack(screen: string) {
   useEffect(() => { track(screen); }, [screen]);

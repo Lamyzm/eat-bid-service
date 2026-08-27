@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
-import { useTrack } from '@/lib/track';
+import { useTrack, trackAction } from '@/lib/track';
 import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -91,6 +91,21 @@ export default function RecordPage() {
           {[6, 12, 24, 60].map(m => (
             <Button key={m} size='sm' variant={months === m ? 'default' : 'outline'} onClick={() => setMonths(m)}>{m}개월</Button>
           ))}
+          <Button size='sm' variant='outline' onClick={async () => {
+            try {
+              const res = await fetch('/api/share', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bizNos }),
+              });
+              if (!res.ok) throw new Error();
+              const { token } = await res.json();
+              await navigator.clipboard?.writeText(`${location.origin}/s/${token}`);
+              trackAction('share_create');
+              alert('조회 요약 링크가 복사됐습니다.');
+            } catch {
+              alert('공유 준비 중입니다.');
+            }
+          }}>조회 요약 공유</Button>
           <Button size='sm' variant='outline' onClick={() => {
             const head = '개찰일,학교,시군구,품목,기초금액,하한,낙찰가,2등가,내값,결과';
             const lines = view.map(r => {
