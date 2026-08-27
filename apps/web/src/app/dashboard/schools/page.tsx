@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { SchoolSummary, FloorStat } from '@eatbid/shared';
+import { useRegion } from '@/lib/region';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ export default function SchoolsPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [fieldMax, setFieldMax] = useState<number | null>(null); // 보통 참여 N곳 이하
   const [sort, setSort] = useState<SortKey>('n');
+  const { viewRegions, isBrowsing, view } = useRegion();
 
   useEffect(() => {
     fetch('/api/schools?limit=300').then(r => r.json()).then(x => setRows(Array.isArray(x) ? x : []));
@@ -44,12 +46,13 @@ export default function SchoolsPage() {
 
   const filtered = useMemo(() => rows
     .filter(s => (!q || s.name.includes(q)) &&
+      (viewRegions == null || viewRegions.includes(s.sigungu ?? '')) &&
       (cat == null || s.category === cat) &&
       (fieldMax == null || (s.medField ?? 999) <= fieldMax))
     .sort((a, b) => sort === 'n' ? b.nAuctions - a.nAuctions
       : sort === 'field' ? (a.medField ?? 999) - (b.medField ?? 999)
       : (b.medBase ?? 0) - (a.medBase ?? 0)),
-    [rows, q, cat, fieldMax, sort]);
+    [rows, q, cat, fieldMax, sort, viewRegions]);
 
   const csv = () => {
     const head = '학교,시군구,품목,공고수,보통참여,잘나온구간,기초금액중앙값';
@@ -72,7 +75,10 @@ export default function SchoolsPage() {
           <h1 className='text-2xl font-semibold'>학교 찾기</h1>
           <p className='text-muted-foreground text-sm tabular-nums'>{filtered.length}개 학교 · 행 클릭 = 분석판</p>
         </div>
-        <Button size='sm' variant='outline' onClick={csv}>CSV 저장</Button>
+        <div className='flex items-center gap-2'>
+          {isBrowsing && <span className='rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-xs'><b>{view} 구경 중</b></span>}
+          <Button size='sm' variant='outline' onClick={csv}>CSV 저장</Button>
+        </div>
       </div>
 
       {/* 발주 임박 제안 */}

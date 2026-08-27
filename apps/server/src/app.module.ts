@@ -188,7 +188,7 @@ class WinsController {
       n: sql<number>`count(*)`,
     }).from(schoolAuctions).groupBy(sql`split_part(school_id, '|', 1)`)
       .orderBy(desc(sql`count(*)`));
-    return rows.map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
+    return rows.filter(r => r.sgg && r.sgg.trim()).map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
   }
 
   /** 개찰 속보 — 최근 개찰 결과 전량 (낙찰 업체명·1-2등차 포함) */
@@ -199,7 +199,11 @@ class WinsController {
     const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
     const conds = [gte(schoolAuctions.openedAt, cutoff)];
     if (category) conds.push(eq(schoolAuctions.category, category));
-    if (sigungu) conds.push(ilike(schoolAuctions.schoolId, `${sigungu}|%`));
+    if (sigungu) {
+      const sggs = sigungu.split(",").map(x => x.trim()).filter(Boolean);
+      if (sggs.length === 1) conds.push(ilike(schoolAuctions.schoolId, `${sggs[0]}|%`));
+      else if (sggs.length > 1) conds.push(inArray(sql`split_part(school_id, '|', 1)`, sggs));
+    }
     const rows = await db.select().from(schoolAuctions)
       .where(and(...conds)).orderBy(desc(schoolAuctions.openedAt)).limit(400);
     const ids = rows.map(r => r.bidId);
@@ -234,7 +238,9 @@ class WinsController {
       openedAt: schoolAuctions.openedAt, category: schoolAuctions.category,
       winRate: schoolAuctions.winRate, basePrice: schoolAuctions.basePrice,
     }).from(schoolAuctions)
-      .where(sigungu ? ilike(schoolAuctions.schoolId, `${sigungu}|%`) : undefined);
+      .where(sigungu
+        ? inArray(sql`split_part(school_id, '|', 1)`, sigungu.split(",").map(x => x.trim()).filter(Boolean))
+        : undefined);
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
     const co = cutoff.toISOString().slice(0, 7);
     const cell = new Map<string, { n: number; wins: number[]; sumBase: number }>();

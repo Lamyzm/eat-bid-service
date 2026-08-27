@@ -17,7 +17,7 @@ type Rec = { totalBids: number; totalWins: number; pushedOut: number; belowFloor
 export default function WelcomePage() {
   const router = useRouter();
   const { bizNos, add } = useWorkspace();
-  const { home, setHome } = useRegion();
+  const { homes, toggleHome } = useRegion();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -123,11 +123,11 @@ export default function WelcomePage() {
               </div>
               {regionCands.length > 0 && (
                 <div className='space-y-1.5'>
-                  <div className='text-sm font-medium'>내 자격 지역 <span className='text-muted-foreground font-normal'>(참여 이력 기준 제안 — 사무소 소재지로 고르세요)</span></div>
+                  <div className='text-sm font-medium'>내 자격 지역 <span className='text-muted-foreground font-normal'>(참여 이력 기준 제안 — 사무소 소재지들을 고르세요, 복수 선택)</span></div>
                   <div className='flex flex-wrap justify-center gap-1.5'>
                     {regionCands.map(rg => (
-                      <Button key={rg} size='sm' variant={home === rg ? 'default' : 'outline'}
-                        onClick={() => setHome(rg)}>{rg}</Button>
+                      <Button key={rg} size='sm' variant={homes.includes(rg) ? 'default' : 'outline'}
+                        onClick={() => toggleHome(rg)}>{rg}</Button>
                     ))}
                   </div>
                 </div>
