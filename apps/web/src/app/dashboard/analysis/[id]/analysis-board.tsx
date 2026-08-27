@@ -329,7 +329,17 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
     };
     chart.subscribeCrosshairMove(onMove);
     chart.subscribeClick(onClick);
+    // 자동 검증용 (qa) — 크로스헤어를 프로그램으로 이동해 호버-리플레이 경로 테스트. 프로덕션 무해.
+    (window as any).__eatbidChart = {
+      hover: (i: number) => {
+        const x = view[i];
+        if (x?.winRate != null) chart.setCrosshairPosition(x.winRate, x.t, win);
+      },
+      clear: () => (chart as any).clearCrosshairPosition?.(),
+      n: view.length,
+    };
     return () => {
+      delete (window as any).__eatbidChart;
       chart.remove(); chartRef.current = null;
       if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
     };
