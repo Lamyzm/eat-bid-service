@@ -65,6 +65,8 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
+            # 공유 토큰 서명 키 — placeholder: 리더가 실값 주입 (k8s Secret 권장)
+            - { name: EATBID_SHARE_SECRET, value: "CHANGE-ME-share-secret" }
           ports: [{ containerPort: 4400 }]
           readinessProbe:
             httpGet: { path: /api/healthz, port: 4400 }

@@ -3,6 +3,7 @@ import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 import { eq, ilike, and, desc, inArray, sql, gte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { createHmac, timingSafeEqual } from "crypto";
 import {
   SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster, events,
 } from "@eatbid/shared";
@@ -197,11 +198,11 @@ class WinsController {
       n: sql<number>`count(*)`,
     }).from(schoolAuctions).groupBy(sql`split_part(school_id, '|', 1)`)
       .orderBy(desc(sql`count(*)`));
-    // 정규 시군구만: 형식(한글 1~6자 + 시/군/구) AND schools.sigungu 실존
-    const canon = new Set((await db.selectDistinct({ s: schools.sigungu }).from(schools))
-      .map(r => r.s).filter(Boolean));
+    // 정규 시군구만: 형식(한글 1~6자 + 시/군/구) + 표본 n>=20.
+    // schools 실존 조건은 걸지 않는다 — 학교별 5회 문턱에 못 미치는 소규모
+    // 지역(밀양시 21회·의령군 52회)도 자기 지역을 골라볼 수 있어야 한다.
     return rows
-      .filter(r => r.sgg && SGG_RE.test(r.sgg) && canon.has(r.sgg) && Number(r.n) >= 20)
+      .filter(r => r.sgg && SGG_RE.test(r.sgg) && Number(r.n) >= 20)
       .map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
   }
 
@@ -233,7 +234,7 @@ class WinsController {
   @Get("recent")
   async recent(@Query("days") daysStr?: string, @Query("category") category?: string,
     @Query("sigungu") sigungu?: string, @Query("limit") limitStr?: string,
-    @Query("withTotal") withTotal?: string) {
+    @Query("withTotal") withTotal?: string, @Query("bizNos") bizNosCsv?: string) {
     const days = Math.min(Number(daysStr) || 30, 180);
     const limit = Math.min(Number(limitStr) || 400, 1000);
     const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
@@ -254,6 +255,12 @@ class WinsController {
       secondRate: sql<number | null>`min(bid_rate) filter (where win_rate is not null and bid_rate > win_rate)`,
     }).from(firmBids).where(inArray(firmBids.bidId, ids)).groupBy(firmBids.bidId) : [];
     const byId = new Map(agg.map(a => [a.bidId, a]));
+    // mine 플래그 — 그 회차에 해당 사업자의 투찰 존재 여부만 (값 비노출)
+    const myBizNos = (bizNosCsv ?? "").split(",").map(x => x.trim().replace(/-/g, "")).filter(Boolean);
+    const mineSet = myBizNos.length && ids.length
+      ? new Set((await db.select({ bidId: firmBids.bidId }).from(firmBids)
+          .where(and(inArray(firmBids.bidId, ids), inArray(firmBids.bizNo, myBizNos)))).map(x => x.bidId))
+      : null;
     const bizs = [...new Set(rows.map(r => r.winnerBizNo).filter(Boolean))] as string[];
     const names = bizs.length ? await db.select({ bizNo: firms.bizNo, name: firms.name })
       .from(firms).where(inArray(firms.bizNo, bizs)) : [];
@@ -268,6 +275,7 @@ class WinsController {
         nValid: r.nValid, nBids: g ? Number(g.nBids) : null,
         gap12: g?.secondRate != null && r.winRate != null ? +(g.secondRate - r.winRate).toFixed(3) : null,
         dlvryStart: r.dlvryStart ?? null, dlvryEnd: r.dlvryEnd ?? null,
+        mine: mineSet ? mineSet.has(r.bidId) : undefined,
       };
     });
     return total != null ? { rows: out, total } : out;
@@ -565,6 +573,78 @@ class RoundsController {
   }
 }
 
+/**
+ * 성적 공유 토큰 — HMAC-SHA256 서명, 30일 만료.
+ * 각주(critic 조건): base64url 인코딩은 은닉이 아니다 — 토큰을 디코드하면
+ * bizNo가 그대로 보인다. 서명은 위조 방지일 뿐이며, 노출 범위 제한은
+ * GET 응답을 요약(합계+최근 낙찰 5건)으로 한정하는 것으로 달성한다.
+ */
+@Controller("share")
+class ShareController {
+  private secret() { return process.env.EATBID_SHARE_SECRET || "dev-insecure-secret"; }
+  private b64u(b: Buffer) { return b.toString("base64url"); }
+  private sign(payload: string) {
+    return createHmac("sha256", this.secret()).update(payload).digest();
+  }
+  /** 세션당 시간당 10개 발급 제한 (메모리) */
+  private quota = new Map<string, { h: number; c: number }>();
+
+  @Post()
+  async create(@Body() body: unknown) {
+    const Req = z.object({
+      bizNo: z.string().regex(/^\d{10}$/),
+      session: z.string().min(1).max(64),
+    });
+    const p = Req.safeParse(body);
+    if (!p.success) return { ok: false, error: "bad_request" };
+    const hour = Math.floor(Date.now() / 3600_000);
+    const q = this.quota.get(p.data.session);
+    if (q && q.h === hour && q.c >= 10) return { ok: false, error: "rate_limited" };
+    this.quota.set(p.data.session, { h: hour, c: q && q.h === hour ? q.c + 1 : 1 });
+    const exp = Math.floor(Date.now() / 1000) + 30 * 86400;
+    const payload = `${p.data.bizNo}.${exp}`;
+    const token = `${this.b64u(Buffer.from(payload))}.${this.b64u(this.sign(payload))}`;
+    await db.insert(events).values([{ session: p.data.session, screen: "share_create", meta: null }]);
+    return { ok: true, token, exp };
+  }
+
+  @Get(":token")
+  async view(@Param("token") token: string) {
+    const parts = (token ?? "").split(".");
+    if (parts.length !== 2) return { ok: false, error: "bad_token" };
+    let payload: string;
+    let sig: Buffer;
+    try {
+      payload = Buffer.from(parts[0], "base64url").toString();
+      sig = Buffer.from(parts[1], "base64url");
+    } catch { return { ok: false, error: "bad_token" }; }
+    const expect = this.sign(payload);
+    if (sig.length !== expect.length || !timingSafeEqual(sig, expect))
+      return { ok: false, error: "bad_signature" };
+    const [bizNo, expStr] = payload.split(".");
+    if (!/^\d{10}$/.test(bizNo ?? "") || Number(expStr) < Date.now() / 1000)
+      return { ok: false, error: "expired" };
+    const [f] = await db.select().from(firms).where(eq(firms.bizNo, bizNo)).limit(1);
+    const rows = await db.select({
+      won: firmBids.won, bidRate: firmBids.bidRate, winRate: firmBids.winRate,
+      openedAt: firmBids.openedAt, schoolName: firmBids.schoolName,
+      sigungu: firmBids.sigungu, basePrice: firmBids.basePrice,
+    }).from(firmBids).where(eq(firmBids.bizNo, bizNo));
+    const lost = rows.filter(r => !r.won);
+    const below = lost.filter(r => r.bidRate != null && r.winRate != null && r.bidRate < r.winRate).length;
+    const recentWins = rows.filter(r => r.won)
+      .sort((a, b) => (b.openedAt ?? "").localeCompare(a.openedAt ?? "")).slice(0, 5)
+      .map(r => ({ openedAt: r.openedAt, schoolName: r.schoolName, sigungu: r.sigungu,
+        basePrice: r.basePrice, bidRate: r.bidRate }));
+    return {
+      ok: true, name: f?.name ?? null,
+      totals: { part: rows.length, wins: rows.length - lost.length,
+        pushed: lost.length - below, below },
+      recentWins,
+    };
+  }
+}
+
 @Controller("events")
 class EventsController {
   /** 화면 열람 배치 수신 — 게이트 측정. 개인정보 없음(익명 세션 키만) */
@@ -607,6 +687,6 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, EventsController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
+  controllers: [HealthController, ShareController, EventsController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
 })
 export class AppModule {}

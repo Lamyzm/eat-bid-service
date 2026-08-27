@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useRegion } from '@/lib/region';
+import { useWorkspace } from '@/lib/workspace';
 import { useTrack } from '@/lib/track';
 import { won, eok, CATS } from '@/lib/format';
 import Link from 'next/link';
@@ -29,6 +30,16 @@ export default function WinsPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [rows, setRows] = useState<Win[]>([]);
   const [total, setTotal] = useState<number | null>(null);
+  const { bizNos } = useWorkspace();
+  const [myBidIds, setMyBidIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (bizNos.length === 0) return;
+    fetch(`/api/firms/bids?bizNos=${bizNos.join(',')}&limit=2000`).then(r => r.json())
+      .then(d => {
+        const xs = Array.isArray(d) ? d : (d.rows ?? []);
+        setMyBidIds(new Set(xs.map((x: any) => x.bidId)));
+      }).catch(() => {});
+  }, [bizNos]);
   const [monthly, setMonthly] = useState<MonthCell[]>([]);
   const { viewRegions, isBrowsing, view, ready } = useRegion();
   const regionKey = viewRegions?.join(',') ?? '';
@@ -71,6 +82,7 @@ export default function WinsPage() {
           <p className='text-muted-foreground text-sm tabular-nums'>
             최근 {days}일 개찰 {total != null && total > rows.length ? `전체 ${total.toLocaleString()}건 중 ${rows.length}건 표시` : `${rows.length}건`} · 기초금액 합계 {eok(totalBase)}원
             {gapMed != null && <> · 1–2등 차이 중앙값 <b className='text-foreground'>{gapMed.toFixed(3)}</b></>}
+            {total != null && total > rows.length && <span className='text-muted-foreground'> (합계·중앙값은 표시 {rows.length}건 기준)</span>}
           </p>
         </div>
         {isBrowsing && (
@@ -153,6 +165,7 @@ export default function WinsPage() {
                   <TableHead>낙찰 업체</TableHead>
                   <TableHead className='text-right'>참여</TableHead>
                   <TableHead className='text-right'>1–2등 차</TableHead>
+                  {bizNos.length > 0 && <TableHead className='text-center'>내 참여</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -176,6 +189,11 @@ export default function WinsPage() {
                         <span className={r.gap12 <= 0.01 ? 'text-destructive font-semibold' : ''}>{r.gap12.toFixed(3)}</span>
                       ) : '-'}
                     </TableCell>
+                    {bizNos.length > 0 && (
+                      <TableCell className='text-center'>
+                        {myBidIds.has(r.bidId) && <span className='text-primary'>●</span>}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
                 {rows.length === 0 && (

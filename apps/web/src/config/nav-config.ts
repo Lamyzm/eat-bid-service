@@ -53,6 +53,7 @@ export const navGroups: NavGroup[] = [
     label: '나',
     items: [
       { title: '내 성적', url: '/dashboard/record', icon: 'checks', isActive: false, shortcut: ['r', 'r'], items: [] },
+      { title: '납품', url: '/dashboard/delivery', icon: 'calendar', isActive: false, shortcut: ['d', 'd'], items: [] },
       { title: '내 사업자', url: '/dashboard/my', icon: 'settings', isActive: false, shortcut: ['b', 'b'], items: [] }
     ]
   }
