@@ -44,6 +44,7 @@
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "kbar": "^0.1.0-beta.48",
+    "leaflet": "^1.9.4",
     "lightweight-charts": "^5.2.1",
     "match-sorter": "^8.2.0",
     "motion": "^11.18.2",
@@ -56,6 +57,7 @@
     "react-day-picker": "^10.0.1",
     "react-dom": "19.2.4",
     "react-dropzone": "^14.4.1",
+    "react-leaflet": "^5.0.0",
     "react-resizable-panels": "^4.12.2",
     "react-responsive": "^10.0.1",
     "recharts": "3.8.0",
@@ -73,6 +75,7 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^9.9.0",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "22.10.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
