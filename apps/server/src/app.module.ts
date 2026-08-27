@@ -192,6 +192,30 @@ class WinsController {
     return rows.filter(r => r.sgg && r.sgg.trim()).map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
   }
 
+  /** 몰림 지도 — 최근 N일 전 지역 투찰값 분포 (0.01 단위). 동가 위험·빈 자리의 사실 */
+  private crowdCache = new Map<string, { at: number; data: any }>();
+  @Get("crowd")
+  async crowd(@Query("days") daysStr?: string, @Query("floor") floorStr?: string) {
+    const days = Math.min(Number(daysStr) || 14, 60);
+    const floor = Number(floorStr) || 90;
+    const key = `${days}|${floor}`;
+    const hit = this.crowdCache.get(key);
+    if (hit && Date.now() - hit.at < 600_000) return hit.data;
+    const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+    const rows = await db.select({
+      v: sql<number>`round(bid_rate::numeric, 2)`,
+      n: sql<number>`count(*)`,
+    }).from(firmBids)
+      .where(and(gte(firmBids.openedAt, cutoff), eq(firmBids.floorRate, floor),
+        sql`bid_rate >= ${floor} and bid_rate < ${floor + 1.5}`))
+      .groupBy(sql`round(bid_rate::numeric, 2)`)
+      .orderBy(sql`round(bid_rate::numeric, 2)`);
+    const total = rows.reduce((s, r) => s + Number(r.n), 0);
+    const data = { days, floor, total, bins: rows.map(r => ({ v: Number(r.v), n: Number(r.n) })) };
+    this.crowdCache.set(key, data && { at: Date.now(), data });
+    return data;
+  }
+
   /** 개찰 속보 — 최근 개찰 결과 전량 (낙찰 업체명·1-2등차 포함) */
   @Get("recent")
   async recent(@Query("days") daysStr?: string, @Query("category") category?: string,

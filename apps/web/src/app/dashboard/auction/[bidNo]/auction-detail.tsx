@@ -38,6 +38,21 @@ export function AuctionDetail({ open, auctions, roster }: {
     return [...m.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
   }, [points]);
 
+  // 몰림 지도 — 최근 14일 전 지역 투찰값 분포 (동가 위험)
+  const [crowd, setCrowd] = useState<{ days: number; total: number; bins: { v: number; n: number }[] } | null>(null);
+  useEffect(() => {
+    fetch(`/api/wins/crowd?days=14&floor=${floor}`).then(r => r.json()).then(setCrowd).catch(() => {});
+  }, [floor]);
+  // 이번 판 신호 — 같은 마감일 공고 수 (경쟁 분산)
+  const [openAll, setOpenAll] = useState<any[]>([]);
+  useEffect(() => { fetch('/api/open').then(r => r.json()).then(x => setOpenAll(Array.isArray(x) ? x : [])); }, []);
+  const sameDeadline = useMemo(() => {
+    if (!open.deadline) return null;
+    const d = String(open.deadline).slice(0, 10);
+    return openAll.filter(o => o.deadline && String(o.deadline).slice(0, 10) === d).length;
+  }, [openAll, open.deadline]);
+  const recent3N = useMemo(() => auctions.filter(a => a.winRate != null).slice(-3).map(a => a.nValid), [auctions]);
+
   // 회차 경계 (리허설 미니 — 예정가 기반 확정 판정)
   const [rounds, setRounds] = useState<{ winRate: number | null; floorRate: number | null; effFloor: number | null; maxInvalid: number | null }[]>([]);
   useEffect(() => {
@@ -119,6 +134,17 @@ export function AuctionDetail({ open, auctions, roster }: {
         </div>
       </div>
 
+      {/* 1.5 이번 판 신호 */}
+      <Card>
+        <CardContent className='flex flex-wrap gap-x-6 gap-y-1 py-3 text-[15px] tabular-nums'>
+          <span>이 학교 최근 참여 <b>{recent3N.join('곳 → ') || '-'}곳</b></span>
+          {sameDeadline != null && sameDeadline > 1 && (
+            <span>같은 날 마감 공고 <b>{sameDeadline}건</b> <span className='text-muted-foreground'>— 경쟁이 분산되는 날</span></span>
+          )}
+          {open.usualN != null && <span>보통 <b>{open.usualN}곳</b> 참여</span>}
+        </CardContent>
+      </Card>
+
       {/* 2. 이 학교의 과거 */}
       <Card>
         <CardHeader className='pb-2'>
@@ -186,6 +212,51 @@ export function AuctionDetail({ open, auctions, roster }: {
           <CardContent className='text-muted-foreground py-4 text-sm'>
             사업자번호를 등록하면 이 학교에서의 내 기록이 표시됩니다.{' '}
             <Link href='/dashboard/my' className='text-primary hover:underline'>사업자 등록</Link>.
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 4.5 몰림 지도 — 남들이 요즘 어디에 서나 */}
+      {crowd && crowd.total > 0 && (
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-base'>요즘 다들 어디에 쓰나</CardTitle>
+            <CardDescription>
+              최근 {crowd.days}일 · 하한 {floor} 공고 전체 · <b className='text-foreground'>{crowd.total.toLocaleString()}건</b> 투찰의 자리.
+              같은 값이 겹치면 추첨입니다 — 몰린 자리와 빈 자리를 보세요.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const lo = floor, hi = floor + 0.5;
+              const bins = crowd.bins.filter(b => b.v >= lo && b.v <= hi);
+              const maxN = Math.max(1, ...bins.map(b => b.n));
+              const myBin = liveRate != null ? Math.round(liveRate * 100) / 100 : null;
+              const myN = myBin != null ? (crowd.bins.find(b => Math.abs(b.v - myBin) < 1e-9)?.n ?? 0) : null;
+              return (<>
+                <div className='flex items-end gap-px' style={{ height: 110, overflowX: 'auto' }}>
+                  {bins.map(b => {
+                    const isMine = myBin != null && Math.abs(b.v - myBin) < 1e-9;
+                    return (
+                      <div key={b.v} className='group relative flex flex-col items-center' style={{ minWidth: 13, flex: 1 }}
+                        title={`${b.v.toFixed(2)} · ${b.n.toLocaleString()}건`}>
+                        <div className='w-full rounded-t'
+                          style={{ height: `${Math.max(2, b.n / maxN * 86)}px`,
+                            background: isMine ? '#2962ff' : 'var(--primary)', opacity: isMine ? 1 : 0.55 }} />
+                        {(b.v * 100) % 10 === 0 && <div className='text-muted-foreground mt-0.5 text-[10px] tabular-nums'>{b.v.toFixed(1)}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+                {myBin != null && myN != null && (
+                  <p className='mt-2 text-[15px] tabular-nums'>
+                    내 값 <b className='font-mono'>{myBin.toFixed(2)}</b> 자리에는 최근 {crowd.days}일 동안{' '}
+                    <b className={myN > crowd.total / bins.length ? 'text-destructive' : 'text-primary'}>{myN.toLocaleString()}건</b>이 섰습니다.
+                    {myN === 0 && ' — 빈 자리입니다.'}
+                  </p>
+                )}
+              </>);
+            })()}
           </CardContent>
         </Card>
       )}
