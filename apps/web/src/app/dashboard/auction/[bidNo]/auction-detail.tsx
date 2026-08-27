@@ -31,7 +31,13 @@ export function AuctionDetail({ open, auctions, roster }: {
   const sameFloor = auctions.filter(a => a.winRate != null && a.floorRate === floor);
   const points = sameFloor.map(a => ({ winRate: a.winRate!, openedAt: a.openedAt }));
   const flow5 = points.slice(-5).map(p => p.winRate.toFixed(2)).join(' → ');
-  const band = open.band as { dense?: { lo: number; hi: number; pct: number }; recur?: [number, number][]; n?: number } | null;
+  const band = open.band as { dense?: { lo: number; hi: number; pct: number }; n?: number } | null;
+  // 자주 걸린 값 — 스트립과 동일 소스에서 계산 (0.01 반올림)
+  const recur = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const p of points) { const k = Math.round(p.winRate * 100) / 100; m.set(k, (m.get(k) ?? 0) + 1); }
+    return [...m.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
+  }, [points]);
 
   // 내 전적 (이 학교)
   const [my, setMy] = useState<MyBid[]>([]);
@@ -110,10 +116,10 @@ export function AuctionDetail({ open, auctions, roster }: {
           )}
         </CardHeader>
         <CardContent className='space-y-3'>
-          {band?.recur && band.recur.filter(([, c]) => c >= 2).length > 0 && (
+          {recur.length > 0 && (
             <div className='flex flex-wrap items-center gap-1.5 text-sm'>
               <span className='text-muted-foreground'>자주 걸린 값:</span>
-              {band.recur.filter(([, c]) => c >= 2).map(([v, c]) => (
+              {recur.map(([v, c]) => (
                 <Badge key={v} variant='secondary' className='font-mono tabular-nums'>{v.toFixed(2)} ×{c}</Badge>
               ))}
             </div>

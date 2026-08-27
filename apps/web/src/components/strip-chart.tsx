@@ -44,16 +44,24 @@ export function StripChart({
         <line x1={L} y1={28 + TRACK} x2={W - R} y2={28 + TRACK} stroke='var(--border)' />
         {/* 하한 기준선 */}
         <line x1={X(floor)} y1={16} x2={X(floor)} y2={28 + TRACK} stroke='var(--destructive)' strokeWidth={2.5} />
-        <text x={X(floor)} y={12} textAnchor='middle' fontSize={13} fontWeight={700}
+        <text x={X(floor)} y={28 + TRACK + 38} textAnchor='middle' fontSize={13} fontWeight={700}
           fill='var(--destructive)' fontFamily='var(--font-mono, monospace)'>하한 {floor}</text>
         {/* 눈금 */}
-        {Array.from({ length: 7 }, (_, i) => floor + i * 0.05).filter(v => v <= xMax).map(v => (
-          <g key={v}>
-            <line x1={X(v)} y1={28 + TRACK} x2={X(v)} y2={28 + TRACK + 5} stroke='var(--border)' />
-            <text x={X(v)} y={28 + TRACK + 20} textAnchor='middle' fontSize={13}
-              fill='var(--muted-foreground)' fontFamily='var(--font-mono, monospace)'>{v.toFixed(2)}</text>
-          </g>
-        ))}
+        {(() => {
+          const ticks: number[] = [];
+          for (let v = Math.ceil(xMin / 0.05) * 0.05; v <= xMax + 1e-9; v += 0.05) ticks.push(Math.round(v * 100) / 100);
+          const minPx = 52; let lastX = -Infinity;
+          return ticks.map(v => {
+            const x = X(v); const show = x - lastX >= minPx; if (show) lastX = x;
+            return (
+              <g key={v}>
+                <line x1={x} y1={28 + TRACK} x2={x} y2={28 + TRACK + 5} stroke='var(--border)' />
+                {show && <text x={x} y={28 + TRACK + 20} textAnchor='middle' fontSize={13}
+                  fill='var(--muted-foreground)' fontFamily='var(--font-mono, monospace)'>{v.toFixed(2)}</text>}
+              </g>
+            );
+          });
+        })()}
         {/* 승자 점 스택 (최근성 인코딩) */}
         {[...stacks.entries()].map(([k, pts]) => pts.map((p, i) => {
           const recent = recentSet.has(p.openedAt);
