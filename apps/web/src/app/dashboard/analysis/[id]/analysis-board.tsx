@@ -54,6 +54,9 @@ function verdictOf(r: number, x: Round): '밀림' | '낙찰' | '기회' | '무�
 }
 const VCOLOR: Record<string, string> = { 밀림: C.second, 낙찰: C.win, 기회: C.me, 무효: C.invalid };
 
+/** 호버-리플레이 세션 캐시 — 같은 회차 재호버 시 무요청 (D 티켓) */
+const replayCache = new Map<string, Replay>();
+
 /** 범용 히스토그램 — 막대 클릭 배선 */
 function Hist({ values, binSize, fmt, highlight, onBar, marks }: {
   values: number[]; binSize: number; fmt: (v: number) => string;
@@ -230,6 +233,10 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
   // 리플레이
   const [replayId, setReplayId] = useState<string | null>(null);
   const [replay, setReplay] = useState<Replay | null>(null);
+  // 호버 미니 사다리 (흐름 렌즈)
+  const [hoverLadder, setHoverLadder] = useState<{ bidId: string; bids: Replay['bids'] } | null>(null);
+  const hoverIdRef = useRef<string | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!replayId) return;
     fetch(`/api/rounds/${encodeURIComponent(replayId)}`).then(res => res.json()).then(setReplay).catch(() => {});
@@ -296,7 +303,25 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
       })));
     }
     chart.timeScale().fitContent();
-    const onMove = (p: any) => setHover(p?.time ? view.find(v => v.t === p.time) ?? null : null);
+    const onMove = (p: any) => {
+      const x = p?.time ? view.find(v => v.t === p.time) ?? null : null;
+      setHover(x);
+      if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+      if (!x) { hoverIdRef.current = null; setHoverLadder(null); return; }
+      if (hoverIdRef.current === x.bidId) return; // 같은 회차 재호버 — 유지
+      hoverIdRef.current = x.bidId;
+      const cached = replayCache.get(x.bidId);
+      if (cached) { setHoverLadder({ bidId: x.bidId, bids: cached.bids }); return; }
+      setHoverLadder(null);
+      hoverTimerRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/rounds/${encodeURIComponent(x.bidId)}`);
+          const d: Replay = await res.json();
+          replayCache.set(x.bidId, d);
+          if (hoverIdRef.current === x.bidId) setHoverLadder({ bidId: x.bidId, bids: d.bids });
+        } catch {}
+      }, 300);
+    };
     const onClick = (p: any) => {
       if (!p?.time) return;
       const x = view.find(v => v.t === p.time);
@@ -304,7 +329,10 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
     };
     chart.subscribeCrosshairMove(onMove);
     chart.subscribeClick(onClick);
-    return () => { chart.remove(); chartRef.current = null; };
+    return () => {
+      chart.remove(); chartRef.current = null;
+      if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+    };
   }, [lens, view, dense, floor, r, my]);
 
   // 월별 매트릭스 (하한 무관, 학교 전체)
@@ -406,6 +434,19 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
                   {hover.effFloor != null && <span style={{ color: C.invalid }}>실효하한 {hover.effFloor.toFixed(3)}</span>}
                   <span>참여 {hover.nBids ?? hover.nValid}곳</span>
                 </>) : `${view.length}회 · 점 위 = 회차 정보, 클릭 = 리플레이`}
+              </div>
+              <div className='min-h-[20px]'>
+                {hover && hoverLadder?.bidId === hover.bidId && hoverLadder.bids.length > 0 && (
+                  <div className='mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums'>
+                    {hoverLadder.bids.slice(0, 5).map((b, i) => (
+                      <span key={b.bizNo} className='font-mono'
+                        style={{ color: b.won ? C.win : b.status === '하한미달' ? C.invalid : undefined }}>
+                        {i + 1}위 {b.bidRate.toFixed(3)} {b.won ? '낙찰' : b.status}
+                      </span>
+                    ))}
+                    {hoverLadder.bids.length > 5 && <span className='text-muted-foreground'>… 외 {hoverLadder.bids.length - 5}곳 — 클릭=전체</span>}
+                  </div>
+                )}
               </div>
             </>)}
 
