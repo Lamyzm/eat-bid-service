@@ -3,6 +3,7 @@
  * 서버 계약: {ok, name, totals:{part,wins,pushed,below}, recentWins[]} — ok:false도 HTTP 200.
  */
 import Link from 'next/link';
+import { SharePing } from './share-ping';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
 
   return (
     <div className='bg-background flex min-h-screen items-center justify-center p-4'>
+      <SharePing />
       <div className='w-full max-w-lg space-y-5 text-center'>
         <div>
           <div className='text-primary text-sm font-semibold'>학교급식 입찰 인텔리전스</div>

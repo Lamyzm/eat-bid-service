@@ -167,7 +167,7 @@ export default function TodayPage() {
                       {m.rate != null && o.basePrice && <span className='text-muted-foreground w-24 text-right'>{won(o.basePrice * m.rate / 100)}원</span>}
                       <Button size='sm' variant={m.s === 'done' ? 'secondary' : 'default'} className='h-7'
                         disabled={m.rate == null || (o.floorRate != null && m.rate < o.floorRate)}
-                        onClick={() => { if (m.s !== 'done') trackAction('basket_save'); set(o.bidNo, { s: m.s === 'done' ? 'watch' : 'done', rate: m.rate }); }}>
+                        onClick={() => { if (m.s !== 'done') trackAction('mark_done'); set(o.bidNo, { s: m.s === 'done' ? 'watch' : 'done', rate: m.rate }); }}>
                         {m.s === 'done' ? '✓ 투찰함' : '투찰함'}
                       </Button>
                       <button className='text-muted-foreground px-1 hover:text-destructive' title='바구니에서 빼기'

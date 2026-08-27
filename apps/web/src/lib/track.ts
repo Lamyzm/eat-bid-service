@@ -61,10 +61,20 @@ export function track(screen: string, meta?: object) {
 export function getSid(): string { return sid(); }
 
 /** 액션 이벤트 — meta 없이 액션명만 (값·공고번호 저장 금지 규칙) */
-export function trackAction(name: 'basket_add' | 'basket_save' | 'share_create') {
+export function trackAction(name: 'basket_add' | 'mark_done' | 'calc_input') {
   try {
     queue.push({ session: sid(), screen: name });
     if (!timer) timer = setTimeout(() => { timer = null; flush(); }, 5000);
+  } catch {}
+}
+
+/** 세션(브라우저 탭)당 1회만 기록 — calc_input 등 */
+export function trackOnce(name: 'calc_input') {
+  try {
+    const k = `eatbid.evt.${name}`;
+    if (sessionStorage.getItem(k)) return;
+    sessionStorage.setItem(k, '1');
+    trackAction(name);
   } catch {}
 }
 

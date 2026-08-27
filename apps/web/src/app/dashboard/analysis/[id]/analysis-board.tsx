@@ -12,7 +12,7 @@ import {
 } from 'lightweight-charts';
 import { useWorkspace } from '@/lib/workspace';
 import { useMarks } from '@/lib/marks';
-import { useTrack, trackAction } from '@/lib/track';
+import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
 import { CHART as C, myMarker, chartFrame } from '@/lib/chart-colors';
 import { RosterTable, type RosterRow } from '@/components/roster-table';
@@ -677,7 +677,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
               </div>
               <div>
                 <div className='text-muted-foreground mb-1 text-xs'>투찰률 — 차트·표 아무 곳이나 클릭해도 들어옵니다</div>
-                <Input value={rateStr} onChange={e => setRateStr(e.target.value)}
+                <Input value={rateStr} onChange={e => { if (e.target.value.trim()) trackOnce('calc_input'); setRateStr(e.target.value); }}
                   placeholder={floor != null ? `예: ${(floor + 0.05).toFixed(2)}` : ''}
                   className='font-mono text-lg' inputMode='decimal' />
               </div>
@@ -718,7 +718,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
                       <div key={o.bidNo} className='space-y-1'>
                         <Button className='w-full' size='sm' disabled={r == null || (o.floorRate != null && r < o.floorRate)}
                           variant={m?.s === 'done' ? 'secondary' : 'default'}
-                          onClick={() => { if (m?.s !== 'done') trackAction('basket_save'); setMark(o.bidNo, m?.s === 'done' ? null : { s: 'done', rate: r ?? undefined }); }}>
+                          onClick={() => { if (m?.s !== 'done') trackAction('mark_done'); setMark(o.bidNo, m?.s === 'done' ? null : { s: 'done', rate: r ?? undefined }); }}>
                           {m?.s === 'done' ? `✓ ${o.category} 투찰함 (${m.rate ?? ''})` : `${o.category} 공고에 이 값 저장`}
                         </Button>
                         <Link href={`/dashboard/auction/${o.bidNo}`} className='text-primary block text-xs hover:underline'>

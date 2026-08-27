@@ -5,7 +5,7 @@ import { useWorkspace } from '@/lib/workspace';
 import { useMarks } from '@/lib/marks';
 import { StripChart } from '@/components/strip-chart';
 import { type RosterRow } from '@/components/roster-table';
-import { useTrack } from '@/lib/track';
+import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
 import { CHART } from '@/lib/chart-colors';
 import { Badge } from '@/components/ui/badge';
@@ -84,6 +84,7 @@ export function AuctionDetail({ open, auctions, roster }: {
   const liveRate = Number.isFinite(rate) ? rate : null;
   const belowFloor = liveRate != null && liveRate < floor;
   function onRate(v: string) {
+    if (v.trim()) trackOnce('calc_input');
     setRateStr(v);
     const r = parseFloat(v);
     setAmtStr(Number.isFinite(r) && base ? String(Math.round(base * r / 100)) : '');
@@ -322,7 +323,7 @@ export function AuctionDetail({ open, auctions, roster }: {
             </Button>
             <Button variant={mark?.s === 'done' ? 'default' : 'outline'}
               disabled={belowFloor}
-              onClick={() => set(open.bidNo, mark?.s === 'done' ? null : { s: 'done', rate: liveRate ?? undefined })}>
+              onClick={() => { if (mark?.s !== 'done') trackAction('mark_done'); set(open.bidNo, mark?.s === 'done' ? null : { s: 'done', rate: liveRate ?? undefined }); }}>
               {mark?.s === 'done' ? `✓ 투찰함${mark.rate ? ` (${mark.rate})` : ''}` : '투찰 완료 표시'}
             </Button>
           </div>
