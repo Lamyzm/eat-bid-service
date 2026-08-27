@@ -39,6 +39,14 @@ export function AuctionDetail({ open, auctions, roster }: {
     return [...m.entries()].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
   }, [points]);
 
+  // 회차 경계 (리허설 미니 — 예정가 기반 확정 판정)
+  const [rounds, setRounds] = useState<{ winRate: number | null; floorRate: number | null; effFloor: number | null; maxInvalid: number | null }[]>([]);
+  useEffect(() => {
+    if (!open.schoolId) return;
+    fetch(`/api/rounds/school/${encodeURIComponent(open.schoolId)}`)
+      .then(r => r.json()).then(xs => setRounds(Array.isArray(xs) ? xs : [])).catch(() => {});
+  }, [open.schoolId]);
+
   // 내 전적 (이 학교)
   const [my, setMy] = useState<MyBid[]>([]);
   useEffect(() => {
@@ -100,11 +108,14 @@ export function AuctionDetail({ open, auctions, roster }: {
             전국 96,000개 공고 · 630만 건 투찰 데이터 기준
           </div>
           <div className='flex items-center gap-2 text-sm'>
-            <button className='text-primary font-mono hover:underline'
-              onClick={() => { navigator.clipboard?.writeText(open.bidNo); }}
-              title='공고번호 복사'>공고번호 {open.bidNo} ⧉</button>
-            <a href='https://www.eat.co.kr' target='_blank' rel='noreferrer'
-              className='text-muted-foreground hover:underline'>NeaT에서 투찰 ↗</a>
+            <span className='text-muted-foreground font-mono'>공고번호 {open.bidNo}</span>
+            <Button size='sm' variant='outline'
+              onClick={() => {
+                navigator.clipboard?.writeText(open.bidNo);
+                window.open('https://ns.eat.co.kr', '_blank');
+              }}>
+              공고 원문 찾기 ↗ <span className='text-muted-foreground ml-1 text-xs'>번호 자동 복사</span>
+            </Button>
           </div>
         </div>
       </div>
@@ -214,6 +225,30 @@ export function AuctionDetail({ open, auctions, roster }: {
           {belowFloor && (
             <p className='text-destructive font-semibold'>하한({floor}) 미만 · 무효</p>
           )}
+          {liveRate != null && !belowFloor && (() => {
+            const same = rounds.filter(x => x.floorRate === floor && x.winRate != null);
+            if (same.length < 3) return null;
+            let push = 0, win = 0, alive = 0, dead = 0;
+            for (const x of same) {
+              if (liveRate >= x.winRate!) push++;
+              else if (x.effFloor != null) (liveRate < x.effFloor ? dead++ : win++);
+              else if (x.maxInvalid != null && liveRate <= x.maxInvalid) dead++;
+              else alive++;
+            }
+            return (
+              <p className='text-[14px] tabular-nums'>
+                이 값으로 과거 {same.length}회 재생 —{' '}
+                <b className='text-amber-600'>밀림 {push}</b> ·{' '}
+                <b className='text-primary'>낙찰 {win}</b>
+                {alive > 0 && <> · <b style={{ color: '#2962ff' }}>기회 {alive}</b></>} ·{' '}
+                <b className='text-destructive'>무효 {dead}</b>
+                {open.schoolId && (
+                  <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}
+                    className='text-primary ml-2 text-xs hover:underline'>분석판 상세 →</Link>
+                )}
+              </p>
+            );
+          })()}
           <div className='flex flex-wrap gap-2 pt-1'>
             <Button variant={mark?.s === 'watch' ? 'default' : 'outline'}
               onClick={() => set(open.bidNo, mark?.s === 'watch' ? null : { s: 'watch' })}>
