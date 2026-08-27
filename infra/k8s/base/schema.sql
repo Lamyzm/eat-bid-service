@@ -104,3 +104,10 @@ CREATE TABLE "workspace_biz" (
 	"added_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "workspace_biz_pkey" PRIMARY KEY("workspace_id","biz_no")
 );
+
+-- 조회 인덱스 (몰림·성적·뱃지·회차 경계)
+CREATE INDEX IF NOT EXISTS idx_firm_bids_biz ON firm_bids (biz_no);
+CREATE INDEX IF NOT EXISTS idx_firm_bids_floor_opened ON firm_bids (floor_rate, opened_at);
+CREATE INDEX IF NOT EXISTS idx_firm_bids_school ON firm_bids (school_name);
+CREATE INDEX IF NOT EXISTS idx_school_auctions_school ON school_auctions (school_id);
+CREATE INDEX IF NOT EXISTS idx_school_auctions_opened ON school_auctions (opened_at);
