@@ -99,6 +99,13 @@ export function AuctionDetail({ open, auctions, roster }: {
           <div className='text-muted-foreground text-sm'>
             전국 96,000개 공고 · 630만 건 투찰 데이터 기준
           </div>
+          <div className='flex items-center gap-2 text-sm'>
+            <button className='text-primary font-mono hover:underline'
+              onClick={() => { navigator.clipboard?.writeText(open.bidNo); }}
+              title='공고번호 복사'>공고번호 {open.bidNo} ⧉</button>
+            <a href='https://www.eat.co.kr' target='_blank' rel='noreferrer'
+              className='text-muted-foreground hover:underline'>NeaT에서 투찰 ↗</a>
+          </div>
         </div>
       </div>
 

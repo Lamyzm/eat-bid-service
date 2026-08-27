@@ -142,6 +142,18 @@ export default function TodayPage() {
                       {o.recent3.length > 0 && <div>최근 낙찰 <b>{o.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>}
                       {o.band?.dense && <div className='text-muted-foreground'>잘 나온 구간 {o.band.dense.lo.toFixed(2)}~{o.band.dense.hi.toFixed(2)}</div>}
                       {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
+                      <div className='mt-1 flex justify-end gap-2 text-xs'>
+                        {o.schoolId && (
+                          <button className='text-primary hover:underline'
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); window.location.href = `/dashboard/analysis/${encodeURIComponent(o.schoolId)}`; }}>
+                            분석판
+                          </button>
+                        )}
+                        <button className='text-muted-foreground hover:underline'
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); window.open('https://www.eat.co.kr', '_blank'); }}>
+                          NeaT ↗
+                        </button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
