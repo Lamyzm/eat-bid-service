@@ -71,7 +71,7 @@ export default function TodayPage() {
       <div>
         <h1 className='text-2xl font-semibold'>오늘</h1>
         <p className='text-muted-foreground text-sm'>
-          전국 96,000개 공고 · 630만 건 투찰 데이터 기준.
+          공고 9.5만 건(서울·부산·경남, 전국 확장 중) · 630만 건 투찰 데이터 기준.
         </p>
       </div>
 

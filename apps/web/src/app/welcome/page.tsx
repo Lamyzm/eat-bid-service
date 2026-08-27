@@ -50,7 +50,7 @@ export default function WelcomePage() {
           <div className='text-primary text-sm font-semibold'>학교급식 입찰 인텔리전스</div>
           <h1 className='mt-1 text-3xl font-bold'>얼마 쓸지 고민되는 밤,<br />판단 재료는 전부 여기 있습니다</h1>
           <p className='text-muted-foreground mt-2 tabular-nums'>
-            전국 96,000개 공고 · 630만 건 투찰 · 복수예가 144만 개
+            공고 9.5만 건(서울·부산·경남, 전국 확장 중) · 630만 건 투찰 · 복수예가 144만 개
           </p>
         </div>
 
