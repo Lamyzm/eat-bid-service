@@ -2,7 +2,7 @@ import { Module, Controller, Get, Query, Param } from "@nestjs/common";
 import { createZodDto } from "nestjs-zod";
 import { eq, ilike, and, desc, inArray } from "drizzle-orm";
 import {
-  SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms,
+  SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster,
 } from "@eatbid/shared";
 import { db } from "./db";
 
@@ -27,13 +27,15 @@ class SchoolsController {
   @Get("forecast")
   async forecast(@Query("sigungu") sigungu?: string) {
     const rows = await db.select({
-      schoolId: schoolAuctions.schoolId, openedAt: schoolAuctions.openedAt,
+      schoolId: schoolAuctions.schoolId, openedAt: schoolAuctions.openedAt, winRate: schoolAuctions.winRate,
     }).from(schoolAuctions).orderBy(schoolAuctions.schoolId, schoolAuctions.openedAt);
     const bySchool = new Map<string, string[]>();
+    const lastWin = new Map<string, number>();
     for (const r of rows) {
       if (sigungu && !r.schoolId.startsWith(sigungu)) continue;
       const l = bySchool.get(r.schoolId) ?? [];
       l.push(r.openedAt); bySchool.set(r.schoolId, l);
+      if (r.winRate != null) lastWin.set(r.schoolId, r.winRate);
     }
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const out: any[] = [];
@@ -50,7 +52,8 @@ class SchoolsController {
       const dueInDays = Math.round((+expected - +today) / 864e5);
       if (dueInDays < -5 || dueInDays > 14) continue;
       out.push({ schoolId, schoolName: schoolId.split("|")[1], lastOpened: last,
-        medGapDays: medGap, expected: expected.toISOString().slice(0, 10), dueInDays });
+        medGapDays: medGap, expected: expected.toISOString().slice(0, 10), dueInDays,
+        lastWinRate: lastWin.get(schoolId) ?? null });
     }
     return out.sort((a, b) => a.dueInDays - b.dueInDays);
   }
@@ -60,6 +63,24 @@ class SchoolsController {
     return db.select().from(schoolAuctions)
       .where(eq(schoolAuctions.schoolId, id))
       .orderBy(schoolAuctions.openedAt);
+  }
+
+  /** 단골 참여 업체 — 사실 전부. 해석 라벨 없음 */
+  @Get(":id/roster")
+  async roster(@Param("id") id: string) {
+    const rows = await db.select().from(schoolRoster)
+      .where(eq(schoolRoster.schoolId, id))
+      .orderBy(desc(schoolRoster.partN)).limit(30);
+    // 사실 문장 재료: 이 학교 연속 낙찰 최대 횟수
+    const aucs = await db.select({ w: schoolAuctions.winnerBizNo })
+      .from(schoolAuctions).where(eq(schoolAuctions.schoolId, id))
+      .orderBy(schoolAuctions.openedAt);
+    let maxStreak = 0, cur = 0; let prev: string | null = null;
+    for (const a of aucs) {
+      cur = a.w && a.w === prev ? cur + 1 : 1;
+      prev = a.w; if (cur > maxStreak) maxStreak = cur;
+    }
+    return { rows, maxStreak };
   }
 
   /** 이 학교에서 내(워크스페이스) 투찰 이력 */
@@ -79,19 +100,47 @@ class SchoolsController {
 
 @Controller("open")
 class OpenController {
+  /** 공고에 학교 재료를 붙인다: 같은 하한 밴드·최근 낙찰 3개·보통 업체 수 */
+  private async enrich(r: typeof openAuctions.$inferSelect) {
+    const schoolId = r.sigungu && r.schoolName ? `${r.sigungu}|${r.schoolName}` : null;
+    let band: unknown = null, recent3: number[] = [], usualN: number | null = null, nSameFloor = 0;
+    if (schoolId) {
+      const [sc] = await db.select().from(schools).where(eq(schools.id, schoolId)).limit(1);
+      if (sc && r.floorRate != null) {
+        const bf = sc.byFloor as Record<string, any>;
+        band = bf[String(r.floorRate)] ?? bf[r.floorRate.toFixed(1)] ?? null;
+      }
+      const aucs = await db.select().from(schoolAuctions)
+        .where(eq(schoolAuctions.schoolId, schoolId))
+        .orderBy(schoolAuctions.openedAt);
+      const same = aucs.filter(a => r.floorRate == null || a.floorRate === r.floorRate);
+      nSameFloor = same.length;
+      recent3 = same.slice(-3).map(a => a.winRate).filter((x): x is number => x != null);
+      const last10 = aucs.slice(-10).map(a => a.nValid).sort((a, b) => a - b);
+      usualN = last10.length ? last10[Math.floor(last10.length / 2)] : null;
+    }
+    return {
+      ...r, schoolId,
+      anchorAmount: r.basePrice && r.floorRate ? Math.round(r.basePrice * r.floorRate / 100) : null,
+      band, recent3, usualN, nSameFloor,
+    };
+  }
+
   @Get()
   async list(@Query() q: OpenQueryDto) {
     const rows = await db.select().from(openAuctions);
-    return rows
+    const filtered = rows
       .filter(r => !q.region || (r.sigungu ?? "").includes(q.region)
         || (r.allowedRegions ?? []).some(a => a.includes(q.region!)))
-      .filter(r => !q.category || r.category === q.category)
-      .map(r => ({
-        ...r,
-        anchorAmount: r.basePrice && r.floorRate
-          ? Math.round(r.basePrice * r.floorRate / 100) : null,
-        schoolId: r.sigungu && r.schoolName ? `${r.sigungu}|${r.schoolName}` : null,
-      }));
+      .filter(r => !q.category || r.category === q.category);
+    return Promise.all(filtered.map(r => this.enrich(r)));
+  }
+
+  @Get(":bidNo")
+  async one(@Param("bidNo") bidNo: string) {
+    const [r] = await db.select().from(openAuctions).where(eq(openAuctions.bidNo, bidNo)).limit(1);
+    if (!r) return null;
+    return this.enrich(r);
   }
 }
 
@@ -181,6 +230,22 @@ class FirmsController {
     }
     return [...byYm.entries()].sort(([a], [b]) => a.localeCompare(b))
       .map(([ym, v]) => ({ ym, ...v }));
+  }
+
+  /** 학교별 내 전적 뱃지 배치 조회 */
+  @Get("badges")
+  async badges(@Query("bizNos") bizNosCsv: string, @Query("schools") schoolsCsv: string) {
+    const bizNos = this.parse(bizNosCsv);
+    const names = (schoolsCsv ?? "").split(",").map(x => x.trim()).filter(Boolean);
+    if (!bizNos.length || !names.length) return {};
+    const rows = await db.select().from(firmBids)
+      .where(and(inArray(firmBids.bizNo, bizNos), inArray(firmBids.schoolName, names)));
+    const out: Record<string, { part: number; wins: number }> = {};
+    for (const r of rows) {
+      const k = r.schoolName!; out[k] ??= { part: 0, wins: 0 };
+      out[k].part++; if (r.won) out[k].wins++;
+    }
+    return out;
   }
 
   /** 사업자번호 확인(온보딩): 존재 여부 + 이름 */
