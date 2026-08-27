@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useMarks } from '@/lib/marks';
 import { StripChart } from '@/components/strip-chart';
+import { RosterTable, type RosterRow } from '@/components/roster-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +18,6 @@ import {
 const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
 
 type Auction = { bidId: string; openedAt: string; floorRate: number | null; winRate: number | null; nValid: number; category: string | null };
-type RosterRow = { bizNo: string; name: string; partN: number; winN: number; winRates: number[]; medRate: number | null };
 type MyBid = { openedAt: string | null; floorRate: number | null; basePrice: number | null; bidRate: number | null; winRate: number | null; won: number };
 
 export function AuctionDetail({ open, auctions, roster }: {
@@ -83,7 +83,7 @@ export function AuctionDetail({ open, auctions, roster }: {
         <div className='flex flex-wrap items-center gap-2'>
           <span className='text-muted-foreground text-sm'>{open.sigungu}</span>
           {open.category && <Badge variant='secondary'>{open.category}</Badge>}
-          <Badge>자격 됩니다</Badge>
+          <Badge>자격 충족</Badge>
           <Badge variant='destructive'>{dday ?? '마감 미상'}</Badge>
         </div>
         <h1 className='mt-1 text-2xl font-semibold'>{open.schoolName}</h1>
@@ -97,7 +97,7 @@ export function AuctionDetail({ open, auctions, roster }: {
             <div className='text-2xl font-semibold tabular-nums'>{floor}</div>
           </div>
           <div className='text-muted-foreground text-sm'>
-            전국 9.6만 공고 · 630만 투찰 위에서 계산됩니다
+            전국 96,000개 공고 · 630만 건 투찰 데이터 기준
           </div>
         </div>
       </div>
@@ -105,12 +105,12 @@ export function AuctionDetail({ open, auctions, roster }: {
       {/* 2. 이 학교의 과거 */}
       <Card>
         <CardHeader className='pb-2'>
-          <CardTitle className='text-base'>이 학교는 이렇게 나왔습니다</CardTitle>
+          <CardTitle className='text-base'>과거 낙찰 기록</CardTitle>
           {band?.dense && (
             <CardDescription className='text-foreground text-[15px]'>
-              같은 하한({floor}) <b>{band.n}회 중 {Math.round((band.dense.pct / 100) * (band.n ?? 0))}회</b>가{' '}
-              <b className='tabular-nums'>{band.dense.lo.toFixed(2)}~{band.dense.hi.toFixed(2)}</b> 사이에서 낙찰 —
-              이번 기초금액 기준 <b className='tabular-nums'>
+              하한 {floor} 기준 <b>{band.n}회 중 {Math.round((band.dense.pct / 100) * (band.n ?? 0))}회</b>가{' '}
+              <b className='tabular-nums'>{band.dense.lo.toFixed(2)}~{band.dense.hi.toFixed(2)} </b>에서 낙찰 ·
+              금액 환산 <b className='tabular-nums'>
                 {won(base * band.dense.lo / 100)}~{won(base * band.dense.hi / 100)}원</b>
             </CardDescription>
           )}
@@ -126,7 +126,7 @@ export function AuctionDetail({ open, auctions, roster }: {
           )}
           {flow5 && (
             <div className='text-sm tabular-nums'>
-              <span className='text-muted-foreground'>최근 흐름:</span> <b>{flow5}</b>
+              <span className='text-muted-foreground'>최근 5회:</span> <b>{flow5}</b>
             </div>
           )}
           {points.length >= 4 ? (
@@ -135,12 +135,12 @@ export function AuctionDetail({ open, auctions, roster }: {
               myPast={myPastSameFloor} liveValue={liveRate} />
           ) : (
             <p className='text-muted-foreground text-sm'>
-              같은 하한 기록이 {points.length}회뿐이라 그림 대신 값으로: {points.map(p => p.winRate.toFixed(2)).join(', ') || '없음'}
+              동일 하한 기록 {points.length}회: {points.map(p => p.winRate.toFixed(2)).join(', ') || '없음'}
             </p>
           )}
           {open.schoolId && (
             <Link href={`/dashboard/schools/${encodeURIComponent(open.schoolId)}`}
-              className='text-primary text-sm hover:underline'>이 학교 전체 기록 보기 →</Link>
+              className='text-primary text-sm hover:underline'>학교 전체 이력 →</Link>
           )}
         </CardContent>
       </Card>
@@ -148,58 +148,33 @@ export function AuctionDetail({ open, auctions, roster }: {
       {/* 3. 누가 오나 */}
       <Card>
         <CardHeader className='pb-2'>
-          <CardTitle className='text-base'>보통 몇 곳이 옵니까</CardTitle>
+          <CardTitle className='text-base'>참여 업체</CardTitle>
           <CardDescription>
-            보통 <b className='text-foreground'>{open.usualN ?? '-'}곳</b>이 들어옵니다 — 회차마다 들쭉날쭉합니다.
-            {' '}누가 이길지는 아무도 모릅니다. 누가, 어디에 서는지는 보여드립니다.
+            보통 <b className='text-foreground'>{open.usualN ?? '-'}곳</b>이 참여합니다.
+            {' '}최근 참여 이력 기준.
             {roster.maxStreak <= 1 && roster.rows.length > 0 &&
-              ' 이 학교에서 두 번 연속 낙찰한 업체는 없었습니다.'}
+              ' 2연속 낙찰 사례 없음.'}
           </CardDescription>
         </CardHeader>
         <CardContent className='p-0'>
-          <div style={{ overflowX: 'auto' }}>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>업체</TableHead>
-                  <TableHead className='text-right'>참여</TableHead>
-                  <TableHead className='text-right'>낙찰</TableHead>
-                  <TableHead>낙찰했던 값</TableHead>
-                  <TableHead className='text-right'>보통 쓰는 자리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {roster.rows.slice(0, 12).map(r => (
-                  <TableRow key={r.bizNo}>
-                    <TableCell className='font-medium'>{r.name}</TableCell>
-                    <TableCell className='text-right tabular-nums'>{r.partN}회</TableCell>
-                    <TableCell className='text-right tabular-nums'>{r.winN}회</TableCell>
-                    <TableCell className='font-mono text-sm tabular-nums'>
-                      {(r.winRates ?? []).slice(0, 4).map(v => v.toFixed(2)).join(' · ') || '—'}
-                    </TableCell>
-                    <TableCell className='text-right font-mono tabular-nums'>{r.medRate?.toFixed(2) ?? '-'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <RosterTable rows={roster.rows} limit={12} />
         </CardContent>
       </Card>
 
       {/* 4. 내 전적 */}
       {bizNos.length > 0 ? my.length > 0 && (
         <Card>
-          <CardHeader className='pb-2'><CardTitle className='text-base'>이 학교에서 나</CardTitle></CardHeader>
+          <CardHeader className='pb-2'><CardTitle className='text-base'>내 기록</CardTitle></CardHeader>
           <CardContent className='text-[15px]'>
             <b>{my.length}번</b> 참여 — 낙찰 <b>{myWins}</b> · 밀림 <b className='text-amber-600'>{myPushed}</b> · 무효 <b className='text-destructive'>{myBelow}</b>
-            {myPushed > myBelow + 1 && <div className='text-destructive mt-1 font-medium'>이 학교에선 대체로 높게 쓰셨습니다.</div>}
+            {myPushed > myBelow + 1 && <div className='text-destructive mt-1 font-medium'>이 학교 평균 투찰이 높은 편입니다.</div>}
           </CardContent>
         </Card>
       ) : (
         <Card className='border-dashed'>
           <CardContent className='text-muted-foreground py-4 text-sm'>
-            이 학교에서의 당신 기록이 여기 나타납니다. 이미 저장돼 있습니다 —{' '}
-            <Link href='/dashboard/my' className='text-primary hover:underline'>사업자번호만 넣으세요</Link>.
+            사업자번호를 등록하면 이 학교에서의 내 기록이 표시됩니다.{' '}
+            <Link href='/dashboard/my' className='text-primary hover:underline'>사업자 등록</Link>.
           </CardContent>
         </Card>
       )}
@@ -207,8 +182,8 @@ export function AuctionDetail({ open, auctions, roster }: {
       {/* 5. 결정 */}
       <Card className='border-primary'>
         <CardHeader className='pb-2'>
-          <CardTitle className='text-base'>얼마 쓰시겠습니까</CardTitle>
-          <CardDescription>값을 넣으면 위 그림에 놓아드립니다.</CardDescription>
+          <CardTitle className='text-base'>투찰 계산기</CardTitle>
+          <CardDescription>입력한 값이 위 차트에 표시됩니다.</CardDescription>
         </CardHeader>
         <CardContent className='space-y-3'>
           <div className='flex flex-wrap items-end gap-3'>
@@ -221,12 +196,12 @@ export function AuctionDetail({ open, auctions, roster }: {
             <div>
               <div className='text-muted-foreground mb-1 text-xs'>금액 (원)</div>
               <Input value={amtStr ? Number(amtStr.replace(/[^0-9]/g, '')).toLocaleString() : ''}
-                onChange={e => onAmt(e.target.value)} placeholder='금액으로 입력해도 됩니다'
+                onChange={e => onAmt(e.target.value)} placeholder='금액 입력'
                 className='w-48 font-mono text-lg' inputMode='numeric' />
             </div>
           </div>
           {belowFloor && (
-            <p className='text-destructive font-semibold'>이 값은 하한({floor}) 아래 — 무효 처리됩니다.</p>
+            <p className='text-destructive font-semibold'>하한({floor}) 미만 · 무효</p>
           )}
           <div className='flex flex-wrap gap-2 pt-1'>
             <Button variant={mark?.s === 'watch' ? 'default' : 'outline'}
@@ -236,11 +211,11 @@ export function AuctionDetail({ open, auctions, roster }: {
             <Button variant={mark?.s === 'done' ? 'default' : 'outline'}
               disabled={belowFloor}
               onClick={() => set(open.bidNo, mark?.s === 'done' ? null : { s: 'done', rate: liveRate ?? undefined })}>
-              {mark?.s === 'done' ? `✓ 투찰함${mark.rate ? ` (${mark.rate})` : ''}` : '이 공고에 투찰했다고 표시'}
+              {mark?.s === 'done' ? `✓ 투찰함${mark.rate ? ` (${mark.rate})` : ''}` : '투찰 완료 표시'}
             </Button>
           </div>
           <p className='text-muted-foreground text-xs'>
-            표시해 두면 내일 아침, 개찰 결과가 채점돼 있습니다.
+            개찰 후 결과가 자동 반영됩니다.
           </p>
         </CardContent>
       </Card>

@@ -98,7 +98,7 @@ export function StripChart({
         )}
         {/* n 명시 */}
         <text x={W - R} y={H - 4} textAnchor='end' fontSize={13} fill='var(--muted-foreground)'>
-          같은 하한 {points.length}회 기준
+          동일 하한 {points.length}회
         </text>
       </svg>
     </div>

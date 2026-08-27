@@ -2,9 +2,13 @@
  * Default theme that loads when no user preference is set
  * Change this value to set a different default theme
  */
-export const DEFAULT_THEME = 'vercel';
+export const DEFAULT_THEME = 'eatbid';
 
 export const THEMES = [
+  {
+    name: 'Eatbid',
+    value: 'eatbid'
+  },
   {
     name: 'Claude',
     value: 'claude'

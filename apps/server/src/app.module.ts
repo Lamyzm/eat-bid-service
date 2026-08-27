@@ -60,9 +60,15 @@ class SchoolsController {
 
   @Get(":id/auctions")
   async auctions(@Param("id") id: string) {
-    return db.select().from(schoolAuctions)
+    const rows = await db.select().from(schoolAuctions)
       .where(eq(schoolAuctions.schoolId, id))
       .orderBy(schoolAuctions.openedAt);
+    const bz = [...new Set(rows.map(r => r.winnerBizNo).filter((x): x is string => !!x))];
+    const names = bz.length
+      ? await db.select({ bizNo: firms.bizNo, name: firms.name }).from(firms).where(inArray(firms.bizNo, bz))
+      : [];
+    const nm = new Map(names.map(f => [f.bizNo, f.name]));
+    return rows.map(r => ({ ...r, winnerName: r.winnerBizNo ? (nm.get(r.winnerBizNo) ?? null) : null }));
   }
 
   /** 단골 참여 업체 — 사실 전부. 해석 라벨 없음 */

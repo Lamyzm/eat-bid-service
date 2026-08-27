@@ -43,7 +43,7 @@ export default function RecordPage() {
   return (
     <div className='flex flex-1 flex-col space-y-4 p-4 md:p-6'>
       <div>
-        <h1 className='text-2xl font-semibold'>내 성적표</h1>
+        <h1 className='text-2xl font-semibold'>내 성적</h1>
         <p className='text-muted-foreground text-sm'>
           사업자 {bizNos.length}곳 합산 · 공개 입찰 기록 기준.
         </p>
