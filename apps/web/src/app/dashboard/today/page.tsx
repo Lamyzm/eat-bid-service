@@ -37,6 +37,25 @@ export default function TodayPage() {
   const { homes } = useRegion();
   const { marks, set } = useMarks();
   useTrack('today');
+  // 데일리 브리핑 — 어제 전국 개찰 (사실 카운트만)
+  const [brief, setBrief] = useState<{ day: string; n: number; top: string | null; topN: number; isYesterday: boolean } | null>(null);
+  useEffect(() => {
+    fetch('/api/wins/recent?days=2&limit=1000').then(r => r.json()).then(d => {
+      const rows: any[] = Array.isArray(d) ? d : (d.rows ?? []);
+      if (rows.length === 0) { setBrief(null); return; }
+      const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+      let day = yesterday;
+      let dayRows = rows.filter(r => r.openedAt === yesterday);
+      if (dayRows.length === 0) {
+        day = rows[0].openedAt; // 최신 개찰일 (desc 정렬)
+        dayRows = rows.filter(r => r.openedAt === day);
+      }
+      const bySgg = new Map<string, number>();
+      for (const r of dayRows) if (r.sigungu) bySgg.set(r.sigungu, (bySgg.get(r.sigungu) ?? 0) + 1);
+      const top = [...bySgg.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
+      setBrief({ day, n: dayRows.length, top: top?.[0] ?? null, topN: top?.[1] ?? 0, isYesterday: day === yesterday });
+    }).catch(() => {});
+  }, []);
   const [open, setOpen] = useState<OpenRow[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
@@ -74,8 +93,10 @@ export default function TodayPage() {
     <div className='flex flex-1 flex-col space-y-6 p-4 md:p-6'>
       <div>
         <h1 className='text-2xl font-semibold'>오늘</h1>
-        <p className='text-muted-foreground text-sm'>
-          공고 9.5만 건(서울·부산·경남, 전국 확장 중) · 630만 건 투찰 데이터 기준.
+        <p className='text-muted-foreground text-sm tabular-nums'>
+          {brief
+            ? <>{brief.isYesterday ? '어제' : `최근 개찰일 ${brief.day.slice(5)}`} 전국 {brief.n.toLocaleString()}건 개찰{brief.top && <> · 최다 {brief.top}({brief.topN}건)</>}</>
+            : '전국 137개 시군구 · 공고 10만 건 · 투찰 694만 데이터 기준.'}
         </p>
       </div>
 

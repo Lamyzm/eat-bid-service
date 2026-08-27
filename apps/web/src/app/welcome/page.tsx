@@ -52,7 +52,7 @@ export default function WelcomePage() {
           <div className='text-primary text-sm font-semibold'>학교급식 입찰 인텔리전스</div>
           <h1 className='mt-1 text-3xl font-bold'>얼마 쓸지 고민되는 밤,<br />판단 재료는 전부 여기 있습니다</h1>
           <p className='text-muted-foreground mt-2 tabular-nums'>
-            공고 9.5만 건(서울·부산·경남, 전국 확장 중) · 630만 건 투찰 · 복수예가 144만 개
+            전국 137개 시군구 · 공고 10만 건 · 투찰 694만
           </p>
         </div>
 
@@ -144,6 +144,9 @@ export default function WelcomePage() {
           </Card>
         )}
 
+        <p className='text-muted-foreground text-center text-xs'>
+          학교별 기록은 지역에 따라 최근 90일부터 제공됩니다.
+        </p>
         <p className='text-muted-foreground text-center text-xs'>
           예정가는 추첨으로 정해집니다. 추천가는 없습니다 — 판단 재료를 전부 제공합니다.
         </p>
