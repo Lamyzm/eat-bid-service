@@ -145,7 +145,7 @@ export default function TodayPage() {
                       <div className='mt-1 flex justify-end gap-2 text-xs'>
                         {o.schoolId && (
                           <button className='text-primary hover:underline'
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); window.location.href = `/dashboard/analysis/${encodeURIComponent(o.schoolId)}`; }}>
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); window.location.href = `/dashboard/analysis/${encodeURIComponent(o.schoolId ?? '')}`; }}>
                             분석판
                           </button>
                         )}
