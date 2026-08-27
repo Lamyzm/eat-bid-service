@@ -130,6 +130,9 @@ export function AuctionDetail({ open, auctions, roster }: {
               }}>
               공고 원문 찾기 ↗ <span className='text-muted-foreground ml-1 text-xs'>번호 자동 복사</span>
             </Button>
+            <span className='text-muted-foreground text-xs'>
+              NeaT 로그인 → 입찰정보 → 입찰공고 → 복사된 번호 붙여넣기
+            </span>
           </div>
         </div>
       </div>

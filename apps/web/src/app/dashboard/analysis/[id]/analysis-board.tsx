@@ -183,6 +183,18 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
   const inject = (v: number) => setRateStr(v.toFixed(3));
   const amount = r != null && base ? Math.round(base * r / 100) : null;
 
+  // 몰림 — 최근 14일 전장 투찰값 분포 (산출기 한 줄)
+  const [crowd, setCrowd] = useState<{ days: number; total: number; bins: { v: number; n: number }[] } | null>(null);
+  useEffect(() => {
+    if (floor == null) return;
+    fetch(`/api/wins/crowd?days=14&floor=${floor}`).then(res => res.json()).then(setCrowd).catch(() => {});
+  }, [floor]);
+  const crowdN = useMemo(() => {
+    if (crowd == null || r == null) return null;
+    const k = Math.round(r * 100) / 100;
+    return crowd.bins.find(b => Math.abs(b.v - k) < 1e-9)?.n ?? 0;
+  }, [crowd, r]);
+
   // 예정가율 분포 (이 학교) → 하한 흔들림 범위
   const pprs = useMemo(() => all
     .filter(x => x.plannedPrice != null && x.basePrice)
@@ -685,6 +697,12 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
                   <b style={{ color: VCOLOR.무효 }}>무효 {verdicts.무효}</b>
                   <button className='text-primary ml-1 underline' onClick={() => setLens('rehearsal')}>상세</button>
                 </div>
+              )}
+              {crowdN != null && crowd && (
+                <p className='text-[13px] tabular-nums'>
+                  이 값 자리에 최근 {crowd.days}일 <b className={crowdN > 200 ? 'text-destructive' : 'text-primary'}>{crowdN.toLocaleString()}건</b>
+                  {crowdN === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전장 {crowd.total.toLocaleString()}건 중 · 동가는 추첨)</span>
+                </p>
               )}
               {base > 0 && floor != null && pprLo != null && pprHi != null && (
                 <p className='text-muted-foreground text-xs tabular-nums'>
