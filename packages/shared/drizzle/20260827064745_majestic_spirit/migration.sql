@@ -53,12 +53,24 @@ CREATE TABLE "open_auctions" (
 CREATE TABLE "school_auctions" (
 	"bid_id" varchar(32) PRIMARY KEY,
 	"school_id" varchar(200) NOT NULL,
+	"category" varchar(20),
 	"opened_at" date NOT NULL,
 	"floor_rate" double precision,
 	"base_price" bigint,
 	"win_rate" double precision,
 	"n_valid" integer NOT NULL,
 	"winner_biz_no" varchar(16)
+);
+--> statement-breakpoint
+CREATE TABLE "school_roster" (
+	"school_id" varchar(200),
+	"biz_no" varchar(16),
+	"name" varchar(128),
+	"part_n" integer NOT NULL,
+	"win_n" integer DEFAULT 0 NOT NULL,
+	"win_rates" jsonb DEFAULT '[]' NOT NULL,
+	"med_rate" double precision,
+	CONSTRAINT "school_roster_pkey" PRIMARY KEY("school_id","biz_no")
 );
 --> statement-breakpoint
 CREATE TABLE "schools" (

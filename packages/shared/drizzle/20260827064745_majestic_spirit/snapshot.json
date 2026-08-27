@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "4fa1c470-6d27-4835-80a8-d0c25457d530",
+  "id": "273c6d1d-4f3d-4a47-8393-975aa6035d69",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -33,6 +33,12 @@
     {
       "isRlsEnabled": false,
       "name": "school_auctions",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "school_roster",
       "entityType": "tables",
       "schema": "public"
     },
@@ -569,6 +575,19 @@
       "table": "school_auctions"
     },
     {
+      "type": "varchar(20)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "category",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "school_auctions"
+    },
+    {
       "type": "date",
       "typeSchema": null,
       "notNull": true,
@@ -645,6 +664,97 @@
       "entityType": "columns",
       "schema": "public",
       "table": "school_auctions"
+    },
+    {
+      "type": "varchar(200)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "school_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "school_roster"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "biz_no",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "school_roster"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "school_roster"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "part_n",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "school_roster"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "win_n",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "school_roster"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'[]'",
+      "generated": null,
+      "identity": null,
+      "name": "win_rates",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "school_roster"
+    },
+    {
+      "type": "double precision",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "med_rate",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "school_roster"
     },
     {
       "type": "varchar(200)",
@@ -849,6 +959,17 @@
       "entityType": "pks",
       "schema": "public",
       "table": "market_regions"
+    },
+    {
+      "columns": [
+        "school_id",
+        "biz_no"
+      ],
+      "nameExplicit": false,
+      "name": "school_roster_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "school_roster"
     },
     {
       "columns": [

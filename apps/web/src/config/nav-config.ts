@@ -35,166 +35,18 @@ import { NavGroup } from '@/types';
  */
 export const navGroups: NavGroup[] = [
   {
-    label: '입찰 인텔리전스',
+    label: '입찰',
     items: [
-      {
-        title: '현재 공고',
-        url: '/dashboard/open',
-        icon: 'page',
-        isActive: false,
-        shortcut: ['o', 'o'],
-        items: []
-      },
-      {
-        title: '내 성적표',
-        url: '/dashboard/record',
-        icon: 'checks',
-        isActive: false,
-        shortcut: ['r', 'r'],
-        items: []
-      },
-      {
-        title: '시장 지도',
-        url: '/dashboard/market',
-        icon: 'dashboard',
-        isActive: false,
-        shortcut: ['m', 'm'],
-        items: []
-      },
-      {
-        title: '내 사업자',
-        url: '/dashboard/my',
-        icon: 'settings',
-        isActive: false,
-        shortcut: ['b', 'b'],
-        items: []
-      }
+      { title: '오늘', url: '/dashboard/today', icon: 'sun', isActive: false, shortcut: ['t', 't'], items: [] },
+      { title: '학교 찾기', url: '/dashboard/schools', icon: 'search', isActive: false, shortcut: ['s', 's'], items: [] },
+      { title: '내 성적표', url: '/dashboard/record', icon: 'checks', isActive: false, shortcut: ['r', 'r'], items: [] },
+      { title: '시장 지도', url: '/dashboard/market', icon: 'dashboard', isActive: false, shortcut: ['m', 'm'], items: [] }
     ]
   },
   {
-    label: 'Overview',
+    label: '설정',
     items: [
-      {
-        title: 'Dashboard',
-        url: '/dashboard/overview',
-        icon: 'dashboard',
-        isActive: false,
-        shortcut: ['d', 'd'],
-        items: []
-      },
-      {
-        title: 'Product',
-        url: '/dashboard/product',
-        icon: 'product',
-        shortcut: ['p', 'p'],
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'Users',
-        url: '/dashboard/users',
-        icon: 'teams',
-        shortcut: ['u', 'u'],
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'Kanban',
-        url: '/dashboard/kanban',
-        icon: 'kanban',
-        shortcut: ['k', 'k'],
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'Chat',
-        url: '/dashboard/chat',
-        icon: 'chat',
-        shortcut: ['c', 'c'],
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'AI Chat',
-        url: '/dashboard/ai-chat',
-        icon: 'sparkles',
-        shortcut: ['a', 'i'],
-        isActive: false,
-        items: []
-      }
-    ]
-  },
-  {
-    label: 'Elements',
-    items: [
-      {
-        title: 'Forms',
-        url: '#',
-        icon: 'forms',
-        isActive: true,
-        items: [
-          {
-            title: 'Basic Form',
-            url: '/dashboard/forms/basic',
-            icon: 'forms',
-            shortcut: ['f', 'f']
-          },
-          {
-            title: 'Multi-Step Form',
-            url: '/dashboard/forms/multi-step',
-            icon: 'forms'
-          },
-          {
-            title: 'Sheet & Dialog',
-            url: '/dashboard/forms/sheet-form',
-            icon: 'forms'
-          },
-          {
-            title: 'Advanced Patterns',
-            url: '/dashboard/forms/advanced',
-            icon: 'forms'
-          }
-        ]
-      },
-      {
-        title: 'React Query',
-        url: '/dashboard/react-query',
-        icon: 'code',
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'Icons',
-        url: '/dashboard/elements/icons',
-        icon: 'palette',
-        isActive: false,
-        items: []
-      }
-    ]
-  },
-  {
-    label: '',
-    items: [
-      {
-        title: 'Account',
-        url: '#',
-        icon: 'account',
-        isActive: true,
-        items: [
-          {
-            title: 'Notifications',
-            url: '/dashboard/notifications',
-            icon: 'notification',
-            shortcut: ['n', 'n']
-          },
-          {
-            title: 'Login',
-            shortcut: ['l', 'l'],
-            url: '/',
-            icon: 'login'
-          }
-        ]
-      }
+      { title: '내 사업자', url: '/dashboard/my', icon: 'settings', isActive: false, shortcut: ['b', 'b'], items: [] }
     ]
   }
 ];

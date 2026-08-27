@@ -39,6 +39,7 @@ export const schools = pgTable("schools", {
 export const schoolAuctions = pgTable("school_auctions", {
   bidId: varchar("bid_id", { length: 32 }).primaryKey(),
   schoolId: varchar("school_id", { length: 200 }).notNull(),
+  category: varchar("category", { length: 20 }),   // 품목은 공고의 속성 (학교 아님)
   openedAt: date("opened_at").notNull(),
   floorRate: doublePrecision("floor_rate"),
   basePrice: bigint("base_price", { mode: "number" }),
@@ -95,3 +96,14 @@ export const workspaceBiz = pgTable("workspace_biz", {
   bizNo: varchar("biz_no", { length: 16 }).notNull(),
   addedAt: timestamp("added_at").notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.workspaceId, t.bizNo] })]);
+
+/** 학교별 단골 참여 업체 — 사실 전부(참여·낙찰·낙찰값·보통 쓰는 자리), 해석 라벨 금지 */
+export const schoolRoster = pgTable("school_roster", {
+  schoolId: varchar("school_id", { length: 200 }).notNull(),
+  bizNo: varchar("biz_no", { length: 16 }).notNull(),
+  name: varchar("name", { length: 128 }),
+  partN: integer("part_n").notNull(),          // 참여 횟수
+  winN: integer("win_n").notNull().default(0), // 낙찰 횟수
+  winRates: jsonb("win_rates").$type<number[]>().notNull().default([]),  // 낙찰했던 값들
+  medRate: doublePrecision("med_rate"),        // 보통 쓰는 자리(투찰 중앙값)
+}, (t) => [primaryKey({ columns: [t.schoolId, t.bizNo] })]);

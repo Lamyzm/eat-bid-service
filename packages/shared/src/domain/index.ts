@@ -113,3 +113,38 @@ export const OpenQuery = z.object({
   category: Category.optional(),
 });
 export type OpenQuery = z.infer<typeof OpenQuery>;
+
+/** 투찰 표시한 공고의 개찰 결과 */
+export const BidResult = z.object({
+  bidNo: z.string(),
+  schoolName: z.string().nullable(),
+  openedAt: z.string().nullable(),
+  winRate: z.number().nullable(),
+  myRate: z.number().nullable(),
+  /** 낙찰 | 밀림 | 하한미달 | 대기(미개찰) | 기록없음 */
+  status: z.enum(["낙찰", "밀림", "하한미달", "대기", "기록없음"]),
+  diff: z.number().nullable(),          // 내투찰률 - 낙찰률
+});
+export type BidResult = z.infer<typeof BidResult>;
+
+/** 발주 예보 — 학교 월간주기 기반 (행정 일정 추정, 낙찰 예측 아님) */
+export const ForecastRow = z.object({
+  schoolId: z.string(),
+  schoolName: z.string(),
+  lastOpened: z.string(),
+  medGapDays: z.number().int(),
+  expected: z.string(),                 // 예상일 ISO
+  dueInDays: z.number().int(),          // 오늘 기준
+});
+export type ForecastRow = z.infer<typeof ForecastRow>;
+
+/** 특정 학교에서 내 투찰 이력 행 */
+export const MyBidRow = z.object({
+  openedAt: z.string().nullable(),
+  floorRate: z.number().nullable(),
+  basePrice: z.number().nullable(),
+  bidRate: z.number().nullable(),
+  winRate: z.number().nullable(),
+  won: z.number().int(),
+});
+export type MyBidRow = z.infer<typeof MyBidRow>;
