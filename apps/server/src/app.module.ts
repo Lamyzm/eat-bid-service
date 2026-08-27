@@ -256,6 +256,40 @@ class FirmsController {
     return (csv ?? "").split(",").map(s => s.trim().replace(/-/g, "")).filter(Boolean);
   }
 
+  /** 투찰 상세 — 행당 3단(낙찰가/2등가/내 값) 재료 */
+  @Get("bids")
+  async bids(@Query("bizNos") bizNosCsv: string, @Query("limit") limitStr?: string) {
+    const bizNos = this.parse(bizNosCsv);
+    if (!bizNos.length) return [];
+    const limit = Math.min(Number(limitStr) || 300, 1000);
+    const rows = await db.select().from(firmBids)
+      .where(inArray(firmBids.bizNo, bizNos))
+      .orderBy(desc(firmBids.openedAt)).limit(limit);
+    const ids = [...new Set(rows.map(r => r.bidId))];
+    const agg = ids.length ? await db.select({
+      bidId: firmBids.bidId,
+      secondRate: sql<number | null>`min(bid_rate) filter (where win_rate is not null and bid_rate > win_rate)`,
+      nBids: sql<number>`count(*)`,
+    }).from(firmBids).where(inArray(firmBids.bidId, ids)).groupBy(firmBids.bidId) : [];
+    const byId = new Map(agg.map(a => [a.bidId, a]));
+    const sas = ids.length ? await db.select().from(schoolAuctions).where(inArray(schoolAuctions.bidId, ids)) : [];
+    const saById = new Map(sas.map(a => [a.bidId, a]));
+    return rows.map(r => {
+      const g = byId.get(r.bidId);
+      const sa = saById.get(r.bidId);
+      const effFloor = sa?.plannedPrice != null && sa.basePrice
+        ? +(sa.floorRate! * sa.plannedPrice / sa.basePrice).toFixed(4) : null;
+      return {
+        bidId: r.bidId, bizNo: r.bizNo, openedAt: r.openedAt, schoolName: r.schoolName,
+        sigungu: r.sigungu, category: sa?.category ?? null,
+        basePrice: r.basePrice, floorRate: r.floorRate,
+        bidRate: r.bidRate, won: r.won === 1,
+        winRate: r.winRate, secondRate: g?.secondRate ?? null, nBids: g ? Number(g.nBids) : null,
+        effFloor,
+      };
+    });
+  }
+
   /** 성적표 — 사업자번호 콤마목록(워크스페이스 합산) */
   @Get("record")
   async record(@Query("bizNos") bizNosCsv: string) {
