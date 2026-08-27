@@ -1,6 +1,6 @@
 import { Module, Controller, Get, Query, Param } from "@nestjs/common";
 import { createZodDto } from "nestjs-zod";
-import { eq, ilike, and, desc, inArray } from "drizzle-orm";
+import { eq, ilike, and, desc, inArray, sql } from "drizzle-orm";
 import {
   SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster,
 } from "@eatbid/shared";
@@ -264,6 +264,70 @@ class FirmsController {
   }
 }
 
+
+@Controller("rounds")
+class RoundsController {
+  /** 학교의 회차별 경계 — 무효 확정 상한(maxInvalid)·2등가·참여수. 리허설/마진 평면의 재료 */
+  @Get("school/:id")
+  async school(@Param("id") id: string) {
+    const aus = await db.select().from(schoolAuctions)
+      .where(eq(schoolAuctions.schoolId, id)).orderBy(schoolAuctions.openedAt);
+    if (aus.length === 0) return [];
+    const ids = aus.map(a => a.bidId);
+    const agg = await db.select({
+      bidId: firmBids.bidId,
+      nBids: sql<number>`count(*)`,
+      maxInvalid: sql<number | null>`max(bid_rate) filter (where win_rate is not null and bid_rate < win_rate)`,
+      secondRate: sql<number | null>`min(bid_rate) filter (where win_rate is not null and bid_rate > win_rate)`,
+    }).from(firmBids).where(inArray(firmBids.bidId, ids)).groupBy(firmBids.bidId);
+    const byId = new Map(agg.map(a => [a.bidId, a]));
+    return aus.map(a => {
+      const g = byId.get(a.bidId);
+      return {
+        bidId: a.bidId, openedAt: a.openedAt, category: a.category,
+        floorRate: a.floorRate, winRate: a.winRate, basePrice: a.basePrice,
+        nValid: a.nValid, winnerBiz: a.winnerBizNo ?? null,
+        nBids: g ? Number(g.nBids) : null,
+        maxInvalid: g?.maxInvalid ?? null,
+        secondRate: g?.secondRate ?? null,
+      };
+    });
+  }
+
+  /** 개찰 리플레이 — 한 회차의 전체 투찰 분포 */
+  @Get(":bidId")
+  async replay(@Param("bidId") bidId: string) {
+    const bids = await db.select({
+      bizNo: firmBids.bizNo, bidRate: firmBids.bidRate, won: firmBids.won,
+      winRate: firmBids.winRate, floorRate: firmBids.floorRate,
+      openedAt: firmBids.openedAt, basePrice: firmBids.basePrice, schoolName: firmBids.schoolName,
+    }).from(firmBids).where(eq(firmBids.bidId, bidId));
+    if (bids.length === 0) return { bids: [], meta: null };
+    const names = await db.select({ bizNo: firms.bizNo, name: firms.name }).from(firms)
+      .where(inArray(firms.bizNo, [...new Set(bids.map(b => b.bizNo))]));
+    const nm = new Map(names.map(n => [n.bizNo, n.name]));
+    const m = bids[0];
+    const winRate = m.winRate;
+    const rows = bids.filter(b => b.bidRate != null).map(b => ({
+      bizNo: b.bizNo, name: nm.get(b.bizNo) ?? b.bizNo, bidRate: b.bidRate!,
+      won: b.won === 1,
+      status: b.won === 1 ? "낙찰" : winRate != null && b.bidRate! < winRate ? "하한미달" : "밀림",
+    })).sort((a, b) => a.bidRate - b.bidRate);
+    const valid = rows.filter(r => r.status !== "하한미달");
+    const runnerUp = winRate != null ? valid.find(r => !r.won && r.bidRate > winRate) : undefined;
+    const gap12 = runnerUp && winRate != null ? +(runnerUp.bidRate - winRate).toFixed(3) : null;
+    const maxInvalid = rows.filter(r => r.status === "하한미달").at(-1)?.bidRate ?? null;
+    return {
+      meta: {
+        bidId, openedAt: m.openedAt, schoolName: m.schoolName, basePrice: m.basePrice,
+        floorRate: m.floorRate, winRate, n: rows.length, nValid: valid.length,
+        gap12, maxInvalid,
+      },
+      bids: rows,
+    };
+  }
+}
+
 @Controller()
 class HealthController {
   @Get("healthz")
@@ -271,6 +335,6 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
+  controllers: [HealthController, RoundsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
 })
 export class AppModule {}

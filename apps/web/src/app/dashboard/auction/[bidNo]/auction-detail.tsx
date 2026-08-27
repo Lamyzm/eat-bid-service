@@ -142,6 +142,10 @@ export function AuctionDetail({ open, auctions, roster }: {
             <Link href={`/dashboard/schools/${encodeURIComponent(open.schoolId)}`}
               className='text-primary text-sm hover:underline'>학교 전체 이력 →</Link>
           )}
+          {open.schoolId && (
+            <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}
+              className='text-primary ml-4 text-sm font-semibold hover:underline'>분석판 →</Link>
+          )}
         </CardContent>
       </Card>
 

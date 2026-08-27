@@ -104,6 +104,10 @@ export function SchoolDetail({ school, auctions, prefillBase, prefillFloor }: {
       <div>
         <div className='text-muted-foreground text-xs'>{school.sido} {school.sigungu}</div>
         <h1 className='text-2xl font-semibold'>{school.name}</h1>
+        <div className='mt-1'>
+          <Link href={`/dashboard/analysis/${encodeURIComponent(school.id)}`}
+            className='text-primary text-sm font-semibold hover:underline'>분석판 열기 →</Link>
+        </div>
         <p className='text-muted-foreground text-sm tabular-nums'>
           공고 {school.nAuctions}건 · 보통 {school.medField}곳 참여
           {forecast && <> · 보통 {forecast.med}일 간격</>}

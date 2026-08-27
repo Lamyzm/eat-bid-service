@@ -68,7 +68,9 @@ CREATE TABLE "school_auctions" (
 	"base_price" bigint,
 	"win_rate" double precision,
 	"n_valid" integer NOT NULL,
-	"winner_biz_no" varchar(16)
+	"winner_biz_no" varchar(16),
+	"planned_price" bigint,
+	"reserves" jsonb
 );
 --> statement-breakpoint
 CREATE TABLE "school_roster" (

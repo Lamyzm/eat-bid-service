@@ -46,6 +46,9 @@ export const schoolAuctions = pgTable("school_auctions", {
   winRate: doublePrecision("win_rate"),
   nValid: integer("n_valid").notNull(),
   winnerBizNo: varchar("winner_biz_no", { length: 16 }),
+  plannedPrice: bigint("planned_price", { mode: "number" }),
+  /** 복수예가 15개: [{r: 예가/기초 비율, c: 추첨 여부}] */
+  reserves: jsonb("reserves").$type<{ r: number; c: boolean }[]>(),
 });
 
 /** 업체별 투찰 이력(성적표·버릇 진단용) */
