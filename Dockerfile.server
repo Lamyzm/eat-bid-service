@@ -1,0 +1,16 @@
+FROM node:24-slim AS build
+RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
+WORKDIR /app
+COPY pnpm-workspace.yaml package.json turbo.json tsconfig.json ./
+COPY pnpm-lock.yaml* ./
+COPY packages ./packages
+COPY apps/server ./apps/server
+RUN pnpm install
+RUN pnpm --filter @eatbid/shared build && pnpm --filter @eatbid/server build
+
+FROM node:24-slim
+WORKDIR /app
+COPY --from=build /app ./
+ENV NODE_ENV=production PORT=4400
+EXPOSE 4400
+CMD ["node", "apps/server/dist/main.js"]

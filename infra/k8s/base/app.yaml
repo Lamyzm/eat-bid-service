@@ -1,0 +1,153 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eatbid
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pgdata
+  namespace: eatbid
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: eatbid
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - { name: POSTGRES_USER, value: eatbid }
+            - { name: POSTGRES_PASSWORD, value: eatbid }
+            - { name: POSTGRES_DB, value: eatbid }
+          ports: [{ containerPort: 5432 }]
+          volumeMounts: [{ name: pgdata, mountPath: /var/lib/postgresql/data }]
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "eatbid"] }
+            periodSeconds: 3
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim: { claimName: pgdata }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: eatbid
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+  namespace: eatbid
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: server } }
+  template:
+    metadata: { labels: { app: server } }
+    spec:
+      containers:
+        - name: server
+          image: eatbid-server:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
+          ports: [{ containerPort: 4400 }]
+          readinessProbe:
+            httpGet: { path: /healthz, port: 4400 }
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: server
+  namespace: eatbid
+spec:
+  selector: { app: server }
+  ports: [{ port: 80, targetPort: 4400 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: server
+  namespace: eatbid
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: server, port: { number: 80 } } }
+---
+# 스키마 생성 + 초기 적재 (레이크 hostPath=/lake, k3d 볼륨으로 주입됨)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: initial-load
+  namespace: eatbid
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: migrate
+          image: postgres:16-alpine
+          command: ["sh","-c","until pg_isready -h postgres -U eatbid; do sleep 2; done; psql postgres://eatbid:eatbid@postgres:5432/eatbid -f /schema/schema.sql || true"]
+          volumeMounts: [{ name: schema, mountPath: /schema }]
+      containers:
+        - name: load
+          image: eatbid-dataplane:dev
+          imagePullPolicy: IfNotPresent
+          command: ["python", "tools/serve/load_postgres.py"]
+          env:
+            - { name: EATBID_HOME, value: /app }
+            - { name: EATBID_DATA_ROOT, value: /lake }
+            - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
+          volumeMounts: [{ name: lake, mountPath: /lake }]
+      volumes:
+        - name: lake
+          hostPath: { path: /lake, type: Directory }
+        - name: schema
+          configMap: { name: db-schema }
+---
+# 매일 아침 유기 사이클: 열린공고 수집 → 적재
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-refresh
+  namespace: eatbid
+spec:
+  schedule: "0 22 * * *"   # UTC 22:00 = KST 07:00
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: refresh
+              image: eatbid-dataplane:dev
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c", "python tools/bidboard/fetch_open.py && python tools/serve/load_postgres.py"]
+              env:
+                - { name: EATBID_HOME, value: /app }
+                - { name: EATBID_DATA_ROOT, value: /lake }
+                - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
+              volumeMounts: [{ name: lake, mountPath: /lake }]
+          volumes:
+            - name: lake
+              hostPath: { path: /lake, type: Directory }

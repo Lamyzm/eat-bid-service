@@ -1,0 +1,26 @@
+{
+  "name": "@eatbid/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./schema": { "types": "./dist/db/schema/index.d.ts", "default": "./dist/db/schema/index.js" }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push"
+  },
+  "dependencies": {
+    "drizzle-orm": "1.0.0-beta.22",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "1.0.0-beta.22",
+    "typescript": "^5.7.0"
+  }
+}
