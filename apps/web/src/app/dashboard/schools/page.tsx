@@ -38,8 +38,11 @@ export default function SchoolsPage() {
 
   useEffect(() => {
     fetch('/api/schools?limit=300').then(r => r.json()).then(x => setRows(Array.isArray(x) ? x : []));
-    fetch('/api/schools/forecast').then(r => r.json()).then(setForecast).catch(() => {});
   }, []);
+  useEffect(() => {
+    const q = viewRegions?.length ? `?sigungu=${viewRegions.join(',')}` : '';
+    fetch(`/api/schools/forecast${q}`).then(r => r.json()).then(setForecast).catch(() => {});
+  }, [viewRegions?.join(',')]);
 
   const dueSoon = useMemo(() => forecast.filter(f => f.dueInDays <= 7).slice(0, 6), [forecast]);
   const dueById = useMemo(() => new Map(forecast.map(f => [f.schoolId, f])), [forecast]);

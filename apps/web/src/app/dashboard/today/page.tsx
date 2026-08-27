@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
+import { useRegion } from '@/lib/region';
 import { useMarks } from '@/lib/marks';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -30,6 +31,7 @@ function dday(deadline: string | null) {
 
 export default function TodayPage() {
   const { bizNos, ready } = useWorkspace();
+  const { homes } = useRegion();
   const { marks } = useMarks();
   const [open, setOpen] = useState<OpenRow[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
@@ -38,8 +40,8 @@ export default function TodayPage() {
 
   useEffect(() => {
     fetch('/api/open').then(r => r.json()).then(setOpen);
-    fetch('/api/schools/forecast').then(r => r.json()).then(setForecast);
-  }, []);
+    fetch(`/api/schools/forecast${homes.length ? `?sigungu=${homes.join(',')}` : ''}`).then(r => r.json()).then(setForecast);
+  }, [homes.join(',')]);
 
   // 어제 채점 — 투찰함 표시분
   useEffect(() => {

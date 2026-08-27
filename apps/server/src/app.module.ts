@@ -31,8 +31,9 @@ class SchoolsController {
     }).from(schoolAuctions).orderBy(schoolAuctions.schoolId, schoolAuctions.openedAt);
     const bySchool = new Map<string, string[]>();
     const lastWin = new Map<string, number>();
+    const sggSet = sigungu ? new Set(sigungu.split(",").map(x => x.trim()).filter(Boolean)) : null;
     for (const r of rows) {
-      if (sigungu && !r.schoolId.startsWith(sigungu)) continue;
+      if (sggSet && !sggSet.has(r.schoolId.split("|")[0])) continue;
       const l = bySchool.get(r.schoolId) ?? [];
       l.push(r.openedAt); bySchool.set(r.schoolId, l);
       if (r.winRate != null) lastWin.set(r.schoolId, r.winRate);
