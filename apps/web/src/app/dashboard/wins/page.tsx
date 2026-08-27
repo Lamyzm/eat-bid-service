@@ -1,0 +1,175 @@
+'use client';
+/**
+ * 낙찰 — 개찰 속보판 + 월별 보드 (무료 구역)
+ * 스펙 v3: "남들 뭐 땄나 · 요즘 얼마에 끝나나"에 답하는 구경 구역.
+ */
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+} from '@/components/ui/table';
+
+type Win = {
+  bidId: string; schoolId: string; schoolName: string; sigungu: string | null;
+  category: string | null; openedAt: string; basePrice: number | null; floorRate: number | null;
+  winRate: number | null; winnerName: string | null; nValid: number; nBids: number | null; gap12: number | null;
+};
+type MonthCell = { month: string; category: string; n: number; medWin: number | null; sumBase: number };
+
+const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
+const eok = (n: number) => n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
+const CATS = ['축산', '수산', '공산', '농산', '김치', '기타'];
+
+export default function WinsPage() {
+  const [days, setDays] = useState(30);
+  const [cat, setCat] = useState<string | null>(null);
+  const [rows, setRows] = useState<Win[]>([]);
+  const [monthly, setMonthly] = useState<MonthCell[]>([]);
+
+  useEffect(() => {
+    const q = new URLSearchParams({ days: String(days) });
+    if (cat) q.set('category', cat);
+    fetch(`/api/wins/recent?${q}`).then(r => r.json()).then(setRows);
+  }, [days, cat]);
+  useEffect(() => { fetch('/api/wins/monthly?months=12').then(r => r.json()).then(setMonthly); }, []);
+
+  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const totalBase = rows.reduce((s, r) => s + (r.basePrice ?? 0), 0);
+  const gaps = rows.filter(r => r.gap12 != null).map(r => r.gap12!).sort((a, b) => a - b);
+  const gapMed = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
+
+  // 월별 보드 매트릭스
+  const board = useMemo(() => {
+    const months = [...new Set(monthly.map(m => m.month))].sort().reverse();
+    const cats = CATS.filter(c => monthly.some(m => m.category === c));
+    const cell = new Map(monthly.map(m => [`${m.month}|${m.category}`, m]));
+    return { months, cats, cell };
+  }, [monthly]);
+
+  return (
+    <div className='flex flex-1 flex-col space-y-6 p-4 md:p-6'>
+      <div>
+        <h1 className='text-2xl font-semibold'>낙찰</h1>
+        <p className='text-muted-foreground text-sm tabular-nums'>
+          최근 {days}일 개찰 {rows.length}건 · 기초금액 합계 {eok(totalBase)}원
+          {gapMed != null && <> · 1–2등 차이 중앙값 <b className='text-foreground'>{gapMed.toFixed(3)}</b></>}
+        </p>
+      </div>
+
+      {/* 월별 보드 */}
+      <Card>
+        <CardHeader className='pb-2'>
+          <CardTitle className='text-base'>월별 보드</CardTitle>
+          <CardDescription>월×품목 · 칸 = 건수 · 낙찰률 중앙값 · 기초금액 합계</CardDescription>
+        </CardHeader>
+        <CardContent className='p-0'>
+          <div style={{ overflowX: 'auto' }}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>월</TableHead>
+                  {board.cats.map(c => <TableHead key={c} className='text-right'>{c}</TableHead>)}
+                  <TableHead className='text-right'>합계</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {board.months.map(m => {
+                  const rowCells = board.cats.map(c => board.cell.get(`${m}|${c}`));
+                  const rowN = rowCells.reduce((s, x) => s + (x?.n ?? 0), 0);
+                  const rowBase = rowCells.reduce((s, x) => s + (x?.sumBase ?? 0), 0);
+                  return (
+                    <TableRow key={m}>
+                      <TableCell className='font-medium tabular-nums'>{m}</TableCell>
+                      {rowCells.map((x, i) => (
+                        <TableCell key={i} className='text-right tabular-nums'>
+                          {x ? (<>
+                            <div className='font-semibold'>{x.n}건{x.medWin != null && <span className='text-muted-foreground font-normal'> · {x.medWin.toFixed(2)}</span>}</div>
+                            <div className='text-muted-foreground text-xs'>{eok(x.sumBase)}원</div>
+                          </>) : <span className='text-muted-foreground'>—</span>}
+                        </TableCell>
+                      ))}
+                      <TableCell className='text-right font-semibold tabular-nums'>
+                        {rowN}건<div className='text-muted-foreground text-xs font-normal'>{eok(rowBase)}원</div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 개찰 속보판 */}
+      <Card>
+        <CardHeader className='pb-2'>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <CardTitle className='text-base'>개찰 속보</CardTitle>
+            <div className='flex flex-wrap gap-1.5'>
+              {[14, 30, 60, 120].map(d => (
+                <Button key={d} size='sm' variant={days === d ? 'default' : 'outline'} onClick={() => setDays(d)}>{d}일</Button>
+              ))}
+              <span className='mx-1' />
+              <Button size='sm' variant={cat === null ? 'default' : 'outline'} onClick={() => setCat(null)}>전체</Button>
+              {CATS.slice(0, 5).map(c => (
+                <Button key={c} size='sm' variant={cat === c ? 'default' : 'outline'} onClick={() => setCat(c)}>{c}</Button>
+              ))}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className='p-0'>
+          <div style={{ overflowX: 'auto', maxHeight: 640, overflowY: 'auto' }}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>개찰일</TableHead><TableHead>학교</TableHead><TableHead>품목</TableHead>
+                  <TableHead className='text-right'>기초금액</TableHead>
+                  <TableHead className='text-right'>하한</TableHead>
+                  <TableHead className='text-right'>낙찰률</TableHead>
+                  <TableHead>낙찰 업체</TableHead>
+                  <TableHead className='text-right'>참여</TableHead>
+                  <TableHead className='text-right'>1–2등 차</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map(r => (
+                  <TableRow key={r.bidId} className={r.openedAt >= yesterday ? 'bg-primary/5' : ''}>
+                    <TableCell className='tabular-nums'>
+                      {r.openedAt}{r.openedAt >= yesterday && <Badge className='ml-1.5' variant='secondary'>NEW</Badge>}
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/dashboard/schools/${encodeURIComponent(r.schoolId)}`}
+                        className='font-medium hover:underline'>{r.schoolName}</Link>
+                    </TableCell>
+                    <TableCell>{r.category ?? '-'}</TableCell>
+                    <TableCell className='text-right tabular-nums'>{won(r.basePrice)}</TableCell>
+                    <TableCell className='text-right tabular-nums'>{r.floorRate ?? '-'}</TableCell>
+                    <TableCell className='text-right font-mono font-semibold tabular-nums'>{r.winRate?.toFixed(3) ?? '-'}</TableCell>
+                    <TableCell className='max-w-[180px] truncate'>{r.winnerName ?? '-'}</TableCell>
+                    <TableCell className='text-right tabular-nums'>{r.nBids ?? r.nValid}곳</TableCell>
+                    <TableCell className='text-right font-mono tabular-nums'>
+                      {r.gap12 != null ? (
+                        <span className={r.gap12 <= 0.01 ? 'text-destructive font-semibold' : ''}>{r.gap12.toFixed(3)}</span>
+                      ) : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {rows.length === 0 && (
+                  <TableRow><TableCell colSpan={9} className='text-muted-foreground py-8 text-center'>
+                    이 조건의 개찰 결과가 없습니다.
+                  </TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+      <p className='text-muted-foreground text-xs'>
+        1–2등 차 = 낙찰률과 2위 투찰률의 간격. 0.010 이하는 빨간색.
+      </p>
+    </div>
+  );
+}

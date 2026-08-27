@@ -1,6 +1,6 @@
 import { Module, Controller, Get, Query, Param } from "@nestjs/common";
 import { createZodDto } from "nestjs-zod";
-import { eq, ilike, and, desc, inArray, sql } from "drizzle-orm";
+import { eq, ilike, and, desc, inArray, sql, gte } from "drizzle-orm";
 import {
   SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster,
 } from "@eatbid/shared";
@@ -178,6 +178,68 @@ class ResultsController {
   }
 }
 
+@Controller("wins")
+class WinsController {
+  /** 개찰 속보 — 최근 개찰 결과 전량 (낙찰 업체명·1-2등차 포함) */
+  @Get("recent")
+  async recent(@Query("days") daysStr?: string, @Query("category") category?: string) {
+    const days = Math.min(Number(daysStr) || 30, 180);
+    const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+    const conds = [gte(schoolAuctions.openedAt, cutoff)];
+    if (category) conds.push(eq(schoolAuctions.category, category));
+    const rows = await db.select().from(schoolAuctions)
+      .where(and(...conds)).orderBy(desc(schoolAuctions.openedAt)).limit(400);
+    const ids = rows.map(r => r.bidId);
+    const agg = ids.length ? await db.select({
+      bidId: firmBids.bidId,
+      nBids: sql<number>`count(*)`,
+      secondRate: sql<number | null>`min(bid_rate) filter (where win_rate is not null and bid_rate > win_rate)`,
+    }).from(firmBids).where(inArray(firmBids.bidId, ids)).groupBy(firmBids.bidId) : [];
+    const byId = new Map(agg.map(a => [a.bidId, a]));
+    const bizs = [...new Set(rows.map(r => r.winnerBizNo).filter(Boolean))] as string[];
+    const names = bizs.length ? await db.select({ bizNo: firms.bizNo, name: firms.name })
+      .from(firms).where(inArray(firms.bizNo, bizs)) : [];
+    const nm = new Map(names.map(n => [n.bizNo, n.name]));
+    return rows.map(r => {
+      const g = byId.get(r.bidId);
+      return {
+        bidId: r.bidId, schoolId: r.schoolId, schoolName: r.schoolId.split("|")[1] ?? r.schoolId,
+        sigungu: r.schoolId.split("|")[0] ?? null, category: r.category, openedAt: r.openedAt,
+        basePrice: r.basePrice, floorRate: r.floorRate, winRate: r.winRate,
+        winnerName: r.winnerBizNo ? (nm.get(r.winnerBizNo) ?? null) : null,
+        nValid: r.nValid, nBids: g ? Number(g.nBids) : null,
+        gap12: g?.secondRate != null && r.winRate != null ? +(g.secondRate - r.winRate).toFixed(3) : null,
+      };
+    });
+  }
+
+  /** 월별 보드 — 월×품목 집계 (건수·낙찰률 중앙값·기초금액 합계) */
+  @Get("monthly")
+  async monthly(@Query("months") monthsStr?: string) {
+    const months = Math.min(Number(monthsStr) || 12, 36);
+    const rows = await db.select({
+      openedAt: schoolAuctions.openedAt, category: schoolAuctions.category,
+      winRate: schoolAuctions.winRate, basePrice: schoolAuctions.basePrice,
+    }).from(schoolAuctions);
+    const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
+    const co = cutoff.toISOString().slice(0, 7);
+    const cell = new Map<string, { n: number; wins: number[]; sumBase: number }>();
+    for (const r of rows) {
+      const m = r.openedAt?.slice(0, 7);
+      if (!m || m < co) continue;
+      const k = `${m}|${r.category ?? "기타"}`;
+      const c = cell.get(k) ?? { n: 0, wins: [], sumBase: 0 };
+      c.n++; if (r.winRate != null) c.wins.push(r.winRate);
+      c.sumBase += r.basePrice ?? 0; cell.set(k, c);
+    }
+    return [...cell.entries()].map(([k, c]) => {
+      const [month, cat] = k.split("|");
+      const w = c.wins.sort((a, b) => a - b);
+      return { month, category: cat, n: c.n, medWin: w.length ? +w[Math.floor(w.length / 2)].toFixed(3) : null, sumBase: c.sumBase };
+    }).sort((a, b) => b.month.localeCompare(a.month));
+  }
+}
+
 @Controller("market")
 class MarketController {
   @Get()
@@ -341,6 +403,6 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, RoundsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
+  controllers: [HealthController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
 })
 export class AppModule {}

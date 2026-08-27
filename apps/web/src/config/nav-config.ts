@@ -35,17 +35,23 @@ import { NavGroup } from '@/types';
  */
 export const navGroups: NavGroup[] = [
   {
-    label: '입찰',
+    label: '공고',
     items: [
       { title: '오늘', url: '/dashboard/today', icon: 'sun', isActive: false, shortcut: ['t', 't'], items: [] },
-      { title: '학교 찾기', url: '/dashboard/schools', icon: 'search', isActive: false, shortcut: ['s', 's'], items: [] },
-      { title: '내 성적', url: '/dashboard/record', icon: 'checks', isActive: false, shortcut: ['r', 'r'], items: [] },
+      { title: '학교 찾기', url: '/dashboard/schools', icon: 'search', isActive: false, shortcut: ['s', 's'], items: [] }
+    ]
+  },
+  {
+    label: '낙찰',
+    items: [
+      { title: '개찰 속보', url: '/dashboard/wins', icon: 'trendingUp', isActive: false, shortcut: ['w', 'w'], items: [] },
       { title: '시장 지도', url: '/dashboard/market', icon: 'dashboard', isActive: false, shortcut: ['m', 'm'], items: [] }
     ]
   },
   {
-    label: '설정',
+    label: '나',
     items: [
+      { title: '내 성적', url: '/dashboard/record', icon: 'checks', isActive: false, shortcut: ['r', 'r'], items: [] },
       { title: '내 사업자', url: '/dashboard/my', icon: 'settings', isActive: false, shortcut: ['b', 'b'], items: [] }
     ]
   }
