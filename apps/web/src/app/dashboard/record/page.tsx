@@ -81,6 +81,20 @@ export default function RecordPage() {
           {[6, 12, 24, 60].map(m => (
             <Button key={m} size='sm' variant={months === m ? 'default' : 'outline'} onClick={() => setMonths(m)}>{m}개월</Button>
           ))}
+          <Button size='sm' variant='outline' onClick={() => {
+            const head = '개찰일,학교,시군구,품목,기초금액,하한,낙찰가,2등가,내값,결과';
+            const lines = view.map(r => {
+              const st = r.won ? '낙찰' : r.bidRate != null && r.winRate != null && r.bidRate < r.winRate ? '무효' : '밀림';
+              return [r.openedAt, r.schoolName, r.sigungu, r.category, r.basePrice ?? '', r.floorRate ?? '',
+                r.winRate ?? '', r.secondRate ?? '', r.bidRate ?? '', st].join(',');
+            });
+            const blob = new Blob(['﻿' + [head, ...lines].join('
+')], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `내성적_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+          }}>CSV 저장</Button>
         </div>
       </div>
 
