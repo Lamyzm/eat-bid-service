@@ -283,6 +283,9 @@ class RoundsController {
     const byId = new Map(agg.map(a => [a.bidId, a]));
     return aus.map(a => {
       const g = byId.get(a.bidId);
+      // 실효 하한율 = 하한율 × 예정가/기초가 (예정가 보유 회차는 판정 확정)
+      const effFloor = a.plannedPrice != null && a.basePrice
+        ? +(a.floorRate! * a.plannedPrice / a.basePrice).toFixed(4) : null;
       return {
         bidId: a.bidId, openedAt: a.openedAt, category: a.category,
         floorRate: a.floorRate, winRate: a.winRate, basePrice: a.basePrice,
@@ -290,6 +293,9 @@ class RoundsController {
         nBids: g ? Number(g.nBids) : null,
         maxInvalid: g?.maxInvalid ?? null,
         secondRate: g?.secondRate ?? null,
+        plannedPrice: a.plannedPrice ?? null,
+        effFloor,
+        reserves: a.reserves ?? null,
       };
     });
   }
