@@ -351,6 +351,43 @@ class FirmsController {
   }
 
   /** 사업자번호 확인(온보딩): 존재 여부 + 이름 */
+  /** 업체 검색 — 이름 부분일치 또는 사업자번호 */
+  @Get("search")
+  async search(@Query("q") q: string) {
+    const t = (q ?? "").trim();
+    if (t.length < 2) return [];
+    const bz = t.replace(/-/g, "");
+    return db.select({ bizNo: firms.bizNo, name: firms.name, totalBids: firms.totalBids, totalWins: firms.totalWins })
+      .from(firms)
+      .where(/^\d+$/.test(bz) ? ilike(firms.bizNo, `${bz}%`) : ilike(firms.name, `%${t}%`))
+      .orderBy(desc(firms.totalBids)).limit(20);
+  }
+
+  /** 최다 낙찰 TOP — 최근 N개월 낙찰 순 */
+  @Get("top")
+  async top(@Query("months") monthsStr?: string) {
+    const months = Math.min(Number(monthsStr) || 12, 60);
+    const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
+    const co = cutoff.toISOString().slice(0, 10);
+    const rows = await db.select({
+      bizNo: firmBids.bizNo,
+      wins: sql<number>`count(*) filter (where won = 1)`,
+      part: sql<number>`count(*)`,
+      winSum: sql<number>`coalesce(sum(base_price * bid_rate / 100) filter (where won = 1), 0)`,
+    }).from(firmBids)
+      .where(gte(firmBids.openedAt, co))
+      .groupBy(firmBids.bizNo)
+      .orderBy(desc(sql`count(*) filter (where won = 1)`))
+      .limit(15);
+    const names = await db.select({ bizNo: firms.bizNo, name: firms.name }).from(firms)
+      .where(inArray(firms.bizNo, rows.map(r => r.bizNo)));
+    const nm = new Map(names.map(n => [n.bizNo, n.name]));
+    return rows.filter(r => Number(r.wins) > 0).map(r => ({
+      bizNo: r.bizNo, name: nm.get(r.bizNo) ?? r.bizNo,
+      wins: Number(r.wins), part: Number(r.part), winSum: Math.round(Number(r.winSum)),
+    }));
+  }
+
   @Get("lookup")
   async lookup(@Query("bizNo") bizNo: string) {
     const bz = (bizNo ?? "").replace(/-/g, "").trim();

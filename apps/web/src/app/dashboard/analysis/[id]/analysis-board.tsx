@@ -329,6 +329,7 @@ export function AnalysisBoard({ school, rounds }: { school: any; rounds: Round[]
             <Button key={k} size='sm' variant={period === k ? 'default' : 'outline'}
               onClick={() => setPeriod(k as any)}>{label}</Button>
           ))}
+          <Button size='sm' variant='outline' onClick={() => window.print()}>인쇄</Button>
         </div>
       </div>
 

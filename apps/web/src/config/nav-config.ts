@@ -45,6 +45,7 @@ export const navGroups: NavGroup[] = [
     label: '낙찰',
     items: [
       { title: '개찰 속보', url: '/dashboard/wins', icon: 'trendingUp', isActive: false, shortcut: ['w', 'w'], items: [] },
+      { title: '업체', url: '/dashboard/firms', icon: 'teams', isActive: false, shortcut: ['f', 'f'], items: [] },
       { title: '시장 지도', url: '/dashboard/market', icon: 'dashboard', isActive: false, shortcut: ['m', 'm'], items: [] }
     ]
   },
