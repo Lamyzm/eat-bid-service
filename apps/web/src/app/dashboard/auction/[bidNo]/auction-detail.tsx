@@ -5,6 +5,9 @@ import { useWorkspace } from '@/lib/workspace';
 import { useMarks } from '@/lib/marks';
 import { StripChart } from '@/components/strip-chart';
 import { type RosterRow } from '@/components/roster-table';
+import { useTrack } from '@/lib/track';
+import { won } from '@/lib/format';
+import { CHART } from '@/lib/chart-colors';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +18,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
 
-const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
 
 type Auction = { bidId: string; openedAt: string; floorRate: number | null; winRate: number | null; nValid: number; category: string | null };
 type MyBid = { openedAt: string | null; floorRate: number | null; basePrice: number | null; bidRate: number | null; winRate: number | null; won: number };
@@ -25,6 +27,7 @@ export function AuctionDetail({ open, auctions, roster }: {
 }) {
   const { bizNos } = useWorkspace();
   const { marks, set } = useMarks();
+  useTrack('auction');
   const mark = marks[open.bidNo];
 
   const floor = open.floorRate ?? 90;
@@ -245,7 +248,7 @@ export function AuctionDetail({ open, auctions, roster }: {
                         title={`${b.v.toFixed(2)} · ${b.n.toLocaleString()}건`}>
                         <div className='w-full rounded-t'
                           style={{ height: `${Math.max(2, b.n / maxN * 86)}px`,
-                            background: isMine ? '#2962ff' : 'var(--primary)', opacity: isMine ? 1 : 0.55 }} />
+                            background: isMine ? CHART.me : 'var(--primary)', opacity: isMine ? 1 : 0.55 }} />
                         {(b.v * 100) % 10 === 0 && <div className='text-muted-foreground mt-0.5 text-[10px] tabular-nums'>{b.v.toFixed(1)}</div>}
                       </div>
                     );
@@ -303,7 +306,7 @@ export function AuctionDetail({ open, auctions, roster }: {
                 이 값으로 과거 {same.length}회 재생 —{' '}
                 <b className='text-amber-600'>밀림 {push}</b> ·{' '}
                 <b className='text-primary'>낙찰 {win}</b>
-                {alive > 0 && <> · <b style={{ color: '#2962ff' }}>기회 {alive}</b></>} ·{' '}
+                {alive > 0 && <> · <b style={{ color: CHART.me }}>기회 {alive}</b></>} ·{' '}
                 <b className='text-destructive'>무효 {dead}</b>
                 {open.schoolId && (
                   <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}

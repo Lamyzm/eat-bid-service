@@ -7,6 +7,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { SchoolSummary, FloorStat } from '@eatbid/shared';
 import { useRegion } from '@/lib/region';
+import { useTrack } from '@/lib/track';
+import { won, CATS } from '@/lib/format';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,11 +25,10 @@ function primaryBand(s: SchoolSummary): { floor: string; stat: FloorStat } | nul
   const k = keys[0];
   return k ? { floor: String(parseFloat(k)), stat: bf[k] } : null;
 }
-const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
-const CATS = ['축산', '수산', '공산', '농산', '김치', '기타'];
 type SortKey = 'n' | 'field' | 'base';
 
 export default function SchoolsPage() {
+  useTrack('schools');
   const [rows, setRows] = useState<SchoolSummary[]>([]);
   const [forecast, setForecast] = useState<Forecast[]>([]);
   const [q, setQ] = useState('');
@@ -36,9 +37,16 @@ export default function SchoolsPage() {
   const [sort, setSort] = useState<SortKey>('n');
   const { viewRegions, isBrowsing, view } = useRegion();
 
+  // 서버 검색 — 300ms debounce. 빈 검색은 상위 500
   useEffect(() => {
-    fetch('/api/schools?limit=300').then(r => r.json()).then(x => setRows(Array.isArray(x) ? x : []));
-  }, []);
+    const t = setTimeout(() => {
+      const qs = q.trim()
+        ? `q=${encodeURIComponent(q.trim())}&limit=100`
+        : 'limit=500';
+      fetch(`/api/schools?${qs}`).then(r => r.json()).then(x => setRows(Array.isArray(x) ? x : []));
+    }, q.trim() ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [q]);
   useEffect(() => {
     const q = viewRegions?.length ? `?sigungu=${viewRegions.join(',')}` : '';
     fetch(`/api/schools/forecast${q}`).then(r => r.json()).then(setForecast).catch(() => {});
@@ -48,8 +56,7 @@ export default function SchoolsPage() {
   const dueById = useMemo(() => new Map(forecast.map(f => [f.schoolId, f])), [forecast]);
 
   const filtered = useMemo(() => rows
-    .filter(s => (!q || s.name.includes(q)) &&
-      (viewRegions == null || viewRegions.includes(s.sigungu ?? '')) &&
+    .filter(s => (viewRegions == null || viewRegions.includes(s.sigungu ?? '')) &&
       (cat == null || s.category === cat) &&
       (fieldMax == null || (s.medField ?? 999) <= fieldMax))
     .sort((a, b) => sort === 'n' ? b.nAuctions - a.nAuctions
@@ -76,7 +83,7 @@ export default function SchoolsPage() {
       <div className='flex flex-wrap items-end justify-between gap-3'>
         <div>
           <h1 className='text-2xl font-semibold'>학교 찾기</h1>
-          <p className='text-muted-foreground text-sm tabular-nums'>{filtered.length}개 학교 · 행 클릭 = 분석판</p>
+          <p className='text-muted-foreground text-sm tabular-nums'>{filtered.length}개 학교{!q.trim() && rows.length >= 500 ? ' (상위 500 표시 — 검색으로 좁히세요)' : ''} · 행 클릭 = 분석판</p>
         </div>
         <div className='flex items-center gap-2'>
           {isBrowsing && <span className='rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-xs'><b>{view} 구경 중</b></span>}

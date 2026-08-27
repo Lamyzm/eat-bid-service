@@ -6,6 +6,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
+import { useTrack } from '@/lib/track';
+import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,9 +22,9 @@ type Row = {
   nBids: number | null; effFloor: number | null;
 };
 
-const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
 
 export default function RecordPage() {
+  useTrack('record');
   const { bizNos, ready } = useWorkspace();
   const [rows, setRows] = useState<Row[]>([]);
   const [biz, setBiz] = useState<string | null>(null); // null = 합산

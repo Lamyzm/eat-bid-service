@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
 import { useMarks } from '@/lib/marks';
+import { useTrack } from '@/lib/track';
+import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +13,6 @@ import {
   Card, CardContent, CardDescription, CardHeader, CardTitle
 } from '@/components/ui/card';
 
-const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
 
 type OpenRow = {
   bidNo: string; schoolName: string | null; sigungu: string | null; schoolId: string | null;
@@ -35,6 +36,7 @@ export default function TodayPage() {
   const { bizNos, ready } = useWorkspace();
   const { homes } = useRegion();
   const { marks, set } = useMarks();
+  useTrack('today');
   const [open, setOpen] = useState<OpenRow[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
@@ -223,7 +225,13 @@ export default function TodayPage() {
 
       <div>
         <h2 className='mb-2 font-semibold'>발주 예정</h2>
-        <Card><CardContent className='divide-y p-0'>
+        {homes.length === 0 && (
+          <Card><CardContent className='text-muted-foreground py-4 text-sm'>
+            자격 지역을 설정하면 내 지역 발주 예정이 보입니다.{' '}
+            <Link href='/welcome' className='text-primary font-semibold hover:underline'>설정 →</Link>
+          </CardContent></Card>
+        )}
+        {homes.length > 0 && <Card><CardContent className='divide-y p-0'>
           {forecast.length === 0 && <p className='text-muted-foreground px-4 py-4 text-sm'>2주 내 발주 예정 학교가 없습니다.</p>}
           {forecast.slice(0, 5).map(f => (
             <div key={f.schoolId} className='px-4 py-3 text-[15px]'>
@@ -234,7 +242,7 @@ export default function TodayPage() {
               {f.lastWinRate != null && <span className='text-muted-foreground tabular-nums'> · 지난 회 낙찰 {f.lastWinRate.toFixed(2)}</span>}
             </div>
           ))}
-        </CardContent></Card>
+        </CardContent></Card>}
       </div>
     </div>
   );

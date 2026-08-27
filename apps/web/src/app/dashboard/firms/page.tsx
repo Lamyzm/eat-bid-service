@@ -4,6 +4,8 @@
  * 검색 → 즐겨찾기(나의 경쟁사) · 최다 낙찰 TOP · 업체 전적 + 최근 낙찰값
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useTrack } from '@/lib/track';
+import { won, eok } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,11 +21,10 @@ type Rec = {
   recentWins: { openedAt: string | null; schoolName: string | null; sigungu: string | null; basePrice: number | null; bidRate: number | null }[];
 };
 
-const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
-const eok = (n: number) => n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
 const RIVALS_KEY = 'eatbid.rivals';
 
 export default function FirmsPage() {
+  useTrack('firms');
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<Hit[]>([]);
   const [top, setTop] = useState<Top[]>([]);

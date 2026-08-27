@@ -5,6 +5,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useRegion } from '@/lib/region';
+import { useTrack } from '@/lib/track';
+import { won, eok, CATS } from '@/lib/format';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,11 +22,9 @@ type Win = {
 };
 type MonthCell = { month: string; category: string; n: number; medWin: number | null; sumBase: number };
 
-const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
-const eok = (n: number) => n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
-const CATS = ['축산', '수산', '공산', '농산', '김치', '기타'];
 
 export default function WinsPage() {
+  useTrack('wins');
   const [days, setDays] = useState(30);
   const [cat, setCat] = useState<string | null>(null);
   const [rows, setRows] = useState<Win[]>([]);

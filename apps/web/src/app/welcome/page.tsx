@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
+import { useTrack } from '@/lib/track';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,6 +16,7 @@ type Lookup = { found: boolean; bizNo: string; name?: string; totalBids?: number
 type Rec = { totalBids: number; totalWins: number; pushedOut: number; belowFloor: number; regions?: string[] };
 
 export default function WelcomePage() {
+  useTrack('welcome');
   const router = useRouter();
   const { bizNos, add } = useWorkspace();
   const { homes, toggleHome } = useRegion();
@@ -57,8 +59,8 @@ export default function WelcomePage() {
         {step === 1 && (
           <Card>
             <CardContent className='space-y-3 p-6'>
-              <div className='font-medium'>사업자번호 10자리를 넣어보세요</div>
-              <p className='text-muted-foreground text-sm'>당신의 과거 투찰이 이미 저장돼 있습니다.</p>
+              <div className='font-medium'>사업자번호 10자리</div>
+              <p className='text-muted-foreground text-sm'>입력하면 과거 투찰 기록이 바로 조회됩니다.</p>
               <div className='flex gap-2'>
                 <Input value={input} onChange={e => setInput(e.target.value)}
                   placeholder='000-00-00000' className='font-mono text-lg' inputMode='numeric'

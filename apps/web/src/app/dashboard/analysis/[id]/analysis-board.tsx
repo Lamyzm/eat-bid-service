@@ -12,6 +12,9 @@ import {
 } from 'lightweight-charts';
 import { useWorkspace } from '@/lib/workspace';
 import { useMarks } from '@/lib/marks';
+import { useTrack } from '@/lib/track';
+import { won } from '@/lib/format';
+import { CHART as C, myMarker, chartFrame } from '@/lib/chart-colors';
 import { RosterTable, type RosterRow } from '@/components/roster-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,11 +37,6 @@ type Replay = {
   bids: { bizNo: string; name: string; bidRate: number; won: boolean; status: string }[];
 };
 
-const won = (n: number | null | undefined) => n == null ? '-' : Math.round(n).toLocaleString();
-const C = {
-  win: '#149a80', second: '#e8a13a', invalid: '#8b5a5a', floor: '#e5484d',
-  band: 'rgba(20,154,128,0.55)', me: '#2962ff',
-};
 const LENSES = [
   ['flow', '흐름'], ['record', '기록'], ['dist', '분포'], ['rehearsal', '리허설'],
   ['replay', '리플레이'], ['lottery', '추첨'], ['monthly', '월별'],
@@ -125,6 +123,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
 }) {
   const { bizNos } = useWorkspace();
   const { marks, set: setMark } = useMarks();
+  useTrack('analysis');
   // 렌즈 기억: 최초 방문=흐름, 이후 마지막 사용 렌즈
   const [lens, setLensState] = useState<Lens>('flow');
   useEffect(() => {
@@ -249,14 +248,14 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
   const [hover, setHover] = useState<(Round & { t: UTCTimestamp }) | null>(null);
   useEffect(() => {
     if (lens !== 'flow' || !elRef.current || floor == null) return;
-    const dark = document.documentElement.classList.contains('dark');
+    const frame = chartFrame();
     const chart = createChart(elRef.current, {
       autoSize: true,
-      layout: { background: { color: 'transparent' }, textColor: dark ? '#9aa5a0' : '#6b7570',
+      layout: { background: { color: 'transparent' }, textColor: frame.text,
         fontSize: 12, fontFamily: "'Geist Mono','Pretendard Variable',monospace" },
       grid: { vertLines: { color: 'rgba(127,127,127,0.08)' }, horzLines: { color: 'rgba(127,127,127,0.12)' } },
-      rightPriceScale: { borderColor: dark ? '#3a423e' : '#d7ddd9', scaleMargins: { top: 0.08, bottom: 0.25 } },
-      timeScale: { borderColor: dark ? '#3a423e' : '#d7ddd9' },
+      rightPriceScale: { borderColor: frame.border, scaleMargins: { top: 0.08, bottom: 0.25 } },
+      timeScale: { borderColor: frame.border },
       crosshair: { mode: CrosshairMode.Normal },
       localization: { priceFormatter: (p: number) => p.toFixed(2) },
     });
@@ -293,7 +292,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
       const byDate = new Map(view.map(x => [x.openedAt, x.t]));
       createSeriesMarkers(win, myPts.filter(m => byDate.has(m.openedAt!)).map(m => ({
         time: byDate.get(m.openedAt!)!, position: 'aboveBar' as const,
-        color: m.won ? C.win : '#111', shape: 'arrowDown' as const, text: `내 ${m.bidRate!.toFixed(2)}`,
+        color: m.won ? C.win : myMarker(), shape: 'arrowDown' as const, text: `내 ${m.bidRate!.toFixed(2)}`,
       })));
     }
     chart.timeScale().fitContent();

@@ -7,6 +7,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { REGION_COORDS } from '@/lib/region-coords';
+import { useTrack } from '@/lib/track';
+import { eok, CATS } from '@/lib/format';
+import { CHART, myMarker, bubbleColor } from '@/lib/chart-colors';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,20 +27,11 @@ type Region = {
   } | null;
 };
 
-const eok = (n: number | null | undefined) => n == null ? '-' : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
-const CATS = ['축산', '수산', '공산', '농산', '김치'];
 const MONTH_LABEL = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
-/** 기대낙찰(연 공고/업체) → 색: 판이 빌수록 초록 진하게 */
-function bubbleColor(expWin: number | null) {
-  if (expWin == null) return '#9aa5a0';
-  if (expWin >= 30) return '#0e7a63';
-  if (expWin >= 15) return '#149a80';
-  if (expWin >= 7) return '#5bb8a4';
-  return '#a8cfc5';
-}
 
 export function MarketMap() {
+  useTrack('market');
   const [cat, setCat] = useState('축산');
   const [rows, setRows] = useState<Region[]>([]);
   const [sel, setSel] = useState<Region | null>(null);
@@ -64,7 +58,7 @@ export function MarketMap() {
           </p>
         </div>
         <div className='flex gap-1.5'>
-          {CATS.map(c => (
+          {CATS.slice(0, 5).map(c => (
             <Button key={c} size='sm' variant={cat === c ? 'default' : 'outline'} onClick={() => setCat(c)}>{c}</Button>
           ))}
         </div>
@@ -88,7 +82,7 @@ export function MarketMap() {
                     <CircleMarker key={`${r.sido}|${r.sigungu}`} center={co}
                       radius={6 + Math.sqrt(r.perYear / maxYr) * 22}
                       pathOptions={{
-                        color: isHome ? '#e5484d' : isSel ? '#111' : bubbleColor(r.expWin),
+                        color: isHome ? CHART.floor : isSel ? myMarker() : bubbleColor(r.expWin),
                         weight: isHome || isSel ? 2.5 : 1,
                         fillColor: bubbleColor(r.expWin), fillOpacity: 0.55,
                       }}
