@@ -88,8 +88,7 @@ export default function RecordPage() {
               return [r.openedAt, r.schoolName, r.sigungu, r.category, r.basePrice ?? '', r.floorRate ?? '',
                 r.winRate ?? '', r.secondRate ?? '', r.bidRate ?? '', st].join(',');
             });
-            const blob = new Blob(['﻿' + [head, ...lines].join('
-')], { type: 'text/csv;charset=utf-8' });
+            const blob = new Blob(['﻿' + [head, ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             a.download = `내성적_${new Date().toISOString().slice(0, 10)}.csv`;
