@@ -55,7 +55,7 @@ export default function RecordPage() {
     <div className='p-8'>
       <h1 className='mb-2 text-2xl font-semibold'>내 성적</h1>
       <p>사업자번호를 등록하면 과거 투찰 전체가 채점됩니다.{' '}
-        <Link href='/dashboard/my' className='text-primary font-semibold hover:underline'>사업자 등록 →</Link></p>
+        <Link href='/welcome' className='text-primary font-semibold hover:underline'>사업자 등록 →</Link></p>
     </div>
   );
 

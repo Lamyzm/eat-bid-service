@@ -77,7 +77,7 @@ export default function TodayPage() {
         <Card className='border-primary'>
           <CardContent className='py-4'>
             사업자번호를 등록하면 내 투찰 이력이 반영됩니다.{' '}
-            <Link href='/dashboard/my' className='text-primary font-semibold hover:underline'>사업자 등록 →</Link>
+            <Link href='/welcome' className='text-primary font-semibold hover:underline'>사업자 등록 →</Link>
           </CardContent>
         </Card>
       )}
