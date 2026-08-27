@@ -1,0 +1,20 @@
+FROM node:24-slim AS build
+RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
+WORKDIR /app
+COPY pnpm-workspace.yaml package.json turbo.json tsconfig.json ./
+COPY pnpm-lock.yaml* ./
+COPY packages ./packages
+COPY apps/web ./apps/web
+RUN pnpm install
+RUN pnpm --filter @eatbid/shared build
+ENV BUILD_STANDALONE=true
+RUN pnpm --filter @eatbid/web build
+
+FROM node:24-slim
+WORKDIR /app
+ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
+COPY --from=build /app/apps/web/.next/standalone ./
+COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build /app/apps/web/public ./apps/web/public
+EXPOSE 3000
+CMD ["node", "apps/web/server.js"]
