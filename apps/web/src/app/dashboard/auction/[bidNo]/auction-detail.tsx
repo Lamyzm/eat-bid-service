@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useMarks } from '@/lib/marks';
 import { StripChart } from '@/components/strip-chart';
-import { RosterTable, type RosterRow } from '@/components/roster-table';
+import { type RosterRow } from '@/components/roster-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,7 +30,6 @@ export function AuctionDetail({ open, auctions, roster }: {
   const floor = open.floorRate ?? 90;
   const sameFloor = auctions.filter(a => a.winRate != null && a.floorRate === floor);
   const points = sameFloor.map(a => ({ winRate: a.winRate!, openedAt: a.openedAt }));
-  const flow5 = points.slice(-5).map(p => p.winRate.toFixed(2)).join(' → ');
   const band = open.band as { dense?: { lo: number; hi: number; pct: number }; n?: number } | null;
   // 자주 걸린 값 — 스트립과 동일 소스에서 계산 (0.01 반올림)
   const recur = useMemo(() => {
@@ -142,11 +141,6 @@ export function AuctionDetail({ open, auctions, roster }: {
               ))}
             </div>
           )}
-          {flow5 && (
-            <div className='text-sm tabular-nums'>
-              <span className='text-muted-foreground'>최근 5회:</span> <b>{flow5}</b>
-            </div>
-          )}
           {points.length >= 4 ? (
             <StripChart floor={floor} points={points}
               denseLo={band?.dense?.lo ?? null} denseHi={band?.dense?.hi ?? null}
@@ -157,29 +151,24 @@ export function AuctionDetail({ open, auctions, roster }: {
             </p>
           )}
           {open.schoolId && (
-            <Link href={`/dashboard/schools/${encodeURIComponent(open.schoolId)}`}
-              className='text-primary text-sm hover:underline'>학교 전체 이력 →</Link>
-          )}
-          {open.schoolId && (
-            <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}
-              className='text-primary ml-4 text-sm font-semibold hover:underline'>분석판 →</Link>
+            <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}${liveRate != null ? `?rate=${liveRate}&base=${base}` : ''}`}
+              className='text-primary text-sm font-semibold hover:underline'>이 학교 분석판 (기록·리허설·리플레이) →</Link>
           )}
         </CardContent>
       </Card>
 
-      {/* 3. 누가 오나 */}
+      {/* 3. 참여 업체 — 1줄 요약 (상세는 분석판) */}
       <Card>
-        <CardHeader className='pb-2'>
-          <CardTitle className='text-base'>참여 업체</CardTitle>
-          <CardDescription>
-            보통 <b className='text-foreground'>{open.usualN ?? '-'}곳</b>이 참여합니다.
-            {' '}최근 참여 이력 기준.
-            {roster.maxStreak <= 1 && roster.rows.length > 0 &&
-              ' 2연속 낙찰 사례 없음.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='p-0'>
-          <RosterTable rows={roster.rows} limit={12} />
+        <CardContent className='flex flex-wrap items-center justify-between gap-2 py-3 text-[15px]'>
+          <span>
+            보통 <b>{open.usualN ?? '-'}곳</b> 참여
+            {roster.rows[0] && <> · 최다 낙찰 <b>{roster.rows[0].name}</b> ({roster.rows[0].winN}회)</>}
+            {roster.maxStreak <= 1 && roster.rows.length > 0 && <span className='text-muted-foreground'> · 2연속 낙찰 없음</span>}
+          </span>
+          {open.schoolId && (
+            <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}
+              className='text-primary text-sm hover:underline'>참여 업체 전체 →</Link>
+          )}
         </CardContent>
       </Card>
 

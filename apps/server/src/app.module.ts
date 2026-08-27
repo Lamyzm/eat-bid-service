@@ -180,13 +180,26 @@ class ResultsController {
 
 @Controller("wins")
 class WinsController {
+  /** 적재된 지역 목록 (데이터 유도 — 거짓 '전국' 방지) */
+  @Get("regions")
+  async regions() {
+    const rows = await db.select({
+      sgg: sql<string>`split_part(school_id, '|', 1)`,
+      n: sql<number>`count(*)`,
+    }).from(schoolAuctions).groupBy(sql`split_part(school_id, '|', 1)`)
+      .orderBy(desc(sql`count(*)`));
+    return rows.map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
+  }
+
   /** 개찰 속보 — 최근 개찰 결과 전량 (낙찰 업체명·1-2등차 포함) */
   @Get("recent")
-  async recent(@Query("days") daysStr?: string, @Query("category") category?: string) {
+  async recent(@Query("days") daysStr?: string, @Query("category") category?: string,
+    @Query("sigungu") sigungu?: string) {
     const days = Math.min(Number(daysStr) || 30, 180);
     const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
     const conds = [gte(schoolAuctions.openedAt, cutoff)];
     if (category) conds.push(eq(schoolAuctions.category, category));
+    if (sigungu) conds.push(ilike(schoolAuctions.schoolId, `${sigungu}|%`));
     const rows = await db.select().from(schoolAuctions)
       .where(and(...conds)).orderBy(desc(schoolAuctions.openedAt)).limit(400);
     const ids = rows.map(r => r.bidId);
@@ -215,12 +228,13 @@ class WinsController {
 
   /** 월별 보드 — 월×품목 집계 (건수·낙찰률 중앙값·기초금액 합계) */
   @Get("monthly")
-  async monthly(@Query("months") monthsStr?: string) {
+  async monthly(@Query("months") monthsStr?: string, @Query("sigungu") sigungu?: string) {
     const months = Math.min(Number(monthsStr) || 12, 36);
     const rows = await db.select({
       openedAt: schoolAuctions.openedAt, category: schoolAuctions.category,
       winRate: schoolAuctions.winRate, basePrice: schoolAuctions.basePrice,
-    }).from(schoolAuctions);
+    }).from(schoolAuctions)
+      .where(sigungu ? ilike(schoolAuctions.schoolId, `${sigungu}|%`) : undefined);
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
     const co = cutoff.toISOString().slice(0, 7);
     const cell = new Map<string, { n: number; wins: number[]; sumBase: number }>();
@@ -414,6 +428,10 @@ class RoundsController {
       secondRate: sql<number | null>`min(bid_rate) filter (where win_rate is not null and bid_rate > win_rate)`,
     }).from(firmBids).where(inArray(firmBids.bidId, ids)).groupBy(firmBids.bidId);
     const byId = new Map(agg.map(a => [a.bidId, a]));
+    const wBizs = [...new Set(aus.map(a => a.winnerBizNo).filter(Boolean))] as string[];
+    const wNames = wBizs.length ? await db.select({ bizNo: firms.bizNo, name: firms.name })
+      .from(firms).where(inArray(firms.bizNo, wBizs)) : [];
+    const wnm = new Map(wNames.map(n => [n.bizNo, n.name]));
     return aus.map(a => {
       const g = byId.get(a.bidId);
       // 실효 하한율 = 하한율 × 예정가/기초가 (예정가 보유 회차는 판정 확정)
@@ -423,6 +441,7 @@ class RoundsController {
         bidId: a.bidId, openedAt: a.openedAt, category: a.category,
         floorRate: a.floorRate, winRate: a.winRate, basePrice: a.basePrice,
         nValid: a.nValid, winnerBiz: a.winnerBizNo ?? null,
+        winnerName: a.winnerBizNo ? (wnm.get(a.winnerBizNo) ?? null) : null,
         nBids: g ? Number(g.nBids) : null,
         maxInvalid: g?.maxInvalid ?? null,
         secondRate: g?.secondRate ?? null,

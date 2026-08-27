@@ -4,6 +4,7 @@
  * 스펙 v3: "남들 뭐 땄나 · 요즘 얼마에 끝나나"에 답하는 구경 구역.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useRegion } from '@/lib/region';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,13 +29,23 @@ export default function WinsPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [rows, setRows] = useState<Win[]>([]);
   const [monthly, setMonthly] = useState<MonthCell[]>([]);
+  const { home, view, setView, ready } = useRegion();
+  const [regions, setRegions] = useState<{ sigungu: string; n: number }[]>([]);
 
+  useEffect(() => { fetch('/api/wins/regions').then(r => r.json()).then(setRegions); }, []);
   useEffect(() => {
+    if (!ready) return;
     const q = new URLSearchParams({ days: String(days) });
     if (cat) q.set('category', cat);
+    if (view) q.set('sigungu', view);
     fetch(`/api/wins/recent?${q}`).then(r => r.json()).then(setRows);
-  }, [days, cat]);
-  useEffect(() => { fetch('/api/wins/monthly?months=12').then(r => r.json()).then(setMonthly); }, []);
+  }, [days, cat, view, ready]);
+  useEffect(() => {
+    if (!ready) return;
+    const q = new URLSearchParams({ months: '12' });
+    if (view) q.set('sigungu', view);
+    fetch(`/api/wins/monthly?${q}`).then(r => r.json()).then(setMonthly);
+  }, [view, ready]);
 
   const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
   const totalBase = rows.reduce((s, r) => s + (r.basePrice ?? 0), 0);
@@ -51,13 +62,26 @@ export default function WinsPage() {
 
   return (
     <div className='flex flex-1 flex-col space-y-6 p-4 md:p-6'>
-      <div>
-        <h1 className='text-2xl font-semibold'>낙찰</h1>
-        <p className='text-muted-foreground text-sm tabular-nums'>
-          최근 {days}일 개찰 {rows.length}건 · 기초금액 합계 {eok(totalBase)}원
-          {gapMed != null && <> · 1–2등 차이 중앙값 <b className='text-foreground'>{gapMed.toFixed(3)}</b></>}
-        </p>
+      <div className='flex flex-wrap items-end justify-between gap-3'>
+        <div>
+          <h1 className='text-2xl font-semibold'>낙찰</h1>
+          <p className='text-muted-foreground text-sm tabular-nums'>
+            최근 {days}일 개찰 {rows.length}건 · 기초금액 합계 {eok(totalBase)}원
+            {gapMed != null && <> · 1–2등 차이 중앙값 <b className='text-foreground'>{gapMed.toFixed(3)}</b></>}
+          </p>
+        </div>
+        <div className='flex flex-wrap items-center gap-1.5'>
+          {regions.map(r => (
+            <Button key={r.sigungu} size='sm' variant={view === r.sigungu ? 'default' : 'outline'}
+              onClick={() => setView(r.sigungu)}>{r.sigungu}</Button>
+          ))}
+        </div>
       </div>
+      {view && home && view !== home && (
+        <div className='rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm'>
+          <b>{view} 보는 중</b> — 내 자격 지역({home})이 아닙니다. 참가 자격은 사무소 소재지 기준입니다.
+        </div>
+      )}
 
       {/* 월별 보드 */}
       <Card>
@@ -168,7 +192,7 @@ export default function WinsPage() {
         </CardContent>
       </Card>
       <p className='text-muted-foreground text-xs'>
-        1–2등 차 = 낙찰률과 2위 투찰률의 간격. 0.010 이하는 빨간색.
+        1–2등 차 = 낙찰률과 2위 투찰률의 간격. 0.010 이하는 빨간색. 현재 적재 지역: {regions.map(r => r.sigungu).join(' · ') || '—'} (확장 중).
       </p>
     </div>
   );

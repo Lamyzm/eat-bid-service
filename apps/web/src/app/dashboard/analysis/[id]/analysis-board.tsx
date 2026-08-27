@@ -24,7 +24,7 @@ import {
 type Round = {
   bidId: string; openedAt: string; category: string | null; floorRate: number | null;
   winRate: number | null; basePrice: number | null; nValid: number; winnerBiz: string | null;
-  nBids: number | null; maxInvalid: number | null; secondRate: number | null;
+  nBids: number | null; maxInvalid: number | null; secondRate: number | null; winnerName?: string | null;
   plannedPrice: number | null; effFloor: number | null;
   reserves: { r: number; c: boolean }[] | null;
 };
@@ -40,7 +40,7 @@ const C = {
   band: 'rgba(20,154,128,0.55)', me: '#2962ff',
 };
 const LENSES = [
-  ['flow', '흐름'], ['dist', '분포'], ['rehearsal', '리허설'],
+  ['flow', '흐름'], ['record', '기록'], ['dist', '분포'], ['rehearsal', '리허설'],
   ['replay', '리플레이'], ['lottery', '추첨'], ['monthly', '월별'],
 ] as const;
 type Lens = typeof LENSES[number][0];
@@ -120,10 +120,23 @@ function Hist({ values, binSize, fmt, highlight, onBar, marks }: {
   );
 }
 
-export function AnalysisBoard({ school, rounds }: { school: any; rounds: Round[] }) {
+export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
+  school: any; rounds: Round[]; initialRate?: string | null; initialBase?: string | null;
+}) {
   const { bizNos } = useWorkspace();
   const { marks, set: setMark } = useMarks();
-  const [lens, setLens] = useState<Lens>('flow');
+  // 렌즈 기억: 최초 방문=흐름, 이후 마지막 사용 렌즈
+  const [lens, setLensState] = useState<Lens>('flow');
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('eatbid.lens') as Lens | null;
+      if (saved && LENSES.some(([k]) => k === saved)) setLensState(saved);
+    } catch {}
+  }, []);
+  const setLens = (l: Lens) => {
+    setLensState(l);
+    try { localStorage.setItem('eatbid.lens', l); } catch {}
+  };
   const [period, setPeriod] = useState<'3m' | '6m' | '12m' | 'all'>('all');
 
   const floors = useMemo(() => {
@@ -161,10 +174,10 @@ export function AnalysisBoard({ school, rounds }: { school: any; rounds: Round[]
 
   // ── 산출기 (전 렌즈 공유) ──
   const latest = view.at(-1) ?? all.at(-1);
-  const [baseStr, setBaseStr] = useState('');
+  const [baseStr, setBaseStr] = useState(initialBase ?? '');
   useEffect(() => { if (!baseStr && latest?.basePrice) setBaseStr(String(latest.basePrice)); }, [latest]);
   const base = Number(baseStr.replace(/[^0-9]/g, '')) || 0;
-  const [rateStr, setRateStr] = useState('');
+  const [rateStr, setRateStr] = useState(initialRate ?? '');
   const rate = parseFloat(rateStr);
   const r = Number.isFinite(rate) ? rate : null;
   const inject = (v: number) => setRateStr(v.toFixed(3));
@@ -301,6 +314,20 @@ export function AnalysisBoard({ school, rounds }: { school: any; rounds: Round[]
   // 추첨 렌즈 데이터
   const reserveRatios = useMemo(() => all.flatMap(x => (x.reserves ?? []).map(v => v.r * 100)), [all]);
 
+  // 발주 예보 — 최근 간격 중앙값
+  const forecast = useMemo(() => {
+    const dates = [...new Set(rounds.map(x => x.openedAt))].sort();
+    if (dates.length < 4) return null;
+    const gaps = dates.slice(-7).slice(1).map((d, i) =>
+      Math.round((+new Date(d) - +new Date(dates.slice(-7)[i])) / 864e5)).filter(g => g > 5 && g < 90).sort((a, b) => a - b);
+    if (!gaps.length) return null;
+    const med = gaps[Math.floor(gaps.length / 2)];
+    const last = dates[dates.length - 1];
+    const expected = new Date(+new Date(last) + med * 864e5);
+    return { med, last, expected: expected.toISOString().slice(0, 10),
+      due: Math.round((+expected - Date.now()) / 864e5) };
+  }, [rounds]);
+
   if (!school) return <div className='p-8'>학교를 찾지 못했습니다.</div>;
   const openBid = openBids[0] ?? null;
   const mark = openBid ? marks[openBid.bidNo] : null;
@@ -317,6 +344,11 @@ export function AnalysisBoard({ school, rounds }: { school: any; rounds: Round[]
             <Badge variant='secondary'>예정가 보유 {rounds.filter(x => x.plannedPrice != null).length}회</Badge>
             {openBid && <Badge>진행 중 공고 {openBids.length}건</Badge>}
             {my.length > 0 && <Badge variant='outline'>내 참여 {my.length}회</Badge>}
+            {!openBid && forecast && (
+              <Badge variant='outline' className='tabular-nums'>
+                발주 주기 {forecast.med}일 · 다음 예상 {forecast.due <= 0 ? '도래' : `${forecast.expected} (D-${forecast.due})`}
+              </Badge>
+            )}
           </div>
         </div>
         <div className='flex flex-wrap items-center gap-1.5'>
@@ -337,9 +369,9 @@ export function AnalysisBoard({ school, rounds }: { school: any; rounds: Round[]
         {/* ── 메인: 렌즈 ── */}
         <Card>
           <CardContent className='p-3'>
-            <div className='mb-3 flex flex-wrap gap-1'>
+            <div className='mb-3 flex gap-1 overflow-x-auto pb-1' style={{ scrollbarWidth: 'thin' }}>
               {LENSES.map(([k, label]) => (
-                <Button key={k} size='sm' variant={lens === k ? 'default' : 'ghost'}
+                <Button key={k} size='sm' className='shrink-0' variant={lens === k ? 'default' : 'ghost'}
                   onClick={() => setLens(k)}>{label}</Button>
               ))}
             </div>
@@ -552,6 +584,45 @@ export function AnalysisBoard({ school, rounds }: { school: any; rounds: Round[]
               )}
             </>)}
 
+            {lens === 'record' && (
+              <div style={{ overflowX: 'auto', maxHeight: 560, overflowY: 'auto' }}>
+                <Table>
+                  <TableHeader><TableRow>
+                    <TableHead>날짜</TableHead><TableHead>품목</TableHead>
+                    <TableHead className='text-right'>기초금액</TableHead>
+                    <TableHead className='text-right'>하한</TableHead>
+                    <TableHead className='text-right'>낙찰률</TableHead>
+                    <TableHead>낙찰 업체</TableHead>
+                    <TableHead className='text-right'>참여</TableHead>
+                    <TableHead className='text-right'>내 투찰</TableHead>
+                  </TableRow></TableHeader>
+                  <TableBody>
+                    {[...all].sort((a, b) => b.openedAt.localeCompare(a.openedAt)).map(x => {
+                      const mine = my.find(m => m.openedAt === x.openedAt && m.floorRate === x.floorRate);
+                      return (
+                        <TableRow key={x.bidId} className={mine ? 'bg-primary/5' : ''}>
+                          <TableCell className='tabular-nums'>{x.openedAt}</TableCell>
+                          <TableCell>{x.category}</TableCell>
+                          <TableCell className='text-right tabular-nums'>{won(x.basePrice)}</TableCell>
+                          <TableCell className='text-right tabular-nums'>{x.floorRate}</TableCell>
+                          <TableCell className='cursor-pointer text-right font-mono font-semibold tabular-nums hover:underline'
+                            onClick={() => { inject(x.winRate!); }}>{x.winRate?.toFixed(3)}</TableCell>
+                          <TableCell className='max-w-[160px] truncate'>{x.winnerName ?? '-'}</TableCell>
+                          <TableCell className='cursor-pointer text-right tabular-nums hover:underline'
+                            onClick={() => openReplay(x.bidId)}>{x.nBids ?? x.nValid}곳</TableCell>
+                          <TableCell className='text-right font-mono tabular-nums'>
+                            {mine?.bidRate != null ? mine.bidRate.toFixed(3) : ''}
+                            {mine?.won ? ' 낙찰' : ''}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <p className='text-muted-foreground p-3 text-xs'>낙찰률 클릭 = 산출기 적용 · 참여 클릭 = 리플레이</p>
+              </div>
+            )}
+
             {lens === 'monthly' && (
               <div style={{ overflowX: 'auto' }}>
                 <Table>
@@ -621,15 +692,24 @@ export function AnalysisBoard({ school, rounds }: { school: any; rounds: Round[]
                   사이에서 정해져 왔습니다 (이 학교 {pprs.length}회 기준).
                 </p>
               )}
-              {openBid ? (
+              {openBids.length > 0 ? (
                 <div className='space-y-1.5 border-t pt-2'>
-                  <div className='text-sm font-medium'>진행 중: 마감 전 공고</div>
-                  <Button className='w-full' disabled={r == null || (floor != null && r < floor)}
-                    variant={mark?.s === 'done' ? 'secondary' : 'default'}
-                    onClick={() => setMark(openBid.bidNo, mark?.s === 'done' ? null : { s: 'done', rate: r ?? undefined })}>
-                    {mark?.s === 'done' ? `✓ 투찰함 (${mark.rate ?? ''})` : '이 값으로 투찰함 저장'}
-                  </Button>
-                  <Link href={`/dashboard/auction/${openBid.bidNo}`} className='text-primary block text-sm hover:underline'>공고 상세 →</Link>
+                  <div className='text-sm font-medium'>진행 중 공고 {openBids.length}건</div>
+                  {openBids.map(o => {
+                    const m = marks[o.bidNo];
+                    return (
+                      <div key={o.bidNo} className='space-y-1'>
+                        <Button className='w-full' size='sm' disabled={r == null || (o.floorRate != null && r < o.floorRate)}
+                          variant={m?.s === 'done' ? 'secondary' : 'default'}
+                          onClick={() => setMark(o.bidNo, m?.s === 'done' ? null : { s: 'done', rate: r ?? undefined })}>
+                          {m?.s === 'done' ? `✓ ${o.category} 투찰함 (${m.rate ?? ''})` : `${o.category} 공고에 이 값 저장`}
+                        </Button>
+                        <Link href={`/dashboard/auction/${o.bidNo}`} className='text-primary block text-xs hover:underline'>
+                          {o.category} · 기초 {won(o.basePrice)}원 · 하한 {o.floorRate} — 상세 →
+                        </Link>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className='text-muted-foreground border-t pt-2 text-xs'>진행 중 공고가 없습니다. 공고가 뜨면 여기서 바로 투찰함에 저장됩니다.</p>

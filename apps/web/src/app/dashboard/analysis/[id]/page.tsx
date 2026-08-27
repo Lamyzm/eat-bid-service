@@ -2,8 +2,11 @@ import { AnalysisBoard } from './analysis-board';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AnalysisPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AnalysisPage({ params, searchParams }: {
+  params: Promise<{ id: string }>; searchParams: Promise<{ rate?: string; base?: string }>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
   const API = process.env.API_URL ?? 'http://localhost:8081';
   const decoded = decodeURIComponent(id);
   const [schoolRes, roundsRes] = await Promise.all([
@@ -13,5 +16,6 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
   const schools = await schoolRes.json();
   const school = schools.find((s: any) => s.id === decoded) ?? schools[0] ?? null;
   const rounds = await roundsRes.json();
-  return <AnalysisBoard school={school} rounds={rounds} />;
+  return <AnalysisBoard school={school} rounds={rounds}
+    initialRate={sp.rate ?? null} initialBase={sp.base ?? null} />;
 }

@@ -6,16 +6,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkspace } from '@/lib/workspace';
+import { useRegion } from '@/lib/region';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 
 type Lookup = { found: boolean; bizNo: string; name?: string; totalBids?: number; totalWins?: number };
-type Rec = { totalBids: number; totalWins: number; pushedOut: number; belowFloor: number };
+type Rec = { totalBids: number; totalWins: number; pushedOut: number; belowFloor: number; regions?: string[] };
 
 export default function WelcomePage() {
   const router = useRouter();
   const { bizNos, add } = useWorkspace();
+  const { home, setHome } = useRegion();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,6 +40,8 @@ export default function WelcomePage() {
 
   const total = hits.reduce((s, h) => s + (h.rec?.totalBids ?? 0), 0);
   const wins = hits.reduce((s, h) => s + (h.rec?.totalWins ?? 0), 0);
+  // 자격 지역 후보 — 참여 이력에서 유도(제안까지만), 확정은 선택으로
+  const regionCands = [...new Set(hits.flatMap(h => h.rec?.regions ?? []))].slice(0, 8);
 
   return (
     <div className='bg-background flex min-h-screen items-center justify-center p-4'>
@@ -117,6 +121,17 @@ export default function WelcomePage() {
               <div className='text-lg font-semibold tabular-nums'>
                 {bizNos.length}개 사업자 · 참여 {total}회 · 낙찰 {wins}회가 연결됐습니다
               </div>
+              {regionCands.length > 0 && (
+                <div className='space-y-1.5'>
+                  <div className='text-sm font-medium'>내 자격 지역 <span className='text-muted-foreground font-normal'>(참여 이력 기준 제안 — 사무소 소재지로 고르세요)</span></div>
+                  <div className='flex flex-wrap justify-center gap-1.5'>
+                    {regionCands.map(rg => (
+                      <Button key={rg} size='sm' variant={home === rg ? 'default' : 'outline'}
+                        onClick={() => setHome(rg)}>{rg}</Button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <p className='text-muted-foreground text-sm'>
                 오늘 열린 공고부터 보세요. 공고마다 그 학교의 과거·구간·참여 업체가 붙어 있습니다.
               </p>
