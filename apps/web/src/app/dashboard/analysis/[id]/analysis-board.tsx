@@ -303,9 +303,8 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
       })));
     }
     chart.timeScale().fitContent();
-    const onMove = (p: any) => {
-      const x = p?.time ? view.find(v => v.t === p.time) ?? null : null;
-      setHover(x);
+    // 호버 프리페치 — onMove와 qa 훅이 동일 경로를 타도록 단일 함수 (qa 판정 반영)
+    const prefetchRound = (x: (typeof view)[number] | null) => {
       if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
       if (!x) { hoverIdRef.current = null; setHoverLadder(null); return; }
       if (hoverIdRef.current === x.bidId) return; // 같은 회차 재호버 — 유지
@@ -322,6 +321,11 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
         } catch {}
       }, 300);
     };
+    const onMove = (p: any) => {
+      const x = p?.time ? view.find(v => v.t === p.time) ?? null : null;
+      setHover(x);
+      prefetchRound(x);
+    };
     const onClick = (p: any) => {
       if (!p?.time) return;
       const x = view.find(v => v.t === p.time);
@@ -329,13 +333,17 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
     };
     chart.subscribeCrosshairMove(onMove);
     chart.subscribeClick(onClick);
-    // 자동 검증용 (qa) — 크로스헤어를 프로그램으로 이동해 호버-리플레이 경로 테스트. 프로덕션 무해.
+    // 자동 검증용 (qa) — v5 setCrosshairPosition은 crosshairMove를 발화하지 않으므로
+    // onMove와 동일한 prefetchRound 경로를 직접 호출한다. 프로덕션 무해.
     (window as any).__eatbidChart = {
       hover: (i: number) => {
         const x = view[i];
-        if (x?.winRate != null) chart.setCrosshairPosition(x.winRate, x.t, win);
+        if (x?.winRate == null) return;
+        chart.setCrosshairPosition(x.winRate, x.t, win);
+        setHover(x);
+        prefetchRound(x);
       },
-      clear: () => (chart as any).clearCrosshairPosition?.(),
+      clear: () => { (chart as any).clearCrosshairPosition?.(); setHover(null); prefetchRound(null); },
       n: view.length,
     };
     return () => {
