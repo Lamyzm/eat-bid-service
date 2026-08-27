@@ -27,12 +27,19 @@ export default function RecordPage() {
   useTrack('record');
   const { bizNos, ready } = useWorkspace();
   const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [ties, setTies] = useState<{ openedAt: string | null; schoolName: string | null; sigungu: string | null; bidRate: number | null; nTied: number; won: boolean; winRate: number | null }[]>([]);
   const [biz, setBiz] = useState<string | null>(null); // null = 합산
   const [months, setMonths] = useState(12);
 
   useEffect(() => {
     if (bizNos.length === 0) return;
-    fetch(`/api/firms/bids?bizNos=${bizNos.join(',')}&limit=600`).then(r => r.json()).then(setRows);
+    fetch(`/api/firms/bids?bizNos=${bizNos.join(',')}&limit=2000&withTotal=1`).then(r => r.json()).then(d => {
+      setRows(Array.isArray(d) ? d : (d.rows ?? []));
+      setTotal(Array.isArray(d) ? null : (d.total ?? null));
+    });
+    fetch(`/api/firms/ties?bizNos=${bizNos.join(',')}`).then(r => r.json())
+      .then(x => setTies(Array.isArray(x) ? x : [])).catch(() => {});
   }, [bizNos]);
 
   const cutoff = useMemo(() => {
@@ -68,6 +75,7 @@ export default function RecordPage() {
           <h1 className='text-2xl font-semibold'>내 성적</h1>
           <p className='text-muted-foreground text-sm tabular-nums'>
             최근 {months}개월 · {view.length}회 투찰 · 낙찰 계약액 {won(winSum)}원
+            {total != null && total > rows.length && <> · 표시 {rows.length.toLocaleString()}건/전체 {total.toLocaleString()}건</>}
           </p>
         </div>
         <div className='flex flex-wrap gap-1.5'>
@@ -122,6 +130,51 @@ export default function RecordPage() {
             <b>아깝게 진 판</b> — 최근 {months}개월 동안 <b className='text-amber-600'>{runnerUps.length}번 2등</b>
             이었고, 낙찰가와의 차이 중앙값은 <b>{ruMed?.toFixed(3)}</b>이었습니다.
             {ruMed != null && ruMed <= 0.05 && ' 종이 한 장 차이입니다.'}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 동가 충돌 이력 — 과거형 사실. 승률·비율 요약 금지 */}
+      {ties.length > 0 && (
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-base'>동가 충돌 이력</CardTitle>
+            <CardDescription>같은 값이 겹치면 추첨으로 갈립니다 — 내가 겹쳤던 회차들.</CardDescription>
+          </CardHeader>
+          <CardContent className='p-0'>
+            <div style={{ overflowX: 'auto', maxHeight: 320, overflowY: 'auto' }}>
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>개찰일</TableHead><TableHead>학교</TableHead>
+                  <TableHead className='text-right'>내 값</TableHead>
+                  <TableHead className='text-right'>동가</TableHead>
+                  <TableHead>결과</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {ties.map((t, i) => {
+                    const st = t.won ? '낙찰' : t.bidRate != null && t.winRate != null && t.bidRate < t.winRate ? '무효' : '밀림';
+                    return (
+                      <TableRow key={i}>
+                        <TableCell className='tabular-nums'>{t.openedAt}</TableCell>
+                        <TableCell>
+                          {t.sigungu && t.schoolName ? (
+                            <Link href={`/dashboard/analysis/${encodeURIComponent(`${t.sigungu}|${t.schoolName}`)}`}
+                              className='font-medium hover:underline'>{t.schoolName}</Link>
+                          ) : (t.schoolName ?? '-')}
+                        </TableCell>
+                        <TableCell className='text-right font-mono tabular-nums'>{t.bidRate?.toFixed(3)}</TableCell>
+                        <TableCell className='text-right tabular-nums'>{t.nTied}곳</TableCell>
+                        <TableCell>
+                          {st === '낙찰' && <Badge className='bg-primary'>낙찰</Badge>}
+                          {st === '밀림' && <Badge variant='secondary'>밀림</Badge>}
+                          {st === '무효' && <Badge variant='destructive'>무효</Badge>}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}

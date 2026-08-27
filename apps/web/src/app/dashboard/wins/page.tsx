@@ -28,16 +28,20 @@ export default function WinsPage() {
   const [days, setDays] = useState(30);
   const [cat, setCat] = useState<string | null>(null);
   const [rows, setRows] = useState<Win[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
   const [monthly, setMonthly] = useState<MonthCell[]>([]);
   const { viewRegions, isBrowsing, view, ready } = useRegion();
   const regionKey = viewRegions?.join(',') ?? '';
 
   useEffect(() => {
     if (!ready) return;
-    const q = new URLSearchParams({ days: String(days) });
+    const q = new URLSearchParams({ days: String(days), withTotal: '1' });
     if (cat) q.set('category', cat);
     if (regionKey) q.set('sigungu', regionKey);
-    fetch(`/api/wins/recent?${q}`).then(r => r.json()).then(setRows);
+    fetch(`/api/wins/recent?${q}`).then(r => r.json()).then(d => {
+      setRows(Array.isArray(d) ? d : (d.rows ?? []));
+      setTotal(Array.isArray(d) ? null : (d.total ?? null));
+    });
   }, [days, cat, regionKey, ready]);
   useEffect(() => {
     if (!ready) return;
@@ -65,7 +69,7 @@ export default function WinsPage() {
         <div>
           <h1 className='text-2xl font-semibold'>낙찰</h1>
           <p className='text-muted-foreground text-sm tabular-nums'>
-            최근 {days}일 개찰 {rows.length}건 · 기초금액 합계 {eok(totalBase)}원
+            최근 {days}일 개찰 {total != null && total > rows.length ? `전체 ${total.toLocaleString()}건 중 ${rows.length}건 표시` : `${rows.length}건`} · 기초금액 합계 {eok(totalBase)}원
             {gapMed != null && <> · 1–2등 차이 중앙값 <b className='text-foreground'>{gapMed.toFixed(3)}</b></>}
           </p>
         </div>
