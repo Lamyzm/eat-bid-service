@@ -10,3 +10,11 @@ configMapGenerator:
     files: [schema.sql]
 generatorOptions:
   disableNameSuffixHash: true
+
+images:
+  - name: eatbid-server
+    newName: ghcr.io/lamyzm/eatbid-server
+    newTag: e8b145b
+  - name: eatbid-web
+    newName: ghcr.io/lamyzm/eatbid-web
+    newTag: e8b145b
