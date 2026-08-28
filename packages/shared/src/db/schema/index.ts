@@ -150,6 +150,8 @@ export const session = pgTable("session", {
 export const account = pgTable("account", {
   id: varchar("id", { length: 64 }).primaryKey(),
   userId: varchar("user_id", { length: 64 }).notNull(),
+  // better-auth 1.7.x: account.issuer 필수 (provider 발급자 식별 — 누락 시 콜백 실패)
+  issuer: varchar("issuer", { length: 200 }).notNull().default(""),
   accountId: varchar("account_id", { length: 200 }).notNull(),
   providerId: varchar("provider_id", { length: 64 }).notNull(),
   accessToken: varchar("access_token", { length: 2000 }),

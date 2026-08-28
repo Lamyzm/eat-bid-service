@@ -153,6 +153,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_session_token ON "session" (token);
 CREATE TABLE IF NOT EXISTS "account" (
 	"id" varchar(64) PRIMARY KEY,
 	"user_id" varchar(64) NOT NULL,
+	"issuer" varchar(200) NOT NULL DEFAULT '',
 	"account_id" varchar(200) NOT NULL,
 	"provider_id" varchar(64) NOT NULL,
 	"access_token" varchar(2000),
@@ -194,3 +195,6 @@ CREATE TABLE IF NOT EXISTS "user_mark" (
 );
 -- 라이브 마이그레이션 병기
 ALTER TABLE "user_mark" ADD COLUMN IF NOT EXISTS "rate" double precision;
+
+-- better-auth 1.7.x 스키마 동기화 (라이브 마이그레이션)
+ALTER TABLE "account" ADD COLUMN IF NOT EXISTS "issuer" varchar(200) NOT NULL DEFAULT '';
