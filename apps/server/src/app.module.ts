@@ -371,9 +371,42 @@ class FirmsController {
   /** 투찰 상세 — 행당 3단(낙찰가/2등가/내 값) 재료 */
   @Get("bids")
   async bids(@Query("bizNos") bizNosCsv: string, @Query("limit") limitStr?: string,
-    @Query("withTotal") withTotal?: string) {
+    @Query("withTotal") withTotal?: string, @Query("summary") summary?: string,
+    @Query("months") monthsStr?: string) {
     const bizNos = this.parse(bizNosCsv);
     if (!bizNos.length) return [];
+    // U11: 행 배열 없이 KPI만 — 전체 기준 수치를 싸게 (SQL 집계 1~2회)
+    if (summary === "1") {
+      const conds = [inArray(firmBids.bizNo, bizNos)];
+      const months = Number(monthsStr);
+      if (Number.isFinite(months) && months > 0) {
+        const cut = new Date(); cut.setMonth(cut.getMonth() - months);
+        conds.push(gte(firmBids.openedAt, cut.toISOString().slice(0, 10)));
+      }
+      const [agg] = await db.select({
+        part: sql<number>`count(*)`,
+        wins: sql<number>`count(*) filter (where won = 1)`,
+        below: sql<number>`count(*) filter (where won = 0 and bid_rate is not null and win_rate is not null and bid_rate < win_rate)`,
+        pushed: sql<number>`count(*) filter (where won = 0 and bid_rate is not null and win_rate is not null and bid_rate >= win_rate)`,
+        winSum: sql<number>`coalesce(sum(base_price * bid_rate / 100) filter (where won = 1), 0)`,
+      }).from(firmBids).where(and(...conds));
+      // 아깝게 진 판 = 내가 2등(승자 위 최저가가 내 값)
+      const runner = await db.select({
+        diff: sql<number>`round((fb.bid_rate - fb.win_rate)::numeric, 3)`,
+      }).from(sql`${firmBids} fb`)
+        .where(sql`fb.biz_no = any(${bizNos}) and fb.won = 0 and fb.bid_rate is not null and fb.win_rate is not null
+          and fb.bid_rate > fb.win_rate
+          and not exists (select 1 from firm_bids o where o.bid_id = fb.bid_id
+            and o.bid_rate > fb.win_rate and o.bid_rate < fb.bid_rate)`);
+      const diffs = runner.map(r => Number(r.diff)).filter(Number.isFinite).sort((a, b) => a - b);
+      return {
+        part: Number(agg.part), wins: Number(agg.wins),
+        pushed: Number(agg.pushed), below: Number(agg.below),
+        winRatePct: Number(agg.part) ? +(Number(agg.wins) / Number(agg.part) * 100).toFixed(1) : 0,
+        winSum: Math.round(Number(agg.winSum)),
+        runnerUp: { n: diffs.length, medDiff: diffs.length ? diffs[Math.floor(diffs.length / 2)] : null },
+      };
+    }
     const limit = Math.min(Number(limitStr) || 2000, 5000);
     const total = withTotal === "1"
       ? Number((await db.select({ n: sql<number>`count(*)` }).from(firmBids).where(inArray(firmBids.bizNo, bizNos)))[0].n)

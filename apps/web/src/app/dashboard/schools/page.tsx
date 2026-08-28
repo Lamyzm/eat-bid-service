@@ -35,7 +35,7 @@ export default function SchoolsPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [fieldMax, setFieldMax] = useState<number | null>(null); // 보통 참여 N곳 이하
   const [sort, setSort] = useState<SortKey>('n');
-  const { viewRegions, isBrowsing, view, homes } = useRegion();
+  const { viewRegions, isBrowsing, view, homes, ready } = useRegion();
 
   // 서버 검색 — 300ms debounce. 빈 검색은 상위 500
   useEffect(() => {
@@ -47,10 +47,17 @@ export default function SchoolsPage() {
     }, q.trim() ? 300 : 0);
     return () => clearTimeout(t);
   }, [q]);
+  // 발주 예보 — ready 가드 + Abort + 스테일 가드 (U18)
   useEffect(() => {
-    const q = viewRegions?.length ? `?sigungu=${viewRegions.join(',')}` : '';
-    fetch(`/api/schools/forecast${q}`).then(r => r.json()).then(setForecast).catch(() => {});
-  }, [viewRegions?.join(',')]);
+    if (!ready) return;
+    const key = viewRegions?.join(',') ?? '';
+    const ac = new AbortController();
+    fetch(`/api/schools/forecast${key ? `?sigungu=${key}` : ''}`, { signal: ac.signal })
+      .then(r => r.json())
+      .then(d => { if (key === (viewRegions?.join(',') ?? '')) setForecast(Array.isArray(d) ? d : []); })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [viewRegions?.join(','), ready]);
 
   const dueSoon = useMemo(() => forecast.filter(f => f.dueInDays <= 7).slice(0, 6), [forecast]);
   const dueById = useMemo(() => new Map(forecast.map(f => [f.schoolId, f])), [forecast]);

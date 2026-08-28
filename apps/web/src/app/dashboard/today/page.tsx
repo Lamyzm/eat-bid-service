@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
+import { useSession } from '@/lib/session';
 import { useMarks } from '@/lib/marks';
 import { useTrack, trackAction } from '@/lib/track';
 import { won } from '@/lib/format';
@@ -35,6 +36,7 @@ function dday(deadline: string | null) {
 export default function TodayPage() {
   const { bizNos, ready } = useWorkspace();
   const { homes } = useRegion();
+  const { ready: sessionReady } = useSession();
   const { marks, set } = useMarks();
   // 저장 시점 값 — '이 값으로 갱신' 판별용
   const [savedRates, setSavedRates] = useState<Record<string, number | undefined>>({});
@@ -63,10 +65,18 @@ export default function TodayPage() {
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
   const [badges, setBadges] = useState<Record<string, { part: number; wins: number }>>({});
 
+  useEffect(() => { fetch('/api/open').then(r => r.json()).then(setOpen); }, []);
+  // 발주 예보 — 세션 준비 전 호출 금지 + 이전 요청 취소 + 스테일 응답 폐기 (U18)
   useEffect(() => {
-    fetch('/api/open').then(r => r.json()).then(setOpen);
-    fetch(`/api/schools/forecast${homes.length ? `?sigungu=${homes.join(',')}` : ''}`).then(r => r.json()).then(setForecast);
-  }, [homes.join(',')]);
+    if (!sessionReady) return;
+    const key = homes.join(',');
+    const ac = new AbortController();
+    fetch(`/api/schools/forecast${key ? `?sigungu=${key}` : ''}`, { signal: ac.signal })
+      .then(r => r.json())
+      .then(d => { if (key === homes.join(',')) setForecast(Array.isArray(d) ? d : []); })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [homes.join(','), sessionReady]);
 
   // 어제 채점 — 투찰함 표시분
   useEffect(() => {
