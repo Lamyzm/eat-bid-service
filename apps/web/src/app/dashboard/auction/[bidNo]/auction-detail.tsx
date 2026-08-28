@@ -9,6 +9,7 @@ import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
 import { CHART } from '@/lib/chart-colors';
 import { slotKeysFor, ratesOf, bizLabelOf } from '@/lib/mark-rates';
+import { usePersistedChoice } from '@/lib/use-persisted-state';
 import { useSession } from '@/lib/session';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,8 @@ import {
 } from '@/components/ui/table';
 
 
+const TABS = ['school', 'market', 'mine'] as const;
+
 type Auction = { bidId: string; openedAt: string; floorRate: number | null; winRate: number | null; nValid: number; category: string | null };
 type MyBid = { openedAt: string | null; floorRate: number | null; basePrice: number | null; bidRate: number | null; winRate: number | null; won: number };
 
@@ -33,14 +36,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   const { marks, set } = useMarks();
   useTrack('auction');
   const { bizNames } = useSession();
-  const [tab, setTab] = useState<'school' | 'market' | 'mine'>('school');
-  useEffect(() => {
-    try {
-      const t = localStorage.getItem('eatbid.auctionTab');
-      if (t === 'school' || t === 'market' || t === 'mine') setTab(t);
-    } catch {}
-  }, []);
-  useEffect(() => { try { localStorage.setItem('eatbid.auctionTab', tab); } catch {} }, [tab]);
+  const [tab, setTab] = usePersistedChoice('eatbid.auctionTab', 'school', TABS);
   const mark = marks[open.bidNo];
 
   const floor = open.floorRate ?? 90;

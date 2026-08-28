@@ -8,6 +8,8 @@ import Link from 'next/link';
 import type { SchoolSummary, FloorStat } from '@eatbid/shared';
 import { useRegion } from '@/lib/region';
 import { RegionStatus } from '@/components/region-status';
+import { usePersistedFlag } from '@/lib/use-persisted-state';
+import { useCsvDownload, todayStamp } from '@/lib/use-csv-download';
 import { useTrack } from '@/lib/track';
 import { won, CATS } from '@/lib/format';
 import { Input } from '@/components/ui/input';
@@ -40,9 +42,7 @@ export default function SchoolsPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [fieldMax, setFieldMax] = useState<number | null>(null); // 보통 참여 N곳 이하
   const [sort, setSort] = useState<SortKey>('n');
-  const [filterOpen, setFilterOpen] = useState(false);
-  useEffect(() => { try { setFilterOpen(localStorage.getItem('eatbid.schoolFilter') === '1'); } catch {} }, []);
-  useEffect(() => { try { localStorage.setItem('eatbid.schoolFilter', filterOpen ? '1' : '0'); } catch {} }, [filterOpen]);
+  const [filterOpen, setFilterOpen] = usePersistedFlag('eatbid.schoolFilter');
   const { viewRegions, isBrowsing, view, homes, ready } = useRegion();
 
   // 서버 검색 — 300ms debounce. 빈 검색은 상위 500
@@ -79,19 +79,16 @@ export default function SchoolsPage() {
       : (b.medBase ?? 0) - (a.medBase ?? 0)),
     [rows, q, cat, fieldMax, sort, viewRegions]);
 
-  const csv = () => {
-    const head = '학교,시군구,품목,공고수,보통참여,잘나온구간,기초금액중앙값';
-    const lines = filtered.map(s => {
+  const downloadCsv = useCsvDownload();
+  const csv = () => downloadCsv({
+    filename: `학교목록_${todayStamp()}.csv`,
+    head: '학교,시군구,품목,공고수,보통참여,잘나온구간,기초금액중앙값',
+    rows: filtered.map(s => {
       const b = primaryBand(s);
-      const band = b?.stat.dense ? `${b.stat.dense.lo.toFixed(2)}~${b.stat.dense.hi.toFixed(2)}` : '';
-      return [s.name, s.sigungu, s.category, s.nAuctions, s.medField ?? '', band, s.medBase ?? ''].join(',');
-    });
-    const blob = new Blob(['﻿' + [head, ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `학교목록_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-  };
+      return [s.name, s.sigungu, s.category, s.nAuctions, s.medField,
+        b?.stat.dense ? `${b.stat.dense.lo.toFixed(2)}~${b.stat.dense.hi.toFixed(2)}` : '', s.medBase];
+    }),
+  });
 
   return (
     <div className='flex flex-1 flex-col space-y-4 p-4 md:p-6'>

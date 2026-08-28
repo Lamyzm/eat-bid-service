@@ -9,6 +9,7 @@ import { useWorkspace } from '@/lib/workspace';
 import { useSession } from '@/lib/session';
 import { useTrack } from '@/lib/track';
 import { won } from '@/lib/format';
+import { useCsvDownload, todayStamp } from '@/lib/use-csv-download';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Button } from '@/components/ui/button';
@@ -104,21 +105,21 @@ export default function DeliveryPage() {
     setMonth(ym(d));
   };
 
-  const csv = () => {
-    const head = '학교,시군구,품목,납품시작,납품종료,계약액,급식일수,상태';
-    const lines = contracts.map(c =>
-      [c.schoolName, c.sigungu, c.category, c.dlvryStart, c.dlvryEnd, c.amount ?? '', c.days, c.status].join(','));
-    const blob = new Blob(['﻿' + [head, ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `납품_${month}.csv`;
-    a.click();
-  };
+  const downloadCsv = useCsvDownload();
+  const csv = () => downloadCsv({
+    filename: `납품_${month}.csv`,
+    head: '학교,시군구,품목,납품시작,납품종료,계약액,급식일수,상태',
+    rows: contracts.map(c =>
+      [c.schoolName, c.sigungu, c.category, c.dlvryStart, c.dlvryEnd, c.amount, c.days, c.status]),
+  });
 
-  const doPrint = (c: Row) => {
-    setPrintRow(c);
-    setTimeout(() => { window.print(); setPrintRow(null); }, 60);
-  };
+  // 인쇄 시트가 DOM 에 올라온 뒤 인쇄한다 — 60ms 추측 대신 커밋 시점을 기다린다
+  const doPrint = (c: Row) => setPrintRow(c);
+  useEffect(() => {
+    if (!printRow) return;
+    window.print();
+    setPrintRow(null);
+  }, [printRow]);
 
   if (ready && bizNos.length === 0) return (
     <div className='p-8'>

@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useTrack } from '@/lib/track';
+import { usePersistedState, jsonCodec } from '@/lib/use-persisted-state';
 import { won, eok } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,10 +32,11 @@ export default function FirmsPage() {
   const [sel, setSel] = useState<{ bizNo: string; name: string } | null>(null);
   const [rec, setRec] = useState<Rec | null>(null);
   const [timeline, setTimeline] = useState<{ ym: string; bids: number; wins: number }[]>([]);
-  const [rivals, setRivals] = useState<{ bizNo: string; name: string }[]>([]);
+  // 경쟁사 목록은 사용자 데이터다 — 읽지 못해도 원본을 덮지 않는다(사본 보존)
+  const [rivals, setRivals] = usePersistedState<{ bizNo: string; name: string }[]>(
+    RIVALS_KEY, [], jsonCodec(v => Array.isArray(v)));
 
   useEffect(() => {
-    try { setRivals(JSON.parse(localStorage.getItem(RIVALS_KEY) ?? '[]')); } catch {}
     fetch('/api/firms/top?months=12').then(r => r.json()).then(setTop);
   }, []);
   useEffect(() => {
@@ -53,9 +55,7 @@ export default function FirmsPage() {
   const isRival = useMemo(() => sel != null && rivals.some(r => r.bizNo === sel.bizNo), [rivals, sel]);
   const toggleRival = () => {
     if (!sel) return;
-    const next = isRival ? rivals.filter(r => r.bizNo !== sel.bizNo) : [...rivals, sel];
-    setRivals(next);
-    try { localStorage.setItem(RIVALS_KEY, JSON.stringify(next)); } catch {}
+    setRivals(isRival ? rivals.filter(r => r.bizNo !== sel.bizNo) : [...rivals, sel]);
   };
   const recentTl = timeline.slice(-12);
   const maxBids = Math.max(1, ...recentTl.map(t => t.bids));

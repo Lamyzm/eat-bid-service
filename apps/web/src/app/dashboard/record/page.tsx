@@ -9,6 +9,8 @@ import { useWorkspace } from '@/lib/workspace';
 import { useSession } from '@/lib/session';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { useTrack, getSid } from '@/lib/track';
+import { usePersistedFlag } from '@/lib/use-persisted-state';
+import { useCsvDownload, todayStamp } from '@/lib/use-csv-download';
 import { toast } from 'sonner';
 import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
@@ -38,9 +40,8 @@ export default function RecordPage() {
   const [limit, setLimit] = useState(300); // 서버에서 받아오는 행 수 (U11: 초기 페이로드 축소)
   const [loadingMore, setLoadingMore] = useState(false);
   const [agg, setAgg] = useState<{ totalBids: number; totalWins: number; pushedOut: number; belowFloor: number } | null>(null);
-  const [kpiOpen, setKpiOpen] = useState(false);
-  useEffect(() => { try { setKpiOpen(localStorage.getItem('eatbid.kpiOpen') === '1'); } catch {} }, []);
-  useEffect(() => { try { localStorage.setItem('eatbid.kpiOpen', kpiOpen ? '1' : '0'); } catch {} }, [kpiOpen]);
+  const [kpiOpen, setKpiOpen] = usePersistedFlag('eatbid.kpiOpen');
+  const downloadCsv = useCsvDownload();
 
   useEffect(() => {
     if (bizNos.length === 0) return;
@@ -125,19 +126,15 @@ export default function RecordPage() {
               toast.error('공유 링크를 만들지 못했습니다. 잠시 후 다시 시도하세요.');
             }
           }}>조회 요약 공유</Button>
-          <Button size='sm' variant='outline' onClick={() => {
-            const head = '개찰일,학교,시군구,품목,기초금액,하한,낙찰가,2등가,내값,결과';
-            const lines = view.map(r => {
-              const st = r.won ? '낙찰' : r.bidRate != null && r.winRate != null && r.bidRate < r.winRate ? '무효' : '밀림';
-              return [r.openedAt, r.schoolName, r.sigungu, r.category, r.basePrice ?? '', r.floorRate ?? '',
-                r.winRate ?? '', r.secondRate ?? '', r.bidRate ?? '', st].join(',');
-            });
-            const blob = new Blob(['﻿' + [head, ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `내성적_${new Date().toISOString().slice(0, 10)}.csv`;
-            a.click();
-          }}>CSV 저장</Button>
+          <Button size='sm' variant='outline' onClick={() => downloadCsv({
+            filename: `내성적_${todayStamp()}.csv`,
+            head: '개찰일,학교,시군구,품목,기초금액,하한,낙찰가,2등가,내값,결과',
+            rows: view.map(r => [
+              r.openedAt, r.schoolName, r.sigungu, r.category, r.basePrice, r.floorRate,
+              r.winRate, r.secondRate, r.bidRate,
+              r.won ? '낙찰' : r.bidRate != null && r.winRate != null && r.bidRate < r.winRate ? '무효' : '밀림',
+            ]),
+          })}>CSV 저장</Button>
         </div>
       </div>
 

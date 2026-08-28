@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 const MAX_DECIMALS = 4;
 
 export function RateInput({
-  value, onChange, placeholder, className, onFocusChange, onEnter, slotId, ariaLabel, title,
+  value, onChange, placeholder, className, onFocusChange, onEnter, slotId, ariaLabel, title, inputRef,
 }: {
   value: number | null | undefined;
   onChange: (v: number | undefined) => void;
@@ -22,6 +22,8 @@ export function RateInput({
   onEnter?: () => void;
   /** 포커스 이동용 식별자 — data-rate-slot */
   slotId?: string;
+  /** 포커스 이동을 DOM 조회 없이 하기 위한 등록 콜백 */
+  inputRef?: (el: HTMLInputElement | null) => void;
   ariaLabel?: string;
   title?: string;
 }) {
@@ -43,6 +45,7 @@ export function RateInput({
       aria-label={ariaLabel}
       title={title}
       data-rate-slot={slotId}
+      ref={inputRef}
       onKeyDown={e => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }}
       onFocus={() => { focusedRef.current = true; onFocusChange?.(true); }}
       onBlur={() => {

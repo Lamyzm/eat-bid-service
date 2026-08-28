@@ -13,6 +13,7 @@ import {
 import { useWorkspace } from '@/lib/workspace';
 import { useMarks } from '@/lib/marks';
 import { useTrack, trackAction, trackOnce } from '@/lib/track';
+import { usePersistedFlag, usePersistedChoice } from '@/lib/use-persisted-state';
 import { won } from '@/lib/format';
 import { CHART as C, myMarker, chartFrame } from '@/lib/chart-colors';
 import { RosterTable, type RosterRow } from '@/components/roster-table';
@@ -41,6 +42,7 @@ const LENSES = [
   ['flow', '흐름'], ['record', '기록'], ['dist', '분포'], ['rehearsal', '리허설'],
   ['replay', '리플레이'], ['lottery', '추첨'], ['monthly', '월별'],
 ] as const;
+const LENS_KEYS = LENSES.map(([k]) => k);
 type Lens = typeof LENSES[number][0];
 /** 상시 노출 렌즈 (B) — 나머지는 '더보기' */
 const PRIMARY_LENSES: string[] = ['record', 'flow', 'rehearsal'];
@@ -239,29 +241,11 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
   const { marks, set: setMark } = useMarks();
   useTrack('analysis');
   // 렌즈 기억: 최초 방문=흐름, 이후 마지막 사용 렌즈
-  const [lens, setLensState] = useState<Lens>('flow');
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('eatbid.lens') as Lens | null;
-      if (saved && LENSES.some(([k]) => k === saved)) setLensState(saved);
-    } catch {}
-  }, []);
-  const setLens = (l: Lens) => {
-    setLensState(l);
-    try { localStorage.setItem('eatbid.lens', l); } catch {}
-  };
+  const [lens, setLens] = usePersistedChoice<Lens>('eatbid.lens', 'flow', LENS_KEYS);
   const [period, setPeriod] = useState<'3m' | '6m' | '12m' | 'all'>('all');
   // 하한·기간 펼침 (B) — 상태 기억
-  const [scopeOpen, setScopeOpen] = useState(false);
-  const [moreLens, setMoreLens] = useState(false);
-  useEffect(() => {
-    try {
-      setScopeOpen(localStorage.getItem('eatbid.scopeOpen') === '1');
-      setMoreLens(localStorage.getItem('eatbid.moreLens') === '1');
-    } catch {}
-  }, []);
-  useEffect(() => { try { localStorage.setItem('eatbid.scopeOpen', scopeOpen ? '1' : '0'); } catch {} }, [scopeOpen]);
-  useEffect(() => { try { localStorage.setItem('eatbid.moreLens', moreLens ? '1' : '0'); } catch {} }, [moreLens]);
+  const [scopeOpen, setScopeOpen] = usePersistedFlag('eatbid.scopeOpen');
+  const [moreLens, setMoreLens] = usePersistedFlag('eatbid.moreLens');
   // 공고 컨텍스트 (IA 3안) — bidNo가 있으면 그 공고 기준으로 산출기·하한 탭 세팅
   const [ctxBid, setCtxBid] = useState<any>(null);
   const ctxAppliedRef = useRef(false);

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
@@ -11,6 +12,7 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/u
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMarks } from '@/lib/marks';
 import { useTrack, trackAction, trackOnce, todayKey } from '@/lib/track';
+import { usePersistedFlag } from '@/lib/use-persisted-state';
 import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -52,10 +54,8 @@ export default function TodayPage() {
   // 저장 시점 값 — '이 값으로 갱신' 판별용
   const [savedRates, setSavedRates] = useState<Record<string, Record<string, number>>>({});
   // 이전 저장분을 읽지 못한 경우의 고지 (닫으면 다시 뜨지 않는다)
-  const [noticeOff, setNoticeOff] = useState(true);
-  useEffect(() => {
-    try { setNoticeOff(localStorage.getItem('eatbid.marksNoticeSeen') === '1'); } catch { setNoticeOff(false); }
-  }, []);
+  // 초기 true = 저장소를 읽기 전에는 띄우지 않는다(깜빡임 방지), 저장된 값이 없으면 false 로 내린다
+  const [noticeOff, setNoticeOff] = usePersistedFlag('eatbid.marksNoticeSeen', true, { whenMissing: false });
 
   const bizLabel = (bz: string) => bizLabelOf(bz, bizNames, true);
   // 다중 품목 펼침 — 대표 품목만 보여주면 나머지가 화면에서 사라진다
@@ -65,11 +65,18 @@ export default function TodayPage() {
     if (next.has(bidNo)) next.delete(bidNo); else next.add(bidNo);
     return next;
   });
+  // 입력칸 등록부 — DOM 을 뒤지지 않고 다음 칸으로 이동한다
+  const slotRefs = useRef(new Map<string, HTMLInputElement>());
+  const registerSlot = (id: string) => (el: HTMLInputElement | null) => {
+    if (el) slotRefs.current.set(id, el);
+    else slotRefs.current.delete(id);
+  };
   const focusSlot = (id: string) => {
-    const el = document.querySelector<HTMLInputElement>(`[data-rate-slot="${id}"]`);
-    if (el) { el.focus(); el.select?.(); }
+    const el = slotRefs.current.get(id);
+    if (el) { el.focus(); el.select(); }
   };
   useTrack('today');
+  const router = useRouter();
   // 데일리 브리핑 — 어제 전국 개찰 (사실 카운트만)
   const [brief, setBrief] = useState<{ day: string; n: number; top: string | null; topN: number; isYesterday: boolean } | null>(null);
   useEffect(() => {
@@ -199,10 +206,7 @@ export default function TodayPage() {
                 읽지 못한 값은 이 브라우저에 사본으로 남아 있습니다.
               </span>
             </span>
-            <Button size='sm' variant='outline' onClick={() => {
-              setNoticeOff(true);
-              try { localStorage.setItem('eatbid.marksNoticeSeen', '1'); } catch {}
-            }}>확인</Button>
+            <Button size='sm' variant='outline' onClick={() => setNoticeOff(true)}>확인</Button>
           </CardContent>
         </Card>
       )}
@@ -330,6 +334,7 @@ export default function TodayPage() {
                           )}
                           <RateInput value={myRates[bz]}
                             slotId={`${cardIdx}:${si}`}
+                            inputRef={registerSlot(`${cardIdx}:${si}`)}
                             ariaLabel={slots.length > 1 ? `${bizLabel(bz)} 투찰률` : '투찰률'}
                             title={bz || undefined}
                             placeholder={`투찰률 ${((o.floorRate ?? 90) + 0.05).toFixed(2)}`}
@@ -447,9 +452,12 @@ export default function TodayPage() {
                         </div>
                       )}
                       <span className='ml-auto flex gap-2 text-xs'>
+                        {/* 카드가 이미 Link 라 앵커를 중첩할 수 없다 — 클라이언트 내비게이션으로 이동한다 */}
                         {o.schoolId && (
                           <button className='text-primary hover:underline'
-                            onClick={() => { window.location.href = `/dashboard/analysis/${encodeURIComponent(o.schoolId ?? '')}?bidNo=${encodeURIComponent(o.bidNo)}${m?.rate != null ? `&rate=${m.rate}&base=${o.basePrice ?? ''}` : ''}`; }}>
+                            onClick={() => router.push(
+                              `/dashboard/analysis/${encodeURIComponent(o.schoolId ?? '')}?bidNo=${encodeURIComponent(o.bidNo)}`
+                              + (m?.rate != null ? `&rate=${m.rate}&base=${o.basePrice ?? ''}` : ''))}>
                             분석판
                           </button>
                         )}
