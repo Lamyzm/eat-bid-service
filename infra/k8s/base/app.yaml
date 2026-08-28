@@ -178,39 +178,18 @@ spec:
       volumes:
         - { name: schema, configMap: { name: db-schema } }
 ---
-# 초기 적재 — 클러스터를 새로 만들 때 한 번만 돈다(훅 아님).
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: initial-load
-  namespace: eatbid
-spec:
-  backoffLimit: 3
-  template:
-    spec:
-      restartPolicy: OnFailure
-      initContainers:
-        - name: migrate
-          image: postgres:16-alpine
-          # `|| true` 를 걷어냈다. 스키마 적용이 실패하면 그 사실이 보여야 한다 —
-          # 예전에 이 파일로 테이블을 전량 날린 적이 있는데 뚜껑이 덮여 있었다.
-          command: ["sh","-c","until pg_isready -h postgres -U eatbid; do sleep 2; done; psql -v ON_ERROR_STOP=1 postgres://eatbid:eatbid@postgres:5432/eatbid -f /schema/schema.sql"]
-          volumeMounts: [{ name: schema, mountPath: /schema }]
-      containers:
-        - name: load
-          image: eatbid-dataplane:dev
-          imagePullPolicy: IfNotPresent
-          command: ["python", "tools/serve/load_postgres.py"]
-          env:
-            - { name: EATBID_HOME, value: /app }
-            - { name: EATBID_DATA_ROOT, value: /lake }
-            - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
-          volumeMounts: [{ name: lake, mountPath: /lake }]
-      volumes:
-        - name: lake
-          hostPath: { path: /lake, type: Directory }
-        - name: schema
-          configMap: { name: db-schema }
+# 초기 적재 Job 은 제거했다.
+#
+# ⚠ Job 의 spec.template 은 immutable 이다. 이 Job 이 리포에 남아 있으면, 명령을
+#   한 글자만 고쳐도 ArgoCD sync 가 `field is immutable` 로 **영구히 실패**한다.
+#   실제로 그렇게 막혀 있었고, 그래서 스키마 변경이 클러스터에 안 닿았다.
+#   역할은 이미 나뉘었다 — 스키마는 db-migrate(PreSync), 적재는 daily-refresh 다.
+#
+#   새 클러스터를 세울 때만 수동으로 한 번 돌린다:
+#     kubectl -n eatbid create job initial-load --image=eatbid-dataplane:dev -- \
+#       python tools/serve/load_postgres.py
+#   (레이크 hostPath 와 DATABASE_URL 을 붙여야 하므로, 실제로는 daily-refresh 를
+#    수동 트리거하는 편이 낫다: kubectl -n eatbid create job --from=cronjob/daily-refresh boot)
 ---
 # 매일 아침 유기 사이클: 열린공고 수집 → 적재
 apiVersion: batch/v1
