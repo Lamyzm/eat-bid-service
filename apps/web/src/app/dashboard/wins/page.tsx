@@ -41,7 +41,7 @@ export default function WinsPage() {
       }).catch(() => {});
   }, [bizNos]);
   const [monthly, setMonthly] = useState<MonthCell[]>([]);
-  const { viewRegions, isBrowsing, view, ready } = useRegion();
+  const { viewRegions, isBrowsing, view, homes, ready } = useRegion();
   const regionKey = viewRegions?.join(',') ?? '';
 
   useEffect(() => {
@@ -86,9 +86,16 @@ export default function WinsPage() {
           </p>
         </div>
         {isBrowsing && (
-          <div className='rounded border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-sm'>
-            <b>{view} 구경 중</b> — 참가 자격은 사무소 소재지 기준입니다.
-          </div>
+          homes.length === 0 ? (
+            <div className='rounded border px-3 py-1.5 text-sm'>
+              <b>{view} 지역을 보는 중입니다</b> · 내 자격 지역을 설정하면 자격 여부를 함께 표시합니다{' '}
+              <Link href='/dashboard/my' className='text-primary font-semibold hover:underline'>설정 →</Link>
+            </div>
+          ) : (
+            <div className='rounded border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-sm'>
+              <b>{view} 구경 중</b> — 내 자격 지역({homes.join(' · ')})이 아닙니다. 참가 자격은 사무소 소재지 기준입니다.
+            </div>
+          )
         )}
       </div>
 

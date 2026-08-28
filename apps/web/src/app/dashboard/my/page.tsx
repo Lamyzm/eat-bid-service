@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useWorkspace } from '@/lib/workspace';
+import { useRegion } from '@/lib/region';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,25 @@ type Lookup =
 
 export default function MyPage() {
   const { bizNos, add, remove, ready } = useWorkspace();
+  const { homes, toggleHome } = useRegion();
+  // 자격 지역 후보 — 내 사업자들의 참여 이력 지역 (U18)
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [allRegions, setAllRegions] = useState<string[]>([]);
+  const [regionQ, setRegionQ] = useState('');
+  useEffect(() => {
+    if (bizNos.length === 0) { setCandidates([]); return; }
+    fetch(`/api/firms/record?bizNos=${bizNos.join(',')}`).then(r => r.json())
+      .then(d => setCandidates(Array.isArray(d?.regions) ? d.regions : [])).catch(() => {});
+  }, [bizNos]);
+  useEffect(() => {
+    fetch('/api/wins/regions').then(r => r.json())
+      .then(x => setAllRegions(Array.isArray(x) ? x.map((r: any) => r.sigungu) : [])).catch(() => {});
+  }, []);
+  const searchHits = useMemo(() => {
+    const q = regionQ.trim();
+    if (!q) return [];
+    return allRegions.filter(r => r.includes(q) && !candidates.includes(r)).slice(0, 12);
+  }, [regionQ, allRegions, candidates]);
   const [input, setInput] = useState('');
   const [preview, setPreview] = useState<Lookup | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,6 +57,59 @@ export default function MyPage() {
           두 개 이상 등록하면 합쳐서 봅니다.
         </p>
       </div>
+
+      <Card>
+        <CardHeader className='pb-2'>
+          <CardTitle className='text-base'>내 자격 지역</CardTitle>
+          <CardDescription>
+            참가 자격은 사무소 소재지 기준입니다. 여기서 고른 지역이 오늘 화면의 자격 판정과 헤더 지역 기준이 됩니다.
+            {homes.length > 0
+              ? <> 현재 <b className='text-foreground'>{homes.join(' · ')}</b>.</>
+              : <> 아직 설정되지 않았습니다.</>}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-3'>
+          {candidates.length > 0 && (
+            <div>
+              <div className='text-muted-foreground mb-1 text-xs'>참여 이력이 있는 지역</div>
+              <div className='flex flex-wrap gap-1.5'>
+                {candidates.map(rg => (
+                  <Button key={rg} size='sm' variant={homes.includes(rg) ? 'default' : 'outline'}
+                    onClick={() => toggleHome(rg)}>{homes.includes(rg) ? '✓ ' : ''}{rg}</Button>
+                ))}
+              </div>
+            </div>
+          )}
+          {homes.filter(h => !candidates.includes(h)).length > 0 && (
+            <div>
+              <div className='text-muted-foreground mb-1 text-xs'>직접 추가한 지역</div>
+              <div className='flex flex-wrap gap-1.5'>
+                {homes.filter(h => !candidates.includes(h)).map(rg => (
+                  <Button key={rg} size='sm' variant='default' onClick={() => toggleHome(rg)}>✓ {rg}</Button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <div className='text-muted-foreground mb-1 text-xs'>지역 검색해서 추가</div>
+            <Input value={regionQ} onChange={e => setRegionQ(e.target.value)}
+              placeholder='예: 김해, 창원, 서초' className='w-56' />
+            {searchHits.length > 0 && (
+              <div className='mt-1.5 flex flex-wrap gap-1.5'>
+                {searchHits.map(rg => (
+                  <Button key={rg} size='sm' variant={homes.includes(rg) ? 'default' : 'outline'}
+                    onClick={() => { toggleHome(rg); setRegionQ(''); }}>
+                    {homes.includes(rg) ? '✓ ' : '+ '}{rg}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
+          {bizNos.length === 0 && (
+            <p className='text-muted-foreground text-xs'>사업자번호를 먼저 등록하면 참여 이력 지역이 후보로 뜹니다.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

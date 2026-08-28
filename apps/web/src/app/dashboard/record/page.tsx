@@ -32,6 +32,7 @@ export default function RecordPage() {
   const [ties, setTies] = useState<{ openedAt: string | null; schoolName: string | null; sigungu: string | null; bidRate: number | null; nTied: number; won: boolean; winRate: number | null }[]>([]);
   const [biz, setBiz] = useState<string | null>(null); // null = 합산
   const [months, setMonths] = useState(12);
+  const [shown, setShown] = useState(100); // 표 렌더 행 수 — KPI·요약은 전체 기준(U11)
 
   useEffect(() => {
     if (bizNos.length === 0) return;
@@ -47,6 +48,7 @@ export default function RecordPage() {
     const d = new Date(); d.setMonth(d.getMonth() - months);
     return d.toISOString().slice(0, 10);
   }, [months]);
+  useEffect(() => { setShown(100); }, [months, biz]);
   const view = useMemo(() => rows
     .filter(r => (biz == null || r.bizNo === biz) && (r.openedAt ?? '') >= cutoff)
     .sort((a, b) => (b.openedAt ?? '').localeCompare(a.openedAt ?? '')), [rows, biz, cutoff]);
@@ -159,7 +161,7 @@ export default function RecordPage() {
             <CardDescription>같은 값이 겹치면 추첨으로 갈립니다 — 내가 겹쳤던 회차들.</CardDescription>
           </CardHeader>
           <CardContent className='p-0'>
-            <div style={{ overflowX: 'auto', maxHeight: 320, overflowY: 'auto' }}>
+            <div style={{ overflowX: 'auto', maxHeight: 320, overflowY: 'auto', minHeight: 160 }}>
               <Table>
                 <TableHeader><TableRow>
                   <TableHead>개찰일</TableHead><TableHead>학교</TableHead>
@@ -200,10 +202,13 @@ export default function RecordPage() {
       <Card>
         <CardHeader className='pb-2'>
           <CardTitle className='text-base'>투찰 내역</CardTitle>
-          <CardDescription>각 행: 낙찰가 · 2등가 · 내 값(차이). 학교 클릭 = 분석판.</CardDescription>
+          <CardDescription>
+            각 행: 낙찰가 · 2등가 · 내 값(차이). 학교 클릭 = 분석판.
+            {view.length > shown && <> 위 KPI와 요약은 이 기간 <b>{view.length.toLocaleString()}건 전체</b> 기준이고, 표만 {shown.toLocaleString()}행씩 보여줍니다.</>}
+          </CardDescription>
         </CardHeader>
         <CardContent className='p-0'>
-          <div style={{ overflowX: 'auto', maxHeight: 640, overflowY: 'auto' }}>
+          <div style={{ overflowX: 'auto', maxHeight: 640, overflowY: 'auto', minHeight: 320 }}>
             <Table>
               <TableHeader><TableRow>
                 <TableHead>개찰일</TableHead><TableHead>학교</TableHead><TableHead>품목</TableHead>
@@ -213,7 +218,7 @@ export default function RecordPage() {
                 <TableHead>결과</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {view.map(r => {
+                {view.slice(0, shown).map(r => {
                   const diff = r.bidRate != null && r.winRate != null ? +(r.bidRate - r.winRate).toFixed(3) : null;
                   const isRunnerUp = !r.won && r.secondRate != null && r.bidRate != null && Math.abs(r.bidRate - r.secondRate) < 1e-9;
                   const status = r.won ? '낙찰' : r.bidRate != null && r.winRate != null && r.bidRate < r.winRate ? '하한미달' : '밀림';
@@ -248,6 +253,15 @@ export default function RecordPage() {
                     </TableRow>
                   );
                 })}
+                {view.length > shown && (
+                  <TableRow>
+                    <TableCell colSpan={7} className='py-3 text-center'>
+                      <Button size='sm' variant='outline' onClick={() => setShown(n => n + 200)}>
+                        더 보기 (표시 {shown.toLocaleString()} / {view.length.toLocaleString()}건)
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )}
                 {view.length === 0 && (
                   <TableRow><TableCell colSpan={7} className='text-muted-foreground py-8 text-center'>
                     이 기간의 투찰 기록이 없습니다.

@@ -18,8 +18,13 @@ export function StripChart({
 }) {
   const W = 880, H = 190, L = 30, R = 30, TRACK = 118;
   const vals = points.map(p => p.winRate).concat(myPast).concat(liveValue != null ? [liveValue] : []);
-  const xMax = Math.max(floor + 0.15, ...vals.map(v => v + 0.02));
   const xMin = floor - 0.015;
+  // 이상치로 핵심 구간이 눌리지 않게 하한+0.5로 클램프 — 벗어난 값은 "외 N건" 표기 (U15)
+  const CAP = floor + 0.5;
+  const inRange = (v: number) => v <= CAP;
+  const outN = points.filter(p => !inRange(p.winRate)).length;
+  const capped = vals.filter(inRange);
+  const xMax = Math.max(floor + 0.15, ...(capped.length ? capped.map(v => v + 0.02) : [floor + 0.15]));
   const X = (v: number) => L + (W - L - R) * (v - xMin) / (xMax - xMin);
 
   // 같은 값(0.01) 스택
@@ -80,7 +85,7 @@ export function StripChart({
             fontFamily='var(--font-mono, monospace)'>{k.toFixed(2)} ×{pts.length}</text>
         ))}
         {/* 내 과거 △ */}
-        {myPast.map((v, i) => (
+        {myPast.filter(inRange).map((v, i) => (
           <path key={`my-${i}`} d={`M ${X(v)} ${28 + TRACK - 4} l 7 12 l -14 0 z`}
             fill='none' stroke='var(--muted-foreground)' strokeWidth={2}>
             <title>내 과거 투찰 {v.toFixed(3)}</title>
@@ -98,7 +103,7 @@ export function StripChart({
         )}
         {/* n 명시 */}
         <text x={W - R} y={H - 4} textAnchor='end' fontSize={13} fill='var(--muted-foreground)'>
-          동일 하한 {points.length}회
+          동일 하한 {points.length}회{outN > 0 ? ` · ${(floor + 0.5).toFixed(2)} 초과 외 ${outN}건` : ''}
         </text>
       </svg>
     </div>

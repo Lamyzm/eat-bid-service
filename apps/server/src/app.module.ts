@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Body, Query, Param } from "@nestjs/common";
+import { Module, Controller, Get, Post, Put, Body, Query, Param, Req, Res, All } from "@nestjs/common";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 import { eq, ilike, and, desc, inArray, sql, gte } from "drizzle-orm";
@@ -6,8 +6,10 @@ import { alias } from "drizzle-orm/pg-core";
 import { createHmac, timingSafeEqual } from "crypto";
 import {
   SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster, events,
+  userBiz, userRegion, userMark,
 } from "@eatbid/shared";
 import { db } from "./db";
+import { auth, getSessionUser } from "./auth";
 
 /** zod 계약 → DTO. 검증은 전역 ZodValidationPipe가 수행 */
 class SchoolsQueryDto extends createZodDto(SchoolsQuery) {}
@@ -601,6 +603,102 @@ class RoundsController {
  * bizNo가 그대로 보인다. 서명은 위조 방지일 뿐이며, 노출 범위 제한은
  * GET 응답을 요약(합계+최근 낙찰 5건)으로 한정하는 것으로 달성한다.
  */
+/** Better Auth 핸들러 — /api/auth/* 전량 위임 (소셜 콜백·세션·로그아웃) */
+@Controller("auth")
+class AuthController {
+  @All("*path")
+  async handle(@Req() req: any, @Res() res: any) {
+    const url = new URL(req.originalUrl ?? req.url, process.env.BETTER_AUTH_URL || "http://localhost:8081");
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers ?? {})) {
+      if (typeof v === "string") headers.set(k, v);
+    }
+    const hasBody = req.method !== "GET" && req.method !== "HEAD";
+    const request = new Request(url, {
+      method: req.method,
+      headers,
+      body: hasBody ? JSON.stringify(req.body ?? {}) : undefined,
+    });
+    const response = await auth.handler(request);
+    res.status(response.status);
+    response.headers.forEach((val: string, key: string) => res.setHeader(key, val));
+    res.send(await response.text());
+  }
+}
+
+/**
+ * 계정 데이터 — 세션 있으면 서버(user_biz/user_region/user_mark), 없으면 401.
+ * 웹은 401을 받으면 localStorage 폴백을 계속 쓴다(게스트 모드 유지).
+ */
+@Controller("me")
+class MeController {
+  private async uid(req: any) {
+    const u = await getSessionUser(req.headers);
+    return u?.userId ?? null;
+  }
+
+  @Get()
+  async me(@Req() req: any) {
+    const u = await getSessionUser(req.headers);
+    if (!u) return { ok: true, guest: true, user: null };
+    const [bizs, regions, marks] = await Promise.all([
+      db.select().from(userBiz).where(eq(userBiz.userId, u.userId)),
+      db.select().from(userRegion).where(eq(userRegion.userId, u.userId)),
+      db.select().from(userMark).where(eq(userMark.userId, u.userId)),
+    ]);
+    return {
+      ok: true, guest: false,
+      user: { id: u.userId, email: u.email, name: u.name },
+      bizNos: bizs.map(b => b.bizNo),
+      regions: regions.map(r => r.sigungu),
+      marks: Object.fromEntries(marks.map(m => [m.bidNo, { s: m.status, rate: m.rate ?? undefined }])),
+    };
+  }
+
+  /** 전체 치환 저장 — 게스트→로그인 병합도 이 경로로 (웹이 합쳐서 PUT) */
+  @Put("biz")
+  async putBiz(@Req() req: any, @Body() body: unknown) {
+    const uid = await this.uid(req);
+    if (!uid) return { ok: false, error: "unauthenticated" };
+    const p = z.object({ bizNos: z.array(z.string().regex(/^\d{10}$/)).max(20) }).safeParse(body);
+    if (!p.success) return { ok: false, error: "bad_request" };
+    await db.delete(userBiz).where(eq(userBiz.userId, uid));
+    if (p.data.bizNos.length)
+      await db.insert(userBiz).values(p.data.bizNos.map(b => ({ userId: uid, bizNo: b })));
+    return { ok: true, n: p.data.bizNos.length };
+  }
+
+  @Put("regions")
+  async putRegions(@Req() req: any, @Body() body: unknown) {
+    const uid = await this.uid(req);
+    if (!uid) return { ok: false, error: "unauthenticated" };
+    const p = z.object({ regions: z.array(z.string().max(40)).max(50) }).safeParse(body);
+    if (!p.success) return { ok: false, error: "bad_request" };
+    await db.delete(userRegion).where(eq(userRegion.userId, uid));
+    if (p.data.regions.length)
+      await db.insert(userRegion).values(p.data.regions.map(r => ({ userId: uid, sigungu: r })));
+    return { ok: true, n: p.data.regions.length };
+  }
+
+  @Put("marks")
+  async putMarks(@Req() req: any, @Body() body: unknown) {
+    const uid = await this.uid(req);
+    if (!uid) return { ok: false, error: "unauthenticated" };
+    const p = z.object({
+      marks: z.record(z.string().max(32), z.object({
+        s: z.enum(["watch", "done"]),
+        rate: z.number().optional(),
+      })),
+    }).safeParse(body);
+    if (!p.success) return { ok: false, error: "bad_request" };
+    const rows = Object.entries(p.data.marks).slice(0, 500)
+      .map(([bidNo, m]) => ({ userId: uid, bidNo, status: m.s, rate: m.rate ?? null }));
+    await db.delete(userMark).where(eq(userMark.userId, uid));
+    if (rows.length) await db.insert(userMark).values(rows);
+    return { ok: true, n: rows.length };
+  }
+}
+
 @Controller("share")
 class ShareController {
   private secret() { return process.env.EATBID_SHARE_SECRET || "dev-insecure-secret"; }
@@ -709,6 +807,6 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, ShareController, EventsController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
+  controllers: [HealthController, AuthController, MeController, ShareController, EventsController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
 })
 export class AppModule {}

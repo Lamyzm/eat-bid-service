@@ -18,7 +18,9 @@ export const metadata: Metadata = {
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Persisting the sidebar state in the cookie.
   const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
+  // PC 우선: 쿠키가 없으면 라벨이 보이는 확장 상태가 기본 (U12 — 아이콘만 뜨면 초보가 못 씀)
+  const sidebarCookie = cookieStore.get('sidebar_state')?.value;
+  const defaultOpen = sidebarCookie == null ? true : sidebarCookie === 'true';
   return (
     <KBar>
       <SidebarProvider defaultOpen={defaultOpen}>

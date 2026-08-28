@@ -197,12 +197,19 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
   useEffect(() => { if (!baseStr && latest?.basePrice) setBaseStr(String(latest.basePrice)); }, [latest]);
   const base = Number(baseStr.replace(/[^0-9]/g, '')) || 0;
   const [rateStr, setRateStr] = useState(initialRate ?? '');
+  // 저장값 복원 — 마운트 후 1회 (URL rate 우선, 없으면 그 공고의 저장값)
+  const rateSeededRef = useRef(false);
+  useEffect(() => {
+    if (rateSeededRef.current || initialRate) { rateSeededRef.current = true; return; }
+    const saved = ctxBid ? marks[ctxBid.bidNo]?.rate : undefined;
+    if (saved != null) { rateSeededRef.current = true; setRateStr(String(saved)); }
+  }, [ctxBid, marks, initialRate]);
   const rate = parseFloat(rateStr);
   const r = Number.isFinite(rate) ? rate : null;
   const inject = (v: number) => setRateStr(v.toFixed(3));
   const amount = r != null && base ? Math.round(base * r / 100) : null;
 
-  // 몰림 — 최근 14일 전장 투찰값 분포 (산출기 한 줄)
+  // 몰림 — 전국 최근 14일 투찰값 분포 (산출기 한 줄)
   const [crowd, setCrowd] = useState<{ days: number; total: number; bins: { v: number; n: number }[] } | null>(null);
   useEffect(() => {
     if (floor == null) return;
@@ -798,7 +805,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
               {crowdN != null && crowd && (
                 <p className='text-[13px] tabular-nums'>
                   이 값 자리에 최근 {crowd.days}일 <b className={crowdN > 200 ? 'text-destructive' : 'text-primary'}>{crowdN.toLocaleString()}건</b>
-                  {crowdN === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(최근 {crowd.days}일 전장 {crowd.total.toLocaleString()}건의 사실 · 동가는 추첨)</span>
+                  {crowdN === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전국 최근 {crowd.days}일 {crowd.total.toLocaleString()}건 기준 · 같은 값은 추첨)</span>
                 </p>
               )}
               {base > 0 && floor != null && pprLo != null && pprHi != null && (

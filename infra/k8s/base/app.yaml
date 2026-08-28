@@ -69,6 +69,18 @@ spec:
             - name: EATBID_SHARE_SECRET
               valueFrom:
                 secretKeyRef: { name: eatbid-share, key: EATBID_SHARE_SECRET }
+            # Better Auth — Secret eatbid-auth 에 리더가 실값 주입
+            # kubectl -n eatbid create secret generic eatbid-auth             #   --from-literal=BETTER_AUTH_SECRET=... --from-literal=GOOGLE_CLIENT_ID=...             #   --from-literal=GOOGLE_CLIENT_SECRET=...
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef: { name: eatbid-auth, key: BETTER_AUTH_SECRET, optional: true }
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: eatbid-auth, key: GOOGLE_CLIENT_ID, optional: true }
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: eatbid-auth, key: GOOGLE_CLIENT_SECRET, optional: true }
+            - { name: BETTER_AUTH_URL, value: "http://localhost:8081" }
           ports: [{ containerPort: 4400 }]
           readinessProbe:
             httpGet: { path: /api/healthz, port: 4400 }

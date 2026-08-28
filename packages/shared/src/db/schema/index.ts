@@ -4,7 +4,7 @@
  * web이 도메인 zod 타입으로 소비한다.
  */
 import {
-  pgTable, varchar, integer, bigint, doublePrecision, jsonb, date, timestamp, primaryKey, serial,
+  pgTable, varchar, integer, bigint, doublePrecision, jsonb, date, timestamp, primaryKey, serial, boolean,
 } from "drizzle-orm/pg-core";
 
 /** 공급업체 — 자격 풋프린트(투찰해온 시군구)는 데이터에서 역추론 */
@@ -121,3 +121,76 @@ export const events = pgTable("events", {
   screen: varchar("screen", { length: 40 }).notNull(),
   meta: jsonb("meta").$type<Record<string, unknown>>(),
 });
+
+/* ─────────── 인증 (Better Auth, 셀프호스팅) ───────────
+ * 계정 데이터는 재적재로 날아가면 안 된다 — schema.sql의 DROP 프리앰블에서 제외.
+ * 게스트 모드 유지: 로그인 없이도 전 기능 동작(브라우저 localStorage 폴백).
+ */
+export const user = pgTable("user", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  name: varchar("name", { length: 200 }),
+  email: varchar("email", { length: 320 }).notNull(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: varchar("image", { length: 1000 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const session = pgTable("session", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(),
+  token: varchar("token", { length: 400 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  ipAddress: varchar("ip_address", { length: 64 }),
+  userAgent: varchar("user_agent", { length: 500 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const account = pgTable("account", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(),
+  accountId: varchar("account_id", { length: 200 }).notNull(),
+  providerId: varchar("provider_id", { length: 64 }).notNull(),
+  accessToken: varchar("access_token", { length: 2000 }),
+  refreshToken: varchar("refresh_token", { length: 2000 }),
+  idToken: varchar("id_token", { length: 2000 }),
+  accessTokenExpiresAt: timestamp("access_token_expires_at"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  scope: varchar("scope", { length: 500 }),
+  password: varchar("password", { length: 400 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const verification = pgTable("verification", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  identifier: varchar("identifier", { length: 320 }).notNull(),
+  value: varchar("value", { length: 400 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/* ─────────── 계정에 붙는 사용자 데이터 (localStorage 이관 대상) ───────────
+ * 기존 workspace_biz는 workspaceId(브라우저 키) 기반이라 유지하고,
+ * 계정 기반은 user_biz로 분리한다 — 게스트→로그인 병합 시 양쪽을 읽는다.
+ */
+export const userBiz = pgTable("user_biz", {
+  userId: varchar("user_id", { length: 64 }).notNull(),
+  bizNo: varchar("biz_no", { length: 16 }).notNull(),
+  addedAt: timestamp("added_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.userId, t.bizNo] })]);
+
+export const userRegion = pgTable("user_region", {
+  userId: varchar("user_id", { length: 64 }).notNull(),
+  sigungu: varchar("sigungu", { length: 40 }).notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.sigungu] })]);
+
+export const userMark = pgTable("user_mark", {
+  userId: varchar("user_id", { length: 64 }).notNull(),
+  bidNo: varchar("bid_no", { length: 32 }).notNull(),
+  status: varchar("status", { length: 8 }).notNull(),
+  rate: doublePrecision("rate"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.userId, t.bidNo] })]);

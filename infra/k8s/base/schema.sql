@@ -127,3 +127,70 @@ CREATE INDEX IF NOT EXISTS idx_events_screen_ts ON "events" (screen, ts);
 -- 라이브 마이그레이션 병기 (qa 사고 교훈: 컬럼 추가는 CREATE와 함께 ALTER도)
 ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "dlvry_start" date;
 ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "dlvry_end" date;
+
+-- ─── 인증 + 사용자 데이터 (DROP 프리앰블 제외: 재적재에도 보존) ───
+CREATE TABLE IF NOT EXISTS "user" (
+	"id" varchar(64) PRIMARY KEY,
+	"name" varchar(200),
+	"email" varchar(320) NOT NULL,
+	"email_verified" boolean DEFAULT false NOT NULL,
+	"image" varchar(1000),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_email ON "user" (email);
+CREATE TABLE IF NOT EXISTS "session" (
+	"id" varchar(64) PRIMARY KEY,
+	"user_id" varchar(64) NOT NULL,
+	"token" varchar(400) NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"ip_address" varchar(64),
+	"user_agent" varchar(500),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_token ON "session" (token);
+CREATE TABLE IF NOT EXISTS "account" (
+	"id" varchar(64) PRIMARY KEY,
+	"user_id" varchar(64) NOT NULL,
+	"account_id" varchar(200) NOT NULL,
+	"provider_id" varchar(64) NOT NULL,
+	"access_token" varchar(2000),
+	"refresh_token" varchar(2000),
+	"id_token" varchar(2000),
+	"access_token_expires_at" timestamp,
+	"refresh_token_expires_at" timestamp,
+	"scope" varchar(500),
+	"password" varchar(400),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "verification" (
+	"id" varchar(64) PRIMARY KEY,
+	"identifier" varchar(320) NOT NULL,
+	"value" varchar(400) NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "user_biz" (
+	"user_id" varchar(64) NOT NULL,
+	"biz_no" varchar(16) NOT NULL,
+	"added_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "user_biz_pkey" PRIMARY KEY("user_id","biz_no")
+);
+CREATE TABLE IF NOT EXISTS "user_region" (
+	"user_id" varchar(64) NOT NULL,
+	"sigungu" varchar(40) NOT NULL,
+	CONSTRAINT "user_region_pkey" PRIMARY KEY("user_id","sigungu")
+);
+CREATE TABLE IF NOT EXISTS "user_mark" (
+	"user_id" varchar(64) NOT NULL,
+	"bid_no" varchar(32) NOT NULL,
+	"status" varchar(8) NOT NULL,
+	"rate" double precision,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "user_mark_pkey" PRIMARY KEY("user_id","bid_no")
+);
+-- 라이브 마이그레이션 병기
+ALTER TABLE "user_mark" ADD COLUMN IF NOT EXISTS "rate" double precision;

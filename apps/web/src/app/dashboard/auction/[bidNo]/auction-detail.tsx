@@ -106,13 +106,16 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
     setAmtStr(v);
     setRateStr(n && base ? (100 * n / base).toFixed(3) : '');
   }
+  // 시각 의존 값은 마운트 후에만 (SSR/CSR 불일치 방지 — React #418)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const dday = useMemo(() => {
-    if (!open.deadline) return null;
+    if (!mounted || !open.deadline) return null;
     const ms = new Date(open.deadline).getTime() - Date.now();
     if (ms < 0) return '마감됨';
     const h = Math.floor(ms / 36e5);
     return h < 24 ? `마감 ${h}시간 전` : `마감 D-${Math.floor(h / 24)}`;
-  }, [open.deadline]);
+  }, [mounted, open.deadline]);
 
   return (
     <div className='flex flex-1 flex-col space-y-5 p-4 md:p-6'>
@@ -122,7 +125,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
           <span className='text-muted-foreground text-sm'>{open.sigungu}</span>
           {open.category && <Badge variant='secondary'>{open.category}</Badge>}
           <Badge>자격 충족</Badge>
-          <Badge variant='destructive'>{dday ?? '마감 미상'}</Badge>
+          <Badge variant='destructive'>{dday ?? (open.deadline ? '마감 확인 중' : '마감 미상')}</Badge>
         </div>
         <h1 className='mt-1 text-2xl font-semibold'>{open.schoolName}</h1>
         <div className='mt-2 flex flex-wrap items-end gap-x-8 gap-y-2'>
@@ -183,7 +186,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             return (
               <p className='text-[13px] tabular-nums'>
                 이 값 자리에 최근 {crowd.days}일 <b className={n > 200 ? 'text-destructive' : 'text-primary'}>{n.toLocaleString()}건</b>
-                {n === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전장 {crowd.total.toLocaleString()}건의 사실 · 동가는 추첨)</span>
+                {n === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전국 최근 {crowd.days}일 {crowd.total.toLocaleString()}건 기준 · 같은 값은 추첨)</span>
               </p>
             );
           })()}
@@ -205,7 +208,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
                 {alive > 0 && <> · 낙찰인지 무효인지 예정가 추첨이 갈랐을 게 <b style={{ color: CHART.me }}>{alive}회</b></>} ·{' '}
                 하한 아래라 무효였을 게 <b className='text-destructive'>{dead}회</b>
                 {open.schoolId && (
-                  <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}
+                  <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}?bidNo=${encodeURIComponent(open.bidNo)}${liveRate != null ? `&rate=${liveRate}&base=${base}` : ''}`}
                     className='text-primary ml-2 text-xs hover:underline'>분석판 상세 →</Link>
                 )}
               </p>
@@ -235,7 +238,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             )}
           </div>
           <p className='text-muted-foreground text-xs'>
-            개찰 후 결과가 자동 반영됩니다.
+            [투찰 저장]을 누르면 개찰 후 결과가 자동 반영됩니다. 값을 고치면 [이 값으로 갱신]이 뜹니다.
           </p>
         </CardContent>
       </Card>
@@ -298,7 +301,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             {roster.maxStreak <= 1 && roster.rows.length > 0 && <span className='text-muted-foreground'> · 2연속 낙찰 없음</span>}
           </span>
           {open.schoolId && (
-            <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}
+            <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}?bidNo=${encodeURIComponent(open.bidNo)}${liveRate != null ? `&rate=${liveRate}&base=${base}` : ''}`}
               className='text-primary text-sm hover:underline'>참여 업체 전체 →</Link>
           )}
         </CardContent>

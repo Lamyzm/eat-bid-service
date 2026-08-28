@@ -209,7 +209,7 @@ export default function DeliveryPage() {
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-base'>납품 달력</CardTitle>
-            <CardDescription>칸 숫자 = 그날 동시 납품 건수. 3건 이상은 앰버.</CardDescription>
+            <CardDescription>칸 숫자 = 그날 동시 납품 건수. 3건 이상은 노란색.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className='grid grid-cols-7 gap-1 text-center text-xs'>

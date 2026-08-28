@@ -1,13 +1,14 @@
 'use client';
 /**
  * 헤더 전역 지역 스위처 — 보는 지역(viewRegion)의 유일한 조작점
- * '내 자격 지역'(집합) 기본, 개별 지역 선택 = 구경(앰버). 목록은 데이터 유도.
+ * '내 자격 지역'(집합) 기본, 개별 지역 선택 = 구경(노란색 표시). 목록은 데이터 유도.
  */
 import { useEffect, useState } from 'react';
 import { useRegion } from '@/lib/region';
 
 export function RegionSwitcher() {
   const { homes, view, isBrowsing, setView, ready } = useRegion();
+  const warn = isBrowsing && homes.length > 0; // 자격 지역이 있을 때만 경고색 (U18)
   const [regions, setRegions] = useState<{ sigungu: string; n: number }[]>([]);
 
   useEffect(() => {
@@ -24,9 +25,9 @@ export function RegionSwitcher() {
     <select
       value={view}
       onChange={e => setView(e.target.value)}
-      title={isBrowsing ? '내 자격 지역이 아닌 지역을 보는 중입니다' : '보는 지역'}
+      title={warn ? '내 자격 지역이 아닌 지역을 보는 중입니다' : '보는 지역'}
       className={`h-8 max-w-[150px] rounded-md border px-2 text-sm ${
-        isBrowsing ? 'border-amber-500 text-amber-600' : 'bg-background'
+        warn ? 'border-amber-500 text-amber-600' : 'bg-background'
       }`}
       aria-label='보는 지역'
     >

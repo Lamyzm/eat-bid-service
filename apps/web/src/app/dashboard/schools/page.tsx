@@ -35,7 +35,7 @@ export default function SchoolsPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [fieldMax, setFieldMax] = useState<number | null>(null); // 보통 참여 N곳 이하
   const [sort, setSort] = useState<SortKey>('n');
-  const { viewRegions, isBrowsing, view } = useRegion();
+  const { viewRegions, isBrowsing, view, homes } = useRegion();
 
   // 서버 검색 — 300ms debounce. 빈 검색은 상위 500
   useEffect(() => {
@@ -86,7 +86,9 @@ export default function SchoolsPage() {
           <p className='text-muted-foreground text-sm tabular-nums'>{filtered.length}개 학교{!q.trim() && rows.length >= 500 ? ' (상위 500 표시 — 검색으로 좁히세요)' : ''} · 행 클릭 = 분석판</p>
         </div>
         <div className='flex items-center gap-2'>
-          {isBrowsing && <span className='rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-xs'><b>{view} 구경 중</b></span>}
+          {isBrowsing && (homes.length === 0
+            ? <span className='rounded border px-2 py-1 text-xs'><b>{view} 보는 중</b> · <Link href='/dashboard/my' className='text-primary hover:underline'>자격 지역 설정</Link></span>
+            : <span className='rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-xs'><b>{view} 구경 중</b> · 내 자격 지역 아님</span>)}
           <Button size='sm' variant='outline' onClick={csv}>CSV 저장</Button>
         </div>
       </div>
