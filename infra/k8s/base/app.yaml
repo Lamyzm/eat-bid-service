@@ -71,15 +71,23 @@ spec:
                 secretKeyRef: { name: eatbid-share, key: EATBID_SHARE_SECRET }
             # Better Auth — Secret eatbid-auth 에 리더가 실값 주입
             # kubectl -n eatbid create secret generic eatbid-auth             #   --from-literal=BETTER_AUTH_SECRET=... --from-literal=GOOGLE_CLIENT_ID=...             #   --from-literal=GOOGLE_CLIENT_SECRET=...
+            # ⚠ optional: true 를 뗐다. 그게 조용한 실패였다 —
+            #   Secret 이 없으면 파드가 **정상적으로 뜨고 인증만 조용히 망가진다.**
+            #   `?? 기본값`·`|| true` 와 같은 모양이다. 특히 새 기계 부트스트랩에서
+            #   Secret 주입을 빠뜨려도 클러스터가 초록으로 통과하고, 사장이 로그인할
+            #   때 처음 드러난다. 뗀 지금은 CreateContainerConfigError 로 시끄럽게 멈춘다.
+            #
+            #   뗄 수 있는 근거(2026-08-28 실측): 세 키가 eatbid-auth 에 실재하고
+            #   도는 파드가 셋 다 채워서 갖고 있다. 인증 미구현 기간은 끝났다.
             - name: BETTER_AUTH_SECRET
               valueFrom:
-                secretKeyRef: { name: eatbid-auth, key: BETTER_AUTH_SECRET, optional: true }
+                secretKeyRef: { name: eatbid-auth, key: BETTER_AUTH_SECRET }
             - name: GOOGLE_CLIENT_ID
               valueFrom:
-                secretKeyRef: { name: eatbid-auth, key: GOOGLE_CLIENT_ID, optional: true }
+                secretKeyRef: { name: eatbid-auth, key: GOOGLE_CLIENT_ID }
             - name: GOOGLE_CLIENT_SECRET
               valueFrom:
-                secretKeyRef: { name: eatbid-auth, key: GOOGLE_CLIENT_SECRET, optional: true }
+                secretKeyRef: { name: eatbid-auth, key: GOOGLE_CLIENT_SECRET }
             - { name: BETTER_AUTH_URL, value: "http://localhost:8081" }
           ports: [{ containerPort: 4400 }]
           readinessProbe:
