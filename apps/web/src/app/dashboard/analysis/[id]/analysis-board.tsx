@@ -562,7 +562,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
             {lens === 'rehearsal' && (<>
               {r == null ? (
                 <p className='text-muted-foreground py-6 text-sm'>
-                  우측 산출기에 값을 넣으면 과거 {view.length}회를 그 값으로 다시 치릅니다.
+                  우측 산출기에 값을 넣으면 과거 {view.length}회가 그 값이었을 때 어떻게 됐을지 보여줍니다.
                 </p>
               ) : (<>
                 <div className='mb-3 grid grid-cols-2 gap-2 text-center md:grid-cols-4'>
@@ -617,7 +617,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                   </Table>
                 </div>
                 <p className='text-muted-foreground mt-2 text-xs'>
-                  과거 재생이며 다음 회차의 결과 예측이 아닙니다 — 예정가는 매회 추첨으로 새로 정해집니다.
+                  과거 사실이며 다음 회차의 결과 예측이 아닙니다 — 예정가는 매회 추첨으로 새로 정해집니다.
                 </p>
               </>)}
             </>)}
@@ -777,18 +777,21 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                   className='font-mono text-lg' inputMode='decimal' />
               </div>
               {amount != null && (
-                <div className='text-lg tabular-nums'>= <b className='text-primary'>{won(amount)}원</b></div>
+                <div className='text-lg tabular-nums'>
+                  <span className='text-muted-foreground text-xs'>내가 넣을 금액 </span>
+                  <b className='text-primary'>{won(amount)}원</b>
+                </div>
               )}
               {r != null && floor != null && r < floor && (
                 <p className='text-destructive text-sm font-semibold'>공고 하한({floor}) 미만 · 무효</p>
               )}
               {verdicts && (
-                <div className='text-[13px] tabular-nums'>
-                  과거 {view.length}회 재생:{' '}
-                  <b style={{ color: VCOLOR.밀림 }}>밀림 {verdicts.밀림}</b> ·{' '}
-                  <b style={{ color: VCOLOR.낙찰 }}>낙찰 {verdicts.낙찰}</b> ·{' '}
-                  <b style={{ color: VCOLOR.기회 }}>기회 {verdicts.기회}</b> ·{' '}
-                  <b style={{ color: VCOLOR.무효 }}>무효 {verdicts.무효}</b>
+                <div className='text-[13px] leading-relaxed tabular-nums'>
+                  이 값이면 과거 {view.length}회 중:{' '}
+                  남이 더 낮게 써서 밀린 게 <b style={{ color: VCOLOR.밀림 }}>{verdicts.밀림}회</b> ·{' '}
+                  내가 먹었을 게 <b style={{ color: VCOLOR.낙찰 }}>{verdicts.낙찰}회</b>
+                  {verdicts.기회 > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: VCOLOR.기회 }}>{verdicts.기회}회</b></>} ·{' '}
+                  하한 아래라 무효였을 게 <b style={{ color: VCOLOR.무효 }}>{verdicts.무효}회</b>
                   <button className='text-primary ml-1 underline' onClick={() => setLens('rehearsal')}>상세</button>
                 </div>
               )}
@@ -811,11 +814,26 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                     const m = marks[o.bidNo];
                     return (
                       <div key={o.bidNo} className='space-y-1'>
-                        <Button className='w-full' size='sm' disabled={r == null || (o.floorRate != null && r < o.floorRate)}
-                          variant={m?.s === 'done' ? 'secondary' : 'default'}
-                          onClick={() => { if (m?.s !== 'done') trackAction('mark_done'); setMark(o.bidNo, m?.s === 'done' ? null : { s: 'done', rate: r ?? undefined }); }}>
-                          {m?.s === 'done' ? `✓ ${o.category} 투찰함 (${m.rate ?? ''})` : `${o.category} 공고에 이 값 저장`}
-                        </Button>
+                        {(() => {
+                          const saved = m?.s === 'done';
+                          const changed = saved && r != null && r !== m?.rate;
+                          return (
+                            <Button className='w-full' size='sm' disabled={r == null || (o.floorRate != null && r < o.floorRate)}
+                              variant={saved && !changed ? 'secondary' : 'default'}
+                              onClick={() => {
+                                if (!saved) trackAction('mark_done');
+                                setMark(o.bidNo, { s: 'done', rate: r ?? m?.rate });
+                              }}>
+                              {!saved ? `${o.category} 공고에 이 값 저장`
+                                : changed ? `${o.category} — 이 값으로 갱신`
+                                : `✓ ${o.category} 저장됨 (${m?.rate ?? ''})`}
+                            </Button>
+                          );
+                        })()}
+                        {m?.s === 'done' && (
+                          <button className='text-muted-foreground text-xs hover:underline'
+                            onClick={() => setMark(o.bidNo, { s: 'watch', rate: m?.rate })}>저장 해제</button>
+                        )}
                         <Link href={`/dashboard/auction/${o.bidNo}`} className='text-primary block text-xs hover:underline'>
                           {o.category} · 기초 {won(o.basePrice)}원 · 하한 {o.floorRate} — 상세 →
                         </Link>

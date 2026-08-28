@@ -115,7 +115,7 @@ export function AuctionDetail({ open, auctions, roster }: {
         <h1 className='mt-1 text-2xl font-semibold'>{open.schoolName}</h1>
         <div className='mt-2 flex flex-wrap items-end gap-x-8 gap-y-2'>
           <div>
-            <div className='text-muted-foreground text-xs'>기초금액</div>
+            <div className='text-muted-foreground text-xs'>공고 기초금액</div>
             <div className='text-3xl font-bold tabular-nums'>{won(open.basePrice)} 원</div>
           </div>
           <div>
@@ -141,7 +141,94 @@ export function AuctionDetail({ open, auctions, roster }: {
         </div>
       </div>
 
-      {/* 1.5 이번 판 신호 */}
+      {/* 2. 결정 — 계산기 (U4: 결정이 먼저) */}
+      <Card className='border-primary'>
+        <CardHeader className='pb-2'>
+          <CardTitle className='text-base'>투찰 계산기</CardTitle>
+          <CardDescription>입력한 값이 위 차트에 표시됩니다.</CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-3'>
+          <div className='flex flex-wrap items-end gap-3'>
+            <div>
+              <div className='text-muted-foreground mb-1 text-xs'>투찰률</div>
+              <Input value={rateStr} onChange={e => onRate(e.target.value)}
+                placeholder={`예: ${(floor + 0.05).toFixed(2)}`} className='w-36 font-mono text-lg' inputMode='decimal' />
+            </div>
+            <div className='text-muted-foreground pb-2'>↔</div>
+            <div>
+              <div className='text-muted-foreground mb-1 text-xs'>내가 넣을 금액 (원)</div>
+              <Input value={amtStr ? Number(amtStr.replace(/[^0-9]/g, '')).toLocaleString() : ''}
+                onChange={e => onAmt(e.target.value)} placeholder='금액 입력'
+                className='w-48 font-mono text-lg' inputMode='numeric' />
+            </div>
+          </div>
+          {belowFloor && (
+            <p className='text-destructive font-semibold'>하한({floor}) 미만 · 무효</p>
+          )}
+          {crowd && liveRate != null && (() => {
+            const k = Math.round(liveRate * 100) / 100;
+            const n = crowd.bins.find(b => Math.abs(b.v - k) < 1e-9)?.n ?? 0;
+            return (
+              <p className='text-[13px] tabular-nums'>
+                이 값 자리에 최근 {crowd.days}일 <b className={n > 200 ? 'text-destructive' : 'text-primary'}>{n.toLocaleString()}건</b>
+                {n === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전장 {crowd.total.toLocaleString()}건의 사실 · 동가는 추첨)</span>
+              </p>
+            );
+          })()}
+          {liveRate != null && !belowFloor && (() => {
+            const same = rounds.filter(x => x.floorRate === floor && x.winRate != null);
+            if (same.length < 3) return null;
+            let push = 0, win = 0, alive = 0, dead = 0;
+            for (const x of same) {
+              if (liveRate >= x.winRate!) push++;
+              else if (x.effFloor != null) (liveRate < x.effFloor ? dead++ : win++);
+              else if (x.maxInvalid != null && liveRate <= x.maxInvalid) dead++;
+              else alive++;
+            }
+            return (
+              <p className='text-[14px] leading-relaxed tabular-nums'>
+                이 값이면 과거 {same.length}회 중:{' '}
+                남이 더 낮게 써서 밀린 게 <b className='text-amber-600'>{push}회</b> ·{' '}
+                내가 먹었을 게 <b className='text-primary'>{win}회</b>
+                {alive > 0 && <> · 낙찰인지 무효인지 예정가 추첨이 갈랐을 게 <b style={{ color: CHART.me }}>{alive}회</b></>} ·{' '}
+                하한 아래라 무효였을 게 <b className='text-destructive'>{dead}회</b>
+                {open.schoolId && (
+                  <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}
+                    className='text-primary ml-2 text-xs hover:underline'>분석판 상세 →</Link>
+                )}
+              </p>
+            );
+          })()}
+          <div className='flex flex-wrap gap-2 pt-1'>
+            <Button variant={mark?.s === 'watch' ? 'default' : 'outline'}
+              onClick={() => set(open.bidNo, mark?.s === 'watch' ? null : { s: 'watch' })}>
+              {mark?.s === 'watch' ? '★ 관심' : '☆ 관심'}
+            </Button>
+            {(() => {
+              const saved = mark?.s === 'done';
+              const changed = saved && liveRate != null && liveRate !== mark?.rate;
+              return (
+                <Button variant={saved && !changed ? 'secondary' : 'default'} disabled={belowFloor}
+                  onClick={() => {
+                    if (!saved) trackAction('mark_done');
+                    set(open.bidNo, { s: 'done', rate: liveRate ?? mark?.rate });
+                  }}>
+                  {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${mark?.rate ?? ''})`}
+                </Button>
+              );
+            })()}
+            {mark?.s === 'done' && (
+              <Button variant='ghost' size='sm'
+                onClick={() => set(open.bidNo, { s: 'watch', rate: mark?.rate })}>해제</Button>
+            )}
+          </div>
+          <p className='text-muted-foreground text-xs'>
+            개찰 후 결과가 자동 반영됩니다.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* 3. 이번 판 신호 */}
       <Card>
         <CardContent className='flex flex-wrap gap-x-6 gap-y-1 py-3 text-[15px] tabular-nums'>
           <span>이 학교 최근 참여 <b>{recent3N.join('곳 → ') || '-'}곳</b></span>
@@ -152,7 +239,7 @@ export function AuctionDetail({ open, auctions, roster }: {
         </CardContent>
       </Card>
 
-      {/* 2. 이 학교의 과거 */}
+      {/* 4. 이 학교의 과거 */}
       <Card>
         <CardHeader className='pb-2'>
           <CardTitle className='text-base'>과거 낙찰 기록</CardTitle>
@@ -190,7 +277,7 @@ export function AuctionDetail({ open, auctions, roster }: {
         </CardContent>
       </Card>
 
-      {/* 3. 참여 업체 — 1줄 요약 (상세는 분석판) */}
+      {/* 5. 참여 업체 — 1줄 요약 (상세는 분석판) */}
       <Card>
         <CardContent className='flex flex-wrap items-center justify-between gap-2 py-3 text-[15px]'>
           <span>
@@ -205,7 +292,7 @@ export function AuctionDetail({ open, auctions, roster }: {
         </CardContent>
       </Card>
 
-      {/* 4. 내 전적 */}
+      {/* 6. 내 전적 */}
       {bizNos.length > 0 ? my.length > 0 && (
         <Card>
           <CardHeader className='pb-2'><CardTitle className='text-base'>내 기록</CardTitle></CardHeader>
@@ -223,80 +310,7 @@ export function AuctionDetail({ open, auctions, roster }: {
         </Card>
       )}
 
-      {/* 5. 결정 */}
-      <Card className='border-primary'>
-        <CardHeader className='pb-2'>
-          <CardTitle className='text-base'>투찰 계산기</CardTitle>
-          <CardDescription>입력한 값이 위 차트에 표시됩니다.</CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-3'>
-          <div className='flex flex-wrap items-end gap-3'>
-            <div>
-              <div className='text-muted-foreground mb-1 text-xs'>투찰률</div>
-              <Input value={rateStr} onChange={e => onRate(e.target.value)}
-                placeholder={`예: ${(floor + 0.05).toFixed(2)}`} className='w-36 font-mono text-lg' inputMode='decimal' />
-            </div>
-            <div className='text-muted-foreground pb-2'>↔</div>
-            <div>
-              <div className='text-muted-foreground mb-1 text-xs'>금액 (원)</div>
-              <Input value={amtStr ? Number(amtStr.replace(/[^0-9]/g, '')).toLocaleString() : ''}
-                onChange={e => onAmt(e.target.value)} placeholder='금액 입력'
-                className='w-48 font-mono text-lg' inputMode='numeric' />
-            </div>
-          </div>
-          {belowFloor && (
-            <p className='text-destructive font-semibold'>하한({floor}) 미만 · 무효</p>
-          )}
-          {crowd && liveRate != null && (() => {
-            const k = Math.round(liveRate * 100) / 100;
-            const n = crowd.bins.find(b => Math.abs(b.v - k) < 1e-9)?.n ?? 0;
-            return (
-              <p className='text-[13px] tabular-nums'>
-                이 값 자리에 최근 {crowd.days}일 <b className={n > 200 ? 'text-destructive' : 'text-primary'}>{n.toLocaleString()}건</b>
-                {n === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전장 {crowd.total.toLocaleString()}건의 사실 · 동가는 추첨)</span>
-              </p>
-            );
-          })()}
-          {liveRate != null && !belowFloor && (() => {
-            const same = rounds.filter(x => x.floorRate === floor && x.winRate != null);
-            if (same.length < 3) return null;
-            let push = 0, win = 0, alive = 0, dead = 0;
-            for (const x of same) {
-              if (liveRate >= x.winRate!) push++;
-              else if (x.effFloor != null) (liveRate < x.effFloor ? dead++ : win++);
-              else if (x.maxInvalid != null && liveRate <= x.maxInvalid) dead++;
-              else alive++;
-            }
-            return (
-              <p className='text-[14px] tabular-nums'>
-                이 값으로 과거 {same.length}회 재생 —{' '}
-                <b className='text-amber-600'>밀림 {push}</b> ·{' '}
-                <b className='text-primary'>낙찰 {win}</b>
-                {alive > 0 && <> · <b style={{ color: CHART.me }}>기회 {alive}</b></>} ·{' '}
-                <b className='text-destructive'>무효 {dead}</b>
-                {open.schoolId && (
-                  <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}`}
-                    className='text-primary ml-2 text-xs hover:underline'>분석판 상세 →</Link>
-                )}
-              </p>
-            );
-          })()}
-          <div className='flex flex-wrap gap-2 pt-1'>
-            <Button variant={mark?.s === 'watch' ? 'default' : 'outline'}
-              onClick={() => set(open.bidNo, mark?.s === 'watch' ? null : { s: 'watch' })}>
-              {mark?.s === 'watch' ? '★ 관심' : '☆ 관심'}
-            </Button>
-            <Button variant={mark?.s === 'done' ? 'default' : 'outline'}
-              disabled={belowFloor}
-              onClick={() => { if (mark?.s !== 'done') trackAction('mark_done'); set(open.bidNo, mark?.s === 'done' ? null : { s: 'done', rate: liveRate ?? undefined }); }}>
-              {mark?.s === 'done' ? `✓ 투찰함${mark.rate ? ` (${mark.rate})` : ''}` : '투찰 완료 표시'}
-            </Button>
-          </div>
-          <p className='text-muted-foreground text-xs'>
-            개찰 후 결과가 자동 반영됩니다.
-          </p>
-        </CardContent>
-      </Card>
+
     </div>
   );
 }

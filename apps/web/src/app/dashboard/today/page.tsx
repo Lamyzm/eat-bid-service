@@ -36,6 +36,8 @@ export default function TodayPage() {
   const { bizNos, ready } = useWorkspace();
   const { homes } = useRegion();
   const { marks, set } = useMarks();
+  // 저장 시점 값 — '이 값으로 갱신' 판별용
+  const [savedRates, setSavedRates] = useState<Record<string, number | undefined>>({});
   useTrack('today');
   // 데일리 브리핑 — 어제 전국 개찰 (사실 카운트만)
   const [brief, setBrief] = useState<{ day: string; n: number; top: string | null; topN: number; isYesterday: boolean } | null>(null);
@@ -185,19 +187,37 @@ export default function TodayPage() {
                           set(o.bidNo, { s: m.s, rate: Number.isFinite(v) ? v : undefined });
                         }}
                         className='h-7 w-24 font-mono' />
-                      {m.rate != null && o.basePrice && <span className='text-muted-foreground w-24 text-right'>{won(o.basePrice * m.rate / 100)}원</span>}
-                      <Button size='sm' variant={m.s === 'done' ? 'secondary' : 'default'} className='h-7'
-                        disabled={m.rate == null || (o.floorRate != null && m.rate < o.floorRate)}
-                        onClick={() => { if (m.s !== 'done') trackAction('mark_done'); set(o.bidNo, { s: m.s === 'done' ? 'watch' : 'done', rate: m.rate }); }}>
-                        {m.s === 'done' ? '✓ 투찰함' : '투찰함'}
-                      </Button>
+                      {m.rate != null && o.basePrice && (
+                        <span className='text-muted-foreground w-32 text-right'>
+                          내 투찰가 {won(o.basePrice * m.rate / 100)}원
+                        </span>
+                      )}
+                      {(() => {
+                        const saved = m.s === 'done';
+                        const changed = saved && m.rate !== savedRates[o.bidNo];
+                        return (
+                          <Button size='sm' variant={saved && !changed ? 'secondary' : 'default'} className='h-7'
+                            disabled={m.rate == null || (o.floorRate != null && m.rate < o.floorRate)}
+                            onClick={() => {
+                              if (!saved) trackAction('mark_done');
+                              set(o.bidNo, { s: 'done', rate: m.rate });
+                              setSavedRates(v => ({ ...v, [o.bidNo]: m.rate }));
+                            }}>
+                            {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${m.rate})`}
+                          </Button>
+                        );
+                      })()}
+                      {m.s === 'done' && (
+                        <button className='text-muted-foreground px-1 text-xs hover:underline' title='투찰 저장 해제'
+                          onClick={() => set(o.bidNo, { s: 'watch', rate: m.rate })}>해제</button>
+                      )}
                       <button className='text-muted-foreground px-1 hover:text-destructive' title='바구니에서 빼기'
                         onClick={() => set(o.bidNo, null)}>✕</button>
                     </span>
                   </div>
                 );
               })}
-              <p className='text-muted-foreground text-xs'>값을 넣고 [투찰함]을 누르면 내일 아침 개찰 결과가 자동 채점됩니다.</p>
+              <p className='text-muted-foreground text-xs'>값을 넣고 [투찰 저장]을 누르면 다음 날 개찰 결과가 자동 반영됩니다. 값을 고치면 [이 값으로 갱신]이 뜹니다.</p>
             </CardContent>
           </Card>
         );
@@ -229,13 +249,14 @@ export default function TodayPage() {
                     <CardDescription className='tabular-nums'>
                       기초 {won(o.basePrice)}원 · 하한 {o.floorRate}
                       {b && <> · <b className='text-foreground'>투찰 {b.part}회 · 낙찰 {b.wins}회</b></>}
-                      {m?.s === 'done' && <> · ✓ 투찰함{m.rate ? ` (${m.rate})` : ''}</>}
+                      {m?.s === 'done' && <> · ✓ 저장됨{m.rate ? ` (${m.rate})` : ''}</>}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className='flex flex-wrap items-end justify-between gap-2'>
                     <div>
+                      <div className='text-muted-foreground text-xs'>하한 금액</div>
                       <div className='text-primary text-2xl font-bold tabular-nums'>{won(o.anchorAmount)} 원</div>
-                      <div className='text-muted-foreground text-xs'>기초 × 하한</div>
+                      <div className='text-muted-foreground text-xs'>기초금액 × 하한율</div>
                     </div>
                     <div className='text-right text-sm tabular-nums'>
                       {o.recent3.length > 0 && <div>최근 낙찰 <b>{o.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>}
