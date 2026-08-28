@@ -136,10 +136,20 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
         <div className='flex flex-wrap items-center gap-2'>
           <span className='text-muted-foreground text-sm'>{open.sigungu}</span>
           {open.category && <Badge variant='secondary'>{open.category}</Badge>}
-          <Badge>자격 충족</Badge>
+          {/* 자격은 서버 값으로만 말한다. 조건 없이 '자격 충족'이라 단언하고 있었다 */}
+          {open.unrestricted
+            ? <Badge variant='outline'>지역 제한 없음</Badge>
+            : open.allowedLabel
+              ? <Badge variant='outline'>{open.allowedLabel} 제한</Badge>
+              : null}
           <Badge variant='destructive'>{dday ?? (open.deadline ? '마감 확인 중' : '마감 미상')}</Badge>
         </div>
         <h1 className='mt-1 text-2xl font-semibold'>{open.schoolName}</h1>
+        {!open.unrestricted && open.allowedLabel && (
+          <p className='text-muted-foreground mt-1 text-sm'>
+            참가 자격은 사무소 소재지 기준입니다. 자격 여부는 확인이 필요합니다.
+          </p>
+        )}
         <div className='mt-2 flex flex-wrap items-end gap-x-8 gap-y-2'>
           <div>
             <div className='text-muted-foreground text-xs'>공고 기초금액</div>

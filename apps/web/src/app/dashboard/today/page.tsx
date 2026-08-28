@@ -124,10 +124,16 @@ export default function TodayPage() {
     }).catch(() => setOpenError(true)).finally(() => setOpenLoaded(true));
   }, [openReload]);
 
-  /** 보는 지역으로 거른 목록 — 제목·히어로·목록이 모두 이 배열을 센다 (U26) */
-  const visible = useMemo(
-    () => (viewRegions?.length ? open.filter(o => o.sigungu && viewRegions.includes(o.sigungu)) : open),
-    [open, viewRegions]);
+  /**
+   * 내가 낼 수 있는 목록 — 허용지역(누가 낼 수 있나)과 학교 소재지(어디 학교인가)는 다른 개념이다.
+   * 소재지로만 걸러서 의정부·강남 사장이 낼 수 있는 무제한 공고 65건을 0건으로 보고 있었다.
+   * 다른 지역을 둘러보는 중이면 그 지역 판을 그대로 보여준다.
+   */
+  const visible = useMemo(() => {
+    if (!viewRegions?.length) return open;
+    if (isBrowsing) return open.filter(o => o.sigungu && viewRegions.includes(o.sigungu));
+    return open.filter(o => o.unrestricted || (o.sigungu && viewRegions.includes(o.sigungu)));
+  }, [open, viewRegions, isBrowsing]);
 
   /** 첫 화면은 마감 임박 8건까지만 — 나머지는 1클릭 뒤 (U28) */
   const HEAD = 8;
@@ -323,11 +329,15 @@ export default function TodayPage() {
                           <span className='text-muted-foreground self-center text-xs'>공고명에서 추정</span>
                         )}
                         {(() => {
-                          // 자격 표기는 서버가 준 근거로만 한다 (품목 분류 전수조사 결과가 오면 '지역 자격 충족')
-                          const qualified = homes.length > 0 && o.sigungu && homes.includes(o.sigungu);
-                          if (!qualified) return o.sigungu ? <Badge variant='outline'>{o.sigungu}</Badge> : null;
-                          const label = o.qualificationBasis === 'region-only' ? '지역 자격 충족' : '자격 충족';
-                          return <Badge variant='outline'>{o.sigungu} · {label}</Badge>;
+                          // 자격은 서버가 준 값으로만 말한다. 제한 공고는 단언하지 않는다 —
+                          // 원본 허용지역이 절단형(`정읍`)이라 우리가 대조할 수 없다.
+                          if (o.unrestricted) {
+                            return <Badge variant='outline'>{o.sigungu} · 지역 제한 없음</Badge>;
+                          }
+                          if (o.allowedLabel) {
+                            return <Badge variant='outline'>{o.sigungu} · {o.allowedLabel} 제한</Badge>;
+                          }
+                          return o.sigungu ? <Badge variant='outline'>{o.sigungu}</Badge> : null;
                         })()}
                         <Badge variant='destructive'>{dday(o.deadline) ?? '마감 미상'}</Badge>
                       </div>
@@ -356,7 +366,10 @@ export default function TodayPage() {
                           </div>
                         )}
                         {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
-                        {/* 표본 수 — 분류가 정확해지며 표본이 줄어든 자리를 화면이 숨기지 않는다 */}
+                        {!o.unrestricted && o.allowedLabel && (
+                        <div className='text-muted-foreground'>참가 자격은 사무소 소재지 기준입니다. 자격 여부는 확인이 필요합니다.</div>
+                      )}
+                      {/* 표본 수 — 분류가 정확해지며 표본이 줄어든 자리를 화면이 숨기지 않는다 */}
                         {o.catCounts && (() => {
                           const cats = o.categories?.length ? o.categories : (o.category ? [o.category] : []);
                           const parts = cats.filter(c => o.catCounts![c] != null).map(c => `${c} ${o.catCounts![c]}회`);

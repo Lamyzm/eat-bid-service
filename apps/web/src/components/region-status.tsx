@@ -15,8 +15,12 @@ export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
   useEffect(() => {
     fetch('/api/open').then(r => r.json()).then((xs: any[]) => {
       if (!Array.isArray(xs)) return;
+      // 오늘 목록과 같은 기준 — 내 지역 모드에서는 무제한 공고도 낼 수 있는 공고다
       const scope = view === 'home' ? homes : [view];
-      setOpenCount(scope.length ? xs.filter(o => o.sigungu && scope.includes(o.sigungu)).length : xs.length);
+      if (!scope.length) { setOpenCount(xs.length); return; }
+      setOpenCount(view === 'home'
+        ? xs.filter(o => o.unrestricted || (o.sigungu && scope.includes(o.sigungu))).length
+        : xs.filter(o => o.sigungu && scope.includes(o.sigungu)).length);
     }).catch(() => {});
   }, [view, homes.join(',')]);
 

@@ -10,6 +10,7 @@ import { useRegion } from '@/lib/region';
 export function RegionSwitcher() {
   const { homes, view, isBrowsing, setView, ready } = useRegion();
   const [openCounts, setOpenCounts] = useState<Record<string, number>>({});
+  const [rows, setRows] = useState<{ sigungu?: string | null; unrestricted?: boolean }[]>([]);
 
   useEffect(() => {
     fetch('/api/open').then(r => r.json()).then((xs: any[]) => {
@@ -17,12 +18,14 @@ export function RegionSwitcher() {
       const m: Record<string, number> = {};
       for (const o of xs) if (o.sigungu) m[o.sigungu] = (m[o.sigungu] ?? 0) + 1;
       setOpenCounts(m);
+      setRows(xs);
     }).catch(() => {});
   }, []);
 
-  // 전체 칩 배지 = 내 자격 지역 합 (전국 수는 아래 "전국 N건 더 보기"가 말한다 — U36)
+  // 전체 칩 배지 = 내가 낼 수 있는 수 (무제한 + 내 지역). 오늘 목록과 같은 기준이어야 한다
   const homeSum = useMemo(
-    () => homes.reduce((a, h) => a + (openCounts[h] ?? 0), 0), [homes, openCounts]);
+    () => rows.filter(o => o.unrestricted || (o.sigungu && homes.includes(o.sigungu))).length,
+    [homes, rows]);
   const nationTotal = useMemo(
     () => Object.values(openCounts).reduce((a, b) => a + b, 0), [openCounts]);
   const total = homes.length ? homeSum : nationTotal;
