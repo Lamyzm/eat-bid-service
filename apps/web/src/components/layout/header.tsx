@@ -6,7 +6,6 @@ import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { RegionSwitcher } from '../region-switcher';
 import { SessionBoot } from '../session-boot';
 import { GlobalSettingsButton, GlobalSettingsDialog } from '../global-settings';
-import { NotificationCenter } from '@/features/notifications/components/notification-center';
 
 /**
  * 헤더는 최소로 — 토글 · 브레드크럼 | 지역 칩 · 전역 설정 · 테마 · 알림.
@@ -28,7 +27,6 @@ export default function Header() {
         <RegionSwitcher />
         <GlobalSettingsButton />
         <ThemeModeToggle />
-        <NotificationCenter />
       </div>
 
       <GlobalSettingsDialog />
