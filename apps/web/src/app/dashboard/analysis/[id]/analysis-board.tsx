@@ -573,7 +573,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
             <span>
               <b>진행 중 공고 기준</b> · {ctxBid.category ?? '-'} · 기초 {won(ctxBid.basePrice)}원 · 하한 {ctxBid.floorRate}
               {(() => {
-                const t = deadlineText(ctxBid.deadline);
+                const t = deadlineText(ctxBid.bidEndAt);
                 return t ? <span className='text-destructive'> · {t}</span> : null;
               })()}
             </span>

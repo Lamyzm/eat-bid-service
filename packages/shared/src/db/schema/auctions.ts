@@ -107,7 +107,12 @@ export const openAuctions = pgTable("open_auctions", {
   category: varchar("category", { length: 20 }),
   categories: jsonb("categories").$type<string[]>(),
   categorySrc: varchar("category_src", { length: 16 }),
+  // deadline 은 개찰 시각(OPNG_DT)이다 — 마감이 아니다.
+  // 실측: BID_END_DT != OPNG_DT 가 1,200/1,200, 차이 정확히 1시간.
+  // 화면 카운트다운은 bidEndAt 을 써야 한다. deadline 은 "개찰 결과를 언제 보나"에 쓴다.
   deadline: timestamp("deadline"),
+  bidEndAt: timestamp("bid_end_at"),      // 투찰 마감
+  bidBeginAt: timestamp("bid_begin_at"),  // 투찰 시작 — "아직 시작 전" 구분용
   fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
 });
 

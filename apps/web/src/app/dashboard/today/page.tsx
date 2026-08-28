@@ -32,6 +32,14 @@ type OpenRow = {
   bidNo: string; schoolName: string | null; sigungu: string | null; schoolId: string | null;
   basePrice: number | null; floorRate: number | null; deadline: string | null; category: string | null;
   anchorAmount: number | null;
+  /**
+   * 투찰 마감 — 카운트다운·정렬은 이 값을 쓴다.
+   * `deadline`(개찰 시각)은 마감보다 늦다. 차이는 94.8%가 60분이지만 나머지는 다르고
+   * 최대 18시간까지 벌어져, 고정 오프셋으로 보정하면 안 된다. 실제 값만 쓴다.
+   */
+  bidEndAt?: string | null;
+  /** 투찰 시작 — "아직 시작 전" 구분용 */
+  bidBeginAt?: string | null;
   band: { n?: number; dense?: { lo: number; hi: number; pct: number } } | null;
   recent3: number[]; usualN: number | null;
   /** 서버가 실어 보내는 자격 정보 — 없으면 뱃지를 띄우지 않는다 */
@@ -144,10 +152,10 @@ export default function TodayPage() {
   // 마감이 지난 공고가 '마감 임박' 앞자리를 차지하지 않게 뒤로 보낸다.
   // 마감 기준이 개찰 시각에서 실제 마감(1시간 이르다)으로 바뀌면 지난 공고가 실제로 생긴다.
   const byDeadline = useMemo(() => [...visible].sort((a, b) => {
-    const ca = isClosed(a.deadline) ? 1 : 0;
-    const cb = isClosed(b.deadline) ? 1 : 0;
+    const ca = isClosed(a.bidEndAt) ? 1 : 0;
+    const cb = isClosed(b.bidEndAt) ? 1 : 0;
     if (ca !== cb) return ca - cb;
-    return (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999');
+    return (a.bidEndAt ?? '9999').localeCompare(b.bidEndAt ?? '9999');
   }), [visible]);
   const [showRest, setShowRest] = useState(false);
   const [showAll, setShowAll] = useState(false); // 전국(지역 필터 밖)까지
@@ -247,8 +255,8 @@ export default function TodayPage() {
       {/* 히어로 — 할 일 자체 (A: 건수 대신 가장 급한 공고) */}
       {!openLoaded && <Skeleton className='h-[116px] w-full rounded-xl' />}
       {openLoaded && visible.length > 0 && (() => {
-        const sorted = [...visible].filter(o => o.deadline)
-          .sort((a, b) => +new Date(a.deadline!) - +new Date(b.deadline!));
+        const sorted = [...visible].filter(o => o.bidEndAt && !isClosed(o.bidEndAt))
+          .sort((a, b) => +new Date(a.bidEndAt!) - +new Date(b.bidEndAt!));
         const next = sorted[0] ?? visible[0];
         const unfilled = visible.filter(o => marks[o.bidNo] && !hasAnyRate(marks[o.bidNo], bizNos)).length;
         return (
@@ -258,7 +266,7 @@ export default function TodayPage() {
                 <div className='text-muted-foreground text-xs'>가장 급한 공고</div>
                 <div className='text-xl font-bold'>
                   {next.schoolName ?? '학교 미상'} {next.category ?? ''}
-                  <span className='text-destructive ml-2 text-base'>{deadlineText(next.deadline) ?? ''}</span>
+                  <span className='text-destructive ml-2 text-base'>{deadlineText(next.bidEndAt) ?? ''}</span>
                 </div>
               </div>
               <div className='text-right text-sm tabular-nums'>
@@ -338,7 +346,7 @@ export default function TodayPage() {
                           }
                           return o.sigungu ? <Badge variant='outline'>{o.sigungu}</Badge> : null;
                         })()}
-                        <Badge variant='destructive'>{deadlineText(o.deadline) ?? '마감 미상'}</Badge>
+                        {deadlineText(o.bidEndAt) && <Badge variant='destructive'>{deadlineText(o.bidEndAt)}</Badge>}
                       </div>
                     </div>
                     <CardDescription className='tabular-nums'>
@@ -379,8 +387,11 @@ export default function TodayPage() {
                           );
                         })()}
                         {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
-                        {isClosed(o.deadline) && (
-                        <div className='text-muted-foreground'>투찰 시간이 지났습니다.</div>
+                        {isClosed(o.bidEndAt) && (
+                        <div className='text-muted-foreground'>
+                          투찰 시간이 지났습니다.
+                          {o.deadline && <> 개찰 {kstDate(new Date(o.deadline)).slice(5)} {kstTime(new Date(o.deadline))}.</>}
+                        </div>
                       )}
                       {!o.unrestricted && o.allowedLabel && (
                         <div className='text-muted-foreground'>참가 자격은 사무소 소재지 기준입니다. 자격 여부는 확인이 필요합니다.</div>
@@ -594,7 +605,7 @@ export default function TodayPage() {
                 </span>
                 <span className='text-muted-foreground shrink-0'>
                   하한 {o.floorRate} · {won(o.anchorAmount)}원
-                  <span className='text-destructive ml-2'>{deadlineText(o.deadline) ?? ''}</span>
+                  <span className='text-destructive ml-2'>{deadlineText(o.bidEndAt) ?? ''}</span>
                 </span>
               </Link>
             ))}

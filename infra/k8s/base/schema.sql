@@ -254,3 +254,7 @@ BEGIN
       PRIMARY KEY ("sido","sigungu","category");
   END IF;
 END $$;
+
+-- 투찰 마감·시작 시각. deadline(개찰)과 별개다 — 덮어쓰지 않는다.
+ALTER TABLE open_auctions ADD COLUMN IF NOT EXISTS "bid_end_at" timestamp;
+ALTER TABLE open_auctions ADD COLUMN IF NOT EXISTS "bid_begin_at" timestamp;

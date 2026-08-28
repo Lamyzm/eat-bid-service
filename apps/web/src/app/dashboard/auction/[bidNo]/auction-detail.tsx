@@ -129,8 +129,8 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   useEffect(() => { setMounted(true); }, []);
   // 시각 의존 값이라 마운트 후에만 (SSR/CSR 불일치 방지 — React #418)
   const dday = useMemo(
-    () => (mounted ? deadlineText(open.deadline) : null),
-    [mounted, open.deadline]);
+    () => (mounted ? deadlineText(open.bidEndAt) : null),
+    [mounted, open.bidEndAt]);
 
   return (
     <div className='flex flex-1 flex-col space-y-5 p-4 md:p-6'>
@@ -145,7 +145,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             : open.allowedLabel
               ? <Badge variant='outline'>{open.allowedLabel} 제한</Badge>
               : null}
-          <Badge variant='destructive'>{dday ?? (open.deadline ? '마감 확인 중' : '마감 미상')}</Badge>
+          {dday && <Badge variant='destructive'>{dday}</Badge>}
         </div>
         <h1 className='mt-1 text-2xl font-semibold'>{open.schoolName}</h1>
         {!open.unrestricted && open.allowedLabel && (
