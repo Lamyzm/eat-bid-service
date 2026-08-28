@@ -8,6 +8,8 @@ import { type RosterRow } from '@/components/roster-table';
 import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
 import { pickBand, bandBasisText } from '@/lib/band';
+import { LoadError } from '@/components/load-error';
+import { quietFailure } from '@/lib/fetch-json';
 import { deadlineText, isNotStarted } from '@/lib/deadline';
 import { kstDate, kstTime } from '@eatbid/shared';
 import { DataScope } from '@/components/data-scope';
@@ -58,9 +60,11 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
 
   // 몰림 지도 — 최근 14일 전 지역 투찰값 분포 (동가 위험)
   const [crowd, setCrowd] = useState<{ days: number; total: number; bins: { v: number; n: number }[] } | null>(null);
+  const [roundsFailed, setRoundsFailed] = useState(false);
   useEffect(() => {
     if (floor == null) return;
-    fetch(`/api/wins/crowd?days=14&floor=${floor}`).then(r => r.json()).then(setCrowd).catch(() => {});
+    fetch(`/api/wins/crowd?days=14&floor=${floor}`).then(r => r.json()).then(setCrowd)
+      .catch(quietFailure('몰림 분포'));
   }, [floor]);
   // 이번 판 신호 — 같은 마감일 공고 수 (경쟁 분산)
   const [openAll, setOpenAll] = useState<any[]>([]);
@@ -77,7 +81,8 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   useEffect(() => {
     if (!open.schoolId) return;
     fetch(`/api/rounds/school/${encodeURIComponent(open.schoolId)}`)
-      .then(r => r.json()).then(xs => setRounds(Array.isArray(xs) ? xs : [])).catch(() => {});
+      .then(r => r.json()).then(xs => setRounds(Array.isArray(xs) ? xs : []))
+      .catch(() => setRoundsFailed(true));
   }, [open.schoolId]);
 
   // 내 전적 (이 학교)
@@ -221,7 +226,10 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
               </p>
             );
           })()}
-          {liveRate != null && !belowFloor && (() => {
+          {liveRate != null && !belowFloor && roundsFailed && (
+            <LoadError what='과거 기록' inline />
+          )}
+          {liveRate != null && !belowFloor && !roundsFailed && (() => {
             const same = rounds.filter(x => x.floorRate === floor && x.winRate != null);
             if (same.length < 3) return null;
             let push = 0, win = 0, alive = 0, dead = 0;

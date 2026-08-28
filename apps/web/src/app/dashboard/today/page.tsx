@@ -11,7 +11,7 @@ import { LoadError } from '@/components/load-error';
 import { pickBand, bandBasisText } from '@/lib/band';
 import { deadlineText, isClosed, isNotStarted } from '@/lib/deadline';
 import { DataScope } from '@/components/data-scope';
-import { fetchJson } from '@/lib/fetch-json';
+import { fetchJson, quietFailure } from '@/lib/fetch-json';
 import { slotKeysFor, ratesOf, withRate, primaryRate, hasAnyRate, sameRates, bizLabelOf } from '@/lib/mark-rates';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -116,11 +116,12 @@ export default function TodayPage() {
       for (const r of dayRows) if (r.sigungu) bySgg.set(r.sigungu, (bySgg.get(r.sigungu) ?? 0) + 1);
       const top = [...bySgg.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
       setBrief({ day, n: dayRows.length, top: top?.[0] ?? null, topN: top?.[1] ?? 0, isYesterday: day === yesterday });
-    }).catch(() => {});
+    }).catch(quietFailure('어제 개찰 요약'));
   }, []);
   const [open, setOpen] = useState<OpenRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
   const [forecastLoaded, setForecastLoaded] = useState(false);
+  const [forecastFailed, setForecastFailed] = useState(false);
   const [badges, setBadges] = useState<Record<string, { part: number; wins: number }>>({});
 
   const [openLoaded, setOpenLoaded] = useState(false);
@@ -198,7 +199,7 @@ export default function TodayPage() {
     fetch(`/api/schools/forecast${key ? `?sigungu=${key}` : ''}`, { signal: ac.signal })
       .then(r => r.json())
       .then(d => { if (key === homes.join(',')) setForecast(Array.isArray(d) ? d : []); })
-      .catch(() => {})
+      .catch(() => setForecastFailed(true))
       .finally(() => setForecastLoaded(true));
     return () => ac.abort();
   }, [homes.join(','), sessionReady]);
@@ -628,7 +629,8 @@ export default function TodayPage() {
           </CardContent></Card>
         )}
         {forecastLoaded && homes.length > 0 && <Card><CardContent className='divide-y p-0'>
-          {forecast.length === 0 && (
+          {forecastFailed && <LoadError what='발주 예정' />}
+          {!forecastFailed && forecast.length === 0 && (
             <div className='px-4 py-4'>
               <Empty>
                 <EmptyHeader>
