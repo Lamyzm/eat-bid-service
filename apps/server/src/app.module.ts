@@ -299,6 +299,43 @@ function cleanSggs(csv?: string): string[] {
   return (csv ?? "").split(",").map(x => x.trim()).filter(x => SGG_RE.test(x));
 }
 
+/**
+ * 실측 집계 — 화면에 박혀 있던 숫자(전국 137개 시군구·공고 10만·투찰 694만)를
+ * 대체한다. 셋 다 틀렸고, 헌법 3(사실만)을 어기고 있었다.
+ * asOf 는 데이터 기준 시각이다 — 숫자만 주면 그게 언제 것인지 알 수 없다.
+ */
+@Controller("stats")
+class StatsController {
+  @Get()
+  async stats() {
+    const [r] = await db.select({
+      sigungu: sql<number>`count(distinct split_part(school_id, '|', 1))`,
+      auctions: sql<number>`count(*)`,
+      schools: sql<number>`count(distinct school_id)`,
+      firstOpened: sql<string | null>`min(opened_at)::text`,
+      lastOpened: sql<string | null>`max(opened_at)::text`,
+    }).from(schoolAuctions);
+    // firm_bids 는 913만 행이라 count(*) 가 1.85초 걸린다(실측).
+    // 통계 페이지 한 번에 그 값을 치르지 않도록 플래너 추정치를 쓴다 —
+    // 정확한 값이 필요한 자리가 아니고, 추정임을 필드 이름으로 밝힌다.
+    const [b] = await db.execute<{ n: string }>(
+      sql`select greatest(reltuples::bigint, 0) as n from pg_class where relname = 'firm_bids'`,
+    ) as unknown as [{ n: string }];
+    const [o] = await db.select({ n: sql<number>`count(*)` }).from(openAuctions);
+    const [f] = await db.select({ n: sql<number>`count(*)` }).from(firms);
+    return {
+      sigunguCount: Number(r.sigungu),
+      schoolCount: Number(r.schools),
+      auctionCount: Number(r.auctions),
+      bidCountApprox: Number(b?.n ?? 0),   // 추정치임을 이름에 남긴다
+      openCount: Number(o.n),
+      firmCount: Number(f.n),
+      openedFrom: r.firstOpened, openedTo: r.lastOpened,
+      asOf: new Date().toISOString(),
+    };
+  }
+}
+
 @Controller("wins")
 class WinsController {
   /** 적재된 지역 목록 (데이터 유도 — 거짓 '전국' 방지) */
@@ -309,11 +346,14 @@ class WinsController {
       n: sql<number>`count(*)`,
     }).from(schoolAuctions).groupBy(sql`split_part(school_id, '|', 1)`)
       .orderBy(desc(sql`count(*)`));
-    // 정규 시군구만: 형식(한글 1~6자 + 시/군/구) + 표본 n>=20.
-    // schools 실존 조건은 걸지 않는다 — 학교별 5회 문턱에 못 미치는 소규모
-    // 지역(밀양시 21회·의령군 52회)도 자기 지역을 골라볼 수 있어야 한다.
+    // 목록은 DB 가 곧 진실이다 — 손으로 유지하지 않는다.
+    // 표본 문턱(n>=20)은 제거했다: 영종구·서해구·검단구·제물포구·신안군처럼
+    // 신설되었거나 회차가 적은 지역이 드롭다운에서 통째로 빠져 고를 수가 없었다.
+    // 회차가 적은 것은 사실이고, 사실을 숨기는 대신 n 을 함께 내려보낸다.
+    // 남는 형식 필터는 주소 파싱 오염(급식실(서울특별시 · 평전로 · 남구학익2동)을
+    // 막는 최소한이며, 재파싱 후 SIGUNGU_CD 로 옮기면 이것도 사라진다.
     return rows
-      .filter(r => r.sgg && SGG_RE.test(r.sgg) && Number(r.n) >= 20)
+      .filter(r => r.sgg && SGG_RE.test(r.sgg))
       .map(r => ({ sigungu: r.sgg, n: Number(r.n) }));
   }
 
@@ -1001,6 +1041,6 @@ class HealthController {
 }
 
 @Module({
-  controllers: [HealthController, AuthController, MeController, ShareController, EventsController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
+  controllers: [HealthController, StatsController, AuthController, MeController, ShareController, EventsController, RoundsController, WinsController, SchoolsController, OpenController, MarketController, FirmsController, ResultsController],
 })
 export class AppModule {}
