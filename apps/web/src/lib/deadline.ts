@@ -27,6 +27,13 @@ export function isClosed(deadline: string | null | undefined, now: number = Date
   return !Number.isNaN(ms) && ms < 0;
 }
 
+/** 아직 투찰 시작 전인가 — 라이브 111건 중 8건이 이 상태다(죽은 분기가 아니다) */
+export function isNotStarted(bidBeginAt: string | null | undefined, now: number = Date.now()): boolean {
+  if (!bidBeginAt) return false;
+  const ms = new Date(bidBeginAt).getTime() - now;
+  return !Number.isNaN(ms) && ms > 0;
+}
+
 /** 남은 시간(시). 마감 경고 문턱 판정에 쓴다. 값이 없으면 null */
 export function hoursLeft(deadline: string | null | undefined, now: number = Date.now()): number | null {
   if (!deadline) return null;

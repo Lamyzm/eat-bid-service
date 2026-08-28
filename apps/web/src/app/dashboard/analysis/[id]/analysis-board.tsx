@@ -17,6 +17,8 @@ import { usePersistedFlag, usePersistedChoice } from '@/lib/use-persisted-state'
 import { won } from '@/lib/format';
 import { monthsAgoKST, type ForecastRow } from '@eatbid/shared';
 import { deadlineText } from '@/lib/deadline';
+import { LoadError } from '@/components/load-error';
+import { fetchJson, quietFailure } from '@/lib/fetch-json';
 import { CHART as C, myMarker, chartFrame } from '@/lib/chart-colors';
 import { RosterTable, type RosterRow } from '@/components/roster-table';
 import { Badge } from '@/components/ui/badge';
@@ -254,7 +256,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
   useEffect(() => {
     if (!initialBidNo) return;
     fetch(`/api/open/${encodeURIComponent(initialBidNo)}`).then(r => r.json())
-      .then(d => { if (d && d.bidNo) setCtxBid(d); }).catch(() => {});
+      .then(d => { if (d && d.bidNo) setCtxBid(d); }).catch(quietFailure('공고 컨텍스트'));
   }, [initialBidNo]);
 
 
@@ -319,7 +321,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
   const [crowd, setCrowd] = useState<{ days: number; total: number; bins: { v: number; n: number }[] } | null>(null);
   useEffect(() => {
     if (floor == null) return;
-    fetch(`/api/wins/crowd?days=14&floor=${floor}`).then(res => res.json()).then(setCrowd).catch(() => {});
+    fetch(`/api/wins/crowd?days=14&floor=${floor}`).then(res => res.json()).then(setCrowd).catch(quietFailure('몰림 분포'));
   }, [floor]);
   const crowdN = useMemo(() => {
     if (crowd == null || r == null) return null;
@@ -347,17 +349,25 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
   useEffect(() => {
     if (!school || bizNos.length === 0) return;
     fetch(`/api/schools/${encodeURIComponent(school.id)}/my-bids?bizNos=${bizNos.join(',')}`)
-      .then(res => res.json()).then(setMy).catch(() => {});
+      .then(res => res.json()).then(setMy).catch(quietFailure('내 투찰'));
   }, [school, bizNos]);
 
   // 진행 중 공고 + 로스터
   const [openBids, setOpenBids] = useState<any[]>([]);
   const [roster, setRoster] = useState<{ rows: RosterRow[]; maxStreak: number }>({ rows: [], maxStreak: 0 });
+  // 실패를 빈 상태로 두면 화면이 "아직 참여 기록이 없습니다"라고 단언한다. 그건 사실이 아니다.
+  const [rosterFailed, setRosterFailed] = useState(false);
+  const [openFailed, setOpenFailed] = useState(false);
+  const [replayFailed, setReplayFailed] = useState(false);
   useEffect(() => {
     if (!school) return;
-    fetch('/api/open').then(res => res.json())
-      .then((xs: any[]) => setOpenBids(xs.filter(x => x.schoolId === school.id))).catch(() => {});
-    fetch(`/api/schools/${encodeURIComponent(school.id)}/roster`).then(res => res.json()).then(setRoster).catch(() => {});
+    setOpenFailed(false);
+    fetchJson<any[]>('/api/open')
+      .then(xs => setOpenBids(xs.filter(x => x.schoolId === school.id)))
+      .catch(() => setOpenFailed(true));
+    setRosterFailed(false);
+    fetchJson<{ rows: RosterRow[]; maxStreak: number }>(`/api/schools/${encodeURIComponent(school.id)}/roster`)
+      .then(setRoster).catch(() => setRosterFailed(true));
   }, [school]);
 
   // 리플레이
@@ -369,7 +379,9 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!replayId) return;
-    fetch(`/api/rounds/${encodeURIComponent(replayId)}`).then(res => res.json()).then(setReplay).catch(() => {});
+    setReplayFailed(false);
+    fetchJson<Replay>(`/api/rounds/${encodeURIComponent(replayId)}`)
+      .then(setReplay).catch(() => setReplayFailed(true));
   }, [replayId]);
   const openReplay = (bidId: string) => { setReplayId(bidId); setLens('replay'); };
 
@@ -518,7 +530,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
         if (!Array.isArray(rows)) return;
         setForecast(rows.find(f => f.schoolId === school.id) ?? null);
       })
-      .catch(() => {});
+      .catch(quietFailure('발주 예보'));
     return () => ac.abort();
   }, [school?.sigungu, school?.id]);
 
@@ -764,7 +776,9 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                   ))}
                 </select>
               </div>
-              {!replay?.meta ? (
+              {replayFailed ? (
+                <LoadError what='회차 기록' onRetry={() => { const id = replayId; setReplayId(null); setTimeout(() => setReplayId(id), 0); }} />
+              ) : !replay?.meta ? (
                 <p className='text-muted-foreground py-6 text-sm'>회차를 고르거나 흐름 렌즈에서 점을 클릭하세요. 그날 전체 업체의 투찰이 낮은 값부터 표시됩니다.</p>
               ) : (<>
                 <div className='mb-2 text-sm tabular-nums'>
@@ -978,7 +992,9 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                   })}
                 </div>
               ) : (
-                <p className='text-muted-foreground border-t pt-2 text-xs'>진행 중 공고가 없습니다. 공고가 뜨면 여기서 바로 투찰함에 저장됩니다.</p>
+                openFailed
+                  ? <div className='border-t pt-2'><LoadError what='진행 중 공고' inline /></div>
+                  : <p className='text-muted-foreground border-t pt-2 text-xs'>진행 중 공고가 없습니다. 공고가 뜨면 여기서 바로 투찰함에 저장됩니다.</p>
               )}
               <a href='https://www.eat.co.kr' target='_blank' rel='noreferrer'
                 className='text-muted-foreground block text-xs hover:underline'>공공급식통합플랫폼(NeaT)에서 투찰 →</a>
@@ -991,7 +1007,9 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
       <Card>
         <CardContent className='p-0'>
           <div className='px-4 pt-3 font-semibold'>참여 업체</div>
-          <RosterTable rows={roster.rows} limit={15} emptyText='이 학교는 아직 참여 기록이 없습니다' />
+          {rosterFailed
+            ? <LoadError what='참여 업체' />
+            : <RosterTable rows={roster.rows} limit={15} emptyText='이 학교는 아직 참여 기록이 없습니다' />}
         </CardContent>
       </Card>
     </div>

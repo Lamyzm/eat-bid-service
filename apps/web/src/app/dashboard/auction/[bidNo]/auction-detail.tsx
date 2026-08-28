@@ -8,7 +8,8 @@ import { type RosterRow } from '@/components/roster-table';
 import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
 import { pickBand, bandBasisText } from '@/lib/band';
-import { deadlineText } from '@/lib/deadline';
+import { deadlineText, isNotStarted } from '@/lib/deadline';
+import { kstDate, kstTime } from '@eatbid/shared';
 import { DataScope } from '@/components/data-scope';
 import { CHART } from '@/lib/chart-colors';
 import { slotKeysFor, ratesOf, bizLabelOf } from '@/lib/mark-rates';
@@ -148,6 +149,11 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
           {dday && <Badge variant='destructive'>{dday}</Badge>}
         </div>
         <h1 className='mt-1 text-2xl font-semibold'>{open.schoolName}</h1>
+        {mounted && isNotStarted(open.bidBeginAt) && (
+          <p className='text-muted-foreground mt-1 text-sm'>
+            {kstDate(new Date(open.bidBeginAt)).slice(5)} {kstTime(new Date(open.bidBeginAt))}부터 투찰합니다.
+          </p>
+        )}
         {!open.unrestricted && open.allowedLabel && (
           <p className='text-muted-foreground mt-1 text-sm'>
             참가 자격은 사무소 소재지 기준입니다. 자격 여부는 확인이 필요합니다.

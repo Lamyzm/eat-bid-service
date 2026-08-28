@@ -9,7 +9,7 @@ import { RegionStatus } from '@/components/region-status';
 import { RateInput } from '@/components/rate-input';
 import { LoadError } from '@/components/load-error';
 import { pickBand, bandBasisText } from '@/lib/band';
-import { deadlineText, isClosed } from '@/lib/deadline';
+import { deadlineText, isClosed, isNotStarted } from '@/lib/deadline';
 import { DataScope } from '@/components/data-scope';
 import { fetchJson } from '@/lib/fetch-json';
 import { slotKeysFor, ratesOf, withRate, primaryRate, hasAnyRate, sameRates, bizLabelOf } from '@/lib/mark-rates';
@@ -255,7 +255,7 @@ export default function TodayPage() {
       {/* 히어로 — 할 일 자체 (A: 건수 대신 가장 급한 공고) */}
       {!openLoaded && <Skeleton className='h-[116px] w-full rounded-xl' />}
       {openLoaded && visible.length > 0 && (() => {
-        const sorted = [...visible].filter(o => o.bidEndAt && !isClosed(o.bidEndAt))
+        const sorted = [...visible].filter(o => o.bidEndAt && !isClosed(o.bidEndAt) && !isNotStarted(o.bidBeginAt))
           .sort((a, b) => +new Date(a.bidEndAt!) - +new Date(b.bidEndAt!));
         const next = sorted[0] ?? visible[0];
         const unfilled = visible.filter(o => marks[o.bidNo] && !hasAnyRate(marks[o.bidNo], bizNos)).length;
@@ -387,7 +387,12 @@ export default function TodayPage() {
                           );
                         })()}
                         {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
-                        {isClosed(o.bidEndAt) && (
+                        {isNotStarted(o.bidBeginAt) && (
+                        <div className='text-muted-foreground'>
+                          {kstDate(new Date(o.bidBeginAt!)).slice(5)} {kstTime(new Date(o.bidBeginAt!))}부터 투찰합니다.
+                        </div>
+                      )}
+                      {isClosed(o.bidEndAt) && (
                         <div className='text-muted-foreground'>
                           투찰 시간이 지났습니다.
                           {o.deadline && <> 개찰 {kstDate(new Date(o.deadline)).slice(5)} {kstTime(new Date(o.deadline))}.</>}

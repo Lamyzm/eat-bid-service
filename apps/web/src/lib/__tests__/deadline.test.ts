@@ -2,7 +2,7 @@
 // 곧 기준이 개찰 시각 → 실제 마감(1시간 이르다)으로 바뀌는데, 사본이 셋이면
 // 하나를 빠뜨려 그 화면만 1시간 틀린 채 남는다. 사장이 투찰을 놓친다.
 import { expect, test } from 'bun:test';
-import { deadlineText, isClosed, hoursLeft } from '../deadline';
+import { deadlineText, isClosed, hoursLeft, isNotStarted } from '../deadline';
 
 const NOW = Date.parse('2026-08-28T04:00:00Z'); // KST 13:00
 const at = (iso: string) => Date.parse(iso);
@@ -40,4 +40,11 @@ test('값이 없거나 깨졌으면 문장을 만들지 않는다', () => {
 test('남은 시간(시) — 마감 경고 문턱 판정용', () => {
   expect(hoursLeft(new Date(NOW + 3 * 36e5).toISOString(), NOW)).toBe(3);
   expect(hoursLeft(new Date(NOW - 36e5).toISOString(), NOW)).toBe(-1);
+});
+
+test('투찰 시작 전 — 라이브 111건 중 8건이 이 상태다', () => {
+  const NOW2 = Date.parse('2026-08-28T12:00:00Z');
+  expect(isNotStarted('2026-08-28T13:30:00.000Z', NOW2)).toBe(true);
+  expect(isNotStarted('2026-08-25T10:00:00.000Z', NOW2)).toBe(false);
+  expect(isNotStarted(null, NOW2)).toBe(false);
 });
