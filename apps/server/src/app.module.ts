@@ -27,16 +27,23 @@ class SchoolsController {
       .limit(q.limit).offset(q.offset);
   }
 
+  private forecastCache = new Map<string, { at: number; data: any }>();
+
   @Get("forecast")
   async forecast(@Query("sigungu") sigungu?: string) {
+    const sggs = (sigungu ?? "").split(",").map(x => x.trim()).filter(Boolean);
+    const ckey = sggs.slice().sort().join(",");
+    const hit = this.forecastCache.get(ckey);
+    if (hit && Date.now() - hit.at < 600_000) return hit.data;
+    // 지역 지정 시 SQL에서 선필터 — 전량 스캔 방지 (P2)
     const rows = await db.select({
       schoolId: schoolAuctions.schoolId, openedAt: schoolAuctions.openedAt, winRate: schoolAuctions.winRate,
-    }).from(schoolAuctions).orderBy(schoolAuctions.schoolId, schoolAuctions.openedAt);
+    }).from(schoolAuctions)
+      .where(sggs.length ? inArray(sql`split_part(school_id, '|', 1)`, sggs) : undefined)
+      .orderBy(schoolAuctions.schoolId, schoolAuctions.openedAt);
     const bySchool = new Map<string, string[]>();
     const lastWin = new Map<string, number>();
-    const sggSet = sigungu ? new Set(sigungu.split(",").map(x => x.trim()).filter(Boolean)) : null;
     for (const r of rows) {
-      if (sggSet && !sggSet.has(r.schoolId.split("|")[0])) continue;
       const l = bySchool.get(r.schoolId) ?? [];
       l.push(r.openedAt); bySchool.set(r.schoolId, l);
       if (r.winRate != null) lastWin.set(r.schoolId, r.winRate);
@@ -59,7 +66,9 @@ class SchoolsController {
         medGapDays: medGap, expected: expected.toISOString().slice(0, 10), dueInDays,
         lastWinRate: lastWin.get(schoolId) ?? null });
     }
-    return out.sort((a, b) => a.dueInDays - b.dueInDays);
+    const res = out.sort((a, b) => a.dueInDays - b.dueInDays);
+    this.forecastCache.set(ckey, { at: Date.now(), data: res });
+    return res;
   }
 
   @Get(":id/auctions")
@@ -282,9 +291,14 @@ class WinsController {
   }
 
   /** 월별 보드 — 월×품목 집계 (건수·낙찰률 중앙값·기초금액 합계) */
+  private monthlyCache = new Map<string, { at: number; data: any }>();
+
   @Get("monthly")
   async monthly(@Query("months") monthsStr?: string, @Query("sigungu") sigungu?: string) {
     const months = Math.min(Number(monthsStr) || 12, 36);
+    const mkey = `${months}|${cleanSggs(sigungu).slice().sort().join(",")}`;
+    const mhit = this.monthlyCache.get(mkey);
+    if (mhit && Date.now() - mhit.at < 600_000) return mhit.data;
     const rows = await db.select({
       openedAt: schoolAuctions.openedAt, category: schoolAuctions.category,
       winRate: schoolAuctions.winRate, basePrice: schoolAuctions.basePrice,
@@ -303,11 +317,13 @@ class WinsController {
       c.n++; if (r.winRate != null) c.wins.push(r.winRate);
       c.sumBase += r.basePrice ?? 0; cell.set(k, c);
     }
-    return [...cell.entries()].map(([k, c]) => {
+    const res = [...cell.entries()].map(([k, c]) => {
       const [month, cat] = k.split("|");
       const w = c.wins.sort((a, b) => a - b);
       return { month, category: cat, n: c.n, medWin: w.length ? +w[Math.floor(w.length / 2)].toFixed(3) : null, sumBase: c.sumBase };
     }).sort((a, b) => b.month.localeCompare(a.month));
+    this.monthlyCache.set(mkey, { at: Date.now(), data: res });
+    return res;
   }
 }
 
@@ -465,9 +481,13 @@ class FirmsController {
   }
 
   /** 최다 낙찰 TOP — 최근 N개월 낙찰 순 */
+  private topCache = new Map<string, { at: number; data: any }>();
+
   @Get("top")
   async top(@Query("months") monthsStr?: string) {
     const months = Math.min(Number(monthsStr) || 12, 60);
+    const thit = this.topCache.get(String(months));
+    if (thit && Date.now() - thit.at < 600_000) return thit.data;
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
     const co = cutoff.toISOString().slice(0, 10);
     const rows = await db.select({
@@ -483,10 +503,12 @@ class FirmsController {
     const names = await db.select({ bizNo: firms.bizNo, name: firms.name }).from(firms)
       .where(inArray(firms.bizNo, rows.map(r => r.bizNo)));
     const nm = new Map(names.map(n => [n.bizNo, n.name]));
-    return rows.filter(r => Number(r.wins) > 0).map(r => ({
+    const tres = rows.filter(r => Number(r.wins) > 0).map(r => ({
       bizNo: r.bizNo, name: nm.get(r.bizNo) ?? r.bizNo,
       wins: Number(r.wins), part: Number(r.part), winSum: Math.round(Number(r.winSum)),
     }));
+    this.topCache.set(String(months), { at: Date.now(), data: tres });
+    return tres;
   }
 
   @Get("lookup")
