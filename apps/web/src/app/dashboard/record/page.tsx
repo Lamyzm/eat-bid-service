@@ -37,6 +37,7 @@ export default function RecordPage() {
   const [months, setMonths] = useState(12);
   const [limit, setLimit] = useState(300); // 서버에서 받아오는 행 수 (U11: 초기 페이로드 축소)
   const [loadingMore, setLoadingMore] = useState(false);
+  const [agg, setAgg] = useState<{ totalBids: number; totalWins: number; pushedOut: number; belowFloor: number } | null>(null);
   const [kpiOpen, setKpiOpen] = useState(false);
   useEffect(() => { try { setKpiOpen(localStorage.getItem('eatbid.kpiOpen') === '1'); } catch {} }, []);
   useEffect(() => { try { localStorage.setItem('eatbid.kpiOpen', kpiOpen ? '1' : '0'); } catch {} }, [kpiOpen]);
@@ -50,6 +51,9 @@ export default function RecordPage() {
     }).finally(() => setLoadingMore(false));
     fetch(`/api/firms/ties?bizNos=${bizNos.join(',')}`).then(r => r.json())
       .then(x => setTies(Array.isArray(x) ? x : [])).catch(() => {});
+    // KPI 총계는 서버 집계(전체 기준) — 표 캡(300행)이 총계를 왜곡하면 안 된다 (U27/U29)
+    fetch(`/api/firms/record?bizNos=${bizNos.join(',')}`).then(r => r.json())
+      .then(d => setAgg(d && typeof d.totalBids === 'number' ? d : null)).catch(() => {});
   }, [bizNos, limit]);
 
   const cutoff = useMemo(() => {
@@ -84,8 +88,11 @@ export default function RecordPage() {
         <div>
           <h1 className='text-2xl font-semibold'>내 성적</h1>
           <p className='text-muted-foreground text-sm tabular-nums'>
-            최근 {months}개월 · {view.length}회 투찰 · 낙찰 계약액 {won(winSum)}원
-            {total != null && total > rows.length && <> · 표시 {rows.length.toLocaleString()}건/전체 {total.toLocaleString()}건</>}
+            {agg
+              ? <>전체 {agg.totalBids.toLocaleString()}회 투찰 · 낙찰 {agg.totalWins.toLocaleString()}회</>
+              : <>{view.length.toLocaleString()}회 투찰</>}
+            {' · '}낙찰 계약액 {won(winSum)}원
+            <span className='text-xs'>(표에 불러온 {view.length.toLocaleString()}건 기준)</span>
           </p>
         </div>
         <div className='flex flex-wrap gap-1.5'>
@@ -98,6 +105,7 @@ export default function RecordPage() {
             </Button>
           ))}
           <span className='mx-1' />
+          <span className='text-muted-foreground self-center text-xs'>표 기간</span>
           {[6, 12, 24, 60].map(m => (
             <Button key={m} size='sm' variant={months === m ? 'default' : 'outline'} onClick={() => setMonths(m)}>{m}개월</Button>
           ))}
@@ -139,9 +147,11 @@ export default function RecordPage() {
 
       {/* KPI — 2칸 + 상세 접힘 (D) */}
       <div className='grid grid-cols-2 gap-2' style={{ minHeight: 88 }}>
-        {[['참여', `${view.length}회`, ''], ['낙찰률', view.length ? `${(wins.length / view.length * 100).toFixed(1)}%` : '—', 'text-primary']].map(([label, v, cls]) => (
+        {[['참여', agg ? `${agg.totalBids.toLocaleString()}회` : `${view.length}회`, ''],
+          ['낙찰률', agg ? (agg.totalBids ? `${(agg.totalWins / agg.totalBids * 100).toFixed(1)}%` : '—')
+                        : (view.length ? `${(wins.length / view.length * 100).toFixed(1)}%` : '—'), 'text-primary']].map(([label, v, cls]) => (
           <Card key={label as string}><CardContent className='px-4 py-3'>
-            <div className='text-muted-foreground text-xs'>{label}</div>
+            <div className='text-muted-foreground text-xs'>{label} <span className='opacity-70'>{agg ? '· 전체 기간' : ''}</span></div>
             <div className={`text-3xl font-bold tabular-nums ${cls}`}>{v}</div>
           </CardContent></Card>
         ))}
@@ -152,9 +162,9 @@ export default function RecordPage() {
       </button>
       {kpiOpen && (
         <div className='grid grid-cols-3 gap-2'>
-          {[['낙찰', `${wins.length}회`, 'text-primary'],
-            ['밀림 (남이 더 낮게 씀)', `${pushed.length}회`, 'text-amber-600'],
-            ['무효 (하한 아래)', `${below.length}회`, 'text-destructive']].map(([label, v, cls]) => (
+          {[['낙찰', `${(agg ? agg.totalWins : wins.length).toLocaleString()}회`, 'text-primary'],
+            ['밀림 (남이 더 낮게 씀)', `${(agg ? agg.pushedOut : pushed.length).toLocaleString()}회`, 'text-amber-600'],
+            ['무효 (하한 아래)', `${(agg ? agg.belowFloor : below.length).toLocaleString()}회`, 'text-destructive']].map(([label, v, cls]) => (
             <Card key={label as string}><CardContent className='px-4 py-3'>
               <div className='text-muted-foreground text-xs'>{label}</div>
               <div className={`text-xl font-bold tabular-nums ${cls}`}>{v}</div>
@@ -225,7 +235,7 @@ export default function RecordPage() {
           <CardTitle className='text-base'>투찰 내역</CardTitle>
           <CardDescription>
             각 행: 낙찰가 · 2등가 · 내 값(차이). 학교 클릭 = 분석판.
-            {total != null && rows.length < total && <> KPI·요약은 <b>불러온 {rows.length.toLocaleString()}건</b> 기준입니다 (전체 {total.toLocaleString()}건 — [더 보기]로 넓힐 수 있습니다).</>}
+            {total != null && <> 위 KPI는 <b>전체 기간</b> 서버 집계이고, 이 표는 <b>{total.toLocaleString()}건 중 {Math.min(rows.length, total).toLocaleString()}건 표시</b>입니다 (기간 버튼은 표에만 적용).</>}
           </CardDescription>
         </CardHeader>
         <CardContent className='p-0'>

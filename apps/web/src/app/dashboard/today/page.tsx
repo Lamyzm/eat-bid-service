@@ -5,6 +5,7 @@ import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
 import { useSession } from '@/lib/session';
 import { RegionStatus } from '@/components/region-status';
+import { RateInput } from '@/components/rate-input';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMarks } from '@/lib/marks';
@@ -38,7 +39,7 @@ function dday(deadline: string | null) {
 
 export default function TodayPage() {
   const { bizNos, ready } = useWorkspace();
-  const { homes } = useRegion();
+  const { homes, viewRegions, view, isBrowsing } = useRegion();
   const { ready: sessionReady } = useSession();
   const { marks, set } = useMarks();
   // 저장 시점 값 — '이 값으로 갱신' 판별용
@@ -69,6 +70,27 @@ export default function TodayPage() {
   const [badges, setBadges] = useState<Record<string, { part: number; wins: number }>>({});
 
   useEffect(() => { fetch('/api/open').then(r => r.json()).then(setOpen); }, []);
+
+  /** 보는 지역으로 거른 목록 — 제목·히어로·목록이 모두 이 배열을 센다 (U26) */
+  const visible = useMemo(
+    () => (viewRegions?.length ? open.filter(o => o.sigungu && viewRegions.includes(o.sigungu)) : open),
+    [open, viewRegions]);
+
+  /** 첫 화면은 마감 임박 8건까지만 — 나머지는 1클릭 뒤 (U28) */
+  const HEAD = 8;
+  const byDeadline = useMemo(() => [...visible].sort((a, b) =>
+    (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999')), [visible]);
+  const [showRest, setShowRest] = useState(false);
+  const [showAll, setShowAll] = useState(false); // 전국(지역 필터 밖)까지
+  useEffect(() => { setShowRest(false); setShowAll(false); }, [viewRegions?.join(',')]);
+  const head = byDeadline.slice(0, HEAD);
+  const rest = byDeadline.slice(HEAD);
+  const nationRest = useMemo(() => {
+    if (!viewRegions?.length) return [];
+    const seen = new Set(visible.map(o => o.bidNo));
+    return open.filter(o => !seen.has(o.bidNo))
+      .sort((a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999'));
+  }, [open, visible, viewRegions]);
   // 발주 예보 — 세션 준비 전 호출 금지 + 이전 요청 취소 + 스테일 응답 폐기 (U18)
   useEffect(() => {
     if (!sessionReady) return;
@@ -117,11 +139,11 @@ export default function TodayPage() {
       </div>
 
       {/* 히어로 — 할 일 자체 (A: 건수 대신 가장 급한 공고) */}
-      {open.length > 0 && (() => {
-        const sorted = [...open].filter(o => o.deadline)
+      {visible.length > 0 && (() => {
+        const sorted = [...visible].filter(o => o.deadline)
           .sort((a, b) => +new Date(a.deadline!) - +new Date(b.deadline!));
-        const next = sorted[0] ?? open[0];
-        const unfilled = open.filter(o => marks[o.bidNo] && marks[o.bidNo]!.rate == null).length;
+        const next = sorted[0] ?? visible[0];
+        const unfilled = visible.filter(o => marks[o.bidNo] && marks[o.bidNo]!.rate == null).length;
         return (
           <Card className='border-primary'>
             <CardContent className='flex flex-wrap items-end justify-between gap-3 py-4' style={{ minHeight: 84 }}>
@@ -133,7 +155,7 @@ export default function TodayPage() {
                 </div>
               </div>
               <div className='text-right text-sm tabular-nums'>
-                {open.length > 1 && <div>다음 마감까지 {open.length}건 진행 중</div>}
+                {visible.length > 1 && <div>다음 마감까지 {visible.length}건 진행 중</div>}
                 {unfilled > 0 && <div className='text-amber-600'>값 미입력 {unfilled}건</div>}
               </div>
             </CardContent>
@@ -142,8 +164,11 @@ export default function TodayPage() {
       })()}
 
       <div>
-        <h2 className='mb-2 font-semibold'>진행 중 공고 {open.length}건</h2>
-        {open.length === 0 && (
+        <h2 className='mb-2 font-semibold'>
+          마감 임박 {Math.min(HEAD, visible.length)}건
+          {visible.length > HEAD && <span className='text-muted-foreground ml-1 text-sm font-normal tabular-nums'>· 내 지역 {visible.length}건 중</span>}
+        </h2>
+        {visible.length === 0 && (
           <Card><CardContent className='py-6'>
             <Empty>
               <EmptyHeader>
@@ -154,7 +179,7 @@ export default function TodayPage() {
           </CardContent></Card>
         )}
         <div className='grid gap-3 lg:grid-cols-2'>
-          {open.map(o => {
+          {head.map(o => {
             const m = marks[o.bidNo];
             const b = badges[o.schoolName ?? ''];
             return (
@@ -177,9 +202,8 @@ export default function TodayPage() {
                   </CardHeader>
                   <CardContent className='space-y-2'>
                     <div className='flex flex-wrap items-end justify-between gap-2 text-sm tabular-nums'>
-                      <div className='text-muted-foreground'>
-                        하한 금액 <span className='text-foreground font-semibold'>{won(o.anchorAmount)}원</span>
-                        <span className='ml-1 text-xs'>(기초 × 하한율)</span>
+                      <div className='text-muted-foreground text-xs'>
+                        하한 금액 {won(o.anchorAmount)}원 (기초 × 하한율)
                       </div>
                       <div className='text-right'>
                         {o.recent3.length > 0 && <div>최근 낙찰 <b>{o.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>}
@@ -191,20 +215,31 @@ export default function TodayPage() {
                     {/* 값 입력·저장 — 카드 안에서 완결 (A: 바구니 병합) */}
                     <div className='flex flex-wrap items-center gap-2 border-t pt-2'
                       onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
-                      <Input value={m?.rate != null ? String(m.rate) : ''} inputMode='decimal'
+                      <RateInput value={m?.rate}
                         placeholder={`투찰률 ${((o.floorRate ?? 90) + 0.05).toFixed(2)}`}
-                        onChange={e => {
-                          const v = parseFloat(e.target.value);
+                        onChange={v => {
                           if (!m) trackAction('basket_add');
-                          set(o.bidNo, { s: m?.s ?? 'watch', rate: Number.isFinite(v) ? v : undefined });
+                          set(o.bidNo, { s: m?.s ?? 'watch', rate: v });
                         }}
                         className='h-8 w-32 font-mono' />
-                      {m?.rate != null && o.basePrice && (
-                        <span className='tabular-nums'>
-                          <span className='text-muted-foreground text-xs'>내가 넣을 금액 </span>
-                          <b className='text-primary text-xl'>{won(o.basePrice * m.rate / 100)}원</b>
-                        </span>
-                      )}
+                      {(() => {
+                        // 입력 전: 추천값(최근 낙찰 중앙값 또는 하한+0.05)을 흐린 큰 글씨로 미리 보여준다 (U30)
+                        const suggest = o.recent3.length
+                          ? [...o.recent3].sort((a, b) => a - b)[Math.floor(o.recent3.length / 2)]
+                          : (o.floorRate ?? 90) + 0.05;
+                        const shown = m?.rate ?? suggest;
+                        if (!o.basePrice) return null;
+                        const filled = m?.rate != null;
+                        return (
+                          <span className='tabular-nums'>
+                            <span className='text-muted-foreground text-xs'>내가 넣을 금액 </span>
+                            <b className={`text-xl ${filled ? 'text-primary' : 'text-muted-foreground/45'}`}>
+                              {won(o.basePrice * shown / 100)}원
+                            </b>
+                            {!filled && <span className='text-muted-foreground/60 ml-1 text-xs'>({shown.toFixed(2)} 기준 미리보기)</span>}
+                          </span>
+                        );
+                      })()}
                       {(() => {
                         const saved = m?.s === 'done';
                         const changed = saved && m?.rate !== savedRates[o.bidNo];
@@ -241,6 +276,39 @@ export default function TodayPage() {
             );
           })}
         </div>
+
+        {/* 나머지는 1클릭 뒤 — 컴팩트 행(입력칸 없음) */}
+        {(rest.length > 0 || nationRest.length > 0) && (
+          <div className='mt-3 flex flex-wrap gap-2'>
+            {rest.length > 0 && (
+              <Button size='sm' variant='outline' onClick={() => setShowRest(v => !v)}>
+                {showRest ? '접기' : `내 지역 나머지 ${rest.length}건 더 보기`}
+              </Button>
+            )}
+            {nationRest.length > 0 && (
+              <Button size='sm' variant='outline' onClick={() => setShowAll(v => !v)}>
+                {showAll ? '전국 접기' : `전국 ${nationRest.length}건 더 보기`}
+              </Button>
+            )}
+          </div>
+        )}
+        {(showRest || showAll) && (
+          <Card className='mt-2'><CardContent className='divide-y p-0'>
+            {[...(showRest ? rest : []), ...(showAll ? nationRest : [])].map(o => (
+              <Link key={o.bidNo} href={`/dashboard/auction/${o.bidNo}`}
+                className='hover:bg-accent flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm tabular-nums'>
+                <span className='truncate'>
+                  <b>{o.schoolName ?? '학교 미상'}</b>
+                  <span className='text-muted-foreground ml-1 text-xs'>{o.sigungu} · {o.category}</span>
+                </span>
+                <span className='text-muted-foreground shrink-0'>
+                  하한 {o.floorRate} · {won(o.anchorAmount)}원
+                  <span className='text-destructive ml-2'>{dday(o.deadline) ?? ''}</span>
+                </span>
+              </Link>
+            ))}
+          </CardContent></Card>
+        )}
       </div>
 
       <div>
