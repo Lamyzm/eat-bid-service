@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useMarks } from '@/lib/marks';
@@ -22,8 +22,9 @@ import {
 type Auction = { bidId: string; openedAt: string; floorRate: number | null; winRate: number | null; nValid: number; category: string | null };
 type MyBid = { openedAt: string | null; floorRate: number | null; basePrice: number | null; bidRate: number | null; winRate: number | null; won: number };
 
-export function AuctionDetail({ open, auctions, roster }: {
+export function AuctionDetail({ open, auctions, roster, initialRate }: {
   open: any; auctions: Auction[]; roster: { rows: RosterRow[]; maxStreak: number };
+  initialRate?: string | null;
 }) {
   const { bizNos } = useWorkspace();
   const { marks, set } = useMarks();
@@ -77,8 +78,19 @@ export function AuctionDetail({ open, auctions, roster }: {
   const myPastSameFloor = my.filter(m => m.floorRate === floor && m.bidRate != null).map(m => m.bidRate!);
 
   // 계산기 — 투찰률 ↔ 금액 양방향
-  const [rateStr, setRateStr] = useState<string>(mark?.rate ? String(mark.rate) : '');
+  // 하이드레이션 안전: 초기값은 서버가 준 rate만 (localStorage 값은 마운트 후 주입)
+  const [rateStr, setRateStr] = useState<string>(initialRate ?? '');
   const [amtStr, setAmtStr] = useState<string>('');
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    seededRef.current = true;
+    const seed = initialRate ?? (mark?.rate != null ? String(mark.rate) : '');
+    if (!seed) return;
+    setRateStr(seed);
+    const r = parseFloat(seed);
+    setAmtStr(Number.isFinite(r) && open.basePrice ? String(Math.round(open.basePrice * r / 100)) : '');
+  }, [mark?.rate, initialRate, open.basePrice]);
   const base = open.basePrice ?? 0;
   const rate = parseFloat(rateStr);
   const liveRate = Number.isFinite(rate) ? rate : null;

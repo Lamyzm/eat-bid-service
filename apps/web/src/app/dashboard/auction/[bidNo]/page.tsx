@@ -2,8 +2,12 @@ import { AuctionDetail } from './auction-detail';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AuctionPage({ params }: { params: Promise<{ bidNo: string }> }) {
+export default async function AuctionPage({ params, searchParams }: {
+  params: Promise<{ bidNo: string }>;
+  searchParams: Promise<{ rate?: string }>;
+}) {
   const { bidNo } = await params;
+  const sp = await searchParams;
   const API = process.env.API_URL ?? 'http://localhost:8081';
 
   const open = await fetch(`${API}/api/open/${bidNo}`, { cache: 'no-store' }).then(r => r.json());
@@ -19,5 +23,5 @@ export default async function AuctionPage({ params }: { params: Promise<{ bidNo:
       : { rows: [], maxStreak: 0 },
   ]);
 
-  return <AuctionDetail open={open} auctions={auctions} roster={roster} />;
+  return <AuctionDetail open={open} auctions={auctions} roster={roster} initialRate={sp.rate ?? null} />;
 }
