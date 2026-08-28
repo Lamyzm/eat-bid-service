@@ -1,0 +1,302 @@
+{
+ "EPTM600M01": {
+  "nm": "입찰공고",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/ep/600/selectTmBidMBidPbancList.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_list=ds_list"
+   },
+   {
+    "url": "/nm/ep/600/saveScPrgrmMList.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_list=ds_list"
+   }
+  ],
+  "dos": [
+   "/nm/ep/600/saveScPrgrmMList.do",
+   "/nm/ep/600/selectTmBidMBidPbancList.do",
+   "oz/nm/ep/600/EPTM122R01.do"
+  ]
+ },
+ "EPTM600M03": {
+  "nm": "견적요청",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/ep/600/selectTmEtmDmndMEtmDmndList.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_list=ds_list"
+   },
+   {
+    "url": "/nm/ep/600/saveScPrgrmMList.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_list=ds_list"
+   }
+  ],
+  "dos": [
+   "/nm/ep/600/saveScPrgrmMList.do",
+   "/nm/ep/600/selectTmEtmDmndMEtmDmndList.do"
+  ]
+ },
+ "EPTM610M01": {
+  "nm": "개찰결과",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/ep/600/selectTmBidMBidPbancList.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_list=ds_list"
+   },
+   {
+    "url": "/nm/ep/600/saveScPrgrmMList.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_list=ds_list"
+   }
+  ],
+  "dos": [
+   "/nm/ep/600/saveScPrgrmMList.do",
+   "/nm/ep/600/selectTmBidMBidPbancList.do",
+   "oz/nm/ep/600/EPTM122R01.do"
+  ]
+ },
+ "EPTM610M03": {
+  "nm": "계약현황",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/ep/610/selectOmCtrtMList.do",
+    "in": "ds_Param=ds_Param",
+    "out": "ds_list=ds_list"
+   },
+   {
+    "url": "/nm/ep/600/selectCondCtrtStatDtlC.do",
+    "in": "ds_Param=ds_Param",
+    "out": "ds_list=ds_list"
+   }
+  ],
+  "dos": [
+   "/nm/ep/600/selectCondCtrtStatDtlC.do",
+   "/nm/ep/610/selectOmCtrtMList.do"
+  ]
+ },
+ "EPTM630M01": {
+  "nm": "발주계획",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/ep/630/selectTpThngOrdgPlanIOrdrPlanList.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_list=ds_list"
+   },
+   {
+    "url": "/nm/ep/630/saveScPrgrmMList.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_list=ds_list"
+   }
+  ],
+  "dos": [
+   "/nm/ep/630/saveScPrgrmMList.do",
+   "/nm/ep/630/selectTpThngOrdgPlanIOrdrPlanList.do"
+  ]
+ },
+ "EPTM600M04": {
+  "nm": "견적요청서상세",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/ep/600/selectEstimateDoc.do",
+    "in": "ds_Param=ds_Param",
+    "out": "ds_EstimateDoc=ds_EstimateDoc ds_CntAgreeFee=ds_CntAgreeFee ds_BidAble=ds_BidAble"
+   },
+   {
+    "url": "/nm/ep/600/selectEstRqstLine.do",
+    "in": "ds_Param=ds_Param",
+    "out": "ds_EstimateDoc=ds_EstimateDoc ds_CntAgreeFee=ds_CntAgreeFee ds_BidAble=ds_BidAble"
+   },
+   {
+    "url": "/ep/tm/320/updateEtmStatCd.do",
+    "in": "ds_Param=ds_Param",
+    "out": "ds_EstRqstLine=ds_EstRqstLine"
+   }
+  ],
+  "dos": [
+   "/ep/tm/320/updateEtmStatCd.do",
+   "/nm/ep/600/selectEstRqstLine.do",
+   "/nm/ep/600/selectEstimateDoc.do",
+   "oz/ep/tm/161/selectEstimateDoc.do"
+  ]
+ },
+ "EPTM620M02": {
+  "nm": "전자입찰상세(진행중)",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/ep/tm/183/selectTmPropJgmtAltbMAltbSnList.do",
+    "in": "ds_searchPropJgmt=ds_searchPropJgmt",
+    "out": "ds_tmPropJgmtAltbMAltbSnList=ds_tmPropJgmtAltbMAltbSnList"
+   }
+  ],
+  "dos": [
+   "/ep/tm/183/selectTmPropJgmtAltbMAltbSnList.do",
+   "oz/ep/tm/620/EPTM620R01.do"
+  ]
+ },
+ "EPTM630M02": {
+  "nm": "발주계획(상세)",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/ep/630/selectGoodsOrdrPlanOne.do",
+    "in": "ds_Param=ds_Param",
+    "out": "ds_SelectOne=ds_SelectOne"
+   }
+  ],
+  "dos": [
+   "/nm/ep/630/selectGoodsOrdrPlanOne.do"
+  ]
+ },
+ "EPTM600M02": {
+  "nm": "입찰공고상세",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/ep/tm/300/selectBidDtl.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_info=ds_info ds_bidList=ds_bidList ds_limitTime=ds_limitTime ds_bidHistory=ds_bidHistory ds_mainItemlist=ds_mainItemlist ds_itemList=ds_itemList ds_pList=ds_pList ds_compList=ds_compList ds_areaList=ds_areaList ds_schList=ds_schList ds_eftInfo=ds_eftInfo ds_agreFee=ds_agreFee ds_elsgnCn=ds_elsgnCn ds_brNo=ds_brNo"
+   },
+   {
+    "url": "/nm/ep/600/selectBidDtl.do",
+    "in": "ds_searchParam=ds_searchParam",
+    "out": "ds_info=ds_info ds_bidList=ds_bidList ds_limitTime=ds_limitTime ds_bidHistory=ds_bidHistory ds_mainItemlist=ds_mainItemlist ds_itemList=ds_itemList ds_pList=ds_pList ds_compList=ds_compList ds_areaList=ds_areaList ds_schList=ds_schList ds_eftInfo=ds_eftInfo ds_agreFee=ds_agreFee ds_elsgnCn=ds_elsgnCn ds_brNo=ds_brNo"
+   },
+   {
+    "url": "/nm/ep/600/selectScAtchflMltList.do",
+    "in": "ds_Param=ds_ParamFl",
+    "out": "ds_fileList=ds_fileList"
+   }
+  ],
+  "dos": [
+   "/ep/tm/300/selectBidDtl.do",
+   "/nm/ep/600/selectBidDtl.do",
+   "/nm/ep/600/selectScAtchflMltList.do",
+   "oz/ep/tm/122/EPTM122R01.do"
+  ]
+ },
+ "MSSR260M01": {
+  "nm": "종합현황",
+  "status": 200,
+  "trans": [],
+  "dos": [
+   "//this.fdn_00.do"
+  ]
+ },
+ "MSSR230M01": {
+  "nm": "공고/계약현황",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR240M01": {
+  "nm": "eaT거래실적",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR250M01": {
+  "nm": "eaT이용실적",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR200M01": {
+  "nm": "식재료소비실적",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR210M01": {
+  "nm": "공급업체현황",
+  "status": 200,
+  "trans": [],
+  "dos": [
+   "//this.fdn_00.do",
+   "this.fdn_00.do"
+  ]
+ },
+ "MSSR190M01": {
+  "nm": "플랫폼별소비실적",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR180M01": {
+  "nm": "부류별소비현황",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR170M01": {
+  "nm": "과일소비정보",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR160M01": {
+  "nm": "축산물소비정보",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR150M01": {
+  "nm": "김치소비정보",
+  "status": 200,
+  "trans": [],
+  "dos": []
+ },
+ "MSSR220M01": {
+  "nm": "급식메뉴정보",
+  "status": 200,
+  "trans": [],
+  "dos": [
+   "//this.fdn_00.do",
+   "this.fdn_00.do"
+  ]
+ },
+ "MPMP150M01": {
+  "nm": "표준코드검색",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/mp/150/selectBcCmnsFoodSclsfMList.do",
+    "in": "ds_search=ds_search",
+    "out": "ds_list=ds_BcCmnsFoodSclsfMList"
+   },
+   {
+    "url": "/nm/mp/150/selectBcCmnsFoodCdList.do",
+    "in": "ds_param=ds_param",
+    "out": ""
+   }
+  ],
+  "dos": [
+   "/nm/mp/150/selectBcCmnsFoodCdList.do",
+   "/nm/mp/150/selectBcCmnsFoodSclsfMList.do"
+  ]
+ },
+ "MPMP250M01": {
+  "nm": "표준코드적용레시피",
+  "status": 200,
+  "trans": [
+   {
+    "url": "/nm/mp/250/selectMpInstDietMList.do",
+    "in": "ds_search=ds_search",
+    "out": "ds_listM=ds_MpInstDietMList"
+   }
+  ],
+  "dos": [
+   "/nm/mp/250/selectMpInstDietMList.do",
+   "oz/nm/mp/250/MPMP250R01.do"
+  ]
+ }
+}

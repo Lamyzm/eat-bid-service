@@ -1,0 +1,103 @@
+n=183777
+
+## 선언(ColumnInfo)만 되고 전 코퍼스에서 한 번도 값이 안 채워진 키
+  ds_SelectUnionPurceTgtListR: 선언 49 / 값등장 39 / 한번도 안채움 10
+     AUTO_DRAWING_YN, BID_END_DT, BID_STRT_DT, BRANCH_BID_YN, LIMIT_CONDITION, LIMIT_CONDITION_NM, PLNPRCE, RE_BID_YN, SOLO_BID_TRT_MTHD, SOLO_BID_TRT_MTHD_NM
+  ds_areaList: 선언 8 / 값등장 8 / 한번도 안채움 0
+  ds_bidHistory: 선언 34 / 값등장 34 / 한번도 안채움 0
+  ds_bidList: 선언 55 / 값등장 39 / 한번도 안채움 16
+     CHK, EVL_SCR, INSR_SCRITS_NO, JUDG_SCORE, NEGO_SCORE, NOTIFY_SEQ, NOTIFY_STATE_CODE, NOTIFY_STATE_NM, PRPR_YN, PRPSAL_ATCHFL_ID, PRPSAL_EVL_STAT_CD, QLF_ABL_SCORE, QLF_PRC_SCORE, QLF_TOT_SCORE, SCORE_TABLE_SEQ, SKILL_SCORE
+  ds_compList: 선언 8 / 값등장 8 / 한번도 안채움 0
+  ds_eftInfo: 선언 0 / 값등장 0 / 한번도 안채움 0
+  ds_info: 선언 116 / 값등장 114 / 한번도 안채움 2
+     CANCEL_REASON, MLFD_NM
+  ds_itemList: 선언 16 / 값등장 14 / 한번도 안채움 2
+     STO_MNL_FILENAME, STO_MNL_FILEPATH
+  ds_mainItemlist: 선언 2 / 값등장 2 / 한번도 안채움 0
+  ds_mlsrItemInfo: 선언 1 / 값등장 1 / 한번도 안채움 0
+  ds_pList: 선언 5 / 값등장 5 / 한번도 안채움 0
+  ds_schList: 선언 58 / 값등장 45 / 한번도 안채움 13
+     ACGD_MNL_FILE_NM, ACGD_MNL_FILE_PATH_NM, ATCHFL_NM, ATMTC_CLOTS_YN, BID_BGNG_DT, BID_END_DT, BRAN_BDPC_YN, ELCTRN_BID_PLNPRC, LMT_CNDTN_CD, LMT_CNDTN_NM, RBID_YN, SGNS_BID_PRCS_MTHD_CD, SGNS_BID_PRCS_MTHD_NM
+
+## SIGUNGU_CD 가 정말 시군구인가 — (SIDO_CD,SIGUNGU_CD) -> DOG_ADDR 2번째 토큰
+  (SIDO,SIGUNGU) 조합 193개 · 주소 시군구가 2개 이상(5건 이상만) 48개
+   15|714: [('창원시', 12681), ('마산시', 186), ('진해시', 12), ('급식소(경상남도', 6)]
+   15|653: [('김해시', 7103), ('급식소(경상남도', 19), ('평전로', 7)]
+   8|708: [('성남시', 6797), ('급식실', 7)]
+   8|709: [('수원시', 6731), ('급식실', 35)]
+   8|118: [('화성시', 5223), ('급식실', 12)]
+   1|1: [('강남구', 4233), ('급식실', 12)]
+   8|706: [('고양시', 3549), ('참고', 57), ('참조', 36), ('덕양구', 25)]
+   1|9: [('노원구', 3212), ('급식실', 112)]
+   12|713: [('전주시', 2936), ('덕진구', 19), ('무상우유급식', 9), ('식생활관(전주시', 6)]
+   8|85: [('남양주시', 2835), ('급식실', 20)]
+   15|661: [('진주시', 2782), ('급식소', 25), ('돗골로', 6)]
+   1|15: [('서초구', 2409), ('강남구', 27)]
+   1|22: [('은평구', 2095), ('급식실', 9)]
+   1|2: [('강동구', 1929), ('급식실', 12)]
+   18|577: [('목포시', 1756), ('급식실', 13)]
+   8|711: [('안양시', 1718), ('급식실', 12)]
+   18|580: [('순천시', 1662), ('급식실', 29)]
+   1|23: [('종로구', 1624), ('급식실(서울특별시', 19)]
+   15|665: [('통영시', 1524), ('급식소', 10)]
+   2|35: [('사하구', 1373), ('기장군', 28)]
+   8|107: [('오산시', 1369), ('급식실', 17)]
+   18|63: [('북구', 1270), ('급식실', 22), ('식생활관(광주광역시', 8)]
+   12|558: [('익산시', 1175), ('중앙로', 5)]
+   2|27: [('금정구', 1112), ('강서구', 10)]
+   1|13: [('마포구', 1086), ('급식실', 14)]
+
+  SIGUNGU_CD 단독값 198개 중 시도 2개 이상에 걸친 것 0개
+
+## SIDO_CD -> areaList CTPV_CD
+   SIDO_CD=8    -> [('08', 57518), ('01', 133), ('04', 6)]
+   SIDO_CD=1    -> [('01', 46349), ('08', 58), ('04', 6), ('02', 1)]
+   SIDO_CD=15   -> [('15', 32472), ('02', 19), ('01', 1)]
+   SIDO_CD=2    -> [('02', 15073)]
+   SIDO_CD=18   -> [('18', 11161)]
+   SIDO_CD=12   -> [('12', 7461), ('06', 3), ('18', 1)]
+   SIDO_CD=3    -> [('03', 2201)]
+   SIDO_CD=6    -> [('06', 1981)]
+   SIDO_CD=4    -> [('04', 1801)]
+   SIDO_CD=14   -> [('14', 1129), ('03', 16)]
+   SIDO_CD=9    -> [('09', 871)]
+   SIDO_CD=7    -> [('07', 518), ('02', 2)]
+   SIDO_CD=16   -> [('16', 463)]
+   SIDO_CD=10   -> [('10', 65), ('06', 8)]
+   SIDO_CD=11   -> [('11', 62), ('06', 6)]
+
+## 상관/불변식
+   BIDTYPE=002|union=0                                          176,863
+   BIDTYPE=003|union=1                                          6,914
+   CHGTP=변경공고|RBID=N                                            119
+   CHGTP=변경공고|RBID=Y                                            1,768
+   CHGTP=일반공고|RBID=N                                            14,719
+   CHGTP=일반공고|RBID=Y                                            164,038
+   CHGTP=재입찰|RBID=N                                             164
+   CHGTP=재입찰|RBID=Y                                             2,969
+   MLSR=N|itemList=0                                            81,044
+   MLSR=N|mainItem=0                                            25,696
+   MLSR=N|mainItem=1                                            55,348
+   MLSR=Y|itemList=0                                            4,265
+   MLSR=Y|itemList=1                                            98,468
+   MLSR=Y|mainItem=0                                            41,764
+   MLSR=Y|mainItem=1                                            60,969
+   MNTRMT=N|MAIN_ITEMS=0                                        67,460
+   MNTRMT=N|mainItem=0                                          67,460
+   MNTRMT=Y|MAIN_ITEMS=1                                        116,317
+   MNTRMT=Y|mainItem=1                                          116,317
+   UPBID=0|hist=0                                               178,757
+   UPBID=1|hist=1                                               5,020
+   floor_detail=82.995|hist=17.005                              7
+   floor_detail=84.245|hist=15.755                              63
+   floor_detail=86.245|hist=13.755                              8
+   floor_detail=87.995|hist=12.005                              2
+   floor_detail=88|hist=12                                      1,415
+   floor_detail=90|hist=10                                      3,525
+   has_withdrawn=0                                              80,315
+   has_withdrawn=1                                              103,462
+   union=0|sch=0                                                176,863
+   union=1|sch=1                                                6,914
+   withdrawn_and_won=0                                          169,096
+   withdrawn_and_won=1                                          14,681
+   won_count=1                                                  183,777
