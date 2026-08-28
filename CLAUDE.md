@@ -55,11 +55,23 @@ F:/Project/eat-bid-service/  서비스 (모노레포)
 ArgoCD가 `master`를 본다. **푸시하지 않으면 클러스터에 안 닿는다.**
 스키마는 `db-migrate` Job(PreSync 훅)이 매 sync 앞에서 적용한다.
 
+**배포는 `&&`로 잇고, 마지막에 스탬프를 대조한다.** 줄바꿈으로 적으면 앞이 실패해도 뒤가 돈다 —
+CronJob의 `;` 사고와 같은 것이고, **이 문서가 그렇게 적혀 있어서 하루에 두 번 옛 이미지로 배포됐다.**
+
 ```bash
-docker build -f Dockerfile.web -t eatbid-web:dev .
-k3d image import eatbid-web:dev -c eatbid
-kubectl -n eatbid rollout restart deploy/web
+SHA=$(git rev-parse --short HEAD)
+docker build --build-arg GIT_SHA=$SHA -f Dockerfile.web -t eatbid-web:dev . \
+  && k3d image import eatbid-web:dev -c eatbid \
+  && kubectl -n eatbid rollout restart deploy/web \
+  && kubectl -n eatbid rollout status deploy/web --timeout=180s \
+  && test "$(kubectl -n eatbid exec deploy/web -- printenv BUILD_SHA)" = "$SHA" \
+  && echo "배포 확인 $SHA"
 ```
+
+**`&&`만으로는 절반만 막힌다.** 빌드가 **성공했는데 내용이 낡은** 경우가 있다(컨텍스트 오염).
+그때 이미지 태그엔 옛 이미지가 그대로 남아 import·rollout이 **정상 동작하고 아무도 실패를 보고하지 않는다.**
+그래서 스탬프 대조가 진짜 처방이다 — **"도는 코드가 방금 만든 코드인가"를 직접 묻는다.**
+도커 다이제스트로는 대조할 수 없다(로컬은 config digest, 파드는 manifest digest라 항상 불일치한다).
 
 ## 절대 하지 말 것
 

@@ -11,6 +11,12 @@ ENV BUILD_STANDALONE=true
 RUN pnpm --filter @eatbid/web build
 
 FROM node:24-slim
+# 배포된 이미지가 방금 만든 코드인지 확인하는 스탬프. 도커 다이제스트는 계산
+# 방식이 달라(config vs manifest) 로컬과 파드가 항상 불일치하므로 대조에 못 쓴다.
+# 이 값은 프록시가 아니라 답이다 — 빌드가 실패했든, 성공했지만 컨텍스트가
+# 오염됐든, import 가 no-op 이었든 스탬프가 안 맞는다.
+ARG GIT_SHA=unknown
+ENV BUILD_SHA=$GIT_SHA
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/apps/web/.next/standalone ./
