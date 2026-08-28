@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
+import { useSession } from '@/lib/session';
 import { useTrack, getSid } from '@/lib/track';
 import { toast } from 'sonner';
 import { won } from '@/lib/format';
@@ -27,6 +28,7 @@ type Row = {
 export default function RecordPage() {
   useTrack('record');
   const { bizNos, ready } = useWorkspace();
+  const { guest, googleEnabled } = useSession();
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [ties, setTies] = useState<{ openedAt: string | null; schoolName: string | null; sigungu: string | null; bidRate: number | null; nTied: number; won: boolean; winRate: number | null }[]>([]);
@@ -125,6 +127,10 @@ export default function RecordPage() {
           }}>CSV 저장</Button>
         </div>
       </div>
+
+      {guest && googleEnabled && (
+        <p className='text-muted-foreground text-sm'>로그인하면 다른 PC에서도 이어서 봅니다.</p>
+      )}
 
       {/* KPI */}
       <div className='grid grid-cols-2 gap-2 md:grid-cols-5'>

@@ -639,15 +639,16 @@ class MeController {
 
   @Get()
   async me(@Req() req: any) {
+    const googleEnabled = !!process.env.GOOGLE_CLIENT_ID;
     const u = await getSessionUser(req.headers);
-    if (!u) return { ok: true, guest: true, user: null };
+    if (!u) return { ok: true, guest: true, user: null, googleEnabled };
     const [bizs, regions, marks] = await Promise.all([
       db.select().from(userBiz).where(eq(userBiz.userId, u.userId)),
       db.select().from(userRegion).where(eq(userRegion.userId, u.userId)),
       db.select().from(userMark).where(eq(userMark.userId, u.userId)),
     ]);
     return {
-      ok: true, guest: false,
+      ok: true, guest: false, googleEnabled,
       user: { id: u.userId, email: u.email, name: u.name },
       bizNos: bizs.map(b => b.bizNo),
       regions: regions.map(r => r.sigungu),

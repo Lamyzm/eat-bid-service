@@ -1,22 +1,16 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useSession, setMarks, type Mark } from '@/lib/session';
 
-/** 공고 표시 — 관심/투찰함(+쓴 투찰률). 인증 도입 전 브라우저 저장 MVP */
-export type Mark = { s: 'watch' | 'done'; rate?: number };
-const KEY = 'eatbid.marks';
+export type { Mark };
 
+/** 공고 표시 — 관심/투찰 저장(+쓴 투찰률). 게스트=로컬, 로그인=서버 동기화 */
 export function useMarks() {
-  const [marks, setMarks] = useState<Record<string, Mark>>({});
-  useEffect(() => {
-    try { const r = localStorage.getItem(KEY); if (r) setMarks(JSON.parse(r)); } catch {}
-  }, []);
+  const { marks } = useSession();
   const set = useCallback((bidNo: string, m: Mark | null) => {
-    setMarks(prev => {
-      const next = { ...prev };
-      if (m) next[bidNo] = m; else delete next[bidNo];
-      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, []);
+    const next = { ...marks };
+    if (m) next[bidNo] = m; else delete next[bidNo];
+    setMarks(next);
+  }, [marks]);
   return { marks, set };
 }

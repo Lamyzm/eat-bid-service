@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
+import { useSession } from '@/lib/session';
 import { useTrack } from '@/lib/track';
 import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,7 @@ function mealDays(start: string, end: string, month: string): number {
 export default function DeliveryPage() {
   useTrack('delivery');
   const { bizNos, ready } = useWorkspace();
+  const { guest, googleEnabled } = useSession();
   const [rows, setRows] = useState<Row[]>([]);
   const [month, setMonth] = useState(() => ym(new Date()));
   const [printRow, setPrintRow] = useState<Row | null>(null);
@@ -134,6 +136,10 @@ export default function DeliveryPage() {
           <Button size='sm' variant='outline' onClick={csv}>CSV 저장</Button>
         </div>
       </div>
+
+      {guest && googleEnabled && (
+        <p className='text-muted-foreground text-sm'>로그인하면 다른 PC에서도 이어서 봅니다.</p>
+      )}
 
       {/* 히어로 */}
       <Card className='border-primary'>

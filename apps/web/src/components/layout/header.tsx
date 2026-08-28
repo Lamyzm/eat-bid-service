@@ -6,6 +6,8 @@ import SearchInput from '../search-input';
 import { ThemeSelector } from '../themes/theme-selector';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { RegionSwitcher } from '../region-switcher';
+import { AuthButton } from '../auth-button';
+import { SessionBoot } from '../session-boot';
 import CtaGithub from './cta-github';
 import { NotificationCenter } from '@/features/notifications/components/notification-center';
 
@@ -23,6 +25,8 @@ export default function Header() {
         <div className='hidden md:flex'>
           <SearchInput />
         </div>
+        <SessionBoot />
+        <AuthButton />
         <RegionSwitcher />
         <ThemeModeToggle />
         <div className='hidden sm:block'>
