@@ -40,7 +40,10 @@ CREATE TABLE IF NOT EXISTS "market_regions" (
 	"top5_share" integer,
 	"detail" jsonb,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "market_regions_pkey" PRIMARY KEY("sigungu","category")
+	-- sido 가 빠져 있었다. 집계 키는 (sido,sgg,cat) 인데 충돌 대상이 (sgg,cat) 이라
+	-- "남구"처럼 여러 시도에 있는 이름(51개)이 품목당 1행으로 뭉개졌다 — 어느 도시가
+	-- 살아남는지는 insert 순서가 정했다. 시장 지도가 도시를 뒤섞어 보여주고 있었다.
+	CONSTRAINT "market_regions_pkey" PRIMARY KEY("sido","sigungu","category")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "open_auctions" (
@@ -232,3 +235,22 @@ ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "categories" jsonb;
 ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "category_src" varchar(16);
 ALTER TABLE open_auctions ADD COLUMN IF NOT EXISTS "categories" jsonb;
 ALTER TABLE open_auctions ADD COLUMN IF NOT EXISTS "category_src" varchar(16);
+
+-- 학교 정체성 키 (A-8 분리 / A-9 병합 감지용). 추가만 — schools.id 는 불변.
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS "purr_cd" varchar(32);
+CREATE INDEX IF NOT EXISTS idx_schools_purr_cd ON schools (purr_cd);
+
+-- market_regions PK 에 sido 추가 (2026-08-28). 기존 PK 가 (sigungu,category) 라
+-- 여러 시도의 같은 이름이 한 행으로 뭉개졌다. 데이터는 재적재가 다시 채운다.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid
+    WHERE t.relname='market_regions' AND c.conname='market_regions_pkey'
+      AND pg_get_constraintdef(c.oid) = 'PRIMARY KEY (sigungu, category)'
+  ) THEN
+    ALTER TABLE "market_regions" DROP CONSTRAINT "market_regions_pkey";
+    ALTER TABLE "market_regions" ADD CONSTRAINT "market_regions_pkey"
+      PRIMARY KEY ("sido","sigungu","category");
+  END IF;
+END $$;

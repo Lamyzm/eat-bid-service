@@ -32,6 +32,10 @@ export const schools = pgTable("schools", {
   /** 하한율별 통계: { "90": {n,mean,dense:{lo,hi,pct},p:[...],recur:[[v,c]]} } */
   // S-1: 품목별 회차 수 — "축산 24회" 같은 분모 표기의 원천.
   //      {"축산":24,"수산":25,"공산":25} 형태.
+  // 기관코드 — 학교의 정체성 키. 이름·주소는 행정 개편으로 바뀌지만(2026-07 인천
+  // 자치구 개편) 코드는 그대로다. 실측: 한 PURR_CD 에 기관명 2개 = 0/6,590.
+  // schools.id 는 그대로 둔다 — URL 에 들어가는 값이라 바꾸면 링크가 깨진다.
+  purrCd: varchar("purr_cd", { length: 32 }),
   catCounts: jsonb("cat_counts").$type<Record<string, number>>(),
   // S-1: 품목×하한 통계. {"축산":{"90":{...}},"전체":{"90":{...}}}
   //      "전체" 키는 전 품목 합산(섞였다고 표기하고 쓰는 기본값).
@@ -120,5 +124,8 @@ export const marketRegions = pgTable("market_regions", {
   top5Share: integer("top5_share"),
   detail: jsonb("detail").$type<Record<string, unknown>>(), // topwinners·ytrend·mons·schools
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.sigungu, t.category] })]);
+  // sido 가 빠져 있었다. 집계는 (sido,sgg,cat) 로 하는데 충돌 대상이 (sgg,cat) 이라
+  // 여러 시도에 있는 같은 이름(`남구`·`동구`·`중구` 등 51개)이 품목당 1행으로 뭉개졌다.
+  // 어느 도시가 살아남는지는 insert 순서가 정했고, 지도가 도시를 뒤섞어 보여줬다.
+}, (t) => [primaryKey({ columns: [t.sido, t.sigungu, t.category] })]);
 
