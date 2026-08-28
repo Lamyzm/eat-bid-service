@@ -24,10 +24,13 @@ export const userRegion = pgTable("user_region", {
 export const userMark = pgTable("user_mark", {
   userId: varchar("user_id", { length: 64 }).notNull(),
   bidNo: varchar("bid_no", { length: 32 }).notNull(),
+  // 사업자 축: 한 회차에 사업자별로 다른 값을 넣는다(실측 605회차 중복 투찰,
+  // 같은 값 쓴 적 0회). ''는 미지정 — 사업자 등록 전 저장분.
+  bizNo: varchar("biz_no", { length: 16 }).notNull().default(""),
   status: varchar("status", { length: 8 }).notNull(),
   rate: doublePrecision("rate"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.userId, t.bidNo] })]);
+}, (t) => [primaryKey({ columns: [t.userId, t.bidNo, t.bizNo] })]);
 
 /** 워크스페이스(Clerk org) ↔ 사업자번호 N개 — "우리집 = 신성+오뚜기" */
 export const workspaceBiz = pgTable("workspace_biz", {

@@ -6,7 +6,7 @@ import { useRegion } from '@/lib/region';
 import { useSession } from '@/lib/session';
 import { RegionStatus } from '@/components/region-status';
 import { RateInput } from '@/components/rate-input';
-import { slotKeys, ratesOf, rateOf, withRate, primaryRate, hasAnyRate, sameRates } from '@/lib/mark-rates';
+import { slotKeys, ratesOf, withRate, primaryRate, hasAnyRate, sameRates, bizLabelOf } from '@/lib/mark-rates';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMarks } from '@/lib/marks';
@@ -41,21 +41,18 @@ function dday(deadline: string | null) {
 export default function TodayPage() {
   const { bizNos, ready } = useWorkspace();
   const { homes, viewRegions, view, isBrowsing } = useRegion();
-  const { ready: sessionReady } = useSession();
+  const { ready: sessionReady, marksUnreadable, bizNames } = useSession();
   const { marks, set } = useMarks();
   // 저장 시점 값 — '이 값으로 갱신' 판별용
   const [savedRates, setSavedRates] = useState<Record<string, Record<string, number>>>({});
-  // 사업자 이름 — 2칸일 때 어느 칸이 누구인지 (U9)
-  const [bizNames, setBizNames] = useState<Record<string, string>>({});
+  // 이전 저장분을 읽지 못한 경우의 고지 (닫으면 다시 뜨지 않는다)
+  const [noticeOff, setNoticeOff] = useState(true);
   useEffect(() => {
-    for (const bz of bizNos) {
-      if (bizNames[bz]) continue;
-      fetch(`/api/firms/lookup?bizNo=${bz}`).then(r => r.json())
-        .then(d => { if (d?.name) setBizNames(v => ({ ...v, [bz]: d.name })); }).catch(() => {});
-    }
-  }, [bizNos.join(',')]);
+    try { setNoticeOff(localStorage.getItem('eatbid.marksNoticeSeen') === '1'); } catch { setNoticeOff(false); }
+  }, []);
+
   const slots = slotKeys(bizNos);
-  const bizLabel = (bz: string) => bz === '' ? '' : (bizNames[bz] ?? `…${bz.slice(-4)}`);
+  const bizLabel = (bz: string) => bizLabelOf(bz, bizNames);
   const focusSlot = (id: string) => {
     const el = document.querySelector<HTMLInputElement>(`[data-rate-slot="${id}"]`);
     if (el) { el.focus(); el.select?.(); }
@@ -179,6 +176,24 @@ export default function TodayPage() {
         </p>
         <div className='mt-1'><RegionStatus /></div>
       </div>
+
+      {marksUnreadable && !noticeOff && (
+        <Card className='border-amber-500/60'>
+          <CardContent className='flex flex-wrap items-center justify-between gap-2 py-3 text-sm'>
+            <span>
+              <b>이전에 저장한 값을 읽지 못했습니다.</b>{' '}
+              새로 저장하는 값은 정상 기록됩니다.{' '}
+              <span className='text-muted-foreground'>
+                읽지 못한 값은 이 브라우저에 사본으로 남아 있습니다.
+              </span>
+            </span>
+            <Button size='sm' variant='outline' onClick={() => {
+              setNoticeOff(true);
+              try { localStorage.setItem('eatbid.marksNoticeSeen', '1'); } catch {}
+            }}>확인</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 히어로 — 할 일 자체 (A: 건수 대신 가장 급한 공고) */}
       {!openLoaded && <Skeleton className='h-[116px] w-full rounded-xl' />}

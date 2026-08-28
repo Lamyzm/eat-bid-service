@@ -145,7 +145,7 @@ export default function FirmsPage() {
                 {rec && (
                   <div className='grid grid-cols-2 gap-2 md:grid-cols-4'>
                     {[['참여', rec.totalBids, ''], ['낙찰', rec.totalWins, 'text-primary'],
-                      ['밀림', rec.pushedOut, 'text-amber-600'], ['하한미달', rec.belowFloor, 'text-destructive']].map(([l, v, c]) => (
+                      ['밀림', rec.pushedOut, 'text-pushed'], ['하한미달', rec.belowFloor, 'text-destructive']].map(([l, v, c]) => (
                       <div key={l as string} className='rounded border px-3 py-2'>
                         <div className='text-muted-foreground text-xs'>{l}</div>
                         <div className={`text-lg font-bold tabular-nums ${c}`}>{v as number}회</div>

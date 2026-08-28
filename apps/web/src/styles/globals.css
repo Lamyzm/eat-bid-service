@@ -11,6 +11,11 @@
 
 @import './theme.css';
 
+/* '밀림' 상태색 — 토큰(--chart-3) 참조. text-amber-600 하드코딩 대체 (DESIGN D-3) */
+@utility text-pushed {
+  color: var(--chart-3);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

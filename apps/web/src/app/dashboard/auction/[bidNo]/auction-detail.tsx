@@ -8,6 +8,8 @@ import { type RosterRow } from '@/components/roster-table';
 import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
 import { CHART } from '@/lib/chart-colors';
+import { slotKeys, ratesOf, bizLabelOf } from '@/lib/mark-rates';
+import { useSession } from '@/lib/session';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +32,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   const { bizNos } = useWorkspace();
   const { marks, set } = useMarks();
   useTrack('auction');
+  const { bizNames } = useSession();
   const [tab, setTab] = useState<'school' | 'market' | 'mine'>('school');
   useEffect(() => {
     try {
@@ -216,7 +219,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             return (
               <p className='text-[14px] leading-relaxed tabular-nums'>
                 이 값이면 과거 {same.length}회 중:{' '}
-                남이 더 낮게 써서 밀린 게 <b className='text-amber-600'>{push}회</b> ·{' '}
+                남이 더 낮게 써서 밀린 게 <b className='text-pushed'>{push}회</b> ·{' '}
                 내가 먹었을 게 <b className='text-primary'>{win}회</b>
                 {alive > 0 && <> · 낙찰인지 무효인지 예정가 추첨이 갈랐을 게 <b style={{ color: CHART.me }}>{alive}회</b></>} ·{' '}
                 하한 아래라 무효였을 게 <b className='text-destructive'>{dead}회</b>
@@ -243,7 +246,15 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
                       { bidNo: open.bidNo, rate: r ?? undefined, from: 'auction' });
                     set(open.bidNo, { s: 'done', rate: r });
                   }}>
-                  {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${mark?.rate ?? ''})`}
+                  {(() => {
+                    if (!saved) return '투찰 저장';
+                    if (changed) return '이 값으로 갱신';
+                    const slots = slotKeys(bizNos);
+                    const rates = ratesOf(mark, bizNos);
+                    const parts = slots.filter(k => rates[k] != null).map(k =>
+                      slots.length > 1 ? `${bizLabelOf(k, bizNames)} ${rates[k]}` : `${rates[k]}`);
+                    return `✓ 저장됨 (${parts.join(' · ')})`;
+                  })()}
                 </Button>
               );
             })()}
@@ -255,6 +266,20 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
                 }}>해제</Button>
             )}
           </div>
+          {(() => {
+            // 사업자가 둘 이상이면 계산기 값이 누구 것인지 밝힌다 (오늘 화면과 다른 말을 하지 않도록)
+            const slots = slotKeys(bizNos);
+            if (slots.length < 2) return null;
+            const rates = ratesOf(mark, bizNos);
+            const filled = slots.filter(k => rates[k] != null);
+            if (filled.length === 0) return null;
+            return (
+              <p className='text-muted-foreground text-xs tabular-nums'>
+                계산기는 <b className='text-foreground'>{bizLabelOf(filled[0], bizNames)}</b> 값입니다.
+                {filled.length > 1 && <> 다른 사업자 값은 오늘 화면에서 고칩니다.</>}
+              </p>
+            );
+          })()}
           <p className='text-muted-foreground text-xs'>
             [투찰 저장]을 누르면 개찰 후 결과가 자동 반영됩니다. 값을 고치면 [이 값으로 갱신]이 뜹니다.
           </p>
@@ -361,7 +386,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
         <Card>
           <CardHeader className='pb-2'><CardTitle className='text-base'>내 기록</CardTitle></CardHeader>
           <CardContent className='text-[15px]'>
-            <b>{my.length}번</b> 참여 — 낙찰 <b>{myWins}</b> · 밀림 <b className='text-amber-600'>{myPushed}</b> · 무효 <b className='text-destructive'>{myBelow}</b>
+            <b>{my.length}번</b> 참여 — 낙찰 <b>{myWins}</b> · 밀림 <b className='text-pushed'>{myPushed}</b> · 무효 <b className='text-destructive'>{myBelow}</b>
             {myPushed > myBelow + 1 && <div className='text-destructive mt-1 font-medium'>이 학교 평균 투찰이 높은 편입니다.</div>}
           </CardContent>
         </Card>

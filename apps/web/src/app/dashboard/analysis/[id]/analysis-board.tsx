@@ -54,20 +54,118 @@ function verdictOf(r: number, x: Round): '밀림' | '낙찰' | '기회' | '무�
   if (x.maxInvalid != null && r <= x.maxInvalid) return '무효';
   return '기회';
 }
-const VCOLOR: Record<string, string> = { 밀림: C.second, 낙찰: C.win, 기회: C.me, 무효: C.invalid };
+/** 판정색 — 접근 시점에 다크/라이트 분기 (모듈 상수로 굳히면 테마 전환을 못 따라간다) */
+const vcolor = (k: '밀림' | '낙찰' | '기회' | '무효') =>
+  ({ 밀림: C.second, 낙찰: C.win, 기회: C.me, 무효: C.invalid })[k];
 
 /** 호버-리플레이 세션 캐시 — 같은 회차 재호버 시 무요청 (D 티켓) */
 const replayCache = new Map<string, Replay>();
 
-/** 범용 히스토그램 — 막대 클릭 배선 */
+/** 기준선 세로 점선 + 라벨. 라벨은 좌우 번갈아 앵커해 1280에서도 겹치지 않는다 */
+function MarkLines({ marks, X, top, bottom, clipL, clipR }: {
+  marks: { v: number; label: string; color: string }[];
+  X: (v: number) => number; top: number; bottom: number; clipL: number; clipR: number;
+}) {
+  return (<>
+    {marks.map((m, i) => {
+      const x = X(m.v);
+      if (x < clipL || x > clipR) return null;
+      const flip = i % 2 === 1;
+      return (
+        <g key={`m-${i}`}>
+          <line x1={x} y1={top} x2={x} y2={bottom} stroke={m.color} strokeWidth={1.8} strokeDasharray='5 3' />
+          <text x={x + (flip ? 5 : -5)} y={top + 12} textAnchor={flip ? 'start' : 'end'} fontSize={12}
+            fill={m.color} fontFamily='var(--font-mono, monospace)'>{m.label}</text>
+        </g>
+      );
+    })}
+  </>);
+}
+
+/**
+ * 범용 분포 차트 — 막대 클릭 배선.
+ * 문법은 공고 상세 strip-chart와 통일: 옅은 그리드+y눈금, primary 막대,
+ * 잘 나온 구간 = primary 음영, 기준선 = 색 점선 + 모노 라벨, n 명시.
+ * 표본 12 미만이면 막대 대신 점 스트립 — 전부 1회짜리 막대는 정보가 없다.
+ * 높이는 고정 px (viewBox 축소 스케일로 159px까지 납작해지던 문제).
+ */
 function Hist({ values, binSize, fmt, highlight, onBar, marks }: {
   values: number[]; binSize: number; fmt: (v: number) => string;
   highlight?: [number, number] | null; onBar?: (lo: number, hi: number) => void;
   marks?: { v: number; label: string; color: string }[];
 }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [cw, setCw] = useState(620);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(es => {
+      const w = es[0]?.contentRect.width;
+      if (w) setCw(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   if (values.length === 0) return <p className='text-muted-foreground py-6 text-sm'>표본이 없습니다.</p>;
+
+  const small = values.length < 12;
+  const W = Math.max(420, cw), H = small ? 220 : 280, L = 40, R = 14, B = 40, T = 18;
   const lo = Math.floor(Math.min(...values) / binSize) * binSize;
   const hi = Math.ceil((Math.max(...values) + 1e-9) / binSize) * binSize;
+  const span = Math.max(hi - lo, binSize);
+  const Xv = (v: number) => L + (v - lo) / span * (W - L - R);
+  const mono = 'var(--font-mono, monospace)';
+
+  if (small) {
+    // 점 스트립 — 같은 값(binSize 반올림) 스택, ×n 라벨
+    const stacks = new Map<number, number>();
+    for (const v of values) {
+      const k = Math.round(v / binSize) * binSize;
+      stacks.set(k, (stacks.get(k) ?? 0) + 1);
+    }
+    const base = H - B;
+    const ticks: number[] = [];
+    for (let v = lo; v <= hi + 1e-9; v += binSize) ticks.push(Math.round(v / binSize) * binSize);
+    let lastLbl = -Infinity;
+    return (
+      <div ref={wrapRef} style={{ overflowX: 'auto' }}>
+        <svg width={W} height={H} role='img'>
+          {highlight && (
+            <rect x={Math.max(L, Xv(highlight[0]))} y={T}
+              width={Math.min(W - R, Xv(highlight[1])) - Math.max(L, Xv(highlight[0]))} height={base - T}
+              fill='var(--primary)' opacity={0.09} />
+          )}
+          <line x1={L} y1={base} x2={W - R} y2={base} stroke='var(--border)' />
+          {ticks.map(v => {
+            const x = Xv(v); const show = x - lastLbl >= 52; if (show) lastLbl = x;
+            return (
+              <g key={v}>
+                <line x1={x} y1={base} x2={x} y2={base + 5} stroke='var(--border)' />
+                {show && <text x={x} y={base + 20} textAnchor='middle' fontSize={12}
+                  fill='var(--muted-foreground)' fontFamily={mono}>{fmt(v)}</text>}
+              </g>
+            );
+          })}
+          {[...stacks.entries()].map(([k, n]) => (
+            <g key={k} style={{ cursor: onBar ? 'pointer' : undefined }}
+              onClick={() => onBar?.(k - binSize / 2, k + binSize / 2)}>
+              {Array.from({ length: n }, (_, i) => (
+                <circle key={i} cx={Xv(k)} cy={base - 12 - i * 15} r={6}
+                  fill='var(--primary)' opacity={0.8}>
+                  <title>{fmt(k)} · {n}회{onBar ? ' · 클릭=산출기 적용' : ''}</title>
+                </circle>
+              ))}
+              {n >= 2 && <text x={Xv(k)} y={base - 12 - n * 15 - 4} textAnchor='middle' fontSize={12}
+                fontWeight={700} fill='var(--foreground)' fontFamily={mono}>×{n}</text>}
+            </g>
+          ))}
+          {marks && <MarkLines marks={marks} X={Xv} top={T} bottom={base} clipL={L} clipR={W - R} />}
+          <text x={W - R} y={12} textAnchor='end' fontSize={12} fill='var(--muted-foreground)'>{values.length}회</text>
+        </svg>
+      </div>
+    );
+  }
+
   const nBins = Math.max(1, Math.round((hi - lo) / binSize));
   const bins = Array.from({ length: nBins }, (_, i) => ({
     lo: +(lo + i * binSize).toFixed(6), hi: +(lo + (i + 1) * binSize).toFixed(6), n: 0,
@@ -76,48 +174,57 @@ function Hist({ values, binSize, fmt, highlight, onBar, marks }: {
     const i = Math.min(nBins - 1, Math.floor((v - lo) / binSize));
     bins[i].n++;
   }
-  const W = 900, H = 230, L = 34, B = 40, T = 14;
   const maxN = Math.max(...bins.map(b => b.n));
-  const bw = (W - L - 10) / nBins;
+  const bw = (W - L - R) / nBins;
   const X = (i: number) => L + i * bw;
   const Y = (n: number) => T + (H - T - B) * (1 - n / maxN);
+  // y 눈금 3~4개 — "13과 8이 얼마나 다른가"를 축으로 읽게 한다
+  const yStep = Math.max(1, Math.ceil(maxN / 4));
+  const yTicks: number[] = [];
+  for (let n = yStep; n <= maxN; n += yStep) yTicks.push(n);
   let lastLbl = -Infinity;
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ width: '100%', height: 'auto', minWidth: 620 }}>
+    <div ref={wrapRef} style={{ overflowX: 'auto' }}>
+      <svg width={W} height={H} role='img'>
+        {/* 잘 나온 구간 음영 (primary 8~10% — strip-chart와 동일 문법) */}
+        {highlight && (
+          <rect x={Math.max(L, Xv(highlight[0]))} y={T}
+            width={Math.min(W - R, Xv(highlight[1])) - Math.max(L, Xv(highlight[0]))} height={H - B - T}
+            fill='var(--primary)' opacity={0.09} />
+        )}
+        {/* y축 그리드 + 눈금 */}
+        {yTicks.map(n => (
+          <g key={n}>
+            <line x1={L} y1={Y(n)} x2={W - R} y2={Y(n)} stroke='var(--border)' opacity={0.55} />
+            <text x={L - 6} y={Y(n) + 4} textAnchor='end' fontSize={12}
+              fill='var(--muted-foreground)' fontFamily={mono}>{n}</text>
+          </g>
+        ))}
+        <line x1={L} y1={T} x2={L} y2={H - B} stroke='var(--border)' />
+        <line x1={L} y1={H - B} x2={W - R} y2={H - B} stroke='var(--border)' />
         {bins.map((b, i) => {
           const hot = highlight && b.hi > highlight[0] && b.lo < highlight[1];
           return (
             <g key={i} style={{ cursor: onBar && b.n ? 'pointer' : undefined }}
               onClick={() => b.n && onBar?.(b.lo, b.hi)}>
-              <rect x={X(i) + 1.5} y={Y(b.n)} width={bw - 3} height={H - B - Y(b.n)}
-                fill={hot ? C.floor : 'var(--primary)'} opacity={hot ? 0.85 : 0.65} rx={2}>
+              <rect x={X(i) + 1.5} y={Y(b.n)} width={Math.max(1, bw - 3)} height={H - B - Y(b.n)}
+                fill='var(--primary)' opacity={hot ? 0.95 : 0.5} rx={2}>
                 <title>{fmt(b.lo)}~{fmt(b.hi)} · {b.n}회{onBar ? ' · 클릭=산출기 적용' : ''}</title>
               </rect>
-              {b.n > 0 && <text x={X(i) + bw / 2} y={Y(b.n) - 4} textAnchor='middle' fontSize={11.5}
-                fill='var(--foreground)' fontFamily='var(--font-mono, monospace)'>{b.n}</text>}
+              {b.n > 0 && bw >= 18 && <text x={X(i) + bw / 2} y={Y(b.n) - 4} textAnchor='middle' fontSize={12}
+                fill='var(--foreground)' fontFamily={mono}>{b.n}</text>}
             </g>
           );
         })}
         {bins.map((b, i) => {
           const x = X(i); const show = x - lastLbl >= 46; if (show) lastLbl = x;
           return show ? (
-            <text key={`l-${i}`} x={x} y={H - B + 16} fontSize={11.5} textAnchor='middle'
-              fill='var(--muted-foreground)' fontFamily='var(--font-mono, monospace)'>{fmt(b.lo)}</text>
+            <text key={`l-${i}`} x={x} y={H - B + 16} fontSize={12} textAnchor='middle'
+              fill='var(--muted-foreground)' fontFamily={mono}>{fmt(b.lo)}</text>
           ) : null;
         })}
-        {marks?.map((m, i) => {
-          const x = L + (m.v - lo) / (hi - lo) * (W - L - 10);
-          if (x < L || x > W - 10) return null;
-          return (
-            <g key={`m-${i}`}>
-              <line x1={x} y1={T} x2={x} y2={H - B} stroke={m.color} strokeWidth={1.8} strokeDasharray='5 3' />
-              <text x={x} y={H - B + 32} textAnchor='middle' fontSize={11.5} fill={m.color}
-                fontFamily='var(--font-mono, monospace)'>{m.label}</text>
-            </g>
-          );
-        })}
-        <text x={W - 10} y={12} textAnchor='end' fontSize={12} fill='var(--muted-foreground)'>{values.length}회</text>
+        {marks && <MarkLines marks={marks} X={Xv} top={T} bottom={H - B} clipL={L} clipR={W - R} />}
+        <text x={W - R} y={12} textAnchor='end' fontSize={12} fill='var(--muted-foreground)'>{values.length}회</text>
       </svg>
     </div>
   );
@@ -432,7 +539,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
       <div className='flex flex-wrap items-end justify-between gap-3'>
         <div>
           <div className='text-muted-foreground text-xs'>{school.sido} {school.sigungu} · 분석판</div>
-          <h1 className='text-xl font-semibold'>{school.name}</h1>
+          <h1 className='text-2xl font-semibold'>{school.name}</h1>
           <div className='mt-1.5 flex flex-wrap gap-1.5'>
             <Badge variant='secondary'>공고 {rounds.length}건</Badge>
             <Badge variant='secondary'>예정가 보유 {rounds.filter(x => x.plannedPrice != null).length}회</Badge>
@@ -530,7 +637,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                         {i + 1}위 {b.bidRate.toFixed(3)} {b.won ? '낙찰' : b.status}
                       </span>
                     ))}
-                    {hoverLadder.bids.length > 5 && <span className='text-muted-foreground'>… 외 {hoverLadder.bids.length - 5}곳 — 클릭=전체</span>}
+                    {hoverLadder.bids.length > 5 && <span className='text-muted-foreground'>… 외 {hoverLadder.bids.length - 5}곳 · 클릭=전체</span>}
                   </div>
                 )}
               </div>
@@ -551,7 +658,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                 marks={r != null ? [{ v: r - floor, label: `내 값`, color: C.me }] : []}
               />
               <p className='text-muted-foreground mb-2 text-xs'>
-                막대 클릭 = 0.01 단위 확대 · 확대 후 클릭 = 산출기 적용 · 빨간 막대 = 잘 나온 구간
+                막대 클릭 = 0.01 단위 확대 · 확대 후 클릭 = 산출기 적용 · 음영·짙은 막대 = 잘 나온 구간
               </p>
               {/* 구간×기간 매트릭스 */}
               <div style={{ overflowX: 'auto' }}>
@@ -600,7 +707,8 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                 <div className='mb-3 grid grid-cols-2 gap-2 text-center md:grid-cols-4'>
                   {(['밀림', '낙찰', '기회', '무효'] as const).map(k => (
                     <div key={k} className='rounded border px-2 py-2' style={k === '낙찰' ? { borderColor: C.win, borderWidth: 2 } : {}}>
-                      <div className='text-xl font-bold tabular-nums' style={{ color: VCOLOR[k] }}>{verdicts?.[k] ?? 0}회</div>
+                      {/* 히어로 숫자 — 화면당 1개: 리허설 낙찰 수 (DESIGN C표) */}
+                      <div className={`${k === '낙찰' ? 'text-3xl' : 'text-xl'} font-bold tabular-nums`} style={{ color: vcolor(k) }}>{verdicts?.[k] ?? 0}회</div>
                       <div className='text-muted-foreground text-xs'>
                         {k === '밀림' && '밀림 확정 (낙찰가 이상)'}
                         {k === '낙찰' && '낙찰 (실효하한~낙찰가 사이)'}
@@ -628,7 +736,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                             <TableCell className='cursor-pointer text-right font-mono tabular-nums hover:underline'
                               onClick={() => inject(x.winRate!)}>{x.winRate!.toFixed(3)}</TableCell>
                             <TableCell className='text-right font-mono tabular-nums'>{x.effFloor?.toFixed(3) ?? '—'}</TableCell>
-                            <TableCell><b style={{ color: VCOLOR[v] }}>{v}</b></TableCell>
+                            <TableCell><b style={{ color: vcolor(v) }}>{v}</b></TableCell>
                             <TableCell>
                               <details className='text-xs'>
                                 <summary className='text-muted-foreground cursor-pointer'>보기</summary>
@@ -649,7 +757,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                   </Table>
                 </div>
                 <p className='text-muted-foreground mt-2 text-xs'>
-                  과거 사실이며 다음 회차의 결과 예측이 아닙니다 — 예정가는 매회 추첨으로 새로 정해집니다.
+                  과거 사실이며 다음 회차의 결과 예측이 아닙니다. 예정가는 매회 추첨으로 새로 정해집니다.
                 </p>
               </>)}
             </>)}
@@ -705,7 +813,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
             </>)}
 
             {lens === 'lottery' && (<>
-              <div className='mb-1 text-sm font-medium'>복수예가 분포 <span className='text-muted-foreground font-normal'>— 회차마다 15개가 공개되고 4개가 추첨됩니다</span></div>
+              <div className='mb-1 text-sm font-medium'>복수예가 분포 <span className='text-muted-foreground font-normal'>· 회차마다 15개가 공개되고 4개가 추첨됩니다</span></div>
               <Hist values={reserveRatios} binSize={0.5} fmt={v => v.toFixed(1)}
                 marks={pprLo != null && pprHi != null ? [
                   { v: pprLo, label: `예정가율 5% ${pprLo.toFixed(2)}`, color: C.me },
@@ -715,7 +823,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
               <Hist values={pprs} binSize={0.2} fmt={v => v.toFixed(1)} />
               {base > 0 && floor != null && pprLo != null && pprHi != null && (
                 <p className='mt-2 text-sm tabular-nums'>
-                  기초금액 {won(base)}원 기준 — 이 학교 예정가율 90%가{' '}
+                  기초금액 {won(base)}원 기준 · 이 학교 예정가율 90%가{' '}
                   <b className='font-mono'>{pprLo.toFixed(2)}~{pprHi.toFixed(2)}%</b> 사이였으므로,
                   하한 금액은 <b>{won(base * floor / 100 * pprLo / 100)}~{won(base * floor / 100 * pprHi / 100)}원</b> 범위에서 정해졌습니다.
                 </p>
@@ -803,7 +911,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                   className='font-mono' inputMode='numeric' />
               </div>
               <div>
-                <div className='text-muted-foreground mb-1 text-xs'>투찰률 — 차트·표 아무 곳이나 클릭해도 들어옵니다</div>
+                <div className='text-muted-foreground mb-1 text-xs'>투찰률 (차트·표 아무 곳이나 클릭해도 들어옵니다)</div>
                 <Input value={rateStr} onChange={e => { if (e.target.value.trim()) trackOnce('calc_input'); setRateStr(e.target.value); }}
                   placeholder={floor != null ? `예: ${(floor + 0.05).toFixed(2)}` : ''}
                   className='font-mono text-lg' inputMode='decimal' />
@@ -820,17 +928,17 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
               {verdicts && (
                 <div className='text-[13px] leading-relaxed tabular-nums'>
                   이 값이면 과거 {view.length}회 중:{' '}
-                  남이 더 낮게 써서 밀린 게 <b style={{ color: VCOLOR.밀림 }}>{verdicts.밀림}회</b> ·{' '}
-                  내가 먹었을 게 <b style={{ color: VCOLOR.낙찰 }}>{verdicts.낙찰}회</b>
-                  {verdicts.기회 > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: VCOLOR.기회 }}>{verdicts.기회}회</b></>} ·{' '}
-                  하한 아래라 무효였을 게 <b style={{ color: VCOLOR.무효 }}>{verdicts.무효}회</b>
+                  남이 더 낮게 써서 밀린 게 <b style={{ color: vcolor('밀림') }}>{verdicts.밀림}회</b> ·{' '}
+                  내가 먹었을 게 <b style={{ color: vcolor('낙찰') }}>{verdicts.낙찰}회</b>
+                  {verdicts.기회 > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: vcolor('기회') }}>{verdicts.기회}회</b></>} ·{' '}
+                  하한 아래라 무효였을 게 <b style={{ color: vcolor('무효') }}>{verdicts.무효}회</b>
                   <button className='text-primary ml-1 underline' onClick={() => setLens('rehearsal')}>상세</button>
                 </div>
               )}
               {crowdN != null && crowd && (
                 <p className='text-[13px] tabular-nums'>
                   이 값 자리에 최근 {crowd.days}일 <b className={crowdN > 200 ? 'text-destructive' : 'text-primary'}>{crowdN.toLocaleString()}건</b>
-                  {crowdN === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전국 최근 {crowd.days}일 {crowd.total.toLocaleString()}건 기준 · 같은 값은 추첨)</span>
+                  {crowdN === 0 ? ' · 빈 자리' : ''} <span className='text-muted-foreground'>(전국 최근 {crowd.days}일 {crowd.total.toLocaleString()}건 기준 · 같은 값은 추첨)</span>
                 </p>
               )}
               {base > 0 && floor != null && pprLo != null && pprHi != null && (
@@ -892,7 +1000,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
       <Card>
         <CardContent className='p-0'>
           <div className='px-4 pt-3 font-semibold'>참여 업체</div>
-          <RosterTable rows={roster.rows} limit={15} />
+          <RosterTable rows={roster.rows} limit={15} emptyText='이 학교는 아직 참여 기록이 없습니다' />
         </CardContent>
       </Card>
     </div>

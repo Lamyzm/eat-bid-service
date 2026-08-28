@@ -15,6 +15,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
+  Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia
+} from '@/components/ui/empty';
+import { IconSchool } from '@tabler/icons-react';
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
 
@@ -94,10 +98,14 @@ export default function SchoolsPage() {
       <div className='flex flex-wrap items-end justify-between gap-3'>
         <div>
           <h1 className='text-2xl font-semibold'>학교 찾기</h1>
-          <p className='text-muted-foreground text-sm tabular-nums'>{filtered.length}개 학교{!q.trim() && rows.length >= 500 ? ' (상위 500 표시 — 검색으로 좁히세요)' : ''} · 행 클릭 = 분석판</p>
+          {/* 히어로 숫자 — 화면당 1개: 표시 학교 수 (DESIGN C표) */}
+          <div className='mt-0.5 text-3xl font-bold tabular-nums'>
+            {filtered.length.toLocaleString()}<span className='text-muted-foreground ml-1 text-base font-normal'>개 학교</span>
+          </div>
+          <p className='text-muted-foreground text-sm tabular-nums'>{!q.trim() && rows.length >= 500 ? '상위 500 표시 · 검색으로 좁혀집니다 · ' : ''}행 클릭 = 분석판</p>
           <div className='mt-1'><RegionStatus /></div>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex min-w-0 flex-wrap items-center justify-end gap-2'>
           {isBrowsing && (homes.length === 0
             ? <span className='rounded border px-2 py-1 text-xs'><b>{view} 보는 중</b> · <Link href='/dashboard/my' className='text-primary hover:underline'>자격 지역 설정</Link></span>
             : <span className='rounded border border-amber-500/50 bg-amber-500/10 px-2 py-1 text-xs'><b>{view} 구경 중</b> · 내 자격 지역 아님</span>)}
@@ -149,6 +157,23 @@ export default function SchoolsPage() {
 
       <Card>
         <CardContent className='p-0'>
+          {filtered.length === 0 ? (
+            <Empty className='py-14'>
+              <EmptyHeader>
+                <EmptyMedia variant='icon'><IconSchool /></EmptyMedia>
+                <EmptyTitle>{rows.length === 0 && q.trim() ? '검색 결과가 없습니다' : '이 지역에 표시할 학교가 없습니다'}</EmptyTitle>
+                <EmptyDescription>
+                  우측 상단 지역 스위처로 다른 지역을 볼 수 있습니다. 검색어·필터를 바꾸면 결과가 달라집니다.
+                </EmptyDescription>
+              </EmptyHeader>
+              {(q.trim() || cat || fieldMax) && (
+                <EmptyContent>
+                  <Button size='sm' variant='outline'
+                    onClick={() => { setQ(''); setCat(null); setFieldMax(null); }}>검색·필터 지우기</Button>
+                </EmptyContent>
+              )}
+            </Empty>
+          ) : (
           <div style={{ overflowX: 'auto' }}>
             <Table>
               <TableHeader><TableRow>
@@ -201,9 +226,12 @@ export default function SchoolsPage() {
               </TableBody>
             </Table>
           </div>
+          )}
         </CardContent>
       </Card>
-      <p className='text-muted-foreground text-xs'>● = 보통 10곳 이하 참여. 잘 나온 구간·자주 걸린 값은 최다 하한 기준.</p>
+      {filtered.length > 0 && (
+        <p className='text-muted-foreground text-xs'>● = 보통 10곳 이하 참여. 잘 나온 구간·자주 걸린 값은 최다 하한 기준.</p>
+      )}
     </div>
   );
 }

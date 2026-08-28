@@ -166,6 +166,10 @@ class OpenController {
       unrestricted,
       allowedLabel: unrestricted ? "지역 제한 없음"
         : (r.allowedRegions ?? []).filter(Boolean).slice(0, 3).join(" · "),
+      // 자격 판정의 근거 범위. 업체의 등록 품목은 eaT 원본에 존재하지 않아
+      // (raw ds_bidList 31키 전수 확인) 지금 판정은 지역만 본 것이다.
+      // 화면은 "자격 충족"이 아니라 "지역 자격 충족"이라고 말해야 한다.
+      qualificationBasis: "region-only" as const,
     };
   }
 
@@ -683,6 +687,27 @@ class AuthController {
 }
 
 /**
+ * 회차별 마크를 사업자 축으로 묶는다.
+ * 반환: { [bidNo]: { s, rates: { [bizNo]: rate }, rate } }
+ *  - rates: 사업자별 값. 키 ''는 미지정(사업자 등록 전 저장분).
+ *  - rate: 구 형식 미러 — front가 아직 단일 값을 읽고 있어 함께 내보낸다.
+ *          우선순위는 ''(미지정) → 첫 사업자.
+ */
+function groupMarks(rows: { bidNo: string; bizNo: string; status: string; rate: number | null }[]) {
+  const out: Record<string, { s: string; rates: Record<string, number>; rate?: number }> = {};
+  for (const m of rows) {
+    const e = out[m.bidNo] ?? (out[m.bidNo] = { s: m.status, rates: {} });
+    if (m.rate != null) e.rates[m.bizNo] = m.rate;
+  }
+  for (const e of Object.values(out)) {
+    const keys = Object.keys(e.rates);
+    const pick = keys.includes("") ? "" : keys[0];
+    if (pick != null) e.rate = e.rates[pick];
+  }
+  return out;
+}
+
+/**
  * 계정 데이터 — 세션 있으면 서버(user_biz/user_region/user_mark), 없으면 401.
  * 웹은 401을 받으면 localStorage 폴백을 계속 쓴다(게스트 모드 유지).
  */
@@ -708,7 +733,7 @@ class MeController {
       user: { id: u.userId, email: u.email, name: u.name },
       bizNos: bizs.map(b => b.bizNo),
       regions: regions.map(r => r.sigungu),
-      marks: Object.fromEntries(marks.map(m => [m.bidNo, { s: m.status, rate: m.rate ?? undefined }])),
+      marks: groupMarks(marks),
     };
   }
 
@@ -741,18 +766,28 @@ class MeController {
   async putMarks(@Req() req: any, @Body() body: unknown) {
     const uid = await this.uid(req);
     if (!uid) return { ok: false, error: "unauthenticated" };
+    // 신 형식(rates: 사업자별 값)과 구 형식(rate: 단일 값)을 함께 받는다 —
+    // front가 미러를 아직 쓰고 있어, 구 형식을 끊으면 값이 사라진다.
     const p = z.object({
       marks: z.record(z.string().max(32), z.object({
         s: z.enum(["watch", "done"]),
         rate: z.number().optional(),
+        rates: z.record(z.string().max(16), z.number()).optional(),
       })),
     }).safeParse(body);
     if (!p.success) return { ok: false, error: "bad_request" };
-    const rows = Object.entries(p.data.marks).slice(0, 500)
-      .map(([bidNo, m]) => ({ userId: uid, bidNo, status: m.s, rate: m.rate ?? null }));
+    const rows: { userId: string; bidNo: string; bizNo: string; status: string; rate: number | null }[] = [];
+    for (const [bidNo, m] of Object.entries(p.data.marks).slice(0, 500)) {
+      const entries = m.rates && Object.keys(m.rates).length
+        ? Object.entries(m.rates)
+        : ([["", m.rate ?? null]] as [string, number | null][]);
+      for (const [bizNo, rate] of entries.slice(0, 20)) {
+        rows.push({ userId: uid, bidNo, bizNo, status: m.s, rate: rate ?? null });
+      }
+    }
     await db.delete(userMark).where(eq(userMark.userId, uid));
     if (rows.length) await db.insert(userMark).values(rows);
-    return { ok: true, n: rows.length };
+    return { ok: true, n: rows.length, bids: Object.keys(p.data.marks).length };
   }
 }
 

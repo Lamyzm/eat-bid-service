@@ -33,7 +33,7 @@ export function RegionSwitcher() {
       active
         ? warn ? 'border-amber-500 bg-amber-500/15 text-amber-700 font-semibold'
                : 'bg-primary text-primary-foreground border-primary font-semibold'
-        : warn ? 'border-amber-500/60 text-amber-600' : 'bg-background hover:bg-accent'
+        : warn ? 'border-amber-500/60 text-pushed' : 'bg-background hover:bg-accent'
     }`;
 
   return (

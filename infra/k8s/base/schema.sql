@@ -184,10 +184,11 @@ CREATE TABLE IF NOT EXISTS "user_region" (
 CREATE TABLE IF NOT EXISTS "user_mark" (
 	"user_id" varchar(64) NOT NULL,
 	"bid_no" varchar(32) NOT NULL,
+	"biz_no" varchar(16) NOT NULL DEFAULT '',
 	"status" varchar(8) NOT NULL,
 	"rate" double precision,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "user_mark_pkey" PRIMARY KEY("user_id","bid_no")
+	CONSTRAINT "user_mark_pkey" PRIMARY KEY("user_id","bid_no","biz_no")
 );
 -- 라이브 마이그레이션 병기
 ALTER TABLE "user_mark" ADD COLUMN IF NOT EXISTS "rate" double precision;
@@ -213,3 +214,15 @@ CREATE TABLE IF NOT EXISTS "school_roster_cat" (
 	"med_rate" double precision,
 	CONSTRAINT "school_roster_cat_pkey" PRIMARY KEY("school_id","category","biz_no")
 );
+
+-- user_mark 사업자 축 (무손실: 컬럼 추가 + 기본키 교체. 행 삭제 없음)
+ALTER TABLE user_mark ADD COLUMN IF NOT EXISTS "biz_no" varchar(16) NOT NULL DEFAULT '';
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_mark_pkey'
+             AND conrelid = 'user_mark'::regclass
+             AND pg_get_constraintdef(oid) = 'PRIMARY KEY (user_id, bid_no)') THEN
+    ALTER TABLE user_mark DROP CONSTRAINT user_mark_pkey;
+    ALTER TABLE user_mark ADD CONSTRAINT user_mark_pkey PRIMARY KEY (user_id, bid_no, biz_no);
+  END IF;
+END $$;

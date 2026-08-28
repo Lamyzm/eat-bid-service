@@ -81,8 +81,12 @@ export default function WinsPage() {
       <div className='flex flex-wrap items-end justify-between gap-3'>
         <div>
           <h1 className='text-2xl font-semibold'>낙찰</h1>
+          {/* 히어로 숫자 — 화면당 1개: 최근 N일 개찰 건수 (DESIGN C표) */}
+          <div className='mt-0.5 text-3xl font-bold tabular-nums'>
+            {(total ?? rows.length).toLocaleString()}<span className='text-muted-foreground ml-1 text-base font-normal'>건 · 최근 {days}일 개찰</span>
+          </div>
           <p className='text-muted-foreground text-sm tabular-nums'>
-            최근 {days}일 개찰 {total != null && total > rows.length ? `전체 ${total.toLocaleString()}건 중 ${rows.length}건 표시` : `${rows.length}건`} · 기초금액 합계 {eok(totalBase)}원
+            {total != null && total > rows.length && `${rows.length}건 표시 · `}기초금액 합계 {eok(totalBase)}원
             {gapMed != null && <> · 1–2등 차이 중앙값 <b className='text-foreground'>{gapMed.toFixed(3)}</b></>}
             {total != null && total > rows.length && <span className='text-muted-foreground'> (합계·중앙값은 표시 {rows.length}건 기준)</span>}
           </p>

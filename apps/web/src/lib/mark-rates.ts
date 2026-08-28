@@ -80,6 +80,12 @@ export function hasAnyRate(mark: Mark | undefined, bizNos: string[]): boolean {
   return Object.keys(ratesOf(mark, bizNos)).length > 0;
 }
 
+/** 사업자 표기 — 상호가 있으면 상호, 없으면 뒤 4자리. 화면마다 다르게 쓰지 않는다 */
+export function bizLabelOf(bizNo: string, names: Record<string, string>): string {
+  if (!bizNo) return '';
+  return names[bizNo] ?? `…${bizNo.slice(-4)}`;
+}
+
 /** 두 값 집합이 같은지 — '이 값으로 갱신' 판별용 */
 export function sameRates(a: Record<string, number>, b: Record<string, number>): boolean {
   const ka = Object.keys(a), kb = Object.keys(b);

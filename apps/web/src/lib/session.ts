@@ -26,28 +26,34 @@ const K = {
 
 type State = {
   ready: boolean;
+  /** 이전 저장분을 읽지 못했다 (사본은 MARKS_BACKUP_KEY 에 보존) */
+  marksUnreadable: boolean;
   guest: boolean;
   user: Me['user'];
   googleEnabled: boolean;
   bizNos: string[];
+  /** 사업자번호 → 상호. 화면마다 다른 라벨을 쓰지 않도록 여기서 한 번만 받는다 */
+  bizNames: Record<string, string>;
   regions: string[];
   marks: Record<string, Mark>;
 };
 
 let state: State = {
-  ready: false, guest: true, user: null, googleEnabled: false,
-  bizNos: [], regions: [], marks: {},
+  ready: false, marksUnreadable: false, guest: true, user: null, googleEnabled: false,
+  bizNos: [], bizNames: {}, regions: [], marks: {},
 };
 const listeners = new Set<() => void>();
 function emit() { listeners.forEach(l => l()); }
 function setState(patch: Partial<State>) { state = { ...state, ...patch }; emit(); }
 
 /**
- * marks 를 읽을 수 없으면(구버전·손상·수동 편집) 그 키에 대한 쓰기를 잠근다.
- * 사용자가 값을 잃는 것보다 한 번 안 보이는 편이 낫다 — 조용히 빈 값으로 덮어쓰지 않는다.
+ * marks 를 읽을 수 없으면(구버전·손상·수동 편집) 원본 사본을 따로 남기고, 새 저장은 정상 진행한다.
+ * 지금 치고 있는 값을 못 쓰게 막는 쪽이 더 나쁘다. 읽지 못한 사실은 화면에 알린다.
  */
-let marksLocked = false;
-export function isMarksLocked() { return marksLocked; }
+let marksUnreadable = false;
+export function wasMarksUnreadable() { return marksUnreadable; }
+/** 읽지 못한 원본 사본이 남아 있는 키 */
+export const MARKS_BACKUP_KEY = 'eatbid.marks.unreadable';
 
 function readLocal(): Pick<State, 'bizNos' | 'regions' | 'marks'> {
   const out = { bizNos: [] as string[], regions: [] as string[], marks: {} as Record<string, Mark> };
@@ -67,8 +73,8 @@ function readLocal(): Pick<State, 'bizNos' | 'regions' | 'marks'> {
       else throw new Error('unexpected marks shape');
     }
   } catch {
-    marksLocked = true;
-    // 원본은 손대지 않고, 사본만 남겨 둔다
+    marksUnreadable = true;
+    // 읽지 못한 원본은 사본으로 보존한다 (덮어쓰기 전에 반드시 먼저)
     try {
       const raw = localStorage.getItem(K.marks);
       if (raw && !localStorage.getItem(K.marksBackup)) localStorage.setItem(K.marksBackup, raw);
@@ -81,7 +87,7 @@ function writeLocal(patch: Partial<Pick<State, 'bizNos' | 'regions' | 'marks'>>)
   try {
     if (patch.bizNos) localStorage.setItem(K.biz, JSON.stringify(patch.bizNos));
     if (patch.regions) localStorage.setItem(K.regions, JSON.stringify(patch.regions));
-    if (patch.marks && !marksLocked) localStorage.setItem(K.marks, JSON.stringify(patch.marks));
+    if (patch.marks) localStorage.setItem(K.marks, JSON.stringify(patch.marks));
   } catch {}
 }
 
@@ -104,11 +110,12 @@ export async function boot() {
   if (booted) return;
   booted = true;
   const local = readLocal();
-  setState({ ...local }); // 서버 응답 전에도 로컬로 즉시 동작
+  setState({ ...local, marksUnreadable }); // 서버 응답 전에도 로컬로 즉시 동작
   let me: any = null;
   try { me = await api('/api/me').then(r => r.json()); } catch {}
   if (!me || me.guest !== false) {
-    setState({ ready: true, guest: true, user: null, googleEnabled: !!me?.googleEnabled, ...local });
+    setState({ ready: true, guest: true, user: null, googleEnabled: !!me?.googleEnabled, ...local, marksUnreadable });
+    loadBizNames(local.bizNos);
     return;
   }
   const serverBiz: string[] = me.bizNos ?? [];
@@ -134,9 +141,10 @@ export async function boot() {
   }
   setState({
     ready: true, guest: false, user: me.user ?? null, googleEnabled: !!me.googleEnabled,
-    bizNos: mergedBiz, regions: mergedRegions, marks: mergedMarks,
+    bizNos: mergedBiz, regions: mergedRegions, marks: mergedMarks, marksUnreadable,
   });
   writeLocal({ bizNos: mergedBiz, regions: mergedRegions, marks: mergedMarks }); // 로컬은 캐시로 유지
+  loadBizNames(mergedBiz);
   if (needMerge) {
     try { localStorage.setItem(K.merged, me.user?.id ?? '1'); } catch {}
     await Promise.all([
@@ -147,9 +155,20 @@ export async function boot() {
   }
 }
 
+/** 상호 조회 — 이미 받은 번호는 다시 묻지 않는다 */
+function loadBizNames(bizNos: string[]) {
+  for (const bz of bizNos) {
+    if (state.bizNames[bz]) continue;
+    api(`/api/firms/lookup?bizNo=${bz}`).then(r => r.json())
+      .then(d => { if (d?.name) setState({ bizNames: { ...state.bizNames, [bz]: d.name } }); })
+      .catch(() => {});
+  }
+}
+
 // ── 쓰기 API (로컬 즉시 + 로그인 시 PUT 동기화) ──
 export function setBizNos(next: string[]) {
   setState({ bizNos: next });
+  loadBizNames(next);
   writeLocal({ bizNos: next });
   void put('/api/me/biz', { bizNos: next });
 }
@@ -181,8 +200,8 @@ export function clearLocalData() {
 function subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; }
 function getSnapshot() { return state; }
 const serverSnapshot: State = {
-  ready: false, guest: true, user: null, googleEnabled: false,
-  bizNos: [], regions: [], marks: {},
+  ready: false, marksUnreadable: false, guest: true, user: null, googleEnabled: false,
+  bizNos: [], bizNames: {}, regions: [], marks: {},
 };
 function getServerSnapshot() { return serverSnapshot; }
 

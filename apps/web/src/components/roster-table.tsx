@@ -2,6 +2,7 @@
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 
 export type RosterRow = {
   bizNo: string; name: string; partN: number; winN: number;
@@ -9,7 +10,21 @@ export type RosterRow = {
 };
 
 /** 단골 참여 업체 — 사실 전부, 해석 라벨 없음 (②③⑥ 공용) */
-export function RosterTable({ rows, limit = 12 }: { rows: RosterRow[]; limit?: number }) {
+export function RosterTable({ rows, limit = 12, emptyText = '아직 참여 기록이 없습니다' }: {
+  rows: RosterRow[]; limit?: number; emptyText?: string;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className='p-4'>
+        <Empty className='py-8'>
+          <EmptyHeader>
+            <EmptyTitle>{emptyText}</EmptyTitle>
+            <EmptyDescription>개찰 결과가 적재되면 업체별 참여·낙찰이 여기에 쌓입니다.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </div>
+    );
+  }
   return (
     <div style={{ overflowX: 'auto' }}>
       <Table>

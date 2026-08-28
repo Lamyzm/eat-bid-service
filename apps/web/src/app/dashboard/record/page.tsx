@@ -145,14 +145,14 @@ export default function RecordPage() {
         <p className='text-muted-foreground text-sm'>로그인하면 다른 PC에서도 이어서 봅니다.</p>
       )}
 
-      {/* KPI — 2칸 + 상세 접힘 (D) */}
+      {/* KPI — 2칸 + 상세 접힘 (D). 히어로 숫자는 낙찰률 하나만 (A2 화면당 1개) */}
       <div className='grid grid-cols-2 gap-2' style={{ minHeight: 88 }}>
-        {[['참여', agg ? `${agg.totalBids.toLocaleString()}회` : `${view.length}회`, ''],
+        {[['참여', agg ? `${agg.totalBids.toLocaleString()}회` : `${view.length}회`, 'text-base font-semibold'],
           ['낙찰률', agg ? (agg.totalBids ? `${(agg.totalWins / agg.totalBids * 100).toFixed(1)}%` : '—')
-                        : (view.length ? `${(wins.length / view.length * 100).toFixed(1)}%` : '—'), 'text-primary']].map(([label, v, cls]) => (
+                        : (view.length ? `${(wins.length / view.length * 100).toFixed(1)}%` : '—'), 'text-primary text-3xl font-bold']].map(([label, v, cls]) => (
           <Card key={label as string}><CardContent className='px-4 py-3'>
             <div className='text-muted-foreground text-xs'>{label} <span className='opacity-70'>{agg ? '· 전체 기간' : ''}</span></div>
-            <div className={`text-3xl font-bold tabular-nums ${cls}`}>{v}</div>
+            <div className={`tabular-nums ${cls}`}>{v}</div>
           </CardContent></Card>
         ))}
       </div>
@@ -163,7 +163,7 @@ export default function RecordPage() {
       {kpiOpen && (
         <div className='grid grid-cols-3 gap-2'>
           {[['낙찰', `${(agg ? agg.totalWins : wins.length).toLocaleString()}회`, 'text-primary'],
-            ['밀림 (남이 더 낮게 씀)', `${(agg ? agg.pushedOut : pushed.length).toLocaleString()}회`, 'text-amber-600'],
+            ['밀림 (남이 더 낮게 씀)', `${(agg ? agg.pushedOut : pushed.length).toLocaleString()}회`, 'text-pushed'],
             ['무효 (하한 아래)', `${(agg ? agg.belowFloor : below.length).toLocaleString()}회`, 'text-destructive']].map(([label, v, cls]) => (
             <Card key={label as string}><CardContent className='px-4 py-3'>
               <div className='text-muted-foreground text-xs'>{label}</div>
@@ -177,7 +177,7 @@ export default function RecordPage() {
       {runnerUps.length > 0 && (
         <Card>
           <CardContent className='py-4 text-[15px] tabular-nums'>
-            <b>아깝게 진 판</b> — 최근 {months}개월 동안 <b className='text-amber-600'>{runnerUps.length}번 2등</b>
+            <b>아깝게 진 판</b> — 최근 {months}개월 동안 <b className='text-pushed'>{runnerUps.length}번 2등</b>
             이었고, 낙찰가와의 차이 중앙값은 <b>{ruMed?.toFixed(3)}</b>이었습니다.
             {ruMed != null && ruMed <= 0.05 && ' 종이 한 장 차이입니다.'}
           </CardContent>
@@ -271,7 +271,7 @@ export default function RecordPage() {
                         <div className={r.won ? 'font-bold' : ''}>
                           내&nbsp; {r.bidRate?.toFixed(3) ?? '—'}
                           {diff != null && diff !== 0 && (
-                            <span className={diff > 0 ? 'text-amber-600' : 'text-destructive'}> ({diff > 0 ? '+' : ''}{diff})</span>
+                            <span className={diff > 0 ? 'text-pushed' : 'text-destructive'}> ({diff > 0 ? '+' : ''}{diff})</span>
                           )}
                         </div>
                       </TableCell>

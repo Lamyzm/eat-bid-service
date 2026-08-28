@@ -1,7 +1,9 @@
 /** 공고·학교·시장 도메인 계약 (drizzle DDL → 이 zod → web 타입) */
 import { z } from "zod";
+import { CATEGORIES } from "./category.js";
 
-export const Category = z.enum(["축산", "수산", "농산", "공산", "기타"]);
+/** 품목 정의는 category.ts 가 SSOT. 여기서는 그 목록으로 검증만 한다. */
+export const Category = z.enum(CATEGORIES);
 export type Category = z.infer<typeof Category>;
 
 /** 하한율별 낙찰 구간 통계 */
