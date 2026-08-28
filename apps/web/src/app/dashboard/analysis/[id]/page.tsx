@@ -8,7 +8,9 @@ export default async function AnalysisPage({ params, searchParams }: {
   const { id } = await params;
   const sp = await searchParams;
   const API = process.env.API_URL ?? 'http://localhost:8081';
-  const decoded = decodeURIComponent(id);
+  // Next 가 이미 디코드해서 준다. 한 번 더 풀면 학교명에 `%` 가 있을 때 URIError 로
+  // 화면이 죽는다. 형제 라우트 auction/[bidNo] 도 풀지 않는다.
+  const decoded = id;
   const [schoolRes, roundsRes] = await Promise.all([
     fetch(`${API}/api/schools?q=${encodeURIComponent(decoded.split('|')[1] ?? decoded)}&limit=5`, { cache: 'no-store' }),
     fetch(`${API}/api/rounds/school/${encodeURIComponent(decoded)}`, { cache: 'no-store' }),

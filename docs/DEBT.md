@@ -366,7 +366,9 @@ U27/U29(*"표시 캡 300이 총계까지 깎아"*)에서 이미 한 번 터진 �
 
 **(라) §5-2-11 "schema.sql을 drizzle snapshot에서 생성" → 이번 주에서 빼라.**
 
-한 줄짜리 생성이 아니다. 지금 `schema.sql`은 `CREATE TABLE IF NOT EXISTS` + `ALTER ... ADD COLUMN IF NOT EXISTS` **멱등 라이브 마이그레이션**이고(`schema.sql:1-5`가 이걸 명시적 설계로 선언한다), `app.yaml:160`이 매 배포마다 그대로 실행한다. drizzle이 내는 건 `CREATE TABLE`(멱등 아님)과 `__drizzle_migrations` 추적 테이블 기반 마이그레이션이다 — **이 DB에 그 테이블이 없다.**
+한 줄짜리 생성이 아니다. 지금 `schema.sql`은 `CREATE TABLE IF NOT EXISTS` + `ALTER ... ADD COLUMN IF NOT EXISTS` **멱등 라이브 마이그레이션**이고(`schema.sql:1-5`가 이걸 명시적 설계로 선언한다). drizzle이 내는 건 `CREATE TABLE`(멱등 아님)과 `__drizzle_migrations` 추적 테이블 기반 마이그레이션이다 — **이 DB에 그 테이블이 없다.** 그리고 architect가 짚은 비용이 하나 더 있다: **데이터플레인 이미지가 파이썬이라 `drizzle-kit migrate`를 돌릴 노드가 없다.**
+
+> **정정 (architect 지적 수용).** 1차본에서 나는 *"`app.yaml:160`이 매 배포마다 실행한다"*고 썼다. **틀렸다.** `app.yaml:150`은 `kind: Job`(`initial-load`)이고 ArgoCD hook 어노테이션이 없다 — 확인했다. 한 번 생성되고 끝난다. 연기 판정 자체는 유지되지만(위 두 이유), 교체 범위는 내가 쓴 것보다 좁다. **그런데 이 정정이 더 나쁜 걸 연다 — A-6을 보라.**
 
 즉 #11은 "생성 자동화"가 아니라 **살아있는 DB의 마이그레이션 메커니즘 교체**다. 사고 4가 정확히 그 파일에서 났다. 그리고 §5-5가 금지한 *"한 배포에서 스키마와 값 규칙 동시 변경"*의 정신에 걸린다.
 
@@ -487,3 +489,314 @@ A25가 특히 A21의 거울이다. A21은 *"적재가 자기 품질을 숫자로
 - `PDLC_NM` 측정(설계 §5-0b) 전에는 A11·§5-3-17을 인용하지 않는다. 설계 §7-1에 동의.
 - A6(`bids.valid` vs `bid_rate < win_rate`) 정의 선택은 data 좌석 몫. **단 `app.module.ts:531`과 `:443`이 이미 다른 답을 쓰고 있다는 사실은 선택 전에도 고칠 수 있다** — 둘 중 하나로 통일하는 건 정의 선택이 아니라 일관성 복구다.
 - 티켓 ID 네임스페이스 충돌: `D1/D3/D5`(DESIGN 백로그) vs `D6/D8`(data 티켓), `R1~R6`이 QA 결함·인지부하 규칙·위험 세 뜻. 이 문서는 `A/B/C/D`(부채 등급)·`R`(리팩터링)·`X`(동작 변경)를 쓴다 — **네 번째 충돌을 만들었다.** 다음 회전에서 팀이 하나로 정리해야 한다.
+
+---
+
+## 7. 서버 쿼리 — 단축 가능 여부 (의제 3-a)
+
+### 7-0. 먼저, 이 절에서 제일 큰 발견 — **S-1 처방이 적재만 되고 서빙이 안 된다**
+
+로더가 계산해서 DB에 넣어둔 것을 서버가 **한 번도 안 읽는다.** grep 실측:
+
+| 로더 산출물 | 만드는 곳 | 서버 읽기 | 웹 읽기 |
+|---|---|---|---|
+| `schools.by_cat_floor` (품목×하한 2단 통계) | `load_postgres.py:252-260,270` | **0회** | **0회** |
+| `school_roster_cat` (학교×품목 단골) | `load_postgres.py:425-446` | **0회** | **0회** |
+| `schools.cat_counts` (품목별 회차 수) | `load_postgres.py:269` | 2회 — 둘 다 `SchoolsController.list:25`의 **필터 SQL 문자열 안**. 응답에 안 실린다 | **0회** |
+| `schools.rsd` (예정가 출렁임) | `load_postgres.py:228,267` | **0회** | **0회** |
+
+**S-1은 이 팀이 SIM-USERFLOW에서 찾은 최대 결함이다** — *"임호초 '74회' = 공산25+수산25+축산24 … '사실 + n 명시'가 헌법인데 **그 n이 틀린 n**이다."* PLANNING-LOG는 이걸 "data P4 진행 중"으로 달아뒀고 SPEC-BATCH §0는 여기 막혀 있다.
+
+**실제 상태는 "진행 중"이 아니다. 데이터는 이미 DB에 다 있고, API가 안 내보내서 화면이 여전히 틀린 n을 쓴다.**
+- `/api/schools/:id/roster`(`app.module.ts:91-106`)는 여전히 **혼합** `schoolRoster`를 준다. 축산 사장이 수산 조합을 보는 그 화면이다.
+- `OpenController.enrich`(`:149-150`)는 `sc.byFloor`(전 품목 합산)를 쓴다. 바로 옆에 `sc.byCatFloor["축산"]`이 있는데 안 본다.
+
+이건 "쿼리 단축"의 정반대이면서 동시에 최고 사례다 — **런타임에 다시 만드는 게 아니라, 이미 만들어 둔 정답을 두고 틀린 걸 읽는다.** 쿼리 한 줄도 안 늘고 화면이 정확해진다.
+
+### 7-1. 쿼리별 판정표
+
+| 엔드포인트 | 현 복잡도 | 단축 | 분리 대상 |
+|---|---|---|---|
+| `GET /api/open` `:183-192` | **1 + 2N.** `db.select().from(openAuctions)` **WHERE·LIMIT 없음**(`:185`) → JS 필터 → `Promise.all(map(enrich))`. `enrich`(`:143-181`)가 행마다 `schools` 1 + `schoolAuctions` **무한정**(`:152-154`, 그 학교 전 이력) 2쿼리 | **최우선.** ① `region`·`category`를 **SQL WHERE로**(지금 JS 필터, `:187-190`) ② `enrich` 배치화 — `inArray(schools.id, ids)` 1회 + `schoolAuctions` `inArray` 1회로 **1+2N → 3** | `open/` |
+| `GET /api/wins/monthly` `:352-406` | `schoolAuctions` 4컬럼을 **날짜 경계 없이 전량**(`:358-365`) 가져와 `:376-377`에서 JS로 `m < co` 컷 | **`gte(openedAt, co)`를 WHERE에.** `months=12`인데 116,892행을 다 읽는다 | `wins/` |
+| `GET /api/schools/forecast` `:35-75` | 지역 미지정이면 `schoolAuctions` 전량(`:42-46`) → JS 그룹핑 | 최근 N개월 경계를 WHERE에. 중앙값 간격 계산은 SQL로 옮기면 **읽기 어려워진다 — JS 유지 권장** | `schools/` |
+| `GET /api/wins/regions` `:255-268` | 전 `school_auctions` GROUP BY → `:265-267`에서 JS로 정규식+n≥20 필터 | `HAVING count(*)>=20`을 SQL로. 하루 1회 바뀌는 정적 목록 | `wins/` |
+| `GET /api/firms/record` `:523-545` | `firmBids` **전 행**(`:527`)을 끌어와 JS 집계(`:529-535`) | **그리고 이미 SQL 버전이 있다** — `/firms/bids?summary=1`(`:433-462`)이 **같은 집계를 `count(*) filter(...)`로** 한다. **같은 수를 두 방식으로 만드는 중** | `firms/` |
+| `GET /api/firms/timeline` `:548-564` | 전 행 → JS 월별 롤업(`:554-561`) | `group by to_char(opened_at,'YYYY-MM')` | `firms/` |
+| `GET /api/share/:token` `:873-907` | 전 행 스캔 + JS 집계. **공개·무인증** | `record`와 같은 SQL 집계 재사용 | `share/` |
+| `GET /api/wins/recent` `:295-347` | 최대 1000행 + 4쿼리(count·firmBids agg·mine·names) | 배치는 이미 옳다. **인접 `crowd`·`monthly`는 캐시가 있는데 얘만 없다** | `wins/` |
+| `GET /api/firms/ties` `:499-520` | `firm_bids` self-join + 8컬럼 GROUP BY + HAVING | self-join은 정당. 단축 여지 낮음 | `firms/` |
+| `GET /api/rounds/school/:id` `:639-674` | 3쿼리, 전부 `inArray` 배치 | 이미 옳다 | `rounds/` |
+| `GET /api/results` `:205-227` | 2쿼리 배치 | 이미 옳다 | `results/` |
+
+**나머지 배치 경로는 전부 정상이다.** `inArray` + `Map` 조인 패턴이 `:82-86`·`:210-214`·`:313-327`·`:472-479`·`:615-616`·`:645-654`·`:685-686`에서 일관되게 지켜진다. 잘한 것이고, 그래서 `/api/open` 하나만 튄다.
+
+### 7-2. `bids.valid` — 쿼리 문제이자 계약 문제 (architect §0-3 지지)
+
+판정이 서버 안에서만 **5벌**(`:223`·`:443`·`:531`·`:693`·`:896`)이고 그중 `:443`과 `:531`은 **같은 화면 KPI에 다른 기준**을 쓴다(§3). 웹에 3벌이 더 있다 — `analysis-board.tsx:52-57`(`verdictOf`, 유일하게 이름 붙은 것)·`auction-detail.tsx:208`·`today/page.tsx:432`. **총 8곳.** (front 좌석은 2벌로 봤는데 3벌이다.)
+
+원본 `bids.valid`가 답을 갖고 있는데 안 실었다. `firm_bids.valid` 컬럼 하나 추가가 8곳을 없앤다 — 이건 캐시나 인덱스가 아니라 **안 실은 컬럼**이 만든 쿼리 부채다.
+
+### 7-3. LIKE 이스케이프 없음 (mw-auction `escape-like.ts` 대응물 부재)
+
+`app.module.ts:26` `ilike(schools.name, '%'+q+'%')` · `:591` `ilike(firms.name, '%'+t+'%')` · `:591` `ilike(firms.bizNo, bz+'%')`.
+drizzle이 파라미터화하므로 **주입은 아니다.** 다만 사용자가 `%`나 `_`를 치면 LIKE 와일드카드로 동작해 전 행 매치가 된다. 둘 다 LIMIT이 있어(50·20) 폭발은 안 한다. **위험 하 — 그러나 mw-auction이 7줄짜리 `escapeLike`를 "database.md 절대 규칙"으로 두는 이유가 이것이다.**
+
+---
+
+## 8. mw-auction 대조 (의제 4)
+
+### 8-1. 규모부터 — 이걸 빼면 대조가 거짓말이 된다
+
+| | mw-auction | eat-bid | 배수 |
+|---|---|---|---|
+| 서버 소스 | **269 파일 · 27,560줄** | **4 파일 · 1,019줄** (app.module 954 · auth 44 · main 15 · db 6) | 27× |
+| 웹 소스 | 516 파일 · 38,088줄 (평균 74줄/파일) | — | |
+| 테스트 | **205** (서버 107 · 웹 77 · shared 21) | **0** | — |
+| 프로세스 | 2 (ingest/public, `MODE` 스위치) | 1 (`replicas: 1`) | |
+| 도메인 | 실시간 경매 · 고write · WebSocket | **하루 1회 배치 · 읽기 전용** | |
+
+**mw-auction 분리의 정당성은 절반이 규모, 절반이 도메인이다.** 우리는 둘 다 다르다. 그래서 "따르는가"의 답은 항목마다 갈린다.
+
+### 8-2. 파일 크기 — mw-auction **자기 기준**으로 재면 우리는 10곳에서 위반한다
+
+mw의 `.claude/rules/file-size.md`: *"≤100 이상적 / 100~200 허용 / **200+ 분리**"*. 분할 트리거 표: *"컨트롤러 라우트 8+ → 모듈 분리 / 서비스 메서드 6+ → 역할별 분리"*. 동기까지 적혀 있다 — *"duck-power 교훈: 300줄+ 파일 87개 → 리팩터링 2주. 구조를 먼저 잡으면 300줄이 될 일이 없다."*
+
+| 우리 파일 | 줄 | 책임 수 | mw 기준 |
+|---|---|---|---|
+| `analysis-board.tsx` | **993** | 렌즈 7 + 차트 + 예보 + 판정 + 저장 + 프리페치 | 위반 (mw 최대 손수 컴포넌트 **337**) |
+| `app.module.ts` | **954** | 컨트롤러 12 · 라우트 ~45 · SQL · HMAC · 인증 위임 | 위반 (mw 최대 비테스트 서버 파일 **552**, 최대 컨트롤러 **225**) |
+| `today/page.tsx` | **551** | 히어로 + 카드 + 컴팩트행 + 예보 + 결과 + 배지 | 위반 |
+| `load_postgres.py` | **490** | 분류기 + 7테이블 적재 + 집계 | 위반 |
+| `auction-detail.tsx` | **403** | 탭 3 + 계산기 + 리허설 + 차트 | 위반 |
+| `record` 314 · `delivery` 314 · `schools` 234 · `wins` 233 · `firms` 204 | | | 위반 |
+
+mw의 **자기 트리거 규칙으로도** `app.module.ts`는 갈린다(라우트 8+ 컨트롤러가 12개). 이건 "프레임워크가 그러니까"가 아니라 **우리가 참고 리포로 지정한 코드베이스의 명시적 수치 기준**이다.
+
+### 8-3. 항목별 — 따르는가 / 우리에게 맞는가
+
+| mw-auction 방식 | 우리 | 따를까 | 근거 |
+|---|---|---|---|
+| **파일 200줄 상한 + 훅 경고** | 10곳 위반 | **부분 채택** — 상한을 규칙으로 걸지 말고, 위 10개 중 **`app.module.ts`와 `analysis-board.tsx`만** 손댄다 | §3: 우리 중복은 *같은 파일 안*에서 났다. 크기가 원인이 아니다 |
+| **Controller→Service→Repository (Symbol+interface)** | Controller만 | **안 한다. 3층도 2층도 아니다** | Symbol+인터페이스의 값어치는 **교체와 목(mock)**이다. DB 하나·읽기 전용·테스트 0이고, §10이 권하는 테스트도 **순수 함수**지 리포지토리가 아니다. DI 심볼 13개를 도입해 얻는 게 없다 |
+| **컨트롤러를 도메인 모듈로 분리** | 1파일 12컨트롤러 | **파일만 나눈다** — `open`·`wins`·`firms`·`schools`·`rounds`·`me`·`share`·`events` 8파일. **서비스 클래스는 안 만든다** | 파일 분리는 병합 충돌·탐색만 좋아진다. 사고는 중복이 냈고 그건 **순수 함수 3개**로 닫힌다 |
+| **SQL은 리포지토리에** | 컨트롤러 인라인 | SQL을 `domain/queries/`로 빼되 **클래스 없이 함수로** | mw도 `assign/`·워커·스케줄러 3곳에서 이 규칙이 샌다 — 그쪽이 인정한 "도메인 형태의 누수"다 |
+| **`@CachePolicy` + APP_INTERCEPTOR (22정책)** | **캐시 헤더 0개** | **자리만 채택** → §11 | 우리 데이터는 07:00 KST에 하루 한 번 바뀐다. mw보다 **더** 캐시하기 좋은 모양이다 |
+| **`global-exception.filter` 1개** | 없음 | **채택** | mw 주석: *"에러 응답이 endpoint마다 다르면 프론트가 고통받음."* 우리는 지금 `{ok:false}`·`null`·throw가 섞여 있고 **인증 실패가 200이다**(A-3) |
+| **`{data}` 응답 봉투** | 없음 | **안 한다** | 40+ fetch 지점을 한 번에 깬다. mw는 웹 테스트 77개가 잡아주고 우리는 **0개**다 |
+| **`escape-like.ts` (7줄)** | 없음 | 자리만 | §7-3. 위험 낮음 |
+| **`ROUTES` + `makeRoute` + zod + spec** | **없음** | **채택 — mw보다 우리에게 더 필요하다** → §12 | 우리 경로 파라미터가 `"김해시\|임호초등학교"`다 |
+| **`ssot-check.sh` + `rules.mjs` 강제** | pre-push `bun run build` 하나 | 축소 채택 | architect §1-5가 같은 결론. 검사는 4개로(§4-1-나) |
+| **CDN 설정을 리포에 커밋** (`infra/cloudflare/*.json`) | **리포에 CF 흔적 0** | 자리만 | §11 |
+| `singleflight` · `withDeadlockRetry` · `timeout.interceptor` | 없음 | **전부 안 한다** | 사용자 1명 · 쓰기 없음 · 크론 `concurrencyPolicy: Forbid`. mw는 고정 풀에 버스트 write가 있어 필요한 4중 방어다. **우리에겐 해결할 문제가 없다** |
+| WS 게이트웨이 2개 · `cursor-queue` · 브로틀리 스냅샷 · 파티션 크론 · 초 단위 크론 분산 | 없음 | **안 한다** | 전부 실시간 경매 도메인 산물. mw 자신도 그렇게 분류한다 |
+| Redis (ephemeral 전용, R11로 강제) | 없음 | **도입 금지** | 하루 1회 갱신에 Redis는 **"어제 값이 보인다"는 새 사고 유형**만 산다 |
+| **주석이 사건과 이유를 담는다 (R6)** | **이미 잘한다** | 유지 | `app.module.ts:176-180`·`:230-235`·`:368-372`, `category.ts:7-10`, `app.yaml:160-161,199-200`. 이 습관은 mw와 동급이다 |
+
+### 8-4. mw-auction 방식 중 **우리에게 안 맞는 것** (명시 요구분)
+
+1. **응답 봉투 `{data}`** — 안전망 없이 도입하면 전 화면이 조용히 빈다. 가장 위험한 모방.
+2. **리포지토리 Symbol + 인터페이스 13벌** — 순수 간접층. 컨트롤러 12개에 인터페이스를 붙이면 954줄이 **2,000줄로 늘어난다.**
+3. **`MODULE_MAP.md`** — mw 스스로 *"이 파일은 stale하다"*고 인정한다(prisma로 문서화·실제는 Drizzle, `live/`로 문서화·실제는 `market/`, 25개 중 6개만 커버). **문서로 지도를 만드는 방식은 그쪽에서도 실패했다.** 우리 `docs/`는 이미 14개다.
+4. **`vitest` 3개 설정 + 도커 e2e 스택** — §10에서 spec 3개만 권한다. 러너는 **`bun test`(의존성 0)**로 충분하다. pre-push가 이미 bun을 돌린다.
+5. **Prometheus·Grafana·Sentry·Telegram 알림 체인** — 관측 대상이 사용자 1명이다.
+
+---
+
+## 9. NestJS `common/` 계층 판정 (의제 3-b)
+
+우리 `apps/server/src`에는 이 계층이 **통째로 없다.** `main.ts` 15줄이 `setGlobalPrefix('api')` + `ZodValidationPipe` + `enableCors()`만 한다. 전부 도입은 답이 아니므로 갈랐다.
+
+| mw 장치 | 줄 | 우리에게 | 근거 |
+|---|---|---|---|
+| **`global-exception.filter`** | 67 | **지금 한다** | 우리 에러 응답이 **세 가지**다: `{ok:false,error}`(`:794`·`:808`·`:830`·`:862`·`:877`) · `null`(`:197`) · 미처리 throw. 그리고 A-3의 핵심 — **인증 실패가 HTTP 200**이다. 필터 하나가 `{error,code,message,status}` 한 형태로 모으면 그때 비로소 `res.ok` 검사가 의미를 갖는다 |
+| **`cache-policy` + `cache-header.interceptor`** | 45+35 | **자리만** | §11 |
+| `ValidationPipe` | — | **이미 있다** | 전역 `ZodValidationPipe`. 다만 쓰는 곳이 `SchoolsQuery`·`OpenQuery` **둘뿐**이고 나머지는 핸들러 안에서 `safeParse`를 손으로 한다(`:795`·`:807`·`:821`·`:856`·`:915`) |
+| `logger.module` + `logger-redact` | 88+15 | 자리만 — **단 §9-1을 먼저 읽어라** | |
+| `internal-auth.guard` / `ingest-token.guard` | 45 / 32 | **안 한다** | 인증 경로가 better-auth 하나다. 가드로 뺄 중복이 없다 |
+| `response-wrapper.interceptor` | 25 | **안 한다** | §8-4-1 |
+| `timeout.interceptor` | 29 | **안 한다** | 고정 풀 압박이 없다. 행 쿼리 하나가 그 탭만 멈춘다 |
+| `safe-cron.decorator` | 58 | **안 한다** | 우리 크론은 앱 밖 k8s CronJob이고 `concurrencyPolicy: Forbid`가 재진입을 이미 막는다 |
+| `singleflight` · `with-deadlock-retry` · `db-error` | 41·30·21 | **안 한다** | 해결할 문제가 없다 |
+| `ws-exception.filter` · listeners 3종 | | **안 한다** | WS 없음 · 알림 없음 |
+| `unwrap-or-404` | 22 | **지금은 안 한다** | `Result` 반환 규약이 있어야 값어치가 생긴다. 서비스 계층을 안 만들기로 했으므로 딸려오지 않는다 |
+
+### 9-1. `logger-redact`보다 먼저 — **사업자번호가 URL에 있다**
+
+mw는 `mask-seller`와 `logger-redact`(7필드)를 둔다. 우리는 로거 설정이 아예 없어 **Nest 기본 로거**가 돈다. 그런데 우리 문제는 로그 설정이 아니라 **위치**다:
+
+```
+GET /api/firms/record?bizNos=1234567890,0987654321
+GET /api/firms/bids?bizNos=...&limit=2000
+GET /api/firms/ties?bizNos=...          GET /api/firms/timeline?bizNos=...
+GET /api/firms/badges?bizNos=...&schools=...
+GET /api/schools/:id/my-bids?bizNos=...
+GET /api/results?bidNos=...&bizNos=...
+```
+호출 지점 실측 10곳(`record:49,53,56` · `wins:39` · `delivery:55` · `my:25` · `firms:51,52` · `auction-detail:80` · `analysis-board:348`).
+
+**사업자번호가 쿼리스트링에 있으면 액세스 로그·CF 로그·브라우저 히스토리·Referer 헤더에 전부 남는다.** redaction으로 못 막는다 — 헤더나 바디로 옮겨야 막힌다. 리팩터링이 아니라 **동작 변경**이라 §13 X14로 분리했다.
+
+지금 노출 규모는 작다(사용자 1명, 자기 번호). 다만 **공유 성적표(`/api/share`)로 남에게 링크를 보내는 기능이 이미 있고** G2에 카톡 발송이 잡혀 있다. 사용자가 늘기 전에 정하는 게 싸다.
+
+---
+
+## 10. 테스트 — 무엇에만 붙이면 사고를 막나 (의제 7)
+
+현재 `.spec.ts`/`.test.ts` **0개**. mw는 205개다. **205개를 제안하지 않는다.**
+
+기준을 하나만 쓴다: **"이 테스트가 있었으면 우리가 실제로 겪은 사고를 막았는가."**
+
+| 사고 | 막았을까 | 대상 | 규모 |
+|---|---|---|---|
+| **1. 품목 첫 매치 · 200건 도둑질** | **그렇다** — `classify()`(`load_postgres.py:94-102`)는 인자만 받는 순수 함수다. `축수산물→[축산,수산]`, `MAIN_ITEMS` 우선, `농공산품→[농산,공산]`, 그리고 **키워드를 늘려도 다른 품목을 안 훔친다**를 고정하면 그 사고가 커밋 전에 죽는다. 팀이 이미 시뮬레이션으로 잡았다 — **그 시뮬레이션을 파일로 남기는 것이 곧 이 테스트다** | `test_classify.py` | ~40줄 · pytest |
+| **3. 두 화면이 다른 말** | **단 R8 이후에만** — 지금은 붙일 함수가 없다. `verdict()` 추출 후 8곳이 그걸 부르면, 경계값(`bidRate == winRate`, `effFloor` 유무, `maxInvalid` 폴백)을 고정하는 spec이 회귀를 막는다 | `verdict.spec.ts` | ~30줄 |
+| **5. 저장 손실 (46%)** | **부분** — `groupMarks()`(`app.module.ts:746-758`)와 `putMarks`의 rates↔rate 분기(`:829-837`)가 손실이 살던 자리다. 순수 함수라 목이 필요 없다 | `marks.spec.ts` | ~30줄 |
+| **4. DB 전량 삭제** | **테스트가 아니다** — mw도 마이그레이션 spec을 안 쓰고 `check-migration-safety.ts` 스크립트로 막는다. 우리 대응물: **`schema.sql`에 `DROP`/`TRUNCATE`가 나타나면 실패하는 grep 스크립트** | `check-schema-safety.sh` | ~15줄 |
+| **6. 회차당 값 1개** | 아니다. 스키마 설계 결함 | — | — |
+| **2. 지역 코드 미추출** | 아니다. 원본을 안 본 문제 — `FIELD-LEDGER`(설계 §5-3-13)가 잡는다 | — | — |
+| **7. 스타터 잔재** | 아니다 | — | — |
+
+**결론: spec 3개 + 스크립트 1개, 합계 ~115줄.** 러너는 **`bun test`** — 의존성 0이고 pre-push가 이미 bun을 돈다(파이썬 쪽만 pytest).
+
+**계약 스냅샷은 권하지 않는다.** 팀 지시에 후보로 올라와 있었지만: mw조차 생성 계약(`api-types.generated.ts` 744줄)이 **죽어 있고**(import 0회) 손으로 쓴 zod를 런타임 검증한다. 그런데 architect §1-3이 런타임 zod를 **기각**했다(630만 행 위 비용). 둘 다 안 하면 남는 건 **tsc**이고, R10(shared zod를 현실에 맞춤) + 컨트롤러 반환 타입 명시가 그 역할을 이미 한다. **스냅샷 테스트는 우리에게 틀린 도구다.**
+
+**mw의 `unwrap-or-404.spec.ts`(17줄) 패턴은 맞다.** 소스 22줄에 테스트 17줄, 목 없음, 콜로케이트, 한국어 문장 테스트명. 위 3개를 정확히 그 모양으로 쓰면 된다. 따라선 안 되는 건 그쪽 **서비스 spec**(`chat.service.spec` 525줄, `database.service.spec` 647줄)이다 — 목 리포지토리가 전제고 우리는 그 층을 안 만든다.
+
+---
+
+## 11. 캐싱 · 인프라
+
+### 11-1. 지금 상태 — 캐시 계층이 없는 게 아니라 **틀린 캐시가 있다**
+
+| 층 | 상태 |
+|---|---|
+| CDN (Cloudflare) | **리포에 설정 0.** 그리고 오리진이 `Cache-Control`을 안 보내므로 **CF가 캐시할 근거가 없다** |
+| Ingress | `app.yaml:130-144` — **`annotations:` 블록 자체가 없다.** ingressClass·host·TLS 없음 |
+| Next.js | 제품 서버 컴포넌트 3개 전부 `dynamic='force-dynamic'` + `cache:'no-store'`. `revalidate`·`revalidateTag`·`unstable_cache` **0회**. 게다가 클라 `fetch('/api/…')`는 Ingress `/api` 규칙으로 **Next를 건너뛴다** — Next는 캐시할 기회조차 없다 |
+| 앱 | 인메모리 `Map` **4개**(`:33`·`:271`·`:350`·`:596`), TTL 600초 |
+| react-query | `lib/query-client.ts`가 설정돼 있고 `staleTime: 60s`. **제품 화면 사용 0회** — 스타터 데모만 쓴다 |
+
+**그 4개가 유일한 캐시이고, 그게 틀렸다.**
+데이터는 **07:00 KST에 하루 한 번** 바뀐다(`app.yaml:187` `0 22 * * *` UTC). TTL 600초는 그 리듬과 아무 관계가 없다. 결과가 B-6이다 — **07:00~07:10 사이 `/api/schools/forecast`가 어제 예보를 준다.** 이득(1명 사용자의 재계산 절약)은 0에 가깝고, 비용은 **화면이 거짓말하는 창 10분**이다. 헌법이 "사실을 말한다"인데 캐시가 그걸 어긴다.
+
+그리고 `forecastCache`(`:38` 키=sigungu CSV)·`monthlyCache`(`:355` 동일)는 **키가 사용자 입력이라 무한 증가한다**(C-4).
+
+### 11-2. 판정
+
+**지금 할 것**
+
+1. **`/api/open`의 1+2N 제거** (§7-1). 이건 캐시 문제가 아니다. `Promise.all`이 N×2 쿼리를 **동시에** 단일 복제 Postgres(`app.yaml:15-40`, resources 블록 없음)에 던진다. 열린 공고가 늘면 풀이 마르고, 그 실패는 웹의 `.catch(()=>{})`(C-1)를 타고 **"진행 중 공고 없음"**으로 표시된다. 사용자 1명에서도 터지는 경로다.
+2. **인메모리 캐시 4개의 키를 TTL에서 `fetchedAt`으로.** `max(fetched_at)`은 로더가 남기는 유일한 타임스탬프이고(insert가 컬럼을 생략해 `defaultNow()`가 걸린다) 하루 한 번만 전진한다. 코드량은 비슷한데 **무효화가 정확해지고, C-4의 무한 증가가 사라진다**(키가 유계가 된다). B-6도 닫힌다.
+
+**자리만 만들 것**
+
+3. **`@CachePolicy` 데코레이터 + `APP_INTERCEPTOR` 1개** — mw 방식 그대로, 정책은 **3개면 된다**: `DAILY`(하루 1회 갱신 데이터) · `SHORT`(events·me) · `NONE`. 값은 `public, max-age=0, s-maxage=<초>, stale-while-revalidate=<5배>`. mw 주석이 기록한 함정 두 개를 그대로 가져온다 — *"max-age=0 명시 — CF가 max-age 없으면 4시간 기본값을 붙인다"*, *"must-revalidate는 stale-while-revalidate와 충돌"*. **비용 ~60줄. 지금 켜도 CF 룰이 없으면 CDN엔 안 먹지만 브라우저 왕복은 줄고, 나중에 CF 룰 하나로 켜진다.**
+   에러 분기(`4xx/5xx → no-store`)를 같이 넣어라. **CDN이 404를 오래 잡고 있으면 오리진을 고쳐도 계속 404를 준다.**
+4. **`fetchedAt`을 `Last-Modified`로.** 이미 `/api/open`·`/api/open/:bidNo` 응답에 실려 나가는데(`enrich`의 `...r` 스프레드, `:164`) **웹에서 grep 0회**다. 공짜로 있는 검증자다.
+5. **CF 룰을 리포에 커밋** — mw의 `infra/cloudflare/*.json` 방식. 지금 우리 CF 설정은 **대시보드에만 있어 아무도 못 본다.** `/api/*`를 `bypass_by_default`(=오리진 `Cache-Control` 존중)로 두면 3번과 맞물린다.
+
+**안 할 것**
+
+6. **Redis · 머티리얼라이즈드 뷰 · nginx 캐시 어노테이션 · CDN purge 파이프라인.** 사용자 1명에 캐시 계층을 세우는 건 부채다 — 그리고 우리 도메인에서 캐시 무효화 실패는 **화면이 거짓말하는 경로**다. 그 사고를 이미 하나 갖고 있다(B-6). 층을 늘리면 그 종류가 는다.
+7. **react-query 도입.** 데모만 쓰는 의존성이라 R7에서 **지운다.** 화면 간 중복 fetch(`/api/open` 3화면 · `/api/firms/bids` 3화면)는 react-query가 아니라 §7의 쿼리 수정과 3번의 캐시 헤더로 푼다. 브라우저 캐시가 곧 dedupe다.
+
+**한 줄 요약: 우리 문제는 캐시가 없는 게 아니라 `/api/open`이 1+2N이고, 있는 캐시의 무효화 기준이 틀린 것이다. 그 둘을 고치고 CDN은 자리만 만든다.**
+
+---
+
+## 12. 라우트 상수
+
+**사용자 지적이 맞다. 라우트 상수 파일은 없다** — `lib/routes.ts`·`paths.ts` 부재를 확인했다. 그런데 **상수화보다 급한 버그가 두 개 나왔다.**
+
+### 12-1. 실제 버그 2건 — ROUTES를 기다리지 마라
+
+**(가) 인코딩 없는 리다이렉트.** `app/dashboard/schools/[id]/page.tsx:3-5`
+```
+const { id } = await params;            // Next가 이미 디코드 → "김해시|임호초등학교"
+redirect(`/dashboard/analysis/${id}`);  // 재인코딩 없이 경로에 다시 넣는다 → Location에 리터럴 |
+```
+이 경로는 `today/page.tsx:540`과 `wins/page.tsx:192`의 **목적지**다. 두 링크는 `encodeURIComponent`를 제대로 하는데(9곳이 한다) **그 다음 홉이 푼다.**
+
+**(나) 이중 디코드.** `app/dashboard/analysis/[id]/page.tsx:11` — `decodeURIComponent(id)`. Next App Router가 `params`를 이미 디코드하므로 **두 번째 디코드**다. 보통은 무해하지만 **학교명에 `%`가 있으면 `URIError: URI malformed`로 화면이 죽고**, `%xx`처럼 보이는 문자열은 조용히 손상된다. 형제 라우트 `auction/[bidNo]/page.tsx:9`는 디코드를 **안 한다** — 같은 프레임워크 위에서 두 라우트가 다르게 판단했다.
+
+### 12-2. 불일치 지도
+
+| 값 | 인코딩함 | 안 함 |
+|---|---|---|
+| `schoolId` | 9곳 (`today:459,540`·`schools:119,199`·`wins:192`·`auction-detail:223,326,341,371`·`record:208,258`·`delivery:186,270`) | **`schools/[id]/page.tsx:5`** |
+| `bidNo` | 쿼리스트링에선 5곳 | **경로에선 4곳** (`today:266,495`·`analysis-board:575,967`) |
+| `/api/open/:bidNo` 호출 | `analysis-board.tsx:254` 인코딩 | `auction/[bidNo]/page.tsx:13` **raw** |
+| `?sigungu=` 한글 | `wins:53,62` **URLSearchParams** | `today:156`·`schools:63` **생 문자열 결합** |
+| `?bizNos=` | — | **전 지점 raw** (10곳) |
+
+`today/page.tsx:177`은 한 줄 안에서 학교명은 인코딩하고 사업자번호는 안 한다.
+
+### 12-3. `ROUTES` 도입 판정
+
+**채택한다. 그리고 우리가 mw-auction보다 더 필요하다.**
+- 그쪽 경로 파라미터는 `123-item-slug`(zod로 `^\d+` 강제)다. 우리는 **`"김해시|임호초등학교"`** — 파이프와 한글이 든 조립 문자열이다. 인코딩 실수의 확률과 대가가 다르다.
+- **architect가 이 키를 `PURR_CD`로 바꾸는 걸 §5-3-14에서 검토 중이다.** 라우트가 한 파일에 모이면 그 전환이 **한 파일 수정**이 된다. 지금은 25곳이다.
+- mw의 교훈도 있다: `PAGES`가 생긴 이유가 *"nav와 sitemap이 각자 목록을 들고 드리프트해 sitemap에서 `/database/mobs`·`/community`·`/s`가 조용히 빠졌다"*는 회귀다. 우리도 같은 모양이다 — `/dashboard/analysis/[id]`·`/dashboard/auction/[bidNo]`·`/welcome`·`/s/[token]`·`/dashboard/funnel`이 **어느 설정에도 없고** 흩어진 템플릿 리터럴로만 존재한다.
+
+**규모:** `lib/routes.ts` ~60줄 + 호출 지점 25곳 치환(`href` 13 · `router.push` 7 · `redirect` 4 + API 경로). **위험 낮음**(기계적) · **파일 수 많음**(12+). mw처럼 `routes.spec.ts`(~20줄)로 목록을 고정하면 §10의 테스트 예산에도 맞는다.
+
+---
+
+## 13. 리팩터링 주간 실행 목록 (최종 · §5를 대체한다)
+
+정렬 = **위험 × 빈도**. 사용자가 *"이걸 고친 후에 고도화해야 성숙해진다"*고 했으므로 뿌리부터 실었다.
+표기: **규모** = 건드리는 파일 수 · **위험** = 상/중/하.
+
+### 13-A. 지금 한다 — 동작 불변 (리팩터링)
+
+| # | 작업 | 막는 것 | 규모 | 위험 |
+|---|---|---|---|---|
+| **R1** | `app.yaml:117` readiness 프로브를 `/dashboard/today`(또는 web `/healthz` 신설)로 교체 | **A-5 — R6의 전제. 안 하면 청소가 사이트를 내린다** | 1파일 1줄 | 하 |
+| **R8** | `verdict()`·`effFloor()`·`normalizeBizNo()`를 `shared/src/domain/`으로 추출. **컨트롤러 위치 불변** | 판정 **8곳**(서버 5·웹 3) · effFloor 2 · bizNo 파서 4 → §7-2 | 4파일 | 하 |
+| **R12** | **S-1 배선** — `/api/schools/:id/roster`가 `school_roster_cat`을, `enrich`가 `byCatFloor`를 읽게 한다. `catCounts`·`srcMix`를 응답에 싣는다 | **§7-0. 정답이 DB에 있는데 화면이 틀린 n을 쓴다.** SPEC-BATCH가 여기 막혀 있다 | 1파일 | 중(응답 추가) |
+| **R13** | `/api/open` 1+2N → 3쿼리. `region`·`category`를 SQL WHERE로 | §7-1 · §11-2-1. 사용자 1명에서도 터진다 | 1파일 | 중 |
+| **R14** | 인메모리 캐시 4개의 키를 TTL → `fetchedAt` | **B-6(캐시가 어제 값을 준다) + C-4(무한 증가)** 동시 해소 | 1파일 | 하 |
+| **R15** | `/api/wins/monthly`·`/forecast`·`/wins/regions`에 날짜·HAVING 경계를 SQL로 | §7-1. 116,892행 전량 스캔 3곳 | 1파일 | 하 |
+| **R16** | `GlobalExceptionFilter` 1개 + **인증 실패를 401로** | A-3의 절반 · §9 | 2파일 | 중 |
+| **R6** | 죽은 라우트·feature·mock 삭제 (**R1 이후에만**) | D급 전량 · devDep 런타임 의존 | 대량 삭제 | 하(도달 불가 확인됨) |
+| **R7** | 고아 의존성 제거 (react-query·zustand·recharts·dnd-kit·faker 등 20개) | 번들·설치 | 1파일 | 하 |
+| **R4** | 알림센터를 헤더에서 분리(`header.tsx:31`) + `features/notifications` 제거 | **B-1 — 62세 사장 전 화면에 영어 목업** | 2파일 | 하 |
+| **R5** | `layout.tsx:22-49` 메타데이터·OG · `:63` `lang='ko'` · `package.json` author | 스타터 정체성 노출 | 3파일 | 하 |
+| **R3** | `reset-dev.sql:13` `workspace_biz` DROP 제거 **또는** `user-data.ts:1-4` 주석을 사실로 | B-2 규약 거짓 | 1파일 | 하 |
+| **R10** | `SchoolSummary`·`OpenAuction` zod를 현재 테이블에 맞춤 | C-6 · **§5-2-9의 전제** | 2파일 | 하 |
+| **R9** | `analysis-board.tsx` 발주 예보 삭제 → 서버 응답. **R14와 함께** | 사고 3 · 설계 0-1 · B-6 | 1파일 | 중 |
+| **R17** | `app.module.ts` 954줄 → 도메인 8파일. **서비스 클래스·리포지토리 없이 컨트롤러만 이동** | §8-2 mw 자기 기준 위반 · 병합 충돌 | 9파일 | 중 |
+| **R18** | `lib/routes.ts` + `ROUTES` + `routes.spec.ts`. **12-1 버그 2건은 먼저 따로** | §12 · architect의 `PURR_CD` 전환 대비 | 12+파일 | 하 |
+| **R19** | spec 3개 + `check-schema-safety.sh` (`bun test`) | §10. ~115줄 | 4파일 | 하 |
+| **R11** | `ssot-guard.mjs` — **검사 4개만**. `Sourced` 필드명을 `.v`에서 변경 | 설계 §6-2의 조기 죽음 | 2파일 | 하 |
+
+**순서 제약: R1 → R6.** 그 외는 독립. **R8 → R19(verdict spec).** **R10 → (설계 §5-2-9).**
+
+### 13-B. 미룬다
+
+`Sourced<T>` 도입(§5-0 재파싱 뒤 — 안 그러면 화면이 62%를 말한 직후 숫자가 바뀐다) · `vocab/`·코드북(§5-0 측정 미완) · 브랜디드 `SchoolId`(R8·R18 뒤가 훨씬 싸다) · 웹 로컬 타입 23개→shared(**R10이 먼저**) · `data-plane/load_postgres.py` 삭제(배포 이미지 확인 필요) · 화면 중복 제거(R8이 서버에 착지한 뒤) · `@CachePolicy` 인터셉터(자리만 — 9/12 동결 전에 넣되 CF 룰은 관측창 후) · `escapeLike`
+
+### 13-C. 안 한다
+
+`gen:contract`+`_contract.py`(§4-1-가) · NestJS 서비스/리포지토리 3층(§3·§8-3) · `{data}` 응답 봉투(§8-4-1) · `schema.sql`을 drizzle에서 생성(§4-1-라) · 커버리지 **게이트**(§4-4) · `ssot-guard`의 `864e5`·`Math.floor(len/2)` 검사(§4-1-나) · 화면 키(`screen`) 이름 변경(관측창 9/15~9/30 전에 바꾸면 G1 무효) · Redis·머티리얼라이즈드 뷰·nginx 캐시(§11-2-6) · react-query 도입(§11-2-7) · `timeout`/`singleflight`/`deadlock-retry`/`safe-cron`/가드/WS 필터(§9) · `MODULE_MAP.md`(§8-4-3) · 계약 스냅샷 테스트(§10) · 파이프라인 TS 재작성·CI 구축
+
+### 13-D. 동작 변경 — 리팩터링이 아니다. 승인 필요
+
+| # | 제안 | 근거 | 판정 |
+|---|---|---|---|
+| ~~X1~~ | ~~`open_auctions` 삭제 차단~~ | | **닫힘** `6d91978` |
+| ~~X3~~ | ~~CronJob `;`→`&&`~~ | | **닫힘** `6d91978` |
+| **X4** | 인증 실패 **401** + `session.ts:100` `res.ok` 검사 + 실패 고지 | **A-3 — 지금 사장이 친 값이 사라질 수 있다** | **즉시** (R16과 함께) |
+| **X13** | `fetch_open.py` — 수집 건수가 직전 대비 급감하면 **비영 종료**. `:58-59`의 `except: pass`에 카운터 | X1이 잘린 JSON은 막지만 **"짧지만 유효한 JSON"은 통과한다** | 즉시 |
+| **X2** | `fetch_open.py:64` temp+rename (`archive.py:40-43` 패턴) | 원자성. X13과 짝 | 즉시 |
+| **X6** | `session.ts:149`의 `?? '1'` 제거 | C-3 공용 PC 교차 오염 | 즉시 |
+| **X12** | `forecastCache`·`monthlyCache` 상한 | C-4 — **R14가 하면 자동 해소** | R14에 흡수 |
+| **X15** | `schools/[id]/page.tsx:5` 인코딩 · `analysis/[id]/page.tsx:11` 이중 디코드 제거 | **§12-1 실제 버그 2건. 2줄** | 즉시 |
+| **X5** | 마크 저장을 전량 치환 → 단건 PATCH | A-4 두 탭 클로버 | 승인 필요(API 계약) |
+| **X7** | `bizNos`·`regions` 파싱 실패에 마크와 **같은** 정책 | C-2 비대칭 | 승인 필요(UX 추가) |
+| **X8** | `/api/open` 6곳이 `?region=`을 넘기고 `allowedLabel`·`unrestricted`를 읽는다 | B-5 | 승인 필요(**보이는 공고 수가 바뀐다**) · R13과 함께 |
+| **X9** | `firms/bids` limit 통일 + 화면이 캡을 말한다 | B-4 · U27 재발 | 승인 필요 |
+| **X14** | `bizNos`를 쿼리스트링에서 헤더·바디로 | **§9-1 — 사업자번호가 URL·액세스로그·CF로그에 남는다** | 승인 필요. 사용자 늘기 전이 싸다 |
+| **X10** | U38 오염값(`9006`·`8807`) 마이그레이션 | §5-5와 충돌 | **사장 판정** |
+| **X11** | `clean_inst` 괄호 절단을 정상 이름/주소 오염으로 분리 | C-5 — 서로 다른 수요기관이 합쳐진다 | 승인 필요(학교 목록이 바뀐다) |
