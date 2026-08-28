@@ -37,6 +37,14 @@ spec:
               env:
                 - { name: EATBID_HOME, value: /app }
                 - { name: EATBID_DATA_ROOT, value: /lake }
+                # 드리프트·가드 기록을 /lake 로 보낸다. 기본값은 각각
+                # _BASE/data (drift.py:21) 와 상대경로 data/ (internal.py:218) 라
+                # **컨테이너 안 /app/data 에 쓰고 파드가 끝나면 같이 사라진다.**
+                # 그래서 폴링 파드와 daily-refresh 파드는 서로의 기록을 본 적이 없고,
+                # 누적 500건/200건 상한은 매번 0 에서 다시 시작했다.
+                # 기록이 파드보다 오래 살아야 그 뒤(로더 게이트·알림)가 성립한다.
+                - { name: EATBID_DRIFT_LOG, value: /lake/source-drift.json }
+                - { name: EATBID_GUARD_LOG, value: /lake/crawl-guard.json }
                 - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
                 # guard·drift 기록에 어느 실행인지 남긴다
                 - { name: EATBID_STATE_SUFFIX, value: poll }
@@ -73,6 +81,14 @@ spec:
               env:
                 - { name: EATBID_HOME, value: /app }
                 - { name: EATBID_DATA_ROOT, value: /lake }
+                # 드리프트·가드 기록을 /lake 로 보낸다. 기본값은 각각
+                # _BASE/data (drift.py:21) 와 상대경로 data/ (internal.py:218) 라
+                # **컨테이너 안 /app/data 에 쓰고 파드가 끝나면 같이 사라진다.**
+                # 그래서 폴링 파드와 daily-refresh 파드는 서로의 기록을 본 적이 없고,
+                # 누적 500건/200건 상한은 매번 0 에서 다시 시작했다.
+                # 기록이 파드보다 오래 살아야 그 뒤(로더 게이트·알림)가 성립한다.
+                - { name: EATBID_DRIFT_LOG, value: /lake/source-drift.json }
+                - { name: EATBID_GUARD_LOG, value: /lake/crawl-guard.json }
                 - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
                 - { name: EATBID_STATE_SUFFIX, value: poll }
               volumeMounts: [{ name: lake, mountPath: /lake }]
@@ -108,6 +124,14 @@ spec:
               env:
                 - { name: EATBID_HOME, value: /app }
                 - { name: EATBID_DATA_ROOT, value: /lake }
+                # 드리프트·가드 기록을 /lake 로 보낸다. 기본값은 각각
+                # _BASE/data (drift.py:21) 와 상대경로 data/ (internal.py:218) 라
+                # **컨테이너 안 /app/data 에 쓰고 파드가 끝나면 같이 사라진다.**
+                # 그래서 폴링 파드와 daily-refresh 파드는 서로의 기록을 본 적이 없고,
+                # 누적 500건/200건 상한은 매번 0 에서 다시 시작했다.
+                # 기록이 파드보다 오래 살아야 그 뒤(로더 게이트·알림)가 성립한다.
+                - { name: EATBID_DRIFT_LOG, value: /lake/source-drift.json }
+                - { name: EATBID_GUARD_LOG, value: /lake/crawl-guard.json }
                 - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
                 - { name: EATBID_STATE_SUFFIX, value: poll }
               volumeMounts: [{ name: lake, mountPath: /lake }]
