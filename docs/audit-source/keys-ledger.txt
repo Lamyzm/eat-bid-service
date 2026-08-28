@@ -1,0 +1,190 @@
+n=204,830
+
+## 1. 코드 → 이름 / 이름 → 코드 (양방향)
+
+fwd다중 = 이름을 2개 이상 갖는 코드 수 · rev다중 = 코드를 2개 이상 갖는 이름 수
+정규화 = 공백/시·군·구 접미어 제거 후 다시 셈
+
+블록.코드 → 이름                                                    코드수    fwd다중      이름수    rev다중    fwd정규    rev정규
+ds_SelectUnionPurceTgtListR.PURR_CD → ITEM_GB_NM            1,186      867      114       72      867       72
+ds_SelectUnionPurceTgtListR.PURR_CD → PURR_NM               1,186        0    1,152       27        0       27
+ds_SelectUnionPurceTgtListR.RPRS_SCHL_CD → PURR_NM            391      391    1,152       55      391       55
+ds_areaList.CTPV_CD → CTPV_NM                                  18        0       18        0        0        0
+ds_areaList.PDLC_CD → PDLC_NM                                 189       81      284        0       62        0
+ds_areaList.PDLC_CD → SGG_NM                                  189        9      171        7        9        7
+ds_areaList.SGG_CD → PDLC_NM                                   33       19      284        0       19        0
+ds_areaList.SGG_CD → SGG_NM                                    33       15      171        7       15        7
+ds_bidHistory.PURR_CD → BID_NM                              2,562    2,544   12,302        7    2,544        7
+ds_bidList.BID_STT → BID_STT_NM                                 2        0        2        0        0        0
+ds_bidList.BIZ_NO → SHIPPER_NM                              5,947        8    5,176      467        8      467
+ds_bidList.FRST_RGTR_ID → SHIPPER_NM                        6,281        0    5,176      648        0      648
+ds_bidList.QLF_STT → QLF_STT_NM                                 6        0        6        0        0        0
+ds_bidList.SHIPPER_CD → BIZ_NO                              5,976        0    5,947       29        0       29
+ds_bidList.SHIPPER_CD → SHIPPER_NM                          5,976        0    5,176      484        0      484
+ds_compList.BRNO → CNPT_NM                                    556        0      524       29        0       29
+ds_compList.SPLR_CNPT_CD → BRNO                               560        0      556        4        0        4
+ds_compList.SPLR_CNPT_CD → CNPT_NM                            560        0      524       33        0       33
+ds_info.BRNO → PURR_NM                                      7,688        6    7,233      383        6      383
+ds_info.FRST_RGTR_ID → PURR_NM                              7,803        0    7,233      474        0      474
+ds_info.PURR_CD → PURR_NM                                   7,695        0    7,233      383        0      383
+ds_info.PURR_ID → PURR_NM                                   7,695        0    7,233      383        0      383
+ds_info.SIDO_CD → PURR_NM                                      15       15    7,233      371       15      371
+ds_itemList.ETN_BID_LINE_ID → MLFD_CLASS_NM                    16       15    1,116      763       15      763
+ds_itemList.MLFD_CLASS_CD → MLFD_CLASS_NM                      78       65    1,075      266       65      266
+ds_itemList.PURR_CD → PURR_NM                               3,963        0    3,833      121        0      121
+ds_schList.DNTT_CNPT_CD → CNPT_NM                           1,186        0    1,152       27        0       27
+ds_schList.MESG_CLSF_CD → MESG_CLSF_NM                         47       32      276       80       32       80
+ds_schList.RPRS_SCHL_CD → CNPT_NM                             391      391    1,152       55      391       55
+
+### 역방향 충돌 예 (이름 하나에 코드 여럿) — 상위 6쌍
+
+  ds_itemList.MLFD_CLASS_NM → ETN_BID_LINE_ID: 이름 1,116개 중 763개가 코드 2개 이상
+     '(공산)'                                   -> ['1', '2']
+     '(일반)농산물류'                               -> ['1', '2']
+     '-일반농공산'                                 -> ['1', '2', '5']
+     '1.공산품'                                  -> ['1', '2']
+     '1.농산'                                   -> ['1', '2', '3', '4']
+     '1농산물'                                   -> ['1', '2']
+     '1축산'                                    -> ['1', '2', '3', '4', '5', '6']
+     '1축산물'                                   -> ['1', '2', '3', '4']
+
+  ds_bidList.SHIPPER_NM → FRST_RGTR_ID: 이름 5,176개 중 648개가 코드 2개 이상
+     '(유)경인식품유통센터'                            -> ['kifood9', 'kifood92']
+     '(유)그린종합식품'                              -> ['dlalwjd7', 'green87001', 'lmj0606', 'lmj060606', 'rmflswhdgkq']
+     '(유)신영웰빙푸드'                              -> ['dobloq', 'he2546', 'sy8056']
+     '(유)한울푸드 농업회사법인'                         -> ['hwfood3820', 'hwfood38201', 'hwfood38202', 'hwfood38203']
+     '(재)완주공공급식지원센터'                          -> ['dhsrhdmf9', 'kimtaeg']
+     '(주)공주식품'                                -> ['gong9092', 'tkdals721']
+     '(주)그린에프에스'                              -> ['greenfs', 'greenfsss']
+     '(주)금강축산유통'                              -> ['getbetter111', 'kimdh2131', 'kumkang2131']
+
+  ds_bidList.SHIPPER_NM → SHIPPER_CD: 이름 5,176개 중 484개가 코드 2개 이상
+     '(주)대경푸드'                                -> ['172719', '186840']
+     '(주)더푸드'                                 -> ['170989', '173045']
+     '(주)신진푸드 팩토리'                            -> ['210732', '214497']
+     '(주)에스제이씨푸드'                             -> ['195445', '219727']
+     '(주)연희푸드'                                -> ['171884', '196619']
+     '(주)팜스코'                                 -> ['154629', '173113']
+     '가나다푸드'                                  -> ['192358', '213317']
+     '가나유통'                                   -> ['154802', '194304']
+
+  ds_info.PURR_NM → FRST_RGTR_ID: 이름 7,233개 중 474개가 코드 2개 이상
+     '가야중학교'                                  -> ['S100001135', 'gaya3473']
+     '가야초등학교'                                 -> ['C100000991', 'S100002763']
+     '가촌초등학교'                                 -> ['S100003969', 'gachon2020']
+     '감천초등학교'                                 -> ['C100001447', 'S100001381']
+     '강동고등학교'                                 -> ['B100000371', 'D100001667', 'H100000759']
+     '강동중학교'                                  -> ['B100005540', 'D100001687', 'H100000331']
+     '강동초등학교'                                 -> ['C100001645', 'H100000355', 'K100000566']
+     '강북중학교'                                  -> ['B100002263', 'D100001689']
+
+  ds_bidList.SHIPPER_NM → BIZ_NO: 이름 5,176개 중 467개가 코드 2개 이상
+     '(주)대경푸드'                                -> ['1278562142', '4108182611']
+     '(주)더푸드'                                 -> ['1258618424', '3148645026']
+     '(주)팜스코'                                 -> ['1298130202', '4458800481']
+     '가나다푸드'                                  -> ['1149449320', '3581400532']
+     '가나유통'                                   -> ['1241983497', '7179500690']
+     '가람'                                     -> ['3901303064', '4282600606', '5212102010', '6031297248']
+     '가람식품'                                   -> ['2829500568', '5510303485']
+     '가람유통'                                   -> ['1639500928', '5839101856', '6631500746']
+
+  ds_info.PURR_NM → BRNO: 이름 7,233개 중 383개가 코드 2개 이상
+     '가야초등학교'                                 -> ['6058301786', '6088300864']
+     '감천초등학교'                                 -> ['6038300122', '6088304012']
+     '강동고등학교'                                 -> ['2128200502', '3998300048', '5028304941']
+     '강동중학교'                                  -> ['2128302017', '5028304960', '6208300243']
+     '강동초등학교'                                 -> ['2268300788', '6188300783', '6208300525']
+     '강북중학교'                                  -> ['2108301161', '5048303730']
+     '개운중학교'                                  -> ['2098302063', '6218202586']
+     '경서중학교'                                  -> ['1098304494', '5148301272']
+
+
+## 2. 이름 필드는 어떤 코드로 결정되는가 (ds_info 내부 탐색)
+
+완전결정 = 그 코드가 이름을 유일하게 정한다(fwd 다중 0). 코드가 이름보다 잘거나 같아야 한다.
+
+### BID_TYPE_NM
+   완전결정  BID_TYPE_CD                코드   2종 → 이름   2종
+
+### CHG_TP_NM
+   완전결정  PBANC_CHG_GB_CD            코드   3종 → 이름   3종
+
+### CNTRCT_FORM_NM
+   완전결정  CNTRCT_FORM                코드   3종 → 이름   3종
+
+### CNTRCT_LAW_NM
+   완전결정  CTRT_LAW_CD                코드   4종 → 이름   4종
+
+### ELCTRN_BID_STT_NM
+   완전결정  BID_OPEN_ABLE              코드   1종 → 이름   1종
+   완전결정  ELCTRN_BID_STAT_CD         코드   1종 → 이름   1종
+   완전결정  BID_TYPE_CD                코드   2종 → 이름   1종
+   완전결정  MN_TRMT_LMT_YN             코드   2종 → 이름   1종
+   완전결정  PLNPRC_TYPE_CD             코드   2종 → 이름   1종
+   완전결정  QLFC_LMT_ITM_CD            코드   2종 → 이름   1종
+
+### LIMIT_CONDITION_NM
+   완전결정  LMT_CNDTN_CD               코드   3종 → 이름   3종
+
+### PLNPRCE_TYPE_NM
+   완전결정  PLNPRC_TYPE_CD             코드   2종 → 이름   2종
+
+### QLFC_LMT_ITM_CD_NM
+   완전결정  QLFC_LMT_ITM_CD            코드   2종 → 이름   2종
+
+### SGNS_BID_PRCS_MTHD_CD_NM
+   완전결정  SGNS_BID_PRCS_MTHD_CD      코드   2종 → 이름   2종
+
+### SUCBD_DECISION_MTHD_NM
+   완전결정 코드 없음 (가장 가까운 것: BID_OPEN_ABLE — 코드 1종 중 1종이 다중)
+
+### TP_NM
+   완전결정  CERT_KND_CD                코드   7종 → 이름   1종
+
+
+## 3. 식별자가 공고 하나를 넘어 공유되는가
+
+블록.필드                                               고유값       등장파일       중복값     최대  예
+ds_SelectUnionPurceTgtListR.S_CNSLT_NO           13,974     13,976         2      2  [('2025Q100001443220004', 2), ('2025Q100001432220006', 2)]
+ds_SelectUnionPurceTgtListR.UNION_PURC_ID        22,836     22,838         2      2  [('1115455', 2), ('1115517', 2)]
+ds_info.ATCHFL_ID                               204,778    204,779         1      2  [('2100014469188', 2)]
+ds_info.CPRTN_PRCHS_GRP_NO                          393      7,910       379    144  [('5154', 144), ('301', 131)]
+ds_info.CTDU_SN                                 204,830    204,830         0      1  []
+ds_info.CTRT_INFMTN_NTDU_NO                           1     69,765         1 69,765  [('0', 69765)]
+ds_info.ELCTRN_BID_ID                           204,830    204,830         0      1  []
+ds_info.ELCTRN_BID_NO                           204,830    204,830         0      1  []
+ds_info.INSRNC_SCRTS_NO                          69,379     69,379         0      1  []
+ds_info.ORDR_ID                                 204,830    204,830         0      1  []
+ds_info.RFRNC_NO                                 62,941     73,544     4,182     50  [('부산해사고', 50), ('6098300213', 47)]
+ds_info.SPRVSN_CPRTN_PRCHS_ID                     7,909      7,910         1      2  [('1115517', 2)]
+ds_info.UP_ELCTRN_BID_ID                          6,164      6,164         0      1  []
+ds_itemList.CNSLT_NO                            117,116    117,145        29      2  [('2026B100000649220127', 2), ('2025B100000649220093', 2)]
+ds_itemList.ETN_BID_LINE_ID                          16    117,145        15 68,021  [('1', 68021), ('2', 28683)]
+ds_itemList.MESG_SN                             117,116    117,145        29      2  [('10729865', 2), ('10392651', 2)]
+ds_schList.ATCHFL_ID                             13,878     13,880         2      2  [('2100014468947', 2), ('2100014465674', 2)]
+ds_schList.BID_ATCHFL_ID                          7,858      7,859         1      2  [('2100014469188', 2)]
+ds_schList.COSL_NO                               13,974     13,976         2      2  [('2025Q100001443220004', 2), ('2025Q100001432220006', 2)]
+ds_schList.CPRTN_PRCHS_ID                        22,836     22,838         2      2  [('1115455', 2), ('1115517', 2)]
+ds_schList.CPRTN_PRCHS_NO                        22,836     22,838         2      2  [('P241021-1109346', 2), ('P241021-1109408', 2)]
+ds_schList.MESG_SN                               13,974     13,976         2      2  [('10345403', 2), ('10346097', 2)]
+
+## 4. 블록 간 대조 · 불변식
+
+   ELCTRN_BID_NO 접미어=0                                  198,666
+   ELCTRN_BID_NO 접미어=1                                  5,387
+   ELCTRN_BID_NO 접미어=2                                  633
+   ELCTRN_BID_NO 접미어=3                                  96
+   ELCTRN_BID_NO 접미어=4                                  33
+   ELCTRN_BID_NO 접미어=5                                  10
+   ELCTRN_BID_NO 접미어=6                                  3
+   ELCTRN_BID_NO 접미어=7                                  1
+   ELCTRN_BID_NO 접미어=9                                  1
+   MAIN_ITEMS==MAIN_ITEM_NM                             100,393
+   MAIN_ITEMS≈MAIN_ITEM_NM(공백만 다름)                      29,374
+   ORDR_ID!=ELCTRN_BID_ID                               204,830
+   bidList: EFT_ALL_AMT!=BID_CALC_AMT                   151,500
+   bidList: EFT_ALL_AMT==BID_CALC_AMT                   53,330
+   bidList: SHIPPER_BRNO==BIZ_NO                        204,830
+   itemList.PURR_CD==info.PURR_CD                       117,145
+   schList==unionList(코드·이름)                            7,910
+   union.PURR_CD 에 info.PURR_CD 포함                      7,910
