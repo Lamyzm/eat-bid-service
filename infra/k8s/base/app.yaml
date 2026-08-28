@@ -220,7 +220,18 @@ metadata:
   namespace: eatbid
 spec:
   schedule: "0 22 * * *"   # UTC 22:00 = KST 07:00
+  # Forbid 는 맞다. Allow 면 로더 둘이 동시에 firm_bids(790만 행)를 지워 락이 엉키고,
+  # Replace 면 느린 날 영원히 못 끝낸다. 문제는 정책이 아니라 데드라인이 없던 것이었다 —
+  # 주기가 24시간인데 상한이 없으면 매달린 Job 이 다음 회차를 조용히 스킵시킨다.
+  # 데드라인을 주기보다 훨씬 짧게 두면 스킵 조건 자체가 사라진다.
+  # 3시간 = 현실 추정 15분의 12배 여유이자 주기의 1/8. 넘으면 지연이 아니라 매달린 것이다.
+  # 로더는 commit 이 한 곳뿐이라 킬되면 전량 롤백되고 어제 데이터가 남는다.
   concurrencyPolicy: Forbid
+  activeDeadlineSeconds: 10800
+  # 실패 흔적이 1개만 남아 다음 실패에 덮이고 있었다.
+  failedJobsHistoryLimit: 5
+  # 미설정이면 스케줄 100회를 놓쳤을 때 CronJob 이 스케줄링을 아예 멈춘다.
+  startingDeadlineSeconds: 3600
   jobTemplate:
     spec:
       template:
