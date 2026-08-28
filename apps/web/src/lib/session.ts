@@ -22,12 +22,15 @@ const K = {
   marks: 'eatbid.marks',
   merged: 'eatbid.mergedFor',
   marksBackup: 'eatbid.marks.unreadable',
+  pendingSync: 'eatbid.pendingSync',
 } as const;
 
 type State = {
   ready: boolean;
   /** 이전 저장분을 읽지 못했다 (사본은 MARKS_BACKUP_KEY 에 보존) */
   marksUnreadable: boolean;
+  /** 서버 동기화 실패 — 로컬에는 저장돼 있다. unauthorized 면 재로그인이 필요하다 */
+  syncError: { unauthorized: boolean } | null;
   guest: boolean;
   user: Me['user'];
   googleEnabled: boolean;
@@ -39,7 +42,7 @@ type State = {
 };
 
 let state: State = {
-  ready: false, marksUnreadable: false, guest: true, user: null, googleEnabled: false,
+  ready: false, marksUnreadable: false, syncError: null, guest: true, user: null, googleEnabled: false,
   bizNos: [], bizNames: {}, regions: [], marks: {},
 };
 const listeners = new Set<() => void>();
@@ -94,14 +97,52 @@ function writeLocal(patch: Partial<Pick<State, 'bizNos' | 'regions' | 'marks'>>)
 const api = (path: string, init?: RequestInit) =>
   fetch(path, { credentials: 'include', ...init });
 
-async function put(path: string, body: unknown) {
-  if (state.guest) return;
+/**
+ * 서버 저장 — 실패를 삼키지 않는다.
+ * 로컬 저장은 이미 끝난 상태라 값은 남아 있다. 실패 사실만 정확히 알린다.
+ */
+async function put(path: string, body: unknown): Promise<boolean> {
+  if (state.guest) return true;
   try {
-    await api(path, {
+    const res = await api(path, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-  } catch {}
+    // 서버는 실패도 200 으로 주는 경로가 있다 — 본문의 ok 까지 본다
+    let ok = res.ok;
+    if (ok) {
+      try { ok = (await res.clone().json())?.ok !== false; } catch {}
+    }
+    if (!ok) {
+      markSyncFailed(res.status === 401);
+      return false;
+    }
+    clearSyncFailed();
+    return true;
+  } catch {
+    markSyncFailed(false); // 네트워크 단절 등
+    return false;
+  }
+}
+
+function markSyncFailed(unauthorized: boolean) {
+  try { localStorage.setItem(K.pendingSync, '1'); } catch {}
+  setState({ syncError: { unauthorized } });
+}
+function clearSyncFailed() {
+  try { localStorage.removeItem(K.pendingSync); } catch {}
+  if (state.syncError) setState({ syncError: null });
+}
+
+/** 못 올린 값이 남아 있으면 다시 올린다 (재로그인·재접속 후 자동 복구) */
+export async function retrySync(): Promise<boolean> {
+  if (state.guest) return false;
+  const results = await Promise.all([
+    put('/api/me/biz', { bizNos: state.bizNos }),
+    put('/api/me/regions', { regions: state.regions }),
+    put('/api/me/marks', { marks: state.marks }),
+  ]);
+  return results.every(Boolean);
 }
 
 let booted = false;
@@ -145,13 +186,17 @@ export async function boot() {
   });
   writeLocal({ bizNos: mergedBiz, regions: mergedRegions, marks: mergedMarks }); // 로컬은 캐시로 유지
   loadBizNames(mergedBiz);
-  if (needMerge) {
+  let pending = false;
+  try { pending = localStorage.getItem(K.pendingSync) === '1'; } catch {}
+  if (needMerge || pending) {
+    // 병합분이거나, 지난번에 못 올린 값이 남아 있으면 다시 올린다
     try { localStorage.setItem(K.merged, me.user?.id ?? '1'); } catch {}
-    await Promise.all([
+    const results = await Promise.all([
       put('/api/me/biz', { bizNos: mergedBiz }),
       put('/api/me/regions', { regions: mergedRegions }),
       put('/api/me/marks', { marks: mergedMarks }),
     ]);
+    if (results.every(Boolean)) clearSyncFailed();
   }
 }
 
@@ -200,7 +245,7 @@ export function clearLocalData() {
 function subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; }
 function getSnapshot() { return state; }
 const serverSnapshot: State = {
-  ready: false, marksUnreadable: false, guest: true, user: null, googleEnabled: false,
+  ready: false, marksUnreadable: false, syncError: null, guest: true, user: null, googleEnabled: false,
   bizNos: [], bizNames: {}, regions: [], marks: {},
 };
 function getServerSnapshot() { return serverSnapshot; }

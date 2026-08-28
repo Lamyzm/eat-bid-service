@@ -20,32 +20,21 @@ export const metadata: Metadata = {
     ? { metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL) }
     : {}),
   title: {
-    default: 'Shadcn Dashboard - Next.js Admin Dashboard Template',
-    template: '%s | Shadcn Dashboard'
+    default: 'eatbid — 학교급식 입찰 기록',
+    template: '%s | eatbid'
   },
-  description:
-    'Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.',
+  description: '학교급식 공고와 개찰 결과를 정리해 보여줍니다. 낙찰을 예측하지 않습니다.',
   openGraph: {
-    title: 'Shadcn Dashboard - Next.js Admin Dashboard Template',
-    description:
-      'Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.',
-    siteName: 'Shadcn Dashboard',
-    type: 'website',
-    images: [
-      {
-        url: '/shadcn-dashboard.png',
-        width: 3200,
-        height: 1600,
-        alt: 'Shadcn Dashboard overview page'
-      }
-    ]
+    title: 'eatbid — 학교급식 입찰 기록',
+    description: '학교급식 공고와 개찰 결과를 정리해 보여줍니다. 낙찰을 예측하지 않습니다.',
+    siteName: 'eatbid',
+    locale: 'ko_KR',
+    type: 'website'
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'Shadcn Dashboard - Next.js Admin Dashboard Template',
-    description:
-      'Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.',
-    images: ['/shadcn-dashboard.png']
+    card: 'summary',
+    title: 'eatbid — 학교급식 입찰 기록',
+    description: '학교급식 공고와 개찰 결과를 정리해 보여줍니다. 낙찰을 예측하지 않습니다.'
   }
 };
 
@@ -60,7 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const themeToApply = isValidTheme ? activeThemeValue! : DEFAULT_THEME;
 
   return (
-    <html lang='en' suppressHydrationWarning data-theme={themeToApply}>
+    <html lang='ko' suppressHydrationWarning data-theme={themeToApply}>
       <head>
         <script
           dangerouslySetInnerHTML={{

@@ -5,7 +5,7 @@ import { eq, ilike, and, desc, inArray, sql, gte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { createHmac, timingSafeEqual } from "crypto";
 import {
-  SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster, events,
+  SchoolsQuery, OpenQuery, schools, schoolAuctions, openAuctions, marketRegions, firmBids, firms, schoolRoster, schoolRosterCat, events,
   userBiz, userRegion, userMark,
 } from "@eatbid/shared";
 import { db } from "./db";
@@ -87,22 +87,43 @@ class SchoolsController {
     return rows.map(r => ({ ...r, winnerName: r.winnerBizNo ? (nm.get(r.winnerBizNo) ?? null) : null }));
   }
 
-  /** 단골 참여 업체 — 사실 전부. 해석 라벨 없음 */
+  /**
+   * 단골 참여 업체 — 사실 전부. 해석 라벨 없음.
+   * category 를 주면 그 품목만(school_roster_cat), 없으면 전 품목 혼합(school_roster).
+   * 축산 사장에게 수산 조합이 보이던 문제(S-1)는 품목을 줘야 닫힌다.
+   * basis 로 지금 무슨 분모를 보고 있는지 화면이 말할 수 있게 한다.
+   */
   @Get(":id/roster")
-  async roster(@Param("id") id: string) {
-    const rows = await db.select().from(schoolRoster)
-      .where(eq(schoolRoster.schoolId, id))
-      .orderBy(desc(schoolRoster.partN)).limit(30);
-    // 사실 문장 재료: 이 학교 연속 낙찰 최대 횟수
-    const aucs = await db.select({ w: schoolAuctions.winnerBizNo })
-      .from(schoolAuctions).where(eq(schoolAuctions.schoolId, id))
+  async roster(@Param("id") id: string, @Query("category") category?: string) {
+    const cat = (category ?? "").trim();
+    const rows = cat
+      ? await db.select().from(schoolRosterCat)
+          .where(and(eq(schoolRosterCat.schoolId, id), eq(schoolRosterCat.category, cat)))
+          .orderBy(desc(schoolRosterCat.partN)).limit(30)
+      : await db.select().from(schoolRoster)
+          .where(eq(schoolRoster.schoolId, id))
+          .orderBy(desc(schoolRoster.partN)).limit(30);
+    // 사실 문장 재료: 이 학교 연속 낙찰 최대 횟수. 품목을 주면 그 품목 회차만 본다.
+    const aucs = await db.select({
+      w: schoolAuctions.winnerBizNo,
+      categories: schoolAuctions.categories,
+      category: schoolAuctions.category,
+    }).from(schoolAuctions).where(eq(schoolAuctions.schoolId, id))
       .orderBy(schoolAuctions.openedAt);
+    const scoped = cat
+      ? aucs.filter(a => catsOf(a.categories, a.category).includes(cat))
+      : aucs;
     let maxStreak = 0, cur = 0; let prev: string | null = null;
-    for (const a of aucs) {
+    for (const a of scoped) {
       cur = a.w && a.w === prev ? cur + 1 : 1;
       prev = a.w; if (cur > maxStreak) maxStreak = cur;
     }
-    return { rows, maxStreak };
+    return {
+      rows, maxStreak,
+      category: cat || null,
+      basis: cat ? ("category" as const) : ("all-categories" as const),
+      nRounds: scoped.length,
+    };
   }
 
   /** 이 학교에서 내(워크스페이스) 투찰 이력 */
@@ -143,12 +164,20 @@ class OpenController {
   private async enrich(r: typeof openAuctions.$inferSelect) {
     const schoolId = r.sigungu && r.schoolName ? `${r.sigungu}|${r.schoolName}` : null;
     let band: unknown = null, recent3: number[] = [], usualN: number | null = null, nSameFloor = 0;
+    // S-1: 품목별 재료. 합치지 않는다 — 합치는 것이 원죄였다.
+    let byCat: Record<string, { band: unknown; recent3: number[]; nSameFloor: number }> = {};
+    let catCounts: Record<string, number> | null = null;
     if (schoolId) {
       const [sc] = await db.select().from(schools).where(eq(schools.id, schoolId)).limit(1);
+      const floorKeys = r.floorRate != null
+        ? [String(r.floorRate), r.floorRate.toFixed(1)]
+        : [];
       if (sc && r.floorRate != null) {
-        const bf = sc.byFloor as Record<string, any>;
-        band = bf[String(r.floorRate)] ?? bf[r.floorRate.toFixed(1)] ?? null;
+        // 기존 band 는 전 품목 합산이다(bandBasis 로 그 사실을 밝힌다).
+        const bf = (sc.byFloor ?? {}) as Record<string, any>;
+        band = floorKeys.map(k => bf[k]).find(v => v != null) ?? null;
       }
+      if (sc) catCounts = (sc.catCounts ?? null) as Record<string, number> | null;
       const aucs = await db.select().from(schoolAuctions)
         .where(eq(schoolAuctions.schoolId, schoolId))
         .orderBy(schoolAuctions.openedAt);
@@ -157,6 +186,19 @@ class OpenController {
       recent3 = same.slice(-3).map(a => a.winRate).filter((x): x is number => x != null);
       const last10 = aucs.slice(-10).map(a => a.nValid).sort((a, b) => a - b);
       usualN = last10.length ? last10[Math.floor(last10.length / 2)] : null;
+
+      // 이 공고의 품목마다 따로. 다중 품목이면 항목이 여럿 생긴다.
+      const bcf = (sc?.byCatFloor ?? {}) as Record<string, any>;
+      for (const c of catsOf(r.categories, r.category)) {
+        const perFloor = bcf[c] ?? {};
+        const b = floorKeys.map(k => perFloor[k]).find(v => v != null) ?? null;
+        const sameCat = same.filter(a => catsOf(a.categories, a.category).includes(c));
+        byCat[c] = {
+          band: b,
+          recent3: sameCat.slice(-3).map(a => a.winRate).filter((x): x is number => x != null),
+          nSameFloor: sameCat.length,
+        };
+      }
     }
     const unrestricted = isUnrestricted(r.allowedRegions);
     const cats = catsOf(r.categories, r.category);
@@ -167,6 +209,12 @@ class OpenController {
       categorySrc: r.categorySrc ?? null,
       // 이 목록의 품목 필터는 포함 기준이다(대표만 보지 않는다).
       countBasis: "inclusive" as const,
+      // band/recent3/nSameFloor 는 전 품목 합산이다 — 그 사실을 밝힌다.
+      bandBasis: "all-categories" as const,
+      // 품목별 재료: { 축산: { band, recent3, nSameFloor } }. 화면은 이걸 써야 정확하다.
+      byCat,
+      // 이 학교의 품목별 회차 수 — "축산 24회" 표기의 원천.
+      catCounts,
       anchorAmount: r.basePrice && r.floorRate ? Math.round(r.basePrice * r.floorRate / 100) : null,
       band, recent3, usualN, nSameFloor,
       // 표기용: 무제한이면 "지역 제한 없음", 아니면 허용 지역 나열
