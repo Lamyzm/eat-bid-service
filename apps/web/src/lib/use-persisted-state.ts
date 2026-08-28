@@ -44,11 +44,28 @@ export function jsonCodec<T>(isValid?: (v: unknown) => boolean): Codec<T> {
   };
 }
 
-function backupOnce(key: string, raw: string) {
+/** 저장소 최소 인터페이스 — 테스트에서 가짜 저장소를 넣을 수 있게 */
+export type KV = Pick<Storage, 'getItem' | 'setItem'>;
+
+/**
+ * 저장된 값 읽기 — 읽지 못하면 원본을 덮지 않고 사본만 남긴다.
+ * 경쟁사 목록이 조용히 빈 배열로 덮이던 사고가 여기서 났다.
+ */
+export function readStored<T>(key: string, codec: Codec<T>, kv: KV): {
+  value: T | undefined; unreadable: boolean;
+} {
+  let raw: string | null = null;
+  try { raw = kv.getItem(key); } catch { return { value: undefined, unreadable: false }; }
+  if (raw == null) return { value: undefined, unreadable: false };
   try {
-    const bk = `${key}.unreadable`;
-    if (!localStorage.getItem(bk)) localStorage.setItem(bk, raw);
-  } catch {}
+    return { value: codec.read(raw), unreadable: false };
+  } catch {
+    try {
+      const bk = `${key}.unreadable`;
+      if (!kv.getItem(bk)) kv.setItem(bk, raw);
+    } catch {}
+    return { value: undefined, unreadable: true };
+  }
 }
 
 export function usePersistedState<T>(
@@ -67,16 +84,10 @@ export function usePersistedState<T>(
   useEffect(() => {
     try {
       const raw = localStorage.getItem(key);
-      if (raw == null) {
-        if (opts?.whenMissing !== undefined) setValue(opts.whenMissing);
-      } else {
-        let next: T | undefined;
-        try {
-          next = codec.read(raw);
-        } catch {
-          backupOnce(key, raw); // 원본을 지우지 않는다
-        }
-        if (next !== undefined) setValue(next);
+      if (raw == null && opts?.whenMissing !== undefined) setValue(opts.whenMissing);
+      else if (raw != null) {
+        const { value: stored } = readStored(key, codec, localStorage);
+        if (stored !== undefined) setValue(stored);
       }
     } catch {}
     hydrated.current = true;

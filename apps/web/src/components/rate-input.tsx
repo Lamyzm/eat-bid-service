@@ -7,8 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
-
-const MAX_DECIMALS = 4;
+import { nextRateText, commitRateText } from '@/lib/rate-text';
 
 export function RateInput({
   value, onChange, placeholder, className, onFocusChange, onEnter, slotId, ariaLabel, title, inputRef,
@@ -51,24 +50,15 @@ export function RateInput({
       onBlur={() => {
         focusedRef.current = false;
         onFocusChange?.(false);
-        const n = parseFloat(text);
-        if (!Number.isFinite(n)) { setText(''); onChange(undefined); return; }
-        // 이미 4자리로 제한된 입력이라 여기서 값이 바뀌지 않는다 (표기만 정리)
-        setText(String(n));
-        onChange(n);
+        const done = commitRateText(text);
+        setText(done.text);
+        onChange(done.value);
       }}
       onChange={e => {
-        const raw = e.target.value;
-        if (raw === '') { setText(''); onChange(undefined); return; }
-        // 숫자와 점 하나만 허용 — 그 외 문자는 입력 자체를 무시
-        if (!/^[0-9]*\.?[0-9]*$/.test(raw)) return;
-        const dot = raw.indexOf('.');
-        // 소수 4자리 초과는 무시 (자르지 않는다)
-        if (dot !== -1 && raw.length - dot - 1 > MAX_DECIMALS) return;
-        setText(raw);
-        const n = parseFloat(raw);
-        // "90." 처럼 아직 입력 중인 값은 부모에 반영하지 않는다
-        if (Number.isFinite(n) && !raw.endsWith('.')) onChange(n);
+        const edit = nextRateText(e.target.value);
+        if (edit.kind === 'reject') return;
+        setText(edit.text);
+        onChange(edit.value);
       }}
     />
   );

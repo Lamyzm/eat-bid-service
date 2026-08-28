@@ -2,12 +2,18 @@
   "name": "eat-bid-service",
   "private": true,
   "packageManager": "pnpm@10.12.1",
-  "engines": { "node": ">=24", "pnpm": ">=10" },
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
     "db:generate": "pnpm --filter @eatbid/shared db:generate",
-    "db:push": "pnpm --filter @eatbid/shared db:push"
+    "db:push": "pnpm --filter @eatbid/shared db:push",
+    "test": "bun test apps/web/src packages/shared/src"
   },
-  "devDependencies": { "turbo": "^2.5.0" }
+  "devDependencies": {
+    "turbo": "^2.5.0"
+  }
 }

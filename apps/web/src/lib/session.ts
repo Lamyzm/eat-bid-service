@@ -145,6 +145,25 @@ export async function retrySync(): Promise<boolean> {
   return results.every(Boolean);
 }
 
+/**
+ * 회차별 병합 — 서버 엔트리로 통째 덮으면 로컬의 둘째 사업자 값(rates)이 사라진다.
+ * 로그인할 때마다 값이 지워지던 사고가 여기서 났다.
+ */
+export function mergeMarks(
+  localMarks: Record<string, Mark>,
+  serverMarks: Record<string, Mark>,
+): Record<string, Mark> {
+  const out: Record<string, Mark> = { ...localMarks };
+  for (const [bidNo, sv] of Object.entries(serverMarks)) {
+    const lo = localMarks[bidNo];
+    const loHasRates = lo?.rates != null && Object.keys(lo.rates).length > 0;
+    out[bidNo] = loHasRates
+      ? { ...sv, ...lo }            // 로컬의 사업자별 값을 우선 보존
+      : { ...(lo ?? {}), ...sv };   // 그 외에는 서버 우선
+  }
+  return out;
+}
+
 let booted = false;
 /** 앱 부팅 시 1회 — /api/me 조회 후 게스트/로그인 소스 확정, 최초 로그인이면 병합 PUT */
 export async function boot() {
@@ -172,15 +191,7 @@ export async function boot() {
   if (needMerge) {
     mergedBiz = [...new Set([...local.bizNos, ...serverBiz])];
     mergedRegions = [...new Set([...local.regions, ...serverRegions])];
-    // 회차별 병합 — 서버 엔트리로 통째 덮으면 로컬의 둘째 사업자 값(rates)이 사라진다.
-    mergedMarks = { ...local.marks };
-    for (const [bidNo, sv] of Object.entries(serverMarks)) {
-      const lo = local.marks[bidNo];
-      const loHasRates = lo && (lo as any).rates && Object.keys((lo as any).rates).length > 0;
-      mergedMarks[bidNo] = loHasRates
-        ? { ...sv, ...lo }                       // 로컬의 사업자별 값을 우선 보존
-        : { ...(lo ?? {}), ...sv };              // 그 외에는 기존대로 서버 우선
-    }
+    mergedMarks = mergeMarks(local.marks, serverMarks);
   }
   setState({
     ready: true, guest: false, user: me.user ?? null, googleEnabled: !!me.googleEnabled,

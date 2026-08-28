@@ -498,7 +498,9 @@ class FirmsController {
       const runner = await db.select({
         diff: sql<number>`round((fb.bid_rate - fb.win_rate)::numeric, 3)`,
       }).from(sql`${firmBids} fb`)
-        .where(sql`fb.biz_no = any(${bizNos}) and fb.won = 0 and fb.bid_rate is not null and fb.win_rate is not null
+        // any(${bizNos}) 는 JS 배열을 문자열로 바인딩해 `malformed array literal` 로 죽는다.
+        // 이 엔드포인트가 100% 500 이었고, 웹은 .catch 로 삼켜 KPI 가 조용히 비어 있었다.
+        .where(sql`fb.biz_no in ${bizNos} and fb.won = 0 and fb.bid_rate is not null and fb.win_rate is not null
           and fb.bid_rate > fb.win_rate
           and not exists (select 1 from firm_bids o where o.bid_id = fb.bid_id
             and o.bid_rate > fb.win_rate and o.bid_rate < fb.bid_rate)`);
