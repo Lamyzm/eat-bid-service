@@ -7,6 +7,8 @@ import { StripChart } from '@/components/strip-chart';
 import { type RosterRow } from '@/components/roster-table';
 import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
+import { pickBand, bandBasisText } from '@/lib/band';
+import { DataScope } from '@/components/data-scope';
 import { CHART } from '@/lib/chart-colors';
 import { slotKeysFor, ratesOf, bizLabelOf } from '@/lib/mark-rates';
 import { usePersistedChoice } from '@/lib/use-persisted-state';
@@ -41,9 +43,10 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
 
   // 하한을 모르면 지어내지 않는다. 모르는 값으로 비교 문장을 만들면 단언이 된다.
   const floor = open.floorRate;
+  // 품목별 값이 있으면 그걸 쓴다 (전 품목 합산 대신)
+  const picked = pickBand(open);
   const sameFloor = auctions.filter(a => a.winRate != null && a.floorRate === floor);
   const points = sameFloor.map(a => ({ winRate: a.winRate!, openedAt: a.openedAt }));
-  const band = open.band as { dense?: { lo: number; hi: number; pct: number }; n?: number } | null;
   // 자주 걸린 값 — 스트립과 동일 소스에서 계산 (0.01 반올림)
   const recur = useMemo(() => {
     const m = new Map<number, number>();
@@ -162,7 +165,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             <div className='text-2xl font-semibold tabular-nums'>{floor ?? '—'}</div>
           </div>
           <div className='text-muted-foreground text-sm'>
-            공공 개찰 결과를 정리해 보여줍니다
+            <DataScope />
           </div>
           <div className='flex items-center gap-2 text-sm'>
             <span className='text-muted-foreground font-mono'>공고번호 {open.bidNo}</span>
@@ -307,12 +310,13 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
       <Card>
         <CardHeader className='pb-2'>
           <CardTitle className='text-base'>과거 낙찰 기록</CardTitle>
-          {band?.dense && (
+          {picked.band?.dense && (
             <CardDescription className='text-foreground text-[15px]'>
-              하한 {floor} 기준 <b>{band.n}회 중 {Math.round((band.dense.pct / 100) * (band.n ?? 0))}회</b>가{' '}
-              <b className='tabular-nums'>{band.dense.lo.toFixed(2)}~{band.dense.hi.toFixed(2)} </b>에서 낙찰 ·
+              <span className='text-muted-foreground text-xs'>{bandBasisText(picked)}</span><br />
+              <b>{picked.n}회 중 {Math.round((picked.band.dense.pct / 100) * picked.n)}회</b>가{' '}
+              <b className='tabular-nums'>{picked.band.dense.lo.toFixed(2)}~{picked.band.dense.hi.toFixed(2)} </b>에서 낙찰 ·
               금액 환산 <b className='tabular-nums'>
-                {won(base * band.dense.lo / 100)}~{won(base * band.dense.hi / 100)}원</b>
+                {won(base * picked.band.dense.lo / 100)}~{won(base * picked.band.dense.hi / 100)}원</b>
             </CardDescription>
           )}
         </CardHeader>
@@ -327,7 +331,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
           )}
           {points.length >= 4 ? (
             <StripChart floor={floor} points={points}
-              denseLo={band?.dense?.lo ?? null} denseHi={band?.dense?.hi ?? null}
+              denseLo={picked.band?.dense?.lo ?? null} denseHi={picked.band?.dense?.hi ?? null}
               myPast={myPastSameFloor} liveValue={liveRate} />
           ) : (
             <p className='text-muted-foreground text-sm'>

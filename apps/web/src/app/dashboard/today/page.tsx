@@ -8,6 +8,8 @@ import { useSession } from '@/lib/session';
 import { RegionStatus } from '@/components/region-status';
 import { RateInput } from '@/components/rate-input';
 import { LoadError } from '@/components/load-error';
+import { pickBand, bandBasisText } from '@/lib/band';
+import { DataScope } from '@/components/data-scope';
 import { fetchJson } from '@/lib/fetch-json';
 import { slotKeysFor, ratesOf, withRate, primaryRate, hasAnyRate, sameRates, bizLabelOf } from '@/lib/mark-rates';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
@@ -39,6 +41,8 @@ type OpenRow = {
   categorySrc?: 'main_item' | 'name_rule' | 'none' | string | null;
   /** 이 목록을 받아온 시각 (서버 적재 시각) */
   fetchedAt?: string | null;
+  /** 품목별 band/recent3/nSameFloor — 전 품목 합산 대신 이걸 쓴다 */
+  byCat?: Record<string, { band?: any; recent3?: number[]; nSameFloor?: number }> | null;
   /** 이 학교의 품목별 회차 수 — 표본이 몇 회인지 화면이 말한다 */
   catCounts?: Record<string, number> | null;
   /** 같은 하한 회차 수 */
@@ -210,7 +214,7 @@ export default function TodayPage() {
         <p className='text-muted-foreground text-sm tabular-nums'>
           {brief
             ? <>{brief.isYesterday ? '어제' : `최근 개찰일 ${brief.day.slice(5)}`} 전국 {brief.n.toLocaleString()}건 개찰</>
-            : '공공 개찰 결과를 정리해 보여줍니다.'}
+            : <DataScope />}
         </p>
         <div className='mt-1'><RegionStatus /></div>
         {fetchedAt && (() => {
@@ -358,13 +362,23 @@ export default function TodayPage() {
                         {!hasHistory(o) && (
                           <div className='text-muted-foreground'>이 학교는 지난 개찰 기록이 아직 없습니다</div>
                         )}
-                        {o.recent3.length > 0 && <div>최근 낙찰 <b>{o.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>}
-                        {o.band?.dense && (
-                          <div className='text-muted-foreground'>
-                            잘 나온 구간 {o.band.dense.lo.toFixed(2)}~{o.band.dense.hi.toFixed(2)}
-                            {o.band.n != null && <> · 하한 {o.floorRate} {o.band.n}회 중 {o.band.dense.pct}%</>}
-                          </div>
-                        )}
+                        {(() => {
+                          // 품목별 값이 있으면 그걸 쓴다. 어느 근거로 고른 구간인지도 밝힌다.
+                          const picked = pickBand(o);
+                          return (
+                            <>
+                              {picked.recent3.length > 0 && (
+                                <div>최근 낙찰 <b>{picked.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>
+                              )}
+                              {picked.band?.dense && (
+                                <div className='text-muted-foreground'>
+                                  잘 나온 구간 {picked.band.dense.lo.toFixed(2)}~{picked.band.dense.hi.toFixed(2)}
+                                  {' · '}{bandBasisText(picked)}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                         {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
                         {!o.unrestricted && o.allowedLabel && (
                         <div className='text-muted-foreground'>참가 자격은 사무소 소재지 기준입니다. 자격 여부는 확인이 필요합니다.</div>
