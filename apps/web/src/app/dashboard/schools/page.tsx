@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { SchoolSummary, FloorStat } from '@eatbid/shared';
 import { useRegion } from '@/lib/region';
+import { RegionStatus } from '@/components/region-status';
 import { useTrack } from '@/lib/track';
 import { won, CATS } from '@/lib/format';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,9 @@ export default function SchoolsPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [fieldMax, setFieldMax] = useState<number | null>(null); // 보통 참여 N곳 이하
   const [sort, setSort] = useState<SortKey>('n');
+  const [filterOpen, setFilterOpen] = useState(false);
+  useEffect(() => { try { setFilterOpen(localStorage.getItem('eatbid.schoolFilter') === '1'); } catch {} }, []);
+  useEffect(() => { try { localStorage.setItem('eatbid.schoolFilter', filterOpen ? '1' : '0'); } catch {} }, [filterOpen]);
   const { viewRegions, isBrowsing, view, homes, ready } = useRegion();
 
   // 서버 검색 — 300ms debounce. 빈 검색은 상위 500
@@ -91,6 +95,7 @@ export default function SchoolsPage() {
         <div>
           <h1 className='text-2xl font-semibold'>학교 찾기</h1>
           <p className='text-muted-foreground text-sm tabular-nums'>{filtered.length}개 학교{!q.trim() && rows.length >= 500 ? ' (상위 500 표시 — 검색으로 좁히세요)' : ''} · 행 클릭 = 분석판</p>
+          <div className='mt-1'><RegionStatus /></div>
         </div>
         <div className='flex items-center gap-2'>
           {isBrowsing && (homes.length === 0
@@ -117,26 +122,30 @@ export default function SchoolsPage() {
         </Card>
       )}
 
-      {/* 필터 */}
+      {/* 필터 — 버튼 하나로 접고 적용된 것만 칩 (C) */}
       <div className='flex flex-wrap items-center gap-1.5'>
         <Input placeholder='학교 이름 검색' value={q} onChange={e => setQ(e.target.value)} className='w-52' />
-        <span className='mx-1' />
-        <Button size='sm' variant={cat === null ? 'default' : 'outline'} onClick={() => setCat(null)}>전체</Button>
-        {CATS.map(c => (
-          <Button key={c} size='sm' variant={cat === c ? 'default' : 'outline'} onClick={() => setCat(c)}>{c}</Button>
-        ))}
-        <span className='mx-1' />
-        <span className='text-muted-foreground text-xs'>보통 참여</span>
-        {[10, 30, 50].map(n => (
-          <Button key={n} size='sm' variant={fieldMax === n ? 'default' : 'outline'}
-            onClick={() => setFieldMax(fieldMax === n ? null : n)}>{n}곳 이하</Button>
-        ))}
-        <span className='mx-1' />
-        <span className='text-muted-foreground text-xs'>정렬</span>
-        {([['n', '공고수'], ['field', '참여 적은순'], ['base', '금액 큰순']] as const).map(([k, label]) => (
-          <Button key={k} size='sm' variant={sort === k ? 'default' : 'outline'} onClick={() => setSort(k)}>{label}</Button>
-        ))}
+        <Button size='sm' variant={filterOpen ? 'default' : 'outline'} onClick={() => setFilterOpen(v => !v)}>
+          필터{(cat ? 1 : 0) + (fieldMax ? 1 : 0) > 0 ? ` (${(cat ? 1 : 0) + (fieldMax ? 1 : 0)})` : ''}
+        </Button>
+        {cat && <Badge variant='secondary' className='cursor-pointer' onClick={() => setCat(null)}>{cat} ✕</Badge>}
+        {fieldMax && <Badge variant='secondary' className='cursor-pointer' onClick={() => setFieldMax(null)}>참여 {fieldMax}곳 이하 ✕</Badge>}
       </div>
+      {filterOpen && (
+        <div className='flex flex-wrap items-center gap-1.5 rounded border p-2'>
+          <span className='text-muted-foreground text-xs'>품목</span>
+          <Button size='sm' variant={cat === null ? 'default' : 'outline'} onClick={() => setCat(null)}>전체</Button>
+          {CATS.map(c => (
+            <Button key={c} size='sm' variant={cat === c ? 'default' : 'outline'} onClick={() => setCat(c)}>{c}</Button>
+          ))}
+          <span className='mx-1' />
+          <span className='text-muted-foreground text-xs'>보통 참여</span>
+          {[10, 30, 50].map(n => (
+            <Button key={n} size='sm' variant={fieldMax === n ? 'default' : 'outline'}
+              onClick={() => setFieldMax(fieldMax === n ? null : n)}>{n}곳 이하</Button>
+          ))}
+        </div>
+      )}
 
       <Card>
         <CardContent className='p-0'>
@@ -144,11 +153,17 @@ export default function SchoolsPage() {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>학교</TableHead><TableHead>품목</TableHead>
-                <TableHead className='text-right'>공고</TableHead>
-                <TableHead className='text-right'>보통 참여</TableHead>
+                <TableHead className='cursor-pointer text-right select-none' onClick={() => setSort('n')}>
+                  공고{sort === 'n' ? ' ▼' : ''}
+                </TableHead>
+                <TableHead className='cursor-pointer text-right select-none' onClick={() => setSort('field')}>
+                  보통 참여{sort === 'field' ? ' ▲' : ''}
+                </TableHead>
                 <TableHead>잘 나온 구간</TableHead>
                 <TableHead>자주 걸린 값</TableHead>
-                <TableHead className='text-right'>기초금액(중앙)</TableHead>
+                <TableHead className='cursor-pointer text-right select-none' onClick={() => setSort('base')}>
+                  기초금액(중앙){sort === 'base' ? ' ▼' : ''}
+                </TableHead>
                 <TableHead>다음 발주</TableHead>
               </TableRow></TableHeader>
               <TableBody>

@@ -10,6 +10,7 @@ import { useSession } from '@/lib/session';
 import { useTrack } from '@/lib/track';
 import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -81,15 +82,22 @@ export default function DeliveryPage() {
   const calendar = useMemo(() => {
     const first = new Date(`${month}-01T00:00:00`);
     const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-    const counts: number[] = Array(daysInMonth + 1).fill(0);
+    const byDay: (typeof contracts)[] = Array.from({ length: daysInMonth + 1 }, () => []);
     for (const c of contracts) {
       for (let d = 1; d <= daysInMonth; d++) {
         const iso = `${month}-${String(d).padStart(2, '0')}`;
-        if (c.dlvryStart! <= iso && iso <= c.dlvryEnd!) counts[d]++;
+        if (c.dlvryStart! <= iso && iso <= c.dlvryEnd!) byDay[d].push(c);
       }
     }
-    return { firstDay: first.getDay(), daysInMonth, counts };
+    // 경고 기준 — 그 달 상위 20% 또는 5건 이상 (U22: 22일이 경고면 의미 없음)
+    const counts = byDay.slice(1).map(x => x.length).filter(n => n > 0).sort((a, b) => b - a);
+    const p80 = counts.length ? counts[Math.floor(counts.length * 0.2)] : 0;
+    const busyAt = Math.max(5, p80 || 5);
+    const midAt = Math.max(2, Math.ceil(busyAt / 2));
+    return { firstDay: first.getDay(), daysInMonth, byDay, busyAt, midAt };
   }, [contracts, month]);
+  const [pickDay, setPickDay] = useState<number | null>(null);
+  useEffect(() => { setPickDay(null); }, [month]);
 
   const shiftMonth = (delta: number) => {
     const d = new Date(`${month}-01T00:00:00`); d.setMonth(d.getMonth() + delta);
@@ -143,7 +151,7 @@ export default function DeliveryPage() {
 
       {/* 히어로 */}
       <Card className='border-primary'>
-        <CardContent className='py-4'>
+        <CardContent className='py-4' style={{ minHeight: 84 }}>
           <div className='text-muted-foreground text-xs'>{monthLabel} 납품 계약</div>
           <div className='text-3xl font-bold tabular-nums'>
             {contracts.length}건 · 합계 {won(sum)}원
@@ -201,8 +209,13 @@ export default function DeliveryPage() {
                     </TableRow>
                   )}
                   {contracts.length === 0 && (
-                    <TableRow><TableCell colSpan={7} className='text-muted-foreground py-8 text-center'>
-                      {monthLabel}에 걸친 낙찰 계약이 없습니다.
+                    <TableRow><TableCell colSpan={7} className='py-6'>
+                      <Empty>
+                        <EmptyHeader>
+                          <EmptyTitle>{monthLabel}에 걸친 낙찰 계약이 없습니다</EmptyTitle>
+                          <EmptyDescription>← → 로 다른 달을 확인해 보세요.</EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
                     </TableCell></TableRow>
                   )}
                 </TableBody>
@@ -215,7 +228,7 @@ export default function DeliveryPage() {
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-base'>납품 달력</CardTitle>
-            <CardDescription>칸 숫자 = 그날 동시 납품 건수. 3건 이상은 노란색.</CardDescription>
+            <CardDescription>칸에 그날 납품 학교. 바쁜 날은 노란색 · 날짜를 누르면 그날 목록이 열립니다.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className='grid grid-cols-7 gap-1 text-center text-xs'>
@@ -224,18 +237,46 @@ export default function DeliveryPage() {
               ))}
               {Array.from({ length: calendar.firstDay }).map((_, i) => <div key={`e${i}`} />)}
               {Array.from({ length: calendar.daysInMonth }, (_, i) => i + 1).map(d => {
-                const n = calendar.counts[d];
+                const list = calendar.byDay[d];
+                const n = list.length;
+                const label = n === 0 ? null
+                  : n === 1 ? (list[0].schoolName ?? '-')
+                  : `${list[0].schoolName ?? '-'} 외 ${n - 1}`;
+                const tone = n === 0 ? 'text-muted-foreground'
+                  : n >= calendar.busyAt ? 'border-amber-500 bg-amber-500/20 font-semibold'
+                  : n >= calendar.midAt ? 'bg-primary/15' : 'bg-primary/7';
                 return (
-                  <div key={d}
-                    className={`rounded border py-1.5 tabular-nums ${
-                      n >= 3 ? 'border-amber-500 bg-amber-500/15 font-semibold'
-                        : n > 0 ? 'bg-primary/10' : 'text-muted-foreground'}`}>
-                    <div>{d}</div>
-                    {n > 0 && <div className='text-[10px]'>{n}건</div>}
-                  </div>
+                  <button key={d} type='button'
+                    onClick={() => setPickDay(n > 0 ? (pickDay === d ? null : d) : null)}
+                    className={`rounded border px-0.5 py-1.5 text-left tabular-nums ${tone} ${
+                      pickDay === d ? 'ring-primary ring-2' : ''} ${n > 0 ? 'cursor-pointer' : 'cursor-default'}`}>
+                    <div className='text-center'>{d}</div>
+                    {label && <div className='truncate text-[10px] leading-tight' title={list.map(x => x.schoolName).join(', ')}>{label}</div>}
+                  </button>
                 );
               })}
             </div>
+            {pickDay != null && calendar.byDay[pickDay].length > 0 && (
+              <div className='mt-3 rounded border'>
+                <div className='border-b px-3 py-2 text-sm font-medium'>
+                  {month}-{String(pickDay).padStart(2, '0')} 납품 {calendar.byDay[pickDay].length}건
+                </div>
+                <div className='divide-y'>
+                  {calendar.byDay[pickDay].map(c => (
+                    <div key={`${c.bidId}|${c.bizNo}`} className='flex items-center justify-between px-3 py-2 text-sm'>
+                      <span className='truncate pr-2'>
+                        {c.sigungu && c.schoolName ? (
+                          <Link href={`/dashboard/analysis/${encodeURIComponent(`${c.sigungu}|${c.schoolName}`)}`}
+                            className='font-medium hover:underline'>{c.schoolName}</Link>
+                        ) : (c.schoolName ?? '-')}
+                        <span className='text-muted-foreground ml-1 text-xs'>{c.category}</span>
+                      </span>
+                      <span className='shrink-0 font-mono text-xs tabular-nums'>{won(c.amount)}원</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

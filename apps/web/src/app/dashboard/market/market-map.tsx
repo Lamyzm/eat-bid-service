@@ -8,6 +8,7 @@ import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { REGION_COORDS } from '@/lib/region-coords';
 import { useTrack } from '@/lib/track';
+import { RegionStatus } from '@/components/region-status';
 import { eok, CATS } from '@/lib/format';
 import { CHART, myMarker, bubbleColor } from '@/lib/chart-colors';
 import { Badge } from '@/components/ui/badge';
@@ -56,6 +57,7 @@ export function MarketMap() {
           <p className='text-muted-foreground text-sm'>
             낙찰을 예측하지 않습니다 — 공고량·업체 수·계약 규모를 지역별로 정리한 판입니다.
           </p>
+          <div className='mt-1'><RegionStatus /></div>
         </div>
         <div className='flex gap-1.5'>
           {CATS.slice(0, 5).map(c => (

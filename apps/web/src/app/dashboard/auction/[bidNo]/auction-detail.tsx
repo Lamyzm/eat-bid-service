@@ -11,6 +11,7 @@ import { CHART } from '@/lib/chart-colors';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle
 } from '@/components/ui/card';
@@ -29,6 +30,14 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   const { bizNos } = useWorkspace();
   const { marks, set } = useMarks();
   useTrack('auction');
+  const [tab, setTab] = useState<'school' | 'market' | 'mine'>('school');
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem('eatbid.auctionTab');
+      if (t === 'school' || t === 'market' || t === 'mine') setTab(t);
+    } catch {}
+  }, []);
+  useEffect(() => { try { localStorage.setItem('eatbid.auctionTab', tab); } catch {} }, [tab]);
   const mark = marks[open.bidNo];
 
   const floor = open.floorRate ?? 90;
@@ -243,17 +252,15 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
         </CardContent>
       </Card>
 
-      {/* 3. 이번 판 신호 */}
-      <Card>
-        <CardContent className='flex flex-wrap gap-x-6 gap-y-1 py-3 text-[15px] tabular-nums'>
-          <span>이 학교 최근 참여 <b>{recent3N.join('곳 → ') || '-'}곳</b></span>
-          {sameDeadline != null && sameDeadline > 1 && (
-            <span>같은 날 마감 공고 <b>{sameDeadline}건</b> <span className='text-muted-foreground'>— 경쟁이 분산되는 날</span></span>
-          )}
-          {open.usualN != null && <span>보통 <b>{open.usualN}곳</b> 참여</span>}
-        </CardContent>
-      </Card>
+      {/* 탭 — 결정 블록은 위에 고정, 읽을거리는 탭으로 (R3) */}
+      <Tabs value={tab} onValueChange={v => setTab(v as typeof tab)}>
+        <TabsList variant='line'>
+          <TabsTrigger value='school'>이 학교</TabsTrigger>
+          <TabsTrigger value='market'>요즘 시장</TabsTrigger>
+          <TabsTrigger value='mine'>내 리허설</TabsTrigger>
+        </TabsList>
 
+        <TabsContent value='school' className='mt-3 space-y-4'>
       {/* 4. 이 학교의 과거 */}
       <Card>
         <CardHeader className='pb-2'>
@@ -307,6 +314,39 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
         </CardContent>
       </Card>
 
+        </TabsContent>
+
+        <TabsContent value='market' className='mt-3 space-y-4'>
+      {/* 3. 이번 판 신호 */}
+      <Card>
+        <CardContent className='flex flex-wrap gap-x-6 gap-y-1 py-3 text-[15px] tabular-nums'>
+          <span>이 학교 최근 참여 <b>{recent3N.join('곳 → ') || '-'}곳</b></span>
+          {sameDeadline != null && sameDeadline > 1 && (
+            <span>같은 날 마감 공고 <b>{sameDeadline}건</b> <span className='text-muted-foreground'>— 경쟁이 분산되는 날</span></span>
+          )}
+          {open.usualN != null && <span>보통 <b>{open.usualN}곳</b> 참여</span>}
+        </CardContent>
+      </Card>
+
+          {crowd && (
+            <Card>
+              <CardContent className='py-3 text-[15px] tabular-nums'>
+                전국 최근 {crowd.days}일, 하한 {floor} 공고에서 <b>{crowd.total.toLocaleString()}건</b>이 투찰됐습니다.
+                {liveRate != null && (() => {
+                  const k = Math.round(liveRate * 100) / 100;
+                  const n = crowd.bins.find(b => Math.abs(b.v - k) < 1e-9)?.n ?? 0;
+                  return <> 내 값 <b className='font-mono'>{k.toFixed(2)}</b> 자리에는 <b>{n.toLocaleString()}건</b>{n === 0 ? ' — 빈 자리' : ''}.</>;
+                })()}
+                {open.schoolId && (
+                  <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}?bidNo=${encodeURIComponent(open.bidNo)}${liveRate != null ? `&rate=${liveRate}&base=${base}` : ''}`}
+                    className='text-primary ml-2 text-sm hover:underline'>분포 자세히 →</Link>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value='mine' className='mt-3 space-y-4'>
       {/* 6. 내 전적 */}
       {bizNos.length > 0 ? my.length > 0 && (
         <Card>
@@ -325,6 +365,8 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
         </Card>
       )}
 
+        </TabsContent>
+      </Tabs>
 
     </div>
   );

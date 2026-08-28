@@ -131,6 +131,19 @@ export function setMarks(next: Record<string, Mark>) {
   void put('/api/me/marks', { marks: next });
 }
 
+/** 이 브라우저에 남은 기록 삭제 (공용 PC 대비 — U24) */
+export function clearLocalData() {
+  try {
+    localStorage.removeItem(K.biz);
+    localStorage.removeItem(K.regions);
+    localStorage.removeItem(K.legacyRegion);
+    localStorage.removeItem(K.marks);
+    localStorage.removeItem(K.merged);
+    sessionStorage.removeItem('eatbid.viewRegion');
+  } catch {}
+  setState({ bizNos: [], regions: [], marks: {} });
+}
+
 // ── 구독 ──
 function subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; }
 function getSnapshot() { return state; }

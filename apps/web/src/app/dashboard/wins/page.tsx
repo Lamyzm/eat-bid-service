@@ -5,6 +5,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useRegion } from '@/lib/region';
+import { RegionStatus } from '@/components/region-status';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { useWorkspace } from '@/lib/workspace';
 import { useTrack } from '@/lib/track';
 import { won, eok, CATS } from '@/lib/format';
@@ -84,6 +86,7 @@ export default function WinsPage() {
             {gapMed != null && <> · 1–2등 차이 중앙값 <b className='text-foreground'>{gapMed.toFixed(3)}</b></>}
             {total != null && total > rows.length && <span className='text-muted-foreground'> (합계·중앙값은 표시 {rows.length}건 기준)</span>}
           </p>
+          <div className='mt-1'><RegionStatus /></div>
         </div>
         {isBrowsing && (
           homes.length === 0 ? (
@@ -204,8 +207,13 @@ export default function WinsPage() {
                   </TableRow>
                 ))}
                 {rows.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className='text-muted-foreground py-8 text-center'>
-                    이 조건의 개찰 결과가 없습니다.
+                  <TableRow><TableCell colSpan={9} className='py-6'>
+                    <Empty>
+                      <EmptyHeader>
+                        <EmptyTitle>이 조건의 개찰 결과가 없습니다</EmptyTitle>
+                        <EmptyDescription>기간을 늘리거나 품목·지역을 바꿔보세요.</EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
                   </TableCell></TableRow>
                 )}
               </TableBody>

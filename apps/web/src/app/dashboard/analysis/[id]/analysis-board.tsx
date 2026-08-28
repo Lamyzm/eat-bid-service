@@ -42,6 +42,8 @@ const LENSES = [
   ['replay', '리플레이'], ['lottery', '추첨'], ['monthly', '월별'],
 ] as const;
 type Lens = typeof LENSES[number][0];
+/** 상시 노출 렌즈 (B) — 나머지는 '더보기' */
+const PRIMARY_LENSES: string[] = ['record', 'flow', 'rehearsal'];
 const PERIODS = [['3m', '3개월', 3], ['6m', '6개월', 6], ['12m', '12개월', 12], ['all', '전체', 999]] as const;
 
 /** 판정: 실효하한 보유 회차는 확정, 미보유는 경계 기반 */
@@ -141,6 +143,17 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
     try { localStorage.setItem('eatbid.lens', l); } catch {}
   };
   const [period, setPeriod] = useState<'3m' | '6m' | '12m' | 'all'>('all');
+  // 하한·기간 펼침 (B) — 상태 기억
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [moreLens, setMoreLens] = useState(false);
+  useEffect(() => {
+    try {
+      setScopeOpen(localStorage.getItem('eatbid.scopeOpen') === '1');
+      setMoreLens(localStorage.getItem('eatbid.moreLens') === '1');
+    } catch {}
+  }, []);
+  useEffect(() => { try { localStorage.setItem('eatbid.scopeOpen', scopeOpen ? '1' : '0'); } catch {} }, [scopeOpen]);
+  useEffect(() => { try { localStorage.setItem('eatbid.moreLens', moreLens ? '1' : '0'); } catch {} }, [moreLens]);
   // 공고 컨텍스트 (IA 3안) — bidNo가 있으면 그 공고 기준으로 산출기·하한 탭 세팅
   const [ctxBid, setCtxBid] = useState<any>(null);
   const ctxAppliedRef = useRef(false);
@@ -432,17 +445,25 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
             )}
           </div>
         </div>
-        <div className='flex flex-wrap items-center gap-1.5'>
-          {floors.map(f => (
-            <Button key={f} size='sm' variant={floor === f ? 'default' : 'outline'}
-              onClick={() => { setFloor(f); setReplayId(null); }}>하한 {f}</Button>
-          ))}
-          <span className='mx-1' />
-          {PERIODS.map(([k, label]) => (
-            <Button key={k} size='sm' variant={period === k ? 'default' : 'outline'}
-              onClick={() => setPeriod(k as any)}>{label}</Button>
-          ))}
-          <Button size='sm' variant='outline' onClick={() => window.print()}>인쇄</Button>
+        <div>
+          <button type='button' onClick={() => setScopeOpen(v => !v)}
+            className='text-muted-foreground hover:text-foreground text-sm tabular-nums'>
+            하한 {floor ?? '-'} · {PERIODS.find(pp => pp[0] === period)?.[1]} · {view.length}회 기준
+            <span className='ml-1 text-xs'>{scopeOpen ? '▲' : '▼ 바꾸기'}</span>
+          </button>
+          {scopeOpen && (
+            <div className='mt-1.5 flex flex-wrap items-center gap-1.5'>
+              {floors.map(f => (
+                <Button key={f} size='sm' variant={floor === f ? 'default' : 'outline'}
+                  onClick={() => { setFloor(f); setReplayId(null); }}>하한 {f}</Button>
+              ))}
+              <span className='mx-1' />
+              {PERIODS.map(([k, label]) => (
+                <Button key={k} size='sm' variant={period === k ? 'default' : 'outline'}
+                  onClick={() => setPeriod(k as any)}>{label}</Button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -470,10 +491,14 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
         <Card>
           <CardContent className='p-3'>
             <div className='mb-3 flex gap-1 overflow-x-auto pb-1' style={{ scrollbarWidth: 'thin' }}>
-              {LENSES.map(([k, label]) => (
+              {LENSES.filter(([k]) => PRIMARY_LENSES.includes(k) || moreLens || lens === k).map(([k, label]) => (
                 <Button key={k} size='sm' className='shrink-0' variant={lens === k ? 'default' : 'ghost'}
                   onClick={() => setLens(k)}>{label}</Button>
               ))}
+              <Button size='sm' variant='ghost' className='text-muted-foreground shrink-0'
+                onClick={() => setMoreLens(v => !v)}>
+                {moreLens ? '접기' : `+ 더보기 (${LENSES.length - PRIMARY_LENSES.length})`}
+              </Button>
             </div>
 
             {lens === 'flow' && (<>

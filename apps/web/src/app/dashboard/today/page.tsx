@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
 import { useSession } from '@/lib/session';
+import { RegionStatus } from '@/components/region-status';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useMarks } from '@/lib/marks';
 import { useTrack, trackAction } from '@/lib/track';
 import { won } from '@/lib/format';
@@ -107,127 +110,32 @@ export default function TodayPage() {
         <h1 className='text-2xl font-semibold'>오늘</h1>
         <p className='text-muted-foreground text-sm tabular-nums'>
           {brief
-            ? <>{brief.isYesterday ? '어제' : `최근 개찰일 ${brief.day.slice(5)}`} 전국 {brief.n.toLocaleString()}건 개찰{brief.top && <> · 최다 {brief.top}({brief.topN}건)</>}</>
+            ? <>{brief.isYesterday ? '어제' : `최근 개찰일 ${brief.day.slice(5)}`} 전국 {brief.n.toLocaleString()}건 개찰</>
             : '전국 137개 시군구 · 공고 10만 건 · 투찰 694만 데이터 기준.'}
         </p>
+        <div className='mt-1'><RegionStatus /></div>
       </div>
 
-      {/* 결정 대기 열 — 히어로: 오늘·내일 마감 (DESIGN.md C표) */}
+      {/* 히어로 — 할 일 자체 (A: 건수 대신 가장 급한 공고) */}
       {open.length > 0 && (() => {
-        const end = new Date(); end.setDate(end.getDate() + 2); end.setHours(0, 0, 0, 0);
-        const dueSoonN = open.filter(o => o.deadline && new Date(o.deadline) < end).length;
-        const basket = open.filter(o => marks[o.bidNo]);
-        const unfilled = basket.filter(o => marks[o.bidNo]?.rate == null).length;
+        const sorted = [...open].filter(o => o.deadline)
+          .sort((a, b) => +new Date(a.deadline!) - +new Date(b.deadline!));
+        const next = sorted[0] ?? open[0];
+        const unfilled = open.filter(o => marks[o.bidNo] && marks[o.bidNo]!.rate == null).length;
         return (
           <Card className='border-primary'>
-            <CardContent className='flex flex-wrap items-end justify-between gap-3 py-4'>
+            <CardContent className='flex flex-wrap items-end justify-between gap-3 py-4' style={{ minHeight: 84 }}>
               <div>
-                <div className='text-muted-foreground text-xs'>오늘·내일 마감</div>
-                <div className='text-3xl font-bold tabular-nums'>{dueSoonN}건</div>
-              </div>
-              <div className='text-right text-sm tabular-nums'>
-                <div>진행 중 {open.length}건 · 바구니 {basket.length}건</div>
-                {unfilled > 0 && <div className='text-amber-600'>바구니 {unfilled}건 값 미입력</div>}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      {ready && bizNos.length === 0 && (
-        <Card className='border-primary'>
-          <CardContent className='py-4'>
-            사업자번호를 등록하면 내 투찰 이력이 반영됩니다.{' '}
-            <Link href='/welcome' className='text-primary font-semibold hover:underline'>사업자 등록 →</Link>
-          </CardContent>
-        </Card>
-      )}
-
-      {graded.length > 0 && (
-        <div>
-          <h2 className='mb-2 font-semibold'>개찰 결과 <span className='text-muted-foreground text-sm font-normal'>(개찰 다음 날 반영)</span></h2>
-          <Card><CardContent className='divide-y p-0'>
-            {graded.map(r => (
-              <div key={r.bidNo} className='flex flex-wrap items-center justify-between gap-2 px-4 py-3'>
-                <div className='font-medium'>{r.schoolName ?? r.bidNo}
-                  <span className='text-muted-foreground ml-2 text-sm'>{r.openedAt}</span></div>
-                <div className='text-[15px] tabular-nums'>
-                  {r.status === '낙찰' && <><Badge className='mr-2 bg-green-600'>낙찰</Badge>{r.myRate != null && <>내 투찰 <b>{r.myRate}</b></>}</>}
-                  {r.status === '밀림' && <><Badge variant='secondary' className='mr-2'>밀림</Badge>
-                    {r.myRate != null ? <>내 투찰 {r.myRate} · 낙찰 {r.winRate} · <b className='text-amber-600'>{r.diff != null && r.diff > 0 ? `+${r.diff}` : r.diff} 차이</b></>
-                      : <>낙찰 {r.winRate}</>}</>}
-                  {r.status === '하한미달' && <><Badge variant='destructive' className='mr-2'>무효</Badge>하한 미만</>}
-                  {r.status === '기록없음' && <Badge variant='outline'>기록 없음</Badge>}
+                <div className='text-muted-foreground text-xs'>가장 급한 공고</div>
+                <div className='text-xl font-bold'>
+                  {next.schoolName ?? '학교 미상'} {next.category ?? ''}
+                  <span className='text-destructive ml-2 text-base'>{dday(next.deadline) ?? ''}</span>
                 </div>
               </div>
-            ))}
-          </CardContent></Card>
-        </div>
-      )}
-
-      {/* 투찰 바구니 — 오늘 넣을 것들의 일괄 결정 */}
-      {(() => {
-        const basket = open.filter(o => marks[o.bidNo]);
-        if (basket.length === 0) return null;
-        const baseSum = basket.reduce((s, o) => s + (o.basePrice ?? 0), 0);
-        const amtSum = basket.reduce((s, o) => {
-          const rt = marks[o.bidNo]?.rate;
-          return s + (rt != null && o.basePrice ? Math.round(o.basePrice * rt / 100) : 0);
-        }, 0);
-        const filled = basket.filter(o => marks[o.bidNo]?.rate != null).length;
-        return (
-          <Card className='border-primary'>
-            <CardHeader className='pb-2'>
-              <CardTitle className='text-base'>투찰 바구니 <span className='text-muted-foreground text-sm font-normal tabular-nums'>
-                {basket.length}건 · 값 입력 {filled}/{basket.length} · 기초 합 {won(baseSum)}원{amtSum > 0 && <> · 투찰 합 {won(amtSum)}원</>}</span></CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-1.5 pt-0'>
-              {basket.map(o => {
-                const m = marks[o.bidNo]!;
-                return (
-                  <div key={o.bidNo} className='flex flex-wrap items-center gap-2 rounded border px-2 py-1.5 text-sm tabular-nums'>
-                    <Link href={`/dashboard/auction/${o.bidNo}`} className='min-w-[120px] font-medium hover:underline'>{o.schoolName}</Link>
-                    <Badge variant='secondary'>{o.category}</Badge>
-                    <span className='text-muted-foreground'>기초 {won(o.basePrice)} · 하한 {o.floorRate}</span>
-                    <span className='ml-auto flex items-center gap-1.5'>
-                      <Input value={m.rate != null ? String(m.rate) : ''} inputMode='decimal'
-                        placeholder={`${(o.floorRate ?? 90) + 0.05}`}
-                        onChange={e => {
-                          const v = parseFloat(e.target.value);
-                          set(o.bidNo, { s: m.s, rate: Number.isFinite(v) ? v : undefined });
-                        }}
-                        className='h-7 w-24 font-mono' />
-                      {m.rate != null && o.basePrice && (
-                        <span className='text-muted-foreground w-32 text-right'>
-                          내 투찰가 {won(o.basePrice * m.rate / 100)}원
-                        </span>
-                      )}
-                      {(() => {
-                        const saved = m.s === 'done';
-                        const changed = saved && m.rate !== savedRates[o.bidNo];
-                        return (
-                          <Button size='sm' variant={saved && !changed ? 'secondary' : 'default'} className='h-7'
-                            disabled={m.rate == null || (o.floorRate != null && m.rate < o.floorRate)}
-                            onClick={() => {
-                              if (!saved) trackAction('mark_done');
-                              set(o.bidNo, { s: 'done', rate: m.rate });
-                              setSavedRates(v => ({ ...v, [o.bidNo]: m.rate }));
-                            }}>
-                            {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${m.rate})`}
-                          </Button>
-                        );
-                      })()}
-                      {m.s === 'done' && (
-                        <button className='text-muted-foreground px-1 text-xs hover:underline' title='투찰 저장 해제'
-                          onClick={() => set(o.bidNo, { s: 'watch', rate: m.rate })}>해제</button>
-                      )}
-                      <button className='text-muted-foreground px-1 hover:text-destructive' title='바구니에서 빼기'
-                        onClick={() => set(o.bidNo, null)}>✕</button>
-                    </span>
-                  </div>
-                );
-              })}
-              <p className='text-muted-foreground text-xs'>값을 넣고 [투찰 저장]을 누르면 다음 날 개찰 결과가 자동 반영됩니다. 값을 고치면 [이 값으로 갱신]이 뜹니다.</p>
+              <div className='text-right text-sm tabular-nums'>
+                {open.length > 1 && <div>다음 마감까지 {open.length}건 진행 중</div>}
+                {unfilled > 0 && <div className='text-amber-600'>값 미입력 {unfilled}건</div>}
+              </div>
             </CardContent>
           </Card>
         );
@@ -236,8 +144,13 @@ export default function TodayPage() {
       <div>
         <h2 className='mb-2 font-semibold'>진행 중 공고 {open.length}건</h2>
         {open.length === 0 && (
-          <Card><CardContent className='text-muted-foreground py-8 text-center text-sm'>
-            진행 중인 공고가 없습니다. 신규 공고는 대체로 매달 하순에 등록됩니다.
+          <Card><CardContent className='py-6'>
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>진행 중인 공고가 없습니다</EmptyTitle>
+                <EmptyDescription>신규 공고는 대체로 매달 하순에 등록됩니다.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </CardContent></Card>
         )}
         <div className='grid gap-3 lg:grid-cols-2'>
@@ -246,7 +159,7 @@ export default function TodayPage() {
             const b = badges[o.schoolName ?? ''];
             return (
               <Link key={o.bidNo} href={`/dashboard/auction/${o.bidNo}`} className='block'>
-                <Card className={`h-full transition-colors hover:border-primary ${m?.s === 'done' ? 'opacity-60' : m?.s === 'watch' ? 'border-primary' : ''}`}>
+                <Card className={`h-full transition-colors hover:border-primary ${m?.s === 'done' ? 'border-primary/60' : m?.s === 'watch' ? 'border-primary' : ''}`}>
                   <CardHeader className='pb-2'>
                     <div className='flex flex-wrap items-center justify-between gap-2'>
                       <CardTitle className='text-base'>{o.schoolName ?? '학교 미상'}</CardTitle>
@@ -262,32 +175,65 @@ export default function TodayPage() {
                       {m?.s === 'done' && <> · ✓ 저장됨{m.rate ? ` (${m.rate})` : ''}</>}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className='flex flex-wrap items-end justify-between gap-2'>
-                    <div>
-                      <div className='text-muted-foreground text-xs'>하한 금액</div>
-                      <div className='text-primary text-2xl font-bold tabular-nums'>{won(o.anchorAmount)} 원</div>
-                      <div className='text-muted-foreground text-xs'>기초금액 × 하한율</div>
+                  <CardContent className='space-y-2'>
+                    <div className='flex flex-wrap items-end justify-between gap-2 text-sm tabular-nums'>
+                      <div className='text-muted-foreground'>
+                        하한 금액 <span className='text-foreground font-semibold'>{won(o.anchorAmount)}원</span>
+                        <span className='ml-1 text-xs'>(기초 × 하한율)</span>
+                      </div>
+                      <div className='text-right'>
+                        {o.recent3.length > 0 && <div>최근 낙찰 <b>{o.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>}
+                        {o.band?.dense && <div className='text-muted-foreground'>잘 나온 구간 {o.band.dense.lo.toFixed(2)}~{o.band.dense.hi.toFixed(2)}</div>}
+                        {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
+                      </div>
                     </div>
-                    <div className='text-right text-sm tabular-nums'>
-                      {o.recent3.length > 0 && <div>최근 낙찰 <b>{o.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>}
-                      {o.band?.dense && <div className='text-muted-foreground'>잘 나온 구간 {o.band.dense.lo.toFixed(2)}~{o.band.dense.hi.toFixed(2)}</div>}
-                      {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
-                      <div className='mt-1 flex justify-end gap-2 text-xs'>
-                        <button className={marks[o.bidNo] ? 'text-muted-foreground' : 'text-primary font-semibold hover:underline'}
-                          onClick={e => { e.preventDefault(); e.stopPropagation(); if (!marks[o.bidNo]) trackAction('basket_add'); set(o.bidNo, marks[o.bidNo] ? null : { s: 'watch' }); }}>
-                          {marks[o.bidNo] ? '바구니에서 빼기' : '+ 바구니'}
-                        </button>
+
+                    {/* 값 입력·저장 — 카드 안에서 완결 (A: 바구니 병합) */}
+                    <div className='flex flex-wrap items-center gap-2 border-t pt-2'
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
+                      <Input value={m?.rate != null ? String(m.rate) : ''} inputMode='decimal'
+                        placeholder={`투찰률 ${((o.floorRate ?? 90) + 0.05).toFixed(2)}`}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value);
+                          if (!m) trackAction('basket_add');
+                          set(o.bidNo, { s: m?.s ?? 'watch', rate: Number.isFinite(v) ? v : undefined });
+                        }}
+                        className='h-8 w-32 font-mono' />
+                      {m?.rate != null && o.basePrice && (
+                        <span className='tabular-nums'>
+                          <span className='text-muted-foreground text-xs'>내가 넣을 금액 </span>
+                          <b className='text-primary text-xl'>{won(o.basePrice * m.rate / 100)}원</b>
+                        </span>
+                      )}
+                      {(() => {
+                        const saved = m?.s === 'done';
+                        const changed = saved && m?.rate !== savedRates[o.bidNo];
+                        return (
+                          <Button size='sm' className='h-8' variant={saved && !changed ? 'secondary' : 'default'}
+                            disabled={m?.rate == null || (o.floorRate != null && m.rate < o.floorRate)}
+                            onClick={() => {
+                              if (!saved) trackAction('mark_done');
+                              set(o.bidNo, { s: 'done', rate: m?.rate });
+                              setSavedRates(v => ({ ...v, [o.bidNo]: m?.rate }));
+                            }}>
+                            {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${m?.rate})`}
+                          </Button>
+                        );
+                      })()}
+                      {m?.s === 'done' && (
+                        <button className='text-muted-foreground text-xs hover:underline'
+                          onClick={() => set(o.bidNo, { s: 'watch', rate: m?.rate })}>해제</button>
+                      )}
+                      <span className='ml-auto flex gap-2 text-xs'>
                         {o.schoolId && (
                           <button className='text-primary hover:underline'
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); window.location.href = `/dashboard/analysis/${encodeURIComponent(o.schoolId ?? '')}`; }}>
+                            onClick={() => { window.location.href = `/dashboard/analysis/${encodeURIComponent(o.schoolId ?? '')}?bidNo=${encodeURIComponent(o.bidNo)}${m?.rate != null ? `&rate=${m.rate}&base=${o.basePrice ?? ''}` : ''}`; }}>
                             분석판
                           </button>
                         )}
                         <button className='text-muted-foreground hover:underline'
-                          onClick={e => { e.preventDefault(); e.stopPropagation(); window.open('https://www.eat.co.kr', '_blank'); }}>
-                          NeaT ↗
-                        </button>
-                      </div>
+                          onClick={() => window.open('https://ns.eat.co.kr', '_blank')}>NeaT ↗</button>
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
@@ -306,7 +252,16 @@ export default function TodayPage() {
           </CardContent></Card>
         )}
         {homes.length > 0 && <Card><CardContent className='divide-y p-0'>
-          {forecast.length === 0 && <p className='text-muted-foreground px-4 py-4 text-sm'>2주 내 발주 예정 학교가 없습니다.</p>}
+          {forecast.length === 0 && (
+            <div className='px-4 py-4'>
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>2주 내 발주 예정이 없습니다</EmptyTitle>
+                  <EmptyDescription>발주 주기가 쌓이면 예상 날짜가 표시됩니다.</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
+          )}
           {forecast.slice(0, 5).map(f => (
             <div key={f.schoolId} className='px-4 py-3 text-[15px]'>
               <Link href={`/dashboard/schools/${encodeURIComponent(f.schoolId)}`}

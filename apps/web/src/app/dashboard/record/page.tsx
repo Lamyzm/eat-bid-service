@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useSession } from '@/lib/session';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { useTrack, getSid } from '@/lib/track';
 import { toast } from 'sonner';
 import { won } from '@/lib/format';
@@ -34,23 +35,27 @@ export default function RecordPage() {
   const [ties, setTies] = useState<{ openedAt: string | null; schoolName: string | null; sigungu: string | null; bidRate: number | null; nTied: number; won: boolean; winRate: number | null }[]>([]);
   const [biz, setBiz] = useState<string | null>(null); // null = 합산
   const [months, setMonths] = useState(12);
-  const [shown, setShown] = useState(100); // 표 렌더 행 수 — KPI·요약은 전체 기준(U11)
+  const [limit, setLimit] = useState(300); // 서버에서 받아오는 행 수 (U11: 초기 페이로드 축소)
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [kpiOpen, setKpiOpen] = useState(false);
+  useEffect(() => { try { setKpiOpen(localStorage.getItem('eatbid.kpiOpen') === '1'); } catch {} }, []);
+  useEffect(() => { try { localStorage.setItem('eatbid.kpiOpen', kpiOpen ? '1' : '0'); } catch {} }, [kpiOpen]);
 
   useEffect(() => {
     if (bizNos.length === 0) return;
-    fetch(`/api/firms/bids?bizNos=${bizNos.join(',')}&limit=2000&withTotal=1`).then(r => r.json()).then(d => {
+    setLoadingMore(true);
+    fetch(`/api/firms/bids?bizNos=${bizNos.join(',')}&limit=${limit}&withTotal=1`).then(r => r.json()).then(d => {
       setRows(Array.isArray(d) ? d : (d.rows ?? []));
       setTotal(Array.isArray(d) ? null : (d.total ?? null));
-    });
+    }).finally(() => setLoadingMore(false));
     fetch(`/api/firms/ties?bizNos=${bizNos.join(',')}`).then(r => r.json())
       .then(x => setTies(Array.isArray(x) ? x : [])).catch(() => {});
-  }, [bizNos]);
+  }, [bizNos, limit]);
 
   const cutoff = useMemo(() => {
     const d = new Date(); d.setMonth(d.getMonth() - months);
     return d.toISOString().slice(0, 10);
   }, [months]);
-  useEffect(() => { setShown(100); }, [months, biz]);
   const view = useMemo(() => rows
     .filter(r => (biz == null || r.bizNo === biz) && (r.openedAt ?? '') >= cutoff)
     .sort((a, b) => (b.openedAt ?? '').localeCompare(a.openedAt ?? '')), [rows, biz, cutoff]);
@@ -132,21 +137,31 @@ export default function RecordPage() {
         <p className='text-muted-foreground text-sm'>로그인하면 다른 PC에서도 이어서 봅니다.</p>
       )}
 
-      {/* KPI */}
-      <div className='grid grid-cols-2 gap-2 md:grid-cols-5'>
-        {[
-          ['참여', `${view.length}회`, ''],
-          ['낙찰', `${wins.length}회`, 'text-primary'],
-          ['밀림', `${pushed.length}회`, 'text-amber-600'],
-          ['무효(하한미달)', `${below.length}회`, 'text-destructive'],
-          ['낙찰률', view.length ? `${(wins.length / view.length * 100).toFixed(1)}%` : '—', ''],
-        ].map(([label, v, cls]) => (
+      {/* KPI — 2칸 + 상세 접힘 (D) */}
+      <div className='grid grid-cols-2 gap-2' style={{ minHeight: 88 }}>
+        {[['참여', `${view.length}회`, ''], ['낙찰률', view.length ? `${(wins.length / view.length * 100).toFixed(1)}%` : '—', 'text-primary']].map(([label, v, cls]) => (
           <Card key={label as string}><CardContent className='px-4 py-3'>
             <div className='text-muted-foreground text-xs'>{label}</div>
-            <div className={`text-xl font-bold tabular-nums ${cls}`}>{v}</div>
+            <div className={`text-3xl font-bold tabular-nums ${cls}`}>{v}</div>
           </CardContent></Card>
         ))}
       </div>
+      <button type='button' className='text-muted-foreground hover:text-foreground -mt-3 self-start text-sm'
+        onClick={() => setKpiOpen(v => !v)}>
+        {kpiOpen ? '자세히 접기 ▲' : '자세히 보기 ▼ (낙찰·밀림·무효)'}
+      </button>
+      {kpiOpen && (
+        <div className='grid grid-cols-3 gap-2'>
+          {[['낙찰', `${wins.length}회`, 'text-primary'],
+            ['밀림 (남이 더 낮게 씀)', `${pushed.length}회`, 'text-amber-600'],
+            ['무효 (하한 아래)', `${below.length}회`, 'text-destructive']].map(([label, v, cls]) => (
+            <Card key={label as string}><CardContent className='px-4 py-3'>
+              <div className='text-muted-foreground text-xs'>{label}</div>
+              <div className={`text-xl font-bold tabular-nums ${cls}`}>{v}</div>
+            </CardContent></Card>
+          ))}
+        </div>
+      )}
 
       {/* 아깝게 진 판 */}
       {runnerUps.length > 0 && (
@@ -210,7 +225,7 @@ export default function RecordPage() {
           <CardTitle className='text-base'>투찰 내역</CardTitle>
           <CardDescription>
             각 행: 낙찰가 · 2등가 · 내 값(차이). 학교 클릭 = 분석판.
-            {view.length > shown && <> 위 KPI와 요약은 이 기간 <b>{view.length.toLocaleString()}건 전체</b> 기준이고, 표만 {shown.toLocaleString()}행씩 보여줍니다.</>}
+            {total != null && rows.length < total && <> KPI·요약은 <b>불러온 {rows.length.toLocaleString()}건</b> 기준입니다 (전체 {total.toLocaleString()}건 — [더 보기]로 넓힐 수 있습니다).</>}
           </CardDescription>
         </CardHeader>
         <CardContent className='p-0'>
@@ -224,7 +239,7 @@ export default function RecordPage() {
                 <TableHead>결과</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {view.slice(0, shown).map(r => {
+                {view.map(r => {
                   const diff = r.bidRate != null && r.winRate != null ? +(r.bidRate - r.winRate).toFixed(3) : null;
                   const isRunnerUp = !r.won && r.secondRate != null && r.bidRate != null && Math.abs(r.bidRate - r.secondRate) < 1e-9;
                   const status = r.won ? '낙찰' : r.bidRate != null && r.winRate != null && r.bidRate < r.winRate ? '하한미달' : '밀림';
@@ -259,18 +274,24 @@ export default function RecordPage() {
                     </TableRow>
                   );
                 })}
-                {view.length > shown && (
+                {total != null && rows.length < total && (
                   <TableRow>
                     <TableCell colSpan={7} className='py-3 text-center'>
-                      <Button size='sm' variant='outline' onClick={() => setShown(n => n + 200)}>
-                        더 보기 (표시 {shown.toLocaleString()} / {view.length.toLocaleString()}건)
+                      <Button size='sm' variant='outline' disabled={loadingMore}
+                        onClick={() => setLimit(n => Math.min(n + 500, 5000))}>
+                        {loadingMore ? '불러오는 중…' : `더 보기 (${rows.length.toLocaleString()} / ${total.toLocaleString()}건)`}
                       </Button>
                     </TableCell>
                   </TableRow>
                 )}
                 {view.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className='text-muted-foreground py-8 text-center'>
-                    이 기간의 투찰 기록이 없습니다.
+                  <TableRow><TableCell colSpan={7} className='py-6'>
+                    <Empty>
+                      <EmptyHeader>
+                        <EmptyTitle>이 기간의 투찰 기록이 없습니다</EmptyTitle>
+                        <EmptyDescription>기간을 늘리거나 다른 사업자를 선택해 보세요.</EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
                   </TableCell></TableRow>
                 )}
               </TableBody>
