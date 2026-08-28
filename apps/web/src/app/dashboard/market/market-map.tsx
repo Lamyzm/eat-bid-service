@@ -67,7 +67,7 @@ export function MarketMap() {
           <div className='mt-1'><RegionStatus /></div>
         </div>
         <div className='flex gap-1.5'>
-          {CATS.slice(0, 5).map(c => (
+          {CATS.map(c => (
             <Button key={c} size='sm' variant={cat === c ? 'default' : 'outline'} onClick={() => setCat(c)}>{c}</Button>
           ))}
         </div>

@@ -29,6 +29,9 @@ type OpenRow = {
   /** 서버가 실어 보내는 자격 정보 — 없으면 뱃지를 띄우지 않는다 */
   allowedLabel?: string | null; unrestricted?: boolean;
   qualificationBasis?: 'region-only' | string | null;
+  /** 품목 — categories 가 이 공고의 전부, category 는 대표 하나 */
+  categories?: string[]; isMultiCategory?: boolean;
+  categorySrc?: 'main_item' | 'name_rule' | 'none' | string | null;
 };
 type ResultRow = { bidNo: string; schoolName: string | null; openedAt: string | null; winRate: number | null; status: string };
 type ForecastRow = { schoolId: string; schoolName: string; lastOpened: string; medGapDays: number; expected: string; dueInDays: number; lastWinRate: number | null };
@@ -55,6 +58,13 @@ export default function TodayPage() {
   }, []);
 
   const bizLabel = (bz: string) => bizLabelOf(bz, bizNames, true);
+  // 다중 품목 펼침 — 대표 품목만 보여주면 나머지가 화면에서 사라진다
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set());
+  const toggleCats = (bidNo: string) => setOpenCats(prev => {
+    const next = new Set(prev);
+    if (next.has(bidNo)) next.delete(bidNo); else next.add(bidNo);
+    return next;
+  });
   const focusSlot = (id: string) => {
     const el = document.querySelector<HTMLInputElement>(`[data-rate-slot="${id}"]`);
     if (el) { el.focus(); el.select?.(); }
@@ -255,7 +265,26 @@ export default function TodayPage() {
                     <div className='flex flex-wrap items-center justify-between gap-2'>
                       <CardTitle className='text-base'>{o.schoolName ?? '학교 미상'}</CardTitle>
                       <div className='flex gap-1.5'>
-                        {o.category && <Badge variant='secondary'>{o.category}</Badge>}
+                        {(() => {
+                          const cats = o.categories?.length ? o.categories : (o.category ? [o.category] : []);
+                          if (o.categorySrc === 'none') return <Badge variant='outline'>품목 미표기</Badge>;
+                          if (cats.length === 0) return null;
+                          if (cats.length > 1) {
+                            const shown = openCats.has(o.bidNo);
+                            return (
+                              <button type='button' title={cats.join(' · ')}
+                                onClick={e => { e.preventDefault(); e.stopPropagation(); toggleCats(o.bidNo); }}>
+                                <Badge variant='secondary'>
+                                  {shown ? cats.join(' · ') : `종합 ${cats.length}품목`}
+                                </Badge>
+                              </button>
+                            );
+                          }
+                          return <Badge variant='secondary'>{cats[0]}</Badge>;
+                        })()}
+                        {o.categorySrc === 'name_rule' && (
+                          <span className='text-muted-foreground self-center text-xs'>공고명에서 추정</span>
+                        )}
                         {(() => {
                           // 자격 표기는 서버가 준 근거로만 한다 (품목 분류 전수조사 결과가 오면 '지역 자격 충족')
                           const qualified = homes.length > 0 && o.sigungu && homes.includes(o.sigungu);
@@ -458,7 +487,14 @@ export default function TodayPage() {
                 className='hover:bg-accent flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm tabular-nums'>
                 <span className='truncate'>
                   <b>{o.schoolName ?? '학교 미상'}</b>
-                  <span className='text-muted-foreground ml-1 text-xs'>{o.sigungu} · {o.category}</span>
+                  <span className='text-muted-foreground ml-1 text-xs'>
+                    {o.sigungu} · {o.categorySrc === 'none'
+                      ? '품목 미표기'
+                      : (o.categories?.length ?? 0) > 1
+                        ? `종합 ${o.categories!.length}품목 (${o.categories!.join(' · ')})`
+                        : o.category}
+                    {o.categorySrc === 'name_rule' && ' · 공고명에서 추정'}
+                  </span>
                 </span>
                 <span className='text-muted-foreground shrink-0'>
                   하한 {o.floorRate} · {won(o.anchorAmount)}원

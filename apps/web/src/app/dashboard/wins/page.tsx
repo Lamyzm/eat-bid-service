@@ -161,7 +161,7 @@ export default function WinsPage() {
               ))}
               <span className='mx-1' />
               <Button size='sm' variant={cat === null ? 'default' : 'outline'} onClick={() => setCat(null)}>전체</Button>
-              {CATS.slice(0, 5).map(c => (
+              {CATS.map(c => (
                 <Button key={c} size='sm' variant={cat === c ? 'default' : 'outline'} onClick={() => setCat(c)}>{c}</Button>
               ))}
             </div>

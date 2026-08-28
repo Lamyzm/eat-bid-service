@@ -2,15 +2,17 @@ import React from 'react';
 import { SidebarTrigger } from '../ui/sidebar';
 import { Separator } from '../ui/separator';
 import { Breadcrumbs } from '../breadcrumbs';
-import SearchInput from '../search-input';
-import { ThemeSelector } from '../themes/theme-selector';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { RegionSwitcher } from '../region-switcher';
-import { AuthButton } from '../auth-button';
 import { SessionBoot } from '../session-boot';
-import CtaGithub from './cta-github';
+import { GlobalSettingsButton, GlobalSettingsDialog } from '../global-settings';
 import { NotificationCenter } from '@/features/notifications/components/notification-center';
 
+/**
+ * 헤더는 최소로 — 토글 · 브레드크럼 | 지역 칩 · 전역 설정 · 테마 · 알림.
+ * 계정(이메일·로그아웃)은 사이드바 하단 계정 허브로 이동 (R6 NAV 개편).
+ * 스타터 잔재(깃허브·검색·테마 셀렉터)는 제거했다.
+ */
 export default function Header() {
   return (
     <header className='bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-2 backdrop-blur-md md:h-14'>
@@ -21,20 +23,15 @@ export default function Header() {
         <Breadcrumbs />
       </div>
 
-      <div className='flex items-center gap-2 px-4'>
-        <CtaGithub />
-        <div className='hidden md:flex'>
-          <SearchInput />
-        </div>
+      <div className='flex shrink-0 items-center gap-1.5 px-4'>
         <SessionBoot />
-        <AuthButton />
         <RegionSwitcher />
+        <GlobalSettingsButton />
         <ThemeModeToggle />
-        <div className='hidden sm:block'>
-          <ThemeSelector />
-        </div>
         <NotificationCenter />
       </div>
+
+      <GlobalSettingsDialog />
     </header>
   );
 }

@@ -26,5 +26,5 @@ export const won = (n: number | null | undefined) =>
 export const eok = (n: number | null | undefined) =>
   n == null ? '-' : n >= 1e8 ? `${(n / 1e8).toFixed(1)}억` : `${Math.round(n / 1e4).toLocaleString()}만`;
 
-/** 품목 순서 — 전 화면 공통 (버튼 5종은 CATS.slice(0, 5)) */
-export const CATS = ['축산', '수산', '공산', '농산', '김치', '기타'] as const;
+/** 품목 순서 — SSOT는 @eatbid/shared CATEGORIES. slice로 기타를 자르지 않는다(기타도 실재 데이터). */
+export { CATEGORIES as CATS } from '@eatbid/shared';
