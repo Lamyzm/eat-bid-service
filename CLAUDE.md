@@ -3,7 +3,7 @@
 **학교급식 전자입찰(eaT) 공개 데이터로 만든 입찰 판단 재료 서비스.**
 사장이 오늘 얼마를 넣을지 스스로 정하도록, 우리는 재료만 정확히 놓는다.
 
-진행 기록: `claude-progress.txt` | 규칙: `.claude/rules/` | 사고 원인: `docs/POSTMORTEM.md`
+진행 기록: `claude-progress.txt` | 규칙: `.claude/rules/` (읽는 순서는 그 README)
 
 ---
 
