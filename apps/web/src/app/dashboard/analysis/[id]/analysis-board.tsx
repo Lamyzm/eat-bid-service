@@ -121,8 +121,9 @@ function Hist({ values, binSize, fmt, highlight, onBar, marks }: {
   );
 }
 
-export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
+export function AnalysisBoard({ school, rounds, initialRate, initialBase, initialBidNo }: {
   school: any; rounds: Round[]; initialRate?: string | null; initialBase?: string | null;
+  initialBidNo?: string | null;
 }) {
   const { bizNos } = useWorkspace();
   const { marks, set: setMark } = useMarks();
@@ -140,6 +141,15 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
     try { localStorage.setItem('eatbid.lens', l); } catch {}
   };
   const [period, setPeriod] = useState<'3m' | '6m' | '12m' | 'all'>('all');
+  // 공고 컨텍스트 (IA 3안) — bidNo가 있으면 그 공고 기준으로 산출기·하한 탭 세팅
+  const [ctxBid, setCtxBid] = useState<any>(null);
+  const ctxAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!initialBidNo) return;
+    fetch(`/api/open/${encodeURIComponent(initialBidNo)}`).then(r => r.json())
+      .then(d => { if (d && d.bidNo) setCtxBid(d); }).catch(() => {});
+  }, [initialBidNo]);
+
 
   const floors = useMemo(() => {
     const m = new Map<number, number>();
@@ -177,6 +187,13 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
   // ── 산출기 (전 렌즈 공유) ──
   const latest = view.at(-1) ?? all.at(-1);
   const [baseStr, setBaseStr] = useState(initialBase ?? '');
+  // 공고 컨텍스트 도착 시 1회 적용 — 기초금액·하한 탭
+  useEffect(() => {
+    if (!ctxBid || ctxAppliedRef.current) return;
+    ctxAppliedRef.current = true;
+    if (ctxBid.basePrice != null) setBaseStr(String(ctxBid.basePrice));
+    if (ctxBid.floorRate != null) setFloor(ctxBid.floorRate);
+  }, [ctxBid]);
   useEffect(() => { if (!baseStr && latest?.basePrice) setBaseStr(String(latest.basePrice)); }, [latest]);
   const base = Number(baseStr.replace(/[^0-9]/g, '')) || 0;
   const [rateStr, setRateStr] = useState(initialRate ?? '');
@@ -421,6 +438,25 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
           <Button size='sm' variant='outline' onClick={() => window.print()}>인쇄</Button>
         </div>
       </div>
+
+      {ctxBid && (
+        <Card className='border-primary'>
+          <CardContent className='flex flex-wrap items-center justify-between gap-3 py-3 text-[15px] tabular-nums'>
+            <span>
+              <b>진행 중 공고 기준</b> · {ctxBid.category ?? '-'} · 기초 {won(ctxBid.basePrice)}원 · 하한 {ctxBid.floorRate}
+              {(() => {
+                if (!ctxBid.deadline) return null;
+                const ms = new Date(ctxBid.deadline).getTime() - Date.now();
+                if (ms < 0) return <span className='text-destructive'> · 마감됨</span>;
+                const h = Math.floor(ms / 36e5);
+                return <span className='text-destructive'> · {h < 24 ? `마감 ${h}시간 전` : `마감 D-${Math.floor(h / 24)}`}</span>;
+              })()}
+            </span>
+            <Link href={`/dashboard/auction/${ctxBid.bidNo}${r != null ? `?rate=${r}` : ''}`}
+              className='text-primary text-sm font-semibold hover:underline'>공고 상세로 →</Link>
+          </CardContent>
+        </Card>
+      )}
 
       <div className='grid gap-4 xl:grid-cols-[1fr_320px]'>
         {/* ── 메인: 렌즈 ── */}
@@ -768,10 +804,10 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
                   사이에서 정해져 왔습니다 (이 학교 {pprs.length}회 기준).
                 </p>
               )}
-              {openBids.length > 0 ? (
+              {(ctxBid ? [ctxBid, ...openBids.filter(o => o.bidNo !== ctxBid.bidNo)] : openBids).length > 0 ? (
                 <div className='space-y-1.5 border-t pt-2'>
-                  <div className='text-sm font-medium'>진행 중 공고 {openBids.length}건</div>
-                  {openBids.map(o => {
+                  <div className='text-sm font-medium'>진행 중 공고 {(ctxBid ? [ctxBid, ...openBids.filter(o => o.bidNo !== ctxBid.bidNo)] : openBids).length}건</div>
+                  {(ctxBid ? [ctxBid, ...openBids.filter(o => o.bidNo !== ctxBid.bidNo)] : openBids).map(o => {
                     const m = marks[o.bidNo];
                     return (
                       <div key={o.bidNo} className='space-y-1'>
@@ -797,20 +833,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase }: {
         </div>
       </div>
 
-      {/* 하단: 진행 공고 + 로스터 */}
-      {openBids.length > 0 && (
-        <Card>
-          <CardContent className='flex flex-wrap items-center gap-3 py-3'>
-            <span className='font-medium'>진행 중 공고</span>
-            {openBids.map(o => (
-              <Link key={o.bidNo} href={`/dashboard/auction/${o.bidNo}`}
-                className='text-primary text-sm hover:underline'>
-                {o.category} · 기초 {won(o.basePrice)}원 · 하한 {o.floorRate} →
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      {/* 하단: 참여 업체 */}
       <Card>
         <CardContent className='p-0'>
           <div className='px-4 pt-3 font-semibold'>참여 업체</div>

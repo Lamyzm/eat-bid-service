@@ -3,7 +3,7 @@ import { AnalysisBoard } from './analysis-board';
 export const dynamic = 'force-dynamic';
 
 export default async function AnalysisPage({ params, searchParams }: {
-  params: Promise<{ id: string }>; searchParams: Promise<{ rate?: string; base?: string }>;
+  params: Promise<{ id: string }>; searchParams: Promise<{ rate?: string; base?: string; bidNo?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -17,5 +17,5 @@ export default async function AnalysisPage({ params, searchParams }: {
   const school = schools.find((s: any) => s.id === decoded) ?? schools[0] ?? null;
   const rounds = await roundsRes.json();
   return <AnalysisBoard school={school} rounds={rounds}
-    initialRate={sp.rate ?? null} initialBase={sp.base ?? null} />;
+    initialRate={sp.rate ?? null} initialBase={sp.base ?? null} initialBidNo={sp.bidNo ?? null} />;
 }

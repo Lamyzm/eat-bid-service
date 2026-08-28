@@ -184,7 +184,7 @@ export function AuctionDetail({ open, auctions, roster }: {
             </p>
           )}
           {open.schoolId && (
-            <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}${liveRate != null ? `?rate=${liveRate}&base=${base}` : ''}`}
+            <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}?bidNo=${encodeURIComponent(open.bidNo)}${liveRate != null ? `&rate=${liveRate}&base=${base}` : ''}`}
               className='text-primary text-sm font-semibold hover:underline'>이 학교 분석판 (기록·리허설·리플레이) →</Link>
           )}
         </CardContent>
@@ -223,51 +223,6 @@ export function AuctionDetail({ open, auctions, roster }: {
         </Card>
       )}
 
-      {/* 4.5 몰림 지도 — 남들이 요즘 어디에 서나 */}
-      {crowd && crowd.total > 0 && (
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-base'>요즘 다들 어디에 쓰나</CardTitle>
-            <CardDescription>
-              최근 {crowd.days}일 하한 {floor} 공고 전체에서 <b className='text-foreground'>{crowd.total.toLocaleString()}건</b>의
-              투찰이 선 자리의 사실입니다. 같은 값이 겹치면 추첨입니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const lo = floor, hi = floor + 0.5;
-              const bins = crowd.bins.filter(b => b.v >= lo && b.v <= hi);
-              const maxN = Math.max(1, ...bins.map(b => b.n));
-              const myBin = liveRate != null ? Math.round(liveRate * 100) / 100 : null;
-              const myN = myBin != null ? (crowd.bins.find(b => Math.abs(b.v - myBin) < 1e-9)?.n ?? 0) : null;
-              return (<>
-                <div className='flex items-end gap-px' style={{ height: 110, overflowX: 'auto' }}>
-                  {bins.map(b => {
-                    const isMine = myBin != null && Math.abs(b.v - myBin) < 1e-9;
-                    return (
-                      <div key={b.v} className='group relative flex flex-col items-center' style={{ minWidth: 13, flex: 1 }}
-                        title={`${b.v.toFixed(2)} · ${b.n.toLocaleString()}건`}>
-                        <div className='w-full rounded-t'
-                          style={{ height: `${Math.max(2, b.n / maxN * 86)}px`,
-                            background: isMine ? CHART.me : 'var(--primary)', opacity: isMine ? 1 : 0.55 }} />
-                        {(b.v * 100) % 10 === 0 && <div className='text-muted-foreground mt-0.5 text-[10px] tabular-nums'>{b.v.toFixed(1)}</div>}
-                      </div>
-                    );
-                  })}
-                </div>
-                {myBin != null && myN != null && (
-                  <p className='mt-2 text-[15px] tabular-nums'>
-                    내 값 <b className='font-mono'>{myBin.toFixed(2)}</b> 자리에는 최근 {crowd.days}일 동안{' '}
-                    <b className={myN > crowd.total / bins.length ? 'text-destructive' : 'text-primary'}>{myN.toLocaleString()}건</b>이 섰습니다.
-                    {myN === 0 && ' — 빈 자리입니다.'}
-                  </p>
-                )}
-              </>);
-            })()}
-          </CardContent>
-        </Card>
-      )}
-
       {/* 5. 결정 */}
       <Card className='border-primary'>
         <CardHeader className='pb-2'>
@@ -292,6 +247,16 @@ export function AuctionDetail({ open, auctions, roster }: {
           {belowFloor && (
             <p className='text-destructive font-semibold'>하한({floor}) 미만 · 무효</p>
           )}
+          {crowd && liveRate != null && (() => {
+            const k = Math.round(liveRate * 100) / 100;
+            const n = crowd.bins.find(b => Math.abs(b.v - k) < 1e-9)?.n ?? 0;
+            return (
+              <p className='text-[13px] tabular-nums'>
+                이 값 자리에 최근 {crowd.days}일 <b className={n > 200 ? 'text-destructive' : 'text-primary'}>{n.toLocaleString()}건</b>
+                {n === 0 ? ' — 빈 자리' : ''} <span className='text-muted-foreground'>(전장 {crowd.total.toLocaleString()}건의 사실 · 동가는 추첨)</span>
+              </p>
+            );
+          })()}
           {liveRate != null && !belowFloor && (() => {
             const same = rounds.filter(x => x.floorRate === floor && x.winRate != null);
             if (same.length < 3) return null;
