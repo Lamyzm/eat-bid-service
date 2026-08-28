@@ -10,6 +10,9 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/u
 import { useWorkspace } from '@/lib/workspace';
 import { useTrack } from '@/lib/track';
 import { won, eok, CATS } from '@/lib/format';
+import { daysAgoKST } from '@eatbid/shared';
+import { LoadError } from '@/components/load-error';
+import { fetchJson } from '@/lib/fetch-json';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +35,8 @@ export default function WinsPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [rows, setRows] = useState<Win[]>([]);
   const [total, setTotal] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
   const { bizNos } = useWorkspace();
   const [myBidIds, setMyBidIds] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -51,10 +56,11 @@ export default function WinsPage() {
     const q = new URLSearchParams({ days: String(days), withTotal: '1' });
     if (cat) q.set('category', cat);
     if (regionKey) q.set('sigungu', regionKey);
-    fetch(`/api/wins/recent?${q}`).then(r => r.json()).then(d => {
+    setLoadError(false);
+    fetchJson<any>(`/api/wins/recent?${q}`).then(d => {
       setRows(Array.isArray(d) ? d : (d.rows ?? []));
       setTotal(Array.isArray(d) ? null : (d.total ?? null));
-    });
+    }).catch(() => setLoadError(true));
   }, [days, cat, regionKey, ready]);
   useEffect(() => {
     if (!ready) return;
@@ -63,7 +69,7 @@ export default function WinsPage() {
     fetch(`/api/wins/monthly?${q}`).then(r => r.json()).then(setMonthly);
   }, [regionKey, ready]);
 
-  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const yesterday = daysAgoKST(1);
   const totalBase = rows.reduce((s, r) => s + (r.basePrice ?? 0), 0);
   const gaps = rows.filter(r => r.gap12 != null).map(r => r.gap12!).sort((a, b) => a - b);
   const gapMed = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
@@ -210,7 +216,12 @@ export default function WinsPage() {
                     )}
                   </TableRow>
                 ))}
-                {rows.length === 0 && (
+                {loadError && (
+                  <TableRow><TableCell colSpan={9} className='p-0'>
+                    <LoadError message='개찰 결과를 불러오지 못했습니다.' onRetry={() => setReload(n => n + 1)} />
+                  </TableCell></TableRow>
+                )}
+                {!loadError && rows.length === 0 && (
                   <TableRow><TableCell colSpan={9} className='py-6'>
                     <Empty>
                       <EmptyHeader>

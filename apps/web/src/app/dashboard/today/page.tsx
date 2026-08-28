@@ -7,6 +7,8 @@ import { useRegion } from '@/lib/region';
 import { useSession } from '@/lib/session';
 import { RegionStatus } from '@/components/region-status';
 import { RateInput } from '@/components/rate-input';
+import { LoadError } from '@/components/load-error';
+import { fetchJson } from '@/lib/fetch-json';
 import { slotKeysFor, ratesOf, withRate, primaryRate, hasAnyRate, sameRates, bizLabelOf } from '@/lib/mark-rates';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,6 +16,7 @@ import { useMarks } from '@/lib/marks';
 import { useTrack, trackAction, trackOnce, todayKey } from '@/lib/track';
 import { usePersistedFlag } from '@/lib/use-persisted-state';
 import { won } from '@/lib/format';
+import { kstDate, kstTime, todayKST, daysAgoKST } from '@eatbid/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +29,7 @@ type OpenRow = {
   bidNo: string; schoolName: string | null; sigungu: string | null; schoolId: string | null;
   basePrice: number | null; floorRate: number | null; deadline: string | null; category: string | null;
   anchorAmount: number | null;
-  band: { dense?: { lo: number; hi: number; pct: number } } | null;
+  band: { n?: number; dense?: { lo: number; hi: number; pct: number } } | null;
   recent3: number[]; usualN: number | null;
   /** 서버가 실어 보내는 자격 정보 — 없으면 뱃지를 띄우지 않는다 */
   allowedLabel?: string | null; unrestricted?: boolean;
@@ -34,6 +37,12 @@ type OpenRow = {
   /** 품목 — categories 가 이 공고의 전부, category 는 대표 하나 */
   categories?: string[]; isMultiCategory?: boolean;
   categorySrc?: 'main_item' | 'name_rule' | 'none' | string | null;
+  /** 이 목록을 받아온 시각 (서버 적재 시각) */
+  fetchedAt?: string | null;
+  /** 이 학교의 품목별 회차 수 — 표본이 몇 회인지 화면이 말한다 */
+  catCounts?: Record<string, number> | null;
+  /** 같은 하한 회차 수 */
+  nSameFloor?: number | null;
 };
 type ResultRow = { bidNo: string; schoolName: string | null; openedAt: string | null; winRate: number | null; status: string };
 type ForecastRow = { schoolId: string; schoolName: string; lastOpened: string; medGapDays: number; expected: string; dueInDays: number; lastWinRate: number | null };
@@ -83,7 +92,7 @@ export default function TodayPage() {
     fetch('/api/wins/recent?days=2&limit=1000').then(r => r.json()).then(d => {
       const rows: any[] = Array.isArray(d) ? d : (d.rows ?? []);
       if (rows.length === 0) { setBrief(null); return; }
-      const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+      const yesterday = daysAgoKST(1);
       let day = yesterday;
       let dayRows = rows.filter(r => r.openedAt === yesterday);
       if (dayRows.length === 0) {
@@ -103,9 +112,17 @@ export default function TodayPage() {
   const [badges, setBadges] = useState<Record<string, { part: number; wins: number }>>({});
 
   const [openLoaded, setOpenLoaded] = useState(false);
+  const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+  const [openError, setOpenError] = useState(false);
+  const [openReload, setOpenReload] = useState(0);
   useEffect(() => {
-    fetch('/api/open').then(r => r.json()).then(setOpen).finally(() => setOpenLoaded(true));
-  }, []);
+    setOpenError(false);
+    fetchJson<OpenRow[]>('/api/open').then(rows => {
+      setOpen(rows);
+      // 적재 시각 — 로더가 멈추면 이 값이 안 움직인다. 사장이 유일한 관측자다 (X19)
+      setFetchedAt(Array.isArray(rows) && rows[0]?.fetchedAt ? rows[0].fetchedAt : null);
+    }).catch(() => setOpenError(true)).finally(() => setOpenLoaded(true));
+  }, [openReload]);
 
   /** 보는 지역으로 거른 목록 — 제목·히어로·목록이 모두 이 배열을 센다 (U26) */
   const visible = useMemo(
@@ -194,6 +211,17 @@ export default function TodayPage() {
             : '전국 137개 시군구 · 공고 10만 건 · 투찰 694만 데이터 기준.'}
         </p>
         <div className='mt-1'><RegionStatus /></div>
+        {fetchedAt && (() => {
+          const day = kstDate(new Date(fetchedAt));
+          const fresh = day === todayKST();
+          return (
+            <p className={`mt-0.5 text-xs tabular-nums ${fresh ? 'text-muted-foreground' : 'text-destructive font-medium'}`}>
+              {fresh
+                ? `${kstTime(new Date(fetchedAt))} 기준 목록입니다.`
+                : `${day} ${kstTime(new Date(fetchedAt))} 기준 목록입니다. 오늘 자료가 아직 들어오지 않았습니다.`}
+            </p>
+          );
+        })()}
       </div>
 
       {marksUnreadable && !noticeOff && (
@@ -242,7 +270,12 @@ export default function TodayPage() {
           마감 임박 {Math.min(HEAD, visible.length)}건
           {visible.length > HEAD && <span className='text-muted-foreground ml-1 text-sm font-normal tabular-nums'>· 내 지역 {visible.length}건 중</span>}
         </h2>
-        {openLoaded && visible.length === 0 && (
+        {openLoaded && openError && (
+          <Card><CardContent className='p-0'>
+            <LoadError message='공고 목록을 불러오지 못했습니다.' onRetry={() => setOpenReload(n => n + 1)} />
+          </CardContent></Card>
+        )}
+        {openLoaded && !openError && visible.length === 0 && (
           <Card><CardContent className='py-6'>
             <Empty>
               <EmptyHeader>
@@ -316,8 +349,19 @@ export default function TodayPage() {
                       </div>
                       <div className='text-right'>
                         {o.recent3.length > 0 && <div>최근 낙찰 <b>{o.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>}
-                        {o.band?.dense && <div className='text-muted-foreground'>잘 나온 구간 {o.band.dense.lo.toFixed(2)}~{o.band.dense.hi.toFixed(2)}</div>}
+                        {o.band?.dense && (
+                          <div className='text-muted-foreground'>
+                            잘 나온 구간 {o.band.dense.lo.toFixed(2)}~{o.band.dense.hi.toFixed(2)}
+                            {o.band.n != null && <> · 하한 {o.floorRate} {o.band.n}회 중 {o.band.dense.pct}%</>}
+                          </div>
+                        )}
                         {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
+                        {/* 표본 수 — 분류가 정확해지며 표본이 줄어든 자리를 화면이 숨기지 않는다 */}
+                        {o.catCounts && (() => {
+                          const cats = o.categories?.length ? o.categories : (o.category ? [o.category] : []);
+                          const parts = cats.filter(c => o.catCounts![c] != null).map(c => `${c} ${o.catCounts![c]}회`);
+                          return parts.length ? <div className='text-muted-foreground'>이 학교 {parts.join(' · ')}</div> : null;
+                        })()}
                       </div>
                     </div>
 

@@ -13,6 +13,7 @@ import { usePersistedFlag } from '@/lib/use-persisted-state';
 import { useCsvDownload, todayStamp } from '@/lib/use-csv-download';
 import { toast } from 'sonner';
 import { won } from '@/lib/format';
+import { monthsAgoKST } from '@eatbid/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,10 +58,7 @@ export default function RecordPage() {
       .then(d => setAgg(d && typeof d.totalBids === 'number' ? d : null)).catch(() => {});
   }, [bizNos, limit]);
 
-  const cutoff = useMemo(() => {
-    const d = new Date(); d.setMonth(d.getMonth() - months);
-    return d.toISOString().slice(0, 10);
-  }, [months]);
+  const cutoff = useMemo(() => monthsAgoKST(months), [months]);
   const view = useMemo(() => rows
     .filter(r => (biz == null || r.bizNo === biz) && (r.openedAt ?? '') >= cutoff)
     .sort((a, b) => (b.openedAt ?? '').localeCompare(a.openedAt ?? '')), [rows, biz, cutoff]);

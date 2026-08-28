@@ -9,6 +9,7 @@ import { useWorkspace } from '@/lib/workspace';
 import { useSession } from '@/lib/session';
 import { useTrack } from '@/lib/track';
 import { won } from '@/lib/format';
+import { todayKST } from '@eatbid/shared';
 import { useCsvDownload, todayStamp } from '@/lib/use-csv-download';
 import { Badge } from '@/components/ui/badge';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
@@ -68,7 +69,7 @@ export default function DeliveryPage() {
       amount: r.basePrice != null && r.bidRate != null ? Math.round(r.basePrice * r.bidRate / 100) : null,
       days: mealDays(r.dlvryStart!, r.dlvryEnd!, month),
       status: (() => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayKST();
         if (r.dlvryEnd! < today) return STATUS.종료;
         if (r.dlvryStart! > today) return STATUS.예정;
         return STATUS.진행;
@@ -305,7 +306,7 @@ export default function DeliveryPage() {
           </tbody>
         </table>
         <p style={{ marginTop: 16, fontSize: 12, color: '#666' }}>
-          계약액은 투찰가 기준이며 실제 정산과 다를 수 있습니다. 출력일 {new Date().toISOString().slice(0, 10)}
+          계약액은 투찰가 기준이며 실제 정산과 다를 수 있습니다. 출력일 {todayKST()}
         </p>
       </div>
     )}

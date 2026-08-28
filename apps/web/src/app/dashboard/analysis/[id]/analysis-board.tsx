@@ -15,6 +15,7 @@ import { useMarks } from '@/lib/marks';
 import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { usePersistedFlag, usePersistedChoice } from '@/lib/use-persisted-state';
 import { won } from '@/lib/format';
+import { monthsAgoKST, type ForecastRow } from '@eatbid/shared';
 import { CHART as C, myMarker, chartFrame } from '@/lib/chart-colors';
 import { RosterTable, type RosterRow } from '@/components/roster-table';
 import { Badge } from '@/components/ui/badge';
@@ -269,8 +270,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
   const cutoff = useMemo(() => {
     const months = PERIODS.find(p => p[0] === period)![2];
     if (months > 100) return '0000';
-    const d = new Date(); d.setMonth(d.getMonth() - months);
-    return d.toISOString().slice(0, 10);
+    return monthsAgoKST(months);
   }, [period]);
   const all = useMemo(() => rounds.filter(x => x.winRate != null && x.openedAt >= cutoff), [rounds, cutoff]);
   const view = useMemo(() => {
@@ -501,18 +501,25 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
   const reserveRatios = useMemo(() => all.flatMap(x => (x.reserves ?? []).map(v => v.r * 100)), [all]);
 
   // 발주 예보 — 최근 간격 중앙값
-  const forecast = useMemo(() => {
-    const dates = [...new Set(rounds.map(x => x.openedAt))].sort();
-    if (dates.length < 4) return null;
-    const gaps = dates.slice(-7).slice(1).map((d, i) =>
-      Math.round((+new Date(d) - +new Date(dates.slice(-7)[i])) / 864e5)).filter(g => g > 5 && g < 90).sort((a, b) => a - b);
-    if (!gaps.length) return null;
-    const med = gaps[Math.floor(gaps.length / 2)];
-    const last = dates[dates.length - 1];
-    const expected = new Date(+new Date(last) + med * 864e5);
-    return { med, last, expected: expected.toISOString().slice(0, 10),
-      due: Math.round((+expected - Date.now()) / 864e5) };
-  }, [rounds]);
+  /**
+   * 발주 예보 — 서버 값을 그대로 쓴다.
+   * 같은 알고리즘을 웹이 다시 구현하고 있었고 기준 시각만 달라서(서버는 자정, 웹은 현재 시각)
+   * 같은 학교의 D-day 가 오늘 화면과 여기서 하루씩 어긋났다.
+   */
+  const [forecast, setForecast] = useState<ForecastRow | null>(null);
+  useEffect(() => {
+    const sgg = school?.sigungu;
+    if (!sgg || !school?.id) return;
+    const ac = new AbortController();
+    fetch(`/api/schools/forecast?sigungu=${encodeURIComponent(sgg)}`, { signal: ac.signal })
+      .then(r => r.json())
+      .then((rows: ForecastRow[]) => {
+        if (!Array.isArray(rows)) return;
+        setForecast(rows.find(f => f.schoolId === school.id) ?? null);
+      })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [school?.sigungu, school?.id]);
 
   if (!school) return <div className='p-8'>학교를 찾지 못했습니다.</div>;
   const openBid = openBids[0] ?? null;
@@ -532,7 +539,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
             {my.length > 0 && <Badge variant='outline'>내 참여 {my.length}회</Badge>}
             {!openBid && forecast && (
               <Badge variant='outline' className='tabular-nums'>
-                발주 주기 {forecast.med}일 · 다음 예상 {forecast.due <= 0 ? '도래' : `${forecast.expected} (D-${forecast.due})`}
+                발주 주기 {forecast.medGapDays}일 · 다음 예상 {forecast.dueInDays <= 0 ? '도래' : `${forecast.expected} (D-${forecast.dueInDays})`}
               </Badge>
             )}
           </div>
@@ -660,8 +667,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                       const rsAll = rounds.filter(x => x.floorRate === floor && x.winRate != null);
                       const inBin = (x: Round) => { const m = x.winRate! - x.floorRate!; return m >= lo && m < hi; };
                       const cols = [3, 6, 12, 24].map(mo => {
-                        const cut = new Date(); cut.setMonth(cut.getMonth() - mo);
-                        const c = cut.toISOString().slice(0, 10);
+                        const c = monthsAgoKST(mo);
                         const sub = rsAll.filter(x => x.openedAt >= c);
                         const n = sub.filter(inBin).length;
                         return { n, pct: sub.length ? Math.round(n / sub.length * 100) : 0 };

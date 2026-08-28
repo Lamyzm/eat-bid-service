@@ -165,8 +165,10 @@ export async function boot() {
 
   // 최초 로그인 병합 — 로컬 ∪ 서버, 사용자당 1회
   let mergedBiz = serverBiz, mergedRegions = serverRegions, mergedMarks = serverMarks;
+  // id 가 없으면 병합하지 않는다 — 공용 PC 에서 다른 계정 데이터가 섞이는 경로다 (X6)
+  const userId: string | null = me.user?.id ?? null;
   let needMerge = false;
-  try { needMerge = localStorage.getItem(K.merged) !== me.user?.id; } catch {}
+  try { needMerge = userId != null && localStorage.getItem(K.merged) !== userId; } catch {}
   if (needMerge) {
     mergedBiz = [...new Set([...local.bizNos, ...serverBiz])];
     mergedRegions = [...new Set([...local.regions, ...serverRegions])];
@@ -190,7 +192,7 @@ export async function boot() {
   try { pending = localStorage.getItem(K.pendingSync) === '1'; } catch {}
   if (needMerge || pending) {
     // 병합분이거나, 지난번에 못 올린 값이 남아 있으면 다시 올린다
-    try { localStorage.setItem(K.merged, me.user?.id ?? '1'); } catch {}
+    try { if (userId) localStorage.setItem(K.merged, userId); } catch {}
     const results = await Promise.all([
       put('/api/me/biz', { bizNos: mergedBiz }),
       put('/api/me/regions', { regions: mergedRegions }),

@@ -7,6 +7,7 @@
  * objectURL 은 쓰고 해제한다(기존 세 곳 모두 누수였다).
  */
 import { useCallback } from 'react';
+import { todayKST } from '@eatbid/shared';
 
 export function useCsvDownload() {
   return useCallback((opts: { filename: string; head: string; rows: (string | number | null | undefined)[][] }) => {
@@ -27,5 +28,5 @@ export function useCsvDownload() {
 
 /** 파일명에 붙이는 오늘 날짜 (YYYY-MM-DD) */
 export function todayStamp() {
-  return new Date().toISOString().slice(0, 10);
+  return todayKST();
 }
