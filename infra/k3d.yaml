@@ -1,0 +1,81 @@
+# k3d 클러스터 정의 — 2026-08-28 도는 클러스터에서 실측해 기록했다.
+#
+# 왜 이 파일이 있나
+# ─────────────────
+# 이게 없던 동안 `k3d cluster create` 명령이 **셸 히스토리에만** 있었다.
+# 포트 매핑도, /lake 가 호스트 어디에 붙는지도, k3s 버전도 리포에 없었다.
+# 그래서 "다른 기계에 배포한다"가 원리적으로 불가능했다 — 클러스터를 세울
+# 방법을 아무도 몰랐기 때문이다.
+#
+# 이건 스키마 적용이 사람 기억에 의존해 물린 것과 같은 형태다:
+#   "지금까지 안 터진 건 누가 손으로 돌렸기 때문이고 그 기록이 리포에 없다"
+# 설계 근거는 docs/ARCH-DELIVERY.md §0-2 · §9.
+#
+# 쓰는 법
+#   EATBID_LAKE_HOST=... k3d cluster create --config infra/k3d.yaml
+#
+# ⚠ 지금 도는 클러스터에 적용하지 마라. 이 파일은 **기록**이고, 새 기계에서
+#   처음 세울 때 쓴다. 여기에 맞추려고 클러스터를 재생성하면 PVC(Postgres
+#   913만 행)가 날아간다.
+
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+
+metadata:
+  name: eatbid           # 실제 컨테이너는 k3d- 접두어가 붙는다 (k3d-eatbid-server-0)
+
+# 실측: servers 1/1, agents 0/0, loadbalancer true
+servers: 1
+agents: 0
+
+# 버전을 고정한다. 안 박으면 새 기계가 그날의 k3d 기본 k3s 를 쓰고,
+# **여기서 검증한 것이 거기서 검증한 게 아니게 된다.** 올릴 때 이 줄을 커밋한다.
+# 실측: docker inspect k3d-eatbid-server-0 --format '{{.Config.Image}}'
+image: docker.io/rancher/k3s:v1.35.5-k3s1
+
+# kubeconfig 가 가리킬 API 서버 주소. 실측: k3d.server.api.* 라벨
+#
+# ⚠ hostPort 를 안 박으면 k3d 가 매번 랜덤 포트를 잡는다. 그러면 새 기계의
+#   kubeconfig 포트가 달라져서, 문서·스크립트에 적힌 접속 방법이 전부 어긋난다.
+#   5822 는 이 기계에서 랜덤으로 잡혔던 값이고, 고정하는 순간 그게 계약이 된다.
+kubeAPI:
+  host: "host.docker.internal"
+  hostIP: "0.0.0.0"
+  hostPort: "5822"
+
+# 실측: k3d-eatbid-serverlb 의 PortBindings — 80/tcp -> 8081
+#
+# 8081 은 app.yaml 의 BETTER_AUTH_URL(http://localhost:8081) 이 의존하는 값이다.
+# 여기를 바꾸면 거기도 바꿔야 한다 — 같은 값을 쓰는 곳이 둘이다.
+ports:
+  - port: "8081:80"
+    nodeFilters:
+      - loadbalancer
+
+# 레이크 — app.yaml·poll.yaml 의 CronJob 4개가 hostPath: /lake 로 읽고 쓴다.
+#
+# 실측(2026-08-28): F:\Project\eat-bid\data -> /lake (bind, RW)
+#   docker inspect k3d-eatbid-server-0 --format '{{json .Mounts}}'
+#
+# ⚠⚠ 이 파일에서 **기계마다 달라지는 값은 이 하나뿐이다.** 그래서 환경변수로 뺐다.
+#
+#   그런데 k3d 는 설정 파일의 $VAR 를 **무조건** 확장한다(v5.0.0+, 우리는 v5.9.0).
+#   미설정이면 에러가 아니라 **빈 문자열**이 된다 — `":/lake"` 라는 망가진 마운트로
+#   조용히 넘어간다. 이건 우리가 계속 물린 그 모양이다(`|| true`·`?? 기본값`).
+#
+#   → bootstrap.sh 가 클러스터를 만들기 **전에** 이 변수를 검사하고, 없으면 멈춘다.
+#     그 게이트가 이 파일의 안전장치다. 손으로 돌릴 때도 같은 검사를 먼저 하라:
+#       [ -n "$EATBID_LAKE_HOST" ] || { echo "EATBID_LAKE_HOST 없음"; exit 1; }
+volumes:
+  - volume: "${EATBID_LAKE_HOST}:/lake"
+    nodeFilters:
+      - server:0
+
+# 여기 없는 것 — 일부러 뺐다
+# ─────────────────────────
+# · registries: GHCR 자격증명이 들어갈 자리다. 아직 레지스트리가 없어서 비웠다.
+#   ARCH-DELIVERY.md §3 이 그 결정이고, 그때 이 파일에 블록이 추가된다.
+# · network / token: k3d 가 클러스터 이름에서 만든다(k3d-eatbid, 172.23.0.0/16).
+#   토큰은 매번 새로 생기는 값이라 git 에 박지 않는다.
+# · k3d-eatbid-tools: `k3d image import` 가 띄우는 일회성 컨테이너다.
+#   클러스터 구성이 아니라 명령의 부산물이라 여기 없다.
