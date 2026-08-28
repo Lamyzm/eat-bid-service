@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - app.yaml
   - poll.yaml
+  - serviceaccount.yaml
 configMapGenerator:
   - name: db-schema
     namespace: eatbid
