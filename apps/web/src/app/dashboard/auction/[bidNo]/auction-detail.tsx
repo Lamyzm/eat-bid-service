@@ -190,7 +190,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             </div>
           </div>
           {belowFloor && (
-            <p className='text-destructive font-semibold'>하한({floor}) 미만 · 무효</p>
+            <p className='text-destructive font-semibold'>하한({floor}) 아래입니다</p>
           )}
           {crowd && liveRate != null && (() => {
             const k = Math.round(liveRate * 100) / 100;
@@ -217,8 +217,8 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
                 이 값이면 과거 {same.length}회 중:{' '}
                 남이 더 낮게 써서 밀린 게 <b className='text-pushed'>{push}회</b> ·{' '}
                 내가 먹었을 게 <b className='text-primary'>{win}회</b>
-                {alive > 0 && <> · 낙찰인지 무효인지 예정가 추첨이 갈랐을 게 <b style={{ color: CHART.me }}>{alive}회</b></>} ·{' '}
-                하한 아래라 무효였을 게 <b className='text-destructive'>{dead}회</b>
+                {alive > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: CHART.me }}>{alive}회</b></>} ·{' '}
+                내 값이 하한 아래였던 게 <b className='text-destructive'>{dead}회</b>
                 {open.schoolId && (
                   <Link href={`/dashboard/analysis/${encodeURIComponent(open.schoolId)}?bidNo=${encodeURIComponent(open.bidNo)}${liveRate != null ? `&rate=${liveRate}&base=${base}` : ''}`}
                     className='text-primary ml-2 text-xs hover:underline'>분석판 상세 →</Link>
@@ -382,7 +382,11 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
         <Card>
           <CardHeader className='pb-2'><CardTitle className='text-base'>내 기록</CardTitle></CardHeader>
           <CardContent className='text-[15px]'>
-            <b>{my.length}번</b> 참여 — 낙찰 <b>{myWins}</b> · 밀림 <b className='text-pushed'>{myPushed}</b> · 무효 <b className='text-destructive'>{myBelow}</b>
+            <b>{my.length}번</b> 참여 — 낙찰 <b>{myWins}</b> · 낙찰실패 <b>{myPushed + myBelow}</b>
+            <span className='text-muted-foreground'>
+              {' '}(그중 하한 아래 관찰 <b className='text-destructive'>{myBelow}</b>)
+            </span>
+            <div className='text-muted-foreground mt-1 text-xs'>발주처가 주는 값은 낙찰과 낙찰실패 둘뿐입니다. 하한 아래인지는 저희가 계산한 관찰입니다.</div>
             {myPushed > myBelow + 1 && <div className='text-destructive mt-1 font-medium'>이 학교 평균 투찰이 높은 편입니다.</div>}
           </CardContent>
         </Card>

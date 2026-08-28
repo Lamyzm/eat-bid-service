@@ -698,17 +698,19 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                 <div className='mb-3 grid grid-cols-2 gap-2 text-center md:grid-cols-4'>
                   {(['밀림', '낙찰', '기회', '무효'] as const).map(k => (
                     <div key={k} className='rounded border px-2 py-2' style={k === '낙찰' ? { borderColor: C.win, borderWidth: 2 } : {}}>
+                      <div className='text-muted-foreground mb-0.5 text-xs'>{k === '무효' ? '하한 아래' : k}</div>
                       {/* 히어로 숫자 — 화면당 1개: 리허설 낙찰 수 (DESIGN C표) */}
                       <div className={`${k === '낙찰' ? 'text-3xl' : 'text-xl'} font-bold tabular-nums`} style={{ color: vcolor(k) }}>{verdicts?.[k] ?? 0}회</div>
                       <div className='text-muted-foreground text-xs'>
-                        {k === '밀림' && '밀림 확정 (낙찰가 이상)'}
-                        {k === '낙찰' && '낙찰 (실효하한~낙찰가 사이)'}
-                        {k === '기회' && '기회 (예정가 미보유 회차)'}
-                        {k === '무효' && '무효 확정 (실효하한 미만)'}
+                        {k === '밀림' && '내 값이 낙찰가 이상'}
+                        {k === '낙찰' && '내 값이 실효하한~낙찰가 사이'}
+                        {k === '기회' && '예정가 미보유 회차'}
+                        {k === '무효' && '내 값이 실효하한 아래'}
                       </div>
                     </div>
                   ))}
                 </div>
+                <p className='text-muted-foreground mb-2 text-xs'>발주처가 주는 값은 낙찰과 낙찰실패 둘뿐입니다. 하한 아래인지는 저희가 계산한 관찰입니다.</p>
                 <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
                   <Table>
                     <TableHeader><TableRow>
@@ -734,10 +736,10 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                                 <div className='text-muted-foreground mt-1 font-mono'>
                                   {x.effFloor != null
                                     ? `실효하한 = ${x.floorRate} × 예정가 ${won(x.plannedPrice)} ÷ 기초 ${won(x.basePrice)} = ${x.effFloor.toFixed(3)}. `
-                                    : '이 회차는 예정가 미보유 → 무효상한 기준. '}
+                                    : '이 회차는 예정가 미보유 → 관찰 상한 기준. '}
                                   내 {r.toFixed(3)} {v === '밀림' ? `≥ 낙찰 ${x.winRate!.toFixed(3)} → 밀림`
                                     : v === '낙찰' ? `< 낙찰 ${x.winRate!.toFixed(3)}, ≥ 실효하한 → 낙찰`
-                                    : v === '무효' ? `< 하한 경계 → 무효` : `< 낙찰 — 낙찰 또는 무효 (예정가 추첨이 가름)`}
+                                    : v === '무효' ? `< 하한 경계 → 하한 아래` : `< 낙찰 — 예정가 추첨이 가름`}
                                 </div>
                               </details>
                             </TableCell>
@@ -914,7 +916,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                 </div>
               )}
               {r != null && floor != null && r < floor && (
-                <p className='text-destructive text-sm font-semibold'>공고 하한({floor}) 미만 · 무효</p>
+                <p className='text-destructive text-sm font-semibold'>공고 하한({floor}) 아래입니다</p>
               )}
               {verdicts && (
                 <div className='text-[13px] leading-relaxed tabular-nums'>
@@ -922,7 +924,7 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                   남이 더 낮게 써서 밀린 게 <b style={{ color: vcolor('밀림') }}>{verdicts.밀림}회</b> ·{' '}
                   내가 먹었을 게 <b style={{ color: vcolor('낙찰') }}>{verdicts.낙찰}회</b>
                   {verdicts.기회 > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: vcolor('기회') }}>{verdicts.기회}회</b></>} ·{' '}
-                  하한 아래라 무효였을 게 <b style={{ color: vcolor('무효') }}>{verdicts.무효}회</b>
+                  내 값이 하한 아래였던 게 <b style={{ color: vcolor('무효') }}>{verdicts.무효}회</b>
                   <button className='text-primary ml-1 underline' onClick={() => setLens('rehearsal')}>상세</button>
                 </div>
               )}

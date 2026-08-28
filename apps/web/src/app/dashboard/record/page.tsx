@@ -65,7 +65,7 @@ export default function RecordPage() {
 
   const wins = view.filter(r => r.won);
   const losses = view.filter(r => !r.won && r.bidRate != null && r.winRate != null);
-  const below = losses.filter(r => r.bidRate! < r.winRate!); // 승자보다 낮음 = 하한미달 무효
+  const below = losses.filter(r => r.bidRate! < r.winRate!); // 승자보다 낮음 — 원본은 낙찰실패까지만 준다. 하한 아래인지는 우리 관찰이다 (7a)
   const pushed = losses.filter(r => r.bidRate! >= r.winRate!);
   // 아깝게 진 판: 내가 2등 (승자 위 최저가 = 내 값)
   const runnerUps = pushed.filter(r => r.secondRate != null && Math.abs(r.bidRate! - r.secondRate!) < 1e-9);
@@ -130,7 +130,7 @@ export default function RecordPage() {
             rows: view.map(r => [
               r.openedAt, r.schoolName, r.sigungu, r.category, r.basePrice, r.floorRate,
               r.winRate, r.secondRate, r.bidRate,
-              r.won ? '낙찰' : r.bidRate != null && r.winRate != null && r.bidRate < r.winRate ? '무효' : '밀림',
+              r.won ? '낙찰' : r.bidRate != null && r.winRate != null && r.bidRate < r.winRate ? '하한아래관찰' : '밀림',
             ]),
           })}>CSV 저장</Button>
         </div>
@@ -153,18 +153,21 @@ export default function RecordPage() {
       </div>
       <button type='button' className='text-muted-foreground hover:text-foreground -mt-3 self-start text-sm'
         onClick={() => setKpiOpen(v => !v)}>
-        {kpiOpen ? '자세히 접기 ▲' : '자세히 보기 ▼ (낙찰·밀림·무효)'}
+        {kpiOpen ? '자세히 접기 ▲' : '자세히 보기 ▼ (낙찰·밀림·하한 아래)'}
       </button>
       {kpiOpen && (
+        <div className='space-y-1'>
         <div className='grid grid-cols-3 gap-2'>
           {[['낙찰', `${(agg ? agg.totalWins : wins.length).toLocaleString()}회`, 'text-primary'],
             ['밀림 (남이 더 낮게 씀)', `${(agg ? agg.pushedOut : pushed.length).toLocaleString()}회`, 'text-pushed'],
-            ['무효 (하한 아래)', `${(agg ? agg.belowFloor : below.length).toLocaleString()}회`, 'text-destructive']].map(([label, v, cls]) => (
+            ['하한 아래 관찰', `${(agg ? agg.belowFloor : below.length).toLocaleString()}회`, 'text-destructive']].map(([label, v, cls]) => (
             <Card key={label as string}><CardContent className='px-4 py-3'>
               <div className='text-muted-foreground text-xs'>{label}</div>
               <div className={`text-xl font-bold tabular-nums ${cls}`}>{v}</div>
             </CardContent></Card>
           ))}
+        </div>
+        <p className='text-muted-foreground text-xs'>발주처가 주는 값은 낙찰과 낙찰실패 둘뿐입니다. 하한 아래인지는 저희가 계산한 관찰입니다.</p>
         </div>
       )}
 
@@ -197,7 +200,7 @@ export default function RecordPage() {
                 </TableRow></TableHeader>
                 <TableBody>
                   {ties.map((t, i) => {
-                    const st = t.won ? '낙찰' : t.bidRate != null && t.winRate != null && t.bidRate < t.winRate ? '무효' : '밀림';
+                    const st = t.won ? '낙찰' : t.bidRate != null && t.winRate != null && t.bidRate < t.winRate ? '하한아래' : '밀림';
                     return (
                       <TableRow key={i}>
                         <TableCell className='tabular-nums'>{t.openedAt}</TableCell>
@@ -212,7 +215,7 @@ export default function RecordPage() {
                         <TableCell>
                           {st === '낙찰' && <Badge className='bg-primary'>낙찰</Badge>}
                           {st === '밀림' && <Badge variant='secondary'>밀림</Badge>}
-                          {st === '무효' && <Badge variant='destructive'>무효</Badge>}
+                          {st === '하한아래' && <Badge variant='destructive'>하한 아래</Badge>}
                         </TableCell>
                       </TableRow>
                     );
@@ -274,7 +277,7 @@ export default function RecordPage() {
                       <TableCell className='content-center'>
                         {status === '낙찰' && <Badge className='bg-primary'>낙찰</Badge>}
                         {status === '밀림' && <Badge variant='secondary'>{isRunnerUp ? '2등' : '밀림'}</Badge>}
-                        {status === '하한미달' && <Badge variant='destructive'>무효</Badge>}
+                        {status === '하한미달' && <Badge variant='destructive'>하한 아래</Badge>}
                       </TableCell>
                     </TableRow>
                   );
@@ -305,7 +308,7 @@ export default function RecordPage() {
         </CardContent>
       </Card>
       <p className='text-muted-foreground text-xs'>
-        하한미달(무효) = 낙찰가보다 낮게 쓴 경우. 예정가는 추첨입니다. 추천가는 없습니다 · 판단 재료는 전부 있습니다.
+        발주처가 주는 값은 낙찰과 낙찰실패 둘뿐입니다. 하한 아래인지는 저희가 계산한 관찰입니다. 예정가는 추첨입니다. 추천가는 없습니다.
       </p>
     </div>
   );

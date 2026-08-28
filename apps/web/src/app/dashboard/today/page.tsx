@@ -464,7 +464,7 @@ export default function TodayPage() {
                             if (o.floorRate != null && rate < o.floorRate) {
                               return (
                                 <div key={bz || '_'}>
-                                  {tag}<span className='text-destructive font-medium'>하한 {o.floorRate} 아래라 무효</span>
+                                  {tag}<span className='text-destructive font-medium'>하한 {o.floorRate} 아래입니다</span>
                                 </div>
                               );
                             }
@@ -488,7 +488,7 @@ export default function TodayPage() {
                                   <b className='text-primary'>{win}회</b> 먹었을 값
                                   {alive > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: '#2962ff' }}>{alive}회</b></>}
                                   {push > 0 && <> · 남이 더 낮게 써서 밀린 게 <b className='text-amber-600'>{push}회</b></>}
-                                  {dead > 0 && <> · 하한 아래라 무효였을 게 <b className='text-destructive'>{dead}회</b></>}
+                                  {dead > 0 && <> · 내 값이 하한 아래였던 게 <b className='text-destructive'>{dead}회</b></>}
                                 </span>
                               </div>
                             );
