@@ -75,3 +75,68 @@
 
 **정정할 때는 고친 자리에서 시선이 멈춘다.** 설계 좌석이 *"매 배포가 아니라 Job이다"*라고 나를 정정하면서 **"그럼 언제 도나"를 안 물었고**, 그 질문에서 A-6(스키마가 한 번도 적용 안 됨)이 나왔다.
 → **정정을 받으면 정정된 사실에서 한 걸음 더 간다.**
+
+---
+
+## C7. 배포는 **조용히 안 된다** — 성공 보고가 갱신을 뜻하지 않는다
+
+오늘 같은 증상이 **두 번** 났다: 빌드가 잘못됐는데 롤아웃은 "성공"하고 **옛 코드가 계속 돌았다.**
+
+### 원인은 하나가 아니라 셋이다
+
+**① 배포 명령이 `&&`로 안 이어져 있다.** `CLAUDE.md` 배포 절이 이렇게 적혀 있었다:
+```bash
+docker build -f Dockerfile.web -t eatbid-web:dev .
+k3d image import eatbid-web:dev -c eatbid
+kubectl -n eatbid rollout restart deploy/web
+```
+**줄바꿈은 앞이 실패해도 뒤를 돌린다.** CronJob의 `;` → `&&`(F1)와 **똑같은 사고를 배포 절이 문서로 갖고 있었다.**
+
+**② `docker build`가 실패하면 옛 이미지가 그 태그에 그대로 남는다.** 그래서 뒤 단계가 전부 **정상 동작한다** — `k3d image import`는 옛 이미지를 성공적으로 넣고, `rollout restart`는 옛 코드로 파드를 띄운다. **어느 단계도 실패를 보고하지 않는다.**
+
+**③ 그리고 `&&`로 고쳐도 절반만 막힌다.** 오늘 두 사고의 원인이 달랐다:
+
+| 사고 | 빌드 결과 | `&&`가 막나 |
+|---|---|---|
+| `.dockerignore` 부재 | **성공.** 컨텍스트가 오염돼 내용이 낡음 | ❌ **못 막는다** |
+| 테스트 파일이 tsc 빌드에 포함 | 실패 | ✅ 막는다 |
+
+**"빌드가 성공했다"와 "빌드가 옳다"는 다르다.** ①②는 체인으로 막히지만 **①의 절반은 안 막힌다.** 그래서 **탐지가 진짜 처방이다.**
+
+### 검증 방법 — 다이제스트 대조는 쓰지 마라
+
+먼저 실측: **로컬 이미지 ID와 파드 `imageID`가 현재 셋 다 안 맞는다.**
+```
+eatbid-web:dev     local sha256:a2605659…  vs  pod sha256:07826b00…
+eatbid-server:dev  local sha256:8d3ce128…  vs  pod sha256:83e96444…
+```
+**낡아서가 아니라 다이제스트 계산 방식이 다르기 때문이다**(docker 이미지 ID = config digest, containerd `imageID` = manifest digest). **순진하게 비교하면 항상 불일치가 나오고, 그 검사는 첫날 무시된다** — §6-2가 예언한 잔소리 죽음이다.
+
+> 다만 파드끼리는 유효하다: 같은 `eatbid-dataplane:dev` 태그의 세 Job이 **서로 다른 `imageID`**(391374f2 / b433cbc1 / c48a3d72)를 갖는다 — 태그 아래 내용이 실제로 바뀌었다는 증거다.
+
+### 쓸 것 — **빌드 스탬프를 이미지에 넣고 파드에서 읽는다**
+
+```dockerfile
+ARG GIT_SHA=unknown
+ENV BUILD_SHA=$GIT_SHA
+```
+```bash
+SHA=$(git rev-parse --short HEAD)
+docker build -f Dockerfile.web --build-arg GIT_SHA=$SHA -t eatbid-web:dev . \
+  && k3d image import eatbid-web:dev -c eatbid \
+  && kubectl -n eatbid rollout restart deploy/web \
+  && kubectl -n eatbid rollout status deploy/web --timeout=120s \
+  && test "$(kubectl -n eatbid exec deploy/web -- printenv BUILD_SHA)" = "$SHA"
+```
+
+**다이제스트 대조보다 나은 이유 셋:**
+1. **프록시가 아니라 답이다.** "도는 코드가 내가 방금 만든 코드인가"를 직접 묻는다
+2. **알고리즘 차이에 안 걸린다.** 문자열 비교 하나다
+3. **①②③을 전부 잡는다** — 빌드가 실패했든, 성공했지만 내용이 낡았든, import가 no-op이었든 **스탬프가 안 맞는다**
+
+**이게 C3("수정 후 라이브에서 실제로 읽어본다")의 배포판이다.** `kubectl get -o jsonpath`으로 매니페스트를 읽는 것과 같은 동작을, 이미지 내용에 대해 한다.
+
+### 남는 위험 — 표시한다
+
+- **태그가 변하지 않는다(`:dev`).** 불변 태그(`:$GIT_SHA`)가 정석이지만 `app.yaml`이 태그를 하드코딩하고 있어 매 배포마다 매니페스트를 고쳐 푸시해야 한다 — **ArgoCD 흐름과 싸운다.** 스탬프는 그 비용 없이 탐지만 얻는다
+- **`rollout restart`는 ArgoCD `selfHeal`과 경쟁할 수 있다.** 재시작 어노테이션이 git과의 드리프트로 읽히면 되돌려진다. 아직 안 겪었지만 겪으면 여기 적어라
