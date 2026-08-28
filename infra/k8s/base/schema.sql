@@ -1,13 +1,9 @@
--- dev reset
-DROP TABLE IF EXISTS "school_roster" CASCADE;
-DROP TABLE IF EXISTS "firm_bids" CASCADE;
-DROP TABLE IF EXISTS "firms" CASCADE;
-DROP TABLE IF EXISTS "market_regions" CASCADE;
-DROP TABLE IF EXISTS "open_auctions" CASCADE;
-DROP TABLE IF EXISTS "school_auctions" CASCADE;
-DROP TABLE IF EXISTS "schools" CASCADE;
-DROP TABLE IF EXISTS "workspace_biz" CASCADE;
-CREATE TABLE "firm_bids" (
+-- 서빙 DB 스키마 — 멱등(idempotent). 어떤 상황에서 실행돼도 데이터를 지우지 않는다.
+--   * 전 테이블 CREATE TABLE IF NOT EXISTS
+--   * 컬럼 추가는 하단 ALTER ... ADD COLUMN IF NOT EXISTS 블록에 병기
+--   * 재적재 시 초기화는 로더(tools/serve/load_postgres.py)가 명시적 DELETE로 수행
+--   * 개발용 완전 초기화는 reset-dev.sql (별도 파일, 수동 실행)
+CREATE TABLE IF NOT EXISTS "firm_bids" (
 	"bid_id" varchar(32),
 	"biz_no" varchar(16),
 	"bid_rate" double precision,
@@ -21,7 +17,7 @@ CREATE TABLE "firm_bids" (
 	CONSTRAINT "firm_bids_pkey" PRIMARY KEY("bid_id","biz_no")
 );
 --> statement-breakpoint
-CREATE TABLE "firms" (
+CREATE TABLE IF NOT EXISTS "firms" (
 	"biz_no" varchar(16) PRIMARY KEY,
 	"name" varchar(128) NOT NULL,
 	"regions" jsonb DEFAULT '[]' NOT NULL,
@@ -32,7 +28,7 @@ CREATE TABLE "firms" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "market_regions" (
+CREATE TABLE IF NOT EXISTS "market_regions" (
 	"sido" varchar(40) NOT NULL,
 	"sigungu" varchar(40),
 	"category" varchar(20),
@@ -47,7 +43,7 @@ CREATE TABLE "market_regions" (
 	CONSTRAINT "market_regions_pkey" PRIMARY KEY("sigungu","category")
 );
 --> statement-breakpoint
-CREATE TABLE "open_auctions" (
+CREATE TABLE IF NOT EXISTS "open_auctions" (
 	"bid_no" varchar(32) PRIMARY KEY,
 	"school_name" varchar(160),
 	"sigungu" varchar(40),
@@ -59,7 +55,7 @@ CREATE TABLE "open_auctions" (
 	"fetched_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "school_auctions" (
+CREATE TABLE IF NOT EXISTS "school_auctions" (
 	"bid_id" varchar(32) PRIMARY KEY,
 	"school_id" varchar(200) NOT NULL,
 	"category" varchar(20),
@@ -75,7 +71,7 @@ CREATE TABLE "school_auctions" (
 	"reserves" jsonb
 );
 --> statement-breakpoint
-CREATE TABLE "school_roster" (
+CREATE TABLE IF NOT EXISTS "school_roster" (
 	"school_id" varchar(200),
 	"biz_no" varchar(16),
 	"name" varchar(128),
@@ -86,7 +82,7 @@ CREATE TABLE "school_roster" (
 	CONSTRAINT "school_roster_pkey" PRIMARY KEY("school_id","biz_no")
 );
 --> statement-breakpoint
-CREATE TABLE "schools" (
+CREATE TABLE IF NOT EXISTS "schools" (
 	"id" varchar(200) PRIMARY KEY,
 	"name" varchar(160) NOT NULL,
 	"sido" varchar(40) NOT NULL,
@@ -100,7 +96,7 @@ CREATE TABLE "schools" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "workspace_biz" (
+CREATE TABLE IF NOT EXISTS "workspace_biz" (
 	"workspace_id" varchar(64),
 	"biz_no" varchar(16),
 	"added_at" timestamp DEFAULT now() NOT NULL,
@@ -198,3 +194,7 @@ ALTER TABLE "user_mark" ADD COLUMN IF NOT EXISTS "rate" double precision;
 
 -- better-auth 1.7.x 스키마 동기화 (라이브 마이그레이션)
 ALTER TABLE "account" ADD COLUMN IF NOT EXISTS "issuer" varchar(200) NOT NULL DEFAULT '';
+
+-- 데이터 테이블 컬럼 마이그레이션 (기존 DB 대상, 멱등)
+ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "planned_price" bigint;
+ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "reserves" jsonb;
