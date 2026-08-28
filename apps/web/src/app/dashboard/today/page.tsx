@@ -162,15 +162,16 @@ export default function TodayPage() {
   /** 판단 근거 한 줄용 회차 — 값을 넣은 카드만 1회 로드 (U37, 컨트롤·요청 예산 유지) */
   const [hist, setHist] = useState<Record<string, { floorRate: number | null; winRate: number | null; effFloor?: number | null; maxInvalid?: number | null }[]>>({});
   const histReq = useRef<Set<string>>(new Set());
+  const [histError, setHistError] = useState<Record<string, boolean>>({});
   useEffect(() => {
     for (const o of head) {
       const sid = o.schoolId;
       if (!sid || !hasAnyRate(marks[o.bidNo], bizNos) || histReq.current.has(sid)) continue;
       histReq.current.add(sid);
       // ② 리허설과 같은 소스(effFloor 포함) — 두 화면 숫자가 갈리면 안 된다
-      fetch(`/api/rounds/school/${encodeURIComponent(sid)}`).then(r => r.json())
+      fetchJson<any[]>(`/api/rounds/school/${encodeURIComponent(sid)}`)
         .then(d => { if (Array.isArray(d)) setHist(h => ({ ...h, [sid]: d })); })
-        .catch(() => {});
+        .catch(() => setHistError(e => ({ ...e, [sid]: true })));
     }
   }, [head, marks]);
   const rest = byDeadline.slice(HEAD);
@@ -497,6 +498,9 @@ export default function TodayPage() {
                             const loaded = !!(o.schoolId && hist[o.schoolId]);
                             if (!hasHistory(o)) return (
                               <div key={bz || '_'}>{tag}<span className='text-muted-foreground'>이 학교는 지난 개찰 기록이 아직 없습니다</span></div>
+                            );
+                            if (o.schoolId && histError[o.schoolId]) return (
+                              <div key={bz || '_'}>{tag}<span className='text-destructive'>과거 기록을 불러오지 못했습니다</span></div>
                             );
                             if (!loaded) return (
                               <div key={bz || '_'}>{tag}<span className='text-muted-foreground'>과거 기록을 불러오는 중입니다</span></div>

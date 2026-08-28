@@ -9,6 +9,7 @@ import { useWorkspace } from '@/lib/workspace';
 import { useSession } from '@/lib/session';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { useTrack, getSid } from '@/lib/track';
+import { fetchJson } from '@/lib/fetch-json';
 import { usePersistedFlag } from '@/lib/use-persisted-state';
 import { useCsvDownload, todayStamp } from '@/lib/use-csv-download';
 import { toast } from 'sonner';
@@ -41,6 +42,7 @@ export default function RecordPage() {
   const [limit, setLimit] = useState(300); // 서버에서 받아오는 행 수 (U11: 초기 페이로드 축소)
   const [loadingMore, setLoadingMore] = useState(false);
   const [agg, setAgg] = useState<{ totalBids: number; totalWins: number; pushedOut: number; belowFloor: number } | null>(null);
+  const [aggFailed, setAggFailed] = useState(false);
   const [kpiOpen, setKpiOpen] = usePersistedFlag('eatbid.kpiOpen');
   const downloadCsv = useCsvDownload();
 
@@ -54,8 +56,10 @@ export default function RecordPage() {
     fetch(`/api/firms/ties?bizNos=${bizNos.join(',')}`).then(r => r.json())
       .then(x => setTies(Array.isArray(x) ? x : [])).catch(() => {});
     // KPI 총계는 서버 집계(전체 기준) — 표 캡(300행)이 총계를 왜곡하면 안 된다 (U27/U29)
-    fetch(`/api/firms/record?bizNos=${bizNos.join(',')}`).then(r => r.json())
-      .then(d => setAgg(d && typeof d.totalBids === 'number' ? d : null)).catch(() => {});
+    setAggFailed(false);
+    fetchJson<any>(`/api/firms/record?bizNos=${bizNos.join(',')}`)
+      .then(d => setAgg(d && typeof d.totalBids === 'number' ? d : null))
+      .catch(() => setAggFailed(true));
   }, [bizNos, limit]);
 
   const cutoff = useMemo(() => monthsAgoKST(months), [months]);
@@ -151,6 +155,11 @@ export default function RecordPage() {
           </CardContent></Card>
         ))}
       </div>
+      {aggFailed && (
+        <p className='text-destructive -mt-2 text-xs'>
+          전체 집계를 불러오지 못했습니다. 위 숫자는 표에 불러온 범위만 센 값입니다.
+        </p>
+      )}
       <button type='button' className='text-muted-foreground hover:text-foreground -mt-3 self-start text-sm'
         onClick={() => setKpiOpen(v => !v)}>
         {kpiOpen ? '자세히 접기 ▲' : '자세히 보기 ▼ (낙찰·밀림·하한 아래)'}

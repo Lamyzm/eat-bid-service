@@ -55,6 +55,16 @@ export function MarketMap() {
   }, [cat]);
 
   const maxYr = useMemo(() => Math.max(1, ...rows.map(r => r.perYear)), [rows]);
+
+  /**
+   * 좌표를 모르는 지역 — 지도에서 조용히 빠지던 자리.
+   * 위치를 모르는데 아무 데나 찍으면 지도는 그걸 사실로 말한다
+   * (영종구는 섬이라 모구 좌표에 찍으면 바다 건너에 점이 선다).
+   * 점은 찍지 않되, 목록으로 열 수 있게 한다.
+   */
+  const noCoord = useMemo(
+    () => rows.filter(r => !REGION_COORDS[`${r.sido}|${r.sigungu}`]),
+    [rows]);
   const d = sel?.detail;
   const maxMon = d ? Math.max(1, ...d.mons) : 1;
 
@@ -113,6 +123,17 @@ export function MarketMap() {
                 <div className='text-destructive'>빨간 테두리 = 내 자격 지역</div>
               </div>
             </div>
+            {noCoord.length > 0 && (
+              <div className='text-muted-foreground mt-2 flex flex-wrap items-center gap-1.5 px-2 text-xs'>
+                <span>좌표 없음 {noCoord.length}곳 — 지도에 점으로 찍지 않습니다.</span>
+                {noCoord.map(r => (
+                  <Button key={`${r.sido}|${r.sigungu}`} size='sm' variant='outline'
+                    className='h-6 px-2 text-xs' onClick={() => setSel(r)}>
+                    {r.sigungu || '지역 미상'}
+                  </Button>
+                ))}
+              </div>
+            )}
             <p className='text-muted-foreground px-2 pt-2 text-xs'>
               참가 자격은 사무소 소재지 기준입니다. 다른 지역은 사무소를 내야 들어갑니다.
             </p>
@@ -150,6 +171,11 @@ export function MarketMap() {
                 <div>
                   <div className='text-lg font-semibold'>{sel.sido} {sel.sigungu} <Badge variant='secondary'>{sel.category}</Badge></div>
                   <div className='text-muted-foreground text-xs tabular-nums'>연간 시장 {eok(sel.marketYr)}원</div>
+                  {!REGION_COORDS[`${sel.sido}|${sel.sigungu}`] && (
+                    <div className='text-muted-foreground mt-1 text-xs'>
+                      이 지역의 좌표가 아직 없어 지도에는 표시되지 않습니다.
+                    </div>
+                  )}
                 </div>
                 <div className='grid grid-cols-2 gap-2'>
                   {/* 히어로 숫자 — 화면당 1개: 기대낙찰 (DESIGN C표) */}

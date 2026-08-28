@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
+import { fetchJson } from '@/lib/fetch-json';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -20,14 +21,17 @@ export default function MyPage() {
   const [candidates, setCandidates] = useState<string[]>([]);
   const [allRegions, setAllRegions] = useState<string[]>([]);
   const [regionQ, setRegionQ] = useState('');
+  const [regionsFailed, setRegionsFailed] = useState(false);
   useEffect(() => {
     if (bizNos.length === 0) { setCandidates([]); return; }
     fetch(`/api/firms/record?bizNos=${bizNos.join(',')}`).then(r => r.json())
       .then(d => setCandidates(Array.isArray(d?.regions) ? d.regions : [])).catch(() => {});
   }, [bizNos]);
   useEffect(() => {
-    fetch('/api/wins/regions').then(r => r.json())
-      .then(x => setAllRegions(Array.isArray(x) ? x.map((r: any) => r.sigungu) : [])).catch(() => {});
+    setRegionsFailed(false);
+    fetchJson<any[]>('/api/wins/regions')
+      .then(x => setAllRegions(Array.isArray(x) ? x.map(r => r.sigungu) : []))
+      .catch(() => setRegionsFailed(true));
   }, []);
   const searchHits = useMemo(() => {
     const q = regionQ.trim();
@@ -92,6 +96,9 @@ export default function MyPage() {
           )}
           <div>
             <div className='text-muted-foreground mb-1 text-xs'>지역 검색해서 추가</div>
+            {regionsFailed && (
+              <p className='text-destructive mb-1 text-xs'>지역 목록을 불러오지 못했습니다.</p>
+            )}
             <Input value={regionQ} onChange={e => setRegionQ(e.target.value)}
               placeholder='예: 김해, 창원, 서초' className='w-56' />
             {searchHits.length > 0 && (
