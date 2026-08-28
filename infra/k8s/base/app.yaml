@@ -193,7 +193,8 @@ spec:
             - name: refresh
               image: eatbid-dataplane:dev
               imagePullPolicy: IfNotPresent
-              command: ["sh", "-c", "python tools/bidboard/fetch_open.py && python tools/serve/load_postgres.py"]
+              # 매일: 전국 증분 크롤(개찰분) → 전국 열린공고 수집 → 재적재
+              command: ["sh", "-c", "python tools/bidboard/update_lake.py; python tools/bidboard/fetch_open.py && python tools/serve/load_postgres.py"]
               env:
                 - { name: EATBID_HOME, value: /app }
                 - { name: EATBID_DATA_ROOT, value: /lake }
