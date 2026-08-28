@@ -145,7 +145,40 @@ spec:
             pathType: Prefix
             backend: { service: { name: web, port: { number: 80 } } }
 ---
-# 스키마 생성 + 초기 적재 (레이크 hostPath=/lake, k3d 볼륨으로 주입됨)
+# 스키마 적용 전용 Job — 매 sync 앞에서 돈다.
+#
+# ⚠ 이게 없던 동안 schema.sql 에 쌓인 ALTER 가 이미 도는 클러스터에 **한 번도
+#   적용되지 않았다.** initial-load Job 은 한 번 돌고 끝이고 spec.template 이
+#   immutable 이라, 명령을 고치면 sync 가 `field is immutable` 로 실패했다.
+#   그래서 로더가 새 컬럼에 insert 하면 `column does not exist` 로 7개 테이블이
+#   통째로 비게 된다 — 크론이라 무인이다. 지금까지 안 터진 건 누가 손으로 psql 을
+#   돌렸기 때문이고 그 기록이 리포에 없다. 스키마 적용이 사람 기억에 의존했다.
+#
+#   적재(load_postgres.py)는 여기 넣지 않는다. 매 sync 마다 전량 재적재가 돌면
+#   비용도 크고, 그 스크립트는 delete 로 시작한다. 스키마만 적용한다.
+#   schema.sql 은 전부 IF NOT EXISTS 라 반복 실행이 안전하다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: eatbid
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: postgres:16-alpine
+          command: ["sh","-c","until pg_isready -h postgres -U eatbid; do sleep 2; done; psql -v ON_ERROR_STOP=1 postgres://eatbid:eatbid@postgres:5432/eatbid -f /schema/schema.sql"]
+          volumeMounts: [{ name: schema, mountPath: /schema }]
+      volumes:
+        - { name: schema, configMap: { name: db-schema } }
+---
+# 초기 적재 — 클러스터를 새로 만들 때 한 번만 돈다(훅 아님).
 apiVersion: batch/v1
 kind: Job
 metadata:
