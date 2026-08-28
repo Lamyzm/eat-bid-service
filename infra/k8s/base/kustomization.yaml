@@ -14,7 +14,7 @@ generatorOptions:
 images:
   - name: eatbid-server
     newName: ghcr.io/lamyzm/eatbid-server
-    newTag: e8b145b
+    newTag: 3db60f2
   - name: eatbid-web
     newName: ghcr.io/lamyzm/eatbid-web
-    newTag: e8b145b
+    newTag: 3db60f2
