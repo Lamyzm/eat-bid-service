@@ -1,0 +1,63 @@
+# Cloudflare Tunnel — 외부에서 eatbid.net 으로 들어온다.
+#
+# 왜 호스트가 아니라 클러스터 안인가(ARCH-DELIVERY §5):
+#   호스트에 두면 "손으로 만든 미기록 자산"이 이 기계에 하나 더 생긴다.
+#   여기 두면 매니페스트가 git 에 있고 새 기계에서 ArgoCD 가 그대로 세운다.
+#
+# 왜 서비스가 아니라 Ingress 를 가리키나:
+#   cloudflared 자체 ingress 규칙으로 서비스를 하나씩 노출하면 **라우팅 진실이
+#   두 곳**이 된다. 서비스를 추가할 때 Ingress 와 여기를 둘 다 고쳐야 하고,
+#   한쪽을 빠뜨리는 게 정확히 우리가 반복한 사고다. 여기서는 Traefik 하나만 본다.
+#
+# 자격증명은 git 에 없다. Secret 으로 넣는다:
+#   kubectl -n eatbid create secret generic cloudflared-creds #     --from-file=credentials.json=.cloudflared/<TUNNEL_ID>.json
+#   (터널을 다시 만들면 ID 가 바뀌므로 아래 tunnel 값도 같이 고쳐야 한다)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: eatbid
+data:
+  config.yaml: |
+    tunnel: 005da4ed-f846-4735-953e-c182df358df7
+    credentials-file: /etc/cloudflared/creds/credentials.json
+    # 지표를 켜 둔다 — 무인으로 도는 것이라 "살아 있나"를 물을 창구가 필요하다.
+    metrics: 0.0.0.0:2000
+    # 연결이 끊겼을 때 조용히 죽지 않게 한다.
+    no-autoupdate: true
+    ingress:
+      - service: http://traefik.kube-system.svc.cluster.local:80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: eatbid
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: cloudflared } }
+  template:
+    metadata: { labels: { app: cloudflared } }
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.2
+          args: ["tunnel", "--config", "/etc/cloudflared/config/config.yaml", "run"]
+          ports: [{ containerPort: 2000, name: metrics }]
+          # ready 판정을 지표 엔드포인트로 한다. 프로세스가 살아 있는 것과
+          # 터널이 붙은 것은 다르다 — 오늘 그 차이로 여섯 번 물렸다.
+          readinessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - { name: config, mountPath: /etc/cloudflared/config, readOnly: true }
+            - { name: creds, mountPath: /etc/cloudflared/creds, readOnly: true }
+      volumes:
+        - name: config
+          configMap: { name: cloudflared-config }
+        - name: creds
+          secret: { secretName: cloudflared-creds }

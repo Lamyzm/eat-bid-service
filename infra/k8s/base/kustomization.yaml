@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - app.yaml
   - poll.yaml
+  - tunnel.yaml
   - serviceaccount.yaml
 configMapGenerator:
   - name: db-schema
