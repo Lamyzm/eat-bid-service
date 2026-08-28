@@ -321,9 +321,10 @@ export default function TodayPage() {
                     <div className='flex flex-wrap items-center gap-2 border-t pt-2'
                       onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
                       {slots.map((bz, si) => (
-                        <span key={bz || '_'} className='flex items-center gap-1'>
+                        <span key={bz || '_'} className='flex flex-col gap-0.5'>
+                          {/* 두 칸 중 어느 사업자인지가 이 카드의 핵심이라 라벨을 자르지 않는다 */}
                           {slots.length > 1 && (
-                            <span className='text-muted-foreground max-w-16 truncate text-xs' title={bz}>
+                            <span className='text-muted-foreground w-32 truncate text-xs' title={bz}>
                               {bizLabel(bz)}
                             </span>
                           )}
