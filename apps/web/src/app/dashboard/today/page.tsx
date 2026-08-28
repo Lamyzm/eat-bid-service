@@ -6,7 +6,7 @@ import { useRegion } from '@/lib/region';
 import { useSession } from '@/lib/session';
 import { RegionStatus } from '@/components/region-status';
 import { RateInput } from '@/components/rate-input';
-import { slotKeys, ratesOf, withRate, primaryRate, hasAnyRate, sameRates, bizLabelOf } from '@/lib/mark-rates';
+import { slotKeysFor, ratesOf, withRate, primaryRate, hasAnyRate, sameRates, bizLabelOf } from '@/lib/mark-rates';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMarks } from '@/lib/marks';
@@ -26,6 +26,9 @@ type OpenRow = {
   anchorAmount: number | null;
   band: { dense?: { lo: number; hi: number; pct: number } } | null;
   recent3: number[]; usualN: number | null;
+  /** 서버가 실어 보내는 자격 정보 — 없으면 뱃지를 띄우지 않는다 */
+  allowedLabel?: string | null; unrestricted?: boolean;
+  qualificationBasis?: 'region-only' | string | null;
 };
 type ResultRow = { bidNo: string; schoolName: string | null; openedAt: string | null; winRate: number | null; status: string };
 type ForecastRow = { schoolId: string; schoolName: string; lastOpened: string; medGapDays: number; expected: string; dueInDays: number; lastWinRate: number | null };
@@ -51,8 +54,7 @@ export default function TodayPage() {
     try { setNoticeOff(localStorage.getItem('eatbid.marksNoticeSeen') === '1'); } catch { setNoticeOff(false); }
   }, []);
 
-  const slots = slotKeys(bizNos);
-  const bizLabel = (bz: string) => bizLabelOf(bz, bizNames);
+  const bizLabel = (bz: string) => bizLabelOf(bz, bizNames, true);
   const focusSlot = (id: string) => {
     const el = document.querySelector<HTMLInputElement>(`[data-rate-slot="${id}"]`);
     if (el) { el.focus(); el.select?.(); }
@@ -243,6 +245,8 @@ export default function TodayPage() {
           {openLoaded && head.map((o, cardIdx) => {
             const m = marks[o.bidNo];
             const myRates = ratesOf(m, bizNos);
+            // 등록 사업자 + 값이 있는 미지정 슬롯까지 (서버 biz_no='' 행이 사라지지 않도록)
+            const slots = slotKeysFor(m, bizNos);
             const b = badges[o.schoolName ?? ''];
             return (
               <Link key={o.bidNo} href={`/dashboard/auction/${o.bidNo}`} className='block'>
@@ -252,7 +256,13 @@ export default function TodayPage() {
                       <CardTitle className='text-base'>{o.schoolName ?? '학교 미상'}</CardTitle>
                       <div className='flex gap-1.5'>
                         {o.category && <Badge variant='secondary'>{o.category}</Badge>}
-                        {o.sigungu && !o.sigungu.includes('김해') && <Badge variant='outline'>{o.sigungu} · 자격 충족</Badge>}
+                        {(() => {
+                          // 자격 표기는 서버가 준 근거로만 한다 (품목 분류 전수조사 결과가 오면 '지역 자격 충족')
+                          const qualified = homes.length > 0 && o.sigungu && homes.includes(o.sigungu);
+                          if (!qualified) return o.sigungu ? <Badge variant='outline'>{o.sigungu}</Badge> : null;
+                          const label = o.qualificationBasis === 'region-only' ? '지역 자격 충족' : '자격 충족';
+                          return <Badge variant='outline'>{o.sigungu} · {label}</Badge>;
+                        })()}
                         <Badge variant='destructive'>{dday(o.deadline) ?? '마감 미상'}</Badge>
                       </div>
                     </div>
@@ -351,7 +361,7 @@ export default function TodayPage() {
                             onClick={() => {
                               trackAction(!saved ? 'mark_done' : 'mark_update',
                                 { bidNo: o.bidNo, rate: primaryRate(m, bizNos), from: 'today' });
-                              set(o.bidNo, { ...(m ?? { s: 'watch' }), s: 'done', rates: myRates, rate: primaryRate(m, bizNos) });
+                              set(o.bidNo, { ...(m ?? { s: 'watch' }), s: 'done', rates: myRates });
                               setSavedRates(v => ({ ...v, [o.bidNo]: myRates }));
                             }}>
                             {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${label})`}
