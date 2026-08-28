@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
 import { fetchJson } from '@/lib/fetch-json';
+import { LoadError } from '@/components/load-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -97,7 +98,7 @@ export default function MyPage() {
           <div>
             <div className='text-muted-foreground mb-1 text-xs'>지역 검색해서 추가</div>
             {regionsFailed && (
-              <p className='text-destructive mb-1 text-xs'>지역 목록을 불러오지 못했습니다.</p>
+              <p className='mb-1'><LoadError what='지역 목록' inline /></p>
             )}
             <Input value={regionQ} onChange={e => setRegionQ(e.target.value)}
               placeholder='예: 김해, 창원, 서초' className='w-56' />

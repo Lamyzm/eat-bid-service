@@ -39,7 +39,8 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   const [tab, setTab] = usePersistedChoice('eatbid.auctionTab', 'school', TABS);
   const mark = marks[open.bidNo];
 
-  const floor = open.floorRate ?? 90;
+  // 하한을 모르면 지어내지 않는다. 모르는 값으로 비교 문장을 만들면 단언이 된다.
+  const floor = open.floorRate;
   const sameFloor = auctions.filter(a => a.winRate != null && a.floorRate === floor);
   const points = sameFloor.map(a => ({ winRate: a.winRate!, openedAt: a.openedAt }));
   const band = open.band as { dense?: { lo: number; hi: number; pct: number }; n?: number } | null;
@@ -53,6 +54,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   // 몰림 지도 — 최근 14일 전 지역 투찰값 분포 (동가 위험)
   const [crowd, setCrowd] = useState<{ days: number; total: number; bins: { v: number; n: number }[] } | null>(null);
   useEffect(() => {
+    if (floor == null) return;
     fetch(`/api/wins/crowd?days=14&floor=${floor}`).then(r => r.json()).then(setCrowd).catch(() => {});
   }, [floor]);
   // 이번 판 신호 — 같은 마감일 공고 수 (경쟁 분산)
@@ -104,7 +106,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   const base = open.basePrice ?? 0;
   const rate = parseFloat(rateStr);
   const liveRate = Number.isFinite(rate) ? rate : null;
-  const belowFloor = liveRate != null && liveRate < floor;
+  const belowFloor = liveRate != null && floor != null && liveRate < floor;
   function onRate(v: string) {
     touchedRef.current = true;
     if (v.trim()) trackOnce('calc_input');
@@ -157,10 +159,10 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
           </div>
           <div>
             <div className='text-muted-foreground text-xs'>하한율</div>
-            <div className='text-2xl font-semibold tabular-nums'>{floor}</div>
+            <div className='text-2xl font-semibold tabular-nums'>{floor ?? '—'}</div>
           </div>
           <div className='text-muted-foreground text-sm'>
-            전국 137개 시군구 · 공고 10만 건 · 투찰 694만 데이터 기준
+            공공 개찰 결과를 정리해 보여줍니다
           </div>
           <div className='flex items-center gap-2 text-sm'>
             <span className='text-muted-foreground font-mono'>공고번호 {open.bidNo}</span>
@@ -189,7 +191,7 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             <div>
               <div className='text-muted-foreground mb-1 text-xs'>투찰률</div>
               <Input value={rateStr} onChange={e => onRate(e.target.value)}
-                placeholder={`예: ${(floor + 0.05).toFixed(2)}`} className='w-36 font-mono text-lg' inputMode='decimal' />
+                placeholder={floor != null ? `예: ${(floor + 0.05).toFixed(2)}` : '투찰률'} className='w-36 font-mono text-lg' inputMode='decimal' />
             </div>
             <div className='text-muted-foreground pb-2'>↔</div>
             <div>

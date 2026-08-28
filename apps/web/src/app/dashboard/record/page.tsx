@@ -9,7 +9,10 @@ import { useWorkspace } from '@/lib/workspace';
 import { useSession } from '@/lib/session';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { useTrack, getSid } from '@/lib/track';
+import { useMarks } from '@/lib/marks';
+import { primaryRate } from '@/lib/mark-rates';
 import { fetchJson } from '@/lib/fetch-json';
+import { LoadError } from '@/components/load-error';
 import { usePersistedFlag } from '@/lib/use-persisted-state';
 import { useCsvDownload, todayStamp } from '@/lib/use-csv-download';
 import { toast } from 'sonner';
@@ -45,6 +48,9 @@ export default function RecordPage() {
   const [aggFailed, setAggFailed] = useState(false);
   const [kpiOpen, setKpiOpen] = usePersistedFlag('eatbid.kpiOpen');
   const downloadCsv = useCsvDownload();
+  // 사용자가 적어둔 값 — 원장(firm_bids)이 있으면 원장이 우선이고, 이건 대조용이다
+  const { marks } = useMarks();
+  const memoOf = (bidId: string) => primaryRate(marks[bidId], bizNos);
 
   useEffect(() => {
     if (bizNos.length === 0) return;
@@ -156,8 +162,8 @@ export default function RecordPage() {
         ))}
       </div>
       {aggFailed && (
-        <p className='text-destructive -mt-2 text-xs'>
-          전체 집계를 불러오지 못했습니다. 위 숫자는 표에 불러온 범위만 센 값입니다.
+        <p className='-mt-2'>
+          <LoadError what='전체 집계' detail='위 숫자는 표에 불러온 범위만 센 값입니다.' inline />
         </p>
       )}
       <button type='button' className='text-muted-foreground hover:text-foreground -mt-3 self-start text-sm'
@@ -276,7 +282,17 @@ export default function RecordPage() {
                         <div className='text-primary'>낙찰 {r.winRate?.toFixed(3) ?? '—'}</div>
                         <div className='text-muted-foreground'>2등 {r.secondRate?.toFixed(3) ?? '—'}</div>
                         <div className={r.won ? 'font-bold' : ''}>
-                          내&nbsp; {r.bidRate?.toFixed(3) ?? '—'}
+                          내&nbsp; {r.bidRate?.toFixed(3) ?? (memoOf(r.bidId) != null ? `${memoOf(r.bidId)} (내가 적어둔 값)` : '—')}
+                          {(() => {
+                            // 원장과 메모가 다르면 그 사실이 재료다. 오타를 조용히 덮으면 무엇을 넣었는지 영영 모른다.
+                            const memo = memoOf(r.bidId);
+                            if (r.bidRate == null || memo == null || Math.abs(memo - r.bidRate) < 1e-9) return null;
+                            return (
+                              <div className='text-muted-foreground text-xs'>
+                                적어둔 값 {memo} · 실제 투찰 {r.bidRate.toFixed(3)}
+                              </div>
+                            );
+                          })()}
                           {diff != null && diff !== 0 && (
                             <span className={diff > 0 ? 'text-pushed' : 'text-destructive'}> ({diff > 0 ? '+' : ''}{diff})</span>
                           )}

@@ -44,7 +44,6 @@ type OpenRow = {
   /** 같은 하한 회차 수 */
   nSameFloor?: number | null;
 };
-type ResultRow = { bidNo: string; schoolName: string | null; openedAt: string | null; winRate: number | null; status: string };
 type ForecastRow = { schoolId: string; schoolName: string; lastOpened: string; medGapDays: number; expected: string; dueInDays: number; lastWinRate: number | null };
 
 /**
@@ -115,7 +114,6 @@ export default function TodayPage() {
     }).catch(() => {});
   }, []);
   const [open, setOpen] = useState<OpenRow[]>([]);
-  const [results, setResults] = useState<ResultRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
   const [forecastLoaded, setForecastLoaded] = useState(false);
   const [badges, setBadges] = useState<Record<string, { part: number; wins: number }>>({});
@@ -195,13 +193,6 @@ export default function TodayPage() {
   }, [homes.join(','), sessionReady]);
 
   // 어제 채점 — 투찰함 표시분
-  useEffect(() => {
-    const done = Object.entries(marks).filter(([, m]) => m.s === 'done').map(([id]) => id);
-    if (!done.length) return;
-    fetch(`/api/results?bidNos=${done.join(',')}&bizNos=${bizNos.join(',')}`)
-      .then(r => r.json())
-      .then((rs: ResultRow[]) => setResults(rs.filter(r => r.status !== '대기')));
-  }, [marks, bizNos]);
 
   // 내 전적 뱃지 배치
   useEffect(() => {
@@ -211,11 +202,6 @@ export default function TodayPage() {
       .then(r => r.json()).then(setBadges);
   }, [open, bizNos]);
 
-  const graded = useMemo(() => results.map(r => {
-    const myRate = marks[r.bidNo]?.rate ?? null;
-    const diff = myRate != null && r.winRate != null ? +(myRate - r.winRate).toFixed(3) : null;
-    return { ...r, myRate, diff };
-  }), [results, marks]);
 
   return (
     <div className='flex flex-1 flex-col space-y-6 p-4 md:p-6'>
@@ -224,7 +210,7 @@ export default function TodayPage() {
         <p className='text-muted-foreground text-sm tabular-nums'>
           {brief
             ? <>{brief.isYesterday ? '어제' : `최근 개찰일 ${brief.day.slice(5)}`} 전국 {brief.n.toLocaleString()}건 개찰</>
-            : '전국 137개 시군구 · 공고 10만 건 · 투찰 694만 데이터 기준.'}
+            : '공공 개찰 결과를 정리해 보여줍니다.'}
         </p>
         <div className='mt-1'><RegionStatus /></div>
         {fetchedAt && (() => {
@@ -288,7 +274,7 @@ export default function TodayPage() {
         </h2>
         {openLoaded && openError && (
           <Card><CardContent className='p-0'>
-            <LoadError message='공고 목록을 불러오지 못했습니다.' onRetry={() => setOpenReload(n => n + 1)} />
+            <LoadError what='공고 목록' onRetry={() => setOpenReload(n => n + 1)} />
           </CardContent></Card>
         )}
         {openLoaded && !openError && visible.length === 0 && (
@@ -408,7 +394,7 @@ export default function TodayPage() {
                             inputRef={registerSlot(`${cardIdx}:${si}`)}
                             ariaLabel={slots.length > 1 ? `${bizLabel(bz)} 투찰률` : '투찰률'}
                             title={bz || undefined}
-                            placeholder={`투찰률 ${((o.floorRate ?? 90) + 0.05).toFixed(2)}`}
+                            placeholder={o.floorRate != null ? `투찰률 ${(o.floorRate + 0.05).toFixed(2)}` : '투찰률'}
                             onEnter={() => focusSlot(`${cardIdx + 1}:0`)}
                             onChange={v => {
                               if (!m) trackAction('basket_add', { bidNo: o.bidNo, from: 'today' });
@@ -422,11 +408,13 @@ export default function TodayPage() {
                         if (!o.basePrice) return null;
                         const suggest = o.recent3.length
                           ? [...o.recent3].sort((a, b) => a - b)[Math.floor(o.recent3.length / 2)]
-                          : (o.floorRate ?? 90) + 0.05;
+                          : o.floorRate != null ? o.floorRate + 0.05 : null;
                         const filledSlots = slots.filter(k => myRates[k] != null);
                         if (slots.length === 1) {
                           const shown = myRates[slots[0]] ?? suggest;
                           const filled = myRates[slots[0]] != null;
+                          // 추천할 근거가 없으면 미리보기를 만들지 않는다 (하한을 지어내지 않는다)
+                          if (shown == null) return null;
                           return (
                             <span className='tabular-nums'>
                               <span className='text-muted-foreground text-xs'>내가 넣을 금액 </span>
@@ -441,10 +429,12 @@ export default function TodayPage() {
                           <span className='tabular-nums'>
                             <span className='text-muted-foreground text-xs'>내가 넣을 금액 </span>
                             {filledSlots.length === 0 ? (
-                              <>
-                                <b className='text-muted-foreground/45 text-xl'>{won(o.basePrice * suggest / 100)}원</b>
-                                <span className='text-muted-foreground/60 ml-1 text-xs'>({suggest.toFixed(2)} 기준 미리보기)</span>
-                              </>
+                              suggest == null ? null : (
+                                <>
+                                  <b className='text-muted-foreground/45 text-xl'>{won(o.basePrice * suggest / 100)}원</b>
+                                  <span className='text-muted-foreground/60 ml-1 text-xs'>({suggest.toFixed(2)} 기준 미리보기)</span>
+                                </>
+                              )
                             ) : filledSlots.map((k, i) => (
                               <span key={k || '_'}>
                                 {i > 0 && <span className='text-muted-foreground mx-1'>·</span>}
@@ -500,7 +490,7 @@ export default function TodayPage() {
                               <div key={bz || '_'}>{tag}<span className='text-muted-foreground'>이 학교는 지난 개찰 기록이 아직 없습니다</span></div>
                             );
                             if (o.schoolId && histError[o.schoolId]) return (
-                              <div key={bz || '_'}>{tag}<span className='text-destructive'>과거 기록을 불러오지 못했습니다</span></div>
+                              <div key={bz || '_'}>{tag}<LoadError what='과거 기록' inline /></div>
                             );
                             if (!loaded) return (
                               <div key={bz || '_'}>{tag}<span className='text-muted-foreground'>과거 기록을 불러오는 중입니다</span></div>

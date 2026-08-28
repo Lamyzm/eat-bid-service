@@ -22,6 +22,8 @@ import {
 } from '@/components/ui/table';
 
 type Win = {
+  /** 이 회차에 내 투찰이 있는가 — 서버 판정 */
+  mine?: boolean;
   bidId: string; schoolId: string; schoolName: string; sigungu: string | null;
   category: string | null; openedAt: string; basePrice: number | null; floorRate: number | null;
   winRate: number | null; winnerName: string | null; nValid: number; nBids: number | null; gap12: number | null;
@@ -38,15 +40,6 @@ export default function WinsPage() {
   const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);
   const { bizNos } = useWorkspace();
-  const [myBidIds, setMyBidIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (bizNos.length === 0) return;
-    fetch(`/api/firms/bids?bizNos=${bizNos.join(',')}&limit=2000`).then(r => r.json())
-      .then(d => {
-        const xs = Array.isArray(d) ? d : (d.rows ?? []);
-        setMyBidIds(new Set(xs.map((x: any) => x.bidId)));
-      }).catch(() => {});
-  }, [bizNos]);
   const [monthly, setMonthly] = useState<MonthCell[]>([]);
   const { viewRegions, isBrowsing, view, homes, ready } = useRegion();
   const regionKey = viewRegions?.join(',') ?? '';
@@ -56,12 +49,15 @@ export default function WinsPage() {
     const q = new URLSearchParams({ days: String(days), withTotal: '1' });
     if (cat) q.set('category', cat);
     if (regionKey) q.set('sigungu', regionKey);
+    // 내 투찰 여부는 서버가 회차별로 판정한다. 예전에는 내 투찰 2,000행을 따로 받아
+    // Set 을 만들었는데, 상한을 넘는 옛 회차의 표시가 조용히 사라졌다.
+    if (bizNos.length) q.set('bizNos', bizNos.join(','));
     setLoadError(false);
     fetchJson<any>(`/api/wins/recent?${q}`).then(d => {
       setRows(Array.isArray(d) ? d : (d.rows ?? []));
       setTotal(Array.isArray(d) ? null : (d.total ?? null));
     }).catch(() => setLoadError(true));
-  }, [days, cat, regionKey, ready]);
+  }, [days, cat, regionKey, ready, bizNos.join(',')]);
   useEffect(() => {
     if (!ready) return;
     const q = new URLSearchParams({ months: '12' });
@@ -211,14 +207,14 @@ export default function WinsPage() {
                     </TableCell>
                     {bizNos.length > 0 && (
                       <TableCell className='text-center'>
-                        {myBidIds.has(r.bidId) && <span className='text-primary'>●</span>}
+                        {r.mine && <span className='text-primary'>●</span>}
                       </TableCell>
                     )}
                   </TableRow>
                 ))}
                 {loadError && (
                   <TableRow><TableCell colSpan={9} className='p-0'>
-                    <LoadError message='개찰 결과를 불러오지 못했습니다.' onRetry={() => setReload(n => n + 1)} />
+                    <LoadError what='개찰 결과' onRetry={() => setReload(n => n + 1)} />
                   </TableCell></TableRow>
                 )}
                 {!loadError && rows.length === 0 && (
