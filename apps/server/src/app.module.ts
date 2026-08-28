@@ -21,7 +21,8 @@ class SchoolsController {
   async list(@Query() q: SchoolsQueryDto) {
     const conds = [];
     if (q.sigungu) conds.push(eq(schools.sigungu, q.sigungu));
-    if (q.category) conds.push(eq(schools.category, q.category));
+    // 학교의 품목 필터도 포함 기준 — cat_counts 에 그 품목이 있으면 해당된다.
+    if (q.category) conds.push(sql`(cat_counts ? ${q.category} or (cat_counts is null and category = ${q.category}))`);
     if (q.q) conds.push(ilike(schools.name, `%${q.q}%`));
     return db.select().from(schools)
       .where(conds.length ? and(...conds) : undefined)
@@ -158,8 +159,14 @@ class OpenController {
       usualN = last10.length ? last10[Math.floor(last10.length / 2)] : null;
     }
     const unrestricted = isUnrestricted(r.allowedRegions);
+    const cats = catsOf(r.categories, r.category);
     return {
       ...r, schoolId,
+      // 품목 사실: 대표(category)는 호환용, 실제는 categories 전부.
+      categories: cats, isMultiCategory: cats.length > 1,
+      categorySrc: r.categorySrc ?? null,
+      // 이 목록의 품목 필터는 포함 기준이다(대표만 보지 않는다).
+      countBasis: "inclusive" as const,
       anchorAmount: r.basePrice && r.floorRate ? Math.round(r.basePrice * r.floorRate / 100) : null,
       band, recent3, usualN, nSameFloor,
       // 표기용: 무제한이면 "지역 제한 없음", 아니면 허용 지역 나열
@@ -180,7 +187,7 @@ class OpenController {
     const filtered = rows
       // region 파라미터 = 사용자 자격 지역(콤마 목록). 무제한 공고는 항상 통과.
       .filter(r => !mine.length || eligibleFor(r.allowedRegions, r.sigungu, mine))
-      .filter(r => !q.category || r.category === q.category);
+      .filter(r => !q.category || catsOf(r.categories, r.category).includes(q.category));
     return Promise.all(filtered.map(r => this.enrich(r)));
   }
 
@@ -218,6 +225,22 @@ class ResultsController {
       return { ...base, status: below ? ("하한미달" as const) : ("밀림" as const), diff };
     });
   }
+}
+
+/**
+ * 품목 필터는 대표(category)가 아니라 포함(categories) 기준이다.
+ * 사장이 "공산 공고"를 찾으면 공산이 포함된 공고가 전부 나와야 한다 —
+ * 대표 기준이면 다중 품목 공고 15,604건이 화면에서 사라진다.
+ * categories 가 아직 없는 행(구 적재분)은 대표로 대조한다.
+ */
+function catMatchSql(col: any, catCol: any, cat: string) {
+  return sql`(${col} @> ${JSON.stringify([cat])}::jsonb or (${col} is null and ${catCol} = ${cat}))`;
+}
+/** 품목 배열이 비었으면 대표 하나로 채워 응답한다(구 적재분 호환) */
+function catsOf(categories: string[] | null | undefined, category: string | null) {
+  const list = (categories ?? []).filter(Boolean);
+  if (list.length) return list;
+  return category ? [category] : [];
 }
 
 const SGG_RE = /^[가-힣]{1,6}(시|군|구)$/;
@@ -277,7 +300,7 @@ class WinsController {
     const limit = Math.min(Number(limitStr) || 400, 1000);
     const cutoff = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
     const conds = [gte(schoolAuctions.openedAt, cutoff)];
-    if (category) conds.push(eq(schoolAuctions.category, category));
+    if (category) conds.push(catMatchSql(schoolAuctions.categories, schoolAuctions.category, category));
     const sggs = cleanSggs(sigungu);
     if (sggs.length === 1) conds.push(ilike(schoolAuctions.schoolId, `${sggs[0]}|%`));
     else if (sggs.length > 1) conds.push(inArray(sql`split_part(school_id, '|', 1)`, sggs));
@@ -313,10 +336,14 @@ class WinsController {
         nValid: r.nValid, nBids: g ? Number(g.nBids) : null,
         gap12: g?.secondRate != null && r.winRate != null ? +(g.secondRate - r.winRate).toFixed(3) : null,
         dlvryStart: r.dlvryStart ?? null, dlvryEnd: r.dlvryEnd ?? null,
+        categories: catsOf(r.categories, r.category),
+        categorySrc: r.categorySrc ?? null,
         mine: mineSet ? mineSet.has(r.bidId) : undefined,
       };
     });
-    return total != null ? { rows: out, total } : out;
+    return total != null
+      ? { rows: out, total, countBasis: "inclusive" as const }
+      : out;
   }
 
   /** 월별 보드 — 월×품목 집계 (건수·낙찰률 중앙값·기초금액 합계) */
@@ -330,6 +357,7 @@ class WinsController {
     if (mhit && Date.now() - mhit.at < 600_000) return mhit.data;
     const rows = await db.select({
       openedAt: schoolAuctions.openedAt, category: schoolAuctions.category,
+      categories: schoolAuctions.categories,
       winRate: schoolAuctions.winRate, basePrice: schoolAuctions.basePrice,
     }).from(schoolAuctions)
       .where(cleanSggs(sigungu).length
@@ -337,19 +365,41 @@ class WinsController {
         : undefined);
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - months);
     const co = cutoff.toISOString().slice(0, 7);
-    const cell = new Map<string, { n: number; wins: number[]; sumBase: number }>();
+    // 집계는 대표(category) 기준이다 — 다중 품목을 여러 칸에 넣으면 칸 합계가
+    // 총계를 넘어 "이번 달 몇 건인가"에 답할 수 없게 된다.
+    // 대신 각 칸에 (a) 이 칸이 대표인데 실제로는 다중인 회차 수(nMulti)와
+    // (b) 대표는 다른 품목이지만 이 품목을 포함하는 회차 수(nAlsoIn)를 함께 낸다.
+    // 필터(포함 기준) 결과와 칸 합계의 차이를 화면이 스스로 설명할 수 있게 하는 재료다.
+    const cell = new Map<string, { n: number; wins: number[]; sumBase: number; nMulti: number }>();
+    const alsoIn = new Map<string, number>();
     for (const r of rows) {
       const m = r.openedAt?.slice(0, 7);
       if (!m || m < co) continue;
-      const k = `${m}|${r.category ?? "기타"}`;
-      const c = cell.get(k) ?? { n: 0, wins: [], sumBase: 0 };
+      const rep = r.category ?? "기타";
+      const cats = (r.categories ?? []).filter(Boolean);
+      const k = `${m}|${rep}`;
+      const c = cell.get(k) ?? { n: 0, wins: [], sumBase: 0, nMulti: 0 };
       c.n++; if (r.winRate != null) c.wins.push(r.winRate);
-      c.sumBase += r.basePrice ?? 0; cell.set(k, c);
+      c.sumBase += r.basePrice ?? 0;
+      if (cats.length > 1) c.nMulti++;
+      cell.set(k, c);
+      for (const other of cats) {
+        if (other === rep) continue;
+        const ak = `${m}|${other}`;
+        alsoIn.set(ak, (alsoIn.get(ak) ?? 0) + 1);
+      }
     }
     const res = [...cell.entries()].map(([k, c]) => {
       const [month, cat] = k.split("|");
       const w = c.wins.sort((a, b) => a - b);
-      return { month, category: cat, n: c.n, medWin: w.length ? +w[Math.floor(w.length / 2)].toFixed(3) : null, sumBase: c.sumBase };
+      return {
+        month, category: cat, n: c.n,
+        medWin: w.length ? +w[Math.floor(w.length / 2)].toFixed(3) : null,
+        sumBase: c.sumBase,
+        nMulti: c.nMulti,
+        nAlsoIn: alsoIn.get(k) ?? 0,
+        countBasis: "primary" as const,
+      };
     }).sort((a, b) => b.month.localeCompare(a.month));
     this.monthlyCache.set(mkey, { at: Date.now(), data: res });
     return res;

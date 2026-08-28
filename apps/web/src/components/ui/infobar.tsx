@@ -207,7 +207,8 @@ function InfobarProvider({
               ...style
             } as React.CSSProperties
           }
-          className={cn('group/infobar-wrapper flex flex-1 w-full', className)}
+          // min-w-0(+자식): 넓은 표의 min-content 폭이 페이지 가로 스크롤을 만드는 문제 방지
+          className={cn('group/infobar-wrapper flex w-full min-w-0 flex-1 *:min-w-0', className)}
           {...props}
         >
           {children}

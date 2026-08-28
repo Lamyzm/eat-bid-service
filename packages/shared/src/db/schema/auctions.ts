@@ -45,7 +45,13 @@ export const schools = pgTable("schools", {
 export const schoolAuctions = pgTable("school_auctions", {
   bidId: varchar("bid_id", { length: 32 }).primaryKey(),
   schoolId: varchar("school_id", { length: 200 }).notNull(),
+  // 대표 품목 — 기존 계약 호환(zod Category enum). 다중이면 CAT_KEYS 순서로 하나.
   category: varchar("category", { length: 20 }),   // 품목은 공고의 속성 (학교 아님)
+  // 실제 품목 전부. 한 공고가 여러 품목인 경우가 10.3%다 — 대표만 두면 나머지가 사라진다.
+  categories: jsonb("categories").$type<string[]>(),
+  // 분류 출처: main_item(발주처 지정) | name_rule(이름 추정) | none.
+  // 추정을 사실처럼 말하지 않도록 화면이 구분할 수 있어야 한다.
+  categorySrc: varchar("category_src", { length: 16 }),
   openedAt: date("opened_at").notNull(),
   floorRate: doublePrecision("floor_rate"),
   basePrice: bigint("base_price", { mode: "number" }),
@@ -95,6 +101,8 @@ export const openAuctions = pgTable("open_auctions", {
   basePrice: bigint("base_price", { mode: "number" }),
   floorRate: doublePrecision("floor_rate"),
   category: varchar("category", { length: 20 }),
+  categories: jsonb("categories").$type<string[]>(),
+  categorySrc: varchar("category_src", { length: 16 }),
   deadline: timestamp("deadline"),
   fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
 });

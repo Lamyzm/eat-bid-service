@@ -70,7 +70,8 @@ function MarkLines({ marks, X, top, bottom, clipL, clipR }: {
     {marks.map((m, i) => {
       const x = X(m.v);
       if (x < clipL || x > clipR) return null;
-      const flip = i % 2 === 1;
+      // 가장자리에선 라벨을 안쪽으로 — 축 눈금과 겹치지 않게
+      const flip = x - clipL < 70 ? true : clipR - x < 70 ? false : i % 2 === 1;
       return (
         <g key={`m-${i}`}>
           <line x1={x} y1={top} x2={x} y2={bottom} stroke={m.color} strokeWidth={1.8} strokeDasharray='5 3' />

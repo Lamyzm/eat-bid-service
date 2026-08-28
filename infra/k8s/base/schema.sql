@@ -226,3 +226,9 @@ BEGIN
     ALTER TABLE user_mark ADD CONSTRAINT user_mark_pkey PRIMARY KEY (user_id, bid_no, biz_no);
   END IF;
 END $$;
+
+-- 품목 다중화 (S-1 후속) — 추가만. 기존 category 는 대표로 유지된다.
+ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "categories" jsonb;
+ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "category_src" varchar(16);
+ALTER TABLE open_auctions ADD COLUMN IF NOT EXISTS "categories" jsonb;
+ALTER TABLE open_auctions ADD COLUMN IF NOT EXISTS "category_src" varchar(16);

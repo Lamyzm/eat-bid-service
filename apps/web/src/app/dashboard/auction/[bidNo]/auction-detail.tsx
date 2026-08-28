@@ -8,7 +8,7 @@ import { type RosterRow } from '@/components/roster-table';
 import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
 import { CHART } from '@/lib/chart-colors';
-import { slotKeys, ratesOf, bizLabelOf } from '@/lib/mark-rates';
+import { slotKeysFor, ratesOf, bizLabelOf } from '@/lib/mark-rates';
 import { useSession } from '@/lib/session';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -249,10 +249,10 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
                   {(() => {
                     if (!saved) return '투찰 저장';
                     if (changed) return '이 값으로 갱신';
-                    const slots = slotKeys(bizNos);
+                    const slots = slotKeysFor(mark, bizNos);
                     const rates = ratesOf(mark, bizNos);
                     const parts = slots.filter(k => rates[k] != null).map(k =>
-                      slots.length > 1 ? `${bizLabelOf(k, bizNames)} ${rates[k]}` : `${rates[k]}`);
+                      slots.length > 1 ? `${bizLabelOf(k, bizNames, true)} ${rates[k]}` : `${rates[k]}`);
                     return `✓ 저장됨 (${parts.join(' · ')})`;
                   })()}
                 </Button>
@@ -268,14 +268,14 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
           </div>
           {(() => {
             // 사업자가 둘 이상이면 계산기 값이 누구 것인지 밝힌다 (오늘 화면과 다른 말을 하지 않도록)
-            const slots = slotKeys(bizNos);
+            const slots = slotKeysFor(mark, bizNos);
             if (slots.length < 2) return null;
             const rates = ratesOf(mark, bizNos);
             const filled = slots.filter(k => rates[k] != null);
             if (filled.length === 0) return null;
             return (
               <p className='text-muted-foreground text-xs tabular-nums'>
-                계산기는 <b className='text-foreground'>{bizLabelOf(filled[0], bizNames)}</b> 값입니다.
+                계산기는 <b className='text-foreground'>{bizLabelOf(filled[0], bizNames, true)}</b> 값입니다.
                 {filled.length > 1 && <> 다른 사업자 값은 오늘 화면에서 고칩니다.</>}
               </p>
             );

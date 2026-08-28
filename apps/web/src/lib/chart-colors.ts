@@ -69,12 +69,13 @@ export function bubbleColor(expWin: number | null): string {
   return ramp[0];
 }
 
-/** 지도 타일 — 다크는 CARTO dark_matter (OSM 라이트 타일이 다크 화면을 찢는 문제) */
+/** 지도 타일 — 다크는 Esri Dark Gray Canvas (OSM 라이트 타일이 다크 화면을 찢는 문제.
+ *  CARTO dark_matter는 API 키 워터마크가 떠서 제외) */
 export function mapTiles() {
   return isDark()
     ? {
-        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+        attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors',
       }
     : {
         url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',

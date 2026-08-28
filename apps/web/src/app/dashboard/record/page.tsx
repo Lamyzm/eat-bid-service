@@ -310,7 +310,7 @@ export default function RecordPage() {
         </CardContent>
       </Card>
       <p className='text-muted-foreground text-xs'>
-        하한미달(무효) = 낙찰가보다 낮게 쓴 경우. 예정가는 추첨입니다 — 추천가는 없습니다, 판단 재료는 전부 있습니다.
+        하한미달(무효) = 낙찰가보다 낮게 쓴 경우. 예정가는 추첨입니다. 추천가는 없습니다 · 판단 재료는 전부 있습니다.
       </p>
     </div>
   );

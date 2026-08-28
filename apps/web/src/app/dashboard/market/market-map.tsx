@@ -103,7 +103,7 @@ export function MarketMap() {
                 })}
               </MapContainer>
               {/* 범례 — 지도 밖 각주 2줄 대신 지도 우하단 오버레이 (R5 ⑧) */}
-              <div className='bg-card/90 text-muted-foreground absolute right-2 bottom-2 z-[1000] space-y-0.5 rounded border px-2.5 py-1.5 text-xs backdrop-blur-sm'>
+              <div className='bg-card/90 text-muted-foreground absolute right-2 bottom-7 z-[1000] space-y-0.5 rounded border px-2.5 py-1.5 text-xs backdrop-blur-sm'>
                 <div>버블 크기 = 연간 공고 수</div>
                 <div>색 = 기대낙찰(연 공고 ÷ 참여 업체) · 진할수록 업체당 몫이 큼</div>
                 <div className='text-destructive'>빨간 테두리 = 내 자격 지역</div>
@@ -149,12 +149,14 @@ export function MarketMap() {
                 </div>
                 <div className='grid grid-cols-2 gap-2'>
                   {/* 히어로 숫자 — 화면당 1개: 기대낙찰 (DESIGN C표) */}
-                  {[['연간 공고', `${sel.perYear}건`, ''], ['보통 참여', `${sel.medField ?? '-'}곳`, ''],
-                    ['기대낙찰', `${sel.expWin ?? '-'}건/업체`, 'text-primary text-3xl'],
-                    ['상위5 점유', `${sel.top5Share ?? '-'}%`, '']].map(([l, v, cls]) => (
-                    <div key={l} className='rounded border px-3 py-2'>
+                  {[['연간 공고', sel.perYear, '건', ''], ['보통 참여', sel.medField ?? '-', '곳', ''],
+                    ['기대낙찰', sel.expWin ?? '-', '건/업체', 'text-primary text-3xl'],
+                    ['상위5 점유', sel.top5Share ?? '-', '%', '']].map(([l, v, unit, cls]) => (
+                    <div key={l as string} className='rounded border px-3 py-2'>
                       <div className='text-muted-foreground text-xs'>{l}</div>
-                      <div className={`font-bold tabular-nums ${cls || 'text-lg'}`}>{v}</div>
+                      <div className={`font-bold tabular-nums ${cls || 'text-lg'}`}>
+                        {v}<span className='text-muted-foreground ml-0.5 text-sm font-normal'>{unit}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
