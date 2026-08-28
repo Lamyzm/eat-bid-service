@@ -10,7 +10,7 @@ import { useRegion } from '@/lib/region';
 export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
   const { homes, view, isBrowsing, setView, ready } = useRegion();
   const [openCount, setOpenCount] = useState<number | null>(null);
-  const [regions, setRegions] = useState<string[]>([]);
+  const [regions, setRegions] = useState<{ sigungu: string; n?: number }[]>([]);
 
   useEffect(() => {
     fetch('/api/open').then(r => r.json()).then((xs: any[]) => {
@@ -26,7 +26,7 @@ export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
 
   useEffect(() => {
     fetch('/api/wins/regions').then(r => r.json())
-      .then(x => setRegions(Array.isArray(x) ? x.map((r: any) => r.sigungu) : [])).catch(() => {});
+      .then(x => setRegions(Array.isArray(x) ? x : [])).catch(() => {});
   }, []);
 
   const scopeLabel = useMemo(() => {
@@ -36,12 +36,17 @@ export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
     return `내 지역 ${homes.length}곳 기준`;
   }, [view, homes]);
 
+  // 고른 지역의 과거 개찰 회차 수. 드롭다운 152곳 전부에 붙이면 "적은 곳은 고르지 말라"는
+  // 신호처럼 읽혀서, 고른 뒤에만 사실로 밝힌다.
+  const viewedN = view === 'home' ? null : regions.find(r => r.sigungu === view)?.n ?? null;
+
   if (!ready) return <div className='h-8' aria-hidden />; // 로딩 중 자리 확보 (U33)
 
   return (
     <div className='text-muted-foreground flex h-8 items-center gap-x-2 overflow-x-auto text-sm whitespace-nowrap tabular-nums'>
       <span className='text-foreground font-medium'>{scopeLabel}</span>
       {openCount != null && <span>· 진행 중 공고 {openCount}건</span>}
+      {viewedN != null && <span>· 과거 개찰 {viewedN.toLocaleString()}회</span>}
       {homes.length > 0 && (
         <span>· 자격 {homes.length}곳{isBrowsing ? ` 중 다른 지역(${view}) 보는 중` : view === 'home' && homes.length > 1 ? ' 전체 보는 중' : ''}</span>
       )}
@@ -56,7 +61,7 @@ export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
         aria-label='다른 지역 둘러보기'
       >
         <option value=''>다른 지역 둘러보기…</option>
-        {regions.map(r => <option key={r} value={r}>{r}</option>)}
+        {regions.map(r => <option key={r.sigungu} value={r.sigungu}>{r.sigungu}</option>)}
       </select>
     </div>
   );

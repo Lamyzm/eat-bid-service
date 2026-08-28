@@ -8,6 +8,7 @@ import { type RosterRow } from '@/components/roster-table';
 import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { won } from '@/lib/format';
 import { pickBand, bandBasisText } from '@/lib/band';
+import { deadlineText } from '@/lib/deadline';
 import { DataScope } from '@/components/data-scope';
 import { CHART } from '@/lib/chart-colors';
 import { slotKeysFor, ratesOf, bizLabelOf } from '@/lib/mark-rates';
@@ -126,13 +127,10 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   // 시각 의존 값은 마운트 후에만 (SSR/CSR 불일치 방지 — React #418)
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
-  const dday = useMemo(() => {
-    if (!mounted || !open.deadline) return null;
-    const ms = new Date(open.deadline).getTime() - Date.now();
-    if (ms < 0) return '마감됨';
-    const h = Math.floor(ms / 36e5);
-    return h < 24 ? `마감 ${h}시간 전` : `마감 D-${Math.floor(h / 24)}`;
-  }, [mounted, open.deadline]);
+  // 시각 의존 값이라 마운트 후에만 (SSR/CSR 불일치 방지 — React #418)
+  const dday = useMemo(
+    () => (mounted ? deadlineText(open.deadline) : null),
+    [mounted, open.deadline]);
 
   return (
     <div className='flex flex-1 flex-col space-y-5 p-4 md:p-6'>

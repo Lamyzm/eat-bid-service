@@ -16,6 +16,7 @@ import { useTrack, trackAction, trackOnce } from '@/lib/track';
 import { usePersistedFlag, usePersistedChoice } from '@/lib/use-persisted-state';
 import { won } from '@/lib/format';
 import { monthsAgoKST, type ForecastRow } from '@eatbid/shared';
+import { deadlineText } from '@/lib/deadline';
 import { CHART as C, myMarker, chartFrame } from '@/lib/chart-colors';
 import { RosterTable, type RosterRow } from '@/components/roster-table';
 import { Badge } from '@/components/ui/badge';
@@ -572,11 +573,8 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
             <span>
               <b>진행 중 공고 기준</b> · {ctxBid.category ?? '-'} · 기초 {won(ctxBid.basePrice)}원 · 하한 {ctxBid.floorRate}
               {(() => {
-                if (!ctxBid.deadline) return null;
-                const ms = new Date(ctxBid.deadline).getTime() - Date.now();
-                if (ms < 0) return <span className='text-destructive'> · 마감됨</span>;
-                const h = Math.floor(ms / 36e5);
-                return <span className='text-destructive'> · {h < 24 ? `마감 ${h}시간 전` : `마감 D-${Math.floor(h / 24)}`}</span>;
+                const t = deadlineText(ctxBid.deadline);
+                return t ? <span className='text-destructive'> · {t}</span> : null;
               })()}
             </span>
             <Link href={`/dashboard/auction/${ctxBid.bidNo}${r != null ? `?rate=${r}` : ''}`}

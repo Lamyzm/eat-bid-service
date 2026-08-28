@@ -9,6 +9,7 @@ import { RegionStatus } from '@/components/region-status';
 import { RateInput } from '@/components/rate-input';
 import { LoadError } from '@/components/load-error';
 import { pickBand, bandBasisText } from '@/lib/band';
+import { deadlineText, isClosed } from '@/lib/deadline';
 import { DataScope } from '@/components/data-scope';
 import { fetchJson } from '@/lib/fetch-json';
 import { slotKeysFor, ratesOf, withRate, primaryRate, hasAnyRate, sameRates, bizLabelOf } from '@/lib/mark-rates';
@@ -57,14 +58,6 @@ type ForecastRow = { schoolId: string; schoolName: string; lastOpened: string; m
  */
 function hasHistory(o: OpenRow): boolean {
   return (o.nSameFloor ?? 0) > 0 || o.recent3.length > 0 || o.band != null || o.usualN != null;
-}
-
-function dday(deadline: string | null) {
-  if (!deadline) return null;
-  const ms = new Date(deadline).getTime() - Date.now();
-  if (ms < 0) return '마감됨';
-  const h = Math.floor(ms / 36e5);
-  return h < 24 ? `마감 ${h}시간 전` : `마감 D-${Math.floor(h / 24)}`;
 }
 
 export default function TodayPage() {
@@ -148,8 +141,14 @@ export default function TodayPage() {
 
   /** 첫 화면은 마감 임박 8건까지만 — 나머지는 1클릭 뒤 (U28) */
   const HEAD = 8;
-  const byDeadline = useMemo(() => [...visible].sort((a, b) =>
-    (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999')), [visible]);
+  // 마감이 지난 공고가 '마감 임박' 앞자리를 차지하지 않게 뒤로 보낸다.
+  // 마감 기준이 개찰 시각에서 실제 마감(1시간 이르다)으로 바뀌면 지난 공고가 실제로 생긴다.
+  const byDeadline = useMemo(() => [...visible].sort((a, b) => {
+    const ca = isClosed(a.deadline) ? 1 : 0;
+    const cb = isClosed(b.deadline) ? 1 : 0;
+    if (ca !== cb) return ca - cb;
+    return (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999');
+  }), [visible]);
   const [showRest, setShowRest] = useState(false);
   const [showAll, setShowAll] = useState(false); // 전국(지역 필터 밖)까지
   useEffect(() => { setShowRest(false); setShowAll(false); }, [viewRegions?.join(',')]);
@@ -259,7 +258,7 @@ export default function TodayPage() {
                 <div className='text-muted-foreground text-xs'>가장 급한 공고</div>
                 <div className='text-xl font-bold'>
                   {next.schoolName ?? '학교 미상'} {next.category ?? ''}
-                  <span className='text-destructive ml-2 text-base'>{dday(next.deadline) ?? ''}</span>
+                  <span className='text-destructive ml-2 text-base'>{deadlineText(next.deadline) ?? ''}</span>
                 </div>
               </div>
               <div className='text-right text-sm tabular-nums'>
@@ -339,7 +338,7 @@ export default function TodayPage() {
                           }
                           return o.sigungu ? <Badge variant='outline'>{o.sigungu}</Badge> : null;
                         })()}
-                        <Badge variant='destructive'>{dday(o.deadline) ?? '마감 미상'}</Badge>
+                        <Badge variant='destructive'>{deadlineText(o.deadline) ?? '마감 미상'}</Badge>
                       </div>
                     </div>
                     <CardDescription className='tabular-nums'>
@@ -380,7 +379,10 @@ export default function TodayPage() {
                           );
                         })()}
                         {o.usualN != null && <div className='text-muted-foreground'>보통 {o.usualN}곳 참여</div>}
-                        {!o.unrestricted && o.allowedLabel && (
+                        {isClosed(o.deadline) && (
+                        <div className='text-muted-foreground'>투찰 시간이 지났습니다.</div>
+                      )}
+                      {!o.unrestricted && o.allowedLabel && (
                         <div className='text-muted-foreground'>참가 자격은 사무소 소재지 기준입니다. 자격 여부는 확인이 필요합니다.</div>
                       )}
                       {/* 표본 수 — 분류가 정확해지며 표본이 줄어든 자리를 화면이 숨기지 않는다 */}
@@ -592,7 +594,7 @@ export default function TodayPage() {
                 </span>
                 <span className='text-muted-foreground shrink-0'>
                   하한 {o.floorRate} · {won(o.anchorAmount)}원
-                  <span className='text-destructive ml-2'>{dday(o.deadline) ?? ''}</span>
+                  <span className='text-destructive ml-2'>{deadlineText(o.deadline) ?? ''}</span>
                 </span>
               </Link>
             ))}
