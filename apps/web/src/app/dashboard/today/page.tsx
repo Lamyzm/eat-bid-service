@@ -47,6 +47,15 @@ type OpenRow = {
 type ResultRow = { bidNo: string; schoolName: string | null; openedAt: string | null; winRate: number | null; status: string };
 type ForecastRow = { schoolId: string; schoolName: string; lastOpened: string; medGapDays: number; expected: string; dueInDays: number; lastWinRate: number | null };
 
+/**
+ * 이 공고에 붙일 과거 기록이 있는가.
+ * 서버는 없으면 nSameFloor: 0 · band: null 로 정확히 알려주는데, 화면이 조건부 렌더링이라
+ * 아무것도 안 보여서 "자료 없음"과 "로딩 중"을 구별할 수 없었다. 열린 공고의 35%가 이 상태다.
+ */
+function hasHistory(o: OpenRow): boolean {
+  return (o.nSameFloor ?? 0) > 0 || o.recent3.length > 0 || o.band != null || o.usualN != null;
+}
+
 function dday(deadline: string | null) {
   if (!deadline) return null;
   const ms = new Date(deadline).getTime() - Date.now();
@@ -358,6 +367,10 @@ export default function TodayPage() {
                         하한 금액 {won(o.anchorAmount)}원 (기초 × 하한율)
                       </div>
                       <div className='text-right'>
+                        {/* 재료가 없으면 침묵하지 않는다 — 없다는 것도 재료다 */}
+                        {!hasHistory(o) && (
+                          <div className='text-muted-foreground'>이 학교는 지난 개찰 기록이 아직 없습니다</div>
+                        )}
                         {o.recent3.length > 0 && <div>최근 낙찰 <b>{o.recent3.map(v => v.toFixed(2)).join(' · ')}</b></div>}
                         {o.band?.dense && (
                           <div className='text-muted-foreground'>
@@ -481,7 +494,14 @@ export default function TodayPage() {
                                 </div>
                               );
                             }
-                            const rounds = (o.schoolId && hist[o.schoolId]) || [];
+                            const loaded = !!(o.schoolId && hist[o.schoolId]);
+                            if (!hasHistory(o)) return (
+                              <div key={bz || '_'}>{tag}<span className='text-muted-foreground'>이 학교는 지난 개찰 기록이 아직 없습니다</span></div>
+                            );
+                            if (!loaded) return (
+                              <div key={bz || '_'}>{tag}<span className='text-muted-foreground'>과거 기록을 불러오는 중입니다</span></div>
+                            );
+                            const rounds = hist[o.schoolId!];
                             const same = rounds.filter(x => x.floorRate === o.floorRate && x.winRate != null);
                             if (same.length < 3) return (
                               <div key={bz || '_'}>{tag}<span className='text-muted-foreground'>같은 하한 기록 {same.length}회 — 표본이 적습니다</span></div>

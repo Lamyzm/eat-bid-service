@@ -329,7 +329,9 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
               myPast={myPastSameFloor} liveValue={liveRate} />
           ) : (
             <p className='text-muted-foreground text-sm'>
-              동일 하한 기록 {points.length}회: {points.map(p => p.winRate.toFixed(2)).join(', ') || '없음'}
+              {auctions.length === 0
+                ? '이 학교는 지난 개찰 기록이 아직 없습니다.'
+                : `동일 하한 기록 ${points.length}회${points.length ? `: ${points.map(p => p.winRate.toFixed(2)).join(', ')}` : ''}`}
             </p>
           )}
           {open.schoolId && (
