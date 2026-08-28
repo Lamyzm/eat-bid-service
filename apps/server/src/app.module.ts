@@ -119,6 +119,23 @@ class SchoolsController {
   }
 }
 
+/** 지역제한 없음 표기 — eaT 원본이 시군구명 대신 "전체"/"전국"을 담는 경우가 있다 */
+const UNRESTRICTED_TOKENS = ["전체", "전국", "제한없음", "해당없음"];
+/** 공고의 지역 제한이 사실상 없는가 (빈 목록 = 제한 정보 없음 = 무제한 취급) */
+function isUnrestricted(allowed: string[] | null | undefined): boolean {
+  const list = (allowed ?? []).map(x => (x ?? "").trim()).filter(Boolean);
+  if (list.length === 0) return true;
+  return list.some(a => UNRESTRICTED_TOKENS.some(t => a.includes(t)));
+}
+/** 자격 판정: 무제한이면 전원 자격, 아니면 허용 지역 x 사용자 지역 교집합 */
+function eligibleFor(allowed: string[] | null | undefined, sigungu: string | null, mine: string[]): boolean {
+  if (isUnrestricted(allowed)) return true;
+  if (!mine.length) return true; // 자격 지역 미설정 사용자에겐 숨기지 않는다
+  const list = (allowed ?? []).map(x => (x ?? "").trim()).filter(Boolean);
+  return mine.some(m => list.some(a => a.includes(m) || m.includes(a))
+    || (sigungu ?? "").includes(m));
+}
+
 @Controller("open")
 class OpenController {
   /** 공고에 학교 재료를 붙인다: 같은 하한 밴드·최근 낙찰 3개·보통 업체 수 */
@@ -140,19 +157,25 @@ class OpenController {
       const last10 = aucs.slice(-10).map(a => a.nValid).sort((a, b) => a - b);
       usualN = last10.length ? last10[Math.floor(last10.length / 2)] : null;
     }
+    const unrestricted = isUnrestricted(r.allowedRegions);
     return {
       ...r, schoolId,
       anchorAmount: r.basePrice && r.floorRate ? Math.round(r.basePrice * r.floorRate / 100) : null,
       band, recent3, usualN, nSameFloor,
+      // 표기용: 무제한이면 "지역 제한 없음", 아니면 허용 지역 나열
+      unrestricted,
+      allowedLabel: unrestricted ? "지역 제한 없음"
+        : (r.allowedRegions ?? []).filter(Boolean).slice(0, 3).join(" · "),
     };
   }
 
   @Get()
   async list(@Query() q: OpenQueryDto) {
     const rows = await db.select().from(openAuctions);
+    const mine = (q.region ?? "").split(",").map(x => x.trim()).filter(Boolean);
     const filtered = rows
-      .filter(r => !q.region || (r.sigungu ?? "").includes(q.region)
-        || (r.allowedRegions ?? []).some(a => a.includes(q.region!)))
+      // region 파라미터 = 사용자 자격 지역(콤마 목록). 무제한 공고는 항상 통과.
+      .filter(r => !mine.length || eligibleFor(r.allowedRegions, r.sigungu, mine))
       .filter(r => !q.category || r.category === q.category);
     return Promise.all(filtered.map(r => this.enrich(r)));
   }
