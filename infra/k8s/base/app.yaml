@@ -227,13 +227,15 @@ spec:
   # 3시간 = 현실 추정 15분의 12배 여유이자 주기의 1/8. 넘으면 지연이 아니라 매달린 것이다.
   # 로더는 commit 이 한 곳뿐이라 킬되면 전량 롤백되고 어제 데이터가 남는다.
   concurrencyPolicy: Forbid
-  activeDeadlineSeconds: 10800
   # 실패 흔적이 1개만 남아 다음 실패에 덮이고 있었다.
   failedJobsHistoryLimit: 5
   # 미설정이면 스케줄 100회를 놓쳤을 때 CronJob 이 스케줄링을 아예 멈춘다.
   startingDeadlineSeconds: 3600
   jobTemplate:
     spec:
+      # activeDeadlineSeconds 는 JobSpec 필드다. CronJob 의 spec 바로 아래 두면
+      # 조용히 무시된다 — 처음에 거기 넣었다가 라이브에서 빈 값으로 확인해 옮겼다.
+      activeDeadlineSeconds: 10800
       template:
         spec:
           restartPolicy: OnFailure
