@@ -11,13 +11,19 @@ import { Input } from '@/components/ui/input';
 const MAX_DECIMALS = 4;
 
 export function RateInput({
-  value, onChange, placeholder, className, onFocusChange,
+  value, onChange, placeholder, className, onFocusChange, onEnter, slotId, ariaLabel, title,
 }: {
   value: number | null | undefined;
   onChange: (v: number | undefined) => void;
   placeholder?: string;
   className?: string;
   onFocusChange?: (focused: boolean) => void;
+  /** Enter — 다음 카드 첫 칸으로 (Tab 은 브라우저 기본 순서대로 오른쪽 칸) */
+  onEnter?: () => void;
+  /** 포커스 이동용 식별자 — data-rate-slot */
+  slotId?: string;
+  ariaLabel?: string;
+  title?: string;
 }) {
   const [text, setText] = useState(value != null ? String(value) : '');
   const focusedRef = useRef(false);
@@ -34,6 +40,10 @@ export function RateInput({
       inputMode='decimal'
       placeholder={placeholder}
       className={className}
+      aria-label={ariaLabel}
+      title={title}
+      data-rate-slot={slotId}
+      onKeyDown={e => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }}
       onFocus={() => { focusedRef.current = true; onFocusChange?.(true); }}
       onBlur={() => {
         focusedRef.current = false;

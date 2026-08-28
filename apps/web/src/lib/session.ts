@@ -7,7 +7,7 @@
  */
 import { useSyncExternalStore } from 'react';
 
-export type Mark = { s: 'watch' | 'done'; rate?: number };
+export type Mark = { s: 'watch' | 'done'; rate?: number; rates?: Record<string, number> };
 export type Me = {
   ok: boolean;
   guest: boolean;
@@ -21,6 +21,7 @@ const K = {
   legacyRegion: 'eatbid.region',
   marks: 'eatbid.marks',
   merged: 'eatbid.mergedFor',
+  marksBackup: 'eatbid.marks.unreadable',
 } as const;
 
 type State = {
@@ -41,22 +42,46 @@ const listeners = new Set<() => void>();
 function emit() { listeners.forEach(l => l()); }
 function setState(patch: Partial<State>) { state = { ...state, ...patch }; emit(); }
 
+/**
+ * marks 를 읽을 수 없으면(구버전·손상·수동 편집) 그 키에 대한 쓰기를 잠근다.
+ * 사용자가 값을 잃는 것보다 한 번 안 보이는 편이 낫다 — 조용히 빈 값으로 덮어쓰지 않는다.
+ */
+let marksLocked = false;
+export function isMarksLocked() { return marksLocked; }
+
 function readLocal(): Pick<State, 'bizNos' | 'regions' | 'marks'> {
   const out = { bizNos: [] as string[], regions: [] as string[], marks: {} as Record<string, Mark> };
   try {
     const b = localStorage.getItem(K.biz); if (b) out.bizNos = JSON.parse(b);
+  } catch {}
+  try {
     const r = localStorage.getItem(K.regions);
     if (r) out.regions = JSON.parse(r);
     else { const legacy = localStorage.getItem(K.legacyRegion); if (legacy) out.regions = [legacy]; }
-    const m = localStorage.getItem(K.marks); if (m) out.marks = JSON.parse(m);
   } catch {}
+  try {
+    const m = localStorage.getItem(K.marks);
+    if (m) {
+      const parsed = JSON.parse(m);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) out.marks = parsed;
+      else throw new Error('unexpected marks shape');
+    }
+  } catch {
+    marksLocked = true;
+    // 원본은 손대지 않고, 사본만 남겨 둔다
+    try {
+      const raw = localStorage.getItem(K.marks);
+      if (raw && !localStorage.getItem(K.marksBackup)) localStorage.setItem(K.marksBackup, raw);
+    } catch {}
+    out.marks = {};
+  }
   return out;
 }
 function writeLocal(patch: Partial<Pick<State, 'bizNos' | 'regions' | 'marks'>>) {
   try {
     if (patch.bizNos) localStorage.setItem(K.biz, JSON.stringify(patch.bizNos));
     if (patch.regions) localStorage.setItem(K.regions, JSON.stringify(patch.regions));
-    if (patch.marks) localStorage.setItem(K.marks, JSON.stringify(patch.marks));
+    if (patch.marks && !marksLocked) localStorage.setItem(K.marks, JSON.stringify(patch.marks));
   } catch {}
 }
 
@@ -97,7 +122,15 @@ export async function boot() {
   if (needMerge) {
     mergedBiz = [...new Set([...local.bizNos, ...serverBiz])];
     mergedRegions = [...new Set([...local.regions, ...serverRegions])];
-    mergedMarks = { ...local.marks, ...serverMarks }; // 서버 우선
+    // 회차별 병합 — 서버 엔트리로 통째 덮으면 로컬의 둘째 사업자 값(rates)이 사라진다.
+    mergedMarks = { ...local.marks };
+    for (const [bidNo, sv] of Object.entries(serverMarks)) {
+      const lo = local.marks[bidNo];
+      const loHasRates = lo && (lo as any).rates && Object.keys((lo as any).rates).length > 0;
+      mergedMarks[bidNo] = loHasRates
+        ? { ...sv, ...lo }                       // 로컬의 사업자별 값을 우선 보존
+        : { ...(lo ?? {}), ...sv };              // 그 외에는 기존대로 서버 우선
+    }
   }
   setState({
     ready: true, guest: false, user: me.user ?? null, googleEnabled: !!me.googleEnabled,

@@ -6,6 +6,7 @@ import { useRegion } from '@/lib/region';
 import { useSession } from '@/lib/session';
 import { RegionStatus } from '@/components/region-status';
 import { RateInput } from '@/components/rate-input';
+import { slotKeys, ratesOf, rateOf, withRate, primaryRate, hasAnyRate, sameRates } from '@/lib/mark-rates';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMarks } from '@/lib/marks';
@@ -43,7 +44,22 @@ export default function TodayPage() {
   const { ready: sessionReady } = useSession();
   const { marks, set } = useMarks();
   // 저장 시점 값 — '이 값으로 갱신' 판별용
-  const [savedRates, setSavedRates] = useState<Record<string, number | undefined>>({});
+  const [savedRates, setSavedRates] = useState<Record<string, Record<string, number>>>({});
+  // 사업자 이름 — 2칸일 때 어느 칸이 누구인지 (U9)
+  const [bizNames, setBizNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    for (const bz of bizNos) {
+      if (bizNames[bz]) continue;
+      fetch(`/api/firms/lookup?bizNo=${bz}`).then(r => r.json())
+        .then(d => { if (d?.name) setBizNames(v => ({ ...v, [bz]: d.name })); }).catch(() => {});
+    }
+  }, [bizNos.join(',')]);
+  const slots = slotKeys(bizNos);
+  const bizLabel = (bz: string) => bz === '' ? '' : (bizNames[bz] ?? `…${bz.slice(-4)}`);
+  const focusSlot = (id: string) => {
+    const el = document.querySelector<HTMLInputElement>(`[data-rate-slot="${id}"]`);
+    if (el) { el.focus(); el.select?.(); }
+  };
   useTrack('today');
   // 데일리 브리핑 — 어제 전국 개찰 (사실 카운트만)
   const [brief, setBrief] = useState<{ day: string; n: number; top: string | null; topN: number; isYesterday: boolean } | null>(null);
@@ -101,7 +117,7 @@ export default function TodayPage() {
   useEffect(() => {
     for (const o of head) {
       const sid = o.schoolId;
-      if (!sid || marks[o.bidNo]?.rate == null || histReq.current.has(sid)) continue;
+      if (!sid || !hasAnyRate(marks[o.bidNo], bizNos) || histReq.current.has(sid)) continue;
       histReq.current.add(sid);
       // ② 리허설과 같은 소스(effFloor 포함) — 두 화면 숫자가 갈리면 안 된다
       fetch(`/api/rounds/school/${encodeURIComponent(sid)}`).then(r => r.json())
@@ -170,7 +186,7 @@ export default function TodayPage() {
         const sorted = [...visible].filter(o => o.deadline)
           .sort((a, b) => +new Date(a.deadline!) - +new Date(b.deadline!));
         const next = sorted[0] ?? visible[0];
-        const unfilled = visible.filter(o => marks[o.bidNo] && marks[o.bidNo]!.rate == null).length;
+        const unfilled = visible.filter(o => marks[o.bidNo] && !hasAnyRate(marks[o.bidNo], bizNos)).length;
         return (
           <Card className='border-primary'>
             <CardContent className='flex flex-wrap items-end justify-between gap-3 py-4' style={{ minHeight: 84 }}>
@@ -209,8 +225,9 @@ export default function TodayPage() {
           {!openLoaded && Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={`sk${i}`} className='h-[213px] w-full rounded-xl' />
           ))}
-          {openLoaded && head.map(o => {
+          {openLoaded && head.map((o, cardIdx) => {
             const m = marks[o.bidNo];
+            const myRates = ratesOf(m, bizNos);
             const b = badges[o.schoolName ?? ''];
             return (
               <Link key={o.bidNo} href={`/dashboard/auction/${o.bidNo}`} className='block'>
@@ -227,7 +244,11 @@ export default function TodayPage() {
                     <CardDescription className='tabular-nums'>
                       기초 {won(o.basePrice)}원 · 하한 {o.floorRate}
                       {b && <> · <b className='text-foreground'>투찰 {b.part}회 · 낙찰 {b.wins}회</b></>}
-                      {m?.s === 'done' && <> · ✓ 저장됨{m.rate ? ` (${m.rate})` : ''}</>}
+                      {m?.s === 'done' && (() => {
+                        const parts = slots.filter(k => myRates[k] != null)
+                          .map(k => `${slots.length > 1 && bizLabel(k) ? `${bizLabel(k)} ` : ''}${myRates[k]}`);
+                        return <> · ✓ 저장됨{parts.length ? ` (${parts.join(' · ')})` : ''}</>;
+                      })()}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className='space-y-2'>
@@ -245,81 +266,129 @@ export default function TodayPage() {
                     {/* 값 입력·저장 — 카드 안에서 완결 (A: 바구니 병합) */}
                     <div className='flex flex-wrap items-center gap-2 border-t pt-2'
                       onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
-                      <RateInput value={m?.rate}
-                        placeholder={`투찰률 ${((o.floorRate ?? 90) + 0.05).toFixed(2)}`}
-                        onChange={v => {
-                          if (!m) trackAction('basket_add', { bidNo: o.bidNo, from: 'today' });
-                          set(o.bidNo, { s: m?.s ?? 'watch', rate: v });
-                        }}
-                        className='h-8 w-32 font-mono' />
+                      {slots.map((bz, si) => (
+                        <span key={bz || '_'} className='flex items-center gap-1'>
+                          {slots.length > 1 && (
+                            <span className='text-muted-foreground max-w-16 truncate text-xs' title={bz}>
+                              {bizLabel(bz)}
+                            </span>
+                          )}
+                          <RateInput value={myRates[bz]}
+                            slotId={`${cardIdx}:${si}`}
+                            ariaLabel={slots.length > 1 ? `${bizLabel(bz)} 투찰률` : '투찰률'}
+                            title={bz || undefined}
+                            placeholder={`투찰률 ${((o.floorRate ?? 90) + 0.05).toFixed(2)}`}
+                            onEnter={() => focusSlot(`${cardIdx + 1}:0`)}
+                            onChange={v => {
+                              if (!m) trackAction('basket_add', { bidNo: o.bidNo, from: 'today' });
+                              set(o.bidNo, withRate(m, bz, v, bizNos));
+                            }}
+                            className='h-8 w-32 font-mono' />
+                        </span>
+                      ))}
                       {(() => {
                         // 입력 전: 추천값(최근 낙찰 중앙값 또는 하한+0.05)을 흐린 큰 글씨로 미리 보여준다 (U30)
+                        if (!o.basePrice) return null;
                         const suggest = o.recent3.length
                           ? [...o.recent3].sort((a, b) => a - b)[Math.floor(o.recent3.length / 2)]
                           : (o.floorRate ?? 90) + 0.05;
-                        const shown = m?.rate ?? suggest;
-                        if (!o.basePrice) return null;
-                        const filled = m?.rate != null;
+                        const filledSlots = slots.filter(k => myRates[k] != null);
+                        if (slots.length === 1) {
+                          const shown = myRates[slots[0]] ?? suggest;
+                          const filled = myRates[slots[0]] != null;
+                          return (
+                            <span className='tabular-nums'>
+                              <span className='text-muted-foreground text-xs'>내가 넣을 금액 </span>
+                              <b className={`text-xl ${filled ? 'text-primary' : 'text-muted-foreground/45'}`}>
+                                {won(o.basePrice * shown / 100)}원
+                              </b>
+                              {!filled && <span className='text-muted-foreground/60 ml-1 text-xs'>({shown.toFixed(2)} 기준 미리보기)</span>}
+                            </span>
+                          );
+                        }
                         return (
                           <span className='tabular-nums'>
                             <span className='text-muted-foreground text-xs'>내가 넣을 금액 </span>
-                            <b className={`text-xl ${filled ? 'text-primary' : 'text-muted-foreground/45'}`}>
-                              {won(o.basePrice * shown / 100)}원
-                            </b>
-                            {!filled && <span className='text-muted-foreground/60 ml-1 text-xs'>({shown.toFixed(2)} 기준 미리보기)</span>}
+                            {filledSlots.length === 0 ? (
+                              <>
+                                <b className='text-muted-foreground/45 text-xl'>{won(o.basePrice * suggest / 100)}원</b>
+                                <span className='text-muted-foreground/60 ml-1 text-xs'>({suggest.toFixed(2)} 기준 미리보기)</span>
+                              </>
+                            ) : filledSlots.map((k, i) => (
+                              <span key={k || '_'}>
+                                {i > 0 && <span className='text-muted-foreground mx-1'>·</span>}
+                                <b className='text-primary text-lg'>{won(o.basePrice! * myRates[k] / 100)}원</b>
+                                <span className='text-muted-foreground ml-0.5 text-xs'>{bizLabel(k)}</span>
+                              </span>
+                            ))}
                           </span>
                         );
                       })()}
                       {(() => {
                         const saved = m?.s === 'done';
-                        const changed = saved && m?.rate !== savedRates[o.bidNo];
+                        const changed = saved && !sameRates(myRates, savedRates[o.bidNo] ?? myRates);
+                        const filled = slots.filter(k => myRates[k] != null);
+                        const anyBelow = filled.some(k => o.floorRate != null && myRates[k] < o.floorRate);
+                        const label = filled.map(k => myRates[k]).join(' · ');
                         return (
                           <Button size='sm' className='h-8' variant={saved && !changed ? 'secondary' : 'default'}
-                            disabled={m?.rate == null || (o.floorRate != null && m.rate < o.floorRate)}
+                            disabled={filled.length === 0 || anyBelow}
                             onClick={() => {
                               trackAction(!saved ? 'mark_done' : 'mark_update',
-                                { bidNo: o.bidNo, rate: m?.rate, from: 'today' });
-                              set(o.bidNo, { s: 'done', rate: m?.rate });
-                              setSavedRates(v => ({ ...v, [o.bidNo]: m?.rate }));
+                                { bidNo: o.bidNo, rate: primaryRate(m, bizNos), from: 'today' });
+                              set(o.bidNo, { ...(m ?? { s: 'watch' }), s: 'done', rates: myRates, rate: primaryRate(m, bizNos) });
+                              setSavedRates(v => ({ ...v, [o.bidNo]: myRates }));
                             }}>
-                            {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${m?.rate})`}
+                            {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${label})`}
                           </Button>
                         );
                       })()}
                       {m?.s === 'done' && (
                         <button className='text-muted-foreground text-xs hover:underline'
                           onClick={() => {
-                            trackAction('mark_undone', { bidNo: o.bidNo, rate: m?.rate, from: 'today' });
-                            set(o.bidNo, { s: 'watch', rate: m?.rate });
+                            trackAction('mark_undone', { bidNo: o.bidNo, rate: primaryRate(m, bizNos), from: 'today' });
+                            set(o.bidNo, { ...(m ?? { s: 'watch' }), s: 'watch' });
                           }}>해제</button>
                       )}
-                      {/* 판단 근거 한 줄 — 사실 + 표본 n 만 (U37) */}
-                      {m?.rate != null && (
-                        <div className='w-full text-xs tabular-nums'>
-                          {o.floorRate != null && m.rate < o.floorRate ? (
-                            <span className='text-destructive font-medium'>하한 {o.floorRate} 아래라 무효</span>
-                          ) : (() => {
+                      {/* 판단 근거 — 사실 + 표본 n 만 (U37). 2칸이면 칸마다 한 줄 (U9) */}
+                      {hasAnyRate(m, bizNos) && (
+                        <div className='w-full space-y-0.5 text-xs tabular-nums'>
+                          {slots.filter(k => myRates[k] != null).map(bz => {
+                            const rate = myRates[bz];
+                            const tag = slots.length > 1 && bizLabel(bz)
+                              ? <span className='text-foreground mr-1 font-medium'>{bizLabel(bz)}</span> : null;
+                            if (o.floorRate != null && rate < o.floorRate) {
+                              return (
+                                <div key={bz || '_'}>
+                                  {tag}<span className='text-destructive font-medium'>하한 {o.floorRate} 아래라 무효</span>
+                                </div>
+                              );
+                            }
                             const rounds = (o.schoolId && hist[o.schoolId]) || [];
                             const same = rounds.filter(x => x.floorRate === o.floorRate && x.winRate != null);
-                            if (same.length < 3) return <span className='text-muted-foreground'>같은 하한 기록 {same.length}회 — 표본이 적습니다</span>;
-                            // ② 리허설과 동일 규칙
+                            if (same.length < 3) return (
+                              <div key={bz || '_'}>{tag}<span className='text-muted-foreground'>같은 하한 기록 {same.length}회 — 표본이 적습니다</span></div>
+                            );
                             let push = 0, win = 0, alive = 0, dead = 0;
                             for (const x of same) {
-                              if (m.rate! >= x.winRate!) push++;
-                              else if (x.effFloor != null) (m.rate! < x.effFloor ? dead++ : win++);
-                              else if (x.maxInvalid != null && m.rate! <= x.maxInvalid) dead++;
+                              if (rate >= x.winRate!) push++;
+                              else if (x.effFloor != null) (rate < x.effFloor ? dead++ : win++);
+                              else if (x.maxInvalid != null && rate <= x.maxInvalid) dead++;
                               else alive++;
                             }
                             return (
-                              <span className='text-muted-foreground'>
-                                이 값이면 과거 {same.length}회 중{' '}
-                                <b className='text-primary'>{win}회</b> 먹었을 값
-                                {alive > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: '#2962ff' }}>{alive}회</b></>}
-                                {push > 0 && <> · 남이 더 낮게 써서 밀린 게 <b className='text-amber-600'>{push}회</b></>}
-                                {dead > 0 && <> · 하한 아래라 무효였을 게 <b className='text-destructive'>{dead}회</b></>}
-                              </span>
+                              <div key={bz || '_'}>
+                                {tag}
+                                <span className='text-muted-foreground'>
+                                  이 값이면 과거 {same.length}회 중{' '}
+                                  <b className='text-primary'>{win}회</b> 먹었을 값
+                                  {alive > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: '#2962ff' }}>{alive}회</b></>}
+                                  {push > 0 && <> · 남이 더 낮게 써서 밀린 게 <b className='text-amber-600'>{push}회</b></>}
+                                  {dead > 0 && <> · 하한 아래라 무효였을 게 <b className='text-destructive'>{dead}회</b></>}
+                                </span>
+                              </div>
                             );
-                          })()}
+                          })}
                         </div>
                       )}
                       <span className='ml-auto flex gap-2 text-xs'>
