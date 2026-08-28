@@ -1,0 +1,116 @@
+# 열린 공고 폴링 — 사장이 보는 목록을 "몇 분 전 것"으로 유지한다.
+#
+# 주기 근거(2026-08-28 실측, 표본 3,295건):
+#   공고 최초 등록 시각이 09~18시에 94.2%, 00~06시는 3,295건 중 3건(0.1%).
+#   토·일은 0.8%. 그래서 24시간 돌되 밤과 주말은 간격을 늘린다 —
+#   0.1%뿐이지만 0은 아니므로 완전히 끄지는 않는다.
+#
+# 전량 적재(16분)를 30분마다 돌릴 수 없어 --open-only 로 열린 공고만 갱신한다.
+# fetch_open 은 폴링 모드에서 아는 공고의 상세를 건너뛴다(증분).
+#   전량 모드는 daily-refresh 가 하루 한 번 돌며 마감 시각 변경을 흡수한다.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: poll-open-day
+  namespace: eatbid
+spec:
+  # 평일 08~19시 30분 간격. daily-refresh(07:00 KST)와 겹치지 않는다.
+  schedule: "*/30 8-19 * * 1-5"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid        # 앞 실행이 안 끝났으면 건너뛴다
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: poll
+              image: eatbid-dataplane:dev
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c",
+                "python tools/bidboard/fetch_open.py && python tools/serve/load_postgres.py --open-only"]
+              env:
+                - { name: EATBID_HOME, value: /app }
+                - { name: EATBID_DATA_ROOT, value: /lake }
+                - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
+                # guard·drift 기록에 어느 실행인지 남긴다
+                - { name: EATBID_STATE_SUFFIX, value: poll }
+              volumeMounts: [{ name: lake, mountPath: /lake }]
+          volumes:
+            - name: lake
+              hostPath: { path: /lake, type: Directory }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: poll-open-off
+  namespace: eatbid
+spec:
+  # 평일 야간(20·23·02·05시). 05시는 daily-refresh(07:00)와 2시간 떨어져 있다.
+  schedule: "0 2,5,20,23 * * 1-5"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: poll
+              image: eatbid-dataplane:dev
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c",
+                "python tools/bidboard/fetch_open.py && python tools/serve/load_postgres.py --open-only"]
+              env:
+                - { name: EATBID_HOME, value: /app }
+                - { name: EATBID_DATA_ROOT, value: /lake }
+                - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
+                - { name: EATBID_STATE_SUFFIX, value: poll }
+              volumeMounts: [{ name: lake, mountPath: /lake }]
+          volumes:
+            - name: lake
+              hostPath: { path: /lake, type: Directory }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: poll-open-weekend
+  namespace: eatbid
+spec:
+  # 주말 3시간 간격. 등록의 0.8%뿐이라 촘촘히 돌 이유가 없다.
+  schedule: "0 */3 * * 0,6"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: poll
+              image: eatbid-dataplane:dev
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c",
+                "python tools/bidboard/fetch_open.py && python tools/serve/load_postgres.py --open-only"]
+              env:
+                - { name: EATBID_HOME, value: /app }
+                - { name: EATBID_DATA_ROOT, value: /lake }
+                - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
+                - { name: EATBID_STATE_SUFFIX, value: poll }
+              volumeMounts: [{ name: lake, mountPath: /lake }]
+          volumes:
+            - name: lake
+              hostPath: { path: /lake, type: Directory }
