@@ -10,4 +10,6 @@ DROP TABLE IF EXISTS "market_regions" CASCADE;
 DROP TABLE IF EXISTS "open_auctions" CASCADE;
 DROP TABLE IF EXISTS "school_auctions" CASCADE;
 DROP TABLE IF EXISTS "schools" CASCADE;
-DROP TABLE IF EXISTS "workspace_biz" CASCADE;
+-- workspace_biz 는 여기서 지우지 않는다. 이 파일 머리말이 "사용자 데이터는 건드리지
+-- 않는다"고 선언하는데 실제로는 지우고 있었다. 게스트가 브라우저 키로 등록한
+-- 사업자라 재적재로 복구되지 않는다.

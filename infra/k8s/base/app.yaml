@@ -113,8 +113,10 @@ spec:
           env:
             - { name: API_URL, value: "http://server" }
           ports: [{ containerPort: 3000 }]
+          # 스타터 데모 라우트(/dashboard/overview)를 가리키고 있었다. 그 라우트를 지우면
+          # 파드가 영영 Ready 가 안 되는데 원인이 커밋 diff 에 안 보인다 — 잔재 삭제의 전제.
           readinessProbe:
-            httpGet: { path: /dashboard/overview, port: 3000 }
+            httpGet: { path: /dashboard/today, port: 3000 }
             periodSeconds: 10
             timeoutSeconds: 5
 ---
