@@ -157,7 +157,9 @@ spec:
       initContainers:
         - name: migrate
           image: postgres:16-alpine
-          command: ["sh","-c","until pg_isready -h postgres -U eatbid; do sleep 2; done; psql postgres://eatbid:eatbid@postgres:5432/eatbid -f /schema/schema.sql || true"]
+          # `|| true` 를 걷어냈다. 스키마 적용이 실패하면 그 사실이 보여야 한다 —
+          # 예전에 이 파일로 테이블을 전량 날린 적이 있는데 뚜껑이 덮여 있었다.
+          command: ["sh","-c","until pg_isready -h postgres -U eatbid; do sleep 2; done; psql -v ON_ERROR_STOP=1 postgres://eatbid:eatbid@postgres:5432/eatbid -f /schema/schema.sql"]
           volumeMounts: [{ name: schema, mountPath: /schema }]
       containers:
         - name: load
@@ -194,7 +196,9 @@ spec:
               image: eatbid-dataplane:dev
               imagePullPolicy: IfNotPresent
               # 매일: 전국 증분 크롤(개찰분) → 전국 열린공고 수집 → 재적재
-              command: ["sh", "-c", "python tools/bidboard/update_lake.py; python tools/bidboard/fetch_open.py && python tools/serve/load_postgres.py"]
+              # 앞 단계가 실패하면 뒤를 돌리지 않는다. 예전에는 `;` 로 이어져 있어
+              # 레이크 갱신이 실패해도 로더가 낡은 레이크로 7개 테이블을 재구축했다.
+              command: ["sh", "-c", "set -e; python tools/bidboard/update_lake.py && python tools/bidboard/fetch_open.py && python tools/serve/load_postgres.py"]
               env:
                 - { name: EATBID_HOME, value: /app }
                 - { name: EATBID_DATA_ROOT, value: /lake }
