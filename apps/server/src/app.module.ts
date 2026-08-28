@@ -154,8 +154,10 @@ function eligibleFor(allowed: string[] | null | undefined, sigungu: string | nul
   if (isUnrestricted(allowed)) return true;
   if (!mine.length) return true; // 자격 지역 미설정 사용자에겐 숨기지 않는다
   const list = (allowed ?? []).map(x => (x ?? "").trim()).filter(Boolean);
-  return mine.some(m => list.some(a => a.includes(m) || m.includes(a))
-    || (sigungu ?? "").includes(m));
+  // 부분문자열로 맞추고 있었다. `서구`가 `강서구`·`달서구`에, `북구`가 `강북구`·
+  // `성북구`에, `동구`가 `성동구`에 걸린다 — 인천 서구 업체가 대구 달서구 공고를
+  // "자격 충족"으로 봤다. 모르는 걸 안다고 단언하는 쪽이라 완전일치로 좁힌다.
+  return mine.some(m => list.includes(m) || (sigungu ?? "") === m);
 }
 
 @Controller("open")

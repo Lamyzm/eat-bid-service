@@ -9,6 +9,7 @@ import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { REGION_COORDS } from '@/lib/region-coords';
 import { useTrack } from '@/lib/track';
+import { useRegion } from '@/lib/region';
 import { RegionStatus } from '@/components/region-status';
 import { eok, CATS } from '@/lib/format';
 import { CHART, myMarker, bubbleColor, mapTiles } from '@/lib/chart-colors';
@@ -38,6 +39,7 @@ const MONTH_LABEL = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '1
 
 export function MarketMap() {
   useTrack('market');
+  const { homes } = useRegion();
   const { resolvedTheme } = useTheme();
   const tiles = mapTiles();
   const [cat, setCat] = useState('축산');
@@ -84,7 +86,9 @@ export function MarketMap() {
                   const co = REGION_COORDS[`${r.sido}|${r.sigungu}`];
                   if (!co) return null;
                   const isSel = sel?.sigungu === r.sigungu && sel?.sido === r.sido;
-                  const isHome = r.sigungu === '김해시';
+                  // '김해시'가 코드에 박혀 있었다. 아버지 지역이라 맞아 보였고 그래서
+                  // 살아남았지만, 모든 사용자가 김해시를 자기 자격 지역으로 봤다.
+                  const isHome = homes.includes(r.sigungu);
                   return (
                     <CircleMarker key={`${r.sido}|${r.sigungu}`} center={co}
                       radius={6 + Math.sqrt(r.perYear / maxYr) * 22}

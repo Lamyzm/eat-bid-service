@@ -19,7 +19,10 @@ export default async function AnalysisPage({ params, searchParams }: {
     fetch(`${API}/api/rounds/school/${encodeURIComponent(decoded)}`, { cache: 'no-store' }),
   ]);
   const schools = await schoolRes.json();
-  const school = schools.find((s: any) => s.id === decoded) ?? schools[0] ?? null;
+  // schools[0] 로 떨어지고 있었다. id 가 안 맞으면 검색 결과 첫 번째 학교를
+  // 조용히 대신 그려서, URL 은 A 인데 화면은 B 였다. 오류도 안 났다.
+  // 못 찾으면 못 찾았다고 말한다 — 다른 학교의 데이터를 보여주는 것보다 낫다.
+  const school = schools.find((s: any) => s.id === decoded) ?? null;
   const rounds = await roundsRes.json();
   return <AnalysisBoard school={school} rounds={rounds}
     initialRate={sp.rate ?? null} initialBase={sp.base ?? null} initialBidNo={sp.bidNo ?? null} />;
