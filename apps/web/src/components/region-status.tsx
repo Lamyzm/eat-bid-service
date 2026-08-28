@@ -32,10 +32,10 @@ export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
     return `내 지역 ${homes.length}곳 기준`;
   }, [view, homes]);
 
-  if (!ready) return null;
+  if (!ready) return <div className='h-8' aria-hidden />; // 로딩 중 자리 확보 (U33)
 
   return (
-    <div className='text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm tabular-nums'>
+    <div className='text-muted-foreground flex h-8 items-center gap-x-2 overflow-x-auto text-sm whitespace-nowrap tabular-nums'>
       <span className='text-foreground font-medium'>{scopeLabel}</span>
       {openCount != null && <span>· 진행 중 공고 {openCount}건</span>}
       {homes.length > 0 && (

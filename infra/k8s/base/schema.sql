@@ -198,3 +198,18 @@ ALTER TABLE "account" ADD COLUMN IF NOT EXISTS "issuer" varchar(200) NOT NULL DE
 -- 데이터 테이블 컬럼 마이그레이션 (기존 DB 대상, 멱등)
 ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "planned_price" bigint;
 ALTER TABLE school_auctions ADD COLUMN IF NOT EXISTS "reserves" jsonb;
+
+-- ─── S-1 품목 축 (멱등·추가만) ───
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS "cat_counts" jsonb;
+ALTER TABLE schools ADD COLUMN IF NOT EXISTS "by_cat_floor" jsonb;
+CREATE TABLE IF NOT EXISTS "school_roster_cat" (
+	"school_id" varchar(200) NOT NULL,
+	"category" varchar(16) NOT NULL,
+	"biz_no" varchar(16) NOT NULL,
+	"name" varchar(128),
+	"part_n" integer NOT NULL,
+	"win_n" integer DEFAULT 0 NOT NULL,
+	"win_rates" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"med_rate" double precision,
+	CONSTRAINT "school_roster_cat_pkey" PRIMARY KEY("school_id","category","biz_no")
+);

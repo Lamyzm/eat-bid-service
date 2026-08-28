@@ -30,6 +30,13 @@ export const schools = pgTable("schools", {
   medBase: bigint("med_base", { mode: "number" }),    // 기초가 중앙값
   rsd: doublePrecision("rsd"),                        // 예정가 출렁임(2sd)
   /** 하한율별 통계: { "90": {n,mean,dense:{lo,hi,pct},p:[...],recur:[[v,c]]} } */
+  // S-1: 품목별 회차 수 — "축산 24회" 같은 분모 표기의 원천.
+  //      {"축산":24,"수산":25,"공산":25} 형태.
+  catCounts: jsonb("cat_counts").$type<Record<string, number>>(),
+  // S-1: 품목×하한 통계. {"축산":{"90":{...}},"전체":{"90":{...}}}
+  //      "전체" 키는 전 품목 합산(섞였다고 표기하고 쓰는 기본값).
+  //      by_floor(아래)는 "전체"와 같은 값 — 기존 소비자 호환용으로 남긴다.
+  byCatFloor: jsonb("by_cat_floor"),
   byFloor: jsonb("by_floor").$type<Record<string, unknown>>().notNull(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -62,6 +69,22 @@ export const schoolRoster = pgTable("school_roster", {
   winRates: jsonb("win_rates").$type<number[]>().notNull().default([]),  // 낙찰했던 값들
   medRate: doublePrecision("med_rate"),        // 보통 쓰는 자리(투찰 중앙값)
 }, (t) => [primaryKey({ columns: [t.schoolId, t.bizNo] })]);
+
+/**
+ * 학교×품목별 단골 참여 업체 — S-1 처방.
+ * school_roster(품목 혼합)와 병존한다: 축산 사장에게 수산 조합이 보이던 문제를
+ * 고치되, 기존 소비자를 깨지 않기 위해 새 테이블로 분리했다.
+ */
+export const schoolRosterCat = pgTable("school_roster_cat", {
+  schoolId: varchar("school_id", { length: 200 }).notNull(),
+  category: varchar("category", { length: 16 }).notNull(),
+  bizNo: varchar("biz_no", { length: 16 }).notNull(),
+  name: varchar("name", { length: 128 }),
+  partN: integer("part_n").notNull(),
+  winN: integer("win_n").notNull().default(0),
+  winRates: jsonb("win_rates").$type<number[]>().notNull().default([]),
+  medRate: doublePrecision("med_rate"),
+}, (t) => [primaryKey({ columns: [t.schoolId, t.category, t.bizNo] })]);
 
 /** 자격 레이더 — 열린 공고 (수집 시점 스냅샷) */
 export const openAuctions = pgTable("open_auctions", {

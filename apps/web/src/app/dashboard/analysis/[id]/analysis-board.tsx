@@ -853,8 +853,10 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                             <Button className='w-full' size='sm' disabled={r == null || (o.floorRate != null && r < o.floorRate)}
                               variant={saved && !changed ? 'secondary' : 'default'}
                               onClick={() => {
-                                if (!saved) trackAction('mark_done');
-                                setMark(o.bidNo, { s: 'done', rate: r ?? m?.rate });
+                                const v = r ?? m?.rate;
+                                trackAction(!saved ? 'mark_done' : 'mark_update',
+                                  { bidNo: o.bidNo, rate: v ?? undefined, from: 'analysis' });
+                                setMark(o.bidNo, { s: 'done', rate: v });
                               }}>
                               {!saved ? `${o.category} 공고에 이 값 저장`
                                 : changed ? `${o.category} — 이 값으로 갱신`
@@ -864,7 +866,10 @@ export function AnalysisBoard({ school, rounds, initialRate, initialBase, initia
                         })()}
                         {m?.s === 'done' && (
                           <button className='text-muted-foreground text-xs hover:underline'
-                            onClick={() => setMark(o.bidNo, { s: 'watch', rate: m?.rate })}>저장 해제</button>
+                            onClick={() => {
+                              trackAction('mark_undone', { bidNo: o.bidNo, rate: m?.rate, from: 'analysis' });
+                              setMark(o.bidNo, { s: 'watch', rate: m?.rate });
+                            }}>저장 해제</button>
                         )}
                         <Link href={`/dashboard/auction/${o.bidNo}`} className='text-primary block text-xs hover:underline'>
                           {o.category} · 기초 {won(o.basePrice)}원 · 하한 {o.floorRate} — 상세 →

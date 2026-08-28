@@ -90,12 +90,14 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   // 하이드레이션 안전: 초기값은 서버가 준 rate만 (localStorage 값은 마운트 후 주입)
   const [rateStr, setRateStr] = useState<string>(initialRate ?? '');
   const [amtStr, setAmtStr] = useState<string>('');
-  const seededRef = useRef(false);
+  const seededRef = useRef(false);   // 값을 실제로 채웠을 때만 닫는다 (U35)
+  const touchedRef = useRef(false);  // 사용자가 손대면 더 이상 덮어쓰지 않는다
   useEffect(() => {
-    if (seededRef.current) return;
-    seededRef.current = true;
+    if (seededRef.current || touchedRef.current) return;
+    // marks 는 세션 스토어에서 늦게 도착한다 — 값이 올 때까지 주입 기회를 열어 둔다
     const seed = initialRate ?? (mark?.rate != null ? String(mark.rate) : '');
     if (!seed) return;
+    seededRef.current = true;
     setRateStr(seed);
     const r = parseFloat(seed);
     setAmtStr(Number.isFinite(r) && open.basePrice ? String(Math.round(open.basePrice * r / 100)) : '');
@@ -105,12 +107,14 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
   const liveRate = Number.isFinite(rate) ? rate : null;
   const belowFloor = liveRate != null && liveRate < floor;
   function onRate(v: string) {
+    touchedRef.current = true;
     if (v.trim()) trackOnce('calc_input');
     setRateStr(v);
     const r = parseFloat(v);
     setAmtStr(Number.isFinite(r) && base ? String(Math.round(base * r / 100)) : '');
   }
   function onAmt(v: string) {
+    touchedRef.current = true;
     const n = Number(v.replace(/[^0-9]/g, ''));
     setAmtStr(v);
     setRateStr(n && base ? (100 * n / base).toFixed(3) : '');
@@ -234,8 +238,10 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
               return (
                 <Button variant={saved && !changed ? 'secondary' : 'default'} disabled={belowFloor}
                   onClick={() => {
-                    if (!saved) trackAction('mark_done');
-                    set(open.bidNo, { s: 'done', rate: liveRate ?? mark?.rate });
+                    const r = liveRate ?? mark?.rate;
+                    trackAction(!saved ? 'mark_done' : 'mark_update',
+                      { bidNo: open.bidNo, rate: r ?? undefined, from: 'auction' });
+                    set(open.bidNo, { s: 'done', rate: r });
                   }}>
                   {!saved ? '투찰 저장' : changed ? '이 값으로 갱신' : `✓ 저장됨 (${mark?.rate ?? ''})`}
                 </Button>
@@ -243,7 +249,10 @@ export function AuctionDetail({ open, auctions, roster, initialRate }: {
             })()}
             {mark?.s === 'done' && (
               <Button variant='ghost' size='sm'
-                onClick={() => set(open.bidNo, { s: 'watch', rate: mark?.rate })}>해제</Button>
+                onClick={() => {
+                  trackAction('mark_undone', { bidNo: open.bidNo, rate: mark?.rate, from: 'auction' });
+                  set(open.bidNo, { s: 'watch', rate: mark?.rate });
+                }}>해제</Button>
             )}
           </div>
           <p className='text-muted-foreground text-xs'>

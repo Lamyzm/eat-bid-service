@@ -13,7 +13,8 @@ type Cell = { day: string; screen: string; n: number; sessions: number };
 
 const SCREEN_ORDER = [
   'today', 'auction', 'analysis', 'wins', 'schools', 'firms', 'record', 'delivery',
-  'market', 'welcome', 'share_view', 'basket_add', 'mark_done', 'calc_input', 'share_create',
+  'market', 'welcome', 'share_view', 'open_empty',
+  'basket_add', 'calc_input', 'mark_done', 'mark_update', 'mark_undone', 'share_create',
 ];
 
 export default function FunnelPage() {

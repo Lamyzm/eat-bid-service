@@ -1,19 +1,23 @@
 'use client';
 /**
- * 투찰률 입력 — 소수점 안전 (U25)
+ * 투찰률 입력 — 소수점 안전 (U25) · 조용한 절삭 금지 (U34)
  * 값을 즉시 parseFloat 해서 되돌리면 "90." 의 점이 사라져 90.06 이 9006 이 된다.
- * 타이핑 중에는 문자열 그대로 두고, 유효한 수치일 때만 부모에 알린다.
+ * eaT 투찰률은 소수 3자리(90.099)를 쓰므로 4자리까지 받는다.
+ * 한도를 넘는 입력은 "무시"한다 — 사용자가 친 값이 소리 없이 다른 값으로 바뀌지 않는다.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 
+const MAX_DECIMALS = 4;
+
 export function RateInput({
-  value, onChange, placeholder, className,
+  value, onChange, placeholder, className, onFocusChange,
 }: {
   value: number | null | undefined;
   onChange: (v: number | undefined) => void;
   placeholder?: string;
   className?: string;
+  onFocusChange?: (focused: boolean) => void;
 }) {
   const [text, setText] = useState(value != null ? String(value) : '');
   const focusedRef = useRef(false);
@@ -30,28 +34,28 @@ export function RateInput({
       inputMode='decimal'
       placeholder={placeholder}
       className={className}
-      onFocus={() => { focusedRef.current = true; }}
+      onFocus={() => { focusedRef.current = true; onFocusChange?.(true); }}
       onBlur={() => {
         focusedRef.current = false;
-        // 끝에 남은 점·빈 값 정리
+        onFocusChange?.(false);
         const n = parseFloat(text);
         if (!Number.isFinite(n)) { setText(''); onChange(undefined); return; }
-        const fixed = Math.round(n * 100) / 100; // 소수점 2자리
-        setText(String(fixed));
-        onChange(fixed);
+        // 이미 4자리로 제한된 입력이라 여기서 값이 바뀌지 않는다 (표기만 정리)
+        setText(String(n));
+        onChange(n);
       }}
       onChange={e => {
-        // 숫자와 점만, 점은 하나, 소수 2자리까지
-        let v = e.target.value.replace(/[^0-9.]/g, '');
-        const first = v.indexOf('.');
-        if (first !== -1) v = v.slice(0, first + 1) + v.slice(first + 1).replace(/\./g, '');
-        const [i, d] = v.split('.');
-        if (d != null && d.length > 2) v = `${i}.${d.slice(0, 2)}`;
-        setText(v);
-        const n = parseFloat(v);
+        const raw = e.target.value;
+        if (raw === '') { setText(''); onChange(undefined); return; }
+        // 숫자와 점 하나만 허용 — 그 외 문자는 입력 자체를 무시
+        if (!/^[0-9]*\.?[0-9]*$/.test(raw)) return;
+        const dot = raw.indexOf('.');
+        // 소수 4자리 초과는 무시 (자르지 않는다)
+        if (dot !== -1 && raw.length - dot - 1 > MAX_DECIMALS) return;
+        setText(raw);
+        const n = parseFloat(raw);
         // "90." 처럼 아직 입력 중인 값은 부모에 반영하지 않는다
-        if (v === '' ) onChange(undefined);
-        else if (Number.isFinite(n) && !v.endsWith('.')) onChange(n);
+        if (Number.isFinite(n) && !raw.endsWith('.')) onChange(n);
       }}
     />
   );

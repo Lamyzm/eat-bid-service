@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
@@ -9,7 +9,7 @@ import { RateInput } from '@/components/rate-input';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMarks } from '@/lib/marks';
-import { useTrack, trackAction } from '@/lib/track';
+import { useTrack, trackAction, trackOnce, todayKey } from '@/lib/track';
 import { won } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -67,9 +67,13 @@ export default function TodayPage() {
   const [open, setOpen] = useState<OpenRow[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
   const [forecast, setForecast] = useState<ForecastRow[]>([]);
+  const [forecastLoaded, setForecastLoaded] = useState(false);
   const [badges, setBadges] = useState<Record<string, { part: number; wins: number }>>({});
 
-  useEffect(() => { fetch('/api/open').then(r => r.json()).then(setOpen); }, []);
+  const [openLoaded, setOpenLoaded] = useState(false);
+  useEffect(() => {
+    fetch('/api/open').then(r => r.json()).then(setOpen).finally(() => setOpenLoaded(true));
+  }, []);
 
   /** 보는 지역으로 거른 목록 — 제목·히어로·목록이 모두 이 배열을 센다 (U26) */
   const visible = useMemo(
@@ -84,6 +88,27 @@ export default function TodayPage() {
   const [showAll, setShowAll] = useState(false); // 전국(지역 필터 밖)까지
   useEffect(() => { setShowRest(false); setShowAll(false); }, [viewRegions?.join(',')]);
   const head = byDeadline.slice(0, HEAD);
+
+  // 빈 화면 계측 — 내 자격 지역 공고가 0건인 날 (하루 1회)
+  useEffect(() => {
+    if (!openLoaded || visible.length > 0) return;
+    trackOnce('open_empty', { from: 'today', regions: homes.length }, todayKey());
+  }, [openLoaded, visible.length, homes.length]);
+
+  /** 판단 근거 한 줄용 회차 — 값을 넣은 카드만 1회 로드 (U37, 컨트롤·요청 예산 유지) */
+  const [hist, setHist] = useState<Record<string, { floorRate: number | null; winRate: number | null; effFloor?: number | null; maxInvalid?: number | null }[]>>({});
+  const histReq = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const o of head) {
+      const sid = o.schoolId;
+      if (!sid || marks[o.bidNo]?.rate == null || histReq.current.has(sid)) continue;
+      histReq.current.add(sid);
+      // ② 리허설과 같은 소스(effFloor 포함) — 두 화면 숫자가 갈리면 안 된다
+      fetch(`/api/rounds/school/${encodeURIComponent(sid)}`).then(r => r.json())
+        .then(d => { if (Array.isArray(d)) setHist(h => ({ ...h, [sid]: d })); })
+        .catch(() => {});
+    }
+  }, [head, marks]);
   const rest = byDeadline.slice(HEAD);
   const nationRest = useMemo(() => {
     if (!viewRegions?.length) return [];
@@ -99,7 +124,8 @@ export default function TodayPage() {
     fetch(`/api/schools/forecast${key ? `?sigungu=${key}` : ''}`, { signal: ac.signal })
       .then(r => r.json())
       .then(d => { if (key === homes.join(',')) setForecast(Array.isArray(d) ? d : []); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setForecastLoaded(true));
     return () => ac.abort();
   }, [homes.join(','), sessionReady]);
 
@@ -139,7 +165,8 @@ export default function TodayPage() {
       </div>
 
       {/* 히어로 — 할 일 자체 (A: 건수 대신 가장 급한 공고) */}
-      {visible.length > 0 && (() => {
+      {!openLoaded && <Skeleton className='h-[116px] w-full rounded-xl' />}
+      {openLoaded && visible.length > 0 && (() => {
         const sorted = [...visible].filter(o => o.deadline)
           .sort((a, b) => +new Date(a.deadline!) - +new Date(b.deadline!));
         const next = sorted[0] ?? visible[0];
@@ -168,7 +195,7 @@ export default function TodayPage() {
           마감 임박 {Math.min(HEAD, visible.length)}건
           {visible.length > HEAD && <span className='text-muted-foreground ml-1 text-sm font-normal tabular-nums'>· 내 지역 {visible.length}건 중</span>}
         </h2>
-        {visible.length === 0 && (
+        {openLoaded && visible.length === 0 && (
           <Card><CardContent className='py-6'>
             <Empty>
               <EmptyHeader>
@@ -179,7 +206,10 @@ export default function TodayPage() {
           </CardContent></Card>
         )}
         <div className='grid gap-3 lg:grid-cols-2'>
-          {head.map(o => {
+          {!openLoaded && Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={`sk${i}`} className='h-[213px] w-full rounded-xl' />
+          ))}
+          {openLoaded && head.map(o => {
             const m = marks[o.bidNo];
             const b = badges[o.schoolName ?? ''];
             return (
@@ -218,7 +248,7 @@ export default function TodayPage() {
                       <RateInput value={m?.rate}
                         placeholder={`투찰률 ${((o.floorRate ?? 90) + 0.05).toFixed(2)}`}
                         onChange={v => {
-                          if (!m) trackAction('basket_add');
+                          if (!m) trackAction('basket_add', { bidNo: o.bidNo, from: 'today' });
                           set(o.bidNo, { s: m?.s ?? 'watch', rate: v });
                         }}
                         className='h-8 w-32 font-mono' />
@@ -247,7 +277,8 @@ export default function TodayPage() {
                           <Button size='sm' className='h-8' variant={saved && !changed ? 'secondary' : 'default'}
                             disabled={m?.rate == null || (o.floorRate != null && m.rate < o.floorRate)}
                             onClick={() => {
-                              if (!saved) trackAction('mark_done');
+                              trackAction(!saved ? 'mark_done' : 'mark_update',
+                                { bidNo: o.bidNo, rate: m?.rate, from: 'today' });
                               set(o.bidNo, { s: 'done', rate: m?.rate });
                               setSavedRates(v => ({ ...v, [o.bidNo]: m?.rate }));
                             }}>
@@ -257,7 +288,39 @@ export default function TodayPage() {
                       })()}
                       {m?.s === 'done' && (
                         <button className='text-muted-foreground text-xs hover:underline'
-                          onClick={() => set(o.bidNo, { s: 'watch', rate: m?.rate })}>해제</button>
+                          onClick={() => {
+                            trackAction('mark_undone', { bidNo: o.bidNo, rate: m?.rate, from: 'today' });
+                            set(o.bidNo, { s: 'watch', rate: m?.rate });
+                          }}>해제</button>
+                      )}
+                      {/* 판단 근거 한 줄 — 사실 + 표본 n 만 (U37) */}
+                      {m?.rate != null && (
+                        <div className='w-full text-xs tabular-nums'>
+                          {o.floorRate != null && m.rate < o.floorRate ? (
+                            <span className='text-destructive font-medium'>하한 {o.floorRate} 아래라 무효</span>
+                          ) : (() => {
+                            const rounds = (o.schoolId && hist[o.schoolId]) || [];
+                            const same = rounds.filter(x => x.floorRate === o.floorRate && x.winRate != null);
+                            if (same.length < 3) return <span className='text-muted-foreground'>같은 하한 기록 {same.length}회 — 표본이 적습니다</span>;
+                            // ② 리허설과 동일 규칙
+                            let push = 0, win = 0, alive = 0, dead = 0;
+                            for (const x of same) {
+                              if (m.rate! >= x.winRate!) push++;
+                              else if (x.effFloor != null) (m.rate! < x.effFloor ? dead++ : win++);
+                              else if (x.maxInvalid != null && m.rate! <= x.maxInvalid) dead++;
+                              else alive++;
+                            }
+                            return (
+                              <span className='text-muted-foreground'>
+                                이 값이면 과거 {same.length}회 중{' '}
+                                <b className='text-primary'>{win}회</b> 먹었을 값
+                                {alive > 0 && <> · 예정가 추첨이 갈랐을 게 <b style={{ color: '#2962ff' }}>{alive}회</b></>}
+                                {push > 0 && <> · 남이 더 낮게 써서 밀린 게 <b className='text-amber-600'>{push}회</b></>}
+                                {dead > 0 && <> · 하한 아래라 무효였을 게 <b className='text-destructive'>{dead}회</b></>}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       )}
                       <span className='ml-auto flex gap-2 text-xs'>
                         {o.schoolId && (
@@ -277,9 +340,10 @@ export default function TodayPage() {
           })}
         </div>
 
-        {/* 나머지는 1클릭 뒤 — 컴팩트 행(입력칸 없음) */}
+        {/* 나머지는 1클릭 뒤 — 컴팩트 행(입력칸 없음). 높이는 항상 확보 (U33) */}
+        <div className='mt-3 min-h-8'>
         {(rest.length > 0 || nationRest.length > 0) && (
-          <div className='mt-3 flex flex-wrap gap-2'>
+          <div className='flex flex-wrap gap-2'>
             {rest.length > 0 && (
               <Button size='sm' variant='outline' onClick={() => setShowRest(v => !v)}>
                 {showRest ? '접기' : `내 지역 나머지 ${rest.length}건 더 보기`}
@@ -292,6 +356,7 @@ export default function TodayPage() {
             )}
           </div>
         )}
+        </div>
         {(showRest || showAll) && (
           <Card className='mt-2'><CardContent className='divide-y p-0'>
             {[...(showRest ? rest : []), ...(showAll ? nationRest : [])].map(o => (
@@ -313,13 +378,14 @@ export default function TodayPage() {
 
       <div>
         <h2 className='mb-2 font-semibold'>발주 예정</h2>
-        {homes.length === 0 && (
+        {!forecastLoaded && <Skeleton className='h-[168px] w-full rounded-xl' />}
+        {forecastLoaded && homes.length === 0 && (
           <Card><CardContent className='text-muted-foreground py-4 text-sm'>
             자격 지역을 설정하면 내 지역 발주 예정이 보입니다.{' '}
             <Link href='/welcome' className='text-primary font-semibold hover:underline'>설정 →</Link>
           </CardContent></Card>
         )}
-        {homes.length > 0 && <Card><CardContent className='divide-y p-0'>
+        {forecastLoaded && homes.length > 0 && <Card><CardContent className='divide-y p-0'>
           {forecast.length === 0 && (
             <div className='px-4 py-4'>
               <Empty>

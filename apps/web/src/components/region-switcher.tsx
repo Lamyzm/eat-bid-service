@@ -20,8 +20,13 @@ export function RegionSwitcher() {
     }).catch(() => {});
   }, []);
 
-  const total = useMemo(() => Object.values(openCounts).reduce((a, b) => a + b, 0), [openCounts]);
-  if (!ready) return null;
+  // 전체 칩 배지 = 내 자격 지역 합 (전국 수는 아래 "전국 N건 더 보기"가 말한다 — U36)
+  const homeSum = useMemo(
+    () => homes.reduce((a, h) => a + (openCounts[h] ?? 0), 0), [homes, openCounts]);
+  const nationTotal = useMemo(
+    () => Object.values(openCounts).reduce((a, b) => a + b, 0), [openCounts]);
+  const total = homes.length ? homeSum : nationTotal;
+  if (!ready) return <div className='h-7 w-40' aria-hidden />; // 로딩 중 자리 확보 (U33)
 
   const chip = (active: boolean, warn = false) =>
     `h-7 shrink-0 rounded-full border px-2.5 text-xs transition-colors ${
@@ -32,11 +37,11 @@ export function RegionSwitcher() {
     }`;
 
   return (
-    <div className='flex max-w-[46vw] items-center gap-1 overflow-x-auto' aria-label='보는 지역'>
+    <div className='flex h-8 max-w-[46vw] items-center gap-1 overflow-x-auto' aria-label='보는 지역'>
       <button type='button' className={chip(view === 'home')} onClick={() => setView('home')}
         title={homes.length ? '내 자격 지역 전체' : '전체 지역'}>
         {homes.length > 1 ? '내 지역 전체' : homes.length === 1 ? '내 지역' : '전체 지역'}
-        {homes.length !== 1 && total > 0 && <span className='ml-1 opacity-70'>{total}</span>}
+        {total > 0 && <span className='ml-1 opacity-70'>{total}</span>}
       </button>
       {homes.map(h => (
         <button key={h} type='button' className={chip(view === h)} onClick={() => setView(h)}>
