@@ -181,7 +181,17 @@ spec:
       containers:
         - name: migrate
           image: postgres:16-alpine
-          command: ["sh","-c","until pg_isready -h postgres -U eatbid; do sleep 2; done; psql -v ON_ERROR_STOP=1 postgres://eatbid:eatbid@postgres:5432/eatbid -f /schema/schema.sql"]
+          # lock_timeout 이 없으면 무한정 기다린다. 실측(2026-08-29): 로더가
+          # 단일 트랜잭션으로 7개 테이블을 재구축하는 동안 이 훅의
+          # `CREATE INDEX IF NOT EXISTS` 가 35분을 대기했고, ArgoCD sync 가
+          # 통째로 멈췄다. 그리고 락 큐가 FIFO 라 **뒤에 온 폴링 잡까지**
+          # 현재 보유자와 호환되는데도 대기 중인 DDL 뒤에 줄을 섰다.
+          #
+          # `IF NOT EXISTS` 라 아무것도 안 바뀌어도 락은 잡는다 — no-op sync 도 막힌다.
+          #
+          # 5초에 포기하면 배포가 실패하고 다음 sync 에 다시 온다. 그 손해가
+          # "35분간 아무도 모른 채 배포와 폴링이 멈춤"보다 작다.
+          command: ["sh","-c","until pg_isready -h postgres -U eatbid; do sleep 2; done; PGOPTIONS='-c lock_timeout=5s' psql -v ON_ERROR_STOP=1 postgres://eatbid:eatbid@postgres:5432/eatbid -f /schema/schema.sql"]
           volumeMounts: [{ name: schema, mountPath: /schema }]
       volumes:
         - { name: schema, configMap: { name: db-schema } }
