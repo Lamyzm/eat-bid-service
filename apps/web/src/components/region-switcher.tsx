@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useRegion } from '@/lib/region';
+import { quietFailure } from '@/lib/fetch-json';
 
 export function RegionSwitcher() {
   const { homes, view, isBrowsing, setView, ready } = useRegion();
@@ -19,7 +20,7 @@ export function RegionSwitcher() {
       for (const o of xs) if (o.sigungu) m[o.sigungu] = (m[o.sigungu] ?? 0) + 1;
       setOpenCounts(m);
       setRows(xs);
-    }).catch(() => {});
+    }).catch(quietFailure('지역별 공고 수'));
   }, []);
 
   // 전체 칩 배지 = 내가 낼 수 있는 수 (무제한 + 내 지역). 오늘 목록과 같은 기준이어야 한다

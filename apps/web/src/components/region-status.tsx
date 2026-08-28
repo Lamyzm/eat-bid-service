@@ -6,11 +6,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRegion } from '@/lib/region';
+import { LoadError } from '@/components/load-error';
+import { fetchJson, quietFailure } from '@/lib/fetch-json';
 
 export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
   const { homes, view, isBrowsing, setView, ready } = useRegion();
   const [openCount, setOpenCount] = useState<number | null>(null);
   const [regions, setRegions] = useState<{ sigungu: string; n?: number }[]>([]);
+  const [regionsFailed, setRegionsFailed] = useState(false);
 
   useEffect(() => {
     fetch('/api/open').then(r => r.json()).then((xs: any[]) => {
@@ -21,12 +24,13 @@ export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
       setOpenCount(view === 'home'
         ? xs.filter(o => o.unrestricted || (o.sigungu && scope.includes(o.sigungu))).length
         : xs.filter(o => o.sigungu && scope.includes(o.sigungu)).length);
-    }).catch(() => {});
+    }).catch(quietFailure('진행 중 공고 수'));
   }, [view, homes.join(',')]);
 
   useEffect(() => {
-    fetch('/api/wins/regions').then(r => r.json())
-      .then(x => setRegions(Array.isArray(x) ? x : [])).catch(() => {});
+    fetchJson<{ sigungu: string; n?: number }[]>('/api/wins/regions')
+      .then(x => setRegions(Array.isArray(x) ? x : []))
+      .catch(() => setRegionsFailed(true));
   }, []);
 
   const scopeLabel = useMemo(() => {
@@ -54,6 +58,7 @@ export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
         <span>· <Link href='/dashboard/my' className='text-primary hover:underline'>내 자격 지역 설정</Link></span>
       )}
       {extra}
+      {regionsFailed && <LoadError what='지역 목록' inline />}
       <select
         value={isBrowsing ? view : ''}
         onChange={e => setView(e.target.value || 'home')}

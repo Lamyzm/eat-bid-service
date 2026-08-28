@@ -10,6 +10,8 @@ import Link from 'next/link';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
 import { DataScope } from '@/components/data-scope';
+import { LoadError } from '@/components/load-error';
+import { fetchJson } from '@/lib/fetch-json';
 import { boot, useSession } from '@/lib/session';
 import { signInGoogle } from '@/lib/auth-client';
 import { useTrack } from '@/lib/track';
@@ -91,11 +93,15 @@ export default function WelcomePage() {
   // 제품 증거 — 실데이터 미리보기 (진행 중 공고 수 + 최근 개찰)
   const [openN, setOpenN] = useState<number | null>(null);
   const [recent, setRecent] = useState<Win[]>([]);
+  // 실패를 "불러오는 중"으로 두면 온보딩 첫 화면이 영원히 로딩처럼 보인다
+  const [previewFailed, setPreviewFailed] = useState(false);
   useEffect(() => {
-    fetch('/api/open').then(r => r.json())
-      .then(xs => setOpenN(Array.isArray(xs) ? xs.length : null)).catch(() => {});
-    fetch('/api/wins/recent?days=30').then(r => r.json())
-      .then(d => setRecent(Array.isArray(d) ? d : (d.rows ?? []))).catch(() => {});
+    fetchJson<any[]>('/api/open')
+      .then(xs => setOpenN(Array.isArray(xs) ? xs.length : null))
+      .catch(() => setPreviewFailed(true));
+    fetchJson<any>('/api/wins/recent?days=30')
+      .then(d => setRecent(Array.isArray(d) ? d : (d.rows ?? [])))
+      .catch(() => setPreviewFailed(true));
   }, []);
   // 미리보기 표는 학교가 겹치지 않게 — 같은 날 다건 개찰이 한 학교로만 채워지는 것 방지
   const recentUniq = (() => {
@@ -286,7 +292,10 @@ export default function WelcomePage() {
                   </Table>
                 </div>
               )}
-              {openN == null && recent.length === 0 && (
+              {previewFailed && openN == null && recent.length === 0 && (
+                <LoadError what='미리보기' />
+              )}
+              {!previewFailed && openN == null && recent.length === 0 && (
                 <p className='text-muted-foreground py-8 text-center text-sm'>미리보기를 불러오는 중입니다…</p>
               )}
             </CardContent>
