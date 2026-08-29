@@ -403,7 +403,7 @@ def test_platform_application_is_pinned_minimal_and_not_wired_live() -> None:
     assert values["createAggregateRoles"] is False
     assert "workflowNamespaces" not in values["controller"]
     assert values["controller"]["clusterWorkflowTemplates"]["enabled"] is False
-    assert values["controller"]["persistence"]["archive"] is False
+    assert "persistence" not in values["controller"]
     assert values["workflow"] == {
         "serviceAccount": {"create": False, "name": "eatbid-dataplane"},
         "rbac": {"create": True},

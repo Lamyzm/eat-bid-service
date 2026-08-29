@@ -14,8 +14,6 @@ spec:
         singleNamespace: true
         createAggregateRoles: false
         controller:
-          persistence:
-            archive: false
           clusterWorkflowTemplates:
             enabled: false
         workflow:
