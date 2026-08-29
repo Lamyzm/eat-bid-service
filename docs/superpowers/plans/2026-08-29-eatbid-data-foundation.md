@@ -700,6 +700,14 @@ git commit -m "feat: record append-only source observations"
 ### Task 8: eaT payload normalization과 완전성 gate
 
 **Files:**
+- Create: `packages/db/src/schema/ingest/lineage.ts`
+- Create: `packages/db/src/schema/ingest/lineage.test.ts`
+- Modify: `packages/db/src/schema/ingest/index.ts`
+- Modify: `packages/db/src/version.ts`
+- Modify: `packages/db/src/version.test.ts`
+- Modify: `packages/db/src/migrate.test.ts`
+- Create: `packages/db/drizzle/20260829002000_ingest_lineage_manifests/migration.sql` (generated)
+- Create: `packages/db/drizzle/20260829002000_ingest_lineage_manifests/snapshot.json` (generated)
 - Create: `apps/dataplane/src/eatbid/source/eat/__init__.py`
 - Create: `apps/dataplane/src/eatbid/source/eat/models.py`
 - Create: `apps/dataplane/src/eatbid/source/eat/xml.py`
@@ -732,8 +740,20 @@ git commit -m "feat: record append-only source observations"
   rows, an observation parser/quarantine transition, a `validated` publication, and pytest
   fixtures `validated_publication`, `observation_id`; never `core` domain IDs or inferred
   eaT→MOIS/NEIS mappings.
+- Persists exact lineage manifests: `ingest.publication_record(publication_id,
+  normalized_record_id)` freezes the validated output set; `ingest.replay_input(run_id,
+  observation_id)` lets a later replay run consume existing evidence without fabricating a
+  new HTTP observation or mutating its capture provenance.
 
-- [ ] **Step 1: source identity, 안전한 XML, leading-zero 보존 실패 테스트 작성**
+- [ ] **Step 1: lineage manifest와 source contract 실패 테스트 작성**
+
+먼저 Drizzle metadata test로 두 join table의 composite PK, non-null FK와 bigint/UUID
+identity boundary를 고정한다. `publication_record`는 같은 normalized record가 서로 다른
+publication의 검증된 입력이 될 수 있으므로 `normalized_record_id` 단독 unique를 두지 않는다.
+`replay_input`도 원본 `raw_observation.run_id`를 바꾸지 않고 여러 명시적 replay run에서
+같은 evidence를 재사용할 수 있어야 한다. generated migration 외 handwritten DDL은 금지한다.
+
+그 다음 source identity, 안전한 XML, leading-zero 보존 테스트를 작성한다.
 
 ```python
 from pathlib import Path
@@ -808,6 +828,10 @@ publishable =
 
 - [ ] **Step 3: 테스트 실패 확인**
 
+Run: `pnpm --filter @eatbid/db exec bun test src/schema/ingest/lineage.test.ts`
+
+Expected: FAIL because lineage tables do not exist.
+
 Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
 
 Expected: FAIL because normalizer and validator do not exist.
@@ -878,6 +902,13 @@ normalized row와 count를 늘리지 않는다.
 분리한다. `pipeline/validate.py`는 pure `validate_completeness`와 transaction orchestration만
 소유한다. publication UUID와 `validated_at`은 외부에서 주입해 테스트를 결정적으로 만든다.
 
+capture/backfill run의 candidate input은 원래 capture provenance인
+`raw_observation.run_id = run_id`로 정한다. `mode='replay'` run은 오직
+`replay_input(run_id, observation_id)` manifest로 input을 정하며 request unit이나 새 HTTP
+observation을 발명하지 않는다. 두 경로 모두 validation transaction 안에서 candidate
+normalized record ID 집합을 확정해 `publication_record`에 insert한다. 이후 projector는
+run join을 다시 계산하지 않고 이 manifest만 소비한다.
+
 검증 transaction은 run과 모든 request unit/observation을 lock하고 DB에서 다음을 다시 센다.
 
 - run은 `running`; failed request가 없어야 한다.
@@ -892,7 +923,8 @@ normalized row와 count를 늘리지 않는다.
 run status를 `validated`로 전환한다. Task 8은 `activated_at`, `published_count`, core/mart를
 건드리지 않는다. 실패하면 `validated`를 만들지 않고 기존 active publication도 바꾸지 않으며,
 해당 run의 publication은 `failed`와 관측 count를, run은 최초 failure category/ended_at을
-단조 상태 전이로 남긴다.
+단조 상태 전이로 남긴다. 성공/멱등 재검증은 exact `publication_record` set을 검증하고,
+validation 뒤 staging에 추가된 normalized row를 기존 publication에 암묵적으로 편입하지 않는다.
 
 - [ ] **Step 7: 실제 PostgreSQL behavior와 method audit 검증**
 
@@ -904,7 +936,10 @@ run status를 `validated`로 전환한다. Task 8은 `activated_at`, `published_
 - `TOT_CNT`/request count mismatch, quarantine, duplicate source entity, missing scheme 각각
   publication validated 0, 기존 active state 변경 0.
 - complete run → publication 1개 `validated`, run `validated`, core row 0.
-- validate 재실행은 같은 publication identity/metadata를 검증하고 중복을 만들지 않는다.
+- validate 재실행은 같은 publication identity/metadata/member set을 검증하고 중복을 만들지 않는다.
+- validation 뒤 별도 normalized row를 만들어도 기존 `publication_record` set은 불변이다.
+- replay input은 새 run에서 기존 observation을 명시적으로 참조하며 원본 observation의 capture
+  `run_id`를 변경하거나 복제하지 않는다.
 
 `defusedxml`은 runtime dependency로 lock하고 stack audit에 stable 0.7.1, Python 공식
 untrusted-XML 권고, DTD/entity tests, 다음 stable major 검토 trigger를 기록한다. Pydantic
@@ -922,7 +957,7 @@ Run: `cd apps/dataplane && uv lock --check && uv sync --frozen && uv run pytest 
 Run: `pnpm architecture:check && pnpm test && pnpm build`
 
 ```bash
-git add apps/dataplane docs/architecture/stack/application-runtime.md docs/architecture/stack/contracts-and-validation.md
+git add packages/db apps/dataplane docs/architecture/stack/application-runtime.md docs/architecture/stack/contracts-and-validation.md
 git commit -m "feat: validate typed eaT observations"
 ```
 
