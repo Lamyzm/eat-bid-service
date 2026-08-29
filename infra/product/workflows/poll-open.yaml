@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: eatbid-poll-open
+  namespace: eatbid
+spec:
+  schedule: "*/30 8-19 * * 1-5"
+  timezone: Asia/Seoul
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  workflowSpec:
+    workflowTemplateRef:
+      name: eatbid-dataplane
+    arguments:
+      parameters:
+        - name: mode
+          value: poll-open

@@ -318,7 +318,7 @@ jobs:
           python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-web "$(cat digests/web)"
           python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-server "$(cat digests/server)"
           python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-dataplane "$(cat digests/dataplane)"
-          # The migration image is built from this SHA but Task 11 has no migration workload to pin.
+          python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-migration "$(cat digests/migration)"
       - name: Commit product digest set
         run: |
           set -euo pipefail

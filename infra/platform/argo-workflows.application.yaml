@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-workflows
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-workflows
+    targetRevision: 1.0.23
+    helm:
+      valuesObject:
+        controller:
+          workflowNamespaces:
+            - eatbid
+          persistence:
+            archive: false
+        workflow:
+          serviceAccount:
+            create: false
+            name: eatbid-dataplane
+          rbac:
+            create: true
+            serviceAccounts:
+              - name: eatbid-dataplane
+                namespace: eatbid
+        server:
+          enabled: false
+        crds:
+          install: true
+          keep: true
+          full: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-workflows
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

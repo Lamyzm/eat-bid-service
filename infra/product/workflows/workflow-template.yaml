@@ -1,0 +1,200 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: eatbid-dataplane
+  namespace: eatbid
+spec:
+  entrypoint: scheduled-pipeline
+  serviceAccountName: eatbid-dataplane
+  arguments:
+    parameters:
+      - name: mode
+        value: poll-open
+  templates:
+    - name: scheduled-pipeline
+      dag:
+        tasks:
+          - name: discover
+            template: discover
+          - name: capture
+            template: capture
+            dependencies: [discover]
+          - name: normalize
+            template: normalize
+            dependencies: [capture]
+          - name: validate
+            template: validate
+            dependencies: [normalize]
+          - name: project
+            template: project
+            dependencies: [validate]
+
+    - name: discover
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-limit
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid discover --run-id "$EATBID_RUN_ID"
+            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
+        env: &dataplane-env
+          - name: EATBID_WORKFLOW_MODE
+            value: "{{workflow.parameters.mode}}"
+          - name: EATBID_RUN_ID
+            value: "{{workflow.uid}}"
+          - name: EATBID_PARSER_VERSION
+            value: canonical-v1
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-database
+                key: DATABASE_URL
+          - name: R2_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-r2
+                key: R2_ENDPOINT_URL
+          - name: R2_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-r2
+                key: R2_BUCKET
+          - name: R2_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-r2
+                key: R2_ACCESS_KEY_ID
+          - name: R2_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-r2
+                key: R2_SECRET_ACCESS_KEY
+
+    - name: capture
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-limit
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid capture --run-id "$EATBID_RUN_ID"
+            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
+        env: *dataplane-env
+
+    - name: normalize
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid normalize --run-id "$EATBID_RUN_ID"
+            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
+        env: *dataplane-env
+
+    - name: validate
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid validate --run-id "$EATBID_RUN_ID"
+            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
+        env: *dataplane-env
+
+    - name: project
+      synchronization:
+        mutexes:
+          - name: eatbid-core-publication
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid project --run-id "$EATBID_RUN_ID"
+            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
+        env: *dataplane-env
+
+    - name: replay
+      inputs:
+        parameters:
+          - name: publication-id
+          - name: observation-id
+          - name: started-at
+          - name: normalized-at
+          - name: validated-at
+          - name: activated-at
+      synchronization:
+        mutexes:
+          - name: eatbid-core-publication
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid replay --run-id "$EATBID_RUN_ID"
+            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
+            --publication-id "$EATBID_PUBLICATION_ID"
+            --observation-id "$EATBID_OBSERVATION_ID"
+            --started-at "$EATBID_STARTED_AT"
+            --normalized-at "$EATBID_NORMALIZED_AT"
+            --validated-at "$EATBID_VALIDATED_AT"
+            --activated-at "$EATBID_ACTIVATED_AT"
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: replay
+          - name: EATBID_RUN_ID
+            value: "{{workflow.uid}}"
+          - name: EATBID_PARSER_VERSION
+            value: canonical-v1
+          - name: EATBID_PUBLICATION_ID
+            value: "{{inputs.parameters.publication-id}}"
+          - name: EATBID_OBSERVATION_ID
+            value: "{{inputs.parameters.observation-id}}"
+          - name: EATBID_STARTED_AT
+            value: "{{inputs.parameters.started-at}}"
+          - name: EATBID_NORMALIZED_AT
+            value: "{{inputs.parameters.normalized-at}}"
+          - name: EATBID_VALIDATED_AT
+            value: "{{inputs.parameters.validated-at}}"
+          - name: EATBID_ACTIVATED_AT
+            value: "{{inputs.parameters.activated-at}}"
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-database
+                key: DATABASE_URL
+          - name: R2_ENDPOINT_URL
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-r2
+                key: R2_ENDPOINT_URL
+          - name: R2_BUCKET
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-r2
+                key: R2_BUCKET
+          - name: R2_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-r2
+                key: R2_ACCESS_KEY_ID
+          - name: R2_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-r2
+                key: R2_SECRET_ACCESS_KEY

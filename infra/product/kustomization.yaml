@@ -1,11 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+configurations:
+  - kustomizeconfig.yaml
+
 resources:
   - ../k8s/base
+  - migration.yaml
+  - workflows
 
-# Task 11 pins only images consumed by the current product manifests. The migration
-# image is built from the same Git SHA and will be referenced by the migration hook.
 images:
   - name: eatbid-web
     newName: ghcr.io/lamyzm/eatbid-web
@@ -16,3 +19,16 @@ images:
   - name: eatbid-dataplane
     newName: ghcr.io/lamyzm/eatbid-dataplane
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: eatbid-migration
+    newName: ghcr.io/lamyzm/eatbid-migration
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+patches:
+  - path: patches/legacy-cronjobs.delete.yaml
+    target:
+      group: batch
+      version: v1
+      kind: CronJob
+      name: daily-refresh|poll-open-day|poll-open-off|poll-open-weekend
+  - path: patches/postgres-secret-env.patch.yaml
+  - path: patches/server-secret-env.patch.yaml

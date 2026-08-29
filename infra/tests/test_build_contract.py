@@ -259,15 +259,16 @@ def test_promotion_validates_every_matrix_digest_including_migration() -> None:
     assert "test -s digests/migration" not in command
 
 
-def test_product_manifest_has_only_the_three_consumed_product_images() -> None:
+def test_product_manifest_has_exactly_the_four_consumed_product_images() -> None:
     manifest = yaml.safe_load(PRODUCT_KUSTOMIZATION.read_text(encoding="utf-8"))
     images = manifest["images"]
 
-    assert manifest["resources"] == ["../k8s/base"]
+    assert manifest["resources"] == ["../k8s/base", "migration.yaml", "workflows"]
     assert {image["name"] for image in images} == {
         "eatbid-web",
         "eatbid-server",
         "eatbid-dataplane",
+        "eatbid-migration",
     }
     for image in images:
         assert re.fullmatch(r"sha256:[0-9a-f]{64}", image["digest"])
@@ -285,28 +286,30 @@ def test_product_render_uses_only_the_declared_digests_for_product_images() -> N
     )
     rendered = list(yaml.safe_load_all(result.stdout))
 
-    product_images: list[str] = []
-    for document in rendered:
-        if not isinstance(document, dict):
-            continue
-        workload = document.get("spec", {})
-        if document.get("kind") == "CronJob":
-            pod_spec = workload["jobTemplate"]["spec"]["template"]["spec"]
-        elif document.get("kind") == "Deployment":
-            pod_spec = workload["template"]["spec"]
-        else:
-            continue
-        product_images.extend(
-            container["image"]
-            for container in pod_spec.get("containers", [])
-            if container["image"].startswith("ghcr.io/lamyzm/eatbid-")
-        )
+    def image_values(value: object) -> list[str]:
+        if isinstance(value, dict):
+            own = [str(value["image"])] if "image" in value else []
+            return own + [
+                image
+                for child in value.values()
+                for image in image_values(child)
+            ]
+        if isinstance(value, list):
+            return [image for child in value for image in image_values(child)]
+        return []
+
+    product_images = [
+        image
+        for document in rendered
+        for image in image_values(document)
+        if image.startswith("ghcr.io/lamyzm/eatbid-")
+    ]
 
     assert product_images
     assert {
         image.split("@", maxsplit=1)[0].removeprefix("ghcr.io/lamyzm/")
         for image in product_images
-    } == {"eatbid-web", "eatbid-server", "eatbid-dataplane"}
+    } == {"eatbid-web", "eatbid-server", "eatbid-dataplane", "eatbid-migration"}
     assert all(
         re.fullmatch(r"ghcr\.io/lamyzm/eatbid-[a-z]+@sha256:[0-9a-f]{64}", image)
         for image in product_images

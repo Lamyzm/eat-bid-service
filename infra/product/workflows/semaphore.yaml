@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eatbid-workflow-limits
+  namespace: eatbid
+data:
+  eatbid-source-limit: "1"
