@@ -19,7 +19,10 @@ from eatbid.foundation_repository import (
     FoundationCheckpointRepository,
     FoundationIntegrityError,
     FoundationNormalizationCheckpoint,
+    FoundationObservationCheckpoint,
+    FoundationPublicationCheckpoint,
     FoundationPublishedEvidence,
+    FoundationRequestCheckpoint,
 )
 from eatbid.ingest.models import CapturedObservation, CaptureRequest
 from eatbid.ingest.normalization_repository import (
@@ -48,7 +51,11 @@ from eatbid.pipeline.normalize import (
     DataQuarantinedError,
     normalize_observation,
 )
-from eatbid.pipeline.project import project_publication, verify_published_publication
+from eatbid.pipeline.project import (
+    parse_canonical_normalized_auction,
+    project_publication,
+    verify_published_publication,
+)
 from eatbid.pipeline.stages import validate_stage_timestamps
 from eatbid.pipeline.validate import validate_run
 from eatbid.source.client import SourceClient
@@ -408,7 +415,15 @@ def _verify_checkpoint(
         raise FoundationIntegrityError(
             "checkpoint repository returned an unsupported result"
         )
+    _verify_checkpoint_shapes(checkpoint)
     request, publication = checkpoint.request, checkpoint.publication
+    request_params = _string_mapping(request.params, "request params")
+    observation_params = (
+        _string_mapping(checkpoint.observation.params, "observation params")
+        if checkpoint.observation is not None
+        else None
+    )
+    _verify_checkpoint_scalars(checkpoint)
     if (
         checkpoint.run_id != run_id
         or checkpoint.mode != mode
@@ -420,7 +435,7 @@ def _verify_checkpoint(
         or request.run_id != run_id
         or request.source != source
         or request.endpoint != endpoint
-        or dict(request.params) != params
+        or request_params != params
         or request.request_params_hash != request_params_sha256(params)
         or request.expected_count != expected_count
         or publication.run_id != run_id
@@ -430,19 +445,14 @@ def _verify_checkpoint(
         raise FoundationIntegrityError(
             "checkpoint returned a different frozen identity"
         )
-    _positive_int(request.request_unit_id, "request_unit_id")
-    _nonnegative_int(request.observed_count, "request observed_count")
-    _nonnegative_int(checkpoint.captured_count, "captured_count")
-    _nonnegative_int(checkpoint.published_count, "published_count")
     if checkpoint.observation is not None:
         observation = checkpoint.observation
-        _positive_int(observation.observation_id, "observation_id")
         if (
             observation.run_id != run_id
             or observation.request_unit_id != request.request_unit_id
             or observation.source != source
             or observation.endpoint != endpoint
-            or dict(observation.params) != params
+            or observation_params != params
         ):
             raise FoundationIntegrityError("observation differs from frozen request")
     observed_count = int(checkpoint.observation is not None)
@@ -457,16 +467,24 @@ def _verify_checkpoint(
         expected_request_status = "planned" if observed_count == 0 else "captured"
         if (
             request.status != expected_request_status
+            or checkpoint.failure_category is not None
+            or checkpoint.ended_at is not None
             or publication.status != "pending"
             or publication.normalized_count != 0
             or publication.published_count != 0
             or publication.member_ids
+            or publication.canonical_fingerprint is not None
+            or publication.projector_version is not None
         ):
             raise FoundationIntegrityError("running checkpoint status is inconsistent")
     elif checkpoint.status == "validated":
         if (
             request.status != "captured"
+            or checkpoint.failure_category is not None
+            or checkpoint.ended_at is not None
             or publication.status != "validated"
+            or publication.canonical_fingerprint is not None
+            or publication.projector_version is not None
         ):
             raise FoundationIntegrityError(
                 "validated checkpoint status is inconsistent"
@@ -503,6 +521,92 @@ def _verify_checkpoint(
         _verify_evidence(checkpoint.evidence, checkpoint=checkpoint)
     elif checkpoint.evidence is not None:
         raise FoundationIntegrityError("non-published checkpoint returned evidence")
+
+
+def _verify_checkpoint_shapes(checkpoint: FoundationCheckpoint) -> None:
+    if not isinstance(checkpoint.request, FoundationRequestCheckpoint):
+        raise FoundationIntegrityError("checkpoint lacks a typed request")
+    if not isinstance(checkpoint.publication, FoundationPublicationCheckpoint):
+        raise FoundationIntegrityError("checkpoint lacks a typed publication")
+    if checkpoint.observation is not None and not isinstance(
+        checkpoint.observation, FoundationObservationCheckpoint
+    ):
+        raise FoundationIntegrityError("checkpoint returned an untyped observation")
+    if checkpoint.normalization is not None and not isinstance(
+        checkpoint.normalization, FoundationNormalizationCheckpoint
+    ):
+        raise FoundationIntegrityError("checkpoint returned an untyped normalization")
+    if checkpoint.evidence is not None and not isinstance(
+        checkpoint.evidence, FoundationPublishedEvidence
+    ):
+        raise FoundationIntegrityError("checkpoint returned untyped evidence")
+
+
+def _verify_checkpoint_scalars(checkpoint: FoundationCheckpoint) -> None:
+    request = checkpoint.request
+    publication = checkpoint.publication
+    if not isinstance(checkpoint.status, str):
+        raise FoundationIntegrityError("checkpoint status must be a string")
+    if checkpoint.failure_category is not None and not isinstance(
+        checkpoint.failure_category, str
+    ):
+        raise FoundationIntegrityError("failure_category must be a string")
+    _aware_datetime(checkpoint.started_at, "checkpoint started_at")
+    if checkpoint.ended_at is not None:
+        _aware_datetime(checkpoint.ended_at, "checkpoint ended_at")
+        if checkpoint.ended_at < checkpoint.started_at:
+            raise FoundationIntegrityError("checkpoint ended_at precedes started_at")
+    _nonnegative_int(checkpoint.expected_count, "checkpoint expected_count")
+    _nonnegative_int(checkpoint.captured_count, "captured_count")
+    _nonnegative_int(checkpoint.published_count, "published_count")
+
+    _positive_int(request.request_unit_id, "request_unit_id")
+    _nonnegative_int(request.expected_count, "request expected_count")
+    _nonnegative_int(request.observed_count, "request observed_count")
+    _sha256(request.request_params_hash, "request_params_hash")
+
+    _nonnegative_int(publication.expected_count, "publication expected_count")
+    _nonnegative_int(publication.normalized_count, "publication normalized_count")
+    _nonnegative_int(publication.published_count, "publication published_count")
+    if not isinstance(publication.member_ids, tuple):
+        raise FoundationIntegrityError("publication member_ids must be a tuple")
+    for member_id in publication.member_ids:
+        _positive_int(member_id, "publication member_id")
+    if publication.canonical_fingerprint is not None:
+        _sha256(
+            publication.canonical_fingerprint,
+            "publication canonical_fingerprint",
+        )
+    if publication.projector_version is not None:
+        _nonempty_string(publication.projector_version, "publication projector_version")
+
+    observation = checkpoint.observation
+    if observation is not None:
+        _positive_int(observation.observation_id, "observation_id")
+        _positive_int(observation.request_unit_id, "observation request_unit_id")
+        _aware_datetime(observation.fetched_at, "observation fetched_at")
+        if observation.fetched_at < checkpoint.started_at:
+            raise FoundationIntegrityError(
+                "observation fetched_at precedes checkpoint started_at"
+            )
+        _http_status(observation.http_status)
+        _sha256(observation.content_sha256, "observation content_sha256")
+        _nonempty_string(observation.object_key, "observation object_key")
+        _nonnegative_int(observation.byte_length, "observation byte_length")
+
+    normalization = checkpoint.normalization
+    if normalization is not None:
+        _positive_int(
+            normalization.normalization_attempt_id,
+            "normalization_attempt_id",
+        )
+        _positive_int(normalization.observation_id, "normalization observation_id")
+        _nonempty_string(normalization.parser_version, "normalization parser_version")
+        _nonempty_string(normalization.status, "normalization status")
+        if normalization.normalized_record_id is not None:
+            _positive_int(normalization.normalized_record_id, "normalized_record_id")
+        if normalization.schema_fingerprint is not None:
+            _sha256(normalization.schema_fingerprint, "schema_fingerprint")
 
 
 def _verify_capture_result(result: object) -> None:
@@ -590,6 +694,11 @@ def _verify_evidence(
 ) -> None:
     if not isinstance(evidence, FoundationPublishedEvidence):
         raise FoundationIntegrityError("published checkpoint lacks typed evidence")
+    _positive_int(evidence.request_unit_id, "evidence request_unit_id")
+    if not isinstance(evidence.observation_ids, tuple):
+        raise FoundationIntegrityError("evidence observation_ids must be a tuple")
+    for observation_id in evidence.observation_ids:
+        _positive_int(observation_id, "evidence observation_id")
     if (
         evidence.capture_run_id != checkpoint.run_id
         or evidence.publication_id != checkpoint.publication.publication_id
@@ -667,12 +776,7 @@ def _verify_normalization_lineage(checkpoint: FoundationCheckpoint) -> None:
         raise FoundationIntegrityError(
             "terminal normalization lacks its observation"
         )
-    _positive_int(
-        normalization.normalization_attempt_id,
-        "normalization_attempt_id",
-    )
-    _positive_int(normalization.observation_id, "normalization observation_id")
-    _positive_int(normalization.normalized_record_id, "normalized_record_id")
+    _verify_normalized_auction_contract(normalization)
     member_ids = checkpoint.publication.member_ids
     if not isinstance(member_ids, tuple) or len(member_ids) != 1:
         raise FoundationIntegrityError(
@@ -689,6 +793,41 @@ def _verify_normalization_lineage(checkpoint: FoundationCheckpoint) -> None:
             "terminal normalization lineage differs from its checkpoint"
         )
     _verify_member_cardinality(checkpoint)
+
+
+def _verify_normalized_auction_contract(
+    normalization: FoundationNormalizationCheckpoint,
+) -> None:
+    if normalization.record_type != "auction":
+        raise FoundationIntegrityError(
+            "terminal normalization record_type must be auction"
+        )
+    source_entity_id = normalization.source_entity_id
+    if (
+        not isinstance(source_entity_id, str)
+        or not source_entity_id
+        or source_entity_id.strip() != source_entity_id
+    ):
+        raise FoundationIntegrityError(
+            "terminal normalization source_entity_id must be a trimmed string"
+        )
+    try:
+        record = parse_canonical_normalized_auction(
+            normalization.canonical_payload
+        )
+    except ProjectionContractError as error:
+        raise FoundationIntegrityError(
+            "terminal normalization canonical payload is invalid"
+        ) from error
+    if record.external_bid_id != source_entity_id:
+        raise FoundationIntegrityError(
+            "terminal normalization external ID differs from source entity"
+        )
+    _sha256(normalization.schema_fingerprint, "schema_fingerprint")
+    if normalization.quarantine_reason is not None:
+        raise FoundationIntegrityError(
+            "normalized terminal checkpoint cannot be quarantined"
+        )
 
 
 def _verify_member_cardinality(
@@ -786,3 +925,35 @@ def _nonnegative_int(value: object, field: str) -> None:
 def _sha256(value: object, field: str) -> None:
     if not isinstance(value, str) or _SHA256_PATTERN.fullmatch(value) is None:
         raise FoundationIntegrityError(f"{field} must be a lowercase SHA-256 digest")
+
+
+def _string_mapping(value: object, field: str) -> dict[str, str]:
+    try:
+        if not isinstance(value, Mapping):
+            raise TypeError
+        items = tuple(value.items())
+        if any(
+            not isinstance(key, str) or not isinstance(item, str)
+            for key, item in items
+        ):
+            raise TypeError
+        return dict(items)
+    except (AttributeError, TypeError, ValueError) as error:
+        raise FoundationIntegrityError(
+            f"{field} must map strings to strings"
+        ) from error
+
+
+def _aware_datetime(value: object, field: str) -> None:
+    if not isinstance(value, datetime) or value.utcoffset() is None:
+        raise FoundationIntegrityError(f"{field} must be timezone-aware")
+
+
+def _nonempty_string(value: object, field: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise FoundationIntegrityError(f"{field} must be a non-empty string")
+
+
+def _http_status(value: object) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or not 100 <= value <= 599:
+        raise FoundationIntegrityError("observation http_status must be an HTTP status")

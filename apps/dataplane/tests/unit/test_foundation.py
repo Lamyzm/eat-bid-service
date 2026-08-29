@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from contextlib import nullcontext
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -28,6 +29,33 @@ OTHER_ID = UUID("13000000-0000-0000-0000-000000000199")
 BUILD_SHA = "d" * 64
 STARTED_AT = datetime(2026, 8, 29, 4, 0, tzinfo=UTC)
 PARAMS = {"ELCTRN_BID_ID": "unit-foundation"}
+
+
+def _canonical_auction_payload(*, external_bid_id: str = "unit-foundation") -> bytes:
+    return json.dumps(
+        {
+            "announced_at": None,
+            "base_amount": None,
+            "category_source": "unknown",
+            "currency": "KRW",
+            "deadline_at": None,
+            "display_bid_no": None,
+            "eligibility_codes": [],
+            "external_bid_id": external_bid_id,
+            "opened_at": None,
+            "organization_code": "UNIT-ORG",
+            "organization_name": "Unit organization",
+            "planned_amount": None,
+            "sido_code": None,
+            "sigungu_code": None,
+            "source_category_label": None,
+            "source_status": "OPEN",
+            "title": "Unit foundation auction",
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
 
 
 class FakeCheckpointRepository:
@@ -83,7 +111,7 @@ def _checkpoint(*, status: str = "running") -> FoundationCheckpoint:
         normalized_record_id=31,
         record_type="auction",
         source_entity_id="unit-foundation",
-        canonical_payload=b"{}",
+        canonical_payload=_canonical_auction_payload(),
         schema_fingerprint="a" * 64,
         quarantine_reason=None,
     )
@@ -166,6 +194,24 @@ def _published_checkpoint() -> FoundationCheckpoint:
             observation_count=1,
             publication_status="published",
         ),
+    )
+
+
+def _failed_checkpoint() -> FoundationCheckpoint:
+    checkpoint = _checkpoint()
+    return replace(
+        checkpoint,
+        status="failed",
+        captured_count=0,
+        failure_category="SOURCE_CONTRACT",
+        ended_at=STARTED_AT + timedelta(minutes=3),
+        request=replace(
+            checkpoint.request,
+            observed_count=0,
+            status="failed",
+        ),
+        observation=None,
+        normalization=None,
     )
 
 
@@ -467,3 +513,181 @@ def test_validated_checkpoint_rejects_boolean_nested_counts_before_projection(
     )
 
     _assert_rejected_before_projection(malformed)
+
+
+def _checkpoint_for_state(state: str) -> FoundationCheckpoint:
+    if state == "published":
+        return _published_checkpoint()
+    if state == "failed":
+        return _failed_checkpoint()
+    return _checkpoint(status=state)
+
+
+@pytest.mark.parametrize("state", ["running", "validated", "published", "failed"])
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("request", object()),
+        ("publication", object()),
+        ("observation", object()),
+    ],
+)
+def test_checkpoint_rejects_untyped_nested_companions_without_raw_errors(
+    state: str,
+    field: str,
+    invalid: object,
+) -> None:
+    _assert_rejected_before_projection(
+        replace(_checkpoint_for_state(state), **{field: invalid})
+    )
+
+
+@pytest.mark.parametrize("state", ["running", "validated", "published", "failed"])
+@pytest.mark.parametrize("field", ["normalization", "evidence"])
+def test_checkpoint_rejects_untyped_optional_companions_before_ports(
+    state: str,
+    field: str,
+) -> None:
+    _assert_rejected_before_projection(
+        replace(_checkpoint_for_state(state), **{field: object()})
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid_params",
+    [
+        object(),
+        {1: "unit-foundation"},
+        {"ELCTRN_BID_ID": object()},
+    ],
+    ids=("not-a-mapping", "non-string-key", "non-string-value"),
+)
+@pytest.mark.parametrize("owner", ["request", "observation"])
+def test_checkpoint_rejects_malformed_nested_params_without_raw_errors(
+    invalid_params: object,
+    owner: str,
+) -> None:
+    checkpoint = _checkpoint(status="validated")
+    nested = replace(getattr(checkpoint, owner), params=invalid_params)
+    _assert_rejected_before_projection(replace(checkpoint, **{owner: nested}))
+
+
+@pytest.mark.parametrize("state", ["validated", "published"])
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("record_type", None),
+        ("record_type", "organization"),
+        ("record_type", True),
+        ("source_entity_id", None),
+        ("source_entity_id", ""),
+        ("source_entity_id", " unit-foundation "),
+        ("source_entity_id", True),
+        ("canonical_payload", None),
+        ("canonical_payload", b""),
+        ("canonical_payload", "not-bytes"),
+        ("canonical_payload", b"{}"),
+        (
+            "canonical_payload",
+            json.dumps(
+                json.loads(_canonical_auction_payload()),
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        ),
+        ("canonical_payload", _canonical_auction_payload(external_bid_id="other")),
+        ("schema_fingerprint", None),
+        ("schema_fingerprint", "A" * 64),
+        ("schema_fingerprint", True),
+        ("quarantine_reason", "unexpected quarantine"),
+        ("quarantine_reason", object()),
+    ],
+    ids=(
+        "missing-record-type",
+        "wrong-record-type",
+        "boolean-record-type",
+        "missing-source-entity",
+        "empty-source-entity",
+        "untrimmed-source-entity",
+        "boolean-source-entity",
+        "missing-payload",
+        "empty-payload",
+        "non-bytes-payload",
+        "wrong-model-payload",
+        "noncanonical-payload",
+        "payload-external-id-drift",
+        "missing-schema-fingerprint",
+        "uppercase-schema-fingerprint",
+        "boolean-schema-fingerprint",
+        "quarantine-reason",
+        "object-quarantine-reason",
+    ),
+)
+def test_terminal_checkpoint_rejects_incomplete_normalized_auction_contract(
+    state: str,
+    field: str,
+    invalid: object,
+) -> None:
+    checkpoint = _terminal_checkpoint(state)
+    assert checkpoint.normalization is not None
+    _assert_rejected_before_projection(
+        replace(
+            checkpoint,
+            normalization=replace(
+                checkpoint.normalization,
+                **{field: invalid},
+            ),
+        )
+    )
+
+
+@pytest.mark.parametrize("state", ["validated", "published"])
+@pytest.mark.parametrize(
+    ("owner", "field", "invalid"),
+    [
+        ("observation", "fetched_at", object()),
+        ("observation", "http_status", True),
+        ("observation", "byte_length", True),
+        ("observation", "content_sha256", True),
+        ("observation", "object_key", object()),
+        ("publication", "member_ids", object()),
+        ("checkpoint", "ended_at", object()),
+    ],
+)
+def test_terminal_checkpoint_rejects_malformed_trusted_scalar_fields_before_ports(
+    state: str,
+    owner: str,
+    field: str,
+    invalid: object,
+) -> None:
+    checkpoint = _terminal_checkpoint(state)
+    malformed = (
+        replace(checkpoint, **{field: invalid})
+        if owner == "checkpoint"
+        else replace(
+            checkpoint,
+            **{owner: replace(getattr(checkpoint, owner), **{field: invalid})},
+        )
+    )
+    _assert_rejected_before_projection(malformed)
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("request_unit_id", True),
+        ("observation_ids", (True,)),
+        ("observation_ids", [11]),
+    ],
+)
+def test_published_checkpoint_rejects_malformed_evidence_identity_before_verifier(
+    field: str,
+    invalid: object,
+) -> None:
+    checkpoint = _published_checkpoint()
+    assert checkpoint.evidence is not None
+    _assert_rejected_before_projection(
+        replace(
+            checkpoint,
+            evidence=replace(checkpoint.evidence, **{field: invalid}),
+        )
+    )

@@ -27,11 +27,37 @@ __all__ = [
     "ProjectionFingerprintItem",
     "build_eat_auction_projection",
     "canonical_projection_fingerprint",
+    "parse_canonical_normalized_auction",
     "project_publication",
     "verify_published_publication",
 ]
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+
+
+def parse_canonical_normalized_auction(value: object) -> NormalizedAuction:
+    """Parse the canonical normalized-auction bytes used by projection."""
+    if not isinstance(value, bytes) or not value:
+        raise ProjectionContractError(
+            "projection normalized payload must be non-empty canonical JSON bytes"
+        )
+    try:
+        decoded = json.loads(value)
+        if not isinstance(decoded, dict):
+            raise TypeError("normalized payload must be a JSON object")
+        canonical_payload = json.dumps(
+            decoded,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if canonical_payload != value:
+            raise ValueError("normalized payload is not canonical JSON")
+        return NormalizedAuction.model_validate_json(value, strict=True)
+    except (TypeError, ValueError, ValidationError) as error:
+        raise ProjectionContractError(
+            "projection normalized payload is invalid"
+        ) from error
 
 
 def build_eat_auction_projection(
@@ -57,11 +83,11 @@ def build_eat_auction_projection(
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
-        record = NormalizedAuction.model_validate_json(canonical_payload, strict=True)
     except (TypeError, ValueError, ValidationError) as error:
         raise ProjectionContractError(
             "projection normalized payload is invalid"
         ) from error
+    record = parse_canonical_normalized_auction(canonical_payload)
     if record.external_bid_id != member.source_entity_id:
         raise ProjectionContractError("projection external ID differs from lineage")
     if len(set(record.eligibility_codes)) != len(record.eligibility_codes):
