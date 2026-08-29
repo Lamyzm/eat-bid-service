@@ -700,21 +700,40 @@ git commit -m "feat: record append-only source observations"
 ### Task 8: eaT payload normalization과 완전성 gate
 
 **Files:**
+- Create: `apps/dataplane/src/eatbid/source/eat/__init__.py`
 - Create: `apps/dataplane/src/eatbid/source/eat/models.py`
+- Create: `apps/dataplane/src/eatbid/source/eat/xml.py`
 - Create: `apps/dataplane/src/eatbid/source/eat/normalize.py`
+- Create: `apps/dataplane/src/eatbid/ingest/normalization_repository.py`
+- Create: `apps/dataplane/src/eatbid/ingest/postgres_normalization_repository.py`
+- Create: `apps/dataplane/src/eatbid/ingest/publication_repository.py`
+- Create: `apps/dataplane/src/eatbid/ingest/postgres_publication_repository.py`
+- Create: `apps/dataplane/src/eatbid/pipeline/normalize.py`
 - Create: `apps/dataplane/src/eatbid/pipeline/validate.py`
 - Create: `apps/dataplane/tests/fixtures/eat/bid-list-one.xml`
 - Create: `apps/dataplane/tests/fixtures/eat/bid-detail-one.xml`
+- Create: `apps/dataplane/tests/unit/test_eat_xml.py`
 - Create: `apps/dataplane/tests/unit/test_eat_normalize.py`
 - Create: `apps/dataplane/tests/unit/test_completeness.py`
+- Create: `apps/dataplane/tests/integration/test_normalize_validate.py`
 - Modify: `apps/dataplane/tests/integration/conftest.py`
 - Modify: `apps/dataplane/src/eatbid/cli.py`
+- Modify: `apps/dataplane/pyproject.toml`
+- Modify: `apps/dataplane/uv.lock`
+- Modify: `docs/architecture/stack/application-runtime.md`
+- Modify: `docs/architecture/stack/contracts-and-validation.md`
 
 **Interfaces:**
-- Consumes: raw observation body and parser version.
-- Produces: `NormalizedAuction`, `CompletenessReport`, normalized_record rows and pytest fixtures `validated_publication`, `observation_id`; never domain IDs.
+- Consumes: a committed raw observation, its content-addressed object, planned request identity,
+  and parser version. Detail `external_bid_id` comes from the planned `ELCTRN_BID_ID`
+  request parameter (the list response's internal `ETN_BID_ID`), never from the display
+  `ELCTRN_BID_NO` field.
+- Produces: `NormalizedAuction`, `CompletenessReport`, idempotent `normalized_record`
+  rows, an observation parser/quarantine transition, a `validated` publication, and pytest
+  fixtures `validated_publication`, `observation_id`; never `core` domain IDs or inferred
+  eaT→MOIS/NEIS mappings.
 
-- [ ] **Step 1: leading-zero code와 unknown 보존 실패 테스트 작성**
+- [ ] **Step 1: source identity, 안전한 XML, leading-zero 보존 실패 테스트 작성**
 
 ```python
 from pathlib import Path
@@ -722,15 +741,41 @@ from pathlib import Path
 from eatbid.source.eat.normalize import normalize_bid_detail
 
 
-def test_normalize_preserves_source_codes_as_text() -> None:
+def test_normalize_separates_internal_identity_from_display_number() -> None:
     fixture = Path(__file__).parents[1] / "fixtures/eat/bid-detail-one.xml"
-    record = normalize_bid_detail(fixture.read_bytes(), parser_version="eat-v1")
-    assert record.external_bid_id == "E230727-158202-0"
-    assert record.organization_code == "00123456"
-    assert record.sigungu_code == "00110"
-    assert record.eligibility_codes == ("11000",)
-    assert record.category_source == "unknown"
+    record = normalize_bid_detail(
+        fixture.read_bytes(),
+        external_bid_id="5610615",
+        parser_version="eat-v1",
+    )
+    assert record.external_bid_id == "5610615"
+    assert record.display_bid_no == "E250617-472599-1"
+    assert record.organization_code == "153347"
+    assert record.sido_code == "15"
+    assert record.sigungu_code == "653"
+    assert record.eligibility_codes == ("15653",)
 ```
+
+`bid-detail-one.xml`은 검증된 레거시 fixture/`SOURCE-FIELDS.md`의 필드명과
+관계를 사용해 비식별화한다. 임의의 정부 코드나 실제 기관명을 발명하지 않는다.
+Hypothesis는 `0`으로 시작하는 임의의 Unicode-safe digit code를 생성해
+Pydantic validation, normalization, canonical JSON round-trip 어디에서도 값이
+정수로 바뀌거나 앞자리 `0`이 사라지지 않음을 증명한다.
+
+같은 모듈의 `parse_bid_list_page`는 `bid-list-one.xml`에서 source `TOT_CNT`와
+`ETN_BID_ID` 목록을 typed `BidListPage(total_count, external_bid_ids)`로 만든다.
+`TOT_CNT`는 nonnegative decimal text만 받고, page 안의 빈/중복 ID와
+`len(external_bid_ids) > total_count`를 contract error로 처리한다. 이 task는
+list parser 계약까지만 소유하며 pagination/network planning은 production eaT adapter를
+조립하는 Task 12에서 이 계약을 소비한다.
+
+`xml.py`는 외부 응답을 untrusted input으로 취급한다. Python 문서가 권고하는
+`defusedxml.ElementTree` stable `>=0.7.1,<1`을 사용하고 DTD, entity, external
+reference를 금지한다. namespace가 있는 Nexacro `Dataset/Row/Col`만 파싱하며,
+중복 dataset ID, 중복 column ID, column ID 없는 값, 필수 `ds_info` 1행 위반을
+조용히 덮어쓰지 않고 typed parse error로 만든다. dataset/column 이름의 정렬된
+canonical JSON에서 SHA-256 `schema_fingerprint`를 계산한다. 원본 column 순서가
+달라도 같은 구조면 같은 fingerprint여야 한다.
 
 - [ ] **Step 2: TOT_CNT 불일치 실패 테스트 작성**
 
@@ -739,21 +784,37 @@ from eatbid.pipeline.validate import validate_completeness
 
 
 def test_publication_is_rejected_when_tot_count_differs() -> None:
-    report = validate_completeness(expected=2, observed=1, quarantined=0)
+    report = validate_completeness(
+        request_counts=((2, 1),),
+        normalized=1,
+        quarantined=0,
+        duplicate_source_entities=0,
+        missing_code_schemes=(),
+    )
     assert report.publishable is False
     assert report.failure_category == "SOURCE_CONTRACT"
 ```
 
+Hypothesis로 nonnegative count 조합을 생성해 다음 식과 구현이 동치임을 검증한다.
+
+```text
+publishable =
+  every request.expected_count == request.observed_count
+  and sum(request.observed_count) == normalized
+  and quarantined == 0
+  and duplicate_source_entities == 0
+  and missing_code_schemes == empty
+```
+
 - [ ] **Step 3: 테스트 실패 확인**
 
-Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_normalize.py tests/unit/test_completeness.py -q`
+Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
 
 Expected: FAIL because normalizer and validator do not exist.
 
-- [ ] **Step 4: Pydantic models와 normalizer 구현**
+- [ ] **Step 4: bounded XML parser, Pydantic models, deterministic normalizer 구현**
 
 ```python
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
@@ -762,7 +823,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class NormalizedAuction(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, strict=True)
     external_bid_id: str
     display_bid_no: str | None
     title: str
@@ -778,39 +839,90 @@ class NormalizedAuction(BaseModel):
     base_amount: Decimal | None
     planned_amount: Decimal | None
     currency: Literal["KRW"] = "KRW"
+    source_category_label: str | None
     category_source: Literal["source_field", "inferred_from_title", "unknown"]
-
-
-@dataclass(frozen=True)
-class CompletenessReport:
-    expected: int
-    observed: int
-    quarantined: int
-    publishable: bool
-    failure_category: str | None
 ```
 
-빈 문자열은 `None`으로 정규화하지만 code의 leading zero와 source label은 보존한다.
-주소/기관명/공고명에서 code를 추론하지 않는다. 이 foundation parser는 품목을 추론하지 않으므로
-fixture의 `category_source`는 `unknown`이다.
+XML dataset row는 `TypeAdapter(dict[str, StrictStr])`로 source fragment 경계에서
+검증한다. `NormalizedAuction`은 Pydantic model validation을 한 번만 통과한 뒤
+`model_dump(mode="json")` 결과를 key-sorted compact UTF-8 JSON으로 canonicalize한다.
+Decimal은 float를 거치지 않고 source string에서 변환하며 datetime은 명시한 eaT format만
+받는다. 빈 문자열은 optional field에서만 `None`으로 바꾸고 code/label은 text로 보존한다.
+주소, 기관명, 공고명에서 code를 추론하지 않는다. `MAIN_ITEMS`가 있으면 그 원본 label만
+`source_category_label`/`source_field`로 보존하고, 없으면 `unknown`이다. 내부 taxonomy term을
+만들거나 제목에서 품목을 추론하지 않는다.
 
-- [ ] **Step 5: normalize/validate repository wiring 구현**
+- [ ] **Step 5: normalization port/adapter와 quarantine transaction 구현**
 
-normalize는 `(observation_id, record_type, source_entity_id, parser_version)` 멱등 key로 staging에
-쓴다. validate는 request unit별 `expected_count == observed_count`, quarantine 0,
-source entity ID 중복 0, 필수 code scheme 존재를 모두 확인한 경우에만 publication을
-`validated`로 전환한다.
+`normalization_repository.py`는 immutable input/result와 port만 소유하고,
+`postgres_normalization_repository.py`는 psycopg DML만 소유한다. `pipeline/normalize.py`는
+DB에서 pending observation을 읽고 object-store `read`로 raw를 복원한 뒤 parse/normalize한다.
 
-- [ ] **Step 6: fixture/contract tests 통과**
+성공 transaction은 다음을 원자적으로 수행한다.
 
-Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_normalize.py tests/unit/test_completeness.py -q`
+1. observation/run을 lock하고 content hash/object key/request identity를 재검증한다.
+2. `(observation_id, record_type, source_entity_id, parser_version)`로 insert-or-verify한다.
+3. 기존 key가 있으면 normalized payload 전체가 같아야 하며 다르면 nondeterminism 오류다.
+4. `raw_observation.source_entity_id`, `schema_fingerprint`, `parser_status='normalized'`를 갱신한다.
 
-Expected: PASS; fixture에서 code는 text로 보존되고 category는 추측되지 않는다.
+safe XML/Pydantic/source invariant 실패는 raw를 지우지 않고 별도 transaction에서
+`parser_status='quarantined'`, bounded `quarantine_reason`, `schema_fingerprint`(계산된 경우)를
+남긴 뒤 `DATA_QUARANTINED=65` typed error를 낸다. run-level `TOT_CNT`/schema/invariant
+위반은 `SOURCE_CONTRACT=76`으로 구분한다. DB/R2 장애를 source quarantine으로
+오분류하지 않는다. normalize/replay 재실행은 같은 parser version에서 동일 payload를 만들며
+normalized row와 count를 늘리지 않는다.
 
-- [ ] **Step 7: 커밋**
+- [ ] **Step 6: publication port/adapter와 완전성 transaction 구현**
+
+`publication_repository.py`와 `postgres_publication_repository.py`를 normalization DML에서
+분리한다. `pipeline/validate.py`는 pure `validate_completeness`와 transaction orchestration만
+소유한다. publication UUID와 `validated_at`은 외부에서 주입해 테스트를 결정적으로 만든다.
+
+검증 transaction은 run과 모든 request unit/observation을 lock하고 DB에서 다음을 다시 센다.
+
+- run은 `running`; failed request가 없어야 한다.
+- 모든 request unit의 `expected_count == observed_count`.
+- observation 수, normalized row 수, distinct source entity 수가 정확히 일치.
+- quarantine 0, duplicate source entity 0.
+- parser version은 run과 일치.
+- `eat:auction-location-sido`, `eat:auction-location-sigungu`,
+  `eat:eligibility-area`, `eat:organization` scheme가 존재.
+
+모두 통과할 때만 unique `publication(run_id)`을 insert-or-verify하고 status를 `validated`로,
+run status를 `validated`로 전환한다. Task 8은 `activated_at`, `published_count`, core/mart를
+건드리지 않는다. 실패하면 `validated`를 만들지 않고 기존 active publication도 바꾸지 않으며,
+해당 run의 publication은 `failed`와 관측 count를, run은 최초 failure category/ended_at을
+단조 상태 전이로 남긴다.
+
+- [ ] **Step 7: 실제 PostgreSQL behavior와 method audit 검증**
+
+기존 Task 7의 uniquely named PostgreSQL 16 Testcontainer와 compiled migration runner를
+재사용한다. integration test는 최소한 다음을 증명한다.
+
+- 동일 observation/parser normalize 두 번 → normalized row 1개, byte-equivalent payload.
+- malformed/entity XML → raw 보존, normalized row 0, observation quarantined.
+- `TOT_CNT`/request count mismatch, quarantine, duplicate source entity, missing scheme 각각
+  publication validated 0, 기존 active state 변경 0.
+- complete run → publication 1개 `validated`, run `validated`, core row 0.
+- validate 재실행은 같은 publication identity/metadata를 검증하고 중복을 만들지 않는다.
+
+`defusedxml`은 runtime dependency로 lock하고 stack audit에 stable 0.7.1, Python 공식
+untrusted-XML 권고, DTD/entity tests, 다음 stable major 검토 trigger를 기록한다. Pydantic
+`TypeAdapter`/Hypothesis audit은 이 task의 실제 source-fragment/count 사용을 반영한다.
+
+Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
+
+Expected: PASS; source identity/display number가 분리되고 code text/unknown/quarantine가
+보존되며 불완전 run은 발행되지 않는다.
+
+- [ ] **Step 8: 전체 gate와 커밋**
+
+Run: `cd apps/dataplane && uv lock --check && uv sync --frozen && uv run pytest -q && uv run ruff check src tests && uv run pyright src`
+
+Run: `pnpm architecture:check && pnpm test && pnpm build`
 
 ```bash
-git add apps/dataplane
+git add apps/dataplane docs/architecture/stack/application-runtime.md docs/architecture/stack/contracts-and-validation.md
 git commit -m "feat: validate typed eaT observations"
 ```
 
@@ -1043,7 +1155,7 @@ Argo Events, bundled MinIO는 disabled다. CRD는 full validation과 keep policy
 
 모든 step은 같은 digest-pinned dataplane image를 쓰고 artifact는 run/observation ID로 전달한다.
 source semaphore ConfigMap 값은 `1`, project step mutex는 `eatbid-core-publication`이다.
-retryStrategy는 transient exit 74만 최대 3회 exponential backoff하고 64/75/76은 재시도하지 않는다.
+retryStrategy는 transient exit 74만 최대 3회 exponential backoff하고 64/65/75/76은 재시도하지 않는다.
 
 - [ ] **Step 5: 두 CronWorkflow 구현**
 
