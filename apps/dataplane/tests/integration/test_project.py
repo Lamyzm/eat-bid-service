@@ -23,6 +23,7 @@ from .test_normalize_validate import (
     VALIDATED_AT,
     capture_detail,
     normalize_one,
+    start_replay_run,
     start_run,
 )
 
@@ -315,12 +316,11 @@ def test_projector_rejects_replay_candidate_added_after_validation(
             (second_publication,),
         )
         second_observation = cursor.fetchone()[0]
-    replay_run = start_run(pipeline_services, mode="replay")
-    pipeline_services.publication_repository.add_replay_input(
-        run_id=replay_run, observation_id=first_observation
+    pipeline_services.connection.commit()
+    replay_run, replay_publication = start_replay_run(
+        pipeline_services, (first_observation,)
     )
     normalize_one(pipeline_services, first_observation, processing_run_id=replay_run)
-    replay_publication = uuid4()
     validate_run(
         run_id=replay_run,
         publication_id=replay_publication,
@@ -812,10 +812,10 @@ def test_replay_publication_reuses_the_same_normalized_revision(
             (original_publication,),
         )
         _, normalized_record_id, observation_id = cursor.fetchone()
+    pipeline_services.connection.commit()
 
-    replay_run = start_run(pipeline_services, mode="replay")
-    pipeline_services.publication_repository.add_replay_input(
-        run_id=replay_run, observation_id=observation_id
+    replay_run, replay_publication = start_replay_run(
+        pipeline_services, (observation_id,)
     )
     replay_normalized = normalize_one(
         pipeline_services,
@@ -823,7 +823,6 @@ def test_replay_publication_reuses_the_same_normalized_revision(
         processing_run_id=replay_run,
     )
     assert replay_normalized.normalized_record_id == normalized_record_id
-    replay_publication = uuid4()
     validate_run(
         run_id=replay_run,
         publication_id=replay_publication,

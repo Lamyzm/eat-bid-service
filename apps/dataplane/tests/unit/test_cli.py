@@ -1,3 +1,5 @@
+import pytest
+
 from eatbid.cli import build_parser, exit_code_for_error, main
 from eatbid.pipeline.normalize import DataQuarantinedError
 
@@ -28,6 +30,44 @@ def test_unwired_command_returns_configuration_exit_code() -> None:
             "v1",
         ]
     ) == 64
+
+
+def test_replay_cli_requires_all_external_identities_and_stage_timestamps() -> None:
+    parser = build_parser()
+    common = [
+        "replay",
+        "--run-id",
+        "00000000-0000-0000-0000-000000000001",
+        "--build-sha",
+        "a" * 64,
+        "--parser-version",
+        "eat-v1",
+    ]
+    with pytest.raises(SystemExit):
+        parser.parse_args(common)
+
+    parsed = parser.parse_args(
+        common
+        + [
+            "--publication-id",
+            "00000000-0000-0000-0000-000000000002",
+            "--observation-id",
+            "7",
+            "--observation-id",
+            "3",
+            "--started-at",
+            "2026-08-29T05:00:00Z",
+            "--normalized-at",
+            "2026-08-29T05:01:00Z",
+            "--validated-at",
+            "2026-08-29T05:02:00Z",
+            "--activated-at",
+            "2026-08-29T05:03:00Z",
+        ]
+    )
+
+    assert parsed.publication_id.endswith("2")
+    assert parsed.observation_id == [7, 3]
 
 
 def test_data_quarantine_has_its_dedicated_typed_exit_code() -> None:

@@ -51,6 +51,10 @@ swapped edge, 2-output/0-output 재분배, observation/parser/type drift의 정�
 publication/run 잠금, insert-or-verify canonical write, revision-scoped relation, publication/run의
 `published` 전환은 한 transaction이다. 동일/concurrent 호출은 publication row에서 직렬화되고 이미
 published인 전체 projection과 최초 activation/fingerprint를 검증한 뒤 0 insert를 반환한다.
+Replay orchestration도 validated/published status만 신뢰해 shortcut하지 않는다. validated 재진입은
+projector가 frozen member와 candidate→attempt→record topology를 다시 잠그고, published 재진입은 같은
+topology뿐 아니라 canonical row와 revision-scoped relation exact set, projector version, persisted
+fingerprint를 다시 계산해 검증한다. 입력 순서와 bigint 할당 순서는 fingerprint에 영향을 주지 않는다.
 
 payload, lineage, scheme 또는 기존 canonical row/전체 relation set의 결정적 충돌은 core transaction을
 rollback한 뒤 별도 fresh connection의 transaction에서 아직 validated인 run/publication을
@@ -71,6 +75,8 @@ failed로 되돌리지 않는다.
 - canonical revision을 raw observation, parser version, normalized payload까지 직접 추적할 수 있다.
 - source label과 display number 변경이 기관/공고 정체성을 바꾸지 않는다.
 - replay는 publication count를 정확히 발행하면서 같은 canonical revision을 중복하지 않는다.
+- 서로 다른 replay run이 같은 raw/parser/build를 처리하면 run-scoped attempt/publication은 별도지만
+  normalized record, canonical revision과 deterministic fingerprint는 재사용한다.
 - 관계의 revision grain 때문에 과거 source 사실을 현재 기관/지역 관계로 덮어쓰지 않는다.
 - 결정적 data contract 실패와 retryable infrastructure 실패가 운영 ledger에서 구분된다.
 - greenfield reset이 아닌 이관에는 source identity 기반의 별도 검증 migration/ADR이 필요하다.

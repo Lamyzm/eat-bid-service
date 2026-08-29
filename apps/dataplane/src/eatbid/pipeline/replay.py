@@ -1,0 +1,199 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+from uuid import UUID
+
+from eatbid.core.repository import (
+    CanonicalProjectionRepository,
+    ProjectionContractError,
+)
+from eatbid.errors import SourceContractError
+from eatbid.ingest.normalization_repository import NormalizationRepository
+from eatbid.ingest.publication_repository import PublicationRepository
+from eatbid.ingest.replay_repository import (
+    ReplayRunRepository,
+    ReplayRunState,
+    canonical_replay_manifest,
+    replay_manifest_fingerprint,
+    validate_replay_start,
+)
+from eatbid.object_store import RawObjectStore
+from eatbid.pipeline.normalize import DataQuarantinedError, normalize_observation
+from eatbid.pipeline.project import project_publication
+from eatbid.pipeline.validate import validate_run
+
+DATA_QUARANTINED = "DATA_QUARANTINED"
+SOURCE_CONTRACT = "SOURCE_CONTRACT"
+PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
+
+__all__ = [
+    "ReplayResult",
+    "ReplayServices",
+    "canonical_replay_manifest",
+    "replay_manifest_fingerprint",
+    "replay_observations",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayResult:
+    run_id: UUID
+    publication_id: UUID
+    status: str
+    canonical_fingerprint: str
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayServices:
+    replay_repository: ReplayRunRepository
+    normalization_repository: NormalizationRepository
+    publication_repository: PublicationRepository
+    projection_repository: CanonicalProjectionRepository
+    store: RawObjectStore
+
+
+def replay_observations(
+    *,
+    run_id: UUID,
+    publication_id: UUID,
+    observation_ids: tuple[int, ...],
+    build_sha: str,
+    parser_version: str,
+    started_at: datetime,
+    normalized_at: datetime,
+    validated_at: datetime,
+    activated_at: datetime,
+    services: ReplayServices,
+) -> ReplayResult:
+    manifest = validate_replay_start(
+        run_id=run_id,
+        publication_id=publication_id,
+        observation_ids=observation_ids,
+        build_sha=build_sha,
+        parser_version=parser_version,
+        started_at=started_at,
+    )
+    _validate_stage_timestamps(
+        started_at=started_at,
+        normalized_at=normalized_at,
+        validated_at=validated_at,
+        activated_at=activated_at,
+    )
+    state = services.replay_repository.start_or_load(
+        run_id=run_id,
+        publication_id=publication_id,
+        observation_ids=manifest,
+        build_sha=build_sha,
+        parser_version=parser_version,
+        started_at=started_at,
+    )
+    _verify_loaded_identity(
+        state,
+        run_id=run_id,
+        publication_id=publication_id,
+        manifest=manifest,
+        build_sha=build_sha,
+        parser_version=parser_version,
+    )
+    if state.status == "failed":
+        _raise_stored_failure(state)
+
+    quarantined: DataQuarantinedError | None = None
+    if state.status == "running":
+        for observation_id in manifest:
+            try:
+                normalize_observation(
+                    processing_run_id=run_id,
+                    observation_id=observation_id,
+                    parser_version=parser_version,
+                    normalized_at=normalized_at,
+                    store=services.store,
+                    repository=services.normalization_repository,
+                )
+            except DataQuarantinedError as error:
+                if quarantined is None:
+                    quarantined = error
+
+        validation = validate_run(
+            run_id=run_id,
+            publication_id=publication_id,
+            validated_at=validated_at,
+            repository=services.publication_repository,
+        )
+        if validation.status == "failed":
+            if quarantined is not None:
+                raise quarantined
+            raise SourceContractError("replay failed the source completeness contract")
+        if validation.status != "validated":
+            raise RuntimeError("replay validation returned an unsupported state")
+
+    projected = project_publication(
+        publication_id=publication_id,
+        projector_version=build_sha,
+        activated_at=activated_at,
+        repository=services.projection_repository,
+    )
+    if projected.publication_id != publication_id:
+        raise ProjectionContractError("projector returned a different publication")
+    return ReplayResult(
+        run_id=run_id,
+        publication_id=publication_id,
+        status="published",
+        canonical_fingerprint=projected.canonical_fingerprint,
+    )
+
+
+def _raise_stored_failure(state: ReplayRunState) -> None:
+    if state.failure_category == DATA_QUARANTINED:
+        if state.failure_observation_id is None or state.failure_reason is None:
+            raise RuntimeError("stored quarantine failure metadata is incomplete")
+        raise DataQuarantinedError(
+            state.failure_observation_id, state.failure_reason
+        )
+    if state.failure_category == SOURCE_CONTRACT:
+        raise SourceContractError("replay previously failed the source contract")
+    if state.failure_category == PROJECTION_CONTRACT:
+        raise ProjectionContractError("replay previously failed projection")
+    raise RuntimeError("replay has an unsupported stored failure category")
+
+
+def _validate_stage_timestamps(
+    *,
+    started_at: datetime,
+    normalized_at: datetime,
+    validated_at: datetime,
+    activated_at: datetime,
+) -> None:
+    values = (
+        ("started_at", started_at),
+        ("normalized_at", normalized_at),
+        ("validated_at", validated_at),
+        ("activated_at", activated_at),
+    )
+    for field, value in values:
+        if not isinstance(value, datetime):
+            raise TypeError(f"{field} must be a datetime")
+        if value.utcoffset() is None:
+            raise ValueError(f"{field} must be timezone-aware")
+    if not started_at <= normalized_at <= validated_at <= activated_at:
+        raise ValueError("replay stage timestamps must be monotonic")
+
+
+def _verify_loaded_identity(
+    state: ReplayRunState,
+    *,
+    run_id: UUID,
+    publication_id: UUID,
+    manifest: tuple[int, ...],
+    build_sha: str,
+    parser_version: str,
+) -> None:
+    if (
+        state.run_id != run_id
+        or state.publication_id != publication_id
+        or state.observation_ids != manifest
+        or state.build_sha != build_sha
+        or state.parser_version != parser_version
+    ):
+        raise RuntimeError("replay repository returned a different frozen identity")

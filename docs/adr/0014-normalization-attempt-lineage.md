@@ -34,6 +34,21 @@ capture/backfill processing run은 자기 `raw_observation`만 입력으로 삼�
 관측을 만들지 않고 `replay_input(run_id, observation_id)` manifest로 기존 증거를 명시한다.
 호출 parser version은 원래 capture run이 아니라 processing run과 일치해야 한다.
 
+`ReplayRunRepository`만 replay run을 만들 수 있다. 호출자가 제공한 run/publication UUID,
+build/parser version, timezone-aware start time, 중복 없는 positive observation ID 전체를 DB 접근 전에
+검증한다. 그 뒤 idle connection의 repository-owned transaction 하나에서 `mode='replay'` run,
+`status='pending'` publication, 정렬한 exact `replay_input` 전체를 함께 생성한다. observation 하나씩
+나중에 추가하는 API는 두지 않는다. 기존 run을 재호출하면 mode, 두 UUID, build/parser/start time,
+expected count, publication metadata와 manifest 전체가 동일할 때만 현재 monotonic state를 반환한다.
+unknown member나 metadata drift는 아무 행도 남기지 않거나 기존 행을 바꾸지 않고 거부한다.
+
+replay orchestration은 `running → validated → published` checkpoint에서 재개한다. running은 아직 final
+attempt가 없는 member를 포함해 exact manifest를 deterministic normalize/insert-or-verify하고,
+validated는 같은 frozen publication을 project하며, published는 topology와 persisted canonical
+fingerprint를 다시 검증한다. failed 재호출은 저장된 `DATA_QUARANTINED`, `SOURCE_CONTRACT`,
+`PROJECTION_CONTRACT` category를 먼저 읽어 동일한 typed failure를 반환하므로 R2 read, attempt 추가,
+projection을 다시 실행하지 않는다. transient R2/DB 오류는 running 또는 validated 상태를 유지한다.
+
 publication validation은 current run/parser의 final attempt와 그 attempt-record member만 잠그고
 다시 센다. 완전성 gate를 통과한 exact normalized member ID 집합을
 `publication_record(publication_id, normalized_record_id)`에 동결한다. 이후 projector의 유일한
@@ -60,11 +75,15 @@ metadata와 빈 manifest를 계속 검증한다.
 - 미검토 source column은 증거에서 삭제하지 않고 reviewed contract가 갱신될 때까지 발행만 막는다.
 - attempt와 member의 cross-row 불변식은 DB check만으로 완결되지 않아 transaction과 behavior
   test가 함께 강제한다.
+- manifest-only, 일부 normalized, validated, published checkpoint 재호출은 같은 identity와 frozen
+  member를 유지하며 중복 run/publication/attempt/core revision을 만들지 않는다.
 
 ## Rejected alternatives
 
 - mutable parser columns on `raw_observation`: 새 replay가 과거 해석을 덮어쓴다.
 - replay마다 raw observation 복제: 실제로 없던 HTTP 요청과 capture run을 발명한다.
+- replay run 생성과 row-at-a-time input 추가를 서로 다른 repository에 분산: 부분 manifest가 실행될
+  수 있고 run identity와 publication identity를 한 원자 단위로 동결할 수 없다.
 - `raw_observation.run_id`로 normalized output 재계산: replay processing run과 exact output set을
   표현하지 못한다.
 - projector가 publication 시점의 run join을 재실행: staging 변화로 과거 발행 입력이 달라진다.

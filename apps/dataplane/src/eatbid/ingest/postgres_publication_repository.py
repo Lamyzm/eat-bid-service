@@ -21,6 +21,7 @@ REQUIRED_SCHEMES = (
 )
 SOURCE_CONTRACT = "SOURCE_CONTRACT"
 PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
+DATA_QUARANTINED = "DATA_QUARANTINED"
 
 
 class PublicationIntegrityError(RuntimeError):
@@ -30,27 +31,6 @@ class PublicationIntegrityError(RuntimeError):
 class PsycopgPublicationRepository:
     def __init__(self, connection: psycopg.Connection[Any]) -> None:
         self._connection = connection
-
-    def add_replay_input(self, *, run_id: UUID, observation_id: int) -> None:
-        _positive_id(observation_id, "observation_id")
-        with self._connection.transaction(), self._connection.cursor() as cursor:
-            cursor.execute(
-                "select mode, status from ingest.run where run_id = %s for update",
-                (run_id,),
-            )
-            run = cursor.fetchone()
-            if run is None or run != ("replay", "running"):
-                raise PublicationIntegrityError(
-                    "replay input requires a running replay run"
-                )
-            cursor.execute(
-                """
-                insert into ingest.replay_input (run_id, observation_id)
-                values (%s, %s)
-                on conflict (run_id, observation_id) do nothing
-                """,
-                (run_id, observation_id),
-            )
 
     def validate_run(
         self,
@@ -150,6 +130,7 @@ class PsycopgPublicationRepository:
                     validated_at=validated_at,
                     expected_count=int(expected_count),
                     member_ids=topology.member_ids,
+                    consume_pending=mode == "replay",
                 )
                 return PublicationValidation(
                     publication_id=publication_id,
@@ -167,6 +148,13 @@ class PsycopgPublicationRepository:
                 failed_at=validated_at,
                 expected_count=int(expected_count),
                 normalized_count=len(topology.members),
+                failure_category=(
+                    DATA_QUARANTINED
+                    if mode == "replay"
+                    and topology.quarantined_current_attempts > 0
+                    else SOURCE_CONTRACT
+                ),
+                consume_pending=mode == "replay",
             )
             return PublicationValidation(
                 publication_id=publication_id,
@@ -217,16 +205,34 @@ class PsycopgPublicationRepository:
         validated_at: datetime,
         expected_count: int,
         member_ids: tuple[int, ...],
+        consume_pending: bool,
     ) -> None:
-        cursor.execute(
-            """
-            insert into ingest.publication (
-                publication_id, run_id, status, validated_at, activated_at,
-                expected_count, normalized_count, published_count
-            ) values (%s, %s, 'validated', %s, null, %s, %s, 0)
-            """,
-            (publication_id, run_id, validated_at, expected_count, len(member_ids)),
-        )
+        if consume_pending:
+            _transition_pending_publication(
+                cursor,
+                run_id=run_id,
+                publication_id=publication_id,
+                expected_count=expected_count,
+                status="validated",
+                normalized_count=len(member_ids),
+                validated_at=validated_at,
+            )
+        else:
+            cursor.execute(
+                """
+                insert into ingest.publication (
+                    publication_id, run_id, status, validated_at, activated_at,
+                    expected_count, normalized_count, published_count
+                ) values (%s, %s, 'validated', %s, null, %s, %s, 0)
+                """,
+                (
+                    publication_id,
+                    run_id,
+                    validated_at,
+                    expected_count,
+                    len(member_ids),
+                ),
+            )
         cursor.executemany(
             """
             insert into ingest.publication_record (publication_id, normalized_record_id)
@@ -250,23 +256,36 @@ class PsycopgPublicationRepository:
         failed_at: datetime,
         expected_count: int,
         normalized_count: int,
+        failure_category: str,
+        consume_pending: bool,
     ) -> None:
-        cursor.execute(
-            """
-            insert into ingest.publication (
-                publication_id, run_id, status, validated_at, activated_at,
-                expected_count, normalized_count, published_count
-            ) values (%s, %s, 'failed', null, null, %s, %s, 0)
-            """,
-            (publication_id, run_id, expected_count, normalized_count),
-        )
+        if consume_pending:
+            _transition_pending_publication(
+                cursor,
+                run_id=run_id,
+                publication_id=publication_id,
+                expected_count=expected_count,
+                status="failed",
+                normalized_count=normalized_count,
+                validated_at=None,
+            )
+        else:
+            cursor.execute(
+                """
+                insert into ingest.publication (
+                    publication_id, run_id, status, validated_at, activated_at,
+                    expected_count, normalized_count, published_count
+                ) values (%s, %s, 'failed', null, null, %s, %s, 0)
+                """,
+                (publication_id, run_id, expected_count, normalized_count),
+            )
         cursor.execute(
             """
             update ingest.run
             set status = 'failed', failure_category = %s, ended_at = %s
             where run_id = %s and status = 'running'
             """,
-            (SOURCE_CONTRACT, failed_at, run_id),
+            (failure_category, failed_at, run_id),
         )
         if cursor.rowcount != 1:
             raise PublicationIntegrityError("run failure transition failed")
@@ -330,7 +349,7 @@ class PsycopgPublicationRepository:
                 )
         elif run_ended_at is None:
             raise PublicationIntegrityError("failed run must have an end timestamp")
-        elif run_failure_category == SOURCE_CONTRACT:
+        elif run_failure_category in {SOURCE_CONTRACT, DATA_QUARANTINED}:
             if publication[2] is not None:
                 raise PublicationIntegrityError(
                     "source-contract failure cannot have a validation timestamp"
@@ -372,9 +391,51 @@ class PsycopgPublicationRepository:
         )
 
 
-def _positive_id(value: int, field: str) -> None:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ValueError(f"{field} must be a positive integer")
+def _transition_pending_publication(
+    cursor: psycopg.Cursor[Any],
+    *,
+    run_id: UUID,
+    publication_id: UUID,
+    expected_count: int,
+    status: str,
+    normalized_count: int,
+    validated_at: datetime | None,
+) -> None:
+    cursor.execute(
+        """
+        select publication_id, status, validated_at, activated_at,
+               expected_count, normalized_count, published_count,
+               canonical_fingerprint, projector_version
+        from ingest.publication where run_id = %s for update
+        """,
+        (run_id,),
+    )
+    pending = cursor.fetchone()
+    expected_pending = (
+        publication_id,
+        "pending",
+        None,
+        None,
+        expected_count,
+        0,
+        0,
+        None,
+        None,
+    )
+    if pending != expected_pending:
+        raise PublicationIntegrityError(
+            "replay pending publication identity or metadata differs"
+        )
+    cursor.execute(
+        """
+        update ingest.publication
+        set status = %s, validated_at = %s, normalized_count = %s
+        where publication_id = %s and run_id = %s and status = 'pending'
+        """,
+        (status, validated_at, normalized_count, publication_id, run_id),
+    )
+    if cursor.rowcount != 1:
+        raise PublicationIntegrityError("pending publication transition failed")
 
 
 def _aware(value: datetime, field: str) -> None:

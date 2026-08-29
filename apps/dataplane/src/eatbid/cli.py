@@ -16,6 +16,15 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--run-id", required=True)
         command.add_argument("--build-sha", required=True)
         command.add_argument("--parser-version", required=True)
+        if name == "replay":
+            command.add_argument("--publication-id", required=True)
+            command.add_argument(
+                "--observation-id", required=True, action="append", type=int
+            )
+            command.add_argument("--started-at", required=True)
+            command.add_argument("--normalized-at", required=True)
+            command.add_argument("--validated-at", required=True)
+            command.add_argument("--activated-at", required=True)
     return parser
 
 

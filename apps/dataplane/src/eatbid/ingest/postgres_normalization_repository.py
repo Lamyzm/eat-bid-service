@@ -37,7 +37,7 @@ class PsycopgNormalizationRepository:
         self, *, processing_run_id: UUID, observation_id: int
     ) -> ObservationForNormalization:
         _positive_id(observation_id, "observation_id")
-        with self._connection.cursor() as cursor:
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 select pr.run_id, pr.mode, pr.parser_version,

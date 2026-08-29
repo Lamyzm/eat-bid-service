@@ -14,13 +14,14 @@ from eatbid.ingest.models import (
     CaptureRequest,
     PlannedRequestUnit,
 )
-from eatbid.ingest.repository import request_params_sha256
+from eatbid.ingest.repository import CaptureRunMode, request_params_sha256
 from eatbid.object_store import StoredRawObject
 from eatbid.source.client import SourceResponse
 
 _CONTENT_TYPE = "application/xml"
 _CONTENT_ENCODING = "gzip"
 _BUILD_SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
+_CAPTURE_RUN_MODES = {"poll-open", "daily-reconcile", "backfill"}
 
 
 class IngestIntegrityError(RuntimeError):
@@ -47,7 +48,7 @@ class PsycopgObservationRepository:
         self,
         *,
         run_id: UUID,
-        mode: str,
+        mode: CaptureRunMode,
         build_sha: str,
         parser_version: str,
         started_at: datetime,
@@ -55,7 +56,15 @@ class PsycopgObservationRepository:
     ) -> None:
         _require_nonnegative(expected_count, "expected_count")
         _require_aware(started_at, "started_at")
-        if not mode or not parser_version or _BUILD_SHA_PATTERN.fullmatch(build_sha) is None:
+        if mode == "replay":
+            raise ValueError(
+                "replay runs must be created by ReplayRunRepository with a frozen manifest"
+            )
+        if (
+            mode not in _CAPTURE_RUN_MODES
+            or not parser_version
+            or _BUILD_SHA_PATTERN.fullmatch(build_sha) is None
+        ):
             raise ValueError("run metadata is invalid")
         with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(

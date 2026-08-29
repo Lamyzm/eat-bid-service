@@ -4,7 +4,7 @@ import json
 from collections.abc import Mapping
 from datetime import datetime
 from hashlib import sha256
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
 from eatbid.ingest.models import (
@@ -14,6 +14,8 @@ from eatbid.ingest.models import (
 )
 from eatbid.object_store import StoredRawObject
 from eatbid.source.client import SourceResponse
+
+CaptureRunMode = Literal["poll-open", "daily-reconcile", "backfill"]
 
 
 def canonical_request_params(params: Mapping[str, str]) -> bytes:
@@ -43,7 +45,7 @@ class IngestRepository(Protocol):
         self,
         *,
         run_id: UUID,
-        mode: str,
+        mode: CaptureRunMode,
         build_sha: str,
         parser_version: str,
         started_at: datetime,

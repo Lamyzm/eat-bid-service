@@ -38,20 +38,39 @@ BUILD_SHA = "b" * 64
 def start_run(
     services: PipelineServices,
     *,
-    mode: str = "poll-open",
     expected_count: int = 1,
     parser_version: str = "eat-v1",
 ) -> UUID:
     run_id = uuid4()
     services.repository.start_run(
         run_id=run_id,
-        mode=mode,
+        mode="poll-open",
         build_sha=BUILD_SHA,
         parser_version=parser_version,
         started_at=FETCHED_AT,
         expected_count=expected_count,
     )
     return run_id
+
+
+def start_replay_run(
+    services: PipelineServices,
+    observation_ids: tuple[int, ...],
+    *,
+    parser_version: str = "eat-v1",
+) -> tuple[UUID, UUID]:
+    run_id = uuid4()
+    publication_id = uuid4()
+    state = services.replay_repository.start_or_load(
+        run_id=run_id,
+        publication_id=publication_id,
+        observation_ids=observation_ids,
+        build_sha=BUILD_SHA,
+        parser_version=parser_version,
+        started_at=FETCHED_AT,
+    )
+    assert state.status == "running"
+    return run_id, publication_id
 
 
 def capture_detail(
@@ -92,7 +111,7 @@ def capture_detail(
 
 
 def capture_run_id(services: PipelineServices, observation_id: int) -> UUID:
-    with services.connection.cursor() as cursor:
+    with services.connection.transaction(), services.connection.cursor() as cursor:
         cursor.execute(
             "select run_id from ingest.raw_observation where observation_id = %s",
             (observation_id,),
@@ -101,7 +120,7 @@ def capture_run_id(services: PipelineServices, observation_id: int) -> UUID:
 
 
 def publication_run_id(services: PipelineServices, publication_id: UUID) -> UUID:
-    with services.connection.cursor() as cursor:
+    with services.connection.transaction(), services.connection.cursor() as cursor:
         cursor.execute(
             "select run_id from ingest.publication where publication_id = %s",
             (publication_id,),
@@ -460,12 +479,10 @@ def test_same_raw_has_independent_replay_attempts_without_mutating_evidence(
             (observation_id,),
         )
         raw_before = cursor.fetchone()[0]
+    pipeline_services.connection.commit()
 
-    replay_same = start_run(
-        pipeline_services, mode="replay", parser_version="eat-v1"
-    )
-    pipeline_services.publication_repository.add_replay_input(
-        run_id=replay_same, observation_id=observation_id
+    replay_same, _ = start_replay_run(
+        pipeline_services, (observation_id,), parser_version="eat-v1"
     )
     same_parser_result = normalize_one(
         pipeline_services,
@@ -474,11 +491,8 @@ def test_same_raw_has_independent_replay_attempts_without_mutating_evidence(
         parser_version="eat-v1",
     )
 
-    replay_new = start_run(
-        pipeline_services, mode="replay", parser_version="eat-v2"
-    )
-    pipeline_services.publication_repository.add_replay_input(
-        run_id=replay_new, observation_id=observation_id
+    replay_new, _ = start_replay_run(
+        pipeline_services, (observation_id,), parser_version="eat-v2"
     )
     new_parser_result = normalize_one(
         pipeline_services,
@@ -535,7 +549,15 @@ def test_processing_run_membership_and_parser_version_are_authoritative(
             processing_run_id=unrelated_capture_run,
         )
 
-    replay_run = start_run(pipeline_services, mode="replay", parser_version="eat-v2")
+    other_capture_run = start_run(pipeline_services)
+    other_observation_id = capture_detail(
+        pipeline_services,
+        run_id=other_capture_run,
+        external_bid_id=uuid4().hex,
+    )
+    replay_run, _ = start_replay_run(
+        pipeline_services, (other_observation_id,), parser_version="eat-v2"
+    )
     with pytest.raises(NormalizationIntegrityError, match="replay input manifest"):
         normalize_one(
             pipeline_services,
@@ -544,13 +566,10 @@ def test_processing_run_membership_and_parser_version_are_authoritative(
             parser_version="eat-v2",
         )
 
-    pipeline_services.publication_repository.add_replay_input(
-        run_id=replay_run, observation_id=observation_id
-    )
     with pytest.raises(RuntimeError, match="parser version differs"):
         normalize_one(
             pipeline_services,
-            observation_id,
+            other_observation_id,
             processing_run_id=replay_run,
             parser_version="eat-v1",
         )
@@ -1388,12 +1407,12 @@ def test_replay_mode_uses_explicit_input_without_mutating_capture_provenance(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
-    replay_runs = [start_run(pipeline_services, mode="replay") for _ in range(2)]
+    replay_runs_and_publications = [
+        start_replay_run(pipeline_services, (observation_id,)) for _ in range(2)
+    ]
+    replay_runs = [item[0] for item in replay_runs_and_publications]
     results = []
-    for replay_run_id in replay_runs:
-        pipeline_services.publication_repository.add_replay_input(
-            run_id=replay_run_id, observation_id=observation_id
-        )
+    for replay_run_id, publication_id in replay_runs_and_publications:
         replay_normalized = normalize_one(
             pipeline_services,
             observation_id,
@@ -1404,7 +1423,7 @@ def test_replay_mode_uses_explicit_input_without_mutating_capture_provenance(
         results.append(
             validate_run(
                 run_id=replay_run_id,
-                publication_id=uuid4(),
+                publication_id=publication_id,
                 validated_at=VALIDATED_AT,
                 repository=pipeline_services.publication_repository,
             )

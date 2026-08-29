@@ -195,6 +195,13 @@ capture/backfill은 자기 run의 observation만 처리한다. replay는 새 HTT
 deterministic normalized record는 여러 attempt가 재사용할 수 있고, 새 parser는 독립 key와
 attempt를 만든다.
 
+Replay identity는 호출자가 제공한 run/publication UUID, build/parser version, start time과 exact raw
+observation ID set이다. `ReplayRunRepository`가 runtime shape와 unknown observation을 먼저 검증하고,
+run + pending publication + 정렬한 manifest 전체를 repository-owned transaction 하나로 동결한다.
+capture용 repository는 replay run을 만들 수 없고 publication repository도 manifest member를 추가하지
+않는다. 같은 run ID 재호출은 이 metadata와 member set이 모두 같아야 하며 일부 input을 나중에
+붙이거나 다른 publication ID로 바꾸지 못한다.
+
 새 normalized interpretation이 생길 때만 새 `AuctionRevision`을 만든다. revision은
 `normalized_record_id`를 통해 observation과 parser version을 직접 추적한다. 같은 raw라도 새 parser가
 새 normalized record를 만들면 별도 revision이고, replay가 같은 normalized record를 재사용하면 기존
@@ -231,7 +238,9 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   transient DB/provider 오류는 validated 상태로 남겨 retry한다.
 - mart는 영향받은 partition/cohort를 새 build ID로 만든 뒤 원자적으로 활성화한다.
 - 재처리는 `replay_input`의 raw observation 집합과 processing parser/projector version을
-  명시한다.
+  명시한다. orchestration은 manifest-only/일부 normalized/running/validated/published checkpoint에서
+  단조롭게 재개한다. failed state는 저장된 typed category를 R2 접근보다 먼저 반환하고,
+  published state도 저장 count만 신뢰하지 않고 exact topology/relation/fingerprint를 재검증한다.
 
 ## 7. 분석 모델
 
