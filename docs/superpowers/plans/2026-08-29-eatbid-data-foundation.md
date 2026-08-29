@@ -621,7 +621,7 @@ def test_capture_archives_before_recording_observation() -> None:
     store = RecordingStore(events)
     repo = RecordingRepository(events)
     client = StaticSourceClient(SourceResponse(200, b"<result><TOT_CNT>1</TOT_CNT></result>", datetime.now(UTC)))
-    request = CaptureRequest(UUID("00000000-0000-0000-0000-000000000001"), "eat", "bid-list", {})
+    request = CaptureRequest(1, UUID("00000000-0000-0000-0000-000000000001"), "eat", "bid-list", {})
     capture(request, store, repo, client)
     assert events == ["object_stored", "observation_recorded"]
 ```
@@ -637,6 +637,7 @@ Expected: FAIL on import.
 ```python
 @dataclass(frozen=True)
 class CaptureRequest:
+    request_unit_id: int
     run_id: UUID
     source: str
     endpoint: str
@@ -659,7 +660,9 @@ class CapturedObservation:
 ```
 
 `repository.py`는 `IngestRepository` port만, `postgres_repository.py`는 psycopg DML adapter만
-소유한다. Repository는 `start_run`, `plan_request_unit`, `record_observation`, `fail_run`을 제공한다.
+소유한다. Repository는 `start_run`, `plan_request_unit -> PlannedRequestUnit`,
+`record_observation`, `fail_run`을 제공한다. `CaptureRequest`는 미리 발급된 bigint
+`request_unit_id`와 `run_id`를 함께 들고 DB의 composite FK 경계를 그대로 지킨다.
 request params는 key 정렬 canonical JSON으로 저장하고 SHA-256을 unique key에 쓴다.
 Hypothesis는 서로 다른 mapping insertion order와 Unicode/빈 값을 포함해 같은 논리 params가
 같은 canonical bytes/hash를 만들고 다른 값은 다른 hash를 만듦을 검증한다.
