@@ -1,0 +1,3 @@
+ALTER TABLE "core"."code_mapping" ADD CONSTRAINT "code_mapping_has_validity_boundary" CHECK ("valid_from" is not null or "valid_to" is not null);--> statement-breakpoint
+ALTER TABLE "core"."code_mapping" ADD CONSTRAINT "code_mapping_valid_time_order" CHECK ("valid_to" is null or "valid_from" is null or "valid_to" >= "valid_from");--> statement-breakpoint
+ALTER TABLE "core"."code_value" ADD CONSTRAINT "code_value_valid_time_order" CHECK ("valid_to" is null or "valid_from" is null or "valid_to" >= "valid_from");

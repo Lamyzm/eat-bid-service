@@ -63,15 +63,20 @@ describe("builtin code scheme seed", () => {
     expect(builtinCodeSchemes).toEqual(approvedCodeSchemes);
   });
 
-  test("inserts only code scheme namespaces with conflict handling", async () => {
-    const inserted: Array<{ table: unknown; values: unknown; target: unknown }> = [];
+  test("is idempotent and preserves all semantic scheme metadata", async () => {
+    const rows = new Map<string, (typeof approvedCodeSchemes)[number]>();
+    const conflictTargets: unknown[] = [];
     const db = {
-      insert(table: unknown) {
+      insert(table: typeof codeScheme) {
+        expect(table).toBe(codeScheme);
         return {
-          values(values: unknown) {
+          values(values: Array<(typeof approvedCodeSchemes)[number]>) {
             return {
               async onConflictDoNothing({ target }: { target: unknown }) {
-                inserted.push({ table, values, target });
+                conflictTargets.push(target);
+                for (const value of values) {
+                  rows.set(value.namespace, rows.get(value.namespace) ?? value);
+                }
               },
             };
           },
@@ -80,13 +85,10 @@ describe("builtin code scheme seed", () => {
     };
 
     await seedCodeSchemes(db);
+    await seedCodeSchemes(db);
 
-    expect(inserted).toEqual([
-      {
-        table: codeScheme,
-        values: approvedCodeSchemes,
-        target: codeScheme.namespace,
-      },
-    ]);
+    expect([...rows.values()]).toEqual(approvedCodeSchemes);
+    expect(rows).toHaveLength(7);
+    expect(conflictTargets).toEqual([codeScheme.namespace, codeScheme.namespace]);
   });
 });

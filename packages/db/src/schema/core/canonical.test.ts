@@ -16,6 +16,9 @@ const columns = (table: Parameters<typeof getTableConfig>[0]) => getTableConfig(
 
 const columnNames = (table: Parameters<typeof getTableConfig>[0]) => columns(table).map((column) => column.name);
 
+const columnNullability = (table: Parameters<typeof getTableConfig>[0]) =>
+  Object.fromEntries(columns(table).map((column) => [column.name, column.notNull]));
+
 const uniqueColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
   getTableConfig(table).uniqueConstraints.map((constraint) => constraint.columns.map((column) => column.name));
 
@@ -44,7 +47,155 @@ describe("canonical identities", () => {
       const column = columns(table).find((candidate) => candidate.name === primaryKey);
       expect(column?.primary).toBe(true);
       expect(column?.getSQLType()).toBe("bigint");
+      expect(column?.generatedIdentity).toEqual({ type: "always" });
     }
+
+    expect(columns(auctionOrganization).every((column) => column.generatedIdentity === undefined)).toBe(true);
+  });
+
+  test("defines exact required columns and nullability for every canonical table", () => {
+    expect(columnNames(codeScheme)).toEqual([
+      "code_scheme_id",
+      "namespace",
+      "owner",
+      "version_policy",
+      "valid_time_policy",
+    ]);
+    expect(columnNullability(codeScheme)).toEqual({
+      code_scheme_id: true,
+      namespace: true,
+      owner: true,
+      version_policy: true,
+      valid_time_policy: true,
+    });
+    expect(columnNames(codeValue)).toEqual([
+      "code_value_id",
+      "code_scheme_id",
+      "code",
+      "valid_from",
+      "valid_to",
+      "active",
+    ]);
+    expect(columnNullability(codeValue)).toEqual({
+      code_value_id: true,
+      code_scheme_id: true,
+      code: true,
+      valid_from: false,
+      valid_to: false,
+      active: true,
+    });
+    expect(columnNames(codeLabelObservation)).toEqual([
+      "code_label_observation_id",
+      "code_value_id",
+      "label",
+      "language",
+      "observed_at",
+      "observation_id",
+    ]);
+    expect(columnNullability(codeLabelObservation)).toEqual({
+      code_label_observation_id: true,
+      code_value_id: true,
+      label: true,
+      language: true,
+      observed_at: true,
+      observation_id: true,
+    });
+    expect(columnNames(codeMapping)).toEqual([
+      "code_mapping_id",
+      "from_code_value_id",
+      "to_code_value_id",
+      "relation",
+      "valid_from",
+      "valid_to",
+      "evidence_observation_id",
+      "status",
+    ]);
+    expect(columnNullability(codeMapping)).toEqual({
+      code_mapping_id: true,
+      from_code_value_id: true,
+      to_code_value_id: true,
+      relation: true,
+      valid_from: false,
+      valid_to: false,
+      evidence_observation_id: true,
+      status: true,
+    });
+    expect(columnNames(organization)).toEqual([
+      "organization_id",
+      "type",
+      "canonical_name",
+      "created_at",
+    ]);
+    expect(columnNullability(organization)).toEqual({
+      organization_id: true,
+      type: true,
+      canonical_name: true,
+      created_at: true,
+    });
+    expect(columnNames(organizationIdentifier)).toEqual([
+      "organization_identifier_id",
+      "organization_id",
+      "code_value_id",
+      "observation_id",
+    ]);
+    expect(columnNullability(organizationIdentifier)).toEqual({
+      organization_identifier_id: true,
+      organization_id: true,
+      code_value_id: true,
+      observation_id: true,
+    });
+    expect(columnNames(auctionAttempt)).toEqual([
+      "auction_attempt_id",
+      "source_system",
+      "external_bid_id",
+      "display_bid_no",
+    ]);
+    expect(columnNullability(auctionAttempt)).toEqual({
+      auction_attempt_id: true,
+      source_system: true,
+      external_bid_id: true,
+      display_bid_no: true,
+    });
+    expect(columnNames(auctionRevision)).toEqual([
+      "auction_revision_id",
+      "auction_attempt_id",
+      "observation_id",
+      "content_sha256",
+      "source_status",
+      "title",
+      "announced_at",
+      "deadline_at",
+      "opened_at",
+      "base_amount",
+      "planned_amount",
+      "currency",
+      "source_payload",
+    ]);
+    expect(columnNullability(auctionRevision)).toEqual({
+      auction_revision_id: true,
+      auction_attempt_id: true,
+      observation_id: true,
+      content_sha256: true,
+      source_status: true,
+      title: true,
+      announced_at: false,
+      deadline_at: false,
+      opened_at: false,
+      base_amount: false,
+      planned_amount: false,
+      currency: false,
+      source_payload: true,
+    });
+    expect(columnNames(auctionOrganization)).toEqual([
+      "auction_attempt_id",
+      "organization_id",
+      "role",
+    ]);
+    expect(columnNullability(auctionOrganization)).toEqual({
+      auction_attempt_id: true,
+      organization_id: true,
+      role: true,
+    });
   });
 
   test("keeps code source evidence as text within a unique scheme", () => {
@@ -102,6 +253,17 @@ describe("canonical identities", () => {
       { columns: ["from_code_value_id"], foreignTable: "code_value" },
       { columns: ["to_code_value_id"], foreignTable: "code_value" },
       { columns: ["evidence_observation_id"], foreignTable: "raw_observation" },
+    ]));
+  });
+
+  test("enforces explicit, ordered code validity ranges", () => {
+    const checkNames = (table: Parameters<typeof getTableConfig>[0]) =>
+      getTableConfig(table).checks.map((check) => check.name);
+
+    expect(checkNames(codeValue)).toContain("code_value_valid_time_order");
+    expect(checkNames(codeMapping)).toEqual(expect.arrayContaining([
+      "code_mapping_has_validity_boundary",
+      "code_mapping_valid_time_order",
     ]));
   });
 

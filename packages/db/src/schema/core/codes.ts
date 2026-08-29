@@ -6,6 +6,8 @@ import {
   unique,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check } from "drizzle-orm/pg-core";
 import { rawObservation } from "../ingest/evidence.js";
 import { coreSchema } from "../namespaces.js";
 
@@ -33,7 +35,13 @@ export const codeValue = coreSchema.table(
     validTo: timestamp("valid_to", { withTimezone: true }),
     active: boolean("active").default(true).notNull(),
   },
-  (table) => [unique("code_value_scheme_code_key").on(table.codeSchemeId, table.code)],
+  (table) => [
+    unique("code_value_scheme_code_key").on(table.codeSchemeId, table.code),
+    check(
+      "code_value_valid_time_order",
+      sql`${table.validTo} is null or ${table.validFrom} is null or ${table.validTo} >= ${table.validFrom}`,
+    ),
+  ],
 );
 
 export const codeLabelObservation = coreSchema.table("code_label_observation", {
@@ -51,19 +59,32 @@ export const codeLabelObservation = coreSchema.table("code_label_observation", {
     .references(() => rawObservation.observationId),
 });
 
-export const codeMapping = coreSchema.table("code_mapping", {
-  codeMappingId: bigint("code_mapping_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
-  fromCodeValueId: bigint("from_code_value_id", { mode: "number" })
-    .notNull()
-    .references(() => codeValue.codeValueId),
-  toCodeValueId: bigint("to_code_value_id", { mode: "number" })
-    .notNull()
-    .references(() => codeValue.codeValueId),
-  relation: varchar("relation", { length: 32 }).notNull(),
-  validFrom: timestamp("valid_from", { withTimezone: true }),
-  validTo: timestamp("valid_to", { withTimezone: true }),
-  evidenceObservationId: bigint("evidence_observation_id", { mode: "number" })
-    .notNull()
-    .references(() => rawObservation.observationId),
-  status: varchar("status", { length: 32 }).notNull(),
-});
+export const codeMapping = coreSchema.table(
+  "code_mapping",
+  {
+    codeMappingId: bigint("code_mapping_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    fromCodeValueId: bigint("from_code_value_id", { mode: "number" })
+      .notNull()
+      .references(() => codeValue.codeValueId),
+    toCodeValueId: bigint("to_code_value_id", { mode: "number" })
+      .notNull()
+      .references(() => codeValue.codeValueId),
+    relation: varchar("relation", { length: 32 }).notNull(),
+    validFrom: timestamp("valid_from", { withTimezone: true }),
+    validTo: timestamp("valid_to", { withTimezone: true }),
+    evidenceObservationId: bigint("evidence_observation_id", { mode: "number" })
+      .notNull()
+      .references(() => rawObservation.observationId),
+    status: varchar("status", { length: 32 }).notNull(),
+  },
+  (table) => [
+    check(
+      "code_mapping_has_validity_boundary",
+      sql`${table.validFrom} is not null or ${table.validTo} is not null`,
+    ),
+    check(
+      "code_mapping_valid_time_order",
+      sql`${table.validTo} is null or ${table.validFrom} is null or ${table.validTo} >= ${table.validFrom}`,
+    ),
+  ],
+);
