@@ -1,0 +1,1102 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "1b5668e3-3582-4872-8986-66d95494746c",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "ddl": [
+    {
+      "name": "app",
+      "entityType": "schemas"
+    },
+    {
+      "name": "core",
+      "entityType": "schemas"
+    },
+    {
+      "name": "ingest",
+      "entityType": "schemas"
+    },
+    {
+      "name": "mart",
+      "entityType": "schemas"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "run",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "normalized_record",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "publication",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "raw_blob",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "raw_observation",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "request_unit",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "mode",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "build_sha",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "parser_version",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ended_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failure_category",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "captured_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "published_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "normalized_record_normalized_record_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "normalized_record_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "record_type",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_entity_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_payload",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "parser_version",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "publication_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "validated_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "activated_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "published_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_sha256",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "object_key",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "byte_length",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_type",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_encoding",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stored_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "raw_observation_observation_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_unit_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "endpoint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_params",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "fetched_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "http_status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_sha256",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_entity_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "schema_fingerprint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "parser_status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quarantine_reason",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "request_unit_request_unit_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "request_unit_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "endpoint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_params",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_params_hash",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observed_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "normalized_record_YVx965oGliOv_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "publication_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "raw_observation_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "request_unit_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "request_unit",
+      "columnsTo": [
+        "request_unit_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "raw_observation_mxWqbwvUOxBy_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "content_sha256"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_blob",
+      "columnsTo": [
+        "content_sha256"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "raw_observation_content_sha256_raw_blob_content_sha256_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "request_unit_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "columns": [
+        "run_id"
+      ],
+      "nameExplicit": false,
+      "name": "run_pkey",
+      "schema": "ingest",
+      "table": "run",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "normalized_record_id"
+      ],
+      "nameExplicit": false,
+      "name": "normalized_record_pkey",
+      "schema": "ingest",
+      "table": "normalized_record",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "publication_id"
+      ],
+      "nameExplicit": false,
+      "name": "publication_pkey",
+      "schema": "ingest",
+      "table": "publication",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "content_sha256"
+      ],
+      "nameExplicit": false,
+      "name": "raw_blob_pkey",
+      "schema": "ingest",
+      "table": "raw_blob",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "observation_id"
+      ],
+      "nameExplicit": false,
+      "name": "raw_observation_pkey",
+      "schema": "ingest",
+      "table": "raw_observation",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "request_unit_id"
+      ],
+      "nameExplicit": false,
+      "name": "request_unit_pkey",
+      "schema": "ingest",
+      "table": "request_unit",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "observation_id",
+        "record_type",
+        "source_entity_id",
+        "parser_version"
+      ],
+      "nullsNotDistinct": false,
+      "name": "normalized_record_observation_type_entity_parser_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "run_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "publication_run_id_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "object_key"
+      ],
+      "nullsNotDistinct": false,
+      "name": "raw_blob_object_key_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "run_id",
+        "source",
+        "endpoint",
+        "request_params_hash"
+      ],
+      "nullsNotDistinct": false,
+      "name": "request_unit_run_source_endpoint_params_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "value": "\"status\" in ('planned', 'running', 'failed', 'validated', 'published')",
+      "name": "run_status_allowed",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"expected_count\" >= 0",
+      "name": "run_expected_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"captured_count\" >= 0",
+      "name": "run_captured_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"published_count\" >= 0",
+      "name": "run_published_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"status\" in ('pending', 'validated', 'published', 'failed')",
+      "name": "publication_status_allowed",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"expected_count\" >= 0",
+      "name": "publication_expected_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"normalized_count\" >= 0",
+      "name": "publication_normalized_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"published_count\" >= 0",
+      "name": "publication_published_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"status\" not in ('validated', 'published') or \"validated_at\" is not null",
+      "name": "publication_validated_requires_validation_timestamp",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"status\" <> 'published' or (\n        \"validated_at\" is not null\n        and \"activated_at\" is not null\n        and \"expected_count\" = \"normalized_count\"\n        and \"normalized_count\" = \"published_count\"\n      )",
+      "name": "publication_published_requires_gate",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"byte_length\" >= 0",
+      "name": "raw_blob_byte_length_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "value": "\"parser_status\" in ('pending', 'normalized', 'quarantined')",
+      "name": "raw_observation_parser_status_allowed",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "value": "\"expected_count\" >= 0",
+      "name": "request_unit_expected_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "value": "\"observed_count\" >= 0",
+      "name": "request_unit_observed_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "request_unit"
+    }
+  ],
+  "renames": []
+}
