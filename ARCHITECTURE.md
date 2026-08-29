@@ -99,6 +99,7 @@ flowchart LR
 - [arc42 전체 서술](docs/architecture/arc42.md)
 - [레거시 폐기와 전환 경계](docs/architecture/legacy-disposition.md)
 - [용어집](docs/architecture/glossary.md)
+- [스택 거버넌스 감사](docs/architecture/stack/README.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [승인된 그린필드 설계 스펙](docs/superpowers/specs/2026-08-29-eatbid-greenfield-architecture-design.md)
 - [1단계 data-foundation 구현 계획](docs/superpowers/plans/2026-08-29-eatbid-data-foundation.md)

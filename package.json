@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "architecture:check": "node tools/architecture/check-stack-docs.mjs",
     "db:generate": "pnpm --filter @eatbid/shared db:generate",
     "db:push": "pnpm --filter @eatbid/shared db:push",
     "dataplane:test": "uv run --project apps/dataplane pytest apps/dataplane/tests",
