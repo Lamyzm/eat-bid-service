@@ -258,6 +258,14 @@ class PsycopgReplayRunRepository:
         topology_must_be_frozen = run_status in {"validated", "published"} or (
             run_status == "failed" and failure_category == "PROJECTION_CONTRACT"
         )
+        topology_may_be_partial = run_status == "running" or (
+            run_status == "failed"
+            and failure_category in {"SOURCE_CONTRACT", DATA_QUARANTINED}
+        )
+        if topology_may_be_partial and not topology.partial_coherent:
+            raise ReplayIntegrityError(
+                "replay partial topology contains structurally invalid lineage"
+            )
         if topology_must_be_frozen and (
             not topology.coherent or normalized_count != len(topology.member_ids)
         ):

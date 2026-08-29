@@ -57,6 +57,10 @@ fingerprint를 다시 검증한다. failed 재호출은 저장된 `DATA_QUARANTI
 topology verifier로 상태별 exact publication manifest를 검증한다. source/data failure는 빈 manifest,
 projection failure는 validated 시점의 exact frozen manifest여야 한다. 이 검증은 R2 read, attempt 추가,
 projection 재실행보다 먼저 일어나며 transient R2/DB 오류는 running 또는 validated 상태를 유지한다.
+running과 source/data failure의 incomplete topology는 shared partial invariant를 통과해야 한다. 아직 없는
+candidate attempt는 허용하지만 존재하는 attempt는 candidate별 최대 하나, current parser의
+normalized/quarantined final 상태만 허용한다. normalized attempt는 같은 observation/parser의 auction
+member 정확히 하나, quarantined attempt는 member 0개여야 하며 foreign/redistributed edge는 거부한다.
 
 publication validation은 current run/parser의 final attempt와 그 attempt-record member만 잠그고
 다시 센다. 완전성 gate를 통과한 exact normalized member ID 집합을
@@ -72,7 +76,9 @@ output parser는 current parser와 일치해야 하며 reviewed schema contract�
 candidate-to-member mapping을 검증한 뒤에만 동결하거나 terminal manifest와 비교한다. join table의
 미래 N:M 표현력 자체는 유지한다. failed terminal은 이후 외부 수정으로 승격하지 않는다.
 `SOURCE_CONTRACT`/`DATA_QUARANTINED`는 빈 manifest를,
-`PROJECTION_CONTRACT`는 coherent topology의 exact frozen manifest를 계속 검증한다.
+`PROJECTION_CONTRACT`는 coherent topology의 exact frozen manifest를 계속 검증한다. source/data
+failure는 completeness를 다시 요구하지 않지만 남아 있는 lineage의 partial structural coherence는
+계속 요구한다.
 
 ## Consequences
 

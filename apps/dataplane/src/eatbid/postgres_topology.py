@@ -36,7 +36,63 @@ class LockedAuctionTopology:
     current_attempts: tuple[LockedNormalizationAttempt, ...]
     members: tuple[LockedAuctionMember, ...]
     member_ids: tuple[int, ...]
-    coherent: bool
+
+    @property
+    def partial_coherent(self) -> bool:
+        """Accept an incomplete checkpoint only when its existing lineage is exact."""
+        candidate_set = set(self.candidate_ids)
+        attempt_observation_ids = tuple(
+            attempt.observation_id for attempt in self.attempts
+        )
+        attempt_by_id = {attempt.attempt_id: attempt for attempt in self.attempts}
+        members_by_attempt: dict[int, list[LockedAuctionMember]] = {
+            attempt_id: [] for attempt_id in attempt_by_id
+        }
+        for member in self.members:
+            owned = members_by_attempt.get(member.attempt_id)
+            if owned is None:
+                return False
+            owned.append(member)
+
+        if (
+            len(candidate_set) != len(self.candidate_ids)
+            or any(
+                observation_id not in candidate_set
+                for observation_id in attempt_observation_ids
+            )
+            or len(attempt_observation_ids) != len(set(attempt_observation_ids))
+            or self.attempts != self.current_attempts
+            or self.member_ids
+            != tuple(sorted(member.normalized_record_id for member in self.members))
+        ):
+            return False
+
+        for attempt in self.attempts:
+            owned = members_by_attempt[attempt.attempt_id]
+            if attempt.status == "quarantined":
+                if owned:
+                    return False
+                continue
+            if attempt.status != "normalized" or len(owned) != 1:
+                return False
+            member = owned[0]
+            if (
+                member.attempt_observation_id != attempt.observation_id
+                or member.observation_id != attempt.observation_id
+                or member.parser_version != attempt.parser_version
+                or member.record_type != "auction"
+            ):
+                return False
+        return True
+
+    @property
+    def coherent(self) -> bool:
+        """Require the partial invariant plus one normalized attempt per candidate."""
+        return (
+            self.partial_coherent
+            and len(self.attempts) == len(self.candidate_ids)
+            and all(attempt.status == "normalized" for attempt in self.attempts)
+        )
 
     @property
     def missing_current_attempts(self) -> int:
@@ -142,28 +198,10 @@ def lock_auction_topology(
     else:
         members = ()
 
-    attempt_observation_ids = tuple(attempt.observation_id for attempt in attempts)
-    member_attempt_ids = tuple(member.attempt_id for member in members)
-    coherent = (
-        len(attempts) == len(candidate_ids)
-        and attempt_observation_ids == candidate_ids
-        and all(attempt.parser_version == parser_version for attempt in attempts)
-        and all(attempt.status == "normalized" for attempt in attempts)
-        and len(members) == len(candidate_ids)
-        and len(set(member_attempt_ids)) == len(current_attempt_ids)
-        and set(member_attempt_ids) == set(current_attempt_ids)
-        and all(
-            member.attempt_observation_id == member.observation_id
-            and member.parser_version == parser_version
-            and member.record_type == "auction"
-            for member in members
-        )
-    )
     return LockedAuctionTopology(
         candidate_ids=candidate_ids,
         attempts=attempts,
         current_attempts=current_attempts,
         members=members,
         member_ids=tuple(sorted(member.normalized_record_id for member in members)),
-        coherent=coherent,
     )

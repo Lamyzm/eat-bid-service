@@ -77,6 +77,90 @@ def _capture(
     )
 
 
+def _unreviewed_body() -> bytes:
+    return (
+        FIXTURE.read_bytes()
+        .replace(
+            b"</ColumnInfo>",
+            b'<Column id="UNREVIEWED_FIELD" type="STRING"/></ColumnInfo>',
+            1,
+        )
+        .replace(b"</Row>", b'<Col id="UNREVIEWED_FIELD">new</Col></Row>', 1)
+    )
+
+
+def _insert_quarantined_attempt(
+    services: PipelineServices,
+    *,
+    run_id: UUID,
+    observation_id: int,
+    parser_version: str,
+) -> int:
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            insert into ingest.normalization_attempt (
+                run_id, observation_id, parser_version, status, attempted_at,
+                schema_fingerprint, quarantine_reason
+            ) values (%s, %s, %s, 'quarantined', %s, null, 'tamper')
+            returning normalization_attempt_id
+            """,
+            (run_id, observation_id, parser_version, VALIDATED_AT),
+        )
+        attempt_id = int(cursor.fetchone()[0])
+    services.connection.commit()
+    return attempt_id
+
+
+def _capture_pair(
+    services: PipelineServices, *, first_body: bytes | None = None
+) -> tuple[int, int]:
+    capture_run_id = start_run(services, expected_count=2)
+    return (
+        capture_detail(
+            services,
+            run_id=capture_run_id,
+            external_bid_id=f"replay-{uuid4().hex}",
+            body=first_body,
+        ),
+        capture_detail(
+            services,
+            run_id=capture_run_id,
+            external_bid_id=f"replay-{uuid4().hex}",
+        ),
+    )
+
+
+def _load_replay_state(
+    services: PipelineServices,
+    observation_ids: tuple[int, ...],
+    *,
+    run_id: UUID,
+    publication_id: UUID,
+) -> ReplayRunState:
+    return services.replay_repository.start_or_load(
+        run_id=run_id,
+        publication_id=publication_id,
+        observation_ids=observation_ids,
+        build_sha=BUILD_SHA,
+        parser_version="eat-v1",
+        started_at=REPLAY_STARTED_AT,
+    )
+
+
+def _normalize_replay_member(
+    services: PipelineServices, *, run_id: UUID, observation_id: int
+):
+    return normalize_observation(
+        processing_run_id=run_id,
+        observation_id=observation_id,
+        parser_version="eat-v1",
+        normalized_at=NORMALIZED_AT,
+        store=services.store,
+        repository=services.normalization_repository,
+    )
+
+
 def _run(
     services: PipelineServices,
     observation_ids: tuple[int, ...],
@@ -366,6 +450,14 @@ def test_replay_resumes_monotonically_from_partial_checkpoints(
         )
         assert validation.status == "validated"
 
+    loaded = _load_replay_state(
+        pipeline_services,
+        observation_ids,
+        run_id=run_id,
+        publication_id=publication_id,
+    )
+    assert loaded.status == ("validated" if checkpoint == "validated" else "running")
+
     result = _run(
         pipeline_services,
         observation_ids,
@@ -385,6 +477,104 @@ def test_replay_resumes_monotonically_from_partial_checkpoints(
             (publication_id,),
         )
         assert cursor.fetchone() == (2,)
+
+
+def test_replay_loads_and_resumes_one_of_many_quarantined_checkpoint(
+    pipeline_services: PipelineServices,
+) -> None:
+    observation_ids = _capture_pair(pipeline_services, first_body=b"<broken>")
+    run_id, publication_id = uuid4(), uuid4()
+    _load_replay_state(
+        pipeline_services,
+        observation_ids,
+        run_id=run_id,
+        publication_id=publication_id,
+    )
+    with pytest.raises(DataQuarantinedError):
+        _normalize_replay_member(
+            pipeline_services,
+            run_id=run_id,
+            observation_id=observation_ids[0],
+        )
+
+    loaded = _load_replay_state(
+        pipeline_services,
+        observation_ids,
+        run_id=run_id,
+        publication_id=publication_id,
+    )
+    assert loaded.status == "running"
+
+    with pytest.raises(DataQuarantinedError):
+        _run(
+            pipeline_services,
+            observation_ids,
+            run_id=run_id,
+            publication_id=publication_id,
+        )
+    terminal = _load_replay_state(
+        pipeline_services,
+        observation_ids,
+        run_id=run_id,
+        publication_id=publication_id,
+    )
+    assert (terminal.status, terminal.failure_category) == (
+        "failed",
+        "DATA_QUARANTINED",
+    )
+
+
+@pytest.mark.parametrize(
+    ("attempt_status", "failure_category"),
+    [
+        ("normalized", "SOURCE_CONTRACT"),
+        ("quarantined", "DATA_QUARANTINED"),
+    ],
+)
+def test_incomplete_replay_failure_preserves_structurally_valid_partial_topology(
+    pipeline_services: PipelineServices,
+    attempt_status: str,
+    failure_category: str,
+) -> None:
+    observation_ids = _capture_pair(
+        pipeline_services,
+        first_body=b"<broken>" if attempt_status == "quarantined" else None,
+    )
+    run_id, publication_id = uuid4(), uuid4()
+    _load_replay_state(
+        pipeline_services,
+        observation_ids,
+        run_id=run_id,
+        publication_id=publication_id,
+    )
+    if attempt_status == "quarantined":
+        with pytest.raises(DataQuarantinedError):
+            _normalize_replay_member(
+                pipeline_services,
+                run_id=run_id,
+                observation_id=observation_ids[0],
+            )
+    else:
+        _normalize_replay_member(
+            pipeline_services,
+            run_id=run_id,
+            observation_id=observation_ids[0],
+        )
+
+    validation = validate_run(
+        run_id=run_id,
+        publication_id=publication_id,
+        validated_at=VALIDATED_AT,
+        repository=pipeline_services.publication_repository,
+    )
+    assert validation.status == "failed"
+    loaded = _load_replay_state(
+        pipeline_services,
+        observation_ids,
+        run_id=run_id,
+        publication_id=publication_id,
+    )
+    assert (loaded.status, loaded.failure_category) == ("failed", failure_category)
 
 
 def test_two_replays_reuse_raw_record_and_revision_with_same_fingerprint(
@@ -490,6 +680,130 @@ def test_running_replay_rejects_hidden_publication_member(
             build_sha=BUILD_SHA,
             parser_version="eat-v1",
             started_at=REPLAY_STARTED_AT,
+        )
+
+
+@pytest.mark.parametrize("state", ["running", "source-contract", "quarantined"])
+def test_nonfrozen_replay_states_reject_extra_wrong_parser_attempt(
+    pipeline_services: PipelineServices,
+    state: str,
+) -> None:
+    body = (
+        _unreviewed_body()
+        if state == "source-contract"
+        else b"<broken>"
+        if state == "quarantined"
+        else None
+    )
+    observation_ids = _capture(pipeline_services, body=body)
+    run_id, publication_id = uuid4(), uuid4()
+    if state == "running":
+        _load_replay_state(
+            pipeline_services,
+            observation_ids,
+            run_id=run_id,
+            publication_id=publication_id,
+        )
+    else:
+        expected_error = (
+            SourceContractError if state == "source-contract" else DataQuarantinedError
+        )
+        with pytest.raises(expected_error):
+            _run(
+                pipeline_services,
+                observation_ids,
+                run_id=run_id,
+                publication_id=publication_id,
+            )
+    _insert_quarantined_attempt(
+        pipeline_services,
+        run_id=run_id,
+        observation_id=observation_ids[0],
+        parser_version="eat-v2",
+    )
+
+    with pytest.raises(ReplayIntegrityError, match="partial topology"):
+        _load_replay_state(
+            pipeline_services,
+            observation_ids,
+            run_id=run_id,
+            publication_id=publication_id,
+        )
+
+
+@pytest.mark.parametrize(
+    "tamper", ["foreign-attempt", "quarantined-foreign-edge", "two-zero"]
+)
+def test_running_replay_rejects_structurally_incoherent_partial_topology(
+    pipeline_services: PipelineServices,
+    tamper: str,
+) -> None:
+    if tamper == "quarantined-foreign-edge":
+        observation_ids = _capture_pair(pipeline_services, first_body=b"<broken>")
+    else:
+        observation_ids = _capture(pipeline_services, count=2)
+    run_id, publication_id = uuid4(), uuid4()
+    _load_replay_state(
+        pipeline_services,
+        observation_ids,
+        run_id=run_id,
+        publication_id=publication_id,
+    )
+
+    if tamper == "foreign-attempt":
+        foreign_observation_id = _capture(pipeline_services)[0]
+        _insert_quarantined_attempt(
+            pipeline_services,
+            run_id=run_id,
+            observation_id=foreign_observation_id,
+            parser_version="eat-v1",
+        )
+    elif tamper == "quarantined-foreign-edge":
+        with pytest.raises(DataQuarantinedError):
+            _normalize_replay_member(
+                pipeline_services,
+                run_id=run_id,
+                observation_id=observation_ids[0],
+            )
+        normalized = _normalize_replay_member(
+            pipeline_services,
+            run_id=run_id,
+            observation_id=observation_ids[1],
+        )
+        with pipeline_services.connection.cursor() as cursor:
+            cursor.execute(
+                "select normalization_attempt_id from ingest.normalization_attempt "
+                "where run_id = %s and observation_id = %s",
+                (run_id, observation_ids[0]),
+            )
+            quarantined_attempt_id = int(cursor.fetchone()[0])
+            cursor.execute(
+                "insert into ingest.normalization_attempt_record "
+                "(normalization_attempt_id, normalized_record_id) values (%s, %s)",
+                (quarantined_attempt_id, normalized.normalized_record_id),
+            )
+        pipeline_services.connection.commit()
+    else:
+        records = tuple(
+            _normalize_replay_member(
+                pipeline_services,
+                run_id=run_id,
+                observation_id=observation_id,
+            )
+            for observation_id in observation_ids
+        )
+        replace_attempt_record_edges(
+            pipeline_services,
+            records,
+            topology="two-zero",  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(ReplayIntegrityError, match="partial topology"):
+        _load_replay_state(
+            pipeline_services,
+            observation_ids,
+            run_id=run_id,
+            publication_id=publication_id,
         )
 
 

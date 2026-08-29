@@ -227,6 +227,9 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   lineage/source/hash와 재비교하고 relation은 purchaser 및 `(code_value_id, role)` 전체 set이 정확해야 한다.
 - candidate→attempt→record 잠금/검증은 source-agnostic PostgreSQL topology verifier가 단독 소유하며,
   Task 8 validation과 Task 9 projection은 같은 결과를 소비한다.
+- 같은 verifier의 partial invariant는 incomplete running/source/data-failed replay에서 missing candidate를
+  허용하되, 존재하는 current-parser final attempt와 normalized/quarantined별 정확한 1/0 member lineage만
+  허용한다. strict coherent는 모든 candidate가 normalized인 이 invariant의 refinement다.
 - terminal 재검증은 current attempt-record member를 다시 잠그고 계산하여 frozen sorted member
   set과 status/metadata/count를 정확히 비교한다. validated 상태는 failed request, request/candidate
   count drift, missing/mismatched/non-normalized attempt, output parser/type/observation drift, 미검토
@@ -235,6 +238,7 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   유지하지만 이 publication 계약에서는 cardinality나 global member set만 같아서는 통과하지 않는다.
   failed 상태는 외부 수정으로 승격하지 않는다. source/data failure는 빈 manifest를,
   projection failure는 coherent topology의 exact frozen manifest를 typed failure 반환보다 먼저 검증한다.
+  source/data completeness failure는 incomplete일 수 있지만 partial structural coherence는 필수다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
 - deterministic projection 충돌은 core write를 rollback하고 `PROJECTION_CONTRACT`로 실패시키되 이전
   `validated_at`과 frozen member를 보존한다. 실패 표시는 fresh connection transaction으로 내구화하고,
