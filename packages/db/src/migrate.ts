@@ -13,6 +13,18 @@ const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 
 export const migrationFolder = resolve(moduleDirectory, "../drizzle");
 
+export const migrationLockTimeoutMs = 5_000;
+export const migrationStatementTimeoutMs = 300_000;
+
+export const migrationClientOptions = {
+  max: 1,
+  connection: {
+    application_name: "eatbid-migrator",
+    lock_timeout: migrationLockTimeoutMs,
+    statement_timeout: migrationStatementTimeoutMs,
+  },
+} satisfies NonNullable<Parameters<typeof postgres>[1]>;
+
 type JournalRow = {
   id: number;
   name: string | null;
@@ -35,11 +47,19 @@ export function requireDatabaseUrl(value: string | undefined): string {
     throw new Error("DATABASE_URL must be a valid PostgreSQL URL");
   }
 
-  if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+  const isPostgreSql = url.protocol === "postgres:" || url.protocol === "postgresql:";
+  const hasAuthority = url.hostname.length > 0;
+  const hasDatabase = url.pathname.startsWith("/") && url.pathname.length > 1;
+
+  if (!isPostgreSql || !hasAuthority || !hasDatabase) {
     throw new Error("DATABASE_URL must be a valid PostgreSQL URL");
   }
 
   return value;
+}
+
+export function createMigrationClient(databaseUrl: string): ReturnType<typeof postgres> {
+  return postgres(databaseUrl, migrationClientOptions);
 }
 
 export async function assertSchemaVersion(
@@ -109,7 +129,7 @@ export async function migrate(): Promise<void> {
   await runMigration({
     databaseUrl: process.env.DATABASE_URL,
     connect: async (databaseUrl) => {
-      const client = postgres(databaseUrl, { max: 1 });
+      const client = createMigrationClient(databaseUrl);
       return {
         database: drizzle({ client }),
         close: async () => client.end(),
@@ -127,10 +147,22 @@ export async function migrate(): Promise<void> {
   });
 }
 
+export async function runMigrationCli(
+  run: () => Promise<void> = migrate,
+  writeError: (error: unknown) => void = console.error,
+): Promise<number> {
+  try {
+    await run();
+    return 0;
+  } catch (error) {
+    writeError(error instanceof Error ? error.message : error);
+    return 1;
+  }
+}
+
 const entrypoint = process.argv[1];
 if (entrypoint && resolve(entrypoint) === fileURLToPath(import.meta.url)) {
-  void migrate().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exitCode = 1;
+  void runMigrationCli().then((exitCode) => {
+    process.exitCode = exitCode;
   });
 }
