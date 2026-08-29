@@ -702,7 +702,9 @@ git commit -m "feat: record append-only source observations"
 **Files:**
 - Create: `packages/db/src/schema/ingest/lineage.ts`
 - Create: `packages/db/src/schema/ingest/lineage.test.ts`
+- Modify: `packages/db/src/schema/ingest/evidence.ts`
 - Modify: `packages/db/src/schema/ingest/index.ts`
+- Modify: `packages/db/src/schema/ingest.test.ts`
 - Modify: `packages/db/src/version.ts`
 - Modify: `packages/db/src/version.test.ts`
 - Modify: `packages/db/src/migrate.test.ts`
@@ -725,9 +727,14 @@ git commit -m "feat: record append-only source observations"
 - Create: `apps/dataplane/tests/unit/test_completeness.py`
 - Create: `apps/dataplane/tests/integration/test_normalize_validate.py`
 - Modify: `apps/dataplane/tests/integration/conftest.py`
+- Modify: `apps/dataplane/tests/integration/test_capture.py`
 - Modify: `apps/dataplane/src/eatbid/cli.py`
+- Modify: `apps/dataplane/src/eatbid/ingest/postgres_repository.py`
 - Modify: `apps/dataplane/pyproject.toml`
 - Modify: `apps/dataplane/uv.lock`
+- Create: `docs/adr/0013-normalization-attempt-lineage.md`
+- Modify: `docs/adr/README.md`
+- Modify: `docs/architecture/domain-and-data.md`
 - Modify: `docs/architecture/stack/application-runtime.md`
 - Modify: `docs/architecture/stack/contracts-and-validation.md`
 
@@ -744,14 +751,32 @@ git commit -m "feat: record append-only source observations"
   normalized_record_id)` freezes the validated output set; `ingest.replay_input(run_id,
   observation_id)` lets a later replay run consume existing evidence without fabricating a
   new HTTP observation or mutating its capture provenance.
+- Persists parser interpretation separately from HTTP evidence:
+  `normalization_attempt(run_id, observation_id, parser_version)` owns final
+  `normalized|quarantined` state, schema fingerprint, bounded reason and attempted time;
+  `normalization_attempt_record` links one attempt to one or more reusable normalized records.
+  The target `raw_observation` drops `source_entity_id`, `schema_fingerprint`, `parser_status`,
+  and `quarantine_reason` rather than serving as a mutable parser-state row.
 
 - [ ] **Step 1: lineage manifest와 source contract 실패 테스트 작성**
 
-먼저 Drizzle metadata test로 두 join table의 composite PK, non-null FK와 bigint/UUID
-identity boundary를 고정한다. `publication_record`는 같은 normalized record가 서로 다른
+먼저 Drizzle metadata test로 attempt와 세 join table의 keys, checks, non-null FK와
+bigint/UUID identity boundary를 고정한다. `publication_record`는 같은 normalized record가 서로 다른
 publication의 검증된 입력이 될 수 있으므로 `normalized_record_id` 단독 unique를 두지 않는다.
 `replay_input`도 원본 `raw_observation.run_id`를 바꾸지 않고 여러 명시적 replay run에서
-같은 evidence를 재사용할 수 있어야 한다. generated migration 외 handwritten DDL은 금지한다.
+같은 evidence를 재사용할 수 있어야 한다. `normalization_attempt_record`도 같은 deterministic
+normalized record를 여러 run/parser attempt가 재사용할 수 있어 `normalized_record_id` 단독
+unique를 두지 않는다. attempt는 `(run_id, observation_id, parser_version)` unique이고 상태별
+metadata check를 가진다. generated migration 외 handwritten DDL은 금지한다.
+
+새 generated migration은 기존 immutable migration을 수정하지 않고 다음 최종 상태를 만든다.
+
+- `raw_observation`은 HTTP 요청/응답·raw content address만 보존하며 parser 결과 column이 없다.
+- `normalization_attempt.status='normalized'`는 schema fingerprint가 있고 quarantine reason이 없다.
+- `status='quarantined'`는 normalized member 없이 reason이 있다; fingerprint는 parse 단계에
+  도달하지 못한 payload를 위해 nullable이다.
+- 성공 attempt는 `normalization_attempt_record`를 하나 이상 가져야 한다는 cross-row invariant를
+  repository transaction/test가 강제한다.
 
 그 다음 source identity, 안전한 XML, leading-zero 보존 테스트를 작성한다.
 
@@ -880,18 +905,26 @@ Decimal은 float를 거치지 않고 source string에서 변환하며 datetime�
 
 `normalization_repository.py`는 immutable input/result와 port만 소유하고,
 `postgres_normalization_repository.py`는 psycopg DML만 소유한다. `pipeline/normalize.py`는
-DB에서 pending observation을 읽고 object-store `read`로 raw를 복원한 뒤 parse/normalize한다.
+`processing_run_id`와 `observation_id`를 받아 DB에서 input을 읽고 object-store `read`로 raw를
+복원한 뒤 parse/normalize한다. capture/backfill은 processing run이 observation의 원래 run과
+같아야 하고, replay는 running replay run + exact `replay_input` membership가 있어야 한다.
+호출 parser version은 processing run의 version과 일치해야 하며 원래 capture run의 version으로
+고정하지 않는다.
 
 성공 transaction은 다음을 원자적으로 수행한다.
 
-1. observation/run을 lock하고 content hash/object key/request identity를 재검증한다.
+1. processing run, observation, request identity와 replay membership를 lock/revalidate한다.
 2. `(observation_id, record_type, source_entity_id, parser_version)`로 insert-or-verify한다.
 3. 기존 key가 있으면 normalized payload 전체가 같아야 하며 다르면 nondeterminism 오류다.
-4. `raw_observation.source_entity_id`, `schema_fingerprint`, `parser_status='normalized'`를 갱신한다.
+4. final `normalization_attempt`를 insert-or-verify하고 `normalization_attempt_record`로 exact
+   output record를 연결한다. `raw_observation`은 update하지 않는다.
 
 safe XML/Pydantic/source invariant 실패는 raw를 지우지 않고 별도 transaction에서
-`parser_status='quarantined'`, bounded `quarantine_reason`, `schema_fingerprint`(계산된 경우)를
-남긴 뒤 `DATA_QUARANTINED=65` typed error를 낸다. run-level `TOT_CNT`/schema/invariant
+해당 processing run의 final `normalization_attempt='quarantined'`, bounded reason,
+`schema_fingerprint`(계산된 경우)를 남긴 뒤 `DATA_QUARANTINED=65` typed error를 낸다.
+동일 attempt 재실행은 같은 결과를 반환/보고하고 normalized↔quarantined로 회귀하지 않는다.
+다른 replay run/parser attempt는 과거 결과를 덮어쓰지 않고 독립적으로 성공/격리될 수 있다.
+run-level `TOT_CNT`/schema/invariant
 위반은 `SOURCE_CONTRACT=76`으로 구분한다. DB/R2 장애를 source quarantine으로
 오분류하지 않는다. normalize/replay 재실행은 같은 parser version에서 동일 payload를 만들며
 normalized row와 count를 늘리지 않는다.
@@ -905,9 +938,11 @@ normalized row와 count를 늘리지 않는다.
 capture/backfill run의 candidate input은 원래 capture provenance인
 `raw_observation.run_id = run_id`로 정한다. `mode='replay'` run은 오직
 `replay_input(run_id, observation_id)` manifest로 input을 정하며 request unit이나 새 HTTP
-observation을 발명하지 않는다. 두 경로 모두 validation transaction 안에서 candidate
-normalized record ID 집합을 확정해 `publication_record`에 insert한다. 이후 projector는
-run join을 다시 계산하지 않고 이 manifest만 소비한다.
+observation을 발명하지 않는다. validation은 candidate마다 현재 run/parser version의 final
+`normalization_attempt`를 요구하고 quarantined/missing attempt를 센다. normalized attempt의
+`normalization_attempt_record`만 candidate normalized record ID가 된다. 그 집합을
+`publication_record`에 동결하며 이후 projector는 run join을 다시 계산하지 않고 이 manifest만
+소비한다.
 
 검증 transaction은 run과 모든 request unit/observation을 lock하고 DB에서 다음을 다시 센다.
 
@@ -932,7 +967,10 @@ validation 뒤 staging에 추가된 normalized row를 기존 publication에 암�
 재사용한다. integration test는 최소한 다음을 증명한다.
 
 - 동일 observation/parser normalize 두 번 → normalized row 1개, byte-equivalent payload.
-- malformed/entity XML → raw 보존, normalized row 0, observation quarantined.
+- malformed/entity XML → raw 보존, normalized row 0, run-scoped attempt quarantined.
+- 같은 raw를 새 replay run/parser version으로 normalize → 별도 attempt; 원래 attempt와
+  `raw_observation` 불변, 같은 parser면 existing normalized record 재사용, 새 parser면 새 key.
+- normalized/quarantined attempt 재호출은 idempotent하며 반대 상태로 덮어쓰지 않는다.
 - `TOT_CNT`/request count mismatch, quarantine, duplicate source entity, missing scheme 각각
   publication validated 0, 기존 active state 변경 0.
 - complete run → publication 1개 `validated`, run `validated`, core row 0.
@@ -944,6 +982,8 @@ validation 뒤 staging에 추가된 normalized row를 기존 publication에 암�
 `defusedxml`은 runtime dependency로 lock하고 stack audit에 stable 0.7.1, Python 공식
 untrusted-XML 권고, DTD/entity tests, 다음 stable major 검토 trigger를 기록한다. Pydantic
 `TypeAdapter`/Hypothesis audit은 이 task의 실제 source-fragment/count 사용을 반영한다.
+ADR 0013과 `domain-and-data.md`는 immutable raw evidence → run-scoped interpretation attempt →
+frozen publication member의 one-way lineage를 문서화한다.
 
 Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
 
