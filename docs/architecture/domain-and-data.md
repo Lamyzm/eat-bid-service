@@ -201,7 +201,10 @@ attempt를 만든다.
 - 검증된 exact normalized record ID는 `publication_record`에 동결하며 projector는 이
   manifest만 소비한다.
 - terminal 재검증은 current attempt-record member를 다시 잠그고 계산하여 frozen sorted member
-  set과 status/metadata/count를 정확히 비교한다. cardinality만 같아서는 통과하지 않는다.
+  set과 status/metadata/count를 정확히 비교한다. validated 상태는 failed request, request/candidate
+  count drift, missing/mismatched/non-normalized attempt, output parser drift, 미검토 schema contract가
+  하나라도 있으면 거부한다. cardinality만 같아서는 통과하지 않는다. failed 상태는 외부 수정으로
+  승격하지 않으며 저장된 failed metadata와 빈 manifest를 검증한다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
 - mart는 영향받은 partition/cohort를 새 build ID로 만든 뒤 원자적으로 활성화한다.
 - 재처리는 `replay_input`의 raw observation 집합과 processing parser/projector version을

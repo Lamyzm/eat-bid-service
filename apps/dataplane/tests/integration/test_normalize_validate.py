@@ -97,6 +97,15 @@ def capture_run_id(services: PipelineServices, observation_id: int) -> UUID:
         return cursor.fetchone()[0]
 
 
+def publication_run_id(services: PipelineServices, publication_id: UUID) -> UUID:
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "select run_id from ingest.publication where publication_id = %s",
+            (publication_id,),
+        )
+        return cursor.fetchone()[0]
+
+
 def normalize_one(
     services: PipelineServices,
     observation_id: int,
@@ -1113,6 +1122,137 @@ def test_terminal_revalidation_rejects_publication_status_drift(
         validate_run(
             run_id=normalized.run_id,
             publication_id=publication_id,
+            validated_at=VALIDATED_AT + timedelta(hours=1),
+            repository=pipeline_services.publication_repository,
+        )
+
+
+def test_terminal_revalidation_rejects_quarantined_current_attempt(
+    pipeline_services: PipelineServices, validated_publication: UUID
+) -> None:
+    run_id = publication_run_id(pipeline_services, validated_publication)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            update ingest.normalization_attempt
+            set status = 'quarantined', quarantine_reason = 'synthetic terminal drift'
+            where run_id = %s and parser_version = 'eat-v1'
+            """,
+            (run_id,),
+        )
+        assert cursor.rowcount == 1
+    pipeline_services.connection.commit()
+
+    with pytest.raises(PublicationIntegrityError, match="ledger"):
+        validate_run(
+            run_id=run_id,
+            publication_id=validated_publication,
+            validated_at=VALIDATED_AT + timedelta(hours=1),
+            repository=pipeline_services.publication_repository,
+        )
+
+
+def test_terminal_revalidation_rejects_extra_parser_attempt(
+    pipeline_services: PipelineServices, validated_publication: UUID
+) -> None:
+    run_id = publication_run_id(pipeline_services, validated_publication)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            insert into ingest.normalization_attempt (
+                run_id, observation_id, parser_version, status, attempted_at,
+                schema_fingerprint, quarantine_reason
+            )
+            select run_id, observation_id, 'eat-v2', 'quarantined', %s, null,
+                   'synthetic parser mismatch'
+            from ingest.normalization_attempt
+            where run_id = %s and parser_version = 'eat-v1'
+            """,
+            (NORMALIZED_AT + timedelta(minutes=1), run_id),
+        )
+        assert cursor.rowcount == 1
+    pipeline_services.connection.commit()
+
+    with pytest.raises(PublicationIntegrityError, match="ledger"):
+        validate_run(
+            run_id=run_id,
+            publication_id=validated_publication,
+            validated_at=VALIDATED_AT + timedelta(hours=1),
+            repository=pipeline_services.publication_repository,
+        )
+
+
+def test_terminal_revalidation_rejects_failed_request(
+    pipeline_services: PipelineServices, validated_publication: UUID
+) -> None:
+    run_id = publication_run_id(pipeline_services, validated_publication)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "update ingest.request_unit set status = 'failed' where run_id = %s",
+            (run_id,),
+        )
+        assert cursor.rowcount == 1
+    pipeline_services.connection.commit()
+
+    with pytest.raises(PublicationIntegrityError, match="ledger"):
+        validate_run(
+            run_id=run_id,
+            publication_id=validated_publication,
+            validated_at=VALIDATED_AT + timedelta(hours=1),
+            repository=pipeline_services.publication_repository,
+        )
+
+
+def test_terminal_revalidation_rejects_candidate_count_drift(
+    pipeline_services: PipelineServices, validated_publication: UUID
+) -> None:
+    run_id = publication_run_id(pipeline_services, validated_publication)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            insert into ingest.raw_observation (
+                run_id, request_unit_id, source, endpoint, request_params,
+                fetched_at, http_status, content_sha256
+            )
+            select run_id, request_unit_id, source, endpoint, request_params,
+                   fetched_at + interval '1 second', http_status, content_sha256
+            from ingest.raw_observation
+            where run_id = %s
+            """,
+            (run_id,),
+        )
+        assert cursor.rowcount == 1
+    pipeline_services.connection.commit()
+
+    with pytest.raises(PublicationIntegrityError, match="ledger"):
+        validate_run(
+            run_id=run_id,
+            publication_id=validated_publication,
+            validated_at=VALIDATED_AT + timedelta(hours=1),
+            repository=pipeline_services.publication_repository,
+        )
+
+
+def test_terminal_revalidation_rejects_request_count_drift(
+    pipeline_services: PipelineServices, validated_publication: UUID
+) -> None:
+    run_id = publication_run_id(pipeline_services, validated_publication)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            update ingest.request_unit
+            set expected_count = 2, observed_count = 2
+            where run_id = %s
+            """,
+            (run_id,),
+        )
+        assert cursor.rowcount == 1
+    pipeline_services.connection.commit()
+
+    with pytest.raises(PublicationIntegrityError, match="ledger"):
+        validate_run(
+            run_id=run_id,
+            publication_id=validated_publication,
             validated_at=VALIDATED_AT + timedelta(hours=1),
             repository=pipeline_services.publication_repository,
         )

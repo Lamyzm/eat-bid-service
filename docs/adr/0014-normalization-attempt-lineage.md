@@ -40,7 +40,11 @@ publication validation은 current run/parser의 final attempt와 그 attempt-rec
 입력은 이 manifest이며 raw/run join을 다시 계산하지 않는다.
 terminal 재검증도 빠르게 저장 count만 반환하지 않는다. candidate observation에서 current
 run/parser attempt와 attempt-record exact sorted member set을 다시 잠그고 계산한 뒤 run/publication
-status, metadata, count, frozen member와 모두 비교한다.
+status, metadata, count, frozen member와 모두 비교한다. validated terminal은 failed request가 없고,
+request/candidate/run expected/output count가 정확하며, candidate마다 current-parser attempt가 정확히
+하나이고 모두 `normalized`이고, 다른 parser attempt가 없고, 모든 output parser와 reviewed schema
+contract가 일치하는 complete ledger invariant도 다시 통과해야 한다. failed terminal은 이후 외부
+수정으로 승격하지 않고 저장된 failed metadata와 빈 manifest를 계속 검증한다.
 
 ## Consequences
 

@@ -110,10 +110,29 @@ class PsycopgPublicationRepository:
             duplicate_source_entities = len(source_entities) - len(set(source_entities))
             missing_schemes = self._missing_schemes(cursor)
             member_ids = tuple(sorted(int(row[0]) for row in outputs))
+            report = completeness_validator(
+                request_counts=request_counts,
+                normalized=len(outputs),
+                quarantined=quarantined + missing_attempts,
+                duplicate_source_entities=duplicate_source_entities,
+                missing_code_schemes=missing_schemes,
+                schema_contract_violations=schema_contract_violations,
+            )
+            ledger_coherent = (
+                failed_requests == 0
+                and len(observations) == int(expected_count)
+                and len(outputs) == len(observations)
+                and len(matching_attempts) == len(observations)
+                and all(row[3] == "normalized" for row in matching_attempts)
+                and parser_mismatches == 0
+                and all(row[3] == parser_version for row in outputs)
+            )
             if status in {"validated", "failed"}:
-                if status == "validated" and schema_contract_violations:
+                if status == "validated" and not (
+                    report.publishable and ledger_coherent
+                ):
                     raise PublicationIntegrityError(
-                        "validated publication no longer matches a reviewed schema contract"
+                        "validated publication ledger is no longer complete"
                     )
                 return self._load_existing(
                     cursor,
@@ -130,22 +149,6 @@ class PsycopgPublicationRepository:
                     current_normalized_count=len(outputs),
                     current_member_ids=member_ids,
                 )
-            report = completeness_validator(
-                request_counts=request_counts,
-                normalized=len(outputs),
-                quarantined=quarantined + missing_attempts,
-                duplicate_source_entities=duplicate_source_entities,
-                missing_code_schemes=missing_schemes,
-                schema_contract_violations=schema_contract_violations,
-            )
-            ledger_coherent = (
-                failed_requests == 0
-                and len(observations) == int(expected_count)
-                and len(outputs) == len(observations)
-                and len(matching_attempts) == len(observations)
-                and parser_mismatches == 0
-                and all(row[3] == parser_version for row in outputs)
-            )
             if report.publishable and ledger_coherent:
                 self._persist_validated(
                     cursor,
