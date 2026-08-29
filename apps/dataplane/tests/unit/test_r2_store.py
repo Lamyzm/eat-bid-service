@@ -19,7 +19,8 @@ from eatbid.r2_store import (
     R2RawObjectStore,
     R2Settings,
 )
-from fakes import FakeS3Object, StatefulFakeS3Client, client_error
+
+from .fakes import FakeS3Object, StatefulFakeS3Client, client_error
 
 
 def settings() -> R2Settings:

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -9,11 +10,13 @@ from eatbid.object_store import (
     build_raw_object_key,
     parse_raw_object_key,
 )
+from eatbid.source.client import SourceResponse
 
 
 class MemoryRawObjectStore:
-    def __init__(self) -> None:
+    def __init__(self, now: Callable[[], datetime] | None = None) -> None:
         self._objects: dict[str, tuple[bytes, StoredRawObject]] = {}
+        self._now = now if now is not None else lambda: datetime.now(UTC)
 
     def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
         object_key = build_raw_object_key(source=source, endpoint=endpoint, body=body)
@@ -25,7 +28,7 @@ class MemoryRawObjectStore:
             content_sha256=address.content_sha256,
             object_key=object_key,
             byte_length=len(body),
-            stored_at=datetime.now(UTC),
+            stored_at=self._now(),
         )
         self._objects[object_key] = (body, stored)
         return stored
@@ -33,6 +36,42 @@ class MemoryRawObjectStore:
     def read(self, object_key: str) -> bytes:
         parse_raw_object_key(object_key)
         return self._objects[object_key][0]
+
+    @property
+    def object_count(self) -> int:
+        return len(self._objects)
+
+
+class RecordingStore:
+    def __init__(self, events: list[str]) -> None:
+        self._delegate = MemoryRawObjectStore()
+        self._events = events
+
+    def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
+        stored = self._delegate.put(source=source, endpoint=endpoint, body=body)
+        self._events.append("object_stored")
+        return stored
+
+    def read(self, object_key: str) -> bytes:
+        return self._delegate.read(object_key)
+
+
+class FailingRawObjectStore:
+    def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
+        raise RuntimeError("archive unavailable")
+
+    def read(self, object_key: str) -> bytes:
+        raise KeyError(object_key)
+
+
+class StaticSourceClient:
+    def __init__(self, response: SourceResponse) -> None:
+        self.response = response
+        self.requests: list[object] = []
+
+    def fetch(self, request: object) -> SourceResponse:
+        self.requests.append(request)
+        return self.response
 
 
 @dataclass

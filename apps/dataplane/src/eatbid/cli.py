@@ -3,6 +3,8 @@ from collections.abc import Sequence
 
 COMMANDS = ("discover", "capture", "normalize", "validate", "project", "replay")
 CONFIGURATION_EXIT_CODE = 64
+SOURCE_THROTTLED_EXIT_CODE = 75
+SOURCE_CONTRACT_EXIT_CODE = 76
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,4 +20,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     build_parser().parse_args(argv)
+    return CONFIGURATION_EXIT_CODE
+
+
+def exit_code_for_error(error: Exception) -> int:
+    from eatbid.pipeline.capture import SourceContractError, SourceThrottledError
+
+    if isinstance(error, SourceThrottledError):
+        return SOURCE_THROTTLED_EXIT_CODE
+    if isinstance(error, SourceContractError):
+        return SOURCE_CONTRACT_EXIT_CODE
     return CONFIGURATION_EXIT_CODE

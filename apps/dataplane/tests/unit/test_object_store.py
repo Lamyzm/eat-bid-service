@@ -11,7 +11,8 @@ from eatbid.object_store import (
     parse_raw_object_key,
     raw_content_sha256,
 )
-from fakes import MemoryRawObjectStore
+
+from .fakes import MemoryRawObjectStore
 
 
 @settings(max_examples=40, deadline=None, derandomize=True)

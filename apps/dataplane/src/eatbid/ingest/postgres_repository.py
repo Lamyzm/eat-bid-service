@@ -1,0 +1,320 @@
+from __future__ import annotations
+
+import re
+from collections.abc import Mapping
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+import psycopg
+from psycopg.types.json import Jsonb
+
+from eatbid.ingest.models import (
+    CapturedObservation,
+    CaptureRequest,
+    PlannedRequestUnit,
+)
+from eatbid.ingest.repository import request_params_sha256
+from eatbid.object_store import StoredRawObject
+from eatbid.source.client import SourceResponse
+
+_CONTENT_TYPE = "application/xml"
+_CONTENT_ENCODING = "gzip"
+_BUILD_SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
+
+
+class IngestIntegrityError(RuntimeError):
+    """The persisted run ledger does not match the planned capture identity."""
+
+
+class PlannedRequestMismatchError(IngestIntegrityError):
+    """A capture does not match its preplanned request unit."""
+
+
+class RawBlobIntegrityError(IngestIntegrityError):
+    """A content hash exists with conflicting raw-object metadata."""
+
+
+class TerminalCaptureStateError(IngestIntegrityError):
+    """A failed request or run cannot accept another observation."""
+
+
+class PsycopgObservationRepository:
+    def __init__(self, connection: psycopg.Connection[Any]) -> None:
+        self._connection = connection
+
+    def start_run(
+        self,
+        *,
+        run_id: UUID,
+        mode: str,
+        build_sha: str,
+        parser_version: str,
+        started_at: datetime,
+        expected_count: int,
+    ) -> None:
+        _require_nonnegative(expected_count, "expected_count")
+        _require_aware(started_at, "started_at")
+        if not mode or not parser_version or _BUILD_SHA_PATTERN.fullmatch(build_sha) is None:
+            raise ValueError("run metadata is invalid")
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                insert into ingest.run (
+                    run_id, mode, status, build_sha, parser_version, started_at,
+                    expected_count, captured_count, published_count
+                ) values (%s, %s, 'running', %s, %s, %s, %s, 0, 0)
+                """,
+                (run_id, mode, build_sha, parser_version, started_at, expected_count),
+            )
+
+    def plan_request_unit(
+        self,
+        *,
+        run_id: UUID,
+        source: str,
+        endpoint: str,
+        params: Mapping[str, str],
+        expected_count: int,
+    ) -> PlannedRequestUnit:
+        _require_nonnegative(expected_count, "expected_count")
+        validated = CaptureRequest(1, run_id, source, endpoint, params)
+        digest = request_params_sha256(validated.params)
+        params_copy = dict(validated.params)
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                insert into ingest.request_unit (
+                    run_id, source, endpoint, request_params,
+                    request_params_hash, expected_count, observed_count, status
+                ) values (%s, %s, %s, %s, %s, %s, 0, 'planned')
+                on conflict (run_id, source, endpoint, request_params_hash) do nothing
+                returning request_unit_id
+                """,
+                (run_id, source, endpoint, Jsonb(params_copy), digest, expected_count),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                cursor.execute(
+                    """
+                    select request_unit_id, request_params, expected_count
+                    from ingest.request_unit
+                    where run_id = %s and source = %s and endpoint = %s
+                      and request_params_hash = %s
+                    for update
+                    """,
+                    (run_id, source, endpoint, digest),
+                )
+                row = cursor.fetchone()
+                if row is None or row[1:] != (params_copy, expected_count):
+                    raise PlannedRequestMismatchError(
+                        "existing request plan conflicts with requested metadata"
+                    )
+        return PlannedRequestUnit(
+            request_unit_id=int(row[0]),
+            run_id=run_id,
+            source=source,
+            endpoint=endpoint,
+            params=params_copy,
+            request_params_hash=digest,
+        )
+
+    def record_observation(
+        self,
+        *,
+        request: CaptureRequest,
+        response: SourceResponse,
+        stored: StoredRawObject,
+        failure_category: str | None,
+    ) -> CapturedObservation:
+        _require_aware(stored.stored_at, "stored_at")
+        params_hash = request_params_sha256(request.params)
+        params_copy = dict(request.params)
+        failed = failure_category is not None
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            self._lock_and_verify_request(
+                cursor,
+                request=request,
+                params_hash=params_hash,
+                params=params_copy,
+            )
+            cursor.execute(
+                """
+                insert into ingest.raw_blob (
+                    content_sha256, object_key, byte_length, content_type,
+                    content_encoding, stored_at
+                ) values (%s, %s, %s, %s, %s, %s)
+                on conflict (content_sha256) do nothing
+                """,
+                (
+                    stored.content_sha256,
+                    stored.object_key,
+                    stored.byte_length,
+                    _CONTENT_TYPE,
+                    _CONTENT_ENCODING,
+                    stored.stored_at,
+                ),
+            )
+            self._lock_and_verify_blob(cursor, stored)
+            cursor.execute(
+                """
+                insert into ingest.raw_observation (
+                    run_id, request_unit_id, source, endpoint, request_params,
+                    fetched_at, http_status, content_sha256, parser_status
+                ) values (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
+                returning observation_id
+                """,
+                (
+                    request.run_id,
+                    request.request_unit_id,
+                    request.source,
+                    request.endpoint,
+                    Jsonb(params_copy),
+                    response.fetched_at,
+                    response.status_code,
+                    stored.content_sha256,
+                ),
+            )
+            observation = cursor.fetchone()
+            cursor.execute(
+                """
+                update ingest.request_unit
+                set observed_count = observed_count + 1,
+                    status = case when status = 'failed' or %s then 'failed' else 'captured' end
+                where request_unit_id = %s and run_id = %s
+                """,
+                (failed, request.request_unit_id, request.run_id),
+            )
+            if cursor.rowcount != 1:
+                raise PlannedRequestMismatchError("planned request unit disappeared")
+            cursor.execute(
+                """
+                update ingest.run
+                set captured_count = captured_count + 1,
+                    status = case when status = 'failed' or %s then 'failed' else 'running' end,
+                    failure_category = case when %s then %s else failure_category end,
+                    ended_at = case when %s then %s else ended_at end
+                where run_id = %s
+                """,
+                (
+                    failed,
+                    failed,
+                    failure_category,
+                    failed,
+                    response.fetched_at,
+                    request.run_id,
+                ),
+            )
+            if cursor.rowcount != 1 or observation is None:
+                raise IngestIntegrityError("run ledger update failed")
+        return CapturedObservation(
+            observation_id=int(observation[0]),
+            content_sha256=stored.content_sha256,
+            object_key=stored.object_key,
+            fetched_at=response.fetched_at,
+        )
+
+    def fail_run(
+        self, *, run_id: UUID, failure_category: str, failed_at: datetime
+    ) -> None:
+        _require_aware(failed_at, "failed_at")
+        if not failure_category:
+            raise ValueError("failure_category is required")
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                select status, failure_category, ended_at
+                from ingest.run where run_id = %s
+                for update
+                """,
+                (run_id,),
+            )
+            current = cursor.fetchone()
+            if current is None:
+                raise IngestIntegrityError("run does not exist")
+            if current[0] == "failed":
+                if current[1:] == (failure_category, failed_at):
+                    return
+                raise TerminalCaptureStateError(
+                    "failed run metadata cannot be overwritten"
+                )
+            if current[0] not in {"planned", "running"}:
+                raise TerminalCaptureStateError(
+                    "validated or published runs cannot be failed"
+                )
+            cursor.execute(
+                """
+                update ingest.run
+                set status = 'failed', failure_category = %s, ended_at = %s
+                where run_id = %s
+                """,
+                (failure_category, failed_at, run_id),
+            )
+            if cursor.rowcount != 1:
+                raise IngestIntegrityError("run update failed")
+
+    @staticmethod
+    def _lock_and_verify_request(
+        cursor: psycopg.Cursor[Any],
+        *,
+        request: CaptureRequest,
+        params_hash: str,
+        params: dict[str, str],
+    ) -> None:
+        cursor.execute(
+            """
+            select unit.source, unit.endpoint, unit.request_params,
+                   unit.request_params_hash, unit.status, run.status
+            from ingest.request_unit unit
+            join ingest.run run on run.run_id = unit.run_id
+            where unit.request_unit_id = %s and unit.run_id = %s
+            for update of unit, run
+            """,
+            (request.request_unit_id, request.run_id),
+        )
+        row = cursor.fetchone()
+        if row is None or row[:4] != (
+            request.source,
+            request.endpoint,
+            params,
+            params_hash,
+        ):
+            raise PlannedRequestMismatchError("capture does not match planned request")
+        if row[4] == "failed" or row[5] == "failed":
+            raise TerminalCaptureStateError(
+                "failed request and run states cannot be recaptured"
+            )
+
+    @staticmethod
+    def _lock_and_verify_blob(
+        cursor: psycopg.Cursor[Any], stored: StoredRawObject
+    ) -> None:
+        cursor.execute(
+            """
+            select object_key, byte_length, content_type, content_encoding, stored_at
+            from ingest.raw_blob
+            where content_sha256 = %s
+            for update
+            """,
+            (stored.content_sha256,),
+        )
+        row = cursor.fetchone()
+        expected = (
+            stored.object_key,
+            stored.byte_length,
+            _CONTENT_TYPE,
+            _CONTENT_ENCODING,
+            stored.stored_at,
+        )
+        if row != expected:
+            raise RawBlobIntegrityError("raw blob metadata conflicts with its digest")
+
+
+def _require_aware(value: datetime, field_name: str) -> None:
+    if value.utcoffset() is None:
+        raise ValueError(f"{field_name} must be timezone-aware")
+
+
+def _require_nonnegative(value: int, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{field_name} must be a nonnegative integer")
