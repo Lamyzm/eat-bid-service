@@ -12,6 +12,18 @@ import yaml
 ARGO_KINDS = {"CronWorkflow", "WorkflowTemplate"}
 RBAC_API_VERSION = "rbac.authorization.k8s.io/v1"
 RBAC_KINDS = {"Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding"}
+RBAC_TOP_LEVEL_FIELDS = {
+    "Role": {"apiVersion", "kind", "metadata", "rules"},
+    "ClusterRole": {"apiVersion", "kind", "metadata", "rules"},
+    "RoleBinding": {"apiVersion", "kind", "metadata", "roleRef", "subjects"},
+    "ClusterRoleBinding": {
+        "apiVersion",
+        "kind",
+        "metadata",
+        "roleRef",
+        "subjects",
+    },
+}
 CONTROLLER = "eatbid-argo-workflows-workflow-controller"
 EXECUTOR = "eatbid-argo-workflows-workflow"
 CRD_INSTALLER = "eatbid-argo-workflows-crd-install"
@@ -171,6 +183,15 @@ def _assert_exact_mapping(
         raise ValueError(f"unexpected {field}: {actual!r}")
 
 
+def _reject_applyable_wrappers(documents: Sequence[Manifest]) -> None:
+    for document in documents:
+        kind = document.get("kind")
+        if not isinstance(kind, str) or not kind:
+            raise ValueError("rendered Kubernetes document has no valid kind")
+        if kind.endswith("List") or "items" in document:
+            raise ValueError("List-like Kubernetes documents are forbidden")
+
+
 def _verify_exact_rbac(documents: Sequence[Manifest], *, namespace: str) -> None:
     rbac = [document for document in documents if document.get("kind") in RBAC_KINDS]
     identities = [
@@ -200,6 +221,10 @@ def _verify_exact_rbac(documents: Sequence[Manifest], *, namespace: str) -> None
     for document in rbac:
         if document.get("apiVersion") != RBAC_API_VERSION:
             raise ValueError(f"{_name(document)!r} has unexpected RBAC apiVersion")
+        if set(document) != RBAC_TOP_LEVEL_FIELDS[str(document["kind"])]:
+            raise ValueError(
+                f"{_name(document)!r} has unexpected top-level RBAC fields"
+            )
 
     controller_role = by_identity[("Role", CONTROLLER, namespace)]
     executor_role = by_identity[("Role", EXECUTOR, None)]
@@ -262,6 +287,7 @@ def application_values(application_path: Path) -> Manifest:
 def verify_chart_render(rendered_path: Path, *, namespace: str) -> None:
     documents = _documents(rendered_path)
 
+    _reject_applyable_wrappers(documents)
     _verify_exact_rbac(documents, namespace=namespace)
 
     deployments = [

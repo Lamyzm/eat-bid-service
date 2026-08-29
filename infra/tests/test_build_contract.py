@@ -83,6 +83,9 @@ def test_ci_strictly_lints_exact_argo_and_helm_render_contracts() -> None:
         in command
     )
     assert "lint --offline --strict" in command
+    assert "infra/tests/fixtures/argo-workflows-extra-list.values.yaml" in command
+    assert "adversarial-chart.yaml" in command
+    assert "List-like Kubernetes documents are forbidden" in command
     assert "kubectl apply" not in command
 
 

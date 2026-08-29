@@ -204,6 +204,10 @@ def test_exact_pinned_chart_rbac_contract_is_accepted(tmp_path: Path) -> None:
         "controller-duplicate-subject",
         "extra-dataplane-cluster-admin-binding",
         "unrestricted-controller-secret-get",
+        "list-wrapped-dataplane-cluster-admin-binding",
+        "role-binding-list-wrapped-cluster-admin-binding",
+        "renamed-list-wrapper",
+        "crd-aggregation-rule",
     ],
 )
 def test_rbac_attack_is_rejected(tmp_path: Path, attack: str) -> None:
@@ -240,6 +244,39 @@ def test_rbac_attack_is_rejected(tmp_path: Path, attack: str) -> None:
         }
         binding["subjects"] = [{"kind": "ServiceAccount", "name": "eatbid-dataplane"}]
         documents.append(binding)
+    elif attack in {
+        "list-wrapped-dataplane-cluster-admin-binding",
+        "role-binding-list-wrapped-cluster-admin-binding",
+        "renamed-list-wrapper",
+    }:
+        binding = _role("RoleBinding", "dataplane-cluster-admin", namespace="eatbid")
+        binding["roleRef"] = {
+            "apiGroup": "rbac.authorization.k8s.io",
+            "kind": "ClusterRole",
+            "name": "cluster-admin",
+        }
+        binding["subjects"] = [{"kind": "ServiceAccount", "name": "eatbid-dataplane"}]
+        documents.append(
+            {
+                "apiVersion": "v1",
+                "kind": (
+                    "List"
+                    if attack == "list-wrapped-dataplane-cluster-admin-binding"
+                    else (
+                        "RoleBindingList"
+                        if attack == "role-binding-list-wrapped-cluster-admin-binding"
+                        else "PrivilegeBundle"
+                    )
+                ),
+                "items": [binding],
+            }
+        )
+    elif attack == "crd-aggregation-rule":
+        _document(documents, "ClusterRole", CRD_INSTALLER)["aggregationRule"] = {
+            "clusterRoleSelectors": [
+                {"matchLabels": {"rbac.eatbid.dev/aggregate": "true"}}
+            ]
+        }
     else:
         controller = _document(documents, "Role", CONTROLLER)
         secret_rule = next(

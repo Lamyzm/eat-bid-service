@@ -115,6 +115,24 @@ jobs:
             --values /verification/values.yaml > "$verification_dir/chart.yaml"
           uv run --project apps/dataplane python infra/verify_argo_platform.py \
             verify "$verification_dir/chart.yaml" --namespace eatbid
+          docker run --rm \
+            --volume "$verification_dir:/verification:ro" \
+            --volume "$PWD:/workspace:ro" \
+            alpine/helm@sha256:a572075a78666ad6fb1f40cb477a9e2eabbc46f3739beeb81904a6121f6ef027 \
+            template eatbid-argo-workflows argo-workflows \
+            --repo https://argoproj.github.io/argo-helm \
+            --version 1.0.23 --namespace eatbid \
+            --values /verification/values.yaml \
+            --values /workspace/infra/tests/fixtures/argo-workflows-extra-list.values.yaml \
+            > "$verification_dir/adversarial-chart.yaml"
+          if uv run --project apps/dataplane python infra/verify_argo_platform.py \
+            verify "$verification_dir/adversarial-chart.yaml" --namespace eatbid \
+            2> "$verification_dir/adversarial-error.txt"; then
+            echo "Verifier accepted Helm extraObjects List wrapper" >&2
+            exit 1
+          fi
+          grep -F "List-like Kubernetes documents are forbidden" \
+            "$verification_dir/adversarial-error.txt"
           kubectl kustomize infra/product > "$verification_dir/product.yaml"
           uv run --project apps/dataplane python infra/verify_argo_platform.py \
             filter-workflows \
