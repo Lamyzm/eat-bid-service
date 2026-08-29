@@ -114,18 +114,25 @@ def test_repository_rejects_factory_output_not_bound_to_locked_member(
     "changes",
     [
         {"normalized_record_id": 0},
+        {"normalized_record_id": True},
+        {"normalized_record_id": "1"},
         {"observation_id": 0},
+        {"observation_id": False},
+        {"observation_id": "2"},
         {"raw_content_sha256": "A" * 64},
         {"source_status": ""},
         {"title": ""},
         {"currency": ""},
         {"source_payload": []},
         {"source_payload": {"not_json": object()}},
+        {"code_refs": ("bad",)},
         {
             "code_refs": (
-                ExternalCodeRef("invented:scheme", "01", "eligibility_area"),
+                ExternalCodeRef("eat:eligibility-area", 1, "eligibility_area"),
             )
         },
+        {"code_refs": (ExternalCodeRef("eat:eligibility-area", "01", None),)},
+        {"code_refs": (ExternalCodeRef("invented:scheme", "01", "eligibility_area"),)},
         {
             "code_refs": (
                 ExternalCodeRef("eat:eligibility-area", "01", "eligibility_area"),
@@ -160,6 +167,36 @@ def test_repository_rejects_malformed_factory_projection_before_sql(
             (publication_id,),
         )
         assert cursor.fetchone() == (0,)
+        cursor.execute(
+            "select p.status, r.failure_category from ingest.publication p "
+            "join ingest.run r using (run_id) where p.publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
+
+
+def test_repository_rejects_non_projection_factory_output_as_contract_failure(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="non-projection-output"
+    )
+
+    with pytest.raises(ProjectionContractError, match="AuctionProjection"):
+        pipeline_services.projection_repository.project_publication(
+            publication_id=publication_id,
+            projector_version=BUILD_SHA,
+            activated_at=ACTIVATED_AT,
+            projection_factory=lambda _member: "bad",  # type: ignore[arg-type,return-value]
+        )
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select p.status, r.failure_category from ingest.publication p "
+            "join ingest.run r using (run_id) where p.publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
 
 
 def test_projector_rejects_multiple_normalized_members_for_one_candidate(
@@ -193,6 +230,32 @@ def test_projector_rejects_multiple_normalized_members_for_one_candidate(
             "(normalization_attempt_id, normalized_record_id) values (%s, %s)",
             (attempt_id, extra_id),
         )
+    pipeline_services.connection.commit()
+
+    with pytest.raises(ProjectionContractError, match="candidate topology"):
+        project(pipeline_services, publication_id)
+
+
+def test_projector_rejects_wrong_parser_attempt_added_after_validation(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="projection-wrong-parser-attempt"
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "insert into ingest.normalization_attempt "
+            "(run_id, observation_id, parser_version, status, attempted_at, "
+            "schema_fingerprint, quarantine_reason) "
+            "select p.run_id, n.observation_id, 'eat-v2', 'quarantined', %s, "
+            "null, 'synthetic parser mismatch' "
+            "from ingest.publication p "
+            "join ingest.publication_record pr using (publication_id) "
+            "join ingest.normalized_record n using (normalized_record_id) "
+            "where p.publication_id = %s",
+            (NORMALIZED_AT + timedelta(minutes=1), publication_id),
+        )
+        assert cursor.rowcount == 1
     pipeline_services.connection.commit()
 
     with pytest.raises(ProjectionContractError, match="candidate topology"):
@@ -365,6 +428,14 @@ def test_projection_rejects_activation_before_validation(
             activated_at=VALIDATED_AT - timedelta(seconds=1),
             repository=pipeline_services.projection_repository,
         )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select r.ended_at, p.validated_at from ingest.publication p "
+            "join ingest.run r using (run_id) where p.publication_id = %s",
+            (publication_id,),
+        )
+        ended_at, validated_at = cursor.fetchone()
+        assert ended_at == validated_at
 
 
 def test_projection_rejects_activation_before_run_start_as_contract_failure(
@@ -384,14 +455,14 @@ def test_projection_rejects_activation_before_run_start_as_contract_failure(
 
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(
-            "select p.status, r.failure_category, r.ended_at, r.started_at "
+            "select p.status, r.failure_category, r.ended_at "
             "from ingest.publication p join ingest.run r using (run_id) "
             "where p.publication_id = %s",
             (publication_id,),
         )
-        status, category, ended_at, started_at = cursor.fetchone()
+        status, category, ended_at = cursor.fetchone()
         assert (status, category) == ("failed", "PROJECTION_CONTRACT")
-        assert ended_at == started_at
+        assert ended_at == VALIDATED_AT
 
 
 def test_database_rejects_run_end_before_start(

@@ -17,13 +17,17 @@ from eatbid.core.models import (
     ProjectResult,
     canonical_projection_fingerprint,
 )
-from eatbid.core.postgres_projection_writer import CanonicalProjectionWriter
+from eatbid.core.postgres_projection_writer import (
+    CanonicalProjectionWriter,
+    validate_projection,
+)
 from eatbid.core.repository import (
     FrozenPublicationMember,
     ProjectionContractError,
     ProjectionFactory,
     ProjectionTransactionScopeError,
 )
+from eatbid.postgres_topology import lock_auction_topology
 
 PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
 
@@ -128,6 +132,7 @@ class PsycopgCanonicalProjectionRepository:
         )
         projections = tuple(projection_factory(item.member) for item in evidence)
         for item, projection in zip(evidence, projections, strict=True):
+            validate_projection(projection)
             self._verify_factory_output(item.member, projection)
         fingerprint = _fingerprint(projections)
         allow_insert = state.publication_status == "validated"
@@ -302,59 +307,20 @@ class PsycopgCanonicalProjectionRepository:
         manifest_ids = tuple(int(row[0]) for row in cursor.fetchall())
         if len(manifest_ids) != expected_count or len(manifest_ids) != normalized_count:
             raise ProjectionContractError("publication manifest cardinality differs")
-        if run_mode != "replay":
-            cursor.execute(
-                "select observation_id from ingest.raw_observation "
-                "where run_id = %s order by observation_id for update",
-                (run_id,),
-            )
-        elif run_mode == "replay":
-            cursor.execute(
-                "select observation_id from ingest.replay_input "
-                "where run_id = %s order by observation_id for update",
-                (run_id,),
-            )
-        candidate_ids = tuple(int(row[0]) for row in cursor.fetchall())
-        if len(candidate_ids) != expected_count:
-            raise ProjectionContractError("publication candidate topology differs")
-        cursor.execute(
-            "select normalization_attempt_id, observation_id, status "
-            "from ingest.normalization_attempt where run_id = %s and parser_version = %s "
-            "order by observation_id, normalization_attempt_id for update",
-            (run_id, run_parser_version),
+        topology = lock_auction_topology(
+            cursor,
+            run_id=run_id,
+            run_mode=run_mode,
+            parser_version=run_parser_version,
         )
-        attempts = cursor.fetchall()
         if (
-            len(attempts) != len(candidate_ids)
-            or tuple(int(row[1]) for row in attempts) != candidate_ids
-            or any(str(row[2]) != "normalized" for row in attempts)
+            len(topology.candidate_ids) != expected_count
+            or not topology.coherent
+            or topology.member_ids != manifest_ids
         ):
             raise ProjectionContractError("publication candidate topology differs")
-        if not candidate_ids:
+        if not topology.candidate_ids:
             return ()
-        attempt_ids = tuple(int(row[0]) for row in attempts)
-        cursor.execute(
-            "select ar.normalization_attempt_id, ar.normalized_record_id, n.observation_id "
-            "from ingest.normalization_attempt_record ar "
-            "join ingest.normalized_record n using (normalized_record_id) "
-            "where ar.normalization_attempt_id = any(%s) "
-            "order by ar.normalization_attempt_id, ar.normalized_record_id "
-            "for update of ar, n",
-            (list(attempt_ids),),
-        )
-        attempt_members = cursor.fetchall()
-        if len(attempt_members) != len(candidate_ids):
-            raise ProjectionContractError("publication candidate topology differs")
-        topology = {int(row[0]): (int(row[1]), int(row[2])) for row in attempt_members}
-        lineage = tuple(topology.get(attempt_id) for attempt_id in attempt_ids)
-        if (
-            any(value is None for value in lineage)
-            or tuple(value[1] for value in lineage if value is not None)
-            != candidate_ids
-            or tuple(sorted(value[0] for value in lineage if value is not None))
-            != manifest_ids
-        ):
-            raise ProjectionContractError("publication candidate topology differs")
 
         cursor.execute(
             """
@@ -459,7 +425,7 @@ class PsycopgCanonicalProjectionRepository:
     ) -> None:
         cursor.execute(
             """
-                select p.run_id, p.status, r.status, r.started_at
+                select p.run_id, p.status, r.status, r.started_at, p.validated_at
                 from ingest.publication p join ingest.run r using (run_id)
                 where p.publication_id = %s for update of p, r
                 """,
@@ -471,6 +437,10 @@ class PsycopgCanonicalProjectionRepository:
             "validated",
         ):
             return
+        if row[4] is None:
+            raise ProjectionContractError(
+                "projection failure requires a validation timestamp"
+            )
         cursor.execute(
             "update ingest.publication set status = 'failed' where publication_id = %s",
             (publication_id,),
@@ -481,7 +451,7 @@ class PsycopgCanonicalProjectionRepository:
                 set status = 'failed', failure_category = %s, ended_at = %s
                 where run_id = %s and status = 'validated'
                 """,
-            (PROJECTION_CONTRACT, max(failed_at, row[3]), row[0]),
+            (PROJECTION_CONTRACT, max(failed_at, row[3], row[4]), row[0]),
         )
         if cursor.rowcount != 1:
             raise ProjectionContractError("projection failure transition failed")

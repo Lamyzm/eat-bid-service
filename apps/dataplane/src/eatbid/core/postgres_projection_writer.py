@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 import psycopg
 from psycopg.types.json import Jsonb
 
-from eatbid.core.models import AuctionProjection
+from eatbid.core.models import AuctionProjection, ExternalCodeRef
 from eatbid.core.repository import ProjectionContractError
 
 
@@ -23,7 +24,7 @@ class CanonicalProjectionWriter:
         observed_at: datetime,
         allow_insert: bool,
     ) -> tuple[int, int, int, int, int, int]:
-        _validate_projection(projection)
+        validate_projection(projection)
         organization_code_id, organization_code_inserted = self._resolve_code_value(
             cursor,
             namespace="eat:organization",
@@ -393,8 +394,15 @@ _REVIEWED_CODE_ROLES = {
 }
 
 
-def _validate_projection(projection: AuctionProjection) -> None:
-    if projection.normalized_record_id <= 0 or projection.observation_id <= 0:
+def validate_projection(projection: AuctionProjection) -> None:
+    if not isinstance(projection, AuctionProjection):
+        raise ProjectionContractError(
+            "projection factory must return AuctionProjection"
+        )
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value <= 0
+        for value in (projection.normalized_record_id, projection.observation_id)
+    ):
         raise ProjectionContractError("projection lineage IDs must be positive")
     required = {
         "source_system": projection.source_system,
@@ -411,6 +419,26 @@ def _validate_projection(projection: AuctionProjection) -> None:
         not isinstance(value, str) or not value.strip() for value in required.values()
     ):
         raise ProjectionContractError("projection required strings must be non-empty")
+    if projection.display_bid_no is not None and not isinstance(
+        projection.display_bid_no, str
+    ):
+        raise ProjectionContractError(
+            "projection display bid number must be text or null"
+        )
+    for value in (
+        projection.announced_at,
+        projection.deadline_at,
+        projection.opened_at,
+    ):
+        if value is not None and (
+            not isinstance(value, datetime) or value.utcoffset() is None
+        ):
+            raise ProjectionContractError(
+                "projection timestamps must be timezone-aware or null"
+            )
+    for value in (projection.base_amount, projection.planned_amount):
+        if value is not None and not isinstance(value, Decimal):
+            raise ProjectionContractError("projection amounts must be decimal or null")
     for digest in (
         projection.raw_content_sha256,
         projection.normalized_payload_sha256,
@@ -425,12 +453,22 @@ def _validate_projection(projection: AuctionProjection) -> None:
         raise ProjectionContractError(
             "projection source payload must be JSON serializable"
         ) from error
+    if not isinstance(projection.code_refs, tuple):
+        raise ProjectionContractError("projection code references must be a tuple")
     identities: set[tuple[str, str, str]] = set()
     for reference in projection.code_refs:
-        if (
-            _REVIEWED_CODE_ROLES.get(reference.namespace) != reference.role
-            or not reference.code.strip()
+        if not isinstance(reference, ExternalCodeRef):
+            raise ProjectionContractError(
+                "projection code references must be ExternalCodeRef values"
+            )
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in (reference.namespace, reference.code, reference.role)
         ):
+            raise ProjectionContractError(
+                "projection code reference fields must be non-empty strings"
+            )
+        if _REVIEWED_CODE_ROLES.get(reference.namespace) != reference.role:
             raise ProjectionContractError("projection code reference is not reviewed")
         identity = (reference.namespace, reference.code, reference.role)
         if identity in identities:

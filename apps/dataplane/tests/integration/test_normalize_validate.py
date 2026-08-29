@@ -687,8 +687,6 @@ def assert_failed_without_core_writes(
     services: PipelineServices,
     run_id: UUID,
     publication_id: UUID,
-    *,
-    expected_core_attempts: int = 0,
 ) -> None:
     with services.connection.cursor() as cursor:
         cursor.execute(
@@ -711,8 +709,17 @@ def assert_failed_without_core_writes(
             (publication_id,),
         )
         assert cursor.fetchone() == (0,)
-        cursor.execute("select count(*) from core.auction_attempt")
-        assert cursor.fetchone() == (expected_core_attempts,)
+        cursor.execute(
+            """
+            select count(*)
+            from core.auction_revision revision
+            join ingest.normalization_attempt_record edge using (normalized_record_id)
+            join ingest.normalization_attempt attempt using (normalization_attempt_id)
+            where attempt.run_id = %s
+            """,
+            (run_id,),
+        )
+        assert cursor.fetchone() == (0,)
 
 
 def test_request_count_mismatch_fails_monotonically_and_preserves_existing_core_rows(
@@ -723,8 +730,6 @@ def test_request_count_mismatch_fails_monotonically_and_preserves_existing_core_
             "insert into core.auction_attempt (source_system, external_bid_id) "
             "values ('fixture', 'preserved')"
         )
-        cursor.execute("select count(*) from core.auction_attempt")
-        existing_core_attempts = cursor.fetchone()[0]
 
     run_id = start_run(pipeline_services, expected_count=2)
     observation_id = capture_detail(
@@ -751,12 +756,13 @@ def test_request_count_mismatch_fails_monotonically_and_preserves_existing_core_
 
     assert first == second
     assert first.status == "failed"
-    assert_failed_without_core_writes(
-        pipeline_services,
-        run_id,
-        publication_id,
-        expected_core_attempts=existing_core_attempts,
-    )
+    assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select count(*) from core.auction_attempt "
+            "where source_system = 'fixture' and external_bid_id = 'preserved'"
+        )
+        assert cursor.fetchone() == (1,)
 
 
 def test_failed_request_status_blocks_even_when_counts_match(
@@ -922,7 +928,8 @@ def test_missing_required_scheme_blocks_publication(
     with pipeline_services.connection.transaction(force_rollback=True):
         with pipeline_services.connection.cursor() as cursor:
             cursor.execute(
-                "delete from core.code_scheme where namespace = 'eat:organization'"
+                "update core.code_scheme set namespace = 'disabled:organization' "
+                "where namespace = 'eat:organization'"
             )
         result = validate_run(
             run_id=normalized.run_id,
@@ -1086,7 +1093,15 @@ def test_complete_run_freezes_exact_members_and_revalidation_is_idempotent(
             (normalized.run_id,),
         )
         assert cursor.fetchone() == ("validated", 0)
-        cursor.execute("select count(*) from core.auction_attempt")
+        cursor.execute(
+            """
+            select count(*) from core.auction_revision revision
+            join ingest.normalization_attempt_record edge using (normalized_record_id)
+            join ingest.normalization_attempt attempt using (normalization_attempt_id)
+            where attempt.run_id = %s
+            """,
+            (normalized.run_id,),
+        )
         assert cursor.fetchone() == (0,)
 
 

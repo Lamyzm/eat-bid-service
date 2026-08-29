@@ -11,6 +11,7 @@ from eatbid.ingest.publication_repository import (
     PublicationValidation,
     SourceContractValidator,
 )
+from eatbid.postgres_topology import lock_auction_topology
 
 REQUIRED_SCHEMES = (
     "eat:auction-location-sido",
@@ -73,73 +74,53 @@ class PsycopgPublicationRepository:
             run = cursor.fetchone()
             if run is None:
                 raise PublicationIntegrityError("run does not exist")
-            mode, status, parser_version, expected_count, failure_category, ended_at = run
+            mode, status, parser_version, expected_count, failure_category, ended_at = (
+                run
+            )
             if status not in {"running", "validated", "failed"}:
                 raise PublicationIntegrityError("only a running run can be validated")
 
             request_counts, failed_requests = self._lock_requests(
                 cursor, run_id, replay=mode == "replay"
             )
-            observations = self._lock_observations(
-                cursor, run_id, replay=mode == "replay"
-            )
-            if mode == "replay":
-                request_counts = ((len(observations), len(observations)),)
-            observation_ids = tuple(int(row[0]) for row in observations)
-            attempts, outputs = self._lock_attempt_outputs(
+            topology = lock_auction_topology(
                 cursor,
                 run_id=run_id,
+                run_mode=str(mode),
                 parser_version=str(parser_version),
-                observation_ids=observation_ids,
             )
-            matching_attempts = tuple(
-                row for row in attempts if row[2] == parser_version
-            )
-            parser_mismatches = len(attempts) - len(matching_attempts)
-            missing_attempts = len(observations) - len(matching_attempts)
-            quarantined = sum(row[3] == "quarantined" for row in matching_attempts)
+            if mode == "replay":
+                request_counts = (
+                    (len(topology.candidate_ids), len(topology.candidate_ids)),
+                )
             schema_contract_violations = sum(
                 not source_contract_validator(
-                    source=str(row[4]),
-                    endpoint=str(row[5]),
-                    parser_version=str(row[2]),
-                    schema_fingerprint=(str(row[6]) if row[6] is not None else None),
+                    source=attempt.source,
+                    endpoint=attempt.endpoint,
+                    parser_version=attempt.parser_version,
+                    schema_fingerprint=attempt.schema_fingerprint,
                 )
-                for row in matching_attempts
+                for attempt in topology.current_attempts
             )
-            source_entities = [str(row[4]) for row in outputs]
+            source_entities = [member.source_entity_id for member in topology.members]
             duplicate_source_entities = len(source_entities) - len(set(source_entities))
             missing_schemes = self._missing_schemes(cursor)
-            member_ids = tuple(sorted(int(row[2]) for row in outputs))
-            candidate_ids = set(observation_ids)
-            current_attempt_ids = {int(row[0]) for row in matching_attempts}
-            attempt_candidate_ids = [int(row[1]) for row in matching_attempts]
-            output_attempt_ids = [int(row[0]) for row in outputs]
-            auction_topology_coherent = (
-                len(matching_attempts) == len(candidate_ids)
-                and len(set(attempt_candidate_ids)) == len(candidate_ids)
-                and set(attempt_candidate_ids) == candidate_ids
-                and all(row[3] == "normalized" for row in matching_attempts)
-                and len(outputs) == len(candidate_ids)
-                and len(set(output_attempt_ids)) == len(current_attempt_ids)
-                and set(output_attempt_ids) == current_attempt_ids
-                and all(int(row[1]) == int(row[3]) for row in outputs)
-                and all(str(row[5]) == parser_version for row in outputs)
-                and all(str(row[6]) == "auction" for row in outputs)
-            )
             report = completeness_validator(
                 request_counts=request_counts,
-                normalized=len(outputs),
-                quarantined=quarantined + missing_attempts,
+                normalized=len(topology.members),
+                quarantined=(
+                    topology.quarantined_current_attempts
+                    + topology.missing_current_attempts
+                ),
                 duplicate_source_entities=duplicate_source_entities,
                 missing_code_schemes=missing_schemes,
                 schema_contract_violations=schema_contract_violations,
             )
             ledger_coherent = (
                 failed_requests == 0
-                and len(observations) == int(expected_count)
-                and parser_mismatches == 0
-                and auction_topology_coherent
+                and len(topology.candidate_ids) == int(expected_count)
+                and topology.parser_mismatches == 0
+                and topology.coherent
             )
             if status in {"validated", "failed"}:
                 if status == "validated" and not (
@@ -155,13 +136,11 @@ class PsycopgPublicationRepository:
                     run_status=str(status),
                     run_expected_count=int(expected_count),
                     run_failure_category=(
-                        str(failure_category)
-                        if failure_category is not None
-                        else None
+                        str(failure_category) if failure_category is not None else None
                     ),
                     run_ended_at=ended_at,
-                    current_normalized_count=len(outputs),
-                    current_member_ids=member_ids,
+                    current_normalized_count=len(topology.members),
+                    current_member_ids=topology.member_ids,
                 )
             if report.publishable and ledger_coherent:
                 self._persist_validated(
@@ -170,15 +149,15 @@ class PsycopgPublicationRepository:
                     publication_id=publication_id,
                     validated_at=validated_at,
                     expected_count=int(expected_count),
-                    member_ids=member_ids,
+                    member_ids=topology.member_ids,
                 )
                 return PublicationValidation(
                     publication_id=publication_id,
                     run_id=run_id,
                     status="validated",
                     expected_count=int(expected_count),
-                    normalized_count=len(member_ids),
-                    member_ids=member_ids,
+                    normalized_count=len(topology.member_ids),
+                    member_ids=topology.member_ids,
                 )
 
             self._persist_failed(
@@ -187,14 +166,14 @@ class PsycopgPublicationRepository:
                 publication_id=publication_id,
                 failed_at=validated_at,
                 expected_count=int(expected_count),
-                normalized_count=len(outputs),
+                normalized_count=len(topology.members),
             )
             return PublicationValidation(
                 publication_id=publication_id,
                 run_id=run_id,
                 status="failed",
                 expected_count=int(expected_count),
-                normalized_count=len(outputs),
+                normalized_count=len(topology.members),
                 member_ids=(),
             )
 
@@ -219,80 +198,6 @@ class PsycopgPublicationRepository:
             tuple((int(row[0]), int(row[1])) for row in rows),
             sum(row[2] == "failed" for row in rows),
         )
-
-    @staticmethod
-    def _lock_observations(
-        cursor: psycopg.Cursor[Any], run_id: UUID, *, replay: bool
-    ) -> list[tuple[Any, ...]]:
-        if replay:
-            cursor.execute(
-                """
-                select o.observation_id
-                from ingest.replay_input ri
-                join ingest.raw_observation o on o.observation_id = ri.observation_id
-                where ri.run_id = %s
-                order by o.observation_id
-                for update of ri, o
-                """,
-                (run_id,),
-            )
-        else:
-            cursor.execute(
-                """
-                select observation_id
-                from ingest.raw_observation where run_id = %s
-                order by observation_id for update
-                """,
-                (run_id,),
-            )
-        return cursor.fetchall()
-
-    @staticmethod
-    def _lock_attempt_outputs(
-        cursor: psycopg.Cursor[Any],
-        *,
-        run_id: UUID,
-        parser_version: str,
-        observation_ids: tuple[int, ...],
-    ) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]:
-        if not observation_ids:
-            return [], []
-        cursor.execute(
-            """
-            select a.normalization_attempt_id, a.observation_id,
-                   a.parser_version, a.status, o.source, o.endpoint,
-                   a.schema_fingerprint
-            from ingest.normalization_attempt a
-            join ingest.raw_observation o using (observation_id)
-            where a.run_id = %s and a.observation_id = any(%s)
-            order by a.normalization_attempt_id
-            for update
-            """,
-            (run_id, list(observation_ids)),
-        )
-        attempts = cursor.fetchall()
-        matching_attempt_ids = [
-            int(row[0]) for row in attempts if row[2] == parser_version
-        ]
-        if not matching_attempt_ids:
-            return attempts, []
-        cursor.execute(
-            """
-            select a.normalization_attempt_id, a.observation_id,
-                   n.normalized_record_id, n.observation_id,
-                   n.source_entity_id, n.parser_version, n.record_type
-            from ingest.normalization_attempt a
-            join ingest.normalization_attempt_record ar
-              on ar.normalization_attempt_id = a.normalization_attempt_id
-            join ingest.normalized_record n
-              on n.normalized_record_id = ar.normalized_record_id
-            where a.normalization_attempt_id = any(%s)
-            order by n.normalized_record_id
-            for update of a, ar, n
-            """,
-            (matching_attempt_ids,),
-        )
-        return attempts, cursor.fetchall()
 
     @staticmethod
     def _missing_schemes(cursor: psycopg.Cursor[Any]) -> tuple[str, ...]:
@@ -415,7 +320,11 @@ class PsycopgPublicationRepository:
                 "Task 8 terminal publication activation metadata is invalid"
             )
         if run_status == "validated":
-            if publication[2] is None or run_failure_category is not None or run_ended_at is not None:
+            if (
+                publication[2] is None
+                or run_failure_category is not None
+                or run_ended_at is not None
+            ):
                 raise PublicationIntegrityError(
                     "validated run/publication metadata is inconsistent"
                 )
@@ -446,8 +355,7 @@ class PsycopgPublicationRepository:
         member_ids = tuple(int(row[0]) for row in cursor.fetchall())
         expected_member_ids = (
             current_member_ids
-            if run_status == "validated"
-            or run_failure_category == PROJECTION_CONTRACT
+            if run_status == "validated" or run_failure_category == PROJECTION_CONTRACT
             else ()
         )
         if member_ids != expected_member_ids:

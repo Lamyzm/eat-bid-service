@@ -38,6 +38,11 @@ lineage/source/external ID/hash도 잠근 member와 다시 비교하고 normaliz
 잠근 canonical JSON에서 계산한다. fingerprint는 정렬한 다음 tuple 목록의 compact JSON에 SHA-256을
 적용한다.
 
+이 candidate→attempt→record 검증과 잠금 query는 source-agnostic PostgreSQL topology verifier 하나가
+소유하며 Task 8 validation과 Task 9 projection이 함께 사용한다. 따라서 wrong-parser/extra attempt,
+swapped edge, 2-output/0-output 재분배, observation/parser/type drift의 정의가 두 gate 사이에서 갈라지지
+않는다.
+
 ```text
 (source_system, external_bid_id, raw_content_sha256,
  parser_version, normalized_payload_sha256)

@@ -215,6 +215,8 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
 - projector는 capture의 `raw_observation.run_id` 또는 replay의 exact `replay_input` candidate set과
   candidate별 current-parser attempt/member bijection을 다시 잠가 검증한다. factory output은 잠근
   lineage/source/hash와 재비교하고 relation은 purchaser 및 `(code_value_id, role)` 전체 set이 정확해야 한다.
+- candidate→attempt→record 잠금/검증은 source-agnostic PostgreSQL topology verifier가 단독 소유하며,
+  Task 8 validation과 Task 9 projection은 같은 결과를 소비한다.
 - terminal 재검증은 current attempt-record member를 다시 잠그고 계산하여 frozen sorted member
   set과 status/metadata/count를 정확히 비교한다. validated 상태는 failed request, request/candidate
   count drift, missing/mismatched/non-normalized attempt, output parser/type/observation drift, 미검토
