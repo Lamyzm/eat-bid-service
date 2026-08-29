@@ -36,24 +36,32 @@ async function readPackageManifest(relativePath: string): Promise<PackageManifes
   return JSON.parse(await readFile(path.join(root, relativePath), "utf8"));
 }
 
-function topLevelSection(source: string, name: string): string {
+function topLevelSections(source: string, name: string): Array<{ startLine: number; content: string }> {
   const lines = source.split(/\r?\n/);
-  const start = lines.findIndex((line) => line === `${name}:`);
+  const sections: Array<{ startLine: number; content: string }> = [];
 
-  if (start === -1) {
-    return "";
-  }
-
-  const section: string[] = [];
-  for (const line of lines.slice(start + 1)) {
-    if (line !== "" && !/^\s/.test(line)) {
-      break;
+  for (let start = 0; start < lines.length; start += 1) {
+    if (lines[start] !== `${name}:`) {
+      continue;
     }
 
-    section.push(line);
+    const section: string[] = [];
+    for (const line of lines.slice(start + 1)) {
+      if (line !== "" && !/^\s/.test(line)) {
+        break;
+      }
+
+      section.push(line);
+    }
+
+    sections.push({ startLine: start + 1, content: section.join("\n") });
   }
 
-  return section.join("\n");
+  return sections;
+}
+
+function topLevelSection(source: string, name: string): string {
+  return topLevelSections(source, name)[0]?.content ?? "";
 }
 
 function workspacePackageGlobs(workspace: string): string[] {
@@ -214,19 +222,15 @@ function workspaceCatalogEntries(workspace: string): {
   entries: Array<{ key: string; value: string }>;
   errors: string[];
 } {
-  const catalog = topLevelSection(workspace, "catalog");
-  if (catalog === "") {
-    const catalogLine = workspace.split(/\r?\n/).find((line) => line.startsWith("catalog:"));
+  const catalogSections = topLevelSections(workspace, "catalog");
+  if (catalogSections.length !== 1) {
     return {
       entries: [],
-      errors: [
-        catalogLine
-          ? `unsupported workspace catalog structure: ${catalogLine}`
-          : "workspace catalog block is missing",
-      ],
+      errors: [`workspace catalog section must occur exactly once (received ${catalogSections.length})`],
     };
   }
 
+  const catalog = catalogSections[0].content;
   const entries: Array<{ key: string; value: string }> = [];
   const errors: string[] = [];
   for (const line of catalog.split(/\r?\n/)) {
@@ -371,6 +375,26 @@ describe("Drizzle toolchain authority", () => {
     const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
 
     expect(validateWorkspaceCatalog(workspace)).toEqual([]);
+  });
+
+  test("rejects a second top-level catalog even when the first is valid RC4", () => {
+    const errors = validateWorkspaceCatalog(`catalog:
+  drizzle-orm: ${releaseLaneVersion}
+  drizzle-kit: ${releaseLaneVersion}
+catalog:
+  drizzle-orm: 1.0.0-rc.3
+  drizzle-kit: ${releaseLaneVersion}
+`);
+
+    expect(errors).toContain("workspace catalog section must occur exactly once (received 2)");
+  });
+
+  test("rejects a missing top-level catalog section", () => {
+    const errors = validateWorkspaceCatalog(`packages:
+  - "apps/*"
+`);
+
+    expect(errors).toContain("workspace catalog section must occur exactly once (received 0)");
   });
 
   test("rejects a drifted workspace catalog even when the lockfile remains on RC4", () => {
