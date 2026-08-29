@@ -711,7 +711,9 @@ git commit -m "feat: record append-only source observations"
 - Create: `packages/db/drizzle/20260829002000_ingest_lineage_manifests/migration.sql` (generated)
 - Create: `packages/db/drizzle/20260829002000_ingest_lineage_manifests/snapshot.json` (generated)
 - Create: `apps/dataplane/src/eatbid/source/eat/__init__.py`
+- Create: `apps/dataplane/src/eatbid/errors.py`
 - Create: `apps/dataplane/src/eatbid/source/eat/models.py`
+- Create: `apps/dataplane/src/eatbid/source/eat/schema_contract.py`
 - Create: `apps/dataplane/src/eatbid/source/eat/xml.py`
 - Create: `apps/dataplane/src/eatbid/source/eat/normalize.py`
 - Create: `apps/dataplane/src/eatbid/ingest/normalization_repository.py`
@@ -725,10 +727,12 @@ git commit -m "feat: record append-only source observations"
 - Create: `apps/dataplane/tests/unit/test_eat_xml.py`
 - Create: `apps/dataplane/tests/unit/test_eat_normalize.py`
 - Create: `apps/dataplane/tests/unit/test_completeness.py`
+- Modify: `apps/dataplane/tests/unit/test_cli.py`
 - Create: `apps/dataplane/tests/integration/test_normalize_validate.py`
 - Modify: `apps/dataplane/tests/integration/conftest.py`
 - Modify: `apps/dataplane/tests/integration/test_capture.py`
 - Modify: `apps/dataplane/src/eatbid/cli.py`
+- Modify: `apps/dataplane/src/eatbid/pipeline/capture.py`
 - Modify: `apps/dataplane/src/eatbid/ingest/postgres_repository.py`
 - Modify: `apps/dataplane/pyproject.toml`
 - Modify: `apps/dataplane/uv.lock`
@@ -757,6 +761,10 @@ git commit -m "feat: record append-only source observations"
   `normalization_attempt_record` links one attempt to one or more reusable normalized records.
   The target `raw_observation` drops `source_entity_id`, `schema_fingerprint`, `parser_status`,
   and `quarantine_reason` rather than serving as a mutable parser-state row.
+- Owns one reviewed eaT schema contract per `(source, endpoint, parser_version)`. The
+  contract lists the accepted dataset/column shape and derives its fingerprint from that
+  shape; an unknown parser contract or observed fingerprint is a publication-blocking
+  `SOURCE_CONTRACT`, not an implicitly accepted payload.
 
 - [ ] **Step 1: lineage manifest와 source contract 실패 테스트 작성**
 
@@ -807,6 +815,12 @@ Hypothesis는 `0`으로 시작하는 임의의 Unicode-safe digit code를 생성
 Pydantic validation, normalization, canonical JSON round-trip 어디에서도 값이
 정수로 바뀌거나 앞자리 `0`이 사라지지 않음을 증명한다.
 
+`schema_contract.py`는 `eat/bid-detail/eat-v1`이 검토한 dataset/column shape를 사람이
+리뷰 가능한 구조로 한 번만 선언하고 parser와 같은 canonical fingerprint 함수로 digest를
+계산한다. fixture에 선언·관측된 미검토 column을 하나 추가하면 normalization evidence는
+보존되지만 publication은 `SOURCE_CONTRACT`로 실패해야 한다. parser version이나 endpoint에
+등록된 contract가 없어도 fail closed 한다.
+
 같은 모듈의 `parse_bid_list_page`는 `bid-list-one.xml`에서 source `TOT_CNT`와
 `ETN_BID_ID` 목록을 typed `BidListPage(total_count, external_bid_ids)`로 만든다.
 `TOT_CNT`는 nonnegative decimal text만 받고, page 안의 빈/중복 ID와
@@ -835,6 +849,7 @@ def test_publication_is_rejected_when_tot_count_differs() -> None:
         quarantined=0,
         duplicate_source_entities=0,
         missing_code_schemes=(),
+        schema_contract_violations=0,
     )
     assert report.publishable is False
     assert report.failure_category == "SOURCE_CONTRACT"
@@ -849,6 +864,7 @@ publishable =
   and quarantined == 0
   and duplicate_source_entities == 0
   and missing_code_schemes == empty
+  and schema_contract_violations == 0
 ```
 
 - [ ] **Step 3: 테스트 실패 확인**
@@ -857,7 +873,7 @@ Run: `pnpm --filter @eatbid/db exec bun test src/schema/ingest/lineage.test.ts`
 
 Expected: FAIL because lineage tables do not exist.
 
-Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
+Run: `cd apps/dataplane && uv run pytest tests/unit/test_cli.py tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
 
 Expected: FAIL because normalizer and validator do not exist.
 
@@ -942,7 +958,9 @@ observation을 발명하지 않는다. validation은 candidate마다 현재 run/
 `normalization_attempt`를 요구하고 quarantined/missing attempt를 센다. normalized attempt의
 `normalization_attempt_record`만 candidate normalized record ID가 된다. 그 집합을
 `publication_record`에 동결하며 이후 projector는 run join을 다시 계산하지 않고 이 manifest만
-소비한다.
+소비한다. 각 attempt의 source/endpoint/parser version/schema fingerprint는
+`schema_contract.py`의 reviewed contract와 일치해야 하며 adapter가 eaT 상수를 직접 소유하지
+않도록 source-contract validator를 port로 주입한다.
 
 검증 transaction은 run과 모든 request unit/observation을 lock하고 DB에서 다음을 다시 센다.
 
@@ -960,6 +978,10 @@ run status를 `validated`로 전환한다. Task 8은 `activated_at`, `published_
 해당 run의 publication은 `failed`와 관측 count를, run은 최초 failure category/ended_at을
 단조 상태 전이로 남긴다. 성공/멱등 재검증은 exact `publication_record` set을 검증하고,
 validation 뒤 staging에 추가된 normalized row를 기존 publication에 암묵적으로 편입하지 않는다.
+terminal run의 빠른 반환은 금지한다. 재검증도 locked candidate observation → current
+run/parser attempt → attempt-record를 다시 계산해 frozen member ID의 **정렬된 정확한 집합**,
+run/publication status, expected/normalized count와 비교한다. 같은 cardinality의 다른 normalized
+record로 member를 치환하거나 publication status를 바꾼 경우 integrity error로 거부한다.
 
 - [ ] **Step 7: 실제 PostgreSQL behavior와 method audit 검증**
 
@@ -976,8 +998,13 @@ validation 뒤 staging에 추가된 normalized row를 기존 publication에 암�
 - complete run → publication 1개 `validated`, run `validated`, core row 0.
 - validate 재실행은 같은 publication identity/metadata/member set을 검증하고 중복을 만들지 않는다.
 - validation 뒤 별도 normalized row를 만들어도 기존 `publication_record` set은 불변이다.
+- validated publication의 member를 같은 개수의 unrelated normalized record로 치환하거나
+  publication status를 run과 어긋나게 바꾸면 terminal 재검증이 integrity error를 낸다.
+- 검토한 fixture schema는 발행되지만 declared+observed 미검토 column, unknown endpoint/parser
+  contract는 raw/attempt를 보존한 채 `SOURCE_CONTRACT` publication failure가 된다.
 - replay input은 새 run에서 기존 observation을 명시적으로 참조하며 원본 observation의 capture
   `run_id`를 변경하거나 복제하지 않는다.
+- 실제 eaT list parser의 `SourceContractError`가 CLI exit 76으로 매핑된다.
 
 `defusedxml`은 runtime dependency로 lock하고 stack audit에 stable 0.7.1, Python 공식
 untrusted-XML 권고, DTD/entity tests, 다음 stable major 검토 trigger를 기록한다. Pydantic
@@ -985,7 +1012,11 @@ untrusted-XML 권고, DTD/entity tests, 다음 stable major 검토 trigger를 �
 ADR 0014와 `domain-and-data.md`는 immutable raw evidence → run-scoped interpretation attempt →
 frozen publication member의 one-way lineage를 문서화한다.
 
-Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
+`SourceContractError`는 `eatbid/errors.py`의 공통 typed error 하나만 사용한다. capture와 eaT list
+parser가 이 타입을 공유하고 CLI는 실제 `TOT_CNT`/schema contract error를 exit 76으로 매핑한다.
+동명 비호환 exception을 layer별로 다시 만들지 않는다.
+
+Run: `cd apps/dataplane && uv run pytest tests/unit/test_cli.py tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
 
 Expected: PASS; source identity/display number가 분리되고 code text/unknown/quarantine가
 보존되며 불완전 run은 발행되지 않는다.
