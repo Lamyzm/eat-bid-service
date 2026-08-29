@@ -589,21 +589,25 @@ git commit -m "feat: archive raw responses by content hash"
 **Files:**
 - Create: `apps/dataplane/src/eatbid/ingest/models.py`
 - Create: `apps/dataplane/src/eatbid/ingest/repository.py`
+- Create: `apps/dataplane/src/eatbid/ingest/postgres_repository.py`
 - Create: `apps/dataplane/src/eatbid/source/client.py`
 - Create: `apps/dataplane/src/eatbid/pipeline/capture.py`
+- Create: `apps/dataplane/tests/unit/test_capture.py`
 - Create: `apps/dataplane/tests/integration/conftest.py`
 - Create: `apps/dataplane/tests/integration/test_capture.py`
 - Modify: `apps/dataplane/src/eatbid/cli.py`
+- Modify: `apps/dataplane/pyproject.toml`
+- Modify: `apps/dataplane/uv.lock`
+- Modify: `docs/architecture/stack/contracts-and-validation.md`
 
 **Interfaces:**
 - Consumes: `RawObjectStore`, PostgreSQL migration, `SourceClient.fetch(request) -> SourceResponse`.
-- Produces: `capture(request: CaptureRequest, store, repository, client) -> CapturedObservation` and pytest fixtures `migrated_db`, `pipeline_services`.
+- Produces: `capture(request: CaptureRequest, store, repository, client) -> CapturedObservation`, a psycopg adapter, canonical request-parameter hashing, and Testcontainers fixtures `migrated_db`, `pipeline_services`.
 
 - [ ] **Step 1: 저장 순서를 증명하는 실패 테스트 작성**
 
 ```python
 from datetime import UTC, datetime
-from unittest.mock import Mock
 from uuid import UUID
 
 from eatbid.ingest.models import CaptureRequest
@@ -614,15 +618,9 @@ from eatbid.source.client import SourceResponse
 
 def test_capture_archives_before_recording_observation() -> None:
     events: list[str] = []
-    store = Mock()
-    store.put.side_effect = lambda **_: (
-        events.append("object_stored")
-        or StoredRawObject("a" * 64, "raw/eat/bid-list/" + "a" * 64 + ".xml.gz", 42, datetime.now(UTC))
-    )
-    repo = Mock()
-    repo.record_observation.side_effect = lambda **_: events.append("observation_recorded")
-    client = Mock()
-    client.fetch.return_value = SourceResponse(200, b"<result><TOT_CNT>1</TOT_CNT></result>", datetime.now(UTC))
+    store = RecordingStore(events)
+    repo = RecordingRepository(events)
+    client = StaticSourceClient(SourceResponse(200, b"<result><TOT_CNT>1</TOT_CNT></result>", datetime.now(UTC)))
     request = CaptureRequest(UUID("00000000-0000-0000-0000-000000000001"), "eat", "bid-list", {})
     capture(request, store, repo, client)
     assert events == ["object_stored", "observation_recorded"]
@@ -630,7 +628,7 @@ def test_capture_archives_before_recording_observation() -> None:
 
 - [ ] **Step 2: pipeline module이 없어 실패하는지 확인**
 
-Run: `cd apps/dataplane && uv run pytest tests/integration/test_capture.py -q`
+Run: `cd apps/dataplane && uv run pytest tests/unit/test_capture.py tests/integration/test_capture.py -q`
 
 Expected: FAIL on import.
 
@@ -660,25 +658,37 @@ class CapturedObservation:
     fetched_at: datetime
 ```
 
-Repository는 `start_run`, `plan_request_unit`, `record_observation`, `fail_run`을 제공한다.
+`repository.py`는 `IngestRepository` port만, `postgres_repository.py`는 psycopg DML adapter만
+소유한다. Repository는 `start_run`, `plan_request_unit`, `record_observation`, `fail_run`을 제공한다.
 request params는 key 정렬 canonical JSON으로 저장하고 SHA-256을 unique key에 쓴다.
+Hypothesis는 서로 다른 mapping insertion order와 Unicode/빈 값을 포함해 같은 논리 params가
+같은 canonical bytes/hash를 만들고 다른 값은 다른 hash를 만듦을 검증한다.
 
 - [ ] **Step 4: capture use case와 CLI wiring 구현**
 
-`capture`는 source 응답을 받은 뒤 `store.put` 성공 전에는 repository를 호출하지 않는다.
-R2 성공 후 한 DB transaction에서 raw blob upsert와 observation insert를 수행한다. HTTP 403/429는
-`SOURCE_THROTTLED=75`, source contract는 `SOURCE_CONTRACT=76`, configuration은 64로 매핑한다.
+`capture`는 미리 plan된 request unit을 소비하며 source 응답을 받은 뒤 `store.put` 성공 전에는
+repository를 호출하지 않는다. R2 성공 후 한 DB transaction에서 raw blob을 exact metadata로
+insert-or-verify하고 append-only observation을 insert하며 request/run count를 갱신한다. HTTP
+403/429 body도 먼저 archive/record하고 run failure를 같은 transaction에 기록한 뒤
+`SOURCE_THROTTLED=75`로 매핑한다. 그 외 non-2xx source contract는
+`SOURCE_CONTRACT=76`, configuration은 64로 매핑한다. client/store/repository concrete fakes로
+archive 실패 시 DB write 0, source error body 보존, 동일 body 관측 2건을 검증한다.
 
 - [ ] **Step 5: PostgreSQL integration test와 재실행 테스트**
 
-Run: `cd apps/dataplane && $env:DATABASE_URL='postgres://eatbid:eatbid@localhost:5434/eatbid'; uv run pytest tests/integration/test_capture.py -q`
+`testcontainers[postgres]`로 task-scoped PostgreSQL 16을 만들고 Task 5의 committed migration runner를
+적용한다. 로컬 5434 DB, 고정 container name, 공유 volume은 사용하지 않는다.
 
-Expected: 동일 body 두 번 capture 시 raw_blob 1행, raw_observation 2행, event order test PASS.
+Run: `cd apps/dataplane && uv run pytest tests/integration/test_capture.py -q`
+
+Expected: 동일 body 두 번 capture 시 raw_blob 1행, raw_observation 2행, request/run count 2,
+canonical params/hash 동일, event order test PASS. Testcontainers와 migration runner가 종료된 뒤
+container/network는 남지 않는다.
 
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add apps/dataplane
+git add apps/dataplane docs/architecture/stack/contracts-and-validation.md
 git commit -m "feat: record append-only source observations"
 ```
 
