@@ -25,21 +25,64 @@
 | DDL | Drizzle schema → 커밋된 SQL migration |
 | 명시적 비목표 | 추천 투찰가, 예정가 예측, 자동 NeaT 투찰, 조기 마이크로서비스화 |
 
-## 권위 사슬
+## 목표 시스템 지도
 
-```text
-eaT/정부 원본
-    │ capture before parse
-    ▼
-R2 raw observations ── immutable evidence
-    │ normalize + validate + publish
-    ▼
-PostgreSQL core ─────── canonical interpreted facts
-    ├──────────────► PostgreSQL app  ─ user-authored workflow state
-    └──────────────► PostgreSQL mart ─ rebuildable, versioned analytics
-                                      │
-                                      ▼
-                               API → Web workspace
+```mermaid
+flowchart LR
+    user[급식 납품업체 운영자]
+    eat[eaT / 정부 원본]
+
+    subgraph runtime[Argo Workflows · 단일 dataplane 이미지]
+        discover[discover]
+        capture[capture]
+        normalize[normalize]
+        validate[validate]
+        publish[project / publish]
+        build[build marts]
+        discover --> capture --> normalize --> validate --> publish --> build
+    end
+
+    subgraph evidence[원본 증거]
+        r2[(R2 raw<br/>불변·content-addressed)]
+        ingest[(PostgreSQL ingest<br/>run·observation·quarantine)]
+    end
+
+    subgraph truth[업무 데이터]
+        core[(PostgreSQL core<br/>canonical source facts)]
+        app[(PostgreSQL app<br/>user-authored state)]
+        mart[(PostgreSQL mart<br/>versioned analytics)]
+    end
+
+    subgraph product[제품]
+        api[NestJS modular server]
+        web[Next.js workspace]
+    end
+
+    eat --> discover
+    capture -->|archive before parse| r2
+    capture -->|실행·관측 기록| ingest
+    normalize --> ingest
+    validate --> ingest
+    publish -->|검증된 revision만 원자 발행| core
+    core --> build --> mart
+    core -->|read| api
+    mart -->|read| api
+    api <-->|read / write user state| app
+    user <--> web <--> api
+```
+
+## 공급망과 실행 책임
+
+```mermaid
+flowchart LR
+    git[GitHub monorepo] --> ci[CI 검증·빌드]
+    ci --> registry[GHCR immutable images]
+    git --> argocd[Argo CD]
+    registry --> argocd
+    argocd -->|배포| web[web]
+    argocd -->|배포| server[server]
+    argocd -->|템플릿·스케줄 배포| argo[Argo Workflows]
+    argo -->|실행| dataplane[dataplane pods]
 ```
 
 같은 사실을 두 저장소에서 각각 권위 있게 유지하지 않는다. raw는 “소스가 무엇을 보냈는가”,
@@ -58,6 +101,7 @@ PostgreSQL core ─────── canonical interpreted facts
 - [용어집](docs/architecture/glossary.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [승인된 그린필드 설계 스펙](docs/superpowers/specs/2026-08-29-eatbid-greenfield-architecture-design.md)
+- [1단계 data-foundation 구현 계획](docs/superpowers/plans/2026-08-29-eatbid-data-foundation.md)
 
 ## 상태
 

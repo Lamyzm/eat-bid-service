@@ -1,7 +1,8 @@
 # eatbid 그린필드 아키텍처 설계 스펙
 
 - Date: 2026-08-29
-- Status: Approved for architecture documentation
+- Status: Approved; implementation planning authorized
+- Approval date: 2026-08-29
 - Scope: 목표 아키텍처와 전환 경계. 구현 계획/코드 변경은 포함하지 않음.
 
 ## 1. 배경
@@ -121,9 +122,9 @@ dry-run 보고와 source identity를 요구한다.
 - 전환: [`legacy-disposition.md`](../../architecture/legacy-disposition.md)
 - 결정 기록: [`docs/adr`](../../adr/README.md)
 
-## 8. 구현 전 사용자 검토 포인트
+## 8. 승인 결과와 구현 계획
 
-이 스펙 승인 후 구현 계획에서 다음 순서를 세분화한다.
+사용자는 이 스펙의 전체 재설계 방향을 승인했다. 구현 계획에서 다음 순서를 세분화한다.
 
 1. raw observation/code registry/새 migration foundation
 2. Auction/Organization/Supplier canonical projector와 replay
@@ -132,6 +133,7 @@ dry-run 보고와 source identity를 요구한다.
 5. Workspace user state와 다사업자 흐름
 6. shadow backfill/대조/cutover/레거시 제거
 
-구현 계획을 작성하기 전에 사용자는 특히 제품 grain, 코드 scheme 분리, 초기 SLO/RPO/RTO,
-레거시 사용자 상태 이관 범위를 검토한다. 아키텍처 승인만으로 destructive migration이나
-레거시 삭제를 실행하지 않는다.
+첫 실행 계획은 [`2026-08-29-eatbid-data-foundation.md`](../plans/2026-08-29-eatbid-data-foundation.md)다.
+제품 grain, 코드 scheme 분리, 초기 SLO/RPO/RTO, 레거시 사용자 상태 이관 범위는 후속 계획에서도
+이 스펙을 기본값으로 사용한다. 아키텍처 승인만으로 destructive migration이나 레거시 삭제를
+실행하지 않으며 각 cutover gate에서 별도 증거를 요구한다.
