@@ -7,7 +7,7 @@ import {
   rawBlob,
   rawObservation,
   requestUnit,
-} from "./ingest";
+} from "./ingest/index";
 
 const columnNames = (table: Parameters<typeof getTableConfig>[0]) =>
   getTableConfig(table).columns.map((column) => column.name);

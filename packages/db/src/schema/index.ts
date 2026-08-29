@@ -1,2 +1,2 @@
 export * from "./namespaces.js";
-export * from "./ingest.js";
+export * from "./ingest/index.js";
