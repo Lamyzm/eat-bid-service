@@ -15,6 +15,31 @@ def _workflow_text() -> str:
     return WORKFLOW.read_text(encoding="utf-8")
 
 
+def _workflow() -> dict[str, object]:
+    parsed = yaml.safe_load(_workflow_text())
+    assert isinstance(parsed, dict)
+    return parsed
+
+
+def _job(name: str) -> dict[str, object]:
+    jobs = _workflow()["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[name]
+    assert isinstance(job, dict)
+    return job
+
+
+def _steps(name: str) -> list[dict[str, object]]:
+    steps = _job(name)["steps"]
+    assert isinstance(steps, list)
+    assert all(isinstance(step, dict) for step in steps)
+    return steps
+
+
+def _step_index(steps: list[dict[str, object]], step_id: str) -> int:
+    return next(index for index, step in enumerate(steps) if step.get("id") == step_id)
+
+
 def test_ci_runs_frozen_typescript_python_and_empty_database_gates() -> None:
     workflow = _workflow_text()
     root_package = yaml.safe_load((ROOT / "package.json").read_text(encoding="utf-8"))
@@ -22,7 +47,11 @@ def test_ci_runs_frozen_typescript_python_and_empty_database_gates() -> None:
     assert "postgres:16-alpine" in workflow
     assert "oven-sh/setup-bun@v2" in workflow
     assert 'bun-version: "1.2.22"' in workflow
-    assert "astral-sh/setup-uv@v6" in workflow
+    assert (
+        "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0"
+        in workflow
+    )
+    assert 'version: "0.12.6"' in workflow
     assert "pnpm install --frozen-lockfile" in workflow
     assert "pnpm test" in workflow
     assert "pnpm build" in workflow
@@ -39,7 +68,7 @@ def test_ci_runs_frozen_typescript_python_and_empty_database_gates() -> None:
 
 def test_ci_builds_all_artifacts_from_full_sha_and_promotes_digests() -> None:
     workflow = _workflow_text()
-    parsed = yaml.safe_load(workflow)
+    parsed = _workflow()
     includes = parsed["jobs"]["build"]["strategy"]["matrix"]["include"]
 
     assert {item["app"] for item in includes} == {
@@ -52,11 +81,132 @@ def test_ci_builds_all_artifacts_from_full_sha_and_promotes_digests() -> None:
     assert all(item["context"] for item in includes)
     assert "GIT_SHA=${{ github.sha }}" in workflow
     assert "org.opencontainers.image.revision=${{ github.sha }}" in workflow
-    assert "${{ steps.image.outputs.digest }}" in workflow
+    assert "${{ steps.publish.outputs.digest }}" in workflow
     assert "infra/update_image_digest.py" in workflow
     assert "infra/product/kustomization.yaml" in workflow
     assert "infra/bump-image.py" not in workflow
     assert "git rev-parse --short" not in workflow
+
+
+def test_build_scans_attests_signs_and_verifies_before_exporting_digest() -> None:
+    job = _job("build")
+    assert job["needs"] == "test"
+    assert job["permissions"] == {
+        "contents": "read",
+        "packages": "write",
+        "id-token": "write",
+    }
+    assert "artifact-metadata" not in job["permissions"]
+    assert "attestations" not in job["permissions"]
+
+    steps = _steps("build")
+    order = [
+        "build-local",
+        "scan",
+        "sbom",
+        "publish",
+        "setup-cosign",
+        "generate-provenance",
+        "sign",
+        "attest-provenance",
+        "attest-sbom",
+        "verify-signature",
+        "verify-provenance",
+        "verify-sbom",
+        "record",
+        "upload-digest",
+    ]
+    indexes = [_step_index(steps, step_id) for step_id in order]
+    assert indexes == sorted(indexes)
+
+    by_id = {step["id"]: step for step in steps if "id" in step}
+    build = by_id["build-local"]
+    assert build["uses"] == "docker/build-push-action@v6"
+    assert build["with"]["load"] is True
+    assert build["with"]["push"] is False
+    assert build["with"]["tags"] == (
+        "${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}"
+    )
+
+    scan = by_id["scan"]
+    assert scan["uses"] == (
+        "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
+    )
+    assert scan["with"]["version"] == "v0.73.0"
+    assert scan["with"]["image-ref"] == (
+        "${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}"
+    )
+    assert str(scan["with"]["exit-code"]) == "1"
+    assert scan["with"]["severity"] == "HIGH,CRITICAL"
+    assert scan["with"].get("ignore-unfixed") in (None, False)
+
+    sbom = by_id["sbom"]
+    assert sbom["uses"] == scan["uses"]
+    assert sbom["with"]["version"] == "v0.73.0"
+    assert sbom["with"]["image-ref"] == scan["with"]["image-ref"]
+    assert sbom["with"]["format"] == "spdx-json"
+    assert sbom["with"]["skip-setup-trivy"] is True
+
+    publish = str(by_id["publish"]["run"])
+    assert "docker push \"$IMAGE_REF\"" in publish
+    assert "docker buildx imagetools inspect" in publish
+    assert "^sha256:[0-9a-f]{64}$" in publish
+
+    assert not any(str(step.get("uses", "")).startswith("actions/attest@") for step in steps)
+
+    cosign = by_id["setup-cosign"]
+    assert cosign["uses"] == (
+        "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
+    )
+    assert cosign["with"]["cosign-release"] == "v3.0.6"
+    provenance = str(by_id["generate-provenance"]["run"])
+    assert "infra/generate_slsa_provenance.py" in provenance
+    assert "provenance-${{ matrix.app }}.json" in provenance
+    assert "cosign sign --yes \"$IMAGE_NAME@$IMAGE_DIGEST\"" in str(
+        by_id["sign"]["run"]
+    )
+    assert "cosign attest --yes --type slsaprovenance1" in str(
+        by_id["attest-provenance"]["run"]
+    )
+    assert "--predicate \"provenance-${{ matrix.app }}.json\"" in str(
+        by_id["attest-provenance"]["run"]
+    )
+    assert "cosign attest --yes --type spdxjson" in str(by_id["attest-sbom"]["run"])
+    assert "--predicate \"sbom-${{ matrix.app }}.spdx.json\"" in str(
+        by_id["attest-sbom"]["run"]
+    )
+
+    verification_steps = {
+        "verify-signature": "cosign verify",
+        "verify-provenance": "cosign verify-attestation --type slsaprovenance1",
+        "verify-sbom": "cosign verify-attestation --type spdxjson",
+    }
+    for step_id, command in verification_steps.items():
+        verify = str(by_id[step_id]["run"])
+        assert command in verify
+        assert "https://token.actions.githubusercontent.com" in verify
+        assert (
+            "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/heads/master"
+            in verify
+        )
+        assert "certificate-identity-regexp" not in verify
+        assert "\"$IMAGE_NAME@$IMAGE_DIGEST\"" in verify
+
+    record = str(by_id["record"]["run"])
+    assert "${{ steps.publish.outputs.digest }}" in record
+    assert "^sha256:[0-9a-f]{64}$" in record
+
+
+def test_promotion_validates_every_matrix_digest_including_migration() -> None:
+    job = _job("promote")
+    assert job["needs"] == "build"
+    steps = _steps("promote")
+    pin = next(step for step in steps if step.get("id") == "validate-and-pin")
+    command = str(pin["run"])
+
+    assert "for app in web server dataplane migration" in command
+    assert "^sha256:[0-9a-f]{64}$" in command
+    assert "test -s digests/migration" not in command
 
 
 def test_product_manifest_has_only_the_three_consumed_product_images() -> None:

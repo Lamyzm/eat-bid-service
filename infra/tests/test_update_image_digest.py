@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 VALID_DIGEST = "sha256:" + "a" * 64
+OTHER_VALID_DIGEST = "sha256:" + "b" * 64
 
 
 def _yaml(*lines: str) -> str:
@@ -74,6 +75,192 @@ def test_replaces_only_named_image_digest_and_preserves_all_other_bytes(
         "  - ../k8s/base\r\n"
     ).encode("utf-8")
     assert manifest.read_bytes() == expected
+
+
+@pytest.mark.parametrize(
+    "ambiguous_top_level",
+    [
+        '"images":',
+        "'images':",
+        "images :",
+        "? images\n:",
+        "images: &product-images",
+        "images: *product-images",
+        "images: !replace",
+        '{"images": []}',
+    ],
+)
+def test_rejects_semantic_or_decorated_top_level_images_keys_without_mutation(
+    tmp_path: Path,
+    ambiguous_top_level: str,
+) -> None:
+    manifest = tmp_path / "kustomization.yaml"
+    _write_manifest(
+        manifest,
+        _yaml(
+            "images:",
+            "  - name: eatbid-dataplane",
+            "    digest: sha256:old",
+            ambiguous_top_level,
+            "  - name: eatbid-web",
+            f"    digest: {OTHER_VALID_DIGEST}",
+        ),
+    )
+    _assert_rejected_without_mutation(manifest)
+
+
+def test_rejects_multiple_yaml_documents_without_mutation(tmp_path: Path) -> None:
+    manifest = tmp_path / "kustomization.yaml"
+    _write_manifest(
+        manifest,
+        _yaml(
+            "---",
+            "images:",
+            "  - name: eatbid-dataplane",
+            "    digest: sha256:old",
+            "---",
+            "images:",
+            "  - name: eatbid-web",
+            f"    digest: {OTHER_VALID_DIGEST}",
+        ),
+    )
+    _assert_rejected_without_mutation(manifest)
+
+
+@pytest.mark.parametrize(
+    "ambiguous_top_level",
+    [
+        '"im\\u0061ges":',
+        "<<: *defaults",
+        "defaults: &defaults",
+        "release: !stable production",
+        "metadata: {name: product}",
+        "notes: |",
+    ],
+)
+def test_rejects_non_plain_top_level_grammar_without_mutation(
+    tmp_path: Path,
+    ambiguous_top_level: str,
+) -> None:
+    manifest = tmp_path / "kustomization.yaml"
+    _write_manifest(
+        manifest,
+        _yaml(
+            "images:",
+            "  - name: eatbid-dataplane",
+            "    digest: sha256:old",
+            ambiguous_top_level,
+        ),
+    )
+    _assert_rejected_without_mutation(manifest)
+
+
+def test_rejects_duplicate_unrelated_top_level_keys_without_mutation(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "kustomization.yaml"
+    _write_manifest(
+        manifest,
+        _yaml(
+            "kind: Kustomization",
+            "images:",
+            "  - name: eatbid-dataplane",
+            "    digest: sha256:old",
+            "kind: Kustomization",
+        ),
+    )
+    _assert_rejected_without_mutation(manifest)
+
+
+@pytest.mark.parametrize(
+    "foreign_entry",
+    [
+        _yaml("  - name: eatbid-web"),
+        _yaml("  - name: eatbid-web", "    newTag: latest", f"    digest: {OTHER_VALID_DIGEST}"),
+        _yaml("  - name: eatbid-web", "    digest: sha256:old"),
+        _yaml("  - name: eatbid-web", "    digest: sha256:" + "B" * 64),
+        _yaml("  - name: eatbid-web", '    digest: "' + OTHER_VALID_DIGEST + '"'),
+        _yaml("  - name: eatbid-web", "    digest: &web-digest " + OTHER_VALID_DIGEST),
+        _yaml("  - name: eatbid-web", "    digest: *web-digest"),
+        _yaml("  - name: eatbid-web", "    digest: !sha256 " + OTHER_VALID_DIGEST),
+        _yaml('  - name: "eatbid-web"', f"    digest: {OTHER_VALID_DIGEST}"),
+        _yaml("  - &web name: eatbid-web", f"    digest: {OTHER_VALID_DIGEST}"),
+        _yaml("  - name: eatbid-web", "    unsupported: value", f"    digest: {OTHER_VALID_DIGEST}"),
+        _yaml(
+            "  - name: eatbid-web",
+            f"    digest: {OTHER_VALID_DIGEST}",
+            f"    digest: {OTHER_VALID_DIGEST}",
+        ),
+    ],
+)
+def test_validates_every_image_entry_before_mutating_target(
+    tmp_path: Path,
+    foreign_entry: str,
+) -> None:
+    manifest = tmp_path / "kustomization.yaml"
+    _write_manifest(
+        manifest,
+        "images:\n"
+        "  - name: eatbid-dataplane\n"
+        "    digest: sha256:old\n"
+        + foreign_entry,
+    )
+    _assert_rejected_without_mutation(manifest)
+
+
+@pytest.mark.parametrize("invalid_value", [None, True, False, b"eatbid-dataplane", 1])
+def test_rejects_non_string_image_names_as_domain_errors(
+    tmp_path: Path,
+    invalid_value: object,
+) -> None:
+    from infra.update_image_digest import DigestUpdateError, update_digest
+
+    manifest = tmp_path / "kustomization.yaml"
+    before = _write_manifest(
+        manifest,
+        "images:\n  - name: eatbid-dataplane\n    digest: sha256:old\n",
+    )
+    with pytest.raises(DigestUpdateError):
+        update_digest(manifest, invalid_value, VALID_DIGEST)  # type: ignore[arg-type]
+    assert manifest.read_bytes() == before
+
+
+@pytest.mark.parametrize("invalid_value", [None, True, False, b"sha256:bad", 1])
+def test_rejects_non_string_digests_as_domain_errors(
+    tmp_path: Path,
+    invalid_value: object,
+) -> None:
+    from infra.update_image_digest import DigestUpdateError, update_digest
+
+    manifest = tmp_path / "kustomization.yaml"
+    before = _write_manifest(
+        manifest,
+        "images:\n  - name: eatbid-dataplane\n    digest: sha256:old\n",
+    )
+    with pytest.raises(DigestUpdateError):
+        update_digest(manifest, "eatbid-dataplane", invalid_value)  # type: ignore[arg-type]
+    assert manifest.read_bytes() == before
+
+
+@pytest.mark.parametrize("invalid_path", [None, True, False, b"manifest.yaml"])
+def test_rejects_invalid_paths_as_domain_errors(invalid_path: object) -> None:
+    from infra.update_image_digest import DigestUpdateError, update_digest
+
+    with pytest.raises(DigestUpdateError):
+        update_digest(invalid_path, "eatbid-dataplane", VALID_DIGEST)  # type: ignore[arg-type]
+
+
+def test_wraps_missing_and_directory_read_failures_and_cli_returns_two(
+    tmp_path: Path,
+) -> None:
+    from infra.update_image_digest import DigestUpdateError, main, update_digest
+
+    missing = tmp_path / "missing.yaml"
+    with pytest.raises(DigestUpdateError):
+        update_digest(missing, "eatbid-dataplane", VALID_DIGEST)
+    with pytest.raises(DigestUpdateError):
+        update_digest(tmp_path, "eatbid-dataplane", VALID_DIGEST)
+    assert main(["--file", str(missing), "eatbid-dataplane", VALID_DIGEST]) == 2
 
 
 @pytest.mark.parametrize(

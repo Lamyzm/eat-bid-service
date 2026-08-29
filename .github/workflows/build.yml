@@ -47,8 +47,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.22"
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
+          version: "0.12.6"
           python-version: "3.12"
           enable-cache: true
 
@@ -97,6 +98,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -116,29 +118,148 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: image
+      - id: build-local
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
-          push: true
+          load: true
+          push: false
           tags: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}
           build-args: GIT_SHA=${{ github.sha }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
-      - name: Record immutable image digest
+
+      - id: scan
+        name: Reject HIGH or CRITICAL vulnerabilities in the local image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          version: v0.73.0
+      - id: sbom
+        name: Generate SPDX SBOM from the same local image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}
+          format: spdx-json
+          output: sbom-${{ matrix.app }}.spdx.json
+          exit-code: "0"
+          skip-setup-trivy: true
+          version: v0.73.0
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: publish
+        name: Push the exact scanned tag and resolve its registry digest
+        env:
+          IMAGE_REF: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}
         run: |
+          set -euo pipefail
+          docker push "$IMAGE_REF"
+          manifest_json="$(docker buildx imagetools inspect "$IMAGE_REF" --format '{{json .Manifest}}')"
+          digest="$(jq -er '.digest' <<<"$manifest_json")"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid registry digest: $digest" >&2
+            exit 2
+          fi
+          echo "name=${IMAGE_REF%:*}" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - id: setup-cosign
+        name: Install pinned Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
+      - id: generate-provenance
+        name: Generate deterministic SLSA v1 provenance predicate
+        run: >-
+          python3 infra/generate_slsa_provenance.py
+          --output "provenance-${{ matrix.app }}.json"
+      - id: sign
+        name: Keyless-sign the exact registry digest
+        env:
+          IMAGE_NAME: ${{ steps.publish.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: cosign sign --yes "$IMAGE_NAME@$IMAGE_DIGEST"
+      - id: attest-provenance
+        name: Attach SLSA provenance to the exact registry digest
+        env:
+          IMAGE_NAME: ${{ steps.publish.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: >-
+          cosign attest --yes --type slsaprovenance1
+          --predicate "provenance-${{ matrix.app }}.json"
+          "$IMAGE_NAME@$IMAGE_DIGEST"
+      - id: attest-sbom
+        name: Attach the scanned SPDX SBOM to the exact registry digest
+        env:
+          IMAGE_NAME: ${{ steps.publish.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: >-
+          cosign attest --yes --type spdxjson
+          --predicate "sbom-${{ matrix.app }}.spdx.json"
+          "$IMAGE_NAME@$IMAGE_DIGEST"
+      - id: verify-signature
+        name: Verify issuer and exact workflow identity on the signature
+        env:
+          IMAGE_NAME: ${{ steps.publish.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IDENTITY="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/heads/master"
+          cosign verify \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity "$IDENTITY" \
+            "$IMAGE_NAME@$IMAGE_DIGEST"
+      - id: verify-provenance
+        name: Verify issuer and exact workflow identity on the SLSA attestation
+        env:
+          IMAGE_NAME: ${{ steps.publish.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IDENTITY="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/heads/master"
+          cosign verify-attestation --type slsaprovenance1 \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity "$IDENTITY" \
+            "$IMAGE_NAME@$IMAGE_DIGEST"
+      - id: verify-sbom
+        name: Verify issuer and exact workflow identity on the SPDX attestation
+        env:
+          IMAGE_NAME: ${{ steps.publish.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IDENTITY="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/heads/master"
+          cosign verify-attestation --type spdxjson \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity "$IDENTITY" \
+            "$IMAGE_NAME@$IMAGE_DIGEST"
+
+      - id: record
+        name: Record the verified immutable image digest
+        run: |
+          set -euo pipefail
+          digest='${{ steps.publish.outputs.digest }}'
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid verified digest: $digest" >&2
+            exit 2
+          fi
           mkdir -p digests
-          printf '%s' '${{ steps.image.outputs.digest }}' > "digests/${{ matrix.app }}"
-      - uses: actions/upload-artifact@v4
+          printf '%s' "$digest" > "digests/${{ matrix.app }}"
+      - id: upload-digest
+        uses: actions/upload-artifact@v4
         with:
           name: image-digest-${{ matrix.app }}
           path: digests/${{ matrix.app }}
@@ -162,14 +283,21 @@ jobs:
           pattern: image-digest-*
           path: digests
           merge-multiple: true
-      - name: Pin manifest-consumed images by digest
+      - id: validate-and-pin
+        name: Validate every matrix digest and pin manifest consumers
         run: |
           set -euo pipefail
+          for app in web server dataplane migration; do
+            digest="$(tr -d '\r\n' < "digests/$app")"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Invalid $app digest: $digest" >&2
+              exit 2
+            fi
+          done
           python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-web "$(cat digests/web)"
           python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-server "$(cat digests/server)"
           python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-dataplane "$(cat digests/dataplane)"
           # The migration image is built from this SHA but Task 11 has no migration workload to pin.
-          test -s digests/migration
       - name: Commit product digest set
         run: |
           set -euo pipefail

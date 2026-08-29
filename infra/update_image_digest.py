@@ -13,8 +13,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
+BOOTSTRAP_DIGEST = "sha256:old"
 IMAGE_NAME_PATTERN = re.compile(r"[a-z0-9]+(?:[._/-][a-z0-9]+)*\Z")
 IMAGES_HEADER_PATTERN = re.compile(r"^images:[ ]*(?:#.*)?(?:\r?\n)?$")
+TOP_LEVEL_PATTERN = re.compile(
+    r"^(?P<key>[A-Za-z][A-Za-z0-9_-]*):"
+    r"(?:[ ]*(?:#.*)?| +[A-Za-z0-9][A-Za-z0-9._/-]*(?: +#.*)?)$"
+)
 ENTRY_PATTERN = re.compile(
     r"^(?P<indent> +)- +name: +(?P<value>[^ #\t\r\n]+)(?: +#.*)?(?:\r?\n)?$"
 )
@@ -22,7 +27,7 @@ FIELD_PATTERN = re.compile(
     r"^(?P<indent> +)(?P<key>[A-Za-z][A-Za-z0-9]*): +"
     r"(?P<value>[^ #\t\r\n]+)(?: +#.*)?(?:\r?\n)?$"
 )
-ALLOWED_FIELDS = frozenset({"newName", "newTag", "digest"})
+ALLOWED_FIELDS = frozenset({"newName", "digest"})
 
 
 class DigestUpdateError(ValueError):
@@ -46,17 +51,40 @@ def _fail(message: str) -> DigestUpdateError:
     return DigestUpdateError(message)
 
 
-def _parse_images(lines: list[str]) -> list[_Image]:
+def _validate_document_shape(lines: list[str]) -> int:
     if any("\t" in line for line in lines):
-        raise _fail("tabs are not accepted in the images block")
+        raise _fail("tabs are not accepted in the manifest")
 
-    header_indexes = [
-        index for index, line in enumerate(lines) if IMAGES_HEADER_PATTERN.fullmatch(line)
-    ]
-    if len(header_indexes) != 1:
+    top_level_keys: set[str] = set()
+    images_indexes: list[int] = []
+    for index, line in enumerate(lines):
+        body = line.rstrip("\r\n")
+        if not body or body.startswith((" ", "#")):
+            continue
+        if re.fullmatch(r"(?:---|\.\.\.)(?: +#.*)?", body):
+            raise _fail("multi-document YAML is not accepted")
+        top_level_match = TOP_LEVEL_PATTERN.fullmatch(body)
+        if top_level_match is None:
+            raise _fail(f"non-plain top-level YAML is not accepted on line {index + 1}")
+        key = top_level_match.group("key")
+        if key in top_level_keys:
+            raise _fail(f"duplicate top-level key {key!r} on line {index + 1}")
+        top_level_keys.add(key)
+        if key == "images":
+            images_indexes.append(index)
+            if IMAGES_HEADER_PATTERN.fullmatch(line):
+                continue
+            else:
+                raise _fail(f"images must use one undecorated plain key on line {index + 1}")
+
+    if len(images_indexes) != 1:
         raise _fail("manifest must contain exactly one plain top-level images block")
+    return images_indexes[0]
 
-    start = header_indexes[0] + 1
+
+def _parse_images(lines: list[str], header_index: int) -> list[_Image]:
+    start = header_index + 1
+
     end = len(lines)
     for index in range(start, len(lines)):
         stripped = lines[index].strip()
@@ -118,7 +146,39 @@ def _parse_images(lines: list[str]) -> list[_Image]:
     return images
 
 
-def _render_updated(content: bytes, image_name: str, digest: str) -> bytes:
+def _validate_images(images: list[_Image], target_name: str) -> _Field:
+    matches = [image for image in images if image.name == target_name]
+    if len(matches) != 1:
+        raise _fail(f"image {target_name!r} must occur exactly once")
+
+    target_field: _Field | None = None
+    for image in images:
+        fields = {field.key: field for field in image.fields}
+        digest_field = fields.get("digest")
+        if digest_field is None:
+            raise _fail(f"image {image.name!r} must contain exactly one digest field")
+        new_name = fields.get("newName")
+        if new_name is not None and IMAGE_NAME_PATTERN.fullmatch(new_name.value) is None:
+            raise _fail(f"image {image.name!r} has a non-plain newName")
+
+        is_target = image.name == target_name
+        valid_digest = DIGEST_PATTERN.fullmatch(digest_field.value) is not None
+        valid_bootstrap = is_target and digest_field.value == BOOTSTRAP_DIGEST
+        if not valid_digest and not valid_bootstrap:
+            raise _fail(f"image {image.name!r} has an invalid existing digest")
+        if is_target:
+            target_field = digest_field
+
+    if target_field is None:
+        raise _fail(f"image {target_name!r} must occur exactly once")
+    return target_field
+
+
+def _render_updated(content: bytes, image_name: object, digest: object) -> bytes:
+    if not isinstance(image_name, str):
+        raise _fail("image name must be a string")
+    if not isinstance(digest, str):
+        raise _fail("digest must be a string")
     if IMAGE_NAME_PATTERN.fullmatch(image_name) is None:
         raise _fail("image name must be a plain lowercase Kustomize image name")
     if DIGEST_PATTERN.fullmatch(digest) is None:
@@ -129,21 +189,9 @@ def _render_updated(content: bytes, image_name: str, digest: str) -> bytes:
     except UnicodeDecodeError as error:
         raise _fail("manifest must be UTF-8") from error
     lines = text.splitlines(keepends=True)
-    images = _parse_images(lines)
-    matches = [image for image in images if image.name == image_name]
-    if len(matches) != 1:
-        raise _fail(f"image {image_name!r} must occur exactly once")
-
-    image = matches[0]
-    if any(field.key == "newTag" for field in image.fields):
-        raise _fail(f"image {image_name!r} must not contain newTag")
-    digest_fields = [field for field in image.fields if field.key == "digest"]
-    if len(digest_fields) != 1:
-        raise _fail(f"image {image_name!r} must contain exactly one digest field")
-
-    target = digest_fields[0]
-    if re.fullmatch(r"sha256:[0-9A-Za-z]+", target.value) is None:
-        raise _fail("existing digest must be an unquoted sha256 scalar")
+    header_index = _validate_document_shape(lines)
+    images = _parse_images(lines, header_index)
+    target = _validate_images(images, image_name)
     digest_line_pattern = re.compile(
         r"^(?P<prefix> +digest: +)(?P<value>[^ #\t\r\n]+)(?P<suffix>(?: +#.*)?(?:\r?\n)?)$"
     )
@@ -178,10 +226,13 @@ def _atomic_write(path: Path, content: bytes, mode: int) -> None:
             temporary_path.unlink(missing_ok=True)
 
 
-def update_digest(path: Path, image_name: str, digest: str) -> bool:
+def update_digest(path: object, image_name: object, digest: object) -> bool:
     """Replace one digest atomically; return whether file bytes changed."""
 
-    manifest = Path(path)
+    try:
+        manifest = Path(path)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as error:
+        raise _fail(f"invalid manifest path: {error}") from error
     try:
         before = manifest.read_bytes()
         mode = manifest.stat().st_mode
