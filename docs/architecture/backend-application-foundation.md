@@ -2,7 +2,10 @@
 
 이 문서는 `apps/server`를 입찰분석 제품의 신뢰 가능한 application boundary로 다시 세우는 목표
 구조다. 현재 server는 조사 자료일 뿐 보존해야 할 설계가 아니다. 지배 결정은
-[ADR 0016](../adr/0016-nest-effect-application-boundary.md)이다.
+[ADR 0016](../adr/0016-nest-effect-application-boundary.md)과
+[ADR 0017](../adr/0017-greenfield-server-composition-reset.md),
+[ADR 0018](../adr/0018-application-identity-and-id-wire-format.md),
+[ADR 0019](../adr/0019-nest12-runtime-without-cli.md)이다.
 
 ## 1. 목표와 비목표
 
@@ -26,15 +29,25 @@ foundation에서 하지 않는 것:
 | Package | 조사 버전 | 결정 |
 |---|---:|---|
 | `@nestjs/common`, `core`, `platform-express`, `testing` | 12.0.1 | 같은 patch lane으로 채택 후보 |
-| `@nestjs/cli`, `@nestjs/config` | 12.0.0 | Node 24.20.0에서 schematic/config spike 후 채택 후보 |
+| `@nestjs/config` | 12.0.0 | Standard Schema 기반 fail-fast config 후보 |
+| `@nestjs/cli`, `@nestjs/schematics` | 12.0.0 | schematics가 TypeScript `>=6`을 요구하므로 보류; ADR 0019의 `tsc` build 사용 |
 | `@nestjs/swagger` | 12.0.1 | Standard Schema/OpenAPI artifact에 채택 후보 |
 | `effect` | 4.0.0-rc.112 | exact pin compatibility candidate; stable tag 3.22.1은 Drizzle v1 optional Effect peer와 맞지 않음 |
 | `zod`, `zod-openapi` | 4.5.2, 6.0.1 | bounded contract와 Nest 공식 converter 경로의 후보 |
 | `helmet`, `supertest` | 8.3.0, 7.2.2 | security middleware와 HTTP e2e 후보 |
+| `concurrently` | 10.0.5 | Nest CLI 없는 `tsc --watch` + compiled Node watch 개발 경로 |
 | `@nestjs/terminus` | 11.1.1 | 현재 peer가 Nest 10/11뿐이므로 보류; 작은 명시적 health module 사용 |
 | `@nestjs/throttler` | 6.5.0 | 현재 peer가 Nest 11까지이므로 override 설치 금지 |
 | `nestjs-pino` | 4.6.1 | 현재 peer가 Nest 11까지; Nest 12 built-in JSON logger 사용 |
 | `@thallesp/nestjs-better-auth` | 2.7.0 | 현재 peer가 Nest 11만 허용; 자체 raw transport module 사용 |
+
+런타임은 Node `24.20.0` LTS patch를 repository/CI/container에 동일하게 고정한다. TypeScript는 이
+foundation에서 `5.9.3`에 고정하고, registry 최신 major인 TypeScript 7은 module resolution·decorator·
+Nest toolchain을 함께 검증하는 별도 compiler migration으로 보류한다. Nest 12 core가 ESM-only여도
+Node 24의 `require(esm)` 경로를 compiled bootstrap으로 검증하므로 application 전체의 ESM 전환을 이
+변경에 묶지 않는다. `.npmrc`와 CI install 모두 strict peer dependency 검사를 사용하며 CLI/schematics
+peer warning을 override하지 않는다. 개발 실행은 선행 `tsc` build 뒤 `tsc --watch`와
+`node --watch dist/main.js`를 함께 실행해 CLI 없이도 재컴파일/재시작이 가능해야 한다.
 
 Nest 12 migration guide, Standard Schema/OpenAPI, logging과 request lifecycle의 근거는
 [공식 migration guide](https://docs.nestjs.com/migration-guide),
@@ -50,7 +63,9 @@ Nest 12 migration guide, Standard Schema/OpenAPI, logging과 request lifecycle�
 module-import 시점 singleton DB/Auth도 존재한다.
 
 이 상태에서 decorator와 toolkit만 추가하는 것은 개선이 아니다. 첫 server foundation task는 새
-구조의 vertical slice와 architecture test를 만들고 legacy를 격리해야 한다.
+구조의 vertical slice와 architecture test를 만든다. 현재 worktree는 그린필드 전환이 가능하므로
+legacy handler를 새 composition root에 싣지 않는다. 기존 route는 기계 판독 가능한 inventory와 Git
+이력으로만 보존하고, 실행 중인 사용자 로컬 서비스는 변경하지 않는다.
 
 ## 3. 목표 디렉터리
 
@@ -71,16 +86,17 @@ apps/server/src/
 │  ├─ http/
 │  ├─ identity/
 │  ├─ logging/
-│  └─ request-context/
+│  ├─ request-context/
+│  └─ shutdown/
 ├─ modules/
 │  ├─ procurement/
+│  ├─ identity/         # internal principal and provider-subject mapping
 │  ├─ institutions/     # Organization aggregate; school is only an organization type
 │  ├─ suppliers/
 │  ├─ eligibility/
 │  ├─ workspace/
 │  ├─ intelligence/
 │  ├─ operations/
-│  └─ legacy-api/
 └─ testing/
 
 packages/contracts/src/<bounded-context>/
@@ -101,8 +117,12 @@ packages/db/src/schema/{ingest,core,app,mart}/
 
 ```mermaid
 flowchart LR
-    req[HTTP request] --> mid[request-id middleware]
-    mid --> pipe[Zod Standard Schema pipe]
+    req[HTTP request] --> mid[Express request context + inflight middleware]
+    mid --> raw{raw auth route?}
+    raw -->|yes| auth[Better Auth raw handler]
+    auth --> rawlog[sanitized raw completion]
+    rawlog --> res[HTTP response]
+    raw -->|no| pipe[bounded parser + Zod Standard Schema pipe]
     pipe --> guard[session / workspace guard]
     guard --> ctrl[thin controller]
     ctrl --> usecase[application use case]
@@ -114,7 +134,7 @@ flowchart LR
     runner --> ctrl
     ctrl --> serial[response schema interceptor]
     serial --> log[completion log interceptor]
-    log --> res[HTTP response]
+    log --> res
     usecase -. typed error .-> filter[RFC 9457 filter]
     filter --> res
 ```
@@ -123,7 +143,7 @@ Nest request lifecycle의 실행 순서를 이용하되 각 extension point를 �
 
 | 경계 | 해야 하는 일 | 하면 안 되는 일 |
 |---|---|---|
-| Middleware | request ID 수신/생성, ALS context 초기화 | DB query, session authorization |
+| Middleware | request ID 수신/생성, ALS context 초기화, 모든 transport의 inflight lease | DB query, session authorization |
 | Pipe | route 입력 검증·coercion | tenant 조회, 업무 규칙 |
 | Guard | 인증, workspace membership, permission | 응답 변환, command 실행 |
 | Controller | transport mapping, use case 한 번 호출 | Drizzle, cache, env, transaction |
@@ -156,6 +176,8 @@ use case의 환경 type은 controller에 도달할 때 `never`여야 한다. 요
 
 - `DatabaseModule`이 config를 받아 client를 만들고 shutdown에서 닫는다.
 - server DB role은 `core`/`mart` read, `app`의 module-owned table write만 가진다.
+- bootstrap owner, migrator, API, dormant dataplane은 서로 다른 Kubernetes Secret/DB credential을 사용한다.
+  API process는 owner/migrator/dataplane credential을 받지 않는다.
 - migration은 server 시작 시 실행하지 않는다. PreSync migration image가 수행하며 server readiness는
   기대 migration version을 확인한다.
 - `UnitOfWork`는 callback 안에서 같은 transaction handle을 사용하는 명시적 port다.
@@ -166,7 +188,9 @@ use case의 환경 type은 controller에 도달할 때 `never`여야 한다. 요
 
 ## 7. HTTP와 OpenAPI
 
-- canonical resource URL은 문자열 이름이 아니라 bigint/opaque stable ID를 사용한다.
+- canonical resource URL은 문자열 이름이 아니라 bigint stable ID를 사용한다. JSON/path에서는
+  `^[1-9][0-9]*$` decimal string으로 무손실 인코딩하고 presentation boundary에서 bigint로 변환한다.
+  `Number`를 거치지 않으며 `MAX_SAFE_INTEGER` 초과 ID도 동일하게 왕복해야 한다.
 - `/api/v1`은 새 계약, `/api/auth/*`와 `/health/*`는 version-neutral이다.
 - request와 response를 각각 Zod schema로 검증한다. output schema는 secret/internal column을 제거하는
   security boundary다.
@@ -182,20 +206,30 @@ OpenAPI 3.1로 올릴 때는 nullable/union/JSON Schema dialect와 client genera
 ## 8. Authentication과 authorization
 
 - Better Auth의 raw handler는 body parser보다 먼저 `/api/auth/*`에 연결해 원본 request semantics를
-  보존한다. JSON body를 다시 만들어 Fetch `Request`로 흉내 내지 않는다.
+  보존한다. 공유 Express request-context/inflight middleware는 raw handler보다 먼저 실행되고, bounded
+  body parser와 Nest route는 raw handler 뒤에 실행된다. JSON body를 다시 만들어 Fetch `Request`로 흉내
+  내지 않는다.
+- `better-auth`와 `auth` CLI를 같은 exact version으로 고정하고, CLI가 생성한 Drizzle schema와 committed
+  modular auth schema를 table/column/index/relation 수준에서 비교한다. CLI가 migration을 적용하지 않는다.
+- provider subject는 `IdentitySubject`에서 내부 bigint `Principal`로 해소한 뒤에만 workspace query에 쓴다.
+  검증된 session의 subject가 처음 등장하면 application-owned transaction이 principal+mapping을 원자적으로
+  만들고 unique conflict에서 같은 mapping을 다시 읽는다. email/이름 일치로 principal을 합치지 않는다.
 - authentication 실패와 provider 장애를 모두 guest로 삼키지 않는다. optional-auth route만 guest를
   허용하고, dependency failure는 503 계열 typed problem이다.
 - `@Public`, `@OptionalAuth`, permission metadata와 global session guard를 사용한다.
 - workspace/supplier 소유권은 application policy와 DB query constraint로 함께 강제한다.
 - `trustedOrigins`, secure cookie, CSRF/origin validation을 production config에서 검증한다.
-- login/share/public expensive endpoint만 명시적으로 throttle한다. 현재 Nest 12 peer가 없는
-  `@nestjs/throttler`를 override 설치하지 않고, 배포 토폴로지와 저장소가 정해진 adapter/ingress
-  정책을 사용한다. 프로세스 메모리 rate limit은 단일 replica 개발용일 뿐 multi-replica 권위로
-  표현하지 않는다.
+- foundation의 실제 client-facing auth endpoint는 Better Auth의 database-backed rate limiter와 generated
+  rate-limit table을 사용한다. 두 application instance가 같은 PostgreSQL counter를 소비하는 e2e로 429와
+  retry header를 검증한다. 이후 share/public expensive endpoint는 배포 토폴로지와 저장소가 정해진
+  adapter/ingress 정책을 추가한다. 현재 Nest 12 peer가 없는 `@nestjs/throttler`를 override 설치하거나
+  process-local memory를 multi-replica 권위로 표현하지 않는다.
 
 ## 9. Error contract
 
-모든 실패를 RFC 9457 Problem Details로 통일한다.
+canonical `/api/v1` 실패를 RFC 9457 Problem Details로 통일한다. body/cookie/header semantics를 보존해야
+하는 `/api/auth/*` raw provider transport는 Better Auth error contract를 그대로 사용하며 canonical OpenAPI
+artifact에 포함하지 않는다.
 
 ```json
 {
@@ -222,15 +256,21 @@ Nest 12 built-in JSON logger를 baseline으로 사용한다. Nest 12 peer range�
 요청 완료 로그의 최소 필드는 timestamp, level, service, Git SHA, request ID, method, route template,
 status, duration_ms, error code다. raw URL/query/body, Authorization, Cookie, share token, email,
 사업자등록번호는 기본 수집하지 않는다. redaction test가 이 금지 목록을 fixture로 검증한다.
+Nest completion interceptor는 Nest-managed route만 담당한다. `/api/auth/*`는 동일 ALS request ID와
+inflight lease를 사용하는 전용 raw completion adapter가 route를 `/api/auth/*`로 고정해 정확히 한 번
+기록한다. 이 adapter는 provider의 status/header/body를 변형하지 않는다.
 
 ## 11. Bootstrap, health, shutdown
 
-bootstrap 순서는 config validation → logger → security middleware/raw auth transport → Nest global
-boundary → OpenAPI(dev only) → listen이다. production config validation 실패는 process start 실패다.
+bootstrap 순서는 config validation → logger → Express request-context/inflight middleware → security
+middleware/raw auth transport → bounded body parser → Nest global boundary → OpenAPI(dev only) → listen이다.
+production config validation 실패는 process start 실패다.
 
 - `GET /health/live`: event loop/process가 응답할 수 있는지만 확인
 - `GET /health/ready`: DB 연결과 exact expected migration version 확인
-- termination: readiness false → inflight grace → Nest shutdown hook → DB close
+- termination: readiness false → listener가 신규 연결 수락 중단 → bounded inflight drain → Nest resource
+  shutdown → DB close. Nest route와 raw auth route 모두 같은 inflight tracker에 등록한다. grace deadline을
+  넘은 요청은 기록하고 강제 종료한다.
 
 현재 `@nestjs/terminus`의 peer range는 Nest 12를 포함하지 않으므로 override 설치하지 않고 이 두
 indicator를 작은 명시적 health module로 구현한다. readiness에 eaT, R2, Argo, mart freshness를 넣지
@@ -240,15 +280,21 @@ indicator를 작은 명시적 health module로 구현한다. readiness에 eaT, R
 
 server foundation은 다음 증거 없이는 완료가 아니다.
 
-- Nest 12와 exact supported Node 24 LTS patch의 frozen install/build
+- Nest 12 runtime, TypeScript 5.9.3과 exact Node 24.20.0의 frozen install/`tsc` build
+- exact Node 24.20.0 container에서 compiled CommonJS bootstrap/close와 runtime version assertion
 - environment schema의 missing/malformed/production-fallback rejection tests
-- architecture rule: controller→Drizzle, domain→Nest/Drizzle, cross-module internal import, cycle 0건
+- resolved import graph architecture rule: controller→Drizzle/DB schema, domain→Nest/Effect/Drizzle/Zod/HTTP,
+  application→infrastructure/presentation, cross-module internal import, direct Effect runner call, cycle 0건
 - Standard Schema request/response test와 deterministic OpenAPI artifact test
 - 400/401/403/404/409/429/503/500 Problem Details mapping tests
-- correlation propagation과 sensitive-field redaction tests
-- Better Auth raw transport, trusted origin, optional/required session behavior tests
+- Nest/raw-auth correlation propagation, exactly-once completion, shared shutdown drain과 sensitive-field
+  redaction tests
+- pinned Better Auth CLI schema conformance, raw transport, trusted origin, optional/required session과
+  PostgreSQL-backed multi-instance rate-limit tests
 - Testcontainers PostgreSQL repository/UoW rollback/idempotency tests
-- liveness/readiness/migration mismatch/graceful shutdown tests
+- API role의 `core`/`mart` read + `app` write 최소권한 공격 테스트
+- bootstrap/migrator/API/dataplane Secret 분리와 rendered-manifest consumer test
+- liveness/readiness/migration mismatch와 bounded inflight graceful shutdown tests
 - `@nestjs/testing` + Supertest canonical vertical slice e2e
 - legacy route와 canonical route 사이 dual-write 없음
 
@@ -258,12 +304,12 @@ test runner를 추가하지 않는다. Oxlint/dependency-cruiser는 각각 serve
 
 ## 13. 단계적 전환
 
-1. exact Node/Nest/Effect compatibility spike와 config/logger/bootstrap foundation
+1. exact Node/Nest runtime/TypeScript/Effect compatibility spike와 clean composition root
 2. request context, Problem Details, health/shutdown, OpenAPI artifact
 3. DatabaseModule, repository/UoW와 한 read-only canonical vertical slice
 4. raw Better Auth transport와 global authorization policy
-5. 기존 controller를 bounded module별 strangler 방식으로 이동
-6. legacy module에서 마지막 consumer가 사라진 route/state/schema 제거
+5. route inventory와 canonical contract를 Task 17의 사용자 공동 frontend 기획 입력으로 제공
+6. 승인된 frontend cutover에서 필요한 bounded use case만 새 module로 구현
 
 각 단계는 새 구조로 한 기능을 끝까지 통과시킨 뒤 확장한다. 1,046줄 파일을 여러 파일로 기계적으로
 나누는 것만으로 완료 처리하지 않는다.

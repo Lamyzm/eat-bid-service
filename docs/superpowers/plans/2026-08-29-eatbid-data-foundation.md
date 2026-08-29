@@ -1804,20 +1804,24 @@ legacy `/api/market?category=축산` 실측은 225행 중 66행이 좌표와 매
 
 ### Task 16: NestJS·Effect backend application foundation
 
-Task 15까지의 canonical data/mart boundary가 고정된 후 별도 상세 TDD plan과 독립 리뷰로 실행한다.
+사용자 승인으로 실행 우선순위를 `Task 13 → Task 16 → Task 14 → Task 15 → Task 17`로 변경했다.
+Task 13의 canonical projection 계약을 입력으로 삼되 source transport와 geography/mart를 기다리지 않고
+application boundary부터 바로 세운다. 상세 TDD 실행 계획은
+[2026-08-30-eatbid-backend-foundation.md](2026-08-30-eatbid-backend-foundation.md)이며 gate마다 독립 리뷰한다.
 지배 설계는 [ADR 0016](../../adr/0016-nest-effect-application-boundary.md)과
 [backend-application-foundation.md](../../architecture/backend-application-foundation.md)다.
 
 **Required design:**
 
-- exact supported Node 24 LTS patch에서 Nest 12 common/core/platform/CLI/config/swagger/testing을 같은
-  release lane으로 올리고 frozen lock/build/schematic compatibility를 증명한다.
+- exact Node `24.20.0`에서 Nest 12 common/core/platform/config/swagger/testing을 같은 release lane으로
+  올리고 frozen lock/TypeScript `5.9.3` tsc build/compiled bootstrap compatibility를 증명한다. ADR 0019에
+  따라 설치 불가능한 TypeScript peer lane의 Nest CLI/schematics는 보류한다.
 - `effect@4.0.0-rc.112`를 exact pin한 compatibility spike를 먼저 수행한다. Nest가 DI/resource lifecycle을
   소유하고 singleton `EffectRunner`만 fully-provided use-case Effect를 실행한다. request마다 Runtime/Layer를
   만들거나 `runPromise`를 산재시키지 않는다.
 - root `AppModule`은 import-only composition root로 줄인다. 새 canonical vertical slice를
-  `presentation/http → application → domain/infrastructure`로 만들고 기존 controller는
-  `LegacyApiModule`에 격리한다.
+  `presentation/http → application → domain/infrastructure`로 만든다. ADR 0017에 따라 기존 controller는
+  machine-readable route inventory와 Git 이력으로 보존하되 새 composition root에 싣지 않는다.
 - `DatabaseModule`은 typed config로 Drizzle/postgres-js client를 만들고 shutdown에서 닫는다.
   `packages/db`만 DDL을 소유하며 purpose-specific repository와 명시적 `UnitOfWork`를 둔다.
 - Nest 12 Standard Schema + bounded Zod 4 contracts로 request/response를 검증한다. `nestjs-zod`를 제거하고
@@ -1846,7 +1850,7 @@ Task 15까지의 canonical data/mart boundary가 고정된 후 별도 상세 TDD
 
 ### Task 17: 사용자와 공동 프론트 코드스멜 감사·제품/UI 기획 gate
 
-Task 16까지 완료된 후 시작한다. 이 Task는 자동 구현 단계가 아니다. 먼저 현재 frontend의 component,
+Task 14~16까지 완료된 후 시작한다. 이 Task는 자동 구현 단계가 아니다. 먼저 현재 frontend의 component,
 state/data-fetching, route, contract duplication, accessibility/performance code smell을 근거와 함께 감사한다.
 그 결과와 canonical API를 놓고 사용자와 함께 화면 목표,
 입찰분석 의사결정 흐름, 정보 우선순위, canonical URL/API ID, 지역/학교/기관 탐색, 시장 지도,
@@ -1877,7 +1881,8 @@ source-observed 대 inferred 표기를 먼저 기획하고 승인된 spec을 만
   label-only 입력을 임의 좌표에 붙이지 않는다.
 - server는 Nest/Effect/Drizzle의 단일 lifecycle·의존 방향을 지키며 controller가 DB를 직접 호출하지
   않고, bounded Zod contract/OpenAPI artifact/RFC 9457/log redaction/guard/health/shutdown gate를 통과한다.
-- 기존 legacy reader/writer는 아직 제거하지 않지만 새 foundation에 dual-write하지 않는다.
+- ADR 0017의 server source 예외를 제외한 legacy DB data/table, frontend, scheduler는 아직 제거하지 않으며
+  새 foundation에 dual-read/dual-write하지 않는다.
 
 Foundation 완료 뒤 canonical domain expansion 계획은 실제 quarantine/code coverage 보고서를 입력으로
 작성한다. 수치가 없는 추측으로 submission/award/region mapping 범위를 확장하지 않는다.

@@ -48,6 +48,9 @@
 
 ```mermaid
 erDiagram
+    PRINCIPAL ||--o{ IDENTITY_SUBJECT : authenticated_as
+    PRINCIPAL ||--o{ WORKSPACE_MEMBERSHIP : joins
+    WORKSPACE ||--o{ WORKSPACE_MEMBERSHIP : contains
     WORKSPACE ||--o{ WORKSPACE_SUPPLIER : operates
     SUPPLIER_PARTY ||--o{ WORKSPACE_SUPPLIER : assigned
     WORKSPACE ||--o{ BID_WORK_ITEM : owns
@@ -125,6 +128,24 @@ unique(workspace_id, supplier_party_id, auction_attempt_id)
 
 `recorded_value`는 사용자가 eatbid에 적어둔 판단이고, 실제 제출은 `BidSubmission`에서만
 관측한다. “NeaT 입력 확인” 역시 사용자 확인 이벤트이지 source-observed submission이 아니다.
+
+### 3.6 Principal과 Workspace identity
+
+인증 제공자의 계정 식별자와 eatbid application identity를 분리한다.
+
+- `Principal`: eatbid 내부 행위 주체. 내부 PK는 `principal_id bigint`다.
+- `IdentitySubject`: `(provider, issuer, subject)` 인증 식별자를 `principal_id`에 연결한다.
+- `Workspace`: 내부 PK `workspace_id bigint`를 사용한다.
+- `WorkspaceMembership`: `(workspace_id, principal_id)`와 role/permission 상태를 가진다.
+
+Better Auth 같은 provider가 문자열 user ID를 요구해도 그 값은 provider-owned auth table과
+`IdentitySubject.subject`에만 남는다. workspace, supplier, work item 등 application 관계가 그 문자열을
+FK로 사용하지 않는다. `packages/shared`의 기존 문자열 user/workspace schema는 목표 DDL이 아니다.
+
+JSON은 bigint를 직접 표현하지 못하므로 HTTP path/response에서는 내부 ID를 선행 0 없는 양의 10진 문자열로
+인코딩한다. presentation boundary가 이를 bigint로 변환하며 application/domain과 DB 관계는 계속 bigint다.
+`Number`로 변환하지 않고 `MAX_SAFE_INTEGER`를 넘는 ID를 계약 테스트로 검증한다. 상세 결정은
+[ADR 0018](../adr/0018-application-identity-and-id-wire-format.md)을 따른다.
 
 ## 4. 코드 체계
 

@@ -8,6 +8,10 @@ loader, 문자열 ID, Kubernetes CronJob을 호환 계층으로 끌고 가지 �
 
 이 문서는 당장 파일을 삭제하라는 명령이 아니라, 구현 전환에서 무엇을 자산으로 인정할지 정한다.
 
+예외적으로 [ADR 0017](../adr/0017-greenfield-server-composition-reset.md)은 feature worktree의 탐색용
+server source를 새 composition root에서 제외한다. 이는 Git으로 복구 가능한 코드에만 적용하며,
+legacy DB data/table, 현재 로컬 runtime, frontend, scheduler의 삭제·전환 시점을 앞당기지 않는다.
+
 ## 반드시 보존
 
 | 자산 | 보존 방식 |
@@ -95,6 +99,9 @@ flowchart TD
 - restore/replay drill 통과
 - 레거시 reader/writer/scheduler가 0임을 검색과 런타임으로 확인
 - 그 뒤 별도 변경에서 old table/file/job을 제거
+
+ADR 0017에 따른 탐색용 server source 제거는 이 Gate의 예외다. route inventory와 Git 이력으로
+보존하고 live runtime을 바꾸지 않는 조건에서만 Task 16 feature branch에서 먼저 수행할 수 있다.
 
 ## 금지하는 전환 방식
 

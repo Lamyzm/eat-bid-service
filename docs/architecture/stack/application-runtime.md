@@ -25,12 +25,13 @@ digests pin build inputs, and the product manifest records final registry digest
 of those declarations alone proves that this branch's CI images were published or
 verified in production.
 
-The accepted backend target is not yet the current package state. ADR 0016 requires
-NestJS 12, an exact supported Node 24 LTS patch, and exactly pinned
+The accepted backend target is not yet the current package state. ADR 0016 and ADR 0019 require
+NestJS 12 runtime packages, an exact supported Node 24 LTS patch, and exactly pinned
 `effect@4.0.0-rc.112` after a compatibility spike. The current developer Node 24.2.0 is
-below the Nest 12 CLI's Node 24.15 minimum; the target patch is Node 24.20.0 LTS.
-This upgrade must be one frozen-lock change with build, test, CLI schematic, Effect,
-Drizzle, Better Auth, and OpenAPI checks rather than independent range bumps.
+not gate evidence; the target patch is Node 24.20.0 LTS. Nest CLI 12/schematics require a
+TypeScript `>=6` peer lane while this foundation keeps exact TypeScript 5.9.3, so CLI/schematics are
+excluded and `tsc` builds the server. The staged upgrade must use frozen-lock changes with compiled
+Node 24.20 bootstrap, Effect, Drizzle, Better Auth, and OpenAPI checks.
 
 ## Decision table
 
@@ -42,7 +43,7 @@ Drizzle, Better Auth, and OpenAPI checks rather than independent range bumps.
 | Turborepo | root dev range `^2.5.0`; `pnpm-lock.yaml` resolves 2.10.12 | [Turborepo releases](https://github.com/vercel/turborepo/releases) | Adopted | It coordinates workspace tasks; review on a task-cache correctness failure or a major upgrade. |
 | Bun | root tests invoke Bun; CI pins setup-bun to 1.2.22 | [Bun releases](https://github.com/oven-sh/bun/releases) | Adopted | The CI executable is exact while developer shells remain externally provisioned; review on a Bun version change or test-runtime divergence. |
 | Next.js | web exact `16.2.12`; pnpm lock resolution | [Next.js releases](https://github.com/vercel/next.js/releases) | Adopted | Web deployable uses it; review for a security advisory affecting the resolved version or an App Router major migration. |
-| NestJS | current server range `^11.0.0`, lock resolves 11.2.3; accepted target is exact Nest 12 release lane | [Nest migration guide](https://docs.nestjs.com/migration-guide) | Required before production | Upgrade the common/core/platform/CLI/config/swagger/testing family together and prove Standard Schema, logger, Better Auth raw transport and schematics on Node 24.20.0. No mixed Nest major. |
+| NestJS | current server range `^11.0.0`, lock resolves 11.2.3; accepted target is exact Nest 12 runtime lane without CLI/schematics | [Nest migration guide](https://docs.nestjs.com/migration-guide) | Required before production | Upgrade common/core/platform/config/swagger/testing together, build with exact TypeScript 5.9.3, and execute compiled bootstrap on Node 24.20.0. Revisit CLI only with a separate TypeScript 7 compatibility change. No mixed Nest runtime major or peer override. |
 | Effect | not currently declared; candidate `effect@4.0.0-rc.112`, while registry stable is 3.22.1 | [Effect repository](https://github.com/Effect-TS/effect), [Effect migration guide](https://github.com/Effect-TS/effect/blob/main/MIGRATION.md), [Effect runtime](https://effect.website/docs/runtime/) | Required before production | Drizzle v1 RC4's optional Effect peer requires Effect 4 beta or later. Initial use is typed application errors/retry/timeout behind one Nest-owned `EffectRunner`; no request-scoped runtime or second global Layer container. Replace the exact RC only through frozen-lock compatibility gates, and prefer stable 4 once released and proven. |
 | Python | dataplane `requires-python >=3.12`; runtime image is digest-pinned, CI selects the 3.12 family | [Python status](https://devguide.python.org/versions/) | Required before production | The container bits are immutable but the CI setup request is not an exact patch binary; review when selecting an exact CI interpreter, when 3.12 reaches security-only/EOL, or when the base digest changes. |
 | uv | CI pins 0.12.6 through an immutable setup action; builder image is digest-pinned; `uv.lock` is frozen | [uv releases](https://github.com/astral-sh/uv/releases) | Adopted | This is a repository-declared reproducibility control; review whenever the executable/action/image digest changes or a new version rewrites the lock format or dependency result. |

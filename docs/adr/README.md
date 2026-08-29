@@ -23,6 +23,9 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0014](0014-normalization-attempt-lineage.md) | Accepted | immutable raw evidence → run-scoped normalization attempt → frozen publication member |
 | [0015](0015-canonical-projection-lineage.md) | Accepted | normalized interpretation → canonical revision 직접 lineage와 원자 projection |
 | [0016](0016-nest-effect-application-boundary.md) | Accepted | Nest lifecycle·Effect 실행·Drizzle repository·HTTP 횡단 관심사 경계 |
+| [0017](0017-greenfield-server-composition-reset.md) | Accepted | 탐색용 server route를 새 composition에 싣지 않고 inventory+Git 이력으로 보존 |
+| [0018](0018-application-identity-and-id-wire-format.md) | Accepted | provider subject→bigint principal 경계와 무손실 bigint HTTP 인코딩 |
+| [0019](0019-nest12-runtime-without-cli.md) | Accepted | Nest 12 runtime은 채택하되 불가능한 CLI/TypeScript peer lane은 분리 |
 
 ## 새 ADR 형식
 
