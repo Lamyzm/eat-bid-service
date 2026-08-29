@@ -7,7 +7,7 @@
 
 | 증거 | 명령/테스트 | 기대·확인 값 | 상태 |
 |---|---|---|---|
-| fixture vertical slice | `pytest ...test_foundation_slice.py` | capture/publication/core/replay 1 member, idempotent retry/concurrency/chronology/race/failed resume; focused file 9 passed | **PASS** |
+| fixture vertical slice | `pytest ...test_foundation_slice.py` | capture/publication/core/replay 1 member, idempotent retry/concurrency/chronology/race/failed resume; focused file 10 passed | **PASS** |
 | raw content address | 같은 테스트의 DB assertion | SHA-256 `f06489c6ee6f7aec1df877a16ef9369658f2e5a96574ea96ced63493e9299e07`, key `raw/eat/bid-detail/<sha>.xml.gz`, 1,618 bytes | **PASS** |
 | capture completeness | 같은 테스트의 run/request-unit assertion | detail plan `expected_count=1`, observation/normalized/published 각 1 | **PASS** |
 | exact publication member | 같은 테스트의 publication/lineage assertion | capture/replay publication별 frozen member 1, direct normalized-record→revision lineage | **PASS** |
@@ -45,9 +45,9 @@ pnpm db:generate
 
 2026-08-30 검증 결과:
 
-- Task 13 focused: 9 passed; adversarial unit contracts: 23 passed
-- reverse integration `Task13 → Task10 → Task9 → Task8`: 138 passed
-- full dataplane: 360 passed, total coverage 91.21% (`--cov-fail-under=90` 통과)
+- Task 13 focused: 10 passed; adversarial unit contracts: 26 passed
+- reverse integration `Task13 → Task10 → Task9 → Task8`: 139 passed
+- full dataplane: 364 passed, total coverage 91.25% (`--cov-fail-under=90` 통과)
 - Ruff: pass, Pyright: 0 errors/0 warnings
 - root Bun: 119 passed
 - forced Turbo build: web/server/shared/db 4/4 성공, cache 0

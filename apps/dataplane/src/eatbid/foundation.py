@@ -489,18 +489,20 @@ def _verify_checkpoint(
             request.status != "captured"
             or observed_count != 1
             or normalized_id is None
-            or checkpoint.published_count != expected_count
+            or checkpoint.observation is None
+            or normalization is None
+            or normalization.observation_id
+            != checkpoint.observation.observation_id
             or checkpoint.failure_category is not None
             or checkpoint.ended_at is None
             or publication.status != "published"
-            or publication.normalized_count != expected_count
-            or publication.published_count != expected_count
             or publication.member_ids != (normalized_id,)
             or publication.projector_version != build_sha
         ):
             raise FoundationIntegrityError(
                 "published checkpoint status is inconsistent"
             )
+        _verify_published_cardinality(checkpoint)
         _sha256(
             publication.canonical_fingerprint,
             "publication canonical_fingerprint",
@@ -655,10 +657,13 @@ def _load_verified_projection_evidence(
     )
     for count in counts:
         _nonnegative_int(count, "published projection count")
+    _verify_published_cardinality(
+        checkpoint,
+        verified_members_projected=evidence.members_projected,
+    )
     member_count = len(checkpoint.publication.member_ids)
     if (
         evidence.publication_id != checkpoint.publication.publication_id
-        or evidence.members_projected != member_count
         or evidence.organization_count != member_count
         or evidence.auction_attempt_count != member_count
         or evidence.auction_revision_count != member_count
@@ -670,6 +675,32 @@ def _load_verified_projection_evidence(
         )
     _sha256(evidence.canonical_fingerprint, "published canonical_fingerprint")
     return evidence
+
+
+def _verify_published_cardinality(
+    checkpoint: FoundationCheckpoint,
+    *,
+    verified_members_projected: object | None = None,
+) -> None:
+    publication = checkpoint.publication
+    counts: tuple[object, ...] = (
+        checkpoint.expected_count,
+        checkpoint.captured_count,
+        checkpoint.request.expected_count,
+        checkpoint.request.observed_count,
+        publication.expected_count,
+        publication.normalized_count,
+        publication.published_count,
+        len(publication.member_ids),
+    )
+    if verified_members_projected is not None:
+        counts += (verified_members_projected,)
+    for count in counts:
+        _nonnegative_int(count, "published cardinality")
+    if counts[0] != 1 or any(count != counts[0] for count in counts[1:]):
+        raise FoundationIntegrityError(
+            "published cardinality differs from the one frozen detail member"
+        )
 
 
 def _result_from_checkpoint(

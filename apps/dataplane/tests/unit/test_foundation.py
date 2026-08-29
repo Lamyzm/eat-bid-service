@@ -141,11 +141,40 @@ def _checkpoint(*, status: str = "running") -> FoundationCheckpoint:
     )
 
 
+def _published_checkpoint() -> FoundationCheckpoint:
+    checkpoint = _checkpoint(status="validated")
+    return replace(
+        checkpoint,
+        status="published",
+        published_count=1,
+        ended_at=STARTED_AT + timedelta(minutes=3),
+        publication=replace(
+            checkpoint.publication,
+            status="published",
+            published_count=1,
+            canonical_fingerprint="e" * 64,
+            projector_version=BUILD_SHA,
+        ),
+        evidence=FoundationPublishedEvidence(
+            capture_run_id=RUN_ID,
+            publication_id=PUBLICATION_ID,
+            request_unit_id=1,
+            observation_ids=(11,),
+            raw_content_sha256="c" * 64,
+            raw_object_key="raw/eat/bid-detail/" + "c" * 64 + ".xml.gz",
+            raw_blob_count=1,
+            observation_count=1,
+            publication_status="published",
+        ),
+    )
+
+
 def _run(
     checkpoint: FoundationCheckpoint,
     *,
     validation: object | None = None,
     projector: SpyProjectionRepository,
+    expected_count: int = 1,
 ) -> None:
     run_foundation_slice(
         run_id=RUN_ID,
@@ -160,7 +189,7 @@ def _run(
         source="eat",
         endpoint="bid-detail",
         request_params=PARAMS,
-        expected_count=1,
+        expected_count=expected_count,
         services=FoundationServices(
             checkpoint_repository=FakeCheckpointRepository(checkpoint),
             ingest_repository=object(),
@@ -280,34 +309,71 @@ def test_published_reentry_rejects_forged_empty_topology_and_evidence() -> None:
 def test_published_reentry_rejects_malicious_verified_projection_evidence(
     published_evidence: object,
 ) -> None:
-    checkpoint = _checkpoint(status="validated")
-    published = replace(
-        checkpoint,
-        status="published",
-        published_count=1,
-        ended_at=STARTED_AT + timedelta(minutes=3),
-        publication=replace(
-            checkpoint.publication,
-            status="published",
-            published_count=1,
-            canonical_fingerprint="e" * 64,
-            projector_version=BUILD_SHA,
-        ),
-        evidence=FoundationPublishedEvidence(
-            capture_run_id=RUN_ID,
-            publication_id=PUBLICATION_ID,
-            request_unit_id=1,
-            observation_ids=(11,),
-            raw_content_sha256="c" * 64,
-            raw_object_key="raw/eat/bid-detail/" + "c" * 64 + ".xml.gz",
-            raw_blob_count=1,
-            observation_count=1,
-            publication_status="published",
-        ),
-    )
     projector = SpyProjectionRepository(published_evidence=published_evidence)
 
     with pytest.raises(FoundationIntegrityError):
-        _run(published, projector=projector)
+        _run(_published_checkpoint(), projector=projector)
 
     assert projector.calls == 1
+
+
+def test_published_reentry_rejects_zero_ledger_counts_with_one_frozen_member(
+) -> None:
+    checkpoint = _published_checkpoint()
+    forged = replace(
+        checkpoint,
+        expected_count=0,
+        published_count=0,
+        request=replace(checkpoint.request, expected_count=0),
+        publication=replace(
+            checkpoint.publication,
+            expected_count=0,
+            normalized_count=0,
+            published_count=0,
+        ),
+    )
+    projector = SpyProjectionRepository(
+        published_evidence=PublishedProjectionEvidence(
+            PUBLICATION_ID, 1, 1, 1, 1, "e" * 64
+        )
+    )
+
+    with pytest.raises(FoundationIntegrityError):
+        _run(forged, projector=projector, expected_count=0)
+
+
+@pytest.mark.parametrize(
+    ("frozen_expected_count", "terminal_count", "checkpoint_published_count"),
+    [(2, 2, 2), (1, True, 1)],
+    ids=("over-count", "boolean-count"),
+)
+def test_published_reentry_rejects_nonexact_terminal_cardinality(
+    frozen_expected_count: int,
+    terminal_count: int,
+    checkpoint_published_count: int,
+) -> None:
+    checkpoint = _published_checkpoint()
+    forged = replace(
+        checkpoint,
+        expected_count=frozen_expected_count,
+        published_count=checkpoint_published_count,
+        request=replace(checkpoint.request, expected_count=terminal_count),
+        publication=replace(
+            checkpoint.publication,
+            expected_count=terminal_count,
+            normalized_count=terminal_count,
+            published_count=terminal_count,
+        ),
+    )
+    projector = SpyProjectionRepository(
+        published_evidence=PublishedProjectionEvidence(
+            PUBLICATION_ID, 1, 1, 1, 1, "e" * 64
+        )
+    )
+
+    with pytest.raises(FoundationIntegrityError):
+        _run(
+            forged,
+            projector=projector,
+            expected_count=frozen_expected_count,
+        )

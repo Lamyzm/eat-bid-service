@@ -371,12 +371,31 @@ def test_invalid_foundation_chronology_has_no_database_or_raw_side_effect(
         assert cursor.fetchone() == (0,)
 
 
+@pytest.mark.parametrize(
+    ("run_id", "publication_id", "external_bid_id", "expected_count"),
+    [
+        (
+            UUID("13000000-0000-0000-0000-000000000011"),
+            UUID("13000000-0000-0000-0000-000000000012"),
+            FAILED_EXTERNAL_BID_ID,
+            2,
+        ),
+        (
+            UUID("13000000-0000-0000-0000-000000000013"),
+            UUID("13000000-0000-0000-0000-000000000014"),
+            "task-13-zero-count-mismatch",
+            0,
+        ),
+    ],
+    ids=("over-count", "zero-count"),
+)
 def test_foundation_stops_on_source_contract_before_projection(
     pipeline_services: PipelineServices,
+    run_id: UUID,
+    publication_id: UUID,
+    external_bid_id: str,
+    expected_count: int,
 ) -> None:
-    run_id = UUID("13000000-0000-0000-0000-000000000011")
-    publication_id = UUID("13000000-0000-0000-0000-000000000012")
-
     for _ in range(2):
         with pytest.raises(SourceContractError):
             run_foundation_slice(
@@ -391,8 +410,8 @@ def test_foundation_stops_on_source_contract_before_projection(
                 activated_at=FOUNDATION_ACTIVATED_AT,
                 source="eat",
                 endpoint="bid-detail",
-                request_params={"ELCTRN_BID_ID": FAILED_EXTERNAL_BID_ID},
-                expected_count=2,
+                request_params={"ELCTRN_BID_ID": external_bid_id},
+                expected_count=expected_count,
                 services=FoundationServices(
                     checkpoint_repository=pipeline_services.checkpoint_repository,
                     ingest_repository=pipeline_services.repository,
@@ -428,7 +447,7 @@ def test_foundation_stops_on_source_contract_before_projection(
             select count(*) from core.auction_attempt
             where source_system = 'eat' and external_bid_id = %s
             """,
-            (FAILED_EXTERNAL_BID_ID,),
+            (external_bid_id,),
         )
         assert cursor.fetchone() == (0,)
         cursor.execute(
