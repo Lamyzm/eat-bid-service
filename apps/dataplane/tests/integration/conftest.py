@@ -12,6 +12,7 @@ import pytest
 from docker.errors import NotFound
 from testcontainers.community.postgres import PostgresContainer
 
+from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
 from eatbid.ingest.postgres_normalization_repository import (
     PsycopgNormalizationRepository,
 )
@@ -38,16 +39,17 @@ class PipelineServices:
     repository: PsycopgObservationRepository
     normalization_repository: PsycopgNormalizationRepository
     publication_repository: PsycopgPublicationRepository
+    projection_repository: PsycopgCanonicalProjectionRepository
     store: MemoryRawObjectStore
 
 
 @pytest.fixture(scope="session")
 def migrated_db() -> MigratedDatabase:
-    container_name = f"eatbid-task7-{uuid4().hex}"
+    container_name = f"eatbid-task9-{uuid4().hex}"
     container = PostgresContainer(
         "postgres:16-alpine",
         username="eatbid",
-        password="eatbid-task7",
+        password="eatbid-task9",
         dbname="eatbid",
         driver=None,
     ).with_name(container_name)
@@ -56,7 +58,7 @@ def migrated_db() -> MigratedDatabase:
     try:
         host = container.get_container_host_ip()
         port = container.get_exposed_port(5432)
-        dsn = f"postgresql://eatbid:eatbid-task7@{host}:{port}/eatbid"
+        dsn = f"postgresql://eatbid:eatbid-task9@{host}:{port}/eatbid"
         subprocess.run(
             ["pnpm", "--filter", "@eatbid/db", "build"],
             cwd=REPOSITORY_ROOT,
@@ -93,6 +95,7 @@ def pipeline_services(migrated_db: MigratedDatabase) -> PipelineServices:
             repository=PsycopgObservationRepository(connection),
             normalization_repository=PsycopgNormalizationRepository(connection),
             publication_repository=PsycopgPublicationRepository(connection),
+            projection_repository=PsycopgCanonicalProjectionRepository(connection),
             store=MemoryRawObjectStore(
                 now=lambda: datetime(2026, 8, 29, 4, 5, 6, tzinfo=UTC)
             ),

@@ -44,20 +44,31 @@ export const codeValue = coreSchema.table(
   ],
 );
 
-export const codeLabelObservation = coreSchema.table("code_label_observation", {
-  codeLabelObservationId: bigint("code_label_observation_id", { mode: "number" })
-    .generatedAlwaysAsIdentity()
-    .primaryKey(),
-  codeValueId: bigint("code_value_id", { mode: "number" })
-    .notNull()
-    .references(() => codeValue.codeValueId),
-  label: text("label").notNull(),
-  language: varchar("language", { length: 16 }).notNull(),
-  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
-  observationId: bigint("observation_id", { mode: "number" })
-    .notNull()
-    .references(() => rawObservation.observationId),
-});
+export const codeLabelObservation = coreSchema.table(
+  "code_label_observation",
+  {
+    codeLabelObservationId: bigint("code_label_observation_id", { mode: "number" })
+      .generatedAlwaysAsIdentity()
+      .primaryKey(),
+    codeValueId: bigint("code_value_id", { mode: "number" })
+      .notNull()
+      .references(() => codeValue.codeValueId),
+    label: text("label").notNull(),
+    language: varchar("language", { length: 16 }).notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    observationId: bigint("observation_id", { mode: "number" })
+      .notNull()
+      .references(() => rawObservation.observationId),
+  },
+  (table) => [
+    unique("code_label_observation_evidence_key").on(
+      table.codeValueId,
+      table.label,
+      table.language,
+      table.observationId,
+    ),
+  ],
+);
 
 export const codeMapping = coreSchema.table(
   "code_mapping",

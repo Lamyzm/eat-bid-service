@@ -100,6 +100,8 @@ describe("ingest identity", () => {
       "expected_count",
       "normalized_count",
       "published_count",
+      "canonical_fingerprint",
+      "projector_version",
     ]));
   });
 
@@ -169,6 +171,8 @@ describe("ingest identity", () => {
       "run_expected_count_nonnegative",
       "run_captured_count_nonnegative",
       "run_published_count_nonnegative",
+      "run_terminal_metadata",
+      "run_published_count_matches_expected",
     ]));
     expect(checkNames(requestUnit)).toEqual(expect.arrayContaining([
       "request_unit_expected_count_nonnegative",
@@ -181,6 +185,9 @@ describe("ingest identity", () => {
       "publication_normalized_count_nonnegative",
       "publication_published_count_nonnegative",
       "publication_validated_requires_validation_timestamp",
+      "publication_canonical_fingerprint_sha256",
+      "publication_projector_version_nonempty",
+      "publication_nonpublished_metadata_empty",
       "publication_published_requires_gate",
     ]));
   });

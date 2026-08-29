@@ -56,7 +56,8 @@ erDiagram
 
     AUCTION_ATTEMPT ||--o{ AUCTION_REVISION : revised_as
     AUCTION_ATTEMPT ||--o{ AUCTION_RELATION : related_from
-    AUCTION_ATTEMPT ||--o{ AUCTION_ORGANIZATION : involves
+    AUCTION_REVISION ||--o{ AUCTION_ORGANIZATION : involves
+    AUCTION_REVISION ||--o{ AUCTION_REVISION_CODE_VALUE : coded_as
     ORGANIZATION ||--o{ AUCTION_ORGANIZATION : participates_as
     AUCTION_ATTEMPT ||--o{ BID_SUBMISSION : receives
     SUPPLIER_PARTY ||--o{ BID_SUBMISSION : submits
@@ -75,7 +76,9 @@ erDiagram
 - 내부 PK: `auction_attempt_id bigint`
 - 외부 유일성: `(source_system, ELCTRN_BID_ID)`
 - 화면용 공고번호 `ELCTRN_BID_NO`는 별도 속성이고 PK가 아니다.
-- 변경된 소스 내용은 `AuctionRevision`으로 append-only 기록한다.
+- 화면용 공고번호는 nullable revision 속성이고 attempt identity 행에는 저장하지 않는다.
+- `AuctionRevision`은 `normalized_record_id`를 직접 참조하고 그 interpretation으로 유일하다.
+- 같은 normalized record replay는 revision을 재사용하고 새 parser interpretation은 별도 revision이다.
 - 공고 상태, 공고 변경, 취소, 마감, 금액, 방식의 시간 변화를 보존한다.
 - 재입찰/상위 공고 관계는 `AuctionRelation`과 원본 `UP_ELCTRN_BID_ID`로 연결한다.
 - 공고번호 접미사나 제목을 파싱해 차수를 만들지 않는다.
@@ -86,10 +89,13 @@ erDiagram
 
 - 기관 유형: 학교, 유치원, 어린이집, 교육청, 공공기관 등
 - `OrganizationIdentifier`: eaT `PURR_CD`, 필요한 경우 `PURR_ID`, 향후 NEIS 코드 등
-- `AuctionOrganization`: 구매기관, 대표기관, 수요기관, 배송지 등 role을 가진 관계
+- `AuctionOrganization`: revision별 구매기관, 대표기관, 수요기관, 배송지 등 role을 가진 관계
 - 공동구매는 공고 하나에 N개 대상 기관을 연결한다.
 
-기관명·주소는 속성/관측값이다. 이름이 같거나 바뀌어도 기관 정체성이 바뀌지 않는다.
+기관명·주소는 속성/관측값이다. 이름이 같거나 바뀌어도 기관 정체성이 바뀌지 않는다. eaT projector는
+`PURR_CD`만 기관 식별자로 사용하고 새 기관을 `type='unknown'`, `canonical_name=NULL`로 만든다.
+`PURR_NM`은 `language='und'`인 observation-scoped code label 증거이며 별도 reconciliation 정책 없이
+canonical 이름이나 학교 유형으로 승격하지 않는다.
 
 ### 3.3 SupplierParty
 
@@ -189,8 +195,10 @@ capture/backfill은 자기 run의 observation만 처리한다. replay는 새 HTT
 deterministic normalized record는 여러 attempt가 재사용할 수 있고, 새 parser는 독립 key와
 attempt를 만든다.
 
-소스 엔터티 내용이 변할 때만 새 `AuctionRevision`을 만든다. revision은 observation과 parser
-버전을 가리키고, 현행 뷰는 검증된 최신 revision을 선택한다. 이 선택은 이력 삭제가 아니다.
+새 normalized interpretation이 생길 때만 새 `AuctionRevision`을 만든다. revision은
+`normalized_record_id`를 통해 observation과 parser version을 직접 추적한다. 같은 raw라도 새 parser가
+새 normalized record를 만들면 별도 revision이고, replay가 같은 normalized record를 재사용하면 기존
+revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택해도 과거 이력은 삭제하지 않는다.
 
 ## 6. 발행과 멱등성
 
@@ -200,6 +208,10 @@ attempt를 만든다.
   publication을 `validated`로 만든다.
 - 검증된 exact normalized record ID는 `publication_record`에 동결하며 projector는 이
   manifest만 소비한다.
+- projector fingerprint는 member별 `(source_system, external_bid_id, raw_content_sha256,
+  parser_version, normalized_payload_sha256)` tuple만 정렬해 계산하며 bigint ID/행 순서는 포함하지 않는다.
+- projector는 publication/run을 잠그고 canonical row와 revision-scoped bigint 관계를 insert-or-verify한
+  뒤 exact member count가 성공한 경우에만 한 transaction으로 `published`를 전환한다.
 - terminal 재검증은 current attempt-record member를 다시 잠그고 계산하여 frozen sorted member
   set과 status/metadata/count를 정확히 비교한다. validated 상태는 failed request, request/candidate
   count drift, missing/mismatched/non-normalized attempt, output parser/type/observation drift, 미검토
@@ -208,6 +220,8 @@ attempt를 만든다.
   유지하지만 이 publication 계약에서는 cardinality나 global member set만 같아서는 통과하지 않는다.
   failed 상태는 외부 수정으로 승격하지 않으며 저장된 failed metadata와 빈 manifest를 검증한다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
+- deterministic projection 충돌은 core write를 rollback하고 `PROJECTION_CONTRACT`로 실패시키되 이전
+  `validated_at`과 frozen member를 보존한다. transient DB/provider 오류는 validated 상태로 남겨 retry한다.
 - mart는 영향받은 partition/cohort를 새 build ID로 만든 뒤 원자적으로 활성화한다.
 - 재처리는 `replay_input`의 raw observation 집합과 processing parser/projector version을
   명시한다.

@@ -35,6 +35,32 @@ export const ingestRun = ingestSchema.table(
     check("run_expected_count_nonnegative", sql`${table.expectedCount} >= 0`),
     check("run_captured_count_nonnegative", sql`${table.capturedCount} >= 0`),
     check("run_published_count_nonnegative", sql`${table.publishedCount} >= 0`),
+    check(
+      "run_terminal_metadata",
+      sql`(
+        ${table.status} = 'failed'
+        and ${table.failureCategory} is not null
+        and ${table.endedAt} is not null
+      ) or (
+        ${table.status} = 'published'
+        and ${table.failureCategory} is null
+        and ${table.endedAt} is not null
+      ) or (
+        ${table.status} in ('planned', 'running', 'validated')
+        and ${table.failureCategory} is null
+        and ${table.endedAt} is null
+      )`,
+    ),
+    check(
+      "run_published_count_matches_expected",
+      sql`(
+        ${table.status} = 'published'
+        and ${table.publishedCount} = ${table.expectedCount}
+      ) or (
+        ${table.status} <> 'published'
+        and ${table.publishedCount} = 0
+      )`,
+    ),
   ],
 );
 

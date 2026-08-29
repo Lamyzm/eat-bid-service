@@ -1,6 +1,7 @@
 import {
   bigint,
   char,
+  check,
   jsonb,
   numeric,
   primaryKey,
@@ -9,8 +10,11 @@ import {
   unique,
   varchar,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { rawObservation } from "../ingest/evidence.js";
+import { normalizedRecord } from "../ingest/publication.js";
 import { coreSchema } from "../namespaces.js";
+import { codeValue } from "./codes.js";
 import { organization } from "./organizations.js";
 
 export const auctionAttempt = coreSchema.table(
@@ -19,7 +23,6 @@ export const auctionAttempt = coreSchema.table(
     auctionAttemptId: bigint("auction_attempt_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
     sourceSystem: varchar("source_system", { length: 64 }).notNull(),
     externalBidId: text("external_bid_id").notNull(),
-    displayBidNo: text("display_bid_no").notNull(),
   },
   (table) => [unique("auction_attempt_source_external_bid_key").on(table.sourceSystem, table.externalBidId)],
 );
@@ -31,10 +34,14 @@ export const auctionRevision = coreSchema.table(
     auctionAttemptId: bigint("auction_attempt_id", { mode: "number" })
       .notNull()
       .references(() => auctionAttempt.auctionAttemptId),
+    normalizedRecordId: bigint("normalized_record_id", { mode: "number" })
+      .notNull()
+      .references(() => normalizedRecord.normalizedRecordId),
     observationId: bigint("observation_id", { mode: "number" })
       .notNull()
       .references(() => rawObservation.observationId),
     contentSha256: char("content_sha256", { length: 64 }).notNull(),
+    displayBidNo: text("display_bid_no"),
     sourceStatus: varchar("source_status", { length: 64 }).notNull(),
     title: text("title").notNull(),
     announcedAt: timestamp("announced_at", { withTimezone: true }),
@@ -45,19 +52,39 @@ export const auctionRevision = coreSchema.table(
     currency: char("currency", { length: 3 }),
     sourcePayload: jsonb("source_payload").notNull(),
   },
-  (table) => [unique("auction_revision_attempt_content_key").on(table.auctionAttemptId, table.contentSha256)],
+  (table) => [unique("auction_revision_normalized_record_key").on(table.normalizedRecordId)],
 );
 
 export const auctionOrganization = coreSchema.table(
   "auction_organization",
   {
-    auctionAttemptId: bigint("auction_attempt_id", { mode: "number" })
+    auctionRevisionId: bigint("auction_revision_id", { mode: "number" })
       .notNull()
-      .references(() => auctionAttempt.auctionAttemptId),
+      .references(() => auctionRevision.auctionRevisionId),
     organizationId: bigint("organization_id", { mode: "number" })
       .notNull()
       .references(() => organization.organizationId),
     role: varchar("role", { length: 32 }).notNull(),
   },
-  (table) => [primaryKey({ columns: [table.auctionAttemptId, table.organizationId, table.role] })],
+  (table) => [primaryKey({ columns: [table.auctionRevisionId, table.organizationId, table.role] })],
+);
+
+export const auctionRevisionCodeValue = coreSchema.table(
+  "auction_revision_code_value",
+  {
+    auctionRevisionId: bigint("auction_revision_id", { mode: "number" })
+      .notNull()
+      .references(() => auctionRevision.auctionRevisionId),
+    codeValueId: bigint("code_value_id", { mode: "number" })
+      .notNull()
+      .references(() => codeValue.codeValueId),
+    role: varchar("role", { length: 32 }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.auctionRevisionId, table.codeValueId, table.role] }),
+    check(
+      "auction_revision_code_value_role_allowed",
+      sql`${table.role} in ('location_sido', 'location_sigungu', 'eligibility_area')`,
+    ),
+  ],
 );

@@ -1,0 +1,722 @@
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+from pathlib import Path
+from uuid import UUID, uuid4
+
+import psycopg
+import pytest
+
+from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
+from eatbid.core.repository import ProjectionContractError
+from eatbid.pipeline.project import project_publication
+from eatbid.pipeline.validate import validate_run
+
+from .conftest import MigratedDatabase, PipelineServices
+from .test_normalize_validate import (
+    BUILD_SHA,
+    NORMALIZED_AT,
+    VALIDATED_AT,
+    capture_detail,
+    normalize_one,
+    start_run,
+)
+
+ACTIVATED_AT = VALIDATED_AT + timedelta(minutes=1)
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "eat" / "bid-detail-one.xml"
+
+
+def validated_from_values(
+    services: PipelineServices,
+    *,
+    external_bid_id: str,
+    organization_code: str = "153347",
+    organization_name: str = "비식별 구매기관",
+    display_bid_no: str | None = "E250617-472599-1",
+    sido_code: str = "15",
+    sigungu_code: str = "653",
+    eligibility_code: str = "15653",
+) -> UUID:
+    body = FIXTURE.read_bytes()
+    body = body.replace(b"153347", organization_code.encode())
+    body = body.replace("비식별 구매기관".encode(), organization_name.encode())
+    body = body.replace(b">15</Col>", f">{sido_code}</Col>".encode(), 1)
+    body = body.replace(b">653</Col>", f">{sigungu_code}</Col>".encode(), 1)
+    body = body.replace(b">15653</Col>", f">{eligibility_code}</Col>".encode(), 1)
+    if display_bid_no is None:
+        body = body.replace(
+            b'<Col id="ELCTRN_BID_NO">E250617-472599-1</Col>', b""
+        )
+    else:
+        body = body.replace(b"E250617-472599-1", display_bid_no.encode())
+    run_id = start_run(services)
+    observation_id = capture_detail(
+        services,
+        run_id=run_id,
+        external_bid_id=external_bid_id,
+        body=body,
+    )
+    normalize_one(services, observation_id)
+    publication_id = uuid4()
+    result = validate_run(
+        run_id=run_id,
+        publication_id=publication_id,
+        validated_at=VALIDATED_AT,
+        repository=services.publication_repository,
+    )
+    assert result.status == "validated"
+    services.connection.commit()
+    return publication_id
+
+
+def project(services: PipelineServices, publication_id: UUID):
+    return project_publication(
+        publication_id=publication_id,
+        projector_version=BUILD_SHA,
+        activated_at=ACTIVATED_AT,
+        repository=services.projection_repository,
+    )
+
+
+def test_projecting_same_publication_twice_is_idempotent(
+    pipeline_services: PipelineServices,
+) -> None:
+    validated_publication = validated_from_values(
+        pipeline_services, external_bid_id="repeat-projection"
+    )
+    first = project_publication(
+        publication_id=validated_publication,
+        projector_version=BUILD_SHA,
+        activated_at=ACTIVATED_AT,
+        repository=pipeline_services.projection_repository,
+    )
+    second = project_publication(
+        publication_id=validated_publication,
+        projector_version=BUILD_SHA,
+        activated_at=ACTIVATED_AT + timedelta(hours=1),
+        repository=pipeline_services.projection_repository,
+    )
+
+    assert first.canonical_fingerprint == second.canonical_fingerprint
+    assert first.auction_revisions_inserted == 1
+    assert second.auction_revisions_inserted == 0
+
+
+def test_validated_terminal_is_recheckable_before_projection(
+    pipeline_services: PipelineServices,
+) -> None:
+    validated_publication = validated_from_values(
+        pipeline_services, external_bid_id="validated-recheck"
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select run_id from ingest.publication where publication_id = %s",
+            (validated_publication,),
+        )
+        run_id = cursor.fetchone()[0]
+
+    result = validate_run(
+        run_id=run_id,
+        publication_id=validated_publication,
+        validated_at=VALIDATED_AT + timedelta(hours=1),
+        repository=pipeline_services.publication_repository,
+    )
+
+    assert result.status == "validated"
+    assert len(result.member_ids) == 1
+
+
+def test_projection_persists_revision_scoped_bigint_facts_without_invention(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services,
+        external_bid_id="projection-complete",
+        organization_code="900001",
+        sido_code="91",
+        sigungu_code="9101",
+        eligibility_code="91999",
+    )
+
+    result = project(pipeline_services, publication_id)
+
+    assert result.members_projected == 1
+    assert result.auction_attempts_inserted == 1
+    assert result.auction_revisions_inserted == 1
+    assert result.organizations_inserted == 1
+    assert result.code_values_inserted == 4
+    assert result.code_labels_inserted == 1
+    assert result.relationships_inserted == 4
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select o.type, o.canonical_name, oi.observation_id,
+                   ar.normalized_record_id, ao.role
+            from core.organization o
+            join core.organization_identifier oi using (organization_id)
+            join core.auction_organization ao using (organization_id)
+            join core.auction_revision ar using (auction_revision_id)
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = 'projection-complete'
+            """
+        )
+        row = cursor.fetchone()
+        assert row[0:2] == ("unknown", None)
+        assert isinstance(row[2], int)
+        assert isinstance(row[3], int)
+        assert row[4] == "purchaser"
+        cursor.execute(
+            """
+            select s.namespace, v.code, r.role,
+                   pg_typeof(r.auction_revision_id)::text,
+                   pg_typeof(r.code_value_id)::text
+            from core.auction_revision_code_value r
+            join core.code_value v using (code_value_id)
+            join core.code_scheme s using (code_scheme_id)
+            join core.auction_revision ar using (auction_revision_id)
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = 'projection-complete'
+            order by s.namespace, v.code
+            """
+        )
+        assert cursor.fetchall() == [
+            ("eat:auction-location-sido", "91", "location_sido", "bigint", "bigint"),
+            ("eat:auction-location-sigungu", "9101", "location_sigungu", "bigint", "bigint"),
+            ("eat:eligibility-area", "91999", "eligibility_area", "bigint", "bigint"),
+        ]
+        cursor.execute("select count(*) from core.code_mapping")
+        assert cursor.fetchone() == (0,)
+        cursor.execute(
+            """
+            select count(*) from core.code_value v
+            join core.code_scheme s using (code_scheme_id)
+            where s.namespace like 'mois:%' or s.namespace like 'neis:%'
+            """
+        )
+        assert cursor.fetchone() == (0,)
+
+
+def test_organization_code_is_identity_and_names_are_observation_evidence(
+    pipeline_services: PipelineServices,
+) -> None:
+    publications = [
+        validated_from_values(
+            pipeline_services,
+            external_bid_id="org-a-first",
+            organization_code="000100",
+            organization_name="Same Name",
+        ),
+        validated_from_values(
+            pipeline_services,
+            external_bid_id="org-b",
+            organization_code="000200",
+            organization_name="Same Name",
+        ),
+        validated_from_values(
+            pipeline_services,
+            external_bid_id="org-a-later",
+            organization_code="000100",
+            organization_name="Renamed Source Label",
+        ),
+    ]
+    for publication_id in publications:
+        project(pipeline_services, publication_id)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select v.code, oi.organization_id
+            from core.organization_identifier oi
+            join core.code_value v using (code_value_id)
+            where v.code in ('000100', '000200')
+            order by v.code
+            """
+        )
+        identifiers = cursor.fetchall()
+        assert len(identifiers) == 2
+        assert identifiers[0][1] != identifiers[1][1]
+        cursor.execute(
+            """
+            select l.label, l.language
+            from core.code_label_observation l
+            join core.code_value v using (code_value_id)
+            where v.code = '000100'
+            order by l.label
+            """
+        )
+        assert cursor.fetchall() == [
+            ("Renamed Source Label", "und"),
+            ("Same Name", "und"),
+        ]
+
+
+def test_missing_display_number_is_nullable_revision_data(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services,
+        external_bid_id="no-display",
+        display_bid_no=None,
+    )
+    project(pipeline_services, publication_id)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select ar.display_bid_no
+            from core.auction_revision ar
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = 'no-display'
+            """
+        )
+        assert cursor.fetchone() == (None,)
+
+
+def test_concurrent_projection_serializes_and_preserves_first_metadata(
+    pipeline_services: PipelineServices, migrated_db: MigratedDatabase
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="concurrent-projection"
+    )
+
+    def invoke(offset: int):
+        with migrated_db.connect() as connection:
+            repository = PsycopgCanonicalProjectionRepository(connection)
+            return project_publication(
+                publication_id=publication_id,
+                projector_version=BUILD_SHA,
+                activated_at=ACTIVATED_AT + timedelta(hours=offset),
+                repository=repository,
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(invoke, (0, 1)))
+
+    assert sorted(result.auction_revisions_inserted for result in results) == [0, 1]
+    assert results[0].canonical_fingerprint == results[1].canonical_fingerprint
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select activated_at, published_count from ingest.publication where publication_id = %s",
+            (publication_id,),
+        )
+        activated_at, published_count = cursor.fetchone()
+        assert activated_at in {ACTIVATED_AT, ACTIVATED_AT + timedelta(hours=1)}
+        assert published_count == 1
+
+
+def test_concurrent_publications_reuse_one_organization_code_identity(
+    pipeline_services: PipelineServices, migrated_db: MigratedDatabase
+) -> None:
+    publication_ids = (
+        validated_from_values(
+            pipeline_services,
+            external_bid_id="shared-code-a",
+            organization_code="777777",
+            organization_name="First Label",
+        ),
+        validated_from_values(
+            pipeline_services,
+            external_bid_id="shared-code-b",
+            organization_code="777777",
+            organization_name="Second Label",
+        ),
+    )
+
+    def invoke(publication_id: UUID):
+        with migrated_db.connect() as connection:
+            return project_publication(
+                publication_id=publication_id,
+                projector_version=BUILD_SHA,
+                activated_at=ACTIVATED_AT,
+                repository=PsycopgCanonicalProjectionRepository(connection),
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(invoke, publication_ids))
+
+    assert sorted(result.organizations_inserted for result in results) == [0, 1]
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select count(distinct oi.organization_id), count(*)
+            from core.organization_identifier oi
+            join core.code_value v using (code_value_id)
+            join core.code_scheme s using (code_scheme_id)
+            where s.namespace = 'eat:organization' and v.code = '777777'
+            """
+        )
+        assert cursor.fetchone() == (1, 1)
+        cursor.execute(
+            """
+            select label from core.code_label_observation l
+            join core.code_value v using (code_value_id)
+            join core.code_scheme s using (code_scheme_id)
+            where s.namespace = 'eat:organization' and v.code = '777777'
+            order by label
+            """
+        )
+        assert cursor.fetchall() == [("First Label",), ("Second Label",)]
+
+
+def test_replay_publication_reuses_the_same_normalized_revision(
+    pipeline_services: PipelineServices,
+) -> None:
+    original_publication = validated_from_values(
+        pipeline_services, external_bid_id="replay-projection"
+    )
+    original = project(pipeline_services, original_publication)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select p.run_id, pr.normalized_record_id, n.observation_id
+            from ingest.publication p
+            join ingest.publication_record pr using (publication_id)
+            join ingest.normalized_record n using (normalized_record_id)
+            where p.publication_id = %s
+            """,
+            (original_publication,),
+        )
+        _, normalized_record_id, observation_id = cursor.fetchone()
+
+    replay_run = start_run(pipeline_services, mode="replay")
+    pipeline_services.publication_repository.add_replay_input(
+        run_id=replay_run, observation_id=observation_id
+    )
+    replay_normalized = normalize_one(
+        pipeline_services,
+        observation_id,
+        processing_run_id=replay_run,
+    )
+    assert replay_normalized.normalized_record_id == normalized_record_id
+    replay_publication = uuid4()
+    validate_run(
+        run_id=replay_run,
+        publication_id=replay_publication,
+        validated_at=VALIDATED_AT,
+        repository=pipeline_services.publication_repository,
+    )
+
+    replay = project(pipeline_services, replay_publication)
+
+    assert original.auction_revisions_inserted == 1
+    assert replay.auction_revisions_inserted == 0
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select status, published_count from ingest.publication where publication_id = %s",
+            (replay_publication,),
+        )
+        assert cursor.fetchone() == ("published", 1)
+
+
+def test_database_grain_allows_new_parser_interpretation_of_same_raw(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="parser-grain"
+    )
+    project(pipeline_services, publication_id)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select ar.auction_attempt_id, n.observation_id, n.source_entity_id,
+                   n.normalized_payload, ar.observation_id, ar.content_sha256,
+                   ar.display_bid_no, ar.source_status, ar.title, ar.announced_at,
+                   ar.deadline_at, ar.opened_at, ar.base_amount, ar.planned_amount,
+                   ar.currency, ar.source_payload
+            from core.auction_revision ar
+            join ingest.normalized_record n using (normalized_record_id)
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = 'parser-grain'
+            """
+        )
+        row = cursor.fetchone()
+        cursor.execute(
+            """
+            insert into ingest.normalized_record (
+                observation_id, record_type, source_entity_id, normalized_payload,
+                parser_version, normalized_at
+            ) values (%s, 'auction', %s, %s, 'eat-v2', %s)
+            returning normalized_record_id
+            """,
+            (row[1], row[2], psycopg.types.json.Jsonb(row[3]), NORMALIZED_AT),
+        )
+        second_normalized_id = cursor.fetchone()[0]
+        cursor.execute(
+            """
+            insert into core.auction_revision (
+                auction_attempt_id, normalized_record_id, observation_id,
+                content_sha256, display_bid_no, source_status, title,
+                announced_at, deadline_at, opened_at, base_amount, planned_amount,
+                currency, source_payload
+            ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                (
+                    row[0],
+                    second_normalized_id,
+                    *row[4:15],
+                    psycopg.types.json.Jsonb(row[15]),
+                ),
+            )
+    pipeline_services.connection.commit()
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select count(*) from core.auction_revision ar
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = 'parser-grain'
+            """
+        )
+        assert cursor.fetchone() == (2,)
+
+
+def test_corrupt_payload_rolls_back_and_marks_projection_contract_failed(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="corrupt-projection"
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select p.run_id, p.validated_at, pr.normalized_record_id
+            from ingest.publication p
+            join ingest.publication_record pr using (publication_id)
+            where p.publication_id = %s
+            """,
+            (publication_id,),
+        )
+        run_id, validated_at, member_id = cursor.fetchone()
+        cursor.execute(
+            """
+            update ingest.normalized_record
+            set normalized_payload = normalized_payload || '{"invented_school_type":"school"}'::jsonb
+            where normalized_record_id = %s
+            """,
+            (member_id,),
+        )
+        cursor.execute("select count(*) from core.auction_attempt")
+        attempts_before = cursor.fetchone()[0]
+    pipeline_services.connection.commit()
+
+    with pytest.raises(ProjectionContractError, match="normalized payload"):
+        project(pipeline_services, publication_id)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute("select count(*) from core.auction_attempt")
+        assert cursor.fetchone() == (attempts_before,)
+        cursor.execute(
+            """
+            select p.status, p.validated_at, p.activated_at, p.published_count,
+                   p.canonical_fingerprint, p.projector_version,
+                   r.status, r.failure_category, r.ended_at
+            from ingest.publication p join ingest.run r using (run_id)
+            where p.publication_id = %s
+            """,
+            (publication_id,),
+        )
+        assert cursor.fetchone() == (
+            "failed",
+            validated_at,
+            None,
+            0,
+            None,
+            None,
+            "failed",
+            "PROJECTION_CONTRACT",
+            ACTIVATED_AT,
+        )
+        cursor.execute(
+            "select normalized_record_id from ingest.publication_record where publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchall() == [(member_id,)]
+
+    rechecked = validate_run(
+        run_id=run_id,
+        publication_id=publication_id,
+        validated_at=ACTIVATED_AT + timedelta(hours=1),
+        repository=pipeline_services.publication_repository,
+    )
+    assert rechecked.status == "failed"
+    assert rechecked.member_ids == (member_id,)
+
+
+def test_missing_reviewed_scheme_rolls_back_before_marking_contract_failure(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services,
+        external_bid_id="missing-scheme-projection",
+        organization_code="880001",
+        sido_code="88",
+        sigungu_code="8801",
+        eligibility_code="88999",
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute("select count(*) from core.auction_attempt")
+        attempts_before = cursor.fetchone()[0]
+        cursor.execute("select count(*) from core.organization")
+        organizations_before = cursor.fetchone()[0]
+        cursor.execute(
+            """
+            update core.code_scheme set namespace = 'disabled:eligibility-area'
+            where namespace = 'eat:eligibility-area'
+            """
+        )
+    pipeline_services.connection.commit()
+    try:
+        with pytest.raises(ProjectionContractError, match="reviewed code scheme"):
+            project(pipeline_services, publication_id)
+    finally:
+        with pipeline_services.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                update core.code_scheme set namespace = 'eat:eligibility-area'
+                where namespace = 'disabled:eligibility-area'
+                """
+            )
+        pipeline_services.connection.commit()
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute("select count(*) from core.auction_attempt")
+        assert cursor.fetchone() == (attempts_before,)
+        cursor.execute("select count(*) from core.organization")
+        assert cursor.fetchone() == (organizations_before,)
+        cursor.execute(
+            """
+            select p.status, r.failure_category
+            from ingest.publication p join ingest.run r using (run_id)
+            where p.publication_id = %s
+            """,
+            (publication_id,),
+        )
+        assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
+
+
+def test_conflicting_existing_revision_rolls_back_all_new_projection_rows(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services,
+        external_bid_id="conflicting-revision",
+        organization_code="990001",
+        sido_code="99",
+        sigungu_code="9901",
+        eligibility_code="99999",
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select n.normalized_record_id, n.observation_id, n.source_entity_id,
+                   o.content_sha256
+            from ingest.publication_record pr
+            join ingest.normalized_record n using (normalized_record_id)
+            join ingest.raw_observation o using (observation_id)
+            where pr.publication_id = %s
+            """,
+            (publication_id,),
+        )
+        normalized_record_id, observation_id, external_bid_id, content_sha256 = (
+            cursor.fetchone()
+        )
+        cursor.execute(
+            """
+            insert into core.auction_attempt (source_system, external_bid_id)
+            values ('eat', %s) returning auction_attempt_id
+            """,
+            (external_bid_id,),
+        )
+        attempt_id = cursor.fetchone()[0]
+        cursor.execute(
+            """
+            insert into core.auction_revision (
+                auction_attempt_id, normalized_record_id, observation_id,
+                content_sha256, source_status, title, source_payload
+            ) values (%s, %s, %s, %s, 'tampered', 'tampered', '{}'::jsonb)
+            """,
+            (attempt_id, normalized_record_id, observation_id, content_sha256),
+        )
+        cursor.execute("select count(*) from core.organization")
+        organizations_before = cursor.fetchone()[0]
+        cursor.execute("select count(*) from core.code_value")
+        code_values_before = cursor.fetchone()[0]
+    pipeline_services.connection.commit()
+
+    with pytest.raises(ProjectionContractError, match="persisted auction revision"):
+        project(pipeline_services, publication_id)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute("select count(*) from core.organization")
+        assert cursor.fetchone() == (organizations_before,)
+        cursor.execute("select count(*) from core.code_value")
+        assert cursor.fetchone() == (code_values_before,)
+        cursor.execute(
+            """
+            select count(*) from core.auction_organization ao
+            join core.auction_revision ar using (auction_revision_id)
+            where ar.normalized_record_id = %s
+            """,
+            (normalized_record_id,),
+        )
+        assert cursor.fetchone() == (0,)
+
+
+def test_publication_fingerprint_matches_hand_checked_natural_payload_digest(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="fingerprint-fixed"
+    )
+
+    result = project(pipeline_services, publication_id)
+
+    assert result.canonical_fingerprint == (
+        "4e233eb68209a8171a2875d76683aa1f45a8946bfacfef2fbe8fe51e570bab7d"
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select canonical_fingerprint from ingest.publication where publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchone() == (result.canonical_fingerprint,)
+
+
+def test_transient_repository_failure_leaves_validated_publication_retryable(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="transient-projection"
+    )
+
+    class TransientRepository:
+        def project_publication(self, **_kwargs):
+            raise psycopg.OperationalError("database unavailable")
+
+    with pytest.raises(psycopg.OperationalError, match="database unavailable"):
+        project_publication(
+            publication_id=publication_id,
+            projector_version=BUILD_SHA,
+            activated_at=ACTIVATED_AT,
+            repository=TransientRepository(),  # type: ignore[arg-type]
+        )
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select p.status, p.activated_at, p.canonical_fingerprint,
+                   r.status, r.failure_category, r.ended_at
+            from ingest.publication p join ingest.run r using (run_id)
+            where p.publication_id = %s
+            """,
+            (publication_id,),
+        )
+        assert cursor.fetchone() == (
+            "validated",
+            None,
+            None,
+            "validated",
+            None,
+            None,
+        )

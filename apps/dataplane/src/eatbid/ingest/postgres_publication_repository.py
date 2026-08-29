@@ -19,6 +19,7 @@ REQUIRED_SCHEMES = (
     "eat:organization",
 )
 SOURCE_CONTRACT = "SOURCE_CONTRACT"
+PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
 
 
 class PublicationIntegrityError(RuntimeError):
@@ -381,7 +382,8 @@ class PsycopgPublicationRepository:
         cursor.execute(
             """
             select publication_id, status, validated_at, activated_at,
-                   expected_count, normalized_count, published_count
+                   expected_count, normalized_count, published_count,
+                   canonical_fingerprint, projector_version
             from ingest.publication where run_id = %s for update
             """,
             (run_id,),
@@ -403,7 +405,12 @@ class PsycopgPublicationRepository:
             raise PublicationIntegrityError(
                 "terminal publication counts differ from current lineage"
             )
-        if publication[3] is not None or int(publication[6]) != 0:
+        if (
+            publication[3] is not None
+            or int(publication[6]) != 0
+            or publication[7] is not None
+            or publication[8] is not None
+        ):
             raise PublicationIntegrityError(
                 "Task 8 terminal publication activation metadata is invalid"
             )
@@ -412,11 +419,19 @@ class PsycopgPublicationRepository:
                 raise PublicationIntegrityError(
                     "validated run/publication metadata is inconsistent"
                 )
-        elif (
-            publication[2] is not None
-            or run_failure_category != SOURCE_CONTRACT
-            or run_ended_at is None
-        ):
+        elif run_ended_at is None:
+            raise PublicationIntegrityError("failed run must have an end timestamp")
+        elif run_failure_category == SOURCE_CONTRACT:
+            if publication[2] is not None:
+                raise PublicationIntegrityError(
+                    "source-contract failure cannot have a validation timestamp"
+                )
+        elif run_failure_category == PROJECTION_CONTRACT:
+            if publication[2] is None:
+                raise PublicationIntegrityError(
+                    "projection-contract failure must preserve validation timestamp"
+                )
+        else:
             raise PublicationIntegrityError(
                 "failed run/publication metadata is inconsistent"
             )
@@ -429,7 +444,12 @@ class PsycopgPublicationRepository:
             (publication_id,),
         )
         member_ids = tuple(int(row[0]) for row in cursor.fetchall())
-        expected_member_ids = current_member_ids if run_status == "validated" else ()
+        expected_member_ids = (
+            current_member_ids
+            if run_status == "validated"
+            or run_failure_category == PROJECTION_CONTRACT
+            else ()
+        )
         if member_ids != expected_member_ids:
             raise PublicationIntegrityError(
                 "terminal publication member manifest differs from current lineage"

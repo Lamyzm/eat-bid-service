@@ -6,7 +6,7 @@ import { codeValue } from "./codes.js";
 export const organization = coreSchema.table("organization", {
   organizationId: bigint("organization_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
   type: varchar("type", { length: 64 }).notNull(),
-  canonicalName: text("canonical_name").notNull(),
+  canonicalName: text("canonical_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

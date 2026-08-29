@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -55,6 +55,24 @@ def prepare_request(
         endpoint=planned.endpoint,
         params=planned.params,
     )
+
+
+def set_run_nonrunning(
+    services: PipelineServices, *, run_id: UUID, status: str
+) -> None:
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            update ingest.run
+            set status = %s,
+                failure_category = case when %s = 'failed' then 'SOURCE_CONTRACT' end,
+                ended_at = case when %s in ('failed', 'published') then %s end,
+                published_count = case when %s = 'published' then expected_count else 0 end
+            where run_id = %s
+            """,
+            (status, status, status, FETCHED_AT, status, run_id),
+        )
+    services.connection.commit()
 
 
 def test_same_body_is_one_blob_and_two_append_only_observations(
@@ -253,12 +271,9 @@ def test_planning_rejects_non_running_run_without_changing_existing_plans(
 ) -> None:
     services = pipeline_services
     existing = prepare_request(services, params={"page": f"existing-{inactive_status}"})
-    with services.connection.cursor() as cursor:
-        cursor.execute(
-            "update ingest.run set status = %s where run_id = %s",
-            (inactive_status, existing.run_id),
-        )
-    services.connection.commit()
+    set_run_nonrunning(
+        services, run_id=existing.run_id, status=inactive_status
+    )
 
     for params in (
         dict(existing.params),
@@ -298,12 +313,9 @@ def test_recording_rejects_non_running_run_without_changing_ledger_rows(
 ) -> None:
     services = pipeline_services
     request = prepare_request(services, params={"page": f"record-{terminal_status}"})
-    with services.connection.cursor() as cursor:
-        cursor.execute(
-            "update ingest.run set status = %s where run_id = %s",
-            (terminal_status, request.run_id),
-        )
-    services.connection.commit()
+    set_run_nonrunning(
+        services, run_id=request.run_id, status=terminal_status
+    )
     body = f"terminal-{terminal_status}".encode()
 
     with pytest.raises(TerminalCaptureStateError):

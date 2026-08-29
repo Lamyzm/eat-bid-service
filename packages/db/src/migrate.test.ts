@@ -108,9 +108,9 @@ describe("schema journal", () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
-          id: 3,
-          name: "20260829001500_core_validity_constraints",
-          created_at: Date.UTC(2026, 7, 29, 0, 15, 0),
+          id: 4,
+          name: "20260829002000_ingest_lineage_manifests",
+          created_at: Date.UTC(2026, 7, 29, 0, 20, 0),
         }),
         expectedMigration,
       ),
@@ -121,7 +121,7 @@ describe("schema journal", () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
-          id: 4,
+          id: 5,
           name: expectedMigration,
           created_at: String(expectedMigrationTimestamp),
         }),
@@ -134,9 +134,9 @@ describe("schema journal", () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
-          id: 5,
-          name: "20260829002500_unknown_future",
-          created_at: Date.UTC(2026, 7, 29, 0, 25, 0),
+          id: 6,
+          name: "20260829003000_unknown_future",
+          created_at: Date.UTC(2026, 7, 29, 0, 30, 0),
         }),
         expectedMigration,
       ),
@@ -147,8 +147,8 @@ describe("schema journal", () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
-          id: 5,
-          name: "20260829002000_wrong_name",
+          id: 6,
+          name: "20260829002500_wrong_name",
           created_at: expectedMigrationTimestamp,
         }),
         expectedMigration,

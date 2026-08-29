@@ -22,6 +22,7 @@ from eatbid.ingest.postgres_normalization_repository import (
 from eatbid.ingest.postgres_publication_repository import PublicationIntegrityError
 from eatbid.pipeline.capture import capture
 from eatbid.pipeline.normalize import DataQuarantinedError, normalize_observation
+from eatbid.pipeline.project import project_publication
 from eatbid.pipeline.validate import validate_run
 from eatbid.source.client import SourceResponse
 
@@ -684,7 +685,11 @@ def test_database_write_failure_is_not_misclassified_as_source_quarantine(
 
 
 def assert_failed_without_core_writes(
-    services: PipelineServices, run_id: UUID, publication_id: UUID
+    services: PipelineServices,
+    run_id: UUID,
+    publication_id: UUID,
+    *,
+    expected_core_attempts: int = 0,
 ) -> None:
     with services.connection.cursor() as cursor:
         cursor.execute(
@@ -694,44 +699,36 @@ def assert_failed_without_core_writes(
         status, category, ended_at = cursor.fetchone()
         assert (status, category, ended_at) == ("failed", "SOURCE_CONTRACT", VALIDATED_AT)
         cursor.execute(
-            "select status from ingest.publication where publication_id = %s",
+            """
+            select status, validated_at, activated_at, published_count,
+                   canonical_fingerprint, projector_version
+            from ingest.publication where publication_id = %s
+            """,
             (publication_id,),
         )
-        assert cursor.fetchone() == ("failed",)
+        assert cursor.fetchone() == ("failed", None, None, 0, None, None)
         cursor.execute(
             "select count(*) from ingest.publication_record where publication_id = %s",
             (publication_id,),
         )
         assert cursor.fetchone() == (0,)
         cursor.execute("select count(*) from core.auction_attempt")
-        assert cursor.fetchone() == (0,)
+        assert cursor.fetchone() == (expected_core_attempts,)
 
 
 def test_request_count_mismatch_fails_monotonically_and_preserves_other_publications(
     pipeline_services: PipelineServices, validated_publication: UUID
 ) -> None:
     activated_at = VALIDATED_AT + timedelta(minutes=1)
+    project_publication(
+        publication_id=validated_publication,
+        projector_version=BUILD_SHA,
+        activated_at=activated_at,
+        repository=pipeline_services.projection_repository,
+    )
     with pipeline_services.connection.cursor() as cursor:
-        cursor.execute(
-            """
-            update ingest.publication
-            set status = 'published', activated_at = %s,
-                published_count = normalized_count
-            where publication_id = %s
-            """,
-            (activated_at, validated_publication),
-        )
-        cursor.execute(
-            """
-            update ingest.run
-            set status = 'published', published_count = expected_count
-            where run_id = (
-                select run_id from ingest.publication where publication_id = %s
-            )
-            """,
-            (validated_publication,),
-        )
-    pipeline_services.connection.commit()
+        cursor.execute("select count(*) from core.auction_attempt")
+        existing_core_attempts = cursor.fetchone()[0]
 
     run_id = start_run(pipeline_services, expected_count=2)
     observation_id = capture_detail(
@@ -758,7 +755,12 @@ def test_request_count_mismatch_fails_monotonically_and_preserves_other_publicat
 
     assert first == second
     assert first.status == "failed"
-    assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
+    assert_failed_without_core_writes(
+        pipeline_services,
+        run_id,
+        publication_id,
+        expected_core_attempts=existing_core_attempts,
+    )
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(
             """

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  char,
   check,
   jsonb,
   text,
@@ -51,6 +52,8 @@ export const publication = ingestSchema.table(
     expectedCount: bigint("expected_count", { mode: "number" }).notNull(),
     normalizedCount: bigint("normalized_count", { mode: "number" }).notNull(),
     publishedCount: bigint("published_count", { mode: "number" }).notNull(),
+    canonicalFingerprint: char("canonical_fingerprint", { length: 64 }),
+    projectorVersion: varchar("projector_version", { length: 128 }),
   },
   (table) => [
     unique("publication_run_id_key").on(table.runId),
@@ -63,12 +66,31 @@ export const publication = ingestSchema.table(
       sql`${table.status} not in ('validated', 'published') or ${table.validatedAt} is not null`,
     ),
     check(
+      "publication_canonical_fingerprint_sha256",
+      sql`${table.canonicalFingerprint} is null or ${table.canonicalFingerprint} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "publication_projector_version_nonempty",
+      sql`${table.projectorVersion} is null or char_length(${table.projectorVersion}) > 0`,
+    ),
+    check(
+      "publication_nonpublished_metadata_empty",
+      sql`${table.status} = 'published' or (
+        ${table.activatedAt} is null
+        and ${table.publishedCount} = 0
+        and ${table.canonicalFingerprint} is null
+        and ${table.projectorVersion} is null
+      )`,
+    ),
+    check(
       "publication_published_requires_gate",
       sql`${table.status} <> 'published' or (
         ${table.validatedAt} is not null
         and ${table.activatedAt} is not null
         and ${table.expectedCount} = ${table.normalizedCount}
         and ${table.normalizedCount} = ${table.publishedCount}
+        and ${table.canonicalFingerprint} is not null
+        and ${table.projectorVersion} is not null
       )`,
     ),
   ],

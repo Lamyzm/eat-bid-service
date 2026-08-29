@@ -4,6 +4,7 @@ import {
   auctionAttempt,
   auctionOrganization,
   auctionRevision,
+  auctionRevisionCodeValue,
   codeLabelObservation,
   codeMapping,
   codeScheme,
@@ -51,6 +52,7 @@ describe("canonical identities", () => {
     }
 
     expect(columns(auctionOrganization).every((column) => column.generatedIdentity === undefined)).toBe(true);
+    expect(columns(auctionRevisionCodeValue).every((column) => column.generatedIdentity === undefined)).toBe(true);
   });
 
   test("defines exact required columns and nullability for every canonical table", () => {
@@ -129,7 +131,7 @@ describe("canonical identities", () => {
     expect(columnNullability(organization)).toEqual({
       organization_id: true,
       type: true,
-      canonical_name: true,
+      canonical_name: false,
       created_at: true,
     });
     expect(columnNames(organizationIdentifier)).toEqual([
@@ -148,19 +150,19 @@ describe("canonical identities", () => {
       "auction_attempt_id",
       "source_system",
       "external_bid_id",
-      "display_bid_no",
     ]);
     expect(columnNullability(auctionAttempt)).toEqual({
       auction_attempt_id: true,
       source_system: true,
       external_bid_id: true,
-      display_bid_no: true,
     });
     expect(columnNames(auctionRevision)).toEqual([
       "auction_revision_id",
       "auction_attempt_id",
+      "normalized_record_id",
       "observation_id",
       "content_sha256",
+      "display_bid_no",
       "source_status",
       "title",
       "announced_at",
@@ -174,8 +176,10 @@ describe("canonical identities", () => {
     expect(columnNullability(auctionRevision)).toEqual({
       auction_revision_id: true,
       auction_attempt_id: true,
+      normalized_record_id: true,
       observation_id: true,
       content_sha256: true,
+      display_bid_no: false,
       source_status: true,
       title: true,
       announced_at: false,
@@ -187,13 +191,23 @@ describe("canonical identities", () => {
       source_payload: true,
     });
     expect(columnNames(auctionOrganization)).toEqual([
-      "auction_attempt_id",
+      "auction_revision_id",
       "organization_id",
       "role",
     ]);
     expect(columnNullability(auctionOrganization)).toEqual({
-      auction_attempt_id: true,
+      auction_revision_id: true,
       organization_id: true,
+      role: true,
+    });
+    expect(columnNames(auctionRevisionCodeValue)).toEqual([
+      "auction_revision_id",
+      "code_value_id",
+      "role",
+    ]);
+    expect(columnNullability(auctionRevisionCodeValue)).toEqual({
+      auction_revision_id: true,
+      code_value_id: true,
       role: true,
     });
   });
@@ -270,6 +284,7 @@ describe("canonical identities", () => {
       [auctionAttempt, []],
       [auctionRevision, []],
       [auctionOrganization, []],
+      [auctionRevisionCodeValue, ["auction_revision_code_value_role_allowed"]],
     ] as const) {
       expect(checkNames(table)).toEqual(expectedCheckNames);
     }
@@ -296,26 +311,47 @@ describe("canonical identities", () => {
 
   test("does not promote organization names or display bid numbers to identities", () => {
     expect(uniqueColumnSets(organization)).not.toContainEqual(["canonical_name"]);
-    expect(uniqueColumnSets(auctionAttempt)).not.toContainEqual(["display_bid_no"]);
+    expect(columnNames(auctionAttempt)).not.toContain("display_bid_no");
+    expect(columnNullability(organization).canonical_name).toBe(false);
+    expect(columnNullability(auctionRevision).display_bid_no).toBe(false);
   });
 
-  test("scopes auction identity to the source and preserves revision evidence", () => {
+  test("scopes auction identity to the source and revisions to normalized interpretations", () => {
     expect(uniqueColumnSets(auctionAttempt)).toContainEqual(["source_system", "external_bid_id"]);
-    expect(uniqueColumnSets(auctionRevision)).toContainEqual(["auction_attempt_id", "content_sha256"]);
+    expect(uniqueColumnSets(auctionRevision)).toContainEqual(["normalized_record_id"]);
+    expect(uniqueColumnSets(auctionRevision)).not.toContainEqual(["auction_attempt_id", "content_sha256"]);
     expect(foreignKeyColumnSets(auctionRevision)).toEqual(expect.arrayContaining([
       { columns: ["auction_attempt_id"], foreignTable: "auction_attempt" },
+      { columns: ["normalized_record_id"], foreignTable: "normalized_record" },
       { columns: ["observation_id"], foreignTable: "raw_observation" },
     ]));
   });
 
-  test("uses the attempt, organization, and role as the auction organization identity", () => {
+  test("scopes organization and code-value facts to an auction revision", () => {
     const config = getTableConfig(auctionOrganization);
 
     expect(config.primaryKeys.map((key) => key.columns.map((column) => column.name)))
-      .toContainEqual(["auction_attempt_id", "organization_id", "role"]);
+      .toContainEqual(["auction_revision_id", "organization_id", "role"]);
     expect(foreignKeyColumnSets(auctionOrganization)).toEqual(expect.arrayContaining([
-      { columns: ["auction_attempt_id"], foreignTable: "auction_attempt" },
+      { columns: ["auction_revision_id"], foreignTable: "auction_revision" },
       { columns: ["organization_id"], foreignTable: "organization" },
     ]));
+
+    const codeConfig = getTableConfig(auctionRevisionCodeValue);
+    expect(codeConfig.primaryKeys.map((key) => key.columns.map((column) => column.name)))
+      .toContainEqual(["auction_revision_id", "code_value_id", "role"]);
+    expect(foreignKeyColumnSets(auctionRevisionCodeValue)).toEqual(expect.arrayContaining([
+      { columns: ["auction_revision_id"], foreignTable: "auction_revision" },
+      { columns: ["code_value_id"], foreignTable: "code_value" },
+    ]));
+  });
+
+  test("deduplicates source labels at their observation-scoped evidence grain", () => {
+    expect(uniqueColumnSets(codeLabelObservation)).toContainEqual([
+      "code_value_id",
+      "label",
+      "language",
+      "observation_id",
+    ]);
   });
 });
