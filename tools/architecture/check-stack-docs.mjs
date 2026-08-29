@@ -2,7 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
+const root = process.env.STACK_DOCS_ROOT
+  ? path.resolve(process.env.STACK_DOCS_ROOT)
+  : fileURLToPath(new URL("../../", import.meta.url));
 const stackDirectory = path.join(root, "docs", "architecture", "stack");
 const index = path.join(stackDirectory, "README.md");
 const audits = [
@@ -61,23 +63,48 @@ function section(markdown, heading) {
   return markdown.slice(afterHeading, nextHeading ? afterHeading + nextHeading.index : undefined);
 }
 
+function parseTableRow(line) {
+  if (!/^\s*\|.*\|\s*$/.test(line)) return undefined;
+  return line.trim().slice(1, -1).split("|").map((cell) => cell.trim());
+}
+
+function separatorIsValid(cells) {
+  return cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
 function checkDecisionTable(file, markdown) {
   const decision = section(markdown, "Decision table");
   if (decision === undefined) return;
   const lines = decision.split(/\r?\n/).filter((line) => line.trim());
-  const tableLines = lines.filter((line) => /^\s*\|.*\|\s*$/.test(line));
-  if (tableLines.length < 3) {
+  if (lines.length < 3) {
     failures.push(`Decision table in ${display(file)} must contain a header, separator, and at least one row`);
     return;
   }
-  const header = tableLines[0].split("|").map((cell) => cell.trim());
+  const header = parseTableRow(lines[0]);
+  if (!header || header.some((cell) => !cell)) {
+    failures.push(`Decision table in ${display(file)} must begin with a non-empty Markdown table header`);
+    return;
+  }
+  const separator = parseTableRow(lines[1]);
+  if (!separator || separator.length !== header.length || !separatorIsValid(separator)) {
+    failures.push(`Decision table in ${display(file)} must have a valid Markdown separator row`);
+    return;
+  }
   const dispositionColumn = header.findIndex((cell) => cell === "Disposition");
   if (dispositionColumn < 0) {
     failures.push(`Decision table in ${display(file)} must have a Disposition column`);
     return;
   }
-  for (const row of tableLines.slice(2)) {
-    const cells = row.split("|").map((cell) => cell.trim());
+  for (const line of lines.slice(2)) {
+    const cells = parseTableRow(line);
+    if (!cells) {
+      failures.push(`Decision table row in ${display(file)} must use Markdown table syntax: ${line}`);
+      continue;
+    }
+    if (cells.length !== header.length) {
+      failures.push(`Decision table row in ${display(file)} has ${cells.length} cells; expected ${header.length}`);
+      continue;
+    }
     const disposition = cells[dispositionColumn];
     if (!dispositions.has(disposition)) {
       failures.push(`Invalid disposition in ${display(file)}: ${disposition || "(empty)"}`);
@@ -87,6 +114,10 @@ function checkDecisionTable(file, markdown) {
 
 if (requireFile(index)) {
   const indexMarkdown = readFileSync(index, "utf8");
+  if (/\b(?:TBD|TODO)\b/i.test(indexMarkdown)) {
+    failures.push(`Placeholder found in ${display(index)}`);
+  }
+  checkLocalLinks(index, indexMarkdown);
   const indexLinks = new Set(markdownLinks(indexMarkdown));
   for (const audit of audits) {
     if (!indexLinks.has(`./${audit}`) && !indexLinks.has(audit)) {
