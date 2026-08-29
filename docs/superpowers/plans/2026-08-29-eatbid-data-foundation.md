@@ -732,7 +732,7 @@ git commit -m "feat: record append-only source observations"
 - Modify: `apps/dataplane/src/eatbid/ingest/postgres_repository.py`
 - Modify: `apps/dataplane/pyproject.toml`
 - Modify: `apps/dataplane/uv.lock`
-- Create: `docs/adr/0013-normalization-attempt-lineage.md`
+- Create: `docs/adr/0014-normalization-attempt-lineage.md`
 - Modify: `docs/adr/README.md`
 - Modify: `docs/architecture/domain-and-data.md`
 - Modify: `docs/architecture/stack/application-runtime.md`
@@ -982,7 +982,7 @@ validation 뒤 staging에 추가된 normalized row를 기존 publication에 암�
 `defusedxml`은 runtime dependency로 lock하고 stack audit에 stable 0.7.1, Python 공식
 untrusted-XML 권고, DTD/entity tests, 다음 stable major 검토 trigger를 기록한다. Pydantic
 `TypeAdapter`/Hypothesis audit은 이 task의 실제 source-fragment/count 사용을 반영한다.
-ADR 0013과 `domain-and-data.md`는 immutable raw evidence → run-scoped interpretation attempt →
+ADR 0014와 `domain-and-data.md`는 immutable raw evidence → run-scoped interpretation attempt →
 frozen publication member의 one-way lineage를 문서화한다.
 
 Run: `cd apps/dataplane && uv run pytest tests/unit/test_eat_xml.py tests/unit/test_eat_normalize.py tests/unit/test_completeness.py tests/integration/test_normalize_validate.py -q`
