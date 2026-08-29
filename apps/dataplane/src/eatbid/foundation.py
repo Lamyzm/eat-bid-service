@@ -18,6 +18,7 @@ from eatbid.foundation_repository import (
     FoundationCheckpoint,
     FoundationCheckpointRepository,
     FoundationIntegrityError,
+    FoundationNormalizationCheckpoint,
     FoundationPublishedEvidence,
 )
 from eatbid.ingest.models import CapturedObservation, CaptureRequest
@@ -450,6 +451,8 @@ def _verify_checkpoint(
         or checkpoint.captured_count != observed_count
     ):
         raise FoundationIntegrityError("checkpoint capture counts are inconsistent")
+    if checkpoint.status in {"validated", "published"}:
+        _verify_normalization_lineage(checkpoint)
     if checkpoint.status == "running":
         expected_request_status = "planned" if observed_count == 0 else "captured"
         if (
@@ -461,48 +464,24 @@ def _verify_checkpoint(
         ):
             raise FoundationIntegrityError("running checkpoint status is inconsistent")
     elif checkpoint.status == "validated":
-        normalized_id = (
-            checkpoint.normalization.normalized_record_id
-            if checkpoint.normalization is not None
-            else None
-        )
         if (
             request.status != "captured"
-            or observed_count != 1
-            or normalized_id is None
             or publication.status != "validated"
-            or publication.normalized_count != 1
-            or publication.published_count != 0
-            or publication.member_ids != (normalized_id,)
         ):
             raise FoundationIntegrityError(
                 "validated checkpoint status is inconsistent"
             )
     elif checkpoint.status == "published":
-        normalization = checkpoint.normalization
-        normalized_id = (
-            normalization.normalized_record_id
-            if normalization is not None and normalization.status == "normalized"
-            else None
-        )
         if (
             request.status != "captured"
-            or observed_count != 1
-            or normalized_id is None
-            or checkpoint.observation is None
-            or normalization is None
-            or normalization.observation_id
-            != checkpoint.observation.observation_id
             or checkpoint.failure_category is not None
             or checkpoint.ended_at is None
             or publication.status != "published"
-            or publication.member_ids != (normalized_id,)
             or publication.projector_version != build_sha
         ):
             raise FoundationIntegrityError(
                 "published checkpoint status is inconsistent"
             )
-        _verify_published_cardinality(checkpoint)
         _sha256(
             publication.canonical_fingerprint,
             "publication canonical_fingerprint",
@@ -657,7 +636,7 @@ def _load_verified_projection_evidence(
     )
     for count in counts:
         _nonnegative_int(count, "published projection count")
-    _verify_published_cardinality(
+    _verify_member_cardinality(
         checkpoint,
         verified_members_projected=evidence.members_projected,
     )
@@ -677,7 +656,42 @@ def _load_verified_projection_evidence(
     return evidence
 
 
-def _verify_published_cardinality(
+def _verify_normalization_lineage(checkpoint: FoundationCheckpoint) -> None:
+    normalization = checkpoint.normalization
+    observation = checkpoint.observation
+    if not isinstance(normalization, FoundationNormalizationCheckpoint):
+        raise FoundationIntegrityError(
+            "terminal checkpoint lacks typed normalization"
+        )
+    if observation is None:
+        raise FoundationIntegrityError(
+            "terminal normalization lacks its observation"
+        )
+    _positive_int(
+        normalization.normalization_attempt_id,
+        "normalization_attempt_id",
+    )
+    _positive_int(normalization.observation_id, "normalization observation_id")
+    _positive_int(normalization.normalized_record_id, "normalized_record_id")
+    member_ids = checkpoint.publication.member_ids
+    if not isinstance(member_ids, tuple) or len(member_ids) != 1:
+        raise FoundationIntegrityError(
+            "terminal publication must contain one typed member"
+        )
+    _positive_int(member_ids[0], "publication member_id")
+    if (
+        normalization.status != "normalized"
+        or normalization.observation_id != observation.observation_id
+        or normalization.parser_version != checkpoint.parser_version
+        or normalization.normalized_record_id != member_ids[0]
+    ):
+        raise FoundationIntegrityError(
+            "terminal normalization lineage differs from its checkpoint"
+        )
+    _verify_member_cardinality(checkpoint)
+
+
+def _verify_member_cardinality(
     checkpoint: FoundationCheckpoint,
     *,
     verified_members_projected: object | None = None,
@@ -690,16 +704,25 @@ def _verify_published_cardinality(
         checkpoint.request.observed_count,
         publication.expected_count,
         publication.normalized_count,
-        publication.published_count,
         len(publication.member_ids),
     )
     if verified_members_projected is not None:
         counts += (verified_members_projected,)
     for count in counts:
-        _nonnegative_int(count, "published cardinality")
+        _nonnegative_int(count, "terminal member cardinality")
     if counts[0] != 1 or any(count != counts[0] for count in counts[1:]):
         raise FoundationIntegrityError(
-            "published cardinality differs from the one frozen detail member"
+            "terminal cardinality differs from the one frozen detail member"
+        )
+    published_count = int(checkpoint.status == "published")
+    _nonnegative_int(checkpoint.published_count, "run published_count")
+    _nonnegative_int(publication.published_count, "publication published_count")
+    if (
+        checkpoint.published_count != published_count
+        or publication.published_count != published_count
+    ):
+        raise FoundationIntegrityError(
+            "terminal published counts differ from checkpoint status"
         )
 
 

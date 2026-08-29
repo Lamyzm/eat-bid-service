@@ -377,3 +377,93 @@ def test_published_reentry_rejects_nonexact_terminal_cardinality(
             projector=projector,
             expected_count=frozen_expected_count,
         )
+
+
+def _terminal_checkpoint(state: str) -> FoundationCheckpoint:
+    return (
+        _checkpoint(status="validated")
+        if state == "validated"
+        else _published_checkpoint()
+    )
+
+
+def _assert_rejected_before_projection(checkpoint: FoundationCheckpoint) -> None:
+    projector = SpyProjectionRepository(
+        published_evidence=PublishedProjectionEvidence(
+            PUBLICATION_ID, 1, 1, 1, 1, "e" * 64
+        )
+    )
+
+    with pytest.raises(FoundationIntegrityError):
+        _run(checkpoint, projector=projector)
+
+    assert projector.calls == 0
+
+
+@pytest.mark.parametrize("state", ["validated", "published"])
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("status", "quarantined"),
+        ("observation_id", 12),
+        ("parser_version", "eat-v2"),
+        ("normalization_attempt_id", True),
+        ("normalization_attempt_id", 0),
+    ],
+)
+def test_terminal_checkpoint_rejects_normalization_field_drift_before_projection(
+    state: str,
+    field: str,
+    invalid: object,
+) -> None:
+    checkpoint = _terminal_checkpoint(state)
+    assert checkpoint.normalization is not None
+    malformed = replace(
+        checkpoint,
+        normalization=replace(checkpoint.normalization, **{field: invalid}),
+    )
+
+    _assert_rejected_before_projection(malformed)
+
+
+@pytest.mark.parametrize("state", ["validated", "published"])
+@pytest.mark.parametrize("invalid_id", [True, 0])
+def test_terminal_checkpoint_rejects_invalid_normalized_member_id(
+    state: str,
+    invalid_id: object,
+) -> None:
+    checkpoint = _terminal_checkpoint(state)
+    assert checkpoint.normalization is not None
+    malformed = replace(
+        checkpoint,
+        normalization=replace(
+            checkpoint.normalization,
+            normalized_record_id=invalid_id,
+        ),
+        publication=replace(checkpoint.publication, member_ids=(invalid_id,)),
+    )
+
+    _assert_rejected_before_projection(malformed)
+
+
+@pytest.mark.parametrize("state", ["validated", "published"])
+def test_terminal_checkpoint_rejects_untyped_normalization(state: str) -> None:
+    _assert_rejected_before_projection(
+        replace(_terminal_checkpoint(state), normalization=object())
+    )
+
+
+def test_validated_checkpoint_rejects_boolean_nested_counts_before_projection(
+) -> None:
+    checkpoint = _checkpoint(status="validated")
+    malformed = replace(
+        checkpoint,
+        request=replace(checkpoint.request, expected_count=True),
+        publication=replace(
+            checkpoint.publication,
+            expected_count=True,
+            normalized_count=True,
+        ),
+    )
+
+    _assert_rejected_before_projection(malformed)

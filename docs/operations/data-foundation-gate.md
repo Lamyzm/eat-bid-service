@@ -45,9 +45,9 @@ pnpm db:generate
 
 2026-08-30 검증 결과:
 
-- Task 13 focused: 10 passed; adversarial unit contracts: 26 passed
+- Task 13 focused: 10 passed; adversarial unit contracts: 43 passed
 - reverse integration `Task13 → Task10 → Task9 → Task8`: 139 passed
-- full dataplane: 364 passed, total coverage 91.25% (`--cov-fail-under=90` 통과)
+- full dataplane: 381 passed, total coverage 91.20% (`--cov-fail-under=90` 통과)
 - Ruff: pass, Pyright: 0 errors/0 warnings
 - root Bun: 119 passed
 - forced Turbo build: web/server/shared/db 4/4 성공, cache 0
