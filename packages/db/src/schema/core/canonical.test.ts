@@ -187,7 +187,7 @@ describe("canonical identities", () => {
       opened_at: false,
       base_amount: false,
       planned_amount: false,
-      currency: false,
+      currency: true,
       source_payload: true,
     });
     expect(columnNames(auctionOrganization)).toEqual([

@@ -62,6 +62,10 @@ export const publication = ingestSchema.table(
     check("publication_normalized_count_nonnegative", sql`${table.normalizedCount} >= 0`),
     check("publication_published_count_nonnegative", sql`${table.publishedCount} >= 0`),
     check(
+      "publication_activation_chronology",
+      sql`${table.activatedAt} is null or ${table.validatedAt} is null or ${table.activatedAt} >= ${table.validatedAt}`,
+    ),
+    check(
       "publication_validated_requires_validation_timestamp",
       sql`${table.status} not in ('validated', 'published') or ${table.validatedAt} is not null`,
     ),

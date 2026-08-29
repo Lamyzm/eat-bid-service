@@ -17,12 +17,14 @@ ALTER TABLE "core"."auction_organization" DROP COLUMN "auction_attempt_id";--> s
 ALTER TABLE "core"."auction_attempt" DROP COLUMN "display_bid_no";--> statement-breakpoint
 ALTER TABLE "core"."auction_organization" ADD PRIMARY KEY ("auction_revision_id","organization_id","role");--> statement-breakpoint
 ALTER TABLE "core"."organization" ALTER COLUMN "canonical_name" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "core"."auction_revision" ALTER COLUMN "currency" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "core"."code_label_observation" ADD CONSTRAINT "code_label_observation_evidence_key" UNIQUE("code_value_id","label","language","observation_id");--> statement-breakpoint
 ALTER TABLE "core"."auction_revision" ADD CONSTRAINT "auction_revision_normalized_record_key" UNIQUE("normalized_record_id");--> statement-breakpoint
 ALTER TABLE "core"."auction_organization" ADD CONSTRAINT "auction_organization_p42qwxorJn1f_fkey" FOREIGN KEY ("auction_revision_id") REFERENCES "core"."auction_revision"("auction_revision_id");--> statement-breakpoint
 ALTER TABLE "core"."auction_revision" ADD CONSTRAINT "auction_revision_kvTOaxDn4KoF_fkey" FOREIGN KEY ("normalized_record_id") REFERENCES "ingest"."normalized_record"("normalized_record_id");--> statement-breakpoint
 ALTER TABLE "core"."auction_revision_code_value" ADD CONSTRAINT "auction_revision_code_value_orktJF5dHNCB_fkey" FOREIGN KEY ("auction_revision_id") REFERENCES "core"."auction_revision"("auction_revision_id");--> statement-breakpoint
 ALTER TABLE "core"."auction_revision_code_value" ADD CONSTRAINT "auction_revision_code_value_NpfuycI19Tc7_fkey" FOREIGN KEY ("code_value_id") REFERENCES "core"."code_value"("code_value_id");--> statement-breakpoint
+ALTER TABLE "ingest"."run" ADD CONSTRAINT "run_end_chronology" CHECK ("ended_at" is null or "ended_at" >= "started_at");--> statement-breakpoint
 ALTER TABLE "ingest"."run" ADD CONSTRAINT "run_terminal_metadata" CHECK ((
         "status" = 'failed'
         and "failure_category" is not null
@@ -43,6 +45,7 @@ ALTER TABLE "ingest"."run" ADD CONSTRAINT "run_published_count_matches_expected"
         "status" <> 'published'
         and "published_count" = 0
       ));--> statement-breakpoint
+ALTER TABLE "ingest"."publication" ADD CONSTRAINT "publication_activation_chronology" CHECK ("activated_at" is null or "validated_at" is null or "activated_at" >= "validated_at");--> statement-breakpoint
 ALTER TABLE "ingest"."publication" ADD CONSTRAINT "publication_canonical_fingerprint_sha256" CHECK ("canonical_fingerprint" is null or "canonical_fingerprint" ~ '^[0-9a-f]{64}$');--> statement-breakpoint
 ALTER TABLE "ingest"."publication" ADD CONSTRAINT "publication_projector_version_nonempty" CHECK ("projector_version" is null or char_length("projector_version") > 0);--> statement-breakpoint
 ALTER TABLE "ingest"."publication" ADD CONSTRAINT "publication_nonpublished_metadata_empty" CHECK ("status" = 'published' or (

@@ -35,6 +35,15 @@ def test_auction_projection_contract_accepts_the_required_lineage_fields() -> No
         organization_code="0001",
         organization_label="Observed name",
         code_refs=(),
+        source_status="open",
+        title="Lunch",
+        announced_at=None,
+        deadline_at=None,
+        opened_at=None,
+        base_amount=None,
+        planned_amount=None,
+        currency="KRW",
+        source_payload={"external_bid_id": "bid-1"},
     )
 
     assert projection.normalized_record_id == 1

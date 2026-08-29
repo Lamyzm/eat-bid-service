@@ -171,6 +171,7 @@ describe("ingest identity", () => {
       "run_expected_count_nonnegative",
       "run_captured_count_nonnegative",
       "run_published_count_nonnegative",
+      "run_end_chronology",
       "run_terminal_metadata",
       "run_published_count_matches_expected",
     ]));
@@ -184,6 +185,7 @@ describe("ingest identity", () => {
       "publication_expected_count_nonnegative",
       "publication_normalized_count_nonnegative",
       "publication_published_count_nonnegative",
+      "publication_activation_chronology",
       "publication_validated_requires_validation_timestamp",
       "publication_canonical_fingerprint_sha256",
       "publication_projector_version_nonempty",

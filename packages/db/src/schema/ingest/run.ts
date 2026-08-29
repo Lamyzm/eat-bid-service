@@ -35,6 +35,7 @@ export const ingestRun = ingestSchema.table(
     check("run_expected_count_nonnegative", sql`${table.expectedCount} >= 0`),
     check("run_captured_count_nonnegative", sql`${table.capturedCount} >= 0`),
     check("run_published_count_nonnegative", sql`${table.publishedCount} >= 0`),
+    check("run_end_chronology", sql`${table.endedAt} is null or ${table.endedAt} >= ${table.startedAt}`),
     check(
       "run_terminal_metadata",
       sql`(

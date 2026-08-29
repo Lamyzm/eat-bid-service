@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from typing import Any
 
@@ -22,6 +23,7 @@ class CanonicalProjectionWriter:
         observed_at: datetime,
         allow_insert: bool,
     ) -> tuple[int, int, int, int, int, int]:
+        _validate_projection(projection)
         organization_code_id, organization_code_inserted = self._resolve_code_value(
             cursor,
             namespace="eat:organization",
@@ -58,6 +60,7 @@ class CanonicalProjectionWriter:
             allow_insert=allow_insert,
         )
         code_values_inserted = organization_code_inserted
+        expected_code_relationships: set[tuple[int, str]] = set()
         for reference in projection.code_refs:
             code_value_id, inserted = self._resolve_code_value(
                 cursor,
@@ -66,12 +69,19 @@ class CanonicalProjectionWriter:
                 allow_insert=allow_insert,
             )
             code_values_inserted += inserted
+            expected_code_relationships.add((code_value_id, reference.role))
             relationships_inserted += self._resolve_relationship(
                 cursor,
                 table="auction_revision_code_value",
                 values=(revision_id, code_value_id, reference.role),
                 allow_insert=allow_insert,
             )
+        self._verify_relationship_sets(
+            cursor,
+            revision_id=revision_id,
+            organization_id=organization_id,
+            code_relationships=expected_code_relationships,
+        )
         return (
             attempt_inserted,
             revision_inserted,
@@ -95,7 +105,9 @@ class CanonicalProjectionWriter:
         )
         scheme = cursor.fetchone()
         if scheme is None:
-            raise ProjectionContractError(f"reviewed code scheme is missing: {namespace}")
+            raise ProjectionContractError(
+                f"reviewed code scheme is missing: {namespace}"
+            )
         scheme_id = int(scheme[0])
         if allow_insert:
             cursor.execute(
@@ -343,6 +355,86 @@ class CanonicalProjectionWriter:
             raise ProjectionContractError(f"published {table} relationship is missing")
         return 0
 
+    @staticmethod
+    def _verify_relationship_sets(
+        cursor: psycopg.Cursor[Any],
+        *,
+        revision_id: int,
+        organization_id: int,
+        code_relationships: set[tuple[int, str]],
+    ) -> None:
+        cursor.execute(
+            "select organization_id, role from core.auction_organization "
+            "where auction_revision_id = %s order by organization_id, role for update",
+            (revision_id,),
+        )
+        organizations = {(int(row[0]), str(row[1])) for row in cursor.fetchall()}
+        if organizations != {(organization_id, "purchaser")}:
+            raise ProjectionContractError("purchaser relationship set conflicts")
+        cursor.execute(
+            "select code_value_id, role from core.auction_revision_code_value "
+            "where auction_revision_id = %s order by code_value_id, role for update",
+            (revision_id,),
+        )
+        codes = {(int(row[0]), str(row[1])) for row in cursor.fetchall()}
+        if codes != code_relationships:
+            raise ProjectionContractError("code-value relationship set conflicts")
+
 
 def _canonical_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+_SHA256 = re.compile(r"[0-9a-f]{64}")
+_REVIEWED_CODE_ROLES = {
+    "eat:auction-location-sido": "location_sido",
+    "eat:auction-location-sigungu": "location_sigungu",
+    "eat:eligibility-area": "eligibility_area",
+}
+
+
+def _validate_projection(projection: AuctionProjection) -> None:
+    if projection.normalized_record_id <= 0 or projection.observation_id <= 0:
+        raise ProjectionContractError("projection lineage IDs must be positive")
+    required = {
+        "source_system": projection.source_system,
+        "endpoint": projection.endpoint,
+        "parser_version": projection.parser_version,
+        "external_bid_id": projection.external_bid_id,
+        "organization_code": projection.organization_code,
+        "organization_label": projection.organization_label,
+        "source_status": projection.source_status,
+        "title": projection.title,
+        "currency": projection.currency,
+    }
+    if any(
+        not isinstance(value, str) or not value.strip() for value in required.values()
+    ):
+        raise ProjectionContractError("projection required strings must be non-empty")
+    for digest in (
+        projection.raw_content_sha256,
+        projection.normalized_payload_sha256,
+    ):
+        if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
+            raise ProjectionContractError("projection hashes must be lowercase SHA-256")
+    if not isinstance(projection.source_payload, dict):
+        raise ProjectionContractError("projection source payload must be a JSON object")
+    try:
+        _canonical_json(projection.source_payload)
+    except (TypeError, ValueError) as error:
+        raise ProjectionContractError(
+            "projection source payload must be JSON serializable"
+        ) from error
+    identities: set[tuple[str, str, str]] = set()
+    for reference in projection.code_refs:
+        if (
+            _REVIEWED_CODE_ROLES.get(reference.namespace) != reference.role
+            or not reference.code.strip()
+        ):
+            raise ProjectionContractError("projection code reference is not reviewed")
+        identity = (reference.namespace, reference.code, reference.role)
+        if identity in identities:
+            raise ProjectionContractError(
+                "projection code references must be deduplicated"
+            )
+        identities.add(identity)

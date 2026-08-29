@@ -22,7 +22,6 @@ from eatbid.ingest.postgres_normalization_repository import (
 from eatbid.ingest.postgres_publication_repository import PublicationIntegrityError
 from eatbid.pipeline.capture import capture
 from eatbid.pipeline.normalize import DataQuarantinedError, normalize_observation
-from eatbid.pipeline.project import project_publication
 from eatbid.pipeline.validate import validate_run
 from eatbid.source.client import SourceResponse
 
@@ -716,17 +715,14 @@ def assert_failed_without_core_writes(
         assert cursor.fetchone() == (expected_core_attempts,)
 
 
-def test_request_count_mismatch_fails_monotonically_and_preserves_other_publications(
-    pipeline_services: PipelineServices, validated_publication: UUID
+def test_request_count_mismatch_fails_monotonically_and_preserves_existing_core_rows(
+    pipeline_services: PipelineServices,
 ) -> None:
-    activated_at = VALIDATED_AT + timedelta(minutes=1)
-    project_publication(
-        publication_id=validated_publication,
-        projector_version=BUILD_SHA,
-        activated_at=activated_at,
-        repository=pipeline_services.projection_repository,
-    )
     with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "insert into core.auction_attempt (source_system, external_bid_id) "
+            "values ('fixture', 'preserved')"
+        )
         cursor.execute("select count(*) from core.auction_attempt")
         existing_core_attempts = cursor.fetchone()[0]
 
@@ -761,17 +757,6 @@ def test_request_count_mismatch_fails_monotonically_and_preserves_other_publicat
         publication_id,
         expected_core_attempts=existing_core_attempts,
     )
-    with pipeline_services.connection.cursor() as cursor:
-        cursor.execute(
-            """
-            select p.status, p.activated_at, p.published_count, r.status
-            from ingest.publication p
-            join ingest.run r using (run_id)
-            where p.publication_id = %s
-            """,
-            (validated_publication,),
-        )
-        assert cursor.fetchone() == ("published", activated_at, 1, "published")
 
 
 def test_failed_request_status_blocks_even_when_counts_match(

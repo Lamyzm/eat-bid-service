@@ -95,7 +95,9 @@ def pipeline_services(migrated_db: MigratedDatabase) -> PipelineServices:
             repository=PsycopgObservationRepository(connection),
             normalization_repository=PsycopgNormalizationRepository(connection),
             publication_repository=PsycopgPublicationRepository(connection),
-            projection_repository=PsycopgCanonicalProjectionRepository(connection),
+            projection_repository=PsycopgCanonicalProjectionRepository(
+                connection, migrated_db.connect
+            ),
             store=MemoryRawObjectStore(
                 now=lambda: datetime(2026, 8, 29, 4, 5, 6, tzinfo=UTC)
             ),

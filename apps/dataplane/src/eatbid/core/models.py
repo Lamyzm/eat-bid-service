@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
@@ -39,15 +39,15 @@ class AuctionProjection:
     organization_code: str
     organization_label: str
     code_refs: tuple[ExternalCodeRef, ...]
-    source_status: str | None = None
-    title: str | None = None
-    announced_at: datetime | None = None
-    deadline_at: datetime | None = None
-    opened_at: datetime | None = None
-    base_amount: Decimal | None = None
-    planned_amount: Decimal | None = None
-    currency: str | None = None
-    source_payload: Mapping[str, object] = field(default_factory=dict)
+    source_status: str
+    title: str
+    announced_at: datetime | None
+    deadline_at: datetime | None
+    opened_at: datetime | None
+    base_amount: Decimal | None
+    planned_amount: Decimal | None
+    currency: str
+    source_payload: Mapping[str, object]
 
 
 @dataclass(frozen=True, slots=True)

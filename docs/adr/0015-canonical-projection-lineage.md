@@ -31,9 +31,12 @@ eaT `PURR_CD`는 `eat:organization` code value와 OrganizationIdentifier로 해�
 label을 canonical 이름이나 유형으로 승격하지 않는다.
 
 Projector는 잠근 `publication.status='validated'`의 frozen `publication_record`만 읽는다. manifest의
-각 member가 Task 8의 current run/parser attempt와 여전히 정확히 연결되는지 확인하고 strict normalized
-payload를 다시 canonical JSON으로 만든다. fingerprint는 정렬한 다음 tuple 목록의 compact JSON에
-SHA-256을 적용한다.
+각 member가 Task 8의 current run/parser attempt와 여전히 정확히 연결되는지 확인한다. capture run의
+candidate는 `raw_observation.run_id`, replay run의 candidate는 exact `replay_input`이며, candidate마다
+current parser attempt 하나와 같은 observation의 normalized member 하나만 허용한다. factory 결과의
+lineage/source/external ID/hash도 잠근 member와 다시 비교하고 normalized payload digest는 repository가
+잠근 canonical JSON에서 계산한다. fingerprint는 정렬한 다음 tuple 목록의 compact JSON에 SHA-256을
+적용한다.
 
 ```text
 (source_system, external_bid_id, raw_content_sha256,
@@ -44,8 +47,11 @@ publication/run 잠금, insert-or-verify canonical write, revision-scoped relati
 `published` 전환은 한 transaction이다. 동일/concurrent 호출은 publication row에서 직렬화되고 이미
 published인 전체 projection과 최초 activation/fingerprint를 검증한 뒤 0 insert를 반환한다.
 
-payload, lineage, scheme 또는 기존 canonical row의 결정적 충돌은 core transaction을 rollback한 뒤
-별도 transaction에서 아직 validated인 run/publication을 `PROJECTION_CONTRACT` failed로 만든다. 이때
+payload, lineage, scheme 또는 기존 canonical row/전체 relation set의 결정적 충돌은 core transaction을
+rollback한 뒤 별도 fresh connection의 transaction에서 아직 validated인 run/publication을
+`PROJECTION_CONTRACT` failed로 만든다. projector adapter는 ambient transaction을 허용하지 않고 idle
+connection에서 repository-owned transaction을 시작하므로 failure marker가 외부 rollback에 딸려가지
+않는다. 이때
 기존 `validated_at`과 exact frozen member manifest를 진단용으로 보존하고 activation, fingerprint,
 projector version, published count는 비운다. 연결/provider 같은 일시적 infrastructure 오류는 상태를
 failed로 오분류하지 않고 validated로 남겨 Argo retry가 가능하게 한다. 이미 published인 상태는

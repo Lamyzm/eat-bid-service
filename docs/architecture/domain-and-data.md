@@ -212,6 +212,9 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   parser_version, normalized_payload_sha256)` tuple만 정렬해 계산하며 bigint ID/행 순서는 포함하지 않는다.
 - projector는 publication/run을 잠그고 canonical row와 revision-scoped bigint 관계를 insert-or-verify한
   뒤 exact member count가 성공한 경우에만 한 transaction으로 `published`를 전환한다.
+- projector는 capture의 `raw_observation.run_id` 또는 replay의 exact `replay_input` candidate set과
+  candidate별 current-parser attempt/member bijection을 다시 잠가 검증한다. factory output은 잠근
+  lineage/source/hash와 재비교하고 relation은 purchaser 및 `(code_value_id, role)` 전체 set이 정확해야 한다.
 - terminal 재검증은 current attempt-record member를 다시 잠그고 계산하여 frozen sorted member
   set과 status/metadata/count를 정확히 비교한다. validated 상태는 failed request, request/candidate
   count drift, missing/mismatched/non-normalized attempt, output parser/type/observation drift, 미검토
@@ -221,7 +224,9 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   failed 상태는 외부 수정으로 승격하지 않으며 저장된 failed metadata와 빈 manifest를 검증한다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
 - deterministic projection 충돌은 core write를 rollback하고 `PROJECTION_CONTRACT`로 실패시키되 이전
-  `validated_at`과 frozen member를 보존한다. transient DB/provider 오류는 validated 상태로 남겨 retry한다.
+  `validated_at`과 frozen member를 보존한다. 실패 표시는 fresh connection transaction으로 내구화하고,
+  projector는 ambient transaction이 아닌 idle connection의 repository-owned transaction만 허용한다.
+  transient DB/provider 오류는 validated 상태로 남겨 retry한다.
 - mart는 영향받은 partition/cohort를 새 build ID로 만든 뒤 원자적으로 활성화한다.
 - 재처리는 `replay_input`의 raw observation 집합과 processing parser/projector version을
   명시한다.

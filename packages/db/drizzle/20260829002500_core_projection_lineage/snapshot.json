@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "dc0e3781-1625-48ba-8744-9c0655f30d1f",
+  "id": "28bea5ed-64da-4db0-9a4e-3abe41c62958",
   "prevIds": [
     "ca5dd432-dc6c-4811-a671-b0d9d412ace8"
   ],
@@ -1787,7 +1787,7 @@
     {
       "type": "char(3)",
       "typeSchema": null,
-      "notNull": false,
+      "notNull": true,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -2760,6 +2760,13 @@
       "table": "run"
     },
     {
+      "value": "\"ended_at\" is null or \"ended_at\" >= \"started_at\"",
+      "name": "run_end_chronology",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
       "value": "(\n        \"status\" = 'failed'\n        and \"failure_category\" is not null\n        and \"ended_at\" is not null\n      ) or (\n        \"status\" = 'published'\n        and \"failure_category\" is null\n        and \"ended_at\" is not null\n      ) or (\n        \"status\" in ('planned', 'running', 'validated')\n        and \"failure_category\" is null\n        and \"ended_at\" is null\n      )",
       "name": "run_terminal_metadata",
       "entityType": "checks",
@@ -2818,6 +2825,13 @@
     {
       "value": "\"published_count\" >= 0",
       "name": "publication_published_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"activated_at\" is null or \"validated_at\" is null or \"activated_at\" >= \"validated_at\"",
+      "name": "publication_activation_chronology",
       "entityType": "checks",
       "schema": "ingest",
       "table": "publication"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -8,14 +9,16 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
+from eatbid.core.models import ExternalCodeRef
 from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
 from eatbid.core.repository import ProjectionContractError
-from eatbid.pipeline.project import project_publication
+from eatbid.pipeline.project import build_eat_auction_projection, project_publication
 from eatbid.pipeline.validate import validate_run
 
 from .conftest import MigratedDatabase, PipelineServices
 from .test_normalize_validate import (
     BUILD_SHA,
+    FETCHED_AT,
     NORMALIZED_AT,
     VALIDATED_AT,
     capture_detail,
@@ -45,9 +48,7 @@ def validated_from_values(
     body = body.replace(b">653</Col>", f">{sigungu_code}</Col>".encode(), 1)
     body = body.replace(b">15653</Col>", f">{eligibility_code}</Col>".encode(), 1)
     if display_bid_no is None:
-        body = body.replace(
-            b'<Col id="ELCTRN_BID_NO">E250617-472599-1</Col>', b""
-        )
+        body = body.replace(b'<Col id="ELCTRN_BID_NO">E250617-472599-1</Col>', b"")
     else:
         body = body.replace(b"E250617-472599-1", display_bid_no.encode())
     run_id = start_run(services)
@@ -77,6 +78,358 @@ def project(services: PipelineServices, publication_id: UUID):
         activated_at=ACTIVATED_AT,
         repository=services.projection_repository,
     )
+
+
+def test_repository_rejects_factory_output_not_bound_to_locked_member(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="dishonest-factory"
+    )
+
+    def dishonest(member):
+        return replace(
+            build_eat_auction_projection(member),
+            normalized_payload_sha256="0" * 64,
+        )
+
+    with pytest.raises(ProjectionContractError, match="factory output"):
+        pipeline_services.projection_repository.project_publication(
+            publication_id=publication_id,
+            projector_version=BUILD_SHA,
+            activated_at=ACTIVATED_AT,
+            projection_factory=dishonest,
+        )
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select p.status, r.failure_category from ingest.publication p "
+            "join ingest.run r using (run_id) where p.publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"normalized_record_id": 0},
+        {"observation_id": 0},
+        {"raw_content_sha256": "A" * 64},
+        {"source_status": ""},
+        {"title": ""},
+        {"currency": ""},
+        {"source_payload": []},
+        {"source_payload": {"not_json": object()}},
+        {
+            "code_refs": (
+                ExternalCodeRef("invented:scheme", "01", "eligibility_area"),
+            )
+        },
+        {
+            "code_refs": (
+                ExternalCodeRef("eat:eligibility-area", "01", "eligibility_area"),
+                ExternalCodeRef("eat:eligibility-area", "01", "eligibility_area"),
+            )
+        },
+    ],
+)
+def test_repository_rejects_malformed_factory_projection_before_sql(
+    pipeline_services: PipelineServices, changes: dict[str, object]
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id=f"malformed-{uuid4()}"
+    )
+
+    def malformed(member):
+        return replace(build_eat_auction_projection(member), **changes)
+
+    with pytest.raises(ProjectionContractError, match="projection"):
+        pipeline_services.projection_repository.project_publication(
+            publication_id=publication_id,
+            projector_version=BUILD_SHA,
+            activated_at=ACTIVATED_AT,
+            projection_factory=malformed,
+        )
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select count(*) from core.auction_revision ar "
+            "join ingest.publication_record pr using (normalized_record_id) "
+            "where pr.publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchone() == (0,)
+
+
+def test_projector_rejects_multiple_normalized_members_for_one_candidate(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="extra-normalized-member"
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select a.normalization_attempt_id, n.observation_id, n.normalized_payload "
+            "from ingest.publication_record pr "
+            "join ingest.normalized_record n using (normalized_record_id) "
+            "join ingest.normalization_attempt_record ar using (normalized_record_id) "
+            "join ingest.normalization_attempt a using (normalization_attempt_id) "
+            "where pr.publication_id = %s",
+            (publication_id,),
+        )
+        attempt_id, observation_id, payload = cursor.fetchone()
+        cursor.execute(
+            "insert into ingest.normalized_record "
+            "(observation_id, record_type, source_entity_id, normalized_payload, "
+            "parser_version, normalized_at) values "
+            "(%s, 'auction', 'extra-member', %s, 'eat-v1', %s) "
+            "returning normalized_record_id",
+            (observation_id, psycopg.types.json.Jsonb(payload), NORMALIZED_AT),
+        )
+        extra_id = cursor.fetchone()[0]
+        cursor.execute(
+            "insert into ingest.normalization_attempt_record "
+            "(normalization_attempt_id, normalized_record_id) values (%s, %s)",
+            (attempt_id, extra_id),
+        )
+    pipeline_services.connection.commit()
+
+    with pytest.raises(ProjectionContractError, match="candidate topology"):
+        project(pipeline_services, publication_id)
+
+
+def test_candidate_bijection_does_not_assume_normalized_record_id_order(
+    pipeline_services: PipelineServices,
+) -> None:
+    run_id = start_run(pipeline_services, expected_count=2)
+    first_observation = capture_detail(
+        pipeline_services, run_id=run_id, external_bid_id="reverse-order-first"
+    )
+    second_observation = capture_detail(
+        pipeline_services, run_id=run_id, external_bid_id="reverse-order-second"
+    )
+    second_record = normalize_one(pipeline_services, second_observation)
+    first_record = normalize_one(pipeline_services, first_observation)
+    assert first_observation < second_observation
+    assert second_record.normalized_record_id < first_record.normalized_record_id
+    publication_id = uuid4()
+    result = validate_run(
+        run_id=run_id,
+        publication_id=publication_id,
+        validated_at=VALIDATED_AT,
+        repository=pipeline_services.publication_repository,
+    )
+    assert len(result.member_ids) == 2
+    pipeline_services.connection.commit()
+
+    projected = project(pipeline_services, publication_id)
+
+    assert projected.members_projected == 2
+
+
+def test_projector_rejects_replay_candidate_added_after_validation(
+    pipeline_services: PipelineServices,
+) -> None:
+    first_publication = validated_from_values(
+        pipeline_services, external_bid_id="replay-candidate-first"
+    )
+    second_publication = validated_from_values(
+        pipeline_services, external_bid_id="replay-candidate-second"
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select n.observation_id from ingest.publication_record pr "
+            "join ingest.normalized_record n using (normalized_record_id) "
+            "where pr.publication_id = %s",
+            (first_publication,),
+        )
+        first_observation = cursor.fetchone()[0]
+        cursor.execute(
+            "select n.observation_id from ingest.publication_record pr "
+            "join ingest.normalized_record n using (normalized_record_id) "
+            "where pr.publication_id = %s",
+            (second_publication,),
+        )
+        second_observation = cursor.fetchone()[0]
+    replay_run = start_run(pipeline_services, mode="replay")
+    pipeline_services.publication_repository.add_replay_input(
+        run_id=replay_run, observation_id=first_observation
+    )
+    normalize_one(pipeline_services, first_observation, processing_run_id=replay_run)
+    replay_publication = uuid4()
+    validate_run(
+        run_id=replay_run,
+        publication_id=replay_publication,
+        validated_at=VALIDATED_AT,
+        repository=pipeline_services.publication_repository,
+    )
+    pipeline_services.connection.commit()
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "insert into ingest.replay_input (run_id, observation_id) values (%s, %s)",
+            (replay_run, second_observation),
+        )
+    pipeline_services.connection.commit()
+
+    with pytest.raises(ProjectionContractError, match="candidate topology"):
+        project(pipeline_services, replay_publication)
+
+
+def test_projector_rejects_extra_revision_relations_on_published_retry(
+    pipeline_services: PipelineServices,
+) -> None:
+    first = validated_from_values(
+        pipeline_services,
+        external_bid_id="exact-relations-first",
+        organization_code="710001",
+        eligibility_code="71001",
+    )
+    second = validated_from_values(
+        pipeline_services,
+        external_bid_id="exact-relations-second",
+        organization_code="710002",
+        eligibility_code="71002",
+    )
+    project(pipeline_services, first)
+    project(pipeline_services, second)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select ar.auction_revision_id from core.auction_revision ar "
+            "join core.auction_attempt aa using (auction_attempt_id) "
+            "where aa.external_bid_id = 'exact-relations-first'"
+        )
+        revision_id = cursor.fetchone()[0]
+        cursor.execute(
+            "select ao.organization_id from core.auction_organization ao "
+            "join core.auction_revision ar using (auction_revision_id) "
+            "join core.auction_attempt aa using (auction_attempt_id) "
+            "where aa.external_bid_id = 'exact-relations-second'"
+        )
+        extra_organization_id = cursor.fetchone()[0]
+        cursor.execute(
+            "select r.code_value_id from core.auction_revision_code_value r "
+            "join core.auction_revision ar using (auction_revision_id) "
+            "join core.auction_attempt aa using (auction_attempt_id) "
+            "where aa.external_bid_id = 'exact-relations-second' "
+            "and r.role = 'eligibility_area'"
+        )
+        extra_code_id = cursor.fetchone()[0]
+        cursor.execute(
+            "insert into core.auction_organization "
+            "(auction_revision_id, organization_id, role) values (%s, %s, 'purchaser')",
+            (revision_id, extra_organization_id),
+        )
+        cursor.execute(
+            "insert into core.auction_revision_code_value "
+            "(auction_revision_id, code_value_id, role) values (%s, %s, 'eligibility_area')",
+            (revision_id, extra_code_id),
+        )
+    pipeline_services.connection.commit()
+
+    with pytest.raises(ProjectionContractError, match="relationship set"):
+        project(pipeline_services, first)
+
+
+def test_projection_requires_idle_owned_transaction_scope(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="ambient-transaction"
+    )
+    with (
+        pipeline_services.connection.transaction(),
+        pytest.raises(RuntimeError, match="idle transaction"),
+    ):
+        project(pipeline_services, publication_id)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select status from ingest.publication where publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchone() == ("validated",)
+
+
+def test_projection_rejects_activation_before_validation(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="activation-chronology"
+    )
+
+    with pytest.raises(ProjectionContractError, match="activation chronology"):
+        project_publication(
+            publication_id=publication_id,
+            projector_version=BUILD_SHA,
+            activated_at=VALIDATED_AT - timedelta(seconds=1),
+            repository=pipeline_services.projection_repository,
+        )
+
+
+def test_projection_rejects_activation_before_run_start_as_contract_failure(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="activation-before-start"
+    )
+
+    with pytest.raises(ProjectionContractError, match="activation chronology"):
+        project_publication(
+            publication_id=publication_id,
+            projector_version=BUILD_SHA,
+            activated_at=FETCHED_AT - timedelta(seconds=1),
+            repository=pipeline_services.projection_repository,
+        )
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select p.status, r.failure_category, r.ended_at, r.started_at "
+            "from ingest.publication p join ingest.run r using (run_id) "
+            "where p.publication_id = %s",
+            (publication_id,),
+        )
+        status, category, ended_at, started_at = cursor.fetchone()
+        assert (status, category) == ("failed", "PROJECTION_CONTRACT")
+        assert ended_at == started_at
+
+
+def test_database_rejects_run_end_before_start(
+    pipeline_services: PipelineServices,
+) -> None:
+    run_id = start_run(pipeline_services)
+    with (
+        pytest.raises(psycopg.errors.CheckViolation, match="run_end_chronology"),
+        pipeline_services.connection.transaction(),
+        pipeline_services.connection.cursor() as cursor,
+    ):
+        cursor.execute(
+            "update ingest.run set status = 'failed', failure_category = 'TEST', "
+            "ended_at = %s where run_id = %s",
+            (FETCHED_AT - timedelta(seconds=1), run_id),
+        )
+
+
+def test_database_rejects_publication_activation_before_validation(
+    pipeline_services: PipelineServices,
+) -> None:
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="database-activation-chronology"
+    )
+    with (
+        pytest.raises(
+            psycopg.errors.CheckViolation,
+            match="publication_activation_chronology",
+        ),
+        pipeline_services.connection.transaction(),
+        pipeline_services.connection.cursor() as cursor,
+    ):
+        cursor.execute(
+            "update ingest.publication set status = 'published', activated_at = %s, "
+            "published_count = normalized_count, canonical_fingerprint = %s, "
+            "projector_version = %s where publication_id = %s",
+            (VALIDATED_AT - timedelta(seconds=1), "0" * 64, BUILD_SHA, publication_id),
+        )
 
 
 def test_projecting_same_publication_twice_is_idempotent(
@@ -182,7 +535,13 @@ def test_projection_persists_revision_scoped_bigint_facts_without_invention(
         )
         assert cursor.fetchall() == [
             ("eat:auction-location-sido", "91", "location_sido", "bigint", "bigint"),
-            ("eat:auction-location-sigungu", "9101", "location_sigungu", "bigint", "bigint"),
+            (
+                "eat:auction-location-sigungu",
+                "9101",
+                "location_sigungu",
+                "bigint",
+                "bigint",
+            ),
             ("eat:eligibility-area", "91999", "eligibility_area", "bigint", "bigint"),
         ]
         cursor.execute("select count(*) from core.code_mapping")
@@ -282,7 +641,9 @@ def test_concurrent_projection_serializes_and_preserves_first_metadata(
 
     def invoke(offset: int):
         with migrated_db.connect() as connection:
-            repository = PsycopgCanonicalProjectionRepository(connection)
+            repository = PsycopgCanonicalProjectionRepository(
+                connection, migrated_db.connect
+            )
             return project_publication(
                 publication_id=publication_id,
                 projector_version=BUILD_SHA,
@@ -329,7 +690,9 @@ def test_concurrent_publications_reuse_one_organization_code_identity(
                 publication_id=publication_id,
                 projector_version=BUILD_SHA,
                 activated_at=ACTIVATED_AT,
-                repository=PsycopgCanonicalProjectionRepository(connection),
+                repository=PsycopgCanonicalProjectionRepository(
+                    connection, migrated_db.connect
+                ),
             )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -396,6 +759,7 @@ def test_replay_publication_reuses_the_same_normalized_revision(
         validated_at=VALIDATED_AT,
         repository=pipeline_services.publication_repository,
     )
+    pipeline_services.connection.commit()
 
     replay = project(pipeline_services, replay_publication)
 
@@ -451,13 +815,13 @@ def test_database_grain_allows_new_parser_interpretation_of_same_raw(
                 currency, source_payload
             ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-                (
-                    row[0],
-                    second_normalized_id,
-                    *row[4:15],
-                    psycopg.types.json.Jsonb(row[15]),
-                ),
-            )
+            (
+                row[0],
+                second_normalized_id,
+                *row[4:15],
+                psycopg.types.json.Jsonb(row[15]),
+            ),
+        )
     pipeline_services.connection.commit()
 
     with pipeline_services.connection.cursor() as cursor:
@@ -633,8 +997,8 @@ def test_conflicting_existing_revision_rolls_back_all_new_projection_rows(
             """
             insert into core.auction_revision (
                 auction_attempt_id, normalized_record_id, observation_id,
-                content_sha256, source_status, title, source_payload
-            ) values (%s, %s, %s, %s, 'tampered', 'tampered', '{}'::jsonb)
+                content_sha256, source_status, title, currency, source_payload
+            ) values (%s, %s, %s, %s, 'tampered', 'tampered', 'KRW', '{}'::jsonb)
             """,
             (attempt_id, normalized_record_id, observation_id, content_sha256),
         )

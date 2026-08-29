@@ -13,6 +13,10 @@ class ProjectionContractError(RuntimeError):
     """Frozen publication input conflicts with the canonical projection contract."""
 
 
+class ProjectionTransactionScopeError(RuntimeError):
+    """Projection requires a repository-owned, idle database transaction."""
+
+
 @dataclass(frozen=True, slots=True)
 class FrozenPublicationMember:
     normalized_record_id: int

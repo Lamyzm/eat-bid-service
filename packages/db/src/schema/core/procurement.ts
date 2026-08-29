@@ -49,7 +49,7 @@ export const auctionRevision = coreSchema.table(
     openedAt: timestamp("opened_at", { withTimezone: true }),
     baseAmount: numeric("base_amount", { precision: 18, scale: 2 }),
     plannedAmount: numeric("planned_amount", { precision: 18, scale: 2 }),
-    currency: char("currency", { length: 3 }),
+    currency: char("currency", { length: 3 }).notNull(),
     sourcePayload: jsonb("source_payload").notNull(),
   },
   (table) => [unique("auction_revision_normalized_record_key").on(table.normalizedRecordId)],
