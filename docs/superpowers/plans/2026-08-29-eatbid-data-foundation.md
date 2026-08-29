@@ -476,11 +476,15 @@ git commit -m "build: make committed migrations the only DDL path"
 - Create: `apps/dataplane/src/eatbid/object_store.py`
 - Create: `apps/dataplane/src/eatbid/r2_store.py`
 - Create: `apps/dataplane/tests/unit/test_object_store.py`
+- Create: `apps/dataplane/tests/unit/test_r2_store.py`
 - Create: `apps/dataplane/tests/unit/fakes.py`
+- Modify: `apps/dataplane/pyproject.toml`
+- Modify: `apps/dataplane/uv.lock`
+- Modify: `docs/architecture/stack/contracts-and-validation.md`
 
 **Interfaces:**
-- Consumes: raw `bytes`, source, endpoint.
-- Produces: `StoredRawObject(content_sha256: str, object_key: str, byte_length: int, stored_at: datetime)` and `RawObjectStore.put(*, source: str, endpoint: str, body: bytes) -> StoredRawObject`.
+- Consumes: raw `bytes`, validated source/endpoint slugs, and startup-validated R2 settings.
+- Produces: `StoredRawObject(content_sha256: str, object_key: str, byte_length: int, stored_at: datetime)`, `RawObjectStore.put(...)`, and `RawObjectStore.read(object_key) -> bytes` for replay.
 
 - [ ] **Step 1: content key와 deterministic gzip 실패 테스트 작성**
 
@@ -540,28 +544,41 @@ class StoredRawObject:
 class RawObjectStore(Protocol):
     def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
         raise NotImplementedError
+
+    def read(self, object_key: str) -> bytes:
+        raise NotImplementedError
 ```
 
 SHA-256은 HTTP response body 원본 bytes에 계산한다. gzip은 `mtime=0`으로 만들고 key는
 `raw/{source}/{endpoint}/{sha256}.xml.gz`다. source/endpoint는 `[a-z0-9-]+`만 허용한다.
+Hypothesis property test는 임의 raw bytes에 대해 같은 입력의 key/gzip bytes가 항상 같고,
+압축 round-trip과 SHA-256가 보존되며 다른 source/endpoint가 key namespace를 분리함을 검증한다.
 
 - [ ] **Step 4: R2 adapter 구현**
 
 `R2RawObjectStore`는 `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`,
-`R2_SECRET_ACCESS_KEY` 설정을 받고 boto3 S3 client로 gzip body를 put한다. 동일 key가 있으면
-HEAD로 byte length/metadata hash를 확인하고 같은 object만 성공으로 취급한다. metadata
-`source-sha256`가 다르면 `ObjectCollisionError`를 발생시킨다.
+`R2_SECRET_ACCESS_KEY`를 `pydantic-settings`의 frozen settings로 process 시작 시 검증하고
+secret은 `SecretStr`로 유지한다. boto3 S3 client로 deterministic gzip body를 put한다. 동일
+key가 있으면 HEAD의 compressed length, `source-sha256`, raw byte length, content encoding을
+모두 확인하고 같은 object만 성공으로 취급한다. 하나라도 다르면 `ObjectCollisionError`를
+발생시킨다. `read`는 gzip을 해제한 뒤 key/metadata의 hash와 raw length를 다시 검증하고
+불일치 시 `ObjectCorruptionError`를 발생시킨다. 자격증명/endpoint는 error나 repr에 노출하지 않는다.
+
+`test_r2_store.py`는 상태가 있는 fake S3 boundary로 missing HEAD→PUT, 동일 object 재사용,
+metadata/length collision, read round-trip/corruption, startup setting validation을 검증한다.
+실제 R2 자격증명이나 네트워크는 사용하지 않는다.
 
 - [ ] **Step 5: 단위 테스트와 type/lint 통과**
 
-Run: `cd apps/dataplane && uv run pytest tests/unit/test_object_store.py -q && uv run ruff check src tests && uv run pyright src`
+Run: `cd apps/dataplane && uv run pytest tests/unit/test_object_store.py tests/unit/test_r2_store.py -q && uv run ruff check src tests && uv run pyright src`
 
-Expected: PASS, no lint/type errors.
+Expected: PASS, no lint/type errors. Hypothesis는 dev dependency로 lock되고 stack audit의 해당 행은
+실제 deterministic archive property suite를 근거로 `Adopted`로 바뀐다.
 
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add apps/dataplane
+git add apps/dataplane docs/architecture/stack/contracts-and-validation.md
 git commit -m "feat: archive raw responses by content hash"
 ```
 
