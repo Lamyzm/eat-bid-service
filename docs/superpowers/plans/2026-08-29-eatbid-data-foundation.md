@@ -744,7 +744,7 @@ git commit -m "feat: record append-only source observations"
   request parameter (the list response's internal `ETN_BID_ID`), never from the display
   `ELCTRN_BID_NO` field.
 - Produces: `NormalizedAuction`, `CompletenessReport`, idempotent `normalized_record`
-  rows, an observation parser/quarantine transition, a `validated` publication, and pytest
+  rows, a run-scoped normalization-attempt transition, a `validated` publication, and pytest
   fixtures `validated_publication`, `observation_id`; never `core` domain IDs or inferred
   eaT→MOIS/NEIS mappings.
 - Persists exact lineage manifests: `ingest.publication_record(publication_id,
@@ -997,7 +997,7 @@ Run: `cd apps/dataplane && uv lock --check && uv sync --frozen && uv run pytest 
 Run: `pnpm architecture:check && pnpm test && pnpm build`
 
 ```bash
-git add packages/db apps/dataplane docs/architecture/stack/application-runtime.md docs/architecture/stack/contracts-and-validation.md
+git add packages/db apps/dataplane docs/adr/0014-normalization-attempt-lineage.md docs/adr/README.md docs/architecture/domain-and-data.md docs/architecture/stack/application-runtime.md docs/architecture/stack/contracts-and-validation.md
 git commit -m "feat: validate typed eaT observations"
 ```
 
