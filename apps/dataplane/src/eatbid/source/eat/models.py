@@ -8,14 +8,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class BidListPage(BaseModel):
-    model_config = ConfigDict(frozen=True, strict=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     total_count: int = Field(ge=0)
     external_bid_ids: tuple[str, ...]
 
 
 class NormalizedAuction(BaseModel):
-    model_config = ConfigDict(frozen=True, strict=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
     external_bid_id: str = Field(min_length=1)
     display_bid_no: str | None

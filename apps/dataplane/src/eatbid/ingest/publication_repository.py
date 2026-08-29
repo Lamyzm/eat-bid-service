@@ -23,7 +23,19 @@ class CompletenessValidator(Protocol):
         quarantined: int,
         duplicate_source_entities: int,
         missing_code_schemes: tuple[str, ...],
+        schema_contract_violations: int,
     ) -> CompletenessResult: ...
+
+
+class SourceContractValidator(Protocol):
+    def __call__(
+        self,
+        *,
+        source: str,
+        endpoint: str,
+        parser_version: str,
+        schema_fingerprint: str | None,
+    ) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +56,7 @@ class PublicationRepository(Protocol):
         publication_id: UUID,
         validated_at: datetime,
         completeness_validator: CompletenessValidator,
+        source_contract_validator: SourceContractValidator,
     ) -> PublicationValidation: ...
 
     def add_replay_input(self, *, run_id: UUID, observation_id: int) -> None: ...

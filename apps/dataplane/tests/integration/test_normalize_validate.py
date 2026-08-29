@@ -16,6 +16,7 @@ from eatbid.ingest.postgres_normalization_repository import (
     NormalizationIntegrityError,
     NormalizationNondeterminismError,
 )
+from eatbid.ingest.postgres_publication_repository import PublicationIntegrityError
 from eatbid.pipeline.capture import capture
 from eatbid.pipeline.normalize import DataQuarantinedError, normalize_observation
 from eatbid.pipeline.validate import validate_run
@@ -58,6 +59,7 @@ def capture_detail(
     body: bytes | None = None,
     expected_count: int = 1,
     extra_params: dict[str, str] | None = None,
+    endpoint: str = "bid-detail",
 ) -> int:
     params = {"ELCTRN_BID_ID": external_bid_id}
     if extra_params is not None:
@@ -65,7 +67,7 @@ def capture_detail(
     planned = services.repository.plan_request_unit(
         run_id=run_id,
         source="eat",
-        endpoint="bid-detail",
+        endpoint=endpoint,
         params=params,
         expected_count=expected_count,
     )
@@ -74,7 +76,7 @@ def capture_detail(
             request_unit_id=planned.request_unit_id,
             run_id=run_id,
             source="eat",
-            endpoint="bid-detail",
+            endpoint=endpoint,
             params=planned.params,
         ),
         services.store,
@@ -886,6 +888,103 @@ def test_missing_required_scheme_blocks_publication(
         )
 
 
+def test_unreviewed_source_column_preserves_attempt_but_blocks_publication(
+    pipeline_services: PipelineServices,
+) -> None:
+    body = FIXTURE.read_bytes().replace(
+        b"</ColumnInfo>",
+        b'<Column id="UNREVIEWED_FIELD" type="STRING"/></ColumnInfo>',
+        1,
+    ).replace(
+        b"</Row>",
+        b'<Col id="UNREVIEWED_FIELD">observed</Col></Row>',
+        1,
+    )
+    run_id = start_run(pipeline_services)
+    observation_id = capture_detail(
+        pipeline_services,
+        run_id=run_id,
+        external_bid_id=uuid4().hex,
+        body=body,
+    )
+    normalized = normalize_one(pipeline_services, observation_id)
+    publication_id = uuid4()
+
+    result = validate_run(
+        run_id=run_id,
+        publication_id=publication_id,
+        validated_at=VALIDATED_AT,
+        repository=pipeline_services.publication_repository,
+    )
+
+    assert result.status == "failed"
+    assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select a.status, a.schema_fingerprint, count(o.observation_id)
+            from ingest.normalization_attempt a
+            join ingest.raw_observation o using (observation_id)
+            where a.normalization_attempt_id = %s
+            group by a.normalization_attempt_id
+            """,
+            (normalized.normalization_attempt_id,),
+        )
+        assert cursor.fetchone() == ("normalized", normalized.schema_fingerprint, 1)
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "parser_version"),
+    [
+        ("unreviewed-detail", "eat-v1"),
+        ("bid-detail", "eat-v2"),
+    ],
+)
+def test_unknown_source_contract_identity_blocks_publication(
+    pipeline_services: PipelineServices,
+    endpoint: str,
+    parser_version: str,
+) -> None:
+    run_id = start_run(pipeline_services, parser_version=parser_version)
+    body = FIXTURE.read_bytes().replace(
+        b"E250617-472599-1",
+        f"SYNTHETIC-{endpoint}-{parser_version}".encode(),
+    )
+    observation_id = capture_detail(
+        pipeline_services,
+        run_id=run_id,
+        external_bid_id=uuid4().hex,
+        endpoint=endpoint,
+        body=body,
+    )
+    normalized = normalize_one(
+        pipeline_services,
+        observation_id,
+        parser_version=parser_version,
+    )
+    publication_id = uuid4()
+
+    result = validate_run(
+        run_id=run_id,
+        publication_id=publication_id,
+        validated_at=VALIDATED_AT,
+        repository=pipeline_services.publication_repository,
+    )
+
+    assert result.status == "failed"
+    assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select status, schema_fingerprint
+            from ingest.normalization_attempt
+            where normalization_attempt_id = %s
+            """,
+            (normalized.normalization_attempt_id,),
+        )
+        assert cursor.fetchone() == ("normalized", normalized.schema_fingerprint)
+
+
 def test_complete_run_freezes_exact_members_and_revalidation_is_idempotent(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
@@ -941,6 +1040,82 @@ def test_complete_run_freezes_exact_members_and_revalidation_is_idempotent(
         assert cursor.fetchone() == ("validated", 0)
         cursor.execute("select count(*) from core.auction_attempt")
         assert cursor.fetchone() == (0,)
+
+
+def test_terminal_revalidation_rejects_same_cardinality_member_substitution(
+    pipeline_services: PipelineServices, observation_id: int
+) -> None:
+    normalized = normalize_one(pipeline_services, observation_id)
+    publication_id = uuid4()
+    validate_run(
+        run_id=normalized.run_id,
+        publication_id=publication_id,
+        validated_at=VALIDATED_AT,
+        repository=pipeline_services.publication_repository,
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            insert into ingest.normalized_record (
+                observation_id, record_type, source_entity_id, normalized_payload,
+                parser_version, normalized_at
+            ) values (%s, 'unrelated', %s, '{}'::jsonb, 'eat-v1', %s)
+            returning normalized_record_id
+            """,
+            (observation_id, normalized.source_entity_id, NORMALIZED_AT),
+        )
+        unrelated_id = cursor.fetchone()[0]
+        cursor.execute(
+            "delete from ingest.publication_record where publication_id = %s",
+            (publication_id,),
+        )
+        cursor.execute(
+            """
+            insert into ingest.publication_record (publication_id, normalized_record_id)
+            values (%s, %s)
+            """,
+            (publication_id, unrelated_id),
+        )
+    pipeline_services.connection.commit()
+
+    with pytest.raises(PublicationIntegrityError, match="member"):
+        validate_run(
+            run_id=normalized.run_id,
+            publication_id=publication_id,
+            validated_at=VALIDATED_AT + timedelta(hours=1),
+            repository=pipeline_services.publication_repository,
+        )
+
+
+def test_terminal_revalidation_rejects_publication_status_drift(
+    pipeline_services: PipelineServices, observation_id: int
+) -> None:
+    normalized = normalize_one(pipeline_services, observation_id)
+    publication_id = uuid4()
+    validate_run(
+        run_id=normalized.run_id,
+        publication_id=publication_id,
+        validated_at=VALIDATED_AT,
+        repository=pipeline_services.publication_repository,
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            update ingest.publication
+            set status = 'pending', validated_at = null
+            where publication_id = %s
+            """,
+            (publication_id,),
+        )
+    pipeline_services.connection.commit()
+
+    with pytest.raises(PublicationIntegrityError, match="status"):
+        validate_run(
+            run_id=normalized.run_id,
+            publication_id=publication_id,
+            validated_at=VALIDATED_AT + timedelta(hours=1),
+            repository=pipeline_services.publication_repository,
+        )
 
 
 def test_replay_mode_uses_explicit_input_without_mutating_capture_provenance(

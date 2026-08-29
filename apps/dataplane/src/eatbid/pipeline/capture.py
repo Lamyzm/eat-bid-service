@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest
 from eatbid.ingest.repository import IngestRepository
 from eatbid.object_store import RawObjectStore
@@ -17,10 +18,6 @@ class SourceCaptureError(RuntimeError):
 
 class SourceThrottledError(SourceCaptureError):
     """The source rejected or throttled the request."""
-
-
-class SourceContractError(SourceCaptureError):
-    """The source returned a non-success response outside throttle handling."""
 
 
 def capture(
@@ -47,7 +44,10 @@ def capture(
     if failure_category == SOURCE_THROTTLED:
         raise SourceThrottledError(response.status_code)
     if failure_category == SOURCE_CONTRACT:
-        raise SourceContractError(response.status_code)
+        raise SourceContractError(
+            f"source returned HTTP {response.status_code}",
+            status_code=response.status_code,
+        )
     return observation
 
 

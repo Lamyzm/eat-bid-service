@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from hashlib import sha256
 from types import MappingProxyType
@@ -23,10 +23,6 @@ class NexacroParseError(EatPayloadError):
     def __init__(self, message: str, *, schema_fingerprint: str | None = None) -> None:
         super().__init__(message)
         self.schema_fingerprint = schema_fingerprint
-
-
-class SourceContractError(EatPayloadError):
-    """A source-level invariant needed for run completeness was violated."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,7 +113,7 @@ def parse_nexacro(payload: bytes, *, require_ds_info: bool = False) -> ParsedNex
 
     if not datasets:
         raise NexacroParseError("at least one Nexacro Dataset is required")
-    fingerprint = _schema_fingerprint(schema)
+    fingerprint = schema_fingerprint(schema)
     if require_ds_info and len(datasets.get("ds_info", ())) != 1:
         raise NexacroParseError(
             "ds_info must contain exactly one row",
@@ -129,8 +125,12 @@ def parse_nexacro(payload: bytes, *, require_ds_info: bool = False) -> ParsedNex
     )
 
 
-def _schema_fingerprint(schema: Mapping[str, list[str]]) -> str:
+def schema_fingerprint(schema: Mapping[str, Iterable[str]]) -> str:
+    canonical_shape = {
+        dataset_id: sorted(set(column_ids))
+        for dataset_id, column_ids in schema.items()
+    }
     canonical = json.dumps(
-        dict(schema), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        canonical_shape, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return sha256(canonical).hexdigest()

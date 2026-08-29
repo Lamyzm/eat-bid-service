@@ -8,7 +8,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from eatbid.source.eat.models import NormalizedAuction
+from eatbid.source.eat.models import BidListPage, NormalizedAuction
 from eatbid.source.eat.normalize import (
     EatDetailValidationError,
     canonical_payload,
@@ -122,6 +122,30 @@ def test_normalized_model_is_strict_authority() -> None:
                 "category_source": "unknown",
             }
         )
+
+
+def test_bid_list_authority_forbids_unknown_fields() -> None:
+    with pytest.raises(ValidationError):
+        BidListPage.model_validate(
+            {
+                "total_count": 1,
+                "external_bid_ids": ("1",),
+                "unreviewed_field": "must not be discarded",
+            }
+        )
+
+
+def test_normalized_auction_authority_forbids_unknown_fields() -> None:
+    record = normalize_bid_detail(
+        FIXTURE.read_bytes(),
+        external_bid_id="5610615",
+        parser_version="eat-v1",
+    )
+    payload = record.model_dump()
+    payload["unreviewed_field"] = "must not be discarded"
+
+    with pytest.raises(ValidationError):
+        NormalizedAuction.model_validate(payload)
 
 
 def test_missing_source_category_stays_unknown_without_title_inference() -> None:

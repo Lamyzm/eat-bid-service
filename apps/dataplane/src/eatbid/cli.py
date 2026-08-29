@@ -25,7 +25,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def exit_code_for_error(error: Exception) -> int:
-    from eatbid.pipeline.capture import SourceContractError, SourceThrottledError
+    from eatbid.errors import SourceContractError
+    from eatbid.pipeline.capture import SourceThrottledError
     from eatbid.pipeline.normalize import DataQuarantinedError
 
     if isinstance(error, DataQuarantinedError):

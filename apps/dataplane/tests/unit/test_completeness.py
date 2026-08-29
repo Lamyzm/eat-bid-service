@@ -14,6 +14,7 @@ def test_publication_is_rejected_when_tot_count_differs() -> None:
         quarantined=0,
         duplicate_source_entities=0,
         missing_code_schemes=(),
+        schema_contract_violations=0,
     )
 
     assert report.publishable is False
@@ -29,6 +30,7 @@ def test_publication_is_rejected_when_tot_count_differs() -> None:
     quarantined=st.integers(min_value=0, max_value=10),
     duplicates=st.integers(min_value=0, max_value=10),
     missing=st.lists(st.sampled_from(["a", "b", "c"]), unique=True, max_size=3),
+    schema_contract_violations=st.integers(min_value=0, max_value=10),
 )
 def test_completeness_matches_the_exact_gate_equation(
     request_counts: list[tuple[int, int]],
@@ -36,6 +38,7 @@ def test_completeness_matches_the_exact_gate_equation(
     quarantined: int,
     duplicates: int,
     missing: list[str],
+    schema_contract_violations: int,
 ) -> None:
     expected = (
         all(expected == observed for expected, observed in request_counts)
@@ -43,6 +46,7 @@ def test_completeness_matches_the_exact_gate_equation(
         and quarantined == 0
         and duplicates == 0
         and not missing
+        and schema_contract_violations == 0
     )
 
     report = validate_completeness(
@@ -51,6 +55,7 @@ def test_completeness_matches_the_exact_gate_equation(
         quarantined=quarantined,
         duplicate_source_entities=duplicates,
         missing_code_schemes=tuple(missing),
+        schema_contract_violations=schema_contract_violations,
     )
 
     assert report.publishable is expected
@@ -65,6 +70,7 @@ def test_completeness_matches_the_exact_gate_equation(
         {"quarantined": 1},
         {"duplicate_source_entities": 1},
         {"missing_code_schemes": ("eat:organization",)},
+        {"schema_contract_violations": 1},
     ],
 )
 def test_each_completeness_failure_mode_blocks_publication(
@@ -76,6 +82,7 @@ def test_each_completeness_failure_mode_blocks_publication(
         "quarantined": 0,
         "duplicate_source_entities": 0,
         "missing_code_schemes": (),
+        "schema_contract_violations": 0,
     }
     values.update(overrides)
 
@@ -89,6 +96,7 @@ def test_each_completeness_failure_mode_blocks_publication(
         {"normalized": -1},
         {"quarantined": -1},
         {"duplicate_source_entities": -1},
+        {"schema_contract_violations": -1},
     ],
 )
 def test_completeness_rejects_negative_counts(kwargs: dict[str, object]) -> None:
@@ -98,6 +106,7 @@ def test_completeness_rejects_negative_counts(kwargs: dict[str, object]) -> None
         "quarantined": 0,
         "duplicate_source_entities": 0,
         "missing_code_schemes": (),
+        "schema_contract_violations": 0,
     }
     values.update(kwargs)
 

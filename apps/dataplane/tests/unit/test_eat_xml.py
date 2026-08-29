@@ -4,8 +4,13 @@ from pathlib import Path
 
 import pytest
 
+from eatbid.errors import SourceContractError
 from eatbid.source.eat.normalize import parse_bid_list_page
-from eatbid.source.eat.xml import NexacroParseError, SourceContractError, parse_nexacro
+from eatbid.source.eat.schema_contract import (
+    reviewed_schema_fingerprint,
+    validate_eat_schema_contract,
+)
+from eatbid.source.eat.xml import NexacroParseError, parse_nexacro
 
 FIXTURE_DIR = Path(__file__).parents[1] / "fixtures" / "eat"
 NS = "http://www.nexacroplatform.com/platform/dataset"
@@ -112,3 +117,37 @@ def test_schema_fingerprint_is_independent_of_dataset_and_column_order() -> None
 def test_parser_requires_the_nexacro_namespace() -> None:
     with pytest.raises(NexacroParseError):
         parse_nexacro(b"<Root><Dataset id='ds_info'><Rows><Row/></Rows></Dataset></Root>")
+
+
+def test_reviewed_eat_detail_schema_contract_has_a_stable_parser_digest() -> None:
+    assert reviewed_schema_fingerprint(
+        source="eat", endpoint="bid-detail", parser_version="eat-v1"
+    ) == "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"
+    assert validate_eat_schema_contract(
+        source="eat",
+        endpoint="bid-detail",
+        parser_version="eat-v1",
+        schema_fingerprint="ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe",
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "endpoint", "parser_version", "schema_fingerprint"),
+    [
+        ("eat", "bid-detail", "eat-v1", "0" * 64),
+        ("eat", "unreviewed-detail", "eat-v1", "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"),
+        ("eat", "bid-detail", "eat-v2", "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"),
+    ],
+)
+def test_eat_schema_contract_fails_closed(
+    source: str,
+    endpoint: str,
+    parser_version: str,
+    schema_fingerprint: str,
+) -> None:
+    assert not validate_eat_schema_contract(
+        source=source,
+        endpoint=endpoint,
+        parser_version=parser_version,
+        schema_fingerprint=schema_fingerprint,
+    )

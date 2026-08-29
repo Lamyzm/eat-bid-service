@@ -179,6 +179,11 @@ quarantine reason을 소유하지 않는다. parser 해석은 processing run별
 exact output은 `normalization_attempt_record`로 연결하고, 격리는 bounded reason을 남긴다.
 파싱 실패도 raw를 잃거나 과거 attempt를 덮어쓰지 않는다.
 
+정규화 성공만으로 schema shape를 승인하지 않는다. `(source, endpoint, parser_version)`별 reviewed
+dataset/column contract가 parser와 같은 canonical fingerprint algorithm을 사용하며, attempt의
+fingerprint가 다르거나 contract가 없으면 `SOURCE_CONTRACT`로 publication을 막는다. 새 column은
+raw/attempt에 그대로 관측한 뒤 별도 human review로 contract를 갱신한다.
+
 capture/backfill은 자기 run의 observation만 처리한다. replay는 새 HTTP observation을 만들거나
 원래 `run_id`를 바꾸지 않고 `replay_input` manifest로 기존 evidence를 참조한다. 같은 parser의
 deterministic normalized record는 여러 attempt가 재사용할 수 있고, 새 parser는 독립 key와
@@ -195,6 +200,8 @@ attempt를 만든다.
   publication을 `validated`로 만든다.
 - 검증된 exact normalized record ID는 `publication_record`에 동결하며 projector는 이
   manifest만 소비한다.
+- terminal 재검증은 current attempt-record member를 다시 잠그고 계산하여 frozen sorted member
+  set과 status/metadata/count를 정확히 비교한다. cardinality만 같아서는 통과하지 않는다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
 - mart는 영향받은 partition/cohort를 새 build ID로 만든 뒤 원자적으로 활성화한다.
 - 재처리는 `replay_input`의 raw observation 집합과 processing parser/projector version을

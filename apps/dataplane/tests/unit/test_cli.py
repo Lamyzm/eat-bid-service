@@ -32,3 +32,22 @@ def test_unwired_command_returns_configuration_exit_code() -> None:
 
 def test_data_quarantine_has_its_dedicated_typed_exit_code() -> None:
     assert exit_code_for_error(DataQuarantinedError(7, "invalid source payload")) == 65
+
+
+def test_actual_eat_list_contract_error_maps_to_exit_76() -> None:
+    from eatbid.errors import SourceContractError
+    from eatbid.source.eat.normalize import parse_bid_list_page
+
+    payload = (
+        b'<Root xmlns="http://www.nexacroplatform.com/platform/dataset">'
+        b'<Dataset id="ds_list"><Rows><Row>'
+        b'<Col id="TOT_CNT">-1</Col><Col id="ETN_BID_ID">1</Col>'
+        b"</Row></Rows></Dataset></Root>"
+    )
+
+    try:
+        parse_bid_list_page(payload)
+    except SourceContractError as error:
+        assert exit_code_for_error(error) == 76
+    else:  # pragma: no cover - the assertion documents the required error boundary
+        raise AssertionError("invalid TOT_CNT must raise SourceContractError")

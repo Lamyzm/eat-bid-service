@@ -129,10 +129,12 @@ def test_throttled_response_body_is_archived_and_recorded_before_error(
 
 
 def test_other_non_success_response_is_archived_as_source_contract_failure() -> None:
+    from eatbid.errors import SourceContractError as CommonSourceContractError
+
     store = MemoryRawObjectStore()
     repository = RecordingRepository()
 
-    with pytest.raises(SourceContractError):
+    with pytest.raises(CommonSourceContractError) as caught:
         capture(
             capture_request(),
             store,
@@ -141,7 +143,9 @@ def test_other_non_success_response_is_archived_as_source_contract_failure() -> 
         )
 
     assert repository.records[0][3] == SOURCE_CONTRACT
-    assert exit_code_for_error(SourceContractError(500)) == 76
+    assert isinstance(caught.value, SourceContractError)
+    assert caught.value.status_code == 500
+    assert exit_code_for_error(caught.value) == 76
 
 
 def test_same_body_creates_one_object_and_two_observations() -> None:

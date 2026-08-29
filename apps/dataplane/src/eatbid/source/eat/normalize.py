@@ -9,8 +9,9 @@ from decimal import Decimal, InvalidOperation
 
 from pydantic import ValidationError
 
+from eatbid.errors import SourceContractError
 from eatbid.source.eat.models import BidListPage, NormalizedAuction
-from eatbid.source.eat.xml import ParsedNexacro, SourceContractError, parse_nexacro
+from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro
 
 _NONNEGATIVE_DECIMAL = re.compile(r"0|[1-9][0-9]*")
 _SEOUL_TIME = timezone(timedelta(hours=9))
