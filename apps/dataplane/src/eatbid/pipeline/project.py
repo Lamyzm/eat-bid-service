@@ -19,6 +19,7 @@ from eatbid.core.repository import (
     CanonicalProjectionRepository,
     FrozenPublicationMember,
     ProjectionContractError,
+    PublishedProjectionEvidence,
 )
 from eatbid.source.eat.models import NormalizedAuction
 
@@ -27,6 +28,7 @@ __all__ = [
     "build_eat_auction_projection",
     "canonical_projection_fingerprint",
     "project_publication",
+    "verify_published_publication",
 ]
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
@@ -43,9 +45,8 @@ def build_eat_auction_projection(
         raise ProjectionContractError("projection record type must be auction")
     if member.parser_version != member.run_parser_version:
         raise ProjectionContractError("projection parser version differs from run")
-    if (
-        len(member.raw_content_sha256) != 64
-        or any(character not in "0123456789abcdef" for character in member.raw_content_sha256)
+    if len(member.raw_content_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in member.raw_content_sha256
     ):
         raise ProjectionContractError("projection raw content hash is invalid")
 
@@ -58,7 +59,9 @@ def build_eat_auction_projection(
         ).encode("utf-8")
         record = NormalizedAuction.model_validate_json(canonical_payload, strict=True)
     except (TypeError, ValueError, ValidationError) as error:
-        raise ProjectionContractError("projection normalized payload is invalid") from error
+        raise ProjectionContractError(
+            "projection normalized payload is invalid"
+        ) from error
     if record.external_bid_id != member.source_entity_id:
         raise ProjectionContractError("projection external ID differs from lineage")
     if len(set(record.eligibility_codes)) != len(record.eligibility_codes):
@@ -132,5 +135,22 @@ def project_publication(
         publication_id=publication_id,
         projector_version=projector_version,
         activated_at=activated_at,
+        projection_factory=build_eat_auction_projection,
+    )
+
+
+def verify_published_publication(
+    *,
+    publication_id: UUID,
+    projector_version: str,
+    repository: CanonicalProjectionRepository,
+) -> PublishedProjectionEvidence:
+    if not isinstance(publication_id, UUID):
+        raise TypeError("publication_id must be a UUID")
+    if _SHA256_PATTERN.fullmatch(projector_version) is None:
+        raise ValueError("projector_version must be a lowercase SHA-256 digest")
+    return repository.verify_published_publication(
+        publication_id=publication_id,
+        projector_version=projector_version,
         projection_factory=build_eat_auction_projection,
     )

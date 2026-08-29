@@ -706,6 +706,8 @@ def assert_failed_without_core_writes(
     services: PipelineServices,
     run_id: UUID,
     publication_id: UUID,
+    *,
+    failure_category: str = "SOURCE_CONTRACT",
 ) -> None:
     with services.connection.cursor() as cursor:
         cursor.execute(
@@ -713,7 +715,11 @@ def assert_failed_without_core_writes(
             (run_id,),
         )
         status, category, ended_at = cursor.fetchone()
-        assert (status, category, ended_at) == ("failed", "SOURCE_CONTRACT", VALIDATED_AT)
+        assert (status, category, ended_at) == (
+            "failed",
+            failure_category,
+            VALIDATED_AT,
+        )
         cursor.execute(
             """
             select status, validated_at, activated_at, published_count,
@@ -903,7 +909,12 @@ def test_quarantine_blocks_publication(pipeline_services: PipelineServices) -> N
     )
 
     assert result.status == "failed"
-    assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
+    assert_failed_without_core_writes(
+        pipeline_services,
+        run_id,
+        publication_id,
+        failure_category="DATA_QUARANTINED",
+    )
 
 
 def test_duplicate_source_entity_blocks_publication(

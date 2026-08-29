@@ -11,6 +11,7 @@ from eatbid.core.models import ProjectResult
 from eatbid.core.repository import (
     CanonicalProjectionRepository,
     ProjectionContractError,
+    PublishedProjectionEvidence,
 )
 from eatbid.errors import SourceContractError
 from eatbid.foundation_repository import (
@@ -46,7 +47,7 @@ from eatbid.pipeline.normalize import (
     DataQuarantinedError,
     normalize_observation,
 )
-from eatbid.pipeline.project import project_publication
+from eatbid.pipeline.project import project_publication, verify_published_publication
 from eatbid.pipeline.stages import validate_stage_timestamps
 from eatbid.pipeline.validate import validate_run
 from eatbid.source.client import SourceClient
@@ -207,9 +208,13 @@ def _run_foundation_slice_locked(
     if checkpoint.status == "failed":
         _raise_stored_failure(checkpoint)
     if checkpoint.status == "published":
-        return _result_from_checkpoint(checkpoint)
+        projection_evidence = _load_verified_projection_evidence(
+            checkpoint=checkpoint,
+            projector_version=build_sha,
+            repository=services.projection_repository,
+        )
+        return _result_from_checkpoint(checkpoint, projection_evidence)
 
-    quarantined: DataQuarantinedError | None = None
     if checkpoint.status == "running" and checkpoint.observation is None:
         request = checkpoint.request
         observed = capture(
@@ -251,8 +256,8 @@ def _run_foundation_slice_locked(
                 observation_id=checkpoint.observation.observation_id,
                 parser_version=parser_version,
             )
-        except DataQuarantinedError as error:
-            quarantined = error
+        except DataQuarantinedError:
+            pass
         checkpoint = _reload_and_verify(services.checkpoint_repository, **identity)
 
     if checkpoint.status == "running":
@@ -264,11 +269,12 @@ def _run_foundation_slice_locked(
         )
         _verify_validation_result(validation, checkpoint=checkpoint)
         if validation.status == "failed":
-            if quarantined is not None:
-                raise quarantined
-            raise SourceContractError(
-                "foundation run failed the source completeness contract"
+            checkpoint = _reload_and_verify(
+                services.checkpoint_repository,
+                required_status="failed",
+                **identity,
             )
+            _raise_stored_failure(checkpoint)
         checkpoint = _reload_and_verify(
             services.checkpoint_repository,
             required_status="validated",
@@ -289,13 +295,16 @@ def _run_foundation_slice_locked(
         required_status="published",
         **identity,
     )
-    if checkpoint.evidence is None or (
-        checkpoint.evidence.canonical_fingerprint != projected.canonical_fingerprint
-    ):
+    projection_evidence = _load_verified_projection_evidence(
+        checkpoint=checkpoint,
+        projector_version=build_sha,
+        repository=services.projection_repository,
+    )
+    if projection_evidence.canonical_fingerprint != projected.canonical_fingerprint:
         raise FoundationIntegrityError(
             "projector fingerprint differs from persisted evidence"
         )
-    return _result_from_checkpoint(checkpoint)
+    return _result_from_checkpoint(checkpoint, projection_evidence)
 
 
 def _preflight(
@@ -469,13 +478,33 @@ def _verify_checkpoint(
             raise FoundationIntegrityError(
                 "validated checkpoint status is inconsistent"
             )
-    elif checkpoint.status == "published" and (
-        request.status != "captured"
-        or publication.status != "published"
-        or publication.normalized_count != 1
-        or publication.published_count != 1
-    ):
-        raise FoundationIntegrityError("published checkpoint status is inconsistent")
+    elif checkpoint.status == "published":
+        normalization = checkpoint.normalization
+        normalized_id = (
+            normalization.normalized_record_id
+            if normalization is not None and normalization.status == "normalized"
+            else None
+        )
+        if (
+            request.status != "captured"
+            or observed_count != 1
+            or normalized_id is None
+            or checkpoint.published_count != expected_count
+            or checkpoint.failure_category is not None
+            or checkpoint.ended_at is None
+            or publication.status != "published"
+            or publication.normalized_count != expected_count
+            or publication.published_count != expected_count
+            or publication.member_ids != (normalized_id,)
+            or publication.projector_version != build_sha
+        ):
+            raise FoundationIntegrityError(
+                "published checkpoint status is inconsistent"
+            )
+        _sha256(
+            publication.canonical_fingerprint,
+            "publication canonical_fingerprint",
+        )
     elif checkpoint.status == "failed":
         pending_capture_failure = (
             checkpoint.normalization is None
@@ -589,23 +618,64 @@ def _verify_evidence(
         or evidence.raw_content_sha256 != checkpoint.observation.content_sha256
         or evidence.raw_object_key != checkpoint.observation.object_key
         or evidence.publication_status != checkpoint.publication.status
-        or evidence.canonical_fingerprint
-        != checkpoint.publication.canonical_fingerprint
+        or evidence.raw_blob_count != 1
+        or evidence.observation_count != 1
     ):
         raise FoundationIntegrityError("published evidence differs from checkpoint")
-    for count in (
-        evidence.raw_blob_count,
-        evidence.observation_count,
+    _nonnegative_int(evidence.raw_blob_count, "evidence raw_blob_count")
+    _nonnegative_int(evidence.observation_count, "evidence observation_count")
+    _sha256(evidence.raw_content_sha256, "evidence raw_content_sha256")
+
+
+def _load_verified_projection_evidence(
+    *,
+    checkpoint: FoundationCheckpoint,
+    projector_version: str,
+    repository: CanonicalProjectionRepository,
+) -> PublishedProjectionEvidence:
+    try:
+        evidence = verify_published_publication(
+            publication_id=checkpoint.publication.publication_id,
+            projector_version=projector_version,
+            repository=repository,
+        )
+    except ProjectionContractError as error:
+        raise FoundationIntegrityError(
+            "published canonical evidence failed verification"
+        ) from error
+    if not isinstance(evidence, PublishedProjectionEvidence):
+        raise FoundationIntegrityError(
+            "projection repository returned unsupported published evidence"
+        )
+    counts = (
+        evidence.members_projected,
         evidence.organization_count,
         evidence.auction_attempt_count,
         evidence.auction_revision_count,
+    )
+    for count in counts:
+        _nonnegative_int(count, "published projection count")
+    member_count = len(checkpoint.publication.member_ids)
+    if (
+        evidence.publication_id != checkpoint.publication.publication_id
+        or evidence.members_projected != member_count
+        or evidence.organization_count != member_count
+        or evidence.auction_attempt_count != member_count
+        or evidence.auction_revision_count != member_count
+        or evidence.canonical_fingerprint
+        != checkpoint.publication.canonical_fingerprint
     ):
-        _nonnegative_int(count, "evidence count")
-    _sha256(evidence.raw_content_sha256, "evidence raw_content_sha256")
-    _sha256(evidence.canonical_fingerprint, "evidence canonical_fingerprint")
+        raise FoundationIntegrityError(
+            "published projection evidence differs from checkpoint"
+        )
+    _sha256(evidence.canonical_fingerprint, "published canonical_fingerprint")
+    return evidence
 
 
-def _result_from_checkpoint(checkpoint: FoundationCheckpoint) -> FoundationResult:
+def _result_from_checkpoint(
+    checkpoint: FoundationCheckpoint,
+    projection_evidence: PublishedProjectionEvidence,
+) -> FoundationResult:
     evidence = checkpoint.evidence
     _verify_evidence(evidence, checkpoint=checkpoint)
     assert evidence is not None
@@ -619,10 +689,10 @@ def _result_from_checkpoint(checkpoint: FoundationCheckpoint) -> FoundationResul
         raw_blob_count=evidence.raw_blob_count,
         observation_count=evidence.observation_count,
         publication_status=evidence.publication_status,
-        organization_count=evidence.organization_count,
-        auction_attempt_count=evidence.auction_attempt_count,
-        auction_revision_count=evidence.auction_revision_count,
-        canonical_fingerprint=evidence.canonical_fingerprint,
+        organization_count=projection_evidence.organization_count,
+        auction_attempt_count=projection_evidence.auction_attempt_count,
+        auction_revision_count=projection_evidence.auction_revision_count,
+        canonical_fingerprint=projection_evidence.canonical_fingerprint,
     )
 
 

@@ -414,24 +414,6 @@ class PsycopgFoundationCheckpointRepository(FoundationCheckpointRepository):
                 "published raw evidence query returned no row"
             )
         raw_blob_count, observation_count = raw_counts
-        cursor.execute(
-            """
-            select count(distinct ao.organization_id),
-                   count(distinct ar.auction_attempt_id),
-                   count(distinct ar.auction_revision_id)
-            from ingest.publication_record pr
-            join core.auction_revision ar using (normalized_record_id)
-            join core.auction_organization ao using (auction_revision_id)
-            where pr.publication_id = %s
-            """,
-            (publication.publication_id,),
-        )
-        core_counts = cursor.fetchone()
-        if core_counts is None:
-            raise FoundationIntegrityError(
-                "published core evidence query returned no row"
-            )
-        organizations, attempts, revisions = core_counts
         return FoundationPublishedEvidence(
             capture_run_id=run_id,
             publication_id=publication.publication_id,
@@ -442,10 +424,6 @@ class PsycopgFoundationCheckpointRepository(FoundationCheckpointRepository):
             raw_blob_count=int(raw_blob_count),
             observation_count=int(observation_count),
             publication_status=publication.status,
-            organization_count=int(organizations),
-            auction_attempt_count=int(attempts),
-            auction_revision_count=int(revisions),
-            canonical_fingerprint=publication.canonical_fingerprint,
         )
 
     @staticmethod

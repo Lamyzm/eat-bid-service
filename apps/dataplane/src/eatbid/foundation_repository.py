@@ -80,10 +80,6 @@ class FoundationPublishedEvidence:
     raw_blob_count: int
     observation_count: int
     publication_status: str
-    organization_count: int
-    auction_attempt_count: int
-    auction_revision_count: int
-    canonical_fingerprint: str
 
 
 @dataclass(frozen=True, slots=True)

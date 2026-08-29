@@ -164,7 +164,7 @@ class PsycopgPublicationRepository:
                 normalized_count=len(topology.members),
                 failure_category=(
                     DATA_QUARANTINED
-                    if mode == "replay" and topology.quarantined_current_attempts > 0
+                    if topology.quarantined_current_attempts > 0
                     else SOURCE_CONTRACT
                 ),
                 consume_pending=consume_pending,

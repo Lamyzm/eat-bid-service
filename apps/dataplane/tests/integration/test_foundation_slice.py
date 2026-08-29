@@ -22,6 +22,7 @@ from eatbid.ingest.postgres_replay_repository import (
 )
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
 from eatbid.pipeline.capture import SourceThrottledError
+from eatbid.pipeline.normalize import DataQuarantinedError
 from eatbid.pipeline.replay import ReplayServices, replay_observations
 from eatbid.postgres_foundation_repository import PsycopgFoundationCheckpointRepository
 from eatbid.source.client import SourceResponse
@@ -522,6 +523,114 @@ def test_failed_capture_retry_reloads_typed_failure_without_duplicate_observatio
             (run_id, publication_id),
         )
         assert cursor.fetchone() == ("failed", "SOURCE_THROTTLED", "pending", 1)
+
+
+def test_capture_quarantine_rethrows_same_typed_failure_on_retry(
+    pipeline_services: PipelineServices,
+) -> None:
+    run_id = UUID("13000000-0000-0000-0000-000000000061")
+    publication_id = UUID("13000000-0000-0000-0000-000000000062")
+    client = StaticSourceClient(SourceResponse(200, b"<broken>", FOUNDATION_FETCHED_AT))
+    services = FoundationServices(
+        checkpoint_repository=pipeline_services.checkpoint_repository,
+        ingest_repository=pipeline_services.repository,
+        normalization_repository=pipeline_services.normalization_repository,
+        publication_repository=pipeline_services.publication_repository,
+        projection_repository=pipeline_services.projection_repository,
+        raw_store=pipeline_services.store,
+        source_client=client,
+    )
+    for _ in range(2):
+        with pytest.raises(DataQuarantinedError):
+            run_foundation_slice(
+                run_id=run_id,
+                publication_id=publication_id,
+                mode="poll-open",
+                build_sha=FOUNDATION_BUILD_SHA,
+                parser_version="eat-v1",
+                started_at=FOUNDATION_STARTED_AT,
+                normalized_at=FOUNDATION_NORMALIZED_AT,
+                validated_at=FOUNDATION_VALIDATED_AT,
+                activated_at=FOUNDATION_ACTIVATED_AT,
+                source="eat",
+                endpoint="bid-detail",
+                request_params={"ELCTRN_BID_ID": "task-13-quarantined"},
+                expected_count=1,
+                services=services,
+            )
+
+    assert len(client.requests) == 1
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select r.status, r.failure_category, p.status,
+                   count(distinct a.normalization_attempt_id),
+                   count(distinct ar.normalized_record_id)
+            from ingest.run r
+            join ingest.publication p using (run_id)
+            join ingest.normalization_attempt a using (run_id)
+            left join ingest.normalization_attempt_record ar
+              using (normalization_attempt_id)
+            where r.run_id = %s and p.publication_id = %s
+            group by r.status, r.failure_category, p.status
+            """,
+            (run_id, publication_id),
+        )
+        assert cursor.fetchone() == ("failed", "DATA_QUARANTINED", "failed", 1, 0)
+        cursor.execute(
+            """
+            select count(*) from core.auction_revision revision
+            join ingest.normalized_record record using (normalized_record_id)
+            where record.source_entity_id = 'task-13-quarantined'
+            """
+        )
+        assert cursor.fetchone() == (0,)
+
+
+@pytest.mark.parametrize(
+    ("run_id", "publication_id", "tamper_sql"),
+    [
+        (
+            UUID("13000000-0000-0000-0000-000000000071"),
+            UUID("13000000-0000-0000-0000-000000000072"),
+            """
+            delete from core.auction_organization organization
+            using core.auction_revision revision, ingest.publication_record member
+            where organization.auction_revision_id = revision.auction_revision_id
+              and revision.normalized_record_id = member.normalized_record_id
+              and member.publication_id = %s
+            """,
+        ),
+        (
+            UUID("13000000-0000-0000-0000-000000000073"),
+            UUID("13000000-0000-0000-0000-000000000074"),
+            """
+            update core.auction_revision revision set title = 'tampered'
+            from ingest.publication_record member
+            where revision.normalized_record_id = member.normalized_record_id
+              and member.publication_id = %s
+            """,
+        ),
+    ],
+    ids=("missing-purchaser", "conflicting-revision"),
+)
+def test_published_reentry_rejects_tampered_canonical_projection(
+    migrated_db: MigratedDatabase,
+    run_id: UUID,
+    publication_id: UUID,
+    tamper_sql: str,
+) -> None:
+    result = _concurrent_foundation(
+        migrated_db, run_id=run_id, publication_id=publication_id
+    )
+    with migrated_db.connect() as connection, connection.cursor() as cursor:
+        cursor.execute(tamper_sql, (result.publication_id,))
+        assert cursor.rowcount == 1
+
+    with pytest.raises(FoundationIntegrityError):
+        _concurrent_foundation(
+            migrated_db, run_id=run_id, publication_id=publication_id
+        )
 
 
 def test_foundation_and_replay_race_has_one_frozen_identity_without_deadlock(

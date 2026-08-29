@@ -8,6 +8,7 @@ from uuid import UUID
 import pytest
 
 from eatbid.core.models import ProjectResult
+from eatbid.core.repository import PublishedProjectionEvidence
 from eatbid.foundation import FoundationServices, run_foundation_slice
 from eatbid.foundation_repository import (
     FoundationCheckpoint,
@@ -15,6 +16,7 @@ from eatbid.foundation_repository import (
     FoundationNormalizationCheckpoint,
     FoundationObservationCheckpoint,
     FoundationPublicationCheckpoint,
+    FoundationPublishedEvidence,
     FoundationRequestCheckpoint,
 )
 from eatbid.ingest.publication_repository import PublicationValidation
@@ -53,13 +55,23 @@ class FakePublicationRepository:
 
 
 class SpyProjectionRepository:
-    def __init__(self, result: object | None = None) -> None:
+    def __init__(
+        self,
+        result: object | None = None,
+        *,
+        published_evidence: object | None = None,
+    ) -> None:
         self.result = result
+        self.published_evidence = published_evidence
         self.calls = 0
 
     def project_publication(self, **_: object) -> object:
         self.calls += 1
         return self.result
+
+    def verify_published_publication(self, **_: object) -> object:
+        self.calls += 1
+        return self.published_evidence
 
 
 def _checkpoint(*, status: str = "running") -> FoundationCheckpoint:
@@ -215,3 +227,87 @@ def test_foundation_rejects_malicious_project_result(project: object) -> None:
     projector = SpyProjectionRepository(project)
     with pytest.raises(FoundationIntegrityError):
         _run(_checkpoint(status="validated"), projector=projector)
+
+
+def test_published_reentry_rejects_forged_empty_topology_and_evidence() -> None:
+    checkpoint = _checkpoint(status="validated")
+    forged = replace(
+        checkpoint,
+        status="published",
+        normalization=None,
+        published_count=0,
+        ended_at=STARTED_AT,
+        publication=replace(
+            checkpoint.publication,
+            status="published",
+            normalized_count=1,
+            published_count=1,
+            member_ids=(),
+            canonical_fingerprint="e" * 64,
+            projector_version="wrong-projector",
+        ),
+        evidence=FoundationPublishedEvidence(
+            capture_run_id=RUN_ID,
+            publication_id=PUBLICATION_ID,
+            request_unit_id=1,
+            observation_ids=(11,),
+            raw_content_sha256="c" * 64,
+            raw_object_key="raw/eat/bid-detail/" + "c" * 64 + ".xml.gz",
+            raw_blob_count=99,
+            observation_count=88,
+            publication_status="published",
+        ),
+    )
+    projector = SpyProjectionRepository()
+
+    with pytest.raises(FoundationIntegrityError):
+        _run(forged, projector=projector)
+
+    assert projector.calls == 0
+
+
+@pytest.mark.parametrize(
+    "published_evidence",
+    [
+        PublishedProjectionEvidence(OTHER_ID, 1, 1, 1, 1, "e" * 64),
+        PublishedProjectionEvidence(PUBLICATION_ID, 0, 1, 1, 1, "e" * 64),
+        PublishedProjectionEvidence(PUBLICATION_ID, 1, True, 1, 1, "e" * 64),
+        PublishedProjectionEvidence(PUBLICATION_ID, 1, 2, 1, 1, "e" * 64),
+        PublishedProjectionEvidence(PUBLICATION_ID, 1, 1, 1, 1, "f" * 64),
+        object(),
+    ],
+)
+def test_published_reentry_rejects_malicious_verified_projection_evidence(
+    published_evidence: object,
+) -> None:
+    checkpoint = _checkpoint(status="validated")
+    published = replace(
+        checkpoint,
+        status="published",
+        published_count=1,
+        ended_at=STARTED_AT + timedelta(minutes=3),
+        publication=replace(
+            checkpoint.publication,
+            status="published",
+            published_count=1,
+            canonical_fingerprint="e" * 64,
+            projector_version=BUILD_SHA,
+        ),
+        evidence=FoundationPublishedEvidence(
+            capture_run_id=RUN_ID,
+            publication_id=PUBLICATION_ID,
+            request_unit_id=1,
+            observation_ids=(11,),
+            raw_content_sha256="c" * 64,
+            raw_object_key="raw/eat/bid-detail/" + "c" * 64 + ".xml.gz",
+            raw_blob_count=1,
+            observation_count=1,
+            publication_status="published",
+        ),
+    )
+    projector = SpyProjectionRepository(published_evidence=published_evidence)
+
+    with pytest.raises(FoundationIntegrityError):
+        _run(published, projector=projector)
+
+    assert projector.calls == 1

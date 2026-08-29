@@ -26,6 +26,7 @@ from eatbid.core.repository import (
     ProjectionContractError,
     ProjectionFactory,
     ProjectionTransactionScopeError,
+    PublishedProjectionEvidence,
 )
 from eatbid.postgres_topology import LockedAuctionTopology, lock_auction_topology
 
@@ -88,6 +89,7 @@ class PsycopgCanonicalProjectionRepository:
                     projector_version=projector_version,
                     activated_at=activated_at,
                     projection_factory=projection_factory,
+                    require_published=False,
                 )
         except ProjectionContractError:
             self._mark_projection_failed(
@@ -95,27 +97,79 @@ class PsycopgCanonicalProjectionRepository:
             )
             raise
 
+    def verify_published_publication(
+        self,
+        *,
+        publication_id: UUID,
+        projector_version: str,
+        projection_factory: ProjectionFactory,
+    ) -> PublishedProjectionEvidence:
+        if self._connection.info.transaction_status != TransactionStatus.IDLE:
+            raise ProjectionTransactionScopeError(
+                "projection verification requires an idle repository transaction"
+            )
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            result = self._project_locked(
+                cursor,
+                publication_id=publication_id,
+                projector_version=projector_version,
+                activated_at=None,
+                projection_factory=projection_factory,
+                require_published=True,
+            )
+            cursor.execute(
+                """
+                select count(distinct ao.organization_id),
+                       count(distinct ar.auction_attempt_id),
+                       count(distinct ar.auction_revision_id)
+                from ingest.publication_record pr
+                join core.auction_revision ar using (normalized_record_id)
+                join core.auction_organization ao using (auction_revision_id)
+                where pr.publication_id = %s
+                """,
+                (publication_id,),
+            )
+            counts = cursor.fetchone()
+            if counts is None:
+                raise ProjectionContractError(
+                    "published canonical evidence query returned no row"
+                )
+            return PublishedProjectionEvidence(
+                publication_id=publication_id,
+                members_projected=result.members_projected,
+                organization_count=int(counts[0]),
+                auction_attempt_count=int(counts[1]),
+                auction_revision_count=int(counts[2]),
+                canonical_fingerprint=result.canonical_fingerprint,
+            )
+
     def _project_locked(
         self,
         cursor: psycopg.Cursor[Any],
         *,
         publication_id: UUID,
         projector_version: str,
-        activated_at: datetime,
+        activated_at: datetime | None,
         projection_factory: ProjectionFactory,
+        require_published: bool,
     ) -> ProjectResult:
         state, topology = self._lock_projection_inputs(cursor, publication_id)
         if state.publication_status not in {"validated", "published"}:
             raise ProjectionContractError(
                 "publication must be validated before projection"
             )
+        if require_published and state.publication_status != "published":
+            raise ProjectionContractError("publication is not published")
         if state.publication_status != state.run_status:
             raise ProjectionContractError("publication and run status differ")
         if projector_version != state.build_sha:
             raise ProjectionContractError("projector version differs from locked run")
         self._verify_state_metadata(state)
-        if state.validated_at is None or activated_at < max(
-            state.validated_at, state.started_at
+        effective_activated_at = activated_at or state.activated_at
+        if (
+            state.validated_at is None
+            or effective_activated_at is None
+            or effective_activated_at < max(state.validated_at, state.started_at)
         ):
             raise ProjectionContractError(
                 "publication activation chronology is invalid"
@@ -173,7 +227,12 @@ class PsycopgCanonicalProjectionRepository:
                     canonical_fingerprint = %s, projector_version = %s
                 where publication_id = %s and status = 'validated'
                 """,
-                (activated_at, fingerprint, projector_version, publication_id),
+                (
+                    effective_activated_at,
+                    fingerprint,
+                    projector_version,
+                    publication_id,
+                ),
             )
             if cursor.rowcount != 1:
                 raise ProjectionContractError(
@@ -186,7 +245,7 @@ class PsycopgCanonicalProjectionRepository:
                     published_count = expected_count
                 where run_id = %s and status = 'validated'
                 """,
-                (activated_at, state.run_id),
+                (effective_activated_at, state.run_id),
             )
             if cursor.rowcount != 1:
                 raise ProjectionContractError("run publication transition failed")

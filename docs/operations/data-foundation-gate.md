@@ -7,14 +7,15 @@
 
 | 증거 | 명령/테스트 | 기대·확인 값 | 상태 |
 |---|---|---|---|
-| fixture vertical slice | `pytest ...test_foundation_slice.py` | capture/publication/core/replay 1 member, idempotent retry/concurrency/chronology/race/failed resume; focused file 6 passed | **PASS** |
+| fixture vertical slice | `pytest ...test_foundation_slice.py` | capture/publication/core/replay 1 member, idempotent retry/concurrency/chronology/race/failed resume; focused file 9 passed | **PASS** |
 | raw content address | 같은 테스트의 DB assertion | SHA-256 `f06489c6ee6f7aec1df877a16ef9369658f2e5a96574ea96ced63493e9299e07`, key `raw/eat/bid-detail/<sha>.xml.gz`, 1,618 bytes | **PASS** |
 | capture completeness | 같은 테스트의 run/request-unit assertion | detail plan `expected_count=1`, observation/normalized/published 각 1 | **PASS** |
 | exact publication member | 같은 테스트의 publication/lineage assertion | capture/replay publication별 frozen member 1, direct normalized-record→revision lineage | **PASS** |
 | canonical identity | 같은 테스트의 core SQL assertion | Organization/AuctionAttempt/AuctionRevision 각 신규 1, relation PK/FK는 bigint, code relation 3 | **PASS** |
 | replay determinism | 같은 테스트 | 새 replay run/publication, 원 observation/raw 재사용, canonical duplicate 0, fingerprint `6f2d955b5d76e5aa60fc015dbb25e2a134504c6b5e0d0c29d936fa4822b39658` 동일 | **PASS** |
 | raw deduplication | `test_capture.py::test_same_body_is_one_blob_and_two_append_only_observations` | identical bytes → raw blob 1, observations 2; full suite에 포함 | **PASS** |
-| quarantine/count failure | Task 13 failure test + Task 8 quarantine/count-preservation tests | typed failure, failed publication, 신규 core write 0, 기존 core 유지 | **PASS** |
+| published resume integrity | Task 13 forged-checkpoint + persisted canonical-tamper tests | Task 9의 frozen-member/projector/relation/fingerprint verifier 재사용, 변조 시 `FoundationIntegrityError`, projector 신규 write 0 | **PASS** |
+| quarantine/count failure | `test_capture_quarantine_rethrows_same_typed_failure_on_retry` + Task 8 quarantine/count-preservation tests | capture quarantine는 최초/재시도 모두 `DATA_QUARANTINED`; count/source contract는 `SOURCE_CONTRACT`; 신규 core write 0, 기존 core 유지 | **PASS** |
 | migrations | disposable PostgreSQL 16에 migration command 두 번 + journal query | 두 번 모두 성공, latest `20260829002500_core_projection_lineage`, container 제거 | **PASS** |
 | product render policy | `kubectl kustomize infra/product` + parsed policy test | 18 documents, native CronJob 0, hostPath 0, literal PostgreSQL credential 0, digest product image ref 9, CronWorkflow 2개 suspended | **PASS** |
 
@@ -44,9 +45,9 @@ pnpm db:generate
 
 2026-08-30 검증 결과:
 
-- Task 13 focused: 6 passed; adversarial unit contracts: 16 passed
-- reverse integration `Task13 → Task10 → Task9 → Task8`: 135 passed
-- full dataplane: 350 passed, total coverage 90.91% (`--cov-fail-under=90` 통과)
+- Task 13 focused: 9 passed; adversarial unit contracts: 23 passed
+- reverse integration `Task13 → Task10 → Task9 → Task8`: 138 passed
+- full dataplane: 360 passed, total coverage 91.21% (`--cov-fail-under=90` 통과)
 - Ruff: pass, Pyright: 0 errors/0 warnings
 - root Bun: 119 passed
 - forced Turbo build: web/server/shared/db 4/4 성공, cache 0

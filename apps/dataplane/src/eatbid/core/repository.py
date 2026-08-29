@@ -35,6 +35,16 @@ class ProjectionFactory(Protocol):
     def __call__(self, member: FrozenPublicationMember) -> AuctionProjection: ...
 
 
+@dataclass(frozen=True, slots=True)
+class PublishedProjectionEvidence:
+    publication_id: UUID
+    members_projected: int
+    organization_count: int
+    auction_attempt_count: int
+    auction_revision_count: int
+    canonical_fingerprint: str
+
+
 class CanonicalProjectionRepository(Protocol):
     def project_publication(
         self,
@@ -44,3 +54,11 @@ class CanonicalProjectionRepository(Protocol):
         activated_at: datetime,
         projection_factory: ProjectionFactory,
     ) -> ProjectResult: ...
+
+    def verify_published_publication(
+        self,
+        *,
+        publication_id: UUID,
+        projector_version: str,
+        projection_factory: ProjectionFactory,
+    ) -> PublishedProjectionEvidence: ...
