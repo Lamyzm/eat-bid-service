@@ -20,6 +20,7 @@ eatbid = "eatbid.cli:main"
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6,<7",
     "pyright>=1.1.400,<2",
     "pytest>=8.4,<10",
     "pytest-cov>=6,<8",
