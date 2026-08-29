@@ -106,10 +106,26 @@ class PsycopgPublicationRepository:
                 )
                 for row in matching_attempts
             )
-            source_entities = [str(row[2]) for row in outputs]
+            source_entities = [str(row[4]) for row in outputs]
             duplicate_source_entities = len(source_entities) - len(set(source_entities))
             missing_schemes = self._missing_schemes(cursor)
-            member_ids = tuple(sorted(int(row[0]) for row in outputs))
+            member_ids = tuple(sorted(int(row[2]) for row in outputs))
+            candidate_ids = set(observation_ids)
+            current_attempt_ids = {int(row[0]) for row in matching_attempts}
+            attempt_candidate_ids = [int(row[1]) for row in matching_attempts]
+            output_attempt_ids = [int(row[0]) for row in outputs]
+            auction_topology_coherent = (
+                len(matching_attempts) == len(candidate_ids)
+                and len(set(attempt_candidate_ids)) == len(candidate_ids)
+                and set(attempt_candidate_ids) == candidate_ids
+                and all(row[3] == "normalized" for row in matching_attempts)
+                and len(outputs) == len(candidate_ids)
+                and len(set(output_attempt_ids)) == len(current_attempt_ids)
+                and set(output_attempt_ids) == current_attempt_ids
+                and all(int(row[1]) == int(row[3]) for row in outputs)
+                and all(str(row[5]) == parser_version for row in outputs)
+                and all(str(row[6]) == "auction" for row in outputs)
+            )
             report = completeness_validator(
                 request_counts=request_counts,
                 normalized=len(outputs),
@@ -121,11 +137,8 @@ class PsycopgPublicationRepository:
             ledger_coherent = (
                 failed_requests == 0
                 and len(observations) == int(expected_count)
-                and len(outputs) == len(observations)
-                and len(matching_attempts) == len(observations)
-                and all(row[3] == "normalized" for row in matching_attempts)
                 and parser_mismatches == 0
-                and all(row[3] == parser_version for row in outputs)
+                and auction_topology_coherent
             )
             if status in {"validated", "failed"}:
                 if status == "validated" and not (
@@ -264,8 +277,9 @@ class PsycopgPublicationRepository:
             return attempts, []
         cursor.execute(
             """
-            select n.normalized_record_id, a.observation_id, n.source_entity_id,
-                   n.parser_version, n.record_type
+            select a.normalization_attempt_id, a.observation_id,
+                   n.normalized_record_id, n.observation_id,
+                   n.source_entity_id, n.parser_version, n.record_type
             from ingest.normalization_attempt a
             join ingest.normalization_attempt_record ar
               on ar.normalization_attempt_id = a.normalization_attempt_id

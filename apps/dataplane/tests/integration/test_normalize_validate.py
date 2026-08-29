@@ -10,7 +10,10 @@ import psycopg
 import pytest
 
 from eatbid.ingest.models import CaptureRequest
-from eatbid.ingest.normalization_repository import NormalizationRepository
+from eatbid.ingest.normalization_repository import (
+    NormalizationRepository,
+    StoredNormalizedRecord,
+)
 from eatbid.ingest.postgres_normalization_repository import (
     NormalizationAttemptConflictError,
     NormalizationIntegrityError,
@@ -104,6 +107,55 @@ def publication_run_id(services: PipelineServices, publication_id: UUID) -> UUID
             (publication_id,),
         )
         return cursor.fetchone()[0]
+
+
+def normalized_pair(
+    services: PipelineServices,
+) -> tuple[StoredNormalizedRecord, StoredNormalizedRecord]:
+    run_id = start_run(services, expected_count=2)
+    observations = (
+        capture_detail(services, run_id=run_id, external_bid_id=uuid4().hex),
+        capture_detail(services, run_id=run_id, external_bid_id=uuid4().hex),
+    )
+    return normalize_one(services, observations[0]), normalize_one(
+        services, observations[1]
+    )
+
+
+def replace_attempt_record_edges(
+    services: PipelineServices,
+    records: tuple[StoredNormalizedRecord, StoredNormalizedRecord],
+    *,
+    topology: str,
+) -> None:
+    first, second = records
+    edges = {
+        "swapped": (
+            (first.normalization_attempt_id, second.normalized_record_id),
+            (second.normalization_attempt_id, first.normalized_record_id),
+        ),
+        "two-zero": (
+            (first.normalization_attempt_id, first.normalized_record_id),
+            (first.normalization_attempt_id, second.normalized_record_id),
+        ),
+    }[topology]
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            delete from ingest.normalization_attempt_record
+            where normalization_attempt_id = any(%s)
+            """,
+            ([first.normalization_attempt_id, second.normalization_attempt_id],),
+        )
+        cursor.executemany(
+            """
+            insert into ingest.normalization_attempt_record (
+                normalization_attempt_id, normalized_record_id
+            ) values (%s, %s)
+            """,
+            edges,
+        )
+    services.connection.commit()
 
 
 def normalize_one(
@@ -1256,6 +1308,78 @@ def test_terminal_revalidation_rejects_request_count_drift(
             validated_at=VALIDATED_AT + timedelta(hours=1),
             repository=pipeline_services.publication_repository,
         )
+
+
+@pytest.mark.parametrize("terminal", [False, True], ids=["running", "terminal"])
+def test_publication_rejects_swapped_candidate_member_edges(
+    pipeline_services: PipelineServices, terminal: bool
+) -> None:
+    records = normalized_pair(pipeline_services)
+    run_id = records[0].run_id
+    publication_id = uuid4()
+    if terminal:
+        initial = validate_run(
+            run_id=run_id,
+            publication_id=publication_id,
+            validated_at=VALIDATED_AT,
+            repository=pipeline_services.publication_repository,
+        )
+        assert initial.status == "validated"
+    replace_attempt_record_edges(pipeline_services, records, topology="swapped")
+
+    if terminal:
+        with pytest.raises(PublicationIntegrityError, match="ledger"):
+            validate_run(
+                run_id=run_id,
+                publication_id=publication_id,
+                validated_at=VALIDATED_AT + timedelta(hours=1),
+                repository=pipeline_services.publication_repository,
+            )
+    else:
+        result = validate_run(
+            run_id=run_id,
+            publication_id=publication_id,
+            validated_at=VALIDATED_AT,
+            repository=pipeline_services.publication_repository,
+        )
+        assert result.status == "failed"
+        assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
+
+
+@pytest.mark.parametrize("terminal", [False, True], ids=["running", "terminal"])
+def test_publication_rejects_two_zero_output_redistribution(
+    pipeline_services: PipelineServices, terminal: bool
+) -> None:
+    records = normalized_pair(pipeline_services)
+    run_id = records[0].run_id
+    publication_id = uuid4()
+    if terminal:
+        initial = validate_run(
+            run_id=run_id,
+            publication_id=publication_id,
+            validated_at=VALIDATED_AT,
+            repository=pipeline_services.publication_repository,
+        )
+        assert initial.status == "validated"
+    replace_attempt_record_edges(pipeline_services, records, topology="two-zero")
+
+    if terminal:
+        with pytest.raises(PublicationIntegrityError, match="ledger"):
+            validate_run(
+                run_id=run_id,
+                publication_id=publication_id,
+                validated_at=VALIDATED_AT + timedelta(hours=1),
+                repository=pipeline_services.publication_repository,
+            )
+    else:
+        result = validate_run(
+            run_id=run_id,
+            publication_id=publication_id,
+            validated_at=VALIDATED_AT,
+            repository=pipeline_services.publication_repository,
+        )
+        assert result.status == "failed"
+        assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
 
 
 def test_replay_mode_uses_explicit_input_without_mutating_capture_provenance(
