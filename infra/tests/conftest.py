@@ -15,6 +15,9 @@ import yaml
 MONOREPO_ROOT = Path(__file__).parents[2]
 if str(MONOREPO_ROOT) not in sys.path:
     sys.path.insert(0, str(MONOREPO_ROOT))
+DATAPLANE_SRC = MONOREPO_ROOT / "apps" / "dataplane" / "src"
+if str(DATAPLANE_SRC) not in sys.path:
+    sys.path.insert(0, str(DATAPLANE_SRC))
 
 
 @dataclass(frozen=True)

@@ -10,6 +10,8 @@ spec:
     parameters:
       - name: mode
         value: poll-open
+      - name: parser-version
+        value: eat-v1
   templates:
     - name: scheduled-pipeline
       dag:
@@ -49,7 +51,7 @@ spec:
           - name: EATBID_RUN_ID
             value: "{{workflow.uid}}"
           - name: EATBID_PARSER_VERSION
-            value: canonical-v1
+            value: "{{workflow.parameters.parser-version}}"
           - name: DATABASE_URL
             valueFrom:
               secretKeyRef:
@@ -132,7 +134,7 @@ spec:
       inputs:
         parameters:
           - name: publication-id
-          - name: observation-id
+          - name: observation-ids-json
           - name: started-at
           - name: normalized-at
           - name: validated-at
@@ -143,28 +145,60 @@ spec:
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
-        command: [/bin/sh, -ec]
+        command: [python, -c]
         args:
-          - >-
-            exec eatbid replay --run-id "$EATBID_RUN_ID"
-            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
-            --publication-id "$EATBID_PUBLICATION_ID"
-            --observation-id "$EATBID_OBSERVATION_ID"
-            --started-at "$EATBID_STARTED_AT"
-            --normalized-at "$EATBID_NORMALIZED_AT"
-            --validated-at "$EATBID_VALIDATED_AT"
-            --activated-at "$EATBID_ACTIVATED_AT"
+          - |
+            import json
+            import os
+            import sys
+
+            def fail(message: str) -> None:
+                print(message, file=sys.stderr)
+                raise SystemExit(64)
+
+            try:
+                observation_ids = json.loads(os.environ["EATBID_OBSERVATION_IDS_JSON"])
+            except (KeyError, json.JSONDecodeError):
+                fail("observation-ids-json must be a JSON array")
+            if not isinstance(observation_ids, list) or not observation_ids:
+                fail("observation-ids-json must be a non-empty JSON array")
+            if any(
+                type(value) is not int
+                or value <= 0
+                or value > 9_223_372_036_854_775_807
+                for value in observation_ids
+            ):
+                fail("every observation ID must be a positive bigint")
+            if len(set(observation_ids)) != len(observation_ids):
+                fail("observation IDs must be unique")
+
+            argv = [
+                "eatbid", "replay",
+                "--run-id", os.environ["EATBID_RUN_ID"],
+                "--build-sha", os.environ["BUILD_SHA"],
+                "--parser-version", os.environ["EATBID_PARSER_VERSION"],
+                "--publication-id", os.environ["EATBID_PUBLICATION_ID"],
+            ]
+            for observation_id in observation_ids:
+                argv.extend(("--observation-id", str(observation_id)))
+            argv.extend((
+                "--started-at", os.environ["EATBID_STARTED_AT"],
+                "--normalized-at", os.environ["EATBID_NORMALIZED_AT"],
+                "--validated-at", os.environ["EATBID_VALIDATED_AT"],
+                "--activated-at", os.environ["EATBID_ACTIVATED_AT"],
+            ))
+            os.execvp(argv[0], argv)
         env:
           - name: EATBID_WORKFLOW_MODE
             value: replay
           - name: EATBID_RUN_ID
             value: "{{workflow.uid}}"
           - name: EATBID_PARSER_VERSION
-            value: canonical-v1
+            value: "{{workflow.parameters.parser-version}}"
           - name: EATBID_PUBLICATION_ID
             value: "{{inputs.parameters.publication-id}}"
-          - name: EATBID_OBSERVATION_ID
-            value: "{{inputs.parameters.observation-id}}"
+          - name: EATBID_OBSERVATION_IDS_JSON
+            value: "{{inputs.parameters.observation-ids-json}}"
           - name: EATBID_STARTED_AT
             value: "{{inputs.parameters.started-at}}"
           - name: EATBID_NORMALIZED_AT

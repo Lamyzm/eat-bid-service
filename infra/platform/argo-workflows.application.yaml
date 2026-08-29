@@ -11,20 +11,19 @@ spec:
     targetRevision: 1.0.23
     helm:
       valuesObject:
+        singleNamespace: true
+        createAggregateRoles: false
         controller:
-          workflowNamespaces:
-            - eatbid
           persistence:
             archive: false
+          clusterWorkflowTemplates:
+            enabled: false
         workflow:
           serviceAccount:
             create: false
             name: eatbid-dataplane
           rbac:
             create: true
-            serviceAccounts:
-              - name: eatbid-dataplane
-                namespace: eatbid
         server:
           enabled: false
         crds:
@@ -33,7 +32,7 @@ spec:
           full: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: argo-workflows
+    namespace: eatbid
   syncPolicy:
     syncOptions:
       - CreateNamespace=true

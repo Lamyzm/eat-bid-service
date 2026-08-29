@@ -4,7 +4,8 @@ metadata:
   name: eatbid-poll-open
   namespace: eatbid
 spec:
-  schedule: "*/30 8-19 * * 1-5"
+  schedules:
+    - "*/30 8-19 * * 1-5"
   timezone: Asia/Seoul
   suspend: true
   concurrencyPolicy: Forbid

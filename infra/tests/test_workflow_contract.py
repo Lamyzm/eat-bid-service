@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import ast
+import os
 import re
 from collections.abc import Iterable, Mapping
 from itertools import pairwise
 from pathlib import Path
 
+import pytest
 import yaml
 from conftest import ManifestSet
+from eatbid.source.eat.schema_contract import REVIEWED_EAT_SCHEMA_CONTRACTS
 
 ROOT = Path(__file__).parents[2]
 PRODUCT_KUSTOMIZATION = ROOT / "infra" / "product" / "kustomization.yaml"
@@ -126,6 +129,15 @@ def test_workflow_template_uses_current_cli_and_durable_boundaries(
     spec = _spec(workflow_template)
     assert spec["entrypoint"] == "scheduled-pipeline"
     assert spec["serviceAccountName"] == "eatbid-dataplane"
+    reviewed_parser_versions = {key[2] for key in REVIEWED_EAT_SCHEMA_CONTRACTS}
+    assert len(reviewed_parser_versions) == 1
+    reviewed_parser_version = next(iter(reviewed_parser_versions))
+    workflow_parameters = {
+        item["name"]: item["value"]
+        for item in _sequence(_mapping(spec["arguments"])["parameters"])
+        if isinstance(item, Mapping)
+    }
+    assert workflow_parameters["parser-version"] == reviewed_parser_version
 
     templates = _templates(workflow_template)
     dag = _mapping(templates["scheduled-pipeline"]["dag"])
@@ -170,11 +182,18 @@ def test_workflow_template_uses_current_cli_and_durable_boundaries(
             for name in (*SCHEDULED_COMMANDS, "replay")
             if templates[name]["container"] is container
         )
-        assert container["command"] == ["/bin/sh", "-ec"]
         command = str(_sequence(container["args"])[0])
-        assert command.startswith(f"exec eatbid {template_name} ")
-        assert '--build-sha "$BUILD_SHA"' in command
-        assert "$(BUILD_SHA)" not in command
+        if template_name == "replay":
+            assert container["command"] == ["python", "-c"]
+            assert '"--build-sha", os.environ["BUILD_SHA"]' in command
+        else:
+            assert container["command"] == ["/bin/sh", "-ec"]
+            assert command.startswith(f"exec eatbid {template_name} ")
+            assert '--build-sha "$BUILD_SHA"' in command
+            assert "$(BUILD_SHA)" not in command
+        assert _env(container, "EATBID_PARSER_VERSION")["value"] == (
+            "{{workflow.parameters.parser-version}}"
+        )
         assert _secret_ref(_env(container, "DATABASE_URL")) == (
             "eatbid-database",
             "DATABASE_URL",
@@ -210,7 +229,8 @@ def test_cron_workflows_are_suspended_and_only_schedule_the_pipeline(
     for cron in cron_workflows:
         name = str(_metadata(cron)["name"])
         spec = _spec(cron)
-        assert spec["schedule"] == expected_schedules[name]
+        assert "schedule" not in spec
+        assert spec["schedules"] == [expected_schedules[name]]
         assert spec["timezone"] == "Asia/Seoul"
         assert spec["suspend"] is True
         workflow_spec = _mapping(spec["workflowSpec"])
@@ -226,6 +246,77 @@ def test_cron_workflows_are_suspended_and_only_schedule_the_pipeline(
     rendered = yaml.safe_dump_all(manifests.documents)
     assert "backfill" not in rendered
     assert "entrypoint: replay" not in rendered
+
+
+def _execute_replay_script(
+    manifests: ManifestSet,
+    monkeypatch: object,
+    observation_ids_json: str,
+) -> list[str]:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    replay = _mapping(_templates(workflow_template)["replay"])
+    container = _mapping(replay["container"])
+    script = str(_sequence(container["args"])[0])
+    captured: list[str] = []
+
+    def capture_execvp(executable: str, argv: list[str]) -> None:
+        assert executable == "eatbid"
+        captured.extend(argv)
+
+    environment = {
+        "BUILD_SHA": "a" * 40,
+        "EATBID_RUN_ID": "00000000-0000-0000-0000-000000000001",
+        "EATBID_PARSER_VERSION": "eat-v1",
+        "EATBID_PUBLICATION_ID": "00000000-0000-0000-0000-000000000002",
+        "EATBID_OBSERVATION_IDS_JSON": observation_ids_json,
+        "EATBID_STARTED_AT": "2026-08-29T05:00:00Z",
+        "EATBID_NORMALIZED_AT": "2026-08-29T05:01:00Z",
+        "EATBID_VALIDATED_AT": "2026-08-29T05:02:00Z",
+        "EATBID_ACTIVATED_AT": "2026-08-29T05:03:00Z",
+    }
+    for key, value in environment.items():
+        monkeypatch.setenv(key, value)  # type: ignore[attr-defined]
+    monkeypatch.setattr(os, "execvp", capture_execvp)  # type: ignore[attr-defined]
+    exec(compile(script, "<replay-entrypoint>", "exec"), {})  # noqa: S102
+    return captured
+
+
+def test_replay_json_ids_become_exact_repeated_cli_argv(
+    manifests: ManifestSet, monkeypatch: object
+) -> None:
+    argv = _execute_replay_script(manifests, monkeypatch, "[7, 3]")
+    assert argv[0:2] == ["eatbid", "replay"]
+    observation_flags = [
+        value
+        for index, value in enumerate(argv)
+        if index > 0 and argv[index - 1] == "--observation-id"
+    ]
+    assert observation_flags == ["7", "3"]
+    assert argv.count("--observation-id") == 2
+
+
+def test_replay_json_ids_fail_closed_without_shell_expansion(
+    manifests: ManifestSet, monkeypatch: object
+) -> None:
+    invalid_values = (
+        "[]",
+        "[7, 7]",
+        '["7"]',
+        "[0]",
+        "[-1]",
+        "[true]",
+        "[9223372036854775808]",
+        "",
+        "not-json",
+        "{}",
+        '["*"]',
+        '["7; touch /tmp/eatbid-injection"]',
+        '["$(touch /tmp/eatbid-substitution)"]',
+    )
+    for value in invalid_values:
+        with pytest.raises(SystemExit) as error:
+            _execute_replay_script(manifests, monkeypatch, value)
+        assert error.value.code == 64
 
 
 def test_migration_is_finite_presync_and_uses_only_secret_database_url(
@@ -307,14 +398,15 @@ def test_platform_application_is_pinned_minimal_and_not_wired_live() -> None:
     assert source["chart"] == "argo-workflows"
     assert source["targetRevision"] == "1.0.23"
     values = source["helm"]["valuesObject"]
-    assert values["controller"]["workflowNamespaces"] == ["eatbid"]
+    assert application["spec"]["destination"]["namespace"] == "eatbid"
+    assert values["singleNamespace"] is True
+    assert values["createAggregateRoles"] is False
+    assert "workflowNamespaces" not in values["controller"]
+    assert values["controller"]["clusterWorkflowTemplates"]["enabled"] is False
     assert values["controller"]["persistence"]["archive"] is False
     assert values["workflow"] == {
         "serviceAccount": {"create": False, "name": "eatbid-dataplane"},
-        "rbac": {
-            "create": True,
-            "serviceAccounts": [{"name": "eatbid-dataplane", "namespace": "eatbid"}],
-        },
+        "rbac": {"create": True},
     }
     assert values["server"]["enabled"] is False
     assert values["crds"] == {"install": True, "keep": True, "full": True}

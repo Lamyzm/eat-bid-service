@@ -4,7 +4,8 @@ metadata:
   name: eatbid-daily-reconcile
   namespace: eatbid
 spec:
-  schedule: "0 7 * * *"
+  schedules:
+    - "0 7 * * *"
   timezone: Asia/Seoul
   suspend: true
   concurrencyPolicy: Forbid

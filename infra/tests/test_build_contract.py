@@ -66,6 +66,26 @@ def test_ci_runs_frozen_typescript_python_and_empty_database_gates() -> None:
     assert root_package["scripts"]["db:check"] == "pnpm --filter @eatbid/db db:check"
 
 
+def test_ci_strictly_lints_exact_argo_and_helm_render_contracts() -> None:
+    steps = _steps("test")
+    gate = next(step for step in steps if step.get("id") == "verify-argo-delivery")
+    command = str(gate["run"])
+
+    assert (
+        "alpine/helm@sha256:a572075a78666ad6fb1f40cb477a9e2eabbc46f3739beeb81904a6121f6ef027"
+        in command
+    )
+    assert "https://argoproj.github.io/argo-helm" in command
+    assert "--version 1.0.23" in command
+    assert "infra/verify_argo_platform.py" in command
+    assert (
+        "quay.io/argoproj/argocli@sha256:83e93aa9149a51da998c1df4abea7ae2c504e0b0a5892052dc092740f68323e8"
+        in command
+    )
+    assert "lint --offline --strict" in command
+    assert "kubectl apply" not in command
+
+
 def test_context_preflight_fail_closes_before_any_publication_job() -> None:
     test_job = _job("test")
     guard = str(test_job["if"])

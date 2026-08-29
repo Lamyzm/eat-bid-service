@@ -95,7 +95,35 @@ jobs:
       - name: Lint delivery code
         run: >-
           uv run --project apps/dataplane ruff check
-          infra/update_image_digest.py infra/generate_slsa_provenance.py infra/tests
+          infra/update_image_digest.py infra/generate_slsa_provenance.py
+          infra/verify_argo_platform.py infra/tests
+      - id: verify-argo-delivery
+        name: Render exact Argo chart and strictly lint product workflows
+        run: |
+          set -euo pipefail
+          verification_dir="$RUNNER_TEMP/eatbid-argo-verification"
+          mkdir -p "$verification_dir"
+          uv run --project apps/dataplane python infra/verify_argo_platform.py \
+            values infra/platform/argo-workflows.application.yaml \
+            > "$verification_dir/values.yaml"
+          docker run --rm \
+            --volume "$verification_dir:/verification:ro" \
+            alpine/helm@sha256:a572075a78666ad6fb1f40cb477a9e2eabbc46f3739beeb81904a6121f6ef027 \
+            template eatbid-argo-workflows argo-workflows \
+            --repo https://argoproj.github.io/argo-helm \
+            --version 1.0.23 --namespace eatbid \
+            --values /verification/values.yaml > "$verification_dir/chart.yaml"
+          uv run --project apps/dataplane python infra/verify_argo_platform.py \
+            verify "$verification_dir/chart.yaml" --namespace eatbid
+          kubectl kustomize infra/product > "$verification_dir/product.yaml"
+          uv run --project apps/dataplane python infra/verify_argo_platform.py \
+            filter-workflows \
+            --input "$verification_dir/product.yaml" \
+            > "$verification_dir/product-workflows.yaml"
+          docker run --rm \
+            --volume "$verification_dir:/verification:ro" \
+            quay.io/argoproj/argocli@sha256:83e93aa9149a51da998c1df4abea7ae2c504e0b0a5892052dc092740f68323e8 \
+            lint --offline --strict /verification/product-workflows.yaml
 
       - name: Check generated migrations are committed and stable
         run: |
