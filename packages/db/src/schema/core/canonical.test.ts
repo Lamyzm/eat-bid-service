@@ -256,15 +256,23 @@ describe("canonical identities", () => {
     ]));
   });
 
-  test("enforces explicit, ordered code validity ranges", () => {
+  test("defines the complete named-check contract for every canonical table", () => {
     const checkNames = (table: Parameters<typeof getTableConfig>[0]) =>
       getTableConfig(table).checks.map((check) => check.name);
 
-    expect(checkNames(codeValue)).toContain("code_value_valid_time_order");
-    expect(checkNames(codeMapping)).toEqual(expect.arrayContaining([
-      "code_mapping_has_validity_boundary",
-      "code_mapping_valid_time_order",
-    ]));
+    for (const [table, expectedCheckNames] of [
+      [codeScheme, []],
+      [codeValue, ["code_value_valid_time_order"]],
+      [codeLabelObservation, []],
+      [codeMapping, ["code_mapping_has_validity_boundary", "code_mapping_valid_time_order"]],
+      [organization, []],
+      [organizationIdentifier, []],
+      [auctionAttempt, []],
+      [auctionRevision, []],
+      [auctionOrganization, []],
+    ] as const) {
+      expect(checkNames(table)).toEqual(expectedCheckNames);
+    }
   });
 
   test("uses the single code-value authority for organization identity", () => {
