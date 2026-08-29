@@ -22,6 +22,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0013](0013-drizzle-v1-release-lane.md) | Accepted | Drizzle v1 RC 단일 release lane |
 | [0014](0014-normalization-attempt-lineage.md) | Accepted | immutable raw evidence → run-scoped normalization attempt → frozen publication member |
 | [0015](0015-canonical-projection-lineage.md) | Accepted | normalized interpretation → canonical revision 직접 lineage와 원자 projection |
+| [0016](0016-nest-effect-application-boundary.md) | Accepted | Nest lifecycle·Effect 실행·Drizzle repository·HTTP 횡단 관심사 경계 |
 
 ## 새 ADR 형식
 

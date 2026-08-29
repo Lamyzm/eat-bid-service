@@ -88,6 +88,10 @@ eat-bid-service/
 `procurement`, `institutions`, `suppliers`, `eligibility`, `workspace`, `intelligence`,
 `contracts`, `operations` 모듈로 나눈다. 하나의 NestJS deployable이며 모듈 간 command/query
 interface를 둔다. 데이터 테이블과 HTTP DTO를 같은 타입으로 취급하지 않는다.
+Nest가 HTTP/DI/resource lifecycle을 소유하고 Effect는 application use case의 typed execution에
+제한한다. Controller→application→domain/infrastructure 의존 방향, Drizzle repository/Unit of Work,
+guard/pipe/interceptor/filter의 책임은
+[backend-application-foundation.md](backend-application-foundation.md)와 ADR 0016을 따른다.
 
 ### 5.3 Dataplane 내부
 
@@ -160,6 +164,8 @@ web/server, WorkflowTemplate/CronWorkflow를 동기화한다. 데이터 작업 �
 - projector golden/replay 결정성 테스트
 - publication 원자성/부분 실패 테스트
 - workspace/supplier tenant 권한 테스트
+- server module dependency direction, HTTP Standard Schema/OpenAPI artifact, RFC 9457 error mapping 테스트
+- request correlation/log redaction, authentication guard, readiness/migration mismatch, graceful shutdown 테스트
 - migration forward 및 빈 DB 구축 테스트
 - backup restore 후 핵심 query smoke test
 

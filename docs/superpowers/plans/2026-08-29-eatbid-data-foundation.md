@@ -6,7 +6,11 @@
 
 **Architecture:** `apps/dataplane`의 단일 Python CLI가 discover/capture/normalize/validate/project/replay 단계를 제공하고, `packages/db`의 Drizzle migration만 `ingest/core/app/mart` DDL을 소유한다. Argo Workflows가 같은 CLI를 정기·백필·재처리 모드로 실행하며 Argo CD는 controller와 WorkflowTemplate만 배포한다.
 
-**Tech Stack:** Node.js 24+, pnpm 10.12.1, Turborepo 2.5, TypeScript 5.7, Drizzle ORM/Kit 1.0.0-rc.4, Python 3.12+, uv, Pydantic 2, psycopg 3, httpx, boto3, pytest, Ruff, Pyright, PostgreSQL 16, R2 S3 API, Argo Workflows 4.0.8 via argo-workflows Helm chart 1.0.23, Argo CD.
+**Tech Stack:** Node.js 24+ (server target 24.20.0 LTS), pnpm 10.12.1, Turborepo 2.5,
+TypeScript 5.7+, NestJS 12 target, `effect@4.0.0-rc.112` compatibility lane, Zod 4/Standard Schema,
+Drizzle ORM/Kit 1.0.0-rc.4, Python 3.12+, uv, Pydantic 2, psycopg 3, httpx, boto3, pytest,
+Ruff, Pyright, PostgreSQL 16, R2 S3 API, Argo Workflows 4.0.8 via argo-workflows Helm chart
+1.0.23, Argo CD.
 
 **Spec:** `docs/superpowers/specs/2026-08-29-eatbid-greenfield-architecture-design.md`
 
@@ -825,7 +829,7 @@ Pydantic validation, normalization, canonical JSON round-trip 어디에서도 �
 `TOT_CNT`는 nonnegative decimal text만 받고, page 안의 빈/중복 ID와
 `len(external_bid_ids) > total_count`를 contract error로 처리한다. 이 task는
 list parser 계약까지만 소유하며 pagination/network planning은 production eaT adapter를
-조립하는 Task 13에서 이 계약을 소비한다.
+조립하는 Task 14에서 이 계약을 소비한다.
 
 `xml.py`는 외부 응답을 untrusted input으로 취급한다. Python 문서가 권고하는
 `defusedxml.ElementTree` stable `>=0.7.1,<1`을 사용하고 DTD, entity, external
@@ -1585,7 +1589,7 @@ project step mutex는 `eatbid-core-publication`이다. scheduled DAG는 정확�
 흐름을 소유하는 별도 수동 entrypoint다.
 
 현 CLI가 정의한 exit code는 64/65/75/76뿐이고 모든 command가 현재 64를 반환하는 placeholder다.
-따라서 이 Task는 거짓 transient `74` retry 정책을 추가하지 않는다. transient category가 Task 13 이후
+따라서 이 Task는 거짓 transient `74` retry 정책을 추가하지 않는다. transient category가 Task 14 이후
 구현되고 동작 테스트가 생긴 뒤에만 bounded retry를 도입한다.
 
 - [ ] **Step 6: suspended CronWorkflow와 legacy delete overlay 구현**
@@ -1593,7 +1597,7 @@ project step mutex는 `eatbid-core-publication`이다. scheduled DAG는 정확�
 `poll-open`은 평일 `Asia/Seoul` 08:00–19:59에 30분 간격, `daily-reconcile`은 매일 07:00에
 실행한다. 두 schedule은 동일 template을 `mode` parameter만 달리 호출한다. backfill/replay에는
 schedule을 만들지 않고 운영자가 WorkflowTemplate을 제출한다. 두 CronWorkflow는 반드시
-`spec.suspend: true`로 커밋한다. Task 13이 production composition root를 완성하고 manual run evidence를
+`spec.suspend: true`로 커밋한다. Task 14가 production composition root를 완성하고 manual run evidence를
 만들기 전에는 활성화하지 않는다.
 
 product overlay는 기존 `../k8s/base`를 임시로 포함하되 `daily-refresh`, `poll-open-day`,
@@ -1649,11 +1653,13 @@ Run: `cd apps/dataplane && uv run pytest tests/integration/test_foundation_slice
 
 Expected: FAIL with `fixture 'foundation' not found`.
 
-- [ ] **Step 3: production composition root 완성**
+- [ ] **Step 3: adapter-injected foundation composition 완성**
 
-`cli.py`가 Settings, R2RawObjectStore, PsycopgObservationRepository, EaT source adapter,
-projector/replay를 조립하게 한다. 각 command는 JSON 한 줄로 run_id, build_sha, parser_version,
-counts, duration_ms, status/failure_category를 stdout에 기록한다.
+이 Task는 아직 존재하지 않는 eaT production transport를 꾸며내지 않는다. production과 test가 같은
+pipeline orchestration을 쓰도록 `foundation.py`가 raw store, source client, clock, PostgreSQL repository를
+명시적으로 주입받아 한 detail fixture의 start/plan/capture/normalize/validate/project/replay를 조립한다.
+Test는 `MemoryRawObjectStore`와 fake source client를 사용하지만 pipeline/repository/projector를 복제하지
+않는다. 실제 R2/httpx/CLI/Argo composition은 Task 14가 소유한다.
 
 같은 step에서 integration `conftest.py`에 다음 contract의 `FoundationHarness`와 `foundation` fixture를
 추가한다.
@@ -1686,10 +1692,11 @@ class FoundationHarness(Protocol):
 
 - [ ] **Step 4: runbook과 gate 작성**
 
-Runbook에는 local PostgreSQL 시작, migration, fixture capture, replay, Argo 수동 제출, quarantine 확인,
+Runbook에는 uniquely owned local PostgreSQL 시작, migration, fixture capture, replay, quarantine 확인,
 publication count 확인, rollback 없이 active publication을 유지하는 실패 복구 명령을 exact command로
-기록한다. Gate에는 raw key/hash, `TOT_CNT`, row counts, replay fingerprint, migration version,
-image digest, Workflow status를 붙일 증거 칸을 둔다.
+기록한다. Task 14 전에는 Argo/source 명령이 dormant라는 사실과 절대 활성화하지 않는 명령을 명시한다.
+Gate에는 raw key/hash, `TOT_CNT`, row counts, replay fingerprint, migration version, image digest와
+Task 14 이후 붙일 Workflow/source evidence 칸을 구분한다.
 
 - [ ] **Step 5: 전체 검증 실행**
 
@@ -1719,9 +1726,53 @@ git commit -m "test: prove replayable data foundation slice"
 
 ---
 
-### Task 14: canonical 행정구역·시간축·좌표·market mart foundation
+### Task 14: 검증된 eaT transport·discovery·CLI·Argo 수동 실행 경계
 
-이 Task는 Task 13의 수직 슬라이스가 통과한 뒤 별도 상세 TDD plan/리뷰로 실행한다. 2026-08-29
+Task 13의 fixture vertical slice가 통과한 뒤 별도 상세 TDD plan/리뷰로 실행한다. 현재 새 dataplane에는
+parser, R2, PostgreSQL projection/replay가 있지만 `discover`와 실제 eaT HTTP transport는 placeholder다.
+`F:\Project\eat_croll`의 legacy crawler와 `docs/audit-source`는 소스 접근 지식 조사 자료이지 복사할
+architecture나 데이터 authority가 아니다.
+
+**Required design:**
+
+- `source/eat` 아래에 Pydantic 설정, deterministic Nexacro request builder, `httpx` transport,
+  list discovery adapter를 분리한다. URL은 exact HTTPS host allowlist, connect/read/total timeout,
+  payload size limit, bounded single-source concurrency를 가진다.
+- hardcoded analytics/session cookies, browser version 위장, MongoDB write, legacy field cleanup/추측 mapping을
+  이식하지 않는다. session bootstrap이 필요하면 transport가 fresh cookie jar를 얻고 secret/log에 cookie를
+  남기지 않는다.
+- list page도 raw evidence다. `discover`가 list response를 R2에 archive한 뒤에만 `TOT_CNT`, page count,
+  `ETN_BID_ID`를 해석하고 detail request units를 plan한다. page 누락, count 불일치, duplicate ID,
+  unreviewed dataset/column drift는 deterministic `SOURCE_CONTRACT`이며 detail/core를 부분 발행하지 않는다.
+- `capture`는 DB에 동결된 detail request unit만 읽어 immutable R2 object+observation을 기록한다.
+  normalize/validate/project는 같은 run ledger로 다음 상태만 선택하며 CLI 인수나 임시 파일로 payload를
+  넘기지 않는다.
+- run window/as-of/mode/source endpoint/pagination params를 명시적으로 저장한다. wall clock으로 같은 run의
+  요청 범위를 다시 계산하지 않는다.
+- 각 CLI command는 성공/실패 모두 stdout에 JSON 한 줄로 run_id, build_sha, parser_version, source,
+  endpoint, counts, duration_ms, status/failure_category를 남긴다. stderr/log에도 raw body, cookie,
+  credential, 전체 URL query를 기록하지 않는다.
+- 403/429는 typed `SOURCE_THROTTLED` exit 75, schema/HTTP contract는 exit 76, quarantine은 65,
+  config/usage는 64다. idempotent transient 분류와 bounded test가 생기기 전 blanket retry를 추가하지 않는다.
+- WorkflowTemplate은 explicit as-of/window를 전달하고 source semaphore 하나를 공유한다. manual dry run
+  evidence 전 CronWorkflow는 계속 suspend하며 live source/R2/Argo 실행은 별도 사용자 승인 gate다.
+
+**Acceptance boundary:**
+
+- `httpx.MockTransport` fixture로 session/list pagination/detail 요청과 archive-before-parse 순서를 증명한다.
+- list/detail source contract와 schema fingerprint가 reviewed registry에 있고 leading-zero code/ID를 text로
+  보존한다.
+- same run 재실행은 planned unit/raw blob/core revision을 중복 생성하지 않고 lawful partial checkpoint만
+  재개한다.
+- 실제 source를 호출하지 않는 offline gate에서 CLI 6개와 Argo render 계약이 통과한다.
+- 승인된 manual run이 있을 때만 source request budget, raw R2 key/hash, PostgreSQL counts, Workflow status를
+  gate에 첨부한다. 승인 없이는 task capability와 external execution evidence를 구분해 보고한다.
+
+---
+
+### Task 15: canonical 행정구역·시간축·좌표·market mart foundation
+
+이 Task는 Task 14의 production source boundary가 통과한 뒤 별도 상세 TDD plan/리뷰로 실행한다. 2026-08-29
 legacy `/api/market?category=축산` 실측은 225행 중 66행이 좌표와 매칭되지 않았고, 그중 64행은
 `시도 미상|시군구`, 2행은 인천 행정구역/2017 좌표 스냅샷의 시간축 불일치였다. 이는 프론트 좌표표
 누락이 아니라 upstream identity 유실이다.
@@ -1751,9 +1802,53 @@ legacy `/api/market?category=축산` 실측은 225행 중 66행이 좌표와 매
 
 ---
 
-### Task 15: 사용자와 공동 프론트 기획 gate
+### Task 16: NestJS·Effect backend application foundation
 
-Task 14까지 완료된 후 시작한다. 이 Task는 자동 구현 단계가 아니다. 사용자와 함께 화면 목표,
+Task 15까지의 canonical data/mart boundary가 고정된 후 별도 상세 TDD plan과 독립 리뷰로 실행한다.
+지배 설계는 [ADR 0016](../../adr/0016-nest-effect-application-boundary.md)과
+[backend-application-foundation.md](../../architecture/backend-application-foundation.md)다.
+
+**Required design:**
+
+- exact supported Node 24 LTS patch에서 Nest 12 common/core/platform/CLI/config/swagger/testing을 같은
+  release lane으로 올리고 frozen lock/build/schematic compatibility를 증명한다.
+- `effect@4.0.0-rc.112`를 exact pin한 compatibility spike를 먼저 수행한다. Nest가 DI/resource lifecycle을
+  소유하고 singleton `EffectRunner`만 fully-provided use-case Effect를 실행한다. request마다 Runtime/Layer를
+  만들거나 `runPromise`를 산재시키지 않는다.
+- root `AppModule`은 import-only composition root로 줄인다. 새 canonical vertical slice를
+  `presentation/http → application → domain/infrastructure`로 만들고 기존 controller는
+  `LegacyApiModule`에 격리한다.
+- `DatabaseModule`은 typed config로 Drizzle/postgres-js client를 만들고 shutdown에서 닫는다.
+  `packages/db`만 DDL을 소유하며 purpose-specific repository와 명시적 `UnitOfWork`를 둔다.
+- Nest 12 Standard Schema + bounded Zod 4 contracts로 request/response를 검증한다. `nestjs-zod`를 제거하고
+  deterministic OpenAPI 3.0.3 artifact/stable operation ID/diff gate를 만든다.
+- middleware=request context, pipe=validation, guard=authz, interceptor=timing/log/serialization,
+  filter=RFC 9457 error mapping이라는 책임을 지킨다. business rule을 guard/interceptor에 숨기지 않는다.
+- `@nestjs/config`+Zod로 production fallback 없는 fail-fast config를 만들고, built-in JSON logger,
+  correlation ID, sensitive-field redaction, Helmet, exact CORS/trusted proxy/payload limit, selected endpoint
+  throttling을 적용한다. 현재 Nest 12 peer가 없는 `@nestjs/terminus`, `@nestjs/throttler`,
+  `nestjs-pino`는 override 설치하지 않고 각각 작은 health module, 배포 경계 rate-limit adapter,
+  Nest built-in JSON logger를 사용한다.
+- Better Auth raw handler를 body parser 전에 연결하고 global session guard + public/optional-auth metadata로
+  인증 실패와 dependency 장애를 구분한다. Nest 12 peer support가 없는 community bridge는 쓰지 않는다.
+- `/health/live`와 DB+expected migration `/health/ready`, shutdown hook과 inflight grace를 구현한다.
+  Swagger UI는 dev-only, production은 off/authenticated다.
+
+**Acceptance boundary:**
+
+- architecture test에서 controller→Drizzle, domain→Nest/Drizzle, cross-module internal import, cycle이 0건이다.
+- config missing/malformed/fallback, request/response schema, OpenAPI artifact, 400/401/403/404/409/429/503/500
+  Problem Details, log redaction/correlation, auth raw transport, repository UoW, health/shutdown이 자동 검증된다.
+- 새 endpoint는 DB row나 legacy shared schema를 public DTO로 노출하지 않고 string relational key를 쓰지 않는다.
+- legacy와 canonical 경로 사이에 dual-write가 없고 local user service를 재시작/변경하지 않는다.
+
+---
+
+### Task 17: 사용자와 공동 프론트 코드스멜 감사·제품/UI 기획 gate
+
+Task 16까지 완료된 후 시작한다. 이 Task는 자동 구현 단계가 아니다. 먼저 현재 frontend의 component,
+state/data-fetching, route, contract duplication, accessibility/performance code smell을 근거와 함께 감사한다.
+그 결과와 canonical API를 놓고 사용자와 함께 화면 목표,
 입찰분석 의사결정 흐름, 정보 우선순위, canonical URL/API ID, 지역/학교/기관 탐색, 시장 지도,
 source-observed 대 inferred 표기를 먼저 기획하고 승인된 spec을 만든다. **사용자 승인 전에는 프론트
 코드, route, API response shape, 디자인 시스템을 변경하지 않는다.**
@@ -1776,8 +1871,12 @@ source-observed 대 inferred 표기를 먼저 기획하고 승인된 spec을 만
 - 빈 PostgreSQL이 committed Drizzle migration만으로 생성된다.
 - web/server/dataplane/migration image가 한 Git SHA와 immutable digest를 가진다.
 - Argo Workflows만 dataplane을 예약하며 product manifests에 native CronJob이 없다.
+- eaT list/detail transport가 list raw archive-before-parse, frozen request plan, count/schema gate를 지키고
+  CLI/Workflow가 DB run ID로 같은 stage를 재개한다. live source 실행 여부는 별도 evidence로 표시한다.
 - market/geography 관계는 canonical 행정구역 bigint와 evidence-backed valid time을 쓰며 ambiguous
   label-only 입력을 임의 좌표에 붙이지 않는다.
+- server는 Nest/Effect/Drizzle의 단일 lifecycle·의존 방향을 지키며 controller가 DB를 직접 호출하지
+  않고, bounded Zod contract/OpenAPI artifact/RFC 9457/log redaction/guard/health/shutdown gate를 통과한다.
 - 기존 legacy reader/writer는 아직 제거하지 않지만 새 foundation에 dual-write하지 않는다.
 
 Foundation 완료 뒤 canonical domain expansion 계획은 실제 quarantine/code coverage 보고서를 입력으로

@@ -10,6 +10,7 @@ workload trigger), and **Rejected for foundation** (not appropriate for the pres
 architecture).
 
 - [Application runtime](./application-runtime.md)
+- [Backend application foundation](../backend-application-foundation.md)
 - [Contracts and validation](./contracts-and-validation.md)
 - [Data platform](./data-platform.md)
 - [Delivery and operations](./delivery-and-operations.md)
@@ -17,4 +18,5 @@ architecture).
 The governing decisions are [ADR 0004](../../adr/0004-data-authority-chain.md),
 [ADR 0009](../../adr/0009-drizzle-owns-ddl.md),
 [ADR 0012](../../adr/0012-security-observability-and-recovery-baseline.md), and
-[ADR 0013](../../adr/0013-drizzle-v1-release-lane.md).
+[ADR 0013](../../adr/0013-drizzle-v1-release-lane.md), and
+[ADR 0016](../../adr/0016-nest-effect-application-boundary.md).

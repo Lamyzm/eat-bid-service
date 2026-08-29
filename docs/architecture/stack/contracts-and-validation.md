@@ -1,6 +1,6 @@
 # Contracts and validation audit
 
-Research was checked on 2026-08-29. This is a boundary policy, not a claim that all
+Research was checked on 2026-08-30. This is a boundary policy, not a claim that all
 future packages or projections already exist.
 
 ## Current baseline
@@ -15,11 +15,17 @@ an `auction.ts` comment claiming a Drizzle-to-Zod-to-web flow, while
 are not a future public-contract authority and must be retired or deliberately mapped
 when its consumer is replaced. Do not treat them as evidence of a live generated API.
 
+ADR 0016 supersedes this current Nest 11 integration direction for the target server:
+Nest 12 native Standard Schema becomes the request/response/OpenAPI bridge and
+`nestjs-zod` is removed. The first truthful artifact is OpenAPI 3.0.3 because the
+official Nest Zod converter currently targets OpenAPI 3.0; a 3.1 header must not be
+written onto 3.0-shaped output. OpenAPI 3.1 remains a later conformance upgrade.
+
 | Boundary | Authority | Allowed derivation |
 |---|---|---|
 | PostgreSQL DDL | focused Drizzle modules in `packages/db` | generated SQL migration and Drizzle TypeScript inference |
 | TypeScript DB rows/inserts | Drizzle table/view definitions | `drizzle-orm/zod` select/insert/update schemas refined at the repository boundary |
-| HTTP request/response | bounded-context Zod 4 schemas in future `packages/contracts` | Nest DTO/OpenAPI projection and web runtime parsing/types |
+| HTTP request/response | bounded-context Zod 4 schemas in future `packages/contracts` | Nest 12 Standard Schema request/response validation, OpenAPI projection, and web runtime parsing/types |
 | Python eaT source shape | reviewed `(source, endpoint, parser_version)` dataset/column contracts | canonical SHA-256 fingerprint used by publication validation |
 | Python source/normalized records | Pydantic 2 models and validators | JSON Schema for inspection/testing only |
 | Configuration | Zod on TypeScript and `pydantic-settings` on Python | typed immutable settings objects |
@@ -31,13 +37,15 @@ hand beside the validating schema/projection.
 
 ## Decision table
 
-| Tool or method | Concrete Eatbid use | Official evidence checked 2026-08-29 | Disposition | Reason and exact review trigger |
+| Tool or method | Concrete Eatbid use | Official evidence checked 2026-08-30 | Disposition | Reason and exact review trigger |
 |---|---|---|---|---|
 | Zod 4 codecs | Decode wire/storage representations only inside a future bounded contract | [Zod codecs](https://zod.dev/codecs) | Deferred | Adopt when a concrete contract needs bidirectional representation conversion; do not use it to define DDL. |
 | Zod 4 metadata and JSON Schema | Annotate bounded HTTP schemas and emit inspection/projection input | [Zod metadata](https://zod.dev/metadata), [JSON Schema](https://zod.dev/json-schema) | Required before production | Require when public server modules expose documented HTTP endpoints; review upon first external/client API. |
 | `drizzle-orm/zod` | Generate select/insert/update validators at a real TypeScript repository/API boundary, then refine there | [Drizzle Zod integration](https://orm.drizzle.team/docs/zod) | Deferred | There is no such focused repository/API consumer yet; trigger on its introduction, never to expose rows as DTOs. |
-| `nestjs-zod` | Keep request parsing/DTO projection while server contracts move out of `app.module.ts` | [nestjs-zod documentation](https://github.com/BenLorantfy/nestjs-zod) | Adopted | It is already declared and used for query DTOs; trigger when extracting the first bounded Nest module. |
-| OpenAPI 3.1 | Generate from validated bounded server contracts after module split | [OpenAPI 3.1 specification](https://spec.openapis.org/oas/v3.1.1.html) | Required before production | Test the emitted wire contract; trigger before exposing a supported API or generating a client. |
+| Nest 12 Standard Schema | Validate route input and output from bounded Zod schemas and project the same route schemas into Swagger | [Nest migration guide](https://docs.nestjs.com/migration-guide), [Nest OpenAPI introduction](https://docs.nestjs.com/openapi/introduction), [Standard Schema](https://standardschema.dev/) | Required before production | Replace the current global `nestjs-zod` pipe during the Nest 12 vertical slice. Verify input/output distinction and forbid DB schemas at this boundary. |
+| `nestjs-zod` | Current Nest 11 compatibility bridge only | [nestjs-zod documentation](https://github.com/BenLorantfy/nestjs-zod) | Rejected for foundation | Remove with Nest 12 native Standard Schema; do not carry a duplicate DTO/cleanup layer without a proven missing capability. |
+| OpenAPI 3.0.3 | Deterministically generate from validated bounded server contracts after module split | [Nest OpenAPI introduction](https://docs.nestjs.com/openapi/introduction), [OpenAPI 3.0.3 specification](https://spec.openapis.org/oas/v3.0.3.html) | Required before production | Commit or publish the generated artifact, assert stable operation IDs and request/response/problem schemas, and fail on unexplained diff. Swagger UI is dev-only by default. |
+| OpenAPI 3.1 | Upgrade the actual emitted schema dialect, not only the document version | [OpenAPI 3.1 specification](https://spec.openapis.org/oas/v3.1.1.html) | Deferred | Trigger when Nest's native Zod path emits 3.1 correctly or an explicit converter is justified; require nullable/union/dialect and client-generator conformance first. |
 | `openapi-typescript` equivalent | Generate client types from the reviewed OpenAPI artifact | [openapi-typescript](https://openapi-ts.dev/introduction) | Required before production | Choose a projector only when a web/client consumes the published artifact; no duplicate response interfaces. |
 | Pydantic `TypeAdapter` | Validate each Nexacro `Dataset/Row/Col` source row as `dict[str, StrictStr]` before normalization; `NormalizedAuction` and `BidListPage` are strict, extra-forbid normalized authorities | [TypeAdapter API](https://docs.pydantic.dev/latest/concepts/type_adapter/) | Adopted | Source-row unknown columns remain observable for fingerprint gating, while normalized model unknown fields fail instead of being discarded. Review on Pydantic major change or source-fragment drift. |
 | Hypothesis | Property-test leading-zero codes, deterministic normalization/gzip/replay, and count/completeness gates | [Hypothesis documentation](https://hypothesis.readthedocs.io/) | Adopted | The dataplane bounds arbitrary binary examples for deterministic content addressing/gzip and arbitrary leading-zero code/count examples for lossless normalization and the exact completeness equation. Extend it with each new source-owned invariant. |
@@ -45,13 +53,13 @@ hand beside the validating schema/projection.
 | Schemathesis | Exercise generated public OpenAPI HTTP behavior | [Schemathesis documentation](https://schemathesis.readthedocs.io/) | Required before production | Trigger when OpenAPI is published and a staging server is available. |
 | Testcontainers Python | Apply the compiled migration runner and validate capture, normalization, lineage-manifest, and publication transactions against a uniquely named disposable PostgreSQL 16 container | [Testcontainers Python PostgreSQL module](https://testcontainers-python.readthedocs.io/en/latest/modules/postgres/README.html) | Adopted | The integration fixture owns and removes its container without fixed ports or shared volumes; Task 8 proves immutable raw evidence, run-scoped attempt/member lineage, exact publication membership, and replay-input provenance. Review on a PostgreSQL major or Testcontainers major upgrade. |
 | Structured logging | Emit JSON with `run_id`, `observation_id`, `publication_id`, Git SHA, parser/projector version | [OpenTelemetry log data model](https://opentelemetry.io/docs/specs/otel/logs/data-model/) | Adopted | Required by ADR 0012; trigger whenever a new pipeline stage emits records. |
-| Standard Schema | Consume a common schema interface only where a library demands it | [Standard Schema](https://standardschema.dev/) | Rejected for foundation | Zod/Pydantic boundary authorities are already explicit; trigger only if an adopted library requires interoperability. |
 | Startup environment validation | Parse all TypeScript settings with Zod and Python settings with `pydantic-settings` before work begins | [Zod](https://zod.dev/), [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) | Required before production | Trigger before either deployable receives production secrets/configuration. |
 
 ## Rejected or deferred
 
 Pydantic remains the dataplane source/normalization contract; it is not generated from
-TypeScript. OpenAPI is a downstream projection after validated server contracts exist,
+TypeScript. Standard Schema is a Nest interoperability interface, not a new schema
+authority. OpenAPI is a downstream projection after validated server contracts exist,
 not an alternate authoring format. The remaining legacy shared schemas are neither a
 license to share DB rows nor a reason to retain duplicate response interfaces.
 
