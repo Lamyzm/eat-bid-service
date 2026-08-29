@@ -5,3 +5,5 @@ dist/
 *.log
 .turbo/
 .cloudflared/
+.worktrees/
+.superpowers/
