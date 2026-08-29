@@ -210,6 +210,65 @@ function validateDirectDrizzleDeclarations(manifests: WorkspaceManifest[]): stri
   return errors;
 }
 
+function workspaceCatalogEntries(workspace: string): {
+  entries: Array<{ key: string; value: string }>;
+  errors: string[];
+} {
+  const catalog = topLevelSection(workspace, "catalog");
+  if (catalog === "") {
+    const catalogLine = workspace.split(/\r?\n/).find((line) => line.startsWith("catalog:"));
+    return {
+      entries: [],
+      errors: [
+        catalogLine
+          ? `unsupported workspace catalog structure: ${catalogLine}`
+          : "workspace catalog block is missing",
+      ],
+    };
+  }
+
+  const entries: Array<{ key: string; value: string }> = [];
+  const errors: string[] = [];
+  for (const line of catalog.split(/\r?\n/)) {
+    if (line === "") {
+      continue;
+    }
+
+    const match = line.match(/^ {2}([^:\s]+):\s+(?:"([^"]+)"|'([^']+)'|([^#\s]+))(?:\s+#.*)?$/);
+    if (!match) {
+      errors.push(`unsupported workspace catalog structure: ${line}`);
+      continue;
+    }
+
+    entries.push({ key: match[1], value: match[2] ?? match[3] ?? match[4] });
+  }
+
+  return { entries, errors };
+}
+
+function validateWorkspaceCatalog(workspace: string): string[] {
+  const { entries, errors } = workspaceCatalogEntries(workspace);
+
+  for (const dependency of Object.keys(directDependencyMinimums) as DrizzleDependency[]) {
+    const matches = entries.filter((entry) => entry.key === dependency);
+    if (matches.length === 0) {
+      errors.push(`workspace catalog is missing ${dependency}`);
+      continue;
+    }
+    if (matches.length > 1) {
+      errors.push(`workspace catalog has duplicate ${dependency} entries`);
+      continue;
+    }
+    if (matches[0].value !== releaseLaneVersion) {
+      errors.push(
+        `workspace catalog ${dependency} must be exactly ${releaseLaneVersion} (received ${matches[0].value})`,
+      );
+    }
+  }
+
+  return errors;
+}
+
 function validateLockfileReleaseLane(lockfile: string): string[] {
   const errors: string[] = [];
   const resolved = resolvedDrizzlePackages(lockfile);
@@ -247,6 +306,44 @@ function validateLockfileReleaseLane(lockfile: string): string[] {
   return errors;
 }
 
+function syntheticRc4Lockfile(): string {
+  return `catalogs:
+  default:
+    drizzle-orm:
+      specifier: ${releaseLaneVersion}
+      version: ${releaseLaneVersion}
+    drizzle-kit:
+      specifier: ${releaseLaneVersion}
+      version: ${releaseLaneVersion}
+importers:
+  apps/one:
+    dependencies:
+      drizzle-orm:
+        specifier: 'catalog:'
+  apps/two:
+    dependencies:
+      drizzle-orm:
+        specifier: 'catalog:'
+  apps/three:
+    dependencies:
+      drizzle-orm:
+        specifier: 'catalog:'
+  packages/one:
+    devDependencies:
+      drizzle-kit:
+        specifier: 'catalog:'
+  packages/two:
+    devDependencies:
+      drizzle-kit:
+        specifier: 'catalog:'
+packages:
+  drizzle-orm@${releaseLaneVersion}:
+    resolution: {}
+  drizzle-kit@${releaseLaneVersion}:
+    resolution: {}
+`;
+}
+
 describe("Drizzle toolchain authority", () => {
   test("discovers every first-level workspace package manifest", async () => {
     const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
@@ -268,6 +365,44 @@ describe("Drizzle toolchain authority", () => {
       directDependencyMinimums["drizzle-kit"],
     );
     expect(validateDirectDrizzleDeclarations(await workspaceManifests(workspace))).toEqual([]);
+  });
+
+  test("keeps the authoritative default workspace catalog on the RC4 release lane", async () => {
+    const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
+
+    expect(validateWorkspaceCatalog(workspace)).toEqual([]);
+  });
+
+  test("rejects a drifted workspace catalog even when the lockfile remains on RC4", () => {
+    const errors = validateWorkspaceCatalog(`catalog:
+  drizzle-orm: 1.0.0-rc.3
+  drizzle-kit: ${releaseLaneVersion}
+`);
+
+    expect(validateLockfileReleaseLane(syntheticRc4Lockfile())).toEqual([]);
+    expect(errors).toContain(
+      "workspace catalog drizzle-orm must be exactly 1.0.0-rc.4 (received 1.0.0-rc.3)",
+    );
+  });
+
+  test("rejects duplicate Drizzle workspace catalog keys", () => {
+    const errors = validateWorkspaceCatalog(`catalog:
+  drizzle-orm: ${releaseLaneVersion}
+  drizzle-orm: ${releaseLaneVersion}
+  drizzle-kit: ${releaseLaneVersion}
+`);
+
+    expect(errors).toContain("workspace catalog has duplicate drizzle-orm entries");
+  });
+
+  test("rejects unsupported workspace catalog structure", () => {
+    const errors = validateWorkspaceCatalog(`catalog:
+  drizzle-orm:
+    version: ${releaseLaneVersion}
+  drizzle-kit: ${releaseLaneVersion}
+`);
+
+    expect(errors).toContain("unsupported workspace catalog structure:   drizzle-orm:");
   });
 
   test("rejects a newly discovered direct declaration that bypasses the catalog", () => {
