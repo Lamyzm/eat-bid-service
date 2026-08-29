@@ -1,0 +1,170 @@
+# 런타임·Argo·배포·운영
+
+## 1. 책임 분리
+
+> **Argo CD는 원하는 배포 상태를 맞추고, Argo Workflows는 데이터 작업을 실행한다.**
+
+Argo CD가 crawler를 직접 실행하거나 CronJob을 관리하는 것을 데이터 오케스트레이션으로
+간주하지 않는다. 목표 상태에서는 Kubernetes CronJob, 애플리케이션 내부 scheduler,
+Argo Workflows가 같은 수집을 중복 예약하지 않는다.
+
+## 2. 수집 workflow
+
+```mermaid
+flowchart LR
+    plan[1. plan request units]
+    discover[2. discover source IDs]
+    capture[3. capture details to R2]
+    normalize[4. normalize pending observations]
+    validate[5. validate schema + TOT_CNT + invariants]
+    publish[6. publish core revisions atomically]
+    marts[7. rebuild affected marts]
+    verify[8. verify freshness + counts]
+
+    plan --> discover --> capture --> normalize --> validate --> publish --> marts --> verify
+    validate -->|invalid| quarantine[(quarantine)]
+```
+
+하나의 `WorkflowTemplate`과 dataplane 이미지로 다음 모드를 실행한다.
+
+| mode | 목적 | 초기 예약 |
+|---|---|---|
+| `poll-open` | 열린 공고·변경을 업무시간에 짧은 지연으로 반영 | 약 30분, source 정책에 맞춰 조정 |
+| `daily-reconcile` | 전체 상태·변경·개찰·낙찰을 재대조 | 일 1회 |
+| `backfill` | 날짜×지역×상태 범위를 수동/운영 승인으로 채움 | ad hoc |
+| `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
+
+스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다.
+
+## 3. 실행 안전장치
+
+- source 전역 semaphore를 둔다. 초기 capacity는 1이며 관측 후 늘린다.
+- canonical publication/projector에는 mutex를 둬 서로 다른 실행의 활성화가 엇갈리지 않게 한다.
+- pod는 stateless다. hostPath, 로컬 SQLite, 공유 JSON 파일을 단계 계약으로 쓰지 않는다.
+- 각 실행/관측/로그에 `run_id`, correlation ID, Git SHA, image digest, parser/projector version을 남긴다.
+- 목록 응답의 `TOT_CNT`와 실제 발견/캡처 건수를 request unit 단위로 정확히 대조한다.
+- 한 건이라도 조용히 누락되면 성공 처리하지 않는다. failure count가 있으면 비영(0이 아닌) exit다.
+- retry는 timeout/일시적 네트워크/일시적 5xx만 대상으로 한다. 403, 429, 차단 신호, 계약 위반,
+  인증/설정 오류는 무한 재시도하지 않고 명시적으로 중단한다.
+- backfill은 같은 source semaphore를 공유해 정기 poll을 압도하지 않게 우선순위/동시성을 제한한다.
+
+권장 exit category:
+
+| category | 재시도 | 의미 |
+|---|---|---|
+| `TRANSIENT_NETWORK` | 제한적 exponential backoff | 일시적 연결/5xx |
+| `SOURCE_THROTTLED` | workflow 중단, 운영 확인 | 429/차단 징후 |
+| `SOURCE_CONTRACT` | 재시도 금지 | schema/TOT_CNT/불변식 위반 |
+| `DATA_QUARANTINED` | raw 보존 후 실행 실패 | 파싱 불가/미지원 코드 |
+| `CONFIGURATION` | 재시도 금지 | secret/endpoint/argument 오류 |
+| `INTERNAL` | 제한적 또는 재배포 후 | 코드/DB 예외 |
+
+## 4. 발행 트랜잭션
+
+1. workflow 시작 시 `ingest.run`과 request unit 계획을 만든다.
+2. 응답을 R2에 성공적으로 기록한 뒤 observation을 완료한다.
+3. normalize 결과는 아직 공개되지 않은 staging 상태로 둔다.
+4. completeness와 도메인 불변식을 전부 통과하면 publication ID를 만든다.
+5. 짧은 DB transaction에서 core revision과 active publication 포인터를 전환한다.
+6. 영향 범위 mart를 새 build ID로 생성·검증한 뒤 active build를 전환한다.
+7. 끝에서 source-to-core 지연, 건수, quarantine, mart freshness를 검증한다.
+
+실패 실행은 진단을 위해 남지만 현재 공개 상태를 부분적으로 덮어쓰지 않는다.
+
+## 5. GitOps와 이미지 공급망
+
+```text
+GitHub monorepo
+  ├─ CI: lint/test/build/migration validation
+  ├─ GHCR: web, server, dataplane immutable images
+  └─ GitOps manifests: exact image digest + Git SHA
+         │
+         ▼
+      Argo CD
+  ├─ platform application: CRDs/controllers/storage primitives
+  └─ product application: web/server/migration/workflow templates/schedules
+```
+
+- web/server/dataplane은 한 커밋의 Git SHA를 공유한다.
+- 환경에서 mutable `latest`를 쓰지 않고 digest로 고정한다.
+- migration은 동일 커밋에서 만든 image를 Argo CD PreSync hook 또는 동등한 단일 실행 Job으로
+  적용하며 timeout과 실패 상태를 가진다.
+- 애플리케이션은 기대 schema migration/version을 시작 시 확인한다.
+- Workflow CRD/controller 같은 플랫폼 수명주기와 제품 배포를 별도 Argo CD application으로 둔다.
+- 초기에는 Argo Events, 내장 MinIO, 별도 workflow archive DB를 추가하지 않는다.
+
+## 6. 배포 토폴로지
+
+현재 로컬/초기 운영 환경은 단일 노드 k3d일 수 있다. 이는 개발과 이식성 검증에는 적합하지만
+노드 장애를 견디는 HA가 아니다.
+
+초기 배포 구성:
+
+- `web` Deployment/Service
+- `server` Deployment/Service
+- `dataplane`은 Argo Workflow pod로만 실행
+- PostgreSQL StatefulSet + 명시적 PVC 용량/retention
+- R2 외부 bucket
+- Argo Workflows controller; UI/server는 기본 비공개 또는 운영자만 접근
+- Cloudflare tunnel/ingress는 web/server의 필요한 경로만 공개
+
+Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 노출하지 않는다.
+
+## 7. 보안
+
+- secret은 Git 평문/ConfigMap에 저장하지 않는다. 초기 GitOps 방식은 SOPS+age를 기준으로 한다.
+- source credential, R2 credential, DB role별 credential을 분리하고 최소 권한을 적용한다.
+- workflow service account는 필요한 Workflow/Secret/DB/R2 권한만 가진다.
+- API는 workspace와 supplier 소유권을 모든 command/query에서 검증한다.
+- 로그에 사업자등록번호, credential, 전체 source payload를 기록하지 않는다.
+- raw bucket은 lifecycle/retention 변경을 운영 승인 대상으로 하고 삭제 권한을 일반 ingestor에서 뺀다.
+
+## 8. 관측성과 운영
+
+처음부터 구조화 JSON 로그와 run/correlation ID를 사용한다. 최소 지표:
+
+- source request/response count, latency, status
+- expected `TOT_CNT` 대비 discovered/captured/published count
+- raw write failure, parser failure, quarantine by reason/schema fingerprint
+- source-to-raw, raw-to-core, core-to-mart 지연
+- workflow duration/retry/failure category
+- active publication/build age
+- DB storage, connection, slow query, R2 write/read error
+
+초기에는 로그와 PostgreSQL run ledger로 시작할 수 있다. 운영 규모가 생기면 OpenTelemetry
+Collector, Prometheus/Grafana/Loki를 추가한다. 제품 경로에 특정 관측 벤더 SDK를 직접 결합하지 않는다.
+
+## 9. 백업과 복구
+
+- R2 raw: versioning/retention을 사용하고 content hash로 무결성을 검사한다.
+- PostgreSQL: 정기 full backup과 WAL/증분 전략을 R2 또는 독립 backup 위치에 둔다.
+- `app` 사용자 상태는 raw로 재생성할 수 없으므로 최우선 복구 대상이다.
+- `core`는 raw+version으로 재구성 가능하지만 복구시간 단축을 위해 DB backup에도 포함한다.
+- `mart`는 DB 복구 후 재생성 가능하다.
+- restore drill은 새 namespace/임시 DB에서 수행하고 실제 query/count/freshness 검증까지 완료한다.
+
+초기 복구 목표는 **사용자 상태 RPO 1시간 이내, 핵심 서비스 RTO 4시간 이내**로 두되,
+현재 단일 노드 환경에서 WAL 보관이 준비되기 전에는 달성 보장이 아닌 목표로 표시한다.
+
+## 10. 도입 순서와 보류 스택
+
+지금 도입:
+
+- Argo Workflows, R2 raw, PostgreSQL, Drizzle migrations
+- Python `uv`, Pydantic, Ruff, Pyright, pytest
+- 구조화 로그, `pg_trgm`, SOPS+age, run/correlation ID
+
+측정 후 도입:
+
+- CloudNativePG 또는 managed PostgreSQL
+- OpenTelemetry Collector + Prometheus/Grafana/Loki
+- 복잡한 mart가 충분히 늘어난 뒤 dbt
+- 읽기 병목 뒤 read replica
+- PostgreSQL로 감당하기 어려운 반복 scan/외부 소비자가 증명된 뒤 Parquet export
+
+현재 도입하지 않음:
+
+- Kafka, Redis/Celery, Airflow/Dagster
+- Elasticsearch/OpenSearch, ClickHouse
+- Spark, Iceberg/Delta, canonical Parquet lake
+- 마이크로서비스, service mesh, Argo Events

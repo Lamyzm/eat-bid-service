@@ -1,5 +1,16 @@
 # CLAUDE.md — eatbid (학교급식 입찰 기록)
 
+> [!IMPORTANT]
+> **모든 Claude 세션은 먼저 [`AGENTS.md`](AGENTS.md)와
+> [`ARCHITECTURE.md`](ARCHITECTURE.md)를 읽어야 한다.** 두 파일과 Accepted ADR이 이
+> 저장소의 목표 아키텍처다. 아래 내용은 과거/현행 구현을 이해하기 위한 조사 기록이며,
+> 충돌할 경우 목표 설계로 사용하지 않는다.
+
+**STOP:** 새 스키마·수집기·API·URL·Kubernetes 작업을 아래 레거시 설명에서 설계하지 마라.
+반드시 `AGENTS.md`의 정언명령과 `docs/adr/`의 Accepted 결정을 먼저 적용하라.
+
+## 레거시 조사 기록 — 목표 설계가 아님
+
 **학교급식 전자입찰(eaT) 공개 데이터로 만든 입찰 판단 재료 서비스.**
 사장이 오늘 얼마를 넣을지 스스로 정하도록, 우리는 재료만 정확히 놓는다.
 
