@@ -66,6 +66,52 @@ def test_ci_runs_frozen_typescript_python_and_empty_database_gates() -> None:
     assert root_package["scripts"]["db:check"] == "pnpm --filter @eatbid/db db:check"
 
 
+def test_context_preflight_fail_closes_before_any_publication_job() -> None:
+    test_job = _job("test")
+    guard = str(test_job["if"])
+    assert guard.strip().startswith("${{")
+    assert guard.strip().endswith("}}")
+    assert guard.count("${{") == guard.count("}}") == 1
+    for required_context in (
+        "github.event_name",
+        "github.ref",
+        "github.repository",
+        "github.server_url",
+        "github.sha",
+        "github.workflow_ref",
+        "github.workflow_sha",
+        "refs/heads/master",
+        "Lamyzm/eat-bid-service",
+        "https://github.com",
+        ".github/workflows/build.yml",
+        "push",
+        "workflow_dispatch",
+    ):
+        assert required_context in guard
+
+    test_steps = _steps("test")
+    checkout_index = next(
+        index
+        for index, step in enumerate(test_steps)
+        if step.get("uses") == "actions/checkout@v4"
+    )
+    preflight_index = _step_index(test_steps, "provenance-preflight")
+    assert preflight_index == checkout_index + 1
+    preflight = test_steps[preflight_index]
+    assert preflight["env"] == {
+        "EATBID_JOB_WORKFLOW_REF": "${{ job.workflow_ref }}",
+    }
+    assert "infra/generate_slsa_provenance.py --check" in str(preflight["run"])
+
+    build_job = _job("build")
+    assert build_job["needs"] == "test"
+    build_steps = _steps("build")
+    provenance_index = _step_index(build_steps, "generate-provenance")
+    login_index = _step_index(build_steps, "registry-login")
+    publish_index = _step_index(build_steps, "publish")
+    assert provenance_index < login_index < publish_index
+
+
 def test_ci_builds_all_artifacts_from_full_sha_and_promotes_digests() -> None:
     workflow = _workflow_text()
     parsed = _workflow()
@@ -101,12 +147,13 @@ def test_build_scans_attests_signs_and_verifies_before_exporting_digest() -> Non
 
     steps = _steps("build")
     order = [
+        "generate-provenance",
         "build-local",
         "scan",
         "sbom",
+        "registry-login",
         "publish",
         "setup-cosign",
-        "generate-provenance",
         "sign",
         "attest-provenance",
         "attest-sbom",
@@ -162,6 +209,9 @@ def test_build_scans_attests_signs_and_verifies_before_exporting_digest() -> Non
     provenance = str(by_id["generate-provenance"]["run"])
     assert "infra/generate_slsa_provenance.py" in provenance
     assert "provenance-${{ matrix.app }}.json" in provenance
+    assert by_id["generate-provenance"]["env"] == {
+        "EATBID_JOB_WORKFLOW_REF": "${{ job.workflow_ref }}",
+    }
     assert "cosign sign --yes \"$IMAGE_NAME@$IMAGE_DIGEST\"" in str(
         by_id["sign"]["run"]
     )

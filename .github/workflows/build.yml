@@ -20,6 +20,17 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    if: >-
+      ${{
+        (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+        github.ref == 'refs/heads/master' &&
+        github.repository == 'Lamyzm/eat-bid-service' &&
+        github.server_url == 'https://github.com' &&
+        github.sha == github.workflow_sha &&
+        github.workflow_ref == format(
+          '{0}/.github/workflows/build.yml@{1}', github.repository, github.ref
+        )
+      }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -38,6 +49,11 @@ jobs:
       DATABASE_URL: postgres://eatbid:eatbid@127.0.0.1:5432/eatbid_ci
     steps:
       - uses: actions/checkout@v4
+      - id: provenance-preflight
+        name: Reject unsupported publication workflow context
+        env:
+          EATBID_JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
+        run: python3 infra/generate_slsa_provenance.py --check
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -77,7 +93,9 @@ jobs:
       - name: Test delivery contracts
         run: uv run --project apps/dataplane pytest infra/tests -q
       - name: Lint delivery code
-        run: uv run --project apps/dataplane ruff check infra/update_image_digest.py infra/tests
+        run: >-
+          uv run --project apps/dataplane ruff check
+          infra/update_image_digest.py infra/generate_slsa_provenance.py infra/tests
 
       - name: Check generated migrations are committed and stable
         run: |
@@ -117,6 +135,13 @@ jobs:
             dockerfile: ./packages/db/Dockerfile
     steps:
       - uses: actions/checkout@v4
+      - id: generate-provenance
+        name: Generate deterministic SLSA v1 provenance predicate
+        env:
+          EATBID_JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
+        run: >-
+          python3 infra/generate_slsa_provenance.py
+          --output "provenance-${{ matrix.app }}.json"
       - uses: docker/setup-buildx-action@v3
       - id: build-local
         uses: docker/build-push-action@v6
@@ -155,7 +180,8 @@ jobs:
           skip-setup-trivy: true
           version: v0.73.0
 
-      - uses: docker/login-action@v3
+      - id: registry-login
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -181,11 +207,6 @@ jobs:
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
           cosign-release: v3.0.6
-      - id: generate-provenance
-        name: Generate deterministic SLSA v1 provenance predicate
-        run: >-
-          python3 infra/generate_slsa_provenance.py
-          --output "provenance-${{ matrix.app }}.json"
       - id: sign
         name: Keyless-sign the exact registry digest
         env:
