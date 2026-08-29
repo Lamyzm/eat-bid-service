@@ -168,3 +168,20 @@ Collector, Prometheus/Grafana/Loki를 추가한다. 제품 경로에 특정 관�
 - Elasticsearch/OpenSearch, ClickHouse
 - Spark, Iceberg/Delta, canonical Parquet lake
 - 마이크로서비스, service mesh, Argo Events
+
+## 11. 현재 실행 가능 경계
+
+Task 13에서 production `run_foundation_slice` composition과 실제 psycopg repository를 통해 한
+`bid-detail-one.xml`의 `start/plan → capture/archive → observation → normalize → validate/freeze →
+project → replay`가 자동 검증된다. transport 대역은 `MemoryRawObjectStore`와 fake `SourceClient`지만
+parser, schema contract, publication, projector, replay는 production 구현을 그대로 호출한다. 같은 raw와
+`eat-v1` replay는 새 run/publication에서 원 observation을 참조하고 같은 canonical fingerprint와 기존
+canonical revision을 재사용한다.
+
+이 capability는 아직 외부 실행기가 아니다. eaT list/detail HTTP transport, live R2 adapter wiring,
+stage별 PostgreSQL ledger를 여는 CLI composition은 Task 14 범위다. 현재 여섯 CLI command는 placeholder
+exit 64이며 WorkflowTemplate을 실행 성공 상태로 만들 수 없다. 따라서 product WorkflowTemplate과 두
+CronWorkflow는 **dormant**이고 두 schedule은 계속 `spec.suspend: true`다. live source/R2 호출, image
+publish, Workflow submit, Argo CD sync, schedule resume는 Task 14 구현·오프라인 gate와 별도 사용자 승인
+전에는 실행하지 않는다. 오프라인 fixture capability와 외부 execution evidence의 판정은
+[data-foundation-gate.md](../operations/data-foundation-gate.md)를 따른다.
