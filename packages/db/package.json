@@ -23,10 +23,10 @@
     "db:check": "drizzle-kit check"
   },
   "dependencies": {
-    "drizzle-orm": "1.0.0-beta.22"
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
-    "drizzle-kit": "1.0.0-beta.22",
+    "drizzle-kit": "catalog:",
     "typescript": "^5.7.0"
   }
 }

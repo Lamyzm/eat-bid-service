@@ -6,7 +6,7 @@
 
 **Architecture:** `apps/dataplane`의 단일 Python CLI가 discover/capture/normalize/validate/project/replay 단계를 제공하고, `packages/db`의 Drizzle migration만 `ingest/core/app/mart` DDL을 소유한다. Argo Workflows가 같은 CLI를 정기·백필·재처리 모드로 실행하며 Argo CD는 controller와 WorkflowTemplate만 배포한다.
 
-**Tech Stack:** Node.js 24+, pnpm 10.12.1, Turborepo 2.5, TypeScript 5.7, Drizzle ORM/Kit 1.0.0-beta.22, Python 3.12+, uv, Pydantic 2, psycopg 3, httpx, boto3, pytest, Ruff, Pyright, PostgreSQL 16, R2 S3 API, Argo Workflows 4.0.8 via argo-workflows Helm chart 1.0.23, Argo CD.
+**Tech Stack:** Node.js 24+, pnpm 10.12.1, Turborepo 2.5, TypeScript 5.7, Drizzle ORM/Kit 1.0.0-rc.4, Python 3.12+, uv, Pydantic 2, psycopg 3, httpx, boto3, pytest, Ruff, Pyright, PostgreSQL 16, R2 S3 API, Argo Workflows 4.0.8 via argo-workflows Helm chart 1.0.23, Argo CD.
 
 **Spec:** `docs/superpowers/specs/2026-08-29-eatbid-greenfield-architecture-design.md`
 

@@ -13,7 +13,7 @@
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "better-auth": "^1.7.2",
-    "drizzle-orm": "1.0.0-beta.22",
+    "drizzle-orm": "catalog:",
     "nestjs-zod": "^5.0.0",
     "postgres": "^3.4.5",
     "reflect-metadata": "^0.2.2",

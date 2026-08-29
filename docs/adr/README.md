@@ -19,6 +19,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0010](0010-append-only-observations-and-revisions.md) | Accepted | append-only 관측/revision과 원자적 발행 |
 | [0011](0011-versioned-derived-analytics.md) | Accepted | 분석은 버전된 재생성 가능 파생물 |
 | [0012](0012-security-observability-and-recovery-baseline.md) | Accepted | 초기 보안·관측·복구 기준 |
+| [0013](0013-drizzle-v1-release-lane.md) | Accepted | Drizzle v1 RC 단일 release lane |
 
 ## 새 ADR 형식
 

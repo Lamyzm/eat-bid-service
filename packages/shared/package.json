@@ -16,11 +16,11 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "drizzle-orm": "1.0.0-beta.22",
+    "drizzle-orm": "catalog:",
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "drizzle-kit": "1.0.0-beta.22",
+    "drizzle-kit": "catalog:",
     "typescript": "^5.7.0"
   }
 }
