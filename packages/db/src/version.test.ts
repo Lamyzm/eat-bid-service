@@ -8,11 +8,11 @@ import {
 
 describe("schema version", () => {
   test("is pinned to the committed foundation migration", () => {
-    expect(expectedMigration).toBe("20260829001500_core_validity_constraints");
+    expect(expectedMigration).toBe("20260829002000_ingest_lineage_manifests");
   });
 
   test("uses the UTC millisecond timestamp encoded in the migration name", () => {
-    expect(expectedMigrationTimestamp).toBe(Date.UTC(2026, 7, 29, 0, 15, 0));
+    expect(expectedMigrationTimestamp).toBe(Date.UTC(2026, 7, 29, 0, 20, 0));
     expect(migrationNameTimestamp(expectedMigration)).toBe(expectedMigrationTimestamp);
   });
 

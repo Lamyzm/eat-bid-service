@@ -12,6 +12,10 @@ import pytest
 from docker.errors import NotFound
 from testcontainers.community.postgres import PostgresContainer
 
+from eatbid.ingest.postgres_normalization_repository import (
+    PsycopgNormalizationRepository,
+)
+from eatbid.ingest.postgres_publication_repository import PsycopgPublicationRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
 
 from ..unit.fakes import MemoryRawObjectStore
@@ -32,6 +36,8 @@ class MigratedDatabase:
 class PipelineServices:
     connection: psycopg.Connection[tuple[object, ...]]
     repository: PsycopgObservationRepository
+    normalization_repository: PsycopgNormalizationRepository
+    publication_repository: PsycopgPublicationRepository
     store: MemoryRawObjectStore
 
 
@@ -85,6 +91,8 @@ def pipeline_services(migrated_db: MigratedDatabase) -> PipelineServices:
         yield PipelineServices(
             connection=connection,
             repository=PsycopgObservationRepository(connection),
+            normalization_repository=PsycopgNormalizationRepository(connection),
+            publication_repository=PsycopgPublicationRepository(connection),
             store=MemoryRawObjectStore(
                 now=lambda: datetime(2026, 8, 29, 4, 5, 6, tzinfo=UTC)
             ),

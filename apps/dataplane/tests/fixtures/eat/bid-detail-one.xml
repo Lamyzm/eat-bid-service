@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Root xmlns="http://www.nexacroplatform.com/platform/dataset">
+  <Dataset id="ds_info">
+    <ColumnInfo>
+      <Column id="ELCTRN_BID_NO" type="STRING"/>
+      <Column id="BID_NM" type="STRING"/>
+      <Column id="ELCTRN_BID_STT_NM" type="STRING"/>
+      <Column id="PURR_CD" type="STRING"/>
+      <Column id="PURR_NM" type="STRING"/>
+      <Column id="SIDO_CD" type="STRING"/>
+      <Column id="SIGUNGU_CD" type="STRING"/>
+      <Column id="PBANC_YMD" type="STRING"/>
+      <Column id="BID_END_DT" type="STRING"/>
+      <Column id="OPNG_DT" type="STRING"/>
+      <Column id="BGNG_PRC" type="STRING"/>
+      <Column id="ELCTRN_BID_PLNPRC" type="STRING"/>
+      <Column id="MAIN_ITEMS" type="STRING"/>
+    </ColumnInfo>
+    <Rows>
+      <Row>
+        <Col id="ELCTRN_BID_NO">E250617-472599-1</Col>
+        <Col id="BID_NM">비식별 급식 식재료 구매</Col>
+        <Col id="ELCTRN_BID_STT_NM">완료</Col>
+        <Col id="PURR_CD">153347</Col>
+        <Col id="PURR_NM">비식별 구매기관</Col>
+        <Col id="SIDO_CD">15</Col>
+        <Col id="SIGUNGU_CD">653</Col>
+        <Col id="PBANC_YMD">20250617</Col>
+        <Col id="BID_END_DT">20250619150000</Col>
+        <Col id="OPNG_DT">20250620103000</Col>
+        <Col id="BGNG_PRC">10000000</Col>
+        <Col id="ELCTRN_BID_PLNPRC">9990000</Col>
+        <Col id="MAIN_ITEMS">원본 분류 라벨</Col>
+      </Row>
+    </Rows>
+  </Dataset>
+  <Dataset id="ds_areaList">
+    <ColumnInfo><Column id="PDLC_CD" type="STRING"/></ColumnInfo>
+    <Rows><Row><Col id="PDLC_CD">15653</Col></Row></Rows>
+  </Dataset>
+</Root>

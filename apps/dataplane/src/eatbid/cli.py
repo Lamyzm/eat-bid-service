@@ -3,6 +3,7 @@ from collections.abc import Sequence
 
 COMMANDS = ("discover", "capture", "normalize", "validate", "project", "replay")
 CONFIGURATION_EXIT_CODE = 64
+DATA_QUARANTINED_EXIT_CODE = 65
 SOURCE_THROTTLED_EXIT_CODE = 75
 SOURCE_CONTRACT_EXIT_CODE = 76
 
@@ -25,7 +26,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def exit_code_for_error(error: Exception) -> int:
     from eatbid.pipeline.capture import SourceContractError, SourceThrottledError
+    from eatbid.pipeline.normalize import DataQuarantinedError
 
+    if isinstance(error, DataQuarantinedError):
+        return DATA_QUARANTINED_EXIT_CODE
     if isinstance(error, SourceThrottledError):
         return SOURCE_THROTTLED_EXIT_CODE
     if isinstance(error, SourceContractError):

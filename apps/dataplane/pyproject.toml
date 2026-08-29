@@ -9,6 +9,7 @@ description = "eatbid data-plane pipeline"
 requires-python = ">=3.12"
 dependencies = [
     "boto3>=1.40,<2",
+    "defusedxml>=0.7.1,<1",
     "httpx>=0.28,<1",
     "psycopg[binary]>=3.2,<4",
     "pydantic>=2.11,<3",

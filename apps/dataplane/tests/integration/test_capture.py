@@ -83,8 +83,7 @@ def test_same_body_is_one_blob_and_two_append_only_observations(
         cursor.execute(
             """
             select observation_id, run_id, request_unit_id, source, endpoint,
-                   request_params, fetched_at, http_status, content_sha256,
-                   parser_status
+                   request_params, fetched_at, http_status, content_sha256
             from ingest.raw_observation
             where run_id = %s
             order by observation_id
@@ -122,7 +121,7 @@ def test_same_body_is_one_blob_and_two_append_only_observations(
     ]
     assert all(row[1:5] == (request.run_id, request.request_unit_id, "eat", "bid-list") for row in observations)
     assert all(row[5] == {"page": "1", "지역": "서울"} for row in observations)
-    assert all(row[6:] == (FETCHED_AT, 200, digest, "pending") for row in observations)
+    assert all(row[6:] == (FETCHED_AT, 200, digest) for row in observations)
     assert request_row == (
         {"page": "1", "지역": "서울"},
         sha256('{"page":"1","지역":"서울"}'.encode()).hexdigest(),

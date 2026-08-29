@@ -71,7 +71,7 @@ describe("ingest identity", () => {
       "content_encoding",
       "stored_at",
     ]));
-    expect(columnNames(rawObservation)).toEqual(expect.arrayContaining([
+    expect(columnNames(rawObservation)).toEqual([
       "observation_id",
       "run_id",
       "request_unit_id",
@@ -81,11 +81,7 @@ describe("ingest identity", () => {
       "fetched_at",
       "http_status",
       "content_sha256",
-      "source_entity_id",
-      "schema_fingerprint",
-      "parser_status",
-      "quarantine_reason",
-    ]));
+    ]);
     expect(columnNames(normalizedRecord)).toEqual(expect.arrayContaining([
       "normalized_record_id",
       "observation_id",
@@ -162,8 +158,6 @@ describe("ingest identity", () => {
 
     expect(getTableConfig(ingestRun).columns.find((column) => column.name === "status")?.enumValues)
       .toEqual(["planned", "running", "failed", "validated", "published"]);
-    expect(getTableConfig(rawObservation).columns.find((column) => column.name === "parser_status")?.enumValues)
-      .toEqual(["pending", "normalized", "quarantined"]);
   });
 
   test("protects every count from negatives and ties publication state to its gate", () => {
@@ -181,7 +175,6 @@ describe("ingest identity", () => {
       "request_unit_observed_count_nonnegative",
     ]));
     expect(checkNames(rawBlob)).toContain("raw_blob_byte_length_nonnegative");
-    expect(checkNames(rawObservation)).toContain("raw_observation_parser_status_allowed");
     expect(checkNames(publication)).toEqual(expect.arrayContaining([
       "publication_status_allowed",
       "publication_expected_count_nonnegative",

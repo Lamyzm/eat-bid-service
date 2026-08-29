@@ -1,4 +1,5 @@
-from eatbid.cli import build_parser, main
+from eatbid.cli import build_parser, exit_code_for_error, main
+from eatbid.pipeline.normalize import DataQuarantinedError
 
 
 def test_cli_exposes_pipeline_commands() -> None:
@@ -27,3 +28,7 @@ def test_unwired_command_returns_configuration_exit_code() -> None:
             "v1",
         ]
     ) == 64
+
+
+def test_data_quarantine_has_its_dedicated_typed_exit_code() -> None:
+    assert exit_code_for_error(DataQuarantinedError(7, "invalid source payload")) == 65

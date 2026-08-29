@@ -171,11 +171,18 @@ raw/{source}/{endpoint}/{sha256}.xml.gz
 - `observation_id`, `run_id`, source, endpoint
 - 정규화한 request parameters, 요청/응답 시각, HTTP status
 - content hash, object key, byte length, compression
-- source entity identifier(알 수 있을 때), schema fingerprint
-- parser 상태/버전, quarantine reason
 
 처리 순서는 `HTTP response → hash → R2 write 확인 → observation commit → parse`다.
-파싱 실패는 raw를 잃지 않으며 quarantine으로 남는다.
+`raw_observation`은 불변 HTTP 증거이며 source entity ID, parser 상태, schema fingerprint,
+quarantine reason을 소유하지 않는다. parser 해석은 processing run별
+`normalization_attempt(run_id, observation_id, parser_version)`에 append한다. 성공 attempt의
+exact output은 `normalization_attempt_record`로 연결하고, 격리는 bounded reason을 남긴다.
+파싱 실패도 raw를 잃거나 과거 attempt를 덮어쓰지 않는다.
+
+capture/backfill은 자기 run의 observation만 처리한다. replay는 새 HTTP observation을 만들거나
+원래 `run_id`를 바꾸지 않고 `replay_input` manifest로 기존 evidence를 참조한다. 같은 parser의
+deterministic normalized record는 여러 attempt가 재사용할 수 있고, 새 parser는 독립 key와
+attempt를 만든다.
 
 소스 엔터티 내용이 변할 때만 새 `AuctionRevision`을 만든다. revision은 observation과 parser
 버전을 가리키고, 현행 뷰는 검증된 최신 revision을 선택한다. 이 선택은 이력 삭제가 아니다.
@@ -184,10 +191,14 @@ raw/{source}/{endpoint}/{sha256}.xml.gz
 
 - 수집 실행은 요청 단위 계획과 기대 `TOT_CNT`를 먼저 기록한다.
 - 관측 중복 방지 키와 source entity/revision content hash unique constraint를 DB로 강제한다.
-- 모든 요청 단위가 검증된 뒤에만 publication을 활성화한다.
+- 모든 요청 단위와 current run/parser의 final normalization attempt를 검증한 뒤에만
+  publication을 `validated`로 만든다.
+- 검증된 exact normalized record ID는 `publication_record`에 동결하며 projector는 이
+  manifest만 소비한다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
 - mart는 영향받은 partition/cohort를 새 build ID로 만든 뒤 원자적으로 활성화한다.
-- 재처리는 raw observation 집합과 parser/projector version을 명시한다.
+- 재처리는 `replay_input`의 raw observation 집합과 processing parser/projector version을
+  명시한다.
 
 ## 7. 분석 모델
 

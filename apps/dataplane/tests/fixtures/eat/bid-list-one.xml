@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Root xmlns="http://www.nexacroplatform.com/platform/dataset">
+  <Dataset id="ds_list">
+    <ColumnInfo>
+      <Column id="TOT_CNT" type="STRING"/>
+      <Column id="ETN_BID_ID" type="STRING"/>
+    </ColumnInfo>
+    <Rows>
+      <Row><Col id="TOT_CNT">1</Col><Col id="ETN_BID_ID">5610615</Col></Row>
+    </Rows>
+  </Dataset>
+</Root>

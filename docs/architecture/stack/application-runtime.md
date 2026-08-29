@@ -14,7 +14,8 @@ and db, and 5.9.3 for server and shared; web declares an exact `5.7.2`, while th
 others declare `^5.7.0`. Server Nest `^11.0.0` resolves core 11.2.3 (along with its
 common/platform packages). The dataplane requires Python `>=3.12`; `pyproject.toml`
 ranges and `uv.lock` resolve Pydantic
-2.13.5, httpx 0.28.1, psycopg 3.3.4, pytest 9.1.1, Ruff 0.16.5, and Pyright 1.1.411.
+2.13.5, defusedxml 0.7.1, httpx 0.28.1, psycopg 3.3.4, pytest 9.1.1,
+Ruff 0.16.5, and Pyright 1.1.411.
 
 The root `test` script runs Bun without a repository declaration or lock entry for
 the Bun executable. The present lockfiles also do not establish a deployment runtime
@@ -34,6 +35,7 @@ image digest. These are separate from ordinary dependency lockfile pinning.
 | Python | dataplane `requires-python >=3.12`; no exact interpreter pin | [Python status](https://devguide.python.org/versions/) | Required before production | Select and test one supported CPython image; review when that minor reaches security-only/EOL or a base image changes. |
 | uv | `uv.lock` format is committed but no tool version declaration | [uv releases](https://github.com/astral-sh/uv/releases) | Required before production | Pin the resolver executable in CI/image metadata; review whenever it rewrites the lockfile or changes lock format. |
 | Pydantic | `>=2.11,<3`; `uv.lock` 2.13.5 | [Pydantic releases](https://github.com/pydantic/pydantic/releases) | Adopted | Dataplane normalization contract; review before any 3.x proposal or a validator/JSON Schema compatibility failure. |
+| defusedxml | `>=0.7.1,<1`; `uv.lock` 0.7.1 (stable) | [Python XML security guidance](https://docs.python.org/3.12/library/xml.html#xml-vulnerabilities), [defusedxml 0.7.1 release](https://pypi.org/project/defusedxml/0.7.1/) | Adopted | Python recommends defusedxml for server code parsing untrusted XML. The eaT boundary forbids DTDs, entities, and external references and tests each class. Review on the next stable major release, a security advisory, or a parser-behavior change; prereleases alone do not change the pin. |
 | httpx | `>=0.28,<1`; `uv.lock` 0.28.1 | [httpx releases](https://github.com/encode/httpx/releases) | Adopted | Source HTTP client; review for a transport/TLS advisory or retry/capture semantics change. |
 | pytest | `>=8.4,<10`; `uv.lock` 9.1.1 | [pytest releases](https://github.com/pytest-dev/pytest/releases) | Adopted | Dataplane test runner; review before 10.x or plugin incompatibility. |
 | Ruff | `>=0.12,<1`; `uv.lock` 0.16.5 | [Ruff releases](https://github.com/astral-sh/ruff/releases) | Adopted | Dataplane lint gate; review before 1.x or a rule-set change that alters CI output. |

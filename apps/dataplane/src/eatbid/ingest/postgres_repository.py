@@ -171,8 +171,8 @@ class PsycopgObservationRepository:
                 """
                 insert into ingest.raw_observation (
                     run_id, request_unit_id, source, endpoint, request_params,
-                    fetched_at, http_status, content_sha256, parser_status
-                ) values (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
+                    fetched_at, http_status, content_sha256
+                ) values (%s, %s, %s, %s, %s, %s, %s, %s)
                 returning observation_id
                 """,
                 (

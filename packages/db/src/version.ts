@@ -1,4 +1,4 @@
-export const expectedMigration = "20260829001500_core_validity_constraints" as const;
+export const expectedMigration = "20260829002000_ingest_lineage_manifests" as const;
 
 export function migrationNameTimestamp(name: string): number {
   const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name);

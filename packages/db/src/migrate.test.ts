@@ -109,8 +109,8 @@ describe("schema journal", () => {
       assertSchemaVersion(
         journalDatabase({
           id: 3,
-          name: "20260829001000_core_identity",
-          created_at: Date.UTC(2026, 7, 29, 0, 10, 0),
+          name: "20260829001500_core_validity_constraints",
+          created_at: Date.UTC(2026, 7, 29, 0, 15, 0),
         }),
         expectedMigration,
       ),
@@ -135,8 +135,8 @@ describe("schema journal", () => {
       assertSchemaVersion(
         journalDatabase({
           id: 5,
-          name: "20260829002000_unknown_future",
-          created_at: Date.UTC(2026, 7, 29, 0, 20, 0),
+          name: "20260829002500_unknown_future",
+          created_at: Date.UTC(2026, 7, 29, 0, 25, 0),
         }),
         expectedMigration,
       ),
@@ -148,7 +148,7 @@ describe("schema journal", () => {
       assertSchemaVersion(
         journalDatabase({
           id: 5,
-          name: "20260829001500_wrong_name",
+          name: "20260829002000_wrong_name",
           created_at: expectedMigrationTimestamp,
         }),
         expectedMigration,
