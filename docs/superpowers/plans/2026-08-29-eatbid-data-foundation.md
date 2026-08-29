@@ -1494,38 +1494,64 @@ git commit -m "ci: verify and build one-sha product images"
 
 **Files:**
 - Create: `infra/platform/argo-workflows.application.yaml`
-- Create: `infra/product/kustomization.yaml`
+- Create: `infra/product/migration.yaml`
 - Create: `infra/product/workflows/serviceaccount.yaml`
 - Create: `infra/product/workflows/semaphore.yaml`
 - Create: `infra/product/workflows/workflow-template.yaml`
 - Create: `infra/product/workflows/poll-open.yaml`
 - Create: `infra/product/workflows/daily-reconcile.yaml`
 - Create: `infra/product/workflows/kustomization.yaml`
-- Create: `infra/tests/conftest.py`
+- Create: `infra/product/patches/legacy-cronjobs.delete.yaml`
+- Create: `infra/product/patches/postgres-secret-env.patch.yaml`
+- Create: `infra/product/patches/server-secret-env.patch.yaml`
+- Create: `infra/product/secret-contract.md`
 - Create: `infra/tests/test_workflow_contract.py`
-- Modify: `infra/argocd/application.yaml`
+- Modify: `infra/product/kustomization.yaml`
+- Modify: `infra/tests/conftest.py`
+- Modify: `.github/workflows/build.yml`
+- Modify: `infra/tests/test_build_contract.py`
+- Do not modify: `infra/argocd/application.yaml`
 
 **Interfaces:**
-- Consumes: digest-pinned dataplane image and `eatbid` CLI.
-- Produces: `WorkflowTemplate/eatbid-dataplane`, `CronWorkflow/eatbid-poll-open`, `CronWorkflow/eatbid-daily-reconcile`.
+- Consumes: digest-pinned dataplane/migration images, current `eatbid` CLI commands, PostgreSQL/R2 Secret contracts.
+- Produces: a **dormant, renderable target composition** with one migration PreSync Job,
+  `WorkflowTemplate/eatbid-dataplane`, and two suspended CronWorkflows.
+- Does not switch the live Argo CD Application from `infra/k8s/base`, install CRDs, create Secrets,
+  unsuspend schedules, submit workflows, or mutate the user-owned local cluster.
 
 - [ ] **Step 1: workflow contract 실패 테스트 작성**
 
 `infra/tests/conftest.py`에서 `kubectl kustomize infra/product` 출력을 `yaml.safe_load_all`로 읽어
-`ManifestSet.workflow_template(name)`, `ManifestSet.kinds`를 제공하는 `manifests` fixture를 만든다.
-WorkflowTemplate wrapper는 DAG task 이름, synchronization semaphore ConfigMap key, project template의
-mutex name을 그대로 노출한다.
+기존 fixture를 확장한다. `ManifestSet.workflow_template(name)`, `ManifestSet.kinds`, workload image,
+Secret ref, hook, CronWorkflow suspend/timezone/template-ref를 구조적으로 조회한다. source YAML grep가
+아니라 최종 render를 검증해야 `../k8s/base`의 transitive CronJob과 delete patch를 모두 본다.
 
 ```python
-def test_workflow_has_one_source_semaphore_and_publish_mutex(manifests) -> None:
+def test_target_composition_is_dormant_and_uses_current_cli(manifests) -> None:
     template = manifests.workflow_template("eatbid-dataplane")
     assert template.semaphore_key == "eatbid-source-limit"
     assert template.project_mutex == "eatbid-core-publication"
     assert template.entrypoint_steps == [
-        "discover", "capture", "normalize", "validate", "project", "build-marts", "verify"
+        "discover", "capture", "normalize", "validate", "project"
     ]
     assert "CronJob" not in manifests.kinds
+    assert all(workflow.suspend is True for workflow in manifests.cron_workflows)
 ```
+
+추가 계약은 다음을 고정한다.
+
+- product render에는 WorkflowTemplate 1, CronWorkflow 2, migration Job 1이 있고 native CronJob/hostPath는 0이다.
+- base render에는 기존 CronJob 4개가 그대로 남는다. 즉 이 Task가 live base를 몰래 바꾸지 않는다.
+- 두 CronWorkflow는 `Asia/Seoul`, `suspend: true`, 같은 WorkflowTemplate을 참조한다.
+- DAG command는 `apps/dataplane/src/eatbid/cli.py::COMMANDS`에 실제 존재하는 다섯 단계와 정확히 같다.
+- `build-marts`, `verify`, 자동 retry exit `74`는 구현 전이므로 manifest에 없다.
+- replay/backfill은 schedule 없이 별도 manual template entrypoint다.
+- source semaphore capacity는 1, project mutex는 `eatbid-core-publication`이다.
+- 모든 dataplane step은 같은 digest를 쓰며 dedicated ServiceAccount와 Secret refs만 사용한다.
+- migration Job은 exact migration digest, Argo CD `PreSync`, finite deadline/backoff, Secret `DATABASE_URL`을 쓴다.
+- product image 선언/소비/CI promotion 대상은 web/server/dataplane/migration 정확히 네 개다.
+- product render에는 literal PostgreSQL URL/password가 없다.
+- 기존 `infra/argocd/application.yaml`은 계속 `infra/k8s/base`를 가리킨다.
 
 - [ ] **Step 2: manifests가 없어 실패하는지 확인**
 
@@ -1537,30 +1563,53 @@ Expected: FAIL because product WorkflowTemplate is absent.
 
 Helm repository `https://argoproj.github.io/argo-helm`, chart `argo-workflows`, chart version `1.0.23`을
 pin한다. controller는 `eatbid` namespace workflow만 실행하고 server/UI는 disabled, workflow archive,
-Argo Events, bundled MinIO는 disabled다. CRD는 full validation과 keep policy를 사용한다.
+Argo Events, bundled MinIO는 disabled다. CRD는 full validation과 keep policy를 사용한다. 이 파일은
+platform 설치 선언일 뿐 기존 product Application의 resource/path에 연결하지 않는다.
 
-- [ ] **Step 4: product WorkflowTemplate 구현**
+- [ ] **Step 4: Secret 계약과 migration hook 구현**
 
-모든 step은 같은 digest-pinned dataplane image를 쓰고 artifact는 run/observation ID로 전달한다.
-source semaphore ConfigMap 값은 `1`, project step mutex는 `eatbid-core-publication`이다.
-retryStrategy는 transient exit 74만 최대 3회 exponential backoff하고 64/65/75/76은 재시도하지 않는다.
+`infra/product/secret-contract.md`에는 실제 값이 아니라 필요한 Secret 이름/key/소비자/주입 책임만
+기록한다. DB, R2, auth/share/tunnel, GHCR pull 계약을 포함한다. base의 literal PostgreSQL password와
+server `DATABASE_URL`은 product overlay에서 Secret ref로 patch한다.
 
-- [ ] **Step 5: 두 CronWorkflow 구현**
+`infra/product/migration.yaml`은 `eatbid-migration` 이미지를 쓰는 Argo CD `PreSync` Job이다.
+`DATABASE_URL`은 Secret ref, `restartPolicy: Never`, finite `activeDeadlineSeconds`/`backoffLimit`을 갖는다.
+Task 11 CI promotion이 네 번째 migration digest도 product kustomization에서 실제 pin하도록 수정한다.
+
+- [ ] **Step 5: dormant WorkflowTemplate 구현**
+
+모든 step은 같은 digest-pinned dataplane image를 쓰고 대용량 artifact payload가 아니라 run/observation
+ID만 parameter로 전달한다. durable state는 PostgreSQL/R2다. source semaphore ConfigMap 값은 `1`,
+project step mutex는 `eatbid-core-publication`이다. scheduled DAG는 정확히
+`discover → capture → normalize → validate → project`다. `replay`는 자체 normalize/validate/project
+흐름을 소유하는 별도 수동 entrypoint다.
+
+현 CLI가 정의한 exit code는 64/65/75/76뿐이고 모든 command가 현재 64를 반환하는 placeholder다.
+따라서 이 Task는 거짓 transient `74` retry 정책을 추가하지 않는다. transient category가 Task 13 이후
+구현되고 동작 테스트가 생긴 뒤에만 bounded retry를 도입한다.
+
+- [ ] **Step 6: suspended CronWorkflow와 legacy delete overlay 구현**
 
 `poll-open`은 평일 `Asia/Seoul` 08:00–19:59에 30분 간격, `daily-reconcile`은 매일 07:00에
 실행한다. 두 schedule은 동일 template을 `mode` parameter만 달리 호출한다. backfill/replay에는
-schedule을 만들지 않고 운영자가 WorkflowTemplate을 제출한다.
+schedule을 만들지 않고 운영자가 WorkflowTemplate을 제출한다. 두 CronWorkflow는 반드시
+`spec.suspend: true`로 커밋한다. Task 13이 production composition root를 완성하고 manual run evidence를
+만들기 전에는 활성화하지 않는다.
 
-- [ ] **Step 6: 렌더·정책 테스트**
+product overlay는 기존 `../k8s/base`를 임시로 포함하되 `daily-refresh`, `poll-open-day`,
+`poll-open-off`, `poll-open-weekend` 네 CronJob을 delete patch로 제거한다. live base 파일은 변경하지 않는다.
+
+- [ ] **Step 7: 렌더·정책 테스트**
 
 Run: `kubectl kustomize infra/product > $null; python -m pytest infra/tests/test_workflow_contract.py -q`
 
-Expected: Kustomize exit 0; WorkflowTemplate/CronWorkflow contract PASS; native CronJob 0.
+Expected: Kustomize exit 0; exact WorkflowTemplate/CronWorkflow/migration/Secret/image contracts PASS;
+product native CronJob/hostPath/literal credential 0; base legacy CronJob 4.
 
-- [ ] **Step 7: 커밋**
+- [ ] **Step 8: 커밋**
 
 ```bash
-git add infra/platform infra/product infra/argocd/application.yaml infra/tests
+git add .github/workflows/build.yml infra/platform infra/product infra/tests
 git commit -m "ops: run dataplane with Argo Workflows"
 ```
 
@@ -1648,9 +1697,12 @@ Run: `pnpm test && pnpm build`
 
 Run: `cd apps/dataplane && uv run pytest --cov=eatbid --cov-fail-under=90 -q && uv run ruff check src tests && uv run pyright src`
 
-Run: `kubectl kustomize infra/product > $null && git grep -n "kind: CronJob" -- infra/product`
+Run: render `kubectl kustomize infra/product` once, parse every YAML document, and assert the rendered
+kind set contains no `CronJob` and no pod spec contains `hostPath` or literal PostgreSQL credentials.
 
-Expected: TS/Python build/tests PASS, dataplane coverage at least 90%, Kustomize exit 0, final grep has no matches.
+Expected: TS/Python build/tests PASS, dataplane coverage at least 90%, Kustomize exit 0, rendered policy
+assertions PASS. Source grep is not evidence because `infra/product` imports `../k8s/base` transitively and
+relies on delete patches.
 
 - [ ] **Step 6: architecture conformance 확인**
 
@@ -1664,6 +1716,47 @@ Expected: no matches.
 git add apps/dataplane docs/operations docs/architecture/runtime-and-deployment.md
 git commit -m "test: prove replayable data foundation slice"
 ```
+
+---
+
+### Task 14: canonical 행정구역·시간축·좌표·market mart foundation
+
+이 Task는 Task 13의 수직 슬라이스가 통과한 뒤 별도 상세 TDD plan/리뷰로 실행한다. 2026-08-29
+legacy `/api/market?category=축산` 실측은 225행 중 66행이 좌표와 매칭되지 않았고, 그중 64행은
+`시도 미상|시군구`, 2행은 인천 행정구역/2017 좌표 스냅샷의 시간축 불일치였다. 이는 프론트 좌표표
+누락이 아니라 upstream identity 유실이다.
+
+**Required design:**
+
+- 내부 `administrative_area_id bigint`와 MOIS/source별 `CodeValue`를 연결한다.
+- 부모/자식 행정구역 계층, 유효기간, 개편 전후 `successor/overlaps` 관계를 근거와 함께 보존한다.
+- 중심좌표는 area의 영구 속성으로 덮어쓰지 않고 source, evidence, observed/effective time,
+  coordinate reference system, derivation method, review status가 있는 observation으로 관리한다.
+- market mart grain은 문자열 `(sido, sigungu, category)`가 아니라
+  `(mart_build_id, administrative_area_id, taxonomy_term_id)`다.
+- `시도 미상` legacy aggregate를 이름만 보고 추정하지 않는다. auction revision의 eaT location code,
+  구매기관의 검증된 identifier, reviewed code mapping으로 재구축하며 근거가 없으면 quarantine한다.
+- 현재 `apps/web/src/lib/region-coords.ts`는 새 API cutover 전까지 legacy adapter일 뿐 SSOT가 아니다.
+- 중심점 반환만 필요한 단계에서는 numeric latitude/longitude로 시작한다. 경계 포함, 반경, 공간조인
+  요구와 실행계획 증거가 생기기 전에는 PostGIS를 추가하지 않는다.
+
+**Acceptance boundary:**
+
+- canonical/mart 관계와 API payload에는 지역명 합성키가 없다.
+- 행정구역 개편 전후 snapshot을 같은 현재 좌표로 덮어쓰지 않는다.
+- ambiguous label-only input은 deterministic quarantine이고 `북구` 같은 값을 임의 시도에 배정하지 않는다.
+- 같은 source release/evidence/computation version으로 mart rebuild 결과가 동일하다.
+- legacy market의 66행은 근거 기반 canonical area로 복구되거나 명시적 unresolved evidence로 집계되며,
+  UI에서 조용히 사라지지 않는다.
+
+---
+
+### Task 15: 사용자와 공동 프론트 기획 gate
+
+Task 14까지 완료된 후 시작한다. 이 Task는 자동 구현 단계가 아니다. 사용자와 함께 화면 목표,
+입찰분석 의사결정 흐름, 정보 우선순위, canonical URL/API ID, 지역/학교/기관 탐색, 시장 지도,
+source-observed 대 inferred 표기를 먼저 기획하고 승인된 spec을 만든다. **사용자 승인 전에는 프론트
+코드, route, API response shape, 디자인 시스템을 변경하지 않는다.**
 
 ---
 
@@ -1683,6 +1776,8 @@ git commit -m "test: prove replayable data foundation slice"
 - 빈 PostgreSQL이 committed Drizzle migration만으로 생성된다.
 - web/server/dataplane/migration image가 한 Git SHA와 immutable digest를 가진다.
 - Argo Workflows만 dataplane을 예약하며 product manifests에 native CronJob이 없다.
+- market/geography 관계는 canonical 행정구역 bigint와 evidence-backed valid time을 쓰며 ambiguous
+  label-only 입력을 임의 좌표에 붙이지 않는다.
 - 기존 legacy reader/writer는 아직 제거하지 않지만 새 foundation에 dual-write하지 않는다.
 
 Foundation 완료 뒤 canonical domain expansion 계획은 실제 quarantine/code coverage 보고서를 입력으로
