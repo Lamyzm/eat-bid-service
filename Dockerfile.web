@@ -1,26 +1,33 @@
-FROM node:24-slim AS build
+FROM node:24-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS build
+
 RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
-WORKDIR /app
-COPY pnpm-workspace.yaml package.json turbo.json tsconfig.json ./
-COPY pnpm-lock.yaml* ./
+WORKDIR /workspace
+
+COPY pnpm-workspace.yaml package.json turbo.json tsconfig.json pnpm-lock.yaml ./
 COPY packages ./packages
 COPY apps/web ./apps/web
-RUN pnpm install
+
+RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @eatbid/shared build
 ENV BUILD_STANDALONE=true
 RUN pnpm --filter @eatbid/web build
 
-FROM node:24-slim
-# 배포된 이미지가 방금 만든 코드인지 확인하는 스탬프. 도커 다이제스트는 계산
-# 방식이 달라(config vs manifest) 로컬과 파드가 항상 불일치하므로 대조에 못 쓴다.
-# 이 값은 프록시가 아니라 답이다 — 빌드가 실패했든, 성공했지만 컨텍스트가
-# 오염됐든, import 가 no-op 이었든 스탬프가 안 맞는다.
+FROM node:24-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS runtime
+
 ARG GIT_SHA=unknown
-ENV BUILD_SHA=$GIT_SHA
+LABEL org.opencontainers.image.revision=$GIT_SHA
+ENV BUILD_SHA=$GIT_SHA \
+    NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
 WORKDIR /app
-ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
-COPY --from=build /app/apps/web/.next/standalone ./
-COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=build /app/apps/web/public ./apps/web/public
+
+RUN groupadd --system --gid 1001 eatbid \
+    && useradd --system --uid 1001 --gid eatbid eatbid
+COPY --from=build --chown=eatbid:eatbid /workspace/apps/web/.next/standalone ./
+COPY --from=build --chown=eatbid:eatbid /workspace/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=eatbid:eatbid /workspace/apps/web/public ./apps/web/public
+
+USER eatbid
 EXPOSE 3000
 CMD ["node", "apps/web/server.js"]

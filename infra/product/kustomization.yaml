@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../k8s/base
+
+# Task 11 pins only images consumed by the current product manifests. The migration
+# image is built from the same Git SHA and will be referenced by the migration hook.
+images:
+  - name: eatbid-web
+    newName: ghcr.io/lamyzm/eatbid-web
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: eatbid-server
+    newName: ghcr.io/lamyzm/eatbid-server
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: eatbid-dataplane
+    newName: ghcr.io/lamyzm/eatbid-dataplane
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
