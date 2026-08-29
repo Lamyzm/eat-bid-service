@@ -47,7 +47,8 @@
 | `apps/dataplane/src/eatbid/cli.py` | 여섯 command의 composition root와 typed exit mapping |
 | `apps/dataplane/src/eatbid/object_store.py` | raw object store port와 content-addressed key 규칙 |
 | `apps/dataplane/src/eatbid/r2_store.py` | R2 S3 adapter |
-| `apps/dataplane/src/eatbid/ingest/repository.py` | run/request/blob/observation/publication DB adapter |
+| `apps/dataplane/src/eatbid/ingest/*_repository.py` | focused run/observation/normalization/publication/replay ports와 psycopg adapters |
+| `apps/dataplane/src/eatbid/core/` | canonical projection records, port, psycopg adapter |
 | `apps/dataplane/src/eatbid/source/eat/` | eaT transport, Pydantic payload, normalize adapter |
 | `apps/dataplane/src/eatbid/pipeline/` | capture/validate/project/replay use cases |
 | `apps/dataplane/tests/unit/` | network/DB 없는 결정적 단위 테스트 |
@@ -58,7 +59,7 @@
 | `packages/db/src/migrate.ts` | migration CLI와 schema version 확인 |
 | `infra/platform/argo-workflows.application.yaml` | Argo Workflows controller/CRD Helm application |
 | `infra/product/workflows/` | WorkflowTemplate, semaphore, service account, schedules |
-| `.github/workflows/build.yml` | TS/Python test, migration check, 세 image build와 digest 갱신 |
+| `.github/workflows/build.yml` | TS/Python test, migration check, web/server/dataplane/migration 네 image build와 digest 갱신 |
 
 ---
 
@@ -542,11 +543,9 @@ class StoredRawObject:
 
 
 class RawObjectStore(Protocol):
-    def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
-        raise NotImplementedError
+    def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject: ...
 
-    def read(self, object_key: str) -> bytes:
-        raise NotImplementedError
+    def read(self, object_key: str) -> bytes: ...
 ```
 
 SHA-256은 HTTP response body 원본 bytes에 계산한다. gzip은 `mtime=0`으로 만들고 key는
@@ -826,7 +825,7 @@ Pydantic validation, normalization, canonical JSON round-trip 어디에서도 �
 `TOT_CNT`는 nonnegative decimal text만 받고, page 안의 빈/중복 ID와
 `len(external_bid_ids) > total_count`를 contract error로 처리한다. 이 task는
 list parser 계약까지만 소유하며 pagination/network planning은 production eaT adapter를
-조립하는 Task 12에서 이 계약을 소비한다.
+조립하는 Task 13에서 이 계약을 소비한다.
 
 `xml.py`는 외부 응답을 untrusted input으로 취급한다. Python 문서가 권고하는
 `defusedxml.ElementTree` stable `>=0.7.1,<1`을 사용하고 DTD, entity, external
@@ -1034,115 +1033,398 @@ git commit -m "feat: validate typed eaT observations"
 
 ---
 
-### Task 9: canonical projector와 deterministic replay
+### Task 9: canonical projection schema와 atomic projector
 
 **Files:**
+- Modify: `packages/db/src/schema/core/codes.ts`
+- Modify: `packages/db/src/schema/core/organizations.ts`
+- Modify: `packages/db/src/schema/core/procurement.ts`
+- Modify: `packages/db/src/schema/core/index.ts`
+- Modify: `packages/db/src/schema/core/canonical.test.ts`
+- Modify: `packages/db/src/schema/ingest/publication.ts`
+- Modify: `packages/db/src/schema/ingest/run.ts`
+- Modify: `packages/db/src/schema/ingest.test.ts`
+- Modify: `packages/db/src/version.ts`
+- Modify: `packages/db/src/version.test.ts`
+- Modify: `packages/db/src/migrate.test.ts`
+- Create: `packages/db/drizzle/20260829002500_core_projection_lineage/migration.sql` (generated)
+- Create: `packages/db/drizzle/20260829002500_core_projection_lineage/snapshot.json` (generated)
+- Create: `apps/dataplane/src/eatbid/core/__init__.py`
+- Create: `apps/dataplane/src/eatbid/core/models.py`
 - Create: `apps/dataplane/src/eatbid/core/repository.py`
+- Create: `apps/dataplane/src/eatbid/core/postgres_repository.py`
 - Create: `apps/dataplane/src/eatbid/pipeline/project.py`
-- Create: `apps/dataplane/src/eatbid/pipeline/replay.py`
+- Modify: `apps/dataplane/src/eatbid/ingest/postgres_publication_repository.py`
+- Create: `apps/dataplane/tests/unit/test_project.py`
 - Create: `apps/dataplane/tests/integration/test_project.py`
-- Create: `apps/dataplane/tests/integration/test_replay.py`
-- Modify: `apps/dataplane/src/eatbid/cli.py`
+- Modify: `apps/dataplane/tests/integration/test_normalize_validate.py`
+- Modify: `apps/dataplane/tests/integration/conftest.py`
+- Create: `docs/adr/0015-canonical-projection-lineage.md`
+- Modify: `docs/adr/README.md`
+- Modify: `docs/architecture/domain-and-data.md`
 
 **Interfaces:**
-- Consumes: validated `publication_id`, normalized records, code registry.
-- Produces: `ProjectResult(publication_id, attempts_inserted, revisions_inserted, organizations_inserted)` and replay run.
+- Consumes: one locked `publication.status='validated'`; only its frozen
+  `publication_record` members; strict `NormalizedAuction` payloads; reviewed code schemes.
+- Produces: append-only canonical revisions with direct `normalized_record_id` lineage,
+  revision-scoped bigint organization/code relations, and an atomic published marker with a
+  persisted deterministic fingerprint.
+- `core/repository.py` owns ports and immutable records only. `core/postgres_repository.py` owns
+  psycopg SQL. Source/Pydantic decoding stays in `pipeline/project.py` and is injected as a pure
+  `ProjectionFactory`; the PostgreSQL adapter does not import eaT payload models.
 
-- [ ] **Step 1: projector 멱등성 실패 테스트 작성**
+- [ ] **Step 1: canonical projection DDL의 실패 테스트 작성**
+
+Drizzle metadata tests first require the following exact target.
+
+- `core.auction_attempt` identity is only `(source_system, external_bid_id)`; display number is
+  not stored on the identity row.
+- `core.auction_revision` adds nullable `display_bid_no` and non-null
+  `normalized_record_id → ingest.normalized_record`; one normalized record can create at most one
+  revision. The old `(auction_attempt_id, content_sha256)` uniqueness is replaced so a new parser
+  interpretation of the same raw bytes can be an independent canonical revision.
+- `core.auction_organization` is revision-scoped: composite PK
+  `(auction_revision_id, organization_id, role)`, not an unversioned attempt relation.
+- new `core.auction_revision_code_value(auction_revision_id, code_value_id, role)` has a composite
+  PK and roles `location_sido|location_sigungu|eligibility_area`.
+- `organization.canonical_name` is nullable and `type='unknown'` is allowed. Source `PURR_NM` is
+  evidence in `code_label_observation`, not an unreviewed canonical identity/name decision.
+- `code_label_observation` is idempotent at
+  `(code_value_id, label, language, observation_id)`.
+- `ingest.publication` adds nullable lowercase-SHA-256 `canonical_fingerprint` and non-empty
+  `projector_version`; they are required only for `published`. Non-published rows keep activation,
+  published count, fingerprint and projector version empty/zero.
+- `ingest.run` DB checks require failed/published terminal metadata and make published count equal
+  expected count.
+
+Run: `pnpm --filter @eatbid/db exec bun test src/schema/core/canonical.test.ts src/schema/ingest.test.ts src/version.test.ts src/migrate.test.ts`
+
+Expected: FAIL because projection lineage columns/table and migration version do not exist.
+
+- [ ] **Step 2: focused Drizzle modules와 generated migration 구현**
+
+DDL은 위 네 focused modules에서만 작성한다. `20260829002000_ingest_lineage_manifests`와 그 이전
+migration은 수정하지 않는다. Drizzle Kit으로 새 migration/snapshot을 생성하고 exact directory를
+`20260829002500_core_projection_lineage`로 고정한다. generated SQL은 old auction uniqueness/columns를
+명시적으로 전환하고 새 FK/check/unique를 만들어야 한다. handwritten DDL과 Python DDL은 금지한다.
+
+Run: `pnpm --filter @eatbid/db db:generate && pnpm --filter @eatbid/db db:check`
+
+Expected: reviewed migration 생성 후 두 번째 generate는 `No schema changes, nothing to migrate`.
+
+- [ ] **Step 3: projector API와 결정적 fingerprint 실패 테스트 작성**
 
 ```python
-from eatbid.pipeline.project import project_publication
+from eatbid.pipeline.project import ProjectionFingerprintItem, canonical_projection_fingerprint, project_publication
 
 
-def test_projecting_same_observation_twice_adds_no_revision(migrated_db, validated_publication) -> None:
-    first = project_publication(migrated_db, validated_publication)
-    second = project_publication(migrated_db, validated_publication)
-    assert first.attempts_inserted == 1
-    assert first.revisions_inserted == 1
-    assert second.attempts_inserted == 0
-    assert second.revisions_inserted == 0
-```
-
-- [ ] **Step 2: replay 결정성 실패 테스트 작성**
-
-```python
-from eatbid.pipeline.replay import replay_observations
+def test_projection_fingerprint_is_order_independent() -> None:
+    items = (
+        ProjectionFingerprintItem("eat", "01", "a" * 64, "eat-v1", "b" * 64),
+        ProjectionFingerprintItem("eat", "02", "c" * 64, "eat-v1", "d" * 64),
+    )
+    assert canonical_projection_fingerprint(items) == (
+        "1875975d824d5ed54a1740ca089219e8712e5eb8fc9cc12a4c616c73f78e7041"
+    )
 
 
-def test_replay_same_raw_and_version_has_same_fingerprint(pipeline_services, observation_id) -> None:
-    first = replay_observations(pipeline_services, [observation_id], parser_version="eat-v1")
-    second = replay_observations(pipeline_services, [observation_id], parser_version="eat-v1")
+def test_projecting_same_publication_twice_is_idempotent(
+    pipeline_services, validated_publication
+) -> None:
+    first = project_publication(
+        publication_id=validated_publication,
+        projector_version="a" * 64,
+        activated_at=ACTIVATED_AT,
+        repository=pipeline_services.projection_repository,
+    )
+    second = project_publication(
+        publication_id=validated_publication,
+        projector_version="a" * 64,
+        activated_at=ACTIVATED_AT + timedelta(hours=1),
+        repository=pipeline_services.projection_repository,
+    )
     assert first.canonical_fingerprint == second.canonical_fingerprint
+    assert first.auction_revisions_inserted == 1
+    assert second.auction_revisions_inserted == 0
 ```
 
-- [ ] **Step 3: tests가 missing implementation으로 실패하는지 확인**
+Hypothesis permutes two or more hand-built projection items and proves that sorted canonical JSON
+produces the same fingerprint. The tuple hashed for each member is exactly
+`(source_system, external_bid_id, raw_content_sha256, parser_version,
+normalized_payload_sha256)`; bigint IDs and row order never enter the digest.
 
-Run: `cd apps/dataplane && uv run pytest tests/integration/test_project.py tests/integration/test_replay.py -q`
+Run: `cd apps/dataplane && uv run pytest tests/unit/test_project.py tests/integration/test_project.py -q`
 
-Expected: FAIL on missing project/replay imports.
+Expected: FAIL on missing core/project modules, not fixture wiring.
 
-- [ ] **Step 4: projector transaction 구현**
+- [ ] **Step 4: strict projection factory와 focused port 구현**
 
 ```python
-from dataclasses import dataclass
-from uuid import UUID
+@dataclass(frozen=True, slots=True)
+class ProjectionFingerprintItem:
+    source_system: str
+    external_bid_id: str
+    raw_content_sha256: str
+    parser_version: str
+    normalized_payload_sha256: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
+class ExternalCodeRef:
+    namespace: str
+    code: str
+    role: str
+
+
+@dataclass(frozen=True, slots=True)
+class AuctionProjection:
+    normalized_record_id: int
+    observation_id: int
+    source_system: str
+    endpoint: str
+    parser_version: str
+    raw_content_sha256: str
+    normalized_payload_sha256: str
+    external_bid_id: str
+    display_bid_no: str | None
+    organization_code: str
+    organization_label: str
+    code_refs: tuple[ExternalCodeRef, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ProjectResult:
     publication_id: UUID
-    attempts_inserted: int
-    revisions_inserted: int
+    members_projected: int
+    auction_attempts_inserted: int
+    auction_revisions_inserted: int
     organizations_inserted: int
+    code_values_inserted: int
+    code_labels_inserted: int
+    relationships_inserted: int
     canonical_fingerprint: str
 ```
 
-한 transaction에서 다음 순서를 지킨다.
+`pipeline/project.py` recanonicalizes PostgreSQL JSONB, validates it through strict
+`NormalizedAuction` without ignoring extras, and verifies source=`eat`, endpoint=`bid-detail`,
+record type=`auction`, payload external ID=`normalized_record.source_entity_id`, parser version/run
+version, and raw content hash. It emits these explicit code refs only:
 
-1. `(code_scheme.namespace, code_value.code)`로 `CodeValue`를 resolve/insert한 뒤
-   `core.organization_identifier(code_value_id)`로 Organization을 resolve/insert한다.
-2. `(source_system, external_bid_id)`로 AuctionAttempt를 resolve/insert한다.
-3. `(auction_attempt_id, content_sha256)`로 AuctionRevision을 insert-on-conflict-do-nothing한다.
-4. AuctionOrganization role `purchaser`를 upsert한다.
-5. 모든 normalized record 처리 후 publication count가 검증 count와 같을 때만 publication을
-   `published`로 바꾸고 `activated_at`을 기록한다.
-
-중간 오류는 transaction 전체를 rollback하고 run/publication을 failed로 기록한다.
-
-- [ ] **Step 5: replay 구현**
-
-```python
-from dataclasses import dataclass
-from uuid import UUID
-
-
-@dataclass(frozen=True)
-class ReplayResult:
-    run_id: UUID
-    publication_id: UUID
-    canonical_fingerprint: str
+```text
+eat:auction-location-sido   <- sido_code          role=location_sido
+eat:auction-location-sigungu <- sigungu_code      role=location_sigungu
+eat:eligibility-area       <- eligibility_codes  role=eligibility_area
+eat:organization           <- organization_code  organization identifier
 ```
 
-replay는 observation ID 목록과 parser version을 받아 R2 raw를 읽고 새 run/publication 아래에서
-normalize→validate→project를 호출한다. output fingerprint는 정렬된
-`(source_system, external_bid_id, revision content_sha256)` JSON의 SHA-256이다.
+It never creates `mois:*`, `neis:*`, `code_mapping`, school type, or taxonomy from names/title.
+`PURR_NM` becomes `code_label_observation(language='und')`; Organization is created with
+`type='unknown'`, `canonical_name=NULL` until a separate reconciliation policy exists.
 
-- [ ] **Step 6: integration tests와 전체 dataplane tests 통과**
+- [ ] **Step 5: serialized atomic projection transaction 구현**
+
+`PsycopgCanonicalProjectionRepository` locks publication/run and requires both `validated`, exact
+manifest cardinality, activation fields empty, and every member to still match its Task 8
+candidate→attempt→record lineage. The supplied lowercase 64-hex `projector_version` must equal the
+locked run `build_sha`. It processes only `publication_record`; it never reselects a run's arbitrary
+staging rows.
+
+In one transaction it:
+
+1. calls the injected `ProjectionFactory` for every locked member and computes the fingerprint;
+2. resolves existing seeded scheme by namespace, insert-or-verifies text `code_value`, and locks the
+   code value before resolving an Organization so concurrent creation cannot orphan duplicates;
+3. insert-or-verifies Organization/identifier and observation-scoped label evidence;
+4. insert-or-verifies AuctionAttempt by `(source_system, external_bid_id)`;
+5. insert-or-verifies AuctionRevision by `normalized_record_id`, verifying the full persisted row;
+6. inserts revision-scoped purchaser/code-value relations with bigint FKs;
+7. only after exact member count succeeds, updates publication/run to `published`, sets the first
+   `activated_at`/`ended_at`, exact published counts, projector version and canonical fingerprint.
+
+A second/concurrent call serializes on the publication row, verifies the exact persisted projection
+and returns zero inserts with the original activation metadata/fingerprint. A deterministic payload,
+scheme, lineage, or persisted-row conflict raises `ProjectionContractError`; the core transaction
+rolls back and a separate transaction monotonically marks the still-validated run/publication failed
+with `PROJECTION_CONTRACT`. Transient connection/provider errors roll back and propagate while leaving
+the publication validated for Argo retry; they are not mislabeled as bad source data. Published state
+never regresses. The existing publication revalidation adapter is widened without weakening Task 8:
+`SOURCE_CONTRACT` failures still require no validation timestamp, while a `PROJECTION_CONTRACT`
+failure requires the prior validation timestamp, preserves the exact frozen member manifest for
+diagnosis/replay, and keeps activation/fingerprint/published count empty.
+
+- [ ] **Step 6: 실제 PostgreSQL projector 불변식 검증**
+
+Disposable PostgreSQL 16 integration tests prove at least:
+
+- one validated fixture → one Organization, one identifier, one Attempt, one Revision, purchaser
+  relation, and bigint revision-code relations for sido/sigungu/eligibility;
+- no `code_mapping`, MOIS/NEIS scheme/value, school type, or string relation is invented;
+- same name with different organization codes makes two organizations; same code with later label
+  reuses one organization and appends idempotent label evidence;
+- missing display number projects as a nullable revision attribute;
+- projecting the same publication twice and concurrently adds no rows and preserves first metadata;
+- a replay publication reusing the same normalized record reuses the canonical revision but still
+  publishes its exact member count;
+- the DB grain permits a second normalized-record/parser interpretation of the same raw to create a
+  separate revision; this task does not register a fictitious `eat-v2` source contract;
+- corrupt payload/member/scheme or conflicting existing canonical row causes zero partial core writes
+  and a deterministic failed publication; an injected transient DB failure leaves it retryable;
+- publication fingerprint equals a hand-checked natural-key/payload-hash digest and is order independent.
+
+ADR 0015 documents normalized interpretation → canonical revision lineage, revision-scoped code and
+organization facts, nullable unreviewed canonical name, deterministic failure versus retryable
+infrastructure failure, and why display numbers/names are not identity.
+
+- [ ] **Step 7: 전체 gate와 커밋**
 
 Run: `cd apps/dataplane && uv run pytest -q && uv run ruff check src tests && uv run pyright src`
 
-Expected: all tests PASS; rerun row counts unchanged; replay fingerprints equal.
-
-- [ ] **Step 7: 커밋**
+Run: `pnpm --filter @eatbid/db db:check && pnpm architecture:check && pnpm test && pnpm build`
 
 ```bash
-git add apps/dataplane
-git commit -m "feat: publish and replay canonical auction revisions"
+git add packages/db apps/dataplane docs/adr docs/architecture/domain-and-data.md
+git commit -m "feat: project validated auction facts"
 ```
 
 ---
 
-### Task 10: CI에서 migration·dataplane·세 이미지 검증
+### Task 10: resumable deterministic replay orchestration
+
+**Files:**
+- Create: `apps/dataplane/src/eatbid/ingest/replay_repository.py`
+- Create: `apps/dataplane/src/eatbid/ingest/postgres_replay_repository.py`
+- Modify: `apps/dataplane/src/eatbid/ingest/publication_repository.py`
+- Modify: `apps/dataplane/src/eatbid/ingest/postgres_publication_repository.py`
+- Create: `apps/dataplane/src/eatbid/pipeline/replay.py`
+- Create: `apps/dataplane/tests/unit/test_replay.py`
+- Create: `apps/dataplane/tests/integration/test_replay.py`
+- Modify: `apps/dataplane/tests/integration/test_normalize_validate.py`
+- Modify: `apps/dataplane/tests/integration/conftest.py`
+- Modify: `apps/dataplane/src/eatbid/cli.py`
+- Modify: `docs/adr/0014-normalization-attempt-lineage.md`
+- Modify: `docs/adr/0015-canonical-projection-lineage.md`
+- Modify: `docs/architecture/domain-and-data.md`
+
+**Interfaces:**
+- Consumes: an externally supplied replay run/publication UUID, exact unique raw observation IDs,
+  build/projector SHA, registered parser version, and explicit stage timestamps.
+- Produces: idempotent `running → validated → published` resume behavior and
+  `ReplayResult(run_id, publication_id, status, canonical_fingerprint)`.
+- `ReplayRunRepository` exclusively owns replay-run creation and frozen `replay_input` membership;
+  remove `add_replay_input` from `PublicationRepository` so manifest ownership is not split.
+
+- [ ] **Step 1: replay manifest/resume 실패 테스트 작성**
+
+```python
+def test_same_replay_run_resumes_without_duplicate_state(replay_harness, observation_id) -> None:
+    first = replay_harness.run(run_id=RUN_ID, observation_ids=(observation_id,))
+    second = replay_harness.run(run_id=RUN_ID, observation_ids=(observation_id,))
+    assert second == first
+    assert second.status == "published"
+
+
+def test_replay_run_rejects_manifest_drift(replay_harness, two_observation_ids) -> None:
+    replay_harness.start(run_id=RUN_ID, observation_ids=two_observation_ids)
+    with pytest.raises(ReplayIntegrityError):
+        replay_harness.start(run_id=RUN_ID, observation_ids=two_observation_ids[:1])
+```
+
+Unit tests reject empty, duplicate, boolean/nonpositive IDs before DB writes. Hypothesis permutes the
+same unique observation set and proves manifest/fingerprint order independence while a changed set is
+not equivalent.
+
+Run: `cd apps/dataplane && uv run pytest tests/unit/test_replay.py tests/integration/test_replay.py -q`
+
+Expected: FAIL on missing replay repository/pipeline.
+
+- [ ] **Step 2: atomic start-or-verify replay manifest 구현**
+
+```python
+@dataclass(frozen=True, slots=True)
+class ReplayRunState:
+    run_id: UUID
+    status: Literal["running", "validated", "published", "failed"]
+    parser_version: str
+    build_sha: str
+    observation_ids: tuple[int, ...]
+    publication_id: UUID
+
+
+class ReplayRunRepository(Protocol):
+    def start_or_load(
+        self,
+        *,
+        run_id: UUID,
+        publication_id: UUID,
+        observation_ids: tuple[int, ...],
+        build_sha: str,
+        parser_version: str,
+        started_at: datetime,
+    ) -> ReplayRunState: ...
+```
+
+The PostgreSQL adapter locks/inserts the `mode='replay'` run, its supplied `publication_id` as an
+`ingest.publication.status='pending'` row, and its entire sorted `replay_input` manifest in one
+transaction. New run metadata/count and all observations must exist before commit. Task 8 validation
+is refactored to insert-or-transition this exact pending publication (normal capture may still create
+one at validation). Existing run must be replay mode and match publication ID, build/parser/start
+time/expected count/exact member set; it returns its terminal/current state without mutation. A
+different publication ID, manifest, or metadata under the same run ID is an integrity error. This
+replaces row-at-a-time manifest mutation and freezes every replay identity before work begins.
+
+- [ ] **Step 3: stage-resumable replay use case 구현**
+
+```python
+@dataclass(frozen=True, slots=True)
+class ReplayResult:
+    run_id: UUID
+    publication_id: UUID
+    status: str
+    canonical_fingerprint: str
+```
+
+`replay_observations` resumes by state:
+
+1. `running`: normalize each exact manifest observation under the replay run/parser. Existing final
+   attempts are insert-or-verified; transient R2/DB errors propagate and keep the run retryable.
+2. still `running`: validate exact attempts. Quarantine/schema/count failure creates the monotonic
+   failed publication, then raises the typed workflow error (`65` or `76`); no projection runs.
+3. `validated`: project the supplied publication with the same pinned build/projector version.
+4. `published`: verify/load the persisted projection fingerprint and return it without new writes.
+5. `failed`: return/raise the stored typed failure without adding attempts, members, or core rows.
+
+All UUIDs/timestamps are caller supplied. The orchestrator does not generate hidden identities or use
+wall-clock time. Operational failures are not quarantined and do not fabricate HTTP observations.
+
+- [ ] **Step 4: deterministic replay와 partial-resume behavior 검증**
+
+Disposable PostgreSQL/R2-fake integration tests prove:
+
+- two different replay run IDs over the same raw/parser/build create two attempts/publications but
+  reuse the normalized record and canonical revision and return the same persisted fingerprint;
+- same run retried after manifest-only, one normalized member, validated, and published checkpoints
+  resumes without duplicates or metadata drift;
+- raw observation capture `run_id` never changes and replay creates zero raw observations/blobs;
+- input order does not change manifest order or fingerprint; duplicate/unknown IDs make no run;
+- same run ID with changed publication ID/manifest/parser/build/start time is rejected;
+- R2 read/transient DB failure leaves running state for retry and creates no quarantine/publication;
+- quarantined or unreviewed-schema replay becomes failed with no core writes and correct exit category;
+- published replay re-entry verifies exact publication/core lineage rather than trusting only counts.
+
+- [ ] **Step 5: full gates, docs, commit**
+
+Run: `cd apps/dataplane && uv run pytest -q && uv run ruff check src tests && uv run pyright src`
+
+Run: `pnpm architecture:check && pnpm test && pnpm build`
+
+```bash
+git add apps/dataplane docs/adr/0014-normalization-attempt-lineage.md docs/adr/0015-canonical-projection-lineage.md docs/architecture/domain-and-data.md
+git commit -m "feat: replay frozen observations deterministically"
+```
+
+---
+
+### Task 11: CI에서 migration·dataplane·네 이미지 검증
 
 **Files:**
 - Modify: `.github/workflows/build.yml`
@@ -1208,7 +1490,7 @@ git commit -m "ci: verify and build one-sha product images"
 
 ---
 
-### Task 11: Argo Workflows platform과 product template
+### Task 12: Argo Workflows platform과 product template
 
 **Files:**
 - Create: `infra/platform/argo-workflows.application.yaml`
@@ -1284,7 +1566,7 @@ git commit -m "ops: run dataplane with Argo Workflows"
 
 ---
 
-### Task 12: 첫 수직 슬라이스 검증과 foundation gate
+### Task 13: 첫 수직 슬라이스 검증과 foundation gate
 
 **Files:**
 - Create: `apps/dataplane/tests/integration/test_foundation_slice.py`
@@ -1294,7 +1576,7 @@ git commit -m "ops: run dataplane with Argo Workflows"
 - Modify: `docs/architecture/runtime-and-deployment.md`
 
 **Interfaces:**
-- Consumes: Tasks 1–11 전체.
+- Consumes: Tasks 1–12 전체.
 - Produces: 한 fixture의 raw→observation→normalized→publication→core→replay 증거와 운영 runbook.
 
 - [ ] **Step 1: end-to-end acceptance test 작성**
@@ -1330,6 +1612,7 @@ counts, duration_ms, status/failure_category를 stdout에 기록한다.
 ```python
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
 from eatbid.pipeline.replay import ReplayResult
 
@@ -1346,12 +1629,10 @@ class FoundationResult:
     canonical_fingerprint: str
 
 
-class FoundationHarness:
-    def run_fixture(self, relative_path: str, *, expected_count: int) -> FoundationResult:
-        raise NotImplementedError
+class FoundationHarness(Protocol):
+    def run_fixture(self, relative_path: str, *, expected_count: int) -> FoundationResult: ...
 
-    def replay(self, observation_ids: Sequence[int], *, parser_version: str) -> ReplayResult:
-        raise NotImplementedError
+    def replay(self, observation_ids: Sequence[int], *, parser_version: str) -> ReplayResult: ...
 ```
 
 - [ ] **Step 4: runbook과 gate 작성**
@@ -1394,6 +1675,10 @@ git commit -m "test: prove replayable data foundation slice"
 - 같은 bytes 재수집은 raw blob 1개와 observation N개를 만든다.
 - `TOT_CNT` 불일치 run은 active publication과 `core`를 바꾸지 않는다.
 - Organization/AuctionAttempt 내부 관계에 이름·주소·복합 문자열 FK가 없다.
+- eaT 시도/시군구/참가제한은 서로 다른 `CodeValue` bigint 관계로 revision에 연결되고
+  MOIS/NEIS mapping이나 학교 type을 추측해 만들지 않는다.
+- canonical revision은 exact `normalized_record_id`로 해석 provenance를 가지며 publication은
+  natural-key/payload-hash fingerprint를 저장한다.
 - 동일 raw+parser version replay fingerprint가 동일하다.
 - 빈 PostgreSQL이 committed Drizzle migration만으로 생성된다.
 - web/server/dataplane/migration image가 한 Git SHA와 immutable digest를 가진다.
