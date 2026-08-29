@@ -96,6 +96,29 @@ def test_missing_object_is_created_with_deterministic_archive_contract() -> None
     ]
 
 
+def test_new_object_uses_provider_authoritative_last_modified() -> None:
+    s3 = StatefulFakeS3Client()
+    store = R2RawObjectStore(settings(), client=s3)
+
+    stored = store.put(source="eat", endpoint="bid-list", body=b"raw")
+
+    assert stored.stored_at == s3.objects[stored.object_key].last_modified
+    assert len(s3.head_requests) == 2
+
+
+def test_post_put_head_provider_error_is_redacted_and_chainless() -> None:
+    marker = "post-put-head-endpoint-marker-must-not-leak"
+    s3 = StatefulFakeS3Client()
+    s3.head_error_after_put = EndpointConnectionError(endpoint_url=marker)
+    store = R2RawObjectStore(settings(), client=s3)
+
+    with pytest.raises(R2ProviderError) as captured:
+        store.put(source="eat", endpoint="bid-list", body=b"raw")
+
+    assert len(s3.put_requests) == 1
+    assert_redacted_provider_error(captured, markers=(marker,))
+
+
 def test_precondition_race_reuses_an_identical_concurrent_winner() -> None:
     s3 = StatefulFakeS3Client()
     winner_timestamp = datetime(2025, 2, 3, 4, 5, 6, tzinfo=UTC)
@@ -199,7 +222,7 @@ def test_error_code_is_authoritative_over_a_misleading_404_status() -> None:
 
 def test_status_404_is_not_found_when_provider_omits_an_error_code() -> None:
     s3 = StatefulFakeS3Client()
-    s3.head_error = client_error(None, "HeadObject", status=404)
+    s3.head_errors.append(client_error(None, "HeadObject", status=404))
     store = R2RawObjectStore(settings(), client=s3)
 
     stored = store.put(source="eat", endpoint="bid-list", body=b"raw")

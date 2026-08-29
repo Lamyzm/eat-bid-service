@@ -14,9 +14,14 @@ from eatbid.ingest.postgres_repository import (
 )
 from eatbid.object_store import RawObjectStore, StoredRawObject
 from eatbid.pipeline.capture import SourceThrottledError, capture
+from eatbid.r2_store import R2RawObjectStore, R2Settings
 from eatbid.source.client import SourceResponse
 
-from ..unit.fakes import MemoryRawObjectStore, StaticSourceClient
+from ..unit.fakes import (
+    MemoryRawObjectStore,
+    StatefulFakeS3Client,
+    StaticSourceClient,
+)
 from .conftest import PipelineServices
 
 FETCHED_AT = datetime(2026, 8, 29, 4, 5, 6, tzinfo=UTC)
@@ -127,6 +132,51 @@ def test_same_body_is_one_blob_and_two_append_only_observations(
     assert run_row == (2, "running", None)
 
 
+def test_r2_provider_timestamp_is_stable_across_duplicate_observations(
+    pipeline_services: PipelineServices,
+) -> None:
+    services = pipeline_services
+    request = prepare_request(services, params={"page": "r2-timestamp"})
+    body = b"provider-authoritative-timestamp"
+    client = StaticSourceClient(SourceResponse(200, body, FETCHED_AT))
+    s3 = StatefulFakeS3Client()
+    store = R2RawObjectStore(
+        R2Settings(
+            R2_ENDPOINT_URL="https://account.r2.cloudflarestorage.com",
+            R2_BUCKET="eatbid-raw",
+            R2_ACCESS_KEY_ID="test-access-id",
+            R2_SECRET_ACCESS_KEY="test-secret-key",
+        ),
+        client=s3,
+    )
+
+    first = capture(request, store, services.repository, client)
+    second = capture(request, store, services.repository, client)
+
+    provider_timestamp = s3.objects[first.object_key].last_modified
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select stored_at from ingest.raw_blob where content_sha256 = %s
+            """,
+            (first.content_sha256,),
+        )
+        raw_blob = cursor.fetchone()
+        cursor.execute(
+            """
+            select count(*) from ingest.raw_observation where run_id = %s
+            """,
+            (request.run_id,),
+        )
+        observation_count = cursor.fetchone()
+
+    assert first.content_sha256 == second.content_sha256
+    assert raw_blob == (provider_timestamp,)
+    assert observation_count == (2,)
+    assert len(s3.objects) == 1
+    assert len(s3.head_requests) == 3
+
+
 def test_planning_same_logical_params_is_idempotent(
     pipeline_services: PipelineServices,
 ) -> None:
@@ -195,6 +245,139 @@ def test_invalid_request_identity_is_rejected_before_a_plan_is_written(
             "select count(*) from ingest.request_unit where run_id = %s", (run_id,)
         )
         assert cursor.fetchone() == (0,)
+
+
+@pytest.mark.parametrize("inactive_status", ["planned", "failed", "validated", "published"])
+def test_planning_rejects_non_running_run_without_changing_existing_plans(
+    pipeline_services: PipelineServices,
+    inactive_status: str,
+) -> None:
+    services = pipeline_services
+    existing = prepare_request(services, params={"page": f"existing-{inactive_status}"})
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "update ingest.run set status = %s where run_id = %s",
+            (inactive_status, existing.run_id),
+        )
+    services.connection.commit()
+
+    for params in (
+        dict(existing.params),
+        {"page": f"new-{inactive_status}"},
+    ):
+        with pytest.raises(TerminalCaptureStateError):
+            services.repository.plan_request_unit(
+                run_id=existing.run_id,
+                source="eat",
+                endpoint="bid-list",
+                params=params,
+                expected_count=2,
+            )
+
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "select status, captured_count from ingest.run where run_id = %s",
+            (existing.run_id,),
+        )
+        assert cursor.fetchone() == (inactive_status, 0)
+        cursor.execute(
+            """
+            select request_unit_id, request_params, observed_count, status
+            from ingest.request_unit where run_id = %s
+            """,
+            (existing.run_id,),
+        )
+        assert cursor.fetchall() == [
+            (existing.request_unit_id, dict(existing.params), 0, "planned")
+        ]
+
+
+@pytest.mark.parametrize("terminal_status", ["planned", "failed", "validated", "published"])
+def test_recording_rejects_non_running_run_without_changing_ledger_rows(
+    pipeline_services: PipelineServices,
+    terminal_status: str,
+) -> None:
+    services = pipeline_services
+    request = prepare_request(services, params={"page": f"record-{terminal_status}"})
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "update ingest.run set status = %s where run_id = %s",
+            (terminal_status, request.run_id),
+        )
+    services.connection.commit()
+    body = f"terminal-{terminal_status}".encode()
+
+    with pytest.raises(TerminalCaptureStateError):
+        capture(
+            request,
+            services.store,
+            services.repository,
+            StaticSourceClient(SourceResponse(200, body, FETCHED_AT)),
+        )
+
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "select status, captured_count from ingest.run where run_id = %s",
+            (request.run_id,),
+        )
+        assert cursor.fetchone() == (terminal_status, 0)
+        cursor.execute(
+            """
+            select observed_count, status from ingest.request_unit
+            where request_unit_id = %s
+            """,
+            (request.request_unit_id,),
+        )
+        assert cursor.fetchone() == (0, "planned")
+        cursor.execute(
+            "select count(*) from ingest.raw_observation where run_id = %s",
+            (request.run_id,),
+        )
+        assert cursor.fetchone() == (0,)
+        cursor.execute(
+            "select count(*) from ingest.raw_blob where content_sha256 = %s",
+            (sha256(body).hexdigest(),),
+        )
+        assert cursor.fetchone() == (0,)
+
+
+def test_recording_rejects_failed_request_while_run_remains_active(
+    pipeline_services: PipelineServices,
+) -> None:
+    services = pipeline_services
+    request = prepare_request(services, params={"page": "failed-request"})
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            update ingest.request_unit set status = 'failed'
+            where request_unit_id = %s
+            """,
+            (request.request_unit_id,),
+        )
+    services.connection.commit()
+
+    with pytest.raises(TerminalCaptureStateError):
+        capture(
+            request,
+            services.store,
+            services.repository,
+            StaticSourceClient(SourceResponse(200, b"failed-request", FETCHED_AT)),
+        )
+
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "select status, captured_count from ingest.run where run_id = %s",
+            (request.run_id,),
+        )
+        assert cursor.fetchone() == ("running", 0)
+        cursor.execute(
+            """
+            select observed_count, status from ingest.request_unit
+            where request_unit_id = %s
+            """,
+            (request.request_unit_id,),
+        )
+        assert cursor.fetchone() == (0, "failed")
 
 
 def test_failed_request_and_run_are_terminal_for_recapture(

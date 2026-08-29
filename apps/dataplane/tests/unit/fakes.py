@@ -99,6 +99,7 @@ class StatefulFakeS3Client:
     def __init__(self) -> None:
         self.objects: dict[str, FakeS3Object] = {}
         self.head_requests: list[dict[str, object]] = []
+        self.head_errors: list[Exception] = []
         self.put_requests: list[dict[str, object]] = []
         self.get_requests: list[dict[str, object]] = []
         self.head_error: Exception | None = None
@@ -106,11 +107,16 @@ class StatefulFakeS3Client:
         self.get_error: Exception | None = None
         self.body_read_error: Exception | None = None
         self.concurrent_put_winner: FakeS3Object | None = None
+        self.head_error_after_put: Exception | None = None
 
     def head_object(self, **kwargs: object) -> dict[str, object]:
         self.head_requests.append(kwargs)
+        if self.head_errors:
+            raise self.head_errors.pop(0)
         if self.head_error is not None:
             raise self.head_error
+        if self.put_requests and self.head_error_after_put is not None:
+            raise self.head_error_after_put
         key = str(kwargs["Key"])
         if key not in self.objects:
             raise client_error("404", "HeadObject", status=404)

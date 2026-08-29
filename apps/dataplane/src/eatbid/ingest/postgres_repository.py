@@ -83,6 +83,17 @@ class PsycopgObservationRepository:
         params_copy = dict(validated.params)
         with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
+                "select status from ingest.run where run_id = %s for update",
+                (run_id,),
+            )
+            run = cursor.fetchone()
+            if run is None:
+                raise IngestIntegrityError("run does not exist")
+            if run[0] != "running":
+                raise TerminalCaptureStateError(
+                    "request units can only be planned for a running run"
+                )
+            cursor.execute(
                 """
                 insert into ingest.request_unit (
                     run_id, source, endpoint, request_params,
@@ -180,8 +191,9 @@ class PsycopgObservationRepository:
                 """
                 update ingest.request_unit
                 set observed_count = observed_count + 1,
-                    status = case when status = 'failed' or %s then 'failed' else 'captured' end
+                    status = case when %s then 'failed' else 'captured' end
                 where request_unit_id = %s and run_id = %s
+                  and status in ('planned', 'captured')
                 """,
                 (failed, request.request_unit_id, request.run_id),
             )
@@ -191,10 +203,10 @@ class PsycopgObservationRepository:
                 """
                 update ingest.run
                 set captured_count = captured_count + 1,
-                    status = case when status = 'failed' or %s then 'failed' else 'running' end,
+                    status = case when %s then 'failed' else 'running' end,
                     failure_category = case when %s then %s else failure_category end,
                     ended_at = case when %s then %s else ended_at end
-                where run_id = %s
+                where run_id = %s and status = 'running'
                 """,
                 (
                     failed,
@@ -280,9 +292,9 @@ class PsycopgObservationRepository:
             params_hash,
         ):
             raise PlannedRequestMismatchError("capture does not match planned request")
-        if row[4] == "failed" or row[5] == "failed":
+        if row[4] not in {"planned", "captured"} or row[5] != "running":
             raise TerminalCaptureStateError(
-                "failed request and run states cannot be recaptured"
+                "only active request and run states can record observations"
             )
 
     @staticmethod

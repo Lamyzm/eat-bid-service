@@ -164,7 +164,7 @@ class R2RawObjectStore:
         except ClientError as error:
             if not _is_precondition_failed(error):
                 _raise_provider_error()
-            winner = self._head_concurrent_winner(object_key)
+            winner = self._head_authoritative_object(object_key)
             _validate_existing_object(
                 winner,
                 address=address,
@@ -179,11 +179,18 @@ class R2RawObjectStore:
             )
         except BotoCoreError:
             _raise_provider_error()
+        created = self._head_authoritative_object(object_key)
+        _validate_existing_object(
+            created,
+            address=address,
+            raw_length=len(body),
+            compressed_length=len(compressed),
+        )
         return StoredRawObject(
             content_sha256=address.content_sha256,
             object_key=object_key,
             byte_length=len(body),
-            stored_at=datetime.now(UTC),
+            stored_at=_existing_last_modified(created),
         )
 
     def read(self, object_key: str) -> bytes:
@@ -213,7 +220,7 @@ class R2RawObjectStore:
             raise ObjectCorruptionError("stored raw object is corrupt")
         return raw
 
-    def _head_concurrent_winner(self, object_key: str) -> dict[str, object]:
+    def _head_authoritative_object(self, object_key: str) -> dict[str, object]:
         try:
             return self._client.head_object(
                 Bucket=self._settings.bucket, Key=object_key
