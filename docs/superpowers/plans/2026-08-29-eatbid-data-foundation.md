@@ -296,21 +296,23 @@ git commit -m "feat: add immutable ingestion ledger schema"
 ### Task 4: 코드 registry와 최소 canonical 도메인
 
 **Files:**
-- Create: `packages/db/src/schema/codes.ts`
-- Create: `packages/db/src/schema/organizations.ts`
-- Create: `packages/db/src/schema/procurement.ts`
-- Create: `packages/db/src/schema/canonical.test.ts`
+- Create: `packages/db/src/schema/core/codes.ts`
+- Create: `packages/db/src/schema/core/organizations.ts`
+- Create: `packages/db/src/schema/core/procurement.ts`
+- Create: `packages/db/src/schema/core/index.ts`
+- Create: `packages/db/src/schema/core/canonical.test.ts`
 - Create: `packages/db/src/seeds/code-schemes.ts`
 - Create: `packages/db/src/seeds/code-schemes.test.ts`
 - Modify: `packages/db/src/schema/index.ts`
+- Modify: `packages/db/src/schema/layout.test.ts`
 - Create: `packages/db/drizzle/20260829001000_core_identity/migration.sql`
 - Create: `packages/db/drizzle/20260829001000_core_identity/snapshot.json`
 
 **Interfaces:**
 - Consumes: `coreSchema`, `rawObservation.observationId`.
-- Produces: bigint domain IDs and source-scoped external identifier constraints used by projector Task 9.
+- Produces: aggregate-split `core` exports, bigint domain IDs, and source-scoped external identifiers resolved through the `CodeValue` authority used by projector Task 9.
 
-- [ ] **Step 1: 문자열 identity가 거부되는 schema test 작성**
+- [ ] **Step 1: 분리된 core layout와 문자열 identity가 거부되는 schema test 작성**
 
 ```typescript
 import { describe, expect, test } from "bun:test";
@@ -325,11 +327,16 @@ describe("canonical identities", () => {
 });
 ```
 
+기존 `layout.test.ts`도 `core/codes.ts`, `core/organizations.ts`,
+`core/procurement.ts`, `core/index.ts`가 존재하고 root `schema/codes.ts`,
+`schema/organizations.ts`, `schema/procurement.ts`가 존재하지 않음을 검증한다. root와
+namespace의 `index.ts`는 table을 선언하지 않고 export만 조립한다.
+
 - [ ] **Step 2: 새 exports가 없어 실패하는지 확인**
 
-Run: `bun test packages/db/src/schema/canonical.test.ts`
+Run: `bun test packages/db/src/schema/core/canonical.test.ts packages/db/src/schema/layout.test.ts`
 
-Expected: FAIL because `organization` and `auctionAttempt` are not exported.
+Expected: FAIL because the `core` aggregate modules and their exports do not exist.
 
 - [ ] **Step 3: 코드 registry를 exact grain으로 구현**
 
@@ -345,12 +352,16 @@ Expected: FAIL because `organization` and `auctionAttempt` are not exported.
 `eat:auction-location-sigungu`, `eat:eligibility-area`, `mois:administrative-region`, `neis:school`,
 `eat:organization`, `eat:supplier-account`. code value와 mapping은 seed하지 않는다.
 
+`codes.ts`는 registry aggregate 전체를 소유하고 `organizations.ts`와
+`procurement.ts`는 `CodeValue`의 내부 bigint identity만 참조한다. scheme/code text를
+도메인 table에 복제해 두 번째 authority를 만들지 않는다.
+
 - [ ] **Step 4: 최소 canonical tables 구현**
 
 | Table | Identity and required fields |
 |---|---|
 | `core.organization` | `organization_id bigint identity`; type, canonical_name, created_at |
-| `core.organization_identifier` | bigint PK; organization FK, scheme FK, code text, observation FK; unique(scheme_id, code) |
+| `core.organization_identifier` | bigint PK; organization FK, code value FK, observation FK; unique(code_value_id) |
 | `core.auction_attempt` | `auction_attempt_id bigint identity`; source_system, external_bid_id, display_bid_no; unique(source_system, external_bid_id) |
 | `core.auction_revision` | bigint PK; attempt FK, observation FK, content_sha256, source_status, title, announced/deadline/opened timestamps, base/planned amounts, currency, source_payload jsonb; unique(attempt_id, content_sha256) |
 | `core.auction_organization` | attempt FK, organization FK, role; composite PK(attempt_id, organization_id, role) |
@@ -360,9 +371,10 @@ Expected: FAIL because `organization` and `auctionAttempt` are not exported.
 
 - [ ] **Step 5: migration과 constraint 테스트 통과**
 
-Run: `pnpm --filter @eatbid/db db:generate && bun test packages/db/src/schema/canonical.test.ts packages/db/src/seeds/code-schemes.test.ts`
+Run: `pnpm --filter @eatbid/db db:generate && bun test packages/db/src/schema/core/canonical.test.ts packages/db/src/schema/layout.test.ts packages/db/src/seeds/code-schemes.test.ts`
 
-Expected: generated migration contains seven code/domain tables, bigint PKs, source-scoped unique keys.
+Expected: generated migration contains nine code/domain tables, bigint PKs, source-scoped unique keys,
+and `organization_identifier.code_value_id` references the one code-value authority.
 
 - [ ] **Step 6: 커밋**
 
@@ -820,7 +832,8 @@ class ProjectResult:
 
 한 transaction에서 다음 순서를 지킨다.
 
-1. `core.organization_identifier(scheme_id, code)`로 Organization을 resolve/insert한다.
+1. `(code_scheme.namespace, code_value.code)`로 `CodeValue`를 resolve/insert한 뒤
+   `core.organization_identifier(code_value_id)`로 Organization을 resolve/insert한다.
 2. `(source_system, external_bid_id)`로 AuctionAttempt를 resolve/insert한다.
 3. `(auction_attempt_id, content_sha256)`로 AuctionRevision을 insert-on-conflict-do-nothing한다.
 4. AuctionOrganization role `purchaser`를 upsert한다.
