@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": ["dist"],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,13 +20,15 @@
     "build": "tsc -p tsconfig.json",
     "test": "bun test src",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "pnpm build && node dist/migrate.js",
     "db:check": "drizzle-kit check"
   },
   "dependencies": {
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "postgres": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "^26.4.0",
     "drizzle-kit": "catalog:",
     "typescript": "^5.7.0"
   }

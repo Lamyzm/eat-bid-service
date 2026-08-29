@@ -5,13 +5,6 @@ resources:
   - poll.yaml
   - tunnel.yaml
   - serviceaccount.yaml
-configMapGenerator:
-  - name: db-schema
-    namespace: eatbid
-    files: [schema.sql]
-generatorOptions:
-  disableNameSuffixHash: true
-
 images:
   - name: eatbid-server
     newName: ghcr.io/lamyzm/eatbid-server

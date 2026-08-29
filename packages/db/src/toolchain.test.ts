@@ -13,7 +13,7 @@ const directDependencySections = [
 ] as const;
 const directDependencyMinimums = {
   "drizzle-orm": 3,
-  "drizzle-kit": 2,
+  "drizzle-kit": 1,
 } as const;
 
 type DependencySection = (typeof directDependencySections)[number];

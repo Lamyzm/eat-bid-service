@@ -12,6 +12,9 @@ catalogs:
     drizzle-orm:
       specifier: 1.0.0-rc.4
       version: 1.0.0-rc.4
+    postgres:
+      specifier: ^3.4.5
+      version: 3.4.9
 
 importers:
 
@@ -45,7 +48,7 @@ importers:
         specifier: ^5.0.0
         version: 5.5.0(@nestjs/common@11.2.3(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)(zod@4.4.3)
       postgres:
-        specifier: ^3.4.5
+        specifier: 'catalog:'
         version: 3.4.9
       reflect-metadata:
         specifier: ^0.2.2
@@ -232,7 +235,13 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(postgres@3.4.9)(zod@4.4.3)
+      postgres:
+        specifier: 'catalog:'
+        version: 3.4.9
     devDependencies:
+      '@types/node':
+        specifier: ^26.4.0
+        version: 26.4.0
       drizzle-kit:
         specifier: 'catalog:'
         version: 1.0.0-rc.4
@@ -249,9 +258,6 @@ importers:
         specifier: ^4.0.0
         version: 4.4.3
     devDependencies:
-      drizzle-kit:
-        specifier: 'catalog:'
-        version: 1.0.0-rc.4
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

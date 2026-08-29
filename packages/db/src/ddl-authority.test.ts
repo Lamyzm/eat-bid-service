@@ -1,0 +1,164 @@
+import { describe, expect, test } from "bun:test";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+
+type PackageManifest = {
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+};
+
+const dependencySections = [
+  "dependencies",
+  "devDependencies",
+  "optionalDependencies",
+  "peerDependencies",
+] as const;
+
+function json(relativePath: string): PackageManifest {
+  return JSON.parse(readFileSync(join(repositoryRoot, relativePath), "utf8"));
+}
+
+function text(relativePath: string): string {
+  return readFileSync(join(repositoryRoot, relativePath), "utf8");
+}
+
+function workspaceManifests(): Array<{ relativePath: string; manifest: PackageManifest }> {
+  const workspace = text("pnpm-workspace.yaml");
+  const packageSection = workspace.match(/^packages:\s*\n((?:\s+-\s+.+\n?)+)/m)?.[1] ?? "";
+  const globs = [...packageSection.matchAll(/^\s*-\s*["']?([^"'\s]+)["']?\s*$/gm)].map(
+    (match) => match[1],
+  );
+
+  if (globs.length === 0) {
+    throw new Error("pnpm workspace has no package globs");
+  }
+
+  return globs.flatMap((glob) => {
+    const match = /^([^*/]+)\/\*$/.exec(glob);
+    if (!match) {
+      throw new Error(`Unsupported workspace package glob: ${glob}`);
+    }
+
+    const parent = match[1];
+    return readdirSync(join(repositoryRoot, parent), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !["node_modules", "dist"].includes(entry.name))
+      .flatMap((entry) => {
+        const relativePath = `${parent}/${entry.name}/package.json`;
+        try {
+          return [{ relativePath, manifest: json(relativePath) }];
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            return [];
+          }
+          throw error;
+        }
+      });
+  });
+}
+
+describe("DDL package authority", () => {
+  test("routes root migration commands and tests through packages/db", () => {
+    const root = json("package.json");
+
+    expect(root.scripts?.["db:generate"]).toBe("pnpm --filter @eatbid/db db:generate");
+    expect(root.scripts?.["db:migrate"]).toBe("pnpm --filter @eatbid/db db:migrate");
+    expect(root.scripts?.["db:push"]).toBeUndefined();
+    expect(root.scripts?.test).toContain("packages/db/src");
+  });
+
+  test("keeps Drizzle authoring tools out of shared", () => {
+    const shared = json("packages/shared/package.json");
+
+    expect(shared.scripts?.["db:generate"]).toBeUndefined();
+    expect(shared.scripts?.["db:push"]).toBeUndefined();
+    expect(shared.devDependencies?.["drizzle-kit"]).toBeUndefined();
+  });
+
+  test("uses one cataloged postgres-js lane in both TypeScript runtimes", () => {
+    const workspace = text("pnpm-workspace.yaml");
+    const database = json("packages/db/package.json");
+    const server = json("apps/server/package.json");
+
+    expect(workspace).toContain("postgres: ^3.4.5");
+    expect(database.dependencies?.postgres).toBe("catalog:");
+    expect(server.dependencies?.postgres).toBe("catalog:");
+  });
+
+  test("discovers every workspace manifest and keeps direct Drizzle DDL in packages/db", () => {
+    const workspace = workspaceManifests();
+    const manifests = [{ relativePath: "package.json", manifest: json("package.json") }, ...workspace];
+    const directCommandOwners = new Set<string>();
+    const drizzleKitDependencyOwners = new Set<string>();
+    const pushOwners = new Set<string>();
+
+    for (const { relativePath, manifest } of manifests) {
+      for (const [scriptName, script] of Object.entries(manifest.scripts ?? {})) {
+        if (/drizzle-kit\s+(generate|check|migrate)\b/.test(script)) {
+          directCommandOwners.add(relativePath);
+        }
+        if (scriptName === "db:push" || /drizzle-kit\s+push\b|\bdb:push\b/.test(script)) {
+          pushOwners.add(relativePath);
+        }
+      }
+      for (const section of dependencySections) {
+        if (manifest[section]?.["drizzle-kit"] !== undefined) {
+          drizzleKitDependencyOwners.add(relativePath);
+        }
+      }
+    }
+
+    expect(workspace.length).toBeGreaterThan(0);
+    expect(workspace.map(({ relativePath }) => relativePath)).toContain("packages/db/package.json");
+    expect([...directCommandOwners]).toEqual(["packages/db/package.json"]);
+    expect([...drizzleKitDependencyOwners]).toEqual(["packages/db/package.json"]);
+    expect([...pushOwners]).toEqual([]);
+  });
+});
+
+describe("active Kubernetes DDL path", () => {
+  test("does not generate or mount the legacy schema ConfigMap", () => {
+    const baseDirectory = join(repositoryRoot, "infra/k8s/base");
+    const activeYaml = readdirSync(baseDirectory)
+      .filter((name) => /\.ya?ml$/.test(name))
+      .map((name) => readFileSync(join(baseDirectory, name), "utf8"))
+      .join("\n");
+
+    expect(activeYaml).not.toContain("db-schema");
+    expect(activeYaml).not.toContain("schema.sql");
+  });
+
+  test("removes the complete legacy db-migrate Job document", () => {
+    const documents = text("infra/k8s/base/app.yaml").split(/^---\s*$/m);
+    const legacyJobs = documents.filter(
+      (document) => /kind:\s*Job\b/.test(document) && /name:\s*db-migrate\b/.test(document),
+    );
+
+    expect(legacyJobs).toEqual([]);
+  });
+});
+
+describe("migration image contract", () => {
+  test("builds and deploys the frozen database package from the monorepo root", () => {
+    const dockerfile = text("packages/db/Dockerfile");
+
+    expect(dockerfile).toContain("pnpm install --frozen-lockfile");
+    expect(dockerfile).toContain("pnpm --filter @eatbid/db build");
+    expect(dockerfile).toContain("pnpm --filter @eatbid/db deploy --prod");
+    expect(dockerfile).toContain("COPY --from=build /runtime");
+  });
+
+  test("ships the committed migration chain and runs the compiled entrypoint as non-root", () => {
+    const dockerfile = text("packages/db/Dockerfile");
+
+    expect(dockerfile).toContain("packages/db/drizzle");
+    expect(dockerfile).not.toContain("schema.sql");
+    expect(dockerfile).toMatch(/^USER\s+(?!root\b)\S+/m);
+    expect(dockerfile).toContain('CMD ["node", "dist/migrate.js"]');
+  });
+});

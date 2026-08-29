@@ -10,12 +10,12 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "architecture:check": "node tools/architecture/check-stack-docs.mjs",
-    "db:generate": "pnpm --filter @eatbid/shared db:generate",
-    "db:push": "pnpm --filter @eatbid/shared db:push",
+    "db:generate": "pnpm --filter @eatbid/db db:generate",
+    "db:migrate": "pnpm --filter @eatbid/db db:migrate",
     "dataplane:test": "uv run --project apps/dataplane pytest apps/dataplane/tests",
     "dataplane:lint": "uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests",
     "dataplane:typecheck": "uv run --project apps/dataplane pyright apps/dataplane/src",
-    "test": "bun test apps/web/src packages/shared/src"
+    "test": "bun test apps/web/src packages/shared/src packages/db/src"
   },
   "devDependencies": {
     "turbo": "^2.5.0"

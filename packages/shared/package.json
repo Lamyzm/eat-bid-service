@@ -11,16 +11,13 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "tsc -p tsconfig.json --watch",
-    "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push"
+    "dev": "tsc -p tsconfig.json --watch"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "drizzle-kit": "catalog:",
     "typescript": "^5.7.0"
   }
 }
