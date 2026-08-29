@@ -21,6 +21,7 @@ from eatbid.ingest.replay_repository import (
 from eatbid.object_store import RawObjectStore
 from eatbid.pipeline.normalize import DataQuarantinedError, normalize_observation
 from eatbid.pipeline.project import project_publication
+from eatbid.pipeline.stages import validate_stage_timestamps
 from eatbid.pipeline.validate import validate_run
 
 DATA_QUARANTINED = "DATA_QUARANTINED"
@@ -74,7 +75,7 @@ def replay_observations(
         parser_version=parser_version,
         started_at=started_at,
     )
-    _validate_stage_timestamps(
+    validate_stage_timestamps(
         started_at=started_at,
         normalized_at=normalized_at,
         validated_at=validated_at,
@@ -148,36 +149,12 @@ def _raise_stored_failure(state: ReplayRunState) -> None:
     if state.failure_category == DATA_QUARANTINED:
         if state.failure_observation_id is None or state.failure_reason is None:
             raise RuntimeError("stored quarantine failure metadata is incomplete")
-        raise DataQuarantinedError(
-            state.failure_observation_id, state.failure_reason
-        )
+        raise DataQuarantinedError(state.failure_observation_id, state.failure_reason)
     if state.failure_category == SOURCE_CONTRACT:
         raise SourceContractError("replay previously failed the source contract")
     if state.failure_category == PROJECTION_CONTRACT:
         raise ProjectionContractError("replay previously failed projection")
     raise RuntimeError("replay has an unsupported stored failure category")
-
-
-def _validate_stage_timestamps(
-    *,
-    started_at: datetime,
-    normalized_at: datetime,
-    validated_at: datetime,
-    activated_at: datetime,
-) -> None:
-    values = (
-        ("started_at", started_at),
-        ("normalized_at", normalized_at),
-        ("validated_at", validated_at),
-        ("activated_at", activated_at),
-    )
-    for field, value in values:
-        if not isinstance(value, datetime):
-            raise TypeError(f"{field} must be a datetime")
-        if value.utcoffset() is None:
-            raise ValueError(f"{field} must be timezone-aware")
-    if not started_at <= normalized_at <= validated_at <= activated_at:
-        raise ValueError("replay stage timestamps must be monotonic")
 
 
 def _verify_loaded_identity(

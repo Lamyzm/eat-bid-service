@@ -123,6 +123,13 @@ class PsycopgPublicationRepository:
                     current_member_ids=topology.member_ids,
                 )
             if report.publishable and ledger_coherent:
+                consume_pending = self._consume_pending(
+                    cursor,
+                    run_id=run_id,
+                    publication_id=publication_id,
+                    expected_count=int(expected_count),
+                    required=mode == "replay",
+                )
                 self._persist_validated(
                     cursor,
                     run_id=run_id,
@@ -130,7 +137,7 @@ class PsycopgPublicationRepository:
                     validated_at=validated_at,
                     expected_count=int(expected_count),
                     member_ids=topology.member_ids,
-                    consume_pending=mode == "replay",
+                    consume_pending=consume_pending,
                 )
                 return PublicationValidation(
                     publication_id=publication_id,
@@ -141,6 +148,13 @@ class PsycopgPublicationRepository:
                     member_ids=topology.member_ids,
                 )
 
+            consume_pending = self._consume_pending(
+                cursor,
+                run_id=run_id,
+                publication_id=publication_id,
+                expected_count=int(expected_count),
+                required=mode == "replay",
+            )
             self._persist_failed(
                 cursor,
                 run_id=run_id,
@@ -150,11 +164,10 @@ class PsycopgPublicationRepository:
                 normalized_count=len(topology.members),
                 failure_category=(
                     DATA_QUARANTINED
-                    if mode == "replay"
-                    and topology.quarantined_current_attempts > 0
+                    if mode == "replay" and topology.quarantined_current_attempts > 0
                     else SOURCE_CONTRACT
                 ),
-                consume_pending=mode == "replay",
+                consume_pending=consume_pending,
             )
             return PublicationValidation(
                 publication_id=publication_id,
@@ -164,6 +177,48 @@ class PsycopgPublicationRepository:
                 normalized_count=len(topology.members),
                 member_ids=(),
             )
+
+    @staticmethod
+    def _consume_pending(
+        cursor: psycopg.Cursor[Any],
+        *,
+        run_id: UUID,
+        publication_id: UUID,
+        expected_count: int,
+        required: bool,
+    ) -> bool:
+        cursor.execute(
+            """
+            select publication_id, status, validated_at, activated_at,
+                   expected_count, normalized_count, published_count,
+                   canonical_fingerprint, projector_version
+            from ingest.publication where run_id = %s for update
+            """,
+            (run_id,),
+        )
+        pending = cursor.fetchone()
+        if pending is None:
+            if required:
+                raise PublicationIntegrityError(
+                    "replay requires its frozen pending publication"
+                )
+            return False
+        expected_pending = (
+            publication_id,
+            "pending",
+            None,
+            None,
+            expected_count,
+            0,
+            0,
+            None,
+            None,
+        )
+        if pending != expected_pending:
+            raise PublicationIntegrityError(
+                "pending publication identity or metadata differs"
+            )
+        return True
 
     @staticmethod
     def _lock_requests(
@@ -403,36 +458,22 @@ def _transition_pending_publication(
 ) -> None:
     cursor.execute(
         """
-        select publication_id, status, validated_at, activated_at,
-               expected_count, normalized_count, published_count,
-               canonical_fingerprint, projector_version
-        from ingest.publication where run_id = %s for update
-        """,
-        (run_id,),
-    )
-    pending = cursor.fetchone()
-    expected_pending = (
-        publication_id,
-        "pending",
-        None,
-        None,
-        expected_count,
-        0,
-        0,
-        None,
-        None,
-    )
-    if pending != expected_pending:
-        raise PublicationIntegrityError(
-            "replay pending publication identity or metadata differs"
-        )
-    cursor.execute(
-        """
         update ingest.publication
         set status = %s, validated_at = %s, normalized_count = %s
         where publication_id = %s and run_id = %s and status = 'pending'
+          and expected_count = %s and normalized_count = 0
+          and published_count = 0 and validated_at is null
+          and activated_at is null and canonical_fingerprint is null
+          and projector_version is null
         """,
-        (status, validated_at, normalized_count, publication_id, run_id),
+        (
+            status,
+            validated_at,
+            normalized_count,
+            publication_id,
+            run_id,
+            expected_count,
+        ),
     )
     if cursor.rowcount != 1:
         raise PublicationIntegrityError("pending publication transition failed")

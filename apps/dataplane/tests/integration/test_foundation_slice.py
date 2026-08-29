@@ -1,16 +1,32 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from uuid import UUID
 
 import pytest
 
+from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
 from eatbid.errors import SourceContractError
 from eatbid.foundation import FoundationServices, run_foundation_slice
+from eatbid.foundation_repository import FoundationIntegrityError
+from eatbid.ingest.postgres_normalization_repository import (
+    PsycopgNormalizationRepository,
+)
+from eatbid.ingest.postgres_publication_repository import PsycopgPublicationRepository
+from eatbid.ingest.postgres_replay_repository import (
+    PsycopgReplayRunRepository,
+    ReplayIntegrityError,
+)
+from eatbid.ingest.postgres_repository import PsycopgObservationRepository
+from eatbid.pipeline.capture import SourceThrottledError
+from eatbid.pipeline.replay import ReplayServices, replay_observations
+from eatbid.postgres_foundation_repository import PsycopgFoundationCheckpointRepository
 from eatbid.source.client import SourceResponse
 
-from ..unit.fakes import StaticSourceClient
+from ..unit.fakes import MemoryRawObjectStore, StaticSourceClient
 from .conftest import (
     FOUNDATION_ACTIVATED_AT,
     FOUNDATION_BUILD_SHA,
@@ -19,12 +35,52 @@ from .conftest import (
     FOUNDATION_STARTED_AT,
     FOUNDATION_VALIDATED_AT,
     FoundationHarness,
+    MigratedDatabase,
     PipelineServices,
 )
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "eat" / "bid-detail-one.xml"
 EXTERNAL_BID_ID = "task-13-bid-detail-one"
 FAILED_EXTERNAL_BID_ID = "task-13-count-mismatch"
+
+
+def _concurrent_foundation(
+    migrated_db: MigratedDatabase, *, run_id: UUID, publication_id: UUID
+):
+    connection = migrated_db.connect()
+    try:
+        return run_foundation_slice(
+            run_id=run_id,
+            publication_id=publication_id,
+            mode="poll-open",
+            build_sha=FOUNDATION_BUILD_SHA,
+            parser_version="eat-v1",
+            started_at=FOUNDATION_STARTED_AT,
+            normalized_at=FOUNDATION_NORMALIZED_AT,
+            validated_at=FOUNDATION_VALIDATED_AT,
+            activated_at=FOUNDATION_ACTIVATED_AT,
+            source="eat",
+            endpoint="bid-detail",
+            request_params={"ELCTRN_BID_ID": "task-13-concurrent"},
+            expected_count=1,
+            services=FoundationServices(
+                checkpoint_repository=PsycopgFoundationCheckpointRepository(connection),
+                ingest_repository=PsycopgObservationRepository(connection),
+                normalization_repository=PsycopgNormalizationRepository(connection),
+                publication_repository=PsycopgPublicationRepository(connection),
+                projection_repository=PsycopgCanonicalProjectionRepository(
+                    connection, migrated_db.connect
+                ),
+                raw_store=MemoryRawObjectStore(
+                    now=lambda: datetime(2026, 8, 29, 4, 5, 6, tzinfo=UTC)
+                ),
+                source_client=StaticSourceClient(
+                    SourceResponse(200, FIXTURE.read_bytes(), FOUNDATION_FETCHED_AT)
+                ),
+            ),
+        )
+    finally:
+        connection.close()
 
 
 def test_raw_to_core_and_replay_foundation_slice(
@@ -42,6 +98,11 @@ def test_raw_to_core_and_replay_foundation_slice(
     assert result.auction_revision_count == 1
     assert result.raw_content_sha256 == expected_hash
     assert result.raw_object_key == expected_key
+
+    resumed = foundation.run_fixture("eat/bid-detail-one.xml", expected_count=1)
+    assert resumed == result
+    with pytest.raises(FoundationIntegrityError):
+        foundation.run_fixture("eat/bid-detail-one.xml", expected_count=2)
 
     observation_id = result.observation_ids[0]
     with pipeline_services.connection.cursor() as cursor:
@@ -261,38 +322,88 @@ def test_raw_to_core_and_replay_foundation_slice(
         assert cursor.fetchone() == (1, 1, 1)
 
 
-def test_foundation_stops_on_source_contract_before_projection(
+def test_invalid_foundation_chronology_has_no_database_or_raw_side_effect(
     pipeline_services: PipelineServices,
 ) -> None:
-    run_id = UUID("13000000-0000-0000-0000-000000000011")
-    publication_id = UUID("13000000-0000-0000-0000-000000000012")
+    run_id = UUID("13000000-0000-0000-0000-000000000021")
+    publication_id = UUID("13000000-0000-0000-0000-000000000022")
+    raw_before = pipeline_services.store.object_count
+    client = StaticSourceClient(
+        SourceResponse(200, FIXTURE.read_bytes(), FOUNDATION_FETCHED_AT)
+    )
 
-    with pytest.raises(SourceContractError):
+    with pytest.raises(ValueError, match="timestamps"):
         run_foundation_slice(
             run_id=run_id,
             publication_id=publication_id,
             mode="poll-open",
             build_sha=FOUNDATION_BUILD_SHA,
             parser_version="eat-v1",
-            started_at=FOUNDATION_STARTED_AT,
+            started_at=FOUNDATION_VALIDATED_AT,
             normalized_at=FOUNDATION_NORMALIZED_AT,
-            validated_at=FOUNDATION_VALIDATED_AT,
+            validated_at=FOUNDATION_STARTED_AT,
             activated_at=FOUNDATION_ACTIVATED_AT,
             source="eat",
             endpoint="bid-detail",
-            request_params={"ELCTRN_BID_ID": FAILED_EXTERNAL_BID_ID},
-            expected_count=2,
+            request_params={"ELCTRN_BID_ID": "task-13-invalid-chronology"},
+            expected_count=1,
             services=FoundationServices(
+                checkpoint_repository=pipeline_services.checkpoint_repository,
                 ingest_repository=pipeline_services.repository,
                 normalization_repository=pipeline_services.normalization_repository,
                 publication_repository=pipeline_services.publication_repository,
                 projection_repository=pipeline_services.projection_repository,
                 raw_store=pipeline_services.store,
-                source_client=StaticSourceClient(
-                    SourceResponse(200, FIXTURE.read_bytes(), FOUNDATION_FETCHED_AT)
-                ),
+                source_client=client,
             ),
         )
+
+    assert pipeline_services.store.object_count == raw_before
+    assert client.requests == []
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute("select count(*) from ingest.run where run_id = %s", (run_id,))
+        assert cursor.fetchone() == (0,)
+        cursor.execute(
+            "select count(*) from ingest.publication where publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchone() == (0,)
+
+
+def test_foundation_stops_on_source_contract_before_projection(
+    pipeline_services: PipelineServices,
+) -> None:
+    run_id = UUID("13000000-0000-0000-0000-000000000011")
+    publication_id = UUID("13000000-0000-0000-0000-000000000012")
+
+    for _ in range(2):
+        with pytest.raises(SourceContractError):
+            run_foundation_slice(
+                run_id=run_id,
+                publication_id=publication_id,
+                mode="poll-open",
+                build_sha=FOUNDATION_BUILD_SHA,
+                parser_version="eat-v1",
+                started_at=FOUNDATION_STARTED_AT,
+                normalized_at=FOUNDATION_NORMALIZED_AT,
+                validated_at=FOUNDATION_VALIDATED_AT,
+                activated_at=FOUNDATION_ACTIVATED_AT,
+                source="eat",
+                endpoint="bid-detail",
+                request_params={"ELCTRN_BID_ID": FAILED_EXTERNAL_BID_ID},
+                expected_count=2,
+                services=FoundationServices(
+                    checkpoint_repository=pipeline_services.checkpoint_repository,
+                    ingest_repository=pipeline_services.repository,
+                    normalization_repository=pipeline_services.normalization_repository,
+                    publication_repository=pipeline_services.publication_repository,
+                    projection_repository=pipeline_services.projection_repository,
+                    raw_store=pipeline_services.store,
+                    source_client=StaticSourceClient(
+                        SourceResponse(200, FIXTURE.read_bytes(), FOUNDATION_FETCHED_AT)
+                    ),
+                ),
+            )
 
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(
@@ -319,3 +430,176 @@ def test_foundation_stops_on_source_contract_before_projection(
             (FAILED_EXTERNAL_BID_ID,),
         )
         assert cursor.fetchone() == (0,)
+        cursor.execute(
+            "select count(*) from ingest.raw_observation where run_id = %s",
+            (run_id,),
+        )
+        assert cursor.fetchone() == (1,)
+
+
+def test_concurrent_identical_foundation_invocations_converge(
+    migrated_db: MigratedDatabase,
+) -> None:
+    run_id = UUID("13000000-0000-0000-0000-000000000031")
+    publication_id = UUID("13000000-0000-0000-0000-000000000032")
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(
+                _concurrent_foundation,
+                migrated_db,
+                run_id=run_id,
+                publication_id=publication_id,
+            )
+            for _ in range(2)
+        ]
+        results = [future.result(timeout=20) for future in futures]
+
+    assert results[0] == results[1]
+    with migrated_db.connect() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "select count(*) from ingest.raw_observation where run_id = %s",
+            (run_id,),
+        )
+        assert cursor.fetchone() == (1,)
+        cursor.execute(
+            """
+            select count(*) from ingest.publication_record pr
+            join core.auction_revision ar using (normalized_record_id)
+            where pr.publication_id = %s
+            """,
+            (publication_id,),
+        )
+        assert cursor.fetchone() == (1,)
+
+
+def test_failed_capture_retry_reloads_typed_failure_without_duplicate_observation(
+    pipeline_services: PipelineServices,
+) -> None:
+    run_id = UUID("13000000-0000-0000-0000-000000000051")
+    publication_id = UUID("13000000-0000-0000-0000-000000000052")
+    client = StaticSourceClient(
+        SourceResponse(429, FIXTURE.read_bytes(), FOUNDATION_FETCHED_AT)
+    )
+    services = FoundationServices(
+        checkpoint_repository=pipeline_services.checkpoint_repository,
+        ingest_repository=pipeline_services.repository,
+        normalization_repository=pipeline_services.normalization_repository,
+        publication_repository=pipeline_services.publication_repository,
+        projection_repository=pipeline_services.projection_repository,
+        raw_store=pipeline_services.store,
+        source_client=client,
+    )
+    for _ in range(2):
+        with pytest.raises(SourceThrottledError):
+            run_foundation_slice(
+                run_id=run_id,
+                publication_id=publication_id,
+                mode="poll-open",
+                build_sha=FOUNDATION_BUILD_SHA,
+                parser_version="eat-v1",
+                started_at=FOUNDATION_STARTED_AT,
+                normalized_at=FOUNDATION_NORMALIZED_AT,
+                validated_at=FOUNDATION_VALIDATED_AT,
+                activated_at=FOUNDATION_ACTIVATED_AT,
+                source="eat",
+                endpoint="bid-detail",
+                request_params={"ELCTRN_BID_ID": "task-13-throttled"},
+                expected_count=1,
+                services=services,
+            )
+
+    assert len(client.requests) == 1
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select r.status, r.failure_category, p.status, count(o.observation_id)
+            from ingest.run r
+            join ingest.publication p using (run_id)
+            join ingest.raw_observation o using (run_id)
+            where r.run_id = %s and p.publication_id = %s
+            group by r.status, r.failure_category, p.status
+            """,
+            (run_id, publication_id),
+        )
+        assert cursor.fetchone() == ("failed", "SOURCE_THROTTLED", "pending", 1)
+
+
+def test_foundation_and_replay_race_has_one_frozen_identity_without_deadlock(
+    foundation: FoundationHarness,
+    migrated_db: MigratedDatabase,
+) -> None:
+    source = foundation.run_fixture("eat/bid-detail-one.xml", expected_count=1)
+    run_id = UUID("13000000-0000-0000-0000-000000000041")
+    foundation_publication_id = UUID("13000000-0000-0000-0000-000000000042")
+    replay_publication_id = UUID("13000000-0000-0000-0000-000000000043")
+
+    def run_replay():
+        connection = migrated_db.connect()
+        store = MemoryRawObjectStore()
+        store.put(source="eat", endpoint="bid-detail", body=FIXTURE.read_bytes())
+        try:
+            return replay_observations(
+                run_id=run_id,
+                publication_id=replay_publication_id,
+                observation_ids=source.observation_ids,
+                build_sha=FOUNDATION_BUILD_SHA,
+                parser_version="eat-v1",
+                started_at=FOUNDATION_STARTED_AT,
+                normalized_at=FOUNDATION_NORMALIZED_AT,
+                validated_at=FOUNDATION_VALIDATED_AT,
+                activated_at=FOUNDATION_ACTIVATED_AT,
+                services=ReplayServices(
+                    replay_repository=PsycopgReplayRunRepository(connection),
+                    normalization_repository=PsycopgNormalizationRepository(connection),
+                    publication_repository=PsycopgPublicationRepository(connection),
+                    projection_repository=PsycopgCanonicalProjectionRepository(
+                        connection, migrated_db.connect
+                    ),
+                    store=store,
+                ),
+            )
+        finally:
+            connection.close()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = (
+            executor.submit(
+                _concurrent_foundation,
+                migrated_db,
+                run_id=run_id,
+                publication_id=foundation_publication_id,
+            ),
+            executor.submit(run_replay),
+        )
+        outcomes: list[object] = []
+        for future in futures:
+            try:
+                outcomes.append(future.result(timeout=20))
+            except (FoundationIntegrityError, ReplayIntegrityError) as error:
+                outcomes.append(error)
+
+    assert sum(not isinstance(item, Exception) for item in outcomes) == 1
+    assert (
+        sum(
+            isinstance(item, (FoundationIntegrityError, ReplayIntegrityError))
+            for item in outcomes
+        )
+        == 1
+    )
+    with migrated_db.connect() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "select mode, count(*) over () from ingest.run where run_id = %s",
+            (run_id,),
+        )
+        run = cursor.fetchone()
+        assert run is not None and run[1] == 1
+        cursor.execute(
+            "select publication_id from ingest.publication where run_id = %s",
+            (run_id,),
+        )
+        publications = cursor.fetchall()
+        assert len(publications) == 1
+        assert (run[0], publications[0][0]) in {
+            ("poll-open", foundation_publication_id),
+            ("replay", replay_publication_id),
+        }

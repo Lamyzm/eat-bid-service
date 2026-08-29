@@ -23,6 +23,7 @@ from eatbid.ingest.postgres_publication_repository import PsycopgPublicationRepo
 from eatbid.ingest.postgres_replay_repository import PsycopgReplayRunRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
 from eatbid.pipeline.replay import ReplayResult, ReplayServices, replay_observations
+from eatbid.postgres_foundation_repository import PsycopgFoundationCheckpointRepository
 from eatbid.source.client import SourceResponse
 
 from ..unit.fakes import MemoryRawObjectStore, StaticSourceClient
@@ -64,6 +65,7 @@ class PipelineServices:
     replay_repository: PsycopgReplayRunRepository
     projection_repository: PsycopgCanonicalProjectionRepository
     store: MemoryRawObjectStore
+    checkpoint_repository: PsycopgFoundationCheckpointRepository
 
 
 class FoundationHarness(Protocol):
@@ -102,6 +104,7 @@ class _FoundationHarness:
             request_params={"ELCTRN_BID_ID": "task-13-bid-detail-one"},
             expected_count=expected_count,
             services=FoundationServices(
+                checkpoint_repository=self.services.checkpoint_repository,
                 ingest_repository=self.services.repository,
                 normalization_repository=self.services.normalization_repository,
                 publication_repository=self.services.publication_repository,
@@ -195,6 +198,7 @@ def pipeline_services(migrated_db: MigratedDatabase) -> PipelineServices:
             store=MemoryRawObjectStore(
                 now=lambda: datetime(2026, 8, 29, 4, 5, 6, tzinfo=UTC)
             ),
+            checkpoint_repository=PsycopgFoundationCheckpointRepository(connection),
         )
     finally:
         connection.close()

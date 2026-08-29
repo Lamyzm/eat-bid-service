@@ -72,12 +72,32 @@ def validate_replay_start(
     parser_version: str,
     started_at: datetime,
 ) -> tuple[int, ...]:
+    validate_processing_start(
+        run_id=run_id,
+        publication_id=publication_id,
+        build_sha=build_sha,
+        parser_version=parser_version,
+        started_at=started_at,
+    )
+    return canonical_replay_manifest(observation_ids)
+
+
+def validate_processing_start(
+    *,
+    run_id: UUID,
+    publication_id: UUID,
+    build_sha: str,
+    parser_version: str,
+    started_at: datetime,
+) -> None:
     if not isinstance(run_id, UUID):
         raise TypeError("run_id must be a UUID")
     if not isinstance(publication_id, UUID):
         raise TypeError("publication_id must be a UUID")
-    manifest = canonical_replay_manifest(observation_ids)
-    if not isinstance(build_sha, str) or _BUILD_SHA_PATTERN.fullmatch(build_sha) is None:
+    if (
+        not isinstance(build_sha, str)
+        or _BUILD_SHA_PATTERN.fullmatch(build_sha) is None
+    ):
         raise ValueError("build_sha must be a lowercase SHA-256 digest")
     if (
         not isinstance(parser_version, str)
@@ -90,4 +110,3 @@ def validate_replay_start(
         raise TypeError("started_at must be a datetime")
     if started_at.utcoffset() is None:
         raise ValueError("started_at must be timezone-aware")
-    return manifest
