@@ -2,6 +2,9 @@ import gzip
 from hashlib import sha256
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from eatbid.object_store import (
     build_raw_object_key,
     deterministic_gzip,
@@ -9,8 +12,6 @@ from eatbid.object_store import (
     raw_content_sha256,
 )
 from fakes import MemoryRawObjectStore
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 
 @settings(max_examples=40, deadline=None, derandomize=True)

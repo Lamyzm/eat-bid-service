@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from botocore.exceptions import ClientError
+
 from eatbid.object_store import (
     StoredRawObject,
     build_raw_object_key,
@@ -45,10 +46,13 @@ class FakeS3Object:
 
 
 class FakeBody:
-    def __init__(self, body: bytes) -> None:
+    def __init__(self, body: bytes, *, read_error: Exception | None = None) -> None:
         self._body = body
+        self._read_error = read_error
 
     def read(self) -> bytes:
+        if self._read_error is not None:
+            raise self._read_error
         return self._body
 
 
@@ -59,6 +63,10 @@ class StatefulFakeS3Client:
         self.put_requests: list[dict[str, object]] = []
         self.get_requests: list[dict[str, object]] = []
         self.head_error: Exception | None = None
+        self.put_error: Exception | None = None
+        self.get_error: Exception | None = None
+        self.body_read_error: Exception | None = None
+        self.concurrent_put_winner: FakeS3Object | None = None
 
     def head_object(self, **kwargs: object) -> dict[str, object]:
         self.head_requests.append(kwargs)
@@ -79,6 +87,12 @@ class StatefulFakeS3Client:
     def put_object(self, **kwargs: object) -> dict[str, object]:
         self.put_requests.append(kwargs)
         key = str(kwargs["Key"])
+        if self.concurrent_put_winner is not None:
+            self.objects[key] = self.concurrent_put_winner
+            self.concurrent_put_winner = None
+            raise client_error("PreconditionFailed", "PutObject", status=412)
+        if self.put_error is not None:
+            raise self.put_error
         body = bytes(kwargs["Body"])
         metadata = dict(kwargs["Metadata"])  # type: ignore[arg-type]
         self.objects[key] = FakeS3Object(
@@ -93,12 +107,14 @@ class StatefulFakeS3Client:
 
     def get_object(self, **kwargs: object) -> dict[str, object]:
         self.get_requests.append(kwargs)
+        if self.get_error is not None:
+            raise self.get_error
         key = str(kwargs["Key"])
         if key not in self.objects:
             raise client_error("NoSuchKey", "GetObject", status=404)
         stored = self.objects[key]
         return {
-            "Body": FakeBody(stored.body),
+            "Body": FakeBody(stored.body, read_error=self.body_read_error),
             "ContentLength": stored.content_length,
             "ContentEncoding": stored.content_encoding,
             "ContentType": stored.content_type,
@@ -107,9 +123,18 @@ class StatefulFakeS3Client:
         }
 
 
-def client_error(code: str, operation: str, *, status: int) -> ClientError:
+def client_error(
+    code: str | None,
+    operation: str,
+    *,
+    status: int,
+    message: str = "fake provider response",
+) -> ClientError:
+    error: dict[str, str] = {"Message": message}
+    if code is not None:
+        error["Code"] = code
     response: dict[str, Any] = {
-        "Error": {"Code": code, "Message": "fake provider response"},
+        "Error": error,
         "ResponseMetadata": {"HTTPStatusCode": status},
     }
     return ClientError(response, operation)

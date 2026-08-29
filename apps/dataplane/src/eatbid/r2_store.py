@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import gzip
+import re
 import zlib
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Protocol, cast
+from typing import NoReturn, Protocol, cast
 
 import boto3
-from botocore.exceptions import ClientError
-from pydantic import AnyHttpUrl, Field, SecretStr
+from botocore.exceptions import BotoCoreError, ClientError
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from eatbid.object_store import (
@@ -25,6 +26,10 @@ _CONTENT_TYPE = "application/xml"
 _HASH_METADATA_KEY = "source-sha256"
 _LENGTH_METADATA_KEY = "source-byte-length"
 _NOT_FOUND_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
+_DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_R2_ENDPOINT_HOST_PATTERN = re.compile(
+    rf"{_DNS_LABEL}(?:\.{_DNS_LABEL})?\.r2\.cloudflarestorage\.com"
+)
 
 
 class ObjectCollisionError(RuntimeError):
@@ -33,6 +38,10 @@ class ObjectCollisionError(RuntimeError):
 
 class ObjectCorruptionError(RuntimeError):
     """A stored raw object no longer satisfies its content-address contract."""
+
+
+class R2ProviderError(RuntimeError):
+    """An R2 provider operation failed without exposing provider details."""
 
 
 class R2Settings(BaseSettings):
@@ -46,13 +55,42 @@ class R2Settings(BaseSettings):
     endpoint_url: AnyHttpUrl = Field(
         validation_alias="R2_ENDPOINT_URL", repr=False
     )
-    bucket: str = Field(validation_alias="R2_BUCKET", min_length=1)
+    bucket: str = Field(
+        validation_alias="R2_BUCKET",
+        min_length=3,
+        max_length=63,
+        pattern=r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])$",
+    )
     access_key_id: SecretStr = Field(
         validation_alias="R2_ACCESS_KEY_ID", min_length=1, repr=False
     )
     secret_access_key: SecretStr = Field(
         validation_alias="R2_SECRET_ACCESS_KEY", min_length=1, repr=False
     )
+
+    @field_validator("endpoint_url")
+    @classmethod
+    def validate_endpoint_url(cls, value: AnyHttpUrl) -> AnyHttpUrl:
+        if (
+            value.scheme != "https"
+            or value.username is not None
+            or value.password is not None
+            or value.host is None
+            or _R2_ENDPOINT_HOST_PATTERN.fullmatch(value.host) is None
+            or value.port != 443
+            or value.path not in {"", "/"}
+            or value.query is not None
+            or value.fragment is not None
+        ):
+            raise ValueError("R2 endpoint must be an HTTPS account root")
+        return value
+
+    @field_validator("access_key_id", "secret_access_key")
+    @classmethod
+    def validate_credential(cls, value: SecretStr) -> SecretStr:
+        if not value.get_secret_value().strip():
+            raise ValueError("R2 credentials must contain non-whitespace characters")
+        return value
 
 
 class _ReadableBody(Protocol):
@@ -93,7 +131,9 @@ class R2RawObjectStore:
             )
         except ClientError as error:
             if not _is_not_found(error):
-                raise
+                _raise_provider_error()
+        except BotoCoreError:
+            _raise_provider_error()
         else:
             _validate_existing_object(
                 existing,
@@ -108,17 +148,37 @@ class R2RawObjectStore:
                 stored_at=_existing_last_modified(existing),
             )
 
-        self._client.put_object(
-            Bucket=self._settings.bucket,
-            Key=object_key,
-            Body=compressed,
-            ContentEncoding=_CONTENT_ENCODING,
-            ContentType=_CONTENT_TYPE,
-            Metadata={
-                _HASH_METADATA_KEY: address.content_sha256,
-                _LENGTH_METADATA_KEY: str(len(body)),
-            },
-        )
+        try:
+            self._client.put_object(
+                Bucket=self._settings.bucket,
+                Key=object_key,
+                Body=compressed,
+                ContentEncoding=_CONTENT_ENCODING,
+                ContentType=_CONTENT_TYPE,
+                IfNoneMatch="*",
+                Metadata={
+                    _HASH_METADATA_KEY: address.content_sha256,
+                    _LENGTH_METADATA_KEY: str(len(body)),
+                },
+            )
+        except ClientError as error:
+            if not _is_precondition_failed(error):
+                _raise_provider_error()
+            winner = self._head_concurrent_winner(object_key)
+            _validate_existing_object(
+                winner,
+                address=address,
+                raw_length=len(body),
+                compressed_length=len(compressed),
+            )
+            return StoredRawObject(
+                content_sha256=address.content_sha256,
+                object_key=object_key,
+                byte_length=len(body),
+                stored_at=_existing_last_modified(winner),
+            )
+        except BotoCoreError:
+            _raise_provider_error()
         return StoredRawObject(
             content_sha256=address.content_sha256,
             object_key=object_key,
@@ -128,10 +188,16 @@ class R2RawObjectStore:
 
     def read(self, object_key: str) -> bytes:
         address = parse_raw_object_key(object_key)
-        response = self._client.get_object(
-            Bucket=self._settings.bucket, Key=object_key
-        )
-        compressed = _read_response_body(response)
+        try:
+            response = self._client.get_object(
+                Bucket=self._settings.bucket, Key=object_key
+            )
+        except (ClientError, BotoCoreError):
+            _raise_provider_error()
+        try:
+            compressed = _read_response_body(response)
+        except (ClientError, BotoCoreError):
+            _raise_provider_error()
         raw_length = _validate_read_envelope(
             response, address=address, compressed_length=len(compressed)
         )
@@ -147,18 +213,44 @@ class R2RawObjectStore:
             raise ObjectCorruptionError("stored raw object is corrupt")
         return raw
 
+    def _head_concurrent_winner(self, object_key: str) -> dict[str, object]:
+        try:
+            return self._client.head_object(
+                Bucket=self._settings.bucket, Key=object_key
+            )
+        except (ClientError, BotoCoreError):
+            _raise_provider_error()
+
 
 def _is_not_found(error: ClientError) -> bool:
     response = error.response
     error_details = response.get("Error", {})
-    code = error_details.get("Code") if isinstance(error_details, Mapping) else None
+    if isinstance(error_details, Mapping) and "Code" in error_details:
+        return error_details.get("Code") in _NOT_FOUND_CODES
     response_metadata = response.get("ResponseMetadata", {})
     status = (
         response_metadata.get("HTTPStatusCode")
         if isinstance(response_metadata, Mapping)
         else None
     )
-    return code in _NOT_FOUND_CODES or status == 404
+    return status == 404
+
+
+def _is_precondition_failed(error: ClientError) -> bool:
+    response = error.response
+    error_details = response.get("Error", {})
+    if isinstance(error_details, Mapping) and "Code" in error_details:
+        return error_details.get("Code") in {"412", "PreconditionFailed"}
+    response_metadata = response.get("ResponseMetadata", {})
+    return (
+        response_metadata.get("HTTPStatusCode") == 412
+        if isinstance(response_metadata, Mapping)
+        else False
+    )
+
+
+def _raise_provider_error() -> NoReturn:
+    raise R2ProviderError("R2 provider operation failed") from None
 
 
 def _validate_existing_object(

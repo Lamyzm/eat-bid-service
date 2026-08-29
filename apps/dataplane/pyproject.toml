@@ -27,3 +27,6 @@ dev = [
     "pyyaml>=6,<7",
     "ruff>=0.12,<1",
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["eatbid", "fakes"]
