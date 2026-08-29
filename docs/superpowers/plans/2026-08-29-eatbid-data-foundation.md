@@ -389,13 +389,19 @@ git commit -m "feat: add source-scoped canonical identity schema"
 
 **Files:**
 - Create: `packages/db/src/migrate.ts`
+- Create: `packages/db/src/migrate.test.ts`
 - Create: `packages/db/src/version.ts`
 - Create: `packages/db/src/version.test.ts`
+- Create: `packages/db/src/ddl-authority.test.ts`
 - Create: `packages/db/Dockerfile`
 - Modify: `packages/db/package.json`
 - Modify: `package.json`
 - Modify: `packages/shared/package.json`
+- Modify: `apps/server/package.json`
+- Modify: `pnpm-workspace.yaml`
+- Modify: `pnpm-lock.yaml`
 - Modify: `infra/k8s/base/kustomization.yaml`
+- Modify: `infra/k8s/base/app.yaml`
 
 **Interfaces:**
 - Consumes: committed migrations from Tasks 3–4 and `DATABASE_URL`.
@@ -409,7 +415,7 @@ import { expectedMigration } from "./version";
 
 describe("schema version", () => {
   test("is pinned to the committed foundation migration", () => {
-    expect(expectedMigration).toBe("20260829001000_core_identity");
+    expect(expectedMigration).toBe("20260829001500_core_validity_constraints");
   });
 });
 ```
@@ -423,29 +429,42 @@ Expected: FAIL because `./version` does not exist.
 - [ ] **Step 3: migration/version 구현**
 
 ```typescript
-export const expectedMigration = "20260829001000_core_identity" as const;
+export const expectedMigration = "20260829001500_core_validity_constraints" as const;
 ```
 
 `migrate.ts`는 `postgres` client와 `drizzle-orm/postgres-js/migrator`의 `migrate`를 사용하고
 `packages/db/drizzle`만 읽은 뒤 `seedCodeSchemes(db)`를 실행한다. 성공 시 적용된 migration ID를
-출력하고 실패 시 nonzero exit한다.
+출력하고 실패 시 nonzero exit한다. migration directory는 현재 작업 디렉터리가 아니라 module
+위치에서 해소하고, `DATABASE_URL`이 없거나 PostgreSQL URL이 아니면 연결 전에 실패한다.
+`assertSchemaVersion`은 Drizzle journal의 최신 `created_at`을 expected migration timestamp와
+대조하며 뒤처진 DB뿐 아니라 코드보다 앞선 DB도 거부한다.
 
 - [ ] **Step 4: 중복 DDL 경로 제거**
 
-Root와 `packages/shared`에서 `db:push` script를 제거한다. `infra/k8s/base/kustomization.yaml`에서
-`db-schema` ConfigMap generator를 제거한다. `schema.sql` 파일 자체의 삭제는 cutover plan까지
-미루되 어떤 active manifest에서도 참조되지 않게 한다.
+Root의 `db:generate`를 `@eatbid/db`로 전환하고 `db:migrate`를 노출하며 `db:push`를 제거한다.
+`packages/shared`에서는 `db:generate`, `db:push`, `drizzle-kit`을 모두 제거해 DDL authoring
+권한을 없앤다. 두 TypeScript 런타임이 쓰는 `postgres` version은 pnpm default catalog 한 곳에
+두고 `packages/db`와 `apps/server`가 `catalog:`으로 소비한다. root test에는 `packages/db/src`를
+포함해 schema/migration guard가 기본 CI에서 빠지지 않게 한다.
+
+`infra/k8s/base/kustomization.yaml`의 `db-schema` ConfigMap generator와
+`infra/k8s/base/app.yaml`의 legacy `postgres:16`/`schema.sql` PreSync migration Job 전체를 함께
+제거한다. `schema.sql` 파일 자체의 삭제는 cutover plan까지 미루되 어떤 active manifest나
+script에서도 참조되지 않게 한다. `ddl-authority.test.ts`가 manifest/package script를 검사해
+이 상태와 `packages/db`의 sole owner를 고정한다.
 
 - [ ] **Step 5: 빈 PostgreSQL에 migration chain 적용**
 
-Run: `docker compose -f docker-compose.dev.yml up -d postgres && pnpm --filter @eatbid/db db:migrate && pnpm --filter @eatbid/db db:check`
+Run: `docker compose -f docker-compose.dev.yml up -d postgres && pnpm --filter @eatbid/db db:migrate && pnpm --filter @eatbid/db db:check && pnpm test && pnpm build`
 
-Expected: `ingest`, `core`, `app`, `mart` schema가 생성되고 version check exit 0.
+Expected: `ingest`, `core`, `app`, `mart` schema와 15 canonical/ingest tables가 빈 PostgreSQL에
+생성되고 version check와 DDL-authority guards가 exit 0. migration image는 committed
+migration directory만 포함하며 non-root runtime으로 실행된다.
 
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add package.json packages/shared/package.json packages/db infra/k8s/base/kustomization.yaml
+git add package.json pnpm-workspace.yaml pnpm-lock.yaml apps/server/package.json packages/shared/package.json packages/db infra/k8s/base
 git commit -m "build: make committed migrations the only DDL path"
 ```
 
