@@ -1,0 +1,2 @@
+ALTER TABLE "ingest"."request_unit" ADD CONSTRAINT "request_unit_id_run_id_key" UNIQUE("request_unit_id","run_id");--> statement-breakpoint
+ALTER TABLE "ingest"."raw_observation" ADD CONSTRAINT "raw_observation_request_unit_run_id_fkey" FOREIGN KEY ("request_unit_id","run_id") REFERENCES "ingest"."request_unit"("request_unit_id","run_id");

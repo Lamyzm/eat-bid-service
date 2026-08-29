@@ -3,6 +3,7 @@ import {
   bigint,
   char,
   check,
+  foreignKey,
   jsonb,
   text,
   timestamp,
@@ -56,6 +57,7 @@ export const requestUnit = ingestSchema.table(
     status: varchar("status", { length: 16, enum: requestUnitStatuses }).notNull(),
   },
   (table) => [
+    unique("request_unit_id_run_id_key").on(table.requestUnitId, table.runId),
     unique("request_unit_run_source_endpoint_params_key").on(
       table.runId,
       table.source,
@@ -107,6 +109,11 @@ export const rawObservation = ingestSchema.table(
     quarantineReason: text("quarantine_reason"),
   },
   (table) => [
+    foreignKey({
+      name: "raw_observation_request_unit_run_id_fkey",
+      columns: [table.requestUnitId, table.runId],
+      foreignColumns: [requestUnit.requestUnitId, requestUnit.runId],
+    }),
     check("raw_observation_parser_status_allowed", sql`${table.parserStatus} in ('pending', 'normalized', 'quarantined')`),
   ],
 );

@@ -125,6 +125,20 @@ describe("ingest identity", () => {
       .toContainEqual(["object_key"]);
   });
 
+  test("binds an observation request unit to the observation run", () => {
+    expect(uniqueColumnSets(requestUnit)).toContainEqual(["request_unit_id", "run_id"]);
+
+    const coherentRequestForeignKey = getTableConfig(rawObservation).foreignKeys.find((foreignKey) => {
+      const reference = foreignKey.reference();
+
+      return reference.foreignTable[Symbol.for("drizzle:Name")] === "request_unit"
+        && reference.columns.map((column) => column.name).join(",") === "request_unit_id,run_id"
+        && reference.foreignColumns.map((column) => column.name).join(",") === "request_unit_id,run_id";
+    });
+
+    expect(coherentRequestForeignKey).toBeDefined();
+  });
+
   test("requires raw evidence and gated publication relationships", () => {
     expect(foreignKeyColumnSets(requestUnit)).toContainEqual({ columns: ["run_id"], foreignTable: "run" });
     expect(foreignKeyColumnSets(rawObservation)).toEqual(expect.arrayContaining([
