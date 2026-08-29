@@ -92,13 +92,14 @@ class PsycopgObservationRepository:
         params_copy = dict(validated.params)
         with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
-                "select status from ingest.run where run_id = %s for update",
+                "select mode, status from ingest.run where run_id = %s for update",
                 (run_id,),
             )
             run = cursor.fetchone()
             if run is None:
                 raise IngestIntegrityError("run does not exist")
-            if run[0] != "running":
+            _require_capture_mode(str(run[0]))
+            if run[1] != "running":
                 raise TerminalCaptureStateError(
                     "request units can only be planned for a running run"
                 )
@@ -244,7 +245,7 @@ class PsycopgObservationRepository:
         with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 """
-                select status, failure_category, ended_at
+                select mode, status, failure_category, ended_at
                 from ingest.run where run_id = %s
                 for update
                 """,
@@ -253,13 +254,14 @@ class PsycopgObservationRepository:
             current = cursor.fetchone()
             if current is None:
                 raise IngestIntegrityError("run does not exist")
-            if current[0] == "failed":
-                if current[1:] == (failure_category, failed_at):
+            _require_capture_mode(str(current[0]))
+            if current[1] == "failed":
+                if current[2:] == (failure_category, failed_at):
                     return
                 raise TerminalCaptureStateError(
                     "failed run metadata cannot be overwritten"
                 )
-            if current[0] not in {"planned", "running"}:
+            if current[1] not in {"planned", "running"}:
                 raise TerminalCaptureStateError(
                     "validated or published runs cannot be failed"
                 )
@@ -285,7 +287,7 @@ class PsycopgObservationRepository:
         cursor.execute(
             """
             select unit.source, unit.endpoint, unit.request_params,
-                   unit.request_params_hash, unit.status, run.status
+                   unit.request_params_hash, unit.status, run.mode, run.status
             from ingest.request_unit unit
             join ingest.run run on run.run_id = unit.run_id
             where unit.request_unit_id = %s and unit.run_id = %s
@@ -301,7 +303,8 @@ class PsycopgObservationRepository:
             params_hash,
         ):
             raise PlannedRequestMismatchError("capture does not match planned request")
-        if row[4] not in {"planned", "captured"} or row[5] != "running":
+        _require_capture_mode(str(row[5]))
+        if row[4] not in {"planned", "captured"} or row[6] != "running":
             raise TerminalCaptureStateError(
                 "only active request and run states can record observations"
             )
@@ -339,3 +342,8 @@ def _require_aware(value: datetime, field_name: str) -> None:
 def _require_nonnegative(value: int, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"{field_name} must be a nonnegative integer")
+
+
+def _require_capture_mode(mode: str) -> None:
+    if mode not in _CAPTURE_RUN_MODES:
+        raise IngestIntegrityError("capture repository operation requires capture mode")

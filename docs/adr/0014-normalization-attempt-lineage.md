@@ -41,13 +41,22 @@ build/parser version, timezone-aware start time, 중복 없는 positive observat
 나중에 추가하는 API는 두지 않는다. 기존 run을 재호출하면 mode, 두 UUID, build/parser/start time,
 expected count, publication metadata와 manifest 전체가 동일할 때만 현재 monotonic state를 반환한다.
 unknown member나 metadata drift는 아무 행도 남기지 않거나 기존 행을 바꾸지 않고 거부한다.
+capture adapter의 request 계획, raw 기록, capture 실패 전이는 run을 잠그고 capture/backfill mode만
+허용한다. 따라서 이미 존재하는 replay run에 request/raw/blob/captured count를 붙이거나 pending
+publication과 어긋난 failed 상태를 만들 수 없다.
+
+resume과 validation/projection adapter의 잠금 순서는 `run → raw/topology → publication →
+publication_record`로 통일한다. replay identity 충돌 확인도 raw를 먼저 잠그지 않으므로 반대 순서의
+run lock과 cycle을 만들지 않는다.
 
 replay orchestration은 `running → validated → published` checkpoint에서 재개한다. running은 아직 final
 attempt가 없는 member를 포함해 exact manifest를 deterministic normalize/insert-or-verify하고,
 validated는 같은 frozen publication을 project하며, published는 topology와 persisted canonical
 fingerprint를 다시 검증한다. failed 재호출은 저장된 `DATA_QUARANTINED`, `SOURCE_CONTRACT`,
-`PROJECTION_CONTRACT` category를 먼저 읽어 동일한 typed failure를 반환하므로 R2 read, attempt 추가,
-projection을 다시 실행하지 않는다. transient R2/DB 오류는 running 또는 validated 상태를 유지한다.
+`PROJECTION_CONTRACT` category를 사용해 동일한 typed failure를 반환하되, 그 전에 같은 shared
+topology verifier로 상태별 exact publication manifest를 검증한다. source/data failure는 빈 manifest,
+projection failure는 validated 시점의 exact frozen manifest여야 한다. 이 검증은 R2 read, attempt 추가,
+projection 재실행보다 먼저 일어나며 transient R2/DB 오류는 running 또는 validated 상태를 유지한다.
 
 publication validation은 current run/parser의 final attempt와 그 attempt-record member만 잠그고
 다시 센다. 완전성 gate를 통과한 exact normalized member ID 집합을
@@ -61,8 +70,9 @@ request/candidate/run expected/output count가 정확하며, candidate마다 cur
 각 attempt가 정확히 하나의 `auction` output에 연결되고 output observation은 candidate observation과,
 output parser는 current parser와 일치해야 하며 reviewed schema contract도 통과해야 한다. complete
 candidate-to-member mapping을 검증한 뒤에만 동결하거나 terminal manifest와 비교한다. join table의
-미래 N:M 표현력 자체는 유지한다. failed terminal은 이후 외부 수정으로 승격하지 않고 저장된 failed
-metadata와 빈 manifest를 계속 검증한다.
+미래 N:M 표현력 자체는 유지한다. failed terminal은 이후 외부 수정으로 승격하지 않는다.
+`SOURCE_CONTRACT`/`DATA_QUARANTINED`는 빈 manifest를,
+`PROJECTION_CONTRACT`는 coherent topology의 exact frozen manifest를 계속 검증한다.
 
 ## Consequences
 

@@ -11,6 +11,7 @@ from eatbid.ingest.replay_repository import (
     ReplayRunState,
     validate_replay_start,
 )
+from eatbid.postgres_topology import LockedAuctionTopology, lock_auction_topology
 
 DATA_QUARANTINED = "DATA_QUARANTINED"
 
@@ -53,20 +54,6 @@ class PsycopgReplayRunRepository:
             with self._connection.transaction(), self._connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    select observation_id from ingest.raw_observation
-                    where observation_id = any(%s)
-                    order by observation_id for share
-                    """,
-                    (list(manifest),),
-                )
-                existing_observations = tuple(int(row[0]) for row in cursor.fetchall())
-                if existing_observations != manifest:
-                    raise ReplayIntegrityError(
-                        "replay manifest contains an unknown observation"
-                    )
-
-                cursor.execute(
-                    """
                     insert into ingest.run (
                         run_id, mode, status, build_sha, parser_version, started_at,
                         expected_count, captured_count, published_count
@@ -77,25 +64,6 @@ class PsycopgReplayRunRepository:
                     (run_id, build_sha, parser_version, started_at, len(manifest)),
                 )
                 inserted = cursor.fetchone() is not None
-                if inserted:
-                    cursor.execute(
-                        """
-                        insert into ingest.publication (
-                            publication_id, run_id, status, validated_at, activated_at,
-                            expected_count, normalized_count, published_count,
-                            canonical_fingerprint, projector_version
-                        ) values (%s, %s, 'pending', null, null, %s, 0, 0, null, null)
-                        """,
-                        (publication_id, run_id, len(manifest)),
-                    )
-                    cursor.executemany(
-                        """
-                        insert into ingest.replay_input (run_id, observation_id)
-                        values (%s, %s)
-                        """,
-                        [(run_id, observation_id) for observation_id in manifest],
-                    )
-
                 return self._load_locked(
                     cursor,
                     run_id=run_id,
@@ -104,6 +72,7 @@ class PsycopgReplayRunRepository:
                     build_sha=build_sha,
                     parser_version=parser_version,
                     started_at=started_at,
+                    inserted=inserted,
                 )
         except psycopg.errors.UniqueViolation as error:
             raise ReplayIntegrityError(
@@ -120,6 +89,7 @@ class PsycopgReplayRunRepository:
         build_sha: str,
         parser_version: str,
         started_at: datetime,
+        inserted: bool,
     ) -> ReplayRunState:
         cursor.execute(
             """
@@ -133,6 +103,69 @@ class PsycopgReplayRunRepository:
         run = cursor.fetchone()
         if run is None:
             raise ReplayIntegrityError("replay run disappeared")
+
+        persisted_run_identity = (
+            str(run[0]),
+            str(run[2]),
+            str(run[3]),
+            run[4],
+            int(run[5]),
+            int(run[6]),
+        )
+        requested_run_identity = (
+            "replay",
+            build_sha,
+            parser_version,
+            started_at,
+            len(manifest),
+            0,
+        )
+        if persisted_run_identity != requested_run_identity:
+            raise ReplayIntegrityError("existing replay identity metadata differs")
+
+        if inserted:
+            cursor.execute(
+                """
+                select observation_id from ingest.raw_observation
+                where observation_id = any(%s)
+                order by observation_id for update
+                """,
+                (list(manifest),),
+            )
+            existing_observations = tuple(int(row[0]) for row in cursor.fetchall())
+            if existing_observations != manifest:
+                raise ReplayIntegrityError(
+                    "replay manifest contains an unknown observation"
+                )
+            cursor.executemany(
+                """
+                insert into ingest.replay_input (run_id, observation_id)
+                values (%s, %s)
+                """,
+                [(run_id, observation_id) for observation_id in manifest],
+            )
+
+        topology = lock_auction_topology(
+            cursor,
+            run_id=run_id,
+            run_mode=str(run[0]),
+            parser_version=str(run[3]),
+        )
+        if topology.candidate_ids != manifest:
+            raise ReplayIntegrityError("existing replay input manifest differs")
+
+        if inserted:
+            cursor.execute(
+                """
+                insert into ingest.publication (
+                    publication_id, run_id, status, validated_at, activated_at,
+                    expected_count, normalized_count, published_count,
+                    canonical_fingerprint, projector_version
+                ) values (%s, %s, 'pending', null, null, %s, 0, 0, null, null)
+                """,
+                (publication_id, run_id, len(manifest)),
+            )
+
         cursor.execute(
             """
             select publication_id, status, validated_at, activated_at,
@@ -147,39 +180,8 @@ class PsycopgReplayRunRepository:
             raise ReplayIntegrityError("replay run is missing its pending publication")
         row = run + publication
 
-        persisted_identity = (
-            str(row[0]),
-            str(row[2]),
-            str(row[3]),
-            row[4],
-            int(row[5]),
-            int(row[6]),
-            row[10],
-            int(row[14]),
-        )
-        requested_identity = (
-            "replay",
-            build_sha,
-            parser_version,
-            started_at,
-            len(manifest),
-            0,
-            publication_id,
-            len(manifest),
-        )
-        if persisted_identity != requested_identity:
+        if (row[10], int(row[14])) != (publication_id, len(manifest)):
             raise ReplayIntegrityError("existing replay identity metadata differs")
-
-        cursor.execute(
-            """
-            select observation_id from ingest.replay_input
-            where run_id = %s order by observation_id for update
-            """,
-            (run_id,),
-        )
-        persisted_manifest = tuple(int(member[0]) for member in cursor.fetchall())
-        if persisted_manifest != manifest:
-            raise ReplayIntegrityError("existing replay input manifest differs")
 
         run_status = str(row[1])
         publication_status = str(row[11])
@@ -191,9 +193,18 @@ class PsycopgReplayRunRepository:
         }.get(run_status)
         if publication_status != expected_publication_status:
             raise ReplayIntegrityError("replay run/publication states differ")
-        PsycopgReplayRunRepository._verify_state_metadata(row, run_status)
+        PsycopgReplayRunRepository._verify_state_metadata(
+            row, run_status, topology=topology
+        )
 
         failure_category = str(row[8]) if row[8] is not None else None
+        PsycopgReplayRunRepository._verify_publication_members(
+            cursor,
+            publication_id=publication_id,
+            run_status=run_status,
+            failure_category=failure_category,
+            topology=topology,
+        )
         failure_observation_id: int | None = None
         failure_reason: str | None = None
         if run_status == "failed" and failure_category == DATA_QUARANTINED:
@@ -228,7 +239,12 @@ class PsycopgReplayRunRepository:
         )
 
     @staticmethod
-    def _verify_state_metadata(row: tuple[Any, ...], run_status: str) -> None:
+    def _verify_state_metadata(
+        row: tuple[Any, ...],
+        run_status: str,
+        *,
+        topology: LockedAuctionTopology,
+    ) -> None:
         run_published = int(row[7])
         failure_category = row[8]
         ended_at = row[9]
@@ -239,6 +255,15 @@ class PsycopgReplayRunRepository:
         publication_published = int(row[16])
         fingerprint = row[17]
         projector_version = row[18]
+        topology_must_be_frozen = run_status in {"validated", "published"} or (
+            run_status == "failed" and failure_category == "PROJECTION_CONTRACT"
+        )
+        if topology_must_be_frozen and (
+            not topology.coherent or normalized_count != len(topology.member_ids)
+        ):
+            raise ReplayIntegrityError(
+                "replay topology differs from the frozen publication lineage"
+            )
         if run_status == "running":
             coherent = (
                 failure_category is None
@@ -262,6 +287,8 @@ class PsycopgReplayRunRepository:
                 and publication_published == 0
                 and fingerprint is None
                 and projector_version is None
+                and topology.coherent
+                and normalized_count == len(topology.member_ids)
             )
         elif run_status == "published":
             coherent = (
@@ -274,6 +301,8 @@ class PsycopgReplayRunRepository:
                 and publication_published == expected_count
                 and fingerprint is not None
                 and projector_version is not None
+                and topology.coherent
+                and normalized_count == len(topology.member_ids)
             )
         elif run_status == "failed":
             base_coherent = (
@@ -291,12 +320,47 @@ class PsycopgReplayRunRepository:
                     base_coherent
                     and validated_at is not None
                     and normalized_count == expected_count
+                    and topology.coherent
+                    and normalized_count == len(topology.member_ids)
                 )
             elif failure_category in {"SOURCE_CONTRACT", DATA_QUARANTINED}:
-                coherent = base_coherent and validated_at is None
+                coherent = (
+                    base_coherent
+                    and validated_at is None
+                    and normalized_count == len(topology.members)
+                )
             else:
                 coherent = False
         else:
             coherent = False
         if not coherent:
             raise ReplayIntegrityError("replay state metadata is inconsistent")
+
+    @staticmethod
+    def _verify_publication_members(
+        cursor: psycopg.Cursor[Any],
+        *,
+        publication_id: UUID,
+        run_status: str,
+        failure_category: str | None,
+        topology: LockedAuctionTopology,
+    ) -> None:
+        cursor.execute(
+            """
+            select normalized_record_id from ingest.publication_record
+            where publication_id = %s order by normalized_record_id
+            for update
+            """,
+            (publication_id,),
+        )
+        persisted_members = tuple(int(row[0]) for row in cursor.fetchall())
+        if run_status in {"validated", "published"} or (
+            run_status == "failed" and failure_category == "PROJECTION_CONTRACT"
+        ):
+            expected_members = topology.member_ids
+        else:
+            expected_members = ()
+        if persisted_members != expected_members:
+            raise ReplayIntegrityError(
+                "replay publication member manifest differs from current topology"
+            )

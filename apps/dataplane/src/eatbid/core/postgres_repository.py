@@ -27,7 +27,7 @@ from eatbid.core.repository import (
     ProjectionFactory,
     ProjectionTransactionScopeError,
 )
-from eatbid.postgres_topology import lock_auction_topology
+from eatbid.postgres_topology import LockedAuctionTopology, lock_auction_topology
 
 PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
 
@@ -104,7 +104,7 @@ class PsycopgCanonicalProjectionRepository:
         activated_at: datetime,
         projection_factory: ProjectionFactory,
     ) -> ProjectResult:
-        state = self._lock_publication(cursor, publication_id)
+        state, topology = self._lock_projection_inputs(cursor, publication_id)
         if state.publication_status not in {"validated", "published"}:
             raise ProjectionContractError(
                 "publication must be validated before projection"
@@ -124,8 +124,7 @@ class PsycopgCanonicalProjectionRepository:
         evidence = self._lock_members(
             cursor,
             publication_id=publication_id,
-            run_id=state.run_id,
-            run_mode=state.run_mode,
+            topology=topology,
             run_parser_version=state.parser_version,
             expected_count=state.expected_count,
             normalized_count=state.normalized_count,
@@ -205,45 +204,75 @@ class PsycopgCanonicalProjectionRepository:
         )
 
     @staticmethod
-    def _lock_publication(
+    def _lock_projection_inputs(
         cursor: psycopg.Cursor[Any], publication_id: UUID
-    ) -> _PublicationState:
+    ) -> tuple[_PublicationState, LockedAuctionTopology]:
+        cursor.execute(
+            "select run_id from ingest.publication where publication_id = %s",
+            (publication_id,),
+        )
+        owner = cursor.fetchone()
+        if owner is None:
+            raise ProjectionContractError("publication does not exist")
+        run_id = owner[0]
         cursor.execute(
             """
-            select p.run_id, r.mode, r.started_at, p.status, r.status,
-                   r.build_sha, r.parser_version,
-                   p.expected_count, p.normalized_count, p.published_count,
-                   p.validated_at, p.activated_at, p.canonical_fingerprint,
-                   p.projector_version, r.published_count, r.failure_category,
-                   r.ended_at
-            from ingest.publication p
-            join ingest.run r using (run_id)
-            where p.publication_id = %s
-            for update of p, r
+            select mode, started_at, status, build_sha, parser_version,
+                   expected_count, published_count, failure_category, ended_at
+            from ingest.run where run_id = %s for update
+            """,
+            (run_id,),
+        )
+        run = cursor.fetchone()
+        if run is None:
+            raise ProjectionContractError("publication owner does not exist")
+        topology = lock_auction_topology(
+            cursor,
+            run_id=run_id,
+            run_mode=str(run[0]),
+            parser_version=str(run[4]),
+        )
+        cursor.execute(
+            """
+            select run_id, status, expected_count, normalized_count,
+                   published_count, validated_at, activated_at,
+                   canonical_fingerprint, projector_version
+            from ingest.publication where publication_id = %s for update
             """,
             (publication_id,),
         )
-        row = cursor.fetchone()
-        if row is None:
+        publication = cursor.fetchone()
+        if publication is None or publication[0] != run_id:
             raise ProjectionContractError("publication does not exist")
-        return _PublicationState(
-            run_id=row[0],
-            run_mode=str(row[1]),
-            started_at=row[2],
-            publication_status=str(row[3]),
-            run_status=str(row[4]),
-            build_sha=str(row[5]),
-            parser_version=str(row[6]),
-            expected_count=int(row[7]),
-            normalized_count=int(row[8]),
-            published_count=int(row[9]),
-            validated_at=row[10],
-            activated_at=row[11],
-            canonical_fingerprint=(str(row[12]) if row[12] is not None else None),
-            projector_version=(str(row[13]) if row[13] is not None else None),
-            run_published_count=int(row[14]),
-            failure_category=(str(row[15]) if row[15] is not None else None),
-            ended_at=row[16],
+        if int(publication[2]) != int(run[5]):
+            raise ProjectionContractError(
+                "publication expected count differs from locked run"
+            )
+        return (
+            _PublicationState(
+                run_id=run_id,
+                run_mode=str(run[0]),
+                started_at=run[1],
+                publication_status=str(publication[1]),
+                run_status=str(run[2]),
+                build_sha=str(run[3]),
+                parser_version=str(run[4]),
+                expected_count=int(publication[2]),
+                normalized_count=int(publication[3]),
+                published_count=int(publication[4]),
+                validated_at=publication[5],
+                activated_at=publication[6],
+                canonical_fingerprint=(
+                    str(publication[7]) if publication[7] is not None else None
+                ),
+                projector_version=(
+                    str(publication[8]) if publication[8] is not None else None
+                ),
+                run_published_count=int(run[6]),
+                failure_category=(str(run[7]) if run[7] is not None else None),
+                ended_at=run[8],
+            ),
+            topology,
         )
 
     @staticmethod
@@ -288,8 +317,7 @@ class PsycopgCanonicalProjectionRepository:
         cursor: psycopg.Cursor[Any],
         *,
         publication_id: UUID,
-        run_id: UUID,
-        run_mode: str,
+        topology: LockedAuctionTopology,
         run_parser_version: str,
         expected_count: int,
         normalized_count: int,
@@ -307,12 +335,6 @@ class PsycopgCanonicalProjectionRepository:
         manifest_ids = tuple(int(row[0]) for row in cursor.fetchall())
         if len(manifest_ids) != expected_count or len(manifest_ids) != normalized_count:
             raise ProjectionContractError("publication manifest cardinality differs")
-        topology = lock_auction_topology(
-            cursor,
-            run_id=run_id,
-            run_mode=run_mode,
-            parser_version=run_parser_version,
-        )
         if (
             len(topology.candidate_ids) != expected_count
             or not topology.coherent
@@ -424,20 +446,38 @@ class PsycopgCanonicalProjectionRepository:
         cursor: psycopg.Cursor[Any], *, publication_id: UUID, failed_at: datetime
     ) -> None:
         cursor.execute(
-            """
-                select p.run_id, p.status, r.status, r.started_at, p.validated_at
-                from ingest.publication p join ingest.run r using (run_id)
-                where p.publication_id = %s for update of p, r
-                """,
+            "select run_id from ingest.publication where publication_id = %s",
             (publication_id,),
         )
-        row = cursor.fetchone()
-        if row is None or (str(row[1]), str(row[2])) != (
-            "validated",
-            "validated",
+        owner = cursor.fetchone()
+        if owner is None:
+            return
+        run_id = owner[0]
+        cursor.execute(
+            """
+            select status, started_at from ingest.run
+            where run_id = %s for update
+            """,
+            (run_id,),
+        )
+        run = cursor.fetchone()
+        if run is None:
+            return
+        cursor.execute(
+            """
+            select run_id, status, validated_at from ingest.publication
+            where publication_id = %s for update
+            """,
+            (publication_id,),
+        )
+        publication = cursor.fetchone()
+        if (
+            publication is None
+            or publication[0] != run_id
+            or (str(publication[1]), str(run[0])) != ("validated", "validated")
         ):
             return
-        if row[4] is None:
+        if publication[2] is None:
             raise ProjectionContractError(
                 "projection failure requires a validation timestamp"
             )
@@ -451,7 +491,11 @@ class PsycopgCanonicalProjectionRepository:
                 set status = 'failed', failure_category = %s, ended_at = %s
                 where run_id = %s and status = 'validated'
                 """,
-            (PROJECTION_CONTRACT, max(failed_at, row[3], row[4]), row[0]),
+            (
+                PROJECTION_CONTRACT,
+                max(failed_at, run[1], publication[2]),
+                run_id,
+            ),
         )
         if cursor.rowcount != 1:
             raise ProjectionContractError("projection failure transition failed")

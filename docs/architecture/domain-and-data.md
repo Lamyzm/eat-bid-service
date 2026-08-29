@@ -201,6 +201,8 @@ run + pending publication + 정렬한 manifest 전체를 repository-owned transa
 capture용 repository는 replay run을 만들 수 없고 publication repository도 manifest member를 추가하지
 않는다. 같은 run ID 재호출은 이 metadata와 member set이 모두 같아야 하며 일부 input을 나중에
 붙이거나 다른 publication ID로 바꾸지 못한다.
+capture repository의 request 계획, raw/blob 기록, 실패 전이는 run을 잠그고 capture/backfill mode만
+허용하므로 replay run의 evidence ledger나 pending publication을 우회 변경할 수 없다.
 
 새 normalized interpretation이 생길 때만 새 `AuctionRevision`을 만든다. revision은
 `normalized_record_id`를 통해 observation과 parser version을 직접 추적한다. 같은 raw라도 새 parser가
@@ -217,8 +219,9 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   manifest만 소비한다.
 - projector fingerprint는 member별 `(source_system, external_bid_id, raw_content_sha256,
   parser_version, normalized_payload_sha256)` tuple만 정렬해 계산하며 bigint ID/행 순서는 포함하지 않는다.
-- projector는 publication/run을 잠그고 canonical row와 revision-scoped bigint 관계를 insert-or-verify한
-  뒤 exact member count가 성공한 경우에만 한 transaction으로 `published`를 전환한다.
+- replay resume, validation, projector는 `run → raw/topology → publication → publication_record` 순서로
+  잠근다. projector는 canonical row와 revision-scoped bigint 관계를 insert-or-verify한 뒤 exact member
+  count가 성공한 경우에만 한 transaction으로 `published`를 전환한다.
 - projector는 capture의 `raw_observation.run_id` 또는 replay의 exact `replay_input` candidate set과
   candidate별 current-parser attempt/member bijection을 다시 잠가 검증한다. factory output은 잠근
   lineage/source/hash와 재비교하고 relation은 purchaser 및 `(code_value_id, role)` 전체 set이 정확해야 한다.
@@ -230,7 +233,8 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   schema contract가 하나라도 있으면 거부한다. Task 8 auction은 candidate별 정확히 한 output을
   요구하므로 swapped edge나 2-output/0-output 재분배도 거부한다. join table의 미래 N:M 표현력은
   유지하지만 이 publication 계약에서는 cardinality나 global member set만 같아서는 통과하지 않는다.
-  failed 상태는 외부 수정으로 승격하지 않으며 저장된 failed metadata와 빈 manifest를 검증한다.
+  failed 상태는 외부 수정으로 승격하지 않는다. source/data failure는 빈 manifest를,
+  projection failure는 coherent topology의 exact frozen manifest를 typed failure 반환보다 먼저 검증한다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
 - deterministic projection 충돌은 core write를 rollback하고 `PROJECTION_CONTRACT`로 실패시키되 이전
   `validated_at`과 frozen member를 보존한다. 실패 표시는 fresh connection transaction으로 내구화하고,

@@ -48,9 +48,11 @@ swapped edge, 2-output/0-output 재분배, observation/parser/type drift의 정�
  parser_version, normalized_payload_sha256)
 ```
 
-publication/run 잠금, insert-or-verify canonical write, revision-scoped relation, publication/run의
-`published` 전환은 한 transaction이다. 동일/concurrent 호출은 publication row에서 직렬화되고 이미
-published인 전체 projection과 최초 activation/fingerprint를 검증한 뒤 0 insert를 반환한다.
+run, candidate topology, publication, frozen member 순서의 잠금과 insert-or-verify canonical write,
+revision-scoped relation, publication/run의 `published` 전환은 한 transaction이다. 동일/concurrent
+호출은 run/publication row에서 직렬화되고 이미 published인 전체 projection과 최초
+activation/fingerprint를 검증한 뒤 0 insert를 반환한다. projection failure marker도 run을 먼저 잠근 뒤
+publication을 잠가 validation/replay와 반대 lock order를 만들지 않는다.
 Replay orchestration도 validated/published status만 신뢰해 shortcut하지 않는다. validated 재진입은
 projector가 frozen member와 candidate→attempt→record topology를 다시 잠그고, published 재진입은 같은
 topology뿐 아니라 canonical row와 revision-scoped relation exact set, projector version, persisted
