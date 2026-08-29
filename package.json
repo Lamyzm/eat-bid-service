@@ -11,6 +11,9 @@
     "build": "turbo build",
     "db:generate": "pnpm --filter @eatbid/shared db:generate",
     "db:push": "pnpm --filter @eatbid/shared db:push",
+    "dataplane:test": "uv run --project apps/dataplane pytest apps/dataplane/tests",
+    "dataplane:lint": "uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests",
+    "dataplane:typecheck": "uv run --project apps/dataplane pyright apps/dataplane/src",
     "test": "bun test apps/web/src packages/shared/src"
   },
   "devDependencies": {

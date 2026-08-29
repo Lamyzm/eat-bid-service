@@ -1,0 +1,21 @@
+import argparse
+from collections.abc import Sequence
+
+COMMANDS = ("discover", "capture", "normalize", "validate", "project", "replay")
+CONFIGURATION_EXIT_CODE = 64
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="eatbid")
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    for name in COMMANDS:
+        command = subcommands.add_parser(name)
+        command.add_argument("--run-id", required=True)
+        command.add_argument("--build-sha", required=True)
+        command.add_argument("--parser-version", required=True)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    build_parser().parse_args(argv)
+    return CONFIGURATION_EXIT_CODE

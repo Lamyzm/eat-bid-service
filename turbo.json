@@ -2,6 +2,9 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },
-    "dev": { "cache": false, "persistent": true }
+    "dev": { "cache": false, "persistent": true },
+    "//#dataplane:test": { "cache": false },
+    "//#dataplane:lint": { "cache": false },
+    "//#dataplane:typecheck": { "cache": false }
   }
 }

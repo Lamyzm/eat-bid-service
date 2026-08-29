@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eatbid"
+version = "0.1.0"
+description = "eatbid data-plane pipeline"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.40,<2",
+    "httpx>=0.28,<1",
+    "psycopg[binary]>=3.2,<4",
+    "pydantic>=2.11,<3",
+    "pydantic-settings>=2.10,<3",
+]
+
+[project.scripts]
+eatbid = "eatbid.cli:main"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.400,<2",
+    "pytest>=8.4,<10",
+    "pytest-cov>=6,<8",
+    "pyyaml>=6,<7",
+    "ruff>=0.12,<1",
+]
