@@ -2,7 +2,7 @@
 
 ## Status
 
-Complete through independent-review fix round 3/5. TypeScript compiler-symbol and Python AST gates now fail closed around the contract and
+Complete through independent-review fix round 4/5. TypeScript compiler-symbol and Python AST gates now fail closed around the contract and
 semantic-value topology established in Tasks 0–7. Exact legacy frontend/shared debt is frozen in a
 deletion-only fingerprint ledger, both contract generators remain check-only CI gates, and the final
 authority/adaptor/dataflow rules are documented.
@@ -412,3 +412,76 @@ unchanged.
   certainty begins at the new lexical scope. Defaults/decorators/bases remain evaluated in the parent scope.
 - Hosted Windows CI was not remotely run because this task does not push. The previously recorded Node version,
   worktree Husky, Next lockfile/font, and dataplane cp949 warnings remain unchanged and non-fatal.
+
+## Fix round 4/5 — destructuring defaults and conditional-expression completeness
+
+Implementation commit: `7004799 fix(architecture): generalize conditional origin tracking`.
+
+This round changes only the TypeScript and Python semantic checkers and their adversarial fixtures. The
+status above was advanced only after the new mutations and broad gates passed. The exact 123-entry legacy
+baseline, Windows workflow, LF/CRLF-normalized generators, tracked generated artifacts, authority docs,
+and accepted ADRs are unchanged.
+
+### Round-4 RED evidence
+
+- The new TypeScript destructuring-default group initially failed 0/1. Of its three forbidden fixtures,
+  the existing nested binary-target support already rejected
+  `({ now: currentTime = Date.now } = {})`, but the checker missed both
+  `({ Clock = Date } = {}); new Clock()` and
+  `const { value: currentTime = Date.now } = {}; currentTime()`. After the common source/default-origin
+  helper was introduced, the binding-element fixture passed while shorthand assignment still failed;
+  resolving the shorthand value symbol then made the complete group pass. Safe assignment and binding
+  defaults remained legal throughout.
+- The Python semantic suite initially ran 22 tests with 21 passing and one bounded completeness group
+  failing. Its table identified exactly seven unmodelled maybe-executed binding categories: Boolean
+  short-circuit tails, match case bodies, match guards, and list/set/dict/generator comprehensions.
+- A final AST completeness review added chained-comparison tails to the bounded table. The focused RED
+  run failed only `compare-tail` while its control for the definitely evaluated first comparator passed.
+  After the dedicated visitor, the focused run passed 2/2 and the full semantic suite passed 23/23.
+
+### Round-4 implementation and controls
+
+- TypeScript assignment collection records the selected destructured source and any default initializer
+  separately, then a shared helper unions both origins at use sites. It covers binary assignment/default
+  targets, `ShorthandPropertyAssignment.objectAssignmentInitializer`, and
+  `BindingElement.initializer`. Shorthand assignment resolves the actual target through the compiler
+  checker's value symbol, with a conservative fallback only for incomplete fixture programs.
+- Python has one conditional visitor primitive for maybe-executed AST nodes. Boolean-operation operands
+  after the first and chained-comparison comparators after the first are conditional; their first operands
+  remain definite. Match patterns, guards, and bodies are conservative possible paths.
+- The first comprehension iterable is evaluated definitely, while generator targets, filters, later
+  iterables, and list/set/dict/generator output expressions are zero-or-more/filtered conditional paths.
+  Walrus assignments therefore cannot erase a prior forbidden origin and a forbidden origin introduced
+  only on such a path remains possible at later use.
+- A behavior-level completeness assertion fixes the supported binding-bearing conditional categories to
+  15 named cases: `if`, `if-expression`, `try`, `try-star`, `for`, `async-for`, `while`, Boolean tail,
+  comparison tail, match body, match guard, and all four comprehension forms. Controls prove unconditional
+  safe shadowing plus the first Boolean operand and first comparison comparator remain definite.
+
+### Round-4 GREEN verification
+
+- Focused mutations: TypeScript destructuring defaults 1/1; Python conditional/comparison focus 2/2.
+- Full focused groups: TypeScript semantic 14/14; Python semantic plus generated-contract fixture 24/24;
+  focused Ruff and `node --check` passed.
+- `pnpm architecture:check` passed stack docs, TypeScript and Python semantic analysis, Korean-name checks,
+  JSON Schema drift, and Python-model drift with exactly 123 frozen legacy fingerprints and 334 TypeScript /
+  283 Python Korean specifications.
+- Explicit `pnpm contracts:check` and `pnpm contracts:python:check` passed and did not rewrite tracked output.
+- `pnpm test` passed: quality Node 34/34, quality Python 23/23, web/shared/DB 123, contracts 23,
+  domain 31, and server 91.
+- `pnpm build` passed 6/6 cached tasks; `pnpm db:check` reported `Everything's fine`.
+- `pnpm dataplane:test` passed 479/479; lint passed; typecheck reported 0 errors and 0 warnings.
+- Infra tests passed 127/127 and the exact CI Ruff target set passed. `git diff --check` passed before
+  the implementation commit and again after the report edit.
+
+### Round-4 self-review and concerns
+
+- Reviewed the complete four-file implementation commit (356 insertions, 23 deletions). Every new production
+  branch has a mutation that was observed RED before GREEN; no runtime application, registry, baseline,
+  workflow, generated output, documentation authority, or ADR changed.
+- Frozen dependency setup was not repeated in this round because dependency manifests, lockfiles, and CI were
+  untouched; the frozen installs and local Windows workflow-equivalent run remain recorded in earlier rounds.
+  Hosted Windows CI still cannot run without the prohibited push.
+- The local host remains on Node `v24.2.0` rather than pinned `24.20.0`. Existing Next workspace-root/font
+  warnings and the dataplane Windows cp949 reader-thread warning remain non-fatal; the latter accompanied the
+  otherwise successful 479-test run.
