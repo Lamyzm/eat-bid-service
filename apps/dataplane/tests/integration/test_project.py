@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -221,7 +221,7 @@ def test_projector가_candidate_하나의_multiple_normalized_member를_거부�
             "insert into ingest.normalized_record "
             "(observation_id, record_type, source_entity_id, normalized_payload, "
             "parser_version, normalized_at) values "
-            "(%s, 'auction', 'extra-member', %s, 'eat-v1', %s) "
+            "(%s, 'auction.v1', 'extra-member', %s, 'eat-v1', %s) "
             "returning normalized_record_id",
             (observation_id, psycopg.types.json.Jsonb(payload), NORMALIZED_AT),
         )
@@ -619,6 +619,26 @@ def test_projection이_새_값_생성_없이_revision_범위_bigint_fact를_저�
         assert cursor.fetchone() == (0,)
         cursor.execute(
             """
+            select ar.announced_at, ar.deadline_at, ar.opened_at,
+                   ar.base_amount, ar.planned_amount, ar.currency, ar.source_payload
+            from core.auction_revision ar
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = 'projection-complete'
+            """
+        )
+        revision = cursor.fetchone()
+        assert revision[:6] == (
+            datetime(2025, 6, 16, 15, 0, tzinfo=UTC),
+            datetime(2025, 6, 19, 6, 0, tzinfo=UTC),
+            datetime(2025, 6, 20, 1, 30, tzinfo=UTC),
+            10000000,
+            9990000,
+            "KRW",
+        )
+        assert revision[6]["contractVersion"] == "eatbid.ingestion.auction.v1"
+        assert revision[6]["identity"]["externalBidId"] == "projection-complete"
+        cursor.execute(
+            """
             select count(*) from core.code_value v
             join core.code_scheme s using (code_scheme_id)
             where s.namespace like 'mois:%' or s.namespace like 'neis:%'
@@ -870,7 +890,7 @@ def test_database_grain이_동일한_raw의_새_parser_interpretation을_허용�
             insert into ingest.normalized_record (
                 observation_id, record_type, source_entity_id, normalized_payload,
                 parser_version, normalized_at
-            ) values (%s, 'auction', %s, %s, 'eat-v2', %s)
+            ) values (%s, 'auction.v1', %s, %s, 'eat-v2', %s)
             returning normalized_record_id
             """,
             (row[1], row[2], psycopg.types.json.Jsonb(row[3]), NORMALIZED_AT),
@@ -1107,7 +1127,7 @@ def test_publication_fingerprint가_수동_확인한_natural_payload_digest와_�
     result = project(pipeline_services, publication_id)
 
     assert result.canonical_fingerprint == (
-        "4e233eb68209a8171a2875d76683aa1f45a8946bfacfef2fbe8fe51e570bab7d"
+        "48d578345aa5f0ae5dd2f0916a31a7025bbc8229b2e1125151b013df837484b5"
     )
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(

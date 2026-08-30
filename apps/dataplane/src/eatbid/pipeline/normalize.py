@@ -74,7 +74,7 @@ def normalize_observation(
 
     return repository.store_normalized(
         observation=observation,
-        record_type="auction",
+        record_type="auction.v1",
         source_entity_id=external_bid_id,
         parser_version=parser_version,
         canonical_payload=canonical_payload(normalized.record),

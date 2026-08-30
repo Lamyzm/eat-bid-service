@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -21,7 +22,7 @@ from eatbid.core.repository import (
     ProjectionContractError,
     PublishedProjectionEvidence,
 )
-from eatbid.source.eat.models import NormalizedAuction
+from eatbid.generated.ingestion_v1 import EatbidIngestionAuctionV1, InstantText, Money
 
 __all__ = [
     "ProjectionFingerprintItem",
@@ -35,7 +36,7 @@ __all__ = [
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
-def parse_canonical_normalized_auction(value: object) -> NormalizedAuction:
+def parse_canonical_normalized_auction(value: object) -> EatbidIngestionAuctionV1:
     """Parse the canonical normalized-auction bytes used by projection."""
     if not isinstance(value, bytes) or not value:
         raise ProjectionContractError(
@@ -45,15 +46,16 @@ def parse_canonical_normalized_auction(value: object) -> NormalizedAuction:
         decoded = json.loads(value)
         if not isinstance(decoded, dict):
             raise TypeError("normalized payload must be a JSON object")
+        record = EatbidIngestionAuctionV1.model_validate_json(value, strict=True)
         canonical_payload = json.dumps(
-            decoded,
+            record.model_dump(mode="json", by_alias=True),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
         if canonical_payload != value:
             raise ValueError("normalized payload is not canonical JSON")
-        return NormalizedAuction.model_validate_json(value, strict=True)
+        return record
     except (TypeError, ValueError, ValidationError) as error:
         raise ProjectionContractError(
             "projection normalized payload is invalid"
@@ -67,8 +69,8 @@ def build_eat_auction_projection(
         raise ProjectionContractError("projection source must be eat")
     if member.endpoint != "bid-detail":
         raise ProjectionContractError("projection endpoint must be bid-detail")
-    if member.record_type != "auction":
-        raise ProjectionContractError("projection record type must be auction")
+    if member.record_type != "auction.v1":
+        raise ProjectionContractError("projection record type must be auction.v1")
     if member.parser_version != member.run_parser_version:
         raise ProjectionContractError("projection parser version differs from run")
     if len(member.raw_content_sha256) != 64 or any(
@@ -88,25 +90,26 @@ def build_eat_auction_projection(
             "projection normalized payload is invalid"
         ) from error
     record = parse_canonical_normalized_auction(canonical_payload)
-    if record.external_bid_id != member.source_entity_id:
+    if record.identity.external_bid_id != member.source_entity_id:
         raise ProjectionContractError("projection external ID differs from lineage")
-    if len(set(record.eligibility_codes)) != len(record.eligibility_codes):
+    eligibility_codes = tuple(code.root for code in record.location.eligibility_codes)
+    if len(set(eligibility_codes)) != len(eligibility_codes):
         raise ProjectionContractError("projection has duplicate eligibility codes")
 
     code_refs: list[ExternalCodeRef] = []
-    if record.sido_code is not None:
+    if record.location.sido_code is not None:
         code_refs.append(
             ExternalCodeRef(
                 namespace="eat:auction-location-sido",
-                code=record.sido_code,
+                code=record.location.sido_code.root,
                 role="location_sido",
             )
         )
-    if record.sigungu_code is not None:
+    if record.location.sigungu_code is not None:
         code_refs.append(
             ExternalCodeRef(
                 namespace="eat:auction-location-sigungu",
-                code=record.sigungu_code,
+                code=record.location.sigungu_code.root,
                 role="location_sigungu",
             )
         )
@@ -116,8 +119,10 @@ def build_eat_auction_projection(
             code=code,
             role="eligibility_area",
         )
-        for code in record.eligibility_codes
+        for code in eligibility_codes
     )
+
+    source_payload = record.model_dump(mode="json", by_alias=True)
 
     return AuctionProjection(
         normalized_record_id=member.normalized_record_id,
@@ -127,21 +132,33 @@ def build_eat_auction_projection(
         parser_version=member.parser_version,
         raw_content_sha256=member.raw_content_sha256,
         normalized_payload_sha256=hashlib.sha256(canonical_payload).hexdigest(),
-        external_bid_id=record.external_bid_id,
-        display_bid_no=record.display_bid_no,
-        organization_code=record.organization_code,
-        organization_label=record.organization_name,
+        external_bid_id=record.identity.external_bid_id,
+        display_bid_no=(
+            record.identity.display_bid_number.root
+            if record.identity.display_bid_number is not None
+            else None
+        ),
+        organization_code=record.buyer.organization_code,
+        organization_label=record.buyer.organization_name,
         code_refs=tuple(code_refs),
-        source_status=record.source_status,
-        title=record.title,
-        announced_at=record.announced_at,
-        deadline_at=record.deadline_at,
-        opened_at=record.opened_at,
-        base_amount=record.base_amount,
-        planned_amount=record.planned_amount,
-        currency=record.currency,
-        source_payload=record.model_dump(mode="json"),
+        source_status=record.identity.status,
+        title=record.identity.title,
+        announced_at=_instant_datetime(record.schedule.announced_at),
+        deadline_at=_instant_datetime(record.schedule.deadline_at),
+        opened_at=_instant_datetime(record.schedule.opened_at),
+        base_amount=_money_decimal(record.pricing.base_amount),
+        planned_amount=_money_decimal(record.pricing.planned_amount),
+        currency="KRW",
+        source_payload=source_payload,
     )
+
+
+def _instant_datetime(value: InstantText | None) -> datetime | None:
+    return datetime.fromisoformat(value.root) if value is not None else None
+
+
+def _money_decimal(value: Money | None) -> Decimal | None:
+    return Decimal(value.amount) if value is not None else None
 
 
 def project_publication(

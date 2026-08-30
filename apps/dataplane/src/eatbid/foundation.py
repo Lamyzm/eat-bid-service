@@ -798,9 +798,9 @@ def _verify_normalization_lineage(checkpoint: FoundationCheckpoint) -> None:
 def _verify_normalized_auction_contract(
     normalization: FoundationNormalizationCheckpoint,
 ) -> None:
-    if normalization.record_type != "auction":
+    if normalization.record_type != "auction.v1":
         raise FoundationIntegrityError(
-            "terminal normalization record_type must be auction"
+            "terminal normalization record_type must be auction.v1"
         )
     source_entity_id = normalization.source_entity_id
     if (
@@ -819,7 +819,7 @@ def _verify_normalized_auction_contract(
         raise FoundationIntegrityError(
             "terminal normalization canonical payload is invalid"
         ) from error
-    if record.external_bid_id != source_entity_id:
+    if record.identity.external_bid_id != source_entity_id:
         raise FoundationIntegrityError(
             "terminal normalization external ID differs from source entity"
         )

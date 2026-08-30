@@ -1,5 +1,5 @@
 """Typed eaT source payload boundary."""
 
-from eatbid.source.eat.models import BidListPage, NormalizedAuction
+from eatbid.source.eat.models import BidListPage
 
-__all__ = ["BidListPage", "NormalizedAuction"]
+__all__ = ["BidListPage"]

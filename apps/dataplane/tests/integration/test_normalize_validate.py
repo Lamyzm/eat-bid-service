@@ -268,6 +268,18 @@ def test_repeat_normalization은_byte_equivalent_record_하나를_만든다(
     assert json.dumps(
         persisted, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode() == first.canonical_payload
+    assert first.record_type == "auction.v1"
+    assert persisted["contractVersion"] == "eatbid.ingestion.auction.v1"
+    assert persisted["identity"]["externalBidId"] == first.source_entity_id
+    assert persisted["schedule"] == {
+        "announcedAt": "2025-06-16T15:00:00Z",
+        "deadlineAt": "2025-06-19T06:00:00Z",
+        "openedAt": "2025-06-20T01:30:00Z",
+    }
+    assert persisted["pricing"] == {
+        "baseAmount": {"amount": "10000000.00", "currency": "KRW"},
+        "plannedAmount": {"amount": "9990000.00", "currency": "KRW"},
+    }
 
 
 def test_raw_observation은_불변_HTTP_evidence_column만_갖는다(
@@ -441,7 +453,7 @@ def test_final_quarantined_attempt는_normalized로_regress할_수_없다(
     with pytest.raises(NormalizationAttemptConflictError):
         pipeline_services.normalization_repository.store_normalized(
             observation=observation,
-            record_type="auction",
+            record_type="auction.v1",
             source_entity_id=source_id,
             parser_version="eat-v1",
             canonical_payload=b'{"external_bid_id":"synthetic"}',

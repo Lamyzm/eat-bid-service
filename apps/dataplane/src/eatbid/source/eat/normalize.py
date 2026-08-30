@@ -4,17 +4,34 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 
 from eatbid.errors import SourceContractError
-from eatbid.source.eat.models import BidListPage, NormalizedAuction
+from eatbid.generated.ingestion_v1 import (
+    CategorySource,
+    DisplayBidNumber,
+    EatbidIngestionAuctionV1,
+    InstantText,
+    Money,
+    NormalizedAuctionIdentity,
+    NormalizedAuctionPricing,
+    NormalizedAuctionSchedule,
+    NormalizedBuyer,
+    NormalizedClassification,
+    NormalizedLocation,
+    SourceCategoryLabel,
+    SourceCode,
+)
+from eatbid.source.eat.models import BidListPage
 from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro
 
 _NONNEGATIVE_DECIMAL = re.compile(r"0|[1-9][0-9]*")
-_SEOUL_TIME = timezone(timedelta(hours=9))
+_SEOUL_TIME = ZoneInfo("Asia/Seoul")
+_KRW_SCALE = Decimal("0.01")
 
 
 class EatDetailValidationError(ValueError):
@@ -25,7 +42,7 @@ class EatDetailValidationError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class NormalizedDetail:
-    record: NormalizedAuction
+    record: EatbidIngestionAuctionV1
     schema_fingerprint: str
 
 
@@ -55,7 +72,7 @@ def parse_bid_list_page(payload: bytes) -> BidListPage:
 
 def normalize_bid_detail(
     payload: bytes, *, external_bid_id: str, parser_version: str
-) -> NormalizedAuction:
+) -> EatbidIngestionAuctionV1:
     return normalize_bid_detail_payload(
         payload,
         external_bid_id=external_bid_id,
@@ -74,23 +91,48 @@ def normalize_bid_detail_payload(
     info = parsed.datasets["ds_info"][0]
     try:
         source_category = _optional_text(info, "MAIN_ITEMS")
-        record = NormalizedAuction(
-            external_bid_id=external_bid_id,
-            display_bid_no=_optional_text(info, "ELCTRN_BID_NO"),
-            title=_required_text(info, "BID_NM"),
-            source_status=_required_text(info, "ELCTRN_BID_STT_NM"),
-            organization_code=_required_text(info, "PURR_CD"),
-            organization_name=_required_text(info, "PURR_NM"),
-            sido_code=_optional_text(info, "SIDO_CD"),
-            sigungu_code=_optional_text(info, "SIGUNGU_CD"),
-            eligibility_codes=_eligibility_codes(parsed),
-            announced_at=_optional_datetime(info, "PBANC_YMD", "%Y%m%d"),
-            deadline_at=_optional_datetime(info, "BID_END_DT", "%Y%m%d%H%M%S"),
-            opened_at=_optional_datetime(info, "OPNG_DT", "%Y%m%d%H%M%S"),
-            base_amount=_optional_decimal(info, "BGNG_PRC"),
-            planned_amount=_optional_decimal(info, "ELCTRN_BID_PLNPRC"),
-            source_category_label=source_category,
-            category_source="source_field" if source_category is not None else "unknown",
+        record = EatbidIngestionAuctionV1(
+            contract_version="eatbid.ingestion.auction.v1",
+            identity=NormalizedAuctionIdentity(
+                external_bid_id=external_bid_id,
+                display_bid_number=_display_bid_number(info),
+                title=_required_text(info, "BID_NM"),
+                status=_required_text(info, "ELCTRN_BID_STT_NM"),
+            ),
+            buyer=NormalizedBuyer(
+                organization_code=_required_text(info, "PURR_CD"),
+                organization_name=_required_text(info, "PURR_NM"),
+            ),
+            location=NormalizedLocation(
+                sido_code=_optional_source_code(info, "SIDO_CD"),
+                sigungu_code=_optional_source_code(info, "SIGUNGU_CD"),
+                eligibility_codes=[
+                    SourceCode(root=code) for code in _eligibility_codes(parsed)
+                ],
+            ),
+            schedule=NormalizedAuctionSchedule(
+                announced_at=_optional_instant_text(info, "PBANC_YMD", "%Y%m%d"),
+                deadline_at=_optional_instant_text(
+                    info, "BID_END_DT", "%Y%m%d%H%M%S"
+                ),
+                opened_at=_optional_instant_text(info, "OPNG_DT", "%Y%m%d%H%M%S"),
+            ),
+            pricing=NormalizedAuctionPricing(
+                base_amount=_optional_money(info, "BGNG_PRC"),
+                planned_amount=_optional_money(info, "ELCTRN_BID_PLNPRC"),
+            ),
+            classification=NormalizedClassification(
+                source_category_label=(
+                    SourceCategoryLabel(root=source_category)
+                    if source_category is not None
+                    else None
+                ),
+                category_source=(
+                    CategorySource.source_field
+                    if source_category is not None
+                    else CategorySource.unknown
+                ),
+            ),
         )
     except (InvalidOperation, ValidationError, ValueError) as error:
         if isinstance(error, EatDetailValidationError):
@@ -102,11 +144,11 @@ def normalize_bid_detail_payload(
     return NormalizedDetail(record=record, schema_fingerprint=parsed.schema_fingerprint)
 
 
-def canonical_payload(record: NormalizedAuction) -> bytes:
-    if not isinstance(record, NormalizedAuction):
-        raise TypeError("record must be a NormalizedAuction")
+def canonical_payload(record: EatbidIngestionAuctionV1) -> bytes:
+    if not isinstance(record, EatbidIngestionAuctionV1):
+        raise TypeError("record must be an EatbidIngestionAuctionV1")
     return json.dumps(
-        record.model_dump(mode="json"),
+        record.model_dump(mode="json", by_alias=True),
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -125,9 +167,21 @@ def _optional_text(row: Mapping[str, str], field: str) -> str | None:
     return value if value != "" else None
 
 
-def _optional_datetime(
+def _display_bid_number(row: Mapping[str, str]) -> DisplayBidNumber | None:
+    value = _optional_text(row, "ELCTRN_BID_NO")
+    return DisplayBidNumber(root=value) if value is not None else None
+
+
+def _optional_source_code(
+    row: Mapping[str, str], field: str
+) -> SourceCode | None:
+    value = _optional_text(row, field)
+    return SourceCode(root=value) if value is not None else None
+
+
+def _optional_instant_text(
     row: Mapping[str, str], field: str, source_format: str
-) -> datetime | None:
+) -> InstantText | None:
     value = _optional_text(row, field)
     if value is None:
         return None
@@ -135,12 +189,25 @@ def _optional_datetime(
         parsed = datetime.strptime(value, source_format).replace(tzinfo=_SEOUL_TIME)
     except ValueError as error:
         raise ValueError(f"{field} does not match {source_format}") from error
-    return parsed
+    instant = parsed.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return InstantText(root=instant)
 
 
-def _optional_decimal(row: Mapping[str, str], field: str) -> Decimal | None:
+def _optional_money(row: Mapping[str, str], field: str) -> Money | None:
     value = _optional_text(row, field)
-    return Decimal(value) if value is not None else None
+    if value is None:
+        return None
+    amount = Decimal(value)
+    exponent = amount.as_tuple().exponent
+    if (
+        not amount.is_finite()
+        or amount.is_signed()
+        or not isinstance(exponent, int)
+        or exponent < -2
+    ):
+        raise ValueError(f"{field} must be a nonnegative KRW amount at scale 2")
+    fixed_amount = format(amount.quantize(_KRW_SCALE), "f")
+    return Money(amount=fixed_amount, currency="KRW")
 
 
 def _eligibility_codes(parsed: ParsedNexacro) -> tuple[str, ...]:

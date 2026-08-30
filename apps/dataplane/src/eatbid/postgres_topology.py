@@ -80,7 +80,7 @@ class LockedAuctionTopology:
                 member.attempt_observation_id != attempt.observation_id
                 or member.observation_id != attempt.observation_id
                 or member.parser_version != attempt.parser_version
-                or member.record_type != "auction"
+                or member.record_type != "auction.v1"
             ):
                 return False
         return True

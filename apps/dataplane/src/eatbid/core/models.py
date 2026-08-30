@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -47,7 +47,7 @@ class AuctionProjection:
     base_amount: Decimal | None
     planned_amount: Decimal | None
     currency: str
-    source_payload: Mapping[str, object]
+    source_payload: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)

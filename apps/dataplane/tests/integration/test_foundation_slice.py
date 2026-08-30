@@ -188,7 +188,7 @@ def test_raw_to_core와_replay_foundation_slice를_검증한다(
         normalized_record_id = capture_lineage[9]
         assert capture_lineage[10:] == (
             observation_id,
-            "auction",
+            "auction.v1",
             EXTERNAL_BID_ID,
             "eat-v1",
         )
@@ -219,6 +219,7 @@ def test_raw_to_core와_replay_foundation_slice를_검증한다(
                 canonical[0],
                 canonical[3],
                 canonical[6],
+                canonical[9],
                 canonical[10],
                 canonical[11],
             )
@@ -232,7 +233,7 @@ def test_raw_to_core와_replay_foundation_slice를_검증한다(
             canonical[6],
             "unknown",
             None,
-            observation_id,
+            canonical[9],
             canonical[10],
             canonical[11],
             "eat:organization",

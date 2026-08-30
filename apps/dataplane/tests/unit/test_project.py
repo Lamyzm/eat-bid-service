@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
@@ -10,6 +12,7 @@ from eatbid.pipeline.project import (
     ProjectionFingerprintItem,
     build_eat_auction_projection,
     canonical_projection_fingerprint,
+    parse_canonical_normalized_auction,
 )
 
 ITEMS = (
@@ -43,7 +46,7 @@ def test_auction_projection_contract가_필수_lineage_fields을_허용한다() 
         base_amount=None,
         planned_amount=None,
         currency="KRW",
-        source_payload={"external_bid_id": "bid-1"},
+        source_payload={"contractVersion": "eatbid.ingestion.auction.v1"},
     )
 
     assert projection.normalized_record_id == 1
@@ -65,23 +68,35 @@ def test_projection_fingerprint는_모든_member_permutation에서_안정적이�
 
 def auction_payload() -> dict[str, object]:
     return {
-        "external_bid_id": "bid-1",
-        "display_bid_no": None,
-        "title": "Lunch",
-        "source_status": "open",
-        "organization_code": "0001",
-        "organization_name": "Same Name",
-        "sido_code": "01",
-        "sigungu_code": "0110",
-        "eligibility_codes": ["01", "02"],
-        "announced_at": None,
-        "deadline_at": None,
-        "opened_at": None,
-        "base_amount": None,
-        "planned_amount": None,
-        "currency": "KRW",
-        "source_category_label": None,
-        "category_source": "unknown",
+        "buyer": {
+            "organizationCode": "0001",
+            "organizationName": "Same Name",
+        },
+        "classification": {
+            "categorySource": "unknown",
+            "sourceCategoryLabel": None,
+        },
+        "contractVersion": "eatbid.ingestion.auction.v1",
+        "identity": {
+            "displayBidNumber": None,
+            "externalBidId": "bid-1",
+            "status": "open",
+            "title": "Lunch",
+        },
+        "location": {
+            "eligibilityCodes": ["01", "02"],
+            "sidoCode": "01",
+            "sigunguCode": "0110",
+        },
+        "pricing": {
+            "baseAmount": {"amount": "10000000.10", "currency": "KRW"},
+            "plannedAmount": None,
+        },
+        "schedule": {
+            "announcedAt": "2025-06-16T15:00:00Z",
+            "deadlineAt": "2025-06-19T06:00:00Z",
+            "openedAt": None,
+        },
     }
 
 
@@ -92,7 +107,7 @@ def frozen_member(**overrides: object) -> FrozenPublicationMember:
         "source_system": "eat",
         "endpoint": "bid-detail",
         "run_parser_version": "eat-v1",
-        "record_type": "auction",
+        "record_type": "auction.v1",
         "source_entity_id": "bid-1",
         "normalized_payload": auction_payload(),
         "parser_version": "eat-v1",
@@ -105,11 +120,12 @@ def frozen_member(**overrides: object) -> FrozenPublicationMember:
 def test_projection_factory가_검토된_source_code_reference만_내보낸다() -> None:
     projection = build_eat_auction_projection(frozen_member())
 
-    assert projection.normalized_payload_sha256 == (
-        "3a9d779194e2cc2bcf81b564b3064b98d51bf149f37ab7eecfce78e10f45df21"
-    )
     assert projection.organization_code == "0001"
     assert projection.organization_label == "Same Name"
+    assert str(projection.base_amount) == "10000000.10"
+    assert projection.announced_at is not None
+    assert projection.announced_at.isoformat() == "2025-06-16T15:00:00+00:00"
+    assert projection.source_payload == auction_payload()
     assert [
         (reference.namespace, reference.code, reference.role)
         for reference in projection.code_refs
@@ -149,7 +165,20 @@ def test_projection_factory가_알_수_없는_normalized_payload_fields을_거�
 
 def test_projection_factory가_중복_eligibility_codes을_거부한다() -> None:
     payload = auction_payload()
-    payload["eligibility_codes"] = ["01", "01"]
+    location = payload["location"]
+    assert isinstance(location, dict)
+    location["eligibilityCodes"] = ["01", "01"]
 
     with pytest.raises(ProjectionContractError, match="duplicate eligibility"):
         build_eat_auction_projection(frozen_member(normalized_payload=payload))
+
+
+def test_projection_parser가_snake_case_generated_alias_payload를_거부한다() -> None:
+    payload = auction_payload()
+    payload["contract_version"] = payload.pop("contractVersion")
+    canonical = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+
+    with pytest.raises(ProjectionContractError, match="normalized payload"):
+        parse_canonical_normalized_auction(canonical)
