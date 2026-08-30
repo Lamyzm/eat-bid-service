@@ -30,6 +30,7 @@ export const rawBlob = ingestSchema.table(
   ],
 );
 
+// 원문 blob을 content hash로 먼저 고정한 뒤 관측 메타데이터가 이를 참조해야 재현 가능한 증거 사슬이 된다.
 export const rawObservation = ingestSchema.table(
   "raw_observation",
   {
@@ -50,6 +51,7 @@ export const rawObservation = ingestSchema.table(
       .references(() => rawBlob.contentSha256),
   },
   (table) => [
+    // request unit과 observation이 다른 run에서 잘못 연결되는 것을 단일 FK보다 강하게 막는다.
     foreignKey({
       name: "raw_observation_request_unit_run_id_fkey",
       columns: [table.requestUnitId, table.runId],

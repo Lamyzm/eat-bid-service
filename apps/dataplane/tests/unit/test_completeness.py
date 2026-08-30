@@ -7,7 +7,7 @@ from hypothesis import strategies as st
 from eatbid.pipeline.validate import validate_completeness
 
 
-def test_publication_is_rejected_when_tot_count_differs() -> None:
+def test_발행_is_rejected_when_tot_count_differs() -> None:
     report = validate_completeness(
         request_counts=((2, 1),),
         normalized=1,
@@ -32,7 +32,7 @@ def test_publication_is_rejected_when_tot_count_differs() -> None:
     missing=st.lists(st.sampled_from(["a", "b", "c"]), unique=True, max_size=3),
     schema_contract_violations=st.integers(min_value=0, max_value=10),
 )
-def test_completeness_matches_the_exact_gate_equation(
+def test_완전성_matches_the_exact_gate_equation(
     request_counts: list[tuple[int, int]],
     normalized: int,
     quarantined: int,
@@ -73,7 +73,7 @@ def test_completeness_matches_the_exact_gate_equation(
         {"schema_contract_violations": 1},
     ],
 )
-def test_each_completeness_failure_mode_blocks_publication(
+def test_each_completeness_failure_mode_blocks_publication_동작을_검증한다(
     overrides: dict[str, object],
 ) -> None:
     values: dict[str, object] = {
@@ -99,7 +99,7 @@ def test_each_completeness_failure_mode_blocks_publication(
         {"schema_contract_violations": -1},
     ],
 )
-def test_completeness_rejects_negative_counts(kwargs: dict[str, object]) -> None:
+def test_완전성_rejects_negative_counts(kwargs: dict[str, object]) -> None:
     values: dict[str, object] = {
         "request_counts": (),
         "normalized": 0,

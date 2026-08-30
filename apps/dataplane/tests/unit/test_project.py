@@ -21,7 +21,7 @@ EXPECTED_FINGERPRINT = (
 )
 
 
-def test_auction_projection_contract_accepts_the_required_lineage_fields() -> None:
+def test_auction_projection_contract_accepts_the_required_lineage_fields_동작을_검증한다() -> None:
     projection = AuctionProjection(
         normalized_record_id=1,
         observation_id=2,
@@ -49,7 +49,7 @@ def test_auction_projection_contract_accepts_the_required_lineage_fields() -> No
     assert projection.normalized_record_id == 1
 
 
-def test_projection_fingerprint_is_order_independent() -> None:
+def test_projection_fingerprint_is_order_independent_동작을_검증한다() -> None:
     assert canonical_projection_fingerprint(ITEMS) == EXPECTED_FINGERPRINT
     assert canonical_projection_fingerprint(tuple(reversed(ITEMS))) == (
         EXPECTED_FINGERPRINT
@@ -57,7 +57,7 @@ def test_projection_fingerprint_is_order_independent() -> None:
 
 
 @given(st.permutations(ITEMS))
-def test_projection_fingerprint_is_stable_for_every_member_permutation(
+def test_projection_fingerprint_is_stable_for_every_member_permutation_동작을_검증한다(
     items: list[ProjectionFingerprintItem],
 ) -> None:
     assert canonical_projection_fingerprint(tuple(items)) == EXPECTED_FINGERPRINT
@@ -102,7 +102,7 @@ def frozen_member(**overrides: object) -> FrozenPublicationMember:
     return FrozenPublicationMember(**values)  # type: ignore[arg-type]
 
 
-def test_projection_factory_emits_only_reviewed_source_code_references() -> None:
+def test_projection_factory_emits_only_reviewed_source_code_references_동작을_검증한다() -> None:
     projection = build_eat_auction_projection(frozen_member())
 
     assert projection.normalized_payload_sha256 == (
@@ -132,14 +132,14 @@ def test_projection_factory_emits_only_reviewed_source_code_references() -> None
         ({"source_entity_id": "different"}, "external ID"),
     ],
 )
-def test_projection_factory_rejects_lineage_or_source_contract_drift(
+def test_projection_factory_rejects_lineage_or_source_contract_drift_동작을_검증한다(
     overrides: dict[str, object], message: str
 ) -> None:
     with pytest.raises(ProjectionContractError, match=message):
         build_eat_auction_projection(frozen_member(**overrides))
 
 
-def test_projection_factory_rejects_unknown_normalized_payload_fields() -> None:
+def test_projection_factory_rejects_unknown_normalized_payload_fields_동작을_검증한다() -> None:
     payload = auction_payload()
     payload["invented_school_type"] = "school"
 
@@ -147,7 +147,7 @@ def test_projection_factory_rejects_unknown_normalized_payload_fields() -> None:
         build_eat_auction_projection(frozen_member(normalized_payload=payload))
 
 
-def test_projection_factory_rejects_duplicate_eligibility_codes() -> None:
+def test_projection_factory_rejects_duplicate_eligibility_codes_동작을_검증한다() -> None:
     payload = auction_payload()
     payload["eligibility_codes"] = ["01", "01"]
 

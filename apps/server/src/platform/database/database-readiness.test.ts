@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("database readiness", () => {
-  test("checks exact migration and required/forbidden API privileges without mutation", async () => {
+describe("검증 범위를 정의한다 — database readiness", () => {
+  test("검사 결과를 검증한다 — checks exact migration and required/forbidden API privileges without mutation", async () => {
     const database = await import("./database-readiness").catch(() => undefined);
     expect(database, "database readiness must exist").toBeDefined();
     const queries: string[] = [];
@@ -55,7 +55,7 @@ describe("database readiness", () => {
     expect(queries[0]!.toLowerCase()).not.toMatch(/\b(insert|update|delete|alter|create|drop|grant|revoke)\b/);
   });
 
-  test("fails closed on migration mismatch, excessive privilege, or connection failure", async () => {
+  test("실패 경계를 검증한다 — fails closed on migration mismatch, excessive privilege, or connection failure", async () => {
     const database = await import("./database-readiness").catch(() => undefined);
     expect(database, "database readiness must exist").toBeDefined();
     const baseline = {

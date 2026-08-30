@@ -27,6 +27,7 @@ export const auctionAttempt = coreSchema.table(
   (table) => [unique("auction_attempt_source_external_bid_key").on(table.sourceSystem, table.externalBidId)],
 );
 
+// attempt는 원천의 논리 입찰 식별자이고 revision은 각 정규화 해석을 보존하는 append-only 단위다.
 export const auctionRevision = coreSchema.table(
   "auction_revision",
   {
@@ -55,6 +56,7 @@ export const auctionRevision = coreSchema.table(
   (table) => [unique("auction_revision_normalized_record_key").on(table.normalizedRecordId)],
 );
 
+// 한 revision에 같은 조직도 서로 다른 업무 역할로 참여할 수 있어 role까지 관계의 grain에 포함한다.
 export const auctionOrganization = coreSchema.table(
   "auction_organization",
   {
@@ -69,6 +71,7 @@ export const auctionOrganization = coreSchema.table(
   (table) => [primaryKey({ columns: [table.auctionRevisionId, table.organizationId, table.role] })],
 );
 
+// 지역·자격 코드의 의미를 열로 늘리지 않고 허용된 role을 가진 다대다 관계로 보존한다.
 export const auctionRevisionCodeValue = coreSchema.table(
   "auction_revision_code_value",
   {

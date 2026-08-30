@@ -17,7 +17,7 @@ from .fakes import MemoryRawObjectStore
 
 @settings(max_examples=40, deadline=None, derandomize=True)
 @given(body=st.binary(max_size=4096))
-def test_content_address_and_gzip_are_deterministic_for_all_raw_bytes(
+def test_content_address_and_gzip_are_deterministic_for_all_raw_bytes_동작을_검증한다(
     body: bytes,
 ) -> None:
     first_key = build_raw_object_key(source="eat", endpoint="bid-list", body=body)
@@ -34,7 +34,7 @@ def test_content_address_and_gzip_are_deterministic_for_all_raw_bytes(
 
 @settings(max_examples=20, deadline=None, derandomize=True)
 @given(body=st.binary(max_size=1024))
-def test_source_and_endpoint_separate_content_address_namespaces(body: bytes) -> None:
+def test_원본_and_endpoint_separate_content_address_namespaces(body: bytes) -> None:
     baseline = build_raw_object_key(source="eat", endpoint="bid-list", body=body)
 
     assert build_raw_object_key(source="neis", endpoint="bid-list", body=body) != baseline
@@ -42,7 +42,7 @@ def test_source_and_endpoint_separate_content_address_namespaces(body: bytes) ->
 
 
 @pytest.mark.parametrize("body", [b"", b"\x00\xff\xfe\x80"])
-def test_empty_and_non_utf8_raw_bytes_round_trip(body: bytes) -> None:
+def test_empty_and_non_utf8_raw_bytes_round_trip_동작을_검증한다(body: bytes) -> None:
     assert gzip.decompress(deterministic_gzip(body)) == body
 
 
@@ -59,7 +59,7 @@ def test_empty_and_non_utf8_raw_bytes_round_trip(body: bytes) -> None:
         ("eat", "../bid-list"),
     ],
 )
-def test_invalid_namespace_slugs_are_rejected(source: str, endpoint: str) -> None:
+def test_유효하지_않은_namespace_slugs_are_rejected(source: str, endpoint: str) -> None:
     with pytest.raises(ValueError, match="slug"):
         build_raw_object_key(source=source, endpoint=endpoint, body=b"raw")
 
@@ -78,12 +78,12 @@ def test_invalid_namespace_slugs_are_rejected(source: str, endpoint: str) -> Non
         "raw/eat/bid-list/" + "a" * 64 + ".xml",
     ],
 )
-def test_malformed_or_foreign_object_keys_are_rejected(object_key: str) -> None:
+def test_malformed_or_foreign_object_keys_are_rejected_동작을_검증한다(object_key: str) -> None:
     with pytest.raises(ValueError, match="object key"):
         parse_raw_object_key(object_key)
 
 
-def test_known_content_address_matches_architecture_contract() -> None:
+def test_알려진_content_address_matches_architecture_contract() -> None:
     assert build_raw_object_key(
         source="eat", endpoint="bid-list", body=b"<x>1</x>"
     ) == (
@@ -92,7 +92,7 @@ def test_known_content_address_matches_architecture_contract() -> None:
     )
 
 
-def test_memory_port_fake_is_content_idempotent_and_replayable() -> None:
+def test_memory_port_fake_is_content_idempotent_and_replayable_동작을_검증한다() -> None:
     store = MemoryRawObjectStore()
 
     first = store.put(source="eat", endpoint="bid-list", body=b"<x>1</x>")

@@ -18,6 +18,7 @@ import { ingestRun } from "./run.js";
 
 const attemptStatuses = ["normalized", "quarantined"] as const;
 
+// 성공은 schema fingerprint, 격리는 bounded reason을 가져야 하며 두 종료 상태의 메타데이터가 섞이면 안 된다.
 export const normalizationAttempt = ingestSchema.table(
   "normalization_attempt",
   {
@@ -68,6 +69,7 @@ export const normalizationAttempt = ingestSchema.table(
   ],
 );
 
+// 한 시도가 여러 canonical record를 만들 수 있어 provenance를 다대다 연결로 보존한다.
 export const normalizationAttemptRecord = ingestSchema.table(
   "normalization_attempt_record",
   {

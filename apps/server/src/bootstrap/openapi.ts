@@ -15,6 +15,7 @@ type OperationRoute = Readonly<{
 }>;
 
 export function assertOperationPath(operation: OperationRoute): void {
+  // 실행 route와 계약 metadata가 갈라지면 문서가 성공해도 실제 endpoint가 달라지므로 생성 단계에서 중단한다.
   const expected = `/${operation.controllerPath}/${operation.handlerPath}`;
   if (operation.path !== expected) {
     throw new Error(`Operation path drift: expected ${expected}`);
@@ -121,6 +122,7 @@ async function runCli(): Promise<void> {
     return;
   }
   if (command === "--check") {
+    // 같은 파일을 덮어쓴 뒤 읽는 검사는 stale artifact를 숨길 수 있어 별도 임시 파일의 바이트와 비교한다.
     const temporaryDirectory = await mkdtemp(join(tmpdir(), "eatbid-openapi-check-"));
     try {
       const generatedPath = join(temporaryDirectory, "openapi.json");

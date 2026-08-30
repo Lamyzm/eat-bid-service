@@ -21,6 +21,10 @@ export interface AuctionRecord {
   };
 }
 
+/**
+ * 애플리케이션 포트는 저장소 행이나 query builder를 노출하지 않는다.
+ * 도메인 값과 출처만 반환해야 저장 기술이 use case의 계약을 바꾸지 못한다.
+ */
 export interface AuctionReader {
   findById(id: AuctionId): Promise<AuctionRecord | null>;
 }

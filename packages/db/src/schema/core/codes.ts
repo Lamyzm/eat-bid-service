@@ -23,6 +23,7 @@ export const codeScheme = coreSchema.table(
   (table) => [unique("code_scheme_namespace_key").on(table.namespace)],
 );
 
+// code 문자열은 scheme 밖에서는 식별자가 아니므로 두 열의 유일성을 함께 강제한다.
 export const codeValue = coreSchema.table(
   "code_value",
   {
@@ -44,6 +45,7 @@ export const codeValue = coreSchema.table(
   ],
 );
 
+// label은 canonical code를 덮어쓰지 않는 관측 사실이며 원문 observation을 반드시 가리킨다.
 export const codeLabelObservation = coreSchema.table(
   "code_label_observation",
   {
@@ -70,6 +72,7 @@ export const codeLabelObservation = coreSchema.table(
   ],
 );
 
+// 서로 다른 코드 체계의 매핑은 추론 결과이므로 유효기간과 근거 observation 없이는 만들 수 없다.
 export const codeMapping = coreSchema.table(
   "code_mapping",
   {

@@ -258,7 +258,7 @@ def _run(
         lambda value: replace(value, request=replace(value.request, status="planned")),
     ],
 )
-def test_foundation_rejects_malicious_checkpoint_before_projection(mutate) -> None:
+def test_foundation_rejects_malicious_checkpoint_before_projection_동작을_검증한다(mutate) -> None:
     checkpoint = mutate(_checkpoint(status="validated"))
     projector = SpyProjectionRepository()
     with pytest.raises(FoundationIntegrityError):
@@ -278,7 +278,7 @@ def test_foundation_rejects_malicious_checkpoint_before_projection(mutate) -> No
         object(),
     ],
 )
-def test_foundation_rejects_malicious_validation_before_projection(
+def test_foundation_rejects_malicious_validation_before_projection_동작을_검증한다(
     validation: object,
 ) -> None:
     projector = SpyProjectionRepository()
@@ -298,13 +298,13 @@ def test_foundation_rejects_malicious_validation_before_projection(
         object(),
     ],
 )
-def test_foundation_rejects_malicious_project_result(project: object) -> None:
+def test_foundation_rejects_malicious_project_result_동작을_검증한다(project: object) -> None:
     projector = SpyProjectionRepository(project)
     with pytest.raises(FoundationIntegrityError):
         _run(_checkpoint(status="validated"), projector=projector)
 
 
-def test_published_reentry_rejects_forged_empty_topology_and_evidence() -> None:
+def test_발행된_reentry_rejects_forged_empty_topology_and_evidence() -> None:
     checkpoint = _checkpoint(status="validated")
     forged = replace(
         checkpoint,
@@ -352,7 +352,7 @@ def test_published_reentry_rejects_forged_empty_topology_and_evidence() -> None:
         object(),
     ],
 )
-def test_published_reentry_rejects_malicious_verified_projection_evidence(
+def test_발행된_reentry_rejects_malicious_verified_projection_evidence(
     published_evidence: object,
 ) -> None:
     projector = SpyProjectionRepository(published_evidence=published_evidence)
@@ -363,7 +363,7 @@ def test_published_reentry_rejects_malicious_verified_projection_evidence(
     assert projector.calls == 1
 
 
-def test_published_reentry_rejects_zero_ledger_counts_with_one_frozen_member(
+def test_발행된_reentry_rejects_zero_ledger_counts_with_one_frozen_member(
 ) -> None:
     checkpoint = _published_checkpoint()
     forged = replace(
@@ -393,7 +393,7 @@ def test_published_reentry_rejects_zero_ledger_counts_with_one_frozen_member(
     [(2, 2, 2), (1, True, 1)],
     ids=("over-count", "boolean-count"),
 )
-def test_published_reentry_rejects_nonexact_terminal_cardinality(
+def test_발행된_reentry_rejects_nonexact_terminal_cardinality(
     frozen_expected_count: int,
     terminal_count: int,
     checkpoint_published_count: int,
@@ -457,7 +457,7 @@ def _assert_rejected_before_projection(checkpoint: FoundationCheckpoint) -> None
         ("normalization_attempt_id", 0),
     ],
 )
-def test_terminal_checkpoint_rejects_normalization_field_drift_before_projection(
+def test_종료_상태_checkpoint_rejects_normalization_field_drift_before_projection(
     state: str,
     field: str,
     invalid: object,
@@ -474,7 +474,7 @@ def test_terminal_checkpoint_rejects_normalization_field_drift_before_projection
 
 @pytest.mark.parametrize("state", ["validated", "published"])
 @pytest.mark.parametrize("invalid_id", [True, 0])
-def test_terminal_checkpoint_rejects_invalid_normalized_member_id(
+def test_종료_상태_checkpoint_rejects_invalid_normalized_member_id(
     state: str,
     invalid_id: object,
 ) -> None:
@@ -493,13 +493,13 @@ def test_terminal_checkpoint_rejects_invalid_normalized_member_id(
 
 
 @pytest.mark.parametrize("state", ["validated", "published"])
-def test_terminal_checkpoint_rejects_untyped_normalization(state: str) -> None:
+def test_종료_상태_checkpoint_rejects_untyped_normalization(state: str) -> None:
     _assert_rejected_before_projection(
         replace(_terminal_checkpoint(state), normalization=object())
     )
 
 
-def test_validated_checkpoint_rejects_boolean_nested_counts_before_projection(
+def test_검증된_checkpoint_rejects_boolean_nested_counts_before_projection(
 ) -> None:
     checkpoint = _checkpoint(status="validated")
     malformed = replace(
@@ -532,7 +532,7 @@ def _checkpoint_for_state(state: str) -> FoundationCheckpoint:
         ("observation", object()),
     ],
 )
-def test_checkpoint_rejects_untyped_nested_companions_without_raw_errors(
+def test_checkpoint_rejects_untyped_nested_companions_without_raw_errors_동작을_검증한다(
     state: str,
     field: str,
     invalid: object,
@@ -544,7 +544,7 @@ def test_checkpoint_rejects_untyped_nested_companions_without_raw_errors(
 
 @pytest.mark.parametrize("state", ["running", "validated", "published", "failed"])
 @pytest.mark.parametrize("field", ["normalization", "evidence"])
-def test_checkpoint_rejects_untyped_optional_companions_before_ports(
+def test_checkpoint_rejects_untyped_optional_companions_before_ports_동작을_검증한다(
     state: str,
     field: str,
 ) -> None:
@@ -563,7 +563,7 @@ def test_checkpoint_rejects_untyped_optional_companions_before_ports(
     ids=("not-a-mapping", "non-string-key", "non-string-value"),
 )
 @pytest.mark.parametrize("owner", ["request", "observation"])
-def test_checkpoint_rejects_malformed_nested_params_without_raw_errors(
+def test_checkpoint_rejects_malformed_nested_params_without_raw_errors_동작을_검증한다(
     invalid_params: object,
     owner: str,
 ) -> None:
@@ -622,7 +622,7 @@ def test_checkpoint_rejects_malformed_nested_params_without_raw_errors(
         "object-quarantine-reason",
     ),
 )
-def test_terminal_checkpoint_rejects_incomplete_normalized_auction_contract(
+def test_종료_상태_checkpoint_rejects_incomplete_normalized_auction_contract(
     state: str,
     field: str,
     invalid: object,
@@ -653,7 +653,7 @@ def test_terminal_checkpoint_rejects_incomplete_normalized_auction_contract(
         ("checkpoint", "ended_at", object()),
     ],
 )
-def test_terminal_checkpoint_rejects_malformed_trusted_scalar_fields_before_ports(
+def test_종료_상태_checkpoint_rejects_malformed_trusted_scalar_fields_before_ports(
     state: str,
     owner: str,
     field: str,
@@ -679,7 +679,7 @@ def test_terminal_checkpoint_rejects_malformed_trusted_scalar_fields_before_port
         ("observation_ids", [11]),
     ],
 )
-def test_published_checkpoint_rejects_malformed_evidence_identity_before_verifier(
+def test_발행된_checkpoint_rejects_malformed_evidence_identity_before_verifier(
     field: str,
     invalid: object,
 ) -> None:

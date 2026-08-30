@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { getTableConfig } from "drizzle-orm/pg-core";
 
-describe("application identity and workspace schema", () => {
-  test("uses bigint principal/workspace identity and only explicit provider-subject mapping", async () => {
+describe("검증 범위를 정의한다 — application identity and workspace schema", () => {
+  test("사용 계약을 검증한다 — uses bigint principal/workspace identity and only explicit provider-subject mapping", async () => {
     const schema = await import("./index").catch(() => undefined);
     expect(schema, "modular app schema must exist").toBeDefined();
 

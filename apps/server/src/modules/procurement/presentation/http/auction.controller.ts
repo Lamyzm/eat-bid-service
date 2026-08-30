@@ -52,6 +52,7 @@ export class AuctionController {
   ): Promise<AuctionResponse> {
     let id: bigint;
     try {
+      // 계약 검증 뒤에도 변환 자체는 예외를 낼 수 있으므로 transport 400 경계 안에서 닫는다.
       id = BigInt(rawId);
     } catch {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
@@ -59,6 +60,7 @@ export class AuctionController {
     try {
       return await this.effectRunner.run(this.findAuction.execute({ auctionId: auctionId(id) }));
     } catch (error) {
+      // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
       if (error instanceof AuctionNotFound) {
         throw new NotFoundException({ code: "AUCTION_NOT_FOUND" });
       }

@@ -14,6 +14,7 @@ const safeErrorCodes = new Set([
 ]);
 
 export interface SafeErrorRecord {
+  /** 외부 문자열을 복사하지 않는 분류형 오류 표현이라 로그 주입과 비밀 유출을 함께 막는다. */
   readonly errorName: "Error" | "TypeError" | "SyntaxError" | "RangeError" | "URIError";
   readonly errorCode?: string;
   readonly stackFrames: readonly ("application" | "dependency" | "runtime")[];
@@ -71,6 +72,7 @@ function stackFrameClassifications(error: Error): SafeErrorRecord["stackFrames"]
 }
 
 export function serializeSafeError(error: unknown, depth = 0): SafeErrorRecord {
+  // message, header, body, 원문 stack frame은 신뢰할 수 없어 이름·허용 코드·프레임 분류만 남긴다.
   if (!(error instanceof Error)) {
     return Object.freeze({ errorName: "Error", stackFrames: [] });
   }

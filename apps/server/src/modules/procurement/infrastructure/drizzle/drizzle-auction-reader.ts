@@ -26,6 +26,7 @@ type AuctionRow = Readonly<{
 }>;
 
 function bigintValue(value: string | bigint): bigint {
+  // 드라이버 설정에 따라 문자열로 오는 bigint도 Number를 거치지 않고 동일한 도메인 값으로 복원한다.
   const parsed = typeof value === "bigint" ? value : BigInt(value);
   if (parsed <= 0n) throw new TypeError("Database ID must be a positive bigint");
   return parsed;
@@ -65,6 +66,7 @@ export class DrizzleAuctionReader implements AuctionReader {
   constructor(private readonly database: AuctionReadDatabase) {}
 
   async findById(id: AuctionId): Promise<AuctionRecord | null> {
+    // 정규화 레코드는 수정하지 않고 revision을 추가하므로 내부 증가 ID의 최댓값이 현재 canonical 해석이다.
     const result = await this.database.execute(sql`
       select
         attempt.auction_attempt_id as auction_id,

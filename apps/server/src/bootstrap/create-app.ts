@@ -56,6 +56,10 @@ export interface OperationalHttpApplication {
   shutdown(): Promise<ShutdownResult>;
 }
 
+/**
+ * Express가 전송 계층과 미들웨어 순서를 소유하고 Nest는 라우팅 계층만 소유한다.
+ * 이 경계를 한 곳에서 조립해야 요청 추적과 종료 lease가 파서 오류에도 빠지지 않는다.
+ */
 export async function createApp(options: CreateAppOptions = {}): Promise<OperationalHttpApplication> {
   const environment = options.environment ?? readEnvironment();
   if (options.testOnlyImports && environment.runtimeMode !== "test") {
@@ -80,7 +84,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     },
   });
 
-  // Gate 16.4 mounts the byte-preserving raw auth transport in this ordered slot.
+  // 원문 바이트 서명 검증은 보안 헤더/CORS 뒤이면서 파서 앞이어야 하므로 이 슬롯을 고정한다.
   options.mountPreParserRawTransport?.(expressApplication);
 
   expressApplication.use(express.json({ limit: environment.payloadLimitBytes, strict: true }));
@@ -95,6 +99,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     response: Response,
     next: NextFunction,
   ): void => {
+    // 공격자가 임의 status를 붙인 오류를 4xx로 위장하지 못하도록 파서가 만드는 좁은 형태만 신뢰한다.
     const status = supportedBodyParserStatus(error);
     if (status === undefined) return next(error);
     response.status(status).type("application/problem+json").send(
@@ -117,6 +122,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
   );
   app.setGlobalPrefix("api", {
     exclude: [
+      // 운영 probe와 원문 인증 전송은 API 버전 수명주기에 결합하지 않는다.
       { path: healthOperations.live.path.slice(1), method: RequestMethod.ALL },
       { path: healthOperations.ready.path.slice(1), method: RequestMethod.ALL },
       { path: "api/auth/{*path}", method: RequestMethod.ALL },

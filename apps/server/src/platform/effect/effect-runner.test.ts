@@ -6,26 +6,26 @@ class ExpectedFailure extends Error {
   readonly _tag = "ExpectedFailure";
 }
 
-describe("EffectRunner", () => {
+describe("검증 범위를 정의한다 — EffectRunner", () => {
   const runner = new EffectRunner();
 
-  test("returns a successful Effect value", async () => {
+  test("반환 결과를 검증한다 — returns a successful Effect value", async () => {
     await expect(runner.run(Effect.succeed({ id: 42n }))).resolves.toEqual({ id: 42n });
   });
 
-  test("rejects with the original typed expected failure", async () => {
+  test("거부 조건을 검증한다 — rejects with the original typed expected failure", async () => {
     const failure = new ExpectedFailure("not found");
 
     await expect(runner.run(Effect.fail(failure))).rejects.toBe(failure);
   });
 
-  test("rejects with the original unexpected defect", async () => {
+  test("거부 조건을 검증한다 — rejects with the original unexpected defect", async () => {
     const defect = new Error("unexpected defect");
 
     await expect(runner.run(Effect.die(defect))).rejects.toBe(defect);
   });
 
-  test("cancels execution through AbortSignal", async () => {
+  test("취소 동작을 검증한다 — cancels execution through AbortSignal", async () => {
     const controller = new AbortController();
     const running = runner.run(Effect.never, { signal: controller.signal });
 

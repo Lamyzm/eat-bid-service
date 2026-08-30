@@ -56,35 +56,35 @@ function withFixture(options, assertion) {
   }
 }
 
-test("passes a structurally valid stack fixture", () => {
+test("구조가 올바른 stack fixture를 허용한다", () => {
   withFixture({}, (output) => assert.equal(output, ""));
 });
 
-test("rejects a placeholder in the stack index", () => {
+test("stack index의 placeholder를 거부한다", () => {
   withFixture({ indexExtra: "\nTODO remove placeholder\n" }, (output) => {
     assert.match(output, /Placeholder found in docs\/architecture\/stack\/README\.md/);
   });
 });
 
-test("rejects a broken local link in the stack index", () => {
+test("stack index의 깨진 로컬 링크를 거부한다", () => {
   withFixture({ indexExtra: "\n[missing ADR](../../adr/missing.md)\n" }, (output) => {
     assert.match(output, /Broken local link in docs\/architecture\/stack\/README\.md/);
   });
 });
 
-test("rejects a malformed decision-table separator", () => {
+test("decision table의 잘못된 구분 행을 거부한다", () => {
   withFixture({ applicationAudit: audit("Adopted", "| invalid | separator |") }, (output) => {
     assert.match(output, /must have a valid Markdown separator row/);
   });
 });
 
-test("rejects a first decision row with an invalid disposition", () => {
+test("첫 decision 행의 잘못된 disposition을 거부한다", () => {
   withFixture({ applicationAudit: audit("Candidate") }, (output) => {
     assert.match(output, /Invalid disposition.*Candidate/);
   });
 });
 
-test("rejects inconsistent decision-table row width", () => {
+test("decision table 행의 불일치한 너비를 거부한다", () => {
   const inconsistent = audit().replace(
     "| item | evidence | today | Adopted | trigger |",
     "| item | evidence | today | Adopted |",

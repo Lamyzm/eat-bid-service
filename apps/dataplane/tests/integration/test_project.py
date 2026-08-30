@@ -81,7 +81,7 @@ def project(services: PipelineServices, publication_id: UUID):
     )
 
 
-def test_repository_rejects_factory_output_not_bound_to_locked_member(
+def test_repository_rejects_factory_output_not_bound_to_locked_member_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -142,7 +142,7 @@ def test_repository_rejects_factory_output_not_bound_to_locked_member(
         },
     ],
 )
-def test_repository_rejects_malformed_factory_projection_before_sql(
+def test_repository_rejects_malformed_factory_projection_before_sql_동작을_검증한다(
     pipeline_services: PipelineServices, changes: dict[str, object]
 ) -> None:
     publication_id = validated_from_values(
@@ -176,7 +176,7 @@ def test_repository_rejects_malformed_factory_projection_before_sql(
         assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
 
 
-def test_repository_rejects_non_projection_factory_output_as_contract_failure(
+def test_repository_rejects_non_projection_factory_output_as_contract_failure_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -200,7 +200,7 @@ def test_repository_rejects_non_projection_factory_output_as_contract_failure(
         assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
 
 
-def test_projector_rejects_multiple_normalized_members_for_one_candidate(
+def test_projector_rejects_multiple_normalized_members_for_one_candidate_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -237,7 +237,7 @@ def test_projector_rejects_multiple_normalized_members_for_one_candidate(
         project(pipeline_services, publication_id)
 
 
-def test_projector_rejects_wrong_parser_attempt_added_after_validation(
+def test_projector_rejects_wrong_parser_attempt_added_after_validation_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -263,7 +263,7 @@ def test_projector_rejects_wrong_parser_attempt_added_after_validation(
         project(pipeline_services, publication_id)
 
 
-def test_candidate_bijection_does_not_assume_normalized_record_id_order(
+def test_candidate_bijection_does_not_assume_normalized_record_id_order_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services, expected_count=2)
@@ -292,7 +292,7 @@ def test_candidate_bijection_does_not_assume_normalized_record_id_order(
     assert projected.members_projected == 2
 
 
-def test_projector_rejects_replay_candidate_added_after_validation(
+def test_projector_rejects_replay_candidate_added_after_validation_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     first_publication = validated_from_values(
@@ -339,7 +339,7 @@ def test_projector_rejects_replay_candidate_added_after_validation(
         project(pipeline_services, replay_publication)
 
 
-def test_projector_rejects_extra_revision_relations_on_published_retry(
+def test_projector_rejects_extra_revision_relations_on_published_retry_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     first = validated_from_values(
@@ -394,7 +394,7 @@ def test_projector_rejects_extra_revision_relations_on_published_retry(
         project(pipeline_services, first)
 
 
-def test_projection_requires_idle_owned_transaction_scope(
+def test_projection_requires_idle_owned_transaction_scope_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -414,7 +414,7 @@ def test_projection_requires_idle_owned_transaction_scope(
         assert cursor.fetchone() == ("validated",)
 
 
-def test_projection_rejects_activation_before_validation(
+def test_projection_rejects_activation_before_validation_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -438,7 +438,7 @@ def test_projection_rejects_activation_before_validation(
         assert ended_at == validated_at
 
 
-def test_projection_rejects_activation_before_run_start_as_contract_failure(
+def test_projection_rejects_activation_before_run_start_as_contract_failure_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -465,7 +465,7 @@ def test_projection_rejects_activation_before_run_start_as_contract_failure(
         assert ended_at == VALIDATED_AT
 
 
-def test_database_rejects_run_end_before_start(
+def test_database_rejects_run_end_before_start_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services)
@@ -481,7 +481,7 @@ def test_database_rejects_run_end_before_start(
         )
 
 
-def test_database_rejects_publication_activation_before_validation(
+def test_database_rejects_publication_activation_before_validation_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -503,7 +503,7 @@ def test_database_rejects_publication_activation_before_validation(
         )
 
 
-def test_projecting_same_publication_twice_is_idempotent(
+def test_projecting_same_publication_twice_is_idempotent_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     validated_publication = validated_from_values(
@@ -527,7 +527,7 @@ def test_projecting_same_publication_twice_is_idempotent(
     assert second.auction_revisions_inserted == 0
 
 
-def test_validated_terminal_is_recheckable_before_projection(
+def test_검증된_terminal_is_recheckable_before_projection(
     pipeline_services: PipelineServices,
 ) -> None:
     validated_publication = validated_from_values(
@@ -551,7 +551,7 @@ def test_validated_terminal_is_recheckable_before_projection(
     assert len(result.member_ids) == 1
 
 
-def test_projection_persists_revision_scoped_bigint_facts_without_invention(
+def test_projection_persists_revision_scoped_bigint_facts_without_invention_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -627,7 +627,7 @@ def test_projection_persists_revision_scoped_bigint_facts_without_invention(
         assert cursor.fetchone() == (0,)
 
 
-def test_organization_code_is_identity_and_names_are_observation_evidence(
+def test_organization_code_is_identity_and_names_are_observation_evidence_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publications = [
@@ -681,7 +681,7 @@ def test_organization_code_is_identity_and_names_are_observation_evidence(
         ]
 
 
-def test_missing_display_number_is_nullable_revision_data(
+def test_누락된_display_number_is_nullable_revision_data(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -703,7 +703,7 @@ def test_missing_display_number_is_nullable_revision_data(
         assert cursor.fetchone() == (None,)
 
 
-def test_concurrent_projection_serializes_and_preserves_first_metadata(
+def test_동시_projection_serializes_and_preserves_first_metadata(
     pipeline_services: PipelineServices, migrated_db: MigratedDatabase
 ) -> None:
     publication_id = validated_from_values(
@@ -737,7 +737,7 @@ def test_concurrent_projection_serializes_and_preserves_first_metadata(
         assert published_count == 1
 
 
-def test_concurrent_publications_reuse_one_organization_code_identity(
+def test_동시_publications_reuse_one_organization_code_identity(
     pipeline_services: PipelineServices, migrated_db: MigratedDatabase
 ) -> None:
     publication_ids = (
@@ -793,7 +793,7 @@ def test_concurrent_publications_reuse_one_organization_code_identity(
         assert cursor.fetchall() == [("First Label",), ("Second Label",)]
 
 
-def test_replay_publication_reuses_the_same_normalized_revision(
+def test_replay_publication_reuses_the_same_normalized_revision_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     original_publication = validated_from_values(
@@ -843,7 +843,7 @@ def test_replay_publication_reuses_the_same_normalized_revision(
         assert cursor.fetchone() == ("published", 1)
 
 
-def test_database_grain_allows_new_parser_interpretation_of_same_raw(
+def test_database_grain_allows_new_parser_interpretation_of_same_raw_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -905,7 +905,7 @@ def test_database_grain_allows_new_parser_interpretation_of_same_raw(
         assert cursor.fetchone() == (2,)
 
 
-def test_corrupt_payload_rolls_back_and_marks_projection_contract_failed(
+def test_손상된_payload_rolls_back_and_marks_projection_contract_failed(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -977,7 +977,7 @@ def test_corrupt_payload_rolls_back_and_marks_projection_contract_failed(
     assert rechecked.member_ids == (member_id,)
 
 
-def test_missing_reviewed_scheme_rolls_back_before_marking_contract_failure(
+def test_누락된_reviewed_scheme_rolls_back_before_marking_contract_failure(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -1029,7 +1029,7 @@ def test_missing_reviewed_scheme_rolls_back_before_marking_contract_failure(
         assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
 
 
-def test_conflicting_existing_revision_rolls_back_all_new_projection_rows(
+def test_충돌하는_existing_revision_rolls_back_all_new_projection_rows(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -1097,7 +1097,7 @@ def test_conflicting_existing_revision_rolls_back_all_new_projection_rows(
         assert cursor.fetchone() == (0,)
 
 
-def test_publication_fingerprint_matches_hand_checked_natural_payload_digest(
+def test_발행_fingerprint_matches_hand_checked_natural_payload_digest(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -1117,7 +1117,7 @@ def test_publication_fingerprint_matches_hand_checked_natural_payload_digest(
         assert cursor.fetchone() == (result.canonical_fingerprint,)
 
 
-def test_transient_repository_failure_leaves_validated_publication_retryable(
+def test_일시적_repository_failure_leaves_validated_publication_retryable(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(

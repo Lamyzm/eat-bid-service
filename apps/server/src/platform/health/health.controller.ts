@@ -31,6 +31,7 @@ export class HealthController {
   @ApiResponse({ status: 200, description: "Process is live" })
   @ResponseSchema(liveHealthSchema)
   live(): LiveHealth {
+    // liveness는 외부 의존성 장애로 프로세스 재시작 폭풍을 만들지 않도록 프로세스만 확인한다.
     return { status: "live" };
   }
 
@@ -40,6 +41,7 @@ export class HealthController {
   @ApiResponse({ status: 503, description: "Application dependency is unavailable" })
   @ResponseSchema(readyHealthSchema)
   async ready(): Promise<ReadyHealth> {
+    // 종료 중 신규 작업 차단과 DB 최소 권한 검사를 모두 통과해야 readiness를 공개한다.
     if (!this.readiness.ready || !(await this.database.isReady())) {
       throw new ServiceUnavailableException();
     }

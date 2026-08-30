@@ -10,6 +10,7 @@ export const readyHealthSchema = z.strictObject({
 
 export const healthControllerPath = "health";
 
+/** 런타임 controller와 OpenAPI가 같은 경로 메타데이터를 소비하게 해 문서 drift를 구조적으로 막는다. */
 function defineHealthOperation<
   const HandlerPath extends string,
   const OperationId extends string,

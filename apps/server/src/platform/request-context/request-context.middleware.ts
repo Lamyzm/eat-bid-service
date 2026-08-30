@@ -17,6 +17,7 @@ export function requestIdOf(request: Request): string {
 
 export function createRequestContextMiddleware(store: RequestContextStore): RequestHandler {
   return (request: Request, response: Response, next: NextFunction): void => {
+    // context에는 상관관계 ID만 넣고 인증 정보나 트랜잭션을 숨겨 전달하는 service locator로 쓰지 않는다.
     const requestId = selectRequestId(request.header("x-request-id"));
     (request as ContextRequest)[requestIdKey] = requestId;
     response.setHeader("x-request-id", requestId);

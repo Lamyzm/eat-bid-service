@@ -12,8 +12,8 @@ import { describe, expect, test } from "bun:test";
 import { RedactingJsonLogger } from "../logging/logging.module";
 import { ProblemDetailsFilter } from "./problem-details.filter";
 
-describe("Problem Details mapping", () => {
-  test("maps the complete operational status taxonomy without reflecting exception details", async () => {
+describe("검증 범위를 정의한다 — Problem Details mapping", () => {
+  test("매핑 결과를 검증한다 — maps the complete operational status taxonomy without reflecting exception details", async () => {
     const module = await import("./problem-details.filter").catch(() => undefined);
     expect(module, "Problem Details filter must exist").toBeDefined();
     const expected = new Map([
@@ -30,7 +30,7 @@ describe("Problem Details mapping", () => {
     }
   });
 
-  test("the exception filter emits application/problem+json for every status family", () => {
+  test("동작을 검증한다 — the exception filter emits application/problem+json for every status family", () => {
     const logger = new RedactingJsonLogger({ buildSha: "a".repeat(40), write: () => undefined });
     const filter = new ProblemDetailsFilter(logger);
     const cases: ReadonlyArray<readonly [unknown, number, string]> = [

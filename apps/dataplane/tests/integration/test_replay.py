@@ -220,7 +220,7 @@ def _start_validated_replay(
     return run_id, publication_id, records
 
 
-def test_same_replay_run_resumes_without_duplicate_state(
+def test_동일한_replay_run_resumes_without_duplicate_state(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -259,7 +259,7 @@ def test_same_replay_run_resumes_without_duplicate_state(
         assert cursor.fetchone() == (1,)
 
 
-def test_observation_repository_cannot_create_replay_runs(
+def test_observation_repository_cannot_create_replay_runs_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = uuid4()
@@ -277,7 +277,7 @@ def test_observation_repository_cannot_create_replay_runs(
         assert cursor.fetchone() == (0,)
 
 
-def test_capture_repository_cannot_plan_requests_for_existing_replay(
+def test_capture_repository_cannot_plan_requests_for_existing_replay_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -307,7 +307,7 @@ def test_capture_repository_cannot_plan_requests_for_existing_replay(
         assert cursor.fetchone() == (0,)
 
 
-def test_capture_repository_cannot_record_raw_evidence_for_existing_replay(
+def test_capture_repository_cannot_record_raw_evidence_for_existing_replay_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -379,7 +379,7 @@ def test_capture_repository_cannot_record_raw_evidence_for_existing_replay(
         assert cursor.fetchone() == ("pending",)
 
 
-def test_capture_repository_cannot_fail_existing_replay(
+def test_capture_repository_cannot_fail_existing_replay_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -411,7 +411,7 @@ def test_capture_repository_cannot_fail_existing_replay(
 
 
 @pytest.mark.parametrize("checkpoint", ["manifest", "one-member", "validated"])
-def test_replay_resumes_monotonically_from_partial_checkpoints(
+def test_replay_resumes_monotonically_from_partial_checkpoints_동작을_검증한다(
     pipeline_services: PipelineServices, checkpoint: str
 ) -> None:
     observation_ids = _capture(pipeline_services, count=2)
@@ -479,7 +479,7 @@ def test_replay_resumes_monotonically_from_partial_checkpoints(
         assert cursor.fetchone() == (2,)
 
 
-def test_replay_loads_and_resumes_one_of_many_quarantined_checkpoint(
+def test_replay_loads_and_resumes_one_of_many_quarantined_checkpoint_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture_pair(pipeline_services, first_body=b"<broken>")
@@ -531,7 +531,7 @@ def test_replay_loads_and_resumes_one_of_many_quarantined_checkpoint(
         ("quarantined", "DATA_QUARANTINED"),
     ],
 )
-def test_incomplete_replay_failure_preserves_structurally_valid_partial_topology(
+def test_불완전한_replay_failure_preserves_structurally_valid_partial_topology(
     pipeline_services: PipelineServices,
     attempt_status: str,
     failure_category: str,
@@ -577,7 +577,7 @@ def test_incomplete_replay_failure_preserves_structurally_valid_partial_topology
     assert (loaded.status, loaded.failure_category) == ("failed", failure_category)
 
 
-def test_two_replays_reuse_raw_record_and_revision_with_same_fingerprint(
+def test_두_replays_reuse_raw_record_and_revision_with_same_fingerprint(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -614,7 +614,7 @@ def test_two_replays_reuse_raw_record_and_revision_with_same_fingerprint(
         assert cursor.fetchone() == (0,)
 
 
-def test_replay_manifest_is_atomic_sorted_and_rejects_drift(
+def test_replay_manifest_is_atomic_sorted_and_rejects_drift_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services, count=2)
@@ -650,7 +650,7 @@ def test_replay_manifest_is_atomic_sorted_and_rejects_drift(
             pipeline_services.replay_repository.start_or_load(**arguments)
 
 
-def test_running_replay_rejects_hidden_publication_member(
+def test_실행_중인_replay_rejects_hidden_publication_member(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -684,7 +684,7 @@ def test_running_replay_rejects_hidden_publication_member(
 
 
 @pytest.mark.parametrize("state", ["running", "source-contract", "quarantined"])
-def test_nonfrozen_replay_states_reject_extra_wrong_parser_attempt(
+def test_nonfrozen_replay_states_reject_extra_wrong_parser_attempt_동작을_검증한다(
     pipeline_services: PipelineServices,
     state: str,
 ) -> None:
@@ -734,7 +734,7 @@ def test_nonfrozen_replay_states_reject_extra_wrong_parser_attempt(
 @pytest.mark.parametrize(
     "tamper", ["foreign-attempt", "quarantined-foreign-edge", "two-zero"]
 )
-def test_running_replay_rejects_structurally_incoherent_partial_topology(
+def test_실행_중인_replay_rejects_structurally_incoherent_partial_topology(
     pipeline_services: PipelineServices,
     tamper: str,
 ) -> None:
@@ -808,7 +808,7 @@ def test_running_replay_rejects_structurally_incoherent_partial_topology(
 
 
 @pytest.mark.parametrize("failure_kind", ["quarantine", "source-contract"])
-def test_stored_failed_replay_cannot_hide_publication_members_before_typed_rethrow(
+def test_저장된_failed_replay_cannot_hide_publication_members_before_typed_rethrow(
     pipeline_services: PipelineServices, failure_kind: str
 ) -> None:
     foreign_observation = _capture(pipeline_services)
@@ -864,7 +864,7 @@ def test_stored_failed_replay_cannot_hide_publication_members_before_typed_rethr
 @pytest.mark.parametrize(
     "tamper", ["missing-member", "extra-member", "swapped-edge", "wrong-parser"]
 )
-def test_validated_replay_start_rechecks_exact_shared_topology_and_members(
+def test_검증된_replay_start_rechecks_exact_shared_topology_and_members(
     pipeline_services: PipelineServices, tamper: str
 ) -> None:
     observation_ids = _capture(pipeline_services, count=2)
@@ -917,7 +917,7 @@ def test_validated_replay_start_rechecks_exact_shared_topology_and_members(
         )
 
 
-def test_projection_failed_replay_still_requires_exact_frozen_members(
+def test_projection_failed_replay_still_requires_exact_frozen_members_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -956,7 +956,7 @@ def test_projection_failed_replay_still_requires_exact_frozen_members(
         )
 
 
-def test_published_replay_start_rejects_extra_frozen_member(
+def test_발행된_replay_start_rejects_extra_frozen_member(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -988,7 +988,7 @@ def test_published_replay_start_rejects_extra_frozen_member(
         )
 
 
-def test_replay_start_rejects_ambient_transaction_ownership(
+def test_replay_start_rejects_ambient_transaction_ownership_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -1007,7 +1007,7 @@ def test_replay_start_rejects_ambient_transaction_ownership(
     pipeline_services.connection.rollback()
 
 
-def test_replay_load_and_validation_share_a_deadlock_free_lock_order(
+def test_replay_load_and_validation_share_a_deadlock_free_lock_order_동작을_검증한다(
     pipeline_services: PipelineServices, migrated_db: MigratedDatabase
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -1136,7 +1136,7 @@ def test_replay_load_and_validation_share_a_deadlock_free_lock_order(
 
 
 @pytest.mark.parametrize("same_identity", [True, False])
-def test_concurrent_replay_start_is_atomic_for_same_or_conflicting_identity(
+def test_동시_replay_start_is_atomic_for_same_or_conflicting_identity(
     pipeline_services: PipelineServices,
     migrated_db: MigratedDatabase,
     same_identity: bool,
@@ -1197,7 +1197,7 @@ def test_concurrent_replay_start_is_atomic_for_same_or_conflicting_identity(
 
 
 @pytest.mark.parametrize("observation_ids", [(), (1, 1), (True,), (0,), (-1,)])
-def test_invalid_replay_manifest_makes_no_run(
+def test_유효하지_않은_replay_manifest_makes_no_run(
     pipeline_services: PipelineServices, observation_ids: tuple[object, ...]
 ) -> None:
     run_id = uuid4()
@@ -1215,7 +1215,7 @@ def test_invalid_replay_manifest_makes_no_run(
         assert cursor.fetchone() == (0,)
 
 
-def test_unknown_replay_observation_rolls_back_run_publication_and_manifest(
+def test_알_수_없는_replay_observation_rolls_back_run_publication_and_manifest(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id, publication_id = uuid4(), uuid4()
@@ -1241,7 +1241,7 @@ def test_unknown_replay_observation_rolls_back_run_publication_and_manifest(
             assert cursor.fetchone() == (0,)
 
 
-def test_input_order_does_not_change_replay_fingerprint(
+def test_입력_order_does_not_change_replay_fingerprint(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services, count=2)
@@ -1252,7 +1252,7 @@ def test_input_order_does_not_change_replay_fingerprint(
     assert reverse.canonical_fingerprint == forward.canonical_fingerprint
 
 
-def test_transient_raw_read_failure_leaves_frozen_running_run_retryable(
+def test_일시적_raw_read_failure_leaves_frozen_running_run_retryable(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -1298,7 +1298,7 @@ def test_transient_raw_read_failure_leaves_frozen_running_run_retryable(
     assert recovered.status == "published"
 
 
-def test_transient_database_failure_propagates_without_terminal_state(
+def test_일시적_database_failure_propagates_without_terminal_state(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)
@@ -1345,7 +1345,7 @@ def test_transient_database_failure_propagates_without_terminal_state(
         assert cursor.fetchone() == (0,)
 
 
-def test_quarantined_replay_persists_and_rethrows_data_failure(
+def test_격리된_replay_persists_and_rethrows_data_failure(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services, body=b"<broken>")
@@ -1396,7 +1396,7 @@ def test_quarantined_replay_persists_and_rethrows_data_failure(
         assert cursor.fetchone() == (0,)
 
 
-def test_unreviewed_schema_replay_persists_and_rethrows_source_contract(
+def test_검토되지_않은_schema_replay_persists_and_rethrows_source_contract(
     pipeline_services: PipelineServices,
 ) -> None:
     body = (
@@ -1430,7 +1430,7 @@ def test_unreviewed_schema_replay_persists_and_rethrows_source_contract(
         assert cursor.fetchone() == ("failed", "failed", "SOURCE_CONTRACT")
 
 
-def test_published_reentry_reverifies_canonical_relations(
+def test_발행된_reentry_reverifies_canonical_relations(
     pipeline_services: PipelineServices,
 ) -> None:
     observation_ids = _capture(pipeline_services)

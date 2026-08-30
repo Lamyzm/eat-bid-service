@@ -3,9 +3,10 @@ import { EventEmitter } from "node:events";
 import { createInflightMiddleware } from "./inflight.middleware";
 import { InflightTracker } from "./inflight-tracker";
 
-describe("in-flight middleware terminal events", () => {
-  for (const event of ["finish", "close", "aborted"] as const) {
-    test(`releases exactly once when ${event} terminates the request`, () => {
+describe("검증 범위를 정의한다 — in-flight middleware terminal events", () => {
+  test.each(["finish", "close", "aborted"] as const)(
+    "%s event가 요청을 종료해도 lease를 정확히 한 번 해제한다",
+    (event) => {
       const tracker = new InflightTracker();
       const incoming = new EventEmitter();
       const response = new EventEmitter();
@@ -18,6 +19,6 @@ describe("in-flight middleware terminal events", () => {
       incoming.emit("aborted");
       expect(tracker.count).toBe(0);
       expect(nextCalls).toBe(1);
-    });
-  }
+    },
+  );
 });

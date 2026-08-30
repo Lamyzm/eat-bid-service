@@ -6,6 +6,7 @@ import { AppModule } from "../app.module";
 
 export const expectedNodeVersion = "v24.20.0";
 
+// Nest 12와 Effect RC 조합은 지원 표면이 좁으므로 semver 호환이 아니라 검증된 런타임을 정확히 고정한다.
 export function assertExactNodeVersion(actualVersion: string): string {
   if (actualVersion !== expectedNodeVersion) {
     throw new Error(`Expected Node ${expectedNodeVersion}, received ${actualVersion}`);

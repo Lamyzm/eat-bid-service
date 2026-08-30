@@ -33,8 +33,8 @@ const foreignKeyColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
     };
   });
 
-describe("canonical identities", () => {
-  test("uses generated bigint primary keys for every independently identified fact", () => {
+describe("검증 범위를 정의한다 — canonical identities", () => {
+  test("사용 계약을 검증한다 — uses generated bigint primary keys for every independently identified fact", () => {
     for (const [table, primaryKey] of [
       [codeScheme, "code_scheme_id"],
       [codeValue, "code_value_id"],
@@ -55,7 +55,7 @@ describe("canonical identities", () => {
     expect(columns(auctionRevisionCodeValue).every((column) => column.generatedIdentity === undefined)).toBe(true);
   });
 
-  test("defines exact required columns and nullability for every canonical table", () => {
+  test("정의 계약을 검증한다 — defines exact required columns and nullability for every canonical table", () => {
     expect(columnNames(codeScheme)).toEqual([
       "code_scheme_id",
       "namespace",
@@ -212,7 +212,7 @@ describe("canonical identities", () => {
     });
   });
 
-  test("keeps code source evidence as text within a unique scheme", () => {
+  test("보존 조건을 검증한다 — keeps code source evidence as text within a unique scheme", () => {
     const code = columns(codeValue).find((column) => column.name === "code");
 
     expect(code?.getSQLType()).toBe("text");
@@ -220,7 +220,7 @@ describe("canonical identities", () => {
     expect(uniqueColumnSets(codeValue)).toContainEqual(["code_scheme_id", "code"]);
   });
 
-  test("keeps code registry tables at their stated grain with observed evidence", () => {
+  test("보존 조건을 검증한다 — keeps code registry tables at their stated grain with observed evidence", () => {
     expect(columnNames(codeScheme)).toEqual(expect.arrayContaining([
       "code_scheme_id",
       "namespace",
@@ -270,7 +270,7 @@ describe("canonical identities", () => {
     ]));
   });
 
-  test("defines the complete named-check contract for every canonical table", () => {
+  test("정의 계약을 검증한다 — defines the complete named-check contract for every canonical table", () => {
     const checkNames = (table: Parameters<typeof getTableConfig>[0]) =>
       getTableConfig(table).checks.map((check) => check.name);
 
@@ -290,7 +290,7 @@ describe("canonical identities", () => {
     }
   });
 
-  test("uses the single code-value authority for organization identity", () => {
+  test("사용 계약을 검증한다 — uses the single code-value authority for organization identity", () => {
     const identifierColumns = columnNames(organizationIdentifier);
 
     expect(identifierColumns).toEqual(expect.arrayContaining([
@@ -309,14 +309,14 @@ describe("canonical identities", () => {
     ]));
   });
 
-  test("does not promote organization names or display bid numbers to identities", () => {
+  test("금지 조건을 검증한다 — does not promote organization names or display bid numbers to identities", () => {
     expect(uniqueColumnSets(organization)).not.toContainEqual(["canonical_name"]);
     expect(columnNames(auctionAttempt)).not.toContain("display_bid_no");
     expect(columnNullability(organization).canonical_name).toBe(false);
     expect(columnNullability(auctionRevision).display_bid_no).toBe(false);
   });
 
-  test("scopes auction identity to the source and revisions to normalized interpretations", () => {
+  test("범위 제한을 검증한다 — scopes auction identity to the source and revisions to normalized interpretations", () => {
     expect(uniqueColumnSets(auctionAttempt)).toContainEqual(["source_system", "external_bid_id"]);
     expect(uniqueColumnSets(auctionRevision)).toContainEqual(["normalized_record_id"]);
     expect(uniqueColumnSets(auctionRevision)).not.toContainEqual(["auction_attempt_id", "content_sha256"]);
@@ -327,7 +327,7 @@ describe("canonical identities", () => {
     ]));
   });
 
-  test("scopes organization and code-value facts to an auction revision", () => {
+  test("범위 제한을 검증한다 — scopes organization and code-value facts to an auction revision", () => {
     const config = getTableConfig(auctionOrganization);
 
     expect(config.primaryKeys.map((key) => key.columns.map((column) => column.name)))
@@ -346,7 +346,7 @@ describe("canonical identities", () => {
     ]));
   });
 
-  test("deduplicates source labels at their observation-scoped evidence grain", () => {
+  test("중복 제거를 검증한다 — deduplicates source labels at their observation-scoped evidence grain", () => {
     expect(uniqueColumnSets(codeLabelObservation)).toContainEqual([
       "code_value_id",
       "label",

@@ -57,13 +57,13 @@ const approvedCodeSchemes = [
   },
 ];
 
-describe("builtin code scheme seed", () => {
-  test("contains exactly the approved namespaces", () => {
+describe("검증 범위를 정의한다 — builtin code scheme seed", () => {
+  test("동작을 검증한다 — contains exactly the approved namespaces", () => {
     expect(builtinCodeSchemes.map(({ namespace }) => namespace)).toEqual(approvedNamespaces);
     expect(builtinCodeSchemes).toEqual(approvedCodeSchemes);
   });
 
-  test("is idempotent and preserves all semantic scheme metadata", async () => {
+  test("상태를 검증한다 — is idempotent and preserves all semantic scheme metadata", async () => {
     const rows = new Map<string, (typeof approvedCodeSchemes)[number]>();
     const conflictTargets: unknown[] = [];
     const db = {

@@ -14,6 +14,7 @@ export class RequestCompletionInterceptor implements NestInterceptor {
     const response = context.switchToHttp().getResponse<Response>();
     const started = performance.now();
     let completed = false;
+    // finish와 close가 함께 발생해도 Nest route 완료 로그는 한 번만 기록한다.
     const complete = (): void => {
       if (completed) return;
       completed = true;

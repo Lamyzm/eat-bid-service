@@ -23,8 +23,8 @@ const foreignKeyColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
     foreignTable: foreignKey.reference().foreignTable[Symbol.for("drizzle:Name")],
   }));
 
-describe("ingest identity", () => {
-  test("deduplicates immutable blobs but never observations", () => {
+describe("검증 범위를 정의한다 — ingest identity", () => {
+  test("중복 제거를 검증한다 — deduplicates immutable blobs but never observations", () => {
     const blob = getTableConfig(rawBlob);
     const observation = getTableConfig(rawObservation);
 
@@ -38,7 +38,7 @@ describe("ingest identity", () => {
     ]);
   });
 
-  test("keeps each table at its required evidence grain", () => {
+  test("보존 조건을 검증한다 — keeps each table at its required evidence grain", () => {
     expect(columnNames(ingestRun)).toEqual(expect.arrayContaining([
       "run_id",
       "mode",
@@ -105,7 +105,7 @@ describe("ingest identity", () => {
     ]));
   });
 
-  test("enforces run, request, normalized-record, and publication identities", () => {
+  test("강제 조건을 검증한다 — enforces run, request, normalized-record, and publication identities", () => {
     expect(uniqueColumnSets(requestUnit)).toContainEqual([
       "run_id",
       "source",
@@ -123,7 +123,7 @@ describe("ingest identity", () => {
       .toContainEqual(["object_key"]);
   });
 
-  test("binds an observation request unit to the observation run", () => {
+  test("동작을 검증한다 — binds an observation request unit to the observation run", () => {
     expect(uniqueColumnSets(requestUnit)).toContainEqual(["request_unit_id", "run_id"]);
 
     const coherentRequestForeignKey = getTableConfig(rawObservation).foreignKeys.find((foreignKey) => {
@@ -137,7 +137,7 @@ describe("ingest identity", () => {
     expect(coherentRequestForeignKey).toBeDefined();
   });
 
-  test("requires raw evidence and gated publication relationships", () => {
+  test("동작을 검증한다 — requires raw evidence and gated publication relationships", () => {
     expect(foreignKeyColumnSets(requestUnit)).toContainEqual({ columns: ["run_id"], foreignTable: "run" });
     expect(foreignKeyColumnSets(rawObservation)).toEqual(expect.arrayContaining([
       { columns: ["run_id"], foreignTable: "run" },
@@ -151,7 +151,7 @@ describe("ingest identity", () => {
     expect(foreignKeyColumnSets(publication)).toContainEqual({ columns: ["run_id"], foreignTable: "run" });
   });
 
-  test("uses timezone-aware timestamps and exact run and parser states", () => {
+  test("사용 계약을 검증한다 — uses timezone-aware timestamps and exact run and parser states", () => {
     for (const table of [ingestRun, rawBlob, rawObservation, normalizedRecord, publication]) {
       for (const column of getTableConfig(table).columns.filter((column) => column.name.endsWith("_at"))) {
         expect(column.getSQLType()).toBe("timestamp with time zone");
@@ -162,7 +162,7 @@ describe("ingest identity", () => {
       .toEqual(["planned", "running", "failed", "validated", "published"]);
   });
 
-  test("protects every count from negatives and ties publication state to its gate", () => {
+  test("동작을 검증한다 — protects every count from negatives and ties publication state to its gate", () => {
     const checkNames = (table: Parameters<typeof getTableConfig>[0]) =>
       getTableConfig(table).checks.map((constraint) => constraint.name);
 

@@ -32,6 +32,7 @@ function timestamp(value: Date | null): string | null {
 
 export function toAuctionResponse(record: AuctionRecord): AuctionResponse {
   return {
+    // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
     auctionId: auctionIdToString(record.auctionId),
     revisionId: record.revisionId.toString(10),
     title: record.title,
@@ -61,6 +62,7 @@ export class FindAuction {
     AuctionNotFound | AuctionDependencyUnavailable,
     never
   > {
+    // "없음"과 의존성 장애를 타입이 있는 실패 채널로 분리해 HTTP 계층이 결함과 혼동하지 않게 한다.
     return Effect.tryPromise({
       try: () => this.reader.findById(input.auctionId),
       catch: (cause) => new AuctionDependencyUnavailable(cause),

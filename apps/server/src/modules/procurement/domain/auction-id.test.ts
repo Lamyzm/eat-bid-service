@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("AuctionId", () => {
-  test("is an opaque positive bigint and serializes without Number", async () => {
+describe("검증 범위를 정의한다 — AuctionId", () => {
+  test("상태를 검증한다 — is an opaque positive bigint and serializes without Number", async () => {
     const domain = await import("./auction-id").catch(() => undefined);
     expect(domain, "AuctionId domain value must exist").toBeDefined();
     const value = domain!.auctionId(9_007_199_254_740_993n);

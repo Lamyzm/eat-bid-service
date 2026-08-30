@@ -90,6 +90,10 @@ export function parseEnvironment(source: EnvironmentSource): Environment {
   });
 }
 
+/**
+ * 런타임 환경 변수 접근은 이 함수로만 제한한다. 앱 생성 전에 완전한 불변 설정으로
+ * 바꾸면 모듈별 기본값과 운영 중 재해석 때문에 보안 정책이 갈라지는 일을 막을 수 있다.
+ */
 export function readEnvironment(): Environment {
   return parseEnvironment(process.env);
 }

@@ -84,7 +84,7 @@ def _concurrent_foundation(
         connection.close()
 
 
-def test_raw_to_core_and_replay_foundation_slice(
+def test_raw_to_core_and_replay_foundation_slice_동작을_검증한다(
     foundation: FoundationHarness, pipeline_services: PipelineServices
 ) -> None:
     result = foundation.run_fixture("eat/bid-detail-one.xml", expected_count=1)
@@ -323,7 +323,7 @@ def test_raw_to_core_and_replay_foundation_slice(
         assert cursor.fetchone() == (1, 1, 1)
 
 
-def test_invalid_foundation_chronology_has_no_database_or_raw_side_effect(
+def test_유효하지_않은_foundation_chronology_has_no_database_or_raw_side_effect(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = UUID("13000000-0000-0000-0000-000000000021")
@@ -389,7 +389,7 @@ def test_invalid_foundation_chronology_has_no_database_or_raw_side_effect(
     ],
     ids=("over-count", "zero-count"),
 )
-def test_foundation_stops_on_source_contract_before_projection(
+def test_foundation_stops_on_source_contract_before_projection_동작을_검증한다(
     pipeline_services: PipelineServices,
     run_id: UUID,
     publication_id: UUID,
@@ -457,7 +457,7 @@ def test_foundation_stops_on_source_contract_before_projection(
         assert cursor.fetchone() == (1,)
 
 
-def test_concurrent_identical_foundation_invocations_converge(
+def test_동시_identical_foundation_invocations_converge(
     migrated_db: MigratedDatabase,
 ) -> None:
     run_id = UUID("13000000-0000-0000-0000-000000000031")
@@ -492,7 +492,7 @@ def test_concurrent_identical_foundation_invocations_converge(
         assert cursor.fetchone() == (1,)
 
 
-def test_failed_capture_retry_reloads_typed_failure_without_duplicate_observation(
+def test_실패한_capture_retry_reloads_typed_failure_without_duplicate_observation(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = UUID("13000000-0000-0000-0000-000000000051")
@@ -544,7 +544,7 @@ def test_failed_capture_retry_reloads_typed_failure_without_duplicate_observatio
         assert cursor.fetchone() == ("failed", "SOURCE_THROTTLED", "pending", 1)
 
 
-def test_capture_quarantine_rethrows_same_typed_failure_on_retry(
+def test_capture_quarantine_rethrows_same_typed_failure_on_retry_동작을_검증한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = UUID("13000000-0000-0000-0000-000000000061")
@@ -633,7 +633,7 @@ def test_capture_quarantine_rethrows_same_typed_failure_on_retry(
     ],
     ids=("missing-purchaser", "conflicting-revision"),
 )
-def test_published_reentry_rejects_tampered_canonical_projection(
+def test_발행된_reentry_rejects_tampered_canonical_projection(
     migrated_db: MigratedDatabase,
     run_id: UUID,
     publication_id: UUID,
@@ -652,7 +652,7 @@ def test_published_reentry_rejects_tampered_canonical_projection(
         )
 
 
-def test_foundation_and_replay_race_has_one_frozen_identity_without_deadlock(
+def test_foundation_and_replay_race_has_one_frozen_identity_without_deadlock_동작을_검증한다(
     foundation: FoundationHarness,
     migrated_db: MigratedDatabase,
 ) -> None:

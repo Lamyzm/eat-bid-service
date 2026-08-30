@@ -55,7 +55,7 @@ def detail_xml(
     ).encode()
 
 
-def test_normalize_separates_internal_identity_from_display_number() -> None:
+def test_normalize_separates_internal_identity_from_display_number_동작을_검증한다() -> None:
     record = normalize_bid_detail(
         FIXTURE.read_bytes(),
         external_bid_id="5610615",
@@ -74,7 +74,7 @@ def test_normalize_separates_internal_identity_from_display_number() -> None:
 
 
 @given(code_tail=st.text(alphabet="0123456789", min_size=1, max_size=20))
-def test_leading_zero_codes_survive_validation_normalization_and_json_roundtrip(
+def test_leading_zero_codes_survive_validation_normalization_and_json_roundtrip_동작을_검증한다(
     code_tail: str,
 ) -> None:
     code = f"0{code_tail}"
@@ -100,7 +100,7 @@ def test_leading_zero_codes_survive_validation_normalization_and_json_roundtrip(
     assert restored["eligibility_codes"] == [code]
 
 
-def test_normalized_model_is_strict_authority() -> None:
+def test_정규화된_model_is_strict_authority() -> None:
     with pytest.raises(ValidationError):
         NormalizedAuction.model_validate(
             {
@@ -124,7 +124,7 @@ def test_normalized_model_is_strict_authority() -> None:
         )
 
 
-def test_bid_list_authority_forbids_unknown_fields() -> None:
+def test_bid_list_authority_forbids_unknown_fields_동작을_검증한다() -> None:
     with pytest.raises(ValidationError):
         BidListPage.model_validate(
             {
@@ -135,7 +135,7 @@ def test_bid_list_authority_forbids_unknown_fields() -> None:
         )
 
 
-def test_normalized_auction_authority_forbids_unknown_fields() -> None:
+def test_정규화된_auction_authority_forbids_unknown_fields() -> None:
     record = normalize_bid_detail(
         FIXTURE.read_bytes(),
         external_bid_id="5610615",
@@ -148,7 +148,7 @@ def test_normalized_auction_authority_forbids_unknown_fields() -> None:
         NormalizedAuction.model_validate(payload)
 
 
-def test_missing_source_category_stays_unknown_without_title_inference() -> None:
+def test_누락된_source_category_stays_unknown_without_title_inference() -> None:
     record = normalize_bid_detail(
         detail_xml(main_items=None),
         external_bid_id="42",
@@ -159,7 +159,7 @@ def test_missing_source_category_stays_unknown_without_title_inference() -> None
     assert record.category_source == "unknown"
 
 
-def test_canonical_payload_is_stable_across_source_column_order() -> None:
+def test_canonical_payload_is_stable_across_source_column_order_동작을_검증한다() -> None:
     first = normalize_bid_detail(
         detail_xml(), external_bid_id="42", parser_version="eat-v1"
     )
@@ -173,7 +173,7 @@ def test_canonical_payload_is_stable_across_source_column_order() -> None:
     assert canonical_payload(first).startswith(b'{"announced_at":')
 
 
-def test_decimal_and_datetime_values_use_explicit_lossless_source_formats() -> None:
+def test_decimal_and_datetime_values_use_explicit_lossless_source_formats_동작을_검증한다() -> None:
     record = normalize_bid_detail(
         detail_xml(), external_bid_id="42", parser_version="eat-v1"
     )
@@ -186,7 +186,7 @@ def test_decimal_and_datetime_values_use_explicit_lossless_source_formats() -> N
     assert record.deadline_at.isoformat() == "2025-06-19T15:00:00+09:00"
 
 
-def test_invalid_source_datetime_is_a_typed_detail_error() -> None:
+def test_유효하지_않은_source_datetime_is_a_typed_detail_error() -> None:
     with pytest.raises(EatDetailValidationError):
         normalize_bid_detail(
             detail_xml(announced_at="2025-06-17"),

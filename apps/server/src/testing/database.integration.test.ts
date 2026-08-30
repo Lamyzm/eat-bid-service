@@ -163,8 +163,8 @@ async function withDisposableDatabase<A>(work: (database: DisposableDatabase) =>
   }
 }
 
-describe("owner-scoped PostgreSQL boundary", () => {
-  test("double-applies migrations, reads the canonical auction as API, and proves least privilege", async () => {
+describe("검증 범위를 정의한다 — owner-scoped PostgreSQL boundary", () => {
+  test("동작을 검증한다 — double-applies migrations, reads the canonical auction as API, and proves least privilege", async () => {
     await withDisposableDatabase(async ({ owner, api, apiUrl }) => {
       const journal = await api`
         select name, created_at from drizzle.__drizzle_migrations
@@ -280,7 +280,7 @@ describe("owner-scoped PostgreSQL boundary", () => {
     expect(await taskContainers()).toEqual([]);
   }, 120_000);
 
-  test("identity inserts need no sequence grant and readiness rejects sequence capability or ownership", async () => {
+  test("동작을 검증한다 — identity inserts need no sequence grant and readiness rejects sequence capability or ownership", async () => {
     await withDisposableDatabase(async ({ owner, api }) => {
       const readiness = createDatabaseReadiness(drizzle({ client: api }));
       expect(await readiness.isReady()).toBe(true);
@@ -385,7 +385,7 @@ describe("owner-scoped PostgreSQL boundary", () => {
     expect(await taskContainers()).toEqual([]);
   }, 120_000);
 
-  test("readiness rejects database, schema, table, ownership, flag, and role escalation", async () => {
+  test("동작을 검증한다 — readiness rejects database, schema, table, ownership, flag, and role escalation", async () => {
     await withDisposableDatabase(async ({ owner, api }) => {
       const readiness = createDatabaseReadiness(drizzle({ client: api }));
       const rejectsWhile = async (
@@ -571,7 +571,7 @@ describe("owner-scoped PostgreSQL boundary", () => {
     expect(await taskContainers()).toEqual([]);
   }, 120_000);
 
-  test("readiness rejects every effective protected column privilege", async () => {
+  test("동작을 검증한다 — readiness rejects every effective protected column privilege", async () => {
     await withDisposableDatabase(async ({ owner, api }) => {
       const readiness = createDatabaseReadiness(drizzle({ client: api }));
       const outcomes: Array<Readonly<{ attack: string; ready: boolean }>> = [];
@@ -702,7 +702,7 @@ describe("owner-scoped PostgreSQL boundary", () => {
     expect(await taskContainers()).toEqual([]);
   }, 120_000);
 
-  test("cleans the task-owned container after an intentional failure", async () => {
+  test("정리 동작을 검증한다 — cleans the task-owned container after an intentional failure", async () => {
     await expect(withDisposableDatabase(async () => {
       throw new Error("intentional cleanup probe");
     })).rejects.toThrow("intentional cleanup probe");

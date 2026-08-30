@@ -297,7 +297,22 @@ production config validation 실패는 process start 실패다.
 indicator를 작은 명시적 health module로 구현한다. readiness에 eaT, R2, Argo, mart freshness를 넣지
 않는다. 이들은 `/operations`와 metric에서 degraded 상태로 관측한다.
 
-## 12. Verification gates
+## 12. 코드 주석과 테스트 명세
+
+백엔드 주석은 구현을 따라 읽어야 알 수 없는 **판단과 경계의 이유**를 보존한다. 공개 application port와
+HTTP 계약, 도메인 불변식, 인증·권한·transaction 소유권, bootstrap/shutdown 순서, 무손실 BigInt 변환처럼
+리뷰어가 임의로 단순화하면 안전성이 깨지는 곳에는 한국어 TSDoc 또는 why 주석을 둔다. 반대로 함수명과
+코드를 한국어 문장으로 되풀이하거나, 현재 timeout·상태 목록·버전 값을 주석에 복사하거나, 수를 채우려고
+barrel/index와 자명한 선언을 설명하지 않는다. 변동 가능한 값은 schema·config·테스트가 권위이고 주석은
+그 값을 선택한 이유와 깨지면 안 되는 불변식만 말한다.
+
+테스트 제목은 CI 로그에서 바로 읽히는 한국어 행위 명세다. TypeScript의 `describe`/`test`/`it` 직접 문자열과
+Python pytest의 `test_*` 함수명은 최소 한글 음절을 포함한다. HTTP, Effect, PostgreSQL 등 기술 식별자는
+영문 병기를 허용한다. aliases, `only`/`skip`/`todo`/`each`, `describe.each`도 같은 규칙을 적용하며, 동적·간접
+선언은 검사기가 의미를 증명할 수 없으므로 fail-closed 한다. AST 검사로 실제 선언만 읽어 검사기 fixture
+문자열을 오탐하지 않고, 기존 architecture/quality CI gate에서 저장소 전체를 매번 검증한다.
+
+## 13. Verification gates
 
 server foundation은 다음 증거 없이는 완료가 아니다.
 

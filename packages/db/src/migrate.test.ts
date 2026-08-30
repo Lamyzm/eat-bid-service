@@ -27,16 +27,16 @@ function journalDatabase(...rows: JournalRow[]) {
   };
 }
 
-describe("database URL", () => {
-  test("rejects a missing DATABASE_URL before connecting", () => {
+describe("검증 범위를 정의한다 — database URL", () => {
+  test("거부 조건을 검증한다 — rejects a missing DATABASE_URL before connecting", () => {
     expect(() => requireDatabaseUrl(undefined)).toThrow("DATABASE_URL is required");
   });
 
-  test("rejects a malformed DATABASE_URL before connecting", () => {
+  test("거부 조건을 검증한다 — rejects a malformed DATABASE_URL before connecting", () => {
     expect(() => requireDatabaseUrl("not a URL")).toThrow("valid PostgreSQL URL");
   });
 
-  test("rejects a non-PostgreSQL DATABASE_URL before connecting", () => {
+  test("거부 조건을 검증한다 — rejects a non-PostgreSQL DATABASE_URL before connecting", () => {
     expect(() => requireDatabaseUrl("mysql://user:pass@db/eatbid")).toThrow(
       "valid PostgreSQL URL",
     );
@@ -48,11 +48,11 @@ describe("database URL", () => {
     "postgres:///eatbid",
     "postgres://db.example.com",
     "postgres://db.example.com/",
-  ])("rejects hostless or database-less PostgreSQL URL %s", (value) => {
+  ])("거부 조건을 검증한다 — rejects hostless or database-less PostgreSQL URL %s", (value) => {
     expect(() => requireDatabaseUrl(value)).toThrow("valid PostgreSQL URL");
   });
 
-  test("accepts both PostgreSQL URL schemes", () => {
+  test("허용 조건을 검증한다 — accepts both PostgreSQL URL schemes", () => {
     expect(requireDatabaseUrl("postgres://user:pass@db.example.com:5432/eatbid")).toBe(
       "postgres://user:pass@db.example.com:5432/eatbid",
     );
@@ -62,16 +62,16 @@ describe("database URL", () => {
   });
 });
 
-describe("migration folder", () => {
-  test("resolves from the module instead of the current working directory", () => {
+describe("검증 범위를 정의한다 — migration folder", () => {
+  test("해소 결과를 검증한다 — resolves from the module instead of the current working directory", () => {
     const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 
     expect(migrationFolder).toBe(resolve(moduleDirectory, "../drizzle"));
   });
 });
 
-describe("migration database session", () => {
-  test("configures bounded lock and statement timeouts on the actual postgres-js client", async () => {
+describe("검증 범위를 정의한다 — migration database session", () => {
+  test("설정 결과를 검증한다 — configures bounded lock and statement timeouts on the actual postgres-js client", async () => {
     expect(migrationLockTimeoutMs).toBe(5_000);
     expect(migrationStatementTimeoutMs).toBe(300_000);
     expect(migrationClientOptions).toEqual({
@@ -97,14 +97,14 @@ describe("migration database session", () => {
   });
 });
 
-describe("schema journal", () => {
-  test("rejects an empty journal", async () => {
+describe("검증 범위를 정의한다 — schema journal", () => {
+  test("거부 조건을 검증한다 — rejects an empty journal", async () => {
     await expect(assertSchemaVersion(journalDatabase(), expectedMigration)).rejects.toThrow(
       "journal is empty",
     );
   });
 
-  test("rejects a journal behind the expected migration", async () => {
+  test("거부 조건을 검증한다 — rejects a journal behind the expected migration", async () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
@@ -117,7 +117,7 @@ describe("schema journal", () => {
     ).rejects.toThrow("behind");
   });
 
-  test("accepts the exact expected name and timestamp", async () => {
+  test("허용 조건을 검증한다 — accepts the exact expected name and timestamp", async () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
@@ -130,7 +130,7 @@ describe("schema journal", () => {
     ).resolves.toBeUndefined();
   });
 
-  test("rejects an unknown journal ahead of the code", async () => {
+  test("거부 조건을 검증한다 — rejects an unknown journal ahead of the code", async () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
@@ -143,7 +143,7 @@ describe("schema journal", () => {
     ).rejects.toThrow("ahead");
   });
 
-  test("rejects a different name with the expected timestamp", async () => {
+  test("거부 조건을 검증한다 — rejects a different name with the expected timestamp", async () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
@@ -157,8 +157,8 @@ describe("schema journal", () => {
   });
 });
 
-describe("migration runner", () => {
-  test("validates the URL before creating a client", async () => {
+describe("검증 범위를 정의한다 — migration runner", () => {
+  test("검증 결과를 확인한다 — validates the URL before creating a client", async () => {
     let connected = false;
 
     await expect(
@@ -184,7 +184,7 @@ describe("migration runner", () => {
     "postgres://db.example.com",
     "postgres://db.example.com/",
   ])(
-    "rejects %s before creating a client",
+    "거부 조건을 검증한다 — rejects %s before creating a client",
     async (databaseUrl) => {
       let connected = false;
 
@@ -205,7 +205,7 @@ describe("migration runner", () => {
     },
   );
 
-  test("migrates, verifies, and only then seeds", async () => {
+  test("migration 결과를 검증한다 — migrates, verifies, and only then seeds", async () => {
     const events: string[] = [];
 
     await runMigration({
@@ -239,7 +239,7 @@ describe("migration runner", () => {
     expect(events).toEqual(["connect", "migrate", "assert", "seed", "log", "close"]);
   });
 
-  test("closes the client and skips seeds when version assertion fails", async () => {
+  test("종료 동작을 검증한다 — closes the client and skips seeds when version assertion fails", async () => {
     const events: string[] = [];
 
     await expect(
@@ -270,7 +270,7 @@ describe("migration runner", () => {
     expect(events).toEqual(["migrate", "assert", "close"]);
   });
 
-  test("closes the client when a migration statement times out", async () => {
+  test("종료 동작을 검증한다 — closes the client when a migration statement times out", async () => {
     const events: string[] = [];
     const timeout = Object.assign(new Error("canceling statement due to statement timeout"), {
       code: "57014",
@@ -305,8 +305,8 @@ describe("migration runner", () => {
   });
 });
 
-describe("migration CLI", () => {
-  test("returns a nonzero exit code and reports migration failures", async () => {
+describe("검증 범위를 정의한다 — migration CLI", () => {
+  test("반환 결과를 검증한다 — returns a nonzero exit code and reports migration failures", async () => {
     const errors: unknown[] = [];
 
     const exitCode = await runMigrationCli(
@@ -320,7 +320,7 @@ describe("migration CLI", () => {
     expect(errors).toEqual(["migration timed out"]);
   });
 
-  test("returns zero after a successful migration", async () => {
+  test("반환 결과를 검증한다 — returns zero after a successful migration", async () => {
     const errors: unknown[] = [];
 
     expect(await runMigrationCli(async () => {}, (error) => errors.push(error))).toBe(0);

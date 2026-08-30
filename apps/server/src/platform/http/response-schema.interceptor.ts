@@ -17,6 +17,7 @@ export const ResponseSchema = (schema: StandardSchema): MethodDecorator => SetMe
 export async function validateResponse<T>(value: unknown, schema: StandardSchema<T>): Promise<T> {
   const result = await schema["~standard"].validate(value);
   if (result.issues !== undefined) {
+    // 잘못된 내부 객체를 그대로 보내는 것은 데이터 유출이므로 응답 경계는 500으로 fail-closed한다.
     throw new InternalServerErrorException({ code: "RESPONSE_SCHEMA_VIOLATION" });
   }
   return result.value;

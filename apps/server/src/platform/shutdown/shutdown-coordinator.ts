@@ -34,11 +34,13 @@ export class ShutdownCoordinator {
   }
 
   shutdown(): Promise<ShutdownResult> {
+    // 신호와 수동 호출이 겹쳐도 readiness/listener/resource 수명주기를 한 번만 진행한다.
     this.result ??= this.execute();
     return this.result;
   }
 
   private async execute(): Promise<ShutdownResult> {
+    // 새 작업 차단 → listener 정지 → inflight drain/강제 상한 → Nest 자원 종료 순서를 보존한다.
     this.readiness.markNotReady();
     const server = this.server;
     const listenerClosed = server?.listening

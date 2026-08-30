@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const postgresSignedBigintMax = "9223372036854775807";
 
+// canonical 십진 문자열은 같은 길이에서 사전식 순서와 수의 순서가 같아 Number 없이 상한을 검사할 수 있다.
 export const canonicalPositiveDecimalSchema = z.string()
   .max(19)
   .regex(/^[1-9][0-9]*$/)
@@ -22,6 +23,7 @@ const nullableDecimal = z.string()
   .regex(/^(?:0|[1-9][0-9]{0,15})\.[0-9]{2}$/)
   .nullable();
 
+// strict 응답 계약은 저장소 내부 열의 우발적 유출을 막고 모든 canonical 값이 출처를 동반하게 한다.
 export const auctionResponseSchema = z.strictObject({
   auctionId: canonicalPositiveDecimalSchema,
   revisionId: canonicalPositiveDecimalSchema,

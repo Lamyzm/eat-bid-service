@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("UnitOfWork", () => {
-  test("passes one transaction handle to every participant", async () => {
+describe("검증 범위를 정의한다 — UnitOfWork", () => {
+  test("통과 조건을 검증한다 — passes one transaction handle to every participant", async () => {
     const database = await import("./unit-of-work").catch(() => undefined);
     expect(database, "UnitOfWork must exist").toBeDefined();
     const rawTransaction = { id: "tx-1" };
@@ -18,7 +18,7 @@ describe("UnitOfWork", () => {
     expect(database!.transactionDatabase(observed[0])).toBe(rawTransaction);
   });
 
-  test("preserves typed failures and defects so the database transaction rolls back", async () => {
+  test("보존 불변식을 검증한다 — preserves typed failures and defects so the database transaction rolls back", async () => {
     const database = await import("./unit-of-work").catch(() => undefined);
     expect(database, "UnitOfWork must exist").toBeDefined();
     const events: string[] = [];

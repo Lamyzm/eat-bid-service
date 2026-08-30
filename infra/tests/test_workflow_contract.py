@@ -103,7 +103,7 @@ def _cli_commands() -> tuple[str, ...]:
     return commands
 
 
-def test_product_and_base_render_keep_the_cutover_dormant(
+def test_product_and_base_render_keep_the_cutover_dormant_동작을_검증한다(
     manifests: ManifestSet, base_manifests: ManifestSet
 ) -> None:
     assert manifests.kinds.count("WorkflowTemplate") == 1
@@ -122,7 +122,7 @@ def test_product_and_base_render_keep_the_cutover_dormant(
     assert live_application["spec"]["source"]["path"] == "infra/k8s/base"
 
 
-def test_workflow_template_uses_current_cli_and_durable_boundaries(
+def test_workflow_template_uses_current_cli_and_durable_boundaries_동작을_검증한다(
     manifests: ManifestSet,
 ) -> None:
     workflow_template = manifests.workflow_template("eatbid-dataplane")
@@ -209,7 +209,7 @@ def test_workflow_template_uses_current_cli_and_durable_boundaries(
     assert service_account["imagePullSecrets"] == [{"name": "ghcr-pull"}]
 
 
-def test_cron_workflows_are_suspended_and_only_schedule_the_pipeline(
+def test_cron_workflows_are_suspended_and_only_schedule_the_pipeline_동작을_검증한다(
     manifests: ManifestSet,
 ) -> None:
     cron_workflows = manifests.of_kind("CronWorkflow")
@@ -281,7 +281,7 @@ def _execute_replay_script(
     return captured
 
 
-def test_replay_json_ids_become_exact_repeated_cli_argv(
+def test_replay_json_ids_become_exact_repeated_cli_argv_동작을_검증한다(
     manifests: ManifestSet, monkeypatch: object
 ) -> None:
     argv = _execute_replay_script(manifests, monkeypatch, "[7, 3]")
@@ -295,7 +295,7 @@ def test_replay_json_ids_become_exact_repeated_cli_argv(
     assert argv.count("--observation-id") == 2
 
 
-def test_replay_json_ids_fail_closed_without_shell_expansion(
+def test_replay_json_ids_fail_closed_without_shell_expansion_동작을_검증한다(
     manifests: ManifestSet, monkeypatch: object
 ) -> None:
     invalid_values = (
@@ -319,7 +319,7 @@ def test_replay_json_ids_fail_closed_without_shell_expansion(
         assert error.value.code == 64
 
 
-def test_migration_is_finite_presync_and_uses_only_secret_database_url(
+def test_migration_is_finite_presync_and_uses_only_secret_database_url_동작을_검증한다(
     manifests: ManifestSet,
 ) -> None:
     job = manifests.named("Job", "eatbid-migration")
@@ -339,7 +339,7 @@ def test_migration_is_finite_presync_and_uses_only_secret_database_url(
     assert _mapping(_mapping(spec["template"])["spec"])["restartPolicy"] == "Never"
 
 
-def test_product_render_has_no_hostpath_or_literal_database_credentials(
+def test_product_render_has_no_hostpath_or_literal_database_credentials_동작을_검증한다(
     manifests: ManifestSet,
 ) -> None:
     for document in manifests.documents:
@@ -354,7 +354,7 @@ def test_product_render_has_no_hostpath_or_literal_database_credentials(
     assert "POSTGRES_PASSWORD: eatbid" not in rendered
 
 
-def test_database_credentials_are_split_per_consumer_without_cross_assignment(
+def test_database_credentials_are_split_per_consumer_without_cross_assignment_동작을_검증한다(
     manifests: ManifestSet,
 ) -> None:
     postgres_pod = _mapping(_mapping(_spec(manifests.named("Deployment", "postgres"))["template"])["spec"])
@@ -389,7 +389,7 @@ def test_database_credentials_are_split_per_consumer_without_cross_assignment(
     assert "kind: Secret" not in rendered
 
 
-def test_product_declares_consumes_and_promotes_exactly_four_images(
+def test_product_declares_consumes_and_promotes_exactly_four_images_동작을_검증한다(
     manifests: ManifestSet,
 ) -> None:
     kustomization = yaml.safe_load(PRODUCT_KUSTOMIZATION.read_text(encoding="utf-8"))
@@ -426,7 +426,7 @@ def test_product_declares_consumes_and_promotes_exactly_four_images(
         assert f"infra/product/kustomization.yaml {image} \"$(cat digests/{app})\"" in promote
 
 
-def test_platform_application_is_pinned_minimal_and_not_wired_live() -> None:
+def test_platform_application_is_pinned_minimal_and_not_wired_live_동작을_검증한다() -> None:
     application = yaml.safe_load(PLATFORM_APPLICATION.read_text(encoding="utf-8"))
     source = application["spec"]["source"]
     assert source["repoURL"] == "https://argoproj.github.io/argo-helm"

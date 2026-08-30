@@ -39,6 +39,7 @@ export const normalizedRecord = ingestSchema.table(
   ],
 );
 
+// publish는 일부 결과를 노출하는 명령이 아니라 수량 일치·fingerprint·projector version을 모두 갖춘 원자적 gate다.
 export const publication = ingestSchema.table(
   "publication",
   {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("public operational contracts", () => {
-  test("health and Problem Details contracts are bounded", async () => {
+describe("검증 범위를 정의한다 — public operational contracts", () => {
+  test("동작을 검증한다 — health and Problem Details contracts are bounded", async () => {
     const module = await import("./index").catch(() => undefined);
     expect(module, "contracts package must publish operational schemas").toBeDefined();
     expect(module!.liveHealthSchema.safeParse({ status: "live" }).success).toBe(true);

@@ -188,7 +188,7 @@ def _document(documents: list[dict[str, Any]], kind: str, name: str) -> dict[str
     )
 
 
-def test_exact_pinned_chart_rbac_contract_is_accepted(tmp_path: Path) -> None:
+def test_정확한_pinned_chart_rbac_contract_is_accepted(tmp_path: Path) -> None:
     _verify(tmp_path, _valid_render())
 
 
@@ -210,7 +210,7 @@ def test_exact_pinned_chart_rbac_contract_is_accepted(tmp_path: Path) -> None:
         "crd-aggregation-rule",
     ],
 )
-def test_rbac_attack_is_rejected(tmp_path: Path, attack: str) -> None:
+def test_rbac_attack_is_rejected_동작을_검증한다(tmp_path: Path, attack: str) -> None:
     documents = _valid_render()
     if attack == "crd-wildcard":
         _document(documents, "ClusterRole", CRD_INSTALLER)["rules"][0]["verbs"].append(

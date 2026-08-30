@@ -8,6 +8,7 @@ export const workspace = appSchema.table("workspace", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// membership의 grain은 workspace와 principal의 한 쌍이며 role은 그 관계의 속성이다.
 export const workspaceMembership = appSchema.table(
   "workspace_membership",
   {

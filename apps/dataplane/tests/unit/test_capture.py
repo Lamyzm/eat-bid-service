@@ -77,7 +77,7 @@ def capture_request(params: Mapping[str, str] | None = None) -> CaptureRequest:
     )
 
 
-def test_capture_archives_before_recording_observation() -> None:
+def test_capture_archives_before_recording_observation_동작을_검증한다() -> None:
     events: list[str] = []
     store = RecordingStore(events)
     repository = RecordingRepository(events)
@@ -91,7 +91,7 @@ def test_capture_archives_before_recording_observation() -> None:
     assert result.observation_id == 1
 
 
-def test_archive_failure_produces_zero_repository_calls() -> None:
+def test_archive_failure_produces_zero_repository_calls_동작을_검증한다() -> None:
     repository = RecordingRepository()
     client = StaticSourceClient(SourceResponse(200, b"response", FETCHED_AT))
 
@@ -107,7 +107,7 @@ def test_archive_failure_produces_zero_repository_calls() -> None:
 
 
 @pytest.mark.parametrize("status_code", [403, 429])
-def test_throttled_response_body_is_archived_and_recorded_before_error(
+def test_throttled_response_body_is_archived_and_recorded_before_error_동작을_검증한다(
     status_code: int,
 ) -> None:
     body = b"<error>rate limited</error>"
@@ -128,7 +128,7 @@ def test_throttled_response_body_is_archived_and_recorded_before_error(
     assert exit_code_for_error(SourceThrottledError(status_code)) == 75
 
 
-def test_other_non_success_response_is_archived_as_source_contract_failure() -> None:
+def test_other_non_success_response_is_archived_as_source_contract_failure_동작을_검증한다() -> None:
     from eatbid.errors import SourceContractError as CommonSourceContractError
 
     store = MemoryRawObjectStore()
@@ -148,7 +148,7 @@ def test_other_non_success_response_is_archived_as_source_contract_failure() -> 
     assert exit_code_for_error(caught.value) == 76
 
 
-def test_same_body_creates_one_object_and_two_observations() -> None:
+def test_동일한_body_creates_one_object_and_two_observations() -> None:
     store = MemoryRawObjectStore()
     repository = RecordingRepository()
     client = StaticSourceClient(SourceResponse(200, b"same", FETCHED_AT))
@@ -170,7 +170,7 @@ unicode_text = st.text(
 
 @settings(max_examples=60, derandomize=True)
 @given(st.dictionaries(unicode_text, unicode_text, max_size=8))
-def test_canonical_params_ignore_mapping_insertion_order(
+def test_canonical_params_ignore_mapping_insertion_order_동작을_검증한다(
     params: dict[str, str],
 ) -> None:
     reversed_params = dict(reversed(list(params.items())))
@@ -181,7 +181,7 @@ def test_canonical_params_ignore_mapping_insertion_order(
 
 @settings(max_examples=60, derandomize=True)
 @given(unicode_text, unicode_text)
-def test_canonical_params_hash_changes_when_a_value_changes(
+def test_canonical_params_hash_changes_when_a_value_changes_동작을_검증한다(
     first: str, second: str
 ) -> None:
     if first == second:
@@ -192,7 +192,7 @@ def test_canonical_params_hash_changes_when_a_value_changes(
     )
 
 
-def test_canonical_params_use_exact_utf8_compact_json() -> None:
+def test_canonical_params_use_exact_utf8_compact_json_동작을_검증한다() -> None:
     assert canonical_request_params({"한글": "", "a": "é"}) == (
         '{"a":"é","한글":""}'.encode()
     )
@@ -207,7 +207,7 @@ def test_canonical_params_use_exact_utf8_compact_json() -> None:
         {"nested": {"page": "1"}},
     ],
 )
-def test_canonical_params_reject_unsupported_types(params: Mapping[Any, Any]) -> None:
+def test_canonical_params_reject_unsupported_types_동작을_검증한다(params: Mapping[Any, Any]) -> None:
     with pytest.raises(TypeError, match="request params must map strings to strings"):
         canonical_request_params(params)
 
@@ -223,7 +223,7 @@ def test_canonical_params_reject_unsupported_types(params: Mapping[Any, Any]) ->
         (200, b"x", "2026-08-29T01:02:03Z"),
     ],
 )
-def test_source_response_rejects_invalid_boundaries(
+def test_원본_response_rejects_invalid_boundaries(
     status_code: Any, body: Any, fetched_at: Any
 ) -> None:
     with pytest.raises((TypeError, ValueError)):

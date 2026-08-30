@@ -51,6 +51,7 @@ export function problemForStatus(
   requestId: string,
   override?: ProblemDefinition,
 ): ProblemDetails {
+  // 임의 상태와 예외 본문을 반사하지 않고 허용된 공개 문제 taxonomy 밖은 500으로 닫는다.
   const normalizedStatus = definitions[status] ? status : HttpStatus.INTERNAL_SERVER_ERROR;
   const definition = override ?? definitions[normalizedStatus]!;
   return {
@@ -63,6 +64,7 @@ export function problemForStatus(
 }
 
 export function supportedBodyParserStatus(error: unknown): 400 | 413 | undefined {
+  // 공격자가 만든 일반 Error의 status 필드는 신뢰하지 않고 body-parser 고유 표식 조합만 허용한다.
   if (!(error instanceof Error)) return undefined;
   const candidate = error as Partial<SupportedBodyParserError>;
   if (candidate.expose !== true || candidate.status !== candidate.statusCode) return undefined;
@@ -102,6 +104,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 }
 
 export function routeTemplate(request: Request): string {
+  // raw URL에는 query나 민감 식별자가 섞일 수 있으므로 로그에는 매칭된 템플릿만 남긴다.
   const path = request.route?.path;
   return typeof path === "string" ? `${request.baseUrl ?? ""}${path}` || "/" : "unmatched";
 }

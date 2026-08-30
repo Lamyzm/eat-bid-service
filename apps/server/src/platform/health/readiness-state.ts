@@ -13,6 +13,7 @@ export class ReadinessState implements OnApplicationShutdown {
   }
 
   markNotReady(): void {
+    // listener보다 먼저 false가 되어 load balancer가 종료 중인 인스턴스로 새 작업을 보내지 않게 한다.
     this.accepting = false;
   }
 

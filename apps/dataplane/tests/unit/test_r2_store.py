@@ -68,7 +68,7 @@ def assert_redacted_provider_error(
         assert marker not in rendered
 
 
-def test_missing_object_is_created_with_deterministic_archive_contract() -> None:
+def test_누락된_object_is_created_with_deterministic_archive_contract() -> None:
     s3 = StatefulFakeS3Client()
     store = R2RawObjectStore(settings(), client=s3)
     body = b"<x>1</x>"
@@ -96,7 +96,7 @@ def test_missing_object_is_created_with_deterministic_archive_contract() -> None
     ]
 
 
-def test_new_object_uses_provider_authoritative_last_modified() -> None:
+def test_new_object_uses_provider_authoritative_last_modified_동작을_검증한다() -> None:
     s3 = StatefulFakeS3Client()
     store = R2RawObjectStore(settings(), client=s3)
 
@@ -106,7 +106,7 @@ def test_new_object_uses_provider_authoritative_last_modified() -> None:
     assert len(s3.head_requests) == 2
 
 
-def test_post_put_head_provider_error_is_redacted_and_chainless() -> None:
+def test_post_put_head_provider_error_is_redacted_and_chainless_동작을_검증한다() -> None:
     marker = "post-put-head-endpoint-marker-must-not-leak"
     s3 = StatefulFakeS3Client()
     s3.head_error_after_put = EndpointConnectionError(endpoint_url=marker)
@@ -119,7 +119,7 @@ def test_post_put_head_provider_error_is_redacted_and_chainless() -> None:
     assert_redacted_provider_error(captured, markers=(marker,))
 
 
-def test_precondition_race_reuses_an_identical_concurrent_winner() -> None:
+def test_사전조건_race_reuses_an_identical_concurrent_winner() -> None:
     s3 = StatefulFakeS3Client()
     winner_timestamp = datetime(2025, 2, 3, 4, 5, 6, tzinfo=UTC)
     s3.concurrent_put_winner = concurrent_object(
@@ -134,7 +134,7 @@ def test_precondition_race_reuses_an_identical_concurrent_winner() -> None:
     assert s3.put_requests[0]["IfNoneMatch"] == "*"
 
 
-def test_precondition_race_rejects_a_conflicting_concurrent_winner() -> None:
+def test_사전조건_race_rejects_a_conflicting_concurrent_winner() -> None:
     s3 = StatefulFakeS3Client()
     s3.concurrent_put_winner = concurrent_object(
         b"different", last_modified=datetime(2025, 2, 3, tzinfo=UTC)
@@ -147,7 +147,7 @@ def test_precondition_race_rejects_a_conflicting_concurrent_winner() -> None:
     assert len(s3.head_requests) == 2
 
 
-def test_identical_existing_object_is_reused_with_original_timestamp() -> None:
+def test_identical_existing_object_is_reused_with_original_timestamp_동작을_검증한다() -> None:
     s3 = StatefulFakeS3Client()
     store = R2RawObjectStore(settings(), client=s3)
     first = store.put(source="eat", endpoint="bid-list", body=b"raw")
@@ -176,7 +176,7 @@ def test_identical_existing_object_is_reused_with_original_timestamp() -> None:
     ],
     ids=["hash", "raw-length", "compressed-length", "encoding", "content-type"],
 )
-def test_existing_object_contract_mismatch_is_a_collision(
+def test_existing_object_contract_mismatch_is_a_collision_동작을_검증한다(
     mutation: Callable[[FakeS3Object], None],
 ) -> None:
     s3 = StatefulFakeS3Client()
@@ -190,7 +190,7 @@ def test_existing_object_contract_mismatch_is_a_collision(
     assert len(s3.put_requests) == 1
 
 
-def test_only_explicit_not_found_is_treated_as_absent() -> None:
+def test_only_explicit_not_found_is_treated_as_absent_동작을_검증한다() -> None:
     marker = "authorization-marker-must-not-leak"
     s3 = StatefulFakeS3Client()
     s3.head_error = client_error(
@@ -205,7 +205,7 @@ def test_only_explicit_not_found_is_treated_as_absent() -> None:
     assert s3.put_requests == []
 
 
-def test_error_code_is_authoritative_over_a_misleading_404_status() -> None:
+def test_error_code_is_authoritative_over_a_misleading_404_status_동작을_검증한다() -> None:
     marker = "access-marker-must-not-leak"
     s3 = StatefulFakeS3Client()
     s3.head_error = client_error(
@@ -220,7 +220,7 @@ def test_error_code_is_authoritative_over_a_misleading_404_status() -> None:
     assert s3.put_requests == []
 
 
-def test_status_404_is_not_found_when_provider_omits_an_error_code() -> None:
+def test_status_404_is_not_found_when_provider_omits_an_error_code_동작을_검증한다() -> None:
     s3 = StatefulFakeS3Client()
     s3.head_errors.append(client_error(None, "HeadObject", status=404))
     store = R2RawObjectStore(settings(), client=s3)
@@ -231,7 +231,7 @@ def test_status_404_is_not_found_when_provider_omits_an_error_code() -> None:
     assert len(s3.put_requests) == 1
 
 
-def test_head_transport_error_is_redacted_and_chainless() -> None:
+def test_head_transport_error_is_redacted_and_chainless_동작을_검증한다() -> None:
     endpoint_marker = "endpoint-marker-must-not-leak"
     s3 = StatefulFakeS3Client()
     s3.head_error = EndpointConnectionError(
@@ -246,7 +246,7 @@ def test_head_transport_error_is_redacted_and_chainless() -> None:
     assert s3.put_requests == []
 
 
-def test_put_provider_error_is_redacted_and_chainless() -> None:
+def test_put_provider_error_is_redacted_and_chainless_동작을_검증한다() -> None:
     access_marker = "access-marker-must-not-leak"
     secret_marker = "secret-marker-must-not-leak"
     s3 = StatefulFakeS3Client()
@@ -266,7 +266,7 @@ def test_put_provider_error_is_redacted_and_chainless() -> None:
     )
 
 
-def test_get_transport_error_is_redacted_and_chainless() -> None:
+def test_get_transport_error_is_redacted_and_chainless_동작을_검증한다() -> None:
     endpoint_marker = "endpoint-marker-must-not-leak"
     s3 = StatefulFakeS3Client()
     store = R2RawObjectStore(settings(), client=s3)
@@ -281,7 +281,7 @@ def test_get_transport_error_is_redacted_and_chainless() -> None:
     assert_redacted_provider_error(captured, markers=(endpoint_marker,))
 
 
-def test_streaming_body_transport_error_is_redacted_and_chainless() -> None:
+def test_streaming_body_transport_error_is_redacted_and_chainless_동작을_검증한다() -> None:
     endpoint_marker = "stream-endpoint-marker-must-not-leak"
     s3 = StatefulFakeS3Client()
     store = R2RawObjectStore(settings(), client=s3)
@@ -296,7 +296,7 @@ def test_streaming_body_transport_error_is_redacted_and_chainless() -> None:
     assert_redacted_provider_error(captured, markers=(endpoint_marker,))
 
 
-def test_read_round_trips_and_validates_the_stored_envelope() -> None:
+def test_읽기_round_trips_and_validates_the_stored_envelope() -> None:
     s3 = StatefulFakeS3Client()
     store = R2RawObjectStore(settings(), client=s3)
     stored = store.put(source="eat", endpoint="bid-list", body=b"\x00\xffraw")
@@ -329,7 +329,7 @@ def test_read_round_trips_and_validates_the_stored_envelope() -> None:
         "invalid-gzip",
     ],
 )
-def test_read_detects_corrupt_metadata_headers_or_body(
+def test_읽기_detects_corrupt_metadata_headers_or_body(
     mutation: Callable[[FakeS3Object], None],
 ) -> None:
     s3 = StatefulFakeS3Client()
@@ -341,7 +341,7 @@ def test_read_detects_corrupt_metadata_headers_or_body(
         store.read(stored.object_key)
 
 
-def test_invalid_put_slug_and_read_key_fail_before_s3_calls() -> None:
+def test_유효하지_않은_put_slug_and_read_key_fail_before_s3_calls() -> None:
     s3 = StatefulFakeS3Client()
     store = R2RawObjectStore(settings(), client=s3)
 
@@ -354,7 +354,7 @@ def test_invalid_put_slug_and_read_key_fail_before_s3_calls() -> None:
     assert s3.get_requests == []
 
 
-def test_settings_are_frozen_and_mask_endpoint_and_credentials() -> None:
+def test_설정_are_frozen_and_mask_endpoint_and_credentials() -> None:
     configured = settings()
 
     assert configured.secret_access_key.get_secret_value() == "secret-key"
@@ -365,7 +365,7 @@ def test_settings_are_frozen_and_mask_endpoint_and_credentials() -> None:
         configured.bucket = "another"  # type: ignore[misc]
 
 
-def test_settings_validate_all_required_values_without_leaking_input() -> None:
+def test_설정_validate_all_required_values_without_leaking_input() -> None:
     marker = "must-not-leak.example"
 
     with pytest.raises(ValidationError) as captured:
@@ -394,7 +394,7 @@ def test_settings_validate_all_required_values_without_leaking_input() -> None:
         "https://account.r2.cloudflarestorage.com.evil.example",
     ],
 )
-def test_settings_reject_non_root_or_non_r2_endpoints(endpoint_url: str) -> None:
+def test_설정_reject_non_root_or_non_r2_endpoints(endpoint_url: str) -> None:
     with pytest.raises(ValidationError):
         R2Settings(
             R2_ENDPOINT_URL=endpoint_url,
@@ -412,7 +412,7 @@ def test_settings_reject_non_root_or_non_r2_endpoints(endpoint_url: str) -> None
         "https://account.fedramp.r2.cloudflarestorage.com",
     ],
 )
-def test_settings_accept_account_and_jurisdiction_r2_endpoints(
+def test_설정_accept_account_and_jurisdiction_r2_endpoints(
     endpoint_url: str,
 ) -> None:
     configured = R2Settings(
@@ -438,7 +438,7 @@ def test_settings_accept_account_and_jurisdiction_r2_endpoints(
         "a b",
     ],
 )
-def test_settings_reject_invalid_r2_bucket_names(bucket: str) -> None:
+def test_설정_reject_invalid_r2_bucket_names(bucket: str) -> None:
     with pytest.raises(ValidationError):
         R2Settings(
             R2_ENDPOINT_URL="https://account.r2.cloudflarestorage.com",
@@ -452,7 +452,7 @@ def test_settings_reject_invalid_r2_bucket_names(bucket: str) -> None:
     ("access_key_id", "secret_access_key"),
     [(" ", "secret-key"), ("access-id", "\t\n")],
 )
-def test_settings_reject_whitespace_only_credentials(
+def test_설정_reject_whitespace_only_credentials(
     access_key_id: str, secret_access_key: str
 ) -> None:
     with pytest.raises(ValidationError):
@@ -464,7 +464,7 @@ def test_settings_reject_whitespace_only_credentials(
         )
 
 
-def test_read_rejects_raw_hash_mismatch_even_when_metadata_matches_key() -> None:
+def test_읽기_rejects_raw_hash_mismatch_even_when_metadata_matches_key() -> None:
     s3 = StatefulFakeS3Client()
     store = R2RawObjectStore(settings(), client=s3)
     expected_key = build_raw_object_key(

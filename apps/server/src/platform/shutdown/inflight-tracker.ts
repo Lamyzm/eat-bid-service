@@ -12,6 +12,7 @@ export class InflightTracker {
     this.active += 1;
     let released = false;
     return () => {
+      // HTTP 완료 경로가 중첩되어도 같은 요청이 active 수를 두 번 감소시키지 못한다.
       if (released) return;
       released = true;
       this.active -= 1;

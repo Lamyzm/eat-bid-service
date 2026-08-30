@@ -348,8 +348,8 @@ packages:
 `;
 }
 
-describe("Drizzle toolchain authority", () => {
-  test("discovers every first-level workspace package manifest", async () => {
+describe("검증 범위를 정의한다 — Drizzle toolchain authority", () => {
+  test("탐지 결과를 검증한다 — discovers every first-level workspace package manifest", async () => {
     const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
     const manifests = await workspaceManifests(workspace);
 
@@ -358,7 +358,7 @@ describe("Drizzle toolchain authority", () => {
     expect(manifests.map(({ relativePath }) => relativePath)).toContain("packages/db/package.json");
   });
 
-  test("keeps every discovered direct Drizzle declaration on the catalog release lane", async () => {
+  test("보존 조건을 검증한다 — keeps every discovered direct Drizzle declaration on the catalog release lane", async () => {
     const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
     const declarations = drizzleDeclarations(await workspaceManifests(workspace));
 
@@ -371,13 +371,13 @@ describe("Drizzle toolchain authority", () => {
     expect(validateDirectDrizzleDeclarations(await workspaceManifests(workspace))).toEqual([]);
   });
 
-  test("keeps the authoritative default workspace catalog on the RC4 release lane", async () => {
+  test("보존 조건을 검증한다 — keeps the authoritative default workspace catalog on the RC4 release lane", async () => {
     const workspace = await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8");
 
     expect(validateWorkspaceCatalog(workspace)).toEqual([]);
   });
 
-  test("rejects a second top-level catalog even when the first is valid RC4", () => {
+  test("거부 조건을 검증한다 — rejects a second top-level catalog even when the first is valid RC4", () => {
     const errors = validateWorkspaceCatalog(`catalog:
   drizzle-orm: ${releaseLaneVersion}
   drizzle-kit: ${releaseLaneVersion}
@@ -389,7 +389,7 @@ catalog:
     expect(errors).toContain("workspace catalog section must occur exactly once (received 2)");
   });
 
-  test("rejects a missing top-level catalog section", () => {
+  test("거부 조건을 검증한다 — rejects a missing top-level catalog section", () => {
     const errors = validateWorkspaceCatalog(`packages:
   - "apps/*"
 `);
@@ -397,7 +397,7 @@ catalog:
     expect(errors).toContain("workspace catalog section must occur exactly once (received 0)");
   });
 
-  test("rejects a drifted workspace catalog even when the lockfile remains on RC4", () => {
+  test("거부 조건을 검증한다 — rejects a drifted workspace catalog even when the lockfile remains on RC4", () => {
     const errors = validateWorkspaceCatalog(`catalog:
   drizzle-orm: 1.0.0-rc.3
   drizzle-kit: ${releaseLaneVersion}
@@ -409,7 +409,7 @@ catalog:
     );
   });
 
-  test("rejects duplicate Drizzle workspace catalog keys", () => {
+  test("거부 조건을 검증한다 — rejects duplicate Drizzle workspace catalog keys", () => {
     const errors = validateWorkspaceCatalog(`catalog:
   drizzle-orm: ${releaseLaneVersion}
   drizzle-orm: ${releaseLaneVersion}
@@ -419,7 +419,7 @@ catalog:
     expect(errors).toContain("workspace catalog has duplicate drizzle-orm entries");
   });
 
-  test("rejects unsupported workspace catalog structure", () => {
+  test("거부 조건을 검증한다 — rejects unsupported workspace catalog structure", () => {
     const errors = validateWorkspaceCatalog(`catalog:
   drizzle-orm:
     version: ${releaseLaneVersion}
@@ -429,7 +429,7 @@ catalog:
     expect(errors).toContain("unsupported workspace catalog structure:   drizzle-orm:");
   });
 
-  test("rejects a newly discovered direct declaration that bypasses the catalog", () => {
+  test("거부 조건을 검증한다 — rejects a newly discovered direct declaration that bypasses the catalog", () => {
     const errors = validateDirectDrizzleDeclarations([
       {
         relativePath: "apps/future/package.json",
@@ -442,7 +442,7 @@ catalog:
     );
   });
 
-  test("keeps catalog, importers, and resolved Drizzle packages on one exact lockfile lane", async () => {
+  test("보존 조건을 검증한다 — keeps catalog, importers, and resolved Drizzle packages on one exact lockfile lane", async () => {
     const lockfile = await readFile(path.join(root, "pnpm-lock.yaml"), "utf8");
     const resolved = resolvedDrizzlePackages(lockfile);
 
@@ -455,7 +455,7 @@ catalog:
     expect(validateLockfileReleaseLane(lockfile)).toEqual([]);
   });
 
-  test("rejects a synthetic second resolved Drizzle lane", () => {
+  test("거부 조건을 검증한다 — rejects a synthetic second resolved Drizzle lane", () => {
     const errors = validateLockfileReleaseLane(`packages:
   drizzle-orm@${releaseLaneVersion}:
     resolution: {}

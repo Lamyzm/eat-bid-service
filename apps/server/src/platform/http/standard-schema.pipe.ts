@@ -17,6 +17,7 @@ export class StandardSchemaPipe<TOutput = unknown> implements PipeTransform<unkn
   constructor(private readonly schema: StandardSchema<TOutput>) {}
 
   async transform(value: unknown): Promise<TOutput> {
+    // 이 경계는 transport 모양만 검증하며 인증·인가나 도메인 판단을 대신하지 않는다.
     const result = await this.schema["~standard"].validate(value);
     if (result.issues !== undefined) {
       throw new BadRequestException({

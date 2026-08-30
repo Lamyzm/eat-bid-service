@@ -49,6 +49,9 @@ jobs:
       DATABASE_URL: postgres://eatbid:eatbid@127.0.0.1:5432/eatbid_ci
     steps:
       - uses: actions/checkout@v4
+        # 레거시 inventory 회귀 테스트는 폐기 근거가 된 고정 커밋을 읽으므로 shallow clone으로는 재현할 수 없다.
+        with:
+          fetch-depth: 0
       - id: provenance-preflight
         name: Reject unsupported publication workflow context
         env:

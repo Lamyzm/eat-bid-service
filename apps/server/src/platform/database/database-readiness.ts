@@ -259,6 +259,7 @@ function rowsOf(result: unknown): ReadinessRow[] {
 }
 
 function isLeastPrivilegeReady(row: ReadinessRow | undefined): boolean {
+  // 단순 접속 성공이 아니라 정확한 migration과 API 역할의 최소 권한을 모두 만족해야 트래픽을 받는다.
   if (!row) return false;
   return row.migration_name === expectedMigration
     && Number(row.migration_created_at) === expectedMigrationTimestamp
@@ -307,6 +308,7 @@ export async function databaseReadinessProbe(
     const row = rowsOf(await database.execute(readinessQuery))[0];
     return { ready: isLeastPrivilegeReady(row), row };
   } catch {
+    // 카탈로그나 migration 표를 읽지 못하는 상태도 준비 실패이며 내부 DB 정보를 응답에 노출하지 않는다.
     return { ready: false };
   }
 }

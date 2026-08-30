@@ -14,6 +14,10 @@ import { ProcurementModule } from "./modules/procurement/procurement.module";
   imports: [EffectModule],
 })
 export class AppModule {
+  /**
+   * 루트 모듈은 조립만 담당한다. 환경 검증과 어댑터 생성이 끝난 값을 주입해야
+   * 테스트 대역이 운영 부트스트랩을 우회하거나 모듈 로딩 중 I/O를 시작하지 않는다.
+   */
   static forRuntime(runtime: AppModuleRuntime): DynamicModule {
     return {
       module: AppModule,

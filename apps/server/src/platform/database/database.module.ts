@@ -32,6 +32,7 @@ class ManagedDatabase implements OnApplicationShutdown {
   }
 
   async onApplicationShutdown(): Promise<void> {
+    // Nest 자원 종료 단계가 풀의 유일한 소유자여야 drain 전에 연결이 먼저 끊기지 않는다.
     await this.client.end();
   }
 }
@@ -39,6 +40,7 @@ class ManagedDatabase implements OnApplicationShutdown {
 @Global()
 @Module({})
 export class DatabaseModule {
+  /** DB client 수명주기는 감추고 readiness, 트랜잭션, 조회 포트처럼 목적이 제한된 권한만 내보낸다. */
   static forRuntime(
     environment: Environment,
     overrides: DatabaseModuleOverrides = {},

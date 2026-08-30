@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("DrizzleAuctionReader row boundary", () => {
-  test("maps a complete database row into application values and drops internal payload", async () => {
+describe("검증 범위를 정의한다 — DrizzleAuctionReader row boundary", () => {
+  test("매핑 결과를 검증한다 — maps a complete database row into application values and drops internal payload", async () => {
     const adapter = await import("./drizzle-auction-reader").catch(() => undefined);
     expect(adapter, "Drizzle auction adapter must exist").toBeDefined();
     expect(adapter!.mapAuctionRow({

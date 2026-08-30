@@ -15,6 +15,7 @@ import { ingestSchema } from "../namespaces.js";
 const runStatuses = ["planned", "running", "failed", "validated", "published"] as const;
 const requestUnitStatuses = ["planned", "captured", "failed"] as const;
 
+// run의 종료 상태는 종료 시각과 실패/발행 메타데이터를 함께 고정해 부분 완료를 성공으로 해석하지 못하게 한다.
 export const ingestRun = ingestSchema.table(
   "run",
   {
@@ -65,6 +66,7 @@ export const ingestRun = ingestSchema.table(
   ],
 );
 
+// 정규화된 요청 매개변수 hash가 한 run 안의 논리 요청 단위를 멱등하게 식별한다.
 export const requestUnit = ingestSchema.table(
   "request_unit",
   {

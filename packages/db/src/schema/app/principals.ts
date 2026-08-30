@@ -6,6 +6,7 @@ export const principal = appSchema.table("principal", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// 이메일 같은 변경 가능한 속성으로 병합하지 않고 공급자·발급자·subject의 외부 정체성을 내부 principal에 연결한다.
 export const identitySubject = appSchema.table(
   "identity_subject",
   {
