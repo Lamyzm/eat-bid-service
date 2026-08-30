@@ -90,8 +90,11 @@ spec:
                 secretKeyRef: { name: eatbid-auth, key: GOOGLE_CLIENT_SECRET }
             - { name: BETTER_AUTH_URL, value: "http://localhost:8081" }
           ports: [{ containerPort: 4400 }]
+          livenessProbe:
+            httpGet: { path: /health/live, port: 4400 }
+            periodSeconds: 5
           readinessProbe:
-            httpGet: { path: /api/healthz, port: 4400 }
+            httpGet: { path: /health/ready, port: 4400 }
             periodSeconds: 5
 ---
 apiVersion: v1

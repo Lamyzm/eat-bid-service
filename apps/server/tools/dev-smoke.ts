@@ -88,7 +88,14 @@ export async function runDevelopmentSmoke(
 
     const child = spawn("pnpm", ["run", "dev"], {
       cwd: smokeRoot,
-      env: { ...process.env, PATH: path, NO_COLOR: "1", FORCE_COLOR: "0" },
+      env: {
+        ...process.env,
+        PATH: path,
+        NO_COLOR: "1",
+        FORCE_COLOR: "0",
+        NODE_ENV: "test",
+        PORT: "0",
+      },
       shell: true,
       windowsHide: true,
       detached: process.platform !== "win32",

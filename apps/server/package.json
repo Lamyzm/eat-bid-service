@@ -3,28 +3,42 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "pnpm --filter @eatbid/contracts build",
     "build": "tsc -p tsconfig.build.json",
     "predev": "tsc -p tsconfig.build.json",
     "dev": "concurrently --kill-others-on-fail --names tsc,node \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch --enable-source-maps dist/main.js\"",
     "dev:smoke": "bun test tools/dev-smoke.test.ts --timeout 30000",
     "start": "node --enable-source-maps dist/main.js",
     "test": "bun test src tools --timeout 30000",
+    "test:e2e": "bun test src/testing --timeout 30000",
+    "openapi:generate": "bun src/bootstrap/openapi.ts --write openapi/openapi.json",
+    "openapi:check": "bun src/bootstrap/openapi.ts --check openapi/openapi.json",
     "compatibility:node": "node dist/bootstrap/compatibility-probe.js",
     "architecture:check": "tsc -p tsconfig.tools.json && bun tools/check-architecture.ts",
     "inventory:legacy": "bun tools/inventory-legacy-routes.ts"
   },
   "dependencies": {
+    "@eatbid/contracts": "workspace:*",
     "@nestjs/common": "12.0.1",
+    "@nestjs/config": "12.0.0",
     "@nestjs/core": "12.0.1",
     "@nestjs/platform-express": "12.0.1",
+    "@nestjs/swagger": "12.0.1",
     "effect": "4.0.0-rc.112",
+    "express": "5.2.1",
+    "helmet": "8.3.0",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
+    "rxjs": "7.8.2",
+    "zod": "4.5.2",
+    "zod-openapi": "6.0.1"
   },
   "devDependencies": {
     "@nestjs/testing": "12.0.1",
+    "@types/express": "5.0.6",
     "@types/node": "24.13.3",
+    "@types/supertest": "7.2.1",
     "concurrently": "10.0.5",
+    "supertest": "7.2.2",
     "typescript": "5.9.3"
   }
 }

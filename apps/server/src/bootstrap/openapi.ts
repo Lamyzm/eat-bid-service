@@ -1,0 +1,103 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import {
+  healthOperations,
+  problemDetailsSchema,
+} from "@eatbid/contracts";
+import { createDocument } from "zod-openapi";
+
+const problemResponse = (description: string) => ({
+  description,
+  content: { "application/problem+json": { schema: problemDetailsSchema } },
+});
+
+export function createOpenApiDocument(): ReturnType<typeof createDocument> {
+  return createDocument({
+    openapi: "3.0.3",
+    info: {
+      title: "eatbid API",
+      version: "1.0.0",
+      description: "Bounded canonical HTTP contracts for the eatbid server.",
+    },
+    paths: {
+      [healthOperations.live.path]: {
+        get: {
+          operationId: healthOperations.live.operationId,
+          summary: healthOperations.live.summary,
+          tags: ["operations"],
+          responses: {
+            "200": {
+              description: "Process is live",
+              content: { "application/json": { schema: healthOperations.live.responseSchema } },
+            },
+            "500": problemResponse("Unexpected server defect"),
+          },
+        },
+      },
+      [healthOperations.ready.path]: {
+        get: {
+          operationId: healthOperations.ready.operationId,
+          summary: healthOperations.ready.summary,
+          tags: ["operations"],
+          responses: {
+            "200": {
+              description: "Application is ready",
+              content: { "application/json": { schema: healthOperations.ready.responseSchema } },
+            },
+            "503": problemResponse("Application dependency is unavailable"),
+            "500": problemResponse("Unexpected server defect"),
+          },
+        },
+      },
+    },
+  });
+}
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, sortJson(child)]));
+  }
+  return value;
+}
+
+export function serializeOpenApi(document: ReturnType<typeof createDocument>): string {
+  return `${JSON.stringify(sortJson(document), null, 2)}\n`;
+}
+
+async function runCli(): Promise<void> {
+  const [command, path = "openapi/openapi.json"] = process.argv.slice(2);
+  const target = resolve(path);
+  const generated = serializeOpenApi(createOpenApiDocument());
+  if (command === "--write") {
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, generated, "utf8");
+    return;
+  }
+  if (command === "--check") {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "eatbid-openapi-check-"));
+    try {
+      const generatedPath = join(temporaryDirectory, "openapi.json");
+      await writeFile(generatedPath, generated, "utf8");
+      const [committed, temporary] = await Promise.all([
+        readFile(target, "utf8"),
+        readFile(generatedPath, "utf8"),
+      ]);
+      if (committed !== temporary) throw new Error(`OpenAPI artifact is stale: ${target}`);
+    } finally {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+    return;
+  }
+  throw new Error("Usage: openapi.ts (--write|--check) <path>");
+}
+
+if (require.main === module) {
+  void runCli().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
