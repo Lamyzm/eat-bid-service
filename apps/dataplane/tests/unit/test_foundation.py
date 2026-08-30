@@ -304,7 +304,7 @@ def test_foundation가_malicious_project_result을_거부한다(project: object)
         _run(_checkpoint(status="validated"), projector=projector)
 
 
-def test_발행된_reentry가_forged_empty_topology_및_evidence을_거부한다() -> None:
+def test_발행된_reentry가_forged_empty_topology와_evidence를_거부한다() -> None:
     checkpoint = _checkpoint(status="validated")
     forged = replace(
         checkpoint,
@@ -363,7 +363,7 @@ def test_발행된_reentry가_malicious_verified_projection_evidence을_거부�
     assert projector.calls == 1
 
 
-def test_발행된_reentry가_zero_ledger_counts_함께_하나_frozen_member을_거부한다(
+def test_발행된_reentry가_frozen_member_하나와_zero_ledger_count를_거부한다(
 ) -> None:
     checkpoint = _published_checkpoint()
     forged = replace(
@@ -532,7 +532,7 @@ def _checkpoint_for_state(state: str) -> FoundationCheckpoint:
         ("observation", object()),
     ],
 )
-def test_checkpoint가_untyped_nested_companions_없이_raw_errors을_거부한다(
+def test_checkpoint는_raw_error가_없어도_untyped_nested_companion을_거부한다(
     state: str,
     field: str,
     invalid: object,
@@ -544,7 +544,7 @@ def test_checkpoint가_untyped_nested_companions_없이_raw_errors을_거부한�
 
 @pytest.mark.parametrize("state", ["running", "validated", "published", "failed"])
 @pytest.mark.parametrize("field", ["normalization", "evidence"])
-def test_checkpoint가_untyped_optional_companions_전에_ports을_거부한다(
+def test_checkpoint가_port_호출_전에_untyped_optional_companion을_거부한다(
     state: str,
     field: str,
 ) -> None:
@@ -563,7 +563,7 @@ def test_checkpoint가_untyped_optional_companions_전에_ports을_거부한다(
     ids=("not-a-mapping", "non-string-key", "non-string-value"),
 )
 @pytest.mark.parametrize("owner", ["request", "observation"])
-def test_checkpoint가_malformed_nested_params_없이_raw_errors을_거부한다(
+def test_checkpoint는_raw_error가_없어도_malformed_nested_parameter를_거부한다(
     invalid_params: object,
     owner: str,
 ) -> None:
@@ -653,7 +653,7 @@ def test_terminal_checkpoint가_incomplete_normalized_auction_contract을_거부
         ("checkpoint", "ended_at", object()),
     ],
 )
-def test_terminal_checkpoint가_malformed_trusted_scalar_fields_전에_ports을_거부한다(
+def test_terminal_checkpoint가_port_호출_전에_malformed_trusted_scalar_field를_거부한다(
     state: str,
     owner: str,
     field: str,
@@ -679,7 +679,7 @@ def test_terminal_checkpoint가_malformed_trusted_scalar_fields_전에_ports을_
         ("observation_ids", [11]),
     ],
 )
-def test_발행된_checkpoint가_malformed_evidence_identity_전에_verifier을_거부한다(
+def test_발행된_checkpoint가_verifier_호출_전에_malformed_evidence_identity를_거부한다(
     field: str,
     invalid: object,
 ) -> None:

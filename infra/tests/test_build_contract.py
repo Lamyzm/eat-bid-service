@@ -50,7 +50,7 @@ def test_테스트_job_checkout은_고정_legacy_commit을_제공한다() -> Non
     assert checkout["with"] == {"fetch-depth": 0}
 
 
-def test_ci가_frozen_typescript_python_및_empty_database_gates을_실행한다() -> None:
+def test_CI가_frozen_TypeScript와_Python_및_empty_database_gate를_실행한다() -> None:
     workflow = _workflow_text()
     root_package = yaml.safe_load((ROOT / "package.json").read_text(encoding="utf-8"))
 
@@ -99,7 +99,7 @@ def test_CI가_정확한_Argo와_Helm_render_계약을_엄격히_lint한다() ->
     assert "kubectl apply" not in command
 
 
-def test_context_preflight_fail가_전에_모든_publication_job을_닫는다() -> None:
+def test_context_preflight_실패가_모든_publication_job_전에_실행을_닫는다() -> None:
     test_job = _job("test")
     guard = str(test_job["if"])
     assert guard.strip().startswith("${{")
@@ -145,7 +145,7 @@ def test_context_preflight_fail가_전에_모든_publication_job을_닫는다() 
     assert provenance_index < login_index < publish_index
 
 
-def test_ci가_모든_artifacts_에서_full_sha_및_승격하며_digests을_빌드한다() -> None:
+def test_CI가_full_SHA로_모든_artifact를_빌드하고_digest를_승격한다() -> None:
     workflow = _workflow_text()
     parsed = _workflow()
     includes = parsed["jobs"]["build"]["strategy"]["matrix"]["include"]
@@ -292,7 +292,7 @@ def test_promotion이_migration을_포함한_모든_matrix_digest를_검증한�
     assert "test -s digests/migration" not in command
 
 
-def test_product_manifest는_정확히_넷_consumed_product_images을_갖는다() -> None:
+def test_product_manifest는_소비할_product_image_넷을_정확히_갖는다() -> None:
     manifest = yaml.safe_load(PRODUCT_KUSTOMIZATION.read_text(encoding="utf-8"))
     images = manifest["images"]
 
@@ -309,7 +309,7 @@ def test_product_manifest는_정확히_넷_consumed_product_images을_갖는다(
         assert "newTag" not in image
 
 
-def test_product_render가_오직_declared_digests_대상_product_images을_사용한다() -> None:
+def test_product_render가_product_image에_declared_digest만_사용한다() -> None:
     result = subprocess.run(
         ["kubectl", "kustomize", str(PRODUCT_KUSTOMIZATION.parent)],
         capture_output=True,

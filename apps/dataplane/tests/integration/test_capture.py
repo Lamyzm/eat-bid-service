@@ -75,7 +75,7 @@ def set_run_nonrunning(
     services.connection.commit()
 
 
-def test_동일한_body는_하나_blob_및_둘_append_오직_observations이다(
+def test_동일한_body가_blob_하나와_append_only_observation_둘로_저장된다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -149,7 +149,7 @@ def test_동일한_body는_하나_blob_및_둘_append_오직_observations이다(
     assert run_row == (2, "running", None)
 
 
-def test_r2_provider_timestamp는_안정적_across_중복_observations이다(
+def test_R2_provider_timestamp는_중복_observation에서도_안정적이다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -194,7 +194,7 @@ def test_r2_provider_timestamp는_안정적_across_중복_observations이다(
     assert len(s3.head_requests) == 3
 
 
-def test_planning_동일한_logical_params는_멱등이다이다(
+def test_동일한_logical_parameter의_planning은_멱등하다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -265,7 +265,7 @@ def test_유효하지_않은_request_identity는_plan_기록_전에_거부된다
 
 
 @pytest.mark.parametrize("inactive_status", ["planned", "failed", "validated", "published"])
-def test_planning가_non_실행_중인_run_없이_changing_기존_plans을_거부한다(
+def test_planning은_기존_plan을_변경하지_않고_non_running_run을_거부한다(
     pipeline_services: PipelineServices,
     inactive_status: str,
 ) -> None:
@@ -307,7 +307,7 @@ def test_planning가_non_실행_중인_run_없이_changing_기존_plans을_거�
 
 
 @pytest.mark.parametrize("terminal_status", ["planned", "failed", "validated", "published"])
-def test_recording가_non_실행_중인_run_없이_changing_ledger_rows을_거부한다(
+def test_recording은_ledger_row를_변경하지_않고_non_running_run을_거부한다(
     pipeline_services: PipelineServices,
     terminal_status: str,
 ) -> None:
@@ -352,7 +352,7 @@ def test_recording가_non_실행_중인_run_없이_changing_ledger_rows을_거�
         assert cursor.fetchone() == (0,)
 
 
-def test_recording가_실패한_request_while_run_remains_active을_거부한다(
+def test_recording은_run이_active인_동안_failed_request를_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -391,7 +391,7 @@ def test_recording가_실패한_request_while_run_remains_active을_거부한다
         assert cursor.fetchone() == (0, "failed")
 
 
-def test_실패한_request_및_run는_terminal_대상_recapture이다(
+def test_실패한_request와_run은_recapture를_위해_terminal이_된다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -450,7 +450,7 @@ def test_실패한_request_및_run는_terminal_대상_recapture이다(
         ]
 
 
-def test_fail_run는_멱등이다_없이_overwriting_first_failure이다(
+def test_fail_run은_최초_failure를_덮어쓰지_않고_멱등하게_동작한다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -506,7 +506,7 @@ class ConflictingMetadataStore:
         return self._delegate.read(object_key)
 
 
-def test_blob_metadata_conflict가_observation_및_counts을_rollback한다(
+def test_blob_metadata_conflict가_observation과_count를_rollback한다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services

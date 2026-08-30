@@ -134,6 +134,7 @@ test("영문 행위에 붙인 일반적인 한국어 장식은 명세로 인정�
       describe("검증 범위를 정의한다 — request validation", () => {
         test("동작을 검증한다 — rejects an unsafe request", () => {});
         test("동작을 검증한다", () => {});
+        test("한 rejects an unsafe request", () => {});
       });
     `,
     "tests/test_generic.py": `
@@ -145,6 +146,9 @@ def test_거부한다_an_unsafe_request():
 
 def test_동작을_검증한다():
     pass
+
+def test_rejects_request_거부한다():
+    pass
 `,
   }, (result) => {
     const output = `${result.stdout}${result.stderr}`;
@@ -154,6 +158,23 @@ def test_동작을_검증한다():
     assert.match(output, /test_거부한다_an_unsafe_request/);
     assert.match(output, /동작을 검증한다/);
     assert.match(output, /test_동작을_검증한다/);
+    assert.match(output, /한 rejects an unsafe request/);
+    assert.match(output, /test_rejects_request_거부한다/);
+  });
+});
+
+test("한국어 행위 뒤 separator의 기술 식별자는 허용한다", () => {
+  withFixture({
+    "technical-suffix.test.ts": `
+      import { test } from "node:test";
+      test("요청을 거부한다 — HTTP 400", () => {});
+    `,
+    "tests/test_technical_suffix.py": `
+def test_HTTP_400_요청을_거부한다():
+    pass
+`,
+  }, (result) => {
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   });
 });
 
@@ -204,6 +225,19 @@ test("assignment와 element access 및 require와 dynamic import 별칭을 추�
       }
       let indirect;
       indirect = true ? test : it;
+      const validator = { test: (_title) => true };
+      let objectAssigned;
+      ({ test: objectAssigned } = require("node:test"));
+      objectAssigned("English object assignment", () => {});
+      let nestedAssigned;
+      ({ test: { skip: nestedAssigned } } = require("node:test"));
+      nestedAssigned("English nested assignment", () => {});
+      let conditional = test;
+      if (false) conditional = validator.test;
+      conditional("English conditional alias", () => {});
+      let arrayAssigned;
+      [arrayAssigned] = [test];
+      arrayAssigned("English array assignment", () => {});
       void register;
     `,
   }, (result) => {
@@ -215,8 +249,13 @@ test("assignment와 element access 및 require와 dynamic import 별칭을 추�
       "English require namespace",
       "English require binding",
       "English dynamic import",
+      "English object assignment",
+      "English nested assignment",
+      "English conditional alias",
     ]) assert.match(output, new RegExp(title));
     assert.match(output, /지원하지 않는 간접 테스트 별칭/);
+    assert.match(output, /\[arrayAssigned\]/);
+    assert.match(output, /조건부 테스트 별칭 재할당/);
   });
 });
 

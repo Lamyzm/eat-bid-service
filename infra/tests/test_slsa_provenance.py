@@ -26,7 +26,7 @@ VALID_ENV = {
 }
 
 
-def test_결정적_slsa_v1_predicate_에서_allowlisted_github_env을_빌드한다() -> None:
+def test_allowlist된_GitHub_env로_결정적_SLSA_v1_predicate를_빌드한다() -> None:
     from infra.generate_slsa_provenance import build_predicate, render_predicate
 
     environment = {**VALID_ENV, "UNRELATED_SECRET": "must-not-leak"}
@@ -85,7 +85,7 @@ def test_결정적_slsa_v1_predicate_에서_allowlisted_github_env을_빌드한�
 
 
 @pytest.mark.parametrize("event_name", ["push", "workflow_dispatch"])
-def test_오직_repository_supported_build_type_events을_허용한다(event_name: str) -> None:
+def test_repository가_지원하는_build_type_event만_허용한다(event_name: str) -> None:
     from infra.generate_slsa_provenance import build_predicate
 
     predicate = build_predicate({**VALID_ENV, "GITHUB_EVENT_NAME": event_name})
@@ -137,7 +137,7 @@ def test_누락된_필수_github_identity을_거부한다(missing_key: str) -> N
         build_predicate(environment)
 
 
-def test_cli가_정확한_predicate_및_거부하며_overwrite을_기록한다(
+def test_CLI가_정확한_predicate를_기록하고_overwrite를_거부한다(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

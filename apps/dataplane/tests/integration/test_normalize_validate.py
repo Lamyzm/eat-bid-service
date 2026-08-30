@@ -223,7 +223,7 @@ def validated_publication(
     return publication_id
 
 
-def test_repeat_normalization는_하나_byte_equivalent_record이다(
+def test_repeat_normalization은_byte_equivalent_record_하나를_만든다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     first = normalize_one(pipeline_services, observation_id)
@@ -270,7 +270,7 @@ def test_repeat_normalization는_하나_byte_equivalent_record이다(
     ).encode() == first.canonical_payload
 
 
-def test_raw_observation는_오직_immutable_http_evidence_columns을_갖는다(
+def test_raw_observation은_불변_HTTP_evidence_column만_갖는다(
     pipeline_services: PipelineServices,
 ) -> None:
     with pipeline_services.connection.cursor() as cursor:
@@ -315,7 +315,7 @@ def test_attempt_schema_fingerprint가_lowercase_sha256을_요구한다(
         )
 
 
-def test_conflicting_기존_payload는_로_보고되는_nondeterminism이다(
+def test_conflicting_existing_payload를_nondeterminism으로_보고한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalize_one(pipeline_services, observation_id)
@@ -379,7 +379,7 @@ def test_known_source_parse_failure가_raw를_잃지_않고_quarantine한다(
     assert pipeline_services.store.read(object_key) == malformed
 
 
-def test_quarantined_attempt가_idempotently_없이_members을_재시도한다(
+def test_quarantined_attempt는_member_없이_멱등하게_재시도한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services)
@@ -420,7 +420,7 @@ def test_quarantined_attempt가_idempotently_없이_members을_재시도한다(
         assert cursor.fetchone() == (0,)
 
 
-def test_final_quarantined_attempt는_regress_to_normalized을_할_수_없다(
+def test_final_quarantined_attempt는_normalized로_regress할_수_없다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services)
@@ -469,7 +469,7 @@ def test_final_quarantined_attempt는_regress_to_normalized을_할_수_없다(
         assert cursor.fetchone() == (0,)
 
 
-def test_동일한_raw는_독립적_replay_attempts_없이_mutating_evidence을_갖는다(
+def test_동일한_raw는_evidence를_변경하지_않고_독립_replay_attempt를_갖는다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     capture_result = normalize_one(pipeline_services, observation_id)
@@ -536,7 +536,7 @@ def test_동일한_raw는_독립적_replay_attempts_없이_mutating_evidence을_
     }
 
 
-def test_processing_run_membership_및_parser_version는_권위_있다이다(
+def test_processing_run_membership과_parser_version은_권위_있는_값이다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     unrelated_capture_run = start_run(pipeline_services)
@@ -604,7 +604,7 @@ def test_normalization_candidate가_실행_중인_processing_run을_요구한다
         )
 
 
-def test_final_normalized_attempt는_regress_to_quarantined을_할_수_없다(
+def test_final_normalized_attempt는_quarantined로_regress할_수_없다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -636,7 +636,7 @@ def test_final_normalized_attempt는_regress_to_quarantined을_할_수_없다(
         assert cursor.fetchone() == ("normalized", None, 1)
 
 
-def test_r2_read_failure는_로_잘못_분류되지_않는다_source_quarantine이다(
+def test_R2_read_failure를_source_quarantine으로_잘못_분류하지_않는다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     class FailingReadStore:
@@ -664,7 +664,7 @@ def test_r2_read_failure는_로_잘못_분류되지_않는다_source_quarantine�
         assert cursor.fetchone() == (0,)
 
 
-def test_database_write_failure는_로_잘못_분류되지_않는다_source_quarantine이다(
+def test_database_write_failure를_source_quarantine으로_잘못_분류하지_않는다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     class FailingWriteRepository:
@@ -747,7 +747,7 @@ def assert_failed_without_core_writes(
         assert cursor.fetchone() == (0,)
 
 
-def test_request_count_mismatch_fails_monotonically_및가_기존_core_rows을_보존한다(
+def test_request_count_mismatch는_단조롭게_실패하고_기존_core_row를_보존한다(
     pipeline_services: PipelineServices,
 ) -> None:
     with pipeline_services.connection.cursor() as cursor:
@@ -790,7 +790,7 @@ def test_request_count_mismatch_fails_monotonically_및가_기존_core_rows을_�
         assert cursor.fetchone() == (1,)
 
 
-def test_실패한_request_status가_인_경우에도_counts_match을_차단한다(
+def test_count가_일치해도_failed_request_status가_publication을_차단한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -973,7 +973,7 @@ def test_누락된_필수_scheme가_publication을_차단한다(
         )
 
 
-def test_unreviewed_source_column가_attempt_but_blocks_publication을_보존한다(
+def test_unreviewed_source_column은_attempt를_보존하지만_publication은_차단한다(
     pipeline_services: PipelineServices,
 ) -> None:
     body = FIXTURE.read_bytes().replace(
@@ -1414,7 +1414,7 @@ def test_publication가_둘_zero_output_redistribution을_거부한다(
         assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
 
 
-def test_replay_mode가_명시적_input_없이_mutating_capture_provenance을_사용한다(
+def test_replay_mode는_capture_provenance를_변경하지_않고_명시적_input을_사용한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)

@@ -20,7 +20,7 @@ def xml(body: str) -> bytes:
     return f'<Root xmlns="{NS}">{body}</Root>'.encode()
 
 
-def test_parse_bid_list_page가_total_및_internal_ids을_보존한다() -> None:
+def test_parse_bid_list_page가_total과_internal_ID를_보존한다() -> None:
     page = parse_bid_list_page((FIXTURE_DIR / "bid-list-one.xml").read_bytes())
 
     assert page.total_count == 1
@@ -67,7 +67,7 @@ def test_parse_bid_list_page가_empty_중복_또는_excess_ids을_거부한다(r
         b'<!DOCTYPE Root SYSTEM "https://invalid.example/evil.dtd"><Root/>',
     ],
 )
-def test_신뢰하지_않는_xml가_dtd_entities_및_external_references을_거부한다(
+def test_신뢰하지_않는_XML은_DTD_entity와_external_reference를_거부한다(
     payload: bytes,
 ) -> None:
     with pytest.raises(NexacroParseError):
@@ -95,7 +95,7 @@ def test_parser가_중복_또는_ambiguous_nexacro_structure을_거부한다(bod
         parse_nexacro(xml(body), require_ds_info=True)
 
 
-def test_schema_fingerprint는_독립적_의_dataset_및_column_order이다() -> None:
+def test_schema_fingerprint는_dataset과_column_순서에_독립적이다() -> None:
     first = xml(
         '<Dataset id="ds_info"><Rows><Row><Col id="B">2</Col>'
         '<Col id="A">1</Col></Row></Rows></Dataset>'

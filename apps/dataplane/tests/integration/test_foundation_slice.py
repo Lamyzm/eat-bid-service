@@ -323,7 +323,7 @@ def test_raw_to_core와_replay_foundation_slice를_검증한다(
         assert cursor.fetchone() == (1, 1, 1)
 
 
-def test_유효하지_않은_foundation_chronology는_no_database_또는_raw_side_effect을_갖는다(
+def test_유효하지_않은_foundation_chronology는_database와_raw_side_effect를_남기지_않는다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = UUID("13000000-0000-0000-0000-000000000021")
@@ -389,7 +389,7 @@ def test_유효하지_않은_foundation_chronology는_no_database_또는_raw_sid
     ],
     ids=("over-count", "zero-count"),
 )
-def test_foundation가_에서_source_contract_전에_projection을_중단한다(
+def test_foundation은_source_contract에서_projection_전에_중단한다(
     pipeline_services: PipelineServices,
     run_id: UUID,
     publication_id: UUID,
@@ -544,7 +544,7 @@ def test_실패한_capture_retry가_중복_observation_없이_typed_failure를_�
         assert cursor.fetchone() == ("failed", "SOURCE_THROTTLED", "pending", 1)
 
 
-def test_capture_quarantine가_동일한_typed_failure_에서_retry을_다시_던진다(
+def test_capture_quarantine은_retry에서_동일한_typed_failure를_다시_던진다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = UUID("13000000-0000-0000-0000-000000000061")
@@ -652,7 +652,7 @@ def test_발행된_reentry가_tampered_canonical_projection을_거부한다(
         )
 
 
-def test_foundation_및_replay_race는_하나_frozen_identity_없이_deadlock을_갖는다(
+def test_foundation과_replay_race가_deadlock_없이_frozen_identity_하나로_수렴한다(
     foundation: FoundationHarness,
     migrated_db: MigratedDatabase,
 ) -> None:

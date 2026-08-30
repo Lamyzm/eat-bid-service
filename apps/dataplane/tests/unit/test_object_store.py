@@ -17,7 +17,7 @@ from .fakes import MemoryRawObjectStore
 
 @settings(max_examples=40, deadline=None, derandomize=True)
 @given(body=st.binary(max_size=4096))
-def test_content_address_및_gzip는_결정적_대상_모든_raw_bytes이다(
+def test_content_address와_gzip은_모든_raw_byte에_대해_결정적이다(
     body: bytes,
 ) -> None:
     first_key = build_raw_object_key(source="eat", endpoint="bid-list", body=body)
@@ -59,7 +59,7 @@ def test_empty와_non_UTF8_raw_byte가_round_trip한다(body: bytes) -> None:
         ("eat", "../bid-list"),
     ],
 )
-def test_유효하지_않은_namespace_slugs는_거부된다이다(source: str, endpoint: str) -> None:
+def test_유효하지_않은_namespace_slug를_거부한다(source: str, endpoint: str) -> None:
     with pytest.raises(ValueError, match="slug"):
         build_raw_object_key(source=source, endpoint=endpoint, body=b"raw")
 
@@ -78,7 +78,7 @@ def test_유효하지_않은_namespace_slugs는_거부된다이다(source: str, 
         "raw/eat/bid-list/" + "a" * 64 + ".xml",
     ],
 )
-def test_malformed_또는_foreign_object_keys는_거부된다이다(object_key: str) -> None:
+def test_malformed_또는_foreign_object_key를_거부한다(object_key: str) -> None:
     with pytest.raises(ValueError, match="object key"):
         parse_raw_object_key(object_key)
 
@@ -92,7 +92,7 @@ def test_known_content_address가_architecture_contract을_일치시킨다() -> 
     )
 
 
-def test_memory_port_fake는_content_멱등이다_및_replayable이다() -> None:
+def test_memory_port_fake는_content에_멱등하고_replay_가능하다() -> None:
     store = MemoryRawObjectStore()
 
     first = store.put(source="eat", endpoint="bid-list", body=b"<x>1</x>")

@@ -37,7 +37,7 @@ class NoDatabaseAccess:
     "observation_ids",
     [(), (1, 1), (True,), (False,), (0,), (-1,), ("1",)],
 )
-def test_replay가_유효하지_않은_manifest_전에_모든_repository_write을_거부한다(
+def test_replay가_유효하지_않은_manifest에서_모든_repository_write를_사전에_거부한다(
     observation_ids: tuple[object, ...],
 ) -> None:
     repository = RecordingReplayRepository()
@@ -110,7 +110,7 @@ def test_postgres_adapter가_runtime_shapes_전에_db_access을_검증한다(
         {"activated_at": STARTED_AT - timedelta(seconds=1)},
     ],
 )
-def test_replay가_유효하지_않은_identity_및_chronology_전에_db을_거부한다(
+def test_replay가_database_접근_전에_유효하지_않은_identity와_chronology를_거부한다(
     changes: dict[str, object],
 ) -> None:
     repository = RecordingReplayRepository()
@@ -149,7 +149,7 @@ def test_replay가_유효하지_않은_identity_및_chronology_전에_db을_거�
         unique=True,
     )
 )
-def test_replay_manifest_및_fingerprint는_order_독립적이다(
+def test_replay_manifest와_fingerprint는_순서에_독립적이다(
     observation_ids: list[int],
 ) -> None:
     forward = tuple(observation_ids)

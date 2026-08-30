@@ -81,7 +81,7 @@ def project(services: PipelineServices, publication_id: UUID):
     )
 
 
-def test_repository가_factory_output_에_묶이지_않은_잠긴_member을_거부한다(
+def test_repository가_locked_member에_묶이지_않은_factory_output을_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -142,7 +142,7 @@ def test_repository가_factory_output_에_묶이지_않은_잠긴_member을_거�
         },
     ],
 )
-def test_repository가_malformed_factory_projection_전에_sql을_거부한다(
+def test_repository가_SQL_전에_malformed_factory_projection을_거부한다(
     pipeline_services: PipelineServices, changes: dict[str, object]
 ) -> None:
     publication_id = validated_from_values(
@@ -176,7 +176,7 @@ def test_repository가_malformed_factory_projection_전에_sql을_거부한다(
         assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
 
 
-def test_repository가_non_projection_factory_output_로_contract_failure을_거부한다(
+def test_repository가_non_projection_factory_output을_contract_failure로_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -200,7 +200,7 @@ def test_repository가_non_projection_factory_output_로_contract_failure을_거
         assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
 
 
-def test_projector가_multiple_normalized_members_대상_하나_candidate을_거부한다(
+def test_projector가_candidate_하나의_multiple_normalized_member를_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -237,7 +237,7 @@ def test_projector가_multiple_normalized_members_대상_하나_candidate을_거
         project(pipeline_services, publication_id)
 
 
-def test_projector가_wrong_parser_attempt_added_후에_validation을_거부한다(
+def test_projector가_validation_후_추가된_wrong_parser_attempt를_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -292,7 +292,7 @@ def test_candidate_bijection은_normalized_record_id_순서를_가정하지_않�
     assert projected.members_projected == 2
 
 
-def test_projector가_replay_candidate_added_후에_validation을_거부한다(
+def test_projector가_validation_후_추가된_replay_candidate를_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     first_publication = validated_from_values(
@@ -339,7 +339,7 @@ def test_projector가_replay_candidate_added_후에_validation을_거부한다(
         project(pipeline_services, replay_publication)
 
 
-def test_projector가_extra_revision_relations_에서_발행된_retry을_거부한다(
+def test_projector가_발행된_retry의_extra_revision_relation을_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     first = validated_from_values(
@@ -394,7 +394,7 @@ def test_projector가_extra_revision_relations_에서_발행된_retry을_거부�
         project(pipeline_services, first)
 
 
-def test_projection가_idle_owned_transaction_scope을_요구한다(
+def test_projection이_idle_owned_transaction_scope을_요구한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -414,7 +414,7 @@ def test_projection가_idle_owned_transaction_scope을_요구한다(
         assert cursor.fetchone() == ("validated",)
 
 
-def test_projection가_activation_전에_validation을_거부한다(
+def test_projection이_activation_전_validation을_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -438,7 +438,7 @@ def test_projection가_activation_전에_validation을_거부한다(
         assert ended_at == validated_at
 
 
-def test_projection가_activation_전에_run_start_로_contract_failure을_거부한다(
+def test_projection이_activation_전_run_start를_contract_failure로_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -465,7 +465,7 @@ def test_projection가_activation_전에_run_start_로_contract_failure을_거�
         assert ended_at == VALIDATED_AT
 
 
-def test_database가_run_end_전에_start을_거부한다(
+def test_database가_run_end_전_start를_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services)
@@ -481,7 +481,7 @@ def test_database가_run_end_전에_start을_거부한다(
         )
 
 
-def test_database가_publication_activation_전에_validation을_거부한다(
+def test_database가_publication_activation_전_validation을_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -503,7 +503,7 @@ def test_database가_publication_activation_전에_validation을_거부한다(
         )
 
 
-def test_projecting_동일한_publication_twice는_멱등이다이다(
+def test_동일한_publication을_두_번_project해도_멱등하다(
     pipeline_services: PipelineServices,
 ) -> None:
     validated_publication = validated_from_values(
@@ -527,7 +527,7 @@ def test_projecting_동일한_publication_twice는_멱등이다이다(
     assert second.auction_revisions_inserted == 0
 
 
-def test_validated_terminal는_recheckable_전에_projection이다(
+def test_validated_terminal은_projection_전에_재검사할_수_있다(
     pipeline_services: PipelineServices,
 ) -> None:
     validated_publication = validated_from_values(
@@ -793,7 +793,7 @@ def test_동시_publication이_organization_code_identity_하나를_재사용한
         assert cursor.fetchall() == [("First Label",), ("Second Label",)]
 
 
-def test_replay_publication가_동일한_normalized_revision을_재사용한다(
+def test_replay_publication이_동일한_normalized_revision을_재사용한다(
     pipeline_services: PipelineServices,
 ) -> None:
     original_publication = validated_from_values(
@@ -843,7 +843,7 @@ def test_replay_publication가_동일한_normalized_revision을_재사용한다(
         assert cursor.fetchone() == ("published", 1)
 
 
-def test_database_grain가_새_parser_interpretation_의_동일한_raw을_허용한다(
+def test_database_grain이_동일한_raw의_새_parser_interpretation을_허용한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -977,7 +977,7 @@ def test_corrupt_payload가_rollback되고_projection을_계약_실패로_표시
     assert rechecked.member_ids == (member_id,)
 
 
-def test_누락된_reviewed_scheme가_전에_marking_contract_failure을_rollback한다(
+def test_누락된_reviewed_scheme가_contract_failure_표시_전에_rollback한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -1029,7 +1029,7 @@ def test_누락된_reviewed_scheme가_전에_marking_contract_failure을_rollbac
         assert cursor.fetchone() == ("failed", "PROJECTION_CONTRACT")
 
 
-def test_conflicting_기존_revision가_모든_새_projection_rows을_rollback한다(
+def test_conflicting_existing_revision이_모든_새_projection_row를_rollback한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -1097,7 +1097,7 @@ def test_conflicting_기존_revision가_모든_새_projection_rows을_rollback�
         assert cursor.fetchone() == (0,)
 
 
-def test_publication_fingerprint가_hand_checked_natural_payload_digest을_일치시킨다(
+def test_publication_fingerprint가_수동_확인한_natural_payload_digest와_일치한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(

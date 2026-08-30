@@ -122,7 +122,7 @@ def test_product와_base_render가_cutover를_비활성으로_유지한다(
     assert live_application["spec"]["source"]["path"] == "infra/k8s/base"
 
 
-def test_workflow_template가_현재_cli_및_지속_가능한_boundaries을_사용한다(
+def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용한다(
     manifests: ManifestSet,
 ) -> None:
     workflow_template = manifests.workflow_template("eatbid-dataplane")
@@ -209,7 +209,7 @@ def test_workflow_template가_현재_cli_및_지속_가능한_boundaries을_사�
     assert service_account["imagePullSecrets"] == [{"name": "ghcr-pull"}]
 
 
-def test_cron_workflows는_중단된_및_오직_schedule_pipeline이다(
+def test_cron_workflow는_suspend되고_pipeline만_schedule한다(
     manifests: ManifestSet,
 ) -> None:
     cron_workflows = manifests.of_kind("CronWorkflow")
@@ -319,7 +319,7 @@ def test_replay_JSON_ID가_shell_확장_없이_fail_closed한다(
         assert error.value.code == 64
 
 
-def test_migration는_유한한_presync_및_사용하고_오직_secret_database_url이다(
+def test_migration은_presync가_유한하고_secret_DATABASE_URL만_사용한다(
     manifests: ManifestSet,
 ) -> None:
     job = manifests.named("Job", "eatbid-migration")
@@ -339,7 +339,7 @@ def test_migration는_유한한_presync_및_사용하고_오직_secret_database_
     assert _mapping(_mapping(spec["template"])["spec"])["restartPolicy"] == "Never"
 
 
-def test_product_render는_no_hostpath_또는_literal_database_credentials을_갖는다(
+def test_product_render는_hostPath와_literal_database_credential을_포함하지_않는다(
     manifests: ManifestSet,
 ) -> None:
     for document in manifests.documents:
@@ -354,7 +354,7 @@ def test_product_render는_no_hostpath_또는_literal_database_credentials을_�
     assert "POSTGRES_PASSWORD: eatbid" not in rendered
 
 
-def test_database_credentials는_split_각_consumer_없이_cross_assignment이다(
+def test_database_credential은_cross_assignment_없이_consumer별로_분리된다(
     manifests: ManifestSet,
 ) -> None:
     postgres_pod = _mapping(_mapping(_spec(manifests.named("Deployment", "postgres"))["template"])["spec"])
@@ -389,7 +389,7 @@ def test_database_credentials는_split_각_consumer_없이_cross_assignment이�
     assert "kind: Secret" not in rendered
 
 
-def test_product가_소비하고_및_승격하며_정확히_넷_images을_선언한다(
+def test_product가_정확히_image_넷을_소비하고_승격한다고_선언한다(
     manifests: ManifestSet,
 ) -> None:
     kustomization = yaml.safe_load(PRODUCT_KUSTOMIZATION.read_text(encoding="utf-8"))

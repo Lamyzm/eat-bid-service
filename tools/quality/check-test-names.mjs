@@ -25,6 +25,8 @@ const supportedModifiers = new Set(["only", "skip", "todo", "each"]);
 const testModules = new Set(["bun:test", "node:test", "vitest", "@jest/globals"]);
 const hangulSyllable = /[가-힣]/;
 const genericKoreanTitle = /^(?:(?:테스트|동작|행위|계약|범위|상태|결과|조건|내용|기능|값)(?:을|를|은|는|이|가)?\s*)?(?:검증|확인|검사)(?:한다)?[.!]?$/;
+const genericKoreanScope = /^(?:검증 범위를 정의한다|테스트 범위를 정의한다)$/;
+const englishBehaviorWord = /\b(?:accepts|allows|blocks|builds|checks|creates|fails|generates|has|is|keeps|maps|parses|preserves|reads|rejects|requires|returns|runs|throws|uses|validates|verifies|writes)\b/i;
 const javascriptExtensions = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]);
 
 function walk(directory, predicate, collected = []) {
@@ -171,28 +173,99 @@ function bindTarget(name, sourceTarget, aliases, checker) {
   }
   if (!ts.isObjectBindingPattern(name)) return;
   for (const element of name.elements) {
-    if (!ts.isIdentifier(element.name)) continue;
     const property = element.propertyName && (ts.isIdentifier(element.propertyName) || ts.isStringLiteral(element.propertyName))
       ? element.propertyName.text
-      : element.name.text;
-    let target;
-    if (sourceTarget?.kind === "namespace" && testBases.has(property)) {
-      target = { kind: "test", base: property, modifiers: [], boundEach: false };
-    } else if (sourceTarget?.kind === "test" && supportedModifiers.has(property)) {
-      target = cloneTarget(sourceTarget);
-      target.modifiers.push(property);
-    }
+      : ts.isIdentifier(element.name) ? element.name.text : undefined;
+    const target = property ? targetMember(sourceTarget, property) : undefined;
     bindTarget(element.name, target, aliases, checker);
   }
 }
 
-function isMeaningfulKoreanTitle(title) {
+function targetMember(sourceTarget, property) {
+  if (sourceTarget?.kind === "namespace" && testBases.has(property)) {
+    return { kind: "test", base: property, modifiers: [], boundEach: false };
+  }
+  if (sourceTarget?.kind === "test" && supportedModifiers.has(property)) {
+    const target = cloneTarget(sourceTarget);
+    target.modifiers.push(property);
+    return target;
+  }
+  return undefined;
+}
+
+function propertyNameText(name) {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) return name.text;
+  return undefined;
+}
+
+function bindAssignmentTarget(pattern, sourceTarget, aliases, checker) {
+  if (ts.isIdentifier(pattern)) {
+    bindTarget(pattern, sourceTarget, aliases, checker);
+    return true;
+  }
+  if (!ts.isObjectLiteralExpression(pattern)) return false;
+  let supported = true;
+  for (const property of pattern.properties) {
+    if (ts.isShorthandPropertyAssignment(property)) {
+      bindTarget(property.name, targetMember(sourceTarget, property.name.text), aliases, checker);
+      continue;
+    }
+    if (ts.isPropertyAssignment(property)) {
+      const name = propertyNameText(property.name);
+      if (!name || !bindAssignmentTarget(
+        property.initializer,
+        targetMember(sourceTarget, name),
+        aliases,
+        checker,
+      )) supported = false;
+      continue;
+    }
+    supported = false;
+  }
+  return supported;
+}
+
+function patternHasKnownAlias(pattern, aliases, checker) {
+  let found = false;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isIdentifier(node)) {
+      const symbol = checker.getSymbolAtLocation(node);
+      if (symbol && aliases.has(symbol)) found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(pattern);
+  return found;
+}
+
+function isNonDominatingWrite(node) {
+  let current = node.parent;
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isIfStatement(current)
+      || ts.isConditionalExpression(current)
+      || ts.isSwitchStatement(current)
+      || ts.isCaseBlock(current)
+      || ts.isForStatement(current)
+      || ts.isForInStatement(current)
+      || ts.isForOfStatement(current)
+      || ts.isWhileStatement(current)
+      || ts.isDoStatement(current)
+      || ts.isTryStatement(current)) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
+function isMeaningfulKoreanTitle(title, base) {
   if (!hangulSyllable.test(title)) return false;
-  if (genericKoreanTitle.test(title.trim())) return false;
   const separator = title.match(/\s[—–-]\s/);
-  if (!separator) return true;
-  const detail = title.slice((separator.index ?? 0) + separator[0].length);
-  return hangulSyllable.test(detail);
+  const behavior = separator ? title.slice(0, separator.index).trim() : title.trim();
+  if (genericKoreanTitle.test(behavior) || genericKoreanScope.test(behavior)) return false;
+  if (base === "describe") return true;
+  const hangulCount = [...behavior].filter((character) => hangulSyllable.test(character)).length;
+  return hangulCount >= 2 && !englishBehaviorWord.test(behavior);
 }
 
 function lineOf(sourceFile, node) {
@@ -244,10 +317,24 @@ function inspectTypeScript(sourceFile, checker) {
     }
 
     if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
-      && (ts.isIdentifier(node.left) || ts.isObjectLiteralExpression(node.left))) {
+      && (ts.isIdentifier(node.left) || ts.isObjectLiteralExpression(node.left)
+        || ts.isArrayLiteralExpression(node.left))) {
       const target = resolveAliasExpression(node.right, aliases, checker);
-      if (ts.isIdentifier(node.left)) bindTarget(node.left, target, aliases, checker);
-      if (!target && containsKnownTestReference(node.right, aliases, checker)) {
+      const containsTestReference = containsKnownTestReference(node.right, aliases, checker);
+      const ambiguousWrite = isNonDominatingWrite(node)
+        && (patternHasKnownAlias(node.left, aliases, checker) || Boolean(target) || containsTestReference);
+      const supportedPattern = ts.isIdentifier(node.left) || ts.isObjectLiteralExpression(node.left);
+      if (ambiguousWrite) {
+        violations.push({
+          file: display(file),
+          line: lineOf(sourceFile, node),
+          message: `조건부 테스트 별칭 재할당은 허용하지 않습니다: ${node.left.getText(sourceFile)}`,
+        });
+        if (target) bindAssignmentTarget(node.left, target, aliases, checker);
+      } else if (supportedPattern) {
+        bindAssignmentTarget(node.left, target, aliases, checker);
+      }
+      if ((!supportedPattern || !target) && containsTestReference && !ambiguousWrite) {
         violations.push({
           file: display(file),
           line: lineOf(sourceFile, node),
@@ -273,7 +360,7 @@ function inspectTypeScript(sourceFile, checker) {
             line: lineOf(sourceFile, title),
             message: `테스트 제목에 한글 음절이 없습니다: ${JSON.stringify(title.text)}`,
           });
-        } else if (!isMeaningfulKoreanTitle(title.text)) {
+        } else if (!isMeaningfulKoreanTitle(title.text, target.base)) {
           violations.push({
             file: display(file),
             line: lineOf(sourceFile, title),

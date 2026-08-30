@@ -91,3 +91,37 @@
 - `pnpm db:check`: passed
 - `pnpm build`: 5/5 packages passed
 - 병렬 전체 검증에서는 dev-smoke가 30초 timeout되고 legacy inventory subprocess가 함께 종료됐으나, 두 파일 단독 실행은 3 passed였고 이어서 실행한 직렬 `pnpm test` 전체는 226 passed였다. 코드 회귀가 아닌 검증 프로세스 간 자원 경합으로 구분한다.
+
+## 독립 리뷰 수정 2차
+
+### 수정 결과
+
+- TypeScript/JavaScript 제목은 separator 뒤가 아니라 앞의 한국어 행위를 판정한다. 따라서 `요청을 거부한다 — HTTP 400`처럼 뒤에 기술 식별자만 둔 제목은 허용하고, `한 rejects an unsafe request`처럼 한글 장식 뒤에 영문 행위를 둔 제목은 거부한다.
+- Python 이름은 끝의 한글 유무뿐 아니라 남은 영문 행위 동사와 `이다이다`/`된다이다` 같은 중복 어미도 거부한다. `test_rejects_request_거부한다`는 fail-closed하고 `test_HTTP_400_요청을_거부한다`는 허용한다.
+- object/nested destructuring assignment의 symbol을 namespace/test/modifier 단계로 재귀 bind한다. array assignment처럼 지원하지 않는 pattern은 간접 별칭 위반으로 남기며, 조건부 write는 기존 test alias를 지우지 않고 별도 위반을 기록해 이후 호출도 검사한다.
+- 원래 영문 test 이름과 현재 이름을 파일·선언 순서로 대조했다. `without`/`only`/`idempotent` 관련 39개를 전수 확인하고, 전체 Python 이름 목록도 다시 읽어 의미 역전·기계 번역·중복 어미를 수정했다. 이 round에서 Python test 함수명 140개만 바뀌었고 assertion, fixture, parameter, 실행 코드는 바뀌지 않았다.
+
+### TDD 증거
+
+- RED: `node --test tools/quality/check-test-names.test.mjs` — 7 passed, 3 failed.
+  - `한 rejects an unsafe request`와 `test_rejects_request_거부한다`를 놓쳤다.
+  - 올바른 `요청을 거부한다 — HTTP 400`을 잘못 거부했다.
+  - object/nested destructuring assignment와 conditional alias 호출을 놓쳤다.
+- RED: checker 구현 직후 실제 `pnpm quality:check`가 중복 어미와 남은 영문 행위 동사 8건을 보고하며 실패했다.
+- GREEN: `node --test tools/quality/check-test-names.test.mjs` — 10 passed.
+- GREEN: `pnpm quality:check` — TypeScript/JavaScript 246개, Python 246개 통과.
+- GREEN: `uv run --project apps/dataplane pytest apps/dataplane/tests infra/tests --collect-only -q` — 586개 수집.
+
+### 수정 후 전체 검증
+
+- `pnpm test`: 227 passed
+  - root quality/architecture 16, web/shared/db 120, contracts 4, server 87
+- `uv run --project apps/dataplane pytest apps/dataplane/tests infra/tests -q`: 586 passed, 기존 Windows cp949 subprocess reader warning 1건
+- `uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests infra/update_image_digest.py infra/generate_slsa_provenance.py infra/verify_argo_platform.py infra/tests`: passed
+- `uv run --project apps/dataplane pyright apps/dataplane/src`: 0 errors, 0 warnings
+- `pnpm architecture:check`: passed; 한국어 명세 246/246 재확인
+- `pnpm --filter @eatbid/server architecture:check`: 0 violations
+- `pnpm --filter @eatbid/server openapi:check`: passed
+- `pnpm db:check`: passed
+- `pnpm build`: 5/5 packages passed
+- `git diff --check`: passed

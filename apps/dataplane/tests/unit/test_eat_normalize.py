@@ -55,7 +55,7 @@ def detail_xml(
     ).encode()
 
 
-def test_normalize가_internal_identity_에서_display_number을_분리한다() -> None:
+def test_normalize가_internal_identity와_display_number를_분리한다() -> None:
     record = normalize_bid_detail(
         FIXTURE.read_bytes(),
         external_bid_id="5610615",
@@ -159,7 +159,7 @@ def test_누락된_source_category는_title_추론_없이_unknown으로_남는�
     assert record.category_source == "unknown"
 
 
-def test_canonical_payload는_안정적_across_source_column_order이다() -> None:
+def test_canonical_payload는_source_column_순서가_달라도_안정적이다() -> None:
     first = normalize_bid_detail(
         detail_xml(), external_bid_id="42", parser_version="eat-v1"
     )
@@ -186,7 +186,7 @@ def test_decimal_및_datetime_values가_명시적_lossless_source_formats을_사
     assert record.deadline_at.isoformat() == "2025-06-19T15:00:00+09:00"
 
 
-def test_유효하지_않은_source_datetime는_typed_detail_error이다() -> None:
+def test_유효하지_않은_source_datetime은_typed_detail_error가_된다() -> None:
     with pytest.raises(EatDetailValidationError):
         normalize_bid_detail(
             detail_xml(announced_at="2025-06-17"),

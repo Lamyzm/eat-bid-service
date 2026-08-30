@@ -7,7 +7,7 @@ from hypothesis import strategies as st
 from eatbid.pipeline.validate import validate_completeness
 
 
-def test_publication는_거부된다_일_때_tot_count_differs이다() -> None:
+def test_tot_count가_다르면_publication을_거부한다() -> None:
     report = validate_completeness(
         request_counts=((2, 1),),
         normalized=1,

@@ -49,7 +49,7 @@ def test_auction_projection_contract가_필수_lineage_fields을_허용한다() 
     assert projection.normalized_record_id == 1
 
 
-def test_projection_fingerprint는_order_독립적이다() -> None:
+def test_projection_fingerprint는_순서에_독립적이다() -> None:
     assert canonical_projection_fingerprint(ITEMS) == EXPECTED_FINGERPRINT
     assert canonical_projection_fingerprint(tuple(reversed(ITEMS))) == (
         EXPECTED_FINGERPRINT
@@ -57,7 +57,7 @@ def test_projection_fingerprint는_order_독립적이다() -> None:
 
 
 @given(st.permutations(ITEMS))
-def test_projection_fingerprint는_안정적_대상_모든_member_permutation이다(
+def test_projection_fingerprint는_모든_member_permutation에서_안정적이다(
     items: list[ProjectionFingerprintItem],
 ) -> None:
     assert canonical_projection_fingerprint(tuple(items)) == EXPECTED_FINGERPRINT

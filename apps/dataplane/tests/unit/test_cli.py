@@ -32,7 +32,7 @@ def test_unwired_command가_configuration_exit_code을_반환한다() -> None:
     ) == 64
 
 
-def test_replay_cli가_모든_external_identities_및_stage_timestamps을_요구한다() -> None:
+def test_replay_CLI가_모든_external_identity와_stage_timestamp를_요구한다() -> None:
     parser = build_parser()
     common = [
         "replay",
@@ -70,11 +70,11 @@ def test_replay_cli가_모든_external_identities_및_stage_timestamps을_요구
     assert parsed.observation_id == [7, 3]
 
 
-def test_data_quarantine는_its_dedicated_typed_exit_code을_갖는다() -> None:
+def test_data_quarantine은_전용_typed_exit_code를_갖는다() -> None:
     assert exit_code_for_error(DataQuarantinedError(7, "invalid source payload")) == 65
 
 
-def test_actual_eat_list_contract_error가_to_exit_76을_매핑한다() -> None:
+def test_actual_eat_list_contract_error를_exit_76으로_매핑한다() -> None:
     from eatbid.errors import SourceContractError
     from eatbid.source.eat.normalize import parse_bid_list_page
 
