@@ -64,6 +64,7 @@ test("전역 Date와 Temporal.Now의 직접·별칭·구조분해·조건부 우
     ["const Clock = condition ? Date : class Safe {}; new Clock();", "ambient-date"],
     ["globalThis.Date.now();", "ambient-date"],
     ["let Clock = SafeDate; Clock = globalThis.Date; new Clock();", "ambient-date"],
+    ["let currentTime; ({ now: currentTime } = Date); currentTime();", "ambient-date"],
     ["import { Temporal } from '@eatbid/domain'; Temporal.Now.instant();", "ambient-temporal-now"],
     ["import { Temporal as T } from '@eatbid/domain'; const { Now } = T; Now.instant();", "ambient-temporal-now"],
     ["import { Temporal } from '@eatbid/domain'; const T = condition ? Temporal : safe; T.Now.instant();", "ambient-temporal-now"],
@@ -161,6 +162,11 @@ test("손으로 작성한 공개 Response shape를 거부하고 application Auct
     "manual-public-response",
     "apps/server/src/modules/procurement/presentation/http/types.ts",
   );
+  expectViolation(
+    "type AuctionEnvelope = { auctionId: string; amount: string }; export { AuctionEnvelope };",
+    "manual-public-response",
+    "packages/contracts/src/api/v1/auction.ts",
+  );
 
   const target = fixture({
     "apps/server/src/modules/procurement/application/auction-reader.ts":
@@ -169,6 +175,8 @@ test("손으로 작성한 공개 Response shape를 거부하고 application Auct
       "import { z } from 'zod';",
       "const auctionSchema = z.strictObject({ auctionId: z.string() });",
       "export type AuctionResponse = z.infer<typeof auctionSchema>;",
+      "type AuctionEnvelope = z.infer<typeof auctionSchema>;",
+      "export { AuctionEnvelope };",
     ].join("\n"),
   });
   const result = run(target);
@@ -226,6 +234,40 @@ test("portable registry와 top-level root가 없으면 실패하고 도달 가�
   const factoryResult = run(factory);
   assert.notEqual(factoryResult.status, 0, factoryResult.output);
   assert.match(factoryResult.output, /\[nonportable-schema\]/);
+});
+
+test("portable shorthand registry의 schema symbol과 factory를 따라 overwrite를 거부한다", () => {
+  const shorthand = fixture({
+    "packages/contracts/src/portable-schema.ts": [
+      "import { z } from 'zod';",
+      "export const schema = z.string().transform((value) => value.trim());",
+    ].join("\n"),
+    "packages/contracts/src/portable-registry.ts": [
+      "import { schema } from './portable-schema';",
+      "export const portableContracts = Object.freeze([{ id: 'Fixture', schema }]);",
+    ].join("\n"),
+  });
+  const shorthandResult = run(shorthand);
+  assert.notEqual(shorthandResult.status, 0, shorthandResult.output);
+  assert.match(shorthandResult.output, /\[nonportable-schema\]/);
+
+  const overwriteFactory = fixture({
+    "packages/contracts/src/portable-factory.ts": [
+      "import { z } from 'zod';",
+      "export function buildSchema() {",
+      "  return z.string().overwrite((value) => value.trim());",
+      "}",
+    ].join("\n"),
+    "packages/contracts/src/portable-registry.ts": [
+      "import { buildSchema } from './portable-factory';",
+      "const id = 'Fixture';",
+      "const schema = buildSchema();",
+      "export const portableContracts = Object.freeze([{ id, schema }]);",
+    ].join("\n"),
+  });
+  const overwriteResult = run(overwriteFactory);
+  assert.notEqual(overwriteResult.status, 0, overwriteResult.output);
+  assert.match(overwriteResult.output, /\[nonportable-schema\]/);
 });
 
 test("portable factory 안의 non-Zod transform helper는 schema transform으로 오인하지 않는다", () => {

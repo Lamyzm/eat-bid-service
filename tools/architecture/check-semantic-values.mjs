@@ -117,25 +117,7 @@ function symbolFor(node) {
   }
 }
 
-for (const sourceFile of sourceFilesByPath.values()) {
-  const collectAssignments = (node) => {
-    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
-      const left = unwrap(node.left);
-      if (ts.isIdentifier(left)) {
-        const symbol = symbolFor(left);
-        if (symbol) {
-          if (!assignedValuesBySymbol.has(symbol)) assignedValuesBySymbol.set(symbol, []);
-          assignedValuesBySymbol.get(symbol).push({ position: node.getStart(sourceFile), value: node.right });
-        }
-      }
-    }
-    ts.forEachChild(node, collectAssignments);
-  };
-  collectAssignments(sourceFile);
-}
-
-function declarationsForIdentifier(node) {
-  const symbol = symbolFor(node);
+function declarationsForSymbol(symbol) {
   if (!symbol) return [];
   let resolved = symbol;
   if (symbol.flags & ts.SymbolFlags.Alias) {
@@ -143,10 +125,54 @@ function declarationsForIdentifier(node) {
       const target = checker.getAliasedSymbol(symbol);
       if (target && target !== symbol && target.declarations?.length) resolved = target;
     } catch {
-      // Unresolved imports still retain their ImportSpecifier declaration below.
+      // Unresolved imports still retain their alias declaration below.
     }
   }
   return [...new Set([...(resolved.declarations ?? []), ...(symbol.declarations ?? [])])];
+}
+
+function collectAssignedTargets(target, value, position, properties = []) {
+  const current = unwrap(target);
+  if (ts.isIdentifier(current)) {
+    const symbol = symbolFor(current);
+    if (symbol) {
+      if (!assignedValuesBySymbol.has(symbol)) assignedValuesBySymbol.set(symbol, []);
+      assignedValuesBySymbol.get(symbol).push({ position, value, properties });
+    }
+    return;
+  }
+  if (ts.isObjectLiteralExpression(current)) {
+    for (const property of current.properties) {
+      if (ts.isPropertyAssignment(property)) {
+        const name = propertyNameText(property.name);
+        if (name) collectAssignedTargets(property.initializer, value, position, [...properties, name]);
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        collectAssignedTargets(property.name, value, position, [...properties, property.name.text]);
+      }
+    }
+    return;
+  }
+  if (ts.isArrayLiteralExpression(current)) {
+    current.elements.forEach((element, index) => {
+      if (!ts.isOmittedExpression(element) && !ts.isSpreadElement(element)) {
+        collectAssignedTargets(element, value, position, [...properties, String(index)]);
+      }
+    });
+  }
+}
+
+for (const sourceFile of sourceFilesByPath.values()) {
+  const collectAssignments = (node) => {
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      collectAssignedTargets(node.left, node.right, node.getStart(sourceFile));
+    }
+    ts.forEachChild(node, collectAssignments);
+  };
+  collectAssignments(sourceFile);
+}
+
+function declarationsForIdentifier(node) {
+  return declarationsForSymbol(symbolFor(node));
 }
 
 function unwrap(node) {
@@ -220,7 +246,9 @@ function origins(node, seenSymbols = new Set()) {
     }
     for (const assignment of assignedValuesBySymbol.get(symbol) ?? []) {
       if (assignment.position < current.getStart()) {
-        for (const origin of origins(assignment.value, nextSeen)) result.add(origin);
+        for (const origin of origins(assignment.value, nextSeen)) {
+          result.add(assignment.properties.length ? `${origin}.${assignment.properties.join(".")}` : origin);
+        }
       }
     }
     return result;
@@ -446,7 +474,15 @@ function isZodInferredType(node, seenSymbols = new Set()) {
 }
 
 function isExportedDeclaration(node) {
-  return Boolean(ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export);
+  if (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export) return true;
+  const sourceFile = node.getSourceFile();
+  const moduleSymbol = symbolFor(sourceFile);
+  if (!moduleSymbol) return false;
+  try {
+    return checker.getExportsOfModule(moduleSymbol).some((exported) => declarationsForSymbol(exported).includes(node));
+  } catch {
+    return false;
+  }
 }
 
 function canonicalColumnName(name) {
@@ -585,7 +621,11 @@ function scanSourceFile(sourceFile) {
 for (const sourceFile of sourceFilesByPath.values()) scanSourceFile(sourceFile);
 
 function graphDeclarations(identifier) {
-  return declarationsForIdentifier(identifier).filter((declaration) => {
+  return graphDeclarationsForSymbol(symbolFor(identifier));
+}
+
+function graphDeclarationsForSymbol(symbol) {
+  return declarationsForSymbol(symbol).filter((declaration) => {
     const source = declaration.getSourceFile();
     return !source.isDeclarationFile && sourceFilesByPath.has(path.resolve(source.fileName));
   });
@@ -617,7 +657,7 @@ function expressionHasZodOrigin(node) {
 }
 
 function nonportableFeature(call) {
-  const features = new Set(["codec", "transform", "preprocess", "custom", "refine", "superRefine", "check", "instanceof", "function", "pipe"]);
+  const features = new Set(["codec", "transform", "overwrite", "preprocess", "custom", "refine", "superRefine", "check", "instanceof", "function", "pipe"]);
   for (const origin of origins(call.expression)) {
     const feature = origin.split(".").at(-1)?.split(":").at(-1);
     if (feature && features.has(feature) && origin.startsWith("import:zod:")) return feature;
@@ -675,7 +715,15 @@ function scanPortableGraph() {
       }
     }
     if (ts.isIdentifier(node)) {
-      for (const declaration of graphDeclarations(node)) {
+      const declarations = graphDeclarations(node);
+      if (ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node) {
+        try {
+          declarations.push(...graphDeclarationsForSymbol(checker.getShorthandAssignmentValueSymbol(node.parent)));
+        } catch {
+          // An unresolved shorthand remains fail-closed through the registry root/configuration checks.
+        }
+      }
+      for (const declaration of new Set(declarations)) {
         if (visitedDeclarations.has(declaration)) continue;
         visitedDeclarations.add(declaration);
         if (ts.isVariableDeclaration(declaration) && declaration.initializer) walk(declaration.initializer);

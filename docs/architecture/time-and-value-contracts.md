@@ -243,12 +243,12 @@ codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반
 - DB bigint의 JavaScript number mapping
 - Zod 외부에 중복 작성한 public wire interface
 - 사람이 중복 작성한 normalized Pydantic model과 generated contract drift
-- portable registry의 codec/transform/runtime custom predicate
+- portable registry의 codec/transform/overwrite/runtime custom predicate
 - naive Python datetime과 float money/rate normalization
 
 portable registry file과 exported const top-level `portableContracts` root는 필수다. registry entry에서
 도달 가능한 schema graph는 호출한 schema factory body/return까지 검사한다. 따라서 alias나 조건부
-branch/factory에 숨긴 codec·transform·runtime custom predicate도 실패한다. Zod/schema origin을 증명해
+branch/factory에 숨긴 codec·transform/overwrite·runtime custom predicate도 실패한다. Zod/schema origin을 증명해
 동명이인 일반 `transform` helper를 오탐하지 않으며, registry 밖 adjacent codec이 guarded output을 위해
 쓰는 `z.custom`까지 전역 금지하지는 않는다.
 

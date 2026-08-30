@@ -80,6 +80,29 @@ def read(datetime):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_조건부와_try_재할당은_가능한_datetime_origin을_보존한다(tmp_path: Path) -> None:
+    mutations = [
+        """
+from datetime import datetime
+if condition:
+    datetime = safe_clock
+value = datetime.now()
+""",
+        """
+from datetime import datetime
+try:
+    datetime = safe_clock
+except RuntimeError:
+    pass
+value = datetime.utcnow()
+""",
+    ]
+    for index, source in enumerate(mutations):
+        case = tmp_path / str(index)
+        case.mkdir()
+        _assert_violation(case, source, "naive-datetime")
+
+
 def test_금액과_비율의_float_annotation과_변환_별칭을_거부한다(tmp_path: Path) -> None:
     mutations = [
         "from pydantic import BaseModel\nclass Auction(BaseModel):\n    bid_rate: float\n",
@@ -134,6 +157,8 @@ from time import sleep
 
 RETRY_DELAY = timedelta(seconds=5)
 sleep(RETRY_DELAY.total_seconds())
+delay_seconds = RETRY_DELAY.total_seconds()
+sleep(delay_seconds)
 
 def pause(delay: timedelta) -> None:
     sleep(delay.total_seconds())
@@ -141,6 +166,24 @@ def pause(delay: timedelta) -> None:
         },
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_가짜_total_seconds의_이름_붙인_결과는_sleep_duration으로_인정하지_않는다(
+    tmp_path: Path,
+) -> None:
+    _assert_violation(
+        tmp_path,
+        """
+from time import sleep
+class FakeDelay:
+    def total_seconds(self):
+        return 5
+delay = FakeDelay()
+delay_seconds = delay.total_seconds()
+sleep(delay_seconds)
+""",
+        "raw-sleep-value",
+    )
 
 
 def test_손으로_작성한_normalized_Pydantic과_별칭_base를_거부한다(tmp_path: Path) -> None:
@@ -224,6 +267,26 @@ class GeneratedAuction(BaseModel):
         },
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_source_allowed_Pydantic_subclass를_외부에서_상속하면_거부한다(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/source/eat/models.py": """
+from pydantic import BaseModel
+class EatSourcePayload(BaseModel):
+    BID_NOTICE_NO: str
+""",
+            "apps/dataplane/src/eatbid/core/example.py": """
+from eatbid.source.eat.models import EatSourcePayload
+class NormalizedAuction(EatSourcePayload):
+    auction_id: str
+""",
+        },
+    )
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "[handwritten-normalized-pydantic]" in result.stdout + result.stderr
 
 
 def test_checker_결과는_JSON이_아닌_안정된_rule과_경로를_출력한다(tmp_path: Path) -> None:

@@ -48,7 +48,7 @@ and `mapAuctionRow` creates the internal record. Ambient current time is restric
 | Tool or method | Concrete Eatbid use | Official evidence checked 2026-08-30 | Disposition | Reason and exact review trigger |
 |---|---|---|---|---|
 | Zod 4 codecs | Keep the serializable wire schema authoritative while explicitly decoding/encoding Temporal and semantic domain values | [Zod codecs](https://zod.dev/codecs) | Adopted | Use codecs only at semantic-value boundaries. OpenAPI consumes the adjacent wire schema, not a runtime object schema. Add a codec only when both directions have tests and never derive DDL from it. |
-| Zod 4 metadata, registry and JSON Schema | Annotate versioned ingestion/API schemas and emit portable Python input | [Zod metadata](https://zod.dev/metadata), [JSON Schema](https://zod.dev/json-schema) | Adopted | Stable IDs own generated references. Portable registry rejects codec/transform/runtime custom predicates; CI requires deterministic artifact diff. |
+| Zod 4 metadata, registry and JSON Schema | Annotate versioned ingestion/API schemas and emit portable Python input | [Zod metadata](https://zod.dev/metadata), [JSON Schema](https://zod.dev/json-schema) | Adopted | Stable IDs own generated references. Portable registry rejects codec/transform/overwrite/runtime custom predicates; CI requires deterministic artifact diff. |
 | `drizzle-orm/zod` | Generate select/insert/update validators at a real TypeScript repository/API boundary, then refine there | [Drizzle Zod integration](https://orm.drizzle.team/docs/zod) | Deferred | There is no such focused repository/API consumer yet; trigger on its introduction, never to expose rows as DTOs. |
 | Nest 12 Standard Schema | Validate route input and output from bounded Zod schemas and project the same route schemas into Swagger | [Nest migration guide](https://docs.nestjs.com/migration-guide), [Nest OpenAPI introduction](https://docs.nestjs.com/openapi/introduction), [Standard Schema](https://standardschema.dev/) | Adopted | Keep input/output distinction explicit and forbid DB schemas at this boundary. Review on a Nest/Standard Schema major change. |
 | `nestjs-zod` | Current Nest 11 compatibility bridge only | [nestjs-zod documentation](https://github.com/BenLorantfy/nestjs-zod) | Rejected for foundation | Remove with Nest 12 native Standard Schema; do not carry a duplicate DTO/cleanup layer without a proven missing capability. |
@@ -93,7 +93,7 @@ use-site-aware `ast` import/re-export resolution. Only `apps/web`/`packages/shar
 normalized-text hash fingerprints may remain in the deletion-only ledger. The portable registry file and exactly
 one exported const top-level `portableContracts` root are mandatory. Its reachable graph includes called factory
 bodies/returns. A `z.custom` guarded codec output outside the graph and a non-Zod helper named `transform` are not
-globally forbidden; only Zod/schema-origin codec, transform, or runtime custom predicates in the graph fail.
+globally forbidden; only Zod/schema-origin codec, transform/overwrite, or runtime custom predicates in the graph fail.
 
 The publication gate runs on hosted Ubuntu, and a second hosted `windows-latest` portability job repeats frozen
 pnpm/uv install, architecture drift, and semantic mutation tests. Image build waits for both; no self-hosted runner

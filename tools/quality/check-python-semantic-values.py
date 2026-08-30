@@ -44,6 +44,8 @@ class Binding:
     value: ast.expr | None = None
     imported: ImportReference | None = None
     annotation: ast.expr | None = None
+    bases: tuple[ast.expr, ...] = ()
+    conditional: bool = False
 
 
 @dataclass
@@ -96,6 +98,7 @@ class ScopeBuilder(ast.NodeVisitor):
     def __init__(self, tree: ast.Module) -> None:
         self.module_scope = Scope("module", None)
         self.scope = self.module_scope
+        self.conditional_depth = 0
         self.node_scopes: dict[ast.AST, Scope] = {}
         self.visit(tree)
 
@@ -111,7 +114,15 @@ class ScopeBuilder(ast.NodeVisitor):
         annotation: ast.expr | None = None,
     ) -> None:
         if isinstance(target, ast.Name):
-            self.scope.bind(target.id, Binding(_after_position(owner), value=value, annotation=annotation))
+            self.scope.bind(
+                target.id,
+                Binding(
+                    _after_position(owner),
+                    value=value,
+                    annotation=annotation,
+                    conditional=self.conditional_depth > 0,
+                ),
+            )
         elif isinstance(target, (ast.Tuple, ast.List)):
             values = value.elts if isinstance(value, (ast.Tuple, ast.List)) else ()
             for index, child in enumerate(target.elts):
@@ -146,7 +157,10 @@ class ScopeBuilder(ast.NodeVisitor):
         self._visit_arguments_in_parent(node.args)
         if node.returns:
             self.visit(node.returns)
-        self.scope.bind(node.name, Binding(_after_position(node)))
+        self.scope.bind(
+            node.name,
+            Binding(_after_position(node), conditional=self.conditional_depth > 0),
+        )
         parent = self.scope
         self.scope = Scope("function", parent)
         self._bind_parameters(node.args)
@@ -172,7 +186,14 @@ class ScopeBuilder(ast.NodeVisitor):
             self.visit(keyword)
         for decorator in node.decorator_list:
             self.visit(decorator)
-        self.scope.bind(node.name, Binding(_after_position(node)))
+        self.scope.bind(
+            node.name,
+            Binding(
+                _after_position(node),
+                bases=tuple(node.bases),
+                conditional=self.conditional_depth > 0,
+            ),
+        )
         parent = self.scope
         self.scope = Scope("class", parent)
         for statement in node.body:
@@ -183,7 +204,14 @@ class ScopeBuilder(ast.NodeVisitor):
         for alias in node.names:
             local = alias.asname or alias.name.split(".", 1)[0]
             module = alias.name if alias.asname else alias.name.split(".", 1)[0]
-            self.scope.bind(local, Binding(_after_position(node), imported=ImportReference(module)))
+            self.scope.bind(
+                local,
+                Binding(
+                    _after_position(node),
+                    imported=ImportReference(module),
+                    conditional=self.conditional_depth > 0,
+                ),
+            )
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module is None and node.level == 0:
@@ -197,6 +225,7 @@ class ScopeBuilder(ast.NodeVisitor):
                 Binding(
                     _after_position(node),
                     imported=ImportReference(node.module or "", alias.name, node.level),
+                    conditional=self.conditional_depth > 0,
                 ),
             )
 
@@ -232,6 +261,34 @@ class ScopeBuilder(ast.NodeVisitor):
 
     def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
         self.visit_For(node)  # type: ignore[arg-type]
+
+    def _visit_conditional_statements(self, statements: Iterable[ast.stmt]) -> None:
+        self.conditional_depth += 1
+        try:
+            for statement in statements:
+                self.visit(statement)
+        finally:
+            self.conditional_depth -= 1
+
+    def visit_If(self, node: ast.If) -> None:
+        self.visit(node.test)
+        self._visit_conditional_statements(node.body)
+        self._visit_conditional_statements(node.orelse)
+
+    def visit_Try(self, node: ast.Try) -> None:
+        self._visit_conditional_statements(node.body)
+        self.conditional_depth += 1
+        try:
+            for handler in node.handlers:
+                self.visit(handler)
+        finally:
+            self.conditional_depth -= 1
+        self._visit_conditional_statements(node.orelse)
+        for statement in node.finalbody:
+            self.visit(statement)
+
+    def visit_TryStar(self, node: ast.TryStar) -> None:
+        self.visit_Try(node)  # type: ignore[arg-type]
 
 
 class ProjectResolver:
@@ -327,6 +384,8 @@ class AliasResolver:
             annotation_origins = self.origins(binding.annotation, next_seen)
             if any(_is_timedelta_class(origin) for origin in annotation_origins):
                 result |= frozenset({"value:datetime.timedelta"})
+        for base in binding.bases:
+            result |= self.origins(base, next_seen)
         return result
 
     def _resolve_name(
@@ -340,11 +399,18 @@ class AliasResolver:
         while current is not None:
             bindings = [item for item in current.bindings.get(name, []) if item.position < position]
             if bindings:
-                latest_position = max(item.position for item in bindings)
+                definite = [item for item in bindings if not item.conditional]
+                latest_position = max((item.position for item in definite), default=None)
+                reachable = [
+                    item
+                    for item in bindings
+                    if latest_position is None
+                    or item.position == latest_position and not item.conditional
+                    or item.conditional and item.position > latest_position
+                ]
                 result = frozenset()
-                for binding in bindings:
-                    if binding.position == latest_position:
-                        result |= self._binding_origins(name, binding, seen)
+                for binding in reachable:
+                    result |= self._binding_origins(name, binding, seen)
                 return result
             if name in current.local_names and current.kind == "function":
                 return frozenset()
@@ -375,11 +441,13 @@ class AliasResolver:
             functions = self.origins(node.func, seen)
             if any(_is_timedelta_class(origin) for origin in functions):
                 return functions | {"value:datetime.timedelta"}
+            if "value:datetime.timedelta.total_seconds" in functions:
+                return functions | {"value:datetime.timedelta.seconds"}
             return functions
         return frozenset()
 
-    def is_timedelta_value(self, node: ast.expr) -> bool:
-        return "value:datetime.timedelta" in self.origins(node)
+    def is_timedelta_seconds_value(self, node: ast.expr) -> bool:
+        return "value:datetime.timedelta.seconds" in self.origins(node)
 
 
 def _is_datetime_class(origin: str) -> bool:
@@ -493,12 +561,7 @@ class SemanticVisitor(ast.NodeVisitor):
         }
         if any(origin in sleep_origins for origin in origins):
             argument = node.args[0] if node.args else None
-            named_duration = (
-                isinstance(argument, ast.Call)
-                and isinstance(argument.func, ast.Attribute)
-                and argument.func.attr == "total_seconds"
-                and self.resolver.is_timedelta_value(argument.func.value)
-            )
+            named_duration = argument is not None and self.resolver.is_timedelta_seconds_value(argument)
             if not named_duration:
                 self.report(node, "raw-sleep-value", "sleep duration must come from a named timedelta conversion")
 
