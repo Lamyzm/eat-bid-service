@@ -92,6 +92,30 @@ describe("공개 공고 V1 응답 계약", () => {
     expect(z.encode(instantCodec, instant)).toBe("2026-08-30T00:00:00.000000001Z");
   });
 
+  test("codec encode는 domain 및 wire 불변식 밖의 값을 통제된 Zod 오류로 거부한다", async () => {
+    const [{ moneyCodec }, { instantCodec }, { Temporal }] = await Promise.all([
+      import("../../../codecs/money"),
+      import("../../../codecs/temporal"),
+      import("@eatbid/domain"),
+    ]);
+
+    for (const invalid of [
+      null,
+      { amount: "1.0", currency: "KRW" },
+      { amount: "1.00", currency: "USD" },
+    ]) {
+      expect(() => z.encode(moneyCodec, invalid as never)).toThrow(z.ZodError);
+    }
+
+    const extendedYear = Temporal.Instant.from("+010000-01-01T00:00:00Z");
+    expect(instantCodec.out.safeParse(extendedYear).success).toBe(false);
+    expect(() => z.encode(instantCodec, extendedYear)).toThrow(z.ZodError);
+
+    const ordinary = Temporal.Instant.from("2026-08-30T00:00:00Z");
+    expect(instantCodec.out.safeParse(ordinary).success).toBe(true);
+    expect(z.encode(instantCodec, ordinary)).toBe("2026-08-30T00:00:00Z");
+  });
+
   test("V1 조회 operation은 중첩 응답 schema를 공개한다", async () => {
     const [{ auctionV1Operations }, { auctionV1ResponseSchema }] = await Promise.all([
       import("./operations"),

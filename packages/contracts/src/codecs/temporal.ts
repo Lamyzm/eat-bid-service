@@ -3,9 +3,13 @@ import { z } from "zod";
 
 import { instantTextSchema } from "../atoms/instant";
 
+const isEncodableInstant = (value: unknown): value is Temporal.Instant =>
+  value instanceof Temporal.Instant
+  && instantTextSchema.safeParse(formatInstantText(value)).success;
+
 export const instantCodec = z.codec(
   instantTextSchema,
-  z.custom<Temporal.Instant>((value) => value instanceof Temporal.Instant),
+  z.custom<Temporal.Instant>(isEncodableInstant),
   {
     decode: parseInstantText,
     encode: formatInstantText,

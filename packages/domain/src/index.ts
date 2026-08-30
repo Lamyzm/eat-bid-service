@@ -15,7 +15,7 @@ export {
   MAX_DECIMAL_SCALE,
   type CanonicalDecimal,
 } from "./numeric/canonical-decimal.js";
-export { krw, type Currency, type Money } from "./numeric/money.js";
+export { isMoney, krw, type Currency, type Money } from "./numeric/money.js";
 export {
   bidRate,
   floorRate,
