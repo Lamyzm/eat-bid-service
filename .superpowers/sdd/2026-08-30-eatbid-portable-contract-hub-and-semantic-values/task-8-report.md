@@ -2,7 +2,7 @@
 
 ## Status
 
-Complete through independent-review fix round 2/5. TypeScript compiler-symbol and Python AST gates now fail closed around the contract and
+Complete through independent-review fix round 3/5. TypeScript compiler-symbol and Python AST gates now fail closed around the contract and
 semantic-value topology established in Tasks 0–7. Exact legacy frontend/shared debt is frozen in a
 deletion-only fingerprint ledger, both contract generators remain check-only CI gates, and the final
 authority/adaptor/dataflow rules are documented.
@@ -353,3 +353,62 @@ legacy ledger, accepted ADRs, and application `AuctionRecord` were unchanged.
 - Hosted Windows CI remains unexecuted because this task does not push. The same architecture and quality
   commands passed on the local Windows host. Node `v24.2.0` versus pinned `24.20.0`, worktree Husky,
   Next lockfile/font, and dataplane cp949 messages remain the previously documented non-fatal warnings.
+
+## Fix round 3/5 — default targets and maybe-executed control flow
+
+Implementation commit: `cce3497 fix(architecture): model semantic checker control flow`.
+
+This narrow round changes only the two semantic checkers and their mutation fixtures. The report’s
+fail-closed status above was advanced from round 2 only after the new mutations passed. The exact 123-entry
+baseline, Windows job, CRLF check-mode behavior, generated artifacts, authority docs, and accepted ADRs are
+unchanged.
+
+### Round-3 RED evidence
+
+- The focused TypeScript test failed 0/1 because
+  `({ now: currentTime = safeNow } = Date); currentTime()` passed the old checker. The existing non-defaulted
+  destructuring assignment still failed correctly, isolating the missing default-target AST shape.
+- The Python semantic suite ran 19 tests with 16 passing and 3 intended failing groups. The old resolver:
+  treated `for`, `async for`, and `while` body rebindings as definite; inherited an enclosing branch’s
+  conditional depth into nested function, async-function, class, and lambda bodies, producing four false
+  positives; and treated lambda `IfExp` branch assignments as sequential definite assignments, missing the
+  possible datetime origin.
+
+### Round-3 implementation and controls
+
+- TypeScript assignment-target collection now unwraps a default-value `BinaryExpression` to its left target
+  while retaining the outer destructured source property. Existing direct, assignment, and non-defaulted
+  destructuring origin paths use the same collector and remain covered.
+- Python `for`/`async for` targets, bodies, and `else` paths plus `while` bodies/`else` paths are conservative
+  maybe-executed bindings. Zero iterations therefore cannot erase a preceding datetime origin.
+- Function, async-function, class, and lambda body scopes reset conditional depth after their decorators,
+  defaults, annotations, bases, and definitions have been evaluated in the parent scope. Unconditional local
+  rebindings can shadow normally, while `if`/`try`/loop branches inside the nested scope remain conditional.
+- `IfExp` alternatives are now conditional too, preserving branch origins in lambda expressions. Mutation
+  controls cover sync/async functions, classes, and lambdas, and the prior parameter shadowing, unconditional
+  safe rebind, Pydantic subclass, real/fake duration, Zod provenance, export, and baseline cases remain green.
+
+### Round-3 GREEN verification
+
+- Exact focused mutations: TypeScript 1/1 and Python semantic 19/19.
+- Full focused groups: semantic/stack Node 21/21; Python semantic, generation, and CI contract fixtures
+  31/31.
+- `pnpm architecture:check` passed every stack/semantic/Korean/generation gate with exactly 123 frozen
+  legacy fingerprints, 333 TypeScript and 279 Python Korean specifications.
+- Explicit `pnpm contracts:check` and `pnpm contracts:python:check` passed without tracked rewrites.
+- `pnpm test` passed: quality Node 33/33, quality Python 19/19, web/shared/DB 123, contracts 23,
+  domain 31, and server 91.
+- `pnpm build` passed 6/6 cached tasks; `pnpm db:check` reported `Everything's fine`.
+- `pnpm dataplane:test` passed 479 tests with the existing Windows cp949 reader warning;
+  `pnpm dataplane:lint` and `pnpm dataplane:typecheck` passed with 0 type errors/warnings.
+- Infra tests passed 127/127 and the exact CI Ruff target set passed. Focused Ruff, `node --check`,
+  `git diff --check`, and the staged diff check passed.
+
+### Round-3 self-review and concerns
+
+- Reviewed the complete four-file implementation commit (161 insertions, 14 deletions); every behavior
+  branch maps to a RED fixture and no runtime application, baseline, workflow, generated output, or ADR changed.
+- Confirmed outer conditionality still applies to whether a nested definition exists, while body-local binding
+  certainty begins at the new lexical scope. Defaults/decorators/bases remain evaluated in the parent scope.
+- Hosted Windows CI was not remotely run because this task does not push. The previously recorded Node version,
+  worktree Husky, Next lockfile/font, and dataplane cp949 warnings remain unchanged and non-fatal.
