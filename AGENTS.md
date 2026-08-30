@@ -57,6 +57,10 @@
     `apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts`의 `AuctionRow`와
     top-level `postgresInstant`만 허용한다. web/shared 기존 부채는 exact AST fingerprint ledger에서 삭제만
     허용한다.
+18. **300줄을 넘는 코드 파일은 책임 분리를 검토한다.** 새 기능을 더하기 전에 도메인 책임,
+    port/adapter, schema 계층, UI 역할, 테스트 fixture처럼 함께 변경되는 이유가 다른 경계를 우선
+    추출하라. 줄 수만 맞추는 기계적 분리는 금지한다. 하나의 응집된 알고리즘, 생성 코드, 선언형
+    schema·fixture처럼 분리가 더 해로우면 유지할 수 있지만 작업 보고서에 그 이유를 한 문장으로 남겨라.
 
 ## 변경 절차
 
