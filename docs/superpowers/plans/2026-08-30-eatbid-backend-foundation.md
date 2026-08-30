@@ -40,9 +40,16 @@ Before a task's focused evidence, install the actual dependency graph from the c
 assert that lockfile resolution is immutable:
 
 ```powershell
-pnpm install --frozen-lockfile --strict-peer-dependencies
-pnpm install --lockfile-only --frozen-lockfile --strict-peer-dependencies
+pnpm install --filter @eatbid/server... --frozen-lockfile --strict-peer-dependencies
+pnpm install --filter @eatbid/server... --lockfile-only --frozen-lockfile --strict-peer-dependencies
+pnpm install --frozen-lockfile
 ```
+
+The filtered commands cover the changed server and its complete workspace dependency closure. Root strict-peer
+installation is a known pre-existing frontend failure: `kbar@0.1.0` reaches `react-virtual@2.10.4`, whose React
+16/17 peer range conflicts with the locked React `19.2.4`. Do not hide it with a peer override or change frontend
+dependencies during Task 16. The normal frozen root install plus full root tests/builds remain mandatory, and Task 17
+must resolve the frontend dependency during joint planning.
 
 Only then run that task's focused commands. After they pass, rerun every earlier task's focused commands in reverse
 task order, then run this repository-wide matrix before review:
@@ -82,7 +89,7 @@ This is an intentional API reset on the feature worktree, not an in-place change
 ### Files
 
 - Create: `.node-version`
-- Create: `.npmrc`
+- Create: `apps/server/.npmrc`
 - Modify: `package.json`
 - Modify: `pnpm-lock.yaml`
 - Modify: `.github/workflows/build.yml`
@@ -137,9 +144,10 @@ broken.
 2. Pin exact compatible versions of Nest common/core/platform-express/testing `12.0.1`, Effect
    `4.0.0-rc.112`, and the verified exact releases of RxJS, reflect-metadata, TypeScript Node types, and every
    other dependency consumed by this gate. Later gates add their own dependencies when first used. Verify registry
-   peers during install and fail on peer override warnings. Commit `.npmrc` with
-   `strict-peer-dependencies=true`; every install/check command must also pass `--strict-peer-dependencies` so CI
-   cannot silently weaken the policy. Remove the server dependency on `@eatbid/shared`.
+   peers during install and fail on peer override warnings. Commit `apps/server/.npmrc` with
+   `strict-peer-dependencies=true`; every filtered backend install/check command must also pass
+   `--strict-peer-dependencies` so CI cannot silently weaken the policy. Do not add an exception for the known
+   frontend peer conflict. Remove the server dependency on `@eatbid/shared`.
 3. Keep TypeScript on exact `5.9.3` and build with `tsc -p tsconfig.build.json`. Do not install Nest CLI or
    schematics: their TypeScript `>=6` peer lane cannot coexist with this exact compiler without an override.
    TypeScript 7 and Nest CLI are a separate compiler/toolchain migration under ADR 0019.
@@ -163,7 +171,8 @@ broken.
 ### Gate evidence
 
 ```powershell
-pnpm install --frozen-lockfile --strict-peer-dependencies
+pnpm install --filter @eatbid/server... --frozen-lockfile --strict-peer-dependencies
+pnpm install --frozen-lockfile
 pnpm --filter @eatbid/server test
 pnpm --filter @eatbid/server architecture:check
 pnpm --filter @eatbid/server build

@@ -1857,6 +1857,10 @@ state/data-fetching, route, contract duplication, accessibility/performance code
 source-observed 대 inferred 표기를 먼저 기획하고 승인된 spec을 만든다. **사용자 승인 전에는 프론트
 코드, route, API response shape, 디자인 시스템을 변경하지 않는다.**
 
+감사 입력에는 현재 React `19.2.4`와 `kbar@0.1.0`이 끌고 온 `react-virtual@2.10.4`의 React 16/17 peer
+불일치를 포함한다. Task 16에서 override로 숨기거나 임의 교체하지 않고, 검색 UX/command palette의 실제
+제품 필요와 함께 유지·대체·제거를 사용자와 결정한다.
+
 ---
 
 ## Foundation Completion Gate

@@ -45,8 +45,10 @@ foundation에서 하지 않는 것:
 foundation에서 `5.9.3`에 고정하고, registry 최신 major인 TypeScript 7은 module resolution·decorator·
 Nest toolchain을 함께 검증하는 별도 compiler migration으로 보류한다. Nest 12 core가 ESM-only여도
 Node 24의 `require(esm)` 경로를 compiled bootstrap으로 검증하므로 application 전체의 ESM 전환을 이
-변경에 묶지 않는다. `.npmrc`와 CI install 모두 strict peer dependency 검사를 사용하며 CLI/schematics
-peer warning을 override하지 않는다. 개발 실행은 선행 `tsc` build 뒤 `tsc --watch`와
+변경에 묶지 않는다. `apps/server/.npmrc`와 CI의 filtered server dependency-closure install은 strict peer
+dependency 검사를 사용하며 CLI/schematics peer warning을 override하지 않는다. root strict install은 기존
+frontend의 React 19/`kbar`→`react-virtual` peer 불일치 때문에 Task 17 전까지 합격으로 표현하지 않는다.
+대신 normal frozen root install과 전체 test/build를 유지한다. 개발 실행은 선행 `tsc` build 뒤 `tsc --watch`와
 `node --watch dist/main.js`를 함께 실행해 CLI 없이도 재컴파일/재시작이 가능해야 한다.
 
 Nest 12 migration guide, Standard Schema/OpenAPI, logging과 request lifecycle의 근거는
