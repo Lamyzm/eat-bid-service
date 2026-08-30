@@ -4,24 +4,56 @@
 풀어쓴다. 목표는 `string`과 `number`를 없애는 것이 아니라, **업무 의미와 단위가 지워진 원시값이
 계층을 통과하지 못하게 하는 것**이다.
 
-## 1. 권위와 derivation 방향
+## 1. 하나의 진실 원천이 뜻하는 것
+
+여기서 SSOT는 모든 계층을 한 schema 파일로 생성한다는 뜻이 아니다. **같은 질문에 답하는
+권위가 둘이면 안 된다는 뜻**이다. 공개 JSON 모양은 Zod, 업무 값의 의미와 불변식은 domain,
+물리 DB 형식은 Drizzle, 원본 응답 형식은 Pydantic이 각각 하나의 권위를 가진다. 한 계층의 모델을
+다른 계층에 그대로 노출하지 않고 명명한 adapter에서 변환한다.
 
 ```mermaid
-flowchart LR
-    source[eaT source text] --> pydantic[Pydantic source contract]
-    pydantic --> pyvalue[Python datetime / Decimal / int]
-    pyvalue --> pg[(PostgreSQL timestamptz / numeric / bigint)]
-    pg --> drizzle[Drizzle row adapter]
-    drizzle --> domain[Domain semantic values]
-    domain --> codec[Zod codec adapter]
-    codec --> wire[Zod wire schema]
+flowchart TB
+    source[eaT 원본 XML/JSON] --> pydantic[Pydantic source contract]
+    pydantic --> normalize[normalize adapter]
+    normalize --> domain[packages/domain<br/>의미 값과 불변식]
+
+    ddl[packages/db<br/>Drizzle DDL] --> migration[커밋된 SQL migration]
+    migration --> pg[(PostgreSQL<br/>exact storage)]
+    pg <--> row[Drizzle row adapter]
+    row <--> domain
+
+    wire[packages/contracts<br/>Zod wire schema] <--> codec[Zod codec adapter]
+    codec <--> domain
     wire --> openapi[OpenAPI]
-    wire --> client[Web runtime parser / generated type]
+    wire --> client[Web runtime parser<br/>z.input / z.output]
+
+    fixture[canonical golden fixtures] -. 의미 일치 검증 .-> pydantic
+    fixture -. 의미 일치 검증 .-> ddl
+    fixture -. 의미 일치 검증 .-> wire
 ```
 
-화살표는 파생·변환 방향이다. OpenAPI나 Zod에서 DDL을 만들지 않고, Drizzle row를 HTTP DTO로
-사용하지 않으며, Pydantic을 TypeScript에서 생성하지 않는다. 동일성을 주장하는 대신 canonical
-fixture와 integration test로 각 변환이 같은 의미를 유지하는지 증명한다.
+| 질문 | 유일한 권위 | 여기서 파생되는 것 | 여기서 파생하지 않는 것 |
+|---|---|---|---|
+| eaT가 실제로 보낸 모양은 무엇인가? | Pydantic source contract | normalized input | HTTP DTO, DDL |
+| 금액·비율·시간의 업무 의미는 무엇인가? | `packages/domain` | 불변식과 명명된 변환 | JSON field 이름, DB column |
+| 어떤 JSON을 공개하고 받는가? | `packages/contracts` Zod schema | `z.input`/`z.output`, OpenAPI, web parser | DDL |
+| 어떻게 정확히 저장하는가? | `packages/db` Drizzle schema | SQL migration, row type | HTTP response |
+
+쌍방향 화살표는 생성 관계가 아니라 명시적 encode/decode 경계다. OpenAPI나 Zod에서 DDL을 만들지
+않고, Drizzle row를 HTTP DTO로 사용하지 않으며, Pydantic을 TypeScript에서 생성하지 않는다.
+각 권위 사이의 의미 보존은 canonical fixture와 integration test로 증명한다.
+
+### 계약을 바꿀 때 시작할 곳
+
+- 공개 JSON field·null 의미·범위를 바꾸면 Zod wire schema부터 바꾸고 OpenAPI와 소비자 계약을
+  갱신한다.
+- `BidRate`와 `FloorRate`를 섞을 수 없는 것처럼 업무 의미를 바꾸면 domain부터 바꾸고 codec과
+  integration test로 전파한다.
+- `numeric` precision, index, foreign key처럼 저장 제약을 바꾸면 Drizzle과 migration부터 바꾼다.
+- eaT XML field나 원본 해석 규칙을 바꾸면 Pydantic source contract와 normalize adapter부터 바꾼다.
+
+이 규칙 덕분에 한 변경이 어디서 시작되어야 하는지 결정할 수 있고, AI 세션이 편의상 controller,
+DB row, crawler model에 같은 interface를 복사하는 것을 막는다.
 
 ## 2. 목표 파일 구조
 
@@ -135,6 +167,23 @@ latitude/longitude는 finite number와 법정 범위를 검증한다. 좌표만�
 - Zod metadata의 description은 단위, scale, timezone/CRS, null 의미를 설명한다.
 - nullable은 unknown, not-applicable, not-yet-observed를 한 값으로 숨기지 않는다. 업무상 구분이
   필요하면 discriminated union을 사용한다.
+
+### 한 값이 API를 통과하는 실제 흐름
+
+공고 기초금액을 조회하는 경우를 예로 들면 다음 순서를 지킨다.
+
+1. Drizzle adapter가 PostgreSQL `numeric`을 부동소수점으로 바꾸지 않고 canonical decimal
+   string으로 읽는다.
+2. adapter가 `Money` factory에 amount와 `KRW`를 전달한다. 여기서 domain 불변식을 통과하지
+   못하면 use case로 값이 들어가지 않는다.
+3. use case는 `Money`를 다루며 DB row나 HTTP object의 shape를 알지 못한다.
+4. response codec이 `Money`를 `{ "amount": "123456789.00", "currency": "KRW" }`로 encode한다.
+5. controller는 Zod response schema로 최종 출력을 검증한다. OpenAPI와 web parser도 바로 이 wire
+   schema를 사용한다.
+
+입력은 이 순서의 역방향이다. `schema.parse`만 통과한 원시 object를 application에 넘기지 않고,
+codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반대로 DB row를 controller가 직접
+반환하거나 `as AuctionResponse`로 검증을 생략하는 것도 금지한다.
 
 ## 8. 정적 품질 gate와 예외
 
