@@ -80,14 +80,15 @@ describe("DDL package authority", () => {
     expect(shared.devDependencies?.["drizzle-kit"]).toBeUndefined();
   });
 
-  test("uses one cataloged postgres-js lane in both TypeScript runtimes", () => {
+  test("keeps postgres-js cataloged while the reset server has no database dependency", () => {
     const workspace = text("pnpm-workspace.yaml");
     const database = json("packages/db/package.json");
     const server = json("apps/server/package.json");
 
     expect(workspace).toContain("postgres: ^3.4.5");
     expect(database.dependencies?.postgres).toBe("catalog:");
-    expect(server.dependencies?.postgres).toBe("catalog:");
+    expect(server.dependencies?.postgres).toBeUndefined();
+    expect(server.dependencies?.["drizzle-orm"]).toBeUndefined();
   });
 
   test("discovers every workspace manifest and keeps direct Drizzle DDL in packages/db", () => {

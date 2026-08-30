@@ -1,15 +1,15 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
-import { ZodValidationPipe } from "nestjs-zod";
 import { AppModule } from "./app.module";
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix("api");
-  app.useGlobalPipes(new ZodValidationPipe());
-  app.enableCors();
-  const port = Number(process.env.PORT ?? 4400);
-  await app.listen(port, "0.0.0.0");
-  console.log(`eatbid server on :${port}`);
+export async function bootstrap(): Promise<void> {
+  await NestFactory.createApplicationContext(AppModule);
+  console.log("eatbid server application context ready");
 }
-bootstrap();
+
+if (require.main === module) {
+  void bootstrap().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

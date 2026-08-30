@@ -3,8 +3,8 @@
   "private": true,
   "packageManager": "pnpm@10.12.1",
   "engines": {
-    "node": ">=24",
-    "pnpm": ">=10"
+    "node": "24.20.0",
+    "pnpm": "10.12.1"
   },
   "scripts": {
     "dev": "turbo dev",
@@ -16,9 +16,9 @@
     "dataplane:test": "uv run --project apps/dataplane pytest apps/dataplane/tests",
     "dataplane:lint": "uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests",
     "dataplane:typecheck": "uv run --project apps/dataplane pyright apps/dataplane/src",
-    "test": "bun test apps/web/src packages/shared/src packages/db/src"
+    "test": "bun test apps/web/src packages/shared/src packages/db/src apps/server/src apps/server/tools --timeout 30000"
   },
   "devDependencies": {
-    "turbo": "^2.5.0"
+    "turbo": "2.10.12"
   }
 }

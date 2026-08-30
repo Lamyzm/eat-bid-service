@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "noEmitOnError": true,
+    "paths": {
+      "effect": ["./node_modules/effect/dist/index.d.ts"],
+      "effect/*": ["./node_modules/effect/dist/*.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+}

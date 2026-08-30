@@ -12,7 +12,7 @@ const directDependencySections = [
   "peerDependencies",
 ] as const;
 const directDependencyMinimums = {
-  "drizzle-orm": 3,
+  "drizzle-orm": 2,
   "drizzle-kit": 1,
 } as const;
 

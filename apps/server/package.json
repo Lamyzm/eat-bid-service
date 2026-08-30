@@ -3,26 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "nest build",
-    "dev": "nest start --watch",
-    "start": "node dist/main.js"
+    "build": "tsc -p tsconfig.build.json",
+    "predev": "tsc -p tsconfig.build.json",
+    "dev": "concurrently --kill-others-on-fail --names tsc,node \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch --enable-source-maps dist/main.js\"",
+    "dev:smoke": "bun test tools/dev-smoke.test.ts --timeout 30000",
+    "start": "node --enable-source-maps dist/main.js",
+    "test": "bun test src tools --timeout 30000",
+    "compatibility:node": "node dist/bootstrap/compatibility-probe.js",
+    "architecture:check": "tsc -p tsconfig.tools.json && bun tools/check-architecture.ts",
+    "inventory:legacy": "bun tools/inventory-legacy-routes.ts"
   },
   "dependencies": {
-    "@eatbid/shared": "workspace:*",
-    "@nestjs/common": "^11.0.0",
-    "@nestjs/core": "^11.0.0",
-    "@nestjs/platform-express": "^11.0.0",
-    "better-auth": "^1.7.2",
-    "drizzle-orm": "catalog:",
-    "nestjs-zod": "^5.0.0",
-    "postgres": "catalog:",
-    "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "zod": "^4.0.0"
+    "@nestjs/common": "12.0.1",
+    "@nestjs/core": "12.0.1",
+    "@nestjs/platform-express": "12.0.1",
+    "effect": "4.0.0-rc.112",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
   },
   "devDependencies": {
-    "@nestjs/cli": "^11.0.0",
-    "@types/node": "^26.4.0",
-    "typescript": "^5.7.0"
+    "@nestjs/testing": "12.0.1",
+    "@types/node": "24.13.3",
+    "concurrently": "10.0.5",
+    "typescript": "5.9.3"
   }
 }
