@@ -70,7 +70,7 @@ the removed symbol name, proving the old TypeScript-only API cannot be imported.
 
 ## Legacy baseline inventory and policy
 
-`tools/architecture/semantic-value-legacy-baseline.json` contains 122 existing violations, exclusively
+`tools/architecture/semantic-value-legacy-baseline.json` contains 123 existing violations, exclusively
 under `apps/web/src` and `packages/shared/src`:
 
 | Rule | Count |
@@ -78,7 +78,7 @@ under `apps/web/src` and `packages/shared/src`:
 | `ambient-date` | 92 |
 | `bigint-number-mode` | 7 |
 | `floating-canonical-ddl` | 9 |
-| `raw-timer-value` | 10 |
+| `raw-timer-value` | 11 |
 | `untyped-duration` | 4 |
 
 Every entry has exactly the ordered fields `path`, `rule`, `nodeKind`, normalized-node-text SHA-256
@@ -89,12 +89,16 @@ areas cannot acquire general exemptions.
 
 ## CI ordering and drift behavior
 
-The existing Windows workflow now performs:
+Correction after independent review: the existing publication workflow was Ubuntu-only, not Windows as the
+initial report claimed. The final workflow keeps the Ubuntu publication gate and adds an actual hosted Windows
+contract-portability gate. Both perform frozen installs before check mode:
 
 1. `pnpm install --frozen-lockfile`.
 2. `uv sync --frozen` in `apps/dataplane`.
 3. strict-peer immutable backend lockfile closure checks.
-4. `pnpm architecture:check` before TypeScript tests/build and dataplane tests/lint/typecheck.
+4. Ubuntu runs `pnpm architecture:check` before TypeScript tests/build and dataplane tests/lint/typecheck;
+   Windows runs the same architecture gate followed by `pnpm test:quality`.
+5. Image build waits for both the Ubuntu and Windows jobs.
 
 `architecture:check` runs stack documentation, TypeScript semantic symbols, Python semantic AST,
 Korean test-name quality, `contracts:check`, and `contracts:python:check`. Both generation checks compare
@@ -179,6 +183,94 @@ Fresh final runs:
 - Dataplane integration tests pass 478/478 but emit one Windows-only
   `PytestUnhandledThreadExceptionWarning`: a subprocess output reader attempts cp949 decoding and sees a
   UTF-8 byte. This did not fail the suite and is outside the semantic-gate change.
-- The brief requests independent review, but the task instruction explicitly prohibited subagents and
-  reviewers. No independent review was requested; the self-review and complete verification above are
-  the available evidence.
+- The initial task instruction prohibited this implementation agent from spawning reviewers. A later
+  parent-provided independent review found the issues recorded below; this agent applied the requested
+  fix round without spawning an additional reviewer.
+
+## Fix round 1/5 — independent-review findings
+
+Implementation commit: `1f2ccc5 fix(architecture): close semantic gate bypasses`.
+
+The independent review of `c9a348f` found origin, scope, registry-traversal, public-boundary, and
+cross-platform gaps. Each reported bypass received an adversarial mutation before the checker was
+changed. No accepted ADR was modified and no architecture was redesigned.
+
+### RED mutation evidence
+
+- TypeScript semantic mutation suite: 12 groups, 6 failed. The old gate missed `globalThis.Date`,
+  namespace `Temporal`, assignment-created aliases, `window.setTimeout`, nested declarations that
+  counterfeited exception names, missing registry/root declarations, reachable schema factories,
+  one-argument Drizzle bigint configuration, camel-case canonical DDL, counterfeit duration helpers,
+  and renamed hand-written public HTTP shapes. A local non-Zod class named `ZodString` also caused a
+  false positive.
+- Python semantic mutation suite: 12 groups, 5 failed. The old resolver mishandled binding order and
+  lexical shadowing, and missed `builtins.float`, nested semantic flow, `utcfromtimestamp`, fake
+  `total_seconds`, and Pydantic package re-exports. It also rejected valid parameter shadowing and
+  named `timedelta` values.
+- JSON Schema CRLF check: 1 failure because check mode compared line endings byte-for-byte.
+- Generated Python model CRLF check: 1 failure for the same reason.
+- CI contract test: failed because no `contract-portability` Windows job existed.
+- Relative Pydantic re-export through package `__init__.py`: failed to resolve.
+
+### GREEN implementation and behavior
+
+- TypeScript origins now include global and namespace access plus declarations and preceding assignment
+  aliases. Exact exceptions are tied to the intended top-level `systemClock`, `AuctionRow`, and
+  `postgresInstant` declarations; nested same-name symbols fail.
+- `portableContracts` is a mandatory, unique, top-level exported `const`. Reachable factory and method
+  bodies participate in the schema graph. Runtime-only Zod operations require verified `zod` import or
+  declaration provenance, so similarly named non-Zod APIs remain valid.
+- The Python resolver is lexical-scope and use-site aware, follows local and relative re-exports, and
+  verifies actual builtin/datetime/timedelta/Pydantic provenance.
+- The TS gate detects Drizzle `bigint({ mode: "number" })`, camel-case canonical DDL names, and only exact
+  `@eatbid/domain` duration helpers. Every exported declaration at public HTTP type boundaries must be
+  Zod-inferred, regardless of its suffix; internal application `AuctionRecord` remains outside that
+  boundary.
+- CRLF and LF are normalized only for generated-output comparison. Check mode remains read-only and
+  still rejects semantic drift.
+- `.github/workflows/build.yml` retains the Ubuntu publication job and adds a hosted
+  `windows-latest` portability job. Both install pnpm and Python dependencies frozen before drift gates,
+  and image publication waits for both jobs.
+
+The stricter TS analysis exposed one previously undetected, pre-existing `window.setTimeout` occurrence
+under the permitted legacy area. The exact multiplicity ledger therefore moves from 122 to 123 entries:
+92 ambient Date, 7 bigint number mode, 9 floating canonical DDL, 11 raw timers, and 4 untyped durations.
+This is the only baseline addition. Its exact path, node kind, normalized-text hash, reason, and removal
+gate are recorded; strict packages still have no general baseline.
+
+### Fix-round verification
+
+Fresh commands after the fixes:
+
+- `pnpm install --frozen-lockfile` — passed; lockfile unchanged.
+- `uv sync --project apps/dataplane --frozen` — passed.
+- Focused semantic/stack Node tests — 20 passed.
+- Focused Python semantic, generated-model, and CI contract tests — 24 passed.
+- `pnpm architecture:check` — passed: stack, TS, Python, Korean names, JSON Schema drift, and Python-model
+  drift; 123 frozen legacy entries, 332 TypeScript and 273 Python Korean specifications.
+- `pnpm contracts:check` and `pnpm contracts:python:check` — passed without rewriting tracked output.
+- `pnpm test` — passed: quality Node 32/32, quality Python 13/13, web/shared/DB 123, contracts 23,
+  domain 31, and server 91.
+- `pnpm build` — 6/6 tasks passed.
+- `pnpm db:check` — passed (`Everything's fine`).
+- `pnpm dataplane:test` — 479 passed, 1 existing warning.
+- `pnpm dataplane:lint` — passed.
+- `pnpm dataplane:typecheck` — 0 errors, 0 warnings.
+- `uv run --project apps/dataplane pytest infra/tests -q` — 127 passed.
+- The exact workflow Ruff target set passed, as did focused Ruff, `node --check`, and
+  `git diff --check`.
+
+### Fix-round self-review and warnings
+
+- Reviewed the staged implementation diff (20 files, 861 insertions, 138 deletions) and confirmed all
+  changes map to independent-review findings or their mutation fixtures.
+- Confirmed mandatory registry/root checks fail closed, Zod origin checks avoid the reproduced non-Zod
+  false positive, named exceptions use top-level symbol identity, and public-boundary enforcement does
+  not touch internal `AuctionRecord` or inferred Zod output.
+- Confirmed the Windows job uses the repository-pinned Node action and frozen installs. It has not run on
+  the hosted runner because this task does not push; the same commands passed on the local Windows host.
+- The local host still uses Node `v24.2.0` rather than pinned `24.20.0`; existing worktree prepare,
+  Next lockfile/font, and dataplane cp949 warnings remain non-fatal.
+- An auxiliary, broader-than-CI `ruff check infra` found three pre-existing findings in
+  `infra/bump-image.py` (`UP009`, two `FURB167`). That unrelated file was not changed; the exact CI Ruff
+  command passes.
