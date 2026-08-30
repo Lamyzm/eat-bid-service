@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("검증 범위를 정의한다 — canonical auction contract", () => {
-  test("허용 조건을 검증한다 — accepts only canonical positive decimal path IDs", async () => {
+describe("canonical auction 계약", () => {
+  test("canonical 양의 십진 path ID만 허용한다", async () => {
     const contract = await import("./auction").catch(() => undefined);
     expect(contract, "procurement contract must exist").toBeDefined();
     expect(contract!.auctionIdPathSchema.parse("9007199254740993")).toBe("9007199254740993");
@@ -14,7 +14,7 @@ describe("검증 범위를 정의한다 — canonical auction contract", () => {
     }
   });
 
-  test("동작을 검증한다 — bounds the public response and preserves bigint provenance without Number", async () => {
+  test("공개 응답을 제한하고 Number 변환 없이 bigint provenance를 보존한다", async () => {
     const contract = await import("./auction").catch(() => undefined);
     expect(contract, "procurement contract must exist").toBeDefined();
     const response = {
@@ -44,7 +44,7 @@ describe("검증 범위를 정의한다 — canonical auction contract", () => {
     expect(contract!.auctionOperations.find.pathExample).toBe("9007199254740993");
   });
 
-  test("허용 조건을 검증한다 — accepts each public string maximum and rejects every one-over value", async () => {
+  test("공개 문자열의 각 최댓값은 허용하고 상한 초과 값은 모두 거부한다", async () => {
     const contract = await import("./auction").catch(() => undefined);
     expect(contract, "procurement contract must exist").toBeDefined();
     const maximum = {

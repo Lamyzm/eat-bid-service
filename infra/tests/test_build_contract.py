@@ -50,7 +50,7 @@ def test_테스트_job_checkout은_고정_legacy_commit을_제공한다() -> Non
     assert checkout["with"] == {"fetch-depth": 0}
 
 
-def test_CI_runs_frozen_typescript_python_and_empty_database_gates_동작을_검증한다() -> None:
+def test_ci가_frozen_typescript_python_및_empty_database_gates을_실행한다() -> None:
     workflow = _workflow_text()
     root_package = yaml.safe_load((ROOT / "package.json").read_text(encoding="utf-8"))
 
@@ -76,7 +76,7 @@ def test_CI_runs_frozen_typescript_python_and_empty_database_gates_동작을_검
     assert root_package["scripts"]["db:check"] == "pnpm --filter @eatbid/db db:check"
 
 
-def test_CI_strictly_lints_exact_argo_and_helm_render_contracts_동작을_검증한다() -> None:
+def test_CI가_정확한_Argo와_Helm_render_계약을_엄격히_lint한다() -> None:
     steps = _steps("test")
     gate = next(step for step in steps if step.get("id") == "verify-argo-delivery")
     command = str(gate["run"])
@@ -99,7 +99,7 @@ def test_CI_strictly_lints_exact_argo_and_helm_render_contracts_동작을_검증
     assert "kubectl apply" not in command
 
 
-def test_context_preflight_fail_closes_before_any_publication_job_동작을_검증한다() -> None:
+def test_context_preflight_fail가_전에_모든_publication_job을_닫는다() -> None:
     test_job = _job("test")
     guard = str(test_job["if"])
     assert guard.strip().startswith("${{")
@@ -145,7 +145,7 @@ def test_context_preflight_fail_closes_before_any_publication_job_동작을_검�
     assert provenance_index < login_index < publish_index
 
 
-def test_CI_builds_all_artifacts_from_full_sha_and_promotes_digests_동작을_검증한다() -> None:
+def test_ci가_모든_artifacts_에서_full_sha_및_승격하며_digests을_빌드한다() -> None:
     workflow = _workflow_text()
     parsed = _workflow()
     includes = parsed["jobs"]["build"]["strategy"]["matrix"]["include"]
@@ -167,7 +167,7 @@ def test_CI_builds_all_artifacts_from_full_sha_and_promotes_digests_동작을_�
     assert "git rev-parse --short" not in workflow
 
 
-def test_build_scans_attests_signs_and_verifies_before_exporting_digest_동작을_검증한다() -> None:
+def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다() -> None:
     job = _job("build")
     assert job["needs"] == "test"
     assert job["permissions"] == {
@@ -280,7 +280,7 @@ def test_build_scans_attests_signs_and_verifies_before_exporting_digest_동작�
     assert "^sha256:[0-9a-f]{64}$" in record
 
 
-def test_promotion_validates_every_matrix_digest_including_migration_동작을_검증한다() -> None:
+def test_promotion이_migration을_포함한_모든_matrix_digest를_검증한다() -> None:
     job = _job("promote")
     assert job["needs"] == "build"
     steps = _steps("promote")
@@ -292,7 +292,7 @@ def test_promotion_validates_every_matrix_digest_including_migration_동작을_�
     assert "test -s digests/migration" not in command
 
 
-def test_product_manifest_has_exactly_the_four_consumed_product_images_동작을_검증한다() -> None:
+def test_product_manifest는_정확히_넷_consumed_product_images을_갖는다() -> None:
     manifest = yaml.safe_load(PRODUCT_KUSTOMIZATION.read_text(encoding="utf-8"))
     images = manifest["images"]
 
@@ -309,7 +309,7 @@ def test_product_manifest_has_exactly_the_four_consumed_product_images_동작을
         assert "newTag" not in image
 
 
-def test_product_render_uses_only_the_declared_digests_for_product_images_동작을_검증한다() -> None:
+def test_product_render가_오직_declared_digests_대상_product_images을_사용한다() -> None:
     result = subprocess.run(
         ["kubectl", "kustomize", str(PRODUCT_KUSTOMIZATION.parent)],
         capture_output=True,
@@ -349,7 +349,7 @@ def test_product_render_uses_only_the_declared_digests_for_product_images_동작
     )
 
 
-def test_all_four_dockerfiles_embed_full_sha_provenance_and_drop_root_동작을_검증한다() -> None:
+def test_Dockerfile_넷이_full_SHA_provenance를_포함하고_root를_제거한다() -> None:
     dockerfiles = [
         ROOT / "Dockerfile.web",
         ROOT / "Dockerfile.server",

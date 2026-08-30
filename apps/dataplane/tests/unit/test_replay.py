@@ -37,7 +37,7 @@ class NoDatabaseAccess:
     "observation_ids",
     [(), (1, 1), (True,), (False,), (0,), (-1,), ("1",)],
 )
-def test_replay_rejects_invalid_manifest_before_any_repository_write_동작을_검증한다(
+def test_replay가_유효하지_않은_manifest_전에_모든_repository_write을_거부한다(
     observation_ids: tuple[object, ...],
 ) -> None:
     repository = RecordingReplayRepository()
@@ -79,7 +79,7 @@ def test_replay_rejects_invalid_manifest_before_any_repository_write_동작을_�
         {"started_at": STARTED_AT.replace(tzinfo=None)},
     ],
 )
-def test_postgres_adapter_validates_runtime_shapes_before_db_access_동작을_검증한다(
+def test_postgres_adapter가_runtime_shapes_전에_db_access을_검증한다(
     changes: dict[str, object],
 ) -> None:
     repository = PsycopgReplayRunRepository(NoDatabaseAccess())  # type: ignore[arg-type]
@@ -110,7 +110,7 @@ def test_postgres_adapter_validates_runtime_shapes_before_db_access_동작을_�
         {"activated_at": STARTED_AT - timedelta(seconds=1)},
     ],
 )
-def test_replay_rejects_invalid_identity_and_chronology_before_db_동작을_검증한다(
+def test_replay가_유효하지_않은_identity_및_chronology_전에_db을_거부한다(
     changes: dict[str, object],
 ) -> None:
     repository = RecordingReplayRepository()
@@ -149,7 +149,7 @@ def test_replay_rejects_invalid_identity_and_chronology_before_db_동작을_검�
         unique=True,
     )
 )
-def test_replay_manifest_and_fingerprint_are_order_independent_동작을_검증한다(
+def test_replay_manifest_및_fingerprint는_order_독립적이다(
     observation_ids: list[int],
 ) -> None:
     forward = tuple(observation_ids)

@@ -33,8 +33,8 @@ function uniqueColumnSets(table: Parameters<typeof getTableConfig>[0]): string[]
   );
 }
 
-describe("검증 범위를 정의한다 — ingest lineage manifests", () => {
-  test("소유권을 검증한다 — owns parser outcomes at processing-run and observation grain", () => {
+describe("ingest lineage manifest 계약", () => {
+  test("parser 결과를 processing run과 observation grain에서 소유한다", () => {
     const config = getTableConfig(normalizationAttempt);
 
     expect(config.columns.map((column) => [column.name, column.notNull])).toEqual([
@@ -87,7 +87,7 @@ describe("검증 범위를 정의한다 — ingest lineage manifests", () => {
     ]);
   });
 
-  test("연결 결과를 검증한다 — links each final normalized attempt to reusable normalized records", () => {
+  test("각 최종 normalized attempt를 재사용 가능한 normalized record에 연결한다", () => {
     const columns = getTableConfig(normalizationAttemptRecord).columns;
 
     expect(columns.map((column) => [column.name, column.notNull])).toEqual([
@@ -112,7 +112,7 @@ describe("검증 범위를 정의한다 — ingest lineage manifests", () => {
     ]);
   });
 
-  test("고정 불변식을 검증한다 — freezes publication membership at publication and normalized-record grain", () => {
+  test("publication membership을 publication과 normalized record grain으로 고정한다", () => {
     const columns = getTableConfig(publicationRecord).columns;
 
     expect(columns.map((column) => [column.name, column.notNull])).toEqual([
@@ -138,7 +138,7 @@ describe("검증 범위를 정의한다 — ingest lineage manifests", () => {
     ]);
   });
 
-  test("재사용 조건을 검증한다 — reuses immutable observations through explicit replay-run membership", () => {
+  test("명시적인 replay run membership으로 불변 observation을 재사용한다", () => {
     const columns = getTableConfig(replayInput).columns;
 
     expect(columns.map((column) => [column.name, column.notNull])).toEqual([

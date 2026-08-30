@@ -4,7 +4,7 @@ from eatbid.cli import build_parser, exit_code_for_error, main
 from eatbid.pipeline.normalize import DataQuarantinedError
 
 
-def test_CLI_exposes_pipeline_commands_동작을_검증한다() -> None:
+def test_cli가_pipeline_commands을_노출한다() -> None:
     parser = build_parser()
     action = next(action for action in parser._actions if action.dest == "command")
 
@@ -18,7 +18,7 @@ def test_CLI_exposes_pipeline_commands_동작을_검증한다() -> None:
     }
 
 
-def test_unwired_command_returns_configuration_exit_code_동작을_검증한다() -> None:
+def test_unwired_command가_configuration_exit_code을_반환한다() -> None:
     assert main(
         [
             "discover",
@@ -32,7 +32,7 @@ def test_unwired_command_returns_configuration_exit_code_동작을_검증한다(
     ) == 64
 
 
-def test_replay_cli_requires_all_external_identities_and_stage_timestamps_동작을_검증한다() -> None:
+def test_replay_cli가_모든_external_identities_및_stage_timestamps을_요구한다() -> None:
     parser = build_parser()
     common = [
         "replay",
@@ -70,11 +70,11 @@ def test_replay_cli_requires_all_external_identities_and_stage_timestamps_동작
     assert parsed.observation_id == [7, 3]
 
 
-def test_data_quarantine_has_its_dedicated_typed_exit_code_동작을_검증한다() -> None:
+def test_data_quarantine는_its_dedicated_typed_exit_code을_갖는다() -> None:
     assert exit_code_for_error(DataQuarantinedError(7, "invalid source payload")) == 65
 
 
-def test_actual_eat_list_contract_error_maps_to_exit_76_동작을_검증한다() -> None:
+def test_actual_eat_list_contract_error가_to_exit_76을_매핑한다() -> None:
     from eatbid.errors import SourceContractError
     from eatbid.source.eat.normalize import parse_bid_list_page
 

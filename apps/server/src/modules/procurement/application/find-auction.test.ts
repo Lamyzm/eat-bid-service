@@ -22,8 +22,8 @@ const auction = {
   },
 } as const;
 
-describe("검증 범위를 정의한다 — FindAuction", () => {
-  test("반환 결과를 검증한다 — returns the bounded view with lossless bigint and time mapping", async () => {
+describe("FindAuction 조회 use case", () => {
+  test("bigint와 time을 무손실 매핑한 제한 view를 반환한다", async () => {
     const application = await import("./find-auction").catch(() => undefined);
     expect(application, "FindAuction use case must exist").toBeDefined();
     const useCase = new application!.FindAuction({ findById: async () => auction });
@@ -49,7 +49,7 @@ describe("검증 범위를 정의한다 — FindAuction", () => {
     });
   });
 
-  test("보존 조건을 검증한다 — keeps typed not-found distinct from a dependency failure", async () => {
+  test("typed not-found와 의존성 실패를 구분한다", async () => {
     const application = await import("./find-auction").catch(() => undefined);
     expect(application, "FindAuction use case must exist").toBeDefined();
     const runner = new EffectRunner();

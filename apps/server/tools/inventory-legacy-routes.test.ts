@@ -16,8 +16,8 @@ afterEach(() => {
   for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("검증 범위를 정의한다 — legacy route inventory", () => {
-  test("동작을 검증한다 — statically derives the pinned 13-controller and 34-route surface including @All", () => {
+describe("legacy route 목록 계약", () => {
+  test("@All을 포함한 고정 controller·route surface를 정적으로 산출한다", () => {
     const inventory = generateLegacyRouteInventory({ repoRoot, commit: legacyCommit });
 
     expect(inventory.sourceCommit).toBe(legacyCommit);
@@ -45,7 +45,7 @@ describe("검증 범위를 정의한다 — legacy route inventory", () => {
     for (const route of inventory.routes) expect(route.sourceLine).toBeGreaterThan(0);
   });
 
-  test("재생성 결과를 검증한다 — regenerates byte-identically to both a second run and the committed artifact", () => {
+  test("두 번째 실행과 commit artifact 모두에 byte-identical하게 재생성한다", () => {
     const root = mkdtempSync(join(tmpdir(), "eatbid-route-inventory-"));
     tempRoots.push(root);
     const first = join(root, "first.json");

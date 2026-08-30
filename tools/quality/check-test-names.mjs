@@ -24,6 +24,8 @@ const testBases = new Set(["describe", "test", "it"]);
 const supportedModifiers = new Set(["only", "skip", "todo", "each"]);
 const testModules = new Set(["bun:test", "node:test", "vitest", "@jest/globals"]);
 const hangulSyllable = /[가-힣]/;
+const genericKoreanTitle = /^(?:(?:테스트|동작|행위|계약|범위|상태|결과|조건|내용|기능|값)(?:을|를|은|는|이|가)?\s*)?(?:검증|확인|검사)(?:한다)?[.!]?$/;
+const javascriptExtensions = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]);
 
 function walk(directory, predicate, collected = []) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -40,7 +42,14 @@ function display(file) {
 }
 
 function scriptKind(file) {
-  return file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  switch (path.extname(file)) {
+    case ".tsx": return ts.ScriptKind.TSX;
+    case ".jsx": return ts.ScriptKind.JSX;
+    case ".js":
+    case ".mjs":
+    case ".cjs": return ts.ScriptKind.JS;
+    default: return ts.ScriptKind.TS;
+  }
 }
 
 function unwrap(expression) {
@@ -51,6 +60,7 @@ function unwrap(expression) {
     || ts.isTypeAssertionExpression(current)
     || ts.isNonNullExpression(current)
     || ts.isSatisfiesExpression?.(current)
+    || ts.isAwaitExpression(current)
   ) {
     current = current.expression;
   }
@@ -58,47 +68,90 @@ function unwrap(expression) {
 }
 
 function cloneTarget(target) {
-  return { base: target.base, modifiers: [...target.modifiers], boundEach: target.boundEach };
+  return target.kind === "namespace"
+    ? { kind: "namespace" }
+    : {
+      kind: "test",
+      base: target.base,
+      modifiers: [...target.modifiers],
+      boundEach: target.boundEach,
+    };
 }
 
-function resolveAliasExpression(expression, aliases, namespaces) {
+function memberName(expression) {
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  if (!ts.isElementAccessExpression(expression) || !expression.argumentExpression) return undefined;
+  const argument = unwrap(expression.argumentExpression);
+  return ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)
+    ? argument.text
+    : undefined;
+}
+
+function moduleNamespace(expression, checker) {
   const current = unwrap(expression);
+  if (!ts.isCallExpression(current) || current.arguments.length !== 1) return undefined;
+  const moduleName = unwrap(current.arguments[0]);
+  if (!ts.isStringLiteral(moduleName) || !testModules.has(moduleName.text)) return undefined;
+  if (current.expression.kind === ts.SyntaxKind.ImportKeyword) return { kind: "namespace" };
+  if (!ts.isIdentifier(current.expression) || current.expression.text !== "require") return undefined;
+  const requireSymbol = checker.getSymbolAtLocation(current.expression);
+  const locallyShadowed = requireSymbol?.declarations?.some(
+    (declaration) => declaration.getSourceFile() === current.getSourceFile(),
+  ) ?? false;
+  return locallyShadowed ? undefined : { kind: "namespace" };
+}
+
+function resolveAliasExpression(expression, aliases, checker) {
+  const current = unwrap(expression);
+  const importedNamespace = moduleNamespace(current, checker);
+  if (importedNamespace) return importedNamespace;
   if (ts.isIdentifier(current)) {
-    const target = aliases.get(current.text);
-    return target ? cloneTarget(target) : undefined;
+    const symbol = checker.getSymbolAtLocation(current);
+    const target = symbol ? aliases.get(symbol) : undefined;
+    if (target) return cloneTarget(target);
+    return symbol === undefined && testBases.has(current.text)
+      ? { kind: "test", base: current.text, modifiers: [], boundEach: false }
+      : undefined;
   }
-  if (ts.isPropertyAccessExpression(current)) {
-    if (ts.isIdentifier(current.expression) && namespaces.has(current.expression.text) && testBases.has(current.name.text)) {
-      return { base: current.name.text, modifiers: [], boundEach: false };
+  if (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+    const property = memberName(current);
+    if (!property) return undefined;
+    const receiver = resolveAliasExpression(current.expression, aliases, checker);
+    if (!receiver) return undefined;
+    if (receiver.kind === "namespace" && testBases.has(property)) {
+      return { kind: "test", base: property, modifiers: [], boundEach: false };
     }
-    const target = resolveAliasExpression(current.expression, aliases, namespaces);
-    if (!target || !supportedModifiers.has(current.name.text)) return undefined;
-    target.modifiers.push(current.name.text);
-    return target;
+    if (receiver.kind !== "test" || !supportedModifiers.has(property)) return undefined;
+    receiver.modifiers.push(property);
+    return receiver;
   }
   if (ts.isCallExpression(current)) {
-    const target = resolveAliasExpression(current.expression, aliases, namespaces);
-    if (!target || target.modifiers.at(-1) !== "each") return undefined;
+    const target = resolveAliasExpression(current.expression, aliases, checker);
+    if (!target || target.kind !== "test" || target.modifiers.at(-1) !== "each") return undefined;
     return { ...target, boundEach: true };
   }
   if (ts.isTaggedTemplateExpression(current)) {
-    const target = resolveAliasExpression(current.tag, aliases, namespaces);
-    if (!target || target.modifiers.at(-1) !== "each") return undefined;
+    const target = resolveAliasExpression(current.tag, aliases, checker);
+    if (!target || target.kind !== "test" || target.modifiers.at(-1) !== "each") return undefined;
     return { ...target, boundEach: true };
   }
   return undefined;
 }
 
-function containsKnownTestReference(node, aliases, namespaces) {
+function containsKnownTestReference(node, aliases, checker) {
   let found = false;
   const visit = (current) => {
     if (found) return;
-    if (ts.isPropertyAccessExpression(current)) {
+    if (moduleNamespace(current, checker)) {
+      found = true;
+      return;
+    }
+    if (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
       // `.test()`는 RegExp나 validator의 일반 메서드일 수 있으므로 receiver만 별칭 후보로 본다.
       visit(current.expression);
       return;
     }
-    if (ts.isIdentifier(current) && (aliases.has(current.text) || namespaces.has(current.text))) {
+    if (ts.isIdentifier(current) && resolveAliasExpression(current, aliases, checker)) {
       found = true;
       return;
     }
@@ -108,20 +161,47 @@ function containsKnownTestReference(node, aliases, namespaces) {
   return found;
 }
 
+function bindTarget(name, sourceTarget, aliases, checker) {
+  if (ts.isIdentifier(name)) {
+    const symbol = checker.getSymbolAtLocation(name);
+    if (!symbol) return;
+    if (sourceTarget) aliases.set(symbol, cloneTarget(sourceTarget));
+    else aliases.delete(symbol);
+    return;
+  }
+  if (!ts.isObjectBindingPattern(name)) return;
+  for (const element of name.elements) {
+    if (!ts.isIdentifier(element.name)) continue;
+    const property = element.propertyName && (ts.isIdentifier(element.propertyName) || ts.isStringLiteral(element.propertyName))
+      ? element.propertyName.text
+      : element.name.text;
+    let target;
+    if (sourceTarget?.kind === "namespace" && testBases.has(property)) {
+      target = { kind: "test", base: property, modifiers: [], boundEach: false };
+    } else if (sourceTarget?.kind === "test" && supportedModifiers.has(property)) {
+      target = cloneTarget(sourceTarget);
+      target.modifiers.push(property);
+    }
+    bindTarget(element.name, target, aliases, checker);
+  }
+}
+
+function isMeaningfulKoreanTitle(title) {
+  if (!hangulSyllable.test(title)) return false;
+  if (genericKoreanTitle.test(title.trim())) return false;
+  const separator = title.match(/\s[—–-]\s/);
+  if (!separator) return true;
+  const detail = title.slice((separator.index ?? 0) + separator[0].length);
+  return hangulSyllable.test(detail);
+}
+
 function lineOf(sourceFile, node) {
   return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 }
 
-function inspectTypeScript(file) {
-  const sourceFile = ts.createSourceFile(
-    file,
-    readFileSync(file, "utf8"),
-    ts.ScriptTarget.Latest,
-    true,
-    scriptKind(file),
-  );
-  const aliases = new Map([...testBases].map((base) => [base, { base, modifiers: [], boundEach: false }]));
-  const namespaces = new Set();
+function inspectTypeScript(sourceFile, checker) {
+  const file = sourceFile.fileName;
+  const aliases = new Map();
   const violations = [];
   let declarationCount = 0;
 
@@ -129,64 +209,56 @@ function inspectTypeScript(file) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     if (!testModules.has(statement.moduleSpecifier.text) || !statement.importClause) continue;
     const { name, namedBindings } = statement.importClause;
-    if (name) aliases.set(name.text, { base: "test", modifiers: [], boundEach: false });
-    if (namedBindings && ts.isNamespaceImport(namedBindings)) namespaces.add(namedBindings.name.text);
+    if (name) bindTarget(name, { kind: "test", base: "test", modifiers: [], boundEach: false }, aliases, checker);
+    if (namedBindings && ts.isNamespaceImport(namedBindings)) {
+      bindTarget(namedBindings.name, { kind: "namespace" }, aliases, checker);
+    }
     if (namedBindings && ts.isNamedImports(namedBindings)) {
       for (const specifier of namedBindings.elements) {
         const imported = specifier.propertyName?.text ?? specifier.name.text;
         if (testBases.has(imported)) {
-          aliases.set(specifier.name.text, { base: imported, modifiers: [], boundEach: false });
+          bindTarget(
+            specifier.name,
+            { kind: "test", base: imported, modifiers: [], boundEach: false },
+            aliases,
+            checker,
+          );
         }
       }
     }
   }
 
-  let changed = true;
-  while (changed) {
-    changed = false;
-    const collectAliases = (node) => {
-      if (ts.isVariableDeclaration(node) && node.initializer) {
-        const target = resolveAliasExpression(node.initializer, aliases, namespaces);
-        if (target && ts.isIdentifier(node.name) && !aliases.has(node.name.text)) {
-          aliases.set(node.name.text, target);
-          changed = true;
-        } else if (target && ts.isObjectBindingPattern(node.name)) {
-          for (const element of node.name.elements) {
-            const property = element.propertyName && ts.isIdentifier(element.propertyName)
-              ? element.propertyName.text
-              : ts.isIdentifier(element.name) ? element.name.text : undefined;
-            if (!property || !supportedModifiers.has(property) || !ts.isIdentifier(element.name)) continue;
-            if (!aliases.has(element.name.text)) {
-              aliases.set(element.name.text, {
-                base: target.base,
-                modifiers: [...target.modifiers, property],
-                boundEach: target.boundEach,
-              });
-              changed = true;
-            }
-          }
-        }
-      }
-      ts.forEachChild(node, collectAliases);
-    };
-    collectAliases(sourceFile);
-  }
-
   const visit = (node) => {
-    if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name)) {
-      const target = resolveAliasExpression(node.initializer, aliases, namespaces);
-      if (!target && containsKnownTestReference(node.initializer, aliases, namespaces)) {
+    if (ts.isVariableDeclaration(node)) {
+      const target = node.initializer
+        ? resolveAliasExpression(node.initializer, aliases, checker)
+        : undefined;
+      bindTarget(node.name, target, aliases, checker);
+      if (node.initializer && !target && containsKnownTestReference(node.initializer, aliases, checker)) {
         violations.push({
           file: display(file),
           line: lineOf(sourceFile, node),
-          message: `지원하지 않는 간접 테스트 별칭입니다: ${node.name.text}`,
+          message: `지원하지 않는 간접 테스트 별칭입니다: ${node.name.getText(sourceFile)}`,
+        });
+      }
+    }
+
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+      && (ts.isIdentifier(node.left) || ts.isObjectLiteralExpression(node.left))) {
+      const target = resolveAliasExpression(node.right, aliases, checker);
+      if (ts.isIdentifier(node.left)) bindTarget(node.left, target, aliases, checker);
+      if (!target && containsKnownTestReference(node.right, aliases, checker)) {
+        violations.push({
+          file: display(file),
+          line: lineOf(sourceFile, node),
+          message: `지원하지 않는 간접 테스트 별칭입니다: ${node.left.getText(sourceFile)}`,
         });
       }
     }
 
     if (ts.isCallExpression(node)) {
-      const target = resolveAliasExpression(node.expression, aliases, namespaces);
-      if (target && !(target.modifiers.at(-1) === "each" && !target.boundEach)) {
+      const target = resolveAliasExpression(node.expression, aliases, checker);
+      if (target?.kind === "test" && !(target.modifiers.at(-1) === "each" && !target.boundEach)) {
         declarationCount += 1;
         const title = node.arguments[0];
         if (!title || (!ts.isStringLiteral(title) && !ts.isNoSubstitutionTemplateLiteral(title))) {
@@ -200,6 +272,12 @@ function inspectTypeScript(file) {
             file: display(file),
             line: lineOf(sourceFile, title),
             message: `테스트 제목에 한글 음절이 없습니다: ${JSON.stringify(title.text)}`,
+          });
+        } else if (!isMeaningfulKoreanTitle(title.text)) {
+          violations.push({
+            file: display(file),
+            line: lineOf(sourceFile, title),
+            message: `구체적인 한국어 행위가 없는 일반 장식 제목입니다: ${JSON.stringify(title.text)}`,
           });
         }
       }
@@ -215,7 +293,10 @@ function runPythonChecker() {
     ? [process.env.PYTHON]
     : process.platform === "win32" ? ["python", "python3"] : ["python3", "python"];
   for (const executable of candidates) {
-    const result = spawnSync(executable, [pythonChecker, root], { encoding: "utf8" });
+    const result = spawnSync(executable, [pythonChecker, root], {
+      encoding: "utf8",
+      env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+    });
     if (result.error?.code === "ENOENT") continue;
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(result.stderr || `Python 검사기가 ${result.status}로 종료했습니다.`);
@@ -224,8 +305,27 @@ function runPythonChecker() {
   throw new Error("Python AST 검사기를 실행할 python/python3를 찾지 못했습니다.");
 }
 
-const typescriptFiles = walk(root, (name) => name.endsWith(".ts") || name.endsWith(".tsx"));
-const typescriptResults = typescriptFiles.map(inspectTypeScript);
+const typescriptFiles = walk(root, (name) => javascriptExtensions.has(path.extname(name)));
+const compilerOptions = {
+  allowJs: true,
+  checkJs: false,
+  module: ts.ModuleKind.Preserve,
+  noLib: true,
+  noResolve: true,
+  target: ts.ScriptTarget.Latest,
+  types: [],
+};
+const compilerHost = ts.createCompilerHost(compilerOptions);
+compilerHost.getSourceFile = (file, languageVersion) => {
+  try {
+    return ts.createSourceFile(file, readFileSync(file, "utf8"), languageVersion, true, scriptKind(file));
+  } catch {
+    return undefined;
+  }
+};
+const program = ts.createProgram(typescriptFiles, compilerOptions, compilerHost);
+const checker = program.getTypeChecker();
+const typescriptResults = typescriptFiles.map((file) => inspectTypeScript(program.getSourceFile(file), checker));
 const pythonResult = runPythonChecker();
 const violations = [
   ...typescriptResults.flatMap((result) => result.violations),

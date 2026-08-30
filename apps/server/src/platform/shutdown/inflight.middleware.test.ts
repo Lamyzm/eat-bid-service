@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { createInflightMiddleware } from "./inflight.middleware";
 import { InflightTracker } from "./inflight-tracker";
 
-describe("검증 범위를 정의한다 — in-flight middleware terminal events", () => {
+describe("inflight middleware 종료 event", () => {
   test.each(["finish", "close", "aborted"] as const)(
     "%s event가 요청을 종료해도 lease를 정확히 한 번 해제한다",
     (event) => {

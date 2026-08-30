@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("검증 범위를 정의한다 — operational logging", () => {
-  test("동작을 검증한다 — completion records contain only the route template and non-sensitive allowlist", async () => {
+describe("운영 logging", () => {
+  test("완료 record에는 route template과 비민감 allowlist만 남긴다", async () => {
     const module = await import("./logging.module").catch(() => undefined);
     expect(module, "logging boundary must exist").toBeDefined();
     const logger = new module!.RedactingJsonLogger({ buildSha: "a".repeat(40), write: () => undefined });
@@ -21,7 +21,7 @@ describe("검증 범위를 정의한다 — operational logging", () => {
     expect(JSON.stringify(logger.records)).not.toContain("?token=");
   });
 
-  test("동작을 검증한다 — sensitive error fixtures never enter serialized logs", async () => {
+  test("민감 error fixture를 직렬화 log에 넣지 않는다", async () => {
     const { RedactingJsonLogger, writeSafeFailure } = await import("./logging.module");
     const lines: string[] = [];
     const logger = new RedactingJsonLogger({ buildSha: "b".repeat(40), write: (line) => lines.push(line) });
@@ -69,7 +69,7 @@ describe("검증 범위를 정의한다 — operational logging", () => {
     for (const line of lines) expect(() => JSON.parse(line)).not.toThrow();
   });
 
-  test("동작을 검증한다 — hostile error accessors cannot break safe fallback logging", async () => {
+  test("악의적 error accessor도 안전한 fallback logging을 깨뜨리지 못한다", async () => {
     const { writeSafeFailure } = await import("./logging.module");
     const hostile = new Error("raw-secret");
     Object.defineProperties(hostile, {

@@ -6,17 +6,17 @@ import {
   migrationNameTimestamp,
 } from "./version";
 
-describe("검증 범위를 정의한다 — schema version", () => {
-  test("상태를 검증한다 — is pinned to the committed foundation migration", () => {
+describe("schema version 검증", () => {
+  test("commit된 foundation migration으로 고정한다", () => {
     expect(expectedMigration).toBe("20260830021619_app_workspace_foundation");
   });
 
-  test("사용 계약을 검증한다 — uses the UTC millisecond timestamp encoded in the migration name", () => {
+  test("migration 이름에 인코딩된 UTC millisecond timestamp를 사용한다", () => {
     expect(expectedMigrationTimestamp).toBe(Date.UTC(2026, 7, 30, 2, 16, 19));
     expect(migrationNameTimestamp(expectedMigration)).toBe(expectedMigrationTimestamp);
   });
 
-  test("거부 조건을 검증한다 — rejects migration names without a 14-digit UTC prefix", () => {
+  test("14자리 UTC prefix가 없는 migration 이름을 거부한다", () => {
     expect(() => migrationNameTimestamp("core_validity_constraints")).toThrow(
       "migration name is invalid",
     );

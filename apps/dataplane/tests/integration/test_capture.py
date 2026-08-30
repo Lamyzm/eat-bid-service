@@ -75,7 +75,7 @@ def set_run_nonrunning(
     services.connection.commit()
 
 
-def test_동일한_body_is_one_blob_and_two_append_only_observations(
+def test_동일한_body는_하나_blob_및_둘_append_오직_observations이다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -149,7 +149,7 @@ def test_동일한_body_is_one_blob_and_two_append_only_observations(
     assert run_row == (2, "running", None)
 
 
-def test_R2_provider_timestamp_is_stable_across_duplicate_observations_동작을_검증한다(
+def test_r2_provider_timestamp는_안정적_across_중복_observations이다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -194,7 +194,7 @@ def test_R2_provider_timestamp_is_stable_across_duplicate_observations_동작을
     assert len(s3.head_requests) == 3
 
 
-def test_계획_same_logical_params_is_idempotent(
+def test_planning_동일한_logical_params는_멱등이다이다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -234,7 +234,7 @@ def test_계획_same_logical_params_is_idempotent(
         )
 
 
-def test_유효하지_않은_request_identity_is_rejected_before_a_plan_is_written(
+def test_유효하지_않은_request_identity는_plan_기록_전에_거부된다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -265,7 +265,7 @@ def test_유효하지_않은_request_identity_is_rejected_before_a_plan_is_writt
 
 
 @pytest.mark.parametrize("inactive_status", ["planned", "failed", "validated", "published"])
-def test_계획_rejects_non_running_run_without_changing_existing_plans(
+def test_planning가_non_실행_중인_run_없이_changing_기존_plans을_거부한다(
     pipeline_services: PipelineServices,
     inactive_status: str,
 ) -> None:
@@ -307,7 +307,7 @@ def test_계획_rejects_non_running_run_without_changing_existing_plans(
 
 
 @pytest.mark.parametrize("terminal_status", ["planned", "failed", "validated", "published"])
-def test_기록_rejects_non_running_run_without_changing_ledger_rows(
+def test_recording가_non_실행_중인_run_없이_changing_ledger_rows을_거부한다(
     pipeline_services: PipelineServices,
     terminal_status: str,
 ) -> None:
@@ -352,7 +352,7 @@ def test_기록_rejects_non_running_run_without_changing_ledger_rows(
         assert cursor.fetchone() == (0,)
 
 
-def test_기록_rejects_failed_request_while_run_remains_active(
+def test_recording가_실패한_request_while_run_remains_active을_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -391,7 +391,7 @@ def test_기록_rejects_failed_request_while_run_remains_active(
         assert cursor.fetchone() == (0, "failed")
 
 
-def test_실패한_request_and_run_are_terminal_for_recapture(
+def test_실패한_request_및_run는_terminal_대상_recapture이다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -450,7 +450,7 @@ def test_실패한_request_and_run_are_terminal_for_recapture(
         ]
 
 
-def test_실패_run_is_idempotent_without_overwriting_the_first_failure(
+def test_fail_run는_멱등이다_없이_overwriting_first_failure이다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -506,7 +506,7 @@ class ConflictingMetadataStore:
         return self._delegate.read(object_key)
 
 
-def test_blob_metadata_conflict_rolls_back_observation_and_counts_동작을_검증한다(
+def test_blob_metadata_conflict가_observation_및_counts을_rollback한다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services
@@ -542,7 +542,7 @@ def test_blob_metadata_conflict_rolls_back_observation_and_counts_동작을_검�
         assert cursor.fetchone() == (1,)
 
 
-def test_원본_error_body_and_failed_status_commit_atomically(
+def test_source_error_body와_실패_status를_원자적으로_commit한다(
     pipeline_services: PipelineServices,
 ) -> None:
     services = pipeline_services

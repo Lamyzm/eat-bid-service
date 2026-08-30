@@ -223,7 +223,7 @@ def validated_publication(
     return publication_id
 
 
-def test_반복_normalization_is_one_byte_equivalent_record(
+def test_repeat_normalization는_하나_byte_equivalent_record이다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     first = normalize_one(pipeline_services, observation_id)
@@ -270,7 +270,7 @@ def test_반복_normalization_is_one_byte_equivalent_record(
     ).encode() == first.canonical_payload
 
 
-def test_raw_observation_has_only_immutable_http_evidence_columns_동작을_검증한다(
+def test_raw_observation는_오직_immutable_http_evidence_columns을_갖는다(
     pipeline_services: PipelineServices,
 ) -> None:
     with pipeline_services.connection.cursor() as cursor:
@@ -294,7 +294,7 @@ def test_raw_observation_has_only_immutable_http_evidence_columns_동작을_검�
     )
 
 
-def test_attempt_schema_fingerprint_requires_lowercase_sha256_동작을_검증한다(
+def test_attempt_schema_fingerprint가_lowercase_sha256을_요구한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     run_id = capture_run_id(pipeline_services, observation_id)
@@ -315,7 +315,7 @@ def test_attempt_schema_fingerprint_requires_lowercase_sha256_동작을_검증�
         )
 
 
-def test_충돌하는_existing_payload_is_reported_as_nondeterminism(
+def test_conflicting_기존_payload는_로_보고되는_nondeterminism이다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalize_one(pipeline_services, observation_id)
@@ -341,7 +341,7 @@ def test_충돌하는_existing_payload_is_reported_as_nondeterminism(
         b'<!DOCTYPE Root [<!ENTITY x "expanded">]><Root>&x;</Root>',
     ],
 )
-def test_알려진_source_parse_failure_quarantines_without_losing_raw(
+def test_known_source_parse_failure가_raw를_잃지_않고_quarantine한다(
     pipeline_services: PipelineServices, malformed: bytes
 ) -> None:
     run_id = start_run(pipeline_services)
@@ -379,7 +379,7 @@ def test_알려진_source_parse_failure_quarantines_without_losing_raw(
     assert pipeline_services.store.read(object_key) == malformed
 
 
-def test_격리된_attempt_retries_idempotently_without_members(
+def test_quarantined_attempt가_idempotently_없이_members을_재시도한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services)
@@ -420,7 +420,7 @@ def test_격리된_attempt_retries_idempotently_without_members(
         assert cursor.fetchone() == (0,)
 
 
-def test_최종_quarantined_attempt_cannot_regress_to_normalized(
+def test_final_quarantined_attempt는_regress_to_normalized을_할_수_없다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services)
@@ -469,7 +469,7 @@ def test_최종_quarantined_attempt_cannot_regress_to_normalized(
         assert cursor.fetchone() == (0,)
 
 
-def test_동일한_raw_has_independent_replay_attempts_without_mutating_evidence(
+def test_동일한_raw는_독립적_replay_attempts_없이_mutating_evidence을_갖는다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     capture_result = normalize_one(pipeline_services, observation_id)
@@ -536,7 +536,7 @@ def test_동일한_raw_has_independent_replay_attempts_without_mutating_evidence
     }
 
 
-def test_처리_run_membership_and_parser_version_are_authoritative(
+def test_processing_run_membership_및_parser_version는_권위_있다이다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     unrelated_capture_run = start_run(pipeline_services)
@@ -582,7 +582,7 @@ def test_처리_run_membership_and_parser_version_are_authoritative(
         assert cursor.fetchone() == (0,)
 
 
-def test_normalization_candidate_requires_a_running_processing_run_동작을_검증한다(
+def test_normalization_candidate가_실행_중인_processing_run을_요구한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     run_id = capture_run_id(pipeline_services, observation_id)
@@ -604,7 +604,7 @@ def test_normalization_candidate_requires_a_running_processing_run_동작을_검
         )
 
 
-def test_최종_normalized_attempt_cannot_regress_to_quarantined(
+def test_final_normalized_attempt는_regress_to_quarantined을_할_수_없다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -636,7 +636,7 @@ def test_최종_normalized_attempt_cannot_regress_to_quarantined(
         assert cursor.fetchone() == ("normalized", None, 1)
 
 
-def test_R2_read_failure_is_not_misclassified_as_source_quarantine_동작을_검증한다(
+def test_r2_read_failure는_로_잘못_분류되지_않는다_source_quarantine이다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     class FailingReadStore:
@@ -664,7 +664,7 @@ def test_R2_read_failure_is_not_misclassified_as_source_quarantine_동작을_검
         assert cursor.fetchone() == (0,)
 
 
-def test_database_write_failure_is_not_misclassified_as_source_quarantine_동작을_검증한다(
+def test_database_write_failure는_로_잘못_분류되지_않는다_source_quarantine이다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     class FailingWriteRepository:
@@ -747,7 +747,7 @@ def assert_failed_without_core_writes(
         assert cursor.fetchone() == (0,)
 
 
-def test_요청_count_mismatch_fails_monotonically_and_preserves_existing_core_rows(
+def test_request_count_mismatch_fails_monotonically_및가_기존_core_rows을_보존한다(
     pipeline_services: PipelineServices,
 ) -> None:
     with pipeline_services.connection.cursor() as cursor:
@@ -790,7 +790,7 @@ def test_요청_count_mismatch_fails_monotonically_and_preserves_existing_core_r
         assert cursor.fetchone() == (1,)
 
 
-def test_실패한_request_status_blocks_even_when_counts_match(
+def test_실패한_request_status가_인_경우에도_counts_match을_차단한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -815,7 +815,7 @@ def test_실패한_request_status_blocks_even_when_counts_match(
     )
 
 
-def test_실행_expected_count_must_match_locked_observation_count(
+def test_run_expected_count가_잠긴_observation_count와_일치해야_한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services, expected_count=2)
@@ -839,7 +839,7 @@ def test_실행_expected_count_must_match_locked_observation_count(
     assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
 
 
-def test_누락된_normalization_attempt_blocks_publication(
+def test_누락된_normalization_attempt가_publication을_차단한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     with pipeline_services.connection.cursor() as cursor:
@@ -861,7 +861,7 @@ def test_누락된_normalization_attempt_blocks_publication(
     assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
 
 
-def test_parser_version_mismatch_blocks_publication_동작을_검증한다(
+def test_parser_version_mismatch가_publication을_차단한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -889,7 +889,7 @@ def test_parser_version_mismatch_blocks_publication_동작을_검증한다(
     )
 
 
-def test_격리_blocks_publication(pipeline_services: PipelineServices) -> None:
+def test_quarantine가_publication을_차단한다(pipeline_services: PipelineServices) -> None:
     run_id = start_run(pipeline_services)
     observation_id = capture_detail(
         pipeline_services,
@@ -917,7 +917,7 @@ def test_격리_blocks_publication(pipeline_services: PipelineServices) -> None:
     )
 
 
-def test_duplicate_source_entity_blocks_publication_동작을_검증한다(
+def test_중복_source_entity가_publication을_차단한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services, expected_count=2)
@@ -949,7 +949,7 @@ def test_duplicate_source_entity_blocks_publication_동작을_검증한다(
     assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
 
 
-def test_누락된_required_scheme_blocks_publication(
+def test_누락된_필수_scheme가_publication을_차단한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -973,7 +973,7 @@ def test_누락된_required_scheme_blocks_publication(
         )
 
 
-def test_검토되지_않은_source_column_preserves_attempt_but_blocks_publication(
+def test_unreviewed_source_column가_attempt_but_blocks_publication을_보존한다(
     pipeline_services: PipelineServices,
 ) -> None:
     body = FIXTURE.read_bytes().replace(
@@ -1025,7 +1025,7 @@ def test_검토되지_않은_source_column_preserves_attempt_but_blocks_publicat
         ("bid-detail", "eat-v2"),
     ],
 )
-def test_알_수_없는_source_contract_identity_blocks_publication(
+def test_알_수_없는_source_contract_identity가_publication을_차단한다(
     pipeline_services: PipelineServices,
     endpoint: str,
     parser_version: str,
@@ -1070,7 +1070,7 @@ def test_알_수_없는_source_contract_identity_blocks_publication(
         assert cursor.fetchone() == ("normalized", normalized.schema_fingerprint)
 
 
-def test_완전한_run_freezes_exact_members_and_revalidation_is_idempotent(
+def test_complete_run이_정확한_member를_고정하고_revalidation은_멱등이다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -1135,7 +1135,7 @@ def test_완전한_run_freezes_exact_members_and_revalidation_is_idempotent(
         assert cursor.fetchone() == (0,)
 
 
-def test_종료_상태_revalidation_rejects_same_cardinality_member_substitution(
+def test_terminal_revalidation가_동일한_cardinality_member_substitution을_거부한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -1180,7 +1180,7 @@ def test_종료_상태_revalidation_rejects_same_cardinality_member_substitution
         )
 
 
-def test_종료_상태_revalidation_rejects_publication_status_drift(
+def test_terminal_revalidation가_publication_status_drift을_거부한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -1211,7 +1211,7 @@ def test_종료_상태_revalidation_rejects_publication_status_drift(
         )
 
 
-def test_종료_상태_revalidation_rejects_quarantined_current_attempt(
+def test_terminal_revalidation가_quarantined_현재_attempt을_거부한다(
     pipeline_services: PipelineServices, validated_publication: UUID
 ) -> None:
     run_id = publication_run_id(pipeline_services, validated_publication)
@@ -1236,7 +1236,7 @@ def test_종료_상태_revalidation_rejects_quarantined_current_attempt(
         )
 
 
-def test_종료_상태_revalidation_rejects_extra_parser_attempt(
+def test_terminal_revalidation가_extra_parser_attempt을_거부한다(
     pipeline_services: PipelineServices, validated_publication: UUID
 ) -> None:
     run_id = publication_run_id(pipeline_services, validated_publication)
@@ -1266,7 +1266,7 @@ def test_종료_상태_revalidation_rejects_extra_parser_attempt(
         )
 
 
-def test_종료_상태_revalidation_rejects_failed_request(
+def test_terminal_revalidation가_실패한_request을_거부한다(
     pipeline_services: PipelineServices, validated_publication: UUID
 ) -> None:
     run_id = publication_run_id(pipeline_services, validated_publication)
@@ -1287,7 +1287,7 @@ def test_종료_상태_revalidation_rejects_failed_request(
         )
 
 
-def test_종료_상태_revalidation_rejects_candidate_count_drift(
+def test_terminal_revalidation가_candidate_count_drift을_거부한다(
     pipeline_services: PipelineServices, validated_publication: UUID
 ) -> None:
     run_id = publication_run_id(pipeline_services, validated_publication)
@@ -1317,7 +1317,7 @@ def test_종료_상태_revalidation_rejects_candidate_count_drift(
         )
 
 
-def test_종료_상태_revalidation_rejects_request_count_drift(
+def test_terminal_revalidation가_request_count_drift을_거부한다(
     pipeline_services: PipelineServices, validated_publication: UUID
 ) -> None:
     run_id = publication_run_id(pipeline_services, validated_publication)
@@ -1343,7 +1343,7 @@ def test_종료_상태_revalidation_rejects_request_count_drift(
 
 
 @pytest.mark.parametrize("terminal", [False, True], ids=["running", "terminal"])
-def test_발행_rejects_swapped_candidate_member_edges(
+def test_publication가_swapped_candidate_member_edges을_거부한다(
     pipeline_services: PipelineServices, terminal: bool
 ) -> None:
     records = normalized_pair(pipeline_services)
@@ -1379,7 +1379,7 @@ def test_발행_rejects_swapped_candidate_member_edges(
 
 
 @pytest.mark.parametrize("terminal", [False, True], ids=["running", "terminal"])
-def test_발행_rejects_two_zero_output_redistribution(
+def test_publication가_둘_zero_output_redistribution을_거부한다(
     pipeline_services: PipelineServices, terminal: bool
 ) -> None:
     records = normalized_pair(pipeline_services)
@@ -1414,7 +1414,7 @@ def test_발행_rejects_two_zero_output_redistribution(
         assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
 
 
-def test_replay_mode_uses_explicit_input_without_mutating_capture_provenance_동작을_검증한다(
+def test_replay_mode가_명시적_input_없이_mutating_capture_provenance을_사용한다(
     pipeline_services: PipelineServices, observation_id: int
 ) -> None:
     normalized = normalize_one(pipeline_services, observation_id)
@@ -1478,7 +1478,7 @@ def test_replay_mode_uses_explicit_input_without_mutating_capture_provenance_동
         assert cursor.fetchall() == [(normalized.normalized_record_id, 2)]
 
 
-def test_lineage_manifest_foreign_keys_reject_unknown_members_동작을_검증한다(
+def test_lineage_manifest_foreign_keys가_알_수_없는_members을_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     with (
@@ -1500,7 +1500,7 @@ def test_lineage_manifest_foreign_keys_reject_unknown_members_동작을_검증�
         "insert into ingest.replay_input values (null, null)",
     ],
 )
-def test_lineage_manifest_primary_keys_enforce_non_null_members_동작을_검증한다(
+def test_lineage_manifest_primary_key가_non_null_member를_강제한다(
     pipeline_services: PipelineServices, statement: str
 ) -> None:
     with (

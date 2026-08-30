@@ -6,8 +6,8 @@ import {
   installedPackageVersions,
 } from "./compatibility-probe";
 
-describe("검증 범위를 정의한다 — compiled Nest 12 compatibility probe", () => {
-  test("허용 조건을 검증한다 — accepts only the exact pinned Node runtime", () => {
+describe("compile된 framework 호환성 probe", () => {
+  test("정확히 고정한 Node runtime만 허용한다", () => {
     expect(expectedNodeVersion).toBe("v24.20.0");
     expect(assertExactNodeVersion("v24.20.0")).toBe("v24.20.0");
     expect(() => assertExactNodeVersion("v24.2.0")).toThrow(
@@ -15,11 +15,11 @@ describe("검증 범위를 정의한다 — compiled Nest 12 compatibility probe
     );
   });
 
-  test("생성 결과를 검증한다 — creates and closes the real Nest application context", async () => {
+  test("실제 Nest application context를 생성하고 닫는다", async () => {
     await expect(createAndCloseApplicationContext()).resolves.toEqual({ closed: true });
   });
 
-  test("읽기 결과를 검증한다 — reads exact installed runtime versions without package export shortcuts", () => {
+  test("package export shortcut 없이 설치된 runtime version을 정확히 읽는다", () => {
     expect(installedPackageVersions()).toEqual({
       nestVersion: "12.0.1",
       effectVersion: "4.0.0-rc.112",

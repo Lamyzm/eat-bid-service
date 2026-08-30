@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { auctionOperations, healthOperations } from "@eatbid/contracts";
 
-describe("검증 범위를 정의한다 — canonical OpenAPI artifact", () => {
-  test("상태를 검증한다 — is deterministic OpenAPI 3.0.3 with unique stable operations and complete routes", async () => {
+describe("canonical OpenAPI 산출물", () => {
+  test("고유하고 안정적인 operation과 전체 route를 가진 결정적 OpenAPI 3.0.3을 만든다", async () => {
     const module = await import("./openapi").catch(() => undefined);
     expect(module, "OpenAPI boundary must exist").toBeDefined();
     const first = module!.serializeOpenApi(module!.createOpenApiDocument());

@@ -50,8 +50,8 @@ async function withServer(
   }
 }
 
-describe("검증 범위를 정의한다 — canonical procurement HTTP slice", () => {
-  test("동작을 검증한다 — round-trips a bigint beyond MAX_SAFE_INTEGER through path, application, and bounded JSON", async () => {
+describe("canonical procurement HTTP 경로", () => {
+  test("MAX_SAFE_INTEGER를 넘는 bigint를 path·application·제한 JSON에서 왕복 보존한다", async () => {
     const observed: bigint[] = [];
     await withServer({
       findById: async (id) => {
@@ -86,7 +86,7 @@ describe("검증 범위를 정의한다 — canonical procurement HTTP slice", (
     });
   });
 
-  test("동작을 검증한다 — round-trips PostgreSQL bigint max and rejects one-over before the repository", async () => {
+  test("PostgreSQL bigint 최댓값을 왕복 보존하고 상한 초과 값은 repository 전에 거부한다", async () => {
     const observed: bigint[] = [];
     await withServer({
       findById: async (id) => {
@@ -104,7 +104,7 @@ describe("검증 범위를 정의한다 — canonical procurement HTTP slice", (
     });
   });
 
-  test("거부 조건을 검증한다 — rejects every non-canonical ID before the repository and never accepts a business key", async () => {
+  test("모든 non-canonical ID를 repository 전에 거부하고 business key는 수용하지 않는다", async () => {
     let calls = 0;
     await withServer({ findById: async () => { calls += 1; return publicAuction; } }, async (server) => {
       for (const invalid of ["0", "+1", "-1", "%201", "1%20", "01", "1.0", "1e3", "external-opaque-id"]) {
@@ -116,7 +116,7 @@ describe("검증 범위를 정의한다 — canonical procurement HTTP slice", (
     });
   });
 
-  test("매핑 결과를 검증한다 — maps typed not-found separately from dependency unavailability", async () => {
+  test("typed not-found와 dependency unavailable을 서로 다르게 매핑한다", async () => {
     await withServer({ findById: async () => null }, async (server) => {
       const response = await request(server).get("/api/v1/auctions/41");
       expect(response.status).toBe(404);
@@ -130,7 +130,7 @@ describe("검증 범위를 정의한다 — canonical procurement HTTP slice", (
     });
   });
 
-  test("실패 경계를 검증한다 — fails closed when a repository value exceeds the bounded public contract", async () => {
+  test("repository 값이 공개 계약 상한을 넘으면 fail-closed한다", async () => {
     await withServer({
       findById: async () => ({ ...publicAuction, title: "t".repeat(513) }),
     }, async (server) => {

@@ -23,8 +23,8 @@ const foreignKeyColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
     foreignTable: foreignKey.reference().foreignTable[Symbol.for("drizzle:Name")],
   }));
 
-describe("검증 범위를 정의한다 — ingest identity", () => {
-  test("중복 제거를 검증한다 — deduplicates immutable blobs but never observations", () => {
+describe("ingest identity 불변식", () => {
+  test("불변 blob만 중복 제거하고 observation은 합치지 않는다", () => {
     const blob = getTableConfig(rawBlob);
     const observation = getTableConfig(rawObservation);
 
@@ -38,7 +38,7 @@ describe("검증 범위를 정의한다 — ingest identity", () => {
     ]);
   });
 
-  test("보존 조건을 검증한다 — keeps each table at its required evidence grain", () => {
+  test("각 table을 요구된 evidence grain으로 유지한다", () => {
     expect(columnNames(ingestRun)).toEqual(expect.arrayContaining([
       "run_id",
       "mode",
@@ -105,7 +105,7 @@ describe("검증 범위를 정의한다 — ingest identity", () => {
     ]));
   });
 
-  test("강제 조건을 검증한다 — enforces run, request, normalized-record, and publication identities", () => {
+  test("run·request·normalized record·publication identity를 강제한다", () => {
     expect(uniqueColumnSets(requestUnit)).toContainEqual([
       "run_id",
       "source",
@@ -123,7 +123,7 @@ describe("검증 범위를 정의한다 — ingest identity", () => {
       .toContainEqual(["object_key"]);
   });
 
-  test("동작을 검증한다 — binds an observation request unit to the observation run", () => {
+  test("observation의 request unit을 같은 run에 묶는다", () => {
     expect(uniqueColumnSets(requestUnit)).toContainEqual(["request_unit_id", "run_id"]);
 
     const coherentRequestForeignKey = getTableConfig(rawObservation).foreignKeys.find((foreignKey) => {
@@ -137,7 +137,7 @@ describe("검증 범위를 정의한다 — ingest identity", () => {
     expect(coherentRequestForeignKey).toBeDefined();
   });
 
-  test("동작을 검증한다 — requires raw evidence and gated publication relationships", () => {
+  test("raw evidence와 gate를 통과한 publication 관계를 요구한다", () => {
     expect(foreignKeyColumnSets(requestUnit)).toContainEqual({ columns: ["run_id"], foreignTable: "run" });
     expect(foreignKeyColumnSets(rawObservation)).toEqual(expect.arrayContaining([
       { columns: ["run_id"], foreignTable: "run" },
@@ -151,7 +151,7 @@ describe("검증 범위를 정의한다 — ingest identity", () => {
     expect(foreignKeyColumnSets(publication)).toContainEqual({ columns: ["run_id"], foreignTable: "run" });
   });
 
-  test("사용 계약을 검증한다 — uses timezone-aware timestamps and exact run and parser states", () => {
+  test("timezone-aware timestamp와 정확한 run·parser state를 사용한다", () => {
     for (const table of [ingestRun, rawBlob, rawObservation, normalizedRecord, publication]) {
       for (const column of getTableConfig(table).columns.filter((column) => column.name.endsWith("_at"))) {
         expect(column.getSQLType()).toBe("timestamp with time zone");
@@ -162,7 +162,7 @@ describe("검증 범위를 정의한다 — ingest identity", () => {
       .toEqual(["planned", "running", "failed", "validated", "published"]);
   });
 
-  test("동작을 검증한다 — protects every count from negatives and ties publication state to its gate", () => {
+  test("모든 count의 음수를 막고 publication state를 gate에 묶는다", () => {
     const checkNames = (table: Parameters<typeof getTableConfig>[0]) =>
       getTableConfig(table).checks.map((constraint) => constraint.name);
 

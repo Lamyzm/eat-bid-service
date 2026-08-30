@@ -12,8 +12,8 @@ const production = {
   DATABASE_URL: "postgres://eatbid_api:secret@postgres:5432/eatbid",
 } as const;
 
-describe("검증 범위를 정의한다 — operational environment", () => {
-  test("사용 계약을 검증한다 — uses bounded non-production fallbacks", async () => {
+describe("운영 environment", () => {
+  test("비운영 fallback을 제한된 범위로 사용한다", async () => {
     const module = await import("./environment").catch(() => undefined);
     expect(module, "environment boundary must exist").toBeDefined();
     expect(module!.parseEnvironment({
@@ -32,7 +32,7 @@ describe("검증 범위를 정의한다 — operational environment", () => {
     });
   });
 
-  test("parse 결과를 검증한다 — parses the exact production origin set and operational values", async () => {
+  test("정확한 production origin 집합과 운영 값을 해석한다", async () => {
     const { parseEnvironment } = await import("./environment");
     expect(parseEnvironment(production)).toEqual({
       runtimeMode: "production",
@@ -47,7 +47,7 @@ describe("검증 범위를 정의한다 — operational environment", () => {
     });
   });
 
-  test("거부 조건을 검증한다 — rejects missing mode, malformed values, wildcard origins, and production fallbacks", async () => {
+  test("누락 mode·잘못된 값·wildcard origin·production fallback을 거부한다", async () => {
     const { parseEnvironment } = await import("./environment");
     const invalid = [
       {},

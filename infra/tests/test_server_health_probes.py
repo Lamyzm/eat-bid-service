@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 
 
-def test_server_uses_distinct_live_and_ready_http_probes_동작을_검증한다() -> None:
+def test_server가_distinct_live_및_ready_http_probes을_사용한다() -> None:
     manifest = Path("infra/k8s/base/app.yaml").read_text(encoding="utf-8")
     documents = [document for document in yaml.safe_load_all(manifest) if document]
     server = next(

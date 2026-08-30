@@ -66,7 +66,7 @@ export class DrizzleAuctionReader implements AuctionReader {
   constructor(private readonly database: AuctionReadDatabase) {}
 
   async findById(id: AuctionId): Promise<AuctionRecord | null> {
-    // 정규화 레코드는 수정하지 않고 revision을 추가하므로 내부 증가 ID의 최댓값이 현재 canonical 해석이다.
+    // 이 API view는 여러 revision 중 가장 나중에 저장된 해석을 현재 값으로 선택하며, ID 역순이 그 projection 규칙을 명시한다.
     const result = await this.database.execute(sql`
       select
         attempt.auction_attempt_id as auction_id,

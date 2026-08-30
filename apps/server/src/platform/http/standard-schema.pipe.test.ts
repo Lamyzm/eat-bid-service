@@ -1,8 +1,8 @@
 import { BadRequestException } from "@nestjs/common";
 import { describe, expect, test } from "bun:test";
 
-describe("검증 범위를 정의한다 — Standard Schema request and response boundaries", () => {
-  test("동작을 검증한다 — request validation rejects an invalid value", async () => {
+describe("Standard Schema request·response 경계", () => {
+  test("request validation이 유효하지 않은 값을 거부한다", async () => {
     const module = await import("./standard-schema.pipe").catch(() => undefined);
     expect(module, "Standard Schema pipe must exist").toBeDefined();
     const schema = {
@@ -18,7 +18,7 @@ describe("검증 범위를 정의한다 — Standard Schema request and response
     await expect(pipe.transform(42)).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  test("동작을 검증한다 — response validation fails closed instead of leaking an extra field", async () => {
+  test("response validation이 추가 field를 유출하지 않고 fail-closed한다", async () => {
     const module = await import("./response-schema.interceptor").catch(() => undefined);
     expect(module, "response schema interceptor must exist").toBeDefined();
     const result = await module!.validateResponse({ ok: true, secret: "must-not-leak" }, {

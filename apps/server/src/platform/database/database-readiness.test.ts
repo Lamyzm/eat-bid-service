@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("검증 범위를 정의한다 — database readiness", () => {
-  test("검사 결과를 검증한다 — checks exact migration and required/forbidden API privileges without mutation", async () => {
+describe("database readiness 검사", () => {
+  test("변경 없이 정확한 migration과 API 필수·금지 권한을 확인한다", async () => {
     const database = await import("./database-readiness").catch(() => undefined);
     expect(database, "database readiness must exist").toBeDefined();
     const queries: string[] = [];
@@ -55,7 +55,7 @@ describe("검증 범위를 정의한다 — database readiness", () => {
     expect(queries[0]!.toLowerCase()).not.toMatch(/\b(insert|update|delete|alter|create|drop|grant|revoke)\b/);
   });
 
-  test("실패 경계를 검증한다 — fails closed on migration mismatch, excessive privilege, or connection failure", async () => {
+  test("migration 불일치·과도한 권한·연결 실패에서 fail-closed한다", async () => {
     const database = await import("./database-readiness").catch(() => undefined);
     expect(database, "database readiness must exist").toBeDefined();
     const baseline = {

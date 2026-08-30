@@ -135,8 +135,8 @@ function openPendingGet(server: Server, path: string): {
   return { request: outgoing, closed: new Promise((resolve) => outgoing.once("close", resolve)) };
 }
 
-describe("검증 범위를 정의한다 — operational HTTP shell", () => {
-  test("신뢰 경계를 검증한다 — trusts only the supported body-parser error signatures", async () => {
+describe("운영 HTTP shell", () => {
+  test("지원하는 body-parser error signature만 신뢰한다", async () => {
     const { isSupportedBodyParserError } = await import("../bootstrap/create-app");
     expect(isSupportedBodyParserError({ status: 400, type: "entity.parse.failed", expose: true })).toBe(false);
     const parserSyntaxError = Object.assign(new SyntaxError("fixture"), {
@@ -148,7 +148,7 @@ describe("검증 범위를 정의한다 — operational HTTP shell", () => {
     expect(isSupportedBodyParserError(parserSyntaxError)).toBe(true);
   });
 
-  test("전파 결과를 검증한다 — propagates accepted/generated request ids through health, Problem Details, and completion logs", async () => {
+  test("수용·생성한 request ID를 health·Problem Details·완료 log까지 전파한다", async () => {
     const { runtime, server } = await start();
     try {
       const accepted = await request(server)
@@ -182,7 +182,7 @@ describe("검증 범위를 정의한다 — operational HTTP shell", () => {
     }
   });
 
-  test("보존 조건을 검증한다 — keeps Swagger UI/raw JSON off and reports dependency unavailability as a 503 problem", async () => {
+  test("Swagger UI·raw JSON을 끄고 의존성 장애를 503 Problem으로 보고한다", async () => {
     const { runtime, server } = await start({ databaseReadiness: { isReady: () => false } });
     try {
       const ready = await request(server).get("/health/ready");
@@ -199,7 +199,7 @@ describe("검증 범위를 정의한다 — operational HTTP shell", () => {
     }
   });
 
-  test("mount 순서를 검증한다 — mounts context and one inflight lease before the raw pre-parser insertion point", async () => {
+  test("raw pre-parser 삽입점 전에 context와 inflight lease 하나를 mount한다", async () => {
     let runtime: OperationalHttpApplication | undefined;
     const observations: Array<Record<string, unknown>> = [];
     const started = await start({
@@ -258,7 +258,7 @@ describe("검증 범위를 정의한다 — operational HTTP shell", () => {
     }
   });
 
-  test("매핑 결과를 검증한다 — maps malformed JSON from the trusted bounded parser to canonical validation Problem Details", async () => {
+  test("신뢰한 제한 parser의 잘못된 JSON을 canonical validation Problem Details로 매핑한다", async () => {
     const { runtime, server } = await start();
     try {
       const response = await rawPost(server, "/api/v1/missing", "application/json", '{"broken":');
@@ -274,7 +274,7 @@ describe("검증 범위를 정의한다 — operational HTTP shell", () => {
     }
   });
 
-  test("prefix 계약을 검증한다 — prefixes versioned Nest routes under api/v1 while health and raw auth remain neutral", async () => {
+  test("versioned Nest route는 api/v1 아래 두고 health·raw auth는 version-neutral로 유지한다", async () => {
     const started = await start({
       testOnlyImports: [RoutingProbeModule],
       mountPreParserRawTransport(application) {
@@ -293,7 +293,7 @@ describe("검증 범위를 정의한다 — operational HTTP shell", () => {
     }
   });
 
-  test("동작을 검증한다 — the explicit parser rejects a request beyond the configured payload bound", async () => {
+  test("명시적 parser가 설정 payload 상한을 넘는 요청을 거부한다", async () => {
     const { runtime, server } = await start({
       environment: environment({ HTTP_PAYLOAD_LIMIT_BYTES: "1024" }),
     });
@@ -309,7 +309,7 @@ describe("검증 범위를 정의한다 — operational HTTP shell", () => {
     }
   });
 
-  test("동작을 검증한다 — lowers readiness, rejects new connections, drains a real request, then closes Nest resources", async () => {
+  test("readiness를 내리고 신규 연결을 거부한 뒤 실제 요청을 drain하고 Nest resource를 닫는다", async () => {
     const started = await start({
       environment: environment({ SHUTDOWN_GRACE_MS: "1000" }),
       mountPreParserRawTransport(application) {
@@ -329,7 +329,7 @@ describe("검증 범위를 정의한다 — operational HTTP shell", () => {
     expect(started.runtime.readiness.closed).toBe(true);
   });
 
-  test("동작을 검증한다 — the configured deadline force-closes a real request and records the bounded termination", async () => {
+  test("설정 deadline이 실제 요청을 강제 종료하고 제한된 종료를 기록한다", async () => {
     const started = await start({
       environment: environment({ SHUTDOWN_GRACE_MS: "40" }),
       mountPreParserRawTransport(application) {

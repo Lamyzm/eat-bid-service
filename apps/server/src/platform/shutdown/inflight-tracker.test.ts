@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-describe("검증 범위를 정의한다 — in-flight tracker", () => {
-  test("계수 결과를 검증한다 — counts one idempotent lease and releases it once for any terminal event", async () => {
+describe("inflight tracker 수명주기", () => {
+  test("idempotent lease 하나를 세고 어떤 종료 event에서도 한 번만 해제한다", async () => {
     const module = await import("./inflight-tracker").catch(() => undefined);
     expect(module, "in-flight tracker must exist").toBeDefined();
     const tracker = new module!.InflightTracker();
@@ -13,7 +13,7 @@ describe("검증 범위를 정의한다 — in-flight tracker", () => {
     await expect(tracker.waitForZero(Date.now() + 10)).resolves.toBe(true);
   });
 
-  test("동작을 검증한다 — a grace deadline bounds a lease that never completes", async () => {
+  test("완료되지 않는 lease도 grace deadline 안에서 종료한다", async () => {
     const { InflightTracker } = await import("./inflight-tracker");
     const tracker = new InflightTracker();
     tracker.acquire();

@@ -26,7 +26,7 @@ VALID_ENV = {
 }
 
 
-def test_빌드한다_deterministic_slsa_v1_predicate_from_allowlisted_github_env() -> None:
+def test_결정적_slsa_v1_predicate_에서_allowlisted_github_env을_빌드한다() -> None:
     from infra.generate_slsa_provenance import build_predicate, render_predicate
 
     environment = {**VALID_ENV, "UNRELATED_SECRET": "must-not-leak"}
@@ -85,7 +85,7 @@ def test_빌드한다_deterministic_slsa_v1_predicate_from_allowlisted_github_en
 
 
 @pytest.mark.parametrize("event_name", ["push", "workflow_dispatch"])
-def test_허용한다_only_repository_supported_build_type_events(event_name: str) -> None:
+def test_오직_repository_supported_build_type_events을_허용한다(event_name: str) -> None:
     from infra.generate_slsa_provenance import build_predicate
 
     predicate = build_predicate({**VALID_ENV, "GITHUB_EVENT_NAME": event_name})
@@ -120,7 +120,7 @@ def test_허용한다_only_repository_supported_build_type_events(event_name: st
         ("GITHUB_RUN_ATTEMPT", "0"),
     ],
 )
-def test_거부한다_untrusted_or_noncanonical_github_identity(key: str, value: str) -> None:
+def test_신뢰하지_않는_또는_비정규_github_identity을_거부한다(key: str, value: str) -> None:
     from infra.generate_slsa_provenance import ProvenanceError, build_predicate
 
     with pytest.raises(ProvenanceError):
@@ -128,7 +128,7 @@ def test_거부한다_untrusted_or_noncanonical_github_identity(key: str, value:
 
 
 @pytest.mark.parametrize("missing_key", sorted(VALID_ENV))
-def test_거부한다_missing_required_github_identity(missing_key: str) -> None:
+def test_누락된_필수_github_identity을_거부한다(missing_key: str) -> None:
     from infra.generate_slsa_provenance import ProvenanceError, build_predicate
 
     environment = {**VALID_ENV}
@@ -137,7 +137,7 @@ def test_거부한다_missing_required_github_identity(missing_key: str) -> None
         build_predicate(environment)
 
 
-def test_CLI_writes_exact_predicate_and_refuses_overwrite_동작을_검증한다(
+def test_cli가_정확한_predicate_및_거부하며_overwrite을_기록한다(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

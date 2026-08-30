@@ -126,3 +126,123 @@ def test_rejects_english_only_name():
     assert.match(output, /test_rejects_english_only_name/);
   });
 });
+
+test("영문 행위에 붙인 일반적인 한국어 장식은 명세로 인정하지 않는다", () => {
+  withFixture({
+    "generic.test.ts": `
+      import { describe, test } from "bun:test";
+      describe("검증 범위를 정의한다 — request validation", () => {
+        test("동작을 검증한다 — rejects an unsafe request", () => {});
+        test("동작을 검증한다", () => {});
+      });
+    `,
+    "tests/test_generic.py": `
+def test_rejects_an_unsafe_request_동작을_검증한다():
+    pass
+
+def test_거부한다_an_unsafe_request():
+    pass
+
+def test_동작을_검증한다():
+    pass
+`,
+  }, (result) => {
+    const output = `${result.stdout}${result.stderr}`;
+    assert.equal(result.status, 1, output);
+    assert.match(output, /구체적인 한국어 행위/);
+    assert.match(output, /test_rejects_an_unsafe_request_동작을_검증한다/);
+    assert.match(output, /test_거부한다_an_unsafe_request/);
+    assert.match(output, /동작을 검증한다/);
+    assert.match(output, /test_동작을_검증한다/);
+  });
+});
+
+test("JavaScript 계열 확장자를 각 문법으로 분석한다", () => {
+  withFixture({
+    "plain.test.js": `
+      import { test as check } from "node:test";
+      check("English JavaScript", () => {});
+    `,
+    "component.test.jsx": `
+      import { test } from "node:test";
+      const view = <section />;
+      test("English JSX", () => void view);
+    `,
+    "module.test.mjs": `
+      import nodeTest from "node:test";
+      nodeTest("English module", () => {});
+    `,
+    "common.test.cjs": `
+      const { test: check } = require("node:test");
+      check("English CommonJS", () => {});
+    `,
+  }, (result) => {
+    const output = `${result.stdout}${result.stderr}`;
+    assert.equal(result.status, 1, output);
+    for (const file of ["plain.test.js", "component.test.jsx", "module.test.mjs", "common.test.cjs"]) {
+      assert.match(output, new RegExp(file.replaceAll(".", "\\.")));
+    }
+  });
+});
+
+test("assignment와 element access 및 require와 dynamic import 별칭을 추적한다", () => {
+  withFixture({
+    "aliases.test.ts": `
+      import { test, it } from "bun:test";
+      import * as nodeTests from "node:test";
+      let assigned;
+      assigned = test;
+      assigned("English assignment", () => {});
+      nodeTests["test"]["skip"]("English element access", () => {});
+      const required = require("node:test");
+      required["it"]("English require namespace", () => {});
+      const { test: requiredTest } = require("node:test");
+      requiredTest("English require binding", () => {});
+      async function register() {
+        const dynamicTests = await import("node:test");
+        dynamicTests.test("English dynamic import", () => {});
+      }
+      let indirect;
+      indirect = true ? test : it;
+      void register;
+    `,
+  }, (result) => {
+    const output = `${result.stdout}${result.stderr}`;
+    assert.equal(result.status, 1, output);
+    for (const title of [
+      "English assignment",
+      "English element access",
+      "English require namespace",
+      "English require binding",
+      "English dynamic import",
+    ]) assert.match(output, new RegExp(title));
+    assert.match(output, /지원하지 않는 간접 테스트 별칭/);
+  });
+});
+
+test("다른 symbol과 shadowing은 테스트 API로 오인하지 않는다", () => {
+  withFixture({
+    "shadowing.test.ts": `
+      import { test as nodeTest } from "node:test";
+      import { test } from "./validator";
+      const validator = { test: (_title) => true };
+      function helper(nodeTest) {
+        nodeTest("English shadowed parameter", () => {});
+      }
+      {
+        const nodeTest = validator.test;
+        nodeTest("English shadowed block", () => {});
+      }
+      let assigned = nodeTest;
+      assigned = validator.test;
+      assigned("English overwritten alias", () => {});
+      test("English non-test import", () => {});
+      validator.test("English object method");
+      nodeTest("실제 Node test binding은 추적한다", () => {});
+      void helper;
+    `,
+    "validator.ts": `export const test = (_title) => true;`,
+  }, (result) => {
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  });
+});

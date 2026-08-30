@@ -38,7 +38,7 @@ def _assert_rejected_without_mutation(
     assert manifest.read_bytes() == before
 
 
-def test_replaces_only_named_image_digest_and_preserves_all_other_bytes_동작을_검증한다(
+def test_오직_named_image_digest_및_보존하며_모든_나머지_bytes을_교체한다(
     tmp_path: Path,
 ) -> None:
     from infra.update_image_digest import update_digest
@@ -90,7 +90,7 @@ def test_replaces_only_named_image_digest_and_preserves_all_other_bytes_동작�
         '{"images": []}',
     ],
 )
-def test_거부한다_semantic_or_decorated_top_level_images_keys_without_mutation(
+def test_semantic_또는_decorated_top_level_images_keys_변경_없이을_거부한다(
     tmp_path: Path,
     ambiguous_top_level: str,
 ) -> None:
@@ -109,7 +109,7 @@ def test_거부한다_semantic_or_decorated_top_level_images_keys_without_mutati
     _assert_rejected_without_mutation(manifest)
 
 
-def test_거부한다_multiple_yaml_documents_without_mutation(tmp_path: Path) -> None:
+def test_multiple_yaml_documents_변경_없이을_거부한다(tmp_path: Path) -> None:
     manifest = tmp_path / "kustomization.yaml"
     _write_manifest(
         manifest,
@@ -138,7 +138,7 @@ def test_거부한다_multiple_yaml_documents_without_mutation(tmp_path: Path) -
         "notes: |",
     ],
 )
-def test_거부한다_non_plain_top_level_grammar_without_mutation(
+def test_non_plain_top_level_grammar_변경_없이을_거부한다(
     tmp_path: Path,
     ambiguous_top_level: str,
 ) -> None:
@@ -155,7 +155,7 @@ def test_거부한다_non_plain_top_level_grammar_without_mutation(
     _assert_rejected_without_mutation(manifest)
 
 
-def test_거부한다_duplicate_unrelated_top_level_keys_without_mutation(
+def test_중복_unrelated_top_level_keys_변경_없이을_거부한다(
     tmp_path: Path,
 ) -> None:
     manifest = tmp_path / "kustomization.yaml"
@@ -193,7 +193,7 @@ def test_거부한다_duplicate_unrelated_top_level_keys_without_mutation(
         ),
     ],
 )
-def test_검증한다_every_image_entry_before_mutating_target(
+def test_모든_image_entry_전에_mutating_target을_검증한다(
     tmp_path: Path,
     foreign_entry: str,
 ) -> None:
@@ -209,7 +209,7 @@ def test_검증한다_every_image_entry_before_mutating_target(
 
 
 @pytest.mark.parametrize("invalid_value", [None, True, False, b"eatbid-dataplane", 1])
-def test_거부한다_non_string_image_names_as_domain_errors(
+def test_non_string_image_names_로_domain_errors을_거부한다(
     tmp_path: Path,
     invalid_value: object,
 ) -> None:
@@ -226,7 +226,7 @@ def test_거부한다_non_string_image_names_as_domain_errors(
 
 
 @pytest.mark.parametrize("invalid_value", [None, True, False, b"sha256:bad", 1])
-def test_거부한다_non_string_digests_as_domain_errors(
+def test_non_string_digests_로_domain_errors을_거부한다(
     tmp_path: Path,
     invalid_value: object,
 ) -> None:
@@ -243,14 +243,14 @@ def test_거부한다_non_string_digests_as_domain_errors(
 
 
 @pytest.mark.parametrize("invalid_path", [None, True, False, b"manifest.yaml"])
-def test_거부한다_invalid_paths_as_domain_errors(invalid_path: object) -> None:
+def test_유효하지_않은_paths_로_domain_errors을_거부한다(invalid_path: object) -> None:
     from infra.update_image_digest import DigestUpdateError, update_digest
 
     with pytest.raises(DigestUpdateError):
         update_digest(invalid_path, "eatbid-dataplane", VALID_DIGEST)  # type: ignore[arg-type]
 
 
-def test_wraps_missing_and_directory_read_failures_and_cli_returns_two_동작을_검증한다(
+def test_누락과_directory_read_실패를_경계_오류로_감싸고_CLI는_2를_반환한다(
     tmp_path: Path,
 ) -> None:
     from infra.update_image_digest import DigestUpdateError, main, update_digest
@@ -368,7 +368,7 @@ def test_wraps_missing_and_directory_read_failures_and_cli_returns_two_동작을
         ),
     ],
 )
-def test_거부한다_invalid_or_ambiguous_input_without_mutation(
+def test_유효하지_않은_또는_ambiguous_input_변경_없이을_거부한다(
     tmp_path: Path,
     manifest_text: str,
     image_name: str,
@@ -383,7 +383,7 @@ def test_거부한다_invalid_or_ambiguous_input_without_mutation(
     )
 
 
-def test_CLI_returns_exit_two_without_mutation_for_rejected_update_동작을_검증한다(
+def test_cli가_exit_둘_변경_없이_대상_거부된다_update을_반환한다(
     tmp_path: Path,
 ) -> None:
     manifest = tmp_path / "kustomization.yaml"

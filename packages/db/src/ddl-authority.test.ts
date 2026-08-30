@@ -73,8 +73,8 @@ function sourceFiles(relativeDirectory: string): string[] {
     });
 }
 
-describe("검증 범위를 정의한다 — DDL package authority", () => {
-  test("routing 결과를 검증한다 — routes root migration commands and tests through packages/db", () => {
+describe("DDL package 권한 경계", () => {
+  test("root migration 명령과 test를 packages/db로 전달한다", () => {
     const root = json("package.json");
 
     expect(root.scripts?.["db:generate"]).toBe("pnpm --filter @eatbid/db db:generate");
@@ -83,7 +83,7 @@ describe("검증 범위를 정의한다 — DDL package authority", () => {
     expect(root.scripts?.test).toContain("packages/db/src");
   });
 
-  test("보존 조건을 검증한다 — keeps Drizzle authoring tools out of shared", () => {
+  test("Drizzle authoring tool을 shared 밖에 둔다", () => {
     const shared = json("packages/shared/package.json");
 
     expect(shared.scripts?.["db:generate"]).toBeUndefined();
@@ -91,7 +91,7 @@ describe("검증 범위를 정의한다 — DDL package authority", () => {
     expect(shared.devDependencies?.["drizzle-kit"]).toBeUndefined();
   });
 
-  test("보존 조건을 검증한다 — keeps the exact postgres-js catalog and permits only infrastructure server consumers", () => {
+  test("postgres-js catalog를 정확히 고정하고 server infrastructure consumer만 허용한다", () => {
     const workspace = text("pnpm-workspace.yaml");
     const database = json("packages/db/package.json");
     const server = json("apps/server/package.json");
@@ -111,7 +111,7 @@ describe("검증 범위를 정의한다 — DDL package authority", () => {
       .toBe(true);
   });
 
-  test("탐지 결과를 검증한다 — discovers every workspace manifest and keeps direct Drizzle DDL in packages/db", () => {
+  test("모든 workspace manifest를 찾아 직접 Drizzle DDL을 packages/db에만 둔다", () => {
     const workspace = workspaceManifests();
     const manifests = [{ relativePath: "package.json", manifest: json("package.json") }, ...workspace];
     const directCommandOwners = new Set<string>();
@@ -142,8 +142,8 @@ describe("검증 범위를 정의한다 — DDL package authority", () => {
   });
 });
 
-describe("검증 범위를 정의한다 — active Kubernetes DDL path", () => {
-  test("금지 조건을 검증한다 — does not generate or mount the legacy schema ConfigMap", () => {
+describe("활성 Kubernetes DDL 경로", () => {
+  test("legacy schema ConfigMap을 생성하거나 mount하지 않는다", () => {
     const baseDirectory = join(repositoryRoot, "infra/k8s/base");
     const activeYaml = readdirSync(baseDirectory)
       .filter((name) => /\.ya?ml$/.test(name))
@@ -154,7 +154,7 @@ describe("검증 범위를 정의한다 — active Kubernetes DDL path", () => {
     expect(activeYaml).not.toContain("schema.sql");
   });
 
-  test("제거 결과를 검증한다 — removes the complete legacy db-migrate Job document", () => {
+  test("legacy db-migrate Job 문서를 완전히 제거한다", () => {
     const documents = text("infra/k8s/base/app.yaml").split(/^---\s*$/m);
     const legacyJobs = documents.filter(
       (document) => /kind:\s*Job\b/.test(document) && /name:\s*db-migrate\b/.test(document),
@@ -164,8 +164,8 @@ describe("검증 범위를 정의한다 — active Kubernetes DDL path", () => {
   });
 });
 
-describe("검증 범위를 정의한다 — migration image contract", () => {
-  test("빌드 결과를 검증한다 — builds and deploys the frozen database package from the monorepo root", () => {
+describe("migration image 계약", () => {
+  test("monorepo root에서 고정된 database package를 빌드하고 배포한다", () => {
     const dockerfile = text("packages/db/Dockerfile");
 
     expect(dockerfile).toContain("pnpm install --frozen-lockfile");
@@ -174,7 +174,7 @@ describe("검증 범위를 정의한다 — migration image contract", () => {
     expect(dockerfile).toContain("COPY --from=build /runtime");
   });
 
-  test("배포 산출물을 검증한다 — ships the committed migration chain and runs the compiled entrypoint as non-root", () => {
+  test("commit된 migration chain을 포함하고 compile entrypoint를 non-root로 실행한다", () => {
     const dockerfile = text("packages/db/Dockerfile");
 
     expect(dockerfile).toContain("packages/db/drizzle");

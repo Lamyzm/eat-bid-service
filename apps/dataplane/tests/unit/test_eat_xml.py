@@ -20,7 +20,7 @@ def xml(body: str) -> bytes:
     return f'<Root xmlns="{NS}">{body}</Root>'.encode()
 
 
-def test_parse_bid_list_page_preserves_total_and_internal_ids_동작을_검증한다() -> None:
+def test_parse_bid_list_page가_total_및_internal_ids을_보존한다() -> None:
     page = parse_bid_list_page((FIXTURE_DIR / "bid-list-one.xml").read_bytes())
 
     assert page.total_count == 1
@@ -28,7 +28,7 @@ def test_parse_bid_list_page_preserves_total_and_internal_ids_동작을_검증�
 
 
 @pytest.mark.parametrize("total", ["", "-1", "+1", "1.0", "１２"])
-def test_parse_bid_list_page_rejects_nonnegative_ascii_decimal_contract_동작을_검증한다(
+def test_parse_bid_list_page가_음수가_아닌_ascii_decimal_contract을_거부한다(
     total: str,
 ) -> None:
     payload = xml(
@@ -54,7 +54,7 @@ def test_parse_bid_list_page_rejects_nonnegative_ascii_decimal_contract_동작�
         ),
     ],
 )
-def test_parse_bid_list_page_rejects_empty_duplicate_or_excess_ids_동작을_검증한다(rows: str) -> None:
+def test_parse_bid_list_page가_empty_중복_또는_excess_ids을_거부한다(rows: str) -> None:
     with pytest.raises(SourceContractError):
         parse_bid_list_page(xml(f'<Dataset id="ds_list"><Rows>{rows}</Rows></Dataset>'))
 
@@ -67,7 +67,7 @@ def test_parse_bid_list_page_rejects_empty_duplicate_or_excess_ids_동작을_검
         b'<!DOCTYPE Root SYSTEM "https://invalid.example/evil.dtd"><Root/>',
     ],
 )
-def test_untrusted_xml_rejects_dtd_entities_and_external_references_동작을_검증한다(
+def test_신뢰하지_않는_xml가_dtd_entities_및_external_references을_거부한다(
     payload: bytes,
 ) -> None:
     with pytest.raises(NexacroParseError):
@@ -90,12 +90,12 @@ def test_untrusted_xml_rejects_dtd_entities_and_external_references_동작을_�
         ),
     ],
 )
-def test_parser_rejects_duplicate_or_ambiguous_nexacro_structure_동작을_검증한다(body: str) -> None:
+def test_parser가_중복_또는_ambiguous_nexacro_structure을_거부한다(body: str) -> None:
     with pytest.raises(NexacroParseError):
         parse_nexacro(xml(body), require_ds_info=True)
 
 
-def test_schema_fingerprint_is_independent_of_dataset_and_column_order_동작을_검증한다() -> None:
+def test_schema_fingerprint는_독립적_의_dataset_및_column_order이다() -> None:
     first = xml(
         '<Dataset id="ds_info"><Rows><Row><Col id="B">2</Col>'
         '<Col id="A">1</Col></Row></Rows></Dataset>'
@@ -114,12 +114,12 @@ def test_schema_fingerprint_is_independent_of_dataset_and_column_order_동작을
     ).schema_fingerprint
 
 
-def test_parser_requires_the_nexacro_namespace_동작을_검증한다() -> None:
+def test_parser가_nexacro_namespace을_요구한다() -> None:
     with pytest.raises(NexacroParseError):
         parse_nexacro(b"<Root><Dataset id='ds_info'><Rows><Row/></Rows></Dataset></Root>")
 
 
-def test_reviewed_eat_detail_schema_contract_has_a_stable_parser_digest_동작을_검증한다() -> None:
+def test_reviewed_eat_detail_schema_contract는_안정적_parser_digest을_갖는다() -> None:
     assert reviewed_schema_fingerprint(
         source="eat", endpoint="bid-detail", parser_version="eat-v1"
     ) == "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"
@@ -139,7 +139,7 @@ def test_reviewed_eat_detail_schema_contract_has_a_stable_parser_digest_동작�
         ("eat", "bid-detail", "eat-v2", "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"),
     ],
 )
-def test_eat_schema_contract_fails_closed_동작을_검증한다(
+def test_eat_schema_contract가_fail_closed한다(
     source: str,
     endpoint: str,
     parser_version: str,

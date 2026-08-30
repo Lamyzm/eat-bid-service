@@ -58,3 +58,36 @@
 - 전체 pytest에서 Windows cp949 subprocess reader의 `UnicodeDecodeError` thread warning 1건이 출력됐지만 586개 테스트는 모두 통과했다. 테스트 이름 변경 외 해당 실행 경로는 수정하지 않았다.
 - Next build의 workspace root/font fallback 경고는 기존 환경 경고이며 이번 변경 범위가 아니다.
 - Better Auth, 신규 DB DDL, frontend 기능, 배포 활성화 등 다른 Gate 구현은 포함하지 않았다.
+
+## 독립 리뷰 수정 1차
+
+### 수정 결과
+
+- TypeScript/JavaScript 검사기를 단일 TypeScript `Program`과 symbol binding 기반으로 바꿨다. 이제 assignment alias, element access, `require()`/dynamic `import()` namespace와 destructuring, import alias, `only`/`skip`/`todo`/`each`를 추적하고 지역 shadowing과 일반 객체 메서드는 테스트 API로 오인하지 않는다.
+- `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`를 확장자별 `ScriptKind`로 분석한다. 저장소 검사는 TypeScript/JavaScript 선언 245개와 Python 선언 246개를 확인한다.
+- 단순한 한글 장식이나 일반적인 `동작을 검증한다`만 붙인 제목은 거부한다. 기존 테스트명은 assertion, fixture, 실행 순서 변경 없이 주체·조건·결과가 한국어 서술어로 드러나도록 다시 번역했고, Python 직접 참조도 같은 symbol 이름으로 함께 변경했다.
+- compatibility 주석에서 변동 release 값을 제거하고 검증된 framework/runtime 조합만 승격한다는 선택 이유만 남겼다. auction reader 주석은 append-only에서 추론하지 않고 이 API view가 최신 저장 revision을 선택한다는 projection 규칙을 정확히 기술했다.
+- Python test diff 감사 결과 checker 구현을 제외한 변경 행은 test 함수명과 그 직접 참조뿐이며, production fix diff는 위 두 주석만 바뀌었다.
+
+### TDD 증거
+
+- RED: `node --test tools/quality/check-test-names.test.mjs` — 기존 5개 통과, 신규 4개 실패. 일반 장식 제목, JS 계열 확장자, assignment/element/require/dynamic-import alias, shadowing 구분이 구현되지 않은 상태를 각각 재현했다.
+- RED: 강화 fixture에 `동작을 검증한다`/`test_동작을_검증한다`를 추가한 뒤 같은 명령은 8 passed, 1 failed로 일반 문구 단독 사용을 놓치는 문제를 재현했다.
+- RED: 실제 `pnpm quality:check`는 기존 일반 장식 이름 약 424건을 보고하며 실패했다.
+- GREEN: `node --test tools/quality/check-test-names.test.mjs` — 9 passed.
+- GREEN: `pnpm quality:check` — TypeScript/JavaScript 245개, Python 246개 통과.
+- GREEN: `uv run --project apps/dataplane pytest apps/dataplane/tests infra/tests --collect-only -q` — 586개 수집.
+
+### 수정 후 전체 검증
+
+- `pnpm test`: 226 passed
+  - root quality/architecture 15, web/shared/db 120, contracts 4, server 87
+- `uv run --project apps/dataplane pytest apps/dataplane/tests infra/tests -q`: 586 passed, 기존 Windows cp949 subprocess reader warning 1건
+- `uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests infra/update_image_digest.py infra/generate_slsa_provenance.py infra/verify_argo_platform.py infra/tests`: passed
+- `uv run --project apps/dataplane pyright apps/dataplane/src`: 0 errors, 0 warnings
+- `pnpm architecture:check`: passed; 한국어 명세 245/246 재확인
+- `pnpm --filter @eatbid/server architecture:check`: 0 violations
+- `pnpm --filter @eatbid/server openapi:check`: passed
+- `pnpm db:check`: passed
+- `pnpm build`: 5/5 packages passed
+- 병렬 전체 검증에서는 dev-smoke가 30초 timeout되고 legacy inventory subprocess가 함께 종료됐으나, 두 파일 단독 실행은 3 passed였고 이어서 실행한 직렬 `pnpm test` 전체는 226 passed였다. 코드 회귀가 아닌 검증 프로세스 간 자원 경합으로 구분한다.

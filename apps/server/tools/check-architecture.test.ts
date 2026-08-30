@@ -57,8 +57,8 @@ function rules(projectPath: string): string[] {
   return checkArchitecture({ projectPath }).map((violation) => violation.rule);
 }
 
-describe("검증 범위를 정의한다 — TypeScript-resolved server architecture", () => {
-  test("허용 조건을 검증한다 — accepts the clean import-only composition fixture", () => {
+describe("TypeScript resolution 기반 server architecture", () => {
+  test("import-only 조립 원칙을 지킨 fixture는 허용한다", () => {
     expect(checkArchitecture({ projectPath: fixture({}) })).toEqual([]);
   });
 
@@ -72,14 +72,14 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     },
   );
 
-  test("거부 조건을 검증한다 — rejects a controller CommonJS require of a database package", () => {
+  test("controller의 database package CommonJS require를 거부한다", () => {
     const projectPath = fixture({
       "src/modules/orders/presentation/http/orders.controller.ts": 'const database = require("@eatbid/db"); export const leak = database;',
     });
     expect(rules(projectPath)).toContain("controller-database-boundary");
   });
 
-  test("거부 조건을 검증한다 — rejects a controller literal dynamic import of a database package", () => {
+  test("controller의 database package literal dynamic import를 거부한다", () => {
     const projectPath = fixture({
       "src/modules/orders/presentation/http/orders.controller.ts": 'export const leak = () => import("drizzle-orm");',
     });
@@ -96,7 +96,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     },
   );
 
-  test("거부 조건을 검증한다 — rejects a controller database-schema import resolved through a tsconfig alias", () => {
+  test("tsconfig alias로 resolve된 controller database-schema import를 거부한다", () => {
     const projectPath = fixture({
       "src/database/schema.ts": "export const table = 1;",
       "src/modules/orders/presentation/http/orders.controller.ts": 'import { table } from "@schema"; export const leak = table;',
@@ -104,7 +104,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     expect(rules(projectPath)).toContain("controller-database-boundary");
   });
 
-  test("거부 조건을 검증한다 — rejects a controller reaching the DB package root through a tsconfig alias", () => {
+  test("tsconfig alias를 통해 DB package root에 닿는 controller를 거부한다", () => {
     const projectPath = fixture({
       "packages/db/src/index.ts": "export const database = 1;",
       "src/modules/orders/presentation/http/orders.controller.ts": 'import { database } from "@database"; export const leak = database;',
@@ -112,7 +112,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     expect(rules(projectPath)).toContain("controller-database-boundary");
   });
 
-  test("거부 조건을 검증한다 — rejects a controller reaching Drizzle through a local re-export", () => {
+  test("로컬 re-export를 통해 Drizzle에 닿는 controller를 거부한다", () => {
     const projectPath = fixture({
       "src/modules/orders/infrastructure/db-barrel.ts": 'export { dependency } from "drizzle-orm";',
       "src/modules/orders/presentation/http/orders.controller.ts": 'import { dependency } from "../../infrastructure/db-barrel"; export const leak = dependency;',
@@ -120,7 +120,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     expect(rules(projectPath)).toContain("controller-database-boundary");
   });
 
-  test("보고 결과를 검증한다 — reports the actual forbidden edge and controller reachability path", () => {
+  test("실제 금지 edge와 controller reachability path를 보고한다", () => {
     const projectPath = fixture({
       "src/modules/orders/infrastructure/db-barrel.ts": '\nexport { dependency } from "drizzle-orm";',
       "src/modules/orders/presentation/http/orders.controller.ts": 'import { dependency } from "../../infrastructure/db-barrel"; export const leak = dependency;',
@@ -135,7 +135,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     );
   });
 
-  test("탐지 결과를 검증한다 — discovers a Nest controller decorator imported under an alias", () => {
+  test("alias로 import한 Nest controller decorator도 찾는다", () => {
     const projectPath = fixture({
       "src/modules/orders/presentation/http/orders.endpoint.ts": [
         'import { Controller as HttpController } from "@nestjs/common";',
@@ -147,7 +147,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     expect(rules(projectPath)).toContain("controller-database-boundary");
   });
 
-  test("탐지 결과를 검증한다 — discovers a Nest controller decorator through a local re-export", () => {
+  test("로컬 re-export를 통한 Nest controller decorator도 찾는다", () => {
     const projectPath = fixture({
       "src/platform/http/decorators.ts": 'export { Controller as HttpController } from "@nestjs/common";',
       "src/modules/orders/presentation/http/orders.endpoint.ts": [
@@ -181,14 +181,14 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     },
   );
 
-  test("거부 조건을 검증한다 — rejects an aliased Effect.runPromise symbol outside EffectRunner", () => {
+  test("EffectRunner 밖의 alias Effect.runPromise symbol을 거부한다", () => {
     const projectPath = fixture({
       "src/modules/orders/application/use-case.ts": 'import { runPromise as execute } from "effect/Effect"; void execute(1);',
     });
     expect(rules(projectPath)).toContain("effect-runner-only");
   });
 
-  test("거부 조건을 검증한다 — rejects a namespace Effect.runPromiseExit call outside EffectRunner", () => {
+  test("EffectRunner 밖의 namespace Effect.runPromiseExit 호출을 거부한다", () => {
     const projectPath = fixture({
       "src/modules/orders/application/use-case.ts": 'import * as Effect from "effect/Effect"; void Effect.runPromiseExit(1);',
     });
@@ -211,7 +211,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     },
   );
 
-  test("거부 조건을 검증한다 — rejects root AppModule metadata containing a spread", () => {
+  test("spread가 든 root AppModule metadata를 거부한다", () => {
     const projectPath = fixture({
       "src/app.module.ts": [
         'import { Module } from "@nestjs/common";',
@@ -251,7 +251,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     },
   );
 
-  test("거부 조건을 검증한다 — rejects a cycle in the server source dependency graph", () => {
+  test("server source dependency graph의 cycle을 거부한다", () => {
     const projectPath = fixture({
       "src/modules/orders/application/a.ts": 'import { b } from "./b"; export const a = b;',
       "src/modules/orders/application/b.ts": 'import { a } from "./a"; export const b = a;',
@@ -259,7 +259,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     expect(rules(projectPath)).toContain("source-dependency-cycle");
   });
 
-  test("거부 조건을 검증한다 — rejects a source dependency cycle formed by literal dynamic imports", () => {
+  test("literal dynamic import로 생긴 source dependency cycle을 거부한다", () => {
     const projectPath = fixture({
       "src/modules/orders/application/a.ts": 'export const a = () => import("./b");',
       "src/modules/orders/application/b.ts": 'export const b = () => import("./a");',
@@ -267,7 +267,7 @@ describe("검증 범위를 정의한다 — TypeScript-resolved server architect
     expect(rules(projectPath)).toContain("source-dependency-cycle");
   });
 
-  test("거부 조건을 검증한다 — rejects a source dependency cycle formed by CommonJS requires", () => {
+  test("CommonJS require로 생긴 source dependency cycle을 거부한다", () => {
     const projectPath = fixture({
       "src/modules/orders/application/a.ts": 'export const a = () => require("./b");',
       "src/modules/orders/application/b.ts": 'export const b = () => require("./a");',
