@@ -10,7 +10,11 @@ export {
 } from "./time/elapsed-duration.js";
 export { formatInstantText, parseInstantText } from "./time/instant-text.js";
 
-export { canonicalDecimal, type CanonicalDecimal } from "./numeric/canonical-decimal.js";
+export {
+  canonicalDecimal,
+  MAX_DECIMAL_SCALE,
+  type CanonicalDecimal,
+} from "./numeric/canonical-decimal.js";
 export { krw, type Currency, type Money } from "./numeric/money.js";
 export {
   bidRate,

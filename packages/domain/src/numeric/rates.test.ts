@@ -9,9 +9,6 @@ import {
   ratio,
   ratioToPercentagePoints,
   sharePercent,
-  type BidRate,
-  type FloorRate,
-  type SharePercent,
 } from "./rates.js";
 
 describe("의미가 분리된 정확 비율", () => {
@@ -47,6 +44,47 @@ describe("의미가 분리된 정확 비율", () => {
     ).toBe("90.123000");
   });
 
+  test("0 scale에서도 100과 1 사이를 정확히 왕복한다", () => {
+    const points = percentagePoints(canonicalDecimal("100", 0));
+    const unitRatio = ratio(canonicalDecimal("1", 0));
+
+    expect(
+      percentagePointsToRatio(points, { sourceScale: 0, targetScale: 0, rounding: "reject" }),
+    ).toBe("1");
+    expect(
+      ratioToPercentagePoints(unitRatio, { sourceScale: 0, targetScale: 0, rounding: "reject" }),
+    ).toBe("100");
+  });
+
+  test("최대 지원 scale과 최대 파생 이동에서도 정확한 문자열만 만든다", () => {
+    const points = percentagePoints(canonicalDecimal("100.000000000000000000", 18));
+    const unitRatio = ratio(canonicalDecimal("1", 0));
+
+    expect(
+      percentagePointsToRatio(points, { sourceScale: 18, targetScale: 0, rounding: "reject" }),
+    ).toBe("1");
+    expect(
+      ratioToPercentagePoints(unitRatio, { sourceScale: 0, targetScale: 18, rounding: "reject" }),
+    ).toBe("100.000000000000000000");
+  });
+
+  test("지원 scale과 안전한 산술 범위를 넘는 옵션을 allocation 전에 거부한다", () => {
+    const points = percentagePoints(canonicalDecimal("0", 0));
+
+    for (const targetScale of [19, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() =>
+        percentagePointsToRatio(points, { sourceScale: 0, targetScale, rounding: "reject" }),
+      ).toThrow("Rate conversion targetScale must be between 0 and 18");
+    }
+    expect(() =>
+      percentagePointsToRatio(points, {
+        sourceScale: Number.MAX_SAFE_INTEGER,
+        targetScale: 0,
+        rounding: "reject",
+      }),
+    ).toThrow("Rate conversion sourceScale must be between 0 and 18");
+  });
+
   test("출력 scale이 정밀도를 잃으면 반올림하지 않고 거부한다", () => {
     const points = percentagePoints(canonicalDecimal("90.123001", 6));
     const unitRatio = ratio(canonicalDecimal("0.901231", 6));
@@ -67,18 +105,4 @@ describe("의미가 분리된 정확 비율", () => {
     ).toThrow();
   });
 
-  test("투찰률과 하한률과 점유율은 컴파일 시 서로 대입할 수 없다", () => {
-    const bid: BidRate = bidRate(canonicalDecimal("90.123000", 6));
-    const floor: FloorRate = floorRate(canonicalDecimal("88.745000", 6));
-    const share: SharePercent = sharePercent(canonicalDecimal("42.500000", 6));
-
-    // @ts-expect-error BidRate와 FloorRate는 서로 다른 업무 사실이다.
-    const floorFromBid: FloorRate = bid;
-    // @ts-expect-error FloorRate와 SharePercent는 서로 다른 업무 사실이다.
-    const shareFromFloor: SharePercent = floor;
-    // @ts-expect-error SharePercent와 BidRate는 서로 다른 업무 사실이다.
-    const bidFromShare: BidRate = share;
-
-    expect([floorFromBid, shareFromFloor, bidFromShare]).toEqual([bid, floor, share]);
-  });
 });

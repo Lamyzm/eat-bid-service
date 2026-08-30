@@ -1,4 +1,8 @@
-import { canonicalDecimal, type CanonicalDecimal } from "./canonical-decimal.js";
+import {
+  canonicalDecimal,
+  MAX_DECIMAL_SCALE,
+  type CanonicalDecimal,
+} from "./canonical-decimal.js";
 
 declare const percentagePointsBrand: unique symbol;
 declare const ratioBrand: unique symbol;
@@ -33,6 +37,7 @@ export interface ExactRateConversionOptions {
 }
 
 const decimalPartsPattern = /^(0|[1-9]\d*)(?:\.(\d+))?$/;
+const MAX_RATE_COEFFICIENT_SHIFT = MAX_DECIMAL_SCALE + 2;
 
 function assertAtMost(value: CanonicalDecimal, maximumInteger: "1" | "100"): void {
   const match = decimalPartsPattern.exec(value);
@@ -79,17 +84,25 @@ export function sharePercent(value: CanonicalDecimal): SharePercent {
 }
 
 function assertConversionOptions(options: ExactRateConversionOptions): void {
-  if (
-    !Number.isSafeInteger(options.sourceScale) ||
-    options.sourceScale < 0 ||
-    !Number.isSafeInteger(options.targetScale) ||
-    options.targetScale < 0
-  ) {
-    throw new RangeError("Rate conversion scales must be nonnegative safe integers");
-  }
+  assertSupportedScale(options.sourceScale, "sourceScale");
+  assertSupportedScale(options.targetScale, "targetScale");
 
   if (options.rounding !== "reject") {
     throw new RangeError('Rate conversion rounding must be "reject"');
+  }
+}
+
+function assertSupportedScale(scale: number, name: "sourceScale" | "targetScale"): void {
+  if (!Number.isSafeInteger(scale) || scale < 0 || scale > MAX_DECIMAL_SCALE) {
+    throw new RangeError(`Rate conversion ${name} must be between 0 and ${MAX_DECIMAL_SCALE}`);
+  }
+}
+
+function assertSupportedShift(decimalPower: number): void {
+  if (!Number.isSafeInteger(decimalPower) || Math.abs(decimalPower) > MAX_RATE_COEFFICIENT_SHIFT) {
+    throw new RangeError(
+      `Rate conversion coefficient shift must be between -${MAX_RATE_COEFFICIENT_SHIFT} and ${MAX_RATE_COEFFICIENT_SHIFT}`,
+    );
   }
 }
 
@@ -99,6 +112,8 @@ function coefficient(value: CanonicalDecimal, scale: number): string {
 }
 
 function shiftedCoefficient(value: string, decimalPower: number): string {
+  assertSupportedShift(decimalPower);
+
   if (decimalPower >= 0) {
     return value + "0".repeat(decimalPower);
   }
@@ -129,8 +144,10 @@ export function percentagePointsToRatio(
   options: ExactRateConversionOptions,
 ): Ratio {
   assertConversionOptions(options);
+  const decimalPower = options.targetScale - options.sourceScale - 2;
+  assertSupportedShift(decimalPower);
   const source = coefficient(value, options.sourceScale);
-  const converted = shiftedCoefficient(source, options.targetScale - options.sourceScale - 2);
+  const converted = shiftedCoefficient(source, decimalPower);
   return ratio(decimalFromCoefficient(converted, options.targetScale));
 }
 
@@ -140,7 +157,9 @@ export function ratioToPercentagePoints(
   options: ExactRateConversionOptions,
 ): PercentagePoints {
   assertConversionOptions(options);
+  const decimalPower = options.targetScale + 2 - options.sourceScale;
+  assertSupportedShift(decimalPower);
   const source = coefficient(value, options.sourceScale);
-  const converted = shiftedCoefficient(source, options.targetScale + 2 - options.sourceScale);
+  const converted = shiftedCoefficient(source, decimalPower);
   return percentagePoints(decimalFromCoefficient(converted, options.targetScale));
 }
