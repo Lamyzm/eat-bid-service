@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import request from "supertest";
+import { normalizedAuctionV1Schema } from "@eatbid/contracts";
 import { expectedMigration, expectedMigrationTimestamp } from "@eatbid/db";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
@@ -15,6 +17,12 @@ import { auctionId } from "../modules/procurement/domain/auction-id";
 
 const repositoryRoot = resolve(import.meta.dir, "../../../..");
 const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
+const sqlText = (value: string): string => value.replaceAll("'", "''");
+const normalizedAuctionFixture = normalizedAuctionV1Schema.parse(JSON.parse(readFileSync(
+  resolve(repositoryRoot, "packages/contracts/fixtures/ingestion-v1/normalized-auction.json"),
+  "utf8",
+)));
+const canonicalNormalizedAuctionPayload = sqlText(JSON.stringify(normalizedAuctionFixture));
 const postgresImage = "postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416";
 const taskLabel = "eatbid.task=gate16-3";
 
@@ -122,12 +130,15 @@ async function withDisposableDatabase<A>(work: (database: DisposableDatabase) =>
          parser_version, normalized_at)
       overriding system value
       values
-        (9007199254740999, 9007199254740997, 'auction', 'external-opaque-id', '{}',
+        (9007199254740999, 9007199254740997, 'auction.v1',
+         '${sqlText(normalizedAuctionFixture.identity.externalBidId)}',
+         '${canonicalNormalizedAuctionPayload}',
          'eat-v1', '2026-08-30T00:00:40Z');
       insert into core.auction_attempt
         (auction_attempt_id, source_system, external_bid_id)
       overriding system value
-      values (9007199254740993, 'eat', 'external-opaque-id');
+      values (9007199254740993, 'eat',
+        '${sqlText(normalizedAuctionFixture.identity.externalBidId)}');
       insert into core.auction_revision
         (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
          content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
@@ -135,8 +146,12 @@ async function withDisposableDatabase<A>(work: (database: DisposableDatabase) =>
       overriding system value
       values
         (9007199254740995, 9007199254740993, 9007199254740999, 9007199254740997,
-         '${"d".repeat(64)}', null, 'OPEN', 'Fresh produce supply', '2026-08-30T00:00:00Z',
-         null, null, 1234567890.50, null, 'KRW', '{"mustNotEscape":true}');
+         '${"d".repeat(64)}', null, '${sqlText(normalizedAuctionFixture.identity.status)}',
+         '${sqlText(normalizedAuctionFixture.identity.title)}',
+         '${sqlText(normalizedAuctionFixture.schedule.announcedAt!)}',
+         '${sqlText(normalizedAuctionFixture.schedule.deadlineAt!)}', null, 1234567890.50,
+         null, 'KRW',
+         '${canonicalNormalizedAuctionPayload}');
       create table mart.api_read_probe (probe_id bigint primary key);
       insert into mart.api_read_probe values (1);
       create role eatbid_api login password 'api-test-secret'
@@ -180,12 +195,22 @@ describe("owner 범위 PostgreSQL 경계", () => {
       expect(auction).toMatchObject({
         auctionId: 9_007_199_254_740_993n,
         revisionId: 9_007_199_254_740_995n,
-        title: "Fresh produce supply",
+        title: normalizedAuctionFixture.identity.title,
         provenance: {
           observationId: 9_007_199_254_740_997n,
           normalizedRecordId: 9_007_199_254_740_999n,
         },
       });
+      expect(await owner`
+        select normalized.record_type, normalized.normalized_payload, revision.source_payload
+        from ingest.normalized_record normalized
+        join core.auction_revision revision using (normalized_record_id)
+        where normalized.normalized_record_id = 9007199254740999
+      `).toEqual([{
+        record_type: "auction.v1",
+        normalized_payload: normalizedAuctionFixture,
+        source_payload: normalizedAuctionFixture,
+      }]);
       expect(await api`select count(*)::int as count from core.auction_attempt`).toEqual([{ count: 1 }]);
       expect(await api`select * from mart.api_read_probe`).toEqual([{ probe_id: "1" }]);
       await api`insert into app.principal default values`;

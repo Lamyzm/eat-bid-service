@@ -28,6 +28,7 @@ def detail_xml(
     eligibility_code: str = "03004",
     main_items: str | None = "source label",
     announced_at: str = "20250617",
+    deadline_at: str = "20250619150000",
     base_amount: str = "10000000.10",
     planned_amount: str = "9990000.01",
     reverse_columns: bool = False,
@@ -41,7 +42,7 @@ def detail_xml(
         ("SIDO_CD", sido_code),
         ("SIGUNGU_CD", sigungu_code),
         ("PBANC_YMD", announced_at),
-        ("BID_END_DT", "20250619150000"),
+        ("BID_END_DT", deadline_at),
         ("OPNG_DT", "20250620103000"),
         ("BGNG_PRC", base_amount),
         ("ELCTRN_BID_PLNPRC", planned_amount),
@@ -227,6 +228,35 @@ def test_서울_source_time은_고정_offset이_아니라_IANA_zone으로_해석
 
     assert record.schedule.announced_at is not None
     assert record.schedule.announced_at.root == "1988-05-31T14:00:00Z"
+
+
+def test_서울_DST_gap의_존재하지_않는_wall_time은_typed_detail_error가_된다() -> None:
+    with pytest.raises(EatDetailValidationError):
+        normalize_bid_detail(
+            detail_xml(deadline_at="19880508023000"),
+            external_bid_id="42",
+            parser_version="eat-v1",
+        )
+
+
+def test_서울_DST_overlap의_모호한_wall_time은_typed_detail_error가_된다() -> None:
+    with pytest.raises(EatDetailValidationError):
+        normalize_bid_detail(
+            detail_xml(deadline_at="19881009023000"),
+            external_bid_id="42",
+            parser_version="eat-v1",
+        )
+
+
+def test_서울_DST_기간의_유일한_wall_time은_정확한_UTC_instant가_된다() -> None:
+    record = normalize_bid_detail(
+        detail_xml(deadline_at="19880601120000"),
+        external_bid_id="42",
+        parser_version="eat-v1",
+    )
+
+    assert record.schedule.deadline_at is not None
+    assert record.schedule.deadline_at.root == "1988-06-01T02:00:00Z"
 
 
 @pytest.mark.parametrize(

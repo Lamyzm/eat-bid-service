@@ -4,7 +4,7 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
@@ -186,11 +186,32 @@ def _optional_instant_text(
     if value is None:
         return None
     try:
-        parsed = datetime.strptime(value, source_format).replace(tzinfo=_SEOUL_TIME)
+        # eaT 값은 지역 벽시각이므로 fold 후보를 검증하기 전까지 timezone을 붙이지 않는다.
+        wall_time = datetime.strptime(value, source_format)  # noqa: DTZ007
     except ValueError as error:
         raise ValueError(f"{field} does not match {source_format}") from error
-    instant = parsed.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    instant = _resolve_seoul_wall_time(wall_time, field).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     return InstantText(root=instant)
+
+
+def _resolve_seoul_wall_time(wall_time: datetime, field: str) -> datetime:
+    """fold 기본값으로 존재하지 않거나 모호한 서울 시각을 임의의 instant로 만들지 않는다."""
+    candidates: dict[tuple[datetime, timedelta], datetime] = {}
+    for fold in (0, 1):
+        local_time = wall_time.replace(tzinfo=_SEOUL_TIME, fold=fold)
+        instant = local_time.astimezone(UTC)
+        round_trip = instant.astimezone(_SEOUL_TIME)
+        offset = local_time.utcoffset()
+        if offset is None or round_trip.replace(tzinfo=None) != wall_time:
+            continue
+        candidates[(instant, offset)] = instant
+    if len(candidates) == 0:
+        raise ValueError(f"{field} is a nonexistent Asia/Seoul wall time")
+    if len(candidates) > 1:
+        raise ValueError(f"{field} is an ambiguous Asia/Seoul wall time")
+    return next(iter(candidates.values()))
 
 
 def _optional_money(row: Mapping[str, str], field: str) -> Money | None:
