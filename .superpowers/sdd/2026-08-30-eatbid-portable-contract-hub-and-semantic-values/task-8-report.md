@@ -2,7 +2,7 @@
 
 ## Status
 
-Complete through independent-review fix round 4/5. TypeScript compiler-symbol and Python AST gates now fail closed around the contract and
+Complete through independent-review fix round 5/5. TypeScript compiler-symbol and Python AST gates now fail closed around the contract and
 semantic-value topology established in Tasks 0–7. Exact legacy frontend/shared debt is frozen in a
 deletion-only fingerprint ledger, both contract generators remain check-only CI gates, and the final
 authority/adaptor/dataflow rules are documented.
@@ -485,3 +485,71 @@ and accepted ADRs are unchanged.
 - The local host remains on Node `v24.2.0` rather than pinned `24.20.0`. Existing Next workspace-root/font
   warnings and the dataplane Windows cp949 reader-thread warning remain non-fatal; the latter accompanied the
   otherwise successful 479-test run.
+
+## Fix round 5/5 — match provenance and comprehension lexical scopes
+
+Implementation commit: `29cf209 fix(architecture): model Python pattern scopes`.
+
+This final bounded round changes only the Python semantic origin engine and its real CLI mutation fixtures.
+The exact 123-entry legacy ledger, TypeScript/Zod/public-response controls, Windows workflow, CRLF-normalized
+check mode, generated artifacts, authority documents, and accepted ADRs are unchanged.
+
+### Round-5 RED evidence
+
+- The initial `match or comprehension` focus ran five groups with three controls passing and two intended
+  failures. `match datetime: case clock: clock.now()` was accepted because capture names had no binding
+  provenance, while all five list/set/dict/generator/nested-comprehension safe-shadow expressions were
+  rejected because their targets incorrectly resolved to the outer imported `datetime`.
+- After the first GREEN, self-review added the use-site distinction required by Python pattern semantics.
+  One safe-capture control failed with three diagnostics: a direct safe subject capture, a sequence star,
+  and mapping rest all incorrectly retained an outer forbidden origin inside their case bodies. This RED
+  proved captures must be definite within a matched guard/body but remain conditional after the case.
+- The old `MAYBE_EXECUTED_BINDING_KINDS` constant and set-equality assertion were removed. They only compared
+  one handwritten inventory to another and did not establish semantic completeness; the retained table now
+  asserts observable fail-closed behavior for representative conditional binding constructs.
+
+### Round-5 implementation and controls
+
+- `MatchAs` captures bind to the matched subject, including wildcard-as and nested capture/as patterns.
+  The binding is definite only through that case's guard/body source region and conditional afterward, so a
+  safe capture shadows inside the case but cannot erase a prior forbidden origin outside it.
+- Sequence/class/mapping child captures are still lexical bindings but acquire no whole-subject provenance.
+  In particular `MatchStar` and mapping `rest` never inherit the subject origin, matching their list/dict
+  runtime values. Safe controls use colliding outer `datetime` names to prove these bindings shadow correctly.
+- Each comprehension generator creates an implicit nested lexical scope after its iterable is evaluated.
+  The outermost iterable remains in the enclosing scope; later iterables see only earlier targets; filters and
+  element/key/value expressions see all preceding targets. Walrus targets skip comprehension scopes and retain
+  the prior conservative outer conditional-binding policy.
+- In response to AGENTS rule 18, the former oversized checker was decomposed: the policy/CLI entrypoint is now
+  242 physical lines and lexical scope/origin traversal lives in `python_semantic_origins.py`. That 590-line module is
+  intentionally one cohesive binding-resolution algorithm because splitting scope construction from use-site
+  origin resolution would expose their internal state contract; if it gains another independent policy family,
+  extract that family behind behavior tests rather than subdividing traversal mechanically. The 720-line test
+  file remains a declaration-heavy adversarial fixture catalog, one of rule 18's explicit cohesive exceptions.
+
+### Round-5 GREEN verification
+
+- Focused match/comprehension groups passed 5/5; the stricter match-only use-site controls passed 3/3.
+  Python semantic plus generated-contract tests passed 29/29, and focused Ruff passed for both checker modules
+  and the fixture suite.
+- Final `pnpm architecture:check` passed stack docs, both semantic gates, Korean-name quality, and both generator
+  drift checks with exactly 123 frozen legacy fingerprints and 334 TypeScript / 288 Python specifications.
+- Explicit `pnpm contracts:check` and `pnpm contracts:python:check` passed without rewriting tracked artifacts.
+- Final `pnpm test` passed: quality Node 34/34, quality Python 28/28, web/shared/DB 123, contracts 23,
+  domain 31, and server 91.
+- Proportional broad gates passed in this round: `pnpm build` 6/6 cached tasks; `pnpm db:check`;
+  dataplane 479/479 plus lint and typecheck with 0 errors/warnings; infra 127/127 and the exact CI Ruff targets.
+  The final use-site refinement only changed the architecture tool and was followed by fresh focused,
+  architecture/contracts, and full root-test runs.
+- `git diff --check` passed before the implementation commit; generated checks and all commits left tracked
+  outputs unchanged.
+
+### Round-5 self-review and concerns
+
+- Reviewed the implementation as three files (712 insertions, 515 deletions, most movement into the extracted
+  module). Each behavior branch maps to an observed RED fixture; no runtime application, dependency, baseline,
+  workflow, generated output, contract authority, or ADR changed.
+- Frozen installs were not repeated because manifests, lockfiles, and CI were untouched; earlier rounds record
+  both frozen setup commands on this Windows host. Hosted Windows CI remains unexecuted because push is prohibited.
+- The local Node `v24.2.0` versus pinned `24.20.0`, Next workspace-root/font warnings, and the existing dataplane
+  Windows cp949 reader-thread warning remain non-fatal. The latter accompanied the successful 479-test run.
