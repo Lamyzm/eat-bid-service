@@ -47,6 +47,10 @@ flowchart LR
 - retry는 timeout/일시적 네트워크/일시적 5xx만 대상으로 한다. 403, 429, 차단 신호, 계약 위반,
   인증/설정 오류는 무한 재시도하지 않고 명시적으로 중단한다.
 - backfill은 같은 source semaphore를 공유해 정기 poll을 압도하지 않게 우선순위/동시성을 제한한다.
+- workflow timeout/retry/schedule 값은 단위가 붙은 config와 명명한 duration factory에서만 만들며,
+  calendar 기간과 elapsed timeout을 같은 숫자로 취급하지 않는다.
+- run/observation/publication timestamp는 UTC absolute instant로 기록하고 source 지역 시각은 IANA zone을
+  명시해 해석한다. container의 local timezone이나 수동 offset에 의미를 맡기지 않는다.
 
 권장 exit category:
 

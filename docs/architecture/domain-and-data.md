@@ -298,7 +298,24 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
 모든 mart 행/빌드는 `mart_build_id`, `computation_version`, `source_release/run set`, `as_of`,
 `built_at`, `sample_n`을 가진다. 대규모 JSON 결과를 Organization/Auction master 행에 넣지 않는다.
 
-## 8. DDL과 계약
+## 8. 시간과 정량 값
+
+canonical 사실은 값의 표현뿐 아니라 의미와 단위를 보존한다. 상세 타입·wire·DB·Python 경계는
+[시간·정량 값·Zod 계약](time-and-value-contracts.md)과 [ADR 0020](../adr/0020-semantic-values-temporal-zod-contracts.md)을
+따른다.
+
+- 절대 시점, 달력 날짜, 지역 시각, 경과 시간을 각각 `Instant`, `PlainDate`, `ZonedDateTime`,
+  `ElapsedMilliseconds`로 구분한다. 수동 KST offset이나 ambient `Date.now()`가 정책을 소유하지 않는다.
+- 금액은 exact decimal amount와 source가 증명한 currency를 함께 저장한다. 비율은 percentage-point와
+  ratio를 구분하고 canonical 사실에 floating-point DDL을 사용하지 않는다.
+- count와 byte length의 DB bigint는 JavaScript number로 축소하지 않는다. 합성 지표는 `건/업체/년`처럼
+  분자·분모·기간을 field와 contract metadata에 기록한다.
+- 좌표는 CRS와 provenance를 동반한 관측값이다. 이름 lookup 좌표를 기관 identity나 canonical 위치로
+  자동 승격하지 않는다.
+- HTTP wire authority는 `packages/contracts`의 bounded Zod schema이고, domain/DB/source 모델은 각
+  adapter에서 명시적으로 변환한다.
+
+## 9. DDL과 계약
 
 `packages/db`의 Drizzle schema가 DDL 작성의 유일한 원천이다. 생성된 SQL migration을 검토·
 커밋하고 같은 Git SHA의 migration image가 배포 전에 적용한다. `schema.sql`과 `db:push`는

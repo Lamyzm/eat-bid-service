@@ -82,5 +82,6 @@ discovered
 - 검증되지 않은 수집 실행의 canonical 발행 수: 0
 - raw observation으로 역추적 불가능한 신규 canonical 행 수: 0
 - 출처/표본/기준시점이 없는 신규 분석 카드 수: 0
+- 단위·통화·분모가 정의되지 않은 신규 공개 수치 수: 0
 - 동일 실행 재시도 후 논리적 중복 수: 0
 - 사용자가 적어둔 값과 source-observed submission을 동일 필드로 저장한 사례: 0

@@ -133,11 +133,15 @@ web/server, WorkflowTemplate/CronWorkflow를 동기화한다. 데이터 작업 �
 
 ## 8. 횡단 관심사
 
-### 식별자와 시간
+### 식별자, 시간, 정량 값
 
 - 내부 관계는 bigint ID, 외부 코드는 source/scheme/code로 식별한다.
-- source event time, observed/fetched time, published time, user action time을 구분한다.
+- source event time, observed/fetched time, published time, user action time을 Temporal 의미 타입으로 구분한다.
 - 행정구역·코드·mapping은 유효기간을 가질 수 있다.
+- 금액은 통화를 동반한 exact decimal, 비율은 percentage-point/ratio를 구분한 exact decimal로 다룬다.
+- 수량·바이트·좌표·합성 지표는 목적과 단위/분모가 드러나는 타입과 Zod metadata를 가진다.
+- HTTP Zod wire schema, domain value, Drizzle row, Pydantic source model의 권위와 변환 방향은
+  [time-and-value-contracts.md](time-and-value-contracts.md)를 따른다.
 
 ### 데이터 품질
 
@@ -192,6 +196,7 @@ Accepted ADR을 우선하고 같은 변경에서 이 문서를 정정한다.
 | mart query 성장 | PG index/partition, 버전된 build | 반복 scan 시간/DB 부하 임계치 초과 |
 | 분석의 허위 정밀도 | sample/cohort/as_of/version 강제 | 사용자 오해 조사와 metric audit |
 | Python/TS 모델 불일치 | 경계별 계약, fixture/contract tests | payload/API drift 발생 |
+| 단위가 지워진 숫자 계산 | semantic value, exact decimal, Zod/AST gate | 새 정량 도메인 또는 외부 단위 추가 |
 
 미해결이지만 즉시 막지 않는 항목: 최종 운영 PostgreSQL 형태(CNPG vs managed), 인증 제공자,
 SLO 조정, 장기 raw retention 기간. 이를 구현자가 임의 선택하지 말고 사용 시점에 ADR로 확정한다.

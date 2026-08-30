@@ -39,6 +39,10 @@
 14. **테스트 이름은 사람이 읽는 한국어 명세다.** TypeScript `describe`/`test`/`it`의 직접 문자열
     제목과 Python pytest `test_*` 함수명은 한글 음절을 포함해야 한다. HTTP, Effect, PostgreSQL 같은
     기술 식별자는 영문을 병기할 수 있지만, 동적 제목이나 별칭으로 품질 검사를 우회하지 않는다.
+15. **값의 의미와 단위를 원시값에 숨기지 않는다.** 시간은 Temporal과 주입된 Clock, 금액은 통화를
+    동반한 exact decimal, 비율은 percentage-point와 ratio를 구분한 타입, 수량·바이트·좌표는 목적과
+    단위가 드러나는 타입을 사용한다. 공개 wire 표현은 `packages/contracts`의 Zod schema가 권위이며,
+    `Date`·일반 `number`·문자열로 계층 경계를 암묵 통과시키지 않는다.
 
 ## 변경 절차
 
@@ -61,6 +65,7 @@
 5. [`docs/architecture/runtime-and-deployment.md`](docs/architecture/runtime-and-deployment.md) — Argo 실행·배포 모델
 6. [`docs/architecture/arc42.md`](docs/architecture/arc42.md) — 전체 설계 서술
 7. [`docs/adr/README.md`](docs/adr/README.md) — 확정된 결정과 변경 방법
+8. [`docs/architecture/time-and-value-contracts.md`](docs/architecture/time-and-value-contracts.md) — 시간·단위·Zod 계약
 
 기존 `docs/SPEC-*`, `docs/ARCH-*`, `infra/k8s/base/schema.sql`, 현재 DB 구조와 URL은
 현행 조사 자료일 뿐 목표 아키텍처가 아니다. 충돌하면 이 파일과 Accepted ADR이 우선한다.

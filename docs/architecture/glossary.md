@@ -21,6 +21,13 @@
 | mart | 버전/시점/표본을 가진 재생성 가능 분석 결과 | master/SSOT |
 | replay | 지정 raw 집합을 지정 코드 버전으로 다시 해석하는 실행 | source 재수집과 혼용 |
 | NeaT 입력 확인 | 사용자가 외부 화면에 입력했다고 eatbid에 남긴 확인 | source-observed submission |
+| Instant | timezone과 무관하게 한 순간을 식별하는 Temporal 값 | timezone 없는 datetime, `Date` |
+| PlainDate | 시간대나 시각 없이 업무 달력 날짜만 표현하는 Temporal 값 | UTC 자정 timestamp |
+| ElapsedMilliseconds | timeout/retry/drain처럼 고정 경과 시간을 나타내는 branded 값 | 단위 없는 number |
+| Money | canonical decimal amount와 currency의 쌍 | 통화 없는 number |
+| PercentagePoints | 100을 기준으로 표현한 퍼센트포인트 | 0..1 Ratio와 혼용한 rate |
+| Ratio | 1을 기준으로 표현한 정확 비율 | PercentagePoints와 암묵 변환 |
+| Coordinate | latitude/longitude와 CRS를 함께 가진 위치 값 | 출처 없는 숫자 배열 |
 
 코드, API, 화면, 문서에서 새 동의어를 만들기 전에 이 표를 갱신한다. 한국어 UI 표현은
 달라질 수 있지만 도메인 계약과 혼동되지 않게 매핑을 문서화한다.
