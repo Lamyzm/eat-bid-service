@@ -33,4 +33,13 @@ describe("canonical UTC instant 문자열 계약", () => {
       expect(instantTextSchema.safeParse(invalid).success, invalid).toBe(false);
     }
   });
+
+  test("ASCII가 아닌 Unicode 숫자를 instant 구성요소로 허용하지 않는다", () => {
+    for (const invalid of [
+      "٢٠٢٦-08-30T00:00:00Z",
+      "2026-08-30T0١:00:00Z",
+    ]) {
+      expect(instantTextSchema.safeParse(invalid).success, invalid).toBe(false);
+    }
+  });
 });

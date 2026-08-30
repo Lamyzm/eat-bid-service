@@ -68,6 +68,22 @@ def test_required_nullable_field는_누락을_거부하고_null을_허용한다(
     assert model.identity.display_bid_number is None
 
 
+@pytest.mark.parametrize(
+    "unicode_instant",
+    ["٢٠٢٦-08-30T00:00:00Z", "2026-08-30T0١:00:00Z"],
+)
+def test_generated_model이_ASCII가_아닌_Unicode_숫자를_거부한다(
+    unicode_instant: str,
+) -> None:
+    payload = golden_payload()
+    schedule = payload["schedule"]
+    assert isinstance(schedule, dict)
+    schedule["announcedAt"] = unicode_instant
+
+    with pytest.raises(ValidationError):
+        EatbidIngestionAuctionV1.model_validate(payload)
+
+
 def test_alias_json_dump가_golden_logical_json을_재현한다() -> None:
     payload = golden_payload()
     model = EatbidIngestionAuctionV1.model_validate(payload)
