@@ -301,7 +301,7 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
 ## 8. 시간과 정량 값
 
 canonical 사실은 값의 표현뿐 아니라 의미와 단위를 보존한다. 상세 타입·wire·DB·Python 경계는
-[시간·정량 값·Zod 계약](time-and-value-contracts.md)과 [ADR 0020](../adr/0020-semantic-values-temporal-zod-contracts.md)을
+[시간·정량 값·Zod 계약](time-and-value-contracts.md)과 [ADR 0021](../adr/0021-zod-portable-contract-hub.md)을
 따른다.
 
 - 절대 시점, 달력 날짜, 지역 시각, 경과 시간을 각각 `Instant`, `PlainDate`, `ZonedDateTime`,
@@ -312,8 +312,9 @@ canonical 사실은 값의 표현뿐 아니라 의미와 단위를 보존한다.
   분자·분모·기간을 field와 contract metadata에 기록한다.
 - 좌표는 CRS와 provenance를 동반한 관측값이다. 이름 lookup 좌표를 기관 identity나 canonical 위치로
   자동 승격하지 않는다.
-- HTTP wire authority는 `packages/contracts`의 bounded Zod schema이고, domain/DB/source 모델은 각
-  adapter에서 명시적으로 변환한다.
+- canonical interchange와 HTTP wire authority는 `packages/contracts`의 bounded Zod schema다. source
+  Pydantic과 DB/domain 모델은 각 adapter에서 명시적으로 변환하고 normalized Pydantic은 versioned
+  JSON Schema에서 생성한다.
 
 ## 9. DDL과 계약
 
@@ -321,6 +322,6 @@ canonical 사실은 값의 표현뿐 아니라 의미와 단위를 보존한다.
 커밋하고 같은 Git SHA의 migration image가 배포 전에 적용한다. `schema.sql`과 `db:push`는
 목표 구조에서 제거한다.
 
-HTTP/API 계약은 `packages/contracts`에서 별도로 정의한다. DB 테이블을 그대로 외부 응답으로
-노출하지 않으며, Python Pydantic 모델과 TypeScript 계약은 source payload 및 공개 API라는
-서로 다른 경계를 담당한다.
+Interchange/API 계약은 `packages/contracts`에서 별도로 정의한다. DB 테이블을 그대로 외부 응답으로
+노출하지 않는다. 손으로 작성한 Python Pydantic은 source payload를 담당하고 normalized Pydantic은
+Zod가 내보낸 versioned JSON Schema에서 생성한다.

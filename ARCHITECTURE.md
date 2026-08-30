@@ -19,7 +19,7 @@
 | 사용자 상태 | PostgreSQL `app` |
 | 분석 | PostgreSQL `mart`, 버전이 있는 재생성 가능 파생물 |
 | 외부 식별자 | `(source_system, code_scheme, code)`; 내부 관계는 bigint ID |
-| 값 의미 | Temporal 시간 모델, exact 금액/비율, 목적별 수량·좌표 타입, Zod wire 계약 |
+| 값·계약 | Temporal/exact 의미 타입, Zod portable contract hub, generated Pydantic bridge |
 | API | NestJS 모듈러 모놀리스, DB 모델과 별도 계약 |
 | 수집 실행 | 단일 dataplane 이미지 + Argo Workflows |
 | 배포 | GitOps + Argo CD, 이미지 digest/Git SHA 고정 |

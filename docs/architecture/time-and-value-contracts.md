@@ -1,52 +1,62 @@
 # 시간·정량 값·Zod 계약
 
-이 문서는 [ADR 0020](../adr/0020-semantic-values-temporal-zod-contracts.md)을 구현 가능한 경계로
+이 문서는 [ADR 0021](../adr/0021-zod-portable-contract-hub.md)을 구현 가능한 경계로
 풀어쓴다. 목표는 `string`과 `number`를 없애는 것이 아니라, **업무 의미와 단위가 지워진 원시값이
 계층을 통과하지 못하게 하는 것**이다.
 
 ## 1. 하나의 진실 원천이 뜻하는 것
 
 여기서 SSOT는 모든 계층을 한 schema 파일로 생성한다는 뜻이 아니다. **같은 질문에 답하는
-권위가 둘이면 안 된다는 뜻**이다. 공개 JSON 모양은 Zod, 업무 값의 의미와 불변식은 domain,
-물리 DB 형식은 Drizzle, 원본 응답 형식은 Pydantic이 각각 하나의 권위를 가진다. 한 계층의 모델을
-다른 계층에 그대로 노출하지 않고 명명한 adapter에서 변환한다.
+권위가 둘이면 안 된다는 뜻**이다. canonical interchange와 공개 API JSON은 Zod, 업무 값의 의미와
+불변식은 domain, 물리 DB 형식은 Drizzle, eaT 원본 응답 형식은 source Pydantic이 각각 하나의 권위를
+가진다. 한 계층의 모델을 다른 계층에 그대로 노출하지 않고 명명한 adapter에서 변환한다.
 
 ```mermaid
 flowchart TB
     source[eaT 원본 XML/JSON] --> pydantic[Pydantic source contract]
     pydantic --> normalize[normalize adapter]
-    normalize --> domain[packages/domain<br/>의미 값과 불변식]
+
+    hub[Zod atoms / values] --> ingestion[Zod ingestion/v1 wire]
+    hub --> apiwire[Zod api/v1 wire]
+    ingestion --> jsonschema[versioned JSON Schema]
+    jsonschema --> pygen[generated Pydantic v2 model]
+    normalize --> pygen
 
     ddl[packages/db<br/>Drizzle DDL] --> migration[커밋된 SQL migration]
     migration --> pg[(PostgreSQL<br/>exact storage)]
+    pygen -->|Argo dataplane publish| pg
     pg <--> row[Drizzle row adapter]
-    row <--> domain
+    row <--> domain[packages/domain<br/>의미 값과 불변식]
 
-    wire[packages/contracts<br/>Zod wire schema] <--> codec[Zod codec adapter]
+    apiwire <--> codec[Zod codec adapter]
     codec <--> domain
-    wire --> openapi[OpenAPI]
-    wire --> client[Web runtime parser<br/>z.input / z.output]
+    apiwire --> openapi[OpenAPI]
+    apiwire --> client[Web runtime parser<br/>z.input / z.output]
 
     fixture[canonical golden fixtures] -. 의미 일치 검증 .-> pydantic
     fixture -. 의미 일치 검증 .-> ddl
-    fixture -. 의미 일치 검증 .-> wire
+    fixture -. round trip .-> ingestion
+    fixture -. round trip .-> apiwire
 ```
 
 | 질문 | 유일한 권위 | 여기서 파생되는 것 | 여기서 파생하지 않는 것 |
 |---|---|---|---|
-| eaT가 실제로 보낸 모양은 무엇인가? | Pydantic source contract | normalized input | HTTP DTO, DDL |
+| eaT가 실제로 보낸 모양은 무엇인가? | 손으로 작성한 Pydantic source contract | normalized input | interchange/API DTO, DDL |
+| Python과 TypeScript가 교환하는 canonical JSON은 무엇인가? | Zod `ingestion/v1` wire schema | JSON Schema, generated Pydantic model | source parsing, DDL |
 | 금액·비율·시간의 업무 의미는 무엇인가? | `packages/domain` | 불변식과 명명된 변환 | JSON field 이름, DB column |
-| 어떤 JSON을 공개하고 받는가? | `packages/contracts` Zod schema | `z.input`/`z.output`, OpenAPI, web parser | DDL |
+| 어떤 API JSON을 공개하고 받는가? | Zod `api/v1` wire schema | `z.input`/`z.output`, OpenAPI, web parser | DDL |
 | 어떻게 정확히 저장하는가? | `packages/db` Drizzle schema | SQL migration, row type | HTTP response |
 
 쌍방향 화살표는 생성 관계가 아니라 명시적 encode/decode 경계다. OpenAPI나 Zod에서 DDL을 만들지
-않고, Drizzle row를 HTTP DTO로 사용하지 않으며, Pydantic을 TypeScript에서 생성하지 않는다.
-각 권위 사이의 의미 보존은 canonical fixture와 integration test로 증명한다.
+않고 Drizzle row를 HTTP DTO로 사용하지 않는다. source Pydantic은 독립 권위지만 normalized Pydantic은
+Zod JSON Schema에서 생성한다. 각 권위 사이의 의미 보존은 canonical fixture와 integration test로
+증명한다.
 
 ### 계약을 바꿀 때 시작할 곳
 
-- 공개 JSON field·null 의미·범위를 바꾸면 Zod wire schema부터 바꾸고 OpenAPI와 소비자 계약을
-  갱신한다.
+- normalized interchange field·null 의미·범위를 바꾸면 Zod `ingestion/v1`부터 바꾸고 JSON Schema와
+  generated Pydantic model을 재생성한다.
+- 공개 API JSON을 바꾸면 Zod `api/v1`부터 바꾸고 OpenAPI와 web 소비자 계약을 갱신한다.
 - `BidRate`와 `FloorRate`를 섞을 수 없는 것처럼 업무 의미를 바꾸면 domain부터 바꾸고 codec과
   integration test로 전파한다.
 - `numeric` precision, index, foreign key처럼 저장 제약을 바꾸면 Drizzle과 migration부터 바꾼다.
@@ -79,12 +89,32 @@ packages/domain/src/
    ├─ coordinate.ts
    └─ distance.ts
 
-packages/contracts/src/primitives/
-├─ time.ts
-├─ money.ts
-├─ rate.ts
-├─ quantity.ts
-└─ geo.ts
+packages/contracts/src/
+├─ atoms/
+│  ├─ decimal.ts
+│  ├─ identifier.ts
+│  ├─ temporal.ts
+│  └─ geo.ts
+├─ values/
+│  ├─ money.ts
+│  ├─ rate.ts
+│  ├─ coordinate.ts
+│  └─ provenance.ts
+├─ resources/procurement/
+│  ├─ identity.ts
+│  ├─ schedule.ts
+│  ├─ pricing.ts
+│  └─ restrictions.ts
+├─ ingestion/v1/
+├─ api/v1/
+├─ codecs/
+└─ registry.ts
+
+packages/contracts/generated/
+└─ ingestion-v1.schema.json
+
+apps/dataplane/src/eatbid/contracts/generated/
+└─ ingestion_v1.py
 ```
 
 `index.ts`는 export만 한다. 포맷, 계산, validation, DB mapping을 한 파일에 모으지 않는다.
@@ -158,8 +188,14 @@ latitude/longitude는 finite number와 법정 범위를 검증한다. 좌표만�
 
 ## 7. Zod 계약 규율
 
-- `packages/contracts`의 public schema는 `z.strictObject`와 explicit bound를 사용한다.
-- `z.infer`/`z.input`/`z.output`만 public TypeScript wire type을 만든다.
+- `packages/contracts`의 interchange/public schema는 `z.strictObject`와 explicit bound를 사용한다.
+- `z.infer`/`z.input`/`z.output`만 TypeScript wire type을 만든다.
+- JSON은 identity/schedule/pricing/restrictions/provenance의 중첩 resource로 구성한다. 최종 DTO마다
+  `.shape` spread를 반복하지 않는다.
+- 같은 contract family는 `.pick()`/`.omit()`/`.safeExtend()`로 조립한다. ingestion/request/response/
+  DB row 사이에는 `.pick()`을 사용하지 않는다. `z.intersection()`은 object DTO 조립에 사용하지 않는다.
+- pagination/version처럼 반복되는 envelope만 작은 local generic factory로 만든다. 별도 contract
+  framework와 Immer를 schema composition에 사용하지 않는다.
 - domain conversion이 필요한 값은 `wireSchema` 옆에 `z.codec(wireSchema, domainSchema, ... )`를
   두되 OpenAPI에는 wire schema를 전달한다.
 - response도 parse/encode 검증을 통과해야 하며 controller가 수동 object spread로 internal field를
@@ -167,6 +203,8 @@ latitude/longitude는 finite number와 법정 범위를 검증한다. 좌표만�
 - Zod metadata의 description은 단위, scale, timezone/CRS, null 의미를 설명한다.
 - nullable은 unknown, not-applicable, not-yet-observed를 한 값으로 숨기지 않는다. 업무상 구분이
   필요하면 discriminated union을 사용한다.
+- portable registry는 JSON Schema로 표현 가능한 기능만 허용한다. versioned JSON Schema와 generated
+  Pydantic model은 커밋하고 CI 재생성 diff로 drift를 차단한다.
 
 ### 한 값이 API를 통과하는 실제 흐름
 
@@ -194,6 +232,8 @@ codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반
 - canonical money/rate column의 floating-point DDL
 - DB bigint의 JavaScript number mapping
 - Zod 외부에 중복 작성한 public wire interface
+- 사람이 중복 작성한 normalized Pydantic model과 generated contract drift
+- portable registry의 codec/transform/runtime custom predicate
 - naive Python datetime과 float money/rate normalization
 
 레거시 예외 ledger는 파일·구문·이유·제거 gate를 고정한다. line number만 기록해 이동으로 우회하지
@@ -202,12 +242,13 @@ codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반
 
 ## 9. 단계적 전환
 
-1. `packages/domain`과 primitive Zod wire 계약, golden fixture를 만든다.
-2. 신규 server의 config/shutdown/logging/auction read를 Clock·Temporal·semantic value로 전환한다.
-3. `packages/db` bigint mapping과 canonical numeric 정책을 고친다.
-4. dataplane의 source time/Decimal/count 변환을 동일 fixture로 검증한다.
-5. 정적 gate로 현재 상태를 동결하고 CI에 연결한다.
-6. frontend는 사용자와 기능/정보 구조를 합의한 뒤 wire 계약 소비자로 전환한다.
+1. `packages/domain`과 Zod atom/value/resource, ingestion/API wire 계약을 만든다.
+2. ingestion JSON Schema와 deterministic generated Pydantic lane, golden round trip을 만든다.
+3. 신규 server의 config/shutdown/logging/auction read를 Clock·Temporal·semantic value로 전환한다.
+4. `packages/db` bigint mapping과 canonical numeric 정책을 고친다.
+5. dataplane의 source time/Decimal/count 변환을 generated model과 동일 fixture로 검증한다.
+6. 정적 gate로 현재 상태를 동결하고 CI에 연결한다.
+7. frontend는 사용자와 기능/정보 구조를 합의한 뒤 wire 계약 소비자로 전환한다.
 
 frontend cutover 전에도 새 backend 계약은 단위를 잃지 않는다. web chart/map adapter가 일시적으로
 number를 필요로 하면 근사 presentation value임을 명시하고 canonical 판단에는 재사용하지 않는다.

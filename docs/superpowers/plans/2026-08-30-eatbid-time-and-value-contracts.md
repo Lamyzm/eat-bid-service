@@ -1,5 +1,9 @@
 # Eatbid Time and Semantic Value Contracts Implementation Plan
 
+> **PAUSED — DO NOT EXECUTE:** ADR 0021 changed the contract topology to a Zod portable contract hub,
+> generated Pydantic bridge, and native nested composition. This plan predates that decision and must be
+> replaced after the revised written spec is reviewed. Its task details are historical input only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build one exact, testable foundation for time, money, rates, quantities, byte lengths, and coordinates, with Zod as the public wire-contract authority.

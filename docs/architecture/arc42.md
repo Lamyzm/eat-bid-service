@@ -97,7 +97,9 @@ guard/pipe/interceptor/filter의 책임은
 
 `discover`, `capture`, `normalize`, `validate`, `project`, `replay` CLI가 같은 image에 있다.
 Source adapter는 transport/payload 해석만 담당하고 canonical projector는 별도 계층이다.
-Pydantic 모델은 source 계약 경계를 검증한다.
+손으로 작성한 Pydantic 모델은 source 계약을 검증하고 Zod JSON Schema에서 생성한 Pydantic 모델은
+normalized interchange를 검증한다. dataplane은 product server HTTP를 거치지 않고 제한된 DB role로
+발행한다.
 
 ## 6. 런타임 뷰
 
@@ -140,7 +142,7 @@ web/server, WorkflowTemplate/CronWorkflow를 동기화한다. 데이터 작업 �
 - 행정구역·코드·mapping은 유효기간을 가질 수 있다.
 - 금액은 통화를 동반한 exact decimal, 비율은 percentage-point/ratio를 구분한 exact decimal로 다룬다.
 - 수량·바이트·좌표·합성 지표는 목적과 단위/분모가 드러나는 타입과 Zod metadata를 가진다.
-- HTTP Zod wire schema, domain value, Drizzle row, Pydantic source model의 권위와 변환 방향은
+- Zod interchange/API wire, domain value, Drizzle row, source/generated Pydantic의 권위와 변환 방향은
   [time-and-value-contracts.md](time-and-value-contracts.md)를 따른다.
 
 ### 데이터 품질

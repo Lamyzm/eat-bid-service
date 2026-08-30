@@ -1,8 +1,9 @@
 # 0020 — 의미 있는 값 타입, Temporal, Zod wire 계약
 
-- Status: Accepted
+- Status: Superseded
 - Date: 2026-08-30
 - Supersedes: 없음
+- Superseded by: [0021 — Zod portable contract hub와 Python 생성 계약](0021-zod-portable-contract-hub.md)
 
 ## Context
 

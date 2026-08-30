@@ -1,9 +1,9 @@
 # Eatbid 시간·단위·Zod 계약 설계 스펙
 
 - Date: 2026-08-30
-- Status: Approved; implementation authorized
+- Status: Design approved; written revision awaiting review
 - Approval: 사용자가 시간뿐 아니라 금액·비율·수량·용량·좌표를 1차 기반 범위로 승인하고
-  Zod 계약을 명시적으로 요구함
+  Zod-first portable contract hub, 생성된 Python 계약, Zod native composition, Immer 기반 비채택을 승인함
 - Scope: 신규 backend/domain/contracts/db/dataplane 기반과 정적 품질 gate. frontend 동작 변경은 제외.
 
 ## 1. 문제
@@ -24,8 +24,8 @@ Eatbid의 분석 정확성은 값의 단위와 관측 의미에 달려 있다. �
 
 ## 2. 승인된 목표
 
-> 시간·금액·비율·수량·바이트·좌표를 의미가 있는 domain value로 표현하고, 공개 JSON 표현은
-> Zod wire schema 하나에서 검증·타입 파생·OpenAPI 투영한다.
+> 시간·금액·비율·수량·바이트·좌표를 의미가 있는 domain value로 표현하고, canonical interchange와
+> 공개 API JSON은 Zod wire schema에서 검증·타입 파생·JSON Schema/OpenAPI로 투영한다.
 
 완료 후 다음이 성립해야 한다.
 
@@ -35,9 +35,10 @@ Eatbid의 분석 정확성은 값의 단위와 관측 의미에 달려 있다. �
 4. 퍼센트포인트, ratio, 점유율, 합성 rate가 타입과 field name에서 구분된다.
 5. DB bigint가 JavaScript number로 축소되지 않는다.
 6. 좌표는 CRS와 provenance를 잃지 않는다.
-7. HTTP wire type은 Zod에서만 파생하고 DB/source model과 분리된다.
-8. TypeScript/Python/PostgreSQL 변환은 cross-language fixture로 같은 canonical 결과를 증명한다.
-9. legacy frontend debt는 증가하지 않고 별도 공동 기획 전까지 동작을 바꾸지 않는다.
+7. interchange/API wire type은 Zod에서만 파생하고 DB/source model과 분리된다.
+8. Python normalized model은 Zod JSON Schema artifact에서 생성되고 사람이 중복 작성하지 않는다.
+9. TypeScript/Python/PostgreSQL 변환은 cross-language fixture로 같은 canonical 결과를 증명한다.
+10. legacy frontend debt는 증가하지 않고 별도 공동 기획 전까지 동작을 바꾸지 않는다.
 
 ## 3. 기술 기준
 
@@ -58,14 +59,15 @@ Stage-4 Temporal은 Node 26에서 기본 제공되지만 2026-08-30 기준 repos
 | 계층 | 권위 | 허용되는 변환 | 금지 |
 |---|---|---|---|
 | `packages/domain` | semantic type, invariant, named conversion | primitive/Temporal ↔ domain value | Zod, Nest, Effect, Drizzle, HTTP import |
-| `packages/contracts` | bounded serializable Zod wire schema | wire schema ↔ domain codec | DDL 생성, DB row 공개, 수동 duplicate interface |
+| `packages/contracts` | portable interchange/public Zod wire schema | JSON Schema/OpenAPI 생성, wire ↔ domain codec | DDL 생성, DB row 공개, 수동 duplicate interface |
 | `packages/db` | Drizzle DDL/row representation | exact DB primitive ↔ repository adapter | HTTP schema 권위, bigint→number |
 | `apps/server` | use case와 transport mapping | repository domain value ↔ Zod wire | controller 산술, ambient time, direct DB row response |
-| `apps/dataplane` | source/Pydantic normalized authority | source text ↔ aware datetime/Decimal/int | naive datetime, float money/rate |
+| `apps/dataplane` | source Pydantic 권위와 generated normalized contract 소비 | source text → aware datetime/Decimal/int → generated model | normalized DTO 수동 복제, naive datetime, float money/rate |
 | `apps/web` | validated wire 소비와 presentation | chart/map library용 명시적 근사 adapter | canonical 판단/금액 산술에 근사값 재사용 |
 
-Zod는 HTTP 계약의 SSOT이지 모든 데이터 계층을 생성하는 meta-schema가 아니다. Pydantic과 Drizzle은
-각자의 경계에서 독립 권위이며 fixture와 integration test로 합치한다.
+Zod는 프로세스 간 canonical JSON과 HTTP 계약의 SSOT이지 모든 데이터 계층을 생성하는 meta-schema가
+아니다. Pydantic source model과 Drizzle은 각자의 경계에서 독립 권위다. Python normalized model만
+Zod가 생성한 versioned JSON Schema에서 deterministic하게 생성하고 fixture/integration test로 합치한다.
 
 ## 5. TypeScript domain API
 
@@ -145,13 +147,28 @@ factory는 finite/range를 검증한다. canonical 위치에는 별도 `GeoPoint
 observedAt/accuracy/resolution state를 보존한다. 이번 gate는 타입과 계약 기반만 만들고 66개 좌표를
 즉시 이름 추측으로 채우지 않는다.
 
-## 6. Zod wire 계약
+## 6. Zod portable contract hub
 
-`packages/contracts/src/primitives`의 각 파일은 다음 세 층을 같은 위치에서 정의한다.
+### 6.1 계약 층
 
-1. serializable atomic wire schema
-2. 그 schema를 조합한 strict public object schema
-3. 필요할 때만 domain constructor와 연결한 bidirectional codec
+`packages/contracts`는 네 층으로 나눈다.
+
+1. `atoms`: canonical decimal, instant, ID, source code, latitude처럼 의미가 있는 최소 schema
+2. `values`: money, coordinate, provenance처럼 atom을 묶은 strict value object
+3. `resources`: identity, schedule, pricing, restrictions처럼 의미가 드러나는 중첩 object
+4. `ingestion/v1`, `api/v1`: 최종 versioned strict request/response schema
+
+JSON 자체를 중첩 resource로 설계한다. 최종 DTO마다 `.shape` spread를 반복하지 않는다. 같은 contract
+family의 축소는 `.pick()`/`.omit()`, 안전한 확장은 `.safeExtend()`, 부분 입력은 `.partial()`/
+`.required()`, 상태 variant는 `z.discriminatedUnion()`을 사용한다. `z.intersection()`은 결과가 object
+composition API를 잃으므로 DTO 조립에 사용하지 않는다. pagination/version envelope만 `pageOf()`와
+`versioned()` 같은 작은 local generic factory로 만든다.
+
+ingestion, command request, public response, DB row는 서로 직접 `.pick()`하지 않는다. 수명주기와
+visibility가 다른 계약은 atom/value만 공유하고 각자 중첩 resource를 가진다. Immer나 별도 contract
+framework를 schema 조립에 사용하지 않는다.
+
+### 6.2 wire와 codec 분리
 
 예시:
 
@@ -178,6 +195,21 @@ adapter의 양방향 변환용이다. 같은 regex/range를 codec에 복제하�
 canonical decimal string, potentially large count/byte는 canonical nonnegative bigint decimal string,
 좌표는 CRS를 포함한 strict object다. TypeScript 공개 type은 전부 `z.infer` 또는 `z.input`/`z.output`이다.
 
+### 6.3 Python 생성 계약
+
+Python으로 내보낼 portable registry에는 JSON Schema로 표현 가능한 strict object, literal/enum,
+discriminated union, regex/format, length/bound만 등록한다. transform, codec, runtime brand, Temporal
+instance, opaque custom predicate는 등록하지 않는다.
+
+Zod registry의 stable ID/metadata에서 versioned JSON Schema를 생성하고 pinned
+`datamodel-code-generator`가 Pydantic v2 model을 생성한다. 생성 preset은 timestamp를 넣지 않고 strict
+nullability, JSON alias, unknown-field rejection을 보존한다. JSON Schema와 Python generated model을
+커밋하며 CI는 재생성 후 diff 0을 요구한다.
+
+Python의 손으로 작성한 Pydantic model은 eaT 원본/source parsing에만 남는다. normalized interchange
+model은 generated package를 import한다. canonical fixture는 Python generated model → JSON → Zod parse
+→ domain decode → wire encode round trip이 동일함을 증명한다.
+
 ## 7. 저장과 source 경계
 
 - timestamp: PostgreSQL `timestamptz`; repository는 driver `Date|string`을 명명한 legacy adapter에서
@@ -188,6 +220,8 @@ canonical decimal string, potentially large count/byte는 canonical nonnegative 
 - source time: Python `ZoneInfo("Asia/Seoul")`로 parse하고 UTC-aware datetime으로 canonicalize한다.
 - source money/rate: `Decimal`; JSON은 canonical decimal string으로 serialize한다.
 - source invalid/out-of-range 값은 raw evidence에서 지우지 않고 typed validation/quarantine으로 처리한다.
+- dataplane은 Argo에서 DB로 직접 발행한다. normalized row 전체를 Nest HTTP endpoint로 전송하지 않아
+  backfill/replay를 product server 가용성과 처리량에 묶지 않는다.
 
 ## 8. 정적 강제
 
@@ -201,6 +235,7 @@ mutation fixture를 fail시킨다.
 - canonical money/rate field의 `doublePrecision`/`real`
 - Drizzle `bigint(..., { mode: "number" })`
 - public HTTP response의 수동 parallel interface
+- portable registry의 codec/transform/custom predicate와 generated contract drift
 
 Python gate는 naive datetime constructor/`datetime.now()` without timezone, float money/rate model, raw sleep
 literal을 검사한다. type checker가 증명할 수 없는 dynamic/aliased form은 fail-closed fixture를 둔다.
@@ -213,10 +248,11 @@ literal을 검사한다. type checker가 증명할 수 없는 dynamic/aliased fo
 
 이번 구현은 frontend 동작을 바꾸지 않는다.
 
-- 신규 `packages/domain`과 Zod primitive contract를 만든다.
+- 신규 `packages/domain`과 Zod atom/value/resource contract를 만든다.
+- versioned ingestion JSON Schema emitter와 deterministic Pydantic v2 generation lane을 만든다.
 - 신규 server의 config, logging, shutdown, migration timestamp, procurement response를 전환한다.
 - `packages/db`의 bigint TypeScript mapping을 exact bigint로 바꾸고 generated SQL no-diff를 증명한다.
-- dataplane source time/Decimal/count canonicalization을 golden fixture로 정렬한다.
+- dataplane source time/Decimal/count canonicalization을 generated normalized model과 golden fixture로 정렬한다.
 - frontend/legacy shared의 debt는 ledger로 동결하고 사용자 공동 기획 전까지 자동 변환하지 않는다.
 - 좌표 66개 enrichment는 coordinate/provenance 계약 이후 별도 Argo workflow/backfill 계획으로 다룬다.
 
@@ -226,6 +262,8 @@ literal을 검사한다. type checker가 증명할 수 없는 dynamic/aliased fo
 - Zod 4.5.4와 temporal-polyfill 1.0.4 exact frozen install이 통과한다.
 - Node 24에서 polyfill path, 가능한 native Temporal runtime에서 facade conformance가 같은 fixture를 낸다.
 - OpenAPI가 UTC instant, money, rate, count, coordinate wire schema를 정확히 설명하고 deterministic이다.
+- ingestion JSON Schema와 generated Pydantic model 재생성 diff가 0이다.
+- Python generated model → Zod → domain → Zod round-trip golden fixture가 통과한다.
 - Drizzle schema 변경 후 migration generation이 SQL zero-diff다.
 - AST gate mutation suite와 legacy baseline 증가 금지가 통과한다.
 - Korean test-spec quality gate가 통과한다.
@@ -240,3 +278,6 @@ literal을 검사한다. type checker가 증명할 수 없는 dynamic/aliased fo
 - frontend 화면/상태/정보구조 자동 변경
 - 이름 기반 좌표를 canonical 사실로 즉시 backfill
 - Zod/Pydantic에서 DDL 생성 또는 DB row에서 HTTP schema 생성
+- 모든 normalized record를 Nest HTTP ingestion endpoint로 전송
+- Immer를 domain/contracts/server의 기본 불변 객체 계층으로 도입
+- TypeSpec/별도 contract framework를 새 최상위 IDL로 도입
