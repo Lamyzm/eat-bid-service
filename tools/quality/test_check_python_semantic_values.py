@@ -7,25 +7,6 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CHECKER = REPOSITORY_ROOT / "tools" / "quality" / "check-python-semantic-values.py"
-MAYBE_EXECUTED_BINDING_KINDS = frozenset(
-    {
-        "async-for",
-        "bool-op-tail",
-        "compare-tail",
-        "dict-comprehension",
-        "for",
-        "generator-expression",
-        "if",
-        "if-expression",
-        "list-comprehension",
-        "match-case",
-        "match-guard",
-        "set-comprehension",
-        "try",
-        "try-star",
-        "while",
-    }
-)
 
 
 def _run(tmp_path: Path, files: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -231,7 +212,7 @@ read = lambda flag: (
         _assert_violation(case, source, "naive-datetime")
 
 
-def test_maybe_executed_binding_node의_지원_범위를_행동_fixture로_고정한다(
+def test_maybe_executed_binding_construct의_safe_rebinding은_기존_origin을_지우지_않는다(
     tmp_path: Path,
 ) -> None:
     cases = {
@@ -341,8 +322,6 @@ clock = datetime
 clock.now()
 """,
     }
-    assert frozenset(cases) == MAYBE_EXECUTED_BINDING_KINDS
-
     missed = []
     for index, (kind, source) in enumerate(cases.items()):
         case = tmp_path / str(index)
@@ -354,6 +333,125 @@ clock.now()
         else:
             assert "[naive-datetime]" in output, f"{kind}: {output}"
     assert missed == []
+
+
+def test_match의_capture는_subject_origin을_case_local_binding으로_보존한다(
+    tmp_path: Path,
+) -> None:
+    mutations = [
+        """
+from datetime import datetime
+match datetime:
+    case clock:
+        clock.now()
+""",
+        """
+from datetime import datetime
+match datetime:
+    case _ as clock:
+        clock.utcnow()
+""",
+        """
+from datetime import datetime
+match datetime:
+    case clock as alias:
+        alias.now()
+""",
+        """
+from datetime import datetime
+match datetime:
+    case clock as alias:
+        clock.utcnow()
+""",
+    ]
+    for index, source in enumerate(mutations):
+        case = tmp_path / str(index)
+        case.mkdir()
+        _assert_violation(case, source, "naive-datetime")
+
+
+def test_match의_safe_capture와_star_mapping_rest는_subject_origin을_만들지_않는다(
+    tmp_path: Path,
+) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/example.py": """
+from datetime import datetime
+
+clock = datetime
+match safe_clock:
+    case clock:
+        clock.now()
+
+match datetime:
+    case [*datetime]:
+        datetime.now()
+
+match datetime:
+    case {"value": value, **datetime}:
+        datetime.now()
+""",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_match_capture의_safe_rebinding은_case밖의_forbidden_origin을_지우지_않는다(
+    tmp_path: Path,
+) -> None:
+    _assert_violation(
+        tmp_path,
+        """
+from datetime import datetime
+clock = datetime
+match safe_clock:
+    case clock:
+        pass
+clock.now()
+""",
+        "naive-datetime",
+    )
+
+
+def test_comprehension_target은_암시적_scope에서_바깥_datetime을_가린다(
+    tmp_path: Path,
+) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/example.py": """
+from datetime import datetime
+
+list_values = [datetime.now() for datetime in safe_clocks]
+set_values = {datetime.now() for datetime in safe_clocks}
+dict_values = {datetime: datetime.now() for datetime in safe_clocks}
+generator_values = (datetime.now() for datetime in safe_clocks)
+nested_values = [datetime.now() for group in safe_groups for datetime in group]
+""",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_comprehension의_iterable과_element에_직접_쓴_datetime은_계속_거부한다(
+    tmp_path: Path,
+) -> None:
+    mutations = [
+        "[item for item in [datetime.now()]]",
+        "{datetime.utcnow() for item in safe_items}",
+        "{item: datetime.now() for item in safe_items}",
+        "(datetime.utcnow() for item in safe_items)",
+        "[datetime.now() for group in safe_groups for item in group]",
+    ]
+    for index, expression in enumerate(mutations):
+        case = tmp_path / str(index)
+        case.mkdir()
+        _assert_violation(
+            case,
+            f"from datetime import datetime\nvalue = {expression}\n",
+            "naive-datetime",
+        )
 
 
 def test_BoolOp_첫_operand의_확정_rebinding은_safe_shadow로_유지한다(tmp_path: Path) -> None:
