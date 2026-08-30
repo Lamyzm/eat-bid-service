@@ -2,14 +2,14 @@
 
 ## Status
 
-Complete. TypeScript compiler-symbol and Python AST gates now fail closed around the contract and
+Complete through independent-review fix round 2/5. TypeScript compiler-symbol and Python AST gates now fail closed around the contract and
 semantic-value topology established in Tasks 0–7. Exact legacy frontend/shared debt is frozen in a
 deletion-only fingerprint ledger, both contract generators remain check-only CI gates, and the final
 authority/adaptor/dataflow rules are documented.
 
 Base: `18b2dbc fix(server): align id docs and shutdown grace`.
 
-## RED evidence
+## Initial implementation RED evidence (historical)
 
 ### TypeScript semantic mutations
 
@@ -48,7 +48,7 @@ compile-time consumer fixture initially surfaced the missing export diagnostic f
 `AuctionResponse`; the final assertion is deliberately tied to TypeScript diagnostic 2305/2724 and
 the removed symbol name, proving the old TypeScript-only API cannot be imported.
 
-## GREEN implementation
+## Initial implementation GREEN (historical)
 
 - `check-semantic-values.mjs` builds a TypeScript `Program` and uses compiler symbols and declaration
   resolution rather than regex-only matching. It follows import, namespace, assignment, destructuring,
@@ -121,9 +121,11 @@ time-and-value-contracts now state the final authority direction:
 
 Existing accepted ADR files were not modified.
 
-## Verification
+## Initial implementation verification (historical; superseded)
 
-Fresh final runs:
+These commands record the pre-review `c9a348f` state only. In particular, the 122-fingerprint result
+predates the stricter `window` origin tracking and is superseded by the unchanged current inventory of
+123 recorded in both fix rounds below.
 
 - `pnpm install --frozen-lockfile` — lockfile unchanged, exit 0.
 - `uv sync --project apps/dataplane --frozen` — audit complete, exit 0.
@@ -158,7 +160,7 @@ Fresh final runs:
 - Authority docs: `AGENTS.md`, `ARCHITECTURE.md`, `docs/architecture/arc42.md`, `c4.md`,
   `domain-and-data.md`, `stack/contracts-and-validation.md`, and `time-and-value-contracts.md`.
 
-## Self-review
+## Initial implementation self-review (historical)
 
 - Reviewed all dirty paths and the complete new checker/test sources; no unrelated source or generated
   artifact changes are present.
@@ -173,7 +175,7 @@ Fresh final runs:
 - No migration, merge, push, deployment, live-source action, frontend cutover, coordinate enrichment,
   adapter-boundary redesign, or multi-row eligibility work was performed.
 
-## Concerns
+## Initial implementation concerns (historical)
 
 - The host is Node `v24.2.0` while the repository pins `24.20.0`; every pnpm command reports the engine
   warning, although all local gates and builds passed. The pinned Windows CI runtime remains the final
@@ -238,7 +240,7 @@ under the permitted legacy area. The exact multiplicity ledger therefore moves f
 This is the only baseline addition. Its exact path, node kind, normalized-text hash, reason, and removal
 gate are recorded; strict packages still have no general baseline.
 
-### Fix-round verification
+### Round-1 verification (historical; superseded by round 2)
 
 Fresh commands after the fixes:
 
@@ -260,7 +262,7 @@ Fresh commands after the fixes:
 - The exact workflow Ruff target set passed, as did focused Ruff, `node --check`, and
   `git diff --check`.
 
-### Fix-round self-review and warnings
+### Round-1 self-review and warnings (historical)
 
 - Reviewed the staged implementation diff (20 files, 861 insertions, 138 deletions) and confirmed all
   changes map to independent-review findings or their mutation fixtures.
@@ -274,3 +276,80 @@ Fresh commands after the fixes:
 - An auxiliary, broader-than-CI `ruff check infra` found three pre-existing findings in
   `infra/bump-image.py` (`UP009`, two `FURB167`). That unrelated file was not changed; the exact CI Ruff
   command passes.
+
+## Fix round 2/5 — remaining origin and export paths
+
+Implementation commit: `dca41ff fix(architecture): close remaining semantic gate aliases`.
+
+The re-review of `1f2ccc5`/`6cf1526` supplied five bounded remaining cases. This round changed only the
+semantic checkers, their mutation fixtures, and the three authority documents whose portable-operation
+list needed to name Zod `overwrite`. Windows CI, CRLF-normalized check-only generation, the exact 123-entry
+legacy ledger, accepted ADRs, and application `AuctionRecord` were unchanged.
+
+### Round-2 RED and mutation evidence
+
+- `node --test tools/architecture/check-semantic-values.test.mjs` ran 13 groups with 10 passing and 3
+  failing for the intended missing behavior: later destructuring assignment from `Date`, a later local
+  `export { AuctionEnvelope }`, and shorthand portable-registry symbol traversal.
+- `uv run --project apps/dataplane pytest tools/quality/test_check_python_semantic_values.py -q` ran 16
+  tests with 13 passing and 3 failing: conditional/try datetime rebinding, a named variable derived from
+  real `timedelta.total_seconds()`, and an outside-source subclass of a source-allowed Pydantic model.
+- The first shorthand assertion stopped its test before the later `overwrite` assertion. To preserve
+  exact mutation evidence, `overwrite` detection was temporarily removed after GREEN: the focused test
+  failed 0/1 at the overwrite assertion, then passed 1/1 after restoration. This proves the test depends
+  on the production feature rather than merely the shorthand fix.
+- Existing controls stayed green during RED: an adjacent guarded codec may use `z.custom`; a non-Zod
+  `transform` helper/local similarly named class is not rejected; a fake `total_seconds` source fails;
+  internal `AuctionRecord` and Zod-inferred public declarations remain valid.
+
+### Round-2 implementation
+
+- Later assignment collection now recursively binds object/array destructuring targets to the selected
+  source property. Thus `({ now: currentTime } = Date)` gives `currentTime` the compiler-resolved
+  `Date.now` origin at subsequent use sites.
+- Portable graph traversal uses the TypeScript checker’s shorthand-assignment value symbol, follows it
+  through imported schema declarations and called factory bodies, and treats Zod `overwrite` as a
+  runtime-only transform. The existing Zod provenance check remains required before reporting.
+- Public HTTP declarations are considered exported through the module’s compiler-resolved export table,
+  covering later `ExportSpecifier` syntax while preserving inferred Zod aliases and internal application
+  ports.
+- Python bindings record whether they occur on conditional/try paths. Use-site resolution starts at the
+  most recent definite binding and unions all later possible bindings, so a maybe-executed safe rebind
+  cannot erase a prior datetime origin while an unconditional preceding rebind still shadows correctly.
+- Python class bindings carry resolved base origins across local module imports, so source-authoring
+  subclasses retain their Pydantic provenance when inherited outside the allowed source area.
+- Calls to actual `datetime.timedelta.total_seconds` produce a dedicated seconds-value origin that can
+  flow through a named variable into `sleep`; methods with only the same spelling do not acquire it.
+
+### Round-2 final verification
+
+- Frozen setup: `pnpm install --frozen-lockfile` and
+  `uv sync --project apps/dataplane --frozen` passed without lockfile changes.
+- Focused adversarial suites: semantic/stack Node 21/21; Python semantic, generation, and CI contract
+  fixtures 28/28; dedicated restored `overwrite` mutation 1/1.
+- `pnpm architecture:check` passed stack, TypeScript, Python, Korean-name, JSON Schema, and Python-model
+  gates: exactly 123 frozen legacy fingerprints, 333 TypeScript and 276 Python Korean specifications.
+- Explicit `pnpm contracts:check` and `pnpm contracts:python:check` passed and did not rewrite tracked
+  artifacts.
+- `pnpm test` passed: quality Node 33/33, quality Python 16/16, web/shared/DB 123, contracts 23,
+  domain 31, and server 91.
+- `pnpm build` passed 6/6 tasks; `pnpm db:check` reported `Everything's fine`.
+- `pnpm dataplane:test` passed 479 tests with the one existing Windows cp949 reader warning;
+  `pnpm dataplane:lint` passed; `pnpm dataplane:typecheck` reported 0 errors and 0 warnings.
+- `uv run --project apps/dataplane pytest infra/tests -q` passed 127/127, and the exact CI Ruff target
+  set passed.
+- `node --check`, focused Ruff, `git diff --check`, and the staged diff check passed.
+
+### Round-2 self-review and remaining concerns
+
+- Reviewed the complete seven-file implementation commit (262 insertions, 46 deletions). Each production
+  branch has a behavior fixture that failed before the fix; no baseline, workflow, generated output,
+  accepted ADR, or unrelated application code changed.
+- Confirmed the exact combined shorthand form `Object.freeze([{ id, schema }])` reaches a schema factory
+  containing `z.string().overwrite(...)` and fails, while origin verification prevents non-Zod false
+  positives.
+- Confirmed the current report’s authoritative baseline is 123; every 122 reference is confined to the
+  explicitly historical initial verification or the historical round-1 transition from 122 to 123.
+- Hosted Windows CI remains unexecuted because this task does not push. The same architecture and quality
+  commands passed on the local Windows host. Node `v24.2.0` versus pinned `24.20.0`, worktree Husky,
+  Next lockfile/font, and dataplane cp949 messages remain the previously documented non-fatal warnings.
