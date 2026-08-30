@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Atomically replace one digest in a strict Kustomize images block."""
 
 from __future__ import annotations

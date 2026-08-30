@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """kustomization.yaml 의 images: 블록을 갱신한다. CI 가 배포 태그를 박는 자리.
 
