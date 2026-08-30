@@ -282,16 +282,22 @@ function hasEnglishBehaviorPredicate(value) {
   return (value.match(/[A-Za-z]+/g) ?? []).some((word) => englishBehaviorWords.has(word.toLowerCase()));
 }
 
+function hasLatinClause(value) {
+  return /[A-Za-z]{2,}/.test(value);
+}
+
 function isMeaningfulKoreanTitle(title, base) {
   if (!hangulSyllable.test(title)) return false;
   const separator = title.match(/\s[—–-]\s/);
   const behavior = separator ? title.slice(0, separator.index).trim() : title.trim();
+  const trailingClause = separator ? title.slice(separator.index + separator[0].length).trim() : "";
   if (genericKoreanTitle.test(behavior) || genericKoreanScope.test(behavior)) return false;
   if (base === "describe") return true;
   const hangulCount = [...behavior].filter((character) => hangulSyllable.test(character)).length;
   return hangulCount >= 2
     && !hasEnglishBehaviorPredicate(behavior)
-    && (koreanBehaviorPredicate.test(behavior) || !hasEnglishBehaviorPredicate(title));
+    && (koreanBehaviorPredicate.test(behavior)
+      || (!hasLatinClause(trailingClause) && !hasEnglishBehaviorPredicate(title)));
 }
 
 function lineOf(sourceFile, node) {

@@ -307,7 +307,7 @@ test("한국어 장식만 붙인 영문 행위는 명세로 인정하지 않는�
   withFixture({
     "decorated.test.ts": `
       import { test } from "node:test";
-      test("한국 — rejects an unsafe request", () => {});
+      test("한국 — English behavior", () => {});
     `,
     "tests/test_decorated.py": `
 def test_emits_error_거부한다():
@@ -316,7 +316,7 @@ def test_emits_error_거부한다():
   }, (result) => {
     const output = `${result.stdout}${result.stderr}`;
     assert.equal(result.status, 1, output);
-    assert.match(output, /한국 — rejects an unsafe request/);
+    assert.match(output, /한국 — English behavior/);
     assert.match(output, /test_emits_error_거부한다/);
   });
 });
