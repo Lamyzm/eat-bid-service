@@ -10,6 +10,7 @@ export type ArchitectureRule =
   | "domain-framework-free"
   | "application-dependency-direction"
   | "effect-runner-only"
+  | "non-literal-module-reference"
   | "root-module-import-only"
   | "cross-feature-internal-import"
   | "source-dependency-cycle";
@@ -31,9 +32,27 @@ interface Dependency {
   readonly line: number;
 }
 
+interface NonLiteralModuleReference {
+  readonly kind: "dynamic import" | "require";
+  readonly line: number;
+}
+
 interface SourceNode {
   readonly file: ts.SourceFile;
   readonly dependencies: Dependency[];
+  readonly nonLiteralModuleReferences: NonLiteralModuleReference[];
+}
+
+interface ModuleReference {
+  readonly specifier?: string;
+  readonly node: ts.Node;
+  readonly kind: "static import" | "dynamic import" | "require";
+}
+
+interface ReachableDependency {
+  readonly dependency: Dependency;
+  readonly owner: string;
+  readonly path: readonly string[];
 }
 
 const productionFile = (fileName: string): boolean =>
@@ -45,22 +64,44 @@ function lineOf(sourceFile: ts.SourceFile, node: ts.Node): number {
   return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 }
 
-function moduleReferences(sourceFile: ts.SourceFile): Array<{ specifier: string; node: ts.Node }> {
-  const references: Array<{ specifier: string; node: ts.Node }> = [];
+function moduleReferences(sourceFile: ts.SourceFile): ModuleReference[] {
+  const references: ModuleReference[] = [];
   const visit = (node: ts.Node): void => {
     if (
       (ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
       && node.moduleSpecifier
       && ts.isStringLiteralLike(node.moduleSpecifier)
     ) {
-      references.push({ specifier: node.moduleSpecifier.text, node: node.moduleSpecifier });
+      references.push({
+        specifier: node.moduleSpecifier.text,
+        node: node.moduleSpecifier,
+        kind: "static import",
+      });
     } else if (
       ts.isImportEqualsDeclaration(node)
       && ts.isExternalModuleReference(node.moduleReference)
       && node.moduleReference.expression
       && ts.isStringLiteralLike(node.moduleReference.expression)
     ) {
-      references.push({ specifier: node.moduleReference.expression.text, node: node.moduleReference.expression });
+      references.push({
+        specifier: node.moduleReference.expression.text,
+        node: node.moduleReference.expression,
+        kind: "static import",
+      });
+    } else if (ts.isCallExpression(node)) {
+      const kind = node.expression.kind === ts.SyntaxKind.ImportKeyword
+        ? "dynamic import"
+        : ts.isIdentifier(node.expression) && node.expression.text === "require"
+          ? "require"
+          : undefined;
+      if (kind) {
+        const [argument] = node.arguments;
+        references.push({
+          specifier: argument && ts.isStringLiteralLike(argument) ? argument.text : undefined,
+          node: argument ?? node,
+          kind,
+        });
+      }
     }
     ts.forEachChild(node, visit);
   };
@@ -92,19 +133,31 @@ function isDatabaseSchemaPath(fileName: string): boolean {
 }
 
 function resolvedAlias(checker: ts.TypeChecker, symbol: ts.Symbol | undefined): ts.Symbol | undefined {
-  if (!symbol) return undefined;
-  return symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+  const visited = new Set<ts.Symbol>();
+  let current = symbol;
+  while (current && current.flags & ts.SymbolFlags.Alias && !visited.has(current)) {
+    visited.add(current);
+    current = checker.getAliasedSymbol(current);
+  }
+  return current;
 }
 
-function isController(sourceFile: ts.SourceFile): boolean {
+function isNestControllerSymbol(checker: ts.TypeChecker, node: ts.Node): boolean {
+  const symbol = resolvedAlias(checker, checker.getSymbolAtLocation(node));
+  return symbol?.getName() === "Controller"
+    && symbol.declarations?.some((declaration) =>
+      normalize(declaration.getSourceFile().fileName).includes("/node_modules/@nestjs/common/")) === true;
+}
+
+function isController(sourceFile: ts.SourceFile, checker: ts.TypeChecker): boolean {
   if (/\.controller\.tsx?$/.test(sourceFile.fileName.replaceAll("\\", "/"))) return true;
   let found = false;
   const visit = (node: ts.Node): void => {
     if (found || !ts.isClassDeclaration(node)) return;
     for (const decorator of ts.getDecorators(node) ?? []) {
       const expression = decorator.expression;
-      if (ts.isCallExpression(expression) && ts.isIdentifier(expression.expression)
-        && expression.expression.text === "Controller") {
+      const decoratorTarget = ts.isCallExpression(expression) ? expression.expression : expression;
+      if (isNestControllerSymbol(checker, decoratorTarget)) {
         found = true;
       }
     }
@@ -127,11 +180,14 @@ function moduleMetadata(sourceFile: ts.SourceFile): ts.ObjectLiteralExpression |
   return undefined;
 }
 
-function propertyName(property: ts.ObjectLiteralElementLike): string | undefined {
-  if (!property.name) return undefined;
-  return ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name)
-    ? property.name.text
-    : undefined;
+function isImportOnlyMetadata(metadata: ts.ObjectLiteralExpression | undefined): boolean {
+  if (!metadata || metadata.properties.length !== 1) return false;
+  const [property] = metadata.properties;
+  if (!property || !ts.isPropertyAssignment(property) || ts.isComputedPropertyName(property.name)) {
+    return false;
+  }
+  return (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name))
+    && property.name.text === "imports";
 }
 
 function featureOf(fileName: string): string | undefined {
@@ -156,11 +212,12 @@ export function checkArchitecture(options: CheckArchitectureOptions = {}): Archi
   const sourceRoot = normalize(resolve(projectRoot, "src"));
   const sourceFiles = program.getSourceFiles().filter((file) =>
     productionFile(file.fileName) && normalize(file.fileName).startsWith(`${sourceRoot}/`));
-  const sourceNames = new Set(sourceFiles.map((file) => normalize(file.fileName)));
   const nodes = new Map<string, SourceNode>();
 
   for (const file of sourceFiles) {
-    const dependencies = moduleReferences(file).map(({ specifier, node }) => {
+    const references = moduleReferences(file);
+    const dependencies = references.flatMap(({ specifier, node }) => {
+      if (specifier === undefined) return [];
       const resolvedModule = ts.resolveModuleName(
         specifier,
         file.fileName,
@@ -168,13 +225,18 @@ export function checkArchitecture(options: CheckArchitectureOptions = {}): Archi
         ts.sys,
       ).resolvedModule;
       const candidate = resolvedModule ? normalize(resolvedModule.resolvedFileName) : undefined;
-      return {
+      return [{
         specifier,
-        target: candidate && sourceNames.has(candidate) ? candidate : candidate,
+        target: candidate,
         line: lineOf(file, node),
-      };
+      }];
     });
-    nodes.set(normalize(file.fileName), { file, dependencies });
+    const nonLiteralModuleReferences: NonLiteralModuleReference[] = references.flatMap(
+      ({ specifier, node, kind }) => specifier === undefined && kind !== "static import"
+        ? [{ kind, line: lineOf(file, node) }]
+        : [],
+    );
+    nodes.set(normalize(file.fileName), { file, dependencies, nonLiteralModuleReferences });
   }
 
   const violations: ArchitectureViolation[] = [];
@@ -185,42 +247,54 @@ export function checkArchitecture(options: CheckArchitectureOptions = {}): Archi
     }
   };
 
-  const reachableDependencies = (start: string): Dependency[] => {
-    const found: Dependency[] = [];
+  const reachableDependencies = (start: string): ReachableDependency[] => {
+    const found: ReachableDependency[] = [];
     const visited = new Set<string>();
-    const visit = (fileName: string): void => {
+    const visit = (fileName: string, path: readonly string[]): void => {
       if (visited.has(fileName)) return;
       visited.add(fileName);
       for (const dependency of nodes.get(fileName)?.dependencies ?? []) {
-        found.push(dependency);
-        if (dependency.target && nodes.has(dependency.target)) visit(dependency.target);
+        found.push({ dependency, owner: fileName, path });
+        if (dependency.target && nodes.has(dependency.target)) {
+          visit(dependency.target, [...path, dependency.target]);
+        }
       }
     };
-    visit(start);
+    visit(start, [start]);
     return found;
   };
 
   for (const [fileName, node] of nodes) {
-    if (isController(node.file)) {
-      for (const dependency of reachableDependencies(fileName)) {
+    for (const reference of node.nonLiteralModuleReferences) {
+      add(
+        "non-literal-module-reference",
+        node.file,
+        reference.line,
+        `Non-literal ${reference.kind} module specifier cannot be proven safe.`,
+      );
+    }
+
+    if (isController(node.file, checker)) {
+      for (const { dependency, owner, path } of reachableDependencies(fileName)) {
         if (isDatabasePackage(dependency.specifier)
           || (dependency.target !== undefined && isDatabaseSchemaPath(dependency.target))) {
+          const edgeOwner = nodes.get(owner)?.file ?? node.file;
           add(
             "controller-database-boundary",
-            node.file,
+            edgeOwner,
             dependency.line,
-            `Controller reaches database dependency '${dependency.specifier}'.`,
+            `Controller path '${path.map((item) => relativeFile(projectRoot, item)).join(" -> ")}' reaches database dependency '${dependency.specifier}'.`,
           );
         }
       }
     }
 
     if (fileName.includes("/domain/")) {
-      for (const dependency of reachableDependencies(fileName)) {
+      for (const { dependency, owner } of reachableDependencies(fileName)) {
         if (isDomainForbiddenPackage(dependency.specifier)) {
           add(
             "domain-framework-free",
-            node.file,
+            nodes.get(owner)?.file ?? node.file,
             dependency.line,
             `Domain reaches forbidden dependency '${dependency.specifier}'.`,
           );
@@ -229,12 +303,12 @@ export function checkArchitecture(options: CheckArchitectureOptions = {}): Archi
     }
 
     if (fileName.includes("/application/")) {
-      for (const dependency of reachableDependencies(fileName)) {
+      for (const { dependency, owner } of reachableDependencies(fileName)) {
         if (dependency.target && (dependency.target.includes("/presentation/")
           || dependency.target.includes("/infrastructure/"))) {
           add(
             "application-dependency-direction",
-            node.file,
+            nodes.get(owner)?.file ?? node.file,
             dependency.line,
             `Application reaches forbidden layer '${relativeFile(projectRoot, dependency.target)}'.`,
           );
@@ -286,8 +360,7 @@ export function checkArchitecture(options: CheckArchitectureOptions = {}): Archi
   const rootModule = nodes.get(normalize(resolve(projectRoot, "src/app.module.ts")));
   if (rootModule) {
     const metadata = moduleMetadata(rootModule.file);
-    const keys = metadata?.properties.map(propertyName).filter((name): name is string => name !== undefined) ?? [];
-    if (!metadata || keys.length !== 1 || keys[0] !== "imports") {
+    if (!isImportOnlyMetadata(metadata)) {
       add(
         "root-module-import-only",
         rootModule.file,

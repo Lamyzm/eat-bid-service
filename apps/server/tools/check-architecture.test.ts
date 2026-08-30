@@ -71,6 +71,29 @@ describe("TypeScript-resolved server architecture", () => {
     });
   }
 
+  test("rejects a controller CommonJS require of a database package", () => {
+    const projectPath = fixture({
+      "src/modules/orders/presentation/http/orders.controller.ts": 'const database = require("@eatbid/db"); export const leak = database;',
+    });
+    expect(rules(projectPath)).toContain("controller-database-boundary");
+  });
+
+  test("rejects a controller literal dynamic import of a database package", () => {
+    const projectPath = fixture({
+      "src/modules/orders/presentation/http/orders.controller.ts": 'export const leak = () => import("drizzle-orm");',
+    });
+    expect(rules(projectPath)).toContain("controller-database-boundary");
+  });
+
+  for (const expression of ["require(packageName)", "import(packageName)"]) {
+    test(`rejects a non-literal module reference through ${expression.split("(")[0]}`, () => {
+      const projectPath = fixture({
+        "src/modules/orders/application/load.ts": `const packageName = "effect"; export const load = () => ${expression};`,
+      });
+      expect(rules(projectPath)).toContain("non-literal-module-reference");
+    });
+  }
+
   test("rejects a controller database-schema import resolved through a tsconfig alias", () => {
     const projectPath = fixture({
       "src/database/schema.ts": "export const table = 1;",
@@ -91,6 +114,46 @@ describe("TypeScript-resolved server architecture", () => {
     const projectPath = fixture({
       "src/modules/orders/infrastructure/db-barrel.ts": 'export { dependency } from "drizzle-orm";',
       "src/modules/orders/presentation/http/orders.controller.ts": 'import { dependency } from "../../infrastructure/db-barrel"; export const leak = dependency;',
+    });
+    expect(rules(projectPath)).toContain("controller-database-boundary");
+  });
+
+  test("reports the actual forbidden edge and controller reachability path", () => {
+    const projectPath = fixture({
+      "src/modules/orders/infrastructure/db-barrel.ts": '\nexport { dependency } from "drizzle-orm";',
+      "src/modules/orders/presentation/http/orders.controller.ts": 'import { dependency } from "../../infrastructure/db-barrel"; export const leak = dependency;',
+    });
+    const [violation] = checkArchitecture({ projectPath }).filter(
+      (item) => item.rule === "controller-database-boundary",
+    );
+    expect(violation?.file).toBe("src/modules/orders/infrastructure/db-barrel.ts");
+    expect(violation?.line).toBe(2);
+    expect(violation?.message).toContain(
+      "src/modules/orders/presentation/http/orders.controller.ts -> src/modules/orders/infrastructure/db-barrel.ts",
+    );
+  });
+
+  test("discovers a Nest controller decorator imported under an alias", () => {
+    const projectPath = fixture({
+      "src/modules/orders/presentation/http/orders.endpoint.ts": [
+        'import { Controller as HttpController } from "@nestjs/common";',
+        'import { dependency } from "drizzle-orm";',
+        '@HttpController("orders")',
+        "export class OrdersEndpoint { readonly leak = dependency; }",
+      ].join("\n"),
+    });
+    expect(rules(projectPath)).toContain("controller-database-boundary");
+  });
+
+  test("discovers a Nest controller decorator through a local re-export", () => {
+    const projectPath = fixture({
+      "src/platform/http/decorators.ts": 'export { Controller as HttpController } from "@nestjs/common";',
+      "src/modules/orders/presentation/http/orders.endpoint.ts": [
+        'import { HttpController } from "../../../../platform/http/decorators";',
+        'import { dependency } from "postgres";',
+        '@HttpController("orders")',
+        "export class OrdersEndpoint { readonly leak = dependency; }",
+      ].join("\n"),
     });
     expect(rules(projectPath)).toContain("controller-database-boundary");
   });
@@ -143,6 +206,34 @@ describe("TypeScript-resolved server architecture", () => {
     });
   }
 
+  test("rejects root AppModule metadata containing a spread", () => {
+    const projectPath = fixture({
+      "src/app.module.ts": [
+        'import { Module } from "@nestjs/common";',
+        "class FeatureService {}",
+        "const extra = { providers: [FeatureService] };",
+        "@Module({ imports: [], ...extra })",
+        "export class AppModule {}",
+      ].join("\n"),
+    });
+    expect(rules(projectPath)).toContain("root-module-import-only");
+  });
+
+  for (const key of ["providers", "controllers"]) {
+    test(`rejects root AppModule metadata containing computed ${key}`, () => {
+      const projectPath = fixture({
+        "src/app.module.ts": [
+          'import { Module } from "@nestjs/common";',
+          `const forbiddenKey = "${key}";`,
+          "class FeatureDependency {}",
+          "@Module({ imports: [], [forbiddenKey]: [FeatureDependency] })",
+          "export class AppModule {}",
+        ].join("\n"),
+      });
+      expect(rules(projectPath)).toContain("root-module-import-only");
+    });
+  }
+
   for (const internalLayer of ["presentation", "infrastructure"]) {
     test(`rejects a feature importing another feature's ${internalLayer} internals`, () => {
       const projectPath = fixture({
@@ -157,6 +248,22 @@ describe("TypeScript-resolved server architecture", () => {
     const projectPath = fixture({
       "src/modules/orders/application/a.ts": 'import { b } from "./b"; export const a = b;',
       "src/modules/orders/application/b.ts": 'import { a } from "./a"; export const b = a;',
+    });
+    expect(rules(projectPath)).toContain("source-dependency-cycle");
+  });
+
+  test("rejects a source dependency cycle formed by literal dynamic imports", () => {
+    const projectPath = fixture({
+      "src/modules/orders/application/a.ts": 'export const a = () => import("./b");',
+      "src/modules/orders/application/b.ts": 'export const b = () => import("./a");',
+    });
+    expect(rules(projectPath)).toContain("source-dependency-cycle");
+  });
+
+  test("rejects a source dependency cycle formed by CommonJS requires", () => {
+    const projectPath = fixture({
+      "src/modules/orders/application/a.ts": 'export const a = () => require("./b");',
+      "src/modules/orders/application/b.ts": 'export const b = () => require("./a");',
     });
     expect(rules(projectPath)).toContain("source-dependency-cycle");
   });
