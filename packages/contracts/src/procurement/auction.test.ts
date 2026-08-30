@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-describe("canonical auction 계약", () => {
+describe("폐기 예정인 평면 공고 응답 호환 계약", () => {
   test("canonical 양의 십진 path ID만 허용한다", async () => {
     const contract = await import("./auction").catch(() => undefined);
     expect(contract, "procurement contract must exist").toBeDefined();

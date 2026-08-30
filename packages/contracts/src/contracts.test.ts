@@ -29,5 +29,9 @@ describe("공개 운영 계약", () => {
       path: "/api/v1/auctions/{auctionId}",
       operationId: "findAuction",
     });
+    expect(module!.auctionV1ResponseSchema).toBeDefined();
+    expect(module!.auctionV1Operations.find.responseSchema).toBe(module!.auctionV1ResponseSchema);
+    expect(module!.moneyCodec).toBeDefined();
+    expect(module!.instantCodec).toBeDefined();
   });
 });

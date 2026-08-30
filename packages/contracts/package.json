@@ -18,6 +18,7 @@
     "test": "bun test src"
   },
   "dependencies": {
+    "@eatbid/domain": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

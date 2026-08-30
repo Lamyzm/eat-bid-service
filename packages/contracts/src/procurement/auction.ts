@@ -24,6 +24,9 @@ const nullableDecimal = z.string()
   .nullable();
 
 // strict 응답 계약은 저장소 내부 열의 우발적 유출을 막고 모든 canonical 값이 출처를 동반하게 한다.
+/**
+ * @deprecated Task 7에서 server consumer를 중첩 `auctionV1ResponseSchema`로 전환할 때 제거할 평면 migration bridge다.
+ */
 export const auctionResponseSchema = z.strictObject({
   auctionId: canonicalPositiveDecimalSchema,
   revisionId: canonicalPositiveDecimalSchema,
@@ -64,4 +67,5 @@ export const auctionOperations = {
   }),
 } as const;
 
+/** @deprecated 중첩 공개 타입 `AuctionV1Response`로 이전 중인 평면 migration bridge다. */
 export type AuctionResponse = z.infer<typeof auctionResponseSchema>;

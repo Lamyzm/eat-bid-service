@@ -1,0 +1,108 @@
+import { describe, expect, test } from "bun:test";
+import { z } from "zod";
+
+describe("공개 공고 V1 응답 계약", () => {
+  test("중첩 resource를 허용하고 내부 source payload는 거부한다", async () => {
+    const contract = await import("./get-auction.response").catch(() => undefined);
+    expect(contract, "중첩 공개 응답 계약이 존재해야 한다").toBeDefined();
+
+    const response = {
+      identity: {
+        auctionId: "9007199254740993",
+        revisionId: "9007199254740995",
+        externalBidId: "opaque",
+        displayBidNumber: null,
+        title: "급식 식재료",
+        status: "OPEN",
+      },
+      schedule: {
+        announcedAt: "2026-08-30T00:00:00Z",
+        deadlineAt: null,
+        openedAt: null,
+      },
+      pricing: {
+        baseAmount: { amount: "1234567890.50", currency: "KRW" },
+        plannedAmount: null,
+      },
+      provenance: {
+        sourceSystem: "eat",
+        observationId: "9007199254740997",
+        normalizedRecordId: "9007199254740999",
+        contentSha256: "a".repeat(64),
+      },
+    };
+
+    expect(contract!.auctionV1ResponseSchema.parse(response)).toEqual(response);
+    expect(contract!.auctionV1ResponseSchema.safeParse({ ...response, sourcePayload: {} }).success).toBe(false);
+    expect(contract!.auctionV1ResponseSchema.safeParse({
+      auctionId: "9007199254740993",
+      revisionId: "9007199254740995",
+    }).success).toBe(false);
+  });
+
+  test("UTC instant와 rate 및 좌표의 canonical 경계를 엄격히 지킨다", async () => {
+    const [{ instantTextSchema }, { percentagePointsWireSchema, ratioWireSchema }, { coordinateWireSchema }] =
+      await Promise.all([
+        import("../../../atoms/instant"),
+        import("../../../values/rate"),
+        import("../../../values/coordinate"),
+      ]);
+
+    expect(instantTextSchema.parse("2026-08-30T00:00:00.000000001Z"))
+      .toBe("2026-08-30T00:00:00.000000001Z");
+    for (const invalid of [
+      "2026-08-30T00:00:00+09:00",
+      "2026-08-30T00:00:00.000Z",
+      "2026-08-30T00:00:00.0000000001Z",
+    ]) {
+      expect(instantTextSchema.safeParse(invalid).success, invalid).toBe(false);
+    }
+
+    expect(percentagePointsWireSchema.parse({ value: "100.000000", unit: "percentage-points" }))
+      .toEqual({ value: "100.000000", unit: "percentage-points" });
+    expect(percentagePointsWireSchema.safeParse({ value: "100.000001", unit: "percentage-points" }).success)
+      .toBe(false);
+    expect(ratioWireSchema.safeParse({ value: "1.000001", unit: "ratio" }).success).toBe(false);
+
+    const coordinate = { latitude: 37.5665, longitude: 126.978, crs: "EPSG:4326" } as const;
+    expect(coordinateWireSchema.parse(coordinate)).toEqual(coordinate);
+    for (const invalid of [
+      { ...coordinate, latitude: Number.NaN },
+      { ...coordinate, latitude: 90.000001 },
+      { ...coordinate, longitude: 180.000001 },
+      { ...coordinate, inferredOrganizationId: "1" },
+    ]) {
+      expect(coordinateWireSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
+  test("codec은 domain factory를 거쳐 exact money와 Temporal Instant를 왕복한다", async () => {
+    const [{ moneyCodec }, { instantCodec }] = await Promise.all([
+      import("../../../codecs/money"),
+      import("../../../codecs/temporal"),
+    ]);
+
+    const moneyWire = { amount: "1234567890.50", currency: "KRW" } as const;
+    const money = z.decode(moneyCodec, moneyWire);
+    expect(money).toEqual(moneyWire);
+    expect(z.encode(moneyCodec, money)).toEqual(moneyWire);
+
+    const instant = z.decode(instantCodec, "2026-08-30T00:00:00.000000001Z");
+    expect(instant.toString()).toBe("2026-08-30T00:00:00.000000001Z");
+    expect(z.encode(instantCodec, instant)).toBe("2026-08-30T00:00:00.000000001Z");
+  });
+
+  test("V1 조회 operation은 중첩 응답 schema를 공개한다", async () => {
+    const [{ auctionV1Operations }, { auctionV1ResponseSchema }] = await Promise.all([
+      import("./operations"),
+      import("./get-auction.response"),
+    ]);
+
+    expect(auctionV1Operations.find).toMatchObject({
+      method: "get",
+      path: "/api/v1/auctions/{auctionId}",
+      operationId: "findAuction",
+    });
+    expect(auctionV1Operations.find.responseSchema).toBe(auctionV1ResponseSchema);
+  });
+});

@@ -262,6 +262,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@eatbid/domain':
+        specifier: workspace:*
+        version: link:../domain
       zod:
         specifier: 'catalog:'
         version: 4.5.4
