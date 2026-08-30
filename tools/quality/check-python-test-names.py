@@ -16,10 +16,11 @@ EXCLUDED_DIRECTORIES = {
     "dist",
     "node_modules",
 }
-ENGLISH_BEHAVIOR_WORD = re.compile(
-    r"(?:^|_)(?:accepts|allows|blocks|builds|checks|creates|fails|generates|has|is|keeps|maps|parses|preserves|reads|rejects|requires|returns|runs|throws|uses|validates|verifies|writes)(?:_|$)",
-    re.IGNORECASE,
-)
+ENGLISH_BEHAVIOR_WORDS = {
+    "accepts", "allows", "blocks", "builds", "checks", "creates", "emits", "fails",
+    "generates", "has", "is", "keeps", "maps", "parses", "preserves", "reads", "rejects",
+    "requires", "returns", "runs", "throws", "uses", "validates", "verifies", "writes",
+}
 REPEATED_KOREAN_ENDING = re.compile(r"(?:이다이다|한다한다|된다이다|않는다이다)$")
 
 
@@ -40,7 +41,21 @@ def has_meaningful_korean_behavior(name: str) -> bool:
         "확인한다",
     } or stem.endswith("_동작을_검증한다"):
         return False
-    if ENGLISH_BEHAVIOR_WORD.search(stem) or REPEATED_KOREAN_ENDING.search(stem):
+    tokens = stem.split("_")
+    english_predicates = [
+        index for index, token in enumerate(tokens) if token.lower() in ENGLISH_BEHAVIOR_WORDS
+    ]
+    korean_predicates = [
+        index
+        for index, token in enumerate(tokens)
+        if contains_hangul_syllable(token) and token.endswith("다")
+    ]
+    if (
+        REPEATED_KOREAN_ENDING.search(stem)
+        or (english_predicates and (
+            not korean_predicates or min(english_predicates) < min(korean_predicates)
+        ))
+    ):
         return False
     final_word = stem.rsplit("_", maxsplit=1)[-1]
     return contains_hangul_syllable(final_word)

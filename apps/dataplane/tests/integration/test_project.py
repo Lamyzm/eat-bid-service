@@ -414,7 +414,7 @@ def test_projection이_idle_owned_transaction_scope을_요구한다(
         assert cursor.fetchone() == ("validated",)
 
 
-def test_projection이_activation_전_validation을_거부한다(
+def test_projection이_validation_이전_activation을_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -438,7 +438,7 @@ def test_projection이_activation_전_validation을_거부한다(
         assert ended_at == validated_at
 
 
-def test_projection이_activation_전_run_start를_contract_failure로_거부한다(
+def test_projection이_run_start_이전_activation을_contract_failure로_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(
@@ -465,7 +465,7 @@ def test_projection이_activation_전_run_start를_contract_failure로_거부한
         assert ended_at == VALIDATED_AT
 
 
-def test_database가_run_end_전_start를_거부한다(
+def test_database가_run_start_이전_end를_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     run_id = start_run(pipeline_services)
@@ -481,7 +481,7 @@ def test_database가_run_end_전_start를_거부한다(
         )
 
 
-def test_database가_publication_activation_전_validation을_거부한다(
+def test_database가_validation_이전_publication_activation을_거부한다(
     pipeline_services: PipelineServices,
 ) -> None:
     publication_id = validated_from_values(

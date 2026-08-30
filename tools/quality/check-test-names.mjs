@@ -26,7 +26,12 @@ const testModules = new Set(["bun:test", "node:test", "vitest", "@jest/globals"]
 const hangulSyllable = /[가-힣]/;
 const genericKoreanTitle = /^(?:(?:테스트|동작|행위|계약|범위|상태|결과|조건|내용|기능|값)(?:을|를|은|는|이|가)?\s*)?(?:검증|확인|검사)(?:한다)?[.!]?$/;
 const genericKoreanScope = /^(?:검증 범위를 정의한다|테스트 범위를 정의한다)$/;
-const englishBehaviorWord = /\b(?:accepts|allows|blocks|builds|checks|creates|fails|generates|has|is|keeps|maps|parses|preserves|reads|rejects|requires|returns|runs|throws|uses|validates|verifies|writes)\b/i;
+const englishBehaviorWords = new Set([
+  "accepts", "allows", "blocks", "builds", "checks", "creates", "emits", "fails",
+  "generates", "has", "is", "keeps", "maps", "parses", "preserves", "reads", "rejects",
+  "requires", "returns", "runs", "throws", "uses", "validates", "verifies", "writes",
+]);
+const koreanBehaviorPredicate = /다[.!]?$/;
 const javascriptExtensions = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]);
 
 function walk(directory, predicate, collected = []) {
@@ -173,6 +178,10 @@ function bindTarget(name, sourceTarget, aliases, checker) {
   }
   if (!ts.isObjectBindingPattern(name)) return;
   for (const element of name.elements) {
+    if (element.dotDotDotToken) {
+      bindTarget(element.name, sourceTarget, aliases, checker);
+      continue;
+    }
     const property = element.propertyName && (ts.isIdentifier(element.propertyName) || ts.isStringLiteral(element.propertyName))
       ? element.propertyName.text
       : ts.isIdentifier(element.name) ? element.name.text : undefined;
@@ -206,6 +215,10 @@ function bindAssignmentTarget(pattern, sourceTarget, aliases, checker) {
   if (!ts.isObjectLiteralExpression(pattern)) return false;
   let supported = true;
   for (const property of pattern.properties) {
+    if (ts.isSpreadAssignment(property)) {
+      if (!bindAssignmentTarget(property.expression, sourceTarget, aliases, checker)) supported = false;
+      continue;
+    }
     if (ts.isShorthandPropertyAssignment(property)) {
       bindTarget(property.name, targetMember(sourceTarget, property.name.text), aliases, checker);
       continue;
@@ -243,6 +256,7 @@ function patternHasKnownAlias(pattern, aliases, checker) {
 function isNonDominatingWrite(node) {
   let current = node.parent;
   while (current && !ts.isSourceFile(current)) {
+    if (ts.isFunctionLike(current)) return true;
     if (ts.isIfStatement(current)
       || ts.isConditionalExpression(current)
       || ts.isSwitchStatement(current)
@@ -253,9 +267,19 @@ function isNonDominatingWrite(node) {
       || ts.isWhileStatement(current)
       || ts.isDoStatement(current)
       || ts.isTryStatement(current)) return true;
+    if (ts.isBinaryExpression(current)
+      && (current.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+        || current.operatorToken.kind === ts.SyntaxKind.BarBarToken
+        || current.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+      && current.right === node) return true;
+    node = current;
     current = current.parent;
   }
   return false;
+}
+
+function hasEnglishBehaviorPredicate(value) {
+  return (value.match(/[A-Za-z]+/g) ?? []).some((word) => englishBehaviorWords.has(word.toLowerCase()));
 }
 
 function isMeaningfulKoreanTitle(title, base) {
@@ -265,7 +289,9 @@ function isMeaningfulKoreanTitle(title, base) {
   if (genericKoreanTitle.test(behavior) || genericKoreanScope.test(behavior)) return false;
   if (base === "describe") return true;
   const hangulCount = [...behavior].filter((character) => hangulSyllable.test(character)).length;
-  return hangulCount >= 2 && !englishBehaviorWord.test(behavior);
+  return hangulCount >= 2
+    && !hasEnglishBehaviorPredicate(behavior)
+    && (koreanBehaviorPredicate.test(behavior) || !hasEnglishBehaviorPredicate(title));
 }
 
 function lineOf(sourceFile, node) {

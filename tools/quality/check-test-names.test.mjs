@@ -259,6 +259,68 @@ test("assignment와 element access 및 require와 dynamic import 별칭을 추�
   });
 });
 
+test("rest 별칭과 callback 및 short-circuit 재할당 우회를 fail-closed로 거부한다", () => {
+  withFixture({
+    "rest-and-control-flow.test.ts": `
+      import { test } from "node:test";
+      const validator = { test: (_title) => true };
+      const { ...requiredTests } = require("node:test");
+      requiredTests.test("English object-rest require", () => {});
+      let assignedTests;
+      ({ ...assignedTests } = require("node:test"));
+      assignedTests.test("English assignment-rest require", () => {});
+      let callbackAlias = test;
+      Promise.resolve().then(() => { callbackAlias = validator.test; });
+      callbackAlias("English arrow callback assignment", () => {});
+      let functionAlias = test;
+      Promise.resolve().then(function register() { functionAlias = validator.test; });
+      functionAlias("English callback assignment", () => {});
+      let andAlias = test;
+      const enabled = false;
+      enabled && (andAlias = validator.test);
+      andAlias("English && assignment", () => {});
+      let orAlias = test;
+      enabled || (orAlias = validator.test);
+      orAlias("English || assignment", () => {});
+      let nullishAlias = test;
+      const value = undefined;
+      value ?? (nullishAlias = validator.test);
+      nullishAlias("English ?? assignment", () => {});
+    `,
+  }, (result) => {
+    const output = `${result.stdout}${result.stderr}`;
+    assert.equal(result.status, 1, output);
+    for (const title of [
+      "English object-rest require",
+      "English assignment-rest require",
+      "English arrow callback assignment",
+      "English callback assignment",
+      "English && assignment",
+      "English || assignment",
+      "English ?? assignment",
+    ]) assert.match(output, new RegExp(title));
+    assert.match(output, /조건부 테스트 별칭 재할당/);
+  });
+});
+
+test("한국어 장식만 붙인 영문 행위는 명세로 인정하지 않는다", () => {
+  withFixture({
+    "decorated.test.ts": `
+      import { test } from "node:test";
+      test("한국 — rejects an unsafe request", () => {});
+    `,
+    "tests/test_decorated.py": `
+def test_emits_error_거부한다():
+    pass
+`,
+  }, (result) => {
+    const output = `${result.stdout}${result.stderr}`;
+    assert.equal(result.status, 1, output);
+    assert.match(output, /한국 — rejects an unsafe request/);
+    assert.match(output, /test_emits_error_거부한다/);
+  });
+});
+
 test("다른 symbol과 shadowing은 테스트 API로 오인하지 않는다", () => {
   withFixture({
     "shadowing.test.ts": `
