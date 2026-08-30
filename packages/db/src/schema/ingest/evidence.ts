@@ -19,7 +19,7 @@ export const rawBlob = ingestSchema.table(
   {
     contentSha256: char("content_sha256", { length: 64 }).primaryKey(),
     objectKey: text("object_key").notNull(),
-    byteLength: bigint("byte_length", { mode: "number" }).notNull(),
+    byteLength: bigint("byte_length", { mode: "bigint" }).notNull(),
     contentType: varchar("content_type", { length: 255 }).notNull(),
     contentEncoding: varchar("content_encoding", { length: 64 }).notNull(),
     storedAt: timestamp("stored_at", { withTimezone: true }).notNull(),
@@ -34,18 +34,18 @@ export const rawBlob = ingestSchema.table(
 export const rawObservation = ingestSchema.table(
   "raw_observation",
   {
-    observationId: bigint("observation_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    observationId: bigint("observation_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
     runId: uuid("run_id")
       .notNull()
       .references(() => ingestRun.runId),
-    requestUnitId: bigint("request_unit_id", { mode: "number" })
+    requestUnitId: bigint("request_unit_id", { mode: "bigint" })
       .notNull()
       .references(() => requestUnit.requestUnitId),
     source: varchar("source", { length: 64 }).notNull(),
     endpoint: text("endpoint").notNull(),
     requestParams: jsonb("request_params").notNull(),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
-    httpStatus: bigint("http_status", { mode: "number" }).notNull(),
+    httpStatus: bigint("http_status", { mode: "bigint" }).notNull(),
     contentSha256: char("content_sha256", { length: 64 })
       .notNull()
       .references(() => rawBlob.contentSha256),

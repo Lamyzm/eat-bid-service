@@ -10,7 +10,7 @@ describe("database readiness 검사", () => {
         queries.push(String(query));
         return [{
           migration_name: "20260830021619_app_workspace_foundation",
-          migration_created_at: String(Date.UTC(2026, 7, 30, 2, 16, 19)),
+          migration_created_at: "1788056179000",
           is_superuser: false,
           is_login: true,
           inherits_privileges: false,
@@ -60,7 +60,7 @@ describe("database readiness 검사", () => {
     expect(database, "database readiness must exist").toBeDefined();
     const baseline = {
       migration_name: "20260830021619_app_workspace_foundation",
-      migration_created_at: String(Date.UTC(2026, 7, 30, 2, 16, 19)),
+      migration_created_at: "1788056179000",
       is_superuser: false, is_login: true, inherits_privileges: false,
       can_create_role: false, can_create_database: false, can_replicate: false, bypasses_rls: false,
       has_role_membership: false, can_set_role: false, owns_database: false,
@@ -76,6 +76,8 @@ describe("database readiness 검사", () => {
     };
     for (const row of [
       { ...baseline, migration_name: "20260829002500_core_projection_lineage" },
+      { ...baseline, migration_created_at: "1788056179000.0" },
+      { ...baseline, migration_created_at: 1_788_056_179_000 },
       { ...baseline, can_create_app: true },
       { ...baseline, can_use_ingest: true },
       { ...baseline, can_temp_in_database: true },

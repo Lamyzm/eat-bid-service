@@ -8,6 +8,10 @@ export const auctionPricingSchema = z.strictObject({
 }).meta({
   id: "AuctionPricing",
   description: "Exact observed auction amounts with currency attached to each value.",
+  example: {
+    baseAmount: { amount: "123456789.00", currency: "KRW" },
+    plannedAmount: null,
+  },
 });
 
 export type AuctionPricing = z.infer<typeof auctionPricingSchema>;

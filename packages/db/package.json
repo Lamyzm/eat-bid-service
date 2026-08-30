@@ -17,13 +17,15 @@
     }
   },
   "scripts": {
+    "prebuild": "pnpm --filter @eatbid/domain build",
     "build": "tsc -p tsconfig.json",
-    "test": "bun test src",
+    "test": "bun test src && tsc -p tsconfig.type-tests.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "pnpm build && node dist/migrate.js",
     "db:check": "drizzle-kit check"
   },
   "dependencies": {
+    "@eatbid/domain": "workspace:*",
     "drizzle-orm": "catalog:",
     "postgres": "catalog:"
   },

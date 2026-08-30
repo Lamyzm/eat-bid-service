@@ -1,4 +1,5 @@
 import { sql, type SQL } from "drizzle-orm";
+import { canonicalDecimal, krw, Temporal, type Money } from "@eatbid/domain";
 import type { AuctionReader, AuctionRecord } from "../../application/auction-reader";
 import { auctionId, type AuctionId } from "../../domain/auction-id";
 
@@ -32,26 +33,51 @@ function bigintValue(value: string | bigint): bigint {
   return parsed;
 }
 
-function dateValue(value: Date | string | null): Date | null {
+function postgresInstant(value: Date | string | null): Temporal.Instant | null {
   if (value === null) return null;
-  const parsed = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(parsed.valueOf())) throw new TypeError("Database timestamp is invalid");
-  return parsed;
+  try {
+    // PostgreSQL driver Date는 이 이름 붙은 경계에서 epoch millisecond만 읽고 즉시 Temporal로 닫는다.
+    if (value instanceof Date) {
+      const epochMilliseconds = value.getTime();
+      if (!Number.isFinite(epochMilliseconds)) throw new TypeError("Database timestamp is invalid");
+      return Temporal.Instant.fromEpochMilliseconds(epochMilliseconds);
+    }
+    return Temporal.Instant.from(value);
+  } catch {
+    throw new TypeError("Database timestamp is invalid");
+  }
+}
+
+function moneyValue(amount: string | null, currency: string, required: true): Money;
+function moneyValue(amount: string | null, currency: string, required: false): Money | null;
+function moneyValue(amount: string | null, currency: string, required: boolean): Money | null {
+  if (amount === null) {
+    if (required) throw new TypeError("Database base amount is required");
+    return null;
+  }
+  if (currency !== "KRW") throw new TypeError("Database currency must be KRW");
+  try {
+    // PostgreSQL numeric 문자열은 부동소수점으로 바꾸지 않고 domain factory가 scale 불변식을 확인한다.
+    return krw(canonicalDecimal(amount, 2));
+  } catch {
+    throw new TypeError("Database money amount is invalid");
+  }
 }
 
 export function mapAuctionRow(row: AuctionRow): AuctionRecord {
+  const announcedAt = postgresInstant(row.announced_at);
+  if (announcedAt === null) throw new TypeError("Database announced timestamp is required");
   return {
     auctionId: auctionId(bigintValue(row.auction_id)),
     revisionId: bigintValue(row.revision_id),
     title: row.title,
     status: row.source_status,
     displayBidNumber: row.display_bid_no,
-    announcedAt: dateValue(row.announced_at),
-    deadlineAt: dateValue(row.deadline_at),
-    openedAt: dateValue(row.opened_at),
-    baseAmount: row.base_amount,
-    plannedAmount: row.planned_amount,
-    currency: row.currency,
+    announcedAt,
+    deadlineAt: postgresInstant(row.deadline_at),
+    openedAt: postgresInstant(row.opened_at),
+    baseAmount: moneyValue(row.base_amount, row.currency, true),
+    plannedAmount: moneyValue(row.planned_amount, row.currency, false),
     provenance: {
       sourceSystem: row.source_system,
       externalBidId: row.external_bid_id,

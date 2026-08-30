@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   expectedMigration,
-  expectedMigrationTimestamp,
-  migrationNameTimestamp,
+  expectedMigrationInstant,
+  migrationJournalInstant,
+  migrationNameInstant,
 } from "./version";
 
 describe("schema version 검증", () => {
@@ -11,14 +12,21 @@ describe("schema version 검증", () => {
     expect(expectedMigration).toBe("20260830021619_app_workspace_foundation");
   });
 
-  test("migration 이름에 인코딩된 UTC millisecond timestamp를 사용한다", () => {
-    expect(expectedMigrationTimestamp).toBe(Date.UTC(2026, 7, 30, 2, 16, 19));
-    expect(migrationNameTimestamp(expectedMigration)).toBe(expectedMigrationTimestamp);
+  test("migration 이름에 인코딩된 UTC Instant를 사용한다", () => {
+    expect(expectedMigrationInstant.toString()).toBe("2026-08-30T02:16:19Z");
+    expect(migrationNameInstant(expectedMigration).equals(expectedMigrationInstant)).toBe(true);
   });
 
   test("14자리 UTC prefix가 없는 migration 이름을 거부한다", () => {
-    expect(() => migrationNameTimestamp("core_validity_constraints")).toThrow(
+    expect(() => migrationNameInstant("core_validity_constraints")).toThrow(
       "migration name is invalid",
     );
+  });
+
+  test("journal epoch millisecond 문자열을 Number 없이 lossless Instant로 복원한다", () => {
+    expect(migrationJournalInstant("1788056179000").equals(expectedMigrationInstant)).toBe(true);
+    expect(migrationJournalInstant(1_788_056_179_000n).equals(expectedMigrationInstant)).toBe(true);
+    expect(() => migrationJournalInstant(1_788_056_179_000 as never)).toThrow("invalid timestamp");
+    expect(() => migrationJournalInstant("1788056179000.0")).toThrow("invalid timestamp");
   });
 });

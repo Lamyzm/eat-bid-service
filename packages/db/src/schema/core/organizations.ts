@@ -4,7 +4,7 @@ import { coreSchema } from "../namespaces.js";
 import { codeValue } from "./codes.js";
 
 export const organization = coreSchema.table("organization", {
-  organizationId: bigint("organization_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+  organizationId: bigint("organization_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
   type: varchar("type", { length: 64 }).notNull(),
   canonicalName: text("canonical_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -14,16 +14,16 @@ export const organization = coreSchema.table("organization", {
 export const organizationIdentifier = coreSchema.table(
   "organization_identifier",
   {
-    organizationIdentifierId: bigint("organization_identifier_id", { mode: "number" })
+    organizationIdentifierId: bigint("organization_identifier_id", { mode: "bigint" })
       .generatedAlwaysAsIdentity()
       .primaryKey(),
-    organizationId: bigint("organization_id", { mode: "number" })
+    organizationId: bigint("organization_id", { mode: "bigint" })
       .notNull()
       .references(() => organization.organizationId),
-    codeValueId: bigint("code_value_id", { mode: "number" })
+    codeValueId: bigint("code_value_id", { mode: "bigint" })
       .notNull()
       .references(() => codeValue.codeValueId),
-    observationId: bigint("observation_id", { mode: "number" })
+    observationId: bigint("observation_id", { mode: "bigint" })
       .notNull()
       .references(() => rawObservation.observationId),
   },

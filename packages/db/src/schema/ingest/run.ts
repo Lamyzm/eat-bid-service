@@ -27,9 +27,9 @@ export const ingestRun = ingestSchema.table(
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     failureCategory: varchar("failure_category", { length: 64 }),
-    expectedCount: bigint("expected_count", { mode: "number" }).notNull(),
-    capturedCount: bigint("captured_count", { mode: "number" }).notNull(),
-    publishedCount: bigint("published_count", { mode: "number" }).notNull(),
+    expectedCount: bigint("expected_count", { mode: "bigint" }).notNull(),
+    capturedCount: bigint("captured_count", { mode: "bigint" }).notNull(),
+    publishedCount: bigint("published_count", { mode: "bigint" }).notNull(),
   },
   (table) => [
     check("run_status_allowed", sql`${table.status} in ('planned', 'running', 'failed', 'validated', 'published')`),
@@ -70,7 +70,7 @@ export const ingestRun = ingestSchema.table(
 export const requestUnit = ingestSchema.table(
   "request_unit",
   {
-    requestUnitId: bigint("request_unit_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    requestUnitId: bigint("request_unit_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
     runId: uuid("run_id")
       .notNull()
       .references(() => ingestRun.runId),
@@ -78,8 +78,8 @@ export const requestUnit = ingestSchema.table(
     endpoint: text("endpoint").notNull(),
     requestParams: jsonb("request_params").notNull(),
     requestParamsHash: char("request_params_hash", { length: 64 }).notNull(),
-    expectedCount: bigint("expected_count", { mode: "number" }).notNull(),
-    observedCount: bigint("observed_count", { mode: "number" }).notNull(),
+    expectedCount: bigint("expected_count", { mode: "bigint" }).notNull(),
+    observedCount: bigint("observed_count", { mode: "bigint" }).notNull(),
     status: varchar("status", { length: 16, enum: requestUnitStatuses }).notNull(),
   },
   (table) => [

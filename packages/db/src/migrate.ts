@@ -5,30 +5,35 @@ import { sql, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate as drizzleMigrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { minutes, seconds, toMilliseconds } from "@eatbid/domain";
 
 import { seedCodeSchemes } from "./seeds/code-schemes.js";
-import { expectedMigration, migrationNameTimestamp } from "./version.js";
+import {
+  expectedMigration,
+  migrationJournalInstant,
+  migrationNameInstant,
+} from "./version.js";
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 
 export const migrationFolder = resolve(moduleDirectory, "../drizzle");
 
-export const migrationLockTimeoutMs = 5_000;
-export const migrationStatementTimeoutMs = 300_000;
+export const migrationLockTimeout = seconds(5);
+export const migrationStatementTimeout = minutes(5);
 
 export const migrationClientOptions = {
   max: 1,
   connection: {
     application_name: "eatbid-migrator",
-    lock_timeout: migrationLockTimeoutMs,
-    statement_timeout: migrationStatementTimeoutMs,
+    lock_timeout: toMilliseconds(migrationLockTimeout),
+    statement_timeout: toMilliseconds(migrationStatementTimeout),
   },
 } satisfies NonNullable<Parameters<typeof postgres>[1]>;
 
 type JournalRow = {
-  id: number;
+  id: bigint;
   name: string | null;
-  created_at: number | string | null;
+  created_at: bigint | string | null;
 };
 
 export type SchemaVersionDatabase = {
@@ -78,16 +83,20 @@ export async function assertSchemaVersion(
     throw new Error("Drizzle migration journal is empty");
   }
 
-  const expectedTimestamp = migrationNameTimestamp(expected);
-  const actualTimestamp = Number(latest.created_at);
-
-  if (!Number.isSafeInteger(actualTimestamp)) {
+  const expectedInstant = migrationNameInstant(expected);
+  let actualInstant;
+  try {
+    actualInstant = migrationJournalInstant(latest.created_at);
+  } catch {
     throw new Error(`Latest migration ${latest.name ?? "<unnamed>"} has an invalid timestamp`);
   }
-  if (actualTimestamp < expectedTimestamp) {
+  const order = actualInstant.epochNanoseconds < expectedInstant.epochNanoseconds
+    ? -1
+    : actualInstant.epochNanoseconds > expectedInstant.epochNanoseconds ? 1 : 0;
+  if (order < 0) {
     throw new Error(`Database schema is behind: expected ${expected}, found ${latest.name ?? "<unnamed>"}`);
   }
-  if (actualTimestamp > expectedTimestamp) {
+  if (order > 0) {
     throw new Error(`Database schema is ahead: expected ${expected}, found ${latest.name ?? "<unnamed>"}`);
   }
   if (latest.name !== expected) {

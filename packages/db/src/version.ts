@@ -1,28 +1,37 @@
+import { parseInstantText, Temporal } from "@eatbid/domain";
+
 export const expectedMigration = "20260830021619_app_workspace_foundation" as const;
 
-export function migrationNameTimestamp(name: string): number {
+export function migrationNameInstant(name: string): Temporal.Instant {
   const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name);
   if (!match) {
     throw new Error(`Expected migration name is invalid: ${name}`);
   }
 
-  const parts = match.slice(1).map(Number);
-  const timestamp = Date.UTC(parts[0], parts[1] - 1, parts[2], parts[3], parts[4], parts[5]);
-  const date = new Date(timestamp);
-  const actualParts = [
-    date.getUTCFullYear(),
-    date.getUTCMonth() + 1,
-    date.getUTCDate(),
-    date.getUTCHours(),
-    date.getUTCMinutes(),
-    date.getUTCSeconds(),
-  ];
-
-  if (parts.some((part, index) => part !== actualParts[index])) {
+  const [, year, month, day, hour, minute, second] = match;
+  try {
+    return parseInstantText(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+  } catch {
     throw new Error(`Expected migration name is invalid: ${name}`);
   }
-
-  return timestamp;
 }
 
-export const expectedMigrationTimestamp = migrationNameTimestamp(expectedMigration);
+export function migrationJournalInstant(value: unknown): Temporal.Instant {
+  const epochMilliseconds = typeof value === "bigint"
+    ? value
+    : typeof value === "string" && /^(?:0|[1-9][0-9]*)$/.test(value)
+      ? BigInt(value)
+      : undefined;
+  if (epochMilliseconds === undefined || epochMilliseconds < 0n) {
+    throw new Error("Migration journal has an invalid timestamp");
+  }
+
+  try {
+    // Drizzle journal은 epoch millisecond를 bigint로 저장하므로 nanosecond로 확장할 때도 Number를 거치지 않는다.
+    return Temporal.Instant.fromEpochNanoseconds(epochMilliseconds * 1_000_000n);
+  } catch {
+    throw new Error("Migration journal has an invalid timestamp");
+  }
+}
+
+export const expectedMigrationInstant = migrationNameInstant(expectedMigration);

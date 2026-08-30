@@ -19,8 +19,8 @@ const publicationStatuses = ["pending", "validated", "published", "failed"] as c
 export const normalizedRecord = ingestSchema.table(
   "normalized_record",
   {
-    normalizedRecordId: bigint("normalized_record_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
-    observationId: bigint("observation_id", { mode: "number" })
+    normalizedRecordId: bigint("normalized_record_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
+    observationId: bigint("observation_id", { mode: "bigint" })
       .notNull()
       .references(() => rawObservation.observationId),
     recordType: varchar("record_type", { length: 64 }).notNull(),
@@ -50,9 +50,9 @@ export const publication = ingestSchema.table(
     status: varchar("status", { length: 16, enum: publicationStatuses }).notNull(),
     validatedAt: timestamp("validated_at", { withTimezone: true }),
     activatedAt: timestamp("activated_at", { withTimezone: true }),
-    expectedCount: bigint("expected_count", { mode: "number" }).notNull(),
-    normalizedCount: bigint("normalized_count", { mode: "number" }).notNull(),
-    publishedCount: bigint("published_count", { mode: "number" }).notNull(),
+    expectedCount: bigint("expected_count", { mode: "bigint" }).notNull(),
+    normalizedCount: bigint("normalized_count", { mode: "bigint" }).notNull(),
+    publishedCount: bigint("published_count", { mode: "bigint" }).notNull(),
     canonicalFingerprint: char("canonical_fingerprint", { length: 64 }),
     projectorVersion: varchar("projector_version", { length: 128 }),
   },

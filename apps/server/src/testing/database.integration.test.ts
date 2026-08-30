@@ -7,7 +7,7 @@ import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import request from "supertest";
 import { normalizedAuctionV1Schema } from "@eatbid/contracts";
-import { expectedMigration, expectedMigrationTimestamp } from "@eatbid/db";
+import { expectedMigration, expectedMigrationInstant } from "@eatbid/db";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import { createDatabaseReadiness } from "../platform/database/database-readiness";
@@ -187,7 +187,7 @@ describe("owner 범위 PostgreSQL 경계", () => {
       `;
       expect(journal[0]).toMatchObject({
         name: expectedMigration,
-        created_at: String(expectedMigrationTimestamp),
+        created_at: (expectedMigrationInstant.epochNanoseconds / 1_000_000n).toString(),
       });
 
       const reader = new DrizzleAuctionReader(drizzle({ client: api }));
@@ -196,11 +196,13 @@ describe("owner 범위 PostgreSQL 경계", () => {
         auctionId: 9_007_199_254_740_993n,
         revisionId: 9_007_199_254_740_995n,
         title: normalizedAuctionFixture.identity.title,
+        baseAmount: { amount: "1234567890.50", currency: "KRW" },
         provenance: {
           observationId: 9_007_199_254_740_997n,
           normalizedRecordId: 9_007_199_254_740_999n,
         },
       });
+      expect(auction?.announcedAt.toString()).toBe(normalizedAuctionFixture.schedule.announcedAt);
       expect(await owner`
         select normalized.record_type, normalized.normalized_payload, revision.source_payload
         from ingest.normalized_record normalized
@@ -295,7 +297,8 @@ describe("owner 범위 PostgreSQL 경계", () => {
         expect((await request(server).get("/health/ready")).status).toBe(200);
         const response = await request(server).get("/api/v1/auctions/9007199254740993");
         expect(response.status).toBe(200);
-        expect(response.body.auctionId).toBe("9007199254740993");
+        expect(response.body.identity.auctionId).toBe("9007199254740993");
+        expect(response.body.pricing.baseAmount).toEqual({ amount: "1234567890.50", currency: "KRW" });
       } finally {
         await runtime.shutdown();
       }

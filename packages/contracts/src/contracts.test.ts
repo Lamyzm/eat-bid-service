@@ -24,11 +24,14 @@ describe("공개 운영 계약", () => {
       handlerPath: "ready",
       path: "/health/ready",
     });
-    expect(module!.auctionOperations.find).toMatchObject({
+    expect(module!.auctionV1Operations.find).toMatchObject({
       handlerPath: ":auctionId",
       path: "/api/v1/auctions/{auctionId}",
       operationId: "findAuction",
     });
+    expect("auctionOperations" in module!).toBe(false);
+    expect("auctionResponseSchema" in module!).toBe(false);
+    expect("AuctionResponse" in module!).toBe(false);
     expect(module!.auctionV1ResponseSchema).toBeDefined();
     expect(module!.auctionV1Operations.find.responseSchema).toBe(module!.auctionV1ResponseSchema);
     expect(module!.moneyCodec).toBeDefined();

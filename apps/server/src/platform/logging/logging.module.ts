@@ -1,4 +1,10 @@
 import { ConsoleLogger, DynamicModule, Global, LoggerService, Module } from "@nestjs/common";
+import {
+  formatInstantText,
+  toMilliseconds,
+  type Clock,
+  type ElapsedMilliseconds,
+} from "@eatbid/domain";
 import type { Environment } from "../config/environment";
 
 type LogRecord = Readonly<Record<string, unknown>>;
@@ -29,7 +35,7 @@ export interface CompletionFields {
   readonly method: string;
   readonly route: string;
   readonly status: number;
-  readonly durationMs: number;
+  readonly duration: ElapsedMilliseconds;
   readonly errorCode?: string;
 }
 
@@ -98,10 +104,11 @@ export function serializeSafeError(error: unknown, depth = 0): SafeErrorRecord {
 export function writeSafeFailure(
   event: SafeFailureEvent,
   error: unknown,
+  clock: Clock,
   write: Writer = (line) => process.stderr.write(line),
 ): void {
   write(`${JSON.stringify({
-    timestamp: new Date().toISOString(),
+    timestamp: formatInstantText(clock.now()),
     level: "error",
     service: "eatbid-server",
     event,
@@ -112,11 +119,13 @@ export function writeSafeFailure(
 export class RedactingJsonLogger implements LoggerService {
   readonly records: LogRecord[] = [];
   private readonly buildSha: string;
+  private readonly clock: Clock;
   private readonly write: Writer;
   private readonly frameworkLogger?: ConsoleLogger;
 
-  constructor(options: { readonly buildSha: string; readonly write?: Writer }) {
+  constructor(options: { readonly buildSha: string; readonly clock: Clock; readonly write?: Writer }) {
     this.buildSha = options.buildSha;
+    this.clock = options.clock;
     this.write = options.write ?? ((line) => process.stdout.write(line));
     this.frameworkLogger = options.write
       ? undefined
@@ -129,7 +138,7 @@ export class RedactingJsonLogger implements LoggerService {
       method: fields.method,
       route: fields.route,
       status: fields.status,
-      durationMs: fields.durationMs,
+      durationMs: toMilliseconds(fields.duration),
       ...(fields.errorCode ? { errorCode: fields.errorCode } : {}),
     });
   }
@@ -185,7 +194,7 @@ export class RedactingJsonLogger implements LoggerService {
 
   private emit(level: string, event: string, fields: Record<string, unknown>): void {
     const record = Object.freeze({
-      timestamp: new Date().toISOString(),
+      timestamp: formatInstantText(this.clock.now()),
       level,
       service: "eatbid-server",
       buildSha: this.buildSha,
@@ -208,7 +217,7 @@ export class LoggingModule {
     };
   }
 
-  static create(environment: Environment, write?: Writer): RedactingJsonLogger {
-    return new RedactingJsonLogger({ buildSha: environment.buildSha, write });
+  static create(environment: Environment, clock: Clock, write?: Writer): RedactingJsonLogger {
+    return new RedactingJsonLogger({ buildSha: environment.buildSha, clock, write });
   }
 }

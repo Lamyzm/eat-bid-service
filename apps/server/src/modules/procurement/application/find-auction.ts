@@ -1,5 +1,11 @@
-import type { AuctionResponse } from "@eatbid/contracts";
+import {
+  instantCodec,
+  moneyCodec,
+  type AuctionV1Response,
+} from "@eatbid/contracts";
+import type { Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
+import { z } from "zod";
 import type { AuctionReader, AuctionRecord } from "./auction-reader";
 import type { AuctionId } from "../domain/auction-id";
 import { auctionIdToString } from "../domain/auction-id";
@@ -26,27 +32,32 @@ export class AuctionDependencyUnavailable extends Error {
   }
 }
 
-function timestamp(value: Date | null): string | null {
-  return value?.toISOString() ?? null;
+function instantText(value: Temporal.Instant | null): string | null {
+  return value === null ? null : z.encode(instantCodec, value);
 }
 
-export function toAuctionResponse(record: AuctionRecord): AuctionResponse {
+export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
   return {
-    // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
-    auctionId: auctionIdToString(record.auctionId),
-    revisionId: record.revisionId.toString(10),
-    title: record.title,
-    status: record.status,
-    displayBidNumber: record.displayBidNumber,
-    announcedAt: timestamp(record.announcedAt),
-    deadlineAt: timestamp(record.deadlineAt),
-    openedAt: timestamp(record.openedAt),
-    baseAmount: record.baseAmount,
-    plannedAmount: record.plannedAmount,
-    currency: record.currency,
+    identity: {
+      // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
+      auctionId: auctionIdToString(record.auctionId),
+      revisionId: record.revisionId.toString(10),
+      externalBidId: record.provenance.externalBidId,
+      displayBidNumber: record.displayBidNumber,
+      title: record.title,
+      status: record.status,
+    },
+    schedule: {
+      announcedAt: z.encode(instantCodec, record.announcedAt),
+      deadlineAt: instantText(record.deadlineAt),
+      openedAt: instantText(record.openedAt),
+    },
+    pricing: {
+      baseAmount: z.encode(moneyCodec, record.baseAmount),
+      plannedAmount: record.plannedAmount === null ? null : z.encode(moneyCodec, record.plannedAmount),
+    },
     provenance: {
       sourceSystem: record.provenance.sourceSystem,
-      externalBidId: record.provenance.externalBidId,
       observationId: record.provenance.observationId.toString(10),
       normalizedRecordId: record.provenance.normalizedRecordId.toString(10),
       contentSha256: record.provenance.contentSha256,
@@ -58,7 +69,7 @@ export class FindAuction {
   constructor(private readonly reader: AuctionReader) {}
 
   execute(input: FindAuctionInput): Effect.Effect<
-    AuctionResponse,
+    AuctionV1Response,
     AuctionNotFound | AuctionDependencyUnavailable,
     never
   > {

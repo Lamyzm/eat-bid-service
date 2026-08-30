@@ -22,13 +22,13 @@ const attemptStatuses = ["normalized", "quarantined"] as const;
 export const normalizationAttempt = ingestSchema.table(
   "normalization_attempt",
   {
-    normalizationAttemptId: bigint("normalization_attempt_id", { mode: "number" })
+    normalizationAttemptId: bigint("normalization_attempt_id", { mode: "bigint" })
       .generatedAlwaysAsIdentity()
       .primaryKey(),
     runId: uuid("run_id")
       .notNull()
       .references(() => ingestRun.runId),
-    observationId: bigint("observation_id", { mode: "number" })
+    observationId: bigint("observation_id", { mode: "bigint" })
       .notNull()
       .references(() => rawObservation.observationId),
     parserVersion: varchar("parser_version", { length: 128 }).notNull(),
@@ -73,10 +73,10 @@ export const normalizationAttempt = ingestSchema.table(
 export const normalizationAttemptRecord = ingestSchema.table(
   "normalization_attempt_record",
   {
-    normalizationAttemptId: bigint("normalization_attempt_id", { mode: "number" })
+    normalizationAttemptId: bigint("normalization_attempt_id", { mode: "bigint" })
       .notNull()
       .references(() => normalizationAttempt.normalizationAttemptId),
-    normalizedRecordId: bigint("normalized_record_id", { mode: "number" })
+    normalizedRecordId: bigint("normalized_record_id", { mode: "bigint" })
       .notNull()
       .references(() => normalizedRecord.normalizedRecordId),
   },
@@ -93,7 +93,7 @@ export const publicationRecord = ingestSchema.table(
     publicationId: uuid("publication_id")
       .notNull()
       .references(() => publication.publicationId),
-    normalizedRecordId: bigint("normalized_record_id", { mode: "number" })
+    normalizedRecordId: bigint("normalized_record_id", { mode: "bigint" })
       .notNull()
       .references(() => normalizedRecord.normalizedRecordId),
   },
@@ -108,7 +108,7 @@ export const replayInput = ingestSchema.table(
     runId: uuid("run_id")
       .notNull()
       .references(() => ingestRun.runId),
-    observationId: bigint("observation_id", { mode: "number" })
+    observationId: bigint("observation_id", { mode: "bigint" })
       .notNull()
       .references(() => rawObservation.observationId),
   },

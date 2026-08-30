@@ -1,4 +1,8 @@
-import { expectedMigration, expectedMigrationTimestamp } from "@eatbid/db";
+import {
+  expectedMigration,
+  expectedMigrationInstant,
+  migrationJournalInstant,
+} from "@eatbid/db";
 import { sql, type SQL } from "drizzle-orm";
 import type { DatabaseReadiness } from "../health/readiness-state";
 
@@ -8,7 +12,7 @@ export interface ReadinessDatabase {
 
 export type ReadinessRow = Readonly<{
   migration_name: string | null;
-  migration_created_at: string | number | null;
+  migration_created_at: string | bigint | null;
   is_superuser: boolean;
   is_login: boolean;
   inherits_privileges: boolean;
@@ -261,8 +265,14 @@ function rowsOf(result: unknown): ReadinessRow[] {
 function isLeastPrivilegeReady(row: ReadinessRow | undefined): boolean {
   // 단순 접속 성공이 아니라 정확한 migration과 API 역할의 최소 권한을 모두 만족해야 트래픽을 받는다.
   if (!row) return false;
-  return row.migration_name === expectedMigration
-    && Number(row.migration_created_at) === expectedMigrationTimestamp
+  let migrationMatches = false;
+  try {
+    migrationMatches = row.migration_name === expectedMigration
+      && migrationJournalInstant(row.migration_created_at).equals(expectedMigrationInstant);
+  } catch {
+    migrationMatches = false;
+  }
+  return migrationMatches
     && !row.is_superuser
     && row.is_login
     && !row.inherits_privileges

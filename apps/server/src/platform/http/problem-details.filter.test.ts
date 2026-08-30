@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import { describe, expect, test } from "bun:test";
 import { RedactingJsonLogger } from "../logging/logging.module";
+import { fixedClock, Temporal } from "@eatbid/domain";
 import { ProblemDetailsFilter } from "./problem-details.filter";
 
 describe("Problem Details 상태 매핑", () => {
@@ -31,7 +32,11 @@ describe("Problem Details 상태 매핑", () => {
   });
 
   test("exception filter가 모든 status family에 application/problem+json을 내보낸다", () => {
-    const logger = new RedactingJsonLogger({ buildSha: "a".repeat(40), write: () => undefined });
+    const logger = new RedactingJsonLogger({
+      buildSha: "a".repeat(40),
+      clock: fixedClock(Temporal.Instant.from("2026-08-30T09:00:00Z")),
+      write: () => undefined,
+    });
     const filter = new ProblemDetailsFilter(logger);
     const cases: ReadonlyArray<readonly [unknown, number, string]> = [
       [new BadRequestException(), 400, "VALIDATION_ERROR"],

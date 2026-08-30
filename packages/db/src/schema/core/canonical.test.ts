@@ -34,6 +34,26 @@ const foreignKeyColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
   });
 
 describe("canonical identity 불변식", () => {
+  test("모든 canonical bigint 열은 bigint TypeScript mapping을 선언한다", () => {
+    for (const table of [
+      codeScheme,
+      codeValue,
+      codeLabelObservation,
+      codeMapping,
+      organization,
+      organizationIdentifier,
+      auctionAttempt,
+      auctionRevision,
+      auctionOrganization,
+      auctionRevisionCodeValue,
+    ]) {
+      for (const column of columns(table).filter((candidate) => candidate.getSQLType() === "bigint")) {
+        expect(column.dataType, `${column.name} must declare bigint int64`).toBe("bigint int64");
+        expect(column.columnType, `${column.name} must use PgBigInt64`).toBe("PgBigInt64");
+      }
+    }
+  });
+
   test("독립 identity가 있는 모든 fact에 generated bigint primary key를 사용한다", () => {
     for (const [table, primaryKey] of [
       [codeScheme, "code_scheme_id"],

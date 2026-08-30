@@ -2,12 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { EventEmitter } from "node:events";
 import { createInflightMiddleware } from "./inflight.middleware";
 import { InflightTracker } from "./inflight-tracker";
+import { fixedClock, Temporal } from "@eatbid/domain";
 
 describe("inflight middleware 종료 event", () => {
   test.each(["finish", "close", "aborted"] as const)(
     "%s event가 요청을 종료해도 lease를 정확히 한 번 해제한다",
     (event) => {
-      const tracker = new InflightTracker();
+      const tracker = new InflightTracker(
+        fixedClock(Temporal.Instant.from("2026-08-30T09:00:00Z")),
+      );
       const incoming = new EventEmitter();
       const response = new EventEmitter();
       let nextCalls = 0;

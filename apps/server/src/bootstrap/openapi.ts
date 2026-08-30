@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
-  auctionOperations,
+  auctionV1Operations,
   healthOperations,
   problemDetailsSchema,
 } from "@eatbid/contracts";
@@ -30,7 +30,7 @@ const problemResponse = (description: string) => ({
 export function createOpenApiDocument(): ReturnType<typeof createDocument> {
   assertOperationPath(healthOperations.live);
   assertOperationPath(healthOperations.ready);
-  if (auctionOperations.find.path !== "/api/v1/auctions/{auctionId}") {
+  if (auctionV1Operations.find.path !== "/api/v1/auctions/{auctionId}") {
     throw new Error("Auction operation path drift");
   }
   return createDocument({
@@ -41,22 +41,22 @@ export function createOpenApiDocument(): ReturnType<typeof createDocument> {
       description: "Bounded canonical HTTP contracts for the eatbid server.",
     },
     paths: {
-      [auctionOperations.find.path]: {
+      [auctionV1Operations.find.path]: {
         get: {
-          operationId: auctionOperations.find.operationId,
-          summary: auctionOperations.find.summary,
+          operationId: auctionV1Operations.find.operationId,
+          summary: auctionV1Operations.find.summary,
           tags: ["procurement"],
           parameters: [{
             name: "auctionId",
             in: "path",
             required: true,
-            example: auctionOperations.find.pathExample,
+            example: auctionV1Operations.find.pathExample,
             schema: { type: "string", pattern: "^[1-9][0-9]*$" },
           }],
           responses: {
             "200": {
               description: "Canonical auction",
-              content: { "application/json": { schema: auctionOperations.find.responseSchema } },
+              content: { "application/json": { schema: auctionV1Operations.find.responseSchema } },
             },
             "400": problemResponse("Invalid auction ID"),
             "404": problemResponse("Auction not found"),

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { auctionOperations, healthOperations } from "@eatbid/contracts";
+import { auctionV1Operations, healthOperations } from "@eatbid/contracts";
 
 describe("canonical OpenAPI 산출물", () => {
   test("고유하고 안정적인 operation과 전체 route를 가진 결정적 OpenAPI 3.0.3을 만든다", async () => {
@@ -28,14 +28,27 @@ describe("canonical OpenAPI 산출물", () => {
       ...healthOperations.live,
       path: "/health/drift",
     })).toThrow("Operation path drift");
-    const auction = document.paths[auctionOperations.find.path].get;
+    const auction = document.paths[auctionV1Operations.find.path].get;
     expect(auction.parameters[0]).toMatchObject({
       name: "auctionId",
       in: "path",
       required: true,
       example: "9007199254740993",
     });
-    expect(auction.responses["200"].content["application/json"].schema).toBeDefined();
+    expect(auction.responses["200"].content["application/json"].schema).toEqual({
+      $ref: "#/components/schemas/EatbidApiV1Auction",
+    });
+    expect(document.components.schemas.EatbidApiV1Auction.properties).toMatchObject({
+      identity: { $ref: "#/components/schemas/PublicAuctionIdentity" },
+      schedule: { $ref: "#/components/schemas/AuctionSchedule" },
+      pricing: { $ref: "#/components/schemas/AuctionPricing" },
+      provenance: { $ref: "#/components/schemas/AuctionProvenance" },
+    });
+    expect(document.components.schemas.InstantText.example).toBe("2026-08-30T00:00:00Z");
+    expect(document.components.schemas.AuctionPricing.example).toEqual({
+      baseAmount: { amount: "123456789.00", currency: "KRW" },
+      plannedAmount: null,
+    });
     expect(auction.responses["404"].content["application/problem+json"].schema).toBeDefined();
     expect(auction.responses["503"].content["application/problem+json"].schema).toBeDefined();
   });

@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/db build",
+    "prebuild": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/db build",
     "build": "tsc -p tsconfig.build.json",
     "predev": "tsc -p tsconfig.build.json",
     "dev": "concurrently --kill-others-on-fail --names tsc,node \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch --enable-source-maps dist/main.js\"",
     "dev:smoke": "bun test tools/dev-smoke.test.ts --timeout 30000",
     "start": "node --enable-source-maps dist/main.js",
-    "pretest": "pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/db build",
+    "pretest": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/db build && tsc -p tsconfig.build.json",
     "test": "bun test src tools --timeout 30000",
     "pretest:e2e": "pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/db build",
     "test:e2e": "bun test src/testing --timeout 30000",
@@ -24,6 +24,7 @@
   "dependencies": {
     "@eatbid/contracts": "workspace:*",
     "@eatbid/db": "workspace:*",
+    "@eatbid/domain": "workspace:*",
     "@nestjs/common": "12.0.1",
     "@nestjs/config": "12.0.0",
     "@nestjs/core": "12.0.1",

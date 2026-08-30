@@ -1,126 +1,138 @@
 {
   "components": {
     "schemas": {
-      "Auction": {
+      "AuctionPricing": {
         "additionalProperties": false,
-        "description": "Canonical auction revision with source provenance.",
-        "properties": {
-          "announcedAt": {
-            "format": "date-time",
-            "maxLength": 35,
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "auctionId": {
-            "maxLength": 19,
-            "pattern": "^[1-9][0-9]*$",
-            "type": "string"
-          },
+        "description": "Exact observed auction amounts with currency attached to each value.",
+        "example": {
           "baseAmount": {
-            "maxLength": 19,
-            "nullable": true,
-            "pattern": "^(?:0|[1-9][0-9]{0,15})\\.[0-9]{2}$",
-            "type": "string"
+            "amount": "123456789.00",
+            "currency": "KRW"
           },
-          "currency": {
-            "pattern": "^[A-Z]{3}$",
-            "type": "string"
-          },
-          "deadlineAt": {
-            "format": "date-time",
-            "maxLength": 35,
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "displayBidNumber": {
-            "maxLength": 128,
-            "minLength": 1,
-            "nullable": true,
-            "type": "string"
-          },
-          "openedAt": {
-            "format": "date-time",
-            "maxLength": 35,
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
+          "plannedAmount": null
+        },
+        "properties": {
+          "baseAmount": {
+            "$ref": "#/components/schemas/Money"
           },
           "plannedAmount": {
-            "maxLength": 19,
-            "nullable": true,
-            "pattern": "^(?:0|[1-9][0-9]{0,15})\\.[0-9]{2}$",
-            "type": "string"
-          },
-          "provenance": {
-            "additionalProperties": false,
-            "properties": {
-              "contentSha256": {
-                "pattern": "^[0-9a-f]{64}$",
-                "type": "string"
-              },
-              "externalBidId": {
-                "maxLength": 512,
-                "minLength": 1,
-                "type": "string"
-              },
-              "normalizedRecordId": {
-                "maxLength": 19,
-                "pattern": "^[1-9][0-9]*$",
-                "type": "string"
-              },
-              "observationId": {
-                "maxLength": 19,
-                "pattern": "^[1-9][0-9]*$",
-                "type": "string"
-              },
-              "sourceSystem": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
               }
-            },
-            "required": [
-              "sourceSystem",
-              "externalBidId",
-              "observationId",
-              "normalizedRecordId",
-              "contentSha256"
             ],
-            "type": "object"
-          },
-          "revisionId": {
-            "maxLength": 19,
-            "pattern": "^[1-9][0-9]*$",
-            "type": "string"
-          },
-          "status": {
-            "maxLength": 64,
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": {
-            "maxLength": 512,
-            "minLength": 1,
-            "type": "string"
+            "nullable": true
           }
         },
         "required": [
-          "auctionId",
-          "revisionId",
-          "title",
-          "status",
-          "displayBidNumber",
+          "baseAmount",
+          "plannedAmount"
+        ],
+        "type": "object"
+      },
+      "AuctionProvenance": {
+        "additionalProperties": false,
+        "description": "Traceability from a public auction revision to immutable source evidence and normalization.",
+        "properties": {
+          "contentSha256": {
+            "$ref": "#/components/schemas/ContentSha256"
+          },
+          "normalizedRecordId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "observationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "sourceSystem": {
+            "$ref": "#/components/schemas/SourceSystem"
+          }
+        },
+        "required": [
+          "sourceSystem",
+          "observationId",
+          "normalizedRecordId",
+          "contentSha256"
+        ],
+        "type": "object"
+      },
+      "AuctionSchedule": {
+        "additionalProperties": false,
+        "description": "UTC lifecycle instants; null means that instant is not yet observed or not supplied.",
+        "properties": {
+          "announcedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "deadlineAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
+          "openedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
           "announcedAt",
           "deadlineAt",
-          "openedAt",
-          "baseAmount",
-          "plannedAmount",
-          "currency",
+          "openedAt"
+        ],
+        "type": "object"
+      },
+      "CanonicalMoneyAmount": {
+        "description": "Canonical nonnegative KRW amount with exactly two fractional digits.",
+        "maxLength": 19,
+        "pattern": "^(?:0|[1-9][0-9]{0,15})\\.[0-9]{2}$",
+        "type": "string"
+      },
+      "ContentSha256": {
+        "description": "Lowercase hexadecimal SHA-256 digest of immutable source content.",
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "EatbidApiV1Auction": {
+        "additionalProperties": false,
+        "properties": {
+          "identity": {
+            "$ref": "#/components/schemas/PublicAuctionIdentity"
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/AuctionPricing"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/AuctionProvenance"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/AuctionSchedule"
+          }
+        },
+        "required": [
+          "identity",
+          "schedule",
+          "pricing",
           "provenance"
         ],
         "type": "object"
+      },
+      "ExternalBidId": {
+        "description": "Opaque source-scoped auction identifier; never parsed for identity.",
+        "maxLength": 512,
+        "minLength": 1,
+        "type": "string"
+      },
+      "InstantText": {
+        "description": "Canonical UTC ISO 8601 instant text ending in Z with at most nanosecond precision.",
+        "example": "2026-08-30T00:00:00Z",
+        "maxLength": 35,
+        "pattern": "^(?:(?:[0-9][0-9][2468][048]|[0-9][0-9][13579][26]|[0-9][0-9]0[48]|[02468][048]00|[13579][26]00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|(?:02)-(?:0[1-9]|1[0-9]|2[0-8])))T(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{0,8}[1-9])?(?:Z))$",
+        "type": "string"
       },
       "LiveHealth": {
         "additionalProperties": false,
@@ -137,6 +149,32 @@
           "status"
         ],
         "type": "object"
+      },
+      "Money": {
+        "additionalProperties": false,
+        "description": "Exact KRW money value; amount remains decimal text across JSON boundaries.",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/CanonicalMoneyAmount"
+          },
+          "currency": {
+            "enum": [
+              "KRW"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "type": "object"
+      },
+      "PositiveBigintText": {
+        "description": "Lossless positive PostgreSQL bigint encoded as canonical decimal text.",
+        "maxLength": 19,
+        "pattern": "^[1-9][0-9]*$",
+        "type": "string"
       },
       "ProblemCode": {
         "enum": [
@@ -188,6 +226,46 @@
         ],
         "type": "object"
       },
+      "PublicAuctionIdentity": {
+        "additionalProperties": false,
+        "description": "Public identity and display state for one canonical auction revision.",
+        "properties": {
+          "auctionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "displayBidNumber": {
+            "maxLength": 128,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "externalBidId": {
+            "$ref": "#/components/schemas/ExternalBidId"
+          },
+          "revisionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "status": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "auctionId",
+          "revisionId",
+          "externalBidId",
+          "displayBidNumber",
+          "title",
+          "status"
+        ],
+        "type": "object"
+      },
       "ReadyHealth": {
         "additionalProperties": false,
         "description": "The server is accepting application work.",
@@ -203,6 +281,12 @@
           "status"
         ],
         "type": "object"
+      },
+      "SourceSystem": {
+        "description": "Bounded identifier of the system that supplied an observation.",
+        "maxLength": 64,
+        "minLength": 1,
+        "type": "string"
       }
     }
   },
@@ -233,7 +317,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Auction"
+                  "$ref": "#/components/schemas/EatbidApiV1Auction"
                 }
               }
             },

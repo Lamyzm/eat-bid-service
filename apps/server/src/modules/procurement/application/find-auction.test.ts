@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { canonicalDecimal, krw, Temporal } from "@eatbid/domain";
 import { EffectRunner } from "../../../platform/effect/effect-runner";
 
 const auction = {
@@ -7,12 +8,11 @@ const auction = {
   title: "Fresh produce supply",
   status: "OPEN",
   displayBidNumber: null,
-  announcedAt: new Date("2026-08-30T00:00:00.000Z"),
+  announcedAt: Temporal.Instant.from("2026-08-30T00:00:00.123456789Z"),
   deadlineAt: null,
   openedAt: null,
-  baseAmount: "1234567890.50",
+  baseAmount: krw(canonicalDecimal("1234567890.50", 2)),
   plannedAmount: null,
-  currency: "KRW",
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",
@@ -23,25 +23,30 @@ const auction = {
 } as const;
 
 describe("FindAuction 조회 use case", () => {
-  test("bigint와 time을 무손실 매핑한 제한 view를 반환한다", async () => {
+  test("bigint·Temporal·Money를 중첩 V1 응답으로 무손실 encode한다", async () => {
     const application = await import("./find-auction").catch(() => undefined);
     expect(application, "FindAuction use case must exist").toBeDefined();
     const useCase = new application!.FindAuction({ findById: async () => auction });
     await expect(new EffectRunner().run(useCase.execute({ auctionId: auction.auctionId }))).resolves.toEqual({
-      auctionId: "9007199254740993",
-      revisionId: "9007199254740995",
-      title: "Fresh produce supply",
-      status: "OPEN",
-      displayBidNumber: null,
-      announcedAt: "2026-08-30T00:00:00.000Z",
-      deadlineAt: null,
-      openedAt: null,
-      baseAmount: "1234567890.50",
-      plannedAmount: null,
-      currency: "KRW",
+      identity: {
+        auctionId: "9007199254740993",
+        revisionId: "9007199254740995",
+        externalBidId: "external-opaque-id",
+        displayBidNumber: null,
+        title: "Fresh produce supply",
+        status: "OPEN",
+      },
+      schedule: {
+        announcedAt: "2026-08-30T00:00:00.123456789Z",
+        deadlineAt: null,
+        openedAt: null,
+      },
+      pricing: {
+        baseAmount: { amount: "1234567890.50", currency: "KRW" },
+        plannedAmount: null,
+      },
       provenance: {
         sourceSystem: "eat",
-        externalBidId: "external-opaque-id",
         observationId: "9007199254740997",
         normalizedRecordId: "9007199254740999",
         contentSha256: "a".repeat(64),

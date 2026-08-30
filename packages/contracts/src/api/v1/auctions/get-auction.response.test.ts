@@ -129,4 +129,16 @@ describe("공개 공고 V1 응답 계약", () => {
     });
     expect(auctionV1Operations.find.responseSchema).toBe(auctionV1ResponseSchema);
   });
+
+  test("공개 pricing metadata는 OpenAPI 소비자가 exact Money 예시를 볼 수 있게 한다", async () => {
+    const { auctionPricingSchema } = await import("../../../resources/procurement/pricing");
+
+    expect(auctionPricingSchema.meta()).toMatchObject({
+      id: "AuctionPricing",
+      example: {
+        baseAmount: { amount: "123456789.00", currency: "KRW" },
+        plannedAmount: null,
+      },
+    });
+  });
 });

@@ -14,7 +14,7 @@ import { coreSchema } from "../namespaces.js";
 export const codeScheme = coreSchema.table(
   "code_scheme",
   {
-    codeSchemeId: bigint("code_scheme_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    codeSchemeId: bigint("code_scheme_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
     namespace: text("namespace").notNull(),
     owner: varchar("owner", { length: 128 }).notNull(),
     versionPolicy: varchar("version_policy", { length: 64 }).notNull(),
@@ -27,8 +27,8 @@ export const codeScheme = coreSchema.table(
 export const codeValue = coreSchema.table(
   "code_value",
   {
-    codeValueId: bigint("code_value_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
-    codeSchemeId: bigint("code_scheme_id", { mode: "number" })
+    codeValueId: bigint("code_value_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
+    codeSchemeId: bigint("code_scheme_id", { mode: "bigint" })
       .notNull()
       .references(() => codeScheme.codeSchemeId),
     code: text("code").notNull(),
@@ -49,16 +49,16 @@ export const codeValue = coreSchema.table(
 export const codeLabelObservation = coreSchema.table(
   "code_label_observation",
   {
-    codeLabelObservationId: bigint("code_label_observation_id", { mode: "number" })
+    codeLabelObservationId: bigint("code_label_observation_id", { mode: "bigint" })
       .generatedAlwaysAsIdentity()
       .primaryKey(),
-    codeValueId: bigint("code_value_id", { mode: "number" })
+    codeValueId: bigint("code_value_id", { mode: "bigint" })
       .notNull()
       .references(() => codeValue.codeValueId),
     label: text("label").notNull(),
     language: varchar("language", { length: 16 }).notNull(),
     observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
-    observationId: bigint("observation_id", { mode: "number" })
+    observationId: bigint("observation_id", { mode: "bigint" })
       .notNull()
       .references(() => rawObservation.observationId),
   },
@@ -76,17 +76,17 @@ export const codeLabelObservation = coreSchema.table(
 export const codeMapping = coreSchema.table(
   "code_mapping",
   {
-    codeMappingId: bigint("code_mapping_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
-    fromCodeValueId: bigint("from_code_value_id", { mode: "number" })
+    codeMappingId: bigint("code_mapping_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
+    fromCodeValueId: bigint("from_code_value_id", { mode: "bigint" })
       .notNull()
       .references(() => codeValue.codeValueId),
-    toCodeValueId: bigint("to_code_value_id", { mode: "number" })
+    toCodeValueId: bigint("to_code_value_id", { mode: "bigint" })
       .notNull()
       .references(() => codeValue.codeValueId),
     relation: varchar("relation", { length: 32 }).notNull(),
     validFrom: timestamp("valid_from", { withTimezone: true }),
     validTo: timestamp("valid_to", { withTimezone: true }),
-    evidenceObservationId: bigint("evidence_observation_id", { mode: "number" })
+    evidenceObservationId: bigint("evidence_observation_id", { mode: "bigint" })
       .notNull()
       .references(() => rawObservation.observationId),
     status: varchar("status", { length: 32 }).notNull(),

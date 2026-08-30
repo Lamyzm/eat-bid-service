@@ -1,4 +1,5 @@
 import type { AuctionId } from "../domain/auction-id";
+import type { Money, Temporal } from "@eatbid/domain";
 
 export interface AuctionRecord {
   readonly auctionId: AuctionId;
@@ -6,12 +7,11 @@ export interface AuctionRecord {
   readonly title: string;
   readonly status: string;
   readonly displayBidNumber: string | null;
-  readonly announcedAt: Date | null;
-  readonly deadlineAt: Date | null;
-  readonly openedAt: Date | null;
-  readonly baseAmount: string | null;
-  readonly plannedAmount: string | null;
-  readonly currency: string;
+  readonly announcedAt: Temporal.Instant;
+  readonly deadlineAt: Temporal.Instant | null;
+  readonly openedAt: Temporal.Instant | null;
+  readonly baseAmount: Money;
+  readonly plannedAmount: Money | null;
   readonly provenance: {
     readonly sourceSystem: string;
     readonly externalBidId: string;

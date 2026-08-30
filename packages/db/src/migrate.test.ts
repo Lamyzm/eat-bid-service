@@ -1,24 +1,25 @@
 import { describe, expect, test } from "bun:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { minutes, seconds, toMilliseconds } from "@eatbid/domain";
 
 import {
   assertSchemaVersion,
   createMigrationClient,
   migrationClientOptions,
   migrationFolder,
-  migrationLockTimeoutMs,
-  migrationStatementTimeoutMs,
+  migrationLockTimeout,
+  migrationStatementTimeout,
   requireDatabaseUrl,
   runMigration,
   runMigrationCli,
 } from "./migrate";
-import { expectedMigration, expectedMigrationTimestamp } from "./version";
+import { expectedMigration } from "./version";
 
 type JournalRow = {
-  id: number;
+  id: bigint;
   name: string | null;
-  created_at: number | string | null;
+  created_at: bigint | string | null;
 };
 
 function journalDatabase(...rows: JournalRow[]) {
@@ -72,14 +73,14 @@ describe("migration folder 선택", () => {
 
 describe("migration database session 경계", () => {
   test("실제 postgres-js client에 제한된 lock·statement timeout을 설정한다", async () => {
-    expect(migrationLockTimeoutMs).toBe(5_000);
-    expect(migrationStatementTimeoutMs).toBe(300_000);
+    expect(migrationLockTimeout).toBe(seconds(5));
+    expect(migrationStatementTimeout).toBe(minutes(5));
     expect(migrationClientOptions).toEqual({
       max: 1,
       connection: {
         application_name: "eatbid-migrator",
-        lock_timeout: 5_000,
-        statement_timeout: 300_000,
+        lock_timeout: toMilliseconds(seconds(5)),
+        statement_timeout: toMilliseconds(minutes(5)),
       },
     });
 
@@ -108,9 +109,9 @@ describe("schema journal 검증", () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
-          id: 4,
+          id: 4n,
           name: "20260829002000_ingest_lineage_manifests",
-          created_at: Date.UTC(2026, 7, 29, 0, 20, 0),
+          created_at: "1787962800000",
         }),
         expectedMigration,
       ),
@@ -121,9 +122,9 @@ describe("schema journal 검증", () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
-          id: 5,
+          id: 5n,
           name: expectedMigration,
-          created_at: String(expectedMigrationTimestamp),
+          created_at: "1788056179000",
         }),
         expectedMigration,
       ),
@@ -134,9 +135,9 @@ describe("schema journal 검증", () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
-          id: 6,
+          id: 6n,
           name: "20260830023000_unknown_future",
-          created_at: Date.UTC(2026, 7, 30, 2, 30, 0),
+          created_at: "1788057000000",
         }),
         expectedMigration,
       ),
@@ -147,9 +148,9 @@ describe("schema journal 검증", () => {
     await expect(
       assertSchemaVersion(
         journalDatabase({
-          id: 6,
+          id: 6n,
           name: "20260829002500_wrong_name",
-          created_at: expectedMigrationTimestamp,
+          created_at: "1788056179000",
         }),
         expectedMigration,
       ),

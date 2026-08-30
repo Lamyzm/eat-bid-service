@@ -20,7 +20,7 @@ import { organization } from "./organizations.js";
 export const auctionAttempt = coreSchema.table(
   "auction_attempt",
   {
-    auctionAttemptId: bigint("auction_attempt_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    auctionAttemptId: bigint("auction_attempt_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
     sourceSystem: varchar("source_system", { length: 64 }).notNull(),
     externalBidId: text("external_bid_id").notNull(),
   },
@@ -31,14 +31,14 @@ export const auctionAttempt = coreSchema.table(
 export const auctionRevision = coreSchema.table(
   "auction_revision",
   {
-    auctionRevisionId: bigint("auction_revision_id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
-    auctionAttemptId: bigint("auction_attempt_id", { mode: "number" })
+    auctionRevisionId: bigint("auction_revision_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
+    auctionAttemptId: bigint("auction_attempt_id", { mode: "bigint" })
       .notNull()
       .references(() => auctionAttempt.auctionAttemptId),
-    normalizedRecordId: bigint("normalized_record_id", { mode: "number" })
+    normalizedRecordId: bigint("normalized_record_id", { mode: "bigint" })
       .notNull()
       .references(() => normalizedRecord.normalizedRecordId),
-    observationId: bigint("observation_id", { mode: "number" })
+    observationId: bigint("observation_id", { mode: "bigint" })
       .notNull()
       .references(() => rawObservation.observationId),
     contentSha256: char("content_sha256", { length: 64 }).notNull(),
@@ -60,10 +60,10 @@ export const auctionRevision = coreSchema.table(
 export const auctionOrganization = coreSchema.table(
   "auction_organization",
   {
-    auctionRevisionId: bigint("auction_revision_id", { mode: "number" })
+    auctionRevisionId: bigint("auction_revision_id", { mode: "bigint" })
       .notNull()
       .references(() => auctionRevision.auctionRevisionId),
-    organizationId: bigint("organization_id", { mode: "number" })
+    organizationId: bigint("organization_id", { mode: "bigint" })
       .notNull()
       .references(() => organization.organizationId),
     role: varchar("role", { length: 32 }).notNull(),
@@ -75,10 +75,10 @@ export const auctionOrganization = coreSchema.table(
 export const auctionRevisionCodeValue = coreSchema.table(
   "auction_revision_code_value",
   {
-    auctionRevisionId: bigint("auction_revision_id", { mode: "number" })
+    auctionRevisionId: bigint("auction_revision_id", { mode: "bigint" })
       .notNull()
       .references(() => auctionRevision.auctionRevisionId),
-    codeValueId: bigint("code_value_id", { mode: "number" })
+    codeValueId: bigint("code_value_id", { mode: "bigint" })
       .notNull()
       .references(() => codeValue.codeValueId),
     role: varchar("role", { length: 32 }).notNull(),

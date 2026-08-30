@@ -1,12 +1,18 @@
 import { z } from "zod";
+import {
+  milliseconds,
+  payloadByteLimit,
+  type ElapsedMilliseconds,
+  type PayloadByteLimit,
+} from "@eatbid/domain";
 
 export interface Environment {
   readonly runtimeMode: "development" | "test" | "production";
   readonly port: number;
   readonly corsOrigins: readonly string[];
   readonly proxyHops: number;
-  readonly payloadLimitBytes: number;
-  readonly shutdownGraceMs: number;
+  readonly payloadLimit: PayloadByteLimit;
+  readonly shutdownGrace: ElapsedMilliseconds;
   readonly swaggerEnabled: boolean;
   readonly buildSha: string;
   readonly databaseUrl: string;
@@ -82,8 +88,8 @@ export function parseEnvironment(source: EnvironmentSource): Environment {
     port: parsed.PORT ?? 4400,
     corsOrigins: parseOrigins(parsed.CORS_ORIGINS ?? "http://localhost:3000"),
     proxyHops: parsed.TRUST_PROXY_HOPS ?? 0,
-    payloadLimitBytes: parsed.HTTP_PAYLOAD_LIMIT_BYTES ?? 1_048_576,
-    shutdownGraceMs: parsed.SHUTDOWN_GRACE_MS ?? 10_000,
+    payloadLimit: payloadByteLimit(parsed.HTTP_PAYLOAD_LIMIT_BYTES ?? 1_048_576),
+    shutdownGrace: milliseconds(parsed.SHUTDOWN_GRACE_MS ?? 10_000),
     swaggerEnabled,
     buildSha,
     databaseUrl: parseDatabaseUrl(parsed.DATABASE_URL),

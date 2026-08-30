@@ -4,6 +4,7 @@ import { Observable } from "rxjs";
 import { RedactingJsonLogger } from "../logging/logging.module";
 import { requestIdOf } from "../request-context/request-context.middleware";
 import { routeTemplate } from "./problem-details.filter";
+import { milliseconds } from "@eatbid/domain";
 
 @Injectable()
 export class RequestCompletionInterceptor implements NestInterceptor {
@@ -23,7 +24,7 @@ export class RequestCompletionInterceptor implements NestInterceptor {
         method: request.method,
         route: routeTemplate(request),
         status: response.statusCode,
-        durationMs: Math.max(0, Math.round((performance.now() - started) * 1000) / 1000),
+        duration: milliseconds(Math.max(0, Math.round(performance.now() - started))),
         ...(typeof response.locals.problemCode === "string"
           ? { errorCode: response.locals.problemCode }
           : {}),

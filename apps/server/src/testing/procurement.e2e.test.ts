@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
+import { canonicalDecimal, krw, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import type { AuctionReader } from "../modules/procurement/application/auction-reader";
@@ -11,12 +12,11 @@ const publicAuction = {
   title: "Fresh produce supply",
   status: "OPEN",
   displayBidNumber: null,
-  announcedAt: new Date("2026-08-30T00:00:00.000Z"),
+  announcedAt: Temporal.Instant.from("2026-08-30T00:00:00.123456789Z"),
   deadlineAt: null,
   openedAt: null,
-  baseAmount: "1234567890.50",
+  baseAmount: krw(canonicalDecimal("1234567890.50", 2)),
   plannedAmount: null,
-  currency: "KRW",
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",
@@ -63,20 +63,25 @@ describe("canonical procurement HTTP 경로", () => {
       expect(response.status).toBe(200);
       expect(observed).toEqual([9_007_199_254_740_993n]);
       expect(response.body).toEqual({
-        auctionId: "9007199254740993",
-        revisionId: "9007199254740995",
-        title: "Fresh produce supply",
-        status: "OPEN",
-        displayBidNumber: null,
-        announcedAt: "2026-08-30T00:00:00.000Z",
-        deadlineAt: null,
-        openedAt: null,
-        baseAmount: "1234567890.50",
-        plannedAmount: null,
-        currency: "KRW",
+        identity: {
+          auctionId: "9007199254740993",
+          revisionId: "9007199254740995",
+          externalBidId: "external-opaque-id",
+          displayBidNumber: null,
+          title: "Fresh produce supply",
+          status: "OPEN",
+        },
+        schedule: {
+          announcedAt: "2026-08-30T00:00:00.123456789Z",
+          deadlineAt: null,
+          openedAt: null,
+        },
+        pricing: {
+          baseAmount: { amount: "1234567890.50", currency: "KRW" },
+          plannedAmount: null,
+        },
         provenance: {
           sourceSystem: "eat",
-          externalBidId: "external-opaque-id",
           observationId: "9007199254740997",
           normalizedRecordId: "9007199254740999",
           contentSha256: "a".repeat(64),
@@ -96,7 +101,7 @@ describe("canonical procurement HTTP 경로", () => {
     }, async (server) => {
       const maximum = await request(server).get("/api/v1/auctions/9223372036854775807");
       expect(maximum.status).toBe(200);
-      expect(maximum.body.auctionId).toBe("9223372036854775807");
+      expect(maximum.body.identity.auctionId).toBe("9223372036854775807");
       const oneOver = await request(server).get("/api/v1/auctions/9223372036854775808");
       expect(oneOver.status).toBe(400);
       expect(oneOver.body.code).toBe("VALIDATION_ERROR");

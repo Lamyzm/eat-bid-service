@@ -4,6 +4,7 @@ import type { Socket } from "node:net";
 import type { ReadinessState } from "../health/readiness-state";
 import type { RedactingJsonLogger } from "../logging/logging.module";
 import type { InflightTracker } from "./inflight-tracker";
+import { toMilliseconds, type Clock, type ElapsedMilliseconds } from "@eatbid/domain";
 
 export interface ShutdownResult {
   readonly drained: boolean;
@@ -25,7 +26,8 @@ export class ShutdownCoordinator {
     private readonly readiness: ReadinessState,
     private readonly tracker: InflightTracker,
     private readonly logger: RedactingJsonLogger,
-    private readonly graceMs: number,
+    private readonly clock: Clock,
+    private readonly grace: ElapsedMilliseconds,
   ) {}
 
   attachServer(server: Server): void {
@@ -46,7 +48,8 @@ export class ShutdownCoordinator {
     const listenerClosed = server?.listening
       ? new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
       : Promise.resolve();
-    const drained = await this.tracker.waitForZero(Date.now() + this.graceMs);
+    const deadline = this.clock.now().add({ milliseconds: toMilliseconds(this.grace) });
+    const drained = await this.tracker.waitForZero(deadline);
     const inflightAtDeadline = this.tracker.count;
     if (!drained) {
       server?.closeAllConnections?.();

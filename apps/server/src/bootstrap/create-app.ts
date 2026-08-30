@@ -8,6 +8,7 @@ import { NestFactory } from "@nestjs/core";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import { SwaggerModule } from "@nestjs/swagger";
 import { healthOperations } from "@eatbid/contracts";
+import { systemClock, type Clock } from "@eatbid/domain";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import type { Server } from "node:http";
@@ -36,6 +37,7 @@ import { createOpenApiDocument } from "./openapi";
 
 export interface CreateAppOptions {
   readonly environment?: Environment;
+  readonly clock?: Clock;
   readonly logWriter?: (line: string) => void;
   readonly databaseReadiness?: DatabaseReadiness;
   readonly auctionReader?: AuctionReader;
@@ -62,12 +64,13 @@ export interface OperationalHttpApplication {
  */
 export async function createApp(options: CreateAppOptions = {}): Promise<OperationalHttpApplication> {
   const environment = options.environment ?? readEnvironment();
+  const clock = options.clock ?? systemClock;
   if (options.testOnlyImports && environment.runtimeMode !== "test") {
     throw new Error("testOnlyImports can only be used in the test runtime");
   }
-  const logger = LoggingModule.create(environment, options.logWriter);
+  const logger = LoggingModule.create(environment, clock, options.logWriter);
   const requestContext = new RequestContextStore();
-  const tracker = new InflightTracker();
+  const tracker = new InflightTracker(clock);
   const readiness = new ReadinessState();
   const expressApplication = express();
   const adapter = new ExpressAdapter(expressApplication);
@@ -87,10 +90,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
   // 원문 바이트 서명 검증은 보안 헤더/CORS 뒤이면서 파서 앞이어야 하므로 이 슬롯을 고정한다.
   options.mountPreParserRawTransport?.(expressApplication);
 
-  expressApplication.use(express.json({ limit: environment.payloadLimitBytes, strict: true }));
+  expressApplication.use(express.json({ limit: environment.payloadLimit, strict: true }));
   expressApplication.use(express.urlencoded({
     extended: false,
-    limit: environment.payloadLimitBytes,
+    limit: environment.payloadLimit,
     parameterLimit: 100,
   }));
   expressApplication.use((
@@ -151,7 +154,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     readiness,
     tracker,
     logger,
-    environment.shutdownGraceMs,
+    clock,
+    environment.shutdownGrace,
   );
   return {
     app,

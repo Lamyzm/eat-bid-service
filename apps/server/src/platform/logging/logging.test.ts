@@ -1,22 +1,31 @@
 import { describe, expect, test } from "bun:test";
+import { fixedClock, milliseconds, Temporal } from "@eatbid/domain";
+
+const clock = fixedClock(Temporal.Instant.from("2026-08-30T09:00:00.123456789Z"));
 
 describe("운영 logging", () => {
   test("완료 record에는 route template과 비민감 allowlist만 남긴다", async () => {
     const module = await import("./logging.module").catch(() => undefined);
     expect(module, "logging boundary must exist").toBeDefined();
-    const logger = new module!.RedactingJsonLogger({ buildSha: "a".repeat(40), write: () => undefined });
+    const logger = new module!.RedactingJsonLogger({
+      buildSha: "a".repeat(40),
+      clock,
+      write: () => undefined,
+    });
     logger.completion({
       requestId: "req-1",
       method: "GET",
       route: "/api/v1/things/:thingId",
       status: 200,
-      durationMs: 12,
+      duration: milliseconds(12),
     });
     expect(logger.records.at(-1)).toMatchObject({
+      timestamp: "2026-08-30T09:00:00.123456789Z",
       service: "eatbid-server",
       requestId: "req-1",
       route: "/api/v1/things/:thingId",
       status: 200,
+      durationMs: 12,
     });
     expect(JSON.stringify(logger.records)).not.toContain("?token=");
   });
@@ -24,7 +33,11 @@ describe("운영 logging", () => {
   test("민감 error fixture를 직렬화 log에 넣지 않는다", async () => {
     const { RedactingJsonLogger, writeSafeFailure } = await import("./logging.module");
     const lines: string[] = [];
-    const logger = new RedactingJsonLogger({ buildSha: "b".repeat(40), write: (line) => lines.push(line) });
+    const logger = new RedactingJsonLogger({
+      buildSha: "b".repeat(40),
+      clock,
+      write: (line) => lines.push(line),
+    });
     const secrets = [
       "Basic YWRtaW46YmFzaWMtc2VjcmV0",
       "Bearer bearer.secret+complete/token==",
@@ -46,7 +59,7 @@ describe("운영 logging", () => {
     error.stack = `TypeError: ${secrets.join("\n")}\n    at ${secrets[3]}:1:1`;
     logger.defect({ requestId: "req-2", route: "/api/v1/fail", error });
     logger.error(secrets.join("\n"), "UnsafeContext");
-    writeSafeFailure("bootstrap_failed", error, (line) => lines.push(line));
+    writeSafeFailure("bootstrap_failed", error, clock, (line) => lines.push(line));
     const serialized = lines.join("\n");
     for (const secret of secrets) expect(serialized).not.toContain(secret);
     for (const secretFragment of [
@@ -78,8 +91,14 @@ describe("운영 logging", () => {
       cause: { configurable: true, get: () => { throw new Error("cause-secret"); } },
     });
     const lines: string[] = [];
-    expect(() => writeSafeFailure("bootstrap_failed", hostile, (line) => lines.push(line))).not.toThrow();
+    expect(() => writeSafeFailure(
+      "bootstrap_failed",
+      hostile,
+      clock,
+      (line) => lines.push(line),
+    )).not.toThrow();
     expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!).timestamp).toBe("2026-08-30T09:00:00.123456789Z");
     expect(lines[0]).not.toContain("secret");
     expect(() => JSON.parse(lines[0]!)).not.toThrow();
   });

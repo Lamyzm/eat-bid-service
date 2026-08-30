@@ -3,9 +3,13 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import {
   ingestRun,
   normalizedRecord,
+  normalizationAttempt,
+  normalizationAttemptRecord,
   publication,
+  publicationRecord,
   rawBlob,
   rawObservation,
+  replayInput,
   requestUnit,
 } from "./ingest/index";
 
@@ -24,6 +28,28 @@ const foreignKeyColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
   }));
 
 describe("ingest identity 불변식", () => {
+  test("ID·count·byte·HTTP status bigint 열을 모두 bigint TypeScript mapping으로 선언한다", () => {
+    for (const table of [
+      ingestRun,
+      requestUnit,
+      rawBlob,
+      rawObservation,
+      normalizedRecord,
+      publication,
+      normalizationAttempt,
+      normalizationAttemptRecord,
+      publicationRecord,
+      replayInput,
+    ]) {
+      for (const column of getTableConfig(table).columns.filter((candidate) => candidate.getSQLType() === "bigint")) {
+        expect(column.dataType, `${column.name} must declare bigint int64`).toBe("bigint int64");
+        expect(column.columnType, `${column.name} must use PgBigInt64`).toBe("PgBigInt64");
+      }
+    }
+    const status = getTableConfig(rawObservation).columns.find((column) => column.name === "http_status");
+    expect(status).toMatchObject({ dataType: "bigint int64", columnType: "PgBigInt64" });
+  });
+
   test("불변 blob만 중복 제거하고 observation은 합치지 않는다", () => {
     const blob = getTableConfig(rawBlob);
     const observation = getTableConfig(rawObservation);

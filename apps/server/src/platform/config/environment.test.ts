@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { payloadByteLimit, seconds } from "@eatbid/domain";
 
 const production = {
   NODE_ENV: "production",
@@ -24,8 +25,8 @@ describe("운영 environment", () => {
       port: 4400,
       corsOrigins: ["http://localhost:3000"],
       proxyHops: 0,
-      payloadLimitBytes: 1_048_576,
-      shutdownGraceMs: 10_000,
+      payloadLimit: payloadByteLimit(1_048_576),
+      shutdownGrace: seconds(10),
       swaggerEnabled: false,
       buildSha: "unknown",
       databaseUrl: "postgres://eatbid_api:test-only@127.0.0.1:5432/eatbid_test",
@@ -39,8 +40,8 @@ describe("운영 environment", () => {
       port: 4400,
       corsOrigins: ["https://app.eatbid.dev", "https://admin.eatbid.dev"],
       proxyHops: 2,
-      payloadLimitBytes: 1_048_576,
-      shutdownGraceMs: 15_000,
+      payloadLimit: payloadByteLimit(1_048_576),
+      shutdownGrace: seconds(15),
       swaggerEnabled: false,
       buildSha: "a".repeat(40),
       databaseUrl: "postgres://eatbid_api:secret@postgres:5432/eatbid",

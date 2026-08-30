@@ -1,10 +1,8 @@
 export * from "./common/problem-details";
 export * from "./operations/health";
-export * from "./procurement/auction";
-
 export * from "./atoms/decimal";
 export * from "./atoms/geo";
-export { positiveBigintTextSchema } from "./atoms/identifier";
+export { auctionIdPathSchema, positiveBigintTextSchema } from "./atoms/identifier";
 export * from "./atoms/instant";
 export * from "./atoms/source-code";
 export * from "./values/coordinate";
