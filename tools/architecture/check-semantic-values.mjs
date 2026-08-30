@@ -21,7 +21,6 @@ const allowedLegacyPrefixes = ["apps/web/src/", "packages/shared/src/"];
 const forbiddenDatePackages = new Set(["dayjs", "date-fns", "moment", "luxon"]);
 const canonicalFloatingColumn = /(?:^|_)(?:amount|money|price|rate|ratio|percent|percentage)(?:_|$)/i;
 const durationName = /(?:timeout|interval|ttl|grace|delay|debounce|throttle)(?:ms|millis|milliseconds)?$/i;
-const publicResponseName = /Response(?:Dto)?$/;
 const exactAuctionAdapter = "apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts";
 const exactClockFacade = "packages/domain/src/time/clock.ts";
 const sourceFilesByPath = new Map();
@@ -76,6 +75,7 @@ const program = ts.createProgram({
   },
 });
 const checker = program.getTypeChecker();
+const assignedValuesBySymbol = new Map();
 for (const sourceFile of program.getSourceFiles()) {
   if (!sourceFile.isDeclarationFile && governedFileKeys.has(path.resolve(sourceFile.fileName).toLowerCase())) {
     sourceFilesByPath.set(path.resolve(sourceFile.fileName), sourceFile);
@@ -115,6 +115,23 @@ function symbolFor(node) {
   } catch {
     return undefined;
   }
+}
+
+for (const sourceFile of sourceFilesByPath.values()) {
+  const collectAssignments = (node) => {
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      const left = unwrap(node.left);
+      if (ts.isIdentifier(left)) {
+        const symbol = symbolFor(left);
+        if (symbol) {
+          if (!assignedValuesBySymbol.has(symbol)) assignedValuesBySymbol.set(symbol, []);
+          assignedValuesBySymbol.get(symbol).push({ position: node.getStart(sourceFile), value: node.right });
+        }
+      }
+    }
+    ts.forEachChild(node, collectAssignments);
+  };
+  collectAssignments(sourceFile);
 }
 
 function declarationsForIdentifier(node) {
@@ -160,7 +177,7 @@ function origins(node, seenSymbols = new Set()) {
   const current = unwrap(node);
   if (ts.isIdentifier(current)) {
     const symbol = symbolFor(current);
-    if (["Date", "setTimeout", "setInterval", "globalThis", "require"].includes(current.text)
+    if (["Date", "setTimeout", "setInterval", "globalThis", "window", "require"].includes(current.text)
       && (!symbol || !symbolIsRepositoryLocal(symbol))) {
       return new Set([`global:${current.text}`]);
     }
@@ -199,6 +216,11 @@ function origins(node, seenSymbols = new Set()) {
             for (const origin of origins(targetDeclaration.initializer, nextSeen)) result.add(origin);
           }
         }
+      }
+    }
+    for (const assignment of assignedValuesBySymbol.get(symbol) ?? []) {
+      if (assignment.position < current.getStart()) {
+        for (const origin of origins(assignment.value, nextSeen)) result.add(origin);
       }
     }
     return result;
@@ -260,17 +282,22 @@ function originHas(originsSet, predicate) {
 }
 
 function isGlobalDateOrigin(origin) {
-  return origin === "global:Date" || origin.startsWith("global:Date.");
+  return origin === "global:Date"
+    || origin.startsWith("global:Date.")
+    || origin === "global:globalThis.Date"
+    || origin.startsWith("global:globalThis.Date.")
+    || origin === "global:window.Date"
+    || origin.startsWith("global:window.Date.");
 }
 
 function isTemporalNowOrigin(origin) {
   return origin.startsWith("semantic:Temporal.Now")
-    || (/import:.*:Temporal\.Now(?:\.|$)/.test(origin));
+    || (/^import:(?:@eatbid\/domain|temporal-polyfill|.*(?:^|\/)temporal(?:\.js)?):(?:\*\.)?Temporal\.Now(?:\.|$)/.test(origin));
 }
 
 function isTimerOrigin(origin) {
   return /global:(?:setTimeout|setInterval)(?:\.|$)/.test(origin)
-    || /^global:globalThis\.(?:setTimeout|setInterval)(?:\.|$)/.test(origin);
+    || /^global:(?:globalThis|window)\.(?:setTimeout|setInterval)(?:\.|$)/.test(origin);
 }
 
 function isDrizzleOrigin(origin, names) {
@@ -279,10 +306,16 @@ function isDrizzleOrigin(origin, names) {
     || origin.endsWith(`:${name}`) && origin.includes("drizzle-orm/pg-core"));
 }
 
-function ancestorNamed(node, predicate, name) {
+function topLevelAncestorNamed(node, predicate, name) {
   let current = node;
   while (current) {
-    if (predicate(current) && current.name && propertyNameText(current.name) === name) return true;
+    if (predicate(current) && current.name && propertyNameText(current.name) === name) {
+      if (ts.isVariableDeclaration(current)) {
+        const statement = current.parent?.parent;
+        return Boolean(statement && ts.isVariableStatement(statement) && ts.isSourceFile(statement.parent));
+      }
+      return ts.isSourceFile(current.parent);
+    }
     current = current.parent;
   }
   return false;
@@ -290,13 +323,13 @@ function ancestorNamed(node, predicate, name) {
 
 function dateException(node, repositoryPath) {
   return repositoryPath === exactAuctionAdapter && (
-    ancestorNamed(node, ts.isTypeAliasDeclaration, "AuctionRow")
-    || ancestorNamed(node, ts.isFunctionDeclaration, "postgresInstant")
+    topLevelAncestorNamed(node, ts.isTypeAliasDeclaration, "AuctionRow")
+    || topLevelAncestorNamed(node, ts.isFunctionDeclaration, "postgresInstant")
   );
 }
 
 function temporalException(node, repositoryPath) {
-  return repositoryPath === exactClockFacade && ancestorNamed(node, ts.isVariableDeclaration, "systemClock");
+  return repositoryPath === exactClockFacade && topLevelAncestorNamed(node, ts.isVariableDeclaration, "systemClock");
 }
 
 function typeContainsElapsedMilliseconds(node) {
@@ -315,7 +348,7 @@ function isSemanticDurationExpression(node, seenSymbols = new Set()) {
   if (ts.isCallExpression(current)) {
     const callOrigins = origins(current.expression);
     return originHas(callOrigins, (origin) => ["milliseconds", "seconds", "minutes", "hours", "toMilliseconds"]
-      .some((name) => origin === `import:@eatbid/domain:${name}` || origin.endsWith(`:${name}`)));
+      .some((name) => origin === `import:@eatbid/domain:${name}` || origin === `import:@eatbid/domain:*.${name}`));
   }
   if (ts.isIdentifier(current)) {
     const symbol = symbolFor(current);
@@ -412,6 +445,17 @@ function isZodInferredType(node, seenSymbols = new Set()) {
   return false;
 }
 
+function isExportedDeclaration(node) {
+  return Boolean(ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export);
+}
+
+function canonicalColumnName(name) {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[-\s]+/g, "_")
+    .toLowerCase();
+}
+
 function displayNode(sourceFile, node) {
   const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
   return { line: position.line + 1, column: position.character + 1 };
@@ -475,12 +519,13 @@ function scanSourceFile(sourceFile) {
       }
       if (originHas(callOrigins, (origin) => isDrizzleOrigin(origin, new Set(["real", "doublePrecision"])))) {
         const names = node.arguments[0] ? constantStrings(node.arguments[0]) : new Set();
-        if (!names.size || [...names].some((name) => canonicalFloatingColumn.test(name))) {
+        if (!names.size || [...names].some((name) => canonicalFloatingColumn.test(canonicalColumnName(name)))) {
           report(sourceFile, node, "floating-canonical-ddl", "canonical money and rate columns must use exact numeric DDL");
         }
       }
-      if (originHas(callOrigins, (origin) => isDrizzleOrigin(origin, new Set(["bigint"]))) && node.arguments[1]) {
-        const modes = modeValues(node.arguments[1]);
+      if (originHas(callOrigins, (origin) => isDrizzleOrigin(origin, new Set(["bigint"])))) {
+        const modeArgument = node.arguments.length === 1 ? node.arguments[0] : node.arguments[1];
+        const modes = modeArgument ? modeValues(modeArgument) : { values: new Set(), known: false, unknown: true };
         if (modes.values.has("number") || modes.unknown || !modes.known) {
           report(sourceFile, node, "bigint-number-mode", "Drizzle bigint columns must not use JavaScript number mode");
         }
@@ -523,11 +568,11 @@ function scanSourceFile(sourceFile) {
       }
     }
 
-    const inPublicContract = repositoryPath.startsWith("packages/contracts/src/")
+    const inPublicContract = repositoryPath.startsWith("packages/contracts/src/api/")
       || repositoryPath.includes("/presentation/http/");
     if (inPublicContract && (
-      ts.isInterfaceDeclaration(node) && publicResponseName.test(node.name.text)
-      || ts.isTypeAliasDeclaration(node) && publicResponseName.test(node.name.text) && !isZodInferredType(node.type)
+      ts.isInterfaceDeclaration(node) && isExportedDeclaration(node)
+      || ts.isTypeAliasDeclaration(node) && isExportedDeclaration(node) && !isZodInferredType(node.type)
     )) {
       report(sourceFile, node, "manual-public-response", "public HTTP response types must be inferred from their Zod wire schema");
     }
@@ -546,26 +591,77 @@ function graphDeclarations(identifier) {
   });
 }
 
+function typeDeclaredByZod(type, seen = new Set()) {
+  if (!type || seen.has(type)) return false;
+  seen.add(type);
+  const symbols = [type.aliasSymbol, type.getSymbol?.()].filter(Boolean);
+  if (symbols.some((symbol) => symbol.declarations?.some((declaration) =>
+    declaration.getSourceFile().fileName.replaceAll("\\", "/").includes("/node_modules/zod/")))) return true;
+  return (type.types ?? []).some((member) => typeDeclaredByZod(member, seen));
+}
+
+function expressionHasZodOrigin(node) {
+  if (originHas(origins(node), (origin) => origin.startsWith("import:zod:"))) return true;
+  if (ts.isIdentifier(node)) {
+    for (const declaration of declarationsForIdentifier(node)) {
+      if (declaration.type && originHas(origins(declaration.type), (origin) => origin.startsWith("import:zod:"))) {
+        return true;
+      }
+    }
+  }
+  try {
+    return typeDeclaredByZod(checker.getTypeAtLocation(node));
+  } catch {
+    return false;
+  }
+}
+
 function nonportableFeature(call) {
   const features = new Set(["codec", "transform", "preprocess", "custom", "refine", "superRefine", "check", "instanceof", "function", "pipe"]);
   for (const origin of origins(call.expression)) {
     const feature = origin.split(".").at(-1)?.split(":").at(-1);
-    if (feature && features.has(feature)) return feature;
+    if (feature && features.has(feature) && origin.startsWith("import:zod:")) return feature;
+  }
+  if (ts.isPropertyAccessExpression(call.expression) || ts.isElementAccessExpression(call.expression)) {
+    const feature = ts.isPropertyAccessExpression(call.expression)
+      ? call.expression.name.text
+      : call.expression.argumentExpression && [...constantStrings(call.expression.argumentExpression)][0];
+    if (feature && features.has(feature)) {
+      const receiver = call.expression.expression;
+      if (expressionHasZodOrigin(receiver)) return feature;
+    }
   }
   return undefined;
 }
 
+const configurationFailures = [];
 function scanPortableGraph() {
   const registry = [...sourceFilesByPath.values()].find((sourceFile) => normalizePath(sourceFile.fileName) === "packages/contracts/src/portable-registry.ts");
-  if (!registry) return;
+  if (!registry) {
+    configurationFailures.push("portable registry packages/contracts/src/portable-registry.ts is required");
+    return;
+  }
   const roots = [];
   const findRoots = (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "portableContracts" && node.initializer) {
+    const statement = ts.isVariableDeclaration(node) ? node.parent?.parent : undefined;
+    if (ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.name)
+      && node.name.text === "portableContracts"
+      && node.initializer
+      && statement
+      && ts.isVariableStatement(statement)
+      && ts.isSourceFile(statement.parent)
+      && (node.parent.flags & ts.NodeFlags.Const)
+      && isExportedDeclaration(statement)) {
       roots.push(node.initializer);
     }
     ts.forEachChild(node, findRoots);
   };
   findRoots(registry);
+  if (roots.length !== 1) {
+    configurationFailures.push("exactly one exported const top-level portableContracts root is required");
+    return;
+  }
 
   const visitedNodes = new Set();
   const visitedDeclarations = new Set();
@@ -583,6 +679,8 @@ function scanPortableGraph() {
         if (visitedDeclarations.has(declaration)) continue;
         visitedDeclarations.add(declaration);
         if (ts.isVariableDeclaration(declaration) && declaration.initializer) walk(declaration.initializer);
+        else if (ts.isFunctionDeclaration(declaration) && declaration.body) walk(declaration.body);
+        else if (ts.isMethodDeclaration(declaration) && declaration.body) walk(declaration.body);
         else if (ts.isPropertyAssignment(declaration)) walk(declaration.initializer);
         else if (ts.isShorthandPropertyAssignment(declaration)) walk(declaration.name);
         else if (ts.isExportSpecifier(declaration)) walk(declaration.propertyName ?? declaration.name);
@@ -626,8 +724,9 @@ function printViolations(items, heading = "TypeScript semantic-value architectur
 }
 
 if (writeBaseline) {
-  if (strictViolations.length) {
+  if (strictViolations.length || configurationFailures.length) {
     printViolations(strictViolations);
+    for (const failure of configurationFailures) console.error(`- ${failure}`);
     process.exitCode = 1;
   } else {
     const document = { version: 1, entries: legacyViolations.map(baselineEntry) };
@@ -692,6 +791,10 @@ if (writeBaseline) {
     console.error("Semantic-value legacy baseline check failed:");
     for (const failure of baselineFailures) console.error(`- ${failure}`);
   }
-  if (strictViolations.length || baselineFailures.length) process.exitCode = 1;
+  if (configurationFailures.length) {
+    console.error("Portable registry configuration check failed:");
+    for (const failure of configurationFailures) console.error(`- ${failure}`);
+  }
+  if (strictViolations.length || baselineFailures.length || configurationFailures.length) process.exitCode = 1;
   else console.log(`TypeScript semantic-value architecture check passed (${legacyViolations.length} frozen legacy fingerprints).`);
 }

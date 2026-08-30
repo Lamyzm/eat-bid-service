@@ -87,11 +87,17 @@ pnpm contracts:python:check
 
 `pnpm architecture:check` includes `tools/architecture/check-semantic-values.mjs` and
 `tools/quality/check-python-semantic-values.py`, Korean test-name quality, JSON Schema drift, and Python model
-drift. Check mode never rewrites tracked outputs. The TypeScript checker uses compiler symbols, the Python checker
-uses `ast` import-alias resolution, and only `apps/web`/`packages/shared` exact path + node kind + normalized-text
-hash fingerprints may remain in the deletion-only ledger. A `z.custom` guarded codec output outside the portable
-registry is not globally forbidden; codec, transform, or runtime custom predicate reachable from the portable
-schema graph is forbidden.
+drift. Check mode never rewrites tracked outputs and normalizes CRLF/LF only for logical drift comparison. The
+TypeScript checker uses compiler symbols and use-site assignments; the Python checker uses lexical-scope,
+use-site-aware `ast` import/re-export resolution. Only `apps/web`/`packages/shared` exact path + node kind +
+normalized-text hash fingerprints may remain in the deletion-only ledger. The portable registry file and exactly
+one exported const top-level `portableContracts` root are mandatory. Its reachable graph includes called factory
+bodies/returns. A `z.custom` guarded codec output outside the graph and a non-Zod helper named `transform` are not
+globally forbidden; only Zod/schema-origin codec, transform, or runtime custom predicates in the graph fail.
+
+The publication gate runs on hosted Ubuntu, and a second hosted `windows-latest` portability job repeats frozen
+pnpm/uv install, architecture drift, and semantic mutation tests. Image build waits for both; no self-hosted runner
+is introduced.
 
 Argo Workflows runs the dataplane, which validates the generated ingestion model and writes through restricted
 roles directly to PostgreSQL rather than posting normalized rows to Nest HTTP. Frontend cutover and coordinate

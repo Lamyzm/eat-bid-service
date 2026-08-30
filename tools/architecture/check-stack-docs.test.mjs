@@ -33,6 +33,9 @@ function contractsAudit(extra = "") {
     "pnpm contracts:python:check",
     "tools/architecture/check-semantic-values.mjs",
     "tools/quality/check-python-semantic-values.py",
+    "top-level `portableContracts`",
+    "windows-latest",
+    "CRLF/LF",
     extra,
   ].join("\n\n");
 }

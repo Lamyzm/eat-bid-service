@@ -506,6 +506,14 @@
       "removalGate": "Delete or migrate this exact AST node; additions and replacement fingerprints are rejected."
     },
     {
+      "path": "apps/web/src/hooks/use-debounced-callback.ts",
+      "rule": "raw-timer-value",
+      "nodeKind": "CallExpression",
+      "fingerprint": "sha256:0fc785d7c7019e21d6f0d4b9849c68508ff92022de6fd55b6ae94ee1522fd2f2",
+      "reason": "Pre-existing frontend/shared semantic-value debt frozen on 2026-08-30.",
+      "removalGate": "Delete or migrate this exact AST node; additions and replacement fingerprints are rejected."
+    },
+    {
       "path": "apps/web/src/hooks/use-stepper.tsx",
       "rule": "raw-timer-value",
       "nodeKind": "CallExpression",

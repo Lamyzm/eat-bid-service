@@ -64,7 +64,11 @@ export async function checkIngestionV1Schema(committedPath = ingestionV1SchemaPa
       readFile(temporaryPath),
       readFile(committedPath),
     ]);
-    if (!generated.equals(committed)) {
+    const normalizeLineEndings = (bytes: Buffer) => Buffer.from(
+      bytes.toString("utf8").replaceAll("\r\n", "\n").replaceAll("\r", "\n"),
+      "utf8",
+    );
+    if (!normalizeLineEndings(generated).equals(normalizeLineEndings(committed))) {
       throw new Error(`Generated JSON Schema differs from ${artifactFileName}; run pnpm contracts:generate`);
     }
   } finally {

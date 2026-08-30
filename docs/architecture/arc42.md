@@ -135,10 +135,12 @@ CI는 한 Git SHA로 web/server/dataplane image와 migration artifact를 만들�
 Argo CD의 platform application은 CRD/controller/storage 기반을, product application은 migration,
 web/server, WorkflowTemplate/CronWorkflow를 동기화한다. 데이터 작업 자체는 Argo Workflows가 실행한다.
 
-CI는 `pnpm install --frozen-lockfile`과 `uv sync --frozen` 뒤 `pnpm architecture:check`를 먼저 실행한다.
+CI의 primary publication lane은 Ubuntu에서 `pnpm install --frozen-lockfile`과 `uv sync --frozen` 뒤
+`pnpm architecture:check`를 먼저 실행한다. 별도 hosted `windows-latest` portability lane도 같은 frozen
+install 뒤 architecture gate와 semantic mutation tests를 실행하며 image build는 두 lane 모두에 의존한다.
 이 root gate는 stack 문서, TypeScript/Python semantic AST, 한국어 테스트 명세, JSON Schema와 generated
-Pydantic drift를 check mode로 검증하고 추적 artifact를 다시 쓰지 않는다. 개별 drift 진단 명령은
-`pnpm contracts:check`, `pnpm contracts:python:check`다.
+Pydantic drift를 check mode로 검증하고 추적 artifact를 다시 쓰지 않는다. CRLF/LF는 논리 비교에서
+정규화한다. 개별 drift 진단 명령은 `pnpm contracts:check`, `pnpm contracts:python:check`다.
 
 초기 k3d는 단일 장애점이다. R2 raw와 PostgreSQL backup/restore가 생존 전략이며, 고가용성이
 필요해지면 CloudNativePG 또는 managed PostgreSQL과 다중 노드 cluster를 별도 ADR로 선택한다.

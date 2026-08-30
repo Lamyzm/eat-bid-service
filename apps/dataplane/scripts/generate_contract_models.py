@@ -83,7 +83,7 @@ def main() -> int:
         generated = _normalized_generated_bytes(temporary_path)
 
         if arguments.check:
-            if not OUTPUT_PATH.exists() or OUTPUT_PATH.read_bytes() != generated:
+            if not OUTPUT_PATH.exists() or _normalized_generated_bytes(OUTPUT_PATH) != generated:
                 print(f"Generated contract model drift detected: {OUTPUT_PATH}")
                 return 1
             return 0

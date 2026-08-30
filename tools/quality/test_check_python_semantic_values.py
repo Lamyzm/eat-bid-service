@@ -37,6 +37,8 @@ def test_naive_datetime의_직접_별칭_속성_조건부_우회를_거부한다
         "import datetime as dates\nvalue = dates.datetime(2026, 8, 30)\n",
         "from datetime import datetime\nnow = datetime.now\nvalue = now()\n",
         "from datetime import datetime\nclock = datetime if condition else safe_clock\nvalue = clock.now()\n",
+        "from datetime import datetime\nvalue = datetime.now()\ndatetime = safe_clock\n",
+        "from datetime import datetime\nvalue = datetime.utcfromtimestamp(0)\n",
     ]
     for index, source in enumerate(mutations):
         case = tmp_path / str(index)
@@ -60,12 +62,31 @@ seoul_value = datetime(2026, 8, 30, tzinfo=ZoneInfo("Asia/Seoul"))
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_parameter와_앞선_재할당은_datetime_import를_가리며_오탐하지_않는다(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/example.py": """
+from datetime import datetime
+
+datetime = safe_clock
+value = datetime.now()
+
+def read(datetime):
+    return datetime.now()
+""",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_금액과_비율의_float_annotation과_변환_별칭을_거부한다(tmp_path: Path) -> None:
     mutations = [
         "from pydantic import BaseModel\nclass Auction(BaseModel):\n    bid_rate: float\n",
         "from typing import Optional\nbase_amount: Optional[float] = None\n",
         "bid_rate = float(raw_rate)\n",
         "to_float = float\nplanned_amount = to_float(raw_amount)\n",
+        "import builtins\nbid_rate = round(builtins.float(raw_rate), 4)\n",
     ]
     for index, source in enumerate(mutations):
         case = tmp_path / str(index)
@@ -95,6 +116,7 @@ def test_원시_sleep의_직접_모듈_별칭_조건부_우회를_거부한다(t
         "import asyncio as aio\nawait aio.sleep(1 + 2)\n",
         "from time import sleep as pause\npause(0.5)\n",
         "from time import sleep\nsleeper = sleep if condition else fallback\nsleeper(3)\n",
+        "from time import sleep\nclass FakeDelay:\n    def total_seconds(self): return 5\ndelay = FakeDelay()\nsleep(delay.total_seconds())\n",
     ]
     for index, source in enumerate(mutations):
         case = tmp_path / str(index)
@@ -112,6 +134,9 @@ from time import sleep
 
 RETRY_DELAY = timedelta(seconds=5)
 sleep(RETRY_DELAY.total_seconds())
+
+def pause(delay: timedelta) -> None:
+    sleep(delay.total_seconds())
 """,
         },
     )
@@ -128,6 +153,58 @@ def test_손으로_작성한_normalized_Pydantic과_별칭_base를_거부한다(
         case = tmp_path / str(index)
         case.mkdir()
         _assert_violation(case, source, "handwritten-normalized-pydantic")
+
+
+def test_local_module에서_reexport한_Pydantic_base도_거부한다(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/model_base.py":
+                "from pydantic import BaseModel as NormalizedBase\n",
+            "apps/dataplane/src/eatbid/core/example.py": """
+from eatbid.core.model_base import NormalizedBase
+class NormalizedAuction(NormalizedBase):
+    auction_id: str
+""",
+        },
+    )
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "[handwritten-normalized-pydantic]" in result.stdout + result.stderr
+
+
+def test_package_init의_relative_reexport를_거친_Pydantic_base도_거부한다(
+    tmp_path: Path,
+) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/model_base/base.py":
+                "from pydantic import BaseModel as NormalizedBase\n",
+            "apps/dataplane/src/eatbid/core/model_base/__init__.py":
+                "from .base import NormalizedBase\n",
+            "apps/dataplane/src/eatbid/core/example.py": """
+from eatbid.core.model_base import NormalizedBase
+class NormalizedAuction(NormalizedBase):
+    auction_id: str
+""",
+        },
+    )
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "[handwritten-normalized-pydantic]" in result.stdout + result.stderr
+
+
+def test_float라는_parameter는_builtin_float로_오인하지_않는다(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/example.py": """
+def normalize(float, raw):
+    bid_rate = float(raw)
+    return bid_rate
+""",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_source_Pydantic과_exact_generated_model은_허용한다(tmp_path: Path) -> None:

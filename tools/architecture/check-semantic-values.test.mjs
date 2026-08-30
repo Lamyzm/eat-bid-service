@@ -10,10 +10,18 @@ const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 const checker = path.join(repositoryRoot, "tools", "architecture", "check-semantic-values.mjs");
 const temporaryDirectories = [];
 
-function fixture(files, baseline = { version: 1, entries: [] }) {
+function fixture(files, baseline = { version: 1, entries: [] }, { includeRegistry = true } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "eatbid-semantic-values-"));
   temporaryDirectories.push(root);
-  for (const [relativePath, contents] of Object.entries(files)) {
+  const fixtureFiles = { ...files };
+  if (includeRegistry && !("packages/contracts/src/portable-registry.ts" in fixtureFiles)) {
+    fixtureFiles["packages/contracts/src/portable-registry.ts"] = [
+      "import { z } from 'zod';",
+      "const schema = z.string();",
+      "export const portableContracts = Object.freeze([{ id: 'Fixture', schema }]);",
+    ].join("\n");
+  }
+  for (const [relativePath, contents] of Object.entries(fixtureFiles)) {
     const file = path.join(root, relativePath);
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, contents);
@@ -54,9 +62,12 @@ test("전역 Date와 Temporal.Now의 직접·별칭·구조분해·조건부 우
     ["const SystemDate = Date; SystemDate.parse('2026-08-30');", "ambient-date"],
     ["const { now: currentTime } = Date; currentTime();", "ambient-date"],
     ["const Clock = condition ? Date : class Safe {}; new Clock();", "ambient-date"],
+    ["globalThis.Date.now();", "ambient-date"],
+    ["let Clock = SafeDate; Clock = globalThis.Date; new Clock();", "ambient-date"],
     ["import { Temporal } from '@eatbid/domain'; Temporal.Now.instant();", "ambient-temporal-now"],
     ["import { Temporal as T } from '@eatbid/domain'; const { Now } = T; Now.instant();", "ambient-temporal-now"],
     ["import { Temporal } from '@eatbid/domain'; const T = condition ? Temporal : safe; T.Now.instant();", "ambient-temporal-now"],
+    ["import * as Domain from '@eatbid/domain'; Domain.Temporal.Now.instant();", "ambient-temporal-now"],
   ];
   for (const [source, rule] of mutations) expectViolation(source, rule);
 
@@ -67,6 +78,21 @@ test("전역 Date와 Temporal.Now의 직접·별칭·구조분해·조건부 우
   );
   expectViolation(
     "function otherRowBridge(value: Date | string) { return value instanceof Date ? value.getTime() : value; }",
+    "ambient-date",
+    "apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts",
+  );
+  expectViolation(
+    "import { Temporal } from './temporal'; function trap() { const systemClock = { now: () => Temporal.Now.instant() }; return systemClock; }",
+    "ambient-temporal-now",
+    "packages/domain/src/time/clock.ts",
+  );
+  expectViolation(
+    "function outer() { type AuctionRow = { announced_at: Date | string }; return null as AuctionRow | null; }",
+    "ambient-date",
+    "apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts",
+  );
+  expectViolation(
+    "function outer() { function postgresInstant(value: Date | string) { return value instanceof Date ? value.getTime() : value; } return postgresInstant; }",
     "ambient-date",
     "apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts",
   );
@@ -87,6 +113,7 @@ test("원시 timer 값과 단위 없는 timeout·interval·TTL 선언의 우회�
     "const later = setTimeout; later(callback, 2 * 1_000);",
     "const { setInterval: repeat } = globalThis; repeat(callback, 500);",
     "const schedule = condition ? setTimeout : customTimer; schedule(callback, 25);",
+    "window.setTimeout(callback, 250);",
     "interface Config { requestTimeout: number }",
     "type CacheOptions = { ttlMs: number };",
     "const retryInterval = 30 * 1_000;",
@@ -104,7 +131,9 @@ test("canonical 부동 DDL과 Drizzle bigint number mode의 별칭·구조분해
     ["import { doublePrecision } from 'drizzle-orm/pg-core'; doublePrecision('bid_rate');", "floating-canonical-ddl"],
     ["import * as pg from 'drizzle-orm/pg-core'; const floating = pg.real; floating('base_amount');", "floating-canonical-ddl"],
     ["import * as pg from 'drizzle-orm/pg-core'; const floating = condition ? pg.real : pg.doublePrecision; floating(columnName);", "floating-canonical-ddl"],
+    ["import { doublePrecision } from 'drizzle-orm/pg-core'; doublePrecision('basePrice');", "floating-canonical-ddl"],
     ["import { bigint } from 'drizzle-orm/pg-core'; bigint('count', { mode: 'number' });", "bigint-number-mode"],
+    ["import { bigint } from 'drizzle-orm/pg-core'; bigint({ mode: 'number' });", "bigint-number-mode"],
     ["import * as pg from 'drizzle-orm/pg-core'; const { bigint: exactId } = pg; const options = { mode: 'number' } as const; exactId('id', options);", "bigint-number-mode"],
     ["import { bigint } from 'drizzle-orm/pg-core'; const options = condition ? { mode: 'number' } : safe; bigint('id', options);", "bigint-number-mode"],
   ];
@@ -119,6 +148,16 @@ test("손으로 작성한 공개 Response shape를 거부하고 application Auct
   );
   expectViolation(
     "export type AuctionHttpResponse = { auctionId: string; amount: string };",
+    "manual-public-response",
+    "apps/server/src/modules/procurement/presentation/http/types.ts",
+  );
+  expectViolation(
+    "export interface AuctionPayload { auctionId: string; amount: string }",
+    "manual-public-response",
+    "packages/contracts/src/api/v1/auction.ts",
+  );
+  expectViolation(
+    "export type AuctionEnvelope = Readonly<{ auctionId: string; amount: string }>;",
     "manual-public-response",
     "apps/server/src/modules/procurement/presentation/http/types.ts",
   );
@@ -157,6 +196,60 @@ test("portable schema graph의 codec·transform·runtime custom predicate를 별
   }
 });
 
+test("portable registry와 top-level root가 없으면 실패하고 도달 가능한 factory body를 검사한다", () => {
+  const missingRegistry = fixture({
+    "packages/contracts/src/portable-schema.ts": "import { z } from 'zod'; export const schema = z.string();",
+  }, { version: 1, entries: [] }, { includeRegistry: false });
+  const missingRegistryResult = run(missingRegistry);
+  assert.notEqual(missingRegistryResult.status, 0, missingRegistryResult.output);
+  assert.match(missingRegistryResult.output, /portable registry.*required/i);
+
+  const missingRoot = fixture({
+    "packages/contracts/src/portable-registry.ts": "import { z } from 'zod'; export const other = z.string();",
+  });
+  const missingRootResult = run(missingRoot);
+  assert.notEqual(missingRootResult.status, 0, missingRootResult.output);
+  assert.match(missingRootResult.output, /top-level portableContracts.*required/i);
+
+  const factory = fixture({
+    "packages/contracts/src/portable-factory.ts": [
+      "import { z } from 'zod';",
+      "export function buildSchema() {",
+      "  return z.string().transform((value) => value.trim());",
+      "}",
+    ].join("\n"),
+    "packages/contracts/src/portable-registry.ts": [
+      "import { buildSchema } from './portable-factory';",
+      "export const portableContracts = Object.freeze([{ id: 'Fixture', schema: buildSchema() }]);",
+    ].join("\n"),
+  });
+  const factoryResult = run(factory);
+  assert.notEqual(factoryResult.status, 0, factoryResult.output);
+  assert.match(factoryResult.output, /\[nonportable-schema\]/);
+});
+
+test("portable factory 안의 non-Zod transform helper는 schema transform으로 오인하지 않는다", () => {
+  const target = fixture({
+    "packages/contracts/src/text-helper.ts": "export function transform(value) { return value.trim(); }",
+    "packages/contracts/src/portable-factory.ts": [
+      "import { z } from 'zod';",
+      "import { transform } from './text-helper';",
+      "class ZodString { transform(value) { return value.trim(); } }",
+      "export function buildSchema() {",
+      "  transform(' label ');",
+      "  new ZodString().transform(' label ');",
+      "  return z.string();",
+      "}",
+    ].join("\n"),
+    "packages/contracts/src/portable-registry.ts": [
+      "import { buildSchema } from './portable-factory';",
+      "export const portableContracts = Object.freeze([{ id: 'Fixture', schema: buildSchema() }]);",
+    ].join("\n"),
+  });
+  const result = run(target);
+  assert.equal(result.status, 0, result.output);
+});
+
 test("portable registry 밖의 guarded z.custom과 정확히 이름 붙은 adapter·semantic duration은 허용한다", () => {
   const target = fixture({
     "packages/contracts/src/codecs/guarded.ts": [
@@ -191,6 +284,25 @@ test("portable registry 밖의 guarded z.custom과 정확히 이름 붙은 adapt
   });
   const result = run(target);
   assert.equal(result.status, 0, result.output);
+});
+
+test("counterfeit duration helper는 raw timer 값을 semantic duration으로 세탁하지 못한다", () => {
+  const target = fixture({
+    "apps/server/src/fake-duration.ts": "export const seconds = (value) => value * 1000;",
+    "apps/server/src/timers.ts": [
+      "import { seconds } from './fake-duration';",
+      "const delay = seconds(5);",
+      "setTimeout(callback, delay);",
+    ].join("\n"),
+    "packages/contracts/src/portable-registry.ts": [
+      "import { z } from 'zod';",
+      "const schema = z.string();",
+      "export const portableContracts = Object.freeze([{ id: 'Fixture', schema }]);",
+    ].join("\n"),
+  });
+  const result = run(target);
+  assert.notEqual(result.status, 0, result.output);
+  assert.match(result.output, /\[raw-timer-value\]/);
 });
 
 test("legacy ledger는 정확한 path·node kind·normalized text hash만 허용하고 삭제만 허용한다", () => {

@@ -234,7 +234,9 @@ GHCR 개설 + PAT + `imagePullSecret` **20분** · 매니페스트 이미지 이
 
 ### 결정
 
-`.github/workflows/build.yml` 하나, **GitHub 호스티드 `ubuntu-latest`**. 셀프호스티드 러너는 **쓰지 않는다.**
+`.github/workflows/build.yml` 하나에서 publication은 **GitHub 호스티드 `ubuntu-latest`**, contract/semantic
+portability는 **GitHub 호스티드 `windows-latest`**로 검증한다. image build는 두 gate에 모두 의존하며
+셀프호스티드 러너는 **쓰지 않는다.**
 
 ### 근거 — 셀프호스티드가 필요 없는 이유
 

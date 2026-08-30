@@ -101,6 +101,8 @@ ingestion contract를 검증한 뒤 product server HTTP를 거치지 않고 제�
 
 정적 topology/semantic gate와 양 언어 생성 drift는 `pnpm architecture:check`가 한 번에 검증한다.
 개별 생성물은 `pnpm contracts:check`, `pnpm contracts:python:check`로 check mode에서 확인한다.
+Hosted Ubuntu publication CI와 hosted Windows portability CI는 모두 frozen install 뒤 이 gate를 실행하고,
+CRLF/LF 차이는 논리 drift에서 정규화하며 추적 artifact를 다시 쓰지 않는다.
 frontend contract cutover와 이름 lookup 기반 좌표 backfill은 이 foundation의 비목표이며, 각각 사용자
 공동 설계와 별도 Argo enrichment 계획 뒤에만 진행한다.
 

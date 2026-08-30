@@ -51,10 +51,12 @@
     object intersection, parallel interface, schema 조립용 Immer/별도 framework를 만들지 않는다.
 17. **계약 topology와 의미 값 gate를 우회하지 않는다.** application `AuctionRecord`는 내부 port이며
     공개 응답은 Zod에서 추론한 `AuctionV1Response`다. portable registry graph에는 codec·transform·runtime
-    custom predicate를 넣지 않는다. `Temporal.Now`는 `packages/domain/src/time/clock.ts`의 `systemClock`,
+    custom predicate를 넣지 않으며 registry와 exported top-level `portableContracts` root 자체도 필수다.
+    `Temporal.Now`는 `packages/domain/src/time/clock.ts`의 top-level `systemClock`,
     PostgreSQL driver `Date | string`은
     `apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts`의 `AuctionRow`와
-    `postgresInstant`만 허용한다. web/shared 기존 부채는 exact AST fingerprint ledger에서 삭제만 허용한다.
+    top-level `postgresInstant`만 허용한다. web/shared 기존 부채는 exact AST fingerprint ledger에서 삭제만
+    허용한다.
 
 ## 변경 절차
 

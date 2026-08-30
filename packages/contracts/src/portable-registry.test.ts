@@ -96,4 +96,17 @@ describe("portable 계약 registry와 JSON Schema emitter", () => {
     await expect(checkIngestionV1Schema(driftedPath)).rejects.toThrow("Generated JSON Schema differs");
     expect((await readFile(driftedPath)).equals(drifted)).toBe(true);
   });
+
+  test("Windows CRLF checkout도 logical JSON Schema drift로 오인하지 않는다", async () => {
+    const { checkIngestionV1Schema, renderIngestionV1Schema } = await import("./generate-json-schema");
+    const directory = await mkdtemp(join(tmpdir(), "eatbid-contracts-crlf-"));
+    temporaryDirectories.push(directory);
+    const crlfPath = join(directory, "ingestion-v1.schema.json");
+    const crlfBytes = Buffer.from(renderIngestionV1Schema().replaceAll("\n", "\r\n"), "utf8");
+    await writeFile(crlfPath, crlfBytes);
+
+    await checkIngestionV1Schema(crlfPath);
+
+    expect((await readFile(crlfPath)).equals(crlfBytes)).toBe(true);
+  });
 });

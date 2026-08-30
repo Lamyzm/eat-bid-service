@@ -76,6 +76,23 @@ def test_CI가_frozen_TypeScript와_Python_및_empty_database_gate를_실행한�
     assert root_package["scripts"]["db:check"] == "pnpm --filter @eatbid/db db:check"
 
 
+def test_CI가_Windows에서_frozen_contract와_semantic_gate를_검증한다() -> None:
+    job = _job("contract-portability")
+    assert job["runs-on"] == "windows-latest"
+    steps = _steps("contract-portability")
+    commands = [str(step.get("run", "")) for step in steps]
+
+    frozen_pnpm = next(index for index, command in enumerate(commands) if "pnpm install --frozen-lockfile" in command)
+    frozen_uv = next(index for index, command in enumerate(commands) if "uv sync --frozen" in command)
+    architecture = next(index for index, command in enumerate(commands) if "pnpm architecture:check" in command)
+    mutations = next(index for index, command in enumerate(commands) if "pnpm test:quality" in command)
+
+    assert frozen_pnpm < architecture
+    assert frozen_uv < architecture
+    assert architecture < mutations
+    assert _job("build")["needs"] == ["test", "contract-portability"]
+
+
 def test_CI가_정확한_Argo와_Helm_render_계약을_엄격히_lint한다() -> None:
     steps = _steps("test")
     gate = next(step for step in steps if step.get("id") == "verify-argo-delivery")
@@ -137,7 +154,7 @@ def test_context_preflight_실패가_모든_publication_job_전에_실행을_닫
     assert "infra/generate_slsa_provenance.py --check" in str(preflight["run"])
 
     build_job = _job("build")
-    assert build_job["needs"] == "test"
+    assert build_job["needs"] == ["test", "contract-portability"]
     build_steps = _steps("build")
     provenance_index = _step_index(build_steps, "generate-provenance")
     login_index = _step_index(build_steps, "registry-login")
@@ -169,7 +186,7 @@ def test_CI가_full_SHA로_모든_artifact를_빌드하고_digest를_승격한�
 
 def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다() -> None:
     job = _job("build")
-    assert job["needs"] == "test"
+    assert job["needs"] == ["test", "contract-portability"]
     assert job["permissions"] == {
         "contents": "read",
         "packages": "write",

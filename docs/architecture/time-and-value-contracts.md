@@ -227,10 +227,10 @@ codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반
 
 ### 이름 붙은 시간·DB adapter
 
-- `packages/domain/src/time/clock.ts`의 `systemClock`만 `Temporal.Now.instant()`를 호출한다.
+- `packages/domain/src/time/clock.ts`의 exported top-level `systemClock`만 `Temporal.Now.instant()`를 호출한다.
 - `apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts`의 `AuctionRow`만
-  PostgreSQL driver `Date | string`을 받고, `postgresInstant`가 즉시 Temporal로 닫으며 `mapAuctionRow`가
-  semantic `AuctionRecord`를 만든다.
+  PostgreSQL driver `Date | string`을 받고, top-level `postgresInstant`가 즉시 Temporal로 닫으며
+  `mapAuctionRow`가 semantic `AuctionRecord`를 만든다.
 - 위 경로와 symbol 이름은 exact exception이다. 디렉터리·substring·새 adapter 일반 예외가 아니다.
 
 ## 8. 정적 품질 gate와 예외
@@ -246,9 +246,17 @@ codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반
 - portable registry의 codec/transform/runtime custom predicate
 - naive Python datetime과 float money/rate normalization
 
-portable registry는 registry entry에서 도달 가능한 schema graph 전체를 검사한다. 따라서 alias나
-조건부 branch에 숨긴 codec·transform·runtime custom predicate도 실패한다. registry 밖 adjacent codec이
-guarded output을 위해 쓰는 `z.custom`까지 전역 금지하지는 않는다.
+portable registry file과 exported const top-level `portableContracts` root는 필수다. registry entry에서
+도달 가능한 schema graph는 호출한 schema factory body/return까지 검사한다. 따라서 alias나 조건부
+branch/factory에 숨긴 codec·transform·runtime custom predicate도 실패한다. Zod/schema origin을 증명해
+동명이인 일반 `transform` helper를 오탐하지 않으며, registry 밖 adjacent codec이 guarded output을 위해
+쓰는 `z.custom`까지 전역 금지하지는 않는다.
+
+TypeScript gate는 `globalThis.Date`, namespace Temporal, `window` timer와 use-site 이전 assignment alias까지
+compiler symbol로 추적한다. Python gate는 lexical scope와 사용 순서를 보존하고 local re-export를 따라가며
+`builtins.float`, nested money/rate conversion, naive `utcfromtimestamp`, 실제 `timedelta.total_seconds()`를
+구분한다. HTTP public boundary의 exported manual type/interface는 이름 suffix와 무관하게 금지하고 Zod
+inferred type만 허용한다.
 
 레거시 예외 ledger는 exact repository path, AST node kind, normalized node text SHA-256, 이유, 제거 gate와
 동일 fingerprint의 multiplicity를 고정한다. line number만 기록해 이동으로 우회하지 않고 감소/삭제만
@@ -264,8 +272,10 @@ pnpm contracts:check
 pnpm contracts:python:check
 ```
 
-두 contract check는 임시 생성물과 커밋 artifact를 비교할 뿐 추적 파일을 쓰지 않는다. CI는 pnpm/uv
-frozen install을 먼저 마친 뒤 이 drift gate를 실행한다.
+두 contract check는 임시 생성물과 커밋 artifact를 비교할 뿐 추적 파일을 쓰지 않는다. CRLF/LF는
+logical comparison에서 정규화한다. CI의 hosted Ubuntu publication lane과 hosted `windows-latest`
+portability lane은 모두 pnpm/uv frozen install을 먼저 마친 뒤 drift gate를 실행하며 image build는 두
+lane에 의존한다.
 
 ## 9. 단계적 전환
 
