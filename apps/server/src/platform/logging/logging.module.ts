@@ -4,6 +4,25 @@ import type { Environment } from "../config/environment";
 type LogRecord = Readonly<Record<string, unknown>>;
 type Writer = (line: string) => void;
 
+const safeErrorCodes = new Set([
+  "EACCES",
+  "EADDRINUSE",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EPERM",
+  "ETIMEDOUT",
+]);
+
+export interface SafeErrorRecord {
+  readonly errorName: "Error" | "TypeError" | "SyntaxError" | "RangeError" | "URIError";
+  readonly errorCode?: string;
+  readonly stackFrames: readonly ("application" | "dependency" | "runtime")[];
+  readonly causeClassification?: "error" | "non_error";
+  readonly cause?: SafeErrorRecord;
+}
+
+export type SafeFailureEvent = "bootstrap_failed" | "shutdown_failed";
+
 export interface CompletionFields {
   readonly requestId: string;
   readonly method: string;
@@ -19,14 +38,73 @@ export interface DefectFields {
   readonly error: unknown;
 }
 
-function redactSensitiveText(input: string): string {
-  return input
-    .replace(/\bBearer\s+[^\s]+/gi, "Bearer [REDACTED]")
-    .replace(/\b(?:Authorization|Cookie)\s*:\s*[^\s]+/gi, "$1: [REDACTED]")
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
-    .replace(/\b\d{3}-?\d{2}-?\d{5}\b/g, "[REDACTED_BUSINESS_ID]")
-    .replace(/\?[^\s]*/g, "?[REDACTED_QUERY]")
-    .replace(/\b(?:shareToken|requestBody|responseBody|body)\s*=\s*(?:\{[^}]*\}|[^\s]+)/gi, "$1=[REDACTED]");
+function errorName(error: Error): SafeErrorRecord["errorName"] {
+  if (error instanceof TypeError) return "TypeError";
+  if (error instanceof SyntaxError) return "SyntaxError";
+  if (error instanceof RangeError) return "RangeError";
+  if (error instanceof URIError) return "URIError";
+  return "Error";
+}
+
+function errorCode(error: Error): string | undefined {
+  try {
+    const code = (error as Error & { readonly code?: unknown }).code;
+    return typeof code === "string" && safeErrorCodes.has(code) ? code : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function stackFrameClassifications(error: Error): SafeErrorRecord["stackFrames"] {
+  let stack: string | undefined;
+  try {
+    stack = error.stack;
+  } catch {
+    return [];
+  }
+  if (typeof stack !== "string" || stack.length === 0) return [];
+  return Object.freeze(stack.split(/\r?\n/).slice(1, 9).map((frame) => {
+    if (frame.includes("node:internal") || frame.includes("node:")) return "runtime";
+    if (frame.includes("node_modules")) return "dependency";
+    return "application";
+  }));
+}
+
+export function serializeSafeError(error: unknown, depth = 0): SafeErrorRecord {
+  if (!(error instanceof Error)) {
+    return Object.freeze({ errorName: "Error", stackFrames: [] });
+  }
+  let cause: unknown;
+  try {
+    cause = error.cause;
+  } catch {
+    cause = undefined;
+  }
+  const causeClassification = cause === undefined
+    ? undefined
+    : cause instanceof Error ? "error" as const : "non_error" as const;
+  const code = errorCode(error);
+  return Object.freeze({
+    errorName: errorName(error),
+    ...(code ? { errorCode: code } : {}),
+    stackFrames: stackFrameClassifications(error),
+    ...(causeClassification ? { causeClassification } : {}),
+    ...(cause instanceof Error && depth < 2 ? { cause: serializeSafeError(cause, depth + 1) } : {}),
+  });
+}
+
+export function writeSafeFailure(
+  event: SafeFailureEvent,
+  error: unknown,
+  write: Writer = (line) => process.stderr.write(line),
+): void {
+  write(`${JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: "error",
+    service: "eatbid-server",
+    event,
+    ...serializeSafeError(error),
+  })}\n`);
 }
 
 export class RedactingJsonLogger implements LoggerService {
@@ -55,16 +133,15 @@ export class RedactingJsonLogger implements LoggerService {
   }
 
   defect(fields: DefectFields): void {
-    const errorName = fields.error instanceof Error ? fields.error.name : "UnknownError";
-    const cause = fields.error instanceof Error
-      ? redactSensitiveText(fields.error.stack ?? fields.error.message)
-      : redactSensitiveText(String(fields.error));
     this.emit("error", "request_defect", {
       requestId: fields.requestId,
       route: fields.route,
-      errorName,
-      cause,
+      ...serializeSafeError(fields.error),
     });
+  }
+
+  lifecycle(event: "application_ready"): void {
+    this.emit("info", event, {});
   }
 
   shutdown(fields: { readonly forced: boolean; readonly inflight: number }): void {
@@ -90,20 +167,18 @@ export class RedactingJsonLogger implements LoggerService {
     this.framework("fatal", message, optionalParams);
   }
 
-  private framework(level: string, message: unknown, optionalParams: unknown[]): void {
-    const context = optionalParams.find((value) => typeof value === "string");
-    const safeMessage = redactSensitiveText(typeof message === "string" ? message : String(message));
-    const safeContext = context ? redactSensitiveText(context) : undefined;
+  private framework(level: string, message: unknown, _optionalParams: unknown[]): void {
+    const messageClassification = message instanceof Error ? "error" : typeof message;
     if (this.frameworkLogger) {
       switch (level) {
-        case "error": this.frameworkLogger.error(safeMessage, safeContext); return;
-        case "warn": this.frameworkLogger.warn(safeMessage, safeContext); return;
-        case "debug": this.frameworkLogger.debug(safeMessage, safeContext); return;
-        case "fatal": this.frameworkLogger.fatal(safeMessage, safeContext); return;
-        default: this.frameworkLogger.log(safeMessage, safeContext); return;
+        case "error": this.frameworkLogger.error("framework_event", "Nest"); return;
+        case "warn": this.frameworkLogger.warn("framework_event", "Nest"); return;
+        case "debug": this.frameworkLogger.debug("framework_event", "Nest"); return;
+        case "fatal": this.frameworkLogger.fatal("framework_event", "Nest"); return;
+        default: this.frameworkLogger.log("framework_event", "Nest"); return;
       }
     }
-    this.emit(level, "nest", { message: safeMessage, ...(safeContext ? { context: safeContext } : {}) });
+    this.emit(level, "nest", { messageClassification });
   }
 
   private emit(level: string, event: string, fields: Record<string, unknown>): void {

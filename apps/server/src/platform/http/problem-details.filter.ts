@@ -12,6 +12,13 @@ import { requestIdOf } from "../request-context/request-context.middleware";
 
 type ProblemDefinition = Readonly<{ code: ProblemCode; slug: string; title: string }>;
 
+type SupportedBodyParserError = Error & Readonly<{
+  expose: true;
+  status: 400 | 413;
+  statusCode: 400 | 413;
+  type: "entity.parse.failed" | "entity.too.large";
+}>;
+
 const definitions: Readonly<Record<number, ProblemDefinition>> = {
   400: { code: "VALIDATION_ERROR", slug: "validation-error", title: "Request validation failed" },
   401: { code: "UNAUTHENTICATED", slug: "unauthenticated", title: "Authentication required" },
@@ -34,6 +41,17 @@ export function problemForStatus(status: number, requestId: string): ProblemDeta
     code: definition.code,
     requestId,
   };
+}
+
+export function supportedBodyParserStatus(error: unknown): 400 | 413 | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const candidate = error as Partial<SupportedBodyParserError>;
+  if (candidate.expose !== true || candidate.status !== candidate.statusCode) return undefined;
+  if (candidate.status === 400 && candidate.type === "entity.parse.failed" && error instanceof SyntaxError) {
+    return 400;
+  }
+  if (candidate.status === 413 && candidate.type === "entity.too.large") return 413;
+  return undefined;
 }
 
 @Catch()

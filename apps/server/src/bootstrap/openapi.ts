@@ -7,12 +7,27 @@ import {
 } from "@eatbid/contracts";
 import { createDocument } from "zod-openapi";
 
+type OperationRoute = Readonly<{
+  controllerPath: string;
+  handlerPath: string;
+  path: string;
+}>;
+
+export function assertOperationPath(operation: OperationRoute): void {
+  const expected = `/${operation.controllerPath}/${operation.handlerPath}`;
+  if (operation.path !== expected) {
+    throw new Error(`Operation path drift: expected ${expected}`);
+  }
+}
+
 const problemResponse = (description: string) => ({
   description,
   content: { "application/problem+json": { schema: problemDetailsSchema } },
 });
 
 export function createOpenApiDocument(): ReturnType<typeof createDocument> {
+  assertOperationPath(healthOperations.live);
+  assertOperationPath(healthOperations.ready);
   return createDocument({
     openapi: "3.0.3",
     info: {

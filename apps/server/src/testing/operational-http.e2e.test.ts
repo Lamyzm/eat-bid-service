@@ -1,8 +1,26 @@
 import { describe, expect, test } from "bun:test";
-import { get, type ClientRequest, type Server } from "node:http";
+import { Controller, Get, Module } from "@nestjs/common";
+import {
+  get,
+  request as sendHttpRequest,
+  type ClientRequest,
+  type IncomingHttpHeaders,
+  type Server,
+} from "node:http";
 import request from "supertest";
 import { createApp, type OperationalHttpApplication } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
+
+@Controller("routing-probe")
+class RoutingProbeController {
+  @Get()
+  get(): { readonly routed: true } {
+    return { routed: true };
+  }
+}
+
+@Module({ controllers: [RoutingProbeController] })
+class RoutingProbeModule {}
 
 const environment = (overrides: Record<string, string> = {}) => parseEnvironment({
   NODE_ENV: "test",
@@ -68,6 +86,39 @@ function rawGet(server: Server, path: string): Promise<{ status: number; body: s
   return rawGetAt(addressOf(server), path);
 }
 
+function rawPost(
+  server: Server,
+  path: string,
+  contentType: string,
+  body: string,
+): Promise<{ status: number; headers: IncomingHttpHeaders; body: string }> {
+  const { host, port } = addressOf(server);
+  return new Promise((resolve, reject) => {
+    const outgoing = sendHttpRequest({
+      host,
+      port,
+      path,
+      method: "POST",
+      agent: false,
+      headers: {
+        "content-type": contentType,
+        "content-length": Buffer.byteLength(body),
+      },
+    }, (response) => {
+      let responseBody = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { responseBody += chunk; });
+      response.on("end", () => resolve({
+        status: response.statusCode ?? 0,
+        headers: response.headers,
+        body: responseBody,
+      }));
+    });
+    outgoing.on("error", reject);
+    outgoing.end(body);
+  });
+}
+
 function openPendingGet(server: Server, path: string): {
   readonly request: ClientRequest;
   readonly closed: Promise<void>;
@@ -79,6 +130,18 @@ function openPendingGet(server: Server, path: string): {
 }
 
 describe("operational HTTP shell", () => {
+  test("trusts only the supported body-parser error signatures", async () => {
+    const { isSupportedBodyParserError } = await import("../bootstrap/create-app");
+    expect(isSupportedBodyParserError({ status: 400, type: "entity.parse.failed", expose: true })).toBe(false);
+    const parserSyntaxError = Object.assign(new SyntaxError("fixture"), {
+      status: 400,
+      statusCode: 400,
+      type: "entity.parse.failed",
+      expose: true,
+    });
+    expect(isSupportedBodyParserError(parserSyntaxError)).toBe(true);
+  });
+
   test("propagates accepted/generated request ids through health, Problem Details, and completion logs", async () => {
     const { runtime, server } = await start();
     try {
@@ -136,39 +199,91 @@ describe("operational HTTP shell", () => {
     const started = await start({
       environment: environment({ TRUST_PROXY_HOPS: "1" }),
       mountPreParserRawTransport(application) {
-        application.post("/raw-boundary", (incoming, response) => {
-          observations.push({
-            body: incoming.body,
-            requestId: runtime?.requestContext.current()?.requestId,
-            inflight: runtime?.tracker.count,
-            ip: incoming.ip,
+        application.post("/api/auth/raw-boundary", (incoming, response) => {
+          const chunks: Buffer[] = [];
+          incoming.on("data", (chunk: Buffer) => chunks.push(chunk));
+          incoming.on("end", () => {
+            observations.push({
+              body: incoming.body,
+              rawBody: Buffer.concat(chunks).toString("utf8"),
+              requestId: runtime?.requestContext.current()?.requestId,
+              inflight: runtime?.tracker.count,
+              ip: incoming.ip,
+            });
+            response.status(204).end();
           });
-          response.status(204).end();
         });
       },
     });
     runtime = started.runtime;
     try {
+      const exactRawBody = '{"value":true,"token":"transport-bytes"}';
       const response = await request(started.server)
-        .post("/raw-boundary")
+        .post("/api/auth/raw-boundary")
         .set("content-type", "application/json")
         .set("x-request-id", "raw.req-1")
         .set("x-forwarded-for", "203.0.113.10")
         .set("origin", "http://localhost:3000")
-        .send({ value: true });
+        .send(exactRawBody);
       expect(response.status).toBe(204);
       expect(response.headers["x-request-id"]).toBe("raw.req-1");
-      expect(response.headers["access-control-allow-origin"]).toBeUndefined();
+      expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
+      expect(response.headers["access-control-allow-credentials"]).toBe("true");
+      expect(response.headers["x-content-type-options"]).toBe("nosniff");
       expect(observations).toEqual([{
         body: undefined,
+        rawBody: exactRawBody,
         requestId: "raw.req-1",
         inflight: 1,
         ip: "203.0.113.10",
       }]);
+
+      const disallowed = await request(started.server)
+        .post("/api/auth/raw-boundary")
+        .set("content-type", "application/json")
+        .set("origin", "https://disallowed.example")
+        .send(exactRawBody);
+      expect(disallowed.status).toBe(204);
+      expect(disallowed.headers["access-control-allow-origin"]).toBeUndefined();
       await waitUntil(() => runtime!.tracker.count === 0);
       expect(runtime.logger.records.filter((record) => record.event === "request_completed")).toHaveLength(0);
     } finally {
       await runtime.shutdown();
+    }
+  });
+
+  test("maps malformed JSON from the trusted bounded parser to canonical validation Problem Details", async () => {
+    const { runtime, server } = await start();
+    try {
+      const response = await rawPost(server, "/api/v1/missing", "application/json", '{"broken":');
+      expect(response.status).toBe(400);
+      expect(response.headers["content-type"]).toContain("application/problem+json");
+      expect(JSON.parse(response.body)).toEqual(expect.objectContaining({
+        status: 400,
+        code: "VALIDATION_ERROR",
+        requestId: response.headers["x-request-id"],
+      }));
+    } finally {
+      await runtime.shutdown();
+    }
+  });
+
+  test("prefixes versioned Nest routes under api/v1 while health and raw auth remain neutral", async () => {
+    const started = await start({
+      testOnlyImports: [RoutingProbeModule],
+      mountPreParserRawTransport(application) {
+        application.get("/api/auth/session", (_incoming, response) => response.json({ raw: true }));
+      },
+    });
+    try {
+      expect((await request(started.server).get("/api/v1/routing-probe")).body).toEqual({ routed: true });
+      expect((await request(started.server).get("/routing-probe")).status).toBe(404);
+      expect((await request(started.server).get("/api/routing-probe")).status).toBe(404);
+      expect((await request(started.server).get("/health/live")).status).toBe(200);
+      expect((await request(started.server).get("/api/v1/health/live")).status).toBe(404);
+      expect((await request(started.server).get("/api/auth/session")).body).toEqual({ raw: true });
+    } finally {
+      await started.runtime.shutdown();
     }
   });
 

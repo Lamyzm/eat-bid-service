@@ -8,23 +8,48 @@ export const readyHealthSchema = z.strictObject({
   status: z.literal("ready"),
 }).meta({ id: "ReadyHealth", description: "The server is accepting application work." });
 
+export const healthControllerPath = "health";
+
+function defineHealthOperation<
+  const HandlerPath extends string,
+  const OperationId extends string,
+  const Summary extends string,
+  const Schema,
+  const ErrorStatuses extends readonly number[],
+>(definition: {
+  readonly handlerPath: HandlerPath;
+  readonly operationId: OperationId;
+  readonly summary: Summary;
+  readonly responseSchema: Schema;
+  readonly errorStatuses: ErrorStatuses;
+}) {
+  return Object.freeze({
+    method: "get" as const,
+    controllerPath: healthControllerPath,
+    handlerPath: definition.handlerPath,
+    path: `/${healthControllerPath}/${definition.handlerPath}` as const,
+    operationId: definition.operationId,
+    summary: definition.summary,
+    responseSchema: definition.responseSchema,
+    errorStatuses: definition.errorStatuses,
+  });
+}
+
 export const healthOperations = {
-  live: {
-    method: "get",
-    path: "/health/live",
+  live: defineHealthOperation({
+    handlerPath: "live",
     operationId: "healthLive",
     summary: "Process liveness",
     responseSchema: liveHealthSchema,
     errorStatuses: [500] as const,
-  },
-  ready: {
-    method: "get",
-    path: "/health/ready",
+  }),
+  ready: defineHealthOperation({
+    handlerPath: "ready",
     operationId: "healthReady",
     summary: "Application readiness",
     responseSchema: readyHealthSchema,
     errorStatuses: [503, 500] as const,
-  },
+  }),
 } as const;
 
 export type LiveHealth = z.infer<typeof liveHealthSchema>;

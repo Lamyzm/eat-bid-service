@@ -8,6 +8,7 @@ import {
 import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import {
   healthOperations,
+  healthControllerPath,
   liveHealthSchema,
   type LiveHealth,
   readyHealthSchema,
@@ -16,14 +17,14 @@ import {
 import { ResponseSchema } from "../http/response-schema.interceptor";
 import { DATABASE_READINESS, type DatabaseReadiness, ReadinessState } from "./readiness-state";
 
-@Controller({ path: "health", version: VERSION_NEUTRAL })
+@Controller({ path: healthControllerPath, version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(
     private readonly readiness: ReadinessState,
     @Inject(DATABASE_READINESS) private readonly database: DatabaseReadiness,
   ) {}
 
-  @Get("live")
+  @Get(healthOperations.live.handlerPath)
   @ApiOperation({ operationId: healthOperations.live.operationId, summary: healthOperations.live.summary })
   @ApiResponse({ status: 200, description: "Process is live" })
   @ResponseSchema(liveHealthSchema)
@@ -31,7 +32,7 @@ export class HealthController {
     return { status: "live" };
   }
 
-  @Get("ready")
+  @Get(healthOperations.ready.handlerPath)
   @ApiOperation({ operationId: healthOperations.ready.operationId, summary: healthOperations.ready.summary })
   @ApiResponse({ status: 200, description: "Application is ready" })
   @ApiResponse({ status: 503, description: "Application dependency is unavailable" })

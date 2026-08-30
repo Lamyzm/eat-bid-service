@@ -14,5 +14,15 @@ describe("public operational contracts", () => {
       requestId: "req-1",
       secret: true,
     }).success).toBe(false);
+    expect(module!.healthOperations.live).toMatchObject({
+      controllerPath: "health",
+      handlerPath: "live",
+      path: "/health/live",
+    });
+    expect(module!.healthOperations.ready).toMatchObject({
+      controllerPath: "health",
+      handlerPath: "ready",
+      path: "/health/ready",
+    });
   });
 });

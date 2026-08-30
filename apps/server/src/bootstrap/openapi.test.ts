@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { healthOperations } from "@eatbid/contracts";
 
 describe("canonical OpenAPI artifact", () => {
   test("is deterministic OpenAPI 3.0.3 with unique stable operations and complete routes", async () => {
@@ -19,5 +20,9 @@ describe("canonical OpenAPI artifact", () => {
       expect(Object.values(operation.responses).some((response: any) =>
         response.content?.["application/problem+json"]?.schema)).toBe(true);
     }
+    expect(() => module!.assertOperationPath({
+      ...healthOperations.live,
+      path: "/health/drift",
+    })).toThrow("Operation path drift");
   });
 });

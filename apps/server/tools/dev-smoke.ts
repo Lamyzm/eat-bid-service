@@ -24,7 +24,7 @@ export interface DevelopmentSmokeResult {
   readonly restartObserved: boolean;
 }
 
-const bootMarker = "eatbid server application context ready";
+const bootMarker = '"event":"application_ready"';
 const mutationMarker = "eatbid development smoke mutation";
 const toolsDirectory = dirname(fileURLToPath(import.meta.url));
 

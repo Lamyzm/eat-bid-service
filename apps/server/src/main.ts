@@ -1,13 +1,14 @@
 import "reflect-metadata";
 import { createApp } from "./bootstrap/create-app";
+import { writeSafeFailure } from "./platform/logging/logging.module";
 
 export async function bootstrap(): Promise<void> {
   const runtime = await createApp();
   await runtime.listen();
-  runtime.logger.log("eatbid server application context ready");
+  runtime.logger.lifecycle("application_ready");
   const shutdown = (): void => {
     void runtime.shutdown().catch((error: unknown) => {
-      console.error(error);
+      writeSafeFailure("shutdown_failed", error);
       process.exitCode = 1;
     });
   };
@@ -17,7 +18,7 @@ export async function bootstrap(): Promise<void> {
 
 if (require.main === module) {
   void bootstrap().catch((error: unknown) => {
-    console.error(error);
+    writeSafeFailure("bootstrap_failed", error);
     process.exitCode = 1;
   });
 }

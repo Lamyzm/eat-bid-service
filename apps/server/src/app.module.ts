@@ -1,4 +1,4 @@
-import { DynamicModule, Module } from "@nestjs/common";
+import { DynamicModule, Module, type Type } from "@nestjs/common";
 import { EffectModule } from "./platform/effect/effect.module";
 import { PlatformConfigModule } from "./platform/config/config.module";
 import type { Environment } from "./platform/config/environment";
@@ -19,6 +19,7 @@ export class AppModule {
         LoggingModule.forLogger(runtime.logger),
         RequestContextModule.forStore(runtime.requestContext),
         HealthModule.forState(runtime.readiness, runtime.databaseReadiness),
+        ...(runtime.testOnlyImports ?? []),
       ],
     };
   }
@@ -30,4 +31,5 @@ export interface AppModuleRuntime {
   readonly requestContext: RequestContextStore;
   readonly readiness: ReadinessState;
   readonly databaseReadiness?: DatabaseReadiness;
+  readonly testOnlyImports?: readonly Type[];
 }

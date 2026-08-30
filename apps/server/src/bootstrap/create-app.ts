@@ -1,10 +1,13 @@
 import {
   type INestApplication,
+  RequestMethod,
+  type Type,
   VersioningType,
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import { SwaggerModule } from "@nestjs/swagger";
+import { healthOperations } from "@eatbid/contracts";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import type { Server } from "node:http";
@@ -12,11 +15,18 @@ import { AppModule } from "../app.module";
 import { type Environment, readEnvironment } from "../platform/config/environment";
 import type { DatabaseReadiness } from "../platform/health/health.module";
 import { ReadinessState } from "../platform/health/readiness-state";
-import { problemForStatus, ProblemDetailsFilter } from "../platform/http/problem-details.filter";
+import {
+  problemForStatus,
+  ProblemDetailsFilter,
+  supportedBodyParserStatus,
+} from "../platform/http/problem-details.filter";
 import { RequestCompletionInterceptor } from "../platform/http/request-completion.interceptor";
 import { ResponseSchemaInterceptor } from "../platform/http/response-schema.interceptor";
 import { LoggingModule, RedactingJsonLogger } from "../platform/logging/logging.module";
-import { createRequestContextMiddleware } from "../platform/request-context/request-context.middleware";
+import {
+  createRequestContextMiddleware,
+  requestIdOf,
+} from "../platform/request-context/request-context.middleware";
 import { RequestContextStore } from "../platform/request-context/request-context.module";
 import { createInflightMiddleware } from "../platform/shutdown/inflight.middleware";
 import { InflightTracker } from "../platform/shutdown/inflight-tracker";
@@ -28,6 +38,7 @@ export interface CreateAppOptions {
   readonly logWriter?: (line: string) => void;
   readonly databaseReadiness?: DatabaseReadiness;
   readonly mountPreParserRawTransport?: (application: Express) => void;
+  readonly testOnlyImports?: readonly Type[];
 }
 
 export interface OperationalHttpApplication {
@@ -45,17 +56,27 @@ export interface OperationalHttpApplication {
 
 export async function createApp(options: CreateAppOptions = {}): Promise<OperationalHttpApplication> {
   const environment = options.environment ?? readEnvironment();
+  if (options.testOnlyImports && environment.runtimeMode !== "test") {
+    throw new Error("testOnlyImports can only be used in the test runtime");
+  }
   const logger = LoggingModule.create(environment, options.logWriter);
   const requestContext = new RequestContextStore();
   const tracker = new InflightTracker();
   const readiness = new ReadinessState();
   const expressApplication = express();
+  const adapter = new ExpressAdapter(expressApplication);
 
   expressApplication.disable("x-powered-by");
   expressApplication.set("trust proxy", environment.proxyHops);
   expressApplication.use(createRequestContextMiddleware(requestContext));
   expressApplication.use(createInflightMiddleware(tracker));
   expressApplication.use(helmet());
+  adapter.enableCors({
+    credentials: true,
+    origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
+      callback(null, origin === undefined || environment.corsOrigins.includes(origin));
+    },
+  });
 
   // Gate 16.4 mounts the byte-preserving raw auth transport in this ordered slot.
   options.mountPreParserRawTransport?.(expressApplication);
@@ -72,16 +93,13 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     response: Response,
     next: NextFunction,
   ): void => {
-    const status = typeof error === "object" && error !== null && "status" in error
-      ? (error as { status?: unknown }).status
-      : undefined;
-    if (status !== 413) return next(error);
-    response.status(413).type("application/problem+json").send(
-      problemForStatus(413, response.getHeader("x-request-id")?.toString() ?? "unavailable"),
+    const status = supportedBodyParserStatus(error);
+    if (status === undefined) return next(error);
+    response.status(status).type("application/problem+json").send(
+      problemForStatus(status, response.getHeader("x-request-id")?.toString() ?? "unavailable"),
     );
   });
 
-  const adapter = new ExpressAdapter(expressApplication);
   const app = await NestFactory.create(
     AppModule.forRuntime({
       environment,
@@ -89,18 +107,19 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
       requestContext,
       readiness,
       databaseReadiness: options.databaseReadiness,
+      testOnlyImports: options.testOnlyImports,
     }),
     adapter,
     { abortOnError: true, bodyParser: false, logger },
   );
-  app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
-  app.enableCors({
-    credentials: true,
-    origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
-      if (origin === undefined || environment.corsOrigins.includes(origin)) callback(null, true);
-      else callback(new Error("Origin is not allowed"), false);
-    },
+  app.setGlobalPrefix("api", {
+    exclude: [
+      { path: healthOperations.live.path.slice(1), method: RequestMethod.ALL },
+      { path: healthOperations.ready.path.slice(1), method: RequestMethod.ALL },
+      { path: "api/auth/{*path}", method: RequestMethod.ALL },
+    ],
   });
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
   app.useGlobalInterceptors(
     new RequestCompletionInterceptor(logger),
     new ResponseSchemaInterceptor(),
@@ -114,6 +133,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     });
   }
   await app.init();
+  expressApplication.use((request: Request, response: Response): void => {
+    response.status(404).type("application/problem+json").send(problemForStatus(404, requestIdOf(request)));
+  });
 
   const shutdownCoordinator = new ShutdownCoordinator(
     app,
@@ -139,4 +161,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     },
     shutdown: () => shutdownCoordinator.shutdown(),
   };
+}
+
+export function isSupportedBodyParserError(error: unknown): boolean {
+  return supportedBodyParserStatus(error) !== undefined;
 }

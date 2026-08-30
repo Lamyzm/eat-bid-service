@@ -22,22 +22,65 @@ describe("operational logging", () => {
   });
 
   test("sensitive error fixtures never enter serialized logs", async () => {
-    const { RedactingJsonLogger } = await import("./logging.module");
+    const { RedactingJsonLogger, writeSafeFailure } = await import("./logging.module");
     const lines: string[] = [];
     const logger = new RedactingJsonLogger({ buildSha: "b".repeat(40), write: (line) => lines.push(line) });
     const secrets = [
-      "Bearer authorization-secret",
-      "Cookie: session=cookie-secret",
+      "Basic YWRtaW46YmFzaWMtc2VjcmV0",
+      "Bearer bearer.secret+complete/token==",
+      "Cookie: session=cookie-secret; preference=second-cookie-secret",
       "/path?raw=query-secret",
       'requestBody={"password":"body-secret"}',
       'responseBody={"token":"response-secret"}',
+      'requestBody: {"password":"colon-body-secret"}',
       "person@example.com",
       "shareToken=share-supersecret",
+      "shareToken: colon-share-supersecret",
       "123-45-67890",
+      "multiline-secret-first\nmultiline-secret-second",
     ];
-    logger.defect({ requestId: "req-2", route: "/api/v1/fail", error: new Error(secrets.join(" ")) });
+    const nested = new Error(secrets.at(-1), { cause: { payload: secrets.join("\n") } });
+    const error = new TypeError(secrets.join("\n"), { cause: nested });
+    Object.assign(error, { code: "EADDRINUSE", name: "Bearer hidden-in-name" });
+    Object.assign(nested, { code: "shareToken: hidden-in-code" });
+    error.stack = `TypeError: ${secrets.join("\n")}\n    at ${secrets[3]}:1:1`;
+    logger.defect({ requestId: "req-2", route: "/api/v1/fail", error });
+    logger.error(secrets.join("\n"), "UnsafeContext");
+    writeSafeFailure("bootstrap_failed", error, (line) => lines.push(line));
     const serialized = lines.join("\n");
     for (const secret of secrets) expect(serialized).not.toContain(secret);
+    for (const secretFragment of [
+      "YWRtaW46YmFzaWMtc2VjcmV0",
+      "bearer.secret+complete/token==",
+      "cookie-secret",
+      "second-cookie-secret",
+      "colon-body-secret",
+      "colon-share-supersecret",
+      "multiline-secret-first",
+      "multiline-secret-second",
+      "hidden-in-name",
+      "hidden-in-code",
+    ]) expect(serialized).not.toContain(secretFragment);
     expect(serialized).toContain("req-2");
+    expect(serialized).toContain('"errorName":"TypeError"');
+    expect(serialized).toContain('"errorCode":"EADDRINUSE"');
+    expect(serialized).toContain('"causeClassification":"error"');
+    expect(serialized).toContain('"causeClassification":"non_error"');
+    for (const line of lines) expect(() => JSON.parse(line)).not.toThrow();
+  });
+
+  test("hostile error accessors cannot break safe fallback logging", async () => {
+    const { writeSafeFailure } = await import("./logging.module");
+    const hostile = new Error("raw-secret");
+    Object.defineProperties(hostile, {
+      stack: { configurable: true, get: () => ({ payload: "stack-secret" }) },
+      code: { configurable: true, get: () => { throw new Error("code-secret"); } },
+      cause: { configurable: true, get: () => { throw new Error("cause-secret"); } },
+    });
+    const lines: string[] = [];
+    expect(() => writeSafeFailure("bootstrap_failed", hostile, (line) => lines.push(line))).not.toThrow();
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain("secret");
+    expect(() => JSON.parse(lines[0]!)).not.toThrow();
   });
 });
