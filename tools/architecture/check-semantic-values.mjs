@@ -133,6 +133,10 @@ function declarationsForSymbol(symbol) {
 
 function collectAssignedTargets(target, value, position, properties = []) {
   const current = unwrap(target);
+  if (ts.isBinaryExpression(current) && current.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+    collectAssignedTargets(current.left, value, position, properties);
+    return;
+  }
   if (ts.isIdentifier(current)) {
     const symbol = symbolFor(current);
     if (symbol) {

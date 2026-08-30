@@ -65,6 +65,7 @@ test("전역 Date와 Temporal.Now의 직접·별칭·구조분해·조건부 우
     ["globalThis.Date.now();", "ambient-date"],
     ["let Clock = SafeDate; Clock = globalThis.Date; new Clock();", "ambient-date"],
     ["let currentTime; ({ now: currentTime } = Date); currentTime();", "ambient-date"],
+    ["let currentTime; ({ now: currentTime = safeNow } = Date); currentTime();", "ambient-date"],
     ["import { Temporal } from '@eatbid/domain'; Temporal.Now.instant();", "ambient-temporal-now"],
     ["import { Temporal as T } from '@eatbid/domain'; const { Now } = T; Now.instant();", "ambient-temporal-now"],
     ["import { Temporal } from '@eatbid/domain'; const T = condition ? Temporal : safe; T.Now.instant();", "ambient-temporal-now"],

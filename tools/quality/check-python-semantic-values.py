@@ -162,11 +162,16 @@ class ScopeBuilder(ast.NodeVisitor):
             Binding(_after_position(node), conditional=self.conditional_depth > 0),
         )
         parent = self.scope
+        parent_conditional_depth = self.conditional_depth
         self.scope = Scope("function", parent)
-        self._bind_parameters(node.args)
-        for statement in node.body:
-            self.visit(statement)
-        self.scope = parent
+        self.conditional_depth = 0
+        try:
+            self._bind_parameters(node.args)
+            for statement in node.body:
+                self.visit(statement)
+        finally:
+            self.scope = parent
+            self.conditional_depth = parent_conditional_depth
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self.visit_FunctionDef(node)  # type: ignore[arg-type]
@@ -174,10 +179,15 @@ class ScopeBuilder(ast.NodeVisitor):
     def visit_Lambda(self, node: ast.Lambda) -> None:
         self._visit_arguments_in_parent(node.args)
         parent = self.scope
+        parent_conditional_depth = self.conditional_depth
         self.scope = Scope("function", parent)
-        self._bind_parameters(node.args)
-        self.visit(node.body)
-        self.scope = parent
+        self.conditional_depth = 0
+        try:
+            self._bind_parameters(node.args)
+            self.visit(node.body)
+        finally:
+            self.scope = parent
+            self.conditional_depth = parent_conditional_depth
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         for base in node.bases:
@@ -195,10 +205,15 @@ class ScopeBuilder(ast.NodeVisitor):
             ),
         )
         parent = self.scope
+        parent_conditional_depth = self.conditional_depth
         self.scope = Scope("class", parent)
-        for statement in node.body:
-            self.visit(statement)
-        self.scope = parent
+        self.conditional_depth = 0
+        try:
+            for statement in node.body:
+                self.visit(statement)
+        finally:
+            self.scope = parent
+            self.conditional_depth = parent_conditional_depth
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
@@ -254,10 +269,14 @@ class ScopeBuilder(ast.NodeVisitor):
 
     def visit_For(self, node: ast.For) -> None:
         self.visit(node.iter)
-        self.visit(node.target)
-        self._bind_target(node.target, node)
-        for statement in [*node.body, *node.orelse]:
-            self.visit(statement)
+        self.conditional_depth += 1
+        try:
+            self.visit(node.target)
+            self._bind_target(node.target, node)
+            for statement in [*node.body, *node.orelse]:
+                self.visit(statement)
+        finally:
+            self.conditional_depth -= 1
 
     def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
         self.visit_For(node)  # type: ignore[arg-type]
@@ -271,6 +290,20 @@ class ScopeBuilder(ast.NodeVisitor):
             self.conditional_depth -= 1
 
     def visit_If(self, node: ast.If) -> None:
+        self.visit(node.test)
+        self._visit_conditional_statements(node.body)
+        self._visit_conditional_statements(node.orelse)
+
+    def visit_IfExp(self, node: ast.IfExp) -> None:
+        self.visit(node.test)
+        self.conditional_depth += 1
+        try:
+            self.visit(node.body)
+            self.visit(node.orelse)
+        finally:
+            self.conditional_depth -= 1
+
+    def visit_While(self, node: ast.While) -> None:
         self.visit(node.test)
         self._visit_conditional_statements(node.body)
         self._visit_conditional_statements(node.orelse)

@@ -103,6 +103,115 @@ value = datetime.utcnow()
         _assert_violation(case, source, "naive-datetime")
 
 
+def test_for_async_for와_while_재할당은_zero_iteration_datetime_origin을_보존한다(
+    tmp_path: Path,
+) -> None:
+    mutations = [
+        """
+from datetime import datetime
+for item in items:
+    datetime = safe_clock
+value = datetime.now()
+""",
+        """
+from datetime import datetime
+while condition:
+    datetime = safe_clock
+value = datetime.utcnow()
+""",
+        """
+from datetime import datetime
+async def read(items):
+    clock = datetime
+    async for item in items:
+        clock = safe_clock
+    return clock.now()
+""",
+    ]
+    for index, source in enumerate(mutations):
+        case = tmp_path / str(index)
+        case.mkdir()
+        _assert_violation(case, source, "naive-datetime")
+
+
+def test_조건문_안의_nested_scope는_바깥_conditional_depth를_상속하지_않는다(
+    tmp_path: Path,
+) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/example.py": """
+from datetime import datetime as ImportedDate
+
+if condition:
+    def read():
+        from datetime import datetime
+        datetime = safe_clock
+        return datetime.now()
+
+    async def read_async():
+        from datetime import datetime
+        datetime = safe_clock
+        return datetime.utcnow()
+
+    class Reader:
+        from datetime import datetime
+        datetime = safe_clock
+        value = datetime.now()
+
+    read_lambda = lambda: (
+        (clock := ImportedDate),
+        (clock := safe_clock),
+        clock.now(),
+    )[2]
+""",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_nested_scope_내부의_branch_rebinding은_가능한_datetime_origin을_보존한다(
+    tmp_path: Path,
+) -> None:
+    mutations = [
+        """
+from datetime import datetime
+def read(flag):
+    clock = datetime
+    if flag:
+        clock = safe_clock
+    return clock.now()
+""",
+        """
+from datetime import datetime
+async def read(flag):
+    clock = datetime
+    if flag:
+        clock = safe_clock
+    return clock.utcnow()
+""",
+        """
+from datetime import datetime
+class Reader:
+    clock = datetime
+    if condition:
+        clock = safe_clock
+    value = clock.now()
+""",
+        """
+from datetime import datetime
+read = lambda flag: (
+    ((clock := datetime) if flag else (clock := safe_clock)),
+    clock.now(),
+)[1]
+""",
+    ]
+    for index, source in enumerate(mutations):
+        case = tmp_path / str(index)
+        case.mkdir()
+        _assert_violation(case, source, "naive-datetime")
+
+
 def test_금액과_비율의_float_annotation과_변환_별칭을_거부한다(tmp_path: Path) -> None:
     mutations = [
         "from pydantic import BaseModel\nclass Auction(BaseModel):\n    bid_rate: float\n",
