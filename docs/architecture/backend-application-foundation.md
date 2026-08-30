@@ -188,6 +188,18 @@ use case의 환경 type은 controller에 도달할 때 `never`여야 한다. 요
 - optimistic concurrency나 idempotency가 필요한 command는 DB constraint/version column을 근거로
   삼는다. process-local `Map`은 정합성이나 rate limit의 권위가 아니다.
 
+`DatabaseModule`은 postgres-js client와 Drizzle instance의 생성/종료를 소유하되 DI 밖으로 query builder를
+export하지 않는다. 현재 공개 provider는 database readiness, explicit UnitOfWork, procurement
+`AuctionReader`처럼 목적이 정해진 port뿐이다. readiness는 exact committed journal row와 API role의
+필수/금지 권한을 read-only query 하나로 확인한다. server startup은 migration, role 생성, grant, seed를
+수행하지 않는다.
+
+운영 credential은 `eatbid-postgres-bootstrap`, `eatbid-database-migrator`,
+`eatbid-database-api`, dormant `eatbid-database-dataplane`으로 분리한다. API credential은 DB/schema owner가
+아니며 `core`/`mart` SELECT와 module-owned `app` DML만 허용한다. disposable integration setup의 admin만
+테스트 role/grant를 만들고, 같은 테스트에서 DDL/core·mart write/ingest/role change/migration journal write
+공격이 거부되는지 검증한다.
+
 ## 7. HTTP와 OpenAPI
 
 - canonical resource URL은 문자열 이름이 아니라 bigint stable ID를 사용한다. JSON/path에서는

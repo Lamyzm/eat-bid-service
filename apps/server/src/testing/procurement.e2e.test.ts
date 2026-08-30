@@ -1,0 +1,113 @@
+import { describe, expect, test } from "bun:test";
+import type { Server } from "node:http";
+import request from "supertest";
+import { createApp } from "../bootstrap/create-app";
+import { parseEnvironment } from "../platform/config/environment";
+
+const publicAuction = {
+  auctionId: 9_007_199_254_740_993n,
+  revisionId: 9_007_199_254_740_995n,
+  title: "Fresh produce supply",
+  status: "OPEN",
+  displayBidNumber: null,
+  announcedAt: new Date("2026-08-30T00:00:00.000Z"),
+  deadlineAt: null,
+  openedAt: null,
+  baseAmount: "1234567890.50",
+  plannedAmount: null,
+  currency: "KRW",
+  provenance: {
+    sourceSystem: "eat",
+    externalBidId: "external-opaque-id",
+    observationId: 9_007_199_254_740_997n,
+    normalizedRecordId: 9_007_199_254_740_999n,
+    contentSha256: "a".repeat(64),
+  },
+} as const;
+
+const environment = parseEnvironment({
+  NODE_ENV: "test",
+  PORT: "0",
+  DATABASE_URL: "postgres://eatbid_api:test-only@127.0.0.1:1/eatbid_test",
+});
+
+async function withServer(
+  reader: { findById(id: bigint): Promise<typeof publicAuction | null> },
+  run: (server: Server) => Promise<void>,
+): Promise<void> {
+  const runtime = await createApp({
+    environment,
+    logWriter: () => undefined,
+    databaseReadiness: { isReady: () => true },
+    auctionReader: reader,
+  } as never);
+  const server = await runtime.listen(0, "127.0.0.1");
+  try {
+    await run(server);
+  } finally {
+    await runtime.shutdown();
+  }
+}
+
+describe("canonical procurement HTTP slice", () => {
+  test("round-trips a bigint beyond MAX_SAFE_INTEGER through path, application, and bounded JSON", async () => {
+    const observed: bigint[] = [];
+    await withServer({
+      findById: async (id) => {
+        observed.push(id);
+        return publicAuction;
+      },
+    }, async (server) => {
+      const response = await request(server).get("/api/v1/auctions/9007199254740993");
+      expect(response.status).toBe(200);
+      expect(observed).toEqual([9_007_199_254_740_993n]);
+      expect(response.body).toEqual({
+        auctionId: "9007199254740993",
+        revisionId: "9007199254740995",
+        title: "Fresh produce supply",
+        status: "OPEN",
+        displayBidNumber: null,
+        announcedAt: "2026-08-30T00:00:00.000Z",
+        deadlineAt: null,
+        openedAt: null,
+        baseAmount: "1234567890.50",
+        plannedAmount: null,
+        currency: "KRW",
+        provenance: {
+          sourceSystem: "eat",
+          externalBidId: "external-opaque-id",
+          observationId: "9007199254740997",
+          normalizedRecordId: "9007199254740999",
+          contentSha256: "a".repeat(64),
+        },
+      });
+      expect(response.body).not.toHaveProperty("sourcePayload");
+    });
+  });
+
+  test("rejects every non-canonical ID before the repository and never accepts a business key", async () => {
+    let calls = 0;
+    await withServer({ findById: async () => { calls += 1; return publicAuction; } }, async (server) => {
+      for (const invalid of ["0", "+1", "-1", "%201", "1%20", "01", "1.0", "1e3", "external-opaque-id"]) {
+        const response = await request(server).get(`/api/v1/auctions/${invalid}`);
+        expect(response.status, invalid).toBe(400);
+        expect(response.body.code, invalid).toBe("VALIDATION_ERROR");
+      }
+      expect(calls).toBe(0);
+    });
+  });
+
+  test("maps typed not-found separately from dependency unavailability", async () => {
+    await withServer({ findById: async () => null }, async (server) => {
+      const response = await request(server).get("/api/v1/auctions/41");
+      expect(response.status).toBe(404);
+      expect(response.body.code).toBe("AUCTION_NOT_FOUND");
+    });
+    await withServer({ findById: async () => { throw new Error("database offline"); } }, async (server) => {
+      const response = await request(server).get("/api/v1/auctions/41");
+      expect(response.status).toBe(503);
+      expect(response.body.code).toBe("DEPENDENCY_UNAVAILABLE");
+      expect(JSON.stringify(response.body)).not.toContain("database offline");
+    });
+  });
+});

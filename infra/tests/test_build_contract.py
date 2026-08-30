@@ -362,6 +362,9 @@ def test_all_four_dockerfiles_embed_full_sha_provenance_and_drop_root() -> None:
 
     assert "pnpm install --frozen-lockfile" in (ROOT / "Dockerfile.web").read_text()
     assert "pnpm install --frozen-lockfile" in (ROOT / "Dockerfile.server").read_text()
+    server_dockerfile = (ROOT / "Dockerfile.server").read_text(encoding="utf-8")
+    assert "COPY packages/contracts ./packages/contracts" in server_dockerfile
+    assert "COPY packages/db ./packages/db" in server_dockerfile
     assert "uv sync --frozen" in (ROOT / "apps" / "dataplane" / "Dockerfile").read_text()
     assert "uv sync --frozen --no-dev --no-editable" in (
         ROOT / "apps" / "dataplane" / "Dockerfile"

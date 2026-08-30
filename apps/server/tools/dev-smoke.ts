@@ -94,6 +94,7 @@ export async function runDevelopmentSmoke(
         NO_COLOR: "1",
         FORCE_COLOR: "0",
         NODE_ENV: "test",
+        DATABASE_URL: "postgres://eatbid_api:test-only@127.0.0.1:1/eatbid_test",
         PORT: "0",
       },
       shell: true,

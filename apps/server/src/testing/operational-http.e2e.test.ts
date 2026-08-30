@@ -26,13 +26,19 @@ const environment = (overrides: Record<string, string> = {}) => parseEnvironment
   NODE_ENV: "test",
   PORT: "0",
   SHUTDOWN_GRACE_MS: "500",
+  DATABASE_URL: "postgres://eatbid_api:test-only@127.0.0.1:1/eatbid_test",
   ...overrides,
 });
 
 async function start(
   options: Parameters<typeof createApp>[0] = {},
 ): Promise<{ runtime: OperationalHttpApplication; server: Server }> {
-  const runtime = await createApp({ environment: environment(), logWriter: () => undefined, ...options });
+  const runtime = await createApp({
+    environment: environment(),
+    logWriter: () => undefined,
+    databaseReadiness: { isReady: () => true },
+    ...options,
+  });
   const server = await runtime.listen(0, "127.0.0.1");
   return { runtime, server };
 }

@@ -6,6 +6,9 @@ import { HealthModule, type DatabaseReadiness } from "./platform/health/health.m
 import { ReadinessState } from "./platform/health/readiness-state";
 import { LoggingModule, type RedactingJsonLogger } from "./platform/logging/logging.module";
 import { RequestContextModule, type RequestContextStore } from "./platform/request-context/request-context.module";
+import { DatabaseModule } from "./platform/database/database.module";
+import type { AuctionReader } from "./modules/procurement/application/auction-reader";
+import { ProcurementModule } from "./modules/procurement/procurement.module";
 
 @Module({
   imports: [EffectModule],
@@ -18,7 +21,12 @@ export class AppModule {
         PlatformConfigModule.forEnvironment(runtime.environment),
         LoggingModule.forLogger(runtime.logger),
         RequestContextModule.forStore(runtime.requestContext),
-        HealthModule.forState(runtime.readiness, runtime.databaseReadiness),
+        DatabaseModule.forRuntime(runtime.environment, {
+          readiness: runtime.databaseReadiness,
+          auctionReader: runtime.auctionReader,
+        }),
+        HealthModule.forState(runtime.readiness),
+        ProcurementModule,
         ...(runtime.testOnlyImports ?? []),
       ],
     };
@@ -31,5 +39,6 @@ export interface AppModuleRuntime {
   readonly requestContext: RequestContextStore;
   readonly readiness: ReadinessState;
   readonly databaseReadiness?: DatabaseReadiness;
+  readonly auctionReader?: AuctionReader;
   readonly testOnlyImports?: readonly Type[];
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { healthOperations } from "@eatbid/contracts";
+import { auctionOperations, healthOperations } from "@eatbid/contracts";
 
 describe("canonical OpenAPI artifact", () => {
   test("is deterministic OpenAPI 3.0.3 with unique stable operations and complete routes", async () => {
@@ -10,11 +10,15 @@ describe("canonical OpenAPI artifact", () => {
     expect(first).toBe(second);
     const document = JSON.parse(first) as any;
     expect(document.openapi).toBe("3.0.3");
-    expect(Object.keys(document.paths).sort()).toEqual(["/health/live", "/health/ready"]);
+    expect(Object.keys(document.paths).sort()).toEqual([
+      "/api/v1/auctions/{auctionId}",
+      "/health/live",
+      "/health/ready",
+    ]);
     const operations = Object.values(document.paths).flatMap((path: any) => Object.values(path)) as any[];
     const operationIds = operations.map((operation) => operation.operationId);
     expect(new Set(operationIds).size).toBe(operationIds.length);
-    expect(operationIds.sort()).toEqual(["healthLive", "healthReady"]);
+    expect(operationIds.sort()).toEqual(["findAuction", "healthLive", "healthReady"]);
     for (const operation of operations) {
       expect(operation.responses["200"].content["application/json"].schema).toBeDefined();
       expect(Object.values(operation.responses).some((response: any) =>
@@ -24,5 +28,15 @@ describe("canonical OpenAPI artifact", () => {
       ...healthOperations.live,
       path: "/health/drift",
     })).toThrow("Operation path drift");
+    const auction = document.paths[auctionOperations.find.path].get;
+    expect(auction.parameters[0]).toMatchObject({
+      name: "auctionId",
+      in: "path",
+      required: true,
+      example: "9007199254740993",
+    });
+    expect(auction.responses["200"].content["application/json"].schema).toBeDefined();
+    expect(auction.responses["404"].content["application/problem+json"].schema).toBeDefined();
+    expect(auction.responses["503"].content["application/problem+json"].schema).toBeDefined();
   });
 });

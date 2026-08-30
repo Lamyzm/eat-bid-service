@@ -62,6 +62,17 @@ function workspaceManifests(): Array<{ relativePath: string; manifest: PackageMa
   });
 }
 
+function sourceFiles(relativeDirectory: string): string[] {
+  return readdirSync(join(repositoryRoot, relativeDirectory), { withFileTypes: true })
+    .flatMap((entry) => {
+      const relativePath = `${relativeDirectory}/${entry.name}`;
+      if (entry.isDirectory()) return sourceFiles(relativePath);
+      return entry.isFile() && relativePath.endsWith(".ts") && !relativePath.endsWith(".test.ts")
+        ? [relativePath]
+        : [];
+    });
+}
+
 describe("DDL package authority", () => {
   test("routes root migration commands and tests through packages/db", () => {
     const root = json("package.json");
@@ -80,15 +91,24 @@ describe("DDL package authority", () => {
     expect(shared.devDependencies?.["drizzle-kit"]).toBeUndefined();
   });
 
-  test("keeps postgres-js cataloged while the reset server has no database dependency", () => {
+  test("keeps the exact postgres-js catalog and permits only infrastructure server consumers", () => {
     const workspace = text("pnpm-workspace.yaml");
     const database = json("packages/db/package.json");
     const server = json("apps/server/package.json");
 
-    expect(workspace).toContain("postgres: ^3.4.5");
+    expect(workspace).toContain("postgres: 3.4.9");
     expect(database.dependencies?.postgres).toBe("catalog:");
-    expect(server.dependencies?.postgres).toBeUndefined();
-    expect(server.dependencies?.["drizzle-orm"]).toBeUndefined();
+    expect(server.dependencies?.postgres).toBe("catalog:");
+    expect(server.dependencies?.["drizzle-orm"]).toBe("catalog:");
+    expect(server.dependencies?.["@eatbid/db"]).toBe("workspace:*");
+    expect(server.dependencies?.["drizzle-kit"]).toBeUndefined();
+
+    const databaseImports = sourceFiles("apps/server/src").filter((relativePath) =>
+      /from\s+["'](?:@eatbid\/db|drizzle-orm|postgres)(?:\/[^"']*)?["']/.test(text(relativePath)));
+    expect(databaseImports.every((relativePath) =>
+      relativePath.startsWith("apps/server/src/platform/database/")
+      || /^apps\/server\/src\/modules\/[^/]+\/infrastructure\/drizzle\//.test(relativePath)))
+      .toBe(true);
   });
 
   test("discovers every workspace manifest and keeps direct Drizzle DDL in packages/db", () => {

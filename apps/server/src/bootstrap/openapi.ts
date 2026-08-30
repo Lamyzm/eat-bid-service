@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
+  auctionOperations,
   healthOperations,
   problemDetailsSchema,
 } from "@eatbid/contracts";
@@ -28,6 +29,9 @@ const problemResponse = (description: string) => ({
 export function createOpenApiDocument(): ReturnType<typeof createDocument> {
   assertOperationPath(healthOperations.live);
   assertOperationPath(healthOperations.ready);
+  if (auctionOperations.find.path !== "/api/v1/auctions/{auctionId}") {
+    throw new Error("Auction operation path drift");
+  }
   return createDocument({
     openapi: "3.0.3",
     info: {
@@ -36,6 +40,30 @@ export function createOpenApiDocument(): ReturnType<typeof createDocument> {
       description: "Bounded canonical HTTP contracts for the eatbid server.",
     },
     paths: {
+      [auctionOperations.find.path]: {
+        get: {
+          operationId: auctionOperations.find.operationId,
+          summary: auctionOperations.find.summary,
+          tags: ["procurement"],
+          parameters: [{
+            name: "auctionId",
+            in: "path",
+            required: true,
+            example: auctionOperations.find.pathExample,
+            schema: { type: "string", pattern: "^[1-9][0-9]*$" },
+          }],
+          responses: {
+            "200": {
+              description: "Canonical auction",
+              content: { "application/json": { schema: auctionOperations.find.responseSchema } },
+            },
+            "400": problemResponse("Invalid auction ID"),
+            "404": problemResponse("Auction not found"),
+            "503": problemResponse("Database unavailable"),
+            "500": problemResponse("Unexpected server defect"),
+          },
+        },
+      },
       [healthOperations.live.path]: {
         get: {
           operationId: healthOperations.live.operationId,

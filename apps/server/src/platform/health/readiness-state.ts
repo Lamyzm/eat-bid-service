@@ -1,7 +1,5 @@
 import type { OnApplicationShutdown } from "@nestjs/common";
 
-export const DATABASE_READINESS = Symbol("DATABASE_READINESS");
-
 export interface DatabaseReadiness {
   isReady(): boolean | Promise<boolean>;
 }

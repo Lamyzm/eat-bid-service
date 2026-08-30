@@ -24,5 +24,10 @@ describe("public operational contracts", () => {
       handlerPath: "ready",
       path: "/health/ready",
     });
+    expect(module!.auctionOperations.find).toMatchObject({
+      handlerPath: ":auctionId",
+      path: "/api/v1/auctions/{auctionId}",
+      operationId: "findAuction",
+    });
   });
 });

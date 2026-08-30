@@ -142,10 +142,20 @@ Better Auth 같은 provider가 문자열 user ID를 요구해도 그 값은 prov
 `IdentitySubject.subject`에만 남는다. workspace, supplier, work item 등 application 관계가 그 문자열을
 FK로 사용하지 않는다. `packages/shared`의 기존 문자열 user/workspace schema는 목표 DDL이 아니다.
 
+첫 application DDL은 `app.principal`, `app.identity_subject`, `app.workspace`,
+`app.workspace_membership`만 만든다. 네 테이블의 PK/FK는 모두 PostgreSQL bigint이고,
+`identity_subject`만 `(provider, issuer, subject)`를 보존해 bigint `principal_id`에 연결한다.
+API role은 이 application-owned 테이블만 읽고 쓸 수 있으며 schema 생성 권한은 갖지 않는다.
+
 JSON은 bigint를 직접 표현하지 못하므로 HTTP path/response에서는 내부 ID를 선행 0 없는 양의 10진 문자열로
 인코딩한다. presentation boundary가 이를 bigint로 변환하며 application/domain과 DB 관계는 계속 bigint다.
 `Number`로 변환하지 않고 `MAX_SAFE_INTEGER`를 넘는 ID를 계약 테스트로 검증한다. 상세 결정은
 [ADR 0018](../adr/0018-application-identity-and-id-wire-format.md)을 따른다.
+
+첫 canonical read인 `GET /api/v1/auctions/{auctionId}`는 `AuctionAttempt` bigint ID로 최신 revision을
+찾는다. 응답은 source payload나 DB row를 노출하지 않고 revision ID, nullable 시각/금액,
+`source_system`, external source ID, observation/normalized-record bigint ID, content hash를 bounded provenance로
+제공한다. external source ID는 근거 필드이지 URL/관계 키가 아니다.
 
 ## 4. 코드 체계
 

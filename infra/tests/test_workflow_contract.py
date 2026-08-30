@@ -195,7 +195,7 @@ def test_workflow_template_uses_current_cli_and_durable_boundaries(
             "{{workflow.parameters.parser-version}}"
         )
         assert _secret_ref(_env(container, "DATABASE_URL")) == (
-            "eatbid-database",
+            "eatbid-database-dataplane",
             "DATABASE_URL",
         )
         assert _secret_ref(_env(container, "R2_SECRET_ACCESS_KEY")) == (
@@ -333,7 +333,7 @@ def test_migration_is_finite_presync_and_uses_only_secret_database_url(
         "ghcr.io/lamyzm/eatbid-migration@sha256:" + "0" * 64
     )
     assert _secret_ref(_env(pod_spec, "DATABASE_URL")) == (
-        "eatbid-database",
+        "eatbid-database-migrator",
         "DATABASE_URL",
     )
     assert _mapping(_mapping(spec["template"])["spec"])["restartPolicy"] == "Never"
@@ -352,6 +352,41 @@ def test_product_render_has_no_hostpath_or_literal_database_credentials(
     rendered = yaml.safe_dump_all(manifests.documents)
     assert "postgres://" not in rendered
     assert "POSTGRES_PASSWORD: eatbid" not in rendered
+
+
+def test_database_credentials_are_split_per_consumer_without_cross_assignment(
+    manifests: ManifestSet,
+) -> None:
+    postgres_pod = _mapping(_mapping(_spec(manifests.named("Deployment", "postgres"))["template"])["spec"])
+    server_pod = _mapping(_mapping(_spec(manifests.named("Deployment", "server"))["template"])["spec"])
+    migration_pod = _mapping(_mapping(_spec(manifests.named("Job", "eatbid-migration"))["template"])["spec"])
+    postgres = _mapping(_sequence(postgres_pod["containers"])[0])
+    server = _mapping(_sequence(server_pod["containers"])[0])
+    migration = _mapping(_sequence(migration_pod["containers"])[0])
+    workflow = manifests.workflow_template("eatbid-dataplane")
+    dataplane = _mapping(_templates(workflow)["discover"]["container"])
+
+    assert _secret_ref(_env(postgres, "POSTGRES_USER"))[0] == "eatbid-postgres-bootstrap"
+    assert _secret_ref(_env(server, "DATABASE_URL"))[0] == "eatbid-database-api"
+    assert _secret_ref(_env(migration, "DATABASE_URL"))[0] == "eatbid-database-migrator"
+    assert _secret_ref(_env(dataplane, "DATABASE_URL"))[0] == "eatbid-database-dataplane"
+
+    rendered = yaml.safe_dump_all(manifests.documents)
+    for consumer, assigned in {
+        "postgres": "eatbid-postgres-bootstrap",
+        "server": "eatbid-database-api",
+        "migration": "eatbid-database-migrator",
+    }.items():
+        document = manifests.named("Job" if consumer == "migration" else "Deployment", f"eatbid-{consumer}" if consumer == "migration" else consumer)
+        text = yaml.safe_dump(document)
+        assert assigned in text
+        assert all(secret == assigned or secret not in text for secret in (
+            "eatbid-postgres-bootstrap",
+            "eatbid-database-api",
+            "eatbid-database-migrator",
+            "eatbid-database-dataplane",
+        ))
+    assert "kind: Secret" not in rendered
 
 
 def test_product_declares_consumes_and_promotes_exactly_four_images(

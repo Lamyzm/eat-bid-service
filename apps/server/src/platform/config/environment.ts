@@ -9,6 +9,7 @@ export interface Environment {
   readonly shutdownGraceMs: number;
   readonly swaggerEnabled: boolean;
   readonly buildSha: string;
+  readonly databaseUrl: string;
 }
 
 type EnvironmentSource = Readonly<Record<string, string | undefined>>;
@@ -26,6 +27,7 @@ const sourceSchema = z.object({
   SHUTDOWN_GRACE_MS: integer(1, 300_000).optional(),
   SWAGGER_ENABLED: z.enum(["true", "false"]).optional(),
   BUILD_SHA: z.string().optional(),
+  DATABASE_URL: z.string().min(1),
 }).passthrough();
 
 function parseOrigins(value: string): readonly string[] {
@@ -43,6 +45,20 @@ function parseOrigins(value: string): readonly string[] {
   });
   if (new Set(origins).size !== origins.length) throw new Error("CORS_ORIGINS contains duplicates");
   return Object.freeze(origins);
+}
+
+function parseDatabaseUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("DATABASE_URL must be a valid PostgreSQL URL");
+  }
+  if ((url.protocol !== "postgres:" && url.protocol !== "postgresql:")
+    || !url.hostname || url.pathname.length <= 1) {
+    throw new Error("DATABASE_URL must be a valid PostgreSQL URL");
+  }
+  return value;
 }
 
 export function parseEnvironment(source: EnvironmentSource): Environment {
@@ -70,6 +86,7 @@ export function parseEnvironment(source: EnvironmentSource): Environment {
     shutdownGraceMs: parsed.SHUTDOWN_GRACE_MS ?? 10_000,
     swaggerEnabled,
     buildSha,
+    databaseUrl: parseDatabaseUrl(parsed.DATABASE_URL),
   });
 }
 

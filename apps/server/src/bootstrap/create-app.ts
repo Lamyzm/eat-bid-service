@@ -14,6 +14,7 @@ import type { Server } from "node:http";
 import { AppModule } from "../app.module";
 import { type Environment, readEnvironment } from "../platform/config/environment";
 import type { DatabaseReadiness } from "../platform/health/health.module";
+import type { AuctionReader } from "../modules/procurement/application/auction-reader";
 import { ReadinessState } from "../platform/health/readiness-state";
 import {
   problemForStatus,
@@ -37,6 +38,7 @@ export interface CreateAppOptions {
   readonly environment?: Environment;
   readonly logWriter?: (line: string) => void;
   readonly databaseReadiness?: DatabaseReadiness;
+  readonly auctionReader?: AuctionReader;
   readonly mountPreParserRawTransport?: (application: Express) => void;
   readonly testOnlyImports?: readonly Type[];
 }
@@ -107,6 +109,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
       requestContext,
       readiness,
       databaseReadiness: options.databaseReadiness,
+      auctionReader: options.auctionReader,
       testOnlyImports: options.testOnlyImports,
     }),
     adapter,

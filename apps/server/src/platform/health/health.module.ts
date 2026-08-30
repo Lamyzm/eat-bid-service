@@ -1,25 +1,22 @@
 import { DynamicModule, Module } from "@nestjs/common";
 import { HealthController } from "./health.controller";
-import { DATABASE_READINESS, type DatabaseReadiness, ReadinessState } from "./readiness-state";
+import type { DatabaseReadiness } from "./readiness-state";
+import { ReadinessState } from "./readiness-state";
+import { DATABASE_READINESS } from "../database/database.tokens";
 
-export { DATABASE_READINESS, type DatabaseReadiness } from "./readiness-state";
-
-const availableDatabase: DatabaseReadiness = { isReady: () => true };
+export { DATABASE_READINESS } from "../database/database.tokens";
+export type { DatabaseReadiness } from "./readiness-state";
 
 @Module({})
 export class HealthModule {
-  static forState(
-    readiness: ReadinessState,
-    databaseReadiness: DatabaseReadiness = availableDatabase,
-  ): DynamicModule {
+  static forState(readiness: ReadinessState): DynamicModule {
     return {
       module: HealthModule,
       controllers: [HealthController],
       providers: [
         { provide: ReadinessState, useValue: readiness },
-        { provide: DATABASE_READINESS, useValue: databaseReadiness },
       ],
-      exports: [ReadinessState, DATABASE_READINESS],
+      exports: [ReadinessState],
     };
   }
 }

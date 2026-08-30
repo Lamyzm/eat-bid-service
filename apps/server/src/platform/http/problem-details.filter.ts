@@ -31,9 +31,28 @@ const definitions: Readonly<Record<number, ProblemDefinition>> = {
   500: { code: "INTERNAL_ERROR", slug: "internal-error", title: "Internal server error" },
 };
 
-export function problemForStatus(status: number, requestId: string): ProblemDetails {
+const auctionNotFound: ProblemDefinition = {
+  code: "AUCTION_NOT_FOUND",
+  slug: "auction-not-found",
+  title: "Auction not found",
+};
+
+function definitionForException(exception: unknown, status: number): ProblemDefinition | undefined {
+  if (!(exception instanceof HttpException) || status !== 404) return undefined;
+  const response = exception.getResponse();
+  return typeof response === "object" && response !== null
+    && (response as { code?: unknown }).code === "AUCTION_NOT_FOUND"
+    ? auctionNotFound
+    : undefined;
+}
+
+export function problemForStatus(
+  status: number,
+  requestId: string,
+  override?: ProblemDefinition,
+): ProblemDetails {
   const normalizedStatus = definitions[status] ? status : HttpStatus.INTERNAL_SERVER_ERROR;
-  const definition = definitions[normalizedStatus]!;
+  const definition = override ?? definitions[normalizedStatus]!;
   return {
     type: `https://eatbid.dev/problems/${definition.slug}`,
     title: definition.title,
@@ -65,7 +84,11 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const requestedStatus = exception instanceof HttpException
       ? exception.getStatus()
       : HttpStatus.INTERNAL_SERVER_ERROR;
-    const problem = problemForStatus(requestedStatus, requestIdOf(request));
+    const problem = problemForStatus(
+      requestedStatus,
+      requestIdOf(request),
+      definitionForException(exception, requestedStatus),
+    );
     response.locals.problemCode = problem.code;
     if (!(exception instanceof HttpException) || problem.status === 500) {
       this.logger.defect({

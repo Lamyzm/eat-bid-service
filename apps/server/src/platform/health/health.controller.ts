@@ -15,7 +15,9 @@ import {
   type ReadyHealth,
 } from "@eatbid/contracts";
 import { ResponseSchema } from "../http/response-schema.interceptor";
-import { DATABASE_READINESS, type DatabaseReadiness, ReadinessState } from "./readiness-state";
+import type { DatabaseReadiness } from "./readiness-state";
+import { ReadinessState } from "./readiness-state";
+import { DATABASE_READINESS } from "../database/database.tokens";
 
 @Controller({ path: healthControllerPath, version: VERSION_NEUTRAL })
 export class HealthController {

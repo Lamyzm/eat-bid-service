@@ -5,6 +5,7 @@ export const problemCodeSchema = z.enum([
   "UNAUTHENTICATED",
   "FORBIDDEN",
   "NOT_FOUND",
+  "AUCTION_NOT_FOUND",
   "CONFLICT",
   "RATE_LIMITED",
   "DEPENDENCY_UNAVAILABLE",

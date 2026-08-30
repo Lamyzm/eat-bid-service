@@ -13,7 +13,7 @@ catalogs:
       specifier: 1.0.0-rc.4
       version: 1.0.0-rc.4
     postgres:
-      specifier: ^3.4.5
+      specifier: 3.4.9
       version: 3.4.9
 
 importers:
@@ -29,6 +29,9 @@ importers:
       '@eatbid/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@eatbid/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@nestjs/common':
         specifier: 12.0.1
         version: 12.0.1(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -44,6 +47,9 @@ importers:
       '@nestjs/swagger':
         specifier: 12.0.1
         version: 12.0.1(@nestjs/common@12.0.1(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.0.1)(reflect-metadata@0.2.2)
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(effect@4.0.0-rc.112)(postgres@3.4.9)(zod@4.5.2)
       effect:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
@@ -53,6 +59,9 @@ importers:
       helmet:
         specifier: 8.3.0
         version: 8.3.0
+      postgres:
+        specifier: 'catalog:'
+        version: 3.4.9
       reflect-metadata:
         specifier: 0.2.2
         version: 0.2.2

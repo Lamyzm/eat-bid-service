@@ -9,13 +9,17 @@ const production = {
   SHUTDOWN_GRACE_MS: "15000",
   SWAGGER_ENABLED: "false",
   BUILD_SHA: "a".repeat(40),
+  DATABASE_URL: "postgres://eatbid_api:secret@postgres:5432/eatbid",
 } as const;
 
 describe("operational environment", () => {
   test("uses bounded non-production fallbacks", async () => {
     const module = await import("./environment").catch(() => undefined);
     expect(module, "environment boundary must exist").toBeDefined();
-    expect(module!.parseEnvironment({ NODE_ENV: "test" })).toEqual({
+    expect(module!.parseEnvironment({
+      NODE_ENV: "test",
+      DATABASE_URL: "postgres://eatbid_api:test-only@127.0.0.1:5432/eatbid_test",
+    })).toEqual({
       runtimeMode: "test",
       port: 4400,
       corsOrigins: ["http://localhost:3000"],
@@ -24,6 +28,7 @@ describe("operational environment", () => {
       shutdownGraceMs: 10_000,
       swaggerEnabled: false,
       buildSha: "unknown",
+      databaseUrl: "postgres://eatbid_api:test-only@127.0.0.1:5432/eatbid_test",
     });
   });
 
@@ -38,6 +43,7 @@ describe("operational environment", () => {
       shutdownGraceMs: 15_000,
       swaggerEnabled: false,
       buildSha: "a".repeat(40),
+      databaseUrl: "postgres://eatbid_api:secret@postgres:5432/eatbid",
     });
   });
 
@@ -56,6 +62,9 @@ describe("operational environment", () => {
       { ...production, BUILD_SHA: "unknown" },
       { ...production, CORS_ORIGINS: undefined },
       { ...production, BUILD_SHA: undefined },
+      { ...production, DATABASE_URL: undefined },
+      { ...production, DATABASE_URL: "not-a-postgresql-url" },
+      { ...production, DATABASE_URL: "mysql://user:secret@db/eatbid" },
     ];
     for (const source of invalid) expect(() => parseEnvironment(source)).toThrow();
   });

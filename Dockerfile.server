@@ -4,7 +4,8 @@ RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
 WORKDIR /workspace
 
 COPY pnpm-workspace.yaml package.json turbo.json tsconfig.json pnpm-lock.yaml ./
-COPY packages ./packages
+COPY packages/contracts ./packages/contracts
+COPY packages/db ./packages/db
 COPY apps/server ./apps/server
 
 RUN pnpm install --frozen-lockfile --strict-peer-dependencies --filter @eatbid/server...

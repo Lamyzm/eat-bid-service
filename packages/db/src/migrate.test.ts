@@ -135,8 +135,8 @@ describe("schema journal", () => {
       assertSchemaVersion(
         journalDatabase({
           id: 6,
-          name: "20260829003000_unknown_future",
-          created_at: Date.UTC(2026, 7, 29, 0, 30, 0),
+          name: "20260830023000_unknown_future",
+          created_at: Date.UTC(2026, 7, 30, 2, 30, 0),
         }),
         expectedMigration,
       ),
