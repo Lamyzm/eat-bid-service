@@ -32,6 +32,10 @@
     측정된 병목이나 독립 수명주기가 없는 한 마이크로서비스·Kafka·검색 클러스터를 추가하지 마라.
 12. **레거시 호환성을 새 설계에 전염시키지 않는다.** 그린필드 전환에서 보존할 것은
     원본 XML, 검증된 외부 식별자/불변식/테스트, 소스 접근 지식, 명확히 매핑되는 사용자 상태뿐이다.
+13. **하나의 work item에는 한 명의 writing owner만 둔다.** 파일을 쓰기 전에 Linear issue를
+    assign하고 검증된 worktree lease를 claim하라. 첫 mutation session이 lease의 writer가 되며,
+    의도한 owned path는 issue/handoff에 남긴다. 다른 writer가 claim한 작업은 read-only로
+    조사·review만 한다. 병렬 구현은 별도 issue·worktree에서 owned path가 겹치지 않을 때만 허용한다.
 
 ## 변경 절차
 

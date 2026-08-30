@@ -1,11 +1,15 @@
-# 규칙 — 이 주간에 값을 치른 것만
+# Claude 사고 교훈 — 역사적 증거
+
+> 이 디렉터리는 2026-08-28 전후 리팩터링에서 관측한 사고와 당시 처방을 보존한 evidence다.
+> 현재 제품·아키텍처·배포 지침이 아니며 `AGENTS.md`, 목표 architecture, Accepted ADR과
+> 충돌하면 인용하거나 실행하지 않는다.
 
 **수록 조건: 이번 리팩터링 주간(2026-08-28)에 실제로 사고를 냈거나 막은 것.**
 모범 사례·일반론·"좋은 습관"은 한 줄도 없다. **각 규칙에 그 규칙이 없어서 난 사고가 근거로 붙어 있다. 근거 없는 규칙은 여기 못 들어온다.**
 
 근거의 출처: `docs/DEBT.md` · `docs/AUDIT-STRINGS.md` · `docs/SPEC-SSOT.md` · git log.
 
-## 파일 넷 — 필요해지는 순간으로 갈랐다
+## 파일 다섯 — 당시 필요해지는 순간으로 가른 기록
 
 | 파일 | 언제 읽나 |
 |---|---|
@@ -13,6 +17,7 @@
 | [`identity-and-keys.md`](./identity-and-keys.md) | **무엇을 키로 삼을지 정할 때.** 스키마·PK·조인 |
 | [`failing-loudly.md`](./failing-loudly.md) | **코드를 쓸 때.** 실패 처리·문턱·사실 표기 |
 | [`changing-and-verifying.md`](./changing-and-verifying.md) | **고칠 때와 고친 뒤.** 전파·검증·측정 판정선 |
+| [`thresholds-we-invented.md`](./thresholds-we-invented.md) | **임의 문턱을 넣기 전.** 무엇이 조용히 제외되는지 측정 |
 
 주제별로 나눴지 계층별(server/web/loader)로 나누지 않았다. **이번 주 사고 대부분이 계층을 가로질렀다** — 품목은 로더·서버·웹 세 곳, 지역은 수집기·로더·서버·웹 네 곳이었다.
 

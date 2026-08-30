@@ -91,6 +91,9 @@ flowchart LR
 
 ## 문서 지도
 
+- [전체 지식 지도와 문서 권위](docs/README.md)
+- [제품 방향과 outcome-gated 로드맵](docs/product/roadmap.md)
+- [AI-driven 문서·기능 실행 workflow](docs/governance/ai-driven-documentation.md)
 - [아키텍처 문서 운영 규칙](docs/architecture/README.md)
 - [제품 범위와 품질 속성](docs/architecture/product-and-quality.md)
 - [도메인·데이터·코드 체계](docs/architecture/domain-and-data.md)

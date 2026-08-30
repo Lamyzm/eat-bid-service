@@ -9,7 +9,8 @@ evidence. Production gates below remain release-blocking until demonstrated.
 Dockerfiles exist for web, server, dataplane, and the Drizzle migration runner. Root
 scripts use pnpm/Turborepo and dataplane uses uv. The target architecture selects
 GitHub as the monorepo, Argo CD for deployment reconciliation, and Argo Workflows for
-data work. ADR 0012 sets SOPS+age, structured JSON logging, independent raw/DB backup,
+data work. ADR 0022 supersedes the SOPS+age delivery portion of ADR 0012 with Infisical,
+while ADR 0012 still sets structured JSON logging, independent raw/DB backup,
 and a restore drill as baseline decisions.
 
 The repository now declares a delivery control chain in `.github/workflows/build.yml`:
@@ -41,7 +42,7 @@ drill.
 | Vulnerability scanning | Pinned Trivy rejects HIGH/CRITICAL findings on the local full-SHA image before any push | [Trivy documentation](https://trivy.dev/latest/docs/) | Adopted | The repository-enforced order and versions are contract-tested, but production evidence is pending; require the first successful matrix run and retained scan evidence before production, then review on every base/dependency or policy change. |
 | SBOM, provenance, signing | SPDX SBOM plus keyless Cosign signature and `slsaprovenance1`/`spdxjson` attestations on one resolved registry digest | [SLSA provenance](https://slsa.dev/spec/v1.0/provenance), [Sigstore Cosign](https://docs.sigstore.dev/cosign/) | Adopted | The portable repository control avoids the GitHub Enterprise Cloud requirement of `actions/attest` for a private repository and binds issuer, exact workflow identity, and digest. No signing or attestation has run on this branch. Public Sigstore/Rekor records expose repository/workflow identity, so accepting that disclosure is an explicit pre-merge operational/privacy gate; afterward require published signature/attestations and strict verification evidence before promotion is considered production-proven. |
 | OpenTelemetry correlation | Correlate logs/traces/metrics with `run_id`, `observation_id`, `publication_id`, Git SHA | [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/) | Required before production | ADR 0012 requires structured correlation; trigger before workflow/server production traffic. |
-| Secret delivery | SOPS+age encrypted GitOps secrets or an external secret provider, with role-separated credentials | [SOPS](https://getsops.io/), [External Secrets](https://external-secrets.io/latest/) | Required before production | ADR 0012 names SOPS+age but implementation is not evidenced; trigger before any production credential is stored or mounted. |
+| Secret delivery | Infisical value authority; local `infisical run`; GitHub OIDC; Kubernetes Auth + ESO with explicit keys | [Infisical](https://infisical.com/docs/documentation/platform/secrets-mgmt/overview), [External Secrets](https://external-secrets.io/latest/provider/infisical/) | Required before production | Local tooling path is adopted. ADR 0022 forbids a parallel SOPS runtime source; prove scoped identities, etcd/RBAC controls and ESO reconciliation before any production credential is mounted. |
 | Backup and restore drill | Restore raw and DB backups independently and measure RPO/RTO | [PostgreSQL backup](https://www.postgresql.org/docs/current/backup.html) | Required before production | ADR 0012 requires an actual drill; trigger before production data is accepted and after each backup-system change. |
 
 ## Rejected or deferred
