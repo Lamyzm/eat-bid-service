@@ -18,7 +18,7 @@
     "dataplane:test": "uv run --project apps/dataplane pytest apps/dataplane/tests",
     "dataplane:lint": "uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests",
     "dataplane:typecheck": "uv run --project apps/dataplane pyright apps/dataplane/src",
-    "test": "pnpm test:quality && bun test apps/web/src packages/shared/src packages/db/src --timeout 30000 && pnpm --filter @eatbid/contracts test && pnpm --filter @eatbid/server test"
+    "test": "pnpm test:quality && bun test apps/web/src packages/shared/src packages/db/src --timeout 30000 && pnpm --filter @eatbid/contracts test && pnpm --filter @eatbid/domain test && pnpm --filter @eatbid/server test"
   },
   "devDependencies": {
     "turbo": "2.10.12"

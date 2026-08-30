@@ -1,8 +1,8 @@
 {
-  "name": "@eatbid/contracts",
+  "name": "@eatbid/domain",
   "version": "0.1.0",
   "private": true,
-  "type": "commonjs",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": ["dist"],
@@ -18,7 +18,7 @@
     "test": "bun test src"
   },
   "dependencies": {
-    "zod": "catalog:"
+    "temporal-polyfill": "1.0.4"
   },
   "devDependencies": {
     "typescript": "5.9.3"
