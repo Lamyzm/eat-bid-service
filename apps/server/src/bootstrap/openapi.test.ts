@@ -33,8 +33,26 @@ describe("canonical OpenAPI 산출물", () => {
       name: "auctionId",
       in: "path",
       required: true,
-      example: "9007199254740993",
+      schema: { $ref: "#/components/schemas/AuctionId" },
     });
+    expect(document.components.schemas.AuctionId).toMatchObject({
+      type: "string",
+      maxLength: 19,
+      example: "9223372036854775807",
+    });
+    expect(document.components.schemas.AuctionId.description)
+      .toContain("maximum 9223372036854775807");
+    expect(document.components.schemas.AuctionId.description)
+      .toContain("9223372036854775808 is rejected");
+    expect(document.components.schemas.PositiveBigintText).toMatchObject({
+      type: "string",
+      maxLength: 19,
+      example: "9223372036854775807",
+    });
+    expect(document.components.schemas.PositiveBigintText.description)
+      .toContain("maximum 9223372036854775807");
+    expect(document.components.schemas.PositiveBigintText.description)
+      .toContain("9223372036854775808 is rejected");
     expect(auction.responses["200"].content["application/json"].schema).toEqual({
       $ref: "#/components/schemas/EatbidApiV1Auction",
     });
@@ -43,6 +61,14 @@ describe("canonical OpenAPI 산출물", () => {
       schedule: { $ref: "#/components/schemas/AuctionSchedule" },
       pricing: { $ref: "#/components/schemas/AuctionPricing" },
       provenance: { $ref: "#/components/schemas/AuctionProvenance" },
+    });
+    expect(document.components.schemas.PublicAuctionIdentity.properties).toMatchObject({
+      auctionId: { $ref: "#/components/schemas/PositiveBigintText" },
+      revisionId: { $ref: "#/components/schemas/PositiveBigintText" },
+    });
+    expect(document.components.schemas.AuctionProvenance.properties).toMatchObject({
+      observationId: { $ref: "#/components/schemas/PositiveBigintText" },
+      normalizedRecordId: { $ref: "#/components/schemas/PositiveBigintText" },
     });
     expect(document.components.schemas.InstantText.example).toBe("2026-08-30T00:00:00Z");
     expect(document.components.schemas.AuctionPricing.example).toEqual({

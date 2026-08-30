@@ -6,7 +6,7 @@ import {
   Param,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import { ApiOperation, ApiParam, ApiResponse } from "@nestjs/swagger";
+import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import {
   auctionIdPathSchema,
   auctionV1Operations,
@@ -34,12 +34,6 @@ export class AuctionController {
   @ApiOperation({
     operationId: auctionV1Operations.find.operationId,
     summary: auctionV1Operations.find.summary,
-  })
-  @ApiParam({
-    name: "auctionId",
-    required: true,
-    example: auctionV1Operations.find.pathExample,
-    schema: { type: "string", pattern: "^[1-9][0-9]*$" },
   })
   @ApiResponse({ status: 200, description: "Canonical auction" })
   @ApiResponse({ status: 400, description: "Invalid auction ID" })

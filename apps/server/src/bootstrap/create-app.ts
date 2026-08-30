@@ -70,7 +70,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
   }
   const logger = LoggingModule.create(environment, clock, options.logWriter);
   const requestContext = new RequestContextStore();
-  const tracker = new InflightTracker(clock);
+  const tracker = new InflightTracker();
   const readiness = new ReadinessState();
   const expressApplication = express();
   const adapter = new ExpressAdapter(expressApplication);
@@ -154,7 +154,6 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     readiness,
     tracker,
     logger,
-    clock,
     environment.shutdownGrace,
   );
   return {

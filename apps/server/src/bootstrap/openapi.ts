@@ -6,6 +6,7 @@ import {
   healthOperations,
   problemDetailsSchema,
 } from "@eatbid/contracts";
+import { z } from "zod";
 import { createDocument } from "zod-openapi";
 
 type OperationRoute = Readonly<{
@@ -46,13 +47,9 @@ export function createOpenApiDocument(): ReturnType<typeof createDocument> {
           operationId: auctionV1Operations.find.operationId,
           summary: auctionV1Operations.find.summary,
           tags: ["procurement"],
-          parameters: [{
-            name: "auctionId",
-            in: "path",
-            required: true,
-            example: auctionV1Operations.find.pathExample,
-            schema: { type: "string", pattern: "^[1-9][0-9]*$" },
-          }],
+          requestParams: {
+            path: z.object({ auctionId: auctionV1Operations.find.pathSchema }),
+          },
           responses: {
             "200": {
               description: "Canonical auction",

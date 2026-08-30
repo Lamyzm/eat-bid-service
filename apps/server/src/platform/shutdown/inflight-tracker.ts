@@ -1,8 +1,6 @@
 import {
-  milliseconds,
   toMilliseconds,
-  type Clock,
-  type Temporal,
+  type ElapsedMilliseconds,
 } from "@eatbid/domain";
 
 export type ReleaseInflightLease = () => void;
@@ -10,8 +8,6 @@ export type ReleaseInflightLease = () => void;
 export class InflightTracker {
   private active = 0;
   private readonly waiters = new Set<() => void>();
-
-  constructor(private readonly clock: Clock) {}
 
   get count(): number {
     return this.active;
@@ -32,12 +28,10 @@ export class InflightTracker {
     };
   }
 
-  async waitForZero(deadline: Temporal.Instant): Promise<boolean> {
+  async waitForZero(grace: ElapsedMilliseconds): Promise<boolean> {
     if (this.active === 0) return true;
-    const remainingNanoseconds = deadline.epochNanoseconds - this.clock.now().epochNanoseconds;
-    if (remainingNanoseconds <= 0n) return false;
-    // Timer API 직전에서 올림한 bounded bigint를 단위가 붙은 number로 좁힌다.
-    const remaining = milliseconds(Number((remainingNanoseconds + 999_999n) / 1_000_000n));
+    const timerDelay = toMilliseconds(grace);
+    if (timerDelay === 0) return false;
     return new Promise<boolean>((resolve) => {
       let settled = false;
       const finish = (drained: boolean): void => {
@@ -48,7 +42,8 @@ export class InflightTracker {
         resolve(drained);
       };
       const onDrain = (): void => finish(true);
-      const timer = setTimeout(() => finish(false), toMilliseconds(remaining));
+      // Node timer가 elapsed/monotonic 경계를 소유하므로 wall clock 보정은 grace에 영향을 주지 않는다.
+      const timer = setTimeout(() => finish(false), timerDelay);
       this.waiters.add(onDrain);
     });
   }

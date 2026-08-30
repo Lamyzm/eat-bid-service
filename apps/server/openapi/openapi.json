@@ -1,6 +1,13 @@
 {
   "components": {
     "schemas": {
+      "AuctionId": {
+        "description": "Canonical positive decimal text for an auction ID stored as a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+        "example": "9223372036854775807",
+        "maxLength": 19,
+        "pattern": "^[1-9][0-9]*$",
+        "type": "string"
+      },
       "AuctionPricing": {
         "additionalProperties": false,
         "description": "Exact observed auction amounts with currency attached to each value.",
@@ -171,7 +178,8 @@
         "type": "object"
       },
       "PositiveBigintText": {
-        "description": "Lossless positive PostgreSQL bigint encoded as canonical decimal text.",
+        "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+        "example": "9223372036854775807",
         "maxLength": 19,
         "pattern": "^[1-9][0-9]*$",
         "type": "string"
@@ -302,13 +310,12 @@
         "operationId": "findAuction",
         "parameters": [
           {
-            "example": "9007199254740993",
+            "description": "Canonical positive decimal text for an auction ID stored as a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
             "in": "path",
             "name": "auctionId",
             "required": true,
             "schema": {
-              "pattern": "^[1-9][0-9]*$",
-              "type": "string"
+              "$ref": "#/components/schemas/AuctionId"
             }
           }
         ],
