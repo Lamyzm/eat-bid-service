@@ -38,6 +38,16 @@ async function taskContainers(): Promise<string[]> {
   return output ? output.split(/\r?\n/) : [];
 }
 
+async function expectDenied(label: string, work: () => Promise<unknown>): Promise<void> {
+  let denied = false;
+  try {
+    await work();
+  } catch {
+    denied = true;
+  }
+  expect(denied, `${label} must be denied`).toBe(true);
+}
+
 interface DisposableDatabase {
   readonly ownerUrl: string;
   readonly apiUrl: string;
@@ -131,12 +141,12 @@ async function withDisposableDatabase<A>(work: (database: DisposableDatabase) =>
       insert into mart.api_read_probe values (1);
       create role eatbid_api login password 'api-test-secret'
         nosuperuser nocreatedb nocreaterole noinherit;
+      revoke temporary on database eatbid_test from public;
       revoke all on database eatbid_test from eatbid_api;
       grant connect on database eatbid_test to eatbid_api;
       grant usage on schema core, mart, app, drizzle to eatbid_api;
       grant select on all tables in schema core, mart to eatbid_api;
       grant select, insert, update, delete on all tables in schema app to eatbid_api;
-      grant usage, select on all sequences in schema app to eatbid_api;
       grant select on drizzle.__drizzle_migrations to eatbid_api;
     `);
     api = postgres(apiUrl, {
@@ -190,13 +200,7 @@ describe("owner-scoped PostgreSQL boundary", () => {
         ["role change", () => api`create role api_escalation`],
         ["migration write", () => api`update drizzle.__drizzle_migrations set name = 'tampered'`],
       ] as const) {
-        let denied = false;
-        try {
-          await attack();
-        } catch {
-          denied = true;
-        }
-        expect(denied, `${name} must be denied`).toBe(true);
+        await expectDenied(name, attack);
       }
 
       const before = await owner`
@@ -272,6 +276,297 @@ describe("owner-scoped PostgreSQL boundary", () => {
       }
       expect(await owner`select count(*)::int as count from drizzle.__drizzle_migrations`)
         .toEqual([{ count: 7 }]);
+    });
+    expect(await taskContainers()).toEqual([]);
+  }, 120_000);
+
+  test("identity inserts need no sequence grant and readiness rejects sequence capability or ownership", async () => {
+    await withDisposableDatabase(async ({ owner, api }) => {
+      const readiness = createDatabaseReadiness(drizzle({ client: api }));
+      expect(await readiness.isReady()).toBe(true);
+      expect(await owner`
+        select
+          relation.relname as sequence_name,
+          has_sequence_privilege('eatbid_api', relation.oid, 'USAGE') as has_usage,
+          has_sequence_privilege('eatbid_api', relation.oid, 'SELECT') as has_select,
+          has_sequence_privilege('eatbid_api', relation.oid, 'UPDATE') as has_update
+        from pg_class relation
+        join pg_namespace namespace on namespace.oid = relation.relnamespace
+        where namespace.nspname = 'app' and relation.relkind = 'S'
+        order by relation.relname
+      `).toEqual([
+        {
+          sequence_name: "identity_subject_identity_subject_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
+          sequence_name: "principal_principal_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
+          sequence_name: "workspace_workspace_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+      ]);
+
+      await api`insert into app.principal default values`;
+      await api`delete from app.principal`;
+      await expectDenied("direct identity nextval", () =>
+        api`select nextval('app.principal_principal_id_seq')`);
+      await expectDenied("direct identity sequence SELECT", () =>
+        api`select last_value from app.principal_principal_id_seq`);
+      await expectDenied("direct identity setval", () =>
+        api`select setval('app.principal_principal_id_seq', 1, true)`);
+
+      const sequenceBefore = (await owner`
+        select last_value::text as last_value, is_called
+        from app.principal_principal_id_seq
+      `)[0]!;
+      await owner`grant usage on sequence app.principal_principal_id_seq to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        await api`select nextval('app.principal_principal_id_seq')`;
+      } finally {
+        await owner`revoke usage on sequence app.principal_principal_id_seq from eatbid_api`;
+        await owner`select setval(
+          'app.principal_principal_id_seq',
+          ${sequenceBefore.last_value}::bigint,
+          ${sequenceBefore.is_called}::boolean
+        )`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+
+      await owner`grant select on sequence app.principal_principal_id_seq to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        expect(await api`select last_value::text as last_value from app.principal_principal_id_seq`)
+          .toHaveLength(1);
+      } finally {
+        await owner`revoke select on sequence app.principal_principal_id_seq from eatbid_api`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+
+      await owner`grant update on sequence app.principal_principal_id_seq to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        await api`select setval(
+          'app.principal_principal_id_seq',
+          ${sequenceBefore.last_value}::bigint,
+          ${sequenceBefore.is_called}::boolean
+        )`;
+      } finally {
+        await owner`revoke update on sequence app.principal_principal_id_seq from eatbid_api`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+
+      await owner`alter table app.principal owner to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        expect(await owner`
+          select pg_get_userbyid(relation.relowner) as owner
+          from pg_class relation
+          join pg_namespace namespace on namespace.oid = relation.relnamespace
+          where namespace.nspname = 'app' and relation.relname = 'principal_principal_id_seq'
+        `).toEqual([{ owner: "eatbid_api" }]);
+        await api`alter table app.principal add column owner_attack bigint`;
+        await api`alter table app.principal drop column owner_attack`;
+      } finally {
+        await owner`alter table app.principal owner to eatbid_owner`;
+        await owner`grant select, insert, update, delete on table app.principal to eatbid_api`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+    });
+    expect(await taskContainers()).toEqual([]);
+  }, 120_000);
+
+  test("readiness rejects database, schema, table, ownership, flag, and role escalation", async () => {
+    await withDisposableDatabase(async ({ owner, api }) => {
+      const readiness = createDatabaseReadiness(drizzle({ client: api }));
+      const rejectsWhile = async (
+        enable: string,
+        restore: string,
+        dangerousOperation?: () => Promise<unknown>,
+      ): Promise<void> => {
+        await owner.unsafe(enable);
+        try {
+          expect(await readiness.isReady()).toBe(false);
+          await dangerousOperation?.();
+        } finally {
+          await owner.unsafe(restore);
+        }
+        expect(await readiness.isReady()).toBe(true);
+      };
+
+      expect(await readiness.isReady()).toBe(true);
+      await rejectsWhile(
+        "grant temporary on database eatbid_test to eatbid_api",
+        "revoke temporary on database eatbid_test from eatbid_api",
+        async () => {
+          const session = await api.reserve();
+          try {
+            await session`create temporary table api_temp_attack (id bigint)`;
+            await session`drop table api_temp_attack`;
+          } finally {
+            session.release();
+          }
+        },
+      );
+
+      for (const schema of ["core", "mart", "app", "ingest", "drizzle", "public"]) {
+        await rejectsWhile(
+          `grant create on schema ${schema} to eatbid_api`,
+          `revoke create on schema ${schema} from eatbid_api`,
+          schema === "ingest" ? undefined : async () => {
+            await api.unsafe(`create table ${schema}.api_create_attack (id bigint)`);
+            await api.unsafe(`drop table ${schema}.api_create_attack`);
+          },
+        );
+      }
+
+      for (const [table, capability] of [
+        ["app.principal", "TRUNCATE"],
+        ["app.workspace", "REFERENCES"],
+        ["app.workspace", "TRIGGER"],
+        ["core.auction_attempt", "TRUNCATE"],
+        ["core.auction_attempt", "REFERENCES"],
+        ["core.auction_attempt", "TRIGGER"],
+        ["mart.api_read_probe", "TRUNCATE"],
+        ["mart.api_read_probe", "REFERENCES"],
+        ["mart.api_read_probe", "TRIGGER"],
+        ["ingest.run", "TRUNCATE"],
+        ["drizzle.__drizzle_migrations", "TRUNCATE"],
+        ["drizzle.__drizzle_migrations", "REFERENCES"],
+        ["drizzle.__drizzle_migrations", "TRIGGER"],
+      ] as const) {
+        await rejectsWhile(
+          `grant ${capability} on table ${table} to eatbid_api`,
+          `revoke ${capability} on table ${table} from eatbid_api`,
+        );
+      }
+
+      await owner`grant truncate on table mart.api_read_probe to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        const rollback = new Error("rollback truncate attack");
+        let rollbackObserved: unknown;
+        try {
+          await api.begin(async (transaction) => {
+            await transaction`truncate table mart.api_read_probe`;
+            throw rollback;
+          });
+        } catch (error) {
+          rollbackObserved = error;
+        }
+        expect(rollbackObserved).toBe(rollback);
+        expect(await api`select * from mart.api_read_probe`).toEqual([{ probe_id: "1" }]);
+      } finally {
+        await owner`revoke truncate on table mart.api_read_probe from eatbid_api`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+
+      await owner`create table public.api_privilege_probe (id bigint)`;
+      try {
+        await rejectsWhile(
+          "grant select on table public.api_privilege_probe to eatbid_api",
+          "revoke select on table public.api_privilege_probe from eatbid_api",
+          () => api`select * from public.api_privilege_probe`,
+        );
+      } finally {
+        await owner`drop table public.api_privilege_probe`;
+      }
+
+      await owner`alter table mart.api_read_probe owner to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        await api`alter table mart.api_read_probe add column owner_attack bigint`;
+        await api`alter table mart.api_read_probe drop column owner_attack`;
+      } finally {
+        await owner`alter table mart.api_read_probe owner to eatbid_owner`;
+        await owner`grant select on table mart.api_read_probe to eatbid_api`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+
+      await owner`alter table drizzle.__drizzle_migrations owner to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        await api`update drizzle.__drizzle_migrations set name = name`;
+      } finally {
+        await owner`alter table drizzle.__drizzle_migrations owner to eatbid_owner`;
+        await owner`grant select on table drizzle.__drizzle_migrations to eatbid_api`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+
+      for (const [enable, restore] of [
+        ["superuser", "nosuperuser"],
+        ["createdb", "nocreatedb"],
+        ["createrole", "nocreaterole"],
+        ["replication", "noreplication"],
+        ["bypassrls", "nobypassrls"],
+        ["inherit", "noinherit"],
+        ["nologin", "login"],
+      ] as const) {
+        await rejectsWhile(
+          `alter role eatbid_api ${enable}`,
+          `alter role eatbid_api ${restore}`,
+        );
+      }
+
+      await owner`create role api_escalation_target createrole`;
+      await owner`grant api_escalation_target to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        const session = await api.reserve();
+        try {
+          await session`set role api_escalation_target`;
+          expect(await session`select current_user`).toEqual([{ current_user: "api_escalation_target" }]);
+          await session`reset role`;
+        } finally {
+          session.release();
+        }
+      } finally {
+        await owner`revoke api_escalation_target from eatbid_api`;
+        await owner`drop role api_escalation_target`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+
+      await owner`create role api_transitive_target createrole`;
+      await owner`create role api_escalation_hop`;
+      await owner`grant api_transitive_target to api_escalation_hop`;
+      await owner`grant api_escalation_hop to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        const session = await api.reserve();
+        try {
+          await session`set role api_transitive_target`;
+          expect(await session`select current_user`).toEqual([{ current_user: "api_transitive_target" }]);
+          await session`reset role`;
+        } finally {
+          session.release();
+        }
+      } finally {
+        await owner`revoke api_escalation_hop from eatbid_api`;
+        await owner`revoke api_transitive_target from api_escalation_hop`;
+        await owner`drop role api_escalation_hop`;
+        await owner`drop role api_transitive_target`;
+      }
+      expect(await readiness.isReady()).toBe(true);
+
+      await owner`alter database eatbid_test owner to eatbid_api`;
+      try {
+        expect(await readiness.isReady()).toBe(false);
+        await api`create schema api_database_owner_attack`;
+        await api`drop schema api_database_owner_attack`;
+      } finally {
+        await owner`alter database eatbid_test owner to eatbid_owner`;
+        await owner`grant connect on database eatbid_test to eatbid_api`;
+      }
+      expect(await readiness.isReady()).toBe(true);
     });
     expect(await taskContainers()).toEqual([]);
   }, 120_000);

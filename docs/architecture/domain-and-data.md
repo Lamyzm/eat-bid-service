@@ -148,8 +148,9 @@ FK로 사용하지 않는다. `packages/shared`의 기존 문자열 user/workspa
 API role은 이 application-owned 테이블만 읽고 쓸 수 있으며 schema 생성 권한은 갖지 않는다.
 
 JSON은 bigint를 직접 표현하지 못하므로 HTTP path/response에서는 내부 ID를 선행 0 없는 양의 10진 문자열로
-인코딩한다. presentation boundary가 이를 bigint로 변환하며 application/domain과 DB 관계는 계속 bigint다.
-`Number`로 변환하지 않고 `MAX_SAFE_INTEGER`를 넘는 ID를 계약 테스트로 검증한다. 상세 결정은
+인코딩하되 PostgreSQL signed bigint 최대값 `9223372036854775807`을 넘지 않는다. presentation boundary가
+이를 bigint로 변환하며 application/domain과 DB 관계는 계속 bigint다. `Number`로 변환하지 않고
+`MAX_SAFE_INTEGER`를 넘는 ID와 signed 최대값/초과값을 계약 테스트로 검증한다. 상세 결정은
 [ADR 0018](../adr/0018-application-identity-and-id-wire-format.md)을 따른다.
 
 첫 canonical read인 `GET /api/v1/auctions/{auctionId}`는 `AuctionAttempt` bigint ID로 최신 revision을

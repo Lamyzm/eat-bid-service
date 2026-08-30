@@ -20,6 +20,21 @@ Secret readiness, access scope, and connectivity must be verified before the dor
 product composition is wired to the live Argo CD Application or any schedule is resumed.
 
 The API role may read `core`/`mart` and read/write only application-owned `app` tables. It
-must not own the database or schemas, create roles/databases/objects, write `core`/`mart`,
-access `ingest`, or modify `drizzle.__drizzle_migrations`. The migrator is the only runtime
-consumer permitted to apply committed Drizzle migrations. No Secret value is committed.
+must be `LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+have no direct or transitive role memberships, and receive only `CONNECT` at database scope.
+Because PostgreSQL grants `TEMPORARY` to `PUBLIC` by default, provisioning must revoke it from
+`PUBLIC`; the API role must have neither `TEMPORARY` nor `CREATE` on the database.
+
+At schema/object scope it receives `USAGE` on `core`, `mart`, `app`, and `drizzle`; `SELECT`
+on every `core`/`mart` table; `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on every module-owned
+`app` table; and `SELECT` only on `drizzle.__drizzle_migrations`. It receives no `ingest`
+access, no table privilege in `public`, and no `CREATE` on `core`, `mart`, `app`, `ingest`,
+`drizzle`, or `public`. `TRUNCATE`, `REFERENCES`, and `TRIGGER` are forbidden everywhere, as
+are protected-table writes and every non-`SELECT` migration-journal privilege. The role owns
+no relevant database, relation, sequence, view, routine, or type.
+
+The current `app` keys are PostgreSQL 16 `GENERATED ALWAYS AS IDENTITY`: inserting default
+identity values needs no sequence ACL. Provisioning therefore grants the API role none of
+`USAGE`, `SELECT`, or `UPDATE` on any sequence; direct `nextval`, sequence reads, and `setval`
+remain denied. The migrator is the only runtime consumer permitted to apply committed Drizzle
+migrations. No Secret value is committed.

@@ -1,22 +1,33 @@
 import { z } from "zod";
 
-export const canonicalPositiveDecimalSchema = z.string().regex(/^[1-9][0-9]*$/);
+const postgresSignedBigintMax = "9223372036854775807";
+
+export const canonicalPositiveDecimalSchema = z.string()
+  .max(19)
+  .regex(/^[1-9][0-9]*$/)
+  .refine((value) => value.length < postgresSignedBigintMax.length
+    || value.length === postgresSignedBigintMax.length && value <= postgresSignedBigintMax, {
+    message: "Must fit a PostgreSQL signed bigint",
+  });
 
 export const auctionIdPathSchema = canonicalPositiveDecimalSchema.meta({
   id: "AuctionId",
-  description: "Lossless positive bigint encoded as a canonical decimal string.",
+  description: "Lossless positive PostgreSQL bigint encoded as a canonical decimal string.",
   example: "9007199254740993",
 });
 
-const nullableTimestamp = z.iso.datetime({ offset: true }).nullable();
-const nullableDecimal = z.string().regex(/^[0-9]+(?:\.[0-9]+)?$/).nullable();
+const nullableTimestamp = z.iso.datetime({ offset: true }).max(35).nullable();
+const nullableDecimal = z.string()
+  .max(19)
+  .regex(/^(?:0|[1-9][0-9]{0,15})\.[0-9]{2}$/)
+  .nullable();
 
 export const auctionResponseSchema = z.strictObject({
   auctionId: canonicalPositiveDecimalSchema,
   revisionId: canonicalPositiveDecimalSchema,
-  title: z.string().min(1),
-  status: z.string().min(1),
-  displayBidNumber: z.string().min(1).nullable(),
+  title: z.string().min(1).max(512),
+  status: z.string().min(1).max(64),
+  displayBidNumber: z.string().min(1).max(128).nullable(),
   announcedAt: nullableTimestamp,
   deadlineAt: nullableTimestamp,
   openedAt: nullableTimestamp,
@@ -24,8 +35,8 @@ export const auctionResponseSchema = z.strictObject({
   plannedAmount: nullableDecimal,
   currency: z.string().regex(/^[A-Z]{3}$/),
   provenance: z.strictObject({
-    sourceSystem: z.string().min(1),
-    externalBidId: z.string().min(1),
+    sourceSystem: z.string().min(1).max(64),
+    externalBidId: z.string().min(1).max(512),
     observationId: canonicalPositiveDecimalSchema,
     normalizedRecordId: canonicalPositiveDecimalSchema,
     contentSha256: z.string().regex(/^[0-9a-f]{64}$/),

@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import request from "supertest";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
+import type { AuctionReader } from "../modules/procurement/application/auction-reader";
 
 const publicAuction = {
   auctionId: 9_007_199_254_740_993n,
@@ -32,7 +33,7 @@ const environment = parseEnvironment({
 });
 
 async function withServer(
-  reader: { findById(id: bigint): Promise<typeof publicAuction | null> },
+  reader: AuctionReader,
   run: (server: Server) => Promise<void>,
 ): Promise<void> {
   const runtime = await createApp({
@@ -85,6 +86,24 @@ describe("canonical procurement HTTP slice", () => {
     });
   });
 
+  test("round-trips PostgreSQL bigint max and rejects one-over before the repository", async () => {
+    const observed: bigint[] = [];
+    await withServer({
+      findById: async (id) => {
+        observed.push(id);
+        return { ...publicAuction, auctionId: id };
+      },
+    }, async (server) => {
+      const maximum = await request(server).get("/api/v1/auctions/9223372036854775807");
+      expect(maximum.status).toBe(200);
+      expect(maximum.body.auctionId).toBe("9223372036854775807");
+      const oneOver = await request(server).get("/api/v1/auctions/9223372036854775808");
+      expect(oneOver.status).toBe(400);
+      expect(oneOver.body.code).toBe("VALIDATION_ERROR");
+      expect(observed).toEqual([9_223_372_036_854_775_807n]);
+    });
+  });
+
   test("rejects every non-canonical ID before the repository and never accepts a business key", async () => {
     let calls = 0;
     await withServer({ findById: async () => { calls += 1; return publicAuction; } }, async (server) => {
@@ -108,6 +127,17 @@ describe("canonical procurement HTTP slice", () => {
       expect(response.status).toBe(503);
       expect(response.body.code).toBe("DEPENDENCY_UNAVAILABLE");
       expect(JSON.stringify(response.body)).not.toContain("database offline");
+    });
+  });
+
+  test("fails closed when a repository value exceeds the bounded public contract", async () => {
+    await withServer({
+      findById: async () => ({ ...publicAuction, title: "t".repeat(513) }),
+    }, async (server) => {
+      const response = await request(server).get("/api/v1/auctions/41");
+      expect(response.status).toBe(500);
+      expect(response.body.code).toBe("INTERNAL_ERROR");
+      expect(JSON.stringify(response.body)).not.toContain("t".repeat(513));
     });
   });
 });

@@ -174,3 +174,153 @@ Effect `4.0.0-rc.112`, and a closed application context.
 - Normal root install prints the existing ignored `@scarf/scarf` build and Husky worktree `.git` warnings.
 
 No blocking concern remains.
+
+---
+
+## Fix round 1
+
+### Scope and outcome
+
+Fix round 1 started from reviewed Task 3 commit
+`27d6e6a0b9b24fef3a3a231464b709bd5e710b89` and addresses all three findings without adding
+DDL, migrations, dependencies, runtime mutation, or a broader endpoint. Readiness now proves the connected API
+role has exactly the approved capabilities, the signed-bigint/public response boundaries are finite, and the
+production role contract documents the PostgreSQL 16 behavior verified below. The generated OpenAPI artifact was
+regenerated only for the stricter public string lengths/patterns.
+
+### Round 1 RED evidence
+
+Tests were extended before production implementation.
+
+- `pnpm --filter @eatbid/contracts test` — meaningful RED: 2 passed / 2 failed. The signed bigint one-over value
+  `9223372036854775808` and the newly oversized public strings/amounts were still accepted.
+- Focused domain/HTTP execution — meaningful RED: 3 passed / 3 failed. The domain accepted signed-bigint
+  one-over; the one-over path returned 200 instead of 400; and an oversized repository title escaped as 200
+  instead of failing the strict response boundary with 500.
+- The isolated real PostgreSQL sequence case first proved baseline identity INSERT with zero sequence ACL, then
+  granted sequence `USAGE`: the operation became usable while the old readiness result incorrectly remained
+  true.
+- The isolated real PostgreSQL escalation case granted database `TEMPORARY`: a temporary table became creatable
+  while the old readiness result incorrectly remained true.
+- Additional RED cases covered `CREATE` on all six relevant schemas, protected/app/migration table capabilities,
+  object/database ownership, unsafe role flags, direct and transitive role escalation, and sequence
+  `USAGE`/`SELECT`/`UPDATE`/ownership. Each case restores owner state and expects readiness to return true again.
+
+An unexpected Bun timeout was diagnosed rather than weakening an assertion. `pg_stat_activity` showed the SQL
+had completed and the postgres-js API session was `idle in transaction` after `BEGIN`; Bun's
+`.resolves`/`.rejects` matcher path retained the postgres-js thenable. Explicit `await` plus ordinary boolean or
+caught-error identity assertions returns immediately and preserves the same readiness/rollback checks. The
+interrupted exact container `eatbid-gate16-3-6528-1788060464166` was force-removed after resolving it through the
+task label. Earlier isolated diagnostics similarly removed
+`eatbid-gate16-3-82408-1788059633290`, `eatbid-gate16-3-27280-1788059846403`, and
+`eatbid-gate16-3-72500-1788059947084`.
+
+### Least-privilege implementation and attacks
+
+The single read-only catalog query now requires the exact committed migration, `LOGIN NOINHERIT`, database
+`CONNECT`, schema `USAGE` on only `core`/`mart`/`app`/`drizzle`, SELECT on every current core/mart relation, all
+four ordinary DML privileges on every current module-owned app relation, and SELECT on the migration journal. It
+fails closed for:
+
+- `SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, `BYPASSRLS`, `INHERIT`, `NOLOGIN`, database ownership,
+  database `CREATE` or `TEMPORARY`, and any direct/transitive `MEMBER` or `SET ROLE` path;
+- `CREATE` on `core`, `mart`, `app`, `ingest`, `drizzle`, or `public`;
+- ownership of a relation/sequence/view/routine/type in the six relevant schemas;
+- protected relation `INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`/`REFERENCES`/`TRIGGER`, app
+  `TRUNCATE`/`REFERENCES`/`TRIGGER`, any ingest/public table privilege, or any migration relation capability
+  beyond journal SELECT; and
+- any `USAGE`, `SELECT`, or `UPDATE` on every relevant sequence.
+
+The disposable attacks prove real capability where it is independently usable: database TEMP creates a temp
+table; schema CREATE creates and drops attack tables (the ingest-only CREATE grant is detected but is not usable
+without the intentionally absent USAGE); mart TRUNCATE executes inside a deliberately rolled-back transaction;
+public SELECT reads a probe; app/mart/migration ownership enables ALTER or UPDATE; database ownership enables
+schema DDL; sequence grants enable `nextval`, `last_value`, or `setval`; and both direct and transitive membership
+enable `SET ROLE` to a `CREATEROLE` target. Every grant/owner/flag/membership is restored before the next case.
+
+Provisioning documentation now explicitly requires `REVOKE TEMPORARY ... FROM PUBLIC`, zero sequence ACL, zero
+role membership, the safe role flags, no ownership, no schema CREATE, and the exact per-schema/table privileges.
+The server still only detects drift and never changes grants or schema.
+
+### PostgreSQL 16 identity-sequence ruling
+
+The pinned image is
+`postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416`.
+The final standalone disposable probe created otherwise-equivalent
+`GENERATED ALWAYS AS IDENTITY` and `BIGSERIAL` tables, granted the API table INSERT but revoked every sequence
+ACL, and produced:
+
+```text
+INSERT into identity: exit 0, one row inserted
+INSERT into BIGSERIAL: exit 1, permission denied for sequence bigserial_probe_id_seq
+nextval(identity sequence): exit 1, permission denied
+identity sequence USAGE/SELECT/UPDATE: false/false/false
+TASK_CONTAINERS=0
+```
+
+Therefore the true minimum for the three current module-owned `app` identity sequences is zero API sequence
+privileges. The integration catalog assertion enumerates all three exact sequences and proves
+USAGE/SELECT/UPDATE are false. Identity default INSERT still succeeds; direct `nextval`, sequence SELECT, and
+`setval` fail. Granting any one capability or transferring the owning identity table/sequence to the API role
+makes readiness false and demonstrates the dangerous operation. This preserves the reviewer's useful BIGSERIAL
+contrast without applying serial semantics to the actual identity DDL. The first standalone probe observed the
+official container's temporary bootstrap server before its restart; its `finally` removed the exact labeled
+container, and the successful rerun gated on the second ready event.
+
+### Signed bigint and bounded public contract
+
+Canonical IDs retain `^[1-9][0-9]*$`, have a 19-character allocation bound, and refine lexically against exact
+PostgreSQL signed bigint maximum `9223372036854775807` without `Number`. Domain construction enforces the same
+maximum. HTTP tests prove the maximum round-trips, `9007199254740993` remains exact, and one-over returns 400
+before repository invocation.
+
+The strict response contract now caps title 512, status 64, nullable display bid number 128, ISO timestamp 35,
+source system 64, and external ID 512 characters. Currency remains exactly three uppercase characters and the
+content hash exactly 64 lowercase hex characters. Amounts now exactly model non-negative PostgreSQL
+`numeric(18,2)`: at most 16 integer digits and exactly two fractional digits (19 characters including the decimal
+point). These are intentionally finite HTTP allocation limits even where canonical DB source text remains
+unbounded. Boundary/one-over tests cover every field, and an oversized adapter result proves output validation
+fails closed with 500 rather than leaking an unbounded response.
+
+### Round 1 migration, install, and cleanup evidence
+
+- Strict real backend closure install:
+  `pnpm install --filter @eatbid/server... --frozen-lockfile --strict-peer-dependencies` — exit 0.
+- Strict backend lockfile-only install:
+  `pnpm install --filter @eatbid/server... --lockfile-only --frozen-lockfile --strict-peer-dependencies` — exit 0.
+- Normal full workspace install: `pnpm install --frozen-lockfile` — exit 0; lockfile unchanged.
+- After explicitly staging the already-reviewed DB schema/migration/version baseline,
+  `pnpm --filter @eatbid/db db:generate` ran twice; both reported `No schema changes, nothing to migrate`.
+  Schema/migration/version unstaged diff was zero and untracked schema/migration count was zero.
+- The focused integration suite double-applied the committed chain in each disposable database and still checked
+  the exact expected journal row. The real server startup left the journal at seven rows, so no startup mutation
+  was introduced.
+- `docker ps -a --filter label=eatbid.task=gate16-3 --format '{{.Names}}'` was empty after the focused suite, full
+  suite, interrupted diagnostics, failed standalone bootstrap observation, and final successful sequence probe.
+
+### Round 1 focused, reverse, and full GREEN evidence
+
+- `pnpm --filter @eatbid/db test` — 77 passed, 0 failed, 273 assertions; `db:check` passed.
+- `pnpm --filter @eatbid/contracts test` — 4 passed, 0 failed, 40 assertions.
+- `pnpm --filter @eatbid/server test` — 86 passed, 0 failed, 462 assertions across 21 files.
+- `pnpm --filter @eatbid/server test:integration` — 4 passed, 0 failed, 120 assertions.
+- `pnpm --filter @eatbid/server test:e2e` — 18 passed, 0 failed, 205 assertions.
+- Server architecture — 0 violations; OpenAPI check matched; server TypeScript build passed.
+- Reverse Gate 16.2 infrastructure — 125 passed; contracts/server/e2e/OpenAPI/architecture remained green.
+- Reverse Gate 16.1 — server build, architecture, and `dev:smoke` 1/1 passed.
+- `pnpm test` — root Bun 120, contracts 4, server 86 passed; 0 failed.
+- Full Python matrix — 585 passed with the existing Windows cp949 reader warning; Ruff all checks passed; Pyright
+  0 errors/0 warnings/0 information.
+- `node tools/architecture/check-stack-docs.mjs` passed; `pnpm exec turbo build --force` completed 5/5 with zero
+  cached.
+- `docker build --file Dockerfile.server --tag eatbid-server:task16-3-fix1 .` passed using exact Node
+  `24.20.0-slim` digest and a strict backend install. The runtime probe returned Node `v24.20.0`, Nest `12.0.1`,
+  Effect `4.0.0-rc.112`, and `applicationContextClosed: true`.
+
+### Round 1 warnings and concerns
+
+The host remains Node `v24.2.0` versus the repository engine `24.20.0`; the pinned container supplied the
+authoritative exact-runtime result. Existing non-blocking warnings remain unchanged: the Python cp949 subprocess
+reader warning, Next's multiple-lockfile/Google Sans fallback warnings, ignored `@scarf/scarf`, the Husky worktree
+message, Docker's Node `url.parse()` deprecation, and legacy pnpm deploy warning. No frontend override or change
+was made. No blocking concern remains.

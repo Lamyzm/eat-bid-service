@@ -7,17 +7,20 @@
         "properties": {
           "announcedAt": {
             "format": "date-time",
+            "maxLength": 35,
             "nullable": true,
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
             "type": "string"
           },
           "auctionId": {
+            "maxLength": 19,
             "pattern": "^[1-9][0-9]*$",
             "type": "string"
           },
           "baseAmount": {
+            "maxLength": 19,
             "nullable": true,
-            "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+            "pattern": "^(?:0|[1-9][0-9]{0,15})\\.[0-9]{2}$",
             "type": "string"
           },
           "currency": {
@@ -26,24 +29,28 @@
           },
           "deadlineAt": {
             "format": "date-time",
+            "maxLength": 35,
             "nullable": true,
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
             "type": "string"
           },
           "displayBidNumber": {
+            "maxLength": 128,
             "minLength": 1,
             "nullable": true,
             "type": "string"
           },
           "openedAt": {
             "format": "date-time",
+            "maxLength": 35,
             "nullable": true,
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
             "type": "string"
           },
           "plannedAmount": {
+            "maxLength": 19,
             "nullable": true,
-            "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+            "pattern": "^(?:0|[1-9][0-9]{0,15})\\.[0-9]{2}$",
             "type": "string"
           },
           "provenance": {
@@ -54,18 +61,22 @@
                 "type": "string"
               },
               "externalBidId": {
+                "maxLength": 512,
                 "minLength": 1,
                 "type": "string"
               },
               "normalizedRecordId": {
+                "maxLength": 19,
                 "pattern": "^[1-9][0-9]*$",
                 "type": "string"
               },
               "observationId": {
+                "maxLength": 19,
                 "pattern": "^[1-9][0-9]*$",
                 "type": "string"
               },
               "sourceSystem": {
+                "maxLength": 64,
                 "minLength": 1,
                 "type": "string"
               }
@@ -80,14 +91,17 @@
             "type": "object"
           },
           "revisionId": {
+            "maxLength": 19,
             "pattern": "^[1-9][0-9]*$",
             "type": "string"
           },
           "status": {
+            "maxLength": 64,
             "minLength": 1,
             "type": "string"
           },
           "title": {
+            "maxLength": 512,
             "minLength": 1,
             "type": "string"
           }

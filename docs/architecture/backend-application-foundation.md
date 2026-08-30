@@ -192,19 +192,24 @@ use case의 환경 type은 controller에 도달할 때 `never`여야 한다. 요
 export하지 않는다. 현재 공개 provider는 database readiness, explicit UnitOfWork, procurement
 `AuctionReader`처럼 목적이 정해진 port뿐이다. readiness는 exact committed journal row와 API role의
 필수/금지 권한을 read-only query 하나로 확인한다. server startup은 migration, role 생성, grant, seed를
-수행하지 않는다.
+수행하지 않는다. 검사는 database `CONNECT`만 허용하고 `CREATE`/`TEMP`를 금지하며, 여섯 schema의
+`CREATE`, protected/application/migration object ownership, `TRUNCATE`/`REFERENCES`/`TRIGGER`, 모든
+sequence ACL, role flag와 direct/transitive `SET ROLE` 경로를 fail-closed로 거부한다. PostgreSQL의
+기본 `PUBLIC TEMPORARY` grant도 provisioning에서 명시적으로 revoke해야 한다.
 
 운영 credential은 `eatbid-postgres-bootstrap`, `eatbid-database-migrator`,
 `eatbid-database-api`, dormant `eatbid-database-dataplane`으로 분리한다. API credential은 DB/schema owner가
 아니며 `core`/`mart` SELECT와 module-owned `app` DML만 허용한다. disposable integration setup의 admin만
 테스트 role/grant를 만들고, 같은 테스트에서 DDL/core·mart write/ingest/role change/migration journal write
-공격이 거부되는지 검증한다.
+공격이 거부되는지 검증한다. `app` PK는 PostgreSQL 16 `GENERATED ALWAYS AS IDENTITY`라 default insert에
+sequence grant가 필요하지 않으므로 API role은 sequence `USAGE`/`SELECT`/`UPDATE`를 하나도 받지 않는다.
 
 ## 7. HTTP와 OpenAPI
 
 - canonical resource URL은 문자열 이름이 아니라 bigint stable ID를 사용한다. JSON/path에서는
   `^[1-9][0-9]*$` decimal string으로 무손실 인코딩하고 presentation boundary에서 bigint로 변환한다.
-  `Number`를 거치지 않으며 `MAX_SAFE_INTEGER` 초과 ID도 동일하게 왕복해야 한다.
+  값은 PostgreSQL signed bigint 최대값 `9223372036854775807` 이하이고, `Number`를 거치지 않으며
+  `MAX_SAFE_INTEGER` 초과 ID도 동일하게 왕복해야 한다.
 - `/api/v1`은 새 계약, `/api/auth/*`와 `/health/*`는 version-neutral이다.
 - request와 response를 각각 Zod schema로 검증한다. output schema는 secret/internal column을 제거하는
   security boundary다.
