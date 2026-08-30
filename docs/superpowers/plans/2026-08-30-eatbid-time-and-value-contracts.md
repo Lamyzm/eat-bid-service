@@ -1,8 +1,8 @@
 # Eatbid Time and Semantic Value Contracts Implementation Plan
 
-> **PAUSED — DO NOT EXECUTE:** ADR 0021 changed the contract topology to a Zod portable contract hub,
-> generated Pydantic bridge, and native nested composition. This plan predates that decision and must be
-> replaced after the revised written spec is reviewed. Its task details are historical input only.
+> **SUPERSEDED — DO NOT EXECUTE:** ADR 0021 changed the contract topology to a Zod portable contract hub,
+> generated Pydantic bridge, and native nested composition. Execute
+> `docs/superpowers/plans/2026-08-30-eatbid-portable-contract-hub-and-semantic-values.md` instead.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

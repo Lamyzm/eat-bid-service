@@ -1,7 +1,7 @@
 # Eatbid 시간·단위·Zod 계약 설계 스펙
 
 - Date: 2026-08-30
-- Status: Design approved; written revision awaiting review
+- Status: Approved; implementation authorized
 - Approval: 사용자가 시간뿐 아니라 금액·비율·수량·용량·좌표를 1차 기반 범위로 승인하고
   Zod-first portable contract hub, 생성된 Python 계약, Zod native composition, Immer 기반 비채택을 승인함
 - Scope: 신규 backend/domain/contracts/db/dataplane 기반과 정적 품질 gate. frontend 동작 변경은 제외.
