@@ -14,6 +14,8 @@
     "test:quality": "node --test tools/architecture/*.test.mjs tools/quality/*.test.mjs",
     "contracts:generate": "pnpm --filter @eatbid/contracts contracts:generate",
     "contracts:check": "pnpm --filter @eatbid/contracts contracts:check",
+    "contracts:python:generate": "uv run --project apps/dataplane python apps/dataplane/scripts/generate_contract_models.py --write",
+    "contracts:python:check": "uv run --project apps/dataplane python apps/dataplane/scripts/generate_contract_models.py --check",
     "db:generate": "pnpm --filter @eatbid/db db:generate",
     "db:check": "pnpm --filter @eatbid/db db:check",
     "db:migrate": "pnpm --filter @eatbid/db db:migrate",

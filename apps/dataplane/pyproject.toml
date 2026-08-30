@@ -21,6 +21,7 @@ eatbid = "eatbid.cli:main"
 
 [dependency-groups]
 dev = [
+    "datamodel-code-generator==0.76.0",
     "hypothesis>=6,<7",
     "pyright>=1.1.400,<2",
     "pytest>=8.4,<10",

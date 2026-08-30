@@ -59,6 +59,19 @@ describe("portable 계약 registry와 JSON Schema emitter", () => {
     expectRecursivelySorted(document);
   });
 
+  test("InstantText는 Python generator가 소비할 단일 scalar pattern으로 생성된다", async () => {
+    const { emitIngestionV1Schema } = await import("./generate-json-schema");
+    const directory = await mkdtemp(join(tmpdir(), "eatbid-contracts-instant-"));
+    temporaryDirectories.push(directory);
+    const schemaPath = await emitIngestionV1Schema(directory);
+    const document = JSON.parse(await readFile(schemaPath, "utf8"));
+    const instantText = document.$defs.InstantText;
+
+    expect(instantText.type).toBe("string");
+    expect(typeof instantText.pattern).toBe("string");
+    expect(instantText).not.toHaveProperty("allOf");
+  });
+
   test("check mode는 임시 생성물과 비교하고 추적 artifact를 다시 쓰지 않는다", async () => {
     const { checkIngestionV1Schema, ingestionV1SchemaPath } = await import("./generate-json-schema");
     const beforeBytes = await readFile(ingestionV1SchemaPath);
