@@ -25,6 +25,26 @@ const dispositions = new Set([
   "Deferred",
   "Rejected for foundation",
 ]);
+const requiredContractEvidence = [
+  "packages/contracts",
+  "Zod",
+  "packages/domain",
+  "packages/db",
+  "source Pydantic",
+  "generated normalized Pydantic",
+  "AuctionRecord",
+  "AuctionV1Response",
+  "apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts",
+  "mapAuctionRow",
+  "postgresInstant",
+  "packages/domain/src/time/clock.ts",
+  "systemClock",
+  "pnpm architecture:check",
+  "pnpm contracts:check",
+  "pnpm contracts:python:check",
+  "tools/architecture/check-semantic-values.mjs",
+  "tools/quality/check-python-semantic-values.py",
+];
 const failures = [];
 
 function display(file) {
@@ -140,6 +160,13 @@ for (const audit of audits) {
   }
   checkDecisionTable(file, markdown);
   checkLocalLinks(file, markdown);
+  if (audit === "contracts-and-validation.md") {
+    for (const evidence of requiredContractEvidence) {
+      if (!markdown.includes(evidence)) {
+        failures.push(`Missing enforced contract evidence in ${display(file)}: ${evidence}`);
+      }
+    }
+  }
 }
 
 if (failures.length) {

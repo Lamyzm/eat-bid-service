@@ -113,7 +113,7 @@ packages/contracts/src/
 packages/contracts/generated/
 └─ ingestion-v1.schema.json
 
-apps/dataplane/src/eatbid/contracts/generated/
+apps/dataplane/src/eatbid/generated/
 └─ ingestion_v1.py
 ```
 
@@ -221,7 +221,17 @@ latitude/longitude는 finite number와 법정 범위를 검증한다. 좌표만�
 
 입력은 이 순서의 역방향이다. `schema.parse`만 통과한 원시 object를 application에 넘기지 않고,
 codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반대로 DB row를 controller가 직접
-반환하거나 `as AuctionResponse`로 검증을 생략하는 것도 금지한다.
+반환하거나 type assertion으로 검증을 생략하는 것도 금지한다. `AuctionRecord`는 application 내부 port,
+공개 wire는 Zod에서 추론한 `AuctionV1Response`다. 제거한 TypeScript-only `AuctionResponse`는 import할 수
+없어야 하며 compile-time consumer fixture가 그 API surface를 고정한다.
+
+### 이름 붙은 시간·DB adapter
+
+- `packages/domain/src/time/clock.ts`의 `systemClock`만 `Temporal.Now.instant()`를 호출한다.
+- `apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts`의 `AuctionRow`만
+  PostgreSQL driver `Date | string`을 받고, `postgresInstant`가 즉시 Temporal로 닫으며 `mapAuctionRow`가
+  semantic `AuctionRecord`를 만든다.
+- 위 경로와 symbol 이름은 exact exception이다. 디렉터리·substring·새 adapter 일반 예외가 아니다.
 
 ## 8. 정적 품질 gate와 예외
 
@@ -236,9 +246,26 @@ codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반
 - portable registry의 codec/transform/runtime custom predicate
 - naive Python datetime과 float money/rate normalization
 
-레거시 예외 ledger는 파일·구문·이유·제거 gate를 고정한다. line number만 기록해 이동으로 우회하지
-않고 AST fingerprint로 재생성/감소를 검증한다. 신규 server/domain/contracts/db/dataplane에는 일반
+portable registry는 registry entry에서 도달 가능한 schema graph 전체를 검사한다. 따라서 alias나
+조건부 branch에 숨긴 codec·transform·runtime custom predicate도 실패한다. registry 밖 adjacent codec이
+guarded output을 위해 쓰는 `z.custom`까지 전역 금지하지는 않는다.
+
+레거시 예외 ledger는 exact repository path, AST node kind, normalized node text SHA-256, 이유, 제거 gate와
+동일 fingerprint의 multiplicity를 고정한다. line number만 기록해 이동으로 우회하지 않고 감소/삭제만
+허용하며 추가·text drift·동일 node 복제를 거부한다. 신규 server/domain/contracts/db/dataplane에는 일반
 예외를 허용하지 않는다.
+
+CI와 로컬의 권위 명령은 다음과 같다.
+
+```text
+pnpm architecture:check
+pnpm test:quality
+pnpm contracts:check
+pnpm contracts:python:check
+```
+
+두 contract check는 임시 생성물과 커밋 artifact를 비교할 뿐 추적 파일을 쓰지 않는다. CI는 pnpm/uv
+frozen install을 먼저 마친 뒤 이 drift gate를 실행한다.
 
 ## 9. 단계적 전환
 
@@ -252,3 +279,5 @@ codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반
 
 frontend cutover 전에도 새 backend 계약은 단위를 잃지 않는다. web chart/map adapter가 일시적으로
 number를 필요로 하면 근사 presentation value임을 명시하고 canonical 판단에는 재사용하지 않는다.
+누락 좌표를 이름 lookup으로 canonical 위치에 채우는 것도 이 단계의 범위가 아니며, CRS/provenance
+계약을 소비하는 별도 Argo enrichment/backfill이 필요하다.

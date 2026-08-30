@@ -101,6 +101,11 @@ Source adapter는 transport/payload 해석만 담당하고 canonical projector�
 normalized interchange를 검증한다. dataplane은 product server HTTP를 거치지 않고 제한된 DB role로
 발행한다.
 
+Application `AuctionRecord`는 내부 read port이지 public wire DTO가 아니다. PostgreSQL row adapter는
+`apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts`의 `AuctionRow`,
+`postgresInstant`, `mapAuctionRow`에서만 driver `Date | string`을 받아 즉시 Temporal/domain 값으로
+닫는다. HTTP는 `packages/contracts` Zod schema에서 추론한 `AuctionV1Response`를 검증해 내보낸다.
+
 ## 6. 런타임 뷰
 
 ### 열린 공고 갱신
@@ -130,6 +135,11 @@ CI는 한 Git SHA로 web/server/dataplane image와 migration artifact를 만들�
 Argo CD의 platform application은 CRD/controller/storage 기반을, product application은 migration,
 web/server, WorkflowTemplate/CronWorkflow를 동기화한다. 데이터 작업 자체는 Argo Workflows가 실행한다.
 
+CI는 `pnpm install --frozen-lockfile`과 `uv sync --frozen` 뒤 `pnpm architecture:check`를 먼저 실행한다.
+이 root gate는 stack 문서, TypeScript/Python semantic AST, 한국어 테스트 명세, JSON Schema와 generated
+Pydantic drift를 check mode로 검증하고 추적 artifact를 다시 쓰지 않는다. 개별 drift 진단 명령은
+`pnpm contracts:check`, `pnpm contracts:python:check`다.
+
 초기 k3d는 단일 장애점이다. R2 raw와 PostgreSQL backup/restore가 생존 전략이며, 고가용성이
 필요해지면 CloudNativePG 또는 managed PostgreSQL과 다중 노드 cluster를 별도 ADR로 선택한다.
 
@@ -144,6 +154,9 @@ web/server, WorkflowTemplate/CronWorkflow를 동기화한다. 데이터 작업 �
 - 수량·바이트·좌표·합성 지표는 목적과 단위/분모가 드러나는 타입과 Zod metadata를 가진다.
 - Zod interchange/API wire, domain value, Drizzle row, source/generated Pydantic의 권위와 변환 방향은
   [time-and-value-contracts.md](time-and-value-contracts.md)를 따른다.
+- ambient `Temporal.Now`는 `packages/domain/src/time/clock.ts`의 `systemClock` 한 곳만 호출한다.
+- frontend contract cutover와 이름 기반 좌표 enrichment는 foundation 비목표이며 각각 공동 설계와
+  provenance를 보존하는 별도 Argo 계획이 필요하다.
 
 ### 데이터 품질
 

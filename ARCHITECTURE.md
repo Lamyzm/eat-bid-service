@@ -90,6 +90,20 @@ flowchart LR
 `core`는 “그 관측을 현재 어떤 규칙으로 해석했는가”, `app`은 “사용자가 무엇을 기록했는가”에
 각각 답한다. `mart`는 그 셋을 대신하지 않는다.
 
+## 계약 권위와 강제 경로
+
+`packages/domain`은 의미와 불변식, `packages/contracts`는 canonical/public Zod wire,
+`packages/db`는 Drizzle DDL, source Pydantic은 eaT 원본 shape의 권위다. normalized Pydantic만
+versioned JSON Schema에서 생성한다. application `AuctionRecord`는 DB row와 public JSON 사이의 내부
+port이고, 공개 응답은 Zod에서 추론한 `AuctionV1Response`다. Argo Workflows의 dataplane은 generated
+ingestion contract를 검증한 뒤 product server HTTP를 거치지 않고 제한된 DB role로 PostgreSQL에
+직접 발행한다.
+
+정적 topology/semantic gate와 양 언어 생성 drift는 `pnpm architecture:check`가 한 번에 검증한다.
+개별 생성물은 `pnpm contracts:check`, `pnpm contracts:python:check`로 check mode에서 확인한다.
+frontend contract cutover와 이름 lookup 기반 좌표 backfill은 이 foundation의 비목표이며, 각각 사용자
+공동 설계와 별도 Argo enrichment 계획 뒤에만 진행한다.
+
 ## 문서 지도
 
 - [아키텍처 문서 운영 규칙](docs/architecture/README.md)

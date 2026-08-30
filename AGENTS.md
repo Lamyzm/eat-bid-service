@@ -49,6 +49,12 @@
     순서를 유지한다. 같은 contract family는 `pick`/`omit`/`safeExtend`를 사용할 수 있지만 ingestion,
     command, public response, DB row 사이를 서로 `pick`하지 않는다. 최종 DTO의 반복적인 shape spread,
     object intersection, parallel interface, schema 조립용 Immer/별도 framework를 만들지 않는다.
+17. **계약 topology와 의미 값 gate를 우회하지 않는다.** application `AuctionRecord`는 내부 port이며
+    공개 응답은 Zod에서 추론한 `AuctionV1Response`다. portable registry graph에는 codec·transform·runtime
+    custom predicate를 넣지 않는다. `Temporal.Now`는 `packages/domain/src/time/clock.ts`의 `systemClock`,
+    PostgreSQL driver `Date | string`은
+    `apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts`의 `AuctionRow`와
+    `postgresInstant`만 허용한다. web/shared 기존 부채는 exact AST fingerprint ledger에서 삭제만 허용한다.
 
 ## 변경 절차
 
@@ -61,6 +67,9 @@
 - 구현보다 추적성, 재실행 안전성, 실패 가시성을 우선 검증하라.
 - 테스트 이름만 바꿀 때 assertion·fixture·실행 순서를 함께 고치지 마라. 명세 번역과 동작 변경은
   서로 다른 검토 단위로 유지하라.
+- 계약이나 의미 값을 바꾼 뒤 `pnpm architecture:check`, `pnpm contracts:check`,
+  `pnpm contracts:python:check`를 check mode로 실행하라. CI에서 drift 확인 전에 pnpm/uv frozen install을
+  완료하며 check mode는 추적된 생성물을 다시 쓰지 않는다.
 
 ## 필수 읽기 순서
 

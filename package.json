@@ -9,9 +9,9 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "architecture:check": "node tools/architecture/check-stack-docs.mjs && pnpm quality:check",
+    "architecture:check": "node tools/architecture/check-stack-docs.mjs && node tools/architecture/check-semantic-values.mjs && uv run --project apps/dataplane python tools/quality/check-python-semantic-values.py && pnpm quality:check && pnpm contracts:check && pnpm contracts:python:check",
     "quality:check": "node tools/quality/check-test-names.mjs",
-    "test:quality": "node --test tools/architecture/*.test.mjs tools/quality/*.test.mjs",
+    "test:quality": "node --test tools/architecture/*.test.mjs tools/quality/*.test.mjs && uv run --project apps/dataplane pytest tools/quality/test_check_python_semantic_values.py -q",
     "contracts:generate": "pnpm --filter @eatbid/contracts contracts:generate",
     "contracts:check": "pnpm --filter @eatbid/contracts contracts:check",
     "contracts:python:generate": "uv run --project apps/dataplane python apps/dataplane/scripts/generate_contract_models.py --write",
@@ -25,6 +25,7 @@
     "test": "pnpm test:quality && bun test apps/web/src packages/shared/src packages/db/src --timeout 30000 && pnpm --filter @eatbid/contracts test && pnpm --filter @eatbid/domain test && pnpm --filter @eatbid/server test"
   },
   "devDependencies": {
+    "typescript": "5.9.3",
     "turbo": "2.10.12"
   }
 }

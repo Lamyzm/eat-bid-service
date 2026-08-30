@@ -74,20 +74,19 @@ jobs:
 
       - name: Install TypeScript workspace from lockfile
         run: pnpm install --frozen-lockfile
+      - name: Install dataplane from lockfile
+        working-directory: apps/dataplane
+        run: uv sync --frozen
       - name: Verify backend strict-peer closure and immutable lockfile
         run: |
           pnpm install --filter @eatbid/server... --frozen-lockfile --strict-peer-dependencies
           pnpm install --filter @eatbid/server... --lockfile-only --frozen-lockfile --strict-peer-dependencies
+      - name: Check architecture and generated contract drift
+        run: pnpm architecture:check
       - name: Test TypeScript workspace
         run: pnpm test
       - name: Build TypeScript workspace
         run: pnpm build
-      - name: Check architecture contracts
-        run: pnpm architecture:check
-
-      - name: Install dataplane from lockfile
-        working-directory: apps/dataplane
-        run: uv sync --frozen
       - name: Test dataplane
         working-directory: apps/dataplane
         run: uv run pytest -q

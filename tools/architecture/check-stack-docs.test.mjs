@@ -19,6 +19,24 @@ function audit(disposition = "Adopted", separator = "| --- | --- | --- | --- | -
   return `# Audit\n\n## Current baseline\n\nBaseline.\n\n## Decision table\n\n| Item | Evidence | Checked | Disposition | Trigger |\n${separator}\n| item | evidence | today | ${disposition} | trigger |\n\n## Rejected or deferred\n\nNone.\n\n## Review triggers\n\nA trigger.\n`;
 }
 
+function contractsAudit(extra = "") {
+  return `${audit()}\n## Enforced contract evidence\n\n` + [
+    "packages/contracts Zod wire authority",
+    "packages/domain semantic authority",
+    "packages/db Drizzle DDL authority",
+    "source Pydantic authority and generated normalized Pydantic",
+    "AuctionRecord internal application port; AuctionV1Response public wire",
+    "apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts mapAuctionRow postgresInstant",
+    "packages/domain/src/time/clock.ts systemClock",
+    "pnpm architecture:check",
+    "pnpm contracts:check",
+    "pnpm contracts:python:check",
+    "tools/architecture/check-semantic-values.mjs",
+    "tools/quality/check-python-semantic-values.py",
+    extra,
+  ].join("\n\n");
+}
+
 function fixture({ indexExtra = "", applicationAudit = audit() } = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), "eatbid-stack-check-"));
   const stack = path.join(directory, "docs", "architecture", "stack");
@@ -29,7 +47,12 @@ function fixture({ indexExtra = "", applicationAudit = audit() } = {}) {
     path.join(stack, "README.md"),
     `# Stack\n\n${audits.map((name) => `- [${name}](./${name})`).join("\n")}\n\n[index ADR](../../adr/0001.md)\n${indexExtra}`,
   );
-  for (const name of audits) writeFileSync(path.join(stack, name), name === audits[0] ? applicationAudit : audit());
+  for (const name of audits) {
+    const contents = name === audits[0]
+      ? applicationAudit
+      : name === "contracts-and-validation.md" ? contractsAudit() : audit();
+    writeFileSync(path.join(stack, name), contents);
+  }
   return directory;
 }
 
@@ -92,4 +115,26 @@ test("decision table 행의 불일치한 너비를 거부한다", () => {
   withFixture({ applicationAudit: inconsistent }, (output) => {
     assert.match(output, /has 4 cells; expected 5/);
   });
+});
+
+test("contract audit에서 semantic gate command가 빠지면 거부한다", () => {
+  const directory = fixture();
+  try {
+    const file = path.join(directory, "docs", "architecture", "stack", "contracts-and-validation.md");
+    writeFileSync(file, contractsAudit().replace("pnpm contracts:python:check", "python drift command removed"));
+    assert.match(run(directory), /Missing enforced contract evidence.*pnpm contracts:python:check/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("contract audit에서 internal port와 public wire 구분이 빠지면 거부한다", () => {
+  const directory = fixture();
+  try {
+    const file = path.join(directory, "docs", "architecture", "stack", "contracts-and-validation.md");
+    writeFileSync(file, contractsAudit().replace("AuctionRecord internal application port; AuctionV1Response public wire", "wire types"));
+    assert.match(run(directory), /Missing enforced contract evidence.*AuctionRecord/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

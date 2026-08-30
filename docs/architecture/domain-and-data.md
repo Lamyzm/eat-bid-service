@@ -315,6 +315,10 @@ canonical 사실은 값의 표현뿐 아니라 의미와 단위를 보존한다.
 - canonical interchange와 HTTP wire authority는 `packages/contracts`의 bounded Zod schema다. source
   Pydantic과 DB/domain 모델은 각 adapter에서 명시적으로 변환하고 normalized Pydantic은 versioned
   JSON Schema에서 생성한다.
+- server application `AuctionRecord`는 내부 read port이며 public response나 interchange contract가 아니다.
+  공개 응답은 Zod schema에서 추론한 `AuctionV1Response`이고 Drizzle row와 별도로 유지한다.
+- Argo Workflows가 실행한 dataplane은 generated normalized contract를 검증한 뒤 Nest HTTP를 거치지
+  않고 제한된 ingestor/projector role로 PostgreSQL에 직접 발행한다.
 
 ## 9. DDL과 계약
 
@@ -325,3 +329,7 @@ canonical 사실은 값의 표현뿐 아니라 의미와 단위를 보존한다.
 Interchange/API 계약은 `packages/contracts`에서 별도로 정의한다. DB 테이블을 그대로 외부 응답으로
 노출하지 않는다. 손으로 작성한 Python Pydantic은 source payload를 담당하고 normalized Pydantic은
 Zod가 내보낸 versioned JSON Schema에서 생성한다.
+
+이 foundation은 frontend 화면·상태·정보구조 전환이나 66개 누락 좌표의 이름 lookup backfill을 하지
+않는다. frontend는 공동 설계 후 public Zod wire를 runtime parse하고, 좌표는 CRS/provenance 계약을
+소비하는 별도 Argo enrichment workflow에서만 보강한다.
