@@ -24,6 +24,12 @@ const durationName = /(?:timeout|interval|ttl|grace|delay|debounce|throttle)(?:m
 const exactAuctionAdapter = "apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts";
 const exactClockFacade = "packages/domain/src/time/clock.ts";
 const sourceFilesByPath = new Map();
+// 단락 평가의 어느 피연산자가 실제 값이 될지 정적으로 확정할 수 없으므로 모두 보수적으로 합친다.
+const logicalValueOperators = new Set([
+  ts.SyntaxKind.AmpersandAmpersandToken,
+  ts.SyntaxKind.BarBarToken,
+  ts.SyntaxKind.QuestionQuestionToken,
+]);
 
 function normalizePath(file) {
   return path.relative(repositoryRoot, file).replaceAll("\\", "/");
@@ -317,7 +323,7 @@ function origins(node, seenSymbols = new Set()) {
   if (ts.isConditionalExpression(current)) {
     return new Set([...origins(current.whenTrue, seenSymbols), ...origins(current.whenFalse, seenSymbols)]);
   }
-  if (ts.isBinaryExpression(current) && [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(current.operatorToken.kind)) {
+  if (ts.isBinaryExpression(current) && logicalValueOperators.has(current.operatorToken.kind)) {
     return new Set([...origins(current.left, seenSymbols), ...origins(current.right, seenSymbols)]);
   }
   if (ts.isCallExpression(current) || ts.isNewExpression(current)) return origins(current.expression, seenSymbols);
@@ -343,6 +349,9 @@ function constantStrings(node, seenSymbols = new Set()) {
   }
   if (ts.isConditionalExpression(current)) {
     return new Set([...constantStrings(current.whenTrue, seenSymbols), ...constantStrings(current.whenFalse, seenSymbols)]);
+  }
+  if (ts.isBinaryExpression(current) && logicalValueOperators.has(current.operatorToken.kind)) {
+    return new Set([...constantStrings(current.left, seenSymbols), ...constantStrings(current.right, seenSymbols)]);
   }
   if (ts.isBinaryExpression(current) && current.operatorToken.kind === ts.SyntaxKind.PlusToken) {
     const left = constantStrings(current.left, seenSymbols);

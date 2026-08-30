@@ -62,6 +62,7 @@ test("전역 Date와 Temporal.Now의 직접·별칭·구조분해·조건부 우
     ["const SystemDate = Date; SystemDate.parse('2026-08-30');", "ambient-date"],
     ["const { now: currentTime } = Date; currentTime();", "ambient-date"],
     ["const Clock = condition ? Date : class Safe {}; new Clock();", "ambient-date"],
+    ["const Clock = condition && Date; new Clock();", "ambient-date"],
     ["globalThis.Date.now();", "ambient-date"],
     ["let Clock = SafeDate; Clock = globalThis.Date; new Clock();", "ambient-date"],
     ["let currentTime; ({ now: currentTime } = Date); currentTime();", "ambient-date"],
@@ -69,6 +70,7 @@ test("전역 Date와 Temporal.Now의 직접·별칭·구조분해·조건부 우
     ["import { Temporal } from '@eatbid/domain'; Temporal.Now.instant();", "ambient-temporal-now"],
     ["import { Temporal as T } from '@eatbid/domain'; const { Now } = T; Now.instant();", "ambient-temporal-now"],
     ["import { Temporal } from '@eatbid/domain'; const T = condition ? Temporal : safe; T.Now.instant();", "ambient-temporal-now"],
+    ["import { Temporal } from '@eatbid/domain'; const now = condition && Temporal.Now; now.instant();", "ambient-temporal-now"],
     ["import * as Domain from '@eatbid/domain'; Domain.Temporal.Now.instant();", "ambient-temporal-now"],
   ];
   for (const [source, rule] of mutations) expectViolation(source, rule);
@@ -132,6 +134,10 @@ test("금지 날짜 라이브러리의 정적·require·dynamic import 별칭을
     "import dayjs from 'dayjs'; dayjs();",
     "const packageName = 'date-fns'; require(packageName);",
     "const packageName = condition ? 'moment' : 'luxon'; import(packageName);",
+    "const packageName = condition && 'date-fns'; require(packageName);",
+    "const packageName = condition && 'moment'; import(packageName);",
+    "const packageName = condition || 'luxon'; import(packageName);",
+    "const packageName = condition ?? 'dayjs'; import(packageName);",
   ];
   for (const source of mutations) expectViolation(source, "forbidden-date-library");
 });
@@ -142,6 +148,7 @@ test("원시 timer 값과 단위 없는 timeout·interval·TTL 선언의 우회�
     "const later = setTimeout; later(callback, 2 * 1_000);",
     "const { setInterval: repeat } = globalThis; repeat(callback, 500);",
     "const schedule = condition ? setTimeout : customTimer; schedule(callback, 25);",
+    "const schedule = condition && setTimeout; schedule(callback, 25);",
     "window.setTimeout(callback, 250);",
     "interface Config { requestTimeout: number }",
     "type CacheOptions = { ttlMs: number };",

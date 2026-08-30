@@ -29,6 +29,7 @@ def detail_xml(
     main_items: str | None = "source label",
     announced_at: str = "20250617",
     deadline_at: str = "20250619150000",
+    opened_at: str = "20250620103000",
     base_amount: str = "10000000.10",
     planned_amount: str = "9990000.01",
     reverse_columns: bool = False,
@@ -43,7 +44,7 @@ def detail_xml(
         ("SIGUNGU_CD", sigungu_code),
         ("PBANC_YMD", announced_at),
         ("BID_END_DT", deadline_at),
-        ("OPNG_DT", "20250620103000"),
+        ("OPNG_DT", opened_at),
         ("BGNG_PRC", base_amount),
         ("ELCTRN_BID_PLNPRC", planned_amount),
     ]
@@ -257,6 +258,59 @@ def test_서울_DST_기간의_유일한_wall_time은_정확한_UTC_instant가_�
 
     assert record.schedule.deadline_at is not None
     assert record.schedule.deadline_at.root == "1988-06-01T02:00:00Z"
+
+
+@pytest.mark.parametrize(
+    ("field", "source_value", "source_field", "expected_width"),
+    [
+        ("announced_at", "2026830", "PBANC_YMD", 8),
+        ("announced_at", "2026083", "PBANC_YMD", 8),
+        ("deadline_at", "2026083001023", "BID_END_DT", 14),
+        ("announced_at", "２０２６０８３０", "PBANC_YMD", 8),
+    ],
+)
+def test_source_날짜는_정확한_ASCII_wire_모양이_아니면_typed_detail_error가_된다(
+    field: str,
+    source_value: str,
+    source_field: str,
+    expected_width: int,
+) -> None:
+    payload = (
+        detail_xml(announced_at=source_value)
+        if field == "announced_at"
+        else detail_xml(deadline_at=source_value)
+    )
+
+    with pytest.raises(
+        EatDetailValidationError,
+        match=rf"{source_field} must be exactly {expected_width} ASCII digits",
+    ) as caught:
+        normalize_bid_detail(
+            payload,
+            external_bid_id="42",
+            parser_version="eat-v1",
+        )
+
+    assert caught.value.schema_fingerprint is not None
+
+
+def test_source_날짜의_정확한_8자리와_14자리_ASCII_wire_경계는_허용한다() -> None:
+    record = normalize_bid_detail(
+        detail_xml(
+            announced_at="20260830",
+            deadline_at="20260830010203",
+            opened_at="20260830235959",
+        ),
+        external_bid_id="42",
+        parser_version="eat-v1",
+    )
+
+    assert record.schedule.announced_at is not None
+    assert record.schedule.announced_at.root == "2026-08-29T15:00:00Z"
+    assert record.schedule.deadline_at is not None
+    assert record.schedule.deadline_at.root == "2026-08-29T16:02:03Z"
+    assert record.schedule.opened_at is not None
+    assert record.schedule.opened_at.root == "2026-08-30T14:59:59Z"
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { auctionV1Operations, healthOperations } from "@eatbid/contracts";
 
+function openApiStringSchemaAccepts(
+  schema: { type?: string; minLength?: number; maxLength?: number; pattern?: string },
+  value: string,
+): boolean {
+  return schema.type === "string"
+    && (schema.minLength === undefined || value.length >= schema.minLength)
+    && (schema.maxLength === undefined || value.length <= schema.maxLength)
+    && (schema.pattern === undefined || new RegExp(schema.pattern, "u").test(value));
+}
+
 describe("canonical OpenAPI 산출물", () => {
   test("고유하고 안정적인 operation과 전체 route를 가진 결정적 OpenAPI 3.0.3을 만든다", async () => {
     const module = await import("./openapi").catch(() => undefined);
@@ -77,5 +87,24 @@ describe("canonical OpenAPI 산출물", () => {
     });
     expect(auction.responses["404"].content["application/problem+json"].schema).toBeDefined();
     expect(auction.responses["503"].content["application/problem+json"].schema).toBeDefined();
+  });
+
+  test("생성 OpenAPI의 식별자 schema가 signed bigint 경계를 기계적으로 강제한다", async () => {
+    const module = await import("./openapi");
+    const document = module.createOpenApiDocument() as any;
+    const accepted = ["1", "9223372036854775807"];
+    const rejected = [
+      "0",
+      "01",
+      "9223372036854775808",
+      "9999999999999999999",
+      "10000000000000000000",
+    ];
+
+    for (const schemaName of ["AuctionId", "PositiveBigintText"]) {
+      const schema = document.components.schemas[schemaName];
+      for (const value of accepted) expect(openApiStringSchemaAccepts(schema, value)).toBe(true);
+      for (const value of rejected) expect(openApiStringSchemaAccepts(schema, value)).toBe(false);
+    }
   });
 });

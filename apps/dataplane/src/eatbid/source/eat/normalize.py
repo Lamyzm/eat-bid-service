@@ -30,6 +30,10 @@ from eatbid.source.eat.models import BidListPage
 from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro
 
 _NONNEGATIVE_DECIMAL = re.compile(r"0|[1-9][0-9]*")
+_SOURCE_TIME_WIRE_SHAPES: dict[str, tuple[re.Pattern[str], int]] = {
+    "%Y%m%d": (re.compile(r"[0-9]{8}"), 8),
+    "%Y%m%d%H%M%S": (re.compile(r"[0-9]{14}"), 14),
+}
 _SEOUL_TIME = ZoneInfo("Asia/Seoul")
 _KRW_SCALE = Decimal("0.01")
 
@@ -185,6 +189,13 @@ def _optional_instant_text(
     value = _optional_text(row, field)
     if value is None:
         return None
+    shape = _SOURCE_TIME_WIRE_SHAPES.get(source_format)
+    if shape is None:
+        raise ValueError(f"unsupported eaT source time format: {source_format}")
+    wire_pattern, width = shape
+    # strptime은 zero-padding이 빠진 숫자도 받아들이므로 source wire 모양을 먼저 닫아야 한다.
+    if wire_pattern.fullmatch(value) is None:
+        raise ValueError(f"{field} must be exactly {width} ASCII digits")
     try:
         # eaT 값은 지역 벽시각이므로 fold 후보를 검증하기 전까지 timezone을 붙이지 않는다.
         wall_time = datetime.strptime(value, source_format)  # noqa: DTZ007
