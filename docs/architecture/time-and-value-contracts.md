@@ -65,7 +65,7 @@ Zod JSON Schema에서 생성한다. 각 권위 사이의 의미 보존은 canoni
 이 규칙 덕분에 한 변경이 어디서 시작되어야 하는지 결정할 수 있고, AI 세션이 편의상 controller,
 DB row, crawler model에 같은 interface를 복사하는 것을 막는다.
 
-## 2. 목표 파일 구조
+## 2. 최종 파일 구조
 
 ```text
 packages/domain/src/
@@ -74,27 +74,21 @@ packages/domain/src/
 │  ├─ clock.ts
 │  ├─ elapsed-duration.ts
 │  └─ instant-text.ts
-├─ decimal/
-│  └─ canonical-decimal.ts
-├─ money/
-│  ├─ currency.ts
-│  └─ money.ts
-├─ rate/
-│  ├─ percentage-points.ts
-│  └─ ratio.ts
-├─ quantity/
-│  ├─ count.ts
-│  └─ byte-length.ts
+├─ numeric/
+│  ├─ canonical-decimal.ts
+│  ├─ money.ts
+│  ├─ quantities.ts
+│  └─ rates.ts
 └─ geo/
-   ├─ coordinate.ts
-   └─ distance.ts
+   └─ coordinate.ts
 
 packages/contracts/src/
 ├─ atoms/
 │  ├─ decimal.ts
+│  ├─ geo.ts
 │  ├─ identifier.ts
-│  ├─ temporal.ts
-│  └─ geo.ts
+│  ├─ instant.ts
+│  └─ source-code.ts
 ├─ values/
 │  ├─ money.ts
 │  ├─ rate.ts
@@ -103,12 +97,11 @@ packages/contracts/src/
 ├─ resources/procurement/
 │  ├─ identity.ts
 │  ├─ schedule.ts
-│  ├─ pricing.ts
-│  └─ restrictions.ts
+│  └─ pricing.ts
 ├─ ingestion/v1/
 ├─ api/v1/
 ├─ codecs/
-└─ registry.ts
+└─ portable-registry.ts
 
 packages/contracts/generated/
 └─ ingestion-v1.schema.json
@@ -116,6 +109,9 @@ packages/contracts/generated/
 apps/dataplane/src/eatbid/generated/
 └─ ingestion_v1.py
 ```
+
+승인된 공개 응답에 restriction 필드가 아직 없으므로 public `resources/procurement/restrictions.ts`는
+의도적으로 만들지 않는다. source ingestion의 별도 제한 정보가 곧바로 공개 lifecycle 계약이 되지는 않는다.
 
 `index.ts`는 export만 한다. 포맷, 계산, validation, DB mapping을 한 파일에 모으지 않는다.
 
