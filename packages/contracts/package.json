@@ -15,6 +15,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "contracts:check": "bun run src/generate-json-schema.ts --check",
+    "contracts:generate": "bun run src/generate-json-schema.ts --write",
     "test": "bun test src"
   },
   "dependencies": {
@@ -22,6 +24,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "22.10.2",
     "typescript": "5.9.3"
   }
 }

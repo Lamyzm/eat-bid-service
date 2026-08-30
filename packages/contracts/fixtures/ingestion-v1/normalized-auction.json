@@ -1,0 +1,34 @@
+{
+  "contractVersion": "eatbid.ingestion.auction.v1",
+  "identity": {
+    "externalBidId": "ETN-2026-000001",
+    "displayBidNumber": null,
+    "title": "2026년 급식 식재료 공급",
+    "status": "OPEN"
+  },
+  "buyer": {
+    "organizationCode": "00001234",
+    "organizationName": "한빛학교"
+  },
+  "location": {
+    "sidoCode": "01",
+    "sigunguCode": null,
+    "eligibilityCodes": ["001", "01002"]
+  },
+  "schedule": {
+    "announcedAt": "2026-08-29T15:00:00Z",
+    "deadlineAt": "2026-09-05T01:00:00Z",
+    "openedAt": null
+  },
+  "pricing": {
+    "baseAmount": {
+      "amount": "1234567890.50",
+      "currency": "KRW"
+    },
+    "plannedAmount": null
+  },
+  "classification": {
+    "sourceCategoryLabel": "농산물",
+    "categorySource": "source_field"
+  }
+}

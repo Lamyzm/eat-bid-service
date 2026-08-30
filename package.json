@@ -12,6 +12,8 @@
     "architecture:check": "node tools/architecture/check-stack-docs.mjs && pnpm quality:check",
     "quality:check": "node tools/quality/check-test-names.mjs",
     "test:quality": "node --test tools/architecture/*.test.mjs tools/quality/*.test.mjs",
+    "contracts:generate": "pnpm --filter @eatbid/contracts contracts:generate",
+    "contracts:check": "pnpm --filter @eatbid/contracts contracts:check",
     "db:generate": "pnpm --filter @eatbid/db db:generate",
     "db:check": "pnpm --filter @eatbid/db db:check",
     "db:migrate": "pnpm --filter @eatbid/db db:migrate",

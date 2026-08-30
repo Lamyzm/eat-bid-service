@@ -1,0 +1,295 @@
+{
+  "$defs": {
+    "CanonicalMoneyAmount": {
+      "description": "Canonical nonnegative KRW amount with exactly two fractional digits.",
+      "maxLength": 19,
+      "pattern": "^(?:0|[1-9][0-9]{0,15})\\.[0-9]{2}$",
+      "type": "string"
+    },
+    "EatbidIngestionAuctionV1": {
+      "additionalProperties": false,
+      "description": "Versioned normalized eaT auction interchange contract.",
+      "properties": {
+        "buyer": {
+          "$ref": "#/$defs/NormalizedBuyer"
+        },
+        "classification": {
+          "$ref": "#/$defs/NormalizedClassification"
+        },
+        "contractVersion": {
+          "const": "eatbid.ingestion.auction.v1",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "#/$defs/NormalizedAuctionIdentity"
+        },
+        "location": {
+          "$ref": "#/$defs/NormalizedLocation"
+        },
+        "pricing": {
+          "$ref": "#/$defs/NormalizedAuctionPricing"
+        },
+        "schedule": {
+          "$ref": "#/$defs/NormalizedAuctionSchedule"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "identity",
+        "buyer",
+        "location",
+        "schedule",
+        "pricing",
+        "classification"
+      ],
+      "type": "object"
+    },
+    "ExternalBidId": {
+      "description": "Opaque source-scoped auction identifier; never parsed for identity.",
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "InstantText": {
+      "allOf": [
+        {
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "pattern": "^(?:\\d{4}|[+-]\\d{6})-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.[0-9]{0,8}[1-9])?Z$"
+        }
+      ],
+      "description": "Canonical UTC ISO 8601 instant text ending in Z with at most nanosecond precision.",
+      "example": "2026-08-30T00:00:00Z",
+      "maxLength": 35,
+      "type": "string"
+    },
+    "Money": {
+      "additionalProperties": false,
+      "description": "Exact KRW money value; amount remains decimal text across JSON boundaries.",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/CanonicalMoneyAmount"
+        },
+        "currency": {
+          "const": "KRW",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "type": "object"
+    },
+    "NormalizedAuctionIdentity": {
+      "additionalProperties": false,
+      "description": "Source identity and observed display state before canonical projection.",
+      "properties": {
+        "displayBidNumber": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "externalBidId": {
+          "$ref": "#/$defs/ExternalBidId"
+        },
+        "status": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "externalBidId",
+        "displayBidNumber",
+        "title",
+        "status"
+      ],
+      "type": "object"
+    },
+    "NormalizedAuctionPricing": {
+      "additionalProperties": false,
+      "description": "Nullable exact two-decimal KRW amounts observed during normalization.",
+      "properties": {
+        "baseAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plannedAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "baseAmount",
+        "plannedAmount"
+      ],
+      "type": "object"
+    },
+    "NormalizedAuctionSchedule": {
+      "additionalProperties": false,
+      "description": "Nullable canonical UTC lifecycle instants observed during normalization.",
+      "properties": {
+        "announcedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deadlineAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "openedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "announcedAt",
+        "deadlineAt",
+        "openedAt"
+      ],
+      "type": "object"
+    },
+    "NormalizedBuyer": {
+      "additionalProperties": false,
+      "description": "Observed eaT buyer code and label before organization reconciliation.",
+      "properties": {
+        "organizationCode": {
+          "$ref": "#/$defs/SourceCode"
+        },
+        "organizationName": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "organizationCode",
+        "organizationName"
+      ],
+      "type": "object"
+    },
+    "NormalizedClassification": {
+      "additionalProperties": false,
+      "description": "Observed or explicitly inferred source classification without additional provenance claims.",
+      "properties": {
+        "categorySource": {
+          "enum": [
+            "source_field",
+            "inferred_from_title",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "sourceCategoryLabel": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sourceCategoryLabel",
+        "categorySource"
+      ],
+      "type": "object"
+    },
+    "NormalizedLocation": {
+      "additionalProperties": false,
+      "description": "Observed source-scoped location and eligibility codes; code text preserves leading zeroes.",
+      "properties": {
+        "eligibilityCodes": {
+          "items": {
+            "$ref": "#/$defs/SourceCode"
+          },
+          "maxItems": 512,
+          "type": "array"
+        },
+        "sidoCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sigunguCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sidoCode",
+        "sigunguCode",
+        "eligibilityCodes"
+      ],
+      "type": "object"
+    },
+    "SourceCode": {
+      "description": "Opaque source code text that preserves leading zeroes.",
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "$id": "EatbidIngestionAuctionV1",
+  "$ref": "#/$defs/EatbidIngestionAuctionV1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
