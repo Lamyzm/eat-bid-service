@@ -324,3 +324,93 @@ authoritative exact-runtime result. Existing non-blocking warnings remain unchan
 reader warning, Next's multiple-lockfile/Google Sans fallback warnings, ignored `@scarf/scarf`, the Husky worktree
 message, Docker's Node `url.parse()` deprecation, and legacy pnpm deploy warning. No frontend override or change
 was made. No blocking concern remains.
+
+---
+
+## Fix round 2
+
+### Scope and TDD evidence
+
+Fix round 2 started from
+`40998d8730c0943282fe1dea8a931d4d29ac4fa5` and changes only the readiness catalog query, its real
+PostgreSQL attack suite, and the two production provisioning/architecture documents. It adds no DDL, migration,
+dependency, endpoint, manifest activation, or runtime mutation.
+
+The new test was written and run before production code. Against round 1, PostgreSQL reported
+`has_table_privilege(...)=false` and `has_any_column_privilege(...)=true` for every one of 18 column-only grants,
+while readiness incorrectly returned true for all 18. The exact focused RED was 0 passed / 1 failed after 43
+successful assertions, with the final literal outcome comparison showing every expected `ready: false` was
+received as `ready: true`.
+
+The first test execution also characterized a real PostgreSQL restriction before the intended assertion:
+temporary tables cannot reference permanent tables. The test was corrected—not weakened—to create and drop a
+permanent attack table under a temporary adjunct `CREATE` grant only after recording the app REFERENCES-only
+readiness result. The next run reached the intended all-18 RED described above.
+
+After the minimal query change, the same isolated pinned-PostgreSQL test passed 1/1 with 44 assertions. A final
+version grants the public probe's SELECT column ACL to `PUBLIC`, not directly to the API role, and still proves the
+effective API capability is detected and executable. The final focused rerun remained 1/1 with 44 assertions and
+left zero labeled containers.
+
+### Effective column-ACL boundary
+
+The readiness query retains its existing full-table requirements: core/mart read readiness still requires table
+`SELECT` on every current relation, and every module-owned app relation still requires full table
+`SELECT`/`INSERT`/`UPDATE`/`DELETE`. Partial column grants cannot satisfy those requirements.
+
+For forbidden privileges, the query now calls `has_any_column_privilege(current_user, relation.oid, capability)`
+once per capability; no comma list is used for column checks. This catches direct, `PUBLIC`, and effective role
+grants while the independent direct/transitive membership checks continue to reject `SET ROLE` escalation. The
+protected relation classes are covered consistently:
+
+- core and mart reject column `INSERT`, `UPDATE`, and `REFERENCES`;
+- app preserves its required full table DML but rejects column `REFERENCES`;
+- ingest rejects column `SELECT`, `INSERT`, `UPDATE`, and `REFERENCES`;
+- the migration journal rejects column `INSERT`, `UPDATE`, and `REFERENCES`, while any future non-journal
+  `drizzle` relation additionally rejects column `SELECT`;
+- public rejects column `SELECT`, `INSERT`, `UPDATE`, and `REFERENCES`.
+
+Table-only capabilities (`DELETE`, `TRUNCATE`, and `TRIGGER`) remain covered by the round-1 table privilege
+predicates. Sequence, ownership, database, schema, role flag, membership, and migration-version checks are
+unchanged.
+
+The disposable attack matrix enumerates all 18 applicable class/capability combinations and restores each grant
+before the next case. It also proves real dangerous operations where safe: core column UPDATE and migration-name
+column UPDATE execute inside deliberately rolled-back transactions; mart column INSERT executes and rolls back;
+ingest column SELECT reads the seeded mode after a temporary adjunct schema-USAGE grant; app column REFERENCES
+allows creation of a real foreign-key table after a temporary adjunct public-CREATE grant; and a column SELECT
+granted to `PUBLIC` is effective for and executable by the API role. Adjunct grants are applied only after the
+column-only readiness result is recorded and are always revoked in `finally` blocks.
+
+The production Secret/role contract and backend architecture document now state explicitly that table policy
+applies to effective table and column ACLs, including `PUBLIC` and role-derived grants. Runtime remains a
+read-only detector and performs no grant/revoke operation.
+
+### Fix round 2 verification evidence
+
+- Strict backend closure install and strict lockfile-only install both exited 0; normal frozen root install exited
+  0 with the lockfile unchanged.
+- `pnpm --filter @eatbid/db test` — 77 passed, 0 failed, 273 assertions; `db:check` passed.
+- After staging the reviewed DB baseline, two `db:generate` runs both reported no schema changes. DB
+  schema/migration/version diff and untracked schema/migration counts were zero.
+- `pnpm --filter @eatbid/contracts test` — 4 passed, 0 failed, 40 assertions.
+- `pnpm --filter @eatbid/server test` — 87 passed, 0 failed, 506 assertions.
+- `pnpm --filter @eatbid/server test:integration` — 5 passed, 0 failed, 164 assertions. Every disposable setup
+  double-applied the committed migration chain and the intentional-failure cleanup case passed.
+- `pnpm --filter @eatbid/server test:e2e` — 19 passed, 0 failed, 249 assertions.
+- Server architecture reported 0 violations; OpenAPI matched; server build passed.
+- Reverse Gate 16.2 infrastructure — 125 passed; reverse Gate 16.1 `dev:smoke` — 1 passed. The prior contracts,
+  HTTP, OpenAPI, architecture, build, shutdown, route, and logging boundaries remained green.
+- `pnpm test` — root Bun 120, contracts 4, server 87 passed; 0 failed.
+- Full Python matrix — 585 passed with the existing Windows cp949 warning; Ruff passed; Pyright reported 0
+  errors/0 warnings/0 information.
+- Stack documentation check passed; forced Turbo build completed 5/5 with zero cached.
+- `docker build --file Dockerfile.server --tag eatbid-server:task16-3-fix2 .` passed from the exact pinned Node
+  digest. The runtime probe reported Node `v24.20.0`, Nest `12.0.1`, Effect `4.0.0-rc.112`, and a closed
+  application context.
+- Repeated `docker ps -a --filter label=eatbid.task=gate16-3 --format '{{.Names}}'` checks were empty after RED,
+  focused GREEN, Gate 3, full repository, and final effective-PUBLIC runs.
+
+Host/build warnings are unchanged from round 1: host Node `v24.2.0` versus pinned `24.20.0`, the existing cp949
+reader warning, Next workspace/font warnings, ignored `@scarf/scarf`, Husky worktree notice, Node `url.parse()`
+deprecation, and legacy pnpm deploy warning. No blocking concern remains.

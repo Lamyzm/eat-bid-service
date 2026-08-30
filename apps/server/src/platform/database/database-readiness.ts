@@ -118,10 +118,15 @@ const readinessQuery = sql`
       join pg_namespace namespace on namespace.oid = relation.relnamespace
       where namespace.nspname = 'core'
         and relation.relkind in ('r', 'p', 'v', 'm', 'f')
-        and has_table_privilege(
-          current_user,
-          relation.oid,
-          'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+        and (
+          has_table_privilege(
+            current_user,
+            relation.oid,
+            'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+          )
+          or has_any_column_privilege(current_user, relation.oid, 'INSERT')
+          or has_any_column_privilege(current_user, relation.oid, 'UPDATE')
+          or has_any_column_privilege(current_user, relation.oid, 'REFERENCES')
         )
     ) as has_forbidden_core_table_privilege,
     not exists (
@@ -138,10 +143,15 @@ const readinessQuery = sql`
       join pg_namespace namespace on namespace.oid = relation.relnamespace
       where namespace.nspname = 'mart'
         and relation.relkind in ('r', 'p', 'v', 'm', 'f')
-        and has_table_privilege(
-          current_user,
-          relation.oid,
-          'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+        and (
+          has_table_privilege(
+            current_user,
+            relation.oid,
+            'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+          )
+          or has_any_column_privilege(current_user, relation.oid, 'INSERT')
+          or has_any_column_privilege(current_user, relation.oid, 'UPDATE')
+          or has_any_column_privilege(current_user, relation.oid, 'REFERENCES')
         )
     ) as has_forbidden_mart_table_privilege,
     not exists (
@@ -163,7 +173,10 @@ const readinessQuery = sql`
       join pg_namespace namespace on namespace.oid = relation.relnamespace
       where namespace.nspname = 'app'
         and relation.relkind in ('r', 'p', 'v', 'm', 'f')
-        and has_table_privilege(current_user, relation.oid, 'TRUNCATE,REFERENCES,TRIGGER')
+        and (
+          has_table_privilege(current_user, relation.oid, 'TRUNCATE,REFERENCES,TRIGGER')
+          or has_any_column_privilege(current_user, relation.oid, 'REFERENCES')
+        )
     ) as has_forbidden_app_table_privilege,
     exists (
       select 1
@@ -179,10 +192,16 @@ const readinessQuery = sql`
       join pg_namespace namespace on namespace.oid = relation.relnamespace
       where namespace.nspname = 'ingest'
         and relation.relkind in ('r', 'p', 'v', 'm', 'f')
-        and has_table_privilege(
-          current_user,
-          relation.oid,
-          'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+        and (
+          has_table_privilege(
+            current_user,
+            relation.oid,
+            'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+          )
+          or has_any_column_privilege(current_user, relation.oid, 'SELECT')
+          or has_any_column_privilege(current_user, relation.oid, 'INSERT')
+          or has_any_column_privilege(current_user, relation.oid, 'UPDATE')
+          or has_any_column_privilege(current_user, relation.oid, 'REFERENCES')
         )
     ) as has_ingest_table_privilege,
     has_table_privilege(current_user, 'drizzle.__drizzle_migrations', 'SELECT')
@@ -195,8 +214,14 @@ const readinessQuery = sql`
         and relation.relkind in ('r', 'p', 'v', 'm', 'f')
         and (
           has_table_privilege(current_user, relation.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+          or has_any_column_privilege(current_user, relation.oid, 'INSERT')
+          or has_any_column_privilege(current_user, relation.oid, 'UPDATE')
+          or has_any_column_privilege(current_user, relation.oid, 'REFERENCES')
           or relation.relname <> '__drizzle_migrations'
-            and has_table_privilege(current_user, relation.oid, 'SELECT')
+            and (
+              has_table_privilege(current_user, relation.oid, 'SELECT')
+              or has_any_column_privilege(current_user, relation.oid, 'SELECT')
+            )
         )
     ) as has_forbidden_drizzle_table_privilege,
     exists (
@@ -205,10 +230,16 @@ const readinessQuery = sql`
       join pg_namespace namespace on namespace.oid = relation.relnamespace
       where namespace.nspname = 'public'
         and relation.relkind in ('r', 'p', 'v', 'm', 'f')
-        and has_table_privilege(
-          current_user,
-          relation.oid,
-          'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+        and (
+          has_table_privilege(
+            current_user,
+            relation.oid,
+            'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+          )
+          or has_any_column_privilege(current_user, relation.oid, 'SELECT')
+          or has_any_column_privilege(current_user, relation.oid, 'INSERT')
+          or has_any_column_privilege(current_user, relation.oid, 'UPDATE')
+          or has_any_column_privilege(current_user, relation.oid, 'REFERENCES')
         )
     ) as has_public_table_privilege
   from pg_roles role

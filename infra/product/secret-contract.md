@@ -30,8 +30,10 @@ on every `core`/`mart` table; `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on ever
 `app` table; and `SELECT` only on `drizzle.__drizzle_migrations`. It receives no `ingest`
 access, no table privilege in `public`, and no `CREATE` on `core`, `mart`, `app`, `ingest`,
 `drizzle`, or `public`. `TRUNCATE`, `REFERENCES`, and `TRIGGER` are forbidden everywhere, as
-are protected-table writes and every non-`SELECT` migration-journal privilege. The role owns
-no relevant database, relation, sequence, view, routine, or type.
+are protected-table writes and every non-`SELECT` migration-journal privilege. These denials
+apply to effective table and column ACLs, including grants inherited from `PUBLIC` or any role;
+provisioning must not use a column grant to bypass the table policy. The role owns no relevant
+database, relation, sequence, view, routine, or type.
 
 The current `app` keys are PostgreSQL 16 `GENERATED ALWAYS AS IDENTITY`: inserting default
 identity values needs no sequence ACL. Provisioning therefore grants the API role none of

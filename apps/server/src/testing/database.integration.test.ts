@@ -571,6 +571,137 @@ describe("owner-scoped PostgreSQL boundary", () => {
     expect(await taskContainers()).toEqual([]);
   }, 120_000);
 
+  test("readiness rejects every effective protected column privilege", async () => {
+    await withDisposableDatabase(async ({ owner, api }) => {
+      const readiness = createDatabaseReadiness(drizzle({ client: api }));
+      const outcomes: Array<Readonly<{ attack: string; ready: boolean }>> = [];
+      const rollback = async (work: (transaction: postgres.TransactionSql) => Promise<void>) => {
+        const expected = new Error("rollback column privilege attack");
+        let observed: unknown;
+        try {
+          await api.begin(async (transaction) => {
+            await work(transaction);
+            throw expected;
+          });
+        } catch (error) {
+          observed = error;
+        }
+        expect(observed).toBe(expected);
+      };
+      const probe = async (
+        table: string,
+        column: string,
+        capability: "SELECT" | "INSERT" | "UPDATE" | "REFERENCES",
+        dangerousOperation?: () => Promise<void>,
+        grantee: "eatbid_api" | "public" = "eatbid_api",
+      ) => {
+        const attack = `${table} ${capability}(${column})`;
+        await owner.unsafe(
+          `grant ${capability} (${column}) on table ${table} to ${grantee}`,
+        );
+        try {
+          expect(await owner.unsafe(`
+            select
+              has_table_privilege('eatbid_api', '${table}', '${capability}') as table_capability,
+              has_any_column_privilege(
+                'eatbid_api', '${table}', '${capability}'
+              ) as column_capability
+          `), attack).toEqual([{ table_capability: false, column_capability: true }]);
+          outcomes.push({ attack, ready: await readiness.isReady() });
+          await dangerousOperation?.();
+        } finally {
+          await owner.unsafe(
+            `revoke ${capability} (${column}) on table ${table} from ${grantee}`,
+          );
+        }
+        expect(await readiness.isReady(), `${attack} restore`).toBe(true);
+      };
+
+      expect(await readiness.isReady()).toBe(true);
+
+      await probe("core.auction_revision", "title", "UPDATE", () =>
+        rollback(async (transaction) => {
+          await transaction`update core.auction_revision set title = title`;
+        }));
+      await probe("core.auction_revision", "title", "INSERT");
+      await probe("core.auction_revision", "auction_attempt_id", "REFERENCES");
+
+      await probe("mart.api_read_probe", "probe_id", "INSERT", () =>
+        rollback(async (transaction) => {
+          await transaction`insert into mart.api_read_probe (probe_id) values (2)`;
+        }));
+      await probe("mart.api_read_probe", "probe_id", "UPDATE");
+      await probe("mart.api_read_probe", "probe_id", "REFERENCES");
+
+      await probe("ingest.run", "mode", "SELECT", async () => {
+        await owner`grant usage on schema ingest to eatbid_api`;
+        try {
+          expect(await api`select mode from ingest.run`).toEqual([{ mode: "capture" }]);
+        } finally {
+          await owner`revoke usage on schema ingest from eatbid_api`;
+        }
+      });
+      await probe("ingest.run", "run_id", "INSERT");
+      await probe("ingest.run", "status", "UPDATE");
+      await probe("ingest.run", "run_id", "REFERENCES");
+
+      await probe("drizzle.__drizzle_migrations", "name", "UPDATE", () =>
+        rollback(async (transaction) => {
+          await transaction`update drizzle.__drizzle_migrations set name = name`;
+        }));
+      await probe("drizzle.__drizzle_migrations", "name", "INSERT");
+      await probe("drizzle.__drizzle_migrations", "id", "REFERENCES");
+
+      await probe("app.principal", "principal_id", "REFERENCES", async () => {
+        await owner`grant create on schema public to eatbid_api`;
+        try {
+          await api`
+            create table public.api_reference_attack (
+              principal_id bigint references app.principal(principal_id)
+            )
+          `;
+          await api`drop table public.api_reference_attack`;
+        } finally {
+          await owner`revoke create on schema public from eatbid_api`;
+        }
+      });
+
+      await owner`create table public.api_column_probe (id bigint primary key)`;
+      try {
+        await probe("public.api_column_probe", "id", "SELECT", async () => {
+          expect(await api`select id from public.api_column_probe`).toEqual([]);
+        }, "public");
+        await probe("public.api_column_probe", "id", "INSERT");
+        await probe("public.api_column_probe", "id", "UPDATE");
+        await probe("public.api_column_probe", "id", "REFERENCES");
+      } finally {
+        await owner`drop table public.api_column_probe`;
+      }
+
+      expect(outcomes).toEqual([
+        { attack: "core.auction_revision UPDATE(title)", ready: false },
+        { attack: "core.auction_revision INSERT(title)", ready: false },
+        { attack: "core.auction_revision REFERENCES(auction_attempt_id)", ready: false },
+        { attack: "mart.api_read_probe INSERT(probe_id)", ready: false },
+        { attack: "mart.api_read_probe UPDATE(probe_id)", ready: false },
+        { attack: "mart.api_read_probe REFERENCES(probe_id)", ready: false },
+        { attack: "ingest.run SELECT(mode)", ready: false },
+        { attack: "ingest.run INSERT(run_id)", ready: false },
+        { attack: "ingest.run UPDATE(status)", ready: false },
+        { attack: "ingest.run REFERENCES(run_id)", ready: false },
+        { attack: "drizzle.__drizzle_migrations UPDATE(name)", ready: false },
+        { attack: "drizzle.__drizzle_migrations INSERT(name)", ready: false },
+        { attack: "drizzle.__drizzle_migrations REFERENCES(id)", ready: false },
+        { attack: "app.principal REFERENCES(principal_id)", ready: false },
+        { attack: "public.api_column_probe SELECT(id)", ready: false },
+        { attack: "public.api_column_probe INSERT(id)", ready: false },
+        { attack: "public.api_column_probe UPDATE(id)", ready: false },
+        { attack: "public.api_column_probe REFERENCES(id)", ready: false },
+      ]);
+    });
+    expect(await taskContainers()).toEqual([]);
+  }, 120_000);
+
   test("cleans the task-owned container after an intentional failure", async () => {
     await expect(withDisposableDatabase(async () => {
       throw new Error("intentional cleanup probe");

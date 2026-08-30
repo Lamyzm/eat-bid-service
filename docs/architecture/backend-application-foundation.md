@@ -194,8 +194,10 @@ export하지 않는다. 현재 공개 provider는 database readiness, explicit U
 필수/금지 권한을 read-only query 하나로 확인한다. server startup은 migration, role 생성, grant, seed를
 수행하지 않는다. 검사는 database `CONNECT`만 허용하고 `CREATE`/`TEMP`를 금지하며, 여섯 schema의
 `CREATE`, protected/application/migration object ownership, `TRUNCATE`/`REFERENCES`/`TRIGGER`, 모든
-sequence ACL, role flag와 direct/transitive `SET ROLE` 경로를 fail-closed로 거부한다. PostgreSQL의
-기본 `PUBLIC TEMPORARY` grant도 provisioning에서 명시적으로 revoke해야 한다.
+sequence ACL, role flag와 direct/transitive `SET ROLE` 경로를 fail-closed로 거부한다. table ACL뿐 아니라
+`has_any_column_privilege`로 effective column ACL도 capability별로 검사하므로 `PUBLIC` 또는 role grant의
+부분-column 권한으로 우회할 수 없다. PostgreSQL의 기본 `PUBLIC TEMPORARY` grant도 provisioning에서
+명시적으로 revoke해야 한다.
 
 운영 credential은 `eatbid-postgres-bootstrap`, `eatbid-database-migrator`,
 `eatbid-database-api`, dormant `eatbid-database-dataplane`으로 분리한다. API credential은 DB/schema owner가
