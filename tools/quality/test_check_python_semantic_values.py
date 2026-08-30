@@ -7,6 +7,25 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CHECKER = REPOSITORY_ROOT / "tools" / "quality" / "check-python-semantic-values.py"
+MAYBE_EXECUTED_BINDING_KINDS = frozenset(
+    {
+        "async-for",
+        "bool-op-tail",
+        "compare-tail",
+        "dict-comprehension",
+        "for",
+        "generator-expression",
+        "if",
+        "if-expression",
+        "list-comprehension",
+        "match-case",
+        "match-guard",
+        "set-comprehension",
+        "try",
+        "try-star",
+        "while",
+    }
+)
 
 
 def _run(tmp_path: Path, files: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -204,6 +223,192 @@ read = lambda flag: (
     ((clock := datetime) if flag else (clock := safe_clock)),
     clock.now(),
 )[1]
+""",
+    ]
+    for index, source in enumerate(mutations):
+        case = tmp_path / str(index)
+        case.mkdir()
+        _assert_violation(case, source, "naive-datetime")
+
+
+def test_maybe_executed_binding_node의_지원_범위를_행동_fixture로_고정한다(
+    tmp_path: Path,
+) -> None:
+    cases = {
+        "if": """
+from datetime import datetime
+clock = datetime
+if condition:
+    clock = safe_clock
+clock.now()
+""",
+        "if-expression": """
+from datetime import datetime
+clock = datetime
+(clock := safe_clock) if condition else None
+clock.now()
+""",
+        "try": """
+from datetime import datetime
+clock = datetime
+try:
+    clock = safe_clock
+except RuntimeError:
+    pass
+clock.now()
+""",
+        "try-star": """
+from datetime import datetime
+clock = datetime
+try:
+    clock = safe_clock
+except* RuntimeError:
+    pass
+clock.now()
+""",
+        "for": """
+from datetime import datetime
+clock = datetime
+for item in items:
+    clock = safe_clock
+clock.now()
+""",
+        "async-for": """
+from datetime import datetime
+async def read(items):
+    clock = datetime
+    async for item in items:
+        clock = safe_clock
+    return clock.now()
+""",
+        "while": """
+from datetime import datetime
+clock = datetime
+while condition:
+    clock = safe_clock
+clock.now()
+""",
+        "bool-op-tail": """
+from datetime import datetime
+clock = datetime
+condition and (clock := safe_clock)
+clock.now()
+""",
+        "compare-tail": """
+from datetime import datetime
+clock = datetime
+lower < value < (clock := safe_clock)
+clock.now()
+""",
+        "match-case": """
+from datetime import datetime
+clock = datetime
+match subject:
+    case 1:
+        clock = safe_clock
+clock.now()
+""",
+        "match-guard": """
+from datetime import datetime
+clock = datetime
+match subject:
+    case 1 if (clock := safe_clock):
+        pass
+clock.now()
+""",
+        "list-comprehension": """
+from datetime import datetime
+clock = datetime
+[(clock := safe_clock) for item in items]
+clock.now()
+""",
+        "set-comprehension": """
+from datetime import datetime
+clock = datetime
+{item for item in items if (clock := safe_clock)}
+clock.now()
+""",
+        "dict-comprehension": """
+from datetime import datetime
+clock = datetime
+{item: (clock := safe_clock) for item in items}
+clock.now()
+""",
+        "generator-expression": """
+from datetime import datetime
+clock = datetime
+((clock := safe_clock) for item in items)
+clock.now()
+""",
+    }
+    assert frozenset(cases) == MAYBE_EXECUTED_BINDING_KINDS
+
+    missed = []
+    for index, (kind, source) in enumerate(cases.items()):
+        case = tmp_path / str(index)
+        case.mkdir()
+        result = _run(case, {"apps/dataplane/src/eatbid/core/example.py": source})
+        output = result.stdout + result.stderr
+        if result.returncode == 0:
+            missed.append(kind)
+        else:
+            assert "[naive-datetime]" in output, f"{kind}: {output}"
+    assert missed == []
+
+
+def test_BoolOp_첫_operand의_확정_rebinding은_safe_shadow로_유지한다(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/example.py": """
+from datetime import datetime
+clock = datetime
+(clock := safe_clock) and condition
+clock.now()
+""",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_chained_compare의_첫_comparator는_확정_rebinding으로_유지한다(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/core/example.py": """
+from datetime import datetime
+clock = datetime
+value < (clock := safe_clock) < upper
+clock.now()
+""",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_maybe_path에서_새로_생긴_datetime_origin도_이후_사용에서_거부한다(
+    tmp_path: Path,
+) -> None:
+    mutations = [
+        """
+from datetime import datetime
+clock = safe_clock
+condition or (clock := datetime)
+clock.now()
+""",
+        """
+from datetime import datetime
+clock = safe_clock
+match subject:
+    case 1:
+        clock = datetime
+clock.utcnow()
+""",
+        """
+from datetime import datetime
+clock = safe_clock
+[(clock := datetime) for item in items]
+clock.now()
 """,
     ]
     for index, source in enumerate(mutations):

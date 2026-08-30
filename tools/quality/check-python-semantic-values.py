@@ -281,18 +281,18 @@ class ScopeBuilder(ast.NodeVisitor):
     def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
         self.visit_For(node)  # type: ignore[arg-type]
 
-    def _visit_conditional_statements(self, statements: Iterable[ast.stmt]) -> None:
+    def _visit_conditionally(self, nodes: Iterable[ast.AST]) -> None:
         self.conditional_depth += 1
         try:
-            for statement in statements:
-                self.visit(statement)
+            for node in nodes:
+                self.visit(node)
         finally:
             self.conditional_depth -= 1
 
     def visit_If(self, node: ast.If) -> None:
         self.visit(node.test)
-        self._visit_conditional_statements(node.body)
-        self._visit_conditional_statements(node.orelse)
+        self._visit_conditionally(node.body)
+        self._visit_conditionally(node.orelse)
 
     def visit_IfExp(self, node: ast.IfExp) -> None:
         self.visit(node.test)
@@ -305,18 +305,76 @@ class ScopeBuilder(ast.NodeVisitor):
 
     def visit_While(self, node: ast.While) -> None:
         self.visit(node.test)
-        self._visit_conditional_statements(node.body)
-        self._visit_conditional_statements(node.orelse)
+        self._visit_conditionally(node.body)
+        self._visit_conditionally(node.orelse)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        if not node.values:
+            return
+        self.visit(node.values[0])
+        self._visit_conditionally(node.values[1:])
+
+    def visit_Compare(self, node: ast.Compare) -> None:
+        self.visit(node.left)
+        if not node.comparators:
+            return
+        self.visit(node.comparators[0])
+        self._visit_conditionally(node.comparators[1:])
+
+    def visit_Match(self, node: ast.Match) -> None:
+        self.visit(node.subject)
+        for case in node.cases:
+            case_nodes: list[ast.AST] = [case.pattern]
+            if case.guard is not None:
+                case_nodes.append(case.guard)
+            case_nodes.extend(case.body)
+            self._visit_conditionally(case_nodes)
+
+    def _visit_comprehension(
+        self,
+        generators: list[ast.comprehension],
+        values: Iterable[ast.expr],
+    ) -> None:
+        if not generators:
+            for value in values:
+                self.visit(value)
+            return
+        self.visit(generators[0].iter)
+        self.conditional_depth += 1
+        try:
+            for index, generator in enumerate(generators):
+                self.node_scopes[generator] = self.scope
+                if index > 0:
+                    self.visit(generator.iter)
+                self.visit(generator.target)
+                for condition in generator.ifs:
+                    self.visit(condition)
+            for value in values:
+                self.visit(value)
+        finally:
+            self.conditional_depth -= 1
+
+    def visit_ListComp(self, node: ast.ListComp) -> None:
+        self._visit_comprehension(node.generators, [node.elt])
+
+    def visit_SetComp(self, node: ast.SetComp) -> None:
+        self._visit_comprehension(node.generators, [node.elt])
+
+    def visit_DictComp(self, node: ast.DictComp) -> None:
+        self._visit_comprehension(node.generators, [node.key, node.value])
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+        self._visit_comprehension(node.generators, [node.elt])
 
     def visit_Try(self, node: ast.Try) -> None:
-        self._visit_conditional_statements(node.body)
+        self._visit_conditionally(node.body)
         self.conditional_depth += 1
         try:
             for handler in node.handlers:
                 self.visit(handler)
         finally:
             self.conditional_depth -= 1
-        self._visit_conditional_statements(node.orelse)
+        self._visit_conditionally(node.orelse)
         for statement in node.finalbody:
             self.visit(statement)
 

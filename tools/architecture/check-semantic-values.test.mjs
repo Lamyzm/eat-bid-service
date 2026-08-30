@@ -100,6 +100,33 @@ test("전역 Date와 Temporal.Now의 직접·별칭·구조분해·조건부 우
   );
 });
 
+test("구조분해 default의 source와 initializer origin을 모두 추적한다", () => {
+  const forbiddenDefaults = [
+    "let currentTime; ({ now: currentTime = Date.now } = {}); currentTime();",
+    "let Clock; ({ Clock = Date } = {}); new Clock();",
+    "const { value: currentTime = Date.now } = {}; currentTime();",
+  ];
+  const missed = [];
+  for (const source of forbiddenDefaults) {
+    const result = run(fixture({ "apps/server/src/defaults.ts": source }));
+    if (result.status === 0) missed.push(source);
+    else assert.match(result.output, /\[ambient-date\]/);
+  }
+  assert.deepEqual(missed, []);
+
+  const safe = fixture({
+    "apps/server/src/defaults.ts": [
+      "let Clock;",
+      "({ Clock = SafeClock } = {});",
+      "new Clock();",
+      "const { value: currentTime = safeNow } = {};",
+      "currentTime();",
+    ].join("\n"),
+  });
+  const safeResult = run(safe);
+  assert.equal(safeResult.status, 0, safeResult.output);
+});
+
 test("금지 날짜 라이브러리의 정적·require·dynamic import 별칭을 거부한다", () => {
   const mutations = [
     "import dayjs from 'dayjs'; dayjs();",

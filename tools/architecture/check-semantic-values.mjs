@@ -131,18 +131,21 @@ function declarationsForSymbol(symbol) {
   return [...new Set([...(resolved.declarations ?? []), ...(symbol.declarations ?? [])])];
 }
 
-function collectAssignedTargets(target, value, position, properties = []) {
+function recordAssignedValue(symbol, value, position, properties, defaultInitializer) {
+  if (!symbol) return false;
+  if (!assignedValuesBySymbol.has(symbol)) assignedValuesBySymbol.set(symbol, []);
+  assignedValuesBySymbol.get(symbol).push({ position, value, properties, defaultInitializer });
+  return true;
+}
+
+function collectAssignedTargets(target, value, position, properties = [], defaultInitializer) {
   const current = unwrap(target);
   if (ts.isBinaryExpression(current) && current.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
-    collectAssignedTargets(current.left, value, position, properties);
+    collectAssignedTargets(current.left, value, position, properties, current.right);
     return;
   }
   if (ts.isIdentifier(current)) {
-    const symbol = symbolFor(current);
-    if (symbol) {
-      if (!assignedValuesBySymbol.has(symbol)) assignedValuesBySymbol.set(symbol, []);
-      assignedValuesBySymbol.get(symbol).push({ position, value, properties });
-    }
+    recordAssignedValue(symbolFor(current), value, position, properties, defaultInitializer);
     return;
   }
   if (ts.isObjectLiteralExpression(current)) {
@@ -151,7 +154,28 @@ function collectAssignedTargets(target, value, position, properties = []) {
         const name = propertyNameText(property.name);
         if (name) collectAssignedTargets(property.initializer, value, position, [...properties, name]);
       } else if (ts.isShorthandPropertyAssignment(property)) {
-        collectAssignedTargets(property.name, value, position, [...properties, property.name.text]);
+        const shorthandProperties = [...properties, property.name.text];
+        let shorthandSymbol;
+        try {
+          shorthandSymbol = checker.getShorthandAssignmentValueSymbol(property);
+        } catch {
+          // Fall back to the identifier symbol for incomplete fixture programs.
+        }
+        if (!recordAssignedValue(
+          shorthandSymbol,
+          value,
+          position,
+          shorthandProperties,
+          property.objectAssignmentInitializer,
+        )) {
+          collectAssignedTargets(
+            property.name,
+            value,
+            position,
+            shorthandProperties,
+            property.objectAssignmentInitializer,
+          );
+        }
       }
     }
     return;
@@ -203,6 +227,17 @@ function propertyNameText(name) {
   return undefined;
 }
 
+function addSelectedAndDefaultOrigins(result, selectedSource, properties, defaultInitializer, seenSymbols) {
+  if (selectedSource) {
+    for (const origin of origins(selectedSource, seenSymbols)) {
+      result.add(properties.length ? `${origin}.${properties.join(".")}` : origin);
+    }
+  }
+  if (defaultInitializer) {
+    for (const origin of origins(defaultInitializer, seenSymbols)) result.add(origin);
+  }
+}
+
 function origins(node, seenSymbols = new Set()) {
   const current = unwrap(node);
   if (ts.isIdentifier(current)) {
@@ -234,9 +269,13 @@ function origins(node, seenSymbols = new Set()) {
         const variable = bindingPattern.parent;
         if (ts.isVariableDeclaration(variable) && variable.initializer) {
           const property = propertyNameText(declaration.propertyName ?? declaration.name);
-          for (const origin of origins(variable.initializer, nextSeen)) {
-            result.add(property ? `${origin}.${property}` : origin);
-          }
+          addSelectedAndDefaultOrigins(
+            result,
+            variable.initializer,
+            property ? [property] : [],
+            declaration.initializer,
+            nextSeen,
+          );
         }
       }
       if (ts.isExportSpecifier(declaration)) {
@@ -250,9 +289,13 @@ function origins(node, seenSymbols = new Set()) {
     }
     for (const assignment of assignedValuesBySymbol.get(symbol) ?? []) {
       if (assignment.position < current.getStart()) {
-        for (const origin of origins(assignment.value, nextSeen)) {
-          result.add(assignment.properties.length ? `${origin}.${assignment.properties.join(".")}` : origin);
-        }
+        addSelectedAndDefaultOrigins(
+          result,
+          assignment.value,
+          assignment.properties,
+          assignment.defaultInitializer,
+          nextSeen,
+        );
       }
     }
     return result;
