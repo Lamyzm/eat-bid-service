@@ -1,0 +1,66 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/tools/agent-workflow/hook.mjs\" --provider codex",
+            "commandWindows": "powershell -NoProfile -Command \"node (Join-Path (git rev-parse --show-toplevel) 'tools/agent-workflow/hook.mjs') --provider codex\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/tools/agent-workflow/hook.mjs\" --provider codex",
+            "commandWindows": "powershell -NoProfile -Command \"node (Join-Path (git rev-parse --show-toplevel) 'tools/agent-workflow/hook.mjs') --provider codex\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/tools/agent-workflow/hook.mjs\" --provider codex",
+            "commandWindows": "powershell -NoProfile -Command \"node (Join-Path (git rev-parse --show-toplevel) 'tools/agent-workflow/hook.mjs') --provider codex\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/tools/agent-workflow/hook.mjs\" --provider codex",
+            "commandWindows": "powershell -NoProfile -Command \"node (Join-Path (git rev-parse --show-toplevel) 'tools/agent-workflow/hook.mjs') --provider codex\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/tools/agent-workflow/hook.mjs\" --provider codex",
+            "commandWindows": "powershell -NoProfile -Command \"node (Join-Path (git rev-parse --show-toplevel) 'tools/agent-workflow/hook.mjs') --provider codex\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

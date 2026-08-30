@@ -1,0 +1,14 @@
+{
+  "linearEndpoint": "https://api.linear.app/graphql",
+  "linearMcpEndpoint": "https://mcp.linear.app/mcp",
+  "teamKey": "EAT",
+  "readyStates": ["Ready"],
+  "inProgressState": "In Progress",
+  "infisical": {
+    "environment": "dev",
+    "path": "/tooling/linear",
+    "projectId": "0d794ce1-e0e3-4e48-83ea-88f2f05f9a65"
+  },
+  "leaseHours": 12,
+  "requestTimeoutMs": 5000
+}

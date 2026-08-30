@@ -116,7 +116,9 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 
 ## 7. 보안
 
-- secret은 Git 평문/ConfigMap에 저장하지 않는다. 초기 GitOps 방식은 SOPS+age를 기준으로 한다.
+- 현재 비밀값·버전·접근권한·회전 상태는 Infisical만 권위가 된다. Git에는 값이 아닌 key 계약과
+  `SecretStore`/`ExternalSecret` 참조만 둔다. Kubernetes 전달은 ADR 0022의 Kubernetes Auth와
+  External Secrets Operator 경계를 따른다.
 - source credential, R2 credential, DB role별 credential을 분리하고 최소 권한을 적용한다.
 - workflow service account는 필요한 Workflow/Secret/DB/R2 권한만 가진다.
 - API는 workspace와 supplier 소유권을 모든 command/query에서 검증한다.
@@ -156,7 +158,8 @@ Collector, Prometheus/Grafana/Loki를 추가한다. 제품 경로에 특정 관�
 
 - Argo Workflows, R2 raw, PostgreSQL, Drizzle migrations
 - Python `uv`, Pydantic, Ruff, Pyright, pytest
-- 구조화 로그, `pg_trgm`, SOPS+age, run/correlation ID
+- 구조화 로그, `pg_trgm`, Infisical 로컬 주입 계약, run/correlation ID
+- Kubernetes Auth + External Secrets Operator는 실제 workload 전환 issue에서 도입
 
 측정 후 도입:
 

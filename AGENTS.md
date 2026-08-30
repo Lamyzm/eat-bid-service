@@ -61,6 +61,10 @@
     port/adapter, schema 계층, UI 역할, 테스트 fixture처럼 함께 변경되는 이유가 다른 경계를 우선
     추출하라. 줄 수만 맞추는 기계적 분리는 금지한다. 하나의 응집된 알고리즘, 생성 코드, 선언형
     schema·fixture처럼 분리가 더 해로우면 유지할 수 있지만 작업 보고서에 그 이유를 한 문장으로 남겨라.
+19. **하나의 work item에는 한 명의 writing owner만 둔다.** 파일을 쓰기 전에 Linear issue를
+    assign하고 검증된 worktree lease를 claim하라. 첫 mutation session이 lease의 writer가 되며,
+    의도한 owned path는 issue/handoff에 남긴다. 다른 writer가 claim한 작업은 read-only로
+    조사·review만 한다. 병렬 구현은 별도 issue·worktree에서 owned path가 겹치지 않을 때만 허용한다.
 
 ## 변경 절차
 

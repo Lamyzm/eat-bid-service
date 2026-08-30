@@ -168,7 +168,8 @@ Pydantic drift를 check mode로 검증하고 추적 artifact를 다시 쓰지 �
 
 ### 보안과 개인정보
 
-- secret은 SOPS+age로 암호화하고 workload/DB 역할을 분리한다.
+- 현재 secret value는 Infisical만 권위로 두고 workload/DB 역할과 environment/path 접근권한을
+  분리한다. Kubernetes에는 Kubernetes Auth와 ESO로 필요한 key만 전달한다.
 - 사업자등록번호 같은 식별정보는 권한과 로그 마스킹을 적용한다.
 - workspace tenancy를 API query/command에서 강제한다.
 
