@@ -2,6 +2,8 @@
 
 @import 'tw-animate-css';
 
+@import './tokens/motion.css';
+
 @custom-variant dark (&:is(.dark *));
 
 /* Base UI exposes orientation as data-orientation="…"; the base-nova
@@ -83,7 +85,14 @@
 
 ::view-transition-new(root) {
   /* Apply the reveal animation */
-  animation: reveal 0.4s ease-in-out forwards;
+  animation: reveal var(--motion-duration-panel) var(--motion-easing-enter) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
 }
 
 /* Base UI sets --accordion-panel-height on Accordion.Panel, but tw-animate-css's

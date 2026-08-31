@@ -150,6 +150,35 @@ function resourceFile(root, file) {
   return display(root, file).match(/^apps\/web\/src\/api\/([^/]+)\/([^/]+\.[cm]?tsx?)$/);
 }
 
+function isCanonicalMotionPath(root, file) {
+  return /^apps\/web\/src\/(?:capabilities|shared|shell|app\/\(workspace\))\//.test(
+    display(root, file),
+  );
+}
+
+function isButtonPrimitivePath(root, file) {
+  return display(root, file) === "apps/web/src/shared/ui/button.tsx";
+}
+
+function isSharedUiPath(root, file) {
+  return /^apps\/web\/src\/shared\/ui\//.test(display(root, file));
+}
+
+function motionClassViolations(value) {
+  return {
+    durationLiteral:
+      /(?:^|[\s:])duration-(?:\d+|\[(?!var\(--motion-duration-)[^\]]+\])/.test(value),
+    localPress: /active:(?:scale|translate(?:-[xy])?)-/.test(value),
+    transitionAll: /(?:^|[\s:])transition-all(?:\s|$)/.test(value),
+  };
+}
+
+function isSharedControlResponsibilityImport(specifier) {
+  return /(?:^|[/@_-])(?:auth(?:entication)?|session|permission|telemetry|analytics|tracking?|sentry)(?:$|[/@_.-])/i.test(
+    specifier,
+  );
+}
+
 function unresolvedWebTransportReference(root, file, reference) {
   if (!reference?.dynamic || reference.known !== false) return false;
   const specifier = reference.text.replaceAll("\\", "/");
@@ -240,6 +269,15 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
         if (violation) add(findings, root, WEB_BOUNDARY_RULES.RESOURCE_TRANSPORT_IMPORT, file, node, sourceFile, violation);
         const runtimeViolation = transportRuntimeViolation(root, file, target);
         if (runtimeViolation) add(findings, root, WEB_BOUNDARY_RULES.TRANSPORT_RUNTIME_CROSS_IMPORT, file, node, sourceFile, runtimeViolation);
+        if (isSharedUiPath(root, file) && isSharedControlResponsibilityImport(moduleReference.text)) {
+          add(findings, root, WEB_BOUNDARY_RULES.SHARED_CONTROL_RESPONSIBILITY, file, node, sourceFile, "shared UI control은 인증·권한·업무 telemetry를 직접 import할 수 없습니다.");
+        }
+      }
+      if (isCanonicalMotionPath(root, file) && ts.isStringLiteralLike(node)) {
+        const violations = motionClassViolations(node.text);
+        if (violations.transitionAll) add(findings, root, WEB_BOUNDARY_RULES.MOTION_TRANSITION_ALL, file, node, sourceFile, "canonical UI는 transition-all 대신 전환할 속성을 명시해야 합니다.");
+        if (violations.durationLiteral) add(findings, root, WEB_BOUNDARY_RULES.MOTION_DURATION_LITERAL, file, node, sourceFile, "canonical UI의 motion duration은 semantic CSS token을 사용해야 합니다.");
+        if (!isButtonPrimitivePath(root, file) && violations.localPress) add(findings, root, WEB_BOUNDARY_RULES.MOTION_LOCAL_PRESS, file, node, sourceFile, "화면은 press transform을 직접 만들지 않고 shared control을 사용해야 합니다.");
       }
       if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "ENDPOINTS") add(findings, root, WEB_BOUNDARY_RULES.FRONTEND_ENDPOINTS_MIRROR, file, node, sourceFile, "frontend ENDPOINTS mirror는 canonical operation contract를 중복합니다.");
       let endpointRoot = node;

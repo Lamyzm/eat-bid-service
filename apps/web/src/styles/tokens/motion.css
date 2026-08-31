@@ -1,0 +1,18 @@
+:root {
+  --motion-duration-press: 70ms;
+  --motion-duration-state: 110ms;
+  --motion-duration-enter: 150ms;
+  --motion-duration-panel: 240ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --motion-easing-enter: cubic-bezier(0, 0, 0.38, 0.9);
+  --motion-easing-exit: cubic-bezier(0.2, 0, 1, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-press: 0ms;
+    --motion-duration-state: 0ms;
+    --motion-duration-enter: 0ms;
+    --motion-duration-panel: 0ms;
+  }
+}

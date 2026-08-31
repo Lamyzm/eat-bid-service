@@ -7,7 +7,8 @@ export function startThemeTransition(
   origin?: { readonly clientX: number; readonly clientY: number }
 ): void {
   const root = document.documentElement;
-  if (!document.startViewTransition) {
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (!document.startViewTransition || prefersReducedMotion) {
     apply();
     return;
   }

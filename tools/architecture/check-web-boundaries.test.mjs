@@ -140,6 +140,49 @@ test("완전히 같은 큰 source 그룹과 300줄 초과 source를 보고한다
   assert.deepEqual(duplicateFinding.members, ["apps/web/src/shared/one.ts", "apps/web/src/shared/two.ts"]);
 });
 
+test("canonical 화면의 임의 motion과 shared control의 업무 의존을 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/shared/ui/button.tsx": [
+      "import { authClient } from '@/lib/auth-client';",
+      "import { captureException } from '@sentry/nextjs';",
+      "export const className = 'transition-all duration-200';",
+      "void authClient; void captureException;",
+    ].join("\n"),
+    "apps/web/src/app/(workspace)/auctions/action.tsx":
+      "export const className = 'active:scale-95 active:translate-y-px';\n",
+  });
+
+  assert.deepEqual(rules(report).sort(), [
+    "motion-duration-literal",
+    "motion-local-press",
+    "motion-transition-all",
+    "shared-control-responsibility",
+  ].sort());
+  assert.equal(
+    report.unmatchedFindings.filter(
+      (finding) => finding.rule === "shared-control-responsibility",
+    ).length,
+    2,
+  );
+});
+
+test("공통 primitive의 token 기반 press motion은 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/shared/ui/button.tsx": [
+      "import { Button } from '@base-ui/react/button';",
+      "export const className = [",
+      "  'transition-[color,background-color,border-color,opacity,transform]',",
+      "  'duration-[var(--motion-duration-state)]',",
+      "  'data-[interaction=press]:active:not-aria-[haspopup]:translate-y-px',",
+      "  'motion-reduce:transform-none',",
+      "].join(' ');",
+      "void Button;",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(report.unmatchedFindings, []);
+});
+
 test("정확한 legacy fingerprint는 허용하고 변경 추가 이름 변경은 거부한다", async () => {
   const subject = fixture({
     "apps/web/src/legacy.ts": "export async function load() { return fetch('/legacy') }\n",
