@@ -13,8 +13,9 @@ frontend/shared legacy debt only; their exact AST fingerprints may be deleted bu
 not become future contract or DDL authority.
 
 `packages/domain` owns semantic values and invariants, while `packages/db` owns exact
-Drizzle DDL. A source Pydantic model is hand-written only for the eaT source shape;
-generated normalized Pydantic is derived from the versioned Zod-emitted JSON Schema.
+Drizzle DDL. Known eaT source records/columns use hand-written source Pydantic while the reviewed parser contract and
+column fingerprint cover the observed source shape; generated normalized Pydantic is derived from the versioned
+Zod-emitted JSON Schema.
 OpenAPI 3.1 remains a later conformance upgrade and must not be claimed by changing
 only the document header.
 
@@ -68,12 +69,17 @@ and `mapAuctionRow` creates the internal record. Ambient current time is restric
 
 ## Rejected or deferred
 
-Hand-written Pydantic remains the dataplane source contract; normalized Pydantic is generated from the Zod
+The reviewed parser/fingerprint plus hand-written source Pydantic for known columns remain the dataplane source contract;
+normalized Pydantic is generated from the Zod
 portable registry. Standard Schema is a Nest interoperability interface, not a new schema authority. OpenAPI is
 a downstream projection after validated server contracts exist, not an alternate authoring format. Immer is not
 a schema/domain composition layer, and a separate contract framework is not introduced while Zod native object
 composition and Nest Standard Schema cover the required boundary. The remaining legacy shared schemas are neither
 a license to share DB rows nor a reason to retain duplicate response interfaces.
+
+Each portable entry is defined from `id`, `recordType`, `contractVersion` and a payload schema. The helper derives the
+version-literal wire schema and language-neutral manifest; generated Python constants/dispatch replace hand-written
+normalizer and projector version strings.
 
 ## Enforced contract evidence
 
@@ -100,8 +106,15 @@ pnpm/uv install, architecture drift, and semantic mutation tests. Image build wa
 is introduced.
 
 Argo Workflows runs the dataplane, which validates the generated ingestion model and writes through restricted
-roles directly to PostgreSQL rather than posting normalized rows to Nest HTTP. Frontend cutover and coordinate
-name-lookup enrichment are separate, explicitly deferred product/data work.
+roles directly to PostgreSQL rather than posting normalized rows to Nest HTTP. ADR 0023 makes the Web API resource
+module the runtime parse boundary for public Zod operations; each canonical vertical slice removes its manual
+DTO and unchecked JSON path. Coordinate name-lookup enrichment remains separate, explicitly deferred data work.
+
+The canonical HTTP operation registry also owns method, version, semantic path/parameter, implementation owner and
+operation ID. Nest adapter paths/version, OpenAPI templates and Web request builders are derived consumers, not
+parallel endpoint constant lists. Web imports browser-safe ESM resource subpaths rather than the package root. Next
+screen routes remain file-system-owned and are checked by `typedRoutes`/`next typegen`; they are not added to the
+public HTTP operation registry.
 
 ## Review triggers
 

@@ -8,12 +8,13 @@
 
 여기서 SSOT는 모든 계층을 한 schema 파일로 생성한다는 뜻이 아니다. **같은 질문에 답하는
 권위가 둘이면 안 된다는 뜻**이다. canonical interchange와 공개 API JSON은 Zod, 업무 값의 의미와
-불변식은 domain, 물리 DB 형식은 Drizzle, eaT 원본 응답 형식은 source Pydantic이 각각 하나의 권위를
+불변식은 domain, 물리 DB 형식은 Drizzle, eaT 원본 응답 형식은 reviewed parser contract와 known-column
+source Pydantic이 각각 하나의 권위를
 가진다. 한 계층의 모델을 다른 계층에 그대로 노출하지 않고 명명한 adapter에서 변환한다.
 
 ```mermaid
 flowchart TB
-    source[eaT 원본 XML/JSON] --> pydantic[Pydantic source contract]
+    source[eaT 원본 XML/JSON] --> pydantic[parser fingerprint + source Pydantic]
     pydantic --> normalize[normalize adapter]
 
     hub[Zod atoms / values] --> ingestion[Zod ingestion/v1 wire]
@@ -41,14 +42,14 @@ flowchart TB
 
 | 질문 | 유일한 권위 | 여기서 파생되는 것 | 여기서 파생하지 않는 것 |
 |---|---|---|---|
-| eaT가 실제로 보낸 모양은 무엇인가? | 손으로 작성한 Pydantic source contract | normalized input | interchange/API DTO, DDL |
+| eaT가 실제로 보낸 모양은 무엇인가? | raw evidence + reviewed parser/fingerprint + known-column Pydantic | normalized input | interchange/API DTO, DDL |
 | Python과 TypeScript가 교환하는 canonical JSON은 무엇인가? | Zod `ingestion/v1` wire schema | JSON Schema, generated Pydantic model | source parsing, DDL |
 | 금액·비율·시간의 업무 의미는 무엇인가? | `packages/domain` | 불변식과 명명된 변환 | JSON field 이름, DB column |
 | 어떤 API JSON을 공개하고 받는가? | Zod `api/v1` wire schema | `z.input`/`z.output`, OpenAPI, web parser | DDL |
 | 어떻게 정확히 저장하는가? | `packages/db` Drizzle schema | SQL migration, row type | HTTP response |
 
 쌍방향 화살표는 생성 관계가 아니라 명시적 encode/decode 경계다. OpenAPI나 Zod에서 DDL을 만들지
-않고 Drizzle row를 HTTP DTO로 사용하지 않는다. source Pydantic은 독립 권위지만 normalized Pydantic은
+않고 Drizzle row를 HTTP DTO로 사용하지 않는다. source parser/Pydantic은 독립 권위지만 normalized Pydantic은
 Zod JSON Schema에서 생성한다. 각 권위 사이의 의미 보존은 canonical fixture와 integration test로
 증명한다.
 
@@ -60,7 +61,7 @@ Zod JSON Schema에서 생성한다. 각 권위 사이의 의미 보존은 canoni
 - `BidRate`와 `FloorRate`를 섞을 수 없는 것처럼 업무 의미를 바꾸면 domain부터 바꾸고 codec과
   integration test로 전파한다.
 - `numeric` precision, index, foreign key처럼 저장 제약을 바꾸면 Drizzle과 migration부터 바꾼다.
-- eaT XML field나 원본 해석 규칙을 바꾸면 Pydantic source contract와 normalize adapter부터 바꾼다.
+- eaT XML field나 원본 해석 규칙을 바꾸면 parser fingerprint, source Pydantic과 normalize adapter부터 바꾼다.
 
 이 규칙 덕분에 한 변경이 어디서 시작되어야 하는지 결정할 수 있고, AI 세션이 편의상 controller,
 DB row, crawler model에 같은 interface를 복사하는 것을 막는다.
@@ -201,6 +202,9 @@ latitude/longitude는 finite number와 법정 범위를 검증한다. 좌표만�
   필요하면 discriminated union을 사용한다.
 - portable registry는 JSON Schema로 표현 가능한 기능만 허용한다. versioned JSON Schema와 generated
   Pydantic model은 커밋하고 CI 재생성 diff로 drift를 차단한다.
+- 각 entry는 `definePortableContract({ id, recordType, contractVersion, payloadSchema })`가 최종
+  `contractVersion` literal wire schema와 언어 중립 manifest를 만든다. Python normalizer/projector는 생성
+  상수/dispatch를 사용하며 같은 version/record-type literal을 다시 작성하지 않는다.
 
 ### 한 값이 API를 통과하는 실제 흐름
 
@@ -240,6 +244,7 @@ codec의 decode가 domain factory까지 통과해야 유효한 입력이다. 반
 - Zod 외부에 중복 작성한 public wire interface
 - 사람이 중복 작성한 normalized Pydantic model과 generated contract drift
 - portable registry의 codec/transform/overwrite/runtime custom predicate
+- registry 밖에 반복한 ingestion `recordType`/`contractVersion` dispatch literal
 - naive Python datetime과 float money/rate normalization
 
 portable registry file과 exported const top-level `portableContracts` root는 필수다. registry entry에서
@@ -281,9 +286,10 @@ lane에 의존한다.
 4. `packages/db` bigint mapping과 canonical numeric 정책을 고친다.
 5. dataplane의 source time/Decimal/count 변환을 generated model과 동일 fixture로 검증한다.
 6. 정적 gate로 현재 상태를 동결하고 CI에 연결한다.
-7. frontend는 사용자와 기능/정보 구조를 합의한 뒤 wire 계약 소비자로 전환한다.
+7. frontend는 ADR 0023의 domain gateway에서 public wire를 runtime parse하고 canonical vertical slice별로
+   legacy 화면을 교체한다.
 
-frontend cutover 전에도 새 backend 계약은 단위를 잃지 않는다. web chart/map adapter가 일시적으로
-number를 필요로 하면 근사 presentation value임을 명시하고 canonical 판단에는 재사용하지 않는다.
+Web의 `present-*` chart/map adapter가 일시적으로 number를 필요로 하면 근사 presentation value임을
+명시하고 canonical 판단, query key 또는 command payload에는 재사용하지 않는다.
 누락 좌표를 이름 lookup으로 canonical 위치에 채우는 것도 이 단계의 범위가 아니며, CRS/provenance
 계약을 소비하는 별도 Argo enrichment/backfill이 필요하다.

@@ -43,7 +43,8 @@
     동반한 exact decimal, 비율은 percentage-point와 ratio를 구분한 타입, 수량·바이트·좌표는 목적과
     단위가 드러나는 타입을 사용한다. canonical interchange와 공개 API wire 표현은
     `packages/contracts`의 Zod schema가 권위이며, Python normalized model은 versioned JSON Schema에서
-    생성한다. source Pydantic과 Drizzle DDL은 각자의 권위를 유지한다. `Date`·일반 `number`·문자열로
+    생성한다. reviewed source parser/fingerprint와 known-column source Pydantic, Drizzle DDL은 각자의
+    권위를 유지한다. `Date`·일반 `number`·문자열로
     계층 경계를 암묵 통과시키지 않는다.
 16. **계약은 Zod native composition으로 조립한다.** atom→value→중첩 resource→versioned endpoint
     순서를 유지한다. 같은 contract family는 `pick`/`omit`/`safeExtend`를 사용할 수 있지만 ingestion,
@@ -61,7 +62,15 @@
     port/adapter, schema 계층, UI 역할, 테스트 fixture처럼 함께 변경되는 이유가 다른 경계를 우선
     추출하라. 줄 수만 맞추는 기계적 분리는 금지한다. 하나의 응집된 알고리즘, 생성 코드, 선언형
     schema·fixture처럼 분리가 더 해로우면 유지할 수 있지만 작업 보고서에 그 이유를 한 문장으로 남겨라.
-19. **하나의 work item에는 한 명의 writing owner만 둔다.** 파일을 쓰기 전에 Linear issue를
+19. **공개 endpoint는 operation 계약에서만 정의한다.** method, version, semantic path와 입력,
+    status별 응답/Problem schema, `operationId`는 `packages/contracts`의 resource operation이 소유하고
+    Nest decorator, OpenAPI와 Web request path는 여기서 파생하라. Server/Web source에 canonical
+    `/api/v1/...` literal이나 frontend `ENDPOINTS` mirror를 만들지 마라. API origin은 runtime config,
+    Next 화면 URL은 `app/` file-system과 generated route type, Server Action은 import 가능한 mutation이
+    소유한다. `/api/**`는 Nest ingress이며 Web-owned public handler는 별도 owner contract, non-`/api`
+    prefix와 ingress rule 없이는 만들지 않는다. 이 경계를 검사하는 repository endpoint lint를 새 canonical operation과 같은 변경에서
+    추가하고, baseline 예외를 넓혀 우회하지 않는다.
+20. **하나의 work item에는 한 명의 writing owner만 둔다.** 파일을 쓰기 전에 Linear issue를
     assign하고 검증된 worktree lease를 claim하라. 첫 mutation session이 lease의 writer가 되며,
     의도한 owned path는 issue/handoff에 남긴다. 다른 writer가 claim한 작업은 read-only로
     조사·review만 한다. 병렬 구현은 별도 issue·worktree에서 owned path가 겹치지 않을 때만 허용한다.

@@ -15,6 +15,7 @@
 | [arc42.md](arc42.md) | 전체 설계를 한 문맥에서 어떻게 설명하는가? |
 | [legacy-disposition.md](legacy-disposition.md) | 무엇을 보존하고 무엇을 폐기하는가? |
 | [backend-application-foundation.md](backend-application-foundation.md) | Nest·Effect·HTTP·DB application boundary를 어떻게 책임 분리하는가? |
+| [frontend-application-foundation.md](frontend-application-foundation.md) | Next route·shell·capability·resource API·routing·shared 경계를 어떻게 책임 분리하는가? |
 | [time-and-value-contracts.md](time-and-value-contracts.md) | 시간·금액·비율·수량·좌표의 의미와 Zod 계약은 어떻게 보존하는가? |
 | [glossary.md](glossary.md) | 같은 단어를 같은 의미로 쓰고 있는가? |
 | [stack/README.md](stack/README.md) | 현재 기술 기준과 production 전 게이트는 무엇인가? |

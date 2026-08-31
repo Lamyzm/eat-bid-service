@@ -20,10 +20,12 @@
 | 분석 | PostgreSQL `mart`, 버전이 있는 재생성 가능 파생물 |
 | 외부 식별자 | `(source_system, code_scheme, code)`; 내부 관계는 bigint ID |
 | 값·계약 | Temporal/exact 의미 타입, Zod portable contract hub, generated Pydantic bridge |
-| API | NestJS 모듈러 모놀리스, DB 모델과 별도 계약 |
+| API | NestJS 모듈러 모놀리스, framework-neutral operation에서 path/OpenAPI 파생 |
+| Web | Next.js 모듈러 애플리케이션, browser-safe contract subpath, resource API/Query Options |
 | 수집 실행 | 단일 dataplane 이미지 + Argo Workflows |
 | 배포 | GitOps + Argo CD, 이미지 digest/Git SHA 고정 |
 | DDL | Drizzle schema → 커밋된 SQL migration |
+| secret/config | secret 값은 Infisical, 비밀이 아닌 topology는 Git 환경 manifest |
 | 명시적 비목표 | 추천 투찰가, 예정가 예측, 자동 NeaT 투찰, 조기 마이크로서비스화 |
 
 ## 목표 시스템 지도
@@ -93,7 +95,7 @@ flowchart LR
 ## 계약 권위와 강제 경로
 
 `packages/domain`은 의미와 불변식, `packages/contracts`는 canonical/public Zod wire,
-`packages/db`는 Drizzle DDL, source Pydantic은 eaT 원본 shape의 권위다. normalized Pydantic만
+`packages/db`는 Drizzle DDL, reviewed source parser/fingerprint와 known-column Pydantic은 eaT 원본 shape의 권위다. normalized Pydantic만
 versioned JSON Schema에서 생성한다. application `AuctionRecord`는 DB row와 public JSON 사이의 내부
 port이고, 공개 응답은 Zod에서 추론한 `AuctionV1Response`다. Argo Workflows의 dataplane은 generated
 ingestion contract를 검증한 뒤 product server HTTP를 거치지 않고 제한된 DB role로 PostgreSQL에
@@ -103,8 +105,11 @@ ingestion contract를 검증한 뒤 product server HTTP를 거치지 않고 제�
 개별 생성물은 `pnpm contracts:check`, `pnpm contracts:python:check`로 check mode에서 확인한다.
 Hosted Ubuntu publication CI와 hosted Windows portability CI는 모두 frozen install 뒤 이 gate를 실행하고,
 CRLF/LF 차이는 논리 drift에서 정규화하며 추적 artifact를 다시 쓰지 않는다.
-frontend contract cutover와 이름 lookup 기반 좌표 backfill은 이 foundation의 비목표이며, 각각 사용자
-공동 설계와 별도 Argo enrichment 계획 뒤에만 진행한다.
+public HTTP method/version/path/schema는 operation registry가 한 번 소유하고 Nest adapter, OpenAPI와 Web
+request builder가 파생한다. Web은 browser-safe resource subpath만 import한다. Web contract 전환은 ADR
+0023에 따라 canonical vertical slice 단위로 진행한다. 이름 lookup 기반 좌표
+backfill은 여전히 이 foundation의 비목표이며 CRS/provenance가 있는 별도 Argo enrichment 계획 뒤에만
+진행한다.
 
 ## 문서 지도
 
@@ -115,6 +120,7 @@ frontend contract cutover와 이름 lookup 기반 좌표 backfill은 이 foundat
 - [제품 범위와 품질 속성](docs/architecture/product-and-quality.md)
 - [도메인·데이터·코드 체계](docs/architecture/domain-and-data.md)
 - [시간·정량 값·Zod 계약](docs/architecture/time-and-value-contracts.md)
+- [Frontend application foundation](docs/architecture/frontend-application-foundation.md)
 - [C4 모델](docs/architecture/c4.md)
 - [런타임·Argo·배포·운영](docs/architecture/runtime-and-deployment.md)
 - [arc42 전체 서술](docs/architecture/arc42.md)
@@ -123,6 +129,7 @@ frontend contract cutover와 이름 lookup 기반 좌표 backfill은 이 foundat
 - [스택 거버넌스 감사](docs/architecture/stack/README.md)
 - [Architecture Decision Records](docs/adr/README.md)
 - [승인된 그린필드 설계 스펙](docs/superpowers/specs/2026-08-29-eatbid-greenfield-architecture-design.md)
+- [전체 기반 통합 실행 설계](docs/superpowers/specs/2026-08-31-eatbid-foundation-integration-design.md)
 - [1단계 data-foundation 구현 계획](docs/superpowers/plans/2026-08-29-eatbid-data-foundation.md)
 
 ## 상태
