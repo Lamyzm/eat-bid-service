@@ -14,16 +14,20 @@ const audits = [
   "delivery-and-operations.md",
 ];
 const requiredHeadings = [
-  "Current baseline",
-  "Decision table",
-  "Rejected or deferred",
-  "Review triggers",
+  ["Current baseline", "현재 기준선"],
+  ["Decision table", "결정표"],
+  ["Rejected or deferred", "제외 또는 연기"],
+  ["Review triggers", "재검토 조건"],
 ];
 const dispositions = new Set([
   "Adopted",
   "Required before production",
   "Deferred",
   "Rejected for foundation",
+  "채택",
+  "출시 전 필수",
+  "연기",
+  "기반 단계 제외",
 ]);
 const requiredContractEvidence = [
   "packages/contracts",
@@ -86,6 +90,14 @@ function section(markdown, heading) {
   return markdown.slice(afterHeading, nextHeading ? afterHeading + nextHeading.index : undefined);
 }
 
+function sectionForAnyHeading(markdown, headings) {
+  for (const heading of headings) {
+    const contents = section(markdown, heading);
+    if (contents !== undefined) return contents;
+  }
+  return undefined;
+}
+
 function parseTableRow(line) {
   if (!/^\s*\|.*\|\s*$/.test(line)) return undefined;
   return line.trim().slice(1, -1).split("|").map((cell) => cell.trim());
@@ -96,7 +108,7 @@ function separatorIsValid(cells) {
 }
 
 function checkDecisionTable(file, markdown) {
-  const decision = section(markdown, "Decision table");
+  const decision = sectionForAnyHeading(markdown, ["Decision table", "결정표"]);
   if (decision === undefined) return;
   const lines = decision.split(/\r?\n/).filter((line) => line.trim());
   if (lines.length < 3) {
@@ -113,7 +125,7 @@ function checkDecisionTable(file, markdown) {
     failures.push(`Decision table in ${display(file)} must have a valid Markdown separator row`);
     return;
   }
-  const dispositionColumn = header.findIndex((cell) => cell === "Disposition");
+  const dispositionColumn = header.findIndex((cell) => cell === "Disposition" || cell === "결정");
   if (dispositionColumn < 0) {
     failures.push(`Decision table in ${display(file)} must have a Disposition column`);
     return;
@@ -156,9 +168,9 @@ for (const audit of audits) {
   if (/\b(?:TBD|TODO)\b/i.test(markdown)) {
     failures.push(`Placeholder found in ${display(file)}`);
   }
-  for (const heading of requiredHeadings) {
-    if (section(markdown, heading) === undefined) {
-      failures.push(`Missing heading in ${display(file)}: ${heading}`);
+  for (const headings of requiredHeadings) {
+    if (sectionForAnyHeading(markdown, headings) === undefined) {
+      failures.push(`Missing heading in ${display(file)}: ${headings.join(" 또는 ")}`);
     }
   }
   checkDecisionTable(file, markdown);

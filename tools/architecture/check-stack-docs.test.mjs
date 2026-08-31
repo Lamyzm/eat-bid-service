@@ -19,6 +19,10 @@ function audit(disposition = "Adopted", separator = "| --- | --- | --- | --- | -
   return `# Audit\n\n## Current baseline\n\nBaseline.\n\n## Decision table\n\n| Item | Evidence | Checked | Disposition | Trigger |\n${separator}\n| item | evidence | today | ${disposition} | trigger |\n\n## Rejected or deferred\n\nNone.\n\n## Review triggers\n\nA trigger.\n`;
 }
 
+function koreanAudit() {
+  return `# 감사\n\n## 현재 기준선\n\n기준선.\n\n## 결정표\n\n| 항목 | 증거 | 확인일 | 결정 | 계기 |\n| --- | --- | --- | --- | --- |\n| 항목 | 증거 | 오늘 | 채택 | 계기 |\n\n## 제외 또는 연기\n\n없음.\n\n## 재검토 조건\n\n재검토 조건.\n`;
+}
+
 function contractsAudit(extra = "") {
   return `${audit()}\n## Enforced contract evidence\n\n` + [
     "packages/contracts Zod wire authority",
@@ -84,6 +88,10 @@ function withFixture(options, assertion) {
 
 test("구조가 올바른 stack fixture를 허용한다", () => {
   withFixture({}, (output) => assert.equal(output, ""));
+});
+
+test("한국어 heading과 결정값으로 작성한 stack 문서를 허용한다", () => {
+  withFixture({ applicationAudit: koreanAudit() }, (output) => assert.equal(output, ""));
 });
 
 test("stack index의 placeholder를 거부한다", () => {

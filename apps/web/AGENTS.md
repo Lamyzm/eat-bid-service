@@ -16,9 +16,13 @@
 
 - 목표 모듈 경계와 의존 방향은 [ADR 0023](../../docs/adr/0023-nextjs-web-modular-boundaries.md)과
   [Frontend application foundation](../../docs/architecture/frontend-application-foundation.md)을 따른다.
-- 현재 manifest는 Next.js `16.2.12`, React `19.2.4`, TypeScript `5.7.2`다. EAT-9에서 검증할 정확한
-  upgrade target은 Next.js `16.3.4`, React/React DOM `19.2.8`, TypeScript `5.9.3`이다. Tailwind는
-  v5를 가정하지 않고 현재 stable v4 lane을 유지한다.
+- 현재 manifest와 frozen lock은 Next.js `16.3.4`, React/React DOM `19.2.8`, TypeScript `5.9.3`,
+  TanStack Query `5.102.8`, TanStack Form `1.33.5`, Tailwind CSS `4.3.3`을 사용한다. Tailwind v5를
+  가정하지 않고 stable v4 lane을 유지한다.
+- `typedRoutes: true`와 `next typegen && tsc --noEmit`을 사용한다. route 오류를 `as Route`, `as any` 또는
+  `string` widening으로 숨기지 않는다.
+- React Compiler는 annotation mode이며 아직 opt-in source가 없다. 첫 `"use memo"`에는 동작 regression과
+  전후 성능 증거가 필요하다. Cache Components와 Rust compiler path는 별도 감사 전까지 활성화하지 않는다.
 - 모노레포 package manager는 루트 `package.json`에 고정된 `pnpm 10.12.1`이다. 앱 내부
   script가 Bun 명령을 호출하더라도 workspace 설치·실행 계약을 Bun으로 바꾸지 않는다.
 - Server Component를 기본으로 하고 브라우저 상태나 상호작용이 필요할 때만 `'use client'`를
