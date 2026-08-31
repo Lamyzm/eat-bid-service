@@ -45,6 +45,11 @@ test("shell의 API와 capability 의존 및 내부 deep import를 거부한다",
     "apps/web/src/capabilities/search/view.ts": "import { command } from '@/capabilities/orders/internal';\n",
     "apps/web/src/api/auctions/get.ts": "import { list } from '@/api/orders';\n",
     "apps/web/src/app/page.tsx": "import { getAuction } from '@/api/auctions/get-auction';\n",
+    "apps/web/src/api/auctions/index.ts": "export const getAuction = () => undefined;\n",
+    "apps/web/src/api/auctions/get-auction.ts": "export const privateAuction = () => undefined;\n",
+    "apps/web/src/api/orders/index.ts": "export const list = () => undefined;\n",
+    "apps/web/src/capabilities/search/index.ts": "export const command = () => undefined;\n",
+    "apps/web/src/capabilities/orders/internal.ts": "export const command = () => undefined;\n",
   });
 
   assert.deepEqual(rules(report).sort(), ["api-resource-cross-import", "capability-internal-import", "shell-boundary-import", "web-api-deep-import"].sort());
@@ -53,6 +58,8 @@ test("shell의 API와 capability 의존 및 내부 deep import를 거부한다",
 test("공개 API resource index와 server import는 허용한다", async () => {
   const report = await inspect({
     "apps/web/src/app/page.tsx": "import { getAuction } from '@/api/auctions';\nimport { getAuctionFromServer } from '@/api/auctions/server';\nvoid getAuction; void getAuctionFromServer;\n",
+    "apps/web/src/api/auctions/index.ts": "export const getAuction = () => undefined;\n",
+    "apps/web/src/api/auctions/server.ts": "export const getAuctionFromServer = () => undefined;\n",
   });
 
   assert.equal(report.unmatchedFindings.length, 0);
@@ -156,4 +163,103 @@ test("기존 baseline은 write-baseline으로 덮어쓰지 않는다", () => {
   } finally {
     rmSync(subject.root, { recursive: true, force: true });
   }
+});
+
+test("legacy baseline은 삭제를 허용하고 replacement rename addition multiplicity를 분리한다", async () => {
+  const subject = fixture({ "apps/web/src/legacy.ts": "fetch('/same');\nfetch('/same');\n" });
+  try {
+    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
+    const [first] = initial.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch");
+    const baseline = { version: 1, entries: [{ ...first, reason: "legacy", owner: "EAT-9", splitTrigger: "migrate" }] };
+    writeFileSync(subject.baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
+    const multiplicity = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
+    assert.match(multiplicity.baselineFailures.join("\n"), /multiplicity increase/);
+
+    writeFileSync(path.join(subject.sourceRoot, "legacy.ts"), "");
+    const deletion = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
+    assert.equal(deletion.baselineFailures.length, 0);
+
+    writeFileSync(path.join(subject.sourceRoot, "legacy.ts"), "fetch('/replacement');\n");
+    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /fingerprint drift/);
+
+    writeFileSync(path.join(subject.sourceRoot, "legacy.ts"), "");
+    writeFileSync(path.join(subject.sourceRoot, "renamed.ts"), "fetch('/same');\n");
+    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /new legacy finding/);
+
+    writeFileSync(path.join(subject.sourceRoot, "added.ts"), "fetch('/added');\n");
+    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /new legacy finding/);
+  } finally {
+    rmSync(subject.root, { recursive: true, force: true });
+  }
+});
+
+test("import와 export-from은 resource public entry와 transport 소유권을 강제한다", async () => {
+  const report = await inspect({
+    "apps/web/src/capabilities/search/view.ts": "export { privateAuction } from '@/api/auctions/get-auction';\n",
+    "apps/web/src/api/auctions/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; export { browserRequest };\n",
+    "apps/web/src/api/auctions/server.ts": "export { serverRequest } from '@/api/_transport/server-request.server';\n",
+    "apps/web/src/api/auctions/get.ts": "import { browserRequest } from '@/api/_transport/browser-request'; import { serverRequest } from '@/api/_transport/server-request.server'; import { ContractRequest } from '@/api/_transport/request-contract'; void browserRequest; void serverRequest; void (null as unknown as ContractRequest);\n",
+    "apps/web/src/api/auctions/operation.ts": "import type { ContractRequest } from '@/api/_transport/request-contract'; export type Request = ContractRequest;\n",
+    "apps/web/src/api/auctions/get-auction.ts": "export const privateAuction = () => undefined;\n",
+    "apps/web/src/api/_transport/browser-request.ts": "export const browserRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/server-request.server.ts": "export const serverRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/request-contract.ts": "export interface ContractRequest {}\n",
+  });
+
+  assert.deepEqual(rules(report).sort(), ["resource-transport-import", "web-api-deep-import"].sort());
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
+});
+
+test("전역 fetch와 Response decoder만 검사하고 shadow parser는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": [
+      "const fetch = (path: string) => path;",
+      "const parser = { json: () => ({}) };",
+      "export const safe = () => { fetch('local'); return parser.json(); };",
+      "export async function unsafe(response: Response) { return [response.text(), response.arrayBuffer(), response.blob(), response.formData(), response.json() as { id: string }]; }",
+    ].join("\n"),
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 0);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 0);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-json-cast").length, 1);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 4);
+});
+
+test("ID 변환만 검사하고 pagination timestamp slider month 변환은 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/routing/ids.ts": "type AuctionId = string & { readonly brand: 'AuctionId' }; export const id = (auctionId: string, branded: AuctionId, createdAt: string, page: string, sliderValue: string, month: string) => [Number(auctionId), parseInt(branded, 10), Number(createdAt), Number(page), Number(sliderValue), parseInt(month, 10)];\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "id-number-conversion").length, 2);
+});
+
+test("v1 v2 endpoint literal은 막고 package import와 fixture authority는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "import { auctionV1Operations } from '@eatbid/contracts/api/v1/auctions'; export const paths = ['/api/v1/auctions', '/api/v2/auctions']; void auctionV1Operations;\n",
+    "apps/web/src/api/auctions/fixture.test.ts": "export const fixture = '/api/v2/allowed';\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 2);
+});
+
+test("간접 manual DTO export는 막고 imported contract alias는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "export { LegacyResponse } from './legacy'; export type { AuctionResponse } from './contract';\n",
+    "apps/web/src/api/auctions/legacy.ts": "export interface LegacyResponse { id: string }\n",
+    "apps/web/src/api/auctions/contract.ts": "import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions'; export type AuctionResponse = AuctionV1Response;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").length, 1);
+});
+
+test("physical line count는 300 경계의 trailing newline을 올림하지 않는다", async () => {
+  const lines = (count, trailing = "") => `${Array.from({ length: count }, (_, index) => `export const line${index} = ${index};`).join("\n")}${trailing}`;
+  const report = await inspect({
+    "apps/web/src/shared/exact.ts": lines(300),
+    "apps/web/src/shared/exact-trailing.ts": lines(300, "\n"),
+    "apps/web/src/shared/too-large.ts": lines(301, "\n"),
+  });
+
+  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "source-file-size").map((finding) => finding.path), ["apps/web/src/shared/too-large.ts"]);
 });

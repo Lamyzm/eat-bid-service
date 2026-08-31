@@ -20,7 +20,7 @@ if (writeBaseline && existsSync(baselinePath)) {
   const report = await inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath });
   if (writeBaseline) {
     const document = { version: 1, entries: report.findings.map((item) => {
-      const [reason, splitTrigger] = reviewedBaselineMetadata(item.rule);
+      const [reason, splitTrigger] = reviewedBaselineMetadata(item);
       return { rule: item.rule, path: item.path, kind: item.kind, sha256: item.sha256, reason, owner: "EAT-9 frontend foundation", splitTrigger, ...(item.members ? { members: item.members } : {}) };
     }) };
     writeFileSync(baselinePath, `${JSON.stringify(document, null, 2)}\n`, "utf8");

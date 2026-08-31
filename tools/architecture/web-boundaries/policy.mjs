@@ -14,7 +14,9 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   SHELL_BOUNDARY_IMPORT: "shell-boundary-import",
   SOURCE_FILE_SIZE: "source-file-size",
   UNCHECKED_JSON_CAST: "unchecked-json-cast",
+  UNCHECKED_RESPONSE_BODY: "unchecked-response-body",
   UNCHECKED_RESPONSE_JSON: "unchecked-response-json",
+  RESOURCE_TRANSPORT_IMPORT: "resource-transport-import",
   WEB_API_DEEP_IMPORT: "web-api-deep-import",
 });
 
@@ -24,6 +26,15 @@ export const MIN_DUPLICATE_BYTES = 200;
 
 export function normalizeBytes(contents) {
   return contents.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+}
+
+export function codePointCompare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+export function physicalLineCount(contents) {
+  const normalized = normalizeBytes(contents);
+  return normalized ? normalized.replace(/\n$/, "").split("\n").length : 0;
 }
 
 export function normalizedPath(repoRoot, filename) {
@@ -57,6 +68,10 @@ export function isPublicApiEntry(targetPath) {
     || /\/api\/[^/]+\/(?:index|server)\.[cm]?tsx?$/.test(normalized);
 }
 
+export function isEndpointAuthorityPath(sourcePath) {
+  return /\/(?:packages\/contracts\/src\/api|openapi|fixtures?)\//.test(sourcePath.replaceAll("\\", "/"));
+}
+
 function baselineKey(entry) {
   return `${entry.rule}\u0000${entry.path}\u0000${entry.kind}`;
 }
@@ -84,18 +99,27 @@ export function readLegacyBaseline(baselinePath) {
 export function applyLegacyBaseline(findings, baseline) {
   const baselineFailures = [];
   const entriesByKey = new Map();
+  const availableExact = new Map();
   for (const entry of baseline.entries) {
     const key = baselineKey(entry);
     const entries = entriesByKey.get(key) ?? [];
     entries.push(entry);
     entriesByKey.set(key, entries);
+    const exactKey = `${key}\u0000${entry.sha256}\u0000${JSON.stringify(entry.members ?? [])}`;
+    const exactEntries = availableExact.get(exactKey) ?? [];
+    exactEntries.push(entry);
+    availableExact.set(exactKey, exactEntries);
   }
   const unmatchedFindings = [];
   for (const item of findings) {
     const entries = entriesByKey.get(baselineKey(item)) ?? [];
-    const matching = entries.find((entry) => entry.sha256 === item.sha256 && JSON.stringify(entry.members ?? []) === JSON.stringify(item.members ?? []));
+    const exactKey = `${baselineKey(item)}\u0000${item.sha256}\u0000${JSON.stringify(item.members ?? [])}`;
+    const matching = availableExact.get(exactKey)?.shift();
     if (matching) continue;
-    if (entries.length) baselineFailures.push(`legacy fingerprint drift: ${item.path} [${item.rule}] ${item.kind}`);
+    if (entries.some((entry) => entry.sha256 === item.sha256 && JSON.stringify(entry.members ?? []) === JSON.stringify(item.members ?? []))) {
+      baselineFailures.push(`legacy fingerprint multiplicity increase: ${item.path} [${item.rule}] ${item.kind}`);
+      unmatchedFindings.push(item);
+    } else if (entries.length) baselineFailures.push(`legacy fingerprint drift: ${item.path} [${item.rule}] ${item.kind}`);
     else {
       baselineFailures.push(`new legacy finding: ${item.path} [${item.rule}] ${item.kind}`);
       unmatchedFindings.push(item);
@@ -104,7 +128,13 @@ export function applyLegacyBaseline(findings, baseline) {
   return { unmatchedFindings, baselineFailures };
 }
 
-export function reviewedBaselineMetadata(rule) {
+export function reviewedBaselineMetadata(item) {
+  if (item.rule === WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE) {
+    if (item.path.endsWith("/lib/region-coords.ts")) return ["기존 지역 좌표 lookup은 생성·보정된 지리 데이터 목록이며 dashboard presentation이 아닙니다.", "좌표 source/provenance contract 또는 generated lookup pipeline을 도입해 데이터를 분리할 때"];
+    if (item.path.includes("/components/ui/")) return ["기존 UI composite primitive는 vendor-style presentation과 compatibility surface를 함께 포함합니다.", "다음 primitive behavior 변경에서 focused UI modules로 분리할 때"];
+    if (item.path.includes("/app/dashboard/")) return ["기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.", "해당 route를 RSC model과 route-private UI leaf로 전환할 때"];
+    if (item.path.includes("/app/welcome/")) return ["기존 welcome route는 안내 presentation을 한 파일에 보유한 legacy 화면입니다.", "다음 welcome content 또는 interaction 변경에서 section UI로 분리할 때"];
+  }
   return {
     [WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP]: ["기존 mobile viewport helper 두 파일은 동일한 legacy 구현이며 EAT-9 canonical shared extraction 전까지 동결합니다.", "mobile viewport helper를 하나의 shared module로 통합할 때"],
     [WEB_BOUNDARY_RULES.ID_NUMBER_CONVERSION]: ["기존 dashboard와 table filter의 numeric URL/filter 처리 부채는 canonical decimal ID route 전환 전까지 동결합니다.", "해당 화면이 contract-backed decimal identifier를 소비하도록 전환할 때"],
@@ -113,5 +143,5 @@ export function reviewedBaselineMetadata(rule) {
     [WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE]: ["기존 dashboard presentation file은 300줄을 넘는 legacy 책임 혼합이며 기능 전환과 함께 분리합니다.", "다음 기능 변경이 route model, UI leaf 또는 data adapter 책임을 함께 건드릴 때"],
     [WEB_BOUNDARY_RULES.UNCHECKED_JSON_CAST]: ["기존 Web response type assertion은 legacy wire 처리이며 contract runtime parsing 도입 전까지 동결합니다.", "해당 response를 operation schema가 parse하는 api resource로 이전할 때"],
     [WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_JSON]: ["기존 Web response body decode는 legacy network boundary이며 EAT-9 transport 전환 전까지 동결합니다.", "해당 response decode를 api/_transport의 validated request path로 이전할 때"],
-  }[rule] ?? ["EAT-9 이전 Web boundary 부채를 canonical slice 전환까지 동결합니다.", "해당 legacy module을 canonical Web boundary로 전환할 때"];
+  }[item.rule] ?? ["EAT-9 이전 Web boundary 부채를 canonical slice 전환까지 동결합니다.", "해당 legacy module을 canonical Web boundary로 전환할 때"];
 }
