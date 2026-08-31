@@ -173,9 +173,12 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     assert project_mutexes == [{"name": "eatbid-core-publication"}]
 
     containers = [_mapping(templates[name]["container"]) for name in (*SCHEDULED_COMMANDS, "replay")]
-    assert {container["image"] for container in containers} == {
-        "ghcr.io/lamyzm/eatbid-dataplane@sha256:" + "0" * 64
-    }
+    dataplane_images = {str(container["image"]) for container in containers}
+    assert len(dataplane_images) == 1
+    assert re.fullmatch(
+        r"ghcr\.io/lamyzm/eatbid-dataplane@sha256:[0-9a-f]{64}",
+        next(iter(dataplane_images)),
+    )
     for container in containers:
         template_name = next(
             name
@@ -329,8 +332,9 @@ def test_migration은_presync가_유한하고_secret_DATABASE_URL만_사용한�
     assert spec["activeDeadlineSeconds"] == 600
     assert spec["backoffLimit"] == 1
     pod_spec = _mapping(_mapping(_mapping(spec["template"])["spec"])["containers"][0])
-    assert pod_spec["image"] == (
-        "ghcr.io/lamyzm/eatbid-migration@sha256:" + "0" * 64
+    assert re.fullmatch(
+        r"ghcr\.io/lamyzm/eatbid-migration@sha256:[0-9a-f]{64}",
+        str(pod_spec["image"]),
     )
     assert _secret_ref(_env(pod_spec, "DATABASE_URL")) == (
         "eatbid-database-migrator",
