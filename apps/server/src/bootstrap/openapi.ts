@@ -2,96 +2,82 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
-  auctionV1Operations,
-  healthOperations,
-  problemDetailsSchema,
+  publicHttpOperationRegistry,
+  type PublicHttpOperation,
 } from "@eatbid/contracts";
 import { z } from "zod";
-import { createDocument } from "zod-openapi";
+import {
+  createDocument,
+  type ZodOpenApiOperationObject,
+  type ZodOpenApiPathItemObject,
+  type ZodOpenApiPathsObject,
+  type ZodOpenApiResponsesObject,
+} from "zod-openapi";
 
-type OperationRoute = Readonly<{
-  controllerPath: string;
-  handlerPath: string;
-  path: string;
-}>;
+type OpenApiStatus = `${1 | 2 | 3 | 4 | 5}${string}`;
 
-export function assertOperationPath(operation: OperationRoute): void {
-  // 실행 route와 계약 metadata가 갈라지면 문서가 성공해도 실제 endpoint가 달라지므로 생성 단계에서 중단한다.
-  const expected = `/${operation.controllerPath}/${operation.handlerPath}`;
-  if (operation.path !== expected) {
-    throw new Error(`Operation path drift: expected ${expected}`);
-  }
+function openApiStatus(status: number): OpenApiStatus {
+  const value = String(status);
+  if (!/^[1-5][0-9]{2}$/.test(value)) throw new Error(`OpenAPI status가 유효하지 않습니다: ${value}`);
+  return value as OpenApiStatus;
 }
 
-const problemResponse = (description: string) => ({
-  description,
-  content: { "application/problem+json": { schema: problemDetailsSchema } },
-});
+function responsesFor(operation: PublicHttpOperation): ZodOpenApiResponsesObject {
+  const responses: ZodOpenApiResponsesObject = {};
+  for (const status of operation.successStatuses) {
+    const response = operation.successResponses[status];
+    if (!response) throw new Error(`${operation.operationId} success ${status} 계약이 없습니다.`);
+    responses[openApiStatus(status)] = {
+      description: response.description,
+      content: { "application/json": { schema: response.schema } },
+    };
+  }
+  for (const status of operation.problemStatuses) {
+    const response = operation.problemResponses[status];
+    if (!response) throw new Error(`${operation.operationId} problem ${status} 계약이 없습니다.`);
+    responses[openApiStatus(status)] = {
+      description: response.description,
+      content: { "application/problem+json": { schema: response.schema } },
+    };
+  }
+  return responses;
+}
+
+function operationDocument(operation: PublicHttpOperation): ZodOpenApiOperationObject {
+  const document: ZodOpenApiOperationObject = {
+    operationId: operation.operationId,
+    summary: operation.summary,
+    tags: [...operation.tags],
+    responses: responsesFor(operation),
+  };
+  if (operation.route.segments.some((segment) => typeof segment !== "string")) {
+    if (!(operation.pathSchema instanceof z.ZodObject)) {
+      throw new Error(`${operation.operationId} path schema는 Zod object여야 합니다.`);
+    }
+    document.requestParams = { path: operation.pathSchema };
+  }
+  return document;
+}
+
+function operationPaths(): ZodOpenApiPathsObject {
+  const paths: ZodOpenApiPathsObject = {};
+  for (const operation of publicHttpOperationRegistry) {
+    const pathItem: ZodOpenApiPathItemObject = {};
+    pathItem[operation.method] = operationDocument(operation);
+    paths[operation.openApiPath] = pathItem;
+  }
+  return paths;
+}
 
 export function createOpenApiDocument(): ReturnType<typeof createDocument> {
-  assertOperationPath(healthOperations.live);
-  assertOperationPath(healthOperations.ready);
-  if (auctionV1Operations.find.path !== "/api/v1/auctions/{auctionId}") {
-    throw new Error("Auction operation path drift");
-  }
   return createDocument({
     openapi: "3.0.3",
     info: {
       title: "eatbid API",
       version: "1.0.0",
-      description: "Bounded canonical HTTP contracts for the eatbid server.",
+      description: "eatbid Server가 제공하는 경계가 명확한 공개 HTTP 계약이다.",
     },
-    paths: {
-      [auctionV1Operations.find.path]: {
-        get: {
-          operationId: auctionV1Operations.find.operationId,
-          summary: auctionV1Operations.find.summary,
-          tags: ["procurement"],
-          requestParams: {
-            path: z.object({ auctionId: auctionV1Operations.find.pathSchema }),
-          },
-          responses: {
-            "200": {
-              description: "Canonical auction",
-              content: { "application/json": { schema: auctionV1Operations.find.responseSchema } },
-            },
-            "400": problemResponse("Invalid auction ID"),
-            "404": problemResponse("Auction not found"),
-            "503": problemResponse("Database unavailable"),
-            "500": problemResponse("Unexpected server defect"),
-          },
-        },
-      },
-      [healthOperations.live.path]: {
-        get: {
-          operationId: healthOperations.live.operationId,
-          summary: healthOperations.live.summary,
-          tags: ["operations"],
-          responses: {
-            "200": {
-              description: "Process is live",
-              content: { "application/json": { schema: healthOperations.live.responseSchema } },
-            },
-            "500": problemResponse("Unexpected server defect"),
-          },
-        },
-      },
-      [healthOperations.ready.path]: {
-        get: {
-          operationId: healthOperations.ready.operationId,
-          summary: healthOperations.ready.summary,
-          tags: ["operations"],
-          responses: {
-            "200": {
-              description: "Application is ready",
-              content: { "application/json": { schema: healthOperations.ready.responseSchema } },
-            },
-            "503": problemResponse("Application dependency is unavailable"),
-            "500": problemResponse("Unexpected server defect"),
-          },
-        },
-      },
-    },
+    paths: operationPaths(),
   });
 }
 

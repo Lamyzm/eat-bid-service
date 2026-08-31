@@ -9,9 +9,7 @@ import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import {
   healthOperations,
   healthControllerPath,
-  liveHealthSchema,
   type LiveHealth,
-  readyHealthSchema,
   type ReadyHealth,
 } from "@eatbid/contracts";
 import { ResponseSchema } from "../http/response-schema.interceptor";
@@ -19,7 +17,10 @@ import type { DatabaseReadiness } from "./readiness-state";
 import { ReadinessState } from "./readiness-state";
 import { DATABASE_READINESS } from "../database/database.tokens";
 
-@Controller({ path: healthControllerPath, version: VERSION_NEUTRAL })
+@Controller({
+  path: healthControllerPath,
+  version: healthOperations.live.version ?? VERSION_NEUTRAL,
+})
 export class HealthController {
   constructor(
     private readonly readiness: ReadinessState,
@@ -28,8 +29,8 @@ export class HealthController {
 
   @Get(healthOperations.live.handlerPath)
   @ApiOperation({ operationId: healthOperations.live.operationId, summary: healthOperations.live.summary })
-  @ApiResponse({ status: 200, description: "Process is live" })
-  @ResponseSchema(liveHealthSchema)
+  @ApiResponse({ status: 200, description: healthOperations.live.successResponses[200].description })
+  @ResponseSchema(healthOperations.live.successResponses[200].schema)
   live(): LiveHealth {
     // liveness는 외부 의존성 장애로 프로세스 재시작 폭풍을 만들지 않도록 프로세스만 확인한다.
     return { status: "live" };
@@ -37,9 +38,9 @@ export class HealthController {
 
   @Get(healthOperations.ready.handlerPath)
   @ApiOperation({ operationId: healthOperations.ready.operationId, summary: healthOperations.ready.summary })
-  @ApiResponse({ status: 200, description: "Application is ready" })
-  @ApiResponse({ status: 503, description: "Application dependency is unavailable" })
-  @ResponseSchema(readyHealthSchema)
+  @ApiResponse({ status: 200, description: healthOperations.ready.successResponses[200].description })
+  @ApiResponse({ status: 503, description: healthOperations.ready.problemResponses[503].description })
+  @ResponseSchema(healthOperations.ready.successResponses[200].schema)
   async ready(): Promise<ReadyHealth> {
     // 종료 중 신규 작업 차단과 DB 최소 권한 검사를 모두 통과해야 readiness를 공개한다.
     if (!this.readiness.ready || !(await this.database.isReady())) {

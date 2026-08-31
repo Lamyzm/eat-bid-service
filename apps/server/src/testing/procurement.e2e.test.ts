@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
+import { auctionV1Operations } from "@eatbid/contracts";
 import { canonicalDecimal, krw, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
@@ -32,6 +33,10 @@ const environment = parseEnvironment({
   DATABASE_URL: "postgres://eatbid_api:test-only@127.0.0.1:1/eatbid_test",
 });
 
+const auctionPath = (auctionId: string): string => auctionV1Operations.find.buildPath({
+  path: { auctionId },
+});
+
 async function withServer(
   reader: AuctionReader,
   run: (server: Server) => Promise<void>,
@@ -59,7 +64,7 @@ describe("canonical procurement HTTP 경로", () => {
         return publicAuction;
       },
     }, async (server) => {
-      const response = await request(server).get("/api/v1/auctions/9007199254740993");
+      const response = await request(server).get(auctionPath("9007199254740993"));
       expect(response.status).toBe(200);
       expect(observed).toEqual([9_007_199_254_740_993n]);
       expect(response.body).toEqual({
@@ -99,7 +104,7 @@ describe("canonical procurement HTTP 경로", () => {
         return { ...publicAuction, auctionId: id };
       },
     }, async (server) => {
-      const maximum = await request(server).get("/api/v1/auctions/9223372036854775807");
+      const maximum = await request(server).get(auctionPath("9223372036854775807"));
       expect(maximum.status).toBe(200);
       expect(maximum.body.identity.auctionId).toBe("9223372036854775807");
       const oneOver = await request(server).get("/api/v1/auctions/9223372036854775808");
@@ -123,12 +128,12 @@ describe("canonical procurement HTTP 경로", () => {
 
   test("typed not-found와 dependency unavailable을 서로 다르게 매핑한다", async () => {
     await withServer({ findById: async () => null }, async (server) => {
-      const response = await request(server).get("/api/v1/auctions/41");
+      const response = await request(server).get(auctionPath("41"));
       expect(response.status).toBe(404);
       expect(response.body.code).toBe("AUCTION_NOT_FOUND");
     });
     await withServer({ findById: async () => { throw new Error("database offline"); } }, async (server) => {
-      const response = await request(server).get("/api/v1/auctions/41");
+      const response = await request(server).get(auctionPath("41"));
       expect(response.status).toBe(503);
       expect(response.body.code).toBe("DEPENDENCY_UNAVAILABLE");
       expect(JSON.stringify(response.body)).not.toContain("database offline");
@@ -139,7 +144,7 @@ describe("canonical procurement HTTP 경로", () => {
     await withServer({
       findById: async () => ({ ...publicAuction, title: "t".repeat(513) }),
     }, async (server) => {
-      const response = await request(server).get("/api/v1/auctions/41");
+      const response = await request(server).get(auctionPath("41"));
       expect(response.status).toBe(500);
       expect(response.body.code).toBe("INTERNAL_ERROR");
       expect(JSON.stringify(response.body)).not.toContain("t".repeat(513));

@@ -1,4 +1,6 @@
 export * from "./common/problem-details";
+export * from "./api/operation";
+export * from "./api/registry";
 export * from "./operations/health";
 export * from "./atoms/decimal";
 export * from "./atoms/geo";
@@ -14,9 +16,7 @@ export * from "./resources/procurement/pricing";
 export * from "./resources/procurement/schedule";
 export * from "./codecs/money";
 export * from "./codecs/temporal";
-export * from "./api/v1/auctions/resource";
-export * from "./api/v1/auctions/get-auction.response";
-export * from "./api/v1/auctions/operations";
+export * from "./api/v1/auctions";
 export * from "./ingestion/v1/resources/identity";
 export * from "./ingestion/v1/resources/buyer";
 export * from "./ingestion/v1/resources/location";

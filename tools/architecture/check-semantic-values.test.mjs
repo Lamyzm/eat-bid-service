@@ -206,6 +206,13 @@ test("손으로 작성한 공개 Response shape를 거부하고 application Auct
   const target = fixture({
     "apps/server/src/modules/procurement/application/auction-reader.ts":
       "export interface AuctionRecord { readonly auctionId: bigint }",
+    "packages/contracts/src/api/operation.ts": [
+      "export type HttpMethod = 'get' | 'post';",
+      "export interface OperationResponse<Schema> { readonly status: number; readonly schema: Schema }",
+      "export interface PublicHttpOperation<PathSchema, ResponseSchema> {",
+      "  readonly method: HttpMethod; readonly pathSchema: PathSchema; readonly responseSchema: ResponseSchema;",
+      "}",
+    ].join("\n"),
     "packages/contracts/src/api/v1/auction.ts": [
       "import { z } from 'zod';",
       "const auctionSchema = z.strictObject({ auctionId: z.string() });",

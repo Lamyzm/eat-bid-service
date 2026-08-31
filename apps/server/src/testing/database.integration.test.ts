@@ -6,7 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import request from "supertest";
-import { normalizedAuctionV1Schema } from "@eatbid/contracts";
+import { auctionV1Operations, normalizedAuctionV1Schema } from "@eatbid/contracts";
 import { expectedMigration, expectedMigrationInstant } from "@eatbid/db";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
@@ -295,7 +295,9 @@ describe("owner 범위 PostgreSQL 경계", () => {
       const server = await runtime.listen(0, "127.0.0.1");
       try {
         expect((await request(server).get("/health/ready")).status).toBe(200);
-        const response = await request(server).get("/api/v1/auctions/9007199254740993");
+        const response = await request(server).get(auctionV1Operations.find.buildPath({
+          path: { auctionId: "9007199254740993" },
+        }));
         expect(response.status).toBe(200);
         expect(response.body.identity.auctionId).toBe("9007199254740993");
         expect(response.body.pricing.baseAmount).toEqual({ amount: "1234567890.50", currency: "KRW" });

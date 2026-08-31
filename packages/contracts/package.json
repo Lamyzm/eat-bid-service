@@ -11,6 +11,11 @@
       "bun": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./api/v1/auctions": {
+      "types": "./src/api/v1/auctions/index.ts",
+      "import": "./src/api/v1/auctions/index.ts",
+      "default": "./src/api/v1/auctions/index.ts"
     }
   },
   "scripts": {

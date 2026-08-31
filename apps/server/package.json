@@ -18,7 +18,7 @@
     "openapi:generate": "bun src/bootstrap/openapi.ts --write openapi/openapi.json",
     "openapi:check": "bun src/bootstrap/openapi.ts --check openapi/openapi.json",
     "compatibility:node": "node dist/bootstrap/compatibility-probe.js",
-    "architecture:check": "tsc -p tsconfig.tools.json && bun tools/check-architecture.ts",
+    "architecture:check": "pnpm --dir ../.. lint:endpoints && tsc -p tsconfig.tools.json && bun tools/check-architecture.ts",
     "inventory:legacy": "bun tools/inventory-legacy-routes.ts"
   },
   "dependencies": {

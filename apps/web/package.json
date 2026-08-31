@@ -14,7 +14,7 @@
     "test": "bun test src",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix && bun format",
-    "lint:strict": "pnpm --dir ../.. lint:web-boundaries && oxlint --deny-warnings",
+    "lint:strict": "pnpm --dir ../.. lint:web-boundaries && pnpm --dir ../.. lint:endpoints && oxlint --deny-warnings",
     "format": "oxfmt --write . '!**/*.md' '!**/*.mdc' '!**/*.mdx' '!**/*.yml' '!**/*.yaml'",
     "format:check": "oxfmt --check . '!**/*.md' '!**/*.mdc' '!**/*.mdx' '!**/*.yml' '!**/*.yaml'",
     "prepare": "husky"

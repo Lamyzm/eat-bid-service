@@ -127,7 +127,7 @@ describe("공개 공고 V1 응답 계약", () => {
       path: "/api/v1/auctions/{auctionId}",
       operationId: "findAuction",
     });
-    expect(auctionV1Operations.find.responseSchema).toBe(auctionV1ResponseSchema);
+    expect(auctionV1Operations.find.successResponses[200]?.schema).toBe(auctionV1ResponseSchema);
   });
 
   test("공개 pricing metadata는 OpenAPI 소비자가 exact Money 예시를 볼 수 있게 한다", async () => {

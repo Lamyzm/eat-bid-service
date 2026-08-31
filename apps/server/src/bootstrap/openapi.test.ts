@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { auctionV1Operations, healthOperations } from "@eatbid/contracts";
+import { auctionV1Operations, publicHttpOperationRegistry } from "@eatbid/contracts";
 
 function openApiStringSchemaAccepts(
   schema: { type?: string; minLength?: number; maxLength?: number; pattern?: string },
@@ -34,10 +34,10 @@ describe("canonical OpenAPI 산출물", () => {
       expect(Object.values(operation.responses).some((response: any) =>
         response.content?.["application/problem+json"]?.schema)).toBe(true);
     }
-    expect(() => module!.assertOperationPath({
-      ...healthOperations.live,
-      path: "/health/drift",
-    })).toThrow("Operation path drift");
+    for (const operation of publicHttpOperationRegistry) {
+      expect(document.paths[operation.openApiPath][operation.method].operationId)
+        .toBe(operation.operationId);
+    }
     const auction = document.paths[auctionV1Operations.find.path].get;
     expect(auction.parameters[0]).toMatchObject({
       name: "auctionId",

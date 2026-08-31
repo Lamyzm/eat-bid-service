@@ -5,12 +5,11 @@ import {
   NotFoundException,
   Param,
   ServiceUnavailableException,
+  VERSION_NEUTRAL,
 } from "@nestjs/common";
 import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import {
-  auctionIdPathSchema,
   auctionV1Operations,
-  auctionV1ResponseSchema,
   type AuctionV1Response,
 } from "@eatbid/contracts";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
@@ -23,7 +22,10 @@ import {
 } from "../../application/find-auction";
 import { auctionId } from "../../domain/auction-id";
 
-@Controller(auctionV1Operations.find.controllerPath)
+@Controller({
+  path: auctionV1Operations.find.controllerPath,
+  version: auctionV1Operations.find.version ?? VERSION_NEUTRAL,
+})
 export class AuctionController {
   constructor(
     private readonly findAuction: FindAuction,
@@ -35,13 +37,13 @@ export class AuctionController {
     operationId: auctionV1Operations.find.operationId,
     summary: auctionV1Operations.find.summary,
   })
-  @ApiResponse({ status: 200, description: "Canonical auction" })
-  @ApiResponse({ status: 400, description: "Invalid auction ID" })
-  @ApiResponse({ status: 404, description: "Auction not found" })
-  @ApiResponse({ status: 503, description: "Database unavailable" })
-  @ResponseSchema(auctionV1ResponseSchema)
+  @ApiResponse({ status: 200, description: auctionV1Operations.find.successResponses[200].description })
+  @ApiResponse({ status: 400, description: auctionV1Operations.find.problemResponses[400].description })
+  @ApiResponse({ status: 404, description: auctionV1Operations.find.problemResponses[404].description })
+  @ApiResponse({ status: 503, description: auctionV1Operations.find.problemResponses[503].description })
+  @ResponseSchema(auctionV1Operations.find.successResponses[200].schema)
   async find(
-    @Param("auctionId", new StandardSchemaPipe(auctionIdPathSchema)) rawId: string,
+    @Param("auctionId", new StandardSchemaPipe(auctionV1Operations.find.pathSchema.shape.auctionId)) rawId: string,
   ): Promise<AuctionV1Response> {
     let id: bigint;
     try {

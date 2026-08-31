@@ -126,8 +126,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
   app.setGlobalPrefix("api", {
     exclude: [
       // 운영 probe와 원문 인증 전송은 API 버전 수명주기에 결합하지 않는다.
-      { path: healthOperations.live.path.slice(1), method: RequestMethod.ALL },
-      { path: healthOperations.ready.path.slice(1), method: RequestMethod.ALL },
+      { path: healthOperations.live.buildPath({ path: undefined }).slice(1), method: RequestMethod.ALL },
+      { path: healthOperations.ready.buildPath({ path: undefined }).slice(1), method: RequestMethod.ALL },
       { path: "api/auth/{*path}", method: RequestMethod.ALL },
     ],
   });

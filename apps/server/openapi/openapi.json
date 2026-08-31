@@ -299,7 +299,7 @@
     }
   },
   "info": {
-    "description": "Bounded canonical HTTP contracts for the eatbid server.",
+    "description": "eatbid Server가 제공하는 경계가 명확한 공개 HTTP 계약이다.",
     "title": "eatbid API",
     "version": "1.0.0"
   },
@@ -328,7 +328,7 @@
                 }
               }
             },
-            "description": "Canonical auction"
+            "description": "정규화된 공고 조회 성공"
           },
           "400": {
             "content": {
@@ -338,7 +338,7 @@
                 }
               }
             },
-            "description": "Invalid auction ID"
+            "description": "공고 ID가 유효하지 않음"
           },
           "404": {
             "content": {
@@ -348,7 +348,7 @@
                 }
               }
             },
-            "description": "Auction not found"
+            "description": "공고를 찾을 수 없음"
           },
           "500": {
             "content": {
@@ -358,7 +358,7 @@
                 }
               }
             },
-            "description": "Unexpected server defect"
+            "description": "예상하지 못한 서버 결함"
           },
           "503": {
             "content": {
@@ -368,10 +368,10 @@
                 }
               }
             },
-            "description": "Database unavailable"
+            "description": "데이터베이스를 사용할 수 없음"
           }
         },
-        "summary": "Find a canonical auction",
+        "summary": "정규화된 공고를 조회한다",
         "tags": [
           "procurement"
         ]
@@ -389,7 +389,7 @@
                 }
               }
             },
-            "description": "Process is live"
+            "description": "프로세스가 요청을 처리할 수 있음"
           },
           "500": {
             "content": {
@@ -399,10 +399,10 @@
                 }
               }
             },
-            "description": "Unexpected server defect"
+            "description": "예상하지 못한 서버 결함"
           }
         },
-        "summary": "Process liveness",
+        "summary": "프로세스 생존 상태를 확인한다",
         "tags": [
           "operations"
         ]
@@ -420,7 +420,7 @@
                 }
               }
             },
-            "description": "Application is ready"
+            "description": "애플리케이션이 요청을 받을 준비가 됨"
           },
           "500": {
             "content": {
@@ -430,7 +430,7 @@
                 }
               }
             },
-            "description": "Unexpected server defect"
+            "description": "예상하지 못한 서버 결함"
           },
           "503": {
             "content": {
@@ -440,10 +440,10 @@
                 }
               }
             },
-            "description": "Application dependency is unavailable"
+            "description": "애플리케이션 의존성을 사용할 수 없음"
           }
         },
-        "summary": "Application readiness",
+        "summary": "애플리케이션 준비 상태를 확인한다",
         "tags": [
           "operations"
         ]

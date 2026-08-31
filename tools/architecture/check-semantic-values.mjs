@@ -23,6 +23,7 @@ const canonicalFloatingColumn = /(?:^|_)(?:amount|money|price|rate|ratio|percent
 const durationName = /(?:timeout|interval|ttl|grace|delay|debounce|throttle)(?:ms|millis|milliseconds)?$/i;
 const exactAuctionAdapter = "apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts";
 const exactClockFacade = "packages/domain/src/time/clock.ts";
+const exactOperationProtocol = "packages/contracts/src/api/operation.ts";
 const sourceFilesByPath = new Map();
 // 단락 평가의 어느 피연산자가 실제 값이 될지 정적으로 확정할 수 없으므로 모두 보수적으로 합친다.
 const logicalValueOperators = new Set([
@@ -660,7 +661,8 @@ function scanSourceFile(sourceFile) {
       }
     }
 
-    const inPublicContract = repositoryPath.startsWith("packages/contracts/src/api/")
+    // operation.ts는 Zod wire DTO가 아니라 schema를 운반하는 generic protocol 자체를 선언한다.
+    const inPublicContract = repositoryPath.startsWith("packages/contracts/src/api/") && repositoryPath !== exactOperationProtocol
       || repositoryPath.includes("/presentation/http/");
     if (inPublicContract && (
       ts.isInterfaceDeclaration(node) && isExportedDeclaration(node)
