@@ -33,16 +33,18 @@
 
 ---
 
-## Task 1: Freeze legacy debt and enforce the new import graph
+## Task 1: Freeze legacy debt and enforce the new import graph — complete
 
 **Files:**
 
 - Create: `tools/architecture/check-web-boundaries.mjs`
 - Create: `tools/architecture/check-web-boundaries.test.mjs`
+- Create: `tools/architecture/web-boundaries/policy.mjs`
+- Create: `tools/architecture/web-boundaries/inspect.mjs`
 - Create: `tools/architecture/web-boundary-legacy-baseline.json`
 - Modify: `package.json`
 
-- [ ] Write failing `node:test` fixtures named in Korean for these rules:
+- [x] Write failing `node:test` fixtures named in Korean for these rules:
   - `shell` importing `api` or `capabilities` fails;
   - one capability importing another capability's internals fails;
   - an API resource importing another API resource fails;
@@ -54,18 +56,18 @@
   - an ID passed through `Number`/`parseInt` fails;
   - a source over 300 lines without a complete waiver fails;
   - an exact legacy baseline fingerprint passes, but changing its content without deleting the violation fails.
-- [ ] Implement `inspectWebBoundaries({ sourceRoot, baselinePath })` and a check-only CLI. Use normalized paths plus SHA-256 fingerprints for deletion-only legacy entries; never match by path alone.
-- [ ] Support `--write-baseline` only for the initial reviewed inventory. Each entry records `rule`, `path`, `sha256`, `reason`, `owner`, and `splitTrigger`.
-- [ ] Generate the baseline once from the post-runtime-upgrade legacy tree, inspect every entry, then run the checker without `--write-baseline`.
-- [ ] Add `node tools/architecture/check-web-boundaries.mjs` to root `architecture:check` after the Web runtime check.
-- [ ] Run:
+- [x] Implement `inspectWebBoundaries({ sourceRoot, baselinePath })` and a check-only CLI. Use normalized paths plus SHA-256 fingerprints for deletion-only legacy entries; never match by path alone.
+- [x] Support `--write-baseline` only for the initial reviewed inventory. Each entry records `rule`, `path`, `sha256`, `reason`, `owner`, and `splitTrigger`.
+- [x] Generate the baseline once from the post-runtime-upgrade legacy tree, inspect every entry, then run the checker without `--write-baseline`.
+- [x] Add `node tools/architecture/check-web-boundaries.mjs` to root `architecture:check` after the Web runtime check.
+- [x] Run:
 
 ```text
 node --test tools/architecture/check-web-boundaries.test.mjs
 node tools/architecture/check-web-boundaries.mjs
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```text
 test(architecture): enforce web module boundaries

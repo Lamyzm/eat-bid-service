@@ -14,7 +14,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "architecture:check": "node tools/architecture/check-stack-docs.mjs && node tools/architecture/check-semantic-values.mjs && uv run --project apps/dataplane python tools/quality/check-python-semantic-values.py && pnpm quality:check && pnpm contracts:check && pnpm contracts:python:check",
+    "architecture:check": "node tools/architecture/check-stack-docs.mjs && node tools/architecture/check-semantic-values.mjs && uv run --project apps/dataplane python tools/quality/check-python-semantic-values.py && pnpm quality:check && pnpm lint:web-boundaries && pnpm contracts:check && pnpm contracts:python:check",
+    "lint:web-boundaries": "node tools/architecture/check-web-boundaries.mjs",
     "quality:check": "node tools/quality/check-test-names.mjs",
     "test:quality": "node --test tools/architecture/*.test.mjs tools/quality/*.test.mjs && uv run --project apps/dataplane pytest tools/quality/test_check_python_semantic_values.py -q",
     "contracts:generate": "pnpm --filter @eatbid/contracts contracts:generate",
