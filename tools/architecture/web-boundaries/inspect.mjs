@@ -43,13 +43,19 @@ function resolveModule(specifier, sourceFile, options) {
   return resolved?.resolvedFileName ? path.resolve(resolved.resolvedFileName) : specifier.startsWith("@/") ? path.resolve(options.baseUrl, specifier.slice(2)) : undefined;
 }
 
-function add(findings, root, rule, file, node, sourceFile, reason, members) {
-  const evidence = typeof node === "string" ? node : text(node, sourceFile);
-  findings.push({ rule, path: display(root, file), kind: typeof node === "string" ? node : ts.SyntaxKind[node.kind], sha256: sha256(evidence), reason, ...(members ? { members: [...members].sort(codePointCompare) } : {}) });
+function add(findings, root, rule, file, node, sourceFile, reason, members, evidence) {
+  const fingerprintEvidence = evidence ?? (typeof node === "string" ? node : text(node, sourceFile));
+  findings.push({ rule, path: display(root, file), kind: typeof node === "string" ? node : ts.SyntaxKind[node.kind], sha256: sha256(fingerprintEvidence), reason, ...(members ? { members: [...members].sort(codePointCompare) } : {}) });
 }
 
 function reference(node) {
   return (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier) ? node.moduleSpecifier.text : undefined;
+}
+
+function isModuleSpecifierLiteral(node) {
+  if (!node.parent) return false;
+  if ((ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent)) && node.parent.moduleSpecifier === node) return true;
+  return ts.isCallExpression(node.parent) && node.parent.expression.kind === ts.SyntaxKind.ImportKeyword && node.parent.arguments[0] === node;
 }
 
 function resolvedSymbol(checker, node) {
@@ -70,8 +76,8 @@ function isGlobalFetch(checker, node) {
 
 function isResponseDecoder(checker, node) {
   if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression) || !responseBodyMethods.has(node.expression.name.text)) return false;
-  const type = checker.getApparentType(checker.getTypeAtLocation(node.expression.expression));
-  return type.getSymbol()?.getName() === "Response" && isDomSymbol(type.getSymbol(), "Response");
+  const symbol = resolvedSymbol(checker, node.expression.name);
+  return symbol?.getName() === node.expression.name.text && symbol.declarations?.some((declaration) => declaration.getSourceFile().isDeclarationFile && /lib\.dom\.d\.ts$/.test(declaration.getSourceFile().fileName));
 }
 
 function isResponseJsonCast(checker, node) {
@@ -87,6 +93,19 @@ function identifierArgument(checker, node) {
   return /(?:^|\W)[A-Za-z_$][\w$]*Id(?:\W|$)/.test(checker.typeToString(type)) || /Id$/.test(type.getSymbol()?.getName() ?? "");
 }
 
+function isManualType(checker, declaration, seen = new Set()) {
+  if (seen.has(declaration)) return false;
+  seen.add(declaration);
+  if (ts.isInterfaceDeclaration(declaration)) return !declaration.getSourceFile().isDeclarationFile;
+  if (!ts.isTypeAliasDeclaration(declaration)) return false;
+  if (ts.isTypeLiteralNode(declaration.type)) return true;
+  if (ts.isTypeReferenceNode(declaration.type)) {
+    const symbol = resolvedSymbol(checker, declaration.type.typeName);
+    return (symbol?.declarations ?? []).some((target) => isManualType(checker, target, seen));
+  }
+  return false;
+}
+
 function exportedManualDtos(checker, sourceFile) {
   const module = checker.getSymbolAtLocation(sourceFile);
   if (!module) return [];
@@ -94,19 +113,33 @@ function exportedManualDtos(checker, sourceFile) {
   for (const exported of checker.getExportsOfModule(module)) {
     if (!/(?:Response|Dto)$/i.test(exported.getName())) continue;
     const target = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
-    for (const declaration of target.declarations ?? []) if (ts.isInterfaceDeclaration(declaration) || ts.isTypeAliasDeclaration(declaration) && ts.isTypeLiteralNode(declaration.type)) declarations.push(declaration);
+    for (const declaration of target.declarations ?? []) if (isManualType(checker, declaration)) declarations.push(declaration);
   }
   return [...new Set(declarations)];
+}
+
+function exactNamedImport(node, name) {
+  if (!ts.isImportDeclaration(node) || !node.importClause || node.importClause.name || !node.importClause.namedBindings || !ts.isNamedImports(node.importClause.namedBindings)) return false;
+  const elements = node.importClause.namedBindings.elements;
+  return elements.length === 1 && elements[0].name.text === name && !elements[0].propertyName;
+}
+
+function exactContractRequestTypeImport(node) {
+  return exactNamedImport(node, "ContractRequest") && (node.importClause.isTypeOnly || node.importClause.namedBindings.elements[0].isTypeOnly);
+}
+
+function exactRuntimeNamedImport(node, name) {
+  return exactNamedImport(node, name) && !node.importClause.isTypeOnly && !node.importClause.namedBindings.elements[0].isTypeOnly;
 }
 
 function transportViolation(layer, file, target, node) {
   if (layer?.layer !== "api" || !layer.slice || layer.slice === "_transport" || !target?.replaceAll("\\", "/").includes("/api/_transport/")) return undefined;
   const normalized = target.replaceAll("\\", "/");
   const sourceName = path.basename(file).replace(/\.[cm]?tsx?$/, "");
-  if (/\/browser-request(?:\.[cm]?tsx?)?$/.test(normalized)) return sourceName === "index" ? undefined : "browser-request는 resource index.ts만 import할 수 있습니다.";
-  if (/\/server-request\.server(?:\.[cm]?tsx?)?$/.test(normalized)) return sourceName === "server" ? undefined : "server-request.server는 resource server.ts만 import할 수 있습니다.";
-  if (/\/request-contract(?:\.[cm]?tsx?)?$/.test(normalized)) return ts.isImportDeclaration(node) && node.importClause?.isTypeOnly ? undefined : "transport-neutral operation은 ContractRequest를 type-only import해야 합니다.";
-  return undefined;
+  if (/\/browser-request(?:\.[cm]?tsx?)?$/.test(normalized)) return sourceName === "index" && exactRuntimeNamedImport(node, "browserRequest") ? undefined : "browser-request는 index.ts의 exact runtime import만 허용합니다.";
+  if (/\/server-request\.server(?:\.[cm]?tsx?)?$/.test(normalized)) return sourceName === "server" && exactRuntimeNamedImport(node, "serverRequest") ? undefined : "server-request.server는 server.ts의 exact runtime import만 허용합니다.";
+  if (/\/request-contract(?:\.[cm]?tsx?)?$/.test(normalized)) return sourceName !== "index" && sourceName !== "server" && exactContractRequestTypeImport(node) ? undefined : "resource operation은 ContractRequest만 exact type-only import할 수 있습니다.";
+  return "resource는 승인되지 않은 api/_transport module을 import 또는 re-export할 수 없습니다.";
 }
 
 export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath }) {
@@ -124,7 +157,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
     const sourceFile = sourceByName.get(path.resolve(file));
     if (!sourceFile) continue;
     const normalized = normalizeBytes(readFileSync(file, "utf8"));
-    if (physicalLineCount(normalized) > MAX_SOURCE_LINES) add(findings, root, WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE, file, "SourceFile", sourceFile, `${MAX_SOURCE_LINES}줄을 넘는 source file은 책임 분리 또는 reviewed waiver가 필요합니다.`);
+    if (physicalLineCount(normalized) > MAX_SOURCE_LINES) add(findings, root, WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE, file, "SourceFile", sourceFile, `${MAX_SOURCE_LINES}줄을 넘는 source file은 책임 분리 또는 reviewed waiver가 필요합니다.`, undefined, normalized);
     const nonblank = normalized.split("\n").filter((line) => line.trim()).length;
     if (nonblank >= MIN_DUPLICATE_NONBLANK_LINES && Buffer.byteLength(normalized) >= MIN_DUPLICATE_BYTES) {
       const key = sha256(normalized);
@@ -133,7 +166,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
       duplicates.set(key, candidate);
     }
     const layer = sourceLayer(file);
-    if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.");
+    if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.", undefined, normalized);
     if (layer?.layer === "api") for (const declaration of exportedManualDtos(checker, sourceFile)) {
       const declarationFile = declaration.getSourceFile();
       const key = `${declarationFile.fileName}\0${declaration.getStart(declarationFile)}`;
@@ -155,7 +188,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
         if (violation) add(findings, root, WEB_BOUNDARY_RULES.RESOURCE_TRANSPORT_IMPORT, file, node, sourceFile, violation);
       }
       if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "ENDPOINTS") add(findings, root, WEB_BOUNDARY_RULES.FRONTEND_ENDPOINTS_MIRROR, file, node, sourceFile, "frontend ENDPOINTS mirror는 canonical operation contract를 중복합니다.");
-      if (ts.isStringLiteralLike(node) && !isEndpointAuthorityPath(file) && !reference(node.parent) && /\/api\/v\d+(?:\/|$)/.test(node.text)) add(findings, root, WEB_BOUNDARY_RULES.API_ENDPOINT_LITERAL, file, node, sourceFile, "canonical /api/vN path literal은 operation contract 밖에서 중복할 수 없습니다.");
+      if (ts.isStringLiteralLike(node) && !isEndpointAuthorityPath(file) && !isModuleSpecifierLiteral(node) && /\/api\/v\d+(?:\/|$)/.test(node.text)) add(findings, root, WEB_BOUNDARY_RULES.API_ENDPOINT_LITERAL, file, node, sourceFile, "canonical /api/vN path literal은 operation contract 밖에서 중복할 수 없습니다.");
       if (!isTransportPath(file) && isGlobalFetch(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.RAW_FETCH, file, node, sourceFile, "raw fetch는 src/api/_transport에서만 수행할 수 있습니다.");
       if (!isTransportPath(file) && isResponseJsonCast(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.UNCHECKED_JSON_CAST, file, node, sourceFile, "Response.json() as는 runtime contract parsing을 우회합니다.");
       else if (!isTransportPath(file) && isResponseDecoder(checker, node) && (!node.parent || !ts.isAsExpression(node.parent))) add(findings, root, node.expression.name.text === "json" ? WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_JSON : WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_BODY, file, node, sourceFile, "Response body decode는 api/_transport 밖에서 수행할 수 없습니다.");
@@ -164,7 +197,10 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
     };
     visit(sourceFile);
   }
-  for (const candidate of duplicates.values()) if (candidate.members.length > 1) add(findings, root, WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP, path.join(root, candidate.members[0]), "SourceFileGroup", undefined, "동일한 큰 source group은 shared extraction 또는 의도적인 분리를 검토해야 합니다.", candidate.members);
+  for (const candidate of duplicates.values()) if (candidate.members.length > 1) {
+    const members = [...candidate.members].sort(codePointCompare);
+    add(findings, root, WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP, path.join(root, members[0]), "SourceFileGroup", undefined, "동일한 큰 source group은 shared extraction 또는 의도적인 분리를 검토해야 합니다.", members, `${sha256(candidate.evidence)}\n${members.join("\n")}`);
+  }
   findings.sort((left, right) => codePointCompare(`${left.rule}\0${left.path}\0${left.sha256}`, `${right.rule}\0${right.path}\0${right.sha256}`));
   const { baseline, baselineFailures } = readLegacyBaseline(baselinePath);
   const matched = applyLegacyBaseline(findings, baseline);

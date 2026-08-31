@@ -5,7 +5,7 @@
       "rule": "duplicate-source-group",
       "path": "apps/web/src/hooks/use-mobile.ts",
       "kind": "SourceFileGroup",
-      "sha256": "sha256:b84678378ef6bd04346fc9a66da756e123a4cf03d2da9e6954540c16e37fc8a1",
+      "sha256": "sha256:609cf8251aafeb91d01477031b02f3bdf6aa5cbb7f9e524f276ff6e4eec70268",
       "reason": "기존 mobile viewport helper 두 파일은 동일한 legacy 구현이며 EAT-9 canonical shared extraction 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "mobile viewport helper를 하나의 shared module로 통합할 때",
@@ -19,7 +19,7 @@
       "path": "apps/web/src/app/dashboard/analysis/[id]/analysis-board.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:0da59a6ccf207125e7f1768530408b8ed5a6af04842d58d554f998f707ec74e7",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -28,7 +28,7 @@
       "path": "apps/web/src/app/dashboard/analysis/[id]/analysis-board.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:6effe9289a9536855e74e80782ecb03de326388b1bca11ab03efee72f12d4792",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -37,7 +37,7 @@
       "path": "apps/web/src/app/dashboard/analysis/[id]/analysis-board.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:7dabc87e4a87f1c1efe1a88065741ff557818b878023331878ddd98b5827d865",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -46,7 +46,7 @@
       "path": "apps/web/src/app/dashboard/analysis/[id]/analysis-board.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:e0eee2a7dbe88ef026bf36b91e8d2f93e6ac77a407466b5902e91c2b97d4ba85",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -55,7 +55,7 @@
       "path": "apps/web/src/app/dashboard/analysis/[id]/analysis-board.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:f07af5ab10262330019146c6aefd0599229527bfe508ce7f4738f8ad9b99a8d7",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -64,7 +64,7 @@
       "path": "apps/web/src/app/dashboard/analysis/[id]/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:035437ec613adeb201ef413d55134bdedddf478f76ad3d8954b9a37e0fdf1e73",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -73,7 +73,7 @@
       "path": "apps/web/src/app/dashboard/analysis/[id]/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:05e6a05b77b0f9d993c858f70d4214e6310a96d5d0054f38bf6b31654490e689",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -82,7 +82,7 @@
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/auction-detail.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:680240d82c8e93f64e6549a50edc55a29e572c7e71402223fabec2176b88acb1",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -91,7 +91,7 @@
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/auction-detail.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:838f5c81f51d1d36d8932dd9520d7f0a2a49b7010dcd41b03b26d12df7e6b84d",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -100,7 +100,7 @@
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/auction-detail.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:f07af5ab10262330019146c6aefd0599229527bfe508ce7f4738f8ad9b99a8d7",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -109,7 +109,7 @@
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/auction-detail.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:f27009f4a693ac261e3bf765bc4169c2dae4bd0d9a4e0649f6b9fc4836887d50",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -118,7 +118,7 @@
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:46453d13cbaee170df39afc0f7897e1c2b83cebc48106311fbb73a41b2ddcf1a",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -127,7 +127,7 @@
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:92a7fd95002e0af06e296d785b2312e48f069c76f4b9c55b0fbb8d8efc18495e",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -136,7 +136,7 @@
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:b2912e12032a5944948d2526bb774a056a76e65ff40fca8ca15b138e9790b616",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -145,7 +145,7 @@
       "path": "apps/web/src/app/dashboard/delivery/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:564c0901f281ba1892635d14e90510c3fc07d6691dbe3129d94ce2fed43daf0a",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -154,7 +154,7 @@
       "path": "apps/web/src/app/dashboard/firms/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:4ebf3442a78302f0a6d2b528c5f9c72d66ae7de0f1ad62f06008fe154d09a427",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -163,7 +163,7 @@
       "path": "apps/web/src/app/dashboard/firms/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:50bb4e720769241715a6186f97322b419f53b1462fc0573f6b06935d9e617fb8",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -172,7 +172,7 @@
       "path": "apps/web/src/app/dashboard/firms/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:bd08e59dc5416cb3c3aa8d7095f6f4e97be7ef41e7693f1b53b9154a4fa6eb92",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -181,7 +181,7 @@
       "path": "apps/web/src/app/dashboard/firms/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:e7b0246704463f052d78aa448b65d612175695c92d5d3212f461ccb8eca36730",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -190,7 +190,7 @@
       "path": "apps/web/src/app/dashboard/funnel/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:77d6c7d28add8e9b442b5e57c00d8c544882cfc5ff84db6f44e27c31fe889eeb",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -199,7 +199,7 @@
       "path": "apps/web/src/app/dashboard/market/market-map.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:62065fe59867ddb8d617ddac7e23d4c1153ee076e159f38d5de3a22f1d6f1888",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -208,7 +208,7 @@
       "path": "apps/web/src/app/dashboard/my/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:d332238e7c58f4433ee72be6ddb1808a3e9cb7ee64783c3023b322b35961940f",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -217,7 +217,7 @@
       "path": "apps/web/src/app/dashboard/my/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:e9c8ef79bb6e58d2b510e310311ce5860906c804ba719cecf5580077098e8284",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -226,7 +226,7 @@
       "path": "apps/web/src/app/dashboard/record/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:23b1170d500fa317156933c3aeb88f6b1927faa411114f2380bfa82d677ed2c2",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -235,7 +235,7 @@
       "path": "apps/web/src/app/dashboard/record/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:5c6371c1e886898e8f5fe2a9641dd3c1396443b0f9d11e57311bb2c0208165f1",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -244,7 +244,7 @@
       "path": "apps/web/src/app/dashboard/record/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:f6f04f95f15ca5ec84e6080b02fe6b285f4efae1004afc4584d3d3db710afef1",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -253,7 +253,7 @@
       "path": "apps/web/src/app/dashboard/schools/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:d007a9809d7d9a1c35feb2494e05fbe78995401230dbd8ffe13ce9b00f9cd962",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -262,7 +262,7 @@
       "path": "apps/web/src/app/dashboard/schools/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:d7cbcb5615e42b4a133292b6c3258c6de6ca9a280cb596f79435bc5154c38b43",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -271,7 +271,7 @@
       "path": "apps/web/src/app/dashboard/today/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:0f4d436839e795e271286d217259a63ca97ae5912ea75878fe70aeb50896b7d7",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -280,7 +280,7 @@
       "path": "apps/web/src/app/dashboard/today/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:d7cbcb5615e42b4a133292b6c3258c6de6ca9a280cb596f79435bc5154c38b43",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -289,7 +289,7 @@
       "path": "apps/web/src/app/dashboard/today/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:fff7a1c2781d58e8fc674c46ceee1e081b9ac296b9dd25dd83e5b66e82de898f",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -298,7 +298,7 @@
       "path": "apps/web/src/app/dashboard/wins/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:5b8dd7fa3a77433f08f554be5b7dde6d39b61ac4a66e3730438b135922022879",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -307,7 +307,7 @@
       "path": "apps/web/src/app/s/[token]/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:b05794fa70111247619177c27edc17624f858ab8f773d03ceef08148e5c6b950",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -316,7 +316,7 @@
       "path": "apps/web/src/app/welcome/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:dc501de77c081baa8e4133ce6eaa9c2a7f3973296fd5ccc9a397af894548a711",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -325,7 +325,7 @@
       "path": "apps/web/src/app/welcome/page.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:e9c8ef79bb6e58d2b510e310311ce5860906c804ba719cecf5580077098e8284",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -334,7 +334,7 @@
       "path": "apps/web/src/components/global-settings.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:d332238e7c58f4433ee72be6ddb1808a3e9cb7ee64783c3023b322b35961940f",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -343,7 +343,7 @@
       "path": "apps/web/src/components/region-status.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:838f5c81f51d1d36d8932dd9520d7f0a2a49b7010dcd41b03b26d12df7e6b84d",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -352,7 +352,7 @@
       "path": "apps/web/src/components/region-switcher.tsx",
       "kind": "CallExpression",
       "sha256": "sha256:838f5c81f51d1d36d8932dd9520d7f0a2a49b7010dcd41b03b26d12df7e6b84d",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -361,7 +361,7 @@
       "path": "apps/web/src/lib/api-client.ts",
       "kind": "CallExpression",
       "sha256": "sha256:b15d289f5caf87290ab470218710c30f59fb49eb8d6abe2a939f299a57355eb3",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -370,7 +370,7 @@
       "path": "apps/web/src/lib/fetch-json.ts",
       "kind": "CallExpression",
       "sha256": "sha256:0694fbc44c8b06bfccad6db86a27dbb9ee517d72062196c4ab316761dc4ff109",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -379,7 +379,7 @@
       "path": "apps/web/src/lib/session.ts",
       "kind": "CallExpression",
       "sha256": "sha256:9e49010dc30af0c2927d936ac67a5527149e743009899efc247c574b99fd1c4b",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -388,7 +388,7 @@
       "path": "apps/web/src/lib/track.ts",
       "kind": "CallExpression",
       "sha256": "sha256:fa25bd0ce985c2582234b6a5161ca1d41f5583b54852ceeacbabf1bbb7cc9198",
-      "reason": "기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
+      "reason": "기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"
     },
@@ -396,97 +396,97 @@
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/delivery/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:50d949f4e9f9e88dae655c661db5d3d996ba1125015d970f9c9aff96b1f38753",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/firms/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:4c910e1d43ce05778063da2bcfbe00f767a4d66435f4936eac9eb15f749d72b9",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/funnel/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:25fa39bae4b09ecedbd30fbf8b06c6d2592c99493940c3e18740385be8b66a42",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/market/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:81f7ff5b30f69d0cc1a8fadb40290d5ccd143841cc0c4dde8925306f9071fe1b",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/my/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:978c5e13c491952f56b7185d8bdbe1a318ed8f2021b7e88527230ee6a823db4b",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/record/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:520234541605ac5c370257fa023231ffedf3c88513c89e82fdf1afa77ea37e00",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/schools/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:3cac601705f2abb1d9b14ba065572fe16fb1526458ed8fe0191aead9a1bb9e04",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/today/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:91c1a3394f4e3a5fb593e375e096023963c5725790f753111da53b2e932be59c",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/wins/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:ef0a01d71932e38d662cb34ba3cc2132ff2f7b663c05c4e9e42a643d97a72d96",
+      "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
     },
     {
       "rule": "route-client-component",
       "path": "apps/web/src/app/welcome/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
-      "reason": "기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.",
+      "sha256": "sha256:c3905a1439a3f090c5343299f13a8bf3ddf7767a092b5409ac9bef68a73a64dd",
+      "reason": "기존 welcome page는 interactive legacy 안내 화면으로 client component를 사용합니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"
+      "splitTrigger": "다음 welcome interaction 변경에서 client leaf와 Server Component route로 분리할 때"
     },
     {
       "rule": "source-file-size",
       "path": "apps/web/src/app/dashboard/analysis/[id]/analysis-board.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:fb3c1d7bdb1631e87d0ec87bf5bb31e3d0ea0d4a03600fa85e038d81f5fb7e52",
       "reason": "기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 route를 RSC model과 route-private UI leaf로 전환할 때"
@@ -495,7 +495,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/auction-detail.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:300bfd00cbe01316ae554ce15824d04cfd6452ddd9d781d90372501abe19178c",
       "reason": "기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 route를 RSC model과 route-private UI leaf로 전환할 때"
@@ -504,7 +504,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/app/dashboard/delivery/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:50d949f4e9f9e88dae655c661db5d3d996ba1125015d970f9c9aff96b1f38753",
       "reason": "기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 route를 RSC model과 route-private UI leaf로 전환할 때"
@@ -513,7 +513,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/app/dashboard/record/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:520234541605ac5c370257fa023231ffedf3c88513c89e82fdf1afa77ea37e00",
       "reason": "기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 route를 RSC model과 route-private UI leaf로 전환할 때"
@@ -522,7 +522,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/app/dashboard/today/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:91c1a3394f4e3a5fb593e375e096023963c5725790f753111da53b2e932be59c",
       "reason": "기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 route를 RSC model과 route-private UI leaf로 전환할 때"
@@ -531,7 +531,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/app/welcome/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:c3905a1439a3f090c5343299f13a8bf3ddf7767a092b5409ac9bef68a73a64dd",
       "reason": "기존 welcome route는 안내 presentation을 한 파일에 보유한 legacy 화면입니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "다음 welcome content 또는 interaction 변경에서 section UI로 분리할 때"
@@ -540,7 +540,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/components/ui/chart.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:118377ace72f185b2468ab8976fa83db7aba29aba7e51afe72d99988ff289e41",
       "reason": "기존 UI composite primitive는 vendor-style presentation과 compatibility surface를 함께 포함합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "다음 primitive behavior 변경에서 focused UI modules로 분리할 때"
@@ -549,7 +549,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/components/ui/infobar.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:11220adaf50693fbde9b5e933ad5f355f90a7ffa17c6c76d082edcf47657a107",
       "reason": "기존 UI composite primitive는 vendor-style presentation과 compatibility surface를 함께 포함합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "다음 primitive behavior 변경에서 focused UI modules로 분리할 때"
@@ -558,7 +558,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/components/ui/sidebar.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:d9ea855404e455aaf3b1da54d25c6e65afa24e3179d179fd1b113e9cd402f1c0",
       "reason": "기존 UI composite primitive는 vendor-style presentation과 compatibility surface를 함께 포함합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "다음 primitive behavior 변경에서 focused UI modules로 분리할 때"
@@ -567,7 +567,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/lib/region-coords.ts",
       "kind": "SourceFile",
-      "sha256": "sha256:940d8e9a30f6460bf733f358e3be65d8dde9988442791aa3751528393167e67b",
+      "sha256": "sha256:1c663bc52fdeeca7f64c62f217bd8f6d900050f1d99fdc781ff2c2780deb9c96",
       "reason": "기존 지역 좌표 lookup은 생성·보정된 지리 데이터 목록이며 dashboard presentation이 아닙니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "좌표 source/provenance contract 또는 generated lookup pipeline을 도입해 데이터를 분리할 때"

@@ -42,7 +42,8 @@ export function normalizedPath(repoRoot, filename) {
 }
 
 export function isTestOrFixture(file) {
-  return /(?:\.(?:test|spec)\.[cm]?[jt]sx?$|(?:^|\/)__(?:tests?|fixtures?)__(?:\/|$)|(?:^|\/)fixtures?(?:\/|$))/i.test(file);
+  const normalized = file.replaceAll("\\", "/");
+  return /(?:\.(?:test|spec)\.[cm]?[jt]sx?$|(?:^|\/)__(?:tests?|fixtures?)__(?:\/|$)|(?:^|\/)fixtures?(?:\/|$))/i.test(normalized);
 }
 
 export function isTypeScriptSource(file) {
@@ -69,7 +70,7 @@ export function isPublicApiEntry(targetPath) {
 }
 
 export function isEndpointAuthorityPath(sourcePath) {
-  return /\/(?:packages\/contracts\/src\/api|openapi|fixtures?)\//.test(sourcePath.replaceAll("\\", "/"));
+  return /\/packages\/contracts\/src\/api\//.test(sourcePath.replaceAll("\\", "/"));
 }
 
 function baselineKey(entry) {
@@ -129,6 +130,10 @@ export function applyLegacyBaseline(findings, baseline) {
 }
 
 export function reviewedBaselineMetadata(item) {
+  if (item.rule === WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT) {
+    if (item.path.includes("/app/welcome/")) return ["기존 welcome page는 interactive legacy 안내 화면으로 client component를 사용합니다.", "다음 welcome interaction 변경에서 client leaf와 Server Component route로 분리할 때"];
+    if (item.path.includes("/app/dashboard/")) return ["기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.", "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"];
+  }
   if (item.rule === WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE) {
     if (item.path.endsWith("/lib/region-coords.ts")) return ["기존 지역 좌표 lookup은 생성·보정된 지리 데이터 목록이며 dashboard presentation이 아닙니다.", "좌표 source/provenance contract 또는 generated lookup pipeline을 도입해 데이터를 분리할 때"];
     if (item.path.includes("/components/ui/")) return ["기존 UI composite primitive는 vendor-style presentation과 compatibility surface를 함께 포함합니다.", "다음 primitive behavior 변경에서 focused UI modules로 분리할 때"];
@@ -138,8 +143,8 @@ export function reviewedBaselineMetadata(item) {
   return {
     [WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP]: ["기존 mobile viewport helper 두 파일은 동일한 legacy 구현이며 EAT-9 canonical shared extraction 전까지 동결합니다.", "mobile viewport helper를 하나의 shared module로 통합할 때"],
     [WEB_BOUNDARY_RULES.ID_NUMBER_CONVERSION]: ["기존 dashboard와 table filter의 numeric URL/filter 처리 부채는 canonical decimal ID route 전환 전까지 동결합니다.", "해당 화면이 contract-backed decimal identifier를 소비하도록 전환할 때"],
-    [WEB_BOUNDARY_RULES.RAW_FETCH]: ["기존 Web 화면과 hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.", "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"],
-    [WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT]: ["기존 dashboard route의 client page는 legacy presentation이며 RSC route decomposition 전까지 동결합니다.", "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"],
+    [WEB_BOUNDARY_RULES.RAW_FETCH]: ["기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.", "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"],
+    [WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT]: ["기존 Web route의 client component 경계는 EAT-9 이전 legacy presentation입니다.", "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"],
     [WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE]: ["기존 dashboard presentation file은 300줄을 넘는 legacy 책임 혼합이며 기능 전환과 함께 분리합니다.", "다음 기능 변경이 route model, UI leaf 또는 data adapter 책임을 함께 건드릴 때"],
     [WEB_BOUNDARY_RULES.UNCHECKED_JSON_CAST]: ["기존 Web response type assertion은 legacy wire 처리이며 contract runtime parsing 도입 전까지 동결합니다.", "해당 response를 operation schema가 parse하는 api resource로 이전할 때"],
     [WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_JSON]: ["기존 Web response body decode는 legacy network boundary이며 EAT-9 transport 전환 전까지 동결합니다.", "해당 response decode를 api/_transport의 validated request path로 이전할 때"],

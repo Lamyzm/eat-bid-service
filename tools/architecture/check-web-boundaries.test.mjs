@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { inspectWebBoundaries } from "./web-boundaries/inspect.mjs";
+import { isTestOrFixture } from "./web-boundaries/policy.mjs";
 
 const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 const cli = path.join(repositoryRoot, "tools", "architecture", "check-web-boundaries.mjs");
@@ -207,7 +208,7 @@ test("import와 export-from은 resource public entry와 transport 소유권을 �
   });
 
   assert.deepEqual(rules(report).sort(), ["resource-transport-import", "web-api-deep-import"].sort());
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 4);
 });
 
 test("전역 fetch와 Response decoder만 검사하고 shadow parser는 허용한다", async () => {
@@ -262,4 +263,77 @@ test("physical line count는 300 경계의 trailing newline을 올림하지 않�
   });
 
   assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "source-file-size").map((finding) => finding.path), ["apps/web/src/shared/too-large.ts"]);
+});
+
+test("source-derived fingerprint은 같은 category 편집과 duplicate group 동시 편집을 거부한다", async () => {
+  const duplicate = (suffix) => Array.from({ length: 10 }, (_, index) => `export const item${index} = '${suffix}-${"x".repeat(16)}';`).join("\n");
+  const subject = fixture({
+    "apps/web/src/app/page.tsx": `'use client';\n${Array.from({ length: 300 }, (_, index) => `export const page${index} = ${index};`).join("\n")}\n`,
+    "apps/web/src/shared/one.ts": duplicate("before"),
+    "apps/web/src/shared/two.ts": duplicate("before"),
+  });
+  try {
+    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
+    writeFileSync(subject.baselinePath, `${JSON.stringify({ version: 1, entries: initial.findings.map((finding) => ({ ...finding, reason: "legacy", owner: "EAT-9", splitTrigger: "migrate" })) }, null, 2)}\n`);
+    writeFileSync(path.join(subject.sourceRoot, "app", "page.tsx"), `'use client';\n// edited but still a client route\n${Array.from({ length: 300 }, (_, index) => `export const page${index} = ${index};`).join("\n")}\n`);
+    writeFileSync(path.join(subject.sourceRoot, "shared", "one.ts"), duplicate("after"));
+    writeFileSync(path.join(subject.sourceRoot, "shared", "two.ts"), duplicate("after"));
+    const changed = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
+    assert.equal(changed.baselineFailures.filter((failure) => /fingerprint drift/.test(failure)).length, 3);
+
+    writeFileSync(path.join(subject.sourceRoot, "app", "page.tsx"), "export default function Page() { return null }\n");
+    writeFileSync(path.join(subject.sourceRoot, "shared", "one.ts"), "export const one = 1;\n");
+    writeFileSync(path.join(subject.sourceRoot, "shared", "two.ts"), "export const two = 2;\n");
+    assert.equal((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.length, 0);
+  } finally {
+    rmSync(subject.root, { recursive: true, force: true });
+  }
+});
+
+test("transport import은 exact owner와 ContractRequest type-only form만 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; void browserRequest;\n",
+    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request.server'; void serverRequest;\n",
+    "apps/web/src/api/auctions/whole.ts": "import type { ContractRequest } from '@/api/_transport/request-contract'; export type Whole = ContractRequest;\n",
+    "apps/web/src/api/auctions/specifier.ts": "import { type ContractRequest } from '@/api/_transport/request-contract'; export type Specifier = ContractRequest;\n",
+    "apps/web/src/api/auctions/bad.ts": "export { browserRequest } from '@/api/_transport/browser-request'; import { ContractRequest, other } from '@/api/_transport/request-contract'; import { anything } from '@/api/_transport/private'; void ContractRequest; void other; void anything;\n",
+    "apps/web/src/api/orders/index.ts": "import type { browserRequest } from '@/api/_transport/browser-request'; export type Browser = typeof browserRequest;\n",
+    "apps/web/src/api/orders/server.ts": "import { type serverRequest } from '@/api/_transport/server-request.server'; export type Server = typeof serverRequest;\n",
+    "apps/web/src/api/_transport/browser-request.ts": "export const browserRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/server-request.server.ts": "export const serverRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/request-contract.ts": "export interface ContractRequest {} export const other = 1;\n",
+    "apps/web/src/api/_transport/private.ts": "export const anything = 1;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 5);
+});
+
+test("Response subclass union decoder는 막고 local parser decoder는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "class CustomResponse extends Response {} const parser = { json: () => 1 }; export function load(response: CustomResponse | (Response & {})) { parser.json(); return [response.json(), response.text()]; }\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 1);
+});
+
+test("dynamic contract import과 Windows fixture path는 허용하고 Web openapi v9 literal은 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/openapi/bypass.ts": "export const path = '/api/v9/bypass';\n",
+    "apps/web/src/api/auctions/get.ts": "export const load = () => import('@eatbid/contracts/api/v1/auctions');\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
+  assert.equal(isTestOrFixture("apps\\web\\src\\fixtures\\authority.ts"), true);
+});
+
+test("local alias와 generic wrapper manual DTO는 막고 contract alias는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "export type { AuctionResponse } from './shape'; export type { WrappedResponse } from './wrapped'; export type { ContractResponse } from './contract';\n",
+    "apps/web/src/api/auctions/shape.ts": "type Shape = { id: string }; export type AuctionResponse = Shape;\n",
+    "apps/web/src/api/auctions/wrapped.ts": "type Envelope<T> = { data: T }; type LocalDto = { id: string }; export type WrappedResponse = Envelope<LocalDto>;\n",
+    "apps/web/src/api/auctions/contract.ts": "import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions'; export type ContractResponse = AuctionV1Response;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").length, 2);
 });
