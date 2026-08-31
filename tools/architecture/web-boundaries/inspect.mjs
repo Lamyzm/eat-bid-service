@@ -88,14 +88,41 @@ function isGlobalFetchReference(checker, node) {
   return isDomSymbol(property, "fetch");
 }
 
+function hasGlobalFetchOrigin(checker, node, depth = 0, seen = new Set()) {
+  if (!node || depth > 96 || seen.has(node)) return false;
+  const expression = unwrapExpression(node);
+  if (isGlobalFetchReference(checker, expression)) return true;
+  seen.add(expression);
+  try {
+    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) return hasGlobalFetchOrigin(checker, expression.right, depth + 1, seen);
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) return hasGlobalFetchOrigin(checker, expression.expression, depth + 1, seen);
+    if (ts.isCallExpression(expression)) {
+      const callee = unwrapExpression(expression.expression);
+      return (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee))
+        && staticPropertyName(checker, callee) === "bind"
+        && hasGlobalFetchOrigin(checker, callee.expression, depth + 1, seen);
+    }
+    return false;
+  } finally {
+    seen.delete(expression);
+  }
+}
+
 function isGlobalFetchCallable(checker, node, depth = 0, seen = new Set()) {
-  if (!node || depth > 32 || seen.has(node)) return false;
+  if (!node) return false;
+  if (depth > 32 || seen.has(node)) return hasGlobalFetchOrigin(checker, node);
   const expression = unwrapExpression(node);
   if (expression !== node) return isGlobalFetchCallable(checker, expression, depth + 1, seen);
   seen.add(expression);
   try {
     if (isGlobalFetchReference(checker, expression)) return true;
     if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) return isGlobalFetchCallable(checker, expression.right, depth + 1, seen);
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      const method = staticPropertyName(checker, expression);
+      if (["call", "apply"].includes(method)) return isGlobalFetchCallable(checker, expression.expression, depth + 1, seen);
+      if (method === "bind") return false;
+      return hasGlobalFetchOrigin(checker, expression);
+    }
     if (!ts.isCallExpression(expression)) return false;
     const binder = unwrapExpression(expression.expression);
     return (ts.isPropertyAccessExpression(binder) || ts.isElementAccessExpression(binder))

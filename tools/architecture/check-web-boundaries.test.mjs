@@ -622,3 +622,33 @@ test("중첩 comma bind call 조합의 전역 fetch만 재귀적으로 거부한
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
   ]);
 });
+
+test("call apply bind 다중 조합은 global fetch origin일 때만 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "export function load() { return [window.fetch.call.bind(window.fetch)(window, '/one'), globalThis.fetch.apply.bind(globalThis.fetch)(globalThis, ['/two']), globalThis.fetch.bind(globalThis).apply(undefined, ['/three']), globalThis.fetch.call.call(globalThis.fetch, globalThis, '/four')]; }\n",
+    "apps/web/src/shared/local.ts": "const fetch = (value: string) => value; const client = { run: (value: string) => value }; export function safe(window: { fetch(value: string): string }, globalThis: { fetch(value: string): string }) { return [window.fetch.call.bind(window.fetch)(window, 'one'), fetch.apply.bind(fetch)(globalThis, ['two']), globalThis.fetch.bind(globalThis).apply(undefined, ['three']), fetch.call.call(fetch, globalThis, 'four'), client.run.call.bind(client.run)(client, 'five')]; }\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
+});
+
+test("40단계 comma wrapper는 global fetch를 fail closed로 막고 local shadow는 허용한다", async () => {
+  const wrap = (expression) => Array.from({ length: 40 }).reduce((current) => `(0, ${current})`, expression);
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": `export const load = () => ${wrap("globalThis.fetch")}('/deep');\n`,
+    "apps/web/src/shared/local.ts": `const fetch = (value: string) => value; export const safe = () => ${wrap("fetch")}('deep');\n`,
+  });
+
+  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+  ]);
+});
+
+test("fetch 반환값 method chain은 원 fetch 호출 하나만 보고한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "export const load = () => fetch('/auction').then((response) => response);\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 1);
+});

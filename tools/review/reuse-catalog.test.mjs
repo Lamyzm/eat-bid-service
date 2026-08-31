@@ -194,7 +194,7 @@ test("구조화된 인증 credential 변형은 모두 제외하고 문서와 기
       "export const passwordFieldLabel = 'Password';",
       "export const docs = 'Bearer authentication and Basic authentication are documented';",
       "export const basicDocs = 'Basic authentication';",
-      "const headers = new Headers(); headers.set('Authorization', 'documentation-only'); export { headers };",
+      "const headers = new Headers(); headers.set('Authorization', 'example'); export { headers };",
     ].join("\n"),
   }, { changedPaths: [...Object.keys(sensitive), benignPath] });
 
@@ -205,6 +205,36 @@ test("구조화된 인증 credential 변형은 모두 제외하고 문서와 기
   assert.match(result.modules.find((module) => module.path === benignPath).source, /Bearer authentication/);
   assert.ok(result.exclusions.every((item) => item.reason === "sensitive-content"));
   assert.doesNotMatch(JSON.stringify(result), /alphabeticcredentialvalue|QWxhZGRpbjpPcGVuU2VzYW1l|setcredentialletters|api-token-value-hidden|client-secret-value-hidden|service:credentialvalue/);
+});
+
+test("credential 소유 구조는 짧은 값과 JSX 정적 문자열을 제외하고 명시적 예시만 허용한다", async () => {
+  const sensitive = {
+    "apps/web/src/components/short-basic.ts": "export const headers = { Authorization: 'Basic dTpw' };\n",
+    "apps/web/src/components/short-api-token.ts": "export const apiToken = 'abc';\n",
+    "apps/web/src/components/short-password.ts": "export const password = 'pwd';\n",
+    "apps/web/src/components/jsx-password.tsx": "export const Field = () => <input password={'pwd'} />;\n",
+    "apps/web/src/components/jsx-template.tsx": "export const Field = () => <input password={`p${'w'}d`} />;\n",
+    "apps/web/src/components/asserted-token.ts": "export const apiToken = (`abc` as const);\n",
+  };
+  const safePath = "apps/web/src/components/safe-credential-examples.tsx";
+  const result = await catalog({
+    ...sensitive,
+    [safePath]: [
+      "export const apiToken = '';",
+      "export const password = '[REDACTED]';",
+      "export const accessToken = 'placeholder';",
+      "export const refreshToken = `example`;",
+      "export const Field = () => <input password={'<redacted>'} />;",
+      "const headers = new Headers(); headers.set('Authorization', 'example'); export { headers };",
+    ].join("\n"),
+  }, { changedPaths: [...Object.keys(sensitive), safePath] });
+
+  for (const sensitivePath of Object.keys(sensitive)) {
+    assert.equal(result.modules.find((module) => module.path === sensitivePath)?.source, undefined);
+    assert.deepEqual(result.exclusions.find((item) => item.path === sensitivePath), { path: sensitivePath, reason: "sensitive-content" });
+  }
+  assert.match(result.modules.find((module) => module.path === safePath).source, /\[REDACTED\]/);
+  assert.doesNotMatch(JSON.stringify(result), /Basic dTpw|apiToken = 'abc'|password = 'pwd'|password=\{`p/);
 });
 
 test("generated 경로와 파일명은 대소문자와 Windows 구분자를 정규화하고 generator는 허용한다", async () => {

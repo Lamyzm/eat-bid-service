@@ -2,16 +2,38 @@ import ts from "typescript";
 
 const sensitiveAssignmentNames = ["accesstoken", "apikey", "apitoken", "clientsecret", "password", "refreshtoken"];
 const authorizationNames = new Set(["authorization", "proxyauthorization"]);
+const safeCredentialExamples = new Set(["", "***", "<redacted>", "[redacted]", "example", "placeholder", "redacted"]);
 
 function unwrap(node) {
   let current = node;
-  while (current && (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) || ts.isTypeAssertionExpression(current) || ts.isSatisfiesExpression(current) || ts.isNonNullExpression(current))) current = current.expression;
+  while (current) {
+    if (ts.isJsxExpression(current)) current = current.expression;
+    else if (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) || ts.isTypeAssertionExpression(current) || ts.isSatisfiesExpression(current) || ts.isNonNullExpression(current)) current = current.expression;
+    else break;
+  }
   return current;
 }
 
-function stringValue(node) {
+function stringValue(node, depth = 0) {
+  if (!node || depth > 16) return undefined;
   const current = unwrap(node);
-  return current && ts.isStringLiteralLike(current) ? current.text : undefined;
+  if (!current) return undefined;
+  if (ts.isStringLiteralLike(current)) return current.text;
+  if (ts.isTemplateExpression(current)) {
+    let value = current.head.text;
+    for (const span of current.templateSpans) {
+      const expression = stringValue(span.expression, depth + 1);
+      if (expression === undefined) return undefined;
+      value += `${expression}${span.literal.text}`;
+    }
+    return value;
+  }
+  if (ts.isBinaryExpression(current) && current.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = stringValue(current.left, depth + 1);
+    const right = stringValue(current.right, depth + 1);
+    return left === undefined || right === undefined ? undefined : `${left}${right}`;
+  }
+  return undefined;
 }
 
 function fieldName(node) {
@@ -58,8 +80,7 @@ function containsCredentialValue(value) {
 function assignedLiteralIsSensitive(name, initializer) {
   const value = stringValue(initializer);
   if (value === undefined) return false;
-  if (isAuthorizationName(name)) return containsCredentialValue(value);
-  return isSensitiveAssignmentName(name) && value.trim().length >= 4;
+  return (isAuthorizationName(name) || isSensitiveAssignmentName(name)) && !safeCredentialExamples.has(value.trim().toLowerCase());
 }
 
 function callSetsAuthorization(node) {
@@ -67,7 +88,8 @@ function callSetsAuthorization(node) {
   const callee = unwrap(node.expression);
   if (!(ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee))) return false;
   const method = normalizedFieldName(ts.isPropertyAccessExpression(callee) ? callee.name : callee.argumentExpression);
-  return ["append", "set"].includes(method) && isAuthorizationName(node.arguments[0]) && containsCredentialValue(stringValue(node.arguments[1]) ?? "");
+  const value = stringValue(node.arguments[1]);
+  return ["append", "set"].includes(method) && isAuthorizationName(node.arguments[0]) && value !== undefined && !safeCredentialExamples.has(value.trim().toLowerCase());
 }
 
 function scriptKind(fileName) {
