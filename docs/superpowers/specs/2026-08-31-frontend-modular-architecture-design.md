@@ -1,6 +1,7 @@
 ---
 status: accepted
 date: 2026-08-31
+last_reviewed: 2026-09-01
 linear_issue: EAT-9
 canonical_for: frontend-modular-architecture-design
 ---
@@ -42,6 +43,8 @@ canonical_for: frontend-modular-architecture-design
 4. RSC, TanStack Query, URL, form, local UI state의 역할을 질문별로 고정한다.
 5. import graph, 깊은 참조, 300줄 검토와 unchecked JSON을 기계적으로 막는다.
 6. 현재 디자인 토큰과 shadcn/Base UI 자산을 보존하면서 행동·인증·로깅은 capability에서 합성한다.
+7. 로딩, 상호작용과 비동기 행동을 공통 motion·feedback 계약으로 묶되 실제 업무 성공처럼 보이는
+   거짓 피드백은 만들지 않는다.
 
 ### 비목표
 
@@ -87,6 +90,7 @@ apps/web/src/
 │  └─ work-items.ts
 └─ shared/                    # 범용 config, lib, UI primitive
    ├─ config/
+   ├─ action/                   # resource-neutral action state와 주입 port
    ├─ lib/
    └─ ui/
 ```
@@ -129,7 +133,7 @@ flowchart TD
 | `api/<resource>` | `_transport`, `shared`, `@eatbid/contracts`, Query option API | 다른 resource 내부, `app`, `shell`, capability |
 | `api/_transport` | 외부 HTTP 도구와 공통 Problem Details 계약 | 제품 endpoint, UI, query key |
 | `routing/<resource>` | Next `Route` type과 `@eatbid/contracts` identifier atom | API operation path, network, UI, server state |
-| `shared` | 외부 라이브러리 | 상위 layer와 제품 endpoint 소유 |
+| `shared` | 외부 라이브러리와 자체 범용 primitive/port | 상위 layer, 제품 endpoint, permission/event catalog와 command 소유 |
 
 표는 내부 project import를 제한한다. 각 layer는 자기 책임에 필요한 승인된 외부 toolkit을 직접 사용할 수
 있지만 외부 package를 핑계로 내부 역방향 edge를 만들 수 없다.
@@ -251,30 +255,149 @@ presentation model만 허용한다. Date, bigint, class instance를 넘기지 �
 계산한다. React `useEffectEvent`는 effect 안의 최신 비반응 로직에만 쓰며 dependency를 숨기는 도구로
 사용하지 않는다.
 
+### 6.1 로딩과 오류 경계
+
+동일 화면의 실제 content와 fallback은 같은 layout geometry를 공유한다. `shared/ui/Skeleton`은 색과
+motion을 제공하는 atom이고, shared skeleton pattern은 목록·문단·카드처럼 업무를 모르는 반복 형태만
+소유한다. route 전용 `ScreenSkeleton`이 최종 화면 구조의 단일 fallback 권위이며 실제 화면과
+`ScreenFrame`을 공유한다. `loading.tsx`는 skeleton markup을 직접 만들지 않고 해당 route의
+`ScreenSkeleton` 하나만 반환한다.
+
+- Next `loading.tsx`는 hard load와 route 전환의 첫 경계를 소유하고 shell/header/sidebar는 유지한다.
+- React `Suspense`는 server streaming panel을 나누고, `@suspensive/react`는 client async/error/delay
+  조합에만 사용한다.
+- client fallback은 짧은 응답의 깜박임을 막도록 기본 200ms `Delay`를 사용할 수 있지만 route
+  `loading.tsx`에는 지연을 넣지 않는다.
+- 검색·필터·페이지 이동과 refetch는 기존 데이터를 유지하며 skeleton으로 덮지 않는다.
+- mutation은 skeleton이 아니라 실행한 버튼의 pending/progress로 나타낸다.
+- route/server 오류는 Next `error.tsx`, client panel 오류는 Suspensive ErrorBoundary와
+  QueryErrorResetBoundary가 소유한다. ErrorBoundary가 바깥, Suspense가 안쪽이다.
+- abort는 사용자 오류나 toast로 표시하지 않는다. 입력 오류는 inline, 401은 인증 UI, 403은 권한
+  사유, 404는 not-found, 일시적 network/503은 retry, malformed contract/500은 상위 경계와 telemetry로
+  보낸다.
+
+loading region 하나에만 `aria-busy`와 한국어 status를 제공하고 내부 skeleton 조각은 `aria-hidden`으로
+둔다. reduced-motion에서는 pulse, shimmer와 이동 애니메이션을 제거한다. 모든 화면에 쓰는 하나의
+`PageSkeleton`, `PageContainer isLoading`, 전역 Suspensive screen fallback과 의미 없는 fallback은 만들지
+않는다. `@suspensive/react-query`는 TanStack Query v5와 역할이 겹치고 suspense query cancellation이
+제한되므로 foundation 기본값으로 채택하지 않는다.
+
+### 6.2 체감 속도
+
+빠르게 느껴지는 UI는 긴 장식 animation이 아니라 입력 순간의 피드백과 실제 대기 제거로 만든다.
+Next Link의 production prefetch를 기본으로 두고, 기본 scheduler가 부족하다는 측정이 있는 중요한 동적
+route만 hover/touch intent prefetch를 추가한다. 되돌릴 수 있는 저장·필터 같은 action은 계약과 rollback이
+있을 때 optimistic update를 허용하지만, 후보값 확정이나 향후 외부 투찰로 이어지는 고위험 action은
+optimistic success를 금지한다. 사용자가 본 성공 상태는 항상 Server 응답 뒤에 확정한다.
+
 ## 7. UI, theme, 인증과 로깅
 
 - 기존 Tailwind CSS semantic token, theme CSS와 shadcn/Base UI primitive를 보존한다.
 - token 값의 runtime 권위는 CSS custom property다. JSON과 CSS를 사람이 이중 관리하지 않는다.
   외부 디자인 도구용 JSON이 실제 필요해지면 JSON→CSS 단방향 생성과 drift gate를 먼저 만든다.
-- `shared/ui/Button`은 시각, 접근성, disabled/focus와 공통 press motion만 소유한다.
-- 인증, 권한 확인, analytics/logging은 base Button에 넣지 않는다. capability의 `AuthorizedAction` 또는
-  명시적 command component가 policy와 typed action descriptor를 합성한다.
 - Query/Mutation 전역 오류는 QueryClient cache callback과 `meta` 정책으로 toaster/Sentry에 연결한다.
   사용자에게 보여야 하는 실패를 무조건 전역 toast로 바꾸지 않는다.
 - telemetry에는 사업자등록번호, 투찰 후보값, query string과 원본 payload를 기본 수집하지 않는다.
   Sentry `sendDefaultPii`와 sampling은 운영·개인정보 결정 전까지 보수적으로 설정한다.
 
+### 7.1 motion token과 primitive
+
+motion runtime SSOT는 `styles/tokens/motion.css`의 semantic CSS custom property다. JSON 사본이나
+component-local millisecond literal을 만들지 않는다.
+
+| token | 기본값 | 용도 |
+|---|---:|---|
+| `--motion-duration-press` | 70ms | 버튼·토글을 누르는 순간 |
+| `--motion-duration-state` | 110ms | hover, 색상과 press 해제 |
+| `--motion-duration-enter` | 150ms | menu, popover와 짧은 확장 |
+| `--motion-duration-panel` | 240ms | drawer, toast와 드문 theme 전환 |
+
+productive standard/entrance/exit easing도 같은 파일이 소유한다. 반복 업무 동작에 400ms 이상, bounce와
+elastic spring을 사용하지 않는다. focus ring은 기다리지 않고 즉시 나타나며 reduced-motion에서는
+transform과 layout motion을 제거하되 색·focus·pending 같은 상태 정보는 유지한다.
+
+`shared/ui/Button`은 시각 variant, 접근성, disabled/focus와 공통 press feedback을 한 번 소유한다. 기본
+action button은 hover 색상 110ms와 press/release transform 70/110ms를 자동 상속한다. link, navigation,
+popup trigger, 반복 table row와 dense toolbar처럼 위치 이동이 잡음이나 anchor 오차를 만드는 primitive는
+stable wrapper 또는 compound variant가 quiet interaction을 한 번 소유한다. 화면 호출부가
+`active:scale-*`, `duration-*`, `transition-all`이나 Motion component를 직접 추가하지 않는다.
+
+`shared/ui/LoadingButton`은 Button을 감싸 spinner, 고정된 label geometry, `aria-busy`, live status와 중복
+실행 방지만 제공한다. pending/disabled 중에도 Base UI `focusableWhenDisabled`와 `aria-describedby`로 focus,
+tab 순서와 사용자 안전 사유를 보존한다. auth, permission, command와 telemetry를 import하지 않는다.
+수동 label은 움직이지 않고 form label은 focus/error 색만 전환한다. badge/value 변화는 짧은
+crossfade만 허용한다.
+
+Base UI state attribute와 취소 가능한 CSS transition을 primitive 기본값으로 사용한다. 현재 사용되지 않는
+`motion` package는 제거하고 drag/reorder/shared-layout처럼 CSS로 표현하기 어려운 실제 요구가 생길 때
+capability-local로 최신 compatible version과 lazy feature loading을 재검토한다. React canary
+`ViewTransition`과 Motion alpha API는 foundation에 넣지 않는다.
+
+### 7.2 action 합성과 접근 제어
+
+업무 action은 다음 방향으로 조립한다.
+
+```text
+capability command component
+  → capability policy + mutation + feedback + typed telemetry event
+  → resource-neutral action controller
+  → shared LoadingButton
+  → shared Button
+  → Nest Guard/policy + server audit
+```
+
+`shared/action`은 `ready | pending | disabled` 같은 action state, `execute`, 안전한 disabled reason과
+shell이 주입할 access/telemetry port만 정의한다. session fetch, permission catalog, event catalog와 제품
+command를 알지 못한다. shell provider는 app layout이 전달한 검증된 session view와 로그인 prompt/telemetry
+adapter를 port에 결합한다. capability는 API resource public entry에서 얻은 contract-inferred permission
+type, 자기 policy와 event descriptor를 소유하고 action state를 명시적으로 LoadingButton에 연결한다.
+policy, command, feedback와 telemetry를 하나의 만능 descriptor나 자유 형식 options object로 합치지
+않으며 서로 다른 변경 이유를 가진 작은 값과 port로 유지한다.
+
+인증·권한·analytics/logging을 base Button의 `requireAuth`, `permission`, `track` prop으로 추가하거나 HOC로
+숨기지 않는다. 재사용할 업무 intent는 `SaveCandidateButton` 같은 명시적 capability component가 되며,
+다른 화면은 이 public component를 소비한다. 단순 close, tab, local filter처럼 command/permission/
+feedback lifecycle이 없는 UI는 Button을 직접 사용한다.
+
+접근 정책은 다음을 기본값으로 한다.
+
+- route 전체가 인증을 요구하면 Server layout/page 경계에서 session을 검증하고 미인증 content를 먼저
+  렌더링한 뒤 client redirect하지 않는다.
+- 비로그인 사용자: discoverable action은 보여 주고 click 시 전역 로그인 prompt를 요청한다.
+- 로그인했지만 권한 없음: 기본은 disabled와 사용자 안전 사유이며 기능 존재가 민감할 때만 숨긴다.
+- 허용: mutation을 실행하되 Nest Guard가 같은 권한을 다시 강제한다.
+- 렌더 뒤 session 만료로 받은 401은 로그인 prompt, 403은 재시도 없는 권한 사유로 처리한다.
+
+클라이언트 access decision은 UX일 뿐 보안 권위가 아니다. 실제 권한, tenant/workspace 범위와 command
+허용 여부는 Nest Guard/application policy가 결정한다. protected command의 사용자·대상·결과 감사 기록도
+Server interceptor/application audit가 권위이며 client event로 대체하지 않는다.
+
+### 7.3 telemetry와 action feedback
+
+base Button은 모든 click을 수집하지 않는다. capability는 `requested | succeeded | failed`처럼 업무 의미가
+있는 typed event만 자기 event catalog에서 발행하고 raw `track('문자열')`을 화면에 쓰지 않는다. event
+metadata는 allowlist 방식이며 사업자등록번호, 후보값, query string, 원본 DTO와 자유 형식 object를 받지
+않는다. 전역 telemetry sink는 전송과 공통 context만 소유하고 이벤트의 업무 의미를 만들지 않는다.
+
+action feedback은 physical press, pending, confirmed result를 서로 다른 상태로 유지한다. 눌림 animation은
+성공을 뜻하지 않는다. reversible mutation만 optimistic state를 허용하고 고위험 action은 press 직후
+stable pending으로 전환한 뒤 Server가 확인한 성공/실패를 표시한다. auth/permission 실패, abort와
+validation 실패를 하나의 전역 toast로 평탄화하지 않는다.
+
 ## 8. 도구 선택
 
 | 항목 | 결정 |
 |---|---|
-| Next.js | `16.3.3` exact로 올리고 `typedRoutes: true` 채택 |
+| Next.js | `16.3.4` exact로 올리고 `typedRoutes: true` 채택 |
 | React | 호환 stable `19.2.8` exact |
 | Tailwind | v5를 기다리지 않고 현재 stable v4 lane 유지; manifest를 resolved v4.3.3과 일치 |
 | TanStack Query | `5.102.8`, resource API 소유 `queryOptions()`와 signal 전달 |
 | TanStack Form | v2 `2.0.0-alpha.2`는 foundation 기본값으로 채택하지 않음; stable v1 `1.33.5` 유지 |
+| Suspensive | `@suspensive/react` `3.21.3` exact만 client async delay/error composition에 채택; react-query adapter는 보류 |
+| Motion | 현재 unused dependency 제거; drag/reorder/shared-layout 요구와 bundle evidence가 생길 때만 재도입 |
 | React Compiler | `babel-plugin-react-compiler@1.0.0`, annotation mode와 opt-in 0개로 시작; 첫 후보부터 동작·비교 성능 gate |
 | Component interaction tests | Testing Library + user-event + Happy DOM을 Web-local Bun preload로 고정; keyboard/focus를 실제 동작으로 검증 |
+| Browser interaction tests | Playwright로 loading boundary, press/pending, reduced-motion, auth/permission action을 실제 browser에서 검증 |
 | Rust React Compiler | experimental이므로 보류 |
 | Cache Components | route/Suspense/self-host cache audit 전 전역 활성화 보류 |
 | Immer | 반복되는 깊은 client-owned 편집 state가 확인될 때만 capability-local 도입 |
@@ -290,10 +413,13 @@ exact pin하고 v1과의 rollback seam을 둔다.
 2. `api/_transport`와 `api/auctions`에 canonical 단건 공고 fetch/query path를 만든다.
 3. `/auctions/[auctionId]`의 얇은 RSC route와 route-local `_model`/`_ui` walking skeleton을 만든다.
 4. provider, theme, toaster와 navigation chrome을 동작 보존 상태로 `shell`에 옮긴다.
-5. market list 계약이 생기면 `browse-market`을 연결하고 link identity를 `auctionId`로 바꾼다.
-6. versioned analysis evidence 계약 뒤 `analyze-auction`을 연결한다.
-7. workspace/supplier/work-item/candidate command 계약 뒤 빈 후보값 form과 mutation을 연결한다.
-8. slice가 대체될 때마다 retired fetch, composite route ID, local mark와 `@eatbid/shared` 소비를 삭제한다.
+5. motion token, Button/LoadingButton과 route `ScreenFrame`/`ScreenSkeleton` 규약을 먼저 세운다.
+6. session/permission contract가 생기면 action/access port를 shell adapter에 결합하고 첫 protected capability로
+   401/403, pending과 server enforcement를 수직 검증한다.
+7. market list 계약이 생기면 `browse-market`을 연결하고 link identity를 `auctionId`로 바꾼다.
+8. versioned analysis evidence 계약 뒤 `analyze-auction`을 연결한다.
+9. workspace/supplier/work-item/candidate command 계약 뒤 빈 후보값 form과 mutation을 연결한다.
+10. slice가 대체될 때마다 retired fetch, composite route ID, local mark와 `@eatbid/shared` 소비를 삭제한다.
 
 기존 화면을 새 폴더로 이동하는 것만으로 migration 완료라고 판정하지 않는다. 각 slice는 public contract,
 runtime parse, identity, error/empty/stale UI, import gate와 검증 evidence를 함께 통과해야 한다.
@@ -305,6 +431,12 @@ runtime parse, identity, error/empty/stale UI, import gate와 검증 evidence를
 - 신규 `res.json() as T`, public 응답 수동 interface, `any`, client-side domain calculation authority를 거부한다.
 - contract fixture, malformed 2xx, Problem Details, abort, bigint 최대값/overflow를 테스트한다.
 - route hard navigation, loading/error/not-found와 hydration을 검증한다.
+- `loading.tsx`의 직접 skeleton markup, 공통 `PageContainer isLoading`, refetch skeleton과 전역 screen
+  fallback을 거부한다.
+- Button의 `transition-all`, component-local duration/press class, base Button의 auth/session/telemetry import와
+  raw 화면 telemetry event를 거부한다.
+- 일반/reduced-motion에서 press, focus, loading geometry를 검증하고 비로그인/권한 없음/허용/session 만료
+  action flow와 Server 401/403 enforcement evidence를 남긴다.
 - 기존 전체 lint/typecheck 실패는 별도 debt ledger로 남기되 변경 파일과 새 architecture gate는 green이어야 한다.
 - protected branch의 full typecheck/lint/build가 green이 되기 전 production-ready라고 주장하지 않는다.
 
@@ -335,3 +467,29 @@ top-level `api/<resource>`가 한 번 소유하고 capability는 조합만 한�
 resource ownership 사고방식은 유효하지만 이미 `packages/domain`이 업무 불변식의 권위라 같은 이름이
 두 번째 domain authority로 오해되기 쉽다. `api/<resource>`를 server-state 소비 경계로 명명하고 업무
 권위는 만들지 않는다.
+
+### base Button에 auth, permission과 logging prop 추가
+
+사용은 짧아 보이지만 모든 primitive를 session/router/telemetry에 결합하고 client boundary로 만든다. client
+permission이 실제 보안처럼 보이며 모든 click이 의미 없는 event가 된다. 범용 Button/LoadingButton은
+feedback만 소유하고 명시적 capability command component가 policy와 실행을 합성한다.
+
+### 모든 상호작용을 Motion component로 구현
+
+간단한 hover/press/popup 전환까지 JavaScript animation lifecycle과 client bundle에 결합된다. Base UI
+state attribute와 CSS transition을 기본으로 하고 Motion은 drag, reorder와 shared layout처럼 중단 가능
+CSS transition만으로 의미를 보존하기 어려운 사례에만 다시 도입한다.
+
+## 12. 판단 근거
+
+- [Next.js Prefetching](https://nextjs.org/docs/app/guides/prefetching)
+- [React 19.2](https://react.dev/blog/2025/10/01/react-19-2)
+- [React Suspense](https://react.dev/reference/react/Suspense)
+- [Suspensive React Suspense](https://suspensive.org/en/docs/react/Suspense)
+- [Suspensive Delay](https://suspensive.org/en/docs/react/Delay)
+- [TanStack Query Suspense](https://tanstack.com/query/latest/docs/framework/react/guides/suspense)
+- [Base UI Animation](https://base-ui.com/react/handbook/animation)
+- [Base UI Button](https://base-ui.com/react/components/button)
+- [Carbon productive motion](https://carbondesignsystem.com/elements/motion/overview/)
+- [W3C reduced motion technique](https://www.w3.org/WAI/WCAG21/Techniques/css/C39.html)
+- [Linear design refresh](https://linear.app/now/behind-the-latest-design-refresh)
