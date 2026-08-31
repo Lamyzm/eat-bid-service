@@ -66,6 +66,16 @@ test("공개 API resource index와 server import는 허용한다", async () => {
   assert.equal(report.unmatchedFindings.length, 0);
 });
 
+test("browser transport의 server 전용 import와 server transport의 browser import를 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/_transport/browser-request.ts": "export { serverRequest } from './server-request.server';\n",
+    "apps/web/src/api/_transport/request-contract.ts": "import { serverRequest } from './server-request.server'; void serverRequest;\n",
+    "apps/web/src/api/_transport/server-request.server.ts": "import { browserRequest } from './browser-request'; void browserRequest;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "transport-runtime-cross-import").length, 3);
+});
+
 test("transport 밖 fetch와 안전하지 않은 JSON 응답 처리를 거부한다", async () => {
   const report = await inspect({
     "apps/web/src/api/auctions/get.ts": [

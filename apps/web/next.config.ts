@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
+import { createApiRewrites } from './config/api-rewrites';
 
 // 기반 설정은 plugin wrapper보다 먼저 선언해 framework option의 권위를 한 곳에 둔다.
 const baseConfig: NextConfig = {
@@ -7,6 +8,11 @@ const baseConfig: NextConfig = {
   reactCompiler: {
     compilationMode: 'annotation'
   },
+  rewrites: async () =>
+    createApiRewrites({
+      nodeEnv: process.env.NODE_ENV,
+      apiUrl: process.env.API_URL ?? 'http://localhost:4400'
+    }),
   // Cache Components는 route/Suspense/auth/cache 조합을 별도로 검토하기 전까지 활성화하지 않는다.
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
   images: {

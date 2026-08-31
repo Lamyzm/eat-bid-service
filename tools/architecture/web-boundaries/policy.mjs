@@ -13,6 +13,7 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   ROUTE_CLIENT_COMPONENT: "route-client-component",
   SHELL_BOUNDARY_IMPORT: "shell-boundary-import",
   SOURCE_FILE_SIZE: "source-file-size",
+  TRANSPORT_RUNTIME_CROSS_IMPORT: "transport-runtime-cross-import",
   UNCHECKED_JSON_CAST: "unchecked-json-cast",
   UNCHECKED_RESPONSE_BODY: "unchecked-response-body",
   UNCHECKED_RESPONSE_JSON: "unchecked-response-json",

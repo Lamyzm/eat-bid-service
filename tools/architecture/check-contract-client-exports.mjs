@@ -3,8 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-const exportName = "./api/v1/auctions";
-const sourceEntry = "./src/api/v1/auctions/index.ts";
+const clientExports = Object.freeze([
+  ["./api", "./src/api/index.ts"],
+  ["./api/v1/auctions", "./src/api/v1/auctions/index.ts"],
+]);
 const forbiddenGraphPath = /\/(?:codecs|ingestion|operations)\/|\/portable-registry\.ts$|\/generate-json-schema\.ts$/;
 const forbiddenBareImport = /^(?:@eatbid\/domain|next(?:\/|$)|react(?:\/|$)|server-only$|node:)/;
 
@@ -82,16 +84,18 @@ export function inspectContractClientExports({ repoRoot }) {
   const packagePath = path.join(root, "packages/contracts/package.json");
   if (existsSync(packagePath)) {
     const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
-    const published = packageJson.exports?.[exportName];
-    for (const condition of ["types", "import", "default"]) {
-      const target = published?.[condition];
-      if (target !== sourceEntry) {
-        add(findings, root, packagePath, target?.includes("dist") ? "client-export-dist-target" : "client-export-source-target", `${exportName} ${condition}은 ${sourceEntry}여야 합니다.`);
+    for (const [exportName, sourceEntry] of clientExports) {
+      const published = packageJson.exports?.[exportName];
+      for (const condition of ["types", "import", "default"]) {
+        const target = published?.[condition];
+        if (target !== sourceEntry) {
+          add(findings, root, packagePath, target?.includes("dist") ? "client-export-dist-target" : "client-export-source-target", `${exportName} ${condition}은 ${sourceEntry}여야 합니다.`);
+        }
       }
+      const entry = path.join(root, "packages/contracts", sourceEntry.slice(2));
+      walkClientGraph(root, entry, findings);
     }
   }
-  const entry = path.join(root, "packages/contracts", sourceEntry.slice(2));
-  walkClientGraph(root, entry, findings);
   const nextConfig = path.join(root, "apps/web/next.config.ts");
   if (!existsSync(nextConfig) || !readFileSync(nextConfig, "utf8").includes("'@eatbid/contracts'")) {
     add(findings, root, nextConfig, "contracts-transpile-missing", "Next transpilePackages에 @eatbid/contracts가 필요합니다.");

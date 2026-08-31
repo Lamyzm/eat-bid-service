@@ -133,21 +133,49 @@ function hasProperty(sourceFile, name) {
   return found;
 }
 
-function checkNextConfig(configSource, failures) {
+function hasNamedImport(sourceFile, moduleName, importedName) {
+  return sourceFile.statements.some((statement) =>
+    ts.isImportDeclaration(statement)
+    && ts.isStringLiteral(statement.moduleSpecifier)
+    && statement.moduleSpecifier.text === moduleName
+    && statement.importClause?.namedBindings
+    && ts.isNamedImports(statement.importClause.namedBindings)
+    && statement.importClause.namedBindings.elements.some((element) =>
+      !element.propertyName && element.name.text === importedName));
+}
+
+function containsCall(node, identifier) {
+  let found = false;
+  function visit(current) {
+    if (ts.isCallExpression(current) && ts.isIdentifier(current.expression)
+      && current.expression.text === identifier) found = true;
+    if (!found) ts.forEachChild(current, visit);
+  }
+  visit(node);
+  return found;
+}
+
+function checkNextConfig(configSource, failures, label = "Next 최상위 config") {
   const sourceFile = ts.createSourceFile("next.config.ts", configSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const candidates = configObjects(sourceFile);
   const hasTypedRoutes = candidates.some((object) => isTrue(directProperty(object, "typedRoutes")));
   const hasAnnotationMode = candidates.some((object) => isAnnotationCompiler(directProperty(object, "reactCompiler")));
+  const hasApiRewrite = hasNamedImport(sourceFile, "./config/api-rewrites", "createApiRewrites")
+    && candidates.some((object) => {
+      const rewrites = directProperty(object, "rewrites");
+      return rewrites ? containsCall(rewrites.initializer, "createApiRewrites") : false;
+    });
 
-  if (!hasTypedRoutes) failures.push(`Next 최상위 config에 typedRoutes: true가 필요합니다.`);
+  if (!hasTypedRoutes) failures.push(`${label}에 typedRoutes: true가 필요합니다.`);
   if (!hasAnnotationMode) {
-    failures.push(`Next 최상위 reactCompiler에 compilationMode: 'annotation'이 필요합니다.`);
+    failures.push(`${label}의 reactCompiler에 compilationMode: 'annotation'이 필요합니다.`);
   }
+  if (!hasApiRewrite) failures.push(`${label}의 rewrites는 createApiRewrites를 호출해야 합니다.`);
   if (hasProperty(sourceFile, "cacheComponents")) {
-    failures.push(`검토 전에는 cacheComponents를 설정하지 않습니다.`);
+    failures.push(`${label}에 검토 전 cacheComponents를 설정하지 않습니다.`);
   }
   if (hasProperty(sourceFile, "turbopackRustReactCompiler")) {
-    failures.push(`검토 전에는 turbopackRustReactCompiler를 설정하지 않습니다.`);
+    failures.push(`${label}에 검토 전 turbopackRustReactCompiler를 설정하지 않습니다.`);
   }
 }
 
@@ -158,6 +186,10 @@ export function checkWebRuntime({ repositoryRoot = defaultRoot } = {}) {
   const webPackage = readJson(path.join(webRoot, "package.json"), failures);
   const workspaceSource = readRequiredFile(path.join(root, "pnpm-workspace.yaml"), failures);
   const configSource = readRequiredFile(path.join(webRoot, "next.config.ts"), failures);
+  const cleanupConfigSource = readRequiredFile(
+    path.join(webRoot, "scripts", "cleanup-templates", "sentry", "next.config.ts"),
+    failures,
+  );
 
   if (webPackage) {
     checkDependencies(webPackage, failures);
@@ -167,6 +199,7 @@ export function checkWebRuntime({ repositoryRoot = defaultRoot } = {}) {
   }
   if (workspaceSource !== undefined) checkZodCatalog(workspaceSource, failures);
   if (configSource !== undefined) checkNextConfig(configSource, failures);
+  if (cleanupConfigSource !== undefined) checkNextConfig(cleanupConfigSource, failures, "cleanup template");
   return failures;
 }
 

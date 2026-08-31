@@ -35,12 +35,14 @@ const developmentDependencies = {
 
 const validNextConfig = `
 import type { NextConfig } from 'next';
+import { createApiRewrites } from './config/api-rewrites';
 
 const config: NextConfig = {
   typedRoutes: true,
   reactCompiler: {
     compilationMode: 'annotation'
-  }
+  },
+  rewrites: async () => createApiRewrites({ nodeEnv: process.env.NODE_ENV, apiUrl: process.env.API_URL })
 };
 
 export default config;
@@ -50,10 +52,12 @@ function writeJson(file, value) {
   writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function createFixture({ mutateWeb, nextConfig = validNextConfig, zodVersion = "4.5.4" } = {}) {
+function createFixture({ mutateWeb, nextConfig = validNextConfig, cleanupNextConfig = validNextConfig, zodVersion = "4.5.4" } = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), "eatbid-web-runtime-"));
   const webDirectory = path.join(directory, "apps", "web");
+  const cleanupTemplateDirectory = path.join(webDirectory, "scripts", "cleanup-templates", "sentry");
   mkdirSync(webDirectory, { recursive: true });
+  mkdirSync(cleanupTemplateDirectory, { recursive: true });
 
   const webPackage = {
     name: "@eatbid/web",
@@ -69,6 +73,7 @@ function createFixture({ mutateWeb, nextConfig = validNextConfig, zodVersion = "
   writeJson(path.join(webDirectory, "package.json"), webPackage);
   writeFileSync(path.join(directory, "pnpm-workspace.yaml"), `packages:\n  - 'apps/*'\n\ncatalog:\n  zod: ${zodVersion}\n`);
   writeFileSync(path.join(webDirectory, "next.config.ts"), nextConfig);
+  writeFileSync(path.join(cleanupTemplateDirectory, "next.config.ts"), cleanupNextConfig);
   return directory;
 }
 
@@ -155,6 +160,16 @@ test("typed route와 annotation mode가 없는 Next 설정을 거부한다", () 
     assert.equal(status, 1);
     assert.match(output, /typedRoutes/);
     assert.match(output, /compilationMode.*annotation/);
+  });
+});
+
+test("Sentry 제거 template이 기반 Next 설정과 API rewrite를 잃으면 거부한다", () => {
+  withFixture({
+    cleanupNextConfig: `const config = { output: 'standalone' }; export default config;`,
+  }, ({ status, output }) => {
+    assert.equal(status, 1);
+    assert.match(output, /cleanup template.*typedRoutes/);
+    assert.match(output, /cleanup template.*createApiRewrites/);
   });
 });
 

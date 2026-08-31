@@ -12,6 +12,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./api": {
+      "types": "./src/api/index.ts",
+      "import": "./src/api/index.ts",
+      "default": "./src/api/index.ts"
+    },
     "./api/v1/auctions": {
       "types": "./src/api/v1/auctions/index.ts",
       "import": "./src/api/v1/auctions/index.ts",

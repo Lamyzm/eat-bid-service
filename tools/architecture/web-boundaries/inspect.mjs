@@ -174,6 +174,24 @@ function transportViolation(root, layer, file, target, node, reference) {
   return "resource는 승인되지 않은 api/_transport module을 import 또는 re-export할 수 없습니다.";
 }
 
+function transportRuntimeViolation(root, file, target) {
+  if (!target) return undefined;
+  const sourcePath = display(root, file);
+  const targetPath = display(root, target);
+  if (!sourcePath.startsWith("apps/web/src/api/_transport/")
+    || !targetPath.startsWith("apps/web/src/api/_transport/")) return undefined;
+  const sourceIsServer = /\.server\.[cm]?tsx?$/.test(sourcePath);
+  const targetIsServer = /\.server\.[cm]?tsx?$/.test(targetPath);
+  const targetIsBrowser = targetPath.endsWith("/browser-request.ts");
+  if (!sourceIsServer && targetIsServer) {
+    return "client-safe transport는 server 전용 transport를 import 또는 re-export할 수 없습니다.";
+  }
+  if (sourceIsServer && targetIsBrowser) {
+    return "server transport는 browser 전용 request entry를 import 또는 re-export할 수 없습니다.";
+  }
+  return undefined;
+}
+
 // 공개 진입점은 모든 finding을 먼저 계산한 뒤 exact legacy baseline과 비교한다.
 // 신규 위반은 예외로 흡수하지 않으며, 기존 fingerprint의 삭제만 허용하는 것이 반환 계약이다.
 export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath }) {
@@ -220,6 +238,8 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
         if (targetLayer?.layer === "api" && targetLayer.slice && targetLayer.slice !== "_transport" && !isPublicApiEntry(target) && !(layer?.layer === "api" && layer.slice === targetLayer.slice)) add(findings, root, WEB_BOUNDARY_RULES.WEB_API_DEEP_IMPORT, file, node, sourceFile, "external consumer는 API resource의 index.ts 또는 server.ts public entry만 사용할 수 있습니다.");
         const violation = transportViolation(root, layer, file, target, node, moduleReference);
         if (violation) add(findings, root, WEB_BOUNDARY_RULES.RESOURCE_TRANSPORT_IMPORT, file, node, sourceFile, violation);
+        const runtimeViolation = transportRuntimeViolation(root, file, target);
+        if (runtimeViolation) add(findings, root, WEB_BOUNDARY_RULES.TRANSPORT_RUNTIME_CROSS_IMPORT, file, node, sourceFile, runtimeViolation);
       }
       if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "ENDPOINTS") add(findings, root, WEB_BOUNDARY_RULES.FRONTEND_ENDPOINTS_MIRROR, file, node, sourceFile, "frontend ENDPOINTS mirror는 canonical operation contract를 중복합니다.");
       let endpointRoot = node;

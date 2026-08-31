@@ -22,6 +22,11 @@ function inspect(files) {
 
 const packageJson = JSON.stringify({
   exports: {
+    "./api": {
+      types: "./src/api/index.ts",
+      import: "./src/api/index.ts",
+      default: "./src/api/index.ts",
+    },
     "./api/v1/auctions": {
       types: "./src/api/v1/auctions/index.ts",
       import: "./src/api/v1/auctions/index.ts",
@@ -33,6 +38,8 @@ const packageJson = JSON.stringify({
 test("browser-safe 공고 subpath는 source ESM graph만 공개한다", () => {
   const findings = inspect({
     "packages/contracts/package.json": packageJson,
+    "packages/contracts/src/api/index.ts": "export { defineOperation } from './operation';\n",
+    "packages/contracts/src/api/operation.ts": "export const defineOperation = () => undefined;\n",
     "packages/contracts/src/api/v1/auctions/index.ts": "export { schema } from './schema';\n",
     "packages/contracts/src/api/v1/auctions/schema.ts": "import { z } from 'zod'; export const schema = z.string();\n",
     "apps/web/next.config.ts": "export default { transpilePackages: ['@eatbid/contracts'] };\n",
@@ -42,10 +49,42 @@ test("browser-safe 공고 subpath는 source ESM graph만 공개한다", () => {
   assert.deepEqual(findings, []);
 });
 
+test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", () => {
+  const findings = inspect({
+    "packages/contracts/package.json": JSON.stringify({
+      exports: {
+        "./api": {
+          types: "./dist/api/index.d.ts",
+          import: "./dist/api/index.js",
+          default: "./dist/api/index.js",
+        },
+        "./api/v1/auctions": {
+          types: "./src/api/v1/auctions/index.ts",
+          import: "./src/api/v1/auctions/index.ts",
+          default: "./src/api/v1/auctions/index.ts",
+        },
+      },
+    }),
+    "packages/contracts/src/api/index.ts": "import 'server-only'; export const protocol = {};\n",
+    "packages/contracts/src/api/v1/auctions/index.ts": "export const operation = {};\n",
+    "apps/web/next.config.ts": "export default { transpilePackages: ['@eatbid/contracts'] };\n",
+  });
+
+  assert.deepEqual(new Set(findings.map((finding) => finding.rule)), new Set([
+    "client-export-dist-target",
+    "client-export-forbidden-import",
+  ]));
+});
+
 test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 거부한다", () => {
   const findings = inspect({
     "packages/contracts/package.json": JSON.stringify({
       exports: {
+        "./api": {
+          types: "./src/api/index.ts",
+          import: "./src/api/index.ts",
+          default: "./src/api/index.ts",
+        },
         "./api/v1/auctions": {
           types: "./dist/api/v1/auctions/index.d.ts",
           import: "./dist/api/v1/auctions/index.js",
@@ -53,6 +92,7 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
         },
       },
     }),
+    "packages/contracts/src/api/index.ts": "export const protocol = {};\n",
     "packages/contracts/src/api/v1/auctions/index.ts": [
       "import '@eatbid/domain';",
       "export * from '../../../../ingestion/v1/normalized-auction';",
@@ -72,6 +112,7 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
 test("Web source의 contracts package root import를 거부한다", () => {
   const findings = inspect({
     "packages/contracts/package.json": packageJson,
+    "packages/contracts/src/api/index.ts": "export const protocol = {};\n",
     "packages/contracts/src/api/v1/auctions/index.ts": "export const operation = {};\n",
     "apps/web/next.config.ts": "export default { transpilePackages: ['@eatbid/contracts'] };\n",
     "apps/web/src/page.ts": "import { auctionV1Operations } from '@eatbid/contracts'; void auctionV1Operations;\n",
