@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { buildAnalysisRoute } from '@/routing/analysis';
 import { useWorkspace } from '@/lib/workspace';
 import { useRegion } from '@/lib/region';
 import { useSession } from '@/lib/session';
@@ -559,9 +560,16 @@ export default function TodayPage() {
                         {/* 카드가 이미 Link 라 앵커를 중첩할 수 없다 — 클라이언트 내비게이션으로 이동한다 */}
                         {o.schoolId && (
                           <button className='text-primary hover:underline'
-                            onClick={() => router.push(
-                              `/dashboard/analysis/${encodeURIComponent(o.schoolId ?? '')}?bidNo=${encodeURIComponent(o.bidNo)}`
-                              + (m?.rate != null ? `&rate=${m.rate}&base=${o.basePrice ?? ''}` : ''))}>
+                            onClick={() =>
+                              router.push(
+                                buildAnalysisRoute({
+                                  schoolId: o.schoolId ?? '',
+                                  bidNumber: o.bidNo,
+                                  rate: m?.rate != null ? String(m.rate) : undefined,
+                                  baseAmount: m?.rate != null ? String(o.basePrice ?? '') : undefined
+                                })
+                              )
+                            }>
                             분석판
                           </button>
                         )}

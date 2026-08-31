@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Route } from 'next';
 import { useTheme } from 'next-themes';
 import { useThemeConfig } from '@/components/themes/active-theme';
 import { THEMES } from '@/components/themes/theme.config';
@@ -30,7 +31,7 @@ export type { CommandPaletteAction } from './context';
 function navigationItemActions(
   item: NavItem,
   group: string,
-  navigate: (url: string) => void
+  navigate: (url: Route) => void
 ): CommandPaletteAction[] {
   const ownAction =
     item.url === '#'
@@ -52,7 +53,7 @@ function navigationItemActions(
 
 export function createNavigationActions(
   groups: NavGroup[],
-  navigate: (url: string) => void
+  navigate: (url: Route) => void
 ): CommandPaletteAction[] {
   return groups.flatMap((group) =>
     group.items.flatMap((item) => navigationItemActions(item, group.label, navigate))

@@ -1,4 +1,4 @@
-import { NavGroup } from '@/types';
+import type { NavGroup } from '@/types';
 
 /**
  * Navigation configuration with RBAC support

@@ -1,4 +1,5 @@
 import { Icons } from '@/components/icons';
+import type { Route } from 'next';
 
 export interface PermissionCheck {
   permission?: string;
@@ -10,7 +11,7 @@ export interface PermissionCheck {
 
 export interface NavItem {
   title: string;
-  url: string;
+  url: Route | '#';
   disabled?: boolean;
   external?: boolean;
   shortcut?: [string, string];

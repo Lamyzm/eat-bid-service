@@ -75,9 +75,6 @@ export function SidebarAccount() {
               <DropdownMenuItem onClick={() => openGlobalSettings()}>
                 <Icons.settings className='mr-2 size-4' /> 전역 설정 (지역·품목)
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push('/dashboard/notifications')}>
-                <Icons.notification className='mr-2 size-4' /> 알림
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}>
                 <Icons.sun className='mr-2 size-4' /> {resolvedTheme === 'dark' ? '라이트 모드' : '다크 모드'}
               </DropdownMenuItem>
