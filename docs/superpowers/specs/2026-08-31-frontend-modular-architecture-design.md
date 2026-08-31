@@ -45,6 +45,8 @@ canonical_for: frontend-modular-architecture-design
 6. 현재 디자인 토큰과 shadcn/Base UI 자산을 보존하면서 행동·인증·로깅은 capability에서 합성한다.
 7. 로딩, 상호작용과 비동기 행동을 공통 motion·feedback 계약으로 묶되 실제 업무 성공처럼 보이는
    거짓 피드백은 만들지 않는다.
+8. 한국 사용자와 한국 입찰 업무를 다루는 프로젝트답게 사람이 읽는 문서·UI 문구·테스트·변경 기록은
+   한국어를 기본으로 하고 영문은 기술 식별자와 원문 정확성에 필요한 범위로 제한한다.
 
 ### 비목표
 
@@ -427,6 +429,8 @@ runtime parse, identity, error/empty/stale UI, import gate와 검증 evidence를
 ## 10. 품질과 완료 조건
 
 - 신규·변경 테스트명은 한국어다.
+- 신규 문서와 실질적으로 수정하는 기존 문서의 설명 본문은 한국어다. 코드 식별자, 고유명, 명령과
+  외부 원문은 예외지만 영문 prose를 기본값으로 사용하지 않는다.
 - 300줄 초과 source는 responsibility split 또는 이유·owner·다음 split trigger가 있는 waiver를 요구한다.
 - 신규 `res.json() as T`, public 응답 수동 interface, `any`, client-side domain calculation authority를 거부한다.
 - contract fixture, malformed 2xx, Problem Details, abort, bigint 최대값/overflow를 테스트한다.

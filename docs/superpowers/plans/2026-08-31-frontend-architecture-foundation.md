@@ -1,134 +1,200 @@
-# Frontend Architecture Foundation Implementation Plan
+# 프론트엔드 아키텍처 기반 구현 계획
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **에이전트 작업자 필수:** 각 작업을 구현할 때 `superpowers:subagent-driven-development`(권장) 또는
+> `superpowers:executing-plans` 스킬을 사용한다. 진행 상태는 체크박스(`- [ ]`)로 추적한다.
 
-**Goal:** Establish enforceable Web module boundaries, a contract-validating resource API, a behavior-preserving shell, and the first canonical auction read slice without redesigning product screens or inventing missing backend contracts.
+**목표:** 제품 화면을 임의로 재설계하거나 없는 백엔드 계약을 발명하지 않고, 강제 가능한 Web 모듈 경계,
+계약 검증 resource API, 기존 동작을 보존하는 shell과 첫 canonical 공고 조회 slice를 구축한다.
 
-**Architecture:** `app` owns Next lifecycle and route-private presentation, `shell` owns providers/chrome, `capabilities` own reusable user intents and orchestration, `api/<resource>` owns consumer adapters and Query Options, and `shared` owns generic UI/lib. `packages/contracts` owns one resource-scoped operation descriptor from which Nest paths, OpenAPI paths and encoded Web request paths are derived. Browser and RSC entries share contract decoding but remain separate import graphs. The first executable slice is `/auctions/[auctionId]` backed by the existing Nest V1 operation.
+**아키텍처:** `app`은 Next lifecycle과 route-private presentation, `shell`은 provider/chrome,
+`capabilities`는 재사용 사용자 intent와 orchestration, `api/<resource>`는 consumer adapter와 Query Options,
+`shared`는 범용 UI/lib를 소유한다. `packages/contracts`의 resource operation descriptor 하나에서 Nest,
+OpenAPI와 인코딩된 Web request path를 파생한다. Browser와 RSC entry는 같은 계약 decode를 사용하되 import
+graph는 분리한다. 첫 실행 slice는 기존 Nest V1 operation을 사용하는 `/auctions/[auctionId]`다.
 
-**Tech Stack:** Next.js App Router/RSC, React 19, `@eatbid/contracts` Zod 4 schemas, TanStack Query v5 `queryOptions`, nuqs, stable TanStack Form v1, Tailwind CSS v4 semantic tokens, Base UI/shadcn primitives, Bun tests, Node architecture gates.
+**기술 스택:** Next.js 16.3.4 App Router/RSC, React 19.2.8, `@eatbid/contracts` Zod 4 schema,
+TanStack Query 5.102.8 `queryOptions`, nuqs, TanStack Form 1.33.5, Tailwind CSS 4.3.3 semantic token,
+Base UI/shadcn primitive, 첫 client async panel에서 도입할 Suspensive React 3.21.3, Bun component test,
+Playwright 1.62.1 browser test와 Node architecture gate.
 
-**Spec:** [Frontend modular architecture design](../specs/2026-08-31-frontend-modular-architecture-design.md)
+**명세:** [프론트엔드 모듈 아키텍처 설계](../specs/2026-08-31-frontend-modular-architecture-design.md)
 
-## Global Constraints
+## 전역 제약
 
-- The repository-wide integration sequence requires the `main` PR gate and ingestion spine hardening before EAT-9
-  merges to the canonical branch. Worktree preparation is allowed, but integration may not bypass those predecessors.
-- Execute [Frontend Runtime Upgrade](2026-08-31-frontend-runtime-upgrade.md) first; this plan assumes its exact dependency lane and deterministic typecheck.
-- Work only in the claimed EAT-9 worktree and keep one writing owner. Review agents are read-only.
-- Do not edit EAT-5-owned product/domain roadmap files or reconcile their temporary frontend-deferral wording in this branch.
-- `packages/contracts` owns operation method, version, semantic path/input builder and wire schemas; Nest owns endpoint behavior; Web owns only the consumer adapter/query placement.
-- API origin is runtime configuration. Next screen routes are owned by `app/` plus generated route types. Neither belongs in the public HTTP operation registry.
-- No new market, analysis, work-item, candidate, auth, or school API is allowed until its Server contract exists.
-- Tests are written first and every new or changed test name is Korean.
-- Every Query `AbortSignal` reaches `fetch`; every public 2xx body is parsed from `unknown` with its operation response schema.
-- Only `src/api/_transport/**` may call raw `fetch` or decode a `Response` body. Resource modules must use the injected contract transport.
-- No `res.json() as T`, unvalidated `res.json()`, manual public DTO, ID `Number` conversion, capability-to-capability import, API-resource cross-import, or product Route Handler.
-- `/api/**` is Nest-owned. A Server Action is allowed only as a thin Zod-validated caller of the same resource
-  `server.ts` for progressive enhancement/RSC invalidation/server-only cookie composition; it may not own DB/domain
-  logic or a parallel command contract.
-- A source file over 300 lines must be split or have an explicit reviewed waiver with reason, owner, and next split trigger.
-- Preserve existing theme mode/palette controls and common Button press feedback. Do not put auth or logging inside the base Button.
-- Commit after each task only when its stated checks pass.
+- 저장소 전체 통합 순서상 EAT-9를 canonical branch에 병합하기 전에 `main` PR gate와 ingestion spine
+  hardening이 선행돼야 한다. worktree 준비는 가능하지만 통합 시 선행 작업을 우회하지 않는다.
+- [프론트엔드 runtime 업그레이드](2026-08-31-frontend-runtime-upgrade.md)를 먼저 실행한다. 이 계획은 해당
+  문서의 exact dependency lane과 deterministic typecheck를 전제로 한다.
+- claim한 EAT-9 worktree에서만 작업하고 writing owner 한 명을 유지한다. review agent는 read-only다.
+- 사람이 읽는 문서, UI 문구, 테스트명, 커밋 메시지와 이유 주석은 한국어로 작성한다. 코드 식별자,
+  라이브러리 고유명, CLI 명령, 외부 공식 인용과 원문 오류만 정확성에 필요한 범위에서 영문을 유지한다.
+- 이 branch에서 EAT-5 소유 product/domain roadmap 파일이나 임시 frontend 보류 문구를 수정하지 않는다.
+- `packages/contracts`가 operation method/version, semantic path/input builder와 wire schema를 소유하고 Nest가
+  endpoint 동작, Web이 consumer adapter/query 배치만 소유한다.
+- API origin은 runtime config가 소유한다. Next 화면 route는 `app/`과 generated route type이 소유하며 둘 다
+  public HTTP operation registry에 넣지 않는다.
+- Server 계약이 생기기 전에 market, analysis, work-item, candidate, auth, school API를 Web에서 만들지 않는다.
+- 테스트를 먼저 작성하고 신규·변경 테스트명은 모두 한국어로 쓴다.
+- 모든 Query `AbortSignal`을 `fetch`까지 전달하고 public 2xx body는 `unknown`에서 operation response schema로
+  parse한다.
+- `src/api/_transport/**`만 raw `fetch`를 호출하거나 `Response` body를 decode한다. resource module은 주입된
+  contract transport를 사용한다.
+- `res.json() as T`, 미검증 `res.json()`, 수동 public DTO, ID의 `Number` 변환, capability 간 import,
+  API resource 간 import와 product Route Handler를 금지한다.
+- `/api/**`는 Nest 소유다. Server Action은 progressive enhancement, RSC invalidation 또는 server-only cookie
+  조합이 필요할 때만 같은 resource `server.ts`를 호출하는 얇은 Zod 검증 adapter로 허용하며 DB/domain
+  logic이나 별도 command 계약을 소유하지 않는다.
+- 300줄을 넘는 source는 분리하거나 이유, owner와 다음 분리 조건이 있는 명시적 검토 waiver를 둔다.
+- 기존 theme mode/palette control과 공통 Button press feedback을 보존하고 base Button에 auth/logging을 넣지 않는다.
+- motion duration은 semantic CSS token으로 press 70ms, state 110ms, enter 150ms, panel 240ms다. component-local
+  millisecond literal, `transition-all`, bounce와 반복 업무 motion의 400ms 초과를 금지한다.
+- `shared/ui/Button`이 기본 press feedback을 소유하고 stable link/navigation/popup/toolbar wrapper가 quiet 예외를
+  한 번 소유한다. 화면 호출부는 press class를 직접 추가하지 않는다.
+- `shared/ui/LoadingButton`은 pending geometry와 접근성만 소유하며 session, permission, command와 telemetry를
+  import하지 않는다.
+- 이 계획에는 session/permission Server 계약이 없다. 사용되지 않는 `shared/action`, 가짜 permission catalog나
+  client-only 보안 추상화를 만들지 않고 첫 contract-backed protected command에서 승인된 action 합성을 구현한다.
+- `loading.tsx`는 route 소유 `ScreenSkeleton` 하나만 반환하고 Skeleton markup을 포함하지 않는다. refetch는 기존
+  데이터를 유지하고 mutation feedback은 실행 control에 남기며 abort는 error UI를 만들지 않는다.
+- `@suspensive/react-query`, React canary `ViewTransition`, Motion alpha API와 현재 사용되지 않는 `motion` package는
+  foundation dependency가 아니다.
+- 각 task의 검사가 통과한 뒤에만 task 단위로 커밋한다.
 
 ---
 
-## Task 1: Freeze legacy debt and enforce the new import graph
+## 보호된 action의 후속 구현 조건
 
-**Files:**
+Server가 canonical session, permission 또는 protected command operation을 아직 공개하지 않았으므로 이 계획은
+auth/permission action runtime을 미리 만들지 않는다. 첫 보호 operation은 별도 vertical-slice 계획에서 shared
+action port, capability policy/component, Nest Guard/application policy와 server audit를 하나의 검토 가능한
+변경으로 만든다. Server 강제 없이 안전해 보이기만 하는 Web 전용 `AuthorizedAction`은 허용하지 않는다.
 
-- Create: `tools/architecture/check-web-boundaries.mjs`
-- Create: `tools/architecture/check-web-boundaries.test.mjs`
-- Create: `tools/architecture/web-boundaries/policy.mjs`
-- Create: `tools/architecture/web-boundaries/inspect.mjs`
-- Create: `tools/architecture/web-boundary-legacy-baseline.json`
-- Modify: `package.json`
+후속 계획은 다음 승인된 조립 방향을 유지한다.
 
-- [ ] Write failing `node:test` fixtures named in Korean for these rules:
-  - `shell` importing `api` or `capabilities` fails;
-  - one capability importing another capability's internals fails;
-  - an API resource importing another API resource fails;
-  - `@/api/auctions/get-auction` deep import fails while `@/api/auctions` and `@/api/auctions/server` pass;
-  - direct `fetch` or `Response.json()` outside `src/api/_transport/**` fails, including a resource module that tries to bypass `_transport` with plain `await response.json()`;
-  - unchecked `.json() as` and a manual public response interface fail;
-  - within a resource, only `index.ts` may import `browser-request`, only `server.ts` may import `server-request.server`, and transport-neutral operation files may import only the `ContractRequest` type;
-  - `'use client'` in a `page.tsx` or `layout.tsx` fails, while a route `error.tsx` is allowed;
-  - an ID passed through `Number`/`parseInt` fails;
-  - a source over 300 lines without a complete waiver fails;
-  - an exact legacy baseline fingerprint passes, but changing its content without deleting the violation fails.
-- [ ] Implement `inspectWebBoundaries({ sourceRoot, baselinePath })` and a check-only CLI. Use normalized paths plus SHA-256 fingerprints for deletion-only legacy entries; never match by path alone.
-- [ ] Support `--write-baseline` only for the initial reviewed inventory. Each entry records `rule`, `path`, `sha256`, `reason`, `owner`, and `splitTrigger`.
-- [ ] Generate the baseline once from the post-runtime-upgrade legacy tree, inspect every entry, then run the checker without `--write-baseline`.
-- [ ] Add `node tools/architecture/check-web-boundaries.mjs` to root `architecture:check` after the Web runtime check.
-- [ ] Run:
+```text
+capability command component
+  → capability policy + resource mutation + typed telemetry event
+  → resource-neutral action state/port
+  → shared LoadingButton → shared Button
+  → Nest Guard/application policy + server audit
+```
+
+기본 UX는 비로그인 사용자에게 discoverable action을 보여 주고 로그인 prompt를 요청하며, 로그인했지만 권한이
+없는 사용자에게 안전한 사유와 focus 가능한 disabled control을 제공한다. 기능 존재 자체가 민감할 때만
+숨긴다. render 뒤 401은 인증을 다시 열고 403은 재시도하지 않는다. 고위험 후보값과 향후 투찰 action은
+optimistic success를 표시하지 않는다.
+
+---
+
+## 작업 1: legacy 부채를 고정하고 신규 import graph를 강제한다
+
+**대상 파일:**
+
+- 생성: `tools/architecture/check-web-boundaries.mjs`
+- 생성: `tools/architecture/check-web-boundaries.test.mjs`
+- 생성: `tools/architecture/web-boundaries/policy.mjs`
+- 생성: `tools/architecture/web-boundaries/inspect.mjs`
+- 생성: `tools/architecture/web-boundary-legacy-baseline.json`
+- 수정: `package.json`
+
+- [ ] 다음 규칙을 검증하는 한국어 이름의 실패 `node:test` fixture를 작성한다.
+  - `shell`이 `api`나 `capabilities`를 import하면 실패한다.
+  - 한 capability가 다른 capability internal을 import하면 실패한다.
+  - API resource가 다른 API resource를 import하면 실패한다.
+  - `@/api/auctions`, `@/api/auctions/server`는 통과하고 `@/api/auctions/get-auction` deep import는 실패한다.
+  - `src/api/_transport/**` 밖의 직접 `fetch`나 `Response.json()`은 실패한다. plain
+    `await response.json()`으로 `_transport`를 우회하는 resource module도 포함한다.
+  - 검증하지 않은 `.json() as`와 수동 public response interface는 실패한다.
+  - resource 내부에서 `browser-request`는 `index.ts`만, `server-request.server`는 `server.ts`만 import할 수 있고
+    transport neutral operation 파일은 `ContractRequest` type만 import할 수 있다.
+  - route `error.tsx`는 허용하지만 `page.tsx`나 `layout.tsx`의 `'use client'`는 실패한다.
+  - ID를 `Number`/`parseInt`에 전달하면 실패한다.
+  - 완전한 waiver 없이 source가 300줄을 넘으면 실패한다.
+  - 정확한 legacy baseline fingerprint는 통과하지만 위반을 삭제하지 않고 내용을 바꾸면 실패한다.
+- [ ] `inspectWebBoundaries({ sourceRoot, baselinePath })`와 검사 전용 CLI를 구현한다. 삭제만 허용하는 legacy
+  항목에는 정규화된 path와 SHA-256 fingerprint를 함께 사용하며 path만으로 일치시키지 않는다.
+- [ ] `--write-baseline`은 최초 검토 inventory에만 허용한다. 각 항목은 `rule`, `path`, `sha256`, `reason`,
+  `owner`, `splitTrigger`를 기록한다.
+- [ ] runtime upgrade 이후 legacy tree에서 baseline을 한 번 생성해 모든 항목을 검토하고, 이후에는
+  `--write-baseline` 없이 checker를 실행한다.
+- [ ] Web runtime 검사 다음에 `node tools/architecture/check-web-boundaries.mjs`를 root
+  `architecture:check`에 추가한다.
+- [ ] 실행한다.
 
 ```text
 node --test tools/architecture/check-web-boundaries.test.mjs
 node tools/architecture/check-web-boundaries.mjs
 ```
 
-- [ ] Commit:
+- [ ] 커밋한다.
 
 ```text
-test(architecture): enforce web module boundaries
+test(architecture): Web 모듈 경계를 강제한다
 ```
 
-## Task 2: Make the public HTTP operation descriptor the path authority
+## 작업 2: public HTTP operation descriptor를 경로 권위로 만든다
 
-**Files:**
+**대상 파일:**
 
-- Create: `packages/contracts/src/api/operation.ts`
-- Create: `packages/contracts/src/api/operation.test.ts`
-- Create: `packages/contracts/src/api/v1/auctions/index.ts`
-- Create: `tools/architecture/check-contract-client-exports.mjs`
-- Create: `tools/architecture/check-contract-client-exports.test.mjs`
-- Create: `tools/architecture/check-http-operations.mjs`
-- Create: `tools/architecture/check-http-operations.test.mjs`
-- Modify: `packages/contracts/src/api/v1/auctions/operations.ts`
-- Modify: `packages/contracts/src/operations/health.ts`
-- Modify: `packages/contracts/src/index.ts`
-- Modify: `packages/contracts/package.json`
-- Modify: `packages/contracts/tsconfig.json`
-- Modify: `apps/server/src/modules/procurement/presentation/http/auction.controller.ts`
-- Modify: `apps/server/src/bootstrap/openapi.ts`
-- Modify: `apps/server/src/bootstrap/openapi.test.ts`
-- Modify: `apps/server/package.json`
-- Modify: `apps/web/package.json`
-- Modify: `package.json`
-- Modify: `turbo.json`
+- 생성: `packages/contracts/src/api/operation.ts`
+- 생성: `packages/contracts/src/api/operation.test.ts`
+- 생성: `packages/contracts/src/api/v1/auctions/index.ts`
+- 생성: `tools/architecture/check-contract-client-exports.mjs`
+- 생성: `tools/architecture/check-contract-client-exports.test.mjs`
+- 생성: `tools/architecture/check-http-operations.mjs`
+- 생성: `tools/architecture/check-http-operations.test.mjs`
+- 수정: `packages/contracts/src/api/v1/auctions/operations.ts`
+- 수정: `packages/contracts/src/operations/health.ts`
+- 수정: `packages/contracts/src/index.ts`
+- 수정: `packages/contracts/package.json`
+- 수정: `packages/contracts/tsconfig.json`
+- 수정: `apps/server/src/modules/procurement/presentation/http/auction.controller.ts`
+- 수정: `apps/server/src/bootstrap/openapi.ts`
+- 수정: `apps/server/src/bootstrap/openapi.test.ts`
+- 수정: `apps/server/package.json`
+- 수정: `apps/web/package.json`
+- 수정: `package.json`
+- 수정: `turbo.json`
 
-- [ ] Write RED tests proving:
-  - one operation descriptor owns method, versioning policy, semantic path segments, path/query/body schemas, status response schemas, Problem Details statuses, implementation owner and `operationId`;
-  - `buildPath({ path, query })` validates before interpolation, percent-encodes dynamic values exactly once and never accepts an origin;
-  - the auction operation lets the Nest adapter derive controller/handler/version, the OpenAPI adapter derive its template, and Web build `/api/v1/auctions/<encoded-id>` from one framework-neutral semantic path definition;
-  - invalid bigint text is rejected before path generation and the max signed-bigint text remains unchanged;
-  - duplicate operation IDs and duplicate method+OpenAPI-path pairs are rejected when the registry is assembled;
-  - Nest decorator paths and generated OpenAPI consume the derived fields without hand-written `/api/v1/...` equality checks;
-  - actual Nest route discovery matches the operation method/version/path, rather than only comparing metadata objects;
-  - health operations remain explicitly unversioned and keep their existing public paths.
-- [ ] Write RED architecture-lint fixtures that reject a new canonical `/api/v1/...` literal in Nest/Web source,
-  frontend `ENDPOINTS` mirrors, and hand-written operation paths outside the one reviewed contract definition. Exempt
-  committed OpenAPI artifacts, tests/fixtures, documentation and isolated legacy fingerprints explicitly; do not use a
-  blanket directory exemption that lets new legacy literals through.
-- [ ] Write RED package/export fixtures proving `@eatbid/contracts/api/v1/auctions` has a browser-safe ESM import,
-  keeps Node generator/portable ingestion/server-only exports out of its transitive graph, and does not load
-  `@eatbid/domain` runtime. The existing package root may remain a Server/generator compatibility surface but Web
-  source must not import it.
-- [ ] Write clean-checkout process tests for filtered Web dev startup, root `turbo dev`, Web typecheck and production
-  build. Contract source edits must reach the dev graph through a verified source/watch lane; a stale ignored `dist`
-  directory or a developer's prior manual build may not be a hidden prerequisite.
-- [ ] Implement a small repository-owned `defineOperation()` helper. Do not adopt a second RPC framework or generate Nest controllers from metadata.
-- [ ] Keep the descriptor portable and free of Nest, Next, React, environment origin and transport state. Zod schemas and pure path builders are allowed.
-- [ ] Represent successful responses by status so the transport can select the correct runtime schema. Keep shared RFC 9457 schemas in the contract package; do not turn thrown Nest classes into contract metadata.
-- [ ] Export a reviewed operation registry used by uniqueness tests and OpenAPI generation. The resource-scoped exports remain the normal consumer entry.
-- [ ] Add explicit client-safe ESM subpath exports and separate Server/generator surfaces. Do not expose the entire
-  root barrel to Web merely because a bundler appears to tree-shake it; verify the emitted/import graph.
-- [ ] Reserve `/api/**` for `implementationOwner: 'server'`. Reject a new `app/**/route.ts` by default; a Web-owned
-  public handler requires a non-`/api` prefix, explicit ingress rule and ADR in the same change.
-- [ ] Add root `lint:endpoints` for the checker. Invoke it from root `architecture:check`, Web `lint:strict`, Server
-  `architecture:check` and protected-branch CI so editor/package lint and monorepo CI enforce the same rule. Keep Oxlint
-  for AST/style rules; this repository checker owns cross-file uniqueness and Nest/OpenAPI/Web drift.
-- [ ] Run:
+- [ ] 다음을 증명하는 RED 테스트를 작성한다.
+  - operation descriptor 하나가 method, versioning policy, semantic path segment, path/query/body schema, status별
+    response schema, Problem Details status, implementation owner와 `operationId`를 소유한다.
+  - `buildPath({ path, query })`는 interpolation 전에 검증하고 dynamic value를 정확히 한 번 percent encode하며
+    origin은 받지 않는다.
+  - framework neutral semantic path 정의 하나에서 auction operation의 Nest adapter는 controller/handler/version,
+    OpenAPI adapter는 template, Web은 `/api/v1/auctions/<encoded-id>`를 파생한다.
+  - 잘못된 bigint text는 path 생성 전에 거부되고 signed bigint 최댓값 text는 그대로 유지된다.
+  - registry 조립 시 중복 operation ID와 중복 method+OpenAPI path pair를 거부한다.
+  - Nest decorator path와 generated OpenAPI는 수동 `/api/v1/...` equality check 없이 파생 field를 사용한다.
+  - metadata object 비교에 그치지 않고 실제 Nest route discovery가 operation method/version/path와 일치한다.
+  - health operation은 명시적으로 unversioned이며 기존 public path를 유지한다.
+- [ ] Nest/Web source의 신규 canonical `/api/v1/...` literal, frontend `ENDPOINTS` mirror와 검토된 단일 contract
+  정의 밖의 수동 operation path를 거부하는 RED architecture lint fixture를 작성한다. commit된 OpenAPI artifact,
+  test/fixture, 문서와 격리된 legacy fingerprint는 명시적으로 예외 처리하되 신규 legacy literal까지 통과시키는
+  광범위한 directory 예외를 쓰지 않는다.
+- [ ] `@eatbid/contracts/api/v1/auctions`가 browser-safe ESM import를 제공하고 Node generator, portable ingestion,
+  server-only export를 transitive graph에서 제외하며 `@eatbid/domain` runtime을 load하지 않음을 증명하는 RED
+  package/export fixture를 작성한다. 기존 package root는 Server/generator 호환 표면으로 남을 수 있지만 Web
+  source는 import하지 않는다.
+- [ ] filtered Web dev startup, root `turbo dev`, Web typecheck와 production build의 clean-checkout process test를
+  작성한다. Contract source 수정은 검증된 source/watch 경로로 dev graph에 도달해야 하며 오래된 ignored `dist`
+  directory나 개발자의 사전 manual build가 숨은 선행 조건이 되어서는 안 된다.
+- [ ] 저장소가 소유하는 작은 `defineOperation()` helper를 구현한다. 두 번째 RPC framework를 도입하거나 metadata로
+  Nest controller를 생성하지 않는다.
+- [ ] descriptor를 portable하게 유지하고 Nest, Next, React, environment origin과 transport state를 넣지 않는다.
+  Zod schema와 pure path builder는 허용한다.
+- [ ] transport가 올바른 runtime schema를 고를 수 있도록 성공 응답을 status별로 표현한다. 공유 RFC 9457 schema는
+  contract package에 두고 thrown Nest class를 contract metadata로 바꾸지 않는다.
+- [ ] uniqueness test와 OpenAPI 생성이 쓰는 검토된 operation registry를 export한다. resource scoped export가
+  일반 consumer entry다.
+- [ ] 명시적인 client-safe ESM subpath export와 분리된 Server/generator surface를 추가한다. bundler가 tree-shake할
+  것처럼 보인다는 이유로 root barrel 전체를 Web에 공개하지 말고 emitted/import graph를 검증한다.
+- [ ] `/api/**`는 `implementationOwner: 'server'`에 예약한다. 신규 `app/**/route.ts`는 기본 거부하며 Web 소유
+  public handler에는 non-`/api` prefix, 명시적 ingress rule과 같은 변경의 ADR이 필요하다.
+- [ ] checker용 root `lint:endpoints`를 추가한다. root `architecture:check`, Web `lint:strict`, Server
+  `architecture:check`와 protected branch CI에서 실행해 editor/package lint와 monorepo CI가 같은 규칙을 강제한다.
+  Oxlint는 AST/style 규칙을 담당하고 이 저장소 checker가 cross-file uniqueness와 Nest/OpenAPI/Web drift를 소유한다.
+- [ ] 실행한다.
 
 ```text
 node --test tools/architecture/check-http-operations.test.mjs
@@ -144,35 +210,36 @@ pnpm --filter @eatbid/web typecheck
 pnpm --filter @eatbid/web build
 ```
 
-- [ ] Commit:
+- [ ] 커밋한다.
 
 ```text
-refactor(contracts): centralize public operation paths
+refactor(contracts): 공개 operation 경로 권위를 통합한다
 ```
 
-## Task 3: Build the generic contract transport and explicit ingress split
+## 작업 3: 범용 contract transport와 명시적인 ingress 분리를 만든다
 
-**Files:**
+**대상 파일:**
 
-- Create: `apps/web/src/api/_transport/http-problem.ts`
-- Create: `apps/web/src/api/_transport/request-contract.ts`
-- Create: `apps/web/src/api/_transport/browser-request.ts`
-- Create: `apps/web/src/api/_transport/server-request.server.ts`
-- Create: `apps/web/src/api/_transport/request-contract.test.ts`
-- Create: `apps/web/config/api-rewrites.ts`
-- Create: `apps/web/config/api-rewrites.test.ts`
-- Modify: `apps/web/next.config.ts`
+- 생성: `apps/web/src/api/_transport/http-problem.ts`
+- 생성: `apps/web/src/api/_transport/request-contract.ts`
+- 생성: `apps/web/src/api/_transport/browser-request.ts`
+- 생성: `apps/web/src/api/_transport/server-request.server.ts`
+- 생성: `apps/web/src/api/_transport/request-contract.test.ts`
+- 생성: `apps/web/config/api-rewrites.ts`
+- 생성: `apps/web/config/api-rewrites.test.ts`
+- 수정: `apps/web/next.config.ts`
 
-- [ ] Write RED tests using an injected `fetch` implementation for:
-  - valid JSON parsed by the supplied Zod schema;
-  - malformed 2xx JSON rejected as `ContractResponseError` and never returned;
-  - valid RFC 9457 non-2xx mapped to `HttpProblemError` with status/code/requestId;
-  - malformed/non-JSON non-2xx mapped to a sanitized `HttpStatusError` without returning raw response text;
-  - the exact incoming `AbortSignal` reaching `fetch` and an abort remaining an abort;
-  - browser target remaining same-origin and server target using a validated `API_URL`;
-  - server-only environment code not being exported by the browser module;
-  - API rewrites existing only when `NODE_ENV === 'development'`, with production returning `[]`.
-- [ ] Implement a transport-neutral interface shaped like this (derive the exact generic helpers from `defineOperation`; do not widen operation inputs back to strings):
+- [ ] 주입된 `fetch` 구현으로 다음을 검증하는 RED 테스트를 작성한다.
+  - 유효한 JSON은 주입된 Zod schema로 parse한다.
+  - 잘못된 2xx JSON은 `ContractResponseError`로 거부하고 반환하지 않는다.
+  - 유효한 RFC 9457 non-2xx는 status/code/requestId를 가진 `HttpProblemError`로 mapping한다.
+  - 잘못되거나 JSON이 아닌 non-2xx는 raw response text 없이 정제된 `HttpStatusError`로 mapping한다.
+  - 입력받은 바로 그 `AbortSignal`이 `fetch`에 도달하고 abort는 abort로 유지된다.
+  - browser target은 same origin이고 server target은 검증된 `API_URL`을 쓴다.
+  - server-only environment code를 browser module이 export하지 않는다.
+  - API rewrite는 `NODE_ENV === 'development'`에서만 존재하고 production은 `[]`를 반환한다.
+- [ ] 다음 형태의 transport neutral interface를 구현한다. 정확한 generic helper는 `defineOperation`에서 파생하고
+  operation input을 다시 string으로 넓히지 않는다.
 
 ```ts
 export interface ContractRequest {
@@ -186,10 +253,15 @@ export interface ContractRequest {
 }
 ```
 
-- [ ] Make `_transport` responsible only for asking the supplied operation to validate/build its relative request, adding the runtime origin, status, Problem Details, JSON decoding, status-schema invocation, correlation-safe errors, and signal propagation. It must not import auction operations, Query, React, toast, or UI and must not accept an arbitrary endpoint URL from resource callers.
-- [ ] Put `import 'server-only'` in `server-request.server.ts`. Read `API_URL` at call time, default development to `http://localhost:4400`, and reject an invalid origin before network I/O.
-- [ ] Add a tested `createApiRewrites({ nodeEnv, apiUrl })` config helper. Return the `/api/:path*` proxy only for `development`; return `[]` for production/test. Browser code keeps same-origin calls locally, while production ingress owns `/api` routing. This is a transport proxy, not a business BFF.
-- [ ] Run:
+- [ ] `_transport`는 주입된 operation에 relative request 검증/build를 요청하고 runtime origin, status,
+  Problem Details, JSON decode, status schema 호출, correlation-safe error와 signal 전달만 담당한다. auction operation,
+  Query, React, toast, UI를 import하지 않고 resource caller의 임의 endpoint URL을 받지 않는다.
+- [ ] `server-request.server.ts`에 `import 'server-only'`를 둔다. 호출 시점에 `API_URL`을 읽고 development 기본값은
+  `http://localhost:4400`으로 하며 network I/O 전에 잘못된 origin을 거부한다.
+- [ ] 테스트된 `createApiRewrites({ nodeEnv, apiUrl })` config helper를 추가한다. `/api/:path*` proxy는
+  `development`에서만 반환하고 production/test에서는 `[]`를 반환한다. local browser code는 same-origin call을
+  유지하고 production ingress가 `/api` routing을 소유한다. 이는 transport proxy이지 business BFF가 아니다.
+- [ ] 실행한다.
 
 ```text
 bun test apps/web/src/api/_transport/request-contract.test.ts apps/web/config/api-rewrites.test.ts
@@ -197,38 +269,45 @@ pnpm --dir apps/web exec oxlint src/api/_transport config/api-rewrites.ts next.c
 pnpm --filter @eatbid/web typecheck
 ```
 
-- [ ] Commit:
+- [ ] 커밋한다.
 
 ```text
-feat(web): add contract-validating API transport
+feat(web): 계약 검증 API transport를 추가한다
 ```
 
-## Task 4: Add the canonical auction resource API and Query Options
+## 작업 4: canonical 공고 resource API와 Query Options를 추가한다
 
-**Files:**
+**대상 파일:**
 
-- Create: `apps/web/src/api/auctions/get-auction.ts`
-- Create: `apps/web/src/api/auctions/auction-resource-error.ts`
-- Create: `apps/web/src/api/auctions/queries.ts`
-- Create: `apps/web/src/api/auctions/index.ts`
-- Create: `apps/web/src/api/auctions/server.ts`
-- Create: `apps/web/src/api/auctions/get-auction.test.ts`
-- Create: `apps/web/src/api/auctions/queries.test.ts`
+- 생성: `apps/web/src/api/auctions/get-auction.ts`
+- 생성: `apps/web/src/api/auctions/auction-resource-error.ts`
+- 생성: `apps/web/src/api/auctions/queries.ts`
+- 생성: `apps/web/src/api/auctions/index.ts`
+- 생성: `apps/web/src/api/auctions/server.ts`
+- 생성: `apps/web/src/api/auctions/get-auction.test.ts`
+- 생성: `apps/web/src/api/auctions/queries.test.ts`
 
-- [ ] Write RED tests proving:
-  - `9007199254740993` and `9223372036854775807` remain decimal strings in URL and query key;
-  - leading-zero, zero, negative, decimal, and overflow IDs fail `auctionIdPathSchema` before fetch;
-  - the request passes `auctionV1Operations.find` plus validated path input to the transport, its encoded path comes from `buildPath`, and response parsing uses the status-specific operation schema;
-  - a valid response preserves exact money strings, nullable schedule fields, revision identity, and provenance;
-  - malformed 2xx never enters returned data;
-  - the Query function consumes its supplied signal;
-  - `auctionQueries.detail(id)` produces one hierarchical canonical key and does not need a third-party key factory;
-  - an exact 404/`AUCTION_NOT_FOUND` problem maps to the resource-level not-found error, while 500/503, malformed problems, and aborts remain their original typed failures;
-  - `index.ts` does not export the server entry and consumers cannot deep-import internals.
-- [ ] Implement one internal `getAuctionWith(request, { auctionId, signal })` function. Bind the browser request in `index.ts`/`queries.ts` and the server request in `server.ts`; pass the operation descriptor and structured path input rather than a URL, and do not duplicate path construction or schema parsing.
-- [ ] Export client-safe `getAuction`, `auctionQueries`, and contract-inferred result types from `index.ts`. Export `getAuctionFromServer`, route-ID parsing, and `isAuctionNotFoundError` from `server.ts` only so a route never imports `_transport` or resource internals.
-- [ ] Do not add React hooks to `src/api`; capability Client Components call `useQuery(auctionQueries.detail(id))` themselves when interaction is justified.
-- [ ] Run:
+- [ ] 다음을 증명하는 RED 테스트를 작성한다.
+  - `9007199254740993`, `9223372036854775807`은 URL과 query key에서 decimal string으로 유지된다.
+  - 선행 0, 0, 음수, 소수와 overflow ID는 fetch 전에 `auctionIdPathSchema`에서 실패한다.
+  - request는 `auctionV1Operations.find`와 검증된 path input을 transport에 전달하고 encoded path는 `buildPath`에서
+    나오며 response parse는 status별 operation schema를 쓴다.
+  - 유효한 response는 정확한 money string, nullable schedule field, revision identity와 provenance를 보존한다.
+  - 잘못된 2xx는 반환 data에 들어가지 않는다.
+  - Query 함수는 주입된 signal을 사용한다.
+  - `auctionQueries.detail(id)`는 계층형 canonical key 하나를 만들며 third-party key factory가 필요 없다.
+  - 정확한 404/`AUCTION_NOT_FOUND` problem은 resource level not found error로 mapping되고 500/503, malformed
+    problem과 abort는 원래 typed failure로 유지된다.
+  - `index.ts`는 server entry를 export하지 않고 consumer는 internal을 deep import할 수 없다.
+- [ ] 내부 `getAuctionWith(request, { auctionId, signal })` 함수 하나를 구현한다. `index.ts`/`queries.ts`에는 browser
+  request를, `server.ts`에는 server request를 bind한다. URL 대신 operation descriptor와 구조화된 path input을
+  전달하고 path 구성이나 schema parse를 복제하지 않는다.
+- [ ] `index.ts`에서 client-safe `getAuction`, `auctionQueries`와 contract inferred result type을 export한다.
+  `getAuctionFromServer`, route ID parse와 `isAuctionNotFoundError`는 `server.ts`에서만 export해 route가 `_transport`
+  또는 resource internal을 import하지 않게 한다.
+- [ ] `src/api`에 React hook을 추가하지 않는다. interaction이 정당한 경우 capability Client Component가 직접
+  `useQuery(auctionQueries.detail(id))`를 호출한다.
+- [ ] 실행한다.
 
 ```text
 bun test apps/web/src/api/auctions
@@ -237,66 +316,86 @@ pnpm --dir apps/web exec oxlint src/api/auctions --deny-warnings
 pnpm --filter @eatbid/web typecheck
 ```
 
-- [ ] Commit:
+- [ ] 커밋한다.
 
 ```text
-feat(web): add the canonical auction resource client
+feat(web): 공고 resource client를 추가한다
 ```
 
-## Task 5: Move providers/theme authority into shell and harden shared Button behavior
+## 작업 5: provider와 theme 권위를 shell로 옮긴다
 
-**Files:**
+**대상 파일:**
 
-- Create: `apps/web/src/shell/providers/app-providers.tsx`
-- Create: `apps/web/src/shell/providers/query-client.ts`
-- Create: `apps/web/src/shell/providers/query-provider.tsx`
-- Create: `apps/web/src/shell/providers/query-policy.test.ts`
-- Create: `apps/web/src/shell/theme/active-theme.tsx`
-- Create: `apps/web/src/shell/theme/font.config.ts`
-- Create: `apps/web/src/shell/theme/theme.config.ts`
-- Create: `apps/web/src/shell/theme/theme-provider.tsx`
-- Create: `apps/web/src/shell/theme/theme-mode-toggle.tsx`
-- Create: `apps/web/src/shell/theme/theme-selector.tsx`
-- Create: `apps/web/src/shell/theme/theme-transition.ts`
-- Create: `apps/web/src/shell/index.ts`
-- Create: `apps/web/src/shared/lib/cn.ts`
-- Create: `apps/web/src/shared/lib/format-bytes.ts`
-- Create: `apps/web/src/shared/lib/format-bytes.test.ts`
-- Create: `apps/web/src/shared/ui/button.tsx`
-- Create: `apps/web/src/shared/ui/button.test.ts`
-- Create: `apps/web/src/types/tanstack-query.d.ts`
-- Modify: `apps/web/src/app/layout.tsx`
-- Modify: `apps/web/src/components/layout/header.tsx`
-- Modify: `apps/web/src/components/layout/header.test.tsx`
-- Modify: `apps/web/src/components/command-palette/theme-actions.ts` (created by the prerequisite runtime plan)
-- Replace with compatibility re-export: `apps/web/src/components/ui/button.tsx`
-- Replace with compatibility re-export: `apps/web/src/lib/utils.ts`
-- Delete after imports move: `apps/web/src/components/layout/providers.tsx`
-- Delete after imports move: `apps/web/src/components/layout/query-provider.tsx`
-- Delete after imports move: `apps/web/src/lib/query-client.ts`
-- Delete after imports move: `apps/web/src/lib/theme-transition.ts`
-- Delete after imports move: `apps/web/src/components/themes/active-theme.tsx`
-- Delete after imports move: `apps/web/src/components/themes/font.config.ts`
-- Delete after imports move: `apps/web/src/components/themes/theme.config.ts`
-- Delete after imports move: `apps/web/src/components/themes/theme-provider.tsx`
-- Delete after imports move: `apps/web/src/components/themes/theme-mode-toggle.tsx`
-- Delete after imports move: `apps/web/src/components/themes/theme-selector.tsx`
+- 생성: `apps/web/src/shell/providers/app-providers.tsx`
+- 생성: `apps/web/src/shell/providers/query-client.ts`
+- 생성: `apps/web/src/shell/providers/query-provider.tsx`
+- 생성: `apps/web/src/shell/providers/query-policy.test.ts`
+- 생성: `apps/web/src/shell/theme/active-theme.tsx`
+- 생성: `apps/web/src/shell/theme/font.config.ts`
+- 생성: `apps/web/src/shell/theme/theme.config.ts`
+- 생성: `apps/web/src/shell/theme/theme-provider.tsx`
+- 생성: `apps/web/src/shell/theme/theme-mode-toggle.tsx`
+- 생성: `apps/web/src/shell/theme/theme-selector.tsx`
+- 생성: `apps/web/src/shell/theme/theme-transition.ts`
+- 생성: `apps/web/src/shell/index.ts`
+- 생성: `apps/web/src/shared/lib/cn.ts`
+- 생성: `apps/web/src/shared/lib/format-bytes.ts`
+- 생성: `apps/web/src/shared/lib/format-bytes.test.ts`
+- 생성: `apps/web/src/types/tanstack-query.d.ts`
+- 수정: `apps/web/src/app/layout.tsx`
+- 수정: `apps/web/src/components/layout/header.tsx`
+- 수정: `apps/web/src/components/layout/header.test.tsx`
+- 수정: `apps/web/src/components/command-palette/theme-actions.ts`(선행 runtime 계획에서 생성)
+- 호환 re-export로 교체: `apps/web/src/lib/utils.ts`
+- import 이동 후 삭제: `apps/web/src/components/layout/providers.tsx`
+- import 이동 후 삭제: `apps/web/src/components/layout/query-provider.tsx`
+- import 이동 후 삭제: `apps/web/src/lib/query-client.ts`
+- import 이동 후 삭제: `apps/web/src/lib/theme-transition.ts`
+- import 이동 후 삭제: `apps/web/src/components/themes/active-theme.tsx`
+- import 이동 후 삭제: `apps/web/src/components/themes/font.config.ts`
+- import 이동 후 삭제: `apps/web/src/components/themes/theme.config.ts`
+- import 이동 후 삭제: `apps/web/src/components/themes/theme-provider.tsx`
+- import 이동 후 삭제: `apps/web/src/components/themes/theme-mode-toggle.tsx`
+- import 이동 후 삭제: `apps/web/src/components/themes/theme-selector.tsx`
 
-- [ ] Write RED tests that assert:
-  - Query and Mutation failures with `meta.errorPresentation: 'toast'` invoke one injected notifier;
-  - `inline` and `silent` failures do not toast, aborts do not toast, and unexpected errors still reach the telemetry callback;
-  - React Query Devtools are mounted only in development;
-  - the QueryClient preserves 60-second default stale time, includes pending queries in dehydration, creates one client per server request, and reuses one browser singleton;
-  - the shared Button accepts an injected `onClick`, contains common `active:scale-[0.98]`/press feedback and a reduced-motion fallback, and has no auth/session/telemetry import;
-  - the header still renders both `ThemeModeToggle` and `ThemeSelector` from shell paths;
-  - `formatBytes` remains available from the compatibility `@/lib/utils` path and the new shared path with identical output.
-- [ ] Define TanStack `Register.queryMeta` and `Register.mutationMeta` with a small `RequestMeta` containing `errorPresentation: 'toast' | 'inline' | 'silent'` and optional user-safe success/error message IDs. Do not permit arbitrary payloads, bid values, or PII in meta.
-- [ ] Make `createQueryClient({ notify, report })` testable; QueryCache/MutationCache callbacks classify errors globally while the capability chooses policy via typed meta.
-- [ ] Move existing theme logic without changing available palettes, cookie name, keyboard behavior, or root hydration behavior.
-- [ ] Move the Button implementation to `shared/ui`; keep the old path as a temporary re-export so untouched legacy components continue to compile.
-- [ ] Move both `cn` and `formatBytes` to focused shared modules and re-export both from legacy `src/lib/utils.ts`; `file-uploader.tsx` must keep compiling without an unrelated migration.
-- [ ] Keep auth, permission checks, audit events, and command execution out of the primitive. Those belong to future contract-backed capability action components.
-- [ ] Run:
+**경계:**
+
+- 입력: 선행 runtime 계획의 exact runtime version과 Web-local test bootstrap.
+- 출력: `createQueryClient({ notify, report }): QueryClient`, `getQueryClient(): QueryClient`,
+  `AppProviders({ activeThemeValue, children })`와 client-safe shell theme export.
+
+Query error 정책은 임의 metadata가 아니라 닫힌 type이다.
+
+```ts
+export interface RequestMeta extends Record<string, unknown> {
+  errorPresentation: 'toast' | 'inline' | 'silent';
+  successMessageId?: string;
+  errorMessageId?: string;
+}
+
+export interface QueryClientPorts {
+  notify: (messageId: string) => void;
+  report: (error: unknown) => void;
+}
+```
+
+- [ ] 다음을 검증하는 RED 테스트를 작성한다.
+  - `meta.errorPresentation: 'toast'`인 Query/Mutation failure는 주입된 notifier를 한 번 호출한다.
+  - `inline`, `silent` failure와 abort는 toast하지 않고 예상하지 못한 error는 telemetry callback에 도달한다.
+  - React Query Devtools는 development에서만 mount된다.
+  - QueryClient는 기본 stale time 60초와 dehydration의 pending query를 보존하고 server request마다 하나를
+    생성하며 browser singleton 하나를 재사용한다.
+  - header는 shell path의 `ThemeModeToggle`, `ThemeSelector`를 계속 render한다.
+  - `formatBytes`는 호환 `@/lib/utils` path와 신규 shared path에서 같은 output으로 제공된다.
+- [ ] TanStack `Register.queryMeta`와 `Register.mutationMeta`를 `errorPresentation: 'toast' | 'inline' | 'silent'`와
+  선택적인 사용자 안전 success/error message ID를 가진 작은 `RequestMeta`로 정의한다. 임의 payload, bid value나
+  PII를 meta에 허용하지 않는다.
+- [ ] `createQueryClient({ notify, report })`를 테스트 가능하게 만든다. QueryCache/MutationCache callback은
+  error를 전역 분류하고 capability는 typed meta로 표시 정책을 선택한다.
+- [ ] 사용 가능한 palette, cookie name, keyboard 동작과 root hydration 동작을 바꾸지 않고 기존 theme logic을 옮긴다.
+- [ ] `cn`과 `formatBytes`를 각각 집중된 shared module로 옮기고 legacy `src/lib/utils.ts`에서 둘 다 re-export한다.
+  무관한 migration 없이 `file-uploader.tsx`가 계속 compile되어야 한다.
+- [ ] 실행한다.
 
 ```text
 pnpm --dir apps/web exec bun test src/shell src/shared src/components/layout/header.test.tsx
@@ -305,64 +404,403 @@ pnpm --dir apps/web exec oxlint src/shell src/shared src/app/layout.tsx src/comp
 pnpm --filter @eatbid/web typecheck
 ```
 
-- [ ] Commit:
+- [ ] 커밋한다.
 
 ```text
-refactor(web): establish shell providers and shared primitives
+refactor(web): 셸 provider와 테마 권위를 정리한다
 ```
 
-## Task 6: Implement the first canonical RSC walking skeleton
+## 작업 6: motion token과 공통 action control을 확립한다
 
-**Files:**
+**대상 파일:**
 
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/_model/present-auction.ts`
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/_model/present-auction.test.ts`
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/_ui/auction-screen.tsx`
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/_ui/auction-screen.test.tsx`
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/page.tsx`
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/loading.tsx`
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/error.tsx`
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/not-found.tsx`
-- Create: `apps/web/src/app/(workspace)/auctions/[auctionId]/page.test.tsx`
+- 생성: `apps/web/src/styles/tokens/motion.css`
+- 생성: `apps/web/src/shared/ui/button.tsx`
+- 생성: `apps/web/src/shared/ui/button.test.tsx`
+- 생성: `apps/web/src/shared/ui/loading-button.tsx`
+- 생성: `apps/web/src/shared/ui/loading-button.test.tsx`
+- 생성: `apps/web/src/shared/ui/spinner.tsx`
+- 수정: `apps/web/src/styles/globals.css`
+- 수정: `apps/web/src/shell/theme/theme-transition.ts`
+- 수정: `apps/web/src/package.json`
+- 수정: `pnpm-lock.yaml`
+- 수정: `tools/architecture/check-web-boundaries.mjs`
+- 수정: `tools/architecture/check-web-boundaries.test.mjs`
+- 호환 re-export로 교체: `apps/web/src/components/ui/button.tsx`
+- 호환 re-export로 교체: `apps/web/src/components/ui/loading-button.tsx`
+- 호환 re-export로 교체: `apps/web/src/components/ui/spinner.tsx`
 
-- [ ] Write RED model/render tests for:
-  - exact decimal money text plus currency, without float conversion;
-  - nullable schedule values rendered as `미확인`, not zero or fabricated dates;
-  - identity/revision/source/provenance rendered separately;
-  - no recommended rate, predicted value, candidate default, or client-side domain calculation;
-  - a fully valid contract fixture producing stable server-rendered markup;
-  - async params are awaited, an invalid ID short-circuits before network I/O, and a resource not-found error calls `notFound()`;
-  - dependency/internal 500/503 errors are rethrown to the route error boundary rather than presented as 404.
-- [ ] Implement `presentAuction(response)` as a pure route-local presentation model. It may format for display but must retain canonical raw values needed for provenance and must not become API or business authority.
-- [ ] Keep `page.tsx` an async Server Component using generated `PageProps<'/auctions/[auctionId]'>`. Await params, call only `@/api/auctions/server`, map `AUCTION_NOT_FOUND` and invalid IDs to `notFound()`, and rethrow dependency/internal failures to the route error boundary.
-- [ ] Keep `error.tsx` as the only Client Component in the segment. It provides retry/correlation-safe text and does not expose raw error bodies.
-- [ ] Do not add this route to product navigation yet; navigation/information architecture is a joint frontend planning decision.
-- [ ] Run:
+**경계:**
+
+- 입력: 작업 5의 `cn`과 기존 Base UI Button 조합.
+- 출력: `@/shared/ui/*`의 `Button`, `buttonVariants`, `ButtonInteraction = 'press' | 'quiet'`, `LoadingButton`,
+  `Spinner`. legacy path는 re-export로만 남긴다.
+- 연기: 보호된 Server command contract가 생길 때까지 auth/session/permission/telemetry 조합을 만들지 않는다.
+
+CSS token 파일이 유일한 runtime timing 권위다.
+
+```css
+:root {
+  --motion-duration-press: 70ms;
+  --motion-duration-state: 110ms;
+  --motion-duration-enter: 150ms;
+  --motion-duration-panel: 240ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --motion-easing-enter: cubic-bezier(0, 0, 0.38, 0.9);
+  --motion-easing-exit: cubic-bezier(0.2, 0, 1, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-press: 0ms;
+    --motion-duration-state: 0ms;
+    --motion-duration-enter: 0ms;
+    --motion-duration-panel: 0ms;
+  }
+}
+```
+
+public control type은 시각 표현에만 관여하며 resource neutral을 유지한다.
+
+```ts
+export type ButtonInteraction = 'press' | 'quiet';
+
+export type ButtonProps = ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & {
+    interaction?: ButtonInteraction;
+  };
+
+export interface LoadingButtonProps extends Omit<ButtonProps, 'className'> {
+  loading?: boolean;
+  loadingLabel?: string;
+  className?: string;
+}
+```
+
+- [ ] **단계 1: RED component·architecture 테스트를 작성한다**
+
+  기본 Button이 press interaction을 사용하고 link와 명시적 quiet interaction은 transform하지 않으며,
+  `aria-haspopup` anchor가 움직이지 않고 focus style이 transition property 목록에 들어가지 않음을 한국어
+  테스트로 증명한다. reduced motion은 transform을 제거하고 주입된 `onClick`은 계속 실행돼야 한다.
+  LoadingButton은 label 공간, `aria-busy`, `focusableWhenDisabled`에 의한 focus를 보존하며 한국어 loading label을
+  알리고 중복 click을 막아야 한다. 신규 `transition-all`, 화면 local `active:scale-*`/`active:translate-*`, raw
+  duration literal과 shared control의 auth/session/telemetry import를 거부하는 architecture fixture를 추가한다.
+
+```tsx
+test('기본 버튼은 공통 press 피드백을 사용하고 클릭 행동을 주입받는다', async () => {
+  const calls: string[] = [];
+  const screen = render(<Button onClick={() => calls.push('실행')}>저장</Button>);
+  const button = screen.getByRole('button', { name: '저장' });
+
+  expect(button.getAttribute('data-interaction')).toBe('press');
+  await userEvent.click(button);
+  expect(calls).toEqual(['실행']);
+});
+
+test('처리 중 버튼은 크기와 focus를 보존하며 상태를 알린다', () => {
+  const screen = render(<LoadingButton loading loadingLabel='후보 저장 중'>후보 저장</LoadingButton>);
+  const button = screen.getByRole('button', { name: '후보 저장' });
+
+  expect(button.getAttribute('aria-busy')).toBe('true');
+  expect(screen.getByRole('status').textContent).toBe('후보 저장 중');
+  expect(button.textContent).toContain('후보 저장');
+});
+```
+
+- [ ] **단계 2: 집중 RED 테스트를 실행한다**
 
 ```text
-pnpm --dir apps/web exec bun test 'src/app/(workspace)/auctions/[auctionId]' src/api/auctions
+pnpm --dir apps/web exec bun test src/shared/ui/button.test.tsx src/shared/ui/loading-button.test.tsx
+node --test tools/architecture/check-web-boundaries.test.mjs
+```
+
+예상 결과: shared control/token과 신규 architecture rule이 아직 없으므로 새 case는 의도한 missing symbol 또는
+허용된 위반 때문에 실패한다.
+
+- [ ] **단계 3: token과 control을 최소 구현한다**
+
+  `globals.css`에서 `tokens/motion.css`를 import한다. `transition-all`을 명시적인 color/background/border/
+  opacity/transform property로 교체한다. link button은 `interaction='quiet'`, 기본값은 `press`로 해석하고 popup
+  anchor는 움직이지 않게 한다. active 진입은 70ms, release/state change는 110ms를 사용하며 focus ring은 즉시
+  표시한다. LoadingButton은 opacity로 숨긴 label을 layout에 남긴 채 Spinner를 overlay하고 loading 동안 Base UI
+  `focusableWhenDisabled`를 설정한다. 세 legacy 구현은 두 번째 구현을 두지 말고 re-export로 교체한다.
+
+- [ ] **단계 4: 사용하지 않는 Motion을 제거하고 theme transition을 제한한다**
+
+  Web manifest에서 `motion`을 제거하고 pnpm으로 lockfile만 재생성한다. 기존 400ms root theme reveal을
+  `var(--motion-duration-panel)`로 바꾸고 reduced motion에서는 완전히 끈다. 모든 theme color를 포괄하는 global
+  transition을 추가하지 않는다.
+
+```text
+pnpm --filter @eatbid/web remove motion
+```
+
+- [ ] **단계 5: GREEN 검증을 실행한다**
+
+```text
+pnpm --dir apps/web exec bun test src/shared/ui/button.test.tsx src/shared/ui/loading-button.test.tsx
+node --test tools/architecture/check-web-boundaries.test.mjs
+node tools/architecture/check-web-boundaries.mjs
+pnpm --dir apps/web exec oxlint src/shared/ui --deny-warnings
+pnpm --filter @eatbid/web typecheck
+git diff --check
+```
+
+예상 결과: 모든 집중 테스트가 통과하고 `motion`은 manifest/lock entry에서 사라지며 호환 path가 compile된다.
+
+- [ ] **단계 6: 커밋한다**
+
+```text
+git add apps/web/src/styles apps/web/src/shared/ui apps/web/src/components/ui/button.tsx apps/web/src/components/ui/loading-button.tsx apps/web/src/components/ui/spinner.tsx apps/web/package.json pnpm-lock.yaml tools/architecture/check-web-boundaries.mjs tools/architecture/check-web-boundaries.test.mjs
+git commit -m "feat(web): 공통 모션과 버튼 피드백 규약을 세운다"
+```
+
+## 작업 7: skeleton 소유권과 async boundary gate를 확립한다
+
+**대상 파일:**
+
+- 생성: `apps/web/src/shared/ui/skeleton.tsx`
+- 생성: `apps/web/src/shared/ui/skeleton.test.tsx`
+- 수정: `tools/architecture/check-web-boundaries.mjs`
+- 수정: `tools/architecture/check-web-boundaries.test.mjs`
+- 호환 re-export로 교체: `apps/web/src/components/ui/skeleton.tsx`
+
+**경계:**
+
+- 입력: 작업 6의 motion token.
+- 출력: resource neutral `Skeleton` atom만 제공한다. `ScreenFrame`과 `ScreenSkeleton`은 route가 소유한다.
+- 허용: 실제 client async panel이 import할 때만 `@suspensive/react` 3.21.3을 설치한다.
+- 거부: `@suspensive/react-query`, 범용 `PageSkeleton`, 신규 `PageContainer isLoading`, `loading.tsx` 안의 직접
+  Skeleton markup과 refetch/mutation 중 skeleton 교체.
+
+```tsx
+export function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      aria-hidden='true'
+      data-slot='skeleton'
+      className={cn('animate-pulse rounded-md bg-muted motion-reduce:animate-none', className)}
+      {...props}
+    />
+  );
+}
+```
+
+- [ ] **단계 1: RED atom·boundary 테스트를 작성한다**
+
+  `aria-hidden`, reduced motion과 class 주입을 한국어 테스트로 검증한다. `Skeleton`을 import하거나
+  `animate-pulse`를 포함하거나 여러 fallback region을 만드는 `loading.tsx`는 실패하고 sibling `ScreenSkeleton`
+  하나만 반환하는 `loading.tsx`는 통과함을 architecture fixture로 증명한다. 기존 `PageContainer isLoading`은
+  정확한 삭제 전용 legacy fingerprint로만 고정한다.
+
+- [ ] **단계 2: RED 테스트를 실행한다**
+
+```text
+pnpm --dir apps/web exec bun test src/shared/ui/skeleton.test.tsx
+node --test tools/architecture/check-web-boundaries.test.mjs
+```
+
+예상 결과: shared Skeleton과 boundary rule이 아직 없으므로 실패한다.
+
+- [ ] **단계 3: atom, 호환 export와 gate를 구현한다**
+
+  Skeleton atom을 `shared/ui`로 옮기고 legacy re-export를 추가하며 광범위한 directory 예외 없이 기존
+  AST/baseline checker를 확장한다. toolkit 표를 채우기 위해 Suspensive를 설치하지 않는다. exact
+  `@suspensive/react@3.21.3` 설치는 client async panel을 처음 만드는 작업이 소유한다.
+
+- [ ] **단계 4: GREEN 검증을 실행하고 커밋한다**
+
+```text
+pnpm --dir apps/web exec bun test src/shared/ui/skeleton.test.tsx
+node --test tools/architecture/check-web-boundaries.test.mjs
+node tools/architecture/check-web-boundaries.mjs
+pnpm --dir apps/web exec oxlint src/shared/ui/skeleton.tsx --deny-warnings
+pnpm --filter @eatbid/web typecheck
+git diff --check
+git add apps/web/src/shared/ui/skeleton.tsx apps/web/src/shared/ui/skeleton.test.tsx apps/web/src/components/ui/skeleton.tsx tools/architecture/check-web-boundaries.mjs tools/architecture/check-web-boundaries.test.mjs
+git commit -m "feat(web): 화면별 로딩 경계의 기초를 세운다"
+```
+
+## 작업 8: 첫 canonical RSC walking skeleton을 구현한다
+
+**대상 파일:**
+
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/_model/present-auction.ts`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/_model/present-auction.test.ts`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/_ui/auction-screen-frame.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/_ui/auction-screen.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/_ui/auction-screen.test.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/_ui/auction-screen-skeleton.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/_ui/auction-screen-skeleton.test.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/page.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/loading.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/loading.test.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/error.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/not-found.tsx`
+- 생성: `apps/web/src/app/(workspace)/auctions/[auctionId]/page.test.tsx`
+
+**경계:**
+
+- 입력: 작업 4의 `getAuctionFromServer`, 작업 7의 `Skeleton`, generated
+  `PageProps<'/auctions/[auctionId]'>`.
+- 출력: `presentAuction(response): AuctionPresentation`, `AuctionScreenFrame`, `AuctionScreen`,
+  `AuctionScreenSkeleton`. 실제 화면과 fallback은 `AuctionScreenFrame`을 공유하고 `loading.tsx`는
+  `<AuctionScreenSkeleton />`만 반환한다.
+
+```tsx
+export function AuctionScreenFrame({ header, summary, details }: AuctionScreenFrameProps) {
+  return (
+    <main className='grid min-w-0 gap-6' aria-labelledby='auction-title'>
+      <header>{header}</header>
+      <section>{summary}</section>
+      <section>{details}</section>
+    </main>
+  );
+}
+
+export default function Loading() {
+  return <AuctionScreenSkeleton />;
+}
+```
+
+- [ ] 다음을 검증하는 RED model/render 테스트를 작성한다.
+  - float 변환 없이 정확한 decimal money text와 currency를 표시한다.
+  - nullable schedule value는 0이나 발명한 날짜가 아니라 `미확인`으로 render한다.
+  - identity/revision/source/provenance를 각각 분리해 render한다.
+  - 추천 사정률, 예측값, 후보 기본값이나 client-side domain calculation을 만들지 않는다.
+  - 완전히 유효한 contract fixture가 안정된 server-rendered markup을 만든다.
+  - 실제 screen과 skeleton 모두 `AuctionScreenFrame`을 사용하고 같은 section 수와 순서를 유지하며 두 번째
+    page container를 만들지 않는다.
+  - `loading.tsx`에는 Skeleton markup이 없고 `aria-busy`, 한국어 status text와 숨겨진 내부 skeleton 조각을 가진
+    loading region 하나를 render한다.
+  - async params를 await하고 invalid ID는 network I/O 전에 중단하며 resource not found error는 `notFound()`를 호출한다.
+  - dependency/internal 500/503 error는 404로 표시하지 않고 route error boundary로 다시 throw한다.
+- [ ] `presentAuction(response)`를 pure route local presentation model로 구현한다. 표시를 위한 format은 가능하지만
+  provenance에 필요한 canonical raw value를 보존하고 API나 business authority가 되어서는 안 된다.
+- [ ] 구체 screen과 skeleton보다 `AuctionScreenFrame`을 먼저 구현한다. 두 조합이 같은 header/summary/details
+  slot을 공급해 visual geometry가 서로 무관한 두 page layout으로 갈라지지 않게 한다.
+- [ ] 모든 fallback 조합은 `AuctionScreenSkeleton`에 두고 `loading.tsx`는 한 줄짜리 route adapter로 유지한다.
+  이 Server/route boundary에는 Suspensive나 `Delay`를 쓰지 않는다.
+- [ ] `page.tsx`는 generated `PageProps<'/auctions/[auctionId]'>`를 쓰는 async Server Component로 유지한다.
+  params를 await하고 `@/api/auctions/server`만 호출하며 `AUCTION_NOT_FOUND`와 invalid ID는 `notFound()`로,
+  dependency/internal 실패는 route error boundary로 다시 throw한다.
+- [ ] `error.tsx`를 segment의 유일한 Client Component로 유지한다. retry/correlation-safe 문구를 제공하되 raw
+  error body를 노출하지 않는다.
+- [ ] 아직 이 route를 제품 navigation에 추가하지 않는다. navigation/information architecture는 사용자와 함께
+  결정할 frontend 기획 사항이다.
+- [ ] 실행한다.
+
+```text
+pnpm --dir apps/web exec bun test 'src/app/(workspace)/auctions/[auctionId]' src/api/auctions src/shared/ui/skeleton.test.tsx
 node tools/architecture/check-web-boundaries.mjs
 pnpm --dir apps/web exec oxlint 'src/app/(workspace)/auctions' --deny-warnings
 pnpm --filter @eatbid/web typecheck
 pnpm --filter @eatbid/web build
 ```
 
-- [ ] Commit:
+- [ ] 커밋한다.
 
 ```text
-feat(web): add the canonical auction read skeleton
+feat(web): 계약 기반 공고 화면 골격을 연결한다
 ```
 
-## Task 7: Verify behavior locally without declaring legacy migration complete
+## 작업 9: legacy migration 완료를 과장하지 않고 browser 증거를 추가한다
 
-**Files:**
+**대상 파일:**
 
-- Modify only if verified facts changed: `docs/architecture/frontend-application-foundation.md`
-- Modify only if verified facts changed: `apps/web/AGENTS.md`
-- Create: `apps/server/tools/find-verification-auction.ts`
-- Create: `apps/server/tools/find-verification-auction.test.ts`
+- 검증된 사실이 바뀐 경우에만 수정: `docs/architecture/frontend-application-foundation.md`
+- 검증된 사실이 바뀐 경우에만 수정: `apps/web/AGENTS.md`
+- 생성: `apps/web/playwright.config.ts`
+- 생성: `apps/web/e2e/support/auction-contract-fixture-server.ts`
+- 생성: `apps/web/e2e/frontend-foundation.spec.ts`
+- 수정: `apps/web/package.json`
+- 수정: `pnpm-lock.yaml`
+- 생성: `apps/server/tools/find-verification-auction.ts`
+- 생성: `apps/server/tools/find-verification-auction.test.ts`
 
-- [ ] Run the repository and focused gates:
+**경계:**
+
+- 입력: canonical auction operation/response schema, 작업 8의 route, 작업 6~7의 motion/skeleton control.
+- 출력: `pnpm --filter @eatbid/web test:e2e:foundation`의 결정적 Chromium 증거와 별도의 real dev 수동 검증
+  보고서. 자동 fixture는 검토된 public operation만 구현하고 응답을 contract schema로 parse하며 제품 code에서는
+  절대 import하지 않는다.
+
+```ts
+export default defineConfig({
+  testDir: './e2e',
+  use: { baseURL: 'http://127.0.0.1:3001', trace: 'retain-on-failure' },
+  webServer: [
+    {
+      command: 'bun e2e/support/auction-contract-fixture-server.ts',
+      port: 4410,
+      reuseExistingServer: false,
+    },
+    {
+      command: 'pnpm dev -- --port 3001',
+      port: 3001,
+      env: { ...process.env, API_URL: 'http://127.0.0.1:4410' },
+      reuseExistingServer: false,
+    },
+  ],
+});
+```
+
+- [ ] **단계 1: browser test runner를 설치하고 고정한다**
+
+```text
+pnpm --filter @eatbid/web add -D @playwright/test@1.62.1 --save-exact
+pnpm --dir apps/web exec playwright install chromium
+```
+
+- [ ] **단계 2: contract-bound fixture server와 RED browser 테스트를 작성한다**
+
+  operation에서 파생한 auction path를 `127.0.0.1:4410`에서 제공한다. route loading boundary를 관찰할 수 있도록
+  성공 응답을 350ms 지연한다. contract test와 같은 strict response를 전송 전 parse해 반환한다.
+
+```ts
+const response = auctionV1ResponseSchema.parse({
+  identity: {
+    auctionId: '9007199254740993',
+    revisionId: '9007199254740995',
+    externalBidId: 'opaque',
+    displayBidNumber: null,
+    title: '급식 식재료',
+    status: 'OPEN',
+  },
+  schedule: { announcedAt: '2026-08-30T00:00:00Z', deadlineAt: null, openedAt: null },
+  pricing: { baseAmount: { amount: '1234567890.50', currency: 'KRW' }, plannedAmount: null },
+  provenance: {
+    sourceSystem: 'eat',
+    observationId: '9007199254740997',
+    normalizedRecordId: '9007199254740999',
+    contentSha256: 'a'.repeat(64),
+  },
+});
+```
+
+  streamed `ScreenSkeleton` 뒤 실제 heading 표시, 정확한 money render, invalid/missing ID not found, 503 route error,
+  navigation 뒤 shell/theme control 보존과 reduced motion에서 skeleton animation 억제를 한국어 Playwright 테스트로
+  검증한다. 임의 sleep을 assert하지 말고 role과 contract-visible text를 기다린다.
+
+```ts
+test('공고 화면은 셸을 유지하고 화면 전용 skeleton 뒤 계약 응답을 표시한다', async ({ page }) => {
+  await page.goto('/auctions/9007199254740993', { waitUntil: 'commit' });
+  await expect(page.getByRole('status', { name: '공고 정보를 불러오는 중' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await expect(page.getByText('1,234,567,890.50 KRW')).toBeVisible();
+});
+```
+
+- [ ] **단계 3: 자동 browser 증거를 실행한다**
+
+```text
+pnpm --filter @eatbid/web test:e2e:foundation
+```
+
+예상 결과: 기존 dev server나 database 없이 모든 Chromium case가 통과한다. 실패 시 trace는 남기되 screenshot,
+trace와 report는 ignored build artifact로 유지한다.
+
+- [ ] 저장소 gate와 집중 gate를 실행한다.
 
 ```text
 node tools/architecture/check-stack-docs.mjs
@@ -372,33 +810,44 @@ node --test tools/architecture/check-stack-docs.test.mjs tools/architecture/chec
 pnpm architecture:check
 pnpm quality:check
 pnpm --filter @eatbid/web test
+pnpm --filter @eatbid/web test:e2e:foundation
 pnpm --filter @eatbid/web typecheck
 pnpm --dir apps/web exec oxlint src/api src/capabilities src/shell src/shared --deny-warnings
 pnpm --filter @eatbid/web build
 git diff --check
 ```
 
-- [ ] Before querying dev data, run the verification helper's focused test and Server tools architecture check:
+- [ ] dev data를 조회하기 전에 verification helper 집중 테스트와 Server tools architecture check를 실행한다.
 
 ```text
 bun test apps/server/tools/find-verification-auction.test.ts
 pnpm --filter @eatbid/server architecture:check
 ```
 
-- [ ] Run the full Server e2e suite (procurement, operational HTTP, and disposable database integration), and report it accurately as full Server evidence:
+- [ ] 전체 Server e2e suite(procurement, operational HTTP, disposable database integration)를 실행하고 full Server
+  evidence로 정확히 보고한다.
 
 ```text
 pnpm --filter @eatbid/server test:e2e
 ```
 
-- [ ] Write a read-only verification helper that uses the Server's existing `postgres` dependency, requires Infisical-injected `DATABASE_URL`, selects one latest canonical auction/revision ID, prints only the decimal ID, and fails clearly when the dev database is empty. Unit-test its row selection with Korean test names; it must never seed, mutate, or print connection details.
-- [ ] Resolve the real dev ID through `infisical run --project-config-dir=<repo-root> --env=dev --path=/runtime/server --secret-overriding=false -- bun apps/server/tools/find-verification-auction.ts`. Do not assume the disposable-test-only `9007199254740993` exists in dev.
-- [ ] Start local Web on port 3001 and the canonical Server on port 4400 with that same dev secret scope. Inspect `/auctions/<resolved-id>`, hard refresh it, toggle light/dark and palette themes, exercise Button press feedback, and check browser/server consoles for hydration or contract errors.
-- [ ] Also inspect invalid and missing IDs to confirm not-found/error behavior. Do not substitute a product mock store; a test-only fixture server is permitted only for automated transport tests.
-- [ ] Report full legacy lint failures separately from the green target-directory lint. Do not edit a legacy baseline merely to make the report green.
-- [ ] Confirm `/dashboard/market` and the old bid-number/composite-school routes remain explicitly legacy and are not called migrated.
-- [ ] Commit only evidence-driven documentation changes:
+- [ ] Server의 기존 `postgres` dependency를 쓰고 Infisical로 주입된 `DATABASE_URL`을 요구하며 최신 canonical
+  auction/revision ID 하나를 선택해 decimal ID만 출력하는 read-only verification helper를 작성한다. dev database가
+  비었으면 명확히 실패해야 한다. row 선택은 한국어 test name으로 unit test하고 seed, mutate, connection detail 출력은
+  절대 하지 않는다.
+- [ ] `infisical run --project-config-dir=<repo-root> --env=dev --path=/runtime/server --secret-overriding=false -- bun apps/server/tools/find-verification-auction.ts`로 실제 dev ID를 찾는다. test 전용 disposable ID
+  `9007199254740993`가 dev에 있다고 가정하지 않는다.
+- [ ] 같은 dev secret scope로 local Web은 3001, canonical Server는 4400 port에서 시작한다.
+  `/auctions/<resolved-id>`를 열고 hard refresh, light/dark와 palette theme 변경, Button press feedback을 실행하며
+  browser/server console의 hydration 또는 contract error를 확인한다.
+- [ ] invalid ID와 missing ID도 확인해 not found/error 동작을 검증한다. product mock store로 대체하지 않는다.
+  격리된 contract fixture는 자동 browser suite에만 허용하며 수동 검증은 canonical Server와 실제 dev data를 쓴다.
+- [ ] 전체 legacy lint failure는 green target directory lint와 분리해 보고한다. 보고서를 green으로 만들 목적으로
+  legacy baseline을 수정하지 않는다.
+- [ ] `/dashboard/market`와 예전 bid-number/composite-school route는 명시적인 legacy로 남아 있으며 migrated로
+  부르지 않음을 확인한다.
+- [ ] 증거에 기반한 문서 변경만 커밋한다.
 
 ```text
-docs(web): record foundation verification evidence
+test(web): 브라우저 기반 프론트 기반 증거를 고정한다
 ```

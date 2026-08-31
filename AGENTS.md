@@ -74,6 +74,12 @@
     assign하고 검증된 worktree lease를 claim하라. 첫 mutation session이 lease의 writer가 되며,
     의도한 owned path는 issue/handoff에 남긴다. 다른 writer가 claim한 작업은 read-only로
     조사·review만 한다. 병렬 구현은 별도 issue·worktree에서 owned path가 겹치지 않을 때만 허용한다.
+21. **이 저장소는 한국어 프로젝트이며 사람이 읽는 기본 언어는 한국어다.** 에이전트의 작업 계획·진행 보고와
+    아키텍처·ADR·spec·plan·README, 이슈·PR·worklog, 코드의 이유 주석, 테스트명과 커밋 메시지는 한국어로
+    작성한다. 코드 식별자, 라이브러리·프로토콜
+    고유명, CLI 명령, 외부 공식 인용과 원문 오류처럼 정확성을 위해 필요한 부분은 영문을 유지할 수
+    있지만 설명 본문까지 영문화하지 않는다. 기존 영문 문서는 무관한 대량 번역을 하지 않고 실질적으로
+    수정할 때 한국어로 전환한다.
 
 ## 변경 절차
 

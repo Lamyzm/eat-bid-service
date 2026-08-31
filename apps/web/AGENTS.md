@@ -17,7 +17,7 @@
 - 목표 모듈 경계와 의존 방향은 [ADR 0023](../../docs/adr/0023-nextjs-web-modular-boundaries.md)과
   [Frontend application foundation](../../docs/architecture/frontend-application-foundation.md)을 따른다.
 - 현재 manifest는 Next.js `16.2.12`, React `19.2.4`, TypeScript `5.7.2`다. EAT-9에서 검증할 정확한
-  upgrade target은 Next.js `16.3.3`, React/React DOM `19.2.8`, TypeScript `5.9.3`이다. Tailwind는
+  upgrade target은 Next.js `16.3.4`, React/React DOM `19.2.8`, TypeScript `5.9.3`이다. Tailwind는
   v5를 가정하지 않고 현재 stable v4 lane을 유지한다.
 - 모노레포 package manager는 루트 `package.json`에 고정된 `pnpm 10.12.1`이다. 앱 내부
   script가 Bun 명령을 호출하더라도 workspace 설치·실행 계약을 Bun으로 바꾸지 않는다.
@@ -59,6 +59,9 @@
 
 ## 화면과 코드
 
+- eatbid Web은 한국어 프로젝트다. 사람이 읽는 문서·화면 문구·테스트명·커밋 메시지·이유 주석과
+  에이전트 작업 보고는 한국어를 기본으로 한다. 코드 식별자, 라이브러리 고유명, 명령과 외부 원문만
+  정확성을 위해 필요한 범위에서 영문을 유지한다.
 - 한 화면의 1차 질문과 주 행동은 하나로 유지한다.
 - 확정 사실을 먼저, 직접 비교를 다음에, 원자료·산식·revision을 상세 단계에 둔다.
 - 상태는 색만으로 전달하지 않고 텍스트를 함께 제공한다.
