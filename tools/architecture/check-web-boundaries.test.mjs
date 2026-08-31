@@ -484,3 +484,56 @@ test("Response bracket decoder와 prototype call apply bind bypass를 거부한�
   assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 2);
   assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
 });
+
+test("dynamic transport specifier의 const template concat unknown segment를 fail-closed로 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "const browser = 'browser-request' as const; const segment = 'server-request.server' as const; declare const unknown: string; export const template = () => import(`@/api/_transport/${browser}`); export const concat = () => import('@/api/_transport/' + segment); export const partial = () => import(`@/api/_transport/${unknown}`); export const contract = () => import('@eatbid/contracts/api/v1/auctions');\n",
+    "apps/web/src/api/_transport/browser-request.ts": "export const browserRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/server-request.server.ts": "export const serverRequest = () => undefined;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
+});
+
+test("manual DTO provenance는 local type query class callable parameter와 object builtin을 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "export type { TypeofResponse } from './typeof'; export type { ClassResponse } from './class'; export type { CallableResponse } from './callable'; export type { ParameterResponse } from './parameter'; export type { IndexedResponse } from './indexed'; export type { KeyofResponse } from './keyof'; export type { ConditionalResponse } from './conditional'; export type { UrlResponse } from './url'; export type { MapResponse } from './map'; export type { SetResponse } from './set'; export type { NativeResponse } from './native-response'; export type { PrimitiveResponse } from './primitive'; export type { DateResponse } from './date'; export type { ContractResponse } from './contract';\n",
+    "apps/web/src/api/auctions/typeof.ts": "const local = { id: 'a' }; export type TypeofResponse = typeof local;\n",
+    "apps/web/src/api/auctions/class.ts": "class Local { id = 'a'; } export type ClassResponse = Local;\n",
+    "apps/web/src/api/auctions/callable.ts": "type Callable = () => { id: string }; export type CallableResponse = Callable;\n",
+    "apps/web/src/api/auctions/parameter.ts": "export type ParameterResponse<T> = T;\n",
+    "apps/web/src/api/auctions/indexed.ts": "type Local = { id: string }; export type IndexedResponse = Local[keyof Local];\n",
+    "apps/web/src/api/auctions/keyof.ts": "type Local = { id: string }; export type KeyofResponse = keyof Local;\n",
+    "apps/web/src/api/auctions/conditional.ts": "type Local = { id: string }; type PickLocal<T> = T extends string ? Local : Date; export type ConditionalResponse = PickLocal<string>;\n",
+    "apps/web/src/api/auctions/url.ts": "export type UrlResponse = URL;\n",
+    "apps/web/src/api/auctions/map.ts": "export type MapResponse = Map<string, string>;\n",
+    "apps/web/src/api/auctions/set.ts": "export type SetResponse = Set<string>;\n",
+    "apps/web/src/api/auctions/native-response.ts": "export type NativeResponse = Response;\n",
+    "apps/web/src/api/auctions/primitive.ts": "export type PrimitiveResponse = string;\n",
+    "apps/web/src/api/auctions/date.ts": "export type DateResponse = Date;\n",
+    "apps/web/src/api/auctions/contract.ts": "import type { AuctionResponse } from '@eatbid/contracts/api/v1/auctions'; export type ContractResponse = AuctionResponse;\n",
+    "node_modules/@eatbid/contracts/package.json": "{\"name\":\"@eatbid/contracts\",\"exports\":{\"./api/v1/auctions\":\"./api/v1/auctions.ts\"}}\n",
+    "node_modules/@eatbid/contracts/api/v1/auctions.ts": "export interface AuctionResponse { id: string }\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").map((finding) => finding.path).sort(), [
+    "apps/web/src/api/auctions/callable.ts", "apps/web/src/api/auctions/class.ts", "apps/web/src/api/auctions/conditional.ts", "apps/web/src/api/auctions/indexed.ts", "apps/web/src/api/auctions/keyof.ts", "apps/web/src/api/auctions/map.ts", "apps/web/src/api/auctions/native-response.ts", "apps/web/src/api/auctions/parameter.ts", "apps/web/src/api/auctions/set.ts", "apps/web/src/api/auctions/typeof.ts", "apps/web/src/api/auctions/url.ts",
+  ]);
+});
+
+test("endpoint static evaluator는 const assertion satisfies concat과 arithmetic span을 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "const one = 1 as const; const base = '/api/v' satisfies string; export const asserted = `${base}${one}/auctions`; export const concat = '/api/' + ('v2' as const) + '/auctions'; export const arithmetic = `/api/v${1 + 2}/auctions`; export const unknown = (part: string) => `/api/v${part}/auctions`;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 3);
+});
+
+test("Response syntax normalization은 wrapped const key global prototype와 bracket apply를 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "const key = 'json' as const; const parser = { json: () => 1 }; export function load(response: Response, value: unknown) { parser[key](); return [(response['json'])(), response[key](), (Response.prototype.json).call(response), globalThis.Response.prototype.text.call(response), Response.prototype.json['apply'](response), (Response.prototype.text.bind(response))(), Response.prototype.text.call(value)]; }\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 4);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
+});
