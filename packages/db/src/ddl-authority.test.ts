@@ -171,7 +171,9 @@ describe("migration image 계약", () => {
     expect(dockerfile).toContain("pnpm install --frozen-lockfile");
     expect(dockerfile).toContain("pnpm --filter @eatbid/db build");
     expect(dockerfile).toContain("pnpm --filter @eatbid/db deploy --prod");
-    expect(dockerfile).toContain("COPY --from=build /runtime");
+    expect(dockerfile).toContain(
+      "COPY --from=build --chown=65532:65532 /runtime",
+    );
   });
 
   test("commit된 migration chain을 포함하고 compile entrypoint를 non-root로 실행한다", () => {
@@ -180,6 +182,7 @@ describe("migration image 계약", () => {
     expect(dockerfile).toContain("packages/db/drizzle");
     expect(dockerfile).not.toContain("schema.sql");
     expect(dockerfile).toMatch(/^USER\s+(?!root\b)\S+/m);
-    expect(dockerfile).toContain('CMD ["node", "dist/migrate.js"]');
+    expect(dockerfile).toContain('ENTRYPOINT ["/nodejs/bin/node"]');
+    expect(dockerfile).toContain('CMD ["dist/migrate.js"]');
   });
 });

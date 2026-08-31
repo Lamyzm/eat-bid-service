@@ -1,11 +1,11 @@
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58 AS build
+FROM ghcr.io/astral-sh/uv:python3.12-alpine@sha256:e2156509b8592cb4a74d73ba068fd45c95ec571333effc819f3ac25101147fb1 AS build
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.12-slim-bookworm@sha256:0f5b26b9518d002b6173fd61daad821fa340635ebfec5bba471013f9ca114579 AS runtime
+FROM python:3.12-alpine3.23@sha256:31a768b01976652c222e318fe5bd6e7c252f056cbf489c88fa256f1bf0af58e3 AS runtime
 
 ARG GIT_SHA=unknown
 LABEL org.opencontainers.image.revision=$GIT_SHA
@@ -15,8 +15,9 @@ ENV BUILD_SHA=$GIT_SHA \
     PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
-RUN groupadd --system --gid 1001 eatbid \
-    && useradd --system --uid 1001 --gid eatbid eatbid
+RUN apk upgrade --no-cache \
+    && addgroup -S -g 1001 eatbid \
+    && adduser -S -D -H -u 1001 -G eatbid eatbid
 COPY --from=build --chown=eatbid:eatbid /app/.venv ./.venv
 
 USER eatbid
