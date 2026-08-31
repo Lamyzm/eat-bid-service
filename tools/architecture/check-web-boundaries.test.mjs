@@ -293,14 +293,14 @@ test("source-derived fingerprint은 같은 category 편집과 duplicate group �
 test("transport import은 exact owner와 ContractRequest type-only form만 허용한다", async () => {
   const report = await inspect({
     "apps/web/src/api/auctions/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; void browserRequest;\n",
-    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request'; void serverRequest;\n",
+    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request.server'; void serverRequest;\n",
     "apps/web/src/api/auctions/whole.ts": "import type { ContractRequest } from '@/api/_transport/request-contract'; export type Whole = ContractRequest;\n",
     "apps/web/src/api/auctions/specifier.ts": "import { type ContractRequest } from '@/api/_transport/request-contract'; export type Specifier = ContractRequest;\n",
     "apps/web/src/api/auctions/bad.ts": "export { browserRequest } from '@/api/_transport/browser-request'; import { ContractRequest, other } from '@/api/_transport/request-contract'; import { anything } from '@/api/_transport/private'; void ContractRequest; void other; void anything;\n",
     "apps/web/src/api/orders/index.ts": "import type { browserRequest } from '@/api/_transport/browser-request'; export type Browser = typeof browserRequest;\n",
-    "apps/web/src/api/orders/server.ts": "import { type serverRequest } from '@/api/_transport/server-request'; export type Server = typeof serverRequest;\n",
+    "apps/web/src/api/orders/server.ts": "import { type serverRequest } from '@/api/_transport/server-request.server'; export type Server = typeof serverRequest;\n",
     "apps/web/src/api/_transport/browser-request.ts": "export const browserRequest = () => undefined;\n",
-    "apps/web/src/api/_transport/server-request.ts": "export const serverRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/server-request.server.ts": "export const serverRequest = () => undefined;\n",
     "apps/web/src/api/_transport/request-contract.ts": "export interface ContractRequest {} export const other = 1;\n",
     "apps/web/src/api/_transport/private.ts": "export const anything = 1;\n",
   });
@@ -341,13 +341,13 @@ test("local alias와 generic wrapper manual DTO는 막고 contract alias는 허�
 test("transport ownership은 exact resource와 transport path만 허용한다", async () => {
   const report = await inspect({
     "apps/web/src/api/auctions/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; void browserRequest;\n",
-    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request'; void serverRequest;\n",
+    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request.server'; void serverRequest;\n",
     "apps/web/src/api/auctions/operation.ts": "import type { ContractRequest } from '@/api/_transport/request-contract'; export type Request = ContractRequest;\n",
     "apps/web/src/api/auctions/internal/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; void browserRequest;\n",
-    "apps/web/src/api/auctions/internal/server.ts": "import { serverRequest } from '@/api/_transport/server-request'; void serverRequest;\n",
+    "apps/web/src/api/auctions/internal/server.ts": "import { serverRequest } from '@/api/_transport/server-request.server'; void serverRequest;\n",
     "apps/web/src/api/auctions/nested.ts": "import { browserRequest } from '@/api/_transport/internal/browser-request'; void browserRequest;\n",
     "apps/web/src/api/_transport/browser-request.ts": "export const browserRequest = () => undefined;\n",
-    "apps/web/src/api/_transport/server-request.ts": "export const serverRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/server-request.server.ts": "export const serverRequest = () => undefined;\n",
     "apps/web/src/api/_transport/request-contract.ts": "export interface ContractRequest {}\n",
     "apps/web/src/api/_transport/internal/browser-request.ts": "export const browserRequest = () => undefined;\n",
   });
@@ -421,4 +421,66 @@ test("duplicate baseline은 member subset cleanup을 허용하고 content 또는
   } finally {
     rmSync(subject.root, { recursive: true, force: true });
   }
+});
+
+test("server transport는 canonical server-request.server.ts만 resource server에 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request.server'; void serverRequest;\n",
+    "apps/web/src/api/orders/server.ts": "import { serverRequest } from '@/api/_transport/server-request'; void serverRequest;\n",
+    "apps/web/src/api/orders/index.ts": "import { serverRequest } from '@/api/_transport/server-request.server'; void serverRequest;\n",
+    "apps/web/src/api/_transport/server-request.server.ts": "export const serverRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/server-request.ts": "export const serverRequest = () => undefined;\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").map((finding) => finding.path).sort(), [
+    "apps/web/src/api/orders/index.ts",
+    "apps/web/src/api/orders/server.ts",
+  ]);
+});
+
+test("dynamic import transport는 resource와 외부 consumer에서 거부하고 contract import은 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "export const browser = () => import('@/api/_transport/browser-request');\n",
+    "apps/web/src/api/auctions/operation.ts": "export const contract = () => import('@/api/_transport/request-contract');\n",
+    "apps/web/src/capabilities/search/view.ts": "export const bypass = () => import('@/api/_transport/browser-request');\n",
+    "apps/web/src/api/auctions/contract.ts": "export const operation = () => import('@eatbid/contracts/api/v1/auctions');\n",
+    "apps/web/src/api/_transport/browser-request.ts": "export const browserRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/request-contract.ts": "export interface ContractRequest {}\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
+});
+
+test("resolved TypeScript contract와 builtin object utility DTO provenance를 구분한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "export type { LiveResponse } from './live-contract'; export type { RecordResponse } from './record'; export type { PromiseResponse } from './promise'; export type { DateResponse } from './date';\n",
+    "apps/web/src/api/auctions/live-contract.ts": "import type { LiveAuctionResponse } from '@eatbid/contracts/api/v1/live'; export type LiveResponse = LiveAuctionResponse;\n",
+    "apps/web/src/api/auctions/record.ts": "export type RecordResponse = Record<string, string>;\n",
+    "apps/web/src/api/auctions/promise.ts": "type Local = { id: string }; export type PromiseResponse = Promise<Local>;\n",
+    "apps/web/src/api/auctions/date.ts": "export type DateResponse = Date;\n",
+    "node_modules/@eatbid/contracts/package.json": "{\"name\":\"@eatbid/contracts\",\"exports\":{\"./api/v1/live\":\"./api/v1/live.ts\"}}\n",
+    "node_modules/@eatbid/contracts/api/v1/live.ts": "export interface LiveAuctionResponse { id: string }\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").map((finding) => finding.path).sort(), [
+    "apps/web/src/api/auctions/promise.ts",
+    "apps/web/src/api/auctions/record.ts",
+  ]);
+});
+
+test("endpoint template의 static version expression만 canonical literal로 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "export const numeric = `/api/v${1}/auctions`; export const string = `/api/${'v1'}/auctions`; export const dynamic = (version: string) => `/api/v${version}/auctions`; export const unrelated = (value: string) => `prefix/${value}`;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 2);
+});
+
+test("Response bracket decoder와 prototype call apply bind bypass를 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "class CustomResponse extends Response {} const parser = { ['json']: () => 1, text: () => 2 }; export function load(response: CustomResponse | (Response & {}), value: unknown) { parser['json'](); parser.text(); return [response['json'](), Response.prototype.text.call(response), Response.prototype.json.apply(response), Response.prototype.text.bind(response)(), Response.prototype.text.call(value)]; }\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 2);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
 });

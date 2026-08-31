@@ -51,7 +51,8 @@ function add(findings, root, rule, file, node, sourceFile, reason, members, evid
 }
 
 function reference(node) {
-  return (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier) ? node.moduleSpecifier.text : undefined;
+  if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) return node.moduleSpecifier.text;
+  return ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments.length === 1 && ts.isStringLiteralLike(node.arguments[0]) ? node.arguments[0].text : undefined;
 }
 
 function isModuleSpecifierLiteral(node) {
@@ -62,7 +63,20 @@ function isModuleSpecifierLiteral(node) {
 
 function endpointLiteralText(node) {
   if (ts.isStringLiteralLike(node)) return node.text;
-  if (ts.isTemplateExpression(node)) return `${node.head.text}${node.templateSpans.map((span) => span.literal.text).join("")}`;
+  if (ts.isTemplateExpression(node)) return `${node.head.text}${node.templateSpans.map((span) => `${staticPrimitiveText(span.expression) ?? "\u0000"}${span.literal.text}`).join("")}`;
+  return undefined;
+}
+
+function staticPrimitiveText(node) {
+  if (ts.isStringLiteralLike(node) || ts.isNumericLiteral(node)) return node.text;
+  if (node.kind === ts.SyntaxKind.TrueKeyword) return "true";
+  if (node.kind === ts.SyntaxKind.FalseKeyword) return "false";
+  if (node.kind === ts.SyntaxKind.NullKeyword) return "null";
+  if (ts.isParenthesizedExpression(node)) return staticPrimitiveText(node.expression);
+  if (ts.isPrefixUnaryExpression(node) && [ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken].includes(node.operator)) {
+    const operand = staticPrimitiveText(node.operand);
+    return operand === undefined ? undefined : `${node.operator === ts.SyntaxKind.MinusToken ? "-" : ""}${operand}`;
+  }
   return undefined;
 }
 
@@ -97,13 +111,27 @@ function hasDomResponseBase(checker, node) {
   return typeHasDomResponseBase(checker, type);
 }
 
-function isResponseDecoder(checker, node) {
-  if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression) || !responseBodyMethods.has(node.expression.name.text)) return false;
-  return hasDomResponseBase(checker, node.expression.expression);
+function decoderAccess(node) {
+  if (ts.isPropertyAccessExpression(node) && responseBodyMethods.has(node.name.text)) return { name: node.name.text, receiver: node.expression };
+  if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && responseBodyMethods.has(node.argumentExpression.text)) return { name: node.argumentExpression.text, receiver: node.expression };
+  return undefined;
+}
+
+function isDomResponsePrototype(checker, node) {
+  return ts.isPropertyAccessExpression(node) && node.name.text === "prototype" && ts.isIdentifier(node.expression) && isDomSymbol(resolvedSymbol(checker, node.expression), "Response");
+}
+
+function responseDecoder(checker, node) {
+  if (!ts.isCallExpression(node)) return undefined;
+  const direct = decoderAccess(node.expression);
+  if (direct && hasDomResponseBase(checker, direct.receiver)) return direct.name;
+  if (!ts.isPropertyAccessExpression(node.expression) || !["call", "apply", "bind"].includes(node.expression.name.text) || !node.arguments.length) return undefined;
+  const prototypeMethod = decoderAccess(node.expression.expression);
+  return prototypeMethod && isDomResponsePrototype(checker, prototypeMethod.receiver) && hasDomResponseBase(checker, node.arguments[0]) ? prototypeMethod.name : undefined;
 }
 
 function isResponseJsonCast(checker, node) {
-  return ts.isAsExpression(node) && ts.isCallExpression(node.expression) && ts.isPropertyAccessExpression(node.expression.expression) && node.expression.expression.name.text === "json" && isResponseDecoder(checker, node.expression);
+  return ts.isAsExpression(node) && responseDecoder(checker, node.expression) === "json";
 }
 
 function identifierArgument(checker, node) {
@@ -115,40 +143,46 @@ function identifierArgument(checker, node) {
   return /(?:^|\W)[A-Za-z_$][\w$]*Id(?:\W|$)/.test(checker.typeToString(type)) || /Id$/.test(type.getSymbol()?.getName() ?? "");
 }
 
-function isLocalDeclaration(declaration) {
-  return !declaration.getSourceFile().isDeclarationFile;
+function isContractDeclaration(root, declaration) {
+  const declarationPath = display(root, declaration.getSourceFile().fileName);
+  return declarationPath.startsWith("packages/contracts/src/api/") || /(?:^|\/)node_modules\/@eatbid\/contracts(?:\/|$)/.test(declarationPath);
 }
 
-function manualTypeNode(checker, node, seenDeclarations = new Set(), seenNodes = new Set()) {
+function isBuiltinDeclaration(declaration) {
+  return declaration.getSourceFile().isDeclarationFile && /^lib\..*\.d\.ts$/i.test(path.basename(declaration.getSourceFile().fileName));
+}
+
+function manualTypeNode(root, checker, node, seenDeclarations = new Set(), seenNodes = new Set()) {
   if (!node || seenNodes.has(node)) return false;
   seenNodes.add(node);
   if (ts.isTypeLiteralNode(node) || ts.isMappedTypeNode(node) || ts.isTupleTypeNode(node) || ts.isArrayTypeNode(node)) return true;
-  if (ts.isParenthesizedTypeNode(node) || ts.isTypeOperatorNode(node) || ts.isRestTypeNode(node) || ts.isOptionalTypeNode(node)) return manualTypeNode(checker, node.type, seenDeclarations, seenNodes);
-  if (ts.isUnionTypeNode(node) || ts.isIntersectionTypeNode(node)) return node.types.some((type) => manualTypeNode(checker, type, seenDeclarations, seenNodes));
-  if (ts.isIndexedAccessTypeNode(node)) return manualTypeNode(checker, node.objectType, seenDeclarations, seenNodes) || manualTypeNode(checker, node.indexType, seenDeclarations, seenNodes);
-  if (ts.isConditionalTypeNode(node)) return [node.checkType, node.extendsType, node.trueType, node.falseType].some((type) => manualTypeNode(checker, type, seenDeclarations, seenNodes));
+  if (ts.isParenthesizedTypeNode(node) || ts.isTypeOperatorNode(node) || ts.isRestTypeNode(node) || ts.isOptionalTypeNode(node)) return manualTypeNode(root, checker, node.type, seenDeclarations, seenNodes);
+  if (ts.isUnionTypeNode(node) || ts.isIntersectionTypeNode(node)) return node.types.some((type) => manualTypeNode(root, checker, type, seenDeclarations, seenNodes));
+  if (ts.isIndexedAccessTypeNode(node)) return manualTypeNode(root, checker, node.objectType, seenDeclarations, seenNodes) || manualTypeNode(root, checker, node.indexType, seenDeclarations, seenNodes);
+  if (ts.isConditionalTypeNode(node)) return [node.checkType, node.extendsType, node.trueType, node.falseType].some((type) => manualTypeNode(root, checker, type, seenDeclarations, seenNodes));
   if (!ts.isTypeReferenceNode(node)) return false;
-  if (node.typeArguments?.some((argument) => manualTypeNode(checker, argument, seenDeclarations, seenNodes))) return true;
+  if (node.typeArguments?.some((argument) => manualTypeNode(root, checker, argument, seenDeclarations, seenNodes))) return true;
   const symbol = resolvedSymbol(checker, node.typeName);
-  return (symbol?.declarations ?? []).some((declaration) => manualDeclaration(checker, declaration, seenDeclarations, seenNodes));
+  if (symbol?.getName() === "Record") return true;
+  return (symbol?.declarations ?? []).some((declaration) => manualDeclaration(root, checker, declaration, seenDeclarations, seenNodes));
 }
 
-function manualDeclaration(checker, declaration, seenDeclarations = new Set(), seenNodes = new Set()) {
-  if (seenDeclarations.has(declaration) || !isLocalDeclaration(declaration)) return false;
+function manualDeclaration(root, checker, declaration, seenDeclarations = new Set(), seenNodes = new Set()) {
+  if (seenDeclarations.has(declaration) || isContractDeclaration(root, declaration) || isBuiltinDeclaration(declaration)) return false;
   seenDeclarations.add(declaration);
   if (ts.isInterfaceDeclaration(declaration)) return true;
-  if (ts.isTypeAliasDeclaration(declaration)) return manualTypeNode(checker, declaration.type, seenDeclarations, seenNodes);
+  if (ts.isTypeAliasDeclaration(declaration)) return manualTypeNode(root, checker, declaration.type, seenDeclarations, seenNodes);
   return false;
 }
 
-function exportedManualDtos(checker, sourceFile) {
+function exportedManualDtos(root, checker, sourceFile) {
   const module = checker.getSymbolAtLocation(sourceFile);
   if (!module) return [];
   const declarations = [];
   for (const exported of checker.getExportsOfModule(module)) {
     if (!/(?:Response|Dto)$/i.test(exported.getName())) continue;
     const target = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
-    for (const declaration of target.declarations ?? []) if (manualDeclaration(checker, declaration)) declarations.push(declaration);
+    for (const declaration of target.declarations ?? []) if (manualDeclaration(root, checker, declaration)) declarations.push(declaration);
   }
   return [...new Set(declarations)];
 }
@@ -172,15 +206,17 @@ function resourceFile(root, file) {
 }
 
 function transportViolation(root, layer, file, target, node) {
-  if (layer?.layer !== "api" || !layer.slice || layer.slice === "_transport" || !target) return undefined;
+  if (!target) return undefined;
   const targetPath = display(root, target);
   if (!targetPath.startsWith("apps/web/src/api/_transport/")) return undefined;
+  if (layer?.layer === "api" && layer.slice === "_transport") return undefined;
   const source = resourceFile(root, file);
-  const isResourceIndex = source?.[1] === layer.slice && source[2] === "index.ts";
-  const isResourceServer = source?.[1] === layer.slice && source[2] === "server.ts";
-  const isOperation = source?.[1] === layer.slice && !["index.ts", "server.ts"].includes(source[2]);
+  const isResource = layer?.layer === "api" && layer.slice && layer.slice !== "_transport" && source?.[1] === layer.slice;
+  const isResourceIndex = isResource && source[2] === "index.ts";
+  const isResourceServer = isResource && source[2] === "server.ts";
+  const isOperation = isResource && !["index.ts", "server.ts"].includes(source[2]);
   if (targetPath === "apps/web/src/api/_transport/browser-request.ts") return isResourceIndex && exactRuntimeNamedImport(node, "browserRequest") ? undefined : "browser-request는 exact resource index.ts의 exact runtime import만 허용합니다.";
-  if (targetPath === "apps/web/src/api/_transport/server-request.ts") return isResourceServer && exactRuntimeNamedImport(node, "serverRequest") ? undefined : "server-request는 exact resource server.ts의 exact runtime import만 허용합니다.";
+  if (targetPath === "apps/web/src/api/_transport/server-request.server.ts") return isResourceServer && exactRuntimeNamedImport(node, "serverRequest") ? undefined : "server-request.server는 exact resource server.ts의 exact runtime import만 허용합니다.";
   if (targetPath === "apps/web/src/api/_transport/request-contract.ts") return isOperation && exactContractRequestTypeImport(node) ? undefined : "resource operation은 exact ContractRequest만 exact type-only import할 수 있습니다.";
   return "resource는 승인되지 않은 api/_transport module을 import 또는 re-export할 수 없습니다.";
 }
@@ -210,7 +246,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
     }
     const layer = sourceLayer(file);
     if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.", undefined, normalized);
-    if (layer?.layer === "api") for (const declaration of exportedManualDtos(checker, sourceFile)) {
+    if (layer?.layer === "api") for (const declaration of exportedManualDtos(root, checker, sourceFile)) {
       const declarationFile = declaration.getSourceFile();
       const key = `${declarationFile.fileName}\0${declaration.getStart(declarationFile)}`;
       if (!manualDeclarations.has(key)) {
@@ -235,7 +271,10 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
       if (endpoint !== undefined && !isEndpointAuthorityPath(root, file) && !isModuleSpecifierLiteral(node) && /\/api\/v\d+(?:\/|$)/.test(endpoint)) add(findings, root, WEB_BOUNDARY_RULES.API_ENDPOINT_LITERAL, file, node, sourceFile, "canonical /api/vN path literal은 operation contract 밖에서 중복할 수 없습니다.");
       if (!isTransportPath(file) && isGlobalFetch(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.RAW_FETCH, file, node, sourceFile, "raw fetch는 src/api/_transport에서만 수행할 수 있습니다.");
       if (!isTransportPath(file) && isResponseJsonCast(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.UNCHECKED_JSON_CAST, file, node, sourceFile, "Response.json() as는 runtime contract parsing을 우회합니다.");
-      else if (!isTransportPath(file) && isResponseDecoder(checker, node) && (!node.parent || !ts.isAsExpression(node.parent))) add(findings, root, node.expression.name.text === "json" ? WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_JSON : WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_BODY, file, node, sourceFile, "Response body decode는 api/_transport 밖에서 수행할 수 없습니다.");
+      else if (!isTransportPath(file)) {
+        const decoder = responseDecoder(checker, node);
+        if (decoder && (!node.parent || !ts.isAsExpression(node.parent))) add(findings, root, decoder === "json" ? WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_JSON : WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_BODY, file, node, sourceFile, "Response body decode는 api/_transport 밖에서 수행할 수 없습니다.");
+      }
       if (identifierArgument(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.ID_NUMBER_CONVERSION, file, node, sourceFile, "contract identifier를 Number 또는 parseInt로 변환하면 bigint 정밀도를 잃을 수 있습니다.");
       ts.forEachChild(node, visit);
     };
