@@ -22,6 +22,7 @@ export interface ContractRequest {
     body?: OperationBodyInput<Operation>;
     signal?: AbortSignal;
   }): Promise<OperationSuccess<Operation>>;
+  readonly isProblem: (error: unknown) => error is HttpProblemError;
 }
 
 export interface ContractRequestOptions {
@@ -88,29 +89,34 @@ async function parseFailure(operation: PublicHttpOperation, response: Response):
 }
 
 export function createContractRequest(options: ContractRequestOptions): ContractRequest {
-  return async <Operation extends PublicHttpOperation>(input: {
-    operation: Operation;
-    path: OperationPathInput<Operation>;
-    query?: OperationQueryInput<Operation>;
-    body?: OperationBodyInput<Operation>;
-    signal?: AbortSignal;
-  }): Promise<OperationSuccess<Operation>> => {
-    const relativePath = input.operation.buildPath({ path: input.path, query: input.query });
-    const body = requestBody(input.operation, input.body);
-    const response = await options.fetch(requestTarget(relativePath, options.resolveOrigin), {
-      method: input.operation.method.toUpperCase(),
-      headers:
-        body === undefined
-          ? { accept: 'application/json, application/problem+json' }
-          : {
-              accept: 'application/json, application/problem+json',
-              'content-type': 'application/json'
-            },
-      body,
-      signal: input.signal
-    });
-    return response.ok
-      ? parseSuccess(input.operation, response)
-      : parseFailure(input.operation, response);
-  };
+  return Object.assign(
+    async <Operation extends PublicHttpOperation>(input: {
+      operation: Operation;
+      path: OperationPathInput<Operation>;
+      query?: OperationQueryInput<Operation>;
+      body?: OperationBodyInput<Operation>;
+      signal?: AbortSignal;
+    }): Promise<OperationSuccess<Operation>> => {
+      const relativePath = input.operation.buildPath({ path: input.path, query: input.query });
+      const body = requestBody(input.operation, input.body);
+      const response = await options.fetch(requestTarget(relativePath, options.resolveOrigin), {
+        method: input.operation.method.toUpperCase(),
+        headers:
+          body === undefined
+            ? { accept: 'application/json, application/problem+json' }
+            : {
+                accept: 'application/json, application/problem+json',
+                'content-type': 'application/json'
+              },
+        body,
+        signal: input.signal
+      });
+      return response.ok
+        ? parseSuccess(input.operation, response)
+        : parseFailure(input.operation, response);
+    },
+    {
+      isProblem: (error: unknown): error is HttpProblemError => error instanceof HttpProblemError
+    }
+  );
 }

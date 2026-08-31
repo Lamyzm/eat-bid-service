@@ -78,6 +78,8 @@ describe('계약 검증 HTTP transport', () => {
       code: 'AUCTION_NOT_FOUND',
       requestId: 'request-404'
     });
+    expect(request.isProblem(error)).toBe(true);
+    expect(request.isProblem(new Error('일반 오류'))).toBe(false);
   });
 
   test('잘못되거나 JSON이 아닌 non-2xx는 원문을 노출하지 않는 status 오류가 된다', async () => {

@@ -66,6 +66,15 @@ test("공개 API resource index와 server import는 허용한다", async () => {
   assert.equal(report.unmatchedFindings.length, 0);
 });
 
+test("contracts의 src/api 경로를 Web API resource로 오인하지 않는다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "import { operation } from '../../../../../packages/contracts/src/api/v1/auctions'; void operation;\n",
+    "packages/contracts/src/api/v1/auctions/index.ts": "export const operation = {};\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings, []);
+});
+
 test("browser transport의 server 전용 import와 server transport의 browser import를 거부한다", async () => {
   const report = await inspect({
     "apps/web/src/api/_transport/browser-request.ts": "export { serverRequest } from './server-request.server';\n",

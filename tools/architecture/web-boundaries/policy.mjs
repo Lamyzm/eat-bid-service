@@ -54,7 +54,8 @@ export function isTypeScriptSource(file) {
 export function sourceLayer(sourcePath) {
   const raw = sourcePath.replaceAll("\\", "/");
   const normalized = raw.endsWith("/") ? raw : `${raw}/`;
-  const match = normalized.match(/\/src\/(shell|capabilities|api)(?:\/([^/]+))?\//);
+  // contracts나 다른 package의 src/api를 Web resource로 분류하지 않도록 Web root를 함께 고정한다.
+  const match = normalized.match(/(?:^|\/)apps\/web\/src\/(shell|capabilities|api)(?:\/([^/]+))?\//);
   if (!match) return undefined;
   return { layer: match[1], slice: match[2] };
 }
