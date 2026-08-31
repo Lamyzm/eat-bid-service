@@ -29,7 +29,7 @@ function actions(onSelect: (id: string) => void): CommandPaletteAction[] {
   ];
 }
 
-describe('CommandPaletteRoot', () => {
+describe('명령 검색창', () => {
   test('검색 trigger와 Cmd/Ctrl+K로 열고 닫을 수 있다', async () => {
     const screen = render(
       <CommandPaletteRoot actions={actions(() => undefined)}>

@@ -158,6 +158,21 @@ test("typed route와 annotation mode가 없는 Next 설정을 거부한다", () 
   });
 });
 
+test("Sentry component annotation을 React Compiler annotation mode로 오인하지 않는다", () => {
+  withFixture({
+    nextConfig: `
+const baseConfig = { typedRoutes: true, reactCompiler: true };
+const sentryOptions = {
+  webpack: { reactComponentAnnotation: { enabled: true } }
+};
+export default withSentryConfig(baseConfig, sentryOptions);
+`,
+  }, ({ status, output }) => {
+    assert.equal(status, 1);
+    assert.match(output, /compilationMode.*annotation/);
+  });
+});
+
 test("검토하지 않은 Cache Components와 Rust compiler 활성화를 거부한다", () => {
   withFixture({
     nextConfig: `
