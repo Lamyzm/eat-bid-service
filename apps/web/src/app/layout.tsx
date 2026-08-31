@@ -1,9 +1,9 @@
-import Providers from '@/components/layout/providers';
 import { Toaster } from '@/components/ui/sonner';
-import { fontVariables } from '@/components/themes/font.config';
-import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
-import ThemeProvider from '@/components/themes/theme-provider';
-import { cn } from '@/lib/utils';
+import { AppProviders } from '@/shell/providers/app-providers';
+import { fontVariables } from '@/shell/theme/font.config';
+import { ACTIVE_THEME_COOKIE_NAME, DEFAULT_THEME, isThemeValue } from '@/shell/theme/theme.config';
+import { ThemeProvider } from '@/shell/theme/theme-provider';
+import { cn } from '@/shared/lib/cn';
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import NextTopLoader from 'nextjs-toploader';
@@ -44,9 +44,8 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const activeThemeValue = cookieStore.get('active_theme')?.value;
-  const isValidTheme = THEMES.some((t) => t.value === activeThemeValue);
-  const themeToApply = isValidTheme ? activeThemeValue! : DEFAULT_THEME;
+  const activeThemeValue = cookieStore.get(ACTIVE_THEME_COOKIE_NAME)?.value;
+  const themeToApply = isThemeValue(activeThemeValue) ? activeThemeValue : DEFAULT_THEME;
 
   return (
     <html lang='ko' suppressHydrationWarning data-theme={themeToApply}>
@@ -63,8 +62,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             `
           }}
         />
-        <link rel="stylesheet" as="style" crossOrigin="anonymous"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+        <link
+          rel='stylesheet'
+          as='style'
+          crossOrigin='anonymous'
+          href='https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css'
+        />
       </head>
       <body
         className={cn(
@@ -81,10 +84,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             disableTransitionOnChange
             enableColorScheme
           >
-            <Providers activeThemeValue={themeToApply}>
+            <AppProviders activeThemeValue={themeToApply}>
               <Toaster />
               {children}
-            </Providers>
+            </AppProviders>
           </ThemeProvider>
         </NuqsAdapter>
       </body>

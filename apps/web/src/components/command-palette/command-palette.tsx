@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import { useTheme } from 'next-themes';
-import { useThemeConfig } from '@/components/themes/active-theme';
-import { THEMES } from '@/components/themes/theme.config';
+import { useThemeConfig } from '@/shell/theme/active-theme';
+import { THEMES } from '@/shell/theme/theme.config';
 import {
   Command,
   CommandDialog,
@@ -47,7 +47,8 @@ function navigationItemActions(
             onSelect: () => navigate(item.url)
           }
         ];
-  const childActions = item.items?.flatMap((child) => navigationItemActions(child, item.title, navigate)) ?? [];
+  const childActions =
+    item.items?.flatMap((child) => navigationItemActions(child, item.title, navigate)) ?? [];
   return [...ownAction, ...childActions];
 }
 
@@ -81,7 +82,8 @@ export function CommandPaletteRoot({
   const returnFocusRef = useRef<HTMLElement | null>(null);
 
   const openPalette = useCallback(() => {
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setOpen(true);
   }, []);
 
@@ -141,7 +143,9 @@ export function CommandPaletteRoot({
                     <span className='flex min-w-0 flex-col'>
                       <span>{action.label}</span>
                       {action.description ? (
-                        <span className='truncate text-xs text-muted-foreground'>{action.description}</span>
+                        <span className='truncate text-xs text-muted-foreground'>
+                          {action.description}
+                        </span>
                       ) : null}
                     </span>
                     {action.shortcut?.length ? (

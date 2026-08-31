@@ -1,6 +1,7 @@
 'use client';
 
-import { useThemeConfig } from '@/components/themes/active-theme';
+import { Icons } from '@/components/icons';
+import { Kbd } from '@/components/ui/kbd';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -11,9 +12,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-
-import { Icons } from '../icons';
-import { Kbd } from '@/components/ui/kbd';
+import { useThemeConfig } from './active-theme';
 import { THEMES } from './theme.config';
 
 export function ThemeSelector() {
@@ -22,7 +21,7 @@ export function ThemeSelector() {
   return (
     <div className='flex items-center gap-2'>
       <Label htmlFor='theme-selector' className='sr-only'>
-        Theme
+        색상 테마
       </Label>
       <Select
         items={THEMES.map((theme) => ({ value: theme.value, label: theme.name }))}
@@ -38,23 +37,19 @@ export function ThemeSelector() {
           <span className='text-muted-foreground hidden sm:block'>
             <Icons.palette />
           </span>
-          <span className='text-muted-foreground block sm:hidden'>Theme</span>
-          <SelectValue placeholder='Select a theme' />
+          <span className='text-muted-foreground block sm:hidden'>테마</span>
+          <SelectValue placeholder='색상 테마 선택' />
           <Kbd>T T</Kbd>
         </SelectTrigger>
         <SelectContent align='end'>
-          {THEMES.length > 0 && (
-            <>
-              <SelectGroup>
-                <SelectLabel>themes</SelectLabel>
-                {THEMES.map((theme) => (
-                  <SelectItem key={theme.name} value={theme.value}>
-                    {theme.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </>
-          )}
+          <SelectGroup>
+            <SelectLabel>색상 테마</SelectLabel>
+            {THEMES.map((theme) => (
+              <SelectItem key={theme.name} value={theme.value}>
+                {theme.name}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
     </div>

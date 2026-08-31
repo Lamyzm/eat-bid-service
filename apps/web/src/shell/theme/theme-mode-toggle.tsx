@@ -1,32 +1,35 @@
 'use client';
 
-import { Icons } from '@/components/icons';
-import { useTheme } from 'next-themes';
 import * as React from 'react';
+import { useTheme } from 'next-themes';
 
+import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Kbd } from '@/components/ui/kbd';
-import { startThemeTransition } from '@/lib/theme-transition';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { startThemeTransition } from './theme-transition';
 
 export function ThemeModeToggle() {
   const { setTheme, resolvedTheme } = useTheme();
-
   const handleThemeToggle = React.useCallback(
-    (e?: React.MouseEvent) => {
-      const newMode = resolvedTheme === 'dark' ? 'light' : 'dark';
-      // Circular reveal from the click point (falls back to center for the
-      // keyboard shortcut, which passes no event).
-      startThemeTransition(() => setTheme(newMode), e);
+    (event?: React.MouseEvent) => {
+      const nextMode = resolvedTheme === 'dark' ? 'light' : 'dark';
+      startThemeTransition(() => setTheme(nextMode), event);
     },
     [resolvedTheme, setTheme]
   );
 
-  // Cmd/Ctrl+Shift+D는 즉시 전환하고 command palette는 별도의 'D D' 명령을 제공한다.
+  // pointer가 없는 단축키 전환은 화면 중심 fallback을 사용한다.
   React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== 'd' || !e.shiftKey || !(e.metaKey || e.ctrlKey)) return;
-      const target = e.target as HTMLElement | null;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== 'd' ||
+        !event.shiftKey ||
+        (!event.metaKey && !event.ctrlKey)
+      ) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
       if (
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
@@ -35,7 +38,7 @@ export function ThemeModeToggle() {
       ) {
         return;
       }
-      e.preventDefault();
+      event.preventDefault();
       handleThemeToggle();
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -55,10 +58,10 @@ export function ThemeModeToggle() {
         }
       >
         <Icons.brightness />
-        <span className='sr-only'>Toggle theme</span>
+        <span className='sr-only'>명암 모드 전환</span>
       </TooltipTrigger>
       <TooltipContent>
-        Toggle theme <Kbd>⌘⇧D</Kbd> <Kbd>D D</Kbd>
+        명암 모드 전환 <Kbd>⌘⇧D</Kbd> <Kbd>D D</Kbd>
       </TooltipContent>
     </Tooltip>
   );

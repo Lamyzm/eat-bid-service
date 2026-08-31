@@ -4,6 +4,8 @@ import { createApiRewrites } from './config/api-rewrites';
 
 // 기반 설정은 plugin wrapper보다 먼저 선언해 framework option의 권위를 한 곳에 둔다.
 const baseConfig: NextConfig = {
+  // Next 개발 서버가 한국어 프로젝트 규칙 파일에 영문 안내를 자동 주입하지 못하게 한다.
+  agentRules: false,
   typedRoutes: true,
   reactCompiler: {
     compilationMode: 'annotation'
