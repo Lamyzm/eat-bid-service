@@ -959,6 +959,15 @@
       "reason": "기존 Web response body decode는 legacy network boundary이며 EAT-9 transport 전환 전까지 동결합니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 response decode를 api/_transport의 validated request path로 이전할 때"
+    },
+    {
+      "rule": "page-container-loading-state",
+      "path": "apps/web/src/components/layout/page-container.tsx",
+      "kind": "SourceFile",
+      "sha256": "sha256:33ac649d4cf40bbc62309eca67c296bc3222e2f9ecded4dadc8d2fe3de7ad8b5",
+      "reason": "기존 PageContainer는 범용 loading UI를 소유한 legacy 화면 container이며 신규 route로 전파하지 않습니다.",
+      "owner": "EAT-9 frontend foundation",
+      "splitTrigger": "각 legacy 화면을 route 소유 ScreenSkeleton과 loading.tsx 경계로 전환할 때"
     }
   ]
 }

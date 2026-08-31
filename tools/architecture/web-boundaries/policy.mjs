@@ -12,6 +12,7 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   MOTION_DURATION_LITERAL: "motion-duration-literal",
   MOTION_LOCAL_PRESS: "motion-local-press",
   MOTION_TRANSITION_ALL: "motion-transition-all",
+  PAGE_CONTAINER_LOADING_STATE: "page-container-loading-state",
   RAW_FETCH: "raw-fetch",
   ROUTE_CLIENT_COMPONENT: "route-client-component",
   SHELL_BOUNDARY_IMPORT: "shell-boundary-import",
@@ -22,6 +23,7 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   UNCHECKED_RESPONSE_BODY: "unchecked-response-body",
   UNCHECKED_RESPONSE_JSON: "unchecked-response-json",
   RESOURCE_TRANSPORT_IMPORT: "resource-transport-import",
+  ROUTE_LOADING_BOUNDARY: "route-loading-boundary",
   WEB_API_DEEP_IMPORT: "web-api-deep-import",
 });
 
@@ -163,6 +165,7 @@ export function reviewedBaselineMetadata(item) {
   return {
     [WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP]: ["기존 mobile viewport helper 두 파일은 동일한 legacy 구현이며 EAT-9 canonical shared extraction 전까지 동결합니다.", "mobile viewport helper를 하나의 shared module로 통합할 때"],
     [WEB_BOUNDARY_RULES.ID_NUMBER_CONVERSION]: ["기존 dashboard와 table filter의 numeric URL/filter 처리 부채는 canonical decimal ID route 전환 전까지 동결합니다.", "해당 화면이 contract-backed decimal identifier를 소비하도록 전환할 때"],
+    [WEB_BOUNDARY_RULES.PAGE_CONTAINER_LOADING_STATE]: ["기존 PageContainer는 범용 loading UI를 소유한 legacy 화면 container이며 신규 route로 전파하지 않습니다.", "각 legacy 화면을 route 소유 ScreenSkeleton과 loading.tsx 경계로 전환할 때"],
     [WEB_BOUNDARY_RULES.RAW_FETCH]: ["기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.", "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"],
     [WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT]: ["기존 Web route의 client component 경계는 EAT-9 이전 legacy presentation입니다.", "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"],
     [WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE]: ["기존 dashboard presentation file은 300줄을 넘는 legacy 책임 혼합이며 기능 전환과 함께 분리합니다.", "다음 기능 변경이 route model, UI leaf 또는 data adapter 책임을 함께 건드릴 때"],

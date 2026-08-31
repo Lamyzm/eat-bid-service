@@ -164,6 +164,54 @@ function isSharedUiPath(root, file) {
   return /^apps\/web\/src\/shared\/ui\//.test(display(root, file));
 }
 
+function isRouteLoadingPath(root, file) {
+  return /^apps\/web\/src\/app\/(?:.+\/)?loading\.tsx$/.test(display(root, file));
+}
+
+function isLegacyPageContainerPath(root, file) {
+  return display(root, file) === "apps/web/src/components/layout/page-container.tsx";
+}
+
+function importedScreenSkeletons(sourceFile) {
+  const names = new Set();
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)
+      || !ts.isStringLiteralLike(statement.moduleSpecifier)
+      || !statement.moduleSpecifier.text.startsWith(".")) continue;
+    const clause = statement.importClause;
+    if (clause?.name?.text.endsWith("ScreenSkeleton")) names.add(clause.name.text);
+    if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+      for (const element of clause.namedBindings.elements) {
+        if (element.name.text.endsWith("ScreenSkeleton")) names.add(element.name.text);
+      }
+    }
+  }
+  return names;
+}
+
+function routeLoadingReturnsSingleScreenSkeleton(sourceFile) {
+  if (sourceFile.statements.some(
+    (statement) => ts.isExpressionStatement(statement)
+      && ts.isStringLiteral(statement.expression)
+      && statement.expression.text === "use client",
+  )) return false;
+  if (/\banimate-pulse\b|<Skeleton(?:\s|\/|>)/.test(sourceFile.text)) return false;
+  const allowedNames = importedScreenSkeletons(sourceFile);
+  if (!allowedNames.size) return false;
+  const loading = sourceFile.statements.find(
+    (statement) => ts.isFunctionDeclaration(statement)
+      && statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword),
+  );
+  if (!loading?.body || loading.body.statements.length !== 1) return false;
+  const returned = loading.body.statements[0];
+  if (!ts.isReturnStatement(returned) || !returned.expression) return false;
+  const expression = unwrapExpression(returned.expression);
+  return ts.isJsxSelfClosingElement(expression)
+    && ts.isIdentifier(expression.tagName)
+    && allowedNames.has(expression.tagName.text)
+    && expression.attributes.properties.length === 0;
+}
+
 function motionClassViolations(value) {
   return {
     durationLiteral:
@@ -239,6 +287,8 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
     if (!sourceFile) continue;
     const normalized = normalizeBytes(readFileSync(file, "utf8"));
     if (physicalLineCount(normalized) > MAX_SOURCE_LINES) add(findings, root, WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE, file, "SourceFile", sourceFile, `${MAX_SOURCE_LINES}줄을 넘는 source file은 책임 분리 또는 reviewed waiver가 필요합니다.`, undefined, normalized);
+    if (isRouteLoadingPath(root, file) && !routeLoadingReturnsSingleScreenSkeleton(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_LOADING_BOUNDARY, file, "SourceFile", sourceFile, "loading.tsx는 sibling ScreenSkeleton 하나만 반환해야 합니다.", undefined, normalized);
+    if (isLegacyPageContainerPath(root, file) && /\bisLoading\b/.test(normalized)) add(findings, root, WEB_BOUNDARY_RULES.PAGE_CONTAINER_LOADING_STATE, file, "SourceFile", sourceFile, "범용 PageContainer가 loading UI를 소유하면 화면별 skeleton geometry가 분리됩니다.", undefined, normalized);
     const nonblank = normalized.split("\n").filter((line) => line.trim()).length;
     if (nonblank >= MIN_DUPLICATE_NONBLANK_LINES && Buffer.byteLength(normalized) >= MIN_DUPLICATE_BYTES) {
       const key = sha256(normalized);

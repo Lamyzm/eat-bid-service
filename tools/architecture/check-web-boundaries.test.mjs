@@ -183,6 +183,56 @@ test("공통 primitive의 token 기반 press motion은 허용한다", async () =
   assert.deepEqual(report.unmatchedFindings, []);
 });
 
+test("loading route의 직접 Skeleton 조립과 범용 PageContainer loading 상태를 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/app/(workspace)/auctions/loading.tsx": [
+      "import { Skeleton } from '@/shared/ui/skeleton';",
+      "export default function Loading() {",
+      "  return <><Skeleton /><div className='animate-pulse' /></>;",
+      "}",
+    ].join("\n"),
+    "apps/web/src/components/layout/page-container.tsx": [
+      "export function PageContainer({ isLoading, children }) {",
+      "  return isLoading ? <div>loading</div> : children;",
+      "}",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(rules(report).sort(), [
+    "page-container-loading-state",
+    "route-loading-boundary",
+  ]);
+});
+
+test("loading route가 sibling ScreenSkeleton 하나만 반환하면 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/app/(workspace)/auctions/loading.tsx": [
+      "import { AuctionScreenSkeleton } from './_ui/auction-screen-skeleton';",
+      "export default function Loading() {",
+      "  return <AuctionScreenSkeleton />;",
+      "}",
+    ].join("\n"),
+    "apps/web/src/app/(workspace)/auctions/_ui/auction-screen-skeleton.tsx":
+      "export function AuctionScreenSkeleton() { return <main aria-busy='true' />; }\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings, []);
+});
+
+test("root loading route도 Client Component이면 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/app/loading.tsx": [
+      "'use client';",
+      "import { RootScreenSkeleton } from './_ui/root-screen-skeleton';",
+      "export default function Loading() { return <RootScreenSkeleton />; }",
+    ].join("\n"),
+    "apps/web/src/app/_ui/root-screen-skeleton.tsx":
+      "export function RootScreenSkeleton() { return <main aria-busy='true' />; }\n",
+  });
+
+  assert.deepEqual(rules(report), ["route-loading-boundary"]);
+});
+
 test("정확한 legacy fingerprint는 허용하고 변경 추가 이름 변경은 거부한다", async () => {
   const subject = fixture({
     "apps/web/src/legacy.ts": "export async function load() { return fetch('/legacy') }\n",
