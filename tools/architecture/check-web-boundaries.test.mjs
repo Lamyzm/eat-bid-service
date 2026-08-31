@@ -761,3 +761,20 @@ test("spread 모양이 불명확하면 DOM fetch 근거만 fail closed로 거부
   assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
   assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
 });
+
+test("불명확한 spread 앞의 bind 대상 위치를 보존해 thisArg와 boundArg의 fetch는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/shared/local.ts": [
+      "declare const runtimeTail: unknown[];",
+      "const client = { run: (value: string) => value };",
+      "export const safeCall = () => Function.prototype.bind.call(",
+      "  ...[client.run, globalThis.fetch, ...runtimeTail]",
+      ")('safe-call');",
+      "export const safeApply = () => Function.prototype.bind.apply(",
+      "  ...[client.run, [globalThis.fetch], ...runtimeTail]",
+      ")('safe-apply');",
+    ].join("\n"),
+  });
+
+  assert.deepEqual(report.unmatchedFindings, []);
+});

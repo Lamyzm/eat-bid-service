@@ -22,7 +22,7 @@ function resolvedSymbol(checker, node) {
 // 전역 권위는 이름이 아니라 TypeScript 기본 lib의 정확한 symbol로 제한한다.
 export function isDomLibrarySymbol(symbol, name) {
   return symbol?.getName() === name
-    && symbol.declarations?.some((declaration) => declaration.getSourceFile().isDeclarationFile && /lib\.dom\.d\.ts$/.test(declaration.getSourceFile().fileName));
+    && symbol.declarations?.some((declaration) => declaration.getSourceFile().isDeclarationFile && declaration.getSourceFile().fileName.endsWith("lib.dom.d.ts"));
 }
 
 // bracket 접근도 receiver type에서 property symbol을 찾아 사용자 정의 call/bind/apply와 구분한다.
@@ -38,7 +38,7 @@ function functionMethod(checker, node) {
   const name = staticPropertyName(checker, current);
   if (!functionMethods.has(name)) return undefined;
   const symbol = propertySymbol(checker, current, name);
-  return symbol?.declarations?.some((declaration) => /lib\.es5\.d\.ts$/.test(declaration.getSourceFile().fileName)) ? name : undefined;
+  return symbol?.declarations?.some((declaration) => declaration.getSourceFile().fileName.endsWith("lib.es5.d.ts")) ? name : undefined;
 }
 
 function isKnownCallable(value) {
@@ -60,8 +60,8 @@ function intrinsicValue(method) {
   return { kind: "intrinsic", method };
 }
 
-function arrayValue(elements, containsPossibleFetch = false) {
-  return { kind: "array", elements, containsPossibleFetch };
+function arrayValue(elements, complete = true, tailMayContainFetch = false) {
+  return { kind: "array", elements, complete, tailMayContainFetch };
 }
 
 function boundValue(target, thisValue, args) {
@@ -74,13 +74,15 @@ function knownArgs(values) {
 
 const unknownArgs = Object.freeze({ known: false, values: [], possibleFetch: false });
 
-function indeterminateArgs(possibleFetch = false) {
-  return possibleFetch ? { known: false, values: [], possibleFetch: true } : unknownArgs;
+// known=false인 values는 첫 불명확 spread 앞까지 위치가 확정된 인수 prefix다.
+function indeterminateArgs(possibleFetch = false, values = []) {
+  if (!possibleFetch && values.length === 0) return unknownArgs;
+  return { known: false, values, possibleFetch };
 }
 
 function valueMayContainFetch(value) {
   if (!value) return false;
-  if (value.kind === "fetch" || value.possibleFetch || value.containsPossibleFetch) return true;
+  if (value.kind === "fetch" || value.possibleFetch || value.tailMayContainFetch) return true;
   return value.kind === "array" && value.elements?.some(valueMayContainFetch);
 }
 
@@ -128,14 +130,24 @@ function hasGlobalFetchEvidence(checker, node) {
 // 펼치고, 길이를 확정할 수 없으면 알려진 fetch 근거를 보존한 indeterminate 인수로 닫는다.
 function evaluateArguments(checker, elements, state, depth) {
   const values = [];
-  for (const element of elements) {
+  for (const [index, element] of elements.entries()) {
     if (!ts.isSpreadElement(element)) {
       values.push(ts.isOmittedExpression(element) ? otherValue : evaluateValue(checker, element, state, depth + 1));
       continue;
     }
     const spread = evaluateValue(checker, element.expression, state, depth + 1);
-    if (spread.kind !== "array" || !spread.elements) return indeterminateArgs(valueMayContainFetch(spread) || hasGlobalFetchEvidence(checker, element.expression));
+    if (spread.kind !== "array" || !spread.elements) {
+      const suffixMayContainFetch = elements.slice(index + 1).some((suffix) => hasGlobalFetchEvidence(checker, suffix));
+      return indeterminateArgs(
+        valueMayContainFetch(spread) || hasGlobalFetchEvidence(checker, element.expression) || suffixMayContainFetch,
+        values,
+      );
+    }
     values.push(...spread.elements);
+    if (!spread.complete) {
+      const suffixMayContainFetch = elements.slice(index + 1).some((suffix) => hasGlobalFetchEvidence(checker, suffix));
+      return indeterminateArgs(spread.tailMayContainFetch || suffixMayContainFetch, values);
+    }
   }
   return knownArgs(values);
 }
@@ -153,9 +165,7 @@ function evaluateValue(checker, node, state, depth = 0) {
     if (ts.isBinaryExpression(current) && current.operatorToken.kind === ts.SyntaxKind.CommaToken) return evaluateValue(checker, current.right, state, depth + 1);
     if (ts.isArrayLiteralExpression(current)) {
       const elements = evaluateArguments(checker, current.elements, state, depth + 1);
-      return elements.known
-        ? arrayValue(elements.values)
-        : arrayValue(undefined, argsMayContainFetch(elements) || hasGlobalFetchEvidence(checker, current));
+      return arrayValue(elements.values, elements.known, Boolean(elements.possibleFetch));
     }
     const reference = methodReference(checker, current, state, depth + 1);
     if (reference) return intrinsicValue(reference.method);
@@ -186,9 +196,9 @@ function callReference(checker, node, state, depth) {
 }
 
 function combineArgs(left, right) {
-  return left.known && right.known
-    ? knownArgs([...left.values, ...right.values])
-    : indeterminateArgs(argsMayContainFetch(left) || argsMayContainFetch(right));
+  if (left.known && right.known) return knownArgs([...left.values, ...right.values]);
+  if (left.known) return indeterminateArgs(Boolean(right.possibleFetch), [...left.values, ...right.values]);
+  return indeterminateArgs(Boolean(left.possibleFetch) || argsMayContainFetch(right), left.values);
 }
 
 function invocation(result = otherValue, invokesFetch = false) {
@@ -209,6 +219,15 @@ function invokeValue(target, thisValue, args, depth = 0, active = new Set()) {
     if (target.method === "call") {
       if (!args.known) {
         if (thisValue.kind === "fetch" || thisValue.possibleFetch) return invocation(otherValue, true);
+        if (args.values.length > 0) {
+          return invokeValue(
+            thisValue,
+            args.values[0],
+            indeterminateArgs(Boolean(args.possibleFetch), args.values.slice(1)),
+            depth + 1,
+            active,
+          );
+        }
         return invocation(argsMayContainFetch(args) ? possibleFetchValue : unknownValue, false);
       }
       return invokeValue(thisValue, args.values[0] ?? otherValue, knownArgs(args.values.slice(1)), depth + 1, active);
@@ -218,18 +237,31 @@ function invokeValue(target, thisValue, args, depth = 0, active = new Set()) {
     if (target.method === "apply") {
       if (!args.known) {
         if (thisValue.kind === "fetch" || thisValue.possibleFetch) return invocation(otherValue, true);
+        if (args.values.length > 0) {
+          const applied = args.values[1];
+          const appliedArgs = applied?.kind === "array" && applied.elements
+            ? applied.complete
+              ? knownArgs(applied.elements)
+              : indeterminateArgs(Boolean(applied.tailMayContainFetch), applied.elements)
+            : indeterminateArgs(Boolean(args.possibleFetch) || valueMayContainFetch(applied));
+          return invokeValue(thisValue, args.values[0], appliedArgs, depth + 1, active);
+        }
         return invocation(argsMayContainFetch(args) ? possibleFetchValue : unknownValue, false);
       }
       const applied = args.values[1];
       const appliedArgs = applied?.kind === "array" && applied.elements
-        ? knownArgs(applied.elements)
+        ? applied.complete
+          ? knownArgs(applied.elements)
+          : indeterminateArgs(Boolean(applied.tailMayContainFetch), applied.elements)
         : indeterminateArgs(valueMayContainFetch(applied));
       return invokeValue(thisValue, args.values[0] ?? otherValue, appliedArgs, depth + 1, active);
     }
 
     // bind는 receiver callable의 origin을 보존하되 아직 실행하지 않는다.
-    const boundThis = args.known ? args.values[0] ?? otherValue : unknownValue;
-    const boundArgs = args.known ? knownArgs(args.values.slice(1)) : unknownArgs;
+    const boundThis = args.values.length > 0 ? args.values[0] : args.known ? otherValue : unknownValue;
+    const boundArgs = args.known
+      ? knownArgs(args.values.slice(1))
+      : indeterminateArgs(Boolean(args.possibleFetch), args.values.slice(1));
     return invocation(boundValue(thisValue, boundThis, boundArgs));
   } finally {
     active.delete(target);
@@ -242,7 +274,10 @@ function analyzeCall(checker, node, state, depth = 0) {
   const evaluated = evaluateArguments(checker, node.arguments, state, depth + 1);
   const args = evaluated.known
     ? evaluated
-    : indeterminateArgs(argsMayContainFetch(evaluated) || hasGlobalFetchEvidence(checker, node));
+    : indeterminateArgs(
+      Boolean(evaluated.possibleFetch) || (evaluated.values.length === 0 && hasGlobalFetchEvidence(checker, node)),
+      evaluated.values,
+    );
   return invokeValue(reference.target, reference.thisValue, args);
 }
 

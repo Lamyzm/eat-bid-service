@@ -460,7 +460,7 @@
       "rule": "route-client-component",
       "path": "apps/web/src/app/dashboard/today/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:91c1a3394f4e3a5fb593e375e096023963c5725790f753111da53b2e932be59c",
+      "sha256": "sha256:01b66d8051a28f2b9a7bb897ae3587a39a35f753e16c53626fc03385b805de37",
       "reason": "기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"
@@ -523,7 +523,7 @@
       "rule": "source-file-size",
       "path": "apps/web/src/app/dashboard/today/page.tsx",
       "kind": "SourceFile",
-      "sha256": "sha256:91c1a3394f4e3a5fb593e375e096023963c5725790f753111da53b2e932be59c",
+      "sha256": "sha256:01b66d8051a28f2b9a7bb897ae3587a39a35f753e16c53626fc03385b805de37",
       "reason": "기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 route를 RSC model과 route-private UI leaf로 전환할 때"
