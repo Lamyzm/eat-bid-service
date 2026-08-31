@@ -144,3 +144,54 @@ test("secret generated lockfile과 byte cap 초과 source는 context evidence에
   assert.doesNotMatch(JSON.stringify(result), new RegExp(secret));
   assert.doesNotMatch(JSON.stringify(result.modules), /pnpm-lock|\.env\.local|generated\.ts/);
 });
+
+test("인증 credential은 근거 본문을 남기지 않고 일반 authorization 문장은 보존한다", async () => {
+  const credentials = {
+    "apps/web/src/components/bearer.ts": "export const headers = { Authorization: 'Bearer opaque-access-credential-123456' };\n",
+    "apps/web/src/components/basic.ts": "export const headers = { authorization: 'Basic dXNlcjpwYXNzd29yZA==' };\n",
+    "apps/web/src/components/jwt.ts": "export const session = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature-value';\n",
+    "apps/web/src/components/userinfo.ts": "export const endpoint = 'https://reviewer:super-secret@example.com/private';\n",
+    "apps/web/src/components/assignment.ts": "export const ClientSecret = 'obvious-credential-value-12345';\n",
+  };
+  const result = await catalog({
+    ...credentials,
+    "apps/web/src/components/vocabulary.ts": "export const note = 'Authorization vocabulary describes access policy';\nexport const tokenCount = 3;\n",
+  }, { changedPaths: [...Object.keys(credentials), "apps/web/src/components/vocabulary.ts"] });
+
+  for (const credentialPath of Object.keys(credentials)) {
+    assert.equal(result.modules.find((module) => module.path === credentialPath)?.source, undefined);
+    assert.ok(result.exclusions.some((item) => item.path === credentialPath && item.reason === "sensitive-content"));
+  }
+  assert.match(result.modules.find((module) => module.path.endsWith("vocabulary.ts")).source, /Authorization vocabulary/);
+  const serialized = JSON.stringify(result);
+  assert.doesNotMatch(serialized, /opaque-access-credential|dXNlcjpwYXNzd29yZA|eyJhbGci|reviewer:super-secret|obvious-credential-value/);
+});
+
+test("generated 경로와 파일명은 대소문자와 Windows 구분자를 정규화하고 generator는 허용한다", async () => {
+  const result = await catalog({
+    "apps/web/src/Generated/one.ts": "export const one = 'hidden-one';\n",
+    "apps/web/src/__GENERATED__/two.ts": "export const two = 'hidden-two';\n",
+    "apps/web/src/GEN/three.ts": "export const three = 'hidden-three';\n",
+    "apps/web/src/shared/schema.GENERATED.ts": "export const schema = 'hidden-schema';\n",
+    "apps/web/src/shared/client.gen.ts": "export const client = 'hidden-client';\n",
+    "apps/web/src/shared/generator.ts": "export const generator = 'visible-generator';\n",
+  }, { changedPaths: [
+    "apps\\web\\src\\Generated\\one.ts",
+    "apps/web/src/__GENERATED__/two.ts",
+    "apps\\web\\src\\GEN\\three.ts",
+    "apps/web/src/shared/schema.GENERATED.ts",
+    "apps/web/src/shared/client.gen.ts",
+    "apps/web/src/shared/generator.ts",
+  ] });
+
+  assert.deepEqual(result.modules.map((module) => module.path), ["apps/web/src/shared/generator.ts"]);
+  assert.equal(result.modules[0].source, "export const generator = 'visible-generator';\n");
+  for (const generatedPath of [
+    "apps/web/src/Generated/one.ts",
+    "apps/web/src/__GENERATED__/two.ts",
+    "apps/web/src/GEN/three.ts",
+    "apps/web/src/shared/schema.GENERATED.ts",
+    "apps/web/src/shared/client.gen.ts",
+  ]) assert.ok(result.exclusions.some((item) => item.path === generatedPath && item.reason === "generated-output"));
+  assert.doesNotMatch(JSON.stringify(result), /hidden-one|hidden-two|hidden-three|hidden-schema|hidden-client/);
+});

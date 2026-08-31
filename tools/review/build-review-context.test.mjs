@@ -23,6 +23,17 @@ function fixture(files) {
   return root;
 }
 
+function parseJsonSection(context, heading) {
+  const sectionStart = context.indexOf(`## ${heading}\n\n`);
+  assert.notEqual(sectionStart, -1, `${heading} section이 있어야 한다`);
+  const fenceStart = context.indexOf("```json\n", sectionStart);
+  assert.notEqual(fenceStart, -1, `${heading} JSON fence가 있어야 한다`);
+  const jsonStart = fenceStart + "```json\n".length;
+  const end = context.indexOf("\n```", jsonStart);
+  assert.notEqual(end, -1, `${heading} section이 닫혀야 한다`);
+  return JSON.parse(context.slice(jsonStart, end));
+}
+
 test("review context는 changed Web module과 reuse source를 결정적으로 포함하고 96 KiB를 넘지 않는다", async () => {
   const root = fixture({
     "apps/web/src/hooks/use-existing.ts": "export const useExisting = () => 'reuse-me';\n",
@@ -47,7 +58,7 @@ test("review context는 changed Web module과 reuse source를 결정적으로 �
   }
 });
 
-test("review context hard cap은 큰 changed module 집합도 UTF-8 96 KiB에서 자른다", async () => {
+test("review context는 350개 module에서도 필수 section과 완전한 JSON을 보존하며 결정적으로 예산화한다", async () => {
   const files = {};
   const changedPaths = [];
   for (let index = 0; index < 350; index += 1) {
@@ -57,11 +68,29 @@ test("review context hard cap은 큰 changed module 집합도 UTF-8 96 KiB에서
   }
   const root = fixture(files);
   try {
-    const context = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
+    const first = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
+    const second = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
+    const catalog = parseJsonSection(first, "Repository reuse evidence");
+    const boundaries = parseJsonSection(first, "Deterministic boundary evidence");
+    const rules = parseJsonSection(first, "Curated advisory rules");
+    const scope = parseJsonSection(first, "Scope");
 
     assert.equal(MAX_REVIEW_CONTEXT_BYTES, 98_304);
-    assert.ok(Buffer.byteLength(context, "utf8") <= 98_304);
-    assert.match(context, /review context truncated deterministically at 96 KiB/);
+    assert.equal(first, second);
+    assert.ok(Buffer.byteLength(first, "utf8") <= 98_304);
+    assert.equal(Buffer.from(first, "utf8").toString("utf8"), first);
+    assert.equal(scope.changedPaths.length, 350);
+    assert.equal(boundaries.unmatchedFindingCount, 0);
+    assert.ok(rules.suppressedAdvice.some((item) => item.id === "data.generic-swr"));
+    assert.match(first, /## Reviewer contract\n\n/);
+    assert.match(first, /These diagnostics remain authoritative/);
+    assert.match(first, /## Curated advisory rules/);
+    assert.match(first, /\n```\n?$/);
+    assert.equal(catalog.contextBudget.reason, "context-byte-budget");
+    assert.ok(catalog.contextBudget.omittedModuleCount > 0);
+    assert.match(catalog.contextBudget.firstOmittedModulePath, /^apps\/web\/src\/components\/evidence-\d{3}\.ts$/);
+    assert.match(catalog.contextBudget.lastOmittedModulePath, /evidence-349\.ts$/);
+    assert.doesNotMatch(first, /review context truncated deterministically/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

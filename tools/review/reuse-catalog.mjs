@@ -4,7 +4,7 @@ import path from "node:path";
 import ts from "typescript";
 
 const sourcePattern = /\.[cm]?[jt]sx?$/i;
-const generatedSegments = new Set([".next", "build", "coverage", "dist", "generated", "node_modules"]);
+const generatedSegments = new Set([".next", "__generated__", "build", "coverage", "dist", "gen", "generated", "node_modules"]);
 const lockfiles = new Set(["bun.lock", "bun.lockb", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"]);
 const dependencyFields = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 const defaultPerFileByteCap = 16 * 1024;
@@ -30,15 +30,24 @@ function denialReason(relative) {
   const segments = normalized.split("/");
   const basename = segments.at(-1)?.toLowerCase() ?? "";
   if (lockfiles.has(basename)) return "lockfile";
-  if (segments.some((segment) => generatedSegments.has(segment))) return "generated-output";
+  if (segments.slice(0, -1).some((segment) => generatedSegments.has(segment.toLowerCase())) || /(?:^|[._-])(?:__generated__|generated|gen)(?:\.d)?\.[cm]?[jt]sx?$/i.test(basename)) return "generated-output";
   if (segments.some((segment) => /^\.env(?:\.|$)/i.test(segment)) || /(?:credential|private[-_.]?key|secrets?)(?:\.|$)/i.test(basename) || /\.(?:key|p12|pem)$/i.test(basename)) return "secret-path";
   return undefined;
 }
 
 function hasSensitiveContent(contents) {
-  return /-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----/.test(contents)
+  if (/-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----/i.test(contents)
     || /\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|sk-(?:proj-)?[A-Za-z0-9_-]{20,})\b/.test(contents)
-    || /(?:api[_-]?key|password|private[_-]?key|secret|token)\s*[:=]\s*["'`][^"'`\r\n]{4,}/i.test(contents);
+    || /\bauthorization\s*[:=]\s*["'`]\s*(?:basic|bearer)\s+[^"'`\s]{8,}/i.test(contents)
+    || /\bbearer\s+(?=[A-Za-z0-9._~+/-]{12,}\b)(?=[A-Za-z0-9._~+/-]*[0-9._~+/-])[A-Za-z0-9._~+/-]+/i.test(contents)
+    || /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/.test(contents)
+    || /\bhttps?:\/\/[^\s/@:'"`]+:[^\s/@'"`]+@[^\s/'"`]+/i.test(contents)) return true;
+  const assignment = /["'`]?([A-Za-z_$][\w$-]*)["'`]?\s*[:=]\s*(["'`])([^"'`\r\n]{8,})\2/g;
+  for (const match of contents.matchAll(assignment)) {
+    const name = match[1].replaceAll(/[_$-]/g, "").toLowerCase();
+    if (/(?:apikey|password|privatekey|secret|credential|accesstoken|refreshtoken|authtoken|bearertoken)$/.test(name)) return true;
+  }
+  return false;
 }
 
 function walkSourceFiles(root) {
@@ -47,9 +56,9 @@ function walkSourceFiles(root) {
     if (!existsSync(entry)) return;
     const stat = statSync(entry);
     if (stat.isDirectory()) {
-      if (generatedSegments.has(path.basename(entry))) return;
+      if (generatedSegments.has(path.basename(entry).toLowerCase())) return;
       for (const child of readdirSync(entry).sort(compare)) visit(path.join(entry, child));
-    } else if (sourcePattern.test(entry)) files.push(path.resolve(entry));
+    } else if (sourcePattern.test(entry) && denialReason(path.basename(entry)) !== "generated-output") files.push(path.resolve(entry));
   };
   visit(root);
   return files.sort(compare);

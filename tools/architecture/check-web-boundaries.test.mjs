@@ -550,13 +550,15 @@ test("import type DTO는 local shape를 거부하고 contract authority를 허�
   const report = await inspect({
     "apps/web/src/api/auctions/index.ts": "export type { LocalResponse, ContractResponse } from './responses';\n",
     "apps/web/src/api/auctions/responses.ts": "export type LocalResponse = import('./shape').LocalShape; export type ContractResponse = import('@eatbid/contracts/api/v1/auctions').AuctionResponse;\n",
+    "apps/web/src/api/auctions/literal.ts": "export const endpoint = '/api/v1/auctions';\n",
     "apps/web/src/api/auctions/shape.ts": "export interface LocalShape { id: string }\n",
     "node_modules/@eatbid/contracts/package.json": "{\"name\":\"@eatbid/contracts\",\"exports\":{\"./api/v1/auctions\":\"./api/v1/auctions.d.ts\"}}\n",
     "node_modules/@eatbid/contracts/api/v1/auctions.d.ts": "export interface AuctionResponse { id: string }\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").map((finding) => finding.path), [
-    "apps/web/src/api/auctions/responses.ts",
+  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+    ["api-endpoint-literal", "apps/web/src/api/auctions/literal.ts"],
+    ["manual-api-response", "apps/web/src/api/auctions/responses.ts"],
   ]);
 });
 
@@ -592,4 +594,17 @@ test("wrapped bracket global fetch는 거부하고 local shadow는 허용한다"
   });
 
   assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+});
+
+test("call bind comma wrapper의 전역 fetch만 거부하고 local shadow와 임의 객체는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "export function load() { return [window['fetch'].call(window, '/one'), globalThis.fetch.bind(globalThis)('/two'), (0, fetch)('/three')]; }\n",
+    "apps/web/src/shared/local.ts": "const fetch = (value: string) => value; const client = { fetch: (value: string) => value }; export function safe(window: { fetch(value: string): string }, globalThis: { fetch(value: string): string }) { return [window['fetch'].call(window, 'one'), globalThis.fetch.bind(globalThis)('two'), (0, fetch)('three'), client.fetch.call(client, 'four')]; }\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+  ]);
 });

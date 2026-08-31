@@ -62,6 +62,7 @@ function reference(checker, node) {
 function isModuleSpecifierLiteral(node) {
   if (!node.parent) return false;
   if ((ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent)) && node.parent.moduleSpecifier === node) return true;
+  if (ts.isLiteralTypeNode(node.parent) && node.parent.literal === node && ts.isImportTypeNode(node.parent.parent) && node.parent.parent.argument === node.parent) return true;
   return ts.isCallExpression(node.parent) && node.parent.expression.kind === ts.SyntaxKind.ImportKeyword && node.parent.arguments[0] === node;
 }
 
@@ -75,9 +76,8 @@ function isDomSymbol(symbol, name) {
   return symbol?.getName() === name && symbol.declarations?.some((declaration) => declaration.getSourceFile().isDeclarationFile && /lib\.dom\.d\.ts$/.test(declaration.getSourceFile().fileName));
 }
 
-function isGlobalFetch(checker, node) {
-  if (!ts.isCallExpression(node)) return false;
-  const expression = unwrapExpression(node.expression);
+function isGlobalFetchReference(checker, node) {
+  const expression = unwrapExpression(node);
   if (ts.isIdentifier(expression)) return isDomSymbol(resolvedSymbol(checker, expression), "fetch");
   if (!(ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) || staticPropertyName(checker, expression) !== "fetch") return false;
   const receiver = unwrapExpression(expression.expression);
@@ -86,6 +86,17 @@ function isGlobalFetch(checker, node) {
     ? resolvedSymbol(checker, expression.name)
     : checker.getTypeAtLocation(receiver).getProperty("fetch");
   return isDomSymbol(property, "fetch");
+}
+
+function isGlobalFetch(checker, node) {
+  if (!ts.isCallExpression(node)) return false;
+  const expression = unwrapExpression(node.expression);
+  if (isGlobalFetchReference(checker, expression)) return true;
+  if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) return isGlobalFetchReference(checker, expression.right);
+  if ((ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) && ["call", "apply"].includes(staticPropertyName(checker, expression))) return isGlobalFetchReference(checker, expression.expression);
+  if (!ts.isCallExpression(expression)) return false;
+  const binder = unwrapExpression(expression.expression);
+  return (ts.isPropertyAccessExpression(binder) || ts.isElementAccessExpression(binder)) && staticPropertyName(checker, binder) === "bind" && isGlobalFetchReference(checker, binder.expression);
 }
 
 function typeHasDomResponseBase(checker, type, seen = new Set()) {

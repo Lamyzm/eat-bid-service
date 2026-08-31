@@ -34,14 +34,78 @@ async function boundaryEvidence(root, changedPaths) {
   return { findingCounts: countByRule(report.findings), scopedFindings, unmatchedFindingCount: report.unmatchedFindings.length, baselineFailures: report.baselineFailures };
 }
 
-function boundedUtf8(contents) {
-  const buffer = Buffer.from(contents, "utf8");
-  if (buffer.length <= MAX_REVIEW_CONTEXT_BYTES) return contents;
-  const suffix = "\n\n[review context truncated deterministically at 96 KiB]\n";
-  const suffixBytes = Buffer.byteLength(suffix, "utf8");
-  let end = MAX_REVIEW_CONTEXT_BYTES - suffixBytes;
-  while (end > 0 && (buffer[end] & 0xc0) === 0x80) end -= 1;
-  return `${buffer.subarray(0, end).toString("utf8")}${suffix}`;
+function renderSection(heading, value) {
+  return `## ${heading}\n\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+}
+
+function renderContext({ metadata, instructions, catalog, boundaries, rules }) {
+  return `${[
+    "# eatbid frontend advisory review context",
+    renderSection("Scope", metadata),
+    `## Reviewer contract\n\n${instructions}`,
+    renderSection("Repository reuse evidence", catalog),
+    `## Deterministic boundary evidence\n\nThese diagnostics remain authoritative and must not be repeated as advisory findings.\n\n\`\`\`json\n${JSON.stringify(boundaries, null, 2)}\n\`\`\``,
+    renderSection("Curated advisory rules", rules),
+  ].join("\n\n")}\n`;
+}
+
+function withoutSource(module) {
+  const { source: _source, ...metadata } = module;
+  return metadata;
+}
+
+function budgetCatalog(catalog, render) {
+  if (Buffer.byteLength(render(catalog), "utf8") <= MAX_REVIEW_CONTEXT_BYTES) return catalog;
+  const originalModules = catalog.modules;
+  const originalSourceCount = originalModules.filter((module) => module.source !== undefined).length;
+  const { declaration: _declaration, ...toolkitMetadata } = catalog.esToolkit;
+  if (_declaration !== undefined) toolkitMetadata.declarationExcludedReason = "context-byte-budget";
+  let includedCount = originalModules.length;
+  let includedExclusions = catalog.exclusions.length;
+  const includedSources = new Set();
+
+  const candidate = () => {
+    const modules = originalModules.slice(0, includedCount).map((module, index) => includedSources.has(index) ? module : withoutSource(module));
+    const modulePaths = new Set(modules.map((module) => module.path));
+    const duplicateGroups = catalog.duplicateGroups.filter((group) => group.members.every((member) => modulePaths.has(member)));
+    return {
+      ...catalog,
+      modules,
+      duplicateGroups,
+      esToolkit: toolkitMetadata,
+      exclusions: catalog.exclusions.slice(0, includedExclusions),
+      contextBudget: {
+        reason: "context-byte-budget",
+        originalModuleCount: originalModules.length,
+        includedModuleCount: modules.length,
+        omittedModuleCount: originalModules.length - modules.length,
+        omittedSourceCount: originalSourceCount - [...includedSources].filter((index) => index < includedCount).length,
+        omittedDuplicateGroupCount: catalog.duplicateGroups.length - duplicateGroups.length,
+        omittedExclusionCount: catalog.exclusions.length - includedExclusions,
+        esToolkitDeclarationOmitted: _declaration !== undefined,
+        ...(includedCount < originalModules.length ? {
+          firstOmittedModulePath: originalModules[includedCount].path,
+          lastOmittedModulePath: originalModules.at(-1).path,
+        } : {}),
+        ...(includedExclusions < catalog.exclusions.length ? {
+          firstOmittedExclusionPath: catalog.exclusions[includedExclusions].path,
+          lastOmittedExclusionPath: catalog.exclusions.at(-1).path,
+        } : {}),
+      },
+    };
+  };
+
+  while (includedCount > 0 && Buffer.byteLength(render(candidate()), "utf8") > MAX_REVIEW_CONTEXT_BYTES) includedCount -= 1;
+  while (includedExclusions > 0 && Buffer.byteLength(render(candidate()), "utf8") > MAX_REVIEW_CONTEXT_BYTES) includedExclusions -= 1;
+  let bounded = candidate();
+  if (Buffer.byteLength(render(bounded), "utf8") > MAX_REVIEW_CONTEXT_BYTES) throw new Error("mandatory review context exceeds 96 KiB");
+  for (let index = 0; index < includedCount; index += 1) if (originalModules[index].source !== undefined) {
+    includedSources.add(index);
+    const withSource = candidate();
+    if (Buffer.byteLength(render(withSource), "utf8") <= MAX_REVIEW_CONTEXT_BYTES) bounded = withSource;
+    else includedSources.delete(index);
+  }
+  return bounded;
 }
 
 export async function buildReviewContext({ repoRoot, scope = {} }) {
@@ -54,15 +118,9 @@ export async function buildReviewContext({ repoRoot, scope = {} }) {
   const instructions = readFileSync(path.join(moduleRoot, "reviewer-instructions.md"), "utf8").trim();
   const rules = JSON.parse(readFileSync(path.join(moduleRoot, "catalog", "frontend-advisory-rules.json"), "utf8"));
   const metadata = { version: "eatbid.frontend-review-context/v1", baseRef: scope.baseRef ?? null, changedPaths };
-  const sections = [
-    "# eatbid frontend advisory review context",
-    `## Scope\n\n\`\`\`json\n${JSON.stringify(metadata, null, 2)}\n\`\`\``,
-    `## Reviewer contract\n\n${instructions}`,
-    `## Repository reuse evidence\n\n\`\`\`json\n${JSON.stringify(catalog, null, 2)}\n\`\`\``,
-    `## Deterministic boundary evidence\n\nThese diagnostics remain authoritative and must not be repeated as advisory findings.\n\n\`\`\`json\n${JSON.stringify(boundaries, null, 2)}\n\`\`\``,
-    `## Curated advisory rules\n\n\`\`\`json\n${JSON.stringify(rules, null, 2)}\n\`\`\``,
-  ];
-  return boundedUtf8(`${sections.join("\n\n")}\n`);
+  const evidence = { metadata, instructions, boundaries, rules };
+  const boundedCatalog = budgetCatalog(catalog, (candidate) => renderContext({ ...evidence, catalog: candidate }));
+  return renderContext({ ...evidence, catalog: boundedCatalog });
 }
 
 function changedPathsFromGit(root, baseRef) {
