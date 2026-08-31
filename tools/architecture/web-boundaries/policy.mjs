@@ -69,8 +69,8 @@ export function isPublicApiEntry(targetPath) {
     || /\/api\/[^/]+\/(?:index|server)\.[cm]?tsx?$/.test(normalized);
 }
 
-export function isEndpointAuthorityPath(sourcePath) {
-  return /\/packages\/contracts\/src\/api\//.test(sourcePath.replaceAll("\\", "/"));
+export function isEndpointAuthorityPath(repoRoot, sourcePath) {
+  return normalizedPath(repoRoot, sourcePath).startsWith("packages/contracts/src/api/");
 }
 
 function baselineKey(entry) {
@@ -90,6 +90,7 @@ export function readLegacyBaseline(baselinePath) {
       for (const key of required) if (typeof entry[key] !== "string" || !entry[key].trim()) baselineFailures.push(`legacy baseline entry ${index} must contain ${key}`);
       if (!/^sha256:[a-f0-9]{64}$/.test(entry.sha256 ?? "")) baselineFailures.push(`legacy baseline entry ${index} has an invalid sha256 fingerprint`);
       if (entry.members && (!Array.isArray(entry.members) || entry.members.some((member) => typeof member !== "string"))) baselineFailures.push(`legacy baseline entry ${index} has invalid duplicate members`);
+      if (entry.contentSha256 && !/^sha256:[a-f0-9]{64}$/.test(entry.contentSha256)) baselineFailures.push(`legacy baseline entry ${index} has an invalid duplicate content fingerprint`);
     }
     return { baseline, baselineFailures };
   } catch (error) {
@@ -112,7 +113,20 @@ export function applyLegacyBaseline(findings, baseline) {
     availableExact.set(exactKey, exactEntries);
   }
   const unmatchedFindings = [];
+  const consumedDuplicateEntries = new Set();
   for (const item of findings) {
+    if (item.rule === WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP) {
+      const candidates = baseline.entries.filter((entry) => entry.rule === item.rule && entry.contentSha256 === item.contentSha256 && !consumedDuplicateEntries.has(entry));
+      const matching = candidates.find((entry) => item.members.every((member) => entry.members?.includes(member)));
+      if (matching) {
+        consumedDuplicateEntries.add(matching);
+        continue;
+      }
+      const sameContent = baseline.entries.some((entry) => entry.rule === item.rule && entry.contentSha256 === item.contentSha256);
+      baselineFailures.push(`${sameContent ? "legacy duplicate membership increase" : "legacy fingerprint drift"}: ${item.path} [${item.rule}] ${item.kind}`);
+      unmatchedFindings.push(item);
+      continue;
+    }
     const entries = entriesByKey.get(baselineKey(item)) ?? [];
     const exactKey = `${baselineKey(item)}\u0000${item.sha256}\u0000${JSON.stringify(item.members ?? [])}`;
     const matching = availableExact.get(exactKey)?.shift();

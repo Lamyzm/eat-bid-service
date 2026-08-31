@@ -21,7 +21,7 @@ if (writeBaseline && existsSync(baselinePath)) {
   if (writeBaseline) {
     const document = { version: 1, entries: report.findings.map((item) => {
       const [reason, splitTrigger] = reviewedBaselineMetadata(item);
-      return { rule: item.rule, path: item.path, kind: item.kind, sha256: item.sha256, reason, owner: "EAT-9 frontend foundation", splitTrigger, ...(item.members ? { members: item.members } : {}) };
+      return { rule: item.rule, path: item.path, kind: item.kind, sha256: item.sha256, reason, owner: "EAT-9 frontend foundation", splitTrigger, ...(item.members ? { members: item.members } : {}), ...(item.contentSha256 ? { contentSha256: item.contentSha256 } : {}) };
     }) };
     writeFileSync(baselinePath, `${JSON.stringify(document, null, 2)}\n`, "utf8");
     console.log(`Wrote ${document.entries.length} reviewed Web boundary baseline entries.`);

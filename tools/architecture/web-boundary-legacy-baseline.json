@@ -12,7 +12,8 @@
       "members": [
         "apps/web/src/hooks/use-mobile.ts",
         "apps/web/src/hooks/use-mobile.tsx"
-      ]
+      ],
+      "contentSha256": "sha256:58b2cc5fa259358e9192125abf072c832144193d87f3d66a90b13089a0196cef"
     },
     {
       "rule": "raw-fetch",

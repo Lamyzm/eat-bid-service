@@ -293,14 +293,14 @@ test("source-derived fingerprint은 같은 category 편집과 duplicate group �
 test("transport import은 exact owner와 ContractRequest type-only form만 허용한다", async () => {
   const report = await inspect({
     "apps/web/src/api/auctions/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; void browserRequest;\n",
-    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request.server'; void serverRequest;\n",
+    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request'; void serverRequest;\n",
     "apps/web/src/api/auctions/whole.ts": "import type { ContractRequest } from '@/api/_transport/request-contract'; export type Whole = ContractRequest;\n",
     "apps/web/src/api/auctions/specifier.ts": "import { type ContractRequest } from '@/api/_transport/request-contract'; export type Specifier = ContractRequest;\n",
     "apps/web/src/api/auctions/bad.ts": "export { browserRequest } from '@/api/_transport/browser-request'; import { ContractRequest, other } from '@/api/_transport/request-contract'; import { anything } from '@/api/_transport/private'; void ContractRequest; void other; void anything;\n",
     "apps/web/src/api/orders/index.ts": "import type { browserRequest } from '@/api/_transport/browser-request'; export type Browser = typeof browserRequest;\n",
-    "apps/web/src/api/orders/server.ts": "import { type serverRequest } from '@/api/_transport/server-request.server'; export type Server = typeof serverRequest;\n",
+    "apps/web/src/api/orders/server.ts": "import { type serverRequest } from '@/api/_transport/server-request'; export type Server = typeof serverRequest;\n",
     "apps/web/src/api/_transport/browser-request.ts": "export const browserRequest = () => undefined;\n",
-    "apps/web/src/api/_transport/server-request.server.ts": "export const serverRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/server-request.ts": "export const serverRequest = () => undefined;\n",
     "apps/web/src/api/_transport/request-contract.ts": "export interface ContractRequest {} export const other = 1;\n",
     "apps/web/src/api/_transport/private.ts": "export const anything = 1;\n",
   });
@@ -336,4 +336,89 @@ test("local alias와 generic wrapper manual DTO는 막고 contract alias는 허�
   });
 
   assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").length, 2);
+});
+
+test("transport ownership은 exact resource와 transport path만 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; void browserRequest;\n",
+    "apps/web/src/api/auctions/server.ts": "import { serverRequest } from '@/api/_transport/server-request'; void serverRequest;\n",
+    "apps/web/src/api/auctions/operation.ts": "import type { ContractRequest } from '@/api/_transport/request-contract'; export type Request = ContractRequest;\n",
+    "apps/web/src/api/auctions/internal/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; void browserRequest;\n",
+    "apps/web/src/api/auctions/internal/server.ts": "import { serverRequest } from '@/api/_transport/server-request'; void serverRequest;\n",
+    "apps/web/src/api/auctions/nested.ts": "import { browserRequest } from '@/api/_transport/internal/browser-request'; void browserRequest;\n",
+    "apps/web/src/api/_transport/browser-request.ts": "export const browserRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/server-request.ts": "export const serverRequest = () => undefined;\n",
+    "apps/web/src/api/_transport/request-contract.ts": "export interface ContractRequest {}\n",
+    "apps/web/src/api/_transport/internal/browser-request.ts": "export const browserRequest = () => undefined;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
+});
+
+test("overridden Response decoder도 receiver inheritance로 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "class OverrideResponse extends Response { json() { return Promise.resolve({}); } text() { return Promise.resolve(''); } } const parser = { text: () => '' }; export function load(response: OverrideResponse) { parser.text(); return [response.json(), response.text()]; }\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 1);
+});
+
+test("endpoint authority는 repo-root prefix와 template static path만 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/vendor/packages/contracts/src/api/fake.ts": "export const fake = '/api/v9/fake';\n",
+    "apps/web/src/api/auctions/get.ts": "export const dynamic = (id: string) => `/api/v9/auctions/${id}`; export const staticPath = `/api/v8/auctions`;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 3);
+});
+
+test("manual DTO graph은 local compound shape를 거부하고 resolved contract type은 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "export type { InterfaceResponse } from './interface'; export type { MappedResponse } from './mapped'; export type { TupleResponse } from './tuple'; export type { ArrayResponse } from './array'; export type { UnionResponse } from './union'; export type { IntersectionResponse } from './intersection'; export type { IdentityResponse } from './identity'; export type { ContractResponse } from './contract';\n",
+    "apps/web/src/api/auctions/interface.ts": "interface Local { id: string } export type InterfaceResponse = Local;\n",
+    "apps/web/src/api/auctions/mapped.ts": "type Map<T> = { [K in keyof T]: T[K] }; type Local = { id: string }; export type MappedResponse = Map<Local>;\n",
+    "apps/web/src/api/auctions/tuple.ts": "export type TupleResponse = [string, { id: string }];\n",
+    "apps/web/src/api/auctions/array.ts": "type Local = { id: string }; export type ArrayResponse = Local[];\n",
+    "apps/web/src/api/auctions/union.ts": "type Local = { id: string }; export type UnionResponse = Local | null;\n",
+    "apps/web/src/api/auctions/intersection.ts": "type Local = { id: string }; export type IntersectionResponse = Local & { name: string };\n",
+    "apps/web/src/api/auctions/identity.ts": "type Identity<T> = T; type Local = { id: string }; export type IdentityResponse = Identity<Local>;\n",
+    "apps/web/src/api/auctions/contract.ts": "import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions'; export type ContractResponse = AuctionV1Response;\n",
+    "node_modules/@eatbid/contracts/package.json": "{\"name\":\"@eatbid/contracts\",\"exports\":{\"./api/v1/auctions\":\"./api/v1/auctions.d.ts\"}}\n",
+    "node_modules/@eatbid/contracts/api/v1/auctions.d.ts": "export interface AuctionV1Response { id: string }\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").length, 7);
+});
+
+test("duplicate baseline은 member subset cleanup을 허용하고 content 또는 member 증가를 거부한다", async () => {
+  const duplicate = (prefix) => Array.from({ length: 10 }, (_, index) => `export const ${prefix}${index} = '${"x".repeat(16)}';`).join("\n");
+  const subject = fixture({
+    "apps/web/src/shared/a.ts": duplicate("a"),
+    "apps/web/src/shared/b.ts": duplicate("a"),
+    "apps/web/src/shared/c.ts": duplicate("a"),
+  });
+  try {
+    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
+    writeFileSync(subject.baselinePath, `${JSON.stringify({ version: 1, entries: initial.findings.map((finding) => ({ ...finding, reason: "legacy", owner: "EAT-9", splitTrigger: "migrate" })) }, null, 2)}\n`);
+    writeFileSync(path.join(subject.sourceRoot, "shared", "a.ts"), "export const removed = 1;\n");
+    assert.equal((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.length, 0);
+
+    writeFileSync(path.join(subject.sourceRoot, "shared", "a.ts"), duplicate("a"));
+    writeFileSync(path.join(subject.sourceRoot, "shared", "c.ts"), "export const removed = 3;\n");
+    assert.equal((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.length, 0);
+
+    writeFileSync(path.join(subject.sourceRoot, "shared", "c.ts"), duplicate("changed"));
+    writeFileSync(path.join(subject.sourceRoot, "shared", "a.ts"), duplicate("changed"));
+    writeFileSync(path.join(subject.sourceRoot, "shared", "b.ts"), duplicate("changed"));
+    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /fingerprint drift/);
+
+    writeFileSync(path.join(subject.sourceRoot, "shared", "a.ts"), duplicate("a"));
+    writeFileSync(path.join(subject.sourceRoot, "shared", "b.ts"), duplicate("a"));
+    writeFileSync(path.join(subject.sourceRoot, "shared", "c.ts"), duplicate("a"));
+    writeFileSync(path.join(subject.sourceRoot, "shared", "d.ts"), duplicate("a"));
+    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /membership increase/);
+  } finally {
+    rmSync(subject.root, { recursive: true, force: true });
+  }
 });
