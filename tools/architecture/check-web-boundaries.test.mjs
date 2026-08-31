@@ -700,3 +700,64 @@ test("120단계 callable 경계는 전역 fetch 근거만 fail closed로 거부�
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
   ]);
 });
+
+test("spread tuple로 bind를 역호출해도 전역 fetch만 한 번 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": [
+      "export function load() {",
+      "  return [",
+      "    globalThis.fetch.bind.call(...[globalThis.fetch, globalThis])('/one'),",
+      "    globalThis.fetch.bind.apply(...[globalThis.fetch, [globalThis]])('/two'),",
+      "    Function.prototype.bind.call(...[globalThis.fetch, globalThis])('/three'),",
+      "    Function.prototype.bind.apply(...[globalThis.fetch, [globalThis]])('/four'),",
+      "  ];",
+      "}",
+    ].join("\n"),
+    "apps/web/src/shared/local.ts": [
+      "const fetch = (value: string) => value;",
+      "const client = { run: (value: string) => value };",
+      "const Function = { prototype: { bind: (value: unknown) => () => value } };",
+      "export function safe(globalThis: { fetch(value: string): string }) {",
+      "  return [",
+      "    globalThis.fetch.bind.call(...[globalThis.fetch, globalThis])('one'),",
+      "    fetch.bind.apply(...[fetch, [globalThis]])('two'),",
+      "    Function.prototype.bind.call(...[Function.prototype.bind, client])('three'),",
+      "    client.run.bind.apply(...[client.run, [client]])('four'),",
+      "  ];",
+      "}",
+    ].join("\n"),
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
+});
+
+test("spread 모양이 불명확하면 DOM fetch 근거만 fail closed로 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": [
+      "declare const runtimeArguments: unknown[];",
+      "declare const runtimeTail: unknown[];",
+      "export function load() {",
+      "  return [",
+      "    globalThis.fetch.bind.call(...runtimeArguments)('/one'),",
+      "    globalThis.fetch.bind.apply(...runtimeArguments)('/two'),",
+      "    Function.prototype.bind.call(...[globalThis.fetch, ...runtimeTail])('/three'),",
+      "    Function.prototype.bind.apply(...[globalThis.fetch, ...runtimeTail])('/four'),",
+      "  ];",
+      "}",
+    ].join("\n"),
+    "apps/web/src/shared/local.ts": [
+      "declare const runtimeArguments: unknown[];",
+      "const fetch = (value: string) => value;",
+      "const client = { run: (value: string) => value };",
+      "const Function = { prototype: { bind: (value: unknown) => () => value } };",
+      "export const local = () => fetch.bind.call(...runtimeArguments)('one');",
+      "export const arbitrary = () => client.run.bind.apply(...runtimeArguments)('two');",
+      "export const shadow = () => Function.prototype.bind.call(...runtimeArguments)('three');",
+      "export const unrelatedThis = () => client.run.bind.call(...[client.run, globalThis.fetch])('four');",
+    ].join("\n"),
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
+});

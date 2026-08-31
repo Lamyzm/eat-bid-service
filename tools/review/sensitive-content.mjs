@@ -23,26 +23,21 @@ function unwrap(node) {
   return current;
 }
 
-// const 이름은 한 파일에서 단일 초기화가 확인될 때만 따라간다.
-// shadow/중복 선언은 추측하지 않고 indeterminate로 남겨 credential-owned 위치에서 fail closed 한다.
-function constInitializers(sourceFile) {
-  const declarations = new Map();
-  const visit = (node) => {
-    if (ts.isVariableDeclaration(node)
-      && ts.isIdentifier(node.name)
-      && node.initializer
-      && ts.isVariableDeclarationList(node.parent)
-      && (node.parent.flags & ts.NodeFlags.Const)) {
-      declarations.set(node.name.text, declarations.has(node.name.text) ? undefined : node.initializer);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sourceFile);
-  return declarations;
+// 이름 문자열이 아니라 실제 identifier use의 lexical symbol을 따라가야 sibling/nested shadow가 섞이지 않는다.
+// import나 다른 파일은 evidence 범위를 넓히지 않고, 같은 source의 단일 const 선언만 정적으로 해석한다.
+function constDeclaration(identifier, context) {
+  const symbol = context.checker.getSymbolAtLocation(identifier);
+  const declarations = symbol?.declarations?.filter((declaration) => declaration.getSourceFile() === context.sourceFile
+    && ts.isVariableDeclaration(declaration)
+    && ts.isIdentifier(declaration.name)
+    && declaration.initializer
+    && ts.isVariableDeclarationList(declaration.parent)
+    && Boolean(declaration.parent.flags & ts.NodeFlags.Const));
+  return declarations?.length === 1 ? declarations[0] : undefined;
 }
 
 function evaluationState() {
-  return { active: new Set(), steps: 0 };
+  return { active: new Set(), activeDeclarations: new Set(), steps: 0 };
 }
 
 // 문자열 조합은 literal/template/plus/단일 const만 허용한다.
@@ -56,8 +51,14 @@ function staticString(node, context, state = evaluationState()) {
   try {
     if (ts.isStringLiteralLike(current)) return knownString(current.text);
     if (ts.isIdentifier(current)) {
-      const initializer = context.consts.get(current.text);
-      return initializer ? staticString(initializer, context, state) : indeterminateString;
+      const declaration = constDeclaration(current, context);
+      if (!declaration || state.activeDeclarations.has(declaration)) return indeterminateString;
+      state.activeDeclarations.add(declaration);
+      try {
+        return staticString(declaration.initializer, context, state);
+      } finally {
+        state.activeDeclarations.delete(declaration);
+      }
     }
     if (ts.isTemplateExpression(current)) {
       let value = current.head.text;
@@ -104,8 +105,8 @@ function normalizedFieldName(node, context, resolveIdentifier = false) {
 }
 
 // suffix 허용은 serviceApiKey 같은 실제 소유 필드를 포함하되 일반 tokenCount는 포함하지 않는 기존 경계다.
-function isSensitiveAssignmentName(node, context) {
-  const normalized = normalizedFieldName(node, context);
+function isSensitiveAssignmentName(node, context, resolveIdentifier = false) {
+  const normalized = normalizedFieldName(node, context, resolveIdentifier);
   return Boolean(normalized && sensitiveAssignmentNames.some((name) => normalized === name || normalized.endsWith(name)));
 }
 
@@ -142,7 +143,9 @@ function credentialValueIsSensitive(node, context) {
 }
 
 function assignedValueIsSensitive(name, initializer, context) {
-  const owned = isAuthorizationName(name, context) || isSensitiveAssignmentName(name, context);
+  // computed property의 identifier는 실제 header 문자열을 뜻하지만 일반 property identifier는 이름 자체다.
+  const resolveIdentifier = ts.isComputedPropertyName(name);
+  const owned = isAuthorizationName(name, context, resolveIdentifier) || isSensitiveAssignmentName(name, context, resolveIdentifier);
   return owned && credentialValueIsSensitive(initializer, context);
 }
 
@@ -197,11 +200,26 @@ function scriptKind(fileName) {
   return ts.ScriptKind.TS;
 }
 
+// no-lib 단일 source program은 외부 파일을 읽지 않으면서도 TypeScript binder의 lexical symbol 소유권을 제공한다.
+function sourceAnalysis(contents, fileName) {
+  const options = { allowJs: true, checkJs: false, jsx: ts.JsxEmit.Preserve, noLib: true, noResolve: true, target: ts.ScriptTarget.ESNext };
+  const resolvedFileName = ts.sys.resolvePath(fileName);
+  const sourceFile = ts.createSourceFile(resolvedFileName, contents, ts.ScriptTarget.ESNext, true, scriptKind(fileName));
+  const host = ts.createCompilerHost(options, true);
+  const canonicalFileName = host.getCanonicalFileName(resolvedFileName);
+  const isSubject = (candidate) => host.getCanonicalFileName(ts.sys.resolvePath(candidate)) === canonicalFileName;
+  host.fileExists = isSubject;
+  host.readFile = (candidate) => isSubject(candidate) ? contents : undefined;
+  host.getSourceFile = (candidate) => isSubject(candidate) ? sourceFile : undefined;
+  const program = ts.createProgram({ rootNames: [resolvedFileName], options, host });
+  return { checker: program.getTypeChecker(), sourceFile: program.getSourceFile(resolvedFileName) ?? sourceFile };
+}
+
 // 공개 API는 source 자체를 반환하지 않고 민감 여부만 알려 catalog exclusion reason을 고정한다.
 export function hasSensitiveContent(contents, fileName = "review-source.ts") {
   if (/-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----/i.test(contents)) return true;
-  const sourceFile = ts.createSourceFile(fileName, contents, ts.ScriptTarget.ESNext, true, scriptKind(fileName));
-  const context = { consts: constInitializers(sourceFile) };
+  const context = sourceAnalysis(contents, fileName);
+  const { sourceFile } = context;
   let found = false;
   const visit = (node) => {
     if (found) return;

@@ -288,6 +288,65 @@ test("Headers 생성자와 계산된 header 이름의 짧은 credential을 제�
   assert.doesNotMatch(JSON.stringify(result), /'obj'|'tuple'|'set'|'app'|'deep'|runtimeToken/);
 });
 
+test("Headers 객체의 const 계산 속성은 인증 소유권과 동적 값을 fail closed로 처리한다", async () => {
+  const sensitive = {
+    "apps/web/src/components/computed-authorization.ts": "const headerName = 'Author' + 'ization'; declare const runtimeCredential: string; export const headers = new Headers({ [headerName]: runtimeCredential });\n",
+    "apps/web/src/components/computed-proxy-authorization.ts": "const headerName = 'Proxy-' + 'Authorization'; export const headers = new Headers({ [headerName]: 'proxy-secret' });\n",
+  };
+  const safePath = "apps/web/src/components/computed-content-type.ts";
+  const result = await catalog({
+    ...sensitive,
+    [safePath]: "const headerName = 'Content-Type'; declare const runtimeValue: string; export const headers = new Headers({ [headerName]: runtimeValue });\n",
+  }, { changedPaths: [...Object.keys(sensitive), safePath] });
+
+  for (const sensitivePath of Object.keys(sensitive)) {
+    assert.deepEqual(result.exclusions.find((item) => item.path === sensitivePath), { path: sensitivePath, reason: "sensitive-content" });
+    assert.equal(result.modules.find((module) => module.path === sensitivePath)?.source, undefined);
+  }
+  assert.match(result.modules.find((module) => module.path === safePath).source, /Content-Type/);
+  assert.doesNotMatch(JSON.stringify(result), /runtimeCredential|proxy-secret/);
+});
+
+test("Headers 상수 이름은 중첩과 형제 scope의 symbol을 분리해 판정한다", async () => {
+  const sensitive = {
+    "apps/web/src/components/scoped-constructor.ts": [
+      "function benign() { const headerName = 'Content-Type'; return new Headers({ [headerName]: 'text/plain' }); }",
+      "export function credential() { const headerName = 'Authorization'; return new Headers({ [headerName]: 'object-secret' }); }",
+      "void benign;",
+    ].join("\n"),
+    "apps/web/src/components/scoped-set.ts": [
+      "function benign(headers: Headers) { const headerName = 'Content-Type'; headers.set(headerName, 'application/json'); }",
+      "export function credential(headers: Headers) { const headerName = 'Authorization'; headers.set(headerName, 'set-secret'); }",
+      "void benign;",
+    ].join("\n"),
+    "apps/web/src/components/scoped-append.ts": [
+      "export function credential(headers: Headers) {",
+      "  const headerName = 'Proxy-Authorization';",
+      "  function benign() { const headerName = 'Content-Type'; headers.append(headerName, 'text/plain'); }",
+      "  benign();",
+      "  headers.append(headerName, 'append-secret');",
+      "}",
+    ].join("\n"),
+  };
+  const safePath = "apps/web/src/components/scoped-content-type.ts";
+  const result = await catalog({
+    ...sensitive,
+    [safePath]: [
+      "function objectHeaders() { const headerName = 'Content-Type'; return new Headers({ [headerName]: 'object-secret-shaped' }); }",
+      "function setHeader(headers: Headers) { const headerName = 'Content-Type'; headers.set(headerName, 'set-secret-shaped'); }",
+      "export function appendHeader(headers: Headers) { const headerName = 'Content-Type'; function nested() { const headerName = 'Content-Type'; headers.append(headerName, 'append-secret-shaped'); } nested(); headers.append(headerName, 'outer-secret-shaped'); }",
+      "void objectHeaders; void setHeader;",
+    ].join("\n"),
+  }, { changedPaths: [...Object.keys(sensitive), safePath] });
+
+  for (const sensitivePath of Object.keys(sensitive)) {
+    assert.deepEqual(result.exclusions.find((item) => item.path === sensitivePath), { path: sensitivePath, reason: "sensitive-content" });
+    assert.equal(result.modules.find((module) => module.path === sensitivePath)?.source, undefined);
+  }
+  assert.match(result.modules.find((module) => module.path === safePath).source, /outer-secret-shaped/);
+  assert.doesNotMatch(JSON.stringify(result), /object-secret'|set-secret'|append-secret'/);
+});
+
 test("generated 경로와 파일명은 대소문자와 Windows 구분자를 정규화하고 generator는 허용한다", async () => {
   const result = await catalog({
     "apps/web/src/Generated/one.ts": "export const one = 'hidden-one';\n",
