@@ -77,8 +77,15 @@ function isDomSymbol(symbol, name) {
 
 function isGlobalFetch(checker, node) {
   if (!ts.isCallExpression(node)) return false;
-  if (ts.isIdentifier(node.expression)) return isDomSymbol(resolvedSymbol(checker, node.expression), "fetch");
-  return ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "fetch" && ts.isIdentifier(node.expression.expression) && ["window", "globalThis"].includes(node.expression.expression.text) && isDomSymbol(resolvedSymbol(checker, node.expression.name), "fetch");
+  const expression = unwrapExpression(node.expression);
+  if (ts.isIdentifier(expression)) return isDomSymbol(resolvedSymbol(checker, expression), "fetch");
+  if (!(ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) || staticPropertyName(checker, expression) !== "fetch") return false;
+  const receiver = unwrapExpression(expression.expression);
+  if (!ts.isIdentifier(receiver) || !["window", "globalThis"].includes(receiver.text)) return false;
+  const property = ts.isPropertyAccessExpression(expression)
+    ? resolvedSymbol(checker, expression.name)
+    : checker.getTypeAtLocation(receiver).getProperty("fetch");
+  return isDomSymbol(property, "fetch");
 }
 
 function typeHasDomResponseBase(checker, type, seen = new Set()) {
@@ -119,8 +126,10 @@ function responseDecoder(checker, node) {
   const invoke = unwrapExpression(node.expression);
   const invokeName = staticPropertyName(checker, invoke);
   if (!(ts.isPropertyAccessExpression(invoke) || ts.isElementAccessExpression(invoke)) || !["call", "apply", "bind"].includes(invokeName) || !node.arguments.length) return undefined;
-  const prototypeMethod = decoderAccess(checker, invoke.expression);
-  return prototypeMethod && isDomResponsePrototype(checker, prototypeMethod.receiver) && hasDomResponseBase(checker, node.arguments[0]) ? prototypeMethod.name : undefined;
+  const method = decoderAccess(checker, invoke.expression);
+  if (!method) return undefined;
+  if (isDomResponsePrototype(checker, method.receiver)) return hasDomResponseBase(checker, node.arguments[0]) ? method.name : undefined;
+  return hasDomResponseBase(checker, method.receiver) ? method.name : undefined;
 }
 
 function isResponseJsonCast(checker, node) {
@@ -154,10 +163,18 @@ function resourceFile(root, file) {
   return display(root, file).match(/^apps\/web\/src\/api\/([^/]+)\/([^/]+\.[cm]?tsx?)$/);
 }
 
+function unresolvedWebTransportReference(root, file, reference) {
+  if (!reference?.dynamic || reference.known !== false) return false;
+  const specifier = reference.text.replaceAll("\\", "/");
+  if (/^(?:@\/|apps\/web\/src\/)api\/_transport(?:\/|$)/.test(specifier)) return true;
+  if (!/^\.\.?\//.test(specifier)) return false;
+  const resolved = path.resolve(path.dirname(file), specifier.replaceAll("\u0000", "__unknown__"));
+  return display(root, resolved).startsWith("apps/web/src/api/_transport/");
+}
+
 function transportViolation(root, layer, file, target, node, reference) {
   const targetPath = target ? display(root, target) : undefined;
-  const staticTransportReference = /(?:^|\/)api\/_transport(?:\/|$)/.test(reference?.text?.replaceAll("\\", "/") ?? "");
-  if (!targetPath?.startsWith("apps/web/src/api/_transport/") && !staticTransportReference) return undefined;
+  if (!targetPath?.startsWith("apps/web/src/api/_transport/") && !unresolvedWebTransportReference(root, file, reference)) return undefined;
   if (layer?.layer === "api" && layer.slice === "_transport") return undefined;
   const source = resourceFile(root, file);
   const isResource = layer?.layer === "api" && layer.slice && layer.slice !== "_transport" && source?.[1] === layer.slice;
@@ -216,7 +233,10 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
         if (violation) add(findings, root, WEB_BOUNDARY_RULES.RESOURCE_TRANSPORT_IMPORT, file, node, sourceFile, violation);
       }
       if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "ENDPOINTS") add(findings, root, WEB_BOUNDARY_RULES.FRONTEND_ENDPOINTS_MIRROR, file, node, sourceFile, "frontend ENDPOINTS mirror는 canonical operation contract를 중복합니다.");
-      const endpointCandidate = (ts.isStringLiteralLike(node) || ts.isTemplateExpression(node) || ts.isBinaryExpression(node)) && !((ts.isStringLiteralLike(node) || ts.isBinaryExpression(node)) && (ts.isBinaryExpression(node.parent) || ts.isTemplateSpan(node.parent)));
+      let endpointRoot = node;
+      while (endpointRoot.parent && (ts.isParenthesizedExpression(endpointRoot.parent) || ts.isAsExpression(endpointRoot.parent) || ts.isTypeAssertionExpression(endpointRoot.parent) || ts.isSatisfiesExpression(endpointRoot.parent) || ts.isNonNullExpression(endpointRoot.parent)) && endpointRoot.parent.expression === endpointRoot) endpointRoot = endpointRoot.parent;
+      const nestedEndpointExpression = Boolean(endpointRoot.parent && (ts.isBinaryExpression(endpointRoot.parent) || (ts.isTemplateSpan(endpointRoot.parent) && endpointRoot.parent.expression === endpointRoot)));
+      const endpointCandidate = (ts.isStringLiteralLike(node) || ts.isTemplateExpression(node) || ts.isBinaryExpression(node)) && !nestedEndpointExpression;
       const endpoint = endpointCandidate ? staticExpression(checker, node).text : undefined;
       if (endpoint !== undefined && !isEndpointAuthorityPath(root, file) && !isModuleSpecifierLiteral(node) && /\/api\/v\d+(?:\/|$)/.test(endpoint)) add(findings, root, WEB_BOUNDARY_RULES.API_ENDPOINT_LITERAL, file, node, sourceFile, "canonical /api/vN path literal은 operation contract 밖에서 중복할 수 없습니다.");
       if (!isTransportPath(file) && isGlobalFetch(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.RAW_FETCH, file, node, sourceFile, "raw fetch는 src/api/_transport에서만 수행할 수 있습니다.");

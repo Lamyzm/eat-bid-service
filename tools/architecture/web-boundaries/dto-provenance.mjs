@@ -53,6 +53,10 @@ function manualTypeNode(root, checker, node, seenDeclarations = new Set(), seenN
   if (ts.isIndexedAccessTypeNode(node)) return manualTypeNode(root, checker, node.objectType, seenDeclarations, seenNodes) || manualTypeNode(root, checker, node.indexType, seenDeclarations, seenNodes);
   if (ts.isConditionalTypeNode(node)) return [node.checkType, node.extendsType, node.trueType, node.falseType].some((type) => manualTypeNode(root, checker, type, seenDeclarations, seenNodes));
   if (ts.isInferTypeNode(node)) return manualDeclaration(root, checker, node.typeParameter, seenDeclarations, seenNodes);
+  if (ts.isImportTypeNode(node)) {
+    if (node.typeArguments?.some((argument) => manualTypeNode(root, checker, argument, seenDeclarations, seenNodes))) return true;
+    return (resolvedSymbol(checker, node.qualifier ?? node)?.declarations ?? []).some((declaration) => manualDeclaration(root, checker, declaration, seenDeclarations, seenNodes));
+  }
   if (!ts.isTypeReferenceNode(node)) return false;
   if (node.typeArguments?.some((argument) => manualTypeNode(root, checker, argument, seenDeclarations, seenNodes))) return true;
   return (resolvedSymbol(checker, node.typeName)?.declarations ?? []).some((declaration) => manualDeclaration(root, checker, declaration, seenDeclarations, seenNodes));

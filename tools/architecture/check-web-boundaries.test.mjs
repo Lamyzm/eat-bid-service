@@ -537,3 +537,59 @@ test("Response syntax normalization은 wrapped const key global prototype와 bra
   assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 4);
   assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
 });
+
+test("static evaluator는 같은 const 재사용을 허용하고 실제 순환만 중단한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "const version = 1 as const; export const repeated = `/api/v${version + version}/auctions`; const cycleA = cycleB; const cycleB = cycleA; export const cyclic = `/api/v${cycleA}/auctions`;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
+});
+
+test("import type DTO는 local shape를 거부하고 contract authority를 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/index.ts": "export type { LocalResponse, ContractResponse } from './responses';\n",
+    "apps/web/src/api/auctions/responses.ts": "export type LocalResponse = import('./shape').LocalShape; export type ContractResponse = import('@eatbid/contracts/api/v1/auctions').AuctionResponse;\n",
+    "apps/web/src/api/auctions/shape.ts": "export interface LocalShape { id: string }\n",
+    "node_modules/@eatbid/contracts/package.json": "{\"name\":\"@eatbid/contracts\",\"exports\":{\"./api/v1/auctions\":\"./api/v1/auctions.d.ts\"}}\n",
+    "node_modules/@eatbid/contracts/api/v1/auctions.d.ts": "export interface AuctionResponse { id: string }\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").map((finding) => finding.path), [
+    "apps/web/src/api/auctions/responses.ts",
+  ]);
+});
+
+test("Response instance decoder의 call apply bind 우회를 거부하고 parser는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "const key = 'json' as const; const parser = { json: () => 1, text: () => 2 }; export function load(response: Response) { parser.json.call(parser); parser.text.apply(parser); return [response[key]['call'](response), (response.text).apply(response), (response.blob.bind(response))()]; }\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
+});
+
+test("unresolved dynamic transport fallback은 Web transport root에만 적용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "declare const segment: string; export const web = () => import(`@/api/_transport/${segment}`); export const vendor = () => import(`@vendor/api/_transport/${segment}`); export const shared = () => import(`@/shared/api/_transport/${segment}`);\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 1);
+});
+
+test("중첩 endpoint template은 outermost finding 하나만 보고한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "const version = 1 as const; export const path = `prefix-${`/api/v${version}/auctions`}`;\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
+});
+
+test("wrapped bracket global fetch는 거부하고 local shadow는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "const key = 'fetch' as const; export function load() { return [(window['fetch'])('/one'), globalThis[key]('/two'), (globalThis.fetch)('/three'), (fetch)('/four')]; }\n",
+    "apps/web/src/shared/local.ts": "const key = 'fetch' as const; const fetch = (value: string) => value; const window = { fetch: (value: string) => value }; export const safe = () => [(fetch)('one'), window[key]('two')];\n",
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+});
