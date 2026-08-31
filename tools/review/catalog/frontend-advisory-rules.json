@@ -1,0 +1,111 @@
+{
+  "version": "eatbid.frontend-advisory-rules/v1",
+  "rules": [
+    {
+      "id": "reuse.repository-candidate",
+      "title": "기존 repository module 재사용",
+      "applicabilityCondition": "변경 코드가 기존 hook, shared helper 또는 compatibility utility와 같은 책임을 새로 구현할 때 적용한다.",
+      "counterexampleCondition": "기존 후보가 의미, 수명주기, 부작용 또는 공개 계약이 달라 실제 대체가 되지 않으면 제안하지 않는다.",
+      "guidance": "실제 catalog source와 candidate path를 근거로 제안하며 consumer 수 0은 검토 후보일 뿐 dead code 증거가 아니다.",
+      "projectAuthorityPath": "apps/web/AGENTS.md",
+      "sourceUrl": "https://www.typescriptlang.org/docs/handbook/modules/reference.html#module-resolution"
+    },
+    {
+      "id": "reuse.semantic-duplication",
+      "title": "의미 중복 검토",
+      "applicabilityCondition": "구문이 달라도 입력, 출력, 오류와 수명주기가 같은 로직이 둘 이상 생길 때 적용한다.",
+      "counterexampleCondition": "우연히 코드가 비슷하지만 서로 다른 authority 또는 변경 이유를 가지면 합치지 않는다.",
+      "guidance": "byte duplicate와 semantic duplicate를 구분하고 실제 양쪽 source evidence를 제시한다.",
+      "projectAuthorityPath": "docs/architecture/frontend-application-foundation.md",
+      "sourceUrl": "https://www.typescriptlang.org/docs/handbook/modules/reference.html"
+    },
+    {
+      "id": "architecture.business-view-separation",
+      "title": "업무 권위와 View 분리",
+      "applicabilityCondition": "route 또는 component가 업무 판단, network authority와 presentation을 함께 소유할 때 적용한다.",
+      "counterexampleCondition": "작은 route-local presentation 변환이고 server/domain authority를 만들지 않으면 불필요한 layer를 제안하지 않는다.",
+      "guidance": "업무 사실과 계산 권위는 contract/server에 두고 route-private model과 View는 검증된 serializable data를 표현한다.",
+      "projectAuthorityPath": "docs/architecture/frontend-application-foundation.md",
+      "sourceUrl": "https://nextjs.org/docs/app/getting-started/server-and-client-components"
+    },
+    {
+      "id": "next.rsc-serialization",
+      "title": "RSC serialization 경계",
+      "applicabilityCondition": "Server Component에서 Client Component로 prop을 전달하거나 client entry를 추가할 때 적용한다.",
+      "counterexampleCondition": "값이 server tree 안에 머물거나 이미 plain serializable wire/presentation data이면 경고하지 않는다.",
+      "guidance": "Client Component prop은 React가 serialize할 수 있어야 하며 Date, bigint, function과 class instance를 직접 넘기지 않는다.",
+      "projectAuthorityPath": "docs/architecture/frontend-application-foundation.md",
+      "sourceUrl": "https://nextjs.org/docs/app/api-reference/directives/use-client"
+    },
+    {
+      "id": "next.independent-async-waterfalls",
+      "title": "독립 async waterfall",
+      "applicabilityCondition": "서로 의존하지 않는 server read가 순차 await되어 전체 latency를 늘릴 때 적용한다.",
+      "counterexampleCondition": "두 번째 작업의 입력이나 권한이 첫 번째 결과에 실제로 의존하면 병렬화를 제안하지 않는다.",
+      "guidance": "독립 작업은 먼저 시작하거나 Promise.all로 병렬화하고 필요한 Suspense 경계에서 stream한다.",
+      "projectAuthorityPath": "docs/architecture/frontend-application-foundation.md",
+      "sourceUrl": "https://nextjs.org/docs/app/getting-started/fetching-data#parallel-data-fetching"
+    },
+    {
+      "id": "react.use-effect-event",
+      "title": "useEffectEvent의 공식 의미",
+      "applicabilityCondition": "Effect가 최신 props/state를 읽어야 하지만 그 읽기가 Effect 재동기화를 유발해서는 안 되는 비반응 이벤트일 때만 적용한다.",
+      "counterexampleCondition": "일반 stable callback, event handler, 자식에게 전달할 callback 또는 dependency를 숨기려는 경우에는 적용하지 않는다.",
+      "guidance": "useEffectEvent는 Effect 안에서 호출되는 non-reactive event에만 사용한다. 일반 stable callback이 아니며 child에 전달하지 않고 dependency array에 넣지 않는다.",
+      "projectAuthorityPath": "docs/superpowers/specs/2026-08-31-frontend-modular-architecture-design.md",
+      "sourceUrl": "https://react.dev/reference/react/useEffectEvent"
+    },
+    {
+      "id": "react.global-listener-ownership",
+      "title": "전역 listener 수명주기 소유권",
+      "applicabilityCondition": "window, document, media query 또는 외부 subscription listener를 등록할 때 적용한다.",
+      "counterexampleCondition": "React event prop이나 framework가 수명주기를 완전히 소유하는 listener에는 별도 Effect를 제안하지 않는다.",
+      "guidance": "Effect setup과 cleanup이 같은 owner에 있고 dependency 변화와 unmount에서 정확히 대칭인지 검토한다.",
+      "projectAuthorityPath": "apps/web/AGENTS.md",
+      "sourceUrl": "https://react.dev/reference/react/useEffect"
+    },
+    {
+      "id": "react.composition",
+      "title": "UI composition",
+      "applicabilityCondition": "하나의 component가 많은 mode flag로 서로 다른 UI 책임과 행동을 선택할 때 적용한다.",
+      "counterexampleCondition": "접근성이나 visual variant처럼 base primitive가 명시적으로 소유하는 작은 variant면 별도 component 분해를 강제하지 않는다.",
+      "guidance": "명시적 props와 children composition으로 책임을 드러내고 auth, command와 telemetry를 base primitive에 숨기지 않는다.",
+      "projectAuthorityPath": "apps/web/AGENTS.md",
+      "sourceUrl": "https://react.dev/learn/passing-props-to-a-component"
+    },
+    {
+      "id": "react.immutable-array-operations",
+      "title": "불변 array update",
+      "applicabilityCondition": "React state에 저장된 array를 추가, 제거, 정렬 또는 치환할 때 적용한다.",
+      "counterexampleCondition": "render 밖의 local temporary array나 명시적으로 mutable한 외부 library buffer에는 React state 규칙을 투영하지 않는다.",
+      "guidance": "state array를 직접 mutate하지 말고 map, filter, spread, toSorted 같은 non-mutating operation으로 새 값을 만든다.",
+      "projectAuthorityPath": "apps/web/AGENTS.md",
+      "sourceUrl": "https://react.dev/learn/updating-arrays-in-state"
+    },
+    {
+      "id": "react.intentional-activity",
+      "title": "Activity의 의도적 사용",
+      "applicabilityCondition": "UI를 제거하지 않고 숨긴 채 state를 보존하고 background work를 제어할 명시적 제품 이유가 있을 때 적용한다.",
+      "counterexampleCondition": "조건부 render, CSS visibility 또는 state hoisting으로 충분하거나 숨은 subtree 작업 유지가 의도되지 않으면 Activity를 제안하지 않는다.",
+      "guidance": "Activity는 state 보존과 effect lifecycle 비용을 이해하고 측정한 경우에만 의도적으로 사용한다.",
+      "projectAuthorityPath": "apps/web/AGENTS.md",
+      "sourceUrl": "https://react.dev/reference/react/Activity"
+    },
+    {
+      "id": "next.measured-dynamic-imports",
+      "title": "측정된 dynamic import",
+      "applicabilityCondition": "큰 browser-only component가 초기 client bundle 또는 interaction latency의 측정된 병목일 때 적용한다.",
+      "counterexampleCondition": "작은 module, Server Component 또는 bundle evidence가 없는 추측성 분할에는 제안하지 않는다.",
+      "guidance": "지도와 chart 같은 browser-only leaf에 한해 bundle/UX evidence와 loading behavior를 함께 제시하고 dynamic import를 검토한다.",
+      "projectAuthorityPath": "docs/architecture/frontend-application-foundation.md",
+      "sourceUrl": "https://nextjs.org/docs/app/guides/lazy-loading"
+    }
+  ],
+  "suppressedAdvice": [
+    {
+      "id": "data.generic-swr",
+      "reason": "이 프로젝트는 interactive server state 권위로 TanStack Query를 선택했으므로 generic SWR 전환 조언을 생성하지 않는다.",
+      "projectAuthorityPath": "docs/architecture/frontend-application-foundation.md"
+    }
+  ]
+}
