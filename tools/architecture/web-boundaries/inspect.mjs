@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { exportedManualDtos } from "./dto-provenance.mjs";
+import { isDomLibrarySymbol, isGlobalFetchCall } from "./global-fetch-analysis.mjs";
 import {
   MAX_SOURCE_LINES,
   MIN_DUPLICATE_BYTES,
@@ -23,6 +24,8 @@ import {
 } from "./policy.mjs";
 import { staticExpression, staticPropertyName, unwrapExpression } from "./static-analysis.mjs";
 
+// 이 모듈은 Web source 전체를 한 TypeScript program으로 검사해 deterministic boundary finding을 만든다.
+// 세부 의미 분석은 전용 모듈에 위임하고, 여기서는 path 소유권·fingerprint·baseline 경계만 조립한다.
 const responseBodyMethods = new Set(["json", "text", "arrayBuffer", "blob", "formData", "bytes"]);
 const sha256 = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const display = (root, file) => normalizedPath(root, file).replaceAll("\\", "/");
@@ -72,81 +75,11 @@ function resolvedSymbol(checker, node) {
   return symbol;
 }
 
-function isDomSymbol(symbol, name) {
-  return symbol?.getName() === name && symbol.declarations?.some((declaration) => declaration.getSourceFile().isDeclarationFile && /lib\.dom\.d\.ts$/.test(declaration.getSourceFile().fileName));
-}
-
-function isGlobalFetchReference(checker, node) {
-  const expression = unwrapExpression(node);
-  if (ts.isIdentifier(expression)) return isDomSymbol(resolvedSymbol(checker, expression), "fetch");
-  if (!(ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) || staticPropertyName(checker, expression) !== "fetch") return false;
-  const receiver = unwrapExpression(expression.expression);
-  if (!ts.isIdentifier(receiver) || !["window", "globalThis"].includes(receiver.text)) return false;
-  const property = ts.isPropertyAccessExpression(expression)
-    ? resolvedSymbol(checker, expression.name)
-    : checker.getTypeAtLocation(receiver).getProperty("fetch");
-  return isDomSymbol(property, "fetch");
-}
-
-function hasGlobalFetchOrigin(checker, node, depth = 0, seen = new Set()) {
-  if (!node || depth > 96 || seen.has(node)) return false;
-  const expression = unwrapExpression(node);
-  if (isGlobalFetchReference(checker, expression)) return true;
-  seen.add(expression);
-  try {
-    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) return hasGlobalFetchOrigin(checker, expression.right, depth + 1, seen);
-    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) return hasGlobalFetchOrigin(checker, expression.expression, depth + 1, seen);
-    if (ts.isCallExpression(expression)) {
-      const callee = unwrapExpression(expression.expression);
-      return (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee))
-        && staticPropertyName(checker, callee) === "bind"
-        && hasGlobalFetchOrigin(checker, callee.expression, depth + 1, seen);
-    }
-    return false;
-  } finally {
-    seen.delete(expression);
-  }
-}
-
-function isGlobalFetchCallable(checker, node, depth = 0, seen = new Set()) {
-  if (!node) return false;
-  if (depth > 32 || seen.has(node)) return hasGlobalFetchOrigin(checker, node);
-  const expression = unwrapExpression(node);
-  if (expression !== node) return isGlobalFetchCallable(checker, expression, depth + 1, seen);
-  seen.add(expression);
-  try {
-    if (isGlobalFetchReference(checker, expression)) return true;
-    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) return isGlobalFetchCallable(checker, expression.right, depth + 1, seen);
-    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
-      const method = staticPropertyName(checker, expression);
-      if (["call", "apply"].includes(method)) return isGlobalFetchCallable(checker, expression.expression, depth + 1, seen);
-      if (method === "bind") return false;
-      return hasGlobalFetchOrigin(checker, expression);
-    }
-    if (!ts.isCallExpression(expression)) return false;
-    const binder = unwrapExpression(expression.expression);
-    return (ts.isPropertyAccessExpression(binder) || ts.isElementAccessExpression(binder))
-      && staticPropertyName(checker, binder) === "bind"
-      && isGlobalFetchCallable(checker, binder.expression, depth + 1, seen);
-  } finally {
-    seen.delete(expression);
-  }
-}
-
-function isGlobalFetch(checker, node) {
-  if (!ts.isCallExpression(node)) return false;
-  const expression = unwrapExpression(node.expression);
-  if (isGlobalFetchCallable(checker, expression)) return true;
-  return (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression))
-    && ["call", "apply"].includes(staticPropertyName(checker, expression))
-    && isGlobalFetchCallable(checker, expression.expression);
-}
-
 function typeHasDomResponseBase(checker, type, seen = new Set()) {
   const apparent = checker.getApparentType(type);
   if (seen.has(apparent)) return false;
   seen.add(apparent);
-  if (isDomSymbol(apparent.getSymbol?.(), "Response") || isDomSymbol(apparent.aliasSymbol, "Response")) return true;
+  if (isDomLibrarySymbol(apparent.getSymbol?.(), "Response") || isDomLibrarySymbol(apparent.aliasSymbol, "Response")) return true;
   if (apparent.isUnionOrIntersection?.()) return apparent.types.some((member) => typeHasDomResponseBase(checker, member, seen));
   const bases = typeof apparent.getBaseTypes === "function" ? apparent.getBaseTypes() ?? [] : [];
   return bases.some((base) => typeHasDomResponseBase(checker, base, seen));
@@ -169,8 +102,8 @@ function isDomResponsePrototype(checker, node) {
   const current = unwrapExpression(node);
   if (!ts.isPropertyAccessExpression(current) || current.name.text !== "prototype") return false;
   const constructor = unwrapExpression(current.expression);
-  if (ts.isIdentifier(constructor)) return isDomSymbol(resolvedSymbol(checker, constructor), "Response");
-  return ts.isPropertyAccessExpression(constructor) && constructor.name.text === "Response" && ts.isIdentifier(constructor.expression) && constructor.expression.text === "globalThis" && isDomSymbol(resolvedSymbol(checker, constructor.name), "Response");
+  if (ts.isIdentifier(constructor)) return isDomLibrarySymbol(resolvedSymbol(checker, constructor), "Response");
+  return ts.isPropertyAccessExpression(constructor) && constructor.name.text === "Response" && ts.isIdentifier(constructor.expression) && constructor.expression.text === "globalThis" && isDomLibrarySymbol(resolvedSymbol(checker, constructor.name), "Response");
 }
 
 function responseDecoder(checker, node) {
@@ -241,6 +174,8 @@ function transportViolation(root, layer, file, target, node, reference) {
   return "resource는 승인되지 않은 api/_transport module을 import 또는 re-export할 수 없습니다.";
 }
 
+// 공개 진입점은 모든 finding을 먼저 계산한 뒤 exact legacy baseline과 비교한다.
+// 신규 위반은 예외로 흡수하지 않으며, 기존 fingerprint의 삭제만 허용하는 것이 반환 계약이다.
 export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath }) {
   const root = path.resolve(repoRoot);
   const source = path.resolve(sourceRoot);
@@ -293,7 +228,8 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
       const endpointCandidate = (ts.isStringLiteralLike(node) || ts.isTemplateExpression(node) || ts.isBinaryExpression(node)) && !nestedEndpointExpression;
       const endpoint = endpointCandidate ? staticExpression(checker, node).text : undefined;
       if (endpoint !== undefined && !isEndpointAuthorityPath(root, file) && !isModuleSpecifierLiteral(node) && /\/api\/v\d+(?:\/|$)/.test(endpoint)) add(findings, root, WEB_BOUNDARY_RULES.API_ENDPOINT_LITERAL, file, node, sourceFile, "canonical /api/vN path literal은 operation contract 밖에서 중복할 수 없습니다.");
-      if (!isTransportPath(file) && isGlobalFetch(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.RAW_FETCH, file, node, sourceFile, "raw fetch는 src/api/_transport에서만 수행할 수 있습니다.");
+      // callable 조합의 문법 이름이 아니라 DOM symbol origin이 증명된 호출만 transport 위반으로 보고한다.
+      if (!isTransportPath(file) && isGlobalFetchCall(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.RAW_FETCH, file, node, sourceFile, "raw fetch는 src/api/_transport에서만 수행할 수 있습니다.");
       if (!isTransportPath(file) && isResponseJsonCast(checker, node)) add(findings, root, WEB_BOUNDARY_RULES.UNCHECKED_JSON_CAST, file, node, sourceFile, "Response.json() as는 runtime contract parsing을 우회합니다.");
       else if (!isTransportPath(file)) {
         const decoder = responseDecoder(checker, node);

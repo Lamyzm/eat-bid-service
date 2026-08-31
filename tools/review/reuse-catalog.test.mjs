@@ -237,6 +237,57 @@ test("credential 소유 구조는 짧은 값과 JSX 정적 문자열을 제외�
   assert.doesNotMatch(JSON.stringify(result), /Basic dTpw|apiToken = 'abc'|password = 'pwd'|password=\{`p/);
 });
 
+test("credential 소유 값은 깊이 한계와 순환에서도 fail closed로 제외한다", async () => {
+  const nested = (value, count) => Array.from({ length: count }).reduce((current) => `(${current} + '')`, value);
+  const sensitive = {
+    "apps/web/src/components/deep-token.ts": `export const apiToken = ${nested("'deep-secret'", 120)};\n`,
+    "apps/web/src/components/over-policy-token.ts": `export const accessToken = ${nested("'over-policy-secret'", 600)};\n`,
+    "apps/web/src/components/cyclic-token.ts": "const left = right; const right = left; export const refreshToken = left;\n",
+    "apps/web/src/components/dynamic-password.ts": "declare const runtimePassword: string; export const password = runtimePassword;\n",
+  };
+  const safePath = "apps/web/src/components/deep-placeholder.ts";
+  const result = await catalog({
+    ...sensitive,
+    [safePath]: `export const clientSecret = ${nested("'example'", 120)};\n`,
+  }, { changedPaths: [...Object.keys(sensitive), safePath] });
+
+  for (const sensitivePath of Object.keys(sensitive)) {
+    assert.deepEqual(result.exclusions.find((item) => item.path === sensitivePath), { path: sensitivePath, reason: "sensitive-content" });
+    assert.equal(result.modules.find((module) => module.path === sensitivePath)?.source, undefined);
+  }
+  assert.match(result.modules.find((module) => module.path === safePath).source, /clientSecret/);
+  assert.doesNotMatch(JSON.stringify(result), /deep-secret|over-policy-secret|runtimePassword|refreshToken = left/);
+});
+
+test("Headers 생성자와 계산된 header 이름의 짧은 credential을 제외한다", async () => {
+  const authName = Array.from({ length: 120 }).reduce((current) => `(${current} + '')`, "'Author' + 'ization'");
+  const sensitive = {
+    "apps/web/src/components/headers-object.ts": "export const headers = new Headers({ ['Author' + 'ization']: 'obj' });\n",
+    "apps/web/src/components/headers-tuples.ts": "export const headers = new Headers([['Proxy-' + 'Authorization', 'tuple']]);\n",
+    "apps/web/src/components/headers-set.ts": "const name = 'Author' + 'ization'; const headers = new Headers(); headers.set(name, 'set'); export { headers };\n",
+    "apps/web/src/components/headers-append.ts": "const headers = new Headers(); headers.append('Proxy-' + 'Authorization', 'app'); export { headers };\n",
+    "apps/web/src/components/headers-deep-name.ts": `const headers = new Headers(); headers.set(${authName}, 'deep'); export { headers };\n`,
+    "apps/web/src/components/headers-dynamic.ts": "declare const runtimeToken: string; const headers = new Headers(); headers.set('Authorization', runtimeToken); export { headers };\n",
+  };
+  const safePath = "apps/web/src/components/headers-safe.ts";
+  const result = await catalog({
+    ...sensitive,
+    [safePath]: [
+      "export const docs = 'Authorization headers are documented here';",
+      "export const objectHeaders = new Headers({ Authorization: 'example', 'Content-Type': 'text/plain' });",
+      "export const tupleHeaders = new Headers([['Proxy-Authorization', '[redacted]']]);",
+      "const name = 'Author' + 'ization'; const setHeaders = new Headers(); setHeaders.set(name, 'placeholder'); export { setHeaders };",
+    ].join("\n"),
+  }, { changedPaths: [...Object.keys(sensitive), safePath] });
+
+  for (const sensitivePath of Object.keys(sensitive)) {
+    assert.deepEqual(result.exclusions.find((item) => item.path === sensitivePath), { path: sensitivePath, reason: "sensitive-content" });
+    assert.equal(result.modules.find((module) => module.path === sensitivePath)?.source, undefined);
+  }
+  assert.match(result.modules.find((module) => module.path === safePath).source, /Authorization headers are documented/);
+  assert.doesNotMatch(JSON.stringify(result), /'obj'|'tuple'|'set'|'app'|'deep'|runtimeToken/);
+});
+
 test("generated 경로와 파일명은 대소문자와 Windows 구분자를 정규화하고 generator는 허용한다", async () => {
   const result = await catalog({
     "apps/web/src/Generated/one.ts": "export const one = 'hidden-one';\n",

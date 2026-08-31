@@ -652,3 +652,51 @@ test("fetch 반환값 method chain은 원 fetch 호출 하나만 보고한다", 
 
   assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 1);
 });
+
+test("bind를 call apply로 역호출한 전역 fetch만 재귀적으로 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": [
+      "export function load() {",
+      "  return [",
+      "    globalThis.fetch.bind.call(globalThis.fetch, globalThis)('/one'),",
+      "    globalThis.fetch.bind.apply(globalThis.fetch, [globalThis])('/two'),",
+      "    globalThis.fetch.bind.call.call(globalThis.fetch.bind, globalThis.fetch, globalThis)('/three'),",
+      "    globalThis.fetch.bind.apply.call(globalThis.fetch.bind, globalThis.fetch, [globalThis])('/four'),",
+      "  ];",
+      "}",
+    ].join("\n"),
+    "apps/web/src/shared/local.ts": [
+      "const fetch = (value: string) => value;",
+      "const client = { run: (value: string) => value };",
+      "export function safe(globalThis: { fetch(value: string): string }) {",
+      "  return [",
+      "    globalThis.fetch.bind.call(globalThis.fetch, globalThis)('one'),",
+      "    fetch.bind.apply(fetch, [globalThis])('two'),",
+      "    fetch.bind.call.call(fetch.bind, fetch, globalThis)('three'),",
+      "    client.run.bind.apply.call(client.run.bind, client.run, [client])('four'),",
+      "  ];",
+      "}",
+    ].join("\n"),
+  });
+
+  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
+});
+
+test("120단계 callable 경계는 전역 fetch 근거만 fail closed로 거부한다", async () => {
+  const wrap = (expression) => Array.from({ length: 120 }).reduce((current) => `(0, ${current})`, expression);
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": `export const load = () => ${wrap("globalThis.fetch.bind.call(globalThis.fetch, globalThis)")}('/deep');\n`,
+    "apps/web/src/shared/local.ts": [
+      "const fetch = (value: string) => value;",
+      "const client = { run: (value: string) => value };",
+      `export const local = () => ${wrap("fetch.bind.call(fetch, globalThis)")}('deep');`,
+      `export const arbitrary = () => ${wrap("client.run.bind.call(client.run, client)")}('deep');`,
+      `export const fetchOnlyAsThis = () => ${wrap("client.run.bind.call(client.run, globalThis.fetch)")}('deep');`,
+    ].join("\n"),
+  });
+
+  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+  ]);
+});
