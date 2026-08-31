@@ -608,3 +608,17 @@ test("call bind comma wrapper의 전역 fetch만 거부하고 local shadow와 �
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
   ]);
 });
+
+test("중첩 comma bind call 조합의 전역 fetch만 재귀적으로 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/get.ts": "export function load() { return [(0, window.fetch).call(window, '/one'), (0, fetch.bind(globalThis))('/two'), globalThis.fetch.bind(globalThis).call(undefined, '/three'), (0, (0, (0, globalThis.fetch)))('/four')]; }\n",
+    "apps/web/src/shared/local.ts": "const fetch = (value: string) => value; export function safe(window: { fetch(value: string): string }, globalThis: { fetch(value: string): string }) { return [(0, window.fetch).call(window, 'one'), (0, fetch.bind(globalThis))('two'), globalThis.fetch.bind(globalThis).call(undefined, 'three'), (0, (0, (0, fetch)))('four')]; }\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+  ]);
+});

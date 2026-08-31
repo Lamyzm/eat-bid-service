@@ -88,15 +88,31 @@ function isGlobalFetchReference(checker, node) {
   return isDomSymbol(property, "fetch");
 }
 
+function isGlobalFetchCallable(checker, node, depth = 0, seen = new Set()) {
+  if (!node || depth > 32 || seen.has(node)) return false;
+  const expression = unwrapExpression(node);
+  if (expression !== node) return isGlobalFetchCallable(checker, expression, depth + 1, seen);
+  seen.add(expression);
+  try {
+    if (isGlobalFetchReference(checker, expression)) return true;
+    if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) return isGlobalFetchCallable(checker, expression.right, depth + 1, seen);
+    if (!ts.isCallExpression(expression)) return false;
+    const binder = unwrapExpression(expression.expression);
+    return (ts.isPropertyAccessExpression(binder) || ts.isElementAccessExpression(binder))
+      && staticPropertyName(checker, binder) === "bind"
+      && isGlobalFetchCallable(checker, binder.expression, depth + 1, seen);
+  } finally {
+    seen.delete(expression);
+  }
+}
+
 function isGlobalFetch(checker, node) {
   if (!ts.isCallExpression(node)) return false;
   const expression = unwrapExpression(node.expression);
-  if (isGlobalFetchReference(checker, expression)) return true;
-  if (ts.isBinaryExpression(expression) && expression.operatorToken.kind === ts.SyntaxKind.CommaToken) return isGlobalFetchReference(checker, expression.right);
-  if ((ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) && ["call", "apply"].includes(staticPropertyName(checker, expression))) return isGlobalFetchReference(checker, expression.expression);
-  if (!ts.isCallExpression(expression)) return false;
-  const binder = unwrapExpression(expression.expression);
-  return (ts.isPropertyAccessExpression(binder) || ts.isElementAccessExpression(binder)) && staticPropertyName(checker, binder) === "bind" && isGlobalFetchReference(checker, binder.expression);
+  if (isGlobalFetchCallable(checker, expression)) return true;
+  return (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression))
+    && ["call", "apply"].includes(staticPropertyName(checker, expression))
+    && isGlobalFetchCallable(checker, expression.expression);
 }
 
 function typeHasDomResponseBase(checker, type, seen = new Set()) {

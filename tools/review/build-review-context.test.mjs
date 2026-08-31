@@ -96,6 +96,41 @@ test("review context는 350개 module에서도 필수 section과 완전한 JSON�
   }
 });
 
+test("review context 예산은 900개 누락 제외보다 changed module과 source를 우선한다", async () => {
+  const changedPath = "apps/web/src/components/changed-priority.ts";
+  const changedPaths = [changedPath, ...Array.from({ length: 900 }, (_, index) => `apps/web/src/components/missing-${String(index).padStart(3, "0")}.ts`)];
+  const root = fixture({ [changedPath]: "export const priorityEvidence = 'changed-source-must-remain';\n" });
+  try {
+    const first = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
+    const second = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
+    const catalog = parseJsonSection(first, "Repository reuse evidence");
+    const changed = catalog.modules.find((module) => module.path === changedPath);
+
+    assert.equal(first, second);
+    assert.ok(Buffer.byteLength(first, "utf8") <= MAX_REVIEW_CONTEXT_BYTES);
+    assert.equal(changed.changed, true);
+    assert.equal(changed.source, "export const priorityEvidence = 'changed-source-must-remain';\n");
+    assert.equal(catalog.contextBudget.reason, "context-byte-budget");
+    assert.ok(catalog.contextBudget.omittedExclusionCount > 0);
+    assert.equal(catalog.contextBudget.omittedExclusionReasonCounts["missing-file"], catalog.contextBudget.omittedExclusionCount);
+    assert.match(catalog.contextBudget.firstOmittedExclusionPath, /missing-\d{3}\.ts$/);
+    assert.match(first, /## Reviewer contract\n\n/);
+    assert.ok(parseJsonSection(first, "Curated advisory rules").suppressedAdvice.some((item) => item.id === "data.generic-swr"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("필수 context section만 96 KiB를 넘으면 부분 출력 대신 명시적으로 실패한다", async () => {
+  const changedPaths = Array.from({ length: 2_500 }, (_, index) => `apps/web/src/components/missing-mandatory-${String(index).padStart(4, "0")}.ts`);
+  const root = fixture({});
+  try {
+    await assert.rejects(() => buildReviewContext({ repoRoot: root, scope: { changedPaths } }), /mandatory review context exceeds 96 KiB/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("review context는 secret과 generated evidence를 출력하지 않는다", async () => {
   const secret = "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890";
   const root = fixture({

@@ -167,6 +167,46 @@ test("인증 credential은 근거 본문을 남기지 않고 일반 authorizatio
   assert.doesNotMatch(serialized, /opaque-access-credential|dXNlcjpwYXNzd29yZA|eyJhbGci|reviewer:super-secret|obvious-credential-value/);
 });
 
+test("구조화된 인증 credential 변형은 모두 제외하고 문서와 기능 이름은 보존한다", async () => {
+  const sensitive = {
+    "apps/web/src/components/quoted-auth.ts": "export const headers = { 'Authorization': 'Bearer alphabeticcredentialvalue' };\n",
+    "apps/web/src/components/proxy-auth.ts": "export const headers = { \"Proxy-Authorization\": 'Basic QWxhZGRpbjpPcGVuU2VzYW1l' };\n",
+    "apps/web/src/components/bearer-letters.ts": "export const value = 'Bearer purelyalphabeticcredential';\n",
+    "apps/web/src/components/basic-value.ts": "export const value = 'Basic VXNlcjpQYXNzd29yZA==';\n",
+    "apps/web/src/components/jwt-value.ts": "export const value = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJldmlkZW5jZSJ9.abcdefghijklmnop';\n",
+    "apps/web/src/components/header-set.ts": "const headers = new Headers(); headers.set('AUTHORIZATION', 'Bearer setcredentialletters'); export { headers };\n",
+    "apps/web/src/components/header-append.ts": "const headers = new Headers(); headers.append('proxy-authorization', 'Basic QXBwZW5kOlNlY3JldA=='); export { headers };\n",
+    "apps/web/src/components/api-token.ts": "export const apiToken = 'api-token-value-hidden';\n",
+    "apps/web/src/components/access-token.ts": "export const ACCESS_TOKEN = 'access-token-value-hidden';\n",
+    "apps/web/src/components/refresh-token.ts": "export const refreshToken = 'refresh-token-value-hidden';\n",
+    "apps/web/src/components/api-key.ts": "export const serviceApiKey = 'api-key-value-hidden';\n",
+    "apps/web/src/components/client-value.ts": "export const ClientSecret = 'client-secret-value-hidden';\n",
+    "apps/web/src/components/password.ts": "export const password = 'password-value-hidden';\n",
+    "apps/web/src/components/userinfo-value.ts": "export const endpoint = 'https://service:credentialvalue@example.com/private';\n",
+  };
+  const benignPath = "apps/web/src/components/auth-features.ts";
+  const result = await catalog({
+    ...sensitive,
+    [benignPath]: [
+      "export type AuthorizationFeature = { enabled: boolean };",
+      "export const authorizationFeatureName = 'access policy';",
+      "export const apiTokenFeatureName = 'token settings';",
+      "export const passwordFieldLabel = 'Password';",
+      "export const docs = 'Bearer authentication and Basic authentication are documented';",
+      "export const basicDocs = 'Basic authentication';",
+      "const headers = new Headers(); headers.set('Authorization', 'documentation-only'); export { headers };",
+    ].join("\n"),
+  }, { changedPaths: [...Object.keys(sensitive), benignPath] });
+
+  for (const sensitivePath of Object.keys(sensitive)) {
+    assert.equal(result.modules.find((module) => module.path === sensitivePath)?.source, undefined);
+    assert.ok(result.exclusions.some((item) => item.path === sensitivePath && item.reason === "sensitive-content"));
+  }
+  assert.match(result.modules.find((module) => module.path === benignPath).source, /Bearer authentication/);
+  assert.ok(result.exclusions.every((item) => item.reason === "sensitive-content"));
+  assert.doesNotMatch(JSON.stringify(result), /alphabeticcredentialvalue|QWxhZGRpbjpPcGVuU2VzYW1l|setcredentialletters|api-token-value-hidden|client-secret-value-hidden|service:credentialvalue/);
+});
+
 test("generated 경로와 파일명은 대소문자와 Windows 구분자를 정규화하고 generator는 허용한다", async () => {
   const result = await catalog({
     "apps/web/src/Generated/one.ts": "export const one = 'hidden-one';\n",

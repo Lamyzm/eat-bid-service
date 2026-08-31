@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { hasSensitiveContent } from "./sensitive-content.mjs";
 
 const sourcePattern = /\.[cm]?[jt]sx?$/i;
 const generatedSegments = new Set([".next", "__generated__", "build", "coverage", "dist", "gen", "generated", "node_modules"]);
@@ -33,21 +34,6 @@ function denialReason(relative) {
   if (segments.slice(0, -1).some((segment) => generatedSegments.has(segment.toLowerCase())) || /(?:^|[._-])(?:__generated__|generated|gen)(?:\.d)?\.[cm]?[jt]sx?$/i.test(basename)) return "generated-output";
   if (segments.some((segment) => /^\.env(?:\.|$)/i.test(segment)) || /(?:credential|private[-_.]?key|secrets?)(?:\.|$)/i.test(basename) || /\.(?:key|p12|pem)$/i.test(basename)) return "secret-path";
   return undefined;
-}
-
-function hasSensitiveContent(contents) {
-  if (/-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----/i.test(contents)
-    || /\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|sk-(?:proj-)?[A-Za-z0-9_-]{20,})\b/.test(contents)
-    || /\bauthorization\s*[:=]\s*["'`]\s*(?:basic|bearer)\s+[^"'`\s]{8,}/i.test(contents)
-    || /\bbearer\s+(?=[A-Za-z0-9._~+/-]{12,}\b)(?=[A-Za-z0-9._~+/-]*[0-9._~+/-])[A-Za-z0-9._~+/-]+/i.test(contents)
-    || /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/.test(contents)
-    || /\bhttps?:\/\/[^\s/@:'"`]+:[^\s/@'"`]+@[^\s/'"`]+/i.test(contents)) return true;
-  const assignment = /["'`]?([A-Za-z_$][\w$-]*)["'`]?\s*[:=]\s*(["'`])([^"'`\r\n]{8,})\2/g;
-  for (const match of contents.matchAll(assignment)) {
-    const name = match[1].replaceAll(/[_$-]/g, "").toLowerCase();
-    if (/(?:apikey|password|privatekey|secret|credential|accesstoken|refreshtoken|authtoken|bearertoken)$/.test(name)) return true;
-  }
-  return false;
 }
 
 function walkSourceFiles(root) {
@@ -227,7 +213,7 @@ export async function buildReuseCatalog({
   for (const module of modules) {
     const absolute = absolutePath(root, module.path);
     const source = contents.get(absolute);
-    if (hasSensitiveContent(source)) exclusions.push({ path: module.path, reason: "sensitive-content" });
+    if (hasSensitiveContent(source, module.path)) exclusions.push({ path: module.path, reason: "sensitive-content" });
     else if (module.sourceBytes > perFileByteCap) exclusions.push({ path: module.path, reason: "per-file-byte-cap" });
     else if (sourceByteTotal + module.sourceBytes > totalSourceByteCap) exclusions.push({ path: module.path, reason: "total-source-byte-cap" });
     else {
@@ -237,7 +223,7 @@ export async function buildReuseCatalog({
   }
   const duplicateMap = new Map();
   for (const [file, source] of contents) {
-    if (hasSensitiveContent(source)) continue;
+    if (hasSensitiveContent(source, file)) continue;
     const fingerprint = sha256(source);
     const members = duplicateMap.get(fingerprint) ?? [];
     members.push(relativePath(root, file));

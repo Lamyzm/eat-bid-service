@@ -60,52 +60,77 @@ function budgetCatalog(catalog, render) {
   const originalSourceCount = originalModules.filter((module) => module.source !== undefined).length;
   const { declaration: _declaration, ...toolkitMetadata } = catalog.esToolkit;
   if (_declaration !== undefined) toolkitMetadata.declarationExcludedReason = "context-byte-budget";
-  let includedCount = originalModules.length;
-  let includedExclusions = catalog.exclusions.length;
-  const includedSources = new Set();
+  const includedModules = new Set(originalModules.map((_module, index) => index));
+  const includedSources = new Set(originalModules.flatMap((module, index) => module.source === undefined ? [] : [index]));
+  let includeToolkitDeclaration = _declaration !== undefined;
+  let includedExclusions = 0;
 
   const candidate = () => {
-    const modules = originalModules.slice(0, includedCount).map((module, index) => includedSources.has(index) ? module : withoutSource(module));
+    const modules = originalModules.flatMap((module, index) => includedModules.has(index) ? [includedSources.has(index) ? module : withoutSource(module)] : []);
     const modulePaths = new Set(modules.map((module) => module.path));
     const duplicateGroups = catalog.duplicateGroups.filter((group) => group.members.every((member) => modulePaths.has(member)));
+    const omittedModuleIndexes = originalModules.flatMap((_module, index) => includedModules.has(index) ? [] : [index]);
+    const omittedExclusions = catalog.exclusions.slice(includedExclusions);
+    const omittedExclusionReasonCounts = {};
+    for (const exclusion of omittedExclusions) omittedExclusionReasonCounts[exclusion.reason] = (omittedExclusionReasonCounts[exclusion.reason] ?? 0) + 1;
     return {
       ...catalog,
       modules,
       duplicateGroups,
-      esToolkit: toolkitMetadata,
+      esToolkit: includeToolkitDeclaration ? catalog.esToolkit : toolkitMetadata,
       exclusions: catalog.exclusions.slice(0, includedExclusions),
       contextBudget: {
         reason: "context-byte-budget",
         originalModuleCount: originalModules.length,
         includedModuleCount: modules.length,
         omittedModuleCount: originalModules.length - modules.length,
-        omittedSourceCount: originalSourceCount - [...includedSources].filter((index) => index < includedCount).length,
+        omittedSourceCount: originalSourceCount - includedSources.size,
         omittedDuplicateGroupCount: catalog.duplicateGroups.length - duplicateGroups.length,
-        omittedExclusionCount: catalog.exclusions.length - includedExclusions,
-        esToolkitDeclarationOmitted: _declaration !== undefined,
-        ...(includedCount < originalModules.length ? {
-          firstOmittedModulePath: originalModules[includedCount].path,
-          lastOmittedModulePath: originalModules.at(-1).path,
+        includedExclusionCount: includedExclusions,
+        omittedExclusionCount: omittedExclusions.length,
+        omittedExclusionReasonCounts,
+        esToolkitDeclarationOmitted: _declaration !== undefined && !includeToolkitDeclaration,
+        ...(omittedModuleIndexes.length ? {
+          firstOmittedModulePath: originalModules[omittedModuleIndexes[0]].path,
+          lastOmittedModulePath: originalModules[omittedModuleIndexes.at(-1)].path,
         } : {}),
-        ...(includedExclusions < catalog.exclusions.length ? {
-          firstOmittedExclusionPath: catalog.exclusions[includedExclusions].path,
-          lastOmittedExclusionPath: catalog.exclusions.at(-1).path,
+        ...(omittedExclusions.length ? {
+          firstOmittedExclusionPath: omittedExclusions[0].path,
+          lastOmittedExclusionPath: omittedExclusions.at(-1).path,
         } : {}),
       },
     };
   };
 
-  while (includedCount > 0 && Buffer.byteLength(render(candidate()), "utf8") > MAX_REVIEW_CONTEXT_BYTES) includedCount -= 1;
-  while (includedExclusions > 0 && Buffer.byteLength(render(candidate()), "utf8") > MAX_REVIEW_CONTEXT_BYTES) includedExclusions -= 1;
-  let bounded = candidate();
-  if (Buffer.byteLength(render(bounded), "utf8") > MAX_REVIEW_CONTEXT_BYTES) throw new Error("mandatory review context exceeds 96 KiB");
-  for (let index = 0; index < includedCount; index += 1) if (originalModules[index].source !== undefined) {
-    includedSources.add(index);
-    const withSource = candidate();
-    if (Buffer.byteLength(render(withSource), "utf8") <= MAX_REVIEW_CONTEXT_BYTES) bounded = withSource;
-    else includedSources.delete(index);
+  const fits = () => Buffer.byteLength(render(candidate()), "utf8") <= MAX_REVIEW_CONTEXT_BYTES;
+  if (!fits() && includeToolkitDeclaration) includeToolkitDeclaration = false;
+  const nonchanged = originalModules.flatMap((module, index) => module.changed ? [] : [index]).reverse();
+  const changed = originalModules.flatMap((module, index) => module.changed ? [index] : []).reverse();
+  for (const index of nonchanged) if (!fits()) includedSources.delete(index);
+  for (const index of nonchanged) if (!fits()) {
+    includedSources.delete(index);
+    includedModules.delete(index);
   }
-  return bounded;
+  for (const index of changed) if (!fits()) includedSources.delete(index);
+  for (const index of changed) if (!fits()) {
+    includedSources.delete(index);
+    includedModules.delete(index);
+  }
+  if (!fits()) throw new Error("mandatory review context exceeds 96 KiB");
+  if (_declaration !== undefined && !includeToolkitDeclaration) {
+    includeToolkitDeclaration = true;
+    if (!fits()) includeToolkitDeclaration = false;
+  }
+  let lower = 0;
+  let upper = catalog.exclusions.length;
+  while (lower < upper) {
+    const middle = Math.ceil((lower + upper) / 2);
+    includedExclusions = middle;
+    if (fits()) lower = middle;
+    else upper = middle - 1;
+  }
+  includedExclusions = lower;
+  return candidate();
 }
 
 export async function buildReviewContext({ repoRoot, scope = {} }) {
