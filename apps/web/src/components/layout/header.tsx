@@ -3,14 +3,15 @@ import { SidebarTrigger } from '../ui/sidebar';
 import { Separator } from '../ui/separator';
 import { Breadcrumbs } from '../breadcrumbs';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
+import { ThemeSelector } from '../themes/theme-selector';
 import { RegionSwitcher } from '../region-switcher';
 import { SessionBoot } from '../session-boot';
 import { GlobalSettingsButton, GlobalSettingsDialog } from '../global-settings';
 
 /**
- * 헤더는 최소로 — 토글 · 브레드크럼 | 지역 칩 · 전역 설정 · 테마 · 알림.
+ * 헤더는 최소로 — 토글 · 브레드크럼 | 지역 칩 · 전역 설정 · 모드 · 색상 테마.
  * 계정(이메일·로그아웃)은 사이드바 하단 계정 허브로 이동 (R6 NAV 개편).
- * 스타터 잔재(깃허브·검색·테마 셀렉터)는 제거했다.
+ * 색상 테마 선택기는 데스크톱에서 노출하고, 좁은 화면에서는 공간을 확보한다.
  */
 export default function Header() {
   return (
@@ -27,6 +28,9 @@ export default function Header() {
         <RegionSwitcher />
         <GlobalSettingsButton />
         <ThemeModeToggle />
+        <div className='hidden sm:block'>
+          <ThemeSelector />
+        </div>
       </div>
 
       <GlobalSettingsDialog />
