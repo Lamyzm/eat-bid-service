@@ -10,6 +10,7 @@ import {
   classifyCodexFailure,
   executeCodexProcess,
   resolveCodexLaunch,
+  resolveCodexVersion,
 } from "./codex-process.mjs";
 
 const launch = { command: "codex", prefixArguments: [] };
@@ -113,6 +114,17 @@ test("Windows npm shim은 node와 codex.js로 해석하고 native exe는 그대�
     { platform: "linux", locate: () => null },
   );
   assert.deepEqual(override, { command: "/opt/codex", prefixArguments: [] });
+});
+
+test("Codex version probe가 시간 제한에 걸리면 timeout reason으로 보고한다", () => {
+  assert.throws(
+    () =>
+      resolveCodexVersion(launch, {}, {
+        runSync: () => ({ status: null, stdout: "", error: { code: "ETIMEDOUT" } }),
+      }),
+    (error) => error?.code === "EATBID_PROVIDER_ERROR" && error.reason === "timeout",
+  );
+  assert.equal(resolveCodexVersion(launch, {}, { runSync: () => ({ status: 0, stdout: "codex-cli 9\n" }) }), "codex-cli 9");
 });
 
 test("Codex 실행 파일을 찾지 못하면 missing-cli reason의 provider 오류를 던진다", () => {

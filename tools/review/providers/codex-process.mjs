@@ -99,14 +99,21 @@ export function resolveCodexLaunch(
   return { command: located, prefixArguments: [] };
 }
 
-export function resolveCodexVersion(launch, environment) {
-  const result = spawnSync(launch.command, [...launch.prefixArguments, "--version"], {
+function runSyncDefault(launch, arguments_, environment) {
+  return spawnSync(launch.command, [...launch.prefixArguments, ...arguments_], {
     encoding: "utf8",
     env: buildChildEnvironment(environment),
     shell: false,
     timeout: PROBE_TIMEOUT_MS,
     windowsHide: true,
   });
+}
+
+export function resolveCodexVersion(launch, environment, { runSync = runSyncDefault } = {}) {
+  const result = runSync(launch, ["--version"], environment);
+  if (result?.error?.code === "ETIMEDOUT") {
+    throw providerError("codex", "timeout", "Codex CLI version probe가 시간 제한을 넘겼습니다.");
+  }
   const version = result.status === 0 ? result.stdout.trim() : "";
   if (!version) {
     throw providerError("codex", "cli-version", "Codex CLI version을 확인하지 못했습니다.");

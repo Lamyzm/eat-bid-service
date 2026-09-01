@@ -272,8 +272,9 @@ test("review context는 scope의 unified diff를 마지막 section으로 포함�
     "apps/web/src/components/changed.tsx": "export const Changed = () => null;\n",
   });
   try {
+    const filler = Array.from({ length: 2000 }, (_, index) => `+// 채움 ${index} ${"x".repeat(50)}`).join("\n");
     const patch =
-      "diff --git a/apps/web/src/components/changed.tsx b/apps/web/src/components/changed.tsx\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n+export const Changed = () => null;\n";
+      `diff --git a/apps/web/src/components/changed.tsx b/apps/web/src/components/changed.tsx\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n+export const Changed = () => null;\n${filler}\n`;
     const context = await buildReviewContext({
       repoRoot: root,
       scope: { baseRef: "base", changedPaths: ["apps/web/src/components/changed.tsx"], patch },
@@ -281,6 +282,9 @@ test("review context는 scope의 unified diff를 마지막 section으로 포함�
     const sectionIndex = context.indexOf("## 변경 diff");
     assert.ok(sectionIndex > context.indexOf("## 선별 advisory 규칙"));
     assert.match(context.slice(sectionIndex), /\+export const Changed/);
+    assert.ok(Buffer.byteLength(patch, "utf8") > MAX_REVIEW_CONTEXT_BYTES);
+    assert.ok(Buffer.byteLength(context, "utf8") > MAX_REVIEW_CONTEXT_BYTES);
+    assert.equal(parseJsonSection(context, "저장소 재사용 근거").contextBudget, undefined);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

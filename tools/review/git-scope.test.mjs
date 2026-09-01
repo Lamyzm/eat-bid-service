@@ -41,6 +41,40 @@ test("깨끗한 ancestor 기준의 변경 경로와 크기를 계산한다", () 
   }
 });
 
+test("삭제된 민감 경로도 patch에 본문이 남으므로 denied-path로 거부한다", () => {
+  const fixture = repository();
+  try {
+    writeFileSync(path.join(fixture.root, ".env"), "SECRET=삭제될값\n", "utf8");
+    fixture.git("add", ".env");
+    fixture.git("commit", "-qm", "민감 파일 커밋");
+    const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fixture.root, encoding: "utf8" }).trim();
+    fixture.git("rm", "-q", ".env");
+    fixture.git("commit", "-qm", "민감 파일 삭제");
+
+    const scope = inspectReviewScope({ repoRoot: fixture.root, baseRef: base });
+    assert.equal(scope.category, "denied-path");
+    assert.equal(scope.patch, undefined);
+  } finally {
+    fixture.close();
+  }
+});
+
+test("비ASCII 경로도 quote 없이 patch header에 그대로 남는다", () => {
+  const fixture = repository();
+  try {
+    const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fixture.root, encoding: "utf8" }).trim();
+    writeFileSync(path.join(fixture.root, "검증.ts"), "export const 값 = 1;\n", "utf8");
+    fixture.git("add", "검증.ts");
+    fixture.git("commit", "-qm", "한글 경로 추가");
+
+    const scope = inspectReviewScope({ repoRoot: fixture.root, baseRef: base });
+    assert.equal(scope.ok, true);
+    assert.match(scope.patch, /^diff --git a\/검증\.ts b\/검증\.ts$/m);
+  } finally {
+    fixture.close();
+  }
+});
+
 test("dirty tree와 민감 경로 및 과도한 파일 수를 Codex 실행 전에 거부한다", () => {
   const fixture = repository();
   try {

@@ -88,8 +88,15 @@ function runSyncDefault(launch, arguments_, environment) {
   });
 }
 
+function probeTimedOut(result) {
+  return result?.error?.code === "ETIMEDOUT";
+}
+
 export function resolveClaudeVersion(launch, environment, { runSync = runSyncDefault } = {}) {
   const result = runSync(launch, ["--version"], environment);
+  if (probeTimedOut(result)) {
+    throw providerError("claude", "timeout", "Claude Code CLI version probe가 시간 제한을 넘겼습니다.");
+  }
   const version = result.status === 0 ? result.stdout.trim() : "";
   if (!version) {
     throw providerError("claude", "cli-version", "Claude Code CLI version을 확인하지 못했습니다.");
@@ -103,6 +110,9 @@ export function resolveClaudeVersion(launch, environment, { runSync = runSyncDef
  */
 export function inspectClaudeAuth(launch, environment, { runSync = runSyncDefault } = {}) {
   const result = runSync(launch, ["auth", "status", "--json"], environment);
+  if (probeTimedOut(result)) {
+    throw providerError("claude", "timeout", "Claude Code 인증 probe가 시간 제한을 넘겼습니다.");
+  }
   let status;
   try {
     status = result.status === 0 ? JSON.parse(result.stdout) : null;

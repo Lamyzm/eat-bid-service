@@ -9,7 +9,7 @@ export const REVIEW_SCOPE_LIMITS = Object.freeze({
   patchBytes: 1024 * 1024,
 });
 
-const DENIED_PATH =
+export const DENIED_PATH =
   /(?:^|\/)(?:\.env(?:\.[^/]*)?|[^/]*(?:secret|credential)[^/]*)(?:\/|$)|(?:^|\/)(?:pnpm-lock\.yaml|package-lock\.json|yarn\.lock)$|(?:^|\/)(?:node_modules|dist|\.next|generated)(?:\/|$)/i;
 const compare = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
 
@@ -66,14 +66,18 @@ export function inspectReviewScope({ repoRoot, baseRef, limits = REVIEW_SCOPE_LI
   }
 
   const range = `${baseCommit}...${head}`;
-  const changedPaths = git(root, ["diff", "--name-only", "--diff-filter=ACMR", "-z", range])
-    .split("\0")
-    .filter(Boolean)
-    .map((value) => value.replaceAll("\\", "/"))
-    .sort(compare);
-  if (changedPaths.some((value) => DENIED_PATH.test(value))) {
+  const listPaths = (filterArguments) =>
+    git(root, ["diff", "--name-only", ...filterArguments, "-z", range])
+      .split("\0")
+      .filter(Boolean)
+      .map((value) => value.replaceAll("\\", "/"))
+      .sort(compare);
+  // finding 대상은 현재 존재하는 파일(ACMR)뿐이지만 patch에는 삭제 파일 본문도 남는다.
+  // 그래서 민감 경로 거부는 삭제를 포함한 전체 변경 경로에 적용한다.
+  if (listPaths([]).some((value) => DENIED_PATH.test(value))) {
     return refused("denied-path", "민감 정보·생성물·lockfile 변경은 AI prompt에 넣지 않습니다.");
   }
+  const changedPaths = listPaths(["--diff-filter=ACMR"]);
   if (changedPaths.length > limits.files) {
     return refused("too-many-files", `변경 파일이 ${limits.files}개를 초과했습니다.`);
   }
@@ -92,7 +96,8 @@ export function inspectReviewScope({ repoRoot, baseRef, limits = REVIEW_SCOPE_LI
 
   let patch;
   try {
-    patch = git(root, ["diff", "--binary", "--no-ext-diff", range]);
+    // quotePath 기본값은 비ASCII 경로를 "a/..."로 감싸 header 파싱을 깨뜨리므로 저장소 설정과 무관하게 끈다.
+    patch = git(root, ["-c", "core.quotePath=false", "diff", "--binary", "--no-ext-diff", range]);
   } catch {
     return refused("patch-too-large", `patch가 ${limits.patchBytes}바이트를 초과했습니다.`);
   }

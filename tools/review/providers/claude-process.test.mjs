@@ -11,6 +11,7 @@ import {
   inspectClaudeAuth,
   parseClaudeEnvelope,
   resolveClaudeLaunch,
+  resolveClaudeVersion,
 } from "./claude-process.mjs";
 
 const SCHEMA = '{"type":"object","required":["ok"],"properties":{"ok":{"type":"boolean"}}}';
@@ -107,6 +108,18 @@ test("claude.ai 구독 로그인만 허용하고 API key·cloud provider·미로
   assert.throws(
     () => inspectClaudeAuth(launch, {}, { runSync: () => ({ status: 1, stdout: "" }) }),
     (error) => error?.reason === "auth-unavailable",
+  );
+});
+
+test("version과 auth probe가 시간 제한에 걸리면 timeout reason으로 보고한다", () => {
+  const timedOut = () => ({ status: null, stdout: "", error: { code: "ETIMEDOUT" } });
+  assert.throws(
+    () => resolveClaudeVersion(launch, {}, { runSync: timedOut }),
+    (error) => error?.code === "EATBID_PROVIDER_ERROR" && error.reason === "timeout",
+  );
+  assert.throws(
+    () => inspectClaudeAuth(launch, {}, { runSync: timedOut }),
+    (error) => error?.code === "EATBID_PROVIDER_ERROR" && error.reason === "timeout",
   );
 });
 

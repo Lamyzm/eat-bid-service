@@ -184,7 +184,7 @@ function changedPathsFromGit(root, baseRef) {
 }
 
 function patchFromGit(root, baseRef) {
-  return execFileSync("git", ["diff", "--no-ext-diff", `${baseRef}...HEAD`], { cwd: root, encoding: "utf8", maxBuffer: 2 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+  return execFileSync("git", ["-c", "core.quotePath=false", "diff", "--no-ext-diff", `${baseRef}...HEAD`], { cwd: root, encoding: "utf8", maxBuffer: 2 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 }
 
 async function main() {
