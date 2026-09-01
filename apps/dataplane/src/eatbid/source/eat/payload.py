@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from datetime import date
+from types import MappingProxyType
 from xml.etree import ElementTree
 
 from eatbid.errors import SourceContractError
@@ -71,6 +72,35 @@ _LIST_FIELDS = frozenset(
     }
 )
 _DETAIL_FIELDS = frozenset({"ELCTRN_BID_ID"})
+
+
+def build_bid_list_page_params(
+    *,
+    start_date: str,
+    end_date: str,
+    progress_status_code: str,
+    region_code: str,
+    page_number: int,
+    page_size: int,
+) -> Mapping[str, str]:
+    """왜: 호출자가 Nexacro field 이름을 복제하지 않고 검토된 입력 계약을 소비한다."""
+    params = {
+        "P_BID_BGNG_DT": start_date,
+        "P_BID_END_DT": end_date,
+        "P_PRGRS_STAT_CD": progress_status_code,
+        "P_CTPV_CD": region_code,
+        "START_PAGE": str(page_number),
+        "PAGE_SIZE": str(page_size),
+    }
+    # payload validator를 먼저 통과시켜 반환된 mapping 자체가 항상 전송 가능하게 한다.
+    build_bid_list_payload(params)
+    return MappingProxyType(params)
+
+
+def build_bid_detail_params(external_bid_id: str) -> Mapping[str, str]:
+    params = {"ELCTRN_BID_ID": external_bid_id}
+    build_bid_detail_payload(params)
+    return MappingProxyType(params)
 
 
 def _invalid(endpoint: str) -> SourceContractError:

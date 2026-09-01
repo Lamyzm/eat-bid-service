@@ -1,7 +1,7 @@
+"""모듈 책임: raw observation과 capture run terminal 상태를 PostgreSQL에 기록한다."""
+
 from __future__ import annotations
 
-import re
-from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -12,133 +12,25 @@ from psycopg.types.json import Jsonb
 from eatbid.ingest.models import (
     CapturedObservation,
     CaptureRequest,
-    PlannedRequestUnit,
 )
-from eatbid.ingest.repository import CaptureRunMode, request_params_sha256
+from eatbid.ingest.postgres_run_planning import (
+    IngestIntegrityError,
+    PlannedRequestMismatchError,
+    PostgresRunPlanningMixin,
+    RawBlobIntegrityError,
+    TerminalCaptureStateError,
+    require_aware,
+    require_capture_mode,
+)
+from eatbid.ingest.repository import request_params_sha256
 from eatbid.object_store import StoredRawObject
 from eatbid.source.client import SourceResponse
 
 _CONTENT_TYPE = "application/xml"
 _CONTENT_ENCODING = "gzip"
-_BUILD_SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
-_CAPTURE_RUN_MODES = {"poll-open", "daily-reconcile", "backfill"}
-
-
-class IngestIntegrityError(RuntimeError):
-    """The persisted run ledger does not match the planned capture identity."""
-
-
-class PlannedRequestMismatchError(IngestIntegrityError):
-    """A capture does not match its preplanned request unit."""
-
-
-class RawBlobIntegrityError(IngestIntegrityError):
-    """A content hash exists with conflicting raw-object metadata."""
-
-
-class TerminalCaptureStateError(IngestIntegrityError):
-    """A failed request or run cannot accept another observation."""
-
-
-class PsycopgObservationRepository:
+class PsycopgObservationRepository(PostgresRunPlanningMixin):
     def __init__(self, connection: psycopg.Connection[Any]) -> None:
         self._connection = connection
-
-    def start_run(
-        self,
-        *,
-        run_id: UUID,
-        mode: CaptureRunMode,
-        build_sha: str,
-        parser_version: str,
-        started_at: datetime,
-        expected_count: int,
-    ) -> None:
-        _require_nonnegative(expected_count, "expected_count")
-        _require_aware(started_at, "started_at")
-        if mode == "replay":
-            raise ValueError(
-                "replay runs must be created by ReplayRunRepository with a frozen manifest"
-            )
-        if (
-            mode not in _CAPTURE_RUN_MODES
-            or not parser_version
-            or _BUILD_SHA_PATTERN.fullmatch(build_sha) is None
-        ):
-            raise ValueError("run metadata is invalid")
-        with self._connection.transaction(), self._connection.cursor() as cursor:
-            cursor.execute(
-                """
-                insert into ingest.run (
-                    run_id, mode, status, build_sha, parser_version, started_at,
-                    expected_count, captured_count, published_count
-                ) values (%s, %s, 'running', %s, %s, %s, %s, 0, 0)
-                """,
-                (run_id, mode, build_sha, parser_version, started_at, expected_count),
-            )
-
-    def plan_request_unit(
-        self,
-        *,
-        run_id: UUID,
-        source: str,
-        endpoint: str,
-        params: Mapping[str, str],
-        expected_count: int,
-    ) -> PlannedRequestUnit:
-        _require_nonnegative(expected_count, "expected_count")
-        validated = CaptureRequest(1, run_id, source, endpoint, params)
-        digest = request_params_sha256(validated.params)
-        params_copy = dict(validated.params)
-        with self._connection.transaction(), self._connection.cursor() as cursor:
-            cursor.execute(
-                "select mode, status from ingest.run where run_id = %s for update",
-                (run_id,),
-            )
-            run = cursor.fetchone()
-            if run is None:
-                raise IngestIntegrityError("run does not exist")
-            _require_capture_mode(str(run[0]))
-            if run[1] != "running":
-                raise TerminalCaptureStateError(
-                    "request units can only be planned for a running run"
-                )
-            cursor.execute(
-                """
-                insert into ingest.request_unit (
-                    run_id, source, endpoint, request_params,
-                    request_params_hash, expected_count, observed_count, status
-                ) values (%s, %s, %s, %s, %s, %s, 0, 'planned')
-                on conflict (run_id, source, endpoint, request_params_hash) do nothing
-                returning request_unit_id
-                """,
-                (run_id, source, endpoint, Jsonb(params_copy), digest, expected_count),
-            )
-            row = cursor.fetchone()
-            if row is None:
-                cursor.execute(
-                    """
-                    select request_unit_id, request_params, expected_count
-                    from ingest.request_unit
-                    where run_id = %s and source = %s and endpoint = %s
-                      and request_params_hash = %s
-                    for update
-                    """,
-                    (run_id, source, endpoint, digest),
-                )
-                row = cursor.fetchone()
-                if row is None or row[1:] != (params_copy, expected_count):
-                    raise PlannedRequestMismatchError(
-                        "existing request plan conflicts with requested metadata"
-                    )
-        return PlannedRequestUnit(
-            request_unit_id=int(row[0]),
-            run_id=run_id,
-            source=source,
-            endpoint=endpoint,
-            params=params_copy,
-            request_params_hash=digest,
-        )
 
     def record_observation(
         self,
@@ -148,7 +40,7 @@ class PsycopgObservationRepository:
         stored: StoredRawObject,
         failure_category: str | None,
     ) -> CapturedObservation:
-        _require_aware(stored.stored_at, "stored_at")
+        require_aware(stored.stored_at, "stored_at")
         params_hash = request_params_sha256(request.params)
         params_copy = dict(request.params)
         failed = failure_category is not None
@@ -239,7 +131,7 @@ class PsycopgObservationRepository:
     def fail_run(
         self, *, run_id: UUID, failure_category: str, failed_at: datetime
     ) -> None:
-        _require_aware(failed_at, "failed_at")
+        require_aware(failed_at, "failed_at")
         if not failure_category:
             raise ValueError("failure_category is required")
         with self._connection.transaction(), self._connection.cursor() as cursor:
@@ -254,9 +146,9 @@ class PsycopgObservationRepository:
             current = cursor.fetchone()
             if current is None:
                 raise IngestIntegrityError("run does not exist")
-            _require_capture_mode(str(current[0]))
+            require_capture_mode(str(current[0]))
             if current[1] == "failed":
-                if current[2:] == (failure_category, failed_at):
+                if current[2] == failure_category:
                     return
                 raise TerminalCaptureStateError(
                     "failed run metadata cannot be overwritten"
@@ -303,7 +195,7 @@ class PsycopgObservationRepository:
             params_hash,
         ):
             raise PlannedRequestMismatchError("capture does not match planned request")
-        _require_capture_mode(str(row[5]))
+        require_capture_mode(str(row[5]))
         if row[4] not in {"planned", "captured"} or row[6] != "running":
             raise TerminalCaptureStateError(
                 "only active request and run states can record observations"
@@ -332,18 +224,3 @@ class PsycopgObservationRepository:
         )
         if row != expected:
             raise RawBlobIntegrityError("raw blob metadata conflicts with its digest")
-
-
-def _require_aware(value: datetime, field_name: str) -> None:
-    if value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be timezone-aware")
-
-
-def _require_nonnegative(value: int, field_name: str) -> None:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise ValueError(f"{field_name} must be a nonnegative integer")
-
-
-def _require_capture_mode(mode: str) -> None:
-    if mode not in _CAPTURE_RUN_MODES:
-        raise IngestIntegrityError("capture repository operation requires capture mode")

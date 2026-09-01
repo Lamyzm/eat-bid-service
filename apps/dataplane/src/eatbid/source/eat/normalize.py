@@ -29,10 +29,12 @@ from eatbid.generated.ingestion_v1 import (
     SourceCode,
 )
 from eatbid.source.eat.models import BidListPage
+from eatbid.source.eat.payload import MAX_ELECTRONIC_BID_ID_DIGITS
 from eatbid.source.eat.schema_contract import reviewed_schema_contract
 from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro
 
 _NONNEGATIVE_DECIMAL = re.compile(r"0|[1-9][0-9]*")
+_POSITIVE_DECIMAL = re.compile(r"[1-9][0-9]*")
 _SOURCE_TIME_WIRE_SHAPES: dict[str, tuple[re.Pattern[str], int]] = {
     "%Y%m%d": (re.compile(r"[0-9]{8}"), 8),
     "%Y%m%d%H%M%S": (re.compile(r"[0-9]{14}"), 14),
@@ -81,8 +83,14 @@ def parse_bid_list_page(payload: bytes) -> BidListPage:
         )
 
     external_bid_ids = tuple(row.get(_EXTERNAL_BID_ID_FIELD, "") for row in rows)
-    if any(not source_id for source_id in external_bid_ids):
-        raise SourceContractError(f"{_EXTERNAL_BID_ID_FIELD} must be nonempty")
+    if any(
+        _POSITIVE_DECIMAL.fullmatch(source_id) is None
+        or len(source_id) > MAX_ELECTRONIC_BID_ID_DIGITS
+        for source_id in external_bid_ids
+    ):
+        raise SourceContractError(
+            f"{_EXTERNAL_BID_ID_FIELD} must be bounded positive ASCII decimal text"
+        )
     if len(set(external_bid_ids)) != len(external_bid_ids):
         raise SourceContractError(
             f"{_EXTERNAL_BID_ID_FIELD} must be unique within a page"

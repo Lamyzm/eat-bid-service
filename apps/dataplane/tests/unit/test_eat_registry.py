@@ -63,9 +63,30 @@ def test_bid_list_registry는_release_plan용_schema_metadata를_직접_노출�
     )
     assert contract.response_datasets == ("ds_list",)
     assert contract.datasets == {"ds_list": ("TOT_CNT", "ETN_BID_ID")}
+    assert contract.record_type == "auction-discovery.v1"
     assert contract.schema_fingerprint == reviewed_schema_fingerprint(
         source="eat", endpoint="bid-list", parser_version="eat-v1"
     )
+
+
+def test_bid_list_registry가_page_parameter_이름을_한곳에서_조립한다() -> None:
+    params = require("bid-list").build_page_params(
+        start_date="20260901",
+        end_date="20260902",
+        progress_status_code="",
+        region_code="1",
+        page_number=2,
+        page_size=100,
+    )
+
+    assert dict(params) == {
+        "P_BID_BGNG_DT": "20260901",
+        "P_BID_END_DT": "20260902",
+        "P_PRGRS_STAT_CD": "",
+        "P_CTPV_CD": "1",
+        "START_PAGE": "2",
+        "PAGE_SIZE": "100",
+    }
 
 
 def test_bid_list_payload는_검토된_variable과_fixed_dataset만_조립한다() -> None:

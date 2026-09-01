@@ -1,3 +1,5 @@
+"""모듈 책임: source 응답을 raw object와 observation 순서로 보존한 뒤 실패를 분류한다."""
+
 from __future__ import annotations
 
 from eatbid.errors import SourceContractError
@@ -27,6 +29,16 @@ def capture(
     client: SourceClient,
 ) -> CapturedObservation:
     response = client.fetch(request)
+    return capture_response(request, response, store, repository)
+
+
+def capture_response(
+    request: CaptureRequest,
+    response: SourceResponse,
+    store: RawObjectStore,
+    repository: IngestRepository,
+) -> CapturedObservation:
+    """왜: 이미 받은 응답도 archive→observation 순서를 우회하지 못하게 한다."""
     if not isinstance(response, SourceResponse):
         raise TypeError("source client must return SourceResponse")
     stored = store.put(

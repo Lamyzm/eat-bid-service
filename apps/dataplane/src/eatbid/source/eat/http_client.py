@@ -80,11 +80,12 @@ class EatHttpClient:
         *,
         transport: httpx.BaseTransport | None = None,
         clock: Callable[[], datetime] = _system_utc_clock,
+        timeout: httpx.Timeout = _TIMEOUT,
     ) -> None:
         self._clock = clock
         # verify 인자를 노출하거나 덮어쓰지 않아 httpx의 CA 검증 기본값을 유지한다.
         self._client = httpx.Client(
-            timeout=_TIMEOUT,
+            timeout=timeout,
             follow_redirects=False,
             transport=transport,
         )

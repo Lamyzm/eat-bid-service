@@ -17,6 +17,7 @@ from eatbid.ingest.postgres_release_errors import (
     raise_plan_conflict,
     require_terminal_scope,
 )
+from eatbid.ingest.postgres_release_guards import PostgresReleaseGuardMixin
 from eatbid.ingest.postgres_release_mapping import (
     load_release_datasets,
     load_release_observations,
@@ -41,7 +42,7 @@ from eatbid.ingest.release_repository import (
 )
 
 
-class PsycopgSourceReleaseRepository:
+class PsycopgSourceReleaseRepository(PostgresReleaseGuardMixin):
     def __init__(self, connection: psycopg.Connection[Any]) -> None:
         self._connection = connection
 

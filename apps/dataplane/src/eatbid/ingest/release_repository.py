@@ -35,6 +35,12 @@ class SourceReleaseRepository(Protocol):
         self, source_release_id: UUID
     ) -> tuple[ReleaseCompleteness, ...]: ...
 
+    def require_observation_member(
+        self, source_release_id: UUID, observation_id: int
+    ) -> None: ...
+
+    def require_sealed(self, source_release_id: UUID) -> None: ...
+
     def seal_release(
         self, source_release_id: UUID, *, sealed_at: datetime
     ) -> SealedSourceRelease: ...
@@ -75,6 +81,10 @@ class ReleaseSourceMismatchError(SourceReleaseRepositoryError):
         super().__init__("observation source differs from source release")
         self.release_source = release_source
         self.observation_source = observation_source
+
+
+class ReleaseObservationMembershipError(SourceReleaseRepositoryError):
+    """downstream stage는 명시한 source release의 raw member만 처리한다."""
 
 
 class ReleaseMissingMemberError(SourceReleaseRepositoryError):

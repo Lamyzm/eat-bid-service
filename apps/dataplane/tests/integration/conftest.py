@@ -162,6 +162,7 @@ def migrated_db() -> MigratedDatabase:
             shell=False,
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         environment = os.environ.copy()
         environment["DATABASE_URL"] = dsn
@@ -174,6 +175,7 @@ def migrated_db() -> MigratedDatabase:
                 shell=False,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             )
         yield MigratedDatabase(dsn=dsn, container_name=container_name)
     finally:

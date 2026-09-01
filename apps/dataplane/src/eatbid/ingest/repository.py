@@ -1,3 +1,5 @@
+"""모듈 책임: raw-first capture 실행과 observation 저장 port 계약을 정의한다."""
+
 from __future__ import annotations
 
 import json
@@ -61,6 +63,10 @@ class IngestRepository(Protocol):
         params: Mapping[str, str],
         expected_count: int,
     ) -> PlannedRequestUnit: ...
+
+    def finalize_run_expected_count(
+        self, *, run_id: UUID, expected_count: int
+    ) -> None: ...
 
     def record_observation(
         self,
