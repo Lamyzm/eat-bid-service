@@ -40,13 +40,10 @@ class RecordingRepository:
         self.records: list[
             tuple[CaptureRequest, SourceResponse, StoredRawObject, str | None]
         ] = []
-
     def start_run(self, **kwargs: object) -> None:
         raise AssertionError("capture must not start a run")
-
     def plan_request_unit(self, **kwargs: object) -> object:
         raise AssertionError("capture must not plan a request")
-
     def record_observation(
         self,
         *,
@@ -63,7 +60,6 @@ class RecordingRepository:
             object_key=stored.object_key,
             fetched_at=response.fetched_at,
         )
-
     def reserve_capture(self, **kwargs: object) -> None:
         return None
 
