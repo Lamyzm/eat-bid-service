@@ -229,7 +229,7 @@ git commit -m "feat(data): 검토된 eaT HTTP 경계를 구현한다"
 - Produces: `discover_release(plan, repository, client)`, `build_application(config)`, command별 실제 exit code
 - Consumes: Task 2 release repository, Task 3 endpoint registry/client, 기존 capture/normalize/validate/project stage
 
-- [ ] **Step 1: page 중복·count mismatch와 unwired exit 64 제거 테스트를 쓴다**
+- [x] **Step 1: page 중복·count mismatch와 unwired exit 64 제거 테스트를 쓴다**
 
 ```python
 def test_discovery가_total_count와_exact_bid_id_manifest를_고정한다() -> None:
@@ -240,11 +240,11 @@ def test_discovery가_total_count와_exact_bid_id_manifest를_고정한다() -> 
 
 중복 ID, page 간 `TOT_CNT` 변화, 빈 중간 page, page budget 초과는 source contract failure로 끝나고 release가 sealed되지 않아야 한다.
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 Run: `uv run --project apps/dataplane pytest apps/dataplane/tests/unit/test_discover.py apps/dataplane/tests/unit/test_cli.py apps/dataplane/tests/integration/test_cli_pipeline.py -q`
 
-- [ ] **Step 3: command dispatch를 구현한다**
+- [x] **Step 3: command dispatch를 구현한다**
 
 ```python
 COMMAND_HANDLERS: Mapping[str, Callable[[Namespace, Application], int]] = {
@@ -259,7 +259,7 @@ COMMAND_HANDLERS: Mapping[str, Callable[[Namespace, Application], int]] = {
 
 모든 command에 UUID `--source-release-id`를 추가한다. config는 Pydantic Settings로 DB/R2/source timeout을 검증하되 secret 값을 로그나 error에 포함하지 않는다. command가 실제 stage를 끝내면 0, typed failure면 기존 64/65/75/76을 반환한다.
 
-- [ ] **Step 4: focused/전체 dataplane gate를 통과시킨다**
+- [x] **Step 4: focused/전체 dataplane gate를 통과시킨다**
 
 ```powershell
 uv run --project apps/dataplane pytest apps/dataplane/tests/unit/test_discover.py apps/dataplane/tests/unit/test_cli.py apps/dataplane/tests/integration/test_cli_pipeline.py -q
@@ -268,7 +268,7 @@ uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tes
 uv run --project apps/dataplane pyright apps/dataplane/src
 ```
 
-- [ ] **Step 5: 커밋한다**
+- [x] **Step 5: 커밋한다**
 
 ```powershell
 git add apps/dataplane/src/eatbid apps/dataplane/tests
