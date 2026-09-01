@@ -266,3 +266,22 @@ test("review context는 provider 중립 제목과 저장소 절대 규칙 발췌
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("review context는 scope의 unified diff를 마지막 section으로 포함하되 catalog 예산에는 넣지 않는다", async () => {
+  const root = fixture({
+    "apps/web/src/components/changed.tsx": "export const Changed = () => null;\n",
+  });
+  try {
+    const patch =
+      "diff --git a/apps/web/src/components/changed.tsx b/apps/web/src/components/changed.tsx\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n+export const Changed = () => null;\n";
+    const context = await buildReviewContext({
+      repoRoot: root,
+      scope: { baseRef: "base", changedPaths: ["apps/web/src/components/changed.tsx"], patch },
+    });
+    const sectionIndex = context.indexOf("## 변경 diff");
+    assert.ok(sectionIndex > context.indexOf("## 선별 advisory 규칙"));
+    assert.match(context.slice(sectionIndex), /\+export const Changed/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

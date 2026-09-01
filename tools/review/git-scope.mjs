@@ -111,6 +111,7 @@ export function inspectReviewScope({ repoRoot, baseRef, limits = REVIEW_SCOPE_LI
     changedPaths,
     changedLines,
     patchBytes,
+    patch,
     pathHash: hash(changedPaths.join("\0")),
     diffStatHash: hash(numstat),
   };

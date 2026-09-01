@@ -34,6 +34,8 @@ test("깨끗한 ancestor 기준의 변경 경로와 크기를 계산한다", () 
     assert.equal(scope.ok, true);
     assert.deepEqual(scope.changedPaths, ["review.ts"]);
     assert.ok(scope.patchBytes > 0);
+    assert.match(scope.patch, /^diff --git a\/review\.ts b\/review\.ts/m);
+    assert.match(scope.patch, /\+export const 검증값 = true;/);
   } finally {
     fixture.close();
   }

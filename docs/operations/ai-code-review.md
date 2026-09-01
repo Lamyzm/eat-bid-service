@@ -43,8 +43,11 @@ pnpm review:doctor
 - 유효한 결과는 finding이 있어도 `success`다. 다른 provider로 다시 판정하지 않는다.
 - 폴백을 허용하는 reason은 `missing-cli`, `cli-version`, `auth-unavailable`, `quota-exhausted`, `rate-limited`,
   `provider-overloaded`, `timeout`, `process-failed`, `invalid-output`, `tool-failed`뿐이다.
-- `dirty-tree`, `invalid-base`, `denied-path`, 크기 초과, `lock-contention`은 provider를 호출하기 전에 `refused`로
-  끝난다. `context-failed`, `internal-error`, `budget-exhausted`는 `unavailable`이며 폴백하지 않는다.
+- `invalid-request`, `preflight-failed`, `dirty-tree`, `invalid-base`, `denied-path`, `too-many-files`, `too-many-lines`,
+  `patch-too-large`, `lock-contention`은 provider를 호출하기 전에 `refused`로 끝난다. `context-failed`, `internal-error`,
+  `budget-exhausted`는 `unavailable`이며 폴백하지 않는다.
+- prompt에는 변경 경로, 저장소 규칙 발췌, 재사용 catalog와 함께 `baseRef...HEAD` unified diff가 들어간다. binary hunk와
+  credential이 감지된 파일의 hunk는 경로와 사유만 남기고 본문은 넣지 않는다.
 - 전체 실행 예산은 300초, provider 하나의 상한은 180초다. 남은 예산이 30초 미만이면 다음 provider를 시작하지 않는다.
 
 ## 3. 안전 경계

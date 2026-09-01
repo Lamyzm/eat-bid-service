@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inspectWebBoundaries } from "../architecture/web-boundaries/inspect.mjs";
 import { buildReuseCatalog } from "./reuse-catalog.mjs";
+import { renderDiffSection } from "./review-diff.mjs";
 
 export const MAX_REVIEW_CONTEXT_BYTES = 96 * 1024;
 export const REVIEW_CONTEXT_VERSION = "eatbid.review-context/v2";
@@ -61,7 +62,7 @@ function renderSection(heading, value) {
   return `## ${heading}\n\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
 }
 
-function renderContext({ metadata, instructions, rulesExcerpt, catalog, boundaries, rules }) {
+function renderContext({ metadata, instructions, rulesExcerpt, catalog, boundaries, rules, diffSection }) {
   return `${[
     "# eatbid advisory 리뷰 근거",
     renderSection("검토 범위", metadata),
@@ -71,6 +72,7 @@ function renderContext({ metadata, instructions, rulesExcerpt, catalog, boundari
     renderSection("저장소 재사용 근거", catalog),
     `## 결정적 경계 근거\n\n이 진단은 계속 권위를 가지며 advisory finding으로 반복하지 않는다.\n\n\`\`\`json\n${JSON.stringify(boundaries, null, 2)}\n\`\`\``,
     renderSection("선별 advisory 규칙", rules),
+    diffSection,
   ].join("\n\n")}\n`;
 }
 
@@ -168,14 +170,21 @@ export async function buildReviewContext({ repoRoot, scope = {} }) {
   const instructions = readFileSync(path.join(moduleRoot, "reviewer-instructions.md"), "utf8").trim();
   const rules = JSON.parse(readFileSync(path.join(moduleRoot, "catalog", "frontend-advisory-rules.json"), "utf8"));
   const metadata = { version: REVIEW_CONTEXT_VERSION, baseRef: scope.baseRef ?? null, changedPaths };
-  const evidence = { metadata, instructions, rulesExcerpt: repositoryRulesExcerpt(root), boundaries, rules };
+  // 96 KiB 예산은 근거 부분에만 적용한다. diff는 preflight의 1 MiB 상한이 따로 지키므로
+  // 예산 계산에는 diff 없음 placeholder를 넣고 최종 출력에서만 실제 diff로 바꾼다.
+  const placeholder = renderDiffSection({ repoRoot: root, patch: undefined });
+  const evidence = { metadata, instructions, rulesExcerpt: repositoryRulesExcerpt(root), boundaries, rules, diffSection: placeholder };
   const boundedCatalog = budgetCatalog(catalog, (candidate) => renderContext({ ...evidence, catalog: candidate }));
-  return renderContext({ ...evidence, catalog: boundedCatalog });
+  return renderContext({ ...evidence, catalog: boundedCatalog, diffSection: renderDiffSection({ repoRoot: root, patch: scope.patch }) });
 }
 
 function changedPathsFromGit(root, baseRef) {
   const output = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACMR", "-z", `${baseRef}...HEAD`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   return normalizedPaths(output.split("\0").filter(Boolean));
+}
+
+function patchFromGit(root, baseRef) {
+  return execFileSync("git", ["diff", "--no-ext-diff", `${baseRef}...HEAD`], { cwd: root, encoding: "utf8", maxBuffer: 2 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 }
 
 async function main() {
@@ -184,7 +193,7 @@ async function main() {
   const baseRef = baseIndex >= 0 ? args[baseIndex + 1] : "HEAD~1";
   if (!baseRef || baseRef.startsWith("--")) throw new Error("--base Git ref가 필요합니다.");
   const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
-  const context = await buildReviewContext({ repoRoot, scope: { baseRef, changedPaths: changedPathsFromGit(repoRoot, baseRef) } });
+  const context = await buildReviewContext({ repoRoot, scope: { baseRef, changedPaths: changedPathsFromGit(repoRoot, baseRef), patch: patchFromGit(repoRoot, baseRef) } });
   if (args.includes("--check")) console.log(`리뷰 근거 검사가 통과했습니다. (${Buffer.byteLength(context, "utf8")} bytes)`);
   else process.stdout.write(context);
 }
