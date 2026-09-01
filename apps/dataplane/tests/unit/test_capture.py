@@ -120,6 +120,7 @@ def test_canonical_재시도_unlock_실패는_성공을_보고하지_않고_secr
         )
     assert repository.release_count == 1
     assert captured.value.__cause__ is None
+    assert captured.value.__context__ is None
     assert "secret" not in repr(captured.value)
 
 

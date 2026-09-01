@@ -249,3 +249,52 @@ reserve 성공 이후 canonical return, 신규 raw 저장/observation commit, ob
 ### 최종 source terminal 우선순위 수정
 
 403/429와 일반 non-2xx response는 raw observation과 failure ledger를 먼저 기록한 직후, reservation release `finally`에 들어가기 전에 각각 `SourceThrottledError`와 `SourceContractError`라는 본문 실패로 확정한다. 따라서 unlock cleanup도 실패하면 source terminal 오류가 권위를 유지하고 CLI exit 75/76 및 redaction이 보존된다. 성공 또는 canonical return에서 unlock만 실패한 경우에만 `CaptureReservationReleaseError`/64 정책을 사용한다. RED는 두 source response가 unlock 실패에 의해 64로 바뀌는 것을 재현했고, GREEN focused unit·CLI·PostgreSQL 실행은 43 passed였다.
+
+### 최종 보안 보정 — provider 예외 context 제거
+
+최종 독립 검토는 성공 또는 canonical return 뒤 reservation 해제만 실패할 때 redacted terminal
+예외의 `__context__`에 원래 PostgreSQL 예외가 남는 것을 재현했다. `raise ... from None`은 traceback
+표시만 억제하며 exception object의 context를 제거하지 않으므로, DSN이나 credential을 포함한 provider
+오류가 구조화 logger와 error tracker에 노출될 수 있었다.
+
+RED는 `CaptureReservationReleaseError.__context__`가 `RuntimeError("postgresql://secret")`인 것을
+확인했다. capture는 이제 early return을 사용하지 않고 성공 결과를 지역 변수에 보관한다. cleanup
+예외 객체는 저장하지 않으며 실패 boolean만 `finally` 밖으로 전달하고, 활성 provider exception
+context가 없는 위치에서 새 redacted terminal 예외를 발생시킨다. source 본문 실패가 있으면 기존처럼
+그 typed failure가 그대로 전파된다.
+
+```text
+apps/dataplane/.venv/Scripts/python.exe -m pytest apps/dataplane/tests/unit/test_capture.py -q
+23 passed
+
+apps/dataplane/.venv/Scripts/python.exe -m pytest \
+  apps/dataplane/tests/integration/test_cli_actual_e2e.py \
+  apps/dataplane/tests/integration/test_detail_capture_retry.py \
+  apps/dataplane/tests/integration/test_cli_pipeline.py \
+  apps/dataplane/tests/unit/test_capture.py \
+  apps/dataplane/tests/unit/test_cli.py -q
+44 passed
+
+apps/dataplane/.venv/Scripts/ruff.exe check \
+  apps/dataplane/src/eatbid/pipeline/capture.py \
+  apps/dataplane/tests/unit/test_capture.py
+All checks passed!
+
+apps/dataplane/.venv/Scripts/pyright.exe apps/dataplane/src/eatbid/pipeline/capture.py
+0 errors, 0 warnings, 0 informations
+
+apps/dataplane/.venv/Scripts/python.exe -m pytest apps/dataplane/tests -q
+634 passed in 45.20s
+
+apps/dataplane/.venv/Scripts/ruff.exe check apps/dataplane/src apps/dataplane/tests
+All checks passed!
+
+apps/dataplane/.venv/Scripts/pyright.exe apps/dataplane/src
+0 errors, 0 warnings, 0 informations
+
+fnm exec --using=24.20.0 node --version
+v24.20.0
+
+fnm exec --using=24.20.0 pnpm architecture:check
+exit 0
+```

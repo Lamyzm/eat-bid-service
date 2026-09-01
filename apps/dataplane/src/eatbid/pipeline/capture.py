@@ -50,24 +50,27 @@ def capture_response(
         content_sha256=raw_content_sha256(response.body),
     )
     body_error: Exception | None = None
+    release_failed = False
+    observation: CapturedObservation
     try:
         if existing is not None:
-            return existing
-        stored = store.put(
-            source=request.source, endpoint=request.endpoint, body=response.body,
-        )
-        failure_category = _failure_category(response.status_code)
-        observation = repository.record_observation(
-            request=request, response=response, stored=stored,
-            failure_category=failure_category,
-        )
-        if failure_category == SOURCE_THROTTLED:
-            raise SourceThrottledError(response.status_code)
-        if failure_category == SOURCE_CONTRACT:
-            raise SourceContractError(
-                f"source returned HTTP {response.status_code}",
-                status_code=response.status_code,
+            observation = existing
+        else:
+            stored = store.put(
+                source=request.source, endpoint=request.endpoint, body=response.body,
             )
+            failure_category = _failure_category(response.status_code)
+            observation = repository.record_observation(
+                request=request, response=response, stored=stored,
+                failure_category=failure_category,
+            )
+            if failure_category == SOURCE_THROTTLED:
+                raise SourceThrottledError(response.status_code)
+            if failure_category == SOURCE_CONTRACT:
+                raise SourceContractError(
+                    f"source returned HTTP {response.status_code}",
+                    status_code=response.status_code,
+                )
     except Exception as error:
         body_error = error
         raise
@@ -76,9 +79,11 @@ def capture_response(
             repository.release_capture(request=request)
         except Exception:  # noqa: BLE001 - cleanup은 본문 typed failure를 덮지 않는다.
             if body_error is None:
-                raise CaptureReservationReleaseError(
-                    "capture reservation could not be released"
-                ) from None
+                release_failed = True
+    if release_failed:
+        raise CaptureReservationReleaseError(
+            "capture reservation could not be released"
+        ) from None
     return observation
 
 
