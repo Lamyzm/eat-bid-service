@@ -84,6 +84,21 @@ export function inspectContractClientExports({ repoRoot }) {
   const packagePath = path.join(root, "packages/contracts/package.json");
   if (existsSync(packagePath)) {
     const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
+    const sourcePackagePath = path.join(root, "packages/contracts/src/package.json");
+    if (packageJson.type === "commonjs") {
+      const sourcePackageJson = existsSync(sourcePackagePath)
+        ? JSON.parse(readFileSync(sourcePackagePath, "utf8"))
+        : undefined;
+      if (sourcePackageJson?.type !== "module") {
+        add(
+          findings,
+          root,
+          sourcePackagePath,
+          "client-source-module-boundary",
+          "CommonJS 배포물과 분리된 source export에는 type=module 경계가 필요합니다.",
+        );
+      }
+    }
     for (const [exportName, sourceEntry] of clientExports) {
       const published = packageJson.exports?.[exportName];
       for (const condition of ["types", "import", "default"]) {

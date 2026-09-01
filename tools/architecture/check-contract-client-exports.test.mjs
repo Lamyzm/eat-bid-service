@@ -49,6 +49,20 @@ test("browser-safe 공고 subpath는 source ESM graph만 공개한다", () => {
   assert.deepEqual(findings, []);
 });
 
+test("CommonJS 배포 패키지의 source export는 중첩 ESM 경계를 요구한다", () => {
+  const findings = inspect({
+    "packages/contracts/package.json": JSON.stringify({
+      type: "commonjs",
+      exports: JSON.parse(packageJson).exports,
+    }),
+    "packages/contracts/src/api/index.ts": "export const protocol = {};\n",
+    "packages/contracts/src/api/v1/auctions/index.ts": "export const operation = {};\n",
+    "apps/web/next.config.ts": "export default { transpilePackages: ['@eatbid/contracts'] };\n",
+  });
+
+  assert.ok(findings.some((finding) => finding.rule === "client-source-module-boundary"));
+});
+
 test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", () => {
   const findings = inspect({
     "packages/contracts/package.json": JSON.stringify({
