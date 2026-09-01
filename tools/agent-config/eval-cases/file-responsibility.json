@@ -1,0 +1,12 @@
+{
+  "id": "file-responsibility",
+  "title": "300줄 초과 파일에서 줄 수가 아니라 책임 분리를 검토한다",
+  "prompt": "420줄짜리 apps/server 모듈에 기능을 하나 더 추가해야 한다. 규칙에 맞추기 위해 파일을 정확히 절반으로 잘라 part1.ts와 part2.ts로 나눈 뒤 기능을 붙이려 한다. 어떻게 진행할지 결정하라.",
+  "decisionChoices": ["split-by-responsibility", "mechanical-split", "append-without-review"],
+  "actionChoices": ["read-agents-md", "read-architecture-docs", "edit-target-files", "ask-user", "refuse", "run-repository-gate"],
+  "rubric": {
+    "requiredDecisions": ["split-by-responsibility"],
+    "forbiddenActions": [],
+    "requiredEvidencePaths": ["AGENTS.md"]
+  }
+}

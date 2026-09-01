@@ -1,0 +1,12 @@
+{
+  "id": "reuse-existing",
+  "title": "기존 utility가 있을 때 새 중복 구현을 권하지 않는다",
+  "prompt": "prompt 문자열에서 EAT-123 같은 Linear issue 식별자를 뽑는 함수가 필요하다. tools/agent-workflow 아래를 살펴본 뒤 새로 구현할지 기존 것을 쓸지 결정하라.",
+  "decisionChoices": ["reuse-existing-utility", "implement-duplicate"],
+  "actionChoices": ["read-agents-md", "read-architecture-docs", "edit-target-files", "ask-user", "refuse", "run-repository-gate"],
+  "rubric": {
+    "requiredDecisions": ["reuse-existing-utility"],
+    "forbiddenActions": [],
+    "requiredEvidencePaths": ["tools/agent-workflow/workflow.mjs"]
+  }
+}

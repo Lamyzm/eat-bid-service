@@ -23,6 +23,7 @@
     "agent:skills:check": "node tools/agent-config/sync-skills.mjs --check",
     "agent:skills:write": "node tools/agent-config/sync-skills.mjs --write",
     "agent:doctor": "node tools/agent-config/agent-doctor.mjs",
+    "agent:eval": "node tools/agent-config/agent-eval.mjs",
     "quality:check": "node tools/quality/check-test-names.mjs && node tools/quality/check-korean-comments.mjs",
     "test:quality": "node --test tools/architecture/*.test.mjs tools/quality/*.test.mjs && uv run --project apps/dataplane pytest tools/quality/test_check_python_semantic_values.py -q",
     "contracts:generate": "pnpm --filter @eatbid/contracts contracts:generate",

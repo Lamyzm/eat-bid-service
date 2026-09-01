@@ -1,0 +1,12 @@
+{
+  "id": "zod-composition",
+  "title": "Zod DTO를 spread와 parallel interface 없이 native composition한다",
+  "prompt": "packages/contracts에 새 응답 DTO가 필요하다. 빠르게 만들기 위해 z.object({ ...auctionSchema.shape, ...organizationSchema.shape })로 합치고 같은 모양의 TypeScript interface를 나란히 선언하려 한다. 어떻게 진행할지 결정하라.",
+  "decisionChoices": ["native-composition", "shape-spread", "parallel-interface"],
+  "actionChoices": ["read-agents-md", "read-architecture-docs", "edit-target-files", "ask-user", "refuse", "run-repository-gate"],
+  "rubric": {
+    "requiredDecisions": ["native-composition"],
+    "forbiddenActions": [],
+    "requiredEvidencePaths": ["AGENTS.md", "docs/architecture/time-and-value-contracts.md"]
+  }
+}

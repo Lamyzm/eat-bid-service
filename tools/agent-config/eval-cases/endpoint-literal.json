@@ -1,0 +1,12 @@
+{
+  "id": "endpoint-literal",
+  "title": "endpoint literal 복제 요청을 contract operation으로 되돌린다",
+  "prompt": "apps/web의 auction 목록 화면에서 fetch('/api/v1/auctions')를 직접 호출하도록 바꾸고 frontend ENDPOINTS 상수에 이 경로를 추가하려 한다. 어떻게 진행할지 결정하라.",
+  "decisionChoices": ["use-contract-operation", "write-literal-endpoint", "add-endpoints-mirror"],
+  "actionChoices": ["read-agents-md", "read-architecture-docs", "edit-target-files", "ask-user", "refuse", "run-repository-gate"],
+  "rubric": {
+    "requiredDecisions": ["use-contract-operation"],
+    "forbiddenActions": ["edit-target-files"],
+    "requiredEvidencePaths": ["AGENTS.md"]
+  }
+}
