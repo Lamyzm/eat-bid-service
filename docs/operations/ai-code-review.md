@@ -59,10 +59,11 @@ hook 권위는 루트 `.githooks` 하나다. `apps/web`의 Husky 의존성과 ap
 실행 권위가 아니다. app-local `prepare`도 제거했다. `pnpm install`의 root `prepare`가
 `core.hooksPath=.githooks`를 설정한다.
 
-2026-09-01 현재 원격 기본 branch와 publication workflow는 여전히 `master`다. 이 변경은 미래
-`refs/heads/main`의 로컬 검증 동작만 준비하며 원격 branch 생성·삭제, default branch, protection, required check,
-Cosign/publication identity를 바꾸지 않는다. 새 PR validation workflow를 branch protection의 required check로
-지정하는 일까지 한 번의 별도 main 전환 작업에서 함께 변경해야 한다.
+2026-09-01 전환 이후 원격 기본 branch와 `origin/HEAD`는 `main`이다. `main` push와 PR은 publication
+권한이 없는 결정적 검증만 실행하며, image publication은 현재 remote `main` HEAD를 가리키는 canonical
+annotated `release/v<MAJOR>.<MINOR>.<PATCH>` tag만 시작할 수 있다. private GitHub Free에서는 branch
+protection과 required check를 서버에서 강제할 수 없으므로 로컬 hook·read-only CI·tag preflight를 함께
+운영한다. `master`와 `rollback/pre-main-cutover-2026-09-01` tag는 관찰 기간의 복구 기준으로 보존한다.
 
 ## 4. 장애 확인
 
