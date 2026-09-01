@@ -1,3 +1,4 @@
+/** @module 책임: Linear issue claim·sync·release와 local worktree lease 명령을 조정한다. */
 import { randomUUID } from "node:crypto";
 
 import { finalizeSessionWorklog } from "./hook-runtime.mjs";

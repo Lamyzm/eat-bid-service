@@ -1,3 +1,4 @@
+/** @module 책임: 에이전트 도구 호출의 변경 가능성과 Linear issue 식별자를 순수하게 판정한다. */
 const ISSUE_IDENTIFIER = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/i;
 
 const FILE_EDIT_TOOLS = new Set([
