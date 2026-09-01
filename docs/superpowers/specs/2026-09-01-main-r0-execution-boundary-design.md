@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-01
 linear_issue: EAT-15
 canonical_for: main-authority-and-r0-execution-boundary
@@ -27,6 +27,15 @@ flowchart LR
 이 문서의 승인은 설계 승인이다. 원격 branch, GitHub 설정, credential, R2, PostgreSQL, Kubernetes, Argo,
 실데이터를 변경하는 권한은 포함하지 않는다. 각 외부 변경은 저장소 검증과 정확한 대상 확인 뒤 별도 승인을
 받는다.
+
+승인된 실행계획은 다음 순서로 읽는다.
+
+1. `docs/superpowers/plans/2026-09-01-main-authority-migration.md`
+2. `docs/superpowers/plans/2026-09-01-r0-source-release-and-offline.md`
+3. `docs/superpowers/plans/2026-09-01-r0-live-canary.md`
+4. `docs/superpowers/plans/2026-09-01-r0-government-code-releases.md`
+5. `docs/superpowers/plans/2026-09-01-r0-canonical-corpus-and-publication.md`
+6. `docs/superpowers/plans/2026-09-01-r0-policy-neutral-mart-and-handoff.md`
 
 ## 2. 확인된 현재 상태
 
@@ -173,17 +182,18 @@ mart, GitHub/Argo 설정을 동시에 소유하지 않는다.
 
 | work item | 책임 | 주요 소유 경로 | 선행 |
 |---|---|---|---|
-| 저장소 권위 전환 | A0~A7와 rollback evidence | `.github/workflows`, `infra/argocd`, provenance/test/docs | EAT-15 승인 |
-| release identity ADR | `source_release_id`와 completeness 상태 전이 | `docs/adr`, `docs/architecture` | EAT-15 승인 |
-| offline eaT source | discovery/transport/CLI와 registry | `apps/dataplane/src/eatbid/source/eat`, CLI, tests | identity ADR |
-| live canary 운영 | Infisical delivery, R2/DB, manual Workflow evidence | `infra/platform`, `infra/product/workflows`, operations docs | main 전환, offline source |
-| submission canonical | portable 계약·Drizzle·projector | `packages/contracts`, `packages/db`, dataplane project/tests | canary source evidence |
-| award/code canonical | result finality와 code release/mapping | contracts/db/dataplane의 별도 owned files | canary source evidence |
-| full release/publication | backfill, reconciliation, atomic publish | dataplane pipeline/operations | 필수 canonical 계약 |
-| policy-neutral mart | base fact DDL/build/lineage | `packages/db` mart, dataplane mart builder | published corpus |
-| EAT-6 handoff | coverage 보고서와 실제 ID 연결 | product/operations docs, Linear worklog | mart build |
+| EAT-16 저장소 권위 전환 | A0~A7와 rollback evidence | `.github/workflows`, `infra/argocd`, provenance/test/docs | EAT-15 승인 |
+| EAT-17 release identity ADR | `source_release_id`와 completeness 상태 전이 | `docs/adr`, `docs/architecture` | EAT-15 승인 |
+| EAT-18 offline eaT source | discovery/transport/CLI와 registry | `apps/dataplane/src/eatbid/source/eat`, CLI, tests | EAT-17 |
+| EAT-19 live canary 운영 | Infisical delivery, R2/DB, manual Workflow evidence | `infra/product/secrets`, workflows, operations docs | EAT-16, EAT-18 |
+| EAT-20 정부 코드 release | MOIS/NEIS release, 기관 reconciliation과 coverage | contracts/db/reference adapters | EAT-17 |
+| EAT-21 submission canonical | portable 계약·Drizzle·projector | contracts/db/dataplane의 submission files | EAT-19, EAT-20 |
+| EAT-22 award canonical | result finality 계약·Drizzle·projector | contracts/db/dataplane의 award files | EAT-21 |
+| EAT-23 full release/publication | backfill, reconciliation, atomic publish | dataplane pipeline/operations | EAT-20~22 |
+| EAT-24 policy-neutral mart | base fact DDL/build/lineage | `packages/db` mart, dataplane mart builder | EAT-23 |
+| EAT-25 EAT-6 handoff | coverage 보고서와 실제 ID 연결 | product/operations docs, Linear worklog | EAT-24 |
 
-계약과 Drizzle migration이 겹치는 canonical issue는 submission과 award/code를 직렬화한다. 각 issue는 lease를
+portable registry와 Drizzle migration이 겹치는 정부 code·submission·award issue는 EAT-20→21→22로 직렬화한다. 각 issue는 lease를
 잡기 전에 owned path를 적고, 공유 registry 수정자는 한 시점에 하나만 둔다.
 
 ## 9. EAT-6 Ready 조건
