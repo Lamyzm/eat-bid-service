@@ -47,41 +47,49 @@ flowchart LR
 | 원격 권위 | 기본 branch와 `origin/HEAD`는 `master`; `origin/main`은 없음 | 로컬 작업과 CI·배포 SHA가 갈림 |
 | 검증 CI | `validate.yml`은 `main` push와 모든 PR을 검증 | 원격 기본 branch와 불일치 |
 | publication CI | `build.yml`, SLSA, Cosign identity, promotion push가 `master` 고정 | 일부만 바꾸면 서명 신뢰가 깨짐 |
+| GitHub 서버 gate | private GitHub Free에서 branch protection/ruleset API가 `403`을 반환 | required PR·check와 write freeze를 강제할 수 없음 |
 | Argo CD | `targetRevision: master`, `path: infra/k8s/base` | 실제 product composition인 `infra/product`와 불일치 |
 | dataplane | raw-first, normalize/quarantine, frozen publication과 replay 기반은 구현 | live transport·CLI composition·Argo proof는 미실행 |
 | eaT 계약 | `bid-detail`의 `ds_info`, `ds_areaList`에서 `auction.v1`만 정규화 | 제출·순위·낙찰 결과가 분석 corpus에 없음 |
 | mart | PostgreSQL namespace만 있고 build/table 계약은 없음 | EAT-6가 참조할 `mart_build_id`를 발행할 수 없음 |
 
-`master` publication과 `main` validation을 그대로 병행하지 않는다. 두 branch가 동시에 publish할 수 있는
-기간을 만들면 같은 서비스 tag와 promotion commit의 권위가 둘로 갈린다.
+`master` publication과 `main` validation을 그대로 병행하지 않는다. branch 보호를 구매하거나 public으로
+전환하는 대신 ADR 0024의 canonical annotated release tag만 publication 권위를 갖게 한다.
 
-## 3. 결정 1: 원격 main을 유일한 저장소 권위로 전환한다
+## 3. 결정 1: main 코드 권위와 release tag publication 권위를 분리한다
 
 ### 3.1 전환 불변식
 
 - 원격 `main`은 검토된 로컬 `main`의 exact SHA에서 시작한다. force push하지 않는다.
-- PR required check와 publication workflow는 역할을 분리한다. PR은 read-only 검증만 하고 image publication과
-  promotion은 보호된 `main`의 trusted workflow만 수행한다.
-- workflow trigger, job guard, SLSA protected ref, Cosign certificate identity, promotion checkout/push를 한 변경
-  단위로 전환한다.
-- `master`에는 전환 중 새 commit이 들어오지 않게 보호한다. 관찰 기간 전에는 삭제하지 않는다.
+- repository는 private와 GitHub Free를 유지한다. required PR·check, branch protection과 `master` write freeze를
+  완료 조건으로 주장하지 않는다.
+- `main` push와 PR은 read-only `validate.yml`만 실행한다. image publication과 promotion의 유일한 trigger는
+  canonical annotated tag `release/v<MAJOR>.<MINOR>.<PATCH>`의 push다.
+- release workflow는 exact tag event/ref, annotated tag object, peeled tag commit과 현재
+  `refs/remotes/origin/main` HEAD의 일치, 동일 workflow/SLSA tag identity와 전체 검증을 publish 전에
+  fail-closed한다.
+- Cosign identity regexp는 `build.yml@refs/tags/release/v<semver>`에 anchor하고 image digest와 provenance
+  Git SHA는 peeled tag commit에 고정한다.
+- promotion은 tagged `main` HEAD에서 digest만 바꾼 commit을 normal non-force push한다. tag 뒤 `main`이
+  움직였으면 실패시키고 publication 결과를 Argo에 적용하지 않는다.
+- `master`는 새 publication을 만들지 않는 복구 기준으로 남기며 관찰 기간 전에는 삭제하지 않는다.
 - Git의 Argo Application manifest와 cluster에 이미 존재하는 Application은 별도 상태다. manifest를 바꿨다는
   이유만으로 live cluster 전환이 완료됐다고 보고하지 않는다.
-- rollback은 GitHub default/protection, publication identity, Argo target을 같은 권위로 함께 돌린다. 일부만
-  되돌리는 rollback은 금지한다.
+- rollback은 GitHub default, release tag/digest evidence와 Argo target을 같은 권위 세트로 함께 돌린다.
+  기존 release tag를 이동·덮어쓰지 않고 정정 release는 새 semver tag로 발행한다.
 
 ### 3.2 실행 순서
 
 | 단계 | 변경 | 통과 증거 | 실패 시 조치 |
 |---|---|---|---|
-| A0 기준점 봉인 | 원격 `master` SHA, 로컬 `main` SHA, clean tree, 현재 default/protection/check를 기록하고 복구용 immutable ref를 만든다 | 두 SHA와 설정 snapshot이 worklog에 남음 | 변경 없이 중단 |
-| A1 원격 main 생성 | 검토된 로컬 `main`을 새 `origin/main`으로 push한다 | 원격 SHA가 기준점과 일치 | 새 branch만 제거하거나 기준점으로 복원 |
-| A2 main 보호 | `main`에 PR, force-push 금지, `아키텍처·테스트·빌드 검증`과 `프론트엔드 browser 기반 검증`을 required check로 둔다 | 실제 GitHub check 이름과 rule 조회 결과 | 기존 default는 유지하고 rule 수정 |
-| A3 권위 전환 PR | publication trigger/guard, SLSA/Cosign, promotion target, hard-coded test와 문서를 `main`으로 바꾼다. Argo manifest는 `main`과 검증된 `infra/product`를 가리킨다 | PR validation green, master literal architecture test green | PR을 merge하지 않음 |
-| A4 단일 publication | `master` write를 동결하고 A3를 merge해 `main`에서 signed image와 provenance를 한 번 발행한다 | image digest, certificate identity, provenance Git SHA, promotion commit이 모두 `main` | publication을 중지하고 A0 권위 세트로 복원 |
-| A5 기본 branch 전환 | GitHub default를 `main`으로 바꾸고 clone/PR base/required check를 다시 조회한다 | `origin/HEAD → main`, 새 PR base가 main | default를 master로 복원 |
-| A6 Argo cutover | repository manifest와 cluster Application의 branch/path를 `main`/`infra/product`로 맞춘다 | rendered product, desired Git SHA, promoted digest, Argo sync 결과 일치 | Argo target과 publication 권위를 A0 세트로 복원 |
-| A7 관찰 | 최소 한 번의 후속 검증·promotion·Argo reconciliation을 관찰한다 | dual publication 없음, drift 없음 | master 삭제 없이 원인 수정 |
+| A0 read-only snapshot | 원격 `master`·`main`·tag SHA, clean tree, default branch, workflow와 Argo 현재 상태를 기록한다 | exact SHA와 설정 snapshot이 worklog에 남음 | mutation 없이 중단 |
+| A1 복구점과 main 생성 | 별도 승인 뒤 immutable rollback annotated tag와 검토된 `origin/main`을 최초 push한다 | rollback tag peel은 기존 master, remote main은 승인한 local main SHA | ref를 덮어쓰지 않고 사용자에게 불일치 보고 |
+| A2 기본 branch 전환 | 별도 승인 뒤 GitHub default를 `main`으로 바꾸고 remote HEAD를 재조회한다 | `origin/HEAD → main`, `master`는 그대로 존재 | default를 `master`로 복원 |
+| A3 tag gate 구현 | release trigger/preflight, SLSA/Cosign identity, promotion race guard와 Argo manifest를 TDD로 바꿔 normal push한다 | `main` validate와 전체 local gate green | release tag를 만들지 않고 수정 |
+| A4 publication 준비 | current remote main SHA와 clean tree, canonical tag 미존재, 전체 architecture/test/build/delivery를 다시 검증한다 | 승인할 tag 이름·peeled commit·diff가 하나로 고정 | mutation 없이 중단 |
+| A5 단일 publication | 별도 승인 뒤 새 annotated `release/v<semver>` tag를 current main HEAD에 만들고 push한다 | workflow ref, Cosign identity, provenance Git SHA와 네 image digest가 같은 tag/peeled commit | tag를 이동하지 않고 Argo 적용 중단 |
+| A6 promotion·Argo cutover | promotion commit이 tagged main에서 시작했고 remote main race 없이 normal push됐는지 확인한 뒤 별도 승인으로 cluster Application을 `main`/`infra/product`에 적용한다 | desired Git SHA와 promoted digest, repository manifest, Argo sync 결과 일치 | GitHub default·release evidence·Argo target을 이전 세트로 복원 |
+| A7 관찰 | 후속 read-only validation과 Argo reconciliation, dual publication 부재를 관찰한다 | `main`/`master` push publication 없음, tag와 digest drift 없음 | `master`와 기존 tag를 보존하고 새 semver correction 준비 |
 
 `infra/argocd/application.yaml`의 현재 `infra/k8s/base`는 workflow와 migration을 포함하지 않는 legacy 경로다.
 A3에서는 `kubectl kustomize infra/product`와 delivery test가 통과해야만 path를 바꾼다. A6 전에는 schedule을
@@ -182,7 +190,7 @@ mart, GitHub/Argo 설정을 동시에 소유하지 않는다.
 
 | work item | 책임 | 주요 소유 경로 | 선행 |
 |---|---|---|---|
-| EAT-16 저장소 권위 전환 | A0~A7와 rollback evidence | `.github/workflows`, `infra/argocd`, provenance/test/docs | EAT-15 승인 |
+| EAT-16 저장소 권위 전환 | 무료 플랜 tag gate A0~A7와 rollback evidence | `.github/workflows`, `infra/argocd`, provenance/test/docs | EAT-15 승인 |
 | EAT-17 release identity ADR | `source_release_id`와 completeness 상태 전이 | `docs/adr`, `docs/architecture` | EAT-15 승인 |
 | EAT-18 offline eaT source | discovery/transport/CLI와 registry | `apps/dataplane/src/eatbid/source/eat`, CLI, tests | EAT-17 |
 | EAT-19 live canary 운영 | Infisical delivery, R2/DB, manual Workflow evidence | `infra/product/secrets`, workflows, operations docs | EAT-16, EAT-18 |
@@ -213,7 +221,7 @@ EAT-6는 이 증거를 바탕으로 cohort policy와 임계값을 사전등록�
 
 ## 10. 이 설계의 완료 조건
 
-- 원격 `main` 전환이 단일 publication 권위와 일관된 rollback 세트로 정의돼 있다.
+- 원격 `main` 코드 권위와 immutable release tag publication 권위가 분리되고 일관된 rollback 세트로 정의돼 있다.
 - `run_id`, `source_release_id`, `publication_id`, `mart_build_id`의 책임이 겹치지 않는다.
 - R0의 필수 corpus가 auction detail만으로 축소되지 않고 submission·award·code 의미를 포함한다.
 - live canary 전에 offline source와 release completeness를 검증하며 schedule은 마지막까지 suspended다.
