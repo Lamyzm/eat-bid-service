@@ -43,30 +43,69 @@
 - External update: GitHub default branch
 - Preserve: `refs/heads/master`
 
-**RED:** 다음 read-only 조회에서 clean local `main`, remote `master`, `origin/main`과 rollback tag의 존재·부재, default branch가 승인된 예상과 하나라도 다르면 mutation 없이 중단한다.
+**RED:** 다음 read-only 조회에서 승인 대상 SHA를 먼저 고정해 사용자에게 제시한다. clean local `main`, remote `master`, local/remote rollback tag 부재, remote `main` 부재와 default branch가 예상과 하나라도 다르면 mutation 없이 중단한다. 각 native command 직후 exit code를 검사한다.
 
 ```powershell
-fnm exec --using=24.20.0 node --version
-fnm exec --using=24.20.0 pnpm --version
-git status --short --branch
-git rev-parse HEAD
-git ls-remote --symref origin HEAD refs/heads/main refs/heads/master refs/tags/rollback/pre-main-cutover-2026-09-01 refs/tags/rollback/pre-main-cutover-2026-09-01^{}
-gh api repos/Lamyzm/eat-bid-service --jq '{default_branch:.default_branch,visibility:.visibility}'
+function Assert-Native($Step, $Code) { if ($Code -ne 0) { throw "$Step 실패(exit=$Code)" } }
+$RollbackTag = "rollback/pre-main-cutover-2026-09-01"
+$Status = git status --porcelain=v1; Assert-Native "worktree 조회" $LASTEXITCODE
+if ($Status) { throw "worktree가 clean하지 않음" }
+$ApprovedLocalMain = git rev-parse HEAD; Assert-Native "local main SHA 조회" $LASTEXITCODE
+$RemoteMasterLine = git ls-remote origin refs/heads/master; Assert-Native "remote master 조회" $LASTEXITCODE
+$ApprovedRemoteMaster = ($RemoteMasterLine -split '\s+')[0]
+if ($ApprovedLocalMain -notmatch '^[0-9a-f]{40}$' -or $ApprovedRemoteMaster -notmatch '^[0-9a-f]{40}$') { throw "승인 SHA 형식 오류" }
+git merge-base --is-ancestor $ApprovedRemoteMaster $ApprovedLocalMain; Assert-Native "조상 관계 검증" $LASTEXITCODE
+git show-ref --verify --quiet "refs/tags/$RollbackTag"; $LocalTagExit = $LASTEXITCODE
+if ($LocalTagExit -eq 0) { throw "local rollback tag가 이미 존재함" }; if ($LocalTagExit -ne 1) { throw "local tag 조회 실패(exit=$LocalTagExit)" }
+$RemoteMain = @(git ls-remote origin refs/heads/main); Assert-Native "remote main 조회" $LASTEXITCODE
+$RemoteTag = @(git ls-remote origin "refs/tags/$RollbackTag" "refs/tags/$RollbackTag^{}"); Assert-Native "remote rollback tag 조회" $LASTEXITCODE
+if ($RemoteMain.Count -ne 0 -or $RemoteTag.Count -ne 0) { throw "생성 대상 remote ref가 이미 존재함" }
+$Repository = gh api repos/Lamyzm/eat-bid-service --jq '{default_branch:.default_branch,visibility:.visibility}'; Assert-Native "repository 조회" $LASTEXITCODE
+[pscustomobject]@{ RemoteMaster=$ApprovedRemoteMaster; LocalMain=$ApprovedLocalMain; RollbackTag=$RollbackTag; Repository=$Repository }
 ```
 
-**GREEN:** 첫 승인 뒤 remote `master` SHA에 rollback annotated tag를 만들고, 그 SHA가 local `main`의 조상임을 확인한 다음 local `main` exact SHA를 `origin/main`에 최초 normal push한다. 두 ref를 재조회한 뒤 두 번째 승인으로 default branch만 `main`으로 바꾸고 `origin/HEAD → main`을 확인한다. 기존 ref가 있으면 덮어쓰지 않고 exact SHA 일치만 확인한다.
+위 출력의 SHA·tag·repository 상태를 사용자에게 제시하고 첫 승인을 기다린다. 승인 뒤에는 조회 결과로 승인 변수를 다시 만들지 않고, 승인 화면의 literal 값만 아래 두 변수에 복사한다.
+
+**GREEN:** 승인 뒤 current 값을 재조회해 승인 값과 exact equality를 먼저 확인한다. local/remote tag 부재를 다시 확인한 뒤 승인된 remote `master` SHA로 annotated tag를 만들고 object type·peel을 검증한다. 모든 command 성공을 확인한 다음 tag와 승인된 local `main` SHA만 push한다.
 
 ```powershell
-$RemoteMaster = (git ls-remote origin refs/heads/master).Split()[0]
-$LocalMain = git rev-parse HEAD
-git merge-base --is-ancestor $RemoteMaster $LocalMain
-git tag --annotate rollback/pre-main-cutover-2026-09-01 $RemoteMaster --message "main 전환 전 원격 master 복구 기준점"
-git push origin refs/tags/rollback/pre-main-cutover-2026-09-01
-git push origin "${LocalMain}:refs/heads/main"
-git ls-remote origin refs/heads/main refs/heads/master refs/tags/rollback/pre-main-cutover-2026-09-01 refs/tags/rollback/pre-main-cutover-2026-09-01^{}
-gh repo edit Lamyzm/eat-bid-service --default-branch main
-git remote set-head origin --auto
-git symbolic-ref refs/remotes/origin/HEAD
+function Assert-Native($Step, $Code) { if ($Code -ne 0) { throw "$Step 실패(exit=$Code)" } }
+$RollbackTag = "rollback/pre-main-cutover-2026-09-01"
+$ApprovedRemoteMaster = "<승인 화면의 RemoteMaster 40자리 SHA>"
+$ApprovedLocalMain = "<승인 화면의 LocalMain 40자리 SHA>"
+$CurrentRemoteMasterLine = git ls-remote origin refs/heads/master; Assert-Native "remote master 재조회" $LASTEXITCODE
+$CurrentRemoteMaster = ($CurrentRemoteMasterLine -split '\s+')[0]
+$CurrentLocalMain = git rev-parse HEAD; Assert-Native "local main 재조회" $LASTEXITCODE
+if ($CurrentRemoteMaster -ne $ApprovedRemoteMaster -or $CurrentLocalMain -ne $ApprovedLocalMain) { throw "승인 뒤 SHA가 변경됨" }
+git show-ref --verify --quiet "refs/tags/$RollbackTag"; $LocalTagExit = $LASTEXITCODE
+if ($LocalTagExit -eq 0) { throw "local rollback tag가 이미 존재함" }; if ($LocalTagExit -ne 1) { throw "local tag 재조회 실패(exit=$LocalTagExit)" }
+$RemoteRefs = @(git ls-remote origin refs/heads/main "refs/tags/$RollbackTag" "refs/tags/$RollbackTag^{}"); Assert-Native "remote 생성 대상 재조회" $LASTEXITCODE
+if ($RemoteRefs.Count -ne 0) { throw "승인 뒤 생성 대상 remote ref가 생김" }
+git tag --annotate $RollbackTag $ApprovedRemoteMaster --message "main 전환 전 원격 master 복구 기준점"; Assert-Native "local annotated tag 생성" $LASTEXITCODE
+$TagType = git cat-file -t "refs/tags/$RollbackTag"; Assert-Native "local tag type 검증" $LASTEXITCODE
+$TagPeel = git rev-parse "refs/tags/$RollbackTag^{}"; Assert-Native "local tag peel 검증" $LASTEXITCODE
+$TagObject = git rev-parse "refs/tags/$RollbackTag"; Assert-Native "local tag object 조회" $LASTEXITCODE
+if ($TagType -ne 'tag' -or $TagPeel -ne $ApprovedRemoteMaster) { throw "local tag object가 승인 대상과 다름" }
+git push origin "refs/tags/$RollbackTag"; Assert-Native "rollback tag push" $LASTEXITCODE
+git push origin "${ApprovedLocalMain}:refs/heads/main"; Assert-Native "origin/main 최초 push" $LASTEXITCODE
+$PublishedRefs = @(git ls-remote origin refs/heads/main "refs/tags/$RollbackTag" "refs/tags/$RollbackTag^{}"); Assert-Native "push 결과 조회" $LASTEXITCODE
+$RefMap = @{}; foreach ($Line in $PublishedRefs) { $Parts = $Line -split '\s+'; $RefMap[$Parts[1]] = $Parts[0] }
+if ($RefMap['refs/heads/main'] -ne $ApprovedLocalMain -or $RefMap["refs/tags/$RollbackTag"] -ne $TagObject -or $RefMap["refs/tags/$RollbackTag^{}"] -ne $ApprovedRemoteMaster) { throw "push 결과가 승인 값과 다름" }
+$ApprovedDefaultBefore = gh api repos/Lamyzm/eat-bid-service --jq .default_branch; Assert-Native "default branch 승인값 조회" $LASTEXITCODE
+[pscustomobject]@{ CurrentDefault=$ApprovedDefaultBefore; NewDefault='main'; RemoteMain=$ApprovedLocalMain }
+```
+
+위 default 전환 값을 사용자에게 제시하고 두 번째 승인을 기다린다. 승인 뒤에는 승인 화면의 현재 default 값을 literal로 복사하고 다음처럼 equality와 모든 native command exit code를 확인한다.
+
+```powershell
+function Assert-Native($Step, $Code) { if ($Code -ne 0) { throw "$Step 실패(exit=$Code)" } }
+$ApprovedDefaultBefore = "<승인 화면의 CurrentDefault>"
+$CurrentDefault = gh api repos/Lamyzm/eat-bid-service --jq .default_branch; Assert-Native "default branch 재조회" $LASTEXITCODE
+if ($CurrentDefault -ne $ApprovedDefaultBefore) { throw "승인 뒤 default branch가 변경됨" }
+gh repo edit Lamyzm/eat-bid-service --default-branch main; Assert-Native "default branch main 전환" $LASTEXITCODE
+git remote set-head origin --auto; Assert-Native "origin HEAD 갱신" $LASTEXITCODE
+$OriginHead = git symbolic-ref refs/remotes/origin/HEAD; Assert-Native "origin HEAD 검증" $LASTEXITCODE
+if ($OriginHead -ne 'refs/remotes/origin/main') { throw "origin/HEAD가 main이 아님" }
 ```
 
 **검증:** rollback tag object가 annotated tag이고 peel은 전환 전 remote `master`, `refs/heads/main`은 승인한 local SHA, default는 `main`, `master`는 원래 SHA로 존재해야 한다. `validate.yml`의 두 read-only job 결과도 조회한다.
@@ -164,26 +203,80 @@ Run: `uv run --project apps/dataplane pytest infra/tests/test_workflow_contract.
 - External update: cluster Argo Application
 - Update: Linear EAT-16 handoff comment
 
-**RED:** clean tree, current local/remote `main` exact SHA, tag 미존재, `main` validate와 아래 전체 검증 중 하나라도 실패하면 release tag를 만들지 않는다. PR merge는 필수 조건이 아니다.
+**RED:** release tag 이름과 remote `main` SHA를 승인 전에 고정한다. clean tree, local/remote `main` 일치, local/remote tag 부재, `main` validate와 아래 전체 검증 중 하나라도 실패하면 승인 요청이나 tag 생성을 하지 않는다. PR merge는 필수 조건이 아니다.
 
 ```powershell
-fnm exec --using=24.20.0 pnpm architecture:check
-fnm exec --using=24.20.0 pnpm test
-fnm exec --using=24.20.0 pnpm build
-uv run --project apps/dataplane pytest infra/tests -q
-git status --short --branch
-git ls-remote origin refs/heads/main refs/tags/release/v<MAJOR>.<MINOR>.<PATCH> refs/tags/release/v<MAJOR>.<MINOR>.<PATCH>^{}
+function Assert-Native($Step, $Code) { if ($Code -ne 0) { throw "$Step 실패(exit=$Code)" } }
+$ReleaseTag = "release/v<MAJOR>.<MINOR>.<PATCH>"
+if ($ReleaseTag -notmatch '^release/v[0-9]+\.[0-9]+\.[0-9]+$') { throw "canonical release tag 형식 오류" }
+fnm exec --using=24.20.0 pnpm architecture:check; Assert-Native "architecture 검증" $LASTEXITCODE
+fnm exec --using=24.20.0 pnpm test; Assert-Native "test 검증" $LASTEXITCODE
+fnm exec --using=24.20.0 pnpm build; Assert-Native "build 검증" $LASTEXITCODE
+uv run --project apps/dataplane pytest infra/tests -q; Assert-Native "delivery 검증" $LASTEXITCODE
+$Status = git status --porcelain=v1; Assert-Native "worktree 조회" $LASTEXITCODE
+if ($Status) { throw "worktree가 clean하지 않음" }
+$ApprovedLocalMain = git rev-parse HEAD; Assert-Native "local main 조회" $LASTEXITCODE
+$RemoteMainLine = git ls-remote origin refs/heads/main; Assert-Native "remote main 조회" $LASTEXITCODE
+$ApprovedReleaseCommit = ($RemoteMainLine -split '\s+')[0]
+if ($ApprovedReleaseCommit -notmatch '^[0-9a-f]{40}$' -or $ApprovedLocalMain -ne $ApprovedReleaseCommit) { throw "local/remote main 불일치" }
+git show-ref --verify --quiet "refs/tags/$ReleaseTag"; $LocalTagExit = $LASTEXITCODE
+if ($LocalTagExit -eq 0) { throw "local release tag가 이미 존재함" }; if ($LocalTagExit -ne 1) { throw "local tag 조회 실패(exit=$LocalTagExit)" }
+$RemoteTag = @(git ls-remote origin "refs/tags/$ReleaseTag" "refs/tags/$ReleaseTag^{}"); Assert-Native "remote release tag 조회" $LASTEXITCODE
+if ($RemoteTag.Count -ne 0) { throw "remote release tag가 이미 존재함" }
+[pscustomobject]@{ ReleaseTag=$ReleaseTag; ReleaseCommit=$ApprovedReleaseCommit }
 ```
 
-**GREEN:** exact tag 이름과 remote main SHA를 사용자에게 제시해 승인을 받은 뒤 그 commit에 annotated tag를 만들고 tag ref만 push한다. workflow 완료 후 tag object/peel, workflow ref, Cosign identity regexp, SLSA Git SHA, 네 image digest와 promotion commit parent가 모두 같은 release commit에서 파생됐는지 확인한다. promotion 이후 remote main SHA가 새 digest commit인지 확인한 다음 cluster context·namespace·Application diff를 제시해 별도 승인을 받고 `infra/argocd/application.yaml`을 apply한다.
+위 출력의 tag와 SHA를 사용자에게 제시하고 승인을 기다린다. 승인 뒤에는 조회 결과로 승인 변수를 다시 만들지 않고 승인 화면의 literal 값만 복사한다.
+
+**GREEN:** current remote `main`이 승인 SHA와 같은지, local/remote tag가 여전히 없는지 먼저 재검증한다. 승인 SHA로 local annotated tag를 만든 뒤 object type과 peel을 승인 SHA와 비교하고, 모든 command 성공을 확인한 경우에만 tag ref를 push한다.
 
 ```powershell
-$ReleaseTag = "release/v<MAJOR>.<MINOR>.<PATCH>"
-$ReleaseCommit = (git ls-remote origin refs/heads/main).Split()[0]
-git tag --annotate $ReleaseTag $ReleaseCommit --message "eatbid $ReleaseTag 릴리즈"
-git push origin "refs/tags/$ReleaseTag"
-git ls-remote origin "refs/tags/$ReleaseTag" "refs/tags/$ReleaseTag^{}"
-kubectl apply --server-side --field-manager=eatbid-main-cutover --filename infra/argocd/application.yaml
+function Assert-Native($Step, $Code) { if ($Code -ne 0) { throw "$Step 실패(exit=$Code)" } }
+$ReleaseTag = "<승인 화면의 ReleaseTag>"
+$ApprovedReleaseCommit = "<승인 화면의 ReleaseCommit 40자리 SHA>"
+if ($ReleaseTag -notmatch '^release/v[0-9]+\.[0-9]+\.[0-9]+$' -or $ApprovedReleaseCommit -notmatch '^[0-9a-f]{40}$') { throw "승인 literal 형식 오류" }
+$CurrentRemoteMainLine = git ls-remote origin refs/heads/main; Assert-Native "remote main 재조회" $LASTEXITCODE
+$CurrentRemoteMain = ($CurrentRemoteMainLine -split '\s+')[0]
+if ($CurrentRemoteMain -ne $ApprovedReleaseCommit) { throw "승인 뒤 remote main이 변경됨" }
+git show-ref --verify --quiet "refs/tags/$ReleaseTag"; $LocalTagExit = $LASTEXITCODE
+if ($LocalTagExit -eq 0) { throw "local release tag가 이미 존재함" }; if ($LocalTagExit -ne 1) { throw "local tag 재조회 실패(exit=$LocalTagExit)" }
+$RemoteTag = @(git ls-remote origin "refs/tags/$ReleaseTag" "refs/tags/$ReleaseTag^{}"); Assert-Native "remote tag 재조회" $LASTEXITCODE
+if ($RemoteTag.Count -ne 0) { throw "승인 뒤 remote release tag가 생김" }
+git tag --annotate $ReleaseTag $ApprovedReleaseCommit --message "eatbid $ReleaseTag 릴리즈"; Assert-Native "local annotated tag 생성" $LASTEXITCODE
+$TagType = git cat-file -t "refs/tags/$ReleaseTag"; Assert-Native "local tag type 검증" $LASTEXITCODE
+$TagPeel = git rev-parse "refs/tags/$ReleaseTag^{}"; Assert-Native "local tag peel 검증" $LASTEXITCODE
+$TagObject = git rev-parse "refs/tags/$ReleaseTag"; Assert-Native "local tag object 조회" $LASTEXITCODE
+if ($TagType -ne 'tag' -or $TagPeel -ne $ApprovedReleaseCommit) { throw "local tag가 승인 commit을 가리키지 않음" }
+git push origin "refs/tags/$ReleaseTag"; Assert-Native "release tag push" $LASTEXITCODE
+$PublishedTag = @(git ls-remote origin "refs/tags/$ReleaseTag" "refs/tags/$ReleaseTag^{}"); Assert-Native "remote tag 검증" $LASTEXITCODE
+$RefMap = @{}; foreach ($Line in $PublishedTag) { $Parts = $Line -split '\s+'; $RefMap[$Parts[1]] = $Parts[0] }
+if ($RefMap["refs/tags/$ReleaseTag"] -ne $TagObject -or $RefMap["refs/tags/$ReleaseTag^{}"] -ne $ApprovedReleaseCommit) { throw "remote tag object/peel 불일치" }
+```
+
+workflow 완료 후 workflow ref, Cosign identity regexp, SLSA Git SHA, 네 image digest와 promotion parent가 승인 release commit에서 파생됐는지 확인한다. 다음 read-only 명령으로 cluster context·namespace·Application diff와 diff hash를 고정해 사용자에게 별도 승인받는다.
+
+```powershell
+function Assert-Native($Step, $Code) { if ($Code -ne 0) { throw "$Step 실패(exit=$Code)" } }
+$ApprovedContext = kubectl config current-context; Assert-Native "cluster context 조회" $LASTEXITCODE
+$ApprovedNamespace = kubectl config view --minify --output 'jsonpath={..namespace}'; Assert-Native "namespace 조회" $LASTEXITCODE
+$ApprovedDiff = @(kubectl diff --filename infra/argocd/application.yaml 2>&1); $DiffExit = $LASTEXITCODE
+if ($DiffExit -notin 0,1) { throw "Application diff 실패(exit=$DiffExit)" }
+$DiffBytes = [Text.Encoding]::UTF8.GetBytes(($ApprovedDiff -join "`n")); $ApprovedDiffHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($DiffBytes))
+[pscustomobject]@{ Context=$ApprovedContext; Namespace=$ApprovedNamespace; DiffHash=$ApprovedDiffHash }; $ApprovedDiff
+```
+
+승인 뒤에는 승인 화면의 literal만 사용해 context·namespace·diff hash equality를 재검증한 다음 apply하고 exit code를 확인한다.
+
+```powershell
+function Assert-Native($Step, $Code) { if ($Code -ne 0) { throw "$Step 실패(exit=$Code)" } }
+$ApprovedContext = "<승인 화면의 cluster context>"; $ApprovedNamespace = "<승인 화면의 namespace>"; $ApprovedDiffHash = "<승인 화면의 diff SHA-256>"
+$CurrentContext = kubectl config current-context; Assert-Native "cluster context 재조회" $LASTEXITCODE
+$CurrentNamespace = kubectl config view --minify --output 'jsonpath={..namespace}'; Assert-Native "namespace 재조회" $LASTEXITCODE
+$CurrentDiff = @(kubectl diff --filename infra/argocd/application.yaml 2>&1); $DiffExit = $LASTEXITCODE
+if ($DiffExit -notin 0,1) { throw "Application diff 실패(exit=$DiffExit)" }
+$DiffBytes = [Text.Encoding]::UTF8.GetBytes(($CurrentDiff -join "`n")); $CurrentDiffHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($DiffBytes))
+if ($CurrentContext -ne $ApprovedContext -or $CurrentNamespace -ne $ApprovedNamespace -or $CurrentDiffHash -ne $ApprovedDiffHash) { throw "승인 뒤 cluster 대상 또는 diff가 변경됨" }
+kubectl apply --server-side --field-manager=eatbid-main-cutover --filename infra/argocd/application.yaml; Assert-Native "Argo Application apply" $LASTEXITCODE
 ```
 
 **검증:** Argo desired Git SHA와 네 promoted digest가 publication evidence와 같고 `main`/`master` push나 `workflow_dispatch` publication run이 없음을 확인한다. rollback은 조회·dry-run으로 rehearsal하되 실제 mutation과 기존 tag 이동은 하지 않는다.
