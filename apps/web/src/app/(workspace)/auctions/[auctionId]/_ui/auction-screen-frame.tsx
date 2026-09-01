@@ -1,10 +1,10 @@
+/** @module 책임: 공고 화면과 loading fallback이 공유하는 section 순서와 geometry를 제공한다. */
 type AuctionScreenFrameProps = {
   readonly header: React.ReactNode;
   readonly summary: React.ReactNode;
   readonly details: React.ReactNode;
 };
 
-/** 실제 화면과 route fallback이 동일한 시각적 geometry를 공유하는 frame이다. */
 export function AuctionScreenFrame({ header, summary, details }: AuctionScreenFrameProps) {
   return (
     <div

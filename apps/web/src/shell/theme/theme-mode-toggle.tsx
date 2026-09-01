@@ -1,3 +1,4 @@
+/** @module 책임: light·dark mode를 접근 가능한 단일 control로 전환한다. */
 'use client';
 
 import * as React from 'react';

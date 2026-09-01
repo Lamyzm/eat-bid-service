@@ -1,3 +1,4 @@
+/** @module 책임: 공고 route의 ID 검증·조회·404 분기와 presentation 변환 순서를 소유한다. */
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 import { presentAuction, type AuctionPresentation } from './present-auction';

@@ -1,3 +1,4 @@
+/** @module 책임: 공고 route 오류에서 내부 정보를 숨기고 사용자가 요청을 다시 시도하게 한다. */
 'use client';
 
 import { Button } from '@/shared/ui/button';
@@ -6,7 +7,6 @@ type AuctionErrorProps = {
   readonly reset: () => void;
 };
 
-/** 내부 오류 본문을 노출하지 않고 안전한 재시도 동작만 제공한다. */
 export default function AuctionError({ reset }: AuctionErrorProps) {
   return (
     <section

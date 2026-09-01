@@ -1,3 +1,4 @@
+/** @module 책임: breadcrumb·지역·설정·theme control을 공통 workspace header에 배치한다. */
 import React from 'react';
 import { SidebarTrigger } from '../ui/sidebar';
 import { Separator } from '../ui/separator';

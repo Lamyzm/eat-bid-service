@@ -1,3 +1,4 @@
+/** @module 책임: 전역 명령 palette를 여는 접근 가능한 검색형 trigger를 제공한다. */
 'use client';
 import { useCommandPalette } from '@/components/command-palette/context';
 import { Icons } from '@/components/icons';

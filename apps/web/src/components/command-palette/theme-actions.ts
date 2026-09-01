@@ -1,3 +1,4 @@
+/** @module 책임: theme mode와 색상 theme 변경을 실행 가능한 command action으로 변환한다. */
 import type { CommandPaletteAction } from './context';
 
 interface ThemeOption {

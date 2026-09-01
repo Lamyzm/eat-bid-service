@@ -1,3 +1,4 @@
+/** @module 책임: 생존·준비 health endpoint의 중립 version operation과 응답 schema를 정의한다. */
 import { z } from "zod";
 
 import { problemDetailsSchema } from "../common/problem-details";

@@ -1,3 +1,4 @@
+/** @module 책임: Web API의 수동 공개 DTO 선언과 type alias provenance 우회를 추적한다. */
 import path from "node:path";
 import ts from "typescript";
 import { normalizedPath } from "./policy.mjs";

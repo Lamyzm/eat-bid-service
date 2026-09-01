@@ -1,3 +1,4 @@
+/** @module 책임: sidebar·header·command palette와 단일 main landmark를 공통 workspace shell로 조립한다. */
 import CommandPalette from '@/components/command-palette/command-palette';
 import AppSidebar from '@/components/layout/app-sidebar';
 import Header from '@/components/layout/header';

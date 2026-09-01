@@ -1,3 +1,4 @@
+/** @module 책임: contracts의 browser-safe export가 Node 전용 graph를 노출하지 않는지 검사한다. */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

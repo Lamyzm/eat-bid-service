@@ -1,3 +1,4 @@
+/** @module 책임: 전역 provider·theme cookie·font·toast·navigation progress를 root HTML에 조립한다. */
 import { Toaster } from '@/components/ui/sonner';
 import { AppProviders } from '@/shell/providers/app-providers';
 import { fontVariables } from '@/shell/theme/font.config';

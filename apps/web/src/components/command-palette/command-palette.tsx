@@ -1,3 +1,4 @@
+/** @module 책임: navigation·theme·등록 action을 키보드 검색 가능한 명령 UI로 조합한다. */
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

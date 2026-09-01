@@ -1,3 +1,4 @@
+/** @module 책임: 공고 식별자를 operation 계약으로 검증하고 transport 독립 조회를 수행한다. */
 import { auctionV1Operations, type AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 import type { ContractRequest } from '../_transport/request-contract';

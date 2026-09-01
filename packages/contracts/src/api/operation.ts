@@ -1,3 +1,4 @@
+/** @module 책임: 공개 HTTP operation의 method·route·입출력 schema를 한 타입 계약으로 정의한다. */
 import { z } from "zod";
 
 export type HttpMethod = "delete" | "get" | "patch" | "post" | "put";

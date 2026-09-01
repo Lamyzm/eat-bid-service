@@ -1,3 +1,4 @@
+/** @module 책임: Server와 Web endpoint가 공개 operation registry에서만 파생되는지 검사한다. */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

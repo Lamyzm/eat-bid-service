@@ -1,3 +1,4 @@
+/** @module 책임: legacy dashboard route를 공통 application shell과 검색 비노출 metadata에 연결한다. */
 import { ApplicationShell } from '@/shell/layout/application-shell';
 import type { Metadata } from 'next';
 

@@ -1,3 +1,4 @@
+/** @module 책임: 검증된 공고 presentation을 식별·금액·일정·provenance section으로 표현한다. */
 import type { AuctionPresentation } from '../_model/present-auction';
 import { AuctionScreenFrame } from './auction-screen-frame';
 

@@ -1,3 +1,4 @@
+/** @module 책임: browser 수명주기마다 QueryClient 하나를 만들고 React tree에 주입한다. */
 'use client';
 
 import { QueryClientProvider } from '@tanstack/react-query';

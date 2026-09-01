@@ -1,3 +1,4 @@
+/** @module 책임: Web boundary rule ID·허용 경로·legacy waiver metadata 정책을 선언한다. */
 import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 

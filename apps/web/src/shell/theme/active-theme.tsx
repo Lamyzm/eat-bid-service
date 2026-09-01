@@ -1,3 +1,4 @@
+/** @module 책임: 색상 theme cookie와 DOM attribute를 동기화하는 client context를 제공한다. */
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';

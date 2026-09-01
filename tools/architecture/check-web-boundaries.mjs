@@ -1,3 +1,4 @@
+/** @module 책임: Web module 경계 finding을 legacy ledger와 대조하고 CLI 실패로 보고한다. */
 import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

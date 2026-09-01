@@ -1,3 +1,4 @@
+/** @module 책임: 유효하지 않거나 존재하지 않는 공고 ID의 안전한 404 화면을 제공한다. */
 export default function AuctionNotFound() {
   return (
     <section

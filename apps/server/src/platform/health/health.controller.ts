@@ -1,3 +1,4 @@
+/** @module 책임: process 생존과 application 준비 상태를 서로 다른 health 계약으로 공개한다. */
 import {
   Controller,
   Get,

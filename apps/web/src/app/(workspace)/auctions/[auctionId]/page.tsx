@@ -1,3 +1,4 @@
+/** @module 책임: 공고 RSC route에서 계약 조회 결과를 화면과 Next notFound 경계로 분기한다. */
 import {
   getAuctionFromServer,
   isAuctionNotFoundError,

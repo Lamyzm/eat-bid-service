@@ -1,3 +1,4 @@
+/** @module 책임: browser consumer가 사용하는 공고 조회와 TanStack Query 공개 표면을 제공한다. */
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 import { browserRequest } from '../_transport/browser-request';

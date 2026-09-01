@@ -1,3 +1,4 @@
+/** @module 책임: boundary checker가 쓰는 제한된 문자열·객체·호출 정적 평가를 제공한다. */
 import ts from "typescript";
 
 const unknown = "\u0000";

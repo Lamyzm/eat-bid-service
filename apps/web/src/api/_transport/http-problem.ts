@@ -1,3 +1,4 @@
+/** @module 책임: 계약 불일치와 표준 Problem 및 일반 HTTP 실패를 구분하는 오류 타입을 제공한다. */
 import type { ProblemCode, ProblemDetails } from '@eatbid/contracts/api';
 
 export class ContractResponseError extends Error {

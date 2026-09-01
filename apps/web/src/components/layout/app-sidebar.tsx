@@ -1,3 +1,4 @@
+/** @module 책임: navigation 설정과 현재 경로를 접을 수 있는 application sidebar로 렌더링한다. */
 'use client';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { SidebarAccount } from '@/components/layout/sidebar-account';

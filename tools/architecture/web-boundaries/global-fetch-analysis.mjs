@@ -1,3 +1,4 @@
+/** @module 책임: alias·bind·call·spread를 거친 DOM fetch 호출 여부를 보수적으로 판정한다. */
 import ts from "typescript";
 import { staticPropertyName, unwrapExpression } from "./static-analysis.mjs";
 

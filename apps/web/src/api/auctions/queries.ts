@@ -1,3 +1,4 @@
+/** @module 책임: 공고 resource의 query key 계층과 AbortSignal 전달 queryOptions를 함께 소유한다. */
 import { queryOptions } from '@tanstack/react-query';
 import { auctionV1Operations } from '@eatbid/contracts/api/v1/auctions';
 

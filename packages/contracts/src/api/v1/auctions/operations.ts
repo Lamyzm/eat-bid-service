@@ -1,3 +1,4 @@
+/** @module 책임: v1 공고 조회의 semantic route와 상태별 공개 schema 계약을 소유한다. */
 import { z } from "zod";
 
 import { auctionIdPathSchema } from "../../../atoms/identifier";

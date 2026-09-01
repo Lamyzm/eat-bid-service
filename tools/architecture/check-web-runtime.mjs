@@ -1,3 +1,4 @@
+/** @module 책임: Next·React runtime version과 compiler·route 설정이 승인 lane을 따르는지 검사한다. */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

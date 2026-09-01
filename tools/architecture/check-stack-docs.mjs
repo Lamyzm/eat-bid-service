@@ -1,3 +1,4 @@
+/** @module 책임: 실제 manifest와 stack architecture 문서의 version·선택 근거 drift를 검사한다. */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

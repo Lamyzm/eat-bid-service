@@ -1,3 +1,4 @@
+/** @module 책임: 기존 navigation과 data table component가 공유하는 UI 구성 타입을 정의한다. */
 import { Icons } from '@/components/icons';
 import type { Route } from 'next';
 

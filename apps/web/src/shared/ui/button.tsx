@@ -1,3 +1,4 @@
+/** @module 책임: 접근성·시각 variant·공통 press motion만 소유하는 기본 Button을 제공한다. */
 import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { cva, type VariantProps } from 'class-variance-authority';
 

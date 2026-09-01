@@ -1,3 +1,4 @@
+/** @module 책임: 공고 wire 값을 정밀도 손실 없이 화면 전용 표시 모델로 변환한다. */
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 type MoneyPresentation = {

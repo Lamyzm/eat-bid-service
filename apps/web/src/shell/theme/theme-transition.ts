@@ -1,3 +1,4 @@
+/** @module 책임: reduced-motion과 View Transition 지원 여부에 맞춰 theme 변경을 실행한다. */
 /**
  * 명암·색상 테마 변경을 pointer 원점의 원형 reveal로 표시한다.
  * View Transitions API가 없으면 즉시 적용하며 keyframe은 전역 style이 소유한다.

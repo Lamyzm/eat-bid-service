@@ -1,3 +1,4 @@
+/** @module 책임: byte 수량을 단위 의미를 보존한 사람이 읽는 문자열로 변환한다. */
 export interface FormatBytesOptions {
   readonly decimals?: number;
   readonly sizeType?: 'accurate' | 'normal';

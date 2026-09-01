@@ -1,3 +1,4 @@
+/** @module 책임: browser same-origin fetch를 계약 검증 request adapter로 한 번 조립한다. */
 import {
   createContractRequest,
   type ContractRequest,

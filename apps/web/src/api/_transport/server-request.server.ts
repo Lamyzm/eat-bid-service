@@ -1,3 +1,4 @@
+/** @module 책임: server runtime의 API origin과 fetch를 계약 request adapter에 지연 주입한다. */
 import 'server-only';
 
 import { readServerApiOrigin } from './api-origin';

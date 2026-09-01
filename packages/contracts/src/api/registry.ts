@@ -1,3 +1,4 @@
+/** @module 책임: 모든 공개 HTTP operation을 OpenAPI와 architecture 검사용 registry로 집계한다. */
 import { healthOperationRegistry } from "../operations/health";
 import { auctionV1OperationRegistry } from "./v1/auctions/operations";
 import { createOperationRegistry } from "./operation";

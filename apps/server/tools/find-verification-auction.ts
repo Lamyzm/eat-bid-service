@@ -1,3 +1,4 @@
+/** @module 책임: 실제 DB에서 브라우저 검증에 사용할 최신 공고 식별자를 읽기 전용으로 찾는다. */
 import { positiveBigintTextSchema } from "@eatbid/contracts";
 import postgres from "postgres";
 

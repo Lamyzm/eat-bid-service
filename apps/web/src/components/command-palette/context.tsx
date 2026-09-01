@@ -1,3 +1,4 @@
+/** @module 책임: 명령 palette의 열림 상태와 feature가 등록하는 action 수명주기를 제공한다. */
 'use client';
 
 import { createContext, useContext } from 'react';

@@ -1,3 +1,4 @@
+/** @module 책임: 공고 resource의 404 Problem만 화면에서 다룰 수 있는 not-found 의미로 변환한다. */
 import type { ContractRequest } from '../_transport/request-contract';
 
 class AuctionNotFoundError extends Error {

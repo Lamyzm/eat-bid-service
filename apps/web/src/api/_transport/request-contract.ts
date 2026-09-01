@@ -1,3 +1,4 @@
+/** @module 책임: operation 계약에서 URL·입력·응답을 파생해 unknown HTTP 결과를 검증한다. */
 import {
   problemDetailsSchema,
   type OperationBodyInput,

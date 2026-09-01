@@ -1,3 +1,4 @@
+/** @module 책임: 공개 operation registry를 OpenAPI 문서와 검증 가능한 산출물로 변환한다. */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";

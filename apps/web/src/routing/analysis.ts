@@ -1,3 +1,4 @@
+/** @module 책임: 분석 화면의 typed dynamic path와 선택 query를 안전하게 직렬화한다. */
 interface AnalysisRouteInput {
   schoolId: string;
   bidNumber?: string;

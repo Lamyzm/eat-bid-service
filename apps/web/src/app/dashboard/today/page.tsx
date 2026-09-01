@@ -1,3 +1,4 @@
+/** @module 책임: 기존 오늘의 공고 탐색 상태와 분석 이동 흐름을 제공하는 교체 예정 화면이다. */
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';

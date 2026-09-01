@@ -1,3 +1,4 @@
+/** @module 책임: Nest application의 보안·관측·계약·종료 정책을 한 bootstrap 경계에서 조립한다. */
 import {
   type INestApplication,
   RequestMethod,

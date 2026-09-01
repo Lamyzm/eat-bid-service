@@ -1,3 +1,4 @@
+/** @module 책임: command 진행 상태를 Button의 비활성화·spinner·label로 표현한다. */
 'use client';
 
 import { useId } from 'react';

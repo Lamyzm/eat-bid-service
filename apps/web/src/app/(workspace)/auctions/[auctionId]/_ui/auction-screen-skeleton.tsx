@@ -1,3 +1,4 @@
+/** @module 책임: 실제 공고 frame과 동일한 구조의 최초 route loading skeleton을 렌더링한다. */
 import { Skeleton } from '@/shared/ui/skeleton';
 
 import { AuctionScreenFrame } from './auction-screen-frame';

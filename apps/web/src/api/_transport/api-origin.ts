@@ -1,3 +1,4 @@
+/** @module 책임: server API origin의 허용 형식과 environment fallback 경계를 검증한다. */
 // API origin은 absolute origin만 허용해 path 중복, credential 노출과 임의 protocol을 차단한다.
 export function parseApiOrigin(value: string): string {
   let url: URL;

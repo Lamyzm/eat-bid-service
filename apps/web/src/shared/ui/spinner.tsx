@@ -1,3 +1,4 @@
+/** @module 책임: 상태 label과 함께 사용할 수 있는 공통 진행 spinner primitive를 제공한다. */
 import { IconLoader } from '@tabler/icons-react';
 
 import { cn } from '@/shared/lib/cn';

@@ -1,3 +1,4 @@
+/** @module 책임: local development에서만 Nest API origin으로 향하는 Next rewrite를 생성한다. */
 import { parseApiOrigin } from '../src/api/_transport/api-origin';
 
 export interface ApiRewriteOptions {

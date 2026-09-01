@@ -1,37 +1,35 @@
+/** @module 책임: sidebar와 command palette가 공유하는 route·아이콘·접근 조건 navigation을 선언한다. */
 import type { NavGroup } from '@/types';
 
 /**
- * Navigation configuration with RBAC support
+ * 접근 제어를 포함한 navigation 설정이다.
  *
- * This configuration is used for both the sidebar navigation and Cmd+K bar.
- * Items are organized into groups, each rendered with a SidebarGroupLabel.
+ * sidebar와 Cmd+K가 같은 항목을 사용하며 각 group은 SidebarGroupLabel로 표시한다.
  *
- * RBAC Access Control:
- * Each navigation item can have an `access` property that controls visibility
- * based on permissions, plans, features, roles, and organization context.
+ * 각 항목의 `access`는 permission, plan, feature, role과 organization context를 기준으로
+ * 노출 여부를 결정한다.
  *
- * Examples:
+ * 예시:
  *
- * 1. Require organization:
+ * 1. organization 필수:
  *    access: { requireOrg: true }
  *
- * 2. Require specific permission:
+ * 2. 특정 permission 필수:
  *    access: { requireOrg: true, permission: 'org:teams:manage' }
  *
- * 3. Require specific plan:
+ * 3. 특정 plan 필수:
  *    access: { plan: 'pro' }
  *
- * 4. Require specific feature:
+ * 4. 특정 feature 필수:
  *    access: { feature: 'premium_access' }
  *
- * 5. Require specific role:
+ * 5. 특정 role 필수:
  *    access: { role: 'admin' }
  *
- * 6. Multiple conditions (all must be true):
+ * 6. 여러 조건 모두 필수:
  *    access: { requireOrg: true, permission: 'org:teams:manage', plan: 'pro' }
  *
- * Note: The `visible` function is deprecated but still supported for backward compatibility.
- * Use the `access` property for new items.
+ * `visible` 함수는 deprecated 호환 경로로만 남아 있다. 새 항목은 `access`를 사용한다.
  */
 export const navGroups: NavGroup[] = [
   {

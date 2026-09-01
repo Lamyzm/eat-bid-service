@@ -1,3 +1,4 @@
+/** @module 책임: browser별 TanStack Query client 생성과 공통 server-state 정책을 소유한다. */
 import {
   MutationCache,
   QueryCache,

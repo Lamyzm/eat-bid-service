@@ -1,3 +1,4 @@
+/** @module 책임: 시간·금액·비율·식별자 값이 승인된 의미 타입 경계를 우회하지 않는지 검사한다. */
 import { createHash } from "node:crypto";
 import {
   existsSync,

@@ -1,3 +1,4 @@
+/** @module 책임: 공고 조회 HTTP 계약을 application Effect와 상태별 응답으로 연결한다. */
 import {
   BadRequestException,
   Controller,
