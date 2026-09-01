@@ -88,3 +88,54 @@ test("읽기 명령 prefix로 복합 명령과 pipe와 snapshot 쓰기를 숨길
     );
   }
 });
+
+test("workflow lifecycle 명령은 lease 없이 허용하고 pipe나 redirect가 붙으면 계속 차단한다", () => {
+  for (const command of [
+    "pnpm workflow:doctor",
+    "pnpm workflow:doctor:infisical",
+    "pnpm workflow:claim -- EAT-26",
+    "pnpm workflow:claim EAT-26",
+    "pnpm workflow:sync",
+    "pnpm workflow:release",
+    "pnpm workflow:recover-lock",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "workflow-lifecycle-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "pnpm workflow:claim -- EAT-26 && rm -rf src",
+    "pnpm workflow:doctor > doctor.json",
+    "pnpm workflow:test",
+    "pnpm workflow:claim -- EAT-26; echo done",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("Linear MCP 읽기 도구와 ToolSearch는 허용하고 Linear 쓰기 도구는 계속 차단한다", () => {
+  for (const toolName of [
+    "mcp__linear__get_issue",
+    "mcp__linear__list_comments",
+    "mcp__linear__search_documentation",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall(toolName, {}),
+      { mutatesRepository: false, reason: "linear-read-tool" },
+      toolName,
+    );
+  }
+  assert.deepEqual(classifyToolCall("ToolSearch", { query: "select:mcp__linear__get_issue" }), {
+    mutatesRepository: false,
+    reason: "known-read-only-tool",
+  });
+  for (const toolName of [
+    "mcp__linear__save_issue",
+    "mcp__linear__save_comment",
+    "mcp__linear__delete_comment",
+  ]) {
+    assert.equal(classifyToolCall(toolName, {}).mutatesRepository, true, toolName);
+  }
+});

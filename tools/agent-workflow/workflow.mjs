@@ -11,7 +11,16 @@ const FILE_EDIT_TOOLS = new Set([
 
 const SHELL_TOOLS = new Set(["bash", "exec_command", "powershell", "shell"]);
 
-const READ_ONLY_TOOLS = new Set(["glob", "grep", "read", "webfetch", "websearch"]);
+const READ_ONLY_TOOLS = new Set(["glob", "grep", "read", "toolsearch", "webfetch", "websearch"]);
+
+// Linear MCP 도구 중 조회만 lease 없이 허용한다. 인계 절차가 "worklog 읽기 → claim" 순서이므로
+// 읽기까지 막으면 받는 세션은 issue를 보기 전에 claim해야 한다.
+const LINEAR_READ_TOOL = /^mcp__linear__(?:get|list|search)_[a-z_]+$/i;
+
+// workflow lifecycle 명령은 저장소 파일이 아니라 lease state와 Linear만 바꾸며 lease를 만드는 유일한
+// 경로다. 단일 명령 형태만 허용하고 pipe·chaining·redirect는 SHELL_COMPOSITION이 먼저 거른다.
+const WORKFLOW_LIFECYCLE_COMMAND =
+  /^pnpm\s+workflow:(?:doctor(?::infisical)?|claim|sync|release|recover-lock)(?:\s+--)?(?:\s+[A-Z][A-Z0-9]{1,9}-\d+)?\s*$/i;
 
 const MUTATING_COMMANDS = [
   /(?:^|[;&|]\s*)(?:rm|mv|cp|mkdir|touch)\b/i,
@@ -66,6 +75,9 @@ export function classifyToolCall(toolName, toolInput = {}) {
     if (MUTATING_COMMANDS.some((pattern) => pattern.test(command))) {
       return { mutatesRepository: true, reason: "mutating-command" };
     }
+    if (WORKFLOW_LIFECYCLE_COMMAND.test(command.trim())) {
+      return { mutatesRepository: false, reason: "workflow-lifecycle-command" };
+    }
     if (READ_ONLY_COMMANDS.some((pattern) => pattern.test(command.trim()))) {
       return { mutatesRepository: false, reason: "read-or-verification-command" };
     }
@@ -74,6 +86,10 @@ export function classifyToolCall(toolName, toolInput = {}) {
 
   if (READ_ONLY_TOOLS.has(normalizedName)) {
     return { mutatesRepository: false, reason: "known-read-only-tool" };
+  }
+
+  if (LINEAR_READ_TOOL.test(normalizedName)) {
+    return { mutatesRepository: false, reason: "linear-read-tool" };
   }
 
   return { mutatesRepository: true, reason: "unclassified-tool-requires-claim" };

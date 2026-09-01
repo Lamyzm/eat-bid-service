@@ -1,6 +1,6 @@
 ---
 status: active
-last_reviewed: 2026-08-30
+last_reviewed: 2026-09-02
 review_trigger: linear-workflow-or-agent-hook-change
 ---
 
@@ -109,11 +109,14 @@ pnpm workflow:release
 
 AI가 답변에서 완료를 주장했다는 이유만으로 hook이 `Done`으로 이동시키지 않는다.
 
-lease 없이 허용하는 shell은 단일 `rg`, 제한된 PowerShell 조회 cmdlet, `git status | diff | log |
-show | rev-parse`처럼 명백한 로컬 조회만이다. pipe, command chaining, redirect, command substitution,
-snapshot update나 `--fix`가 있으면 mutation으로 취급한다. 테스트도 fixture나 snapshot을 쓸 수 있으므로
-shell verification은 lease 안에서 수행한다. 분류되지 않은 새 도구와 MCP 도구는 읽기로 추측하지 않고
-lease가 필요한 변경 가능 도구로 fail-closed한다.
+lease 없이 허용하는 도구는 세 종류뿐이다. 단일 `rg`, 제한된 PowerShell 조회 cmdlet, `git status | diff |
+log | show | rev-parse` 같은 명백한 로컬 조회, `pnpm workflow:doctor | doctor:infisical | claim | sync |
+release | recover-lock` 단일 명령, 그리고 Linear MCP의 `get_* | list_* | search_*` 읽기 도구와 `ToolSearch`다.
+workflow 명령은 저장소 파일이 아니라 lease state와 Linear만 바꾸므로 Claude·Codex 세션이 스스로 claim한다.
+pipe, command chaining, redirect, command substitution, snapshot update나 `--fix`가 있으면 mutation으로
+취급한다. 테스트도 fixture나 snapshot을 쓸 수 있으므로 shell verification은 lease 안에서 수행한다.
+분류되지 않은 새 도구와 Linear 쓰기 MCP 도구는 읽기로 추측하지 않고 lease가 필요한 변경 가능 도구로
+fail-closed한다.
 
 writer 보장은 하나의 Git common dir을 공유하는 local worktree 범위다. 서로 다른 clone이나 host 사이의
 원자적 global lock을 의미하지 않는다. cross-machine 작업은 Linear assignee와 명시적 handoff로 한 명만
@@ -141,7 +144,9 @@ writer 보장은 하나의 Git common dir을 공유하는 local worktree 범위�
 1. `AGENTS.md`와 이 문서의 읽기 순서를 따른 뒤 Linear issue의 최신 scope·acceptance·worklog를 읽는다.
 2. 지정된 commit, branch, worktree와 clean 상태를 확인한다. 일치하지 않으면 쓰지 않고 차이를 먼저
    보고한다.
-3. `pnpm workflow:claim -- EAT-123`으로 새 lease를 얻은 뒤에만 mutation을 시작한다.
+3. 받는 세션이 직접 `pnpm workflow:claim -- EAT-123`을 실행해 새 lease를 얻은 뒤에만 mutation을 시작한다.
+   Claude Code project hook은 이 명령과 Linear 읽기 도구를 lease 없이 허용하므로 사용자가 대신 claim할
+   필요가 없다.
 4. 이전 세션이 완료했다고 적은 작업을 다시 구현하지 않는다. 다만 검증 결과를 신뢰로 대체하지 않고,
    변경할 경계의 관련 gate는 새 세션에서도 다시 실행한다.
 5. 구현자와 최종 reviewer를 가능하면 다른 세션이나 모델로 분리한다. reviewer는 수정하지 않고

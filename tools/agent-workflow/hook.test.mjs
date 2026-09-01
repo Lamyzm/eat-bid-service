@@ -139,6 +139,29 @@ test("읽기 전용 훅은 손상된 상태 파일을 읽거나 격리하지 않
   });
 });
 
+test("실제 훅은 lease가 없어도 workflow claim 명령과 Linear 읽기 도구를 허용한다", async () => {
+  await withTempDirectory(async (directory) => {
+    const statePath = path.join(directory, "state.json");
+    const claim = runHook(
+      {
+        hook_event_name: "PreToolUse",
+        session_id: "bootstrap",
+        tool_name: "Bash",
+        tool_input: { command: "pnpm workflow:claim -- EAT-26" },
+      },
+      statePath,
+    );
+    const read = runHook(
+      { hook_event_name: "PreToolUse", session_id: "bootstrap", tool_name: "mcp__linear__get_issue" },
+      statePath,
+    );
+
+    assert.equal(claim.status, 0, claim.stderr);
+    assert.equal(read.status, 0, read.stderr);
+    await assert.rejects(() => readFile(statePath, "utf8"), { code: "ENOENT" });
+  });
+});
+
 test("release는 lease를 지우기 전에 미완료 session 경로를 원래 issue에 기록한다", async () => {
   await withTempDirectory(async (directory) => {
     const statePath = path.join(directory, "state.json");
