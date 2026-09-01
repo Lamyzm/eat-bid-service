@@ -8,6 +8,9 @@ dist/
 .worktrees/
 .superpowers/
 
+# Sites가 만든 대용량 embedded Git 작업공간은 제품 문서 SSOT가 아니다.
+docs/product/prototypes/analysis-hybrid-v1/
+
 # Python generated artifacts
 __pycache__/
 *.py[cod]
