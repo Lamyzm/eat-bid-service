@@ -95,6 +95,46 @@ def seal_release_locked(
     )
 
 
+def require_sealed_release_locked(
+    cursor: psycopg.Cursor[Any], source_release_id: UUID
+) -> SealedSourceRelease:
+    cursor.execute(
+        """
+        select source, release_name, status, as_of, manifest_sha256, sealed_at
+        from ingest.source_release where source_release_id = %s for update
+        """,
+        (source_release_id,),
+    )
+    parent = cursor.fetchone()
+    if parent is None:
+        raise ReleaseNotFoundError("source release does not exist")
+    if parent[2] != "sealed" or parent[4] is None or parent[5] is None:
+        raise ReleaseIncompleteError("source release is not terminal sealed")
+    datasets = load_release_datasets(cursor, source_release_id)
+    if any(dataset.endpoint == "bid-detail" for dataset in datasets):
+        _require_all_observation_runs(cursor, source_release_id)
+    observations = load_release_observations(
+        cursor, source_release_id, release_source=str(parent[0])
+    )
+    plan = SourceReleasePlan(
+        source_release_id=source_release_id,
+        source=str(parent[0]),
+        release_name=str(parent[1]),
+        as_of=parent[3],
+        datasets=tuple(ReleaseDatasetPlan(**asdict(dataset)) for dataset in datasets),
+    )
+    digest = release_manifest_sha256(plan, observations)
+    if digest != parent[4]:
+        raise ReleaseIncompleteError("sealed release manifest differs from its corpus")
+    return SealedSourceRelease(
+        source_release_id=source_release_id,
+        source=str(parent[0]),
+        as_of=parent[3],
+        manifest_sha256=digest,
+        sealed_at=parent[5],
+    )
+
+
 def _require_all_observation_runs(
     cursor: psycopg.Cursor[Any], source_release_id: UUID
 ) -> None:

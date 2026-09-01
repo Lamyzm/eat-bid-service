@@ -63,6 +63,12 @@ class RecordingRepository:
             fetched_at=response.fetched_at,
         )
 
+    def reserve_capture(self, **kwargs: object) -> None:
+        return None
+
+    def release_capture(self, **kwargs: object) -> None:
+        return None
+
     def fail_run(self, **kwargs: object) -> None:
         raise AssertionError("capture failure must be recorded atomically")
 

@@ -125,11 +125,11 @@ class Application:
             repository=self._normalization,
         )
 
-    def validate(self, args: argparse.Namespace) -> None:
+    def validate(self, args: argparse.Namespace) -> Any:
         self._release.reconcile_and_seal(
             args.source_release_id, args.run_id, sealed_at=args.validated_at
         )
-        validate_run(
+        return validate_run(
             run_id=args.run_id,
             publication_id=args.publication_id,
             validated_at=args.validated_at,

@@ -223,3 +223,17 @@ v24.20.0
 fnm exec --using=24.20.0 pnpm architecture:check
 exit 0
 ```
+
+---
+
+## 4차 수정 — validate 복구와 raw 저장 전 reservation
+
+changed-body 재시도 테스트는 기존 구현이 DB observation은 한 건으로 유지하면서도 memory raw store에 lineage 없는 두 번째 object를 남기는 RED(`object_count == 2`)를 재현했다. capture는 이제 source 응답을 받은 뒤 request-unit ID의 PostgreSQL session advisory lock을 reserve로 획득한다. 이 lock은 transaction을 열린 채 R2 호출하지 않으며 한 개의 deterministic key만 잡는다. captured unit은 HTTP status와 content digest를 raw write 전에 기존 canonical observation과 비교한다. 동일하면 기존 observation을 반환하고, 다르면 typed conflict로 닫아 object store write가 0회다. planned unit의 최초 caller만 raw-first store와 DB commit을 수행하며 `finally`에서 lock을 해제한다.
+
+process crash가 reserve 이전/중이면 session 종료와 함께 PostgreSQL이 lock을 해제한다. raw write 이전 crash는 다음 호출이 그대로 재개한다. raw write 후 observation commit 전 crash는 content-addressed 동일 object가 남으며 같은 digest 재시도가 그 object를 멱등 재사용해 lineage를 완성한다. 다른 digest는 reservation 판정에서 기존 canonical digest와 다르므로 추가 object를 만들지 않는다.
+
+validate는 planned release일 때 기존과 같이 actual detail progress를 재집계하고 봉인한다. 이미 sealed이면 parent/corpus lock 아래 release-run membership, terminal detail counts, canonical manifest 재계산값이 저장 digest와 정확히 같은 경우에만 sealed summary를 허용한다. 따라서 seal commit 직후 publication 전 crash도 다음 `Application.validate`가 publication repository의 terminal-run idempotency로 복구하며, 같은 publication 재실행은 동일 결과를 반환한다. 다른 run/corpus/manifest는 fail-closed다.
+
+disposable PostgreSQL, 실제 `Application`, 실제 `cli.main` handler를 사용하는 E2E는 discover JSON의 release/detail-run/count/hash, capture JSON의 observation/hash, normalize, seal 직후 crash 복구 validate, validate 재시도, project, replay와 release-run membership을 검증한다. fake application이나 live eaT/R2는 사용하지 않았다.
+
+최종 결과는 focused CLI/PostgreSQL 5 passed, 전체 dataplane `630 passed in 39.53s`, Ruff 통과, Pyright 0 errors, `git diff --check` 통과, Node `v24.20.0`의 `pnpm architecture:check` 통과다.

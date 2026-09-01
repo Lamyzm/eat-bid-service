@@ -73,6 +73,7 @@ def test_detail_request_재시도는_같은_canonical_observation을_반환한�
 
         assert second == first
         _단일관측을_확인한다(connection, request)
+        assert store.object_count == 1
     finally:
         connection.close()
 
@@ -137,6 +138,7 @@ def test_detail_request_재시도_body가_다르면_typed_conflict로_닫는다(
             )
 
         _단일관측을_확인한다(connection, request)
+        assert store.object_count == 1
     finally:
         connection.close()
 

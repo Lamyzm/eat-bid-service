@@ -79,6 +79,13 @@ class IngestRepository(Protocol):
         failure_category: str | None,
     ) -> CapturedObservation: ...
 
+    def reserve_capture(
+        self, *, request: CaptureRequest, response: SourceResponse,
+        content_sha256: str,
+    ) -> CapturedObservation | None: ...
+
+    def release_capture(self, *, request: CaptureRequest) -> None: ...
+
     def fail_run(
         self, *, run_id: UUID, failure_category: str, failed_at: datetime
     ) -> None: ...

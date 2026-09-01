@@ -11,7 +11,10 @@ from psycopg import sql
 
 from eatbid.ingest.models import PlannedRequestUnit
 from eatbid.ingest.postgres_release_errors import require_terminal_scope
-from eatbid.ingest.postgres_release_sealing import seal_release_locked
+from eatbid.ingest.postgres_release_sealing import (
+    require_sealed_release_locked,
+    seal_release_locked,
+)
 from eatbid.ingest.release_models import SealedSourceRelease
 from eatbid.ingest.release_repository import (
     ReleaseIncompleteError,
@@ -25,7 +28,6 @@ from eatbid.ingest.release_repository import (
 
 class PostgresReleaseGuardMixin:
     _connection: psycopg.Connection[Any]
-
     def require_observation_member(
         self, source_release_id: UUID, observation_id: int
     ) -> None:
@@ -53,7 +55,6 @@ class PostgresReleaseGuardMixin:
                 raise ReleaseNotFoundError("source release does not exist")
             if row[0] != "sealed":
                 raise ReleaseIncompleteError("source release is not sealed")
-
     def load_preplanned_detail_request(
         self, source_release_id: UUID, run_id: UUID, external_bid_id: str
     ) -> PlannedRequestUnit:
@@ -82,7 +83,6 @@ class PostgresReleaseGuardMixin:
         return PlannedRequestUnit(
             int(row[0]), run_id, "eat", "bid-detail", dict(row[1]), str(row[2])
         )
-
     def require_processing_observation(
         self, source_release_id: UUID, run_id: UUID, observation_id: int
     ) -> None:
@@ -186,7 +186,7 @@ class PostgresReleaseGuardMixin:
         try:
             with self._connection.transaction(), self._connection.cursor() as cursor:
                 cursor.execute("set transaction isolation level read committed")
-                self._lock_planned_release(cursor, source_release_id)
+                release_status = self._lock_release(cursor, source_release_id)
                 self._lock_detail_corpus(cursor, source_release_id, run_id)
                 row = self._detail_progress(cursor, source_release_id, run_id)
                 if row is None or int(row[0]) != int(row[1]) or int(row[0]) != int(row[2]):
@@ -198,6 +198,8 @@ class PostgresReleaseGuardMixin:
                     raise ReleaseIncompleteError(
                         "detail release corpus is not terminal normalized"
                     )
+                if release_status == "sealed":
+                    return require_sealed_release_locked(cursor, source_release_id)
                 cursor.execute(
                     """
                     update ingest.source_release_dataset
@@ -225,9 +227,9 @@ class PostgresReleaseGuardMixin:
             raise
 
     @staticmethod
-    def _lock_planned_release(
+    def _lock_release(
         cursor: psycopg.Cursor[Any], source_release_id: UUID
-    ) -> None:
+    ) -> str:
         cursor.execute(
             "select status from ingest.source_release "
             "where source_release_id = %s for update",
@@ -236,8 +238,9 @@ class PostgresReleaseGuardMixin:
         row = cursor.fetchone()
         if row is None:
             raise ReleaseNotFoundError("source release does not exist")
-        if row[0] != "planned":
-            raise ReleaseSealedError("source release is not planned")
+        if row[0] not in {"planned", "sealed"}:
+            raise ReleaseSealedError("source release is not validatable")
+        return str(row[0])
 
     @staticmethod
     def _lock_detail_corpus(

@@ -21,7 +21,6 @@ from eatbid.pipeline.capture import capture
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.pipeline.normalize import normalize_observation
-from eatbid.pipeline.validate import validate_run
 from eatbid.source.client import SourceResponse
 
 from ..unit.fakes import StaticSourceClient
@@ -161,22 +160,6 @@ def test_offline_discover가_raw와_detail_manifest를_같은_planned_release에
         store=pipeline_services.store,
         repository=pipeline_services.normalization_repository,
     )
-    publication = validate_run(
-        run_id=DETAIL_RUN_ID,
-        publication_id=PUBLICATION_ID,
-        validated_at=NOW,
-        repository=pipeline_services.publication_repository,
-    )
-    with pytest.raises(ReleaseObservationMembershipError):
-        application.project(
-            SimpleNamespace(
-                source_release_id=RELEASE_ID,
-                run_id=DETAIL_RUN_ID,
-                publication_id=PUBLICATION_ID,
-                build_sha="a" * 64,
-                activated_at=NOW,
-            )
-        )
     unrelated_run_id = uuid4()
     pipeline_services.repository.start_run(
         run_id=unrelated_run_id,
@@ -210,6 +193,14 @@ def test_offline_discover가_raw와_detail_manifest를_같은_planned_release에
         detail_request_unit_id=captured_unit.request_unit_id,
         unrelated_observation_id=unrelated.observation_id,
     )
+    validate_args = SimpleNamespace(
+        source_release_id=RELEASE_ID,
+        run_id=DETAIL_RUN_ID,
+        publication_id=PUBLICATION_ID,
+        validated_at=NOW,
+    )
+    publication = application.validate(validate_args)
+    assert application.validate(validate_args) == publication
     release_repository.require_publication_corpus(
         RELEASE_ID, DETAIL_RUN_ID, PUBLICATION_ID
     )
