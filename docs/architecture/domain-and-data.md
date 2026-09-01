@@ -257,6 +257,13 @@ required dataset은 `observed = expected` 및 `normalized + quarantined = observ
 release만 식별한다. 누락 원본, parser 정정, backfill 또는 membership 추가는 과거 release를 고치지
 않고 새 release를 만들어 표현한다.
 
+source release의 terminal transition은 repository-owned `READ COMMITTED` transaction에서만 허용한다.
+DB trigger도 transaction isolation을 검사해 REPEATABLE READ/SERIALIZABLE terminal 전이를 SQLSTATE
+`25000`으로 거부한다. parent lock은 child mutation과 seal을 직렬화하지만 REPEATABLE READ의 과거
+dataset snapshot을 새로 만들지 않으므로, 이 fail-closed rule 없이는 stale complete snapshot이
+incomplete release를 seal할 수 있다. Task 2 repository는 이 transaction isolation을 public contract로
+유지하며 terminal write를 다른 isolation에서 재시도하거나 우회하지 않는다.
+
 새 normalized interpretation이 생길 때만 새 `AuctionRevision`을 만든다. revision은
 `normalized_record_id`를 통해 observation과 parser version을 직접 추적한다. 같은 raw라도 새 parser가
 새 normalized record를 만들면 별도 revision이고, replay가 같은 normalized record를 재사용하면 기존

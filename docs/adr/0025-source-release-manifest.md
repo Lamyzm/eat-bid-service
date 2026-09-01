@@ -40,6 +40,18 @@ gate의 필수 입력은 아니다. membership trigger는 OLD/NEW의 모든 pare
 seal 중인 membership 변경은 완료 뒤 terminal immutability로 거부되고, parent ID 변경도 lock 순서가
 결정적이라 deadlock을 피한다.
 
+terminal 전이(`planned → sealed|failed`)는 반드시 PostgreSQL `READ COMMITTED` transaction에서만
+실행한다. DB trigger가 `current_setting('transaction_isolation')`을 검사하여 REPEATABLE READ와
+SERIALIZABLE을 SQLSTATE `25000`으로 fail-closed한다. Task 2 repository의 public transaction contract도
+source release terminal 전이에 `READ COMMITTED`를 명시해야 한다. 이 제약은 parent row lock만으로는
+REPEATABLE READ의 이미 고정된 dataset snapshot을 갱신하지 못해, stale complete snapshot으로 incomplete
+release를 seal할 수 있기 때문이다.
+
+child mutation마다 parent aggregate revision을 UPDATE하는 대안은 REPEATABLE READ에서 write-write conflict를
+만들 수 있지만, 네 membership table의 write path와 이후 repository interface에 version 책임을 추가한다.
+현재 release command에는 terminal transition 전용의 명시적 transaction contract가 더 작고 검증 가능한
+경계이므로, DB-enforced READ COMMITTED policy를 선택한다.
+
 같은 source에서 같은 non-null manifest SHA-256은 partial unique index로 한 release만 가질 수
 있다. release 이름은 source 안에서 사람이 읽는 구분자일 뿐 manifest identity를 대신하지 않는다.
 

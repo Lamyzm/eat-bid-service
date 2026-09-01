@@ -1,100 +1,41 @@
-import { randomUUID } from "node:crypto";
-
 import { afterAll, describe, expect, test } from "bun:test";
 import postgres from "postgres";
-
-const databaseUrl = process.env.EATBID_RELEASE_TEST_DATABASE_URL;
-const disposableDatabase = databaseUrl !== undefined
-  && process.env.EATBID_RELEASE_TEST_DISPOSABLE === "1"
-  && new URL(databaseUrl).hostname === "127.0.0.1"
-  && new URL(databaseUrl).pathname === "/eatbid_task1";
-const database = disposableDatabase ? postgres(databaseUrl, { max: 1, onnotice: () => {} }) : undefined;
-const sha256 = "a".repeat(64);
-let priorDisposableTest = Promise.resolve();
-
-async function execute(statement: string) {
-  if (!database) {
-    throw new Error("disposable source release PostgreSQL URL is required");
-  }
-
-  return database.unsafe(statement);
-}
-
-async function resetDisposableDatabase() {
-  await database?.unsafe(`
-    truncate table
-      ingest.source_release_run,
-      ingest.source_release_observation,
-      ingest.source_release_dataset,
-      ingest.source_release,
-      ingest.raw_observation,
-      ingest.request_unit,
-      ingest.raw_blob,
-      ingest.run
-    restart identity cascade
-  `);
-}
-
-async function inIsolatedDisposableTest(action: () => Promise<void>) {
-  let releaseNextTest: (() => void) | undefined;
-  const priorTest = priorDisposableTest;
-  priorDisposableTest = new Promise((resolve) => {
-    releaseNextTest = resolve;
-  });
-  await priorTest;
-
-  try {
-    await resetDisposableDatabase();
-    await action();
-  } finally {
-    await resetDisposableDatabase();
-    releaseNextTest?.();
-  }
-}
-
-async function createPlannedReleaseWithRun() {
-  const sourceReleaseId = randomUUID();
-  const runId = randomUUID();
-  const alternateRunId = randomUUID();
-  await execute(`
-    insert into ingest.source_release (source_release_id, source, release_name, status, as_of)
-    values ('${sourceReleaseId}', 'eat-${randomUUID()}', 'release-${randomUUID()}', 'planned', now())
-  `);
-  await execute(`
-    insert into ingest.source_release_dataset (
-      source_release_id, endpoint, dataset, record_type, parser_version, schema_fingerprint,
-      expected_count, observed_count, normalized_count, quarantined_count, required
-    ) values ('${sourceReleaseId}', '/datasets', 'auction', 'auction', 'v1', '${sha256}', 1, 1, 1, 0, true)
-  `);
-  await execute(`
-    insert into ingest.run (
-      run_id, mode, status, build_sha, parser_version, started_at,
-      expected_count, captured_count, published_count
-    ) values ('${runId}', 'capture', 'planned', '${randomUUID().replaceAll("-", "").repeat(2)}', 'v1', now(), 0, 0, 0)
-  `);
-  await execute(`
-    insert into ingest.run (
-      run_id, mode, status, build_sha, parser_version, started_at,
-      expected_count, captured_count, published_count
-    ) values ('${alternateRunId}', 'capture', 'planned', '${randomUUID().replaceAll("-", "").repeat(2)}', 'v1', now(), 0, 0, 0)
-  `);
-  await execute(`
-    insert into ingest.source_release_run (source_release_id, run_id)
-    values ('${sourceReleaseId}', '${runId}')
-  `);
-
-  return { sourceReleaseId, runId, alternateRunId };
-}
+import {
+  createPlannedReleaseWithRun,
+  database,
+  databaseUrl,
+  disposableDatabase,
+  execute,
+  inIsolatedDisposableTest,
+  sha256,
+} from "./release-concurrency.fixture";
 
 async function expectLockTimeout(action: () => Promise<unknown>) {
   try {
     await action();
   } catch (error) {
+    expect(error).toHaveProperty("code", "55P03");
     expect(error).toHaveProperty("message", expect.stringContaining("lock timeout"));
     return;
   }
 
   throw new Error("seal transaction과 경쟁한 membership 변경이 lock timeout으로 거부되어야 합니다");
+}
+
+async function expectPostgreSqlError(
+  action: () => Promise<unknown>,
+  code: string,
+  message: string,
+) {
+  try {
+    await action();
+  } catch (error) {
+    expect(error).toHaveProperty("code", code);
+    expect(error).toHaveProperty("message", expect.stringContaining(message));
+    return;
+  }
+
+  throw new Error(`PostgreSQL이 ${code} ${message}으로 거부해야 합니다`);
 }
 
 afterAll(async () => {
@@ -175,6 +116,114 @@ describe("source release seal 동시성 불변식", () => {
         await sealingClient.end();
         await datasetClient.end();
       }
+    });
+  });
+
+  test.skipIf(!disposableDatabase)("repeatable read의 오래된 required dataset snapshot으로 seal하지 못한다", async () => {
+    await inIsolatedDisposableTest(async () => {
+      const fixture = await createPlannedReleaseWithRun();
+      const sealingClient = postgres(databaseUrl, { max: 1, onnotice: () => {} });
+      const datasetClient = postgres(databaseUrl, { max: 1, onnotice: () => {} });
+
+      try {
+        await sealingClient.unsafe("begin isolation level repeatable read");
+        await sealingClient.unsafe(`
+          select normalized_count
+          from ingest.source_release_dataset
+          where source_release_id = '${fixture.sourceReleaseId}' and dataset = 'auction'
+        `);
+        await datasetClient.unsafe(`
+          update ingest.source_release_dataset
+          set normalized_count = 0
+          where source_release_id = '${fixture.sourceReleaseId}' and dataset = 'auction'
+        `);
+        await expectPostgreSqlError(
+          () => sealingClient.unsafe(`
+            update ingest.source_release
+            set status = 'sealed', manifest_sha256 = '${sha256}', sealed_at = now()
+            where source_release_id = '${fixture.sourceReleaseId}'
+          `),
+          "25000",
+          "source release terminal transition requires read committed isolation",
+        );
+        await sealingClient.unsafe("rollback");
+
+        const releases = await execute(`
+          select status from ingest.source_release where source_release_id = '${fixture.sourceReleaseId}'
+        `) as Array<{ status: string }>;
+        const datasets = await execute(`
+          select normalized_count from ingest.source_release_dataset
+          where source_release_id = '${fixture.sourceReleaseId}' and dataset = 'auction'
+        `) as Array<{ normalized_count: string }>;
+        expect(releases).toEqual([{ status: "planned" }]);
+        expect(datasets).toEqual([{ normalized_count: "0" }]);
+      } finally {
+        await sealingClient.unsafe("rollback").catch(() => undefined);
+        await sealingClient.end();
+        await datasetClient.end();
+      }
+    });
+  });
+
+  test.skipIf(!disposableDatabase)("required dataset 변경이 parent lock을 먼저 해제하면 read committed seal이 새 aggregate를 거부한다", async () => {
+    await inIsolatedDisposableTest(async () => {
+      const fixture = await createPlannedReleaseWithRun();
+      const childClient = postgres(databaseUrl, { max: 1, onnotice: () => {} });
+      const sealingClient = postgres(databaseUrl, { max: 1, onnotice: () => {} });
+
+      try {
+        await childClient.unsafe("begin");
+        await childClient.unsafe(`
+          update ingest.source_release_dataset
+          set normalized_count = 0
+          where source_release_id = '${fixture.sourceReleaseId}' and dataset = 'auction'
+        `);
+        const sealAttempt = sealingClient.unsafe(`
+          update ingest.source_release
+          set status = 'sealed', manifest_sha256 = '${sha256}', sealed_at = now()
+          where source_release_id = '${fixture.sourceReleaseId}'
+        `).then(
+          () => undefined,
+          (error) => error,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        await childClient.unsafe("commit");
+        const sealResult = await sealAttempt;
+        expect(sealResult).toHaveProperty("code", "23514");
+        expect(sealResult).toHaveProperty(
+          "message",
+          expect.stringContaining("sealed source release requires complete required datasets"),
+        );
+
+        const releases = await execute(`
+          select status from ingest.source_release where source_release_id = '${fixture.sourceReleaseId}'
+        `) as Array<{ status: string }>;
+        expect(releases).toEqual([{ status: "planned" }]);
+      } finally {
+        await childClient.unsafe("rollback").catch(() => undefined);
+        await childClient.end();
+        await sealingClient.end();
+      }
+    });
+  });
+
+  test.skipIf(!disposableDatabase)("planned release의 순차 required dataset 변경을 허용한다", async () => {
+    await inIsolatedDisposableTest(async () => {
+      const fixture = await createPlannedReleaseWithRun();
+      await execute(`
+        update ingest.source_release_dataset
+        set normalized_count = 0
+        where source_release_id = '${fixture.sourceReleaseId}' and dataset = 'auction'
+      `);
+      const datasets = await execute(`
+        select normalized_count from ingest.source_release_dataset
+        where source_release_id = '${fixture.sourceReleaseId}' and dataset = 'auction'
+      `) as Array<{ normalized_count: string }>;
+      const releases = await execute(`
+        select status from ingest.source_release where source_release_id = '${fixture.sourceReleaseId}'
+      `) as Array<{ status: string }>;
+      expect(datasets).toEqual([{ normalized_count: "0" }]);
+      expect(releases).toEqual([{ status: "planned" }]);
     });
   });
 });
