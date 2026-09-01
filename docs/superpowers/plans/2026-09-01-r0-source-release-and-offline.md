@@ -170,7 +170,7 @@ git commit -m "feat(data): source release 봉인 상태를 구현한다"
 - Produces: `EatEndpointContract`, `EAT_ENDPOINTS`, `EatHttpClient.fetch(CaptureRequest)`
 - Consumes: exact audit evidence에서 검토한 path/method/parameter 이름만 사용
 
-- [ ] **Step 1: allowlist와 timeout 실패 테스트를 쓴다**
+- [x] **Step 1: allowlist와 timeout 실패 테스트를 쓴다**
 
 ```python
 def test_registry에_없는_endpoint는_HTTP_전에_거부한다() -> None:
@@ -183,11 +183,11 @@ def test_registry에_없는_endpoint는_HTTP_전에_거부한다() -> None:
 
 403/429 throttle, non-2xx contract failure, redirect 금지, connect/read/write/pool timeout 고정, response byte 상한과 secret/query redaction을 각각 테스트한다.
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 Run: `uv run --project apps/dataplane pytest apps/dataplane/tests/unit/test_eat_registry.py apps/dataplane/tests/unit/test_eat_http_client.py -q`
 
-- [ ] **Step 3: httpx transport를 최소 구현한다**
+- [x] **Step 3: httpx transport를 최소 구현한다**
 
 ```python
 class EatHttpClient:
@@ -199,7 +199,7 @@ class EatHttpClient:
 
 실제 URL과 field는 `docs/audit-source/endpoint-calls.json`의 검토된 call만 registry에 옮긴다. generic URL 인수와 arbitrary header/params는 노출하지 않는다.
 
-- [ ] **Step 4: focused test와 ruff/pyright를 통과시킨다**
+- [x] **Step 4: focused test와 ruff/pyright를 통과시킨다**
 
 ```powershell
 uv run --project apps/dataplane pytest apps/dataplane/tests/unit/test_eat_registry.py apps/dataplane/tests/unit/test_eat_http_client.py -q
@@ -207,7 +207,7 @@ uv run --project apps/dataplane ruff check apps/dataplane/src/eatbid/source/eat 
 uv run --project apps/dataplane pyright apps/dataplane/src/eatbid/source/eat
 ```
 
-- [ ] **Step 5: 커밋한다**
+- [x] **Step 5: 커밋한다**
 
 ```powershell
 git add apps/dataplane/src/eatbid/source/eat apps/dataplane/tests/unit/test_eat_registry.py apps/dataplane/tests/unit/test_eat_http_client.py
