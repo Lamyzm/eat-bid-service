@@ -17,6 +17,7 @@
 | 데이터·런타임·품질 경계는 무엇인가? | [`architecture/README.md`](architecture/README.md) |
 | 운영자가 실제로 무엇을 실행하는가? | [`operations/`](operations/) |
 | Codex와 Claude가 Linear 작업 상태를 어떻게 공유하는가? | [`operations/linear-agent-workflow.md`](operations/linear-agent-workflow.md) |
+| Codex와 Claude가 구현을 번갈아 맡을 때 어떻게 안전하게 인계하는가? | [`operations/linear-agent-workflow.md#6-codex와-claude-사이-작업-인계`](operations/linear-agent-workflow.md#6-codex와-claude-사이-작업-인계) |
 | 비밀은 Infisical의 어느 환경·경로에 있고 어떻게 주입하는가? | [`operations/infisical.md`](operations/infisical.md) |
 | 분석 우선 제품기획은 어떤 증거와 반증을 거쳤는가? | [`evidence/product-direction/2026-08-31-analysis-first-planning-audit.md`](evidence/product-direction/2026-08-31-analysis-first-planning-audit.md) |
 
