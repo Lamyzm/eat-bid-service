@@ -1,4 +1,4 @@
-/** @module 책임: Codex 리뷰의 Git 공용 잠금·성공 캐시·비밀 없는 감사 기록을 소유한다. */
+/** @module 책임: AI 리뷰의 Git 공용 잠금·provider별 성공 캐시·비밀 없는 감사 기록을 소유한다. */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -13,7 +13,23 @@ import {
 import path from "node:path";
 
 const STATE_DIRECTORY = "eatbid-code-review";
-const CACHE_VERSION = "eatbid.codex-review-cache/v1";
+const CACHE_VERSION = "eatbid.ai-review-cache/v2";
+const IDENTITY_FIELDS = Object.freeze([
+  "policyVersion",
+  "promptVersion",
+  "schemaVersion",
+  "provider",
+  "providerVersion",
+  "model",
+  "baseRef",
+  "baseCommit",
+  "mergeBase",
+  "head",
+  "pathHash",
+  "diffStatHash",
+  "promptSha256",
+  "schemaSha256",
+]);
 
 function gitCommonDirectory(repoRoot) {
   const value = execFileSync("git", ["rev-parse", "--git-common-dir"], {
@@ -28,23 +44,15 @@ function stateDirectory(repoRoot) {
   return path.join(gitCommonDirectory(repoRoot), STATE_DIRECTORY);
 }
 
-/** 동일한 변경과 정책 조합만 캐시를 공유하도록 모든 권위 값을 hash한다. */
+/** 동일한 변경과 정책·provider 조합만 캐시를 공유하도록 모든 권위 값을 hash한다. */
 export function buildReviewCacheIdentity(input) {
-  const metadata = {
-    policyVersion: input.policyVersion,
-    promptVersion: input.promptVersion,
-    schemaVersion: input.schemaVersion,
-    codexVersion: input.codexVersion,
-    model: input.model,
-    baseRef: input.baseRef,
-    baseCommit: input.baseCommit,
-    mergeBase: input.mergeBase,
-    head: input.head,
-    pathHash: input.pathHash,
-    diffStatHash: input.diffStatHash,
-    promptSha256: input.promptSha256,
-    schemaSha256: input.schemaSha256,
-  };
+  const metadata = {};
+  for (const field of IDENTITY_FIELDS) {
+    if (typeof input[field] !== "string" || input[field].length === 0) {
+      throw new Error(`리뷰 cache identity에 ${field}가 필요합니다.`);
+    }
+    metadata[field] = input[field];
+  }
   const key = createHash("sha256").update(JSON.stringify(metadata)).digest("hex");
   return { key, metadata };
 }
@@ -127,7 +135,7 @@ function recoverStaleLock(lockPath) {
   return true;
 }
 
-/** 동시에 두 Codex process가 같은 저장소 evidence를 소비하지 않도록 fail-fast 잠금을 건다. */
+/** 동시에 두 provider process가 같은 저장소 evidence를 소비하지 않도록 fail-fast 잠금을 건다. */
 export async function withReviewLock(repoRoot, operation) {
   const directory = stateDirectory(repoRoot);
   const lockPath = path.join(directory, "run.lock");
@@ -140,7 +148,7 @@ export async function withReviewLock(repoRoot, operation) {
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
       if (attempt === 0 && recoverStaleLock(lockPath)) continue;
-      const unavailable = new Error("다른 Codex 리뷰가 이 저장소에서 실행 중입니다.");
+      const unavailable = new Error("다른 AI 리뷰가 이 저장소에서 실행 중입니다.");
       unavailable.code = "EATBID_REVIEW_LOCKED";
       throw unavailable;
     }
@@ -164,10 +172,14 @@ export function appendReviewAudit(input) {
     const targetDirectory = stateDirectory(input.repoRoot);
     mkdirSync(targetDirectory, { recursive: true });
     const record = {
-      schemaVersion: "eatbid.codex-review-audit/v1",
+      schemaVersion: "eatbid.ai-review-audit/v2",
       recordedAt: new Date().toISOString(),
       status: input.status,
       reason: input.reason ?? null,
+      provider: input.provider ?? null,
+      model: input.model ?? null,
+      providerVersion: input.providerVersion ?? null,
+      fallbackReason: input.fallbackReason ?? null,
       base: input.base ?? null,
       head: input.head ?? null,
       pathHash: input.pathHash ?? null,

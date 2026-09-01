@@ -28,10 +28,11 @@ function repository() {
 }
 
 const identityInput = {
-  policyVersion: "eatbid.codex-advisory/v1",
-  promptVersion: "eatbid.frontend-review-context/v1",
-  schemaVersion: "eatbid.codex-review/v1",
-  codexVersion: "codex-cli 1.2.3",
+  policyVersion: "eatbid.ai-advisory/v2",
+  promptVersion: "eatbid.review-context/v2",
+  schemaVersion: "eatbid.ai-review/v2",
+  provider: "codex",
+  providerVersion: "codex-cli 1.2.3",
   model: "cli-default",
   baseRef: "origin/main",
   baseCommit: "a".repeat(40),
@@ -43,7 +44,7 @@ const identityInput = {
   schemaSha256: "f".repeat(64),
 };
 
-test("캐시 식별자는 정책·prompt·schema·Codex·model과 Git 범위를 모두 포함한다", () => {
+test("캐시 식별자는 정책·prompt·schema·provider·version·model과 Git 범위를 모두 포함한다", () => {
   const first = buildReviewCacheIdentity(identityInput);
   assert.deepEqual(first.metadata, identityInput);
   assert.match(first.key, /^[a-f0-9]{64}$/);
@@ -57,12 +58,53 @@ test("캐시 식별자는 정책·prompt·schema·Codex·model과 Git 범위를 
   }
 });
 
+test("같은 변경이라도 provider나 model이 다르면 cache를 공유하지 않는다", () => {
+  const codex = buildReviewCacheIdentity(identityInput);
+  const claude = buildReviewCacheIdentity({
+    ...identityInput,
+    provider: "claude",
+    providerVersion: "2.1.257 (Claude Code)",
+  });
+  const otherModel = buildReviewCacheIdentity({ ...identityInput, model: "opus" });
+  assert.notEqual(codex.key, claude.key);
+  assert.notEqual(codex.key, otherModel.key);
+  assert.throws(() => buildReviewCacheIdentity({ ...identityInput, provider: undefined }), /provider/);
+});
+
+test("감사 기록은 provider·model·version·fallback reason을 남기고 stderr 원문은 버린다", () => {
+  const fixture = repository();
+  try {
+    appendReviewAudit({
+      repoRoot: fixture.root,
+      status: "unavailable",
+      reason: "quota-exhausted",
+      provider: "codex",
+      model: "cli-default",
+      providerVersion: "codex-cli 1.2.3",
+      fallbackReason: "quota-exhausted",
+      durationMilliseconds: 5,
+      stderr: "절대 기록하면 안 되는 stderr",
+    });
+    const audit = readFileSync(
+      path.join(fixture.commonDirectory, "eatbid-code-review", "audit.jsonl"),
+      "utf8",
+    );
+    assert.match(audit, /"schemaVersion":"eatbid.ai-review-audit\/v2"/);
+    assert.match(audit, /"provider":"codex"/);
+    assert.match(audit, /"providerVersion":"codex-cli 1.2.3"/);
+    assert.match(audit, /"fallbackReason":"quota-exhausted"/);
+    assert.doesNotMatch(audit, /절대 기록하면 안 되는|stderr/);
+  } finally {
+    fixture.close();
+  }
+});
+
 test("검증 성공 결과만 Git common dir 캐시에 기록하고 다시 읽는다", () => {
   const fixture = repository();
   try {
     const identity = buildReviewCacheIdentity(identityInput);
     const result = {
-      schemaVersion: "eatbid.codex-review/v1",
+      schemaVersion: "eatbid.ai-review/v2",
       summary: "검토 완료",
       findings: [],
     };
