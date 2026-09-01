@@ -117,7 +117,7 @@ git commit -m "feat(data): source release 불변 manifest를 도입한다"
 - Produces: `SourceReleasePlan`, `ReleaseDatasetPlan`, `ReleaseCompleteness`, `SourceReleaseRepository`
 - Consumes: UUID run/observation IDs와 canonical manifest bytes
 
-- [ ] **Step 1: seal 불변식 실패 테스트를 쓴다**
+- [x] **Step 1: seal 불변식 실패 테스트를 쓴다**
 
 ```python
 def test_필수_dataset이_불완전하면_release를_봉인하지_않는다() -> None:
@@ -129,11 +129,11 @@ def test_필수_dataset이_불완전하면_release를_봉인하지_않는다() -
 동일 member를 순서만 바꿔 입력해도 manifest SHA가 같고, sealed release에 run/observation을 추가하면 `ReleaseSealedError`가 나는 테스트를 함께 작성한다.
 PostgreSQL repository의 terminal transaction이 `READ COMMITTED`를 사용하고, 다른 isolation의 DB SQLSTATE `25000`을 typed repository error로 보존하는 테스트도 작성한다.
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 Run: `uv run --project apps/dataplane pytest apps/dataplane/tests/unit/test_release_models.py apps/dataplane/tests/integration/test_source_release.py -q`
 
-- [ ] **Step 3: protocol과 deterministic manifest를 구현한다**
+- [x] **Step 3: protocol과 deterministic manifest를 구현한다**
 
 ```python
 class SourceReleaseRepository(Protocol):
@@ -146,11 +146,11 @@ class SourceReleaseRepository(Protocol):
 
 manifest hash는 release metadata, 정렬된 dataset 계약, 정렬된 observation ID/content hash를 canonical JSON bytes로 직렬화해 SHA-256으로 계산한다. seal은 명시적 `READ COMMITTED` transaction에서 parent row를 잠그고 completeness를 재조회한 뒤 상태를 바꾼다. DB가 반환하는 SQLSTATE `25000`은 isolation 계약 위반으로 분류한다.
 
-- [ ] **Step 4: unit/integration test를 통과시킨다**
+- [x] **Step 4: unit/integration test를 통과시킨다**
 
 Run: `uv run --project apps/dataplane pytest apps/dataplane/tests/unit/test_release_models.py apps/dataplane/tests/integration/test_source_release.py -q`
 
-- [ ] **Step 5: 커밋한다**
+- [x] **Step 5: 커밋한다**
 
 ```powershell
 git add apps/dataplane/src/eatbid/ingest apps/dataplane/tests/unit/test_release_models.py apps/dataplane/tests/integration/test_source_release.py
