@@ -28,6 +28,10 @@ class SourceReleaseRepository(Protocol):
         self, source_release_id: UUID, observation_id: int
     ) -> None: ...
 
+    def ensure_captured_observation(
+        self, source_release_id: UUID, run_id: UUID, observation_id: int
+    ) -> None: ...
+
     def record_dataset_progress(
         self, source_release_id: UUID, progress: ReleaseDatasetProgress
     ) -> None: ...

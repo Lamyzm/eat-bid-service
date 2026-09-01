@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, LiteralString, cast
 from uuid import UUID
 
@@ -9,11 +10,16 @@ import psycopg
 from psycopg import sql
 
 from eatbid.ingest.models import PlannedRequestUnit
-from eatbid.ingest.release_models import ReleaseDatasetProgress, SealedSourceRelease
+from eatbid.ingest.postgres_release_errors import require_terminal_scope
+from eatbid.ingest.postgres_release_sealing import seal_release_locked
+from eatbid.ingest.release_models import SealedSourceRelease
 from eatbid.ingest.release_repository import (
     ReleaseIncompleteError,
+    ReleaseIsolationContractError,
+    ReleaseManifestConflictError,
     ReleaseNotFoundError,
     ReleaseObservationMembershipError,
+    ReleaseSealedError,
 )
 
 
@@ -62,7 +68,7 @@ class PostgresReleaseGuardMixin:
                 where r.source_release_id = %s and r.status = 'planned'
                   and run.run_id = %s and run.status = 'running'
                   and u.source = 'eat' and u.endpoint = 'bid-detail'
-                  and u.status = 'planned'
+                  and u.status in ('planned', 'captured')
                   and u.request_params ->> 'ELCTRN_BID_ID' = %s
                 """,
                 (source_release_id, run_id, external_bid_id),
@@ -94,6 +100,38 @@ class PostgresReleaseGuardMixin:
             "observation and processing run are not exact release members",
         )
 
+    def ensure_captured_observation(
+        self, source_release_id: UUID, run_id: UUID, observation_id: int
+    ) -> None:
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                select r.source, o.source
+                from ingest.source_release r
+                join ingest.source_release_run sr using (source_release_id)
+                join ingest.raw_observation o on o.run_id = sr.run_id
+                where r.source_release_id = %s and r.status = 'planned'
+                  and sr.run_id = %s and o.observation_id = %s
+                  and o.endpoint = 'bid-detail'
+                for update of r, o
+                """,
+                (source_release_id, run_id, observation_id),
+            )
+            row = cursor.fetchone()
+            if row is None or row[0] != row[1]:
+                raise ReleaseObservationMembershipError(
+                    "captured detail observation is not an exact release member"
+                )
+            cursor.execute(
+                """
+                insert into ingest.source_release_observation (
+                    source_release_id, observation_id
+                ) values (%s, %s)
+                on conflict (source_release_id, observation_id) do nothing
+                """,
+                (source_release_id, observation_id),
+            )
+
     def require_observation_members(
         self, source_release_id: UUID, observation_ids: tuple[int, ...]
     ) -> None:
@@ -118,6 +156,11 @@ class PostgresReleaseGuardMixin:
             join ingest.source_release_run sr on sr.run_id = p.run_id
             where p.publication_id = %s and p.run_id = %s
               and sr.source_release_id = %s and p.status = 'validated'
+              and exists (
+                select 1 from ingest.source_release release
+                where release.source_release_id = sr.source_release_id
+                  and release.status = 'sealed'
+              )
               and not exists (
                 select 1 from ingest.publication_record pr
                 join ingest.normalized_record n using (normalized_record_id)
@@ -135,67 +178,114 @@ class PostgresReleaseGuardMixin:
         )
 
     def reconcile_and_seal(
-        self, source_release_id: UUID, run_id: UUID, *, sealed_at: Any
+        self, source_release_id: UUID, run_id: UUID, *, sealed_at: datetime
     ) -> SealedSourceRelease:
-        with self._connection.transaction(), self._connection.cursor() as cursor:
-            cursor.execute(
-                """
-                select d.expected_count,
-                       count(distinct u.request_unit_id),
-                       count(distinct o.observation_id),
-                       count(distinct a.normalization_attempt_id)
-                         filter (where a.status = 'normalized'),
-                       count(distinct a.normalization_attempt_id)
-                         filter (where a.status = 'quarantined'),
-                       (select count(*) from ingest.source_release_observation all_obs
-                        where all_obs.source_release_id = d.source_release_id),
-                       (select count(*) from ingest.source_release_observation member_obs
-                        join ingest.raw_observation member_raw
-                          on member_raw.observation_id = member_obs.observation_id
-                        join ingest.source_release_run member_run
-                          on member_run.source_release_id = member_obs.source_release_id
-                         and member_run.run_id = member_raw.run_id
-                        where member_obs.source_release_id = d.source_release_id)
-                from ingest.source_release_dataset d
-                join ingest.source_release_run sr using (source_release_id)
-                join ingest.run r on r.run_id = sr.run_id
-                left join ingest.request_unit u on u.run_id = r.run_id
-                  and u.endpoint = 'bid-detail' and u.status = 'captured'
-                left join ingest.raw_observation o on o.request_unit_id = u.request_unit_id
-                  and o.run_id = r.run_id
-                left join ingest.source_release_observation so
-                  on so.source_release_id = d.source_release_id
-                  and so.observation_id = o.observation_id
-                left join ingest.normalization_attempt a on a.run_id = r.run_id
-                  and a.observation_id = so.observation_id
-                where d.source_release_id = %s and d.endpoint = 'bid-detail'
-                  and d.dataset = 'ds_info' and r.run_id = %s
-                group by d.source_release_id, d.expected_count
-                """,
-                (source_release_id, run_id),
-            )
-            row = cursor.fetchone()
-        if (
-            row is None
-            or int(row[0]) != int(row[1])
-            or int(row[0]) != int(row[2])
-            or int(row[5]) != int(row[6])
-        ):
-            raise ReleaseIncompleteError("detail release corpus is not exact observed")
-        expected, _, _, normalized, quarantined = map(int, row[:5])
-        if normalized + quarantined != expected:
-            raise ReleaseIncompleteError("detail release corpus is not terminal normalized")
-        repository: Any = self
-        repository.record_dataset_progress(
-            source_release_id,
-            ReleaseDatasetProgress(
-                dataset="ds_info",
-                observed_count=expected,
-                normalized_count=normalized,
-                quarantined_count=quarantined,
-            ),
+        if sealed_at.utcoffset() is None:
+            raise ValueError("sealed_at must be timezone-aware")
+        require_terminal_scope(self._connection)
+        try:
+            with self._connection.transaction(), self._connection.cursor() as cursor:
+                cursor.execute("set transaction isolation level read committed")
+                self._lock_planned_release(cursor, source_release_id)
+                self._lock_detail_corpus(cursor, source_release_id, run_id)
+                row = self._detail_progress(cursor, source_release_id, run_id)
+                if row is None or int(row[0]) != int(row[1]) or int(row[0]) != int(row[2]):
+                    raise ReleaseIncompleteError(
+                        "detail release corpus is not exact observed"
+                    )
+                expected, _, _, normalized, quarantined = map(int, row)
+                if normalized + quarantined != expected:
+                    raise ReleaseIncompleteError(
+                        "detail release corpus is not terminal normalized"
+                    )
+                cursor.execute(
+                    """
+                    update ingest.source_release_dataset
+                    set observed_count = %s, normalized_count = %s,
+                        quarantined_count = %s
+                    where source_release_id = %s and dataset = 'ds_info'
+                    """,
+                    (expected, normalized, quarantined, source_release_id),
+                )
+                if cursor.rowcount != 1:
+                    raise ReleaseNotFoundError("detail release dataset does not exist")
+                return seal_release_locked(
+                    cursor, source_release_id, sealed_at=sealed_at
+                )
+        except psycopg.errors.UniqueViolation as error:
+            raise ReleaseManifestConflictError(
+                "canonical source release manifest already exists"
+            ) from error
+        except psycopg.Error as error:
+            if error.sqlstate == "25000":
+                raise ReleaseIsolationContractError(
+                    "database rejected the terminal isolation contract",
+                    sqlstate=error.sqlstate,
+                ) from error
+            raise
+
+    @staticmethod
+    def _lock_planned_release(
+        cursor: psycopg.Cursor[Any], source_release_id: UUID
+    ) -> None:
+        cursor.execute(
+            "select status from ingest.source_release "
+            "where source_release_id = %s for update",
+            (source_release_id,),
         )
-        return repository.seal_release(source_release_id, sealed_at=sealed_at)
+        row = cursor.fetchone()
+        if row is None:
+            raise ReleaseNotFoundError("source release does not exist")
+        if row[0] != "planned":
+            raise ReleaseSealedError("source release is not planned")
+
+    @staticmethod
+    def _lock_detail_corpus(
+        cursor: psycopg.Cursor[Any], source_release_id: UUID, run_id: UUID
+    ) -> None:
+        cursor.execute(
+            """
+            select u.request_unit_id from ingest.source_release_run sr
+            join ingest.request_unit u on u.run_id = sr.run_id
+            where sr.source_release_id = %s and sr.run_id = %s
+              and u.endpoint = 'bid-detail'
+            order by u.request_unit_id for update of u
+            """,
+            (source_release_id, run_id),
+        )
+        cursor.fetchall()
+
+    @staticmethod
+    def _detail_progress(
+        cursor: psycopg.Cursor[Any], source_release_id: UUID, run_id: UUID
+    ) -> tuple[Any, ...] | None:
+        cursor.execute(
+            """
+            select d.expected_count, count(distinct u.request_unit_id),
+                   count(distinct so.observation_id),
+                   count(distinct a.normalization_attempt_id)
+                     filter (where a.status = 'normalized'),
+                   count(distinct a.normalization_attempt_id)
+                     filter (where a.status = 'quarantined')
+            from ingest.source_release_dataset d
+            join ingest.source_release_run sr using (source_release_id)
+            join ingest.run r on r.run_id = sr.run_id
+            left join ingest.request_unit u on u.run_id = r.run_id
+              and u.endpoint = 'bid-detail' and u.status = 'captured'
+            left join ingest.raw_observation o on o.request_unit_id = u.request_unit_id
+              and o.run_id = r.run_id
+            left join ingest.source_release_observation so
+              on so.source_release_id = d.source_release_id
+              and so.observation_id = o.observation_id
+            left join ingest.normalization_attempt a on a.run_id = r.run_id
+              and a.observation_id = so.observation_id
+            where d.source_release_id = %s and d.endpoint = 'bid-detail'
+              and d.dataset = 'ds_info' and r.run_id = %s
+            group by d.expected_count
+            """,
+            (source_release_id, run_id),
+        )
+        return cursor.fetchone()
 
     def _require_exact_count(
         self, statement: str, params: tuple[Any, ...], expected: int, message: str

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -20,25 +19,22 @@ from eatbid.ingest.postgres_release_errors import (
 from eatbid.ingest.postgres_release_guards import PostgresReleaseGuardMixin
 from eatbid.ingest.postgres_release_mapping import (
     load_release_datasets,
-    load_release_observations,
     lock_observation_source,
 )
+from eatbid.ingest.postgres_release_sealing import seal_release_transaction
 from eatbid.ingest.release_models import (
     ReleaseCompleteness,
-    ReleaseDatasetPlan,
     ReleaseDatasetProgress,
     SealedSourceRelease,
     SourceReleasePlan,
 )
 from eatbid.ingest.release_repository import (
-    ReleaseIncompleteError,
     ReleaseIsolationContractError,
     ReleaseManifestConflictError,
     ReleaseNotFoundError,
     ReleaseProgressError,
     ReleaseSealedError,
     ReleaseSourceMismatchError,
-    release_manifest_sha256,
 )
 
 
@@ -178,7 +174,9 @@ class PsycopgSourceReleaseRepository(PostgresReleaseGuardMixin):
             raise ValueError("sealed_at must be timezone-aware")
         require_terminal_scope(self._connection)
         try:
-            return self._seal_transaction(source_release_id, sealed_at=sealed_at)
+            return seal_release_transaction(
+                self._connection, source_release_id, sealed_at=sealed_at
+            )
         except psycopg.errors.UniqueViolation as error:
             raise ReleaseManifestConflictError(
                 "canonical source release manifest already exists"
@@ -190,67 +188,6 @@ class PsycopgSourceReleaseRepository(PostgresReleaseGuardMixin):
                     sqlstate=error.sqlstate,
                 ) from error
             raise
-
-    def _seal_transaction(
-        self, source_release_id: UUID, *, sealed_at: datetime
-    ) -> SealedSourceRelease:
-        with self._connection.transaction(), self._connection.cursor() as cursor:
-            cursor.execute("set transaction isolation level read committed")
-            cursor.execute(
-                """
-                select source, release_name, status, as_of
-                from ingest.source_release
-                where source_release_id = %s
-                for update
-                """,
-                (source_release_id,),
-            )
-            parent = cursor.fetchone()
-            if parent is None:
-                raise ReleaseNotFoundError("source release does not exist")
-            if parent[2] != "planned":
-                raise ReleaseSealedError(
-                    f"{parent[2]} source release cannot be mutated"
-                )
-            datasets = load_release_datasets(cursor, source_release_id)
-            required = tuple(dataset for dataset in datasets if dataset.required)
-            if not required or any(not dataset.is_complete for dataset in required):
-                raise ReleaseIncompleteError(
-                    "required source release datasets are not exact complete"
-                )
-            observations = load_release_observations(
-                cursor,
-                source_release_id,
-                release_source=str(parent[0]),
-            )
-            plan = SourceReleasePlan(
-                source_release_id=source_release_id,
-                source=str(parent[0]),
-                release_name=str(parent[1]),
-                as_of=parent[3],
-                datasets=tuple(
-                    ReleaseDatasetPlan(**asdict(dataset))
-                    for dataset in datasets
-                ),
-            )
-            digest = release_manifest_sha256(plan, observations)
-            cursor.execute(
-                """
-                update ingest.source_release
-                set status = 'sealed', manifest_sha256 = %s, sealed_at = %s
-                where source_release_id = %s and status = 'planned'
-                """,
-                (digest, sealed_at, source_release_id),
-            )
-            if cursor.rowcount != 1:
-                raise ReleaseSealedError("source release became terminal")
-            return SealedSourceRelease(
-                source_release_id=source_release_id,
-                source=str(parent[0]),
-                as_of=parent[3],
-                manifest_sha256=digest,
-                sealed_at=sealed_at,
-            )
 
     def _attach_member(
         self,

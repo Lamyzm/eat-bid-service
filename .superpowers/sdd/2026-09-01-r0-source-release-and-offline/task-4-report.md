@@ -162,4 +162,64 @@ exit 0
 
 수정 파일은 모두 300줄 이하다. 주요 파일은 `discover.py` 272줄 이하, `composition.py` 259줄, `postgres_release_guards.py` 193줄, `postgres_run_planning.py` 206줄, 통합 테스트 158줄이다.
 
-실제 eaT/R2/운영 PostgreSQL은 호출하지 않았다. `reconcile_and_seal`의 progress 갱신과 seal은 각각 parent lock을 사용하며, terminal seal transaction이 모든 observation의 run membership을 다시 검증한다. request unit은 observation 수를 1로 제한하고 normalization attempt는 run/observation/parser unique이므로 두 transaction 사이에 exact detail count를 부풀리는 경로는 닫혀 있다.
+실제 eaT/R2/운영 PostgreSQL은 호출하지 않았다. 이 시점에 남았던 progress와 seal 사이 transaction 간격은 아래 3차 수정에서 단일 terminal transaction으로 제거했다.
+
+---
+
+## 3차 수정 — capture 단일 소유권과 terminal 원자성
+
+### RED
+
+```text
+uv run --project apps/dataplane pytest apps/dataplane/tests/integration/test_cli_pipeline.py -q
+1 failed
+원인: discover가 붙인 detail run을 Application.capture가 다시 attach하여 ReleaseDuplicateMemberError 발생
+
+uv run --project apps/dataplane pytest apps/dataplane/tests/integration/test_detail_capture_retry.py -q
+2 failed
+원인: 순차 재시도가 observation_id 1과 2를 각각 만들고, 동시 capture 계약이 없음
+```
+
+### 설계와 GREEN
+
+release run membership은 discovery만 소유한다. `Application.capture`는 preplanned detail request를 소비한 뒤 exact release/run/observation 관계를 멱등 보장하는 전용 port만 호출한다. strict `attach_run`과 일반 `attach_observation`의 duplicate-member 계약은 바꾸지 않았다.
+
+detail request의 단일 capture 권위는 PostgreSQL request-unit row lock이다. 최초 transaction만 raw observation과 run/request counter를 기록한다. 같은 request의 성공 재시도는 HTTP status, content digest, raw blob metadata가 같을 때 기존 canonical observation을 반환하며 counter와 observation을 추가하지 않는다. 내용이 달라지면 `PlannedRequestMismatchError`로 fail-closed한다. 서로 다른 두 connection의 동시 capture 테스트도 observation 한 건과 counter 1을 확인한다.
+
+`reconcile_and_seal`은 이제 parent release lock, detail request corpus lock, DB-derived progress 갱신, 모든 release observation의 run membership 재검증, canonical manifest와 seal을 하나의 top-level `READ COMMITTED` transaction에서 수행한다. 동시성 테스트는 request-unit lock으로 reconcile을 멈춘 뒤 unrelated-run observation attach를 경쟁시키고, seal commit 뒤 attach가 `ReleaseSealedError`로 거부되는 것을 확인한다.
+
+`project`의 publication corpus SQL은 publication/run/record membership뿐 아니라 source release가 독립적으로 `sealed`인지도 확인한다. 통합 테스트는 validated publication이 있어도 planned release이면 실제 `Application.project`가 projection 전에 거부되는 것을 확인한다.
+
+```text
+uv run --project apps/dataplane pytest \
+  apps/dataplane/tests/integration/test_detail_capture_retry.py \
+  apps/dataplane/tests/integration/test_cli_pipeline.py \
+  apps/dataplane/tests/integration/test_capture.py \
+  apps/dataplane/tests/integration/test_source_release.py \
+  apps/dataplane/tests/integration/test_normalize_validate.py -q
+79 passed
+```
+
+terminal sealing 책임은 `postgres_release_sealing.py`로 추출하여 repository와 guard 파일을 모두 300줄 이하로 유지했다. 이 라운드에서도 disposable PostgreSQL과 memory raw store만 사용했으며 운영 서비스에는 접속하지 않았다.
+
+최종 gate 결과:
+
+```text
+uv run --project apps/dataplane pytest apps/dataplane/tests -q
+629 passed in 37.03s
+
+uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests
+All checks passed!
+
+uv run --project apps/dataplane pyright apps/dataplane/src
+0 errors, 0 warnings, 0 informations
+
+git diff --check
+exit 0
+
+fnm exec --using=24.20.0 node --version
+v24.20.0
+
+fnm exec --using=24.20.0 pnpm architecture:check
+exit 0
+```

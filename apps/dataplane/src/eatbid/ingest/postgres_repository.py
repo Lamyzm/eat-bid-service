@@ -45,12 +45,16 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
         params_copy = dict(request.params)
         failed = failure_category is not None
         with self._connection.transaction(), self._connection.cursor() as cursor:
-            self._lock_and_verify_request(
+            request_status = self._lock_and_verify_request(
                 cursor,
                 request=request,
                 params_hash=params_hash,
                 params=params_copy,
             )
+            if request.endpoint == "bid-detail" and request_status == "captured":
+                return self._load_canonical_observation(
+                    cursor, request=request, response=response, stored=stored
+                )
             cursor.execute(
                 """
                 insert into ingest.raw_blob (
@@ -175,7 +179,7 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
         request: CaptureRequest,
         params_hash: str,
         params: dict[str, str],
-    ) -> None:
+    ) -> str:
         cursor.execute(
             """
             select unit.source, unit.endpoint, unit.request_params,
@@ -200,6 +204,49 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
             raise TerminalCaptureStateError(
                 "only active request and run states can record observations"
             )
+        return str(row[4])
+
+    @staticmethod
+    def _load_canonical_observation(
+        cursor: psycopg.Cursor[Any],
+        *,
+        request: CaptureRequest,
+        response: SourceResponse,
+        stored: StoredRawObject,
+    ) -> CapturedObservation:
+        cursor.execute(
+            """
+            select o.observation_id, o.http_status, o.content_sha256, o.fetched_at,
+                   b.object_key, b.byte_length, b.content_type, b.content_encoding
+            from ingest.raw_observation o
+            join ingest.raw_blob b using (content_sha256)
+            where o.request_unit_id = %s and o.run_id = %s
+            order by o.observation_id
+            for update of o, b
+            """,
+            (request.request_unit_id, request.run_id),
+        )
+        rows = cursor.fetchall()
+        if len(rows) != 1:
+            raise PlannedRequestMismatchError(
+                "captured detail request must own one canonical observation"
+            )
+        row = rows[0]
+        if row[1:3] != (response.status_code, stored.content_sha256) or row[4:8] != (
+            stored.object_key,
+            stored.byte_length,
+            _CONTENT_TYPE,
+            _CONTENT_ENCODING,
+        ):
+            raise PlannedRequestMismatchError(
+                "detail request retry differs from its canonical observation"
+            )
+        return CapturedObservation(
+            observation_id=int(row[0]),
+            content_sha256=str(row[2]),
+            object_key=str(row[4]),
+            fetched_at=row[3],
+        )
 
     @staticmethod
     def _lock_and_verify_blob(

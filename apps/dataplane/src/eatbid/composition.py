@@ -107,9 +107,8 @@ class Application:
             self._ingest,
             self._http,
         )
-        self._release.attach_run(args.source_release_id, args.run_id)
-        self._release.attach_observation(
-            args.source_release_id, observation.observation_id
+        self._release.ensure_captured_observation(
+            args.source_release_id, args.run_id, observation.observation_id
         )
         return observation
 
