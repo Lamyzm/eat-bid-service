@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   buildChildEnvironment,
@@ -7,6 +10,15 @@ import {
   runCodexAdvisory,
   validateReviewOutput,
 } from "./codex-advisory.mjs";
+
+const toolRoot = path.dirname(fileURLToPath(import.meta.url));
+
+test("Codex 구조화 출력 schema는 const와 enum에도 명시적인 JSON type을 둔다", () => {
+  const schema = JSON.parse(readFileSync(path.join(toolRoot, "review-result.schema.json"), "utf8"));
+
+  assert.equal(schema.properties.schemaVersion.type, "string");
+  assert.equal(schema.properties.findings.items.properties.confidence.type, "string");
+});
 
 test("Codex를 custom prompt와 호환되는 read-only ephemeral exec argv로만 실행한다", () => {
   assert.deepEqual(
