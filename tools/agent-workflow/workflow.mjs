@@ -31,6 +31,13 @@ const READ_ONLY_COMMANDS = [
 const SHELL_COMPOSITION = /[|;&><\r\n]|`|\$\(|(?:^|\s)(?:--fix|--write|--output(?:=|\s)|--ext-diff\b|--textconv\b|--pre(?:=|\s)|--update(?:-?snapshots?)?\b|--updateSnapshot\b|-u(?:\s|$))/i;
 
 export function extractIssueIdentifier(value) {
+  if (Array.isArray(value)) {
+    for (const candidate of value) {
+      const identifier = extractIssueIdentifier(candidate);
+      if (identifier) return identifier;
+    }
+    return null;
+  }
   if (typeof value !== "string") return null;
   return value.match(ISSUE_IDENTIFIER)?.[1]?.toUpperCase() ?? null;
 }

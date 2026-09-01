@@ -72,7 +72,7 @@ async function recoverLock() {
 }
 
 async function claim() {
-  const identifier = extractIssueIdentifier(process.argv[process.argv.indexOf("claim") + 1]);
+  const identifier = extractIssueIdentifier(process.argv.slice(process.argv.indexOf("claim") + 1));
   if (!identifier) throw new Error("Usage: pnpm workflow:claim -- EAT-123");
   const repository = repositoryContext(process.cwd());
   const branchIssue = extractIssueIdentifier(repository.branch);

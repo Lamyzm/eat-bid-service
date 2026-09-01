@@ -12,6 +12,12 @@ test("extractIssueIdentifier는 Linear 식별자를 정규화하고 일반 문�
   assert.equal(extractIssueIdentifier("2026-08-30 계획"), null);
 });
 
+test("extractIssueIdentifier는 pnpm 구분자를 건너뛰고 claim 인자에서 이슈를 찾는다", () => {
+  assert.equal(extractIssueIdentifier(["--", "eat-11"]), "EAT-11");
+  assert.equal(extractIssueIdentifier(["EAT-11"]), "EAT-11");
+  assert.equal(extractIssueIdentifier(["--"]), null);
+});
+
 test("저장소 편집 도구는 차단하고 명시적인 읽기 도구만 허용한다", () => {
   assert.deepEqual(classifyToolCall("Edit", { file_path: "src/a.ts" }), {
     mutatesRepository: true,
