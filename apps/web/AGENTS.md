@@ -60,6 +60,10 @@
   변환하지 않는다. 상세 계약은 ADR 0018을 따른다.
 - Button primitive는 시각·접근성·공통 press motion만 소유한다. 인증·권한·로깅·command는 capability의
   action component에서 합성한다.
+- canonical 업무 route와 dashboard는 `ApplicationShell`의 탐색·테마·사이드바 chrome을 공유한다.
+  route layout에서 같은 셸 markup을 복제하거나 기획 없이 navigation 항목을 추가하지 않는다.
+- `loading.tsx`는 sibling 화면 전용 `ScreenSkeleton` 하나만 반환한다. 실제 화면과 skeleton은 같은 frame과
+  section 순서를 공유하며 refetch·mutation을 최초 route loading으로 위장하지 않는다.
 
 ## 화면과 코드
 
@@ -82,6 +86,7 @@
 ```text
 pnpm --filter @eatbid/web typecheck
 pnpm --filter @eatbid/web lint
+pnpm --filter @eatbid/web test:e2e:foundation
 pnpm --filter @eatbid/web build
 ```
 

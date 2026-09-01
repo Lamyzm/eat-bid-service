@@ -377,6 +377,13 @@ type: shared
 `Create comments` 권한은 불필요한 시험용 issue/comment를 만들지 않기 위해 이번 등록 과정에서 별도로
 행사하지 않았다.
 
+### server runtime 현재 상태
+
+2026-09-01 읽기 전용 확인에서 `eatbid / dev` 루트에는 `tooling` 폴더만 존재했고 목표 경로인
+`/runtime/server` 조회는 404였다. 따라서 위 표와 실행 명령의 `dev:/runtime/server`는 채택한 배치 계약이지,
+현재 `DATABASE_URL` 주입 완료 증거가 아니다. 이 폴더와 최소 권한 secret이 프로비저닝되기 전에는 실제 dev
+Server·Web 연동 검증을 완료로 표시하지 않으며 로컬 `.env`나 코드 기본값으로 우회하지 않는다.
+
 ## 11. 장애와 복구
 
 | 증상 | 처리 |

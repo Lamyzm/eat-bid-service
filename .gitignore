@@ -7,6 +7,8 @@ dist/
 .cloudflared/
 .worktrees/
 .superpowers/
+apps/web/playwright-report/
+apps/web/test-results/
 
 # Python generated artifacts
 __pycache__/

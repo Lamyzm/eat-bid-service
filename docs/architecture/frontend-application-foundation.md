@@ -1,4 +1,4 @@
-# Frontend application foundation
+# 프론트엔드 애플리케이션 기반
 
 이 문서는 [ADR 0023](../adr/0023-nextjs-web-modular-boundaries.md)을 `apps/web`에서 적용하는 장기
 구현 규칙이다. 제품 화면의 질문과 우선순위는 product 문서가, HTTP wire는 `packages/contracts`가,
@@ -61,6 +61,8 @@ capability로 승격한다.
 - Server Component가 기본이다. `'use client'`는 상호작용 leaf에 둔다.
 - Server→Client에는 plain serializable wire/presentation data만 전달한다.
 - route별 loading/error/not-found를 명시한다. error UI는 retry와 correlation 가능한 오류 표면을 둔다.
+- `loading.tsx`는 같은 segment의 화면 전용 `ScreenSkeleton` 하나만 반환한다. 실제 화면과 skeleton은
+  동일한 frame과 section 순서를 공유하고, refetch나 mutation 중에는 전체 화면 skeleton으로 되돌리지 않는다.
 - `@slot`은 독립 panel lifecycle이 필요한 경우에만 쓰고 모든 slot에 `default.tsx`를 둔다.
 - 무거운 browser-only 지도/chart는 client leaf에서 dynamic import한다. 계산 권위는 chart에 두지 않는다.
 
@@ -94,6 +96,8 @@ route/capability
 - client-safe `index.ts`와 `server-only`인 `server.ts`를 분리한다.
 - Web은 browser-safe contract resource subpath만 import한다. clean checkout dev/typecheck/build와 bundle graph는
   package root, ingestion/generator와 `@eatbid/domain` runtime이 client entry에 들어오지 않음을 증명한다.
+- `@eatbid/contracts`의 Node 배포물은 NestJS 소비를 위해 CommonJS로 유지한다. Next가 직접 transpile하는
+  `src` export는 중첩 `type=module` 경계로 분리하고 repository gate가 이 조건을 검사한다.
 - 같은 endpoint의 query key와 consumer adapter는 API resource가 한 번만 소유한다.
 - command adapter/mutation option은 API resource, form·권한·피드백·orchestration은 capability가 소유한다.
 - new product Route Handler, unchecked `.json()`, manual public DTO를 금지한다.
@@ -138,6 +142,9 @@ Button에 주입한다.
 CSS custom property가 runtime design-token 권위다. JSON token source가 필요해질 경우 JSON→CSS 생성과
 drift test 없는 이중 관리는 허용하지 않는다. theme selector와 light/dark mode는 shell에서 제공한다.
 
+canonical 업무 route와 기존 dashboard route는 같은 `ApplicationShell`을 사용한다. route별 layout이
+사이드바·헤더·테마 제어를 복제하지 않으며, 제품 navigation 항목 추가는 별도 정보 구조 기획으로 남긴다.
+
 QueryClient의 QueryCache/MutationCache는 공통 오류 분류와 telemetry hook을 제공하고, capability는
 `meta`로 사용자 toast/무시/inline 처리 정책을 명시한다. 개인정보와 후보값은 telemetry 기본 payload가
 아니다.
@@ -155,7 +162,8 @@ QueryClient의 QueryCache/MutationCache는 공통 오류 분류와 telemetry hoo
 6. 대체한 retired endpoint, manual DTO, local persistence를 삭제한다.
 
 현재 계약이 없는 market, analysis, work item과 candidate flow는 placeholder endpoint를 만들지 않고
-blocked capability로 남긴다. 첫 executable slice는 canonical auction 단건 조회다.
+blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`는 canonical operation과 Zod
+응답 계약, RSC 조회, 화면 전용 loading, 404와 503 경계를 연결했다. 아직 제품 navigation에는 추가하지 않았다.
 
 ## 7. quality gate
 
@@ -167,6 +175,8 @@ blocked capability로 남긴다. 첫 executable slice는 canonical auction 단�
 - compiler: annotation mode 대상만 opt-in하고 build·행동 회귀 evidence 없이 범위를 넓히지 않는다.
 - size: 300줄 초과는 responsibility split 또는 reason/owner/split trigger가 있는 waiver가 필요하다.
 - tests: 신규·변경 test name은 한국어다.
+- browser: `test:e2e:foundation`은 별도 contract fixture와 Chromium으로 loading stream, exact money,
+  404/503, 공통 셸과 reduced motion을 검증한다. fixture 증거를 실제 dev 데이터 증거로 부르지 않는다.
 - baseline: 기존 실패 목록은 삭제 방향으로만 변하며 새 위반을 허용하지 않는다.
 
 전체 typecheck/lint/build가 green이 되기 전에는 production-ready라고 표시하지 않는다. 변경 범위의
