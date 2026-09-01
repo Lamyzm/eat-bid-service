@@ -13,6 +13,26 @@ test("Claude 변경 전후 훅은 PowerShell과 새 도구를 포함해 모든 �
   assert.equal(settings.hooks.PostToolUse[0].matcher, "*");
 });
 
+const EVENTS = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"];
+
+test("Claude와 Codex hook adapter는 다섯 event 모두에서 같은 공통 runner를 자기 provider 인자로 호출한다", async () => {
+  const claude = await json(".claude/settings.json");
+  const codex = await json(".codex/hooks.example.json");
+  for (const event of EVENTS) {
+    for (const [settings, provider] of [
+      [claude, "claude"],
+      [codex, "codex"],
+    ]) {
+      const commands = settings.hooks[event].flatMap((group) => group.hooks.map((hook) => hook.command));
+      assert.equal(commands.length, 1, `${provider} ${event}`);
+      assert.match(commands[0], /tools\/agent-workflow\/hook\.mjs/, `${provider} ${event}`);
+      assert.match(commands[0], new RegExp(`--provider ${provider}$`), `${provider} ${event}`);
+    }
+  }
+  assert.deepEqual(Object.keys(claude.hooks).sort(), [...EVENTS].sort());
+  assert.deepEqual(Object.keys(codex.hooks).sort(), [...EVENTS].sort());
+});
+
 test("Codex 전역 훅 참고 계약은 모든 도구를 대상으로 하고 project 자동설정으로 위장하지 않는다", async () => {
   const example = await json(".codex/hooks.example.json");
 
