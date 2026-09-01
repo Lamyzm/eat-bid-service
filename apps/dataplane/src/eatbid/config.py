@@ -60,4 +60,3 @@ class ApplicationSettings(BaseSettings):
         ):
             raise ValueError("DATABASE_URL must be a PostgreSQL DSN")
         return value
-
