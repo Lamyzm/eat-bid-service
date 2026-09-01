@@ -8,7 +8,7 @@ import {
   validateReviewOutput,
 } from "./codex-advisory.mjs";
 
-test("Codex를 read-only ephemeral review argv로만 실행한다", () => {
+test("Codex를 custom prompt와 호환되는 read-only ephemeral exec argv로만 실행한다", () => {
   assert.deepEqual(
     buildCodexArguments({
       baseRef: "master",
@@ -21,9 +21,6 @@ test("Codex를 read-only ephemeral review argv로만 실행한다", () => {
       "--ask-for-approval",
       "never",
       "exec",
-      "review",
-      "--base",
-      "master",
       "--ephemeral",
       "--ignore-user-config",
       "--ignore-rules",

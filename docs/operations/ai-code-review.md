@@ -35,6 +35,8 @@ pnpm review:ai -- --base master
 
 - Codex CLI는 `--sandbox read-only`, `--ask-for-approval never`, `--ephemeral`, `--ignore-user-config`,
   `--ignore-rules`로 실행한다.
+- 현재 CLI가 `exec review --base`와 custom stdin prompt를 함께 허용하지 않으므로 일반 `codex exec`가
+  prompt의 `baseRef...HEAD` 범위만 읽기 전용으로 검토한다.
 - prompt는 shell 인수가 아니라 stdin으로만 전달한다.
 - child 환경은 실행 경로와 Codex 인증 위치에 필요한 allowlist만 전달한다. `DATABASE_URL`, Infisical,
   Linear와 provider token은 전달하지 않는다.

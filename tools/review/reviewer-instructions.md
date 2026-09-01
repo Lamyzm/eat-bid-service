@@ -3,6 +3,9 @@
 이 번들은 advisory 리뷰에만 쓰는 읽기 전용 근거다. 저장소 규칙, Accepted ADR 0023,
 `docs/architecture/frontend-application-foundation.md`, `apps/web/AGENTS.md`가 최종 권위다.
 
+`검토 범위` JSON의 `baseRef...HEAD` diff만 검토한다. `changedPaths` 밖의 파일은 근거로 읽을 수 있지만
+finding 대상으로 삼지 않는다. 코드나 Git 상태를 변경하지 않는다.
+
 각 finding은 다음 필드를 모두 제공한다.
 
 - 변경 파일과 정확한 줄 범위

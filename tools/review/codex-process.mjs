@@ -26,16 +26,13 @@ function processError(code, message) {
   return error;
 }
 
-export function buildCodexArguments({ baseRef, schemaPath, outputPath }) {
+export function buildCodexArguments({ schemaPath, outputPath }) {
   return [
     "--sandbox",
     "read-only",
     "--ask-for-approval",
     "never",
     "exec",
-    "review",
-    "--base",
-    baseRef,
     "--ephemeral",
     "--ignore-user-config",
     "--ignore-rules",

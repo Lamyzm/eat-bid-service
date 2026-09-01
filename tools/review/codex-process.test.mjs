@@ -58,18 +58,18 @@ test("Codex process는 prompt를 stdin으로만 보내고 비밀 없는 환경�
   assert.equal(calls[0].binary, "codex");
   assert.equal(calls[0].options.shell, false);
   assert.deepEqual(calls[0].options.env, { PATH: "bin", CODEX_HOME: "C:/codex" });
-  assert.deepEqual(calls[0].arguments_.slice(0, 10), [
+  assert.deepEqual(calls[0].arguments_.slice(0, 8), [
     "--sandbox",
     "read-only",
     "--ask-for-approval",
     "never",
     "exec",
-    "review",
-    "--base",
-    "origin/main",
     "--ephemeral",
     "--ignore-user-config",
+    "--ignore-rules",
   ]);
+  assert.equal(calls[0].arguments_.includes("review"), false);
+  assert.equal(calls[0].arguments_.includes("--base"), false);
 });
 
 test("제한 시간을 넘긴 Codex process tree를 종료하고 typed unavailable 원인을 남긴다", async () => {
