@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 const SUCCESS_AUCTION_ID = '9007199254740993';
 const FAILURE_AUCTION_ID = '9007199254740994';
 const MISSING_AUCTION_ID = '9007199254740996';
+const REDUCED_MOTION_AUCTION_ID = '9007199254741000';
 
 test('공고 화면은 공통 셸과 화면 전용 skeleton 뒤 계약 응답을 표시한다', async ({ page }) => {
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
@@ -16,9 +17,11 @@ test('공고 화면은 공통 셸과 화면 전용 skeleton 뒤 계약 응답을
 
 test('움직임 축소 환경에서는 loading skeleton 애니메이션을 실행하지 않는다', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
+  await page.goto(`/auctions/${REDUCED_MOTION_AUCTION_ID}`, { waitUntil: 'commit' });
 
-  const skeleton = page.locator('[data-slot="skeleton"]').first();
+  const loading = page.getByRole('status', { name: '공고 정보를 불러오는 중' });
+  await expect(loading).toBeVisible();
+  const skeleton = loading.locator('[data-slot="skeleton"]').first();
   await expect(skeleton).toBeVisible();
   await expect(skeleton).toHaveCSS('animation-name', 'none');
 });

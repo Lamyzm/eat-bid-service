@@ -5,33 +5,37 @@ const PORT = 4410;
 const SUCCESS_AUCTION_ID = '9007199254740993';
 const FAILURE_AUCTION_ID = '9007199254740994';
 const MISSING_AUCTION_ID = '9007199254740996';
+const REDUCED_MOTION_AUCTION_ID = '9007199254741000';
 const SUCCESS_RESPONSE_DELAY_MILLISECONDS = 350;
+const REDUCED_MOTION_RESPONSE_DELAY_MILLISECONDS = 5_000;
 
-const response = auctionV1ResponseSchema.parse({
-  identity: {
-    auctionId: SUCCESS_AUCTION_ID,
-    revisionId: '9007199254740995',
-    externalBidId: 'fixture-opaque-id',
-    displayBidNumber: null,
-    title: '급식 식재료',
-    status: 'OPEN'
-  },
-  schedule: {
-    announcedAt: '2026-08-30T00:00:00Z',
-    deadlineAt: null,
-    openedAt: null
-  },
-  pricing: {
-    baseAmount: { amount: '1234567890.50', currency: 'KRW' },
-    plannedAmount: null
-  },
-  provenance: {
-    sourceSystem: 'eat',
-    observationId: '9007199254740997',
-    normalizedRecordId: '9007199254740999',
-    contentSha256: 'a'.repeat(64)
-  }
-});
+function auctionResponse(auctionId: string) {
+  return auctionV1ResponseSchema.parse({
+    identity: {
+      auctionId,
+      revisionId: '9007199254740995',
+      externalBidId: 'fixture-opaque-id',
+      displayBidNumber: null,
+      title: '급식 식재료',
+      status: 'OPEN'
+    },
+    schedule: {
+      announcedAt: '2026-08-30T00:00:00Z',
+      deadlineAt: null,
+      openedAt: null
+    },
+    pricing: {
+      baseAmount: { amount: '1234567890.50', currency: 'KRW' },
+      plannedAmount: null
+    },
+    provenance: {
+      sourceSystem: 'eat',
+      observationId: '9007199254740997',
+      normalizedRecordId: '9007199254740999',
+      contentSha256: 'a'.repeat(64)
+    }
+  });
+}
 
 function auctionPath(auctionId: string): string {
   return auctionV1Operations.find.buildPath({ path: { auctionId } });
@@ -69,7 +73,11 @@ Bun.serve({
 
     if (pathname === auctionPath(SUCCESS_AUCTION_ID)) {
       await Bun.sleep(SUCCESS_RESPONSE_DELAY_MILLISECONDS);
-      return Response.json(response);
+      return Response.json(auctionResponse(SUCCESS_AUCTION_ID));
+    }
+    if (pathname === auctionPath(REDUCED_MOTION_AUCTION_ID)) {
+      await Bun.sleep(REDUCED_MOTION_RESPONSE_DELAY_MILLISECONDS);
+      return Response.json(auctionResponse(REDUCED_MOTION_AUCTION_ID));
     }
     if (pathname === auctionPath(FAILURE_AUCTION_ID)) return problemResponse(503);
     if (pathname === auctionPath(MISSING_AUCTION_ID)) return problemResponse(404);
