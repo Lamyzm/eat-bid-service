@@ -118,13 +118,26 @@ export function inspectClaudeAuth(launch, environment, { runSync = runSyncDefaul
   return { authMethod: status.authMethod, apiProvider: status.apiProvider, subscriptionType: subscription };
 }
 
+/** Claude CLI의 schema 검증기는 draft 2020-12 meta-schema를 모르므로 `$schema` 선언만 벗겨 전달한다. 다른 내용은 바꾸지 않는다. */
+export function claudeSchemaArgument(schema) {
+  let parsed;
+  try {
+    parsed = JSON.parse(schema);
+  } catch {
+    return schema;
+  }
+  if (!parsed || typeof parsed !== "object" || !("$schema" in parsed)) return schema;
+  const { $schema: _declaration, ...rest } = parsed;
+  return JSON.stringify(rest);
+}
+
 export function buildClaudeArguments({ schema, model }) {
   return [
     "-p",
     "--output-format",
     "json",
     "--json-schema",
-    schema,
+    claudeSchemaArgument(schema),
     "--restricted",
     "--strict-mcp-config",
     "--disable-slash-commands",

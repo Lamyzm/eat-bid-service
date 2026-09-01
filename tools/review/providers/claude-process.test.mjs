@@ -127,6 +127,10 @@ test("Claude argv는 non-interactive 읽기 전용 restricted 실행과 JSON sch
     "dontAsk",
   ]);
   assert.deepEqual(buildClaudeArguments({ schema: SCHEMA, model: "opus" }).slice(-2), ["--model", "opus"]);
+  const declared = JSON.stringify({ $schema: "https://json-schema.org/draft/2020-12/schema", ...JSON.parse(SCHEMA) });
+  const passed = buildClaudeArguments({ schema: declared })[4];
+  assert.equal(JSON.parse(passed).$schema, undefined);
+  assert.deepEqual(JSON.parse(passed), JSON.parse(SCHEMA));
   for (const forbidden of ["--bare", "--dangerously-skip-permissions", "--console", "--api-key"]) {
     assert.equal(buildClaudeArguments({ schema: SCHEMA }).includes(forbidden), false, forbidden);
   }
