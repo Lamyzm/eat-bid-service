@@ -4,7 +4,7 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "summary", "findings"],
   "properties": {
-    "schemaVersion": { "type": "string", "const": "eatbid.codex-review/v1" },
+    "schemaVersion": { "type": "string", "const": "eatbid.ai-review/v2" },
     "summary": { "type": "string", "maxLength": 2000 },
     "findings": {
       "type": "array",
