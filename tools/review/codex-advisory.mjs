@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { buildReviewContext, REVIEW_CONTEXT_VERSION } from "./build-review-context.mjs";
-import { discoverCodex, executeCodexProcess, resolveCodexVersion } from "./codex-process.mjs";
+import { executeCodexProcess, resolveCodexLaunch, resolveCodexVersion } from "./providers/codex-process.mjs";
 import { inspectReviewScope } from "./git-scope.mjs";
 import {
   appendReviewAudit,
@@ -15,7 +15,7 @@ import {
   writeReviewCache,
 } from "./review-state.mjs";
 
-export { buildChildEnvironment, buildCodexArguments } from "./codex-process.mjs";
+export { buildChildEnvironment, buildCodexArguments } from "./providers/codex-process.mjs";
 
 const DEFAULT_TIMEOUT_MILLISECONDS = 180_000;
 const POLICY_VERSION = "eatbid.codex-advisory/v1";
@@ -101,7 +101,7 @@ function defaultRuntime() {
     inspectScope: inspectReviewScope,
     buildContext: buildReviewContext,
     collectLineCounts,
-    discoverBinary: discoverCodex,
+    discoverBinary: resolveCodexLaunch,
     resolveCodexVersion,
     executeCodex: executeCodexProcess,
     withLock: withReviewLock,
