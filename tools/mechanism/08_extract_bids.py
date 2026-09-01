@@ -41,6 +41,7 @@ def work(paths):
     bid_id, amax, amin, nbid, nwd, votes, nvote, floor, bgng = [], [], [], [], [], [], [], [], []
     pmax, pmin = [], []
     votes_all, nvote_all = [], []
+    amax_nw, pmax_nw = [], []
     for p in paths:
         try:
             s = gzip.open(p, "rt", encoding="utf-8", errors="replace").read()
@@ -72,7 +73,15 @@ def work(paths):
         #    두 경로로 각각 뽑아 서로 대조한다:
         #      x_A = EFT_ALL_AMT / (기초가·하한율/100)
         #      x_B = (SAJEONG_PCT/하한율) · R        (금액을 아예 안 지나간다)
+        # 🔴 xmax 는 **철회 포함 전원**이어야 한다.
+        #    낙찰자는 개찰 시점에 정해지고 철회는 그 뒤다. 따라서 생존 조건
+        #        낙찰 ⟺ max_j x_j ≥ R
+        #    의 j 는 개찰 시점의 전원이다. 철회를 빼면 xmax 가 과소평가되고,
+        #    09 의 기각표집 제약이 과도하게 빡빡해져 영분포가 인위적으로 더
+        #    음수가 된다 — 즉 "선택 편향이 전부 설명한다"는 결론이 공짜로 나온다.
+        #    **판정을 유리한 쪽으로 미는 방향의 버그다.** 둘 다 저장해 대조한다.
         amts, ampct, wd, v = [], [], 0, [0] * 15
+        amts_all, ampct_all = [], []
         va = [0] * 15          # 철회자 표까지 포함한 집계
         nv = nva = 0
         for r in ROW.findall(bb):
@@ -83,34 +92,38 @@ def work(paths):
                 nva += 1
                 for t in picks_all:
                     va[t - 1] += 1
-            if (row.get("WITHDRAWAL_YN") or "").strip() == "Y":
+            withdrawn = (row.get("WITHDRAWAL_YN") or "").strip() == "Y"
+            if withdrawn:
                 wd += 1
-                continue
             try:
                 a = float(row["EFT_ALL_AMT"]) / base
                 if 0.5 < a < 5.0:
-                    amts.append(a)
+                    amts_all.append(a)
+                    if not withdrawn:
+                        amts.append(a)
             except Exception:
                 pass
             try:
                 sp = float(row["SAJEONG_PCT"])
                 if 0 < sp < 500:
-                    ampct.append(sp / fl)
+                    ampct_all.append(sp / fl)
+                    if not withdrawn:
+                        ampct.append(sp / fl)
             except Exception:
                 pass
-            picks = [int(t) for t in NUM.findall(row.get("DRAW_NO") or "")]
-            picks = [t for t in picks if 1 <= t <= 15]
-            if picks:
+            if picks_all and not withdrawn:
                 nv += 1
-                for t in picks:
+                for t in picks_all:
                     v[t - 1] += 1
-        if not amts or not ampct:
+        if not amts_all or not ampct_all:
             continue
         bid_id.append(bid)
-        amax.append(max(amts))
-        amin.append(min(amts))
-        pmax.append(max(ampct))
-        pmin.append(min(ampct))
+        amax.append(max(amts_all))        # 🔴 철회 포함 — 생존 조건용
+        amin.append(min(amts_all))
+        pmax.append(max(ampct_all))
+        pmin.append(min(ampct_all))
+        amax_nw.append(max(amts) if amts else float("nan"))   # 철회 제외 — 대조용
+        pmax_nw.append(max(ampct) if ampct else float("nan"))
         nbid.append(len(amts))
         nwd.append(wd)
         votes.append(v)
@@ -127,7 +140,8 @@ def work(paths):
             np.array(floor), np.array(bgng),
             np.array(pmax), np.array(pmin),
             np.array(votes_all, dtype=np.int16).reshape(-1, 15),
-            np.array(nvote_all, dtype=np.int32))
+            np.array(nvote_all, dtype=np.int32),
+            np.array(amax_nw), np.array(pmax_nw))
 
 
 def main():
@@ -145,13 +159,14 @@ def main():
         for r in pool.imap_unordered(work, chunks):
             if len(r[0]):
                 parts.append(r)
-    cat = [np.concatenate([p[i] for p in parts]) for i in range(13)]
+    cat = [np.concatenate([p[i] for p in parts]) for i in range(15)]
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     np.savez_compressed(OUT, bid_id=cat[0], xmax=cat[1], xmin=cat[2],
                         nbid=cat[3], nwithdraw=cat[4], votes=cat[5],
                         nvoter=cat[6], floor=cat[7], bgng=cat[8],
                         pmax=cat[9], pmin=cat[10],
-                        votes_all=cat[11], nvoter_all=cat[12])
+                        votes_all=cat[11], nvoter_all=cat[12],
+                        xmax_nonwd=cat[13], pmax_nonwd=cat[14])
     print("회차 %d 저장 · %s (%.1f MB)" % (
         cat[0].shape[0], OUT, os.path.getsize(OUT) / 1e6))
 
