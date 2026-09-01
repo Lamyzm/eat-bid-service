@@ -247,9 +247,13 @@ capture repository의 request 계획, raw/blob 기록, 실패 전이는 run을 �
   dataset record completeness count
 
 dataset count는 같은 source record grain에서 `normalized + quarantined <= observed <= expected`다.
-`required` dataset은 release를 seal할 때 `observed = expected` 및
-`normalized + quarantined = observed`를 만족해야 한다. sealed release header와 세 membership table은
-DB trigger로 INSERT·UPDATE·DELETE가 모두 금지된다. 같은 source와 non-null manifest SHA-256은 하나의
+release는 항상 `planned`로만 INSERT하고 terminal 상태는 `planned → sealed` 또는
+`planned → failed` 전이로만 만든다. seal에는 적어도 하나의 `required` dataset 행이 필요하며, 각
+required dataset은 `observed = expected` 및 `normalized + quarantined = observed`를 만족해야 한다.
+명시된 required 행의 모든 count가 0인 것은 exact complete지만 required 행 자체가 없는 manifest는
+봉인할 수 없다. sealed/failed header와 세 membership table은 DB trigger로 INSERT·UPDATE·DELETE가
+모두 금지된다. membership trigger는 OLD/NEW parent를 ID 오름차순으로 잠가 seal UPDATE와 직렬화하므로
+동시 변경이 sealed manifest로 섞이지 않는다. 같은 source와 non-null manifest SHA-256은 하나의
 release만 식별한다. 누락 원본, parser 정정, backfill 또는 membership 추가는 과거 release를 고치지
 않고 새 release를 만들어 표현한다.
 

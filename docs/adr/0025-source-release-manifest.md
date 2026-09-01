@@ -24,13 +24,21 @@ fingerprint와 expected/observed/normalized/quarantined count 및 required 여�
 결과 수다. 따라서 `normalized + quarantined <= observed <= expected`를 DB check로 강제한다.
 모든 count는 음수를 허용하지 않고 fingerprint는 SHA-256 형식이어야 한다.
 
-release 상태는 `planned`, `sealed`, `failed`만 허용한다. `sealed`는 manifest SHA-256과
-`sealed_at`을 반드시 가지며 failure category를 가질 수 없다. `failed`만 failure category를
-가질 수 있고 봉인 metadata를 가질 수 없다. 봉인된 release와 그 membership은 수정하지 않으며,
-원본 정정이나 추가가 필요하면 새 release를 만든다. DB trigger는 sealed release 자체와
-run/observation/dataset membership의 INSERT·UPDATE·DELETE를 거부한다. `required = true`인
-dataset은 seal 시점에 `observed = expected` 및 `normalized + quarantined = observed`여야 한다.
-`required = false` dataset은 관측 범위를 보존하지만 seal completeness gate의 필수 입력은 아니다.
+release 상태는 `planned`, `sealed`, `failed`만 허용한다. INSERT는 언제나 `planned`여야 하며,
+terminal 상태는 `planned → sealed` 또는 `planned → failed` 전이로만 만든다. `sealed`는 manifest
+SHA-256과 `sealed_at`을 반드시 가지며 failure category를 가질 수 없다. `failed`만 failure
+category를 가질 수 있고 봉인 metadata를 가질 수 없다. 두 terminal 상태와 그 membership은 수정하지
+않으며, 원본 정정이나 추가가 필요하면 새 release를 만든다. DB trigger는 terminal release 자체와
+run/observation/dataset membership의 INSERT·UPDATE·DELETE를 거부한다.
+
+봉인 전에는 적어도 하나의 `required = true` dataset 행이 있어야 한다. 각 required dataset은 seal
+시점에 `observed = expected` 및 `normalized + quarantined = observed`여야 한다. 명시적으로 존재하는
+required dataset의 count가 모두 0인 경우는 exact complete로 허용하지만, required 행 자체가 없는
+manifest는 봉인할 수 없다. `required = false` dataset은 관측 범위를 보존하지만 seal completeness
+gate의 필수 입력은 아니다. membership trigger는 OLD/NEW의 모든 parent release row를
+`source_release_id` 오름차순으로 잠가 parent seal UPDATE와 같은 lock domain에서 직렬화한다. 따라서
+seal 중인 membership 변경은 완료 뒤 terminal immutability로 거부되고, parent ID 변경도 lock 순서가
+결정적이라 deadlock을 피한다.
 
 같은 source에서 같은 non-null manifest SHA-256은 partial unique index로 한 release만 가질 수
 있다. release 이름은 source 안에서 사람이 읽는 구분자일 뿐 manifest identity를 대신하지 않는다.

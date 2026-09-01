@@ -4,8 +4,13 @@ import { afterAll, describe, expect, test } from "bun:test";
 import postgres from "postgres";
 
 const databaseUrl = process.env.EATBID_RELEASE_TEST_DATABASE_URL;
-const database = databaseUrl ? postgres(databaseUrl, { max: 1 }) : undefined;
+const disposableDatabase = databaseUrl !== undefined
+  && process.env.EATBID_RELEASE_TEST_DISPOSABLE === "1"
+  && new URL(databaseUrl).hostname === "127.0.0.1"
+  && new URL(databaseUrl).pathname === "/eatbid_task1";
+const database = disposableDatabase ? postgres(databaseUrl, { max: 1, onnotice: () => {} }) : undefined;
 const sha256 = "a".repeat(64);
+let priorDisposableTest = Promise.resolve();
 
 function uniqueSha256() {
   return randomUUID().replaceAll("-", "").repeat(2);
@@ -132,27 +137,56 @@ async function expectDatabaseReject(action: () => Promise<unknown>, message: str
   throw new Error(`PostgreSQL이 ${message}로 거부해야 합니다`);
 }
 
+async function resetDisposableDatabase() {
+  await database?.unsafe(`
+    truncate table
+      ingest.source_release_run,
+      ingest.source_release_observation,
+      ingest.source_release_dataset,
+      ingest.source_release,
+      ingest.raw_observation,
+      ingest.request_unit,
+      ingest.raw_blob,
+      ingest.run
+    restart identity cascade
+  `);
+}
+
+async function inIsolatedDisposableTest(action: () => Promise<void>) {
+  let releaseNextTest: (() => void) | undefined;
+  const priorTest = priorDisposableTest;
+  priorDisposableTest = new Promise((resolve) => {
+    releaseNextTest = resolve;
+  });
+  await priorTest;
+
+  try {
+    await resetDisposableDatabase();
+    await action();
+  } finally {
+    await resetDisposableDatabase();
+    releaseNextTest?.();
+  }
+}
+
 afterAll(async () => {
   await database?.end();
 });
 
 describe("source release PostgreSQL 불변식", () => {
-  test("required dataset이 완전하지 않으면 seal을 거부한다", async () => {
-    if (!databaseUrl) {
-      return;
-    }
-    const release = await createPlannedRelease({ expectedCount: 2, observedCount: 1, normalizedCount: 1, quarantinedCount: 0 });
+  test.skipIf(!disposableDatabase)("required dataset이 완전하지 않으면 seal을 거부한다", async () => {
+    await inIsolatedDisposableTest(async () => {
+      const release = await createPlannedRelease({ expectedCount: 2, observedCount: 1, normalizedCount: 1, quarantinedCount: 0 });
 
-    await expectDatabaseReject(
-      () => sealRelease(release.sourceReleaseId),
-      "sealed source release requires complete required datasets",
-    );
+      await expectDatabaseReject(
+        () => sealRelease(release.sourceReleaseId),
+        "sealed source release requires complete required datasets",
+      );
+    });
   });
 
-  test("sealed source release 행과 membership 변경을 거부한다", async () => {
-    if (!databaseUrl) {
-      return;
-    }
+  test.skipIf(!disposableDatabase)("sealed source release 행과 membership 변경을 거부한다", async () => {
+    await inIsolatedDisposableTest(async () => {
     const release = await createPlannedRelease();
     const membership = await addMembershipRows(release.sourceReleaseId);
     await sealRelease(release.sourceReleaseId);
@@ -205,39 +239,24 @@ describe("source release PostgreSQL 불변식", () => {
       () => execute(`delete from ingest.source_release_dataset where source_release_id = '${release.sourceReleaseId}' and dataset = 'auction'`),
       "sealed source release membership is immutable",
     );
+    });
   });
 
-  test("같은 source와 sealed manifest hash의 중복 insert를 거부한다", async () => {
-    if (!databaseUrl) {
-      return;
-    }
+  test.skipIf(!disposableDatabase)("같은 source와 sealed manifest hash의 중복 insert를 거부한다", async () => {
+    await inIsolatedDisposableTest(async () => {
     const source = `eat-${randomUUID()}`;
-    const firstReleaseId = randomUUID();
-    const secondReleaseId = randomUUID();
-
-    await execute(`
-      insert into ingest.source_release (
-        source_release_id, source, release_name, status, as_of, manifest_sha256, sealed_at
-      ) values (
-        '${firstReleaseId}', '${source}', 'first', 'sealed', now(), '${sha256}', now()
-      )
-    `);
+    const first = await createPlannedRelease({ source, releaseName: "first" });
+    await sealRelease(first.sourceReleaseId, sha256);
+    const second = await createPlannedRelease({ source, releaseName: "second" });
     await expectDatabaseReject(
-      () => execute(`
-        insert into ingest.source_release (
-          source_release_id, source, release_name, status, as_of, manifest_sha256, sealed_at
-        ) values (
-          '${secondReleaseId}', '${source}', 'second', 'sealed', now(), '${sha256}', now()
-        )
-      `),
+      () => sealRelease(second.sourceReleaseId, sha256),
       "source_release_source_manifest_sha256_key",
     );
+    });
   });
 
-  test("dataset count 관계를 벗어난 insert를 거부한다", async () => {
-    if (!databaseUrl) {
-      return;
-    }
+  test.skipIf(!disposableDatabase)("dataset count 관계를 벗어난 insert를 거부한다", async () => {
+    await inIsolatedDisposableTest(async () => {
     const sourceReleaseId = randomUUID();
     await execute(`
       insert into ingest.source_release (source_release_id, source, release_name, status, as_of)
@@ -268,5 +287,62 @@ describe("source release PostgreSQL 불변식", () => {
       `),
       "source_release_dataset_terminal_count_not_above_observed",
     );
+    });
+  });
+
+  test.skipIf(!disposableDatabase)("required dataset 없이거나 terminal 상태로 직접 insert한 release를 거부한다", async () => {
+    await inIsolatedDisposableTest(async () => {
+    const sourceReleaseId = randomUUID();
+    await execute(`
+      insert into ingest.source_release (source_release_id, source, release_name, status, as_of)
+      values ('${sourceReleaseId}', 'eat-${randomUUID()}', 'release-${randomUUID()}', 'planned', now())
+    `);
+    await expectDatabaseReject(
+      () => sealRelease(sourceReleaseId),
+      "sealed source release requires at least one required dataset",
+    );
+    await expectDatabaseReject(
+      () => execute(`
+        insert into ingest.source_release (
+          source_release_id, source, release_name, status, as_of, manifest_sha256, sealed_at
+        ) values ('${randomUUID()}', 'eat-${randomUUID()}', 'sealed', 'sealed', now(), '${sha256}', now())
+      `),
+      "source release must be inserted planned",
+    );
+    await expectDatabaseReject(
+      () => execute(`
+        insert into ingest.source_release (
+          source_release_id, source, release_name, status, as_of, failure_category
+        ) values ('${randomUUID()}', 'eat-${randomUUID()}', 'failed', 'failed', now(), 'capture')
+      `),
+      "source release must be inserted planned",
+    );
+    const emptyRequiredRelease = await createPlannedRelease({
+      expectedCount: 0,
+      observedCount: 0,
+      normalizedCount: 0,
+      quarantinedCount: 0,
+    });
+    await sealRelease(emptyRequiredRelease.sourceReleaseId, uniqueSha256());
+
+    const failedReleaseId = randomUUID();
+    await execute(`
+      insert into ingest.source_release (source_release_id, source, release_name, status, as_of)
+      values ('${failedReleaseId}', 'eat-${randomUUID()}', 'failed-transition', 'planned', now())
+    `);
+    await execute(`
+      update ingest.source_release
+      set status = 'failed', failure_category = 'capture'
+      where source_release_id = '${failedReleaseId}'
+    `);
+    await expectDatabaseReject(
+      () => execute(`
+        update ingest.source_release
+        set release_name = 'changed'
+        where source_release_id = '${failedReleaseId}'
+      `),
+      "failed source release is immutable",
+    );
+    });
   });
 });
