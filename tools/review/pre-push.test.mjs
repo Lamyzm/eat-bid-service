@@ -77,6 +77,27 @@ test("명시적 opt-in은 feature push에서도 지정한 base로 AI 리뷰를 �
   assert.deepEqual(bases, ["master"]);
 });
 
+test("advisory unavailable 경고는 provider별 시도 reason을 함께 보여 준다", async () => {
+  const warnings = [];
+  await runPrePush({
+    stdin: update("refs/heads/main"),
+    env: {},
+    runRequired: async () => 0,
+    runAdvisory: async () => ({
+      category: "unavailable",
+      reason: "timeout",
+      message: "초과",
+      attempts: [
+        { provider: "codex", reason: "quota-exhausted" },
+        { provider: "claude", reason: "timeout" },
+      ],
+    }),
+    warn: (message) => warnings.push(message),
+  });
+  assert.match(warnings.join("\n"), /codex:quota-exhausted/);
+  assert.match(warnings.join("\n"), /claude:timeout/);
+});
+
 test("필수 gate와 AI advisory는 같은 격리 환경을 전달받는다", async () => {
   const environments = [];
   const dirtyEnvironment = {

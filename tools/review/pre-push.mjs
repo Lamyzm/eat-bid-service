@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runCodexAdvisory } from "./codex-advisory.mjs";
+import { formatAttempts, runAiAdvisory } from "./ai-advisory.mjs";
 import {
   readRepositoryLocalGitVariables,
   removeRepositoryLocalGitVariables,
@@ -41,9 +41,10 @@ export async function runPrePush({
   ),
   runRequired = runPnpm,
   runAdvisory = async (baseRef, environment) =>
-    runCodexAdvisory({
+    runAiAdvisory({
       repoRoot: repositoryRoot,
       baseRef,
+      provider: "auto",
       environment,
     }),
   warn = console.warn,
@@ -56,8 +57,12 @@ export async function runPrePush({
 
   const baseRef = main ? "origin/main" : env.EATBID_REVIEW_BASE || "origin/main";
   const outcome = await runAdvisory(baseRef, childEnvironment);
-  if (outcome.category !== "success")
-    warn("AI 리뷰는 사용할 수 없었지만 필수 gate가 아니므로 push를 계속합니다.");
+  if (outcome.category !== "success") {
+    const trail = formatAttempts(outcome.attempts);
+    warn(
+      `AI 리뷰는 사용할 수 없었지만 필수 gate가 아니므로 push를 계속합니다.${trail ? ` (${trail})` : ""}`,
+    );
+  }
   return 0;
 }
 
