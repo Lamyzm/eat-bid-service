@@ -4,6 +4,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runCodexAdvisory } from "./codex-advisory.mjs";
+import {
+  readRepositoryLocalGitVariables,
+  removeRepositoryLocalGitVariables,
+  withoutRepositoryLocalGitVariables,
+} from "./git-local-environment.mjs";
+
+const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 function pushesMain(stdin) {
   return stdin
@@ -12,10 +19,11 @@ function pushesMain(stdin) {
     .some((line) => line.trim().split(/\s+/)[2] === "refs/heads/main");
 }
 
-function runPnpm(script) {
+function runPnpm(script, environment) {
   const result = spawnSync("pnpm", [script], {
-    cwd: fileURLToPath(new URL("../../", import.meta.url)),
+    cwd: repositoryRoot,
     encoding: "utf8",
+    env: environment,
     shell: process.platform === "win32",
     stdio: "inherit",
     windowsHide: true,
@@ -27,22 +35,27 @@ function runPnpm(script) {
 export async function runPrePush({
   stdin,
   env,
+  childEnvironment = withoutRepositoryLocalGitVariables(
+    env,
+    readRepositoryLocalGitVariables(repositoryRoot),
+  ),
   runRequired = runPnpm,
-  runAdvisory = async (baseRef) =>
+  runAdvisory = async (baseRef, environment) =>
     runCodexAdvisory({
-      repoRoot: fileURLToPath(new URL("../../", import.meta.url)),
+      repoRoot: repositoryRoot,
       baseRef,
+      environment,
     }),
   warn = console.warn,
 }) {
-  if ((await runRequired("test")) !== 0) return 1;
+  if ((await runRequired("test", childEnvironment)) !== 0) return 1;
 
   const main = pushesMain(stdin);
-  if (main && (await runRequired("architecture:check")) !== 0) return 1;
+  if (main && (await runRequired("architecture:check", childEnvironment)) !== 0) return 1;
   if (!main && env.EATBID_AI_REVIEW !== "1") return 0;
 
   const baseRef = main ? "origin/main" : env.EATBID_REVIEW_BASE || "origin/main";
-  const outcome = await runAdvisory(baseRef);
+  const outcome = await runAdvisory(baseRef, childEnvironment);
   if (outcome.category !== "success")
     warn("AI 리뷰는 사용할 수 없었지만 필수 gate가 아니므로 push를 계속합니다.");
   return 0;
@@ -51,9 +64,13 @@ export async function runPrePush({
 async function main() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
+  const localGitVariables = readRepositoryLocalGitVariables(repositoryRoot);
+  const childEnvironment = withoutRepositoryLocalGitVariables(process.env, localGitVariables);
+  removeRepositoryLocalGitVariables(process.env, localGitVariables);
   process.exitCode = await runPrePush({
     stdin: Buffer.concat(chunks).toString("utf8"),
-    env: process.env,
+    env: childEnvironment,
+    childEnvironment,
   });
 }
 

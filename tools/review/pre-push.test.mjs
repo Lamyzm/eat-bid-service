@@ -76,3 +76,35 @@ test("명시적 opt-in은 feature push에서도 지정한 base로 AI 리뷰를 �
   assert.equal(code, 0);
   assert.deepEqual(bases, ["master"]);
 });
+
+test("필수 gate와 AI advisory는 같은 격리 환경을 전달받는다", async () => {
+  const environments = [];
+  const dirtyEnvironment = {
+    Git_Index_File: "오염.index",
+    INFISICAL_PROJECT_ID: "infisical-환경-보존",
+  };
+
+  const code = await runPrePush({
+    stdin: update("refs/heads/main"),
+    env: dirtyEnvironment,
+    runRequired: async (_command, environment) => {
+      environments.push(environment ?? {});
+      return 0;
+    },
+    runAdvisory: async (_baseRef, environment) => {
+      environments.push(environment ?? {});
+      return { category: "success" };
+    },
+    warn: () => undefined,
+  });
+
+  assert.equal(code, 0);
+  assert.equal(environments.length, 3);
+  for (const environment of environments) {
+    assert.equal(
+      Object.keys(environment).some((name) => name.toUpperCase() === "GIT_INDEX_FILE"),
+      false,
+    );
+    assert.equal(environment.INFISICAL_PROJECT_ID, "infisical-환경-보존");
+  }
+});
