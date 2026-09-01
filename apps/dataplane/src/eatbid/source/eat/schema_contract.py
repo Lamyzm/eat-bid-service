@@ -1,3 +1,5 @@
+"""모듈 책임: 검토된 eaT 응답 schema와 fingerprint의 단일 권위를 제공한다."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -59,10 +61,18 @@ REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
 def reviewed_schema_fingerprint(
     *, source: str, endpoint: str, parser_version: str
 ) -> str | None:
-    contract = REVIEWED_EAT_SCHEMA_CONTRACTS.get(
-        (source, endpoint, parser_version)
+    contract = reviewed_schema_contract(
+        source=source,
+        endpoint=endpoint,
+        parser_version=parser_version,
     )
     return contract.fingerprint if contract is not None else None
+
+
+def reviewed_schema_contract(
+    *, source: str, endpoint: str, parser_version: str
+) -> ReviewedSchemaContract | None:
+    return REVIEWED_EAT_SCHEMA_CONTRACTS.get((source, endpoint, parser_version))
 
 
 def validate_eat_schema_contract(
