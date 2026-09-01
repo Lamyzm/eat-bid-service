@@ -94,6 +94,13 @@ test("YAML처럼 따옴표 없는 credential 값도 비 JS 확장자에서는 li
   assert.doesNotMatch(section, /hunter2-unquoted/);
   assert.match(section, /deploy\/values\.yaml.*sensitive-content/);
 
+  const commented = renderDiffSection({
+    repoRoot: "C:/repo",
+    patch: hunk("deploy/app.ini", "+; password=commented-secret-value"),
+  });
+  assert.doesNotMatch(commented, /commented-secret-value/);
+  assert.match(commented, /deploy\/app\.ini.*sensitive-content/);
+
   const typeDeclaration = hunk("src/types.ts", "+  password: string;");
   assert.match(renderDiffSection({ repoRoot: "C:/repo", patch: typeDeclaration }), /password: string;/);
 });

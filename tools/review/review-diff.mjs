@@ -17,7 +17,8 @@ const BINARY = /^(?:GIT binary patch|Binary files .* differ)$/m;
 const CREDENTIAL_KEY =
   /^\s*["']?[\w.-]*(?:password|api[_-]?key|api[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|authorization)["']?\s*[:=]\s*/i;
 const LINE_CREDENTIAL = new RegExp(`${CREDENTIAL_KEY.source}["'\`]`, "i");
-const LINE_CREDENTIAL_UNQUOTED = new RegExp(`${CREDENTIAL_KEY.source}\\S`, "i");
+// YAML·ini에서는 주석 처리한 평문 비밀번호도 흔하므로 `#`·`;` 접두 줄까지 잡는다.
+const LINE_CREDENTIAL_UNQUOTED = new RegExp(`^\\s*(?:[#;]\\s*)?${CREDENTIAL_KEY.source.slice(1)}\\S`, "i");
 const UNQUOTED_VALUE_EXTENSION = /\.(?:ya?ml|toml|properties|ini|cfg|conf)$/i;
 const DELETED_NOTE =
   "삭제된 파일의 hunk는 근거일 뿐 finding 대상이 아니다. finding 경로는 `검토 범위`의 changedPaths 안에서만 고른다.";
