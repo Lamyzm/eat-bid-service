@@ -16,6 +16,7 @@
 - source bytes를 R2에 성공적으로 보존하기 전에 parsed/normalized 상태를 기록하지 않는다.
 - `run_id`는 실행, `source_release_id`는 봉인된 raw member 집합이며 서로 대체하지 않는다.
 - raw release 수정은 금지하고 정정·추가 수집은 새 release ID로 만든다.
+- release terminal 전이는 PostgreSQL `READ COMMITTED` transaction에서만 수행하며 다른 isolation은 SQLSTATE `25000`으로 실패한다.
 - source URL·method·dataset·request parameter는 reviewed registry 밖에서 조립하지 않는다.
 - 테스트 이름·주석·문서·커밋은 한국어로 작성하고 300줄 초과 파일은 책임별로 분리한다.
 - live eaT/R2/PostgreSQL/Kubernetes mutation은 exact 대상 확인 후 별도 사용자 승인을 받는다.
@@ -26,7 +27,7 @@
 
 | 경로 | 책임 |
 |---|---|
-| `docs/adr/0024-source-release-manifest.md` | run과 source release 분리, 상태 전이, hash 권위 |
+| `docs/adr/0025-source-release-manifest.md` | run과 source release 분리, 상태 전이, hash 권위 |
 | `packages/db/src/schema/ingest/release.ts` | release·run·observation·dataset membership DDL |
 | `apps/dataplane/src/eatbid/ingest/release_models.py` | Python release aggregate와 completeness value |
 | `apps/dataplane/src/eatbid/ingest/release_repository.py` | storage-neutral release protocol |
@@ -40,7 +41,7 @@
 ### Task 1: source release identity ADR과 Drizzle DDL을 만든다
 
 **Files:**
-- Create: `docs/adr/0024-source-release-manifest.md`
+- Create: `docs/adr/0025-source-release-manifest.md`
 - Create: `packages/db/src/schema/ingest/release.ts`
 - Modify: `packages/db/src/schema/ingest/index.ts`
 - Modify: `packages/db/src/schema/index.ts`
@@ -51,7 +52,7 @@
 - Produces: `sourceRelease`, `sourceReleaseRun`, `sourceReleaseObservation`, `sourceReleaseDataset`
 - Consumes: `ingestRun.runId`, `rawObservation.observationId`
 
-- [ ] **Step 1: 상태·membership 실패 테스트를 쓴다**
+- [x] **Step 1: 상태·membership 실패 테스트를 쓴다**
 
 ```ts
 test("source release는 실행과 observation membership을 따로 소유한다", () => {
@@ -64,13 +65,13 @@ test("source release는 실행과 observation membership을 따로 소유한다"
 
 DDL SQL assertion은 `planned|sealed|failed`, SHA-256 `manifest_sha256`, timezone-aware `as_of`, dataset별 expected/observed/normalized/quarantined count, required flag, endpoint/dataset/record type/parser/schema fingerprint를 요구한다.
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 Run: `fnm exec --using=24.20.0 pnpm --filter @eatbid/db exec bun test src/schema/ingest/release.test.ts`
 
 Expected: 새 export와 table이 없어 FAIL한다.
 
-- [ ] **Step 3: 네 table과 불변식을 구현한다**
+- [x] **Step 3: 네 table과 불변식을 구현한다**
 
 ```ts
 export const sourceRelease = ingestSchema.table("source_release", {
@@ -87,7 +88,7 @@ export const sourceRelease = ingestSchema.table("source_release", {
 
 membership table은 composite primary key를 쓰고 같은 release 안의 run/observation 중복을 금지한다. sealed 상태는 manifest hash와 sealedAt을 필수로 하고 failed 상태만 failureCategory를 허용한다.
 
-- [ ] **Step 4: migration을 생성하고 빈 DB 재실행을 검증한다**
+- [x] **Step 4: migration을 생성하고 빈 DB 재실행을 검증한다**
 
 ```powershell
 fnm exec --using=24.20.0 pnpm --filter @eatbid/db exec drizzle-kit generate --name source_release_manifest
@@ -96,10 +97,10 @@ fnm exec --using=24.20.0 pnpm db:migrate
 fnm exec --using=24.20.0 pnpm db:migrate
 ```
 
-- [ ] **Step 5: ADR과 함께 커밋한다**
+- [x] **Step 5: ADR과 함께 커밋한다**
 
 ```powershell
-git add docs/adr/0024-source-release-manifest.md packages/db/src/schema/ingest packages/db/src/schema/index.ts packages/db/drizzle
+git add docs/adr/0025-source-release-manifest.md packages/db/src/schema/ingest packages/db/src/schema/index.ts packages/db/drizzle
 git commit -m "feat(data): source release 불변 manifest를 도입한다"
 ```
 
@@ -126,6 +127,7 @@ def test_필수_dataset이_불완전하면_release를_봉인하지_않는다() -
 ```
 
 동일 member를 순서만 바꿔 입력해도 manifest SHA가 같고, sealed release에 run/observation을 추가하면 `ReleaseSealedError`가 나는 테스트를 함께 작성한다.
+PostgreSQL repository의 terminal transaction이 `READ COMMITTED`를 사용하고, 다른 isolation의 DB SQLSTATE `25000`을 typed repository error로 보존하는 테스트도 작성한다.
 
 - [ ] **Step 2: 실패를 확인한다**
 
@@ -142,7 +144,7 @@ class SourceReleaseRepository(Protocol):
     def seal_release(self, source_release_id: UUID, *, sealed_at: datetime) -> SealedSourceRelease: ...
 ```
 
-manifest hash는 release metadata, 정렬된 dataset 계약, 정렬된 observation ID/content hash를 canonical JSON bytes로 직렬화해 SHA-256으로 계산한다. seal은 row lock 한 transaction에서 completeness를 재조회한 뒤 상태를 바꾼다.
+manifest hash는 release metadata, 정렬된 dataset 계약, 정렬된 observation ID/content hash를 canonical JSON bytes로 직렬화해 SHA-256으로 계산한다. seal은 명시적 `READ COMMITTED` transaction에서 parent row를 잠그고 completeness를 재조회한 뒤 상태를 바꾼다. DB가 반환하는 SQLSTATE `25000`은 isolation 계약 위반으로 분류한다.
 
 - [ ] **Step 4: unit/integration test를 통과시킨다**
 
