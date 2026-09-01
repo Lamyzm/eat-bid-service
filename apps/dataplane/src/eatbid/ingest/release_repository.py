@@ -9,6 +9,7 @@ from hashlib import sha256
 from typing import Literal, Protocol
 from uuid import UUID
 
+from eatbid.ingest.models import PlannedRequestUnit
 from eatbid.ingest.release_models import (
     ReleaseCompleteness,
     ReleaseDatasetProgress,
@@ -38,6 +39,26 @@ class SourceReleaseRepository(Protocol):
     def require_observation_member(
         self, source_release_id: UUID, observation_id: int
     ) -> None: ...
+
+    def load_preplanned_detail_request(
+        self, source_release_id: UUID, run_id: UUID, external_bid_id: str
+    ) -> PlannedRequestUnit: ...
+
+    def require_processing_observation(
+        self, source_release_id: UUID, run_id: UUID, observation_id: int
+    ) -> None: ...
+
+    def require_observation_members(
+        self, source_release_id: UUID, observation_ids: tuple[int, ...]
+    ) -> None: ...
+
+    def require_publication_corpus(
+        self, source_release_id: UUID, run_id: UUID, publication_id: UUID
+    ) -> None: ...
+
+    def reconcile_and_seal(
+        self, source_release_id: UUID, run_id: UUID, *, sealed_at: datetime
+    ) -> SealedSourceRelease: ...
 
     def require_sealed(self, source_release_id: UUID) -> None: ...
 

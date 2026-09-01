@@ -101,3 +101,65 @@ stderr에는 provider message나 traceback을 쓰지 않고 bounded category만 
 
 - 이 Task는 offline discovery/release와 실제 command wiring까지만 검증했다. live credential과 canary는 별도 승인 전까지 실행하지 않았다.
 - `capture`는 호출 시점에 수정 가능한 planned release가 있어야 하며 sealed discovery release에 member를 추가하려 하면 의도대로 실패한다. 여러 run의 detail corpus를 묶는 후속 release orchestration은 EAT-19 이후 범위다.
+
+---
+
+## 2차 적대 리뷰 수정 — 동일 release lifecycle
+
+기존의 discovery 직후 list-only release 봉인은 제거했다. 한 `source_release_id` 아래에 목록 page만 소유하는 discovery run과 발견된 상세 요청만 소유하는 detail run을 둔다. 첫 목록 raw를 보존·해석한 직후 정수 올림으로 page 수를 계산하고 discovery run의 expected request count를 `1 → N`으로 확정한 뒤에만 두 번째 HTTP를 허용한다. 목록 완료 뒤 discovery run은 `validated`, detail run은 `running`, composite release는 `planned` 상태다.
+
+정렬된 `ELCTRN_BID_ID`마다 detail run의 `bid-detail` request unit을 먼저 영속화한다. 이 exact request-unit 집합이 frozen canonical 발견 manifest이며 CLI 출력은 `source_release_id`, `detail_run_id`, `discovered_count`, canonical JSON SHA-256만 반환한다. 목록 dataset의 normalized count는 이 영속 집합 생성 뒤에만 기록한다. `capture`는 release·detail run·ID에 정확히 대응하는 `planned` unit 한 건만 읽으므로 임의 ID나 다른 run을 추가할 수 없다.
+
+`normalize`는 release observation, detail run, raw observation이 같은 corpus인지 함께 검증한다. `validate` 경계는 captured detail unit, attached raw observation, 실제 normalization attempt의 normalized/quarantined 상태를 PostgreSQL에서 다시 집계한 뒤 detail dataset progress를 기록하고 release를 봉인한다. 봉인 manifest 조회도 모든 observation의 run membership을 같은 terminal transaction에서 재검증한다. `project`는 publication/run/release와 publication record corpus를, `replay`는 모든 요청 observation membership을 fail-closed로 검증한다.
+
+### 2차 TDD 증거
+
+RED는 production 변경 전에 다음 focused 실행으로 기록했다.
+
+```text
+uv run --project apps/dataplane pytest apps/dataplane/tests/unit/test_discover.py -q
+6 failed
+원인: DiscoveryPlan에 detail_run_id가 없고 기존 discover가 즉시 봉인함
+```
+
+GREEN과 최종 gate는 다음과 같다.
+
+```text
+uv run --project apps/dataplane pytest apps/dataplane/tests/unit/test_cli.py apps/dataplane/tests/unit/test_discover.py apps/dataplane/tests/integration/test_cli_pipeline.py -q
+23 passed
+
+uv run --project apps/dataplane pytest apps/dataplane/tests -q
+626 passed
+
+uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests
+All checks passed!
+
+uv run --project apps/dataplane pyright apps/dataplane/src
+0 errors, 0 warnings, 0 informations
+
+git diff --check
+exit 0
+
+fnm exec --using=24.20.0 node --version
+v24.20.0
+
+fnm exec --using=24.20.0 pnpm architecture:check
+exit 0
+```
+
+통합 테스트는 live 외부 서비스 없이 PostgreSQL testcontainer, memory raw store, fixture source client로 discovery → 같은 release의 preplanned detail capture → exact membership normalize → DB-derived reconcile/seal → publication validate와 corpus guard를 실행한다. 별도 run/publication 거부, page 2 중복 시 page 3 미호출, 3-page expected count 선확정, 0건 wire, 거대 `TOT_CNT`, provider/DB secret context 제거, R2 구성 실패 시 HTTP→DB 역순 단일 close도 확인한다.
+
+### 수정된 명령 계약
+
+- `discover`는 기존 인수에 `--detail-run-id UUID`가 추가되며 bounded JSON manifest 식별자를 stdout으로 반환한다.
+- `capture`는 `--source-release-id`, `--run-id`, `--external-bid-id`의 exact preplanned unit만 소비하고 observation ID/content hash JSON을 반환한다.
+- `normalize`는 동일 release/run에 붙은 detail observation만 처리한다.
+- `validate`가 실제 terminal detail corpus를 재집계하고 그 release만 봉인한 뒤 publication을 검증한다.
+- `project`와 `replay`는 sealed 상태만 보지 않고 publication/observation corpus를 release에 대조한다.
+- exit code는 구성/예상 밖 `64`, quarantine `65`, throttled `75`, source contract `76`을 유지한다. best-effort failure ledger와 cleanup 실패는 원래 typed 오류의 message/repr/cause/context를 바꾸지 않는다.
+
+### 2차 파일 길이와 우려
+
+수정 파일은 모두 300줄 이하다. 주요 파일은 `discover.py` 272줄 이하, `composition.py` 259줄, `postgres_release_guards.py` 193줄, `postgres_run_planning.py` 206줄, 통합 테스트 158줄이다.
+
+실제 eaT/R2/운영 PostgreSQL은 호출하지 않았다. `reconcile_and_seal`의 progress 갱신과 seal은 각각 parent lock을 사용하며, terminal seal transaction이 모든 observation의 run membership을 다시 검증한다. request unit은 observation 수를 1로 제한하고 normalization attempt는 run/observation/parser unique이므로 두 transaction 사이에 exact detail count를 부풀리는 경로는 닫혀 있다.

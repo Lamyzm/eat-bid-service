@@ -28,7 +28,6 @@ from eatbid.pipeline.replay import ReplayServices, replay_observations
 from eatbid.pipeline.validate import validate_run
 from eatbid.r2_store import R2RawObjectStore, R2Settings
 from eatbid.source.eat.http_client import EatHttpClient
-from eatbid.source.eat.registry import require
 
 
 class Application:
@@ -64,16 +63,17 @@ class Application:
     def for_test(cls, *, connection: Any, http_client: Any) -> Application:
         return cls(connection=connection, http_client=http_client)
 
-    def discover(self, args: argparse.Namespace) -> None:
+    def discover(self, args: argparse.Namespace) -> Any:
         persistence = RawFirstDiscoveryPersistence(
             ingest_repository=self._ingest,
             release_repository=self._release,
             raw_store=self._store,
         )
-        discover_release(
+        return discover_release(
             DiscoveryPlan(
                 source_release_id=args.source_release_id,
                 run_id=args.run_id,
+                detail_run_id=args.detail_run_id,
                 release_name=args.release_name,
                 as_of=args.as_of,
                 build_sha=args.build_sha,
@@ -91,22 +91,9 @@ class Application:
             self._http,
         )
 
-    def capture(self, args: argparse.Namespace) -> None:
-        contract = require("bid-detail")
-        self._ingest.start_run(
-            run_id=args.run_id,
-            mode="backfill",
-            build_sha=args.build_sha,
-            parser_version=args.parser_version,
-            started_at=args.started_at,
-            expected_count=1,
-        )
-        planned = self._ingest.plan_request_unit(
-            run_id=args.run_id,
-            source="eat",
-            endpoint=contract.endpoint,
-            params=contract.build_detail_params(args.external_bid_id),
-            expected_count=1,
+    def capture(self, args: argparse.Namespace) -> Any:
+        planned = self._release.load_preplanned_detail_request(
+            args.source_release_id, args.run_id, args.external_bid_id
         )
         observation = capture(
             CaptureRequest(
@@ -124,10 +111,11 @@ class Application:
         self._release.attach_observation(
             args.source_release_id, observation.observation_id
         )
+        return observation
 
     def normalize(self, args: argparse.Namespace) -> None:
-        self._release.require_observation_member(
-            args.source_release_id, args.observation_id
+        self._release.require_processing_observation(
+            args.source_release_id, args.run_id, args.observation_id
         )
         normalize_observation(
             processing_run_id=args.run_id,
@@ -139,7 +127,9 @@ class Application:
         )
 
     def validate(self, args: argparse.Namespace) -> None:
-        self._release.require_sealed(args.source_release_id)
+        self._release.reconcile_and_seal(
+            args.source_release_id, args.run_id, sealed_at=args.validated_at
+        )
         validate_run(
             run_id=args.run_id,
             publication_id=args.publication_id,
@@ -148,7 +138,9 @@ class Application:
         )
 
     def project(self, args: argparse.Namespace) -> None:
-        self._release.require_sealed(args.source_release_id)
+        self._release.require_publication_corpus(
+            args.source_release_id, args.run_id, args.publication_id
+        )
         project_publication(
             publication_id=args.publication_id,
             projector_version=args.build_sha,
@@ -158,6 +150,9 @@ class Application:
 
     def replay(self, args: argparse.Namespace) -> None:
         self._release.require_sealed(args.source_release_id)
+        self._release.require_observation_members(
+            args.source_release_id, tuple(args.observation_id)
+        )
         replay_observations(
             run_id=args.run_id,
             publication_id=args.publication_id,
@@ -211,8 +206,12 @@ class Application:
 
 def build_application(config: ApplicationSettings) -> Application:
     dsn = config.database_url.get_secret_value()
-    connection = psycopg.connect(dsn)
+    connection: Any = None
+    http_client: Any = None
+    store: Any = None
+    construction_failed = False
     try:
+        connection = psycopg.connect(dsn)
         timeout = httpx.Timeout(
             connect=config.source_connect_timeout_seconds,
             read=config.source_read_timeout_seconds,
@@ -229,8 +228,14 @@ def build_application(config: ApplicationSettings) -> Application:
             )
         )
     except Exception:  # noqa: BLE001 - construction provider detail과 credential을 숨긴다.
-        connection.close()
-        raise RuntimeError("application configuration failed") from None
+        construction_failed = True
+        for resource in (http_client, connection):
+            if resource is not None:
+                _close_ignoring_error(resource)
+    if construction_failed:
+        error = RuntimeError("application configuration failed")
+        error.__context__ = None
+        raise error from None
     return Application(
         connection=connection,
         http_client=http_client,
@@ -245,3 +250,10 @@ def build_application(config: ApplicationSettings) -> Application:
         ),
         page_budget=config.source_page_budget,
     )
+
+
+def _close_ignoring_error(resource: Any) -> None:
+    try:
+        resource.close()
+    except Exception:  # noqa: BLE001 - cleanup 상세를 provider 실패에 붙이지 않는다.
+        return

@@ -5,13 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
-from eatbid.ingest.release_models import (
-    ReleaseDatasetProgress,
-    SealedSourceRelease,
-    SourceReleasePlan,
-)
+from eatbid.ingest.release_models import SourceReleasePlan
 from eatbid.ingest.release_repository import SourceReleaseRepository
 from eatbid.ingest.repository import IngestRepository
 from eatbid.object_store import RawObjectStore
@@ -39,8 +34,10 @@ class RawFirstDiscoveryPersistence:
         self._ingest = ingest_repository
         self._release = release_repository
         self._raw_store = raw_store
+        self._completed_at: datetime | None = None
 
     def start_run(self, plan: DiscoveryPlan) -> None:
+        self._completed_at = plan.completed_at
         self._ingest.start_run(
             run_id=plan.run_id,
             mode="backfill",
@@ -78,6 +75,28 @@ class RawFirstDiscoveryPersistence:
             run_id=run_id, expected_count=expected_count
         )
 
+    def start_detail_run(self, plan: DiscoveryPlan, expected_count: int) -> None:
+        self._ingest.start_run(
+            run_id=plan.detail_run_id,
+            mode="backfill",
+            build_sha=plan.build_sha,
+            parser_version=plan.parser_version,
+            started_at=plan.started_at,
+            expected_count=expected_count,
+        )
+
+    def plan_detail(
+        self, plan: DiscoveryPlan, external_bid_id: str
+    ) -> PlannedRequestUnit:
+        contract = require("bid-detail")
+        return self._ingest.plan_request_unit(
+            run_id=plan.detail_run_id,
+            source="eat",
+            endpoint=contract.endpoint,
+            params=contract.build_detail_params(external_bid_id),
+            expected_count=1,
+        )
+
     def plan_release(self, plan: SourceReleasePlan) -> None:
         self._release.plan_release(plan)
 
@@ -89,15 +108,12 @@ class RawFirstDiscoveryPersistence:
     ) -> None:
         self._release.attach_observation(source_release_id, observation_id)
 
-    def record_dataset_progress(
-        self, source_release_id: UUID, progress: ReleaseDatasetProgress
-    ) -> None:
-        self._release.record_dataset_progress(source_release_id, progress)
-
-    def seal_release(
-        self, source_release_id: UUID, *, sealed_at: datetime
-    ) -> SealedSourceRelease:
-        return self._release.seal_release(source_release_id, sealed_at=sealed_at)
+    def complete_discovery_run(self, run_id: UUID) -> None:
+        if self._completed_at is None:
+            raise RuntimeError("discovery run was not started")
+        self._ingest.complete_discovery_run(
+            run_id=run_id, completed_at=self._completed_at
+        )
 
     def fail_run(self, plan: DiscoveryPlan, error: Exception) -> None:
         category = (
@@ -110,5 +126,4 @@ class RawFirstDiscoveryPersistence:
                 failed_at=plan.completed_at,
             )
         except Exception:  # noqa: BLE001 - 원래 typed discovery 실패를 덮지 않는다.
-            # 원래 discovery 실패가 권위이며 provider/DB 상세를 cause로 노출하지 않는다.
-            raise SourceContractError("discovery run failure could not be recorded") from None
+            return

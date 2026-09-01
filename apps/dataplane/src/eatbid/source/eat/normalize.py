@@ -82,7 +82,11 @@ def parse_bid_list_page(payload: bytes) -> BidListPage:
             f"{_TOTAL_COUNT_FIELD} must be nonnegative ASCII decimal text"
         )
 
-    external_bid_ids = tuple(row.get(_EXTERNAL_BID_ID_FIELD, "") for row in rows)
+    total_count = int(total_text)
+    wire_ids = tuple(row.get(_EXTERNAL_BID_ID_FIELD, "") for row in rows)
+    if total_count == 0 and wire_ids == ("",):
+        return BidListPage(total_count=0, external_bid_ids=())
+    external_bid_ids = wire_ids
     if any(
         _POSITIVE_DECIMAL.fullmatch(source_id) is None
         or len(source_id) > MAX_ELECTRONIC_BID_ID_DIGITS
@@ -95,7 +99,6 @@ def parse_bid_list_page(payload: bytes) -> BidListPage:
         raise SourceContractError(
             f"{_EXTERNAL_BID_ID_FIELD} must be unique within a page"
         )
-    total_count = int(total_text)
     if len(external_bid_ids) > total_count:
         raise SourceContractError(f"page row count exceeds {_TOTAL_COUNT_FIELD}")
     return BidListPage(total_count=total_count, external_bid_ids=external_bid_ids)

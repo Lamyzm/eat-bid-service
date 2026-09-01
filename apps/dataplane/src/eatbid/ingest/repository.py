@@ -68,6 +68,8 @@ class IngestRepository(Protocol):
         self, *, run_id: UUID, expected_count: int
     ) -> None: ...
 
+    def complete_discovery_run(self, *, run_id: UUID, completed_at: datetime) -> None: ...
+
     def record_observation(
         self,
         *,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
@@ -12,6 +13,8 @@ from typing import Protocol, Self
 from uuid import UUID
 
 from eatbid.config import ApplicationSettings
+from eatbid.ingest.models import CapturedObservation
+from eatbid.pipeline.discover import DiscoveryResult
 
 CONFIGURATION_EXIT_CODE = 64
 DATA_QUARANTINED_EXIT_CODE = 65
@@ -28,8 +31,8 @@ class CliApplication(Protocol):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None: ...
-    def discover(self, args: argparse.Namespace) -> None: ...
-    def capture(self, args: argparse.Namespace) -> None: ...
+    def discover(self, args: argparse.Namespace) -> object: ...
+    def capture(self, args: argparse.Namespace) -> object: ...
     def normalize(self, args: argparse.Namespace) -> None: ...
     def validate(self, args: argparse.Namespace) -> None: ...
     def project(self, args: argparse.Namespace) -> None: ...
@@ -42,10 +45,35 @@ ApplicationFactory = Callable[[ApplicationSettings], CliApplication]
 
 def _handler(method_name: str) -> CommandHandler:
     def run(args: argparse.Namespace, application: CliApplication) -> int:
-        getattr(application, method_name)(args)
+        result = getattr(application, method_name)(args)
+        payload = _machine_result(method_name, result)
+        if payload is not None:
+            print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
         return 0
 
     return run
+
+
+def _machine_result(method_name: str, result: object) -> dict[str, object] | None:
+    if result is None:
+        return None
+    if method_name == "discover":
+        if not isinstance(result, DiscoveryResult):
+            raise TypeError("discover returned an invalid result")
+        return {
+            "detail_run_id": str(result.detail_run_id),
+            "discovered_count": result.expected_count,
+            "manifest_sha256": result.discovered_manifest_sha256,
+            "source_release_id": str(result.source_release_id),
+        }
+    if method_name == "capture":
+        if not isinstance(result, CapturedObservation):
+            raise TypeError("capture returned an invalid result")
+        return {
+            "content_sha256": result.content_sha256,
+            "observation_id": result.observation_id,
+        }
+    return None
 
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
@@ -94,6 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
         _common(command)
 
     discover = commands["discover"]
+    discover.add_argument("--detail-run-id", required=True, type=UUID)
     discover.add_argument("--release-name", required=True)
     discover.add_argument("--as-of", required=True, type=_aware_datetime)
     discover.add_argument("--started-at", required=True, type=_aware_datetime)

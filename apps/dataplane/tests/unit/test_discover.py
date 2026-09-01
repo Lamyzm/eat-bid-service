@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from hashlib import sha256
 from uuid import UUID
 
 import pytest
 
 from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
-from eatbid.ingest.release_models import ReleaseDatasetProgress, SourceReleasePlan
+from eatbid.ingest.release_models import SourceReleasePlan
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.source.client import SourceResponse
 
 RUN_ID = UUID("41000000-0000-0000-0000-000000000001")
+DETAIL_RUN_ID = UUID("41000000-0000-0000-0000-000000000003")
 RELEASE_ID = UUID("41000000-0000-0000-0000-000000000002")
 NOW = datetime(2026, 9, 1, 1, 0, tzinfo=UTC)
 
@@ -22,18 +24,20 @@ def _목록_xml(total: int, ids: tuple[str, ...]) -> bytes:
         f'<Row><Col id="TOT_CNT">{total}</Col><Col id="ETN_BID_ID">{bid_id}</Col></Row>'
         for bid_id in ids
     )
+    if total == 0:
+        rows = '<Row><Col id="TOT_CNT">0</Col><Col id="ETN_BID_ID"></Col></Row>'
     return (
         '<Root xmlns="http://www.nexacroplatform.com/platform/dataset">'
-        '<Dataset id="ds_list"><ColumnInfo>'
-        '<Column id="TOT_CNT"/><Column id="ETN_BID_ID"/>'
-        f"</ColumnInfo><Rows>{rows}</Rows></Dataset></Root>"
+        '<Dataset id="ds_list"><ColumnInfo><Column id="TOT_CNT"/>'
+        f'<Column id="ETN_BID_ID"/></ColumnInfo><Rows>{rows}</Rows></Dataset></Root>'
     ).encode()
 
 
-def _계획(*, page_size: int = 2, page_budget: int = 3) -> DiscoveryPlan:
+def _계획(*, page_size: int = 2, page_budget: int = 4) -> DiscoveryPlan:
     return DiscoveryPlan(
         source_release_id=RELEASE_ID,
         run_id=RUN_ID,
+        detail_run_id=DETAIL_RUN_ID,
         release_name="R0 오프라인 발견",
         as_of=NOW,
         build_sha="a" * 64,
@@ -50,161 +54,116 @@ def _계획(*, page_size: int = 2, page_budget: int = 3) -> DiscoveryPlan:
 
 
 class _쪽클라이언트:
-    def __init__(self, pages: tuple[bytes, ...]) -> None:
+    def __init__(self, pages: tuple[bytes | SourceResponse, ...]) -> None:
         self.pages = pages
         self.requests: list[CaptureRequest] = []
 
     def fetch(self, request: CaptureRequest) -> SourceResponse:
         self.requests.append(request)
-        return SourceResponse(200, self.pages[len(self.requests) - 1], NOW)
+        item = self.pages[len(self.requests) - 1]
+        return item if isinstance(item, SourceResponse) else SourceResponse(200, item, NOW)
 
 
 @dataclass
-class _봉인결과:
+class _상태:
     manifest_sha256: str = "f" * 64
 
 
 class _기록저장소:
-    def __init__(self) -> None:
+    def __init__(self, *, fail_error: Exception | None = None) -> None:
         self.events: list[str] = []
         self.observations: list[CapturedObservation] = []
         self.release_plan: SourceReleasePlan | None = None
-        self.seal_count = 0
-        self.failed_count = 0
+        self.detail_ids: list[str] = []
+        self.fail_error = fail_error
 
-    def start_run(self, plan: DiscoveryPlan) -> None:
-        self.events.append("run_started")
-
+    def start_run(self, plan: DiscoveryPlan) -> None: self.events.append("discovery_started")
     def plan_page(self, plan: DiscoveryPlan, page_number: int) -> PlannedRequestUnit:
         self.events.append(f"page_{page_number}_planned")
-        return PlannedRequestUnit(
-            request_unit_id=page_number,
-            run_id=plan.run_id,
-            source="eat",
-            endpoint="bid-list",
-            params={
-                "P_BID_BGNG_DT": plan.start_date,
-                "P_BID_END_DT": plan.end_date,
-                "P_PRGRS_STAT_CD": plan.progress_status_code,
-                "P_CTPV_CD": plan.region_code,
-                "START_PAGE": str(page_number),
-                "PAGE_SIZE": str(plan.page_size),
-            },
-            request_params_hash="b" * 64,
-        )
-
-    def archive_observation(
-        self, request: CaptureRequest, response: SourceResponse
-    ) -> CapturedObservation:
+        return _unit(plan.run_id, page_number, "bid-list", {"START_PAGE": str(page_number)})
+    def archive_observation(self, request: CaptureRequest, response: SourceResponse) -> CapturedObservation:
         self.events.extend(("raw_archived", "observation_recorded"))
-        observation = CapturedObservation(
-            observation_id=len(self.observations) + 1,
-            content_sha256="c" * 64,
-            object_key=f"raw/eat/bid-list/{'c' * 64}.xml.gz",
-            fetched_at=NOW,
-        )
+        observation = CapturedObservation(len(self.observations) + 1, "c" * 64, f"raw/eat/bid-list/{'c' * 64}.xml.gz", NOW)
         self.observations.append(observation)
+        if response.status_code >= 400:
+            raise SourceContractError("stable contract")
         return observation
-
     def finalize_run_expected_count(self, run_id: UUID, expected_count: int) -> None:
-        self.events.append(f"run_expected_{expected_count}")
-
+        self.events.append(f"expected_{expected_count}")
+    def start_detail_run(self, plan: DiscoveryPlan, expected_count: int) -> None:
+        self.events.append(f"detail_started_{expected_count}")
+    def plan_detail(self, plan: DiscoveryPlan, external_bid_id: str) -> PlannedRequestUnit:
+        self.detail_ids.append(external_bid_id)
+        self.events.append(f"detail_{external_bid_id}_planned")
+        return _unit(plan.detail_run_id, 100 + len(self.detail_ids), "bid-detail", {"ELCTRN_BID_ID": external_bid_id})
     def plan_release(self, plan: SourceReleasePlan) -> None:
         self.release_plan = plan
         self.events.append("release_planned")
-
-    def attach_run(self, source_release_id: UUID, run_id: UUID) -> None:
-        self.events.append("run_attached")
-
-    def attach_observation(self, source_release_id: UUID, observation_id: int) -> None:
-        self.events.append(f"observation_{observation_id}_attached")
-
-    def record_dataset_progress(
-        self, source_release_id: UUID, progress: ReleaseDatasetProgress
-    ) -> None:
-        self.events.append(f"progress_{progress.observed_count}")
-
-    def seal_release(self, source_release_id: UUID, *, sealed_at: datetime) -> _봉인결과:
-        self.seal_count += 1
-        self.events.append("release_sealed")
-        return _봉인결과()
-
+    def attach_run(self, source_release_id: UUID, run_id: UUID) -> None: self.events.append(f"run_{run_id}_attached")
+    def attach_observation(self, source_release_id: UUID, observation_id: int) -> None: self.events.append(f"observation_{observation_id}_attached")
+    def complete_discovery_run(self, run_id: UUID) -> None: self.events.append("discovery_completed")
     def fail_run(self, plan: DiscoveryPlan, error: Exception) -> None:
-        self.failed_count += 1
+        self.events.append("failed")
+        if self.fail_error is not None: raise self.fail_error
 
 
-def test_discovery가_stable_total과_정렬된_숫자_ID_manifest를_봉인한다() -> None:
+def _unit(run_id: UUID, unit_id: int, endpoint: str, params: dict[str, str]) -> PlannedRequestUnit:
+    return PlannedRequestUnit(unit_id, run_id, "eat", endpoint, params, "b" * 64)
+
+
+def test_discovery가_정렬_ID를_detail_request로_영속화하고_planned_release를_남긴다() -> None:
     repository = _기록저장소()
     client = _쪽클라이언트((_목록_xml(3, ("3", "1")), _목록_xml(3, ("2",))))
 
     result = discover_release(_계획(), repository, client)
 
-    assert result.expected_count == 3
     assert result.external_bid_ids == ("1", "2", "3")
-    assert result.observation_ids == (1, 2)
+    assert repository.detail_ids == ["1", "2", "3"]
+    assert result.discovered_manifest_sha256 == sha256(b'["1","2","3"]').hexdigest()
     assert repository.release_plan is not None
-    dataset = repository.release_plan.datasets[0]
-    assert dataset.record_type == "auction-discovery.v1"
-    assert dataset.parser_version == "eat-v1"
-    assert dataset.schema_fingerprint != "f" * 64
-    assert repository.seal_count == 1
+    assert [(item.endpoint, item.expected_count, item.observed_count, item.normalized_count) for item in repository.release_plan.datasets] == [
+        ("bid-list", 3, 3, 3), ("bid-detail", 3, 0, 0)
+    ]
+    assert "release_sealed" not in repository.events
 
 
-@pytest.mark.parametrize(
-    "pages",
-    [
-        (_목록_xml(2, ("1", "1")),),
-        (_목록_xml(3, ("1", "2")), _목록_xml(3, ("2",))),
-        (_목록_xml(3, ("1", "2")), _목록_xml(4, ("3",))),
-        (_목록_xml(4, ("1", "2")), _목록_xml(4, ())),
-        (_목록_xml(3, ("1", "2")), _목록_xml(3, ())),
-    ],
-)
-def test_중복_count변화_빈page_합계불일치는_raw만_보존하고_봉인하지_않는다(
-    pages: tuple[bytes, ...],
-) -> None:
+def test_첫page_뒤_정확한_page_count를_두번째_HTTP_전에_확정한다() -> None:
     repository = _기록저장소()
-    client = _쪽클라이언트(pages)
-
-    with pytest.raises(SourceContractError):
-        discover_release(_계획(), repository, client)
-
-    assert repository.observations
-    assert repository.release_plan is None
-    assert repository.seal_count == 0
-    assert repository.failed_count == 1
-
-
-def test_page_budget은_초과_page_HTTP_전에_실패한다() -> None:
-    repository = _기록저장소()
-    client = _쪽클라이언트((_목록_xml(5, ("1", "2")),))
-
-    with pytest.raises(SourceContractError):
-        discover_release(_계획(page_budget=2), repository, client)
-
-    assert len(client.requests) == 1
-    assert repository.seal_count == 0
-
-
-@pytest.mark.parametrize("source_id", ["01", "0", "가", "1" * 21])
-def test_목록_ID는_bounded_positive_ASCII_decimal만_허용한다(
-    source_id: str,
-) -> None:
-    repository = _기록저장소()
-    client = _쪽클라이언트((_목록_xml(1, (source_id,)),))
-
-    with pytest.raises(SourceContractError):
-        discover_release(_계획(), repository, client)
-
-    assert repository.seal_count == 0
-
-
-def test_성공page는_raw_archive_observation_release_attach_순서를_지킨다() -> None:
-    repository = _기록저장소()
-    client = _쪽클라이언트((_목록_xml(1, ("1",)),))
-
+    client = _쪽클라이언트((_목록_xml(5, ("1", "2")), _목록_xml(5, ("3", "4")), _목록_xml(5, ("5",))))
     discover_release(_계획(), repository, client)
+    assert repository.events.index("expected_3") < repository.events.index("page_2_planned")
 
-    assert repository.events.index("raw_archived") < repository.events.index(
-        "observation_recorded"
-    ) < repository.events.index("observation_1_attached")
+
+def test_page2_중복은_page3_HTTP_전에_실패한다() -> None:
+    repository = _기록저장소()
+    client = _쪽클라이언트((_목록_xml(5, ("1", "2")), _목록_xml(5, ("2", "3"))))
+    with pytest.raises(SourceContractError): discover_release(_계획(), repository, client)
+    assert len(client.requests) == 2
+    assert repository.release_plan is None
+
+
+def test_0건_wire는_빈_manifest로_exact_complete_planned_release를_만든다() -> None:
+    repository = _기록저장소()
+    result = discover_release(_계획(), repository, _쪽클라이언트((_목록_xml(0, ()),)))
+    assert result.expected_count == 0
+    assert result.external_bid_ids == ()
+    assert repository.detail_ids == []
+    assert repository.release_plan is not None
+
+
+def test_huge_total은_다음_HTTP_전에_SOURCE_CONTRACT로_닫힌다() -> None:
+    repository = _기록저장소()
+    client = _쪽클라이언트((_목록_xml(10**200, ("1", "2")),))
+    with pytest.raises(SourceContractError): discover_release(_계획(), repository, client)
+    assert len(client.requests) == 1
+
+
+def test_failure_기록실패는_원래_typed_error와_context를_바꾸지_않는다() -> None:
+    repository = _기록저장소(fail_error=RuntimeError("postgresql://secret"))
+    client = _쪽클라이언트((original_response := SourceResponse(500, b"broken", NOW),))
+    with pytest.raises(SourceContractError) as captured:
+        discover_release(_계획(), repository, client)
+    assert captured.value.__cause__ is None
+    assert captured.value.__context__ is None
+    assert "secret" not in repr(captured.value)
+    assert original_response.status_code == 500

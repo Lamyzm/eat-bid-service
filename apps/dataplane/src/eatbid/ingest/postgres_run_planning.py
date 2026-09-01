@@ -170,9 +170,9 @@ class PostgresRunPlanningMixin:
             if run is None:
                 raise IngestIntegrityError("run does not exist")
             current_expected, captured_count, status = int(run[0]), int(run[1]), run[2]
-            if status != "running" or captured_count != expected_count:
+            if status != "running" or captured_count != 1:
                 raise RunExpectedCountFinalizationError(
-                    "active run must have captured the exact finalized request count"
+                    "active bootstrap run must have captured exactly its first request"
                 )
             if current_expected == expected_count:
                 return
@@ -184,3 +184,23 @@ class PostgresRunPlanningMixin:
                 "update ingest.run set expected_count = %s where run_id = %s",
                 (expected_count, run_id),
             )
+
+    def complete_discovery_run(self, *, run_id: UUID, completed_at: datetime) -> None:
+        require_aware(completed_at, "completed_at")
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                update ingest.run set status = 'validated'
+                where run_id = %s and status = 'running'
+                  and expected_count = captured_count
+                  and expected_count = (
+                    select count(*) from ingest.request_unit
+                    where run_id = %s and status = 'captured'
+                  )
+                """,
+                (run_id, run_id),
+            )
+            if cursor.rowcount != 1:
+                raise RunExpectedCountFinalizationError(
+                    "discovery run is not exact complete"
+                )

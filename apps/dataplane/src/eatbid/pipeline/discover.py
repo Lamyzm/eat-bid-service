@@ -2,25 +2,22 @@
 
 from __future__ import annotations
 
-import math
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 from typing import Protocol
 from uuid import UUID
 
 from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
-from eatbid.ingest.release_models import (
-    ReleaseDatasetPlan,
-    ReleaseDatasetProgress,
-    SealedSourceRelease,
-    SourceReleasePlan,
-)
+from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
 from eatbid.source.client import SourceClient, SourceResponse
 from eatbid.source.eat.models import BidListPage
 from eatbid.source.eat.normalize import parse_bid_list_page
 from eatbid.source.eat.registry import require
+from eatbid.source.eat.xml import EatPayloadError
 
 _BUILD_SHA = re.compile(r"[0-9a-f]{64}")
 
@@ -29,6 +26,7 @@ _BUILD_SHA = re.compile(r"[0-9a-f]{64}")
 class DiscoveryPlan:
     source_release_id: UUID
     run_id: UUID
+    detail_run_id: UUID
     release_name: str
     as_of: datetime
     build_sha: str
@@ -43,10 +41,13 @@ class DiscoveryPlan:
     page_budget: int
 
     def __post_init__(self) -> None:
-        if not isinstance(self.source_release_id, UUID) or not isinstance(
-            self.run_id, UUID
+        if not all(
+            isinstance(value, UUID)
+            for value in (self.source_release_id, self.run_id, self.detail_run_id)
         ):
             raise TypeError("discovery identities must be UUID values")
+        if self.run_id == self.detail_run_id:
+            raise ValueError("discovery and detail run identities must differ")
         if not self.release_name or not self.parser_version:
             raise ValueError("release_name and parser_version are required")
         if _BUILD_SHA.fullmatch(self.build_sha) is None:
@@ -67,7 +68,9 @@ class DiscoveryResult:
     expected_count: int
     external_bid_ids: tuple[str, ...]
     observation_ids: tuple[int, ...]
-    manifest_sha256: str
+    detail_run_id: UUID
+    detail_request_unit_ids: tuple[int, ...]
+    discovered_manifest_sha256: str
 
 
 class DiscoveryPersistence(Protocol):
@@ -83,6 +86,12 @@ class DiscoveryPersistence(Protocol):
 
     def finalize_run_expected_count(self, run_id: UUID, expected_count: int) -> None: ...
 
+    def start_detail_run(self, plan: DiscoveryPlan, expected_count: int) -> None: ...
+
+    def plan_detail(
+        self, plan: DiscoveryPlan, external_bid_id: str
+    ) -> PlannedRequestUnit: ...
+
     def plan_release(self, plan: SourceReleasePlan) -> None: ...
 
     def attach_run(self, source_release_id: UUID, run_id: UUID) -> None: ...
@@ -91,13 +100,7 @@ class DiscoveryPersistence(Protocol):
         self, source_release_id: UUID, observation_id: int
     ) -> None: ...
 
-    def record_dataset_progress(
-        self, source_release_id: UUID, progress: ReleaseDatasetProgress
-    ) -> None: ...
-
-    def seal_release(
-        self, source_release_id: UUID, *, sealed_at: datetime
-    ) -> SealedSourceRelease: ...
+    def complete_discovery_run(self, run_id: UUID) -> None: ...
 
     def fail_run(self, plan: DiscoveryPlan, error: Exception) -> None: ...
 
@@ -119,11 +122,13 @@ def discover_release(
         observations.append(first[0])
         page = first[1]
         total_count = page.total_count
-        required_pages = max(1, math.ceil(total_count / plan.page_size))
-        if required_pages > plan.page_budget:
+        if total_count > plan.page_budget * plan.page_size:
             raise SourceContractError("discovery page budget is insufficient")
+        required_pages = max(1, (total_count + plan.page_size - 1) // plan.page_size)
+        repository.finalize_run_expected_count(plan.run_id, required_pages)
         _require_page_size(page.external_bid_ids, 1, required_pages, total_count, plan.page_size)
         source_ids.extend(page.external_bid_ids)
+        seen = set(page.external_bid_ids)
 
         for page_number in range(2, required_pages + 1):
             observation, current = _fetch_page(
@@ -139,43 +144,54 @@ def discover_release(
                 total_count,
                 plan.page_size,
             )
+            duplicates = seen.intersection(current.external_bid_ids)
+            if duplicates:
+                raise SourceContractError("discovery contains duplicate source IDs")
+            seen.update(current.external_bid_ids)
             source_ids.extend(current.external_bid_ids)
 
         if len(source_ids) != total_count:
             raise SourceContractError("discovery row total differs from source count")
-        if len(set(source_ids)) != len(source_ids):
-            raise SourceContractError("discovery contains duplicate source IDs")
         ordered_ids = tuple(sorted(source_ids, key=int))
-        repository.finalize_run_expected_count(plan.run_id, required_pages)
+        repository.start_detail_run(plan, total_count)
+        detail_units = tuple(
+            repository.plan_detail(plan, source_id) for source_id in ordered_ids
+        )
         release_plan = _release_plan(plan, total_count)
         repository.plan_release(release_plan)
         repository.attach_run(plan.source_release_id, plan.run_id)
+        repository.attach_run(plan.source_release_id, plan.detail_run_id)
         for observation in observations:
             repository.attach_observation(
                 plan.source_release_id, observation.observation_id
             )
-        repository.record_dataset_progress(
-            plan.source_release_id,
-            ReleaseDatasetProgress(
-                dataset=release_plan.datasets[0].dataset,
-                observed_count=total_count,
-                normalized_count=total_count,
-                quarantined_count=0,
-            ),
-        )
-        sealed = repository.seal_release(
-            plan.source_release_id, sealed_at=plan.completed_at
-        )
+        repository.complete_discovery_run(plan.run_id)
+        manifest = json.dumps(
+            ordered_ids, ensure_ascii=True, separators=(",", ":")
+        ).encode()
         return DiscoveryResult(
             source_release_id=plan.source_release_id,
             expected_count=total_count,
             external_bid_ids=ordered_ids,
             observation_ids=tuple(item.observation_id for item in observations),
-            manifest_sha256=sealed.manifest_sha256,
+            detail_run_id=plan.detail_run_id,
+            detail_request_unit_ids=tuple(unit.request_unit_id for unit in detail_units),
+            discovered_manifest_sha256=sha256(manifest).hexdigest(),
         )
     except Exception as error:
+        _best_effort_fail(repository, plan, error)
+        error.__context__ = None
+        error.__cause__ = None
+        raise error from None
+
+
+def _best_effort_fail(
+    repository: DiscoveryPersistence, plan: DiscoveryPlan, error: Exception
+) -> None:
+    try:
         repository.fail_run(plan, error)
-        raise
+    except Exception:  # noqa: BLE001 - 원래 typed failure만 외부 경계로 보낸다.
+        return
 
 
 def _fetch_page(
@@ -194,7 +210,11 @@ def _fetch_page(
     )
     response = client.fetch(request)
     observation = repository.archive_observation(request, response)
-    return observation, parse_bid_list_page(response.body)
+    try:
+        page = parse_bid_list_page(response.body)
+    except EatPayloadError:
+        raise SourceContractError("discovery response is malformed") from None
+    return observation, page
 
 
 def _require_page_size(
@@ -214,8 +234,10 @@ def _require_page_size(
 
 
 def _release_plan(plan: DiscoveryPlan, expected_count: int) -> SourceReleasePlan:
-    contract = require("bid-list")
-    (dataset,) = contract.response_datasets
+    list_contract = require("bid-list")
+    detail_contract = require("bid-detail")
+    (list_dataset,) = list_contract.response_datasets
+    detail_dataset = detail_contract.response_datasets[0]
     return SourceReleasePlan(
         source_release_id=plan.source_release_id,
         source="eat",
@@ -223,11 +245,23 @@ def _release_plan(plan: DiscoveryPlan, expected_count: int) -> SourceReleasePlan
         as_of=plan.as_of,
         datasets=(
             ReleaseDatasetPlan(
-                endpoint=contract.endpoint,
-                dataset=dataset,
-                record_type=contract.record_type,
-                parser_version=contract.parser_version,
-                schema_fingerprint=contract.schema_fingerprint,
+                endpoint=list_contract.endpoint,
+                dataset=list_dataset,
+                record_type=list_contract.record_type,
+                parser_version=list_contract.parser_version,
+                schema_fingerprint=list_contract.schema_fingerprint,
+                expected_count=expected_count,
+                observed_count=expected_count,
+                normalized_count=expected_count,
+                quarantined_count=0,
+                required=True,
+            ),
+            ReleaseDatasetPlan(
+                endpoint=detail_contract.endpoint,
+                dataset=detail_dataset,
+                record_type=detail_contract.record_type,
+                parser_version=detail_contract.parser_version,
+                schema_fingerprint=detail_contract.schema_fingerprint,
                 expected_count=expected_count,
                 observed_count=0,
                 normalized_count=0,

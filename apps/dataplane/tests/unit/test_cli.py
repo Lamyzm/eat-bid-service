@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from eatbid.cli import COMMAND_HANDLERS, build_parser, main
-from eatbid.composition import Application
+from eatbid.composition import Application, build_application
 from eatbid.config import ApplicationSettings
 from eatbid.errors import SourceContractError
 from eatbid.pipeline.capture import SourceThrottledError
@@ -52,7 +52,8 @@ def _공통(command: str) -> list[str]:
 
 def _명령(command: str) -> list[str]:
     extras = {
-        "discover": ["--release-name", "R0 offline", "--as-of", "2026-09-01T00:00:00Z",
+        "discover": ["--detail-run-id", PUBLICATION_ID,
+                     "--release-name", "R0 offline", "--as-of", "2026-09-01T00:00:00Z",
                      "--started-at", "2026-09-01T00:00:00Z", "--completed-at", "2026-09-01T00:01:00Z",
                      "--start-date", "20260901", "--end-date", "20260901"],
         "capture": ["--external-bid-id", "5610615", "--started-at", "2026-09-01T00:00:00Z"],
@@ -135,11 +136,15 @@ def test_application_factory_구성실패도_secret을_stderr에_노출하지_�
 
 
 class _닫힘기록:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str] | None = None, name: str = "") -> None:
         self.close_count = 0
+        self.events = events
+        self.name = name
 
     def close(self) -> None:
         self.close_count += 1
+        if self.events is not None:
+            self.events.append(self.name)
 
 
 @pytest.mark.parametrize("body_error", [False, True])
@@ -162,3 +167,24 @@ def test_application_context가_정상과_예외에서_HTTP와_DB를_정확히_�
 
     assert connection.close_count == 1
     assert http_client.close_count == 1
+
+
+def test_R2_구성실패는_HTTP와_DB를_역순으로_한번씩_닫고_secret을_숨긴다(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    connection = _닫힘기록(events, "db")
+    http_client = _닫힘기록(events, "http")
+    monkeypatch.setattr("eatbid.composition.psycopg.connect", lambda _: connection)
+    monkeypatch.setattr("eatbid.composition.EatHttpClient", lambda **_: http_client)
+
+    def fail_store(_: object) -> object:
+        raise RuntimeError("r2-secret-provider")
+
+    monkeypatch.setattr("eatbid.composition.R2RawObjectStore", fail_store)
+    with pytest.raises(RuntimeError, match="application configuration failed") as captured:
+        build_application(_설정())
+    assert events == ["http", "db"]
+    assert captured.value.__cause__ is None
+    assert captured.value.__context__ is None
+    assert "secret" not in repr(captured.value)
