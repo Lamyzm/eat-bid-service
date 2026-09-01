@@ -19,8 +19,11 @@ from eatbid.ingest.release_repository import (
     ReleaseIncompleteError,
     ReleaseIsolationContractError,
     ReleaseManifestConflictError,
+    ReleaseMissingMemberError,
+    ReleasePlanConflictError,
     ReleaseProgressError,
     ReleaseSealedError,
+    ReleaseSourceMismatchError,
     release_manifest_sha256,
 )
 from eatbid.source.client import SourceResponse
@@ -36,7 +39,7 @@ SEALED_AT = datetime(2026, 9, 1, 3, 1, tzinfo=UTC)
 
 
 def _capture(
-    services: PipelineServices, *, suffix: str
+    services: PipelineServices, *, suffix: str, source: str = "eat"
 ) -> tuple[UUID, int, str]:
     run_id = uuid4()
     services.repository.start_run(
@@ -49,18 +52,18 @@ def _capture(
     )
     planned = services.repository.plan_request_unit(
         run_id=run_id,
-        source="eat",
+        source=source,
         endpoint="bid-list",
         params={"page": suffix},
         expected_count=1,
     )
     body = f"<result>{suffix}</result>".encode()
-    stored = services.store.put(source="eat", endpoint="bid-list", body=body)
+    stored = services.store.put(source=source, endpoint="bid-list", body=body)
     observation = services.repository.record_observation(
         request=CaptureRequest(
             request_unit_id=planned.request_unit_id,
             run_id=run_id,
-            source="eat",
+            source=source,
             endpoint="bid-list",
             params=planned.params,
         ),
@@ -340,3 +343,117 @@ def test_DB_SQLSTATE_25000은_typed_isolation_error의_cause로_보존된다(
             )
             cursor.execute(f"drop function if exists public.{function_name}()")
         pipeline_services.connection.commit()
+
+
+def test_cross_source_observation은_attach에서_typed_mismatch로_거부된다(
+    pipeline_services: PipelineServices,
+) -> None:
+    _, observation_id, _ = _capture(
+        pipeline_services, suffix="cross-source-attach", source="other"
+    )
+    repository = PsycopgSourceReleaseRepository(pipeline_services.connection)
+    plan = _plan(_dataset())
+    repository.plan_release(plan)
+
+    with pytest.raises(ReleaseSourceMismatchError) as caught:
+        repository.attach_observation(plan.source_release_id, observation_id)
+
+    assert caught.value.release_source == "eat"
+    assert caught.value.observation_source == "other"
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select count(*) from ingest.source_release_observation "
+            "where source_release_id = %s",
+            (plan.source_release_id,),
+        )
+        assert cursor.fetchone() == (0,)
+
+
+def test_direct_SQL_cross_source_membership은_seal에서_rollback된다(
+    pipeline_services: PipelineServices,
+) -> None:
+    _, observation_id, _ = _capture(
+        pipeline_services, suffix="cross-source-seal", source="other"
+    )
+    repository = PsycopgSourceReleaseRepository(pipeline_services.connection)
+    plan = _plan(_dataset())
+    repository.plan_release(plan)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "insert into ingest.source_release_observation "
+            "(source_release_id, observation_id) values (%s, %s)",
+            (plan.source_release_id, observation_id),
+        )
+    pipeline_services.connection.commit()
+
+    with pytest.raises(ReleaseSourceMismatchError):
+        repository.seal_release(plan.source_release_id, sealed_at=SEALED_AT)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select status, manifest_sha256, sealed_at from ingest.source_release "
+            "where source_release_id = %s",
+            (plan.source_release_id,),
+        )
+        assert cursor.fetchone() == ("planned", None, None)
+
+
+@pytest.mark.parametrize(
+    ("member_kind", "attach"),
+    [
+        ("run", lambda repository, release_id: repository.attach_run(release_id, uuid4())),
+        (
+            "observation",
+            lambda repository, release_id: repository.attach_observation(
+                release_id, 2**62
+            ),
+        ),
+    ],
+)
+def test_없는_member_FK는_kind가_있는_typed_error로_보존된다(
+    pipeline_services: PipelineServices,
+    member_kind: str,
+    attach,
+) -> None:
+    repository = PsycopgSourceReleaseRepository(pipeline_services.connection)
+    plan = _plan(_dataset())
+    repository.plan_release(plan)
+
+    with pytest.raises(ReleaseMissingMemberError) as caught:
+        attach(repository, plan.source_release_id)
+
+    assert caught.value.member_kind == member_kind
+    assert isinstance(caught.value.__cause__, psycopg.errors.ForeignKeyViolation)
+
+
+def test_같은_release_UUID는_plan_identity_conflict로_보존된다(
+    pipeline_services: PipelineServices,
+) -> None:
+    repository = PsycopgSourceReleaseRepository(pipeline_services.connection)
+    plan = _plan(_dataset())
+    repository.plan_release(plan)
+    conflicting = _plan(
+        _dataset(),
+        source_release_id=plan.source_release_id,
+        release_name="다른 이름",
+    )
+
+    with pytest.raises(ReleasePlanConflictError) as caught:
+        repository.plan_release(conflicting)
+
+    assert caught.value.conflict_kind == "source_release_id"
+    assert isinstance(caught.value.__cause__, psycopg.errors.UniqueViolation)
+
+
+def test_같은_source_release_name은_plan_name_conflict로_보존된다(
+    pipeline_services: PipelineServices,
+) -> None:
+    repository = PsycopgSourceReleaseRepository(pipeline_services.connection)
+    release_name = "중복 이름"
+    repository.plan_release(_plan(_dataset(), release_name=release_name))
+
+    with pytest.raises(ReleasePlanConflictError) as caught:
+        repository.plan_release(_plan(_dataset(), release_name=release_name))
+
+    assert caught.value.conflict_kind == "source_release_name"
+    assert isinstance(caught.value.__cause__, psycopg.errors.UniqueViolation)

@@ -8,10 +8,20 @@ from typing import Any
 from uuid import UUID
 
 import psycopg
-from psycopg import IsolationLevel, sql
-from psycopg.pq import TransactionStatus
+from psycopg import sql
 
-from eatbid.ingest.postgres_release_mapping import load_release_datasets
+from eatbid.ingest.postgres_release_errors import (
+    MemberKind,
+    raise_duplicate_member,
+    raise_missing_member,
+    raise_plan_conflict,
+    require_terminal_scope,
+)
+from eatbid.ingest.postgres_release_mapping import (
+    load_release_datasets,
+    load_release_observations,
+    lock_observation_source,
+)
 from eatbid.ingest.release_models import (
     ReleaseCompleteness,
     ReleaseDatasetPlan,
@@ -20,13 +30,13 @@ from eatbid.ingest.release_models import (
     SourceReleasePlan,
 )
 from eatbid.ingest.release_repository import (
-    ReleaseDuplicateMemberError,
     ReleaseIncompleteError,
     ReleaseIsolationContractError,
     ReleaseManifestConflictError,
     ReleaseNotFoundError,
     ReleaseProgressError,
     ReleaseSealedError,
+    ReleaseSourceMismatchError,
     release_manifest_sha256,
 )
 
@@ -78,9 +88,7 @@ class PsycopgSourceReleaseRepository:
                     ],
                 )
         except psycopg.errors.UniqueViolation as error:
-            raise ReleaseDuplicateMemberError(
-                "source release plan identity or dataset already exists"
-            ) from error
+            raise_plan_conflict(error)
 
     def attach_run(self, source_release_id: UUID, run_id: UUID) -> None:
         self._attach_member(
@@ -90,6 +98,7 @@ class PsycopgSourceReleaseRepository:
                 "(source_release_id, run_id) values (%s, %s)"
             ),
             run_id,
+            "run",
         )
 
     def attach_observation(
@@ -108,6 +117,7 @@ class PsycopgSourceReleaseRepository:
                 "(source_release_id, observation_id) values (%s, %s)"
             ),
             observation_id,
+            "observation",
         )
 
     def record_dataset_progress(
@@ -165,7 +175,7 @@ class PsycopgSourceReleaseRepository:
     ) -> SealedSourceRelease:
         if sealed_at.utcoffset() is None:
             raise ValueError("sealed_at must be timezone-aware")
-        self._require_terminal_scope()
+        require_terminal_scope(self._connection)
         try:
             return self._seal_transaction(source_release_id, sealed_at=sealed_at)
         except psycopg.errors.UniqueViolation as error:
@@ -207,20 +217,10 @@ class PsycopgSourceReleaseRepository:
                 raise ReleaseIncompleteError(
                     "required source release datasets are not exact complete"
                 )
-            cursor.execute(
-                """
-                select member.observation_id, observation.content_sha256
-                from ingest.source_release_observation member
-                join ingest.raw_observation observation
-                  on observation.observation_id = member.observation_id
-                where member.source_release_id = %s
-                order by member.observation_id, observation.content_sha256
-                for update of observation
-                """,
-                (source_release_id,),
-            )
-            observations = tuple(
-                (int(row[0]), str(row[1])) for row in cursor.fetchall()
+            observations = load_release_observations(
+                cursor,
+                source_release_id,
+                release_source=str(parent[0]),
             )
             plan = SourceReleasePlan(
                 source_release_id=source_release_id,
@@ -252,34 +252,47 @@ class PsycopgSourceReleaseRepository:
             )
 
     def _attach_member(
-        self, source_release_id: UUID, statement: sql.SQL, member_id: object
+        self,
+        source_release_id: UUID,
+        statement: sql.SQL,
+        member_id: UUID | int,
+        member_kind: MemberKind,
     ) -> None:
         try:
             with self._connection.transaction(), self._connection.cursor() as cursor:
-                self._lock_planned(cursor, source_release_id)
+                release_source = self._lock_planned(cursor, source_release_id)
+                if member_kind == "observation":
+                    if not isinstance(member_id, int):
+                        raise TypeError("observation member_id must be an integer")
+                    observation_source = lock_observation_source(
+                        cursor, member_id
+                    )
+                    if (
+                        observation_source is not None
+                        and observation_source != release_source
+                    ):
+                        raise ReleaseSourceMismatchError(
+                            release_source=release_source,
+                            observation_source=observation_source,
+                        )
                 cursor.execute(statement, (source_release_id, member_id))
         except psycopg.errors.UniqueViolation as error:
-            raise ReleaseDuplicateMemberError("source release member already exists") from error
+            raise_duplicate_member(error, member_kind)
+        except psycopg.errors.ForeignKeyViolation as error:
+            raise_missing_member(error, member_kind)
 
     @staticmethod
-    def _lock_planned(cursor: psycopg.Cursor[Any], source_release_id: UUID) -> None:
+    def _lock_planned(
+        cursor: psycopg.Cursor[Any], source_release_id: UUID
+    ) -> str:
         cursor.execute(
-            "select status from ingest.source_release where source_release_id = %s for update",
+            "select source, status from ingest.source_release "
+            "where source_release_id = %s for update",
             (source_release_id,),
         )
         row = cursor.fetchone()
         if row is None:
             raise ReleaseNotFoundError("source release does not exist")
-        if row[0] != "planned":
-            raise ReleaseSealedError(f"{row[0]} source release cannot be mutated")
-
-    def _require_terminal_scope(self) -> None:
-        if self._connection.info.transaction_status != TransactionStatus.IDLE:
-            raise ReleaseIsolationContractError(
-                "source release seal requires an idle repository connection"
-            )
-        configured = self._connection.isolation_level
-        if configured not in {None, IsolationLevel.READ_COMMITTED}:
-            raise ReleaseIsolationContractError(
-                "source release seal requires READ COMMITTED connection isolation"
-            )
+        if row[1] != "planned":
+            raise ReleaseSealedError(f"{row[1]} source release cannot be mutated")
+        return str(row[0])

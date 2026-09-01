@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict
 from datetime import datetime
 from hashlib import sha256
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
 from eatbid.ingest.release_models import (
@@ -66,6 +66,34 @@ class ReleaseDuplicateMemberError(SourceReleaseRepositoryError):
 
 class ReleaseManifestConflictError(SourceReleaseRepositoryError):
     """같은 source의 canonical manifest identity가 이미 존재한다."""
+
+
+class ReleaseSourceMismatchError(SourceReleaseRepositoryError):
+    """release source와 observation source가 다른 membership을 거부한다."""
+
+    def __init__(self, *, release_source: str, observation_source: str) -> None:
+        super().__init__("observation source differs from source release")
+        self.release_source = release_source
+        self.observation_source = observation_source
+
+
+class ReleaseMissingMemberError(SourceReleaseRepositoryError):
+    """존재하지 않는 run 또는 observation member를 구분해 보존한다."""
+
+    def __init__(self, member_kind: Literal["run", "observation"]) -> None:
+        super().__init__(f"source release {member_kind} member does not exist")
+        self.member_kind = member_kind
+
+
+class ReleasePlanConflictError(SourceReleaseRepositoryError):
+    """release 계획 identity와 사람이 읽는 이름 충돌을 member 중복과 분리한다."""
+
+    def __init__(
+        self,
+        conflict_kind: Literal["source_release_id", "source_release_name"],
+    ) -> None:
+        super().__init__(f"source release plan conflicts by {conflict_kind}")
+        self.conflict_kind = conflict_kind
 
 
 class ReleaseIsolationContractError(SourceReleaseRepositoryError):

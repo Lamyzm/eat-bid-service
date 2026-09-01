@@ -8,6 +8,48 @@ from uuid import UUID
 import psycopg
 
 from eatbid.ingest.release_models import ReleaseCompleteness
+from eatbid.ingest.release_repository import ReleaseSourceMismatchError
+
+
+def lock_observation_source(
+    cursor: psycopg.Cursor[Any], observation_id: int
+) -> str | None:
+    cursor.execute(
+        "select source from ingest.raw_observation where observation_id = %s for update",
+        (observation_id,),
+    )
+    row = cursor.fetchone()
+    return None if row is None else str(row[0])
+
+
+def load_release_observations(
+    cursor: psycopg.Cursor[Any],
+    source_release_id: UUID,
+    *,
+    release_source: str,
+) -> tuple[tuple[int, str], ...]:
+    cursor.execute(
+        """
+        select member.observation_id, observation.content_sha256,
+               observation.source
+        from ingest.source_release_observation member
+        join ingest.raw_observation observation
+          on observation.observation_id = member.observation_id
+        where member.source_release_id = %s
+        order by member.observation_id, observation.content_sha256
+        for update of observation
+        """,
+        (source_release_id,),
+    )
+    rows = cursor.fetchall()
+    for row in rows:
+        observation_source = str(row[2])
+        if observation_source != release_source:
+            raise ReleaseSourceMismatchError(
+                release_source=release_source,
+                observation_source=observation_source,
+            )
+    return tuple((int(row[0]), str(row[1])) for row in rows)
 
 
 def load_release_datasets(
