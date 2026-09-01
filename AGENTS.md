@@ -83,7 +83,9 @@
 22. **AI 리뷰는 결정적 gate 뒤의 읽기 전용 advisory다.** Codex와 Claude 모두 저장소의
     `pnpm review:ai`를 사용하고 별도 도구 전용 품질 규칙을 만들지 않는다. AI finding은 자동 수정하거나
     lint·typecheck·test·contract·architecture 실패를 덮을 수 없다. 실행 경계와 장애 처리는
-    [`docs/operations/ai-code-review.md`](docs/operations/ai-code-review.md)를 따른다.
+    [`docs/operations/ai-code-review.md`](docs/operations/ai-code-review.md)를 따른다. 반복 절차의
+    canonical Agent Skill은 `.agents/skills`이며 `.claude/skills`는 `pnpm agent:skills:write`가 만든
+    projection이라 직접 편집하지 않는다.
 23. **production 모듈은 책임을 한국어로 먼저 설명한다.** 신규·실질 변경 JavaScript/TypeScript 모듈은
     directive와 import·실행 코드보다 앞에 `@module 책임:` 주석을, Python 모듈은 첫 docstring에
     `모듈 책임:`을 둔다. 함께 바뀌는 이유와 소유 경계를 구체적으로 한 문장으로 적고 “이 모듈을 설명한다”
