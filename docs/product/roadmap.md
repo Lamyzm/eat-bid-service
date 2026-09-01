@@ -80,6 +80,7 @@ delivery acceptance로 사용하지 않는다.
 **한 가지 질문:** 이 공고에 어떤 값을 왜 선택할 것인가?
 
 - 기관·금액·하한·지역·차수 등 확정 공고 사실
+- exact 기관의 이전 `AuctionAttempt` 시간 산점도와 같은 member를 쓰는 기록 표
 - source-observed `award_bid_rate`의 versioned 비교 분포
 - requested/selected cohort, 표본·제외 수·기간·`as_of`·freshness·계산 버전
 - 같은 measure로 사용자가 직접 입력한 최대 3개 후보의 기술적 위치 비교
@@ -164,7 +165,8 @@ R1은 화면 수가 아니라 다음 capability 순서로 진행한다.
 1. **분석 기반:** 전체 검증 corpus profiling → 사전등록 cohort policy →
    `ComparableOutcomeDistribution/v1` → `ReplayEvaluator/v1` → `AnalysisEvidenceContract/v1`
 2. **분석 첫 slice:** 정확한 `Workspace × SupplierParty × AuctionAttempt × revision`에서 분석을 열고
-   후보 revision을 evidence result/build와 함께 저장한다.
+   exact 기관 이력의 시간 산점도·연결 표, selected cohort 분포를 같은 evidence result로 읽는다. 후보
+   revision은 그 결과가 참조한 mart build와 함께 저장한다.
 3. **투찰 업무:** 공고 행 × 사업자 셀 목록과 persistent 판단 도크를 연결한다.
 4. **결정 journal:** 후보와 선택값·근거를 개찰 전 append-only decision revision으로 봉인한다.
 5. **대조·복기:** NeaT 사용자 확인, source submission, 개찰 결과, reconciliation을 서로 다른
