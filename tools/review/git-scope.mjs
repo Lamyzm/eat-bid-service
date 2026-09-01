@@ -72,9 +72,9 @@ export function inspectReviewScope({ repoRoot, baseRef, limits = REVIEW_SCOPE_LI
       .filter(Boolean)
       .map((value) => value.replaceAll("\\", "/"))
       .sort(compare);
-  // finding 대상은 현재 존재하는 파일(ACMR)뿐이지만 patch에는 삭제 파일 본문도 남는다.
-  // 그래서 민감 경로 거부는 삭제를 포함한 전체 변경 경로에 적용한다.
-  if (listPaths([]).some((value) => DENIED_PATH.test(value))) {
+  // finding 대상은 현재 존재하는 파일(ACMR)뿐이지만 patch에는 삭제·rename 전 본문도 남는다.
+  // 그래서 민감 경로 거부는 rename 감지를 끄고 삭제와 old 경로까지 포함한 전체 변경 경로에 적용한다.
+  if (listPaths(["--no-renames"]).some((value) => DENIED_PATH.test(value))) {
     return refused("denied-path", "민감 정보·생성물·lockfile 변경은 AI prompt에 넣지 않습니다.");
   }
   const changedPaths = listPaths(["--diff-filter=ACMR"]);

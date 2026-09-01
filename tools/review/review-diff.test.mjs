@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { hunkSides, renderDiffSection, splitPatchByFile } from "./review-diff.mjs";
+import { hasSensitiveContent } from "./sensitive-content.mjs";
 
 const hunk = (file, body) =>
   `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n${body}\n`;
@@ -63,6 +64,35 @@ test("삭제된 민감 경로 hunk와 삭제 전용 credential hunk는 HEAD에 �
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("접두어가 붙은 원문은 credential 검사를 통과하지만 old side 복원은 잡아낸다", () => {
+  const chunk =
+    "diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n@@ -1,4 +1,3 @@\n export const config = {\n-  password: \"old-secret-value-1234\",\n   host: \"db\",\n };\n";
+  assert.equal(hasSensitiveContent(chunk, "src/config.ts"), false);
+  assert.equal(hasSensitiveContent(hunkSides(chunk)[0], "src/config.ts"), true);
+});
+
+test("민감 경로에서 rename된 hunk와 quote된 header는 old 경로 기준으로 제외한다", () => {
+  const patch = [
+    'diff --git a/credentials.json b/config.json\nsimilarity index 60%\nrename from credentials.json\nrename to config.json\n--- a/credentials.json\n+++ b/config.json\n@@ -1 +1 @@\n-{"token":"old-secret-value-1234"}\n+{"keep":true}\n',
+    'diff --git "a/we\\"ird.ts" "b/we\\"ird.ts"\n--- "a/we\\"ird.ts"\n+++ "b/we\\"ird.ts"\n@@ -1 +1 @@\n+export const weird = 1;\n',
+    hunk("src/kept.ts", "+export const kept = true;"),
+  ].join("");
+  const section = renderDiffSection({ repoRoot: "C:/repo", patch });
+  assert.doesNotMatch(section, /old-secret-value-1234|weird = 1/);
+  assert.match(section, /credentials\.json → config\.json.*denied-path/);
+  assert.match(section, /quoted-path/);
+  assert.match(section, /export const kept = true;/);
+});
+
+test("context 밖 깊은 속성의 credential 삭제 줄은 line 수준 fallback으로 제외한다", () => {
+  const patch =
+    "diff --git a/src/big.ts b/src/big.ts\n--- a/src/big.ts\n+++ b/src/big.ts\n@@ -40,3 +40,2 @@\n   host: \"db\",\n-  password: \"deep-secret-value-1234\",\n   port: 5432,\n";
+  assert.equal(hasSensitiveContent(hunkSides(patch)[0], "src/big.ts"), false);
+  const section = renderDiffSection({ repoRoot: "C:/repo", patch });
+  assert.doesNotMatch(section, /deep-secret-value-1234/);
+  assert.match(section, /src\/big\.ts.*sensitive-content/);
 });
 
 test("diff 안의 backtick fence보다 긴 fence를 써서 조기에 닫히지 않는다", () => {

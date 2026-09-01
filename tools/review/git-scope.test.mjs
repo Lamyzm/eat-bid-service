@@ -59,6 +59,25 @@ test("삭제된 민감 경로도 patch에 본문이 남으므로 denied-path로 
   }
 });
 
+test("민감 경로에서 평범한 경로로 rename해도 old 본문이 patch에 남으므로 거부한다", () => {
+  const fixture = repository();
+  try {
+    writeFileSync(path.join(fixture.root, "credentials.json"), '{"token":"old-secret-value-1234","keep":true}\n', "utf8");
+    fixture.git("add", "credentials.json");
+    fixture.git("commit", "-qm", "민감 파일 커밋");
+    const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fixture.root, encoding: "utf8" }).trim();
+    fixture.git("mv", "credentials.json", "config.json");
+    writeFileSync(path.join(fixture.root, "config.json"), '{"keep":true}\n', "utf8");
+    fixture.git("add", "config.json");
+    fixture.git("commit", "-qm", "rename 뒤 secret 제거");
+
+    const scope = inspectReviewScope({ repoRoot: fixture.root, baseRef: base });
+    assert.equal(scope.category, "denied-path");
+  } finally {
+    fixture.close();
+  }
+});
+
 test("비ASCII 경로도 quote 없이 patch header에 그대로 남는다", () => {
   const fixture = repository();
   try {

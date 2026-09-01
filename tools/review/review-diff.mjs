@@ -6,7 +6,12 @@ import { DENIED_PATH } from "./git-scope.mjs";
 import { hasSensitiveContent } from "./sensitive-content.mjs";
 
 const HEADER = /^diff --git a\/(.+?) b\/(.+)$/;
+const QUOTED_HEADER = /^diff --git "a\/.*" "b\/.*"$/;
 const BINARY = /^(?:GIT binary patch|Binary files .* differ)$/m;
+// AST 검사는 둘러싼 `{`가 hunk context 안에 있어야 owner 이름을 본다. context 밖 깊은 속성의
+// credential 줄은 값 모양과 무관하게 보수적으로 잡는다. 값은 출력하지 않으므로 오탐 비용은 hunk 하나다.
+const LINE_CREDENTIAL =
+  /^\s*["']?[\w-]*(?:password|api[_-]?key|api[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|authorization)["']?\s*[:=]\s*["'`]/i;
 const DELETED_NOTE =
   "삭제된 파일의 hunk는 근거일 뿐 finding 대상이 아니다. finding 경로는 `검토 범위`의 changedPaths 안에서만 고른다.";
 
@@ -15,9 +20,15 @@ export function splitPatchByFile(patch) {
   let current = null;
   for (const line of patch.replaceAll("\r\n", "\n").split("\n")) {
     const header = line.match(HEADER);
-    if (header) {
+    const quoted = !header && QUOTED_HEADER.test(line);
+    if (header || quoted) {
       if (current) chunks.push(current);
-      current = { path: header[2].replaceAll("\\", "/"), lines: [line] };
+      current = {
+        path: header ? header[2].replaceAll("\\", "/") : line.slice("diff --git ".length),
+        oldPath: header ? header[1].replaceAll("\\", "/") : null,
+        quoted,
+        lines: [line],
+      };
       continue;
     }
     if (current) current.lines.push(line);
@@ -25,6 +36,8 @@ export function splitPatchByFile(patch) {
   if (current) chunks.push(current);
   return chunks.map((chunk) => ({
     path: chunk.path,
+    oldPath: chunk.oldPath,
+    quoted: chunk.quoted,
     text: `${chunk.lines.join("\n").replace(/\n+$/u, "")}\n`,
   }));
 }
@@ -59,22 +72,35 @@ function fenceFor(text) {
   return "`".repeat(longest + 1);
 }
 
+function changedLinesLookSensitive(text) {
+  return hunkSides(text).some((side) =>
+    side.split("\n").some((line) => LINE_CREDENTIAL.test(line)),
+  );
+}
+
 /**
  * preflight는 경로 이름으로 거부하지만 여기서 한 번 더 막아 preflight를 거치지 않은 patch도 안전하게 한다.
- * 그 다음 old/new side 본문과 현재 파일 본문을 검사해 이름이 평범한 파일의 credential이 새지 않게 한다.
- * 값은 절대 출력하지 않는다.
+ * rename은 old 경로 본문이 `-` 줄로 남으므로 old·new 경로를 모두 검사하고, quote된 header는 경로를 확정할 수
+ * 없어 fail-closed로 제외한다. 그 다음 old/new side 본문과 현재 파일 본문을 검사한다. 값은 절대 출력하지 않는다.
  */
 function exclusionReason(repoRoot, chunk) {
-  if (DENIED_PATH.test(chunk.path)) return "denied-path";
+  if (chunk.quoted) return "quoted-path";
+  if (DENIED_PATH.test(chunk.path) || (chunk.oldPath && DENIED_PATH.test(chunk.oldPath))) return "denied-path";
   if (BINARY.test(chunk.text)) return "binary";
   if (hunkSides(chunk.text).some((side) => hasSensitiveContent(side, chunk.path))) {
     return "sensitive-content";
   }
+  if (changedLinesLookSensitive(chunk.text)) return "sensitive-content";
   const target = path.join(repoRoot, chunk.path);
   if (existsSync(target) && hasSensitiveContent(readFileSync(target, "utf8"), chunk.path)) {
     return "sensitive-content";
   }
   return null;
+}
+
+function chunkLabel(chunk) {
+  if (chunk.quoted) return "(quote된 경로)";
+  return chunk.oldPath && chunk.oldPath !== chunk.path ? `${chunk.oldPath} → ${chunk.path}` : chunk.path;
 }
 
 export function renderDiffSection({ repoRoot, patch }) {
@@ -85,7 +111,7 @@ export function renderDiffSection({ repoRoot, patch }) {
   const excluded = [];
   for (const chunk of splitPatchByFile(patch)) {
     const reason = exclusionReason(path.resolve(repoRoot), chunk);
-    if (reason) excluded.push(`- ${chunk.path} (${reason})`);
+    if (reason) excluded.push(`- ${chunkLabel(chunk)} (${reason})`);
     else included.push(chunk.text);
   }
   const body = included.join("");
