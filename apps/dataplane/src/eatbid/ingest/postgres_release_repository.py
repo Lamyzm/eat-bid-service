@@ -279,7 +279,7 @@ class PsycopgSourceReleaseRepository:
         except psycopg.errors.UniqueViolation as error:
             raise_duplicate_member(error, member_kind)
         except psycopg.errors.ForeignKeyViolation as error:
-            raise_missing_member(error, member_kind)
+            raise_missing_member(error, member_kind, member_id)
 
     @staticmethod
     def _lock_planned(

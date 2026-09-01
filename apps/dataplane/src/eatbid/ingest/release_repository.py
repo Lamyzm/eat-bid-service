@@ -80,9 +80,24 @@ class ReleaseSourceMismatchError(SourceReleaseRepositoryError):
 class ReleaseMissingMemberError(SourceReleaseRepositoryError):
     """존재하지 않는 run 또는 observation member를 구분해 보존한다."""
 
-    def __init__(self, member_kind: Literal["run", "observation"]) -> None:
-        super().__init__(f"source release {member_kind} member does not exist")
+    def __init__(
+        self,
+        member_kind: Literal["run", "observation"],
+        member_id: UUID | int,
+    ) -> None:
+        if member_kind == "run" and not isinstance(member_id, UUID):
+            raise TypeError("run member_id must be a UUID")
+        if member_kind == "observation" and (
+            isinstance(member_id, bool)
+            or not isinstance(member_id, int)
+            or member_id < 1
+        ):
+            raise ValueError("observation member_id must be a positive integer")
+        super().__init__(
+            f"source release {member_kind} member {member_id} does not exist"
+        )
         self.member_kind = member_kind
+        self.member_id = member_id
 
 
 class ReleasePlanConflictError(SourceReleaseRepositoryError):

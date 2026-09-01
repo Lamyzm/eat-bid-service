@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Literal, NoReturn
+from uuid import UUID
 
 import psycopg
 from psycopg import IsolationLevel
@@ -49,11 +50,13 @@ def raise_plan_conflict(error: psycopg.errors.UniqueViolation) -> NoReturn:
 
 
 def raise_missing_member(
-    error: psycopg.errors.ForeignKeyViolation, member_kind: MemberKind
+    error: psycopg.errors.ForeignKeyViolation,
+    member_kind: MemberKind,
+    member_id: UUID | int,
 ) -> NoReturn:
     if error.diag.constraint_name != _MEMBER_FOREIGN_KEYS[member_kind]:
         raise error
-    raise ReleaseMissingMemberError(member_kind) from error
+    raise ReleaseMissingMemberError(member_kind, member_id) from error
 
 
 def raise_duplicate_member(

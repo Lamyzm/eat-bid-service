@@ -399,30 +399,31 @@ def test_direct_SQL_cross_source_membership은_seal에서_rollback된다(
 
 
 @pytest.mark.parametrize(
-    ("member_kind", "attach"),
+    ("member_kind", "member_id"),
     [
-        ("run", lambda repository, release_id: repository.attach_run(release_id, uuid4())),
-        (
-            "observation",
-            lambda repository, release_id: repository.attach_observation(
-                release_id, 2**62
-            ),
-        ),
+        ("run", UUID("17000000-0000-0000-0000-000000000099")),
+        ("observation", 2**62),
     ],
 )
 def test_없는_member_FK는_kind가_있는_typed_error로_보존된다(
     pipeline_services: PipelineServices,
     member_kind: str,
-    attach,
+    member_id: UUID | int,
 ) -> None:
     repository = PsycopgSourceReleaseRepository(pipeline_services.connection)
     plan = _plan(_dataset())
     repository.plan_release(plan)
 
     with pytest.raises(ReleaseMissingMemberError) as caught:
-        attach(repository, plan.source_release_id)
+        if member_kind == "run":
+            assert isinstance(member_id, UUID)
+            repository.attach_run(plan.source_release_id, member_id)
+        else:
+            assert isinstance(member_id, int)
+            repository.attach_observation(plan.source_release_id, member_id)
 
     assert caught.value.member_kind == member_kind
+    assert caught.value.member_id == member_id
     assert isinstance(caught.value.__cause__, psycopg.errors.ForeignKeyViolation)
 
 
