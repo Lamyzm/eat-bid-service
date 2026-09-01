@@ -71,7 +71,21 @@ def test_detail_request_재시도는_같은_canonical_observation을_반환한�
         first = capture(request, store, repository, client)
         second = capture(request, store, repository, client)
 
+        retry_connection = migrated_db.connect()
+        try:
+            with retry_connection.transaction(), retry_connection.cursor() as cursor:
+                cursor.execute("set local lock_timeout = '500ms'")
+                third = capture(
+                    request,
+                    store,
+                    PsycopgObservationRepository(retry_connection),
+                    client,
+                )
+        finally:
+            retry_connection.close()
+
         assert second == first
+        assert third == first
         _단일관측을_확인한다(connection, request)
         assert store.object_count == 1
     finally:

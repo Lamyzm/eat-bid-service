@@ -237,3 +237,11 @@ validate는 planned release일 때 기존과 같이 actual detail progress를 �
 disposable PostgreSQL, 실제 `Application`, 실제 `cli.main` handler를 사용하는 E2E는 discover JSON의 release/detail-run/count/hash, capture JSON의 observation/hash, normalize, seal 직후 crash 복구 validate, validate 재시도, project, replay와 release-run membership을 검증한다. fake application이나 live eaT/R2는 사용하지 않았다.
 
 최종 결과는 focused CLI/PostgreSQL 5 passed, 전체 dataplane `630 passed in 39.53s`, Ruff 통과, Pyright 0 errors, `git diff --check` 통과, Node `v24.20.0`의 `pnpm architecture:check` 통과다.
+
+---
+
+## 5차 수정 — canonical retry reservation 해제
+
+서로 다른 PostgreSQL connection을 사용한 테스트는 첫 connection의 동일-payload canonical retry 뒤 두 번째 connection이 같은 request-unit advisory reservation에서 500ms lock timeout으로 실패하는 RED를 재현했다. 원인은 canonical observation early return이 release `finally` 바깥에 있었기 때문이다.
+
+reserve 성공 이후 canonical return, 신규 raw 저장/observation commit, object-store 실패, DB/typed failure는 이제 하나의 exactly-once release 경계를 공유한다. canonical 반환도 `try/finally` 안에서 이루어져 session advisory lock을 해제한다. 본문 실패와 unlock 실패가 겹치면 본문 typed failure가 권위이며 cleanup 상세를 붙이지 않는다. 본문이 성공했지만 unlock이 실패하면 성공을 거짓 보고하지 않고 provider message·cause를 숨긴 `CaptureReservationReleaseError`로 terminal 실패한다. 단위 테스트는 두 경로 모두 release 호출 1회와 secret 비노출을 확인한다.

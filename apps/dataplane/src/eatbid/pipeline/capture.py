@@ -22,6 +22,10 @@ class SourceThrottledError(SourceCaptureError):
     """The source rejected or throttled the request."""
 
 
+class CaptureReservationReleaseError(RuntimeError):
+    """reservation cleanup 실패를 provider 상세 없이 terminal로 닫는다."""
+
+
 def capture(
     request: CaptureRequest,
     store: RawObjectStore,
@@ -45,9 +49,10 @@ def capture_response(
         request=request, response=response,
         content_sha256=raw_content_sha256(response.body),
     )
-    if existing is not None:
-        return existing
+    body_error: Exception | None = None
     try:
+        if existing is not None:
+            return existing
         stored = store.put(
             source=request.source, endpoint=request.endpoint, body=response.body,
         )
@@ -56,8 +61,17 @@ def capture_response(
             request=request, response=response, stored=stored,
             failure_category=failure_category,
         )
+    except Exception as error:
+        body_error = error
+        raise
     finally:
-        repository.release_capture(request=request)
+        try:
+            repository.release_capture(request=request)
+        except Exception:  # noqa: BLE001 - cleanup은 본문 typed failure를 덮지 않는다.
+            if body_error is None:
+                raise CaptureReservationReleaseError(
+                    "capture reservation could not be released"
+                ) from None
     if failure_category == SOURCE_THROTTLED:
         raise SourceThrottledError(response.status_code)
     if failure_category == SOURCE_CONTRACT:

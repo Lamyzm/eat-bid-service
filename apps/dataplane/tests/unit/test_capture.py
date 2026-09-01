@@ -16,6 +16,7 @@ from eatbid.object_store import StoredRawObject
 from eatbid.pipeline.capture import (
     SOURCE_CONTRACT,
     SOURCE_THROTTLED,
+    CaptureReservationReleaseError,
     SourceContractError,
     SourceThrottledError,
     capture,
@@ -73,6 +74,20 @@ class RecordingRepository:
         raise AssertionError("capture failure must be recorded atomically")
 
 
+class _해제실패저장소(RecordingRepository):
+    def __init__(self, existing: CapturedObservation | None) -> None:
+        super().__init__()
+        self.existing = existing
+        self.release_count = 0
+
+    def reserve_capture(self, **kwargs: object) -> CapturedObservation | None:
+        return self.existing
+
+    def release_capture(self, **kwargs: object) -> None:
+        self.release_count += 1
+        raise RuntimeError("postgresql://secret")
+
+
 def capture_request(params: Mapping[str, str] | None = None) -> CaptureRequest:
     return CaptureRequest(
         request_unit_id=1,
@@ -95,6 +110,34 @@ def test_capture가_observation_기록_전에_body를_보관한다() -> None:
 
     assert events == ["object_stored", "observation_recorded"]
     assert result.observation_id == 1
+
+
+def test_canonical_재시도_unlock_실패는_성공을_보고하지_않고_secret을_숨긴다() -> None:
+    existing = CapturedObservation(1, "a" * 64, "raw/eat/bid-list/x", FETCHED_AT)
+    repository = _해제실패저장소(existing)
+    with pytest.raises(CaptureReservationReleaseError) as captured:
+        capture(
+            capture_request(),
+            MemoryRawObjectStore(),
+            repository,
+            StaticSourceClient(SourceResponse(200, b"same", FETCHED_AT)),
+        )
+    assert repository.release_count == 1
+    assert captured.value.__cause__ is None
+    assert "secret" not in repr(captured.value)
+
+
+def test_body_실패와_unlock_실패가_겹치면_원래_실패를_보존한다() -> None:
+    repository = _해제실패저장소(None)
+    with pytest.raises(RuntimeError, match="archive unavailable") as captured:
+        capture(
+            capture_request(),
+            FailingRawObjectStore(),
+            repository,
+            StaticSourceClient(SourceResponse(200, b"same", FETCHED_AT)),
+        )
+    assert repository.release_count == 1
+    assert "secret" not in repr(captured.value)
 
 
 def test_archive_failure는_repository를_호출하지_않는다() -> None:
