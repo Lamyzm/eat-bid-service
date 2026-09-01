@@ -50,6 +50,8 @@ function Assert-Native($Step, $Code) { if ($Code -ne 0) { throw "$Step 실패(ex
 $RollbackTag = "rollback/pre-main-cutover-2026-09-01"
 $Status = git status --porcelain=v1; Assert-Native "worktree 조회" $LASTEXITCODE
 if ($Status) { throw "worktree가 clean하지 않음" }
+$CurrentBranch = git branch --show-current; Assert-Native "현재 branch 조회" $LASTEXITCODE
+if ($CurrentBranch -ne 'main') { throw "현재 branch가 main이 아님: $CurrentBranch" }
 $ApprovedLocalMain = git rev-parse HEAD; Assert-Native "local main SHA 조회" $LASTEXITCODE
 $RemoteMasterLine = git ls-remote origin refs/heads/master; Assert-Native "remote master 조회" $LASTEXITCODE
 $ApprovedRemoteMaster = ($RemoteMasterLine -split '\s+')[0]
@@ -75,6 +77,8 @@ $ApprovedRemoteMaster = "<승인 화면의 RemoteMaster 40자리 SHA>"
 $ApprovedLocalMain = "<승인 화면의 LocalMain 40자리 SHA>"
 $CurrentRemoteMasterLine = git ls-remote origin refs/heads/master; Assert-Native "remote master 재조회" $LASTEXITCODE
 $CurrentRemoteMaster = ($CurrentRemoteMasterLine -split '\s+')[0]
+$CurrentBranch = git branch --show-current; Assert-Native "현재 branch 재조회" $LASTEXITCODE
+if ($CurrentBranch -ne 'main') { throw "승인 뒤 현재 branch가 main이 아님: $CurrentBranch" }
 $CurrentLocalMain = git rev-parse HEAD; Assert-Native "local main 재조회" $LASTEXITCODE
 if ($CurrentRemoteMaster -ne $ApprovedRemoteMaster -or $CurrentLocalMain -ne $ApprovedLocalMain) { throw "승인 뒤 SHA가 변경됨" }
 git show-ref --verify --quiet "refs/tags/$RollbackTag"; $LocalTagExit = $LASTEXITCODE
@@ -215,6 +219,8 @@ fnm exec --using=24.20.0 pnpm build; Assert-Native "build 검증" $LASTEXITCODE
 uv run --project apps/dataplane pytest infra/tests -q; Assert-Native "delivery 검증" $LASTEXITCODE
 $Status = git status --porcelain=v1; Assert-Native "worktree 조회" $LASTEXITCODE
 if ($Status) { throw "worktree가 clean하지 않음" }
+$CurrentBranch = git branch --show-current; Assert-Native "현재 branch 조회" $LASTEXITCODE
+if ($CurrentBranch -ne 'main') { throw "현재 branch가 main이 아님: $CurrentBranch" }
 $ApprovedLocalMain = git rev-parse HEAD; Assert-Native "local main 조회" $LASTEXITCODE
 $RemoteMainLine = git ls-remote origin refs/heads/main; Assert-Native "remote main 조회" $LASTEXITCODE
 $ApprovedReleaseCommit = ($RemoteMainLine -split '\s+')[0]
@@ -237,7 +243,10 @@ $ApprovedReleaseCommit = "<승인 화면의 ReleaseCommit 40자리 SHA>"
 if ($ReleaseTag -notmatch '^release/v[0-9]+\.[0-9]+\.[0-9]+$' -or $ApprovedReleaseCommit -notmatch '^[0-9a-f]{40}$') { throw "승인 literal 형식 오류" }
 $CurrentRemoteMainLine = git ls-remote origin refs/heads/main; Assert-Native "remote main 재조회" $LASTEXITCODE
 $CurrentRemoteMain = ($CurrentRemoteMainLine -split '\s+')[0]
-if ($CurrentRemoteMain -ne $ApprovedReleaseCommit) { throw "승인 뒤 remote main이 변경됨" }
+$CurrentBranch = git branch --show-current; Assert-Native "현재 branch 재조회" $LASTEXITCODE
+if ($CurrentBranch -ne 'main') { throw "승인 뒤 현재 branch가 main이 아님: $CurrentBranch" }
+$CurrentLocalMain = git rev-parse HEAD; Assert-Native "local main 재조회" $LASTEXITCODE
+if ($CurrentRemoteMain -ne $ApprovedReleaseCommit -or $CurrentLocalMain -ne $ApprovedReleaseCommit) { throw "승인 뒤 local/remote main이 변경됨" }
 git show-ref --verify --quiet "refs/tags/$ReleaseTag"; $LocalTagExit = $LASTEXITCODE
 if ($LocalTagExit -eq 0) { throw "local release tag가 이미 존재함" }; if ($LocalTagExit -ne 1) { throw "local tag 재조회 실패(exit=$LocalTagExit)" }
 $RemoteTag = @(git ls-remote origin "refs/tags/$ReleaseTag" "refs/tags/$ReleaseTag^{}"); Assert-Native "remote tag 재조회" $LASTEXITCODE
