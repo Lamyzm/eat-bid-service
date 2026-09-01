@@ -71,6 +71,8 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 - Codex는 `AGENTS.md`와 현재 저장소의 skill 지시를 따른다.
 - Codex task/thread의 plan과 goal은 실행 보조 상태다. Linear issue나 PR의 공유 상태를 대신하지 않는다.
 - 장기 자동화는 준비된 Linear issue, 격리 workspace, CI 판정이 갖춰진 뒤에만 도입한다.
+- 공용 advisory 리뷰는 도구별 prompt가 아니라 `pnpm review:ai`를 사용한다. 실제 실행·격리·실패 정책은
+  [`ai-code-review.md`](../operations/ai-code-review.md)가 소유한다.
 
 ### 3.4 Linear adapter와 공통 hook
 
@@ -173,13 +175,13 @@ M/L 변경은 구현하지 않은 다른 agent가 다음 순서로 검토한다.
 ### 7.4 PR evidence와 CI
 
 - PR은 Issue 링크, acceptance별 evidence, 실행한 검증, 실행하지 못한 검증, 잔여 위험을 가진다.
-- CI가 `pull_request`에서 실행된 경우에만 `CI 통과`라고 말한다. 현재 workflow가 PR을 검증하지
-  않으면 local command 결과를 붙이고 `PR CI 미구성`을 명시한다.
+- CI가 `pull_request`에서 실행된 경우에만 `CI 통과`라고 말한다. `.github/workflows/validate.yml`은
+  publication 권한 없이 architecture·test·build와 frontend browser evidence를 검증한다.
 - image publish·서명·promotion workflow를 PR 검증에 재사용하지 않는다. 자동 agent delivery를
-  열기 전에 publish 권한이 없는 별도 PR validation workflow를 마련한다.
-- PR validation workflow가 도입되기 전에는 scope에 맞는 local command evidence, 구현하지 않은
-  reviewer의 검토, 사람의 명시적 승인이 모두 있을 때만 임시로 merge할 수 있다. `CI 미실행`을
-  그대로 남기며 자동 merge는 금지한다.
+  열더라도 publish 권한이 없는 PR validation workflow만 merge 판정에 사용한다.
+- 원격 `main` protection에 required check가 연결되기 전에는 scope에 맞는 local command evidence,
+  구현하지 않은 reviewer의 검토, 사람의 명시적 승인이 모두 있을 때만 임시로 merge할 수 있다.
+  `required check 미구성`을 그대로 남기며 자동 merge는 금지한다.
 - CI가 실패했는데 agent의 자기확인이나 사람의 승인만으로 우회하지 않는다.
 
 ## 8. Linear 운영안

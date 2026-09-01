@@ -1,0 +1,79 @@
+name: 변경 검증
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  repository:
+    name: 아키텍처·테스트·빌드 검증
+    runs-on: ubuntu-latest
+    steps:
+      - name: 전체 이력 checkout
+        uses: actions/checkout@v4
+        with:
+          # 삭제 전용 legacy ledger가 고정 기준 commit의 blob을 직접 검증한다.
+          fetch-depth: 0
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - name: pnpm 설치
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10.12.1'
+      - name: Bun 설치
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.22'
+      - name: uv와 Python 설치
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.12.6'
+          python-version: '3.12'
+          enable-cache: true
+      - name: TypeScript workspace 설치
+        run: pnpm install --frozen-lockfile
+      - name: dataplane 설치
+        working-directory: apps/dataplane
+        run: uv sync --frozen
+      - name: 아키텍처와 생성 계약 drift 검사
+        run: pnpm architecture:check
+      - name: 저장소 테스트
+        run: pnpm test
+      - name: TypeScript workspace 빌드
+        run: pnpm build
+
+  frontend-browser:
+    name: 프론트엔드 browser 기반 검증
+    runs-on: ubuntu-latest
+    steps:
+      - name: source checkout
+        uses: actions/checkout@v4
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - name: pnpm 설치
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10.12.1'
+      - name: Bun 설치
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.22'
+      - name: workspace 설치
+        run: pnpm install --frozen-lockfile
+      - name: Chromium 설치
+        run: pnpm --filter @eatbid/web exec playwright install --with-deps chromium
+      - name: 공통 shell·loading·오류 경계 검증
+        run: pnpm --filter @eatbid/web test:e2e:foundation

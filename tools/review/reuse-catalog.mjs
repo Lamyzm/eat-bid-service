@@ -1,3 +1,4 @@
+/** @module 책임: 변경 모듈과 기존 재사용 후보, es-toolkit 선언 근거를 결정적으로 수집한다. */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
@@ -148,7 +149,7 @@ function toolkitEvidence(root, declarationByteCap) {
     directDeclared: direct.declared,
     ...(direct.version ? { declaredVersion: direct.version, declaredIn: direct.manifestPath, declaredField: direct.field } : {}),
     productionImportPolicy: direct.declared ? "direct-dependency-reviewed" : "transitive-only",
-    warning: "es-toolkit declaration evidence is unavailable; do not recommend a production import.",
+    warning: "es-toolkit declaration 근거가 없으므로 production import를 권하지 않는다.",
   };
   const exactPath = realpathSync(installedPath);
   const version = readJson(path.join(exactPath, "package.json")).version;
@@ -163,8 +164,8 @@ function toolkitEvidence(root, declarationByteCap) {
     ...(direct.version ? { declaredVersion: direct.version, declaredIn: direct.manifestPath, declaredField: direct.field } : {}),
     productionImportPolicy: transitive ? "transitive-only" : "direct-dependency-reviewed",
     warning: transitive
-      ? "Transitive-only evidence: direct production imports are forbidden until a reviewed exact direct dependency and repeated use case are added."
-      : "A direct declaration exists, but recommendations still require repository evidence and a demonstrated repeated use case.",
+      ? "transitive-only 근거다. 검토된 exact direct dependency와 반복 사용 사례를 추가하기 전에는 production 직접 import를 금지한다."
+      : "direct dependency가 있어도 권고에는 실제 저장소 근거와 반복 사용 사례가 필요하다.",
     declarationPath: "dist/index.d.ts",
     ...(fits ? { declaration } : { declarationExcludedReason: declaration === undefined ? "missing-declaration" : "declaration-byte-cap" }),
   };

@@ -409,5 +409,5 @@ jobs:
             exit 0
           fi
           git add infra/product/kustomization.yaml
-          git commit -m "deploy: pin product images for ${GITHUB_SHA} [skip ci]"
+          git commit -m "deploy: 제품 이미지 digest를 ${GITHUB_SHA}로 고정한다 [skip ci]"
           git push

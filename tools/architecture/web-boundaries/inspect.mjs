@@ -1,3 +1,5 @@
+/** @module 책임: Web source의 import·transport·DTO·크기·중복 finding을 결정적으로 집계한다. */
+/** @module 책임: Web source를 정적 분석해 경계 위반과 안정적인 legacy fingerprint를 계산한다. */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
@@ -30,6 +32,7 @@ const responseBodyMethods = new Set(["json", "text", "arrayBuffer", "blob", "for
 const sha256 = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const display = (root, file) => normalizedPath(root, file).replaceAll("\\", "/");
 const text = (node, sourceFile) => normalizeBytes(node.getText(sourceFile));
+const sourceFingerprintEvidence = (source) => source.replace(/^\s*\/\*\*\s*@module 책임:[\s\S]*?\*\/[ \t]*(?:\n|$)/u, "");
 
 function sourceFiles(sourceRoot) {
   const files = [];
@@ -286,18 +289,19 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
     const sourceFile = sourceByName.get(path.resolve(file));
     if (!sourceFile) continue;
     const normalized = normalizeBytes(readFileSync(file, "utf8"));
-    if (physicalLineCount(normalized) > MAX_SOURCE_LINES) add(findings, root, WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE, file, "SourceFile", sourceFile, `${MAX_SOURCE_LINES}줄을 넘는 source file은 책임 분리 또는 reviewed waiver가 필요합니다.`, undefined, normalized);
-    if (isRouteLoadingPath(root, file) && !routeLoadingReturnsSingleScreenSkeleton(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_LOADING_BOUNDARY, file, "SourceFile", sourceFile, "loading.tsx는 sibling ScreenSkeleton 하나만 반환해야 합니다.", undefined, normalized);
-    if (isLegacyPageContainerPath(root, file) && /\bisLoading\b/.test(normalized)) add(findings, root, WEB_BOUNDARY_RULES.PAGE_CONTAINER_LOADING_STATE, file, "SourceFile", sourceFile, "범용 PageContainer가 loading UI를 소유하면 화면별 skeleton geometry가 분리됩니다.", undefined, normalized);
-    const nonblank = normalized.split("\n").filter((line) => line.trim()).length;
-    if (nonblank >= MIN_DUPLICATE_NONBLANK_LINES && Buffer.byteLength(normalized) >= MIN_DUPLICATE_BYTES) {
-      const key = sha256(normalized);
-      const candidate = duplicates.get(key) ?? { evidence: normalized, members: [] };
+    const fingerprintEvidence = sourceFingerprintEvidence(normalized);
+    if (physicalLineCount(normalized) > MAX_SOURCE_LINES) add(findings, root, WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE, file, "SourceFile", sourceFile, `${MAX_SOURCE_LINES}줄을 넘는 source file은 책임 분리 또는 reviewed waiver가 필요합니다.`, undefined, fingerprintEvidence);
+    if (isRouteLoadingPath(root, file) && !routeLoadingReturnsSingleScreenSkeleton(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_LOADING_BOUNDARY, file, "SourceFile", sourceFile, "loading.tsx는 sibling ScreenSkeleton 하나만 반환해야 합니다.", undefined, fingerprintEvidence);
+    if (isLegacyPageContainerPath(root, file) && /\bisLoading\b/.test(normalized)) add(findings, root, WEB_BOUNDARY_RULES.PAGE_CONTAINER_LOADING_STATE, file, "SourceFile", sourceFile, "범용 PageContainer가 loading UI를 소유하면 화면별 skeleton geometry가 분리됩니다.", undefined, fingerprintEvidence);
+    const nonblank = fingerprintEvidence.split("\n").filter((line) => line.trim()).length;
+    if (nonblank >= MIN_DUPLICATE_NONBLANK_LINES && Buffer.byteLength(fingerprintEvidence) >= MIN_DUPLICATE_BYTES) {
+      const key = sha256(fingerprintEvidence);
+      const candidate = duplicates.get(key) ?? { evidence: fingerprintEvidence, members: [] };
       candidate.members.push(display(root, file));
       duplicates.set(key, candidate);
     }
     const layer = sourceLayer(file);
-    if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.", undefined, normalized);
+    if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.", undefined, fingerprintEvidence);
     if (layer?.layer === "api") for (const declaration of exportedManualDtos(root, checker, sourceFile)) {
       const declarationFile = declaration.getSourceFile();
       const key = `${declarationFile.fileName}\0${declaration.getStart(declarationFile)}`;

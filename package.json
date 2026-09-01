@@ -18,7 +18,8 @@
     "lint:web-boundaries": "node tools/architecture/check-web-boundaries.mjs",
     "lint:endpoints": "node tools/architecture/check-http-operations.mjs && node tools/architecture/check-contract-client-exports.mjs",
     "review:context": "node tools/review/build-review-context.mjs",
-    "quality:check": "node tools/quality/check-test-names.mjs",
+    "review:ai": "node tools/review/codex-advisory.mjs",
+    "quality:check": "node tools/quality/check-test-names.mjs && node tools/quality/check-korean-comments.mjs",
     "test:quality": "node --test tools/architecture/*.test.mjs tools/quality/*.test.mjs && uv run --project apps/dataplane pytest tools/quality/test_check_python_semantic_values.py -q",
     "contracts:generate": "pnpm --filter @eatbid/contracts contracts:generate",
     "contracts:check": "pnpm --filter @eatbid/contracts contracts:check",
@@ -37,7 +38,8 @@
     "dataplane:test": "uv run --project apps/dataplane pytest apps/dataplane/tests",
     "dataplane:lint": "uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests",
     "dataplane:typecheck": "uv run --project apps/dataplane pyright apps/dataplane/src",
-    "test": "pnpm test:quality && bun test apps/web/src packages/shared/src packages/db/src --timeout 30000 && pnpm --filter @eatbid/contracts test && pnpm --filter @eatbid/domain test && pnpm --filter @eatbid/server test"
+    "test": "pnpm test:quality && pnpm --filter @eatbid/web test && bun test packages/shared/src --timeout 30000 && pnpm --filter @eatbid/db test && pnpm --filter @eatbid/contracts test && pnpm --filter @eatbid/domain test && pnpm --filter @eatbid/server test",
+    "prepare": "node tools/git/configure-hooks.mjs"
   },
   "devDependencies": {
     "typescript": "5.9.3",

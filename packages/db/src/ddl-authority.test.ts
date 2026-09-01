@@ -80,7 +80,7 @@ describe("DDL package 권한 경계", () => {
     expect(root.scripts?.["db:generate"]).toBe("pnpm --filter @eatbid/db db:generate");
     expect(root.scripts?.["db:migrate"]).toBe("pnpm --filter @eatbid/db db:migrate");
     expect(root.scripts?.["db:push"]).toBeUndefined();
-    expect(root.scripts?.test).toContain("packages/db/src");
+    expect(root.scripts?.test).toContain("pnpm --filter @eatbid/db test");
   });
 
   test("Drizzle authoring tool을 shared 밖에 둔다", () => {

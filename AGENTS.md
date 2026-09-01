@@ -80,6 +80,15 @@
     고유명, CLI 명령, 외부 공식 인용과 원문 오류처럼 정확성을 위해 필요한 부분은 영문을 유지할 수
     있지만 설명 본문까지 영문화하지 않는다. 기존 영문 문서는 무관한 대량 번역을 하지 않고 실질적으로
     수정할 때 한국어로 전환한다.
+22. **AI 리뷰는 결정적 gate 뒤의 읽기 전용 advisory다.** Codex와 Claude 모두 저장소의
+    `pnpm review:ai`를 사용하고 별도 도구 전용 품질 규칙을 만들지 않는다. AI finding은 자동 수정하거나
+    lint·typecheck·test·contract·architecture 실패를 덮을 수 없다. 실행 경계와 장애 처리는
+    [`docs/operations/ai-code-review.md`](docs/operations/ai-code-review.md)를 따른다.
+23. **production 모듈은 책임을 한국어로 먼저 설명한다.** 신규·실질 변경 JavaScript/TypeScript 모듈은
+    directive와 import·실행 코드보다 앞에 `@module 책임:` 주석을, Python 모듈은 첫 docstring에
+    `모듈 책임:`을 둔다. 함께 바뀌는 이유와 소유 경계를 구체적으로 한 문장으로 적고 “이 모듈을 설명한다”
+    같은 장식 문구를 쓰지 않는다. 테스트·fixture·생성물·순수 barrel·선언형 config/schema는 제외하며,
+    기존 부채는 `e7fdcd2`와 byte가 같은 삭제 전용 ledger만 허용한다. `pnpm quality:check`를 우회하지 않는다.
 
 ## 변경 절차
 

@@ -1,3 +1,4 @@
+/** @module 책임: 변경 범위·재사용 후보·공식 rule을 byte 제한 안의 한국어 review prompt로 조립한다. */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -6,6 +7,7 @@ import { inspectWebBoundaries } from "../architecture/web-boundaries/inspect.mjs
 import { buildReuseCatalog } from "./reuse-catalog.mjs";
 
 export const MAX_REVIEW_CONTEXT_BYTES = 96 * 1024;
+export const REVIEW_CONTEXT_VERSION = "eatbid.frontend-review-context/v1";
 const moduleRoot = path.dirname(fileURLToPath(import.meta.url));
 const compare = (left, right) => left < right ? -1 : left > right ? 1 : 0;
 
@@ -40,12 +42,12 @@ function renderSection(heading, value) {
 
 function renderContext({ metadata, instructions, catalog, boundaries, rules }) {
   return `${[
-    "# eatbid frontend advisory review context",
-    renderSection("Scope", metadata),
-    `## Reviewer contract\n\n${instructions}`,
-    renderSection("Repository reuse evidence", catalog),
-    `## Deterministic boundary evidence\n\nThese diagnostics remain authoritative and must not be repeated as advisory findings.\n\n\`\`\`json\n${JSON.stringify(boundaries, null, 2)}\n\`\`\``,
-    renderSection("Curated advisory rules", rules),
+    "# eatbid 프론트엔드 advisory 리뷰 근거",
+    renderSection("검토 범위", metadata),
+    `## 리뷰 계약\n\n${instructions}`,
+    renderSection("저장소 재사용 근거", catalog),
+    `## 결정적 경계 근거\n\n이 진단은 계속 권위를 가지며 advisory finding으로 반복하지 않는다.\n\n\`\`\`json\n${JSON.stringify(boundaries, null, 2)}\n\`\`\``,
+    renderSection("선별 advisory 규칙", rules),
   ].join("\n\n")}\n`;
 }
 
@@ -116,7 +118,7 @@ function budgetCatalog(catalog, render) {
     includedSources.delete(index);
     includedModules.delete(index);
   }
-  if (!fits()) throw new Error("mandatory review context exceeds 96 KiB");
+  if (!fits()) throw new Error("필수 리뷰 근거가 96 KiB를 초과했습니다.");
   if (_declaration !== undefined && !includeToolkitDeclaration) {
     includeToolkitDeclaration = true;
     if (!fits()) includeToolkitDeclaration = false;
@@ -142,7 +144,7 @@ export async function buildReviewContext({ repoRoot, scope = {} }) {
   ]);
   const instructions = readFileSync(path.join(moduleRoot, "reviewer-instructions.md"), "utf8").trim();
   const rules = JSON.parse(readFileSync(path.join(moduleRoot, "catalog", "frontend-advisory-rules.json"), "utf8"));
-  const metadata = { version: "eatbid.frontend-review-context/v1", baseRef: scope.baseRef ?? null, changedPaths };
+  const metadata = { version: REVIEW_CONTEXT_VERSION, baseRef: scope.baseRef ?? null, changedPaths };
   const evidence = { metadata, instructions, boundaries, rules };
   const boundedCatalog = budgetCatalog(catalog, (candidate) => renderContext({ ...evidence, catalog: candidate }));
   return renderContext({ ...evidence, catalog: boundedCatalog });
@@ -157,14 +159,14 @@ async function main() {
   const args = process.argv.slice(2);
   const baseIndex = args.indexOf("--base");
   const baseRef = baseIndex >= 0 ? args[baseIndex + 1] : "HEAD~1";
-  if (!baseRef || baseRef.startsWith("--")) throw new Error("--base requires a Git ref");
+  if (!baseRef || baseRef.startsWith("--")) throw new Error("--base Git ref가 필요합니다.");
   const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
   const context = await buildReviewContext({ repoRoot, scope: { baseRef, changedPaths: changedPathsFromGit(repoRoot, baseRef) } });
-  if (args.includes("--check")) console.log(`Review context check passed (${Buffer.byteLength(context, "utf8")} bytes).`);
+  if (args.includes("--check")) console.log(`리뷰 근거 검사가 통과했습니다. (${Buffer.byteLength(context, "utf8")} bytes)`);
   else process.stdout.write(context);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch((error) => {
-  console.error(`Review context build failed: ${error.message}`);
+  console.error(`리뷰 근거 생성이 실패했습니다: ${error.message}`);
   process.exitCode = 1;
 });

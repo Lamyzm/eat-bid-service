@@ -1,3 +1,4 @@
+/** @module 책임: review evidence source의 credential·authorization 값을 노출 없이 판정한다. */
 import ts from "typescript";
 
 // 이 모듈은 review evidence에 들어갈 source만 보수적으로 선별한다.

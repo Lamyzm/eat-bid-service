@@ -11,9 +11,10 @@ const toolRoot = path.dirname(fileURLToPath(import.meta.url));
 function fixture(files) {
   const root = mkdtempSync(path.join(tmpdir(), "eatbid-review-context-"));
   const defaults = {
-    "package.json": "{\"private\":true}\n",
-    "apps/web/package.json": "{\"name\":\"@eatbid/web\",\"dependencies\":{\"@tanstack/react-query\":\"5.0.0\"}}\n",
-    "tools/architecture/web-boundary-legacy-baseline.json": "{\"version\":1,\"entries\":[]}\n",
+    "package.json": '{"private":true}\n',
+    "apps/web/package.json":
+      '{"name":"@eatbid/web","dependencies":{"@tanstack/react-query":"5.0.0"}}\n',
+    "tools/architecture/web-boundary-legacy-baseline.json": '{"version":1,"entries":[]}\n',
   };
   for (const [relativePath, contents] of Object.entries({ ...defaults, ...files })) {
     const target = path.join(root, relativePath);
@@ -37,9 +38,12 @@ function parseJsonSection(context, heading) {
 test("review context는 changed Web module과 reuse source를 결정적으로 포함하고 96 KiB를 넘지 않는다", async () => {
   const root = fixture({
     "apps/web/src/hooks/use-existing.ts": "export const useExisting = () => 'reuse-me';\n",
-    "apps/web/src/components/changed.tsx": "import { useExisting } from '@/hooks/use-existing'; export const Changed = () => useExisting();\n",
-    "node_modules/.pnpm/node_modules/es-toolkit/package.json": "{\"name\":\"es-toolkit\",\"version\":\"1.0.0\"}\n",
-    "node_modules/.pnpm/node_modules/es-toolkit/dist/index.d.ts": "export declare const groupBy: Function;\n",
+    "apps/web/src/components/changed.tsx":
+      "import { useExisting } from '@/hooks/use-existing'; export const Changed = () => useExisting();\n",
+    "node_modules/.pnpm/node_modules/es-toolkit/package.json":
+      '{"name":"es-toolkit","version":"1.0.0"}\n',
+    "node_modules/.pnpm/node_modules/es-toolkit/dist/index.d.ts":
+      "export declare const groupBy: Function;\n",
   });
   try {
     const scope = { baseRef: "base", changedPaths: ["apps/web/src/components/changed.tsx"] };
@@ -70,10 +74,10 @@ test("review context는 350개 module에서도 필수 section과 완전한 JSON�
   try {
     const first = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
     const second = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
-    const catalog = parseJsonSection(first, "Repository reuse evidence");
-    const boundaries = parseJsonSection(first, "Deterministic boundary evidence");
-    const rules = parseJsonSection(first, "Curated advisory rules");
-    const scope = parseJsonSection(first, "Scope");
+    const catalog = parseJsonSection(first, "저장소 재사용 근거");
+    const boundaries = parseJsonSection(first, "결정적 경계 근거");
+    const rules = parseJsonSection(first, "선별 advisory 규칙");
+    const scope = parseJsonSection(first, "검토 범위");
 
     assert.equal(MAX_REVIEW_CONTEXT_BYTES, 98_304);
     assert.equal(first, second);
@@ -82,13 +86,16 @@ test("review context는 350개 module에서도 필수 section과 완전한 JSON�
     assert.equal(scope.changedPaths.length, 350);
     assert.equal(boundaries.unmatchedFindingCount, 0);
     assert.ok(rules.suppressedAdvice.some((item) => item.id === "data.generic-swr"));
-    assert.match(first, /## Reviewer contract\n\n/);
-    assert.match(first, /These diagnostics remain authoritative/);
-    assert.match(first, /## Curated advisory rules/);
+    assert.match(first, /## 리뷰 계약\n\n/);
+    assert.match(first, /이 진단은 계속 권위를 가지며/);
+    assert.match(first, /## 선별 advisory 규칙/);
     assert.match(first, /\n```\n?$/);
     assert.equal(catalog.contextBudget.reason, "context-byte-budget");
     assert.ok(catalog.contextBudget.omittedModuleCount > 0);
-    assert.match(catalog.contextBudget.firstOmittedModulePath, /^apps\/web\/src\/components\/evidence-\d{3}\.ts$/);
+    assert.match(
+      catalog.contextBudget.firstOmittedModulePath,
+      /^apps\/web\/src\/components\/evidence-\d{3}\.ts$/,
+    );
     assert.match(catalog.contextBudget.lastOmittedModulePath, /evidence-349\.ts$/);
     assert.doesNotMatch(first, /review context truncated deterministically/);
   } finally {
@@ -98,12 +105,20 @@ test("review context는 350개 module에서도 필수 section과 완전한 JSON�
 
 test("review context 예산은 900개 누락 제외보다 changed module과 source를 우선한다", async () => {
   const changedPath = "apps/web/src/components/changed-priority.ts";
-  const changedPaths = [changedPath, ...Array.from({ length: 900 }, (_, index) => `apps/web/src/components/missing-${String(index).padStart(3, "0")}.ts`)];
-  const root = fixture({ [changedPath]: "export const priorityEvidence = 'changed-source-must-remain';\n" });
+  const changedPaths = [
+    changedPath,
+    ...Array.from(
+      { length: 900 },
+      (_, index) => `apps/web/src/components/missing-${String(index).padStart(3, "0")}.ts`,
+    ),
+  ];
+  const root = fixture({
+    [changedPath]: "export const priorityEvidence = 'changed-source-must-remain';\n",
+  });
   try {
     const first = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
     const second = await buildReviewContext({ repoRoot: root, scope: { changedPaths } });
-    const catalog = parseJsonSection(first, "Repository reuse evidence");
+    const catalog = parseJsonSection(first, "저장소 재사용 근거");
     const changed = catalog.modules.find((module) => module.path === changedPath);
 
     assert.equal(first, second);
@@ -112,20 +127,33 @@ test("review context 예산은 900개 누락 제외보다 changed module과 sour
     assert.equal(changed.source, "export const priorityEvidence = 'changed-source-must-remain';\n");
     assert.equal(catalog.contextBudget.reason, "context-byte-budget");
     assert.ok(catalog.contextBudget.omittedExclusionCount > 0);
-    assert.equal(catalog.contextBudget.omittedExclusionReasonCounts["missing-file"], catalog.contextBudget.omittedExclusionCount);
+    assert.equal(
+      catalog.contextBudget.omittedExclusionReasonCounts["missing-file"],
+      catalog.contextBudget.omittedExclusionCount,
+    );
     assert.match(catalog.contextBudget.firstOmittedExclusionPath, /missing-\d{3}\.ts$/);
-    assert.match(first, /## Reviewer contract\n\n/);
-    assert.ok(parseJsonSection(first, "Curated advisory rules").suppressedAdvice.some((item) => item.id === "data.generic-swr"));
+    assert.match(first, /## 리뷰 계약\n\n/);
+    assert.ok(
+      parseJsonSection(first, "선별 advisory 규칙").suppressedAdvice.some(
+        (item) => item.id === "data.generic-swr",
+      ),
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
 test("필수 context section만 96 KiB를 넘으면 부분 출력 대신 명시적으로 실패한다", async () => {
-  const changedPaths = Array.from({ length: 2_500 }, (_, index) => `apps/web/src/components/missing-mandatory-${String(index).padStart(4, "0")}.ts`);
+  const changedPaths = Array.from(
+    { length: 2_500 },
+    (_, index) => `apps/web/src/components/missing-mandatory-${String(index).padStart(4, "0")}.ts`,
+  );
   const root = fixture({});
   try {
-    await assert.rejects(() => buildReviewContext({ repoRoot: root, scope: { changedPaths } }), /mandatory review context exceeds 96 KiB/);
+    await assert.rejects(
+      () => buildReviewContext({ repoRoot: root, scope: { changedPaths } }),
+      /필수 리뷰 근거가 96 KiB를 초과/,
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -140,12 +168,17 @@ test("review context는 secret과 generated evidence를 출력하지 않는다",
     "pnpm-lock.yaml": "hidden-lock-content\n",
   });
   try {
-    const context = await buildReviewContext({ repoRoot: root, scope: { changedPaths: [
-      "apps/web/src/components/safe.ts",
-      "apps/web/src/components/secret.ts",
-      "apps/web/dist/generated.ts",
-      "pnpm-lock.yaml",
-    ] } });
+    const context = await buildReviewContext({
+      repoRoot: root,
+      scope: {
+        changedPaths: [
+          "apps/web/src/components/safe.ts",
+          "apps/web/src/components/secret.ts",
+          "apps/web/dist/generated.ts",
+          "pnpm-lock.yaml",
+        ],
+      },
+    });
 
     assert.match(context, /apps\/web\/src\/components\/safe\.ts/);
     assert.doesNotMatch(context, new RegExp(secret));
@@ -156,7 +189,9 @@ test("review context는 secret과 generated evidence를 출력하지 않는다",
 });
 
 test("curated rule은 stable metadata와 React useEffectEvent 최신 의미를 가진다", () => {
-  const catalog = JSON.parse(readFileSync(path.join(toolRoot, "catalog", "frontend-advisory-rules.json"), "utf8"));
+  const catalog = JSON.parse(
+    readFileSync(path.join(toolRoot, "catalog", "frontend-advisory-rules.json"), "utf8"),
+  );
   const expectedIds = [
     "architecture.business-view-separation",
     "next.independent-async-waterfalls",
@@ -177,7 +212,10 @@ test("curated rule은 stable metadata와 React useEffectEvent 최신 의미를 �
     assert.ok(rule.applicabilityCondition.length > 10);
     assert.ok(rule.counterexampleCondition.length > 10);
     assert.ok(rule.projectAuthorityPath.length > 3);
-    assert.match(rule.sourceUrl, /^https:\/\/(?:react\.dev|nextjs\.org|www\.typescriptlang\.org)\//);
+    assert.match(
+      rule.sourceUrl,
+      /^https:\/\/(?:react\.dev|nextjs\.org|www\.typescriptlang\.org)\//,
+    );
   }
   const effectEvent = catalog.rules.find((rule) => rule.id === "react.use-effect-event");
   assert.match(effectEvent.guidance, /Effect 안|inside Effects/i);

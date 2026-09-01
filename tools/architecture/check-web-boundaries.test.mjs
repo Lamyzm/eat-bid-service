@@ -402,6 +402,25 @@ test("source-derived fingerprint은 같은 category 편집과 duplicate group �
   }
 });
 
+test("한국어 module 책임 주석은 source 전체 legacy fingerprint를 바꾸지 않는다", async () => {
+  const body = Array.from({ length: 300 }, (_, index) => `export const page${index} = ${index};`).join("\n");
+  const subject = fixture({
+    "apps/web/src/app/page.tsx": `'use client';\n${body}\n`,
+  });
+  try {
+    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
+    writeFileSync(subject.baselinePath, `${JSON.stringify({ version: 1, entries: initial.findings.map((finding) => ({ ...finding, reason: "legacy", owner: "EAT-9", splitTrigger: "migrate" })) }, null, 2)}\n`);
+    writeFileSync(path.join(subject.sourceRoot, "app", "page.tsx"), `/** @module 책임: 기존 client route의 화면 책임을 설명한다. */\n'use client';\n${body}\n`);
+
+    const commented = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
+
+    assert.equal(commented.baselineFailures.length, 0);
+    assert.equal(commented.unmatchedFindings.length, 0);
+  } finally {
+    rmSync(subject.root, { recursive: true, force: true });
+  }
+});
+
 test("transport import은 exact owner와 ContractRequest type-only form만 허용한다", async () => {
   const report = await inspect({
     "apps/web/src/api/auctions/index.ts": "import { browserRequest } from '@/api/_transport/browser-request'; void browserRequest;\n",

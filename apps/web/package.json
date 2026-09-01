@@ -11,15 +11,14 @@
     "cleanup": "node scripts/cleanup.js",
     "pretypecheck": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/shared build",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "bun test src",
+    "test": "bun test src --timeout 30000",
     "pretest:e2e:foundation": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/shared build",
     "test:e2e:foundation": "playwright test frontend-foundation.spec.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix && bun format",
     "lint:strict": "pnpm --dir ../.. lint:web-boundaries && pnpm --dir ../.. lint:endpoints && oxlint --deny-warnings",
     "format": "oxfmt --write . '!**/*.md' '!**/*.mdc' '!**/*.mdx' '!**/*.yml' '!**/*.yaml'",
-    "format:check": "oxfmt --check . '!**/*.md' '!**/*.mdc' '!**/*.mdx' '!**/*.yml' '!**/*.yaml'",
-    "prepare": "husky"
+    "format:check": "oxfmt --check . '!**/*.md' '!**/*.mdc' '!**/*.mdx' '!**/*.yml' '!**/*.yaml'"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

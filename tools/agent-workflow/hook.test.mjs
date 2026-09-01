@@ -13,6 +13,8 @@ import {
   setWorktreeLease,
   updateSessionState,
 } from "./state.mjs";
+import { repositoryContext } from "./runtime.mjs";
+import { extractIssueIdentifier } from "./workflow.mjs";
 
 const hookPath = path.resolve("tools/agent-workflow/hook.mjs");
 const cliPath = path.resolve("tools/agent-workflow/cli.mjs");
@@ -66,10 +68,11 @@ test("실제 훅은 검증된 Linear lease가 없는 편집을 차단한다", as
 test("실제 훅은 prompt 본문을 저장하지 않고 검증된 offline lease를 허용한다", async () => {
   await withTempDirectory(async (directory) => {
     const statePath = path.join(directory, "state.json");
+    const issueIdentifier = extractIssueIdentifier(repositoryContext(process.cwd()).branch) ?? "EAT-91";
     await saveState(
       statePath,
       setWorktreeLease(createEmptyState(), process.cwd(), {
-        issueIdentifier: "EAT-91",
+        issueIdentifier,
         teamKey: "EAT",
         expiresAt: "2099-08-31T00:00:00.000Z",
       }),
@@ -77,7 +80,7 @@ test("실제 훅은 prompt 본문을 저장하지 않고 검증된 offline lease
     const promptResult = runHook(
       {
         hook_event_name: "UserPromptSubmit",
-        prompt: "EAT-91 구현해줘. 민감한 설명은 저장하면 안 됨",
+        prompt: `${issueIdentifier} 구현해줘. 민감한 설명은 저장하면 안 됨`,
         session_id: "offline",
       },
       statePath,
@@ -90,7 +93,7 @@ test("실제 훅은 prompt 본문을 저장하지 않고 검증된 offline lease
 
     assert.equal(promptResult.status, 0);
     assert.equal(editResult.status, 0);
-    assert.match(stored, /EAT-91/);
+    assert.match(stored, new RegExp(issueIdentifier));
     assert.doesNotMatch(stored, /민감한 설명/);
   });
 });
