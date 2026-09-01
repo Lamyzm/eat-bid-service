@@ -2,7 +2,7 @@
 id: DOC-GOVERNANCE
 status: active
 canonical_for: cross-agent-knowledge-and-delivery-workflow
-last_reviewed: 2026-08-30
+last_reviewed: 2026-09-02
 review_trigger: workflow-tool-or-document-authority-change
 ---
 
@@ -65,14 +65,19 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 - Claude auto memory와 session task는 개인 실행 보조물이다. 다른 machine·agent와 공유되는 결정
   기록으로 인용하지 않는다.
 - hook은 공용 script를 자동 호출할 수 있지만 hook 자체에 유일한 품질 규칙을 구현하지 않는다.
+- `.claude/skills`는 `.agents/skills`의 생성 projection이다. `pnpm agent:skills:write`로만 갱신하고
+  `pnpm architecture:check`가 drift를 실패시킨다.
+- Claude Code project hook은 `pnpm workflow:*` lifecycle 명령과 Linear 읽기 MCP 도구를 lease 없이 허용하므로
+  Claude 세션도 스스로 claim한다.
 
 ### 3.3 Codex adapter
 
 - Codex는 `AGENTS.md`와 현재 저장소의 skill 지시를 따른다.
 - Codex task/thread의 plan과 goal은 실행 보조 상태다. Linear issue나 PR의 공유 상태를 대신하지 않는다.
 - 장기 자동화는 준비된 Linear issue, 격리 workspace, CI 판정이 갖춰진 뒤에만 도입한다.
-- 공용 advisory 리뷰는 도구별 prompt가 아니라 `pnpm review:ai`를 사용한다. 실제 실행·격리·실패 정책은
-  [`ai-code-review.md`](../operations/ai-code-review.md)가 소유한다.
+- 공용 advisory 리뷰는 도구별 prompt가 아니라 `pnpm review:ai -- --provider auto`를 사용한다. Codex와 Claude Code는
+  같은 계약을 실행하는 교체 가능한 provider이며 실제 실행·격리·폴백·실패 정책은
+  [`ai-code-review.md`](../operations/ai-code-review.md)와 ADR 0026이 소유한다.
 
 ### 3.4 Linear adapter와 공통 hook
 

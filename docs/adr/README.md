@@ -32,6 +32,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0023](0023-nextjs-web-modular-boundaries.md) | Accepted | Next.js Web 모듈 경계와 계약 소비 |
 | [0024](0024-free-github-tag-gated-publication.md) | Accepted | 무료 GitHub tag 기반 publication gate |
 | [0025](0025-source-release-manifest.md) | Accepted | source release manifest와 봉인된 raw membership |
+| [0026](0026-provider-neutral-ai-review-and-canonical-skills.md) | Accepted | provider 중립 AI advisory 리뷰, Claude 구독 폴백, canonical Agent Skill 위치 |
 
 ## 새 ADR 형식
 
