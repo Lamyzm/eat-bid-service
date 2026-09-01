@@ -236,6 +236,23 @@ capture용 repository는 replay run을 만들 수 없고 publication repository�
 capture repository의 request 계획, raw/blob 기록, 실패 전이는 run을 잠그고 capture/backfill mode만
 허용하므로 replay run의 evidence ledger나 pending publication을 우회 변경할 수 없다.
 
+`ingest.run`의 `run_id`는 한 번의 capture/replay 실행 정체성이고, `ingest.source_release`의
+`source_release_id`는 downstream이 재사용하는 봉인된 raw 입력 집합 정체성이다. 둘은 서로
+대체하지 않는다. source release는 다음 네 table을 소유한다.
+
+- `source_release`: source, release name, as-of, 상태와 manifest SHA-256을 가진 release header
+- `source_release_run`: release에 포함한 실행 membership
+- `source_release_observation`: release에 포함한 immutable raw observation membership
+- `source_release_dataset`: endpoint/dataset/record type/parser/schema fingerprint, required 여부와
+  dataset record completeness count
+
+dataset count는 같은 source record grain에서 `normalized + quarantined <= observed <= expected`다.
+`required` dataset은 release를 seal할 때 `observed = expected` 및
+`normalized + quarantined = observed`를 만족해야 한다. sealed release header와 세 membership table은
+DB trigger로 INSERT·UPDATE·DELETE가 모두 금지된다. 같은 source와 non-null manifest SHA-256은 하나의
+release만 식별한다. 누락 원본, parser 정정, backfill 또는 membership 추가는 과거 release를 고치지
+않고 새 release를 만들어 표현한다.
+
 새 normalized interpretation이 생길 때만 새 `AuctionRevision`을 만든다. revision은
 `normalized_record_id`를 통해 observation과 parser version을 직접 추적한다. 같은 raw라도 새 parser가
 새 normalized record를 만들면 별도 revision이고, replay가 같은 normalized record를 재사용하면 기존

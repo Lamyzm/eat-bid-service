@@ -18,13 +18,22 @@
 
 `source_release_dataset`은 release별 endpoint, dataset, record type, parser version, schema
 fingerprint와 expected/observed/normalized/quarantined count 및 required 여부를 보존한다.
+여기서 count는 모두 같은 dataset의 source record grain이다. `expected_count`는 source가
+완결로 선언한 record 수, `observed_count`는 release membership에서 실제 관측한 record 수,
+`normalized_count`와 `quarantined_count`는 그 observed record의 서로 배타적인 최종 parser
+결과 수다. 따라서 `normalized + quarantined <= observed <= expected`를 DB check로 강제한다.
 모든 count는 음수를 허용하지 않고 fingerprint는 SHA-256 형식이어야 한다.
 
 release 상태는 `planned`, `sealed`, `failed`만 허용한다. `sealed`는 manifest SHA-256과
 `sealed_at`을 반드시 가지며 failure category를 가질 수 없다. `failed`만 failure category를
 가질 수 있고 봉인 metadata를 가질 수 없다. 봉인된 release와 그 membership은 수정하지 않으며,
-원본 정정이나 추가가 필요하면 새 release를 만든다. 이 DDL은 상태 metadata와 membership
-중복을 막고, 수정 차단과 release 생성 흐름은 후속 command/application 경계에서 집행한다.
+원본 정정이나 추가가 필요하면 새 release를 만든다. DB trigger는 sealed release 자체와
+run/observation/dataset membership의 INSERT·UPDATE·DELETE를 거부한다. `required = true`인
+dataset은 seal 시점에 `observed = expected` 및 `normalized + quarantined = observed`여야 한다.
+`required = false` dataset은 관측 범위를 보존하지만 seal completeness gate의 필수 입력은 아니다.
+
+같은 source에서 같은 non-null manifest SHA-256은 partial unique index로 한 release만 가질 수
+있다. release 이름은 source 안에서 사람이 읽는 구분자일 뿐 manifest identity를 대신하지 않는다.
 
 ## Consequences
 

@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -32,6 +33,9 @@ export const sourceRelease = ingestSchema.table(
   },
   (table) => [
     unique("source_release_source_release_name_key").on(table.source, table.releaseName),
+    uniqueIndex("source_release_source_manifest_sha256_key")
+      .on(table.source, table.manifestSha256)
+      .where(sql`${table.manifestSha256} is not null`),
     check(
       "source_release_status_allowed",
       sql`${table.status} in ('planned', 'sealed', 'failed')`,
@@ -126,6 +130,14 @@ export const sourceReleaseDataset = ingestSchema.table(
     check(
       "source_release_dataset_quarantined_count_nonnegative",
       sql`${table.quarantinedCount} >= 0`,
+    ),
+    check(
+      "source_release_dataset_observed_count_not_above_expected",
+      sql`${table.observedCount} <= ${table.expectedCount}`,
+    ),
+    check(
+      "source_release_dataset_terminal_count_not_above_observed",
+      sql`${table.normalizedCount} + ${table.quarantinedCount} <= ${table.observedCount}`,
     ),
   ],
 );
