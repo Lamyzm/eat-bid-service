@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from typing import cast
 from uuid import UUID
 
@@ -37,6 +37,19 @@ def _request(
     )
 
 
+def _list_request(**overrides: str) -> CaptureRequest:
+    params = {
+        "P_BID_BGNG_DT": "20260801",
+        "P_BID_END_DT": "20260831",
+        "P_PRGRS_STAT_CD": "007",
+        "P_CTPV_CD": "1",
+        "START_PAGE": "1",
+        "PAGE_SIZE": "1000",
+    }
+    params.update(overrides)
+    return _request(endpoint="bid-list", params=params)
+
+
 class _TrackingStream(httpx.SyncByteStream):
     def __init__(self, chunks: tuple[bytes, ...]) -> None:
         self._chunks = chunks
@@ -52,11 +65,25 @@ class _TrackingStream(httpx.SyncByteStream):
         self.closed = True
 
 
+class _FailingStream(httpx.SyncByteStream):
+    def __init__(self, upstream_error: httpx.HTTPError) -> None:
+        self._upstream_error = upstream_error
+        self.closed = False
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield b"partial-source-bytes"
+        raise self._upstream_error
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class _RecordingTransport(httpx.BaseTransport):
     def __init__(self, handler: Callable[[httpx.Request], httpx.Response]) -> None:
         self.handler = handler
         self.requests: list[httpx.Request] = []
         self.closed = False
+        self.close_calls = 0
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -64,6 +91,29 @@ class _RecordingTransport(httpx.BaseTransport):
 
     def close(self) -> None:
         self.closed = True
+        self.close_calls += 1
+
+
+class _ExplodingTimezone(tzinfo):
+    def __init__(self, *, fail_after_calls: int) -> None:
+        self._fail_after_calls = fail_after_calls
+        self._calls = 0
+
+    def utcoffset(self, value: datetime | None) -> timedelta:
+        self._calls += 1
+        if self._calls > self._fail_after_calls:
+            raise RuntimeError("tzinfo-provider-secret")
+        return timedelta(0)
+
+    def dst(self, value: datetime | None) -> timedelta:
+        return timedelta(0)
+
+    def tzname(self, value: datetime | None) -> str:
+        return "TEST"
+
+
+def _raising_clock() -> datetime:
+    raise RuntimeError("clock-provider-secret")
 
 
 def test_unknown과_invalid_params는_warmup보다_먼저_요청_0건으로_거부한다() -> None:
@@ -84,6 +134,49 @@ def test_unknown과_invalid_params는_warmup보다_먼저_요청_0건으로_거�
 
     assert transport.requests == []
     client.close()
+
+
+@pytest.mark.parametrize(
+    "capture_request",
+    [
+        _list_request(P_CTPV_CD="5"),
+        _list_request(P_CTPV_CD="13"),
+        _list_request(P_BID_BGNG_DT="20260901", P_BID_END_DT="20260831"),
+        _list_request(PAGE_SIZE="1001"),
+        _list_request(START_PAGE="1000001"),
+        _request(params={"ELCTRN_BID_ID": "E230913-178198-0"}),
+        _request(params={"ELCTRN_BID_ID": "0"}),
+        _request(params={"ELCTRN_BID_ID": "05291468"}),
+        _request(params={"ELCTRN_BID_ID": " 5291468"}),
+        _request(params={"ELCTRN_BID_ID": "5291468\n"}),
+        _request(params={"ELCTRN_BID_ID": "5291468\x00"}),
+        _request(params={"ELCTRN_BID_ID": "5291468\x01"}),
+        _request(params={"ELCTRN_BID_ID": "1<&"}),
+        _request(params={"ELCTRN_BID_ID": "1" * 21}),
+    ],
+)
+def test_source_unsafe_parameter는_validation_before_warmup으로_요청_0건이다(
+    capture_request: CaptureRequest,
+) -> None:
+    transport = _RecordingTransport(lambda sent: httpx.Response(200, content=b"unused"))
+    client = EatHttpClient(transport=transport, clock=lambda: FETCHED_AT)
+
+    with pytest.raises(SourceContractError, match="invalid-params"):
+        client.fetch(capture_request)
+
+    assert transport.requests == []
+    client.close()
+
+
+def test_region_18과_page_size_1000은_실제_요청_payload에_보존된다() -> None:
+    transport = _RecordingTransport(lambda request: httpx.Response(200, content=b"ok"))
+
+    with EatHttpClient(transport=transport, clock=lambda: FETCHED_AT) as client:
+        client.fetch(_list_request(P_CTPV_CD="18", PAGE_SIZE="1000"))
+
+    payload = transport.requests[1].content
+    assert b'<Col id="P_CTPV_CD">18</Col>' in payload
+    assert b'<Col id="PAGE_SIZE">1000</Col>' in payload
 
 
 def test_source_mismatch도_요청한_endpoint_slug만_안전하게_남긴다() -> None:
@@ -236,10 +329,23 @@ def test_warmup도_streaming_byte_cap을_적용한다() -> None:
 @pytest.mark.parametrize(
     ("upstream_error", "category"),
     [
-        (httpx.ConnectTimeout("https://secret.example/?token=abc"), "warmup-timeout"),
-        (httpx.ConnectError("cookie=session-secret"), "warmup-connect"),
-        (httpx.ProtocolError("authorization=Bearer-secret"), "warmup-protocol"),
-        (httpx.DecodingError("compressed-body-secret"), "warmup-protocol"),
+        (
+            httpx.ConnectTimeout("https://secret.example/?token=abc"),
+            "warmup-connect-timeout",
+        ),
+        (httpx.ReadTimeout("read-secret"), "warmup-read-timeout"),
+        (httpx.WriteTimeout("write-secret"), "warmup-write-timeout"),
+        (httpx.PoolTimeout("pool-secret"), "warmup-pool-timeout"),
+        (httpx.ConnectError("cookie=session-secret"), "warmup-connect-error"),
+        (httpx.ReadError("read-secret"), "warmup-read-error"),
+        (httpx.WriteError("write-secret"), "warmup-write-error"),
+        (httpx.CloseError("close-secret"), "warmup-close-error"),
+        (
+            httpx.ProtocolError("authorization=Bearer-secret"),
+            "warmup-protocol-error",
+        ),
+        (httpx.DecodingError("compressed-body-secret"), "warmup-decoding-error"),
+        (httpx.TransportError("fallback-secret"), "warmup-transport-error"),
     ],
 )
 def test_transport_error는_endpoint와_safe_category만_남기고_원인을_제거한다(
@@ -253,7 +359,7 @@ def test_transport_error는_endpoint와_safe_category만_남기고_원인을_제
         EatHttpClient(transport=transport, clock=lambda: FETCHED_AT) as client,
         pytest.raises(SourceContractError) as caught,
     ):
-        client.fetch(_request(params={"ELCTRN_BID_ID": "super-secret-id"}))
+        client.fetch(_request())
 
     rendered = f"{caught.value!s} {caught.value!r}"
     assert "bid-detail" in rendered
@@ -262,6 +368,48 @@ def test_transport_error는_endpoint와_safe_category만_남기고_원인을_제
     assert "token" not in rendered
     assert "cookie" not in rendered
     assert "authorization" not in rendered
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+@pytest.mark.parametrize(
+    ("upstream_error", "category"),
+    [
+        (httpx.ReadError("midstream-read-secret"), "endpoint-read-error"),
+        (
+            httpx.DecodingError("midstream-decoding-secret"),
+            "endpoint-decoding-error",
+        ),
+        (httpx.CloseError("midstream-close-secret"), "endpoint-close-error"),
+    ],
+)
+def test_endpoint_midstream_failure는_retry없이_cookie_session과_stream_close를_보존한다(
+    upstream_error: httpx.HTTPError, category: str
+) -> None:
+    stream = _FailingStream(upstream_error)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                headers={"Set-Cookie": "eat-session=warm-cookie; Path=/"},
+                content=b"warm",
+            )
+        assert request.headers["Cookie"] == "eat-session=warm-cookie"
+        return httpx.Response(200, stream=stream)
+
+    transport = _RecordingTransport(handler)
+    with (
+        EatHttpClient(transport=transport, clock=lambda: FETCHED_AT) as client,
+        pytest.raises(SourceContractError) as caught,
+    ):
+        client.fetch(_request())
+
+    rendered = f"{caught.value!s} {caught.value!r}"
+    assert category in rendered
+    assert "secret" not in rendered
+    assert len(transport.requests) == 2
+    assert stream.closed
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
 
@@ -288,6 +436,36 @@ def test_injected_clock은_non_UTC를_UTC로_정규화하고_naive를_거부한�
         client.fetch(_request())
 
 
+@pytest.mark.parametrize(
+    "clock",
+    [
+        _raising_clock,
+        cast(Callable[[], datetime], lambda: "clock-type-secret"),
+        lambda: datetime(
+            2026, 9, 1, 3, 4, 5, tzinfo=_ExplodingTimezone(fail_after_calls=0)
+        ),
+        lambda: datetime(
+            2026, 9, 1, 3, 4, 5, tzinfo=_ExplodingTimezone(fail_after_calls=1)
+        ),
+    ],
+)
+def test_clock_provider와_timezone_failure는_전체_chain을_redact한다(
+    clock: Callable[[], datetime],
+) -> None:
+    transport = _RecordingTransport(lambda request: httpx.Response(200, content=b"ok"))
+
+    with (
+        EatHttpClient(transport=transport, clock=clock) as client,
+        pytest.raises(SourceContractError, match="invalid-clock") as caught,
+    ):
+        client.fetch(_request())
+
+    rendered = f"{caught.value!s} {caught.value!r}"
+    assert "secret" not in rendered
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
 def test_context_manager는_소유한_transport를_닫는다() -> None:
     transport = _RecordingTransport(lambda request: httpx.Response(200, content=b"ok"))
 
@@ -295,6 +473,24 @@ def test_context_manager는_소유한_transport를_닫는다() -> None:
         assert not transport.closed
 
     assert transport.closed
+
+
+def test_close는_idempotent하고_이후_fetch를_HTTP전에_typed_failure로_거부한다() -> (
+    None
+):
+    transport = _RecordingTransport(
+        lambda request: httpx.Response(200, content=b"unused")
+    )
+    client = EatHttpClient(transport=transport, clock=lambda: FETCHED_AT)
+
+    client.close()
+    client.close()
+    with pytest.raises(SourceContractError, match="client-closed") as caught:
+        client.fetch(_request())
+
+    assert "bid-detail" in str(caught.value)
+    assert transport.requests == []
+    assert transport.close_calls == 1
 
 
 def test_default_HTTP_transport는_TLS_certificate_verification을_유지한다() -> None:

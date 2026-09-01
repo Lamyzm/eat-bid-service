@@ -12,6 +12,9 @@ from eatbid.source.eat.xml import NEXACRO_DATASET_NAMESPACE
 
 _ASCII_DATE = re.compile(r"[0-9]{8}")
 _POSITIVE_DECIMAL = re.compile(r"[1-9][0-9]*")
+MAX_START_PAGE_NUMBER = 1_000_000
+MAX_PAGE_SIZE_ROWS = 1_000
+MAX_ELECTRONIC_BID_ID_DIGITS = 20
 _PROGRESS_CODES = frozenset(
     {
         "",
@@ -29,7 +32,27 @@ _PROGRESS_CODES = frozenset(
         "999",
     }
 )
-_REGION_CODES = frozenset({"", *(str(value) for value in range(1, 18))})
+_REGION_CODES = frozenset(
+    {
+        "",
+        "1",
+        "2",
+        "3",
+        "4",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+    }
+)
 _TRANSACTION_FIELDS = {
     "STM_ID": "NEAT",
     "MENU_ID": "80015",
@@ -73,6 +96,14 @@ def _is_calendar_date(value: str) -> bool:
     return True
 
 
+def _is_canonical_positive_at_most(value: str, maximum: int) -> bool:
+    if _POSITIVE_DECIMAL.fullmatch(value) is None:
+        return False
+    if len(value) > len(str(maximum)):
+        return False
+    return int(value) <= maximum
+
+
 def _dataset(
     root: ElementTree.Element,
     dataset_id: str,
@@ -105,13 +136,18 @@ def _envelope(datasets: tuple[tuple[str, Mapping[str, str], str], ...]) -> bytes
 
 def build_bid_list_payload(params: Mapping[str, str]) -> bytes:
     _require_exact_fields("bid-list", params, _LIST_FIELDS)
+    start_date = params["P_BID_BGNG_DT"]
+    end_date = params["P_BID_END_DT"]
     if (
-        not _is_calendar_date(params["P_BID_BGNG_DT"])
-        or not _is_calendar_date(params["P_BID_END_DT"])
+        not _is_calendar_date(start_date)
+        or not _is_calendar_date(end_date)
+        or start_date > end_date
         or params["P_PRGRS_STAT_CD"] not in _PROGRESS_CODES
         or params["P_CTPV_CD"] not in _REGION_CODES
-        or _POSITIVE_DECIMAL.fullmatch(params["START_PAGE"]) is None
-        or _POSITIVE_DECIMAL.fullmatch(params["PAGE_SIZE"]) is None
+        or not _is_canonical_positive_at_most(
+            params["START_PAGE"], MAX_START_PAGE_NUMBER
+        )
+        or not _is_canonical_positive_at_most(params["PAGE_SIZE"], MAX_PAGE_SIZE_ROWS)
     ):
         raise _invalid("bid-list")
 
@@ -140,7 +176,10 @@ def build_bid_list_payload(params: Mapping[str, str]) -> bytes:
 def build_bid_detail_payload(params: Mapping[str, str]) -> bytes:
     _require_exact_fields("bid-detail", params, _DETAIL_FIELDS)
     bid_id = params["ELCTRN_BID_ID"]
-    if not bid_id or len(bid_id) > 256:
+    if (
+        _POSITIVE_DECIMAL.fullmatch(bid_id) is None
+        or len(bid_id) > MAX_ELECTRONIC_BID_ID_DIGITS
+    ):
         raise _invalid("bid-detail")
 
     # 목록의 ETN_BID_ID를 받지 않고 상세 API가 실제로 요구한 이름만 경계에 남긴다.

@@ -21,6 +21,13 @@ class ReviewedSchemaContract:
         return schema_fingerprint(self.datasets)
 
 
+_EAT_V1_BID_LIST = ReviewedSchemaContract(
+    source="eat",
+    endpoint="bid-list",
+    parser_version="eat-v1",
+    datasets=MappingProxyType({"ds_list": ("TOT_CNT", "ETN_BID_ID")}),
+)
+
 _EAT_V1_BID_DETAIL = ReviewedSchemaContract(
     source="eat",
     endpoint="bid-detail",
@@ -49,11 +56,8 @@ _EAT_V1_BID_DETAIL = ReviewedSchemaContract(
 
 REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
     {
-        (
-            _EAT_V1_BID_DETAIL.source,
-            _EAT_V1_BID_DETAIL.endpoint,
-            _EAT_V1_BID_DETAIL.parser_version,
-        ): _EAT_V1_BID_DETAIL
+        (contract.source, contract.endpoint, contract.parser_version): contract
+        for contract in (_EAT_V1_BID_LIST, _EAT_V1_BID_DETAIL)
     }
 )
 

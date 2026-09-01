@@ -27,52 +27,51 @@ class EatEndpointContract:
     path: str
     method: str
     max_response_bytes: int
+    schema_contract: ReviewedSchemaContract
     _payload_builder: PayloadBuilder = field(repr=False, compare=False)
-    _response_datasets: tuple[str, ...] = ()
-    schema_contract: ReviewedSchemaContract | None = None
 
     @property
-    def parser_version(self) -> str | None:
-        return (
-            self.schema_contract.parser_version
-            if self.schema_contract is not None
-            else None
-        )
+    def parser_version(self) -> str:
+        return self.schema_contract.parser_version
 
     @property
-    def schema_fingerprint(self) -> str | None:
-        return (
-            self.schema_contract.fingerprint
-            if self.schema_contract is not None
-            else None
-        )
+    def schema_fingerprint(self) -> str:
+        return self.schema_contract.fingerprint
 
     @property
     def response_datasets(self) -> tuple[str, ...]:
-        if self.schema_contract is not None:
-            return tuple(self.schema_contract.datasets)
-        return self._response_datasets
+        return tuple(self.schema_contract.datasets)
+
+    @property
+    def datasets(self) -> Mapping[str, tuple[str, ...]]:
+        return self.schema_contract.datasets
 
     def build_payload(self, params: Mapping[str, str]) -> bytes:
         return self._payload_builder(params)
 
 
-_BID_DETAIL_SCHEMA = reviewed_schema_contract(
-    source="eat", endpoint="bid-detail", parser_version="eat-v1"
-)
-if _BID_DETAIL_SCHEMA is None:  # pragma: no cover - import-time invariant
-    raise RuntimeError("reviewed bid-detail schema contract is required")
+def _require_schema(endpoint: str) -> ReviewedSchemaContract:
+    contract = reviewed_schema_contract(
+        source="eat", endpoint=endpoint, parser_version="eat-v1"
+    )
+    if contract is None:  # pragma: no cover - import-time invariant
+        raise RuntimeError(f"reviewed {endpoint} schema contract is required")
+    return contract
+
+
+_BID_LIST_SCHEMA = _require_schema("bid-list")
+_BID_DETAIL_SCHEMA = _require_schema("bid-detail")
 
 EAT_ENDPOINTS: Mapping[str, EatEndpointContract] = MappingProxyType(
     {
-        "bid-list": EatEndpointContract(
-            endpoint="bid-list",
+        _BID_LIST_SCHEMA.endpoint: EatEndpointContract(
+            endpoint=_BID_LIST_SCHEMA.endpoint,
             origin=EAT_ORIGIN,
             path="/nm/ep/600/selectTmBidMBidPbancList.do",
             method="POST",
             max_response_bytes=BID_LIST_MAX_RESPONSE_BYTES,
+            schema_contract=_BID_LIST_SCHEMA,
             _payload_builder=build_bid_list_payload,
-            _response_datasets=("ds_list",),
         ),
         _BID_DETAIL_SCHEMA.endpoint: EatEndpointContract(
             endpoint=_BID_DETAIL_SCHEMA.endpoint,
@@ -80,8 +79,8 @@ EAT_ENDPOINTS: Mapping[str, EatEndpointContract] = MappingProxyType(
             path="/nm/ep/600/selectBidDtl.do",
             method="POST",
             max_response_bytes=BID_DETAIL_MAX_RESPONSE_BYTES,
-            _payload_builder=build_bid_detail_payload,
             schema_contract=_BID_DETAIL_SCHEMA,
+            _payload_builder=build_bid_detail_payload,
         ),
     }
 )

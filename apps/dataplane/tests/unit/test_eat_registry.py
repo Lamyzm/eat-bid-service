@@ -53,6 +53,21 @@ def test_bid_detail_registry는_schema_fingerprint_권위를_재사용한다() -
     assert set(contract.response_datasets) == {"ds_info", "ds_areaList"}
 
 
+def test_bid_list_registry는_release_plan용_schema_metadata를_직접_노출한다() -> None:
+    contract = require("bid-list")
+
+    assert contract.endpoint == "bid-list"
+    assert contract.parser_version == "eat-v1"
+    assert contract.schema_fingerprint == (
+        "f316b1c240ecd53c8c0a8927ad7f8d5fef437ce615684c404650dae5f03b3701"
+    )
+    assert contract.response_datasets == ("ds_list",)
+    assert contract.datasets == {"ds_list": ("TOT_CNT", "ETN_BID_ID")}
+    assert contract.schema_fingerprint == reviewed_schema_fingerprint(
+        source="eat", endpoint="bid-list", parser_version="eat-v1"
+    )
+
+
 def test_bid_list_payload는_검토된_variable과_fixed_dataset만_조립한다() -> None:
     payload = require("bid-list").build_payload(
         {
@@ -97,13 +112,26 @@ def test_bid_detail_payload는_목록_ID_이름을_상세_ID_필드로_추론하
     assert _dataset_row(payload, "_ds_tranInfo")["PRGRM_ID"] == "EPTM610M01"
 
 
-def test_XML_metacharacter는_dataset_구조를_탈출하지_못한다() -> None:
-    injected = '5291468</Col><Dataset id="escaped">&"\''
-    payload = require("bid-detail").build_payload({"ELCTRN_BID_ID": injected})
-    root = ElementTree.fromstring(payload)
-
-    assert _dataset_row(payload, "ds_searchParam")["ELCTRN_BID_ID"] == injected
-    assert root.find("d:Dataset[@id='escaped']", NS) is None
+@pytest.mark.parametrize(
+    "invalid_id",
+    [
+        "",
+        "0",
+        "E230913-178198-0",
+        "05291468",
+        " 5291468",
+        "5291468\n",
+        "5291468\x00",
+        "5291468\x01",
+        '5291468</Col><Dataset id="escaped">&',
+        "1" * 21,
+    ],
+)
+def test_bid_detail_payload는_bounded_canonical_positive_ASCII_ID만_허용한다(
+    invalid_id: str,
+) -> None:
+    with pytest.raises(SourceContractError, match="invalid-params"):
+        require("bid-detail").build_payload({"ELCTRN_BID_ID": invalid_id})
 
 
 @pytest.mark.parametrize(
@@ -143,10 +171,14 @@ def test_payload는_missing_extra_또는_잘못된_parameter_name을_거부한�
         ("P_BID_END_DT", "20260230"),
         ("P_PRGRS_STAT_CD", "010"),
         ("P_CTPV_CD", "01"),
-        ("P_CTPV_CD", "18"),
+        ("P_CTPV_CD", "5"),
+        ("P_CTPV_CD", "13"),
         ("START_PAGE", "0"),
         ("START_PAGE", "01"),
+        ("START_PAGE", "1000001"),
+        ("START_PAGE", "1" * 24),
         ("PAGE_SIZE", "+30"),
+        ("PAGE_SIZE", "1001"),
     ],
 )
 def test_bid_list_payload는_검토된_source_text_contract만_허용한다(
@@ -175,6 +207,9 @@ def test_bid_list_payload는_검토된_source_text_contract만_허용한다(
         ("P_CTPV_CD", ""),
         ("P_CTPV_CD", "1"),
         ("P_CTPV_CD", "17"),
+        ("P_CTPV_CD", "18"),
+        ("START_PAGE", "1000000"),
+        ("PAGE_SIZE", "1000"),
     ],
 )
 def test_bid_list_payload는_전체_상태와_전국_지역을_명시적으로_허용한다(
@@ -191,3 +226,17 @@ def test_bid_list_payload는_전체_상태와_전국_지역을_명시적으로_�
     params[field] = allowed
 
     require("bid-list").build_payload(params)
+
+
+def test_bid_list_payload는_시작일이_종료일보다_늦으면_거부한다() -> None:
+    with pytest.raises(SourceContractError, match="invalid-params"):
+        require("bid-list").build_payload(
+            {
+                "P_BID_BGNG_DT": "20260901",
+                "P_BID_END_DT": "20260831",
+                "P_PRGRS_STAT_CD": "007",
+                "P_CTPV_CD": "1",
+                "START_PAGE": "1",
+                "PAGE_SIZE": "1000",
+            }
+        )

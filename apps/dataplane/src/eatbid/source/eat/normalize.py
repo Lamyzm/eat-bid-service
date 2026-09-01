@@ -1,3 +1,5 @@
+"""모듈 책임: 검토된 eaT XML을 source 계약에 따라 목록과 정규화 상세 모델로 해석한다."""
+
 from __future__ import annotations
 
 import json
@@ -27,6 +29,7 @@ from eatbid.generated.ingestion_v1 import (
     SourceCode,
 )
 from eatbid.source.eat.models import BidListPage
+from eatbid.source.eat.schema_contract import reviewed_schema_contract
 from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro
 
 _NONNEGATIVE_DECIMAL = re.compile(r"0|[1-9][0-9]*")
@@ -36,6 +39,16 @@ _SOURCE_TIME_WIRE_SHAPES: dict[str, tuple[re.Pattern[str], int]] = {
 }
 _SEOUL_TIME = ZoneInfo("Asia/Seoul")
 _KRW_SCALE = Decimal("0.01")
+
+_BID_LIST_SCHEMA = reviewed_schema_contract(
+    source="eat", endpoint="bid-list", parser_version="eat-v1"
+)
+if _BID_LIST_SCHEMA is None:  # pragma: no cover - import-time invariant
+    raise RuntimeError("reviewed bid-list schema contract is required")
+(_BID_LIST_DATASET,) = tuple(_BID_LIST_SCHEMA.datasets)
+(_TOTAL_COUNT_FIELD, _EXTERNAL_BID_ID_FIELD) = _BID_LIST_SCHEMA.datasets[
+    _BID_LIST_DATASET
+]
 
 
 class EatDetailValidationError(ValueError):
@@ -52,25 +65,31 @@ class NormalizedDetail:
 
 def parse_bid_list_page(payload: bytes) -> BidListPage:
     parsed = parse_nexacro(payload)
-    rows = parsed.datasets.get("ds_list")
+    rows = parsed.datasets.get(_BID_LIST_DATASET)
     if not rows:
-        raise SourceContractError("ds_list must contain at least one row")
+        raise SourceContractError(f"{_BID_LIST_DATASET} must contain at least one row")
 
-    totals = {row.get("TOT_CNT", "") for row in rows}
+    totals = {row.get(_TOTAL_COUNT_FIELD, "") for row in rows}
     if len(totals) != 1:
-        raise SourceContractError("TOT_CNT must be stable across a list page")
+        raise SourceContractError(
+            f"{_TOTAL_COUNT_FIELD} must be stable across a list page"
+        )
     total_text = next(iter(totals))
     if _NONNEGATIVE_DECIMAL.fullmatch(total_text) is None:
-        raise SourceContractError("TOT_CNT must be nonnegative ASCII decimal text")
+        raise SourceContractError(
+            f"{_TOTAL_COUNT_FIELD} must be nonnegative ASCII decimal text"
+        )
 
-    external_bid_ids = tuple(row.get("ETN_BID_ID", "") for row in rows)
+    external_bid_ids = tuple(row.get(_EXTERNAL_BID_ID_FIELD, "") for row in rows)
     if any(not source_id for source_id in external_bid_ids):
-        raise SourceContractError("ETN_BID_ID must be nonempty")
+        raise SourceContractError(f"{_EXTERNAL_BID_ID_FIELD} must be nonempty")
     if len(set(external_bid_ids)) != len(external_bid_ids):
-        raise SourceContractError("ETN_BID_ID must be unique within a page")
+        raise SourceContractError(
+            f"{_EXTERNAL_BID_ID_FIELD} must be unique within a page"
+        )
     total_count = int(total_text)
     if len(external_bid_ids) > total_count:
-        raise SourceContractError("page row count exceeds TOT_CNT")
+        raise SourceContractError(f"page row count exceeds {_TOTAL_COUNT_FIELD}")
     return BidListPage(total_count=total_count, external_bid_ids=external_bid_ids)
 
 

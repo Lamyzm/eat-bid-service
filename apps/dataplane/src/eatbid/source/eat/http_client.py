@@ -43,6 +43,20 @@ _ENDPOINT_HEADERS = {
 }
 _WARMUP_HEADERS = {"User-Agent": USER_AGENT_HEADER}
 
+_TRANSPORT_ERROR_CATEGORIES: tuple[tuple[type[httpx.HTTPError], str], ...] = (
+    (httpx.ConnectTimeout, "connect-timeout"),
+    (httpx.ReadTimeout, "read-timeout"),
+    (httpx.WriteTimeout, "write-timeout"),
+    (httpx.PoolTimeout, "pool-timeout"),
+    (httpx.ConnectError, "connect-error"),
+    (httpx.ReadError, "read-error"),
+    (httpx.WriteError, "write-error"),
+    (httpx.CloseError, "close-error"),
+    (httpx.ProtocolError, "protocol-error"),
+    (httpx.DecodingError, "decoding-error"),
+    (httpx.TransportError, "transport-error"),
+)
+
 
 class _ResponseTooLarge(Exception):
     pass
@@ -67,8 +81,14 @@ class EatHttpClient:
             transport=transport,
         )
         self._warmed = False
+        self._closed = False
 
     def fetch(self, request: CaptureRequest) -> SourceResponse:
+        if self._closed:
+            endpoint = (
+                request.endpoint if isinstance(request, CaptureRequest) else "unknown"
+            )
+            raise self._failure(endpoint, "client-closed")
         contract, payload = self._prepare(request)
         self._ensure_warmup(contract.endpoint)
         status_code, body = self._exchange(
@@ -130,14 +150,9 @@ class EatHttpClient:
             ) as response:
                 body = self._read_limited(response, max_response_bytes)
                 result = (response.status_code, body)
-        except httpx.TimeoutException:
-            safe_error = self._failure(endpoint, f"{phase}-timeout")
-        except httpx.NetworkError:
-            safe_error = self._failure(endpoint, f"{phase}-connect")
-        except (httpx.ProtocolError, httpx.DecodingError):
-            safe_error = self._failure(endpoint, f"{phase}-protocol")
-        except httpx.TransportError:
-            safe_error = self._failure(endpoint, f"{phase}-transport")
+        except httpx.HTTPError as error:
+            category = self._transport_error_category(error)
+            safe_error = self._failure(endpoint, f"{phase}-{category}")
         except _ResponseTooLarge:
             category = (
                 "warmup-response-too-large"
@@ -171,22 +186,37 @@ class EatHttpClient:
             f"eaT request failed [endpoint={endpoint} category={category}]"
         )
 
+    @staticmethod
+    def _transport_error_category(error: httpx.HTTPError) -> str:
+        for error_type, category in _TRANSPORT_ERROR_CATEGORIES:
+            if isinstance(error, error_type):
+                return category
+        return "request-error"
+
     def _fetched_at(self, endpoint: str) -> datetime:
-        clock_failed = False
+        safe_error: SourceContractError | None = None
+        normalized: datetime | None = None
         try:
             fetched_at = self._clock()
-        except Exception:  # noqa: BLE001 - provider detail은 source error에 노출하지 않는다.
-            clock_failed = True
-            fetched_at = datetime.min.replace(tzinfo=UTC)
+            if not isinstance(fetched_at, datetime) or fetched_at.utcoffset() is None:
+                raise ValueError("clock must return an aware datetime")
+            normalized = fetched_at.astimezone(UTC)
+            if normalized.utcoffset() != UTC.utcoffset(normalized):
+                raise ValueError("clock normalization must produce UTC")
+        except Exception:  # noqa: BLE001 - clock/tzinfo provider detail은 노출하지 않는다.
+            safe_error = self._failure(endpoint, "invalid-clock")
+        if safe_error is not None:
+            raise safe_error from None
         if (
-            clock_failed
-            or not isinstance(fetched_at, datetime)
-            or fetched_at.utcoffset() is None
-        ):
-            raise self._failure(endpoint, "invalid-clock") from None
-        return fetched_at.astimezone(UTC)
+            normalized is None
+        ):  # pragma: no cover - 위 경계가 결과 또는 typed error를 만든다.
+            raise RuntimeError("eaT clock did not produce a result")
+        return normalized
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         self._client.close()
 
     def __enter__(self) -> Self:
