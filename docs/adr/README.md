@@ -30,6 +30,8 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0021](0021-zod-portable-contract-hub.md) | Accepted | Zod portable contract hub와 Python 생성 계약 |
 | [0022](0022-infisical-secret-value-authority.md) | Accepted | Infisical 비밀값 SSOT와 로컬·CI·Kubernetes 전달 경계 |
 | [0023](0023-nextjs-web-modular-boundaries.md) | Accepted | Next.js Web 모듈 경계와 계약 소비 |
+| [0024](0024-free-github-tag-gated-publication.md) | Accepted | 무료 GitHub tag 기반 publication gate |
+| [0025](0025-source-release-manifest.md) | Accepted | source release manifest와 봉인된 raw membership |
 
 ## 새 ADR 형식
 
