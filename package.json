@@ -19,6 +19,7 @@
     "lint:endpoints": "node tools/architecture/check-http-operations.mjs && node tools/architecture/check-contract-client-exports.mjs",
     "review:context": "node tools/review/build-review-context.mjs",
     "review:ai": "node tools/review/ai-advisory.mjs",
+    "review:doctor": "node tools/review/review-doctor.mjs",
     "quality:check": "node tools/quality/check-test-names.mjs && node tools/quality/check-korean-comments.mjs",
     "test:quality": "node --test tools/architecture/*.test.mjs tools/quality/*.test.mjs && uv run --project apps/dataplane pytest tools/quality/test_check_python_semantic_values.py -q",
     "contracts:generate": "pnpm --filter @eatbid/contracts contracts:generate",

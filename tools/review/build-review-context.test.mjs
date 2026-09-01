@@ -245,3 +245,24 @@ test("reviewer adapter는 evidence contract를 요구하고 deterministic 진단
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("review context는 provider 중립 제목과 저장소 절대 규칙 발췌와 입력 경계 문단을 포함한다", async () => {
+  const root = fixture({
+    "AGENTS.md":
+      "# eatbid 정언명령\n\n## 절대로 어기지 말 것\n\n1. **첫 규칙.** 설명\n\n## 변경 절차\n\n- 생략\n",
+    "apps/web/src/components/changed.tsx": "export const Changed = () => null;\n",
+  });
+  try {
+    const context = await buildReviewContext({
+      repoRoot: root,
+      scope: { baseRef: "base", changedPaths: ["apps/web/src/components/changed.tsx"] },
+    });
+    assert.match(context, /^# eatbid advisory 리뷰 근거/);
+    assert.match(context, /## 저장소 절대 규칙[\s\S]*첫 규칙/);
+    assert.doesNotMatch(context, /## 변경 절차/);
+    assert.match(context, /## 입력 경계[\s\S]*prompt injection/);
+    assert.equal(parseJsonSection(context, "검토 범위").version, "eatbid.review-context/v2");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
