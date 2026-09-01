@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from enum import Enum, auto
 from types import TracebackType
 from typing import Self
 
@@ -62,6 +63,13 @@ class _ResponseTooLarge(Exception):
     pass
 
 
+class _ClientLifecycle(Enum):
+    OPEN = auto()
+    CLOSING = auto()
+    CLOSED = auto()
+    CLOSE_FAILED = auto()
+
+
 def _system_utc_clock() -> datetime:
     return datetime.now(UTC)
 
@@ -81,14 +89,19 @@ class EatHttpClient:
             transport=transport,
         )
         self._warmed = False
-        self._closed = False
+        self._lifecycle = _ClientLifecycle.OPEN
 
     def fetch(self, request: CaptureRequest) -> SourceResponse:
-        if self._closed:
+        if self._lifecycle is not _ClientLifecycle.OPEN:
             endpoint = (
                 request.endpoint if isinstance(request, CaptureRequest) else "unknown"
             )
-            raise self._failure(endpoint, "client-closed")
+            category = (
+                "client-close-failed"
+                if self._lifecycle is _ClientLifecycle.CLOSE_FAILED
+                else "client-closed"
+            )
+            raise self._failure(endpoint, category)
         contract, payload = self._prepare(request)
         self._ensure_warmup(contract.endpoint)
         status_code, body = self._exchange(
@@ -200,9 +213,23 @@ class EatHttpClient:
             fetched_at = self._clock()
             if not isinstance(fetched_at, datetime) or fetched_at.utcoffset() is None:
                 raise ValueError("clock must return an aware datetime")
-            normalized = fetched_at.astimezone(UTC)
-            if normalized.utcoffset() != UTC.utcoffset(normalized):
+            provider_normalized = fetched_at.astimezone(UTC)
+            first_offset = provider_normalized.utcoffset()
+            second_offset = provider_normalized.utcoffset()
+            if first_offset != timedelta(0) or second_offset != first_offset:
                 raise ValueError("clock normalization must produce UTC")
+            # datetime subclass와 provider tzinfo를 primitive 값에서 다시 만들어 완전히 분리한다.
+            normalized = datetime(
+                provider_normalized.year,
+                provider_normalized.month,
+                provider_normalized.day,
+                provider_normalized.hour,
+                provider_normalized.minute,
+                provider_normalized.second,
+                provider_normalized.microsecond,
+                tzinfo=UTC,
+                fold=provider_normalized.fold,
+            )
         except Exception:  # noqa: BLE001 - clock/tzinfo provider detail은 노출하지 않는다.
             safe_error = self._failure(endpoint, "invalid-clock")
         if safe_error is not None:
@@ -214,10 +241,25 @@ class EatHttpClient:
         return normalized
 
     def close(self) -> None:
-        if self._closed:
+        if self._lifecycle is _ClientLifecycle.CLOSED:
             return
-        self._closed = True
-        self._client.close()
+        if self._lifecycle is _ClientLifecycle.CLOSE_FAILED:
+            raise self._failure("session", "client-close-error") from None
+        if self._lifecycle is _ClientLifecycle.CLOSING:
+            raise self._failure("session", "client-close-in-progress") from None
+
+        self._lifecycle = _ClientLifecycle.CLOSING
+        safe_error: SourceContractError | None = None
+        try:
+            self._client.close()
+        except Exception:  # noqa: BLE001 - transport close detail은 lifecycle 밖에 노출하지 않는다.
+            # httpx session은 이미 closed일 수 있어 재호출하지 않는 terminal failed 정책이다.
+            self._lifecycle = _ClientLifecycle.CLOSE_FAILED
+            safe_error = self._failure("session", "client-close-error")
+        else:
+            self._lifecycle = _ClientLifecycle.CLOSED
+        if safe_error is not None:
+            raise safe_error from None
 
     def __enter__(self) -> Self:
         return self
@@ -228,4 +270,9 @@ class EatHttpClient:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        self.close()
+        try:
+            self.close()
+        except SourceContractError:
+            if exc_value is None:
+                raise
+            # body exception이 원인 권위를 가지며 close failure는 terminal state에 남는다.
