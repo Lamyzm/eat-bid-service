@@ -62,14 +62,24 @@ test("삭제된 민감 경로도 patch에 본문이 남으므로 denied-path로 
 test("민감 경로에서 평범한 경로로 rename해도 old 본문이 patch에 남으므로 거부한다", () => {
   const fixture = repository();
   try {
-    writeFileSync(path.join(fixture.root, "credentials.json"), '{"token":"old-secret-value-1234","keep":true}\n', "utf8");
+    const kept = Array.from({ length: 12 }, (_, index) => `  "setting${index}": "value-${index}-${"x".repeat(20)}"`);
+    writeFileSync(
+      path.join(fixture.root, "credentials.json"),
+      `{\n  "token": "old-secret-value-1234",\n${kept.join(",\n")}\n}\n`,
+      "utf8",
+    );
     fixture.git("add", "credentials.json");
     fixture.git("commit", "-qm", "민감 파일 커밋");
     const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fixture.root, encoding: "utf8" }).trim();
     fixture.git("mv", "credentials.json", "config.json");
-    writeFileSync(path.join(fixture.root, "config.json"), '{"keep":true}\n', "utf8");
+    writeFileSync(path.join(fixture.root, "config.json"), `{\n${kept.join(",\n")}\n}\n`, "utf8");
     fixture.git("add", "config.json");
     fixture.git("commit", "-qm", "rename 뒤 secret 제거");
+
+    // 기본 rename 감지에서는 old 경로가 목록에 없어야 이 테스트가 --no-renames 유무를 판별한다.
+    const detected = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { cwd: fixture.root, encoding: "utf8" });
+    assert.doesNotMatch(detected, /credentials\.json/);
+    assert.match(detected, /config\.json/);
 
     const scope = inspectReviewScope({ repoRoot: fixture.root, baseRef: base });
     assert.equal(scope.category, "denied-path");

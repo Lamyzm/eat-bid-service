@@ -6,12 +6,19 @@ import { DENIED_PATH } from "./git-scope.mjs";
 import { hasSensitiveContent } from "./sensitive-content.mjs";
 
 const HEADER = /^diff --git a\/(.+?) b\/(.+)$/;
-const QUOTED_HEADER = /^diff --git "a\/.*" "b\/.*"$/;
+// git은 a/와 b/를 각각 quote하므로 한쪽만 quote된 header도 나온다. HEADER에 맞지 않는 `diff --git` 줄은
+// 모두 경로를 확정할 수 없는 chunk로 시작해 앞 chunk에 본문이 합쳐지지 않게 한다.
+const ANY_HEADER = /^diff --git /;
 const BINARY = /^(?:GIT binary patch|Binary files .* differ)$/m;
 // AST 검사는 둘러싼 `{`가 hunk context 안에 있어야 owner 이름을 본다. context 밖 깊은 속성의
 // credential 줄은 값 모양과 무관하게 보수적으로 잡는다. 값은 출력하지 않으므로 오탐 비용은 hunk 하나다.
-const LINE_CREDENTIAL =
-  /^\s*["']?[\w-]*(?:password|api[_-]?key|api[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|authorization)["']?\s*[:=]\s*["'`]/i;
+// JS/TS에서는 `password: string;` 같은 타입 선언 오탐을 피하려고 따옴표로 시작하는 값만 잡고,
+// YAML·TOML·properties·ini처럼 따옴표 없는 값이 일반적인 확장자에서는 어떤 값이든 잡는다.
+const CREDENTIAL_KEY =
+  /^\s*["']?[\w.-]*(?:password|api[_-]?key|api[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|authorization)["']?\s*[:=]\s*/i;
+const LINE_CREDENTIAL = new RegExp(`${CREDENTIAL_KEY.source}["'\`]`, "i");
+const LINE_CREDENTIAL_UNQUOTED = new RegExp(`${CREDENTIAL_KEY.source}\\S`, "i");
+const UNQUOTED_VALUE_EXTENSION = /\.(?:ya?ml|toml|properties|ini|cfg|conf)$/i;
 const DELETED_NOTE =
   "삭제된 파일의 hunk는 근거일 뿐 finding 대상이 아니다. finding 경로는 `검토 범위`의 changedPaths 안에서만 고른다.";
 
@@ -20,7 +27,7 @@ export function splitPatchByFile(patch) {
   let current = null;
   for (const line of patch.replaceAll("\r\n", "\n").split("\n")) {
     const header = line.match(HEADER);
-    const quoted = !header && QUOTED_HEADER.test(line);
+    const quoted = !header && ANY_HEADER.test(line);
     if (header || quoted) {
       if (current) chunks.push(current);
       current = {
@@ -72,10 +79,9 @@ function fenceFor(text) {
   return "`".repeat(longest + 1);
 }
 
-function changedLinesLookSensitive(text) {
-  return hunkSides(text).some((side) =>
-    side.split("\n").some((line) => LINE_CREDENTIAL.test(line)),
-  );
+function changedLinesLookSensitive(chunk) {
+  const pattern = UNQUOTED_VALUE_EXTENSION.test(chunk.path) ? LINE_CREDENTIAL_UNQUOTED : LINE_CREDENTIAL;
+  return hunkSides(chunk.text).some((side) => side.split("\n").some((line) => pattern.test(line)));
 }
 
 /**
@@ -90,7 +96,7 @@ function exclusionReason(repoRoot, chunk) {
   if (hunkSides(chunk.text).some((side) => hasSensitiveContent(side, chunk.path))) {
     return "sensitive-content";
   }
-  if (changedLinesLookSensitive(chunk.text)) return "sensitive-content";
+  if (changedLinesLookSensitive(chunk)) return "sensitive-content";
   const target = path.join(repoRoot, chunk.path);
   if (existsSync(target) && hasSensitiveContent(readFileSync(target, "utf8"), chunk.path)) {
     return "sensitive-content";

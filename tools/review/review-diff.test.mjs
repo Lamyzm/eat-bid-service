@@ -77,13 +77,25 @@ test("민감 경로에서 rename된 hunk와 quote된 header는 old 경로 기준
   const patch = [
     'diff --git a/credentials.json b/config.json\nsimilarity index 60%\nrename from credentials.json\nrename to config.json\n--- a/credentials.json\n+++ b/config.json\n@@ -1 +1 @@\n-{"token":"old-secret-value-1234"}\n+{"keep":true}\n',
     'diff --git "a/we\\"ird.ts" "b/we\\"ird.ts"\n--- "a/we\\"ird.ts"\n+++ "b/we\\"ird.ts"\n@@ -1 +1 @@\n+export const weird = 1;\n',
+    'diff --git "a/odd\\"name.ts" b/plain.ts\nsimilarity index 80%\n--- "a/odd\\"name.ts"\n+++ b/plain.ts\n@@ -1 +1 @@\n+export const asymmetric = 1;\n',
     hunk("src/kept.ts", "+export const kept = true;"),
   ].join("");
   const section = renderDiffSection({ repoRoot: "C:/repo", patch });
-  assert.doesNotMatch(section, /old-secret-value-1234|weird = 1/);
+  assert.doesNotMatch(section, /old-secret-value-1234|weird = 1|asymmetric = 1/);
   assert.match(section, /credentials\.json → config\.json.*denied-path/);
-  assert.match(section, /quoted-path/);
+  assert.equal((section.match(/quoted-path/g) ?? []).length, 2);
   assert.match(section, /export const kept = true;/);
+});
+
+test("YAML처럼 따옴표 없는 credential 값도 비 JS 확장자에서는 line fallback으로 제외한다", () => {
+  const yaml =
+    "diff --git a/deploy/values.yaml b/deploy/values.yaml\n--- a/deploy/values.yaml\n+++ b/deploy/values.yaml\n@@ -3,3 +3,2 @@\n   image: app\n-  password: hunter2-unquoted\n   replicas: 2\n";
+  const section = renderDiffSection({ repoRoot: "C:/repo", patch: yaml });
+  assert.doesNotMatch(section, /hunter2-unquoted/);
+  assert.match(section, /deploy\/values\.yaml.*sensitive-content/);
+
+  const typeDeclaration = hunk("src/types.ts", "+  password: string;");
+  assert.match(renderDiffSection({ repoRoot: "C:/repo", patch: typeDeclaration }), /password: string;/);
 });
 
 test("context 밖 깊은 속성의 credential 삭제 줄은 line 수준 fallback으로 제외한다", () => {
