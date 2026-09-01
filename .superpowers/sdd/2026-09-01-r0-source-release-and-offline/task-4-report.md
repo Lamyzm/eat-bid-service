@@ -245,3 +245,7 @@ disposable PostgreSQL, 실제 `Application`, 실제 `cli.main` handler를 사용
 서로 다른 PostgreSQL connection을 사용한 테스트는 첫 connection의 동일-payload canonical retry 뒤 두 번째 connection이 같은 request-unit advisory reservation에서 500ms lock timeout으로 실패하는 RED를 재현했다. 원인은 canonical observation early return이 release `finally` 바깥에 있었기 때문이다.
 
 reserve 성공 이후 canonical return, 신규 raw 저장/observation commit, object-store 실패, DB/typed failure는 이제 하나의 exactly-once release 경계를 공유한다. canonical 반환도 `try/finally` 안에서 이루어져 session advisory lock을 해제한다. 본문 실패와 unlock 실패가 겹치면 본문 typed failure가 권위이며 cleanup 상세를 붙이지 않는다. 본문이 성공했지만 unlock이 실패하면 성공을 거짓 보고하지 않고 provider message·cause를 숨긴 `CaptureReservationReleaseError`로 terminal 실패한다. 단위 테스트는 두 경로 모두 release 호출 1회와 secret 비노출을 확인한다.
+
+### 최종 source terminal 우선순위 수정
+
+403/429와 일반 non-2xx response는 raw observation과 failure ledger를 먼저 기록한 직후, reservation release `finally`에 들어가기 전에 각각 `SourceThrottledError`와 `SourceContractError`라는 본문 실패로 확정한다. 따라서 unlock cleanup도 실패하면 source terminal 오류가 권위를 유지하고 CLI exit 75/76 및 redaction이 보존된다. 성공 또는 canonical return에서 unlock만 실패한 경우에만 `CaptureReservationReleaseError`/64 정책을 사용한다. RED는 두 source response가 unlock 실패에 의해 64로 바뀌는 것을 재현했고, GREEN focused unit·CLI·PostgreSQL 실행은 43 passed였다.

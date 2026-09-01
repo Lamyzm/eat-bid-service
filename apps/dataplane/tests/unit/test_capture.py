@@ -140,6 +140,30 @@ def test_body_실패와_unlock_실패가_겹치면_원래_실패를_보존한다
     assert "secret" not in repr(captured.value)
 
 
+@pytest.mark.parametrize(
+    ("status_code", "error_type", "exit_code"),
+    [
+        (429, SourceThrottledError, 75),
+        (500, SourceContractError, 76),
+    ],
+)
+def test_source_terminal_실패는_unlock_실패보다_exit_code_권위를_가진다(
+    status_code: int, error_type: type[Exception], exit_code: int
+) -> None:
+    repository = _해제실패저장소(None)
+    with pytest.raises(error_type) as captured:
+        capture(
+            capture_request(),
+            MemoryRawObjectStore(),
+            repository,
+            StaticSourceClient(SourceResponse(status_code, b"failure", FETCHED_AT)),
+        )
+    assert repository.release_count == 1
+    assert exit_code_for_error(captured.value) == exit_code
+    assert captured.value.__cause__ is None
+    assert "secret" not in repr(captured.value)
+
+
 def test_archive_failure는_repository를_호출하지_않는다() -> None:
     repository = RecordingRepository()
     client = StaticSourceClient(SourceResponse(200, b"response", FETCHED_AT))

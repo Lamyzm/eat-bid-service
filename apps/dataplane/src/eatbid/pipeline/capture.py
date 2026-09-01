@@ -61,6 +61,13 @@ def capture_response(
             request=request, response=response, stored=stored,
             failure_category=failure_category,
         )
+        if failure_category == SOURCE_THROTTLED:
+            raise SourceThrottledError(response.status_code)
+        if failure_category == SOURCE_CONTRACT:
+            raise SourceContractError(
+                f"source returned HTTP {response.status_code}",
+                status_code=response.status_code,
+            )
     except Exception as error:
         body_error = error
         raise
@@ -72,13 +79,6 @@ def capture_response(
                 raise CaptureReservationReleaseError(
                     "capture reservation could not be released"
                 ) from None
-    if failure_category == SOURCE_THROTTLED:
-        raise SourceThrottledError(response.status_code)
-    if failure_category == SOURCE_CONTRACT:
-        raise SourceContractError(
-            f"source returned HTTP {response.status_code}",
-            status_code=response.status_code,
-        )
     return observation
 
 
