@@ -27,6 +27,8 @@ const ALLOWED_ENVIRONMENT = new Set([
 ]);
 const STDOUT_LIMIT_BYTES = 4 * 1024 * 1024;
 const STDERR_TAIL_BYTES = 8 * 1024;
+// version·auth probe는 리뷰 예산과 별개라 CLI가 멈추면 pre-push가 무기한 기다린다. 짧게 끊는다.
+const PROBE_TIMEOUT_MS = 30_000;
 
 export function buildClaudeChildEnvironment(environment) {
   return Object.fromEntries(
@@ -38,7 +40,11 @@ export function buildClaudeChildEnvironment(environment) {
 
 function locateOnPath(name) {
   const command = process.platform === "win32" ? "where.exe" : "which";
-  const result = spawnSync(command, [name], { encoding: "utf8", windowsHide: true });
+  const result = spawnSync(command, [name], {
+    encoding: "utf8",
+    timeout: PROBE_TIMEOUT_MS,
+    windowsHide: true,
+  });
   return result.status === 0 ? (result.stdout.split(/\r?\n/).find(Boolean)?.trim() ?? null) : null;
 }
 
@@ -77,6 +83,7 @@ function runSyncDefault(launch, arguments_, environment) {
     encoding: "utf8",
     env: buildClaudeChildEnvironment(environment),
     shell: false,
+    timeout: PROBE_TIMEOUT_MS,
     windowsHide: true,
   });
 }
@@ -172,9 +179,10 @@ export function parseClaudeEnvelope(stdout) {
   };
 }
 
+// "rate limit reached"가 사용량 소진으로 분류되지 않도록 rate-limited를 먼저 검사한다.
 const FAILURE_PATTERNS = [
-  ["quota-exhausted", /usage limit|out of extra usage|limit reached|quota/i],
   ["rate-limited", /rate limit|\b429\b/i],
+  ["quota-exhausted", /usage limit|out of extra usage|quota/i],
   ["auth-unavailable", /not logged in|\/login|unauthori[sz]ed|authentication|\b401\b/i],
   ["provider-overloaded", /overloaded|\b529\b|\b503\b/i],
 ];

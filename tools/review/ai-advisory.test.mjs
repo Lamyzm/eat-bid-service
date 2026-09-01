@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { REVIEW_BUDGET, formatAttempts, runAiAdvisory } from "./ai-advisory.mjs";
+import { REVIEW_BUDGET, formatAttempts, renderOutcome, runAiAdvisory } from "./ai-advisory.mjs";
 import { providerError } from "./review-contract.mjs";
 
 const scope = {
@@ -221,6 +221,54 @@ test("schema를 어긴 provider 출력은 invalid-output으로 폴백하고 cach
   assert.equal(outcome.provider, "claude");
   assert.deepEqual(outcome.attempts, [{ provider: "codex", reason: "invalid-output" }]);
   assert.equal(cache.size, 1);
+});
+
+test("cache 쓰기 실패는 검증된 성공 결과를 버리지 않는다", async () => {
+  const codex = fakeProvider("codex", () => success([finding]));
+  const claude = fakeProvider("claude", () => success());
+  const audits = [];
+  const runtime = runtimeWith({ codex, claude, audits });
+  runtime.writeCache = () => {
+    throw new Error("EACCES");
+  };
+
+  const outcome = await run({ runtime });
+  assert.equal(outcome.category, "success");
+  assert.equal(outcome.result.findings.length, 1);
+  assert.equal(audits.at(-1).status, "success");
+  assert.equal(claude.calls.length, 0);
+});
+
+test("요청 model은 두 provider execute와 cache identity에 같은 값으로 전달된다", async () => {
+  const codex = fakeProvider("codex", () => {
+    throw providerError("codex", "process-failed", "실패");
+  });
+  const claude = fakeProvider("claude", () => success());
+  const audits = [];
+
+  const outcome = await run({ model: "opus", runtime: runtimeWith({ codex, claude, audits }) });
+  assert.equal(outcome.model, "opus");
+  assert.equal(codex.calls[0].model, "opus");
+  assert.equal(claude.calls[0].model, "opus");
+  assert.ok(audits.every((record) => record.model === "opus"));
+});
+
+test("renderOutcome은 provider·summary·finding을 한 줄씩 사람이 읽는 문장으로 만든다", () => {
+  const lines = renderOutcome({
+    category: "success",
+    provider: "claude",
+    providerVersion: "2.1.257 (Claude Code)",
+    cached: true,
+    attempts: [{ provider: "codex", reason: "quota-exhausted" }],
+    result: success([finding]),
+  });
+  assert.match(lines[0], /claude 2\.1\.257 \(Claude Code\).*cache 재사용.*codex:quota-exhausted/);
+  assert.match(lines[0], /검토 완료/);
+  assert.match(lines[1], /apps\/web\/src\/page\.tsx:1 \[high\] 재사용 검토/);
+  assert.deepEqual(
+    renderOutcome({ category: "unavailable", reason: "timeout", message: "초과", attempts: [] }),
+    ["AI 리뷰 advisory 사용 불가 (unavailable/timeout): 초과"],
+  );
 });
 
 test("Claude 인증 doctor가 거부하면 auth-unavailable로 기록하고 실행하지 않는다", async () => {

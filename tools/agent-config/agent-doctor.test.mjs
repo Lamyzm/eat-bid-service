@@ -32,6 +32,20 @@ test("agent doctor는 project hook·Codex 참고 계약·전역 hook의 runner �
   assert.equal(report.codexRepoLocalHookVerified, "unverified");
 });
 
+test("agent doctor는 hook 배열이 비어 있는 event를 runner 연결로 인정하지 않는다", () => {
+  const hollow = JSON.stringify({
+    hooks: Object.fromEntries(EVENTS.map((event) => [event, [{ hooks: [] }]])),
+  });
+  const report = inspectAgentHooks({
+    repoRoot: "C:/repo",
+    codexHome: "C:/home/.codex",
+    fileExists: () => true,
+    readFile: () => hollow,
+  });
+  assert.equal(report.claudeProjectHook.events.length, 5);
+  assert.equal(report.claudeProjectHook.allCallRunner, false);
+});
+
 test("agent doctor는 전역 hook이 없거나 runner를 부르지 않으면 false로 보고한다", () => {
   const report = inspectAgentHooks({
     repoRoot: "C:/repo",

@@ -109,10 +109,13 @@ pnpm workflow:release
 
 AI가 답변에서 완료를 주장했다는 이유만으로 hook이 `Done`으로 이동시키지 않는다.
 
-lease 없이 허용하는 도구는 세 종류뿐이다. 단일 `rg`, 제한된 PowerShell 조회 cmdlet, `git status | diff |
-log | show | rev-parse` 같은 명백한 로컬 조회, `pnpm workflow:doctor | doctor:infisical | claim | sync |
-release | recover-lock` 단일 명령, 그리고 Linear MCP의 `get_* | list_* | search_*` 읽기 도구와 `ToolSearch`다.
+lease 없이 허용하는 것은 `tools/agent-workflow/workflow.mjs` 분류기의 허용 목록뿐이다. 읽기 도구(Read, Glob,
+Grep, WebFetch, WebSearch, ToolSearch)와 Linear MCP의 `get_* | list_* | search_*` 읽기 도구, 단일 `rg`, 제한된
+PowerShell 조회 cmdlet, `git status | diff | log | show | rev-parse` 같은 명백한 로컬 조회, 그리고
+`pnpm workflow:doctor | doctor:infisical | claim | sync | release | recover-lock` 단일 명령이다.
 workflow 명령은 저장소 파일이 아니라 lease state와 Linear만 바꾸므로 Claude·Codex 세션이 스스로 claim한다.
+`release`도 lease 없이 실행되므로 같은 worktree의 다른 세션이 writer의 lease를 풀 수 있다. 이 보장은 중앙 lock이
+아니라 "다른 writer가 claim한 작업은 read-only로만 다룬다"는 agent 규율과 Linear assignee에 의존한다.
 pipe, command chaining, redirect, command substitution, snapshot update나 `--fix`가 있으면 mutation으로
 취급한다. 테스트도 fixture나 snapshot을 쓸 수 있으므로 shell verification은 lease 안에서 수행한다.
 분류되지 않은 새 도구와 Linear 쓰기 MCP 도구는 읽기로 추측하지 않고 lease가 필요한 변경 가능 도구로

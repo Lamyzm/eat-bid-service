@@ -192,7 +192,11 @@ export async function runAiAdvisory({
           } catch (error) {
             throw providerError(name, "invalid-output", error.message);
           }
-          runtime.writeCache({ repoRoot, identity, status: "success", result });
+          try {
+            runtime.writeCache({ repoRoot, identity, status: "success", result });
+          } catch {
+            // cache는 파생물이다. 쓰기 실패가 검증된 advisory 결과를 버리게 하지 않는다.
+          }
           audit({ status: "success", reason: null, findingCount: result.findings.length, ...common });
           return { category: "success", provider: name, providerVersion, model, cached: false, result, attempts };
         } catch (error) {
@@ -229,6 +233,31 @@ export function formatAttempts(attempts = []) {
   return attempts.map((attempt) => `${attempt.provider}:${attempt.reason}`).join(" → ");
 }
 
+/** CLI와 pre-push가 같은 문장으로 결과를 보여 주도록 사람이 읽는 줄을 한 곳에서 만든다. */
+export function renderOutcome(outcome) {
+  const trail = formatAttempts(outcome.attempts);
+  if (outcome.category !== "success") {
+    return [
+      `AI 리뷰 advisory 사용 불가 (${outcome.category}/${outcome.reason}${trail ? `; ${trail}` : ""}): ${outcome.message}`,
+    ];
+  }
+  const header = [
+    `${outcome.provider} ${outcome.providerVersion}`,
+    outcome.cached ? "cache 재사용" : null,
+    trail ? `이전 시도 ${trail}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const result = outcome.result ?? { summary: "", findings: [] };
+  return [
+    `[${header}] ${result.summary}`,
+    ...result.findings.map(
+      (finding) =>
+        `- ${finding.path}:${finding.lineStart} [${finding.confidence}] ${finding.title}\n  ${finding.body}`,
+    ),
+  ];
+}
+
 function argumentValue(args, name) {
   const index = args.indexOf(name);
   const value = index >= 0 ? args[index + 1] : undefined;
@@ -247,26 +276,8 @@ async function main() {
     prefer: argumentValue(args, "--prefer"),
     model: argumentValue(args, "--model") ?? DEFAULT_MODEL,
   });
-  const trail = formatAttempts(outcome.attempts);
-  if (outcome.category !== "success") {
-    console.warn(
-      `AI 리뷰 advisory 사용 불가 (${outcome.category}/${outcome.reason}${trail ? `; ${trail}` : ""}): ${outcome.message}`,
-    );
-    return;
-  }
-  const header = [
-    `${outcome.provider} ${outcome.providerVersion}`,
-    outcome.cached ? "cache 재사용" : null,
-    trail ? `이전 시도 ${trail}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  console.log(`[${header}] ${outcome.result.summary}`);
-  for (const finding of outcome.result.findings) {
-    console.log(
-      `- ${finding.path}:${finding.lineStart} [${finding.confidence}] ${finding.title}\n  ${finding.body}`,
-    );
-  }
+  const emit = outcome.category === "success" ? console.log : console.warn;
+  for (const line of renderOutcome(outcome)) emit(line);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

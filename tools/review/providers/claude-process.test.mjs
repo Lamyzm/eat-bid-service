@@ -191,6 +191,7 @@ test("Claude process는 prompt를 stdin으로만 보내고 stdin을 닫은 뒤 r
 test("Claude envelope의 오류·사용량 소진·구조화 출력 누락을 allowlist reason으로 정규화한다", () => {
   assert.equal(classifyClaudeFailure({ code: 1, stderr: "You've reached your usage limit" }), "quota-exhausted");
   assert.equal(classifyClaudeFailure({ code: 1, stderr: "429 rate limit" }), "rate-limited");
+  assert.equal(classifyClaudeFailure({ code: 1, stderr: "rate limit reached, retry later" }), "rate-limited");
   assert.equal(classifyClaudeFailure({ code: 1, stderr: "Not logged in. Please run /login" }), "auth-unavailable");
   assert.equal(classifyClaudeFailure({ code: 1, stderr: "529 overloaded_error" }), "provider-overloaded");
   assert.equal(

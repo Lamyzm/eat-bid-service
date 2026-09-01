@@ -58,6 +58,14 @@ test("Codex를 custom prompt와 호환되는 read-only ephemeral exec argv로만
   );
 });
 
+test("요청 model이 있으면 Codex exec에 --model로 전달하고 없으면 CLI 기본값을 쓴다", () => {
+  const withModel = buildCodexArguments({ schemaPath: "s.json", outputPath: "o.json", model: "gpt-test" });
+  const modelIndex = withModel.indexOf("--model");
+  assert.ok(modelIndex > withModel.indexOf("exec"));
+  assert.equal(withModel[modelIndex + 1], "gpt-test");
+  assert.equal(buildCodexArguments({ schemaPath: "s.json", outputPath: "o.json" }).includes("--model"), false);
+});
+
 test("child 환경은 실행과 인증에 필요한 값만 허용하고 secret을 제거한다", () => {
   const child = buildChildEnvironment({
     PATH: "bin",

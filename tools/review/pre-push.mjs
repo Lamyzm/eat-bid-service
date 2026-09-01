@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { formatAttempts, runAiAdvisory } from "./ai-advisory.mjs";
+import { formatAttempts, renderOutcome, runAiAdvisory } from "./ai-advisory.mjs";
 import {
   readRepositoryLocalGitVariables,
   removeRepositoryLocalGitVariables,
@@ -48,6 +48,7 @@ export async function runPrePush({
       environment,
     }),
   warn = console.warn,
+  log = console.log,
 }) {
   if ((await runRequired("test", childEnvironment)) !== 0) return 1;
 
@@ -62,7 +63,9 @@ export async function runPrePush({
     warn(
       `AI 리뷰는 사용할 수 없었지만 필수 gate가 아니므로 push를 계속합니다.${trail ? ` (${trail})` : ""}`,
     );
+    return 0;
   }
+  for (const line of renderOutcome(outcome)) log(line);
   return 0;
 }
 

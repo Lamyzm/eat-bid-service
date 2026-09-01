@@ -18,12 +18,18 @@ function hookSummary(target, { fileExists, readFile }) {
     return { events: [], allCallRunner: false };
   }
   const events = EVENTS.filter((event) => Array.isArray(settings?.hooks?.[event]));
+  // 빈 배열의 every는 공허하게 참이므로 event마다 최소 한 hook이 실제로 runner를 불러야 한다.
   const allCallRunner =
     events.length === EVENTS.length &&
-    events.every((event) =>
-      settings.hooks[event].every((group) =>
-        (group.hooks ?? []).every((hook) => RUNNER.test(String(hook.command ?? ""))),
-      ),
+    events.every(
+      (event) =>
+        settings.hooks[event].length > 0 &&
+        settings.hooks[event].every(
+          (group) =>
+            Array.isArray(group.hooks) &&
+            group.hooks.length > 0 &&
+            group.hooks.every((hook) => RUNNER.test(String(hook.command ?? ""))),
+        ),
     );
   return { events, allCallRunner };
 }

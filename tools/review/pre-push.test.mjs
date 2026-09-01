@@ -98,6 +98,34 @@ test("advisory unavailable 경고는 provider별 시도 reason을 함께 보여 
   assert.match(warnings.join("\n"), /claude:timeout/);
 });
 
+test("advisory success는 summary와 finding을 출력해 push하는 사람이 결과를 볼 수 있게 한다", async () => {
+  const logs = [];
+  await runPrePush({
+    stdin: update("refs/heads/main"),
+    env: {},
+    runRequired: async () => 0,
+    runAdvisory: async () => ({
+      category: "success",
+      provider: "codex",
+      providerVersion: "codex-cli 0.138.0",
+      cached: false,
+      attempts: [],
+      result: {
+        schemaVersion: "eatbid.ai-review/v2",
+        summary: "검토 완료",
+        findings: [
+          { path: "a.ts", lineStart: 3, lineEnd: 3, title: "제목", body: "본문", confidence: "low" },
+        ],
+      },
+    }),
+    warn: () => undefined,
+    log: (message) => logs.push(message),
+  });
+  assert.match(logs.join("\n"), /codex codex-cli 0\.138\.0/);
+  assert.match(logs.join("\n"), /검토 완료/);
+  assert.match(logs.join("\n"), /a\.ts:3 \[low\] 제목/);
+});
+
 test("필수 gate와 AI advisory는 같은 격리 환경을 전달받는다", async () => {
   const environments = [];
   const dirtyEnvironment = {

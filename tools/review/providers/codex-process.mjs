@@ -22,8 +22,10 @@ const ALLOWED_ENVIRONMENT = new Set([
   "USERPROFILE",
 ]);
 const STDERR_TAIL_BYTES = 8 * 1024;
+// version·발견 probe는 리뷰 예산과 별개라 CLI가 멈추면 pre-push가 무기한 기다린다. 짧게 끊는다.
+const PROBE_TIMEOUT_MS = 30_000;
 
-export function buildCodexArguments({ schemaPath, outputPath }) {
+export function buildCodexArguments({ schemaPath, outputPath, model }) {
   return [
     "--sandbox",
     "read-only",
@@ -33,6 +35,7 @@ export function buildCodexArguments({ schemaPath, outputPath }) {
     "--ephemeral",
     "--ignore-user-config",
     "--ignore-rules",
+    ...(model ? ["--model", model] : []),
     "--output-schema",
     schemaPath,
     "--json",
@@ -52,7 +55,11 @@ export function buildChildEnvironment(environment) {
 
 function locateOnPath(name) {
   const command = process.platform === "win32" ? "where.exe" : "which";
-  const result = spawnSync(command, [name], { encoding: "utf8", windowsHide: true });
+  const result = spawnSync(command, [name], {
+    encoding: "utf8",
+    timeout: PROBE_TIMEOUT_MS,
+    windowsHide: true,
+  });
   return result.status === 0 ? (result.stdout.split(/\r?\n/).find(Boolean)?.trim() ?? null) : null;
 }
 
@@ -97,6 +104,7 @@ export function resolveCodexVersion(launch, environment) {
     encoding: "utf8",
     env: buildChildEnvironment(environment),
     shell: false,
+    timeout: PROBE_TIMEOUT_MS,
     windowsHide: true,
   });
   const version = result.status === 0 ? result.stdout.trim() : "";
@@ -141,6 +149,7 @@ export async function executeCodexProcess({
   launch,
   prompt,
   schemaPath,
+  model,
   timeoutMs,
   environment,
   spawnChild = spawn,
@@ -151,7 +160,7 @@ export async function executeCodexProcess({
   try {
     const child = spawnChild(
       launch.command,
-      [...launch.prefixArguments, ...buildCodexArguments({ schemaPath, outputPath })],
+      [...launch.prefixArguments, ...buildCodexArguments({ schemaPath, outputPath, model })],
       {
         cwd: repoRoot,
         detached: process.platform !== "win32",
