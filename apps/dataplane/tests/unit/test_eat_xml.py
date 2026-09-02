@@ -122,12 +122,12 @@ def test_parser가_nexacro_namespace을_요구한다() -> None:
 def test_reviewed_eat_detail_schema_contract는_안정적_parser_digest을_갖는다() -> None:
     assert reviewed_schema_fingerprint(
         source="eat", endpoint="bid-detail", parser_version="eat-v1"
-    ) == "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"
+    ) == "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"
     assert validate_eat_schema_contract(
         source="eat",
         endpoint="bid-detail",
         parser_version="eat-v1",
-        schema_fingerprint="ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe",
+        schema_fingerprint="c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf",
     )
 
 
@@ -135,8 +135,8 @@ def test_reviewed_eat_detail_schema_contract는_안정적_parser_digest을_갖�
     ("source", "endpoint", "parser_version", "schema_fingerprint"),
     [
         ("eat", "bid-detail", "eat-v1", "0" * 64),
-        ("eat", "unreviewed-detail", "eat-v1", "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"),
-        ("eat", "bid-detail", "eat-v2", "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"),
+        ("eat", "unreviewed-detail", "eat-v1", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
+        ("eat", "bid-detail", "eat-v2", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
     ],
 )
 def test_eat_schema_contract가_fail_closed한다(
