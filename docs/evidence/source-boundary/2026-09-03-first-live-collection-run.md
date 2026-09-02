@@ -202,7 +202,29 @@ WorkflowTemplate 인자 누락과 같은 뿌리이며 EAT-34에서 함께 결정
 부분 수집을 거부하는 동작 자체는 옳다. 85건 중 1건만 받은 상태에서는
 `ReleaseIncompleteError: detail release corpus is not exact observed`로 봉인을 거부했다.
 
-## 10. 확인하지 않은 것
+## 10. CLI에 release 봉인 단계가 없다
+
+9절의 원인을 통과하는 통합 테스트에서 찾았다.
+`apps/dataplane/tests/integration/test_cli_actual_e2e.py`가 `normalize` 다음에 저장소를 직접 부른다.
+
+```python
+release_repository.reconcile_and_seal(release_id, detail_run_id, sealed_at=NOW)
+validate_args = _공통("validate", detail_run_id, release_id) + [...]
+```
+
+의도된 배선은 `discover(discovery_run, detail_run) → capture(detail_run) → normalize(detail_run) →
+봉인(detail_run) → validate(detail_run) → project(detail_run)`이다. 그런데 봉인에 대응하는 CLI
+subcommand가 없다. WorkflowTemplate의 DAG도 `discover → capture → normalize → validate → project`
+다섯이라 봉인 자리가 비어 있다. `normalize`에서 `validate`로 가는 다리가 CLI 표면에 존재하지 않는다.
+
+테스트는 그 구멍을 저장소 직접 호출로 메우고 있어 결함이 드러나지 않았다. 주석은 publication 직전
+crash 복구를 재현하는 의도라고 적혀 있지만, 결과적으로 정상 경로가 한 번도 CLI만으로 검증된 적이
+없다.
+
+이는 8·9절과 같은 뿌리다. **CLI와 WorkflowTemplate이 노출하는 표면이 코드가 실제로 구현한
+파이프라인과 어긋나 있다.** 인자 누락, run 정체성 미정의, 봉인 단계 부재가 모두 여기서 나온다.
+
+## 11. 확인하지 않은 것
 
 - `validate`와 `project`의 정상 경로. run 정체성 계약이 정해지지 않아 도달하지 못했다.
 - 밀리초가 0이 아닌 사례의 존재 여부.
