@@ -67,7 +67,8 @@ Web은 Next.js `16.3.4` App Router이며 `apps/web/next.config.ts`는 Cache Comp
   status role이 heading보다 먼저 보이는 것, light/dark hard refresh에서 FOUC가 없는 것,
   `/dashboard/today`가 그대로 렌더되는 것을 고정한다.
 - theme 초기값이 server render에서 client inline script로 옮겨가므로 JavaScript가 막힌 환경에서는 기본
-  theme으로 렌더된다. 운영 워크스페이스에서 허용한다.
+  theme으로 렌더된다. 같은 이유로 sidebar는 inline script가 심은 접힘 폭 override가 남아 좁은 폭을
+  유지한다. 운영 워크스페이스에서 둘 다 허용한다.
 - `instant = false` 항목 수가 legacy route 부채의 크기를 드러낸다. legacy route를 canonical로 옮길 때
   export를 지운다.
 - replica 증가·edge runtime·`use cache` 범위 확대는 이 ADR의 조건을 갱신하는 새 ADR 없이는 할 수 없다.

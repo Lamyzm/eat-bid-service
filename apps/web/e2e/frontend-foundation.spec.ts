@@ -82,7 +82,7 @@ test('server 응답은 cookie theme을 반영하지 않고 첫 paint 전 inline 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
 });
 
-test('접힌 sidebar cookie는 shell을 static으로 둔 채 request 시점에 반영된다', async ({ page, baseURL }) => {
+test('접힌 sidebar cookie는 shell을 static으로 둔 채 client에서 반영된다', async ({ page, baseURL }) => {
   await page.context().addCookies([{ name: 'sidebar_state', value: 'false', url: baseURL! }]);
 
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
@@ -91,6 +91,22 @@ test('접힌 sidebar cookie는 shell을 static으로 둔 채 request 시점에 �
     'data-state',
     'collapsed'
   );
+  await expect(page.locator('html')).not.toHaveAttribute('data-sidebar-state', 'collapsed');
+});
+
+test('hydration 전에도 inline script가 접힘 폭을 적용한다', async ({ browser, baseURL }) => {
+  // script를 모두 막아 hydration을 없애면 남는 것은 HTML에 인라인된 script의 첫 paint 경로뿐이다.
+  const context = await browser.newContext();
+  await context.addCookies([{ name: 'sidebar_state', value: 'false', url: baseURL! }]);
+  const page = await context.newPage();
+  await page.route('**/*.js', (route) => route.abort());
+
+  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
+
+  await expect(page.locator('html')).toHaveAttribute('data-sidebar-state', 'collapsed');
+  const wrapper = page.locator('[data-slot="sidebar-wrapper"]').first();
+  await expect(wrapper).toHaveCSS('--sidebar-width', '3rem');
+  await context.close();
 });
 
 test('색상 테마 선택은 DOM과 cookie에 남아 새로고침 뒤에도 유지된다', async ({ page }) => {
