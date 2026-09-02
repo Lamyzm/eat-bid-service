@@ -9,4 +9,10 @@ GlobalRegistrator.register({ url: 'http://localhost/' });
 
 afterEach(() => {
   cleanup();
+  // 한 프로세스가 모든 테스트 파일을 실행하므로 cookie는 파일 경계를 넘어 살아남는다. 개별 파일이
+  // 정리를 기억하지 않아도 앞 테스트가 뒤 테스트를 오염시키지 않게 여기서 비운다.
+  for (const entry of document.cookie.split(';')) {
+    const name = entry.split('=')[0]?.trim();
+    if (name) document.cookie = `${name}=; path=/; max-age=0`;
+  }
 });

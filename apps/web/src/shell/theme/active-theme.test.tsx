@@ -12,7 +12,6 @@ describe('색상 theme provider(ActiveThemeProvider)', () => {
   afterEach(() => {
     cleanup();
     document.documentElement.removeAttribute('data-theme');
-    document.cookie = 'active_theme=; path=/; max-age=0';
   });
 
   test('첫 mount에서는 inline script가 cookie로 설정한 DOM data-theme을 state로 채택한다', async () => {

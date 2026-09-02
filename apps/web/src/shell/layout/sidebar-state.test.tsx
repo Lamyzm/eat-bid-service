@@ -17,7 +17,6 @@ function CollapseButton() {
 describe('sidebar 접힘 cookie', () => {
   afterEach(() => {
     cleanup();
-    document.cookie = `${SIDEBAR_COOKIE_NAME}=; path=/; max-age=0`;
   });
 
   test('cookie가 없으면 펼침, "false"면 접힘으로 읽는다', () => {
