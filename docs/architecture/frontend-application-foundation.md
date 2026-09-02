@@ -70,6 +70,11 @@ capability로 승격한다.
 - route별 loading/error/not-found를 명시한다. error UI는 retry와 correlation 가능한 오류 표면을 둔다.
 - `loading.tsx`는 같은 segment의 화면 전용 `ScreenSkeleton` 하나만 반환한다. 실제 화면과 skeleton은
   동일한 frame과 section 순서를 공유하고, refetch나 mutation 중에는 전체 화면 skeleton으로 되돌리지 않는다.
+- Cache Components가 켜져 있으므로 `cookies()`, `headers()`, `params`, `searchParams` 접근은 page 안
+  Suspense 경계의 loader component에서만 await한다. root layout과 shell은 static이어야 하며, theme 같은
+  첫 paint 속성은 `<head>` inline script가 cookie에서 설정한다. legacy `/dashboard/**`만
+  `export const instant = false`로 검증에서 제외하고 canonical route에는 추가하지 않는다
+  ([ADR 0028](../adr/0028-cache-components-and-self-hosted-cache.md)).
 - `@slot`은 독립 panel lifecycle이 필요한 경우에만 쓰고 모든 slot에 `default.tsx`를 둔다.
 - 무거운 browser-only 지도/chart는 client leaf에서 dynamic import한다. 계산 권위는 chart에 두지 않는다.
 
@@ -186,6 +191,8 @@ blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`
 - identity/value: ID `Number` 변환, exact money/rate의 float authority를 거부한다.
 - RSC: route-level client component와 non-serializable prop을 검토한다.
 - compiler: annotation mode 대상만 opt-in하고 build·행동 회귀 evidence 없이 범위를 넓히지 않는다.
+- cache: `next build`가 canonical route의 blocking-prerender 오류를 gate한다. `use cache`는
+  `api/<resource>/server.ts` read 함수에만 두고 사용자별·session 데이터에는 쓰지 않는다.
 - size: 300줄 초과는 responsibility split 또는 reason/owner/split trigger가 있는 waiver가 필요하다.
 - tests: 신규·변경 test name은 한국어다.
 - browser: `test:e2e:foundation`은 별도 contract fixture와 Chromium으로 loading stream, exact money,

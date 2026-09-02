@@ -22,7 +22,12 @@
 - `typedRoutes: true`와 `next typegen && tsc --noEmit`을 사용한다. route 오류를 `as Route`, `as any` 또는
   `string` widening으로 숨기지 않는다.
 - React Compiler는 annotation mode이며 아직 opt-in source가 없다. 첫 `"use memo"`에는 동작 regression과
-  전후 성능 증거가 필요하다. Cache Components와 Rust compiler path는 별도 감사 전까지 활성화하지 않는다.
+  전후 성능 증거가 필요하다. Rust compiler path는 별도 감사 전까지 활성화하지 않는다.
+- Cache Components는 [ADR 0028](../../docs/adr/0028-cache-components-and-self-hosted-cache.md) 조건 아래 켜져
+  있다. `cookies()`·`headers()`·`params`·`searchParams`는 Suspense 안 loader에서만 await하고, root layout과
+  shell은 static을 유지한다. `export const instant = false`는 legacy `/dashboard/**`에만 두며 canonical route에
+  새로 추가하지 않는다. `use cache`는 `api/<resource>/server.ts` read 함수에만 허용하고 사용자별·session
+  데이터에는 쓰지 않는다.
 - 모노레포 package manager는 루트 `package.json`에 고정된 `pnpm 10.12.1`이다. 앱 내부
   script가 Bun 명령을 호출하더라도 workspace 설치·실행 계약을 Bun으로 바꾸지 않는다.
 - Server Component를 기본으로 하고 브라우저 상태나 상호작용이 필요할 때만 `'use client'`를
