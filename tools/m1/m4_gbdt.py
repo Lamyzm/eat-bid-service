@@ -35,15 +35,25 @@ def features(rows, xv):
         K.ALPHA2[a].astype(float),
         ITEM[a].astype(float),
         SIDO[a].astype(float),
-        PURR[a].astype(float),
+        INST_N[a],                             # 기관의 학습기 평균 log N — 마감 전 관측 가능
+        INST_C[a],                             # 기관의 학습기 회차 수
         (K.ym[a] // 100 * 12 + K.ym[a] % 100).astype(float),
         xv,
     ])
 
 
-CAT = [3, 4, 5]                                 # item · sido · purr
+CAT = [3, 4]                                    # item · sido (기관은 5,350 범주라 수치 요약으로)
 ITEM = K.BL['item'].astype(np.int16)
 IS_F = np.isin(K.BL['biz_no'], FATHER)
+
+# 🔴 기관 요약은 **학습기에서만** 만든다. 승패 라벨을 안 쓴다 (목표 인코딩 아님)
+_tra = K.TRAIN & _ok
+_cnt = np.bincount(PURR[_tra], minlength=PURR.max() + 1).astype(float)
+_sum = np.bincount(PURR[_tra], weights=np.log(np.maximum(K.nbid[_tra], 1)),
+                   minlength=PURR.max() + 1)
+_gm = np.log(np.maximum(K.nbid[_tra], 1)).mean()
+INST_N = np.where(_cnt[PURR] > 0, _sum[PURR] / np.maximum(_cnt[PURR], 1), _gm)
+INST_C = np.log1p(_cnt[PURR])
 
 
 def fit(seed=0, max_iter=300, sub=1500000):
