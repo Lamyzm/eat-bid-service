@@ -1091,20 +1091,8 @@
       "sha256": "21a8a13cdb8031ca27138e59366ffa4660be2656f6f343e15adde2a2de4ccd18"
     },
     {
-      "path": "tools/agent-workflow/runtime.mjs",
-      "sha256": "6ddd6472712a1538f75a56a4b523fe54bedcd96022f48efcf6e38d934f4b19db"
-    },
-    {
       "path": "tools/agent-workflow/state-lock.mjs",
       "sha256": "8daab9a5af4bc44912a10f06b1a600ac95a1fea4a925c30980feb783ccadbefe"
-    },
-    {
-      "path": "tools/agent-workflow/state.mjs",
-      "sha256": "7ad670cfbc0c194f8e3c305c8c800ce33577271ae5f6c380abfd1916d28b251c"
-    },
-    {
-      "path": "tools/agent-workflow/workflow.mjs",
-      "sha256": "1cb67c5d28ed29e8d5ddd7672c7eaae907a214d942624e58f79eed6fc6de0595"
     },
     {
       "path": "tools/quality/check-python-semantic-values.py",

@@ -1,3 +1,4 @@
+/** @module 책임: worktree lease·pending claim·session 기록·outbox를 담는 workflow state의 순수 전이와 원자적 저장을 소유한다. */
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -126,6 +127,24 @@ export function clearWorktreeLease(state, worktreeRoot) {
   return {
     ...state,
     worktrees: { ...state.worktrees, [key]: withoutLease },
+  };
+}
+
+// release가 lease와 함께 session의 issue 기록을 지우지 않으면 같은 session이 다음 issue를 claim해도
+// 이전 prompt의 identifier와 불일치로 차단돼 사용자가 새 prompt를 보내야만 풀린다.
+export function clearWorktreeSessionIssues(state, worktreeRoot) {
+  const key = worktreeKey(worktreeRoot);
+  const worktree = state.worktrees?.[key];
+  if (!worktree?.sessions) return state;
+  const sessions = Object.fromEntries(
+    Object.entries(worktree.sessions).map(([sessionId, session]) => {
+      const { activeIssue: _activeIssue, requestedIssue: _requestedIssue, ...rest } = session ?? {};
+      return [sessionId, rest];
+    }),
+  );
+  return {
+    ...state,
+    worktrees: { ...state.worktrees, [key]: { ...worktree, sessions } },
   };
 }
 

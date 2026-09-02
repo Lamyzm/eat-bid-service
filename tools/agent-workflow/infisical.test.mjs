@@ -43,6 +43,26 @@ test("Infisical wrapper는 승인된 tooling 경로와 shared secret 우선순�
   ]);
 });
 
+test("Infisical wrapper는 --worktree 인자를 해석하지 않고 CLI에 그대로 전달한다", () => {
+  const invocation = buildInfisicalRun({
+    command: "claim",
+    commandArguments: ["--", "EAT-27", "--worktree", ".worktrees/eat-27-agent-worktree-lease"],
+    config: {
+      infisical: { environment: "dev", path: "/tooling/linear", projectId: "project-id" },
+    },
+    hookPath: "cli.mjs",
+    nodePath: "node",
+  });
+
+  assert.deepEqual(invocation.slice(-5), [
+    "claim",
+    "--",
+    "EAT-27",
+    "--worktree",
+    ".worktrees/eat-27-agent-worktree-lease",
+  ]);
+});
+
 test("Infisical wrapper는 claim과 sync와 doctor 이외의 command를 거부한다", () => {
   assert.throws(
     () =>

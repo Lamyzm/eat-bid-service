@@ -13,14 +13,29 @@ const SHELL_TOOLS = new Set(["bash", "exec_command", "powershell", "shell"]);
 
 const READ_ONLY_TOOLS = new Set(["glob", "grep", "read", "toolsearch", "webfetch", "websearch"]);
 
+// worktree 진입·이탈은 tracked 파일이 아니라 세션 cwd만 바꾼다. lease는 worktree root 단위라 새
+// worktree에는 lease가 없으므로 여기서 막으면 세션이 그 안에서 claim할 기회조차 얻지 못한다.
+const WORKTREE_TOOLS = new Set(["enterworktree", "exitworktree"]);
+
 // Linear MCP 도구 중 조회만 lease 없이 허용한다. 인계 절차가 "worklog 읽기 → claim" 순서이므로
 // 읽기까지 막으면 받는 세션은 issue를 보기 전에 claim해야 한다.
 const LINEAR_READ_TOOL = /^mcp__linear__(?:get|list|search)_[a-z_]+$/i;
 
+// 경로 인자는 공백 없는 토큰이나 큰따옴표 문자열만 허용한다. 치환·pipe 문자는 SHELL_COMPOSITION이
+// 먼저 거르지만, 경로 자리에서 다른 토큰이 시작되지 않도록 여기서도 제외한다.
+const PATH_ARGUMENT = String.raw`(?:"[^"|;&><$\x60\r\n]+"|[^\s|;&><$\x60"']+)`;
+const ISSUE_ARGUMENT = String.raw`[A-Z][A-Z0-9]{1,9}-\d+`;
+
 // workflow lifecycle 명령은 저장소 파일이 아니라 lease state와 Linear만 바꾸며 lease를 만드는 유일한
 // 경로다. 단일 명령 형태만 허용하고 pipe·chaining·redirect는 SHELL_COMPOSITION이 먼저 거른다.
-const WORKFLOW_LIFECYCLE_COMMAND =
-  /^pnpm\s+workflow:(?:doctor(?::infisical)?|claim|sync|release|recover-lock)(?:\s+--)?(?:\s+[A-Z][A-Z0-9]{1,9}-\d+)?\s*$/i;
+// `--worktree <path>`는 세션 cwd와 다른 worktree의 lease를 다루는 유일한 인자다.
+const WORKFLOW_LIFECYCLE_COMMAND = new RegExp(
+  String.raw`^pnpm\s+workflow:(?:doctor(?::infisical)?|claim|sync|release|recover-lock)(?:\s+(?:--|${ISSUE_ARGUMENT}|--worktree(?:=|\s+)${PATH_ARGUMENT}))*\s*$`,
+  "i",
+);
+
+// 다른 worktree를 조회할 때는 `git -C <path>` 형태가 기본이므로 같은 read-only subcommand를 허용한다.
+const GIT_PATH_PREFIX = String.raw`(?:-C\s+${PATH_ARGUMENT}\s+)?`;
 
 const MUTATING_COMMANDS = [
   /(?:^|[;&|]\s*)(?:rm|mv|cp|mkdir|touch)\b/i,
@@ -34,8 +49,8 @@ const MUTATING_COMMANDS = [
 const READ_ONLY_COMMANDS = [
   /^rg\b/i,
   /^(?:get-content|get-childitem|test-path|select-string)\b/i,
-  /^git\s+(?:status|diff|log|show|rev-parse)\b/i,
-  /^git\s+branch\s+--show-current\b/i,
+  new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}(?:status|diff|log|show|rev-parse|worktree\s+list)\b`, "i"),
+  new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}branch\s+--show-current\b`, "i"),
 ];
 
 const SHELL_COMPOSITION = /[|;&><\r\n]|`|\$\(|(?:^|\s)(?:--fix|--write|--output(?:=|\s)|--ext-diff\b|--textconv\b|--pre(?:=|\s)|--update(?:-?snapshots?)?\b|--updateSnapshot\b|-u(?:\s|$))/i;
@@ -86,6 +101,10 @@ export function classifyToolCall(toolName, toolInput = {}) {
 
   if (READ_ONLY_TOOLS.has(normalizedName)) {
     return { mutatesRepository: false, reason: "known-read-only-tool" };
+  }
+
+  if (WORKTREE_TOOLS.has(normalizedName)) {
+    return { mutatesRepository: false, reason: "worktree-navigation-tool" };
   }
 
   if (LINEAR_READ_TOOL.test(normalizedName)) {

@@ -139,3 +139,77 @@ test("Linear MCP 읽기 도구와 ToolSearch는 허용하고 Linear 쓰기 도�
     assert.equal(classifyToolCall(toolName, {}).mutatesRepository, true, toolName);
   }
 });
+
+test("worktree 진입·이탈 도구와 git worktree 조회는 lease 없이 허용하고 worktree 변경은 차단한다", () => {
+  for (const toolName of ["EnterWorktree", "ExitWorktree"]) {
+    assert.deepEqual(
+      classifyToolCall(toolName, { name: "eat-27-agent-worktree-lease" }),
+      { mutatesRepository: false, reason: "worktree-navigation-tool" },
+      toolName,
+    );
+  }
+  for (const command of ["git worktree list", "git worktree list --porcelain"]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "read-or-verification-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "git worktree add .worktrees/x",
+    "git worktree remove .worktrees/x",
+    "git worktree prune",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("경로를 지정한 git 조회는 허용하고 경로 뒤의 변경 subcommand와 복합 명령은 차단한다", () => {
+  for (const command of [
+    "git -C F:/Project/eat-bid-service/.worktrees/eat-9-web-boundary-gate status -sb",
+    "git -C ../.. log --oneline -3",
+    'git -C "F:/Project/my repo" diff --check',
+    "git -C F:\Project\eat-bid-service rev-parse --show-toplevel",
+    "git -C ../.. branch --show-current",
+    "git -C ../.. worktree list",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "read-or-verification-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "git -C ../.. commit -m change",
+    "git -C ../.. checkout main",
+    "git -C ../.. status && rm -rf src",
+    "git -C $(pwd) status",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("--worktree 인자가 붙은 workflow lifecycle 명령은 lease 없이 허용하고 치환이나 pipe는 차단한다", () => {
+  for (const command of [
+    "pnpm workflow:claim -- EAT-27 --worktree .worktrees/eat-27-agent-worktree-lease",
+    "pnpm workflow:claim -- --worktree .worktrees/eat-27-agent-worktree-lease EAT-27",
+    "pnpm workflow:release -- --worktree F:/Project/eat-bid-service",
+    "pnpm workflow:release -- --worktree F:\Project\eat-bid-service",
+    'pnpm workflow:doctor -- --worktree "F:/Project/my repo"',
+    "pnpm workflow:doctor --worktree=../..",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "workflow-lifecycle-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "pnpm workflow:release -- --worktree $(pwd)",
+    "pnpm workflow:release -- --worktree ../.. | tee release.log",
+    "pnpm workflow:claim -- EAT-27 --worktree",
+    "pnpm workflow:claim -- EAT-27 --force",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
