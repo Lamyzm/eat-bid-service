@@ -13,7 +13,10 @@ import {
   WEB_BOUNDARY_RULES,
   applyLegacyBaseline,
   codePointCompare,
+  isCanonicalLayerPath,
+  isClientDomainCalculationPath,
   isEndpointAuthorityPath,
+  isLegacyDirectoryReference,
   isPublicApiEntry,
   isTestOrFixture,
   isTransportPath,
@@ -51,9 +54,15 @@ function resolveModule(specifier, sourceFile, options) {
   return resolved?.resolvedFileName ? path.resolve(resolved.resolvedFileName) : specifier.startsWith("@/") ? path.resolve(options.baseUrl, specifier.slice(2)) : undefined;
 }
 
+// SyntaxKind enum은 VariableStatement처럼 alias가 겹친 값을 "FirstStatement"로 되돌리므로 baseline key에는 안정된 이름을 쓴다.
+function kindName(node) {
+  if (typeof node === "string") return node;
+  return ts.isVariableStatement(node) ? "VariableStatement" : ts.SyntaxKind[node.kind];
+}
+
 function add(findings, root, rule, file, node, sourceFile, reason, members, evidence) {
   const fingerprintEvidence = evidence ?? (typeof node === "string" ? node : text(node, sourceFile));
-  const finding = { rule, path: display(root, file), kind: typeof node === "string" ? node : ts.SyntaxKind[node.kind], sha256: sha256(fingerprintEvidence), reason, ...(members ? { members: [...members].sort(codePointCompare) } : {}) };
+  const finding = { rule, path: display(root, file), kind: kindName(node), sha256: sha256(fingerprintEvidence), reason, ...(members ? { members: [...members].sort(codePointCompare) } : {}) };
   findings.push(finding);
   return finding;
 }
@@ -173,6 +182,17 @@ function isRouteLoadingPath(root, file) {
 
 function isLegacyPageContainerPath(root, file) {
   return display(root, file) === "apps/web/src/components/layout/page-container.tsx";
+}
+
+function isExported(statement) {
+  return Boolean(statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+}
+
+// 삭제 전용 ledger는 export 단위로 fingerprint를 남겨야 함수 하나를 Server 계약으로 옮길 때마다
+// 해당 항목만 지울 수 있다. 타입만 export하는 선언은 계산이 아니므로 제외한다.
+function exportedRuntimeStatements(sourceFile) {
+  return sourceFile.statements.filter((statement) => isExported(statement)
+    && (ts.isFunctionDeclaration(statement) || ts.isVariableStatement(statement)));
 }
 
 function importedScreenSkeletons(sourceFile) {
@@ -301,6 +321,8 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
       duplicates.set(key, candidate);
     }
     const layer = sourceLayer(file);
+    const displayPath = display(root, file);
+    if (isClientDomainCalculationPath(displayPath)) for (const statement of exportedRuntimeStatements(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION, file, statement, sourceFile, "legacy client 업무 계산은 Server 계약 응답으로 대체한 뒤 삭제해야 합니다.");
     if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.", undefined, fingerprintEvidence);
     if (layer?.layer === "api") for (const declaration of exportedManualDtos(root, checker, sourceFile)) {
       const declarationFile = declaration.getSourceFile();
@@ -315,6 +337,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
       if (moduleReference) {
         const target = moduleReference.known === false ? undefined : resolveModule(moduleReference.text, sourceFile, options);
         const targetLayer = target ? sourceLayer(target) : undefined;
+        if (isCanonicalLayerPath(displayPath) && moduleReference.known !== false && isLegacyDirectoryReference(moduleReference.text, target ? display(root, target) : undefined)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IMPORT, file, node, sourceFile, "신규 층은 legacy components·hooks·lib·config·types를 import 또는 re-export할 수 없습니다.");
         if (layer?.layer === "shell" && targetLayer && ["api", "capabilities"].includes(targetLayer.layer)) add(findings, root, WEB_BOUNDARY_RULES.SHELL_BOUNDARY_IMPORT, file, node, sourceFile, "shell은 API resource나 capability를 import 또는 re-export할 수 없습니다.");
         if (layer?.layer === "capabilities" && targetLayer?.layer === "capabilities" && targetLayer.slice !== layer.slice && !/\/index\.[cm]?tsx?$/.test(target ?? "")) add(findings, root, WEB_BOUNDARY_RULES.CAPABILITY_INTERNAL_IMPORT, file, node, sourceFile, "capability 간에는 상대 capability의 public index만 사용할 수 있습니다.");
         if (layer?.layer === "api" && layer.slice && layer.slice !== "_transport" && targetLayer?.layer === "api" && targetLayer.slice && targetLayer.slice !== "_transport" && targetLayer.slice !== layer.slice) add(findings, root, WEB_BOUNDARY_RULES.API_RESOURCE_CROSS_IMPORT, file, node, sourceFile, "API resource는 다른 resource를 직접 import 또는 re-export할 수 없습니다.");

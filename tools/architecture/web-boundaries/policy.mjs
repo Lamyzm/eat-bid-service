@@ -6,6 +6,8 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   API_ENDPOINT_LITERAL: "api-endpoint-literal",
   API_RESOURCE_CROSS_IMPORT: "api-resource-cross-import",
   CAPABILITY_INTERNAL_IMPORT: "capability-internal-import",
+  CLIENT_DOMAIN_CALCULATION: "client-domain-calculation",
+  LEGACY_IMPORT: "legacy-import",
   DUPLICATE_SOURCE_GROUP: "duplicate-source-group",
   FRONTEND_ENDPOINTS_MIRROR: "frontend-endpoints-mirror",
   ID_NUMBER_CONVERSION: "id-number-conversion",
@@ -31,6 +33,35 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
 export const MAX_SOURCE_LINES = 300;
 export const MIN_DUPLICATE_NONBLANK_LINES = 10;
 export const MIN_DUPLICATE_BYTES = 200;
+
+// legacy는 폴더를 옮기지 않고 import 방향으로만 격리한다. 신규 층이 스타터 수평 폴더를 다시 참조하면
+// 폴더 이동만으로 target-compliant처럼 보이는 상태가 되므로 여기서 역참조를 끊는다.
+const CANONICAL_LAYER_PATH = /^apps\/web\/src\/(?:app\/\(workspace\)|shell|capabilities|api|shared|routing)\//;
+const LEGACY_DIRECTORY_SPECIFIER = /^@\/(?:components|hooks|lib|config|types)(?:\/|$)/;
+const LEGACY_DIRECTORY_PATH = /^apps\/web\/src\/(?:components|hooks|lib|config|types)\//;
+
+// client 업무 계산은 AST로 식별하는 것이 목표지만, 첫 버전은 금액·비율·마감·식별자 계산이 확인된
+// 파일 목록으로 고정한다. 목록은 줄어들기만 하며 새 항목을 더하려면 계산을 Server 계약으로 옮기는 편이 맞다.
+export const CLIENT_DOMAIN_CALCULATION_PATHS = Object.freeze([
+  "apps/web/src/lib/band.ts",
+  "apps/web/src/lib/deadline.ts",
+  "apps/web/src/lib/mark-rates.ts",
+  "apps/web/src/lib/rate-text.ts",
+  "apps/web/src/lib/school-id.ts",
+]);
+
+export function isCanonicalLayerPath(displayPath) {
+  return CANONICAL_LAYER_PATH.test(displayPath);
+}
+
+export function isLegacyDirectoryReference(specifier, targetDisplayPath) {
+  return LEGACY_DIRECTORY_SPECIFIER.test(specifier.replaceAll("\\", "/"))
+    || (targetDisplayPath !== undefined && LEGACY_DIRECTORY_PATH.test(targetDisplayPath));
+}
+
+export function isClientDomainCalculationPath(displayPath) {
+  return CLIENT_DOMAIN_CALCULATION_PATHS.includes(displayPath);
+}
 
 export function normalizeBytes(contents) {
   return contents.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
@@ -164,6 +195,8 @@ export function reviewedBaselineMetadata(item) {
     if (item.path.includes("/app/welcome/")) return ["기존 welcome route는 안내 presentation을 한 파일에 보유한 legacy 화면입니다.", "다음 welcome content 또는 interaction 변경에서 section UI로 분리할 때"];
   }
   return {
+    [WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION]: ["legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제", "해당 화면 slice를 api/<resource> 계약으로 교체할 때"],
+    [WEB_BOUNDARY_RULES.LEGACY_IMPORT]: ["신규 층이 legacy 수평 폴더를 참조하는 기존 edge이며 대체 module이 생기면 삭제합니다.", "해당 legacy module을 shell/navigation 또는 shared/ui로 옮길 때"],
     [WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP]: ["기존 mobile viewport helper 두 파일은 동일한 legacy 구현이며 EAT-9 canonical shared extraction 전까지 동결합니다.", "mobile viewport helper를 하나의 shared module로 통합할 때"],
     [WEB_BOUNDARY_RULES.ID_NUMBER_CONVERSION]: ["기존 dashboard와 table filter의 numeric URL/filter 처리 부채는 canonical decimal ID route 전환 전까지 동결합니다.", "해당 화면이 contract-backed decimal identifier를 소비하도록 전환할 때"],
     [WEB_BOUNDARY_RULES.PAGE_CONTAINER_LOADING_STATE]: ["기존 PageContainer는 범용 loading UI를 소유한 legacy 화면 container이며 신규 route로 전파하지 않습니다.", "각 legacy 화면을 route 소유 ScreenSkeleton과 loading.tsx 경계로 전환할 때"],

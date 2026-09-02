@@ -168,6 +168,10 @@ blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`
 ## 7. quality gate
 
 - import graph: reverse edge, cross-capability/API deep import, API resource 간 import와 source cycle을 거부한다.
+- legacy import: 신규 층(`app/(workspace)`, `shell`, `capabilities`, `api`, `shared`, `routing`)은
+  `components/hooks/lib/config/types`를 import하지 않는다. 기존 edge는 삭제 전용 fingerprint로만 남는다.
+- client 업무 계산: `lib/band.ts`, `deadline.ts`, `mark-rates.ts`, `rate-text.ts`, `school-id.ts`의 export는
+  삭제 전용 ledger로 고정하며 Server 계약 응답으로 대체할 때만 지운다.
 - transport: network call 위치, client/server entry 분리와 runtime schema parse를 검사한다.
 - package graph: browser-safe contract subpath와 clean dev/build를 검사하고 Node/ingestion/domain runtime 유입을 거부한다.
 - identity/value: ID `Number` 변환, exact money/rate의 float authority를 거부한다.

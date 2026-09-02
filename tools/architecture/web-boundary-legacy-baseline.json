@@ -968,6 +968,339 @@
       "reason": "기존 PageContainer는 범용 loading UI를 소유한 legacy 화면 container이며 신규 route로 전파하지 않습니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "각 legacy 화면을 route 소유 ScreenSkeleton과 loading.tsx 경계로 전환할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/band.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:59f5a030927a09629912804fefa4c3ccb4400b3e114ef20f43df7e3229655189",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/band.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:76f34ef5d52d9dd8fbdae4554c6c0157caaea69303b21e7311e245de38a31fe9",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/band.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:cff80c02b2292c5a3acf4e0891ac1887e43578f4ab0223267e504858fdd90140",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/deadline.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:1f2b626026c43a8aff3c406994a82189e5f690f3ab6c3210b1158f8becd7ccbf",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/deadline.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:21fd492b0c3acd7e44a935fa863809726986100fc2f5bfa37a524abf0c420ab3",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/deadline.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:781179e0bd13dc0832f940a171768baedad5ceed8e805336dd34d45512a621a8",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/deadline.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:ee7a1ccffbbb706713758a18dfee632ab85186b714721bd5058cb2454af7829a",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "VariableStatement",
+      "sha256": "sha256:02fae055d67581f787210d1eda9b38495f320313317cefba119bbb30ac92916c",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:034c2f3e8997a55a59c4dca35154280d15cca61529effbfa7fe2f4178ca74463",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:1721eefef4d6b87f070f65aa724292a3d6a7809a7d00039369ff71f816a82f56",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:2810f874fe3c1095c411574f1c1401ba461a9303b85163335c7b5fc8926e85eb",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:301b999f570ca4abd55c38149dabaef71b5d264a2a19d861f0d1eb7088843689",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:39c11a2e9d236e100b4dbaaffb8ee2780f935a6a0d871cbc3da532cce18f817c",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:41476b8f0eb3ddb6e3a60a3aa05cb2954f45d87668f2e7ce376c40acf96fd6d7",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:43dcfe08e6c5a0c41bdd597c6e270805ec9cd5ca4b8642eeb5d85b568596c334",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:923c210433d08f5d57e982e6abdde4286ce3f808d15a0400855681a736cea4bc",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:d7d1d3fed0bfd7c9d19f23cefef7fb49fec133640709887aa5cd710fe21673ac",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/mark-rates.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:f1b61cef665c09544913a20c5cb3ca8e4aa8aa5f58bb57ca44224a1c0613496a",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/rate-text.ts",
+      "kind": "VariableStatement",
+      "sha256": "sha256:0d4a6b0f8bb8120bb8119322e6b4e9afc09b67b71a3f5f3e42c9f2355ba64bc9",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/rate-text.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:282685851f22e3d3fd66ad6739c2e0a66df3507187838989253ec960a234c6ff",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/rate-text.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:89cba50fc03022e3d8204ef61c866a378e057e0081c8feff0cfafd5c7b709970",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/school-id.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:3d693cbf7b403b6da6a0be160571feda50070990eb9de3a21ea1d888d79f4158",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/school-id.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:54ece9e03cc4206b2472902188debe801ed9ccb9a8f410f24285e31742d3547c",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "client-domain-calculation",
+      "path": "apps/web/src/lib/school-id.ts",
+      "kind": "FunctionDeclaration",
+      "sha256": "sha256:af1a0eb1caaa1ac6db4be75d18315635641fb142a879c5262f58dbe99f8b1b23",
+      "reason": "legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/layout/application-shell.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:41c53d1caf2fbbbe9b71f5363110f9341c0d28e7f1b9fd54f71e542f075f423a",
+      "reason": "shell이 legacy navigation chrome을 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "shell/navigation 이동(작업 3)에서 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/layout/application-shell.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:61aaf98a2d9beab0f84a8b6332b1609ebf2ddf04f5b0b52f71306f4d53903af5",
+      "reason": "shell이 legacy navigation chrome을 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "shell/navigation 이동(작업 3)에서 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/layout/application-shell.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:a3061065f5e94be8901ae58f54b2fe0f4af54b4a46436357850bd6011ccf8692",
+      "reason": "shell이 legacy navigation chrome을 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "shell/navigation 이동(작업 3)에서 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/layout/application-shell.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:cdb0240e53a6a7ec08cea71c37f63530da0c21eb09b461c552704471fefadc64",
+      "reason": "shell이 legacy navigation chrome을 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "shell/navigation 이동(작업 3)에서 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/layout/application-shell.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:e792a8734f674e665c7e055e8214e2e4ed7f6fe7faeceda17365b10c0e8a54e6",
+      "reason": "shell이 legacy navigation chrome을 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "shell/navigation 이동(작업 3)에서 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/theme/theme-mode-toggle.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:098c43c7b5dbd02d5a45485fd1ae5ef389df4292845b0e564f94f4d70cd1c05f",
+      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/theme/theme-mode-toggle.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:4172f4731e2fdba2879fc2ed856697aac6dc2d9fe3d9f3835692fc42976fab8d",
+      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/theme/theme-mode-toggle.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:45ad8f21212174216b82cc8304b4297bd27035369eeeaf6a2c60af97ab03d54e",
+      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/theme/theme-mode-toggle.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:ac2b426acdd601da359a66282d25b2bdf57fc3b2916013005fb26209e2b9b3f3",
+      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/theme/theme-selector.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:1efcaf66872a85d690b5f4134c899c16651d7bdb8572c5796e5e802522f05d93",
+      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/theme/theme-selector.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:2d078f03554024e56b7c0834a4328b523a2fb269a8e98f706bae1442e66db35a",
+      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/theme/theme-selector.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:4172f4731e2fdba2879fc2ed856697aac6dc2d9fe3d9f3835692fc42976fab8d",
+      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+    },
+    {
+      "rule": "legacy-import",
+      "path": "apps/web/src/shell/theme/theme-selector.tsx",
+      "kind": "ImportDeclaration",
+      "sha256": "sha256:45ad8f21212174216b82cc8304b4297bd27035369eeeaf6a2c60af97ab03d54e",
+      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
     }
   ]
 }

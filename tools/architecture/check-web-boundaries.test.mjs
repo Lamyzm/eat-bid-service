@@ -143,7 +143,7 @@ test("완전히 같은 큰 source 그룹과 300줄 초과 source를 보고한다
 test("canonical 화면의 임의 motion과 shared control의 업무 의존을 거부한다", async () => {
   const report = await inspect({
     "apps/web/src/shared/ui/button.tsx": [
-      "import { authClient } from '@/lib/auth-client';",
+      "import { authClient } from '@/shared/lib/auth-client';",
       "import { captureException } from '@sentry/nextjs';",
       "export const className = 'transition-all duration-200';",
       "void authClient; void captureException;",
@@ -908,4 +908,39 @@ test("불명확한 spread 앞의 bind 대상 위치를 보존해 thisArg와 boun
   });
 
   assert.deepEqual(report.unmatchedFindings, []);
+});
+
+test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리와 shared 참조는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/shell/layout/shell.tsx": "import Header from '@/components/layout/header'; export const Shell = () => Header;\n",
+    "apps/web/src/shell/theme/toggle.tsx": "import { Kbd } from '../../components/ui/kbd'; export const toggle = Kbd;\n",
+    "apps/web/src/app/(workspace)/auctions/page.tsx": "import { deadline } from '@/lib/deadline'; export default function Page() { return deadline; }\n",
+    "apps/web/src/routing/auction.ts": "import type { Route } from '@/types/route'; export const route = (value: Route) => value;\n",
+    "apps/web/src/shared/ui/card.tsx": "import { cn } from '@/shared/lib/cn'; export const card = cn;\n",
+    "apps/web/src/components/layout/page.tsx": "import { deadline } from '@/lib/deadline'; export const page = deadline;\n",
+    "apps/web/src/components/layout/header.tsx": "export default function Header() { return null; }\n",
+    "apps/web/src/components/ui/kbd.tsx": "export const Kbd = () => null;\n",
+    "apps/web/src/lib/deadline.ts": "export const deadline = 1;\n",
+    "apps/web/src/types/route.ts": "export type Route = string;\n",
+    "apps/web/src/shared/lib/cn.ts": "export const cn = (value: string) => value;\n",
+  });
+
+  const legacy = report.unmatchedFindings.filter((finding) => finding.rule === "legacy-import");
+  assert.deepEqual(legacy.map((finding) => finding.path).sort(), [
+    "apps/web/src/app/(workspace)/auctions/page.tsx",
+    "apps/web/src/routing/auction.ts",
+    "apps/web/src/shell/layout/shell.tsx",
+    "apps/web/src/shell/theme/toggle.tsx",
+  ]);
+});
+
+test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상으로 보고한다", async () => {
+  const report = await inspect({
+    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nconst internal = 1; void internal;\nexport type Band = { lo: number };\n",
+    "apps/web/src/lib/utils.ts": "export function cn(value: string) { return value; }\n",
+  });
+
+  const calculations = report.unmatchedFindings.filter((finding) => finding.rule === "client-domain-calculation");
+  assert.ok(calculations.every((finding) => finding.path === "apps/web/src/lib/band.ts"));
+  assert.deepEqual(calculations.map((finding) => finding.kind).sort(), ["FunctionDeclaration", "VariableStatement"]);
 });
