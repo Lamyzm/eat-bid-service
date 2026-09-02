@@ -27,6 +27,85 @@ if not APPROVAL:
 
 import fx_kernel as K                                       # noqa: E402
 
+
+# ============================================================================
+# 🔴 개봉 조건 — 나이 불변성 증명 (team-lead).  통과 못 하면 봉인을 안 연다.
+#
+#   기록 지연이 확인됐다: 철회 플래그가 ~18개월에 걸쳐 쌓인다.
+#   2026-07·08 은 517,202 투찰에서 정확히 0.0000% 다.
+#   ⟹ TUNE(2026-01~05)과 HOLD_A(2026-06~08)이 라벨 완성도에서 다르다.
+#   ⟹ A(철회 포함)로 재구축하면 파이프라인이 나이 의존 양을 하나도 안 쓴다.
+#      그걸 **가정하지 말고 증명한다**.
+# ============================================================================
+
+AGE_DEPENDENT = ('wd 플래그', 'nbid(생존자)', 'xcap 행 집합', '규칙 유도 낙찰자')
+
+# 🔴 사전 등록 임계 — 결과 보기 전에 정한다
+MAX_ABS_R = 0.5          # 월별 철회율 ↔ 월별 미보정 상관의 절대값 상한
+REQUIRE_CI_COVERS_0 = True
+
+
+def preflight():
+    """세 단계. 전부 통과해야 HOLD 를 연다."""
+    fails = []
+
+    # ── 1. 자료원 감사 — 승률 경로에 나이 의존 양이 남아 있나
+    base = getattr(K, 'SOURCE', 'xcap')
+    if base != 'bidlevel':
+        fails.append('① 자료원이 %s 다. bidlevel(전 투찰)이어야 한다' % base)
+    if not getattr(K, 'ACT_FROM_RECORD', False):
+        fails.append('① ACT 가 규칙 유도다. is_recorded_winner 여야 한다')
+
+    # 🔴 ①이 실패하면 여기서 멈춘다 — 나이 의존 자료 위에서 잰 상관은 뜻이 없다
+    if fails:
+        return fails
+
+    # ── 2·3. 월별 미보정이 철회율과 상관이 있나
+    #    ⚠ 이건 *부재의 증거*를 요구하는 검정이다. 검정력을 같이 낸다.
+    ok, msg = _month_corr()
+    if not ok:
+        fails.append(msg)
+    return fails
+
+
+def _month_corr():
+    ym = K.ym
+    months = [m for m in np.unique(ym) if m > 0 and (ym == m).sum() >= 1000]
+    if len(months) < 8:
+        return False, '②③ 월 수 %d 개로는 상관을 못 잰다' % len(months)
+    wr, mis = [], []
+    for m in months:
+        q = (ym == m) & K.EVALUABLE
+        wr.append(K.WD_RATE[q].mean())
+        mis.append(K.month_miscalibration(q))
+    wr, mis = np.array(wr), np.array(mis)
+    r = float(np.corrcoef(wr, mis)[0, 1])
+    n = len(months)
+    z = np.arctanh(r)
+    se = 1 / np.sqrt(n - 3)
+    lo, hi = np.tanh(z - 1.96 * se), np.tanh(z + 1.96 * se)
+    # 검정력: 이 n 에서 유의해지는 최소 |r|
+    r_det = float(np.tanh(1.96 / np.sqrt(n - 3)))
+    print()
+    print('🔴 나이 불변성 검정  월 %d 개' % n)
+    print('   철회율 ↔ 미보정 상관  r = %+.3f   95%% CI [%+.3f, %+.3f]' % (r, lo, hi))
+    print('   ⚠ 검정력: 이 표본에서 탐지 가능한 최소 |r| = %.3f' % r_det)
+    print('     ⟹ 그보다 작은 상관은 이 검정이 **못 본다**. 통과를 "없다"로 읽지 마라')
+    if abs(r) >= MAX_ABS_R:
+        return False, '②③ |r| = %.3f 가 임계 %.2f 이상이다' % (abs(r), MAX_ABS_R)
+    if REQUIRE_CI_COVERS_0 and not (lo <= 0 <= hi):
+        return False, '②③ 상관 CI [%.3f, %.3f] 가 0 을 안 덮는다' % (lo, hi)
+    return True, ''
+
+
+_fails = preflight()
+if _fails:
+    print('🔴 개봉 조건 미달 — 봉인 유지')
+    for f in _fails:
+        print('   ' + f)
+    sys.exit('나이 불변성이 증명되지 않았다. HOLD 를 안 연다.')
+print('✅ 개봉 조건 통과 — 나이 불변성 증명됨')
+
 H = 0.02
 HO = K.HO
 hs = {b: s for b, s in zip(HO['bid_id'], HO['split'])}
