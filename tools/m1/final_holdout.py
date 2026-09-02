@@ -69,13 +69,16 @@ def preflight():
 
 
 def _month_corr():
-    ym = K.ym
+    # 🔴 봉인 구간(202606~)은 안 쓴다 — 게이트를 돌리려고 봉인을 열면 순환이다.
+    #    학습기+TUNE 만 쓴다.  철회율 범위가 12.67% ~ 0.56% 라 상관 검정에 충분히 넓다.
+    #    ⚠ 학습기는 표본 내라 *수준*은 낙관이다. 우리가 보는 건 수준이 아니라 상관이다.
+    ym = np.where(K.TRAIN | K.TUNE, K.ym, -1)
     months = [m for m in np.unique(ym) if m > 0 and (ym == m).sum() >= 1000]
     if len(months) < 8:
         return False, '②③ 월 수 %d 개로는 상관을 못 잰다' % len(months)
     wr, mis = [], []
     for m in months:
-        q = (ym == m) & K.EVALUABLE
+        q = (ym == m)
         wr.append(K.WD_RATE[q].mean())
         mis.append(K.month_miscalibration(q))
     wr, mis = np.array(wr), np.array(mis)

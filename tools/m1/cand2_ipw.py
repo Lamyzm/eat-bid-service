@@ -70,21 +70,7 @@ def run(ns, em, cn, label):
 
 
 if __name__ == '__main__':
-    sel = K.TUNE[K.aid]
-    K.XI, K.AI = K.x[sel], K.aid[sel]
-    K.NT = K.nbid[K.AI]
-    v = K.x >= K.R[K.aid]
-    xv = np.where(v, K.x, 1e9)
-    o = np.lexsort((xv, K.aid))
-    f = np.ones(len(K.x), bool)
-    f[1:] = K.aid[o][1:] != K.aid[o][:-1]
-    w_ = np.zeros(len(K.x), bool)
-    wi = o[f]
-    w_[wi] = v[wi]
-    K.ACT = w_[sel].astype(float)
-    K.UNQ = np.unique(K.NT)
-    K.GRP = {int(n): np.flatnonzero(K.NT == n) for n in K.UNQ}
-
+    # 🔴 XI/AI/NT/ACT/UNQ/GRP 는 fx_kernel 이 이미 만든다. 여기서 다시 안 만든다 (규율 30)
     pa, act, aid, nt, xs, _ = C.compute(K.TUNE)
     base = {}
     for lo, hi in K.BANDS:

@@ -189,6 +189,31 @@ def report(p, label, quiet=False):
     return bg, bl, rows
 
 
+# --- 개봉 게이트가 쓰는 진단 훅 -------------------------------------------------
+# ⚠ 이 둘은 **진단 전용**이다. 모형 경로가 안 쓴다 (assert_wd_unused 가 실증한다).
+WD_RATE = np.bincount(aid, weights=_WD_DIAG.astype(np.float64),
+                      minlength=len(cnt)) / np.maximum(cnt, 1)
+_MRNG = np.random.default_rng(11)
+
+
+def month_miscalibration(auc_mask, h=0.02, cap=60000):
+    """그 달의 미보정 %.  🔴 봉인 구간은 못 쓰므로 호출자가 TRAIN∪TUNE 만 넘긴다."""
+    sel = auc_mask[aid]
+    idx = np.flatnonzero(sel)
+    if len(idx) > cap:
+        idx = _MRNG.choice(idx, cap, replace=False)
+    xi, ai = x[idx], aid[idx]
+    nt = nbid[ai]
+    a2 = ALPHA2[ai]
+    p = np.zeros(len(idx))
+    F = Fx_at(np.unique(nt), h)
+    for j, n in enumerate(np.unique(nt)):
+        q = np.flatnonzero(nt == n)
+        p[q] = pwin_v(xi[q], F[j], nt[q], a2=a2[q])
+    a = ACT_ALL[idx].mean()
+    return 100 * (p.mean() / a - 1) if a > 0 else np.nan
+
+
 def assert_wd_unused(h=0.02):
     """🔴 상시 단언 — 승률 경로가 `wd` 를 안 읽는다는 것을 *실증*한다.
 

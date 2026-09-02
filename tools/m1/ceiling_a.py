@@ -65,16 +65,9 @@ def compute(mask):
         if q.any():
             p[q] = _cdf(al, xs[q]) - _cdf(al, m[q])
     p = np.clip(p, 0, 1) / K_
-    # 실제 낙찰 (실현 R 로)
-    v = K.x >= K.R[K.aid]
-    xv = np.where(v, K.x, 1e9)
-    oo = np.lexsort((xv, K.aid))
-    ff = np.ones(len(K.x), bool)
-    ff[1:] = K.aid[oo][1:] != K.aid[oo][:-1]
-    w = np.zeros(len(K.x), bool)
-    wi = oo[ff]
-    w[wi] = v[wi]
-    return p, w[idx][o].astype(float), as_, K.nbid[as_], xs, K_
+    # 🔴 ACT 는 fx_kernel 이 is_recorded_winner 로 한 번만 만든다 (규율 30).
+    #    여기서 규칙(min{x≥R})으로 다시 유도하지 않는다 — 그건 나이 의존 양이다.
+    return p, K.ACT_ALL[idx][o], as_, K.nbid[as_], xs, K_
 
 
 if __name__ == '__main__':
