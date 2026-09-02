@@ -151,3 +151,46 @@ def test_eat_schema_contract가_fail_closed한다(
         parser_version=parser_version,
         schema_fingerprint=schema_fingerprint,
     )
+
+
+def _nexacro(inner: str) -> bytes:
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Root xmlns="http://www.nexacroplatform.com/platform/dataset">'
+        '<Dataset id="ds_info"><ColumnInfo>'
+        '<Column id="DLVRY_PLACE" type="STRING"/></ColumnInfo>'
+        f"<Rows><Row><Col id=\"DLVRY_PLACE\">{inner}</Col></Row></Rows>"
+        "</Dataset></Root>"
+    ).encode()
+
+
+@pytest.mark.parametrize(
+    ("wire", "expected"),
+    [
+        # 2026-09-03 실측: 학교 이름에 든 &를 소스가 이스케이프하지 않고 그대로 보낸다.
+        ("협성고등학교&협성경복중학교 공동 급식실", "협성고등학교&협성경복중학교 공동 급식실"),
+        ("a&b&c", "a&b&c"),
+        ("정상 &amp; 이스케이프", "정상 & 이스케이프"),
+        ("숫자 참조 &#65;", "숫자 참조 A"),
+        ("십육진 참조 &#x42;", "십육진 참조 B"),
+        ("&amp;amp;", "&amp;"),
+    ],
+)
+def test_이스케이프되지_않은_ampersand를_복구해_해석한다(
+    wire: str, expected: str
+) -> None:
+    parsed = parse_nexacro(_nexacro(wire), require_ds_info=True)
+
+    assert parsed.datasets["ds_info"][0]["DLVRY_PLACE"] == expected
+
+
+def test_ampersand_복구는_DTD와_entity_공격을_계속_막는다() -> None:
+    attack = (
+        b'<?xml version="1.0"?><!DOCTYPE Root [<!ENTITY x "boom">]>'
+        b'<Root xmlns="http://www.nexacroplatform.com/platform/dataset">'
+        b'<Dataset id="ds_info"><Rows><Row><Col id="A">&x;</Col></Row></Rows>'
+        b"</Dataset></Root>"
+    )
+
+    with pytest.raises(NexacroParseError):
+        parse_nexacro(attack, require_ds_info=True)

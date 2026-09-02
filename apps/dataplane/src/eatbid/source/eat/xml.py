@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from hashlib import sha256
@@ -31,12 +32,32 @@ class ParsedNexacro:
     schema_fingerprint: str
 
 
+# XML에서 `&`는 참조의 시작이므로 문자 자체를 보내려면 `&amp;`여야 한다. 이 패턴은 뒤에 유효한
+# 참조가 오지 않는 `&`만 고른다.
+_BARE_AMPERSAND = re.compile(
+    rb"&(?!(?:[A-Za-z][A-Za-z0-9._-]*|#[0-9]+|#[xX][0-9A-Fa-f]+);)"
+)
+
+
+def _escape_bare_ampersands(payload: bytes) -> bytes:
+    """왜 원본을 고쳐서 파싱하나.
+
+    2026-09-03 실측에서 eaT가 이스케이프하지 않은 `&`를 그대로 보냈다. 납품장소가
+    "협성고등학교&협성경복중학교 공동 급식실"인 공고 하나 때문에 1000건짜리 페이지 전체가 well-formed
+    하지 않게 되고 그 달 수집이 통째로 실패했다. 1년치 규모에서는 반드시 반복된다.
+
+    R2에 보존되는 원본은 바이트 그대로이며 이 복구는 해석 단계에만 적용한다. 관측과 해석을 나눈
+    규칙 3이 이런 소스 결함을 흡수하라고 둔 경계다. 유효한 참조 뒤의 `&`는 건드리지 않으므로 정상
+    payload는 바이트가 바뀌지 않고, `&`를 리터럴로 만드는 방향이라 entity 위험도 늘지 않는다.
+    """
+    return _BARE_AMPERSAND.sub(b"&amp;", payload)
+
 def parse_nexacro(payload: bytes, *, require_ds_info: bool = False) -> ParsedNexacro:
     if not isinstance(payload, bytes):
         raise TypeError("Nexacro payload must be bytes")
     try:
         root = ElementTree.fromstring(
-            payload,
+            _escape_bare_ampersands(payload),
             forbid_dtd=True,
             forbid_entities=True,
             forbid_external=True,
