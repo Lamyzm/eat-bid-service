@@ -196,10 +196,11 @@ function isExported(statement) {
 // 삭제 전용 ledger는 export 단위로 fingerprint를 남겨야 함수 하나를 Server 계약으로 옮길 때마다
 // 해당 항목만 지울 수 있다. 타입만 export하는 선언은 계산이 아니므로 제외하고, `export { f }` 같은
 // 로컬 이름 export는 선언 대신 그 export 문을 항목으로 삼아 우회를 막는다.
+// runtime export가 하나도 없는 export 문(`export {}`, `export type { }`, `export { type a }`)은 계산이 아니다.
 function isTypeOnlyNamedExport(statement) {
   if (statement.isTypeOnly) return true;
   const clause = statement.exportClause;
-  return Boolean(clause && ts.isNamedExports(clause) && clause.elements.length > 0 && clause.elements.every((element) => element.isTypeOnly));
+  return Boolean(clause && ts.isNamedExports(clause) && clause.elements.every((element) => element.isTypeOnly));
 }
 
 function exportedRuntimeStatements(sourceFile) {

@@ -226,7 +226,7 @@ export function reviewedBaselineMetadata(item) {
     if (item.path.includes("/app/welcome/")) return ["기존 welcome route는 안내 presentation을 한 파일에 보유한 legacy 화면입니다.", "다음 welcome content 또는 interaction 변경에서 section UI로 분리할 때"];
   }
   return {
-    [WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION]: ["legacy client 업무 계산. 해당 값은 Server 계약 응답으로 대체 후 삭제", "해당 화면 slice를 api/<resource> 계약으로 교체할 때"],
+    [WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION]: ["legacy client 업무 계산. Server 계약 응답으로 대체한 뒤 삭제한다.", "해당 화면 slice를 api/<resource> 계약으로 교체할 때"],
     [WEB_BOUNDARY_RULES.LEGACY_IMPORT]: ["신규 층이 legacy 수평 폴더를 참조하는 기존 edge이며 대체 module이 생기면 삭제합니다.", "해당 legacy module을 shell/navigation 또는 shared/ui로 옮길 때"],
     [WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY]: ["스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.", "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"],
     [WEB_BOUNDARY_RULES.LEGACY_LIB_DIRECTORY]: ["스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.", "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"],

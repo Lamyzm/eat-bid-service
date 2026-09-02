@@ -966,15 +966,20 @@ test("routing 층의 legacy dashboard 경로와 hooks 디렉터리 신규 파일
 
 test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상으로 보고한다", async () => {
   const report = await inspect({
-    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nfunction hidden(value: number) { return value / 2; }\nexport { hidden };\nconst internal = 1; void internal;\ntype Local = { hi: number };\nexport { type Local };\nexport type Band = { lo: number };\n",
+    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nfunction hidden(value: number) { return value / 2; }\nexport { hidden };\nconst internal = 1; void internal;\ntype Local = { hi: number };\ntype Other = { lo: number };\nexport { type Local };\nexport type { Other };\nexport {};\nexport type Band = { lo: number };\n",
+    "apps/web/src/lib/deadline.ts": "function mixedRuntime(value: number) { return value + 1; }\ntype MixedType = number;\nexport { mixedRuntime, type MixedType };\n",
     "apps/web/src/lib/utils.ts": "export function cn(value: string) { return value; }\n",
     "apps/web/src/lib/__tests__/band.test.ts": "export const fixture = 1;\n",
   });
 
   const calculations = report.unmatchedFindings.filter((finding) => finding.rule === "client-domain-calculation");
-  assert.ok(calculations.every((finding) => finding.path === "apps/web/src/lib/band.ts"));
-  assert.deepEqual(calculations.map((finding) => finding.kind).sort(), ["ExportDeclaration", "FunctionDeclaration", "VariableStatement"]);
+  assert.deepEqual(
+    calculations.map((finding) => `${finding.path.split("/").at(-1)}:${finding.kind}`).sort(),
+    ["band.ts:ExportDeclaration", "band.ts:FunctionDeclaration", "band.ts:VariableStatement", "deadline.ts:ExportDeclaration"],
+  );
   assert.ok(calculations.some((finding) => finding.reason.includes("pickBand")));
+  assert.ok(calculations.some((finding) => finding.reason.includes("mixedRuntime")));
+  assert.ok(calculations.every((finding) => !/Local|Other|\(\)/.test(finding.reason)));
   // 계산 ledger 파일은 export 단위로만 추적해 파일 전체 fingerprint와 겹치지 않는다.
   assert.deepEqual(
     report.unmatchedFindings.filter((finding) => finding.rule === "legacy-lib-directory").map((finding) => finding.path),
