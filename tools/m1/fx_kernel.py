@@ -25,7 +25,21 @@ XC = np.load(r'F:/Project/eat-bid/data/mechanism/xcap.npz', allow_pickle=True)
 AS = np.load(r'F:/Project/eat-bid/data/mechanism/asof.npz', allow_pickle=True)
 HO = np.load(r'F:/Project/eat-bid/data/mechanism/holdout.npz', allow_pickle=True)
 
-x, cnt, nbid = (XC['x'].astype(np.float64), XC['off'], XC['nbid'].astype(int))
+x, cnt = XC['x'].astype(np.float64), XC['off']
+
+# 🔴 N 은 **개찰 시점 풀** = BID_CNT = 철회 포함이다 (team-lead 판정).
+#    철회자는 낙찰 결정 풀 안에 있었다 — 낙찰자 본인이 철회한 회차가 7.5% 있다.
+#    xcap 의 nbid/off/x 는 전부 **철회 제외**다 (판별: 두 정의가 갈리는 13,770 회차에서
+#    xcap 의 회차 최대가 100% xmax_nonwd 와 일치).  풀 수는 bids.npz 에서 조인한다.
+#    plist.bid_cnt == bids.nbid + nwithdraw  (98.52%) 로 확인했다.
+_BD = np.load(r'F:/Project/eat-bid/data/mechanism/bids.npz', allow_pickle=True)
+_bi = {b: i for i, b in enumerate(_BD['bid_id'])}
+_kb = np.array([_bi.get(b, -1) for b in XC['bid_id']])
+_OKB = _kb >= 0
+_kc = np.clip(_kb, 0, None)
+NPOOL = np.where(_OKB, _BD['nbid'][_kc].astype(int) + _BD['nwithdraw'][_kc].astype(int), -1)
+NOBS = XC['nbid'].astype(int)          # 관측된(철회 제외) 투찰 수 = len(x) per 회차
+nbid = NPOOL                           # 🔴 지수·층 둘 다 풀 수를 쓴다
 bi = {b: i for i, b in enumerate(AS['bid_id'])}
 k = np.array([bi.get(b, -1) for b in XC['bid_id']])
 OK_A, KA = k >= 0, np.clip(k, 0, None)
@@ -43,8 +57,8 @@ aid = np.repeat(np.arange(len(R)), cnt)
 # 🔴 ym 미상(asof 조인 실패) 229 회차를 TRAIN 에서 뺀다. 그중 48 건이 2026 년이라
 #    봉인 구간(202606~)일 수 있고, 라벨이 없어 확인할 방법이 없다.
 #    학습 회차의 0.14% 라 수치는 안 움직이지만, 봉인 구간 자료로 적합하지 않는다는 원칙이 먼저다.
-TRAIN = (ym >= 0) & (ym <= 202512) & (nbid >= 3) & ~RSUS
-TUNE = (split == 'TUNE') & (nbid >= 3) & ~RSUS
+TRAIN = (ym >= 0) & (ym <= 202512) & (nbid >= 3) & ~RSUS & _OKB
+TUNE = (split == 'TUNE') & (nbid >= 3) & ~RSUS & _OKB
 
 XGRID = np.linspace(0.94, 1.10, 1601)
 
@@ -156,7 +170,7 @@ def cluster_se(d, a):
     return float(np.sqrt((S ** 2).sum()) / m)
 
 
-BANDS = [(3, 4), (5, 9), (10, 29), (30, 59), (60, 99), (100, 364)]
+BANDS = [(3, 4), (5, 9), (10, 29), (30, 59), (60, 99), (100, 100000)]
 
 
 def report(p, label, quiet=False):
