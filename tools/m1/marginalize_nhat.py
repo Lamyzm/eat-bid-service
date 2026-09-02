@@ -55,10 +55,14 @@ def Fx_at(nv):
 NKN = np.arange(1, int(K.nbid.max()) + 1)
 XG = K.XGRID
 F_ALL = Fx_at(NKN)
-TAB = np.empty((len(NKN), len(XG)))
-for j, n in enumerate(NKN):
-    TAB[j] = K.pwin_v(XG, F_ALL[j], np.full(len(XG), n, float))
-print('조견표 %d N × %d x' % TAB.shape)
+# 🔴 α 가 회차마다 다르므로 조견표를 α 별로 둘 만든다 (α=0.02 회차 2.96%)
+TABS = np.empty((2, len(NKN), len(XG)))
+for a2 in (0, 1):
+    for j, n in enumerate(NKN):
+        TABS[a2, j] = K.pwin_v(XG, F_ALL[j], np.full(len(XG), n, float),
+                               a2=np.full(len(XG), bool(a2)))
+TAB = TABS[0]
+print('조견표 2 α × %d N × %d x' % TAB.shape)
 
 # --- 평가 대상: nhat 창의 TUNE 투찰 전부 ------------------------------------------
 bi = {b: i for i, b in enumerate(K.XC['bid_id'])}
@@ -91,17 +95,24 @@ fr = (XI - XG[IX]) / (XG[IX + 1] - XG[IX])
 fr = np.clip(fr, 0, 1)
 
 
-def curve_to_p(c):
-    """조견 곡선 c (x 격자) 를 각 투찰의 x 에서 선형보간."""
-    return c[IX] * (1 - fr) + c[IX + 1] * fr
+def curve_to_p(cc):
+    """조견 곡선 cc[α] 를 각 투찰의 x·α 에서 선형보간."""
+    c = cc[A2, IX] if cc.ndim == 2 else cc[IX]
+    d = cc[A2, IX + 1] if cc.ndim == 2 else cc[IX + 1]
+    return c * (1 - fr) + d * fr
 
+
+A2 = K.ALPHA2[AI].astype(int)                 # 투찰별: 그 회차의 α 가 0.02 인가
 
 # (1) 천장 — 정확한 N
 P1 = np.empty(len(XI))
 for n in np.unique(NT):
-    q = NT == n
-    c = TAB[n - 1]
-    P1[q] = c[IX[q]] * (1 - fr[q]) + c[IX[q] + 1] * fr[q]
+    for a2 in (0, 1):
+        q = (NT == n) & (A2 == a2)
+        if not q.any():
+            continue
+        c = TABS[a2, n - 1]
+        P1[q] = c[IX[q]] * (1 - fr[q]) + c[IX[q] + 1] * fr[q]
 
 # 학습기의 N 분포 (회차 단위)
 nb_tr = K.nbid[TR2]
@@ -114,17 +125,17 @@ wA /= wA.sum()
 #    ⚠ 제품 예측기는 이 보정을 **쓰면 안 된다**. 거기선 회차가 지정돼 있어 기준집합이 다르다
 wB = wA * NKN
 wB /= wB.sum()
-C2 = wB @ TAB
+C2 = np.stack([wB @ TABS[0], wB @ TABS[1]])
 P2 = curve_to_p(C2)
 
 # (3) N̂ — 버킷 안에서도 같은 기준집합. 그리고 버킷 확률 자체도 크기 편향
 bk = np.digitize(NKN, EDGES)
-C3 = np.zeros((6, len(XG)))
+C3 = np.zeros((6, 2, len(XG)))
 EN = np.zeros(6)
 for b in range(6):
     m = bk == b
-    ww = wB[m]
-    C3[b] = (ww / ww.sum()) @ TAB[m]
+    ww = wB[m] / wB[m].sum()
+    C3[b] = np.stack([ww @ TABS[0][m], ww @ TABS[1][m]])
     EN[b] = (wA[m] / wA[m].sum() * NKN[m]).sum()      # 회차 단위 E[N|b]
 PbB = Pb * EN[None, :]
 PbB /= np.maximum(PbB.sum(1, keepdims=True), 1e-12)

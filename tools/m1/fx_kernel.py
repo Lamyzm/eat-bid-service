@@ -29,7 +29,8 @@ x, cnt, R, nbid = (XC['x'].astype(np.float64), XC['off'], XC['R'],
                    XC['nbid'].astype(int))
 bi = {b: i for i, b in enumerate(AS['bid_id'])}
 k = np.array([bi.get(b, -1) for b in XC['bid_id']])
-ym = np.where(k >= 0, AS['ym'][np.clip(k, 0, None)], -1).astype(int)
+OK_A, KA = k >= 0, np.clip(k, 0, None)
+ym = np.where(OK_A, AS['ym'][KA], -1).astype(int)
 hi_ = {b: s for b, s in zip(HO['bid_id'], HO['split'])}
 split = np.array([hi_.get(b, '') for b in XC['bid_id']])
 
@@ -67,6 +68,13 @@ def Fx_at(nvals, h):
 _FR = FR(n=200000, seed=2, nbin=201)
 _MID = _FR.mid[0.03]
 _W = _FR.pdf[0.03] * np.diff(_FR.edges[0.03])
+# 🔴 α 는 회차마다 다르다 (fr.alpha_of: 하한율 88 & 기초금액<2천만 → 0.02, 나머지 0.03).
+#    α=0.02 회차가 2.96% 다.  회차별 α 로 R 분포를 골라 쓴다.
+_MID2 = _FR.mid[0.02]
+_W2 = _FR.pdf[0.02] * np.diff(_FR.edges[0.02])
+_af = np.where(OK_A, AS['floor'][KA], np.nan)
+_ab = np.where(OK_A, AS['bgng'][KA], np.nan)
+ALPHA2 = (_af == 88) & (_ab < 2e7)          # 회차별: True 면 α=0.02
 
 # --- 평가 대상 (TUNE) ---------------------------------------------------------
 _sel = TUNE[aid]
@@ -93,24 +101,39 @@ UNQ = np.unique(NT)
 GRP = {int(n): np.flatnonzero(NT == n) for n in UNQ}
 
 
-def pwin_v(xv, Fx, nvec, chunk=4000):
+def pwin_v(xv, Fx, nvec, chunk=4000, a2=None):
+    """a2: 회차별 bool. True 면 α=0.02 의 R 분포를 쓴다. None 이면 전부 0.03."""
     out = np.empty(len(xv))
     Fr = np.interp(_MID, XGRID, Fx)
+    Fr2 = np.interp(_MID2, XGRID, Fx)
     for a in range(0, len(xv), chunk):
         v = xv[a:a + chunk]
         nn = np.maximum(np.asarray(nvec[a:a + chunk], float) - 1, 0)[:, None]   # 🔴 지수는 경쟁자 수 = N−1
-        Fv = np.interp(v, XGRID, Fx)[:, None]
-        surv = np.clip(1 - Fv + Fr[None, :], 0, 1) ** nn
-        out[a:a + chunk] = (_W[None, :] * surv * (_MID[None, :] <= v[:, None])).sum(1)
+        for mid, wt, fr_, m in ((_MID, _W, Fr, None), (_MID2, _W2, Fr2, True)):
+            if a2 is None:
+                sub = slice(None) if m is None else None
+                if sub is None:
+                    continue
+                idx = np.arange(len(v))
+            else:
+                s = a2[a:a + chunk]
+                idx = np.flatnonzero(~s if m is None else s)
+                if len(idx) == 0:
+                    continue
+            vv = v[idx]
+            Fv = np.interp(vv, XGRID, Fx)[:, None]
+            surv = np.clip(1 - Fv + fr_[None, :], 0, 1) ** nn[idx]
+            out[a + idx] = (wt[None, :] * surv * (mid[None, :] <= vv[:, None])).sum(1)
     return out
 
 
-def predict(h):
+def predict(h, use_alpha=True):
     F = Fx_at(UNQ, h)
+    A2 = ALPHA2[AI] if use_alpha else None
     out = np.zeros(len(XI))
     for j, n in enumerate(UNQ):
         q = GRP[int(n)]
-        out[q] = pwin_v(XI[q], F[j], NT[q])
+        out[q] = pwin_v(XI[q], F[j], NT[q], a2=None if A2 is None else A2[q])
     return out
 
 
