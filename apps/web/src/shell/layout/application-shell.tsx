@@ -2,9 +2,7 @@
 import CommandPalette from '@/components/command-palette/command-palette';
 import AppSidebar from '@/components/layout/app-sidebar';
 import Header from '@/components/layout/header';
-import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { cookies } from 'next/headers';
 
 interface ApplicationShellProps {
   readonly children: React.ReactNode;
@@ -14,15 +12,16 @@ interface ApplicationShellProps {
   readonly sidebarFooter?: React.ReactNode;
 }
 
-/** 업무 route들이 같은 탐색·테마·사이드바 chrome을 공유하도록 소유하는 서버 셸이다. */
-export async function ApplicationShell({ children, headerControls, sidebarFooter }: ApplicationShellProps) {
-  const cookieStore = await cookies();
-  const sidebarCookie = cookieStore.get('sidebar_state')?.value;
-  const defaultOpen = sidebarCookie == null ? true : sidebarCookie === 'true';
-
+/**
+ * 업무 route들이 같은 탐색·테마·사이드바 chrome을 공유하도록 소유하는 서버 셸이다.
+ * cookies()를 읽지 않아 static shell로 prerender되며, sidebar 열림 cookie는 header의 Suspense leaf가
+ * request 시점에 반영한다(ADR 0028). legacy infobar는 usePathname으로 route를 읽고 dashboard 화면만
+ * 쓰므로 dashboard layout이 소유한다.
+ */
+export function ApplicationShell({ children, headerControls, sidebarFooter }: ApplicationShellProps) {
   return (
     <CommandPalette>
-      <SidebarProvider defaultOpen={defaultOpen}>
+      <SidebarProvider>
         <a
           href='#main-content'
           className='bg-background ring-ring sr-only rounded-md px-3 py-2 text-sm font-medium shadow focus:not-sr-only focus:absolute focus:top-2 focus:start-2 focus:z-50 focus:ring-2'
@@ -32,7 +31,7 @@ export async function ApplicationShell({ children, headerControls, sidebarFooter
         <AppSidebar footer={sidebarFooter} />
         <SidebarInset id='main-content' tabIndex={-1} className='scroll-mt-16'>
           <Header controls={headerControls} />
-          <InfobarProvider defaultOpen={false}>{children}</InfobarProvider>
+          {children}
         </SidebarInset>
       </SidebarProvider>
     </CommandPalette>

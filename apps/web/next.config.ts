@@ -15,7 +15,8 @@ const baseConfig: NextConfig = {
       nodeEnv: process.env.NODE_ENV,
       apiUrl: process.env.API_URL ?? 'http://localhost:4400'
     }),
-  // Cache Components는 route/Suspense/auth/cache 조합을 별도로 검토하기 전까지 활성화하지 않는다.
+  // ADR 0028: canonical route는 static shell + Suspense streaming이며 legacy dashboard만 instant=false로 제외한다.
+  cacheComponents: true,
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
   images: {
     remotePatterns: [

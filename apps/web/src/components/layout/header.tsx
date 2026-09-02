@@ -1,9 +1,10 @@
 /** @module 책임: breadcrumb·theme control과 상위 layout이 주입한 control slot을 공통 workspace header에 배치한다. */
-import React from 'react';
+import React, { Suspense } from 'react';
 import { SidebarTrigger } from '../ui/sidebar';
 import { Separator } from '../ui/separator';
 import { Breadcrumbs } from '../breadcrumbs';
 import { ThemeModeToggle, ThemeSelector } from '@/shell';
+import { SidebarStateLoader } from './sidebar-state-loader';
 
 interface HeaderProps {
   /**
@@ -23,9 +24,16 @@ export default function Header({ controls }: HeaderProps) {
     <header className='bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-2 backdrop-blur-md md:h-14'>
       {/* G1: min-w-0 없이는 1280에서 브레드크럼이 한 글자씩 세로로 쌓인다 */}
       <div className='flex min-w-0 items-center gap-2 px-4'>
+        {/* sidebar 열림 cookie는 trigger 옆에서 request 시점에만 읽는다. shell 자체는 static이다(ADR 0028). */}
+        <Suspense fallback={null}>
+          <SidebarStateLoader />
+        </Suspense>
         <SidebarTrigger className='-ml-1' />
         <Separator orientation='vertical' className='mr-2 h-4 data-vertical:self-center' />
-        <Breadcrumbs />
+        {/* breadcrumb은 usePathname을 읽으므로 dynamic param route의 static shell 뒤에 streaming한다. */}
+        <Suspense fallback={null}>
+          <Breadcrumbs />
+        </Suspense>
       </div>
 
       <div className='flex shrink-0 items-center gap-1.5 px-4'>

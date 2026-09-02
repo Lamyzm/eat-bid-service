@@ -991,15 +991,6 @@
       "rule": "legacy-import",
       "path": "apps/web/src/shell/layout/application-shell.tsx",
       "kind": "ImportDeclaration",
-      "sha256": "sha256:a3061065f5e94be8901ae58f54b2fe0f4af54b4a46436357850bd6011ccf8692",
-      "reason": "shell이 legacy navigation chrome을 import하는 기존 edge입니다.",
-      "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "sidebar·header·command palette가 shared/ui primitive만 쓰게 되어 shell/navigation으로 옮길 때 삭제"
-    },
-    {
-      "rule": "legacy-import",
-      "path": "apps/web/src/shell/layout/application-shell.tsx",
-      "kind": "ImportDeclaration",
       "sha256": "sha256:cdb0240e53a6a7ec08cea71c37f63530da0c21eb09b461c552704471fefadc64",
       "reason": "shell이 legacy navigation chrome을 import하는 기존 edge입니다.",
       "owner": "EAT-9 frontend foundation",

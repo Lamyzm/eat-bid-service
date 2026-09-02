@@ -267,16 +267,8 @@
       "sha256": "ccc9b05dd0669c525822f946a1eceda2543ece0e582994f3717006babb808627"
     },
     {
-      "path": "apps/web/src/app/dashboard/analysis/[id]/page.tsx",
-      "sha256": "2bdf252dbfee448f64de41936e1feb5012fe2747c0d12cae2af5a77d28954e0f"
-    },
-    {
       "path": "apps/web/src/app/dashboard/auction/[bidNo]/auction-detail.tsx",
       "sha256": "cf6de76466feef57f4d0c09d8718427749f1f6ea5b85b59d61d56dca7aa67fd6"
-    },
-    {
-      "path": "apps/web/src/app/dashboard/auction/[bidNo]/page.tsx",
-      "sha256": "c2bf567a590a220177eb9b57eca4302ebc036204a9aab497f53eff39100d39df"
     },
     {
       "path": "apps/web/src/app/dashboard/delivery/page.tsx",
@@ -333,10 +325,6 @@
     {
       "path": "apps/web/src/app/page.tsx",
       "sha256": "e5a47afcf171d84aabf2911bda49b5e0022a1a260224e038eef3211a524fa2a7"
-    },
-    {
-      "path": "apps/web/src/app/s/[token]/page.tsx",
-      "sha256": "81a6c10fb1cf8bd8240f75ba44be23e947f00a9a4baca31249806b5f9b2a16d1"
     },
     {
       "path": "apps/web/src/app/s/[token]/share-ping.tsx",

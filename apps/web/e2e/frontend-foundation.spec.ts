@@ -61,3 +61,32 @@ test('503은 404로 바꾸지 않고 안전한 재시도 경계에 전달한다'
   await expect(page.getByRole('button', { name: '다시 시도' })).toBeVisible();
   await expect(page.getByText('의존성 내부 상세')).toHaveCount(0);
 });
+
+test('server HTML은 기본 theme으로 static이고 cookie theme은 첫 paint 전 inline script가 적용한다', async ({
+  page,
+  baseURL
+}) => {
+  await page.context().addCookies([{ name: 'active_theme', value: 'claude', url: baseURL! }]);
+
+  const html = await (await page.request.get(`/auctions/${SUCCESS_AUCTION_ID}`)).text();
+  expect(html).toContain('data-theme="eatbid"');
+  expect(html).not.toContain('data-theme="claude"');
+
+  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
+  await page.reload({ waitUntil: 'commit' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
+  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
+});
+
+test('접힌 sidebar cookie는 shell을 static으로 둔 채 request 시점에 반영된다', async ({ page, baseURL }) => {
+  await page.context().addCookies([{ name: 'sidebar_state', value: 'false', url: baseURL! }]);
+
+  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
+  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await expect(page.locator('[data-slot="sidebar"][data-state]').first()).toHaveAttribute(
+    'data-state',
+    'collapsed'
+  );
+});

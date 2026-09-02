@@ -36,10 +36,16 @@ Web은 Next.js `16.3.4` App Router이며 `apps/web/next.config.ts`는 Cache Comp
    - root layout은 `cookies()`를 읽지 않는다. `data-theme`는 `<head>` inline script가 cookie에서 첫 paint 전에
      설정하고, client `ActiveThemeProvider`는 DOM 속성을 초기값으로 읽는다.
    - `ApplicationShell`의 sidebar cookie 읽기는 Suspense 안 `SidebarStateLoader`로 옮긴다.
+   - `usePathname`은 dynamic param route의 shell을 만드는 동안 suspend한다. sidebar 활성 표시와 breadcrumb은
+     Suspense leaf로 내리고, legacy `InfobarProvider`는 shell이 아니라 dashboard layout이 소유한다.
    - `/auctions/[auctionId]`는 `params` await를 Suspense 안 loader로 옮기고 fallback으로
      `AuctionScreenSkeleton`을 쓴다.
-3. legacy `/dashboard/**` page/layout은 `export const instant = false`로 검증에서 제외한다. 이 export는
-   삭제 전용이며 canonical route에 새로 추가하지 않는다.
+3. legacy `/dashboard` layout segment는 `export const instant = false`로 검증에서 제외하고, 그 아래 page는
+   layout의 Suspense + `connection()` 경계에서 request 시점에 렌더한다. legacy page 파일은 web boundary
+   fingerprint로 동결돼 있어 page마다 export를 추가하지 않는다. 공개 `/s/[token]`은 layout이 없으므로 page에
+   직접 둔다. 이 export는 삭제 전용이며 canonical route에 새로 추가하지 않는다.
+   `export const dynamic = 'force-dynamic'`은 Cache Components와 함께 쓸 수 없으므로 세 legacy page에서
+   제거한다.
 4. cache 사용 경계:
    - replica 1에서는 Next 기본 in-memory cache를 허용한다. replica를 늘리기 전에 공유 cache handler
      (`cacheHandlers`, `refreshTags`)를 같은 변경에서 도입해야 하며, 그 전의 replica 증가는 금지한다.

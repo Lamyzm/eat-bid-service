@@ -1,11 +1,14 @@
 /**
+ * @module 책임: 토큰으로 공개된 개찰 결과 요약 화면과 조회 기록 ping을 조립한다.
+ *
  * 공개 조회 요약 — /s/[token] (critic 프레이밍: '성적표' 아님, 공공 개찰 결과의 요약)
  * 서버 계약: {ok, name, totals:{part,wins,pushed,below}, recentWins[]} — ok:false도 HTTP 200.
  */
 import Link from 'next/link';
 import { SharePing } from './share-ping';
 
-export const dynamic = 'force-dynamic';
+// legacy 공개 route는 Cache Components 검증에서 제외한다(ADR 0028).
+export const instant = false;
 
 type Share = {
   ok: boolean;

@@ -1,6 +1,5 @@
+/** @module 책임: legacy 공고 상세 route에서 공고 번호·투찰률 검색 조건을 해석해 상세 화면에 전달한다. */
 import { AuctionDetail } from './auction-detail';
-
-export const dynamic = 'force-dynamic';
 
 export default async function AuctionPage({ params, searchParams }: {
   params: Promise<{ bidNo: string }>;
