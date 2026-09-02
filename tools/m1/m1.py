@@ -67,8 +67,16 @@ class M1:
         return self
 
     def win_prob(self, x, n, stratum, alpha):
-        """P(낙찰 | x, N, 층, α).  x 는 스칼라 또는 배열."""
+        """P(낙찰 | x, N, 층, α).  x 는 스칼라 또는 배열.
+
+        🔴 `n` 은 그 회차의 **투찰자 수**(nbid)다. 지수는 `n−1` (경쟁자 수).
+           2026-09-02 이전에는 지수에 `n` 을 그대로 썼다 = 경쟁자를 한 명 더 센 것.
+           상대 과대계상이 1/(n−1) 이라 저N 에서만 크게 나타났고, 그게
+           −20.3%(N=3-4) → −0.9%(N=60-99) 의 단조 미보정 전부였다.
+           ⚠ 정의를 여기 한 곳에 가둔다. 호출자는 언제나 투찰자 수를 넘긴다.
+        """
         x = np.atleast_1d(np.asarray(x, float))
+        ncomp = max(int(n) - 1, 0)
         out = np.empty(len(x))
         Fx_all = self.fx(stratum)
         for i, xi in enumerate(x):
@@ -81,7 +89,7 @@ class M1:
                 continue
             F_r = np.interp(mid[use], self.xgrid, Fx_all)
             F_x = np.interp(xi, self.xgrid, Fx_all)
-            out[i] = (w[use] * np.clip(1.0 - F_x + F_r, 0, 1) ** n).sum()
+            out[i] = (w[use] * np.clip(1.0 - F_x + F_r, 0, 1) ** ncomp).sum()
         return out
 
     def best_x(self, n, stratum, alpha, grid=None):
@@ -120,10 +128,14 @@ if __name__ == '__main__':
           % ('N', 'M1 최적x', '진실 최적x', 'M1 승률', '진실 승률', '상대오차'))
     R = _draw_R(fr, 0.03, 40000, rng)
     grid = np.linspace(0.985, 1.020, 141)
+    # 🔴 N 은 **회차 투찰자 수**다. 초점 투찰자 1명 + 경쟁자 N−1 명.
+    #    예전 L1 은 "초점 + 경쟁자 n 명"으로 진실을 만들고 지수에도 n 을 써서
+    #    양쪽이 같은 정의를 공유했다 ⟹ 정의 불일치를 **기각할 수 없는** 검정이었다.
+    #    실데이터의 n 은 nbid(투찰자 수)였으므로 한 명 더 센 채로 통과했다.
     for n in (3, 5, 10, 30, 100):
         p_m1 = m.win_prob(grid, n, 0, 0.03)
         bx = grid[int(np.argmax(p_m1))]
-        cj = _competitors(n, (len(R), n), rng)
+        cj = _competitors(n, (len(R), n - 1), rng)
         p_true = np.array([((xi >= R) & ~((cj >= R[:, None]) & (cj < xi)).any(1)).mean()
                            for xi in grid])
         bt = grid[int(np.argmax(p_true))]
