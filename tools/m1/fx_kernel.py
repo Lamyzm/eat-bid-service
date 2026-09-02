@@ -1,19 +1,22 @@
 # -*- coding: utf-8 -*-
-"""3번(개정) — F_X 를 **정확한 N** 으로 조건부화. 상한 없음 + 목적함수 저N.
+"""승률 모형의 뿌리 — `bidlevel.npz` 직행. **나이 불변 양만 쓴다.**
 
-두 가지를 고쳤다:
+기록 지연이 확인됐다(개정 31): 철회 플래그가 ~18개월에 걸쳐 쌓인다.
+`2026-07·08` 은 517,202 투찰에서 정확히 `0.0000%` 다.
 
-🔴 ① `N ≥ 60` 상한 제거.  전체 발견이 "버킷 경계가 인공물을 만든다"인데
-     내가 60 이라는 새 경계를 넣었고 기울기 보정 편차 −9.6 %p 가 나왔다.
-     ⟹ 커널을 **연속 함수**로 바꾼다. F_X(·|n) 을 임의의 n 에서 계산한다.
-       표본이 얇은 N 은 자기 CDF 를 안 만들고 이웃에서 빌린다 — 경계가 없다.
+```
+✅ 나이 불변   BID_CNT(=off) · 전 투찰의 x · is_recorded_winner · R
+❌ 나이 의존   wd 플래그 · 생존자 수 · 생존자 행집합 · 규칙 유도 낙찰자
+```
+🔴 **이 모듈은 나이 의존 양을 하나도 안 쓴다.** `wd` 는 진단용으로만 노출하고
+   `assert_wd_unused()` 가 그걸 *실증*한다 — `wd` 를 섞어도 출력이 비트 단위로 같아야 한다.
 
-🔴 ② h 스윕의 목적함수를 저N(N<30) 으로.  (team-lead 지시)
-     전역 Brier 는 98% 가 고N 에서 오고 고N 은 이미 −0.5% 로 멀쩡하다.
-     ⟹ 안 고쳐도 되는 구간이 h 를 정하면 "개선 없음"이 목적함수의 산물일 수 있다.
-     두 목적함수를 **같은 표에** 낸다. 갈리면 그 자체가 결과다.
-
-⚠ 모든 수치에 표본 수와 군집 SE 를 같이 낸다 (회차 군집 — 회차당 낙찰자가 정확히 1명).
+정의를 여기 한 곳에 가둔다 (규율 30):
+```
+N     = off = BID_CNT = 개찰 시점 풀.  지수는 N−1 (경쟁자 수)
+ACT   = is_recorded_winner.  8개 파일이 각자 lexsort 로 만들던 걸 여기서 한 번만 만든다
+F_X   = 전 투찰의 x (철회 포함)
+```
 """
 from __future__ import annotations
 
@@ -21,48 +24,63 @@ import numpy as np
 
 from fr import FR
 
-XC = np.load(r'F:/Project/eat-bid/data/mechanism/xcap.npz', allow_pickle=True)
+SOURCE = 'bidlevel'                 # 🔴 개봉 게이트가 읽는다
+ACT_FROM_RECORD = True              # 🔴 개봉 게이트가 읽는다
+
+BL = np.load(r'F:/Project/eat-bid/data/mechanism/bidlevel.npz', allow_pickle=True)
 AS = np.load(r'F:/Project/eat-bid/data/mechanism/asof.npz', allow_pickle=True)
 HO = np.load(r'F:/Project/eat-bid/data/mechanism/holdout.npz', allow_pickle=True)
 
-x, cnt = XC['x'].astype(np.float64), XC['off']
+# npz 멤버는 접근마다 압축 해제된다 — 전부 여기서 한 번만 푼다
+x = BL['x'].astype(np.float64)
+cnt = BL['off'].astype(np.int64)            # = BID_CNT.  모든 월에서 plist.bid_cnt 와 100% 일치
+_WIN = BL['is_recorded_winner']
+_WD_DIAG = BL['wd']                         # ⚠ 진단 전용. 모형 경로에서 쓰지 않는다
+bid_id = BL['bid_id']
 
-# 🔴 N 은 **개찰 시점 풀** = BID_CNT = 철회 포함이다 (team-lead 판정).
-#    철회자는 낙찰 결정 풀 안에 있었다 — 낙찰자 본인이 철회한 회차가 7.5% 있다.
-#    xcap 의 nbid/off/x 는 전부 **철회 제외**다 (판별: 두 정의가 갈리는 13,770 회차에서
-#    xcap 의 회차 최대가 100% xmax_nonwd 와 일치).  풀 수는 bids.npz 에서 조인한다.
-#    plist.bid_cnt == bids.nbid + nwithdraw  (98.52%) 로 확인했다.
-_BD = np.load(r'F:/Project/eat-bid/data/mechanism/bids.npz', allow_pickle=True)
-_bi = {b: i for i, b in enumerate(_BD['bid_id'])}
-_kb = np.array([_bi.get(b, -1) for b in XC['bid_id']])
-_OKB = _kb >= 0
-_kc = np.clip(_kb, 0, None)
-NPOOL = np.where(_OKB, _BD['nbid'][_kc].astype(int) + _BD['nwithdraw'][_kc].astype(int), -1)
-NOBS = XC['nbid'].astype(int)          # 관측된(철회 제외) 투찰 수 = len(x) per 회차
-nbid = NPOOL                           # 🔴 지수·층 둘 다 풀 수를 쓴다
-bi = {b: i for i, b in enumerate(AS['bid_id'])}
-k = np.array([bi.get(b, -1) for b in XC['bid_id']])
-OK_A, KA = k >= 0, np.clip(k, 0, None)
-ym = np.where(OK_A, AS['ym'][KA], -1).astype(int)
+aid = np.repeat(np.arange(len(cnt)), cnt)
+nbid = cnt                                  # 🔴 N = 풀 수.  생존자 수가 아니다
+NPOOL = nbid
+NOBS = nbid - np.bincount(aid, weights=_WD_DIAG.astype(np.int64),
+                          minlength=len(cnt)).astype(np.int64)   # 진단용
 
-# 🔴 R 은 재생성된 asof.npz(정의 B — 절대금액)에서 가져온다.  xcap 의 R 은 정의 A(4자리 비율)라
-#    낙찰자 식별이 2%p 틀린다 (항등식 97.064% → 99.136%).  R 은 낙찰 **라벨**을 정하므로
-#    승률 보정 전부가 여기 걸린다.  xcap 재생성 전까지 조인으로 대체한다.
-R = np.where(OK_A, AS['R'][KA], np.nan)
-RSUS = np.where(OK_A, AS['R_suspect'][KA], True)      # 오염 91건 — 학습·평가에서 뺀다
-hi_ = {b: s for b, s in zip(HO['bid_id'], HO['split'])}
-split = np.array([hi_.get(b, '') for b in XC['bid_id']])
+# --- asof 조인: R · ym · α 규칙 재료 -------------------------------------------
+_ai = {b: i for i, b in enumerate(AS['bid_id'])}
+_k = np.array([_ai.get(b, -1) for b in bid_id])
+OK_A = _k >= 0
+_kc = np.clip(_k, 0, None)
+ym = np.where(OK_A, AS['ym'][_kc], -1).astype(int)
+R = np.where(OK_A, AS['R'][_kc], np.nan)
+RSUS = np.where(OK_A, AS['R_suspect'][_kc], True)
+_floor = np.where(OK_A, AS['floor'][_kc], np.nan)
+_bgng = np.where(OK_A, AS['bgng'][_kc], np.nan)
+ALPHA2 = (_floor == 88) & (_bgng < 2e7)     # fr.alpha_of 규칙. True 면 α=0.02
 
-aid = np.repeat(np.arange(len(R)), cnt)
-# 🔴 ym 미상(asof 조인 실패) 229 회차를 TRAIN 에서 뺀다. 그중 48 건이 2026 년이라
-#    봉인 구간(202606~)일 수 있고, 라벨이 없어 확인할 방법이 없다.
-#    학습 회차의 0.14% 라 수치는 안 움직이지만, 봉인 구간 자료로 적합하지 않는다는 원칙이 먼저다.
-TRAIN = (ym >= 0) & (ym <= 202512) & (nbid >= 3) & ~RSUS & _OKB
-TUNE = (split == 'TUNE') & (nbid >= 3) & ~RSUS & _OKB
+# 🔴 조인 커버리지 단언 (규율 24) — 암묵으로 두지 않는다
+_n_nojoin = int((~OK_A).sum())
+_n_rsus = int((OK_A & RSUS).sum())
+print('bidlevel 회차 %d · 투찰 %d' % (len(cnt), len(x)))
+print('🔴 R 조인 실패 %d 회차 (%.4f%%) — 버린다. 값을 채우지 않는다'
+      % (_n_nojoin, 100 * _n_nojoin / len(cnt)))
+print('🔴 R_suspect %d 회차 (%.4f%%) — 승률 계산에서 **제외**한다 (R 오염 91건 계열)'
+      % (_n_rsus, 100 * _n_rsus / len(cnt)))
+
+_hs = {b: s for b, s in zip(HO['bid_id'], HO['split'])}
+split = np.array([_hs.get(b, '') for b in bid_id])
+
+USABLE = OK_A & ~RSUS & (nbid >= 3)
+TRAIN = USABLE & (ym >= 0) & (ym <= 202512)
+TUNE = USABLE & (split == 'TUNE')
+EVALUABLE = USABLE
+
+# --- ACT: 기록 낙찰자. 🔴 여기서 한 번만 만든다 ----------------------------------
+ACT_ALL = _WIN.astype(np.float64)
+_nwin = np.bincount(aid, weights=ACT_ALL, minlength=len(cnt))
+assert (_nwin[USABLE] == 1).all(), '회차당 낙찰자가 1명이 아니다 — 술어 위반'
 
 XGRID = np.linspace(0.94, 1.10, 1601)
 
-# --- 정확한 N 별 경험 CDF (학습 기간).  🔴 상한 없음 -----------------------------
+# --- N 별 경험 CDF (학습기, 전 투찰) --------------------------------------------
 _tb = TRAIN[aid]
 _emp, _cn = {}, {}
 for n in np.unique(nbid[TRAIN]):
@@ -72,15 +90,15 @@ for n in np.unique(nbid[TRAIN]):
         continue
     v = np.sort(x[q])
     _emp[int(n)] = np.searchsorted(v, XGRID, side='right') / len(v)
-    _cn[int(n)] = c
+    _cn[int(n)] = float(c)
 NS = np.array(sorted(_emp), float)
 EMP = np.stack([_emp[int(n)] for n in NS])
-CN = np.array([_cn[int(n)] for n in NS], float)
+CN = np.array([_cn[int(n)] for n in NS])
 LOGNS = np.log(NS)
 
 
 def Fx_at(nvals, h):
-    """F_X(·|n) 을 **임의의** n 에서. 경계 없음.  w ∝ n_N' · exp(−|log n − log N'|/h)"""
+    """F_X(·|n) — 임의의 n 에서. 경계 없음."""
     d = np.abs(np.log(np.asarray(nvals, float))[:, None] - LOGNS[None, :])
     w = CN[None, :] * np.exp(-d / max(h, 1e-6))
     w /= w.sum(1, keepdims=True)
@@ -88,58 +106,36 @@ def Fx_at(nvals, h):
 
 
 _FR = FR(n=200000, seed=2, nbin=201)
-_MID = _FR.mid[0.03]
+_MID, _MID2 = _FR.mid[0.03], _FR.mid[0.02]
 _W = _FR.pdf[0.03] * np.diff(_FR.edges[0.03])
-# 🔴 α 는 회차마다 다르다 (fr.alpha_of: 하한율 88 & 기초금액<2천만 → 0.02, 나머지 0.03).
-#    α=0.02 회차가 2.96% 다.  회차별 α 로 R 분포를 골라 쓴다.
-_MID2 = _FR.mid[0.02]
 _W2 = _FR.pdf[0.02] * np.diff(_FR.edges[0.02])
-_af = np.where(OK_A, AS['floor'][KA], np.nan)
-_ab = np.where(OK_A, AS['bgng'][KA], np.nan)
-ALPHA2 = (_af == 88) & (_ab < 2e7)          # 회차별: True 면 α=0.02
 
-# --- 평가 대상 (TUNE) ---------------------------------------------------------
+# --- 평가 대상 (TUNE 전수) ------------------------------------------------------
 _sel = TUNE[aid]
-_rng = np.random.default_rng(0)
-_idx = np.flatnonzero(_sel)
-if len(_idx) > 250000:
-    _idx = _rng.choice(_idx, 250000, replace=False)
-_sel = np.zeros(len(x), bool)
-_sel[_idx] = True
 XI, AI = x[_sel], aid[_sel]
-NT = nbid[AI]                       # 🔴 지수는 언제나 실제 N
-
-_valid = x >= R[aid]
-_xv = np.where(_valid, x, 1e9)
-_o = np.lexsort((_xv, aid))
-_f = np.ones(len(x), bool)
-_f[1:] = aid[_o][1:] != aid[_o][:-1]
-_win = np.zeros(len(x), bool)
-_wi = _o[_f]
-_win[_wi] = _valid[_wi]
-ACT = _win[_sel].astype(float)
-
+NT = nbid[AI]
+ACT = ACT_ALL[_sel]
 UNQ = np.unique(NT)
 GRP = {int(n): np.flatnonzero(NT == n) for n in UNQ}
+print('학습 %d 회차 · TUNE %d 회차 · 평가 투찰 %d · 실제 낙찰률 %.5f'
+      % (TRAIN.sum(), TUNE.sum(), len(XI), ACT.mean()))
 
 
 def pwin_v(xv, Fx, nvec, chunk=4000, a2=None):
-    """a2: 회차별 bool. True 면 α=0.02 의 R 분포를 쓴다. None 이면 전부 0.03."""
+    """P(승|x,N) = ∫ w(r)·1{r≤x}·(1−F(x)+F(r))^(N−1) dr.  지수는 경쟁자 수."""
     out = np.empty(len(xv))
-    Fr = np.interp(_MID, XGRID, Fx)
-    Fr2 = np.interp(_MID2, XGRID, Fx)
+    Fr, Fr2 = np.interp(_MID, XGRID, Fx), np.interp(_MID2, XGRID, Fx)
     for a in range(0, len(xv), chunk):
         v = xv[a:a + chunk]
-        nn = np.maximum(np.asarray(nvec[a:a + chunk], float) - 1, 0)[:, None]   # 🔴 지수는 경쟁자 수 = N−1
-        for mid, wt, fr_, m in ((_MID, _W, Fr, None), (_MID2, _W2, Fr2, True)):
+        nn = np.maximum(np.asarray(nvec[a:a + chunk], float) - 1, 0)[:, None]
+        for mid, wt, fr_, is2 in ((_MID, _W, Fr, False), (_MID2, _W2, Fr2, True)):
             if a2 is None:
-                sub = slice(None) if m is None else None
-                if sub is None:
+                if is2:
                     continue
                 idx = np.arange(len(v))
             else:
                 s = a2[a:a + chunk]
-                idx = np.flatnonzero(~s if m is None else s)
+                idx = np.flatnonzero(s if is2 else ~s)
                 if len(idx) == 0:
                     continue
             vv = v[idx]
@@ -165,44 +161,54 @@ def cluster_se(d, a):
     if m == 0:
         return np.nan
     D = d.mean()
-    u, inv = np.unique(a, return_inverse=True)
+    _, inv = np.unique(a, return_inverse=True)
     S = np.bincount(inv, weights=d - D)
     return float(np.sqrt((S ** 2).sum()) / m)
 
 
-BANDS = [(3, 4), (5, 9), (10, 29), (30, 59), (60, 99), (100, 100000)]
+BANDS = [(3, 4), (5, 9), (10, 29), (30, 59), (60, 99), (100, 10 ** 9)]
 
 
 def report(p, label, quiet=False):
     rows = []
-    for lo, hi2 in BANDS:
-        q = (NT >= lo) & (NT <= hi2)
+    for lo, hi in BANDS:
+        q = (NT >= lo) & (NT <= hi)
         if q.sum() < 500:
             rows.append((np.nan,) * 4)
             continue
         a = ACT[q].mean()
         d = p[q] - ACT[q]
-        se = cluster_se(d, AI[q])
-        rows.append((100 * d.mean() / a, 100 * se / a, int(q.sum()),
-                     len(np.unique(AI[q]))))
+        rows.append((100 * d.mean() / a, 100 * cluster_se(d, AI[q]) / a,
+                     int(q.sum()), len(np.unique(AI[q]))))
     lo30 = NT < 30
     bg = float(np.mean((p - ACT) ** 2))
     bl = float(np.mean((p[lo30] - ACT[lo30]) ** 2))
     if not quiet:
-        print('  %-20s Brier 전역 %.6f  저N %.6f | %s'
-              % (label, bg, bl,
-                 ' '.join('%6.1f±%.1f%%' % (r[0], r[1]) for r in rows)))
+        print('  %-22s Brier 전역 %.6f  저N %.6f | %s'
+              % (label, bg, bl, ' '.join('%6.1f±%.1f%%' % (r[0], r[1]) for r in rows)))
     return bg, bl, rows
 
 
+def assert_wd_unused(h=0.02):
+    """🔴 상시 단언 — 승률 경로가 `wd` 를 안 읽는다는 것을 *실증*한다.
+
+    `wd` 를 무작위로 섞고 파이프라인을 다시 태워 출력이 **비트 단위로** 같은지 본다.
+    어디선가 읽고 있으면 달라진다.  주석이 아니라 검정이다.
+    """
+    global _WD_DIAG, NOBS
+    base = predict(h)
+    keep_wd, keep_nobs = _WD_DIAG, NOBS
+    rng = np.random.default_rng(0)
+    _WD_DIAG = rng.permutation(_WD_DIAG)
+    NOBS = nbid - np.bincount(aid, weights=_WD_DIAG.astype(np.int64),
+                              minlength=len(cnt)).astype(np.int64)
+    same = np.array_equal(base, predict(h))
+    _WD_DIAG, NOBS = keep_wd, keep_nobs
+    print('🔴 wd 미사용 단언: wd 를 섞어도 출력 동일 = %s' % same)
+    return same
+
+
 if __name__ == '__main__':
-    print('TUNE 회차 %d · 평가 투찰 %d · N 격자 %d (%d~%d, 최소표본 %d)'
-          % (TUNE.sum(), len(XI), len(NS), NS[0], NS[-1], CN.min()))
-    print('\n대역 %s' % ' '.join('%d-%d' % b for b in BANDS))
-    print('=== h 스윕 — 목적함수 두 개를 같은 표에 ===')
-    res = {}
-    for h in (0.02, 0.03, 0.05, 0.08, 0.12, 0.20, 0.40, 0.80):
-        res[h] = report(predict(h), 'h=%.2f' % h)
-    hg = min(res, key=lambda h: res[h][0])
-    hl = min(res, key=lambda h: res[h][1])
-    print('\n  전역 Brier 최소 h=%.2f · 🔴 저N(N<30) Brier 최소 h=%.2f' % (hg, hl))
+    assert_wd_unused()
+    print('\n대역 %s' % ' '.join('%d-%d' % (a, min(b, 364)) for a, b in BANDS))
+    report(predict(0.02), 'bidlevel · N=BID_CNT · ACT=기록')
