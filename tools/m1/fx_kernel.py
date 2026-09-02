@@ -24,52 +24,52 @@ import numpy as np
 
 from fr import FR
 
-SOURCE = 'bidlevel'                 # 🔴 개봉 게이트가 읽는다
+SOURCE = 'bidlevel'   # xcap2 = 철회 포함 정본                 # 🔴 개봉 게이트가 읽는다
 ACT_FROM_RECORD = True              # 🔴 개봉 게이트가 읽는다
 
-BL = np.load(r'F:/Project/eat-bid/data/mechanism/bidlevel.npz', allow_pickle=True)
+BL = np.load(r'F:/Project/eat-bid/data/mechanism/xcap2.npz', allow_pickle=True)
 AS = np.load(r'F:/Project/eat-bid/data/mechanism/asof.npz', allow_pickle=True)
 HO = np.load(r'F:/Project/eat-bid/data/mechanism/holdout.npz', allow_pickle=True)
 
 # npz 멤버는 접근마다 압축 해제된다 — 전부 여기서 한 번만 푼다
 x = BL['x'].astype(np.float64)
-cnt = BL['off'].astype(np.int64)            # = BID_CNT.  모든 월에서 plist.bid_cnt 와 100% 일치
+cnt = BL['off'].astype(np.int64)            # = n_pool = bid_cnt (100.0000% 일치)
 _WIN = BL['is_recorded_winner']
 _WD_DIAG = BL['wd']                         # ⚠ 진단 전용. 모형 경로에서 쓰지 않는다
+RNK = BL['rnk']                             # ⚠ 개찰 후 필드. 지수·라벨에 쓰지 않는다
 bid_id = BL['bid_id']
+ym = BL['ym'].astype(int)
+_floor = BL['floor'].astype(float)
 
 aid = np.repeat(np.arange(len(cnt)), cnt)
-nbid = cnt                                  # 🔴 N = 풀 수.  생존자 수가 아니다
+nbid = BL['n_pool'].astype(np.int64)        # 🔴 N = 개찰 시점 풀.  마감 전 관측 가능 (ADR 0027 조건 3)
 NPOOL = nbid
-NOBS = nbid - np.bincount(aid, weights=_WD_DIAG.astype(np.int64),
-                          minlength=len(cnt)).astype(np.int64)   # 진단용
+NOBS = BL['nbid_live'].astype(np.int64)     # 진단용. 나이 의존이라 모형이 안 쓴다
+assert (cnt == nbid).all(), 'off != n_pool — 술어 위반'
 
-# --- asof 조인: R · ym · α 규칙 재료 -------------------------------------------
+# --- R: 🔴 어느 정의를 쓰는지 명시한다 (규율 18 확장) ------------------------------
+#   xcap2.R    서버 예정가 필드.  90 회차가 0 이라 sd 가 0.0210 로 부푼다
+#   R_hybrid   그 90건을 정의 A 로 대체 (40 복구 · 50 복구불가).  sd 0.0165
+#   ⟹ 분산·상관류는 R_hybrid + ~R_suspect.  비율류는 ε=90/233,380=0.039% 로 닫힌다
+R_DEF = 'R_hybrid + ~R_suspect'
+R = BL['R_hybrid'].astype(float)
+RSUS = BL['R_suspect']
+
 _ai = {b: i for i, b in enumerate(AS['bid_id'])}
 _k = np.array([_ai.get(b, -1) for b in bid_id])
 OK_A = _k >= 0
-_kc = np.clip(_k, 0, None)
-ym = np.where(OK_A, AS['ym'][_kc], -1).astype(int)
-R = np.where(OK_A, AS['R'][_kc], np.nan)
-RSUS = np.where(OK_A, AS['R_suspect'][_kc], True)
-_floor = np.where(OK_A, AS['floor'][_kc], np.nan)
-_bgng = np.where(OK_A, AS['bgng'][_kc], np.nan)
+_bgng = np.where(OK_A, AS['bgng'][np.clip(_k, 0, None)], np.nan)
 ALPHA2 = (_floor == 88) & (_bgng < 2e7)     # fr.alpha_of 규칙. True 면 α=0.02
 
-# 🔴 조인 커버리지 단언 (규율 24) — 암묵으로 두지 않는다
-_n_nojoin = int((~OK_A).sum())
-_n_rsus = int((OK_A & RSUS).sum())
-print('bidlevel 회차 %d · 투찰 %d' % (len(cnt), len(x)))
-print('🔴 R 조인 실패 %d 회차 (%.4f%%) — 버린다. 값을 채우지 않는다'
-      % (_n_nojoin, 100 * _n_nojoin / len(cnt)))
-print('🔴 R_suspect %d 회차 (%.4f%%) — 승률 계산에서 **제외**한다 (R 오염 91건 계열)'
-      % (_n_rsus, 100 * _n_rsus / len(cnt)))
+print('xcap2 회차 %d · 투찰 %d · R 정의 = %s' % (len(cnt), len(x), R_DEF))
+print('🔴 R_suspect %d 회차 (%.4f%%) — 제외 · asof 조인 실패 %d (α 규칙에만 영향)'
+      % (RSUS.sum(), 100 * RSUS.mean(), int((~OK_A).sum())))
 
 _hs = {b: s for b, s in zip(HO['bid_id'], HO['split'])}
 split = np.array([_hs.get(b, '') for b in bid_id])
 
-USABLE = OK_A & ~RSUS & (nbid >= 3)
-TRAIN = USABLE & (ym >= 0) & (ym <= 202512)
+USABLE = ~RSUS & OK_A & (nbid >= 3)   # OK_A 는 α 규칙 재료 때문
+TRAIN = USABLE & (ym > 0) & (ym <= 202512)
 TUNE = USABLE & (split == 'TUNE')
 EVALUABLE = USABLE
 
