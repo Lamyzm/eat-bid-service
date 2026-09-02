@@ -14,7 +14,8 @@ review_trigger: eat-parser-contract-or-pipeline-stage-change
 고치기 전의 첫 실행이고 7절부터가 고친 뒤의 재실행이다. 재실행에서 상세 85건이 전부 정규화됐고
 격리는 0건이다.
 
-`validate`와 `project`는 도달하지 못했다. 어느 run 정체성으로 발행해야 하는지가 정의돼 있지 않다.
+`validate`는 release를 봉인하는 데까지 갔고 publication 동결에서 끊겼다. 원인은 미확인이다.
+수동으로 단계를 엮으면서 run 상태를 오염시켰으므로 깨끗한 DB에서 다시 판별해야 한다. 10절을 보라.
 
 규모를 위협하는 결함 둘을 함께 찾았다. 상세 응답의 초 단위 카운트다운 때문에 content 주소 중복
 제거가 상세에서 걸리지 않고, 같은 이유로 전송 재시도가 구조적으로 불가능하다. 8절을 보라.
@@ -202,27 +203,55 @@ WorkflowTemplate 인자 누락과 같은 뿌리이며 EAT-34에서 함께 결정
 부분 수집을 거부하는 동작 자체는 옳다. 85건 중 1건만 받은 상태에서는
 `ReleaseIncompleteError: detail release corpus is not exact observed`로 봉인을 거부했다.
 
-## 10. CLI에 release 봉인 단계가 없다
+## 10. 정정 — CLI에 봉인 단계는 있다
 
-9절의 원인을 통과하는 통합 테스트에서 찾았다.
-`apps/dataplane/tests/integration/test_cli_actual_e2e.py`가 `normalize` 다음에 저장소를 직접 부른다.
+9절을 쓸 때 `apps/dataplane/tests/integration/test_cli_actual_e2e.py`가 `normalize` 다음에
+`reconcile_and_seal`을 직접 부르는 것을 보고 CLI에 봉인 단계가 없다고 적었다. 틀렸다.
+
+`apps/dataplane/src/eatbid/composition.py`의 `validate`가 봉인을 먼저 수행한다.
 
 ```python
-release_repository.reconcile_and_seal(release_id, detail_run_id, sealed_at=NOW)
-validate_args = _공통("validate", detail_run_id, release_id) + [...]
+def validate(self, args):
+    self._release.reconcile_and_seal(
+        args.source_release_id, args.run_id, sealed_at=args.validated_at
+    )
+    return validate_run(...)
 ```
 
-의도된 배선은 `discover(discovery_run, detail_run) → capture(detail_run) → normalize(detail_run) →
-봉인(detail_run) → validate(detail_run) → project(detail_run)`이다. 그런데 봉인에 대응하는 CLI
-subcommand가 없다. WorkflowTemplate의 DAG도 `discover → capture → normalize → validate → project`
-다섯이라 봉인 자리가 비어 있다. `normalize`에서 `validate`로 가는 다리가 CLI 표면에 존재하지 않는다.
+테스트가 저장소를 직접 부르는 것은 봉인 뒤 publication 직전에 crash한 상태를 만들어, 같은 CLI가
+sealed corpus를 재검증해 복구하는지 보기 위한 것이다. 주석에 그렇게 적혀 있고 실제로 `validate`를
+연달아 두 번 호출해 idempotence를 확인한다. 구멍을 메우는 우회가 아니다.
 
-테스트는 그 구멍을 저장소 직접 호출로 메우고 있어 결함이 드러나지 않았다. 주석은 publication 직전
-crash 복구를 재현하는 의도라고 적혀 있지만, 결과적으로 정상 경로가 한 번도 CLI만으로 검증된 적이
-없다.
+### 실제 상태
 
-이는 8·9절과 같은 뿌리다. **CLI와 WorkflowTemplate이 노출하는 표면이 코드가 실제로 구현한
-파이프라인과 어긋나 있다.** 인자 누락, run 정체성 미정의, 봉인 단계 부재가 모두 여기서 나온다.
+수동 orchestration 뒤 DB는 이렇다.
+
+| 대상 | 상태 |
+|---|---|
+| release `926f8047` | `sealed` |
+| discovery run `be00c921` | `validated` |
+| detail run `148d92a1` | `failed` |
+| publication `bebc810f` | `failed`, record 0건 |
+
+봉인은 성공했고 그 뒤 publication 동결에서 끊겼다. 왜 0건이 동결됐는지는 확인하지 못했다. 내가
+단계를 손으로 엮으면서 run 상태를 오염시켰기 때문에 이 DB로는 더 판별할 수 없다.
+
+### 판별 방법
+
+깨끗한 DB에서 통과하는 e2e 테스트와 같은 배선으로 한 번 더 돌린다.
+
+```
+discover(discovery_run, detail_run)
+  → capture(detail_run) → normalize(detail_run)
+  → validate(detail_run) → project(detail_run)
+```
+
+저점 창이면 소스 요청 86건이면 된다. 이것이 다음 단계다.
+
+### 남는 사실
+
+8·9절의 두 결함은 그대로 유효하다. 상세 응답의 카운트다운과 그로 인한 재시도 불가는 실측으로
+확인됐고 재시도 쪽은 이미 고쳤다. WorkflowTemplate이 CLI 필수 인자를 넘기지 않는다는 것도 그대로다.
 
 ## 11. 확인하지 않은 것
 
