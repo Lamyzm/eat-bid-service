@@ -159,6 +159,35 @@ def dates_command(args: argparse.Namespace) -> None:
     print(f"  상태 분포: {dict(states)}")
 
 
+def settle_command(args: argparse.Namespace) -> None:
+    """마감 뒤 며칠까지 값이 바뀌는지 재서 daily-reconcile 창의 근거를 만든다."""
+    _, rows = _fetch(
+        start_date=args.start_date,
+        end_date=args.end_date,
+        page_size=args.page_size,
+        page=1,
+        region_code=args.region_code,
+    )
+    lag = Counter()
+    states = Counter()
+    for row in rows:
+        end_date, changed = row.get("BID_END_DT", "")[:8], row.get("LAST_CHG_DT", "")[:8]
+        if len(end_date) != 8 or len(changed) != 8:
+            continue
+        end_day = datetime.strptime(end_date, "%Y%m%d").replace(tzinfo=UTC)
+        changed_day = datetime.strptime(changed, "%Y%m%d").replace(tzinfo=UTC)
+        lag[(changed_day - end_day).days] += 1
+        states[row.get("ETN_BID_STT_NM", "")] += 1
+    total = sum(lag.values())
+    print(f"창 {args.start_date}..{args.end_date} 반환={len(rows)} 측정={total}")
+    print(f"  상태: {dict(states)}")
+    cumulative = 0
+    for days in sorted(lag):
+        cumulative += lag[days]
+        share = cumulative / total * 100 if total else 0
+        print(f"  마감 대비 {days:+3d}일: {lag[days]:4d}건  누적 {share:5.1f}%")
+
+
 def snapshot_command(args: argparse.Namespace) -> None:
     """열린 공고의 추적 컬럼을 저장하고 이전 스냅샷과 대조한다."""
     observed_at = datetime.now(UTC).isoformat()
@@ -237,6 +266,10 @@ def _parser() -> argparse.ArgumentParser:
     dates = subcommands.add_parser("dates")
     add_window(dates)
     dates.set_defaults(handler=dates_command)
+
+    settle = subcommands.add_parser("settle")
+    add_window(settle)
+    settle.set_defaults(handler=settle_command)
 
     window = subcommands.add_parser("window")
     window.add_argument("--windows", nargs="+", required=True)
