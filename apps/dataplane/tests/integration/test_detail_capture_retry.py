@@ -7,13 +7,9 @@ from typing import Any
 from uuid import uuid4
 
 import psycopg
-import pytest
 
 from eatbid.ingest.models import CaptureRequest
-from eatbid.ingest.postgres_repository import (
-    PlannedRequestMismatchError,
-    PsycopgObservationRepository,
-)
+from eatbid.ingest.postgres_repository import PsycopgObservationRepository
 from eatbid.pipeline.capture import capture
 from eatbid.source.client import SourceResponse
 
@@ -126,31 +122,34 @@ def test_detail_request_동시_capture도_raw_observation을_하나만_만든다
         first_connection.close()
 
 
-def test_detail_request_재시도_body가_다르면_typed_conflict로_닫는다(
+def test_detail_request_재시도_body가_달라도_canonical_observation을_지킨다(
     migrated_db: MigratedDatabase,
 ) -> None:
+    # 2026-09-03 실측: eaT 상세 응답은 마감까지 남은 시간을 REM_SEC·REM_MIN·TOTAL_SEC로 실어
+    # 보내 매 호출마다 바이트가 다르다. 재시도에 byte 동일성을 요구하면 전송 오류 한 번으로
+    # 그 공고가 run 안에서 영구히 막힌다.
     connection = migrated_db.connect()
     try:
         repository = PsycopgObservationRepository(connection)
         request = _요청(repository)
         store = MemoryRawObjectStore(now=lambda: NOW)
-        capture(
+        first = capture(
             request,
             store,
             repository,
             StaticSourceClient(SourceResponse(200, b"<detail>first</detail>", NOW)),
         )
 
-        with pytest.raises(PlannedRequestMismatchError):
-            capture(
-                request,
-                store,
-                repository,
-                StaticSourceClient(
-                    SourceResponse(200, b"<detail>changed</detail>", NOW)
-                ),
-            )
+        retried = capture(
+            request,
+            store,
+            repository,
+            StaticSourceClient(
+                SourceResponse(200, b"<detail>REM_SEC=44</detail>", NOW)
+            ),
+        )
 
+        assert retried == first
         _단일관측을_확인한다(connection, request)
         assert store.object_count == 1
     finally:

@@ -158,11 +158,15 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
                     (request.request_unit_id, request.run_id),
                 )
                 rows = cursor.fetchall()
-                if len(rows) != 1 or rows[0][1:3] != (
-                    response.status_code, content_sha256,
-                ):
+                # 왜 응답 body를 대조하지 않나. 2026-09-03 실측에서 eaT 상세 응답은 마감까지 남은
+                # 시간을 실어 보내 매 호출마다 바이트가 다르다. byte 동일성을 요구하면 전송 오류
+                # 한 번으로 그 공고가 run 안에서 영구히 막힌다. 계획된 요청 하나는 run 안에서 한 번
+                # 관측되며, 재호출은 세계를 다시 관측하는 것이 아니라 운영상의 재시도다. 세계를 다시
+                # 관측하려면 새 run이 요청을 다시 계획해야 한다. 요청 동일성은 params hash가 이미
+                # 위에서 검증했다.
+                if len(rows) != 1:
                     raise PlannedRequestMismatchError(
-                        "detail retry differs from its canonical observation"
+                        "detail request unit must have exactly one canonical observation"
                     )
                 row = rows[0]
                 return CapturedObservation(
