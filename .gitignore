@@ -20,8 +20,9 @@ __pycache__/
 .ruff_cache/
 .pyright/
 .venv/
-# 분석 중간 산출물은 Git이 아니라 실행으로 다시 만든다. 87MB .npy가 저장소에 들어와 clone 비용을 키웠다.
-*.npy
+# tools/m1 의 .npy 는 분석 세션이 남긴 중간 산출물이며 저장소 코드가 참조하지 않는다. 앞으로 새로 들어오는
+# 것을 막는다. 이미 히스토리에 있는 blob 은 그대로 남으므로 clone 크기는 줄지 않는다.
+tools/m1/*.npy
 
 # Codex hook 설정은 사용자 전역 $CODEX_HOME/hooks.json이 소유한다. 저장소에는 참고 계약인
 # .codex/hooks.example.json만 둔다.

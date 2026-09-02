@@ -1,4 +1,4 @@
-"""모듈 책임: 후보 15개의 1.0 기준 분할과 최대 간격 위치를 세 아래 8·위 7 밴드 구조를 확인한다."""
+"""모듈 책임: 후보 15개의 1.0 기준 분할과 최대 간격 위치를 세어, 아래 8 / 위 7 밴드 구조를 확인한다."""
 
 import gzip, re, os, glob, random, statistics as st
 from collections import Counter
