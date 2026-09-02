@@ -19,6 +19,11 @@ from __future__ import annotations
 
 import numpy as np
 
+# 🔴 봉인 경계 (2026-09-02 팀리드 확정): TUNE = 202601~202605.  202606~ 는 HOLD_A/HOLD_B.
+#    이 스크립트는 봉인 이전에 작성돼 평가창이 `ym >= 202601` 이었다 = 봉인을 넘는다.
+#    창을 TUNE 으로 좁힌다.  넓히려면 팀리드 서면 승인이 필요하다.
+_SEAL_MAX = 202605
+
 P = np.load(r'F:/Project/eat-bid/data/mechanism/plist.npz', allow_pickle=True)
 A = np.load(r'F:/Project/eat-bid/data/mechanism/asof.npz', allow_pickle=True)
 
@@ -40,7 +45,7 @@ nbid = A['nbid'].astype(int)
 good = ok & np.isfinite(ahat) & (bgng > 0)
 y = (ahat < 0.025).astype(int)
 train = good & (ym <= 202512)
-test = good & (ym >= 202601)
+test = good & (ym >= 202601) & (ym <= _SEAL_MAX)
 print('학습 %d · 평가 %d   (평가 양성률 %.4f)' % (train.sum(), test.sum(), y[test].mean()))
 
 RULE = (floor == 88) & (bgng < 2e7)

@@ -35,7 +35,10 @@ hi_ = {b: s for b, s in zip(HO['bid_id'], HO['split'])}
 split = np.array([hi_.get(b, '') for b in XC['bid_id']])
 
 aid = np.repeat(np.arange(len(R)), cnt)
-TRAIN = (ym <= 202512) & (nbid >= 3)
+# 🔴 ym 미상(asof 조인 실패) 229 회차를 TRAIN 에서 뺀다. 그중 48 건이 2026 년이라
+#    봉인 구간(202606~)일 수 있고, 라벨이 없어 확인할 방법이 없다.
+#    학습 회차의 0.14% 라 수치는 안 움직이지만, 봉인 구간 자료로 적합하지 않는다는 원칙이 먼저다.
+TRAIN = (ym >= 0) & (ym <= 202512) & (nbid >= 3)
 TUNE = (split == 'TUNE') & (nbid >= 3)
 
 XGRID = np.linspace(0.94, 1.10, 1601)

@@ -22,6 +22,11 @@ from __future__ import annotations
 
 import numpy as np
 
+# 🔴 봉인 경계 (2026-09-02 팀리드 확정): TUNE = 202601~202605.  202606~ 는 HOLD_A/HOLD_B.
+#    이 스크립트는 봉인 이전에 작성돼 평가창이 `ym >= 202601` 이었다 = 봉인을 넘는다.
+#    창을 TUNE 으로 좁힌다.  넓히려면 팀리드 서면 승인이 필요하다.
+_SEAL_MAX = 202605
+
 
 def shrunk_rate(key, y, train, min_prior=1.0):
     """발주기관별 P(α낮음) 를 경험 베이즈로 축소한다 (Beta-Binomial).
@@ -60,7 +65,7 @@ if __name__ == '__main__':
     ym, purr = A['ym'].astype(int), A['purr']
     g = ok & np.isfinite(ah)
     y = (ah < 0.025).astype(float)
-    tr, te = g & (ym <= 202512), g & (ym >= 202601)
+    tr, te = g & (ym <= 202512), g & (ym >= 202601) & (ym <= _SEAL_MAX)
 
     p, s, glob = shrunk_rate(purr, y, tr)
     print('축소 강도 s=%.1f (사전 표본크기)  전역 %.4f' % (s, glob))

@@ -17,6 +17,11 @@ from __future__ import annotations
 
 import numpy as np
 
+# 🔴 봉인 경계 (2026-09-02 팀리드 확정): TUNE = 202601~202605.  202606~ 는 HOLD_A/HOLD_B.
+#    이 스크립트는 봉인 이전에 작성돼 평가창이 `ym >= 202601` 이었다 = 봉인을 넘는다.
+#    창을 TUNE 으로 좁힌다.  넓히려면 팀리드 서면 승인이 필요하다.
+_SEAL_MAX = 202605
+
 from fr import FR
 from m1 import M1, n_bucket
 import p_alpha_gate as PA
@@ -41,7 +46,7 @@ nb = n_bucket(nbid)
 bq = np.digitize(bgng, np.nanpercentile(bgng[ym <= 202512], [20, 40, 60, 80]))
 stratum = np.where(nb <= 3, nb * 10 + bq, nb * 10)
 tr_a = (ym <= 202512) & (nbid >= 3)
-te_a = (ym >= 202601) & (nbid >= 3)
+te_a = (ym >= 202601) & (ym <= _SEAL_MAX) & (nbid >= 3)
 
 xgrid = np.linspace(0.94, 1.10, 3201)
 m = M1(FR(n=300000, seed=2)).fit(x[tr_a[aid]], stratum[aid][tr_a[aid]], xgrid)
