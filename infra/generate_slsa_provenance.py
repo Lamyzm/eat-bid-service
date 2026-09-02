@@ -1,4 +1,5 @@
-"""Generate the deterministic SLSA v1 predicate used by the build workflow."""
+"""모듈 책임: release tag publication이 신뢰할 수 있는 GitHub identity에서만 시작되는지 판정하고
+그 identity로 결정적 SLSA v1 predicate를 만든다."""
 
 from __future__ import annotations
 

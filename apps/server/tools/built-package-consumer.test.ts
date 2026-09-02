@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { resolve } from "node:path";
+import { expectedMigrationInstant } from "@eatbid/db";
 
 const serverRoot = resolve(import.meta.dir, "..");
 
@@ -35,7 +36,7 @@ test("빌드된 CommonJS server가 domain·contracts·db package를 실제 Node�
     if (response.schedule.announcedAt !== "2026-08-30T00:00:00.123456789Z") process.exit(4);
     if (response.pricing.baseAmount.amount !== "1234567890.50") process.exit(5);
     if ("auctionOperations" in contracts || "auctionResponseSchema" in contracts) process.exit(6);
-    if (database.expectedMigrationInstant.toString() !== "2026-08-30T02:16:19Z") process.exit(7);
+    if (database.expectedMigrationInstant.toString() !== "${expectedMigrationInstant.toString()}") process.exit(7);
   `;
   const result = Bun.spawnSync(["node", "-e", source], {
     cwd: serverRoot,

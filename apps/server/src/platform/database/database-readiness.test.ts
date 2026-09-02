@@ -1,4 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { expectedMigration, expectedMigrationInstant } from "@eatbid/db";
+
+// 기대 migration은 커밋된 journal이 소유한다. fixture에 이름과 시각을 박으면 migration을 더할 때마다
+// readiness 계약이 아니라 이 테스트가 먼저 깨진다.
+const migrationCreatedAt = String(expectedMigrationInstant.epochMilliseconds);
 
 describe("database readiness 검사", () => {
   test("변경 없이 정확한 migration과 API 필수·금지 권한을 확인한다", async () => {
@@ -9,8 +14,8 @@ describe("database readiness 검사", () => {
       execute: async (query: { queryChunks?: unknown[] }) => {
         queries.push(String(query));
         return [{
-          migration_name: "20260830021619_app_workspace_foundation",
-          migration_created_at: "1788056179000",
+          migration_name: expectedMigration,
+          migration_created_at: migrationCreatedAt,
           is_superuser: false,
           is_login: true,
           inherits_privileges: false,
@@ -59,8 +64,8 @@ describe("database readiness 검사", () => {
     const database = await import("./database-readiness").catch(() => undefined);
     expect(database, "database readiness must exist").toBeDefined();
     const baseline = {
-      migration_name: "20260830021619_app_workspace_foundation",
-      migration_created_at: "1788056179000",
+      migration_name: expectedMigration,
+      migration_created_at: migrationCreatedAt,
       is_superuser: false, is_login: true, inherits_privileges: false,
       can_create_role: false, can_create_database: false, can_replicate: false, bypasses_rls: false,
       has_role_membership: false, can_set_role: false, owns_database: false,

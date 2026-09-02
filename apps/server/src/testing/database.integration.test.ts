@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
@@ -17,6 +17,10 @@ import { auctionId } from "../modules/procurement/domain/auction-id";
 
 const repositoryRoot = resolve(import.meta.dir, "../../../..");
 const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
+// 두 번 적용해도 journal이 커밋된 migration 수만큼만 늘어나는 것이 이 검증의 요점이다.
+// 기대치를 상수로 박으면 migration을 더할 때마다 무관한 실패가 난다.
+const committedMigrationCount = readdirSync(migrationFolder, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory()).length;
 const sqlText = (value: string): string => value.replaceAll("'", "''");
 const normalizedAuctionFixture = normalizedAuctionV1Schema.parse(JSON.parse(readFileSync(
   resolve(repositoryRoot, "packages/contracts/fixtures/ingestion-v1/normalized-auction.json"),
@@ -305,7 +309,7 @@ describe("owner 범위 PostgreSQL 경계", () => {
         await runtime.shutdown();
       }
       expect(await owner`select count(*)::int as count from drizzle.__drizzle_migrations`)
-        .toEqual([{ count: 7 }]);
+        .toEqual([{ count: committedMigrationCount }]);
     });
     expect(await taskContainers()).toEqual([]);
   }, 120_000);
