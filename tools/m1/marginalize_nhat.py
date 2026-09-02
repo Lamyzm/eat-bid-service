@@ -30,6 +30,14 @@ H = 0.02
 
 # --- N=1,2 까지 포함한 F_X 격자 (기존 TRAIN 은 nbid>=3 필터가 있다) ------------------
 TR2 = (K.ym <= 202512)
+
+# 🔴 bids.npz 조인 실패 회차를 **버리고 그 수를 보고한다**.
+#    N_pool = −1 을 무엇으로도 채우지 않는다 — 채우면 그게 술어 위반이다 (team-lead 지시).
+_BAD = K.nbid < 0
+print('⚠ bids.npz 조인 실패로 제외한 회차 %d (%.4f%%)  — 값을 채우지 않고 버린다'
+      % (_BAD.sum(), 100 * _BAD.mean()))
+TR2 = TR2 & ~_BAD
+
 tb = TR2[K.aid]
 emp, cn = {}, {}
 for n in np.unique(K.nbid[TR2]):
@@ -74,6 +82,7 @@ Pb[ki] = P6
 has = np.zeros(len(K.R), bool)
 has[ki] = True
 
+has = has & ~_BAD
 sel = has[K.aid]
 XI, AI = K.x[sel], K.aid[sel]
 NT = K.nbid[AI]
