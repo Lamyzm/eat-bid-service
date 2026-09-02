@@ -52,6 +52,7 @@ def build_predicate(environment: Mapping[str, object]) -> dict[str, object]:
     workflow_sha = _required(environment, "GITHUB_WORKFLOW_SHA")
     job_workflow_ref = _required(environment, "EATBID_JOB_WORKFLOW_REF")
     release_commit = _required(environment, "EATBID_RELEASE_COMMIT")
+    release_tag_object = _required(environment, "EATBID_RELEASE_TAG_OBJECT")
     runner_environment = _required(environment, "RUNNER_ENVIRONMENT")
 
     if repository != EXPECTED_REPOSITORY:
@@ -62,16 +63,22 @@ def build_predicate(environment: Mapping[str, object]) -> dict[str, object]:
         raise ProvenanceError("GITHUB_EVENT_NAME is not supported by this build workflow")
     if RELEASE_TAG_REF_PATTERN.fullmatch(git_ref) is None:
         raise ProvenanceError("GITHUB_REF must be a canonical release/v<semver> tag ref")
-    if SHA_PATTERN.fullmatch(git_sha) is None:
-        raise ProvenanceError("GITHUB_SHA must be exactly 40 lowercase hexadecimal characters")
-    if SHA_PATTERN.fullmatch(release_commit) is None:
+    for name, value in (
+        ("EATBID_RELEASE_COMMIT", release_commit),
+        ("EATBID_RELEASE_TAG_OBJECT", release_tag_object),
+    ):
+        if SHA_PATTERN.fullmatch(value) is None:
+            raise ProvenanceError(f"{name} must be exactly 40 lowercase hexadecimal characters")
+    # annotated tag를 push할 때 GitHub이 ref의 SHA로 peel된 commit을 주는지 tag object를 주는지
+    # 문서가 정하지 않는다. 둘 다 preflight가 origin/main HEAD 위의 annotated tag에서 뽑은 값이므로
+    # 어느 쪽이 와도 받되, 그 둘 밖의 값은 다른 소스를 가리키므로 거부한다.
+    release_shas = {release_commit, release_tag_object}
+    if git_sha not in release_shas:
+        raise ProvenanceError("GITHUB_SHA must identify the verified release tag or its commit")
+    if workflow_sha not in release_shas:
         raise ProvenanceError(
-            "EATBID_RELEASE_COMMIT must be exactly 40 lowercase hexadecimal characters"
+            "GITHUB_WORKFLOW_SHA must identify the verified release tag or its commit"
         )
-    # annotated tag를 push하면 GITHUB_SHA는 tag object일 수 있다. workflow 파일을 읽은 commit이
-    # tag가 peel되는 commit과 같아야 서명 대상과 소스가 하나로 묶인다.
-    if workflow_sha != release_commit:
-        raise ProvenanceError("GITHUB_WORKFLOW_SHA must equal EATBID_RELEASE_COMMIT")
     if POSITIVE_INTEGER_PATTERN.fullmatch(repository_id) is None:
         raise ProvenanceError("GITHUB_REPOSITORY_ID must be a positive decimal integer")
     if POSITIVE_INTEGER_PATTERN.fullmatch(repository_owner_id) is None:

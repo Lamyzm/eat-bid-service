@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 RELEASE_TAG_REF = "refs/tags/release/v1.4.0"
-# annotated tag를 push하면 GITHUB_SHA는 commit이 아니라 tag object를 가리킬 수 있다.
-# fixture에서 둘을 일부러 다르게 두어야 predicate가 어느 쪽을 쓰는지 실제로 검증된다.
+# annotated tag를 push할 때 GitHub이 ref의 SHA로 무엇을 주는지 문서가 정하지 않는다.
+# fixture에서 commit과 tag object를 일부러 다르게 두어야 predicate가 어느 쪽을 쓰는지 검증된다.
 RELEASE_COMMIT = "a" * 40
 TAG_OBJECT_SHA = "c" * 40
 WORKFLOW_REF = f"Lamyzm/eat-bid-service/.github/workflows/build.yml@{RELEASE_TAG_REF}"
@@ -15,6 +15,7 @@ WORKFLOW_REF = f"Lamyzm/eat-bid-service/.github/workflows/build.yml@{RELEASE_TAG
 VALID_ENV = {
     "EATBID_JOB_WORKFLOW_REF": WORKFLOW_REF,
     "EATBID_RELEASE_COMMIT": RELEASE_COMMIT,
+    "EATBID_RELEASE_TAG_OBJECT": TAG_OBJECT_SHA,
     "GITHUB_EVENT_NAME": "push",
     "GITHUB_REPOSITORY": "Lamyzm/eat-bid-service",
     "GITHUB_REPOSITORY_ID": "987654321",
@@ -120,8 +121,11 @@ def test_SLSA는_release_tag와_peeled_commit을_같은_subject로_사용한다(
         ("GITHUB_REF", "refs/tags/release/v1.4.0/extra"),
         ("GITHUB_SHA", "A" * 40),
         ("GITHUB_SHA", "a" * 39),
+        ("GITHUB_SHA", "b" * 40),
         ("EATBID_RELEASE_COMMIT", "A" * 40),
         ("EATBID_RELEASE_COMMIT", "a" * 39),
+        ("EATBID_RELEASE_TAG_OBJECT", "A" * 40),
+        ("EATBID_RELEASE_TAG_OBJECT", "a" * 39),
         ("GITHUB_WORKFLOW_SHA", "b" * 40),
         (
             "GITHUB_WORKFLOW_REF",
@@ -176,3 +180,16 @@ def test_CLI가_정확한_predicate를_기록하고_overwrite를_거부한다(
     assert output.read_bytes() == render_predicate(VALID_ENV)
     assert main(["--output", str(output)]) == 2
     assert output.read_bytes() == render_predicate(VALID_ENV)
+
+
+@pytest.mark.parametrize("ref_sha", [RELEASE_COMMIT, TAG_OBJECT_SHA])
+def test_ref_SHA가_peel된_commit이든_tag_object든_통과한다(ref_sha: str) -> None:
+    from infra.generate_slsa_provenance import build_predicate
+
+    predicate = build_predicate(
+        {**VALID_ENV, "GITHUB_SHA": ref_sha, "GITHUB_WORKFLOW_SHA": ref_sha}
+    )
+
+    # 어느 규약이 오든 provenance가 기록하는 commit은 peel된 release commit 하나다.
+    dependency = predicate["buildDefinition"]["resolvedDependencies"][0]
+    assert dependency["digest"]["gitCommit"] == RELEASE_COMMIT

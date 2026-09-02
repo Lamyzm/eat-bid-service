@@ -13,6 +13,7 @@ PRODUCT_KUSTOMIZATION = ROOT / "infra" / "product" / "kustomization.yaml"
 # publication은 tag push에서만 돌고, tag가 annotated면 github.sha는 commit이 아닐 수 있다.
 # 그래서 모든 소비자는 preflight가 peel해 낸 commit 하나만 참조해야 한다.
 RELEASE_COMMIT = "${{ needs.preflight.outputs.release_commit }}"
+RELEASE_TAG_OBJECT = "${{ needs.preflight.outputs.release_tag_object }}"
 RELEASE_TAG_PATTERN = r"^refs/tags/release/v[0-9]+\.[0-9]+\.[0-9]+$"
 COSIGN_IDENTITY_REGEXP = (
     r"^https://github\.com/Lamyzm/eat-bid-service/"
@@ -187,6 +188,7 @@ def test_context_preflight_실패가_모든_publication_job_전에_실행을_닫
     assert preflight["env"] == {
         "EATBID_JOB_WORKFLOW_REF": "${{ job.workflow_ref }}",
         "EATBID_RELEASE_COMMIT": RELEASE_COMMIT,
+        "EATBID_RELEASE_TAG_OBJECT": RELEASE_TAG_OBJECT,
     }
     assert "infra/generate_slsa_provenance.py --check" in str(preflight["run"])
 
@@ -300,6 +302,7 @@ def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다()
     assert by_id["generate-provenance"]["env"] == {
         "EATBID_JOB_WORKFLOW_REF": "${{ job.workflow_ref }}",
         "EATBID_RELEASE_COMMIT": RELEASE_COMMIT,
+        "EATBID_RELEASE_TAG_OBJECT": RELEASE_TAG_OBJECT,
     }
     assert "cosign sign --yes \"$IMAGE_NAME@$IMAGE_DIGEST\"" in str(
         by_id["sign"]["run"]
@@ -448,15 +451,19 @@ def test_publication_preflight는_annotated_tag와_current_main_HEAD를_요구�
     resolve = steps[_step_index(steps, "resolve-release-commit")]
     command = str(resolve["run"])
 
-    assert _mapping(job["outputs"])["release_commit"] == (
-        "${{ steps.resolve-release-commit.outputs.release_commit }}"
-    )
+    assert _mapping(job["outputs"]) == {
+        "release_commit": "${{ steps.resolve-release-commit.outputs.release_commit }}",
+        "release_tag_object": "${{ steps.resolve-release-commit.outputs.release_tag_object }}",
+    }
     assert _mapping(checkout["with"])["fetch-depth"] == 0
     assert RELEASE_TAG_PATTERN in command
     # lightweight tag는 tag object가 없어 서명 주체를 commit과 묶어 증명할 수 없다.
     assert 'git cat-file -t "$GITHUB_REF"' in command
     assert "refs/remotes/origin/main" in command
     assert '"${GITHUB_REF}^{}"' in command
+    # peel된 commit과 tag object를 둘 다 내야 GitHub의 ref SHA 규약에 의존하지 않는다.
+    assert 'release_tag_object="$(git rev-parse "$GITHUB_REF")"' in command
+    assert 'echo "release_tag_object=$release_tag_object" >> "$GITHUB_OUTPUT"' in command
     assert "^[0-9a-f]{40}$" in command
     assert 'release_commit=' in command
     assert "$GITHUB_OUTPUT" in command
@@ -480,12 +487,18 @@ def test_Cosign_검증은_release_tag_workflow_identity에_anchor된다() -> Non
         ".github/workflows/build.yml@refs/tags/release/v1.4.0",
     )
     for rejected in (
-        "https://github.com/Lamyzm/eat-bid-service/"
-        ".github/workflows/build.yml@refs/heads/main",
-        "https://github.com/attacker/eat-bid-service/"
-        ".github/workflows/build.yml@refs/tags/release/v1.4.0",
-        "https://github.com/Lamyzm/eat-bid-service/"
-        ".github/workflows/release.yml@refs/tags/release/v1.4.0",
+        (
+            "https://github.com/Lamyzm/eat-bid-service/"
+            ".github/workflows/build.yml@refs/heads/main"
+        ),
+        (
+            "https://github.com/attacker/eat-bid-service/"
+            ".github/workflows/build.yml@refs/tags/release/v1.4.0"
+        ),
+        (
+            "https://github.com/Lamyzm/eat-bid-service/"
+            ".github/workflows/release.yml@refs/tags/release/v1.4.0"
+        ),
     ):
         assert re.fullmatch(identity, rejected) is None
 

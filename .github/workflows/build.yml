@@ -29,6 +29,7 @@ jobs:
       }}
     outputs:
       release_commit: ${{ steps.resolve-release-commit.outputs.release_commit }}
+      release_tag_object: ${{ steps.resolve-release-commit.outputs.release_tag_object }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,16 +48,20 @@ jobs:
             exit 2
           fi
           release_commit="$(git rev-parse "${GITHUB_REF}^{}")"
+          release_tag_object="$(git rev-parse "$GITHUB_REF")"
           main_commit="$(git rev-parse refs/remotes/origin/main)"
-          if [[ ! "$release_commit" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Invalid peeled release commit: $release_commit" >&2
-            exit 2
-          fi
+          for sha in "$release_commit" "$release_tag_object"; do
+            if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Invalid release SHA: $sha" >&2
+              exit 2
+            fi
+          done
           if [[ "$release_commit" != "$main_commit" ]]; then
             echo "Release tag commit $release_commit is not current origin/main $main_commit" >&2
             exit 2
           fi
           echo "release_commit=$release_commit" >> "$GITHUB_OUTPUT"
+          echo "release_tag_object=$release_tag_object" >> "$GITHUB_OUTPUT"
 
   test:
     needs: preflight
@@ -88,6 +93,7 @@ jobs:
         env:
           EATBID_JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
           EATBID_RELEASE_COMMIT: ${{ needs.preflight.outputs.release_commit }}
+          EATBID_RELEASE_TAG_OBJECT: ${{ needs.preflight.outputs.release_tag_object }}
         run: python3 infra/generate_slsa_provenance.py --check
       - uses: actions/setup-node@v4
         with:
@@ -257,6 +263,7 @@ jobs:
         env:
           EATBID_JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
           EATBID_RELEASE_COMMIT: ${{ needs.preflight.outputs.release_commit }}
+          EATBID_RELEASE_TAG_OBJECT: ${{ needs.preflight.outputs.release_tag_object }}
         run: >-
           python3 infra/generate_slsa_provenance.py
           --output "provenance-${{ matrix.app }}.json"
