@@ -263,17 +263,17 @@ def test_서울_DST_기간의_유일한_wall_time은_정확한_UTC_instant가_�
 @pytest.mark.parametrize(
     ("field", "source_value", "source_field", "expected_width"),
     [
-        ("announced_at", "2026830", "PBANC_YMD", 8),
-        ("announced_at", "2026083", "PBANC_YMD", 8),
-        ("deadline_at", "2026083001023", "BID_END_DT", 14),
-        ("announced_at", "２０２６０８３０", "PBANC_YMD", 8),
+        ("announced_at", "2026830", "PBANC_YMD", "8"),
+        ("announced_at", "2026083", "PBANC_YMD", "8"),
+        ("deadline_at", "2026083001023", "BID_END_DT", "14 or 17"),
+        ("announced_at", "２０２６０８３０", "PBANC_YMD", "8"),
     ],
 )
 def test_source_날짜는_정확한_ASCII_wire_모양이_아니면_typed_detail_error가_된다(
     field: str,
     source_value: str,
     source_field: str,
-    expected_width: int,
+    expected_width: str,
 ) -> None:
     payload = (
         detail_xml(announced_at=source_value)
@@ -332,6 +332,64 @@ def test_유효하지_않은_source_datetime은_typed_detail_error가_된다() -
     with pytest.raises(EatDetailValidationError):
         normalize_bid_detail(
             detail_xml(announced_at="2025-06-17"),
+            external_bid_id="42",
+            parser_version="eat-v1",
+        )
+
+
+@pytest.mark.parametrize(
+    ("deadline_wire", "expected_instant"),
+    [
+        # 2026-09-03 실측: live eaT는 시각을 yyyyMMddHHmmssSSS 17자리로 준다.
+        ("20250619150000000", "2025-06-19T06:00:00Z"),
+        ("20250619150000123", "2025-06-19T06:00:00.123Z"),
+        ("20250619150000100", "2025-06-19T06:00:00.1Z"),
+        # 아카이브된 원본은 14자리다. 두 모양이 같은 instant면 같은 canonical text가 된다.
+        ("20250619150000", "2025-06-19T06:00:00Z"),
+    ],
+)
+def test_source_시각은_14자리와_17자리를_받아_정규형_instant로_만든다(
+    deadline_wire: str,
+    expected_instant: str,
+) -> None:
+    record = normalize_bid_detail(
+        detail_xml(deadline_at=deadline_wire),
+        external_bid_id="42",
+        parser_version="eat-v1",
+    )
+
+    assert record.schedule.deadline_at is not None
+    assert record.schedule.deadline_at.root == expected_instant
+
+
+def test_밀리초가_0인_17자리_시각은_14자리와_같은_canonical_사실이_된다() -> None:
+    seventeen = normalize_bid_detail(
+        detail_xml(deadline_at="20250619150000000"),
+        external_bid_id="42",
+        parser_version="eat-v1",
+    )
+    fourteen = normalize_bid_detail(
+        detail_xml(deadline_at="20250619150000"),
+        external_bid_id="42",
+        parser_version="eat-v1",
+    )
+
+    assert seventeen == fourteen
+
+
+@pytest.mark.parametrize(
+    "deadline_wire",
+    ["202506191500000", "2025061915000000", "202506191500000０", "2025061915000012a"],
+)
+def test_14자리도_17자리도_아닌_시각_wire는_typed_detail_error가_된다(
+    deadline_wire: str,
+) -> None:
+    with pytest.raises(
+        EatDetailValidationError,
+        match=r"BID_END_DT must be exactly 14 or 17 ASCII digits",
+    ):
+        normalize_bid_detail(
+            detail_xml(deadline_at=deadline_wire),
             external_bid_id="42",
             parser_version="eat-v1",
         )
