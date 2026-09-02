@@ -1,4 +1,4 @@
-/** @module 책임: 색상 theme의 권위를 <html data-theme> DOM 속성에 두고 cookie·body class와 동기화하는 client context를 제공한다. */
+/** @module 책임: 색상 theme의 권위를 <html data-theme> DOM 속성에 두고 cookie와 동기화하는 client context를 제공한다. */
 'use client';
 
 import {
@@ -39,9 +39,6 @@ function readDomTheme(): ThemeValue {
 
 function applyDomTheme(theme: ThemeValue): void {
   document.documentElement.setAttribute('data-theme', theme);
-  for (const className of Array.from(document.body.classList)) {
-    if (className.startsWith('theme-')) document.body.classList.remove(className);
-  }
   setThemeCookie(theme);
   for (const listener of listeners) listener();
 }
@@ -53,14 +50,10 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-export function ActiveThemeProvider({
-  children,
-  initialTheme = DEFAULT_THEME
-}: {
-  readonly children: ReactNode;
-  readonly initialTheme?: ThemeValue;
-}) {
-  const activeTheme = useSyncExternalStore(subscribe, readDomTheme, () => initialTheme);
+export function ActiveThemeProvider({ children }: { readonly children: ReactNode }) {
+  // server는 DOM을 읽을 수 없으므로 기본 theme snapshot으로 렌더하고, hydration 직후 client snapshot이
+  // inline script가 적용한 실제 값을 가져온다.
+  const activeTheme = useSyncExternalStore<ThemeValue>(subscribe, readDomTheme, () => DEFAULT_THEME);
   const setActiveTheme = useCallback((theme: string) => {
     if (isThemeValue(theme)) applyDomTheme(theme);
   }, []);

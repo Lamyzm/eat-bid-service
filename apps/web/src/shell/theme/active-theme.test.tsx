@@ -12,6 +12,7 @@ describe('색상 theme provider(ActiveThemeProvider)', () => {
   afterEach(() => {
     cleanup();
     document.documentElement.removeAttribute('data-theme');
+    document.cookie = 'active_theme=; path=/; max-age=0';
   });
 
   test('첫 mount에서는 inline script가 cookie로 설정한 DOM data-theme을 state로 채택한다', async () => {
@@ -25,9 +26,10 @@ describe('색상 theme provider(ActiveThemeProvider)', () => {
 
     await waitFor(() => expect(screen.getByTestId('active-theme').textContent).toBe('claude'));
     expect(document.documentElement.getAttribute('data-theme')).toBe('claude');
+    expect(document.cookie).toContain('active_theme=claude');
   });
 
-  test('DOM data-theme이 허용 목록 밖이면 기본 theme으로 되돌린다', async () => {
+  test('DOM data-theme이 허용 목록 밖이면 기본 theme으로 되돌리고 cookie를 다시 쓴다', async () => {
     document.documentElement.setAttribute('data-theme', 'bogus');
 
     const screen = render(
@@ -38,5 +40,6 @@ describe('색상 theme provider(ActiveThemeProvider)', () => {
 
     await waitFor(() => expect(document.documentElement.getAttribute('data-theme')).toBe('eatbid'));
     expect(screen.getByTestId('active-theme').textContent).toBe('eatbid');
+    expect(document.cookie).toContain('active_theme=eatbid');
   });
 });
