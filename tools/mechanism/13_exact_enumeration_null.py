@@ -1,3 +1,5 @@
+"""모듈 책임: 생존 조건을 반영한 귀무 분포를 닫힌 형태로 열거해 관측 D 와 층별로 대조한다."""
+
 # E_H0[D | 낙찰] 을 C(15,4)=1365 전부 열거해 정확히 계산한다 (몬테카를로 없음)
 import numpy as np, itertools
 P=np.load(r'F:/Project/eat-bid/data/mechanism/plist.npz',allow_pickle=True)

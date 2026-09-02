@@ -1,3 +1,5 @@
+"""모듈 책임: 슬롯과 가격의 상관이 007 생존 선택으로 생긴 콜라이더 인공물인지 안전 부분집합에서 판정한다."""
+
 import numpy as np
 P=np.load(r'F:/Project/eat-bid/data/mechanism/plist.npz',allow_pickle=True)
 B=np.load(r'F:/Project/eat-bid/data/mechanism/bids.npz',allow_pickle=True)

@@ -1,3 +1,5 @@
+"""모듈 책임: 슬롯이 최대·최소가 될 확률과 개찰 시각 분포로 후보 슬롯의 교환가능성을 검사한다."""
+
 import gzip, re, os, glob, random, statistics as st
 from collections import Counter, defaultdict
 

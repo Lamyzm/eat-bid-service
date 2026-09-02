@@ -1,3 +1,5 @@
+"""모듈 책임: 후보 생성 모형 셋의 sd(15개 평균)를 실측과 대조해 어느 모형이 관측을 재현하는지 고른다."""
+
 import numpy as np
 P=np.load(r'F:/Project/eat-bid/data/mechanism/plist.npz',allow_pickle=True)
 rate=P['rate']; n=len(rate)

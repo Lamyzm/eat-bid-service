@@ -1,3 +1,5 @@
+"""모듈 책임: 선택 편향 D 를 동점·채움 경로로 나눠 회차 비율과 함께 A/B 로 분해한다."""
+
 import numpy as np, itertools
 P=np.load(r'F:/Project/eat-bid/data/mechanism/plist.npz',allow_pickle=True)
 B=np.load(r'F:/Project/eat-bid/data/mechanism/bids.npz',allow_pickle=True)

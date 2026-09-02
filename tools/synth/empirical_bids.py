@@ -1,3 +1,5 @@
+"""모듈 책임: 실측 투찰 분포로 합성 회차를 만들어 구간별 선택 편향과 생존율이 실측과 맞는지 대조한다."""
+
 import numpy as np, sys
 sys.path.insert(0,r'F:/Project/eat-bid-service/tools/synth')
 import generator as G

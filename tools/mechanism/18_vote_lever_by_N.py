@@ -1,3 +1,5 @@
+"""모듈 책임: 경쟁자 수 구간별로 전략 지렛대와 오라클 상한, 내 표가 선정을 바꿀 확률을 함께 낸다."""
+
 import numpy as np, itertools, time
 P=np.load(r'F:/Project/eat-bid/data/mechanism/plist.npz',allow_pickle=True)
 B=np.load(r'F:/Project/eat-bid/data/mechanism/bids.npz',allow_pickle=True)

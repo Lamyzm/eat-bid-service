@@ -1,3 +1,5 @@
+"""모듈 책임: 슬롯별 회차 내 중심화 가격 편차를 재 번호 선택이 가진 최대 지렛대를 계산한다."""
+
 import numpy as np
 P=np.load(r'F:/Project/eat-bid/data/mechanism/plist.npz',allow_pickle=True)
 B=np.load(r'F:/Project/eat-bid/data/mechanism/bids.npz',allow_pickle=True)

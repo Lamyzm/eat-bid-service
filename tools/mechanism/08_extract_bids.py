@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ds_bidList 를 긁어 회차별 투찰 요약과 실제 투표(DRAW_NO)를 굳힌다.
+"""모듈 책임: ds_bidList 를 긁어 회차별 투찰 요약과 실제 투표(DRAW_NO)를 굳힌다.
 
 목적 둘.
 
