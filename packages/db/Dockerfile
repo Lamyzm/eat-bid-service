@@ -4,6 +4,9 @@ WORKDIR /workspace
 RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# 루트 package의 prepare가 이 스크립트를 실행하므로 없으면 pnpm install 자체가 죽는다.
+# 스크립트는 Git metadata가 없는 이미지 빌드에서 스스로 아무 것도 하지 않는다.
+COPY tools/git ./tools/git
 COPY packages/domain/package.json packages/domain/package.json
 COPY packages/db/package.json packages/db/package.json
 RUN pnpm install --frozen-lockfile --filter @eatbid/db...

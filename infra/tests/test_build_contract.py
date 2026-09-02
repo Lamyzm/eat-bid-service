@@ -427,6 +427,26 @@ def test_product_render가_product_image에_declared_digest만_사용한다() ->
     )
 
 
+def test_pnpm_이미지는_root_prepare_스크립트를_설치_전에_복사한다() -> None:
+    # 루트 package의 prepare는 `tools/git/configure-hooks.mjs`를 실행한다. build context에 그 파일이
+    # 없으면 `pnpm install` 자체가 모듈을 못 찾아 죽는다. dataplane은 uv를 쓰므로 대상이 아니다.
+    for dockerfile in (
+        ROOT / "Dockerfile.web",
+        ROOT / "Dockerfile.server",
+        ROOT / "packages" / "db" / "Dockerfile",
+    ):
+        lines = dockerfile.read_text(encoding="utf-8").splitlines()
+        copy_index = next(
+            index for index, line in enumerate(lines) if line.startswith("COPY tools/git ")
+        )
+        install_index = next(
+            index
+            for index, line in enumerate(lines)
+            if line.startswith("RUN ") and "pnpm install" in line
+        )
+        assert copy_index < install_index, dockerfile
+
+
 def test_Dockerfile_넷이_full_SHA_provenance를_포함하고_root를_제거한다() -> None:
     dockerfiles = [
         ROOT / "Dockerfile.web",
@@ -448,15 +468,15 @@ def test_Dockerfile_넷이_full_SHA_provenance를_포함하고_root를_제거한
         assert "BUILD_SHA=$GIT_SHA" in text, dockerfile
         assert re.search(r"^USER\s+(?!root\b)\S+", text, re.MULTILINE), dockerfile
 
-    assert "pnpm install --frozen-lockfile" in (ROOT / "Dockerfile.web").read_text()
-    assert "pnpm install --frozen-lockfile" in (ROOT / "Dockerfile.server").read_text()
+    assert "pnpm install --frozen-lockfile" in (ROOT / "Dockerfile.web").read_text(encoding="utf-8")
+    assert "pnpm install --frozen-lockfile" in (ROOT / "Dockerfile.server").read_text(encoding="utf-8")
     server_dockerfile = (ROOT / "Dockerfile.server").read_text(encoding="utf-8")
     assert "COPY packages/contracts ./packages/contracts" in server_dockerfile
     assert "COPY packages/db ./packages/db" in server_dockerfile
-    assert "uv sync --frozen" in (ROOT / "apps" / "dataplane" / "Dockerfile").read_text()
+    assert "uv sync --frozen" in (ROOT / "apps" / "dataplane" / "Dockerfile").read_text(encoding="utf-8")
     assert "uv sync --frozen --no-dev --no-editable" in (
         ROOT / "apps" / "dataplane" / "Dockerfile"
-    ).read_text()
+    ).read_text(encoding="utf-8")
 
 
 def test_publication_preflight는_annotated_tag와_current_main_HEAD를_요구한다() -> None:
