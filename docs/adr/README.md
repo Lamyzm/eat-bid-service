@@ -8,7 +8,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | ADR | 상태 | 결정 |
 |---|---|---|
 | [0001](0001-greenfield-reset.md) | Accepted | 그린필드 재설계와 선택적 자산 보존 |
-| [0002](0002-product-north-star.md) | Accepted | 분석 엔진 + 다사업자 운영 워크스페이스 |
+| [0002](0002-product-north-star.md) | Accepted | 분석 엔진 + 다사업자 운영 워크스페이스 (경계 조항 중 예측가 항목은 [0027](0027-predicted-win-probability-in-scope.md) 이 뒤집음) |
 | [0003](0003-single-monorepo.md) | Accepted | `eat-bid-service` 단일 모노레포 |
 | [0004](0004-data-authority-chain.md) | Accepted | R2 raw → PostgreSQL core/app → mart 권위 사슬 |
 | [0005](0005-postgresql-canonical-store.md) | Accepted | PostgreSQL canonical, canonical Parquet 보류 |
@@ -33,6 +33,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0024](0024-free-github-tag-gated-publication.md) | Accepted | 무료 GitHub tag 기반 publication gate |
 | [0025](0025-source-release-manifest.md) | Accepted | source release manifest와 봉인된 raw membership |
 | [0026](0026-provider-neutral-ai-review-and-canonical-skills.md) | Accepted | provider 중립 AI advisory 리뷰, Claude 구독 폴백, canonical Agent Skill 위치 |
+| [0027](0027-predicted-win-probability-in-scope.md) | Accepted | 예측 승률을 판단 재료로 경계 안에 (추천가·자동 투찰은 밖에 유지) |
 
 ## 새 ADR 형식
 

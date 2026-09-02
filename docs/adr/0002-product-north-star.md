@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-29
 - Supersedes: 없음
+- Superseded-in-part-by: [0027](0027-predicted-win-probability-in-scope.md) — 아래 경계 조항 중 **예측가** 항목만 뒤집힘. 나머지는 유효.
 
 ## Context
 
