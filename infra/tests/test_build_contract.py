@@ -10,6 +10,15 @@ ROOT = Path(__file__).parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "build.yml"
 PRODUCT_KUSTOMIZATION = ROOT / "infra" / "product" / "kustomization.yaml"
 
+# publication은 tag push에서만 돌고, tag가 annotated면 github.sha는 commit이 아닐 수 있다.
+# 그래서 모든 소비자는 preflight가 peel해 낸 commit 하나만 참조해야 한다.
+RELEASE_COMMIT = "${{ needs.preflight.outputs.release_commit }}"
+RELEASE_TAG_PATTERN = r"^refs/tags/release/v[0-9]+\.[0-9]+\.[0-9]+$"
+COSIGN_IDENTITY_REGEXP = (
+    r"^https://github\.com/Lamyzm/eat-bid-service/"
+    r"\.github/workflows/build\.yml@refs/tags/release/v[0-9]+\.[0-9]+\.[0-9]+$"
+)
+
 
 def _workflow_text() -> str:
     return WORKFLOW.read_text(encoding="utf-8")
@@ -27,6 +36,11 @@ def _job(name: str) -> dict[str, object]:
     job = jobs[name]
     assert isinstance(job, dict)
     return job
+
+
+def _mapping(value: object) -> dict[str, object]:
+    assert isinstance(value, dict)
+    return value
 
 
 def _steps(name: str) -> list[dict[str, object]]:
@@ -47,7 +61,7 @@ def test_테스트_job_checkout은_고정_legacy_commit을_제공한다() -> Non
         if step.get("uses") == "actions/checkout@v4"
     )
 
-    assert checkout["with"] == {"fetch-depth": 0}
+    assert checkout["with"] == {"ref": RELEASE_COMMIT, "fetch-depth": 0}
 
 
 def test_CI가_frozen_TypeScript와_Python_및_empty_database_gate를_실행한다() -> None:
@@ -90,7 +104,7 @@ def test_CI가_Windows에서_frozen_contract와_semantic_gate를_검증한다() 
     assert frozen_pnpm < architecture
     assert frozen_uv < architecture
     assert architecture < mutations
-    assert _job("build")["needs"] == ["test", "contract-portability"]
+    assert _job("build")["needs"] == ["preflight", "test", "contract-portability"]
 
 
 def test_CI가_정확한_Argo와_Helm_render_계약을_엄격히_lint한다() -> None:
@@ -116,9 +130,32 @@ def test_CI가_정확한_Argo와_Helm_render_계약을_엄격히_lint한다() ->
     assert "kubectl apply" not in command
 
 
+def _triggers() -> dict[str, object]:
+    """YAML 1.1은 `on:` key를 boolean True로 읽으므로 두 표현을 모두 받아준다."""
+    parsed = _workflow()
+    return _mapping(parsed["on"] if "on" in parsed else parsed[True])
+
+
+def test_publication은_canonical_release_tag_push에서만_시작한다() -> None:
+    triggers = _triggers()
+
+    assert set(triggers) == {"push"}
+    assert _mapping(triggers["push"]) == {"tags": ["release/v*"]}
+
+    workflow = _workflow_text()
+    assert "workflow_dispatch" not in workflow
+    assert "branches:" not in workflow
+
+    # publication을 시작할 수 있는 job은 preflight 하나뿐이고 나머지는 needs로만 열린다.
+    jobs = _mapping(_workflow()["jobs"])
+    assert [name for name, job in jobs.items() if "if" in _mapping(job)] == ["preflight"]
+    for name, job in jobs.items():
+        if name != "preflight":
+            assert "preflight" in _mapping(job)["needs"], name
+
+
 def test_context_preflight_실패가_모든_publication_job_전에_실행을_닫는다() -> None:
-    test_job = _job("test")
-    guard = str(test_job["if"])
+    guard = str(_job("preflight")["if"])
     assert guard.strip().startswith("${{")
     assert guard.strip().endswith("}}")
     assert guard.count("${{") == guard.count("}}") == 1
@@ -127,17 +164,16 @@ def test_context_preflight_실패가_모든_publication_job_전에_실행을_닫
         "github.ref",
         "github.repository",
         "github.server_url",
-        "github.sha",
         "github.workflow_ref",
-        "github.workflow_sha",
-        "refs/heads/master",
+        "refs/tags/release/v",
         "Lamyzm/eat-bid-service",
         "https://github.com",
         ".github/workflows/build.yml",
         "push",
-        "workflow_dispatch",
     ):
         assert required_context in guard
+    for rejected_context in ("workflow_dispatch", "refs/heads/master", "refs/heads/main"):
+        assert rejected_context not in guard
 
     test_steps = _steps("test")
     checkout_index = next(
@@ -150,11 +186,12 @@ def test_context_preflight_실패가_모든_publication_job_전에_실행을_닫
     preflight = test_steps[preflight_index]
     assert preflight["env"] == {
         "EATBID_JOB_WORKFLOW_REF": "${{ job.workflow_ref }}",
+        "EATBID_RELEASE_COMMIT": RELEASE_COMMIT,
     }
     assert "infra/generate_slsa_provenance.py --check" in str(preflight["run"])
 
     build_job = _job("build")
-    assert build_job["needs"] == ["test", "contract-portability"]
+    assert build_job["needs"] == ["preflight", "test", "contract-portability"]
     build_steps = _steps("build")
     provenance_index = _step_index(build_steps, "generate-provenance")
     login_index = _step_index(build_steps, "registry-login")
@@ -175,8 +212,9 @@ def test_CI가_full_SHA로_모든_artifact를_빌드하고_digest를_승격한�
     }
     assert all(item["dockerfile"] for item in includes)
     assert all(item["context"] for item in includes)
-    assert "GIT_SHA=${{ github.sha }}" in workflow
-    assert "org.opencontainers.image.revision=${{ github.sha }}" in workflow
+    assert f"GIT_SHA={RELEASE_COMMIT}" in workflow
+    assert f"org.opencontainers.image.revision={RELEASE_COMMIT}" in workflow
+    assert "${{ github.sha }}" not in workflow
     assert "${{ steps.publish.outputs.digest }}" in workflow
     assert "infra/update_image_digest.py" in workflow
     assert "infra/product/kustomization.yaml" in workflow
@@ -186,7 +224,7 @@ def test_CI가_full_SHA로_모든_artifact를_빌드하고_digest를_승격한�
 
 def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다() -> None:
     job = _job("build")
-    assert job["needs"] == ["test", "contract-portability"]
+    assert job["needs"] == ["preflight", "test", "contract-portability"]
     assert job["permissions"] == {
         "contents": "read",
         "packages": "write",
@@ -222,7 +260,7 @@ def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다()
     assert build["with"]["load"] is True
     assert build["with"]["push"] is False
     assert build["with"]["tags"] == (
-        "${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}"
+        "${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:" + RELEASE_COMMIT
     )
 
     scan = by_id["scan"]
@@ -231,7 +269,7 @@ def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다()
     )
     assert scan["with"]["version"] == "v0.73.0"
     assert scan["with"]["image-ref"] == (
-        "${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}"
+        "${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:" + RELEASE_COMMIT
     )
     assert str(scan["with"]["exit-code"]) == "1"
     assert scan["with"]["severity"] == "HIGH,CRITICAL"
@@ -261,6 +299,7 @@ def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다()
     assert "provenance-${{ matrix.app }}.json" in provenance
     assert by_id["generate-provenance"]["env"] == {
         "EATBID_JOB_WORKFLOW_REF": "${{ job.workflow_ref }}",
+        "EATBID_RELEASE_COMMIT": RELEASE_COMMIT,
     }
     assert "cosign sign --yes \"$IMAGE_NAME@$IMAGE_DIGEST\"" in str(
         by_id["sign"]["run"]
@@ -285,11 +324,10 @@ def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다()
         verify = str(by_id[step_id]["run"])
         assert command in verify
         assert "https://token.actions.githubusercontent.com" in verify
-        assert (
-            "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/heads/master"
-            in verify
-        )
-        assert "certificate-identity-regexp" not in verify
+        assert COSIGN_IDENTITY_REGEXP in verify
+        assert "certificate-identity-regexp" in verify
+        assert "refs/heads/master" not in verify
+        assert "refs/heads/main" not in verify
         assert "\"$IMAGE_NAME@$IMAGE_DIGEST\"" in verify
 
     record = str(by_id["record"]["run"])
@@ -299,7 +337,7 @@ def test_build가_digest_출력_전에_scan_attest_sign_verify를_완료한다()
 
 def test_promotion이_migration을_포함한_모든_matrix_digest를_검증한다() -> None:
     job = _job("promote")
-    assert job["needs"] == "build"
+    assert job["needs"] == ["preflight", "build"]
     steps = _steps("promote")
     pin = next(step for step in steps if step.get("id") == "validate-and-pin")
     command = str(pin["run"])
@@ -401,3 +439,67 @@ def test_Dockerfile_넷이_full_SHA_provenance를_포함하고_root를_제거한
     assert "uv sync --frozen --no-dev --no-editable" in (
         ROOT / "apps" / "dataplane" / "Dockerfile"
     ).read_text()
+
+
+def test_publication_preflight는_annotated_tag와_current_main_HEAD를_요구한다() -> None:
+    job = _job("preflight")
+    steps = _steps("preflight")
+    checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
+    resolve = steps[_step_index(steps, "resolve-release-commit")]
+    command = str(resolve["run"])
+
+    assert _mapping(job["outputs"])["release_commit"] == (
+        "${{ steps.resolve-release-commit.outputs.release_commit }}"
+    )
+    assert _mapping(checkout["with"])["fetch-depth"] == 0
+    assert RELEASE_TAG_PATTERN in command
+    # lightweight tag는 tag object가 없어 서명 주체를 commit과 묶어 증명할 수 없다.
+    assert 'git cat-file -t "$GITHUB_REF"' in command
+    assert "refs/remotes/origin/main" in command
+    assert '"${GITHUB_REF}^{}"' in command
+    assert "^[0-9a-f]{40}$" in command
+    assert 'release_commit=' in command
+    assert "$GITHUB_OUTPUT" in command
+
+
+def test_Cosign_검증은_release_tag_workflow_identity에_anchor된다() -> None:
+    steps = _steps("build")
+    by_id = {step["id"]: step for step in steps if "id" in step}
+
+    for step_id in ("verify-signature", "verify-provenance", "verify-sbom"):
+        verify = str(by_id[step_id]["run"])
+        assert "--certificate-identity-regexp" in verify
+        assert COSIGN_IDENTITY_REGEXP in verify
+        assert "--certificate-identity " not in verify
+        assert "https://token.actions.githubusercontent.com" in verify
+
+    identity = COSIGN_IDENTITY_REGEXP
+    assert re.fullmatch(
+        identity,
+        "https://github.com/Lamyzm/eat-bid-service/"
+        ".github/workflows/build.yml@refs/tags/release/v1.4.0",
+    )
+    for rejected in (
+        "https://github.com/Lamyzm/eat-bid-service/"
+        ".github/workflows/build.yml@refs/heads/main",
+        "https://github.com/attacker/eat-bid-service/"
+        ".github/workflows/build.yml@refs/tags/release/v1.4.0",
+        "https://github.com/Lamyzm/eat-bid-service/"
+        ".github/workflows/release.yml@refs/tags/release/v1.4.0",
+    ):
+        assert re.fullmatch(identity, rejected) is None
+
+
+def test_promotion은_tagged_main이_움직이면_normal_push전에_거부한다() -> None:
+    steps = _steps("promote")
+    checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
+    commands = [str(step.get("run", "")) for step in steps]
+    joined = " ".join(commands)
+
+    assert _mapping(checkout["with"])["ref"] == "main"
+    guard = next(index for index, command in enumerate(commands) if RELEASE_COMMIT in command and "rev-parse HEAD" in command)
+    push = next(index for index, command in enumerate(commands) if "git push origin HEAD:main" in command)
+    assert guard < push
+    # force나 upstream 없는 push는 race로 main이 움직여도 통과한다. normal push만 허용한다.
+    assert "--force" not in joined
+    assert "+refs/heads/main" not in joined

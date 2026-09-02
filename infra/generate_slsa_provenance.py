@@ -14,8 +14,10 @@ WORKFLOW_PATH = ".github/workflows/build.yml"
 BUILD_TYPE = "https://actions.github.io/buildtypes/workflow/v1"
 GITHUB_SERVER_URL = "https://github.com"
 EXPECTED_REPOSITORY = "Lamyzm/eat-bid-service"
-PROTECTED_REF = "refs/heads/master"
-SUPPORTED_EVENTS = frozenset({"push", "workflow_dispatch"})
+# ADR 0024: GitHub Free는 branch를 서버에서 보호하지 못하므로 불변 annotated tag 하나만
+# publication 경계로 신뢰한다. branch push와 workflow_dispatch는 여기서 거부한다.
+RELEASE_TAG_REF_PATTERN = re.compile(r"refs/tags/release/v[0-9]+\.[0-9]+\.[0-9]+\Z")
+SUPPORTED_EVENTS = frozenset({"push"})
 TRUSTED_RUNNER_ENVIRONMENT = "github-hosted"
 
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
@@ -48,6 +50,7 @@ def build_predicate(environment: Mapping[str, object]) -> dict[str, object]:
     workflow_ref = _required(environment, "GITHUB_WORKFLOW_REF")
     workflow_sha = _required(environment, "GITHUB_WORKFLOW_SHA")
     job_workflow_ref = _required(environment, "EATBID_JOB_WORKFLOW_REF")
+    release_commit = _required(environment, "EATBID_RELEASE_COMMIT")
     runner_environment = _required(environment, "RUNNER_ENVIRONMENT")
 
     if repository != EXPECTED_REPOSITORY:
@@ -56,12 +59,18 @@ def build_predicate(environment: Mapping[str, object]) -> dict[str, object]:
         raise ProvenanceError(f"GITHUB_SERVER_URL must be {GITHUB_SERVER_URL}")
     if event_name not in SUPPORTED_EVENTS:
         raise ProvenanceError("GITHUB_EVENT_NAME is not supported by this build workflow")
-    if git_ref != PROTECTED_REF:
-        raise ProvenanceError(f"GITHUB_REF must be {PROTECTED_REF}")
+    if RELEASE_TAG_REF_PATTERN.fullmatch(git_ref) is None:
+        raise ProvenanceError("GITHUB_REF must be a canonical release/v<semver> tag ref")
     if SHA_PATTERN.fullmatch(git_sha) is None:
         raise ProvenanceError("GITHUB_SHA must be exactly 40 lowercase hexadecimal characters")
-    if workflow_sha != git_sha:
-        raise ProvenanceError("GITHUB_WORKFLOW_SHA must equal GITHUB_SHA")
+    if SHA_PATTERN.fullmatch(release_commit) is None:
+        raise ProvenanceError(
+            "EATBID_RELEASE_COMMIT must be exactly 40 lowercase hexadecimal characters"
+        )
+    # annotated tag를 push하면 GITHUB_SHA는 tag object일 수 있다. workflow 파일을 읽은 commit이
+    # tag가 peel되는 commit과 같아야 서명 대상과 소스가 하나로 묶인다.
+    if workflow_sha != release_commit:
+        raise ProvenanceError("GITHUB_WORKFLOW_SHA must equal EATBID_RELEASE_COMMIT")
     if POSITIVE_INTEGER_PATTERN.fullmatch(repository_id) is None:
         raise ProvenanceError("GITHUB_REPOSITORY_ID must be a positive decimal integer")
     if POSITIVE_INTEGER_PATTERN.fullmatch(repository_owner_id) is None:
@@ -107,7 +116,7 @@ def build_predicate(environment: Mapping[str, object]) -> dict[str, object]:
             },
             "resolvedDependencies": [
                 {
-                    "digest": {"gitCommit": git_sha},
+                    "digest": {"gitCommit": release_commit},
                     "uri": f"git+{repository_url}@{git_ref}",
                 }
             ],

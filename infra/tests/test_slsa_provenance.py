@@ -5,23 +5,27 @@ from pathlib import Path
 
 import pytest
 
+RELEASE_TAG_REF = "refs/tags/release/v1.4.0"
+# annotated tag를 push하면 GITHUB_SHA는 commit이 아니라 tag object를 가리킬 수 있다.
+# fixture에서 둘을 일부러 다르게 두어야 predicate가 어느 쪽을 쓰는지 실제로 검증된다.
+RELEASE_COMMIT = "a" * 40
+TAG_OBJECT_SHA = "c" * 40
+WORKFLOW_REF = f"Lamyzm/eat-bid-service/.github/workflows/build.yml@{RELEASE_TAG_REF}"
+
 VALID_ENV = {
-    "EATBID_JOB_WORKFLOW_REF": (
-        "Lamyzm/eat-bid-service/.github/workflows/build.yml@refs/heads/master"
-    ),
+    "EATBID_JOB_WORKFLOW_REF": WORKFLOW_REF,
+    "EATBID_RELEASE_COMMIT": RELEASE_COMMIT,
     "GITHUB_EVENT_NAME": "push",
     "GITHUB_REPOSITORY": "Lamyzm/eat-bid-service",
     "GITHUB_REPOSITORY_ID": "987654321",
     "GITHUB_REPOSITORY_OWNER_ID": "12345678",
     "GITHUB_SERVER_URL": "https://github.com",
-    "GITHUB_REF": "refs/heads/master",
-    "GITHUB_SHA": "a" * 40,
+    "GITHUB_REF": RELEASE_TAG_REF,
+    "GITHUB_SHA": TAG_OBJECT_SHA,
     "GITHUB_RUN_ID": "123456789",
     "GITHUB_RUN_ATTEMPT": "2",
-    "GITHUB_WORKFLOW_REF": (
-        "Lamyzm/eat-bid-service/.github/workflows/build.yml@refs/heads/master"
-    ),
-    "GITHUB_WORKFLOW_SHA": "a" * 40,
+    "GITHUB_WORKFLOW_REF": WORKFLOW_REF,
+    "GITHUB_WORKFLOW_SHA": RELEASE_COMMIT,
     "RUNNER_ENVIRONMENT": "github-hosted",
 }
 
@@ -38,7 +42,7 @@ def test_allowlist된_GitHub_env로_결정적_SLSA_v1_predicate를_빌드한다(
             "externalParameters": {
                 "workflow": {
                     "path": ".github/workflows/build.yml",
-                    "ref": "refs/heads/master",
+                    "ref": RELEASE_TAG_REF,
                     "repository": "https://github.com/Lamyzm/eat-bid-service",
                 }
             },
@@ -52,10 +56,10 @@ def test_allowlist된_GitHub_env로_결정적_SLSA_v1_predicate를_빌드한다(
             },
             "resolvedDependencies": [
                 {
-                    "digest": {"gitCommit": "a" * 40},
+                    "digest": {"gitCommit": RELEASE_COMMIT},
                     "uri": (
                         "git+https://github.com/Lamyzm/eat-bid-service"
-                        "@refs/heads/master"
+                        f"@{RELEASE_TAG_REF}"
                     ),
                 }
             ],
@@ -64,7 +68,8 @@ def test_allowlist된_GitHub_env로_결정적_SLSA_v1_predicate를_빌드한다(
             "builder": {
                 "id": (
                     "https://github.com/Lamyzm/eat-bid-service/"
-                    ".github/workflows/build.yml@refs/heads/master"
+                    ".github/workflows/build.yml@"
+                    f"{RELEASE_TAG_REF}"
                 )
             },
             "byproducts": [],
@@ -84,13 +89,19 @@ def test_allowlist된_GitHub_env로_결정적_SLSA_v1_predicate를_빌드한다(
     assert json.loads(first) == predicate
 
 
-@pytest.mark.parametrize("event_name", ["push", "workflow_dispatch"])
-def test_repository가_지원하는_build_type_event만_허용한다(event_name: str) -> None:
+def test_SLSA는_release_tag와_peeled_commit을_같은_subject로_사용한다() -> None:
     from infra.generate_slsa_provenance import build_predicate
 
-    predicate = build_predicate({**VALID_ENV, "GITHUB_EVENT_NAME": event_name})
-    github_parameters = predicate["buildDefinition"]["internalParameters"]["github"]
-    assert github_parameters["event_name"] == event_name
+    predicate = build_predicate(VALID_ENV)
+    dependency = predicate["buildDefinition"]["resolvedDependencies"][0]
+
+    assert dependency["uri"].endswith(f"@{RELEASE_TAG_REF}")
+    assert dependency["digest"]["gitCommit"] == RELEASE_COMMIT
+    assert predicate["buildDefinition"]["externalParameters"]["workflow"]["ref"] == (
+        RELEASE_TAG_REF
+    )
+    # GITHUB_SHA는 tag object일 수 있으므로 provenance 어디에도 들어가면 안 된다.
+    assert TAG_OBJECT_SHA not in json.dumps(predicate)
 
 
 @pytest.mark.parametrize(
@@ -100,17 +111,29 @@ def test_repository가_지원하는_build_type_event만_허용한다(event_name:
         ("GITHUB_REPOSITORY", "someone/eat-bid-service"),
         ("GITHUB_SERVER_URL", "http://github.com"),
         ("GITHUB_EVENT_NAME", "pull_request"),
-        ("GITHUB_REF", "refs/heads/feature"),
+        ("GITHUB_EVENT_NAME", "workflow_dispatch"),
+        ("GITHUB_REF", "refs/heads/main"),
+        ("GITHUB_REF", "refs/heads/master"),
+        ("GITHUB_REF", "refs/tags/v1.4.0"),
+        ("GITHUB_REF", "refs/tags/release/v1.4"),
+        ("GITHUB_REF", "refs/tags/release/v1.4.0-rc1"),
+        ("GITHUB_REF", "refs/tags/release/v1.4.0/extra"),
         ("GITHUB_SHA", "A" * 40),
         ("GITHUB_SHA", "a" * 39),
+        ("EATBID_RELEASE_COMMIT", "A" * 40),
+        ("EATBID_RELEASE_COMMIT", "a" * 39),
         ("GITHUB_WORKFLOW_SHA", "b" * 40),
         (
             "GITHUB_WORKFLOW_REF",
-            "Lamyzm/eat-bid-service/.github/workflows/other.yml@refs/heads/master",
+            f"Lamyzm/eat-bid-service/.github/workflows/other.yml@{RELEASE_TAG_REF}",
+        ),
+        (
+            "GITHUB_WORKFLOW_REF",
+            "Lamyzm/eat-bid-service/.github/workflows/build.yml@refs/heads/main",
         ),
         (
             "EATBID_JOB_WORKFLOW_REF",
-            "Lamyzm/eat-bid-service/.github/workflows/other.yml@refs/heads/master",
+            f"Lamyzm/eat-bid-service/.github/workflows/other.yml@{RELEASE_TAG_REF}",
         ),
         ("GITHUB_REPOSITORY_ID", "repo-1"),
         ("GITHUB_REPOSITORY_ID", "0"),

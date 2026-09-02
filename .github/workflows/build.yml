@@ -1,36 +1,66 @@
 name: build
 
+# ADR 0024: GitHub Free에서는 branch를 서버가 보호하지 못한다. 불변 annotated tag만
+# publication을 시작할 수 있고 main push와 수동 실행에는 그 권한이 없다.
 on:
   push:
-    branches: [master]
-    paths-ignore:
-      # The promotion commit changes only the digest set and must not rebuild itself.
-      - infra/product/kustomization.yaml
-      - docs/**
-      - "**.md"
-  workflow_dispatch:
+    tags: ["release/v*"]
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # publication을 중간에 끊으면 서명은 됐지만 promote되지 않은 image가 남는다.
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io/lamyzm
 
 jobs:
-  test:
+  preflight:
     runs-on: ubuntu-latest
     if: >-
       ${{
-        (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-        github.ref == 'refs/heads/master' &&
+        github.event_name == 'push' &&
+        startsWith(github.ref, 'refs/tags/release/v') &&
         github.repository == 'Lamyzm/eat-bid-service' &&
         github.server_url == 'https://github.com' &&
-        github.sha == github.workflow_sha &&
         github.workflow_ref == format(
           '{0}/.github/workflows/build.yml@{1}', github.repository, github.ref
         )
       }}
+    outputs:
+      release_commit: ${{ steps.resolve-release-commit.outputs.release_commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: resolve-release-commit
+        name: Require an annotated release tag on the current main HEAD
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF" =~ ^refs/tags/release/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Not a canonical release tag: $GITHUB_REF" >&2
+            exit 2
+          fi
+          git fetch --no-tags --prune origin +refs/heads/main:refs/remotes/origin/main
+          if [[ "$(git cat-file -t "$GITHUB_REF")" != tag ]]; then
+            echo "Release tag must be an annotated tag object" >&2
+            exit 2
+          fi
+          release_commit="$(git rev-parse "${GITHUB_REF}^{}")"
+          main_commit="$(git rev-parse refs/remotes/origin/main)"
+          if [[ ! "$release_commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid peeled release commit: $release_commit" >&2
+            exit 2
+          fi
+          if [[ "$release_commit" != "$main_commit" ]]; then
+            echo "Release tag commit $release_commit is not current origin/main $main_commit" >&2
+            exit 2
+          fi
+          echo "release_commit=$release_commit" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: preflight
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16-alpine
@@ -51,11 +81,13 @@ jobs:
       - uses: actions/checkout@v4
         # 레거시 inventory 회귀 테스트는 폐기 근거가 된 고정 커밋을 읽으므로 shallow clone으로는 재현할 수 없다.
         with:
+          ref: ${{ needs.preflight.outputs.release_commit }}
           fetch-depth: 0
       - id: provenance-preflight
         name: Reject unsupported publication workflow context
         env:
           EATBID_JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
+          EATBID_RELEASE_COMMIT: ${{ needs.preflight.outputs.release_commit }}
         run: python3 infra/generate_slsa_provenance.py --check
       - uses: actions/setup-node@v4
         with:
@@ -163,9 +195,12 @@ jobs:
           pnpm db:migrate
 
   contract-portability:
+    needs: preflight
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.release_commit }}
       - uses: actions/setup-node@v4
         with:
           node-version: "24.20.0"
@@ -191,7 +226,7 @@ jobs:
         run: pnpm test:quality
 
   build:
-    needs: [test, contract-portability]
+    needs: [preflight, test, contract-portability]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -215,10 +250,13 @@ jobs:
             dockerfile: ./packages/db/Dockerfile
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.release_commit }}
       - id: generate-provenance
         name: Generate deterministic SLSA v1 provenance predicate
         env:
           EATBID_JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
+          EATBID_RELEASE_COMMIT: ${{ needs.preflight.outputs.release_commit }}
         run: >-
           python3 infra/generate_slsa_provenance.py
           --output "provenance-${{ matrix.app }}.json"
@@ -230,10 +268,10 @@ jobs:
           file: ${{ matrix.dockerfile }}
           load: true
           push: false
-          tags: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}
-          build-args: GIT_SHA=${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ needs.preflight.outputs.release_commit }}
+          build-args: GIT_SHA=${{ needs.preflight.outputs.release_commit }}
           labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ needs.preflight.outputs.release_commit }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           provenance: false
           sbom: false
@@ -244,7 +282,7 @@ jobs:
         name: Reject HIGH or CRITICAL vulnerabilities in the local image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ needs.preflight.outputs.release_commit }}
           format: table
           severity: HIGH,CRITICAL
           exit-code: "1"
@@ -253,7 +291,7 @@ jobs:
         name: Generate SPDX SBOM from the same local image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ needs.preflight.outputs.release_commit }}
           format: spdx-json
           output: sbom-${{ matrix.app }}.spdx.json
           exit-code: "0"
@@ -269,7 +307,7 @@ jobs:
       - id: publish
         name: Push the exact scanned tag and resolve its registry digest
         env:
-          IMAGE_REF: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ github.sha }}
+          IMAGE_REF: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ needs.preflight.outputs.release_commit }}
         run: |
           set -euo pipefail
           docker push "$IMAGE_REF"
@@ -318,10 +356,11 @@ jobs:
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
         run: |
           set -euo pipefail
-          IDENTITY="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/heads/master"
+          # 이 repository의 이 workflow가, canonical release tag ref에서 낸 인증서만 받는다.
+          IDENTITY_REGEXP='^https://github\.com/Lamyzm/eat-bid-service/\.github/workflows/build\.yml@refs/tags/release/v[0-9]+\.[0-9]+\.[0-9]+$'
           cosign verify \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity "$IDENTITY" \
+            --certificate-identity-regexp "$IDENTITY_REGEXP" \
             "$IMAGE_NAME@$IMAGE_DIGEST"
       - id: verify-provenance
         name: Verify issuer and exact workflow identity on the SLSA attestation
@@ -330,10 +369,11 @@ jobs:
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
         run: |
           set -euo pipefail
-          IDENTITY="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/heads/master"
+          # 이 repository의 이 workflow가, canonical release tag ref에서 낸 인증서만 받는다.
+          IDENTITY_REGEXP='^https://github\.com/Lamyzm/eat-bid-service/\.github/workflows/build\.yml@refs/tags/release/v[0-9]+\.[0-9]+\.[0-9]+$'
           cosign verify-attestation --type slsaprovenance1 \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity "$IDENTITY" \
+            --certificate-identity-regexp "$IDENTITY_REGEXP" \
             "$IMAGE_NAME@$IMAGE_DIGEST"
       - id: verify-sbom
         name: Verify issuer and exact workflow identity on the SPDX attestation
@@ -342,10 +382,11 @@ jobs:
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
         run: |
           set -euo pipefail
-          IDENTITY="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@refs/heads/master"
+          # 이 repository의 이 workflow가, canonical release tag ref에서 낸 인증서만 받는다.
+          IDENTITY_REGEXP='^https://github\.com/Lamyzm/eat-bid-service/\.github/workflows/build\.yml@refs/tags/release/v[0-9]+\.[0-9]+\.[0-9]+$'
           cosign verify-attestation --type spdxjson \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            --certificate-identity "$IDENTITY" \
+            --certificate-identity-regexp "$IDENTITY_REGEXP" \
             "$IMAGE_NAME@$IMAGE_DIGEST"
 
       - id: record
@@ -368,17 +409,18 @@ jobs:
           retention-days: 1
 
   promote:
-    needs: build
+    needs: [preflight, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: master
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Refuse to promote onto a different commit
-        run: test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+        # release tag 이후 main이 움직였다면 이 digest set은 다른 소스의 것이 된다.
+        run: test "$(git rev-parse HEAD)" = "${{ needs.preflight.outputs.release_commit }}"
       - uses: actions/download-artifact@v4
         with:
           pattern: image-digest-*
@@ -400,6 +442,8 @@ jobs:
           python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-dataplane "$(cat digests/dataplane)"
           python3 infra/update_image_digest.py --file infra/product/kustomization.yaml eatbid-migration "$(cat digests/migration)"
       - name: Commit product digest set
+        env:
+          EATBID_RELEASE_COMMIT: ${{ needs.preflight.outputs.release_commit }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -409,5 +453,6 @@ jobs:
             exit 0
           fi
           git add infra/product/kustomization.yaml
-          git commit -m "deploy: 제품 이미지 digest를 ${GITHUB_SHA}로 고정한다 [skip ci]"
-          git push
+          git commit -m "deploy: 제품 이미지 digest를 ${EATBID_RELEASE_COMMIT}로 고정한다 [skip ci]"
+          # normal push다. race로 main이 움직이면 non-fast-forward로 실패해야 한다.
+          git push origin HEAD:main
