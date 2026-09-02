@@ -123,8 +123,23 @@ def test_product와_base_render가_cutover를_비활성으로_유지한다(
         _metadata(cron_job)["name"] for cron_job in base_manifests.of_kind("CronJob")
     } == {"daily-refresh", "poll-open-day", "poll-open-off", "poll-open-weekend"}
 
-    live_application = yaml.safe_load(LIVE_APPLICATION.read_text(encoding="utf-8"))
-    assert live_application["spec"]["source"]["path"] == "infra/k8s/base"
+
+def test_live_application은_main의_product_composition을_소비한다() -> None:
+    application = yaml.safe_load(LIVE_APPLICATION.read_text(encoding="utf-8"))
+    assert application["spec"]["source"] == {
+        "repoURL": "https://github.com/Lamyzm/eat-bid-service",
+        "targetRevision": "main",
+        "path": "infra/product",
+    }
+    # cutover는 source만 옮긴다. 자동 sync가 켜져 있으므로 수집 schedule은 계속 정지 상태여야 한다.
+    assert application["spec"]["destination"] == {
+        "server": "https://kubernetes.default.svc",
+        "namespace": "eatbid",
+    }
+    assert application["spec"]["syncPolicy"]["automated"] == {
+        "prune": True,
+        "selfHeal": True,
+    }
 
 
 def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용한다(
