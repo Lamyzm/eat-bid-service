@@ -95,10 +95,15 @@ def _cli_commands() -> tuple[str, ...]:
     assignment = next(
         node
         for node in module.body
-        if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "COMMANDS" for target in node.targets)
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == "COMMAND_HANDLERS"
     )
-    commands = ast.literal_eval(assignment.value)
+    # CLI는 handler dict를 comprehension으로 만든다. 이름 목록은 그 comprehension이 도는
+    # tuple 하나이므로 실행 없이 그 tuple만 읽어 workflow가 부르는 명령과 대조한다.
+    comprehension = assignment.value
+    assert isinstance(comprehension, ast.DictComp)
+    commands = ast.literal_eval(comprehension.generators[0].iter)
     assert isinstance(commands, tuple)
     return commands
 
@@ -153,7 +158,14 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     assert "replay" in templates
     assert "build-marts" not in templates
     assert "verify" not in templates
-    assert "74" not in yaml.safe_dump(workflow_template)
+    # 어떤 template도 튜닝 상수를 인자에 박지 않는다. 페이지 크기·기간·지역 수 같은 값이
+    # 여기 들어오면 workflow 매니페스트가 CLI와 별개의 두 번째 설정 원천이 된다.
+    for template in templates.values():
+        container = template.get("container")
+        if container is None:
+            continue
+        for argument in _sequence(_mapping(container)["args"]):
+            assert not re.search(r"--[\w-]+[=\s]+\"?\d", str(argument)), argument
     assert "retryStrategy" not in yaml.safe_dump(workflow_template)
     assert "artifact" not in yaml.safe_dump(workflow_template).lower()
 
