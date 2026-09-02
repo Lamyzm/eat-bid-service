@@ -10,9 +10,14 @@ review_trigger: eat-parser-contract-or-pipeline-stage-change
 
 ## 1. 결론
 
-`discover`와 `capture`는 실제 소스·R2·PostgreSQL에서 동작한다. `normalize`는 동작하지 않는다.
-검토된 `eat-v1` 계약이 14자리 timestamp를 요구하는데 소스는 17자리를 준다. 이 상태로는 상세 응답이
-하나도 canonical 사실이 되지 못한다.
+`discover`, `capture`, `normalize`는 실제 소스·R2·PostgreSQL에서 동작한다. 3~6절은 시각 계약을
+고치기 전의 첫 실행이고 7절부터가 고친 뒤의 재실행이다. 재실행에서 상세 85건이 전부 정규화됐고
+격리는 0건이다.
+
+`validate`와 `project`는 도달하지 못했다. 어느 run 정체성으로 발행해야 하는지가 정의돼 있지 않다.
+
+규모를 위협하는 결함 둘을 함께 찾았다. 상세 응답의 초 단위 카운트다운 때문에 content 주소 중복
+제거가 상세에서 걸리지 않고, 같은 이유로 전송 재시도가 구조적으로 불가능하다. 8절을 보라.
 
 ## 2. 실행 조건
 
