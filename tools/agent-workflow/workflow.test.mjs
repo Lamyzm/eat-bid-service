@@ -184,6 +184,11 @@ test("경로를 지정한 git 조회는 허용하고 경로 뒤의 변경 subcom
     "git -C ../.. checkout main",
     "git -C ../.. status && rm -rf src",
     "git -C $(pwd) status",
+    "git -c core.pager=id log",
+    "git -c core.editor=vi diff",
+    "git -c core.pager={rm,-rf,foo} log",
+    "git -c diff.external=writer -C ../.. diff",
+    "git -C ../.. -c core.pager=id log",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
   }

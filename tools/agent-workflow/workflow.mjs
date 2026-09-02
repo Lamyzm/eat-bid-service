@@ -35,6 +35,8 @@ const WORKFLOW_LIFECYCLE_COMMAND = new RegExp(
 );
 
 // 다른 worktree를 조회할 때는 `git -C <path>` 형태가 기본이므로 같은 read-only subcommand를 허용한다.
+// 소문자 `-c key=value`는 core.pager·diff.external 같은 config로 read-only subcommand 안에서 임의 실행을
+// 일으키므로, git 정규식은 대소문자를 구분해 대문자 `-C`만 경로 prefix로 받는다.
 const GIT_PATH_PREFIX = String.raw`(?:-C\s+${PATH_ARGUMENT}\s+)?`;
 
 const MUTATING_COMMANDS = [
@@ -49,8 +51,8 @@ const MUTATING_COMMANDS = [
 const READ_ONLY_COMMANDS = [
   /^rg\b/i,
   /^(?:get-content|get-childitem|test-path|select-string)\b/i,
-  new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}(?:status|diff|log|show|rev-parse|worktree\s+list)\b`, "i"),
-  new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}branch\s+--show-current\b`, "i"),
+  new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}(?:status|diff|log|show|rev-parse|worktree\s+list)\b`),
+  new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}branch\s+--show-current\b`),
 ];
 
 const SHELL_COMPOSITION = /[|;&><\r\n]|`|\$\(|(?:^|\s)(?:--fix|--write|--output(?:=|\s)|--ext-diff\b|--textconv\b|--pre(?:=|\s)|--update(?:-?snapshots?)?\b|--updateSnapshot\b|-u(?:\s|$))/i;
