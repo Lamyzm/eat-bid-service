@@ -25,12 +25,17 @@ XC = np.load(r'F:/Project/eat-bid/data/mechanism/xcap.npz', allow_pickle=True)
 AS = np.load(r'F:/Project/eat-bid/data/mechanism/asof.npz', allow_pickle=True)
 HO = np.load(r'F:/Project/eat-bid/data/mechanism/holdout.npz', allow_pickle=True)
 
-x, cnt, R, nbid = (XC['x'].astype(np.float64), XC['off'], XC['R'],
-                   XC['nbid'].astype(int))
+x, cnt, nbid = (XC['x'].astype(np.float64), XC['off'], XC['nbid'].astype(int))
 bi = {b: i for i, b in enumerate(AS['bid_id'])}
 k = np.array([bi.get(b, -1) for b in XC['bid_id']])
 OK_A, KA = k >= 0, np.clip(k, 0, None)
 ym = np.where(OK_A, AS['ym'][KA], -1).astype(int)
+
+# 🔴 R 은 재생성된 asof.npz(정의 B — 절대금액)에서 가져온다.  xcap 의 R 은 정의 A(4자리 비율)라
+#    낙찰자 식별이 2%p 틀린다 (항등식 97.064% → 99.136%).  R 은 낙찰 **라벨**을 정하므로
+#    승률 보정 전부가 여기 걸린다.  xcap 재생성 전까지 조인으로 대체한다.
+R = np.where(OK_A, AS['R'][KA], np.nan)
+RSUS = np.where(OK_A, AS['R_suspect'][KA], True)      # 오염 91건 — 학습·평가에서 뺀다
 hi_ = {b: s for b, s in zip(HO['bid_id'], HO['split'])}
 split = np.array([hi_.get(b, '') for b in XC['bid_id']])
 
@@ -38,8 +43,8 @@ aid = np.repeat(np.arange(len(R)), cnt)
 # 🔴 ym 미상(asof 조인 실패) 229 회차를 TRAIN 에서 뺀다. 그중 48 건이 2026 년이라
 #    봉인 구간(202606~)일 수 있고, 라벨이 없어 확인할 방법이 없다.
 #    학습 회차의 0.14% 라 수치는 안 움직이지만, 봉인 구간 자료로 적합하지 않는다는 원칙이 먼저다.
-TRAIN = (ym >= 0) & (ym <= 202512) & (nbid >= 3)
-TUNE = (split == 'TUNE') & (nbid >= 3)
+TRAIN = (ym >= 0) & (ym <= 202512) & (nbid >= 3) & ~RSUS
+TUNE = (split == 'TUNE') & (nbid >= 3) & ~RSUS
 
 XGRID = np.linspace(0.94, 1.10, 1601)
 
