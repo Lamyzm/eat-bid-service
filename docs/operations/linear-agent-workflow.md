@@ -129,7 +129,12 @@ identifier가 오면 다시 불일치로 차단한다.
 
 ## 5. 일상 사용
 
+0. **새 issue를 만들기 전에 기존 issue를 먼저 훑는다.** `list_issues`로 team 전체를 확인하고, 하려는 일이
+   이미 issue와 계획 문서를 갖고 있는지 본다. Backlog에 상위 설계 issue가 있고 그 아래 실행 issue가
+   달려 있는 경우가 많다. 조사 결과가 아무리 새로워도 중복 issue를 만들면 추적이 갈라지고 이미 정해진
+   결정을 다시 정하게 된다.
 1. Linear issue에서 scope와 acceptance를 확정하고 `workflow:claim`으로 owner와 state를 검증한다.
+   issue에 계획 문서가 연결돼 있으면 임의로 다른 순서를 만들지 말고 그 문서를 따른다.
 2. prompt 또는 branch에 claim한 issue identifier를 포함한다. 예: `EAT-123 구현` 또는
    `codex/EAT-123-auction-workspace`.
 3. agent는 명시적으로 허용된 읽기·조사를 자유롭게 수행한다. 첫 mutation session이 lease writer가 되므로 Codex와
@@ -138,6 +143,9 @@ identifier가 오면 다시 불일치로 차단한다.
 5. PR 제목이나 본문에 Linear identifier를 넣고 acceptance별 evidence를 PR에 남긴다.
 6. GitHub/Linear integration을 설치·검증한 경우에만 PR 생성 시 `In Review`, 병합 시 `Done`을
    자동화한다. 설치 전에는 사람이 같은 전환을 수행한다.
+7. 작업을 끝내면 issue 상태를 직접 옮긴다. `claim`은 `Ready`를 `In Progress`로만 바꾸고 완료 전환은
+   하지 않으므로, 방치하면 끝난 작업이 계속 `In Progress`로 쌓인다. 중복으로 만든 issue는 `Canceled`로
+   닫고 원래 issue에 `duplicateOf`로 연결한 뒤, 얻은 사실과 이미 적용된 변경을 그쪽 worklog에 옮긴다.
 
 AI가 답변에서 완료를 주장했다는 이유만으로 hook이 `Done`으로 이동시키지 않는다.
 
