@@ -447,7 +447,6 @@ def test_Dockerfile_넷이_full_SHA_provenance를_포함하고_root를_제거한
 def test_publication_preflight는_annotated_tag와_current_main_HEAD를_요구한다() -> None:
     job = _job("preflight")
     steps = _steps("preflight")
-    checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
     resolve = steps[_step_index(steps, "resolve-release-commit")]
     command = str(resolve["run"])
 
@@ -455,18 +454,19 @@ def test_publication_preflight는_annotated_tag와_current_main_HEAD를_요구�
         "release_commit": "${{ steps.resolve-release-commit.outputs.release_commit }}",
         "release_tag_object": "${{ steps.resolve-release-commit.outputs.release_tag_object }}",
     }
-    assert _mapping(checkout["with"])["fetch-depth"] == 0
     assert RELEASE_TAG_PATTERN in command
-    # lightweight tag는 tag object가 없어 서명 주체를 commit과 묶어 증명할 수 없다.
-    assert 'git cat-file -t "$GITHUB_REF"' in command
-    assert "refs/remotes/origin/main" in command
-    assert '"${GITHUB_REF}^{}"' in command
+    # actions/checkout이 만드는 local tag ref는 lightweight이므로 annotated 판정에 쓸 수 없다.
+    # 원격이 광고하는 ref만 권위이며, peel ref가 함께 오는 tag만 annotated다.
+    assert 'git ls-remote origin "$GITHUB_REF" "${GITHUB_REF}^{}" refs/heads/main' in command
+    assert 'git cat-file' not in command
+    assert "git rev-parse" not in command
+    assert "refs/remotes/origin" not in command
+    assert 'if [[ -z "$release_commit" ]]; then' in command
+    assert "Release tag must be an annotated tag object" in command
     # peel된 commit과 tag object를 둘 다 내야 GitHub의 ref SHA 규약에 의존하지 않는다.
-    assert 'release_tag_object="$(git rev-parse "$GITHUB_REF")"' in command
+    assert 'echo "release_commit=$release_commit" >> "$GITHUB_OUTPUT"' in command
     assert 'echo "release_tag_object=$release_tag_object" >> "$GITHUB_OUTPUT"' in command
     assert "^[0-9a-f]{40}$" in command
-    assert 'release_commit=' in command
-    assert "$GITHUB_OUTPUT" in command
 
 
 def test_Cosign_검증은_release_tag_workflow_identity에_anchor된다() -> None:

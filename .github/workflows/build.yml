@@ -32,8 +32,6 @@ jobs:
       release_tag_object: ${{ steps.resolve-release-commit.outputs.release_tag_object }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - id: resolve-release-commit
         name: Require an annotated release tag on the current main HEAD
         run: |
@@ -42,15 +40,24 @@ jobs:
             echo "Not a canonical release tag: $GITHUB_REF" >&2
             exit 2
           fi
-          git fetch --no-tags --prune origin +refs/heads/main:refs/remotes/origin/main
-          if [[ "$(git cat-file -t "$GITHUB_REF")" != tag ]]; then
+          # actions/checkout이 만드는 local tag ref는 annotated 원본이 아니라 commit을 가리키는
+          # lightweight ref다. 서명 주체와 발행 대상은 원격 ref 자체에서만 판정할 수 있고,
+          # peel ref가 함께 광고되는 tag만 annotated다.
+          release_tag_object=""
+          release_commit=""
+          main_commit=""
+          while read -r sha ref; do
+            case "$ref" in
+              "${GITHUB_REF}^{}") release_commit="$sha" ;;
+              "$GITHUB_REF") release_tag_object="$sha" ;;
+              refs/heads/main) main_commit="$sha" ;;
+            esac
+          done < <(git ls-remote origin "$GITHUB_REF" "${GITHUB_REF}^{}" refs/heads/main)
+          if [[ -z "$release_commit" ]]; then
             echo "Release tag must be an annotated tag object" >&2
             exit 2
           fi
-          release_commit="$(git rev-parse "${GITHUB_REF}^{}")"
-          release_tag_object="$(git rev-parse "$GITHUB_REF")"
-          main_commit="$(git rev-parse refs/remotes/origin/main)"
-          for sha in "$release_commit" "$release_tag_object"; do
+          for sha in "$release_commit" "$release_tag_object" "$main_commit"; do
             if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
               echo "Invalid release SHA: $sha" >&2
               exit 2
