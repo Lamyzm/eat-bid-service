@@ -1301,6 +1301,132 @@
       "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
       "owner": "EAT-9",
       "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-breadcrumbs.tsx",
+      "kind": "SourceFile",
+      "sha256": "sha256:529f0f2f2aa11939b667926acfd8c5380f500cfb19c6e4924b9163a7c321a979",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-callback-ref.tsx",
+      "kind": "SourceFile",
+      "sha256": "sha256:68d4b44f640183aaff53249a0061ccfb381543adb1010768618997ba7058bc51",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-controllable-state.tsx",
+      "kind": "SourceFile",
+      "sha256": "sha256:77b2754f385b661c62dfe54ef262e6ad34ebff7bf821740cf39fc90d4402fb91",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-data-table.ts",
+      "kind": "SourceFile",
+      "sha256": "sha256:09879c80025734f53896212404dcee7c544cdf5b78493e57c166d1ce2cafcc5e",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-debounce.tsx",
+      "kind": "SourceFile",
+      "sha256": "sha256:b3025da9a94d7d2cc212d2c9d7d27e000a80b0ad257afc15d0abbd549c3c4a24",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-debounced-callback.ts",
+      "kind": "SourceFile",
+      "sha256": "sha256:49de5425a53d74b4070c459e349f5102250cd6bc180410dfec42863c8b4a831d",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-media-query.ts",
+      "kind": "SourceFile",
+      "sha256": "sha256:78f37e64309449d87f93786c4f832485f3d403eca8961f80ebaf67fc4d849fe4",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-mobile.ts",
+      "kind": "SourceFile",
+      "sha256": "sha256:58b2cc5fa259358e9192125abf072c832144193d87f3d66a90b13089a0196cef",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-mobile.tsx",
+      "kind": "SourceFile",
+      "sha256": "sha256:58b2cc5fa259358e9192125abf072c832144193d87f3d66a90b13089a0196cef",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-nav.ts",
+      "kind": "SourceFile",
+      "sha256": "sha256:ad0cbe9247f620fa88aff833912b1c7146ec82c7e81bccc03a22b3691f6dc635",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-hooks-directory",
+      "path": "apps/web/src/hooks/use-stepper.tsx",
+      "kind": "SourceFile",
+      "sha256": "sha256:c37f959c558b13a1ebeacb1ba3f47ad368f9a197cd90b4eebc99ec7cd6da9642",
+      "reason": "스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"
+    },
+    {
+      "rule": "legacy-identity-route",
+      "path": "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts",
+      "kind": "TemplateExpression",
+      "sha256": "sha256:b77a43b56e35bcca750445e551c50ad7d279e6df05d57edbc2109bb1fd298654",
+      "reason": "복합 문자열 학교 identity. canonical organization route가 생기면 삭제",
+      "owner": "EAT-9",
+      "splitTrigger": "canonical organization decimal ID route가 /dashboard/analysis를 대체할 때"
+    },
+    {
+      "rule": "legacy-identity-route",
+      "path": "apps/web/src/routing/analysis.ts",
+      "kind": "ExportDeclaration",
+      "sha256": "sha256:84673ebdd71609a2cbf301f8de1ba61b4aefcb8e9269574300ee6defcc3561cd",
+      "reason": "동결된 legacy consumer(dashboard/today)가 routing 경로로 builder를 import하므로 남긴 re-export shim입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "dashboard/today를 RSC route로 전환하며 import를 바꿀 때 삭제"
+    },
+    {
+      "rule": "legacy-identity-route",
+      "path": "apps/web/src/routing/analysis.ts",
+      "kind": "ExportDeclaration",
+      "sha256": "sha256:f55b23b2bad19d7b9e9679b383558b440c43a73a91f167c79c429857ee95faae",
+      "reason": "동결된 legacy consumer(dashboard/today)가 routing 경로로 builder를 import하므로 남긴 re-export shim입니다.",
+      "owner": "EAT-9",
+      "splitTrigger": "dashboard/today를 RSC route로 전환하며 import를 바꿀 때 삭제"
     }
   ]
 }

@@ -934,6 +934,30 @@ test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리�
   ]);
 });
 
+test("routing 층의 legacy dashboard 경로와 hooks 디렉터리 신규 파일을 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/routing/analysis.ts": "export const analysis = (id: string) => `/dashboard/analysis/${id}`;\n",
+    "apps/web/src/routing/auction.ts": "export const auction = (id: string) => `/auctions/${id}`;\n",
+    "apps/web/src/routing/shim.ts": "export { analysis as legacyAnalysis } from '../app/dashboard/analysis/_lib/analysis-route';\n",
+    "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts": "export const analysis = (id: string) => `/dashboard/analysis/${id}`;\nexport const plain = '/dashboard/analysis';\n",
+    "apps/web/src/app/dashboard/today/_ui/link.tsx": "export const href = '/dashboard/today';\n",
+    "apps/web/src/hooks/new-hook.ts": "export const useNew = () => 1;\n",
+    "apps/web/src/shared/lib/hooks/use-generic.ts": "export const useGeneric = () => 1;\n",
+  });
+
+  const identity = report.unmatchedFindings.filter((finding) => finding.rule === "legacy-identity-route");
+  assert.deepEqual(identity.map((finding) => finding.path).sort(), [
+    "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts",
+    "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts",
+    "apps/web/src/routing/analysis.ts",
+    "apps/web/src/routing/shim.ts",
+  ]);
+  assert.deepEqual(
+    report.unmatchedFindings.filter((finding) => finding.rule === "legacy-hooks-directory").map((finding) => finding.path),
+    ["apps/web/src/hooks/new-hook.ts"],
+  );
+});
+
 test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상으로 보고한다", async () => {
   const report = await inspect({
     "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nconst internal = 1; void internal;\nexport type Band = { lo: number };\n",

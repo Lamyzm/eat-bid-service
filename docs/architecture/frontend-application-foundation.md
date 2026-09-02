@@ -16,6 +16,9 @@ routing         반복되는 동적 Next 화면 URL builder
 shared          generic config/lib/UI
 ```
 
+브라우저 generic hook은 `shared/lib/hooks/`에, 그 외 hook은 소비하는 route-private 또는 capability 내부에
+둔다. 스타터 잔재 `hooks/`는 삭제 전용 ledger로만 남고 새 파일을 받지 않는다.
+
 ```mermaid
 flowchart LR
     app --> shell
@@ -108,6 +111,8 @@ route/capability
 - `typedRoutes: true`와 `next typegen && tsc --noEmit`을 clean checkout gate로 실행한다.
 - `Link`, router API, `PageProps`, `LayoutProps`, `RouteContext`는 생성 route type을 사용한다.
 - one-off 정적 path는 typed literal, 반복되는 동적 path만 `src/routing/<resource>.ts` builder를 사용한다.
+- `routing/`은 canonical decimal ID route만 만든다. 복합 문자열 identity를 쓰는 legacy route builder는
+  legacy route 옆 `_lib`에 두고 삭제 전용 ledger로 추적한다.
 - exhaustive `ROUTES` mirror, route group/parallel slot 이름 노출, placeholder route와 `as Route` cast를 금지한다.
 - `/api/**` ingress는 Nest 전용이며 신규 Next Route Handler는 기본 금지한다. Web-owned handler 예외는 별도
   ADR, non-`/api` prefix, ingress rule과 owner contract를 요구한다.

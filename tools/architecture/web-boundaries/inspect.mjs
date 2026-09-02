@@ -17,6 +17,9 @@ import {
   isClientDomainCalculationPath,
   isEndpointAuthorityPath,
   isLegacyDirectoryReference,
+  isLegacyHooksPath,
+  isLegacyIdentityScope,
+  isLegacyRouteLiteral,
   isPublicApiEntry,
   isTestOrFixture,
   isTransportPath,
@@ -323,6 +326,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
     const layer = sourceLayer(file);
     const displayPath = display(root, file);
     if (isClientDomainCalculationPath(displayPath)) for (const statement of exportedRuntimeStatements(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION, file, statement, sourceFile, "legacy client 업무 계산은 Server 계약 응답으로 대체한 뒤 삭제해야 합니다.");
+    if (isLegacyHooksPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY, file, "SourceFile", sourceFile, "hooks/ 디렉터리는 신규 파일을 받지 않습니다. generic hook은 shared/lib/hooks, 그 외는 소비 slice 내부에 둡니다.", undefined, fingerprintEvidence);
     if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.", undefined, fingerprintEvidence);
     if (layer?.layer === "api") for (const declaration of exportedManualDtos(root, checker, sourceFile)) {
       const declarationFile = declaration.getSourceFile();
@@ -338,6 +342,9 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
         const target = moduleReference.known === false ? undefined : resolveModule(moduleReference.text, sourceFile, options);
         const targetLayer = target ? sourceLayer(target) : undefined;
         if (isCanonicalLayerPath(displayPath) && moduleReference.known !== false && isLegacyDirectoryReference(moduleReference.text, target ? display(root, target) : undefined)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IMPORT, file, node, sourceFile, "신규 층은 legacy components·hooks·lib·config·types를 import 또는 re-export할 수 없습니다.");
+        // 의존 방향은 app → routing이다. routing이 route-private legacy builder를 re-export하는 shim은 동결된
+        // legacy consumer 때문에만 남으며 삭제 전용 ledger로 추적한다.
+        if (displayPath.startsWith("apps/web/src/routing/") && target && display(root, target).startsWith("apps/web/src/app/")) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IDENTITY_ROUTE, file, node, sourceFile, "routing 층은 app route-private module을 import 또는 re-export할 수 없습니다.");
         if (layer?.layer === "shell" && targetLayer && ["api", "capabilities"].includes(targetLayer.layer)) add(findings, root, WEB_BOUNDARY_RULES.SHELL_BOUNDARY_IMPORT, file, node, sourceFile, "shell은 API resource나 capability를 import 또는 re-export할 수 없습니다.");
         if (layer?.layer === "capabilities" && targetLayer?.layer === "capabilities" && targetLayer.slice !== layer.slice && !/\/index\.[cm]?tsx?$/.test(target ?? "")) add(findings, root, WEB_BOUNDARY_RULES.CAPABILITY_INTERNAL_IMPORT, file, node, sourceFile, "capability 간에는 상대 capability의 public index만 사용할 수 있습니다.");
         if (layer?.layer === "api" && layer.slice && layer.slice !== "_transport" && targetLayer?.layer === "api" && targetLayer.slice && targetLayer.slice !== "_transport" && targetLayer.slice !== layer.slice) add(findings, root, WEB_BOUNDARY_RULES.API_RESOURCE_CROSS_IMPORT, file, node, sourceFile, "API resource는 다른 resource를 직접 import 또는 re-export할 수 없습니다.");
@@ -350,6 +357,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
           add(findings, root, WEB_BOUNDARY_RULES.SHARED_CONTROL_RESPONSIBILITY, file, node, sourceFile, "shared UI control은 인증·권한·업무 telemetry를 직접 import할 수 없습니다.");
         }
       }
+      if (isLegacyIdentityScope(displayPath) && ((ts.isStringLiteralLike(node) && !isModuleSpecifierLiteral(node) && isLegacyRouteLiteral(node.text)) || (ts.isTemplateExpression(node) && isLegacyRouteLiteral(node.head.text)))) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IDENTITY_ROUTE, file, node, sourceFile, "routing 층과 route builder는 legacy /dashboard identity route를 만들 수 없습니다.");
       if (isCanonicalMotionPath(root, file) && ts.isStringLiteralLike(node)) {
         const violations = motionClassViolations(node.text);
         if (violations.transitionAll) add(findings, root, WEB_BOUNDARY_RULES.MOTION_TRANSITION_ALL, file, node, sourceFile, "canonical UI는 transition-all 대신 전환할 속성을 명시해야 합니다.");
