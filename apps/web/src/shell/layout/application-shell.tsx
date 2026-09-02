@@ -6,8 +6,14 @@ import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { cookies } from 'next/headers';
 
+interface ApplicationShellProps {
+  readonly children: React.ReactNode;
+  /** legacy dashboard처럼 endpoint를 읽는 header control은 shell이 아니라 상위 layout이 주입한다. */
+  readonly headerControls?: React.ReactNode;
+}
+
 /** 업무 route들이 같은 탐색·테마·사이드바 chrome을 공유하도록 소유하는 서버 셸이다. */
-export async function ApplicationShell({ children }: { readonly children: React.ReactNode }) {
+export async function ApplicationShell({ children, headerControls }: ApplicationShellProps) {
   const cookieStore = await cookies();
   const sidebarCookie = cookieStore.get('sidebar_state')?.value;
   const defaultOpen = sidebarCookie == null ? true : sidebarCookie === 'true';
@@ -23,7 +29,7 @@ export async function ApplicationShell({ children }: { readonly children: React.
         </a>
         <AppSidebar />
         <SidebarInset id='main-content' tabIndex={-1} className='scroll-mt-16'>
-          <Header />
+          <Header controls={headerControls} />
           <InfobarProvider defaultOpen={false}>{children}</InfobarProvider>
         </SidebarInset>
       </SidebarProvider>

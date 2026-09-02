@@ -36,6 +36,20 @@ test('유효하지 않거나 존재하지 않는 공고 ID는 같은 셸 안에�
   }
 });
 
+test('canonical 공고 화면의 header에는 legacy 지역 칩과 전역 설정 control이 없다', async ({ page }) => {
+  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
+  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
+  await expect(page.getByLabel('보는 지역')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '전역 설정' })).toHaveCount(0);
+});
+
+test('legacy dashboard header는 slot으로 주입된 전역 설정 control을 그대로 보여 준다', async ({ page }) => {
+  await page.goto('/dashboard/today', { waitUntil: 'commit' });
+  await expect(page.getByRole('button', { name: '전역 설정' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
+});
+
 test('503은 404로 바꾸지 않고 안전한 재시도 경계에 전달한다', async ({ page }) => {
   await page.goto(`/auctions/${FAILURE_AUCTION_ID}`);
 

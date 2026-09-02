@@ -1,6 +1,7 @@
 /** @module 책임: legacy dashboard route를 공통 application shell과 검색 비노출 metadata에 연결한다. */
 import { ApplicationShell } from '@/shell/layout/application-shell';
 import type { Metadata } from 'next';
+import { LegacyHeaderControls } from './_ui/legacy-header-controls';
 
 export const metadata: Metadata = {
   title: '입찰 인텔리전스',
@@ -12,5 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return <ApplicationShell>{children}</ApplicationShell>;
+  return <ApplicationShell headerControls={<LegacyHeaderControls />}>{children}</ApplicationShell>;
 }

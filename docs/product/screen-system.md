@@ -74,6 +74,10 @@ eatbid의 화면은 사용자가 값을 대신 받아 가는 곳이 아니라 **
 전에는 맥락 없는 전역 `분석` 메뉴를 만들지 않는다. 구현되지 않은 Enterprise 메뉴도 빈 화면으로
 먼저 만들지 않으며 `자동화`와 조직 관리 항목은 해당 roadmap gate가 통과할 때 추가한다.
 
+URL: 투찰 업무 `/work`, 복기 `/review`, 성과 `/performance`, 분석 상세 `/work-items/[workItemId]/analysis`.
+sidebar를 이 세 항목으로 바꾸는 시점은 `/work` route가 생기는 slice와 같은 변경이며 그 전까지 legacy
+`/dashboard/*` 항목과 root redirect를 유지한다.
+
 ## 4. 전역 shell
 
 데스크톱 기준 shell은 다음 네 영역으로 구성한다.
