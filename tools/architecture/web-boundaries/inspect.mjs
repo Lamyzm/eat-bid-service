@@ -196,10 +196,16 @@ function isExported(statement) {
 // 삭제 전용 ledger는 export 단위로 fingerprint를 남겨야 함수 하나를 Server 계약으로 옮길 때마다
 // 해당 항목만 지울 수 있다. 타입만 export하는 선언은 계산이 아니므로 제외하고, `export { f }` 같은
 // 로컬 이름 export는 선언 대신 그 export 문을 항목으로 삼아 우회를 막는다.
+function isTypeOnlyNamedExport(statement) {
+  if (statement.isTypeOnly) return true;
+  const clause = statement.exportClause;
+  return Boolean(clause && ts.isNamedExports(clause) && clause.elements.length > 0 && clause.elements.every((element) => element.isTypeOnly));
+}
+
 function exportedRuntimeStatements(sourceFile) {
   return sourceFile.statements.filter((statement) =>
     (isExported(statement) && (ts.isFunctionDeclaration(statement) || ts.isVariableStatement(statement)))
-    || (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && !statement.isTypeOnly));
+    || (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && !isTypeOnlyNamedExport(statement)));
 }
 
 function exportedNames(statement) {
@@ -353,7 +359,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
       if (moduleReference) {
         const target = moduleReference.known === false ? undefined : resolveModule(moduleReference.text, sourceFile, options);
         const targetLayer = target ? sourceLayer(target) : undefined;
-        if (isCanonicalLayerPath(displayPath) && moduleReference.known !== false && isLegacyDirectoryReference(moduleReference.text, target ? display(root, target) : undefined)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IMPORT, file, node, sourceFile, "신규 층은 legacy components·hooks·lib·config·types를 import 또는 re-export할 수 없습니다.");
+        if (isCanonicalLayerPath(displayPath) && moduleReference.known !== false && isLegacyDirectoryReference(moduleReference.text, target ? display(root, target) : undefined)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IMPORT, file, node, sourceFile, "신규 층은 legacy components·hooks·lib·config·types와 legacy route-private module(app/dashboard·welcome·s)을 import 또는 re-export할 수 없습니다.");
         // 의존 방향은 app → routing이다. routing이 route-private legacy builder를 re-export하는 shim은 동결된
         // legacy consumer 때문에만 남으며 삭제 전용 ledger로 추적한다.
         if (displayPath.startsWith("apps/web/src/routing/") && target && display(root, target).startsWith("apps/web/src/app/")) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IDENTITY_ROUTE, file, node, sourceFile, "routing 층은 app route-private module을 import 또는 re-export할 수 없습니다.");

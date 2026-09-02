@@ -966,7 +966,7 @@ test("routing 층의 legacy dashboard 경로와 hooks 디렉터리 신규 파일
 
 test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상으로 보고한다", async () => {
   const report = await inspect({
-    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nfunction hidden(value: number) { return value / 2; }\nexport { hidden };\nconst internal = 1; void internal;\nexport type Band = { lo: number };\n",
+    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nfunction hidden(value: number) { return value / 2; }\nexport { hidden };\nconst internal = 1; void internal;\ntype Local = { hi: number };\nexport { type Local };\nexport type Band = { lo: number };\n",
     "apps/web/src/lib/utils.ts": "export function cn(value: string) { return value; }\n",
     "apps/web/src/lib/__tests__/band.test.ts": "export const fixture = 1;\n",
   });
@@ -975,8 +975,9 @@ test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상�
   assert.ok(calculations.every((finding) => finding.path === "apps/web/src/lib/band.ts"));
   assert.deepEqual(calculations.map((finding) => finding.kind).sort(), ["ExportDeclaration", "FunctionDeclaration", "VariableStatement"]);
   assert.ok(calculations.some((finding) => finding.reason.includes("pickBand")));
+  // 계산 ledger 파일은 export 단위로만 추적해 파일 전체 fingerprint와 겹치지 않는다.
   assert.deepEqual(
-    report.unmatchedFindings.filter((finding) => finding.rule === "legacy-lib-directory").map((finding) => finding.path).sort(),
-    ["apps/web/src/lib/band.ts", "apps/web/src/lib/utils.ts"],
+    report.unmatchedFindings.filter((finding) => finding.rule === "legacy-lib-directory").map((finding) => finding.path),
+    ["apps/web/src/lib/utils.ts"],
   );
 });

@@ -1217,7 +1217,7 @@
       "path": "apps/web/src/lib/band.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:59f5a030927a09629912804fefa4c3ccb4400b3e114ef20f43df7e3229655189",
-      "reason": "legacy client 업무 계산(pickBand). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 pickBand. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1226,7 +1226,7 @@
       "path": "apps/web/src/lib/band.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:76f34ef5d52d9dd8fbdae4554c6c0157caaea69303b21e7311e245de38a31fe9",
-      "reason": "legacy client 업무 계산(bandBasisText). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 bandBasisText. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1235,7 +1235,7 @@
       "path": "apps/web/src/lib/band.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:cff80c02b2292c5a3acf4e0891ac1887e43578f4ab0223267e504858fdd90140",
-      "reason": "legacy client 업무 계산(categoriesOf). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 categoriesOf. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1244,7 +1244,7 @@
       "path": "apps/web/src/lib/deadline.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:1f2b626026c43a8aff3c406994a82189e5f690f3ab6c3210b1158f8becd7ccbf",
-      "reason": "legacy client 업무 계산(deadlineText). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 deadlineText. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1253,7 +1253,7 @@
       "path": "apps/web/src/lib/deadline.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:21fd492b0c3acd7e44a935fa863809726986100fc2f5bfa37a524abf0c420ab3",
-      "reason": "legacy client 업무 계산(isClosed). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 isClosed. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1262,7 +1262,7 @@
       "path": "apps/web/src/lib/deadline.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:781179e0bd13dc0832f940a171768baedad5ceed8e805336dd34d45512a621a8",
-      "reason": "legacy client 업무 계산(hoursLeft). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 hoursLeft. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1271,7 +1271,7 @@
       "path": "apps/web/src/lib/deadline.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:ee7a1ccffbbb706713758a18dfee632ab85186b714721bd5058cb2454af7829a",
-      "reason": "legacy client 업무 계산(isNotStarted). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 isNotStarted. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1280,7 +1280,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "VariableStatement",
       "sha256": "sha256:02fae055d67581f787210d1eda9b38495f320313317cefba119bbb30ac92916c",
-      "reason": "legacy client 업무 계산(NO_BIZ). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 NO_BIZ. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1289,7 +1289,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:034c2f3e8997a55a59c4dca35154280d15cca61529effbfa7fe2f4178ca74463",
-      "reason": "legacy client 업무 계산(sameRates). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 sameRates. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1298,7 +1298,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:1721eefef4d6b87f070f65aa724292a3d6a7809a7d00039369ff71f816a82f56",
-      "reason": "legacy client 업무 계산(rateOf). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 rateOf. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1307,7 +1307,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:2810f874fe3c1095c411574f1c1401ba461a9303b85163335c7b5fc8926e85eb",
-      "reason": "legacy client 업무 계산(stripMirror). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 stripMirror. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1316,7 +1316,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:301b999f570ca4abd55c38149dabaef71b5d264a2a19d861f0d1eb7088843689",
-      "reason": "legacy client 업무 계산(withRate). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 withRate. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1325,7 +1325,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:39c11a2e9d236e100b4dbaaffb8ee2780f935a6a0d871cbc3da532cce18f817c",
-      "reason": "legacy client 업무 계산(bizLabelOf). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 bizLabelOf. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1334,7 +1334,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:41476b8f0eb3ddb6e3a60a3aa05cb2954f45d87668f2e7ce376c40acf96fd6d7",
-      "reason": "legacy client 업무 계산(hasAnyRate). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 hasAnyRate. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1343,7 +1343,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:43dcfe08e6c5a0c41bdd597c6e270805ec9cd5ca4b8642eeb5d85b568596c334",
-      "reason": "legacy client 업무 계산(slotKeys). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 slotKeys. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1352,7 +1352,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:923c210433d08f5d57e982e6abdde4286ce3f808d15a0400855681a736cea4bc",
-      "reason": "legacy client 업무 계산(slotKeysFor). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 slotKeysFor. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1361,7 +1361,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:d7d1d3fed0bfd7c9d19f23cefef7fb49fec133640709887aa5cd710fe21673ac",
-      "reason": "legacy client 업무 계산(primaryRate). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 primaryRate. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1370,7 +1370,7 @@
       "path": "apps/web/src/lib/mark-rates.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:f1b61cef665c09544913a20c5cb3ca8e4aa8aa5f58bb57ca44224a1c0613496a",
-      "reason": "legacy client 업무 계산(ratesOf). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 ratesOf. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1379,7 +1379,7 @@
       "path": "apps/web/src/lib/rate-text.ts",
       "kind": "VariableStatement",
       "sha256": "sha256:0d4a6b0f8bb8120bb8119322e6b4e9afc09b67b71a3f5f3e42c9f2355ba64bc9",
-      "reason": "legacy client 업무 계산(MAX_DECIMALS). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 MAX_DECIMALS. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1388,7 +1388,7 @@
       "path": "apps/web/src/lib/rate-text.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:282685851f22e3d3fd66ad6739c2e0a66df3507187838989253ec960a234c6ff",
-      "reason": "legacy client 업무 계산(commitRateText). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 commitRateText. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1397,7 +1397,7 @@
       "path": "apps/web/src/lib/rate-text.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:89cba50fc03022e3d8204ef61c866a378e057e0081c8feff0cfafd5c7b709970",
-      "reason": "legacy client 업무 계산(nextRateText). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 nextRateText. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1406,7 +1406,7 @@
       "path": "apps/web/src/lib/school-id.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:3d693cbf7b403b6da6a0be160571feda50070990eb9de3a21ea1d888d79f4158",
-      "reason": "legacy client 업무 계산(parseSchoolId). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 parseSchoolId. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1415,7 +1415,7 @@
       "path": "apps/web/src/lib/school-id.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:54ece9e03cc4206b2472902188debe801ed9ccb9a8f410f24285e31742d3547c",
-      "reason": "legacy client 업무 계산(schoolIdFromParam). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 schoolIdFromParam. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1424,7 +1424,7 @@
       "path": "apps/web/src/lib/school-id.ts",
       "kind": "FunctionDeclaration",
       "sha256": "sha256:af1a0eb1caaa1ac6db4be75d18315635641fb142a879c5262f58dbe99f8b1b23",
-      "reason": "legacy client 업무 계산(schoolIdToPath). legacy client 업무 계산이며 Server 계약 응답으로 대체한 뒤 삭제한다.",
+      "reason": "legacy client 업무 계산 schoolIdToPath. Server 계약 응답으로 대체한 뒤 삭제한다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 화면 slice를 api/<resource> 계약으로 교체할 때"
     },
@@ -1433,18 +1433,18 @@
       "path": "apps/web/src/routing/analysis.ts",
       "kind": "ExportDeclaration",
       "sha256": "sha256:84673ebdd71609a2cbf301f8de1ba61b4aefcb8e9269574300ee6defcc3561cd",
-      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "reason": "동결된 legacy consumer(dashboard/today)가 routing 경로로 builder를 import하므로 남긴 re-export shim입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+      "splitTrigger": "dashboard/today를 RSC route로 전환하며 import를 바꿀 때 삭제"
     },
     {
       "rule": "legacy-import",
       "path": "apps/web/src/routing/analysis.ts",
       "kind": "ExportDeclaration",
       "sha256": "sha256:f55b23b2bad19d7b9e9679b383558b440c43a73a91f167c79c429857ee95faae",
-      "reason": "shell theme control이 legacy UI primitive를 import하는 기존 edge입니다.",
+      "reason": "동결된 legacy consumer(dashboard/today)가 routing 경로로 builder를 import하므로 남긴 re-export shim입니다.",
       "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "해당 primitive(icons·kbd·label·select·button·tooltip)를 shared/ui로 옮길 때 삭제"
+      "splitTrigger": "dashboard/today를 RSC route로 전환하며 import를 바꿀 때 삭제"
     },
     {
       "rule": "legacy-lib-directory",
@@ -1460,15 +1460,6 @@
       "path": "apps/web/src/lib/auth-client.ts",
       "kind": "SourceFile",
       "sha256": "sha256:047729865ca7b88672cb2dd8e8d781cdf108b6247b68b0f17cca3e6d6c7b349f",
-      "reason": "스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.",
-      "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"
-    },
-    {
-      "rule": "legacy-lib-directory",
-      "path": "apps/web/src/lib/band.ts",
-      "kind": "SourceFile",
-      "sha256": "sha256:b81532cb22a0c79947552f41f5bcc5f33cdb7dee44761df37e11c7c8e03b87ef",
       "reason": "스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"
@@ -1502,15 +1493,6 @@
     },
     {
       "rule": "legacy-lib-directory",
-      "path": "apps/web/src/lib/deadline.ts",
-      "kind": "SourceFile",
-      "sha256": "sha256:ff2e9c01b49f13cfe8fcf1f5fb79517c8a982c3cc0ae874849b721e44fb13dd1",
-      "reason": "스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.",
-      "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"
-    },
-    {
-      "rule": "legacy-lib-directory",
       "path": "apps/web/src/lib/fetch-json.ts",
       "kind": "SourceFile",
       "sha256": "sha256:a475b0205d64e3a54b7dc8aebd657918a8b565eb42c791216a5ca24b2195aa30",
@@ -1538,15 +1520,6 @@
     },
     {
       "rule": "legacy-lib-directory",
-      "path": "apps/web/src/lib/mark-rates.ts",
-      "kind": "SourceFile",
-      "sha256": "sha256:d3925632ad6fb5ecc4b893dba0ab2ae1be711c38b01939d33379d05af62b4fd0",
-      "reason": "스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.",
-      "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"
-    },
-    {
-      "rule": "legacy-lib-directory",
       "path": "apps/web/src/lib/marks.ts",
       "kind": "SourceFile",
       "sha256": "sha256:6e2a3b6eae8473410156daf66adb38f4aa7b1ff17282a051aaf790473a4768ea",
@@ -1565,15 +1538,6 @@
     },
     {
       "rule": "legacy-lib-directory",
-      "path": "apps/web/src/lib/rate-text.ts",
-      "kind": "SourceFile",
-      "sha256": "sha256:3ca7a5bb2f8df604b47d498821b4ad510f1cc5c37fcd2a0ccde2c761e459dd95",
-      "reason": "스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.",
-      "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"
-    },
-    {
-      "rule": "legacy-lib-directory",
       "path": "apps/web/src/lib/region-coords.ts",
       "kind": "SourceFile",
       "sha256": "sha256:1c663bc52fdeeca7f64c62f217bd8f6d900050f1d99fdc781ff2c2780deb9c96",
@@ -1586,15 +1550,6 @@
       "path": "apps/web/src/lib/region.ts",
       "kind": "SourceFile",
       "sha256": "sha256:76d0b28cc097d679d537cb578838b2e82fdb1c5b81fb89517883088db9522220",
-      "reason": "스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.",
-      "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"
-    },
-    {
-      "rule": "legacy-lib-directory",
-      "path": "apps/web/src/lib/school-id.ts",
-      "kind": "SourceFile",
-      "sha256": "sha256:c6d60e57e71ba06c55df7e9b9a8cd15fa8756684b9e448610893dac99c7fbc60",
       "reason": "스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.",
       "owner": "EAT-9 frontend foundation",
       "splitTrigger": "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"

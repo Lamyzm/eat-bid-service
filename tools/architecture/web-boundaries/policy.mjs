@@ -80,8 +80,10 @@ export function isLegacyHooksPath(displayPath) {
   return LEGACY_HOOKS_PATH.test(displayPath);
 }
 
+// 계산 ledger 파일은 export 단위 fingerprint로 추적하므로 파일 전체 fingerprint를 겹쳐 두면
+// 함수 하나를 지울 때마다 drift가 나 export 단위 삭제가 막힌다. 그 파일들은 lib 전체 규칙에서 뺀다.
 export function isLegacyLibPath(displayPath) {
-  return LEGACY_LIB_PATH.test(displayPath);
+  return LEGACY_LIB_PATH.test(displayPath) && !isClientDomainCalculationPath(displayPath);
 }
 
 export function isLegacyIdentityScope(displayPath) {

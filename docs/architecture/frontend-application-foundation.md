@@ -54,7 +54,9 @@ entry를 통해 공유 server state를 사용한다. API resource끼리도 직�
 client code를 한꺼번에 재수출하지 않는다.
 
 route는 metadata, RSC read/prefetch와 shell model 주입에 한해 resource `server.ts`를 직접 사용한다.
-shell은 endpoint를 읽지 않고 상위 layout에서 받은 serializable session/workspace view만 렌더링한다.
+shell은 endpoint를 읽지 않고 상위 layout에서 받은 serializable session/workspace view만 렌더링한다. header
+control과 sidebar 계정 허브는 상위 layout이 slot으로 주입하며, session 계약이 없는 지금은 legacy `dashboard`
+layout만 legacy control을 주입하고 canonical `(workspace)` route에는 계정 허브·로그인·전역 설정이 없다.
 한 route에서만 필요한 presentation과 interactive leaf는 segment private `_model`/`_ui`/`_lib`에 둔다.
 독립된 사용자 intent, command/permission/feedback lifecycle 또는 여러 resource orchestration이 생길 때만
 capability로 승격한다.
