@@ -72,12 +72,17 @@ def smooth(h):
     return w @ EMP
 
 
-_FR = FR(n=200000, seed=2)
+_FR = FR(n=200000, seed=2, nbin=201)     # 🔴 R 격자 200칸. 적분에 충분하고 10배 빠르다
 _MID = _FR.mid[0.03]
 _W = _FR.pdf[0.03] * np.diff(_FR.edges[0.03])
 
 # 평가 대상 투찰 (TUNE)
 _sel = TUNE[aid]
+_rng = np.random.default_rng(0)
+_idx = np.flatnonzero(_sel)
+if len(_idx) > 250000:                     # h 스윕용 표본. 최종 수치는 전수로 다시 낸다
+    _idx = _rng.choice(_idx, 250000, replace=False)
+_sel = np.zeros(len(x), bool); _sel[_idx] = True
 XI, AI = x[_sel], aid[_sel]
 NN = ncap[AI]
 # 낙찰 여부
