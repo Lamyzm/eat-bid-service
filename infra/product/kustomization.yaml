@@ -7,6 +7,7 @@ configurations:
 resources:
   - ../k8s/base
   - migration.yaml
+  - secrets.yaml
   - workflows
 
 images:

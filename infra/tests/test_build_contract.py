@@ -313,7 +313,12 @@ def test_product_manifest는_소비할_product_image_넷을_정확히_갖는다(
     manifest = yaml.safe_load(PRODUCT_KUSTOMIZATION.read_text(encoding="utf-8"))
     images = manifest["images"]
 
-    assert manifest["resources"] == ["../k8s/base", "migration.yaml", "workflows"]
+    assert manifest["resources"] == [
+        "../k8s/base",
+        "migration.yaml",
+        "secrets.yaml",
+        "workflows",
+    ]
     assert {image["name"] for image in images} == {
         "eatbid-web",
         "eatbid-server",
