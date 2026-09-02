@@ -29,7 +29,7 @@ import numpy as np
 import fx_kernel as K
 from fr import FR
 
-_FR = FR(n=2000000, seed=3, nbin=4001)          # 천장이므로 R 격자를 촘촘히
+_FR = FR(n=500000, seed=3, nbin=2001)           # 천장이므로 R 격자를 촘촘히
 
 
 def _cdf(a, v):
@@ -46,25 +46,25 @@ def compute(mask):
     xs, as_ = xi[o], ai[o]
     first = np.ones(len(xs), bool)
     first[1:] = as_[1:] != as_[:-1]
-    prev = np.concatenate([[np.nan], xs[:-1]])
-    prev[first] = -np.inf
-    # 🔴 동점: 같은 값은 서로를 막지 않는다. 앞으로 거슬러 올라가 *진짜 더 작은* 값을 찾는다
-    same = np.zeros(len(xs), bool)
-    same[1:] = (~first[1:]) & (xs[1:] == xs[:-1])
-    m = prev.copy()
-    while same.any():
-        j = np.flatnonzero(same)
-        m[j] = np.where(first[j - 1], -np.inf, xs[j - 2])
-        nxt = np.zeros(len(xs), bool)
-        ok = j >= 2
-        nxt[j[ok]] = (~first[j[ok] - 1]) & (xs[j[ok] - 1] == xs[j[ok] - 2])
-        same = nxt
+    # 🔴 동점은 서로를 막지 않는다(`<` 이므로). 같은 값의 **런 시작**까지 거슬러 올라간다.
+    #    런 시작 s 에 대해 m = xs[s−1] (회차 안에 더 작은 게 있으면), 없으면 −∞
+    n_ = len(xs)
+    newrun = first.copy()
+    newrun[1:] |= xs[1:] != xs[:-1]
+    rs = np.maximum.accumulate(np.where(newrun, np.arange(n_), -1))
+    m = np.where(first[rs], -np.inf, xs[np.maximum(rs - 1, 0)])
+    # 🔴 그런데 동점자 중 낙찰자는 **한 명**이다 (슬롯·시각으로 갈린다).
+    #    k 명이 같은 값이면 그 구간 확률을 k 로 나눈다. 안 나누면 예산이 k 배가 된다 —
+    #    첫 실행에서 예산 단언이 회차 8,818 건(25%)에서 터졌고 원인이 이거였다.
+    #    ⚠ 어느 동점자가 이기는지는 모른다. 대칭 배분이다. 회차 합은 정확해진다
+    runlen = np.diff(np.append(np.flatnonzero(newrun), n_))
+    K_ = np.repeat(runlen, runlen).astype(float)
     a2 = K.ALPHA2[as_]
     p = np.empty(len(xs))
     for al, q in ((0.03, ~a2), (0.02, a2)):
         if q.any():
             p[q] = _cdf(al, xs[q]) - _cdf(al, m[q])
-    p = np.clip(p, 0, 1)
+    p = np.clip(p, 0, 1) / K_
     # 실제 낙찰 (실현 R 로)
     v = K.x >= K.R[K.aid]
     xv = np.where(v, K.x, 1e9)
@@ -74,12 +74,16 @@ def compute(mask):
     w = np.zeros(len(K.x), bool)
     wi = oo[ff]
     w[wi] = v[wi]
-    return p, w[idx][o].astype(float), as_, K.nbid[as_], xs
+    return p, w[idx][o].astype(float), as_, K.nbid[as_], xs, K_
 
 
 if __name__ == '__main__':
     mask = K.TUNE
-    p, act, aid, nt, xs = compute(mask)
+    p, act, aid, nt, xs, K_ = compute(mask)
+    print('동점 투찰 비율 %.4f · 동점이 있는 회차 %.4f'
+          % ((K_ > 1).mean(),
+             (np.bincount(aid, weights=(K_ > 1).astype(float),
+                          minlength=len(K.R))[mask] > 0).mean()))
     print('TUNE 회차 %d · 투찰 %d · 실제 낙찰률 %.5f' % (mask.sum(), len(p), act.mean()))
 
     # --- 🔴 예산 항등식 단언 (규율 24) ------------------------------------------
