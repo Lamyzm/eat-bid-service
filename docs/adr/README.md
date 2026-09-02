@@ -36,6 +36,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0027](0027-predicted-win-probability-in-scope.md) | Accepted | 예측 승률을 판단 재료로 경계 안에 (추천가·자동 투찰은 밖에 유지) |
 | [0028](0028-cache-components-and-self-hosted-cache.md) | Accepted | Cache Components 조건부 활성화, Suspense 격리, replica 1 in-memory cache와 `use cache` 소유 경계 |
 | [0029](0029-eat-v2-bid-list-contract.md) | Accepted | `eat-v2` 상세 계약에 `ds_bidList` 블록 (`eat-v1` 은 유지) |
+| [0030](0030-competitor-count-is-the-primary-material.md) | Accepted | 화면의 주인공을 경쟁자 수와 승률 곡선으로 (학교별 추이는 내리지 않고 자리만 뒤로) |
 
 ## 새 ADR 형식
 

@@ -22,9 +22,7 @@ import numpy as np
 
 import fx_kernel as K
 
-NH = np.load(r'C:/Users/kano/AppData/Local/Temp/claude/C--Users-kano'
-             r'/f2fa05d3-8165-4658-94f7-75535b0fb45e/scratchpad/nhat_tune2.npz',
-             allow_pickle=True)
+NH = np.load(r'F:/Project/eat-bid/data/mechanism/nhat_tune2.npz', allow_pickle=True)
 EDGES = [2, 5, 10, 30, 100]                # 버킷 1 / 2-4 / 5-9 / 10-29 / 30-99 / 100+
 H = 0.02
 

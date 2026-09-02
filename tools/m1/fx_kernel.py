@@ -27,6 +27,8 @@ from fr import FR
 SOURCE = 'bidlevel'   # xcap2 = 철회 포함 정본                 # 🔴 개봉 게이트가 읽는다
 ACT_FROM_RECORD = True              # 🔴 개봉 게이트가 읽는다
 
+# 자료는 저장소 밖에 있다. 이 세 파일이 tools/m1 대부분의 공통 진입 지점이므로 의존을 여기 한 곳에 모은다.
+# 경로 규칙과 폐기 조건은 tools/m1/README.md 참조.
 BL = np.load(r'F:/Project/eat-bid/data/mechanism/xcap2.npz', allow_pickle=True)
 AS = np.load(r'F:/Project/eat-bid/data/mechanism/asof.npz', allow_pickle=True)
 HO = np.load(r'F:/Project/eat-bid/data/mechanism/holdout.npz', allow_pickle=True)
