@@ -55,14 +55,29 @@ def _step_index(steps: list[dict[str, object]], step_id: str) -> int:
     return next(index for index, step in enumerate(steps) if step.get("id") == step_id)
 
 
-def test_테스트_job_checkout은_고정_legacy_commit을_제공한다() -> None:
-    checkout = next(
-        step
-        for step in _steps("test")
-        if step.get("uses") == "actions/checkout@v4"
-    )
+# 삭제 전용 legacy ledger 검사는 고정 기준 commit의 blob을 직접 읽는다. shallow clone에서는 그
+# commit이 없어 `git rev-parse`가 죽는다.
+LEDGER_READING_COMMANDS = ("pnpm architecture:check", "pnpm quality:check")
 
-    assert checkout["with"] == {"ref": RELEASE_COMMIT, "fetch-depth": 0}
+
+def test_ledger를_읽는_job은_전체_이력을_checkout한다() -> None:
+    jobs = _mapping(_workflow()["jobs"])
+    checked = []
+    for name in jobs:
+        steps = _steps(name)
+        commands = " ".join(str(step.get("run", "")) for step in steps)
+        if not any(command in commands for command in LEDGER_READING_COMMANDS):
+            continue
+        checked.append(name)
+        checkout = next(
+            step for step in steps if step.get("uses") == "actions/checkout@v4"
+        )
+        assert _mapping(checkout["with"]) == {
+            "ref": RELEASE_COMMIT,
+            "fetch-depth": 0,
+        }, name
+
+    assert sorted(checked) == ["contract-portability", "test"]
 
 
 def test_CI가_frozen_TypeScript와_Python_및_empty_database_gate를_실행한다() -> None:
