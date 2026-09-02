@@ -1,3 +1,6 @@
+"""모듈 책임: Nexacro 응답 bytes를 안전하게 dataset과 column으로 풀고 그 모양의 fingerprint를
+계산한다. 소스가 규격을 어긴 payload를 보낼 때의 좁은 복구도 여기가 소유한다."""
+
 from __future__ import annotations
 
 import json
