@@ -109,15 +109,36 @@ def pwin(xv, Fx, n, chunk=4000):
     return out
 
 
+# 🔴 버그였다: ncap(N>=60 묶음)을 **지수**에도 썼다.
+#    F_X 를 묶는 것과 (1−p)^N 의 지수를 묶는 것은 다른 문제다.
+#    지수를 뭉개면 그게 정확히 "비선형성 안쪽에서 평균"이다 — 우리가 쫓는 그 결함을
+#    내가 코드에 넣었다. F_X 는 ncap 으로 찾되 지수는 **실제 N** 을 쓴다.
+NTRUE = nbid[AI]
+
+
 def predict(F_by_n, marginal=False, pN=None):
     out = np.zeros(len(XI))
-    for j, n in enumerate(NS):
-        if marginal:
+    if marginal:                       # Σ_N P(N)·P(승|x,N).  지수도 그 N 이다
+        for j, n in enumerate(NS):
             out += pN[j] * pwin(XI, F_by_n[j], int(n))
-        else:
-            q = NN == n
-            if q.any():
-                out[q] = pwin(XI[q], F_by_n[j], int(n))
+        return out
+    for j, n in enumerate(NS):
+        q = NN == n
+        if q.any():
+            out[q] = pwin_v(XI[q], F_by_n[j], NTRUE[q])
+    return out
+
+
+def pwin_v(xv, Fx, nvec, chunk=4000):
+    """P(승|x,N) — 지수가 투찰마다 다르다(실제 N)."""
+    out = np.empty(len(xv))
+    Fr = np.interp(_MID, XGRID, Fx)
+    for a in range(0, len(xv), chunk):
+        v = xv[a:a + chunk]
+        nn = nvec[a:a + chunk][:, None]
+        Fv = np.interp(v, XGRID, Fx)[:, None]
+        surv = np.clip(1 - Fv + Fr[None, :], 0, 1) ** nn
+        out[a:a + chunk] = (_W[None, :] * surv * (_MID[None, :] <= v[:, None])).sum(1)
     return out
 
 
