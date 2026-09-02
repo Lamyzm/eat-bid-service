@@ -97,6 +97,26 @@ GitHub monorepo
 - Workflow CRD/controller 같은 플랫폼 수명주기와 제품 배포를 별도 Argo CD application으로 둔다.
 - 초기에는 Argo Events, 내장 MinIO, 별도 workflow archive DB를 추가하지 않는다.
 
+### 5.1 push에서 배포까지의 연결 (2026-09-02 확정)
+
+```text
+main push
+  → validate.yml   architecture check · test · build · Playwright
+  → build.yml      image 4종 build · scan · GHCR push · cosign sign
+                   promote job이 digest를 infra/product/kustomization.yaml에 커밋
+  → Argo CD        main의 infra/product를 동기화
+```
+
+- **배포 대상은 `main`의 `infra/product` 하나다.** `infra/k8s/base`는 product overlay가 참조하는 기반일
+  뿐 직접 동기화 대상이 아니다. base만 보면 WorkflowTemplate·CronWorkflow·migration Job·Secret 참조가
+  클러스터에 존재하지 않는다.
+- `build.yml`의 trigger, job guard, cosign identity, promote checkout 네 곳이 같은 branch를 가리켜야 한다.
+  하나라도 어긋나면 빌드가 서명 검증이나 promote에서 끊긴다.
+- promote 커밋은 `paths-ignore`로 자기 자신을 다시 빌드하지 않는다.
+- 비밀값은 Infisical이 소유하고 클러스터는 사본을 받는다. `infra/product/secrets.yaml`의 InfisicalSecret이
+  경로와 Secret 이름만 선언하며 값은 저장소에 들어가지 않는다. operator 자신의 universal auth 자격증명만
+  클러스터에 수동으로 두고 같은 값을 `prod:/platform/kubernetes`에 복구용으로 보관한다.
+
 ## 6. 배포 토폴로지
 
 현재 로컬/초기 운영 환경은 단일 노드 k3d일 수 있다. 이는 개발과 이식성 검증에는 적합하지만
