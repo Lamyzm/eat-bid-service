@@ -58,9 +58,23 @@ print()
 print('  🔴 TUNE 과 HOLD_A 가 직접 비교 가능하다 (둘 다 기존 지역).')
 print('     그 차이가 곧 시간 전방 손실이고, 무작위 분할로는 볼 수 없던 값이다.')
 
-if os.path.exists(OUT):
-    os.remove(OUT)
-    print('\n  (이전 무작위 봉인 파일 삭제 — 반려됐다)')
+# 🔴 재추첨 강제 차단.  이전 판은 "덮어쓰기 금지"였는데 내가 파일을 지워서 우회했다.
+#    보호가 절차적이면 보호가 아니다 — 다시 뽑을 수 있는 봉인은 봉인이 아니다.
+#    규칙(team-lead): 재추첨은 서면 승인 + 문서 기록이 있어야 한다.
+LOCK = OUT + '.lock'
+if os.path.exists(LOCK):
+    raise SystemExit(
+        '🔴 봉인이 잠겨 있다: %s\n'
+        '   재추첨하려면 team-lead 의 서면 승인을 받고 문서에 사유를 기록한 뒤\n'
+        '   EATBID_RESEAL_APPROVED=<승인 커밋 해시> 를 환경변수로 넘겨라.\n'
+        '   그 해시가 문서에 없으면 이 봉인은 신뢰할 수 없다.' % LOCK
+        if not os.environ.get('EATBID_RESEAL_APPROVED') else
+        '재추첨 승인 확인: %s' % os.environ['EATBID_RESEAL_APPROVED'])
+
 np.savez_compressed(OUT, bid_id=A['bid_id'], split=split)
-print('\n✅ 봉인: %s' % OUT)
+with open(LOCK, 'w', encoding='utf-8') as fh:
+    fh.write('sealed\n분할: 시간 전방(2026-06~08) + 지역 신규성 층화\n'
+             '재추첨 이력: 1회 (무작위 분할 → 반려 → 이 분할)\n'
+             '🔴 폐기된 무작위 분할에서 측정된 수치는 없다\n')
+print('\n✅ 봉인: %s  (잠금: %s)' % (OUT, LOCK))
 print('   TUNE 만 본다. HOLD_A / HOLD_B 는 최종 수치를 낼 때만.')
