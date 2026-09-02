@@ -25,6 +25,8 @@ import {
   withStateTransaction,
   withWorkflowLock,
 } from "./state-lock.mjs";
+import { extractIssueIdentifier } from "./workflow.mjs";
+
 function commandContext(command) {
   const parsed = parseWorkflowArguments(process.argv.slice(process.argv.indexOf(command) + 1));
   return {

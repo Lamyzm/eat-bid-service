@@ -287,3 +287,19 @@ test("--worktree 경로가 없거나 git worktree가 아니면 lease를 건드�
     assert.equal(getWorktreeLease(stored, process.cwd()).issueIdentifier, "EAT-91");
   });
 });
+
+test("--worktree로 지정한 worktree의 branch issue가 요청과 다르면 Linear 호출 전에 claim이 실패한다", async () => {
+  await withTempGitRepository(async (repository, directory) => {
+    const statePath = path.join(directory, "state.json");
+    const checkout = spawnSync("git", ["-C", repository, "checkout", "-q", "-b", "eat-99-other-work"], {
+      encoding: "utf8",
+    });
+    assert.equal(checkout.status, 0, checkout.stderr);
+
+    const claim = runCommand("claim", statePath, ["--", "EAT-27", "--worktree", repository]);
+
+    assert.equal(claim.status, 1);
+    assert.match(claim.stderr, /Branch issue EAT-99 does not match requested claim EAT-27/);
+    await assert.rejects(() => readFile(statePath, "utf8"), { code: "ENOENT" });
+  });
+});
