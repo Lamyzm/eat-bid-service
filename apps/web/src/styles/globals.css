@@ -18,6 +18,13 @@
   color: var(--chart-3);
 }
 
+/* sidebar 접힘 cookie는 첫 paint 전 inline script가 root 속성으로 알린다(ADR 0028).
+   hydration 전까지 wrapper의 inline --sidebar-width를 접힘 폭으로 덮어 layout 이동을 막고,
+   SidebarOpenSync가 상태를 넘긴 뒤 속성을 지우면 이 규칙도 함께 사라진다. */
+html[data-sidebar-state='collapsed'] [data-slot='sidebar-wrapper'] {
+  --sidebar-width: var(--sidebar-width-icon) !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

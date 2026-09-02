@@ -15,7 +15,7 @@ const baseConfig: NextConfig = {
       nodeEnv: process.env.NODE_ENV,
       apiUrl: process.env.API_URL ?? 'http://localhost:4400'
     }),
-  // ADR 0028: canonical route는 static shell + Suspense streaming이며 legacy dashboard만 instant=false로 제외한다.
+  // ADR 0028: canonical route는 static shell + Suspense streaming이며 legacy dashboard와 /s/[token]만 instant=false로 제외한다.
   cacheComponents: true,
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
   images: {

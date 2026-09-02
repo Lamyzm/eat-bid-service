@@ -2,6 +2,7 @@
 import { Toaster } from '@/components/ui/sonner';
 import { AppProviders } from '@/shell/providers/app-providers';
 import { fontVariables } from '@/shell/theme/font.config';
+import { SIDEBAR_COOKIE_NAME, SIDEBAR_STATE_ATTRIBUTE } from '@/shell/layout/sidebar-state';
 import { ACTIVE_THEME_COOKIE_NAME, DEFAULT_THEME, THEMES } from '@/shell/theme/theme.config';
 import { ThemeProvider } from '@/shell/theme/theme-provider';
 import { cn } from '@/shared/lib/cn';
@@ -14,10 +15,17 @@ const META_THEME_COLORS = {
   dark: '#09090b'
 };
 
+// `</script>`나 HTML comment 열기로 script를 조기 종료시키지 못하게 직렬화 결과를 escape한다.
+function inlineJson(value: unknown): string {
+  return JSON.stringify(value).replaceAll('<', '\\u003C');
+}
+
 // root layout이 cookies()를 읽으면 감쌀 자식이 없어 모든 route의 shell이 request-bound가 된다(ADR 0028).
-// 대신 server는 기본 theme으로 static 렌더하고, 이 script가 HTML parsing 중 cookie 값을 검증해 첫 paint 전에
-// data-theme을 바꾼다. 허용 목록은 theme.config의 THEMES와 같은 원천에서 직렬화한다.
-const THEME_COOKIE_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )${ACTIVE_THEME_COOKIE_NAME}=([^;]*)/);if(!m)return;var t=decodeURIComponent(m[1]);if(${JSON.stringify(THEMES.map((theme) => theme.value))}.indexOf(t)>=0)document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
+// 대신 server는 기본 theme과 펼친 sidebar로 static 렌더하고, 이 script가 HTML parsing 중 cookie를 검증해
+// 첫 paint 전에 두 상태를 적용한다. theme 허용 목록은 theme.config의 THEMES와 같은 원천에서 직렬화한다.
+const THEME_COOKIE_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )${ACTIVE_THEME_COOKIE_NAME}=([^;]*)/);if(!m)return;var t=decodeURIComponent(m[1]);if(${inlineJson(THEMES.map((theme) => theme.value))}.indexOf(t)>=0)document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
+
+const SIDEBAR_COOKIE_SCRIPT = `(function(){try{var m=document.cookie.match(/(?:^|; )${SIDEBAR_COOKIE_NAME}=([^;]*)/);if(m&&m[1]!=="true")document.documentElement.setAttribute(${inlineJson(SIDEBAR_STATE_ATTRIBUTE)},"collapsed")}catch(e){}})()`;
 
 const META_THEME_COLOR_SCRIPT = `try{if(localStorage.theme==='dark'||((!('theme' in localStorage)||localStorage.theme==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.querySelector('meta[name="theme-color"]')?.setAttribute('content','${META_THEME_COLORS.dark}')}}catch(_){}`;
 
@@ -53,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang='ko' suppressHydrationWarning data-theme={DEFAULT_THEME}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_COOKIE_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: SIDEBAR_COOKIE_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: META_THEME_COLOR_SCRIPT }} />
         <link
           rel='stylesheet'

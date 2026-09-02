@@ -25,8 +25,9 @@
   전후 성능 증거가 필요하다. Rust compiler path는 별도 감사 전까지 활성화하지 않는다.
 - Cache Components는 [ADR 0028](../../docs/adr/0028-cache-components-and-self-hosted-cache.md) 조건 아래 켜져
   있다. `cookies()`·`headers()`·`params`·`searchParams`는 Suspense 안 loader에서만 await하고, root layout과
-  shell은 static을 유지한다. `export const instant = false`는 legacy `/dashboard/**`에만 두며 canonical route에
-  새로 추가하지 않는다. `use cache`는 `api/<resource>/server.ts` read 함수에만 허용하고 사용자별·session
+  shell은 static을 유지한다. `export const instant = false`는 legacy `/dashboard` layout과 공개 `/s/[token]`에만 두며
+  canonical route에 새로 추가하지 않는다. nuqs adapter와 legacy infobar provider도 dashboard layout이
+  소유하므로 canonical route에서 URL 상태가 필요하면 그 route의 Suspense 경계 안에서 새로 마운트한다. `use cache`는 `api/<resource>/server.ts` read 함수에만 허용하고 사용자별·session
   데이터에는 쓰지 않는다.
 - 모노레포 package manager는 루트 `package.json`에 고정된 `pnpm 10.12.1`이다. 앱 내부
   script가 Bun 명령을 호출하더라도 workspace 설치·실행 계약을 Bun으로 바꾸지 않는다.

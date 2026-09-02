@@ -6,6 +6,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { Suspense } from 'react';
 import { SidebarAccount } from '@/components/layout/sidebar-account';
 import { InfobarProvider } from '@/components/ui/infobar';
+import { DashboardScreenSkeleton } from './_ui/dashboard-screen-skeleton';
 import { LegacyHeaderControls } from './_ui/legacy-header-controls';
 
 // legacy dashboard는 Cache Components 검증에서 제외한다(ADR 0028). canonical route로 옮길 때 지운다.
@@ -35,7 +36,7 @@ async function LegacyRequestBoundary({ children }: { readonly children: React.Re
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <ApplicationShell headerControls={<LegacyHeaderControls />} sidebarFooter={<SidebarAccount />}>
-      <Suspense fallback={null}>
+      <Suspense fallback={<DashboardScreenSkeleton />}>
         <LegacyRequestBoundary>{children}</LegacyRequestBoundary>
       </Suspense>
     </ApplicationShell>

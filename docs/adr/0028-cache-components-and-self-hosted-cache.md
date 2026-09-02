@@ -35,12 +35,16 @@ Web은 Next.js `16.3.4` App Router이며 `apps/web/next.config.ts`는 Cache Comp
 2. dynamic 접근은 Suspense 안 loader component로 격리한다.
    - root layout은 `cookies()`를 읽지 않는다. `data-theme`는 `<head>` inline script가 cookie에서 첫 paint 전에
      설정하고, client `ActiveThemeProvider`는 DOM 속성을 초기값으로 읽는다.
-   - `ApplicationShell`의 sidebar cookie 읽기는 Suspense 안 `SidebarStateLoader`로 옮긴다.
+   - `ApplicationShell`은 sidebar cookie도 읽지 않는다. theme과 같은 방식으로 inline script가 첫 paint 전에
+     접힘 폭을 적용하고, hydration 직후 `SidebarOpenSync`가 상태를 넘긴 뒤 그 임시 속성을 지운다.
    - `usePathname`은 dynamic param route의 shell을 만드는 동안 suspend한다. sidebar 활성 표시와 breadcrumb은
-     Suspense leaf로 내리고, legacy `InfobarProvider`는 shell이 아니라 dashboard layout이 소유한다.
+     Suspense leaf로 내리고, legacy `InfobarProvider`와 `NuqsAdapter`는 shell이 아니라 dashboard layout이
+     소유한다. `useSearchParams`에 의존하는 nuqs adapter를 root layout에 두면 모든 route의 shell이 막힌다.
+     canonical route에서 URL 상태가 필요해지면 그 route의 Suspense 경계 안에서 adapter를 새로 마운트한다.
    - `/auctions/[auctionId]`는 `params` await를 Suspense 안 loader로 옮기고 fallback으로
      `AuctionScreenSkeleton`을 쓴다.
-3. legacy `/dashboard` layout segment는 `export const instant = false`로 검증에서 제외하고, 그 아래 page는
+3. legacy `/dashboard` layout segment와 공개 `/s/[token]` page는 `export const instant = false`로 검증에서
+   제외하고, dashboard 아래 page는
    layout의 Suspense + `connection()` 경계에서 request 시점에 렌더한다. legacy page 파일은 web boundary
    fingerprint로 동결돼 있어 page마다 export를 추가하지 않는다. 공개 `/s/[token]`은 layout이 없으므로 page에
    직접 둔다. 이 export는 삭제 전용이며 canonical route에 새로 추가하지 않는다.
