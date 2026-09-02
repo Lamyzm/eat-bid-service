@@ -1,7 +1,6 @@
-/** @module 책임: navigation 설정과 현재 경로를 접을 수 있는 application sidebar로 렌더링한다. */
+/** @module 책임: navigation 설정과 현재 경로를 접을 수 있는 application sidebar로 렌더링하고 footer는 상위 layout의 slot으로 받는다. */
 'use client';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { SidebarAccount } from '@/components/layout/sidebar-account';
 import {
   Sidebar,
   SidebarContent,
@@ -24,7 +23,15 @@ import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import { Icons } from '@/components/icons';
 
-export default function AppSidebar() {
+interface AppSidebarProps {
+  /**
+   * 계정 허브처럼 session store·auth client를 읽는 legacy footer는 sidebar가 직접 import하지 않는다.
+   * legacy dashboard layout만 주입하고 canonical 업무 route는 session 계약이 생기기 전까지 비워 둔다.
+   */
+  readonly footer?: React.ReactNode;
+}
+
+export default function AppSidebar({ footer }: AppSidebarProps) {
   const pathname = usePathname();
   const filteredGroups = useFilteredNavGroups(navGroups);
 
@@ -89,10 +96,7 @@ export default function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter>
-        {/* 계정 허브 — 이름/이메일 · 내 사업자 · 전역 설정 · 테마 · 로그아웃 (R6 NAV 개편) */}
-        <SidebarAccount />
-      </SidebarFooter>
+      {footer ? <SidebarFooter>{footer}</SidebarFooter> : null}
       <SidebarRail />
     </Sidebar>
   );

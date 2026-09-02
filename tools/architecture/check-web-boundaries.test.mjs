@@ -916,7 +916,11 @@ test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리�
     "apps/web/src/shell/theme/toggle.tsx": "import { Kbd } from '../../components/ui/kbd'; export const toggle = Kbd;\n",
     "apps/web/src/app/(workspace)/auctions/page.tsx": "import { deadline } from '@/lib/deadline'; export default function Page() { return deadline; }\n",
     "apps/web/src/routing/auction.ts": "import type { Route } from '@/types/route'; export const route = (value: Route) => value;\n",
+    "apps/web/src/shell/layout/controls.tsx": "export { LegacyHeaderControls } from '@/app/dashboard/_ui/legacy-header-controls';\n",
+    "apps/web/src/shared/lib/deadline-type.ts": "export type Deadline = typeof import('@/lib/deadline');\n",
     "apps/web/src/shared/ui/card.tsx": "import { cn } from '@/shared/lib/cn'; export const card = cn;\n",
+    "apps/web/src/app/dashboard/_ui/legacy-header-controls.tsx": "export const LegacyHeaderControls = () => null;\n",
+    "apps/web/src/app/dashboard/layout.tsx": "import { LegacyHeaderControls } from './_ui/legacy-header-controls'; export default function Layout() { return LegacyHeaderControls(); }\n",
     "apps/web/src/components/layout/page.tsx": "import { deadline } from '@/lib/deadline'; export const page = deadline;\n",
     "apps/web/src/components/layout/header.tsx": "export default function Header() { return null; }\n",
     "apps/web/src/components/ui/kbd.tsx": "export const Kbd = () => null;\n",
@@ -929,6 +933,8 @@ test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리�
   assert.deepEqual(legacy.map((finding) => finding.path).sort(), [
     "apps/web/src/app/(workspace)/auctions/page.tsx",
     "apps/web/src/routing/auction.ts",
+    "apps/web/src/shared/lib/deadline-type.ts",
+    "apps/web/src/shell/layout/controls.tsx",
     "apps/web/src/shell/layout/shell.tsx",
     "apps/web/src/shell/theme/toggle.tsx",
   ]);
@@ -960,11 +966,17 @@ test("routing 층의 legacy dashboard 경로와 hooks 디렉터리 신규 파일
 
 test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상으로 보고한다", async () => {
   const report = await inspect({
-    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nconst internal = 1; void internal;\nexport type Band = { lo: number };\n",
+    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nfunction hidden(value: number) { return value / 2; }\nexport { hidden };\nconst internal = 1; void internal;\nexport type Band = { lo: number };\n",
     "apps/web/src/lib/utils.ts": "export function cn(value: string) { return value; }\n",
+    "apps/web/src/lib/__tests__/band.test.ts": "export const fixture = 1;\n",
   });
 
   const calculations = report.unmatchedFindings.filter((finding) => finding.rule === "client-domain-calculation");
   assert.ok(calculations.every((finding) => finding.path === "apps/web/src/lib/band.ts"));
-  assert.deepEqual(calculations.map((finding) => finding.kind).sort(), ["FunctionDeclaration", "VariableStatement"]);
+  assert.deepEqual(calculations.map((finding) => finding.kind).sort(), ["ExportDeclaration", "FunctionDeclaration", "VariableStatement"]);
+  assert.ok(calculations.some((finding) => finding.reason.includes("pickBand")));
+  assert.deepEqual(
+    report.unmatchedFindings.filter((finding) => finding.rule === "legacy-lib-directory").map((finding) => finding.path).sort(),
+    ["apps/web/src/lib/band.ts", "apps/web/src/lib/utils.ts"],
+  );
 });

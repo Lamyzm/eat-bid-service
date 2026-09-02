@@ -10,10 +10,12 @@ interface ApplicationShellProps {
   readonly children: React.ReactNode;
   /** legacy dashboard처럼 endpoint를 읽는 header control은 shell이 아니라 상위 layout이 주입한다. */
   readonly headerControls?: React.ReactNode;
+  /** session store를 읽는 계정 허브도 같은 이유로 상위 layout이 sidebar footer로 주입한다. */
+  readonly sidebarFooter?: React.ReactNode;
 }
 
 /** 업무 route들이 같은 탐색·테마·사이드바 chrome을 공유하도록 소유하는 서버 셸이다. */
-export async function ApplicationShell({ children, headerControls }: ApplicationShellProps) {
+export async function ApplicationShell({ children, headerControls, sidebarFooter }: ApplicationShellProps) {
   const cookieStore = await cookies();
   const sidebarCookie = cookieStore.get('sidebar_state')?.value;
   const defaultOpen = sidebarCookie == null ? true : sidebarCookie === 'true';
@@ -27,7 +29,7 @@ export async function ApplicationShell({ children, headerControls }: Application
         >
           본문으로 건너뛰기
         </a>
-        <AppSidebar />
+        <AppSidebar footer={sidebarFooter} />
         <SidebarInset id='main-content' tabIndex={-1} className='scroll-mt-16'>
           <Header controls={headerControls} />
           <InfobarProvider defaultOpen={false}>{children}</InfobarProvider>

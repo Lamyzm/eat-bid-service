@@ -16,8 +16,10 @@ routing         반복되는 동적 Next 화면 URL builder
 shared          generic config/lib/UI
 ```
 
-브라우저 generic hook은 `shared/lib/hooks/`에, 그 외 hook은 소비하는 route-private 또는 capability 내부에
-둔다. 스타터 잔재 `hooks/`는 삭제 전용 ledger로만 남고 새 파일을 받지 않는다.
+브라우저 generic hook은 `shared/lib/hooks/`에, generic helper는 `shared/lib/`에, 그 외 hook은 소비하는
+route-private 또는 capability 내부에 둔다. 스타터 잔재 `hooks/`와 `lib/`는 삭제 전용 ledger로만 남고 새 파일을
+받지 않는다. legacy route-private module(`app/dashboard`, `app/welcome`, `app/s`)도 canonical 층에서 import하지
+않는다.
 
 ```mermaid
 flowchart LR

@@ -55,7 +55,9 @@
   존재하지 않는 placeholder와 `as Route` cast로 typecheck를 우회하지 않는다.
 - `routing`은 Next `Route` type과 `@eatbid/contracts` identifier atom만 소비한다. Nest API operation path,
   network 호출, query key나 server state를 화면 route builder에 섞지 않는다.
-- 아이콘은 `@/components/icons`에서만 가져온다.
+- 아이콘은 `@/components/icons`에서만 가져온다. 단 canonical layer(`app/(workspace)`, `shell`, `capabilities`,
+  `api`, `shared`, `routing`)는 legacy-import gate 때문에 이 module을 직접 import할 수 없으므로, 필요한 아이콘을
+  `shared/ui`로 옮긴 뒤 사용한다. shell/theme의 기존 import는 삭제 전용 ledger 항목이다.
 - 내부 bigint ID는 HTTP 경계에서 선행 0 없는 양의 10진 문자열이다. JavaScript `Number`로
   변환하지 않는다. 상세 계약은 ADR 0018을 따른다.
 - Button primitive는 시각·접근성·공통 press motion만 소유한다. 인증·권한·로깅·command는 capability의
