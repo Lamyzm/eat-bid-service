@@ -253,7 +253,66 @@ discover(discovery_run, detail_run)
 8·9절의 두 결함은 그대로 유효하다. 상세 응답의 카운트다운과 그로 인한 재시도 불가는 실측으로
 확인됐고 재시도 쪽은 이미 고쳤다. WorkflowTemplate이 CLI 필수 인자를 넘기지 않는다는 것도 그대로다.
 
-## 11. 확인하지 않은 것
+## 11. 깨끗한 DB 재실행 — 발행이 막히는 진짜 이유
+
+새 PostgreSQL에 migration을 적용하고 통과하는 e2e 테스트와 같은 배선으로 한 프로세스에서 순서대로
+돌렸다.
+
+```
+discover(discovery_run, detail_run)
+  → capture(detail_run) ×85 → normalize(detail_run) ×85
+  → validate(detail_run) → project(detail_run)
+```
+
+| 단계 | 결과 |
+|---|---|
+| `discover` | 85건 |
+| `capture` | 85건 성공 |
+| `normalize` | 85건 성공, 격리 0건 |
+| `validate` | 예외 없이 반환. 그러나 publication은 `failed`, record 0건 |
+| `project` | `ReleaseObservationMembershipError` |
+
+### `validate`가 조용히 실패한다
+
+`ingest.publication` 행은 `expected_count=85`, `normalized_count=85`, `published_count=0`,
+`status=failed`다. 상류는 전부 정상이다. normalization attempt 85건이 모두 `normalized`이고
+release는 `sealed`, release observation은 86건(목록 1 + 상세 85)이다.
+
+`validate_completeness`의 불충족 항목을 좁히면 `schema_contract_violations`만 남는다.
+
+### live 응답은 공고마다 모양이 다르다
+
+같은 실행의 85건에서 나온 서로 다른 `schema_fingerprint`가 **12개**다. 분포는 38, 25, 8, 4, 3,
+그리고 1이 일곱이다. 검토된 `bid-detail` fingerprint `ac5d77d7...`는 그중 하나도 아니다.
+
+`validate_eat_schema_contract`는 정확한 일치를 요구한다.
+
+```python
+return expected is not None and schema_fingerprint == expected
+```
+
+그리고 fingerprint는 응답에서 관측된 dataset과 column 전체로 계산된다. 검토된 `eat-v1` 계약은
+`ds_info` 13개 + `ds_areaList.PDLC_CD` 하나를 선언하는데, live 상세 응답에는 dataset이 여덟이고
+공고 유형에 따라 선택적 블록이 붙거나 빠진다.
+
+**따라서 `eat-v1`으로는 어떤 live 수집도 발행에 도달할 수 없다.** 정규화가 전건 성공해도 계약 검사가
+전건 위반으로 판정한다.
+
+### 계약 모형 자체가 이 소스에 맞지 않는다
+
+지금 모형은 응답 모양이 하나로 고정돼 있다고 가정한다. 실측은 그렇지 않다. 계약은 전체 모양의
+동일성이 아니라 **파서가 의존하는 필수 부분집합의 포함**을 주장해야 한다. 그래야 공고 유형별 선택적
+블록이 corpus를 무효화하지 않는다.
+
+이는 목록 계약이 38개 중 둘만 아는 문제와 같은 뿌리다. 검토된 계약이 좁은 표본에서 유도됐고 live
+응답을 기술하지 않는다.
+
+### 부수 확인
+
+`validate`가 불충족을 예외가 아니라 `failed` 상태로만 남기고 정상 반환한다. 호출자가 반환값을 보지
+않으면 실패를 모른다. 조용한 실패는 규모에서 위험하다.
+
+## 12. 확인하지 않은 것
 
 - `validate`와 `project`의 정상 경로. run 정체성 계약이 정해지지 않아 도달하지 못했다.
 - 밀리초가 0이 아닌 사례의 존재 여부.
