@@ -101,21 +101,32 @@ GitHub monorepo
 
 ```text
 main push
-  → validate.yml   architecture check · test · build · Playwright
-  → build.yml      image 4종 build · scan · GHCR push · cosign sign
-                   promote job이 digest를 infra/product/kustomization.yaml에 커밋
-  → Argo CD        main의 infra/product를 동기화
+  → validate.yml   architecture check · test · build · Playwright (읽기 전용, 발행 권한 없음)
+
+release/v<semver> annotated tag push
+  → build.yml preflight   tag가 annotated이고 peel한 commit이 현재 origin/main HEAD인지 확인
+  → build.yml test/build  image 4종 build · scan · GHCR push · cosign sign/attest/verify
+  → build.yml promote     main을 checkout해 release commit인지 확인한 뒤
+                          digest를 infra/product/kustomization.yaml에 커밋하고 main에 push
+  → Argo CD               main의 infra/product를 동기화
 ```
 
+- **코드 권위는 `main`, 발행 권위는 tag다.** ADR 0024대로 GitHub Free에서는 branch를 서버가 보호할 수
+  없으므로 `main` push와 수동 실행에는 publication 권한을 주지 않는다. 불변 annotated tag
+  `release/v<MAJOR>.<MINOR>.<PATCH>`만 build workflow를 시작한다.
 - **배포 대상은 `main`의 `infra/product` 하나다.** `infra/k8s/base`는 product overlay가 참조하는 기반일
   뿐 직접 동기화 대상이 아니다. base만 보면 WorkflowTemplate·CronWorkflow·migration Job·Secret 참조가
   클러스터에 존재하지 않는다.
-- `build.yml`의 trigger, job guard, cosign identity, promote checkout 네 곳이 같은 branch를 가리켜야 한다.
-  하나라도 어긋나면 빌드가 서명 검증이나 promote에서 끊긴다.
-- promote 커밋은 `paths-ignore`로 자기 자신을 다시 빌드하지 않는다.
+- annotated tag를 push하면 `github.sha`가 commit이 아니라 tag object일 수 있다. image tag, `GIT_SHA`,
+  revision label, SLSA `gitCommit`, promotion guard는 모두 preflight가 peel해 낸 commit 하나를 쓴다.
+- promote는 `git push origin HEAD:main` normal push다. tag 발행 뒤 `main`이 움직였다면 preflight 비교나
+  non-fast-forward에서 멈추고, promote commit 자체는 tag가 아니므로 다시 빌드를 시작하지 않는다.
 - 비밀값은 Infisical이 소유하고 클러스터는 사본을 받는다. `infra/product/secrets.yaml`의 InfisicalSecret이
   경로와 Secret 이름만 선언하며 값은 저장소에 들어가지 않는다. operator 자신의 universal auth 자격증명만
   클러스터에 수동으로 두고 같은 값을 `prod:/platform/kubernetes`에 복구용으로 보관한다.
+- repository manifest 변경과 live cluster apply는 서로 다른 단계다. `infra/argocd/application.yaml`을
+  커밋해도 클러스터의 Application은 그대로이며, 실제 전환은 별도 승인 뒤 `kubectl apply`로 이뤄진다.
+  절차는 [main-authority-cutover.md](../operations/main-authority-cutover.md)를 따른다.
 
 ## 6. 배포 토폴로지
 

@@ -29,8 +29,8 @@ refs/heads/main push
 feature branch에서 명시적으로 실행할 때는 다음 환경만 사용한다.
 
 ```text
-EATBID_AI_REVIEW=1 EATBID_REVIEW_BASE=master git push
-pnpm review:ai -- --base master
+EATBID_AI_REVIEW=1 EATBID_REVIEW_BASE=origin/main git push
+pnpm review:ai -- --base origin/main
 pnpm review:ai -- --base HEAD~1 --provider claude
 pnpm review:ai -- --base HEAD~1 --prefer claude
 pnpm review:doctor
@@ -78,10 +78,15 @@ Anthropic 계정의 요금제와 정책은 외부 상태다. `pnpm review:doctor
 ## 4. Hook 권위와 main 전환 상태
 
 hook 권위는 루트 `.githooks` 하나다. `pnpm install`의 root `prepare`가 `core.hooksPath=.githooks`를 설정한다.
-2026-09-01 전환 이후 원격 기본 branch와 `origin/HEAD`는 `main`이며 image publication은 canonical annotated
-`release/v<MAJOR>.<MINOR>.<PATCH>` tag만 시작할 수 있다. private GitHub Free에서는 branch protection을 서버에서
-강제할 수 없으므로 로컬 hook·read-only CI·tag preflight를 함께 운영한다. `master`와
-`rollback/pre-main-cutover-2026-09-01` tag는 관찰 기간의 복구 기준으로 보존한다.
+hook은 `origin/main`을 review base로 쓴다.
+
+저장소의 `build.yml`은 canonical annotated `release/v<MAJOR>.<MINOR>.<PATCH>` tag push에서만 image
+publication을 시작하며 `main` push와 수동 실행에는 그 권한이 없다. private GitHub Free에서는 branch
+protection을 서버에서 강제할 수 없으므로 로컬 hook·read-only `validate.yml`·tag preflight를 함께 운영한다.
+AI advisory는 어느 경우에도 required check가 아니다.
+
+원격 기본 branch 전환과 `master`·rollback tag 보존 상태는 이 문서가 아니라
+[main-authority-cutover.md](main-authority-cutover.md)가 기록한다.
 
 ## 5. 장애 확인
 
