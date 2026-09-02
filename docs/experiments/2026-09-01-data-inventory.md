@@ -2952,6 +2952,89 @@ SHIPPER_NM = '신성유통'   BIZ_NO = '1850701084'   투찰 1,338건
 
 ---
 
+## 부록 AE. ✅ `ds_bidList` 는 **수집이 아니라 정규화에서 막힌다** — 가설 B (2026-09-03 04:00)
+
+`team-lead` 질문: *"`raw` 에 넣는 게 응답 바이트 전체인가 파싱 결과인가."*
+**⟹ 응답 바이트 전체다. 계약은 정규화 단계에만 걸린다.**
+
+### AE.1 근거 — 저장 경로 한 줄
+
+```
+apps/dataplane/src/eatbid/source/eat/http_client.py:117
+    return SourceResponse(status_code, body, ...)        ← HTTP 응답 본문 전체(bytes)
+
+apps/dataplane/src/eatbid/pipeline/capture.py:56
+    stored = store.put(source=..., endpoint=..., body=response.body)
+                                                 ~~~~~~~~~~~~~~~~~  파싱 안 거친다
+
+apps/dataplane/src/eatbid/object_store.py:43
+    raw/{source}/{endpoint}/{sha256(body)}.xml.gz        ← 키가 본문 해시다
+```
+🔴 **`store.put` 이 받는 것은 `response.body` 이고, 그 사이에 파서가 없다.** 객체 키가 본문 전체의 SHA-256 이라 **부분 저장이면 주소가 성립하지 않는다** — 구조적으로 전체 저장이 강제된다.
+
+**계약(`schema_contract.py`)이 소비되는 곳은 두 곳뿐이다:**
+```
+source/eat/normalize.py   ds_list · ds_info · ds_areaList 를 꺼내 쓴다   ← 정규화
+pipeline/discover.py      데이터셋 *이름*만 쓴다                          ← 목록 순회
+⟹ capture 경로에는 계약이 안 걸린다
+```
+
+### ✅ AE.2 크기 상한도 문제가 아니다
+
+| | 값 |
+|---|---:|
+| `BID_DETAIL_MAX_RESPONSE_BYTES` | **8 MB** |
+| 실측 상세 응답 최대 (압축해제) | **477.6 KB** `[표본 10,818 파일]` |
+| 실측 평균 | 79.2 KB |
+
+**여유 17배.** 초과 시 동작도 확인했다 — `_ResponseTooLarge` → `response-too-large` 로 **typed 실패**이고 잘라 저장하지 않는다. **조용한 절단 경로가 없다.**
+
+### 🔴 AE.3 ⟹ 처방: 계약 네 필드 추가. **재수집 없다**
+
+```
+_EAT_V1_BID_DETAIL.datasets 에 추가
+    "ds_bidList": ("RNK", "BID_STT", "WITHDRAWAL_YN", "EFT_ALL_AMT", ...)
++ normalize.py 에 매핑
+⟹ 이미 archive 된 객체를 재파싱하면 열린다
+```
+
+### ⚠ AE.4 그런데 **"이미 archive 된 것"이 무엇인지는 여기서 못 본다**
+
+```
+신 파이프라인 raw 저장소  =  Cloudflare R2  (r2_store.py:108 R2RawObjectStore)
+                            로컬 구현 없음.  eat-bid-service/data/ 에는 snapshots/ 뿐
+🔴 우리 분석 233,382 파일  =  **레거시** F:/Project/eat-bid/data/raw/internal
+                            신 파이프라인 저장소가 아니다
+```
+⚠ **R2 에 무엇이 얼마나 들어 있는지 나는 확인 못 했다** — 자격증명이 필요하고, 승인 없이 접근하지 않았다. **`team-lead` 가 확인할 항목이다.**
+**⟹ 그래서 정확한 문장은 이렇다:**
+```
+✅ 신 파이프라인은 **앞으로 받는 것**의 ds_bidList 를 버리지 않는다 (구조적으로)
+✅ 이미 R2 에 있는 것도 재파싱으로 열린다 — **R2 에 있는 만큼은**
+⚠ R2 커버리지는 미확인.  레거시 아카이브(233,382)와 별개다
+```
+
+### 🔴 AE.5 그리고 계약의 구멍은 `RNK` 하나가 아니다
+
+현재 상세 계약은 **`ds_info` 14개 + `ds_areaList.PDLC_CD`** 가 전부다. **`ds_bidList` 가 통째로 없다.**
+```
+⟹ 신 파이프라인은 **투찰을 한 건도 정규화하지 않는다**
+⟹ 승률 곡선 · N · x · 경쟁자 분포 · 낙찰자 식별 · 도착시각 — 제품 재료 전부가 계약 밖이다
+⟹ 우리 분석이 전부 원시 직접 파싱으로 돌아간 구조적 이유다
+```
+**⟹ 수집 계약 확장은 `RNK` 한 필드가 아니라 `ds_bidList` 블록 설계 문제로 다뤄야 한다.**
+**최소 필요:** `RNK` · `BID_STT` · `WITHDRAWAL_YN` · `EFT_ALL_AMT` · `BID_DT` · `DRAW_NO` · `BIZ_NO` · `SHIPPER_NM`
+```
+RNK·BID_STT·WITHDRAWAL_YN   낙찰자 식별 · 두 시계 판별 · 철회 회차 순위 (부록 AA·Z)
+EFT_ALL_AMT                 x  — 모든 승률 계산의 입력
+BID_DT                      as-of N(t) · 실시간 경로 (부록 K·E)
+DRAW_NO                     예비가격 투표 기전 (부록 C)
+BIZ_NO·SHIPPER_NM           사업자 식별 — 기준 사업자 추적 (부록 AD)
+```
+⚠ **`NARA_BIZ_NO` 는 넣지 마라** — 사업자번호가 아니라 `"부정당업자가 아닙니다."` 같은 문장이 들어 있다(부록 AD.5).
+
+---
+
 ## 부록 W. 술어 표 (규율 26) — 무엇을 세는지 정하는 규칙과 그 검증 상태
 
 **"직접 계수라 안전하다"는 산술에만 해당한다. 무엇을 셀지 정하는 *술어*는 따로 검정한다.**
