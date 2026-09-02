@@ -1,12 +1,14 @@
 /** @module 책임: Linear issue claim·sync·release와 local worktree lease 명령을 조정한다. */
 import { randomUUID } from "node:crypto";
 
+import { parseWorkflowArguments } from "./command-line.mjs";
 import { finalizeSessionWorklog } from "./hook-runtime.mjs";
 import { flushOutbox } from "./linear.mjs";
-import { config, linearClient, repositoryContext } from "./runtime.mjs";
+import { config, linearClient, targetRepositoryContext } from "./runtime.mjs";
 import {
   clearPendingWorktreeClaim,
   clearWorktreeLease,
+  clearWorktreeSessionIssues,
   finalizePendingWorktreeClaim,
   getPendingWorktreeClaim,
   getWorktreeLease,
@@ -25,8 +27,16 @@ import {
 } from "./state-lock.mjs";
 import { extractIssueIdentifier } from "./workflow.mjs";
 
+function commandContext(command) {
+  const parsed = parseWorkflowArguments(process.argv.slice(process.argv.indexOf(command) + 1));
+  return {
+    issueIdentifier: parsed.issueIdentifier,
+    repository: targetRepositoryContext(process.cwd(), parsed.worktreePath),
+  };
+}
+
 async function doctor() {
-  const repository = repositoryContext(process.cwd());
+  const { repository } = commandContext("doctor");
   const state = await loadState(repository.statePath);
   const lease = getWorktreeLease(state, repository.worktreeRoot);
   const pendingClaim = getPendingWorktreeClaim(state, repository.worktreeRoot);
@@ -64,7 +74,7 @@ async function doctor() {
 }
 
 async function recoverLock() {
-  const repository = repositoryContext(process.cwd());
+  const { repository } = commandContext("recover-lock");
   const result = {
     state: await recoverStateLock(repository.statePath),
     sync: await recoverWorkflowLock(repository.statePath, "sync"),
@@ -73,9 +83,8 @@ async function recoverLock() {
 }
 
 async function claim() {
-  const identifier = extractIssueIdentifier(process.argv.slice(process.argv.indexOf("claim") + 1));
-  if (!identifier) throw new Error("Usage: pnpm workflow:claim -- EAT-123");
-  const repository = repositoryContext(process.cwd());
+  const { issueIdentifier: identifier, repository } = commandContext("claim");
+  if (!identifier) throw new Error("Usage: pnpm workflow:claim -- EAT-123 [--worktree <path>]");
   const branchIssue = extractIssueIdentifier(repository.branch);
   if (branchIssue && branchIssue !== identifier) {
     throw new Error(`Branch issue ${branchIssue} does not match requested claim ${identifier}`);
@@ -140,7 +149,7 @@ async function claim() {
 }
 
 async function release() {
-  const repository = repositoryContext(process.cwd());
+  const { repository } = commandContext("release");
   await withStateTransaction(repository.statePath, async (state) => {
     const lease = getWorktreeLease(state, repository.worktreeRoot);
     let nextState = state;
@@ -154,13 +163,16 @@ async function release() {
         worktreeRoot: repository.worktreeRoot,
       });
     }
-    return clearWorktreeLease(nextState, repository.worktreeRoot);
+    return clearWorktreeLease(
+      clearWorktreeSessionIssues(nextState, repository.worktreeRoot),
+      repository.worktreeRoot,
+    );
   });
-  process.stdout.write("Linear worktree lease released.\n");
+  process.stdout.write(`Linear worktree lease released: ${repository.worktreeRoot}\n`);
 }
 
 async function sync() {
-  const repository = repositoryContext(process.cwd());
+  const { repository } = commandContext("sync");
   let result = null;
   // 원격 I/O는 별도 sync lock으로만 직렬화한다. 짧은 state transaction은 snapshot/ack 때만 잡아
   // mutation 후 PostToolUse와 Stop이 네트워크 대기 때문에 기록을 놓치지 않게 한다.

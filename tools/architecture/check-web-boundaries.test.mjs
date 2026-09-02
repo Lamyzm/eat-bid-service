@@ -143,7 +143,7 @@ test("완전히 같은 큰 source 그룹과 300줄 초과 source를 보고한다
 test("canonical 화면의 임의 motion과 shared control의 업무 의존을 거부한다", async () => {
   const report = await inspect({
     "apps/web/src/shared/ui/button.tsx": [
-      "import { authClient } from '@/lib/auth-client';",
+      "import { authClient } from '@/shared/lib/auth-client';",
       "import { captureException } from '@sentry/nextjs';",
       "export const className = 'transition-all duration-200';",
       "void authClient; void captureException;",
@@ -908,4 +908,81 @@ test("불명확한 spread 앞의 bind 대상 위치를 보존해 thisArg와 boun
   });
 
   assert.deepEqual(report.unmatchedFindings, []);
+});
+
+test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리와 shared 참조는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/shell/layout/shell.tsx": "import Header from '@/components/layout/header'; export const Shell = () => Header;\n",
+    "apps/web/src/shell/theme/toggle.tsx": "import { Kbd } from '../../components/ui/kbd'; export const toggle = Kbd;\n",
+    "apps/web/src/app/(workspace)/auctions/page.tsx": "import { deadline } from '@/lib/deadline'; export default function Page() { return deadline; }\n",
+    "apps/web/src/routing/auction.ts": "import type { Route } from '@/types/route'; export const route = (value: Route) => value;\n",
+    "apps/web/src/shell/layout/controls.tsx": "export { LegacyHeaderControls } from '@/app/dashboard/_ui/legacy-header-controls';\n",
+    "apps/web/src/shared/lib/deadline-type.ts": "export type Deadline = typeof import('@/lib/deadline');\n",
+    "apps/web/src/shared/ui/card.tsx": "import { cn } from '@/shared/lib/cn'; export const card = cn;\n",
+    "apps/web/src/app/dashboard/_ui/legacy-header-controls.tsx": "export const LegacyHeaderControls = () => null;\n",
+    "apps/web/src/app/dashboard/layout.tsx": "import { LegacyHeaderControls } from './_ui/legacy-header-controls'; export default function Layout() { return LegacyHeaderControls(); }\n",
+    "apps/web/src/components/layout/page.tsx": "import { deadline } from '@/lib/deadline'; export const page = deadline;\n",
+    "apps/web/src/components/layout/header.tsx": "export default function Header() { return null; }\n",
+    "apps/web/src/components/ui/kbd.tsx": "export const Kbd = () => null;\n",
+    "apps/web/src/lib/deadline.ts": "export const deadline = 1;\n",
+    "apps/web/src/types/route.ts": "export type Route = string;\n",
+    "apps/web/src/shared/lib/cn.ts": "export const cn = (value: string) => value;\n",
+  });
+
+  const legacy = report.unmatchedFindings.filter((finding) => finding.rule === "legacy-import");
+  assert.deepEqual(legacy.map((finding) => finding.path).sort(), [
+    "apps/web/src/app/(workspace)/auctions/page.tsx",
+    "apps/web/src/routing/auction.ts",
+    "apps/web/src/shared/lib/deadline-type.ts",
+    "apps/web/src/shell/layout/controls.tsx",
+    "apps/web/src/shell/layout/shell.tsx",
+    "apps/web/src/shell/theme/toggle.tsx",
+  ]);
+});
+
+test("routing 층의 legacy dashboard 경로와 hooks 디렉터리 신규 파일을 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/routing/analysis.ts": "export const analysis = (id: string) => `/dashboard/analysis/${id}`;\n",
+    "apps/web/src/routing/auction.ts": "export const auction = (id: string) => `/auctions/${id}`;\n",
+    "apps/web/src/routing/shim.ts": "export { analysis as legacyAnalysis } from '../app/dashboard/analysis/_lib/analysis-route';\n",
+    "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts": "export const analysis = (id: string) => `/dashboard/analysis/${id}`;\nexport const plain = '/dashboard/analysis';\n",
+    "apps/web/src/app/dashboard/today/_ui/link.tsx": "export const href = '/dashboard/today';\n",
+    "apps/web/src/hooks/new-hook.ts": "export const useNew = () => 1;\n",
+    "apps/web/src/shared/lib/hooks/use-generic.ts": "export const useGeneric = () => 1;\n",
+  });
+
+  const identity = report.unmatchedFindings.filter((finding) => finding.rule === "legacy-identity-route");
+  assert.deepEqual(identity.map((finding) => finding.path).sort(), [
+    "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts",
+    "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts",
+    "apps/web/src/routing/analysis.ts",
+    "apps/web/src/routing/shim.ts",
+  ]);
+  assert.deepEqual(
+    report.unmatchedFindings.filter((finding) => finding.rule === "legacy-hooks-directory").map((finding) => finding.path),
+    ["apps/web/src/hooks/new-hook.ts"],
+  );
+});
+
+test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상으로 보고한다", async () => {
+  const report = await inspect({
+    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nfunction hidden(value: number) { return value / 2; }\nexport { hidden };\nconst internal = 1; void internal;\ntype Local = { hi: number };\ntype Other = { lo: number };\nexport { type Local };\nexport type { Other };\nexport {};\nexport type Band = { lo: number };\n",
+    "apps/web/src/lib/deadline.ts": "function mixedRuntime(value: number) { return value + 1; }\ntype MixedType = number;\nexport { mixedRuntime, type MixedType };\n",
+    "apps/web/src/lib/utils.ts": "export function cn(value: string) { return value; }\n",
+    "apps/web/src/lib/__tests__/band.test.ts": "export const fixture = 1;\n",
+  });
+
+  const calculations = report.unmatchedFindings.filter((finding) => finding.rule === "client-domain-calculation");
+  assert.deepEqual(
+    calculations.map((finding) => `${finding.path.split("/").at(-1)}:${finding.kind}`).sort(),
+    ["band.ts:ExportDeclaration", "band.ts:FunctionDeclaration", "band.ts:VariableStatement", "deadline.ts:ExportDeclaration"],
+  );
+  assert.ok(calculations.some((finding) => finding.reason.includes("pickBand")));
+  assert.ok(calculations.some((finding) => finding.reason.includes("mixedRuntime")));
+  assert.ok(calculations.every((finding) => !/Local|Other|\(\)/.test(finding.reason)));
+  // 계산 ledger 파일은 export 단위로만 추적해 파일 전체 fingerprint와 겹치지 않는다.
+  assert.deepEqual(
+    report.unmatchedFindings.filter((finding) => finding.rule === "legacy-lib-directory").map((finding) => finding.path),
+    ["apps/web/src/lib/utils.ts"],
+  );
 });

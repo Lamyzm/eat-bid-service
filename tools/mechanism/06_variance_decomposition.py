@@ -1,3 +1,5 @@
+"""모듈 책임: 커트라인 R 의 산포를 회차 간 후보 평균과 회차 내 선택 산포로 분해해 귀무 기댓값과 대조한다."""
+
 import gzip, re, os, glob, random, statistics as st
 ROOT = r'F:/Project/eat-bid/data/raw/internal'
 files=[]

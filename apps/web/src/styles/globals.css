@@ -18,6 +18,27 @@
   color: var(--chart-3);
 }
 
+/* sidebar 접힘 cookie는 첫 paint 전 inline script가 root 속성으로 알린다(ADR 0028).
+   hydration 전까지 wrapper의 inline --sidebar-width를 접힘 폭으로 덮어 layout 이동을 막고,
+   SidebarOpenSync가 상태를 넘긴 뒤 속성을 지우면 이 규칙도 함께 사라진다. */
+html[data-sidebar-state='collapsed'] [data-slot='sidebar-wrapper'] {
+  --sidebar-width: var(--sidebar-width-icon) !important;
+}
+
+/* 접힘 표현은 sidebar root의 data-collapsible="icon"에 걸려 있고 그 값은 hydration 뒤에야 정해진다.
+   template class를 복제하는 대신 같은 결과만 흉내 내 group label과 menu button이 좁은 폭 안에서
+   펼침 모양으로 그려지는 것을 막는다. 속성이 제거되면 template 규칙이 그대로 이어받는다. */
+html[data-sidebar-state='collapsed'] [data-slot='sidebar-group-label'] {
+  margin-top: calc(var(--spacing) * -8);
+  opacity: 0;
+}
+
+html[data-sidebar-state='collapsed'] [data-slot='sidebar-menu-button'] {
+  width: calc(var(--spacing) * 8);
+  height: calc(var(--spacing) * 8);
+  padding: calc(var(--spacing) * 2);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

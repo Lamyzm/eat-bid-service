@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildAnalysisRoute } from './analysis';
+import { buildAnalysisRoute } from './analysis-route';
 
 test('분석 화면 경로는 식별자와 검색값을 한 번씩 인코딩한다', () => {
   const route = buildAnalysisRoute({

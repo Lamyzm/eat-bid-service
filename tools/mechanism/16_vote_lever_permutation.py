@@ -1,3 +1,5 @@
+"""모듈 책임: 슬롯 편차 벡터의 카이제곱과 순열 영분포로 투표 지렛대의 상한을 잡는다."""
+
 import numpy as np
 P=np.load(r'F:/Project/eat-bid/data/mechanism/plist.npz',allow_pickle=True)
 B=np.load(r'F:/Project/eat-bid/data/mechanism/bids.npz',allow_pickle=True)

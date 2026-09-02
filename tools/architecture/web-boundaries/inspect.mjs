@@ -1,5 +1,4 @@
-/** @module 책임: Web source의 import·transport·DTO·크기·중복 finding을 결정적으로 집계한다. */
-/** @module 책임: Web source를 정적 분석해 경계 위반과 안정적인 legacy fingerprint를 계산한다. */
+/** @module 책임: Web source를 정적 분석해 import·transport·DTO·크기·중복 경계 위반과 안정적인 legacy fingerprint를 계산한다. */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
@@ -13,7 +12,14 @@ import {
   WEB_BOUNDARY_RULES,
   applyLegacyBaseline,
   codePointCompare,
+  isCanonicalLayerPath,
+  isClientDomainCalculationPath,
   isEndpointAuthorityPath,
+  isLegacyDirectoryReference,
+  isLegacyHooksPath,
+  isLegacyIdentityScope,
+  isLegacyLibPath,
+  isLegacyRouteLiteral,
   isPublicApiEntry,
   isTestOrFixture,
   isTransportPath,
@@ -51,15 +57,23 @@ function resolveModule(specifier, sourceFile, options) {
   return resolved?.resolvedFileName ? path.resolve(resolved.resolvedFileName) : specifier.startsWith("@/") ? path.resolve(options.baseUrl, specifier.slice(2)) : undefined;
 }
 
+// SyntaxKind enum은 VariableStatement처럼 alias가 겹친 값을 "FirstStatement"로 되돌리므로 baseline key에는 안정된 이름을 쓴다.
+function kindName(node) {
+  if (typeof node === "string") return node;
+  return ts.isVariableStatement(node) ? "VariableStatement" : ts.SyntaxKind[node.kind];
+}
+
 function add(findings, root, rule, file, node, sourceFile, reason, members, evidence) {
   const fingerprintEvidence = evidence ?? (typeof node === "string" ? node : text(node, sourceFile));
-  const finding = { rule, path: display(root, file), kind: typeof node === "string" ? node : ts.SyntaxKind[node.kind], sha256: sha256(fingerprintEvidence), reason, ...(members ? { members: [...members].sort(codePointCompare) } : {}) };
+  const finding = { rule, path: display(root, file), kind: kindName(node), sha256: sha256(fingerprintEvidence), reason, ...(members ? { members: [...members].sort(codePointCompare) } : {}) };
   findings.push(finding);
   return finding;
 }
 
 function reference(checker, node) {
   if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) return { text: node.moduleSpecifier.text, dynamic: false };
+  // `typeof import('...')` type query도 module graph edge이므로 값 import와 같은 경계 규칙을 적용한다.
+  if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteralLike(node.argument.literal)) return { text: node.argument.literal.text, dynamic: false };
   if (!ts.isCallExpression(node) || node.expression.kind !== ts.SyntaxKind.ImportKeyword || node.arguments.length !== 1) return undefined;
   const evaluated = staticExpression(checker, node.arguments[0]);
   return { text: evaluated.text, dynamic: true, known: evaluated.known };
@@ -173,6 +187,33 @@ function isRouteLoadingPath(root, file) {
 
 function isLegacyPageContainerPath(root, file) {
   return display(root, file) === "apps/web/src/components/layout/page-container.tsx";
+}
+
+function isExported(statement) {
+  return Boolean(statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+}
+
+// 삭제 전용 ledger는 export 단위로 fingerprint를 남겨야 함수 하나를 Server 계약으로 옮길 때마다
+// 해당 항목만 지울 수 있다. 타입만 export하는 선언은 계산이 아니므로 제외하고, `export { f }` 같은
+// 로컬 이름 export는 선언 대신 그 export 문을 항목으로 삼아 우회를 막는다.
+// runtime export가 하나도 없는 export 문(`export {}`, `export type { }`, `export { type a }`)은 계산이 아니다.
+function isTypeOnlyNamedExport(statement) {
+  if (statement.isTypeOnly) return true;
+  const clause = statement.exportClause;
+  return Boolean(clause && ts.isNamedExports(clause) && clause.elements.every((element) => element.isTypeOnly));
+}
+
+function exportedRuntimeStatements(sourceFile) {
+  return sourceFile.statements.filter((statement) =>
+    (isExported(statement) && (ts.isFunctionDeclaration(statement) || ts.isVariableStatement(statement)))
+    || (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && !isTypeOnlyNamedExport(statement)));
+}
+
+function exportedNames(statement) {
+  if (ts.isFunctionDeclaration(statement)) return [statement.name?.text ?? "default"];
+  if (ts.isVariableStatement(statement)) return statement.declarationList.declarations.map((declaration) => declaration.name.getText());
+  if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) return statement.exportClause.elements.map((element) => element.name.text);
+  return [];
 }
 
 function importedScreenSkeletons(sourceFile) {
@@ -301,6 +342,10 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
       duplicates.set(key, candidate);
     }
     const layer = sourceLayer(file);
+    const displayPath = display(root, file);
+    if (isClientDomainCalculationPath(displayPath)) for (const statement of exportedRuntimeStatements(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION, file, statement, sourceFile, `legacy client 업무 계산(${exportedNames(statement).join(", ")})은 Server 계약 응답으로 대체한 뒤 삭제해야 합니다.`);
+    if (isLegacyHooksPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY, file, "SourceFile", sourceFile, "hooks/ 디렉터리는 신규 파일을 받지 않습니다. generic hook은 shared/lib/hooks, 그 외는 소비 slice 내부에 둡니다.", undefined, fingerprintEvidence);
+    if (isLegacyLibPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_LIB_DIRECTORY, file, "SourceFile", sourceFile, "lib/ 디렉터리는 신규 파일을 받지 않습니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.", undefined, fingerprintEvidence);
     if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.", undefined, fingerprintEvidence);
     if (layer?.layer === "api") for (const declaration of exportedManualDtos(root, checker, sourceFile)) {
       const declarationFile = declaration.getSourceFile();
@@ -315,6 +360,10 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
       if (moduleReference) {
         const target = moduleReference.known === false ? undefined : resolveModule(moduleReference.text, sourceFile, options);
         const targetLayer = target ? sourceLayer(target) : undefined;
+        if (isCanonicalLayerPath(displayPath) && moduleReference.known !== false && isLegacyDirectoryReference(moduleReference.text, target ? display(root, target) : undefined)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IMPORT, file, node, sourceFile, "신규 층은 legacy components·hooks·lib·config·types와 legacy route-private module(app/dashboard·welcome·s)을 import 또는 re-export할 수 없습니다.");
+        // 의존 방향은 app → routing이다. routing이 route-private legacy builder를 re-export하는 shim은 동결된
+        // legacy consumer 때문에만 남으며 삭제 전용 ledger로 추적한다.
+        if (displayPath.startsWith("apps/web/src/routing/") && target && display(root, target).startsWith("apps/web/src/app/")) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IDENTITY_ROUTE, file, node, sourceFile, "routing 층은 app route-private module을 import 또는 re-export할 수 없습니다.");
         if (layer?.layer === "shell" && targetLayer && ["api", "capabilities"].includes(targetLayer.layer)) add(findings, root, WEB_BOUNDARY_RULES.SHELL_BOUNDARY_IMPORT, file, node, sourceFile, "shell은 API resource나 capability를 import 또는 re-export할 수 없습니다.");
         if (layer?.layer === "capabilities" && targetLayer?.layer === "capabilities" && targetLayer.slice !== layer.slice && !/\/index\.[cm]?tsx?$/.test(target ?? "")) add(findings, root, WEB_BOUNDARY_RULES.CAPABILITY_INTERNAL_IMPORT, file, node, sourceFile, "capability 간에는 상대 capability의 public index만 사용할 수 있습니다.");
         if (layer?.layer === "api" && layer.slice && layer.slice !== "_transport" && targetLayer?.layer === "api" && targetLayer.slice && targetLayer.slice !== "_transport" && targetLayer.slice !== layer.slice) add(findings, root, WEB_BOUNDARY_RULES.API_RESOURCE_CROSS_IMPORT, file, node, sourceFile, "API resource는 다른 resource를 직접 import 또는 re-export할 수 없습니다.");
@@ -327,6 +376,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
           add(findings, root, WEB_BOUNDARY_RULES.SHARED_CONTROL_RESPONSIBILITY, file, node, sourceFile, "shared UI control은 인증·권한·업무 telemetry를 직접 import할 수 없습니다.");
         }
       }
+      if (isLegacyIdentityScope(displayPath) && ((ts.isStringLiteralLike(node) && !isModuleSpecifierLiteral(node) && isLegacyRouteLiteral(node.text)) || (ts.isTemplateExpression(node) && isLegacyRouteLiteral(node.head.text)))) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IDENTITY_ROUTE, file, node, sourceFile, "routing 층과 route builder는 legacy /dashboard identity route를 만들 수 없습니다.");
       if (isCanonicalMotionPath(root, file) && ts.isStringLiteralLike(node)) {
         const violations = motionClassViolations(node.text);
         if (violations.transitionAll) add(findings, root, WEB_BOUNDARY_RULES.MOTION_TRANSITION_ALL, file, node, sourceFile, "canonical UI는 transition-all 대신 전환할 속성을 명시해야 합니다.");

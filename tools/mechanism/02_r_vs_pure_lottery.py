@@ -1,3 +1,5 @@
+"""모듈 책임: 예비가격 비율 분포와 회차 내 산포를 재 커트라인이 순수 추첨과 구별되는지 판정한다."""
+
 import gzip, re, os, glob, random, statistics as st, itertools
 from collections import Counter
 

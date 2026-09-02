@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""사전 등록 3f0eec4 실행. 진단 먼저, 성능 나중."""
+"""모듈 책임: 사전 등록 3f0eec4 실행. 진단 먼저, 성능 나중."""
 import numpy as np
 import sys
 import time

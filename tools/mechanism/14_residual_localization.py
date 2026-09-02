@@ -1,3 +1,5 @@
+"""모듈 책임: 남은 잔차를 N 층과 투찰 범위로 쪼개 어느 조건에서 생기는지 위치를 좁힌다."""
+
 import numpy as np
 E=np.load(r'F:/Project/eat-bid/data/mechanism/_enum_pred.npz',allow_pickle=True)
 J=np.load(r'F:/Project/eat-bid/data/mechanism/_join.npz',allow_pickle=True)

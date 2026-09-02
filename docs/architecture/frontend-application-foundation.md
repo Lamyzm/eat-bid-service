@@ -16,6 +16,11 @@ routing         반복되는 동적 Next 화면 URL builder
 shared          generic config/lib/UI
 ```
 
+브라우저 generic hook은 `shared/lib/hooks/`에, generic helper는 `shared/lib/`에, 그 외 hook은 소비하는
+route-private 또는 capability 내부에 둔다. 스타터 잔재 `hooks/`와 `lib/`는 삭제 전용 ledger로만 남고 새 파일을
+받지 않는다. legacy route-private module(`app/dashboard`, `app/welcome`, `app/s`)도 canonical 층에서 import하지
+않는다.
+
 ```mermaid
 flowchart LR
     app --> shell
@@ -49,7 +54,9 @@ entry를 통해 공유 server state를 사용한다. API resource끼리도 직�
 client code를 한꺼번에 재수출하지 않는다.
 
 route는 metadata, RSC read/prefetch와 shell model 주입에 한해 resource `server.ts`를 직접 사용한다.
-shell은 endpoint를 읽지 않고 상위 layout에서 받은 serializable session/workspace view만 렌더링한다.
+shell은 endpoint를 읽지 않고 상위 layout에서 받은 serializable session/workspace view만 렌더링한다. header
+control과 sidebar 계정 허브는 상위 layout이 slot으로 주입하며, session 계약이 없는 지금은 legacy `dashboard`
+layout만 legacy control을 주입하고 canonical `(workspace)` route에는 계정 허브·로그인·전역 설정이 없다.
 한 route에서만 필요한 presentation과 interactive leaf는 segment private `_model`/`_ui`/`_lib`에 둔다.
 독립된 사용자 intent, command/permission/feedback lifecycle 또는 여러 resource orchestration이 생길 때만
 capability로 승격한다.
@@ -63,6 +70,11 @@ capability로 승격한다.
 - route별 loading/error/not-found를 명시한다. error UI는 retry와 correlation 가능한 오류 표면을 둔다.
 - `loading.tsx`는 같은 segment의 화면 전용 `ScreenSkeleton` 하나만 반환한다. 실제 화면과 skeleton은
   동일한 frame과 section 순서를 공유하고, refetch나 mutation 중에는 전체 화면 skeleton으로 되돌리지 않는다.
+- Cache Components가 켜져 있으므로 `cookies()`, `headers()`, `params`, `searchParams` 접근은 page 안
+  Suspense 경계의 loader component에서만 await한다. root layout과 shell은 static이어야 하며, theme 같은
+  첫 paint 속성은 `<head>` inline script가 cookie에서 설정한다. legacy `/dashboard` layout과 공개 `/s/[token]`만
+  `export const instant = false`로 검증에서 제외하고 canonical route에는 추가하지 않는다
+  ([ADR 0028](../adr/0028-cache-components-and-self-hosted-cache.md)).
 - `@slot`은 독립 panel lifecycle이 필요한 경우에만 쓰고 모든 slot에 `default.tsx`를 둔다.
 - 무거운 browser-only 지도/chart는 client leaf에서 dynamic import한다. 계산 권위는 chart에 두지 않는다.
 
@@ -108,6 +120,8 @@ route/capability
 - `typedRoutes: true`와 `next typegen && tsc --noEmit`을 clean checkout gate로 실행한다.
 - `Link`, router API, `PageProps`, `LayoutProps`, `RouteContext`는 생성 route type을 사용한다.
 - one-off 정적 path는 typed literal, 반복되는 동적 path만 `src/routing/<resource>.ts` builder를 사용한다.
+- `routing/`은 canonical decimal ID route만 만든다. 복합 문자열 identity를 쓰는 legacy route builder는
+  legacy route 옆 `_lib`에 두고 삭제 전용 ledger로 추적한다.
 - exhaustive `ROUTES` mirror, route group/parallel slot 이름 노출, placeholder route와 `as Route` cast를 금지한다.
 - `/api/**` ingress는 Nest 전용이며 신규 Next Route Handler는 기본 금지한다. Web-owned handler 예외는 별도
   ADR, non-`/api` prefix, ingress rule과 owner contract를 요구한다.
@@ -168,11 +182,17 @@ blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`
 ## 7. quality gate
 
 - import graph: reverse edge, cross-capability/API deep import, API resource 간 import와 source cycle을 거부한다.
+- legacy import: 신규 층(`app/(workspace)`, `shell`, `capabilities`, `api`, `shared`, `routing`)은
+  `components/hooks/lib/config/types`를 import하지 않는다. 기존 edge는 삭제 전용 fingerprint로만 남는다.
+- client 업무 계산: `lib/band.ts`, `deadline.ts`, `mark-rates.ts`, `rate-text.ts`, `school-id.ts`의 export는
+  삭제 전용 ledger로 고정하며 Server 계약 응답으로 대체할 때만 지운다.
 - transport: network call 위치, client/server entry 분리와 runtime schema parse를 검사한다.
 - package graph: browser-safe contract subpath와 clean dev/build를 검사하고 Node/ingestion/domain runtime 유입을 거부한다.
 - identity/value: ID `Number` 변환, exact money/rate의 float authority를 거부한다.
 - RSC: route-level client component와 non-serializable prop을 검토한다.
 - compiler: annotation mode 대상만 opt-in하고 build·행동 회귀 evidence 없이 범위를 넓히지 않는다.
+- cache: `next build`가 canonical route의 blocking-prerender 오류를 gate한다. `use cache`는
+  `api/<resource>/server.ts` read 함수에만 두고 사용자별·session 데이터에는 쓰지 않는다.
 - size: 300줄 초과는 responsibility split 또는 reason/owner/split trigger가 있는 waiver가 필요하다.
 - tests: 신규·변경 test name은 한국어다.
 - browser: `test:e2e:foundation`은 별도 contract fixture와 Chromium으로 loading stream, exact money,

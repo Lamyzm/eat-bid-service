@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""M5 — 신경망(MLP). 🔴 M4 와 **같은 특징·같은 정보 규율**. 공정 비교가 요점이다."""
+"""모듈 책임: M5 — 신경망(MLP). 🔴 M4 와 **같은 특징·같은 정보 규율**. 공정 비교가 요점이다."""
 from __future__ import annotations
 
 import numpy as np

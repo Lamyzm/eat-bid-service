@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   claimWorktreeLease,
+  clearWorktreeSessionIssues,
   createEmptyState,
   enqueueEvent,
   getSessionState,
@@ -281,4 +282,19 @@ test("비정상 종료로 남은 sync lock도 복구 명령이 격리한다", as
     assert.equal(recovered.recovered, true);
     assert.match(recovered.quarantinePath, /\.sync\.lock\.recovered-/);
   });
+});
+
+test("clearWorktreeSessionIssues는 해당 worktree session의 issue 기록만 지우고 변경 경로와 다른 worktree는 보존한다", () => {
+  let state = updateSessionState(createEmptyState(), "F:/repo", "session-a", {
+    activeIssue: "EAT-9",
+    changedFiles: ["src/a.ts"],
+    requestedIssue: "EAT-9",
+  });
+  state = updateSessionState(state, "F:/repo/.worktrees/x", "session-b", { requestedIssue: "EAT-9" });
+
+  const cleared = clearWorktreeSessionIssues(state, "F:/repo");
+
+  assert.deepEqual(getSessionState(cleared, "F:/repo", "session-a"), { changedFiles: ["src/a.ts"] });
+  assert.deepEqual(getSessionState(cleared, "F:/repo/.worktrees/x", "session-b"), { requestedIssue: "EAT-9" });
+  assert.equal(getSessionState(state, "F:/repo", "session-a").requestedIssue, "EAT-9");
 });

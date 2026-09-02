@@ -1,3 +1,5 @@
+"""모듈 책임: 원본 XML 표본에서 슬롯 번호와 예비가격 순위의 상관, 투표 쏠림을 재 슬롯 편향이 있는지 판정한다."""
+
 import gzip, re, os, glob, random, statistics as st
 from collections import Counter, defaultdict
 

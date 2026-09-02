@@ -6,6 +6,11 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   API_ENDPOINT_LITERAL: "api-endpoint-literal",
   API_RESOURCE_CROSS_IMPORT: "api-resource-cross-import",
   CAPABILITY_INTERNAL_IMPORT: "capability-internal-import",
+  CLIENT_DOMAIN_CALCULATION: "client-domain-calculation",
+  LEGACY_HOOKS_DIRECTORY: "legacy-hooks-directory",
+  LEGACY_IDENTITY_ROUTE: "legacy-identity-route",
+  LEGACY_LIB_DIRECTORY: "legacy-lib-directory",
+  LEGACY_IMPORT: "legacy-import",
   DUPLICATE_SOURCE_GROUP: "duplicate-source-group",
   FRONTEND_ENDPOINTS_MIRROR: "frontend-endpoints-mirror",
   ID_NUMBER_CONVERSION: "id-number-conversion",
@@ -31,6 +36,63 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
 export const MAX_SOURCE_LINES = 300;
 export const MIN_DUPLICATE_NONBLANK_LINES = 10;
 export const MIN_DUPLICATE_BYTES = 200;
+
+// legacy는 폴더를 옮기지 않고 import 방향으로만 격리한다. 신규 층이 스타터 수평 폴더를 다시 참조하면
+// 폴더 이동만으로 target-compliant처럼 보이는 상태가 되므로 여기서 역참조를 끊는다.
+// legacy route-private module(dashboard·welcome·s)도 canonical 층이 끌어다 쓰면 같은 역참조다.
+const CANONICAL_LAYER_PATH = /^apps\/web\/src\/(?:app\/\(workspace\)|shell|capabilities|api|shared|routing)\//;
+const LEGACY_DIRECTORY_SPECIFIER = /^@\/(?:components|hooks|lib|config|types|app\/(?:dashboard|welcome|s))(?:\/|$)/;
+const LEGACY_DIRECTORY_PATH = /^apps\/web\/src\/(?:components|hooks|lib|config|types|app\/(?:dashboard|welcome|s))\//;
+
+// client 업무 계산은 AST로 식별하는 것이 목표지만, 첫 버전은 금액·비율·마감·식별자 계산이 확인된
+// 파일 목록으로 고정한다. 목록은 줄어들기만 하며 새 항목을 더하려면 계산을 Server 계약으로 옮기는 편이 맞다.
+export const CLIENT_DOMAIN_CALCULATION_PATHS = Object.freeze([
+  "apps/web/src/lib/band.ts",
+  "apps/web/src/lib/deadline.ts",
+  "apps/web/src/lib/mark-rates.ts",
+  "apps/web/src/lib/rate-text.ts",
+  "apps/web/src/lib/school-id.ts",
+]);
+
+export function isCanonicalLayerPath(displayPath) {
+  return CANONICAL_LAYER_PATH.test(displayPath);
+}
+
+export function isLegacyDirectoryReference(specifier, targetDisplayPath) {
+  return LEGACY_DIRECTORY_SPECIFIER.test(specifier.replaceAll("\\", "/"))
+    || (targetDisplayPath !== undefined && LEGACY_DIRECTORY_PATH.test(targetDisplayPath));
+}
+
+export function isClientDomainCalculationPath(displayPath) {
+  return CLIENT_DOMAIN_CALCULATION_PATHS.includes(displayPath);
+}
+
+// generic hook의 목적지는 shared/lib/hooks, generic helper는 shared/lib, 그 외는 소비하는 route/capability 내부다.
+// 스타터 잔재 hooks/·lib/ 디렉터리는 삭제 전용 ledger로만 남기고 새 파일을 받지 않는다.
+const LEGACY_HOOKS_PATH = /^apps\/web\/src\/hooks\//;
+const LEGACY_LIB_PATH = /^apps\/web\/src\/lib\//;
+// routing 층은 canonical decimal ID route만 만든다. 복합 문자열 identity를 쓰는 legacy dashboard route
+// builder는 legacy route 옆 `_lib`에 두고 삭제 전용 ledger로 추적한다.
+const LEGACY_IDENTITY_SCOPE = /^apps\/web\/src\/(?:routing\/|app\/(?:.+\/)?_lib\/)/;
+const LEGACY_ROUTE_PREFIX = /^\/dashboard(?:\/|$)/;
+
+export function isLegacyHooksPath(displayPath) {
+  return LEGACY_HOOKS_PATH.test(displayPath);
+}
+
+// 계산 ledger 파일은 export 단위 fingerprint로 추적하므로 파일 전체 fingerprint를 겹쳐 두면
+// 함수 하나를 지울 때마다 drift가 나 export 단위 삭제가 막힌다. 그 파일들은 lib 전체 규칙에서 뺀다.
+export function isLegacyLibPath(displayPath) {
+  return LEGACY_LIB_PATH.test(displayPath) && !isClientDomainCalculationPath(displayPath);
+}
+
+export function isLegacyIdentityScope(displayPath) {
+  return LEGACY_IDENTITY_SCOPE.test(displayPath);
+}
+
+export function isLegacyRouteLiteral(text) {
+  return LEGACY_ROUTE_PREFIX.test(text);
+}
 
 export function normalizeBytes(contents) {
   return contents.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
@@ -164,6 +226,11 @@ export function reviewedBaselineMetadata(item) {
     if (item.path.includes("/app/welcome/")) return ["기존 welcome route는 안내 presentation을 한 파일에 보유한 legacy 화면입니다.", "다음 welcome content 또는 interaction 변경에서 section UI로 분리할 때"];
   }
   return {
+    [WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION]: ["legacy client 업무 계산. Server 계약 응답으로 대체한 뒤 삭제한다.", "해당 화면 slice를 api/<resource> 계약으로 교체할 때"],
+    [WEB_BOUNDARY_RULES.LEGACY_IMPORT]: ["신규 층이 legacy 수평 폴더를 참조하는 기존 edge이며 대체 module이 생기면 삭제합니다.", "해당 legacy module을 shell/navigation 또는 shared/ui로 옮길 때"],
+    [WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY]: ["스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.", "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"],
+    [WEB_BOUNDARY_RULES.LEGACY_LIB_DIRECTORY]: ["스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.", "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"],
+    [WEB_BOUNDARY_RULES.LEGACY_IDENTITY_ROUTE]: ["복합 문자열 학교 identity. canonical organization route가 생기면 삭제", "canonical organization decimal ID route가 /dashboard/analysis를 대체할 때"],
     [WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP]: ["기존 mobile viewport helper 두 파일은 동일한 legacy 구현이며 EAT-9 canonical shared extraction 전까지 동결합니다.", "mobile viewport helper를 하나의 shared module로 통합할 때"],
     [WEB_BOUNDARY_RULES.ID_NUMBER_CONVERSION]: ["기존 dashboard와 table filter의 numeric URL/filter 처리 부채는 canonical decimal ID route 전환 전까지 동결합니다.", "해당 화면이 contract-backed decimal identifier를 소비하도록 전환할 때"],
     [WEB_BOUNDARY_RULES.PAGE_CONTAINER_LOADING_STATE]: ["기존 PageContainer는 범용 loading UI를 소유한 legacy 화면 container이며 신규 route로 전파하지 않습니다.", "각 legacy 화면을 route 소유 ScreenSkeleton과 loading.tsx 경계로 전환할 때"],

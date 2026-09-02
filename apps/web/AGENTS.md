@@ -22,7 +22,13 @@
 - `typedRoutes: true`와 `next typegen && tsc --noEmit`을 사용한다. route 오류를 `as Route`, `as any` 또는
   `string` widening으로 숨기지 않는다.
 - React Compiler는 annotation mode이며 아직 opt-in source가 없다. 첫 `"use memo"`에는 동작 regression과
-  전후 성능 증거가 필요하다. Cache Components와 Rust compiler path는 별도 감사 전까지 활성화하지 않는다.
+  전후 성능 증거가 필요하다. Rust compiler path는 별도 감사 전까지 활성화하지 않는다.
+- Cache Components는 [ADR 0028](../../docs/adr/0028-cache-components-and-self-hosted-cache.md) 조건 아래 켜져
+  있다. `cookies()`·`headers()`·`params`·`searchParams`는 Suspense 안 loader에서만 await하고, root layout과
+  shell은 static을 유지한다. `export const instant = false`는 legacy `/dashboard` layout과 공개 `/s/[token]`에만 두며
+  canonical route에 새로 추가하지 않는다. nuqs adapter와 legacy infobar provider도 dashboard layout이
+  소유하므로 canonical route에서 URL 상태가 필요하면 그 route의 Suspense 경계 안에서 새로 마운트한다. `use cache`는 `api/<resource>/server.ts` read 함수에만 허용하고 사용자별·session
+  데이터에는 쓰지 않는다.
 - 모노레포 package manager는 루트 `package.json`에 고정된 `pnpm 10.12.1`이다. 앱 내부
   script가 Bun 명령을 호출하더라도 workspace 설치·실행 계약을 Bun으로 바꾸지 않는다.
 - Server Component를 기본으로 하고 브라우저 상태나 상호작용이 필요할 때만 `'use client'`를
@@ -55,7 +61,9 @@
   존재하지 않는 placeholder와 `as Route` cast로 typecheck를 우회하지 않는다.
 - `routing`은 Next `Route` type과 `@eatbid/contracts` identifier atom만 소비한다. Nest API operation path,
   network 호출, query key나 server state를 화면 route builder에 섞지 않는다.
-- 아이콘은 `@/components/icons`에서만 가져온다.
+- 아이콘은 `@/components/icons`에서만 가져온다. 단 canonical layer(`app/(workspace)`, `shell`, `capabilities`,
+  `api`, `shared`, `routing`)는 legacy-import gate 때문에 이 module을 직접 import할 수 없으므로, 필요한 아이콘을
+  `shared/ui`로 옮긴 뒤 사용한다. shell/theme의 기존 import는 삭제 전용 ledger 항목이다.
 - 내부 bigint ID는 HTTP 경계에서 선행 0 없는 양의 10진 문자열이다. JavaScript `Number`로
   변환하지 않는다. 상세 계약은 ADR 0018을 따른다.
 - Button primitive는 시각·접근성·공통 press motion만 소유한다. 인증·권한·로깅·command는 capability의

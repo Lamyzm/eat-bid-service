@@ -1,9 +1,10 @@
-# 0028 — `eat-v2` 상세 계약: `ds_bidList` 블록을 들인다
+# 0029 — `eat-v2` 상세 계약: `ds_bidList` 블록을 들인다
 
 - Status: Accepted
 - Accepted: 2026-09-02 — 선행 미해결(레이크 22% 원인)이 **결함도 필터도 아님**으로 판정됨
 - Date: 2026-09-02
 - Supersedes: 없음. `eat-v1` 은 그대로 둔다 — **덮지 않고 버전을 더한다.**
+- 번호: main 병합 시 0028이 [Cache Components](0028-cache-components-and-self-hosted-cache.md)에 이미 쓰여 0029로 옮겼다. 실험 문서의 `ADR 0028` 언급은 이 결정을 가리킨다.
 
 ## Context
 

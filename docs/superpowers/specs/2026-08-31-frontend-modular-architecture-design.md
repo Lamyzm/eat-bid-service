@@ -401,7 +401,7 @@ validation 실패를 하나의 전역 toast로 평탄화하지 않는다.
 | Component interaction tests | Testing Library + user-event + Happy DOM을 Web-local Bun preload로 고정; keyboard/focus를 실제 동작으로 검증 |
 | Browser interaction tests | Playwright로 loading boundary, press/pending, reduced-motion, auth/permission action을 실제 browser에서 검증 |
 | Rust React Compiler | experimental이므로 보류 |
-| Cache Components | route/Suspense/self-host cache audit 전 전역 활성화 보류 |
+| Cache Components | 2026-09-02 ADR 0028로 조건부 활성화: canonical route Suspense 격리, legacy `instant = false`, replica 1 in-memory cache |
 | Immer | 반복되는 깊은 client-owned 편집 state가 확인될 때만 capability-local 도입 |
 | es-toolkit | 실제 반복 utility와 bundle 근거가 있을 때 좁게 도입; native/기존 helper 대체 자체가 목표가 아님 |
 

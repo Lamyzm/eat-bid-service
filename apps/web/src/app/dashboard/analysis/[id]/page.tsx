@@ -1,7 +1,6 @@
+/** @module 책임: legacy 분석 route에서 학교 ID·검색 조건을 해석해 analysis board에 전달한다. */
 import { AnalysisBoard } from './analysis-board';
 import { schoolIdFromParam, parseSchoolId } from '@/lib/school-id';
-
-export const dynamic = 'force-dynamic';
 
 export default async function AnalysisPage({ params, searchParams }: {
   params: Promise<{ id: string }>; searchParams: Promise<{ rate?: string; base?: string; bidNo?: string }>;

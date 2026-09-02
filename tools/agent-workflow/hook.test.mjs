@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   createEmptyState,
+  getSessionState,
   getWorktreeLease,
   loadState,
   saveState,
@@ -41,8 +42,8 @@ function runHook(input, statePath) {
   });
 }
 
-function runCommand(command, statePath) {
-  return spawnSync(process.execPath, [cliPath, command], {
+function runCommand(command, statePath, commandArguments = []) {
+  return spawnSync(process.execPath, [cliPath, command, ...commandArguments], {
     cwd: process.cwd(),
     encoding: "utf8",
     env: {
@@ -186,5 +187,119 @@ test("release는 lease를 지우기 전에 미완료 session 경로를 원래 is
       stored.outbox.map((event) => ({ changedFiles: event.changedFiles, issue: event.issueIdentifier })),
       [{ changedFiles: ["src/a.ts"], issue: "EAT-91" }],
     );
+  });
+});
+
+test("release는 session의 issue 기록을 지워 같은 session이 다음 issue를 prompt 없이 이어서 쓸 수 있게 한다", async () => {
+  await withTempDirectory(async (directory) => {
+    const statePath = path.join(directory, "state.json");
+    let state = setWorktreeLease(createEmptyState(), process.cwd(), {
+      issueIdentifier: "EAT-91",
+      teamKey: "EAT",
+      expiresAt: "2099-08-31T00:00:00.000Z",
+      writer: { provider: "test", sessionId: "session-a" },
+    });
+    state = updateSessionState(state, process.cwd(), "session-a", {
+      activeIssue: "EAT-91",
+      requestedIssue: "EAT-91",
+    });
+    await saveState(statePath, state);
+
+    assert.equal(runCommand("release", statePath).status, 0);
+    const released = await loadState(statePath);
+    await saveState(
+      statePath,
+      setWorktreeLease(released, process.cwd(), {
+        issueIdentifier: extractIssueIdentifier(repositoryContext(process.cwd()).branch) ?? "EAT-92",
+        teamKey: "EAT",
+        expiresAt: "2099-08-31T00:00:00.000Z",
+      }),
+    );
+    const edit = runHook(
+      { hook_event_name: "PreToolUse", session_id: "session-a", tool_name: "Edit" },
+      statePath,
+    );
+
+    assert.deepEqual(getSessionState(released, process.cwd(), "session-a"), {});
+    assert.equal(edit.status, 0, edit.stderr);
+  });
+});
+
+async function withTempGitRepository(run) {
+  await withTempDirectory(async (directory) => {
+    const repository = path.join(directory, "other-worktree");
+    await mkdir(repository);
+    const init = spawnSync("git", ["-C", repository, "init", "--quiet"], { encoding: "utf8" });
+    assert.equal(init.status, 0, init.stderr);
+    await run(repository, directory);
+  });
+}
+
+test("--worktree 인자는 현재 cwd가 아니라 지정한 worktree의 lease를 release하고 doctor에 보고한다", async () => {
+  await withTempGitRepository(async (repository, directory) => {
+    const statePath = path.join(directory, "state.json");
+    let state = setWorktreeLease(createEmptyState(), process.cwd(), {
+      issueIdentifier: "EAT-91",
+      teamKey: "EAT",
+      expiresAt: "2099-08-31T00:00:00.000Z",
+    });
+    state = setWorktreeLease(state, repository, {
+      issueIdentifier: "EAT-92",
+      teamKey: "EAT",
+      expiresAt: "2099-08-31T00:00:00.000Z",
+    });
+    await saveState(statePath, state);
+
+    const doctor = runCommand("doctor", statePath, ["--", "--worktree", repository]);
+    const release = runCommand("release", statePath, ["--", "--worktree", repository]);
+    const stored = await loadState(statePath);
+
+    assert.equal(doctor.status, 0, doctor.stderr);
+    assert.equal(JSON.parse(doctor.stdout).lease.issueIdentifier, "EAT-92");
+    assert.equal(release.status, 0, release.stderr);
+    assert.equal(getWorktreeLease(stored, repository), null);
+    assert.equal(getWorktreeLease(stored, process.cwd()).issueIdentifier, "EAT-91");
+  });
+});
+
+test("--worktree 경로가 없거나 git worktree가 아니면 lease를 건드리지 않고 실패한다", async () => {
+  await withTempDirectory(async (directory) => {
+    const statePath = path.join(directory, "state.json");
+    await saveState(
+      statePath,
+      setWorktreeLease(createEmptyState(), process.cwd(), {
+        issueIdentifier: "EAT-91",
+        teamKey: "EAT",
+        expiresAt: "2099-08-31T00:00:00.000Z",
+      }),
+    );
+    const plainDirectory = path.join(directory, "plain");
+    await mkdir(plainDirectory);
+
+    const missing = runCommand("release", statePath, ["--worktree", path.join(directory, "missing")]);
+    const plain = runCommand("release", statePath, ["--worktree", plainDirectory]);
+    const stored = await loadState(statePath);
+
+    assert.equal(missing.status, 1);
+    assert.match(missing.stderr, /worktree/i);
+    assert.equal(plain.status, 1);
+    assert.match(plain.stderr, /worktree/i);
+    assert.equal(getWorktreeLease(stored, process.cwd()).issueIdentifier, "EAT-91");
+  });
+});
+
+test("--worktree로 지정한 worktree의 branch issue가 요청과 다르면 Linear 호출 전에 claim이 실패한다", async () => {
+  await withTempGitRepository(async (repository, directory) => {
+    const statePath = path.join(directory, "state.json");
+    const checkout = spawnSync("git", ["-C", repository, "checkout", "-q", "-b", "eat-99-other-work"], {
+      encoding: "utf8",
+    });
+    assert.equal(checkout.status, 0, checkout.stderr);
+
+    const claim = runCommand("claim", statePath, ["--", "EAT-27", "--worktree", repository]);
+
+    assert.equal(claim.status, 1);
+    assert.match(claim.stderr, /Branch issue EAT-99 does not match requested claim EAT-27/);
+    await assert.rejects(() => readFile(statePath, "utf8"), { code: "ENOENT" });
   });
 });
