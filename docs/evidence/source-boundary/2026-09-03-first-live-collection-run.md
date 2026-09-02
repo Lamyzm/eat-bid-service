@@ -128,8 +128,79 @@ LAST_CHG_DT = '20240725164253000'  (17자리)
 - [ ] `plan_detail`이 이미 아는 `ETN_BID_ID`와 `LAST_CHG_DT`로 상세 요청을 좁힌다.
 - [ ] 갱신된 계약으로 같은 observation을 replay해 canonical 사실이 나오는지 확인한다.
 
-## 7. 확인하지 않은 것
+## 7. 시각 계약 수정 뒤 재실행 (같은 날)
 
-- 남은 84건의 상세. 계약이 고쳐지기 전에는 전부 같은 이유로 격리된다.
-- `validate`와 `project` 단계. `normalize`가 막혀 도달하지 못했다.
+`_SOURCE_TIME_WIRE_SHAPES`에 17자리 모양을 더한 뒤 새 run으로 다시 돌렸다. 격리된 attempt는
+종결된 사실이라 덮어쓰지 못하므로 파서를 고쳐도 과거 시도가 소급해 낫지 않는다. 보존된 원본 위에
+새 run을 도는 것이 설계된 길이다.
+
+| 단계 | 결과 |
+|---|---|
+| `discover` | 85건. manifest 해시가 첫 실행과 **byte 동일** |
+| `capture` | 85건 전부 성공 |
+| `normalize` | **85건 전부 성공, 격리 0건** |
+| `validate` | 실패 |
+| `project` | 도달 못 함 |
+
+정규화가 100% 격리에서 0% 격리로 바뀌었다. 시각 계약 수정이 실제 데이터 전량에서 통한다.
+
+## 8. 상세 응답에 초 단위 카운트다운이 들어 있다
+
+같은 공고를 15분 간격으로 두 번 받았더니 content hash가 달랐다. 두 원본을 R2에서 읽어 비교한
+차이는 세 필드뿐이다.
+
+```
+-  <Col id="REM_SEC">37</Col>        +  <Col id="REM_SEC">44</Col>
+-  <Col id="REM_MIN">56</Col>        +  <Col id="REM_MIN">41</Col>
+-  <Col id="TOTAL_SEC">28626998</Col> +  <Col id="TOTAL_SEC">28626105</Col>
+```
+
+마감까지 남은 시간을 서버가 계산해 실어 보낸다. 그래서 상세 응답은 매 호출마다 바이트가 다르다.
+
+### 결과 1 — content 주소 중복 제거가 상세에서 절대 걸리지 않는다
+
+목록은 내용이 같으면 blob 하나로 수렴한다. 상세는 아니다. 피크일 기준 열린 공고 7,231건을
+30분마다 폴링하면 하루 17만 건의 상세 원본이 거의 같은 내용으로 쌓인다. `LAST_CHG_DT`로 상세
+재호출을 좁히는 일이 최적화가 아니라 저장 정합성의 요구사항이 된다.
+
+### 결과 2 — 재시도가 구조적으로 불가능하다
+
+같은 run에서 이미 관측한 상세를 다시 받으면 이렇게 끊긴다.
+
+```
+PlannedRequestMismatchError: detail retry differs from its canonical observation
+```
+
+계획된 요청 하나가 canonical observation 하나를 갖고 재시도는 바이트가 같아야 한다는 불변식이다.
+카운트다운 필드가 그 불변식을 성립 불가능하게 만든다. 네트워크 오류나 워커 재시작이 한 번만 나도
+그 공고는 해당 run에서 영구히 막힌다. 230만건 규모와 7,231건 피크에서 재시도는 필연이므로
+이 불변식은 현재 소스에 대해 성립하지 않는다. 설계 결정이 필요하다.
+
+원본을 해시 전에 깎는 방식은 택하지 않는다. 규칙 3의 원본 보존을 어긴다.
+
+### 결과 3 — canonical 사실은 오염되지 않는다
+
+두 원본을 각각 정규화한 결과가 완전히 같다. 카운트다운 필드는 정규화 모델에 없다. 피해가 R2
+저장과 observation 행에 국한되고 `core`의 revision 사슬은 잡음을 타지 않는다. 관측과 해석을
+분리한 규칙 3이 방어선으로 작동한 것이다.
+
+## 9. 발행 단계의 run 정체성이 미해결이다
+
+`validate`를 detail run으로 부르면 `ReleaseObservationMembershipError: publication corpus differs
+from the source release`, discovery run으로 불러도 실패한다. 두 run 모두 release에 attach돼 있고
+`source_release_dataset`의 회계는 `ds_info` 85/85/85/0, `ds_list` 85/85/85/0으로 맞다.
+
+WorkflowTemplate이 `--run-id` 하나만 넘기는데 `discover`는 discovery run과 detail run을 구분해
+요구한다. 어느 정체성으로 발행해야 하는지가 코드에도 매니페스트에도 정의돼 있지 않다. 이는
+WorkflowTemplate 인자 누락과 같은 뿌리이며 EAT-34에서 함께 결정한다.
+
+부분 수집을 거부하는 동작 자체는 옳다. 85건 중 1건만 받은 상태에서는
+`ReleaseIncompleteError: detail release corpus is not exact observed`로 봉인을 거부했다.
+
+## 10. 확인하지 않은 것
+
+- `validate`와 `project`의 정상 경로. run 정체성 계약이 정해지지 않아 도달하지 못했다.
 - 밀리초가 0이 아닌 사례의 존재 여부.
+- 목록 응답에도 카운트다운 같은 휘발성 필드가 있는지. 두 실행의 manifest 해시가 같았으므로
+  적어도 이 창에서는 없다.
+- `BID_CNT`가 시간에 따라 오르는지.
