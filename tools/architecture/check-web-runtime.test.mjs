@@ -42,6 +42,7 @@ const config: NextConfig = {
   reactCompiler: {
     compilationMode: 'annotation'
   },
+  cacheComponents: true,
   rewrites: async () => createApiRewrites({ nodeEnv: process.env.NODE_ENV, apiUrl: process.env.API_URL })
 };
 
@@ -188,7 +189,7 @@ export default withSentryConfig(baseConfig, sentryOptions);
   });
 });
 
-test("검토하지 않은 Cache Components와 Rust compiler 활성화를 거부한다", () => {
+test("검토하지 않은 Rust compiler 활성화를 거부한다", () => {
   withFixture({
     nextConfig: `
 const config = {
@@ -201,9 +202,25 @@ export default config;
 `,
   }, ({ status, output }) => {
     assert.equal(status, 1);
-    assert.match(output, /cacheComponents/);
     assert.match(output, /turbopackRustReactCompiler/);
   });
+});
+
+test("ADR 0028이 요구하는 cacheComponents를 끄거나 빠뜨리면 거부한다", () => {
+  for (const cacheComponents of ['', '  cacheComponents: false,\n']) {
+    withFixture({
+      nextConfig: `
+const config = {
+  typedRoutes: true,
+  reactCompiler: { compilationMode: 'annotation' },
+${cacheComponents}};
+export default config;
+`,
+    }, ({ status, output }) => {
+      assert.equal(status, 1);
+      assert.match(output, /cacheComponents: true/);
+    });
+  }
 });
 
 test("TanStack Form v2와 prerelease 범위를 거부한다", () => {

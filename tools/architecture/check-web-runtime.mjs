@@ -172,8 +172,10 @@ function checkNextConfig(configSource, failures, label = "Next 최상위 config"
     failures.push(`${label}의 reactCompiler에 compilationMode: 'annotation'이 필요합니다.`);
   }
   if (!hasApiRewrite) failures.push(`${label}의 rewrites는 createApiRewrites를 호출해야 합니다.`);
-  if (hasProperty(sourceFile, "cacheComponents")) {
-    failures.push(`${label}에 검토 전 cacheComponents를 설정하지 않습니다.`);
+  // ADR 0028이 Cache Components를 조건부로 채택했다. 조건은 Suspense 격리와 replica 1 in-memory cache이며
+  // 끄면 그 격리가 검증 없이 방치되므로, 이제 미설정과 false를 거부한다.
+  if (!candidates.some((object) => isTrue(directProperty(object, "cacheComponents")))) {
+    failures.push(`${label}에 ADR 0028이 요구하는 cacheComponents: true가 필요합니다.`);
   }
   if (hasProperty(sourceFile, "turbopackRustReactCompiler")) {
     failures.push(`${label}에 검토 전 turbopackRustReactCompiler를 설정하지 않습니다.`);
