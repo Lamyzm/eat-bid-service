@@ -153,7 +153,7 @@ def test_bid_list_authority가_알_수_없는_fields을_금지한다() -> None:
         BidListPage.model_validate(
             {
                 "total_count": 1,
-                "external_bid_ids": ("1",),
+                "rows": (),
                 "unreviewed_field": "must not be discarded",
             }
         )

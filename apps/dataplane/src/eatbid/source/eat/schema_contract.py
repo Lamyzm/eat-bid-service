@@ -35,11 +35,70 @@ class ReviewedSchemaContract:
         return schema_fingerprint(self.required_datasets)
 
 
+# 목록 dataset의 알려진 전체 column 38개다. 근거는 `docs/audit-source/census-list.txt`(아카이브 54개
+# 응답 35,079행 전수, 전 column 채움률 100%)와 2026-09-03 live 실측(EAT-34)이다. 파서가 읽지 않는
+# column도 여기 두는 이유는 소스가 column을 더하거나 빼는 변화를 원본 대비로 알아채기 위해서다.
+_EAT_V1_BID_LIST_COLUMNS = (
+    "BID_CNT",
+    "BID_END_DT",
+    "BID_NM",
+    "BID_NUM_LIMIT_CNT",
+    "BID_NUM_LIMIT_YN",
+    "BID_STRT_DT",
+    "BID_TYPE",
+    "BID_TYPE_NM",
+    "DLVRY_END_DT",
+    "DLVRY_PLACE",
+    "DLVRY_STRT_DT",
+    "DLVRY_TIME",
+    "ETN_BID_ID",
+    "ETN_BID_NO",
+    "ETN_BID_STT",
+    "ETN_BID_STT_NM",
+    "FRST_RGTR_ID",
+    "LAST_CHGR_ID",
+    "LAST_CHG_DT",
+    "LIMIT_CONDITION",
+    "LIMIT_CONDITION_NM",
+    "PBANC_YMD",
+    "PLNPRCE",
+    "PLNPRCE_SUCBD_STD",
+    "PLNPRCE_TYPE",
+    "PLNPRCE_TYPE_NM",
+    "PURR_CD",
+    "PURR_NM",
+    "RN",
+    "ROW_NUM",
+    "SOLO_BID_TRT_MTHD",
+    "SOLO_BID_TRT_MTHD_NM",
+    "STRPRCE",
+    "STRPRCE_OPEN_YN",
+    "SUCBD_DECISION_MTHD",
+    "SUCBD_DECISION_MTHD_NM",
+    "TOT_CNT",
+    "USE_YN",
+)
+
 _EAT_V1_BID_LIST = ReviewedSchemaContract(
     source="eat",
     endpoint="bid-list",
     parser_version="eat-v1",
-    datasets=MappingProxyType({"ds_list": ("TOT_CNT", "ETN_BID_ID")}),
+    datasets=MappingProxyType({"ds_list": _EAT_V1_BID_LIST_COLUMNS}),
+    # 목록 파서가 `required_text`로 읽는 여섯이다. 총건수와 ID는 발견 manifest를, 경쟁자 수·상태·마감·
+    # 소스 변경 시각은 ADR 0030의 경쟁자 수 추적을 상세 재호출 없이 만든다. 이 밖의 column은
+    # nullable로 읽거나 읽지 않으므로 없어도 목록 사실을 만들 수 있다.
+    required=MappingProxyType(
+        {
+            "ds_list": (
+                "TOT_CNT",
+                "ETN_BID_ID",
+                "BID_CNT",
+                "ETN_BID_STT_NM",
+                "BID_END_DT",
+                "LAST_CHG_DT",
+            )
+        }
+    ),
 )
 
 _EAT_V1_BID_DETAIL = ReviewedSchemaContract(
