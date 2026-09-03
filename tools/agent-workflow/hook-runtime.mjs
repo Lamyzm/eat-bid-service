@@ -1,9 +1,11 @@
+/** @module 책임: provider 중립 hook event를 worktree lease·writer 규칙에 대조해 차단 여부와 session worklog 전이를 결정한다. */
 import path from "node:path";
 
 import {
   enqueueEvent,
   getSessionState,
   getWorktreeLease,
+  listWorktreeLeases,
   setWorktreeLease,
   updateSessionState,
 } from "./state.mjs";
@@ -55,6 +57,21 @@ function changedPaths(toolName, toolInput, worktreeRoot) {
   return ["bash", "exec_command", "powershell", "shell"].includes(String(toolName).toLowerCase())
     ? ["(shell mutation; inspect PR diff)"]
     : [];
+}
+
+// 차단 메시지에 어느 issue가 어느 worktree를 언제까지 잡고 있는지와 푸는 명령을 같이 적는다. 이것이
+// 없으면 agent는 lease가 있는데 왜 막히는지 알 수 없고 사용자가 doctor를 대신 실행하게 된다.
+function describeLeases(state, now) {
+  const leases = listWorktreeLeases(state);
+  if (leases.length === 0) return "";
+  const nowMilliseconds = now().getTime();
+  const lines = leases.map(({ lease, worktreeRoot }) => {
+    const expiresAt = Date.parse(lease.expiresAt ?? "");
+    const status = Number.isFinite(expiresAt) && expiresAt > nowMilliseconds ? "expires" : "expired";
+    const writer = lease.writer ? `, writer ${lease.writer.provider}/${lease.writer.sessionId}` : "";
+    return `  - ${lease.issueIdentifier} @ ${worktreeRoot} (${status} ${lease.expiresAt ?? "unknown"}${writer}) → \`pnpm workflow:release -- ${lease.issueIdentifier}\``;
+  });
+  return `\nCurrent leases:\n${lines.join("\n")}\nA lease whose worktree directory is gone is cleared by \`pnpm workflow:worktree prune\`.`;
 }
 
 export function finalizeSessionWorklog({
@@ -114,13 +131,20 @@ export function handleHookEvent({
   if (eventName === "pretooluse") {
     const classification = classifyToolCall(event.toolName, event.toolInput);
     if (!classification.mutatesRepository) return { exitCode: 0, message: "", state };
+    // lease는 agent가 남의 작업을 덮어쓰지 못하게 하는 규율이다. 사용자가 `!`로 직접 친 명령은
+    // 사용자의 행위이므로 막지 않되, writer 결박이나 activeIssue 같은 agent 세션 상태도 바꾸지 않는다.
+    if (event.initiatedBy === "user") return { exitCode: 0, message: "", state };
 
     const leaseExpiresAt = lease?.expiresAt ? Date.parse(lease.expiresAt) : Number.NaN;
-    if (!lease?.issueIdentifier || !Number.isFinite(leaseExpiresAt) || leaseExpiresAt <= now().getTime()) {
+    const leaseIsActive =
+      Boolean(lease?.issueIdentifier) && Number.isFinite(leaseExpiresAt) && leaseExpiresAt > now().getTime();
+    if (!leaseIsActive) {
+      const reason = lease?.issueIdentifier
+        ? `the Linear lease ${lease.issueIdentifier} for ${worktreeRoot} expired at ${lease.expiresAt ?? "unknown"}; claim it again with \`pnpm workflow:claim -- ${lease.issueIdentifier}\``
+        : `create a verified Linear lease for ${worktreeRoot} first with \`pnpm workflow:claim -- EAT-123\``;
       return {
         exitCode: 2,
-        message:
-          "Repository mutation blocked: create a verified Linear lease first with `pnpm workflow:claim -- EAT-123`. Read-only research and verification remain available.",
+        message: `Repository mutation blocked: ${reason}. Read-only research and verification remain available.${describeLeases(state, now)}`,
         state,
       };
     }
@@ -132,7 +156,7 @@ export function handleHookEvent({
     if (mismatchedIssue) {
       return {
         exitCode: 2,
-        message: `Repository mutation blocked: ${mismatchedIssue} does not match the verified lease ${lease.issueIdentifier}. Release or claim the intended issue explicitly.`,
+        message: `Repository mutation blocked: ${mismatchedIssue} does not match the verified lease ${lease.issueIdentifier}. Release or claim the intended issue explicitly.${describeLeases(state, now)}`,
         state,
       };
     }
@@ -145,7 +169,7 @@ export function handleHookEvent({
     ) {
       return {
         exitCode: 2,
-        message: `Repository mutation blocked: the verified lease belongs to writing session ${lease.writer.provider}/${lease.writer.sessionId}. Release and claim explicitly to hand off.`,
+        message: `Repository mutation blocked: the verified lease belongs to writing session ${lease.writer.provider}/${lease.writer.sessionId}. Release and claim explicitly to hand off.${describeLeases(state, now)}`,
         state,
       };
     }

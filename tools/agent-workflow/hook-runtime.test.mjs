@@ -130,6 +130,73 @@ test("작업 기록에는 저장소 밖 경로와 제어 문자가 포함되지 
   assert.deepEqual(getSessionState(state, "F:/repo", "paths").changedFiles ?? [], []);
 });
 
+test("lease 없는 차단 메시지는 다른 worktree의 lease 보유자와 만료 시각과 푸는 명령을 함께 보여준다", () => {
+  const state = setWorktreeLease(createEmptyState(), "F:/other-worktree", {
+    issueIdentifier: "EAT-36",
+    expiresAt: "2026-08-31T00:00:00.000Z",
+    writer: { provider: "claude", sessionId: "session-9" },
+  });
+  const result = handleHookEvent({
+    ...context,
+    input: { hook_event_name: "PreToolUse", session_id: "session-1", tool_name: "Edit" },
+    state,
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.match(result.message, /F:\/repo/);
+  assert.match(result.message, /EAT-36 @ f:\/other-worktree \(expires 2026-08-31T00:00:00.000Z, writer claude\/session-9\)/i);
+  assert.match(result.message, /pnpm workflow:release -- EAT-36/);
+  assert.match(result.message, /pnpm workflow:worktree prune/);
+});
+
+test("사용자가 직접 실행한 도구 호출(initiated_by: user)은 lease 없이 허용하되 agent 세션 상태를 바꾸지 않는다", () => {
+  const state = createEmptyState();
+  const user = handleHookEvent({
+    ...context,
+    input: {
+      hook_event_name: "PreToolUse",
+      initiated_by: "user",
+      session_id: "session-1",
+      source: "user_request",
+      tool_name: "Bash",
+      tool_input: { command: "git worktree add .worktrees/eat-36 -b eat-36 main" },
+    },
+    state,
+  });
+  const assistant = handleHookEvent({
+    ...context,
+    input: {
+      hook_event_name: "PreToolUse",
+      initiated_by: "assistant",
+      session_id: "session-1",
+      tool_name: "Bash",
+      tool_input: { command: "git worktree add .worktrees/eat-36 -b eat-36 main" },
+    },
+    state,
+  });
+
+  assert.deepEqual(user, { exitCode: 0, message: "", state });
+  assert.equal(assistant.exitCode, 2);
+  assert.match(assistant.message, /Linear lease/i);
+});
+
+test("만료된 lease 차단 메시지는 만료 시각과 같은 issue를 다시 claim하는 명령을 알려준다", () => {
+  const state = setWorktreeLease(createEmptyState(), "F:/repo", {
+    issueIdentifier: "EAT-42",
+    expiresAt: "2026-08-29T00:00:00.000Z",
+  });
+  const result = handleHookEvent({
+    ...context,
+    input: { hook_event_name: "PreToolUse", session_id: "session-1", tool_name: "Edit" },
+    state,
+  });
+
+  assert.equal(result.exitCode, 2);
+  assert.match(result.message, /EAT-42 for F:\/repo expired at 2026-08-29T00:00:00.000Z/);
+  assert.match(result.message, /pnpm workflow:claim -- EAT-42/);
+  assert.match(result.message, /expired 2026-08-29T00:00:00.000Z/);
+});
+
 test("검증된 lease와 다른 prompt나 branch는 변경을 차단한다", () => {
   let state = setWorktreeLease(createEmptyState(), "F:/repo", {
     issueIdentifier: "EAT-42",
