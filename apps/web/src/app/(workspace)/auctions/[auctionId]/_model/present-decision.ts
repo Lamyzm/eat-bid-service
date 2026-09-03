@@ -1,4 +1,5 @@
 /** @module 책임: 공고 계약 응답을 결정 화면의 헤더·배너·rail이 그대로 쓰는 표시 문자열로 바꾼다. */
+import { Temporal } from '@eatbid/domain';
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 import { formatWon } from './bid-rate';
@@ -17,22 +18,20 @@ export type DecisionPresentation = {
   };
 };
 
-// hour12: false만으로는 Intl.DateTimeFormat이 자정에 "24"를 낼 수 있다(en 로케일 구현체 계열).
-// hourCycle: 'h23'을 명시해 00~23만 나오게 고정한다.
-const KST = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23'
-});
+const pad2 = (value: number): string => value.toString().padStart(2, '0');
 
-/** wire instant를 KST `MM-DD HH:mm`으로. 표시 전용이라 Date를 만들되 밖으로 내보내지 않는다. */
+/** wire instant를 KST `MM-DD HH:mm`으로. `Temporal.ZonedDateTimeISO` 필드를 직접 읽으므로 ambient `Date`나
+ * 로케일 구현체별 Intl 자정 표기 차이(en 계열이 "24"를 낼 수 있는 문제)에 기대지 않는다. */
 function kst(instant: string | null): string {
   if (!instant) return '미확인';
-  const parts = KST.formatToParts(new Date(instant));
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
-  return `${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+  const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul');
+  return `${pad2(zoned.month)}-${pad2(zoned.day)} ${pad2(zoned.hour)}:${pad2(zoned.minute)}`;
 }
 
 function spanText(fromIso: string, toIso: string): string {
-  const minutes = Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 60_000);
+  const from = Temporal.Instant.from(fromIso);
+  const to = Temporal.Instant.from(toIso);
+  const minutes = Math.round((to.epochMilliseconds - from.epochMilliseconds) / 60_000);
   const hours = Math.floor(minutes / 60);
   return `${hours}시간 ${minutes % 60}분`;
 }
