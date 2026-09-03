@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { auctionFixture, fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
+import { auctionFixture, closedAuctionFixture, fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { presentDecision } from './present-decision';
 
 describe('결정 화면 표시 모델', () => {
@@ -17,10 +17,23 @@ describe('결정 화면 표시 모델', () => {
     expect(decision.banner.deadlineAt).toBe('미확인');
     expect(decision.banner.remaining).toBe('미확인');
     expect(decision.railState).toBe('unknown');
+    expect(decision.plannedAmount.text).toBe('미확인');
   });
-  test('개찰이 끝났으면 남은 시간 대신 지난 시간을 쓴다', () => {
+  test('개찰이 끝났으면 남은 시간 대신 지난 시간을 접두사 없이 쓴다', () => {
     const decision = presentDecision({ ...openAuctionFixture, schedule: { ...openAuctionFixture.schedule, deadlineAt: '2026-09-02T02:00:00Z', openedAt: '2026-09-02T05:00:00Z' } }, fixtureNow);
     expect(decision.railState).toBe('closed');
-    expect(decision.banner.remaining).toBe('개찰 20시간 30분 전');
+    expect(decision.banner.remaining).toBe('20시간 30분');
+  });
+  test('지난 시간이 24시간을 넘으면 일 단위로 접는다', () => {
+    const decision = presentDecision(closedAuctionFixture, fixtureNow);
+    expect(decision.railState).toBe('closed');
+    expect(decision.banner.remaining).toBe('20일 20시간');
+  });
+  test('기초금액 소수부가 0이 아니면 그대로 보이고 0이면 생략한다', () => {
+    const decision = presentDecision(
+      { ...openAuctionFixture, pricing: { ...openAuctionFixture.pricing, baseAmount: { amount: '1234567890.50', currency: 'KRW' } } },
+      fixtureNow
+    );
+    expect(decision.baseAmount.text).toBe('1,234,567,890.50');
   });
 });

@@ -11,7 +11,7 @@ export function DecisionScreen({ decision, search }: { readonly decision: Decisi
   return (
     <DecisionFrame
       header={<DecisionHeader decision={decision} search={search} />}
-      banner={<DecisionBanner decision={decision} record={null} />}
+      banner={<DecisionBanner decision={decision} />}
       evidence={
         <div className='grid gap-4'>
           <PendingCard title='비교집단' reason='낙찰률 분포 계약(EAT-38)이 붙으면 호가창이 보입니다.' />
@@ -23,7 +23,11 @@ export function DecisionScreen({ decision, search }: { readonly decision: Decisi
                 ['원천 시스템', decision.provenance.sourceSystem],
                 ['관측 ID', decision.provenance.observationId],
                 ['정규화 레코드 ID', decision.provenance.normalizedRecordId],
-                ['내용 SHA-256', decision.provenance.contentSha256]
+                ['내용 SHA-256', decision.provenance.contentSha256],
+                ['공고 상태', decision.identity.status],
+                ['리비전 ID', decision.identity.revisionId],
+                ['외부 공고 ID', decision.identity.externalBidId],
+                ['예정금액', decision.plannedAmount.text]
               ].map(([label, value]) => (
                 <div key={label} className='grid gap-1'>
                   <dt className='text-[13px] font-semibold text-muted-foreground'>{label}</dt>

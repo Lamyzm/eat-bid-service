@@ -1,11 +1,9 @@
-/** @module 책임: 공고가 열렸는지·언제 닫히는지·내가 기록했는지를 사실 짝 한 줄로 보인다. 절대 위치 없이 플렉스 두 줄이다. */
+/** @module 책임: 공고가 열렸는지·언제 닫히는지를 사실 짝 한 줄로 보인다. 절대 위치 없이 플렉스 두 줄이다.
+ * 내 기록은 이 슬라이스의 진실 원천이 아니다(rail 하나가 소유한다). */
 import type { DecisionPresentation } from '../_model/present-decision';
 
 type DecisionBannerProps = {
   readonly decision: DecisionPresentation;
-  // recordedAt은 서버 영속화가 붙이는 사실이라 이 슬라이스에서는 항상 null이다. 값이 생기면
-  // "rate · 시각"으로 붙이는 건 영속화가 붙는 후속 슬라이스의 몫이다.
-  readonly record: { readonly rate: string; readonly recordedAt: string | null } | null;
 };
 
 const SENTENCE = {
@@ -24,8 +22,12 @@ function Fact({ label, value, tail }: { readonly label: string; readonly value: 
   );
 }
 
-export function DecisionBanner({ decision, record }: DecisionBannerProps) {
+export function DecisionBanner({ decision }: DecisionBannerProps) {
   const { banner, railState } = decision;
+  // 첫 Fact 라벨·꼬리는 상태별로 다른 사실을 짝짓는다: open은 남은 시간·마감 시각, closed는 개찰 후
+  // 지난 시간·개찰 시각, unknown은 값 자체가 이미 "미확인"이라 꼬리를 두지 않는다(미확인 중복 금지).
+  const firstLabel = railState === 'closed' ? '개찰 후' : railState === 'unknown' ? '마감' : '마감까지';
+  const firstTail = railState === 'closed' ? banner.openedAt : railState === 'unknown' ? undefined : banner.deadlineAt;
   return (
     <div className='relative flex flex-col gap-2 overflow-hidden rounded-xl bg-card px-5 py-3 shadow-xs'>
       <div className='absolute inset-y-0 left-0 w-1 bg-primary' aria-hidden />
@@ -36,10 +38,10 @@ export function DecisionBanner({ decision, record }: DecisionBannerProps) {
         </span>
       </div>
       <div className='flex flex-wrap gap-x-7 gap-y-1'>
-        <Fact label={railState === 'closed' ? '개찰' : '마감까지'} value={banner.remaining} tail={banner.deadlineAt} />
-        <Fact label='개찰' value={banner.openedAt} />
+        <Fact label={firstLabel} value={banner.remaining} tail={firstTail} />
+        {/* closed일 때 개찰 시각은 이미 첫 Fact의 꼬리로 나왔으므로 여기서는 마감 시각을 짝짓는다(중복 방지). */}
+        {railState === 'closed' ? <Fact label='마감' value={banner.deadlineAt} /> : <Fact label='개찰' value={banner.openedAt} />}
         <Fact label='공고' value={banner.announcedAt} />
-        <Fact label='내 기록' value={record ? record.rate : '아직 없음'} />
       </div>
     </div>
   );

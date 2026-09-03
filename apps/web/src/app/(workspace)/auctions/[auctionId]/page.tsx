@@ -31,9 +31,7 @@ async function AuctionLoader({
       parseAuctionId,
       getAuction: getAuctionFromServer,
       isNotFound: isAuctionNotFoundError,
-      // rail 상태는 이 문자열을 schedule의 wire instant와 사전순으로만 비교한다(rail-state.ts). 초 미만
-      // 정밀도가 섞이면 "02:00:00Z"보다 "02:00:00.123Z"이 사전순으로 앞서는 착시가 생기므로 초 단위로 자른다.
-      now: () => systemClock.now().toString({ smallestUnit: 'second' })
+      now: () => systemClock.now().toString()
     }),
     loadDecisionSearch(searchParams)
   ]);
