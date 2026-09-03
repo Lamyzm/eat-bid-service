@@ -10,7 +10,7 @@ type DecisionFrameProps = {
 // 1280 이상은 근거 열 + rail 340. 그 아래는 한 열로 쌓고 rail이 근거 위에 온다(투찰이 1차 행동).
 export function DecisionFrame({ header, banner, evidence, rail, history }: DecisionFrameProps) {
   return (
-    <div data-slot='decision-screen' aria-labelledby='decision-title' className='mx-auto grid w-full max-w-[1400px] min-w-0 gap-4 px-3 py-3 sm:px-4'>
+    <div data-slot='decision-screen' role='region' aria-labelledby='decision-title' className='mx-auto grid w-full max-w-[1400px] min-w-0 gap-4 px-3 py-3 sm:px-4'>
       <header className='min-w-0'>{header}</header>
       <section aria-label='공고 상태' className='min-w-0'>{banner}</section>
       <div className='grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start'>

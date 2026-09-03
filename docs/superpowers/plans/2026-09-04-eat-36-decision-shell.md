@@ -15,7 +15,7 @@
 - 새 화면은 레거시 `/api`를 호출하지 않는다. 데이터는 `@eatbid/contracts/api/v1/auctions`의 `find` 하나.
 - 추천값·안전구간·승률 문구 금지. 표본·기간·산출 시각 없는 수치 금지. 미관측은 `미확인`.
 - 색은 상태에만: `text-primary`/`bg-primary` = 내 값·행동·활성 탭, `text-destructive` = 그날 하한·무효. 테마 토큰만 쓰고 hex/oklch literal을 컴포넌트에 쓰지 않는다.
-- 본문 15px 이상(`text-[15px]`), 라벨 13px(`text[13px]`)은 단위 꼬리·보조 라벨에만. 숫자는 `tabular-nums`. 줄 높이 `leading-normal` 이상. 보더 없이 `shadow-xs`, 반경 `rounded-xl`(12px)/`rounded-lg`(8px).
+- 본문 15px 이상(`text-[15px]`), 라벨 13px(`text[13px]`)은 단위 꼬리·보조 라벨에만. 숫자는 `tabular-nums`. 줄 높이 `leading-normal` 이상(32px hero는 `leading-tight` 예외). 보더 없이 `shadow-xs`, 반경 `rounded-xl`(12px)/`rounded-lg`(8px).
 - 글자 밀림·잘림 0: 값·라벨은 `whitespace-nowrap`, 컨테이너는 `min-w-0`. 1440/1280/1024/768에서 `scrollWidth <= clientWidth`.
 - 문구: 그날 하한 / 낙찰·놓침·무효 / 낙찰됐을 회차 / `{값} 썼다면`. "NeaT", "탈락선", "밀림", "먹었을" 금지.
 - 시간은 wire의 UTC instant 문자열을 KST로 표기하고 남은 시간은 주입된 `now`로만 계산한다. 금액은 exact decimal 문자열, `Number` 변환 금지, bigint ID는 문자열 유지.

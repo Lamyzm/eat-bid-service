@@ -9,7 +9,7 @@ describe('결정 화면 URL 조건', () => {
     expect(serialize({ period: '12개월', scope: '전국' })).toBe('');
     expect(serialize({ period: '지난 달', scope: '이 기관' })).toContain('period=');
   });
-  test('허용되지 않은 값은 기본값으로 돌아간다', () => {
+  test('허용되지 않은 값은 parse가 null이다', () => {
     expect(decisionSearchParsers.period.parse('아무거나')).toBeNull();
   });
 });
