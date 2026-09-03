@@ -7,10 +7,13 @@ const FAILURE_AUCTION_ID = '9007199254740994';
 const MISSING_AUCTION_ID = '9007199254740996';
 const REDUCED_MOTION_AUCTION_ID = '9007199254741000';
 const OPEN_AUCTION_ID = '5796468';
+const CLOSED_AUCTION_ID = '5780681';
 const SUCCESS_RESPONSE_DELAY_MILLISECONDS = 350;
 const REDUCED_MOTION_RESPONSE_DELAY_MILLISECONDS = 5_000;
 const OPEN_DEADLINE_OFFSET_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const OPEN_OPENED_OFFSET_MILLISECONDS = 27 * 60 * 60 * 1_000;
+const CLOSED_DEADLINE_OFFSET_MILLISECONDS = -2 * 24 * 60 * 60 * 1_000;
+const CLOSED_OPENED_OFFSET_MILLISECONDS = CLOSED_DEADLINE_OFFSET_MILLISECONDS + 3 * 60 * 60 * 1_000;
 
 function auctionResponse(auctionId: string) {
   return auctionV1ResponseSchema.parse({
@@ -72,6 +75,37 @@ function openAuctionResponse(auctionId: string) {
   });
 }
 
+// 개찰 완료 rail 상태도 같은 이유로 요청 시각 기준 상대 오프셋으로 매번 다시 계산한다(마감 −2일,
+// 개찰 −2일+3시간, 둘 다 과거라 항상 개찰 완료로 판정된다).
+function closedAuctionResponse(auctionId: string) {
+  const now = Date.now();
+  return auctionV1ResponseSchema.parse({
+    identity: {
+      auctionId,
+      revisionId: '5780682',
+      externalBidId: 'fixture-closed-opaque-id',
+      displayBidNumber: null,
+      title: '개찰 완료 공고',
+      status: 'CLOSED'
+    },
+    schedule: {
+      announcedAt: '2026-08-10T00:00:00Z',
+      deadlineAt: new Date(now + CLOSED_DEADLINE_OFFSET_MILLISECONDS).toISOString(),
+      openedAt: new Date(now + CLOSED_OPENED_OFFSET_MILLISECONDS).toISOString()
+    },
+    pricing: {
+      baseAmount: { amount: '2761700.00', currency: 'KRW' },
+      plannedAmount: null
+    },
+    provenance: {
+      sourceSystem: 'eat',
+      observationId: '9007199254740997',
+      normalizedRecordId: '9007199254740999',
+      contentSha256: 'a'.repeat(64)
+    }
+  });
+}
+
 function auctionPath(auctionId: string): string {
   return auctionV1Operations.find.buildPath({ path: { auctionId } });
 }
@@ -115,6 +149,7 @@ Bun.serve({
       return Response.json(auctionResponse(REDUCED_MOTION_AUCTION_ID));
     }
     if (pathname === auctionPath(OPEN_AUCTION_ID)) return Response.json(openAuctionResponse(OPEN_AUCTION_ID));
+    if (pathname === auctionPath(CLOSED_AUCTION_ID)) return Response.json(closedAuctionResponse(CLOSED_AUCTION_ID));
     if (pathname === auctionPath(FAILURE_AUCTION_ID)) return problemResponse(503);
     if (pathname === auctionPath(MISSING_AUCTION_ID)) return problemResponse(404);
     return new Response(null, { status: 404 });

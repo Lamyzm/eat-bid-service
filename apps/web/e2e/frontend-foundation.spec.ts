@@ -10,7 +10,7 @@ test('공고 화면은 공통 셸과 화면 전용 skeleton 뒤 계약 응답을
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
   await expect(page.getByRole('status', { name: '공고 정보를 불러오는 중' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
-  await expect(page.getByText('기초 1,234,567,890원')).toBeVisible();
+  await expect(page.getByText('기초 1,234,567,890.50원')).toBeVisible();
   await expect(page.getByLabel('색상 테마')).toBeVisible();
   await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
   await expect(page.locator('main')).toHaveCount(1);
