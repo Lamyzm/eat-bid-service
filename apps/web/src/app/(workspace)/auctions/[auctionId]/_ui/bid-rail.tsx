@@ -2,13 +2,13 @@
 /** @module 책임: 투찰률 손잡이·직접 입력·넣을 금액·내 값 기록의 브라우저 상태를 소유한다. 추천값은 만들지 않고 사용자가 정한 값만 다룬다. */
 import { useState } from 'react';
 
-import { type BidRecord, type BidRecordPort } from '../_lib/bid-record-port';
+import { createMemoryBidRecordPort, type BidRecord, type BidRecordPort } from '../_lib/bid-record-port';
 import { type BidRate, type BidRateStep, bidAmount, formatWon, parseBidRate, stepBidRate } from '../_model/bid-rate';
 import type { DecisionPresentation } from '../_model/present-decision';
 
 type BidRailProps = {
   readonly decision: DecisionPresentation;
-  readonly port: BidRecordPort;
+  readonly port?: BidRecordPort;
   readonly initialRate?: BidRate;
   // 기록 시각은 사용자가 값을 정한 순간이라 브라우저 시계가 맞는 기준이다. 서버 시계 주입은 필요 없다.
   readonly now?: () => string;
@@ -21,6 +21,10 @@ function defaultNow(): string {
   return new Date().toISOString();
 }
 
+// RSC는 함수·port 객체를 client component에 prop으로 넘길 수 없다(직렬화 불가). DecisionScreen이
+// port를 안 넘기면 이 모듈 스코프 싱글턴을 쓴다. 영속화 adapter는 app 스키마와 함께 후속 슬라이스에서 바꾼다.
+const defaultPort = createMemoryBidRecordPort();
+
 // hour12: false만으로는 일부 로케일 구현체가 자정에 "24"를 낼 수 있다. hourCycle: 'h23'으로 고정한다.
 const KST_CLOCK = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
 
@@ -28,7 +32,7 @@ function kstClock(instant: string): string {
   return KST_CLOCK.format(new Date(instant));
 }
 
-export function BidRail({ decision, port, initialRate = '90.000', now = defaultNow, onRecord }: BidRailProps) {
+export function BidRail({ decision, port = defaultPort, initialRate = '90.000', now = defaultNow, onRecord }: BidRailProps) {
   const [rate, setRate] = useState<BidRate>(initialRate);
   const [draft, setDraft] = useState(initialRate);
   const [record, setRecord] = useState<BidRecord | null>(null);
