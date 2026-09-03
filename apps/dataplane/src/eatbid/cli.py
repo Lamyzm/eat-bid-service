@@ -8,12 +8,14 @@ import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
+from pathlib import Path
 from types import TracebackType
 from typing import Protocol, Self
 from uuid import UUID
 
 from eatbid.config import ApplicationSettings
 from eatbid.ingest.models import CapturedObservation
+from eatbid.pipeline.collection_window import COLLECTION_MODES
 from eatbid.pipeline.discover import DiscoveryResult
 
 CONFIGURATION_EXIT_CODE = 64
@@ -49,6 +51,9 @@ def _handler(method_name: str) -> CommandHandler:
         payload = _machine_result(method_name, result)
         if payload is not None:
             print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+            result_dir = getattr(args, "result_dir", None)
+            if result_dir is not None:
+                _write_result_files(result_dir, payload)
         return 0
 
     return run
@@ -63,6 +68,7 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
         return {
             "detail_run_id": str(result.detail_run_id),
             "discovered_count": result.expected_count,
+            "external_bid_ids": list(result.external_bid_ids),
             "manifest_sha256": result.discovered_manifest_sha256,
             "source_release_id": str(result.source_release_id),
         }
@@ -74,6 +80,19 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "observation_id": result.observation_id,
         }
     return None
+
+
+def _write_result_files(result_dir: Path, payload: Mapping[str, object]) -> None:
+    """왜: workflow 실행기는 stdout이 아니라 파일에서 output parameter를 읽으므로 machine result의
+    key마다 파일 하나를 둔다. 목록 값은 JSON 배열이라 그대로 fan-out 입력이 된다."""
+    result_dir.mkdir(parents=True, exist_ok=True)
+    for key, value in payload.items():
+        text = (
+            json.dumps(value, separators=(",", ":"))
+            if isinstance(value, list)
+            else str(value)
+        )
+        (result_dir / key).write_text(text, encoding="utf-8")
 
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
@@ -112,6 +131,7 @@ def _common(command: argparse.ArgumentParser) -> None:
     command.add_argument("--source-release-id", required=True, type=UUID)
     command.add_argument("--build-sha", required=True, type=_sha256)
     command.add_argument("--parser-version", required=True)
+    command.add_argument("--result-dir", type=Path, default=None)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -123,12 +143,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     discover = commands["discover"]
     discover.add_argument("--detail-run-id", required=True, type=UUID)
+    # 모드가 창을 정한다. 날짜는 backfill에서만 받고 예약 모드에서는 --as-of의 서울 날짜로 번역한다.
+    discover.add_argument("--mode", required=True, choices=COLLECTION_MODES)
     discover.add_argument("--release-name", required=True)
     discover.add_argument("--as-of", required=True, type=_aware_datetime)
     discover.add_argument("--started-at", required=True, type=_aware_datetime)
     discover.add_argument("--completed-at", required=True, type=_aware_datetime)
-    discover.add_argument("--start-date", required=True)
-    discover.add_argument("--end-date", required=True)
+    discover.add_argument("--start-date", default="")
+    discover.add_argument("--end-date", default="")
     discover.add_argument("--progress-status-code", default="")
     discover.add_argument("--region-code", default="")
     discover.add_argument("--page-size", type=int, default=100)

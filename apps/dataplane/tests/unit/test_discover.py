@@ -21,7 +21,10 @@ NOW = datetime(2026, 9, 1, 1, 0, tzinfo=UTC)
 
 def _목록_xml(total: int, ids: tuple[str, ...]) -> bytes:
     rows = "".join(
-        f'<Row><Col id="TOT_CNT">{total}</Col><Col id="ETN_BID_ID">{bid_id}</Col></Row>'
+        f'<Row><Col id="TOT_CNT">{total}</Col><Col id="ETN_BID_ID">{bid_id}</Col>'
+        '<Col id="BID_CNT">0</Col><Col id="ETN_BID_STT_NM">입찰공고</Col>'
+        '<Col id="BID_END_DT">20260914100000000</Col>'
+        '<Col id="LAST_CHG_DT">20260902175956000</Col></Row>'
         for bid_id in ids
     )
     if total == 0:
@@ -29,7 +32,9 @@ def _목록_xml(total: int, ids: tuple[str, ...]) -> bytes:
     return (
         '<Root xmlns="http://www.nexacroplatform.com/platform/dataset">'
         '<Dataset id="ds_list"><ColumnInfo><Column id="TOT_CNT"/>'
-        f'<Column id="ETN_BID_ID"/></ColumnInfo><Rows>{rows}</Rows></Dataset></Root>'
+        '<Column id="ETN_BID_ID"/><Column id="BID_CNT"/><Column id="ETN_BID_STT_NM"/>'
+        '<Column id="BID_END_DT"/><Column id="LAST_CHG_DT"/></ColumnInfo>'
+        f"<Rows>{rows}</Rows></Dataset></Root>"
     ).encode()
 
 
@@ -38,6 +43,7 @@ def _계획(*, page_size: int = 2, page_budget: int = 4) -> DiscoveryPlan:
         source_release_id=RELEASE_ID,
         run_id=RUN_ID,
         detail_run_id=DETAIL_RUN_ID,
+        mode="backfill",
         release_name="R0 오프라인 발견",
         as_of=NOW,
         build_sha="a" * 64,

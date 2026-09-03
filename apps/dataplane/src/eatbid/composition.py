@@ -20,6 +20,7 @@ from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseReposi
 from eatbid.ingest.postgres_replay_repository import PsycopgReplayRunRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
 from eatbid.pipeline.capture import capture
+from eatbid.pipeline.collection_window import resolve_collection_window
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.pipeline.normalize import normalize_observation
@@ -69,19 +70,26 @@ class Application:
             release_repository=self._release,
             raw_store=self._store,
         )
+        window = resolve_collection_window(
+            args.mode,
+            as_of=args.as_of,
+            start_date=args.start_date,
+            end_date=args.end_date,
+        )
         return discover_release(
             DiscoveryPlan(
                 source_release_id=args.source_release_id,
                 run_id=args.run_id,
                 detail_run_id=args.detail_run_id,
+                mode=args.mode,
                 release_name=args.release_name,
                 as_of=args.as_of,
                 build_sha=args.build_sha,
                 parser_version=args.parser_version,
                 started_at=args.started_at,
                 completed_at=args.completed_at,
-                start_date=args.start_date,
-                end_date=args.end_date,
+                start_date=window.start_date,
+                end_date=window.end_date,
                 progress_status_code=args.progress_status_code,
                 region_code=args.region_code,
                 page_size=args.page_size,

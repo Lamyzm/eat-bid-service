@@ -40,7 +40,7 @@ class RawFirstDiscoveryPersistence:
         self._completed_at = plan.completed_at
         self._ingest.start_run(
             run_id=plan.run_id,
-            mode="backfill",
+            mode=plan.mode,
             build_sha=plan.build_sha,
             parser_version=plan.parser_version,
             started_at=plan.started_at,
@@ -78,7 +78,7 @@ class RawFirstDiscoveryPersistence:
     def start_detail_run(self, plan: DiscoveryPlan, expected_count: int) -> None:
         self._ingest.start_run(
             run_id=plan.detail_run_id,
-            mode="backfill",
+            mode=plan.mode,
             build_sha=plan.build_sha,
             parser_version=plan.parser_version,
             started_at=plan.started_at,

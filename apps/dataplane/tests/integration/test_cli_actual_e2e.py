@@ -70,6 +70,7 @@ def test_actual_CLI가_discover부터_validate_복구와_project까지_실행한
 
     discover = _공통("discover", discovery_run_id, release_id) + [
         "--detail-run-id", str(detail_run_id),
+        "--mode", "backfill",
         "--release-name", "실제 CLI E2E",
         "--as-of", NOW.isoformat(),
         "--started-at", NOW.isoformat(),

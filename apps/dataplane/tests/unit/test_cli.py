@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from argparse import Namespace
+from pathlib import Path
 from typing import Self
 from uuid import UUID
 
@@ -12,6 +14,7 @@ from eatbid.composition import Application, build_application
 from eatbid.config import ApplicationSettings
 from eatbid.errors import SourceContractError
 from eatbid.pipeline.capture import SourceThrottledError
+from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.normalize import DataQuarantinedError
 
 RUN_ID = "43000000-0000-0000-0000-000000000001"
@@ -52,7 +55,7 @@ def _공통(command: str) -> list[str]:
 
 def _명령(command: str) -> list[str]:
     extras = {
-        "discover": ["--detail-run-id", PUBLICATION_ID,
+        "discover": ["--detail-run-id", PUBLICATION_ID, "--mode", "backfill",
                      "--release-name", "R0 offline", "--as-of", "2026-09-01T00:00:00Z",
                      "--started-at", "2026-09-01T00:00:00Z", "--completed-at", "2026-09-01T00:01:00Z",
                      "--start-date", "20260901", "--end-date", "20260901"],
@@ -188,3 +191,60 @@ def test_R2_구성실패는_HTTP와_DB를_역순으로_한번씩_닫고_secret�
     assert captured.value.__cause__ is None
     assert captured.value.__context__ is None
     assert "secret" not in repr(captured.value)
+
+
+def test_discover는_mode를_요구하고_검토된_모드만_받는다() -> None:
+    parser = build_parser()
+    without_mode = _명령("discover")
+    index = without_mode.index("--mode")
+    del without_mode[index:index + 2]
+    with pytest.raises(SystemExit):
+        parser.parse_args(without_mode)
+    unknown_mode = _명령("discover")
+    unknown_mode[unknown_mode.index("backfill")] = "replay"
+    with pytest.raises(SystemExit):
+        parser.parse_args(unknown_mode)
+    scheduled = _명령("discover")
+    for flag in ("--start-date", "--end-date"):
+        index = scheduled.index(flag)
+        del scheduled[index:index + 2]
+    scheduled[scheduled.index("backfill")] = "poll-open"
+    parsed = parser.parse_args(scheduled)
+    assert (parsed.mode, parsed.start_date, parsed.end_date) == ("poll-open", "", "")
+
+
+class _발견결과애플리케이션(_기록애플리케이션):
+    def discover(self, args: Namespace) -> DiscoveryResult:
+        self._record("discover", args)
+        return DiscoveryResult(
+            source_release_id=UUID(RELEASE_ID),
+            expected_count=2,
+            external_bid_ids=("7", "11"),
+            observation_ids=(1,),
+            detail_run_id=UUID(PUBLICATION_ID),
+            detail_request_unit_ids=(2, 3),
+            discovered_manifest_sha256="b" * 64,
+        )
+
+
+def test_result_dir는_machine_result의_key마다_workflow가_읽을_파일을_남긴다(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    application = _발견결과애플리케이션()
+    argv = _명령("discover") + ["--result-dir", str(tmp_path / "out")]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 0
+
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["external_bid_ids"] == ["7", "11"]
+    written = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in (tmp_path / "out").iterdir()
+    }
+    assert written == {
+        "detail_run_id": PUBLICATION_ID,
+        "discovered_count": "2",
+        "external_bid_ids": '["7","11"]',
+        "manifest_sha256": "b" * 64,
+        "source_release_id": RELEASE_ID,
+    }

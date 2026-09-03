@@ -54,6 +54,7 @@ def test_offline_discover가_raw와_detail_manifest를_같은_planned_release에
             source_release_id=RELEASE_ID,
             run_id=RUN_ID,
             detail_run_id=DETAIL_RUN_ID,
+            mode="backfill",
             release_name="R0 offline fixture",
             as_of=NOW,
             build_sha="a" * 64,
