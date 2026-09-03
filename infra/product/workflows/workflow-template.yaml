@@ -8,10 +8,20 @@ spec:
   serviceAccountName: eatbid-dataplane
   arguments:
     parameters:
+      # mode는 CLI `discover --mode`로 그대로 전달되고 날짜 창은 CLI가 번역한다. poll-open과
+      # daily-reconcile은 start-date/end-date를 비워 두어야 하며, backfill submit만 두 날짜를 채운다.
+      #   argo submit --from workflowtemplate/eatbid-dataplane -n eatbid \
+      #     -p mode=backfill -p start-date=20250901 -p end-date=20251130
       - name: mode
         value: poll-open
       - name: parser-version
         value: eat-v1
+      - name: start-date
+        value: ""
+      - name: end-date
+        value: ""
+      - name: release-name
+        value: ""
   templates:
     - name: scheduled-pipeline
       dag:
@@ -21,15 +31,53 @@ spec:
           - name: capture
             template: capture
             dependencies: [discover]
+            # 발견된 ID마다 상세 pod 하나다. source semaphore가 capture template에 걸려 있어 fan-out
+            # 폭과 무관하게 소스 동시 호출은 capacity를 넘지 않는다.
+            withParam: "{{tasks.discover.outputs.parameters.external-bid-ids}}"
+            arguments:
+              parameters:
+                - name: source-release-id
+                  value: "{{tasks.discover.outputs.parameters.source-release-id}}"
+                - name: detail-run-id
+                  value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
+                - name: external-bid-id
+                  value: "{{item}}"
           - name: normalize
             template: normalize
             dependencies: [capture]
+            # 확장된 capture의 output parameter `observation-id`가 JSON 배열로 모인다. stdout 결과가
+            # 아니라 파일 output parameter를 쓰므로 값이 문자열 JSON이 아닌 item 그대로 도착한다.
+            withParam: "{{tasks.capture.outputs.parameters.observation-id}}"
+            arguments:
+              parameters:
+                - name: source-release-id
+                  value: "{{tasks.discover.outputs.parameters.source-release-id}}"
+                - name: detail-run-id
+                  value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
+                - name: observation-id
+                  value: "{{item}}"
           - name: validate
             template: validate
             dependencies: [normalize]
+            arguments:
+              parameters:
+                - name: source-release-id
+                  value: "{{tasks.discover.outputs.parameters.source-release-id}}"
+                - name: detail-run-id
+                  value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
+                - name: publication-id
+                  value: "{{tasks.discover.outputs.parameters.publication-id}}"
           - name: project
             template: project
             dependencies: [validate]
+            arguments:
+              parameters:
+                - name: source-release-id
+                  value: "{{tasks.discover.outputs.parameters.source-release-id}}"
+                - name: detail-run-id
+                  value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
+                - name: publication-id
+                  value: "{{tasks.discover.outputs.parameters.publication-id}}"
 
     - name: discover
       synchronization:
@@ -37,86 +85,246 @@ spec:
           - configMapKeyRef:
               name: eatbid-workflow-limits
               key: eatbid-source-limit
+      outputs:
+        parameters:
+          # CLI `--result-dir`가 machine result의 key마다 남긴 파일이다. 뒤 단계는 이 값만 받는다.
+          - name: source-release-id
+            valueFrom:
+              path: /tmp/eatbid/source_release_id
+          - name: detail-run-id
+            valueFrom:
+              path: /tmp/eatbid/detail_run_id
+          - name: publication-id
+            valueFrom:
+              path: /tmp/eatbid/publication_id
+          - name: external-bid-ids
+            valueFrom:
+              path: /tmp/eatbid/external_bid_ids
+          - name: discovered-count
+            valueFrom:
+              path: /tmp/eatbid/discovered_count
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
-        command: [/bin/sh, -ec]
+        command: [python, -c]
         args:
-          - >-
-            exec eatbid discover --run-id "$EATBID_RUN_ID"
-            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
-        env: &dataplane-env
+          - |
+            import os
+            import sys
+            import uuid
+
+            def fail(message: str) -> None:
+                print(message, file=sys.stderr)
+                raise SystemExit(64)
+
+            try:
+                run_id = uuid.UUID(os.environ["EATBID_RUN_ID"])
+            except (KeyError, ValueError):
+                fail("EATBID_RUN_ID must be the workflow UUID")
+            mode = os.environ.get("EATBID_WORKFLOW_MODE", "")
+            created_at = os.environ.get("EATBID_WORKFLOW_CREATED_AT", "")
+            result_dir = os.environ.get("EATBID_RESULT_DIR", "")
+            if not mode or not created_at or not result_dir:
+                fail("EATBID_WORKFLOW_MODE, EATBID_WORKFLOW_CREATED_AT, EATBID_RESULT_DIR are required")
+
+            # 한 workflow의 release, detail run, publication 정체성은 workflow uid에서 결정적으로
+            # 파생한다. 같은 pod가 다시 뜨면 새 정체성을 만들어 고아 run을 남기는 대신 같은 정체성으로
+            # 충돌해 멈춘다. discovery run 자체는 workflow uid 그대로다.
+            source_release_id = uuid.uuid5(run_id, "eatbid:source-release")
+            detail_run_id = uuid.uuid5(run_id, "eatbid:detail-run")
+            publication_id = uuid.uuid5(run_id, "eatbid:publication")
+            release_name = os.environ.get("EATBID_RELEASE_NAME") or f"{mode} {created_at} {run_id}"
+
+            os.makedirs(result_dir, exist_ok=True)
+            with open(os.path.join(result_dir, "publication_id"), "w", encoding="utf-8") as handle:
+                handle.write(str(publication_id))
+
+            argv = [
+                "eatbid", "discover",
+                "--mode", mode,
+                "--run-id", str(run_id),
+                "--source-release-id", str(source_release_id),
+                "--detail-run-id", str(detail_run_id),
+                "--build-sha", os.environ["BUILD_SHA"],
+                "--parser-version", os.environ["EATBID_PARSER_VERSION"],
+                "--release-name", release_name,
+                "--as-of", created_at,
+                "--started-at", created_at,
+                "--completed-at", created_at,
+                "--start-date", os.environ.get("EATBID_START_DATE", ""),
+                "--end-date", os.environ.get("EATBID_END_DATE", ""),
+                "--result-dir", result_dir,
+            ]
+            os.execvp(argv[0], argv)
+        env:
           - name: EATBID_WORKFLOW_MODE
             value: "{{workflow.parameters.mode}}"
-          - name: EATBID_RUN_ID
+          - &env-run-id
+            name: EATBID_RUN_ID
             value: "{{workflow.uid}}"
-          - name: EATBID_PARSER_VERSION
+          - &env-parser-version
+            name: EATBID_PARSER_VERSION
             value: "{{workflow.parameters.parser-version}}"
-          - name: DATABASE_URL
+          - &env-created-at
+            name: EATBID_WORKFLOW_CREATED_AT
+            value: "{{workflow.creationTimestamp}}"
+          - &env-result-dir
+            name: EATBID_RESULT_DIR
+            value: /tmp/eatbid
+          - name: EATBID_START_DATE
+            value: "{{workflow.parameters.start-date}}"
+          - name: EATBID_END_DATE
+            value: "{{workflow.parameters.end-date}}"
+          - name: EATBID_RELEASE_NAME
+            value: "{{workflow.parameters.release-name}}"
+          - &env-database-url
+            name: DATABASE_URL
             valueFrom:
               secretKeyRef:
                 name: eatbid-database-dataplane
                 key: DATABASE_URL
-          - name: R2_ENDPOINT_URL
+          - &env-r2-endpoint
+            name: R2_ENDPOINT_URL
             valueFrom:
               secretKeyRef:
                 name: eatbid-r2
                 key: R2_ENDPOINT_URL
-          - name: R2_BUCKET
+          - &env-r2-bucket
+            name: R2_BUCKET
             valueFrom:
               secretKeyRef:
                 name: eatbid-r2
                 key: R2_BUCKET
-          - name: R2_ACCESS_KEY_ID
+          - &env-r2-access-key
+            name: R2_ACCESS_KEY_ID
             valueFrom:
               secretKeyRef:
                 name: eatbid-r2
                 key: R2_ACCESS_KEY_ID
-          - name: R2_SECRET_ACCESS_KEY
+          - &env-r2-secret-key
+            name: R2_SECRET_ACCESS_KEY
             valueFrom:
               secretKeyRef:
                 name: eatbid-r2
                 key: R2_SECRET_ACCESS_KEY
 
     - name: capture
+      inputs:
+        parameters:
+          - name: source-release-id
+          - name: detail-run-id
+          - name: external-bid-id
       synchronization:
         semaphores:
           - configMapKeyRef:
               name: eatbid-workflow-limits
               key: eatbid-source-limit
+      outputs:
+        parameters:
+          - name: observation-id
+            valueFrom:
+              path: /tmp/eatbid/observation_id
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
         command: [/bin/sh, -ec]
         args:
           - >-
-            exec eatbid capture --run-id "$EATBID_RUN_ID"
+            exec eatbid capture --run-id "$EATBID_DETAIL_RUN_ID"
+            --source-release-id "$EATBID_SOURCE_RELEASE_ID"
+            --external-bid-id "$EATBID_EXTERNAL_BID_ID"
+            --started-at "$EATBID_WORKFLOW_CREATED_AT"
             --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
-        env: *dataplane-env
+            --result-dir "$EATBID_RESULT_DIR"
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: "{{workflow.parameters.mode}}"
+          - &env-source-release-id
+            name: EATBID_SOURCE_RELEASE_ID
+            value: "{{inputs.parameters.source-release-id}}"
+          - &env-detail-run-id
+            name: EATBID_DETAIL_RUN_ID
+            value: "{{inputs.parameters.detail-run-id}}"
+          - name: EATBID_EXTERNAL_BID_ID
+            value: "{{inputs.parameters.external-bid-id}}"
+          - *env-parser-version
+          - *env-created-at
+          - *env-result-dir
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
 
     - name: normalize
+      inputs:
+        parameters:
+          - name: source-release-id
+          - name: detail-run-id
+          - name: observation-id
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
         command: [/bin/sh, -ec]
         args:
           - >-
-            exec eatbid normalize --run-id "$EATBID_RUN_ID"
+            exec eatbid normalize --run-id "$EATBID_DETAIL_RUN_ID"
+            --source-release-id "$EATBID_SOURCE_RELEASE_ID"
+            --observation-id "$EATBID_OBSERVATION_ID"
+            --normalized-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
-        env: *dataplane-env
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: "{{workflow.parameters.mode}}"
+          - *env-source-release-id
+          - *env-detail-run-id
+          - name: EATBID_OBSERVATION_ID
+            value: "{{inputs.parameters.observation-id}}"
+          - *env-parser-version
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
 
     - name: validate
+      inputs:
+        parameters:
+          - name: source-release-id
+          - name: detail-run-id
+          - name: publication-id
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
         command: [/bin/sh, -ec]
         args:
           - >-
-            exec eatbid validate --run-id "$EATBID_RUN_ID"
+            exec eatbid validate --run-id "$EATBID_DETAIL_RUN_ID"
+            --source-release-id "$EATBID_SOURCE_RELEASE_ID"
+            --publication-id "$EATBID_PUBLICATION_ID"
+            --validated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
-        env: *dataplane-env
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: "{{workflow.parameters.mode}}"
+          - *env-source-release-id
+          - *env-detail-run-id
+          - &env-publication-id
+            name: EATBID_PUBLICATION_ID
+            value: "{{inputs.parameters.publication-id}}"
+          - *env-parser-version
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
 
     - name: project
+      inputs:
+        parameters:
+          - name: source-release-id
+          - name: detail-run-id
+          - name: publication-id
       synchronization:
         mutexes:
           - name: eatbid-core-publication
@@ -126,13 +334,28 @@ spec:
         command: [/bin/sh, -ec]
         args:
           - >-
-            exec eatbid project --run-id "$EATBID_RUN_ID"
+            exec eatbid project --run-id "$EATBID_DETAIL_RUN_ID"
+            --source-release-id "$EATBID_SOURCE_RELEASE_ID"
+            --publication-id "$EATBID_PUBLICATION_ID"
+            --activated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
-        env: *dataplane-env
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: "{{workflow.parameters.mode}}"
+          - *env-source-release-id
+          - *env-detail-run-id
+          - *env-publication-id
+          - *env-parser-version
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
 
     - name: replay
       inputs:
         parameters:
+          - name: source-release-id
           - name: publication-id
           - name: observation-ids-json
           - name: started-at
@@ -175,6 +398,7 @@ spec:
             argv = [
                 "eatbid", "replay",
                 "--run-id", os.environ["EATBID_RUN_ID"],
+                "--source-release-id", os.environ["EATBID_SOURCE_RELEASE_ID"],
                 "--build-sha", os.environ["BUILD_SHA"],
                 "--parser-version", os.environ["EATBID_PARSER_VERSION"],
                 "--publication-id", os.environ["EATBID_PUBLICATION_ID"],
@@ -191,12 +415,10 @@ spec:
         env:
           - name: EATBID_WORKFLOW_MODE
             value: replay
-          - name: EATBID_RUN_ID
-            value: "{{workflow.uid}}"
-          - name: EATBID_PARSER_VERSION
-            value: "{{workflow.parameters.parser-version}}"
-          - name: EATBID_PUBLICATION_ID
-            value: "{{inputs.parameters.publication-id}}"
+          - *env-run-id
+          - *env-parser-version
+          - *env-source-release-id
+          - *env-publication-id
           - name: EATBID_OBSERVATION_IDS_JSON
             value: "{{inputs.parameters.observation-ids-json}}"
           - name: EATBID_STARTED_AT
@@ -207,28 +429,8 @@ spec:
             value: "{{inputs.parameters.validated-at}}"
           - name: EATBID_ACTIVATED_AT
             value: "{{inputs.parameters.activated-at}}"
-          - name: DATABASE_URL
-            valueFrom:
-              secretKeyRef:
-                name: eatbid-database-dataplane
-                key: DATABASE_URL
-          - name: R2_ENDPOINT_URL
-            valueFrom:
-              secretKeyRef:
-                name: eatbid-r2
-                key: R2_ENDPOINT_URL
-          - name: R2_BUCKET
-            valueFrom:
-              secretKeyRef:
-                name: eatbid-r2
-                key: R2_BUCKET
-          - name: R2_ACCESS_KEY_ID
-            valueFrom:
-              secretKeyRef:
-                name: eatbid-r2
-                key: R2_ACCESS_KEY_ID
-          - name: R2_SECRET_ACCESS_KEY
-            valueFrom:
-              secretKeyRef:
-                name: eatbid-r2
-                key: R2_SECRET_ACCESS_KEY
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key

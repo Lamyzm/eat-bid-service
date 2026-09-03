@@ -3,13 +3,16 @@ from __future__ import annotations
 import ast
 import os
 import re
+import shlex
 from collections.abc import Iterable, Mapping
 from itertools import pairwise
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 import yaml
 from conftest import ManifestSet
+from eatbid.cli import build_parser
 from eatbid.source.eat.schema_contract import REVIEWED_EAT_SCHEMA_CONTRACTS
 
 ROOT = Path(__file__).parents[2]
@@ -20,6 +23,23 @@ CLI = ROOT / "apps" / "dataplane" / "src" / "eatbid" / "cli.py"
 BUILD_WORKFLOW = ROOT / ".github" / "workflows" / "build.yml"
 
 SCHEDULED_COMMANDS = ("discover", "capture", "normalize", "validate", "project")
+PYTHON_ENTRYPOINT_TEMPLATES = ("discover", "replay")
+# shell 단계가 `$NAME`으로 읽는 값의 표본이다. BUILD_SHA만 container env가 아니라 image ENV에서 온다.
+SAMPLE_STAGE_ENV = {
+    "BUILD_SHA": "a" * 64,
+    "EATBID_WORKFLOW_MODE": "poll-open",
+    "EATBID_RUN_ID": "00000000-0000-0000-0000-000000000001",
+    "EATBID_PARSER_VERSION": "eat-v1",
+    "EATBID_WORKFLOW_CREATED_AT": "2026-09-04T03:00:00Z",
+    "EATBID_RESULT_DIR": "/tmp/eatbid",
+    "EATBID_SOURCE_RELEASE_ID": "00000000-0000-0000-0000-000000000002",
+    "EATBID_DETAIL_RUN_ID": "00000000-0000-0000-0000-000000000003",
+    "EATBID_PUBLICATION_ID": "00000000-0000-0000-0000-000000000004",
+    "EATBID_EXTERNAL_BID_ID": "5610615",
+    "EATBID_OBSERVATION_ID": "7",
+}
+SHELL_CLOCK = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+SHELL_VARIABLE = re.compile(r"\$\{?([A-Z_][A-Z0-9_]*)\}?")
 PRODUCT_IMAGES = {
     "eatbid-web",
     "eatbid-server",
@@ -160,8 +180,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     assert workflow_parameters["parser-version"] == reviewed_parser_version
 
     templates = _templates(workflow_template)
-    dag = _mapping(templates["scheduled-pipeline"]["dag"])
-    tasks = [_mapping(task) for task in _sequence(dag["tasks"])]
+    tasks = _dag_tasks(workflow_template)
     assert [task["name"] for task in tasks] == list(SCHEDULED_COMMANDS)
     assert [task["template"] for task in tasks] == list(SCHEDULED_COMMANDS)
     assert tasks[0].get("dependencies", []) == []
@@ -213,7 +232,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
             if templates[name]["container"] is container
         )
         command = str(_sequence(container["args"])[0])
-        if template_name == "replay":
+        if template_name in PYTHON_ENTRYPOINT_TEMPLATES:
             assert container["command"] == ["python", "-c"]
             assert '"--build-sha", os.environ["BUILD_SHA"]' in command
         else:
@@ -294,9 +313,10 @@ def _execute_replay_script(
         captured.extend(argv)
 
     environment = {
-        "BUILD_SHA": "a" * 40,
+        "BUILD_SHA": "a" * 64,
         "EATBID_RUN_ID": "00000000-0000-0000-0000-000000000001",
         "EATBID_PARSER_VERSION": "eat-v1",
+        "EATBID_SOURCE_RELEASE_ID": "00000000-0000-0000-0000-000000000003",
         "EATBID_PUBLICATION_ID": "00000000-0000-0000-0000-000000000002",
         "EATBID_OBSERVATION_IDS_JSON": observation_ids_json,
         "EATBID_STARTED_AT": "2026-08-29T05:00:00Z",
@@ -323,6 +343,247 @@ def test_replay_JSON_ID가_정확히_반복된_CLI_argv가_된다(
     ]
     assert observation_flags == ["7", "3"]
     assert argv.count("--observation-id") == 2
+    parsed = build_parser().parse_args(argv[1:])
+    assert parsed.source_release_id == UUID("00000000-0000-0000-0000-000000000003")
+
+
+def _dag_tasks(workflow_template: Mapping[str, object]) -> list[Mapping[str, object]]:
+    dag = _mapping(_templates(workflow_template)["scheduled-pipeline"]["dag"])
+    return [_mapping(task) for task in _sequence(dag["tasks"])]
+
+
+def _task_arguments(task: Mapping[str, object]) -> dict[str, str]:
+    arguments = _mapping(task.get("arguments", {}))
+    return {
+        str(item["name"]): str(item["value"])
+        for item in _sequence(arguments.get("parameters", []))
+        if isinstance(item, Mapping)
+    }
+
+
+def _input_names(template: Mapping[str, object]) -> set[str]:
+    inputs = _mapping(template.get("inputs", {}))
+    return {
+        str(item["name"])
+        for item in _sequence(inputs.get("parameters", []))
+        if isinstance(item, Mapping)
+    }
+
+
+def _output_paths(template: Mapping[str, object]) -> dict[str, str]:
+    outputs = _mapping(template.get("outputs", {}))
+    return {
+        str(item["name"]): str(_mapping(_mapping(item)["valueFrom"])["path"])
+        for item in _sequence(outputs.get("parameters", []))
+        if isinstance(item, Mapping)
+    }
+
+
+def _render_shell_argv(command: str, environment: Mapping[str, str]) -> list[str]:
+    """`sh -ec` 문자열을 표본 env로 펼친다. 시계 치환과 `$NAME` 확장 외의 shell 기능은 없어야 한다."""
+    rendered = command.replace(SHELL_CLOCK, "2026-09-04T03:05:00Z")
+    assert "$(" not in rendered, command
+    assert "`" not in rendered, command
+    rendered = SHELL_VARIABLE.sub(lambda match: environment[match.group(1)], rendered)
+    argv = shlex.split(rendered)
+    assert argv[0] == "exec"
+    return argv[1:]
+
+
+def _execute_discover_script(
+    manifests: ManifestSet, monkeypatch: object, environment: Mapping[str, str]
+) -> list[str]:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    container = _mapping(_templates(workflow_template)["discover"]["container"])
+    script = str(_sequence(container["args"])[0])
+    captured: list[str] = []
+
+    def capture_execvp(executable: str, argv: list[str]) -> None:
+        assert executable == "eatbid"
+        captured.extend(argv)
+
+    for key in list(SAMPLE_STAGE_ENV) + ["EATBID_START_DATE", "EATBID_END_DATE", "EATBID_RELEASE_NAME"]:
+        monkeypatch.delenv(key, raising=False)  # type: ignore[attr-defined]
+    for key, value in environment.items():
+        monkeypatch.setenv(key, value)  # type: ignore[attr-defined]
+    monkeypatch.setattr(os, "execvp", capture_execvp)  # type: ignore[attr-defined]
+    exec(compile(script, "<discover-entrypoint>", "exec"), {})  # noqa: S102
+    return captured
+
+
+def _flag_value(argv: list[str], flag: str) -> str:
+    assert argv.count(flag) == 1, (flag, argv)
+    return argv[argv.index(flag) + 1]
+
+
+@pytest.mark.parametrize("mode", ["poll-open", "daily-reconcile"])
+def test_discover_단계는_mode를_CLI에_넘기고_예약_모드의_창은_CLI가_번역한다(
+    manifests: ManifestSet, monkeypatch: object, tmp_path: Path, mode: str
+) -> None:
+    environment = {
+        **SAMPLE_STAGE_ENV,
+        "EATBID_WORKFLOW_MODE": mode,
+        "EATBID_RESULT_DIR": str(tmp_path / "result"),
+        "EATBID_START_DATE": "",
+        "EATBID_END_DATE": "",
+        "EATBID_RELEASE_NAME": "",
+    }
+    argv = _execute_discover_script(manifests, monkeypatch, environment)
+
+    assert argv[0:2] == ["eatbid", "discover"]
+    parsed = build_parser().parse_args(argv[1:])
+    assert (parsed.mode, parsed.start_date, parsed.end_date) == (mode, "", "")
+    assert parsed.run_id == UUID(environment["EATBID_RUN_ID"])
+    assert parsed.detail_run_id != parsed.run_id
+    assert parsed.source_release_id not in {parsed.run_id, parsed.detail_run_id}
+    assert parsed.as_of.isoformat() == "2026-09-04T03:00:00+00:00"
+    assert parsed.release_name
+    assert parsed.result_dir == tmp_path / "result"
+    # 뒤 단계가 받을 publication 정체성은 discover가 먼저 파일로 남긴다.
+    assert UUID((tmp_path / "result" / "publication_id").read_text(encoding="utf-8"))
+
+
+def test_discover_단계는_같은_workflow에서_같은_정체성을_다시_만든다(
+    manifests: ManifestSet, monkeypatch: object, tmp_path: Path
+) -> None:
+    environment = {
+        **SAMPLE_STAGE_ENV,
+        "EATBID_WORKFLOW_MODE": "backfill",
+        "EATBID_RESULT_DIR": str(tmp_path / "result"),
+        "EATBID_START_DATE": "20250901",
+        "EATBID_END_DATE": "20251130",
+        "EATBID_RELEASE_NAME": "2025 가을 backfill",
+    }
+    first = build_parser().parse_args(
+        _execute_discover_script(manifests, monkeypatch, environment)[1:]
+    )
+    second = build_parser().parse_args(
+        _execute_discover_script(manifests, monkeypatch, environment)[1:]
+    )
+
+    assert (first.source_release_id, first.detail_run_id) == (
+        second.source_release_id,
+        second.detail_run_id,
+    )
+    assert (first.mode, first.start_date, first.end_date) == ("backfill", "20250901", "20251130")
+    assert first.release_name == "2025 가을 backfill"
+
+
+def test_discover_단계는_workflow_uid_없이_CLI를_부르지_않는다(
+    manifests: ManifestSet, monkeypatch: object, tmp_path: Path
+) -> None:
+    for broken in ("", "not-a-uuid"):
+        with pytest.raises(SystemExit) as error:
+            _execute_discover_script(
+                manifests,
+                monkeypatch,
+                {**SAMPLE_STAGE_ENV, "EATBID_RUN_ID": broken, "EATBID_RESULT_DIR": str(tmp_path)},
+            )
+        assert error.value.code == 64
+
+
+@pytest.mark.parametrize("template_name", ["capture", "normalize", "validate", "project"])
+def test_shell_단계의_argv는_CLI_parser의_필수_인자를_모두_채운다(
+    manifests: ManifestSet, template_name: str
+) -> None:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    template = _templates(workflow_template)[template_name]
+    container = _mapping(template["container"])
+    command = str(_sequence(container["args"])[0])
+
+    argv = _render_shell_argv(command, SAMPLE_STAGE_ENV)
+    assert argv[0:2] == ["eatbid", template_name]
+    parsed = build_parser().parse_args(argv[1:])
+    # 발견 뒤의 모든 단계는 detail run 정체성으로 돈다. 첫 live 실행에서 discovery run으로 발행을
+    # 시도해 membership 오류가 났던 것이 근거다.
+    assert parsed.run_id == UUID(SAMPLE_STAGE_ENV["EATBID_DETAIL_RUN_ID"])
+    assert parsed.source_release_id == UUID(SAMPLE_STAGE_ENV["EATBID_SOURCE_RELEASE_ID"])
+    assert parsed.build_sha == SAMPLE_STAGE_ENV["BUILD_SHA"]
+
+    declared = {
+        str(item["name"])
+        for item in _sequence(container["env"])
+        if isinstance(item, Mapping)
+    }
+    referenced = set(SHELL_VARIABLE.findall(command))
+    assert referenced - {"BUILD_SHA"} <= declared, referenced - declared
+    for name in _input_names(template):
+        assert any(
+            _env(container, str(item["name"]))["value"] == f"{{{{inputs.parameters.{name}}}}}"
+            for item in _sequence(container["env"])
+            if isinstance(item, Mapping) and "value" in item
+        ), name
+
+
+def test_DAG는_discover_output으로_capture와_normalize를_fan_out한다(
+    manifests: ManifestSet,
+) -> None:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+    tasks = {str(task["name"]): task for task in _dag_tasks(workflow_template)}
+
+    discover_outputs = _output_paths(templates["discover"])
+    result_dir = _env(_mapping(templates["discover"]["container"]), "EATBID_RESULT_DIR")["value"]
+    assert discover_outputs == {
+        "source-release-id": f"{result_dir}/source_release_id",
+        "detail-run-id": f"{result_dir}/detail_run_id",
+        "publication-id": f"{result_dir}/publication_id",
+        "external-bid-ids": f"{result_dir}/external_bid_ids",
+        "discovered-count": f"{result_dir}/discovered_count",
+    }
+    assert _output_paths(templates["capture"]) == {
+        "observation-id": f"{result_dir}/observation_id"
+    }
+
+    assert tasks["capture"]["withParam"] == (
+        "{{tasks.discover.outputs.parameters.external-bid-ids}}"
+    )
+    assert tasks["normalize"]["withParam"] == (
+        "{{tasks.capture.outputs.parameters.observation-id}}"
+    )
+    assert "withParam" not in tasks["validate"]
+    assert "withParam" not in tasks["project"]
+
+    for name in ("capture", "normalize", "validate", "project"):
+        arguments = _task_arguments(tasks[name])
+        assert set(arguments) == _input_names(templates[name]), name
+        assert arguments["source-release-id"] == (
+            "{{tasks.discover.outputs.parameters.source-release-id}}"
+        )
+        assert arguments["detail-run-id"] == (
+            "{{tasks.discover.outputs.parameters.detail-run-id}}"
+        )
+    assert _task_arguments(tasks["capture"])["external-bid-id"] == "{{item}}"
+    assert _task_arguments(tasks["normalize"])["observation-id"] == "{{item}}"
+    for name in ("validate", "project"):
+        assert _task_arguments(tasks[name])["publication-id"] == (
+            "{{tasks.discover.outputs.parameters.publication-id}}"
+        )
+
+
+def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
+    manifests: ManifestSet,
+) -> None:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    parameters = {
+        str(item["name"]): item["value"]
+        for item in _sequence(_mapping(_spec(workflow_template)["arguments"])["parameters"])
+        if isinstance(item, Mapping)
+    }
+    assert parameters == {
+        "mode": "poll-open",
+        "parser-version": "eat-v1",
+        "start-date": "",
+        "end-date": "",
+        "release-name": "",
+    }
+    discover_env = _mapping(_templates(workflow_template)["discover"]["container"])
+    assert _env(discover_env, "EATBID_WORKFLOW_MODE")["value"] == "{{workflow.parameters.mode}}"
+    assert _env(discover_env, "EATBID_START_DATE")["value"] == "{{workflow.parameters.start-date}}"
+    assert _env(discover_env, "EATBID_END_DATE")["value"] == "{{workflow.parameters.end-date}}"
+    assert _env(discover_env, "EATBID_WORKFLOW_CREATED_AT")["value"] == (
+        "{{workflow.creationTimestamp}}"
+    )
 
 
 def test_replay_JSON_ID가_shell_확장_없이_fail_closed한다(
