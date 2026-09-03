@@ -1,3 +1,4 @@
+/** @module 책임: 공고 route가 공통 셸(테마·사이드바·에러 경계)과 계약 응답 전환을 계약대로 지키는지 검사한다. 화면 전용 표시 규칙은 decision-screen.spec.ts가 맡는다. */
 import { expect, test } from '@playwright/test';
 
 const SUCCESS_AUCTION_ID = '9007199254740993';
@@ -9,7 +10,7 @@ test('공고 화면은 공통 셸과 화면 전용 skeleton 뒤 계약 응답을
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
   await expect(page.getByRole('status', { name: '공고 정보를 불러오는 중' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
-  await expect(page.getByText('1,234,567,890.50 KRW')).toBeVisible();
+  await expect(page.getByText('기초 1,234,567,890원')).toBeVisible();
   await expect(page.getByLabel('색상 테마')).toBeVisible();
   await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
   await expect(page.locator('main')).toHaveCount(1);
