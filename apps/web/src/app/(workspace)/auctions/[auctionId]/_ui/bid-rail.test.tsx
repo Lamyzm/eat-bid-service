@@ -13,7 +13,7 @@ describe('투찰 rail', () => {
   test('손잡이를 누르면 투찰률과 넣을 금액이 같이 바뀐다', () => {
     const screen = render(<BidRail decision={decision} port={createMemoryBidRecordPort()} initialRate='90.309' />);
     expect(screen.getByText('2,494,063')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '+0.001' }));
+    fireEvent.click(screen.getByRole('button', { name: '투찰률 0.001 올리기' }));
     expect(screen.getByDisplayValue('90.310')).toBeTruthy();
     expect(screen.getByText('2,494,091')).toBeTruthy();
   });
@@ -59,5 +59,22 @@ describe('투찰 rail', () => {
     const screen = render(<BidRail decision={closed} port={createMemoryBidRecordPort()} />);
     expect(screen.queryByRole('button', { name: '내 값 기록' })).toBeNull();
     expect(screen.getByText('개찰이 끝난 공고입니다')).toBeTruthy();
+  });
+
+  test('마운트하면 이 공고에 미리 저장된 기록을 port에서 불러와 보인다', async () => {
+    const port = createMemoryBidRecordPort();
+    await port.save({ auctionId: openAuctionFixture.identity.auctionId, rate: '90.309', amount: '2494063', recordedAt: null });
+    const screen = render(<BidRail decision={decision} port={port} initialRate='90.000' />);
+    await waitFor(() => expect(screen.getByText('90.309 기록됨')).toBeTruthy());
+  });
+
+  test('저장이 실패하면 상태 줄에 실패를 알린다', async () => {
+    const port = createMemoryBidRecordPort();
+    port.save = async () => {
+      throw new Error('저장 실패');
+    };
+    const screen = render(<BidRail decision={decision} port={port} initialRate='90.309' />);
+    fireEvent.click(screen.getByRole('button', { name: '내 값 기록' }));
+    await waitFor(() => expect(screen.getByText('기록하지 못했습니다')).toBeTruthy());
   });
 });

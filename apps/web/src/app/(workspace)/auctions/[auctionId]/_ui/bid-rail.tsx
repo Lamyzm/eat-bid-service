@@ -1,6 +1,7 @@
-'use client';
 /** @module 책임: 투찰률 손잡이·직접 입력·넣을 금액·내 값 기록의 브라우저 상태를 소유한다. 추천값은 만들지 않고 사용자가 정한 값만 다룬다. */
-import { useState } from 'react';
+'use client';
+
+import { useEffect, useState } from 'react';
 
 import { createMemoryBidRecordPort, type BidRecord, type BidRecordPort } from '../_lib/bid-record-port';
 import { type BidRate, type BidRateStep, bidAmount, formatWon, parseBidRate, stepBidRate } from '../_model/bid-rate';
@@ -15,15 +16,42 @@ type BidRailProps = {
 
 const STEPS: readonly BidRateStep[] = ['-0.01', '-0.001', '+0.001', '+0.01'];
 
+// 손잡이 aria-label은 부호·소수만 읽는 스크린리더 경험을 피하려고 "투찰률 0.001 올리기" 형태로 쓴다.
+function stepLabel(step: BidRateStep): string {
+  return `투찰률 ${step.slice(1)} ${step.startsWith('-') ? '내리기' : '올리기'}`;
+}
+
 // RSC는 함수·port 객체를 client component에 prop으로 넘길 수 없다(직렬화 불가). DecisionScreen이
 // port를 안 넘기면 이 모듈 스코프 싱글턴을 쓴다. 영속화 adapter는 app 스키마와 함께 후속 슬라이스에서 바꾼다.
 const defaultPort = createMemoryBidRecordPort();
+
+// 저장·복사 실패는 서로 다른 위치(상태 줄 vs 버튼 라벨)에 나타나지만 동시에 둘 다 실패 상태일 수는
+// 없으므로(사용자가 한 번에 하나씩 누른다) 하나의 상태로 관리한다.
+type ActionFailure = 'save' | 'copy' | null;
 
 export function BidRail({ decision, port = defaultPort, initialRate = '90.000', onRecord }: BidRailProps) {
   const [rate, setRate] = useState<BidRate>(initialRate);
   const [draft, setDraft] = useState(initialRate);
   const [record, setRecord] = useState<BidRecord | null>(null);
+  const [actionFailure, setActionFailure] = useState<ActionFailure>(null);
   const amount = bidAmount(decision.baseAmount.raw, rate);
+
+  // 마운트 시 이 공고에 이미 저장된 값이 있으면 복원한다. 진실 원천은 port 하나이며 이 컴포넌트는
+  // 그 값을 반영만 한다.
+  useEffect(() => {
+    let cancelled = false;
+    port
+      .load(decision.identity.auctionId)
+      .then((loaded) => {
+        if (!cancelled && loaded) setRecord(loaded);
+      })
+      .catch(() => {
+        // 복원 실패는 "아직 기록 없음"으로 보이는 것과 구분할 수 없어도 안전한 fallback이다.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [decision.identity.auctionId, port]);
 
   if (decision.railState === 'closed') {
     return (
@@ -53,9 +81,26 @@ export function BidRail({ decision, port = defaultPort, initialRate = '90.000', 
   // 값을 만들지 않고 null을 저장한다.
   async function saveRecord() {
     const next: BidRecord = { auctionId: decision.identity.auctionId, rate, amount, recordedAt: null };
-    await port.save(next);
-    setRecord(next);
-    onRecord?.(next);
+    try {
+      await port.save(next);
+      setRecord(next);
+      setActionFailure(null);
+      onRecord?.(next);
+    } catch {
+      setActionFailure('save');
+    }
+  }
+
+  // raw setTimeout 지연값은 architecture:check의 semantic-value gate가 ElapsedMilliseconds 기원만
+  // 허용하는데, ElapsedMilliseconds는 @eatbid/domain 소유라 client bundle에 넣을 수 없다(rule 15·17,
+  // apps/web AGENTS.md). 타이머 없이 다음 시도(재복사 성공/실패)에서 자연스럽게 사라지게 한다.
+  async function copyAmount() {
+    try {
+      await navigator.clipboard?.writeText(amount);
+      setActionFailure(null);
+    } catch {
+      setActionFailure('copy');
+    }
   }
 
   return (
@@ -73,7 +118,7 @@ export function BidRail({ decision, port = defaultPort, initialRate = '90.000', 
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commitDraft}
-          className='ml-auto w-36 bg-transparent text-right text-[32px] leading-none font-bold tracking-tight tabular-nums outline-none'
+          className='ml-auto w-36 bg-transparent text-right text-[32px] leading-tight font-bold tracking-tight tabular-nums outline-none'
         />
       </div>
       <div className='flex gap-1.5'>
@@ -81,7 +126,7 @@ export function BidRail({ decision, port = defaultPort, initialRate = '90.000', 
           <button
             key={step}
             type='button'
-            aria-label={step}
+            aria-label={stepLabel(step)}
             onClick={() => applyStep(step)}
             className='h-11 flex-1 rounded-lg bg-foreground/5 text-[15px] font-semibold tabular-nums whitespace-nowrap'
           >
@@ -97,19 +142,21 @@ export function BidRail({ decision, port = defaultPort, initialRate = '90.000', 
         </span>
         <button
           type='button'
-          onClick={() => navigator.clipboard?.writeText(amount)}
-          className='h-8 rounded-lg bg-foreground/5 px-3 text-[13px] font-semibold whitespace-nowrap'
+          onClick={() => void copyAmount()}
+          className='h-8 rounded-lg bg-foreground/5 px-3 text-[15px] font-semibold whitespace-nowrap'
         >
-          금액 복사
+          {actionFailure === 'copy' ? '복사 실패' : '금액 복사'}
         </button>
       </div>
-      <button type='button' onClick={saveRecord} className='h-12 rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground'>
+      <button type='button' onClick={() => void saveRecord()} className='h-12 rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground'>
         내 값 기록
       </button>
       <div className='flex items-baseline gap-2 px-1'>
         <span className='flex flex-col'>
-          <span className='text-[15px] font-semibold'>{record ? `${record.rate} 기록됨` : '아직 기록 없음'}</span>
-          <span className='text-[15px] font-medium text-muted-foreground'>내가 쓰기로 한 값을 저장합니다</span>
+          <span className='text-[15px] font-semibold'>
+            {record ? `${record.rate} 기록됨` : actionFailure === 'save' ? '기록하지 못했습니다' : '아직 기록 없음'}
+          </span>
+          <span className='text-[15px] font-medium text-muted-foreground'>이 화면에서만 잠깐 들고 있습니다. 저장은 다음 단계에서 붙습니다</span>
         </span>
         <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>마감 {decision.banner.deadlineAt}</span>
       </div>
