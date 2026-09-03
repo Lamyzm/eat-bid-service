@@ -3,7 +3,9 @@ export type BidRecord = {
   readonly auctionId: string;
   readonly rate: string;
   readonly amount: string;
-  readonly recordedAt: string;
+  // 기록 시각은 서버가 저장할 때 붙는다. 브라우저는 시계 권위가 아니다(규칙 15·17). 이 슬라이스에는
+  // 영속화 adapter가 없어 항상 null을 저장하고, 서버 영속화가 붙는 후속 슬라이스에서 값이 채워진다.
+  readonly recordedAt: string | null;
 };
 
 export interface BidRecordPort {

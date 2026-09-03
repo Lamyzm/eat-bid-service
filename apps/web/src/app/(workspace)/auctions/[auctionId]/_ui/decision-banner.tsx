@@ -3,7 +3,9 @@ import type { DecisionPresentation } from '../_model/present-decision';
 
 type DecisionBannerProps = {
   readonly decision: DecisionPresentation;
-  readonly record: { readonly rate: string; readonly recordedAt: string } | null;
+  // recordedAt은 서버 영속화가 붙이는 사실이라 이 슬라이스에서는 항상 null이다. 값이 생기면
+  // "rate · 시각"으로 붙이는 건 영속화가 붙는 후속 슬라이스의 몫이다.
+  readonly record: { readonly rate: string; readonly recordedAt: string | null } | null;
 };
 
 const SENTENCE = {
@@ -37,7 +39,7 @@ export function DecisionBanner({ decision, record }: DecisionBannerProps) {
         <Fact label={railState === 'closed' ? '개찰' : '마감까지'} value={banner.remaining} tail={banner.deadlineAt} />
         <Fact label='개찰' value={banner.openedAt} />
         <Fact label='공고' value={banner.announcedAt} />
-        <Fact label='내 기록' value={record ? `${record.rate} · ${record.recordedAt}` : '아직 없음'} />
+        <Fact label='내 기록' value={record ? record.rate : '아직 없음'} />
       </div>
     </div>
   );

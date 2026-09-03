@@ -13,9 +13,10 @@ describe('결정 화면 배너', () => {
     expect(markup).toContain('아직 없음');
     expect(markup).not.toContain('NeaT');
   });
-  test('기록이 있으면 값과 시각을 보인다', () => {
-    const markup = renderToStaticMarkup(<DecisionBanner decision={presentDecision(openAuctionFixture, fixtureNow)} record={{ rate: '90.309', recordedAt: '10:32' }} />);
-    expect(markup).toContain('90.309 · 10:32');
+  test('기록이 있으면 값을 보인다(시각은 서버 영속화가 붙기 전까지 없다)', () => {
+    const markup = renderToStaticMarkup(<DecisionBanner decision={presentDecision(openAuctionFixture, fixtureNow)} record={{ rate: '90.309', recordedAt: null }} />);
+    expect(markup).toContain('90.309');
+    expect(markup).not.toContain('90.309 ·');
   });
   test('마감이 관측되지 않았으면 미확인이라고 쓴다', () => {
     const markup = renderToStaticMarkup(<DecisionBanner decision={presentDecision(auctionFixture, fixtureNow)} record={null} />);

@@ -10,29 +10,16 @@ type BidRailProps = {
   readonly decision: DecisionPresentation;
   readonly port?: BidRecordPort;
   readonly initialRate?: BidRate;
-  // 기록 시각은 사용자가 값을 정한 순간이라 브라우저 시계가 맞는 기준이다. 서버 시계 주입은 필요 없다.
-  readonly now?: () => string;
   readonly onRecord?: (record: BidRecord) => void;
 };
 
 const STEPS: readonly BidRateStep[] = ['-0.01', '-0.001', '+0.001', '+0.01'];
 
-function defaultNow(): string {
-  return new Date().toISOString();
-}
-
 // RSC는 함수·port 객체를 client component에 prop으로 넘길 수 없다(직렬화 불가). DecisionScreen이
 // port를 안 넘기면 이 모듈 스코프 싱글턴을 쓴다. 영속화 adapter는 app 스키마와 함께 후속 슬라이스에서 바꾼다.
 const defaultPort = createMemoryBidRecordPort();
 
-// hour12: false만으로는 일부 로케일 구현체가 자정에 "24"를 낼 수 있다. hourCycle: 'h23'으로 고정한다.
-const KST_CLOCK = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23' });
-
-function kstClock(instant: string): string {
-  return KST_CLOCK.format(new Date(instant));
-}
-
-export function BidRail({ decision, port = defaultPort, initialRate = '90.000', now = defaultNow, onRecord }: BidRailProps) {
+export function BidRail({ decision, port = defaultPort, initialRate = '90.000', onRecord }: BidRailProps) {
   const [rate, setRate] = useState<BidRate>(initialRate);
   const [draft, setDraft] = useState(initialRate);
   const [record, setRecord] = useState<BidRecord | null>(null);
@@ -62,8 +49,10 @@ export function BidRail({ decision, port = defaultPort, initialRate = '90.000', 
     setDraft(next);
   }
 
+  // 기록 시각은 서버 영속화가 저장 시점에 붙이는 사실이다(규칙 15·17). 이 슬라이스는 영속화가 없으니
+  // 값을 만들지 않고 null을 저장한다.
   async function saveRecord() {
-    const next: BidRecord = { auctionId: decision.identity.auctionId, rate, amount, recordedAt: now() };
+    const next: BidRecord = { auctionId: decision.identity.auctionId, rate, amount, recordedAt: null };
     await port.save(next);
     setRecord(next);
     onRecord?.(next);
@@ -119,7 +108,7 @@ export function BidRail({ decision, port = defaultPort, initialRate = '90.000', 
       </button>
       <div className='flex items-baseline gap-2 px-1'>
         <span className='flex flex-col'>
-          <span className='text-[15px] font-semibold'>{record ? `${record.rate} · ${kstClock(record.recordedAt)} 기록` : '아직 기록 없음'}</span>
+          <span className='text-[15px] font-semibold'>{record ? `${record.rate} 기록됨` : '아직 기록 없음'}</span>
           <span className='text-[15px] font-medium text-muted-foreground'>내가 쓰기로 한 값을 저장합니다</span>
         </span>
         <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>마감 {decision.banner.deadlineAt}</span>
