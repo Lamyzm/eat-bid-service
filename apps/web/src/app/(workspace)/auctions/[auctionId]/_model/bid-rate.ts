@@ -8,6 +8,7 @@ const MAX_RATE_MILLI = BigInt(100) * RATE_SCALE;
 
 function toMilli(rate: string): bigint {
   const [whole, fraction = ''] = rate.split('.');
+  // 직접 입력은 입력한 자릿수 이상을 버린다(반올림하지 않음)
   return BigInt(whole) * RATE_SCALE + BigInt((fraction + '000').slice(0, 3));
 }
 
@@ -34,19 +35,12 @@ export function parseBidRate(input: string): BidRate | null {
   return fromMilli(milli);
 }
 
-/** 기초금액(소수 둘째 자리 wire)에 투찰률(‰ 단위 정수)을 곱해 원 단위로 올림한다. */
+/** 기초금액(소수 둘째 자리 wire)에 투찰률(‰ 단위 정수)을 곱해 원 단위로 내린다. 역산한 사정률이 고른 투찰률을 넘지 않게 한다. */
 export function bidAmount(baseAmount: string, rate: BidRate): string {
   const [whole, fraction = ''] = baseAmount.split('.');
   const baseCents = BigInt(whole) * BigInt(100) + BigInt((fraction + '00').slice(0, 2));
   // base_cents × rate_milli / (100 cents × 100 percent × 1000 milli)
-  const result = baseCents * toMilli(rate);
-  const divisor = BigInt(10000000);
-  const quotient = result / divisor;
-  const remainder = result % divisor;
-  if (remainder * BigInt(2) >= divisor) {
-    return (quotient + BigInt(1)).toString();
-  }
-  return quotient.toString();
+  return (baseCents * toMilli(rate) / BigInt(10000000)).toString();
 }
 
 export function formatWon(amount: string): string {
