@@ -73,6 +73,40 @@ export function getPendingWorktreeClaim(state, worktreeRoot) {
   return state.worktrees?.[worktreeKey(worktreeRoot)]?.pendingClaim ?? null;
 }
 
+// state key는 정규화된 경로라 그 자체가 worktree root다. 삭제된 worktree처럼 세션 cwd로 root를
+// 계산할 수 없을 때 issue 식별자만으로 lease와 pending claim을 찾는 유일한 경로다.
+export function findWorktreesByIssue(state, issueIdentifier) {
+  const normalized = String(issueIdentifier ?? "").toUpperCase();
+  return Object.entries(state.worktrees ?? {})
+    .filter(
+      ([, worktree]) =>
+        worktree?.lease?.issueIdentifier === normalized ||
+        worktree?.pendingClaim?.issueIdentifier === normalized,
+    )
+    .map(([worktreeRoot, worktree]) => ({
+      lease: worktree.lease ?? null,
+      pendingClaim: worktree.pendingClaim ?? null,
+      worktreeRoot,
+    }));
+}
+
+export function listWorktreeLeases(state) {
+  return Object.entries(state.worktrees ?? {})
+    .filter(([, worktree]) => worktree?.lease?.issueIdentifier)
+    .map(([worktreeRoot, worktree]) => ({ lease: worktree.lease, worktreeRoot }));
+}
+
+export function listWorktreeRoots(state) {
+  return Object.keys(state.worktrees ?? {});
+}
+
+export function removeWorktreeEntry(state, worktreeRoot) {
+  const key = worktreeKey(worktreeRoot);
+  if (!state.worktrees?.[key]) return state;
+  const { [key]: _removed, ...worktrees } = state.worktrees;
+  return { ...state, worktrees };
+}
+
 export function setWorktreeLease(state, worktreeRoot, lease) {
   const key = worktreeKey(worktreeRoot);
   const worktree = state.worktrees?.[key] ?? { sessions: {} };

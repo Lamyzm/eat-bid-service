@@ -36,6 +36,7 @@
     "workflow:claim": "node tools/agent-workflow/infisical.mjs claim",
     "workflow:release": "node tools/agent-workflow/cli.mjs release",
     "workflow:recover-lock": "node tools/agent-workflow/cli.mjs recover-lock",
+    "workflow:worktree": "node tools/agent-workflow/cli.mjs worktree",
     "workflow:sync": "node tools/agent-workflow/infisical.mjs sync",
     "db:generate": "pnpm --filter @eatbid/db db:generate",
     "db:check": "pnpm --filter @eatbid/db db:check",

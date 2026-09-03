@@ -1,22 +1,29 @@
 /** @module 책임: Linear issue claim·sync·release와 local worktree lease 명령을 조정한다. */
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
 import { parseWorkflowArguments } from "./command-line.mjs";
-import { finalizeSessionWorklog } from "./hook-runtime.mjs";
 import { flushOutbox } from "./linear.mjs";
-import { config, linearClient, targetRepositoryContext } from "./runtime.mjs";
+import { config, linearClient, repositoryContext, targetRepositoryContext } from "./runtime.mjs";
 import {
   clearPendingWorktreeClaim,
-  clearWorktreeLease,
-  clearWorktreeSessionIssues,
   finalizePendingWorktreeClaim,
   getPendingWorktreeClaim,
   getWorktreeLease,
-  getWorktreeSessions,
   loadState,
   removeOutboxEvents,
   reserveWorktreeClaim,
 } from "./state.mjs";
+import {
+  gitWorktreePrune,
+  gitWorktreeRemove,
+  pruneMissingWorktreeState,
+  pruneWorktreeState,
+  releaseIssueState,
+  releaseWorktreeState,
+  resolveWorktreeTarget,
+} from "./worktree.mjs";
 import {
   inspectStateLock,
   inspectWorkflowLock,
@@ -149,26 +156,68 @@ async function claim() {
 }
 
 async function release() {
-  const { repository } = commandContext("release");
-  await withStateTransaction(repository.statePath, async (state) => {
-    const lease = getWorktreeLease(state, repository.worktreeRoot);
-    let nextState = state;
-    for (const sessionId of Object.keys(getWorktreeSessions(state, repository.worktreeRoot))) {
-      nextState = finalizeSessionWorklog({
-        createId: randomUUID,
-        lease,
-        provider: lease?.writer?.provider ?? "release",
-        sessionId,
-        state: nextState,
-        worktreeRoot: repository.worktreeRoot,
-      });
+  const parsed = parseWorkflowArguments(process.argv.slice(process.argv.indexOf("release") + 1));
+  // issue 식별자 release는 worktree 경로가 이미 지워진 유령 lease를 푸는 경로다. 그래서 대상 경로가
+  // 존재하는지 검사하지 않으며, `--worktree`와 함께 오면 어느 쪽을 믿을지 모호해 거부한다.
+  if (parsed.issueIdentifier) {
+    if (parsed.worktreePath) {
+      throw new Error("Choose either an issue identifier or --worktree <path> for release");
     }
-    return clearWorktreeLease(
-      clearWorktreeSessionIssues(nextState, repository.worktreeRoot),
-      repository.worktreeRoot,
-    );
-  });
+    const { statePath } = repositoryContext(process.cwd());
+    let released = [];
+    await withStateTransaction(statePath, async (state) => {
+      const result = releaseIssueState(state, parsed.issueIdentifier, { createId: randomUUID });
+      released = result.released;
+      return result.state;
+    });
+    for (const worktreeRoot of released) {
+      process.stdout.write(`Linear worktree lease released: ${parsed.issueIdentifier} @ ${worktreeRoot}\n`);
+    }
+    return;
+  }
+
+  const repository = targetRepositoryContext(process.cwd(), parsed.worktreePath);
+  await withStateTransaction(repository.statePath, async (state) =>
+    releaseWorktreeState(state, repository.worktreeRoot, { createId: randomUUID }),
+  );
   process.stdout.write(`Linear worktree lease released: ${repository.worktreeRoot}\n`);
+}
+
+async function worktree() {
+  const [subcommand, ...rest] = process.argv
+    .slice(process.argv.indexOf("worktree") + 1)
+    .filter((argument) => argument !== "--");
+  const repository = repositoryContext(process.cwd());
+
+  if (subcommand === "prune") {
+    if (rest.length > 0) throw new Error("Usage: pnpm workflow:worktree prune");
+    gitWorktreePrune(repository.worktreeRoot);
+    let pruned = [];
+    await withStateTransaction(repository.statePath, async (state) => {
+      const result = pruneMissingWorktreeState(state, { createId: randomUUID });
+      pruned = result.pruned;
+      return result.state;
+    });
+    process.stdout.write(`${JSON.stringify({ pruned }, null, 2)}\n`);
+    return;
+  }
+
+  if (subcommand === "remove") {
+    if (rest.length !== 1) throw new Error("Usage: pnpm workflow:worktree remove <path>");
+    const target = resolveWorktreeTarget(process.cwd(), rest[0]);
+    const targetRoot = existsSync(target) ? repositoryContext(target).worktreeRoot : target;
+    if (path.resolve(targetRoot) === path.resolve(repository.worktreeRoot)) {
+      throw new Error("Cannot remove the worktree the session is running in; run from another worktree");
+    }
+    const gitResult = gitWorktreeRemove(repository.worktreeRoot, targetRoot);
+    await withStateTransaction(repository.statePath, async (state) =>
+      pruneWorktreeState(state, targetRoot, { createId: randomUUID }),
+    );
+    process.stdout.write(`${JSON.stringify({ git: gitResult, worktreeRoot: targetRoot }, null, 2)}\n`);
+    return;
+  }
+
+  throw new Error(`Usage: pnpm workflow:worktree remove <path> | prune (got ${subcommand ?? "nothing"})`);
 }
 
 async function sync() {
@@ -217,6 +266,7 @@ async function main() {
   if (command === "release") return release();
   if (command === "sync") return sync();
   if (command === "recover-lock") return recoverLock();
+  if (command === "worktree") return worktree();
   throw new Error(`Unknown workflow command: ${command ?? "missing"}`);
 }
 

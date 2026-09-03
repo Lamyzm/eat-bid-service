@@ -303,3 +303,171 @@ test("--worktree로 지정한 worktree의 branch issue가 요청과 다르면 Li
     await assert.rejects(() => readFile(statePath, "utf8"), { code: "ENOENT" });
   });
 });
+
+function runCommandIn(cwd, command, statePath, commandArguments = []) {
+  return spawnSync(process.execPath, [cliPath, command, ...commandArguments], {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, EATBID_WORKFLOW_STATE_PATH: statePath, LINEAR_API_KEY: "" },
+  });
+}
+
+function gitIn(cwd, args) {
+  return spawnSync(
+    "git",
+    ["-C", cwd, "-c", "user.name=eatbid-test", "-c", "user.email=test@example.invalid", ...args],
+    { encoding: "utf8" },
+  );
+}
+
+// 유령 lease 재현에는 commit이 있는 main worktree와 거기서 add한 linked worktree가 필요하다.
+async function withLinkedWorktree(run) {
+  await withTempDirectory(async (directory) => {
+    const main = path.join(directory, "main");
+    await mkdir(main);
+    for (const args of [["init", "--quiet", "-b", "main"], ["commit", "--quiet", "--allow-empty", "-m", "init"]]) {
+      const result = gitIn(main, args);
+      assert.equal(result.status, 0, result.stderr);
+    }
+    const linked = path.join(directory, "linked", "eat-93-ghost");
+    const add = gitIn(main, ["worktree", "add", "--quiet", linked, "-b", "eat-93-ghost"]);
+    assert.equal(add.status, 0, add.stderr);
+    await run({ directory, linked, main, statePath: path.join(directory, "state.json") });
+  });
+}
+
+test("worktree 디렉터리를 지운 뒤에도 issue 식별자로 release하면 유령 lease가 사라진다", async () => {
+  await withLinkedWorktree(async ({ linked, main, statePath }) => {
+    await saveState(
+      statePath,
+      setWorktreeLease(createEmptyState(), linked, {
+        issueIdentifier: "EAT-93",
+        teamKey: "EAT",
+        expiresAt: "2099-08-31T00:00:00.000Z",
+        worktreeRoot: linked,
+      }),
+    );
+    await rm(linked, { force: true, recursive: true });
+
+    const byPath = runCommandIn(main, "release", statePath, ["--", "--worktree", linked]);
+    const byIssue = runCommandIn(main, "release", statePath, ["--", "EAT-93"]);
+    const again = runCommandIn(main, "release", statePath, ["--", "EAT-93"]);
+    const stored = await loadState(statePath);
+
+    assert.equal(byPath.status, 1, byPath.stderr);
+    assert.match(byPath.stderr, /does not exist/);
+    assert.equal(byIssue.status, 0, byIssue.stderr);
+    assert.match(byIssue.stdout, /EAT-93/);
+    assert.equal(getWorktreeLease(stored, linked), null);
+    assert.equal(again.status, 1);
+    assert.match(again.stderr, /No worktree lease or pending claim exists for EAT-93/);
+  });
+});
+
+test("issue 식별자 release는 같은 issue의 pending claim도 지우고 --worktree와 함께 오면 거부한다", async () => {
+  await withTempDirectory(async (directory) => {
+    const statePath = path.join(directory, "state.json");
+    let state = setWorktreeLease(createEmptyState(), process.cwd(), {
+      issueIdentifier: "EAT-91",
+      teamKey: "EAT",
+      expiresAt: "2099-08-31T00:00:00.000Z",
+    });
+    state = {
+      ...state,
+      worktrees: {
+        ...state.worktrees,
+        "f:/vanished": { pendingClaim: { attemptId: "a", issueIdentifier: "EAT-94" }, sessions: {} },
+      },
+    };
+    await saveState(statePath, state);
+
+    const both = runCommand("release", statePath, ["--", "EAT-91", "--worktree", process.cwd()]);
+    const pending = runCommand("release", statePath, ["--", "EAT-94"]);
+    const stored = await loadState(statePath);
+
+    assert.equal(both.status, 1);
+    assert.match(both.stderr, /either an issue identifier or --worktree/);
+    assert.equal(pending.status, 0, pending.stderr);
+    assert.equal(stored.worktrees["f:/vanished"].pendingClaim, undefined);
+    assert.equal(getWorktreeLease(stored, process.cwd()).issueIdentifier, "EAT-91");
+  });
+});
+
+test("workflow worktree remove는 lease 해제와 git worktree remove를 한 번에 수행한다", async () => {
+  await withLinkedWorktree(async ({ linked, main, statePath }) => {
+    let state = setWorktreeLease(createEmptyState(), linked, {
+      issueIdentifier: "EAT-93",
+      teamKey: "EAT",
+      expiresAt: "2099-08-31T00:00:00.000Z",
+      writer: { provider: "test", sessionId: "session-a" },
+    });
+    state = updateSessionState(state, linked, "session-a", { activeIssue: "EAT-93", changedFiles: ["a.ts"] });
+    await saveState(statePath, state);
+
+    const self = runCommandIn(linked, "worktree", statePath, ["remove", linked]);
+    const removed = runCommandIn(main, "worktree", statePath, ["remove", linked]);
+    const stored = await loadState(statePath);
+    const list = gitIn(main, ["worktree", "list", "--porcelain"]);
+
+    assert.equal(self.status, 1);
+    assert.match(self.stderr, /running in/);
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.equal(JSON.parse(removed.stdout).git, "removed");
+    assert.equal(getWorktreeLease(stored, linked), null);
+    assert.equal(Object.keys(stored.worktrees).length, 0);
+    assert.deepEqual(
+      stored.outbox.map((event) => ({ changedFiles: event.changedFiles, issue: event.issueIdentifier })),
+      [{ changedFiles: ["a.ts"], issue: "EAT-93" }],
+    );
+    assert.doesNotMatch(list.stdout, /eat-93-ghost/);
+    await assert.rejects(() => readFile(path.join(linked, ".git"), "utf8"), { code: "ENOENT" });
+  });
+});
+
+test("dirty worktree는 git remove가 거부하므로 lease를 지우지 않는다", async () => {
+  await withLinkedWorktree(async ({ linked, main, statePath }) => {
+    await saveState(
+      statePath,
+      setWorktreeLease(createEmptyState(), linked, {
+        issueIdentifier: "EAT-93",
+        teamKey: "EAT",
+        expiresAt: "2099-08-31T00:00:00.000Z",
+      }),
+    );
+    await writeFile(path.join(linked, "dirty.txt"), "x", "utf8");
+
+    const removed = runCommandIn(main, "worktree", statePath, ["remove", linked]);
+    const stored = await loadState(statePath);
+
+    assert.equal(removed.status, 1);
+    assert.match(removed.stderr, /git worktree remove .* failed/);
+    assert.equal(getWorktreeLease(stored, linked).issueIdentifier, "EAT-93");
+  });
+});
+
+test("workflow worktree prune은 디렉터리가 사라진 worktree의 git 등록과 lease를 함께 정리한다", async () => {
+  await withLinkedWorktree(async ({ linked, main, statePath }) => {
+    let state = setWorktreeLease(createEmptyState(), linked, {
+      issueIdentifier: "EAT-93",
+      teamKey: "EAT",
+      expiresAt: "2099-08-31T00:00:00.000Z",
+    });
+    state = setWorktreeLease(state, main, {
+      issueIdentifier: "EAT-91",
+      teamKey: "EAT",
+      expiresAt: "2099-08-31T00:00:00.000Z",
+    });
+    await saveState(statePath, state);
+    await rm(linked, { force: true, recursive: true });
+
+    const pruned = runCommandIn(main, "worktree", statePath, ["prune"]);
+    const stored = await loadState(statePath);
+    const list = gitIn(main, ["worktree", "list", "--porcelain"]);
+
+    assert.equal(pruned.status, 0, pruned.stderr);
+    assert.equal(JSON.parse(pruned.stdout).pruned.length, 1);
+    assert.equal(getWorktreeLease(stored, linked), null);
+    assert.equal(getWorktreeLease(stored, main).issueIdentifier, "EAT-91");
+    assert.doesNotMatch(list.stdout, /eat-93-ghost/);
+  });
+});
