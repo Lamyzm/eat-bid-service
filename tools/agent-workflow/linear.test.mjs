@@ -87,9 +87,10 @@ test("claimIssue는 할당과 상태 전환 전에 팀과 소유자와 원래 �
   });
 
   const claim = await client.claimIssue("EAT-42", {
+    claimableStates: ["Ready"],
     inProgressState: "In Progress",
-    readyStates: ["Ready"],
     teamKey: "EAT",
+    terminalStates: ["Done"],
   });
 
   assert.equal(claim.assigneeId, "viewer");
@@ -120,12 +121,88 @@ test("claimIssue는 다른 팀과 소유자와 claim 불가 상태를 거부한�
   await assert.rejects(
     () =>
       client.claimIssue("OPS-1", {
+        claimableStates: ["Ready"],
         inProgressState: "In Progress",
-        readyStates: ["Ready"],
         teamKey: "EAT",
+        terminalStates: ["Done"],
       }),
     /team/i,
   );
+});
+
+function claimStub(stateName, calls) {
+  return createLinearClient({
+    apiKey: "key",
+    fetchImpl: async (_url, request) => {
+      const payload = JSON.parse(request.body);
+      calls.push(payload);
+      if (payload.query.includes("query AgentWorkflowClaim")) {
+        return response({
+          data: {
+            viewer: { id: "viewer", name: "Owner" },
+            issue: {
+              id: "issue",
+              identifier: "EAT-41",
+              assignee: null,
+              state: { id: stateName.toLowerCase(), name: stateName },
+              team: {
+                key: "EAT",
+                states: {
+                  nodes: [
+                    { id: "progress", name: "In Progress" },
+                    { id: "review", name: "In Review" },
+                  ],
+                },
+              },
+            },
+          },
+        });
+      }
+      return response({ data: { issueUpdate: { success: true } } });
+    },
+  });
+}
+
+const claimStateConfig = {
+  claimableStates: ["Backlog", "Ready", "Todo", "In Review", "In Progress"],
+  inProgressState: "In Progress",
+  teamKey: "EAT",
+  terminalStates: ["Done", "Canceled", "Duplicate"],
+};
+
+test("Backlog와 In Review 이슈도 claim이 In Progress로 옮긴다", async () => {
+  for (const stateName of ["Backlog", "In Review", "Todo"]) {
+    const calls = [];
+    const claim = await claimStub(stateName, calls).claimIssue("EAT-41", claimStateConfig);
+
+    assert.equal(claim.issueIdentifier, "EAT-41");
+    assert.deepEqual(
+      calls[1].variables,
+      { id: "issue", input: { assigneeId: "viewer", stateId: "progress" } },
+      stateName,
+    );
+  }
+});
+
+test("Done·Canceled 이슈는 claim을 거부한다", async () => {
+  for (const stateName of ["Done", "Canceled", "Duplicate"]) {
+    const calls = [];
+    await assert.rejects(
+      () => claimStub(stateName, calls).claimIssue("EAT-41", claimStateConfig),
+      /cannot be claimed from (?:terminal )?state/i,
+      stateName,
+    );
+    assert.equal(calls.length, 1, stateName);
+  }
+});
+
+test("claimableStates에 없는 알 수 없는 상태는 claim을 거부한다", async () => {
+  const calls = [];
+  await assert.rejects(
+    () => claimStub("Blocked", calls).claimIssue("EAT-41", claimStateConfig),
+    /cannot be claimed from state Blocked/i,
+  );
+  assert.equal(calls.length, 1);
 });
 
 test("flushOutbox는 원격 상태를 되돌리지 않고 과거 started 이벤트를 로컬에서 끝낸다", async () => {
@@ -142,7 +219,7 @@ test("flushOutbox는 원격 상태를 되돌리지 않고 과거 started 이벤�
     },
   };
 
-  const result = await flushOutbox(events, client, { inProgressState: "In Progress" });
+  const result = await flushOutbox(events, client);
 
   assert.deepEqual(result.remaining.map((event) => event.id), ["2"]);
   assert.equal(result.sent, 1);
@@ -165,7 +242,7 @@ test("flushOutbox는 prompt나 credential 없이 제한된 작업 기록을 작�
     createdAt: "2026-08-30T00:00:00.000Z",
   };
 
-  const result = await flushOutbox([event], client, { inProgressState: "In Progress" });
+  const result = await flushOutbox([event], client);
 
   assert.equal(result.sent, 1);
   assert.deepEqual(result.remaining, []);

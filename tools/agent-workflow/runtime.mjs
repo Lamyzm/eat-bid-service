@@ -47,13 +47,30 @@ export function targetRepositoryContext(cwd, worktreePath) {
   return repository;
 }
 
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+// endpoint override는 실제 CLI 경로를 그대로 실행하는 통합 테스트의 loopback stub만을 위한 것이다.
+// 임의 host를 받아주면 환경변수 하나로 Linear API key가 제3자 endpoint로 그대로 새어 나간다.
+export function resolveLinearEndpoint(override, fallback, warn = (message) => process.stderr.write(message)) {
+  if (!override) return fallback;
+  let hostname = "";
+  try {
+    hostname = new URL(override).hostname;
+  } catch {
+    hostname = "";
+  }
+  if (LOOPBACK_HOSTS.has(hostname)) return override;
+  warn(`EATBID_LINEAR_ENDPOINT는 loopback host만 허용합니다. 무시합니다: ${override}\n`);
+  return fallback;
+}
+
 export function linearClient() {
   if (!process.env.LINEAR_API_KEY) {
-    throw new Error("LINEAR_API_KEY is required for claim and sync commands");
+    throw new Error("LINEAR_API_KEY is required for claim, sync and `release --review`");
   }
   return createLinearClient({
     apiKey: process.env.LINEAR_API_KEY,
-    endpoint: config.linearEndpoint,
+    endpoint: resolveLinearEndpoint(process.env.EATBID_LINEAR_ENDPOINT, config.linearEndpoint),
     fetchImpl: (url, request) =>
       fetch(url, { ...request, signal: AbortSignal.timeout(config.requestTimeoutMs) }),
   });

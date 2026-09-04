@@ -1,6 +1,6 @@
 ---
 status: active
-last_reviewed: 2026-09-02
+last_reviewed: 2026-09-04
 review_trigger: linear-workflow-or-agent-hook-change
 ---
 
@@ -63,12 +63,17 @@ codex mcp list
 
 MCP는 agent가 issue를 읽고 수정하는 대화형 경로다. mutation gate는 issue처럼 보이는 문자열을
 신뢰하지 않는다. Infisical이 `dev:/tooling/linear`의 API key를 대상 child process에만 주입하고
-claim command로 issue 존재, `EAT` team, assignee와 `Ready | In Progress` state를 검증한다.
+claim command로 issue 존재, `EAT` team, assignee와 claim 가능한 state를 검증한다.
 
 ```powershell
 pnpm workflow:claim -- EAT-123
+pnpm workflow:claim -- EAT-123 --branch eat-123-slug
 pnpm workflow:doctor:infisical
 ```
+
+`--branch <name>`은 claim 대상 worktree를 그 브랜치로 먼저 옮긴 뒤 claim한다. 브랜치가 없으면 현재
+HEAD에서 만들고, 이미 있으면 checkout만 한다. 미커밋 변경이 있으면 다른 작업 결과를 삼키지 않도록
+ref를 만들기 전에 실패하므로 먼저 commit하거나 정리한다.
 
 키를 `.env`, Claude/Codex settings, shell script, 사용자 전역 환경변수에 넣지 않는다. 저장소의
 Infisical wrapper는 parent process의 `LINEAR_API_KEY`를 이름만 확인해 child environment에서 제거한
@@ -77,13 +82,17 @@ Infisical wrapper는 parent process의 `LINEAR_API_KEY`를 이름만 확인해 c
 project shared secret을 우선하도록 고정하는 옵션이다.
 
 claim은 local pending reservation을 먼저 기록한 뒤 issue가 비어 있으면 현재 사용자를 assignee로
-지정하고 `Ready`에서만 `In Progress`로 옮기며, 검증 성공 후 12시간 lease로 확정한다. 중단돼
+지정하고 config `claimableStates`(`Backlog | Ready | Todo | In Review | In Progress`) 어디서든
+`In Progress`로 옮기며, 검증 성공 후 12시간 lease로 확정한다. 상태 전환은 사람이 미리 맞춰 둘 일이
+아니라 이 명령의 책임이다. `terminalStates`(`Done | Canceled | Duplicate`)와 목록에 없는 상태는
+완료를 되돌리거나 추측하지 않도록 실패한다. 중단돼
 pending claim이 남으면 같은 identifier로 claim을 다시 실행해 멱등하게 확정한다. 같은 local Git
 common dir에서 같은 issue의 다른 worktree lease나
 현재 worktree의 다른 issue lease가 살아 있으면 먼저 release하도록 실패한다. 첫 mutation의
 Codex/Claude session이 writer로
-결박되고 다른 session은 명시적인 release와 재claim 전까지 쓰지 못한다. 다른 assignee, 다른 team,
-`Blocked | In Review | Done` 같은 state는 추측으로 바꾸지 않고 실패한다.
+결박되고 다른 session은 명시적인 release와 재claim 전까지 쓰지 못한다. 다른 assignee와 다른 team은
+추측으로 바꾸지 않고 실패한다. 재claim은 만료를 갱신하고 writer 결박을 새 세션으로 옮기므로
+만료·branch 불일치·writer 충돌의 공통 복구 명령이다.
 
 API key가 없거나 Linear가 중단되면 새 claim은 실패한다. 이미 검증한 미만료 lease에서는 작업을
 계속할 수 있고 event는 linked worktree들이 공유하는 Git common dir의
@@ -113,19 +122,49 @@ pnpm workflow:doctor -- --worktree ../..
 pnpm workflow:release -- --worktree F:\Project\eat-bid-service
 ```
 
+release는 issue 식별자로도 할 수 있다. `--worktree`는 경로가 실제 git worktree일 때만 동작하므로,
+worktree 디렉터리를 먼저 지워 lease만 남은 유령 lease는 issue 식별자로 푼다. 같은 issue의 pending
+claim도 함께 지우며, 식별자와 `--worktree`를 같이 주면 모호해서 거부한다.
+
+```powershell
+pnpm workflow:release -- EAT-36
+```
+
+worktree를 없앨 때는 lease 해제와 `git worktree remove`를 한 명령으로 묶은 `workflow:worktree`를 쓴다.
+`remove`는 git이 dirty worktree를 거부하면 lease도 건드리지 않고, 디렉터리가 이미 없으면
+`git worktree prune`으로 대신한다. `prune`은 디렉터리가 사라진 모든 worktree의 git 등록과 state 항목을
+함께 정리한다. 두 명령 모두 Stop되지 않은 session의 변경 경로를 worklog로 먼저 확정한다.
+
+```powershell
+pnpm workflow:worktree remove .worktrees/eat-36-decision-shell
+pnpm workflow:worktree prune
+```
+
 새 worktree에서 시작하는 순서는 다음과 같다.
 
-1. EnterWorktree 도구로 진입하거나, lease가 있는 세션에서
-   `git worktree add .worktrees/<slug> -b <slug> main`을 만든 뒤 새 세션을 그 안에서 시작한다.
+1. EnterWorktree 도구로 진입하거나 `git worktree add .worktrees/<slug> -b <slug> main`을 만든 뒤 새
+   세션을 그 안에서 시작한다. worktree 추가와 branch 생성은 lease 없이 허용한다.
 2. 그 worktree 안에서 `pnpm workflow:claim -- EAT-123`을 실행한다. hook은 이 명령과
-   EnterWorktree/ExitWorktree, `git worktree list`, `git -C <path> status|diff|log|show|rev-parse`를
+   EnterWorktree/ExitWorktree, `git worktree list|prune`, `git -C <path> status|diff|log|show|rev-parse`를
    lease 없이 허용하므로 사용자가 대신 실행할 필요가 없다.
 3. 작업 뒤 같은 worktree에서 `workflow:sync`와 `workflow:release`를 실행한다. 기본 디렉터리에 lease가
-   남아 있으면 `--worktree`로 푼다.
+   남아 있으면 `--worktree`나 issue 식별자로 푼다.
 
 `release`는 lease와 함께 그 worktree의 session issue 기록(`requestedIssue`·`activeIssue`)을 지운다.
-그래서 같은 세션이 사용자 prompt 없이 다음 issue를 claim해 이어서 작업할 수 있다. 이후 prompt에 다른
-identifier가 오면 다시 불일치로 차단한다.
+그래서 같은 세션이 사용자 prompt 없이 다음 issue를 claim해 이어서 작업할 수 있다.
+
+`release`는 기본적으로 Linear 상태를 바꾸지 않는다. 자동으로 `In Review`로 보내면 같은 worktree를
+다시 claim할 때마다 상태를 되돌려야 하고, 그 전환이 막히면 이슈 전환 자체가 교착하기 때문이다.
+리뷰를 요청할 때만 `--review`를 명시하며, 이때는 lease를 지우기 전에 Linear를 먼저 옮겨 실패해도 같은
+명령을 그대로 다시 실행할 수 있다. `--review`만 Linear API key가 필요하므로 그 경로만
+`workflow:release:review`로 Infisical wrapper를 거친다. Infisical wrapper는 `release --review`가 아닌
+release는 계속 거부해 오프라인 release가 secret 주입 경로를 열지 않게 한다.
+
+```powershell
+pnpm workflow:release
+pnpm workflow:release:review
+pnpm workflow:release:review -- EAT-36
+```
 
 ## 5. 일상 사용
 
@@ -135,33 +174,66 @@ identifier가 오면 다시 불일치로 차단한다.
    결정을 다시 정하게 된다.
 1. Linear issue에서 scope와 acceptance를 확정하고 `workflow:claim`으로 owner와 state를 검증한다.
    issue에 계획 문서가 연결돼 있으면 임의로 다른 순서를 만들지 말고 그 문서를 따른다.
-2. prompt 또는 branch에 claim한 issue identifier를 포함한다. 예: `EAT-123 구현` 또는
-   `codex/EAT-123-auction-workspace`.
+2. branch 이름에 claim한 issue identifier를 넣는다. 예: `codex/EAT-123-auction-workspace`. prompt에
+   identifier를 쓰는 것은 선택이며, hook은 사용자가 직접 쓴 대문자 `EAT-N` 단어만 요청 issue로 읽는다.
+   경로·branch slug의 소문자 `eat-123`과 teammate 메시지·task 알림·system-reminder 같은 주입 블록의
+   식별자는 무시한다.
 3. agent는 명시적으로 허용된 읽기·조사를 자유롭게 수행한다. 첫 mutation session이 lease writer가 되므로 Codex와
    Claude가 같은 lease를 동시에 쓰지 않는다.
 4. 작업 turn 뒤 `workflow:sync`로 worklog를 전송한다.
 5. PR 제목이나 본문에 Linear identifier를 넣고 acceptance별 evidence를 PR에 남긴다.
 6. GitHub/Linear integration을 설치·검증한 경우에만 PR 생성 시 `In Review`, 병합 시 `Done`을
    자동화한다. 설치 전에는 사람이 같은 전환을 수행한다.
-7. 작업을 끝내면 issue 상태를 직접 옮긴다. `claim`은 `Ready`를 `In Progress`로만 바꾸고 완료 전환은
-   하지 않으므로, 방치하면 끝난 작업이 계속 `In Progress`로 쌓인다. 중복으로 만든 issue는 `Canceled`로
+7. 작업을 끝내면 issue 상태를 직접 옮긴다. `claim`은 `In Progress`까지만 옮기고 `release`는 기본적으로
+   상태를 바꾸지 않으므로, 방치하면 끝난 작업이 계속 `In Progress`로 쌓인다. 중복으로 만든 issue는 `Canceled`로
    닫고 원래 issue에 `duplicateOf`로 연결한 뒤, 얻은 사실과 이미 적용된 변경을 그쪽 worklog에 옮긴다.
 
 AI가 답변에서 완료를 주장했다는 이유만으로 hook이 `Done`으로 이동시키지 않는다.
 
-lease 없이 허용하는 것은 `tools/agent-workflow/workflow.mjs` 분류기의 허용 목록뿐이다. 읽기 도구(Read, Glob,
-Grep, WebFetch, WebSearch, ToolSearch)와 EnterWorktree/ExitWorktree, Linear MCP의
-`get_* | list_* | search_*` 읽기 도구, 단일 `rg`, 제한된 PowerShell 조회 cmdlet,
-`git [-C <path>] status | diff | log | show | rev-parse | worktree list` 같은 명백한 로컬 조회, 그리고
-`pnpm workflow:doctor | doctor:infisical | claim | sync | release | recover-lock` 단일 명령(`--worktree <path>`
-인자 포함)이다. `git worktree add | remove | prune`은 lease가 필요하다.
-workflow 명령은 저장소 파일이 아니라 lease state와 Linear만 바꾸므로 Claude·Codex 세션이 스스로 claim한다.
+lease 없이 허용하는 것은 `tools/agent-workflow/workflow.mjs` 분류기의 허용 목록뿐이며 원칙은 "저장소 파일을
+바꾸지 않는 것"이다. 읽기 도구(Read, Glob, Grep, WebFetch, WebSearch, ToolSearch)와
+EnterWorktree/ExitWorktree, Linear MCP의 `get_* | list_* | search_*` 읽기 도구, chrome-devtools MCP의
+`navigate_page | take_screenshot | take_snapshot | evaluate_script | list_pages | select_page | wait_for |
+list_console_messages | get_console_message | list_network_requests | get_network_request`, 단일 `rg`,
+제한된 PowerShell 조회 cmdlet, `git [-C <path>] status | diff | log | show | rev-parse | worktree list | worktree
+prune` 같은 명백한 로컬 조회, `kubectl get | describe | logs | top`, 본문·업로드·파일 출력 option이 없는
+`curl` GET/HEAD, 따옴표 하나로 감싼 `python -c` / `node -e|-p` 읽기 코드(파일 쓰기·프로세스 실행·`>`·치환
+토큰이 있으면 mutation), 새 ref만 만드는 `git branch <name> [<start>]`·`git checkout -b <name>`·`git
+switch -c <name>`·`git worktree add ...`, 그리고 `pnpm workflow:*` 단일 명령(issue 식별자,
+`--worktree <path>`, `--branch <name>`, `--review`, `worktree remove <path> | prune` 인자만)이다. 브랜치
+생성을 lease 없이 허용하는 이유는 저장소 파일을 바꾸지 않는 동작인데도 막으면 claim 전에 올바른
+브랜치로 옮길 방법이 없어 이슈 전환이 교착하기 때문이다. `checkout -b`·`switch -c`는 이름 하나만 받는
+형태(현재 HEAD 기준)까지만 허용한다. start-point를 주면 그 commit의 tree로 작업 파일이 바뀌므로
+`git checkout -b tmp origin/main`은 lease가 필요하다. 작업 트리를 갈아끼우는 `git checkout <branch>`와
+`git branch -D | -m | --force`, `git worktree remove`, chrome-devtools의
+click·fill·type·upload·dialog·new_page, `kubectl apply | delete | exec | edit`은 lease가 필요하다.
+브라우저 도구는 저장소에 닿지 않지만 `evaluate_script`는 열린 페이지에서 외부 요청을 보낼 수 있으므로 live
+서비스를 바꾸는 코드는 실행하지 않는다.
+workflow 명령은 저장소 파일이 아니라 lease state·Linear·git worktree 목록만 바꾸므로 Claude·Codex 세션이 스스로
+claim하고 푼다.
 `release`도 lease 없이 실행되므로 같은 worktree의 다른 세션이 writer의 lease를 풀 수 있다. 이 보장은 중앙 lock이
 아니라 "다른 writer가 claim한 작업은 read-only로만 다룬다"는 agent 규율과 Linear assignee에 의존한다.
 pipe, command chaining, redirect, command substitution, snapshot update나 `--fix`가 있으면 mutation으로
 취급한다. 테스트도 fixture나 snapshot을 쓸 수 있으므로 shell verification은 lease 안에서 수행한다.
 분류되지 않은 새 도구와 Linear 쓰기 MCP 도구는 읽기로 추측하지 않고 lease가 필요한 변경 가능 도구로
 fail-closed한다.
+
+사용자가 Claude Code prompt에서 `!`로 직접 친 명령은 사용자의 행위이므로 lease 검사를 하지 않는다. hook은
+Claude Code hooks 문서의 PreToolUse 입력 필드 `initiated_by`가 `user`일 때만 이렇게 판단하며 writer 결박이나
+session issue 기록도 바꾸지 않는다. 이 필드는 문서 근거로 구현했고 `!` 명령이 실제로 그 값을 보내는지는
+실측하지 않았다. 값이 없거나 `assistant`면 agent 호출과 같이 fail-closed한다.
+
+차단 메시지에는 현재 worktree의 lease 상태와 함께 state에 있는 모든 lease의 issue·worktree root·만료
+시각·writer, 그리고 그 lease를 푸는 `pnpm workflow:release -- EAT-N` 명령이 붙는다. 그래서 agent는 doctor를
+따로 돌리지 않아도 누가 무엇을 잡고 있는지 알 수 있다. lease가 있는 차단은 마지막 줄이 항상
+`지금 풀려면: pnpm workflow:claim -- <lease issue>`이며, 이 한 줄이 만료·branch 불일치·writer 충돌의
+공통 복구 명령이다.
+
+branch가 lease와 다르면 커밋이 남의 작업에 쌓이므로 계속 차단한다. 반대로 lease와 branch가 이미
+일치하는데 prompt에서 읽은 요청 issue만 다르면 소유권 충돌이 아니라 잡음이므로 차단하지 않고
+경고 한 줄을 남긴 뒤 세션 기록을 lease 쪽으로 맞춘다. 사용자가 채팅에 issue 번호를 다시 쳐야만
+풀리는 상태를 만들지 않기 위해서다. 통과하는 호출의 stderr는 세션에 전달되지 않으므로 이 경고는
+hook JSON의 `systemMessage`로 나간다.
 
 writer 보장은 하나의 Git common dir을 공유하는 local worktree 범위다. 서로 다른 clone이나 host 사이의
 원자적 global lock을 의미하지 않는다. cross-machine 작업은 Linear assignee와 명시적 handoff로 한 명만
@@ -225,9 +297,29 @@ claude mcp get linear
 codex mcp list
 ```
 
-- 쓰기가 차단되면 prompt나 branch에 유효한 Linear identifier가 있는지 확인한다.
+차단은 사용자에게 명령을 대신 쳐 달라고 부탁해서 푸는 것이 아니라 세션이 스스로 푼다. 두 가지
+전형적인 교착과 그 복구는 다음과 같다.
+
+- **요청 issue 오염.** 이전 prompt나 예전 대화에서 읽은 다른 identifier가 세션 기록에 남아 차단이
+  걸리는 경우다. lease와 branch가 일치하면 이제 차단 대신 경고가 나가고 기록이 lease로 맞춰지므로
+  아무 것도 하지 않아도 된다. 그래도 막히면 차단 메시지 마지막 줄의
+  `pnpm workflow:claim -- <lease issue>`를 그대로 실행한다.
+- **이슈 전환 교착.** 다음 issue가 `Backlog`나 `In Review`에 있거나, 아직 그 issue의 branch가 없어서
+  claim도 branch 생성도 못 하는 경우다. claim이 상태와 branch를 모두 맞추므로 한 명령으로 끝난다.
+  이전 lease가 남아 있으면 먼저 release한다.
+
+```powershell
+pnpm workflow:release
+pnpm workflow:claim -- EAT-124 --branch eat-124-slug
+```
+
+- 쓰기가 차단되면 branch에 유효한 Linear identifier가 있는지 확인한다.
 - `pnpm workflow:doctor`의 `worktreeRoot`가 세션 cwd의 worktree인지 확인한다. lease가 다른 worktree에
-  있으면 `--worktree`로 release한 뒤 현재 worktree에서 claim한다. 세션 cwd를 `cd`로 옮겨 풀지 않는다.
+  있으면 `--worktree`나 issue 식별자로 release한 뒤 현재 worktree에서 claim한다. 세션 cwd를 `cd`로 옮겨 풀지
+  않는다.
+- worktree 디렉터리를 지웠는데 lease가 남아 claim이 막히면 `pnpm workflow:release -- EAT-N` 또는
+  `pnpm workflow:worktree prune`으로 정리한다. worktree를 없앨 때는 처음부터
+  `pnpm workflow:worktree remove <path>`를 써서 유령 lease를 만들지 않는다.
 - lease가 없거나 만료됐으면 network가 가능한 전용 terminal에서 다시 claim한다.
 - doctor에 pending claim이 보이면 다른 issue를 claim하거나 state를 편집하지 말고 같은 identifier의
   Infisical-wrapped claim을 다시 실행해 원격 상태와 local lease를 확정한다.
