@@ -44,6 +44,15 @@ function responsesFor(operation: PublicHttpOperation): ZodOpenApiResponsesObject
   return responses;
 }
 
+/** query 계약은 `.default()`로 감싸도 같은 parameter 집합이므로 wrapper를 벗겨 원래 object를 찾는다. */
+function queryObject(schema: z.ZodType): z.ZodObject | undefined {
+  let current: z.ZodType = schema;
+  while (current instanceof z.ZodDefault || current instanceof z.ZodOptional) {
+    current = current.unwrap() as z.ZodType;
+  }
+  return current instanceof z.ZodObject ? current : undefined;
+}
+
 function operationDocument(operation: PublicHttpOperation): ZodOpenApiOperationObject {
   const document: ZodOpenApiOperationObject = {
     operationId: operation.operationId,
@@ -51,12 +60,16 @@ function operationDocument(operation: PublicHttpOperation): ZodOpenApiOperationO
     tags: [...operation.tags],
     responses: responsesFor(operation),
   };
+  const requestParams: NonNullable<ZodOpenApiOperationObject["requestParams"]> = {};
   if (operation.route.segments.some((segment) => typeof segment !== "string")) {
     if (!(operation.pathSchema instanceof z.ZodObject)) {
       throw new Error(`${operation.operationId} path schema는 Zod object여야 합니다.`);
     }
-    document.requestParams = { path: operation.pathSchema };
+    requestParams.path = operation.pathSchema;
   }
+  const query = queryObject(operation.querySchema);
+  if (query) requestParams.query = query;
+  if (Object.keys(requestParams).length > 0) document.requestParams = requestParams;
   return document;
 }
 

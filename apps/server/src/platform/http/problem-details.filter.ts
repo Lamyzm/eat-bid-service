@@ -1,3 +1,4 @@
+/** @module 책임: 모든 예외를 허용된 공개 Problem Details taxonomy로만 닫아 내부 정보 노출을 막는다. */
 import {
   ArgumentsHost,
   Catch,
@@ -31,18 +32,24 @@ const definitions: Readonly<Record<number, ProblemDefinition>> = {
   500: { code: "INTERNAL_ERROR", slug: "internal-error", title: "Internal server error" },
 };
 
-const auctionNotFound: ProblemDefinition = {
-  code: "AUCTION_NOT_FOUND",
-  slug: "auction-not-found",
-  title: "Auction not found",
+// 자원별 404는 화면이 "없는 공고"와 "없는 기관"을 구분해야 하므로 allowlist로만 세분한다.
+const specificNotFound: Readonly<Record<string, ProblemDefinition>> = {
+  AUCTION_NOT_FOUND: { code: "AUCTION_NOT_FOUND", slug: "auction-not-found", title: "Auction not found" },
+  ORGANIZATION_NOT_FOUND: {
+    code: "ORGANIZATION_NOT_FOUND",
+    slug: "organization-not-found",
+    title: "Organization not found",
+  },
 };
 
 function definitionForException(exception: unknown, status: number): ProblemDefinition | undefined {
   if (!(exception instanceof HttpException) || status !== 404) return undefined;
   const response = exception.getResponse();
-  return typeof response === "object" && response !== null
-    && (response as { code?: unknown }).code === "AUCTION_NOT_FOUND"
-    ? auctionNotFound
+  if (typeof response !== "object" || response === null) return undefined;
+  const code = (response as { code?: unknown }).code;
+  // prototype 상속 key가 정의처럼 반환되지 않도록 자기 속성만 allowlist로 인정한다.
+  return typeof code === "string" && Object.hasOwn(specificNotFound, code)
+    ? specificNotFound[code]
     : undefined;
 }
 

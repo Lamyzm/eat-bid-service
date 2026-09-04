@@ -1,0 +1,113 @@
+import { describe, expect, test } from "bun:test";
+import { canonicalDecimal, krw, percentagePoints, Temporal } from "@eatbid/domain";
+import { EffectRunner } from "../../../platform/effect/effect-runner";
+
+const record = {
+  attemptId: 5_796_468n,
+  announcedAt: Temporal.Instant.from("2026-09-01T00:00:00Z"),
+  openedAt: null,
+  item: { codeValueId: 7n, label: "축산" },
+  floorRate: percentagePoints(canonicalDecimal("90.000", 3)),
+  baseAmount: krw(canonicalDecimal("2761700.00", 2)),
+  winRate: percentagePoints(canonicalDecimal("90.309", 3)),
+  secondRate: null,
+  dayFloorRate: null,
+  listCount: 17,
+  invalidCount: 2,
+  winnerSupplierPartyId: 9n,
+  supersedesAttemptId: null,
+  martRelease: "2026-09-04T00",
+  computedAt: Temporal.Instant.from("2026-09-04T00:10:00Z"),
+  calcVersion: "v1",
+} as const;
+
+const query = { organizationId: 42n, itemCodeValueId: null, cursor: null, limit: 12 } as const;
+
+describe("ListOrganizationAuctionAttempts 조회 use case", () => {
+  test("회차 요약을 공개 응답으로 직렬화하고 meta는 가장 최근 행에서 가져온다", async () => {
+    const application = await import("./list-organization-auction-attempts").catch(() => undefined);
+    expect(application, "기관 회차 이력 use case가 있어야 한다").toBeDefined();
+    const useCase = new application!.ListOrganizationAuctionAttempts({
+      exists: async () => true,
+      listAttempts: async () => ({ attempts: [record], nextCursor: 5_796_468n, sampleCount: 92 }),
+    });
+    const response = await new EffectRunner().run(useCase.execute(query));
+    expect(response.organizationId).toBe("42");
+    expect(response.nextCursor).toBe("5796468");
+    expect(response.attempts).toEqual([{
+      attemptId: "5796468",
+      announcedAt: "2026-09-01T00:00:00Z",
+      openedAt: null,
+      item: { codeValueId: "7", label: "축산" },
+      floorRate: { value: "90.000", unit: "percentage-points" },
+      baseAmount: { amount: "2761700.00", currency: "KRW" },
+      winRate: { value: "90.309", unit: "percentage-points" },
+      secondRate: null,
+      dayFloorRate: null,
+      listCount: 17,
+      invalidCount: 2,
+      winnerSupplierPartyId: "9",
+      supersedesAttemptId: null,
+    }]);
+    expect(response.meta).toEqual({
+      sampleCount: 92,
+      martRelease: "2026-09-04T00",
+      computedAt: "2026-09-04T00:10:00Z",
+      calcVersion: "v1",
+    });
+  });
+
+  test("빈 이력은 meta release를 null로 두고 실패하지 않는다", async () => {
+    const application = await import("./list-organization-auction-attempts");
+    const useCase = new application.ListOrganizationAuctionAttempts({
+      exists: async () => true,
+      listAttempts: async () => ({ attempts: [], nextCursor: null, sampleCount: 0 }),
+    });
+    const response = await new EffectRunner().run(useCase.execute(query));
+    expect(response.attempts).toEqual([]);
+    expect(response.meta).toEqual({
+      sampleCount: 0,
+      martRelease: null,
+      computedAt: null,
+      calcVersion: null,
+    });
+  });
+
+  test("기관이 없으면 OrganizationNotFound로 실패하고 목록은 읽지 않는다", async () => {
+    const application = await import("./list-organization-auction-attempts");
+    let listed = 0;
+    const useCase = new application.ListOrganizationAuctionAttempts({
+      exists: async () => false,
+      listAttempts: async () => {
+        listed += 1;
+        throw new Error("unreachable");
+      },
+    });
+    await expect(new EffectRunner().run(useCase.execute(query))).rejects.toMatchObject({
+      name: "OrganizationNotFound",
+      code: "ORGANIZATION_NOT_FOUND",
+      organizationId: 42n,
+    });
+    expect(listed).toBe(0);
+  });
+
+  test("저장소 장애는 AuctionDependencyUnavailable로 번역하고 원문을 숨긴다", async () => {
+    const application = await import("./list-organization-auction-attempts");
+    const runner = new EffectRunner();
+    const existsFailure = new application.ListOrganizationAuctionAttempts({
+      exists: async () => { throw new Error("credential=must-not-escape"); },
+      listAttempts: async () => { throw new Error("unreachable"); },
+    });
+    await expect(runner.run(existsFailure.execute(query))).rejects.toMatchObject({
+      name: "AuctionDependencyUnavailable",
+      code: "DEPENDENCY_UNAVAILABLE",
+    });
+    const listFailure = new application.ListOrganizationAuctionAttempts({
+      exists: async () => true,
+      listAttempts: async () => { throw new Error("credential=must-not-escape"); },
+    });
+    const failure = await runner.run(listFailure.execute(query)).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ name: "AuctionDependencyUnavailable", code: "DEPENDENCY_UNAVAILABLE" });
+    expect(String(failure)).not.toContain("must-not-escape");
+  });
+});

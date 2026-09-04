@@ -1,3 +1,4 @@
+/** @module 책임: 검증이 끝난 환경과 어댑터를 주입받아 루트 Nest 모듈 그래프를 조립만 한다. */
 import { DynamicModule, Module, type Type } from "@nestjs/common";
 import { EffectModule } from "./platform/effect/effect.module";
 import { PlatformConfigModule } from "./platform/config/config.module";
@@ -8,6 +9,7 @@ import { LoggingModule, type RedactingJsonLogger } from "./platform/logging/logg
 import { RequestContextModule, type RequestContextStore } from "./platform/request-context/request-context.module";
 import { DatabaseModule } from "./platform/database/database.module";
 import type { AuctionReader } from "./modules/procurement/application/auction-reader";
+import type { OrganizationAttemptReader } from "./modules/procurement/application/organization-attempt-reader";
 import { ProcurementModule } from "./modules/procurement/procurement.module";
 
 @Module({
@@ -28,6 +30,7 @@ export class AppModule {
         DatabaseModule.forRuntime(runtime.environment, {
           readiness: runtime.databaseReadiness,
           auctionReader: runtime.auctionReader,
+          organizationAttemptReader: runtime.organizationAttemptReader,
         }),
         HealthModule.forState(runtime.readiness),
         ProcurementModule,
@@ -44,5 +47,6 @@ export interface AppModuleRuntime {
   readonly readiness: ReadinessState;
   readonly databaseReadiness?: DatabaseReadiness;
   readonly auctionReader?: AuctionReader;
+  readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly testOnlyImports?: readonly Type[];
 }

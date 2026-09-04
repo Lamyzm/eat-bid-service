@@ -1,7 +1,9 @@
+/** @module 책임: 공고 한 건을 core 스키마에서 읽어 도메인 값으로 닫고 driver 시간 표현 경계를 소유한다. */
 import { sql, type SQL } from "drizzle-orm";
-import { canonicalDecimal, krw, Temporal, type Money } from "@eatbid/domain";
+import { Temporal } from "@eatbid/domain";
 import type { AuctionReader, AuctionRecord } from "../../application/auction-reader";
 import { auctionId, type AuctionId } from "../../domain/auction-id";
+import { bigintValue, moneyValue } from "./postgres-row-values";
 
 export interface AuctionReadDatabase {
   execute(query: SQL): Promise<unknown>;
@@ -19,6 +21,9 @@ type AuctionRow = Readonly<{
   base_amount: string | null;
   planned_amount: string | null;
   currency: string;
+  organization_id: string | bigint | null;
+  organization_name: string | null;
+  organization_type: string | null;
   source_system: string;
   external_bid_id: string;
   observation_id: string | bigint;
@@ -26,17 +31,13 @@ type AuctionRow = Readonly<{
   content_sha256: string;
 }>;
 
-function bigintValue(value: string | bigint): bigint {
-  // 드라이버 설정에 따라 문자열로 오는 bigint도 Number를 거치지 않고 동일한 도메인 값으로 복원한다.
-  const parsed = typeof value === "bigint" ? value : BigInt(value);
-  if (parsed <= 0n) throw new TypeError("Database ID must be a positive bigint");
-  return parsed;
-}
-
-function postgresInstant(value: Date | string | null): Temporal.Instant | null {
+/**
+ * AGENTS 17이 지정한 유일한 PostgreSQL 시간 경계다. driver가 주는 `Date | string`은 여기서만
+ * 읽고 즉시 Temporal로 닫으므로 다른 어댑터도 이 함수를 통해서만 driver 시간을 해석한다.
+ */
+export function postgresInstant(value: Date | string | null): Temporal.Instant | null {
   if (value === null) return null;
   try {
-    // PostgreSQL driver Date는 이 이름 붙은 경계에서 epoch millisecond만 읽고 즉시 Temporal로 닫는다.
     if (value instanceof Date) {
       const epochMilliseconds = value.getTime();
       if (!Number.isFinite(epochMilliseconds)) throw new TypeError("Database timestamp is invalid");
@@ -45,22 +46,6 @@ function postgresInstant(value: Date | string | null): Temporal.Instant | null {
     return Temporal.Instant.from(value);
   } catch {
     throw new TypeError("Database timestamp is invalid");
-  }
-}
-
-function moneyValue(amount: string | null, currency: string, required: true): Money;
-function moneyValue(amount: string | null, currency: string, required: false): Money | null;
-function moneyValue(amount: string | null, currency: string, required: boolean): Money | null {
-  if (amount === null) {
-    if (required) throw new TypeError("Database base amount is required");
-    return null;
-  }
-  if (currency !== "KRW") throw new TypeError("Database currency must be KRW");
-  try {
-    // PostgreSQL numeric 문자열은 부동소수점으로 바꾸지 않고 domain factory가 scale 불변식을 확인한다.
-    return krw(canonicalDecimal(amount, 2));
-  } catch {
-    throw new TypeError("Database money amount is invalid");
   }
 }
 
@@ -78,6 +63,14 @@ export function mapAuctionRow(row: AuctionRow): AuctionRecord {
     openedAt: postgresInstant(row.opened_at),
     baseAmount: moneyValue(row.base_amount, row.currency, true),
     plannedAmount: moneyValue(row.planned_amount, row.currency, false),
+    // 구매기관 관계가 없는 revision은 유효한 상태이므로 빈 이름이나 기본 유형을 지어내지 않는다.
+    organization: row.organization_id === null || row.organization_type === null
+      ? null
+      : {
+        organizationId: bigintValue(row.organization_id),
+        name: row.organization_name,
+        type: row.organization_type,
+      },
     provenance: {
       sourceSystem: row.source_system,
       externalBidId: row.external_bid_id,
@@ -106,6 +99,9 @@ export class DrizzleAuctionReader implements AuctionReader {
         revision.base_amount,
         revision.planned_amount,
         revision.currency,
+        purchaser_org.organization_id,
+        purchaser_org.canonical_name as organization_name,
+        purchaser_org.type as organization_type,
         attempt.source_system,
         attempt.external_bid_id,
         revision.observation_id,
@@ -114,8 +110,13 @@ export class DrizzleAuctionReader implements AuctionReader {
       from core.auction_attempt attempt
       join core.auction_revision revision
         on revision.auction_attempt_id = attempt.auction_attempt_id
+      left join core.auction_organization purchaser
+        on purchaser.auction_revision_id = revision.auction_revision_id
+        and purchaser.role = 'purchaser'
+      left join core.organization purchaser_org
+        on purchaser_org.organization_id = purchaser.organization_id
       where attempt.auction_attempt_id = ${id}
-      order by revision.auction_revision_id desc
+      order by revision.auction_revision_id desc, purchaser_org.organization_id asc
       limit 1
     `);
     const rows = Array.isArray(result) ? result as AuctionRow[] : [];

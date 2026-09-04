@@ -1,3 +1,4 @@
+/** @module 책임: 공고 조회 port와 저장 기술을 드러내지 않는 application record 형태를 소유한다. */
 import type { AuctionId } from "../domain/auction-id";
 import type { Money, Temporal } from "@eatbid/domain";
 
@@ -12,6 +13,12 @@ export interface AuctionRecord {
   readonly openedAt: Temporal.Instant | null;
   readonly baseAmount: Money;
   readonly plannedAmount: Money | null;
+  // 구매기관은 이름이 아니라 숫자 ID로만 식별하며 관계가 없는 revision은 unknown(null)이다.
+  readonly organization: {
+    readonly organizationId: bigint;
+    readonly name: string | null;
+    readonly type: string;
+  } | null;
   readonly provenance: {
     readonly sourceSystem: string;
     readonly externalBidId: string;

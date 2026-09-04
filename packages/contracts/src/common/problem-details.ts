@@ -1,3 +1,4 @@
+/** @module 책임: 공개 오류 응답의 허용된 code taxonomy와 Problem Details 봉투 계약을 소유한다. */
 import { z } from "zod";
 
 export const problemCodeSchema = z.enum([
@@ -6,6 +7,7 @@ export const problemCodeSchema = z.enum([
   "FORBIDDEN",
   "NOT_FOUND",
   "AUCTION_NOT_FOUND",
+  "ORGANIZATION_NOT_FOUND",
   "CONFLICT",
   "RATE_LIMITED",
   "DEPENDENCY_UNAVAILABLE",

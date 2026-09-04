@@ -17,6 +17,7 @@ import { AppModule } from "../app.module";
 import { type Environment, readEnvironment } from "../platform/config/environment";
 import type { DatabaseReadiness } from "../platform/health/health.module";
 import type { AuctionReader } from "../modules/procurement/application/auction-reader";
+import type { OrganizationAttemptReader } from "../modules/procurement/application/organization-attempt-reader";
 import { ReadinessState } from "../platform/health/readiness-state";
 import {
   problemForStatus,
@@ -42,6 +43,7 @@ export interface CreateAppOptions {
   readonly logWriter?: (line: string) => void;
   readonly databaseReadiness?: DatabaseReadiness;
   readonly auctionReader?: AuctionReader;
+  readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly mountPreParserRawTransport?: (application: Express) => void;
   readonly testOnlyImports?: readonly Type[];
 }
@@ -119,6 +121,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
       readiness,
       databaseReadiness: options.databaseReadiness,
       auctionReader: options.auctionReader,
+      organizationAttemptReader: options.organizationAttemptReader,
       testOnlyImports: options.testOnlyImports,
     }),
     adapter,

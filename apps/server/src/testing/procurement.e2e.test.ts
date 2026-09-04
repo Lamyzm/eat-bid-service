@@ -18,6 +18,7 @@ const publicAuction = {
   openedAt: null,
   baseAmount: krw(canonicalDecimal("1234567890.50", 2)),
   plannedAmount: null,
+  organization: { organizationId: 7n, name: "서울특별시교육청", type: "education-office" },
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",
@@ -76,6 +77,7 @@ describe("canonical procurement HTTP 경로", () => {
           title: "Fresh produce supply",
           status: "OPEN",
         },
+        organization: { organizationId: "7", name: "서울특별시교육청", type: "education-office" },
         schedule: {
           announcedAt: "2026-08-30T00:00:00.123456789Z",
           deadlineAt: null,

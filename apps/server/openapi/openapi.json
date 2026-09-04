@@ -8,6 +8,32 @@
         "pattern": "^(?:[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[01][0-9]{17}|92[01][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[01][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-7])$",
         "type": "string"
       },
+      "AuctionOrganization": {
+        "additionalProperties": false,
+        "description": "Purchasing organization of one auction revision; id is the only identity.",
+        "properties": {
+          "name": {
+            "maxLength": 512,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "organizationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "name",
+          "type"
+        ],
+        "type": "object"
+      },
       "AuctionPricing": {
         "additionalProperties": false,
         "description": "Exact observed auction amounts with currency attached to each value.",
@@ -93,6 +119,32 @@
         ],
         "type": "object"
       },
+      "BidRate": {
+        "additionalProperties": false,
+        "description": "A bid rate expressed on a 100-point scale with exactly three fractional digits, matching numeric(6,3) mart columns.",
+        "properties": {
+          "unit": {
+            "enum": [
+              "percentage-points"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/BidRateText"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "BidRateText": {
+        "description": "Canonical bid-rate percentage-points text with exactly three fractional digits, matching numeric(6,3) mart columns; from 0.000 through 100.000.",
+        "maxLength": 7,
+        "pattern": "^(?:(?:0|[1-9][0-9]?)\\.[0-9]{3}|100\\.000)$",
+        "type": "string"
+      },
       "CanonicalMoneyAmount": {
         "description": "Canonical nonnegative KRW amount with exactly two fractional digits.",
         "maxLength": 19,
@@ -110,6 +162,14 @@
           "identity": {
             "$ref": "#/components/schemas/PublicAuctionIdentity"
           },
+          "organization": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuctionOrganization"
+              }
+            ],
+            "nullable": true
+          },
           "pricing": {
             "$ref": "#/components/schemas/AuctionPricing"
           },
@@ -122,9 +182,43 @@
         },
         "required": [
           "identity",
+          "organization",
           "schedule",
           "pricing",
           "provenance"
+        ],
+        "type": "object"
+      },
+      "EatbidApiV1OrganizationAuctionAttempts": {
+        "additionalProperties": false,
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationAuctionAttempt"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/OrganizationAuctionAttemptsMeta"
+          },
+          "nextCursor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "organizationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          }
+        },
+        "required": [
+          "organizationId",
+          "attempts",
+          "nextCursor",
+          "meta"
         ],
         "type": "object"
       },
@@ -177,6 +271,169 @@
         ],
         "type": "object"
       },
+      "NonNegativeCount": {
+        "description": "Count of observed rows; JSON integer within PostgreSQL integer range.",
+        "maximum": 2147483647,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "OrganizationAuctionAttempt": {
+        "additionalProperties": false,
+        "description": "One auction attempt summarized from mart.org_round_summary.",
+        "properties": {
+          "announcedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "attemptId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "baseAmount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "dayFloorRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidRate"
+              }
+            ],
+            "nullable": true
+          },
+          "floorRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidRate"
+              }
+            ],
+            "nullable": true
+          },
+          "invalidCount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
+          },
+          "item": {
+            "additionalProperties": false,
+            "nullable": true,
+            "properties": {
+              "codeValueId": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "label": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "codeValueId",
+              "label"
+            ],
+            "type": "object"
+          },
+          "listCount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
+          },
+          "openedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
+          "secondRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidRate"
+              }
+            ],
+            "nullable": true
+          },
+          "supersedesAttemptId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "winnerSupplierPartyId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "winRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidRate"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "attemptId",
+          "announcedAt",
+          "openedAt",
+          "item",
+          "floorRate",
+          "baseAmount",
+          "winRate",
+          "secondRate",
+          "dayFloorRate",
+          "listCount",
+          "invalidCount",
+          "winnerSupplierPartyId",
+          "supersedesAttemptId"
+        ],
+        "type": "object"
+      },
+      "OrganizationAuctionAttemptsMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "calcVersion": {
+            "maxLength": 32,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "computedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
+          "martRelease": {
+            "maxLength": 64,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "sampleCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          }
+        },
+        "required": [
+          "sampleCount",
+          "martRelease",
+          "computedAt",
+          "calcVersion"
+        ],
+        "type": "object"
+      },
       "PositiveBigintText": {
         "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
         "example": "9223372036854775807",
@@ -191,6 +448,7 @@
           "FORBIDDEN",
           "NOT_FOUND",
           "AUCTION_NOT_FOUND",
+          "ORGANIZATION_NOT_FOUND",
           "CONFLICT",
           "RATE_LIMITED",
           "DEPENDENCY_UNAVAILABLE",
@@ -372,6 +630,110 @@
           }
         },
         "summary": "정규화된 공고를 조회한다",
+        "tags": [
+          "procurement"
+        ]
+      }
+    },
+    "/api/v1/organizations/{organizationId}/auction-attempts": {
+      "get": {
+        "operationId": "listOrganizationAuctionAttempts",
+        "parameters": [
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "path",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          },
+          {
+            "in": "query",
+            "name": "item",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 12,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EatbidApiV1OrganizationAuctionAttempts"
+                }
+              }
+            },
+            "description": "기관 회차 요약 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "기관 ID 또는 query가 유효하지 않음"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "기관을 찾을 수 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스를 사용할 수 없음"
+          }
+        },
+        "summary": "기관의 회차 요약을 최근 순으로 조회한다",
         "tags": [
           "procurement"
         ]

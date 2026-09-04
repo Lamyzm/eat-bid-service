@@ -1,3 +1,4 @@
+/** @module 책임: 공고 조회의 예상 실패 분류와 application record→공개 V1 응답 직렬화를 소유한다. */
 import {
   instantCodec,
   moneyCodec,
@@ -46,6 +47,11 @@ export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
       displayBidNumber: record.displayBidNumber,
       title: record.title,
       status: record.status,
+    },
+    organization: record.organization === null ? null : {
+      organizationId: record.organization.organizationId.toString(10),
+      name: record.organization.name,
+      type: record.organization.type,
     },
     schedule: {
       announcedAt: z.encode(instantCodec, record.announcedAt),
