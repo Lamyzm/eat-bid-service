@@ -1,3 +1,4 @@
+/** @module 책임: Linear secret이 필요한 workflow command만 Infisical run으로 감싸 실행하고 부모 환경의 key 상속을 끊는다. */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -6,6 +7,13 @@ import { fileURLToPath } from "node:url";
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptDirectory = path.dirname(scriptPath);
 const allowedCommands = new Set(["claim", "doctor", "sync"]);
+
+// release는 기본적으로 오프라인 명령이라 secret 주입 경로를 열지 않는다. Linear 상태를 실제로 옮기는
+// `release --review`만 예외이며, 이 wrapper가 없으면 `--review`는 key를 얻을 방법이 없다.
+function commandIsAllowed(command, commandArguments) {
+  if (allowedCommands.has(command)) return true;
+  return command === "release" && commandArguments.includes("--review");
+}
 
 export function sanitizeParentEnvironment(environment) {
   return Object.fromEntries(
@@ -34,7 +42,7 @@ export function resolveInfisicalExecutable({
 }
 
 export function buildInfisicalRun({ command, commandArguments, config, hookPath, nodePath }) {
-  if (!allowedCommands.has(command)) {
+  if (!commandIsAllowed(command, commandArguments)) {
     throw new Error(`Unsupported Infisical workflow command: ${command ?? "missing"}`);
   }
   const infisical = config?.infisical;

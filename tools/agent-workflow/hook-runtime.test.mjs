@@ -214,7 +214,8 @@ test("lease와 branch가 일치하면 다른 requestedIssue는 차단이 아니�
   });
 
   assert.equal(result.exitCode, 0);
-  assert.match(result.message, /경고: 요청 이슈 EAT-99가 lease EAT-42와 다릅니다/);
+  assert.equal(result.message, "");
+  assert.match(result.systemMessage, /경고: 요청 이슈 EAT-99가 lease EAT-42와 다릅니다/);
   assert.equal(getSessionState(result.state, "F:/repo", "switch").requestedIssue, "EAT-42");
   assert.equal(getSessionState(result.state, "F:/repo", "switch").activeIssue, "EAT-42");
 });
@@ -258,6 +259,7 @@ test("UserPromptSubmit이 주입 블록만 담으면 requestedIssue를 바꾸지
   assert.equal(getSessionState(state, "F:/repo", "injected").requestedIssue, undefined);
   assert.equal(result.exitCode, 0);
   assert.equal(result.message, "");
+  assert.equal(result.systemMessage, undefined);
 });
 
 test("lease가 있는 차단 메시지는 지금 실행할 복구 명령 한 줄로 끝난다", () => {

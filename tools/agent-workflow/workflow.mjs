@@ -12,8 +12,8 @@ const PROMPT_ISSUE_IDENTIFIER = /(?<![\w/\\.-])([A-Z][A-Z0-9]{1,9}-\d+)(?![\w-])
 const INJECTED_BLOCKS = [
   /<teammate-message[\s\S]*?<\/teammate-message>/g,
   /<cross-session-message[\s\S]*?<\/cross-session-message>/g,
-  /<task-notification>[\s\S]*?<\/task-notification>/g,
-  /<system-reminder>[\s\S]*?<\/system-reminder>/g,
+  /<task-notification[\s\S]*?<\/task-notification>/g,
+  /<system-reminder[\s\S]*?<\/system-reminder>/g,
   /\[SYSTEM NOTIFICATION[\s\S]*$/,
 ];
 
@@ -62,10 +62,12 @@ const WORKFLOW_LIFECYCLE_COMMAND = new RegExp(
 
 // 브랜치 생성과 worktree 추가는 새 ref와 새 디렉터리를 만들 뿐 추적 파일 내용을 바꾸지 않는다.
 // lease 없이 이것마저 막으면 claim 전에 올바른 브랜치로 옮길 방법이 없어 이슈 전환이 교착한다.
-// 반대로 `checkout <branch>`처럼 작업 트리를 통째로 갈아끼우는 형태는 계속 lease 안에서만 허용한다.
+// `checkout -b`·`switch -c`는 start-point를 주면 그 commit의 tree로 작업 파일을 갈아끼우므로 이름
+// 하나만 받는 형태(현재 HEAD 기준)까지만 허용한다. `git branch <name> [<start>]`는 HEAD를 옮기지
+// 않는 순수 ref 생성이라 start-point가 있어도 허용한다.
 const WORKTREE_ADD_ARGUMENT = String.raw`(?:--quiet|--detach|-b\s+${BRANCH_ARGUMENT}|${NON_OPTION_PATH_ARGUMENT})`;
 const BRANCH_CREATION_COMMAND = new RegExp(
-  String.raw`^git\s+(?:branch\s+${BRANCH_ARGUMENT}(?:\s+${BRANCH_ARGUMENT})?|(?:checkout\s+-b|switch\s+-c)\s+${BRANCH_ARGUMENT}(?:\s+${BRANCH_ARGUMENT})?|worktree\s+add(?:\s+${WORKTREE_ADD_ARGUMENT})+)\s*$`,
+  String.raw`^git\s+(?:branch\s+${BRANCH_ARGUMENT}(?:\s+${BRANCH_ARGUMENT})?|(?:checkout\s+-b|switch\s+-c)\s+${BRANCH_ARGUMENT}|worktree\s+add(?:\s+${WORKTREE_ADD_ARGUMENT})+)\s*$`,
 );
 
 // kubectl 조회 subcommand는 cluster 상태를 읽을 뿐이다. exec·apply·delete·edit·patch처럼 cluster를

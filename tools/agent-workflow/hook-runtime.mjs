@@ -170,13 +170,17 @@ export function handleHookEvent({
 
     // 프롬프트에서 읽은 요청 이슈는 lease·branch가 이미 일치하면 소유권 근거가 아니라 잡음이다.
     // 차단하면 사용자가 채팅에 이슈 번호를 다시 쳐야만 풀리므로 경고만 남기고 lease를 정답으로 삼는다.
+    // 통과하는 호출의 exit code는 0이고 그때 stderr는 transcript에 남지 않는다. 경고는 hook JSON의
+    // `systemMessage`로 내보내야 세션이 실제로 읽는다.
     const staleRequestedIssue =
       session.requestedIssue && session.requestedIssue !== lease.issueIdentifier
         ? session.requestedIssue
         : null;
-    const message = staleRequestedIssue
-      ? `경고: 요청 이슈 ${staleRequestedIssue}가 lease ${lease.issueIdentifier}와 다릅니다. lease를 따릅니다.`
-      : "";
+    const systemMessage = staleRequestedIssue
+      ? {
+          systemMessage: `경고: 요청 이슈 ${staleRequestedIssue}가 lease ${lease.issueIdentifier}와 다릅니다. lease를 따릅니다.`,
+        }
+      : {};
 
     const requestedWriter = { provider, sessionId: event.sessionId };
     if (
@@ -203,7 +207,8 @@ export function handleHookEvent({
 
     return {
       exitCode: 0,
-      message,
+      message: "",
+      ...systemMessage,
       state: updateSessionState(claimedState, worktreeRoot, event.sessionId, {
         activeIssue: lease.issueIdentifier,
         ...(staleRequestedIssue ? { requestedIssue: lease.issueIdentifier } : {}),

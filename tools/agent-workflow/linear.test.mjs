@@ -219,7 +219,7 @@ test("flushOutbox는 원격 상태를 되돌리지 않고 과거 started 이벤�
     },
   };
 
-  const result = await flushOutbox(events, client, { inProgressState: "In Progress" });
+  const result = await flushOutbox(events, client);
 
   assert.deepEqual(result.remaining.map((event) => event.id), ["2"]);
   assert.equal(result.sent, 1);
@@ -242,7 +242,7 @@ test("flushOutbox는 prompt나 credential 없이 제한된 작업 기록을 작�
     createdAt: "2026-08-30T00:00:00.000Z",
   };
 
-  const result = await flushOutbox([event], client, { inProgressState: "In Progress" });
+  const result = await flushOutbox([event], client);
 
   assert.equal(result.sent, 1);
   assert.deepEqual(result.remaining, []);

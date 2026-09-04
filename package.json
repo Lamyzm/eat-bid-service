@@ -35,6 +35,7 @@
     "workflow:doctor:infisical": "node tools/agent-workflow/infisical.mjs doctor",
     "workflow:claim": "node tools/agent-workflow/infisical.mjs claim",
     "workflow:release": "node tools/agent-workflow/cli.mjs release",
+    "workflow:release:review": "node tools/agent-workflow/infisical.mjs release --review",
     "workflow:recover-lock": "node tools/agent-workflow/cli.mjs recover-lock",
     "workflow:worktree": "node tools/agent-workflow/cli.mjs worktree",
     "workflow:sync": "node tools/agent-workflow/infisical.mjs sync",

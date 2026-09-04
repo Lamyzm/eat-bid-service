@@ -156,13 +156,14 @@ pnpm workflow:worktree prune
 `release`는 기본적으로 Linear 상태를 바꾸지 않는다. 자동으로 `In Review`로 보내면 같은 worktree를
 다시 claim할 때마다 상태를 되돌려야 하고, 그 전환이 막히면 이슈 전환 자체가 교착하기 때문이다.
 리뷰를 요청할 때만 `--review`를 명시하며, 이때는 lease를 지우기 전에 Linear를 먼저 옮겨 실패해도 같은
-명령을 그대로 다시 실행할 수 있다. `--review`는 Linear API key가 필요하므로 Infisical이 key를 주입하는
-terminal에서 실행한다.
+명령을 그대로 다시 실행할 수 있다. `--review`만 Linear API key가 필요하므로 그 경로만
+`workflow:release:review`로 Infisical wrapper를 거친다. Infisical wrapper는 `release --review`가 아닌
+release는 계속 거부해 오프라인 release가 secret 주입 경로를 열지 않게 한다.
 
 ```powershell
 pnpm workflow:release
-pnpm workflow:release -- --review
-pnpm workflow:release -- EAT-36 --review
+pnpm workflow:release:review
+pnpm workflow:release:review -- EAT-36
 ```
 
 ## 5. 일상 사용
@@ -197,12 +198,14 @@ list_console_messages | get_console_message | list_network_requests | get_networ
 제한된 PowerShell 조회 cmdlet, `git [-C <path>] status | diff | log | show | rev-parse | worktree list | worktree
 prune` 같은 명백한 로컬 조회, `kubectl get | describe | logs | top`, 본문·업로드·파일 출력 option이 없는
 `curl` GET/HEAD, 따옴표 하나로 감싼 `python -c` / `node -e|-p` 읽기 코드(파일 쓰기·프로세스 실행·`>`·치환
-토큰이 있으면 mutation), 새 ref만 만드는 `git branch <name>`·`git checkout -b <name>`·`git switch -c
-<name>`·`git worktree add ...`, 그리고 `pnpm workflow:*` 단일 명령(issue 식별자, `--worktree <path>`,
-`--branch <name>`, `--review`, `worktree remove <path> | prune` 인자만)이다. 브랜치 생성을 lease 없이
-허용하는 이유는 저장소 파일을 바꾸지 않는 동작인데도 막으면 claim 전에 올바른 브랜치로 옮길 방법이
-없어 이슈 전환이 교착하기 때문이다. 작업 트리를 갈아끼우는 `git checkout <branch>`와 `git branch -D |
--m | --force`, `git worktree remove`, chrome-devtools의
+토큰이 있으면 mutation), 새 ref만 만드는 `git branch <name> [<start>]`·`git checkout -b <name>`·`git
+switch -c <name>`·`git worktree add ...`, 그리고 `pnpm workflow:*` 단일 명령(issue 식별자,
+`--worktree <path>`, `--branch <name>`, `--review`, `worktree remove <path> | prune` 인자만)이다. 브랜치
+생성을 lease 없이 허용하는 이유는 저장소 파일을 바꾸지 않는 동작인데도 막으면 claim 전에 올바른
+브랜치로 옮길 방법이 없어 이슈 전환이 교착하기 때문이다. `checkout -b`·`switch -c`는 이름 하나만 받는
+형태(현재 HEAD 기준)까지만 허용한다. start-point를 주면 그 commit의 tree로 작업 파일이 바뀌므로
+`git checkout -b tmp origin/main`은 lease가 필요하다. 작업 트리를 갈아끼우는 `git checkout <branch>`와
+`git branch -D | -m | --force`, `git worktree remove`, chrome-devtools의
 click·fill·type·upload·dialog·new_page, `kubectl apply | delete | exec | edit`은 lease가 필요하다.
 브라우저 도구는 저장소에 닿지 않지만 `evaluate_script`는 열린 페이지에서 외부 요청을 보낼 수 있으므로 live
 서비스를 바꾸는 코드는 실행하지 않는다.
@@ -229,7 +232,8 @@ session issue 기록도 바꾸지 않는다. 이 필드는 문서 근거로 구�
 branch가 lease와 다르면 커밋이 남의 작업에 쌓이므로 계속 차단한다. 반대로 lease와 branch가 이미
 일치하는데 prompt에서 읽은 요청 issue만 다르면 소유권 충돌이 아니라 잡음이므로 차단하지 않고
 경고 한 줄을 남긴 뒤 세션 기록을 lease 쪽으로 맞춘다. 사용자가 채팅에 issue 번호를 다시 쳐야만
-풀리는 상태를 만들지 않기 위해서다.
+풀리는 상태를 만들지 않기 위해서다. 통과하는 호출의 stderr는 세션에 전달되지 않으므로 이 경고는
+hook JSON의 `systemMessage`로 나간다.
 
 writer 보장은 하나의 Git common dir을 공유하는 local worktree 범위다. 서로 다른 clone이나 host 사이의
 원자적 global lock을 의미하지 않는다. cross-machine 작업은 Linear assignee와 명시적 handoff로 한 명만

@@ -233,7 +233,7 @@ function worklogBody(event) {
   ].join("\n");
 }
 
-export async function flushOutbox(events, client, { inProgressState = "In Progress" } = {}) {
+export async function flushOutbox(events, client) {
   let sent = 0;
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];

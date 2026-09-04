@@ -263,6 +263,38 @@ test("lease 없이도 git checkout -b는 통과한다", async () => {
   });
 });
 
+test("요청 이슈 강등 경고는 stderr가 아니라 hook JSON의 systemMessage로 나온다", async () => {
+  await withTempDirectory(async (directory) => {
+    const statePath = path.join(directory, "state.json");
+    const issueIdentifier = extractIssueIdentifier(repositoryContext(process.cwd()).branch) ?? "EAT-91";
+    await saveState(
+      statePath,
+      updateSessionState(
+        setWorktreeLease(createEmptyState(), process.cwd(), {
+          issueIdentifier,
+          teamKey: "EAT",
+          expiresAt: "2099-08-31T00:00:00.000Z",
+        }),
+        process.cwd(),
+        "warned",
+        { requestedIssue: "EAT-99" },
+      ),
+    );
+
+    const edit = runHook(
+      { hook_event_name: "PreToolUse", session_id: "warned", tool_name: "Write" },
+      statePath,
+    );
+
+    assert.equal(edit.status, 0, edit.stderr);
+    assert.equal(edit.stderr, "");
+    assert.match(
+      JSON.parse(edit.stdout).systemMessage,
+      new RegExp(`요청 이슈 EAT-99가 lease ${issueIdentifier}와 다릅니다`),
+    );
+  });
+});
+
 test("lease 없이 git commit은 여전히 막힌다", async () => {
   await withTempDirectory(async (directory) => {
     const result = runHook(
@@ -621,6 +653,26 @@ test("--branch로 브랜치를 만들며 claim한다", async () => {
         calls.map((call) => call.operation),
         ["AgentWorkflowClaim", "AgentWorkflowClaimUpdate"],
       );
+    });
+  });
+});
+
+test("--branch 이름의 이슈가 요청과 다르면 브랜치를 만들기 전에 거부한다", async () => {
+  await withCommittedRepository(async ({ repository, statePath }) => {
+    await withLinearStub(async ({ calls, environment }) => {
+      const claim = await runCommandAsync(
+        "claim",
+        statePath,
+        ["--", "EAT-41", "--worktree", repository, "--branch", "eat-99-other-work"],
+        environment,
+      );
+
+      assert.equal(claim.status, 1);
+      assert.match(claim.stderr, /Branch issue EAT-99 does not match requested claim EAT-41/);
+      assert.equal(gitIn(repository, ["branch", "--show-current"]).stdout.trim(), "main");
+      assert.equal(gitIn(repository, ["branch", "--list"]).stdout.trim(), "* main");
+      assert.deepEqual(calls, []);
+      await assert.rejects(() => readFile(statePath, "utf8"), { code: "ENOENT" });
     });
   });
 });

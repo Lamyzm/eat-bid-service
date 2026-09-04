@@ -63,18 +63,46 @@ test("Infisical wrapper는 --worktree 인자를 해석하지 않고 CLI에 그�
   ]);
 });
 
-test("Infisical wrapper는 claim과 sync와 doctor 이외의 command를 거부한다", () => {
-  assert.throws(
-    () =>
-      buildInfisicalRun({
-        command: "release",
-        commandArguments: [],
-        config: { infisical: {} },
-        hookPath: "hook.mjs",
-        nodePath: "node",
-      }),
-    /Unsupported Infisical workflow command/i,
-  );
+test("Infisical wrapper는 claim과 sync와 doctor와 release --review 이외의 command를 거부한다", () => {
+  for (const [command, commandArguments] of [
+    ["release", []],
+    ["release", ["--worktree", "../.."]],
+    ["worktree", ["prune"]],
+    ["recover-lock", []],
+  ]) {
+    assert.throws(
+      () =>
+        buildInfisicalRun({
+          command,
+          commandArguments,
+          config: { infisical: {} },
+          hookPath: "hook.mjs",
+          nodePath: "node",
+        }),
+      /Unsupported Infisical workflow command/i,
+      `${command} ${commandArguments.join(" ")}`,
+    );
+  }
+});
+
+test("Infisical wrapper는 Linear 상태를 옮기는 release --review만 예외로 감싼다", () => {
+  const invocation = buildInfisicalRun({
+    command: "release",
+    commandArguments: ["--review", "--", "--worktree", "../.."],
+    config: { infisical: { environment: "dev", path: "/tooling/linear", projectId: "project-id" } },
+    hookPath: "cli.mjs",
+    nodePath: "node",
+  });
+
+  assert.deepEqual(invocation.slice(-7), [
+    "node",
+    "cli.mjs",
+    "release",
+    "--review",
+    "--",
+    "--worktree",
+    "../..",
+  ]);
 });
 
 test("Windows npm shim 환경에서는 실제 Infisical 실행 파일을 찾아 직접 실행한다", () => {

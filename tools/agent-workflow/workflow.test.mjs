@@ -57,6 +57,25 @@ test("teammate·알림·system-reminder·skill 목록 블록 안의 이슈 번�
   );
 });
 
+test("속성이 붙은 주입 블록도 이슈 번호를 숨기지 못한다", () => {
+  assert.equal(
+    extractPromptIssueIdentifier(
+      '<task-notification id="7" agent="impl">EAT-34가 끝났다</task-notification>',
+    ),
+    null,
+  );
+  assert.equal(
+    extractPromptIssueIdentifier('<system-reminder priority="high">EAT-34 참고</system-reminder>'),
+    null,
+  );
+  assert.equal(
+    extractPromptIssueIdentifier(
+      '<system-reminder priority="high">EAT-34 참고</system-reminder> EAT-41 진행',
+    ),
+    "EAT-41",
+  );
+});
+
 test("브랜치 추출은 소문자 슬러그를 그대로 인정한다", () => {
   assert.equal(extractIssueIdentifier("eat-37-org-attempts"), "EAT-37");
   assert.equal(extractPromptIssueIdentifier("eat-37-org-attempts"), null);
@@ -218,6 +237,7 @@ test("브랜치를 만드는 git 명령은 lease 없이 허용하고 파일을 �
     "git checkout -b eat-41-lease-gate",
     "git switch -c eat-41-lease-gate",
     "git branch eat-41-lease-gate main",
+    "git checkout -b x",
     "git worktree add .worktrees/eat-41 -b eat-41-lease-gate",
     "git worktree add --quiet .worktrees/eat-41 eat-41-lease-gate",
   ]) {
@@ -241,6 +261,24 @@ test("브랜치를 만드는 git 명령은 lease 없이 허용하고 파일을 �
   }
 });
 
+test("start-point를 지정한 checkout -b와 switch -c는 작업 파일을 갈아끼우므로 차단한다", () => {
+  for (const command of ["git checkout -b x", "git switch -c x", "git branch x main"]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "branch-creation-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "git checkout -b x main",
+    "git checkout -b tmp origin/main",
+    "git switch -c x --discard-changes",
+    "git switch -c x origin/main",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
 test("claim의 --branch와 release의 --review는 lease 없이 허용하고 이름이 아닌 값은 차단한다", () => {
   for (const command of [
     "pnpm workflow:claim -- EAT-41 --branch eat-41-lease-gate",
@@ -248,6 +286,8 @@ test("claim의 --branch와 release의 --review는 lease 없이 허용하고 이�
     "pnpm workflow:claim -- EAT-41 --branch eat-41-lease-gate --worktree ../..",
     "pnpm workflow:release --review",
     "pnpm workflow:release -- EAT-41 --review",
+    "pnpm workflow:release:review",
+    "pnpm workflow:release:review -- --worktree ../..",
   ]) {
     assert.deepEqual(
       classifyToolCall("Bash", { command }),

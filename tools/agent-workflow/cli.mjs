@@ -59,6 +59,14 @@ async function claim() {
   // 실제 HEAD여야 하며, 여기서 실패하면 Linear도 lease도 건드리지 않은 상태로 남는다.
   let repository = targetRepositoryContext(process.cwd(), parsed.worktreePath);
   if (parsed.branchName) {
+    // 이름 검사를 git보다 먼저 한다. 브랜치를 만들고 HEAD를 옮긴 뒤에 거부하면 세션은 claim도 못 한
+    // 채 새 branch 불일치로 잠기고, 되돌릴 방법도 lease 안에서만 남는다.
+    const requestedBranchIssue = extractIssueIdentifier(parsed.branchName);
+    if (requestedBranchIssue && requestedBranchIssue !== identifier) {
+      throw new Error(
+        `Branch issue ${requestedBranchIssue} does not match requested claim ${identifier}`,
+      );
+    }
     checkoutClaimBranch(repository.worktreeRoot, parsed.branchName, repository.branch);
     repository = targetRepositoryContext(process.cwd(), parsed.worktreePath);
   }
@@ -220,7 +228,7 @@ async function sync() {
     });
     if (snapshot.outbox.length === 0) return;
 
-    result = await flushOutbox(snapshot.outbox, linearClient(), config);
+    result = await flushOutbox(snapshot.outbox, linearClient());
     const acknowledgedIds = snapshot.outbox.slice(0, result.sent).map((event) => event.id);
     if (acknowledgedIds.length > 0) {
       await withStateTransaction(repository.statePath, async (state) =>
