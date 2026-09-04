@@ -700,6 +700,21 @@ class EatbidIngestionAuctionV2(BaseModel):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_generated_디렉터리라도_생성기_목록에_없는_파일은_거부한다(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/generated/rogue.py": """
+from pydantic import BaseModel
+class HandwrittenAuction(BaseModel):
+    auction_id: str
+""",
+        },
+    )
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "[handwritten-normalized-pydantic]" in result.stdout + result.stderr
+
+
 def test_source_allowed_Pydantic_subclass를_외부에서_상속하면_거부한다(tmp_path: Path) -> None:
     result = _run(
         tmp_path,
