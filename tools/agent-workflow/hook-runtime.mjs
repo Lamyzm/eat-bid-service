@@ -12,6 +12,7 @@ import {
 import {
   classifyToolCall,
   extractIssueIdentifier,
+  extractPromptIssueIdentifier,
   normalizeHookEvent,
 } from "./workflow.mjs";
 
@@ -119,7 +120,7 @@ export function handleHookEvent({
   const eventName = event.hookEventName.toLowerCase();
 
   if (eventName === "userpromptsubmit") {
-    const requestedIssue = extractIssueIdentifier(event.prompt);
+    const requestedIssue = extractPromptIssueIdentifier(event.prompt);
     if (!requestedIssue) return { exitCode: 0, message: "", state };
     return {
       exitCode: 0,
@@ -149,17 +150,25 @@ export function handleHookEvent({
       };
     }
 
+    // 브랜치는 커밋이 실제로 쌓이는 자리라 lease와 다르면 남의 작업을 오염시킨다. 여기서는 계속 막는다.
     const branchIssue = extractIssueIdentifier(branch);
-    const mismatchedIssue = [branchIssue, session.requestedIssue].find(
-      (identifier) => identifier && identifier !== lease.issueIdentifier,
-    );
-    if (mismatchedIssue) {
+    if (branchIssue && branchIssue !== lease.issueIdentifier) {
       return {
         exitCode: 2,
-        message: `Repository mutation blocked: ${mismatchedIssue} does not match the verified lease ${lease.issueIdentifier}. Release or claim the intended issue explicitly.${describeLeases(state, now)}`,
+        message: `Repository mutation blocked: ${branchIssue} does not match the verified lease ${lease.issueIdentifier}. Release or claim the intended issue explicitly.${describeLeases(state, now)}`,
         state,
       };
     }
+
+    // 프롬프트에서 읽은 요청 이슈는 lease·branch가 이미 일치하면 소유권 근거가 아니라 잡음이다.
+    // 차단하면 사용자가 채팅에 이슈 번호를 다시 쳐야만 풀리므로 경고만 남기고 lease를 정답으로 삼는다.
+    const staleRequestedIssue =
+      session.requestedIssue && session.requestedIssue !== lease.issueIdentifier
+        ? session.requestedIssue
+        : null;
+    const message = staleRequestedIssue
+      ? `경고: 요청 이슈 ${staleRequestedIssue}가 lease ${lease.issueIdentifier}와 다릅니다. lease를 따릅니다.`
+      : "";
 
     const requestedWriter = { provider, sessionId: event.sessionId };
     if (
@@ -186,9 +195,10 @@ export function handleHookEvent({
 
     return {
       exitCode: 0,
-      message: "",
+      message,
       state: updateSessionState(claimedState, worktreeRoot, event.sessionId, {
         activeIssue: lease.issueIdentifier,
+        ...(staleRequestedIssue ? { requestedIssue: lease.issueIdentifier } : {}),
       }),
     };
   }

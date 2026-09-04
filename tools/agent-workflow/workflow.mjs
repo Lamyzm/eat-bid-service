@@ -3,6 +3,20 @@ import { classifyCurl, classifyInlineInterpreter } from "./shell-read-only.mjs";
 
 const ISSUE_IDENTIFIER = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/i;
 
+// 사용자가 실제로 요청한 이슈만 세션 상태에 남긴다. 브랜치 슬러그·경로·scratchpad 이름은 소문자
+// `eat-34` 모양이라 대소문자를 구분하면 저절로 걸러지고, 경로 구분자·점·하이픈 뒤도 제외한다.
+const PROMPT_ISSUE_IDENTIFIER = /(?<![\w/\\.-])([A-Z][A-Z0-9]{1,9}-\d+)(?![\w-])/;
+
+// harness가 프롬프트에 끼워 넣는 블록은 사용자의 요청이 아니라 배경 정보다. 여기서 읽은 이슈 번호로
+// 세션 요청 이슈를 바꾸면 다른 agent의 알림 한 줄이 이 세션의 lease 게이트를 잠근다.
+const INJECTED_BLOCKS = [
+  /<teammate-message[\s\S]*?<\/teammate-message>/g,
+  /<cross-session-message[\s\S]*?<\/cross-session-message>/g,
+  /<task-notification>[\s\S]*?<\/task-notification>/g,
+  /<system-reminder>[\s\S]*?<\/system-reminder>/g,
+  /\[SYSTEM NOTIFICATION[\s\S]*$/,
+];
+
 const FILE_EDIT_TOOLS = new Set([
   "apply_patch",
   "edit",
@@ -79,6 +93,12 @@ export function extractIssueIdentifier(value) {
   }
   if (typeof value !== "string") return null;
   return value.match(ISSUE_IDENTIFIER)?.[1]?.toUpperCase() ?? null;
+}
+
+export function extractPromptIssueIdentifier(prompt) {
+  if (typeof prompt !== "string") return null;
+  const authored = INJECTED_BLOCKS.reduce((text, block) => text.replace(block, " "), prompt);
+  return authored.match(PROMPT_ISSUE_IDENTIFIER)?.[1] ?? null;
 }
 
 function shellCommand(toolInput) {

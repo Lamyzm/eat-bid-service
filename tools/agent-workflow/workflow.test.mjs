@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   classifyToolCall,
   extractIssueIdentifier,
+  extractPromptIssueIdentifier,
 } from "./workflow.mjs";
 
 test("extractIssueIdentifier는 Linear 식별자를 정규화하고 일반 문장의 하이픈은 무시한다", () => {
@@ -16,6 +17,49 @@ test("extractIssueIdentifier는 pnpm 구분자를 건너뛰고 claim 인자에�
   assert.equal(extractIssueIdentifier(["--", "eat-11"]), "EAT-11");
   assert.equal(extractIssueIdentifier(["EAT-11"]), "EAT-11");
   assert.equal(extractIssueIdentifier(["--"]), null);
+});
+
+test("프롬프트 추출은 대문자 EAT-N만 인정하고 경로의 eat-34는 무시한다", () => {
+  assert.equal(
+    extractPromptIssueIdentifier(
+      "C:/Temp/claude/F--Project-eat-bid-service--worktrees-eat-34-collection-modes/scratchpad",
+    ),
+    null,
+  );
+  assert.equal(extractPromptIssueIdentifier("EAT-37 진행"), "EAT-37");
+  assert.equal(extractPromptIssueIdentifier("F:/Project/eat-bid-service/docs/EAT-37/plan.md"), null);
+  assert.equal(extractPromptIssueIdentifier("문서만 읽어줘"), null);
+  assert.equal(extractPromptIssueIdentifier(42), null);
+});
+
+test("teammate·알림·system-reminder·skill 목록 블록 안의 이슈 번호는 무시한다", () => {
+  assert.equal(
+    extractPromptIssueIdentifier(
+      '<teammate-message teammate_id="lead">EAT-34를 계속</teammate-message> EAT-37 진행',
+    ),
+    "EAT-37",
+  );
+  assert.equal(
+    extractPromptIssueIdentifier("<task-notification>agent가 EAT-34를 끝냈다</task-notification>"),
+    null,
+  );
+  assert.equal(
+    extractPromptIssueIdentifier("[SYSTEM NOTIFICATION - NOT USER INPUT]\nEAT-34 리뷰가 끝났다"),
+    null,
+  );
+  assert.equal(
+    extractPromptIssueIdentifier("<system-reminder>skill 목록에 EAT-34가 있다</system-reminder>"),
+    null,
+  );
+  assert.equal(
+    extractPromptIssueIdentifier("<cross-session-message>EAT-34</cross-session-message>"),
+    null,
+  );
+});
+
+test("브랜치 추출은 소문자 슬러그를 그대로 인정한다", () => {
+  assert.equal(extractIssueIdentifier("eat-37-org-attempts"), "EAT-37");
+  assert.equal(extractPromptIssueIdentifier("eat-37-org-attempts"), null);
 });
 
 test("저장소 편집 도구는 차단하고 명시적인 읽기 도구만 허용한다", () => {

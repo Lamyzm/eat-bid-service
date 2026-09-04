@@ -197,7 +197,7 @@ test("만료된 lease 차단 메시지는 만료 시각과 같은 issue를 다�
   assert.match(result.message, /expired 2026-08-29T00:00:00.000Z/);
 });
 
-test("검증된 lease와 다른 prompt나 branch는 변경을 차단한다", () => {
+test("lease와 branch가 일치하면 다른 requestedIssue는 차단이 아니라 경고이며 requestedIssue를 lease로 맞춘다", () => {
   let state = setWorktreeLease(createEmptyState(), "F:/repo", {
     issueIdentifier: "EAT-42",
     expiresAt: "2026-08-31T00:00:00.000Z",
@@ -213,8 +213,51 @@ test("검증된 lease와 다른 prompt나 branch는 변경을 차단한다", () 
     state,
   });
 
+  assert.equal(result.exitCode, 0);
+  assert.match(result.message, /경고: 요청 이슈 EAT-99가 lease EAT-42와 다릅니다/);
+  assert.equal(getSessionState(result.state, "F:/repo", "switch").requestedIssue, "EAT-42");
+  assert.equal(getSessionState(result.state, "F:/repo", "switch").activeIssue, "EAT-42");
+});
+
+test("branch가 lease와 다르면 여전히 차단한다", () => {
+  const state = setWorktreeLease(createEmptyState(), "F:/repo", {
+    issueIdentifier: "EAT-42",
+    expiresAt: "2026-08-31T00:00:00.000Z",
+  });
+  const result = handleHookEvent({
+    ...context,
+    branch: "eat-99-other-work",
+    input: { hook_event_name: "PreToolUse", session_id: "branch", tool_name: "Edit" },
+    state,
+  });
+
   assert.equal(result.exitCode, 2);
-  assert.match(result.message, /does not match/i);
+  assert.match(result.message, /EAT-99 does not match the verified lease EAT-42/);
+});
+
+test("UserPromptSubmit이 주입 블록만 담으면 requestedIssue를 바꾸지 않는다", () => {
+  let state = setWorktreeLease(createEmptyState(), "F:/repo", {
+    issueIdentifier: "EAT-42",
+    expiresAt: "2026-08-31T00:00:00.000Z",
+  });
+  ({ state } = handleHookEvent({
+    ...context,
+    input: {
+      hook_event_name: "UserPromptSubmit",
+      prompt: "<system-reminder>EAT-99 참고</system-reminder>",
+      session_id: "injected",
+    },
+    state,
+  }));
+  const result = handleHookEvent({
+    ...context,
+    input: { hook_event_name: "PreToolUse", session_id: "injected", tool_name: "Edit" },
+    state,
+  });
+
+  assert.equal(getSessionState(state, "F:/repo", "injected").requestedIssue, undefined);
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.message, "");
 });
 
 test("첫 변경 session이 lease를 소유하고 두 번째 agent session은 차단된다", () => {
