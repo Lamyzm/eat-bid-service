@@ -7,6 +7,7 @@ import ts from "typescript";
 const clientExports = Object.freeze([
   ["./api", "./src/api/index.ts"],
   ["./api/v1/auctions", "./src/api/v1/auctions/index.ts"],
+  ["./api/v1/organizations", "./src/api/v1/organizations/index.ts"],
 ]);
 const forbiddenGraphPath = /\/(?:codecs|ingestion|operations)\/|\/portable-registry\.ts$|\/generate-json-schema\.ts$/;
 const forbiddenBareImport = /^(?:@eatbid\/domain|next(?:\/|$)|react(?:\/|$)|server-only$|node:)/;
