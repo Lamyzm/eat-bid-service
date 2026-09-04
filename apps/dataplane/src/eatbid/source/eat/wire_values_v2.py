@@ -16,7 +16,6 @@ from eatbid.generated.ingestion_v2 import (
     Money,
     NonNegativeCount,
     ReservePriceRatio,
-    SourceCode,
     SourceCodedValue,
 )
 from eatbid.source.eat.wire_text import (
@@ -31,11 +30,6 @@ from eatbid.source.eat.wire_text import (
 # 관측 하나가 어느 시스템에서 왔는지는 코드 값과 함께 실려야 한다. eaT 코드 체계는 다른 소스의
 # 같은 문자열과 절대 암묵적으로 같지 않다(AGENTS 6).
 SOURCE_SYSTEM = "eat"
-
-
-def optional_source_code(row: Mapping[str, str], field: str) -> SourceCode | None:
-    value = optional_text(row, field)
-    return SourceCode(root=value) if value is not None else None
 
 
 def optional_instant_text(

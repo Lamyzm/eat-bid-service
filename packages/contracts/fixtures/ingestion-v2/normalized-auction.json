@@ -112,7 +112,7 @@
   "reservePriceDraw": {
     "candidates": [
       {
-        "sequence": 1,
+        "sequence": "07",
         "ratio": { "value": "0.971700", "unit": "ratio" },
         "amount": { "amount": "6717477.00", "currency": "KRW" },
         "chosen": {
@@ -123,7 +123,7 @@
         }
       },
       {
-        "sequence": 4,
+        "sequence": "3",
         "ratio": { "value": "1.021800", "unit": "ratio" },
         "amount": { "amount": "7063878.00", "currency": "KRW" },
         "chosen": {

@@ -107,6 +107,10 @@ def test_v2_generated_model이_선행_0을_코드_문자열로_보존한다() ->
     assert submission.supplier_account.business_number is not None
     assert submission.supplier_account.business_number.code == "0100000000"
     assert [number.root for number in submission.draw_numbers] == ["07", "3"]
+    # 추첨번호가 가리키는 후보 순번도 같은 source code라 선행 0이 살아 있다.
+    assert [
+        candidate.sequence for candidate in model.reserve_price_draw.candidates
+    ] == ["07", "3"]
 
 
 def test_v2_generated_model이_일을_넘는_추첨_배율을_받아들인다() -> None:

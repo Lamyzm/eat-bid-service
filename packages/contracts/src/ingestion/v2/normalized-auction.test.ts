@@ -67,7 +67,7 @@ const v2Fixture = {
   reservePriceDraw: {
     candidates: [
       {
-        sequence: 1,
+        sequence: "1",
         ratio: { value: "0.971700", unit: "ratio" },
         amount: { amount: "6717477.00", currency: "KRW" },
         chosen: { sourceSystem: "eat", codeScheme: "eat:CHC_YN", code: "Y", label: null },
@@ -90,6 +90,22 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
     expect(parsed.roster.submissions[0]!.drawNumbers).toEqual(["07", "3"]);
     expect(parsed.reservePriceDraw.candidates[1]!.ratio.value).toBe("1.021800");
     expect(parsed.terms.awardMethod).toBeNull();
+  });
+
+  test("추첨번호와 후보 순번이 같은 source code 타입이라 선행 0을 맞대볼 수 있다", async () => {
+    const golden = await Bun.file(goldenUrl).json();
+
+    const parsed = normalizedAuctionV2Schema.parse(golden);
+
+    const sequences = parsed.reservePriceDraw.candidates.map((candidate) => candidate.sequence);
+    expect(sequences).toEqual(["07", "3"]);
+    expect(sequences).toContain(parsed.roster.submissions[0]!.drawNumbers[0]);
+    expect(normalizedAuctionV2Schema.safeParse({
+      ...golden,
+      reservePriceDraw: {
+        candidates: [{ ...golden.reservePriceDraw.candidates[0], sequence: 1 }],
+      },
+    }).success).toBe(false);
   });
 
   test("v1 root는 v2 필드가 없어도 그대로 통과한다", () => {

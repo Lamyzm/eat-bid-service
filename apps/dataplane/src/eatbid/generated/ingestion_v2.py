@@ -256,8 +256,8 @@ class Candidate(BaseModel):
     amount: Money
     chosen: SourceCodedValue
     ratio: ReservePriceRatio
-    sequence: Annotated[int, Field(ge=0, le=2147483647)]
-    """Count of observed rows; JSON integer within PostgreSQL integer range."""
+    sequence: Annotated[str, Field(max_length=512, min_length=1)]
+    """Opaque source code text that preserves leading zeroes."""
 
 
 class NormalizedReservePriceDraw(BaseModel):

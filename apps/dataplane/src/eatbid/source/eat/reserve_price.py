@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from eatbid.generated.ingestion_v2 import Candidate, NormalizedReservePriceDraw
-from eatbid.source.eat.wire_text import optional_count
+from eatbid.source.eat.wire_text import optional_text
 from eatbid.source.eat.wire_values_v2 import (
     optional_money,
     optional_reserve_price_ratio,
@@ -23,9 +23,11 @@ def parse_reserve_price_draw(parsed: ParsedNexacro) -> NormalizedReservePriceDra
     섞이고 소스가 규칙을 바꾼 날을 알아챌 수 없게 된다(AGENTS 3).
     """
     candidates: list[Candidate] = []
-    sequences: set[int] = set()
+    # 순번은 후보를 가리키는 소스 코드이므로 원본 문자열 그대로 비교하고 담는다. 정수로 바꾸면
+    # 명단 행의 `DRAW_NO`가 가리키는 값과 타입이 갈리고, 앞자리 0이 붙는 날 값이 달라진다.
+    sequences: set[str] = set()
     for row in parsed.datasets.get(P_LIST_DATASET, ()):
-        sequence = optional_count(row, "CMNM_PLNPRC_SN")
+        sequence = optional_text(row, "CMNM_PLNPRC_SN")
         if sequence is None:
             raise ValueError("CMNM_PLNPRC_SN is required on an observed draw row")
         if sequence in sequences:

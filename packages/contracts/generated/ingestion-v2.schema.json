@@ -670,7 +670,7 @@
                 "$ref": "#/$defs/ReservePriceRatio"
               },
               "sequence": {
-                "$ref": "#/$defs/NonNegativeCount"
+                "$ref": "#/$defs/SourceCode"
               }
             },
             "required": [

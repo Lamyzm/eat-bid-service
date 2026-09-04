@@ -219,6 +219,32 @@ def test_추첨_후보_순번이_겹치면_거부한다() -> None:
         parse_reserve_price_draw(parsed)
 
 
+def test_후보_순번은_추첨번호와_같은_source_code로_선행_0을_보존한다() -> None:
+    parsed = _detail(
+        "ds_pList",
+        _row(CMNM_PLNPRC_SN="07", CMNM_PLNPRC_RT="0.97", CMNM_PLNPRC="1", CHC_YN="Y"),
+    )
+
+    draw = parse_reserve_price_draw(parsed)
+
+    assert draw.candidates[0].sequence == "07"
+
+
+def test_추첨번호가_후보_순번_집합_안에_있다() -> None:
+    parsed = _parsed("bid-detail-roster.xml")
+
+    roster = parse_bid_roster(parsed)
+    draw = parse_reserve_price_draw(parsed)
+
+    sequences = {candidate.sequence for candidate in draw.candidates}
+    drawn = {
+        number.root
+        for submission in roster.submissions
+        for number in submission.draw_numbers
+    }
+    assert drawn <= sequences
+
+
 def test_재입찰_사슬은_원본_id로만_잇고_공고번호_접미사를_읽지_않는다() -> None:
     parsed = _parsed("bid-detail-rebid.xml")
 

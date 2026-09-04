@@ -96,8 +96,9 @@ def _supplier_account(row: Mapping[str, str]) -> NormalizedSupplierAccount:
 def _draw_numbers(row: Mapping[str, str]) -> list[SourceCode]:
     """`DRAW_NO`는 한 업체가 고른 예비가격 번호 둘을 ', '로 이어 보낸다(실측 '7, 3').
 
-    번호는 `ds_pList`의 후보 순번을 가리키는 코드이므로 문자열 그대로 싣는다. 정수로 바꿔 담으면
-    소스가 앞자리 0을 붙이는 날 값이 달라진다.
+    번호는 `ds_pList`의 후보 순번(`CMNM_PLNPRC_SN`)을 가리키는 코드이므로 문자열 그대로 싣는다.
+    가리키는 쪽과 가리켜지는 쪽이 같은 `SourceCode`여야 둘을 맞대볼 수 있고, 정수로 바꿔 담으면
+    소스가 앞자리 0을 붙이는 날 두 값이 서로 다른 것이 된다.
     """
     value = optional_text(row, "DRAW_NO")
     if value is None:
