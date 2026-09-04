@@ -14,4 +14,10 @@ describe('공고 route 로딩 경계', () => {
     expect(screen.getAllByRole('status')).toHaveLength(1);
     expect(screen.getByRole('status').getAttribute('aria-busy')).toBe('true');
   });
+
+  test('결정 화면과 같은 DecisionFrame geometry를 쓴다', () => {
+    const screen = render(<Loading />);
+
+    expect(screen.container.querySelector('[data-slot="decision-screen"]')).toBeTruthy();
+  });
 });

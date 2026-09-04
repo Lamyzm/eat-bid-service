@@ -14,6 +14,8 @@
     "test": "bun test src --timeout 30000",
     "pretest:e2e:foundation": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/shared build",
     "test:e2e:foundation": "playwright test frontend-foundation.spec.ts",
+    "pretest:e2e:decision": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/shared build",
+    "test:e2e:decision": "playwright test decision-screen.spec.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix && bun format",
     "lint:strict": "pnpm --dir ../.. lint:web-boundaries && pnpm --dir ../.. lint:endpoints && oxlint --deny-warnings",
@@ -23,6 +25,7 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@eatbid/contracts": "workspace:*",
+    "@eatbid/domain": "workspace:*",
     "@eatbid/shared": "workspace:*",
     "@sentry/nextjs": "^10.45.0",
     "@shadcn/react": "^0.2.1",

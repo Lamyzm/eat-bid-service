@@ -26,3 +26,20 @@ export const auctionFixture = {
     contentSha256: 'a'.repeat(64)
   }
 } satisfies AuctionV1Response;
+
+/** 마감·개찰이 관측된 진행 중 공고. 2026-09-03T01:30Z(10:30 KST)에 보면 마감 24시간 30분 전이다. */
+export const openAuctionFixture = {
+  ...auctionFixture,
+  identity: { ...auctionFixture.identity, auctionId: '5796468', revisionId: '5796469', title: '창원 남산초등학교 축산물 구매' },
+  schedule: { announcedAt: '2026-09-01T00:00:00Z', deadlineAt: '2026-09-04T02:00:00Z', openedAt: '2026-09-04T05:00:00Z' },
+  pricing: { baseAmount: { amount: '2761700.00', currency: 'KRW' }, plannedAmount: null }
+} satisfies AuctionV1Response;
+
+/** 개찰이 끝난 공고. now가 openedAt 뒤다. */
+export const closedAuctionFixture = {
+  ...openAuctionFixture,
+  identity: { ...openAuctionFixture.identity, auctionId: '5780681', revisionId: '5780682', status: 'CLOSED' },
+  schedule: { announcedAt: '2026-08-10T00:00:00Z', deadlineAt: '2026-08-13T02:00:00Z', openedAt: '2026-08-13T05:00:00Z' }
+} satisfies AuctionV1Response;
+
+export const fixtureNow = '2026-09-03T01:30:00Z';

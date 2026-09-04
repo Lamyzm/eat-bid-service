@@ -117,6 +117,9 @@ importers:
       '@eatbid/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@eatbid/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@eatbid/shared':
         specifier: workspace:*
         version: link:../../packages/shared

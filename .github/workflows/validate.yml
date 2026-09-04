@@ -77,3 +77,5 @@ jobs:
         run: pnpm --filter @eatbid/web exec playwright install --with-deps chromium
       - name: 공통 shell·loading·오류 경계 검증
         run: pnpm --filter @eatbid/web test:e2e:foundation
+      - name: 결정 화면 폭별 밀림 검증
+        run: pnpm --filter @eatbid/web test:e2e:decision

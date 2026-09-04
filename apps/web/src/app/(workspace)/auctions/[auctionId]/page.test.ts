@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { auctionFixture } from './__fixtures__/auction';
+import { auctionFixture, fixtureNow } from './__fixtures__/auction';
 import { loadAuctionPage } from './_model/load-auction-page';
 
 const canonicalAuctionId = auctionFixture.identity.auctionId;
@@ -13,6 +13,7 @@ function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage
     },
     getAuction: async () => auctionFixture,
     isNotFound: () => false,
+    now: () => fixtureNow,
     ...overrides
   };
 }
