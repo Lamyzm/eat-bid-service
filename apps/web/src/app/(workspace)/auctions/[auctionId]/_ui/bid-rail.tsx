@@ -160,7 +160,7 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
           <span className='text-[15px] font-semibold'>
             {record ? `${record.rate} 기록됨` : actionFailure === 'save' ? '기록하지 못했습니다' : '아직 기록 없음'}
           </span>
-          <span className='text-[15px] font-medium text-muted-foreground'>이 화면에서만 잠깐 들고 있습니다. 저장은 다음 단계에서 붙습니다</span>
+          <span className='text-[15px] font-medium text-muted-foreground'>저장은 다음 단계에서 붙습니다</span>
         </span>
         <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>마감 {decision.banner.deadlineAt}</span>
       </div>
