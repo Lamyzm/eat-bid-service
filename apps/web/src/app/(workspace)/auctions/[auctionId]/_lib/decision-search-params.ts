@@ -26,16 +26,20 @@ export type DecisionSearch = {
 
 export type DecisionView = (typeof DECISION_VIEWS)[number];
 
+/** 옮겨 가려는 탭은 query에 늘 실리므로 `?` 뒤가 빈 주소는 나오지 않는다. */
+export type DecisionRoute = `/auctions/${string}?${string}`;
+
 /**
- * 탭 링크의 query. 탭을 눌렀다고 기간·모집단·품목이 초기화되면 사용자가 만든 비교 조건이 조용히
- * 사라지므로 지금 조건을 그대로 들고 간다. 기본값은 parser가 되살리므로 주소에 남기지 않는다.
- * 옮겨 가려는 탭은 기본값이어도 명시해 링크 하나만 봐도 어디로 가는지 알 수 있게 한다.
+ * 탭 링크. `UrlObject`는 typedRoutes 검사를 받지 않으므로 `analysis-route.ts`와 같은 typed template
+ * literal로 만든다. 탭을 눌렀다고 기간·모집단·품목이 초기화되면 사용자가 만든 비교 조건이 조용히
+ * 사라지므로 지금 조건을 그대로 들고 가되, 기본값은 parser가 되살리므로 주소에 남기지 않는다.
  */
-export function decisionViewQuery(search: DecisionSearch, view: DecisionView): Record<string, string> {
-  return {
-    ...(search.period === decisionSearchParsers.period.defaultValue ? {} : { period: search.period }),
-    ...(search.scope === decisionSearchParsers.scope.defaultValue ? {} : { scope: search.scope }),
-    ...(search.item === null ? {} : { item: search.item }),
-    view
-  };
+export function buildDecisionViewRoute(auctionId: string, search: DecisionSearch, view: DecisionView): DecisionRoute {
+  const query = new URLSearchParams();
+  if (search.period !== decisionSearchParsers.period.defaultValue) query.set('period', search.period);
+  if (search.scope !== decisionSearchParsers.scope.defaultValue) query.set('scope', search.scope);
+  if (search.item !== null) query.set('item', search.item);
+  query.set('view', view);
+  const pathname: `/auctions/${string}` = `/auctions/${encodeURIComponent(auctionId)}`;
+  return `${pathname}?${query.toString()}`;
 }

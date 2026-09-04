@@ -18,6 +18,8 @@ import {
 
 const UNKNOWN = '미확인';
 
+// "최근 N회 표시"의 N은 실제로 그린 점 수다. 낙찰률이 없는 회차는 y를 만들 수 없어 점이 없으므로
+// 응답 행 수를 쓰면 차트에 없는 회차까지 그렸다고 말하게 된다.
 function caption(presentation: HistoryPresentation, shown: number): string {
   return [
     `표본 ${presentation.sampleCount}회`,
@@ -59,12 +61,14 @@ function selectedPath(points: readonly FlowPoint[]): string {
     .join(' ');
 }
 
+// 창 밖 표시는 경계 점 바깥에 쓰되 viewBox 안에 머물러야 한다. 13px 글자의 baseline을 14/232에 두면
+// 위로 글자 높이가, 아래로 descender가 위아래 여백 16 안에 들어온다.
 function OutsideMark({ point }: { readonly point: FlowPoint }) {
   const above = point.outside === 'above';
   return (
     <text
       x={point.x}
-      y={above ? point.y - 6 : point.y + 14}
+      y={above ? point.y - 2 : point.y + 8}
       textAnchor='middle'
       fontSize={13}
       fontWeight={600}
@@ -76,19 +80,19 @@ function OutsideMark({ point }: { readonly point: FlowPoint }) {
   );
 }
 
-const LABEL_WIDTH = 92;
-const LABEL_HEIGHT = 22;
+const MINE_PILL_WIDTH = 92;
+const MINE_PILL_HEIGHT = 22;
 
 // 내 값은 회차 점·하한 눈금과 같은 높이로 지나가므로 글자만 얹으면 겹쳐 읽을 수 없다. 디자인 원본처럼
 // 채운 알약 위에 얹고, 창 위쪽에 붙어 알약이 잘릴 때만 선 아래로 내린다.
 function MyRateLabel({ rate, y }: { readonly rate: string; readonly y: number }) {
-  const below = y - LABEL_HEIGHT - 2 < 0;
-  const top = below ? y + 2 : y - LABEL_HEIGHT - 2;
+  const below = y - MINE_PILL_HEIGHT - 2 < 0;
+  const top = below ? y + 2 : y - MINE_PILL_HEIGHT - 2;
   return (
     <>
-      <rect x={PLOT_RIGHT - LABEL_WIDTH} y={top} width={LABEL_WIDTH} height={LABEL_HEIGHT} rx={6} fill='currentColor' />
+      <rect x={PLOT_RIGHT - MINE_PILL_WIDTH} y={top} width={MINE_PILL_WIDTH} height={MINE_PILL_HEIGHT} rx={6} fill='currentColor' />
       <text
-        x={PLOT_RIGHT - LABEL_WIDTH / 2}
+        x={PLOT_RIGHT - MINE_PILL_WIDTH / 2}
         y={top + 15}
         textAnchor='middle'
         fontSize={13}
@@ -135,7 +139,7 @@ export function FlowChart({ presentation }: { readonly presentation: HistoryPres
           <MyRateLabel rate={rate} y={mine.y} />
         </g>
       </svg>
-      <figcaption className='text-[13px] font-medium text-muted-foreground'>{caption(presentation, presentation.rows.length)}</figcaption>
+      <figcaption className='text-[13px] font-medium text-muted-foreground'>{caption(presentation, points.length)}</figcaption>
     </figure>
   );
 }

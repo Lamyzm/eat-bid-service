@@ -8,19 +8,12 @@ import { BidRateProvider } from './bid-rate-context';
 import { DecisionBanner } from './decision-banner';
 import { DecisionFrame } from './decision-frame';
 import { DecisionHeader } from './decision-header';
-import { EvidenceTabs } from './evidence-tabs';
+import { EvidenceTabs, HISTORY_PENDING_REASON } from './evidence-tabs';
 import { HistoryTable } from './history-table';
 import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
 
 type HistoryState = DecisionPageData['history'];
-
-// 이력을 못 부른 이유를 화면이 그대로 말한다. 두 경우는 사용자가 할 일이 다르다. 기관 미정규화는
-// 수집이 더 필요하다는 뜻이고 조회 실패는 다시 열어보면 될 수 있다.
-const PENDING_REASON: Record<Exclude<HistoryState['state'], 'ready'>, string> = {
-  'no-organization': '이 공고의 구매기관이 아직 정규화되지 않았습니다',
-  unavailable: '회차 이력을 지금 불러오지 못했습니다'
-};
 
 function HistoryCard({ presentation }: { readonly presentation: HistoryPresentation }) {
   return (
@@ -86,7 +79,7 @@ export function DecisionScreen({
           history.state === 'ready' ? (
             <HistoryCard presentation={history.presentation} />
           ) : (
-            <PendingCard title='과거 회차' reason={PENDING_REASON[history.state]} />
+            <PendingCard title='과거 회차' reason={HISTORY_PENDING_REASON[history.state]} />
           )
         }
         rail={<BidRail decision={decision} rehearsal={history.state === 'ready' ? <RehearsalPanel rows={selectedRows} /> : null} />}

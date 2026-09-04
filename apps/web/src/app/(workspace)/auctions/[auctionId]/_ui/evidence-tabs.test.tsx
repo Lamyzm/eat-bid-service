@@ -34,6 +34,15 @@ describe('근거 탭', () => {
     expect(screen.getByText('○ 다른 품목')).toBeTruthy();
   });
 
+  test('비교집단 안내문은 지금 모집단을 문장에 넣어 말한다', () => {
+    const screen = render(
+      <BidRateProvider initialRate='90.000'>
+        <EvidenceTabs auctionId='4821' search={{ period: '12개월', scope: '시군', view: '비교집단', item: null }} history={history} />
+      </BidRateProvider>
+    );
+    expect(screen.getByText('시군에서 값마다 낙찰된 횟수입니다. 모집단은 위 필터에서 바꿉니다.')).toBeTruthy();
+  });
+
   test('본문이 아직 없는 탭은 무엇이 올 자리인지와 수집 전임을 함께 말한다', () => {
     const screen = renderTabs('업체');
     expect(screen.getByText('수집 전')).toBeTruthy();

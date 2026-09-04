@@ -5,14 +5,14 @@ import { toMilli } from '../_model/bid-rate';
 export const FLOW_VIEW_WIDTH = 784;
 export const FLOW_VIEW_HEIGHT = 240;
 
-const LABEL_WIDTH = 56;
+const AXIS_LABEL_WIDTH = 56;
 const PAD_Y = 16;
 const PLOT_TOP = PAD_Y;
 const PLOT_BOTTOM = FLOW_VIEW_HEIGHT - PAD_Y;
 // 점 반지름 3.5가 오른쪽 끝에서 잘리지 않게 4px만 물러선다.
-export const PLOT_LEFT = LABEL_WIDTH;
+export const PLOT_LEFT = AXIS_LABEL_WIDTH;
 export const PLOT_RIGHT = FLOW_VIEW_WIDTH - 4;
-export const TICK_LABEL_X = LABEL_WIDTH - 8;
+export const TICK_LABEL_X = AXIS_LABEL_WIDTH - 8;
 
 // 낙찰이 몰리는 폭에 맞춘 고정 창이다. 축을 관측 최소~최대로 잡으면 이상치 한 회차가 폭을 다 먹어
 // 1·2등 사이 0.06%p 차이가 몇 px로 뭉개진다. 창 밖 값은 숨기지 않고 경계에 화살표로 붙인다.

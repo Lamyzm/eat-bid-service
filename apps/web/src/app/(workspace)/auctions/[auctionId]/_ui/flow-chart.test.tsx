@@ -49,4 +49,14 @@ describe('흐름 차트 SVG', () => {
     expect(screen.getByText('내 값 90.000')).toBeTruthy();
     expect(screen.getByText('표본 92회 · 최근 20회 표시 · mart 2026-09-04T00 · 계산 v1 · 산출 09-04 09:10')).toBeTruthy();
   });
+
+  test('낙찰률이 없어 그리지 못한 회차는 표시 회차 수에서 뺀다', () => {
+    const withUndetermined = {
+      ...attemptsFixture,
+      attempts: attemptsFixture.attempts.map((attempt, index) => (index === 0 ? { ...attempt, winRate: null } : attempt))
+    };
+    const screen = renderChart(presentHistory(withUndetermined, '7'));
+    expect(screen.container.querySelectorAll('circle').length).toBe(19);
+    expect(screen.getByText(/최근 19회 표시/)).toBeTruthy();
+  });
 });

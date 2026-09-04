@@ -35,11 +35,25 @@ describe('이 값이면 패널', () => {
     expect(screen.queryByText('그날 하한보다 낮아 무효였을 회차')).toBeNull();
   });
 
-  test('그날 하한을 밑도는 값이면 무효였을 회차를 따로 센다', () => {
+  test('그날 하한을 밑도는 값이면 무효였을 회차를 같은 분모와 함께 센다', () => {
     const screen = renderPanel('90.100');
-    expect(screen.getByText('그날 하한보다 낮아 무효였을 회차')).toBeTruthy();
-    expect(screen.getByText('7회')).toBeTruthy();
+    const row = screen.getByText('그날 하한보다 낮아 무효였을 회차').closest('div');
+    expect(row?.textContent).toContain('7회');
+    expect(row?.textContent).toContain('20회 중');
     expect(screen.getByText('9회')).toBeTruthy();
+  });
+
+  test('회차가 칸으로 세기에 많으면 칸 대신 비율을 숫자로 함께 말한다', () => {
+    // 칸 스트립 상한(24회)을 넘기려고 같은 회차를 두 벌로 늘린다. 낙찰·무효 판정은 그대로 두 배다.
+    const many = [...rows, ...rows.map((row) => ({ ...row, attemptId: `${row.attemptId}-b` }))];
+    const screen = render(
+      <BidRateProvider initialRate='90.100'>
+        <RehearsalPanel rows={many} />
+      </BidRateProvider>
+    );
+    const won = screen.getByText('지난 40회 중 낙찰됐을 회차').closest('div');
+    expect(won?.textContent).toContain('18회');
+    expect(won?.textContent).toContain('45%');
   });
 
   test('비교할 회차가 없으면 숫자를 지어내지 않고 없다고 말한다', () => {

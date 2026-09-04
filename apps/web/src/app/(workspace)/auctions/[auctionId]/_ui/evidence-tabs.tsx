@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 import {
   DECISION_VIEWS,
-  decisionViewQuery,
+  buildDecisionViewRoute,
   type DecisionSearch,
   type DecisionView
 } from '../_lib/decision-search-params';
@@ -13,15 +13,22 @@ import { FlowChart } from './flow-chart';
 type HistoryState = DecisionPageData['history'];
 
 // 탭마다 이 화면이 무엇을 보여 주는지 한 줄로 말한다. 본문이 아직 없는 탭도 무엇이 올 자리인지는
-// 밝힌다. 빈 카드는 사용자에게 "고장"으로 읽힌다.
-const NOTE: Record<DecisionView, string> = {
-  비교집단: '값마다 낙찰된 횟수입니다. 모집단은 위 조건에서 바꿉니다.',
-  // 디자인 원문은 "파란 선"이지만 이 저장소의 primary 토큰은 파랑이 아니다. 색 이름 대신 굵기로
-  // 가리켜 테마가 바뀌어도 문구가 거짓이 되지 않게 한다.
-  흐름: '회차마다 낙찰된 사정률입니다. 굵은 선이 내 값입니다.',
-  '그날 하한': '가로 0은 그날 하한입니다. 낙찰값은 늘 그 바로 위입니다.',
-  업체: '이 기관 회차에 참여한 업체와 그 업체가 선 자리입니다.'
-};
+// 밝힌다. 빈 카드는 사용자에게 "고장"으로 읽힌다. 비교집단은 지금 모집단이 무엇인지가 문장의
+// 일부라 조건에서 읽어 넣는다.
+function note(view: DecisionView, scope: DecisionSearch['scope']): string {
+  switch (view) {
+    case '비교집단':
+      return `${scope}에서 값마다 낙찰된 횟수입니다. 모집단은 위 필터에서 바꿉니다.`;
+    // 디자인 원문은 "파란 선"이지만 이 저장소의 primary 토큰은 파랑이 아니다. 색 이름 대신 굵기로
+    // 가리켜 테마가 바뀌어도 문구가 거짓이 되지 않게 한다.
+    case '흐름':
+      return '회차마다 낙찰된 사정률입니다. 굵은 선이 내 값입니다.';
+    case '그날 하한':
+      return '가로 0은 그날 하한입니다. 낙찰값은 늘 그 바로 위입니다.';
+    case '업체':
+      return '이 기관 회차에 참여한 업체와 그 업체가 선 자리입니다.';
+  }
+}
 
 const PENDING_REASON: Record<Exclude<DecisionView, '흐름'>, string> = {
   비교집단: '낙찰률 분포 계약(EAT-38)이 붙으면 호가창이 보입니다.',
@@ -29,7 +36,12 @@ const PENDING_REASON: Record<Exclude<DecisionView, '흐름'>, string> = {
   업체: '회차별 명단 계약이 붙으면 참여 업체가 보입니다.'
 };
 
-const HISTORY_PENDING_REASON: Record<Exclude<HistoryState['state'], 'ready'>, string> = {
+/**
+ * 이력을 못 부른 이유를 화면이 그대로 말한다. 두 경우는 사용자가 할 일이 다르다. 기관 미정규화는
+ * 수집이 더 필요하다는 뜻이고 조회 실패는 다시 열어보면 될 수 있다. 흐름 탭과 과거 회차 카드가
+ * 같은 사유를 말해야 하므로 문구는 여기 한 곳만 소유한다.
+ */
+export const HISTORY_PENDING_REASON: Record<Exclude<HistoryState['state'], 'ready'>, string> = {
   'no-organization': '이 공고의 구매기관이 아직 정규화되지 않았습니다',
   unavailable: '회차 이력을 지금 불러오지 못했습니다'
 };
@@ -90,7 +102,7 @@ export function EvidenceTabs({
           {DECISION_VIEWS.map((view) => (
             <Link
               key={view}
-              href={{ pathname: `/auctions/${auctionId}`, query: decisionViewQuery(search, view) }}
+              href={buildDecisionViewRoute(auctionId, search, view)}
               aria-current={view === active ? 'page' : undefined}
               className={`inline-flex h-9 items-center rounded-md px-3 text-[15px] whitespace-nowrap ${
                 view === active ? 'bg-primary/10 font-semibold text-primary' : 'font-medium text-muted-foreground'
@@ -102,7 +114,7 @@ export function EvidenceTabs({
         </nav>
         {active === '흐름' ? <FlowLegend /> : null}
       </div>
-      <p className='text-[13px] font-medium text-muted-foreground'>{NOTE[active]}</p>
+      <p className='text-[13px] font-medium text-muted-foreground'>{note(active, search.scope)}</p>
       {active === '흐름' ? <FlowBody history={history} /> : <PendingBody reason={PENDING_REASON[active]} />}
     </div>
   );
