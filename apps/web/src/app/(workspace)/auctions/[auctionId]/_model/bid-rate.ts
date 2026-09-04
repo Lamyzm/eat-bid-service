@@ -6,7 +6,8 @@ export type BidRateStep = '-0.01' | '-0.001' | '+0.001' | '+0.01';
 const RATE_SCALE = BigInt(1000);
 const MAX_RATE_MILLI = BigInt(100) * RATE_SCALE;
 
-function toMilli(rate: string): bigint {
+// rehearsal.ts가 회차별 낙찰률·그날 하한과 손잡이 값을 같은 정밀도로 비교하려고 재사용한다.
+export function toMilli(rate: string): bigint {
   const [whole, fraction = ''] = rate.split('.');
   // 직접 입력은 입력한 자릿수 이상을 버린다(반올림하지 않음)
   return BigInt(whole) * RATE_SCALE + BigInt((fraction + '000').slice(0, 3));

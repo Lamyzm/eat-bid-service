@@ -1,5 +1,6 @@
 /** @module 책임: 결정 화면 v2 셸을 조립한다. 계약이 있는 영역만 채우고 없는 영역은 수집 전 카드로 둔다. */
 import type { DecisionSearch } from '../_lib/decision-search-params';
+import type { DecisionPageData } from '../_model/load-auction-page';
 import type { DecisionPresentation } from '../_model/present-decision';
 import { BidRail } from './bid-rail';
 import { DecisionBanner } from './decision-banner';
@@ -7,7 +8,16 @@ import { DecisionFrame } from './decision-frame';
 import { DecisionHeader } from './decision-header';
 import { PendingCard } from './pending-card';
 
-export function DecisionScreen({ decision, search }: { readonly decision: DecisionPresentation; readonly search: DecisionSearch }) {
+// history는 EAT-37 Task 6(UI)에서 소비한다. 여기서는 아직 렌더링하지 않고 타입만 받아 page.tsx와의
+// 계약을 먼저 맞춘다.
+export function DecisionScreen({
+  decision,
+  search
+}: {
+  readonly decision: DecisionPresentation;
+  readonly search: DecisionSearch;
+  readonly history?: DecisionPageData['history'];
+}) {
   return (
     <DecisionFrame
       header={<DecisionHeader decision={decision} search={search} />}

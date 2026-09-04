@@ -6,7 +6,7 @@ import { fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { presentDecision } from '../_model/present-decision';
 import { DecisionScreen } from './decision-screen';
 
-const search = { period: '12개월', scope: '전국' } as const;
+const search = { period: '12개월', scope: '전국', item: null } as const;
 
 describe('결정 화면', () => {
   test('서버 markup에 프레임·제목·배너·수집 전 카드 셋이 있다', () => {

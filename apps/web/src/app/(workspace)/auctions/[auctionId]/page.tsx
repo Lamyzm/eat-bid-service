@@ -5,6 +5,7 @@ import {
   isAuctionNotFoundError,
   parseAuctionId
 } from '@/api/auctions/server';
+import { listOrganizationAuctionAttemptsFromServer } from '@/api/organizations/server';
 import { notFound } from 'next/navigation';
 import { createLoader } from 'nuqs/server';
 import { Suspense } from 'react';
@@ -26,18 +27,18 @@ async function AuctionLoader({
   readonly params: AuctionPageParams;
   readonly searchParams: AuctionPageSearchParams;
 }) {
-  const [decision, search] = await Promise.all([
-    loadAuctionPage(params, {
-      parseAuctionId,
-      getAuction: getAuctionFromServer,
-      isNotFound: isAuctionNotFoundError,
-      now: () => systemClock.now().toString()
-    }),
-    loadDecisionSearch(searchParams)
-  ]);
+  // history 조회가 URL의 item param을 필요로 하므로 search를 먼저 기다린 뒤 loader에 넘긴다.
+  const search = await loadDecisionSearch(searchParams);
+  const data = await loadAuctionPage(params, search, {
+    parseAuctionId,
+    getAuction: getAuctionFromServer,
+    isNotFound: isAuctionNotFoundError,
+    now: () => systemClock.now().toString(),
+    listAttempts: listOrganizationAuctionAttemptsFromServer
+  });
 
-  if (!decision) notFound();
-  return <DecisionScreen decision={decision} search={search} />;
+  if (!data) notFound();
+  return <DecisionScreen decision={data.decision} search={search} history={data.history} />;
 }
 
 // params·searchParams를 page 최상위에서 await하면 static shell이 사라진다(ADR 0028). promise를 Suspense
