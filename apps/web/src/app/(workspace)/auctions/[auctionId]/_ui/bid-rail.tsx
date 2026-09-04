@@ -4,14 +4,16 @@
 import { useEffect, useState } from 'react';
 
 import { createMemoryBidRecordPort, type BidRecord, type BidRecordPort } from '../_lib/bid-record-port';
-import { type BidRate, type BidRateStep, bidAmount, formatWon, parseBidRate, stepBidRate } from '../_model/bid-rate';
+import { type BidRateStep, bidAmount, formatWon, parseBidRate, stepBidRate } from '../_model/bid-rate';
 import type { DecisionPresentation } from '../_model/present-decision';
+import { useBidRate } from './bid-rate-context';
 
 type BidRailProps = {
   readonly decision: DecisionPresentation;
   readonly port?: BidRecordPort;
-  readonly initialRate?: BidRate;
   readonly onRecord?: (record: BidRecord) => void;
+  /** "이 값이면" 패널 슬롯. 레일은 자리만 주고 회차 이력 의존성은 화면 조립부가 소유한다. */
+  readonly rehearsal?: React.ReactNode;
 };
 
 const STEPS: readonly BidRateStep[] = ['-0.01', '-0.001', '+0.001', '+0.01'];
@@ -29,9 +31,11 @@ const defaultPort = createMemoryBidRecordPort();
 // 없으므로(사용자가 한 번에 하나씩 누른다) 하나의 상태로 관리한다.
 type ActionFailure = 'save' | 'copy' | null;
 
-export function BidRail({ decision, port = defaultPort, initialRate = '90.000', onRecord }: BidRailProps) {
-  const [rate, setRate] = useState<BidRate>(initialRate);
-  const [draft, setDraft] = useState(initialRate);
+export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: BidRailProps) {
+  // 투찰률은 레일만의 상태가 아니다. 흐름 차트와 표의 마지막 열이 같은 값을 봐야 하므로 화면
+  // 전체가 공유하는 context가 소유하고, 손잡이·직접 입력은 그 값을 바꾸기만 한다.
+  const { rate, setRate } = useBidRate();
+  const [draft, setDraft] = useState(rate);
   const [record, setRecord] = useState<BidRecord | null>(null);
   const [actionFailure, setActionFailure] = useState<ActionFailure>(null);
   const amount = bidAmount(decision.baseAmount.raw, rate);
@@ -160,6 +164,7 @@ export function BidRail({ decision, port = defaultPort, initialRate = '90.000', 
         </span>
         <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>마감 {decision.banner.deadlineAt}</span>
       </div>
+      {rehearsal}
     </div>
   );
 }

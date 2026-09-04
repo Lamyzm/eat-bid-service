@@ -19,11 +19,16 @@ function hasWinRate(row: HistoryRow): row is DeterminedRow {
   return row.winRateMilli !== null && row.winRateText !== null;
 }
 
+/** 한 회차에 이 값을 냈다면 어떻게 됐을지. 표의 마지막 열과 레일 패널이 같은 규칙을 쓰도록 공유한다. */
+export type RowVerdict = 'won' | 'missed' | 'invalid' | 'unknown';
+
 // eaT는 그날 하한 이상인 투찰 중 가장 낮은 투찰률이 낙찰한다. 손잡이 값이 실제 낙찰률 이하이면서
-// 하한을 밑돌지 않으면(같은 값은 추첨이므로 낙찰로 센다) 그 회차를 낙찰됐을 회차로 센다.
-function wouldWin(rateMilli: bigint, row: DeterminedRow): boolean {
-  const belowFloor = row.dayFloorMilli !== null && rateMilli < row.dayFloorMilli;
-  return rateMilli <= row.winRateMilli && !belowFloor;
+// 하한을 밑돌지 않으면(같은 값은 추첨이므로 낙찰로 센다) 그 회차를 낙찰됐을 회차로 센다. 하한을
+// 밑돈 회차는 애초에 무효라 낙찰 여부를 따지지 않으므로 무효 판정이 먼저다.
+export function judgeRow(row: HistoryRow, rateMilli: bigint): RowVerdict {
+  if (!hasWinRate(row)) return 'unknown';
+  if (row.dayFloorMilli !== null && rateMilli < row.dayFloorMilli) return 'invalid';
+  return rateMilli <= row.winRateMilli ? 'won' : 'missed';
 }
 
 function medianOf(values: readonly number[]): number {
@@ -66,11 +71,10 @@ export function rehearse(rows: readonly HistoryRow[], rate: BidRate): Rehearsal 
   // winRate가 없는 회차는 낙찰 여부를 판정할 수 없으므로 분모(total)에서도 뺀다.
   const determined = chronological.filter(hasWinRate);
 
-  const wonFlags = determined.map((row) => wouldWin(rateMilli, row));
+  const verdicts = determined.map((row) => judgeRow(row, rateMilli));
+  const wonFlags = verdicts.map((verdict) => verdict === 'won');
   const won = wonFlags.filter(Boolean).length;
-  const invalid = determined.filter(
-    (row) => row.dayFloorMilli !== null && rateMilli < row.dayFloorMilli
-  ).length;
+  const invalid = verdicts.filter((verdict) => verdict === 'invalid').length;
 
   const listCounts = rows
     .map((row) => row.listCount)

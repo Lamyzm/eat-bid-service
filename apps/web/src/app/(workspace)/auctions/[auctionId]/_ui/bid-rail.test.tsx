@@ -6,12 +6,18 @@ import { fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { createMemoryBidRecordPort } from '../_lib/bid-record-port';
 import { presentDecision } from '../_model/present-decision';
 import { BidRail } from './bid-rail';
+import { BidRateProvider } from './bid-rate-context';
 
 const decision = presentDecision(openAuctionFixture, fixtureNow);
 
+// 투찰률은 이제 화면 전체가 공유하는 context가 소유한다. 레일만 떼어 검증할 때도 같은 Provider를 씌운다.
+function renderRail(node: React.ReactNode, initialRate = '90.309') {
+  return render(<BidRateProvider initialRate={initialRate}>{node}</BidRateProvider>);
+}
+
 describe('투찰 rail', () => {
   test('손잡이를 누르면 투찰률과 넣을 금액이 같이 바뀐다', () => {
-    const screen = render(<BidRail decision={decision} port={createMemoryBidRecordPort()} initialRate='90.309' />);
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
     expect(screen.getByText('2,494,063')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '투찰률 0.001 올리기' }));
     expect(screen.getByDisplayValue('90.310')).toBeTruthy();
@@ -25,7 +31,7 @@ describe('투찰 rail', () => {
   // 끊긴다. 렌더를 새로 해 시나리오별로 분리해 그 상호작용을 피한다.
   test('직접 입력한 값은 셋째 자리로 고정된다', async () => {
     const user = userEvent.setup();
-    const screen = render(<BidRail decision={decision} port={createMemoryBidRecordPort()} initialRate='90.309' />);
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
     const input = screen.getByLabelText('투찰률');
     await user.clear(input);
     await user.type(input, '90.3');
@@ -35,7 +41,7 @@ describe('투찰 rail', () => {
 
   test('잘못된 값을 입력하면 이전 값을 지킨다', async () => {
     const user = userEvent.setup();
-    const screen = render(<BidRail decision={decision} port={createMemoryBidRecordPort()} initialRate='90.309' />);
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
     const input = screen.getByLabelText('투찰률');
     await user.clear(input);
     await user.type(input, '엉뚱');
@@ -45,7 +51,7 @@ describe('투찰 rail', () => {
 
   test('내 값 기록을 누르면 port에 저장되고 상태 줄이 값으로 바뀐다(시각은 서버 영속화 전까지 null)', async () => {
     const port = createMemoryBidRecordPort();
-    const screen = render(<BidRail decision={decision} port={port} initialRate='90.309' />);
+    const screen = renderRail(<BidRail decision={decision} port={port} />);
     expect(screen.getByText('아직 기록 없음')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '내 값 기록' }));
     await waitFor(() => expect(screen.getByText('90.309 기록됨')).toBeTruthy());
@@ -56,7 +62,7 @@ describe('투찰 rail', () => {
 
   test('개찰 완료면 손잡이와 기록 버튼 대신 복기 안내를 보인다', () => {
     const closed = presentDecision({ ...openAuctionFixture, schedule: { ...openAuctionFixture.schedule, deadlineAt: '2026-09-02T02:00:00Z', openedAt: '2026-09-02T05:00:00Z' } }, fixtureNow);
-    const screen = render(<BidRail decision={closed} port={createMemoryBidRecordPort()} />);
+    const screen = renderRail(<BidRail decision={closed} port={createMemoryBidRecordPort()} />);
     expect(screen.queryByRole('button', { name: '내 값 기록' })).toBeNull();
     expect(screen.getByText('개찰이 끝난 공고입니다')).toBeTruthy();
   });
@@ -64,7 +70,7 @@ describe('투찰 rail', () => {
   test('마운트하면 이 공고에 미리 저장된 기록을 port에서 불러와 보인다', async () => {
     const port = createMemoryBidRecordPort();
     await port.save({ auctionId: openAuctionFixture.identity.auctionId, rate: '90.309', amount: '2494063', recordedAt: null });
-    const screen = render(<BidRail decision={decision} port={port} initialRate='90.000' />);
+    const screen = renderRail(<BidRail decision={decision} port={port} />, '90.000');
     await waitFor(() => expect(screen.getByText('90.309 기록됨')).toBeTruthy());
   });
 
@@ -73,8 +79,13 @@ describe('투찰 rail', () => {
     port.save = async () => {
       throw new Error('저장 실패');
     };
-    const screen = render(<BidRail decision={decision} port={port} initialRate='90.309' />);
+    const screen = renderRail(<BidRail decision={decision} port={port} />);
     fireEvent.click(screen.getByRole('button', { name: '내 값 기록' }));
     await waitFor(() => expect(screen.getByText('기록하지 못했습니다')).toBeTruthy());
+  });
+
+  test('이 값이면 슬롯을 받으면 기록 상태 줄 아래에 그대로 렌더한다', () => {
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} rehearsal={<span>이 값이면 슬롯</span>} />);
+    expect(screen.getByText('이 값이면 슬롯')).toBeTruthy();
   });
 });

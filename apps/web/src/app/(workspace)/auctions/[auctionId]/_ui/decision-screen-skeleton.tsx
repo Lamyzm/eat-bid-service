@@ -33,10 +33,19 @@ export function DecisionScreenSkeleton() {
         evidence={
           <div className='grid gap-4'>
             <CardSkeleton lines={2} />
-            <CardSkeleton lines={2} />
+            {/* 흐름 SVG와 과거 회차 표는 실제 높이가 커서 2~3줄 카드로 두면 도착 순간 화면이 밀린다. */}
+            <div className='grid gap-2 rounded-xl bg-card p-4 shadow-xs'>
+              <Skeleton className='h-5 w-24' />
+              <Skeleton className='h-60 w-full' />
+            </div>
           </div>
         }
-        history={<CardSkeleton lines={3} />}
+        history={
+          <div className='grid gap-2 rounded-xl bg-card p-4 shadow-xs'>
+            <Skeleton className='h-5 w-24' />
+            <Skeleton className='h-[520px] w-full' />
+          </div>
+        }
         rail={<Skeleton className='h-96 w-full rounded-xl' />}
       />
     </div>
