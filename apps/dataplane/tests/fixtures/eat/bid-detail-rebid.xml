@@ -267,6 +267,7 @@
       <Column id="BID_NM" type="string" size="32" />
       <Column id="PBANC_YMD" type="string" size="32" />
       <Column id="ELCTRN_BID_STT_NM" type="string" size="32" />
+      <Column id="SUCBID_DCSN_MTH_CD" type="string" size="32" />
       <Column id="SUCBD_DECISION_MTHD_NM" type="string" size="32" />
       <Column id="ELCTRN_BID_NO" type="string" size="32" />
       <Column id="SIDO_CD" type="string" size="32" />
@@ -291,6 +292,7 @@
         <Col id="BID_NM">비식별 급식 식재료 구매 [재입찰]</Col>
         <Col id="PBANC_YMD">20230921</Col>
         <Col id="ELCTRN_BID_STT_NM">낙찰</Col>
+        <Col id="SUCBID_DCSN_MTH_CD">003</Col>
         <Col id="SUCBD_DECISION_MTHD_NM">예정가격의 [90]%이상 입찰가 중 최저가 낙찰</Col>
         <Col id="ELCTRN_BID_NO">E230918-187847-2</Col>
         <Col id="SIDO_CD">18</Col>

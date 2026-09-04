@@ -190,6 +190,7 @@ _EAT_V2_BID_DETAIL = ReviewedSchemaContract(
                 "PLNPRCE_SUCBD_STD",
                 "PLNPRC_TYPE_CD",
                 "PLNPRCE_TYPE_NM",
+                "SUCBID_DCSN_MTH_CD",
                 "SUCBD_DECISION_MTHD_NM",
                 "BID_CNT",
                 "UP_ELCTRN_BID_ID",

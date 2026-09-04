@@ -38,7 +38,7 @@ const v2Fixture = {
   terms: {
     floorRate: { value: "90.000", unit: "percentage-points" },
     plannedPriceMethod: { sourceSystem: "eat", codeScheme: "eat:PLNPRC_TYPE_CD", code: "002", label: "복수예정가격" },
-    awardMethod: { sourceSystem: "eat", codeScheme: "eat:SUCBD_DECISION_MTHD", code: "003", label: null },
+    awardMethod: { sourceSystem: "eat", codeScheme: "eat:SUCBID_DCSN_MTH_CD", code: "003", label: null },
   },
   roster: {
     sourceRosterSize: 85,
@@ -90,7 +90,8 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
     expect(parsed.roster.submissions[0]!.supplierAccount.accountCode.code).toBe("0200000");
     expect(parsed.roster.submissions[0]!.drawNumbers).toEqual(["07", "3"]);
     expect(parsed.reservePriceDraw.candidates[1]!.ratio.value).toBe("1.021800");
-    expect(parsed.terms.awardMethod).toBeNull();
+    expect(parsed.terms.awardMethod?.codeScheme).toBe("eat:SUCBID_DCSN_MTH_CD");
+    expect(parsed.terms.awardMethod?.code).toBe("003");
   });
 
   test("추첨번호와 후보 순번이 같은 source code 타입이라 선행 0을 맞대볼 수 있다", async () => {
@@ -207,7 +208,7 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
     roster.submissions[0]!.sourceStatus = { sourceSystem: "eat", codeScheme: "eat:BID_STT", code: "999", label: null };
     (unknownCodes.terms as { awardMethod: unknown }).awardMethod = {
       sourceSystem: "eat",
-      codeScheme: "eat:SUCBD_DECISION_MTHD",
+      codeScheme: "eat:SUCBID_DCSN_MTH_CD",
       code: "ZZ9",
       label: "알 수 없는 낙찰자 결정 방법",
     };

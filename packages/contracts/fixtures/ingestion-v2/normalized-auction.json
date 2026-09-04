@@ -39,7 +39,12 @@
       "code": "002",
       "label": "복수예정가격"
     },
-    "awardMethod": null
+    "awardMethod": {
+      "sourceSystem": "eat",
+      "codeScheme": "eat:SUCBID_DCSN_MTH_CD",
+      "code": "003",
+      "label": "예정가격의 [90]%이상 입찰가 중 최저가 낙찰"
+    }
   },
   "roster": {
     "sourceRosterSize": 85,

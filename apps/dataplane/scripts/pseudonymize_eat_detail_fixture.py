@@ -13,7 +13,8 @@ uv run --project apps/dataplane python apps/dataplane/scripts/pseudonymize_eat_d
   --keep-datasets ds_info,ds_areaList,ds_bidList,ds_pList \
   --info-columns ELCTRN_BID_ID,ELCTRN_BID_NO,BID_NM,ELCTRN_BID_STT_NM,PURR_CD,PURR_NM,SIDO_CD,\
 SIGUNGU_CD,PBANC_YMD,BID_END_DT,OPNG_DT,BGNG_PRC,ELCTRN_BID_PLNPRC,MAIN_ITEMS,PLNPRCE_SUCBD_STD,\
-PLNPRC_TYPE_CD,PLNPRCE_TYPE_NM,SUCBD_DECISION_MTHD_NM,BID_CNT,UP_ELCTRN_BID_ID,RBID_YN \
+PLNPRC_TYPE_CD,PLNPRCE_TYPE_NM,SUCBID_DCSN_MTH_CD,SUCBD_DECISION_MTHD_NM,BID_CNT,UP_ELCTRN_BID_ID,\
+RBID_YN \
   --bid-list-rows 0,1,2,3,4,5,82
 
 uv run --project apps/dataplane python apps/dataplane/scripts/pseudonymize_eat_detail_fixture.py \
@@ -22,7 +23,8 @@ uv run --project apps/dataplane python apps/dataplane/scripts/pseudonymize_eat_d
   --keep-datasets ds_info,ds_areaList,ds_bidList,ds_pList,ds_bidHistory \
   --info-columns ELCTRN_BID_ID,ELCTRN_BID_NO,BID_NM,ELCTRN_BID_STT_NM,PURR_CD,PURR_NM,SIDO_CD,\
 SIGUNGU_CD,PBANC_YMD,BID_END_DT,OPNG_DT,BGNG_PRC,ELCTRN_BID_PLNPRC,MAIN_ITEMS,PLNPRCE_SUCBD_STD,\
-PLNPRC_TYPE_CD,PLNPRCE_TYPE_NM,SUCBD_DECISION_MTHD_NM,BID_CNT,UP_ELCTRN_BID_ID,RBID_YN \
+PLNPRC_TYPE_CD,PLNPRCE_TYPE_NM,SUCBID_DCSN_MTH_CD,SUCBD_DECISION_MTHD_NM,BID_CNT,UP_ELCTRN_BID_ID,\
+RBID_YN \
   --biz-no-offset 2000000000 --shipper-cd-offset 300000 --sgnng-id-offset 200000000
 ```
 

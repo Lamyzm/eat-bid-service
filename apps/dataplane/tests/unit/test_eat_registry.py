@@ -107,7 +107,8 @@ def test_eat_v2_상세_계약이_실측된_명단_column_수를_고정한다() -
     assert len(contract.datasets["ds_bidList"]) == 55
     assert len(contract.datasets["ds_pList"]) == 5
     assert len(contract.datasets["ds_bidHistory"]) == 34
-    assert len(contract.datasets["ds_info"]) == 20
+    assert len(contract.datasets["ds_info"]) == 21
+    assert "SUCBID_DCSN_MTH_CD" in contract.datasets["ds_info"]
     assert {"RNK", "BID_CALC_AMT", "SAJEONG_PCT", "BIZ_NO", "DRAW_NO"} <= set(
         contract.datasets["ds_bidList"]
     )

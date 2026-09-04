@@ -332,6 +332,30 @@ def test_하한율은_소수_세_자리_비율로_관측된다() -> None:
     assert terms.planned_price_method.code_scheme == "eat:PLNPRC_TYPE_CD"
 
 
+def test_낙찰자_결정_방법은_ds_info의_코드_column에서_읽고_표시_문장은_라벨로_남긴다() -> None:
+    terms = parse_auction_terms(
+        {
+            "SUCBID_DCSN_MTH_CD": "003",
+            "SUCBD_DECISION_MTHD_NM": "예정가격의 [90]%이상 입찰가 중 최저가 낙찰",
+        }
+    )
+
+    assert terms.award_method is not None
+    assert terms.award_method.code == "003"
+    assert terms.award_method.code_scheme == "eat:SUCBID_DCSN_MTH_CD"
+    assert terms.award_method.label is not None
+    assert terms.award_method.label.root == "예정가격의 [90]%이상 입찰가 중 최저가 낙찰"
+
+
+def test_실제_상세_응답에서도_낙찰자_결정_방법_코드가_관측된다() -> None:
+    parsed = _parsed("bid-detail-roster.xml")
+
+    terms = parse_auction_terms(parsed.datasets["ds_info"][0])
+
+    assert terms.award_method is not None
+    assert terms.award_method.code == "003"
+
+
 def test_낙찰자_결정_방법은_코드가_없으면_표시_문장을_코드_자리에_넣지_않는다() -> None:
     terms = parse_auction_terms(
         {"SUCBD_DECISION_MTHD_NM": "예정가격의 [90]%이상 입찰가 중 최저가 낙찰"}
