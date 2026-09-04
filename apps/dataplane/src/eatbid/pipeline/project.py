@@ -18,6 +18,7 @@ from eatbid.core.models import (
     ProjectResult,
     canonical_projection_fingerprint,
 )
+from eatbid.core.record_types import is_projectable_record_type
 from eatbid.core.repository import (
     CanonicalProjectionRepository,
     FrozenPublicationMember,
@@ -37,13 +38,9 @@ __all__ = [
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
-# EAT-43이 core 테이블과 projector를 만들기 전까지 v2 record는 발행 대상이 아니다. 조용히 v1로
-# 오해석되면 명단 없는 공고로 core에 들어가므로 여기서 명시적으로 닫는다.
-_PROJECTABLE_RECORD_TYPES = frozenset({"auction.v1"})
-
 
 def _require_projectable(record_type: str) -> None:
-    if record_type not in _PROJECTABLE_RECORD_TYPES:
+    if not is_projectable_record_type(record_type):
         raise ProjectionContractError(
             f"normalized record type is not projectable yet [record_type={record_type}]"
         )

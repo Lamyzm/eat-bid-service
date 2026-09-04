@@ -87,10 +87,6 @@
       "sha256": "afcf8dbc041d8a04505005ebe0567b6df068eca7bb3b753d451c26da70f4683a"
     },
     {
-      "path": "apps/dataplane/src/eatbid/postgres_topology.py",
-      "sha256": "aba2fa00f0c1fd76a94cdf1fbdaa77b7ffe0df691f9c4c3eeadbd55bf537c778"
-    },
-    {
       "path": "apps/dataplane/src/eatbid/r2_store.py",
       "sha256": "d1ca2424a130e3b3ec65b274dd041b1b871f6dabb0468314c9b123cbee7bec96"
     },
