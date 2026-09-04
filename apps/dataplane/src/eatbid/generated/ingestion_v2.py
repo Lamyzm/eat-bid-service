@@ -300,7 +300,7 @@ class NormalizedSupplierAccount(BaseModel):
 
 
 class NormalizedAwardDecision(BaseModel):
-    """The single observed award row and the observed runner-up rate by source rank."""
+    """The single observed award row and the runner-up rate read from the source RNK=2 row; it is not a recomputed second best among bids at or above the floor rate."""
 
     model_config = ConfigDict(
         extra='forbid',

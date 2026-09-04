@@ -20,7 +20,8 @@ export const normalizedAwardDecisionSchema = z.strictObject({
   sourceStatus: sourceCodedValueSchema,
 }).meta({
   id: "NormalizedAwardDecision",
-  description: "The single observed award row and the observed runner-up rate by source rank.",
+  description: "The single observed award row and the runner-up rate read from the source RNK=2 row; "
+    + "it is not a recomputed second best among bids at or above the floor rate.",
 });
 
 export type NormalizedAwardDecision = z.infer<typeof normalizedAwardDecisionSchema>;
