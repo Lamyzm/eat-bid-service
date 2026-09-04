@@ -1,0 +1,157 @@
+{
+  "contractVersion": "eatbid.ingestion.auction.v2",
+  "identity": {
+    "externalBidId": "ETN-2026-000001",
+    "displayBidNumber": null,
+    "title": "2026년 급식 식재료 공급",
+    "status": "OPEN"
+  },
+  "buyer": {
+    "organizationCode": "00001234",
+    "organizationName": "한빛학교"
+  },
+  "location": {
+    "sidoCode": "01",
+    "sigunguCode": null,
+    "eligibilityCodes": ["001", "01002"]
+  },
+  "schedule": {
+    "announcedAt": "2026-08-29T15:00:00Z",
+    "deadlineAt": "2026-09-05T01:00:00Z",
+    "openedAt": null
+  },
+  "pricing": {
+    "baseAmount": {
+      "amount": "1234567890.50",
+      "currency": "KRW"
+    },
+    "plannedAmount": null
+  },
+  "classification": {
+    "sourceCategoryLabel": "농산물",
+    "categorySource": "source_field"
+  },
+  "terms": {
+    "floorRate": { "value": "90.000", "unit": "percentage-points" },
+    "plannedPriceMethod": {
+      "sourceSystem": "eat",
+      "codeScheme": "eat:PLNPRC_TYPE_CD",
+      "code": "002",
+      "label": "복수예정가격"
+    },
+    "awardMethod": null
+  },
+  "roster": {
+    "sourceRosterSize": 85,
+    "submissions": [
+      {
+        "supplierAccount": {
+          "sourceSystem": "eat",
+          "accountCode": {
+            "sourceSystem": "eat",
+            "codeScheme": "eat:SHIPPER_CD",
+            "code": "0200000",
+            "label": "한빛식자재"
+          },
+          "businessNumber": {
+            "sourceSystem": "eat",
+            "codeScheme": "eat:BIZ_NO",
+            "code": "0100000000",
+            "label": null
+          }
+        },
+        "submittedAt": "2026-09-04T09:14:39Z",
+        "amount": { "amount": "6101000.00", "currency": "KRW" },
+        "effectiveAmount": { "amount": "6101000.00", "currency": "KRW" },
+        "bidRate": { "value": "90.218", "unit": "percentage-points" },
+        "rank": 1,
+        "sourceStatus": {
+          "sourceSystem": "eat",
+          "codeScheme": "eat:BID_STT",
+          "code": "002",
+          "label": "낙찰"
+        },
+        "withdrawalFlag": {
+          "sourceSystem": "eat",
+          "codeScheme": "eat:WITHDRAWAL_YN",
+          "code": "N",
+          "label": null
+        },
+        "drawNumbers": ["07", "3"],
+        "observedRosterSize": 85
+      }
+    ]
+  },
+  "award": {
+    "supplierAccount": {
+      "sourceSystem": "eat",
+      "accountCode": {
+        "sourceSystem": "eat",
+        "codeScheme": "eat:SHIPPER_CD",
+        "code": "0200000",
+        "label": "한빛식자재"
+      },
+      "businessNumber": {
+        "sourceSystem": "eat",
+        "codeScheme": "eat:BIZ_NO",
+        "code": "0100000000",
+        "label": null
+      }
+    },
+    "awardedAt": "2026-09-04T15:00:00Z",
+    "awardedRate": { "value": "90.218", "unit": "percentage-points" },
+    "awardedAmount": { "amount": "6101000.00", "currency": "KRW" },
+    "runnerUpRate": { "value": "90.382", "unit": "percentage-points" },
+    "sourceStatus": {
+      "sourceSystem": "eat",
+      "codeScheme": "eat:BID_STT",
+      "code": "002",
+      "label": "낙찰"
+    }
+  },
+  "reservePriceDraw": {
+    "candidates": [
+      {
+        "sequence": 1,
+        "ratio": { "value": "0.971700", "unit": "ratio" },
+        "amount": { "amount": "6717477.00", "currency": "KRW" },
+        "chosen": {
+          "sourceSystem": "eat",
+          "codeScheme": "eat:CHC_YN",
+          "code": "Y",
+          "label": null
+        }
+      },
+      {
+        "sequence": 4,
+        "ratio": { "value": "1.021800", "unit": "ratio" },
+        "amount": { "amount": "7063878.00", "currency": "KRW" },
+        "chosen": {
+          "sourceSystem": "eat",
+          "codeScheme": "eat:CHC_YN",
+          "code": "N",
+          "label": null
+        }
+      }
+    ]
+  },
+  "lineage": {
+    "parentExternalBidId": "ETN-2026-000000",
+    "links": [
+      {
+        "externalBidId": "ETN-2026-000000",
+        "displayBidNumber": "E260829-000000-0",
+        "sourceStatus": {
+          "sourceSystem": "eat",
+          "codeScheme": "eat:ETN_BID_STT",
+          "code": "009",
+          "label": "유찰"
+        },
+        "bidOpenedFrom": "2026-08-29T15:00:00Z",
+        "bidClosedAt": "2026-09-01T01:00:00Z",
+        "baseAmount": { "amount": "1234567890.50", "currency": "KRW" },
+        "plannedAmount": null
+      }
+    ]
+  }
+}

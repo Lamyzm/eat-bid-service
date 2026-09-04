@@ -77,7 +77,21 @@ const v2Fixture = {
   lineage: { parentExternalBidId: null, links: [] },
 } as const;
 
+const goldenUrl = new URL("../../../fixtures/ingestion-v2/normalized-auction.json", import.meta.url);
+
 describe("eaT 정규화 공고 V2 수집 계약", () => {
+  test("golden fixture가 선행 0과 1을 넘는 배율을 그대로 보존한다", async () => {
+    const golden = await Bun.file(goldenUrl).json();
+
+    const parsed = normalizedAuctionV2Schema.parse(golden);
+
+    expect(parsed).toEqual(golden);
+    expect(parsed.roster.submissions[0]!.supplierAccount.accountCode.code).toBe("0200000");
+    expect(parsed.roster.submissions[0]!.drawNumbers).toEqual(["07", "3"]);
+    expect(parsed.reservePriceDraw.candidates[1]!.ratio.value).toBe("1.021800");
+    expect(parsed.terms.awardMethod).toBeNull();
+  });
+
   test("v1 root는 v2 필드가 없어도 그대로 통과한다", () => {
     expect(normalizedAuctionV1Schema.parse(v1Fixture)).toEqual(v1Fixture);
   });

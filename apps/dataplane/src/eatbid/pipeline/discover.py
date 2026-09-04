@@ -15,8 +15,8 @@ from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedReq
 from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
 from eatbid.ingest.repository import CaptureRunMode
 from eatbid.source.client import SourceClient, SourceResponse
+from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.models import BidListPage
-from eatbid.source.eat.normalize import parse_bid_list_page
 from eatbid.source.eat.registry import require
 from eatbid.source.eat.xml import EatPayloadError
 
