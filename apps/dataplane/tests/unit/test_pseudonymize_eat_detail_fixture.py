@@ -63,8 +63,9 @@ def test_pseudonymize_business_id가_10자리_숫자_형식을_유지하며_행_
 
 
 def test_resolve_bid_name이_재입찰_접미사_유무를_원본_그대로_보존한다() -> None:
-    original_with_suffix = "10월 소안초, 소안중 급식재료 종합계약 소액수의 견적 공고 [재입찰]"
-    original_without_suffix = "10월 소안초, 소안중 급식재료 종합계약 소액수의 견적 공고"
+    # 실제 레이크 기관명이 아니라 합성 문자열이다 — fixture에서 가명화한 값을 테스트가 되살리면 안 된다.
+    original_with_suffix = "10월 가명초, 가명중 급식재료 종합계약 소액수의 견적 공고 [재입찰]"
+    original_without_suffix = "10월 가명초, 가명중 급식재료 종합계약 소액수의 견적 공고"
 
     assert script.resolve_bid_name(original_with_suffix) == script.BID_NM_REBID_PLACEHOLDER
     assert script.resolve_bid_name(original_without_suffix) == script.BID_NM_PLACEHOLDER
@@ -76,7 +77,8 @@ def test_bid_list_가명_치환이_결정론적이며_형식을_유지하고_같
     pseudonym = script._bid_list_pseudonym(
         biz_no_offset=1_000_000_000, shipper_cd_offset=200_000, sgnng_id_offset=100_000_000
     )
-    row = {"BIZ_NO": "3659402127", "SHIPPER_BRNO": "3659402127", "SHIPPER_NM": "해오름유통"}
+    # 실제 레이크 사업자번호·업체명이 아니라 합성 원본이다 — 형식만 실제 값과 같다.
+    row = {"BIZ_NO": "0000000001", "SHIPPER_BRNO": "0000000001", "SHIPPER_NM": "합성업체"}
 
     first_run = _bid_list_root(row)
     script._pseudonymize_bid_list(first_run, pseudonym)
@@ -98,9 +100,10 @@ def test_bid_list_가명_치환이_결정론적이며_형식을_유지하고_같
 
 
 def test_pseudonymize_bid_history가_재입찰_접미사_유무를_행별로_원본대로_보존한다() -> None:
+    # 실제 레이크 기관명이 아니라 합성 문자열이다 — fixture에서 가명화한 값을 테스트가 되살리면 안 된다.
     root = _bid_history_root(
-        "10월 소안초, 소안중 급식재료 종합계약 소액수의 견적 공고 [재입찰]",  # 재공고 차수(접미사 있음)
-        "10월 소안초, 소안중 급식재료 종합계약 소액수의 견적 공고",  # 최초 공고(접미사 없음)
+        "10월 가명초, 가명중 급식재료 종합계약 소액수의 견적 공고 [재입찰]",  # 재공고 차수(접미사 있음)
+        "10월 가명초, 가명중 급식재료 종합계약 소액수의 견적 공고",  # 최초 공고(접미사 없음)
     )
 
     script._pseudonymize_bid_history(root)
