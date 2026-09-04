@@ -4,19 +4,21 @@ import { attemptsFixture } from '../__fixtures__/attempts';
 import { presentHistory } from './attempt-history';
 
 describe('기관 회차 이력 표시 모델', () => {
-  test('개찰 시각이 있으면 KST YY-MM-DD로 표시한다', () => {
+  test('개찰 시각이 있으면 KST YY-MM-DD로 표시하고 openedYear는 4자리다', () => {
     const presentation = presentHistory(attemptsFixture, null);
     // 첫 회차는 openedAt '2026-08-10T04:00:00Z' → KST 13시, 날짜는 그대로 08-10이다.
     expect(presentation.rows[0]?.openedText).toBe('26-08-10');
+    expect(presentation.rows[0]?.openedYear).toBe('2026');
   });
 
-  test('개찰 전(openedAt null) 회차는 공고일 뒤에 공고를 붙인다', () => {
+  test('개찰 전(openedAt null) 회차는 공고일 뒤에 공고를 붙이고 openedYear는 공고 연도다', () => {
     const response = {
       ...attemptsFixture,
       attempts: [{ ...attemptsFixture.attempts[0]!, openedAt: null, announcedAt: '2026-01-05T00:00:00Z' }]
     };
     const presentation = presentHistory(response, null);
     expect(presentation.rows[0]?.openedText).toBe('26-01-05 공고');
+    expect(presentation.rows[0]?.openedYear).toBe('2026');
   });
 
   test('품목이 없는 회차는 미확인으로 표시하고 코드값은 null이다', () => {

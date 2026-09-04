@@ -26,12 +26,6 @@ function wouldWin(rateMilli: bigint, row: DeterminedRow): boolean {
   return rateMilli <= row.winRateMilli && !belowFloor;
 }
 
-// 개찰 시각(없으면 공고 시각)의 KST 연도는 attempt-history.ts가 이미 만든 `YY-MM-DD[ 공고]` 텍스트
-// 앞 두 자리로 복원한다. eaT 관측 범위가 21세기이므로 세기를 20으로 고정해도 안전하다.
-function yearOf(row: HistoryRow): string {
-  return `20${row.openedText.slice(0, 2)}`;
-}
-
 function medianOf(values: readonly number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   // 짝수 개면 위쪽 중간값을 쓴다(디자인 생성기의 `sizes[len // 2]`와 같은 규칙).
@@ -44,7 +38,7 @@ function buildByYear(
 ): Rehearsal['byYear'] {
   const buckets = new Map<string, { won: number; total: number }>();
   rows.forEach((row, index) => {
-    const year = yearOf(row);
+    const year = row.openedYear;
     const bucket = buckets.get(year) ?? { won: 0, total: 0 };
     bucket.total += 1;
     if (wonFlags[index]) bucket.won += 1;

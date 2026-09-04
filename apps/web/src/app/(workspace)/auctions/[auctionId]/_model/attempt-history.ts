@@ -10,6 +10,7 @@ import { toMilli } from './bid-rate';
 export type HistoryRow = {
   readonly attemptId: string;
   readonly openedText: string;
+  readonly openedYear: string;
   readonly itemLabel: string;
   readonly itemCodeValueId: string | null;
   readonly winRateText: string | null;
@@ -53,10 +54,18 @@ function openedText(attempt: OrganizationAuctionAttempt): string {
   return `${kstDate(attempt.announcedAt)} 공고`;
 }
 
+// rehearsal.ts의 byYear 집계가 쓰는 필드다. openedText는 표시용으로 세기를 잘라낸 2자리 문자열이라
+// 다시 파싱해 의미(연도)를 되살리면 안 된다(규칙 15). Temporal로 직접 KST 4자리 연도를 만든다.
+function openedYear(attempt: OrganizationAuctionAttempt): string {
+  const instant = attempt.openedAt ?? attempt.announcedAt;
+  return Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul').year.toString();
+}
+
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
   return {
     attemptId: attempt.attemptId,
     openedText: openedText(attempt),
+    openedYear: openedYear(attempt),
     itemLabel: attempt.item?.label ?? '미확인',
     itemCodeValueId: attempt.item?.codeValueId ?? null,
     winRateText: attempt.winRate?.value ?? null,
