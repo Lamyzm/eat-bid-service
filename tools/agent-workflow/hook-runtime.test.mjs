@@ -260,6 +260,41 @@ test("UserPromptSubmit이 주입 블록만 담으면 requestedIssue를 바꾸지
   assert.equal(result.message, "");
 });
 
+test("lease가 있는 차단 메시지는 지금 실행할 복구 명령 한 줄로 끝난다", () => {
+  const state = setWorktreeLease(createEmptyState(), "F:/repo", {
+    issueIdentifier: "EAT-42",
+    expiresAt: "2026-08-31T00:00:00.000Z",
+    writer: { provider: "codex", sessionId: "다른-session" },
+  });
+  const expired = setWorktreeLease(createEmptyState(), "F:/repo", {
+    issueIdentifier: "EAT-42",
+    expiresAt: "2026-08-29T00:00:00.000Z",
+  });
+  const blocked = [
+    handleHookEvent({
+      ...context,
+      input: { hook_event_name: "PreToolUse", session_id: "session-1", tool_name: "Edit" },
+      state: expired,
+    }),
+    handleHookEvent({
+      ...context,
+      branch: "eat-99-other-work",
+      input: { hook_event_name: "PreToolUse", session_id: "session-1", tool_name: "Edit" },
+      state,
+    }),
+    handleHookEvent({
+      ...context,
+      input: { hook_event_name: "PreToolUse", session_id: "session-1", tool_name: "Edit" },
+      state,
+    }),
+  ];
+
+  for (const result of blocked) {
+    assert.equal(result.exitCode, 2);
+    assert.match(result.message, /지금 풀려면: `pnpm workflow:claim -- EAT-42`$/);
+  }
+});
+
 test("첫 변경 session이 lease를 소유하고 두 번째 agent session은 차단된다", () => {
   let state = setWorktreeLease(createEmptyState(), "F:/repo", {
     issueIdentifier: "EAT-42",

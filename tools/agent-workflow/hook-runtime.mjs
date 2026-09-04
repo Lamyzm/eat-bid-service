@@ -75,6 +75,13 @@ function describeLeases(state, now) {
   return `\nCurrent leases:\n${lines.join("\n")}\nA lease whose worktree directory is gone is cleared by \`pnpm workflow:worktree prune\`.`;
 }
 
+// 왜 막혔는지만 적고 끝나면 세션이 할 수 있는 일은 사용자에게 명령을 대신 쳐 달라고 부탁하는 것뿐이다.
+// lease가 정답인 모든 차단은 같은 한 줄로 끝나서 agent가 스스로 복구하도록 한다. 재claim은 만료를
+// 늘리고 writer 결박을 새 세션으로 옮기므로 만료·branch 불일치·writer 충돌에 모두 맞는 명령이다.
+function recoveryCommand(issueIdentifier) {
+  return `\n지금 풀려면: \`pnpm workflow:claim -- ${issueIdentifier}\``;
+}
+
 export function finalizeSessionWorklog({
   createId,
   lease,
@@ -141,11 +148,12 @@ export function handleHookEvent({
       Boolean(lease?.issueIdentifier) && Number.isFinite(leaseExpiresAt) && leaseExpiresAt > now().getTime();
     if (!leaseIsActive) {
       const reason = lease?.issueIdentifier
-        ? `the Linear lease ${lease.issueIdentifier} for ${worktreeRoot} expired at ${lease.expiresAt ?? "unknown"}; claim it again with \`pnpm workflow:claim -- ${lease.issueIdentifier}\``
+        ? `the Linear lease ${lease.issueIdentifier} for ${worktreeRoot} expired at ${lease.expiresAt ?? "unknown"}`
         : `create a verified Linear lease for ${worktreeRoot} first with \`pnpm workflow:claim -- EAT-123\``;
+      const recovery = lease?.issueIdentifier ? recoveryCommand(lease.issueIdentifier) : "";
       return {
         exitCode: 2,
-        message: `Repository mutation blocked: ${reason}. Read-only research and verification remain available.${describeLeases(state, now)}`,
+        message: `Repository mutation blocked: ${reason}. Read-only research and verification remain available.${describeLeases(state, now)}${recovery}`,
         state,
       };
     }
@@ -155,7 +163,7 @@ export function handleHookEvent({
     if (branchIssue && branchIssue !== lease.issueIdentifier) {
       return {
         exitCode: 2,
-        message: `Repository mutation blocked: ${branchIssue} does not match the verified lease ${lease.issueIdentifier}. Release or claim the intended issue explicitly.${describeLeases(state, now)}`,
+        message: `Repository mutation blocked: ${branchIssue} does not match the verified lease ${lease.issueIdentifier}. Release or claim the intended issue explicitly.${describeLeases(state, now)}${recoveryCommand(lease.issueIdentifier)}`,
         state,
       };
     }
@@ -178,7 +186,7 @@ export function handleHookEvent({
     ) {
       return {
         exitCode: 2,
-        message: `Repository mutation blocked: the verified lease belongs to writing session ${lease.writer.provider}/${lease.writer.sessionId}. Release and claim explicitly to hand off.${describeLeases(state, now)}`,
+        message: `Repository mutation blocked: the verified lease belongs to writing session ${lease.writer.provider}/${lease.writer.sessionId}. Release and claim explicitly to hand off.${describeLeases(state, now)}${recoveryCommand(lease.issueIdentifier)}`,
         state,
       };
     }
