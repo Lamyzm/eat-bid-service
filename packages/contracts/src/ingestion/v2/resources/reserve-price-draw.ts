@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { moneyWireSchema } from "../../../values/money";
-import { ratioWireSchema } from "../../../values/rate";
+import { reservePriceRatioWireSchema } from "../../../values/rate";
 import { sourceCodedValueSchema } from "../../../values/source-coded-value";
 
 // 추첨된 후보의 평균이 예정가격과 같다는 것은 999/999로 확인된 소스 불변식이다. 그래도 예정가격은
@@ -11,7 +11,7 @@ import { sourceCodedValueSchema } from "../../../values/source-coded-value";
 export const normalizedReservePriceDrawSchema = z.strictObject({
   candidates: z.array(z.strictObject({
     sequence: nonNegativeCountSchema,
-    ratio: ratioWireSchema,
+    ratio: reservePriceRatioWireSchema,
     amount: moneyWireSchema,
     chosen: sourceCodedValueSchema,
   })).max(64),

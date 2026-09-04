@@ -170,16 +170,16 @@ class NormalizedLocation(BaseModel):
     sigungu_code: Annotated[SourceCode | None, Field(alias='sigunguCode')]
 
 
-class Ratio(BaseModel):
-    """A rate expressed on a 1.0 scale."""
+class ReservePriceRatio(BaseModel):
+    """A reserve-price multiplier expressed against the base amount on a 1.0 scale."""
 
     model_config = ConfigDict(
         extra='forbid',
         populate_by_name=True,
     )
     unit: Literal['ratio']
-    value: Annotated[str, Field(max_length=8, pattern='^(?:0\\.[0-9]{6}|1\\.000000)$')]
-    """Canonical ratio text from 0.000000 through 1.000000."""
+    value: Annotated[str, Field(max_length=8, pattern='^[0-9]\\.[0-9]{6}$')]
+    """Canonical reserve-price multiplier text from 0.000000 through 9.999999."""
 
 
 class SourceCodedValue(BaseModel):
@@ -255,7 +255,7 @@ class Candidate(BaseModel):
     )
     amount: Money
     chosen: SourceCodedValue
-    ratio: Ratio
+    ratio: ReservePriceRatio
     sequence: Annotated[int, Field(ge=0, le=2147483647)]
     """Count of observed rows; JSON integer within PostgreSQL integer range."""
 

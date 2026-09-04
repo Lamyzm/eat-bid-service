@@ -170,6 +170,20 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
     expect(normalizedAuctionV2Schema.safeParse(broken).success).toBe(false);
   });
 
+  test("추첨 후보 배율이 1을 넘어도 관측 그대로 통과하고 10 이상은 거부한다", () => {
+    const withRatio = (value: string) => ({
+      ...v2Fixture,
+      reservePriceDraw: {
+        candidates: [{ ...v2Fixture.reservePriceDraw.candidates[0]!, ratio: { value, unit: "ratio" } }],
+      },
+    });
+
+    expect(normalizedAuctionV2Schema.safeParse(withRatio("1.021800")).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withRatio("9.999999")).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withRatio("10.000000")).success).toBe(false);
+    expect(normalizedAuctionV2Schema.safeParse(withRatio("1.0218")).success).toBe(false);
+  });
+
   test("추첨 후보와 재입찰 사슬의 64 상한을 넘기면 거부한다", () => {
     const candidate = structuredClone(v2Fixture.reservePriceDraw.candidates[0]);
     const link = {

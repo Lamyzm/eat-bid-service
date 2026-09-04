@@ -43,3 +43,15 @@ export const ratioTextSchema = z.string()
     id: "RatioText",
     description: "Canonical ratio text from 0.000000 through 1.000000.",
   });
+
+// 복수예정가격 후보의 `CMNM_PLNPRC_RT`는 0~1 비율이 아니라 기초금액 대비 배율이라 1을 넘는다.
+// evidence `2026-09-03-bid-roster-in-detail.md` §6의 15행 관측 분포가 0.9701~1.0218이므로
+// `ratioTextSchema`를 재사용하면 관측된 후보의 절반이 계약 위반이 된다. 관측을 담을 수 없는 계약은
+// 해석 단계에서 추측이나 절단을 부르므로(AGENTS 3) 정수부 한 자리를 허용하는 atom을 따로 둔다.
+export const reservePriceRatioTextSchema = z.string()
+  .max(8)
+  .regex(/^[0-9]\.[0-9]{6}$/)
+  .meta({
+    id: "ReservePriceRatioText",
+    description: "Canonical reserve-price multiplier text from 0.000000 through 9.999999.",
+  });
