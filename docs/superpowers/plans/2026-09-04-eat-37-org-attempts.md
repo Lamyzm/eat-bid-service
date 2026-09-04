@@ -517,7 +517,7 @@ export function presentHistory(response: OrganizationAuctionAttemptsV1Response, 
 export type Rehearsal = { total: number; won: number; wonFlags: readonly boolean[] /* 오래된 → 최근 순 */; invalid: number; byYear: readonly { year: string; won: number; total: number }[]; usualListCount: number | null /* 중앙값 */; rateSpan: { min: string; max: string; median: string } | null };
 export function rehearse(rows: readonly HistoryRow[], rate: BidRate): Rehearsal;
 ```
-`toMilli`는 `_model/bid-rate.ts`의 것을 export해 재사용한다. 낙찰됐을 회차 = `rateMilli >= winRateMilli`(design `w >= MY`: 내 값이 그 회차 낙찰률 이상이면 낙찰로 친다 — 낮은 값이 이기는 사정률이 아니라 낙찰률에 가까운 위쪽이 이기는 eaT 규칙을 디자인이 그대로 쓴 것이다. 규칙 해석이 다르면 ledger에 ruling). 무효였을 회차 = `dayFloorMilli !== null && rateMilli < dayFloorMilli`.
+`toMilli`는 `_model/bid-rate.ts`의 것을 export해 재사용한다. eaT는 그날 하한 이상인 투찰 중 **가장 낮은** 투찰률이 낙찰한다(남산초 실데이터 `namsan_rounds.json`에서 낙찰 90.218이 명단 최저값이고 그 위는 전부 "밀림"). 따라서 낙찰됐을 회차 = `rateMilli <= winRateMilli && !(dayFloorMilli !== null && rateMilli < dayFloorMilli)`(디자인 생성기의 `w >= MY`와 같은 뜻). 무효였을 회차 = `dayFloorMilli !== null && rateMilli < dayFloorMilli`. 같은 값이면 추첨이므로 `==`도 낙찰됐을 회차로 센다.
 
 `load-auction-page.ts`: 의존성에 `listAttempts` 추가. `getAuction` 뒤 `organization`이 있으면 `listAttempts({ organizationId, item, limit: 60 })`를 호출하고, 실패(404 포함)는 `history: { state: 'unavailable' }`로 담아 화면 전체를 죽이지 않는다. 반환 타입 `DecisionPageData = { decision: DecisionPresentation; history: { state: 'ready'; presentation: HistoryPresentation } | { state: 'no-organization' } | { state: 'unavailable' } }`.
 
