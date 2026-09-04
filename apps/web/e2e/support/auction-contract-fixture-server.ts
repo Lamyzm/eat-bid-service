@@ -1,5 +1,7 @@
 import { auctionV1Operations, auctionV1ResponseSchema } from '@eatbid/contracts/api/v1/auctions';
 
+import { organizationAttemptsResponse } from './organization-attempts-fixture';
+
 const HOSTNAME = '127.0.0.1';
 const PORT = 4410;
 const SUCCESS_AUCTION_ID = '9007199254740993';
@@ -14,6 +16,14 @@ const OPEN_DEADLINE_OFFSET_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const OPEN_OPENED_OFFSET_MILLISECONDS = 27 * 60 * 60 * 1_000;
 const CLOSED_DEADLINE_OFFSET_MILLISECONDS = -2 * 24 * 60 * 60 * 1_000;
 const CLOSED_OPENED_OFFSET_MILLISECONDS = CLOSED_DEADLINE_OFFSET_MILLISECONDS + 3 * 60 * 60 * 1_000;
+
+// `Date#toISOString()`은 항상 밀리초 3자리를 붙이는데, instantTextSchema는 소수부 마지막 자리가
+// 0이면(트레일링 제로) 거부한다. offset 계산은 요청 시각(ms)에 의존해 밀리초가 매번 달라지므로
+// 그 자리가 0으로 떨어지는 순간(10회 중 1회꼴)마다 fixture 응답이 계약 검증에서 깨진다. 초 단위로
+// 내려 소수부 자체를 없애 이 경합을 구조적으로 제거한다.
+function instantSecondsIso(millis: number): string {
+  return new Date(Math.floor(millis / 1_000) * 1_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
 
 function auctionResponse(auctionId: string) {
   return auctionV1ResponseSchema.parse({
@@ -61,8 +71,8 @@ function openAuctionResponse(auctionId: string) {
     organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
     schedule: {
       announcedAt: '2026-09-01T00:00:00Z',
-      deadlineAt: new Date(now + OPEN_DEADLINE_OFFSET_MILLISECONDS).toISOString(),
-      openedAt: new Date(now + OPEN_OPENED_OFFSET_MILLISECONDS).toISOString()
+      deadlineAt: instantSecondsIso(now + OPEN_DEADLINE_OFFSET_MILLISECONDS),
+      openedAt: instantSecondsIso(now + OPEN_OPENED_OFFSET_MILLISECONDS)
     },
     pricing: {
       baseAmount: { amount: '2761700.00', currency: 'KRW' },
@@ -93,8 +103,8 @@ function closedAuctionResponse(auctionId: string) {
     organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
     schedule: {
       announcedAt: '2026-08-10T00:00:00Z',
-      deadlineAt: new Date(now + CLOSED_DEADLINE_OFFSET_MILLISECONDS).toISOString(),
-      openedAt: new Date(now + CLOSED_OPENED_OFFSET_MILLISECONDS).toISOString()
+      deadlineAt: instantSecondsIso(now + CLOSED_DEADLINE_OFFSET_MILLISECONDS),
+      openedAt: instantSecondsIso(now + CLOSED_OPENED_OFFSET_MILLISECONDS)
     },
     pricing: {
       baseAmount: { amount: '2761700.00', currency: 'KRW' },
@@ -155,6 +165,10 @@ Bun.serve({
     if (pathname === auctionPath(CLOSED_AUCTION_ID)) return Response.json(closedAuctionResponse(CLOSED_AUCTION_ID));
     if (pathname === auctionPath(FAILURE_AUCTION_ID)) return problemResponse(503);
     if (pathname === auctionPath(MISSING_AUCTION_ID)) return problemResponse(404);
+
+    const organizationResponse = organizationAttemptsResponse(request);
+    if (organizationResponse) return organizationResponse;
+
     return new Response(null, { status: 404 });
   }
 });

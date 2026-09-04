@@ -1,0 +1,1970 @@
+{
+  "note": "12회 실데이터(창원 남산초 축산물, docs/product/decision-screen-v2/design-generators/namsan_rounds.json) + 48회 합성 예시. baseAmount는 예시 값이며 원본 금액이 아니다.",
+  "attempts": [
+    {
+      "attemptId": "5780681",
+      "announcedAt": "2026-08-10T00:00:00Z",
+      "openedAt": "2026-08-13T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2450700.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.010",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.032",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.994",
+        "unit": "percentage-points"
+      },
+      "listCount": 86,
+      "invalidCount": 42,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5778531",
+      "announcedAt": "2026-07-27T00:00:00Z",
+      "openedAt": "2026-07-30T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2437000.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.145",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.859",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.869",
+        "unit": "percentage-points"
+      },
+      "listCount": 45,
+      "invalidCount": 43,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5759918",
+      "announcedAt": "2026-06-15T00:00:00Z",
+      "openedAt": "2026-06-18T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2423300.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.017",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.020",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.997",
+        "unit": "percentage-points"
+      },
+      "listCount": 78,
+      "invalidCount": 52,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5744077",
+      "announcedAt": "2026-05-18T00:00:00Z",
+      "openedAt": "2026-05-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2409600.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.028",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.080",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.966",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 14,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5742662",
+      "announcedAt": "2026-05-17T00:00:00Z",
+      "openedAt": "2026-05-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2395900.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.107",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.146",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.961",
+        "unit": "percentage-points"
+      },
+      "listCount": 56,
+      "invalidCount": 49,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5728232",
+      "announcedAt": "2026-04-18T00:00:00Z",
+      "openedAt": "2026-04-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2382200.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.033",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.054",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.934",
+        "unit": "percentage-points"
+      },
+      "listCount": 87,
+      "invalidCount": 8,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5712860",
+      "announcedAt": "2026-03-21T00:00:00Z",
+      "openedAt": "2026-03-24T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2368500.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.081",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.180",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.935",
+        "unit": "percentage-points"
+      },
+      "listCount": 65,
+      "invalidCount": 60,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5708417",
+      "announcedAt": "2026-03-16T00:00:00Z",
+      "openedAt": "2026-03-19T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2354800.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.029",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.066",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.945",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 27,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5695331",
+      "announcedAt": "2026-02-20T00:00:00Z",
+      "openedAt": "2026-02-23T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2341100.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.069",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.153",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.991",
+        "unit": "percentage-points"
+      },
+      "listCount": 84,
+      "invalidCount": 66,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5688213",
+      "announcedAt": "2026-01-24T00:00:00Z",
+      "openedAt": "2026-01-27T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2327400.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.031",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.088",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.963",
+        "unit": "percentage-points"
+      },
+      "listCount": 81,
+      "invalidCount": 67,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5669545",
+      "announcedAt": "2025-11-18T00:00:00Z",
+      "openedAt": "2025-11-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2313700.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.034",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.045",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.991",
+        "unit": "percentage-points"
+      },
+      "listCount": 91,
+      "invalidCount": 46,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5669410",
+      "announcedAt": "2025-11-17T00:00:00Z",
+      "openedAt": "2025-11-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2300000.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.218",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.382",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": null,
+      "listCount": 85,
+      "invalidCount": 0,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5680681",
+      "announcedAt": "2025-08-10T00:00:00Z",
+      "openedAt": "2025-08-13T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2615100.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "89.990",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.012",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.974",
+        "unit": "percentage-points"
+      },
+      "listCount": 86,
+      "invalidCount": 42,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5678531",
+      "announcedAt": "2025-07-27T00:00:00Z",
+      "openedAt": "2025-07-30T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2601400.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.155",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.869",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.879",
+        "unit": "percentage-points"
+      },
+      "listCount": 45,
+      "invalidCount": 43,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5659918",
+      "announcedAt": "2025-06-15T00:00:00Z",
+      "openedAt": "2025-06-18T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2587700.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.007",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.010",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.987",
+        "unit": "percentage-points"
+      },
+      "listCount": 78,
+      "invalidCount": 52,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5644077",
+      "announcedAt": "2025-05-18T00:00:00Z",
+      "openedAt": "2025-05-21T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2574000.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.048",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.100",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.986",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 14,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5642662",
+      "announcedAt": "2025-05-17T00:00:00Z",
+      "openedAt": "2025-05-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2560300.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.107",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.146",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.961",
+        "unit": "percentage-points"
+      },
+      "listCount": 56,
+      "invalidCount": 49,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5628232",
+      "announcedAt": "2025-04-18T00:00:00Z",
+      "openedAt": "2025-04-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2546600.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.013",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.034",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.914",
+        "unit": "percentage-points"
+      },
+      "listCount": 87,
+      "invalidCount": 8,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5612860",
+      "announcedAt": "2025-03-21T00:00:00Z",
+      "openedAt": "2025-03-24T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2532900.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.091",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.190",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.945",
+        "unit": "percentage-points"
+      },
+      "listCount": 65,
+      "invalidCount": 60,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5608417",
+      "announcedAt": "2025-03-16T00:00:00Z",
+      "openedAt": "2025-03-19T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2519200.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.019",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.056",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.935",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 27,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5595331",
+      "announcedAt": "2025-02-20T00:00:00Z",
+      "openedAt": "2025-02-23T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2505500.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.089",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.173",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "90.011",
+        "unit": "percentage-points"
+      },
+      "listCount": 84,
+      "invalidCount": 66,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5588213",
+      "announcedAt": "2025-01-24T00:00:00Z",
+      "openedAt": "2025-01-27T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2491800.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.031",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.088",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.963",
+        "unit": "percentage-points"
+      },
+      "listCount": 81,
+      "invalidCount": 67,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5569545",
+      "announcedAt": "2024-11-18T00:00:00Z",
+      "openedAt": "2024-11-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2478100.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.014",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.025",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.971",
+        "unit": "percentage-points"
+      },
+      "listCount": 91,
+      "invalidCount": 46,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5569410",
+      "announcedAt": "2024-11-17T00:00:00Z",
+      "openedAt": "2024-11-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2464400.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.228",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.392",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": null,
+      "listCount": 85,
+      "invalidCount": 0,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5580681",
+      "announcedAt": "2024-08-10T00:00:00Z",
+      "openedAt": "2024-08-13T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2779500.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.020",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.042",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "90.004",
+        "unit": "percentage-points"
+      },
+      "listCount": 86,
+      "invalidCount": 42,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5578531",
+      "announcedAt": "2024-07-27T00:00:00Z",
+      "openedAt": "2024-07-30T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2765800.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.135",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.849",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.859",
+        "unit": "percentage-points"
+      },
+      "listCount": 45,
+      "invalidCount": 43,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5559918",
+      "announcedAt": "2024-06-15T00:00:00Z",
+      "openedAt": "2024-06-18T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2752100.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.037",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.040",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "90.017",
+        "unit": "percentage-points"
+      },
+      "listCount": 78,
+      "invalidCount": 52,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5544077",
+      "announcedAt": "2024-05-18T00:00:00Z",
+      "openedAt": "2024-05-21T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2738400.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.028",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.080",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.966",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 14,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5542662",
+      "announcedAt": "2024-05-17T00:00:00Z",
+      "openedAt": "2024-05-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2724700.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.087",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.126",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.941",
+        "unit": "percentage-points"
+      },
+      "listCount": 56,
+      "invalidCount": 49,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5528232",
+      "announcedAt": "2024-04-18T00:00:00Z",
+      "openedAt": "2024-04-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2711000.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.043",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.064",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.944",
+        "unit": "percentage-points"
+      },
+      "listCount": 87,
+      "invalidCount": 8,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5512860",
+      "announcedAt": "2024-03-21T00:00:00Z",
+      "openedAt": "2024-03-24T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2697300.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.071",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.170",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.925",
+        "unit": "percentage-points"
+      },
+      "listCount": 65,
+      "invalidCount": 60,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5508417",
+      "announcedAt": "2024-03-16T00:00:00Z",
+      "openedAt": "2024-03-19T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2683600.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.049",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.086",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.965",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 27,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5495331",
+      "announcedAt": "2024-02-20T00:00:00Z",
+      "openedAt": "2024-02-23T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2669900.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.069",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.153",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.991",
+        "unit": "percentage-points"
+      },
+      "listCount": 84,
+      "invalidCount": 66,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5488213",
+      "announcedAt": "2024-01-24T00:00:00Z",
+      "openedAt": "2024-01-27T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2656200.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.011",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.068",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.943",
+        "unit": "percentage-points"
+      },
+      "listCount": 81,
+      "invalidCount": 67,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5469545",
+      "announcedAt": "2023-11-18T00:00:00Z",
+      "openedAt": "2023-11-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2642500.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.044",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.055",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "90.001",
+        "unit": "percentage-points"
+      },
+      "listCount": 91,
+      "invalidCount": 46,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5469410",
+      "announcedAt": "2023-11-17T00:00:00Z",
+      "openedAt": "2023-11-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2628800.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.208",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.372",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": null,
+      "listCount": 85,
+      "invalidCount": 0,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5480681",
+      "announcedAt": "2023-08-10T00:00:00Z",
+      "openedAt": "2023-08-13T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2343900.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.022",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.984",
+        "unit": "percentage-points"
+      },
+      "listCount": 86,
+      "invalidCount": 42,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5478531",
+      "announcedAt": "2023-07-27T00:00:00Z",
+      "openedAt": "2023-07-30T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2330200.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.165",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.879",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.889",
+        "unit": "percentage-points"
+      },
+      "listCount": 45,
+      "invalidCount": 43,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5459918",
+      "announcedAt": "2023-06-15T00:00:00Z",
+      "openedAt": "2023-06-18T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2316500.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.017",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.020",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.997",
+        "unit": "percentage-points"
+      },
+      "listCount": 78,
+      "invalidCount": 52,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5444077",
+      "announcedAt": "2023-05-18T00:00:00Z",
+      "openedAt": "2023-05-21T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2302800.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.008",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.060",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.946",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 14,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5442662",
+      "announcedAt": "2023-05-17T00:00:00Z",
+      "openedAt": "2023-05-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2889100.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.117",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.156",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.971",
+        "unit": "percentage-points"
+      },
+      "listCount": 56,
+      "invalidCount": 49,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5428232",
+      "announcedAt": "2023-04-18T00:00:00Z",
+      "openedAt": "2023-04-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2875400.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.023",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.044",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.924",
+        "unit": "percentage-points"
+      },
+      "listCount": 87,
+      "invalidCount": 8,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5412860",
+      "announcedAt": "2023-03-21T00:00:00Z",
+      "openedAt": "2023-03-24T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2861700.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.101",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.200",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.955",
+        "unit": "percentage-points"
+      },
+      "listCount": 65,
+      "invalidCount": 60,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5408417",
+      "announcedAt": "2023-03-16T00:00:00Z",
+      "openedAt": "2023-03-19T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2848000.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.029",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.066",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.945",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 27,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5395331",
+      "announcedAt": "2023-02-20T00:00:00Z",
+      "openedAt": "2023-02-23T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2834300.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.049",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.133",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.971",
+        "unit": "percentage-points"
+      },
+      "listCount": 84,
+      "invalidCount": 66,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5388213",
+      "announcedAt": "2023-01-24T00:00:00Z",
+      "openedAt": "2023-01-27T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2820600.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.041",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.098",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.973",
+        "unit": "percentage-points"
+      },
+      "listCount": 81,
+      "invalidCount": 67,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5369545",
+      "announcedAt": "2022-11-18T00:00:00Z",
+      "openedAt": "2022-11-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2806900.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.024",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.035",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.981",
+        "unit": "percentage-points"
+      },
+      "listCount": 91,
+      "invalidCount": 46,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5369410",
+      "announcedAt": "2022-11-17T00:00:00Z",
+      "openedAt": "2022-11-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2793200.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.238",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.402",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": null,
+      "listCount": 85,
+      "invalidCount": 0,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5380681",
+      "announcedAt": "2022-08-10T00:00:00Z",
+      "openedAt": "2022-08-13T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2508300.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.030",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.052",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "90.014",
+        "unit": "percentage-points"
+      },
+      "listCount": 86,
+      "invalidCount": 42,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5378531",
+      "announcedAt": "2022-07-27T00:00:00Z",
+      "openedAt": "2022-07-30T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2494600.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.145",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.859",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.869",
+        "unit": "percentage-points"
+      },
+      "listCount": 45,
+      "invalidCount": 43,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5359918",
+      "announcedAt": "2022-06-15T00:00:00Z",
+      "openedAt": "2022-06-18T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2480900.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "89.997",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.977",
+        "unit": "percentage-points"
+      },
+      "listCount": 78,
+      "invalidCount": 52,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5344077",
+      "announcedAt": "2022-05-18T00:00:00Z",
+      "openedAt": "2022-05-21T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2467200.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.038",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.090",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.976",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 14,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5342662",
+      "announcedAt": "2022-05-17T00:00:00Z",
+      "openedAt": "2022-05-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2453500.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.097",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.136",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.951",
+        "unit": "percentage-points"
+      },
+      "listCount": 56,
+      "invalidCount": 49,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5328232",
+      "announcedAt": "2022-04-18T00:00:00Z",
+      "openedAt": "2022-04-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2439800.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.053",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.074",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.954",
+        "unit": "percentage-points"
+      },
+      "listCount": 87,
+      "invalidCount": 8,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5312860",
+      "announcedAt": "2022-03-21T00:00:00Z",
+      "openedAt": "2022-03-24T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2426100.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.081",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.180",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.935",
+        "unit": "percentage-points"
+      },
+      "listCount": 65,
+      "invalidCount": 60,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5308417",
+      "announcedAt": "2022-03-16T00:00:00Z",
+      "openedAt": "2022-03-19T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2412400.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.009",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.046",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.925",
+        "unit": "percentage-points"
+      },
+      "listCount": 88,
+      "invalidCount": 27,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5295331",
+      "announcedAt": "2022-02-20T00:00:00Z",
+      "openedAt": "2022-02-23T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2398700.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.079",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.163",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "90.001",
+        "unit": "percentage-points"
+      },
+      "listCount": 84,
+      "invalidCount": 66,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5288213",
+      "announcedAt": "2022-01-24T00:00:00Z",
+      "openedAt": "2022-01-27T04:00:00Z",
+      "item": {
+        "codeValueId": "8",
+        "label": "공산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2385000.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.021",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.078",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "89.953",
+        "unit": "percentage-points"
+      },
+      "listCount": 81,
+      "invalidCount": 67,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5269545",
+      "announcedAt": "2021-11-18T00:00:00Z",
+      "openedAt": "2021-11-21T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2371300.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.054",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.065",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": {
+        "value": "90.011",
+        "unit": "percentage-points"
+      },
+      "listCount": 91,
+      "invalidCount": 46,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    },
+    {
+      "attemptId": "5269410",
+      "announcedAt": "2021-11-17T00:00:00Z",
+      "openedAt": "2021-11-20T04:00:00Z",
+      "item": {
+        "codeValueId": "7",
+        "label": "축산"
+      },
+      "floorRate": {
+        "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "baseAmount": {
+        "amount": "2357600.00",
+        "currency": "KRW"
+      },
+      "winRate": {
+        "value": "90.218",
+        "unit": "percentage-points"
+      },
+      "secondRate": {
+        "value": "90.382",
+        "unit": "percentage-points"
+      },
+      "dayFloorRate": null,
+      "listCount": 85,
+      "invalidCount": 0,
+      "winnerSupplierPartyId": null,
+      "supersedesAttemptId": null
+    }
+  ]
+}
