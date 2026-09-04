@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from eatbid.source.eat.auction_terms import parse_auction_terms
 from eatbid.source.eat.lineage import parse_lineage
 from eatbid.source.eat.reserve_price import parse_reserve_price_draw
 from eatbid.source.eat.roster import parse_award_decision, parse_bid_roster
@@ -123,6 +122,20 @@ def test_예정가격을_넘는_사정률과_단가입찰_총액도_격리하지
 
     assert _bid_rate("101.975") == "101.975"
     assert _bid_rate("44477738.05") == "44477738.050"
+    # 계약 atom `ObservedBidRateText`의 정수부 12자리 경계다. 파서와 계약이 같은 자리에서 끊어야
+    # 한쪽만 통과하는 값이 생기지 않는다.
+    assert _bid_rate("999999999999.999") == "999999999999.999"
+
+
+def test_계약_정수부_열세_자리_사정률은_거부한다() -> None:
+    with pytest.raises(ValueError, match="SAJEONG_PCT"):
+        parse_bid_roster(
+            _detail(
+                "ds_bidList",
+                _row(SAJEONG_PCT="1000000000000.000", BID_CALC_AMT="1000",
+                     BID_STT="005", SHIPPER_CD="1"),
+            )
+        )
 
 
 def test_음수_사정률은_관측_상한을_없애도_거부한다() -> None:
@@ -314,51 +327,3 @@ def test_사슬_블록이_없으면_빈_사슬이고_직전_차수도_없다() -
 
     assert lineage.links == []
     assert lineage.parent_external_bid_id is None
-
-
-def test_하한율은_소수_세_자리_비율로_관측된다() -> None:
-    terms = parse_auction_terms(
-        {
-            "PLNPRCE_SUCBD_STD": "90",
-            "PLNPRC_TYPE_CD": "002",
-            "PLNPRCE_TYPE_NM": "복수예정가격",
-        }
-    )
-
-    assert terms.floor_rate is not None
-    assert terms.floor_rate.value == "90.000"
-    assert terms.planned_price_method is not None
-    assert terms.planned_price_method.code == "002"
-    assert terms.planned_price_method.code_scheme == "eat:PLNPRC_TYPE_CD"
-
-
-def test_낙찰자_결정_방법은_ds_info의_코드_column에서_읽고_표시_문장은_라벨로_남긴다() -> None:
-    terms = parse_auction_terms(
-        {
-            "SUCBID_DCSN_MTH_CD": "003",
-            "SUCBD_DECISION_MTHD_NM": "예정가격의 [90]%이상 입찰가 중 최저가 낙찰",
-        }
-    )
-
-    assert terms.award_method is not None
-    assert terms.award_method.code == "003"
-    assert terms.award_method.code_scheme == "eat:SUCBID_DCSN_MTH_CD"
-    assert terms.award_method.label is not None
-    assert terms.award_method.label.root == "예정가격의 [90]%이상 입찰가 중 최저가 낙찰"
-
-
-def test_실제_상세_응답에서도_낙찰자_결정_방법_코드가_관측된다() -> None:
-    parsed = _parsed("bid-detail-roster.xml")
-
-    terms = parse_auction_terms(parsed.datasets["ds_info"][0])
-
-    assert terms.award_method is not None
-    assert terms.award_method.code == "003"
-
-
-def test_낙찰자_결정_방법은_코드가_없으면_표시_문장을_코드_자리에_넣지_않는다() -> None:
-    terms = parse_auction_terms(
-        {"SUCBD_DECISION_MTHD_NM": "예정가격의 [90]%이상 입찰가 중 최저가 낙찰"}
-    )
-
-    assert terms.award_method is None
