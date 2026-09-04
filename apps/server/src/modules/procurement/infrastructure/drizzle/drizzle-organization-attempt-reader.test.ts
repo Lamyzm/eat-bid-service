@@ -54,6 +54,8 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
     const adapter = await import("./drizzle-organization-attempt-reader");
     expect(adapter.mapAttemptRow({ ...row, item_code_value_id: null } as never).item).toBeNull();
     expect(adapter.mapAttemptRow({ ...row, item_label: null } as never).item).toBeNull();
+    expect(adapter.mapAttemptRow({ ...row, item_label: "   " } as never).item).toBeNull();
+    expect(adapter.mapAttemptRow({ ...row, item_label: " 축산 " } as never).item?.label).toBe("축산");
   });
 
   test("KRW가 아닌 통화와 scale이 다른 비율 문자열은 TypeError로 거부한다", async () => {

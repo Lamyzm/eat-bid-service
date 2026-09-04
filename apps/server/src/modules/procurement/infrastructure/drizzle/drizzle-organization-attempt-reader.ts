@@ -47,9 +47,10 @@ export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptR
     announcedAt: requiredInstant(row.announced_at, "announced"),
     openedAt: postgresInstant(row.opened_at),
     // 라벨 없는 품목은 화면 계약을 만족하지 못한다. 라벨을 지어내지 않고 unknown으로 남긴다.
-    item: row.item_code_value_id === null || row.item_label === null
+    // 공백뿐인 라벨도 "없음"이다. 계약이 min(1)을 요구하므로 여기서 걸러야 유효한 mart 행이 500이 되지 않는다.
+    item: row.item_code_value_id === null || row.item_label === null || row.item_label.trim() === ""
       ? null
-      : { codeValueId: bigintValue(row.item_code_value_id), label: row.item_label },
+      : { codeValueId: bigintValue(row.item_code_value_id), label: row.item_label.trim() },
     floorRate: bidRateValue(row.floor_rate),
     baseAmount: moneyValue(row.base_amount, row.currency, true),
     winRate: bidRateValue(row.win_rate),
