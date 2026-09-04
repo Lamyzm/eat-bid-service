@@ -1,6 +1,6 @@
 # 0031 — 결정 화면의 상태 소유·렌더링·표 전략
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-04
 - 관계: `0023`(web 모듈 경계와 상태 소유)을 결정 화면에 구체화한다. `0028`(Cache Components)의
   Suspense/searchParams 규칙은 그대로 구속한다. `0030`이 정한 우선순위(경쟁자 수·승률 곡선)를 화면

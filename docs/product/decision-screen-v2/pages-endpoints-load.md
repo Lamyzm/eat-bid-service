@@ -1,11 +1,11 @@
 # 페이지·컴포넌트별 엔드포인트 계약, 백엔드 부하, 아키텍처 결정
 
-- 상태: 초안 (2026-09-04). 계약 세부는 `packages/contracts` 구현 시 이 표를 기준으로 만들고, 표와
+- 상태: 승인 (2026-09-04, 사용자). 계약 세부는 `packages/contracts` 구현 시 이 표를 기준으로 만들고, 표와
   다르게 만들면 이 문서를 같은 변경에서 고친다.
 - 전제: 동시 사용자 1,000명, 규모는 `architecture.md` §2 실측. 부하 열의 "행"은 PostgreSQL이
   실제로 읽는 행 수이며 "요청/초"는 아침 개찰 직전 피크 가정(사용자 1,000명 × 시간당 새로고침 10회
   ≈ 3 req/s, 결정 화면은 사용자당 하루 열람 공고 20건).
-- 상태 소유와 렌더 방식은 ADR 0031(Proposed)을 따른다. 필터는 URL(nuqs), 첫 화면은 RSC, 사용자
+- 상태 소유와 렌더 방식은 ADR 0031(Accepted)을 따른다. 필터는 URL(nuqs), 첫 화면은 RSC, 사용자
   행위 갱신만 TanStack Query.
 - 모든 집계 응답은 `meta { sampleCount, cohort, period, martRelease, computedAt, calcVersion }`을
   가진다(AGENTS 7항). 이 문서에서는 반복하지 않는다.
