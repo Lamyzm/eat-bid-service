@@ -79,8 +79,9 @@ def _capture(
 
 # 2026-09-03 실측 뒤 계약은 파서가 요구하는 필수 부분집합만 주장한다. 모르는 column이 늘어도
 # 위반이 아니므로 payload로는 source-contract 실패를 만들 수 없다. 검토되지 않은 parser version이
-# 남은 유일한 source-contract 경로다.
-UNREVIEWED_PARSER_VERSION = "eat-v2"
+# 남은 유일한 source-contract 경로다. EAT-42가 `eat-v2`를 검토된 version으로 만들었으므로 이 상수는
+# 검토된 적 없는 이름이어야 한다.
+UNREVIEWED_PARSER_VERSION = "eat-v9"
 
 
 def _insert_quarantined_attempt(
@@ -1387,8 +1388,8 @@ def test_미검토_parser_version_replay가_source_contract를_저장하고_다�
     observation_ids = _capture(pipeline_services)
     run_id, publication_id = uuid4(), uuid4()
 
-    for _ in range(2):
-        with pytest.raises(SourceContractError):
+    for attempt in range(2):
+        with pytest.raises(SourceContractError) as error:
             _run(
                 pipeline_services,
                 observation_ids,
@@ -1396,6 +1397,11 @@ def test_미검토_parser_version_replay가_source_contract를_저장하고_다�
                 publication_id=publication_id,
                 parser_version=UNREVIEWED_PARSER_VERSION,
             )
+        # 실패를 처음 만든 실행만 무엇이 막았는지 알고 있다. 그 문장을 삼키면 완성도 검사가
+        # 내린 판정만 남고 사유는 어디에도 없다.
+        if attempt == 0:
+            assert "unknown-parser-version" in str(error.value)
+            assert str(observation_ids[0]) in str(error.value)
 
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(

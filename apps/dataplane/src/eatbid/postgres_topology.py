@@ -1,3 +1,6 @@
+"""모듈 책임: 한 공고의 시도·정규화·발행 구성원을 PostgreSQL에서 함께 잠그고, 그 묶음이
+발행 가능한 모양인지 판정한다."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,6 +8,8 @@ from typing import Any
 from uuid import UUID
 
 import psycopg
+
+from eatbid.core.record_types import is_projectable_record_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,7 +85,7 @@ class LockedAuctionTopology:
                 member.attempt_observation_id != attempt.observation_id
                 or member.observation_id != attempt.observation_id
                 or member.parser_version != attempt.parser_version
-                or member.record_type != "auction.v1"
+                or not is_projectable_record_type(member.record_type)
             ):
                 return False
         return True

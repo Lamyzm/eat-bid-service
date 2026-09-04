@@ -15,8 +15,8 @@ from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedReq
 from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
 from eatbid.ingest.repository import CaptureRunMode
 from eatbid.source.client import SourceClient, SourceResponse
+from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.models import BidListPage
-from eatbid.source.eat.normalize import parse_bid_list_page
 from eatbid.source.eat.registry import require
 from eatbid.source.eat.xml import EatPayloadError
 
@@ -116,9 +116,10 @@ def discover_release(
     repository: DiscoveryPersistence,
     client: SourceClient,
 ) -> DiscoveryResult:
-    contract = require("bid-list")
-    if plan.parser_version != contract.parser_version:
-        raise SourceContractError("discovery parser differs from reviewed registry")
+    # 실행 단위는 parser version 하나다. 검토되지 않은 version이면 여기서 fail-closed 되어 raw
+    # 관측조차 만들지 않는다. 목록과 상세가 같은 version으로 읽힌다는 것도 여기서 함께 고정된다.
+    require("bid-list", parser_version=plan.parser_version)
+    require("bid-detail", parser_version=plan.parser_version)
 
     repository.start_run(plan)
     observations: list[CapturedObservation] = []
@@ -217,7 +218,7 @@ def _fetch_page(
     response = client.fetch(request)
     observation = repository.archive_observation(request, response)
     try:
-        page = parse_bid_list_page(response.body)
+        page = parse_bid_list_page(response.body, parser_version=plan.parser_version)
     except EatPayloadError:
         raise SourceContractError("discovery response is malformed") from None
     return observation, page
@@ -240,8 +241,8 @@ def _require_page_size(
 
 
 def _release_plan(plan: DiscoveryPlan, expected_count: int) -> SourceReleasePlan:
-    list_contract = require("bid-list")
-    detail_contract = require("bid-detail")
+    list_contract = require("bid-list", parser_version=plan.parser_version)
+    detail_contract = require("bid-detail", parser_version=plan.parser_version)
     (list_dataset,) = list_contract.response_datasets
     detail_dataset = detail_contract.response_datasets[0]
     return SourceReleasePlan(

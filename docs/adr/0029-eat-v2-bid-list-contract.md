@@ -68,6 +68,50 @@ def fingerprint(self) -> str:
 - ⚠ **`WITHDRAWAL_YN` 은 값이 시간에 따라 채워진다**(약 18개월). 이 필드로 나눈 모든 비율에 *성숙도*를 병기한다(규율 31).
 - ⚠ **`RNK` 와 `BID_STT` 는 시계가 다르다** — `002` 는 낙찰 결정 시점 도장이고 `RNK` 는 철회 반영 후 순위다. 같은 행에 두 시각이 들어 있다는 것을 소비하는 쪽이 알아야 한다.
 
+### 구현이 확정한 후속 결정 (EAT-42, 2026-09-04)
+
+- **`eat-v1` 과 `eat-v2` 상세의 schema fingerprint 는 같다.** fingerprint 는 `datasets` 전체가 아니라
+  `required` 부분집합으로 계산하고(`ReviewedSchemaContract`), 두 계약의 `required` 는 똑같이
+  `ds_info` 네 column(`BID_NM`·`ELCTRN_BID_STT_NM`·`PURR_CD`·`PURR_NM`)이다. 그래서 블록을 셋 더해도
+  봉인된 v1 발행물의 지문이 흔들리지 않는다. 계약을 구분하는 것은 지문이 아니라 `parser_version` 이다.
+- **새 블록(`ds_bidList`·`ds_pList`·`ds_bidHistory`)을 `required` 에 넣지 않았다.** fingerprint 는
+  *관측된* required column 으로 계산되므로, 명단이 없는 상세(유찰·공고취소·개찰 전)는 필수 column 이
+  사라져 계약 위반으로 전부 격리된다. 그런 상세의 모양을 아직 관측한 적이 없어 존재를 단언할 근거가
+  없다. 블록이 있는데 행을 해석할 수 없는 경우는 계약이 아니라 파서가 행 단위로 거부하고 그 관측만
+  격리한다.
+- **`auction.v2` record 는 아직 projectable 하지 않다.** `PROJECTABLE_RECORD_TYPES` 는 `auction.v1`
+  하나이며 v2 record 가 projection 에 닿으면 typed 실패로 멈춘다. core 테이블과 projector 를 만드는
+  EAT-43 이 이 집합을 넓힌다. 그 전까지 v2 정규화는 격리·전수 리포트용이지 `core` 발행 경로가 아니다.
+
+전수 재정규화 결과와 계약 상한 조정의 근거는
+[2026-09-04 리포트](../evidence/normalization/2026-09-04-eat-v2-renormalization.md)(계산 버전 `eat-v2-r3`)에 있다.
+
+### 후속 work item으로 넘긴 것 (2026-09-05)
+
+EAT-42가 의도적으로 열어 둔 결정이다. 여기가 이 목록의 유일한 저장소 내 원본이다.
+
+**EAT-43 (core 테이블·projector와 같은 변경에서 닫는다)**
+
+- **`AttemptLink.externalBidId` 타입.** 재입찰 사슬의 외부 공고 id를 지금은 관측 문자열로 담는다.
+  core가 `AuctionAttempt` 내부 id로 잇는 순간 두 표현의 경계를 정해야 한다.
+- **`CodeScheme` 등록과 code scheme 문자열의 단일 출처.** 여덟(`eat:BID_STT`·`eat:WITHDRAWAL_YN`·
+  `eat:SHIPPER_CD`·`eat:BIZ_NO`·`eat:PLNPRC_TYPE_CD`·`eat:SUCBID_DCSN_MTH_CD`·`eat:CHC_YN`·
+  `eat:ETN_BID_STT`)이 지금은 파서 네 모듈의 인라인 리터럴이고
+  [`time-and-value-contracts.md`](../architecture/time-and-value-contracts.md)의 표가 권위를 대신한다.
+  등록 테이블을 만들 때 `source/eat/code_schemes.py` 한 모듈로 모으고 문서 표가 그것을 가리키게 한다.
+- **`ObservedBidRate`의 mart 표현.** 관측된 사정률은 `numeric(6,3)`에 들어가지 않는다. mart column을
+  소유하는 쪽이 정한다(EAT-43·44).
+- **`foundation.py` 980줄의 책임 분리 검토.** 이 브랜치의 부채는 아니지만 projector를 붙이면 다시
+  커진다. AGENTS 18은 새 기능을 더하기 **전에** 경계 추출을 요구하므로 계획 단계에서 결정한다.
+
+**시기 미정**
+
+- **rank/sequence ordinal atom.** 순위(`RNK`)와 추첨 후보 순번(`CMNM_PLNPRC_SN`)은 셈이 아니라
+  순서·코드다. 지금은 각각 `nonNegativeCount`와 `sourceCode`로 담는데 의미 타입이 따로 있어야 하는지
+  결정하지 않았다.
+- **`BID_CALC_AMT`의 권위.** 명단 행 44%가 자리표시자다. 화면·지표가 명단 금액을 쓰기 전에
+  `EFT_ALL_AMT`를 권위로 삼을지 정해야 한다(`domain-and-data.md` §3.4).
+
 ## Rejected alternatives
 
 - **`eat-v1` 에 필드를 추가한다** — 지문이 바뀌어 봉인된 정규화가 무효가 된다. `parser_version` 이 있는 이유를 무시하는 것이다.

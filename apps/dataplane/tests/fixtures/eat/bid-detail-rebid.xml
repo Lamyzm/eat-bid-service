@@ -1,0 +1,456 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Root xmlns="http://www.nexacroplatform.com/platform/dataset">
+  <Dataset id="ds_bidHistory">
+    <ColumnInfo>
+      <Column id="FRST_RGTR_ID" type="string" size="32" />
+      <Column id="BID_STRT_DT" type="datetime" size="17" />
+      <Column id="STRPRCE_OPEN_YN" type="string" size="32" />
+      <Column id="SOLO_BID_TRT_MTHD_NM" type="string" size="32" />
+      <Column id="SUCBD_DECISION_MTHD_NM" type="string" size="32" />
+      <Column id="BID_NUM_LIMIT_YN" type="string" size="32" />
+      <Column id="LAST_CHG_DT" type="datetime" size="17" />
+      <Column id="PLNPRCE_TYPE" type="string" size="32" />
+      <Column id="LAST_CHGR_ID" type="string" size="32" />
+      <Column id="ETN_BID_STT" type="string" size="32" />
+      <Column id="DLVRY_TIME" type="undefined" size="0" />
+      <Column id="STRPRCE" type="bigdecimal" size="16" />
+      <Column id="USE_YN" type="string" size="32" />
+      <Column id="BID_TYPE_NM" type="string" size="32" />
+      <Column id="LIMIT_CONDITION" type="string" size="32" />
+      <Column id="PLNPRCE_TYPE_NM" type="string" size="32" />
+      <Column id="FRST_REG_DT" type="string" size="32" />
+      <Column id="DLVRY_PLACE" type="undefined" size="0" />
+      <Column id="LIMIT_CONDITION_NM" type="string" size="32" />
+      <Column id="SOLO_BID_TRT_MTHD" type="string" size="32" />
+      <Column id="DLVRY_STRT_DT" type="undefined" size="0" />
+      <Column id="BID_NM" type="string" size="32" />
+      <Column id="PLNPRCE" type="bigdecimal" size="16" />
+      <Column id="BID_END_DT" type="datetime" size="17" />
+      <Column id="ETC_CN" type="undefined" size="0" />
+      <Column id="ETN_BID_ID" type="bigdecimal" size="16" />
+      <Column id="ETN_BID_STT_NM" type="string" size="32" />
+      <Column id="SUCBD_DECISION_MTHD" type="string" size="32" />
+      <Column id="DLVRY_END_DT" type="undefined" size="0" />
+      <Column id="ETN_BID_NO" type="string" size="32" />
+      <Column id="PURR_CD" type="string" size="32" />
+      <Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />
+      <Column id="BID_NUM_LIMIT_CNT" type="bigdecimal" size="16" />
+      <Column id="BID_TYPE" type="string" size="32" />
+    </ColumnInfo>
+    <Rows>
+      <Row>
+        <Col id="FRST_RGTR_ID">S000000000</Col>
+        <Col id="BID_STRT_DT">20230921112500000</Col>
+        <Col id="STRPRCE_OPEN_YN">Y</Col>
+        <Col id="SOLO_BID_TRT_MTHD_NM">단독입찰 허용안함</Col>
+        <Col id="SUCBD_DECISION_MTHD_NM">예정가격의 []%이상 입찰가 중 최저가 낙찰</Col>
+        <Col id="BID_NUM_LIMIT_YN">Y</Col>
+        <Col id="LAST_CHG_DT">20230921130536000</Col>
+        <Col id="PLNPRCE_TYPE">002</Col>
+        <Col id="LAST_CHGR_ID">S000000000</Col>
+        <Col id="ETN_BID_STT">007</Col>
+        <Col id="STRPRCE">14615810</Col>
+        <Col id="USE_YN">Y</Col>
+        <Col id="BID_TYPE_NM">종합계약</Col>
+        <Col id="LIMIT_CONDITION">003</Col>
+        <Col id="PLNPRCE_TYPE_NM">복수예정가격</Col>
+        <Col id="FRST_REG_DT">20230921</Col>
+        <Col id="LIMIT_CONDITION_NM">지역제한경쟁</Col>
+        <Col id="SOLO_BID_TRT_MTHD">002</Col>
+        <Col id="BID_NM">비식별 급식 식재료 구매 [재입찰]</Col>
+        <Col id="PLNPRCE">14652282</Col>
+        <Col id="BID_END_DT">20230921120000000</Col>
+        <Col id="ETN_BID_ID">5306521</Col>
+        <Col id="ETN_BID_STT_NM">낙찰</Col>
+        <Col id="SUCBD_DECISION_MTHD">003</Col>
+        <Col id="ETN_BID_NO">E230918-187847-2</Col>
+        <Col id="PURR_CD">151021</Col>
+        <Col id="PLNPRCE_SUCBD_STD">10</Col>
+        <Col id="BID_NUM_LIMIT_CNT">1</Col>
+        <Col id="BID_TYPE">003</Col>
+      </Row>
+      <Row>
+        <Col id="FRST_RGTR_ID">S000000000</Col>
+        <Col id="BID_STRT_DT">20230921091000000</Col>
+        <Col id="STRPRCE_OPEN_YN">Y</Col>
+        <Col id="SOLO_BID_TRT_MTHD_NM">단독입찰 허용안함</Col>
+        <Col id="SUCBD_DECISION_MTHD_NM">예정가격의 []%이상 입찰가 중 최저가 낙찰</Col>
+        <Col id="BID_NUM_LIMIT_YN">Y</Col>
+        <Col id="LAST_CHG_DT">20230921110024000</Col>
+        <Col id="PLNPRCE_TYPE">002</Col>
+        <Col id="LAST_CHGR_ID">S000000000</Col>
+        <Col id="ETN_BID_STT">009</Col>
+        <Col id="STRPRCE">14615810</Col>
+        <Col id="USE_YN">Y</Col>
+        <Col id="BID_TYPE_NM">종합계약</Col>
+        <Col id="LIMIT_CONDITION">003</Col>
+        <Col id="PLNPRCE_TYPE_NM">복수예정가격</Col>
+        <Col id="FRST_REG_DT">20230921</Col>
+        <Col id="LIMIT_CONDITION_NM">지역제한경쟁</Col>
+        <Col id="SOLO_BID_TRT_MTHD">002</Col>
+        <Col id="BID_NM">비식별 급식 식재료 구매 [재입찰]</Col>
+        <Col id="PLNPRCE">14638084</Col>
+        <Col id="BID_END_DT">20230921100000000</Col>
+        <Col id="ETN_BID_ID">5306354</Col>
+        <Col id="ETN_BID_STT_NM">유찰</Col>
+        <Col id="SUCBD_DECISION_MTHD">003</Col>
+        <Col id="ETN_BID_NO">E230918-187847-1</Col>
+        <Col id="PURR_CD">151021</Col>
+        <Col id="PLNPRCE_SUCBD_STD">10</Col>
+        <Col id="BID_NUM_LIMIT_CNT">1</Col>
+        <Col id="BID_TYPE">003</Col>
+      </Row>
+      <Row>
+        <Col id="FRST_RGTR_ID">S000000000</Col>
+        <Col id="BID_STRT_DT">20230918170000000</Col>
+        <Col id="STRPRCE_OPEN_YN">Y</Col>
+        <Col id="SOLO_BID_TRT_MTHD_NM">단독입찰 허용안함</Col>
+        <Col id="SUCBD_DECISION_MTHD_NM">예정가격의 []%이상 입찰가 중 최저가 낙찰</Col>
+        <Col id="BID_NUM_LIMIT_YN">Y</Col>
+        <Col id="LAST_CHG_DT">20230921090242000</Col>
+        <Col id="PLNPRCE_TYPE">002</Col>
+        <Col id="LAST_CHGR_ID">S000000000</Col>
+        <Col id="ETN_BID_STT">009</Col>
+        <Col id="STRPRCE">14615810</Col>
+        <Col id="USE_YN">Y</Col>
+        <Col id="BID_TYPE_NM">종합계약</Col>
+        <Col id="LIMIT_CONDITION">003</Col>
+        <Col id="PLNPRCE_TYPE_NM">복수예정가격</Col>
+        <Col id="FRST_REG_DT">20230918</Col>
+        <Col id="LIMIT_CONDITION_NM">지역제한경쟁</Col>
+        <Col id="SOLO_BID_TRT_MTHD">002</Col>
+        <Col id="BID_NM">비식별 급식 식재료 구매</Col>
+        <Col id="PLNPRCE">14747206</Col>
+        <Col id="BID_END_DT">20230921080000000</Col>
+        <Col id="ETN_BID_ID">5301243</Col>
+        <Col id="ETN_BID_STT_NM">유찰</Col>
+        <Col id="SUCBD_DECISION_MTHD">003</Col>
+        <Col id="ETN_BID_NO">E230918-187847-0</Col>
+        <Col id="PURR_CD">151021</Col>
+        <Col id="PLNPRCE_SUCBD_STD">10</Col>
+        <Col id="BID_NUM_LIMIT_CNT">1</Col>
+        <Col id="BID_TYPE">003</Col>
+      </Row>
+    </Rows>
+  </Dataset>
+  <Dataset id="ds_pList">
+    <ColumnInfo>
+      <Column id="ELCTRN_BID_ID" type="bigdecimal" size="16" />
+      <Column id="CMNM_PLNPRC_RT" type="bigdecimal" size="16" />
+      <Column id="CMNM_PLNPRC" type="bigdecimal" size="16" />
+      <Column id="CMNM_PLNPRC_SN" type="bigdecimal" size="16" />
+      <Column id="CHC_YN" type="string" size="32" />
+    </ColumnInfo>
+    <Rows>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">0.9742</Col>
+        <Col id="CMNM_PLNPRC">14238956</Col>
+        <Col id="CMNM_PLNPRC_SN">1</Col>
+        <Col id="CHC_YN">Y</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">1.0288</Col>
+        <Col id="CMNM_PLNPRC">15037157</Col>
+        <Col id="CMNM_PLNPRC_SN">2</Col>
+        <Col id="CHC_YN">Y</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">1.0141</Col>
+        <Col id="CMNM_PLNPRC">14822361</Col>
+        <Col id="CMNM_PLNPRC_SN">3</Col>
+        <Col id="CHC_YN">Y</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">0.9928</Col>
+        <Col id="CMNM_PLNPRC">14510652</Col>
+        <Col id="CMNM_PLNPRC_SN">4</Col>
+        <Col id="CHC_YN">Y</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">0.9707</Col>
+        <Col id="CMNM_PLNPRC">14187856</Col>
+        <Col id="CMNM_PLNPRC_SN">5</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">1.0092</Col>
+        <Col id="CMNM_PLNPRC">14749911</Col>
+        <Col id="CMNM_PLNPRC_SN">6</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">0.9896</Col>
+        <Col id="CMNM_PLNPRC">14463913</Col>
+        <Col id="CMNM_PLNPRC_SN">7</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">1.0156</Col>
+        <Col id="CMNM_PLNPRC">14843223</Col>
+        <Col id="CMNM_PLNPRC_SN">8</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">0.9918</Col>
+        <Col id="CMNM_PLNPRC">14495904</Col>
+        <Col id="CMNM_PLNPRC_SN">9</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">0.996</Col>
+        <Col id="CMNM_PLNPRC">14557310</Col>
+        <Col id="CMNM_PLNPRC_SN">10</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">1.0088</Col>
+        <Col id="CMNM_PLNPRC">14744558</Col>
+        <Col id="CMNM_PLNPRC_SN">11</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">0.9914</Col>
+        <Col id="CMNM_PLNPRC">14490076</Col>
+        <Col id="CMNM_PLNPRC_SN">12</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">1.0052</Col>
+        <Col id="CMNM_PLNPRC">14691862</Col>
+        <Col id="CMNM_PLNPRC_SN">13</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">1.006</Col>
+        <Col id="CMNM_PLNPRC">14702960</Col>
+        <Col id="CMNM_PLNPRC_SN">14</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+      <Row>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="CMNM_PLNPRC_RT">0.9829</Col>
+        <Col id="CMNM_PLNPRC">14365646</Col>
+        <Col id="CMNM_PLNPRC_SN">15</Col>
+        <Col id="CHC_YN">N</Col>
+      </Row>
+    </Rows>
+  </Dataset>
+  <Dataset id="ds_info">
+    <ColumnInfo>
+      <Column id="PLNPRC_TYPE_CD" type="string" size="32" />
+      <Column id="RBID_YN" type="string" size="32" />
+      <Column id="PLNPRCE_TYPE_NM" type="string" size="32" />
+      <Column id="UP_ELCTRN_BID_ID" type="bigdecimal" size="16" />
+      <Column id="BID_CNT" type="bigdecimal" size="16" />
+      <Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />
+      <Column id="ELCTRN_BID_PLNPRC" type="bigdecimal" size="16" />
+      <Column id="OPNG_DT" type="datetime" size="17" />
+      <Column id="PURR_CD" type="string" size="32" />
+      <Column id="ELCTRN_BID_ID" type="bigdecimal" size="16" />
+      <Column id="MAIN_ITEMS" type="string" size="32" />
+      <Column id="PURR_NM" type="string" size="32" />
+      <Column id="BGNG_PRC" type="bigdecimal" size="16" />
+      <Column id="BID_NM" type="string" size="32" />
+      <Column id="PBANC_YMD" type="string" size="32" />
+      <Column id="ELCTRN_BID_STT_NM" type="string" size="32" />
+      <Column id="SUCBID_DCSN_MTH_CD" type="string" size="32" />
+      <Column id="SUCBD_DECISION_MTHD_NM" type="string" size="32" />
+      <Column id="ELCTRN_BID_NO" type="string" size="32" />
+      <Column id="SIDO_CD" type="string" size="32" />
+      <Column id="BID_END_DT" type="datetime" size="17" />
+      <Column id="SIGUNGU_CD" type="string" size="32" />
+    </ColumnInfo>
+    <Rows>
+      <Row>
+        <Col id="PLNPRC_TYPE_CD">002</Col>
+        <Col id="RBID_YN">Y</Col>
+        <Col id="PLNPRCE_TYPE_NM">복수예정가격</Col>
+        <Col id="UP_ELCTRN_BID_ID">5306354</Col>
+        <Col id="BID_CNT">2</Col>
+        <Col id="PLNPRCE_SUCBD_STD">90</Col>
+        <Col id="ELCTRN_BID_PLNPRC">14652282</Col>
+        <Col id="OPNG_DT">20230921130000000</Col>
+        <Col id="PURR_CD">151021</Col>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="MAIN_ITEMS">농산물 , 수산물 , 육류 , 가공식품 , 가금류</Col>
+        <Col id="PURR_NM">비식별 구매기관</Col>
+        <Col id="BGNG_PRC">14615810</Col>
+        <Col id="BID_NM">비식별 급식 식재료 구매 [재입찰]</Col>
+        <Col id="PBANC_YMD">20230921</Col>
+        <Col id="ELCTRN_BID_STT_NM">낙찰</Col>
+        <Col id="SUCBID_DCSN_MTH_CD">003</Col>
+        <Col id="SUCBD_DECISION_MTHD_NM">예정가격의 [90]%이상 입찰가 중 최저가 낙찰</Col>
+        <Col id="ELCTRN_BID_NO">E230918-187847-2</Col>
+        <Col id="SIDO_CD">18</Col>
+        <Col id="BID_END_DT">20230921120000000</Col>
+        <Col id="SIGUNGU_CD">585</Col>
+      </Row>
+    </Rows>
+  </Dataset>
+  <Dataset id="ds_bidList">
+    <ColumnInfo>
+      <Column id="FRST_RGTR_ID" type="string" size="32" />
+      <Column id="CNTRCT_UNITPRICE_IPT_YN" type="string" size="32" />
+      <Column id="PRPSAL_ATCHFL_ID" type="undefined" size="0" />
+      <Column id="CHK" type="undefined" size="0" />
+      <Column id="TOTAL_NUM" type="bigdecimal" size="16" />
+      <Column id="NEGO_SCORE" type="undefined" size="0" />
+      <Column id="WITHDRAWAL_YN" type="string" size="32" />
+      <Column id="RNK" type="bigdecimal" size="16" />
+      <Column id="QLF_PRC_SCORE" type="undefined" size="0" />
+      <Column id="BID_STT_NM" type="string" size="32" />
+      <Column id="BID_UNITPRICE" type="undefined" size="0" />
+      <Column id="PRPSAL_EVL_STAT_CD" type="undefined" size="0" />
+      <Column id="BEF_JDG_ID" type="undefined" size="0" />
+      <Column id="SAJEONG_PCT" type="bigdecimal" size="16" />
+      <Column id="QLF_RESULT" type="undefined" size="0" />
+      <Column id="RNK3" type="bigdecimal" size="16" />
+      <Column id="NOTIFY_STATE_NM" type="undefined" size="0" />
+      <Column id="RNK2" type="bigdecimal" size="16" />
+      <Column id="SUCBD_DT" type="string" size="32" />
+      <Column id="BID_NO" type="string" size="32" />
+      <Column id="SCORE_TABLE_SEQ" type="undefined" size="0" />
+      <Column id="SHIPPER_CD" type="string" size="32" />
+      <Column id="NOTIFY_STATE_CODE" type="undefined" size="0" />
+      <Column id="BID_CALC_AMT" type="bigdecimal" size="16" />
+      <Column id="SHIPPER_BRNO" type="string" size="32" />
+      <Column id="ETC_YN" type="string" size="32" />
+      <Column id="WAIVER_CNT" type="bigdecimal" size="16" />
+      <Column id="EFT_ALL_AMT" type="bigdecimal" size="16" />
+      <Column id="BIZ_NO" type="string" size="32" />
+      <Column id="SGNNG_ID" type="bigdecimal" size="16" />
+      <Column id="NOTIFY_SEQ" type="undefined" size="0" />
+      <Column id="SKILL_SCORE" type="undefined" size="0" />
+      <Column id="LAST_CHG_DT" type="datetime" size="17" />
+      <Column id="LAST_CHGR_ID" type="string" size="32" />
+      <Column id="DRAW_NO" type="string" size="32" />
+      <Column id="EXCL_RSN" type="undefined" size="0" />
+      <Column id="SHIPPER_NM" type="string" size="32" />
+      <Column id="QLF_STT" type="undefined" size="0" />
+      <Column id="USE_YN" type="string" size="32" />
+      <Column id="EVL_SCR" type="undefined" size="0" />
+      <Column id="QLF_ABL_SCORE" type="undefined" size="0" />
+      <Column id="PRPR_YN" type="undefined" size="0" />
+      <Column id="FRST_REG_DT" type="datetime" size="17" />
+      <Column id="NARA_BIZ_NO" type="string" size="32" />
+      <Column id="INSR_SCRITS_NO" type="undefined" size="0" />
+      <Column id="BID_STT" type="string" size="32" />
+      <Column id="QLF_STT_NM" type="undefined" size="0" />
+      <Column id="BID_END_DT" type="datetime" size="17" />
+      <Column id="JUDG_SCORE" type="undefined" size="0" />
+      <Column id="SUCBD_DECISION_MTHD" type="string" size="32" />
+      <Column id="ELCTRN_BID_ID" type="bigdecimal" size="16" />
+      <Column id="ETC" type="undefined" size="0" />
+      <Column id="TEMPSAVE_YN" type="undefined" size="0" />
+      <Column id="BID_DT" type="string" size="32" />
+      <Column id="QLF_TOT_SCORE" type="undefined" size="0" />
+    </ColumnInfo>
+    <Rows>
+      <Row>
+        <Col id="FRST_RGTR_ID">user0000</Col>
+        <Col id="CNTRCT_UNITPRICE_IPT_YN">9</Col>
+        <Col id="TOTAL_NUM">2</Col>
+        <Col id="WITHDRAWAL_YN">N</Col>
+        <Col id="RNK">1</Col>
+        <Col id="BID_STT_NM">낙찰</Col>
+        <Col id="SAJEONG_PCT">90.272</Col>
+        <Col id="RNK3">1</Col>
+        <Col id="RNK2">1</Col>
+        <Col id="SUCBD_DT">20230921</Col>
+        <Col id="BID_NO">B000000-000000</Col>
+        <Col id="SHIPPER_CD">300000</Col>
+        <Col id="BID_CALC_AMT">13227000</Col>
+        <Col id="SHIPPER_BRNO">2000000000</Col>
+        <Col id="ETC_YN">Y</Col>
+        <Col id="WAIVER_CNT">0</Col>
+        <Col id="EFT_ALL_AMT">13227000</Col>
+        <Col id="BIZ_NO">2000000000</Col>
+        <Col id="SGNNG_ID">200000000</Col>
+        <Col id="LAST_CHG_DT">20230921130536000</Col>
+        <Col id="LAST_CHGR_ID">S000000000</Col>
+        <Col id="DRAW_NO">4, 1</Col>
+        <Col id="SHIPPER_NM">비식별 업체 1</Col>
+        <Col id="USE_YN">Y</Col>
+        <Col id="FRST_REG_DT">20230921114151000</Col>
+        <Col id="NARA_BIZ_NO">부정당업자가 아닙니다.</Col>
+        <Col id="BID_STT">002</Col>
+        <Col id="BID_END_DT">20230921120000000</Col>
+        <Col id="SUCBD_DECISION_MTHD">003</Col>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="BID_DT">2023-09-21 11:41:51</Col>
+      </Row>
+      <Row>
+        <Col id="FRST_RGTR_ID">user0001</Col>
+        <Col id="CNTRCT_UNITPRICE_IPT_YN">9</Col>
+        <Col id="TOTAL_NUM">2</Col>
+        <Col id="WITHDRAWAL_YN">Y</Col>
+        <Col id="RNK">2</Col>
+        <Col id="BID_STT_NM">낙찰실패</Col>
+        <Col id="SAJEONG_PCT">89.626</Col>
+        <Col id="RNK3">2</Col>
+        <Col id="RNK2">2</Col>
+        <Col id="SUCBD_DT">20230921</Col>
+        <Col id="BID_NO">B000000-000001</Col>
+        <Col id="SHIPPER_CD">300001</Col>
+        <Col id="BID_CALC_AMT">10000000054752</Col>
+        <Col id="SHIPPER_BRNO">2000000007</Col>
+        <Col id="ETC_YN">N</Col>
+        <Col id="WAIVER_CNT">0</Col>
+        <Col id="EFT_ALL_AMT">13132300</Col>
+        <Col id="BIZ_NO">2000000007</Col>
+        <Col id="SGNNG_ID">200000001</Col>
+        <Col id="LAST_CHG_DT">20230921130536000</Col>
+        <Col id="LAST_CHGR_ID">S000000000</Col>
+        <Col id="DRAW_NO">2, 3</Col>
+        <Col id="SHIPPER_NM">비식별 업체 2</Col>
+        <Col id="USE_YN">Y</Col>
+        <Col id="FRST_REG_DT">20230921112901000</Col>
+        <Col id="NARA_BIZ_NO">부정당업자가 아닙니다.</Col>
+        <Col id="BID_STT">005</Col>
+        <Col id="BID_END_DT">20230921120000000</Col>
+        <Col id="SUCBD_DECISION_MTHD">003</Col>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="ETC">낙찰 기준 미달</Col>
+        <Col id="BID_DT">2023-09-21 11:29:01</Col>
+      </Row>
+    </Rows>
+  </Dataset>
+  <Dataset id="ds_areaList">
+    <ColumnInfo>
+      <Column id="CTPV_CD" type="string" size="32" />
+      <Column id="SGG_CD" type="string" size="32" />
+      <Column id="ELCTRN_BID_ID" type="bigdecimal" size="16" />
+      <Column id="ARA_SN" type="bigdecimal" size="16" />
+      <Column id="SGG_NM" type="string" size="32" />
+      <Column id="PDLC_NM" type="string" size="32" />
+      <Column id="PDLC_CD" type="string" size="32" />
+      <Column id="CTPV_NM" type="string" size="32" />
+    </ColumnInfo>
+    <Rows>
+      <Row>
+        <Col id="CTPV_CD">18</Col>
+        <Col id="SGG_CD">185</Col>
+        <Col id="ELCTRN_BID_ID">5306521</Col>
+        <Col id="ARA_SN">1</Col>
+        <Col id="SGG_NM">완도</Col>
+        <Col id="PDLC_NM">전남광주/완도</Col>
+        <Col id="PDLC_CD">18585</Col>
+        <Col id="CTPV_NM">전남광주</Col>
+      </Row>
+    </Rows>
+  </Dataset>
+</Root>

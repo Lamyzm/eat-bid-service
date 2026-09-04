@@ -1,3 +1,5 @@
+"""모듈 책임: 보존된 raw 관측 하나를 실행 단위의 parser version으로 해석해 정규화 행 또는 격리로 만든다."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -14,6 +16,7 @@ from eatbid.source.eat.normalize import (
     canonical_payload,
     normalize_bid_detail_payload,
 )
+from eatbid.source.eat.registry import require
 from eatbid.source.eat.xml import NexacroParseError
 
 DATA_QUARANTINED = "DATA_QUARANTINED"
@@ -52,6 +55,9 @@ def normalize_observation(
     external_bid_id = observation.planned_request_params.get("ELCTRN_BID_ID")
     if not isinstance(external_bid_id, str) or not external_bid_id:
         raise RawObjectIntegrityError("planned ELCTRN_BID_ID is required")
+    # 정규화 결과의 이름은 registry가 소유한다. 여기서 문자열을 고정하면 새 parser version이 예전
+    # record type으로 저장되어 하류가 명단 없는 v1 사실로 오해석한다.
+    contract = require("bid-detail", parser_version=parser_version)
 
     raw = store.read(observation.object_key)
     if sha256(raw).hexdigest() != observation.content_sha256:
@@ -74,7 +80,7 @@ def normalize_observation(
 
     return repository.store_normalized(
         observation=observation,
-        record_type="auction.v1",
+        record_type=contract.record_type,
         source_entity_id=external_bid_id,
         parser_version=parser_version,
         canonical_payload=canonical_payload(normalized.record),

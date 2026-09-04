@@ -1,0 +1,36 @@
+/** @module 책임: 입찰 명단 한 행의 관측값과 소스 판정 코드를 해석 없이 담는 계약을 소유한다. */
+import { z } from "zod";
+
+import { nonNegativeCountSchema } from "../../../atoms/count";
+import { instantTextSchema } from "../../../atoms/instant";
+import { sourceCodeSchema } from "../../../atoms/source-code";
+import { moneyWireSchema } from "../../../values/money";
+import { observedBidRateWireSchema } from "../../../values/rate";
+import { sourceCodedValueSchema } from "../../../values/source-coded-value";
+import { normalizedSupplierAccountSchema } from "./supplier-account";
+
+export const normalizedBidSubmissionSchema = z.strictObject({
+  supplierAccount: normalizedSupplierAccountSchema,
+  submittedAt: instantTextSchema.nullable(),
+  amount: moneyWireSchema,
+  effectiveAmount: moneyWireSchema.nullable(),
+  // `SAJEONG_PCT`는 소스가 계산한 사정률이라 예정가격 초과 투찰과 단가 입찰에서 100을 넘는다.
+  // 공개 API의 BidRate(0~100)를 여기서 재사용하면 그 관측이 격리되므로 상한 없는 관측 타입을 쓴다.
+  bidRate: observedBidRateWireSchema,
+  rank: nonNegativeCountSchema.nullable(),
+  // 2026-09-04 실측에서 BID_STT는 002(낙찰)와 005(낙찰실패) 둘뿐이다. 소스에 "무효"도 "하한미달"도
+  // 없으므로 판정을 코드 그대로 싣고 파서가 상태를 만들어내지 않는다.
+  sourceStatus: sourceCodedValueSchema,
+  // ADR 0029: 이 값의 채움률은 수집 나이의 함수다. 비율의 분모로 쓸 때 코호트 성숙도를 병기한다.
+  withdrawalFlag: sourceCodedValueSchema.nullable(),
+  drawNumbers: z.array(sourceCodeSchema).max(8),
+  // `ds_bidList.TOTAL_NUM`이며 roster의 sourceRosterSize(`ds_info.BID_CNT`)와 다른 블록의 관측이다.
+  // 두 값이 갈리는 상세를 본 적이 없지만 같다고 단언할 근거도 없으므로 각각 보존하고, 어느 쪽도
+  // 다른 쪽으로 채우거나 검증하지 않는다(AGENTS 3).
+  observedRosterSize: nonNegativeCountSchema.nullable(),
+}).meta({
+  id: "NormalizedBidSubmission",
+  description: "One observed roster row; source judgement stays a code and is never mapped to a derived status.",
+});
+
+export type NormalizedBidSubmission = z.infer<typeof normalizedBidSubmissionSchema>;

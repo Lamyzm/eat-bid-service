@@ -1,7 +1,15 @@
+"""모듈 책임: dataplane Python 소스에서 금액·비율 값이 float나 손으로 쓴 정규화 Pydantic 모델을
+통과하지 않는지, naive datetime과 raw sleep 값이 남지 않았는지 AST로 검사한다. 손 작성 모델 금지
+규칙의 예외는 `generate_contract_models.py`의 `CONTRACTS` 목록에서 파생한 정확 경로 집합으로만
+둔다 — 디렉터리 전체를 면제하면 등록되지 않은 파일도 검사를 피해 가므로 생성기가 실제로 쓰는
+파일명만 예외로 인정한다.
+"""
+
 from __future__ import annotations
 
 import argparse
 import ast
+import importlib.util
 import re
 import sys
 from collections.abc import Iterable
@@ -20,7 +28,27 @@ SEMANTIC_TOKENS = {
     "percentage",
 }
 SOURCE_MODEL_PREFIX = "apps/dataplane/src/eatbid/source/"
-GENERATED_MODEL = "apps/dataplane/src/eatbid/generated/ingestion_v1.py"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+GENERATOR_SCRIPT = REPOSITORY_ROOT / "apps" / "dataplane" / "scripts" / "generate_contract_models.py"
+
+
+def _load_generated_model_paths(generator_script: Path, repository_root: Path) -> frozenset[str]:
+    """생성기 스크립트를 모듈로 로드해 `CONTRACTS`의 출력 경로만 정확히 예외로 인정한다.
+
+    이 스크립트를 `__main__`으로 만들지 않도록 고유한 모듈 이름으로 적재한다 — 그래야 파일 하단의
+    `if __name__ == "__main__":` 가드가 datamodel-codegen을 실행시키지 않는다.
+    """
+    spec = importlib.util.spec_from_file_location("_eatbid_generate_contract_models", generator_script)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"{generator_script} 을(를) 모듈로 불러오지 못했습니다")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return frozenset(
+        output_path.resolve().relative_to(repository_root).as_posix() for _, output_path in module.CONTRACTS
+    )
+
+
+GENERATED_MODEL_PATHS = _load_generated_model_paths(GENERATOR_SCRIPT, REPOSITORY_ROOT)
 
 
 @dataclass(frozen=True, order=True)
@@ -112,7 +140,7 @@ class SemanticVisitor(ast.NodeVisitor):
         )
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        allowed_model = self.path.startswith(SOURCE_MODEL_PREFIX) or self.path == GENERATED_MODEL
+        allowed_model = self.path.startswith(SOURCE_MODEL_PREFIX) or self.path in GENERATED_MODEL_PATHS
         if not allowed_model:
             origins = set().union(*(self.resolver.origins(base) for base in node.bases)) if node.bases else set()
             if any(origin.endswith(("pydantic.BaseModel", "pydantic.RootModel")) for origin in origins):
@@ -224,7 +252,7 @@ def check(root: Path) -> list[Violation]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check Python semantic-value architecture rules")
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--root", type=Path, default=REPOSITORY_ROOT)
     arguments = parser.parse_args(argv)
     root = arguments.root.resolve()
     violations = check(root)

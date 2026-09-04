@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 
 from eatbid.errors import SourceContractError
-from eatbid.source.eat.normalize import parse_bid_list_page
+from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.schema_contract import (
+    reviewed_schema_contract,
     reviewed_schema_fingerprint,
     validate_eat_schema_contract,
 )
@@ -44,7 +45,9 @@ def list_page(*rows: str) -> bytes:
 
 
 def test_parse_bid_list_page가_total과_internal_ID를_보존한다() -> None:
-    page = parse_bid_list_page((FIXTURE_DIR / "bid-list-one.xml").read_bytes())
+    page = parse_bid_list_page(
+        (FIXTURE_DIR / "bid-list-one.xml").read_bytes(), parser_version="eat-v1"
+    )
 
     assert page.total_count == 1
     assert page.external_bid_ids == ("5610615",)
@@ -69,7 +72,7 @@ def test_parse_bid_list_page가_음수가_아닌_ascii_decimal_contract을_거�
     payload = list_page(list_row(total, "1"))
 
     with pytest.raises(SourceContractError):
-        parse_bid_list_page(payload)
+        parse_bid_list_page(payload, parser_version="eat-v1")
 
 
 @pytest.mark.parametrize(
@@ -82,7 +85,7 @@ def test_parse_bid_list_page가_음수가_아닌_ascii_decimal_contract을_거�
 )
 def test_parse_bid_list_page가_empty_중복_또는_excess_ids을_거부한다(rows: str) -> None:
     with pytest.raises(SourceContractError):
-        parse_bid_list_page(list_page(rows))
+        parse_bid_list_page(list_page(rows), parser_version="eat-v1")
 
 
 @pytest.mark.parametrize(
@@ -91,7 +94,9 @@ def test_parse_bid_list_page가_empty_중복_또는_excess_ids을_거부한다(r
 )
 def test_목록_필수_column이_없으면_발견_전체가_SOURCE_CONTRACT로_닫힌다(missing: str) -> None:
     with pytest.raises(SourceContractError):
-        parse_bid_list_page(list_page(list_row("1", "1", **{missing: None})))
+        parse_bid_list_page(
+            list_page(list_row("1", "1", **{missing: None})), parser_version="eat-v1"
+        )
 
 
 @pytest.mark.parametrize(
@@ -109,11 +114,13 @@ def test_목록_값이_검토된_wire_모양을_벗어나면_추측하지_않고
     column: str, wire: str
 ) -> None:
     with pytest.raises(SourceContractError):
-        parse_bid_list_page(list_page(list_row("1", "1", **{column: wire})))
+        parse_bid_list_page(
+            list_page(list_row("1", "1", **{column: wire})), parser_version="eat-v1"
+        )
 
 
 def test_목록_선택_column이_비어도_필수_사실은_만들어진다() -> None:
-    page = parse_bid_list_page(list_page(list_row("1", "7")))
+    page = parse_bid_list_page(list_page(list_row("1", "7")), parser_version="eat-v1")
 
     (row,) = page.rows
     assert row.external_bid_id == "7"
@@ -126,11 +133,39 @@ def test_목록_선택_column이_비어도_필수_사실은_만들어진다() ->
 
 def test_0건_wire는_필수_column_없이도_빈_page가_된다() -> None:
     page = parse_bid_list_page(
-        list_page('<Row><Col id="TOT_CNT">0</Col><Col id="ETN_BID_ID"></Col></Row>')
+        list_page('<Row><Col id="TOT_CNT">0</Col><Col id="ETN_BID_ID"></Col></Row>'),
+        parser_version="eat-v1",
     )
 
     assert page.total_count == 0
     assert page.rows == ()
+
+
+def test_목록_파싱은_실행_단위의_parser_version_계약을_따른다() -> None:
+    """v2 목록 계약은 v1의 복제라 같은 결과를 내야 하고, 미검토 version은 typed 실패다."""
+    payload = list_page(list_row("1", "7"))
+
+    v1 = parse_bid_list_page(payload, parser_version="eat-v1")
+    v2 = parse_bid_list_page(payload, parser_version="eat-v2")
+
+    assert v1 == v2
+    with pytest.raises(SourceContractError, match="eat-v9"):
+        parse_bid_list_page(payload, parser_version="eat-v9")
+
+
+def test_v1과_v2_목록_계약은_dataset과_필수_column이_같다() -> None:
+    """복제 관계가 깨지면 목록 파서의 필수 column 검사가 조용히 갈라진다."""
+    v1 = reviewed_schema_contract(
+        source="eat", endpoint="bid-list", parser_version="eat-v1"
+    )
+    v2 = reviewed_schema_contract(
+        source="eat", endpoint="bid-list", parser_version="eat-v2"
+    )
+
+    assert v1 is not None and v2 is not None
+    assert dict(v1.datasets) == dict(v2.datasets)
+    assert dict(v1.required_datasets) == dict(v2.required_datasets)
+    assert v1.fingerprint == v2.fingerprint
 
 
 @pytest.mark.parametrize(
@@ -210,7 +245,8 @@ def test_reviewed_eat_detail_schema_contract는_안정적_parser_digest을_갖�
     [
         ("eat", "bid-detail", "eat-v1", "0" * 64),
         ("eat", "unreviewed-detail", "eat-v1", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
-        ("eat", "bid-detail", "eat-v2", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
+        # EAT-42가 `eat-v2`를 검토된 version으로 만들었으므로 미검토 사례는 `eat-v9`로 옮긴다.
+        ("eat", "bid-detail", "eat-v9", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
     ],
 )
 def test_eat_schema_contract가_fail_closed한다(
@@ -224,6 +260,19 @@ def test_eat_schema_contract가_fail_closed한다(
         endpoint=endpoint,
         parser_version=parser_version,
         schema_fingerprint=schema_fingerprint,
+    )
+
+
+def test_eat_v2가_v1과_같은_필수_부분집합_fingerprint로_통과한다() -> None:
+    # 두 version이 주장하는 필수 부분집합이 같으므로 관측 fingerprint도 같다. 달라진 것은 해석
+    # 깊이뿐이고, 명단 블록은 required가 아니라 없어도 계약 위반이 아니다.
+    assert validate_eat_schema_contract(
+        source="eat",
+        endpoint="bid-detail",
+        parser_version="eat-v2",
+        schema_fingerprint=(
+            "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"
+        ),
     )
 
 

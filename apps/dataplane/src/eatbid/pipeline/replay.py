@@ -1,3 +1,5 @@
+"""모듈 책임: 보존된 관측 목록을 같은 run 정체성으로 다시 정규화·검증·투영하며 재실행을 멱등하게 만든다."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -101,6 +103,9 @@ def replay_observations(
         _raise_stored_failure(state)
 
     quarantined: DataQuarantinedError | None = None
+    # 소스 계약이 막은 첫 사유를 들고 간다. 잡아서 버리면 run 단위 판정이 내려질 때 "완성도 검사가
+    # 실패했다"만 남고 무엇이 막았는지는 어디에도 남지 않는다.
+    contract_failure: str | None = None
     if state.status == "running":
         for observation_id in manifest:
             try:
@@ -115,6 +120,13 @@ def replay_observations(
             except DataQuarantinedError as error:
                 if quarantined is None:
                     quarantined = error
+            except SourceContractError as error:
+                # 검토되지 않은 parser version처럼 소스 계약이 막은 관측은 정규화 행을 남기지 않는다.
+                # 여기서 바로 던지면 run과 publication이 running·pending으로 남아 실패가 ledger에
+                # 보이지 않으므로, 완성도 검사가 run 단위로 판정하고 그 결과를 아래에서 다시 던진다.
+                if contract_failure is None:
+                    contract_failure = f"observation {observation_id}: {error}"
+                continue
 
         validation = validate_run(
             run_id=run_id,
@@ -125,7 +137,10 @@ def replay_observations(
         if validation.status == "failed":
             if quarantined is not None:
                 raise quarantined
-            raise SourceContractError("replay failed the source completeness contract")
+            reason = "replay failed the source completeness contract"
+            raise SourceContractError(
+                reason if contract_failure is None else f"{reason}: {contract_failure}"
+            )
         if validation.status != "validated":
             raise RuntimeError("replay validation returned an unsupported state")
 

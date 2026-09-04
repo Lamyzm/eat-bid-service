@@ -13,6 +13,8 @@ import pytest
 import yaml
 from conftest import ManifestSet
 from eatbid.cli import build_parser
+from eatbid.core.record_types import is_projectable_record_type
+from eatbid.source.eat.registry import require
 from eatbid.source.eat.schema_contract import REVIEWED_EAT_SCHEMA_CONTRACTS
 
 ROOT = Path(__file__).parents[2]
@@ -170,14 +172,19 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     assert spec["entrypoint"] == "scheduled-pipeline"
     assert spec["serviceAccountName"] == "eatbid-dataplane"
     reviewed_parser_versions = {key[2] for key in REVIEWED_EAT_SCHEMA_CONTRACTS}
-    assert len(reviewed_parser_versions) == 1
-    reviewed_parser_version = next(iter(reviewed_parser_versions))
     workflow_parameters = {
         item["name"]: item["value"]
         for item in _sequence(_mapping(spec["arguments"])["parameters"])
         if isinstance(item, Mapping)
     }
-    assert workflow_parameters["parser-version"] == reviewed_parser_version
+    template_parser_version = workflow_parameters["parser-version"]
+    # 검토된 version은 eat-v1·eat-v2 둘이지만 기본값은 발행 경로가 열린 version이어야 한다. eat-v2는
+    # EAT-43 전까지 projection에서 typed 실패로 멈추므로(ADR 0029 후속 결정) 기본값이 되면 크롤 예산만
+    # 쓰고 core에는 아무것도 도착하지 않는다.
+    assert template_parser_version in reviewed_parser_versions
+    assert is_projectable_record_type(
+        require("bid-detail", parser_version=template_parser_version).record_type
+    )
 
     templates = _templates(workflow_template)
     tasks = _dag_tasks(workflow_template)

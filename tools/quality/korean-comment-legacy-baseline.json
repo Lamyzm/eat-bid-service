@@ -3,10 +3,6 @@
   "legacyCommit": "e7fdcd2f6d2a7ddddc67a3ad1ec6134c60890537",
   "entries": [
     {
-      "path": "apps/dataplane/scripts/generate_contract_models.py",
-      "sha256": "a67b042a5e13b498c7f63c76f0a372af15b9591f150c8548b50a4ddc42a79663"
-    },
-    {
       "path": "apps/dataplane/src/eatbid/cli.py",
       "sha256": "d1ae481bec095ef9011462230f77a1aa7e37482a29a95c7a147e318b7274ab5f"
     },
@@ -29,10 +25,6 @@
     {
       "path": "apps/dataplane/src/eatbid/errors.py",
       "sha256": "b1107387b544a850c52873e932f7795f046decdec4542a9f69cb0c633cd54819"
-    },
-    {
-      "path": "apps/dataplane/src/eatbid/foundation.py",
-      "sha256": "eccab659554a61754cee32b0fb2136ba28ff578057ee8eefeb4b39fa72653bae"
     },
     {
       "path": "apps/dataplane/src/eatbid/foundation_repository.py",
@@ -83,18 +75,6 @@
       "sha256": "dbd6c8e131fb4aae12907a3e9843e738d5c4c7494dcb7446e18c6b9dce8bd72a"
     },
     {
-      "path": "apps/dataplane/src/eatbid/pipeline/normalize.py",
-      "sha256": "8e53d9646c14a347c20965652a617fef533f9ffbfaac12639036271590d6605b"
-    },
-    {
-      "path": "apps/dataplane/src/eatbid/pipeline/project.py",
-      "sha256": "aa979607b2c95a4447ad394c86f0be61bf7945b418eb30cb2e5d4e52c5a803c2"
-    },
-    {
-      "path": "apps/dataplane/src/eatbid/pipeline/replay.py",
-      "sha256": "b70bed2adc43e89ed1d13f40299c1cbc19df9fe7a6cb99d2ea007c25abb0776c"
-    },
-    {
       "path": "apps/dataplane/src/eatbid/pipeline/stages.py",
       "sha256": "ccfc3f43057b1c51917e76e3b307a542d33b9a5af25950a84d086a744933bd77"
     },
@@ -105,10 +85,6 @@
     {
       "path": "apps/dataplane/src/eatbid/postgres_foundation_repository.py",
       "sha256": "afcf8dbc041d8a04505005ebe0567b6df068eca7bb3b753d451c26da70f4683a"
-    },
-    {
-      "path": "apps/dataplane/src/eatbid/postgres_topology.py",
-      "sha256": "aba2fa00f0c1fd76a94cdf1fbdaa77b7ffe0df691f9c4c3eeadbd55bf537c778"
     },
     {
       "path": "apps/dataplane/src/eatbid/r2_store.py",
@@ -919,10 +895,6 @@
       "sha256": "26ae20535ed23361f7a669af6f1aefb5785921c7bd15b4a2abf76bee6ed567fb"
     },
     {
-      "path": "packages/contracts/src/generate-json-schema.ts",
-      "sha256": "8f1dcacf07073628203e2e120bce114a8eabf8ebfa6b2af198a68ae2c5c3e07f"
-    },
-    {
       "path": "packages/contracts/src/ingestion/v1/normalized-auction.ts",
       "sha256": "a28c8fd1b7da9ac4739e5ba8e654e52540fc02d37370de0faeeb9c2360ebfab9"
     },
@@ -949,10 +921,6 @@
     {
       "path": "packages/contracts/src/ingestion/v1/resources/schedule.ts",
       "sha256": "c6134c3c606263a23e8262e066c3f1499253632a8a9a3c2be3c12a9c588bf261"
-    },
-    {
-      "path": "packages/contracts/src/portable-registry.ts",
-      "sha256": "2be28d7ccb32ddca974f9911d7027e3c5cf640934a704d3c6216e061c39773bf"
     },
     {
       "path": "packages/contracts/src/resources/procurement/identity.ts",
@@ -1065,10 +1033,6 @@
     {
       "path": "tools/quality/python_semantic_origins.py",
       "sha256": "f823f0d78530395eddf542bb76881f50edbf928f2ed7fc78c0e206217ca01319"
-    },
-    {
-      "path": "tools/quality/test_check_python_semantic_values.py",
-      "sha256": "82d071f897c95b10ea6a35d3cb68f38a803122070bfc29f8397bedacbbaaa910"
     }
   ]
 }

@@ -502,6 +502,21 @@ def test_terminal_checkpoint가_유효하지_않은_normalized_member_id을_거�
 
 
 @pytest.mark.parametrize("state", ["validated", "published"])
+def test_terminal_checkpoint가_발행_불가_record_type을_projection_전에_거부한다(
+    state: str,
+) -> None:
+    """core 테이블이 없는 `auction.v2`가 종단 검사를 통과하면 명단 없는 공고로 투영된다."""
+    checkpoint = _terminal_checkpoint(state)
+    assert checkpoint.normalization is not None
+    malformed = replace(
+        checkpoint,
+        normalization=replace(checkpoint.normalization, record_type="auction.v2"),
+    )
+
+    _assert_rejected_before_projection(malformed)
+
+
+@pytest.mark.parametrize("state", ["validated", "published"])
 def test_terminal_checkpoint가_untyped_normalization을_거부한다(state: str) -> None:
     _assert_rejected_before_projection(
         replace(_terminal_checkpoint(state), normalization=object())

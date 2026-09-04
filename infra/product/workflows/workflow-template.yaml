@@ -14,6 +14,8 @@ spec:
       #     -p mode=backfill -p start-date=20250901 -p end-date=20251130
       - name: mode
         value: poll-open
+      # eat-v2는 EAT-43 전까지 발행 경로가 아니다 — capture와 normalize는 성공하고 projection에서
+      # typed 실패(`ProjectionContractError`)로 멈추므로 그때까지 쓴 크롤 예산은 회수되지 않는다.
       - name: parser-version
         value: eat-v1
       - name: start-date

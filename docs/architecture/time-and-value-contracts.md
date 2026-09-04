@@ -43,7 +43,7 @@ flowchart TB
 | 질문 | 유일한 권위 | 여기서 파생되는 것 | 여기서 파생하지 않는 것 |
 |---|---|---|---|
 | eaT가 실제로 보낸 모양은 무엇인가? | raw evidence + reviewed parser/fingerprint + known-column Pydantic | normalized input | interchange/API DTO, DDL |
-| Python과 TypeScript가 교환하는 canonical JSON은 무엇인가? | Zod `ingestion/v1` wire schema | JSON Schema, generated Pydantic model | source parsing, DDL |
+| Python과 TypeScript가 교환하는 canonical JSON은 무엇인가? | Zod `ingestion/v1`·`ingestion/v2` wire schema | JSON Schema, generated Pydantic model | source parsing, DDL |
 | 금액·비율·시간의 업무 의미는 무엇인가? | `packages/domain` | 불변식과 명명된 변환 | JSON field 이름, DB column |
 | 어떤 API JSON을 공개하고 받는가? | Zod `api/v1` wire schema | `z.input`/`z.output`, OpenAPI, web parser | DDL |
 | 어떻게 정확히 저장하는가? | `packages/db` Drizzle schema | SQL migration, row type | HTTP response |
@@ -100,16 +100,26 @@ packages/contracts/src/
 │  ├─ schedule.ts
 │  └─ pricing.ts
 ├─ ingestion/v1/
+├─ ingestion/v2/
+│  └─ resources/            # bid-roster · bid-submission · award-decision
+│                           # · auction-terms · reserve-price-draw · attempt-link
 ├─ api/v1/
 ├─ codecs/
 └─ portable-registry.ts
 
 packages/contracts/generated/
-└─ ingestion-v1.schema.json
+├─ ingestion-v1.schema.json
+└─ ingestion-v2.schema.json
 
 apps/dataplane/src/eatbid/generated/
-└─ ingestion_v1.py
+├─ ingestion_v1.py
+└─ ingestion_v2.py
 ```
+
+`ingestion/v2`는 v1을 고친 것이 아니라 별도 root다. v1 root에 필드를 더하면 optional이어도 재직렬화가
+새 키를 내보내 봉인된 canonical payload가 전부 불일치가 되기 때문이다(ADR 0025). 두 계약을 가르는 것은
+`parser_version`이고 reviewed source schema fingerprint는 `required` 부분집합으로 계산해 v1·v2가 같다
+([ADR 0029](../adr/0029-eat-v2-bid-list-contract.md)).
 
 승인된 공개 응답에 restriction 필드가 아직 없으므로 public `resources/procurement/restrictions.ts`는
 의도적으로 만들지 않는다. source ingestion의 별도 제한 정보가 곧바로 공개 lifecycle 계약이 되지는 않는다.
@@ -130,7 +140,7 @@ apps/dataplane/src/eatbid/generated/
 호출하고 test clock은 고정 Instant를 반환한다. source adapter는 `Asia/Seoul` IANA zone으로 입력을
 해석한다. absolute timestamp를 표시할 때만 사용자의 zone으로 바꾸며 저장 의미를 바꾸지 않는다.
 
-## 4. 금액과 비율
+## 4. 금액·비율·출처 코드
 
 ### 금액
 
@@ -157,6 +167,53 @@ apps/dataplane/src/eatbid/generated/
 `BidRate`와 `FloorRate`는 같은 표현이라도 서로 다른 업무 사실이다. `PercentagePoints ↔ Ratio`
 변환은 명명한 함수만 허용한다. source 범위 밖 값은 raw에서 삭제하지 않고 validation/quarantine 상태로
 남긴다. `double precision`은 canonical rate DDL에 사용하지 않는다.
+
+#### wire 비율 계약 다섯이 나뉘어 있는 이유
+
+`packages/contracts/src/values/rate.ts`의 다섯은 표현이 겹쳐도 범위와 소비자가 다르다. 하나로
+합치면 좁은 계약이 넓은 관측을 격리하거나, 넓은 계약이 공개 응답의 범위 보장을 잃는다.
+
+| wire 계약 | 정밀도·범위 | 지금 쓰는 곳 | 왜 따로 두나 |
+|---|---|---|---|
+| `PercentagePoints` | 소수 6자리, 0~100 | 공개 API 응답의 일반 비율 | 표시 단위의 기본형 |
+| `Ratio` | 소수 6자리, 0~1 | 아직 자원 필드 소비자가 없다. 경계 테스트만 고정한다 | `PercentagePoints`의 계산 단위 짝. 0~1로 닫힌 계약이 필요할 때 새로 만들지 않게 자리를 지킨다 |
+| `BidRate` | 소수 3자리, 0~100 | ingestion v2 `terms.floorRate`, api/v1 회차 응답의 낙찰률·2등·그날 하한 | mart `numeric(6,3)`과 같은 정밀도. 하한율과 공개 낙찰률은 정의상 100을 넘지 않는다 |
+| `ObservedBidRate` | 소수 3자리, 정수부 최대 12자리, **상한 없음** | ingestion v2 `submission.bidRate`, `award.awardedRate`, `award.runnerUpRate` | `SAJEONG_PCT`는 예정가격 대비 소스 계산값이라 100을 넘고 단가 입찰에서는 훨씬 크게 튄다. 상한을 두면 관측을 격리하게 된다(규칙 3) |
+| `ReservePriceRatio` | 소수 6자리, 0~9.999999 | ingestion v2 `reservePriceDraw` 후보의 `ratio` | `CMNM_PLNPRC_RT`는 0~1 비율이 아니라 기초금액 대비 배율이라 1을 넘는 관측이 있다 |
+
+`ObservedBidRate`의 **mart 표현은 미결이다.** `numeric(6,3)`에 들어가지 않으므로 mart column을
+소유하는 EAT-43·44가 정한다. 공개 API가 계속 `BidRate`인 이유는 낙찰 행의 사정률이 100을 넘는 공고가
+전수에서 0건이기 때문이며, 그 관측 근거는
+[2026-09-04 전수 재정규화 리포트](../evidence/normalization/2026-09-04-eat-v2-renormalization.md)
+(계산 버전 `eat-v2-r3`)다.
+
+### 출처 코드 값
+
+외부 코드는 `SourceCodedValue`로 수신한다. 권위는 `(source_system, code_scheme, code)` 세 값이고
+`label`은 사람이 코드의 의미를 확인할 **증거**다. 라벨로 조인하거나 라벨을 상태로 승격하지 않으며,
+라벨이 비어 오는 코드가 있으므로 nullable이다(규칙 2·3).
+
+`normalizedSupplierAccount.sourceSystem`도 같은 규칙을 따른다. 계정 코드와 사업자번호는 각각
+`SourceCodedValue`로 관측 그대로 보존되고, 어느 쪽도 내부 정체성이 아니다. `SupplierParty`로의 승격은
+projector가 별도 정책으로 한다(`domain-and-data.md` §3.3).
+
+ingestion v2가 지금 싣는 code scheme은 여덟이다. 문자열은 파서가 소유하며 아래가 전부다.
+
+| code scheme | 원본 column | 파서 |
+|---|---|---|
+| `eat:BID_STT` | `ds_bidList.BID_STT` (라벨 `BID_STT_NM`) | `source/eat/roster.py` |
+| `eat:WITHDRAWAL_YN` | `ds_bidList.WITHDRAWAL_YN` | `source/eat/roster.py` |
+| `eat:SHIPPER_CD` | `ds_bidList.SHIPPER_CD` (라벨 `SHIPPER_NM`) | `source/eat/roster.py` |
+| `eat:BIZ_NO` | `ds_bidList.BIZ_NO` | `source/eat/roster.py` |
+| `eat:PLNPRC_TYPE_CD` | `ds_info.PLNPRC_TYPE_CD` | `source/eat/auction_terms.py` |
+| `eat:SUCBID_DCSN_MTH_CD` | `ds_info.SUCBID_DCSN_MTH_CD` | `source/eat/auction_terms.py` |
+| `eat:CHC_YN` | `ds_pList.CHC_YN` | `source/eat/reserve_price.py` |
+| `eat:ETN_BID_STT` | `ds_bidHistory.ETN_BID_STT` | `source/eat/lineage.py` |
+
+낙찰 방식은 `SUCBD_DECISION_MTHD`가 아니라 `SUCBID_DCSN_MTH_CD`다. 앞 이름은 `ds_bidList`·
+`ds_bidHistory`에만 있고 `ds_info`에는 없으며, `SUCBD_DECISION_MTHD_NM`은 라벨이지 코드가 아니다.
+이 여덟의 의미 등록(`CodeScheme`의 소유기관·버전·유효기간)은 EAT-43의 몫이고, 그때도 같은 문자열을
+쓴다. 서로 다른 scheme을 매핑 없이 같다고 보지 않는다(규칙 6).
 
 ## 5. 수량·용량·합성 단위
 

@@ -1,3 +1,5 @@
+"""모듈 책임: 공고 하나의 capture→normalize→validate→project를 checkpoint로 재개 가능하게 잇는다."""
+
 from __future__ import annotations
 
 import re
@@ -8,6 +10,7 @@ from typing import TypedDict
 from uuid import UUID
 
 from eatbid.core.models import ProjectResult
+from eatbid.core.record_types import is_projectable_record_type
 from eatbid.core.repository import (
     CanonicalProjectionRepository,
     ProjectionContractError,
@@ -213,6 +216,7 @@ def _run_foundation_slice_locked(
         expected_count=expected_count,
     )
     _verify_checkpoint(checkpoint, **identity)
+    contract_failure: str | None = None
     if checkpoint.status == "failed":
         _raise_stored_failure(checkpoint)
     if checkpoint.status == "published":
@@ -266,6 +270,11 @@ def _run_foundation_slice_locked(
             )
         except DataQuarantinedError:
             pass
+        except SourceContractError as error:
+            # replay와 같은 이유다. 소스 계약이 막은 관측은 정규화 행 없이 남고, run 단위 판정은
+            # 아래 완성도 검사가 내려 checkpoint에 실패로 기록한다. 사유를 들고 가지 않으면 그
+            # checkpoint에는 "소스 계약 실패"만 남고 무엇이 막았는지는 사라진다.
+            contract_failure = str(error)
         checkpoint = _reload_and_verify(services.checkpoint_repository, **identity)
 
     if checkpoint.status == "running":
@@ -282,7 +291,7 @@ def _run_foundation_slice_locked(
                 required_status="failed",
                 **identity,
             )
-            _raise_stored_failure(checkpoint)
+            _raise_stored_failure(checkpoint, observed_reason=contract_failure)
         checkpoint = _reload_and_verify(
             services.checkpoint_repository,
             required_status="validated",
@@ -798,9 +807,11 @@ def _verify_normalization_lineage(checkpoint: FoundationCheckpoint) -> None:
 def _verify_normalized_auction_contract(
     normalization: FoundationNormalizationCheckpoint,
 ) -> None:
-    if normalization.record_type != "auction.v1":
+    record_type = normalization.record_type
+    if record_type is None or not is_projectable_record_type(record_type):
         raise FoundationIntegrityError(
-            "terminal normalization record_type must be auction.v1"
+            "terminal normalization record_type must be projectable "
+            f"[record_type={record_type}]"
         )
     source_entity_id = normalization.source_entity_id
     if (
@@ -889,11 +900,21 @@ def _result_from_checkpoint(
     )
 
 
-def _raise_stored_failure(checkpoint: FoundationCheckpoint) -> None:
+def _raise_stored_failure(
+    checkpoint: FoundationCheckpoint, *, observed_reason: str | None = None
+) -> None:
+    """저장된 실패를 다시 던진다. 같은 실행에서 관측한 사유가 있으면 함께 싣는다.
+
+    checkpoint에는 실패 범주만 남고 사유는 남지 않는다. 재개된 실행은 사유를 알 수 없지만, 실패를
+    처음 만든 실행은 알고 있으므로 그 문장을 버리지 않고 넘긴다.
+    """
     if checkpoint.failure_category == SOURCE_THROTTLED:
         raise SourceThrottledError(429)
     if checkpoint.failure_category == SOURCE_CONTRACT:
-        raise SourceContractError("foundation previously failed the source contract")
+        reason = "foundation previously failed the source contract"
+        raise SourceContractError(
+            reason if observed_reason is None else f"{reason}: {observed_reason}"
+        )
     if checkpoint.failure_category == DATA_QUARANTINED:
         normalization = checkpoint.normalization
         if (

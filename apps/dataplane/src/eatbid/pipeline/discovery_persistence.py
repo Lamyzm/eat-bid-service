@@ -49,7 +49,9 @@ class RawFirstDiscoveryPersistence:
         )
 
     def plan_page(self, plan: DiscoveryPlan, page_number: int) -> PlannedRequestUnit:
-        params = require("bid-list").build_page_params(
+        params = require(
+            "bid-list", parser_version=plan.parser_version
+        ).build_page_params(
             start_date=plan.start_date,
             end_date=plan.end_date,
             progress_status_code=plan.progress_status_code,
@@ -88,7 +90,7 @@ class RawFirstDiscoveryPersistence:
     def plan_detail(
         self, plan: DiscoveryPlan, external_bid_id: str
     ) -> PlannedRequestUnit:
-        contract = require("bid-detail")
+        contract = require("bid-detail", parser_version=plan.parser_version)
         return self._ingest.plan_request_unit(
             run_id=plan.detail_run_id,
             source="eat",

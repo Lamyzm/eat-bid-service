@@ -31,5 +31,11 @@ dev = [
     "testcontainers[postgres]>=4,<5",
 ]
 
+[tool.pytest.ini_options]
+markers = ["lake: 로컬 원본 레이크가 있을 때만 도는 테스트"]
+# 기본 스위트는 이 PC의 로컬 원본 레이크에 의존하지 않는다. 레이크 대조는 `-m lake`로 명시해 돌리며
+# 명령줄의 `-m`이 뒤에 와서 이 기본값을 이긴다.
+addopts = ["-m", "not lake"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["eatbid", "fakes"]
