@@ -3,10 +3,6 @@
   "legacyCommit": "e7fdcd2f6d2a7ddddc67a3ad1ec6134c60890537",
   "entries": [
     {
-      "path": "apps/dataplane/scripts/generate_contract_models.py",
-      "sha256": "a67b042a5e13b498c7f63c76f0a372af15b9591f150c8548b50a4ddc42a79663"
-    },
-    {
       "path": "apps/dataplane/src/eatbid/cli.py",
       "sha256": "d1ae481bec095ef9011462230f77a1aa7e37482a29a95c7a147e318b7274ab5f"
     },
@@ -1057,10 +1053,6 @@
     {
       "path": "tools/quality/python_semantic_origins.py",
       "sha256": "f823f0d78530395eddf542bb76881f50edbf928f2ed7fc78c0e206217ca01319"
-    },
-    {
-      "path": "tools/quality/test_check_python_semantic_values.py",
-      "sha256": "82d071f897c95b10ea6a35d3cb68f38a803122070bfc29f8397bedacbbaaa910"
     }
   ]
 }

@@ -1,3 +1,8 @@
+"""모듈 책임: `check-python-semantic-values.py`의 AST 규칙(naive datetime, raw sleep,
+float 금액·비율, 손 작성 정규화 Pydantic 모델)이 의도한 위반만 잡고 정당한 코드를 통과시키는지
+합성 fixture로 고정한다.
+"""
+
 from __future__ import annotations
 
 import json
@@ -674,6 +679,20 @@ class EatSourcePayload(BaseModel):
             "apps/dataplane/src/eatbid/generated/ingestion_v1.py": """
 from pydantic import BaseModel
 class GeneratedAuction(BaseModel):
+    auction_id: str
+""",
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_generated_디렉터리의_다른_계약_생성물도_예외로_허용한다(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        {
+            "apps/dataplane/src/eatbid/generated/ingestion_v2.py": """
+from pydantic import BaseModel
+class EatbidIngestionAuctionV2(BaseModel):
     auction_id: str
 """,
         },

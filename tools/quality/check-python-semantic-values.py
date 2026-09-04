@@ -1,3 +1,8 @@
+"""모듈 책임: dataplane Python 소스에서 금액·비율 값이 float나 손으로 쓴 정규화 Pydantic 모델을
+통과하지 않는지, naive datetime과 raw sleep 값이 남지 않았는지 AST로 검사한다. `generated/` 아래
+전체가 계약별 생성기의 산출물이므로 손 작성 모델 금지 규칙에서 함께 예외로 둔다.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -20,7 +25,7 @@ SEMANTIC_TOKENS = {
     "percentage",
 }
 SOURCE_MODEL_PREFIX = "apps/dataplane/src/eatbid/source/"
-GENERATED_MODEL = "apps/dataplane/src/eatbid/generated/ingestion_v1.py"
+GENERATED_MODEL_PREFIX = "apps/dataplane/src/eatbid/generated/"
 
 
 @dataclass(frozen=True, order=True)
@@ -112,7 +117,7 @@ class SemanticVisitor(ast.NodeVisitor):
         )
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        allowed_model = self.path.startswith(SOURCE_MODEL_PREFIX) or self.path == GENERATED_MODEL
+        allowed_model = self.path.startswith(SOURCE_MODEL_PREFIX) or self.path.startswith(GENERATED_MODEL_PREFIX)
         if not allowed_model:
             origins = set().union(*(self.resolver.origins(base) for base in node.bases)) if node.bases else set()
             if any(origin.endswith(("pydantic.BaseModel", "pydantic.RootModel")) for origin in origins):
