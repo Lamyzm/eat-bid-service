@@ -2,7 +2,7 @@
 id: EVIDENCE-BID-ROSTER-2026-09-03
 status: active
 canonical_for: eat-detail-bid-roster
-last_reviewed: 2026-09-03
+last_reviewed: 2026-09-04
 review_trigger: eat-detail-contract-or-screen-scope-change
 ---
 
@@ -61,9 +61,28 @@ review_trigger: eat-detail-contract-or-screen-scope-change
 `SAJEONG_PCT` 분포와 경쟁자 수는 판단 재료다. 이것으로 추천 투찰가나 예측가를 만들지 않는다.
 AGENTS 규칙 8과 ADR 0030이 정한 경계다. 화면은 과거 분포를 보이고 입력과 결정은 사용자의 행위다.
 
-## 6. 확인하지 않은 것
+## 6. `ds_pList`와 `SAJEONG_PCT`의 분모
 
-- `ds_pList`가 복수예정가격 후보가 맞는지.
-- `ds_bidHistory`가 재입찰 이력이 맞는지. 재공고·차수 연결의 근거가 될 수 있다.
-- `SAJEONG_PCT`의 분모가 예정가격인지 기초금액인지.
-- 유찰·공고취소 공고의 `ds_bidList` 모양.
+`ds_pList`는 복수예정가격 후보다. `ELCTRN_BID_ID=5669410`(창원 남산초, 2025-11-20 개찰)에서
+15행을 관측했다. 컬럼은 `CMNM_PLNPRC`(후보 예정가), `CMNM_PLNPRC_RT`(기준 대비 배율, 0.9701~1.0218
+분포), `CMNM_PLNPRC_SN`(1~15 번호), `CHC_YN`(15행 중 4행이 `Y`)이다. `ds_info.PLNPRC_TYPE_CD=002`,
+`PLNPRCE_TYPE_NM=복수예정가격`, `PLNPRCE_SUCBD_STD=90`과 함께 나타나 `docs/evidence/source-boundary/
+2026-09-03-bid-roster-coverage.md` §7의 역산 결론(예정가격은 참여자 추첨으로 정해지고 `SAJEONG_PCT`는
+기초금액이 아니라 그 예정가격 대비 비율)과 같은 모양이다. 후보 표를 예정가격으로 집계하는 정확한
+규칙(최다 득표·평균·가중 여부)은 여전히 확인하지 않았다.
+
+## 7. `ds_bidHistory`가 재입찰 이력이다
+
+`ELCTRN_BID_ID=5306521`(완도 소안초·소안중, 2023-09-21 개찰, `RBID_YN=Y`)에서 `ds_bidHistory` 3행을
+관측했다. `ETN_BID_ID` 기준 시간순으로 5301243(유찰) → 5306354(유찰) → 5306521(낙찰)이고, `BID_NM`은
+첫 행에 "[재입찰]" 접미사가 없고 이후 두 행에는 있다 — 같은 공고가 유찰을 두 번 겪고 세 번째 차수에서
+낙찰까지 간 재공고 사슬이다. `ds_info.UP_ELCTRN_BID_ID=5306354`는 `ds_bidHistory`의 직전 차수
+`ETN_BID_ID`와 일치한다. 즉 `UP_ELCTRN_BID_ID`는 바로 앞 차수 하나만 가리키고, 전체 사슬(원 공고까지)은
+`ds_bidHistory`가 담당한다. 재공고·차수 연결은 이 두 필드를 함께 읽어야 한다.
+
+## 8. 확인하지 않은 것
+
+- 유찰·공고취소 공고의 `ds_bidList` 모양. §2·§6은 낙찰까지 간 공고만 봤다.
+  `2026-09-03-bid-roster-coverage.md` §2는 목록 대조로 유찰·공고취소가 `ds_bidList` 행 수 0을
+  낸다는 것만 확인했고, 그 공고들의 상세 응답 자체는 아직 열어보지 않았다.
+- 복수예정가격 후보 표를 예정가격으로 집계하는 정확한 규칙(§6).
