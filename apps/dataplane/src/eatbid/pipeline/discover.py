@@ -218,7 +218,7 @@ def _fetch_page(
     response = client.fetch(request)
     observation = repository.archive_observation(request, response)
     try:
-        page = parse_bid_list_page(response.body)
+        page = parse_bid_list_page(response.body, parser_version=plan.parser_version)
     except EatPayloadError:
         raise SourceContractError("discovery response is malformed") from None
     return observation, page

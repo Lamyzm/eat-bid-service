@@ -23,35 +23,54 @@ from eatbid.source.eat.xml import parse_nexacro
 _NONNEGATIVE_DECIMAL = re.compile(r"0|[1-9][0-9]*")
 _POSITIVE_DECIMAL = re.compile(r"[1-9][0-9]*")
 
-_BID_LIST_SCHEMA = reviewed_schema_contract(
-    source="eat", endpoint="bid-list", parser_version="eat-v1"
-)
-if _BID_LIST_SCHEMA is None:  # pragma: no cover - import-time invariant
-    raise RuntimeError("reviewed bid-list schema contract is required")
-(_BID_LIST_DATASET,) = tuple(_BID_LIST_SCHEMA.datasets)
 _TOTAL_COUNT_FIELD = "TOT_CNT"
 _EXTERNAL_BID_ID_FIELD = "ETN_BID_ID"
 _COMPETITOR_COUNT_FIELD = "BID_CNT"
 _LIST_STATUS_FIELD = "ETN_BID_STT_NM"
 _LIST_DEADLINE_FIELD = "BID_END_DT"
 _LIST_LAST_CHANGED_FIELD = "LAST_CHG_DT"
-_LIST_REQUIRED_FIELDS = _BID_LIST_SCHEMA.required_datasets[_BID_LIST_DATASET]
-if set(_LIST_REQUIRED_FIELDS) != {
-    _TOTAL_COUNT_FIELD,
-    _EXTERNAL_BID_ID_FIELD,
-    _COMPETITOR_COUNT_FIELD,
-    _LIST_STATUS_FIELD,
-    _LIST_DEADLINE_FIELD,
-    _LIST_LAST_CHANGED_FIELD,
-}:  # pragma: no cover - import-time invariant
-    raise RuntimeError("bid-list parser and reviewed required columns diverged")
+_PARSED_REQUIRED_FIELDS = frozenset(
+    {
+        _TOTAL_COUNT_FIELD,
+        _EXTERNAL_BID_ID_FIELD,
+        _COMPETITOR_COUNT_FIELD,
+        _LIST_STATUS_FIELD,
+        _LIST_DEADLINE_FIELD,
+        _LIST_LAST_CHANGED_FIELD,
+    }
+)
 
 
-def parse_bid_list_page(payload: bytes) -> BidListPage:
+def _list_dataset(parser_version: str) -> str:
+    """실행 단위의 parser version으로 목록 계약을 찾고 파서와 어긋나지 않는지 검사한다.
+
+    왜 import 시점 상수가 아닌가. 여기서 version을 고정하면 새 parser version으로 도는 발견이 예전
+    계약의 필수 column으로 검증되고, 목록 계약이 갈라져도 아무도 알아채지 못한다. 실패는 발견
+    단계가 아니라 한참 뒤 fingerprint 불일치로 드러난다. 상세 경로(`pipeline/normalize.py`)가 같은
+    이유로 registry에서 계약을 읽는다.
+    """
+    contract = reviewed_schema_contract(
+        source="eat", endpoint="bid-list", parser_version=parser_version
+    )
+    if contract is None:
+        raise SourceContractError(
+            f"reviewed bid-list schema contract is unknown [parser_version={parser_version}]"
+        )
+    (dataset,) = tuple(contract.datasets)
+    if set(contract.required_datasets[dataset]) != _PARSED_REQUIRED_FIELDS:
+        raise SourceContractError(
+            "bid-list parser and reviewed required columns diverged "
+            f"[parser_version={parser_version}]"
+        )
+    return dataset
+
+
+def parse_bid_list_page(payload: bytes, *, parser_version: str) -> BidListPage:
+    dataset = _list_dataset(parser_version)
     parsed = parse_nexacro(payload)
-    rows = parsed.datasets.get(_BID_LIST_DATASET)
+    rows = parsed.datasets.get(dataset)
     if not rows:
-        raise SourceContractError(f"{_BID_LIST_DATASET} must contain at least one row")
+        raise SourceContractError(f"{dataset} must contain at least one row")
 
     totals = {row.get(_TOTAL_COUNT_FIELD, "") for row in rows}
     if len(totals) != 1:
