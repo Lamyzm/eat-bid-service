@@ -33,6 +33,11 @@ describe("공개 운영 계약", () => {
       path: "/api/v1/auctions/{auctionId}",
       operationId: "findAuction",
     });
+    expect(module!.organizationV1Operations.listAuctionAttempts).toMatchObject({
+      handlerPath: ":organizationId/auction-attempts",
+      path: "/api/v1/organizations/{organizationId}/auction-attempts",
+      operationId: "listOrganizationAuctionAttempts",
+    });
     expect("auctionOperations" in module!).toBe(false);
     expect("auctionResponseSchema" in module!).toBe(false);
     expect("AuctionResponse" in module!).toBe(false);

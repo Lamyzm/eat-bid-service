@@ -1,22 +1,23 @@
+/** @module 책임: mart.org_round_summary 한 행을 담는 기관 회차 요약 resource와 meta 계약을 소유한다. */
 import { z } from "zod";
 
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { moneyWireSchema } from "../../../values/money";
-import { percentagePoints3WireSchema } from "../../../values/rate";
+import { bidRateWireSchema } from "../../../values/rate";
 
 export const organizationAuctionAttemptSchema = z.strictObject({
   attemptId: positiveBigintTextSchema,
   announcedAt: instantTextSchema,
   openedAt: instantTextSchema.nullable(),
   item: z.strictObject({ codeValueId: positiveBigintTextSchema, label: z.string().min(1).max(128) }).nullable(),
-  // mart.org_round_summary 비율 열은 numeric(6,3)이라 3자리 wire 계약을 쓴다(values/rate.ts).
-  floorRate: percentagePoints3WireSchema.nullable(),
+  // eaT 사정률·낙찰률은 소수 셋째 자리까지 관측되며 mart numeric(6,3)과 같다(values/rate.ts).
+  floorRate: bidRateWireSchema.nullable(),
   baseAmount: moneyWireSchema,
-  winRate: percentagePoints3WireSchema.nullable(),
-  secondRate: percentagePoints3WireSchema.nullable(),
-  dayFloorRate: percentagePoints3WireSchema.nullable(),
+  winRate: bidRateWireSchema.nullable(),
+  secondRate: bidRateWireSchema.nullable(),
+  dayFloorRate: bidRateWireSchema.nullable(),
   listCount: nonNegativeCountSchema.nullable(),
   invalidCount: nonNegativeCountSchema.nullable(),
   winnerSupplierPartyId: positiveBigintTextSchema.nullable(),

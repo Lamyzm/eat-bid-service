@@ -40,5 +40,9 @@ describe("listOrganizationAuctionAttempts 계약", () => {
     };
     expect(organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse(row)).toEqual(row);
     expect(() => organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse({ ...row, winRate: 90.309 })).toThrow();
+    expect(() => organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse({
+      ...row,
+      baseAmount: { amount: "2761700.00", currency: "USD" },
+    })).toThrow();
   });
 });

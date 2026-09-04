@@ -7,10 +7,12 @@ import { createOperationRegistry, defineOperation, pathParameter } from "../../o
 import { organizationAuctionAttemptsV1ResponseSchema } from "./list-auction-attempts.response";
 
 // limit 상한 200은 pages-endpoints-load.md의 "기관 회차 ≤ 200" 점 조회 상한과 같다.
+const DEFAULT_ATTEMPT_LIMIT = 12;
+
 export const organizationAuctionAttemptsQuerySchema = z.strictObject({
   item: positiveBigintTextSchema.optional(),
   cursor: positiveBigintTextSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(12),
+  limit: z.coerce.number().int().min(1).max(200).default(DEFAULT_ATTEMPT_LIMIT),
 });
 
 export const organizationV1Operations = {
@@ -23,7 +25,7 @@ export const organizationV1Operations = {
     summary: "기관의 회차 요약을 최근 순으로 조회한다",
     tags: ["procurement"],
     pathSchema: z.strictObject({ organizationId: positiveBigintTextSchema }),
-    querySchema: organizationAuctionAttemptsQuerySchema.default({ limit: 12 }),
+    querySchema: organizationAuctionAttemptsQuerySchema.default({ limit: DEFAULT_ATTEMPT_LIMIT }),
     bodySchema: z.undefined(),
     successResponses: { 200: { description: "기관 회차 요약 조회 성공", schema: organizationAuctionAttemptsV1ResponseSchema } },
     problemResponses: {

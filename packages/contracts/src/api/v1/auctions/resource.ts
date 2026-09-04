@@ -1,3 +1,4 @@
+/** @module 책임: 공개 공고 V1 응답에 실리는 수명주기별 resource 조합을 소유한다. */
 import { z } from "zod";
 
 import { publicAuctionIdentitySchema } from "../../../resources/procurement/identity";

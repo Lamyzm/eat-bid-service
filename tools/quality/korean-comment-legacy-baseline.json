@@ -891,14 +891,6 @@
       "sha256": "7df23651874385a67ebc1e322cca9f106ea5e33a74d308755820a12fd89faa7c"
     },
     {
-      "path": "packages/contracts/src/api/v1/auctions/resource.ts",
-      "sha256": "9cd32c3f295ed9ce6ad6c879d574831a51eadf9a6a6979b9c655e9c109a9ac6a"
-    },
-    {
-      "path": "packages/contracts/src/atoms/decimal.ts",
-      "sha256": "62fa1a01b8b4f1400c027a024539152be56724f053365a90d83c1cb97d06812a"
-    },
-    {
       "path": "packages/contracts/src/atoms/geo.ts",
       "sha256": "44172d913881ee85f16d99ea339b42bce0bf029983e0e7e220dc70b50f0f17a1"
     },
@@ -985,10 +977,6 @@
     {
       "path": "packages/contracts/src/values/provenance.ts",
       "sha256": "a149a5ab777cb7eb8ffbdf910d3af7c7a6a4888fb9305df44fa3b9585898046c"
-    },
-    {
-      "path": "packages/contracts/src/values/rate.ts",
-      "sha256": "6a2918a4ed94a6722a9cb757743f64401f4e5126403404eda21f5caab6bd371d"
     },
     {
       "path": "packages/db/src/migrate.ts",

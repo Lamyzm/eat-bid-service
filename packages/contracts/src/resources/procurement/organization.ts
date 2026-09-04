@@ -1,3 +1,4 @@
+/** @module 책임: 공고 응답에 싣는 구매기관 resource를 소유하며 id만을 정체성으로 강제한다. */
 import { z } from "zod";
 
 import { positiveBigintTextSchema } from "../../atoms/identifier";
