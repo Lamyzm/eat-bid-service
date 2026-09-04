@@ -114,6 +114,43 @@ def test_파서_버전이_다른_이어_돌기_상태는_조용히_쓰지_않고
         build_report(lake, calc_version="test", state=state)
 
 
+def test_계약_schema가_바뀐_이어_돌기_상태는_조용히_쓰지_않고_멈춘다(
+    tmp_path: Path,
+) -> None:
+    lake = _lake_with_three_files(tmp_path)
+    state = tmp_path / "state.jsonl"
+    build_report(lake, calc_version="test", state=state)
+    lines = state.read_text(encoding="utf-8").splitlines()
+    stale = {**state_header(), "schema_sha256": "0" * 64}
+    state.write_text(
+        "\n".join([json.dumps({"header": stale}, ensure_ascii=False), *lines[1:]]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit, match="schema_sha256"):
+        build_report(lake, calc_version="test", state=state)
+
+
+def test_관측_필드가_바뀐_이어_돌기_상태는_조용히_쓰지_않고_멈춘다(
+    tmp_path: Path,
+) -> None:
+    lake = _lake_with_three_files(tmp_path)
+    state = tmp_path / "state.jsonl"
+    build_report(lake, calc_version="test", state=state)
+    lines = state.read_text(encoding="utf-8").splitlines()
+    header = state_header()
+    observation_fields = header["observation_fields"]
+    assert isinstance(observation_fields, list)
+    stale = {**header, "observation_fields": observation_fields[:-1]}
+    state.write_text(
+        "\n".join([json.dumps({"header": stale}, ensure_ascii=False), *lines[1:]]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit, match="observation_fields"):
+        build_report(lake, calc_version="test", state=state)
+
+
 def test_표식이_없는_옛_이어_돌기_상태는_거부한다(tmp_path: Path) -> None:
     lake = _lake_with_three_files(tmp_path)
     state = tmp_path / "state.jsonl"
