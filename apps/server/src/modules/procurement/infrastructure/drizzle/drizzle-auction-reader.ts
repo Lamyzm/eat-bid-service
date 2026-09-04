@@ -68,7 +68,9 @@ export function mapAuctionRow(row: AuctionRow): AuctionRecord {
       ? null
       : {
         organizationId: bigintValue(row.organization_id),
-        name: row.organization_name,
+        // 공백뿐인 canonical_name은 이름이 관측된 것이 아니라 비어 있는 것이다. 빈 문자열을 이름으로
+        // 내보내면 화면이 이름 없는 기관을 이름 있는 기관처럼 그린다.
+        name: row.organization_name === null || row.organization_name.trim() === "" ? null : row.organization_name,
         type: row.organization_type,
       },
     provenance: {

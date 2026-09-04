@@ -1,4 +1,4 @@
-/** @module 책임: 공고 route의 ID 검증·조회·404 분기, 기관 회차 이력 병행 조회와 두 presentation의 조립 순서를 소유한다. */
+/** @module 책임: 공고 route의 ID 검증·조회·404 분기, 회차 이력 순차 조회(공고 응답의 organizationId가 있어야 조회할 수 있다)와 두 presentation의 조립 순서를 소유한다. */
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 import type { OrganizationAuctionAttemptsV1Response } from '@eatbid/contracts/api/v1/organizations';
 

@@ -23,9 +23,31 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       organizationId: "42",
       attempts: [],
       nextCursor: null,
-      meta: { sampleCount: 0, martRelease: null, computedAt: null, calcVersion: null },
+      meta: { sampleCount: 0, item: null, martRelease: null, computedAt: null, calcVersion: null },
     });
     expect(parsed.attempts).toHaveLength(0);
+  });
+
+  test("meta는 요청 품목 echo를 요구하고 품목 없는 조회는 null이다", () => {
+    const meta = organizationAuctionAttemptsV1ResponseSchema.shape.meta;
+    expect(meta.parse({ sampleCount: 3, item: "7", martRelease: null, computedAt: null, calcVersion: null }).item)
+      .toBe("7");
+    expect(() => meta.parse({ sampleCount: 3, martRelease: null, computedAt: null, calcVersion: null })).toThrow();
+    expect(() => meta.parse({ sampleCount: 3, item: "0", martRelease: null, computedAt: null, calcVersion: null }))
+      .toThrow();
+  });
+
+  test("품목 라벨은 512자까지 허용하고 그보다 길면 거부한다", () => {
+    const attempt = organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element;
+    const row = {
+      attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: null,
+      item: { codeValueId: "7", label: "가".repeat(512) },
+      floorRate: null, baseAmount: { amount: "2761700.00", currency: "KRW" },
+      winRate: null, secondRate: null, dayFloorRate: null, listCount: null, invalidCount: null,
+      winnerSupplierPartyId: null, supersedesAttemptId: null,
+    };
+    expect(attempt.parse(row).item?.label).toHaveLength(512);
+    expect(() => attempt.parse({ ...row, item: { codeValueId: "7", label: "가".repeat(513) } })).toThrow();
   });
 
   test("회차 행은 비율 단위와 금액 통화를 강제한다", () => {

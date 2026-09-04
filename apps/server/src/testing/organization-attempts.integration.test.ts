@@ -1,10 +1,11 @@
+// docker PostgreSQL이 필요한 통합 테스트이며 `database.integration.test.ts`와 같은 관행을 따른다.
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import request from "supertest";
-import { organizationV1Operations } from "@eatbid/contracts";
+import { auctionV1Operations, organizationV1Operations } from "@eatbid/contracts";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import type {
@@ -254,6 +255,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         expect(response.body.nextCursor).toBe("103");
         expect(response.body.meta).toEqual({
           sampleCount: 3,
+          item: null,
           martRelease: "2026-09-04T00",
           computedAt: "2026-09-04T00:10:00Z",
           calcVersion: "v1",
@@ -266,7 +268,9 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         );
         expect(foreignCursor.status).toBe(400);
         expect(foreignCursor.body.code).toBe("VALIDATION_ERROR");
-        const auction = await request(server).get("/api/v1/auctions/103");
+        const auction = await request(server).get(
+          auctionV1Operations.find.buildPath({ path: { auctionId: "103" } }),
+        );
         expect(auction.status).toBe(200);
         expect(auction.body.organization).toEqual({
           organizationId: "41",

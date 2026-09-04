@@ -322,7 +322,7 @@
                 "$ref": "#/components/schemas/PositiveBigintText"
               },
               "label": {
-                "maxLength": 128,
+                "maxLength": 512,
                 "minLength": 1,
                 "type": "string"
               }
@@ -416,6 +416,14 @@
             ],
             "nullable": true
           },
+          "item": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
           "martRelease": {
             "maxLength": 64,
             "minLength": 1,
@@ -428,6 +436,7 @@
         },
         "required": [
           "sampleCount",
+          "item",
           "martRelease",
           "computedAt",
           "calcVersion"

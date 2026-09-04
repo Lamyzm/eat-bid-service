@@ -141,7 +141,9 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
                    from mart.org_round_summary cursor_row
                    where cursor_row.auction_attempt_id = ${query.cursor}::bigint
                      and cursor_row.organization_id = ${query.organizationId}))
-      order by summary.announced_at desc, summary.auction_attempt_id desc
+      -- nulls last까지 org_round_summary_org_announced_idx와 같아야 planner가 정렬 없이 인덱스
+      -- pathkey를 그대로 쓴다. 위 cursor 튜플 비교도 이 순서 의미를 그대로 따른다.
+      order by summary.announced_at desc nulls last, summary.auction_attempt_id desc nulls last
       limit ${query.limit + 1}
     `);
     return Array.isArray(result) ? result as OrganizationAttemptRow[] : [];

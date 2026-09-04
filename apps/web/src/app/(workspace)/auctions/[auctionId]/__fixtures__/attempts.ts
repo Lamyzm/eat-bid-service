@@ -1,5 +1,8 @@
 /** 기관 회차 이력 화면 테스트가 공유하는 예시 fixture다. 숫자·시각·비율 값은 실제 관측치가 아니라
  * 형태만 실데이터(창원 남산초등학교 축산물 구매)를 본뜬 예시다.
+ *
+ * 300줄을 넘지만 분리하지 않는다(AGENTS 18): 회차 20건은 하나의 선언형 응답 예시라 나누면 같은
+ * 표본을 두 파일에서 맞춰 읽어야 하고, 함께 바뀌는 이유가 다른 경계가 없다.
  */
 import type { OrganizationAuctionAttemptsV1Response } from '@eatbid/contracts/api/v1/organizations';
 
@@ -310,6 +313,7 @@ export const attemptsFixture = {
   nextCursor: null,
   meta: {
     sampleCount: 92,
+    item: null,
     martRelease: '2026-09-04T00',
     computedAt: '2026-09-04T00:10:00Z',
     calcVersion: 'v1'

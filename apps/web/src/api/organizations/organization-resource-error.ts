@@ -23,17 +23,21 @@ class OrganizationCursorInvalidError extends Error {
   }
 }
 
+/**
+ * 서버는 잘못된 cursor와 그 밖의 query·경로 오류를 같은 400 VALIDATION_ERROR로 닫는다. 요청에
+ * cursor가 실렸을 때만 cursor 문제로 좁히고, 나머지 400은 원래 Problem 그대로 올려 보낸다.
+ */
 export function mapOrganizationResourceError(
   request: ContractRequest,
   error: unknown,
-  organizationId: string
+  input: { readonly organizationId: string; readonly hasCursor: boolean }
 ): unknown {
   if (!request.isProblem(error)) return error;
   if (error.status === 404 && error.code === 'ORGANIZATION_NOT_FOUND') {
-    return new OrganizationNotFoundError(organizationId, error);
+    return new OrganizationNotFoundError(input.organizationId, error);
   }
-  if (error.status === 400 && error.code === 'VALIDATION_ERROR') {
-    return new OrganizationCursorInvalidError(organizationId, error);
+  if (input.hasCursor && error.status === 400 && error.code === 'VALIDATION_ERROR') {
+    return new OrganizationCursorInvalidError(input.organizationId, error);
   }
   return error;
 }

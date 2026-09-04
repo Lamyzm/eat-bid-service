@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
 import { organizationV1Operations } from "@eatbid/contracts";
-import { canonicalDecimal, krw, percentagePoints, Temporal } from "@eatbid/domain";
+import { bidRate, canonicalDecimal, krw, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import type {
@@ -15,9 +15,9 @@ const attempt = {
   announcedAt: Temporal.Instant.from("2026-09-01T00:00:00Z"),
   openedAt: Temporal.Instant.from("2026-09-02T02:00:00Z"),
   item: { codeValueId: 7n, label: "축산" },
-  floorRate: percentagePoints(canonicalDecimal("90.000", 3)),
+  floorRate: bidRate(canonicalDecimal("90.000", 3)),
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
-  winRate: percentagePoints(canonicalDecimal("90.309", 3)),
+  winRate: bidRate(canonicalDecimal("90.309", 3)),
   secondRate: null,
   dayFloorRate: null,
   listCount: 17,
@@ -102,6 +102,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
         nextCursor: "9007199254740993",
         meta: {
           sampleCount: 92,
+          item: null,
           martRelease: "2026-09-04T00",
           computedAt: "2026-09-04T00:10:00Z",
           calcVersion: "v1",
@@ -131,8 +132,10 @@ describe("기관 회차 이력 HTTP 경로", () => {
         cursor: 9_007_199_254_740_993n,
         limit: 200,
       }] as never);
+      // 이력이 비어도 요청 품목은 되돌아와야 표본 0이 어느 코호트의 0인지 응답만으로 닫힌다.
       expect(response.body.meta).toEqual({
         sampleCount: 0,
+        item: "7",
         martRelease: null,
         computedAt: null,
         calcVersion: null,
@@ -201,7 +204,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       listAttempts: async () => ({
         kind: "page",
         page: {
-          attempts: [{ ...attempt, item: { codeValueId: 7n, label: "축".repeat(129) } }],
+          attempts: [{ ...attempt, item: { codeValueId: 7n, label: "축".repeat(513) } }],
           nextCursor: null,
           sampleCount: 1,
         },
@@ -210,7 +213,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       const response = await request(server).get(attemptsPath("42"));
       expect(response.status).toBe(500);
       expect(response.body.code).toBe("INTERNAL_ERROR");
-      expect(JSON.stringify(response.body)).not.toContain("축".repeat(129));
+      expect(JSON.stringify(response.body)).not.toContain("축".repeat(513));
     });
   });
 });

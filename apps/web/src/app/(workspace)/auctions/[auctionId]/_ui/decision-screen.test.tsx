@@ -64,6 +64,18 @@ describe('결정 화면', () => {
     expect(query.get('item')).toBe('7');
   });
 
+  test('과거 회차 캡션은 표가 실제로 그린 행 수를 적는다', () => {
+    const full = render(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} />);
+    expect(full.getByText(`${attemptsFixture.meta.sampleCount}회 · 최근 12회 표시`)).toBeTruthy();
+
+    const fiveRows: DecisionPageData['history'] = {
+      state: 'ready',
+      presentation: presentHistory({ ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, 5) }, '7')
+    };
+    const short = render(<DecisionScreen decision={decision()} search={flowSearch} history={fiveRows} />);
+    expect(short.getByText(`${attemptsFixture.meta.sampleCount}회 · 최근 5회 표시`)).toBeTruthy();
+  });
+
   test('구매기관이 정규화되지 않은 공고는 흐름 탭에서 이유를 그대로 말한다', () => {
     const markup = renderToStaticMarkup(<DecisionScreen decision={decision()} search={flowSearch} history={{ state: 'no-organization' }} />);
     expect(markup).toContain('이 공고의 구매기관이 아직 정규화되지 않았습니다');

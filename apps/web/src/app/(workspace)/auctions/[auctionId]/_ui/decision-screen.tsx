@@ -9,7 +9,7 @@ import { DecisionBanner } from './decision-banner';
 import { DecisionFrame } from './decision-frame';
 import { DecisionHeader } from './decision-header';
 import { EvidenceTabs, HISTORY_PENDING_REASON } from './evidence-tabs';
-import { HistoryTable } from './history-table';
+import { HistoryTable, SHOWN_ROWS } from './history-table';
 import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
 
@@ -20,7 +20,11 @@ function HistoryCard({ presentation }: { readonly presentation: HistoryPresentat
     <div className='overflow-hidden rounded-xl bg-card shadow-xs'>
       <div className='flex items-baseline gap-2 px-4 pt-4'>
         <span className='text-xl font-bold'>과거 회차</span>
-        <span className='text-[13px] font-semibold text-muted-foreground'>{presentation.sampleCount}회 · 최근 12회 표시</span>
+        {/* 표본 수는 전체 회차지만 표가 그리는 행은 상한에 걸린다. 실제로 그린 행 수를 적어야
+            "12회 표시"가 5행짜리 기관에서 거짓이 되지 않는다. */}
+        <span className='text-[13px] font-semibold text-muted-foreground'>
+          {presentation.sampleCount}회 · 최근 {Math.min(presentation.rows.length, SHOWN_ROWS)}회 표시
+        </span>
       </div>
       {/* 디자인 원문은 "파란 열"이지만 이 저장소의 primary 토큰은 파랑이 아니다. 색 이름 대신 자리로
           가리켜 테마가 바뀌어도 문구가 거짓이 되지 않게 한다. */}

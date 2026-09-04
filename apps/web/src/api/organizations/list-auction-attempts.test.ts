@@ -33,7 +33,13 @@ const validAttempts: OrganizationAuctionAttemptsV1Response = {
     }
   ],
   nextCursor: null,
-  meta: { sampleCount: 1, martRelease: '2026-09-04T00', computedAt: '2026-09-04T00:10:00Z', calcVersion: 'v1' }
+  meta: {
+    sampleCount: 1,
+    item: null,
+    martRelease: '2026-09-04T00',
+    computedAt: '2026-09-04T00:10:00Z',
+    calcVersion: 'v1'
+  }
 };
 
 function requestDouble(
@@ -140,7 +146,7 @@ describe('기관 회차 이력 resource 조회', () => {
     });
   });
 
-  test('400 VALIDATION_ERROR는 커서 무효 오류로 변환한다', async () => {
+  test('cursor를 보낸 요청의 400 VALIDATION_ERROR만 커서 무효 오류로 변환한다', async () => {
     const request = createContractRequest({
       fetch: async () =>
         Response.json(
@@ -164,6 +170,29 @@ describe('기관 회차 이력 resource 조회', () => {
       name: 'OrganizationCursorInvalidError',
       organizationId: '3101'
     });
+  });
+
+  test('cursor 없는 요청의 400 VALIDATION_ERROR는 원래 Problem으로 남는다', async () => {
+    const request = createContractRequest({
+      fetch: async () =>
+        Response.json(
+          {
+            type: 'https://eatbid.dev/problems/validation-error',
+            title: '기관 ID 또는 query가 유효하지 않음',
+            status: 400,
+            code: 'VALIDATION_ERROR',
+            requestId: 'request-400'
+          },
+          { status: 400 }
+        )
+    });
+
+    const error = await listOrganizationAuctionAttemptsWith(request, {
+      organizationId: '3101',
+      item: '7'
+    }).catch((reason: unknown) => reason);
+    expect(isOrganizationCursorInvalidError(error)).toBe(false);
+    expect(error).toBeInstanceOf(HttpProblemError);
   });
 
   test('다른 Problem과 malformed status 및 abort 오류는 원래 typed failure를 유지한다', async () => {

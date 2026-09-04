@@ -6,12 +6,14 @@ import { problemDetailsSchema } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
 import { organizationAuctionAttemptsV1ResponseSchema } from "./list-auction-attempts.response";
 
-// limit 상한 200은 pages-endpoints-load.md의 "기관 회차 ≤ 200" 점 조회 상한과 같다.
+// 기본값 12는 결정 화면 과거 회차 표가 그리는 12행이다. 첫 화면이 표를 채우는 데 필요한 만큼만
+// 받아 흐름 차트와 표가 같은 한 응답을 쓴다.
 const DEFAULT_ATTEMPT_LIMIT = 12;
 
 export const organizationAuctionAttemptsQuerySchema = z.strictObject({
   item: positiveBigintTextSchema.optional(),
   cursor: positiveBigintTextSchema.optional(),
+  // 상한 200은 pages-endpoints-load.md의 "기관 회차 ≤ 200" 점 조회 상한과 같다.
   limit: z.coerce.number().int().min(1).max(200).default(DEFAULT_ATTEMPT_LIMIT),
 });
 

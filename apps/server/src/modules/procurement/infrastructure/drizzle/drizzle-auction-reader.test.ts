@@ -76,4 +76,30 @@ describe("DrizzleAuctionReader row 경계", () => {
     } as never);
     expect(record.organization).toBeNull();
   });
+
+  test("공백뿐인 canonical_name은 기관 이름을 unknown으로 남긴다", async () => {
+    const adapter = await import("./drizzle-auction-reader");
+    const record = adapter.mapAuctionRow({
+      auction_id: "41",
+      revision_id: "43",
+      title: "Fresh produce supply",
+      source_status: "OPEN",
+      display_bid_no: null,
+      announced_at: "2026-08-30T00:00:00Z",
+      deadline_at: null,
+      opened_at: null,
+      base_amount: "1000.00",
+      planned_amount: null,
+      currency: "KRW",
+      organization_id: "3101",
+      organization_name: "   ",
+      organization_type: "school",
+      source_system: "eat",
+      external_bid_id: "external-opaque-id",
+      observation_id: "45",
+      normalized_record_id: "47",
+      content_sha256: "a".repeat(64),
+    } as never);
+    expect(record.organization).toEqual({ organizationId: 3101n, name: null, type: "school" });
+  });
 });

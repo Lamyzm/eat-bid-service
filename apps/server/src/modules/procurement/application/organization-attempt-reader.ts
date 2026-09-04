@@ -1,21 +1,23 @@
 /** @module 책임: 기관 회차 이력 조회 port와 mart 요약 한 행의 application record 형태를 소유한다. */
-import type { Money, PercentagePoints, Temporal } from "@eatbid/domain";
+import type { BidRate, Money, Temporal } from "@eatbid/domain";
 import type { OrganizationId } from "../domain/organization-id";
 
 /**
  * mart.org_round_summary 한 행을 도메인 값으로만 표현한다. 계산 출처(mart_release,
  * computed_at, calc_version)를 행마다 들고 다녀야 화면이 어떤 파생 릴리스를 본 것인지 재현된다.
+ * 비율은 일반 percentage-point가 아니라 `BidRate`다. scale(소수 셋째 자리)과 범위를 어댑터
+ * 경계에서 한 번만 닫고, 직렬화 단계는 그 값을 다시 검증하지 않는다.
  */
 export interface OrganizationAttemptRecord {
   readonly attemptId: bigint;
   readonly announcedAt: Temporal.Instant;
   readonly openedAt: Temporal.Instant | null;
   readonly item: { readonly codeValueId: bigint; readonly label: string } | null;
-  readonly floorRate: PercentagePoints | null;
+  readonly floorRate: BidRate | null;
   readonly baseAmount: Money;
-  readonly winRate: PercentagePoints | null;
-  readonly secondRate: PercentagePoints | null;
-  readonly dayFloorRate: PercentagePoints | null;
+  readonly winRate: BidRate | null;
+  readonly secondRate: BidRate | null;
+  readonly dayFloorRate: BidRate | null;
   readonly listCount: number | null;
   readonly invalidCount: number | null;
   readonly winnerSupplierPartyId: bigint | null;

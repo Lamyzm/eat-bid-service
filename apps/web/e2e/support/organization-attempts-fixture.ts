@@ -72,7 +72,8 @@ export function organizationAttemptsResponse(request: Request): Response | null 
     organizationId: ORGANIZATION_ID,
     attempts: scoped.slice(0, query.limit),
     nextCursor: null,
-    meta: META
+    // 서버와 같이 요청 품목을 그대로 되돌려 실어야 화면이 fixture에서도 같은 코호트를 읽는다.
+    meta: { ...META, item: query.item ?? null }
   });
   return Response.json(body);
 }

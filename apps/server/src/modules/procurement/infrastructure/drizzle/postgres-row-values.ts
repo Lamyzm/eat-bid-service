@@ -1,5 +1,5 @@
 /** @module 책임: PostgreSQL 행의 식별자·금액·비율 문자열을 도메인 값으로 닫는 변환을 소유한다. */
-import { bidRate, canonicalDecimal, krw, type Money, type PercentagePoints } from "@eatbid/domain";
+import { bidRate, canonicalDecimal, krw, type BidRate, type Money } from "@eatbid/domain";
 
 export function bigintValue(value: string | bigint): bigint {
   // 드라이버 설정에 따라 문자열로 오는 bigint도 Number를 거치지 않고 동일한 도메인 값으로 복원한다.
@@ -24,7 +24,7 @@ export function moneyValue(amount: string | null, currency: string, required: bo
   }
 }
 
-export function bidRateValue(value: string | null): PercentagePoints | null {
+export function bidRateValue(value: string | null): BidRate | null {
   if (value === null) return null;
   try {
     // mart numeric(6,3)이 아닌 scale은 공개 계약이 거부하므로 어댑터 경계에서 먼저 실패한다.

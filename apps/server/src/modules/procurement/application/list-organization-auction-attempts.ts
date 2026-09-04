@@ -6,7 +6,7 @@ import {
   type OrganizationAuctionAttempt,
   type OrganizationAuctionAttemptsV1Response,
 } from "@eatbid/contracts";
-import { bidRate, canonicalDecimal, type PercentagePoints, type Temporal } from "@eatbid/domain";
+import type { BidRate, Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import { z } from "zod";
 import { AuctionDependencyUnavailable } from "./find-auction";
@@ -49,10 +49,10 @@ function bigintText(value: bigint | null): string | null {
   return value === null ? null : value.toString(10);
 }
 
-function rateText(value: PercentagePoints | null): BidRateWire | null {
-  // 공개 계약은 mart numeric(6,3)과 같은 소수 셋째 자리만 허용하므로 Number를 거치지 않고
-  // domain factory로 scale과 범위를 다시 닫는다.
-  return value === null ? null : { value: bidRate(canonicalDecimal(value, 3)), unit: "percentage-points" };
+function rateText(value: BidRate | null): BidRateWire | null {
+  // scale과 범위는 어댑터의 bidRateValue가 이미 닫았다. 여기서 다시 만들면 같은 불변식이 두 곳에
+  // 생겨 한쪽만 바뀔 때 조용히 갈라진다.
+  return value === null ? null : { value, unit: "percentage-points" };
 }
 
 function attemptResource(record: OrganizationAttemptRecord): OrganizationAuctionAttempt {
@@ -77,18 +77,20 @@ function attemptResource(record: OrganizationAttemptRecord): OrganizationAuction
 }
 
 export function toOrganizationAttemptsResponse(
-  organizationId: OrganizationId,
+  query: OrganizationAttemptQuery,
   page: OrganizationAttemptPage,
 ): OrganizationAuctionAttemptsV1Response {
   // 파생 출처는 행마다 붙어 있지만 응답의 meta는 가장 최근 회차가 어느 릴리스에서 계산됐는지를
   // 알린다. 이력이 비면 릴리스를 지어내지 않고 unknown으로 남긴다.
   const latest = page.attempts[0];
   return {
-    organizationId: organizationIdToString(organizationId),
+    organizationId: organizationIdToString(query.organizationId),
     attempts: page.attempts.map(attemptResource),
     nextCursor: bigintText(page.nextCursor),
     meta: {
       sampleCount: page.sampleCount,
+      // 표본을 좁힌 품목을 응답에 되돌려야 sampleCount가 어떤 코호트의 수인지 응답만으로 재현된다.
+      item: bigintText(query.itemCodeValueId),
       martRelease: latest?.martRelease ?? null,
       computedAt: latest === undefined ? null : z.encode(instantCodec, latest.computedAt),
       calcVersion: latest?.calcVersion ?? null,
@@ -120,7 +122,7 @@ export class ListOrganizationAuctionAttempts {
         })
         : Effect.fail(new OrganizationNotFound(query.organizationId))),
       Effect.flatMap((listing) => listing.kind === "page"
-        ? Effect.succeed(toOrganizationAttemptsResponse(query.organizationId, listing.page))
+        ? Effect.succeed(toOrganizationAttemptsResponse(query, listing.page))
         : Effect.fail(new AttemptCursorInvalid(query.organizationId, listing.cursor))),
     );
   }

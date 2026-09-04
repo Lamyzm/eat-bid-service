@@ -64,6 +64,23 @@ describe('이 값이면 재현 계산', () => {
     expect(rehearsal.wonFlags).toHaveLength(1);
   });
 
+  test('낙찰률이 없어도 그날 하한만 알면 무효로 센다', () => {
+    const rows = [
+      winRow('26-03-01', '2026', '90.200', null),
+      makeRow({
+        openedText: '26-02-01',
+        openedYear: '2026',
+        dayFloorText: '89.900',
+        dayFloorMilli: toMilli('89.900')
+      })
+    ];
+    const rehearsal = rehearse(rows, '89.000');
+    expect(rehearsal.invalid).toBe(1);
+    // 무효로 판정된 회차는 낙찰률이 없어도 분모에 들어간다.
+    expect(rehearsal.total).toBe(2);
+    expect(rehearsal.wonFlags).toEqual([false, true]);
+  });
+
   test('같은 값이면 추첨이므로 낙찰로 센다', () => {
     const rows = [winRow('26-01-01', '2026', '90.200', '89.900')];
     const rehearsal = rehearse(rows, '90.200');

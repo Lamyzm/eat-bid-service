@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { canonicalDecimal, krw, percentagePoints, Temporal } from "@eatbid/domain";
+import { bidRate, canonicalDecimal, krw, Temporal } from "@eatbid/domain";
 import { EffectRunner } from "../../../platform/effect/effect-runner";
 
 const record = {
@@ -7,9 +7,9 @@ const record = {
   announcedAt: Temporal.Instant.from("2026-09-01T00:00:00Z"),
   openedAt: null,
   item: { codeValueId: 7n, label: "축산" },
-  floorRate: percentagePoints(canonicalDecimal("90.000", 3)),
+  floorRate: bidRate(canonicalDecimal("90.000", 3)),
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
-  winRate: percentagePoints(canonicalDecimal("90.309", 3)),
+  winRate: bidRate(canonicalDecimal("90.309", 3)),
   secondRate: null,
   dayFloorRate: null,
   listCount: 17,
@@ -54,10 +54,25 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
     }]);
     expect(response.meta).toEqual({
       sampleCount: 92,
+      item: null,
       martRelease: "2026-09-04T00",
       computedAt: "2026-09-04T00:10:00Z",
       calcVersion: "v1",
     });
+  });
+
+  test("품목을 지정한 조회는 meta.item에 요청 품목을 그대로 되돌려 싣는다", async () => {
+    const application = await import("./list-organization-auction-attempts");
+    const useCase = new application.ListOrganizationAuctionAttempts({
+      exists: async () => true,
+      listAttempts: async () => ({
+        kind: "page",
+        page: { attempts: [record], nextCursor: null, sampleCount: 20 },
+      }),
+    });
+    const response = await new EffectRunner().run(useCase.execute({ ...query, itemCodeValueId: 7n }));
+    expect(response.meta.item).toBe("7");
+    expect(response.meta.sampleCount).toBe(20);
   });
 
   test("빈 이력은 meta release를 null로 두고 실패하지 않는다", async () => {
@@ -70,6 +85,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
     expect(response.attempts).toEqual([]);
     expect(response.meta).toEqual({
       sampleCount: 0,
+      item: null,
       martRelease: null,
       computedAt: null,
       calcVersion: null,

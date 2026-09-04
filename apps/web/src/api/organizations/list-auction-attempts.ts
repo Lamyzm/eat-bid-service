@@ -33,6 +33,9 @@ export async function listOrganizationAuctionAttemptsWith(
       signal: input.signal
     });
   } catch (error) {
-    throw mapOrganizationResourceError(request, error, path.organizationId);
+    throw mapOrganizationResourceError(request, error, {
+      organizationId: path.organizationId,
+      hasCursor: query.cursor !== undefined
+    });
   }
 }

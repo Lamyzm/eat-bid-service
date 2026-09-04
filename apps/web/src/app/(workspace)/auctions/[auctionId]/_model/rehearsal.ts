@@ -26,8 +26,10 @@ export type RowVerdict = 'won' | 'missed' | 'invalid' | 'unknown';
 // 하한을 밑돌지 않으면(같은 값은 추첨이므로 낙찰로 센다) 그 회차를 낙찰됐을 회차로 센다. 하한을
 // 밑돈 회차는 애초에 무효라 낙찰 여부를 따지지 않으므로 무효 판정이 먼저다.
 export function judgeRow(row: HistoryRow, rateMilli: bigint): RowVerdict {
-  if (!hasWinRate(row)) return 'unknown';
+  // 그날 하한만 알면 무효는 확정이다. 낙찰률이 없는 회차라도 하한 미달을 'unknown'으로 감추면
+  // "무효였을 회차"가 실제보다 적게 보인다.
   if (row.dayFloorMilli !== null && rateMilli < row.dayFloorMilli) return 'invalid';
+  if (!hasWinRate(row)) return 'unknown';
   return rateMilli <= row.winRateMilli ? 'won' : 'missed';
 }
 
@@ -38,7 +40,7 @@ function medianOf(values: readonly number[]): number {
 }
 
 function buildByYear(
-  rows: readonly DeterminedRow[],
+  rows: readonly HistoryRow[],
   wonFlags: readonly boolean[]
 ): Rehearsal['byYear'] {
   const buckets = new Map<string, { won: number; total: number }>();
@@ -68,25 +70,28 @@ export function rehearse(rows: readonly HistoryRow[], rate: BidRate): Rehearsal 
   const rateMilli = toMilli(rate);
   // 응답(그리고 presentHistory의 rows)은 최근 → 오래된 순이라 시계열 판정은 오래된 → 최근 순으로 뒤집는다.
   const chronological = [...rows].reverse();
-  // winRate가 없는 회차는 낙찰 여부를 판정할 수 없으므로 분모(total)에서도 뺀다.
-  const determined = chronological.filter(hasWinRate);
+  // 분모는 판정할 수 있었던 회차다. 낙찰률이 없어도 그날 하한을 알면 무효는 확정이므로
+  // judgeRow가 'unknown'을 돌려준 회차만 뺀다.
+  const judged = chronological
+    .map((row) => ({ row, verdict: judgeRow(row, rateMilli) }))
+    .filter((entry) => entry.verdict !== 'unknown');
 
-  const verdicts = determined.map((row) => judgeRow(row, rateMilli));
-  const wonFlags = verdicts.map((verdict) => verdict === 'won');
+  const wonFlags = judged.map((entry) => entry.verdict === 'won');
   const won = wonFlags.filter(Boolean).length;
-  const invalid = verdicts.filter((verdict) => verdict === 'invalid').length;
+  const invalid = judged.filter((entry) => entry.verdict === 'invalid').length;
 
   const listCounts = rows
     .map((row) => row.listCount)
     .filter((value): value is number => value !== null);
 
   return {
-    total: determined.length,
+    total: judged.length,
     won,
     wonFlags,
     invalid,
-    byYear: buildByYear(determined, wonFlags),
+    byYear: buildByYear(judged.map((entry) => entry.row), wonFlags),
     usualListCount: listCounts.length === 0 ? null : medianOf(listCounts),
-    rateSpan: buildRateSpan(determined)
+    // 낙찰률 분포는 실제로 관측된 낙찰률만의 사실이라 무효 판정과 분모를 공유하지 않는다.
+    rateSpan: buildRateSpan(chronological.filter(hasWinRate))
   };
 }
