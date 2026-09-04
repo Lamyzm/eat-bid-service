@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
 import test from "node:test";
 
 import {
@@ -42,7 +43,7 @@ function runHook(input, statePath) {
   });
 }
 
-function runCommand(command, statePath, commandArguments = []) {
+function runCommand(command, statePath, commandArguments = [], environment = {}) {
   return spawnSync(process.execPath, [cliPath, command, ...commandArguments], {
     cwd: process.cwd(),
     encoding: "utf8",
@@ -50,8 +51,83 @@ function runCommand(command, statePath, commandArguments = []) {
       ...process.env,
       EATBID_WORKFLOW_STATE_PATH: statePath,
       LINEAR_API_KEY: "",
+      ...environment,
     },
   });
+}
+
+// stub 서버는 테스트 process의 event loop 위에서 응답하므로 spawnSync로 CLI를 기다리면 요청을
+// 받을 수 없다. Linear를 부르는 명령만 비동기로 실행한다.
+function runCommandAsync(command, statePath, commandArguments = [], environment = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [cliPath, command, ...commandArguments], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        EATBID_WORKFLOW_STATE_PATH: statePath,
+        LINEAR_API_KEY: "",
+        ...environment,
+      },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("close", (status) => resolve({ status, stderr, stdout }));
+  });
+}
+
+// claim·release의 원격 전이는 실제 CLI 경로로만 증명할 수 있어서 client를 모듈로 갈아끼우는 대신
+// 같은 GraphQL 계약을 말하는 최소 stub 서버를 띄우고 어떤 operation이 갔는지 기록으로 확인한다.
+async function withLinearStub(run) {
+  const calls = [];
+  const server = createServer((request, response) => {
+    let raw = "";
+    request.on("data", (chunk) => {
+      raw += chunk;
+    });
+    request.on("end", () => {
+      const payload = JSON.parse(raw);
+      const operation = payload.query.match(/(?:query|mutation)\s+(\w+)/)?.[1] ?? "unknown";
+      calls.push({ operation, variables: payload.variables });
+      const issue = {
+        id: "issue-uuid",
+        identifier: "EAT-41",
+        assignee: null,
+        state: { id: "backlog", name: "Backlog" },
+        team: {
+          key: "EAT",
+          states: {
+            nodes: [
+              { id: "progress", name: "In Progress" },
+              { id: "review", name: "In Review" },
+            ],
+          },
+        },
+      };
+      const data = operation.endsWith("Update")
+        ? { issueUpdate: { success: true } }
+        : { issue, viewer: { id: "viewer", name: "Owner" } };
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ data }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const environment = {
+    EATBID_LINEAR_ENDPOINT: `http://127.0.0.1:${server.address().port}/graphql`,
+    LINEAR_API_KEY: "stub-key",
+  };
+  try {
+    await run({ calls, environment });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 }
 
 test("실제 훅은 검증된 Linear lease가 없는 편집을 차단한다", async () => {
@@ -160,6 +236,47 @@ test("실제 훅은 lease가 없어도 workflow claim 명령과 Linear 읽기 �
     assert.equal(claim.status, 0, claim.stderr);
     assert.equal(read.status, 0, read.stderr);
     await assert.rejects(() => readFile(statePath, "utf8"), { code: "ENOENT" });
+  });
+});
+
+test("lease 없이도 git checkout -b는 통과한다", async () => {
+  await withTempDirectory(async (directory) => {
+    const statePath = path.join(directory, "state.json");
+    for (const command of [
+      "git checkout -b eat-41-lease-gate",
+      "git switch -c eat-41-lease-gate",
+      "git branch eat-41-lease-gate",
+      "git worktree add .worktrees/eat-41 -b eat-41-lease-gate",
+    ]) {
+      const result = runHook(
+        {
+          hook_event_name: "PreToolUse",
+          session_id: "branch",
+          tool_name: "Bash",
+          tool_input: { command },
+        },
+        statePath,
+      );
+      assert.equal(result.status, 0, `${command}: ${result.stderr}`);
+    }
+    await assert.rejects(() => readFile(statePath, "utf8"), { code: "ENOENT" });
+  });
+});
+
+test("lease 없이 git commit은 여전히 막힌다", async () => {
+  await withTempDirectory(async (directory) => {
+    const result = runHook(
+      {
+        hook_event_name: "PreToolUse",
+        session_id: "commit",
+        tool_name: "Bash",
+        tool_input: { command: "git commit -m 변경" },
+      },
+      path.join(directory, "state.json"),
+    );
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /Linear lease/i);
   });
 });
 
@@ -469,5 +586,90 @@ test("workflow worktree prune은 디렉터리가 사라진 worktree의 git 등�
     assert.equal(getWorktreeLease(stored, linked), null);
     assert.equal(getWorktreeLease(stored, main).issueIdentifier, "EAT-91");
     assert.doesNotMatch(list.stdout, /eat-93-ghost/);
+  });
+});
+
+// --branch는 commit이 하나라도 있어야 새 ref를 만들 수 있으므로 빈 commit이 있는 repository를 쓴다.
+async function withCommittedRepository(run) {
+  await withTempDirectory(async (directory) => {
+    const repository = path.join(directory, "claimed");
+    await mkdir(repository);
+    for (const args of [["init", "--quiet", "-b", "main"], ["commit", "--quiet", "--allow-empty", "-m", "init"]]) {
+      const result = gitIn(repository, args);
+      assert.equal(result.status, 0, result.stderr);
+    }
+    await run({ repository, statePath: path.join(directory, "state.json") });
+  });
+}
+
+test("--branch로 브랜치를 만들며 claim한다", async () => {
+  await withCommittedRepository(async ({ repository, statePath }) => {
+    await withLinearStub(async ({ calls, environment }) => {
+      const claim = await runCommandAsync(
+        "claim",
+        statePath,
+        ["--", "EAT-41", "--worktree", repository, "--branch", "eat-41-lease-gate"],
+        environment,
+      );
+      const stored = await loadState(statePath);
+
+      assert.equal(claim.status, 0, claim.stderr);
+      assert.equal(gitIn(repository, ["branch", "--show-current"]).stdout.trim(), "eat-41-lease-gate");
+      assert.equal(getWorktreeLease(stored, repository).issueIdentifier, "EAT-41");
+      assert.equal(getWorktreeLease(stored, repository).branch, "eat-41-lease-gate");
+      assert.deepEqual(
+        calls.map((call) => call.operation),
+        ["AgentWorkflowClaim", "AgentWorkflowClaimUpdate"],
+      );
+    });
+  });
+});
+
+test("dirty worktree에서는 --branch가 브랜치를 바꾸지 않고 claim을 거부한다", async () => {
+  await withCommittedRepository(async ({ repository, statePath }) => {
+    await withLinearStub(async ({ calls, environment }) => {
+      await writeFile(path.join(repository, "dirty.txt"), "x", "utf8");
+      const claim = await runCommandAsync(
+        "claim",
+        statePath,
+        ["--", "EAT-41", "--worktree", repository, "--branch", "eat-41-lease-gate"],
+        environment,
+      );
+
+      assert.equal(claim.status, 1);
+      assert.match(claim.stderr, /uncommitted changes/i);
+      assert.equal(gitIn(repository, ["branch", "--show-current"]).stdout.trim(), "main");
+      assert.deepEqual(calls, []);
+      await assert.rejects(() => readFile(statePath, "utf8"), { code: "ENOENT" });
+    });
+  });
+});
+
+test("release 기본은 Linear 상태를 바꾸지 않고 --review일 때만 In Review로 보낸다", async () => {
+  await withTempDirectory(async (directory) => {
+    const statePath = path.join(directory, "state.json");
+    const lease = {
+      issueIdentifier: "EAT-41",
+      teamKey: "EAT",
+      expiresAt: "2099-08-31T00:00:00.000Z",
+    };
+    await withLinearStub(async ({ calls, environment }) => {
+      await saveState(statePath, setWorktreeLease(createEmptyState(), process.cwd(), lease));
+      const plain = await runCommandAsync("release", statePath, [], environment);
+      assert.equal(plain.status, 0, plain.stderr);
+      assert.deepEqual(calls, []);
+
+      await saveState(statePath, setWorktreeLease(createEmptyState(), process.cwd(), lease));
+      const review = await runCommandAsync("release", statePath, ["--", "--review"], environment);
+      const stored = await loadState(statePath);
+
+      assert.equal(review.status, 0, review.stderr);
+      assert.deepEqual(
+        calls.map((call) => call.operation),
+        ["AgentWorkflowIssue", "AgentWorkflowIssueUpdate"],
+      );
+      assert.equal(calls[1].variables.stateId, "review");
+      assert.equal(getWorktreeLease(stored, process.cwd()), null);
+    });
   });
 });

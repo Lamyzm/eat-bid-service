@@ -49,11 +49,13 @@ export function targetRepositoryContext(cwd, worktreePath) {
 
 export function linearClient() {
   if (!process.env.LINEAR_API_KEY) {
-    throw new Error("LINEAR_API_KEY is required for claim and sync commands");
+    throw new Error("LINEAR_API_KEY is required for claim, sync and `release --review`");
   }
   return createLinearClient({
     apiKey: process.env.LINEAR_API_KEY,
-    endpoint: config.linearEndpoint,
+    // endpoint override는 실제 CLI 경로를 그대로 실행하는 통합 테스트와 self-hosted proxy를 위한
+    // 것이다. 값이 없으면 언제나 config의 공식 endpoint를 쓴다.
+    endpoint: process.env.EATBID_LINEAR_ENDPOINT || config.linearEndpoint,
     fetchImpl: (url, request) =>
       fetch(url, { ...request, signal: AbortSignal.timeout(config.requestTimeoutMs) }),
   });

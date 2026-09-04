@@ -1,3 +1,4 @@
+/** @module 책임: Linear GraphQL 경계에서 issue 조회·claim 상태 전환·중복 없는 worklog 댓글을 수행한다. */
 const ISSUE_QUERY = `
   query AgentWorkflowIssue($id: String!) {
     issue(id: $id) {
@@ -133,7 +134,7 @@ export function createLinearClient({
 
     getIssue,
 
-    async claimIssue(identifier, { inProgressState, readyStates, teamKey }) {
+    async claimIssue(identifier, { claimableStates, inProgressState, teamKey, terminalStates }) {
       const data = await request(CLAIM_QUERY, { id: identifier });
       const issue = data?.issue;
       const viewer = data?.viewer;
@@ -149,14 +150,20 @@ export function createLinearClient({
         );
       }
 
+      // 작업 중인 issue는 Backlog·Todo·In Review 어디에도 있을 수 있고 그 전환은 사람이 아니라 이
+      // 명령이 맞추는 일이다. 끝난 issue(Done·Canceled·Duplicate)만 거부해 완료를 되돌리지 않는다.
       const normalizedState = issue.state?.name?.toLowerCase();
-      const normalizedReadyStates = readyStates.map((state) => state.toLowerCase());
-      const alreadyInProgress = normalizedState === inProgressState.toLowerCase();
-      if (!alreadyInProgress && !normalizedReadyStates.includes(normalizedState)) {
+      const stateName = issue.state?.name ?? "unknown";
+      const normalizedIn = (states) => states.map((state) => state.toLowerCase());
+      if (normalizedIn(terminalStates).includes(normalizedState)) {
         throw new LinearApiError(
-          `Linear issue ${identifier} cannot be claimed from state ${issue.state?.name ?? "unknown"}`,
+          `Linear issue ${identifier} cannot be claimed from terminal state ${stateName}`,
         );
       }
+      if (!normalizedIn(claimableStates).includes(normalizedState)) {
+        throw new LinearApiError(`Linear issue ${identifier} cannot be claimed from state ${stateName}`);
+      }
+      const alreadyInProgress = normalizedState === inProgressState.toLowerCase();
 
       const targetState = issue.team?.states?.nodes?.find(
         (state) => state.name?.toLowerCase() === inProgressState.toLowerCase(),

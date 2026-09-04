@@ -207,10 +207,59 @@ test("worktree 진입·이탈 도구와 git worktree 조회는 lease 없이 허�
       command,
     );
   }
+  for (const command of ["git worktree remove .worktrees/x", "git worktree prune && rm -rf .worktrees/x"]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("브랜치를 만드는 git 명령은 lease 없이 허용하고 파일을 바꾸는 git 명령은 계속 차단한다", () => {
   for (const command of [
-    "git worktree add .worktrees/x",
-    "git worktree remove .worktrees/x",
-    "git worktree prune && rm -rf .worktrees/x",
+    "git branch eat-41-lease-gate",
+    "git checkout -b eat-41-lease-gate",
+    "git switch -c eat-41-lease-gate",
+    "git branch eat-41-lease-gate main",
+    "git worktree add .worktrees/eat-41 -b eat-41-lease-gate",
+    "git worktree add --quiet .worktrees/eat-41 eat-41-lease-gate",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "branch-creation-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "git checkout main",
+    "git switch main",
+    "git branch -D eat-41-lease-gate",
+    "git branch -m old-name new-name",
+    "git branch --force eat-41-lease-gate main",
+    "git checkout -b eat-41-lease-gate && rm -rf src",
+    "git worktree add --force .worktrees/eat-41",
+    "git commit -m 'branch'",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("claim의 --branch와 release의 --review는 lease 없이 허용하고 이름이 아닌 값은 차단한다", () => {
+  for (const command of [
+    "pnpm workflow:claim -- EAT-41 --branch eat-41-lease-gate",
+    "pnpm workflow:claim -- --branch=eat-41-lease-gate EAT-41",
+    "pnpm workflow:claim -- EAT-41 --branch eat-41-lease-gate --worktree ../..",
+    "pnpm workflow:release --review",
+    "pnpm workflow:release -- EAT-41 --review",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "workflow-lifecycle-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "pnpm workflow:claim -- EAT-41 --branch",
+    "pnpm workflow:claim -- EAT-41 --branch $(git branch --show-current)",
+    "pnpm workflow:claim -- EAT-41 --branch 'eat 41'",
+    "pnpm workflow:release -- --review > release.json",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
   }

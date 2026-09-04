@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
+import { checkoutClaimBranch } from "./branch.mjs";
 import { parseWorkflowArguments } from "./command-line.mjs";
+import { doctorReport, recoverLockReport } from "./diagnostics.mjs";
 import { flushOutbox } from "./linear.mjs";
 import { config, linearClient, repositoryContext, targetRepositoryContext } from "./runtime.mjs";
 import {
@@ -24,14 +26,7 @@ import {
   releaseWorktreeState,
   resolveWorktreeTarget,
 } from "./worktree.mjs";
-import {
-  inspectStateLock,
-  inspectWorkflowLock,
-  recoverStateLock,
-  recoverWorkflowLock,
-  withStateTransaction,
-  withWorkflowLock,
-} from "./state-lock.mjs";
+import { withStateTransaction, withWorkflowLock } from "./state-lock.mjs";
 import { extractIssueIdentifier } from "./workflow.mjs";
 
 function commandContext(command) {
@@ -44,54 +39,29 @@ function commandContext(command) {
 
 async function doctor() {
   const { repository } = commandContext("doctor");
-  const state = await loadState(repository.statePath);
-  const lease = getWorktreeLease(state, repository.worktreeRoot);
-  const pendingClaim = getPendingWorktreeClaim(state, repository.worktreeRoot);
-  const stateLock = await inspectStateLock(repository.statePath);
-  const syncLock = await inspectWorkflowLock(repository.statePath, "sync");
-  process.stdout.write(
-    `${JSON.stringify(
-      {
-        branch: repository.branch || null,
-        linearApiKeyConfigured: Boolean(process.env.LINEAR_API_KEY),
-        linearMcpEndpoint: config.linearMcpEndpoint,
-        lease: lease
-          ? {
-              expiresAt: lease.expiresAt,
-              issueIdentifier: lease.issueIdentifier,
-              teamKey: lease.teamKey,
-            }
-          : null,
-        outboxEvents: state.outbox.length,
-        pendingClaim: pendingClaim
-          ? {
-              issueIdentifier: pendingClaim.issueIdentifier,
-              requestedAt: pendingClaim.requestedAt,
-            }
-          : null,
-        stateLock,
-        syncLock,
-        statePath: repository.statePath,
-        worktreeRoot: repository.worktreeRoot,
-      },
-      null,
-      2,
-    )}\n`,
-  );
+  process.stdout.write(`${JSON.stringify(await doctorReport(repository, config), null, 2)}\n`);
 }
 
 async function recoverLock() {
   const { repository } = commandContext("recover-lock");
-  const result = {
-    state: await recoverStateLock(repository.statePath),
-    sync: await recoverWorkflowLock(repository.statePath, "sync"),
-  };
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(await recoverLockReport(repository), null, 2)}\n`);
 }
 
 async function claim() {
-  const { issueIdentifier: identifier, repository } = commandContext("claim");
-  if (!identifier) throw new Error("Usage: pnpm workflow:claim -- EAT-123 [--worktree <path>]");
+  const parsed = parseWorkflowArguments(process.argv.slice(process.argv.indexOf("claim") + 1));
+  const identifier = parsed.issueIdentifier;
+  if (!identifier) {
+    throw new Error("Usage: pnpm workflow:claim -- EAT-123 [--branch <name>] [--worktree <path>]");
+  }
+  if (parsed.review) throw new Error("--review belongs to release, not claim");
+
+  // 브랜치를 먼저 맞춘 뒤 context를 다시 읽는다. lease에 기록할 branch는 claim이 끝난 시점의
+  // 실제 HEAD여야 하며, 여기서 실패하면 Linear도 lease도 건드리지 않은 상태로 남는다.
+  let repository = targetRepositoryContext(process.cwd(), parsed.worktreePath);
+  if (parsed.branchName) {
+    checkoutClaimBranch(repository.worktreeRoot, parsed.branchName, repository.branch);
+    repository = targetRepositoryContext(process.cwd(), parsed.worktreePath);
+  }
   const branchIssue = extractIssueIdentifier(repository.branch);
   if (branchIssue && branchIssue !== identifier) {
     throw new Error(`Branch issue ${branchIssue} does not match requested claim ${identifier}`);
@@ -155,14 +125,27 @@ async function claim() {
   process.stdout.write(`${JSON.stringify(lease, null, 2)}\n`);
 }
 
+// release는 Linear 상태를 기본으로 건드리지 않는다. 자동으로 In Review로 보내면 같은 worktree를
+// 다시 claim할 때 상태 전환이 필요해지고, 그 전환이 막히면 이슈 전환 자체가 교착하기 때문이다.
+// 원격 전이는 local lease를 지우기 전에 끝내 실패 시 같은 명령을 그대로 다시 실행할 수 있게 한다.
+async function moveToReview(identifier) {
+  if (!identifier) {
+    throw new Error("--review needs an issue identifier or a worktree lease to name the issue");
+  }
+  await linearClient().moveIssueToState(identifier, config.reviewState);
+  process.stdout.write(`Linear issue moved to ${config.reviewState}: ${identifier}\n`);
+}
+
 async function release() {
   const parsed = parseWorkflowArguments(process.argv.slice(process.argv.indexOf("release") + 1));
+  if (parsed.branchName) throw new Error("--branch belongs to claim, not release");
   // issue 식별자 release는 worktree 경로가 이미 지워진 유령 lease를 푸는 경로다. 그래서 대상 경로가
   // 존재하는지 검사하지 않으며, `--worktree`와 함께 오면 어느 쪽을 믿을지 모호해 거부한다.
   if (parsed.issueIdentifier) {
     if (parsed.worktreePath) {
       throw new Error("Choose either an issue identifier or --worktree <path> for release");
     }
+    if (parsed.review) await moveToReview(parsed.issueIdentifier);
     const { statePath } = repositoryContext(process.cwd());
     let released = [];
     await withStateTransaction(statePath, async (state) => {
@@ -177,6 +160,10 @@ async function release() {
   }
 
   const repository = targetRepositoryContext(process.cwd(), parsed.worktreePath);
+  if (parsed.review) {
+    const state = await loadState(repository.statePath);
+    await moveToReview(getWorktreeLease(state, repository.worktreeRoot)?.issueIdentifier);
+  }
   await withStateTransaction(repository.statePath, async (state) =>
     releaseWorktreeState(state, repository.worktreeRoot, { createId: randomUUID }),
   );

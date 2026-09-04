@@ -47,12 +47,25 @@ const CHROME_DEVTOOLS_READ_TOOL =
 const PATH_ARGUMENT = String.raw`(?:"[^"|;&><$\x60\r\n]+"|[^\s|;&><$\x60"']+)`;
 const ISSUE_ARGUMENT = String.raw`[A-Z][A-Z0-9]{1,9}-\d+`;
 
+// 브랜치 이름과 경로 자리에서 option 토큰이 시작되지 않게 한다. `--force`나 `-D`가 경로처럼 통과하면
+// 브랜치 생성 허용이 브랜치 삭제·강제 이동 허용으로 넓어진다.
+const BRANCH_ARGUMENT = String.raw`(?!-)[A-Za-z0-9._/-]+`;
+const NON_OPTION_PATH_ARGUMENT = String.raw`(?:"[^"|;&><$\x60\r\n]+"|(?!-)[^\s|;&><$\x60"']+)`;
+
 // `pnpm workflow:*`는 저장소 파일이 아니라 lease state·Linear·git worktree 목록만 바꾸며 lease를
 // 만들고 푸는 유일한 경로다. 단일 명령 형태만 허용하고 pipe·chaining·redirect는 SHELL_COMPOSITION이
 // 먼저 거른다. 인자는 issue 식별자, `--worktree <path>`, `worktree remove <path> | prune`뿐이다.
 const WORKFLOW_LIFECYCLE_COMMAND = new RegExp(
-  String.raw`^pnpm\s+workflow:[a-z][a-z:-]*(?:\s+(?:--|${ISSUE_ARGUMENT}|--worktree(?:=|\s+)${PATH_ARGUMENT}|remove\s+${PATH_ARGUMENT}|prune))*\s*$`,
+  String.raw`^pnpm\s+workflow:[a-z][a-z:-]*(?:\s+(?:--|${ISSUE_ARGUMENT}|--worktree(?:=|\s+)${PATH_ARGUMENT}|--branch(?:=|\s+)${BRANCH_ARGUMENT}|--review|remove\s+${PATH_ARGUMENT}|prune))*\s*$`,
   "i",
+);
+
+// 브랜치 생성과 worktree 추가는 새 ref와 새 디렉터리를 만들 뿐 추적 파일 내용을 바꾸지 않는다.
+// lease 없이 이것마저 막으면 claim 전에 올바른 브랜치로 옮길 방법이 없어 이슈 전환이 교착한다.
+// 반대로 `checkout <branch>`처럼 작업 트리를 통째로 갈아끼우는 형태는 계속 lease 안에서만 허용한다.
+const WORKTREE_ADD_ARGUMENT = String.raw`(?:--quiet|--detach|-b\s+${BRANCH_ARGUMENT}|${NON_OPTION_PATH_ARGUMENT})`;
+const BRANCH_CREATION_COMMAND = new RegExp(
+  String.raw`^git\s+(?:branch\s+${BRANCH_ARGUMENT}(?:\s+${BRANCH_ARGUMENT})?|(?:checkout\s+-b|switch\s+-c)\s+${BRANCH_ARGUMENT}(?:\s+${BRANCH_ARGUMENT})?|worktree\s+add(?:\s+${WORKTREE_ADD_ARGUMENT})+)\s*$`,
 );
 
 // kubectl 조회 subcommand는 cluster 상태를 읽을 뿐이다. exec·apply·delete·edit·patch처럼 cluster를
@@ -127,6 +140,9 @@ export function classifyToolCall(toolName, toolInput = {}) {
     }
     if (SHELL_COMPOSITION.test(command)) {
       return { mutatesRepository: true, reason: "compound-or-writing-command" };
+    }
+    if (BRANCH_CREATION_COMMAND.test(command.trim())) {
+      return { mutatesRepository: false, reason: "branch-creation-command" };
     }
     if (MUTATING_COMMANDS.some((pattern) => pattern.test(command))) {
       return { mutatesRepository: true, reason: "mutating-command" };

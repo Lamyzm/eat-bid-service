@@ -159,7 +159,7 @@ test("사용자가 직접 실행한 도구 호출(initiated_by: user)은 lease �
       session_id: "session-1",
       source: "user_request",
       tool_name: "Bash",
-      tool_input: { command: "git worktree add .worktrees/eat-36 -b eat-36 main" },
+      tool_input: { command: "git commit --allow-empty -m 결정" },
     },
     state,
   });
@@ -170,7 +170,7 @@ test("사용자가 직접 실행한 도구 호출(initiated_by: user)은 lease �
       initiated_by: "assistant",
       session_id: "session-1",
       tool_name: "Bash",
-      tool_input: { command: "git worktree add .worktrees/eat-36 -b eat-36 main" },
+      tool_input: { command: "git commit --allow-empty -m 결정" },
     },
     state,
   });

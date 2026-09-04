@@ -2,8 +2,10 @@
   "linearEndpoint": "https://api.linear.app/graphql",
   "linearMcpEndpoint": "https://mcp.linear.app/mcp",
   "teamKey": "EAT",
-  "readyStates": ["Ready"],
+  "claimableStates": ["Backlog", "Ready", "Todo", "In Review", "In Progress"],
+  "terminalStates": ["Done", "Canceled", "Duplicate"],
   "inProgressState": "In Progress",
+  "reviewState": "In Review",
   "infisical": {
     "environment": "dev",
     "path": "/tooling/linear",

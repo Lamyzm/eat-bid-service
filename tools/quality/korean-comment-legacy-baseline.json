@@ -1067,10 +1067,6 @@
       "sha256": "dca4f0d87f5ae1c9b25b41f61ff959128ce407ad82a2baa296ad382c83146dcf"
     },
     {
-      "path": "tools/agent-workflow/linear.mjs",
-      "sha256": "21a8a13cdb8031ca27138e59366ffa4660be2656f6f343e15adde2a2de4ccd18"
-    },
-    {
       "path": "tools/agent-workflow/state-lock.mjs",
       "sha256": "8daab9a5af4bc44912a10f06b1a600ac95a1fea4a925c30980feb783ccadbefe"
     },
