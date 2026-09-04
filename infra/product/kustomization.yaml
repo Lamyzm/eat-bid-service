@@ -13,16 +13,16 @@ resources:
 images:
   - name: eatbid-web
     newName: ghcr.io/lamyzm/eatbid-web
-    digest: sha256:1fd59e448e8069c04027141370b5ac2932b3029a322c6207c06c8a104c5f2258
+    digest: sha256:ebaa91272e81ef4ac2960cec3b4427dfdf0193d3bd00094f577df198958c5d62
   - name: eatbid-server
     newName: ghcr.io/lamyzm/eatbid-server
-    digest: sha256:e15a1dcd74d6f4284c859c6dc71c28962dfc0d13e47dacb30fc5020b702ba0aa
+    digest: sha256:984ed69e07d09dc6768f8caf863a1593c1bc2033d3c122f4b2caf12f6d3f9e54
   - name: eatbid-dataplane
     newName: ghcr.io/lamyzm/eatbid-dataplane
-    digest: sha256:b5660d66b10d940de7f6f2657c473c057fe96f819830e3a35f4f9a4ac81a427b
+    digest: sha256:bd292d1ce3d0892d5023f0cd6158e6fb54b43cc12db0fb9a859ec2b5f7b4bd83
   - name: eatbid-migration
     newName: ghcr.io/lamyzm/eatbid-migration
-    digest: sha256:17b7db947dd0f42fa91a996ad94800ddea687a3e0da9269bb4f2a612c5cb1b68
+    digest: sha256:a832295aeae6dfa8f64bf2d5ad1083e8b1c67b6abe9cdd15f6e997c4ff074fa2
 
 patches:
   - path: patches/legacy-cronjobs.delete.yaml
