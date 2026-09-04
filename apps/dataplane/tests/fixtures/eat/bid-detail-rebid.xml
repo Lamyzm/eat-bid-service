@@ -119,7 +119,7 @@
         <Col id="FRST_REG_DT">20230918</Col>
         <Col id="LIMIT_CONDITION_NM">지역제한경쟁</Col>
         <Col id="SOLO_BID_TRT_MTHD">002</Col>
-        <Col id="BID_NM">비식별 급식 식재료 구매 [재입찰]</Col>
+        <Col id="BID_NM">비식별 급식 식재료 구매</Col>
         <Col id="PLNPRCE">14747206</Col>
         <Col id="BID_END_DT">20230921080000000</Col>
         <Col id="ETN_BID_ID">5301243</Col>
