@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { bidRateWireSchema } from "../../values/rate";
 import { normalizedAuctionV1Schema } from "../v1/normalized-auction";
 import { normalizedAuctionV2Schema } from "./normalized-auction";
 
@@ -130,6 +131,41 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
     const broken = structuredClone(v2Fixture) as Record<string, unknown>;
     (broken.roster as { submissions: { bidRate: { value: string } }[] }).submissions[0]!.bidRate.value = "91.87";
     expect(() => normalizedAuctionV2Schema.parse(broken)).toThrow();
+  });
+
+  test("사정률이 100을 넘어도 관측 그대로 통과하고 정수부 열세 자리는 거부한다", () => {
+    const withBidRate = (value: string) => {
+      const candidate = structuredClone(v2Fixture) as Record<string, unknown>;
+      (candidate.roster as { submissions: { bidRate: { value: string } }[] }).submissions[0]!.bidRate.value = value;
+      return candidate;
+    };
+
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("101.975")).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("44477738.050")).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("-1.000")).success).toBe(false);
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("1000000000000.000")).success).toBe(false);
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("100")).success).toBe(false);
+  });
+
+  test("낙찰률과 차순위 사정률도 명단 행과 같은 관측 타입이라 100을 넘겨도 통과한다", () => {
+    const broken = structuredClone(v2Fixture) as Record<string, unknown>;
+    const award = broken.award as { awardedRate: { value: string }; runnerUpRate: { value: string } };
+    award.awardedRate.value = "101.975";
+    award.runnerUpRate.value = "44477738.050";
+
+    expect(normalizedAuctionV2Schema.safeParse(broken).success).toBe(true);
+  });
+
+  test("공개 API BidRate는 100을 넘는 사정률을 여전히 거부한다", () => {
+    expect(bidRateWireSchema.safeParse({ value: "90.218", unit: "percentage-points" }).success).toBe(true);
+    expect(bidRateWireSchema.safeParse({ value: "101.975", unit: "percentage-points" }).success).toBe(false);
+  });
+
+  test("하한율은 정의상 0~100이라 100을 넘기면 거부한다", () => {
+    const broken = structuredClone(v2Fixture) as Record<string, unknown>;
+    (broken.terms as { floorRate: { value: string } }).floorRate.value = "101.975";
+
+    expect(normalizedAuctionV2Schema.safeParse(broken).success).toBe(false);
   });
 
   test("명단이 비어 있고 낙찰이 없는 상세도 유효한 v2 record다", () => {

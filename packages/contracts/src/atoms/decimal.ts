@@ -36,6 +36,19 @@ export const bidRateTextSchema = z.string()
       + "matching numeric(6,3) mart columns; from 0.000 through 100.000.",
   });
 
+// eaT 사정률(SAJEONG_PCT)은 투찰가를 예정가격으로 나눈 소스 계산값이라 예정가격 초과 투찰이면 100을
+// 넘고, 단가 입찰(낙찰 방식 013·014)에서 총액을 넣은 행은 수천만까지 튄다. 2026-09-04 전수 관측
+// 238,306건 중 21,339건이 100 초과, 최대 44,477,738.05다. 상한을 두면 관측을 격리하게 되므로
+// (AGENTS 3) 정밀도만 고정하고 상한은 두지 않는다. 공개 API의 BidRate(0~100)는 별개다.
+export const observedBidRateTextSchema = z.string()
+  .max(16)
+  .regex(/^(?:0|[1-9][0-9]{0,11})\.[0-9]{3}$/)
+  .meta({
+    id: "ObservedBidRateText",
+    description: "Source-computed bid-rate percentage-points text with exactly three fractional digits "
+      + "and at most twelve integer digits; not capped at 100 because bids above the planned price are observed.",
+  });
+
 export const ratioTextSchema = z.string()
   .max(8)
   .regex(/^(?:0\.[0-9]{6}|1\.000000)$/)

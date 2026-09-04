@@ -106,6 +106,36 @@ def test_사정률의_짧은_소수를_잘라내지_않고_세_자리로_맞춘�
     assert roster.submissions[0].bid_rate.value == "91.870"
 
 
+def test_예정가격을_넘는_사정률과_단가입찰_총액도_격리하지_않고_싣는다() -> None:
+    def _bid_rate(value: str) -> str:
+        roster = parse_bid_roster(
+            _detail(
+                "ds_bidList",
+                _row(
+                    SAJEONG_PCT=value,
+                    BID_CALC_AMT="1000",
+                    BID_STT="005",
+                    SHIPPER_CD="1",
+                ),
+            )
+        )
+        return roster.submissions[0].bid_rate.value
+
+    assert _bid_rate("101.975") == "101.975"
+    assert _bid_rate("44477738.05") == "44477738.050"
+
+
+def test_음수_사정률은_관측_상한을_없애도_거부한다() -> None:
+    with pytest.raises(ValueError, match="SAJEONG_PCT"):
+        parse_bid_roster(
+            _detail(
+                "ds_bidList",
+                _row(SAJEONG_PCT="-1.000", BID_CALC_AMT="1000", BID_STT="005",
+                     SHIPPER_CD="1"),
+            )
+        )
+
+
 def test_계약보다_정밀한_사정률은_반올림하지_않고_거부한다() -> None:
     with pytest.raises(ValueError, match="SAJEONG_PCT"):
         parse_bid_roster(

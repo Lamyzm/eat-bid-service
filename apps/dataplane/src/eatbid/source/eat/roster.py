@@ -15,10 +15,10 @@ from eatbid.generated.ingestion_v2 import (
 from eatbid.source.eat.wire_text import optional_text
 from eatbid.source.eat.wire_values_v2 import (
     SOURCE_SYSTEM,
-    optional_bid_rate,
     optional_instant_text,
     optional_money,
     optional_nonnegative_count,
+    optional_observed_bid_rate,
     optional_source_coded_value,
 )
 from eatbid.source.eat.xml import ParsedNexacro
@@ -49,7 +49,9 @@ def parse_bid_roster(parsed: ParsedNexacro) -> NormalizedBidRoster:
 
 
 def _submission(row: Mapping[str, str]) -> NormalizedBidSubmission:
-    bid_rate = optional_bid_rate(row, "SAJEONG_PCT")
+    # `SAJEONG_PCT`는 소스가 계산한 값이라 예정가격 초과 투찰과 단가 입찰에서 100을 넘는다.
+    # 하한율과 같은 0~100 타입으로 읽으면 그 관측이 통째로 격리된다(AGENTS 3).
+    bid_rate = optional_observed_bid_rate(row, "SAJEONG_PCT")
     if bid_rate is None:
         raise ValueError("SAJEONG_PCT is required on an observed roster row")
     amount = optional_money(row, "BID_CALC_AMT")

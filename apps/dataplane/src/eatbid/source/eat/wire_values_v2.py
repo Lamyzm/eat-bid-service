@@ -15,6 +15,7 @@ from eatbid.generated.ingestion_v2 import (
     Label,
     Money,
     NonNegativeCount,
+    ObservedBidRate,
     ReservePriceRatio,
     SourceCodedValue,
 )
@@ -22,6 +23,7 @@ from eatbid.source.eat.wire_text import (
     canonical_bid_rate_text,
     canonical_instant_text,
     canonical_money_amount,
+    canonical_observed_bid_rate_text,
     canonical_reserve_price_ratio_text,
     optional_count,
     optional_text,
@@ -55,6 +57,18 @@ def optional_bid_rate(row: Mapping[str, str], field: str) -> BidRate | None:
     value = canonical_bid_rate_text(row, field)
     return (
         BidRate(value=value, unit="percentage-points") if value is not None else None
+    )
+
+
+def optional_observed_bid_rate(
+    row: Mapping[str, str], field: str
+) -> ObservedBidRate | None:
+    """소스가 계산한 사정률을 상한 없는 관측 타입으로 감싼다. 정의상 0~100인 하한율과는 다른 타입이다."""
+    value = canonical_observed_bid_rate_text(row, field)
+    return (
+        ObservedBidRate(value=value, unit="percentage-points")
+        if value is not None
+        else None
     )
 
 

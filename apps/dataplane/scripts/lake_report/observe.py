@@ -28,9 +28,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 CONTRACT_SCHEMA = (
     REPOSITORY_ROOT / "packages" / "contracts" / "generated" / "ingestion-v2.schema.json"
 )
-# 사정률 상한은 `BidRateText`가 정규식으로 표현해 maxItems처럼 읽어낼 수 없다. 규칙이 바뀌면 이 값도
-# 같이 틀려야 리포트가 거짓말을 하지 않으므로 근거 경로를 함께 적어둔다.
-BID_RATE_CEILING = Decimal("100.000")
+# 사정률 상한은 계약 atom `ObservedBidRateText`가 정규식(정수부 12자리)으로 표현해 maxItems처럼
+# 읽어낼 수 없다. 규칙이 바뀌면 이 값도 같이 틀려야 리포트가 거짓말을 하지 않으므로 근거 경로를 함께
+# 적어둔다. 공개 API의 `BidRateText`(0~100)는 이 리포트가 세는 관측과 다른 계약이다.
+OBSERVED_BID_RATE_CEILING = Decimal("999999999999.999")
 # BID_CALC_AMT가 이 값을 넘으면 금액이 아니라 소스가 가린 자리표시자다(1조 원). 실측에서 14자리
 # 1e13대 값만 나타났고 같은 공고 안에서 EFT_ALL_AMT와 상보 관계를 지킨다.
 MASKED_AMOUNT_FLOOR = Decimal(1_000_000_000_000)

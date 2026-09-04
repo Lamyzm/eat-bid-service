@@ -31,6 +31,9 @@ _SEOUL_TIME = ZoneInfo("Asia/Seoul")
 _KRW_SCALE = Decimal("0.01")
 _BID_RATE_SCALE = Decimal("0.001")
 _RESERVE_PRICE_RATIO_SCALE = Decimal("0.000001")
+# 계약 atom `ObservedBidRateText`가 허용하는 정수부 12자리의 최대값이다. 상한을 계약보다 좁게 두면
+# 계약이 담을 수 있는 관측을 파서가 격리하게 된다.
+_OBSERVED_BID_RATE_MAXIMUM = Decimal("999999999999.999")
 _MAX_COUNT = 2147483647
 _ASCII_DECIMAL = re.compile(r"0|[1-9][0-9]*")
 
@@ -146,6 +149,23 @@ def canonical_bid_rate_text(row: Mapping[str, str], field: str) -> str | None:
         scale_digits=3,
         maximum=Decimal(100),
         unit="bid rate",
+    )
+
+
+def canonical_observed_bid_rate_text(row: Mapping[str, str], field: str) -> str | None:
+    """소스가 계산한 사정률(SAJEONG_PCT)을 소수 셋째 자리 percentage-points로 읽되 100 상한을 두지 않는다.
+
+    예정가격 초과 투찰은 100을 넘고 단가 입찰의 총액 투찰은 수천만까지 튄다(2026-09-04 전수 관측
+    최대 44,477,738.05). 상한 100으로 거부하면 관측을 격리하게 되므로 계약 정수부 12자리까지만
+    막는다. 하한율처럼 정의상 0~100인 값은 `canonical_bid_rate_text`를 그대로 쓴다.
+    """
+    return _canonical_decimal_text(
+        row,
+        field,
+        scale=_BID_RATE_SCALE,
+        scale_digits=3,
+        maximum=_OBSERVED_BID_RATE_MAXIMUM,
+        unit="source bid rate",
     )
 
 

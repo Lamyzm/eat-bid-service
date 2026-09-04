@@ -170,6 +170,20 @@ class NormalizedLocation(BaseModel):
     sigungu_code: Annotated[SourceCode | None, Field(alias='sigunguCode')]
 
 
+class ObservedBidRate(BaseModel):
+    """A source-computed bid rate on a 100-point scale with exactly three fractional digits; may exceed 100. The mart representation is decided where the mart column is owned."""
+
+    model_config = ConfigDict(
+        extra='forbid',
+        populate_by_name=True,
+    )
+    unit: Literal['percentage-points']
+    value: Annotated[
+        str, Field(max_length=16, pattern='^(?:0|[1-9][0-9]{0,11})\\.[0-9]{3}$')
+    ]
+    """Source-computed bid-rate percentage-points text with exactly three fractional digits and at most twelve integer digits; not capped at 100 because bids above the planned price are observed."""
+
+
 class ReservePriceRatio(BaseModel):
     """A reserve-price multiplier expressed against the base amount on a 1.0 scale."""
 
@@ -294,8 +308,8 @@ class NormalizedAwardDecision(BaseModel):
     )
     awarded_amount: Annotated[Money, Field(alias='awardedAmount')]
     awarded_at: Annotated[InstantText | None, Field(alias='awardedAt')]
-    awarded_rate: Annotated[BidRate, Field(alias='awardedRate')]
-    runner_up_rate: Annotated[BidRate | None, Field(alias='runnerUpRate')]
+    awarded_rate: Annotated[ObservedBidRate, Field(alias='awardedRate')]
+    runner_up_rate: Annotated[ObservedBidRate | None, Field(alias='runnerUpRate')]
     source_status: Annotated[SourceCodedValue, Field(alias='sourceStatus')]
     supplier_account: Annotated[
         NormalizedSupplierAccount, Field(alias='supplierAccount')
@@ -310,7 +324,7 @@ class NormalizedBidSubmission(BaseModel):
         populate_by_name=True,
     )
     amount: Money
-    bid_rate: Annotated[BidRate, Field(alias='bidRate')]
+    bid_rate: Annotated[ObservedBidRate, Field(alias='bidRate')]
     draw_numbers: Annotated[list[SourceCode], Field(alias='drawNumbers', max_length=8)]
     effective_amount: Annotated[Money | None, Field(alias='effectiveAmount')]
     observed_roster_size: Annotated[

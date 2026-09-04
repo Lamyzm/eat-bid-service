@@ -418,12 +418,12 @@
           ]
         },
         "awardedRate": {
-          "$ref": "#/$defs/BidRate"
+          "$ref": "#/$defs/ObservedBidRate"
         },
         "runnerUpRate": {
           "anyOf": [
             {
-              "$ref": "#/$defs/BidRate"
+              "$ref": "#/$defs/ObservedBidRate"
             },
             {
               "type": "null"
@@ -483,7 +483,7 @@
           "$ref": "#/$defs/Money"
         },
         "bidRate": {
-          "$ref": "#/$defs/BidRate"
+          "$ref": "#/$defs/ObservedBidRate"
         },
         "drawNumbers": {
           "items": {
@@ -717,6 +717,30 @@
         "businessNumber"
       ],
       "type": "object"
+    },
+    "ObservedBidRate": {
+      "additionalProperties": false,
+      "description": "A source-computed bid rate on a 100-point scale with exactly three fractional digits; may exceed 100. The mart representation is decided where the mart column is owned.",
+      "properties": {
+        "unit": {
+          "const": "percentage-points",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/ObservedBidRateText"
+        }
+      },
+      "required": [
+        "value",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "ObservedBidRateText": {
+      "description": "Source-computed bid-rate percentage-points text with exactly three fractional digits and at most twelve integer digits; not capped at 100 because bids above the planned price are observed.",
+      "maxLength": 16,
+      "pattern": "^(?:0|[1-9][0-9]{0,11})\\.[0-9]{3}$",
+      "type": "string"
     },
     "ReservePriceRatio": {
       "additionalProperties": false,

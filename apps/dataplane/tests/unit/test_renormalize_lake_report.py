@@ -14,14 +14,14 @@ SCRIPTS_ROOT = Path(__file__).parents[2] / "scripts"
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
-from lake_report.aggregate import (  # noqa: E402
+from lake_report.aggregate import (
     LakeReport,
     aggregate,
     median,
     percentile,
     verdict,
 )
-from lake_report.observe import FileObservation  # noqa: E402
+from lake_report.observe import FileObservation
 
 
 def _observation(**overrides: Any) -> FileObservation:
@@ -83,9 +83,10 @@ def test_관측_최대값은_격리된_파일의_값도_계약_상한과_함께_
     report = _aggregate(observations)
 
     assert report.maxima["bid_rate"]["observed"] == "101.975"
-    assert report.maxima["bid_rate"]["contract"] == "100.000"
+    assert report.maxima["bid_rate"]["contract"] == "999999999999.999"
     assert report.maxima["roster_rows"]["observed"] == "413"
-    assert verdict("101.975", "100.000") == "상한 초과"
+    assert verdict("101.975", "999999999999.999") == "상한 이내"
+    assert verdict("1000000000000.000", "999999999999.999") == "상한 초과"
     assert verdict("413", "2048") == "상한 이내"
 
 
@@ -125,5 +126,5 @@ def test_하한_미만_비율은_행_가중과_회차_가중을_모두_남긴다
 def test_중앙값과_백분위는_빈_표본에서_없음을_돌려준다() -> None:
     assert median([]) is None
     assert percentile([], "0.95") is None
-    assert median([Decimal("1"), Decimal("2"), Decimal("4")]) == Decimal("2")
+    assert median([Decimal(1), Decimal(2), Decimal(4)]) == Decimal(2)
     assert percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "0.95") == 10

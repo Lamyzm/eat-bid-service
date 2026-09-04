@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   bidRateTextSchema,
+  observedBidRateTextSchema,
   percentagePointsTextSchema,
   ratioTextSchema,
   reservePriceRatioTextSchema,
@@ -24,6 +25,15 @@ export const bidRateWireSchema = z.strictObject({
     + "matching numeric(6,3) mart columns.",
 });
 
+export const observedBidRateWireSchema = z.strictObject({
+  value: observedBidRateTextSchema,
+  unit: z.literal("percentage-points"),
+}).meta({
+  id: "ObservedBidRate",
+  description: "A source-computed bid rate on a 100-point scale with exactly three fractional digits; "
+    + "may exceed 100. The mart representation is decided where the mart column is owned.",
+});
+
 export const ratioWireSchema = z.strictObject({
   value: ratioTextSchema,
   unit: z.literal("ratio"),
@@ -41,5 +51,6 @@ export const reservePriceRatioWireSchema = z.strictObject({
 
 export type PercentagePointsWire = z.infer<typeof percentagePointsWireSchema>;
 export type BidRateWire = z.infer<typeof bidRateWireSchema>;
+export type ObservedBidRateWire = z.infer<typeof observedBidRateWireSchema>;
 export type RatioWire = z.infer<typeof ratioWireSchema>;
 export type ReservePriceRatioWire = z.infer<typeof reservePriceRatioWireSchema>;

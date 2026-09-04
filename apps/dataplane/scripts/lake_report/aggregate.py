@@ -16,7 +16,7 @@ from eatbid.source.eat.lineage import BID_HISTORY_DATASET
 from eatbid.source.eat.reserve_price import P_LIST_DATASET
 from eatbid.source.eat.roster import BID_LIST_DATASET
 from lake_report.observe import (
-    BID_RATE_CEILING,
+    OBSERVED_BID_RATE_CEILING,
     PARSER_VERSION,
     FileObservation,
     RoundSummary,
@@ -227,7 +227,7 @@ def _maxima(
         ),
         "bid_rate": {
             "observed": decimal_text(max(rates, default=None)),
-            "contract": str(BID_RATE_CEILING),
+            "contract": str(OBSERVED_BID_RATE_CEILING),
         },
     }
 

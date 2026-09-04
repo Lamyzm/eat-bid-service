@@ -5,7 +5,7 @@ import { nonNegativeCountSchema } from "../../../atoms/count";
 import { instantTextSchema } from "../../../atoms/instant";
 import { sourceCodeSchema } from "../../../atoms/source-code";
 import { moneyWireSchema } from "../../../values/money";
-import { bidRateWireSchema } from "../../../values/rate";
+import { observedBidRateWireSchema } from "../../../values/rate";
 import { sourceCodedValueSchema } from "../../../values/source-coded-value";
 import { normalizedSupplierAccountSchema } from "./supplier-account";
 
@@ -14,7 +14,9 @@ export const normalizedBidSubmissionSchema = z.strictObject({
   submittedAt: instantTextSchema.nullable(),
   amount: moneyWireSchema,
   effectiveAmount: moneyWireSchema.nullable(),
-  bidRate: bidRateWireSchema,
+  // `SAJEONG_PCT`는 소스가 계산한 사정률이라 예정가격 초과 투찰과 단가 입찰에서 100을 넘는다.
+  // 공개 API의 BidRate(0~100)를 여기서 재사용하면 그 관측이 격리되므로 상한 없는 관측 타입을 쓴다.
+  bidRate: observedBidRateWireSchema,
   rank: nonNegativeCountSchema.nullable(),
   // 2026-09-04 실측에서 BID_STT는 002(낙찰)와 005(낙찰실패) 둘뿐이다. 소스에 "무효"도 "하한미달"도
   // 없으므로 판정을 코드 그대로 싣고 파서가 상태를 만들어내지 않는다.
