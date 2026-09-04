@@ -7,7 +7,6 @@ import { z } from "zod";
 import { portableContracts, type PortableContractId } from "./portable-registry";
 
 export const generatedDirectory = join(__dirname, "..", "generated");
-export const ingestionV1SchemaPath = join(generatedDirectory, "ingestion-v1.schema.json");
 const artifactSuffix = ".schema.json";
 
 // registry가 id와 artifact 이름 양쪽으로 주소 지정 가능해야 emitter가 무엇을 어디에 쓸지 결정된다.
@@ -52,8 +51,8 @@ export function renderPortableSchema(id: PortableContractId): string {
   return `${JSON.stringify(sortJsonKeys(rootSchema), null, 2)}\n`;
 }
 
-export function renderIngestionV1Schema(): string {
-  return renderPortableSchema("EatbidIngestionAuctionV1");
+export function portableSchemaPath(id: PortableContractId): string {
+  return join(generatedDirectory, contractById(id).artifact);
 }
 
 export async function emitPortableSchemas(outputDirectory: string): Promise<readonly string[]> {
@@ -67,10 +66,10 @@ export async function emitPortableSchemas(outputDirectory: string): Promise<read
   return written;
 }
 
-export async function emitIngestionV1Schema(outputDirectory: string): Promise<string> {
+export async function emitPortableSchema(id: PortableContractId, outputDirectory: string): Promise<string> {
   await mkdir(outputDirectory, { recursive: true });
-  const outputPath = join(outputDirectory, "ingestion-v1.schema.json");
-  await writeFile(outputPath, renderIngestionV1Schema(), "utf8");
+  const outputPath = join(outputDirectory, contractById(id).artifact);
+  await writeFile(outputPath, renderPortableSchema(id), "utf8");
   return outputPath;
 }
 
@@ -106,7 +105,7 @@ export async function checkPortableSchemas(directory = generatedDirectory): Prom
   const present = (await readdir(directory)).filter((name) => name.endsWith(artifactSuffix)).sort();
   for (const name of present) {
     if (!registeredArtifacts.has(name)) {
-      throw new Error(`${name} is not a registered portable contract artifact; run pnpm contracts:generate`);
+      throw new Error(`${name} is not a registered portable contract artifact; delete the stale generated file`);
     }
   }
 
@@ -119,11 +118,14 @@ export async function checkPortableSchemas(directory = generatedDirectory): Prom
   });
 }
 
-export async function checkIngestionV1Schema(committedPath = ingestionV1SchemaPath): Promise<void> {
-  const artifact = "ingestion-v1.schema.json";
+export async function checkPortableSchema(
+  id: PortableContractId,
+  committedPath = portableSchemaPath(id),
+): Promise<void> {
+  const artifact = contractById(id).artifact;
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "eatbid-contracts-check-"));
   try {
-    await assertSameBytes(artifact, await emitIngestionV1Schema(temporaryDirectory), committedPath);
+    await assertSameBytes(artifact, await emitPortableSchema(id, temporaryDirectory), committedPath);
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
