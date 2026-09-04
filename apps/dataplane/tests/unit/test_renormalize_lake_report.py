@@ -1,4 +1,4 @@
-"""`apps/dataplane/scripts/lake_report/aggregate.py`의 순수 집계를 레이크 없이 고정한다.
+"""`lake_report.aggregate`와 `lake_report.derived`의 순수 집계를 레이크 없이 고정한다.
 
 리포트 스크립트는 `eatbid` 패키지 밖의 독립 실행 파일이라 scripts 디렉터리를 얹고 불러온다.
 """
@@ -14,13 +14,8 @@ SCRIPTS_ROOT = Path(__file__).parents[2] / "scripts"
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
-from lake_report.aggregate import (
-    LakeReport,
-    aggregate,
-    median,
-    percentile,
-    verdict,
-)
+from lake_report.aggregate import LakeReport, aggregate
+from lake_report.derived import band_metrics, median, percentile, verdict
 from lake_report.observe import FileObservation
 
 
@@ -31,7 +26,6 @@ def _observation(**overrides: Any) -> FileObservation:
         "has_bid_list": True,
         "has_p_list": True,
         "roster_rows": 10,
-        "scored_rows": 10,
         "opened_on": "2025-01-01",
         "organization_code": "153045",
     }
@@ -95,13 +89,13 @@ def test_하한_미만_비율은_행_가중과_회차_가중을_모두_남긴다
         _observation(
             external_bid_id="1",
             below_floor_rows=1,
-            scored_rows=10,
+            roster_rows=10,
             runner_up_gap="0.100",
         ),
         _observation(
             external_bid_id="2",
             below_floor_rows=9,
-            scored_rows=10,
+            roster_rows=10,
             runner_up_gap="0.200",
         ),
         _observation(
@@ -109,18 +103,60 @@ def test_하한_미만_비율은_행_가중과_회차_가중을_모두_남긴다
             normalized=False,
             quarantine_reason="상한",
             below_floor_rows=99,
-            scored_rows=99,
+            roster_rows=99,
         ),
     ]
 
     report = _aggregate(observations)
 
     assert report.below_floor["rows"] == "10"
-    assert report.below_floor["scored_rows"] == "20"
+    assert report.below_floor["roster_rows"] == "20"
     assert report.below_floor["ratio"] == "50.000%"
     assert report.below_floor["auction_mean"] == "50.000"
     assert report.runner_up_gap["rounds"] == "2"
     assert report.runner_up_gap["median"] == "0.150"
+
+
+def test_사분위도_백분위와_같은_최근접_순위_정의를_쓴다() -> None:
+    gaps = ["0.100", "0.200", "0.300", "0.400"]
+    observations = [
+        _observation(external_bid_id=str(index), runner_up_gap=gap)
+        for index, gap in enumerate(gaps)
+    ]
+
+    report = _aggregate(observations)
+
+    # ROUND_CEILING 최근접 순위: 4개 표본의 25%는 1번째, 75%는 3번째다. 반쪽 중앙값(Tukey hinge)과
+    # 다른 값이 나오므로 정의가 하나로 모였는지가 여기서 드러난다.
+    assert report.runner_up_gap["p25"] == "0.100"
+    assert report.runner_up_gap["median"] == "0.250"
+    assert report.runner_up_gap["p75"] == "0.300"
+
+
+def test_명단_규모_구간은_회차가_없어도_행을_남긴다() -> None:
+    bands = band_metrics(
+        [
+            _observation(
+                external_bid_id="1",
+                roster_rows=5,
+                award_rate="90.500",
+                below_floor_rows=1,
+                runner_up_gap="0.400",
+            ),
+            _observation(
+                external_bid_id="2",
+                roster_rows=120,
+                award_rate="90.010",
+                below_floor_rows=60,
+                runner_up_gap="0.010",
+            ),
+        ]
+    )
+
+    assert [label for label, *_rest in bands] == ["3~9", "10~29", "30~59", "60~99", "100+"]
+    assert bands[0] == ("3~9", 1, "90.500", "20.000%", "0.400", "5")
+    assert bands[1] == ("10~29", 0, "n/a", "n/a", "n/a", "n/a")
+    assert bands[4] == ("100+", 1, "90.010", "50.000%", "0.010", "120")
 
 
 def test_중앙값과_백분위는_빈_표본에서_없음을_돌려준다() -> None:

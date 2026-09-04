@@ -45,7 +45,8 @@ def _load_script_module() -> ModuleType:
 script = _load_script_module()
 
 # 스크립트를 먼저 불러야 scripts 디렉터리가 sys.path에 얹혀 `lake_report`를 찾을 수 있다.
-from lake_report.aggregate import verdict
+from lake_report.derived import verdict
+from lake_report.render import render_markdown
 
 
 @pytest.fixture(scope="module")
@@ -81,9 +82,29 @@ def test_남산초_회차_전부가_격리되지_않고_정규화된다(
 
     assert report.quarantined == 0
     assert report.normalized == len(_rounds)
-    # `maxima`는 관측과 계약 상한만 담고 판정은 `aggregate.verdict`가 낸다(render가 쓰는 함수).
+    # `maxima`는 관측과 계약 상한만 담고 판정은 `derived.verdict`가 낸다(render가 쓰는 함수).
     maximum = report.maxima["bid_rate"]
     assert verdict(maximum["observed"], maximum["contract"]) == "상한 이내"
+
+
+def test_회차_대조_절이_실제_리포트에_렌더된다(
+    _lake: Path, _rounds: dict[str, dict[str, object]]
+) -> None:
+    report = script.build_report(
+        _lake,
+        limit=200,
+        calc_version="test",
+        rounds_source=ROUNDS,
+    )
+
+    assert report.rounds is not None
+    assert report.rounds.listed == len(_rounds)
+    assert report.rounds.matched == len(_rounds)
+    assert report.rounds.mismatched == ()
+    assert report.rounds.quarantined == ()
+    document = render_markdown(report)
+    assert "## 회차 조사 대조" in document
+    assert "### 하한율별 분해" in document
 
 
 def test_불변식_위반이_리포트에_수로_남는다(_lake: Path) -> None:

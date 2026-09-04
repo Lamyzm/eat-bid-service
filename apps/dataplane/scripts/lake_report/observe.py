@@ -3,7 +3,9 @@
 
 왜 두 경로인가. 계약 상한이 틀리면 그 상한에 걸린 관측은 정규화 결과에서 사라진다. 상한을 검증하려고
 만든 리포트가 상한에 걸린 값을 못 보면 목적을 잃으므로, 구조 사실과 최대값은 원본 파싱에서,
-정규화 성패와 격리 사유는 `normalize_bid_detail_payload`에서 읽는다.
+정규화 성패와 격리 사유는 `normalize_bid_detail_payload`에서 읽는다. 그 대가로 파일 하나마다 XML을
+두 번 파싱한다 — 23만 건 실행에서 파싱 비용이 2배이며, 리포트가 격리된 값을 볼 수 있는 것과 맞바꾼
+비용이다.
 """
 
 from __future__ import annotations
@@ -38,6 +40,18 @@ MASKED_AMOUNT_FLOOR = Decimal(1_000_000_000_000)
 # `auction_terms.py`가 읽는 이름과 레이크에 실제로 있는 이름을 함께 본다. 어느 쪽이 관측되는지가
 # 낙찰 방식 코드의 존재 여부를 가르는 사실이므로 리포트가 column 이름까지 세어 남긴다.
 AWARD_METHOD_FIELDS = ("SUCBID_DCSN_MTH_CD", "SUCBD_DECISION_MTHD")
+# 관측 하나가 실패해도 실행은 계속되어야 한다(AGENTS 3). `Decimal("nan") > Decimal("1")`처럼
+# 원본이 유한하지 않은 값을 보내면 `InvalidOperation`이 오르는데 그것은 `ArithmeticError`라
+# `ValueError` 계열에 걸리지 않는다. 이 목록에 없는 예외만 실행 전체를 멈춘다.
+_OBSERVATION_ERRORS = (
+    OSError,
+    EOFError,
+    ValueError,
+    KeyError,
+    IndexError,
+    ArithmeticError,
+)
+_MAX_REASON_LENGTH = 80
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +90,6 @@ class FileObservation:
     runner_up_gap: str | None = None
     floor_rate: str | None = None
     below_floor_rows: int = 0
-    scored_rows: int = 0
     award_below_floor: bool = False
     draw_average_mismatch: bool = False
     draw_average_checked: bool = False
@@ -111,12 +124,29 @@ def locate(lake: Path, external_bid_id: str) -> Path | None:
 
 
 def decimal_or_none(text: str | None) -> Decimal | None:
+    """숫자로 읽을 수 없거나 유한하지 않은 값은 `None`이다.
+
+    `nan`·`Infinity`는 `Decimal`이 받아들이지만 비교 연산에서 `InvalidOperation`을 올린다. 그런
+    값을 그대로 흘려보내면 관측 하나가 실행 전체를 멈추므로 여기서 없는 값으로 만든다.
+    """
     if not text:
         return None
     try:
-        return Decimal(text)
+        value = Decimal(text)
     except InvalidOperation:
         return None
+    return value if value.is_finite() else None
+
+
+def quarantine_reason(error: BaseException) -> str:
+    """격리 사유를 표 한 칸에 들어가는 한 줄로 만든다.
+
+    Pydantic `ValidationError`의 문자열은 여러 줄이고 `input_value=`를 담는다. 개행이 그대로
+    실리면 증거 문서의 Markdown 표가 깨지고, 파이프 문자는 열을 갈라버린다. 80자 절단은 원본 값이
+    문서로 새어나가는 폭까지 함께 줄인다.
+    """
+    detail = " ".join(str(error).split())[:_MAX_REASON_LENGTH]
+    return f"{type(error).__name__}: {detail}".replace("|", "\\|")
 
 
 def observe_file(path_text: str) -> FileObservation:
@@ -126,22 +156,24 @@ def observe_file(path_text: str) -> FileObservation:
     try:
         payload = gzip.decompress(path.read_bytes())
         parsed = parse_nexacro(payload, require_ds_info=True)
-    except (OSError, EOFError, ValueError, KeyError, IndexError) as error:
+        # 원본 사실 계산도 같은 try 안이다. 밖에 두면 원본 값 하나 때문에 오른 예외가 23만 건짜리
+        # 실행을 통째로 끝내고, 그것은 관측 하나만 격리한다는 전제를 깬다.
+        raw = _raw_facts(parsed)
+    except _OBSERVATION_ERRORS as error:
         return FileObservation(
             external_bid_id=external_bid_id,
             normalized=False,
-            quarantine_reason=f"{type(error).__name__}: {str(error)[:80]}",
+            quarantine_reason=quarantine_reason(error),
         )
-    raw = _raw_facts(parsed)
     try:
         record = normalize_bid_detail_payload(
             payload, external_bid_id=external_bid_id, parser_version=PARSER_VERSION
         ).record
-    except (ValueError, RuntimeError) as error:
+    except (*_OBSERVATION_ERRORS, RuntimeError) as error:
         return FileObservation(
             external_bid_id=external_bid_id,
             normalized=False,
-            quarantine_reason=f"{type(error).__name__}: {str(error)[:80]}",
+            quarantine_reason=quarantine_reason(error),
             **raw,  # type: ignore[arg-type]
         )
     return FileObservation(
@@ -176,7 +208,7 @@ def _raw_facts(parsed: ParsedNexacro) -> dict[str, object]:
                 masked_withdrawn += 1
     method_field = next((name for name in AWARD_METHOD_FIELDS if name in info), None)
     opened = info.get("OPNG_DT") or ""
-    checked, mismatch = _draw_average(parsed, info)
+    checked, mismatch = draw_average(parsed, info)
     return {
         "organization_code": info.get("PURR_CD") or None,
         "opened_on": (
@@ -201,7 +233,7 @@ def _raw_facts(parsed: ParsedNexacro) -> dict[str, object]:
     }
 
 
-def _draw_average(parsed: ParsedNexacro, info: Mapping[str, str]) -> tuple[bool, bool]:
+def draw_average(parsed: ParsedNexacro, info: Mapping[str, str]) -> tuple[bool, bool]:
     """선택된 추첨 후보의 평균이 예정가격이 되는지 원본 값으로 확인한다.
 
     왜 정규화 결과가 아니라 원본인가. 소스는 평균을 `ELCTRN_BID_PLNPRC`가 실제로 쓴 자릿수까지
@@ -228,6 +260,8 @@ def _derived_facts(record: EatbidIngestionAuctionV2) -> dict[str, object]:
     """정규화 성공분에서만 계산하는 파생 지표. 소스에는 이 판정이 없다(AGENTS 3·8).
 
     하한 미만과 1·2등 격차는 리포트가 관측값에서 다시 세는 값이지 정규화 모델의 필드가 아니다.
+    비율의 분모는 명단 행 수다 — 계약이 명단 행마다 사정률을 요구하므로(`roster.py`) 사정률이 있는
+    행은 곧 명단 행이며, 취소(`WITHDRAWAL_YN=Y`) 행도 포함된다.
     """
     terms = record.terms
     award = record.award
@@ -237,9 +271,7 @@ def _derived_facts(record: EatbidIngestionAuctionV2) -> dict[str, object]:
     scored = [
         value
         for value in (
-            decimal_or_none(item.bid_rate.value)
-            for item in record.roster.submissions
-            if item.bid_rate is not None
+            decimal_or_none(item.bid_rate.value) for item in record.roster.submissions
         )
         if value is not None
     ]
@@ -257,28 +289,9 @@ def _derived_facts(record: EatbidIngestionAuctionV2) -> dict[str, object]:
         "runner_up_gap": str(gap) if gap is not None else None,
         "floor_rate": terms.floor_rate.value if terms.floor_rate is not None else None,
         "below_floor_rows": len(below),
-        "scored_rows": len(scored),
         "award_below_floor": (
             awarded is not None and floor is not None and awarded < floor
         ),
     }
 
 
-def summarize_rounds(
-    lake: Path, *, external_bid_ids: tuple[str, ...]
-) -> dict[str, RoundSummary]:
-    """회차별 낙찰률과 명단 수만 낸다. 격리된 회차는 담기지 않으므로 호출자가 차집합을 본다."""
-    summaries: dict[str, RoundSummary] = {}
-    for external_bid_id in external_bid_ids:
-        path = locate(lake, external_bid_id)
-        if path is None:
-            continue
-        observation = observe_file(str(path))
-        if not observation.normalized:
-            continue
-        summaries[external_bid_id] = RoundSummary(
-            external_bid_id=external_bid_id,
-            award_rate=observation.award_rate,
-            roster_size=observation.roster_rows,
-        )
-    return summaries
