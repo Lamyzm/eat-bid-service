@@ -51,7 +51,11 @@ _OBSERVATION_ERRORS = (
     IndexError,
     ArithmeticError,
 )
-_MAX_REASON_LENGTH = 80
+# 계약 위반 문장은 상한 숫자를 끝에 달고 온다("... at most 999999999999.999 at scale 3"). 80자에서
+# 자르면 그 숫자가 중간에서 끊겨 독자가 잘린 값을 상한으로 읽는다. 160자면 관측된 사유가 다 들어가고,
+# 그래도 넘치면 잘렸다는 것을 `…`로 알린다.
+_MAX_REASON_LENGTH = 160
+_TRUNCATION_MARK = "…"
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,10 +146,12 @@ def quarantine_reason(error: BaseException) -> str:
     """격리 사유를 표 한 칸에 들어가는 한 줄로 만든다.
 
     Pydantic `ValidationError`의 문자열은 여러 줄이고 `input_value=`를 담는다. 개행이 그대로
-    실리면 증거 문서의 Markdown 표가 깨지고, 파이프 문자는 열을 갈라버린다. 80자 절단은 원본 값이
+    실리면 증거 문서의 Markdown 표가 깨지고, 파이프 문자는 열을 갈라버린다. 절단은 원본 값이
     문서로 새어나가는 폭까지 함께 줄인다.
     """
-    detail = " ".join(str(error).split())[:_MAX_REASON_LENGTH]
+    detail = " ".join(str(error).split())
+    if len(detail) > _MAX_REASON_LENGTH:
+        detail = detail[:_MAX_REASON_LENGTH] + _TRUNCATION_MARK
     return f"{type(error).__name__}: {detail}".replace("|", "\\|")
 
 

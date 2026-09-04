@@ -16,6 +16,11 @@ export const normalizedReservePriceDrawSchema = z.strictObject({
     ratio: reservePriceRatioWireSchema,
     amount: moneyWireSchema,
     chosen: sourceCodedValueSchema,
+  }).meta({
+    // id를 주지 않으면 생성기가 문맥 없는 `Candidate`를 전역 이름으로 만들고 Python 소비자가 그
+    // 이름으로 import한다. 중첩 resource도 이름을 스스로 가져야 한다.
+    id: "NormalizedReservePriceCandidate",
+    description: "One observed reserve-price candidate: its source sequence code, multiplier, amount and chosen flag.",
   })).max(64),
 }).meta({
   id: "NormalizedReservePriceDraw",

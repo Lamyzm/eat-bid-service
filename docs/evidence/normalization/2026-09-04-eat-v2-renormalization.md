@@ -25,9 +25,9 @@
 | 사유 | 건수 | 예시 공고 id |
 | -- | -- | -- |
 | NexacroParseError: unsafe or malformed Nexacro XML: mismatched tag: line 115, column 39 | 2 | 5546909, 5546797 |
-| EatDetailValidationError: invalid eaT detail field: SAJEONG_PCT must be a source bid rate at most 99999999 | 2 | 5308075, 5308074 |
+| EatDetailValidationError: invalid eaT detail field: SAJEONG_PCT must be a source bid rate at most 999999999999.999 at scale 3 | 2 | 5308075, 5308074 |
 | EatDetailValidationError: invalid eaT detail field: duplicate PDLC_CD in ds_areaList | 2 | 5445496, 5495384 |
-| EatDetailValidationError: invalid eaT detail field: EFT_ALL_AMT must be a nonnegative KRW amount at scale  | 2 | 5435250, 5635876 |
+| EatDetailValidationError: invalid eaT detail field: EFT_ALL_AMT must be a nonnegative KRW amount at scale 2 | 2 | 5435250, 5635876 |
 
 ## 블록 보유율
 
@@ -170,6 +170,13 @@
 다시 돌리면 위 표만 갱신되고 이 절은 그대로 보존된다. 아래 숫자는 계산 버전 `eat-v2-r2`(계약
 `ObservedBidRate` 적용 뒤 첫 전수)의 것이며, 첫 실행 `eat-v2-r1`(사정률 상한 100.000)과 달라진 값은
 그 사실을 함께 적는다.
+
+머리표의 계산 버전이 `eat-v2-r3`인 것은 회차 조사 대조와 하한율별 분해를 더해 다시 돌렸기 때문이다.
+**r3 재실행에서 기존 표의 값은 r2와 같다** — 격리 8건, 하한 미만 43.751%, 격차 중앙 0.090, 관측
+최대값 413·2·15·10이 두 실행에서 동일하다. 그래서 아래 산문의 r2 숫자를 그대로 둔다.
+
+격리 사유는 `lake_report.observe.quarantine_reason`이 한 줄로 줄인 예외 문장이며 160자를 넘으면
+끝에 `…`가 붙는다. 위 표의 넷은 잘리지 않은 원문이다.
 
 ### 1. 계약 상한 — 사정률 하나가 틀렸고, 고쳤다
 

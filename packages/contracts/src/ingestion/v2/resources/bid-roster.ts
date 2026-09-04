@@ -4,8 +4,8 @@ import { z } from "zod";
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { normalizedBidSubmissionSchema } from "./bid-submission";
 
-// 상한 2048은 실측 p95 197곳과 최대 명단 규모 사이에 넉넉한 여유를 둔 값이다. 초과는 계약 위반으로
-// 격리되어야 하며 조용히 자르지 않는다.
+// 상한 2048은 레이크 전수 실측(2026-09-04, 238,308건: 최대 413·p95 175)과 26,000 조사 코호트
+// (p95 197) 어느 쪽에도 여유가 큰 값이다. 초과는 계약 위반으로 격리되어야 하며 조용히 자르지 않는다.
 export const normalizedBidRosterSchema = z.strictObject({
   sourceRosterSize: nonNegativeCountSchema.nullable(),
   submissions: z.array(normalizedBidSubmissionSchema).max(2048),

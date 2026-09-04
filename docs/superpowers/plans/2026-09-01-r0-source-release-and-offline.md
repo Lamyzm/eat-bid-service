@@ -167,7 +167,7 @@ git commit -m "feat(data): source release 봉인 상태를 구현한다"
 - Test: `apps/dataplane/tests/unit/test_eat_http_client.py`
 
 **Interfaces:**
-- Produces: `EatEndpointContract`, `EAT_ENDPOINTS`, `EatHttpClient.fetch(CaptureRequest)`
+- Produces: `EatEndpointContract`, `EAT_ENDPOINT_TRANSPORTS`, `EatHttpClient.fetch(CaptureRequest)`
 - Consumes: exact audit evidence에서 검토한 path/method/parameter 이름만 사용
 
 - [x] **Step 1: allowlist와 timeout 실패 테스트를 쓴다**
@@ -175,7 +175,7 @@ git commit -m "feat(data): source release 봉인 상태를 구현한다"
 ```python
 def test_registry에_없는_endpoint는_HTTP_전에_거부한다() -> None:
     transport = RecordingTransport()
-    client = EatHttpClient(transport=transport, endpoints=EAT_ENDPOINTS)
+    client = EatHttpClient(transport=transport, endpoints=EAT_ENDPOINT_TRANSPORTS)
     with pytest.raises(SourceContractError):
         client.fetch(capture_request(endpoint="unknown"))
     assert transport.requests == []

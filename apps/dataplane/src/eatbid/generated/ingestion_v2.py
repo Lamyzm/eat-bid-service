@@ -262,7 +262,9 @@ class NormalizedAuctionTerms(BaseModel):
     ]
 
 
-class Candidate(BaseModel):
+class NormalizedReservePriceCandidate(BaseModel):
+    """One observed reserve-price candidate: its source sequence code, multiplier, amount and chosen flag."""
+
     model_config = ConfigDict(
         extra='forbid',
         populate_by_name=True,
@@ -281,7 +283,7 @@ class NormalizedReservePriceDraw(BaseModel):
         extra='forbid',
         populate_by_name=True,
     )
-    candidates: Annotated[list[Candidate], Field(max_length=64)]
+    candidates: Annotated[list[NormalizedReservePriceCandidate], Field(max_length=64)]
 
 
 class NormalizedSupplierAccount(BaseModel):

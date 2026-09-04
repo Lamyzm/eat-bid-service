@@ -24,6 +24,9 @@ export const normalizedBidSubmissionSchema = z.strictObject({
   // ADR 0029: 이 값의 채움률은 수집 나이의 함수다. 비율의 분모로 쓸 때 코호트 성숙도를 병기한다.
   withdrawalFlag: sourceCodedValueSchema.nullable(),
   drawNumbers: z.array(sourceCodeSchema).max(8),
+  // `ds_bidList.TOTAL_NUM`이며 roster의 sourceRosterSize(`ds_info.BID_CNT`)와 다른 블록의 관측이다.
+  // 두 값이 갈리는 상세를 본 적이 없지만 같다고 단언할 근거도 없으므로 각각 보존하고, 어느 쪽도
+  // 다른 쪽으로 채우거나 검증하지 않는다(AGENTS 3).
   observedRosterSize: nonNegativeCountSchema.nullable(),
 }).meta({
   id: "NormalizedBidSubmission",

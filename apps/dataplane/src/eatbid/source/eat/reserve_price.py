@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
-from eatbid.generated.ingestion_v2 import Candidate, NormalizedReservePriceDraw
+from eatbid.generated.ingestion_v2 import (
+    NormalizedReservePriceCandidate,
+    NormalizedReservePriceDraw,
+)
 from eatbid.source.eat.wire_text import optional_text
 from eatbid.source.eat.wire_values_v2 import (
     optional_money,
@@ -22,7 +25,7 @@ def parse_reserve_price_draw(parsed: ParsedNexacro) -> NormalizedReservePriceDra
     불변식이지만, 예정가격은 계속 관측값을 싣는다. 여기서 평균을 계산해 채우면 관측과 해석이
     섞이고 소스가 규칙을 바꾼 날을 알아챌 수 없게 된다(AGENTS 3).
     """
-    candidates: list[Candidate] = []
+    candidates: list[NormalizedReservePriceCandidate] = []
     # 순번은 후보를 가리키는 소스 코드이므로 원본 문자열 그대로 비교하고 담는다. 정수로 바꾸면
     # 명단 행의 `DRAW_NO`가 가리키는 값과 타입이 갈리고, 앞자리 0이 붙는 날 값이 달라진다.
     sequences: set[str] = set()
@@ -43,6 +46,8 @@ def parse_reserve_price_draw(parsed: ParsedNexacro) -> NormalizedReservePriceDra
         if chosen is None:
             raise ValueError("CHC_YN is required on an observed draw row")
         candidates.append(
-            Candidate(sequence=sequence, ratio=ratio, amount=amount, chosen=chosen)
+            NormalizedReservePriceCandidate(
+                sequence=sequence, ratio=ratio, amount=amount, chosen=chosen
+            )
         )
     return NormalizedReservePriceDraw(candidates=candidates)

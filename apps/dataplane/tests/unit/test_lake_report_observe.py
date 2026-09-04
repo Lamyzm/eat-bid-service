@@ -12,12 +12,21 @@ SCRIPTS_ROOT = Path(__file__).parents[2] / "scripts"
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
-from lake_report.observe import draw_average, observe_file
+from lake_report.observe import OBSERVED_BID_RATE_CEILING, draw_average, observe_file
 from lake_report.render import CONCLUSION_MARKER, existing_conclusion
 
+from eatbid.source.eat import wire_text
 from eatbid.source.eat.xml import parse_nexacro
 
 from .lake_report_support import detail_document, submission, write_lake_file
+
+
+def test_리포트가_복제한_사정률_상한은_파서_상한과_같다() -> None:
+    """다른 상한 넷은 생성 JSON Schema에서 읽지만 이것만 정규식이라 손으로 복제한다.
+
+    두 값이 갈리면 리포트가 조용히 틀린 격리 판정을 낸다. 갈라지는 순간 여기서 멈춘다.
+    """
+    assert OBSERVED_BID_RATE_CEILING == wire_text._OBSERVED_BID_RATE_MAXIMUM
 
 
 def test_명단_행이_하한_미만과_일이등_격차로_다시_세어진다(tmp_path: Path) -> None:
@@ -85,6 +94,8 @@ def test_격리_사유는_한_줄이고_파이프를_표에서_이스케이프�
     assert observation.quarantine_reason is not None
     assert "\n" not in observation.quarantine_reason
     assert "|" not in observation.quarantine_reason.replace("\\|", "")
+    # 계약 상한이 문장 끝에 오므로 중간에서 잘리면 독자가 잘린 숫자를 상한으로 읽는다.
+    assert observation.quarantine_reason.endswith("at scale 3")
 
 
 def test_추첨_평균은_예정가격이_쓴_자릿수로_반올림해_대조한다() -> None:

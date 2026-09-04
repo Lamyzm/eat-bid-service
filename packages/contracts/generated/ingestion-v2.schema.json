@@ -652,34 +652,38 @@
       ],
       "type": "object"
     },
+    "NormalizedReservePriceCandidate": {
+      "additionalProperties": false,
+      "description": "One observed reserve-price candidate: its source sequence code, multiplier, amount and chosen flag.",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "chosen": {
+          "$ref": "#/$defs/SourceCodedValue"
+        },
+        "ratio": {
+          "$ref": "#/$defs/ReservePriceRatio"
+        },
+        "sequence": {
+          "$ref": "#/$defs/SourceCode"
+        }
+      },
+      "required": [
+        "sequence",
+        "ratio",
+        "amount",
+        "chosen"
+      ],
+      "type": "object"
+    },
     "NormalizedReservePriceDraw": {
       "additionalProperties": false,
       "description": "Observed multiple-reserve-price candidates and which of them the source marked chosen.",
       "properties": {
         "candidates": {
           "items": {
-            "additionalProperties": false,
-            "properties": {
-              "amount": {
-                "$ref": "#/$defs/Money"
-              },
-              "chosen": {
-                "$ref": "#/$defs/SourceCodedValue"
-              },
-              "ratio": {
-                "$ref": "#/$defs/ReservePriceRatio"
-              },
-              "sequence": {
-                "$ref": "#/$defs/SourceCode"
-              }
-            },
-            "required": [
-              "sequence",
-              "ratio",
-              "amount",
-              "chosen"
-            ],
-            "type": "object"
+            "$ref": "#/$defs/NormalizedReservePriceCandidate"
           },
           "maxItems": 64,
           "type": "array"
