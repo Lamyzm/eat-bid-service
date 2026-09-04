@@ -4,9 +4,30 @@
     <ColumnInfo>
       <Column id="TOT_CNT" type="STRING"/>
       <Column id="ETN_BID_ID" type="STRING"/>
+      <Column id="BID_CNT" type="STRING"/>
+      <Column id="ETN_BID_STT_NM" type="STRING"/>
+      <Column id="BID_END_DT" type="STRING"/>
+      <Column id="LAST_CHG_DT" type="STRING"/>
+      <Column id="STRPRCE" type="STRING"/>
+      <Column id="PLNPRCE_TYPE_NM" type="STRING"/>
+      <Column id="PURR_CD" type="STRING"/>
+      <Column id="PURR_NM" type="STRING"/>
+      <Column id="SUCBD_DECISION_MTHD_NM" type="STRING"/>
     </ColumnInfo>
     <Rows>
-      <Row><Col id="TOT_CNT">1</Col><Col id="ETN_BID_ID">5610615</Col></Row>
+      <Row>
+        <Col id="TOT_CNT">1</Col>
+        <Col id="ETN_BID_ID">5610615</Col>
+        <Col id="BID_CNT">0</Col>
+        <Col id="ETN_BID_STT_NM">입찰공고</Col>
+        <Col id="BID_END_DT">20260914100000000</Col>
+        <Col id="LAST_CHG_DT">20260902175956000</Col>
+        <Col id="STRPRCE">69000000</Col>
+        <Col id="PLNPRCE_TYPE_NM">복수예정가격</Col>
+        <Col id="PURR_CD">199148</Col>
+        <Col id="PURR_NM">선양시니어빌리지</Col>
+        <Col id="SUCBD_DECISION_MTHD_NM">예정가격의 []%이상 입찰가 중 최저가 낙찰</Col>
+      </Row>
     </Rows>
   </Dataset>
 </Root>

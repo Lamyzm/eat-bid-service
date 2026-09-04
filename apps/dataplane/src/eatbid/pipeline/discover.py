@@ -7,12 +7,13 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
-from typing import Protocol
+from typing import Protocol, get_args
 from uuid import UUID
 
 from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
+from eatbid.ingest.repository import CaptureRunMode
 from eatbid.source.client import SourceClient, SourceResponse
 from eatbid.source.eat.models import BidListPage
 from eatbid.source.eat.normalize import parse_bid_list_page
@@ -27,6 +28,9 @@ class DiscoveryPlan:
     source_release_id: UUID
     run_id: UUID
     detail_run_id: UUID
+    # 어떤 모드가 이 발견을 만들었는지는 run ledger의 사실이다. 창은 이미 번역된 뒤이므로 여기서는
+    # 모드를 다시 해석하지 않고 기록만 한다.
+    mode: CaptureRunMode
     release_name: str
     as_of: datetime
     build_sha: str
@@ -50,6 +54,8 @@ class DiscoveryPlan:
             raise ValueError("discovery and detail run identities must differ")
         if not self.release_name or not self.parser_version:
             raise ValueError("release_name and parser_version are required")
+        if self.mode not in get_args(CaptureRunMode):
+            raise ValueError("discovery mode must be a capture run mode")
         if _BUILD_SHA.fullmatch(self.build_sha) is None:
             raise ValueError("build_sha must be a lowercase SHA-256 digest")
         if self.started_at.utcoffset() is None or self.completed_at.utcoffset() is None:

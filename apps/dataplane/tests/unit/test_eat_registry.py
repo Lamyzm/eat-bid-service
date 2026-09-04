@@ -59,10 +59,13 @@ def test_bid_list_registry는_release_plan용_schema_metadata를_직접_노출�
     assert contract.endpoint == "bid-list"
     assert contract.parser_version == "eat-v1"
     assert contract.schema_fingerprint == (
-        "f316b1c240ecd53c8c0a8927ad7f8d5fef437ce615684c404650dae5f03b3701"
+        "37ae3b110f15ac1099f916d9f08f4ca965a6d4e8f17b6893e94ca604cd9e1d01"
     )
     assert contract.response_datasets == ("ds_list",)
-    assert contract.datasets == {"ds_list": ("TOT_CNT", "ETN_BID_ID")}
+    assert len(contract.datasets["ds_list"]) == 38
+    assert set(contract.schema_contract.required_datasets["ds_list"]) == {
+        "TOT_CNT", "ETN_BID_ID", "BID_CNT", "ETN_BID_STT_NM", "BID_END_DT", "LAST_CHG_DT"
+    }
     assert contract.record_type == "auction-discovery.v1"
     assert contract.schema_fingerprint == reviewed_schema_fingerprint(
         source="eat", endpoint="bid-list", parser_version="eat-v1"

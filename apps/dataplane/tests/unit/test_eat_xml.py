@@ -20,21 +20,53 @@ def xml(body: str) -> bytes:
     return f'<Root xmlns="{NS}">{body}</Root>'.encode()
 
 
+def list_row(total: str, bid_id: str, **overrides: str | None) -> str:
+    """검토된 필수 column 여섯을 갖춘 목록 행이다. override 값이 None이면 그 column을 뺀다."""
+    columns: dict[str, str | None] = {
+        "TOT_CNT": total,
+        "ETN_BID_ID": bid_id,
+        "BID_CNT": "1",
+        "ETN_BID_STT_NM": "진행중",
+        "BID_END_DT": "20260914100000000",
+        "LAST_CHG_DT": "20260902175956000",
+    }
+    columns.update(overrides)
+    cells = "".join(
+        f'<Col id="{name}">{value}</Col>'
+        for name, value in columns.items()
+        if value is not None
+    )
+    return f"<Row>{cells}</Row>"
+
+
+def list_page(*rows: str) -> bytes:
+    return xml(f'<Dataset id="ds_list"><Rows>{"".join(rows)}</Rows></Dataset>')
+
+
 def test_parse_bid_list_page가_total과_internal_ID를_보존한다() -> None:
     page = parse_bid_list_page((FIXTURE_DIR / "bid-list-one.xml").read_bytes())
 
     assert page.total_count == 1
     assert page.external_bid_ids == ("5610615",)
+    (row,) = page.rows
+    assert row.competitor_count == 0
+    assert row.status_name == "입찰공고"
+    assert row.deadline_at.root == "2026-09-14T01:00:00Z"
+    assert row.last_changed_at.root == "2026-09-02T08:59:56Z"
+    assert row.base_amount is not None
+    assert (row.base_amount.amount, row.base_amount.currency) == ("69000000.00", "KRW")
+    assert row.planned_price_type_name == "복수예정가격"
+    assert row.buyer_organization_code is not None
+    assert row.buyer_organization_code.root == "199148"
+    assert row.buyer_organization_name == "선양시니어빌리지"
+    assert row.award_method_name == "예정가격의 []%이상 입찰가 중 최저가 낙찰"
 
 
 @pytest.mark.parametrize("total", ["", "-1", "+1", "1.0", "１２"])
 def test_parse_bid_list_page가_음수가_아닌_ascii_decimal_contract을_거부한다(
     total: str,
 ) -> None:
-    payload = xml(
-        f'<Dataset id="ds_list"><Rows><Row><Col id="TOT_CNT">{total}</Col>'
-        '<Col id="ETN_BID_ID">1</Col></Row></Rows></Dataset>'
-    )
+    payload = list_page(list_row(total, "1"))
 
     with pytest.raises(SourceContractError):
         parse_bid_list_page(payload)
@@ -43,20 +75,62 @@ def test_parse_bid_list_page가_음수가_아닌_ascii_decimal_contract을_거�
 @pytest.mark.parametrize(
     "rows",
     [
-        '<Row><Col id="TOT_CNT">2</Col><Col id="ETN_BID_ID"></Col></Row>',
-        (
-            '<Row><Col id="TOT_CNT">2</Col><Col id="ETN_BID_ID">1</Col></Row>'
-            '<Row><Col id="TOT_CNT">2</Col><Col id="ETN_BID_ID">1</Col></Row>'
-        ),
-        (
-            '<Row><Col id="TOT_CNT">1</Col><Col id="ETN_BID_ID">1</Col></Row>'
-            '<Row><Col id="TOT_CNT">1</Col><Col id="ETN_BID_ID">2</Col></Row>'
-        ),
+        list_row("2", ""),
+        list_row("2", "1") + list_row("2", "1"),
+        list_row("1", "1") + list_row("1", "2"),
     ],
 )
 def test_parse_bid_list_page가_empty_중복_또는_excess_ids을_거부한다(rows: str) -> None:
     with pytest.raises(SourceContractError):
-        parse_bid_list_page(xml(f'<Dataset id="ds_list"><Rows>{rows}</Rows></Dataset>'))
+        parse_bid_list_page(list_page(rows))
+
+
+@pytest.mark.parametrize(
+    "missing",
+    ["BID_CNT", "ETN_BID_STT_NM", "BID_END_DT", "LAST_CHG_DT"],
+)
+def test_목록_필수_column이_없으면_발견_전체가_SOURCE_CONTRACT로_닫힌다(missing: str) -> None:
+    with pytest.raises(SourceContractError):
+        parse_bid_list_page(list_page(list_row("1", "1", **{missing: None})))
+
+
+@pytest.mark.parametrize(
+    ("column", "wire"),
+    [
+        ("BID_CNT", ""),
+        ("BID_CNT", "-1"),
+        ("BID_CNT", "１"),
+        ("BID_END_DT", "2026091410"),
+        ("LAST_CHG_DT", "20260902"),
+        ("STRPRCE", "-5"),
+    ],
+)
+def test_목록_값이_검토된_wire_모양을_벗어나면_추측하지_않고_거부한다(
+    column: str, wire: str
+) -> None:
+    with pytest.raises(SourceContractError):
+        parse_bid_list_page(list_page(list_row("1", "1", **{column: wire})))
+
+
+def test_목록_선택_column이_비어도_필수_사실은_만들어진다() -> None:
+    page = parse_bid_list_page(list_page(list_row("1", "7")))
+
+    (row,) = page.rows
+    assert row.external_bid_id == "7"
+    assert row.competitor_count == 1
+    assert row.deadline_at.root == "2026-09-14T01:00:00Z"
+    assert row.base_amount is None
+    assert row.buyer_organization_code is None
+    assert row.award_method_name is None
+
+
+def test_0건_wire는_필수_column_없이도_빈_page가_된다() -> None:
+    page = parse_bid_list_page(
+        list_page('<Row><Col id="TOT_CNT">0</Col><Col id="ETN_BID_ID"></Col></Row>')
+    )
+
+    assert page.total_count == 0
+    assert page.rows == ()
 
 
 @pytest.mark.parametrize(
@@ -122,12 +196,12 @@ def test_parser가_nexacro_namespace을_요구한다() -> None:
 def test_reviewed_eat_detail_schema_contract는_안정적_parser_digest을_갖는다() -> None:
     assert reviewed_schema_fingerprint(
         source="eat", endpoint="bid-detail", parser_version="eat-v1"
-    ) == "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"
+    ) == "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"
     assert validate_eat_schema_contract(
         source="eat",
         endpoint="bid-detail",
         parser_version="eat-v1",
-        schema_fingerprint="ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe",
+        schema_fingerprint="c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf",
     )
 
 
@@ -135,8 +209,8 @@ def test_reviewed_eat_detail_schema_contract는_안정적_parser_digest을_갖�
     ("source", "endpoint", "parser_version", "schema_fingerprint"),
     [
         ("eat", "bid-detail", "eat-v1", "0" * 64),
-        ("eat", "unreviewed-detail", "eat-v1", "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"),
-        ("eat", "bid-detail", "eat-v2", "ac5d77d71e412b23feee740c58830819f396a52c928b250e4d56ebb6e8fcdfbe"),
+        ("eat", "unreviewed-detail", "eat-v1", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
+        ("eat", "bid-detail", "eat-v2", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
     ],
 )
 def test_eat_schema_contract가_fail_closed한다(
@@ -151,3 +225,46 @@ def test_eat_schema_contract가_fail_closed한다(
         parser_version=parser_version,
         schema_fingerprint=schema_fingerprint,
     )
+
+
+def _nexacro(inner: str) -> bytes:
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Root xmlns="http://www.nexacroplatform.com/platform/dataset">'
+        '<Dataset id="ds_info"><ColumnInfo>'
+        '<Column id="DLVRY_PLACE" type="STRING"/></ColumnInfo>'
+        f"<Rows><Row><Col id=\"DLVRY_PLACE\">{inner}</Col></Row></Rows>"
+        "</Dataset></Root>"
+    ).encode()
+
+
+@pytest.mark.parametrize(
+    ("wire", "expected"),
+    [
+        # 2026-09-03 실측: 학교 이름에 든 &를 소스가 이스케이프하지 않고 그대로 보낸다.
+        ("협성고등학교&협성경복중학교 공동 급식실", "협성고등학교&협성경복중학교 공동 급식실"),
+        ("a&b&c", "a&b&c"),
+        ("정상 &amp; 이스케이프", "정상 & 이스케이프"),
+        ("숫자 참조 &#65;", "숫자 참조 A"),
+        ("십육진 참조 &#x42;", "십육진 참조 B"),
+        ("&amp;amp;", "&amp;"),
+    ],
+)
+def test_이스케이프되지_않은_ampersand를_복구해_해석한다(
+    wire: str, expected: str
+) -> None:
+    parsed = parse_nexacro(_nexacro(wire), require_ds_info=True)
+
+    assert parsed.datasets["ds_info"][0]["DLVRY_PLACE"] == expected
+
+
+def test_ampersand_복구는_DTD와_entity_공격을_계속_막는다() -> None:
+    attack = (
+        b'<?xml version="1.0"?><!DOCTYPE Root [<!ENTITY x "boom">]>'
+        b'<Root xmlns="http://www.nexacroplatform.com/platform/dataset">'
+        b'<Dataset id="ds_info"><Rows><Row><Col id="A">&x;</Col></Row></Rows>'
+        b"</Dataset></Root>"
+    )
+
+    with pytest.raises(NexacroParseError):
+        parse_nexacro(attack, require_ds_info=True)

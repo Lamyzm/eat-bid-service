@@ -6,9 +6,7 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
-from zoneinfo import ZoneInfo
+from decimal import InvalidOperation
 
 from pydantic import ValidationError
 
@@ -17,8 +15,6 @@ from eatbid.generated.ingestion_v1 import (
     CategorySource,
     DisplayBidNumber,
     EatbidIngestionAuctionV1,
-    InstantText,
-    Money,
     NormalizedAuctionIdentity,
     NormalizedAuctionPricing,
     NormalizedAuctionSchedule,
@@ -28,29 +24,49 @@ from eatbid.generated.ingestion_v1 import (
     SourceCategoryLabel,
     SourceCode,
 )
-from eatbid.source.eat.models import BidListPage
+from eatbid.source.eat.models import BidListPage, BidListRow
 from eatbid.source.eat.payload import MAX_ELECTRONIC_BID_ID_DIGITS
 from eatbid.source.eat.schema_contract import reviewed_schema_contract
-from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro
+from eatbid.source.eat.wire_values import (
+    optional_instant_text,
+    optional_money,
+    optional_source_code,
+    optional_text,
+    required_text,
+)
+from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro, schema_fingerprint
 
 _NONNEGATIVE_DECIMAL = re.compile(r"0|[1-9][0-9]*")
 _POSITIVE_DECIMAL = re.compile(r"[1-9][0-9]*")
-_SOURCE_TIME_WIRE_SHAPES: dict[str, tuple[re.Pattern[str], int]] = {
-    "%Y%m%d": (re.compile(r"[0-9]{8}"), 8),
-    "%Y%m%d%H%M%S": (re.compile(r"[0-9]{14}"), 14),
-}
-_SEOUL_TIME = ZoneInfo("Asia/Seoul")
-_KRW_SCALE = Decimal("0.01")
 
 _BID_LIST_SCHEMA = reviewed_schema_contract(
     source="eat", endpoint="bid-list", parser_version="eat-v1"
 )
 if _BID_LIST_SCHEMA is None:  # pragma: no cover - import-time invariant
     raise RuntimeError("reviewed bid-list schema contract is required")
+_BID_DETAIL_SCHEMA = reviewed_schema_contract(
+    source="eat", endpoint="bid-detail", parser_version="eat-v1"
+)
+if _BID_DETAIL_SCHEMA is None:  # pragma: no cover - import-time invariant
+    raise RuntimeError("reviewed bid-detail schema contract is required")
+_BID_DETAIL_REQUIRED = _BID_DETAIL_SCHEMA.required_datasets
 (_BID_LIST_DATASET,) = tuple(_BID_LIST_SCHEMA.datasets)
-(_TOTAL_COUNT_FIELD, _EXTERNAL_BID_ID_FIELD) = _BID_LIST_SCHEMA.datasets[
-    _BID_LIST_DATASET
-]
+_TOTAL_COUNT_FIELD = "TOT_CNT"
+_EXTERNAL_BID_ID_FIELD = "ETN_BID_ID"
+_COMPETITOR_COUNT_FIELD = "BID_CNT"
+_LIST_STATUS_FIELD = "ETN_BID_STT_NM"
+_LIST_DEADLINE_FIELD = "BID_END_DT"
+_LIST_LAST_CHANGED_FIELD = "LAST_CHG_DT"
+_LIST_REQUIRED_FIELDS = _BID_LIST_SCHEMA.required_datasets[_BID_LIST_DATASET]
+if set(_LIST_REQUIRED_FIELDS) != {
+    _TOTAL_COUNT_FIELD,
+    _EXTERNAL_BID_ID_FIELD,
+    _COMPETITOR_COUNT_FIELD,
+    _LIST_STATUS_FIELD,
+    _LIST_DEADLINE_FIELD,
+    _LIST_LAST_CHANGED_FIELD,
+}:  # pragma: no cover - import-time invariant
+    raise RuntimeError("bid-list parser and reviewed required columns diverged")
 
 
 class EatDetailValidationError(ValueError):
@@ -85,23 +101,56 @@ def parse_bid_list_page(payload: bytes) -> BidListPage:
     total_count = int(total_text)
     wire_ids = tuple(row.get(_EXTERNAL_BID_ID_FIELD, "") for row in rows)
     if total_count == 0 and wire_ids == ("",):
-        return BidListPage(total_count=0, external_bid_ids=())
-    external_bid_ids = wire_ids
+        return BidListPage(total_count=0, rows=())
     if any(
         _POSITIVE_DECIMAL.fullmatch(source_id) is None
         or len(source_id) > MAX_ELECTRONIC_BID_ID_DIGITS
-        for source_id in external_bid_ids
+        for source_id in wire_ids
     ):
         raise SourceContractError(
             f"{_EXTERNAL_BID_ID_FIELD} must be bounded positive ASCII decimal text"
         )
-    if len(set(external_bid_ids)) != len(external_bid_ids):
+    if len(set(wire_ids)) != len(wire_ids):
         raise SourceContractError(
             f"{_EXTERNAL_BID_ID_FIELD} must be unique within a page"
         )
-    if len(external_bid_ids) > total_count:
+    if len(wire_ids) > total_count:
         raise SourceContractError(f"page row count exceeds {_TOTAL_COUNT_FIELD}")
-    return BidListPage(total_count=total_count, external_bid_ids=external_bid_ids)
+    return BidListPage(
+        total_count=total_count, rows=tuple(_bid_list_row(row) for row in rows)
+    )
+
+
+def _bid_list_row(row: Mapping[str, str]) -> BidListRow:
+    """목록 행의 검토된 column을 해석한다. 필수 column의 부재나 잘못된 값은 발견 전체의 계약 위반이다."""
+    try:
+        competitor_text = required_text(row, _COMPETITOR_COUNT_FIELD)
+        if _NONNEGATIVE_DECIMAL.fullmatch(competitor_text) is None:
+            raise ValueError(
+                f"{_COMPETITOR_COUNT_FIELD} must be nonnegative ASCII decimal text"
+            )
+        deadline_at = optional_instant_text(row, _LIST_DEADLINE_FIELD, "%Y%m%d%H%M%S")
+        last_changed_at = optional_instant_text(
+            row, _LIST_LAST_CHANGED_FIELD, "%Y%m%d%H%M%S"
+        )
+        if deadline_at is None or last_changed_at is None:
+            raise ValueError(
+                f"{_LIST_DEADLINE_FIELD} and {_LIST_LAST_CHANGED_FIELD} are required"
+            )
+        return BidListRow(
+            external_bid_id=required_text(row, _EXTERNAL_BID_ID_FIELD),
+            competitor_count=int(competitor_text),
+            status_name=required_text(row, _LIST_STATUS_FIELD),
+            deadline_at=deadline_at,
+            last_changed_at=last_changed_at,
+            base_amount=optional_money(row, "STRPRCE"),
+            planned_price_type_name=optional_text(row, "PLNPRCE_TYPE_NM"),
+            buyer_organization_code=optional_source_code(row, "PURR_CD"),
+            buyer_organization_name=optional_text(row, "PURR_NM"),
+            award_method_name=optional_text(row, "SUCBD_DECISION_MTHD_NM"),
+        )
+    except (InvalidOperation, ValidationError, ValueError) as error:
+        raise SourceContractError(f"invalid eaT list field: {error}") from None
 
 
 def normalize_bid_detail(
@@ -124,36 +173,36 @@ def normalize_bid_detail_payload(
     parsed = parse_nexacro(payload, require_ds_info=True)
     info = parsed.datasets["ds_info"][0]
     try:
-        source_category = _optional_text(info, "MAIN_ITEMS")
+        source_category = optional_text(info, "MAIN_ITEMS")
         record = EatbidIngestionAuctionV1(
             contract_version="eatbid.ingestion.auction.v1",
             identity=NormalizedAuctionIdentity(
                 external_bid_id=external_bid_id,
                 display_bid_number=_display_bid_number(info),
-                title=_required_text(info, "BID_NM"),
-                status=_required_text(info, "ELCTRN_BID_STT_NM"),
+                title=required_text(info, "BID_NM"),
+                status=required_text(info, "ELCTRN_BID_STT_NM"),
             ),
             buyer=NormalizedBuyer(
-                organization_code=_required_text(info, "PURR_CD"),
-                organization_name=_required_text(info, "PURR_NM"),
+                organization_code=required_text(info, "PURR_CD"),
+                organization_name=required_text(info, "PURR_NM"),
             ),
             location=NormalizedLocation(
-                sido_code=_optional_source_code(info, "SIDO_CD"),
-                sigungu_code=_optional_source_code(info, "SIGUNGU_CD"),
+                sido_code=optional_source_code(info, "SIDO_CD"),
+                sigungu_code=optional_source_code(info, "SIGUNGU_CD"),
                 eligibility_codes=[
                     SourceCode(root=code) for code in _eligibility_codes(parsed)
                 ],
             ),
             schedule=NormalizedAuctionSchedule(
-                announced_at=_optional_instant_text(info, "PBANC_YMD", "%Y%m%d"),
-                deadline_at=_optional_instant_text(
+                announced_at=optional_instant_text(info, "PBANC_YMD", "%Y%m%d"),
+                deadline_at=optional_instant_text(
                     info, "BID_END_DT", "%Y%m%d%H%M%S"
                 ),
-                opened_at=_optional_instant_text(info, "OPNG_DT", "%Y%m%d%H%M%S"),
+                opened_at=optional_instant_text(info, "OPNG_DT", "%Y%m%d%H%M%S"),
             ),
             pricing=NormalizedAuctionPricing(
-                base_amount=_optional_money(info, "BGNG_PRC"),
-                planned_amount=_optional_money(info, "ELCTRN_BID_PLNPRC"),
+                base_amount=optional_money(info, "BGNG_PRC"),
+                planned_amount=optional_money(info, "ELCTRN_BID_PLNPRC"),
             ),
             classification=NormalizedClassification(
                 source_category_label=(
@@ -173,9 +222,34 @@ def normalize_bid_detail_payload(
             raise
         raise EatDetailValidationError(
             f"invalid eaT detail field: {error}",
-            schema_fingerprint=parsed.schema_fingerprint,
+            schema_fingerprint=_contract_fingerprint(parsed),
         ) from error
-    return NormalizedDetail(record=record, schema_fingerprint=parsed.schema_fingerprint)
+    return NormalizedDetail(
+        record=record, schema_fingerprint=_contract_fingerprint(parsed)
+    )
+
+
+def _contract_fingerprint(parsed: ParsedNexacro) -> str:
+    """왜 응답 전체가 아니라 검토된 필수 부분집합으로 계산하나.
+
+    2026-09-03 실측에서 같은 창의 상세 85건이 전체 모양 fingerprint를 12가지로 갈랐다. 공고 유형에
+    따라 선택적 dataset이 붙거나 빠지기 때문이다. 전체 모양의 동일성을 계약으로 삼으면 어떤 live
+    수집도 발행되지 않고, 소스가 필드를 하나 늘릴 때마다 제품이 멈춘다.
+
+    계약이 주장해야 하는 것은 파서가 의존하는 필수 부분집합의 존재다. 그 교집합으로 계산하므로
+    필수 column이 하나라도 빠지면 값이 달라져 격리되고, 모르는 column이 더 있어도 해석하지 않으니
+    추측이 들어가지 않는다. 응답 전체 모양은 보존된 원본에서 언제든 다시 계산할 수 있다.
+    """
+    return schema_fingerprint(
+        {
+            dataset: [
+                column
+                for column in required
+                if any(column in row for row in parsed.datasets.get(dataset, ()))
+            ]
+            for dataset, required in _BID_DETAIL_REQUIRED.items()
+        }
+    )
 
 
 def canonical_payload(record: EatbidIngestionAuctionV1) -> bytes:
@@ -189,93 +263,15 @@ def canonical_payload(record: EatbidIngestionAuctionV1) -> bytes:
     ).encode("utf-8")
 
 
-def _required_text(row: Mapping[str, str], field: str) -> str:
-    value = row.get(field, "")
-    if value == "":
-        raise ValueError(f"{field} is required")
-    return value
-
-
-def _optional_text(row: Mapping[str, str], field: str) -> str | None:
-    value = row.get(field, "")
-    return value if value != "" else None
-
-
 def _display_bid_number(row: Mapping[str, str]) -> DisplayBidNumber | None:
-    value = _optional_text(row, "ELCTRN_BID_NO")
+    value = optional_text(row, "ELCTRN_BID_NO")
     return DisplayBidNumber(root=value) if value is not None else None
-
-
-def _optional_source_code(
-    row: Mapping[str, str], field: str
-) -> SourceCode | None:
-    value = _optional_text(row, field)
-    return SourceCode(root=value) if value is not None else None
-
-
-def _optional_instant_text(
-    row: Mapping[str, str], field: str, source_format: str
-) -> InstantText | None:
-    value = _optional_text(row, field)
-    if value is None:
-        return None
-    shape = _SOURCE_TIME_WIRE_SHAPES.get(source_format)
-    if shape is None:
-        raise ValueError(f"unsupported eaT source time format: {source_format}")
-    wire_pattern, width = shape
-    # strptime은 zero-padding이 빠진 숫자도 받아들이므로 source wire 모양을 먼저 닫아야 한다.
-    if wire_pattern.fullmatch(value) is None:
-        raise ValueError(f"{field} must be exactly {width} ASCII digits")
-    try:
-        # eaT 값은 지역 벽시각이므로 fold 후보를 검증하기 전까지 timezone을 붙이지 않는다.
-        wall_time = datetime.strptime(value, source_format)  # noqa: DTZ007
-    except ValueError as error:
-        raise ValueError(f"{field} does not match {source_format}") from error
-    instant = _resolve_seoul_wall_time(wall_time, field).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
-    return InstantText(root=instant)
-
-
-def _resolve_seoul_wall_time(wall_time: datetime, field: str) -> datetime:
-    """fold 기본값으로 존재하지 않거나 모호한 서울 시각을 임의의 instant로 만들지 않는다."""
-    candidates: dict[tuple[datetime, timedelta], datetime] = {}
-    for fold in (0, 1):
-        local_time = wall_time.replace(tzinfo=_SEOUL_TIME, fold=fold)
-        instant = local_time.astimezone(UTC)
-        round_trip = instant.astimezone(_SEOUL_TIME)
-        offset = local_time.utcoffset()
-        if offset is None or round_trip.replace(tzinfo=None) != wall_time:
-            continue
-        candidates[(instant, offset)] = instant
-    if len(candidates) == 0:
-        raise ValueError(f"{field} is a nonexistent Asia/Seoul wall time")
-    if len(candidates) > 1:
-        raise ValueError(f"{field} is an ambiguous Asia/Seoul wall time")
-    return next(iter(candidates.values()))
-
-
-def _optional_money(row: Mapping[str, str], field: str) -> Money | None:
-    value = _optional_text(row, field)
-    if value is None:
-        return None
-    amount = Decimal(value)
-    exponent = amount.as_tuple().exponent
-    if (
-        not amount.is_finite()
-        or amount.is_signed()
-        or not isinstance(exponent, int)
-        or exponent < -2
-    ):
-        raise ValueError(f"{field} must be a nonnegative KRW amount at scale 2")
-    fixed_amount = format(amount.quantize(_KRW_SCALE), "f")
-    return Money(amount=fixed_amount, currency="KRW")
 
 
 def _eligibility_codes(parsed: ParsedNexacro) -> tuple[str, ...]:
     codes: list[str] = []
     for row in parsed.datasets.get("ds_areaList", ()):
-        code = _required_text(row, "PDLC_CD")
+        code = required_text(row, "PDLC_CD")
         if code in codes:
             raise ValueError("duplicate PDLC_CD in ds_areaList")
         codes.append(code)

@@ -36,6 +36,24 @@ flowchart LR
 
 스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다.
 
+### 2.1 모드가 날짜 창이 되는 곳 (2026-09-04, EAT-34)
+
+`mode`는 WorkflowTemplate parameter에서 `discover` 단계의 `EATBID_WORKFLOW_MODE`를 거쳐 CLI
+`eatbid discover --mode`로 그대로 전달된다. 창 번역은 manifest가 아니라
+`apps/dataplane/src/eatbid/pipeline/collection_window.py`가 `--as-of`의 서울 날짜로 수행한다.
+근거는 [수집 모드별 날짜 창 실측](../evidence/source-boundary/2026-09-03-collection-mode-windows.md)이다.
+
+| mode | `--start-date`/`--end-date` | 출처 |
+|---|---|---|
+| `poll-open` | 오늘 하루 | CLI가 `--as-of`에서 번역, 인자로 주면 거부 |
+| `daily-reconcile` | 오늘-6일 ~ 오늘 | CLI가 `--as-of`에서 번역, 인자로 주면 거부 |
+| `backfill` | 사람이 지정 | `argo submit --from workflowtemplate/eatbid-dataplane -p mode=backfill -p start-date=YYYYMMDD -p end-date=YYYYMMDD` |
+
+단계 사이의 정체성은 `discover`가 workflow uid에서 결정적으로 파생해 output parameter로 넘긴다.
+`capture`는 발견된 `external-bid-ids`로, `normalize`는 확장된 `capture`의 `observation-id`로
+fan-out하고 `validate`·`project`는 detail run 정체성으로 발행한다. CLI `--result-dir`가 machine
+result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
+
 ## 3. 실행 안전장치
 
 - source 전역 semaphore를 둔다. 초기 capacity는 1이며 관측 후 늘린다.

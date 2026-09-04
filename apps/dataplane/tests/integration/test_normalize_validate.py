@@ -985,7 +985,7 @@ def test_누락된_필수_scheme가_publication을_차단한다(
         )
 
 
-def test_unreviewed_source_column은_attempt를_보존하지만_publication은_차단한다(
+def test_모르는_source_column이_늘어도_기본_사실은_발행된다(
     pipeline_services: PipelineServices,
 ) -> None:
     body = FIXTURE.read_bytes().replace(
@@ -1014,8 +1014,11 @@ def test_unreviewed_source_column은_attempt를_보존하지만_publication은_�
         repository=pipeline_services.publication_repository,
     )
 
-    assert result.status == "failed"
-    assert_failed_without_core_writes(pipeline_services, run_id, publication_id)
+    # 2026-09-03 실측: live 응답은 공고 유형마다 dataset과 column이 달라 같은 창 85건이 전체 모양
+    # fingerprint를 12가지로 갈랐다. 모르는 column이 발행을 막으면 소스가 필드를 하나 늘릴 때마다
+    # 제품이 멈춘다. 원본은 그대로 보존되므로 나중에 재파싱해 들일 수 있고, 지금은 해석하지 않으니
+    # 추측이 들어가지 않는다.
+    assert result.status == "validated"
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(
             """

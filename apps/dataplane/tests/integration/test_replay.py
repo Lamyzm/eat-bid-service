@@ -77,16 +77,10 @@ def _capture(
     )
 
 
-def _unreviewed_body() -> bytes:
-    return (
-        FIXTURE.read_bytes()
-        .replace(
-            b"</ColumnInfo>",
-            b'<Column id="UNREVIEWED_FIELD" type="STRING"/></ColumnInfo>',
-            1,
-        )
-        .replace(b"</Row>", b'<Col id="UNREVIEWED_FIELD">new</Col></Row>', 1)
-    )
+# 2026-09-03 실측 뒤 계약은 파서가 요구하는 필수 부분집합만 주장한다. 모르는 column이 늘어도
+# 위반이 아니므로 payload로는 source-contract 실패를 만들 수 없다. 검토되지 않은 parser version이
+# 남은 유일한 source-contract 경로다.
+UNREVIEWED_PARSER_VERSION = "eat-v2"
 
 
 def _insert_quarantined_attempt(
@@ -683,18 +677,15 @@ def test_실행_중인_replay가_hidden_publication_member을_거부한다(
         )
 
 
-@pytest.mark.parametrize("state", ["running", "source-contract", "quarantined"])
+# `source-contract` 경우가 빠진 이유. 계약이 필수 부분집합만 주장하게 된 뒤로 payload로는 그 실패를
+# 만들 수 없고, 미검토 parser version으로 만들면 이 테스트가 뒤에서 검사하는 replay identity가 함께
+# 달라져 다른 오류가 먼저 난다. 그 경로는 `test_eat_schema_contract가_fail_closed한다`가 덮는다.
+@pytest.mark.parametrize("state", ["running", "quarantined"])
 def test_nonfrozen_replay_state가_extra_wrong_parser_attempt를_거부한다(
     pipeline_services: PipelineServices,
     state: str,
 ) -> None:
-    body = (
-        _unreviewed_body()
-        if state == "source-contract"
-        else b"<broken>"
-        if state == "quarantined"
-        else None
-    )
+    body = b"<broken>" if state == "quarantined" else None
     observation_ids = _capture(pipeline_services, body=body)
     run_id, publication_id = uuid4(), uuid4()
     if state == "running":
@@ -705,9 +696,7 @@ def test_nonfrozen_replay_state가_extra_wrong_parser_attempt를_거부한다(
             publication_id=publication_id,
         )
     else:
-        expected_error = (
-            SourceContractError if state == "source-contract" else DataQuarantinedError
-        )
+        expected_error = DataQuarantinedError
         with pytest.raises(expected_error):
             _run(
                 pipeline_services,
@@ -817,17 +806,11 @@ def test_저장된_failed_replay는_publication_member를_숨기기_전에_typed
         replay_observations_ids = _capture(pipeline_services, body=b"<broken>")
         expected_error = DataQuarantinedError
     else:
-        body = (
-            FIXTURE.read_bytes()
-            .replace(
-                b"</ColumnInfo>",
-                b'<Column id="UNREVIEWED_FIELD" type="STRING"/></ColumnInfo>',
-                1,
-            )
-            .replace(b"</Row>", b'<Col id="UNREVIEWED_FIELD">new</Col></Row>', 1)
-        )
-        replay_observations_ids = _capture(pipeline_services, body=body)
+        replay_observations_ids = _capture(pipeline_services)
         expected_error = SourceContractError
+    parser_version = (
+        UNREVIEWED_PARSER_VERSION if failure_kind == "source-contract" else "eat-v1"
+    )
     run_id, publication_id = uuid4(), uuid4()
     with pytest.raises(expected_error):
         _run(
@@ -835,6 +818,7 @@ def test_저장된_failed_replay는_publication_member를_숨기기_전에_typed
             replay_observations_ids,
             run_id=run_id,
             publication_id=publication_id,
+            parser_version=parser_version,
         )
     with pipeline_services.connection.cursor() as cursor:
         cursor.execute(
@@ -857,6 +841,7 @@ def test_저장된_failed_replay는_publication_member를_숨기기_전에_typed
             replay_observations_ids,
             run_id=run_id,
             publication_id=publication_id,
+            parser_version=parser_version,
             replay_services=_services(pipeline_services, store=NoRawAccess()),
         )
 
@@ -1396,19 +1381,10 @@ def test_quarantined_replay가_data_failure를_저장하고_다시_던진다(
         assert cursor.fetchone() == (0,)
 
 
-def test_unreviewed_schema_replay가_source_contract를_저장하고_다시_던진다(
+def test_미검토_parser_version_replay가_source_contract를_저장하고_다시_던진다(
     pipeline_services: PipelineServices,
 ) -> None:
-    body = (
-        FIXTURE.read_bytes()
-        .replace(
-            b"</ColumnInfo>",
-            b'<Column id="UNREVIEWED_FIELD" type="STRING"/></ColumnInfo>',
-            1,
-        )
-        .replace(b"</Row>", b'<Col id="UNREVIEWED_FIELD">new</Col></Row>', 1)
-    )
-    observation_ids = _capture(pipeline_services, body=body)
+    observation_ids = _capture(pipeline_services)
     run_id, publication_id = uuid4(), uuid4()
 
     for _ in range(2):
@@ -1418,6 +1394,7 @@ def test_unreviewed_schema_replay가_source_contract를_저장하고_다시_던�
                 observation_ids,
                 run_id=run_id,
                 publication_id=publication_id,
+                parser_version=UNREVIEWED_PARSER_VERSION,
             )
 
     with pipeline_services.connection.cursor() as cursor:
