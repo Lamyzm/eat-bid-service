@@ -8,7 +8,7 @@ import { BidRateProvider } from './bid-rate-context';
 import { DecisionBanner } from './decision-banner';
 import { DecisionFrame } from './decision-frame';
 import { DecisionHeader } from './decision-header';
-import { FlowChart } from './flow-chart';
+import { EvidenceTabs } from './evidence-tabs';
 import { HistoryTable } from './history-table';
 import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
@@ -22,15 +22,6 @@ const PENDING_REASON: Record<Exclude<HistoryState['state'], 'ready'>, string> = 
   unavailable: '회차 이력을 지금 불러오지 못했습니다'
 };
 
-function FlowCard({ presentation }: { readonly presentation: HistoryPresentation }) {
-  return (
-    <div className='grid gap-3 rounded-xl bg-card p-4 shadow-xs'>
-      <span className='text-xl font-bold'>흐름</span>
-      <FlowChart presentation={presentation} />
-    </div>
-  );
-}
-
 function HistoryCard({ presentation }: { readonly presentation: HistoryPresentation }) {
   return (
     <div className='overflow-hidden rounded-xl bg-card shadow-xs'>
@@ -38,8 +29,10 @@ function HistoryCard({ presentation }: { readonly presentation: HistoryPresentat
         <span className='text-xl font-bold'>과거 회차</span>
         <span className='text-[13px] font-semibold text-muted-foreground'>{presentation.sampleCount}회 · 최근 12회 표시</span>
       </div>
+      {/* 디자인 원문은 "파란 열"이지만 이 저장소의 primary 토큰은 파랑이 아니다. 색 이름 대신 자리로
+          가리켜 테마가 바뀌어도 문구가 거짓이 되지 않게 한다. */}
       <p className='px-4 py-2 text-[13px] font-medium text-muted-foreground'>
-        <span className='text-primary'>파란 열</span>은 지금 값을 그때 냈다고 치고 계산한 것입니다. 실제로 낸 적은 없습니다.
+        <span className='text-primary'>마지막 열</span>은 지금 값을 그때 냈다고 치고 계산한 것입니다. 실제로 낸 적은 없습니다.
       </p>
       <HistoryTable rows={presentation.rows} />
     </div>
@@ -66,8 +59,7 @@ export function DecisionScreen({
         banner={<DecisionBanner decision={decision} />}
         evidence={
           <div className='grid gap-4'>
-            <PendingCard title='비교집단' reason='낙찰률 분포 계약(EAT-38)이 붙으면 호가창이 보입니다.' />
-            {history.state === 'ready' ? <FlowCard presentation={history.presentation} /> : <PendingCard title='흐름' reason={PENDING_REASON[history.state]} />}
+            <EvidenceTabs auctionId={decision.identity.auctionId} search={search} history={history} />
             <details className='rounded-xl bg-card p-4 shadow-xs'>
               <summary className='cursor-pointer text-[15px] font-semibold'>원문과 추적 정보</summary>
               <dl className='mt-3 grid gap-3 sm:grid-cols-2'>

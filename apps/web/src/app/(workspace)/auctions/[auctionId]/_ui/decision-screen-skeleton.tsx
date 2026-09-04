@@ -32,12 +32,13 @@ export function DecisionScreenSkeleton() {
         banner={<Skeleton className='h-20 w-full rounded-xl' />}
         evidence={
           <div className='grid gap-4'>
-            <CardSkeleton lines={2} />
-            {/* 흐름 SVG와 과거 회차 표는 실제 높이가 커서 2~3줄 카드로 두면 도착 순간 화면이 밀린다. */}
-            <div className='grid gap-2 rounded-xl bg-card p-4 shadow-xs'>
-              <Skeleton className='h-5 w-24' />
+            {/* 근거 탭 카드는 탭 줄·안내문·본문 세 켜다. 실제 높이를 비워 두면 도착 순간 화면이 밀린다. */}
+            <div className='grid gap-3 rounded-xl bg-card p-4 shadow-xs'>
+              <Skeleton className='h-10 w-72' />
+              <Skeleton className='h-4 w-80' />
               <Skeleton className='h-60 w-full' />
             </div>
+            <CardSkeleton lines={1} />
           </div>
         }
         history={

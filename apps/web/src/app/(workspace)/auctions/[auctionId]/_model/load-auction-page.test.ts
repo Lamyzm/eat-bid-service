@@ -6,7 +6,7 @@ import type { DecisionSearch } from '../_lib/decision-search-params';
 import { loadAuctionPage } from './load-auction-page';
 
 const canonicalAuctionId = auctionFixture.identity.auctionId;
-const search: DecisionSearch = { period: '12개월', scope: '전국', item: null };
+const search: DecisionSearch = { period: '12개월', scope: '전국', view: '비교집단', item: null };
 
 function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage>[2]> = {}) {
   return {

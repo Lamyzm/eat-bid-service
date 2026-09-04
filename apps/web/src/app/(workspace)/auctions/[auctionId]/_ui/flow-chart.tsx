@@ -130,7 +130,8 @@ export function FlowChart({ presentation }: { readonly presentation: HistoryPres
         )}
         {points.map((point) => (point.outside === null ? null : <OutsideMark key={`outside-${point.key}`} point={point} />))}
         <g className='text-primary'>
-          <line x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={mine.y} y2={mine.y} stroke='currentColor' strokeWidth={1.5} />
+          {/* 안내문이 "굵은 선이 내 값"이라 말하므로 낙찰선(2)보다 실제로 굵어야 한다. 디자인 원본도 3이다. */}
+          <line x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={mine.y} y2={mine.y} stroke='currentColor' strokeWidth={3} />
           <MyRateLabel rate={rate} y={mine.y} />
         </g>
       </svg>
