@@ -919,10 +919,6 @@
       "sha256": "26ae20535ed23361f7a669af6f1aefb5785921c7bd15b4a2abf76bee6ed567fb"
     },
     {
-      "path": "packages/contracts/src/generate-json-schema.ts",
-      "sha256": "8f1dcacf07073628203e2e120bce114a8eabf8ebfa6b2af198a68ae2c5c3e07f"
-    },
-    {
       "path": "packages/contracts/src/ingestion/v1/normalized-auction.ts",
       "sha256": "a28c8fd1b7da9ac4739e5ba8e654e52540fc02d37370de0faeeb9c2360ebfab9"
     },
@@ -949,10 +945,6 @@
     {
       "path": "packages/contracts/src/ingestion/v1/resources/schedule.ts",
       "sha256": "c6134c3c606263a23e8262e066c3f1499253632a8a9a3c2be3c12a9c588bf261"
-    },
-    {
-      "path": "packages/contracts/src/portable-registry.ts",
-      "sha256": "2be28d7ccb32ddca974f9911d7027e3c5cf640934a704d3c6216e061c39773bf"
     },
     {
       "path": "packages/contracts/src/resources/procurement/identity.ts",

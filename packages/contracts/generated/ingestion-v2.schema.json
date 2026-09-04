@@ -1,0 +1,795 @@
+{
+  "$defs": {
+    "BidRate": {
+      "additionalProperties": false,
+      "description": "A bid rate expressed on a 100-point scale with exactly three fractional digits, matching numeric(6,3) mart columns.",
+      "properties": {
+        "unit": {
+          "const": "percentage-points",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/BidRateText"
+        }
+      },
+      "required": [
+        "value",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "BidRateText": {
+      "description": "Canonical bid-rate percentage-points text with exactly three fractional digits, matching numeric(6,3) mart columns; from 0.000 through 100.000.",
+      "maxLength": 7,
+      "pattern": "^(?:(?:0|[1-9][0-9]?)\\.[0-9]{3}|100\\.000)$",
+      "type": "string"
+    },
+    "CanonicalMoneyAmount": {
+      "description": "Canonical nonnegative KRW amount with exactly two fractional digits.",
+      "maxLength": 19,
+      "pattern": "^(?:0|[1-9][0-9]{0,15})\\.[0-9]{2}$",
+      "type": "string"
+    },
+    "CodeScheme": {
+      "description": "Source-scoped scheme identifier; schemes are never compared implicitly.",
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "EatbidIngestionAuctionV2": {
+      "additionalProperties": false,
+      "description": "Versioned normalized eaT auction interchange contract including roster, draw and lineage blocks.",
+      "properties": {
+        "award": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NormalizedAwardDecision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "buyer": {
+          "$ref": "#/$defs/NormalizedBuyer"
+        },
+        "classification": {
+          "$ref": "#/$defs/NormalizedClassification"
+        },
+        "contractVersion": {
+          "const": "eatbid.ingestion.auction.v2",
+          "type": "string"
+        },
+        "identity": {
+          "$ref": "#/$defs/NormalizedAuctionIdentity"
+        },
+        "lineage": {
+          "$ref": "#/$defs/NormalizedAuctionLineage"
+        },
+        "location": {
+          "$ref": "#/$defs/NormalizedLocation"
+        },
+        "pricing": {
+          "$ref": "#/$defs/NormalizedAuctionPricing"
+        },
+        "reservePriceDraw": {
+          "$ref": "#/$defs/NormalizedReservePriceDraw"
+        },
+        "roster": {
+          "$ref": "#/$defs/NormalizedBidRoster"
+        },
+        "schedule": {
+          "$ref": "#/$defs/NormalizedAuctionSchedule"
+        },
+        "terms": {
+          "$ref": "#/$defs/NormalizedAuctionTerms"
+        }
+      },
+      "required": [
+        "identity",
+        "buyer",
+        "location",
+        "schedule",
+        "pricing",
+        "classification",
+        "contractVersion",
+        "terms",
+        "roster",
+        "award",
+        "reservePriceDraw",
+        "lineage"
+      ],
+      "type": "object"
+    },
+    "ExternalBidId": {
+      "description": "Opaque source-scoped auction identifier; never parsed for identity.",
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "InstantText": {
+      "description": "Canonical UTC ISO 8601 instant text ending in Z with at most nanosecond precision.",
+      "example": "2026-08-30T00:00:00Z",
+      "maxLength": 35,
+      "pattern": "^(?:(?:[0-9][0-9][2468][048]|[0-9][0-9][13579][26]|[0-9][0-9]0[48]|[02468][048]00|[13579][26]00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|(?:02)-(?:0[1-9]|1[0-9]|2[0-8])))T(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{0,8}[1-9])?(?:Z))$",
+      "type": "string"
+    },
+    "Money": {
+      "additionalProperties": false,
+      "description": "Exact KRW money value; amount remains decimal text across JSON boundaries.",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/CanonicalMoneyAmount"
+        },
+        "currency": {
+          "const": "KRW",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "type": "object"
+    },
+    "NonNegativeCount": {
+      "description": "Count of observed rows; JSON integer within PostgreSQL integer range.",
+      "maximum": 2147483647,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "NormalizedAttemptLink": {
+      "additionalProperties": false,
+      "description": "One member of the observed re-bid chain; ordering is never parsed from the display number suffix.",
+      "properties": {
+        "baseAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bidClosedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bidOpenedFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayBidNumber": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "externalBidId": {
+          "$ref": "#/$defs/ExternalBidId"
+        },
+        "plannedAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceStatus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "externalBidId",
+        "displayBidNumber",
+        "sourceStatus",
+        "bidOpenedFrom",
+        "bidClosedAt",
+        "baseAmount",
+        "plannedAmount"
+      ],
+      "type": "object"
+    },
+    "NormalizedAuctionIdentity": {
+      "additionalProperties": false,
+      "description": "Source identity and observed display state before canonical projection.",
+      "properties": {
+        "displayBidNumber": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "externalBidId": {
+          "$ref": "#/$defs/ExternalBidId"
+        },
+        "status": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "externalBidId",
+        "displayBidNumber",
+        "title",
+        "status"
+      ],
+      "type": "object"
+    },
+    "NormalizedAuctionLineage": {
+      "additionalProperties": false,
+      "description": "Observed re-bid relations by source identifier only.",
+      "properties": {
+        "links": {
+          "items": {
+            "$ref": "#/$defs/NormalizedAttemptLink"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "parentExternalBidId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExternalBidId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "parentExternalBidId",
+        "links"
+      ],
+      "type": "object"
+    },
+    "NormalizedAuctionPricing": {
+      "additionalProperties": false,
+      "description": "Nullable exact two-decimal KRW amounts observed during normalization.",
+      "properties": {
+        "baseAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plannedAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "baseAmount",
+        "plannedAmount"
+      ],
+      "type": "object"
+    },
+    "NormalizedAuctionSchedule": {
+      "additionalProperties": false,
+      "description": "Nullable canonical UTC lifecycle instants observed during normalization.",
+      "properties": {
+        "announcedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deadlineAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "openedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "announcedAt",
+        "deadlineAt",
+        "openedAt"
+      ],
+      "type": "object"
+    },
+    "NormalizedAuctionTerms": {
+      "additionalProperties": false,
+      "description": "Observed award terms: floor rate, reserve-price method and award method as source codes.",
+      "properties": {
+        "awardMethod": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "floorRate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BidRate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plannedPriceMethod": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "floorRate",
+        "plannedPriceMethod",
+        "awardMethod"
+      ],
+      "type": "object"
+    },
+    "NormalizedAwardDecision": {
+      "additionalProperties": false,
+      "description": "The single observed award row and the observed runner-up rate by source rank.",
+      "properties": {
+        "awardedAmount": {
+          "$ref": "#/$defs/Money"
+        },
+        "awardedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "awardedRate": {
+          "$ref": "#/$defs/BidRate"
+        },
+        "runnerUpRate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BidRate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceStatus": {
+          "$ref": "#/$defs/SourceCodedValue"
+        },
+        "supplierAccount": {
+          "$ref": "#/$defs/NormalizedSupplierAccount"
+        }
+      },
+      "required": [
+        "supplierAccount",
+        "awardedAt",
+        "awardedRate",
+        "awardedAmount",
+        "runnerUpRate",
+        "sourceStatus"
+      ],
+      "type": "object"
+    },
+    "NormalizedBidRoster": {
+      "additionalProperties": false,
+      "description": "Observed roster block; an absent block is an empty roster, not a failure.",
+      "properties": {
+        "sourceRosterSize": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonNegativeCount"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "submissions": {
+          "items": {
+            "$ref": "#/$defs/NormalizedBidSubmission"
+          },
+          "maxItems": 2048,
+          "type": "array"
+        }
+      },
+      "required": [
+        "sourceRosterSize",
+        "submissions"
+      ],
+      "type": "object"
+    },
+    "NormalizedBidSubmission": {
+      "additionalProperties": false,
+      "description": "One observed roster row; source judgement stays a code and is never mapped to a derived status.",
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "bidRate": {
+          "$ref": "#/$defs/BidRate"
+        },
+        "drawNumbers": {
+          "items": {
+            "$ref": "#/$defs/SourceCode"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "effectiveAmount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observedRosterSize": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonNegativeCount"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rank": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonNegativeCount"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceStatus": {
+          "$ref": "#/$defs/SourceCodedValue"
+        },
+        "submittedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supplierAccount": {
+          "$ref": "#/$defs/NormalizedSupplierAccount"
+        },
+        "withdrawalFlag": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "supplierAccount",
+        "submittedAt",
+        "amount",
+        "effectiveAmount",
+        "bidRate",
+        "rank",
+        "sourceStatus",
+        "withdrawalFlag",
+        "drawNumbers",
+        "observedRosterSize"
+      ],
+      "type": "object"
+    },
+    "NormalizedBuyer": {
+      "additionalProperties": false,
+      "description": "Observed eaT buyer code and label before organization reconciliation.",
+      "properties": {
+        "organizationCode": {
+          "$ref": "#/$defs/SourceCode"
+        },
+        "organizationName": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "organizationCode",
+        "organizationName"
+      ],
+      "type": "object"
+    },
+    "NormalizedClassification": {
+      "additionalProperties": false,
+      "description": "Observed or explicitly inferred source classification without additional provenance claims.",
+      "properties": {
+        "categorySource": {
+          "enum": [
+            "source_field",
+            "inferred_from_title",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "sourceCategoryLabel": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sourceCategoryLabel",
+        "categorySource"
+      ],
+      "type": "object"
+    },
+    "NormalizedLocation": {
+      "additionalProperties": false,
+      "description": "Observed source-scoped location and eligibility codes; code text preserves leading zeroes.",
+      "properties": {
+        "eligibilityCodes": {
+          "items": {
+            "$ref": "#/$defs/SourceCode"
+          },
+          "maxItems": 512,
+          "type": "array"
+        },
+        "sidoCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sigunguCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sidoCode",
+        "sigunguCode",
+        "eligibilityCodes"
+      ],
+      "type": "object"
+    },
+    "NormalizedReservePriceDraw": {
+      "additionalProperties": false,
+      "description": "Observed multiple-reserve-price candidates and which of them the source marked chosen.",
+      "properties": {
+        "candidates": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "amount": {
+                "$ref": "#/$defs/Money"
+              },
+              "chosen": {
+                "$ref": "#/$defs/SourceCodedValue"
+              },
+              "ratio": {
+                "$ref": "#/$defs/Ratio"
+              },
+              "sequence": {
+                "$ref": "#/$defs/NonNegativeCount"
+              }
+            },
+            "required": [
+              "sequence",
+              "ratio",
+              "amount",
+              "chosen"
+            ],
+            "type": "object"
+          },
+          "maxItems": 64,
+          "type": "array"
+        }
+      },
+      "required": [
+        "candidates"
+      ],
+      "type": "object"
+    },
+    "NormalizedSupplierAccount": {
+      "additionalProperties": false,
+      "description": "Observed source-scoped supplier account; neither code is an internal identity.",
+      "properties": {
+        "accountCode": {
+          "$ref": "#/$defs/SourceCodedValue"
+        },
+        "businessNumber": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceSystem": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "sourceSystem",
+        "accountCode",
+        "businessNumber"
+      ],
+      "type": "object"
+    },
+    "Ratio": {
+      "additionalProperties": false,
+      "description": "A rate expressed on a 1.0 scale.",
+      "properties": {
+        "unit": {
+          "const": "ratio",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/RatioText"
+        }
+      },
+      "required": [
+        "value",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "RatioText": {
+      "description": "Canonical ratio text from 0.000000 through 1.000000.",
+      "maxLength": 8,
+      "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)$",
+      "type": "string"
+    },
+    "SourceCode": {
+      "description": "Opaque source code text that preserves leading zeroes.",
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "SourceCodedValue": {
+      "additionalProperties": false,
+      "description": "One observed external code with its scheme, source system and optional source label.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/SourceCode"
+        },
+        "codeScheme": {
+          "$ref": "#/$defs/CodeScheme"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceSystem": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "sourceSystem",
+        "codeScheme",
+        "code",
+        "label"
+      ],
+      "type": "object"
+    },
+    "SourceSystem": {
+      "description": "Bounded identifier of the system that supplied an observation.",
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "$id": "EatbidIngestionAuctionV2",
+  "$ref": "#/$defs/EatbidIngestionAuctionV2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

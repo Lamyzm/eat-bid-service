@@ -27,7 +27,7 @@ describe("portable 계약 registry와 JSON Schema emitter", () => {
     expect(registry, "portable registry가 존재해야 한다").toBeDefined();
 
     const ids = registry!.portableContracts.map((entry) => entry.id);
-    expect(ids).toEqual(["EatbidIngestionAuctionV1"]);
+    expect(ids).toEqual(["EatbidIngestionAuctionV1", "EatbidIngestionAuctionV2"]);
     expect(new Set(ids).size).toBe(ids.length);
     for (const entry of registry!.portableContracts) {
       expect(entry.schema.meta()?.id).toBe(entry.id);
@@ -57,6 +57,44 @@ describe("portable 계약 registry와 JSON Schema emitter", () => {
     expect(document.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(document.$id).toBe("EatbidIngestionAuctionV1");
     expectRecursivelySorted(document);
+  });
+
+  test("계약마다 artifact 파일명이 다르고 v2도 재귀 정렬된 동일 bytes로 생성된다", async () => {
+    const { emitPortableSchemas } = await import("./generate-json-schema");
+    const directory = await mkdtemp(join(tmpdir(), "eatbid-contracts-v2-"));
+    temporaryDirectories.push(directory);
+
+    const paths = await emitPortableSchemas(directory);
+    expect(paths.map((path) => path.split(/[\\/]/).at(-1))).toEqual([
+      "ingestion-v1.schema.json",
+      "ingestion-v2.schema.json",
+    ]);
+    const document = JSON.parse(await readFile(paths[1]!, "utf8"));
+    expect(document.$id).toBe("EatbidIngestionAuctionV2");
+    expectRecursivelySorted(document);
+  });
+
+  test("check mode는 등록된 계약 artifact를 모두 비교한다", async () => {
+    const { checkPortableSchemas, generatedDirectory } = await import("./generate-json-schema");
+    const before = await Promise.all([
+      readFile(join(generatedDirectory, "ingestion-v1.schema.json")),
+      readFile(join(generatedDirectory, "ingestion-v2.schema.json")),
+    ]);
+
+    await checkPortableSchemas();
+
+    const drifted = await mkdtemp(join(tmpdir(), "eatbid-contracts-multi-drift-"));
+    temporaryDirectories.push(drifted);
+    await writeFile(join(drifted, "ingestion-v1.schema.json"), before[0]!);
+    await writeFile(join(drifted, "ingestion-v2.schema.json"), Buffer.from("{\"drifted\":true}\n", "utf8"));
+
+    await expect(checkPortableSchemas(drifted)).rejects.toThrow("ingestion-v2.schema.json");
+    const after = await Promise.all([
+      readFile(join(generatedDirectory, "ingestion-v1.schema.json")),
+      readFile(join(generatedDirectory, "ingestion-v2.schema.json")),
+    ]);
+    expect(after[0]!.equals(before[0]!)).toBe(true);
+    expect(after[1]!.equals(before[1]!)).toBe(true);
   });
 
   test("InstantText는 Python generator가 소비할 단일 scalar pattern으로 생성된다", async () => {
