@@ -1,13 +1,26 @@
 /** @module 책임: 등록된 계약마다 결정적 JSON Schema artifact를 내고 추적 생성물의 drift를 검사한다. */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod";
 
 import { portableContracts, type PortableContractId } from "./portable-registry";
 
 export const generatedDirectory = join(__dirname, "..", "generated");
 export const ingestionV1SchemaPath = join(generatedDirectory, "ingestion-v1.schema.json");
+const artifactSuffix = ".schema.json";
+
+// registry가 id와 artifact 이름 양쪽으로 주소 지정 가능해야 emitter가 무엇을 어디에 쓸지 결정된다.
+// 중복은 프로그래밍 오류이므로 생성이나 검사를 시작하기 전에 모듈 적재 시점 한 번만 확인하고 멈춘다.
+const registeredArtifacts: ReadonlyMap<string, PortableContractId> = new Map(
+  portableContracts.map((entry) => [entry.artifact, entry.id] as const),
+);
+if (new Set(portableContracts.map((entry) => entry.id)).size !== portableContracts.length) {
+  throw new Error("Portable contract IDs must be unique");
+}
+if (registeredArtifacts.size !== portableContracts.length) {
+  throw new Error("Portable contract artifacts must be unique");
+}
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -23,15 +36,6 @@ function sortJsonKeys(value: JsonValue): JsonValue {
 }
 
 function contractById(id: PortableContractId) {
-  const ids = portableContracts.map((entry) => entry.id);
-  if (new Set(ids).size !== ids.length) {
-    throw new Error("Portable contract IDs must be unique");
-  }
-  const artifacts = portableContracts.map((entry) => entry.artifact);
-  if (new Set(artifacts).size !== artifacts.length) {
-    throw new Error("Portable contract artifacts must be unique");
-  }
-
   const contract = portableContracts.find((entry) => entry.id === id);
   if (contract === undefined) throw new Error(`${id} is not registered`);
   return contract;
@@ -70,50 +74,59 @@ export async function emitIngestionV1Schema(outputDirectory: string): Promise<st
   return outputPath;
 }
 
+// Windows checkout이 CRLF로 받은 파일을 논리적 drift로 오인하지 않도록 줄끝만 정규화해 비교한다.
+async function assertSameBytes(artifact: string, generatedPath: string, committedPath: string): Promise<void> {
+  const normalizeLineEndings = (bytes: Buffer) => Buffer.from(
+    bytes.toString("utf8").replaceAll("\r\n", "\n").replaceAll("\r", "\n"),
+    "utf8",
+  );
+  const [generated, tracked] = await Promise.all([readFile(generatedPath), readFile(committedPath)]);
+  if (!normalizeLineEndings(generated).equals(normalizeLineEndings(tracked))) {
+    throw new Error(`Generated JSON Schema differs from ${artifact}; run pnpm contracts:generate`);
+  }
+}
+
 // check mode는 임시 디렉터리에만 쓴다. 추적 생성물을 다시 써서 mtime을 바꾸면 CI가 검사하려던 drift를
 // 검사 자체가 지워버린다.
-async function compareAgainstFreshEmission(
-  expected: (temporaryDirectory: string) => Promise<readonly { artifact: string; path: string }[]>,
-  committed: (artifact: string) => string,
+async function withFreshEmission(
+  consume: (emitted: ReadonlyMap<string, string>) => Promise<void>,
 ): Promise<void> {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "eatbid-contracts-check-"));
   try {
-    const normalizeLineEndings = (bytes: Buffer) => Buffer.from(
-      bytes.toString("utf8").replaceAll("\r\n", "\n").replaceAll("\r", "\n"),
-      "utf8",
-    );
-    for (const entry of await expected(temporaryDirectory)) {
-      const [generated, tracked] = await Promise.all([
-        readFile(entry.path),
-        readFile(committed(entry.artifact)),
-      ]);
-      if (!normalizeLineEndings(generated).equals(normalizeLineEndings(tracked))) {
-        throw new Error(`Generated JSON Schema differs from ${entry.artifact}; run pnpm contracts:generate`);
-      }
-    }
+    const paths = await emitPortableSchemas(temporaryDirectory);
+    await consume(new Map(paths.map((path) => [basename(path), path] as const)));
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
 }
 
 export async function checkPortableSchemas(directory = generatedDirectory): Promise<void> {
-  await compareAgainstFreshEmission(
-    async (temporaryDirectory) => {
-      const paths = await emitPortableSchemas(temporaryDirectory);
-      return portableContracts.map((entry, index) => ({ artifact: entry.artifact, path: paths[index]! }));
-    },
-    (artifact) => join(directory, artifact),
-  );
+  // 등록에서 빠진 계약의 생성물이 남아 있으면 소비자는 아무도 갱신하지 않는 죽은 artifact를 계속 읽는다.
+  // 위치가 아니라 artifact 이름으로 짝지어야 registry 순서를 바꿔도 엉뚱한 파일과 비교하지 않는다.
+  const present = (await readdir(directory)).filter((name) => name.endsWith(artifactSuffix)).sort();
+  for (const name of present) {
+    if (!registeredArtifacts.has(name)) {
+      throw new Error(`${name} is not a registered portable contract artifact; run pnpm contracts:generate`);
+    }
+  }
+
+  await withFreshEmission(async (emitted) => {
+    for (const artifact of registeredArtifacts.keys()) {
+      const generatedPath = emitted.get(artifact);
+      if (generatedPath === undefined) throw new Error(`${artifact} was not emitted by the portable registry`);
+      await assertSameBytes(artifact, generatedPath, join(directory, artifact));
+    }
+  });
 }
 
 export async function checkIngestionV1Schema(committedPath = ingestionV1SchemaPath): Promise<void> {
-  await compareAgainstFreshEmission(
-    async (temporaryDirectory) => [{
-      artifact: "ingestion-v1.schema.json",
-      path: await emitIngestionV1Schema(temporaryDirectory),
-    }],
-    () => committedPath,
-  );
+  const artifact = "ingestion-v1.schema.json";
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "eatbid-contracts-check-"));
+  try {
+    await assertSameBytes(artifact, await emitIngestionV1Schema(temporaryDirectory), committedPath);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
 }
 
 async function main(): Promise<void> {

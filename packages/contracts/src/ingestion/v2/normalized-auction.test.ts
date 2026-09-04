@@ -134,4 +134,65 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
     (broken.roster as { submissions: { sourceStatus: unknown }[] }).submissions[0]!.sourceStatus = "002";
     expect(() => normalizedAuctionV2Schema.parse(broken)).toThrow();
   });
+
+  test("실측에 없던 판정 코드도 열거로 막지 않고 관측 그대로 통과시킨다", () => {
+    const unknownCodes = structuredClone(v2Fixture) as Record<string, unknown>;
+    const roster = unknownCodes.roster as { submissions: { sourceStatus: { code: string; label: string | null } }[] };
+    roster.submissions[0]!.sourceStatus = { sourceSystem: "eat", codeScheme: "eat:BID_STT", code: "999", label: null };
+    (unknownCodes.terms as { awardMethod: unknown }).awardMethod = {
+      sourceSystem: "eat",
+      codeScheme: "eat:SUCBD_DECISION_MTHD",
+      code: "ZZ9",
+      label: "알 수 없는 낙찰자 결정 방법",
+    };
+
+    const parsed = normalizedAuctionV2Schema.parse(unknownCodes);
+    expect(parsed.roster.submissions[0]!.sourceStatus.code).toBe("999");
+    expect(parsed.terms.awardMethod?.code).toBe("ZZ9");
+  });
+
+  test("명단 상한 2048행을 넘기면 조용히 자르지 않고 거부한다", () => {
+    const submission = structuredClone(v2Fixture.roster.submissions[0]);
+    const atLimit = { ...v2Fixture, roster: { sourceRosterSize: 2048, submissions: Array.from({ length: 2048 }, () => structuredClone(submission)) } };
+    const overLimit = { ...v2Fixture, roster: { sourceRosterSize: 2049, submissions: Array.from({ length: 2049 }, () => structuredClone(submission)) } };
+
+    expect(normalizedAuctionV2Schema.safeParse(atLimit).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(overLimit).success).toBe(false);
+  });
+
+  test("추첨번호가 8개를 넘으면 거부한다", () => {
+    const broken = structuredClone(v2Fixture) as Record<string, unknown>;
+    const roster = broken.roster as { submissions: { drawNumbers: string[] }[] };
+    roster.submissions[0]!.drawNumbers = ["1", "2", "3", "4", "5", "6", "7", "8"];
+    expect(normalizedAuctionV2Schema.safeParse(broken).success).toBe(true);
+
+    roster.submissions[0]!.drawNumbers = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+    expect(normalizedAuctionV2Schema.safeParse(broken).success).toBe(false);
+  });
+
+  test("추첨 후보와 재입찰 사슬의 64 상한을 넘기면 거부한다", () => {
+    const candidate = structuredClone(v2Fixture.reservePriceDraw.candidates[0]);
+    const link = {
+      externalBidId: "5669411",
+      displayBidNumber: null,
+      sourceStatus: null,
+      bidOpenedFrom: null,
+      bidClosedAt: null,
+      baseAmount: null,
+      plannedAmount: null,
+    };
+    const draw = (count: number) => ({
+      ...v2Fixture,
+      reservePriceDraw: { candidates: Array.from({ length: count }, () => structuredClone(candidate)) },
+    });
+    const chain = (count: number) => ({
+      ...v2Fixture,
+      lineage: { parentExternalBidId: null, links: Array.from({ length: count }, () => structuredClone(link)) },
+    });
+
+    expect(normalizedAuctionV2Schema.safeParse(draw(64)).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(draw(65)).success).toBe(false);
+    expect(normalizedAuctionV2Schema.safeParse(chain(64)).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(chain(65)).success).toBe(false);
+  });
 });

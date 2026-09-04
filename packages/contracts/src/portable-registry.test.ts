@@ -97,6 +97,19 @@ describe("portable 계약 registry와 JSON Schema emitter", () => {
     expect(after[1]!.equals(before[1]!)).toBe(true);
   });
 
+  test("registry에 없는 잔존 artifact가 남아 있으면 check mode가 실패한다", async () => {
+    const { checkPortableSchemas, emitPortableSchemas } = await import("./generate-json-schema");
+    const directory = await mkdtemp(join(tmpdir(), "eatbid-contracts-stale-"));
+    temporaryDirectories.push(directory);
+
+    await emitPortableSchemas(directory);
+    await checkPortableSchemas(directory);
+
+    const stalePath = join(directory, "ingestion-v0.schema.json");
+    await writeFile(stalePath, "{}\n", "utf8");
+    await expect(checkPortableSchemas(directory)).rejects.toThrow("ingestion-v0.schema.json");
+  });
+
   test("InstantText는 Python generator가 소비할 단일 scalar pattern으로 생성된다", async () => {
     const { emitIngestionV1Schema } = await import("./generate-json-schema");
     const directory = await mkdtemp(join(tmpdir(), "eatbid-contracts-instant-"));
