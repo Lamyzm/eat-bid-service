@@ -2,7 +2,7 @@
 import { sql } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type {
-  OrganizationAttemptPage,
+  OrganizationAttemptListing,
   OrganizationAttemptQuery,
   OrganizationAttemptReader,
   OrganizationAttemptRecord,
@@ -80,16 +80,34 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     return Array.isArray(result) && result.length > 0;
   }
 
-  async listAttempts(query: OrganizationAttemptQuery): Promise<OrganizationAttemptPage> {
+  async listAttempts(query: OrganizationAttemptQuery): Promise<OrganizationAttemptListing> {
+    // anchor를 먼저 확인해야 남의 기관 cursor와 사라진 cursor가 "이력 끝"으로 위장하지 않는다.
+    if (query.cursor !== null && !(await this.hasCursorAnchor(query.organizationId, query.cursor))) {
+      return { kind: "cursor-not-found", cursor: query.cursor };
+    }
     const [rows, sampleCount] = await Promise.all([this.pageRows(query), this.countAttempts(query)]);
     // 한 행을 더 읽어 다음 페이지 유무를 판단한다. 별도 count로는 keyset 경계를 알 수 없다.
     const hasMore = rows.length > query.limit;
     const attempts = (hasMore ? rows.slice(0, query.limit) : rows).map(mapAttemptRow);
     return {
-      attempts,
-      nextCursor: hasMore ? attempts.at(-1)?.attemptId ?? null : null,
-      sampleCount,
+      kind: "page",
+      page: {
+        attempts,
+        nextCursor: hasMore ? attempts.at(-1)?.attemptId ?? null : null,
+        sampleCount,
+      },
     };
+  }
+
+  private async hasCursorAnchor(id: OrganizationId, cursor: bigint): Promise<boolean> {
+    const result = await this.database.execute(sql`
+      select 1 as present
+      from mart.org_round_summary summary
+      where summary.auction_attempt_id = ${cursor}::bigint
+        and summary.organization_id = ${id}
+      limit 1
+    `);
+    return Array.isArray(result) && result.length > 0;
   }
 
   private async pageRows(query: OrganizationAttemptQuery): Promise<OrganizationAttemptRow[]> {
@@ -121,7 +139,8 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
              or (summary.announced_at, summary.auction_attempt_id)
                 < (select cursor_row.announced_at, cursor_row.auction_attempt_id
                    from mart.org_round_summary cursor_row
-                   where cursor_row.auction_attempt_id = ${query.cursor}::bigint))
+                   where cursor_row.auction_attempt_id = ${query.cursor}::bigint
+                     and cursor_row.organization_id = ${query.organizationId}))
       order by summary.announced_at desc, summary.auction_attempt_id desc
       limit ${query.limit + 1}
     `);

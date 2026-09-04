@@ -11,6 +11,7 @@ import { Effect } from "effect";
 import { z } from "zod";
 import { AuctionDependencyUnavailable } from "./find-auction";
 import type {
+  OrganizationAttemptListing,
   OrganizationAttemptPage,
   OrganizationAttemptQuery,
   OrganizationAttemptReader,
@@ -24,6 +25,19 @@ export class OrganizationNotFound extends Error {
   constructor(readonly organizationId: OrganizationId) {
     super(`Organization ${organizationIdToString(organizationId)} was not found`);
     this.name = "OrganizationNotFound";
+  }
+}
+
+/**
+ * cursor는 opaque하지만 소유자가 있다. 다른 기관의 회차나 사라진 회차를 가리키면 조용히 빈 목록을
+ * 주지 않고 요청 오류로 닫아야 화면이 페이지 끝과 잘못된 요청을 구분한다.
+ */
+export class AttemptCursorInvalid extends Error {
+  readonly code = "VALIDATION_ERROR" as const;
+
+  constructor(readonly organizationId: OrganizationId, readonly cursor: bigint) {
+    super(`Cursor ${cursor.toString(10)} does not belong to organization ${organizationIdToString(organizationId)}`);
+    this.name = "AttemptCursorInvalid";
   }
 }
 
@@ -87,7 +101,7 @@ export class ListOrganizationAuctionAttempts {
 
   execute(query: OrganizationAttemptQuery): Effect.Effect<
     OrganizationAuctionAttemptsV1Response,
-    OrganizationNotFound | AuctionDependencyUnavailable,
+    AttemptCursorInvalid | OrganizationNotFound | AuctionDependencyUnavailable,
     never
   > {
     // 존재 확인을 먼저 끝내야 "기관이 없음"과 "이력이 아직 없음"이 같은 빈 목록으로 뭉개지지 않는다.
@@ -96,7 +110,7 @@ export class ListOrganizationAuctionAttempts {
       catch: (cause) => new AuctionDependencyUnavailable(cause),
     }).pipe(
       Effect.flatMap((exists): Effect.Effect<
-        OrganizationAttemptPage,
+        OrganizationAttemptListing,
         OrganizationNotFound | AuctionDependencyUnavailable,
         never
       > => exists
@@ -105,7 +119,9 @@ export class ListOrganizationAuctionAttempts {
           catch: (cause) => new AuctionDependencyUnavailable(cause),
         })
         : Effect.fail(new OrganizationNotFound(query.organizationId))),
-      Effect.map((page) => toOrganizationAttemptsResponse(query.organizationId, page)),
+      Effect.flatMap((listing) => listing.kind === "page"
+        ? Effect.succeed(toOrganizationAttemptsResponse(query.organizationId, listing.page))
+        : Effect.fail(new AttemptCursorInvalid(query.organizationId, listing.cursor))),
     );
   }
 }

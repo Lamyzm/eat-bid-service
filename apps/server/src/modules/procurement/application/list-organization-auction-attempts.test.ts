@@ -29,7 +29,10 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
     expect(application, "기관 회차 이력 use case가 있어야 한다").toBeDefined();
     const useCase = new application!.ListOrganizationAuctionAttempts({
       exists: async () => true,
-      listAttempts: async () => ({ attempts: [record], nextCursor: 5_796_468n, sampleCount: 92 }),
+      listAttempts: async () => ({
+        kind: "page",
+        page: { attempts: [record], nextCursor: 5_796_468n, sampleCount: 92 },
+      }),
     });
     const response = await new EffectRunner().run(useCase.execute(query));
     expect(response.organizationId).toBe("42");
@@ -61,7 +64,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
     const application = await import("./list-organization-auction-attempts");
     const useCase = new application.ListOrganizationAuctionAttempts({
       exists: async () => true,
-      listAttempts: async () => ({ attempts: [], nextCursor: null, sampleCount: 0 }),
+      listAttempts: async () => ({ kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0 } }),
     });
     const response = await new EffectRunner().run(useCase.execute(query));
     expect(response.attempts).toEqual([]);
@@ -89,6 +92,21 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
       organizationId: 42n,
     });
     expect(listed).toBe(0);
+  });
+
+  test("다른 기관이나 사라진 cursor는 AttemptCursorInvalid로 닫고 빈 목록으로 위장하지 않는다", async () => {
+    const application = await import("./list-organization-auction-attempts");
+    const useCase = new application.ListOrganizationAuctionAttempts({
+      exists: async () => true,
+      listAttempts: async () => ({ kind: "cursor-not-found", cursor: 5_796_468n }),
+    });
+    await expect(new EffectRunner().run(useCase.execute({ ...query, cursor: 5_796_468n })))
+      .rejects.toMatchObject({
+        name: "AttemptCursorInvalid",
+        code: "VALIDATION_ERROR",
+        organizationId: 42n,
+        cursor: 5_796_468n,
+      });
   });
 
   test("저장소 장애는 AuctionDependencyUnavailable로 번역하고 원문을 숨긴다", async () => {

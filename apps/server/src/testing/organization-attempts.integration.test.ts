@@ -7,6 +7,10 @@ import request from "supertest";
 import { organizationV1Operations } from "@eatbid/contracts";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
+import type {
+  OrganizationAttemptListing,
+  OrganizationAttemptPage,
+} from "../modules/procurement/application/organization-attempt-reader";
 import { organizationId } from "../modules/procurement/domain/organization-id";
 import { DrizzleOrganizationAttemptReader } from "../modules/procurement/infrastructure/drizzle/drizzle-organization-attempt-reader";
 
@@ -136,6 +140,11 @@ async function withSeededDatabase(
   }
 }
 
+function pageOf(listing: OrganizationAttemptListing): OrganizationAttemptPage {
+  if (listing.kind !== "page") throw new Error(`expected a page but got ${listing.kind}`);
+  return listing.page;
+}
+
 describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
   test("keyset 페이징과 품목 필터가 실제 mart 행에서 표본 수와 순서를 보존한다", async () => {
     await withSeededDatabase(async ({ url, client }) => {
@@ -143,12 +152,12 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       expect(await reader.exists(organizationId(41n))).toBe(true);
       expect(await reader.exists(organizationId(9_007_199_254_740_993n))).toBe(false);
 
-      const first = await reader.listAttempts({
+      const first = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
         itemCodeValueId: null,
         cursor: null,
         limit: 2,
-      });
+      }));
       expect(first.attempts.map((attempt) => attempt.attemptId)).toEqual([103n, 102n]);
       expect(first.nextCursor).toBe(102n);
       expect(first.sampleCount).toBe(3);
@@ -170,35 +179,49 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         winnerSupplierPartyId: 77n,
       });
 
-      const second = await reader.listAttempts({
+      const second = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
         itemCodeValueId: null,
         cursor: first.nextCursor,
         limit: 2,
-      });
+      }));
       // 라벨 없는 품목은 코드가 있어도 unknown으로 남으며 표본 수는 cursor와 무관하게 같다.
       expect(second.attempts.map((attempt) => attempt.attemptId)).toEqual([101n]);
       expect(second.attempts[0]!.item).toBeNull();
       expect(second.nextCursor).toBeNull();
       expect(second.sampleCount).toBe(3);
 
-      const filtered = await reader.listAttempts({
+      const filtered = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
         itemCodeValueId: 7n,
         cursor: null,
         limit: 12,
-      });
+      }));
       expect(filtered.attempts.map((attempt) => attempt.attemptId)).toEqual([103n, 101n]);
       expect(filtered.sampleCount).toBe(2);
 
-      const empty = await reader.listAttempts({
+      const empty = pageOf(await reader.listAttempts({
         organizationId: organizationId(43n),
         itemCodeValueId: 9n,
         cursor: null,
         limit: 12,
-      });
+      }));
       expect(empty.attempts).toEqual([]);
       expect(empty.sampleCount).toBe(0);
+
+      // 104는 기관 43의 회차이고 9007199254740993은 존재하지 않는다. 둘 다 빈 페이지가 아니라 명시적 실패다.
+      expect(await reader.listAttempts({
+        organizationId: organizationId(41n),
+        itemCodeValueId: null,
+        cursor: 104n,
+        limit: 12,
+      })).toEqual({ kind: "cursor-not-found", cursor: 104n });
+      expect(await reader.listAttempts({
+        organizationId: organizationId(41n),
+        itemCodeValueId: null,
+        cursor: 9_007_199_254_740_993n,
+        limit: 12,
+      })).toEqual({ kind: "cursor-not-found", cursor: 9_007_199_254_740_993n });
 
       const runtime = await createApp({
         environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: url }),
@@ -235,6 +258,14 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
           computedAt: "2026-09-04T00:10:00Z",
           calcVersion: "v1",
         });
+        const foreignCursor = await request(server).get(
+          organizationV1Operations.listAuctionAttempts.buildPath({
+            path: { organizationId: "41" },
+            query: { cursor: "104" },
+          }),
+        );
+        expect(foreignCursor.status).toBe(400);
+        expect(foreignCursor.body.code).toBe("VALIDATION_ERROR");
         const auction = await request(server).get("/api/v1/auctions/103");
         expect(auction.status).toBe(200);
         expect(auction.body.organization).toEqual({

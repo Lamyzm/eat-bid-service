@@ -42,8 +42,16 @@ export interface OrganizationAttemptPage {
   readonly sampleCount: number;
 }
 
+/**
+ * cursor는 요청한 기관의 회차만 가리켜야 한다. 다른 기관의 회차나 이미 사라진 회차를 빈 페이지로
+ * 돌려주면 호출자가 "이력 끝"과 "잘못된 cursor"를 구분하지 못하므로 결과 자체로 구분한다.
+ */
+export type OrganizationAttemptListing =
+  | { readonly kind: "page"; readonly page: OrganizationAttemptPage }
+  | { readonly kind: "cursor-not-found"; readonly cursor: bigint };
+
 /** 존재 확인과 목록 조회를 나눠야 "기관 없음"과 "이력 없음"을 use case가 구분할 수 있다. */
 export interface OrganizationAttemptReader {
   exists(id: OrganizationId): Promise<boolean>;
-  listAttempts(query: OrganizationAttemptQuery): Promise<OrganizationAttemptPage>;
+  listAttempts(query: OrganizationAttemptQuery): Promise<OrganizationAttemptListing>;
 }

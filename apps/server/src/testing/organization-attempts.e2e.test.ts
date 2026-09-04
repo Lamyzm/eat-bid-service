@@ -68,7 +68,10 @@ describe("기관 회차 이력 HTTP 경로", () => {
       exists: async () => true,
       listAttempts: async (query) => {
         observed.push(query);
-        return { attempts: [attempt], nextCursor: 9_007_199_254_740_993n, sampleCount: 92 };
+        return {
+          kind: "page",
+          page: { attempts: [attempt], nextCursor: 9_007_199_254_740_993n, sampleCount: 92 },
+        };
       },
     }, async (server) => {
       const response = await request(server).get(attemptsPath("9007199254740993"));
@@ -113,7 +116,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       exists: async () => true,
       listAttempts: async (query) => {
         observed.push(query);
-        return { attempts: [], nextCursor: null, sampleCount: 0 };
+        return { kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0 } };
       },
     }, async (server) => {
       const response = await request(server).get(attemptsPath("42", {
@@ -141,7 +144,10 @@ describe("기관 회차 이력 HTTP 경로", () => {
     let calls = 0;
     const reader: OrganizationAttemptReader = {
       exists: async () => { calls += 1; return true; },
-      listAttempts: async () => { calls += 1; return { attempts: [], nextCursor: null, sampleCount: 0 }; },
+      listAttempts: async () => {
+        calls += 1;
+        return { kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0 } };
+      },
     };
     await withServer(reader, async (server) => {
       for (const invalid of ["0", "01", "-1", "1.0", "9223372036854775808", "seoul-office"]) {
@@ -178,13 +184,27 @@ describe("기관 회차 이력 HTTP 경로", () => {
     });
   });
 
+  test("소유자가 다른 cursor는 빈 목록이 아니라 400 VALIDATION_ERROR로 닫는다", async () => {
+    await withServer({
+      exists: async () => true,
+      listAttempts: async (query) => ({ kind: "cursor-not-found", cursor: query.cursor ?? 0n }),
+    }, async (server) => {
+      const response = await request(server).get(attemptsPath("42", { cursor: "9007199254740993" }));
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe("VALIDATION_ERROR");
+    });
+  });
+
   test("repository 값이 공개 계약 상한을 넘으면 fail-closed한다", async () => {
     await withServer({
       exists: async () => true,
       listAttempts: async () => ({
-        attempts: [{ ...attempt, item: { codeValueId: 7n, label: "축".repeat(129) } }],
-        nextCursor: null,
-        sampleCount: 1,
+        kind: "page",
+        page: {
+          attempts: [{ ...attempt, item: { codeValueId: 7n, label: "축".repeat(129) } }],
+          nextCursor: null,
+          sampleCount: 1,
+        },
       }),
     }, async (server) => {
       const response = await request(server).get(attemptsPath("42"));

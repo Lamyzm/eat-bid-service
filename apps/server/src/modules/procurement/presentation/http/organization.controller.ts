@@ -20,6 +20,7 @@ import { ResponseSchema } from "../../../../platform/http/response-schema.interc
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
 import { AuctionDependencyUnavailable } from "../../application/find-auction";
 import {
+  AttemptCursorInvalid,
   ListOrganizationAuctionAttempts,
   OrganizationNotFound,
 } from "../../application/list-organization-auction-attempts";
@@ -70,6 +71,9 @@ export class OrganizationController {
       }));
     } catch (error) {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
+      if (error instanceof AttemptCursorInvalid) {
+        throw new BadRequestException({ code: "VALIDATION_ERROR" });
+      }
       if (error instanceof OrganizationNotFound) {
         throw new NotFoundException({ code: "ORGANIZATION_NOT_FOUND" });
       }

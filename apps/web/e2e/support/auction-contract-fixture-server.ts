@@ -25,7 +25,7 @@ function auctionResponse(auctionId: string) {
       title: '급식 식재료',
       status: 'OPEN'
     },
-    organization: { organizationId: '412', name: '창원 남산초등학교', type: 'school' },
+    organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
     schedule: {
       announcedAt: '2026-08-30T00:00:00Z',
       deadlineAt: null,
@@ -58,7 +58,7 @@ function openAuctionResponse(auctionId: string) {
       title: '창원 남산초등학교 축산물 구매',
       status: 'OPEN'
     },
-    organization: { organizationId: '412', name: '창원 남산초등학교', type: 'school' },
+    organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
     schedule: {
       announcedAt: '2026-09-01T00:00:00Z',
       deadlineAt: new Date(now + OPEN_DEADLINE_OFFSET_MILLISECONDS).toISOString(),
@@ -90,7 +90,7 @@ function closedAuctionResponse(auctionId: string) {
       title: '개찰 완료 공고',
       status: 'CLOSED'
     },
-    organization: { organizationId: '412', name: '창원 남산초등학교', type: 'school' },
+    organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
     schedule: {
       announcedAt: '2026-08-10T00:00:00Z',
       deadlineAt: new Date(now + CLOSED_DEADLINE_OFFSET_MILLISECONDS).toISOString(),

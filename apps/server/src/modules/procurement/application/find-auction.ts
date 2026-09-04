@@ -28,7 +28,7 @@ export class AuctionDependencyUnavailable extends Error {
   readonly code = "DEPENDENCY_UNAVAILABLE" as const;
 
   constructor(cause: unknown) {
-    super("Auction repository is unavailable", { cause });
+    super("Procurement repository is unavailable", { cause });
     this.name = "AuctionDependencyUnavailable";
   }
 }

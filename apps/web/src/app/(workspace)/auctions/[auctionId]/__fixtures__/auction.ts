@@ -10,7 +10,7 @@ export const auctionFixture = {
     title: '2026학년도 학교 급식 식재료 구매',
     status: 'OPEN'
   },
-  organization: { organizationId: '412', name: '창원 남산초등학교', type: 'school' },
+  organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
   schedule: {
     announcedAt: '2026-08-30T00:00:00Z',
     deadlineAt: null,

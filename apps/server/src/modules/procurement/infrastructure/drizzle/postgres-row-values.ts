@@ -19,8 +19,8 @@ export function moneyValue(amount: string | null, currency: string, required: bo
   try {
     // PostgreSQL numeric 문자열은 부동소수점으로 바꾸지 않고 domain factory가 scale 불변식을 확인한다.
     return krw(canonicalDecimal(amount, 2));
-  } catch {
-    throw new TypeError("Database money amount is invalid");
+  } catch (cause) {
+    throw new TypeError("Database money amount is invalid", { cause });
   }
 }
 
@@ -29,7 +29,7 @@ export function bidRateValue(value: string | null): PercentagePoints | null {
   try {
     // mart numeric(6,3)이 아닌 scale은 공개 계약이 거부하므로 어댑터 경계에서 먼저 실패한다.
     return bidRate(canonicalDecimal(value, 3));
-  } catch {
-    throw new TypeError("Database bid rate is invalid");
+  } catch (cause) {
+    throw new TypeError("Database bid rate is invalid", { cause });
   }
 }

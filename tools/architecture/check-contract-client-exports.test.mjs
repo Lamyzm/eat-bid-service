@@ -32,6 +32,11 @@ const packageJson = JSON.stringify({
       import: "./src/api/v1/auctions/index.ts",
       default: "./src/api/v1/auctions/index.ts",
     },
+    "./api/v1/organizations": {
+      types: "./src/api/v1/organizations/index.ts",
+      import: "./src/api/v1/organizations/index.ts",
+      default: "./src/api/v1/organizations/index.ts",
+    },
   },
 });
 
@@ -42,6 +47,8 @@ test("browser-safe 공고 subpath는 source ESM graph만 공개한다", () => {
     "packages/contracts/src/api/operation.ts": "export const defineOperation = () => undefined;\n",
     "packages/contracts/src/api/v1/auctions/index.ts": "export { schema } from './schema';\n",
     "packages/contracts/src/api/v1/auctions/schema.ts": "import { z } from 'zod'; export const schema = z.string();\n",
+    "packages/contracts/src/api/v1/organizations/index.ts": "export { attempts } from './attempts';\n",
+    "packages/contracts/src/api/v1/organizations/attempts.ts": "import { z } from 'zod'; export const attempts = z.array(z.string());\n",
     "apps/web/next.config.ts": "export default { transpilePackages: ['@eatbid/contracts'] };\n",
     "apps/web/src/page.ts": "import { schema } from '@eatbid/contracts/api/v1/auctions'; void schema;\n",
   });
@@ -77,6 +84,11 @@ test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", 
           import: "./src/api/v1/auctions/index.ts",
           default: "./src/api/v1/auctions/index.ts",
         },
+        "./api/v1/organizations": {
+          types: "./src/api/v1/organizations/index.ts",
+          import: "./src/api/v1/organizations/index.ts",
+          default: "./src/api/v1/organizations/index.ts",
+        },
       },
     }),
     "packages/contracts/src/api/index.ts": "import 'server-only'; export const protocol = {};\n",
@@ -103,6 +115,11 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
           types: "./dist/api/v1/auctions/index.d.ts",
           import: "./dist/api/v1/auctions/index.js",
           default: "./dist/api/v1/auctions/index.js",
+        },
+        "./api/v1/organizations": {
+          types: "./src/api/v1/organizations/index.ts",
+          import: "./src/api/v1/organizations/index.ts",
+          default: "./src/api/v1/organizations/index.ts",
         },
       },
     }),
