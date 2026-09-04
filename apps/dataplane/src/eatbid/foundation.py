@@ -1,3 +1,5 @@
+"""모듈 책임: 공고 하나의 capture→normalize→validate→project를 checkpoint로 재개 가능하게 잇는다."""
+
 from __future__ import annotations
 
 import re
@@ -265,6 +267,10 @@ def _run_foundation_slice_locked(
                 parser_version=parser_version,
             )
         except DataQuarantinedError:
+            pass
+        except SourceContractError:
+            # replay와 같은 이유다. 소스 계약이 막은 관측은 정규화 행 없이 남고, run 단위 판정은
+            # 아래 완성도 검사가 내려 checkpoint에 실패로 기록한다.
             pass
         checkpoint = _reload_and_verify(services.checkpoint_repository, **identity)
 

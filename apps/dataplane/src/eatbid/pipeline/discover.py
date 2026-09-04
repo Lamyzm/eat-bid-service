@@ -116,9 +116,10 @@ def discover_release(
     repository: DiscoveryPersistence,
     client: SourceClient,
 ) -> DiscoveryResult:
-    contract = require("bid-list")
-    if plan.parser_version != contract.parser_version:
-        raise SourceContractError("discovery parser differs from reviewed registry")
+    # 실행 단위는 parser version 하나다. 검토되지 않은 version이면 여기서 fail-closed 되어 raw
+    # 관측조차 만들지 않는다. 목록과 상세가 같은 version으로 읽힌다는 것도 여기서 함께 고정된다.
+    require("bid-list", parser_version=plan.parser_version)
+    require("bid-detail", parser_version=plan.parser_version)
 
     repository.start_run(plan)
     observations: list[CapturedObservation] = []
@@ -240,8 +241,8 @@ def _require_page_size(
 
 
 def _release_plan(plan: DiscoveryPlan, expected_count: int) -> SourceReleasePlan:
-    list_contract = require("bid-list")
-    detail_contract = require("bid-detail")
+    list_contract = require("bid-list", parser_version=plan.parser_version)
+    detail_contract = require("bid-detail", parser_version=plan.parser_version)
     (list_dataset,) = list_contract.response_datasets
     detail_dataset = detail_contract.response_datasets[0]
     return SourceReleasePlan(

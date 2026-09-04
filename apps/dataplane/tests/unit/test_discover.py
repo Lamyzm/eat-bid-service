@@ -38,7 +38,9 @@ def _목록_xml(total: int, ids: tuple[str, ...]) -> bytes:
     ).encode()
 
 
-def _계획(*, page_size: int = 2, page_budget: int = 4) -> DiscoveryPlan:
+def _계획(
+    *, page_size: int = 2, page_budget: int = 4, parser_version: str = "eat-v1"
+) -> DiscoveryPlan:
     return DiscoveryPlan(
         source_release_id=RELEASE_ID,
         run_id=RUN_ID,
@@ -47,7 +49,7 @@ def _계획(*, page_size: int = 2, page_budget: int = 4) -> DiscoveryPlan:
         release_name="R0 오프라인 발견",
         as_of=NOW,
         build_sha="a" * 64,
-        parser_version="eat-v1",
+        parser_version=parser_version,
         started_at=NOW,
         completed_at=NOW,
         start_date="20260901",
@@ -131,6 +133,33 @@ def test_discovery가_정렬_ID를_detail_request로_영속화하고_planned_rel
         ("bid-list", 3, 3, 3), ("bid-detail", 3, 0, 0)
     ]
     assert "release_sealed" not in repository.events
+
+
+def test_검토되지_않은_parser_version은_run을_시작하기_전에_닫힌다() -> None:
+    repository = _기록저장소()
+    client = _쪽클라이언트((_목록_xml(1, ("1",)),))
+
+    with pytest.raises(SourceContractError, match="unknown-parser-version"):
+        discover_release(_계획(parser_version="eat-v9"), repository, client)
+
+    assert repository.events == []
+    assert client.requests == []
+
+
+def test_eat_v2_발견은_상세_dataset을_auction_v2로_계획한다() -> None:
+    repository = _기록저장소()
+    client = _쪽클라이언트((_목록_xml(1, ("1",)),))
+
+    discover_release(_계획(parser_version="eat-v2"), repository, client)
+
+    assert repository.release_plan is not None
+    assert [
+        (item.endpoint, item.record_type, item.parser_version)
+        for item in repository.release_plan.datasets
+    ] == [
+        ("bid-list", "auction-discovery.v1", "eat-v2"),
+        ("bid-detail", "auction.v2", "eat-v2"),
+    ]
 
 
 def test_첫page_뒤_정확한_page_count를_두번째_HTTP_전에_확정한다() -> None:

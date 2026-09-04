@@ -1,3 +1,5 @@
+"""모듈 책임: 봉인된 발행 구성원을 core 투영으로 옮기며 lineage와 발행 가능한 record type을 지킨다."""
+
 from __future__ import annotations
 
 import hashlib
@@ -35,6 +37,17 @@ __all__ = [
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
+# EAT-43이 core 테이블과 projector를 만들기 전까지 v2 record는 발행 대상이 아니다. 조용히 v1로
+# 오해석되면 명단 없는 공고로 core에 들어가므로 여기서 명시적으로 닫는다.
+_PROJECTABLE_RECORD_TYPES = frozenset({"auction.v1"})
+
+
+def _require_projectable(record_type: str) -> None:
+    if record_type not in _PROJECTABLE_RECORD_TYPES:
+        raise ProjectionContractError(
+            f"normalized record type is not projectable yet [record_type={record_type}]"
+        )
+
 
 def parse_canonical_normalized_auction(value: object) -> EatbidIngestionAuctionV1:
     """Parse the canonical normalized-auction bytes used by projection."""
@@ -69,8 +82,7 @@ def build_eat_auction_projection(
         raise ProjectionContractError("projection source must be eat")
     if member.endpoint != "bid-detail":
         raise ProjectionContractError("projection endpoint must be bid-detail")
-    if member.record_type != "auction.v1":
-        raise ProjectionContractError("projection record type must be auction.v1")
+    _require_projectable(member.record_type)
     if member.parser_version != member.run_parser_version:
         raise ProjectionContractError("projection parser version differs from run")
     if len(member.raw_content_sha256) != 64 or any(

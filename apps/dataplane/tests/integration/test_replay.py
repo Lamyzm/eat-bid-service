@@ -79,8 +79,9 @@ def _capture(
 
 # 2026-09-03 실측 뒤 계약은 파서가 요구하는 필수 부분집합만 주장한다. 모르는 column이 늘어도
 # 위반이 아니므로 payload로는 source-contract 실패를 만들 수 없다. 검토되지 않은 parser version이
-# 남은 유일한 source-contract 경로다.
-UNREVIEWED_PARSER_VERSION = "eat-v2"
+# 남은 유일한 source-contract 경로다. EAT-42가 `eat-v2`를 검토된 version으로 만들었으므로 이 상수는
+# 검토된 적 없는 이름이어야 한다.
+UNREVIEWED_PARSER_VERSION = "eat-v9"
 
 
 def _insert_quarantined_attempt(

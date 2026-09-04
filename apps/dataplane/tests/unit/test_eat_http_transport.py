@@ -5,7 +5,7 @@ import pytest
 
 from eatbid.errors import SourceContractError
 from eatbid.source.eat.http_client import WARMUP_MAX_RESPONSE_BYTES, EatHttpClient
-from eatbid.source.eat.registry import require
+from eatbid.source.eat.registry import require_transport
 
 from .eat_http_test_support import (
     FETCHED_AT,
@@ -17,7 +17,7 @@ from .eat_http_test_support import (
 
 
 def test_streaming_byte_cap은_Content_Length를_믿지_않고_초과즉시_닫는다() -> None:
-    ceiling = require("bid-detail").max_response_bytes
+    ceiling = require_transport("bid-detail").max_response_bytes
     stream = TrackingStream(
         (b"a" * (ceiling // 2 + 1), b"b" * (ceiling // 2 + 1), b"never")
     )

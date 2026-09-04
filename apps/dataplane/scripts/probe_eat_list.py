@@ -19,7 +19,7 @@ from xml.etree import ElementTree
 
 from eatbid.ingest.models import CaptureRequest
 from eatbid.source.eat.http_client import EatHttpClient
-from eatbid.source.eat.registry import require
+from eatbid.source.eat.registry import require, require_transport
 
 DATASET_NS = "{http://www.nexacroplatform.com/platform/dataset}"
 TRACKED_COLUMNS = ("BID_CNT", "LAST_CHG_DT", "ETN_BID_STT_NM", "BID_END_DT", "BID_NM")
@@ -50,8 +50,8 @@ def _rows(body: bytes) -> tuple[list[str], list[dict[str, str]]]:
 def _fetch(
     *, start_date: str, end_date: str, page_size: int, page: int, region_code: str
 ) -> tuple[list[str], list[dict[str, str]]]:
-    contract = require("bid-list")
-    params = contract.build_page_params(
+    transport = require_transport("bid-list")
+    params = transport.build_page_params(
         start_date=start_date,
         end_date=end_date,
         progress_status_code="",
@@ -80,7 +80,7 @@ def _total(rows: Sequence[Mapping[str, str]]) -> str:
 
 def columns_command(args: argparse.Namespace) -> None:
     """응답 컬럼과 검토된 파서 계약의 차이를 보고한다."""
-    contract = require("bid-list")
+    contract = require("bid-list", parser_version="eat-v1")
     columns, rows = _fetch(
         start_date=args.start_date,
         end_date=args.end_date,

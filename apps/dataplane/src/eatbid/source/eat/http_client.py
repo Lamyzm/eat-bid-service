@@ -13,7 +13,11 @@ import httpx
 from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.source.client import SourceResponse
-from eatbid.source.eat.registry import EAT_ORIGIN, EatEndpointContract, require
+from eatbid.source.eat.registry import (
+    EAT_ORIGIN,
+    EatEndpointTransport,
+    require_transport,
+)
 
 CONNECT_TIMEOUT_SECONDS = 10.0
 READ_TIMEOUT_SECONDS = 30.0
@@ -103,28 +107,30 @@ class EatHttpClient:
                 else "client-closed"
             )
             raise self._failure(endpoint, category)
-        contract, payload = self._prepare(request)
-        self._ensure_warmup(contract.endpoint)
+        transport, payload = self._prepare(request)
+        self._ensure_warmup(transport.endpoint)
         status_code, body = self._exchange(
-            endpoint=contract.endpoint,
+            endpoint=transport.endpoint,
             phase="endpoint",
-            method=contract.method,
-            url=f"{contract.origin}{contract.path}",
+            method=transport.method,
+            url=f"{transport.origin}{transport.path}",
             headers=_ENDPOINT_HEADERS,
             content=payload,
-            max_response_bytes=contract.max_response_bytes,
+            max_response_bytes=transport.max_response_bytes,
         )
-        return SourceResponse(status_code, body, self._fetched_at(contract.endpoint))
+        return SourceResponse(status_code, body, self._fetched_at(transport.endpoint))
 
-    def _prepare(self, request: CaptureRequest) -> tuple[EatEndpointContract, bytes]:
+    def _prepare(self, request: CaptureRequest) -> tuple[EatEndpointTransport, bytes]:
         if not isinstance(request, CaptureRequest):
             raise SourceContractError("eaT invalid-request [endpoint=unknown]")
         if request.source != "eat":
             raise SourceContractError(
                 f"eaT invalid-request [endpoint={request.endpoint}]"
             )
-        contract = require(request.endpoint)
-        return contract, contract.build_payload(request.params)
+        # capture 경계는 응답을 어떤 parser version으로 읽을지 모른다. 요청을 보내는 데 필요한 것은
+        # 전송 계약뿐이고, 해석 계약은 normalize 단계가 자기 실행 단위의 version으로 고른다.
+        transport = require_transport(request.endpoint)
+        return transport, transport.build_payload(request.params)
 
     def _ensure_warmup(self, endpoint: str) -> None:
         if self._warmed:

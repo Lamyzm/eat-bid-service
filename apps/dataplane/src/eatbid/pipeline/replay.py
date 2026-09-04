@@ -1,3 +1,5 @@
+"""모듈 책임: 보존된 관측 목록을 같은 run 정체성으로 다시 정규화·검증·투영하며 재실행을 멱등하게 만든다."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -115,6 +117,11 @@ def replay_observations(
             except DataQuarantinedError as error:
                 if quarantined is None:
                     quarantined = error
+            except SourceContractError:
+                # 검토되지 않은 parser version처럼 소스 계약이 막은 관측은 정규화 행을 남기지 않는다.
+                # 여기서 바로 던지면 run과 publication이 running·pending으로 남아 실패가 ledger에
+                # 보이지 않으므로, 완성도 검사가 run 단위로 판정하고 그 결과를 아래에서 다시 던진다.
+                continue
 
         validation = validate_run(
             run_id=run_id,

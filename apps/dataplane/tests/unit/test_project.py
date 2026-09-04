@@ -155,6 +155,11 @@ def test_projection_factory가_lineage_또는_source_contract_drift을_거부한
         build_eat_auction_projection(frozen_member(**overrides))
 
 
+def test_v2_record_type은_아직_projection_계약이_아니라고_typed_실패한다() -> None:
+    with pytest.raises(ProjectionContractError, match="auction.v2"):
+        build_eat_auction_projection(frozen_member(record_type="auction.v2"))
+
+
 def test_projection_factory가_알_수_없는_normalized_payload_fields을_거부한다() -> None:
     payload = auction_payload()
     payload["invented_school_type"] = "school"

@@ -210,7 +210,8 @@ def test_reviewed_eat_detail_schema_contract는_안정적_parser_digest을_갖�
     [
         ("eat", "bid-detail", "eat-v1", "0" * 64),
         ("eat", "unreviewed-detail", "eat-v1", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
-        ("eat", "bid-detail", "eat-v2", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
+        # EAT-42가 `eat-v2`를 검토된 version으로 만들었으므로 미검토 사례는 `eat-v9`로 옮긴다.
+        ("eat", "bid-detail", "eat-v9", "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"),
     ],
 )
 def test_eat_schema_contract가_fail_closed한다(
@@ -224,6 +225,19 @@ def test_eat_schema_contract가_fail_closed한다(
         endpoint=endpoint,
         parser_version=parser_version,
         schema_fingerprint=schema_fingerprint,
+    )
+
+
+def test_eat_v2가_v1과_같은_필수_부분집합_fingerprint로_통과한다() -> None:
+    # 두 version이 주장하는 필수 부분집합이 같으므로 관측 fingerprint도 같다. 달라진 것은 해석
+    # 깊이뿐이고, 명단 블록은 required가 아니라 없어도 계약 위반이 아니다.
+    assert validate_eat_schema_contract(
+        source="eat",
+        endpoint="bid-detail",
+        parser_version="eat-v2",
+        schema_fingerprint=(
+            "c5270779844ac60244d94d852db2547cd42c47548dd4189d55f8f7a4e3c94adf"
+        ),
     )
 
 

@@ -27,10 +27,6 @@
       "sha256": "b1107387b544a850c52873e932f7795f046decdec4542a9f69cb0c633cd54819"
     },
     {
-      "path": "apps/dataplane/src/eatbid/foundation.py",
-      "sha256": "eccab659554a61754cee32b0fb2136ba28ff578057ee8eefeb4b39fa72653bae"
-    },
-    {
       "path": "apps/dataplane/src/eatbid/foundation_repository.py",
       "sha256": "884543ad80ca4f3e81a57876463be451d06d2a64112d30d7307f80bc62955ff2"
     },
@@ -77,18 +73,6 @@
     {
       "path": "apps/dataplane/src/eatbid/pipeline/capture.py",
       "sha256": "dbd6c8e131fb4aae12907a3e9843e738d5c4c7494dcb7446e18c6b9dce8bd72a"
-    },
-    {
-      "path": "apps/dataplane/src/eatbid/pipeline/normalize.py",
-      "sha256": "8e53d9646c14a347c20965652a617fef533f9ffbfaac12639036271590d6605b"
-    },
-    {
-      "path": "apps/dataplane/src/eatbid/pipeline/project.py",
-      "sha256": "aa979607b2c95a4447ad394c86f0be61bf7945b418eb30cb2e5d4e52c5a803c2"
-    },
-    {
-      "path": "apps/dataplane/src/eatbid/pipeline/replay.py",
-      "sha256": "b70bed2adc43e89ed1d13f40299c1cbc19df9fe7a6cb99d2ea007c25abb0776c"
     },
     {
       "path": "apps/dataplane/src/eatbid/pipeline/stages.py",
