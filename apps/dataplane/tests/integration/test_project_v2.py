@@ -32,23 +32,42 @@ ROSTER_FIXTURE = (
 )
 REBID_FIXTURE = Path(__file__).parents[1] / "fixtures" / "eat" / "bid-detail-rebid.xml"
 PARSER_VERSION = "eat-v2"
-# 합성 fixture가 관측한 명단 행 수와 낙찰 행의 사정률이다. 값이 아니라 대조 대상이므로 계산하지 않고
-# 적는다 — 계산으로 만들면 파서와 같은 실수를 두 번 하게 된다.
-ROSTER_ROWS = 7
-AWARDED_RATE = Decimal("90.218")
+# 원본의 `ds_bidList` 행과 낙찰 행 사정률을 직접 읽는다. 기대값을 손으로 적으면 파서가 그 행들을
+# 잘못 세도 대조가 통과한다.
+_ROW = re.compile(rb"<Row>.*?</Row>", re.DOTALL)
+_BID_RATE = re.compile(rb'<Col id="SAJEONG_PCT">([0-9.]+)</Col>')
+_AWARDED_STATUS = re.compile(rb'<Col id="BID_STT">002</Col>')
 
 
-def validated_v2_publication(
-    services: PipelineServices, *, fixture: Path = ROSTER_FIXTURE
+def _roster_rows(body: bytes) -> list[bytes]:
+    """명단 행만 고른다. 계약이 명단 행마다 `SAJEONG_PCT`를 요구하므로 그것이 있는 행이 명단이다."""
+    return [row for row in _ROW.findall(body) if _BID_RATE.search(row) is not None]
+
+
+def source_roster_size(body: bytes) -> int:
+    return len(_roster_rows(body))
+
+
+def source_awarded_rate(body: bytes) -> Decimal:
+    """판정 코드가 `002`인 행의 사정률. 행 안에서 찾으므로 낙찰 행의 위치에 기대지 않는다."""
+    awarded = [row for row in _roster_rows(body) if _AWARDED_STATUS.search(row)]
+    assert len(awarded) == 1, "원본의 낙찰 행은 하나여야 한다"
+    match = _BID_RATE.search(awarded[0])
+    assert match is not None
+    return Decimal(match.group(1).decode())
+
+
+def publish_v2_observation(
+    services: PipelineServices, body: bytes, *, external_bid_id: str | None = None
 ) -> tuple[UUID, str]:
     """eat-v2 계약으로 관측 하나를 잡아 정규화하고 발행 manifest까지 봉인한다."""
-    external_bid_id = uuid4().hex
+    external_bid_id = external_bid_id or uuid4().hex
     run_id = start_run(services, parser_version=PARSER_VERSION)
     observation_id = capture_detail(
         services,
         run_id=run_id,
         external_bid_id=external_bid_id,
-        body=fixture.read_bytes(),
+        body=body,
     )
     normalized = normalize_one(
         services, observation_id, parser_version=PARSER_VERSION
@@ -63,6 +82,16 @@ def validated_v2_publication(
     )
     assert validation.status == "validated"
     return publication_id, external_bid_id
+
+
+def validated_v2_publication(
+    services: PipelineServices, *, fixture: Path = ROSTER_FIXTURE
+) -> tuple[UUID, str]:
+    return publish_v2_observation(services, fixture.read_bytes())
+
+
+ROSTER_ROWS = source_roster_size(ROSTER_FIXTURE.read_bytes())
+AWARDED_RATE = source_awarded_rate(ROSTER_FIXTURE.read_bytes())
 
 
 def roster_rows(services: PipelineServices, external_bid_id: str) -> list[tuple]:
