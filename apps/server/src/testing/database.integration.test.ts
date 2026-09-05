@@ -21,6 +21,10 @@ const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
 // 기대치를 상수로 박으면 migration을 더할 때마다 무관한 실패가 난다.
 const committedMigrationCount = readdirSync(migrationFolder, { withFileTypes: true })
   .filter((entry) => entry.isDirectory()).length;
+// 배포되는 권한 선언 그 자체를 실행한다. fixture가 GRANT를 따로 적으면 readiness 계약이 통과해도
+// 클러스터에 같은 권한이 선다는 보장이 없어진다(2026-09-04 server 503, 2026-09-05 dataplane exit 64).
+const provisioningSqlPath = resolve(repositoryRoot, "infra/product/db-provisioning.sql");
+const provisioningSql = readFileSync(provisioningSqlPath, "utf8");
 const sqlText = (value: string): string => value.replaceAll("'", "''");
 const normalizedAuctionFixture = normalizedAuctionV1Schema.parse(JSON.parse(readFileSync(
   resolve(repositoryRoot, "packages/contracts/fixtures/ingestion-v1/normalized-auction.json"),
@@ -158,16 +162,15 @@ async function withDisposableDatabase<A>(work: (database: DisposableDatabase) =>
          '${canonicalNormalizedAuctionPayload}');
       create table mart.api_read_probe (probe_id bigint primary key);
       insert into mart.api_read_probe values (1);
+      create role eatbid_migrator login password 'migrator-test-secret'
+        nosuperuser nocreatedb nocreaterole noinherit;
       create role eatbid_api login password 'api-test-secret'
         nosuperuser nocreatedb nocreaterole noinherit;
-      revoke temporary on database eatbid_test from public;
-      revoke all on database eatbid_test from eatbid_api;
-      grant connect on database eatbid_test to eatbid_api;
-      grant usage on schema core, mart, app, drizzle to eatbid_api;
-      grant select on all tables in schema core, mart to eatbid_api;
-      grant select, insert, update, delete on all tables in schema app to eatbid_api;
-      grant select on drizzle.__drizzle_migrations to eatbid_api;
+      create role eatbid_dataplane login password 'dataplane-test-secret'
+        nosuperuser nocreatedb nocreaterole noinherit;
     `);
+    // 역할 생성만 fixture의 책임이고(비밀번호는 Infisical 소유) 권한은 배포 파일이 선언한다.
+    await owner.unsafe(provisioningSql);
     api = postgres(apiUrl, {
       max: 4,
       connect_timeout: 2,
@@ -732,6 +735,45 @@ describe("owner 범위 PostgreSQL 경계", () => {
         { attack: "public.api_column_probe UPDATE(id)", ready: false },
         { attack: "public.api_column_probe REFERENCES(id)", ready: false },
       ]);
+    });
+    expect(await taskContainers()).toEqual([]);
+  }, 120_000);
+
+  test("provisioning 뒤에 생긴 표에도 default privileges가 붙어 readiness가 유지된다", async () => {
+    await withDisposableDatabase(async ({ owner, api }) => {
+      const readiness = createDatabaseReadiness(drizzle({ client: api }));
+      expect(await readiness.isReady()).toBe(true);
+
+      // 다음 migration이 만드는 경로. migrator가 소유자이므로 FOR ROLE eatbid_migrator가 걸려야 한다.
+      await owner.unsafe(`
+        set role eatbid_migrator;
+        create table core.late_core_probe (probe_id bigint primary key);
+        create table mart.late_mart_probe (probe_id bigint primary key);
+        create table app.late_app_probe
+          (probe_id bigint generated always as identity primary key);
+        reset role;
+      `);
+      expect(await readiness.isReady()).toBe(true);
+      expect(await api`select count(*)::int as count from core.late_core_probe`)
+        .toEqual([{ count: 0 }]);
+      expect(await api`select count(*)::int as count from mart.late_mart_probe`)
+        .toEqual([{ count: 0 }]);
+      await api`insert into app.late_app_probe default values`;
+      await api`delete from app.late_app_probe`;
+      await expectDenied("late core write", () =>
+        api`insert into core.late_core_probe (probe_id) values (1)`);
+      await expectDenied("late app sequence", () =>
+        api`select nextval('app.late_app_probe_probe_id_seq')`);
+
+      // 덤프를 superuser로 복원한 경로. 소유자가 migrator가 아니어도 같은 readiness가 서야 한다.
+      await owner`create table core.restored_core_probe (probe_id bigint primary key)`;
+      expect(await readiness.isReady()).toBe(true);
+      expect(await api`select count(*)::int as count from core.restored_core_probe`)
+        .toEqual([{ count: 0 }]);
+
+      // Sync hook은 매 sync마다 다시 돈다. 두 번째 실행이 권한을 바꾸면 readiness가 흔들린다.
+      await owner.unsafe(provisioningSql);
+      expect(await readiness.isReady()).toBe(true);
     });
     expect(await taskContainers()).toEqual([]);
   }, 120_000);
