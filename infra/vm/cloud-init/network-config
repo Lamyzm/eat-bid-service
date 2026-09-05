@@ -1,0 +1,14 @@
+# Hyper-V 내부 스위치 뒤의 고정 주소. DHCP(Default Switch)는 재부팅마다 주소가 바뀌어 kubeconfig와
+# tls-san이 깨지므로 호스트 NAT(172.30.0.1) 뒤에 고정 주소를 둔다. 값은 New-EatbidVm.ps1이 치환한다.
+version: 2
+ethernets:
+  eth0:
+    match:
+      name: "e*"
+    addresses:
+      - ${VM_IP}/24
+    routes:
+      - to: default
+        via: ${GATEWAY_IP}
+    nameservers:
+      addresses: [1.1.1.1, 8.8.8.8]
