@@ -130,7 +130,7 @@ def _cli_commands() -> tuple[str, ...]:
     return commands
 
 
-def test_product와_base_render가_cutover를_비활성으로_유지한다(
+def test_product와_base_render가_kind_구성을_유지한다(
     manifests: ManifestSet, base_manifests: ManifestSet
 ) -> None:
     assert manifests.kinds.count("WorkflowTemplate") == 1
@@ -265,7 +265,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     assert service_account["imagePullSecrets"] == [{"name": "ghcr-pull"}]
 
 
-def test_cron_workflow는_suspend되고_pipeline만_schedule한다(
+def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     manifests: ManifestSet,
 ) -> None:
     cron_workflows = manifests.of_kind("CronWorkflow")
@@ -288,7 +288,9 @@ def test_cron_workflow는_suspend되고_pipeline만_schedule한다(
         assert "schedule" not in spec
         assert spec["schedules"] == [expected_schedules[name]]
         assert spec["timezone"] == "Asia/Seoul"
-        assert spec["suspend"] is True
+        # 2026-09-05 수집 cutover(EAT-51): 항상 켜진 VM 클러스터에서 스케줄을 켠다. 다시 멈추는 결정은
+        # manifest와 이 단언을 같은 커밋에서 바꾼다.
+        assert spec["suspend"] is False
         workflow_spec = _mapping(spec["workflowSpec"])
         template_ref = _mapping(workflow_spec["workflowTemplateRef"])
         assert template_ref == {"name": "eatbid-dataplane"}
@@ -617,12 +619,20 @@ def test_replay_JSON_ID가_shell_확장_없이_fail_closed한다(
         assert error.value.code == 64
 
 
-def test_migration은_presync가_유한하고_secret_DATABASE_URL만_사용한다(
+def test_migration은_sync_wave_1_hook이고_유한하며_secret_DATABASE_URL만_사용한다(
     manifests: ManifestSet,
 ) -> None:
     job = manifests.named("Job", "eatbid-migration")
     annotations = _mapping(_metadata(job)["annotations"])
-    assert annotations["argocd.argoproj.io/hook"] == "PreSync"
+    # PreSync면 빈 클러스터에서 postgres보다 먼저 돌아 sync가 멈춘다(EAT-50 실측). wave 0 → 1 → 2 순서다.
+    assert annotations["argocd.argoproj.io/hook"] == "Sync"
+    assert annotations["argocd.argoproj.io/sync-wave"] == "1"
+    assert annotations["argocd.argoproj.io/hook-delete-policy"] == "BeforeHookCreation,HookSucceeded"
+    for name in ("server", "web"):
+        app_annotations = _mapping(_metadata(manifests.named("Deployment", name)).get("annotations", {}))
+        assert app_annotations["argocd.argoproj.io/sync-wave"] == "2", name
+    postgres_annotations = _mapping(_metadata(manifests.named("Deployment", "postgres")).get("annotations", {}))
+    assert "argocd.argoproj.io/sync-wave" not in postgres_annotations
     spec = _spec(job)
     assert spec["activeDeadlineSeconds"] == 600
     assert spec["backoffLimit"] == 1

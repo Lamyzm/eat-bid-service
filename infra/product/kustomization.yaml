@@ -33,3 +33,4 @@ patches:
       name: daily-refresh|poll-open-day|poll-open-off|poll-open-weekend
   - path: patches/postgres-secret-env.patch.yaml
   - path: patches/server-secret-env.patch.yaml
+  - path: patches/sync-waves.patch.yaml

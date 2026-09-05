@@ -7,7 +7,8 @@ spec:
   schedules:
     - "0 7 * * *"
   timezone: Asia/Seoul
-  suspend: true
+  # 2026-09-05 수집 cutover(EAT-51). poll-open과 같은 이유로 항상 켜진 클러스터에서만 suspend를 푼다.
+  suspend: false
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   workflowSpec:

@@ -7,7 +7,10 @@ spec:
   schedules:
     - "*/30 8-19 * * 1-5"
   timezone: Asia/Seoul
-  suspend: true
+  # 2026-09-05 수집 cutover(EAT-51). 항상 켜진 VM 클러스터(EAT-50)로 옮긴 뒤에야 suspend를 풀었다 —
+  # Docker Desktop 시절에는 재부팅마다 스케줄이 끊겨 수집을 켜는 것이 의미가 없었다. 수집을 멈춰야 하면
+  # 여기서 suspend: true로 되돌리고 그 이유를 커밋 메시지에 남긴다. 다른 곳에서 CronWorkflow를 만들지 않는다(AGENTS 9).
+  suspend: false
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 600
   workflowSpec:
