@@ -21,6 +21,7 @@ from eatbid.core.postgres_roster_writer import RosterProjectionWriter
 from eatbid.core.projection_models import (
     AppliedProjectionCounts,
     AuctionV2Projection,
+    comparable_row,
 )
 from eatbid.core.projection_validation import canonical_json, validate_projection
 from eatbid.core.repository import ProjectionContractError
@@ -229,6 +230,7 @@ class CanonicalProjectionWriter:
             projection.opened_at,
             projection.base_amount,
             projection.planned_amount,
+            projection.floor_rate,
             projection.currency,
             Jsonb(dict(projection.source_payload)),
         )
@@ -239,8 +241,8 @@ class CanonicalProjectionWriter:
                     auction_attempt_id, normalized_record_id, observation_id,
                     content_sha256, display_bid_no, source_status, title,
                     announced_at, deadline_at, opened_at, base_amount,
-                    planned_amount, currency, source_payload
-                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    planned_amount, floor_rate, currency, source_payload
+                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 on conflict (normalized_record_id) do nothing
                 returning auction_revision_id
                 """,
@@ -254,7 +256,7 @@ class CanonicalProjectionWriter:
             select auction_revision_id, auction_attempt_id, observation_id,
                    content_sha256, display_bid_no, source_status, title,
                    announced_at, deadline_at, opened_at, base_amount,
-                   planned_amount, currency, source_payload
+                   planned_amount, floor_rate, currency, source_payload
             from core.auction_revision where normalized_record_id = %s for update
             """,
             (projection.normalized_record_id,),
@@ -274,12 +276,14 @@ class CanonicalProjectionWriter:
             projection.opened_at,
             projection.base_amount,
             projection.planned_amount,
+            projection.floor_rate,
             projection.currency,
         )
-        actual = tuple(existing[1:13])
-        if actual != expected or canonical_json(existing[13]) != canonical_json(
-            projection.source_payload
-        ):
+        # 열의 자릿수를 붙여 돌아오는 `numeric`을 값의 차이로 읽으면 멱등한 재발행이 끊긴다.
+        actual = comparable_row(existing[1:14])
+        if actual != comparable_row(expected) or canonical_json(
+            existing[14]
+        ) != canonical_json(projection.source_payload):
             raise ProjectionContractError("persisted auction revision conflicts")
         return int(existing[0]), 0
 

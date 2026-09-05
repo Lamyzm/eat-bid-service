@@ -298,6 +298,19 @@ append-only 계약([ADR 0014](0014-normalization-attempt-lineage.md)·[0025](002
 그대로 `auction_attempt`/`auction_revision`만 쓰고, v2 발행만 다섯 테이블에 닿는다. 한 publication 안에
 두 record type이 섞이는 것은 계약 위반이며 `run.parser_version`이 이미 그것을 막는다.
 
+### 6. 후속 결정(2026-09-06) — 하한율과 공고 조건 코드를 `core`로 올린다
+
+§4-가는 "하한율은 `auction_revision`의 조건"이라고 적었지만 이 ADR을 받은 시점의 저장소에서는 아직
+참이 아니었다. 하한율(`PLNPRCE_SUCBD_STD`)과 낙찰 방식(`SUCBID_DCSN_MTH_CD`), 예정가격 방식
+(`PLNPRC_TYPE_CD`)이 `auction_revision.source_payload` jsonb의 `terms` 경로에만 있었기 때문이다. 화면의
+코호트 키가 jsonb 경로 문자열에 묶이면 계약이 바뀐 날 아무 제약도 그것을 막지 못한 채 조용히 null이
+된다(AGENTS 3·15). 그래서 EAT-64에서 `core.auction_revision`에 `floor_rate numeric(6,3)`(null 허용, 관측
+그대로) 열을 더하고, 낙찰 방식·예정가격 방식은 새 표 없이 기존 `core.auction_revision_code_value`의 role
+`award_method`·`planned_price_method`로 잇는다(role check 제약 확장). 코드 체계는
+`eat:award-method`·`eat:planned-price-type`이며 v2 projector가 `record.terms`에서 채운다. v1 record에는
+`terms` 블록이 없으므로 v1 발행은 `floor_rate`가 null이고 두 role 관계를 만들지 않는다. 이 승격으로
+§4-가의 문장이 참이 되며, 실효하한은 여전히 `mart`의 파생 계산으로 남아 `core`에 열로 존재하지 않는다.
+
 ## Consequences
 
 - 2,330만 행이 개찰 연도로 나뉜다. 결정 화면의 주 질의(기관/업체의 최근 회차)가 연도 파티션 하나 또는

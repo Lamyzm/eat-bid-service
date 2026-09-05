@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
 import {
   auctionAttempt,
   auctionOrganization,
@@ -38,6 +38,19 @@ const foreignKeyColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
       foreignTable: reference.foreignTable[Symbol.for("drizzle:Name")],
     };
   });
+
+const columnSqlTypes = (table: Parameters<typeof getTableConfig>[0]) =>
+  Object.fromEntries(columns(table).map((column) => [column.name, column.getSQLType()]));
+
+// check 제약의 허용 목록은 SQL 식 안에만 있어서 이름만 보면 role이 늘었는지 줄었는지 알 수 없다.
+const checkExpression = (table: Parameters<typeof getTableConfig>[0], name: string) => {
+  const constraint = getTableConfig(table).checks.find((candidate) => candidate.name === name);
+  if (constraint === undefined) {
+    throw new Error(`check constraint is missing: ${name}`);
+  }
+
+  return new PgDialect().sqlToQuery(constraint.value).sql;
+};
 
 describe("canonical identity 불변식", () => {
   test("모든 canonical bigint 열은 bigint TypeScript mapping을 선언한다", () => {
@@ -221,6 +234,27 @@ describe("canonical identity 불변식", () => {
       { columns: ["auction_revision_id"], foreignTable: "auction_revision" },
       { columns: ["code_value_id"], foreignTable: "code_value" },
     ]));
+  });
+
+  test("낙찰 방식과 예정가격 방식을 검토된 code-value role로 허용한다", () => {
+    const expression = checkExpression(auctionRevisionCodeValue, "auction_revision_code_value_role_allowed");
+
+    for (const role of [
+      "location_sido",
+      "location_sigungu",
+      "eligibility_area",
+      "award_method",
+      "planned_price_method",
+    ]) {
+      expect(expression).toContain(`'${role}'`);
+    }
+  });
+
+  test("하한율을 관측 열로 앉히고 계산된 실효하한을 두지 않는다", () => {
+    expect(columnSqlTypes(auctionRevision).floor_rate).toBe("numeric(6, 3)");
+    expect(columnNullability(auctionRevision).floor_rate).toBe(false);
+    expect(columnNames(auctionRevision)).not.toContain("effective_floor_amount");
+    expect(columnNames(auctionRevision)).not.toContain("effective_floor_rate");
   });
 
   test("source label을 observation 범위 evidence grain에서 중복 제거한다", () => {

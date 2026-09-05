@@ -723,6 +723,38 @@ def test_누락된_display_number는_nullable_revision_data이다(
         assert cursor.fetchone() == (None,)
 
 
+def test_v1_발행은_하한율과_공고_조건_코드_관계를_남기지_않는다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """v1 계약에는 `terms`가 없다. 없는 사실을 기본값으로 메우지 않는다(AGENTS 3)."""
+    publication_id = validated_from_values(
+        pipeline_services, external_bid_id="no-terms"
+    )
+    project(pipeline_services, publication_id)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select ar.floor_rate
+            from core.auction_revision ar
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = 'no-terms'
+            """
+        )
+        assert cursor.fetchone() == (None,)
+        cursor.execute(
+            """
+            select count(*)
+            from core.auction_revision_code_value rcv
+            join core.auction_revision ar using (auction_revision_id)
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = 'no-terms'
+              and rcv.role in ('award_method', 'planned_price_method')
+            """
+        )
+        assert cursor.fetchone() == (0,)
+
+
 def test_동시_projection이_직렬화되고_최초_metadata를_보존한다(
     pipeline_services: PipelineServices, migrated_db: MigratedDatabase
 ) -> None:

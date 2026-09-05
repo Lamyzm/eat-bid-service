@@ -56,6 +56,10 @@ export const auctionRevision = coreSchema.table(
     openedAt: timestamp("opened_at", { withTimezone: true }),
     baseAmount: numeric("base_amount", { precision: 18, scale: 2 }),
     plannedAmount: numeric("planned_amount", { precision: 18, scale: 2 }),
+    // 소스가 표시한 하한율(`PLNPRCE_SUCBD_STD`) 관측 그대로다. 사정률 축의 상수라 예정가격으로
+    // 번역한 실효하한과는 다른 값이며, 그 계산은 파생물이므로 core에 앉히지 않는다(ADR 0033 §4-가).
+    // 계약이 소수 셋째 자리 고정이라 관측 정밀도를 잃지 않는 `numeric(6,3)`으로 받는다.
+    floorRate: numeric("floor_rate", { precision: 6, scale: 3 }),
     currency: char("currency", { length: 3 }).notNull(),
     sourcePayload: jsonb("source_payload").notNull(),
   },
@@ -81,7 +85,9 @@ export const auctionOrganization = coreSchema.table(
   (table) => [primaryKey({ columns: [table.auctionRevisionId, table.organizationId, table.role] })],
 );
 
-// 지역·자격 코드의 의미를 열로 늘리지 않고 허용된 role을 가진 다대다 관계로 보존한다.
+// 지역·자격 코드와 공고 조건 코드의 의미를 열로 늘리지 않고 허용된 role을 가진 다대다 관계로 보존한다.
+// 낙찰 방식·예정가격 방식이 여기로 오는 이유는 둘 다 소스가 준 외부 코드이기 때문이다. 코드를 열로
+// 펴면 새 코드가 생길 때마다 DDL이 움직이고 `(source_system, code_scheme, code)`가 끊긴다(AGENTS 2·6).
 export const auctionRevisionCodeValue = coreSchema.table(
   "auction_revision_code_value",
   {
@@ -97,7 +103,7 @@ export const auctionRevisionCodeValue = coreSchema.table(
     primaryKey({ columns: [table.auctionRevisionId, table.codeValueId, table.role] }),
     check(
       "auction_revision_code_value_role_allowed",
-      sql`${table.role} in ('location_sido', 'location_sigungu', 'eligibility_area')`,
+      sql`${table.role} in ('location_sido', 'location_sigungu', 'eligibility_area', 'award_method', 'planned_price_method')`,
     ),
   ],
 );

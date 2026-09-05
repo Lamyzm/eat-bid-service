@@ -128,6 +128,7 @@ def build_eat_auction_v2_projection(
         opened_at=instant_datetime(record.schedule.opened_at),
         base_amount=money_decimal(record.pricing.base_amount),
         planned_amount=money_decimal(record.pricing.planned_amount),
+        floor_rate=_floor_rate(record),
         currency=_CURRENCY,
         source_payload=record.model_dump(mode="json", by_alias=True),
         roster=_roster(record),
@@ -165,7 +166,31 @@ def _code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef, ...]:
         )
         for code in eligibility_codes
     )
+    refs.extend(_terms_code_refs(record))
     return tuple(refs)
+
+
+def _terms_code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef, ...]:
+    """예정가격 방식·낙찰 방식을 코드 관계로 옮긴다.
+
+    namespace를 상수가 아니라 관측이 실은 `codeScheme` 그대로 쓴다. role만 우리가 붙이므로 소스가
+    다른 체계를 보내기 시작하면 `projection_validation`이 그것을 끊는다. 상수로 덮어쓰면 다른 체계의
+    코드가 `award_method`라는 이름표를 달고 조용히 앉는다(AGENTS 2·6).
+    """
+    return tuple(
+        ExternalCodeRef(namespace=value.code_scheme, code=value.code, role=role)
+        for value, role in (
+            (record.terms.planned_price_method, "planned_price_method"),
+            (record.terms.award_method, "award_method"),
+        )
+        if value is not None
+    )
+
+
+def _floor_rate(record: EatbidIngestionAuctionV2) -> Decimal | None:
+    """하한율을 exact decimal로 옮긴다. 관측하지 못했으면 `None`이며 실패가 아니다."""
+    floor_rate = record.terms.floor_rate
+    return Decimal(floor_rate.value) if floor_rate is not None else None
 
 
 def _roster(record: EatbidIngestionAuctionV2) -> RosterProjection:

@@ -151,6 +151,14 @@ canonical 이름이나 학교 유형으로 승격하지 않는다.
   `unique nulls not distinct` 둘이 대리키와 발행 grain을 각각 지킨다.
 - **`won boolean`도, 계산된 실효하한도, "무효" 열도 두지 않는다.** 판정 권위는 `BID_STT` 코드
   하나이고 그날 하한은 `mart`의 파생 계산이다(규칙 7·8). 이 금지는 열 목록 테스트가 집행한다.
+- **공고 조건은 `core.auction_revision`에 열과 코드 관계로 있다.** 하한율은
+  `auction_revision.floor_rate numeric(6,3)`(null 허용, `PLNPRCE_SUCBD_STD` 관측 그대로)이고, 낙찰 방식
+  (`SUCBID_DCSN_MTH_CD`)과 예정가격 방식(`PLNPRC_TYPE_CD`)은 `core.auction_revision_code_value`의 role
+  `award_method`·`planned_price_method`로 각각 `eat:award-method`·`eat:planned-price-type` code value를
+  가리킨다. 코호트 키를 `source_payload` jsonb 경로에 묶어 두지 않기 위한 것이며
+  [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §6이 정했다. v1 record에는
+  `terms` 블록이 없어 v1 발행은 `floor_rate`가 null이고 두 role 관계를 만들지 않는다.
+  `packages/db/src/schema/core/procurement.ts`가 DDL의 권위다.
 - **`AwardDecision`은 revision당 0 또는 1이다.** 근거는 전수 리포트의 `multiple_award_rows = 0`이며,
   위반이 관측되면 두 행을 만드는 것이 아니라 격리한다.
 - **낙찰 행은 명단 행을 FK로 가리키지 않는다.** `awarded_roster_ordinal`은 같은 revision 명단의 관측
@@ -170,7 +178,8 @@ eaT 명단 행의 판정 코드 `BID_STT`는 레이크 전수 11,080,463행에�
 
 화면과 mart의 "그날 하한"과 "하한 미만 수"는 관측이 아니라 **파생 계산**이다. 하한율
 (`PLNPRCE_SUCBD_STD`)과 추첨으로 정해진 예정가격을 곱해 얻는 값이며, 그 비교로 센 행 수는
-표본 수·코호트·계산 버전과 함께만 발표한다(규칙 7). 이 파생값은 `core`에 저장하지 않는다.
+표본 수·코호트·계산 버전과 함께만 발표한다(규칙 7). `core`에 있는 것은 관측된 하한율
+(`auction_revision.floor_rate`)뿐이고 이 파생값은 저장하지 않는다.
 
 #### 사정률의 값 범위와 정밀도 한계
 

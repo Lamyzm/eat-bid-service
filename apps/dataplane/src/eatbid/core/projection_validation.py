@@ -28,9 +28,11 @@ from eatbid.source.eat.code_schemes import (
     ATTEMPT_STATUS,
     AUCTION_LOCATION_SIDO,
     AUCTION_LOCATION_SIGUNGU,
+    AWARD_METHOD,
     BID_STATUS,
     BUSINESS_NUMBER,
     ELIGIBILITY_AREA,
+    PLANNED_PRICE_TYPE,
     SUPPLIER_ACCOUNT,
     WITHDRAWAL_FLAG,
 )
@@ -42,6 +44,8 @@ REVIEWED_CODE_ROLES = {
     AUCTION_LOCATION_SIDO.namespace: "location_sido",
     AUCTION_LOCATION_SIGUNGU.namespace: "location_sigungu",
     ELIGIBILITY_AREA.namespace: "eligibility_area",
+    AWARD_METHOD.namespace: "award_method",
+    PLANNED_PRICE_TYPE.namespace: "planned_price_method",
 }
 
 
@@ -85,6 +89,10 @@ def validate_projection(projection: AuctionProjection) -> None:
         projection.announced_at, projection.deadline_at, projection.opened_at
     )
     _require_amounts(projection.base_amount, projection.planned_amount)
+    if projection.floor_rate is not None and not isinstance(
+        projection.floor_rate, Decimal
+    ):
+        raise ProjectionContractError("projection floor rate must be decimal or null")
     for digest in (
         projection.raw_content_sha256,
         projection.normalized_payload_sha256,

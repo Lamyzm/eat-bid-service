@@ -53,6 +53,9 @@ class AuctionProjection:
     opened_at: datetime | None
     base_amount: Decimal | None
     planned_amount: Decimal | None
+    # 소스가 표시한 하한율 관측이다. 기본값을 두지 않는 이유는 `terms`가 없는 v1 경로가 그 사실을
+    # `None`으로 명시하게 만들기 위해서다. 기본값이 있으면 계약이 늘어난 날 조용히 비어 버린다.
+    floor_rate: Decimal | None
     currency: str
     source_payload: dict[str, object]
 
