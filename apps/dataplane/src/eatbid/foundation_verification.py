@@ -18,11 +18,12 @@ from eatbid.foundation_repository import (
     FoundationPublishedEvidence,
 )
 from eatbid.foundation_values import _nonnegative_int, _positive_int, _sha256
+from eatbid.generated.ingestion_v2 import EatbidIngestionAuctionV2
 from eatbid.ingest.models import CapturedObservation
 from eatbid.ingest.normalization_repository import StoredNormalizedRecord
 from eatbid.ingest.publication_repository import PublicationValidation
 from eatbid.pipeline.project import (
-    parse_canonical_normalized_auction,
+    parse_canonical_normalized_record,
     verify_published_publication,
 )
 
@@ -180,7 +181,44 @@ def _load_verified_projection_evidence(
             "published projection evidence differs from checkpoint"
         )
     _sha256(evidence.canonical_fingerprint, "published canonical_fingerprint")
+    _verify_published_roster(checkpoint, evidence)
     return evidence
+
+
+def _verify_published_roster(
+    checkpoint: FoundationCheckpoint, evidence: PublishedProjectionEvidence
+) -> None:
+    """봉인된 관측이 담은 명단 행 수·낙찰 판정 수가 core에 그대로 남았는지 종단에서 다시 센다.
+
+    projector 안에서 이미 검증했는데 왜 또 세나. "검증을 통과했다"와 "발행이 끝난 뒤 실제로 그만큼
+    남아 있다"는 서로 다른 주장이고, 종단 검사가 확인해야 하는 것은 뒤쪽이다. v1 발행은 계약에 명단이
+    없으므로 둘 다 0이어야 한다.
+    """
+    for count in (evidence.bid_submission_count, evidence.award_decision_count):
+        _nonnegative_int(count, "published roster count")
+    normalization = checkpoint.normalization
+    if normalization is None or normalization.record_type is None:
+        raise FoundationIntegrityError("published checkpoint lacks typed normalization")
+    record = parse_canonical_normalized_record(
+        normalization.record_type, normalization.canonical_payload
+    )
+    expected_rows = (
+        len(record.roster.submissions)
+        if isinstance(record, EatbidIngestionAuctionV2)
+        else 0
+    )
+    expected_awards = (
+        int(record.award is not None)
+        if isinstance(record, EatbidIngestionAuctionV2)
+        else 0
+    )
+    if (
+        evidence.bid_submission_count != expected_rows
+        or evidence.award_decision_count != expected_awards
+    ):
+        raise FoundationIntegrityError(
+            "published roster differs from the frozen observation"
+        )
 
 
 def _verify_normalization_lineage(checkpoint: FoundationCheckpoint) -> None:
@@ -232,8 +270,8 @@ def _verify_normalized_auction_contract(
             "terminal normalization source_entity_id must be a trimmed string"
         )
     try:
-        record = parse_canonical_normalized_auction(
-            normalization.canonical_payload
+        record = parse_canonical_normalized_record(
+            record_type, normalization.canonical_payload
         )
     except ProjectionContractError as error:
         raise FoundationIntegrityError(

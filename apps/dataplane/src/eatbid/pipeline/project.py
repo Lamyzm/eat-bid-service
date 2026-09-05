@@ -10,7 +10,10 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
-from eatbid.core.auction_v2_projection import build_eat_auction_v2_projection
+from eatbid.core.auction_v2_projection import (
+    build_eat_auction_v2_projection,
+    parse_canonical_normalized_auction_v2,
+)
 from eatbid.core.build_identity import validate_build_sha
 from eatbid.core.models import (
     AuctionProjection,
@@ -32,6 +35,7 @@ from eatbid.core.repository import (
     PublishedProjectionEvidence,
 )
 from eatbid.generated.ingestion_v1 import EatbidIngestionAuctionV1
+from eatbid.generated.ingestion_v2 import EatbidIngestionAuctionV2
 from eatbid.source.eat.code_schemes import (
     AUCTION_LOCATION_SIDO,
     AUCTION_LOCATION_SIGUNGU,
@@ -44,9 +48,12 @@ __all__ = [
     "build_projection",
     "canonical_projection_fingerprint",
     "parse_canonical_normalized_auction",
+    "parse_canonical_normalized_record",
     "project_publication",
     "verify_published_publication",
 ]
+
+NormalizedAuctionRecord = EatbidIngestionAuctionV1 | EatbidIngestionAuctionV2
 
 def _require_projectable(record_type: str) -> None:
     if not is_projectable_record_type(record_type):
@@ -193,6 +200,31 @@ def build_projection(member: FrozenPublicationMember) -> AuctionProjection:
             f"[record_type={member.record_type}]"
         )
     return builder(member)
+
+
+# 봉인된 canonical payload를 어떤 계약으로 다시 읽는지도 record type이 정한다. 종단 검사가 v1 계약
+# 하나로 읽으면 v2 발행물이 "정규화 payload가 invalid"라는 엉뚱한 사유로 실패한다.
+_PAYLOAD_PARSERS: dict[str, Callable[[bytes], NormalizedAuctionRecord]] = {
+    AUCTION_V1: parse_canonical_normalized_auction,
+    AUCTION_V2: parse_canonical_normalized_auction_v2,
+}
+
+
+def parse_canonical_normalized_record(
+    record_type: str, value: object
+) -> NormalizedAuctionRecord:
+    """record type이 고른 계약으로 봉인된 정규화 바이트를 다시 읽는다."""
+    parser = _PAYLOAD_PARSERS.get(record_type)
+    if parser is None:
+        raise ProjectionContractError(
+            f"normalized record type has no canonical parser "
+            f"[record_type={record_type}]"
+        )
+    if not isinstance(value, bytes):
+        raise ProjectionContractError(
+            "projection normalized payload must be non-empty canonical JSON bytes"
+        )
+    return parser(value)
 
 
 def project_publication(

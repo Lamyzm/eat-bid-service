@@ -140,6 +140,22 @@ class PsycopgCanonicalProjectionRepository:
                 raise ProjectionContractError(
                     "published canonical evidence query returned no row"
                 )
+            # 명단·낙찰은 별도 질의다. 위 질의에 조인하면 revision 하나가 명단 행 수만큼 늘어나
+            # `count(distinct ...)` 밖의 수가 전부 흔들린다.
+            cursor.execute(
+                """
+                select
+                  (select count(*) from core.bid_submission s
+                    where s.auction_revision_id = ar.auction_revision_id),
+                  (select count(*) from core.award_decision d
+                    where d.auction_revision_id = ar.auction_revision_id)
+                from ingest.publication_record pr
+                join core.auction_revision ar using (normalized_record_id)
+                where pr.publication_id = %s
+                """,
+                (publication_id,),
+            )
+            roster_counts = cursor.fetchall()
             return PublishedProjectionEvidence(
                 publication_id=publication_id,
                 members_projected=result.members_projected,
@@ -147,6 +163,8 @@ class PsycopgCanonicalProjectionRepository:
                 auction_attempt_count=int(counts[1]),
                 auction_revision_count=int(counts[2]),
                 canonical_fingerprint=result.canonical_fingerprint,
+                bid_submission_count=sum(int(row[0]) for row in roster_counts),
+                award_decision_count=sum(int(row[1]) for row in roster_counts),
             )
 
     def _project_locked(

@@ -1033,11 +1033,14 @@ def test_모르는_source_column이_늘어도_기본_사실은_발행된다(
         assert cursor.fetchone() == ("normalized", normalized.schema_fingerprint, 1)
 
 
+# 첫 짝은 검토되지 않은 endpoint, 둘째 짝은 검토됐지만 발행 대상이 아닌 record type
+# (`auction-discovery.v1`)이다. `bid-detail`+`eat-v2`가 여기 있었으나 EAT-43이 `auction.v2`를
+# 발행 가능으로 열었다(ADR 0033 §5).
 @pytest.mark.parametrize(
     ("endpoint", "parser_version"),
     [
         ("unreviewed-detail", "eat-v1"),
-        ("bid-detail", "eat-v2"),
+        ("bid-list", "eat-v1"),
     ],
 )
 def test_알_수_없는_source_contract_identity가_publication을_차단한다(
