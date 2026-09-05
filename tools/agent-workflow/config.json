@@ -6,6 +6,8 @@
   "terminalStates": ["Done", "Canceled", "Duplicate"],
   "inProgressState": "In Progress",
   "reviewState": "In Review",
+  "issueDefaultState": "Ready",
+  "defaultProject": "R1 — 유료 투찰 Decision Loop",
   "infisical": {
     "environment": "dev",
     "path": "/tooling/linear",

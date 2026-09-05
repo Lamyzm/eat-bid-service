@@ -1,4 +1,9 @@
-/** @module 책임: Linear GraphQL 경계에서 issue 조회·claim 상태 전환·중복 없는 worklog 댓글을 수행한다. */
+/** @module 책임: Linear GraphQL 경계에서 issue 조회·발행·claim 상태 전환·중복 없는 worklog 댓글을 수행한다. */
+import { LinearApiError } from "./linear-error.mjs";
+import { createIssueOperation } from "./linear-issue.mjs";
+
+export { LinearApiError };
+
 const ISSUE_QUERY = `
   query AgentWorkflowIssue($id: String!) {
     issue(id: $id) {
@@ -52,13 +57,6 @@ const COMMENTS_QUERY = `
     }
   }
 `;
-
-export class LinearApiError extends Error {
-  constructor(message, options) {
-    super(message, options);
-    this.name = "LinearApiError";
-  }
-}
 
 export function createLinearClient({
   apiKey,
@@ -131,6 +129,8 @@ export function createLinearClient({
       }
       return true;
     },
+
+    createIssue: createIssueOperation(request),
 
     getIssue,
 

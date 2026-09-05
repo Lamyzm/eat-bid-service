@@ -1,0 +1,131 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  parseIssueCreateArguments,
+  resolveIssueDescription,
+  runIssueCreate,
+} from "./issue-command.mjs";
+
+const defaults = { defaultProject: "R1 — 유료 투찰 Decision Loop", defaultState: "Ready" };
+
+test("issue create는 제목을 요구하고 state와 project 기본값을 config에서 채운다", () => {
+  const parsed = parseIssueCreateArguments(["--", "--title", "명단 정규화를 마저 한다"], defaults);
+
+  assert.deepEqual(parsed, {
+    description: null,
+    descriptionFile: null,
+    priority: null,
+    projectName: "R1 — 유료 투찰 Decision Loop",
+    stateName: "Ready",
+    title: "명단 정규화를 마저 한다",
+  });
+});
+
+test("issue create는 등호 형태와 명시적인 state·project·priority를 그대로 읽는다", () => {
+  const parsed = parseIssueCreateArguments(
+    ["--title=제목", "--state", "Backlog", "--project", "다른 project", "--priority=2"],
+    defaults,
+  );
+
+  assert.deepEqual(parsed, {
+    description: null,
+    descriptionFile: null,
+    priority: 2,
+    projectName: "다른 project",
+    stateName: "Backlog",
+    title: "제목",
+  });
+});
+
+test("issue create는 제목 누락과 범위 밖 priority와 본문 옵션 중복을 발행 전에 거부한다", () => {
+  assert.throws(() => parseIssueCreateArguments([], defaults), /--title is required/);
+  assert.throws(() => parseIssueCreateArguments(["--title", "  "], defaults), /--title is required/);
+  assert.throws(
+    () => parseIssueCreateArguments(["--title", "제목", "--priority", "0"], defaults),
+    /--priority must be an integer from 1 to 4/,
+  );
+  assert.throws(
+    () => parseIssueCreateArguments(["--title", "제목", "--priority", "5"], defaults),
+    /--priority must be an integer from 1 to 4/,
+  );
+  assert.throws(
+    () =>
+      parseIssueCreateArguments(
+        ["--title", "제목", "--description", "본문", "--description-file", "body.md"],
+        defaults,
+      ),
+    /Choose either --description or --description-file/,
+  );
+  assert.throws(
+    () => parseIssueCreateArguments(["--title", "제목", "--title", "다른 제목"], defaults),
+    /--title may be given only once/,
+  );
+  assert.throws(
+    () => parseIssueCreateArguments(["--title", "제목", "--force"], defaults),
+    /Unknown issue option: --force/,
+  );
+  assert.throws(
+    () => parseIssueCreateArguments(["--title", "제목", "EAT-53"], defaults),
+    /issue create takes options only/,
+  );
+  assert.throws(
+    () => parseIssueCreateArguments(["--title", "--state"], defaults),
+    /--title requires a value/,
+  );
+});
+
+test("issue create는 --description-file 값을 긴 옵션 이름으로 정확히 잘라 읽는다", () => {
+  const parsed = parseIssueCreateArguments(
+    ["--title", "제목", "--description-file", ".superpowers/body.md"],
+    defaults,
+  );
+
+  assert.equal(parsed.descriptionFile, ".superpowers/body.md");
+  assert.equal(parsed.description, null);
+  assert.equal(
+    resolveIssueDescription(parsed, (file) => `읽은 본문: ${file}`),
+    "읽은 본문: .superpowers/body.md",
+  );
+});
+
+test("issue create는 검증한 인자만 Linear client에 넘기고 식별자와 URL만 출력한다", async () => {
+  const calls = [];
+  const lines = [];
+  const created = await runIssueCreate({
+    args: ["--title", "검증용 issue", "--priority", "3", "--description-file", "body.md"],
+    client: {
+      createIssue: async (input) => {
+        calls.push(input);
+        return {
+          id: "issue-uuid",
+          identifier: "EAT-99",
+          url: "https://linear.app/eatbid/issue/EAT-99",
+        };
+      },
+    },
+    config: {
+      defaultProject: defaults.defaultProject,
+      issueDefaultState: "Ready",
+      teamKey: "EAT",
+    },
+    readFile: () => "본문 전체",
+    write: (line) => lines.push(line),
+  });
+
+  assert.deepEqual(calls, [
+    {
+      description: "본문 전체",
+      priority: 3,
+      projectName: "R1 — 유료 투찰 Decision Loop",
+      stateName: "Ready",
+      teamKey: "EAT",
+      title: "검증용 issue",
+    },
+  ]);
+  assert.equal(created.identifier, "EAT-99");
+  assert.deepEqual(JSON.parse(lines.join("")), {
+    identifier: "EAT-99",
+    url: "https://linear.app/eatbid/issue/EAT-99",
+  });
+});

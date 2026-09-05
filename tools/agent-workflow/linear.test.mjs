@@ -39,6 +39,121 @@ test("Linear 클라이언트는 인증하고 팀 상태를 찾아 축약 식별�
   assert.deepEqual(calls[1].payload.variables, { id: "issue-uuid", stateId: "progress" });
 });
 
+function issueCreateStub(calls, { projects, states } = {}) {
+  return createLinearClient({
+    apiKey: "key",
+    fetchImpl: async (_url, request) => {
+      const payload = JSON.parse(request.body);
+      calls.push(payload);
+      if (payload.query.includes("query AgentWorkflowIssueCreateContext")) {
+        return response({
+          data: {
+            teams: {
+              nodes: [
+                {
+                  id: "team-uuid",
+                  key: "EAT",
+                  states: {
+                    nodes: states ?? [
+                      { id: "ready", name: "Ready" },
+                      { id: "backlog", name: "Backlog" },
+                    ],
+                  },
+                },
+              ],
+            },
+            projects: {
+              nodes: projects ?? [{ id: "project-uuid", name: "R1 — 유료 투찰 Decision Loop" }],
+            },
+          },
+        });
+      }
+      return response({
+        data: {
+          issueCreate: {
+            success: true,
+            issue: {
+              id: "issue-uuid",
+              identifier: "EAT-99",
+              url: "https://linear.app/eatbid/issue/EAT-99",
+            },
+          },
+        },
+      });
+    },
+  });
+}
+
+test("createIssue는 team·state·project 이름을 id로 바꿔 issueCreate에 넘긴다", async () => {
+  const calls = [];
+  const created = await issueCreateStub(calls).createIssue({
+    description: "본문",
+    priority: 2,
+    projectName: "R1 — 유료 투찰 Decision Loop",
+    stateName: "Ready",
+    teamKey: "EAT",
+    title: "  검증용 issue  ",
+  });
+
+  assert.deepEqual(calls[0].variables, { teamKey: "EAT" });
+  assert.deepEqual(calls[1].variables, {
+    input: {
+      description: "본문",
+      priority: 2,
+      projectId: "project-uuid",
+      stateId: "ready",
+      teamId: "team-uuid",
+      title: "검증용 issue",
+    },
+  });
+  assert.deepEqual(created, {
+    id: "issue-uuid",
+    identifier: "EAT-99",
+    url: "https://linear.app/eatbid/issue/EAT-99",
+  });
+});
+
+test("createIssue는 본문·priority·project가 없으면 그 입력을 아예 보내지 않는다", async () => {
+  const calls = [];
+  await issueCreateStub(calls).createIssue({ stateName: "Backlog", teamKey: "EAT", title: "제목" });
+
+  assert.deepEqual(calls[1].variables, {
+    input: { stateId: "backlog", teamId: "team-uuid", title: "제목" },
+  });
+});
+
+test("createIssue는 없는 state·project 이름을 후보와 함께 거부하고 발행하지 않는다", async () => {
+  const stateCalls = [];
+  await assert.rejects(
+    () =>
+      issueCreateStub(stateCalls).createIssue({ stateName: "Started", teamKey: "EAT", title: "제목" }),
+    /workflow state "Started" does not exist[\s\S]*Ready, Backlog/,
+  );
+  assert.equal(stateCalls.length, 1);
+
+  const projectCalls = [];
+  await assert.rejects(
+    () =>
+      issueCreateStub(projectCalls).createIssue({
+        projectName: "없는 project",
+        stateName: "Ready",
+        teamKey: "EAT",
+        title: "제목",
+      }),
+    /project "없는 project" was not found/,
+  );
+  assert.equal(projectCalls.length, 1);
+});
+
+test("createIssue는 제목이 비어 있으면 Linear를 호출하지 않는다", async () => {
+  const calls = [];
+  await assert.rejects(
+    () => issueCreateStub(calls).createIssue({ stateName: "Ready", teamKey: "EAT", title: "   " }),
+    /title is required/,
+  );
+  assert.equal(calls.length, 0);
+});
+
 test("Linear 클라이언트는 존재하지 않는 workflow 상태를 추측하지 않는다", async () => {
   const client = createLinearClient({
     apiKey: "key",

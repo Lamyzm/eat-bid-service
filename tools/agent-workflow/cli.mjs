@@ -1,4 +1,4 @@
-/** @module 책임: Linear issue claim·sync·release와 local worktree lease 명령을 조정한다. */
+/** @module 책임: Linear issue 발행·claim·sync·release와 local worktree lease 명령을 조정한다. */
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -6,6 +6,7 @@ import path from "node:path";
 import { checkoutClaimBranch } from "./branch.mjs";
 import { parseWorkflowArguments } from "./command-line.mjs";
 import { doctorReport, recoverLockReport } from "./diagnostics.mjs";
+import { runIssueCreate } from "./issue-command.mjs";
 import { flushOutbox } from "./linear.mjs";
 import { config, linearClient, repositoryContext, targetRepositoryContext } from "./runtime.mjs";
 import {
@@ -215,6 +216,16 @@ async function worktree() {
   throw new Error(`Usage: pnpm workflow:worktree remove <path> | prune (got ${subcommand ?? "nothing"})`);
 }
 
+// issue 발행은 lease나 worktree와 무관하다. 새 작업을 시작하려는 세션이 아직 claim할 issue를 갖고
+// 있지 않은 상태에서 실행하는 명령이므로 저장소 context를 요구하지 않는다.
+async function issue() {
+  const [subcommand, ...rest] = process.argv.slice(process.argv.indexOf("issue") + 1);
+  if (subcommand !== "create") {
+    throw new Error(`Usage: pnpm workflow:issue create --title <t> (got ${subcommand ?? "nothing"})`);
+  }
+  await runIssueCreate({ args: rest, client: linearClient(), config });
+}
+
 async function sync() {
   const { repository } = commandContext("sync");
   let result = null;
@@ -258,6 +269,7 @@ async function main() {
   const command = process.argv[2];
   if (command === "doctor") return doctor();
   if (command === "claim") return claim();
+  if (command === "issue") return issue();
   if (command === "release") return release();
   if (command === "sync") return sync();
   if (command === "recover-lock") return recoverLock();

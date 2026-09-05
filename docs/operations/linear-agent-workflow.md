@@ -1,6 +1,6 @@
 ---
 status: active
-last_reviewed: 2026-09-04
+last_reviewed: 2026-09-05
 review_trigger: linear-workflow-or-agent-hook-change
 ---
 
@@ -166,7 +166,34 @@ pnpm workflow:release:review
 pnpm workflow:release:review -- EAT-36
 ```
 
-## 5. 일상 사용
+## 5. issue는 agent가 발행한다
+
+새 작업을 시작할 때 사람이 Linear에 issue를 대신 만들어 주기를 기다리지 않는다. `workflow:issue`가
+`dev:/tooling/linear`의 API key를 주입해 `EAT` team에 issue를 만들고 식별자와 URL만 출력한다.
+
+```powershell
+pnpm workflow:issue create -- --title "eaT 명단을 정규화 모델로 읽는다"
+pnpm workflow:issue create -- --title "제목" --priority 2 --state Backlog
+pnpm workflow:issue create -- --title "제목" --description-file .superpowers/eat-53-body.md
+pnpm workflow:issue create -- --title "제목" --project "다른 project"
+```
+
+- `--title`만 필수다. `--state`는 기본 `Ready`, `--project`는 기본 `R1 — 유료 투찰 Decision Loop`이며
+  두 기본값은 `tools/agent-workflow/config.json`의 `issueDefaultState`와 `defaultProject`가 소유한다.
+- `--priority`는 Linear 값 그대로 `1`(Urgent)부터 `4`(Low)까지만 받는다. "없음"은 triage를 다시
+  사람에게 미루는 값이라 받지 않는다.
+- 본문은 여러 줄 한국어가 대부분이므로 `--description-file <path>`를 기본 경로로 쓴다. 한 줄짜리에만
+  `--description`을 쓴다.
+- state나 project 이름을 해소하지 못하면 그 자리를 비운 채 발행하지 않고 후보 목록과 함께 실패한다.
+  triage에도 roadmap에도 걸리지 않는 issue가 조용히 생기는 쪽이 더 나쁘기 때문이다.
+- 발행 자체는 lease를 요구하지 않는다. 아직 claim할 issue가 없는 세션이 실행하는 명령이라 lease를
+  요구하면 자기 자신을 막는다. 발행 뒤 `pnpm workflow:claim -- EAT-N`으로 소유권을 확정한다.
+- 다음 절 0번의 중복 확인은 그대로 유효하다. 발행이 쉬워졌다고 기존 issue를 훑지 않고 새로 만들면
+  추적이 갈라진다.
+
+사람 몫으로 남는 것은 Linear workspace 계정과 team 구성, 그리고 `LINEAR_API_KEY` 발급·회전뿐이다.
+
+## 6. 일상 사용
 
 0. **새 issue를 만들기 전에 기존 issue를 먼저 훑는다.** `list_issues`로 team 전체를 확인하고, 하려는 일이
    이미 issue와 계획 문서를 갖고 있는지 본다. Backlog에 상위 설계 issue가 있고 그 아래 실행 issue가
@@ -242,7 +269,7 @@ writer 보장은 하나의 Git common dir을 공유하는 local worktree 범위�
 `workflow:release`는 아직 Stop되지 않은 session 경로를 원래 issue의 local worklog로 먼저 확정한
 뒤 lease를 해제한다. 따라서 release 뒤 `workflow:sync`를 실행해 남은 worklog를 전송한다.
 
-## 6. Codex와 Claude 사이 작업 인계
+## 7. Codex와 Claude 사이 작업 인계
 
 모델 교대는 새 작업을 시작하는 행위가 아니라 같은 Linear issue의 writing owner를 순차적으로
 이전하는 행위다. 대화 요약이나 도구별 memory를 완료 상태의 근거로 사용하지 않는다.
@@ -287,7 +314,7 @@ start commit: <검토가 끝난 commit>
 알려진 위험: <deferred finding 또는 없음>
 ```
 
-## 7. 진단과 복구
+## 8. 진단과 복구
 
 ```powershell
 pnpm workflow:test

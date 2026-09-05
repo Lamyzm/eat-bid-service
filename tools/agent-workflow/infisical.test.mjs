@@ -63,7 +63,26 @@ test("Infisical wrapper는 --worktree 인자를 해석하지 않고 CLI에 그�
   ]);
 });
 
-test("Infisical wrapper는 claim과 sync와 doctor와 release --review 이외의 command를 거부한다", () => {
+test("Infisical wrapper는 issue 발행 command도 key 주입 경로로 감싼다", () => {
+  const invocation = buildInfisicalRun({
+    command: "issue",
+    commandArguments: ["create", "--", "--title", "검증용 issue"],
+    config: { infisical: { environment: "dev", path: "/tooling/linear", projectId: "project-id" } },
+    hookPath: "cli.mjs",
+    nodePath: "node",
+  });
+
+  assert.deepEqual(invocation.slice(-6), [
+    "cli.mjs",
+    "issue",
+    "create",
+    "--",
+    "--title",
+    "검증용 issue",
+  ]);
+});
+
+test("Infisical wrapper는 claim과 sync와 doctor와 issue와 release --review 이외의 command를 거부한다", () => {
   for (const [command, commandArguments] of [
     ["release", []],
     ["release", ["--worktree", "../.."]],
