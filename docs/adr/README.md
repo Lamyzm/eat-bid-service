@@ -39,6 +39,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0030](0030-competitor-count-is-the-primary-material.md) | Accepted | 화면의 주인공을 경쟁자 수와 승률 곡선으로 (학교별 추이는 내리지 않고 자리만 뒤로) |
 | [0031](0031-decision-screen-frontend-rendering.md) | Accepted | 결정 화면의 상태 소유(nuqs)·직접 그린 차트·headless 표·측정 후 가상화 |
 | [0032](0032-authentication-and-authorization-boundary.md) | Proposed | 인증·인가 경계: Nest가 Better Auth를 마운트, principal bigint, 역할 owner|member, 운영자 부여 이력, 권한 7단계 |
+| [0033](0033-bid-submission-partitioning-and-supplier-core.md) | Proposed | 투찰·낙찰·업체 core 테이블 다섯과 `core.bid_submission`의 개찰 연도 range 파티션 |
 
 ## 새 ADR 형식
 
