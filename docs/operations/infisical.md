@@ -1,6 +1,6 @@
 ---
 status: active
-last_reviewed: 2026-08-31
+last_reviewed: 2026-09-05
 review_trigger: infisical-project-environment-path-auth-or-secret-delivery-change
 ---
 
@@ -269,6 +269,7 @@ AI가 할 수 있는 일:
 - 누락 key 이름과 발급 URL 안내
 - 값 비노출 존재/형식 검사 실행
 - 사용자가 승인한 secret metadata와 path 구성
+- 아래 절차대로 승인된 경로에 폴더와 secret을 CLI로 직접 만들기
 
 AI가 해서는 안 되는 일:
 
@@ -277,6 +278,34 @@ AI가 해서는 안 되는 일:
 - 임의로 personal override 생성
 - root path 또는 broad import로 필요한 secret을 추측
 - 사람 승인 없이 API key 생성, 권한 확대, 회전, 폐기
+
+### 시크릿과 폴더는 agent가 CLI로 만든다
+
+새 구성요소에 secret이 필요할 때 사람에게 Infisical 화면을 대신 눌러 달라고 부탁하지 않는다.
+사용자 로그인 세션의 CLI가 쓰기 경로다. 운영자 machine identity(`operator`)는 읽기 전용이므로
+그 identity로는 폴더도 secret도 만들 수 없다.
+
+```powershell
+infisical secrets folders create --name postgres --path /runtime --env prod --projectId=0d794ce1-e0e3-4e48-83ea-88f2f05f9a65
+infisical secrets set POSTGRES_PASSWORD=<value> --env=prod --path=/runtime/postgres --projectId=0d794ce1-e0e3-4e48-83ea-88f2f05f9a65
+```
+
+- 폴더는 항상 부모 경로를 `--path`로 주고 이름만 `--name`으로 준다. 최상위 `infisical folders`
+  명령은 존재하지 않는다.
+- `infisical secrets set`은 같은 key가 이미 있으면 값을 덮어쓴다. 운영 값을 바꾸는 행위이므로
+  kubectl의 cluster 변경 subcommand와 같은 범주로 보고 lease 안에서 실행한다.
+- 만든 값을 확인하려고 `infisical secrets get ... --plain`이나 경로 전체 나열을 실행하지 않는다.
+  존재 확인은 `infisical secrets folders list`나 소비하는 프로세스의 기동으로 대신한다.
+- 새 path와 key를 만들었으면 4절의 key 이름 계약과 3절의 경로 표를 같은 변경에서 갱신한다.
+- 위 "해서는 안 되는 일"은 그대로 유효하다. 이 절이 여는 것은 승인된 경로에 값을 넣는 일뿐이며
+  API key 발급·권한 확대·회전·폐기는 계속 사람의 행위다.
+
+lease gate는 `infisical secrets folders create | list`만 lease 없이 허용한다. 폴더 이름은 비밀이
+아니고 저장소 파일도 바꾸지 않기 때문이다. 값을 다루는 `secrets set | get`과 임의 프로그램을
+실행하는 `infisical run -- <command>`는 lease 안에서 실행한다.
+
+사람 몫으로 남는 것은 셋뿐이다. Infisical 계정 로그인(`infisical login`) 유지, project·organization
+권한 부여와 machine identity 발급, 그리고 결제와 plan 변경이다.
 
 ## 8. Machine Identity와 전달
 

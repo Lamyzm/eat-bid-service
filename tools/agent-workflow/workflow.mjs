@@ -1,7 +1,12 @@
 /** @module 책임: 에이전트 도구 호출의 변경 가능성과 Linear issue 식별자를 순수하게 판정한다. */
+import path from "node:path";
+
 import { classifyCurl, classifyInlineInterpreter } from "./shell-read-only.mjs";
 
 const ISSUE_IDENTIFIER = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/i;
+
+// 제어문자가 섞인 경로는 사람이 의도한 파일 이름이 아니다. 경로 판정을 시도하지 않고 거부한다.
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/u;
 
 // 사용자가 실제로 요청한 이슈만 세션 상태에 남긴다. 브랜치 슬러그·경로·scratchpad 이름은 소문자
 // `eat-34` 모양이라 대소문자를 구분하면 저절로 걸러지고, 경로 구분자·점·하이픈 뒤도 제외한다.
@@ -52,11 +57,29 @@ const ISSUE_ARGUMENT = String.raw`[A-Z][A-Z0-9]{1,9}-\d+`;
 const BRANCH_ARGUMENT = String.raw`(?!-)[A-Za-z0-9._/-]+`;
 const NON_OPTION_PATH_ARGUMENT = String.raw`(?:"[^"|;&><$\x60\r\n]+"|(?!-)[^\s|;&><$\x60"']+)`;
 
+// issue 제목·본문·project 이름은 사람이 읽는 한국어 문장이라 공백을 담는다. 따옴표 안이라도 치환·
+// redirect·pipe 문자는 계속 제외해 "제목처럼 보이는 인자"가 새 명령을 여는 통로가 되지 않게 한다.
+const TEXT_ARGUMENT = String.raw`(?:"[^"|;&><$\x60\r\n]*"|(?!-)[^\s|;&><$\x60"']+)`;
+
+// `workflow:issue create`는 Linear에만 issue를 만들고 저장소 파일과 lease state를 건드리지 않는다.
+// 아직 claim할 issue가 없는 세션이 실행하는 명령이므로 lease를 요구하면 자기 자신을 막는다.
+const ISSUE_CREATE_ARGUMENT = String.raw`create|--title(?:=|\s+)${TEXT_ARGUMENT}|--description-file(?:=|\s+)${PATH_ARGUMENT}|--description(?:=|\s+)${TEXT_ARGUMENT}|--priority(?:=|\s+)[1-4]|--state(?:=|\s+)${TEXT_ARGUMENT}|--project(?:=|\s+)${TEXT_ARGUMENT}`;
+
 // `pnpm workflow:*`는 저장소 파일이 아니라 lease state·Linear·git worktree 목록만 바꾸며 lease를
-// 만들고 푸는 유일한 경로다. 단일 명령 형태만 허용하고 pipe·chaining·redirect는 SHELL_COMPOSITION이
-// 먼저 거른다. 인자는 issue 식별자, `--worktree <path>`, `worktree remove <path> | prune`뿐이다.
+// 만들고 푸는 유일한 경로다. 단일 명령 형태만 허용하고 chaining·redirect는 SHELL_COMPOSITION이,
+// pipe는 출력 필터 판정이 먼저 거른다. 인자는 issue 식별자, `--worktree <path>`,
+// `worktree remove <path> | prune`, `issue create`의 발행 option뿐이다.
 const WORKFLOW_LIFECYCLE_COMMAND = new RegExp(
-  String.raw`^pnpm\s+workflow:[a-z][a-z:-]*(?:\s+(?:--|${ISSUE_ARGUMENT}|--worktree(?:=|\s+)${PATH_ARGUMENT}|--branch(?:=|\s+)${BRANCH_ARGUMENT}|--review|remove\s+${PATH_ARGUMENT}|prune))*\s*$`,
+  String.raw`^pnpm\s+workflow:[a-z][a-z:-]*(?:\s+(?:--|${ISSUE_ARGUMENT}|--worktree(?:=|\s+)${PATH_ARGUMENT}|--branch(?:=|\s+)${BRANCH_ARGUMENT}|--review|remove\s+${PATH_ARGUMENT}|prune|${ISSUE_CREATE_ARGUMENT}))*\s*$`,
+  "i",
+);
+
+// 폴더 생성·목록은 비밀값을 읽지도 쓰지도 않고 저장소 파일도 바꾸지 않는다. 값을 다루는
+// `infisical secrets set|get|list`와 임의 프로그램을 실행하는 `infisical run`은 여기에 넣지 않는다.
+// 값 출력은 transcript 유출이고, `secrets set`은 kubectl 변경 subcommand와 같은 운영 사고 범주이며,
+// `run -- node <script>`는 주입된 key로 저장소 파일을 바꿀 수 있기 때문이다.
+const SECRET_FOLDER_COMMAND = new RegExp(
+  String.raw`^infisical\s+secrets\s+folders\s+(?:create|list)(?:\s+${PATH_ARGUMENT})*\s*$`,
   "i",
 );
 
@@ -96,7 +119,26 @@ const READ_ONLY_COMMANDS = [
   KUBECTL_READ_COMMAND,
 ];
 
-const SHELL_COMPOSITION = /[|;&><\r\n]|`|\$\(|(?:^|\s)(?:--fix|--write|--output(?:=|\s)|--ext-diff\b|--textconv\b|--pre(?:=|\s)|--update(?:-?snapshots?)?\b|--updateSnapshot\b|-u(?:\s|$))/i;
+// pipe는 여기서 빼고 따로 다룬다. `pnpm workflow:release -- EAT-37 | tail`처럼 결과를 줄여 읽는
+// 형태까지 unclassified로 막으면 lease를 푸는 명령 자체가 lease를 요구하게 된다(EAT-52).
+const SHELL_COMPOSITION = /[;&><\r\n]|`|\$\(|(?:^|\s)(?:--fix|--write|--output(?:=|\s)|--ext-diff\b|--textconv\b|--pre(?:=|\s)|--update(?:-?snapshots?)?\b|--updateSnapshot\b|-u(?:\s|$))/i;
+
+// pipe 뒤에 올 수 있는 것은 표준 입력을 줄이거나 모양만 바꾸는 필터뿐이다. 파일을 쓰거나(`tee`,
+// `sort -o`) 다른 프로그램을 실행하는(`xargs`, `ForEach-Object`) 단계는 여기에 넣지 않는다.
+const PIPELINE_FILTER_COMMAND =
+  /^(?:head|tail|wc|uniq|cut|tr|nl|cat|grep|rg|jq|select-object|select-string|measure-object|sort-object|format-list|format-table|out-string|convertto-json)\b/i;
+
+/**
+ * pipe만 붙은 명령을 앞 단계 하나로 줄인다. 뒤 단계가 전부 순수 출력 필터일 때만 앞 단계를 돌려주고,
+ * 하나라도 아니면 `null`로 fail-closed한다. `||`는 빈 단계를 만들어 자동으로 여기서 걸린다.
+ */
+export function reduceReadOnlyPipeline(command) {
+  if (!command.includes("|")) return command;
+  const [head, ...filters] = command.split("|");
+  if (filters.length === 0) return command;
+  const allFiltersAreReadOnly = filters.every((filter) => PIPELINE_FILTER_COMMAND.test(filter.trim()));
+  return allFiltersAreReadOnly ? head : null;
+}
 
 export function extractIssueIdentifier(value) {
   if (Array.isArray(value)) {
@@ -116,6 +158,41 @@ export function extractPromptIssueIdentifier(prompt) {
   return authored.match(PROMPT_ISSUE_IDENTIFIER)?.[1] ?? null;
 }
 
+/**
+ * 저장소 밖 경로를 상대 경로로 판정하지 않는다. 상대 경로는 실행 cwd에 따라 다른 파일을 가리키므로
+ * hook이 아는 worktree root 기준으로 해석하면 같은 문자열이 세션마다 다른 뜻이 된다.
+ */
+export function repositoryRelativePath(candidate, worktreeRoot) {
+  if (typeof candidate !== "string" || candidate.length === 0 || CONTROL_CHARACTER.test(candidate)) {
+    return null;
+  }
+  const root = path.resolve(worktreeRoot);
+  const absolute = path.isAbsolute(candidate) ? path.resolve(candidate) : path.resolve(root, candidate);
+  const relative = path.relative(root, absolute).replaceAll("\\", "/");
+  if (!relative || relative === ".." || relative.startsWith("../") || path.isAbsolute(relative)) {
+    return null;
+  }
+  return relative;
+}
+
+// 편집 도구가 저장소 밖 절대 경로를 가리키면 lease가 지키려는 대상이 아니다. Claude memory 디렉터리나
+// scratchpad에 쓰는 일까지 막으면 세션은 claim 없이 자기 기록조차 남기지 못한다. root를 알 수 없거나
+// 경로가 없으면 저장소 안으로 간주해 계속 fail-closed한다.
+function editsOutsideRepository(toolInput, resolveWorktreeRoot) {
+  if (typeof resolveWorktreeRoot !== "function") return false;
+  const candidate =
+    toolInput?.file_path ?? toolInput?.notebook_path ?? toolInput?.target_file ?? toolInput?.path;
+  if (typeof candidate !== "string" || !path.isAbsolute(candidate)) return false;
+  let worktreeRoot;
+  try {
+    worktreeRoot = resolveWorktreeRoot();
+  } catch {
+    return false;
+  }
+  if (typeof worktreeRoot !== "string" || worktreeRoot.length === 0) return false;
+  return repositoryRelativePath(candidate, worktreeRoot) === null;
+}
+
 function shellCommand(toolInput) {
   if (!toolInput || typeof toolInput !== "object") return "";
   for (const key of ["command", "cmd", "script"]) {
@@ -124,11 +201,40 @@ function shellCommand(toolInput) {
   return "";
 }
 
-export function classifyToolCall(toolName, toolInput = {}) {
+// pipe를 걷어낸 뒤 남은 한 단계를 판정한다. 순서는 "위험한 형태 먼저, 허용 목록 나중"이며 pipe만
+// 여기 오기 전에 처리된다. 앞 단계가 쓰는 명령이면 뒤가 필터여도 그대로 mutation으로 남는다.
+function classifyShellStage(command) {
+  if (BRANCH_CREATION_COMMAND.test(command.trim())) {
+    return { mutatesRepository: false, reason: "branch-creation-command" };
+  }
+  if (MUTATING_COMMANDS.some((pattern) => pattern.test(command))) {
+    return { mutatesRepository: true, reason: "mutating-command" };
+  }
+  if (WORKFLOW_LIFECYCLE_COMMAND.test(command.trim())) {
+    return { mutatesRepository: false, reason: "workflow-lifecycle-command" };
+  }
+  if (SECRET_FOLDER_COMMAND.test(command.trim())) {
+    return { mutatesRepository: false, reason: "secret-folder-command" };
+  }
+  if (READ_ONLY_COMMANDS.some((pattern) => pattern.test(command.trim()))) {
+    return { mutatesRepository: false, reason: "read-or-verification-command" };
+  }
+  const curl = classifyCurl(command);
+  if (curl !== null) {
+    return curl
+      ? { mutatesRepository: false, reason: "curl-read-request" }
+      : { mutatesRepository: true, reason: "curl-writes-or-uploads" };
+  }
+  return { mutatesRepository: true, reason: "unclassified-command-requires-claim" };
+}
+
+export function classifyToolCall(toolName, toolInput = {}, { resolveWorktreeRoot = null } = {}) {
   const normalizedName = String(toolName ?? "").toLowerCase();
 
   if (FILE_EDIT_TOOLS.has(normalizedName)) {
-    return { mutatesRepository: true, reason: "file-edit-tool" };
+    return editsOutsideRepository(toolInput, resolveWorktreeRoot)
+      ? { mutatesRepository: false, reason: "file-edit-outside-repository" }
+      : { mutatesRepository: true, reason: "file-edit-tool" };
   }
 
   if (SHELL_TOOLS.has(normalizedName)) {
@@ -140,28 +246,14 @@ export function classifyToolCall(toolName, toolInput = {}) {
         ? { mutatesRepository: false, reason: "inline-interpreter-read-only" }
         : { mutatesRepository: true, reason: "inline-interpreter-writes" };
     }
+    // chaining·redirect·치환은 pipe를 나누기 전에 명령 전체에서 본다. 뒤 단계에만 있는 `> out.log`가
+    // 앞 단계 판정으로 통과하면 pipe 완화가 그대로 파일 쓰기 허용이 된다.
     if (SHELL_COMPOSITION.test(command)) {
       return { mutatesRepository: true, reason: "compound-or-writing-command" };
     }
-    if (BRANCH_CREATION_COMMAND.test(command.trim())) {
-      return { mutatesRepository: false, reason: "branch-creation-command" };
-    }
-    if (MUTATING_COMMANDS.some((pattern) => pattern.test(command))) {
-      return { mutatesRepository: true, reason: "mutating-command" };
-    }
-    if (WORKFLOW_LIFECYCLE_COMMAND.test(command.trim())) {
-      return { mutatesRepository: false, reason: "workflow-lifecycle-command" };
-    }
-    if (READ_ONLY_COMMANDS.some((pattern) => pattern.test(command.trim()))) {
-      return { mutatesRepository: false, reason: "read-or-verification-command" };
-    }
-    const curl = classifyCurl(command);
-    if (curl !== null) {
-      return curl
-        ? { mutatesRepository: false, reason: "curl-read-request" }
-        : { mutatesRepository: true, reason: "curl-writes-or-uploads" };
-    }
-    return { mutatesRepository: true, reason: "unclassified-command-requires-claim" };
+    const stage = reduceReadOnlyPipeline(command);
+    if (stage === null) return { mutatesRepository: true, reason: "compound-or-writing-command" };
+    return classifyShellStage(stage);
   }
 
   if (READ_ONLY_TOOLS.has(normalizedName)) {

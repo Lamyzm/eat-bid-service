@@ -5,7 +5,11 @@ import {
   classifyToolCall,
   extractIssueIdentifier,
   extractPromptIssueIdentifier,
+  reduceReadOnlyPipeline,
 } from "./workflow.mjs";
+
+const REPOSITORY_ROOT = "F:/Project/eat-bid-service/.claude/worktrees/eat-53-agent-self-service";
+const insideRepository = { resolveWorktreeRoot: () => REPOSITORY_ROOT };
 
 test("extractIssueIdentifier는 Linear 식별자를 정규화하고 일반 문장의 하이픈은 무시한다", () => {
   assert.equal(extractIssueIdentifier("eat-42 작업을 시작해줘"), "EAT-42");
@@ -395,6 +399,7 @@ test("kubectl 조회 subcommand는 lease 없이 허용하고 cluster를 바꾸�
     "kubectl describe deployment eatbid-server -n eatbid",
     "kubectl logs deploy/eatbid-server -n eatbid --tail=100",
     "kubectl top pods -n eatbid",
+    "kubectl get pods -n eatbid | grep Running",
   ]) {
     assert.deepEqual(
       classifyToolCall("Bash", { command }),
@@ -408,7 +413,8 @@ test("kubectl 조회 subcommand는 lease 없이 허용하고 cluster를 바꾸�
     "kubectl exec -it pod -- sh",
     "kubectl edit deployment x",
     "kubectl get pods -o yaml > pods.yaml",
-    "kubectl get pods | grep Running",
+    "kubectl get pods | tee pods.txt",
+    "kubectl get pods | xargs kubectl delete pod",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
   }
@@ -422,6 +428,7 @@ test("curl GET 요청은 lease 없이 허용하고 본문·업로드·파일 출
     "curl -XHEAD http://localhost:4000",
     "curl --request HEAD -I http://localhost:4000",
     "curl -L --max-time 5 -w %{http_code} http://localhost:4000",
+    "curl http://localhost:4000 | jq .",
   ]) {
     assert.deepEqual(
       classifyToolCall("Bash", { command }),
@@ -444,7 +451,7 @@ test("curl GET 요청은 lease 없이 허용하고 본문·업로드·파일 출
     "curl -D headers.txt http://localhost:4000",
     "curl -K curlrc http://localhost:4000",
     "curl --json '{}' http://localhost:4000",
-    "curl http://localhost:4000 | jq .",
+    "curl http://localhost:4000 | tee out.json",
     "curl http://localhost:4000 > out.json",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
@@ -498,4 +505,106 @@ test("인라인 코드에 파일 쓰기·프로세스 실행·치환 토큰이 �
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
   }
+});
+
+test("issue 발행 명령은 lease 없이 허용하고 제목 자리에 다른 명령이 들어오면 차단한다", () => {
+  for (const command of [
+    'pnpm workflow:issue create --title "검증용 issue"',
+    'pnpm workflow:issue create -- --title "eaT 명단 정규화를 마저 한다" --priority 2',
+    'pnpm workflow:issue create --title="제목" --state Backlog',
+    'pnpm workflow:issue create --title "제목" --description-file .superpowers/body.md',
+    'pnpm workflow:issue create --title "제목" --project "R1 유료 투찰 Decision Loop"',
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "workflow-lifecycle-command" },
+      command,
+    );
+  }
+  for (const command of [
+    'pnpm workflow:issue create --title "제목" && rm -rf src',
+    'pnpm workflow:issue create --title "$(cat body.md)"',
+    'pnpm workflow:issue create --title "제목" > issue.json',
+    'pnpm workflow:issue create --priority 9 --title "제목"',
+    'pnpm workflow:issue create --title "제목" --force',
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("Infisical 폴더 명령만 lease 없이 허용하고 값을 다루거나 프로그램을 실행하는 명령은 차단한다", () => {
+  for (const command of [
+    "infisical secrets folders create --name postgres --path /runtime --env prod",
+    "infisical secrets folders list --path /runtime --env prod",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "secret-folder-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "infisical secrets set POSTGRES_PASSWORD=x --env=prod --path=/runtime/postgres",
+    "infisical secrets get POSTGRES_PASSWORD --env=prod --path=/runtime/postgres",
+    "infisical secrets --env=prod --path=/runtime/postgres",
+    "infisical run --env=prod -- node scripts/scratch.mjs",
+    "infisical secrets folders create --name x && rm -rf src",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("pipe 뒤가 출력 필터면 앞 명령의 판정을 유지하고 쓰기 단계면 계속 차단한다", () => {
+  assert.equal(reduceReadOnlyPipeline("git status -sb"), "git status -sb");
+  assert.equal(reduceReadOnlyPipeline("git status -sb | tail -5"), "git status -sb ");
+  assert.equal(reduceReadOnlyPipeline("git status -sb | tee out.txt"), null);
+  assert.equal(reduceReadOnlyPipeline("git status -sb || rm -rf src"), null);
+
+  for (const command of [
+    "pnpm workflow:release -- EAT-37 | tail -3",
+    "pnpm workflow:doctor | head -20",
+    "pnpm workflow:worktree prune | Select-Object -First 5",
+    "rg -n TODO src | wc -l",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, false, command);
+  }
+  for (const command of [
+    "pnpm workflow:release -- EAT-37 | tee release.log",
+    "pnpm workflow:doctor | node scripts/write.mjs",
+    "rg -n TODO src | xargs sed -i s/a/b/",
+    "rm -rf src | tail -1",
+    "pnpm workflow:release -- EAT-37 | tail -3 > release.log",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("저장소 밖 절대 경로 편집은 lease 없이 허용하고 저장소 안이나 상대 경로는 계속 차단한다", () => {
+  assert.deepEqual(
+    classifyToolCall(
+      "Write",
+      { file_path: "C:/Users/kano/.claude/projects/eatbid/memory/note.md" },
+      insideRepository,
+    ),
+    { mutatesRepository: false, reason: "file-edit-outside-repository" },
+  );
+  assert.deepEqual(
+    classifyToolCall(
+      "Edit",
+      { file_path: `${REPOSITORY_ROOT}/tools/agent-workflow/cli.mjs` },
+      insideRepository,
+    ),
+    { mutatesRepository: true, reason: "file-edit-tool" },
+  );
+  // worktree root를 알 수 없거나 상대 경로라 어느 저장소인지 모르면 계속 mutation으로 둔다.
+  assert.equal(classifyToolCall("Write", { file_path: "C:/tmp/a.md" }).mutatesRepository, true);
+  assert.equal(
+    classifyToolCall("Write", { file_path: "../../outside.md" }, insideRepository).mutatesRepository,
+    true,
+  );
+  assert.equal(
+    classifyToolCall("apply_patch", { command: "*** Add File: a.ts" }, insideRepository)
+      .mutatesRepository,
+    true,
+  );
 });

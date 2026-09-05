@@ -226,8 +226,11 @@ list_console_messages | get_console_message | list_network_requests | get_networ
 prune` 같은 명백한 로컬 조회, `kubectl get | describe | logs | top`, 본문·업로드·파일 출력 option이 없는
 `curl` GET/HEAD, 따옴표 하나로 감싼 `python -c` / `node -e|-p` 읽기 코드(파일 쓰기·프로세스 실행·`>`·치환
 토큰이 있으면 mutation), 새 ref만 만드는 `git branch <name> [<start>]`·`git checkout -b <name>`·`git
-switch -c <name>`·`git worktree add ...`, 그리고 `pnpm workflow:*` 단일 명령(issue 식별자,
-`--worktree <path>`, `--branch <name>`, `--review`, `worktree remove <path> | prune` 인자만)이다. 브랜치
+switch -c <name>`·`git worktree add ...`, 비밀값을 읽지도 쓰지도 않는
+`infisical secrets folders create | list`, 그리고 `pnpm workflow:*` 단일 명령(issue 식별자,
+`--worktree <path>`, `--branch <name>`, `--review`, `worktree remove <path> | prune`,
+`issue create`의 `--title | --description | --description-file | --priority | --state | --project`
+인자만)이다. 브랜치
 생성을 lease 없이 허용하는 이유는 저장소 파일을 바꾸지 않는 동작인데도 막으면 claim 전에 올바른
 브랜치로 옮길 방법이 없어 이슈 전환이 교착하기 때문이다. `checkout -b`·`switch -c`는 이름 하나만 받는
 형태(현재 HEAD 기준)까지만 허용한다. start-point를 주면 그 commit의 tree로 작업 파일이 바뀌므로
@@ -240,8 +243,18 @@ workflow 명령은 저장소 파일이 아니라 lease state·Linear·git worktr
 claim하고 푼다.
 `release`도 lease 없이 실행되므로 같은 worktree의 다른 세션이 writer의 lease를 풀 수 있다. 이 보장은 중앙 lock이
 아니라 "다른 writer가 claim한 작업은 read-only로만 다룬다"는 agent 규율과 Linear assignee에 의존한다.
-pipe, command chaining, redirect, command substitution, snapshot update나 `--fix`가 있으면 mutation으로
-취급한다. 테스트도 fixture나 snapshot을 쓸 수 있으므로 shell verification은 lease 안에서 수행한다.
+command chaining, redirect, command substitution, snapshot update나 `--fix`가 있으면 mutation으로
+취급한다. pipe는 예외를 하나 둔다. 뒤 단계가 모두 표준 입력을 줄이거나 모양만 바꾸는 출력 필터
+(`head | tail | wc | uniq | cut | tr | nl | cat | grep | rg | jq`와 PowerShell의
+`Select-Object | Select-String | Measure-Object | Sort-Object | Format-* | Out-String | ConvertTo-Json`)
+이면 앞 단계의 판정을 그대로 쓴다. `pnpm workflow:release -- EAT-37 | tail`처럼 결과를 줄여 읽는
+형태까지 막으면 lease를 푸는 명령 자체가 lease를 요구하기 때문이다. 파일을 쓰거나(`tee`, `sort -o`)
+다른 프로그램을 실행하는(`xargs`, `ForEach-Object`) 단계가 하나라도 있으면 계속 차단하며, chaining과
+redirect는 pipe를 나누기 전에 명령 전체에서 먼저 본다. 테스트도 fixture나 snapshot을 쓸 수 있으므로
+shell verification은 lease 안에서 수행한다.
+편집 도구가 저장소 루트 밖의 절대 경로를 가리키면 lease가 지키려는 대상이 아니므로 막지 않는다.
+Claude memory 디렉터리나 scratchpad 기록까지 막으면 세션은 claim 없이 자기 기록조차 남기지 못한다.
+상대 경로는 실행 cwd에 따라 다른 파일을 가리키므로 밖으로 판정하지 않고 계속 lease를 요구한다.
 분류되지 않은 새 도구와 Linear 쓰기 MCP 도구는 읽기로 추측하지 않고 lease가 필요한 변경 가능 도구로
 fail-closed한다.
 

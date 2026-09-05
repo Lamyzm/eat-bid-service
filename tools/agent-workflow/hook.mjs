@@ -24,14 +24,20 @@ async function main() {
   currentHookEventName = String(input.hook_event_name ?? input.hookEventName ?? "");
   const normalizedEvent = normalizeHookEvent(input);
   const normalizedEventName = normalizedEvent.hookEventName.toLowerCase();
+  const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
+  // repository context는 git을 세 번 실행한다. 읽기 도구까지 매번 그 비용을 내지 않도록 실제로 저장소
+  // 경계를 알아야 하는 판정에서만 한 번 계산하고 이후 재사용한다.
+  let repository = null;
+  const resolveRepository = () => (repository ??= repositoryContext(cwd));
   if (
     (normalizedEventName === "pretooluse" || normalizedEventName === "posttooluse") &&
-    !classifyToolCall(normalizedEvent.toolName, normalizedEvent.toolInput).mutatesRepository
+    !classifyToolCall(normalizedEvent.toolName, normalizedEvent.toolInput, {
+      resolveWorktreeRoot: () => resolveRepository().worktreeRoot,
+    }).mutatesRepository
   ) {
     return;
   }
-  const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
-  const repository = repositoryContext(cwd);
+  resolveRepository();
   let hookResult;
   await withStateTransaction(repository.statePath, async (state) => {
     hookResult = handleHookEvent({
