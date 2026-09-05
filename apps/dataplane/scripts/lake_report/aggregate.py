@@ -64,6 +64,9 @@ class LakeReport:
     floor_rate_metrics: tuple[tuple[str, int, int, int, str], ...]
     band_metrics: tuple[tuple[str, int, str, str, str, str], ...]
     invariants: Mapping[str, int]
+    # 관측하지 못한 값의 수다. 위반(`invariants`)과 같은 표에 두면 "결측이 있으면 잘못"으로 읽히는데,
+    # 개찰 시각과 사업자번호는 소스가 보장하지 않는 값이라 결측 자체가 정상 관측이다(AGENTS 3).
+    missing_observations: Mapping[str, int]
     period: Mapping[str, str]
     organization_count: int = 0
     # 기관 코드를 알 수 없는 파싱 실패는 어떤 코호트에도 속하지 못한다. 그 수를 0이라도 남겨야
@@ -136,6 +139,19 @@ def aggregate(
             ),
             "draw_average_checked": sum(
                 1 for item in observations if item.draw_average_checked
+            ),
+        },
+        missing_observations={
+            # 분모는 정규화 성공분이다. 격리된 파일은 계약을 통과하지 못해 `schedule`이 없다.
+            "normalized_rounds": len(normalized),
+            "opened_at_missing_rounds": sum(
+                1 for item in normalized if item.opened_at_missing
+            ),
+            # 명단 행 분모는 원본 파싱에 성공한 전부다. 정규화 격리와 무관하게 `ds_bidList` 행은
+            # 세어지며, 승격 규칙이 적용될 모집단이 그것이다.
+            "roster_rows": sum(item.roster_rows for item in observations),
+            "business_number_missing_rows": sum(
+                item.business_number_missing_rows for item in observations
             ),
         },
         period={

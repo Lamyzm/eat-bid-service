@@ -181,8 +181,10 @@ apps/dataplane/src/eatbid/generated/
 | `ObservedBidRate` | 소수 3자리, 정수부 최대 12자리, **상한 없음** | ingestion v2 `submission.bidRate`, `award.awardedRate`, `award.runnerUpRate` | `SAJEONG_PCT`는 예정가격 대비 소스 계산값이라 100을 넘고 단가 입찰에서는 훨씬 크게 튄다. 상한을 두면 관측을 격리하게 된다(규칙 3) |
 | `ReservePriceRatio` | 소수 6자리, 0~9.999999 | ingestion v2 `reservePriceDraw` 후보의 `ratio` | `CMNM_PLNPRC_RT`는 0~1 비율이 아니라 기초금액 대비 배율이라 1을 넘는 관측이 있다 |
 
-`ObservedBidRate`의 **mart 표현은 미결이다.** `numeric(6,3)`에 들어가지 않으므로 mart column을
-소유하는 EAT-43·44가 정한다. 공개 API가 계속 `BidRate`인 이유는 낙찰 행의 사정률이 100을 넘는 공고가
+`ObservedBidRate`의 **DB 표현은 `numeric(15,3)`이다**(`core`와 `mart` 모두). `numeric(6,3)`에 들어가지
+않으므로 [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §2가 정했고
+`core.bid_submission.bid_rate`·`core.award_decision.awarded_rate`·`runner_up_rate`가 그 열이다.
+공개 API가 계속 `BidRate`인 이유는 낙찰 행의 사정률이 100을 넘는 공고가
 전수에서 0건이기 때문이며, 그 관측 근거는
 [2026-09-04 전수 재정규화 리포트](../evidence/normalization/2026-09-04-eat-v2-renormalization.md)
 (계산 버전 `eat-v2-r3`)다.

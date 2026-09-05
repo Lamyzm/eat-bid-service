@@ -1,3 +1,10 @@
+"""모듈 책임: 발행 하나를 PostgreSQL에서 잠그고, 봉인된 구성원과 실행 상태가 서로 어긋나지 않는지
+확인한 뒤 core 투영과 발행 상태 전이를 한 트랜잭션으로 끝낸다.
+
+행을 쓰는 방법은 writer 모듈들이 갖고, 여기는 무엇을 어떤 순서로 잠그고 어떤 실패를 어떤 범주로
+기록할지를 갖는다.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -17,10 +24,9 @@ from eatbid.core.models import (
     ProjectResult,
     canonical_projection_fingerprint,
 )
-from eatbid.core.postgres_projection_writer import (
-    CanonicalProjectionWriter,
-    validate_projection,
-)
+from eatbid.core.postgres_projection_writer import CanonicalProjectionWriter
+from eatbid.core.projection_models import AppliedProjectionCounts
+from eatbid.core.projection_validation import validate_projection
 from eatbid.core.repository import (
     FrozenPublicationMember,
     ProjectionContractError,
@@ -134,6 +140,22 @@ class PsycopgCanonicalProjectionRepository:
                 raise ProjectionContractError(
                     "published canonical evidence query returned no row"
                 )
+            # 명단·낙찰은 별도 질의다. 위 질의에 조인하면 revision 하나가 명단 행 수만큼 늘어나
+            # `count(distinct ...)` 밖의 수가 전부 흔들린다.
+            cursor.execute(
+                """
+                select
+                  (select count(*) from core.bid_submission s
+                    where s.auction_revision_id = ar.auction_revision_id),
+                  (select count(*) from core.award_decision d
+                    where d.auction_revision_id = ar.auction_revision_id)
+                from ingest.publication_record pr
+                join core.auction_revision ar using (normalized_record_id)
+                where pr.publication_id = %s
+                """,
+                (publication_id,),
+            )
+            roster_counts = cursor.fetchall()
             return PublishedProjectionEvidence(
                 publication_id=publication_id,
                 members_projected=result.members_projected,
@@ -141,6 +163,8 @@ class PsycopgCanonicalProjectionRepository:
                 auction_attempt_count=int(counts[1]),
                 auction_revision_count=int(counts[2]),
                 canonical_fingerprint=result.canonical_fingerprint,
+                bid_submission_count=sum(int(row[0]) for row in roster_counts),
+                award_decision_count=sum(int(row[1]) for row in roster_counts),
             )
 
     def _project_locked(
@@ -190,26 +214,15 @@ class PsycopgCanonicalProjectionRepository:
         fingerprint = _fingerprint(projections)
         allow_insert = state.publication_status == "validated"
 
-        attempts_inserted = 0
-        revisions_inserted = 0
-        organizations_inserted = 0
-        code_values_inserted = 0
-        code_labels_inserted = 0
-        relationships_inserted = 0
+        applied = AppliedProjectionCounts()
         writer = CanonicalProjectionWriter()
         for item, projection in zip(evidence, projections, strict=True):
-            counts = writer.apply(
+            applied += writer.apply(
                 cursor,
                 projection=projection,
                 observed_at=item.observed_at,
                 allow_insert=allow_insert,
             )
-            attempts_inserted += counts[0]
-            revisions_inserted += counts[1]
-            organizations_inserted += counts[2]
-            code_values_inserted += counts[3]
-            code_labels_inserted += counts[4]
-            relationships_inserted += counts[5]
 
         if state.publication_status == "published":
             if state.canonical_fingerprint != fingerprint:
@@ -253,13 +266,18 @@ class PsycopgCanonicalProjectionRepository:
         return ProjectResult(
             publication_id=publication_id,
             members_projected=len(projections),
-            auction_attempts_inserted=attempts_inserted,
-            auction_revisions_inserted=revisions_inserted,
-            organizations_inserted=organizations_inserted,
-            code_values_inserted=code_values_inserted,
-            code_labels_inserted=code_labels_inserted,
-            relationships_inserted=relationships_inserted,
+            auction_attempts_inserted=applied.auction_attempts,
+            auction_revisions_inserted=applied.auction_revisions,
+            organizations_inserted=applied.organizations,
+            code_values_inserted=applied.code_values,
+            code_labels_inserted=applied.code_labels,
+            relationships_inserted=applied.relationships,
             canonical_fingerprint=fingerprint,
+            supplier_parties_inserted=applied.supplier_parties,
+            supplier_accounts_inserted=applied.supplier_accounts,
+            bid_submissions_inserted=applied.bid_submissions,
+            award_decisions_inserted=applied.award_decisions,
+            attempt_links_inserted=applied.attempt_links,
         )
 
     @staticmethod

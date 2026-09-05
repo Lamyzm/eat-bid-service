@@ -67,6 +67,19 @@ RESERVE_PRICE_SELECTION_FLAG = EatCodeScheme(
 # `eat:bid-status`와는 grain이 달라 같은 체계로 묶지 않는다(AGENTS 6).
 ATTEMPT_STATUS = EatCodeScheme("eat:attempt-status", "ETN_BID_STT", "ETN_BID_STT_NM")
 
+# 구매기관 코드다. 라벨 `PURR_NM`은 이름 관측이지 정체성이 아니라서 `core.code_label_observation`으로
+# 간다(AGENTS 2).
+ORGANIZATION = EatCodeScheme("eat:organization", "PURR_CD", "PURR_NM")
+
+# 공고지역 시도·시군구다. 행정안전부 행정구역과 별개 체계이며 명시적 매핑 없이 같다고 보지 않는다
+# (AGENTS 6).
+AUCTION_LOCATION_SIDO = EatCodeScheme("eat:auction-location-sido", "SIDO_CD")
+AUCTION_LOCATION_SIGUNGU = EatCodeScheme("eat:auction-location-sigungu", "SIGUNGU_CD")
+
+# 참가제한지역이다. 공고지역과 같은 자릿수 문자열이 와도 다른 체계다(AGENTS 6).
+ELIGIBILITY_AREA = EatCodeScheme("eat:eligibility-area", "PDLC_CD")
+
+# 상세 파서가 `optional_scheme_value`로 직접 읽어 정규화 모델에 싣는 체계다.
 # 시드 `packages/db/src/seeds/code-schemes.ts`와 같은지 `tests/unit/test_code_schemes.py`가 고정한다.
 EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     BID_STATUS,
@@ -77,6 +90,21 @@ EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     AWARD_METHOD,
     RESERVE_PRICE_SELECTION_FLAG,
     ATTEMPT_STATUS,
+)
+
+# 파서가 `SourceCodedValue`로 싣지 않고 core 투영·발행 완결성 검사가 이름으로 요구하는 체계다.
+# 두 표를 나누는 이유는 `optional_scheme_value`가 쓰이는 곳과 쓰이지 않는 곳이 다르기 때문이며,
+# 정체성과 관측 column의 단일 출처라는 성질은 두 표가 같다.
+FOUNDATION_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
+    ORGANIZATION,
+    AUCTION_LOCATION_SIDO,
+    AUCTION_LOCATION_SIGUNGU,
+    ELIGIBILITY_AREA,
+)
+
+ALL_EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
+    *EAT_CODE_SCHEMES,
+    *FOUNDATION_CODE_SCHEMES,
 )
 
 

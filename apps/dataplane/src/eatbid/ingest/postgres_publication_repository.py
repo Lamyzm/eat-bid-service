@@ -1,3 +1,7 @@
+"""모듈 책임: 실행 하나의 정규화 결과를 PostgreSQL에서 검증해 발행 manifest로 봉인하고, 소스 계약과
+완결성 판정의 실패를 실행 상태로 남긴다.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -12,12 +16,12 @@ from eatbid.ingest.publication_repository import (
     SourceContractValidator,
 )
 from eatbid.postgres_topology import lock_auction_topology
+from eatbid.source.eat.code_schemes import FOUNDATION_CODE_SCHEMES
 
-REQUIRED_SCHEMES = (
-    "eat:auction-location-sido",
-    "eat:auction-location-sigungu",
-    "eat:eligibility-area",
-    "eat:organization",
+# 발행 완결성 검사가 존재를 요구하는 scheme이다. 이름의 권위는 `source/eat/code_schemes.py`이며
+# 여기서 다시 적으면 같은 체계에 두 이름이 생긴다(AGENTS 2·6).
+REQUIRED_SCHEMES = tuple(
+    scheme.namespace for scheme in FOUNDATION_CODE_SCHEMES
 )
 SOURCE_CONTRACT = "SOURCE_CONTRACT"
 PROJECTION_CONTRACT = "PROJECTION_CONTRACT"

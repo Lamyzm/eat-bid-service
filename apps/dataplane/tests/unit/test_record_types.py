@@ -44,10 +44,15 @@ def _has_record_type_literal(path: Path) -> bool:
     )
 
 
-def test_발행_가능_record_type은_아직_v1_하나뿐이다() -> None:
-    assert PROJECTABLE_RECORD_TYPES == frozenset({"auction.v1"})
+def test_발행_가능_record_type은_공고_v1과_v2_둘이다() -> None:
+    assert PROJECTABLE_RECORD_TYPES == frozenset({"auction.v1", "auction.v2"})
     assert is_projectable_record_type("auction.v1")
-    assert not is_projectable_record_type("auction.v2")
+    assert is_projectable_record_type("auction.v2")
+
+
+def test_모르는_record_type은_여전히_발행_대상이_아니다() -> None:
+    assert not is_projectable_record_type("auction-discovery.v1")
+    assert not is_projectable_record_type("organization")
 
 
 @pytest.mark.parametrize(

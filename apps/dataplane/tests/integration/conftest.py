@@ -70,7 +70,11 @@ class PipelineServices:
 
 class FoundationHarness(Protocol):
     def run_fixture(
-        self, relative_path: str, *, expected_count: int
+        self,
+        relative_path: str,
+        *,
+        expected_count: int,
+        parser_version: str = FOUNDATION_PARSER_VERSION,
     ) -> FoundationResult: ...
 
     def replay(
@@ -83,8 +87,17 @@ class _FoundationHarness:
     services: PipelineServices
 
     def run_fixture(
-        self, relative_path: str, *, expected_count: int
+        self,
+        relative_path: str,
+        *,
+        expected_count: int,
+        parser_version: str = FOUNDATION_PARSER_VERSION,
     ) -> FoundationResult:
+        """parser version을 인자로 받는 이유는 그것이 실행 단위의 사실이기 때문이다.
+
+        `eat-v1`과 `eat-v2`는 같은 응답을 서로 다른 record type으로 저장하므로, 한 harness가 두 계약을
+        각각 돌릴 수 있어야 v2 발행 경로를 v1과 같은 조건에서 검증할 수 있다.
+        """
         fixture = (FIXTURE_ROOT / relative_path).resolve()
         if not fixture.is_relative_to(FIXTURE_ROOT.resolve()):
             raise ValueError("fixture path must remain below the fixture root")
@@ -94,7 +107,7 @@ class _FoundationHarness:
             publication_id=FOUNDATION_CAPTURE_PUBLICATION_ID,
             mode="poll-open",
             build_sha=FOUNDATION_BUILD_SHA,
-            parser_version=FOUNDATION_PARSER_VERSION,
+            parser_version=parser_version,
             started_at=FOUNDATION_STARTED_AT,
             normalized_at=FOUNDATION_NORMALIZED_AT,
             validated_at=FOUNDATION_VALIDATED_AT,

@@ -1,3 +1,8 @@
+"""모듈 책임: core 투영이 저장소에 요구하는 port와, 봉인된 발행 구성원·발행 증거의 모양을 둔다.
+
+여기에 구현이 없는 이유는 이 계약을 PostgreSQL 어댑터와 테스트 fake가 함께 지키기 때문이다.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -43,6 +48,10 @@ class PublishedProjectionEvidence:
     auction_attempt_count: int
     auction_revision_count: int
     canonical_fingerprint: str
+    # 발행된 명단 행과 낙찰 판정의 수다. `auction.v1` 발행에서는 둘 다 0이며 그것은 "명단이 비었다"가
+    # 아니라 v1 계약에 명단이라는 사실이 없다는 뜻이다.
+    bid_submission_count: int = 0
+    award_decision_count: int = 0
 
 
 class CanonicalProjectionRepository(Protocol):
