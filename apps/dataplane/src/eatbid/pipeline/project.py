@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
 from pydantic import ValidationError
 
+from eatbid.core.build_identity import validate_build_sha
 from eatbid.core.models import (
     AuctionProjection,
     ExternalCodeRef,
@@ -35,8 +35,6 @@ __all__ = [
     "project_publication",
     "verify_published_publication",
 ]
-
-_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 def _require_projectable(record_type: str) -> None:
@@ -179,8 +177,7 @@ def project_publication(
 ) -> ProjectResult:
     if not isinstance(publication_id, UUID):
         raise TypeError("publication_id must be a UUID")
-    if _SHA256_PATTERN.fullmatch(projector_version) is None:
-        raise ValueError("projector_version must be a lowercase SHA-256 digest")
+    validate_build_sha(projector_version)
     if activated_at.utcoffset() is None:
         raise ValueError("activated_at must be timezone-aware")
     return repository.project_publication(
@@ -199,8 +196,7 @@ def verify_published_publication(
 ) -> PublishedProjectionEvidence:
     if not isinstance(publication_id, UUID):
         raise TypeError("publication_id must be a UUID")
-    if _SHA256_PATTERN.fullmatch(projector_version) is None:
-        raise ValueError("projector_version must be a lowercase SHA-256 digest")
+    validate_build_sha(projector_version)
     return repository.verify_published_publication(
         publication_id=publication_id,
         projector_version=projector_version,

@@ -248,3 +248,26 @@ def test_result_dir는_machine_result의_key마다_workflow가_읽을_파일을_
         "manifest_sha256": "b" * 64,
         "source_release_id": RELEASE_ID,
     }
+
+
+RELEASE_COMMIT = "9c9ff63f479d03f0fbfcc036954e8470b182bb61"
+
+
+@pytest.mark.parametrize("build_sha", [RELEASE_COMMIT, SHA])
+def test_모든_command가_release_commit_40자와_64자_build_sha를_받는다(build_sha: str) -> None:
+    parser = build_parser()
+    for command in COMMAND_HANDLERS:
+        argv = _명령(command)
+        argv[argv.index("--build-sha") + 1] = build_sha
+
+        assert parser.parse_args(argv).build_sha == build_sha
+
+
+@pytest.mark.parametrize("build_sha", ["a" * 39, "a" * 41, RELEASE_COMMIT.upper()])
+def test_길이가_다르거나_대문자인_build_sha는_인자_단계에서_거부한다(build_sha: str) -> None:
+    parser = build_parser()
+    argv = _명령("discover")
+    argv[argv.index("--build-sha") + 1] = build_sha
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(argv)

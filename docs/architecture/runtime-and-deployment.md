@@ -108,6 +108,9 @@ GitHub monorepo
 ```
 
 - web/server/dataplane은 한 커밋의 Git SHA를 공유한다.
+- `BUILD_SHA`는 그 release commit(소문자 hex 40자)이며 64자 hex도 받는다. 세 이미지와 dataplane
+  CLI·run ledger가 같은 계약을 쓴다([`ARCH-DELIVERY.md`](../ARCH-DELIVERY.md) §3). 원본 객체
+  해시(content sha256)는 의미가 다른 값이므로 64자 계약을 따로 유지한다.
 - 환경에서 mutable `latest`를 쓰지 않고 digest로 고정한다.
 - migration은 동일 커밋에서 만든 image를 Argo CD PreSync hook 또는 동등한 단일 실행 Job으로
   적용하며 timeout과 실패 상태를 가진다.

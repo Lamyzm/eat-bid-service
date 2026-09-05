@@ -524,6 +524,22 @@ def test_shell_단계의_argv는_CLI_parser의_필수_인자를_모두_채운다
         ), name
 
 
+@pytest.mark.parametrize("template_name", ["capture", "normalize", "validate", "project"])
+def test_이미지가_굽는_release_commit_40자_BUILD_SHA로도_argv가_통과한다(
+    manifests: ManifestSet, template_name: str
+) -> None:
+    """왜: 이미지는 `ENV BUILD_SHA=$GIT_SHA`로 40자 release commit을 굽는다. 64자 표본만 두면
+    첫 실제 실행이 인자 단계 exit 2로 죽는 EAT-58 회귀를 이 계약이 잡지 못한다."""
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    template = _templates(workflow_template)[template_name]
+    command = str(_sequence(_mapping(template["container"])["args"])[0])
+    release_commit = "9c9ff63f479d03f0fbfcc036954e8470b182bb61"
+
+    argv = _render_shell_argv(command, {**SAMPLE_STAGE_ENV, "BUILD_SHA": release_commit})
+
+    assert build_parser().parse_args(argv[1:]).build_sha == release_commit
+
+
 def test_DAG는_discover_output으로_capture와_normalize를_fan_out한다(
     manifests: ManifestSet,
 ) -> None:
