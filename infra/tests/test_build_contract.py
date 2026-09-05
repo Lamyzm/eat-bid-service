@@ -372,9 +372,15 @@ def test_product_manifest는_소비할_product_image_넷을_정확히_갖는다(
     assert manifest["resources"] == [
         "../k8s/base",
         "migration.yaml",
+        "db-provisioning.yaml",
         "secrets.yaml",
         "workflows",
     ]
+    # db-provisioning의 SQL은 generator로만 실린다. 손으로 쓴 ConfigMap이 끼어들면 저장소 파일과
+    # 클러스터 권한이 갈라진다.
+    assert [
+        generator["files"] for generator in manifest["configMapGenerator"]
+    ] == [["db-provisioning.sql"]]
     assert {image["name"] for image in images} == {
         "eatbid-web",
         "eatbid-server",

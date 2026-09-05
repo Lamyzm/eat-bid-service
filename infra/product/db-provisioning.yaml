@@ -1,0 +1,69 @@
+# migration이 schema를 만든 직후, server·web이 뜨기 전에 런타임 역할의 권한을 선언하는 hook Job이다.
+# 권한을 사람이 psql로 넣던 동안 같은 사고가 두 번 났다(2026-09-04 server readiness 503,
+# 2026-09-05 dataplane discover exit 64). 저장소가 권한의 진실 원천이 되어야 재현·재실행이 가능하다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: eatbid-db-provisioning
+  namespace: eatbid
+  annotations:
+    # wave 0(postgres·Secret·ConfigMap) → 1(migration) → 2(여기) → 3(server·web). migration이 만든
+    # 표에만 권한을 줄 수 있고, 그 권한이 선 뒤에야 server의 readiness가 통과한다. Sync hook이라
+    # 매 sync마다 다시 돌며 SQL은 멱등이다.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: eatbid-db-provisioning
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-provisioning
+          # postgres Deployment와 같은 major를 쓴다. psql 클라이언트만 필요하고 서버는 띄우지 않는다.
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          # ON_ERROR_STOP이 없으면 psql이 실패한 GRANT를 지나쳐 exit 0으로 끝나고, Argo는 권한이
+          # 없는 클러스터를 Synced로 표시한다.
+          command:
+            - psql
+            - --no-psqlrc
+            - --quiet
+            - -v
+            - ON_ERROR_STOP=1
+            - -f
+            - /etc/eatbid/db-provisioning.sql
+          env:
+            - name: PGHOST
+              value: postgres
+            - name: PGPORT
+              value: "5432"
+            # database 소유자 자격이어야 TEMPORARY 회수와 ALTER DEFAULT PRIVILEGES FOR ROLE이 된다.
+            # migrator는 자기가 만든 표의 default privileges만 바꿀 수 있어 부족하다.
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: eatbid-postgres-bootstrap
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eatbid-postgres-bootstrap
+                  key: POSTGRES_PASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: eatbid-postgres-bootstrap
+                  key: POSTGRES_DB
+          volumeMounts:
+            - name: provisioning-sql
+              mountPath: /etc/eatbid
+              readOnly: true
+      volumes:
+        - name: provisioning-sql
+          configMap:
+            name: eatbid-db-provisioning

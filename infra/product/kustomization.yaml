@@ -7,8 +7,17 @@ configurations:
 resources:
   - ../k8s/base
   - migration.yaml
+  - db-provisioning.yaml
   - secrets.yaml
   - workflows
+
+# SQL을 ConfigMap에 손으로 옮겨 적으면 저장소와 클러스터의 권한 집합이 갈라진다. generator가 파일을
+# 그대로 실어 이름 접미사 해시로 내용까지 고정하므로, SQL이 바뀌면 hook Job의 pod spec도 함께 바뀐다.
+configMapGenerator:
+  - name: eatbid-db-provisioning
+    namespace: eatbid
+    files:
+      - db-provisioning.sql
 
 images:
   - name: eatbid-web

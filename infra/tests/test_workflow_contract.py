@@ -135,7 +135,12 @@ def test_product와_base_render가_kind_구성을_유지한다(
 ) -> None:
     assert manifests.kinds.count("WorkflowTemplate") == 1
     assert manifests.kinds.count("CronWorkflow") == 2
-    assert manifests.kinds.count("Job") == 1
+    # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
+    # 하는지 먼저 답해야 한다.
+    assert manifests.kinds.count("Job") == 2
+    assert {
+        _metadata(job)["name"] for job in manifests.of_kind("Job")
+    } == {"eatbid-migration", "eatbid-db-provisioning"}
     assert manifests.kinds.count("CronJob") == 0
     assert manifests.kinds.count("Application") == 0
     assert manifests.kinds.count("Secret") == 0
@@ -644,13 +649,14 @@ def test_migration은_sync_wave_1_hook이고_유한하며_secret_DATABASE_URL만
 ) -> None:
     job = manifests.named("Job", "eatbid-migration")
     annotations = _mapping(_metadata(job)["annotations"])
-    # PreSync면 빈 클러스터에서 postgres보다 먼저 돌아 sync가 멈춘다(EAT-50 실측). wave 0 → 1 → 2 순서다.
+    # PreSync면 빈 클러스터에서 postgres보다 먼저 돌아 sync가 멈춘다(EAT-50 실측).
+    # wave 0(postgres·Secret) → 1(migration) → 2(db-provisioning) → 3(server·web) 순서다.
     assert annotations["argocd.argoproj.io/hook"] == "Sync"
     assert annotations["argocd.argoproj.io/sync-wave"] == "1"
     assert annotations["argocd.argoproj.io/hook-delete-policy"] == "BeforeHookCreation,HookSucceeded"
     for name in ("server", "web"):
         app_annotations = _mapping(_metadata(manifests.named("Deployment", name)).get("annotations", {}))
-        assert app_annotations["argocd.argoproj.io/sync-wave"] == "2", name
+        assert app_annotations["argocd.argoproj.io/sync-wave"] == "3", name
     postgres_annotations = _mapping(_metadata(manifests.named("Deployment", "postgres")).get("annotations", {}))
     assert "argocd.argoproj.io/sync-wave" not in postgres_annotations
     spec = _spec(job)
@@ -674,7 +680,7 @@ def test_product_render는_hostPath와_literal_database_credential을_포함하�
     for document in manifests.documents:
         for mapping in _all_mappings(document):
             assert "hostPath" not in mapping
-            if mapping.get("name") in {"DATABASE_URL", "POSTGRES_PASSWORD"}:
+            if mapping.get("name") in {"DATABASE_URL", "POSTGRES_PASSWORD", "PGPASSWORD"}:
                 assert "value" not in mapping
                 assert "valueFrom" in mapping
 
@@ -701,12 +707,15 @@ def test_database_credential은_cross_assignment_없이_consumer별로_분리된
     assert _secret_ref(_env(dataplane, "DATABASE_URL"))[0] == "eatbid-database-dataplane"
 
     rendered = yaml.safe_dump_all(manifests.documents)
-    for consumer, assigned in {
-        "postgres": "eatbid-postgres-bootstrap",
-        "server": "eatbid-database-api",
-        "migration": "eatbid-database-migrator",
-    }.items():
-        document = manifests.named("Job" if consumer == "migration" else "Deployment", f"eatbid-{consumer}" if consumer == "migration" else consumer)
+    # db-provisioning은 database 소유자 자격이 필요해 postgres bootstrap Secret을 함께 읽는 유일한
+    # 두 번째 consumer다. 나머지 조합은 여기서 계속 막는다.
+    for kind, name, assigned in (
+        ("Deployment", "postgres", "eatbid-postgres-bootstrap"),
+        ("Deployment", "server", "eatbid-database-api"),
+        ("Job", "eatbid-migration", "eatbid-database-migrator"),
+        ("Job", "eatbid-db-provisioning", "eatbid-postgres-bootstrap"),
+    ):
+        document = manifests.named(kind, name)
         text = yaml.safe_dump(document)
         assert assigned in text
         assert all(secret == assigned or secret not in text for secret in (
