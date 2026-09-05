@@ -5,6 +5,7 @@ import {
   auctionOrganization,
   auctionRevision,
   auctionRevisionCodeValue,
+  bidSubmission,
   codeLabelObservation,
   codeMapping,
   codeScheme,
@@ -12,6 +13,11 @@ import {
   organization,
   organizationIdentifier,
 } from "./index";
+
+// generated bigint primary key 규칙의 예외다. nullable 파티션 키 `opened_at`은 primary key에 들어갈 수
+// 없고, primary key를 얻자고 not null로 좁히면 개찰 시각을 관측하지 못한 명단 전체를 격리하게 된다
+// (ADR 0033 §3). 예외를 문장이 아니라 목록으로 두고 그 크기를 아래 테스트가 고정한다.
+const partitionedFactTablesWithoutPrimaryKey = [bidSubmission] as const;
 
 const columns = (table: Parameters<typeof getTableConfig>[0]) => getTableConfig(table).columns;
 
@@ -73,6 +79,34 @@ describe("canonical identity 불변식", () => {
 
     expect(columns(auctionOrganization).every((column) => column.generatedIdentity === undefined)).toBe(true);
     expect(columns(auctionRevisionCodeValue).every((column) => column.generatedIdentity === undefined)).toBe(true);
+  });
+
+  test("primary key 없는 fact는 파티션 table 하나뿐이고 unique nulls not distinct로 대신한다", () => {
+    expect(partitionedFactTablesWithoutPrimaryKey.length).toBe(1);
+
+    for (const table of partitionedFactTablesWithoutPrimaryKey) {
+      const config = getTableConfig(table);
+
+      expect(config.primaryKeys).toEqual([]);
+      expect(columns(table).some((column) => column.primary)).toBe(false);
+      expect(config.uniqueConstraints.filter((constraint) => constraint.nullsNotDistinct).length).toBe(2);
+    }
+
+    const partitionedTableNames = new Set(
+      partitionedFactTablesWithoutPrimaryKey.map((table) => getTableConfig(table).name),
+    );
+    for (const table of [
+      codeScheme,
+      codeValue,
+      codeLabelObservation,
+      codeMapping,
+      organization,
+      organizationIdentifier,
+      auctionAttempt,
+      auctionRevision,
+    ]) {
+      expect(partitionedTableNames.has(getTableConfig(table).name)).toBe(false);
+    }
   });
 
   test("code source evidence를 고유 scheme 안의 text로 보존한다", () => {
