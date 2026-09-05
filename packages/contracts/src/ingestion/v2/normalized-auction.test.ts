@@ -28,8 +28,8 @@ const v1Fixture = {
 
 const account = {
   sourceSystem: "eat",
-  accountCode: { sourceSystem: "eat", codeScheme: "eat:SHIPPER_CD", code: "221212", label: "비식별 업체 1" },
-  businessNumber: { sourceSystem: "eat", codeScheme: "eat:BIZ_NO", code: "1000000000", label: null },
+  accountCode: { sourceSystem: "eat", codeScheme: "eat:supplier-account", code: "221212", label: "비식별 업체 1" },
+  businessNumber: { sourceSystem: "eat", codeScheme: "eat:business-number", code: "1000000000", label: null },
 } as const;
 
 const v2Fixture = {
@@ -37,8 +37,8 @@ const v2Fixture = {
   contractVersion: "eatbid.ingestion.auction.v2",
   terms: {
     floorRate: { value: "90.000", unit: "percentage-points" },
-    plannedPriceMethod: { sourceSystem: "eat", codeScheme: "eat:PLNPRC_TYPE_CD", code: "002", label: "복수예정가격" },
-    awardMethod: { sourceSystem: "eat", codeScheme: "eat:SUCBID_DCSN_MTH_CD", code: "003", label: null },
+    plannedPriceMethod: { sourceSystem: "eat", codeScheme: "eat:planned-price-type", code: "002", label: "복수예정가격" },
+    awardMethod: { sourceSystem: "eat", codeScheme: "eat:award-method", code: "003", label: null },
   },
   roster: {
     sourceRosterSize: 85,
@@ -50,8 +50,8 @@ const v2Fixture = {
         effectiveAmount: { amount: "6101000.00", currency: "KRW" },
         bidRate: { value: "90.218", unit: "percentage-points" },
         rank: 1,
-        sourceStatus: { sourceSystem: "eat", codeScheme: "eat:BID_STT", code: "002", label: "낙찰" },
-        withdrawalFlag: { sourceSystem: "eat", codeScheme: "eat:WITHDRAWAL_YN", code: "N", label: null },
+        sourceStatus: { sourceSystem: "eat", codeScheme: "eat:bid-status", code: "002", label: "낙찰" },
+        withdrawalFlag: { sourceSystem: "eat", codeScheme: "eat:withdrawal-flag", code: "N", label: null },
         drawNumbers: ["7", "3"],
         observedRosterSize: 85,
       },
@@ -63,7 +63,7 @@ const v2Fixture = {
     awardedRate: { value: "90.218", unit: "percentage-points" },
     awardedAmount: { amount: "6101000.00", currency: "KRW" },
     runnerUpRate: { value: "90.382", unit: "percentage-points" },
-    sourceStatus: { sourceSystem: "eat", codeScheme: "eat:BID_STT", code: "002", label: "낙찰" },
+    sourceStatus: { sourceSystem: "eat", codeScheme: "eat:bid-status", code: "002", label: "낙찰" },
   },
   reservePriceDraw: {
     candidates: [
@@ -71,7 +71,7 @@ const v2Fixture = {
         sequence: "1",
         ratio: { value: "0.971700", unit: "ratio" },
         amount: { amount: "6717477.00", currency: "KRW" },
-        chosen: { sourceSystem: "eat", codeScheme: "eat:CHC_YN", code: "Y", label: null },
+        chosen: { sourceSystem: "eat", codeScheme: "eat:reserve-price-selection-flag", code: "Y", label: null },
       },
     ],
   },
@@ -90,7 +90,7 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
     expect(parsed.roster.submissions[0]!.supplierAccount.accountCode.code).toBe("0200000");
     expect(parsed.roster.submissions[0]!.drawNumbers).toEqual(["07", "3"]);
     expect(parsed.reservePriceDraw.candidates[1]!.ratio.value).toBe("1.021800");
-    expect(parsed.terms.awardMethod?.codeScheme).toBe("eat:SUCBID_DCSN_MTH_CD");
+    expect(parsed.terms.awardMethod?.codeScheme).toBe("eat:award-method");
     expect(parsed.terms.awardMethod?.code).toBe("003");
   });
 
@@ -205,10 +205,10 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
   test("실측에 없던 판정 코드도 열거로 막지 않고 관측 그대로 통과시킨다", () => {
     const unknownCodes = structuredClone(v2Fixture) as Record<string, unknown>;
     const roster = unknownCodes.roster as { submissions: { sourceStatus: { code: string; label: string | null } }[] };
-    roster.submissions[0]!.sourceStatus = { sourceSystem: "eat", codeScheme: "eat:BID_STT", code: "999", label: null };
+    roster.submissions[0]!.sourceStatus = { sourceSystem: "eat", codeScheme: "eat:bid-status", code: "999", label: null };
     (unknownCodes.terms as { awardMethod: unknown }).awardMethod = {
       sourceSystem: "eat",
-      codeScheme: "eat:SUCBID_DCSN_MTH_CD",
+      codeScheme: "eat:award-method",
       code: "ZZ9",
       label: "알 수 없는 낙찰자 결정 방법",
     };

@@ -50,10 +50,10 @@ def test_명단_행이_사정률과_금액과_판정_코드를_그대로_싣는�
     assert first.bid_rate.value == "90.218"
     assert first.amount.amount == "6101000.00"
     assert first.source_status.code == "002"
-    assert first.source_status.code_scheme == "eat:BID_STT"
+    assert first.source_status.code_scheme == "eat:bid-status"
     assert first.source_status.label is not None
     assert first.source_status.label.root == "낙찰"
-    assert first.supplier_account.account_code.code_scheme == "eat:SHIPPER_CD"
+    assert first.supplier_account.account_code.code_scheme == "eat:supplier-account"
     assert first.supplier_account.source_system == "eat"
     assert [number.root for number in first.draw_numbers] == ["7", "3"]
     assert first.submitted_at is not None
@@ -68,7 +68,7 @@ def test_소스에_없는_무효_판정을_만들지_않고_코드를_그대로_
     assert withdrawn.source_status.code == "005"
     assert withdrawn.withdrawal_flag is not None
     assert withdrawn.withdrawal_flag.code == "Y"
-    assert withdrawn.withdrawal_flag.code_scheme == "eat:WITHDRAWAL_YN"
+    assert withdrawn.withdrawal_flag.code_scheme == "eat:withdrawal-flag"
 
 
 def test_실측에_없던_판정_코드도_열거로_막지_않는다() -> None:
@@ -306,7 +306,7 @@ def test_재입찰_사슬은_원본_id로만_잇고_공고번호_접미사를_�
     assert first_announcement.display_bid_number.root == "E230918-187847-0"
     assert first_announcement.source_status is not None
     assert first_announcement.source_status.code == "009"
-    assert first_announcement.source_status.code_scheme == "eat:ETN_BID_STT"
+    assert first_announcement.source_status.code_scheme == "eat:attempt-status"
 
 
 def test_사슬에_같은_공고_id가_두_번_나오면_거부한다() -> None:

@@ -197,23 +197,33 @@ apps/dataplane/src/eatbid/generated/
 `SourceCodedValue`로 관측 그대로 보존되고, 어느 쪽도 내부 정체성이 아니다. `SupplierParty`로의 승격은
 projector가 별도 정책으로 한다(`domain-and-data.md` §3.3).
 
-ingestion v2가 지금 싣는 code scheme은 여덟이다. 문자열은 파서가 소유하며 아래가 전부다.
+ingestion v2가 지금 싣는 code scheme은 여덟이다. namespace는 `<source>:<kebab-case 의미>`이며 소스
+column명은 정체성이 아니라 "지금 어디서 관측하는가"를 적은 메타데이터다. 문자열과 column 짝의 단일
+권위는 `apps/dataplane/src/eatbid/source/eat/code_schemes.py`이고 아래가 그 표 전부다.
 
 | code scheme | 원본 column | 파서 |
 |---|---|---|
-| `eat:BID_STT` | `ds_bidList.BID_STT` (라벨 `BID_STT_NM`) | `source/eat/roster.py` |
-| `eat:WITHDRAWAL_YN` | `ds_bidList.WITHDRAWAL_YN` | `source/eat/roster.py` |
-| `eat:SHIPPER_CD` | `ds_bidList.SHIPPER_CD` (라벨 `SHIPPER_NM`) | `source/eat/roster.py` |
-| `eat:BIZ_NO` | `ds_bidList.BIZ_NO` | `source/eat/roster.py` |
-| `eat:PLNPRC_TYPE_CD` | `ds_info.PLNPRC_TYPE_CD` | `source/eat/auction_terms.py` |
-| `eat:SUCBID_DCSN_MTH_CD` | `ds_info.SUCBID_DCSN_MTH_CD` | `source/eat/auction_terms.py` |
-| `eat:CHC_YN` | `ds_pList.CHC_YN` | `source/eat/reserve_price.py` |
-| `eat:ETN_BID_STT` | `ds_bidHistory.ETN_BID_STT` | `source/eat/lineage.py` |
+| `eat:bid-status` | `ds_bidList.BID_STT` (라벨 `BID_STT_NM`) | `source/eat/roster.py` |
+| `eat:withdrawal-flag` | `ds_bidList.WITHDRAWAL_YN` | `source/eat/roster.py` |
+| `eat:supplier-account` | `ds_bidList.SHIPPER_CD` (라벨 `SHIPPER_NM`) | `source/eat/roster.py` |
+| `eat:business-number` | `ds_bidList.BIZ_NO` | `source/eat/roster.py` |
+| `eat:planned-price-type` | `ds_info.PLNPRC_TYPE_CD` (라벨 `PLNPRCE_TYPE_NM`) | `source/eat/auction_terms.py` |
+| `eat:award-method` | `ds_info.SUCBID_DCSN_MTH_CD` (라벨 `SUCBD_DECISION_MTHD_NM`) | `source/eat/auction_terms.py` |
+| `eat:reserve-price-selection-flag` | `ds_pList.CHC_YN` | `source/eat/reserve_price.py` |
+| `eat:attempt-status` | `ds_bidHistory.ETN_BID_STT` (라벨 `ETN_BID_STT_NM`) | `source/eat/lineage.py` |
 
 낙찰 방식은 `SUCBD_DECISION_MTHD`가 아니라 `SUCBID_DCSN_MTH_CD`다. 앞 이름은 `ds_bidList`·
 `ds_bidHistory`에만 있고 `ds_info`에는 없으며, `SUCBD_DECISION_MTHD_NM`은 라벨이지 코드가 아니다.
-이 여덟의 의미 등록(`CodeScheme`의 소유기관·버전·유효기간)은 EAT-43의 몫이고, 그때도 같은 문자열을
-쓴다. 서로 다른 scheme을 매핑 없이 같다고 보지 않는다(규칙 6).
+`eat:reserve-price-selection-flag`는 그 회차 추첨에 뽑힌 복수예정가격 후보를 표시하며, 회차마다 정확히
+4행이 `Y`이고 그 넷의 평균이 예정가격이라는 전수 관측이 근거다
+([2026-09-02 기전 판정](../experiments/2026-09-02-mechanism-verdict.md)).
+`eat:attempt-status`는 투찰이 아니라 공고 시도 하나의 상태다. 실측 값이 007 낙찰·009 유찰·003
+입찰공고라 grain이 `AuctionAttempt`이며(규칙 4), 지금은 재입찰 사슬 블록에서만 관측되지만 그 블록은
+관측 위치이지 정체성이 아니다. 투찰 한 건의 판정인 `eat:bid-status`와 묶지 않는다.
+
+이 여덟의 `CodeScheme` 등록(소유기관·버전·유효기간)은 `packages/db/src/seeds/code-schemes.ts`가 갖고,
+두 목록이 같은지는 `apps/dataplane/tests/unit/test_code_schemes.py`와 같은 이름의 시드 테스트가
+양방향으로 고정한다. 서로 다른 scheme을 매핑 없이 같다고 보지 않는다(규칙 6).
 
 ## 5. 수량·용량·합성 단위
 

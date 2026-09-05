@@ -7,11 +7,14 @@ from eatbid.generated.ingestion_v2 import (
     NormalizedReservePriceCandidate,
     NormalizedReservePriceDraw,
 )
+from eatbid.source.eat.code_schemes import (
+    RESERVE_PRICE_SELECTION_FLAG,
+    optional_scheme_value,
+)
 from eatbid.source.eat.wire_text import optional_text
 from eatbid.source.eat.wire_values_v2 import (
     optional_money,
     optional_reserve_price_ratio,
-    optional_source_coded_value,
 )
 from eatbid.source.eat.xml import ParsedNexacro
 
@@ -42,7 +45,7 @@ def parse_reserve_price_draw(parsed: ParsedNexacro) -> NormalizedReservePriceDra
         amount = optional_money(row, "CMNM_PLNPRC")
         if amount is None:
             raise ValueError("CMNM_PLNPRC is required on an observed draw row")
-        chosen = optional_source_coded_value(row, "CHC_YN", code_scheme="eat:CHC_YN")
+        chosen = optional_scheme_value(row, RESERVE_PRICE_SELECTION_FLAG)
         if chosen is None:
             raise ValueError("CHC_YN is required on an observed draw row")
         candidates.append(
