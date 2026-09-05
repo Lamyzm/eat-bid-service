@@ -124,7 +124,7 @@ describe("schema journal 검증", () => {
         journalDatabase({
           id: 5n,
           name: expectedMigration,
-          created_at: "1788635880000",
+          created_at: "1788636305000",
         }),
         expectedMigration,
       ),
@@ -136,8 +136,8 @@ describe("schema journal 검증", () => {
       assertSchemaVersion(
         journalDatabase({
           id: 6n,
-          name: "20260905191802_unknown_future",
-          created_at: "1788635882000",
+          name: "20260905192507_unknown_future",
+          created_at: "1788636307000",
         }),
         expectedMigration,
       ),
@@ -149,8 +149,8 @@ describe("schema journal 검증", () => {
       assertSchemaVersion(
         journalDatabase({
           id: 6n,
-          name: "20260905191800_wrong_name",
-          created_at: "1788635880000",
+          name: "20260905192505_wrong_name",
+          created_at: "1788636305000",
         }),
         expectedMigration,
       ),

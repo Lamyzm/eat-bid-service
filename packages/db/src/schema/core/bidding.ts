@@ -6,6 +6,7 @@
 import {
   bigint,
   char,
+  check,
   foreignKey,
   index,
   integer,
@@ -13,12 +14,13 @@ import {
   text,
   timestamp,
   unique,
+  varchar,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { rawObservation } from "../ingest/evidence.js";
 import { coreSchema } from "../namespaces.js";
 import { codeValue } from "./codes.js";
-import { auctionRevision } from "./procurement.js";
+import { auctionAttempt, auctionRevision } from "./procurement.js";
 import { sourceSupplierAccount } from "./suppliers.js";
 
 /**
@@ -82,5 +84,108 @@ export const bidSubmission = coreSchema.table(
     }),
     index("bid_submission_auction_attempt_idx").on(table.auctionAttemptId),
     index("bid_submission_supplier_party_opened_idx").on(table.supplierPartyId, table.openedAt),
+  ],
+);
+
+/**
+ * revision당 낙찰 판정은 0 또는 1이다. 전수 리포트의 `multiple_award_rows = 0`이 근거이고, 위반이
+ * 관측되면 두 행을 만드는 것이 아니라 격리한다(ADR 0033 §1).
+ *
+ * `awarded_roster_ordinal`이 FK가 아닌 이유: 명단은 파티션 table이고, 연도 파티션을 더할 때마다 하는
+ * DETACH/ATTACH가 그 FK와 씨름하게 된다. 운영 절차의 단순함을 참조 무결성보다 위에 두고, 좌표의 존재와
+ * 판정 코드는 projector가 같은 트랜잭션에서 검증한다(ADR 0033 §4-라).
+ */
+export const awardDecision = coreSchema.table(
+  "award_decision",
+  {
+    awardDecisionId: bigint("award_decision_id", { mode: "bigint" }).generatedAlwaysAsIdentity().primaryKey(),
+    auctionRevisionId: bigint("auction_revision_id", { mode: "bigint" }).notNull(),
+    auctionAttemptId: bigint("auction_attempt_id", { mode: "bigint" }).notNull(),
+    awardedRosterOrdinal: integer("awarded_roster_ordinal").notNull(),
+    sourceSupplierAccountId: bigint("source_supplier_account_id", { mode: "bigint" }).notNull(),
+    supplierPartyId: bigint("supplier_party_id", { mode: "bigint" }).notNull(),
+    // `SUCBD_DT`는 날짜 정밀도다. 같은 날 안의 선후를 이 값으로 판단하지 않는다.
+    awardedAt: timestamp("awarded_at", { withTimezone: true }),
+    awardedAmount: numeric("awarded_amount", { precision: 18, scale: 2 }).notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    awardedRate: numeric("awarded_rate", { precision: 15, scale: 3 }).notNull(),
+    // 원본 `RNK=2` 행의 값이지 "유효 투찰 중 2등"이 아니다. 우리가 유효를 판정하지 않는다.
+    runnerUpRate: numeric("runner_up_rate", { precision: 15, scale: 3 }),
+    sourceStatusCodeValueId: bigint("source_status_code_value_id", { mode: "bigint" })
+      .notNull()
+      .references(() => codeValue.codeValueId),
+    observationId: bigint("observation_id", { mode: "bigint" })
+      .notNull()
+      .references(() => rawObservation.observationId),
+  },
+  (table) => [
+    unique("award_decision_auction_revision_key").on(table.auctionRevisionId),
+    foreignKey({
+      name: "award_decision_auction_revision_fkey",
+      columns: [table.auctionRevisionId, table.auctionAttemptId],
+      foreignColumns: [auctionRevision.auctionRevisionId, auctionRevision.auctionAttemptId],
+    }),
+    foreignKey({
+      name: "award_decision_supplier_account_fkey",
+      columns: [table.sourceSupplierAccountId, table.supplierPartyId],
+      foreignColumns: [
+        sourceSupplierAccount.sourceSupplierAccountId,
+        sourceSupplierAccount.supplierPartyId,
+      ],
+    }),
+  ],
+);
+
+/**
+ * 재입찰 사슬 관계이며 `domain-and-data.md` §3.1이 `AuctionRelation`으로 부르던 것이다.
+ *
+ * 사슬 상대를 외부 문자열이 아니라 내부 attempt id로만 잇는다(AGENTS 2). 아직 수집하지 않은 상대는
+ * `core.auction_attempt`에 identity 전용 행으로 먼저 만들며, 그래서 revision이 0개인 attempt는
+ * "관계로만 알려진 공고"라는 유효한 상태다. 공고 수를 세는 질의는 revision 존재를 조건으로 삼아야 한다.
+ */
+export const auctionAttemptLink = coreSchema.table(
+  "auction_attempt_link",
+  {
+    auctionAttemptLinkId: bigint("auction_attempt_link_id", { mode: "bigint" })
+      .generatedAlwaysAsIdentity()
+      .primaryKey(),
+    auctionRevisionId: bigint("auction_revision_id", { mode: "bigint" })
+      .notNull()
+      .references(() => auctionRevision.auctionRevisionId),
+    fromAuctionAttemptId: bigint("from_auction_attempt_id", { mode: "bigint" })
+      .notNull()
+      .references(() => auctionAttempt.auctionAttemptId),
+    toAuctionAttemptId: bigint("to_auction_attempt_id", { mode: "bigint" })
+      .notNull()
+      .references(() => auctionAttempt.auctionAttemptId),
+    relation: varchar("relation", { length: 32 }).notNull(),
+    // 표시값이다. 접미사를 차수로 읽지 않으며 관계 키로도 쓰지 않는다.
+    displayBidNo: text("display_bid_no"),
+    sourceStatusCodeValueId: bigint("source_status_code_value_id", { mode: "bigint" })
+      .references(() => codeValue.codeValueId),
+    bidOpenedFrom: timestamp("bid_opened_from", { withTimezone: true }),
+    bidClosedAt: timestamp("bid_closed_at", { withTimezone: true }),
+    baseAmount: numeric("base_amount", { precision: 18, scale: 2 }),
+    plannedAmount: numeric("planned_amount", { precision: 18, scale: 2 }),
+    currency: char("currency", { length: 3 }),
+    observationId: bigint("observation_id", { mode: "bigint" })
+      .notNull()
+      .references(() => rawObservation.observationId),
+  },
+  (table) => [
+    unique("auction_attempt_link_observation_key").on(
+      table.auctionRevisionId,
+      table.toAuctionAttemptId,
+      table.relation,
+    ),
+    check(
+      "auction_attempt_link_relation_allowed",
+      sql`${table.relation} in ('parent', 'chain_member')`,
+    ),
+    // 금액에 통화가 없으면 그 금액은 해석할 수 없는 숫자다(AGENTS 15).
+    check(
+      "auction_attempt_link_currency_required_with_amount",
+      sql`(${table.baseAmount} is null and ${table.plannedAmount} is null) or ${table.currency} is not null`,
+    ),
   ],
 );

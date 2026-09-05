@@ -3,42 +3,22 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { auctionRevision, bidSubmission, sourceSupplierAccount, supplierParty } from "./index";
+import { auctionAttemptLink, auctionRevision, awardDecision, bidSubmission } from "./index";
+import {
+  checkNames,
+  columnNames,
+  columnNullability,
+  columnSqlTypes,
+  columns,
+  expectNoDerivedVerdictColumns,
+  foreignKeyColumnSets,
+  nullsNotDistinctUniqueColumnSets,
+  uniqueColumnSets,
+} from "./table-config.fixture";
 
 const coreRoot = fileURLToPath(new URL("./", import.meta.url));
 
 const readCoreModule = (file: string) => readFile(path.join(coreRoot, file), "utf8");
-
-const columns = (table: Parameters<typeof getTableConfig>[0]) => getTableConfig(table).columns;
-
-const columnNames = (table: Parameters<typeof getTableConfig>[0]) => columns(table).map((column) => column.name);
-
-const columnNullability = (table: Parameters<typeof getTableConfig>[0]) =>
-  Object.fromEntries(columns(table).map((column) => [column.name, column.notNull]));
-
-const uniqueColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
-  getTableConfig(table).uniqueConstraints.map((constraint) => constraint.columns.map((column) => column.name));
-
-const nullsNotDistinctUniqueColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
-  getTableConfig(table).uniqueConstraints
-    .filter((constraint) => constraint.nullsNotDistinct)
-    .map((constraint) => constraint.columns.map((column) => column.name));
-
-const columnSqlTypes = (table: Parameters<typeof getTableConfig>[0]) =>
-  Object.fromEntries(columns(table).map((column) => [column.name, column.getSQLType()]));
-
-// 우리가 계산한 실효하한이나 승패를 관측 자리에 앉히지 못하게 막는 금지 어간이다(ADR 0033 §4-가).
-const forbiddenDerivedColumnStems = ["won", "invalid", "floor"] as const;
-
-const foreignKeyColumnSets = (table: Parameters<typeof getTableConfig>[0]) =>
-  getTableConfig(table).foreignKeys.map((foreignKey) => {
-    const reference = foreignKey.reference();
-
-    return {
-      columns: reference.columns.map((column) => column.name),
-      foreignTable: reference.foreignTable[Symbol.for("drizzle:Name")],
-    };
-  });
 
 const biddingTableNames = [
   "supplier_party",
@@ -65,93 +45,6 @@ describe("투찰·공급자 table 경계", () => {
   });
 });
 
-describe("참여 업체 identity 불변식", () => {
-  test("업체 정체성은 사업자번호 code value로만 유일하다", () => {
-    const names = columnNames(supplierParty);
-
-    expect(names).toEqual([
-      "supplier_party_id",
-      "type",
-      "canonical_name",
-      "business_number_code_value_id",
-      "created_at",
-    ]);
-    expect(columnNullability(supplierParty)).toEqual({
-      supplier_party_id: true,
-      type: true,
-      canonical_name: false,
-      business_number_code_value_id: false,
-      created_at: true,
-    });
-    expect(uniqueColumnSets(supplierParty)).toContainEqual(["business_number_code_value_id"]);
-    expect(uniqueColumnSets(supplierParty)).not.toContainEqual(["canonical_name"]);
-    expect(foreignKeyColumnSets(supplierParty)).toEqual([
-      { columns: ["business_number_code_value_id"], foreignTable: "code_value" },
-    ]);
-  });
-
-  test("업체명과 사업자번호 문자열을 정체성 열로 승격하지 않는다", () => {
-    const names = columnNames(supplierParty);
-
-    expect(names).not.toContain("business_number");
-    expect(names).not.toContain("code");
-    expect(names).not.toContain("code_scheme_id");
-  });
-
-  test("소스 계정은 계정 code value로 유일하고 한 업체에 여러 계정이 붙는다", () => {
-    expect(columnNames(sourceSupplierAccount)).toEqual([
-      "source_supplier_account_id",
-      "supplier_party_id",
-      "source_system",
-      "account_code_value_id",
-      "observation_id",
-    ]);
-    expect(columnNullability(sourceSupplierAccount)).toEqual({
-      source_supplier_account_id: true,
-      supplier_party_id: true,
-      source_system: true,
-      account_code_value_id: true,
-      observation_id: true,
-    });
-    expect(uniqueColumnSets(sourceSupplierAccount)).toContainEqual(["account_code_value_id"]);
-    expect(uniqueColumnSets(sourceSupplierAccount)).not.toContainEqual(["supplier_party_id"]);
-    expect(foreignKeyColumnSets(sourceSupplierAccount)).toEqual(expect.arrayContaining([
-      { columns: ["supplier_party_id"], foreignTable: "supplier_party" },
-      { columns: ["account_code_value_id"], foreignTable: "code_value" },
-      { columns: ["observation_id"], foreignTable: "raw_observation" },
-    ]));
-  });
-
-  test("계정과 업체의 짝을 복합 FK 대상 unique로 고정한다", () => {
-    expect(uniqueColumnSets(sourceSupplierAccount)).toContainEqual([
-      "source_supplier_account_id",
-      "supplier_party_id",
-    ]);
-  });
-
-  test("업체 table의 모든 bigint 열은 bigint int64 mapping을 선언한다", () => {
-    for (const table of [supplierParty, sourceSupplierAccount]) {
-      for (const column of columns(table).filter((candidate) => candidate.getSQLType() === "bigint")) {
-        expect(column.dataType, `${column.name} must declare bigint int64`).toBe("bigint int64");
-        expect(column.columnType, `${column.name} must use PgBigInt64`).toBe("PgBigInt64");
-      }
-    }
-  });
-
-  test("업체 table은 generated bigint primary key를 사용한다", () => {
-    for (const [table, primaryKey] of [
-      [supplierParty, "supplier_party_id"],
-      [sourceSupplierAccount, "source_supplier_account_id"],
-    ] as const) {
-      const column = columns(table).find((candidate) => candidate.name === primaryKey);
-
-      expect(column?.primary).toBe(true);
-      expect(column?.getSQLType()).toBe("bigint");
-      expect(column?.generatedIdentity).toEqual({ type: "always" });
-    }
-  });
-});
-
 describe("명단 행(bid_submission) 계약", () => {
   test("명단 행의 발행 grain은 revision과 관측 행 순서다", () => {
     expect(nullsNotDistinctUniqueColumnSets(bidSubmission)).toContainEqual([
@@ -175,14 +68,6 @@ describe("명단 행(bid_submission) 계약", () => {
     expect(columnSqlTypes(bidSubmission).bid_rate).toBe("numeric(15, 3)");
     expect(columnSqlTypes(bidSubmission).amount).toBe("numeric(18, 2)");
     expect(columnSqlTypes(bidSubmission).effective_amount).toBe("numeric(18, 2)");
-  });
-
-  test("계산된 하한이나 승패 열을 두지 않는다", () => {
-    for (const name of columnNames(bidSubmission)) {
-      for (const stem of forbiddenDerivedColumnStems) {
-        expect(name.split("_")).not.toContain(stem);
-      }
-    }
   });
 
   test("명단 행의 열과 nullability를 원본 관측 그대로 고정한다", () => {
@@ -255,6 +140,155 @@ describe("명단 행(bid_submission) 계약", () => {
     for (const column of columns(bidSubmission).filter((candidate) => candidate.getSQLType() === "bigint")) {
       expect(column.dataType, `${column.name} must declare bigint int64`).toBe("bigint int64");
       expect(column.columnType, `${column.name} must use PgBigInt64`).toBe("PgBigInt64");
+    }
+  });
+});
+
+describe("낙찰 판정(award_decision) 계약", () => {
+  test("한 revision에 낙찰 판정은 하나뿐이다", () => {
+    expect(uniqueColumnSets(awardDecision)).toContainEqual(["auction_revision_id"]);
+    expect(columnNullability(awardDecision).auction_revision_id).toBe(true);
+  });
+
+  test("낙찰 행은 명단 행을 FK로 가리키지 않는다", () => {
+    const references = foreignKeyColumnSets(awardDecision);
+
+    expect(references.map((reference) => reference.foreignTable)).not.toContain("bid_submission");
+    expect(columnNames(awardDecision)).toContain("awarded_roster_ordinal");
+    expect(columnNames(awardDecision)).not.toContain("bid_submission_id");
+  });
+
+  test("낙찰 행의 열과 nullability를 원본 관측 그대로 고정한다", () => {
+    expect(columnNames(awardDecision)).toEqual([
+      "award_decision_id",
+      "auction_revision_id",
+      "auction_attempt_id",
+      "awarded_roster_ordinal",
+      "source_supplier_account_id",
+      "supplier_party_id",
+      "awarded_at",
+      "awarded_amount",
+      "currency",
+      "awarded_rate",
+      "runner_up_rate",
+      "source_status_code_value_id",
+      "observation_id",
+    ]);
+    expect(columnNullability(awardDecision)).toEqual({
+      award_decision_id: true,
+      auction_revision_id: true,
+      auction_attempt_id: true,
+      awarded_roster_ordinal: true,
+      source_supplier_account_id: true,
+      supplier_party_id: true,
+      awarded_at: false,
+      awarded_amount: true,
+      currency: true,
+      awarded_rate: true,
+      runner_up_rate: false,
+      source_status_code_value_id: true,
+      observation_id: true,
+    });
+    expect(columnSqlTypes(awardDecision).awarded_rate).toBe("numeric(15, 3)");
+    expect(columnSqlTypes(awardDecision).runner_up_rate).toBe("numeric(15, 3)");
+  });
+
+  test("낙찰 table도 generated bigint primary key와 복합 FK를 쓴다", () => {
+    const primaryKeyColumn = columns(awardDecision).find(
+      (column) => column.name === "award_decision_id",
+    );
+
+    expect(primaryKeyColumn?.primary).toBe(true);
+    expect(primaryKeyColumn?.generatedIdentity).toEqual({ type: "always" });
+    expect(foreignKeyColumnSets(awardDecision)).toEqual(expect.arrayContaining([
+      {
+        columns: ["auction_revision_id", "auction_attempt_id"],
+        foreignTable: "auction_revision",
+      },
+      {
+        columns: ["source_supplier_account_id", "supplier_party_id"],
+        foreignTable: "source_supplier_account",
+      },
+      { columns: ["source_status_code_value_id"], foreignTable: "code_value" },
+      { columns: ["observation_id"], foreignTable: "raw_observation" },
+    ]));
+  });
+});
+
+describe("재입찰 사슬(auction_attempt_link) 계약", () => {
+  test("재입찰 사슬은 내부 attempt id로만 잇는다", () => {
+    const names = columnNames(auctionAttemptLink);
+
+    expect(names).toContain("from_auction_attempt_id");
+    expect(names).toContain("to_auction_attempt_id");
+    expect(names).not.toContain("external_bid_id");
+    expect(names).not.toContain("to_external_bid_id");
+    expect(foreignKeyColumnSets(auctionAttemptLink)).toEqual(expect.arrayContaining([
+      { columns: ["from_auction_attempt_id"], foreignTable: "auction_attempt" },
+      { columns: ["to_auction_attempt_id"], foreignTable: "auction_attempt" },
+    ]));
+  });
+
+  test("표시 입찰 번호를 관계 키로 쓰지 않는다", () => {
+    expect(columnNullability(auctionAttemptLink).display_bid_no).toBe(false);
+    for (const columnSet of uniqueColumnSets(auctionAttemptLink)) {
+      expect(columnSet).not.toContain("display_bid_no");
+    }
+  });
+
+  test("한 revision이 관측한 사슬 관계를 상대와 관계 종류로 유일하게 둔다", () => {
+    expect(uniqueColumnSets(auctionAttemptLink)).toContainEqual([
+      "auction_revision_id",
+      "to_auction_attempt_id",
+      "relation",
+    ]);
+  });
+
+  test("사슬 관계 종류와 금액 통화를 named check로 고정한다", () => {
+    expect(checkNames(auctionAttemptLink)).toEqual([
+      "auction_attempt_link_relation_allowed",
+      "auction_attempt_link_currency_required_with_amount",
+    ]);
+  });
+
+  test("사슬 table의 열과 nullability를 관측 그대로 고정한다", () => {
+    expect(columnNames(auctionAttemptLink)).toEqual([
+      "auction_attempt_link_id",
+      "auction_revision_id",
+      "from_auction_attempt_id",
+      "to_auction_attempt_id",
+      "relation",
+      "display_bid_no",
+      "source_status_code_value_id",
+      "bid_opened_from",
+      "bid_closed_at",
+      "base_amount",
+      "planned_amount",
+      "currency",
+      "observation_id",
+    ]);
+    expect(columnNullability(auctionAttemptLink)).toEqual({
+      auction_attempt_link_id: true,
+      auction_revision_id: true,
+      from_auction_attempt_id: true,
+      to_auction_attempt_id: true,
+      relation: true,
+      display_bid_no: false,
+      source_status_code_value_id: false,
+      bid_opened_from: false,
+      bid_closed_at: false,
+      base_amount: false,
+      planned_amount: false,
+      currency: false,
+      observation_id: true,
+    });
+  });
+});
+
+describe("원본 판정 권위", () => {
+  test("계산된 하한이나 승패 열을 두지 않는다", () => {
+    for (const table of [bidSubmission, awardDecision, auctionAttemptLink]) {
+      expect(expectNoDerivedVerdictColumns(table)).toEqual([]);
     }
   });
 });
