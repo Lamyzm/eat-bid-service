@@ -1,0 +1,17 @@
+# server·web을 sync-wave 2에 둔다. wave 0(postgres·Secret) → wave 1(migration Job) → wave 2(앱) 순서라
+# 빈 클러스터에서도 Argo 혼자 순서를 지킨다. base는 이 순서를 모르며 product overlay만 Argo를 전제한다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+  namespace: eatbid
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: eatbid
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"

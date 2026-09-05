@@ -4,7 +4,12 @@ metadata:
   name: eatbid-migration
   namespace: eatbid
   annotations:
-    argocd.argoproj.io/hook: PreSync
+    # Sync phase + sync-wave 1인 이유: PreSync는 본 동기화가 만드는 postgres보다 먼저 돌아 빈 클러스터에서
+    # DB 없이 실패하고 sync 전체를 막았다(2026-09-05 VM 부트스트랩 실측, EAT-50). wave 0(postgres·Secret)이
+    # Healthy가 된 뒤 이 Job이 돌고, server·web은 wave 2라 schema가 있는 DB에만 붙는다. hook은 여전히
+    # 성공 뒤 삭제되고 재생성되므로 매 sync마다 migration이 한 번 돈다.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   activeDeadlineSeconds: 600
