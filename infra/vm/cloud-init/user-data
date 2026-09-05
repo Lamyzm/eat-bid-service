@@ -1,0 +1,39 @@
+#cloud-config
+# eatbid 단일 노드 k3s VM. 왜 VM인가: Docker Desktop k3d는 로그인 세션에 묶여 재부팅마다 클러스터가
+# 죽고, 그 동안 Argo CD 배포·Argo Workflows 수집·cloudflared 터널이 전부 멈춘다(EAT-50).
+# 이 파일은 템플릿이다. ${...}는 New-EatbidVm.ps1이 seed ISO를 만들 때 치환한다.
+hostname: eatbid-k3s
+manage_etc_hosts: true
+users:
+  - name: eatbid
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${SSH_PUBLIC_KEY}
+ssh_pwauth: false
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - open-iscsi
+  - nfs-common
+write_files:
+  # k3s는 이 클러스터의 유일한 런타임이다. traefik(ingress)·servicelb는 k3d와 같은 기본값을 유지해
+  # infra/product manifest가 그대로 맞는다. tls-san에 고정 IP를 넣어 호스트 kubectl이 인증서 검증을 통과한다.
+  - path: /etc/rancher/k3s/config.yaml
+    permissions: "0644"
+    content: |
+      write-kubeconfig-mode: "0644"
+      tls-san:
+        - ${VM_IP}
+        - eatbid-k3s
+      kubelet-arg:
+        - "eviction-hard=imagefs.available<5%,nodefs.available<5%"
+runcmd:
+  # 버전은 k3d 클러스터와 같은 것으로 고정한다. 새 minor로 올리는 것은 별도 결정이다.
+  - [sh, -c, "curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=${K3S_VERSION} sh -s - server"]
+  - [sh, -c, "until /usr/local/bin/k3s kubectl get nodes >/dev/null 2>&1; do sleep 3; done"]
+  - [sh, -c, "echo 'eatbid-k3s ready' > /var/lib/eatbid-cloud-init-done"]
+final_message: "eatbid-k3s cloud-init finished after $UPTIME seconds"

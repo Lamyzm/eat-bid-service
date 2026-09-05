@@ -148,8 +148,11 @@ release/v<semver> annotated tag push
 
 ## 6. 배포 토폴로지
 
-현재 로컬/초기 운영 환경은 단일 노드 k3d일 수 있다. 이는 개발과 이식성 검증에는 적합하지만
-노드 장애를 견디는 HA가 아니다.
+초기 운영 환경은 이 PC의 Hyper-V VM `eatbid-k3s`에서 도는 단일 노드 k3s다(EAT-50). Docker Desktop의
+k3d는 로그인 세션에 묶여 재부팅마다 클러스터가 죽고 그 동안 Argo CD 배포·Argo Workflows 수집·cloudflared
+터널이 전부 멈추므로 운영 클러스터로 쓰지 않는다. VM은 호스트 부팅 시 자동 시작되고 k3s는 systemd
+서비스다. 생성·부트스트랩·데이터 이전·cutover 절차는 [k3s-hyperv-vm.md](../operations/k3s-hyperv-vm.md)를
+따른다. 이 구성은 노드 장애를 견디는 HA가 아니며, 별도 머신으로 갈 때는 VM 이미지를 그대로 옮긴다.
 
 초기 배포 구성:
 
