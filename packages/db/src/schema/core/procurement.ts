@@ -59,7 +59,11 @@ export const auctionRevision = coreSchema.table(
     currency: char("currency", { length: 3 }).notNull(),
     sourcePayload: jsonb("source_payload").notNull(),
   },
-  (table) => [unique("auction_revision_normalized_record_key").on(table.normalizedRecordId)],
+  (table) => [
+    unique("auction_revision_normalized_record_key").on(table.normalizedRecordId),
+    // 명단·낙찰 행이 들고 있는 attempt가 revision의 attempt와 어긋나지 못하게 하는 복합 FK의 대상이다.
+    unique("auction_revision_attempt_pair_key").on(table.auctionRevisionId, table.auctionAttemptId),
+  ],
 );
 
 // 한 revision에 같은 조직도 서로 다른 업무 역할로 참여할 수 있어 role까지 관계의 grain에 포함한다.
