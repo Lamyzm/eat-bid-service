@@ -145,6 +145,72 @@ test("createIssue는 없는 state·project 이름을 후보와 함께 거부하�
   assert.equal(projectCalls.length, 1);
 });
 
+function listStub(calls) {
+  return createLinearClient({
+    apiKey: "key",
+    fetchImpl: async (_url, request) => {
+      const payload = JSON.parse(request.body);
+      calls.push(payload);
+      return response({
+        data: {
+          issues: {
+            nodes: [
+              {
+                identifier: "EAT-44",
+                title: "결정 화면이 읽는 mart 넷",
+                priority: 2,
+                updatedAt: "2026-09-04T16:55:11.369Z",
+                state: { name: "Ready" },
+              },
+            ],
+          },
+        },
+      });
+    },
+  });
+}
+
+test("listIssues는 팀으로 좁히고 끝난 상태를 filter에서 빼고 읽는다", async () => {
+  const calls = [];
+  const issues = await listStub(calls).listIssues({
+    excludedStates: ["Done", "Canceled", "Duplicate"],
+    limit: 40,
+    teamKey: "EAT",
+  });
+
+  assert.deepEqual(calls[0].variables, {
+    filter: {
+      team: { key: { eq: "EAT" } },
+      state: { name: { nin: ["Done", "Canceled", "Duplicate"] } },
+    },
+    first: 40,
+  });
+  assert.deepEqual(issues, [
+    {
+      identifier: "EAT-44",
+      priority: 2,
+      state: "Ready",
+      title: "결정 화면이 읽는 mart 넷",
+      updatedAt: "2026-09-04T16:55:11.369Z",
+    },
+  ]);
+});
+
+test("listIssues는 상태를 지정하면 제외 목록 대신 그 상태만 filter에 넣는다", async () => {
+  const calls = [];
+  await listStub(calls).listIssues({
+    excludedStates: [],
+    limit: 10,
+    stateName: "Done",
+    teamKey: "EAT",
+  });
+
+  assert.deepEqual(calls[0].variables, {
+    filter: { team: { key: { eq: "EAT" } }, state: { name: { eq: "Done" } } },
+    first: 10,
+  });
+});
+
 test("createIssue는 제목이 비어 있으면 Linear를 호출하지 않는다", async () => {
   const calls = [];
   await assert.rejects(

@@ -6,7 +6,7 @@ import path from "node:path";
 import { checkoutClaimBranch } from "./branch.mjs";
 import { parseWorkflowArguments } from "./command-line.mjs";
 import { doctorReport, recoverLockReport } from "./diagnostics.mjs";
-import { runIssueCreate } from "./issue-command.mjs";
+import { runIssueCreate, runIssueList } from "./issue-command.mjs";
 import { flushOutbox } from "./linear.mjs";
 import { config, linearClient, repositoryContext, targetRepositoryContext } from "./runtime.mjs";
 import {
@@ -220,10 +220,17 @@ async function worktree() {
 // 있지 않은 상태에서 실행하는 명령이므로 저장소 context를 요구하지 않는다.
 async function issue() {
   const [subcommand, ...rest] = process.argv.slice(process.argv.indexOf("issue") + 1);
-  if (subcommand !== "create") {
-    throw new Error(`Usage: pnpm workflow:issue create --title <t> (got ${subcommand ?? "nothing"})`);
+  if (subcommand === "create") {
+    await runIssueCreate({ args: rest, client: linearClient(), config });
+    return;
   }
-  await runIssueCreate({ args: rest, client: linearClient(), config });
+  if (subcommand === "list") {
+    await runIssueList({ args: rest, client: linearClient(), config });
+    return;
+  }
+  throw new Error(
+    `Usage: pnpm workflow:issue create --title <t> | pnpm workflow:issues [--state <name>] (got ${subcommand ?? "nothing"})`,
+  );
 }
 
 async function sync() {

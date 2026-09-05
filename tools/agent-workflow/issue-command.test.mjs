@@ -3,9 +3,13 @@ import test from "node:test";
 
 import {
   parseIssueCreateArguments,
+  parseIssueListArguments,
   resolveIssueDescription,
   runIssueCreate,
+  runIssueList,
 } from "./issue-command.mjs";
+
+const terminalStates = ["Done", "Canceled", "Duplicate"];
 
 const defaults = { defaultProject: "R1 — 유료 투찰 Decision Loop", defaultState: "Ready" };
 
@@ -87,6 +91,64 @@ test("issue create는 --description-file 값을 긴 옵션 이름으로 정확�
     resolveIssueDescription(parsed, (file) => `읽은 본문: ${file}`),
     "읽은 본문: .superpowers/body.md",
   );
+});
+
+test("issue list는 기본으로 끝난 상태를 빼고 40건까지 읽는다", () => {
+  assert.deepEqual(parseIssueListArguments([], { terminalStates }), {
+    excludedStates: terminalStates,
+    limit: 40,
+    stateName: null,
+  });
+});
+
+test("issue list에 상태를 지정하면 그 상태만 보고 제외 목록을 비운다", () => {
+  assert.deepEqual(parseIssueListArguments(["--", "--state", "Done"], { terminalStates }), {
+    excludedStates: [],
+    limit: 40,
+    stateName: "Done",
+  });
+});
+
+test("issue list는 복잡도 상한을 넘는 limit과 알 수 없는 option을 거부한다", () => {
+  assert.deepEqual(parseIssueListArguments(["--limit=10"], { terminalStates }).limit, 10);
+  assert.throws(
+    () => parseIssueListArguments(["--limit", "99"], { terminalStates }),
+    /--limit must be an integer from 1 to 40/,
+  );
+  assert.throws(
+    () => parseIssueListArguments(["--limit", "0"], { terminalStates }),
+    /--limit must be an integer from 1 to 40/,
+  );
+  assert.throws(
+    () => parseIssueListArguments(["--title", "제목"], { terminalStates }),
+    /Unknown issue option: --title/,
+  );
+  assert.throws(
+    () => parseIssueListArguments(["EAT-53"], { terminalStates }),
+    /issue list takes options only/,
+  );
+});
+
+test("issue list는 config의 team과 terminal 상태를 그대로 client에 넘기고 목록을 출력한다", async () => {
+  const calls = [];
+  const lines = [];
+  const issues = await runIssueList({
+    args: [],
+    client: {
+      listIssues: async (input) => {
+        calls.push(input);
+        return [{ identifier: "EAT-44", priority: 2, state: "Ready", title: "제목", updatedAt: null }];
+      },
+    },
+    config: { teamKey: "EAT", terminalStates },
+    write: (line) => lines.push(line),
+  });
+
+  assert.deepEqual(calls, [
+    { excludedStates: terminalStates, limit: 40, stateName: null, teamKey: "EAT" },
+  ]);
+  assert.equal(issues.length, 1);
+  assert.deepEqual(JSON.parse(lines.join(""))[0].identifier, "EAT-44");
 });
 
 test("issue create는 검증한 인자만 Linear client에 넘기고 식별자와 URL만 출력한다", async () => {

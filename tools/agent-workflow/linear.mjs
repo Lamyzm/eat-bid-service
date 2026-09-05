@@ -1,6 +1,6 @@
 /** @module 책임: Linear GraphQL 경계에서 issue 조회·발행·claim 상태 전환·중복 없는 worklog 댓글을 수행한다. */
 import { LinearApiError } from "./linear-error.mjs";
-import { createIssueOperation } from "./linear-issue.mjs";
+import { createIssueOperation, listIssuesOperation } from "./linear-issue.mjs";
 
 export { LinearApiError };
 
@@ -131,6 +131,8 @@ export function createLinearClient({
     },
 
     createIssue: createIssueOperation(request),
+
+    listIssues: listIssuesOperation(request),
 
     getIssue,
 

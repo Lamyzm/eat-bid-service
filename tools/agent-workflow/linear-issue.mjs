@@ -17,6 +17,22 @@ const ISSUE_CREATE_CONTEXT = `
   }
 `;
 
+// 목록은 사람이 백로그를 고를 때 필요한 최소 필드만 읽는다. Linear GraphQL은 요청 복잡도 상한이
+// 10000이라 nested 필드나 페이지를 넓히면 조회 자체가 거부된다. 본문·댓글·label은 여기서 읽지 않는다.
+const ISSUE_LIST = `
+  query AgentWorkflowIssueList($filter: IssueFilter!, $first: Int!) {
+    issues(filter: $filter, first: $first, orderBy: updatedAt) {
+      nodes {
+        identifier
+        title
+        priority
+        updatedAt
+        state { name }
+      }
+    }
+  }
+`;
+
 const ISSUE_CREATE = `
   mutation AgentWorkflowIssueCreate($input: IssueCreateInput!) {
     issueCreate(input: $input) {
@@ -33,6 +49,36 @@ function findByName(nodes, name) {
 
 function nameList(nodes) {
   return (nodes ?? []).map((node) => node?.name).filter(Boolean).join(", ") || "없음";
+}
+
+/**
+ * 목록은 기본적으로 끝난 issue를 감춘다. 고를 수 있는 것만 보여야 agent가 백로그에서 다음 작업을
+ * 집을 수 있고, `Done` 수백 건이 첫 페이지를 채우면 목록 자체가 쓸모없어지기 때문이다.
+ * `stateName`을 주면 그 상태만 보므로 끝난 issue를 볼 방법도 함께 남는다.
+ */
+export function listIssuesOperation(request) {
+  return async function listIssues({ excludedStates = [], limit = 40, stateName = null, teamKey }) {
+    if (typeof teamKey !== "string" || teamKey.trim().length === 0) {
+      throw new LinearApiError("Linear team key is required");
+    }
+    const filter = { team: { key: { eq: teamKey } } };
+    if (stateName) {
+      filter.state = { name: { eq: stateName } };
+    } else if (excludedStates.length > 0) {
+      filter.state = { name: { nin: excludedStates } };
+    }
+
+    const data = await request(ISSUE_LIST, { filter, first: limit });
+    const nodes = data?.issues?.nodes;
+    if (!Array.isArray(nodes)) throw new LinearApiError(`Linear issue list failed for team ${teamKey}`);
+    return nodes.map((issue) => ({
+      identifier: issue.identifier,
+      priority: issue.priority ?? null,
+      state: issue.state?.name ?? "unknown",
+      title: issue.title,
+      updatedAt: issue.updatedAt ?? null,
+    }));
+  };
 }
 
 /**

@@ -166,10 +166,21 @@ pnpm workflow:release:review
 pnpm workflow:release:review -- EAT-36
 ```
 
-## 5. issue는 agent가 발행한다
+## 5. issue는 agent가 발행하고 읽는다
 
 새 작업을 시작할 때 사람이 Linear에 issue를 대신 만들어 주기를 기다리지 않는다. `workflow:issue`가
 `dev:/tooling/linear`의 API key를 주입해 `EAT` team에 issue를 만들고 식별자와 URL만 출력한다.
+MCP 연결이 없는 세션도 `workflow:issues`로 백로그를 읽고 고를 수 있다.
+
+```powershell
+pnpm workflow:issues
+pnpm workflow:issues -- --state Backlog
+pnpm workflow:issues -- --limit 10
+```
+
+목록은 식별자·상태·우선순위·제목·최종 수정 시각을 JSON으로 낸다. 한 번에 40건까지 읽으며 이 상한은
+Linear GraphQL 요청 복잡도 제한에서 온다. 기본 목록은 `Done`·`Canceled`·`Duplicate`를 빼서 지금 고를 수
+있는 것만 담고, 끝난 issue는 `--state Done`처럼 상태를 명시해서 본다.
 
 ```powershell
 pnpm workflow:issue create -- --title "eaT 명단을 정규화 모델로 읽는다"
@@ -190,6 +201,11 @@ pnpm workflow:issue create -- --title "제목" --project "다른 project"
   요구하면 자기 자신을 막는다. 발행 뒤 `pnpm workflow:claim -- EAT-N`으로 소유권을 확정한다.
 - 다음 절 0번의 중복 확인은 그대로 유효하다. 발행이 쉬워졌다고 기존 issue를 훑지 않고 새로 만들면
   추적이 갈라진다.
+
+Linear MCP가 연결돼 있으면 `create_issue`와 `create_comment`도 lease 없이 쓸 수 있다. issue·댓글 생성은
+저장소 파일을 바꾸지 않는 부트스트랩 동작이고, 이것을 막으면 "lease를 잡으려면 issue가 있어야 하는데
+issue를 만들려면 lease가 필요한" 순환이 생긴다. 상태 전환(`update_issue`)은 `claim`과 `release`가
+소유하므로 계속 lease가 필요하다.
 
 사람 몫으로 남는 것은 Linear workspace 계정과 team 구성, 그리고 `LINEAR_API_KEY` 발급·회전뿐이다.
 
@@ -219,18 +235,26 @@ AI가 답변에서 완료를 주장했다는 이유만으로 hook이 `Done`으�
 
 lease 없이 허용하는 것은 `tools/agent-workflow/workflow.mjs` 분류기의 허용 목록뿐이며 원칙은 "저장소 파일을
 바꾸지 않는 것"이다. 읽기 도구(Read, Glob, Grep, WebFetch, WebSearch, ToolSearch)와
-EnterWorktree/ExitWorktree, Linear MCP의 `get_* | list_* | search_*` 읽기 도구, chrome-devtools MCP의
+EnterWorktree/ExitWorktree, Linear MCP의 `get_* | list_* | search_*` 읽기 도구와 부트스트랩용
+`create_issue | create_comment`, chrome-devtools MCP의
 `navigate_page | take_screenshot | take_snapshot | evaluate_script | list_pages | select_page | wait_for |
-list_console_messages | get_console_message | list_network_requests | get_network_request`, 단일 `rg`,
-제한된 PowerShell 조회 cmdlet, `git [-C <path>] status | diff | log | show | rev-parse | worktree list | worktree
-prune` 같은 명백한 로컬 조회, `kubectl get | describe | logs | top`, 본문·업로드·파일 출력 option이 없는
+list_console_messages | get_console_message | list_network_requests | get_network_request`,
+파일을 쓰는 수단이 없는 읽기 명령 `rg`·`grep`·`cat`·`head`·`tail`·`wc`·`uniq`·`cut`·`tr`·`nl`·`jq`·`ls`,
+`-exec | -execdir | -ok | -delete | -fprintf | -fls`가 없는 `find`, 제한된 PowerShell 조회·표시 cmdlet
+(`Get-Content | Get-ChildItem | Test-Path | Select-String | Select-Object | Measure-Object | Sort-Object |
+Format-List | Format-Table | Out-String | ConvertTo-Json`), `git [-C <path>] status | diff | log | show |
+rev-parse | worktree list | worktree prune` 같은 명백한 로컬 조회, `kubectl get | describe | logs | top`,
+본문·업로드·파일 출력 option이 없는
 `curl` GET/HEAD, 따옴표 하나로 감싼 `python -c` / `node -e|-p` 읽기 코드(파일 쓰기·프로세스 실행·`>`·치환
 토큰이 있으면 mutation), 새 ref만 만드는 `git branch <name> [<start>]`·`git checkout -b <name>`·`git
 switch -c <name>`·`git worktree add ...`, 비밀값을 읽지도 쓰지도 않는
-`infisical secrets folders create | list`, 그리고 `pnpm workflow:*` 단일 명령(issue 식별자,
+`infisical secrets folders create | list`, 그리고 `pnpm [--dir <path>] workflow:*` 단일 명령(issue 식별자,
 `--worktree <path>`, `--branch <name>`, `--review`, `worktree remove <path> | prune`,
-`issue create`의 `--title | --description | --description-file | --priority | --state | --project`
-인자만)이다. 브랜치
+`issue create`의 `--title | --description | --description-file | --priority | --state | --project`,
+`issue list`의 `--state | --limit` 인자만)이다. `sort`(`-o`), `tee`, `xargs`,
+`Where-Object`·`ForEach-Object`는 파일을 쓰거나 다른 프로그램을 실행할 수 있어 읽기 목록에 넣지 않는다.
+`--dir <path>`를 허용하는 이유는 세션 cwd가 아닌 worktree의 lease를 스스로 다루려면 그 형태가
+기본이기 때문이다. 브랜치
 생성을 lease 없이 허용하는 이유는 저장소 파일을 바꾸지 않는 동작인데도 막으면 claim 전에 올바른
 브랜치로 옮길 방법이 없어 이슈 전환이 교착하기 때문이다. `checkout -b`·`switch -c`는 이름 하나만 받는
 형태(현재 HEAD 기준)까지만 허용한다. start-point를 주면 그 commit의 tree로 작업 파일이 바뀌므로
@@ -243,14 +267,14 @@ workflow 명령은 저장소 파일이 아니라 lease state·Linear·git worktr
 claim하고 푼다.
 `release`도 lease 없이 실행되므로 같은 worktree의 다른 세션이 writer의 lease를 풀 수 있다. 이 보장은 중앙 lock이
 아니라 "다른 writer가 claim한 작업은 read-only로만 다룬다"는 agent 규율과 Linear assignee에 의존한다.
-command chaining, redirect, command substitution, snapshot update나 `--fix`가 있으면 mutation으로
-취급한다. pipe는 예외를 하나 둔다. 뒤 단계가 모두 표준 입력을 줄이거나 모양만 바꾸는 출력 필터
-(`head | tail | wc | uniq | cut | tr | nl | cat | grep | rg | jq`와 PowerShell의
-`Select-Object | Select-String | Measure-Object | Sort-Object | Format-* | Out-String | ConvertTo-Json`)
-이면 앞 단계의 판정을 그대로 쓴다. `pnpm workflow:release -- EAT-37 | tail`처럼 결과를 줄여 읽는
-형태까지 막으면 lease를 푸는 명령 자체가 lease를 요구하기 때문이다. 파일을 쓰거나(`tee`, `sort -o`)
-다른 프로그램을 실행하는(`xargs`, `ForEach-Object`) 단계가 하나라도 있으면 계속 차단하며, chaining과
-redirect는 pipe를 나누기 전에 명령 전체에서 먼저 본다. 테스트도 fixture나 snapshot을 쓸 수 있으므로
+command chaining, redirect(`>`와 `>>`), command substitution, snapshot update나 `--fix`가 있으면
+mutation으로 취급한다. 이 검사는 pipe를 나누기 **전에** 명령 전체에서 먼저 하므로 뒤 단계에 숨긴
+`| tail -3 >> out.log`도 걸린다.
+pipe는 단계별로 본다. 따옴표를 인식해 `|`로 단계를 나눈 뒤 모든 단계가 읽기로 분류될 때만 통과시키고,
+한 단계라도 쓰기면 그 단계의 이유로 차단한다. `pnpm workflow:release -- EAT-37 | tail`이나
+`grep -rn TODO src | head -20 | wc -l`처럼 결과를 줄여 읽는 형태까지 막으면 lease를 푸는 명령 자체가
+lease를 요구하기 때문이다. 닫히지 않은 따옴표는 어디까지가 한 단계인지 말할 수 없으므로 차단하고,
+`||`는 빈 단계를 만들어 자동으로 걸린다. 테스트도 fixture나 snapshot을 쓸 수 있으므로
 shell verification은 lease 안에서 수행한다.
 편집 도구가 저장소 루트 밖의 절대 경로를 가리키면 lease가 지키려는 대상이 아니므로 막지 않는다.
 Claude memory 디렉터리나 scratchpad 기록까지 막으면 세션은 claim 없이 자기 기록조차 남기지 못한다.

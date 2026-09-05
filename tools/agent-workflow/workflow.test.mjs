@@ -5,7 +5,7 @@ import {
   classifyToolCall,
   extractIssueIdentifier,
   extractPromptIssueIdentifier,
-  reduceReadOnlyPipeline,
+  splitPipelineStages,
 } from "./workflow.mjs";
 
 const REPOSITORY_ROOT = "F:/Project/eat-bid-service/.claude/worktrees/eat-53-agent-self-service";
@@ -210,6 +210,23 @@ test("Linear MCP 읽기 도구와 ToolSearch는 허용하고 Linear 쓰기 도�
     "mcp__linear__save_issue",
     "mcp__linear__save_comment",
     "mcp__linear__delete_comment",
+  ]) {
+    assert.equal(classifyToolCall(toolName, {}).mutatesRepository, true, toolName);
+  }
+});
+
+test("Linear MCP의 issue·댓글 생성은 lease 없이 허용하고 상태 전환과 삭제는 계속 차단한다", () => {
+  for (const toolName of ["mcp__linear__create_issue", "mcp__linear__create_comment"]) {
+    assert.deepEqual(
+      classifyToolCall(toolName, {}),
+      { mutatesRepository: false, reason: "linear-issue-bootstrap-tool" },
+      toolName,
+    );
+  }
+  for (const toolName of [
+    "mcp__linear__update_issue",
+    "mcp__linear__create_project",
+    "mcp__linear__delete_issue",
   ]) {
     assert.equal(classifyToolCall(toolName, {}).mutatesRepository, true, toolName);
   }
@@ -514,6 +531,11 @@ test("issue 발행 명령은 lease 없이 허용하고 제목 자리에 다른 �
     'pnpm workflow:issue create --title="제목" --state Backlog',
     'pnpm workflow:issue create --title "제목" --description-file .superpowers/body.md',
     'pnpm workflow:issue create --title "제목" --project "R1 유료 투찰 Decision Loop"',
+    "pnpm workflow:issues",
+    "pnpm workflow:issues -- --state Ready --limit 20",
+    "pnpm workflow:issue list --state Backlog",
+    "pnpm --dir F:/Project/eat-bid-service/.claude/worktrees/eat-53 workflow:claim -- EAT-53",
+    "pnpm --dir ../.. workflow:release -- EAT-37",
   ]) {
     assert.deepEqual(
       classifyToolCall("Bash", { command }),
@@ -527,6 +549,8 @@ test("issue 발행 명령은 lease 없이 허용하고 제목 자리에 다른 �
     'pnpm workflow:issue create --title "제목" > issue.json',
     'pnpm workflow:issue create --priority 9 --title "제목"',
     'pnpm workflow:issue create --title "제목" --force',
+    "pnpm workflow:issues -- --limit 200",
+    "pnpm --dir $(pwd) workflow:claim -- EAT-53",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
   }
@@ -554,17 +578,31 @@ test("Infisical 폴더 명령만 lease 없이 허용하고 값을 다루거나 �
   }
 });
 
-test("pipe 뒤가 출력 필터면 앞 명령의 판정을 유지하고 쓰기 단계면 계속 차단한다", () => {
-  assert.equal(reduceReadOnlyPipeline("git status -sb"), "git status -sb");
-  assert.equal(reduceReadOnlyPipeline("git status -sb | tail -5"), "git status -sb ");
-  assert.equal(reduceReadOnlyPipeline("git status -sb | tee out.txt"), null);
-  assert.equal(reduceReadOnlyPipeline("git status -sb || rm -rf src"), null);
+test("pipe 단계 분리는 따옴표 안의 세로줄을 구분자로 세지 않는다", () => {
+  assert.deepEqual(splitPipelineStages("git status -sb"), ["git status -sb"]);
+  assert.deepEqual(splitPipelineStages("git status | tail -5"), ["git status ", " tail -5"]);
+  assert.deepEqual(splitPipelineStages(`grep -n "a|b" src`), [`grep -n "a|b" src`]);
+  assert.deepEqual(splitPipelineStages("grep -n 'a|b' src | wc -l"), [
+    "grep -n 'a|b' src ",
+    " wc -l",
+  ]);
+  assert.deepEqual(splitPipelineStages("git status || rm -rf src"), [
+    "git status ",
+    "",
+    " rm -rf src",
+  ]);
+  // 닫히지 않은 따옴표는 어디까지가 한 단계인지 말할 수 없다.
+  assert.equal(splitPipelineStages(`grep -n "a | b src`), null);
+});
 
+test("모든 pipe 단계가 읽기일 때만 통과시키고 쓰기 단계가 하나라도 있으면 차단한다", () => {
   for (const command of [
     "pnpm workflow:release -- EAT-37 | tail -3",
     "pnpm workflow:doctor | head -20",
     "pnpm workflow:worktree prune | Select-Object -First 5",
     "rg -n TODO src | wc -l",
+    "grep -rn TODO src | head -20 | wc -l",
+    "git log --oneline -20 | grep fix | head -5",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, false, command);
   }
@@ -573,7 +611,57 @@ test("pipe 뒤가 출력 필터면 앞 명령의 판정을 유지하고 쓰기 �
     "pnpm workflow:doctor | node scripts/write.mjs",
     "rg -n TODO src | xargs sed -i s/a/b/",
     "rm -rf src | tail -1",
+    "grep -rn TODO src | head -5 | node scripts/write.mjs",
+    "git status || rm -rf src",
+    "cat a.txt |",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("추가·덮어쓰기 redirect는 pipe를 나누기 전에 명령 전체에서 먼저 차단한다", () => {
+  for (const command of [
     "pnpm workflow:release -- EAT-37 | tail -3 > release.log",
+    "pnpm workflow:release -- EAT-37 | tail -3 >> release.log",
+    "pnpm workflow:doctor >> doctor.log",
+    "grep -rn TODO src >> todo.txt",
+    "git status -sb | head -5 >> status.txt",
+    "cat a.txt >> b.txt",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: true, reason: "compound-or-writing-command" },
+      command,
+    );
+  }
+});
+
+test("순수 읽기 명령은 lease 없이 허용하고 파일을 쓰거나 실행하는 술어가 붙으면 차단한다", () => {
+  for (const command of [
+    "grep -rn 'requestedIssue' tools/agent-workflow -A 25",
+    "cat package.json",
+    "head -50 AGENTS.md",
+    "tail -n 20 docs/README.md",
+    "wc -l tools/agent-workflow/workflow.mjs",
+    "ls tools/agent-workflow",
+    "find docs -name '*.md'",
+    "find . -type f -newer package.json",
+    "jq .scripts package.json",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "read-or-verification-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "find . -name '*.tmp' -delete",
+    "find . -name '*.tmp' -exec rm {} ;",
+    "find . -type f -execdir rm {} +",
+    "find . -name '*.md' -fprintf out.txt %p",
+    "sort -o sorted.txt a.txt",
+    "tee out.txt",
+    "cat a.txt > b.txt",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
   }
