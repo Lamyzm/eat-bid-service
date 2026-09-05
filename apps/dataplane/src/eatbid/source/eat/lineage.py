@@ -11,7 +11,7 @@ from eatbid.generated.ingestion_v2 import (
     NormalizedAttemptLink,
     NormalizedAuctionLineage,
 )
-from eatbid.source.eat.code_schemes import CHAIN_BID_STATUS, optional_scheme_value
+from eatbid.source.eat.code_schemes import ATTEMPT_STATUS, optional_scheme_value
 from eatbid.source.eat.wire_text import optional_text, required_text
 from eatbid.source.eat.wire_values_v2 import optional_instant_text, optional_money
 from eatbid.source.eat.xml import ParsedNexacro
@@ -44,7 +44,7 @@ def parse_lineage(
                     if display_bid_number is not None
                     else None
                 ),
-                source_status=optional_scheme_value(row, CHAIN_BID_STATUS),
+                source_status=optional_scheme_value(row, ATTEMPT_STATUS),
                 bid_opened_from=optional_instant_text(
                     row, "BID_STRT_DT", "%Y%m%d%H%M%S"
                 ),

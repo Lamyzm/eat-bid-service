@@ -306,7 +306,7 @@ def test_재입찰_사슬은_원본_id로만_잇고_공고번호_접미사를_�
     assert first_announcement.display_bid_number.root == "E230918-187847-0"
     assert first_announcement.source_status is not None
     assert first_announcement.source_status.code == "009"
-    assert first_announcement.source_status.code_scheme == "eat:chain-bid-status"
+    assert first_announcement.source_status.code_scheme == "eat:attempt-status"
 
 
 def test_사슬에_같은_공고_id가_두_번_나오면_거부한다() -> None:

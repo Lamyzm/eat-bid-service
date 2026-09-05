@@ -16,7 +16,7 @@ const approvedNamespaces = [
   "eat:planned-price-type",
   "eat:award-method",
   "eat:reserve-price-selection-flag",
-  "eat:chain-bid-status",
+  "eat:attempt-status",
 ];
 
 // eaT 상세 파서(`apps/dataplane/src/eatbid/source/eat/code_schemes.py`)가 싣는 여덟이다. 같은 목록을
@@ -29,7 +29,7 @@ const eatDetailParserNamespaces = [
   "eat:planned-price-type",
   "eat:award-method",
   "eat:reserve-price-selection-flag",
-  "eat:chain-bid-status",
+  "eat:attempt-status",
 ];
 
 const approvedCodeSchemes = [
@@ -112,7 +112,7 @@ const approvedCodeSchemes = [
     validTimePolicy: "effective-dated",
   },
   {
-    namespace: "eat:chain-bid-status",
+    namespace: "eat:attempt-status",
     owner: "aT",
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",

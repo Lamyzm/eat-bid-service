@@ -148,7 +148,7 @@
         "displayBidNumber": "E260829-000000-0",
         "sourceStatus": {
           "sourceSystem": "eat",
-          "codeScheme": "eat:chain-bid-status",
+          "codeScheme": "eat:attempt-status",
           "code": "009",
           "label": "유찰"
         },

@@ -84,7 +84,7 @@ export const builtinCodeSchemes = [
     validTimePolicy: "effective-dated",
   },
   {
-    namespace: "eat:chain-bid-status",
+    namespace: "eat:attempt-status",
     owner: "aT",
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",

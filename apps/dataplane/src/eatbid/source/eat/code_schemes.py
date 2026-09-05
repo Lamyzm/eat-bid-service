@@ -60,11 +60,12 @@ RESERVE_PRICE_SELECTION_FLAG = EatCodeScheme(
     "eat:reserve-price-selection-flag", "CHC_YN"
 )
 
-# 재입찰 사슬의 각 차수가 어떻게 끝났는지다(실측 007 낙찰·009 유찰·003 입찰공고). 투찰 한 건의
-# 판정인 `eat:bid-status`와 grain이 달라 같은 체계로 묶지 않는다.
-CHAIN_BID_STATUS = EatCodeScheme(
-    "eat:chain-bid-status", "ETN_BID_STT", "ETN_BID_STT_NM"
-)
+# 공고 시도 하나의 상태다. 실측 값이 007 낙찰·009 유찰·003 입찰공고
+# (`docs/audit-source/census-detail.txt:98`)라 투찰이 아니라 회차 자체의 상태이며, 그래서 이름도
+# `AuctionAttempt`의 어휘를 따른다(AGENTS 4). 지금은 `ds_bidHistory`의 재입찰 사슬 행에서만
+# 관측되지만 사슬은 이 체계가 어디서 보이는지일 뿐 정체성이 아니다. 투찰 한 건의 판정인
+# `eat:bid-status`와는 grain이 달라 같은 체계로 묶지 않는다(AGENTS 6).
+ATTEMPT_STATUS = EatCodeScheme("eat:attempt-status", "ETN_BID_STT", "ETN_BID_STT_NM")
 
 # 시드 `packages/db/src/seeds/code-schemes.ts`와 같은지 `tests/unit/test_code_schemes.py`가 고정한다.
 EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
@@ -75,7 +76,7 @@ EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     PLANNED_PRICE_TYPE,
     AWARD_METHOD,
     RESERVE_PRICE_SELECTION_FLAG,
-    CHAIN_BID_STATUS,
+    ATTEMPT_STATUS,
 )
 
 

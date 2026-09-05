@@ -210,13 +210,16 @@ column명은 정체성이 아니라 "지금 어디서 관측하는가"를 적은
 | `eat:planned-price-type` | `ds_info.PLNPRC_TYPE_CD` (라벨 `PLNPRCE_TYPE_NM`) | `source/eat/auction_terms.py` |
 | `eat:award-method` | `ds_info.SUCBID_DCSN_MTH_CD` (라벨 `SUCBD_DECISION_MTHD_NM`) | `source/eat/auction_terms.py` |
 | `eat:reserve-price-selection-flag` | `ds_pList.CHC_YN` | `source/eat/reserve_price.py` |
-| `eat:chain-bid-status` | `ds_bidHistory.ETN_BID_STT` (라벨 `ETN_BID_STT_NM`) | `source/eat/lineage.py` |
+| `eat:attempt-status` | `ds_bidHistory.ETN_BID_STT` (라벨 `ETN_BID_STT_NM`) | `source/eat/lineage.py` |
 
 낙찰 방식은 `SUCBD_DECISION_MTHD`가 아니라 `SUCBID_DCSN_MTH_CD`다. 앞 이름은 `ds_bidList`·
 `ds_bidHistory`에만 있고 `ds_info`에는 없으며, `SUCBD_DECISION_MTHD_NM`은 라벨이지 코드가 아니다.
 `eat:reserve-price-selection-flag`는 그 회차 추첨에 뽑힌 복수예정가격 후보를 표시하며, 회차마다 정확히
 4행이 `Y`이고 그 넷의 평균이 예정가격이라는 전수 관측이 근거다
 ([2026-09-02 기전 판정](../experiments/2026-09-02-mechanism-verdict.md)).
+`eat:attempt-status`는 투찰이 아니라 공고 시도 하나의 상태다. 실측 값이 007 낙찰·009 유찰·003
+입찰공고라 grain이 `AuctionAttempt`이며(규칙 4), 지금은 재입찰 사슬 블록에서만 관측되지만 그 블록은
+관측 위치이지 정체성이 아니다. 투찰 한 건의 판정인 `eat:bid-status`와 묶지 않는다.
 
 이 여덟의 `CodeScheme` 등록(소유기관·버전·유효기간)은 `packages/db/src/seeds/code-schemes.ts`가 갖고,
 두 목록이 같은지는 `apps/dataplane/tests/unit/test_code_schemes.py`와 같은 이름의 시드 테스트가
