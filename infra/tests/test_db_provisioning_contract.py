@@ -23,6 +23,9 @@ REQUIRED_SQL_FRAGMENTS = (
     "revoke temporary",
     "revoke all on all tables in schema ingest from eatbid_api",
     "grant select on table drizzle.__drizzle_migrations to eatbid_api",
+    # mart 빌드는 dataplane이 실행하므로 mart DML이 필요하고, 런타임 DDL은 계속 금지다(ADR 0034).
+    "grant select, insert, update, delete on all tables in schema ingest, core, mart ",
+    "revoke create on schema ingest, core, mart, drizzle from eatbid_dataplane",
 )
 
 

@@ -66,13 +66,18 @@ begin
   execute 'revoke all on all sequences in schema core, mart, app, ingest, drizzle, public '
           'from eatbid_api';
 
-  -- dataplane 역할: 수집·정규화·투영이 쓰는 ingest·core만. 2026-09-05에 권한이 전혀 없어
-  -- 수집 discover 단계가 exit 64로 죽었다. mart·app은 이 workload가 건드리지 않으므로 주지 않는다.
-  execute 'grant usage on schema ingest, core, drizzle to eatbid_dataplane';
-  execute 'revoke create on schema ingest, core, drizzle from eatbid_dataplane';
-  execute 'grant select, insert, update, delete on all tables in schema ingest, core '
+  -- dataplane 역할: 수집·정규화·투영이 쓰는 ingest·core와 mart 빌드가 쓰는 mart. 2026-09-05에
+  -- 권한이 전혀 없어 수집 discover 단계가 exit 64로 죽었다. app은 이 workload가 건드리지 않는다.
+  --
+  -- 왜 mart에 DML을 주는가: mart 빌드를 Argo `marts` 단계가 실행하므로 이 역할이 build 원장과 mart
+  -- 행을 쓴다(ADR 0034). CREATE는 주지 않는다 — 런타임 DDL의 저작자는 Drizzle 하나뿐이고(AGENTS 10)
+  -- 활성 build 전환도 표를 만들거나 바꾸지 않고 UPDATE 둘로 끝난다.
+  execute 'grant usage on schema ingest, core, mart, drizzle to eatbid_dataplane';
+  execute 'revoke create on schema ingest, core, mart, drizzle from eatbid_dataplane';
+  execute 'grant select, insert, update, delete on all tables in schema ingest, core, mart '
           'to eatbid_dataplane';
-  execute 'grant usage, select, update on all sequences in schema ingest, core to eatbid_dataplane';
+  execute 'grant usage, select, update on all sequences in schema ingest, core, mart '
+          'to eatbid_dataplane';
   execute 'grant select on all tables in schema drizzle to eatbid_dataplane';
 
   foreach grantor in array array['eatbid_migrator', current_user] loop
@@ -83,10 +88,10 @@ begin
       'alter default privileges for role %I in schema app '
       'grant select, insert, update, delete on tables to eatbid_api', grantor);
     execute format(
-      'alter default privileges for role %I in schema ingest, core '
+      'alter default privileges for role %I in schema ingest, core, mart '
       'grant select, insert, update, delete on tables to eatbid_dataplane', grantor);
     execute format(
-      'alter default privileges for role %I in schema ingest, core '
+      'alter default privileges for role %I in schema ingest, core, mart '
       'grant usage, select, update on sequences to eatbid_dataplane', grantor);
   end loop;
 end

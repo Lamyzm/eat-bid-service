@@ -67,6 +67,8 @@ async function expectDenied(label: string, work: () => Promise<unknown>): Promis
 interface DisposableDatabase {
   readonly ownerUrl: string;
   readonly apiUrl: string;
+  // mart 빌드를 Argo `marts` 단계가 실행하므로 dataplane 역할의 권한도 같은 배포 파일이 증명해야 한다.
+  readonly dataplaneUrl: string;
   readonly owner: ReturnType<typeof postgres>;
   readonly api: ReturnType<typeof postgres>;
 }
@@ -91,6 +93,7 @@ async function withDisposableDatabase<A>(work: (database: DisposableDatabase) =>
     if (!port) throw new Error(`Could not determine PostgreSQL port from ${portOutput}`);
     const ownerUrl = `postgres://eatbid_owner:owner-test-secret@127.0.0.1:${port}/eatbid_test`;
     const apiUrl = `postgres://eatbid_api:api-test-secret@127.0.0.1:${port}/eatbid_test`;
+    const dataplaneUrl = `postgres://eatbid_dataplane:dataplane-test-secret@127.0.0.1:${port}/eatbid_test`;
     owner = postgres(ownerUrl, { max: 1, connect_timeout: 1, onnotice: () => undefined });
     const deadline = Date.now() + 30_000;
     while (true) {
@@ -177,7 +180,7 @@ async function withDisposableDatabase<A>(work: (database: DisposableDatabase) =>
       connection: { statement_timeout: 5_000, lock_timeout: 2_000 },
     });
     await api`select 1`;
-    return await work({ ownerUrl, apiUrl, owner, api });
+    return await work({ ownerUrl, apiUrl, dataplaneUrl, owner, api });
   } finally {
     if (api) await api.end({ timeout: 1 }).catch(() => undefined);
     if (owner) await owner.end({ timeout: 1 }).catch(() => undefined);
@@ -774,6 +777,67 @@ describe("owner 범위 PostgreSQL 경계", () => {
       // Sync hook은 매 sync마다 다시 돈다. 두 번째 실행이 권한을 바꾸면 readiness가 흔들린다.
       await owner.unsafe(provisioningSql);
       expect(await readiness.isReady()).toBe(true);
+    });
+    expect(await taskContainers()).toEqual([]);
+  }, 120_000);
+
+  test("dataplane 역할이 mart를 쓰고 읽지만 mart에 표를 만들지는 못한다", async () => {
+    await withDisposableDatabase(async ({ owner, api, dataplaneUrl }) => {
+      const dataplane = postgres(dataplaneUrl, {
+        max: 2,
+        connect_timeout: 2,
+        connection: { statement_timeout: 5_000, lock_timeout: 2_000 },
+      });
+      try {
+        // mart 빌드가 실제로 쓰는 경로다. build 원장은 봉인될 입력 집합을 FK로 가리킨다.
+        const releaseId = "3f4b0f7c-0a2f-4d5f-9d1e-0c6b7a8e9f01";
+        await owner`
+          insert into ingest.source_release
+            (source_release_id, source, release_name, status, as_of)
+          values (${releaseId}::uuid, 'eat', 'dataplane mart probe', 'planned', now())
+        `;
+        const inserted = await dataplane`
+          insert into mart.build
+            (mart_name, source_release_id, calc_version, builder_version, status, as_of, started_at)
+          values ('org_round_summary', ${releaseId}::uuid, 'mart-r1', ${"a".repeat(40)},
+                  'building', now(), now())
+          returning build_id
+        `;
+        const buildId = inserted[0]?.build_id;
+        expect(buildId).toBeDefined();
+        await dataplane`update mart.build set row_count = 0 where build_id = ${buildId}`;
+        await dataplane`delete from mart.build where build_id = ${buildId}`;
+        expect(await dataplane`select count(*)::int as count from mart.org_round_summary`)
+          .toEqual([{ count: 0 }]);
+        // identity 키는 sequence ACL을 요구하지 않지만, mart 쪽 sequence 권한이 dataplane에는
+        // 서 있어야 한다는 것이 이 배포 파일의 선언이다.
+        expect(await dataplane`
+          select count(*)::int as count from information_schema.role_usage_grants
+          where object_schema = 'mart' and grantee = 'eatbid_dataplane'
+        `).not.toEqual([{ count: 0 }]);
+
+        // 런타임 DDL의 저작자는 Drizzle 하나뿐이다(AGENTS 10).
+        await expectDenied("dataplane mart DDL", () =>
+          dataplane`create table mart.dataplane_create_attack (id bigint)`);
+        await expectDenied("dataplane app read", () => dataplane`select * from app.principal`);
+
+        // provisioning 뒤에 생긴 mart 표에도 default privileges가 붙어야 다음 migration 하나에
+        // 빌드가 권한 오류로 죽지 않는다.
+        await owner.unsafe(`
+          set role eatbid_migrator;
+          create table mart.late_dataplane_probe (probe_id bigint primary key);
+          reset role;
+        `);
+        await dataplane`insert into mart.late_dataplane_probe (probe_id) values (1)`;
+        await dataplane`delete from mart.late_dataplane_probe`;
+        // API는 그대로 mart 읽기 전용이다.
+        expect(await api`select count(*)::int as count from mart.late_dataplane_probe`)
+          .toEqual([{ count: 0 }]);
+        await expectDenied("api mart write", () =>
+          api`insert into mart.late_dataplane_probe (probe_id) values (1)`);
+      } finally {
+        await dataplane.end({ timeout: 1 }).catch(() => undefined);
+      }
     });
     expect(await taskContainers()).toEqual([]);
   }, 120_000);
