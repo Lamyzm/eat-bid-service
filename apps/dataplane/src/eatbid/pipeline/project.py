@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from pydantic import ValidationError
 
+from eatbid.core.auction_v2_projection import build_eat_auction_v2_projection
 from eatbid.core.build_identity import validate_build_sha
 from eatbid.core.models import (
     AuctionProjection,
@@ -18,24 +19,34 @@ from eatbid.core.models import (
     ProjectResult,
     canonical_projection_fingerprint,
 )
-from eatbid.core.record_types import is_projectable_record_type
+from eatbid.core.projection_models import instant_datetime, money_decimal
+from eatbid.core.record_types import (
+    AUCTION_V1,
+    AUCTION_V2,
+    is_projectable_record_type,
+)
 from eatbid.core.repository import (
     CanonicalProjectionRepository,
     FrozenPublicationMember,
     ProjectionContractError,
     PublishedProjectionEvidence,
 )
-from eatbid.generated.ingestion_v1 import EatbidIngestionAuctionV1, InstantText, Money
+from eatbid.generated.ingestion_v1 import EatbidIngestionAuctionV1
+from eatbid.source.eat.code_schemes import (
+    AUCTION_LOCATION_SIDO,
+    AUCTION_LOCATION_SIGUNGU,
+    ELIGIBILITY_AREA,
+)
 
 __all__ = [
     "ProjectionFingerprintItem",
     "build_eat_auction_projection",
+    "build_projection",
     "canonical_projection_fingerprint",
     "parse_canonical_normalized_auction",
     "project_publication",
     "verify_published_publication",
 ]
-
 
 def _require_projectable(record_type: str) -> None:
     if not is_projectable_record_type(record_type):
@@ -77,7 +88,6 @@ def build_eat_auction_projection(
         raise ProjectionContractError("projection source must be eat")
     if member.endpoint != "bid-detail":
         raise ProjectionContractError("projection endpoint must be bid-detail")
-    _require_projectable(member.record_type)
     if member.parser_version != member.run_parser_version:
         raise ProjectionContractError("projection parser version differs from run")
     if len(member.raw_content_sha256) != 64 or any(
@@ -107,7 +117,7 @@ def build_eat_auction_projection(
     if record.location.sido_code is not None:
         code_refs.append(
             ExternalCodeRef(
-                namespace="eat:auction-location-sido",
+                namespace=AUCTION_LOCATION_SIDO.namespace,
                 code=record.location.sido_code.root,
                 role="location_sido",
             )
@@ -115,14 +125,14 @@ def build_eat_auction_projection(
     if record.location.sigungu_code is not None:
         code_refs.append(
             ExternalCodeRef(
-                namespace="eat:auction-location-sigungu",
+                namespace=AUCTION_LOCATION_SIGUNGU.namespace,
                 code=record.location.sigungu_code.root,
                 role="location_sigungu",
             )
         )
     code_refs.extend(
         ExternalCodeRef(
-            namespace="eat:eligibility-area",
+            namespace=ELIGIBILITY_AREA.namespace,
             code=code,
             role="eligibility_area",
         )
@@ -150,22 +160,39 @@ def build_eat_auction_projection(
         code_refs=tuple(code_refs),
         source_status=record.identity.status,
         title=record.identity.title,
-        announced_at=_instant_datetime(record.schedule.announced_at),
-        deadline_at=_instant_datetime(record.schedule.deadline_at),
-        opened_at=_instant_datetime(record.schedule.opened_at),
-        base_amount=_money_decimal(record.pricing.base_amount),
-        planned_amount=_money_decimal(record.pricing.planned_amount),
+        announced_at=instant_datetime(record.schedule.announced_at),
+        deadline_at=instant_datetime(record.schedule.deadline_at),
+        opened_at=instant_datetime(record.schedule.opened_at),
+        base_amount=money_decimal(record.pricing.base_amount),
+        planned_amount=money_decimal(record.pricing.planned_amount),
         currency="KRW",
         source_payload=source_payload,
     )
 
+# record type이 어떤 빌더를 부르는지의 단일 출처다. 한 publication 안에 두 record type이 섞이는 것은
+# `run.parser_version`이 이미 막고, 여기서는 봉인된 구성원의 이름만 보고 계약을 고른다.
+_PROJECTION_BUILDERS: dict[
+    str, Callable[[FrozenPublicationMember], AuctionProjection]
+] = {
+    AUCTION_V1: build_eat_auction_projection,
+    AUCTION_V2: build_eat_auction_v2_projection,
+}
 
-def _instant_datetime(value: InstantText | None) -> datetime | None:
-    return datetime.fromisoformat(value.root) if value is not None else None
 
+def build_projection(member: FrozenPublicationMember) -> AuctionProjection:
+    """구성원의 record type이 고른 빌더로 투영을 만든다.
 
-def _money_decimal(value: Money | None) -> Decimal | None:
-    return Decimal(value.amount) if value is not None else None
+    기본 빌더를 두지 않는 이유는 발행 가능 목록에 이름만 더하고 빌더를 잊는 순간 v2 record가 v1 모양
+    으로 조용히 투영되기 때문이다. 모르는 이름은 fail-closed다.
+    """
+    _require_projectable(member.record_type)
+    builder = _PROJECTION_BUILDERS.get(member.record_type)
+    if builder is None:
+        raise ProjectionContractError(
+            f"normalized record type has no projection builder "
+            f"[record_type={member.record_type}]"
+        )
+    return builder(member)
 
 
 def project_publication(
@@ -184,7 +211,7 @@ def project_publication(
         publication_id=publication_id,
         projector_version=projector_version,
         activated_at=activated_at,
-        projection_factory=build_eat_auction_projection,
+        projection_factory=build_projection,
     )
 
 
@@ -200,5 +227,5 @@ def verify_published_publication(
     return repository.verify_published_publication(
         publication_id=publication_id,
         projector_version=projector_version,
-        projection_factory=build_eat_auction_projection,
+        projection_factory=build_projection,
     )

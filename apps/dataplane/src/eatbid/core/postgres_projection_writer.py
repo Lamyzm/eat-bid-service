@@ -1,20 +1,44 @@
+"""모듈 책임: 공고 한 건의 투영을 호출자가 잠근 트랜잭션 안에서 attempt·revision·기관 관계로
+앉히고, v2 투영이면 명단·낙찰·사슬 writer를 같은 커서로 잇는다.
+
+값 검증은 `projection_validation`, 코드 해소는 `postgres_code_values`, 명단 grain은
+`postgres_roster_writer`·`postgres_supplier_writer`·`postgres_lineage_writer`가 각각 소유한다.
+여기 남는 것은 "무엇을 어떤 순서로 잠그고 쓰는가"뿐이다.
+"""
+
 from __future__ import annotations
 
-import json
-import re
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
 import psycopg
 from psycopg.types.json import Jsonb
 
-from eatbid.core.models import AuctionProjection, ExternalCodeRef
+from eatbid.core.models import AuctionProjection
+from eatbid.core.postgres_code_values import resolve_code_value, resolve_label
+from eatbid.core.postgres_lineage_writer import LineageProjectionWriter
+from eatbid.core.postgres_roster_writer import RosterProjectionWriter
+from eatbid.core.projection_models import (
+    AppliedProjectionCounts,
+    AuctionV2Projection,
+)
+from eatbid.core.projection_validation import canonical_json, validate_projection
 from eatbid.core.repository import ProjectionContractError
+from eatbid.source.eat.code_schemes import ORGANIZATION
+
+__all__ = ["CanonicalProjectionWriter", "validate_projection"]
 
 
 class CanonicalProjectionWriter:
     """Insert-or-verify canonical rows within the caller's locked transaction."""
+
+    def __init__(
+        self,
+        roster: RosterProjectionWriter | None = None,
+        lineage: LineageProjectionWriter | None = None,
+    ) -> None:
+        self._roster = roster or RosterProjectionWriter()
+        self._lineage = lineage or LineageProjectionWriter()
 
     def apply(
         self,
@@ -23,11 +47,11 @@ class CanonicalProjectionWriter:
         projection: AuctionProjection,
         observed_at: datetime,
         allow_insert: bool,
-    ) -> tuple[int, int, int, int, int, int]:
+    ) -> AppliedProjectionCounts:
         validate_projection(projection)
-        organization_code_id, organization_code_inserted = self._resolve_code_value(
+        organization_code_id, organization_code_inserted = resolve_code_value(
             cursor,
-            namespace="eat:organization",
+            namespace=ORGANIZATION.namespace,
             code=projection.organization_code,
             allow_insert=allow_insert,
         )
@@ -37,7 +61,7 @@ class CanonicalProjectionWriter:
             observation_id=projection.observation_id,
             allow_insert=allow_insert,
         )
-        label_inserted = self._resolve_label(
+        label_inserted = resolve_label(
             cursor,
             code_value_id=organization_code_id,
             label=projection.organization_label,
@@ -63,7 +87,7 @@ class CanonicalProjectionWriter:
         code_values_inserted = organization_code_inserted
         expected_code_relationships: set[tuple[int, str]] = set()
         for reference in projection.code_refs:
-            code_value_id, inserted = self._resolve_code_value(
+            code_value_id, inserted = resolve_code_value(
                 cursor,
                 namespace=reference.namespace,
                 code=reference.code,
@@ -83,59 +107,31 @@ class CanonicalProjectionWriter:
             organization_id=organization_id,
             code_relationships=expected_code_relationships,
         )
-        return (
-            attempt_inserted,
-            revision_inserted,
-            organization_inserted,
-            code_values_inserted,
-            label_inserted,
-            relationships_inserted,
+        counts = AppliedProjectionCounts(
+            auction_attempts=attempt_inserted,
+            auction_revisions=revision_inserted,
+            organizations=organization_inserted,
+            code_values=code_values_inserted,
+            code_labels=label_inserted,
+            relationships=relationships_inserted,
         )
-
-    @staticmethod
-    def _resolve_code_value(
-        cursor: psycopg.Cursor[Any],
-        *,
-        namespace: str,
-        code: str,
-        allow_insert: bool,
-    ) -> tuple[int, int]:
-        cursor.execute(
-            "select code_scheme_id from core.code_scheme where namespace = %s",
-            (namespace,),
-        )
-        scheme = cursor.fetchone()
-        if scheme is None:
-            raise ProjectionContractError(
-                f"reviewed code scheme is missing: {namespace}"
+        if isinstance(projection, AuctionV2Projection):
+            counts += self._roster.apply(
+                cursor,
+                projection=projection,
+                revision_id=revision_id,
+                attempt_id=attempt_id,
+                observed_at=observed_at,
+                allow_insert=allow_insert,
             )
-        scheme_id = int(scheme[0])
-        if allow_insert:
-            cursor.execute(
-                """
-                insert into core.code_value (code_scheme_id, code)
-                values (%s, %s)
-                on conflict (code_scheme_id, code) do nothing
-                returning code_value_id
-                """,
-                (scheme_id, code),
+            counts += self._lineage.apply(
+                cursor,
+                projection=projection,
+                revision_id=revision_id,
+                attempt_id=attempt_id,
+                allow_insert=allow_insert,
             )
-            inserted = cursor.fetchone()
-            if inserted is not None:
-                return int(inserted[0]), 1
-        cursor.execute(
-            """
-            select code_value_id from core.code_value
-            where code_scheme_id = %s and code = %s for update
-            """,
-            (scheme_id, code),
-        )
-        existing = cursor.fetchone()
-        if existing is None:
-            raise ProjectionContractError(
-                f"published code value is missing: {namespace}/{code}"
-            )
-        return int(existing[0]), 0
+        return counts
 
     @staticmethod
     def _resolve_organization(
@@ -179,44 +175,6 @@ class CanonicalProjectionWriter:
             (organization_id, code_value_id, observation_id),
         )
         return organization_id, 1
-
-    @staticmethod
-    def _resolve_label(
-        cursor: psycopg.Cursor[Any],
-        *,
-        code_value_id: int,
-        label: str,
-        observation_id: int,
-        observed_at: datetime,
-        allow_insert: bool,
-    ) -> int:
-        if allow_insert:
-            cursor.execute(
-                """
-                insert into core.code_label_observation (
-                    code_value_id, label, language, observed_at, observation_id
-                ) values (%s, %s, 'und', %s, %s)
-                on conflict (code_value_id, label, language, observation_id) do nothing
-                returning code_label_observation_id
-                """,
-                (code_value_id, label, observed_at, observation_id),
-            )
-            inserted = cursor.fetchone()
-            if inserted is not None:
-                return 1
-        cursor.execute(
-            """
-            select observed_at from core.code_label_observation
-            where code_value_id = %s and label = %s and language = 'und'
-              and observation_id = %s
-            for update
-            """,
-            (code_value_id, label, observation_id),
-        )
-        existing = cursor.fetchone()
-        if existing is None or existing[0] != observed_at:
-            raise ProjectionContractError("organization label evidence conflicts")
-        return 0
 
     @staticmethod
     def _resolve_attempt(
@@ -319,7 +277,7 @@ class CanonicalProjectionWriter:
             projection.currency,
         )
         actual = tuple(existing[1:13])
-        if actual != expected or _canonical_json(existing[13]) != _canonical_json(
+        if actual != expected or canonical_json(existing[13]) != canonical_json(
             projection.source_payload
         ):
             raise ProjectionContractError("persisted auction revision conflicts")
@@ -380,99 +338,3 @@ class CanonicalProjectionWriter:
         codes = {(int(row[0]), str(row[1])) for row in cursor.fetchall()}
         if codes != code_relationships:
             raise ProjectionContractError("code-value relationship set conflicts")
-
-
-def _canonical_json(value: object) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-_SHA256 = re.compile(r"[0-9a-f]{64}")
-_REVIEWED_CODE_ROLES = {
-    "eat:auction-location-sido": "location_sido",
-    "eat:auction-location-sigungu": "location_sigungu",
-    "eat:eligibility-area": "eligibility_area",
-}
-
-
-def validate_projection(projection: AuctionProjection) -> None:
-    if not isinstance(projection, AuctionProjection):
-        raise ProjectionContractError(
-            "projection factory must return AuctionProjection"
-        )
-    if any(
-        isinstance(value, bool) or not isinstance(value, int) or value <= 0
-        for value in (projection.normalized_record_id, projection.observation_id)
-    ):
-        raise ProjectionContractError("projection lineage IDs must be positive")
-    required = {
-        "source_system": projection.source_system,
-        "endpoint": projection.endpoint,
-        "parser_version": projection.parser_version,
-        "external_bid_id": projection.external_bid_id,
-        "organization_code": projection.organization_code,
-        "organization_label": projection.organization_label,
-        "source_status": projection.source_status,
-        "title": projection.title,
-        "currency": projection.currency,
-    }
-    if any(
-        not isinstance(value, str) or not value.strip() for value in required.values()
-    ):
-        raise ProjectionContractError("projection required strings must be non-empty")
-    if projection.display_bid_no is not None and not isinstance(
-        projection.display_bid_no, str
-    ):
-        raise ProjectionContractError(
-            "projection display bid number must be text or null"
-        )
-    for value in (
-        projection.announced_at,
-        projection.deadline_at,
-        projection.opened_at,
-    ):
-        if value is not None and (
-            not isinstance(value, datetime) or value.utcoffset() is None
-        ):
-            raise ProjectionContractError(
-                "projection timestamps must be timezone-aware or null"
-            )
-    for value in (projection.base_amount, projection.planned_amount):
-        if value is not None and not isinstance(value, Decimal):
-            raise ProjectionContractError("projection amounts must be decimal or null")
-    for digest in (
-        projection.raw_content_sha256,
-        projection.normalized_payload_sha256,
-    ):
-        if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None:
-            raise ProjectionContractError("projection hashes must be lowercase SHA-256")
-    if not isinstance(projection.source_payload, dict):
-        raise ProjectionContractError("projection source payload must be a JSON object")
-    try:
-        _canonical_json(projection.source_payload)
-    except (TypeError, ValueError) as error:
-        raise ProjectionContractError(
-            "projection source payload must be JSON serializable"
-        ) from error
-    if not isinstance(projection.code_refs, tuple):
-        raise ProjectionContractError("projection code references must be a tuple")
-    identities: set[tuple[str, str, str]] = set()
-    for reference in projection.code_refs:
-        if not isinstance(reference, ExternalCodeRef):
-            raise ProjectionContractError(
-                "projection code references must be ExternalCodeRef values"
-            )
-        if any(
-            not isinstance(value, str) or not value.strip()
-            for value in (reference.namespace, reference.code, reference.role)
-        ):
-            raise ProjectionContractError(
-                "projection code reference fields must be non-empty strings"
-            )
-        if _REVIEWED_CODE_ROLES.get(reference.namespace) != reference.role:
-            raise ProjectionContractError("projection code reference is not reviewed")
-        identity = (reference.namespace, reference.code, reference.role)
-        if identity in identities:
-            raise ProjectionContractError(
-                "projection code references must be deduplicated"
-            )
-        identities.add(identity)
