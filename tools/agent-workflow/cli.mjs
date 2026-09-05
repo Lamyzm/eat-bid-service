@@ -226,7 +226,9 @@ async function worktree() {
 // issue 발행은 lease나 worktree와 무관하다. 새 작업을 시작하려는 세션이 아직 claim할 issue를 갖고
 // 있지 않은 상태에서 실행하는 명령이므로 저장소 context를 요구하지 않는다.
 async function issue() {
-  const [subcommand, ...rest] = process.argv.slice(process.argv.indexOf("issue") + 1);
+  // `main`이 `process.argv[2]`로 command를 고르므로 인자는 언제나 그 다음부터다. `indexOf("issue")`로
+  // 찾으면 node 실행 경로나 저장소 경로에 같은 낱말이 있을 때 엉뚱한 자리에서 자른다.
+  const [subcommand, ...rest] = process.argv.slice(3);
   if (subcommand === "create") {
     // 본문 파일을 읽는 범위는 작업 공간과 임시 디렉터리로 한정한다. 저장소 루트를 알아내지 못하면
     // 임시 디렉터리만 남으므로 임의 경로가 조용히 통과하지 않는다.

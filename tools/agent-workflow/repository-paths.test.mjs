@@ -42,6 +42,18 @@ test("루트 자신을 가리키는 경로는 밖이 아니다", () => {
   assert.equal(isOutsideRepositoryRoots("F:/Project/eat-bid-service/", ROOTS, win32), false);
 });
 
+test("파일 하나를 root로 주면 그 파일만 저장소 안이고 형제 파일은 밖이다", () => {
+  // lease state 경로를 환경변수로 임시 디렉터리에 옮겼을 때 그 디렉터리 전체가 잠기지 않도록,
+  // 보호 대상은 state 파일 하나다.
+  const stateFile = "C:/Users/kano/AppData/Local/Temp/eatbid/state.json";
+  const roots = [...ROOTS, stateFile];
+  assert.equal(isOutsideRepositoryRoots(stateFile, roots, win32), false);
+  assert.equal(
+    isOutsideRepositoryRoots("C:/Users/kano/AppData/Local/Temp/eatbid/report.md", roots, win32),
+    true,
+  );
+});
+
 test("접두사만 같은 형제 디렉터리는 저장소 안으로 오인하지 않는다", () => {
   assert.equal(isOutsideRepositoryRoots("F:/Project/eat-bid-service-old/a.md", ROOTS, win32), true);
 });

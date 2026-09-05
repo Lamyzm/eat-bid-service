@@ -244,15 +244,14 @@ test("agent 사이 메시지 도구는 lease 없이 허용하고 하위 agent �
   }
 });
 
-test("Linear MCP의 issue·댓글 생성은 lease 없이 허용하고 상태 전환과 삭제는 계속 차단한다", () => {
-  for (const toolName of ["mcp__linear__create_issue", "mcp__linear__create_comment"]) {
-    assert.deepEqual(
-      classifyToolCall(toolName, {}),
-      { mutatesRepository: false, reason: "linear-issue-bootstrap-tool" },
-      toolName,
-    );
-  }
+test("Linear MCP의 issue 생성만 lease 없이 허용하고 댓글·상태 전환·삭제는 계속 차단한다", () => {
+  assert.deepEqual(classifyToolCall("mcp__linear__create_issue", {}), {
+    mutatesRepository: false,
+    reason: "linear-issue-bootstrap-tool",
+  });
+  // 댓글은 claim 이후 행위다. worklog는 인계에서 완료 근거로 읽으므로 lease 안에서만 쓴다.
   for (const toolName of [
+    "mcp__linear__create_comment",
     "mcp__linear__update_issue",
     "mcp__linear__create_project",
     "mcp__linear__delete_issue",
@@ -697,7 +696,16 @@ test("순수 읽기 명령은 lease 없이 허용하고 파일을 쓰거나 실�
 });
 
 test("uniq는 파일 인자가 하나 이하일 때만 읽기이고 출력 파일을 받으면 차단한다", () => {
-  for (const command of ["uniq", "uniq -c", "uniq input.txt", "uniq -c -d input.txt", "uniq --count input.txt"]) {
+  for (const command of [
+    "uniq",
+    "uniq -c",
+    "uniq input.txt",
+    "uniq -c -d input.txt",
+    "uniq --count input.txt",
+    // 단독 `-`는 표준 입력을 뜻하는 피연산자이며 출력 파일이 없으므로 읽기다.
+    "uniq -",
+    "uniq -c -",
+  ]) {
     assert.deepEqual(
       classifyToolCall("Bash", { command }),
       { mutatesRepository: false, reason: "read-or-verification-command" },
@@ -707,10 +715,27 @@ test("uniq는 파일 인자가 하나 이하일 때만 읽기이고 출력 파�
   for (const command of [
     "uniq input.txt output.txt",
     "uniq -c input.txt output.txt",
+    // 단독 `-`를 option으로 세면 뒤의 출력 파일이 남는다.
+    "uniq - out.txt",
+    "uniq -c - out.txt",
+    "uniq input.txt -",
     // 앞 단계가 읽기여도 pipe 뒤에서 파일을 덮어쓰면 차단된다.
     "cat a.txt | uniq input.txt output.txt",
+    "cat a.txt | uniq - out.txt",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("pipe 뒤 단계의 쓰기 명령도 mutating-command로 판정한다", () => {
+  // 단계 앞의 공백 때문에 MUTATING_COMMANDS가 통째로 비껴가면 fail-closed 기본값만 남는다.
+  for (const [command, reason] of [
+    ["git status | rm -rf src", "mutating-command"],
+    ["cat a.txt | git commit -m x", "mutating-command"],
+    ["ls | pnpm install", "mutating-command"],
+    ["rm -rf src | tail -1", "mutating-command"],
+  ]) {
+    assert.deepEqual(classifyToolCall("Bash", { command }), { mutatesRepository: true, reason }, command);
   }
 });
 

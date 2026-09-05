@@ -47,10 +47,11 @@ const AGENT_MESSAGING_TOOLS = new Set(["sendmessage", "listagents"]);
 // 읽기까지 막으면 받는 세션은 issue를 보기 전에 claim해야 한다.
 const LINEAR_READ_TOOL = /^mcp__linear__(?:get|list|search)_[a-z_]+$/i;
 
-// issue와 댓글 생성도 저장소 파일을 바꾸지 않는 부트스트랩 동작이다. 같은 이유로 막으면 "lease를
-// 잡으려면 issue가 있어야 하는데 issue를 만들려면 lease가 필요한" 순환이 생긴다. 상태 전환
-// (`update_issue`)은 claim·release가 소유하므로 여기에 넣지 않는다.
-const LINEAR_CREATE_TOOL = /^mcp__linear__create_(?:issue|comment)$/i;
+// issue 생성만 저장소 파일을 바꾸지 않는 부트스트랩 동작이다. 막으면 "lease를 잡으려면 issue가
+// 있어야 하는데 issue를 만들려면 lease가 필요한" 순환이 생기고, 그 순환은 이 하나로 끊긴다.
+// 댓글(`create_comment`)은 claim 이후 행위이며 worklog는 인계에서 완료 근거로 읽는 기록이라
+// claim하지 않은 세션이 남의 issue에 쓰게 두지 않는다. 상태 전환(`update_issue`)도 claim·release가 소유한다.
+const LINEAR_CREATE_TOOL = /^mcp__linear__create_issue$/i;
 
 // 브라우저 도구는 저장소 파일에 닿지 않는다. 화면 확인은 구현 중 검증의 일부라 lease 없이도 열되,
 // 폼 입력·클릭·파일 업로드처럼 외부 상태를 바꾸는 상호작용은 계속 fail-closed로 둔다.
@@ -131,8 +132,9 @@ const MUTATING_COMMANDS = [
 const TEXT_FILTER_COMMAND = /^(?:grep|egrep|fgrep|cat|head|tail|wc|cut|tr|nl|jq|ls|dir)\b/i;
 
 // `uniq INPUT OUTPUT`는 두 번째 파일 인자를 덮어쓴다. 다른 필터와 달리 인자 수가 읽기와 쓰기를
-// 가르므로, option을 뺀 파일 인자가 하나 이하일 때만 읽기로 본다.
-const UNIQ_READ_COMMAND = /^uniq(?:\s+-[^\s]*)*(?:\s+(?!-)[^\s]+)?\s*$/i;
+// 가르므로, option을 뺀 파일 인자가 하나 이하일 때만 읽기로 본다. 단독 `-`는 option이 아니라
+// 표준 입력을 뜻하는 파일 피연산자다. option으로 세면 `uniq - out.txt`의 출력 파일이 남는다.
+const UNIQ_READ_COMMAND = /^uniq(?:\s+-[^\s]+)*(?:\s+(?:-|(?!-)[^\s]+))?\s*$/i;
 
 // `find`는 파일을 지우거나(`-delete`) 결과를 파일로 쓰거나(`-fprint`, `-fprint0`, `-fprintf`, `-fls`)
 // 다른 프로그램을 실행하는(`-exec`, `-execdir`, `-ok`, `-okdir`) 술어를 갖는다. 술어 끝을 `\b`로
@@ -268,7 +270,9 @@ function classifyShellStage(command) {
   if (BRANCH_CREATION_COMMAND.test(command.trim())) {
     return { mutatesRepository: false, reason: "branch-creation-command" };
   }
-  if (MUTATING_COMMANDS.some((pattern) => pattern.test(command))) {
+  // MUTATING_COMMANDS는 `(?:^|[;&|]\s*)`로 시작한다. pipe로 나눈 두 번째 이후 단계는 앞에 공백이
+  // 남고 `|`는 이미 제거돼 있어 trim 없이는 어느 쪽에도 걸리지 않는다. 다른 검사와 같은 문자열을 본다.
+  if (MUTATING_COMMANDS.some((pattern) => pattern.test(command.trim()))) {
     return { mutatesRepository: true, reason: "mutating-command" };
   }
   if (WORKFLOW_LIFECYCLE_COMMAND.test(command.trim())) {

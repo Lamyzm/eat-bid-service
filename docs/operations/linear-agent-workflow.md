@@ -204,9 +204,10 @@ pnpm workflow:issue create -- --title "제목" --project "다른 project"
 - 다음 절 0번의 중복 확인은 그대로 유효하다. 발행이 쉬워졌다고 기존 issue를 훑지 않고 새로 만들면
   추적이 갈라진다.
 
-Linear MCP가 연결돼 있으면 `create_issue`와 `create_comment`도 lease 없이 쓸 수 있다. issue·댓글 생성은
-저장소 파일을 바꾸지 않는 부트스트랩 동작이고, 이것을 막으면 "lease를 잡으려면 issue가 있어야 하는데
-issue를 만들려면 lease가 필요한" 순환이 생긴다. 상태 전환(`update_issue`)은 `claim`과 `release`가
+Linear MCP가 연결돼 있으면 `create_issue`도 lease 없이 쓸 수 있다. issue 생성은 저장소 파일을 바꾸지
+않는 부트스트랩 동작이고, 이것을 막으면 "lease를 잡으려면 issue가 있어야 하는데 issue를 만들려면
+lease가 필요한" 순환이 생긴다. 댓글 생성(`create_comment`)은 claim 이후 행위이며 worklog는 인계에서
+완료 근거로 읽는 기록이라 lease 안에서만 쓴다. 상태 전환(`update_issue`)도 `claim`과 `release`가
 소유하므로 계속 lease가 필요하다.
 
 사람 몫으로 남는 것은 Linear workspace 계정과 team 구성, 그리고 `LINEAR_API_KEY` 발급·회전뿐이다.
@@ -240,7 +241,7 @@ lease 없이 허용하는 것은 `tools/agent-workflow/workflow.mjs` 분류기�
 EnterWorktree/ExitWorktree, agent 사이 메시지 도구 SendMessage/ListAgents(하위 세션을 실행하는
 Agent/Task는 그 세션이 파일을 바꿀 수 있으므로 제외),
 Linear MCP의 `get_* | list_* | search_*` 읽기 도구와 부트스트랩용
-`create_issue | create_comment`, chrome-devtools MCP의
+`create_issue`, chrome-devtools MCP의
 `navigate_page | take_screenshot | take_snapshot | evaluate_script | list_pages | select_page | wait_for |
 list_console_messages | get_console_message | list_network_requests | get_network_request`,
 파일을 쓰는 수단이 없는 읽기 명령 `rg`·`grep`·`cat`·`head`·`tail`·`wc`·`cut`·`tr`·`nl`·`jq`·`ls`,
@@ -285,8 +286,9 @@ shell verification은 lease 안에서 수행한다.
 편집 도구가 저장소 밖의 절대 경로를 가리키면 lease가 지키려는 대상이 아니므로 막지 않는다.
 Claude memory 디렉터리나 scratchpad 기록까지 막으면 세션은 claim 없이 자기 기록조차 남기지 못한다.
 여기서 "저장소"는 현재 worktree 하나가 아니라 `git rev-parse --git-common-dir`와 그 부모(main
-checkout 루트), `git worktree list`의 모든 worktree 루트, 그리고 lease state 파일이 있는 디렉터리를
-모두 합친 것이다. 기준이 현재 worktree였다면 main checkout의 추적 파일, 형제 worktree,
+checkout 루트), `git worktree list`의 모든 worktree 루트, 그리고 lease state 파일을 모두 합친 것이다.
+state 경로는 환경변수로 옮길 수 있어 그 파일 하나만 넣는다. 부모 디렉터리를 넣으면 state를 임시
+디렉터리로 옮긴 세션이 그 디렉터리 전체를 쓰지 못한다. 기준이 현재 worktree였다면 main checkout의 추적 파일, 형제 worktree,
 `.git/hooks/*`, 그리고 lease state 파일 자신까지 lease 없이 쓸 수 있어 gate가 자기 자신을 연다.
 경로는 심볼릭 링크를 해석하고(없는 파일은 존재하는 조상까지) Windows에서는 대소문자를 무시해
 비교한다. `\\?\`·`\\.\` 표기는 벗겨 판정하고, UNC 경로·제어문자가 섞인 경로·상대 경로·루트를

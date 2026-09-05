@@ -64,8 +64,10 @@ export function repositoryGuardRoots(cwd) {
     // 이 값이 추적 파일 전체를 덮는다.
     path.dirname(absoluteCommonDirectory),
     ...linkedWorktrees,
-    // state 경로는 환경변수로 옮길 수 있어 common dir 아래라고 가정하지 않는다.
-    path.dirname(repository.statePath),
+    // state 경로는 환경변수로 옮길 수 있어 common dir 아래라고 가정하지 않는다. 다만 보호 대상은
+    // 그 파일 하나이며, 부모 디렉터리를 root로 잡으면 state를 임시 디렉터리로 옮긴 세션이 그 디렉터리
+    // 전체를 쓰지 못하게 된다.
+    repository.statePath,
   ];
 }
 
