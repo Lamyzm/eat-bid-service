@@ -93,17 +93,18 @@ def test_command_handler가_주입된_application_method를_실행하고_0을_�
 
 
 @pytest.mark.parametrize(("error", "expected"), [
-    (RuntimeError("secret=do-not-print"), 64),
-    (DataQuarantinedError(7, "secret=do-not-print"), 65),
+    (RuntimeError("dsn=postgresql://user:db-password@localhost/eatbid"), 64),
+    (DataQuarantinedError(7, "store rejected r2-secret"), 65),
     (SourceThrottledError(429), 75),
-    (SourceContractError("secret=do-not-print"), 76),
+    (SourceContractError("key=access-secret"), 76),
 ])
 def test_typed_failure는_secret없이_정해진_exit_code를_반환한다(
     error: Exception, expected: int, capsys: pytest.CaptureFixture[str]
 ) -> None:
     application = _기록애플리케이션(error=error)
     assert main(_명령("discover"), application_factory=lambda _: application, settings=_설정()) == expected
-    assert "do-not-print" not in capsys.readouterr().err
+    printed = capsys.readouterr().err
+    assert all(value not in printed for value in ("db-password", "r2-secret", "access-secret"))
     assert application.close_count == 1
 
 

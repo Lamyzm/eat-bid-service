@@ -11,6 +11,7 @@ import psycopg
 
 from eatbid.config import ApplicationSettings
 from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
+from eatbid.failure_report import ApplicationConfigurationError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.ingest.postgres_normalization_repository import (
     PsycopgNormalizationRepository,
@@ -216,7 +217,7 @@ def build_application(config: ApplicationSettings) -> Application:
     connection: Any = None
     http_client: Any = None
     store: Any = None
-    construction_failed = False
+    construction_failure: ApplicationConfigurationError | None = None
     try:
         connection = psycopg.connect(dsn)
         timeout = httpx.Timeout(
@@ -234,15 +235,14 @@ def build_application(config: ApplicationSettings) -> Application:
                 secret_access_key=config.r2_secret_access_key,
             )
         )
-    except Exception:  # noqa: BLE001 - construction provider detail과 credential을 숨긴다.
-        construction_failed = True
+    except Exception as cause:  # noqa: BLE001 - provider 예외 객체는 여기서 닫고 이름만 옮긴다.
+        construction_failure = ApplicationConfigurationError(cause)
         for resource in (http_client, connection):
             if resource is not None:
                 _close_ignoring_error(resource)
-    if construction_failed:
-        error = RuntimeError("application configuration failed")
-        error.__context__ = None
-        raise error from None
+    if construction_failure is not None:
+        construction_failure.__context__ = None
+        raise construction_failure from None
     return Application(
         connection=connection,
         http_client=http_client,

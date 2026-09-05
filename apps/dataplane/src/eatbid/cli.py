@@ -14,6 +14,7 @@ from uuid import UUID
 
 from eatbid.config import ApplicationSettings
 from eatbid.core.build_identity import validate_build_sha
+from eatbid.failure_report import render_failure
 from eatbid.ingest.models import CapturedObservation
 from eatbid.pipeline.collection_window import COLLECTION_MODES
 from eatbid.pipeline.discover import DiscoveryResult
@@ -22,6 +23,14 @@ CONFIGURATION_EXIT_CODE = 64
 DATA_QUARANTINED_EXIT_CODE = 65
 SOURCE_THROTTLED_EXIT_CODE = 75
 SOURCE_CONTRACT_EXIT_CODE = 76
+
+# workflow 실패 파라미터와 재시도 정책이 이 이름에 묶여 있으므로 exit code와 짝을 바꾸지 않는다.
+FAILURE_CATEGORIES: Mapping[int, str] = {
+    CONFIGURATION_EXIT_CODE: "CONFIGURATION",
+    DATA_QUARANTINED_EXIT_CODE: "DATA_QUARANTINED",
+    SOURCE_THROTTLED_EXIT_CODE: "SOURCE_THROTTLED",
+    SOURCE_CONTRACT_EXIT_CODE: "SOURCE_CONTRACT",
+}
 
 
 class CliApplication(Protocol):
@@ -201,12 +210,13 @@ def main(
             return COMMAND_HANDLERS[args.command](args, application)
     except Exception as error:  # noqa: BLE001 - CLI는 모든 provider detail을 닫는 최종 경계다.
         exit_code = exit_code_for_error(error)
-        category = {
-            65: "DATA_QUARANTINED",
-            75: "SOURCE_THROTTLED",
-            76: "SOURCE_CONTRACT",
-        }.get(exit_code, "CONFIGURATION")
-        print(category, file=sys.stderr)
+        category = FAILURE_CATEGORIES.get(exit_code, "CONFIGURATION")
+        # 왜: 카테고리 한 단어로는 권한 부재와 연결 시간 초과를 구분할 수 없어 원인을 pod 이벤트로
+        # 역추적해야 했다. 예외 클래스와 비밀값을 지운 메시지를 같은 줄에 남긴다.
+        print(
+            render_failure(error, category=category, args=args, settings=settings),
+            file=sys.stderr,
+        )
         return exit_code
 
 
