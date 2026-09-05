@@ -116,8 +116,11 @@ GitHub monorepo
   CLI·run ledger가 같은 계약을 쓴다([`ARCH-DELIVERY.md`](../ARCH-DELIVERY.md) §3). 원본 객체
   해시(content sha256)는 의미가 다른 값이므로 64자 계약을 따로 유지한다.
 - 환경에서 mutable `latest`를 쓰지 않고 digest로 고정한다.
-- migration은 동일 커밋에서 만든 image를 Argo CD PreSync hook 또는 동등한 단일 실행 Job으로
+- migration은 동일 커밋에서 만든 image를 Argo CD Sync hook 또는 동등한 단일 실행 Job으로
   적용하며 timeout과 실패 상태를 가진다.
+- 런타임 역할의 권한도 저장소가 소유한다. `infra/product/db-provisioning.sql` 하나가 권위이고
+  hook Job이 migration 뒤·앱 앞 sync-wave에서 멱등하게 적용한다. 역할 생성과 비밀번호만 사람 단계로
+  남으며, 사람이 psql로 넣은 GRANT는 다음 sync에 이 파일의 상태로 되돌아간다.
 - 애플리케이션은 기대 schema migration/version을 시작 시 확인한다.
 - Workflow CRD/controller 같은 플랫폼 수명주기와 제품 배포를 별도 Argo CD application으로 둔다.
 - 초기에는 Argo Events, 내장 MinIO, 별도 workflow archive DB를 추가하지 않는다.

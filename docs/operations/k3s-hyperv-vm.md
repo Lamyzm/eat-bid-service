@@ -57,14 +57,24 @@ postgres는 Infisical `prod:/runtime/postgres`(`POSTGRES_USER`·`POSTGRES_PASSWO
 있어야 뜬다. 운영자 identity는 읽기 전용이라 이 폴더는 사용자가 만든다. 값은 옛 클러스터와 같은
 `eatbid` 사용자여야 덤프 복원 뒤 역할이 맞는다.
 
+권한은 더 이상 사람이 psql로 넣지 않는다. `eatbid-db-provisioning` hook Job이 sync-wave 2에서
+`infra/product/db-provisioning.sql`을 실행해 `eatbid_api`·`eatbid_dataplane`의 권한을 매 sync마다
+같은 상태로 세운다(wave 0 postgres·Secret·ConfigMap → 1 migration → 2 provisioning → 3 server·web).
+사람이 하는 일은 **역할 셋을 만드는 것 하나**뿐이다. 빈 데이터베이스로 시작한다면 4절의 덤프 복원
+대신 superuser로 `eatbid_migrator`·`eatbid_api`·`eatbid_dataplane`을
+`CREATE ROLE ... LOGIN PASSWORD '...' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`으로 만들고
+그 비밀번호를 Infisical `prod:/runtime/migrator`·`/runtime/server`·`/runtime/dataplane`의
+`DATABASE_URL`과 맞춘다. 절차 전체는 [`infra/product/secret-contract.md`](../../infra/product/secret-contract.md)에 있다.
+
 ## 4. 데이터 이전
 
 ```powershell
 .\infra\vm\Migrate-EatbidPostgres.ps1
 ```
 
-`pg_dumpall --clean --if-exists`로 역할·권한(EAT-49 수동 grant 포함)까지 옮기고 두 쪽의 행 수를 나란히
-찍는다. 원본 레이크는 R2가 권위라 옮기지 않는다.
+`pg_dumpall --clean --if-exists`로 역할과 비밀번호까지 옮기고 두 쪽의 행 수를 나란히 찍는다. 원본
+레이크는 R2가 권위라 옮기지 않는다. 덤프에 실린 권한은 이제 참고값일 뿐이고, 복원 뒤 첫 sync에서
+provisioning Job이 저장소의 상태로 다시 세운다.
 
 ## 5. cutover (사용자 확인 뒤)
 
