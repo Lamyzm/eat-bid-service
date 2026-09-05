@@ -73,6 +73,25 @@ kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\a
 # sync 뒤에 온다. Argo가 같은 manifest를 다시 관리하므로 중복 소유는 아니다.
 kubectl --context $TargetContext -n argocd wait application/infisical-secrets-operator --for=jsonpath='{.status.health.status}'=Healthy --timeout=600s | Out-Null
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\product\secrets.yaml') | Out-Null
+
+# 같은 순서 문제의 두 번째 얼굴: PreSync migration Job은 DB가 있어야 하는데 postgres Deployment는 본 동기화가
+# 만든다. 빈 클러스터에서는 Job이 먼저 돌아 backoff로 실패하고 sync가 멈춘다. 그래서 렌더된 product
+# manifest에서 postgres Deployment·Service·PVC만 먼저 적용하고 Ready를 기다린다. 값은 Argo가 관리하는 것과
+# 같은 manifest이므로 이후 sync에서 drift가 없다. 근본 해결(migration을 Sync phase + sync-wave로)은 EAT-51.
+$rendered = kubectl kustomize (Join-Path $RepoRoot 'infra\product')
+$postgresOnly = @()
+$current = @()
+foreach ($line in ($rendered + '---')) {
+  if ($line -eq '---') {
+    $doc = $current -join "`n"
+    if ($doc -match '(?m)^kind: (Deployment|Service|PersistentVolumeClaim)$' -and $doc -match '(?m)^  name: (postgres|pgdata)$') { $postgresOnly += $doc }
+    $current = @()
+  } else { $current += $line }
+}
+if ($postgresOnly.Count -ne 3) { throw "postgres 리소스 셋을 렌더에서 찾지 못했다(찾은 수: $($postgresOnly.Count))" }
+($postgresOnly -join "`n---`n") | kubectl --context $TargetContext apply -f - | Out-Null
+kubectl --context $TargetContext -n eatbid rollout status deploy/postgres --timeout=600s
+
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\argocd\application.yaml')
 
 # platform Application 둘은 automated 정책이 없다(운영 승인 뒤 수동 sync가 설계). 새 클러스터의 첫 sync는
