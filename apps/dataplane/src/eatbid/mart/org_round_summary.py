@@ -1,0 +1,144 @@
+"""모듈 책임: 회차 1행 요약 mart를 한 build에 전량으로 다시 만드는 계산 규칙을 소유한다.
+
+행 단위 증분을 만들지 않는 이유는 ADR 0034에 있다. 전량 빌드가 결정적이고, 검증이 행 수와 표본
+합계 하나로 끝나며, 실측이 그 비용을 감당한다.
+
+파생 규칙의 사람이 읽는 정의는 `derivations.py`에 있다. 여기 SQL이 그 정의와 갈라지지 않는지는
+통합 test가 같은 입력의 두 결과를 맞대어 확인한다.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from eatbid.mart.models import MartBuildPlan
+
+# 한 attempt의 "최신 revision"은 `auction_revision_id` 최대값이다. 관측 시각으로 고르지 않는 이유는
+# 같은 raw의 replay가 시각을 되돌릴 수 있기 때문이고, revision id는 identity라 append 순서로 단조롭다.
+#
+# revision이 0개인 attempt는 행을 만들지 않는다. 관계로만 알려진 공고를 회차로 발표하면 안 된다.
+# 공고 시각이나 기초금액을 관측하지 못한 revision도 제외한다 — 화면의 회차 표는 그 둘을 요구하고,
+# 없는 값을 추측으로 메우지 않는다(AGENTS 3).
+ORG_ROUND_SUMMARY_FILL_SQL = """
+insert into mart.org_round_summary (
+  build_id, auction_attempt_id, auction_revision_id, organization_id,
+  item_code_value_id, item_label, announced_at, opened_at, floor_rate,
+  award_method_code_value_id, base_amount, planned_amount, currency,
+  awarded_assessment_rate, runner_up_assessment_rate,
+  day_floor_amount, day_floor_bid_rate, awarded_bid_rate,
+  list_count, below_day_floor_count, withdrawn_count, withdrawal_cohort_age_days,
+  winner_supplier_party_id, supersedes_attempt_id, lineage_status, opened_month_kst
+)
+with latest as (
+  select distinct on (revision.auction_attempt_id)
+         revision.auction_revision_id,
+         revision.auction_attempt_id,
+         revision.announced_at,
+         revision.opened_at,
+         revision.floor_rate,
+         revision.base_amount,
+         revision.planned_amount,
+         revision.currency,
+         revision.source_payload
+    from core.auction_revision as revision
+   order by revision.auction_attempt_id, revision.auction_revision_id desc
+),
+roster as (
+  select latest.auction_revision_id,
+         count(*) as list_count,
+         count(*) filter (
+           where latest.floor_rate is not null and submission.bid_rate < latest.floor_rate
+         ) as below_day_floor_count,
+         count(*) filter (where withdrawal.code = 'Y') as withdrawn_count
+    from latest
+    join core.bid_submission as submission
+      on submission.auction_revision_id = latest.auction_revision_id
+    left join core.code_value as withdrawal
+      on withdrawal.code_value_id = submission.withdrawal_code_value_id
+   group by latest.auction_revision_id
+)
+select
+  %(build_id)s::bigint,
+  latest.auction_attempt_id,
+  latest.auction_revision_id,
+  purchaser.organization_id,
+  -- 품목 code scheme이 아직 없다. 관측 라벨을 코드로 승격시키지 않고 라벨만 싣는다.
+  null::bigint,
+  nullif(btrim(coalesce(
+    latest.source_payload #>> '{classification,sourceCategoryLabel}', ''
+  )), ''),
+  latest.announced_at,
+  latest.opened_at,
+  latest.floor_rate,
+  award_method.code_value_id,
+  latest.base_amount,
+  latest.planned_amount,
+  latest.currency,
+  award.awarded_rate,
+  award.runner_up_rate,
+  case
+    when latest.floor_rate is not null and latest.planned_amount is not null
+    then floor(latest.floor_rate / 100 * latest.planned_amount * 100) / 100
+  end,
+  case
+    when latest.floor_rate is not null and latest.planned_amount is not null
+         and latest.base_amount > 0
+    then round(latest.floor_rate * latest.planned_amount / latest.base_amount, 4)
+  end,
+  case
+    when award.awarded_rate is not null and latest.planned_amount is not null
+         and latest.base_amount > 0
+    then round(award.awarded_rate * latest.planned_amount / latest.base_amount, 4)
+  end,
+  roster.list_count,
+  case when latest.floor_rate is not null then roster.below_day_floor_count end,
+  roster.withdrawn_count,
+  case
+    when latest.opened_at is not null
+    then (
+      (%(as_of)s::timestamptz at time zone 'Asia/Seoul')::date
+      - (latest.opened_at at time zone 'Asia/Seoul')::date
+    )
+  end,
+  award.supplier_party_id,
+  parent.to_auction_attempt_id,
+  -- `lineage` 블록이 있는 계약으로 정규화된 회차만 사슬을 관측한 것이다. 그 블록이 없는 계약의
+  -- 회차는 "사슬 없음"이 아니라 "모름"이며, 둘을 한 값으로 숨기지 않는다.
+  case when latest.source_payload ? 'lineage' then 'observed' else 'unknown' end,
+  case
+    when latest.opened_at is not null
+    then date_trunc('month', latest.opened_at at time zone 'Asia/Seoul')::date
+  end
+from latest
+join core.auction_organization as purchaser
+  on purchaser.auction_revision_id = latest.auction_revision_id
+ and purchaser.role = 'purchaser'
+left join roster on roster.auction_revision_id = latest.auction_revision_id
+left join core.award_decision as award
+  on award.auction_revision_id = latest.auction_revision_id
+left join core.auction_revision_code_value as award_method
+  on award_method.auction_revision_id = latest.auction_revision_id
+ and award_method.role = 'award_method'
+left join lateral (
+  select link.to_auction_attempt_id
+    from core.auction_attempt_link as link
+   where link.auction_revision_id = latest.auction_revision_id
+     and link.relation = 'parent'
+   order by link.auction_attempt_link_id
+   limit 1
+) as parent on true
+where latest.announced_at is not null
+  and latest.base_amount is not null
+"""
+
+
+def fill_org_round_summary(
+    connection: Any, *, plan: MartBuildPlan, build_id: int
+) -> int:
+    """이 build에 회차 요약을 전량 적재하고 적재한 행 수를 돌려준다."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            ORG_ROUND_SUMMARY_FILL_SQL,
+            {"build_id": build_id, "as_of": plan.as_of},
+        )
+        return cursor.rowcount

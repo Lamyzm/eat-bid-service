@@ -12,12 +12,3 @@ export function activeMartBuildId(martName: string): SQL {
   return sql`(select active.build_id from mart.build as active
               where active.mart_name = ${martName} and active.status = 'active')`;
 }
-
-/** 활성 build의 계보다. 응답 meta가 어떤 봉인된 입력·계산 규칙을 본 것인지 말할 때 쓴다. */
-export type MartBuildLineageRow = Readonly<{
-  build_id: string | bigint;
-  source_release_id: string;
-  calc_version: string;
-  computed_at: Date | string | null;
-  region_scheme: string | null;
-}>;
