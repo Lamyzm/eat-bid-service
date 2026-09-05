@@ -20,6 +20,16 @@ from eatbid.ingest.postgres_publication_repository import PsycopgPublicationRepo
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
 from eatbid.ingest.postgres_replay_repository import PsycopgReplayRunRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
+from eatbid.mart.build_marts import (
+    build_marts,
+    publication_record_types,
+    resolve_marts,
+)
+from eatbid.mart.models import MartBuildPlan, MartName
+from eatbid.mart.open_auction_snapshot import open_auction_snapshot_filler
+from eatbid.mart.org_round_summary import fill_org_round_summary
+from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
+from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
 from eatbid.pipeline.capture import capture
 from eatbid.pipeline.collection_window import resolve_collection_window
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
@@ -47,6 +57,7 @@ class Application:
         publication_repository: Any = None,
         replay_repository: Any = None,
         projection_repository: Any = None,
+        mart_repository: Any = None,
         page_budget: int = 1,
     ) -> None:
         self._connection = connection
@@ -58,6 +69,7 @@ class Application:
         self._publication = publication_repository
         self._replay = replay_repository
         self._projection = projection_repository
+        self._mart = mart_repository
         self._page_budget = page_budget
         self._closed = False
 
@@ -180,6 +192,26 @@ class Application:
             ),
         )
 
+    def build_marts(self, args: argparse.Namespace) -> Any:
+        record_types = publication_record_types(self._mart, args.publication_id)
+        marts = resolve_marts(requested=args.mart, record_types=record_types)
+
+        def plan_for(mart_name: MartName) -> MartBuildPlan:
+            return MartBuildPlan(
+                mart_name=mart_name,
+                source_release_id=args.source_release_id,
+                publication_id=args.publication_id,
+                calc_version=args.calc_version,
+                builder_version=args.build_sha,
+                parser_version=args.parser_version,
+                region_scheme=args.region_scheme,
+                as_of=args.as_of,
+                started_at=args.built_at,
+                computed_at=args.built_at,
+            )
+
+        return build_marts(marts=marts, plan_for=plan_for, repository=self._mart)
+
     def close(self) -> None:
         if self._closed:
             return
@@ -254,6 +286,15 @@ def build_application(config: ApplicationSettings) -> Application:
         replay_repository=PsycopgReplayRunRepository(connection),
         projection_repository=PsycopgCanonicalProjectionRepository(
             connection, lambda: psycopg.connect(dsn)
+        ),
+        mart_repository=PsycopgMartBuildRepository(
+            connection,
+            lambda: psycopg.connect(dsn),
+            {
+                "org_round_summary": fill_org_round_summary,
+                "win_rate_distribution_monthly": fill_win_rate_distribution,
+                "open_auction_snapshot": open_auction_snapshot_filler(store),
+            },
         ),
         page_budget=config.source_page_budget,
     )

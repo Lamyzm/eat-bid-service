@@ -28,8 +28,17 @@ LIST_FIXTURE = Path(__file__).parents[1] / "fixtures" / "eat" / "bid-list-one.xm
 LIST_PARSER_VERSION = "eat-v1"
 SNAPSHOT = "open_auction_snapshot"
 # fixture 목록 한 행의 관측값이다. 기대값을 손으로 적지 않도록 원본에서 그대로 옮겨 적는다.
-LISTED_BID_ID = "5610615"
+FIXTURE_BID_ID = "5610615"
 LISTED_ORGANIZATION_CODE = "199148"
+# 같은 DB를 다른 test 파일이 함께 쓰므로 목록 행의 외부 식별자를 이 파일 전용으로 바꾼다. 그래야
+# "아직 상세를 따지 않은 공고"라는 상태를 다른 파일의 상세 발행이 흔들지 못한다.
+LISTED_BID_ID = "9610615"
+
+
+def _list_body() -> bytes:
+    return LIST_FIXTURE.read_bytes().replace(
+        FIXTURE_BID_ID.encode(), LISTED_BID_ID.encode()
+    )
 
 
 def _seed_list_observation(
@@ -40,7 +49,7 @@ def _seed_list_observation(
         services,
         run_id=run_id,
         external_bid_id=LISTED_BID_ID,
-        body=LIST_FIXTURE.read_bytes(),
+        body=_list_body(),
         endpoint=LIST_ENDPOINT,
     )
     with services.connection.cursor() as cursor:

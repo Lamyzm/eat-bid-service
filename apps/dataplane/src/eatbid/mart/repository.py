@@ -23,8 +23,8 @@ class MartBuildRepository(Protocol):
         """그 mart의 계산 규칙으로 행을 전부 다시 만들고 적재한 행 수를 돌려준다."""
         ...
 
-    def verify_build(self, build_id: int, row_count: int) -> None:
-        """행 수를 고정하고 `building → verified`로 옮긴다."""
+    def verify_build(self, plan: MartBuildPlan, build_id: int, row_count: int) -> None:
+        """저장된 행을 다시 세어 맞으면 행 수를 고정하고 `building → verified`로 옮긴다."""
         ...
 
     def activate_build(self, plan: MartBuildPlan, build_id: int) -> None:

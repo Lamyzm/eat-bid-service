@@ -11,6 +11,8 @@ from datetime import datetime
 from typing import Literal, get_args
 from uuid import UUID
 
+from eatbid.source.eat.code_schemes import AUCTION_LOCATION_SIGUNGU
+
 MartName = Literal[
     "org_round_summary", "win_rate_distribution_monthly", "open_auction_snapshot"
 ]
@@ -21,7 +23,8 @@ MartBuildStatus = Literal["building", "verified", "active", "superseded", "faile
 
 # 지역 축의 기본 코드 체계다. 행정안전부 코드를 적재한 뒤에는 새 calc_version의 새 build가
 # 다른 namespace로 만들어지며, 그 사실은 `mart.build.region_scheme`이 기록한다(AGENTS 6, ADR 0034).
-DEFAULT_REGION_SCHEME = "eat:auction-location-sigungu"
+# namespace 문자열의 권위는 code scheme 표 하나뿐이라 여기서 다시 적지 않는다.
+DEFAULT_REGION_SCHEME = AUCTION_LOCATION_SIGUNGU.namespace
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +55,12 @@ class MartBuildResult:
 
 @dataclass(frozen=True, slots=True)
 class OpenedMartBuild:
+    """멱등 키로 연 build의 현재 상태다.
+
+    `building`이면 행을 다시 쌓아야 하고, `verified`면 이미 셌으므로 활성화만 남았으며,
+    `active`면 같은 입력의 결과가 이미 공개 중이라 아무 것도 하지 않는다.
+    """
+
     build_id: int
-    # 이미 활성인 build를 다시 만난 경우다. 행을 다시 쌓지 않고 그대로 둔다.
-    already_active: bool
+    status: MartBuildStatus
+    row_count: int | None
