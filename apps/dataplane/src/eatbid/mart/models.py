@@ -33,6 +33,9 @@ class MartBuildPlan:
     publication_id: UUID | None
     calc_version: str
     builder_version: str
+    # 목록 관측을 다시 읽는 mart가 검토된 파서 계약을 고를 때 쓴다. 여기서 version을 고정하면
+    # 새 계약으로 수집한 관측을 옛 필수 column으로 검증하게 되고 그 어긋남은 한참 뒤에 드러난다.
+    parser_version: str
     region_scheme: str | None
     as_of: datetime
     started_at: datetime

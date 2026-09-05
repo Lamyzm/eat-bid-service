@@ -15,6 +15,7 @@ MART_AS_OF = datetime(2026, 8, 29, 5, 0, 0, tzinfo=UTC)
 MART_STARTED_AT = datetime(2026, 8, 29, 5, 0, 10, tzinfo=UTC)
 MART_COMPUTED_AT = datetime(2026, 8, 29, 5, 0, 30, tzinfo=UTC)
 MART_BUILDER_VERSION = "e" * 40
+MART_PARSER_VERSION = "eat-v2"
 
 
 def create_source_release(services: PipelineServices) -> UUID:
@@ -39,6 +40,7 @@ def mart_plan(
     calc_version: str = "mart-r1",
     publication_id: UUID | None = None,
     as_of: datetime = MART_AS_OF,
+    parser_version: str = MART_PARSER_VERSION,
 ) -> MartBuildPlan:
     return MartBuildPlan(
         mart_name=mart_name,
@@ -46,6 +48,7 @@ def mart_plan(
         publication_id=publication_id,
         calc_version=calc_version,
         builder_version=MART_BUILDER_VERSION,
+        parser_version=parser_version,
         region_scheme=DEFAULT_REGION_SCHEME,
         as_of=as_of,
         started_at=MART_STARTED_AT,
