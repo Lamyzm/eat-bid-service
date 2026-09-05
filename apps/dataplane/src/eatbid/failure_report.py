@@ -35,7 +35,11 @@ class ApplicationConfigurationError(RuntimeError):
 
 
 def redact_secrets(text: str, settings: ApplicationSettings | None = None) -> str:
-    """설정과 환경변수에서 얻은 비밀값을 지운 뒤 남은 DSN 비밀번호 자리를 가린다."""
+    """설정과 환경변수에서 얻은 비밀값을 지운 뒤 남은 DSN 비밀번호 자리를 가린다.
+
+    왜: 비밀값이 DSN의 user·host·database 이름과 같은 짧은 문자열이면 그 이름까지 함께
+    가려지지만, 진단 가독성보다 누출 차단을 우선해 과도한 마스킹을 감수한다.
+    """
     redacted = text
     for secret in _secret_values(settings):
         redacted = redacted.replace(secret, REDACTED)
