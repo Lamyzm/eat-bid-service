@@ -1,6 +1,4 @@
 /** @module 책임: provider 중립 hook event를 worktree lease·writer 규칙에 대조해 차단 여부와 session worklog 전이를 결정한다. */
-import path from "node:path";
-
 import {
   enqueueEvent,
   getSessionState,
@@ -11,9 +9,11 @@ import {
 } from "./state.mjs";
 import {
   classifyToolCall,
+  editedPathCandidate,
   extractIssueIdentifier,
   extractPromptIssueIdentifier,
   normalizeHookEvent,
+  repositoryRelativePath,
 } from "./workflow.mjs";
 
 function eventRecord({ createId, issueIdentifier, kind, now, provider, ...extra }) {
@@ -27,22 +27,8 @@ function eventRecord({ createId, issueIdentifier, kind, now, provider, ...extra 
   };
 }
 
-function repositoryRelativePath(candidate, worktreeRoot) {
-  if (typeof candidate !== "string" || candidate.length === 0 || /[\u0000-\u001f\u007f]/u.test(candidate)) {
-    return null;
-  }
-  const root = path.resolve(worktreeRoot);
-  const absolute = path.isAbsolute(candidate) ? path.resolve(candidate) : path.resolve(root, candidate);
-  const relative = path.relative(root, absolute).replaceAll("\\", "/");
-  if (!relative || relative === ".." || relative.startsWith("../") || path.isAbsolute(relative)) {
-    return null;
-  }
-  return relative;
-}
-
 function changedPaths(toolName, toolInput, worktreeRoot) {
-  const candidate =
-    toolInput?.file_path ?? toolInput?.path ?? toolInput?.notebook_path ?? toolInput?.target_file;
+  const candidate = editedPathCandidate(toolInput);
   if (typeof candidate === "string" && candidate.length > 0) {
     const normalized = repositoryRelativePath(candidate, worktreeRoot);
     return normalized ? [normalized] : [];
@@ -118,6 +104,7 @@ export function handleHookEvent({
   input,
   now = () => new Date(),
   provider = "unknown",
+  repositoryRoots = null,
   state,
   worktreeRoot,
 }) {
@@ -136,8 +123,13 @@ export function handleHookEvent({
     };
   }
 
+  // 편집 대상이 저장소 밖인지 판정하려면 분류기가 저장소의 모든 루트를 알아야 한다. 이 함수는
+  // worktree 하나만 받으므로 목록을 주지 못하며, 목록 없이는 밖으로 판정하지 않고 lease를 요구한다.
+  // 실제 gate인 `hook.mjs`는 `repositoryGuardRoots`로 저장소 전체를 넘긴다.
+  const classifyOptions = { resolveRepositoryRoots: repositoryRoots };
+
   if (eventName === "pretooluse") {
-    const classification = classifyToolCall(event.toolName, event.toolInput);
+    const classification = classifyToolCall(event.toolName, event.toolInput, classifyOptions);
     if (!classification.mutatesRepository) return { exitCode: 0, message: "", state };
     // lease는 agent가 남의 작업을 덮어쓰지 못하게 하는 규율이다. 사용자가 `!`로 직접 친 명령은
     // 사용자의 행위이므로 막지 않되, writer 결박이나 activeIssue 같은 agent 세션 상태도 바꾸지 않는다.
@@ -217,7 +209,7 @@ export function handleHookEvent({
   }
 
   if (eventName === "posttooluse") {
-    const classification = classifyToolCall(event.toolName, event.toolInput);
+    const classification = classifyToolCall(event.toolName, event.toolInput, classifyOptions);
     if (!classification.mutatesRepository) return { exitCode: 0, message: "", state };
     const files = changedPaths(event.toolName, event.toolInput, worktreeRoot);
     if (files.length === 0) return { exitCode: 0, message: "", state };

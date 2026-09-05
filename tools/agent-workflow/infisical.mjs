@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptDirectory = path.dirname(scriptPath);
-const allowedCommands = new Set(["claim", "doctor", "sync"]);
+// issue 발행은 저장소 파일을 하나도 바꾸지 않지만 Linear API key 없이는 불가능하다. 이 wrapper가
+// 유일한 key 주입 경로이므로 여기에 없으면 agent는 issue를 만들 때마다 사람에게 부탁해야 한다.
+const allowedCommands = new Set(["claim", "doctor", "issue", "sync"]);
 
 // release는 기본적으로 오프라인 명령이라 secret 주입 경로를 열지 않는다. Linear 상태를 실제로 옮기는
 // `release --review`만 예외이며, 이 wrapper가 없으면 `--review`는 key를 얻을 방법이 없다.

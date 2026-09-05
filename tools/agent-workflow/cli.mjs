@@ -1,13 +1,21 @@
-/** @module 책임: Linear issue claim·sync·release와 local worktree lease 명령을 조정한다. */
+/** @module 책임: Linear issue 발행·claim·sync·release와 local worktree lease 명령을 조정한다. */
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { checkoutClaimBranch } from "./branch.mjs";
 import { parseWorkflowArguments } from "./command-line.mjs";
 import { doctorReport, recoverLockReport } from "./diagnostics.mjs";
+import { runIssueCreate, runIssueList } from "./issue-command.mjs";
 import { flushOutbox } from "./linear.mjs";
-import { config, linearClient, repositoryContext, targetRepositoryContext } from "./runtime.mjs";
+import {
+  config,
+  linearClient,
+  repositoryContext,
+  repositoryGuardRoots,
+  targetRepositoryContext,
+} from "./runtime.mjs";
 import {
   clearPendingWorktreeClaim,
   finalizePendingWorktreeClaim,
@@ -215,6 +223,32 @@ async function worktree() {
   throw new Error(`Usage: pnpm workflow:worktree remove <path> | prune (got ${subcommand ?? "nothing"})`);
 }
 
+// issue 발행은 lease나 worktree와 무관하다. 새 작업을 시작하려는 세션이 아직 claim할 issue를 갖고
+// 있지 않은 상태에서 실행하는 명령이므로 저장소 context를 요구하지 않는다.
+async function issue() {
+  // `main`이 `process.argv[2]`로 command를 고르므로 인자는 언제나 그 다음부터다. `indexOf("issue")`로
+  // 찾으면 node 실행 경로나 저장소 경로에 같은 낱말이 있을 때 엉뚱한 자리에서 자른다.
+  const [subcommand, ...rest] = process.argv.slice(3);
+  if (subcommand === "create") {
+    // 본문 파일을 읽는 범위는 작업 공간과 임시 디렉터리로 한정한다. 저장소 루트를 알아내지 못하면
+    // 임시 디렉터리만 남으므로 임의 경로가 조용히 통과하지 않는다.
+    await runIssueCreate({
+      allowedDescriptionRoots: [...repositoryGuardRoots(process.cwd()), tmpdir()],
+      args: rest,
+      client: linearClient(),
+      config,
+    });
+    return;
+  }
+  if (subcommand === "list") {
+    await runIssueList({ args: rest, client: linearClient(), config });
+    return;
+  }
+  throw new Error(
+    `Usage: pnpm workflow:issue create --title <t> | pnpm workflow:issues [--state <name>] (got ${subcommand ?? "nothing"})`,
+  );
+}
+
 async function sync() {
   const { repository } = commandContext("sync");
   let result = null;
@@ -258,6 +292,7 @@ async function main() {
   const command = process.argv[2];
   if (command === "doctor") return doctor();
   if (command === "claim") return claim();
+  if (command === "issue") return issue();
   if (command === "release") return release();
   if (command === "sync") return sync();
   if (command === "recover-lock") return recoverLock();

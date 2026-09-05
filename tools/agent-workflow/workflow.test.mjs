@@ -5,7 +5,26 @@ import {
   classifyToolCall,
   extractIssueIdentifier,
   extractPromptIssueIdentifier,
+  splitPipelineStages,
 } from "./workflow.mjs";
+
+// gate가 지키는 것은 worktree 하나가 아니라 저장소 전체다. main checkout, 형제 worktree, common dir,
+// lease state 디렉터리를 모두 루트로 주고 판정한다. 심볼릭 링크 해석은 여기서 검증 대상이 아니므로
+// 실제 파일 시스템 대신 항등 함수를 주입해 플랫폼과 무관하게 같은 결과를 본다.
+const REPOSITORY_ROOT = "F:/Project/eat-bid-service";
+const WORKTREE_ROOT = "F:/Project/eat-bid-service/.claude/worktrees/eat-53-agent-self-service";
+const SIBLING_WORKTREE = "F:/Project/eat-bid-service/.claude/worktrees/eat-42-roster-normalization";
+const repositoryGuard = {
+  platform: "win32",
+  realPath: (value) => value,
+  resolveRepositoryRoots: () => [
+    WORKTREE_ROOT,
+    `${REPOSITORY_ROOT}/.git`,
+    REPOSITORY_ROOT,
+    SIBLING_WORKTREE,
+    `${REPOSITORY_ROOT}/.git/eatbid-agent-workflow`,
+  ],
+};
 
 test("extractIssueIdentifier는 Linear 식별자를 정규화하고 일반 문장의 하이픈은 무시한다", () => {
   assert.equal(extractIssueIdentifier("eat-42 작업을 시작해줘"), "EAT-42");
@@ -211,6 +230,36 @@ test("Linear MCP 읽기 도구와 ToolSearch는 허용하고 Linear 쓰기 도�
   }
 });
 
+test("agent 사이 메시지 도구는 lease 없이 허용하고 하위 agent 실행은 계속 차단한다", () => {
+  for (const toolName of ["SendMessage", "ListAgents"]) {
+    assert.deepEqual(
+      classifyToolCall(toolName, { to: "team-lead", message: "보고" }),
+      { mutatesRepository: false, reason: "agent-messaging-tool" },
+      toolName,
+    );
+  }
+  // Agent와 Task는 하위 세션이 파일을 바꿀 수 있으므로 계속 lease를 요구한다.
+  for (const toolName of ["Agent", "Task", "TaskStop"]) {
+    assert.equal(classifyToolCall(toolName, {}).mutatesRepository, true, toolName);
+  }
+});
+
+test("Linear MCP의 issue 생성만 lease 없이 허용하고 댓글·상태 전환·삭제는 계속 차단한다", () => {
+  assert.deepEqual(classifyToolCall("mcp__linear__create_issue", {}), {
+    mutatesRepository: false,
+    reason: "linear-issue-bootstrap-tool",
+  });
+  // 댓글은 claim 이후 행위다. worklog는 인계에서 완료 근거로 읽으므로 lease 안에서만 쓴다.
+  for (const toolName of [
+    "mcp__linear__create_comment",
+    "mcp__linear__update_issue",
+    "mcp__linear__create_project",
+    "mcp__linear__delete_issue",
+  ]) {
+    assert.equal(classifyToolCall(toolName, {}).mutatesRepository, true, toolName);
+  }
+});
+
 test("worktree 진입·이탈 도구와 git worktree 조회는 lease 없이 허용하고 worktree 변경은 차단한다", () => {
   for (const toolName of ["EnterWorktree", "ExitWorktree"]) {
     assert.deepEqual(
@@ -395,6 +444,7 @@ test("kubectl 조회 subcommand는 lease 없이 허용하고 cluster를 바꾸�
     "kubectl describe deployment eatbid-server -n eatbid",
     "kubectl logs deploy/eatbid-server -n eatbid --tail=100",
     "kubectl top pods -n eatbid",
+    "kubectl get pods -n eatbid | grep Running",
   ]) {
     assert.deepEqual(
       classifyToolCall("Bash", { command }),
@@ -408,7 +458,8 @@ test("kubectl 조회 subcommand는 lease 없이 허용하고 cluster를 바꾸�
     "kubectl exec -it pod -- sh",
     "kubectl edit deployment x",
     "kubectl get pods -o yaml > pods.yaml",
-    "kubectl get pods | grep Running",
+    "kubectl get pods | tee pods.txt",
+    "kubectl get pods | xargs kubectl delete pod",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
   }
@@ -422,6 +473,7 @@ test("curl GET 요청은 lease 없이 허용하고 본문·업로드·파일 출
     "curl -XHEAD http://localhost:4000",
     "curl --request HEAD -I http://localhost:4000",
     "curl -L --max-time 5 -w %{http_code} http://localhost:4000",
+    "curl http://localhost:4000 | jq .",
   ]) {
     assert.deepEqual(
       classifyToolCall("Bash", { command }),
@@ -444,7 +496,7 @@ test("curl GET 요청은 lease 없이 허용하고 본문·업로드·파일 출
     "curl -D headers.txt http://localhost:4000",
     "curl -K curlrc http://localhost:4000",
     "curl --json '{}' http://localhost:4000",
-    "curl http://localhost:4000 | jq .",
+    "curl http://localhost:4000 | tee out.json",
     "curl http://localhost:4000 > out.json",
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
@@ -498,4 +550,296 @@ test("인라인 코드에 파일 쓰기·프로세스 실행·치환 토큰이 �
   ]) {
     assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
   }
+});
+
+test("issue 발행 명령은 lease 없이 허용하고 제목 자리에 다른 명령이 들어오면 차단한다", () => {
+  for (const command of [
+    'pnpm workflow:issue create --title "검증용 issue"',
+    'pnpm workflow:issue create -- --title "eaT 명단 정규화를 마저 한다" --priority 2',
+    'pnpm workflow:issue create --title="제목" --state Backlog',
+    'pnpm workflow:issue create --title "제목" --description-file .superpowers/body.md',
+    'pnpm workflow:issue create --title "제목" --project "R1 유료 투찰 Decision Loop"',
+    "pnpm workflow:issues",
+    "pnpm workflow:issues -- --state Ready --limit 20",
+    "pnpm workflow:issue list --state Backlog",
+    "pnpm --dir F:/Project/eat-bid-service/.claude/worktrees/eat-53 workflow:claim -- EAT-53",
+    "pnpm --dir ../.. workflow:release -- EAT-37",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "workflow-lifecycle-command" },
+      command,
+    );
+  }
+  for (const command of [
+    'pnpm workflow:issue create --title "제목" && rm -rf src',
+    'pnpm workflow:issue create --title "$(cat body.md)"',
+    'pnpm workflow:issue create --title "제목" > issue.json',
+    'pnpm workflow:issue create --priority 9 --title "제목"',
+    'pnpm workflow:issue create --title "제목" --force',
+    "pnpm workflow:issues -- --limit 200",
+    "pnpm --dir $(pwd) workflow:claim -- EAT-53",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("Infisical 폴더 명령만 lease 없이 허용하고 값을 다루거나 프로그램을 실행하는 명령은 차단한다", () => {
+  for (const command of [
+    "infisical secrets folders create --name postgres --path /runtime --env prod",
+    "infisical secrets folders list --path /runtime --env prod",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "secret-folder-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "infisical secrets set POSTGRES_PASSWORD=x --env=prod --path=/runtime/postgres",
+    "infisical secrets get POSTGRES_PASSWORD --env=prod --path=/runtime/postgres",
+    "infisical secrets --env=prod --path=/runtime/postgres",
+    "infisical run --env=prod -- node scripts/scratch.mjs",
+    "infisical secrets folders create --name x && rm -rf src",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("pipe 단계 분리는 따옴표 안의 세로줄을 구분자로 세지 않는다", () => {
+  assert.deepEqual(splitPipelineStages("git status -sb"), ["git status -sb"]);
+  assert.deepEqual(splitPipelineStages("git status | tail -5"), ["git status ", " tail -5"]);
+  assert.deepEqual(splitPipelineStages(`grep -n "a|b" src`), [`grep -n "a|b" src`]);
+  assert.deepEqual(splitPipelineStages("grep -n 'a|b' src | wc -l"), [
+    "grep -n 'a|b' src ",
+    " wc -l",
+  ]);
+  assert.deepEqual(splitPipelineStages("git status || rm -rf src"), [
+    "git status ",
+    "",
+    " rm -rf src",
+  ]);
+  // 닫히지 않은 따옴표는 어디까지가 한 단계인지 말할 수 없다.
+  assert.equal(splitPipelineStages(`grep -n "a | b src`), null);
+});
+
+test("모든 pipe 단계가 읽기일 때만 통과시키고 쓰기 단계가 하나라도 있으면 차단한다", () => {
+  for (const command of [
+    "pnpm workflow:release -- EAT-37 | tail -3",
+    "pnpm workflow:doctor | head -20",
+    "pnpm workflow:worktree prune | Select-Object -First 5",
+    "rg -n TODO src | wc -l",
+    "grep -rn TODO src | head -20 | wc -l",
+    "git log --oneline -20 | grep fix | head -5",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, false, command);
+  }
+  for (const command of [
+    "pnpm workflow:release -- EAT-37 | tee release.log",
+    "pnpm workflow:doctor | node scripts/write.mjs",
+    "rg -n TODO src | xargs sed -i s/a/b/",
+    "rm -rf src | tail -1",
+    "grep -rn TODO src | head -5 | node scripts/write.mjs",
+    "git status || rm -rf src",
+    "cat a.txt |",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("추가·덮어쓰기 redirect는 pipe를 나누기 전에 명령 전체에서 먼저 차단한다", () => {
+  for (const command of [
+    "pnpm workflow:release -- EAT-37 | tail -3 > release.log",
+    "pnpm workflow:release -- EAT-37 | tail -3 >> release.log",
+    "pnpm workflow:doctor >> doctor.log",
+    "grep -rn TODO src >> todo.txt",
+    "git status -sb | head -5 >> status.txt",
+    "cat a.txt >> b.txt",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: true, reason: "compound-or-writing-command" },
+      command,
+    );
+  }
+});
+
+test("순수 읽기 명령은 lease 없이 허용하고 파일을 쓰거나 실행하는 술어가 붙으면 차단한다", () => {
+  for (const command of [
+    "grep -rn 'requestedIssue' tools/agent-workflow -A 25",
+    "cat package.json",
+    "head -50 AGENTS.md",
+    "tail -n 20 docs/README.md",
+    "wc -l tools/agent-workflow/workflow.mjs",
+    "ls tools/agent-workflow",
+    "find docs -name '*.md'",
+    "find . -type f -newer package.json",
+    "jq .scripts package.json",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "read-or-verification-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "find . -name '*.tmp' -delete",
+    "find . -name '*.tmp' -exec rm {} ;",
+    "find . -type f -execdir rm {} +",
+    "find . -name '*.md' -fprintf out.txt %p",
+    "sort -o sorted.txt a.txt",
+    "tee out.txt",
+    "cat a.txt > b.txt",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("uniq는 파일 인자가 하나 이하일 때만 읽기이고 출력 파일을 받으면 차단한다", () => {
+  for (const command of [
+    "uniq",
+    "uniq -c",
+    "uniq input.txt",
+    "uniq -c -d input.txt",
+    "uniq --count input.txt",
+    // 단독 `-`는 표준 입력을 뜻하는 피연산자이며 출력 파일이 없으므로 읽기다.
+    "uniq -",
+    "uniq -c -",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "read-or-verification-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "uniq input.txt output.txt",
+    "uniq -c input.txt output.txt",
+    // 단독 `-`를 option으로 세면 뒤의 출력 파일이 남는다.
+    "uniq - out.txt",
+    "uniq -c - out.txt",
+    "uniq input.txt -",
+    // 앞 단계가 읽기여도 pipe 뒤에서 파일을 덮어쓰면 차단된다.
+    "cat a.txt | uniq input.txt output.txt",
+    "cat a.txt | uniq - out.txt",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("pipe 뒤 단계의 쓰기 명령도 mutating-command로 판정한다", () => {
+  // 단계 앞의 공백 때문에 MUTATING_COMMANDS가 통째로 비껴가면 fail-closed 기본값만 남는다.
+  for (const [command, reason] of [
+    ["git status | rm -rf src", "mutating-command"],
+    ["cat a.txt | git commit -m x", "mutating-command"],
+    ["ls | pnpm install", "mutating-command"],
+    ["rm -rf src | tail -1", "mutating-command"],
+  ]) {
+    assert.deepEqual(classifyToolCall("Bash", { command }), { mutatesRepository: true, reason }, command);
+  }
+});
+
+test("find의 출력 술어는 숫자가 붙은 변종까지 접두 일치로 차단하고 읽기 전용 -f 술어만 남긴다", () => {
+  for (const command of [
+    "find . -name '*.md' -fprint0 out.txt",
+    "find . -name '*.md' -fprint out.txt",
+    "find . -name '*.md' -fprintf out.txt %p",
+    "find . -name '*.md' -fls out.txt",
+    "find . -name '*.md' -okdir rm {} ;",
+    "find . -name '*.md' -ok rm {} ;",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+  for (const command of [
+    "find . -follow -name '*.md'",
+    "find . -fstype ntfs -name '*.md'",
+    "find docs -type f -newer package.json",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "read-or-verification-command" },
+      command,
+    );
+  }
+});
+
+test("저장소 밖 절대 경로 편집은 lease 없이 허용한다", () => {
+  for (const file of [
+    "C:/Users/kano/.claude/projects/eatbid/memory/note.md",
+    "C:/Users/kano/AppData/Local/Temp/claude/scratchpad/report.md",
+    "F:/Project/other-repository/README.md",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Write", { file_path: file }, repositoryGuard),
+      { mutatesRepository: false, reason: "file-edit-outside-repository" },
+      file,
+    );
+  }
+});
+
+test("현재 worktree 밖이어도 같은 저장소의 main checkout·형제 worktree·common dir·lease state는 차단한다", () => {
+  for (const file of [
+    `${WORKTREE_ROOT}/tools/agent-workflow/cli.mjs`,
+    `${REPOSITORY_ROOT}/apps/server/src/main.ts`,
+    `${REPOSITORY_ROOT}/AGENTS.md`,
+    `${SIBLING_WORKTREE}/AGENTS.md`,
+    `${REPOSITORY_ROOT}/.git/hooks/pre-commit`,
+    `${REPOSITORY_ROOT}/.git/eatbid-agent-workflow/state.json`,
+    // 드라이브 문자만 소문자로 바꾼 같은 파일이다.
+    `f:/project/eat-bid-service/AGENTS.md`,
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Write", { file_path: file }, repositoryGuard),
+      { mutatesRepository: true, reason: "file-edit-tool" },
+      file,
+    );
+  }
+});
+
+test("경로 표기 우회와 판정 불가 입력은 저장소 밖으로 읽지 않고 lease를 요구한다", () => {
+  for (const file of [
+    // `\\?\`로 감싼 자기 worktree 안 파일. prefix를 벗겨 같은 파일로 판정해야 한다.
+    "\\\\?\\F:\\Project\\eat-bid-service\\.claude\\worktrees\\eat-53-agent-self-service\\AGENTS.md",
+    // UNC는 로컬 루트와 문자열로 이어지지 않으므로 판정하지 않는다.
+    "\\\\localhost\\F$\\Project\\eat-bid-service\\tools\\x.mjs",
+    "\\\\?\\UNC\\localhost\\F$\\Project\\eat-bid-service\\tools\\x.mjs",
+    // 제어문자가 섞인 경로는 사람이 의도한 이름이 아니다.
+    `${WORKTREE_ROOT}/tools/x.mjs\u0001`,
+    "C:/Users/kano/.claude/memory/note.md\u0000",
+    // 상대 경로는 실행 cwd에 따라 다른 파일을 가리킨다.
+    "../../outside.md",
+  ]) {
+    assert.equal(
+      classifyToolCall("Write", { file_path: file }, repositoryGuard).mutatesRepository,
+      true,
+      JSON.stringify(file),
+    );
+  }
+});
+
+test("저장소 루트를 알아내지 못하거나 경로가 없으면 편집은 계속 차단한다", () => {
+  assert.equal(classifyToolCall("Write", { file_path: "C:/tmp/a.md" }).mutatesRepository, true);
+  assert.equal(
+    classifyToolCall("Write", { file_path: "C:/tmp/a.md" }, { ...repositoryGuard, resolveRepositoryRoots: () => [] })
+      .mutatesRepository,
+    true,
+  );
+  assert.equal(
+    classifyToolCall(
+      "Write",
+      { file_path: "C:/tmp/a.md" },
+      {
+        ...repositoryGuard,
+        resolveRepositoryRoots: () => {
+          throw new Error("git을 실행할 수 없음");
+        },
+      },
+    ).mutatesRepository,
+    true,
+  );
+  assert.equal(
+    classifyToolCall("apply_patch", { command: "*** Add File: a.ts" }, repositoryGuard)
+      .mutatesRepository,
+    true,
+  );
 });
