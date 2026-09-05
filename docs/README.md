@@ -66,9 +66,10 @@
 3. 이 파일 `docs/README.md`
 4. Linear issue의 문제·scope·acceptance와 writing owner를 확인한다.
 5. `docs/product/roadmap.md`의 해당 capability와 outcome gate를 확인한다.
-6. 존재할 때만 해당 OpenSpec delta를 읽는다.
-7. 영향받는 세부 아키텍처 문서와 Accepted ADR을 다시 좁혀 읽는다.
-8. 구현에 필요한 active plan을 읽는다.
+6. 제품 판단이 걸린 주제면 `docs/product/decisions/`의 PDR을 먼저 확인한다.
+7. 존재할 때만 해당 OpenSpec delta를 읽는다.
+8. 영향받는 세부 아키텍처 문서와 Accepted ADR을 다시 좁혀 읽는다.
+9. 구현에 필요한 active plan을 읽는다.
 
 관련 없는 감사 문서와 과거 계획을 한꺼번에 컨텍스트에 넣지 않는다.
 

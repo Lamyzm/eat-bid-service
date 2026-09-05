@@ -21,7 +21,7 @@ eaT 참가제한지역(`PDLC_CD`)은 별개 `CodeScheme`(`eat:eligibility-area`)
 
 사용자 설정은 `app` 스키마에 둔다(사용자 작성 상태, 규칙 1). 지역은 문자열이 아니라
 `core.code_value`의 숫자 id로 참조한다(규칙 2). 코드 체계 문자열과 지역 목록을 여러 모듈·문서·
-프론트 상수에 중복 선언하지 않는다. 선언은 `CodeScheme` 등록 한 곳이고 나머지는 전부 참조다.
+프론트 상수에 중복 선언하지 않는다. 선언은 `CodeScheme` 등록 한 곳(EAT-43이 만들 `code_schemes.py`)이고 나머지는 전부 참조다.
 
 설정 주체는 사람(사용자) 단위이며 복수 선택이 가능하고, **미설정이 기본이자 유효한 상태**다.
 
@@ -74,10 +74,10 @@ eaT 참가제한지역(`PDLC_CD`)은 별개 `CodeScheme`(`eat:eligibility-area`)
 
 ## 되돌리기 조건
 
-- **eaT가 업체 소재지·활동지역 필드를 응답에 싣기 시작하면** 유추가 아니라 관측이 되므로 이 결정의
-  전제가 사라진다. 점검 지점은 전수 census를 다시 돌릴 때의 `ds_bidList` 업체 축 컬럼 목록이다.
-- **설정률이 낮아 미설정 사용자에게 공고가 전혀 보이지 않는 것이 실측되면** "제안값"만 재검토한다.
-  그 경우에도 **자동 확정은 여전히 금지**이며, 제안을 도입하려면 새 PDR이 필요하다.
+- **eaT가 업체 소재지·활동지역 필드를 응답에 싣기 시작하거나, 설정률이 낮아 미설정 사용자에게
+  공고가 전혀 보이지 않는 것이 실측되면** "제안값"만 재검토한다. 그 경우에도 **자동 확정은 여전히
+  금지**이며, 제안을 도입하려면 새 PDR이 필요하다. 점검 지점은 전수 census를 다시 돌릴 때의
+  `ds_bidList` 업체 축 컬럼 목록과 설정 화면의 설정률이다.
 - **eaT 189종 중 행안부 코드로 매핑되지 않는 코드가 실측되면** `CodeScheme`의 유효기간과 매핑
   정책을 재검토한다.
 - **ADR 0032가 워크스페이스를 업체 단위로 확정하면** 설정 주체를 사람에서 업체로 옮길지 재검토한다.
@@ -86,8 +86,11 @@ eaT 참가제한지역(`PDLC_CD`)은 별개 `CodeScheme`(`eat:eligibility-area`)
 
 - EAT-54: `app` 계약과 지역 설정 화면. 지역은 `core.code_value` 숫자 id로 참조한다.
 - EAT-20: 정부(행정안전부) 코드 release 수집. 이 결정의 canonical 축을 채우는 선행 작업이다.
-- EAT-43: `CodeScheme` 등록 지점. 현재 등록은 `packages/db/src/seeds/code-schemes.ts`에 있고
-  `eat:eligibility-area`가 이미 들어 있다. 등록 지점이 옮겨지더라도 **선언은 한 곳**을 유지한다.
+- EAT-43: `CodeScheme` 등록 지점 `code_schemes.py`가 코드 체계 선언의 유일한 자리다. 지금 등록은
+  `packages/db/src/seeds/code-schemes.ts`에 있고 `eat:eligibility-area`가 이미 들어 있다. 자리가
+  옮겨지더라도 **선언은 한 곳**이라는 규칙은 그대로다.
+- EAT-57: 지역·코드 중복 선언 제거. 행안부 행정구역 코드를 `core.code_value`로 적재하고 web의 지역
+  이름 문자열과 좌표 변이표를 코드 id 참조로 바꾼다. 이 PDR이 그 작업의 근거다.
 - EAT-39 오늘 화면 필터: 대조 상대는 `location.eligibilityCodes`이며 `location.sidoCode`가 아니다.
 - ADR 0032(인증·인가 경계)와 [도메인·데이터](../../architecture/domain-and-data.md) §4.2의 scheme
   분리표. 이 PDR은 그 분리를 제품 설정 축으로 확장한 것이며 데이터 권위를 대체하지 않는다.
