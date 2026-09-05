@@ -682,6 +682,48 @@ test("순수 읽기 명령은 lease 없이 허용하고 파일을 쓰거나 실�
   }
 });
 
+test("uniq는 파일 인자가 하나 이하일 때만 읽기이고 출력 파일을 받으면 차단한다", () => {
+  for (const command of ["uniq", "uniq -c", "uniq input.txt", "uniq -c -d input.txt", "uniq --count input.txt"]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "read-or-verification-command" },
+      command,
+    );
+  }
+  for (const command of [
+    "uniq input.txt output.txt",
+    "uniq -c input.txt output.txt",
+    // 앞 단계가 읽기여도 pipe 뒤에서 파일을 덮어쓰면 차단된다.
+    "cat a.txt | uniq input.txt output.txt",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+});
+
+test("find의 출력 술어는 숫자가 붙은 변종까지 접두 일치로 차단하고 읽기 전용 -f 술어만 남긴다", () => {
+  for (const command of [
+    "find . -name '*.md' -fprint0 out.txt",
+    "find . -name '*.md' -fprint out.txt",
+    "find . -name '*.md' -fprintf out.txt %p",
+    "find . -name '*.md' -fls out.txt",
+    "find . -name '*.md' -okdir rm {} ;",
+    "find . -name '*.md' -ok rm {} ;",
+  ]) {
+    assert.equal(classifyToolCall("Bash", { command }).mutatesRepository, true, command);
+  }
+  for (const command of [
+    "find . -follow -name '*.md'",
+    "find . -fstype ntfs -name '*.md'",
+    "find docs -type f -newer package.json",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Bash", { command }),
+      { mutatesRepository: false, reason: "read-or-verification-command" },
+      command,
+    );
+  }
+});
+
 test("저장소 밖 절대 경로 편집은 lease 없이 허용한다", () => {
   for (const file of [
     "C:/Users/kano/.claude/projects/eatbid/memory/note.md",

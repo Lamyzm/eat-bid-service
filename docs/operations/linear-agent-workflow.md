@@ -241,8 +241,10 @@ EnterWorktree/ExitWorktree, Linear MCP의 `get_* | list_* | search_*` 읽기 도
 `create_issue | create_comment`, chrome-devtools MCP의
 `navigate_page | take_screenshot | take_snapshot | evaluate_script | list_pages | select_page | wait_for |
 list_console_messages | get_console_message | list_network_requests | get_network_request`,
-파일을 쓰는 수단이 없는 읽기 명령 `rg`·`grep`·`cat`·`head`·`tail`·`wc`·`uniq`·`cut`·`tr`·`nl`·`jq`·`ls`,
-`-exec | -execdir | -ok | -delete | -fprintf | -fls`가 없는 `find`, 제한된 PowerShell 조회·표시 cmdlet
+파일을 쓰는 수단이 없는 읽기 명령 `rg`·`grep`·`cat`·`head`·`tail`·`wc`·`cut`·`tr`·`nl`·`jq`·`ls`,
+파일 인자가 하나 이하인 `uniq`(`uniq 입력 출력`은 두 번째 인자를 덮어쓴다),
+`-exec`·`-ok`·`-delete`와 `-f`로 시작하는 출력 술어(`-fprint`, `-fprint0`, `-fprintf`, `-fls`)가 없는
+`find`(읽기 전용인 `-follow`·`-fstype`만 예외), 제한된 PowerShell 조회·표시 cmdlet
 (`Get-Content | Get-ChildItem | Test-Path | Select-String | Select-Object | Measure-Object | Sort-Object |
 Format-List | Format-Table | Out-String | ConvertTo-Json`), `git [-C <path>] status | diff | log | show |
 rev-parse | worktree list | worktree prune` 같은 명백한 로컬 조회, `kubectl get | describe | logs | top`,

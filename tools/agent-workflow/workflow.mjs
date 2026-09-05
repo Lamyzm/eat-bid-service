@@ -124,11 +124,18 @@ const MUTATING_COMMANDS = [
 
 // 표준 입력이나 파일을 읽어 줄이고 모양만 바꾸는 명령이다. 파일을 쓰는 수단을 가진 것은 넣지 않는다.
 // `tee`는 인자로, `sort`는 `-o`로, `xargs`는 뒤 명령으로 파일을 바꿀 수 있어 제외한다.
-const TEXT_FILTER_COMMAND = /^(?:grep|egrep|fgrep|cat|head|tail|wc|uniq|cut|tr|nl|jq|ls|dir)\b/i;
+const TEXT_FILTER_COMMAND = /^(?:grep|egrep|fgrep|cat|head|tail|wc|cut|tr|nl|jq|ls|dir)\b/i;
 
-// `find`는 `-exec`·`-delete`처럼 파일을 지우거나 다른 프로그램을 실행하는 술어를 갖는다. 그 술어가
-// 없는 순수 탐색만 읽기로 본다. `-fprintf`·`-fls`는 결과를 파일로 쓰므로 같이 제외한다.
-const FIND_READ_COMMAND = /^find\b(?!.*\s-(?:exec(?:dir)?|ok(?:dir)?|delete|fprintf?|fls)\b)/i;
+// `uniq INPUT OUTPUT`는 두 번째 파일 인자를 덮어쓴다. 다른 필터와 달리 인자 수가 읽기와 쓰기를
+// 가르므로, option을 뺀 파일 인자가 하나 이하일 때만 읽기로 본다.
+const UNIQ_READ_COMMAND = /^uniq(?:\s+-[^\s]*)*(?:\s+(?!-)[^\s]+)?\s*$/i;
+
+// `find`는 파일을 지우거나(`-delete`) 결과를 파일로 쓰거나(`-fprint`, `-fprint0`, `-fprintf`, `-fls`)
+// 다른 프로그램을 실행하는(`-exec`, `-execdir`, `-ok`, `-okdir`) 술어를 갖는다. 술어 끝을 `\b`로
+// 고정하면 `-fprint0`처럼 숫자가 붙은 변종이 빠져나가므로 접두 일치로 잡는다. `-f`로 시작하는 술어는
+// 출력용이 기본이라 전부 막고, 읽기 전용인 `-follow`·`-fstype`만 예외로 남긴다.
+const FIND_READ_COMMAND =
+  /^find\b(?!.*\s-(?:exec|ok|delete|f(?!ollow(?:\s|$)|stype(?:\s|$))))/i;
 
 // PowerShell pipeline의 표시·집계 cmdlet이다. script block을 실행하는 `Where-Object`·`ForEach-Object`는
 // 그 안에서 임의 cmdlet을 호출할 수 있으므로 넣지 않는다.
@@ -139,6 +146,7 @@ const READ_ONLY_COMMANDS = [
   /^rg\b/i,
   /^(?:get-content|get-childitem|test-path|select-string)\b/i,
   TEXT_FILTER_COMMAND,
+  UNIQ_READ_COMMAND,
   FIND_READ_COMMAND,
   POWERSHELL_FILTER_COMMAND,
   new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}(?:status|diff|log|show|rev-parse|worktree\s+(?:list|prune))\b`),
