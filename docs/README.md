@@ -14,6 +14,7 @@
 | 각 화면에서 무엇을 보고 어떤 행동을 하는가? | [`product/screen-system.md`](product/screen-system.md) |
 | 문서를 AI 작업의 입력과 결과로 어떻게 운영하는가? | [`governance/ai-driven-documentation.md`](governance/ai-driven-documentation.md) |
 | 확정된 아키텍처 결정과 변경 방법은 무엇인가? | [`adr/README.md`](adr/README.md) |
+| 제품 기획 판단을 왜 그렇게 정했고 언제 다시 보는가? | [`product/decisions/README.md`](product/decisions/README.md) |
 | 데이터·런타임·품질 경계는 무엇인가? | [`architecture/README.md`](architecture/README.md) |
 | 운영자가 실제로 무엇을 실행하는가? | [`operations/`](operations/) |
 | Codex와 Claude가 Linear 작업 상태를 어떻게 공유하는가? | [`operations/linear-agent-workflow.md`](operations/linear-agent-workflow.md) |
@@ -33,7 +34,8 @@
 | 작업 scope·상태 | Linear issue + project | 담당·상태·blocker·acceptance의 유일한 동적 원천이다. Markdown과 GitHub Issue에 복사하지 않는다. |
 | 중대형 행동 변경 | 향후 OpenSpec change | 현재 변경의 delta만 기록한다. 작은 변경과 기존 시스템 전체에 강제하지 않는다. |
 | 목표 아키텍처 | `docs/architecture/` | 구현과 다르다고 코드에 맞춰 조용히 바꾸지 않는다. 결정 변경은 ADR이 먼저다. |
-| 결정 기록 | `docs/adr/` | Accepted ADR은 수정해 결론을 뒤집지 않는다. 새 ADR이 이전 ADR을 대체한다. |
+| 아키텍처 결정 기록 | `docs/adr/` | Accepted ADR은 수정해 결론을 뒤집지 않는다. 새 ADR이 이전 ADR을 대체한다. |
+| 제품 기획 결정 기록 | `docs/product/decisions/` | Active PDR은 수정해 결론을 뒤집지 않는다. 새 PDR이 `Supersedes`로 대체하고 원본에 `Superseded-by`를 채운다. 되돌리기 조건은 필수 필드다. |
 | 운영 절차 | `docs/operations/` | 실제 실행 절차와 동기화한다. 실행할 수 없는 설명은 제거하거나 상태를 표시한다. |
 | 조사·감사 증거 | 현재 `AUDIT-*`, `GATE-*`, `audit-source/`, `evidence/` | 관측 당시의 증거다. 제품·아키텍처 권위 문서가 아니다. 사실이 채택되면 권위 문서나 ADR로 승격한다. |
 | 생성 문서 | 향후 `docs/generated/` | 코드·스키마에서 다시 만든다. 사람이 직접 편집하지 않는다. |
@@ -76,5 +78,5 @@
 2. 살아 있는 delivery work는 Linear issue에 연결하고 중대형 행동 변경만 OpenSpec 파일럿 후보로
    분류한다.
 3. 완료된 실행계획이 현재 상태처럼 읽히지 않도록 history임을 표시한다.
-4. 링크·마지막 검토일·중복 권위를 검사하는 `docs-lint`를 CI에 추가한다.
+4. 링크·마지막 검토일·중복 권위를 검사하는 `docs-lint`를 CI에 추가한다. PDR의 `Superseded-by` 양방향 링크 무결성도 같은 검사에 포함한다.
 5. 정기 doc-gardening 작업이 오래된 문서와 코드 불일치를 보고하게 한다.
