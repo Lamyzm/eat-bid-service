@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
 from typing import Protocol, get_args
 from uuid import UUID
 
+from eatbid.core.build_identity import validate_build_sha
 from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
@@ -19,8 +19,6 @@ from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.models import BidListPage
 from eatbid.source.eat.registry import require
 from eatbid.source.eat.xml import EatPayloadError
-
-_BUILD_SHA = re.compile(r"[0-9a-f]{64}")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -56,8 +54,7 @@ class DiscoveryPlan:
             raise ValueError("release_name and parser_version are required")
         if self.mode not in get_args(CaptureRunMode):
             raise ValueError("discovery mode must be a capture run mode")
-        if _BUILD_SHA.fullmatch(self.build_sha) is None:
-            raise ValueError("build_sha must be a lowercase SHA-256 digest")
+        validate_build_sha(self.build_sha)
         if self.started_at.utcoffset() is None or self.completed_at.utcoffset() is None:
             raise ValueError("discovery timestamps must be timezone-aware")
         if self.as_of.utcoffset() is None or self.completed_at < self.started_at:

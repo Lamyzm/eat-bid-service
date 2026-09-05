@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
@@ -11,10 +10,10 @@ from uuid import UUID
 import psycopg
 from psycopg.types.json import Jsonb
 
+from eatbid.core.build_identity import BUILD_SHA_PATTERN
 from eatbid.ingest.models import CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.repository import CaptureRunMode, request_params_sha256
 
-_BUILD_SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
 _CAPTURE_RUN_MODES = {"poll-open", "daily-reconcile", "backfill"}
 
 
@@ -75,7 +74,7 @@ class PostgresRunPlanningMixin:
         if (
             mode not in _CAPTURE_RUN_MODES
             or not parser_version
-            or _BUILD_SHA_PATTERN.fullmatch(build_sha) is None
+            or BUILD_SHA_PATTERN.fullmatch(build_sha) is None
         ):
             raise ValueError("run metadata is invalid")
         with self._connection.transaction(), self._connection.cursor() as cursor:

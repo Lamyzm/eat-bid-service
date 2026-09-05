@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import UUID
@@ -202,3 +202,16 @@ def test_failure_기록실패는_원래_typed_error와_context를_바꾸지_않�
     assert captured.value.__context__ is None
     assert "secret" not in repr(captured.value)
     assert original_response.status_code == 500
+
+
+def test_release_commit_40자_build_sha로도_발견_계획을_만든다() -> None:
+    plan = _계획()
+    release_commit = "9c9ff63f479d03f0fbfcc036954e8470b182bb61"
+
+    assert replace(plan, build_sha=release_commit).build_sha == release_commit
+
+
+@pytest.mark.parametrize("build_sha", ["a" * 39, "a" * 41, "A" * 40, "a" * 63])
+def test_hex_정체성이_아닌_build_sha는_발견_계획에서_거부한다(build_sha: str) -> None:
+    with pytest.raises(ValueError, match="lowercase 40 or 64 character"):
+        replace(_계획(), build_sha=build_sha)

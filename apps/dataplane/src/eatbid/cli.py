@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
@@ -14,6 +13,7 @@ from typing import Protocol, Self
 from uuid import UUID
 
 from eatbid.config import ApplicationSettings
+from eatbid.core.build_identity import validate_build_sha
 from eatbid.ingest.models import CapturedObservation
 from eatbid.pipeline.collection_window import COLLECTION_MODES
 from eatbid.pipeline.discover import DiscoveryResult
@@ -22,7 +22,6 @@ CONFIGURATION_EXIT_CODE = 64
 DATA_QUARANTINED_EXIT_CODE = 65
 SOURCE_THROTTLED_EXIT_CODE = 75
 SOURCE_CONTRACT_EXIT_CODE = 76
-_SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 class CliApplication(Protocol):
@@ -101,10 +100,11 @@ COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
 }
 
 
-def _sha256(value: str) -> str:
-    if _SHA256.fullmatch(value) is None:
-        raise argparse.ArgumentTypeError("must be a lowercase SHA-256 digest")
-    return value
+def _build_sha(value: str) -> str:
+    try:
+        return validate_build_sha(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
 
 
 def _aware_datetime(value: str) -> datetime:
@@ -129,7 +129,7 @@ def _positive_id(value: str) -> int:
 def _common(command: argparse.ArgumentParser) -> None:
     command.add_argument("--run-id", required=True, type=UUID)
     command.add_argument("--source-release-id", required=True, type=UUID)
-    command.add_argument("--build-sha", required=True, type=_sha256)
+    command.add_argument("--build-sha", required=True, type=_build_sha)
     command.add_argument("--parser-version", required=True)
     command.add_argument("--result-dir", type=Path, default=None)
 

@@ -1,0 +1,1 @@
+ALTER TABLE "ingest"."run" ALTER COLUMN "build_sha" SET DATA TYPE varchar(64) USING "build_sha"::varchar(64);
