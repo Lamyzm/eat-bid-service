@@ -136,6 +136,7 @@ describe("canonical column 계약", () => {
       "opened_at",
       "base_amount",
       "planned_amount",
+      "floor_rate",
       "currency",
       "source_payload",
     ]);
@@ -153,6 +154,7 @@ describe("canonical column 계약", () => {
       opened_at: false,
       base_amount: false,
       planned_amount: false,
+      floor_rate: false,
       currency: true,
       source_payload: true,
     });
