@@ -219,6 +219,12 @@ EAT-43·44가 정한다. 둘째, 단가 입찰의 사정률은 총액/단가가 
 `SUCBID_DCSN_MTH_CD`이며 레이크 238,306건 전부에 있다. 그래서 `terms.awardMethod`를 이 column에서
 `(eat, eat:SUCBID_DCSN_MTH_CD, code)`로 읽고 `SUCBD_DECISION_MTHD_NM`은 label로만 싣도록 고쳤다.
 
+> 2026-09-06(EAT-61) 이후 code scheme namespace는 소스 column명이 아니라 의미 이름이다. 이 문서에
+> 적힌 `eat:SUCBID_DCSN_MTH_CD`를 비롯한 여덟은 각각 `eat:award-method`·`eat:bid-status`·
+> `eat:withdrawal-flag`·`eat:supplier-account`·`eat:business-number`·`eat:planned-price-type`·
+> `eat:reserve-price-selection-flag`·`eat:chain-bid-status`로 바뀌었다. 읽은 column과 코드 분포,
+> `eat-v2-r3`의 지문 값은 그대로이므로 이 문서의 수치는 고치지 않는다.
+
 | 코드 | 공고 수 |
 | -- | -- |
 | 003 | 236,035 |
