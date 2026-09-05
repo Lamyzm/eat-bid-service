@@ -64,6 +64,13 @@ describe("ingest identity 불변식", () => {
     ]);
   });
 
+  test("run.build_sha는 40자 release commit을 패딩 없이 담는 varchar다", () => {
+    const buildSha = getTableConfig(ingestRun).columns.find((column) => column.name === "build_sha");
+
+    expect(buildSha?.getSQLType()).toBe("varchar(64)");
+    expect(buildSha?.notNull).toBe(true);
+  });
+
   test("각 table을 요구된 evidence grain으로 유지한다", () => {
     expect(columnNames(ingestRun)).toEqual(expect.arrayContaining([
       "run_id",

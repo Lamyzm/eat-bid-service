@@ -22,7 +22,9 @@ export const ingestRun = ingestSchema.table(
     runId: uuid("run_id").primaryKey(),
     mode: varchar("mode", { length: 32 }).notNull(),
     status: varchar("status", { length: 16, enum: runStatuses }).notNull(),
-    buildSha: char("build_sha", { length: 64 }).notNull(),
+    // build_sha는 release commit 스탬프이고 40자 SHA-1과 64자 hex를 모두 받는다. char(64)는 40자를
+    // 공백으로 채워 저장해 run ledger 대조와 checkpoint 비교가 조용히 어긋난다.
+    buildSha: varchar("build_sha", { length: 64 }).notNull(),
     parserVersion: varchar("parser_version", { length: 128 }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
