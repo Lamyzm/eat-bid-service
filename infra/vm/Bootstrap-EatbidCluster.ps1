@@ -67,6 +67,12 @@ kubectl --context $TargetContext -n eatbid patch serviceaccount default -p '{"im
 # operator가 먼저 있어야 한다. Argo CD가 재시도하므로 순서는 시작 시간만 줄인다.
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\infisical-secrets-operator.application.yaml')
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\argo-workflows.application.yaml')
+# 새 클러스터에서는 eatbid Application의 PreSync hook(migration Job)이 본 동기화가 만들 InfisicalSecret보다
+# 먼저 돌아 migrator Secret이 없어 멈춘다. 옛 클러스터는 이전 sync가 남긴 Secret이 있어 드러나지 않던 순서
+# 문제다. 그래서 InfisicalSecret 선언을 Application보다 먼저 적용한다. operator가 이미 있어야 하므로 platform
+# sync 뒤에 온다. Argo가 같은 manifest를 다시 관리하므로 중복 소유는 아니다.
+kubectl --context $TargetContext -n argocd wait application/infisical-secrets-operator --for=jsonpath='{.status.health.status}'=Healthy --timeout=600s | Out-Null
+kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\product\secrets.yaml') | Out-Null
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\argocd\application.yaml')
 
 # platform Application 둘은 automated 정책이 없다(운영 승인 뒤 수동 sync가 설계). 새 클러스터의 첫 sync는
