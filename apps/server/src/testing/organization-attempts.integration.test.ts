@@ -73,34 +73,64 @@ const seed = `
     (normalized_record_id, observation_id, record_type, source_entity_id, normalized_payload,
      parser_version, normalized_at)
   overriding system value
-  values (205, 203, 'auction.v1', 'external-103', '{}', 'eat-v1', '2026-09-03T00:00:40Z');
+  values (205, 203, 'auction.v1', 'external-103', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
+         (206, 203, 'auction.v1', 'external-102', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
+         (209, 203, 'auction.v1', 'external-101', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
+         (210, 203, 'auction.v1', 'external-104', '{}', 'eat-v1', '2026-09-03T00:00:40Z');
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
      opened_at, base_amount, planned_amount, currency, source_payload)
   overriding system value
   values (207, 103, 205, 203, '${"d".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-03T00:00:00Z', null, null, 2761700.00, null, 'KRW', '{}');
+    '2026-09-03T00:00:00Z', null, null, 2761700.00, null, 'KRW', '{}'),
+         (208, 102, 206, 203, '${"e".repeat(64)}', null, 'OPEN', '농산물 구매',
+    '2026-09-02T00:00:00Z', null, '2026-09-04T05:00:00Z', 1000000.00, null, 'KRW', '{}'),
+         (211, 101, 209, 203, '${"f".repeat(64)}', null, 'OPEN', '축산물 구매',
+    '2026-09-01T00:00:00Z', null, '2026-09-03T05:00:00Z', 500000.00, null, 'KRW', '{}'),
+         (212, 104, 210, 203, '${"0".repeat(64)}', null, 'OPEN', '축산물 구매',
+    '2026-09-05T00:00:00Z', null, null, 900000.00, null, 'KRW', '{}');
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   values (207, 41, 'purchaser'), (207, 43, 'supplier-contact');
+  insert into core.supplier_party (supplier_party_id, type, canonical_name)
+  overriding system value
+  values (77, 'company', '어떤 업체');
+  insert into ingest.source_release (source_release_id, source, release_name, status, as_of)
+  values ('00000000-0000-0000-0000-000000000141', 'eat', 'eat-2026-09-04', 'planned',
+    '2026-09-04T00:00:00Z');
+  insert into mart.build
+    (build_id, mart_name, source_release_id, calc_version, builder_version, region_scheme,
+     status, as_of, started_at)
+  overriding system value
+  values (501, 'org_round_summary', '00000000-0000-0000-0000-000000000141', 'mart-r1',
+    '${"a".repeat(40)}', 'eat:auction-location-sigungu', 'building',
+    '2026-09-04T00:00:00Z', '2026-09-04T00:05:00Z');
   insert into mart.org_round_summary
-    (auction_attempt_id, organization_id, item_code_value_id, item_label, announced_at, opened_at,
-     floor_rate, base_amount, currency, win_rate, second_rate, day_floor_rate,
-     list_count, invalid_count, winner_supplier_party_id, supersedes_attempt_id,
-     mart_release, computed_at, calc_version)
+    (build_id, auction_attempt_id, auction_revision_id, organization_id, item_code_value_id,
+     item_label, announced_at, opened_at, floor_rate, award_method_code_value_id,
+     base_amount, planned_amount, currency, awarded_assessment_rate, runner_up_assessment_rate,
+     day_floor_amount, day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count,
+     withdrawn_count, withdrawal_cohort_age_days, winner_supplier_party_id, supersedes_attempt_id,
+     lineage_status, opened_month_kst)
   values
-    (103, 41, 7, '축산', '2026-09-03T00:00:00Z', null,
-     90.000, 2761700.00, 'KRW', null, null, null, 17, 2, null, null,
-     '2026-09-04T00', '2026-09-04T00:10:00Z', 'v1'),
-    (102, 41, 9, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
-     90.000, 1000000.00, 'KRW', 90.309, 90.412, 88.500, 5, 0, 77, null,
-     '2026-09-04T00', '2026-09-04T00:10:00Z', 'v1'),
-    (101, 41, 7, null, '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
-     null, 500000.00, 'KRW', 91.000, null, null, null, null, null, null,
-     '2026-09-03T00', '2026-09-03T00:10:00Z', 'v1'),
-    (104, 43, 7, '축산', '2026-09-05T00:00:00Z', null,
-     90.000, 900000.00, 'KRW', null, null, null, null, null, null, null,
-     '2026-09-04T00', '2026-09-04T00:10:00Z', 'v1');
+    (501, 103, 207, 41, 7, '축산', '2026-09-03T00:00:00Z', null,
+     90.000, null, 2761700.00, null, 'KRW', null, null, null, null, null,
+     17, 2, null, null, null, null, 'unknown', null),
+    (501, 102, 208, 41, 9, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
+     90.000, null, 1000000.00, 990000.00, 'KRW', 90.309, 90.412,
+     891000.00, 89.1000, 89.4059, 5, 0, 0, 1, 77, null, 'observed', '2026-09-01'),
+    (501, 101, 211, 41, 7, null, '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
+     null, null, 500000.00, null, 'KRW', 91.000, null, null, null, null,
+     null, null, null, null, null, null, 'unknown', '2026-09-01'),
+    (501, 104, 212, 43, 7, '축산', '2026-09-05T00:00:00Z', null,
+     90.000, null, 900000.00, null, 'KRW', null, null, null, null, null,
+     null, null, null, null, null, null, 'unknown', null);
+  update mart.build
+     set status = 'verified', computed_at = '2026-09-04T00:10:00Z', row_count = 4
+   where build_id = 501;
+  update mart.build
+     set status = 'active', activated_at = '2026-09-04T00:11:00Z'
+   where build_id = 501;
 `;
 
 async function withSeededDatabase(
@@ -168,15 +198,18 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         baseAmount: { amount: "2761700.00", currency: "KRW" },
         winRate: null,
         listCount: 17,
-        invalidCount: 2,
-        martRelease: "2026-09-04T00",
-        calcVersion: "v1",
+        // 유효·무효 판정은 우리가 하지 않으므로 mart에서 사라졌고 V1 응답에서는 unknown이다.
+        invalidCount: null,
+        // 계보는 행이 아니라 활성 build가 갖는다.
+        martRelease: "501",
+        calcVersion: "mart-r1",
       });
       expect(first.attempts[0]!.announcedAt.toString()).toBe("2026-09-03T00:00:00Z");
       expect(first.attempts[1]).toMatchObject({
         winRate: "90.309",
         secondRate: "90.412",
-        dayFloorRate: "88.500",
+        // 그날 하한은 금액 축이 권위이고 표시 비율은 소수 넷째 자리다. V1 계약이 담지 못한다.
+        dayFloorRate: null,
         winnerSupplierPartyId: 77n,
       });
 
@@ -248,7 +281,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
           secondRate: null,
           dayFloorRate: null,
           listCount: 17,
-          invalidCount: 2,
+          invalidCount: null,
           winnerSupplierPartyId: null,
           supersedesAttemptId: null,
         }]);
@@ -256,9 +289,9 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         expect(response.body.meta).toEqual({
           sampleCount: 3,
           item: null,
-          martRelease: "2026-09-04T00",
+          martRelease: "501",
           computedAt: "2026-09-04T00:10:00Z",
-          calcVersion: "v1",
+          calcVersion: "mart-r1",
         });
         const foreignCursor = await request(server).get(
           organizationV1Operations.listAuctionAttempts.buildPath({

@@ -1,4 +1,4 @@
-/** @module 책임: 기관 회차 이력 port를 mart.org_round_summary keyset 조회와 행 매핑으로 구현한다. */
+/** @module 책임: 기관 회차 이력 port를 활성 build의 mart.org_round_summary keyset 조회와 행 매핑으로 구현한다. */
 import { sql } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type {
@@ -9,7 +9,10 @@ import type {
 } from "../../application/organization-attempt-reader";
 import type { OrganizationId } from "../../domain/organization-id";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
+import { activeMartBuildId } from "./drizzle-mart-build-reader";
 import { bidRateValue, bigintValue, moneyValue } from "./postgres-row-values";
+
+const ORG_ROUND_SUMMARY = "org_round_summary";
 
 // driver 시간 표현은 AGENTS 17이 지정한 어댑터가 소유하므로 그 경계의 입력 타입을 그대로 파생한다.
 type PostgresTimestamp = Parameters<typeof postgresInstant>[0];
@@ -23,14 +26,12 @@ type OrganizationAttemptRow = Readonly<{
   floor_rate: string | null;
   base_amount: string | null;
   currency: string;
-  win_rate: string | null;
-  second_rate: string | null;
-  day_floor_rate: string | null;
+  awarded_assessment_rate: string | null;
+  runner_up_assessment_rate: string | null;
   list_count: number | null;
-  invalid_count: number | null;
   winner_supplier_party_id: string | bigint | null;
   supersedes_attempt_id: string | bigint | null;
-  mart_release: string;
+  build_id: string | bigint;
   computed_at: PostgresTimestamp;
   calc_version: string;
 }>;
@@ -53,18 +54,25 @@ export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptR
       : { codeValueId: bigintValue(row.item_code_value_id), label: row.item_label.trim() },
     floorRate: bidRateValue(row.floor_rate),
     baseAmount: moneyValue(row.base_amount, row.currency, true),
-    winRate: bidRateValue(row.win_rate),
-    secondRate: bidRateValue(row.second_rate),
-    dayFloorRate: bidRateValue(row.day_floor_rate),
+    // 사정률 축(분모가 예정가격)의 관측값이다. V1 계약의 이름이 아직 축을 담지 못해 그대로 싣는다.
+    winRate: bidRateValue(row.awarded_assessment_rate),
+    secondRate: bidRateValue(row.runner_up_assessment_rate),
+    // 그날 하한은 이제 금액 축(`day_floor_amount`)이 권위이고 비율은 소수 넷째 자리 투찰률 축이다.
+    // V1 `BidRate` wire 계약은 소수 셋째 자리 고정이라 그 값을 손실 없이 담지 못하므로, 계약이
+    // 두 축을 갖게 되기 전까지 이 자리를 반올림한 값으로 채우지 않는다.
+    dayFloorRate: null,
     listCount: row.list_count,
-    invalidCount: row.invalid_count,
+    // 유효·무효 판정은 우리가 하지 않는다. 하한 미만 수는 새 계약이 생길 때 자기 이름으로 나간다.
+    invalidCount: null,
     winnerSupplierPartyId: row.winner_supplier_party_id === null
       ? null
       : bigintValue(row.winner_supplier_party_id),
     supersedesAttemptId: row.supersedes_attempt_id === null
       ? null
       : bigintValue(row.supersedes_attempt_id),
-    martRelease: row.mart_release,
+    // 계보는 행이 아니라 build가 갖는다. V1 meta가 아직 `buildId`를 모르므로 build 식별자를 문자열로
+    // 싣고, 이름을 바꾸는 것은 응답 계약을 함께 움직이는 변경의 몫이다(ADR 0034).
+    martRelease: bigintValue(row.build_id).toString(10),
     computedAt: requiredInstant(row.computed_at, "computed"),
     calcVersion: row.calc_version,
   };
@@ -104,7 +112,8 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     const result = await this.database.execute(sql`
       select 1 as present
       from mart.org_round_summary summary
-      where summary.auction_attempt_id = ${cursor}::bigint
+      where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
+        and summary.auction_attempt_id = ${cursor}::bigint
         and summary.organization_id = ${id}
       limit 1
     `);
@@ -122,27 +131,28 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
         summary.floor_rate,
         summary.base_amount,
         summary.currency,
-        summary.win_rate,
-        summary.second_rate,
-        summary.day_floor_rate,
+        summary.awarded_assessment_rate,
+        summary.runner_up_assessment_rate,
         summary.list_count,
-        summary.invalid_count,
         summary.winner_supplier_party_id,
         summary.supersedes_attempt_id,
-        summary.mart_release,
-        summary.computed_at,
-        summary.calc_version
+        build.build_id,
+        build.computed_at,
+        build.calc_version
       from mart.org_round_summary summary
-      where summary.organization_id = ${query.organizationId}
+      join mart.build build on build.build_id = summary.build_id
+      where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
+        and summary.organization_id = ${query.organizationId}
         and (${query.itemCodeValueId}::bigint is null
              or summary.item_code_value_id = ${query.itemCodeValueId}::bigint)
         and (${query.cursor}::bigint is null
              or (summary.announced_at, summary.auction_attempt_id)
                 < (select cursor_row.announced_at, cursor_row.auction_attempt_id
                    from mart.org_round_summary cursor_row
-                   where cursor_row.auction_attempt_id = ${query.cursor}::bigint
+                   where cursor_row.build_id = summary.build_id
+                     and cursor_row.auction_attempt_id = ${query.cursor}::bigint
                      and cursor_row.organization_id = ${query.organizationId}))
-      -- nulls last까지 org_round_summary_org_announced_idx와 같아야 planner가 정렬 없이 인덱스
+      -- nulls last까지 org_round_summary_build_org_announced_idx와 같아야 planner가 정렬 없이 인덱스
       -- pathkey를 그대로 쓴다. 위 cursor 튜플 비교도 이 순서 의미를 그대로 따른다.
       order by summary.announced_at desc nulls last, summary.auction_attempt_id desc nulls last
       limit ${query.limit + 1}
@@ -155,7 +165,8 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     const result = await this.database.execute(sql`
       select count(*)::int as sample_count
       from mart.org_round_summary summary
-      where summary.organization_id = ${query.organizationId}
+      where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
+        and summary.organization_id = ${query.organizationId}
         and (${query.itemCodeValueId}::bigint is null
              or summary.item_code_value_id = ${query.itemCodeValueId}::bigint)
     `);

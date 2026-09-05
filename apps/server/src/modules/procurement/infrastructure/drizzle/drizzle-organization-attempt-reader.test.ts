@@ -10,16 +10,14 @@ const row = {
   floor_rate: "90.000",
   base_amount: "2761700.00",
   currency: "KRW",
-  win_rate: "90.309",
-  second_rate: null,
-  day_floor_rate: null,
+  awarded_assessment_rate: "90.309",
+  runner_up_assessment_rate: null,
   list_count: 17,
-  invalid_count: 2,
   winner_supplier_party_id: "9",
   supersedes_attempt_id: null,
-  mart_release: "2026-09-04T00",
+  build_id: "42",
   computed_at: "2026-09-04T00:10:00Z",
-  calc_version: "v1",
+  calc_version: "mart-r1",
 } as const;
 
 describe("DrizzleOrganizationAttemptReader row 경계", () => {
@@ -35,19 +33,34 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
       baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: "90.309",
       secondRate: null,
-      dayFloorRate: null,
       listCount: 17,
-      invalidCount: 2,
       winnerSupplierPartyId: 9n,
       supersedesAttemptId: null,
-      martRelease: "2026-09-04T00",
-      calcVersion: "v1",
+      calcVersion: "mart-r1",
     });
     expect(record.announcedAt).toBeInstanceOf(Temporal.Instant);
     expect(record.announcedAt.toString()).toBe("2026-09-01T00:00:00Z");
     expect(record.computedAt.toString()).toBe("2026-09-04T00:10:00Z");
     expect(isMoney(record.baseAmount)).toBe(true);
     expect(record).not.toHaveProperty("source_payload");
+  });
+
+  test("계보를 행이 아니라 활성 build에서 읽는다", async () => {
+    const adapter = await import("./drizzle-organization-attempt-reader");
+    const record = adapter.mapAttemptRow(row as never);
+
+    expect(record.martRelease).toBe("42");
+    expect(record.calcVersion).toBe("mart-r1");
+  });
+
+  test("소수 넷째 자리 그날 하한과 하한 미만 수는 V1 계약에 반올림해 싣지 않는다", async () => {
+    const adapter = await import("./drizzle-organization-attempt-reader");
+    const record = adapter.mapAttemptRow(row as never);
+
+    // 그날 하한의 권위는 금액 축이고 표시 비율은 소수 넷째 자리다. V1 `BidRate`는 셋째 자리 고정이라
+    // 값을 잘라 넣는 대신 비워 둔다. 두 축을 다 싣는 것은 응답 계약을 함께 움직이는 변경의 몫이다.
+    expect(record.dayFloorRate).toBeNull();
+    expect(record.invalidCount).toBeNull();
   });
 
   test("품목 코드나 라벨이 없으면 라벨을 지어내지 않고 item을 unknown으로 남긴다", async () => {
@@ -61,7 +74,7 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
   test("KRW가 아닌 통화와 scale이 다른 비율 문자열은 TypeError로 거부한다", async () => {
     const adapter = await import("./drizzle-organization-attempt-reader");
     expect(() => adapter.mapAttemptRow({ ...row, currency: "USD" } as never)).toThrow(TypeError);
-    expect(() => adapter.mapAttemptRow({ ...row, win_rate: "90.3" } as never)).toThrow(TypeError);
+    expect(() => adapter.mapAttemptRow({ ...row, awarded_assessment_rate: "90.3" } as never)).toThrow(TypeError);
     expect(() => adapter.mapAttemptRow({ ...row, announced_at: null } as never)).toThrow(TypeError);
   });
 });

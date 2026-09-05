@@ -31,6 +31,21 @@ describe("schema module 배치", () => {
     }
   });
 
+  test("mart aggregate를 빌드 원장과 표별 module로 나눈다", () => {
+    for (const file of [
+      "build.ts",
+      "values.ts",
+      "coverage.ts",
+      "round-summary.ts",
+      "win-rate-distribution.ts",
+      "open-auction-snapshot.ts",
+      "index.ts",
+    ]) {
+      expect(existsSync(path.join(schemaRoot, "mart", file))).toBe(true);
+    }
+    expect(existsSync(path.join(schemaRoot, "mart.ts"))).toBe(false);
+  });
+
   test("root·core index는 export 조립에만 사용한다", async () => {
     const rootIndex = await readFile(path.join(schemaRoot, "index.ts"), "utf8");
     const coreIndex = await readFile(path.join(schemaRoot, "core", "index.ts"), "utf8");

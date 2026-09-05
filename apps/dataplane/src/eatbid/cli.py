@@ -6,17 +6,15 @@ import argparse
 import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
-from datetime import datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Protocol, Self
-from uuid import UUID
 
+from eatbid.cli_arguments import build_parser as build_argument_parser
 from eatbid.config import ApplicationSettings
-from eatbid.core.build_identity import validate_build_sha
 from eatbid.failure_report import render_failure
 from eatbid.ingest.models import CapturedObservation
-from eatbid.pipeline.collection_window import COLLECTION_MODES
+from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.discover import DiscoveryResult
 
 CONFIGURATION_EXIT_CODE = 64
@@ -47,6 +45,7 @@ class CliApplication(Protocol):
     def validate(self, args: argparse.Namespace) -> None: ...
     def project(self, args: argparse.Namespace) -> None: ...
     def replay(self, args: argparse.Namespace) -> None: ...
+    def build_marts(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[[argparse.Namespace, CliApplication], int]
@@ -87,6 +86,23 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "content_sha256": result.content_sha256,
             "observation_id": result.observation_id,
         }
+    if method_name == "build_marts":
+        if not isinstance(result, tuple) or any(
+            not isinstance(item, MartBuildResult) for item in result
+        ):
+            raise TypeError("build-marts returned an invalid result")
+        # mart마다 한 줄이라 workflow가 어느 mart의 어느 build를 활성화했는지 파일로 읽는다.
+        return {
+            "marts": [
+                {
+                    "mart_name": item.mart_name,
+                    "build_id": item.build_id,
+                    "row_count": item.row_count,
+                    "status": item.status,
+                }
+                for item in result
+            ]
+        }
     return None
 
 
@@ -103,89 +119,25 @@ def _write_result_files(result_dir: Path, payload: Mapping[str, object]) -> None
         (result_dir / key).write_text(text, encoding="utf-8")
 
 
+# CLI 이름은 kebab-case이고 application method는 snake_case다. 이름 하나를 두 곳에서 짓지 않도록
+# 그 대응을 여기 한 표에 둔다.
+COMMAND_METHODS: Mapping[str, str] = {
+    "discover": "discover",
+    "capture": "capture",
+    "normalize": "normalize",
+    "validate": "validate",
+    "project": "project",
+    "replay": "replay",
+    "build-marts": "build_marts",
+}
+
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
-    name: _handler(name)
-    for name in ("discover", "capture", "normalize", "validate", "project", "replay")
+    name: _handler(method) for name, method in COMMAND_METHODS.items()
 }
 
 
-def _build_sha(value: str) -> str:
-    try:
-        return validate_build_sha(value)
-    except ValueError as error:
-        raise argparse.ArgumentTypeError(str(error)) from None
-
-
-def _aware_datetime(value: str) -> datetime:
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError("must be an ISO 8601 timestamp") from None
-    if parsed.utcoffset() is None:
-        raise argparse.ArgumentTypeError("must include a timezone offset")
-    return parsed
-
-
-def _positive_id(value: str) -> int:
-    if not value.isascii() or not value.isdecimal() or value.startswith("0"):
-        raise argparse.ArgumentTypeError("must be a positive ASCII decimal")
-    parsed = int(value)
-    if parsed < 1:
-        raise argparse.ArgumentTypeError("must be positive")
-    return parsed
-
-
-def _common(command: argparse.ArgumentParser) -> None:
-    command.add_argument("--run-id", required=True, type=UUID)
-    command.add_argument("--source-release-id", required=True, type=UUID)
-    command.add_argument("--build-sha", required=True, type=_build_sha)
-    command.add_argument("--parser-version", required=True)
-    command.add_argument("--result-dir", type=Path, default=None)
-
-
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="eatbid")
-    subcommands = parser.add_subparsers(dest="command", required=True)
-    commands = {name: subcommands.add_parser(name) for name in COMMAND_HANDLERS}
-    for command in commands.values():
-        _common(command)
-
-    discover = commands["discover"]
-    discover.add_argument("--detail-run-id", required=True, type=UUID)
-    # 모드가 창을 정한다. 날짜는 backfill에서만 받고 예약 모드에서는 --as-of의 서울 날짜로 번역한다.
-    discover.add_argument("--mode", required=True, choices=COLLECTION_MODES)
-    discover.add_argument("--release-name", required=True)
-    discover.add_argument("--as-of", required=True, type=_aware_datetime)
-    discover.add_argument("--started-at", required=True, type=_aware_datetime)
-    discover.add_argument("--completed-at", required=True, type=_aware_datetime)
-    discover.add_argument("--start-date", default="")
-    discover.add_argument("--end-date", default="")
-    discover.add_argument("--progress-status-code", default="")
-    discover.add_argument("--region-code", default="")
-    discover.add_argument("--page-size", type=int, default=100)
-
-    capture = commands["capture"]
-    capture.add_argument("--external-bid-id", required=True)
-    capture.add_argument("--started-at", required=True, type=_aware_datetime)
-
-    normalize = commands["normalize"]
-    normalize.add_argument("--observation-id", required=True, type=_positive_id)
-    normalize.add_argument("--normalized-at", required=True, type=_aware_datetime)
-
-    validate = commands["validate"]
-    validate.add_argument("--publication-id", required=True, type=UUID)
-    validate.add_argument("--validated-at", required=True, type=_aware_datetime)
-
-    project = commands["project"]
-    project.add_argument("--publication-id", required=True, type=UUID)
-    project.add_argument("--activated-at", required=True, type=_aware_datetime)
-
-    replay = commands["replay"]
-    replay.add_argument("--publication-id", required=True, type=UUID)
-    replay.add_argument("--observation-id", required=True, action="append", type=_positive_id)
-    for name in ("started-at", "normalized-at", "validated-at", "activated-at"):
-        replay.add_argument(f"--{name}", required=True, type=_aware_datetime)
-    return parser
+    return build_argument_parser(COMMAND_HANDLERS)
 
 
 def main(

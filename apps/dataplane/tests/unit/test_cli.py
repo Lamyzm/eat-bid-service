@@ -13,6 +13,7 @@ from eatbid.cli import COMMAND_HANDLERS, build_parser, main
 from eatbid.composition import Application, build_application
 from eatbid.config import ApplicationSettings
 from eatbid.errors import SourceContractError
+from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.normalize import DataQuarantinedError
@@ -46,6 +47,7 @@ class _기록애플리케이션:
     def validate(self, args: Namespace) -> None: self._record("validate", args)
     def project(self, args: Namespace) -> None: self._record("project", args)
     def replay(self, args: Namespace) -> None: self._record("replay", args)
+    def build_marts(self, args: Namespace) -> None: self._record("build-marts", args)
 
 
 def _공통(command: str) -> list[str]:
@@ -66,6 +68,8 @@ def _명령(command: str) -> list[str]:
         "replay": ["--publication-id", PUBLICATION_ID, "--observation-id", "1",
                    "--started-at", "2026-09-01T00:00:00Z", "--normalized-at", "2026-09-01T00:01:00Z",
                    "--validated-at", "2026-09-01T00:02:00Z", "--activated-at", "2026-09-01T00:03:00Z"],
+        "build-marts": ["--calc-version", "mart-r1", "--as-of", "2026-09-01T00:00:00Z",
+                        "--built-at", "2026-09-01T00:04:00Z"],
     }
     return _공통(command) + extras[command]
 
@@ -249,6 +253,62 @@ def test_result_dir는_machine_result의_key마다_workflow가_읽을_파일을_
         "manifest_sha256": "b" * 64,
         "source_release_id": RELEASE_ID,
     }
+
+
+class _마트결과애플리케이션(_기록애플리케이션):
+    def build_marts(self, args: Namespace) -> tuple[MartBuildResult, ...]:
+        self._record("build-marts", args)
+        self.requested = args.mart
+        return (
+            MartBuildResult(
+                mart_name="org_round_summary", build_id=7, row_count=11, status="active"
+            ),
+        )
+
+
+def test_build_marts는_발행_없이_전량_재빌드를_받고_mart_이름을_반복해_좁힌다() -> None:
+    parser = build_parser()
+
+    full = parser.parse_args(_명령("build-marts"))
+    assert (full.publication_id, full.mart) == (None, None)
+    assert (full.calc_version, full.region_scheme) == (
+        "mart-r1",
+        "eat:auction-location-sigungu",
+    )
+
+    scoped = parser.parse_args(
+        _명령("build-marts")
+        + ["--publication-id", PUBLICATION_ID,
+           "--mart", "org_round_summary", "--mart", "open_auction_snapshot"]
+    )
+    assert scoped.publication_id == UUID(PUBLICATION_ID)
+    assert scoped.mart == ["org_round_summary", "open_auction_snapshot"]
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(_명령("build-marts") + ["--mart", "supplier_monthly_record"])
+
+
+def test_build_marts_machine_result는_mart마다_build와_행_수를_남긴다(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    application = _마트결과애플리케이션()
+    argv = _명령("build-marts") + ["--result-dir", str(tmp_path / "marts")]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 0
+
+    printed = json.loads(capsys.readouterr().out)
+    assert printed == {
+        "marts": [
+            {
+                "build_id": 7,
+                "mart_name": "org_round_summary",
+                "row_count": 11,
+                "status": "active",
+            }
+        ]
+    }
+    written = (tmp_path / "marts" / "marts").read_text(encoding="utf-8")
+    assert json.loads(written) == printed["marts"]
 
 
 RELEASE_COMMIT = "9c9ff63f479d03f0fbfcc036954e8470b182bb61"
