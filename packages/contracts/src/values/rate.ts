@@ -2,6 +2,7 @@
 import { z } from "zod";
 
 import {
+  baseRelativeBidRateTextSchema,
   bidRateTextSchema,
   observedBidRateTextSchema,
   percentagePointsTextSchema,
@@ -34,6 +35,17 @@ export const observedBidRateWireSchema = z.strictObject({
     + "may exceed 100. The mart representation is decided where the mart column is owned.",
 });
 
+// 같은 `percentage-points` 단위지만 분모가 다르다. 사정률(`BidRate`)의 분모는 예정가격이고 이 값의
+// 분모는 기초금액이다. 두 축을 한 계약으로 묶으면 화면이 다른 분모의 두 수를 나란히 비교하게 된다.
+export const baseRelativeBidRateWireSchema = z.strictObject({
+  value: baseRelativeBidRateTextSchema,
+  unit: z.literal("percentage-points"),
+}).meta({
+  id: "BaseRelativeBidRate",
+  description: "A bid rate measured against the base amount on a 100-point scale with exactly four "
+    + "fractional digits, matching numeric(9,4) mart columns.",
+});
+
 export const ratioWireSchema = z.strictObject({
   value: ratioTextSchema,
   unit: z.literal("ratio"),
@@ -51,6 +63,7 @@ export const reservePriceRatioWireSchema = z.strictObject({
 
 export type PercentagePointsWire = z.infer<typeof percentagePointsWireSchema>;
 export type BidRateWire = z.infer<typeof bidRateWireSchema>;
+export type BaseRelativeBidRateWire = z.infer<typeof baseRelativeBidRateWireSchema>;
 export type ObservedBidRateWire = z.infer<typeof observedBidRateWireSchema>;
 export type RatioWire = z.infer<typeof ratioWireSchema>;
 export type ReservePriceRatioWire = z.infer<typeof reservePriceRatioWireSchema>;

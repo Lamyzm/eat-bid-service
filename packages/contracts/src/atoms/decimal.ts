@@ -49,6 +49,21 @@ export const observedBidRateTextSchema = z.string()
       + "and at most twelve integer digits; not capped at 100 because bids above the planned price are observed.",
   });
 
+// 투찰률 축이다. 분모가 예정가격인 사정률과 달리 기초금액을 분모로 쓰며, 소스가 관측한 값이 아니라
+// `floor_rate × planned_amount / base_amount`로 파생된 값이라 셋째 자리에서 끊으면 그날 하한이
+// 이웃 회차와 같은 값으로 뭉개진다. 조사 파일 `design-generators/namsan.json`의 `effFloor`가 소수
+// 넷째 자리이고 mart 열도 numeric(9,4)이므로 그 자리를 손실 없이 담는 최소 정밀도를 고정한다.
+// 3자리 고정인 `bidRateTextSchema`를 재사용하면 반올림이 계약 경계에서 일어나 화면이 원본과 다른
+// 하한을 보게 된다(AGENTS 15).
+export const baseRelativeBidRateTextSchema = z.string()
+  .max(10)
+  .regex(/^(?:0|[1-9][0-9]{0,4})\.[0-9]{4}$/)
+  .meta({
+    id: "BaseRelativeBidRateText",
+    description: "Bid-rate percentage-points text measured against the base amount with exactly four "
+      + "fractional digits and at most five integer digits, matching numeric(9,4) mart columns.",
+  });
+
 export const ratioTextSchema = z.string()
   .max(8)
   .regex(/^(?:0\.[0-9]{6}|1\.000000)$/)

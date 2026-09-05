@@ -44,10 +44,12 @@ describe('흐름 차트 SVG', () => {
     expect(screen.getByText('▼ 89.712')).toBeTruthy();
   });
 
-  test('내 값 수평선과 표본·릴리스·계산 버전 캡션을 함께 보인다', () => {
+  test('내 값 수평선과 표본·build·계산 버전·모집단 캡션을 함께 보인다', () => {
     const screen = renderChart(presentation);
     expect(screen.getByText('내 값 90.000')).toBeTruthy();
-    expect(screen.getByText('표본 92회 · 최근 20회 표시 · mart 2026-09-04T00 · 계산 v1 · 산출 09-04 09:10')).toBeTruthy();
+    expect(screen.getByText(
+      '표본 92회 · 최근 20회 표시 · build 501 · 계산 mart-r1 · 산출 09-04 09:10 · 모집단 모름'
+    )).toBeTruthy();
   });
 
   test('낙찰률이 없어 그리지 못한 회차는 표시 회차 수에서 뺀다', () => {

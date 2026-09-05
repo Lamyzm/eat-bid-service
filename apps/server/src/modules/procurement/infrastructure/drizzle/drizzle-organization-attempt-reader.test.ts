@@ -12,12 +12,11 @@ const row = {
   currency: "KRW",
   awarded_assessment_rate: "90.309",
   runner_up_assessment_rate: null,
+  day_floor_bid_rate: "88.0347",
   list_count: 17,
+  below_day_floor_count: 2,
   winner_supplier_party_id: "9",
   supersedes_attempt_id: null,
-  build_id: "42",
-  computed_at: "2026-09-04T00:10:00Z",
-  calc_version: "mart-r1",
 } as const;
 
 describe("DrizzleOrganizationAttemptReader row 경계", () => {
@@ -36,31 +35,30 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
       listCount: 17,
       winnerSupplierPartyId: 9n,
       supersedesAttemptId: null,
-      calcVersion: "mart-r1",
     });
     expect(record.announcedAt).toBeInstanceOf(Temporal.Instant);
     expect(record.announcedAt.toString()).toBe("2026-09-01T00:00:00Z");
-    expect(record.computedAt.toString()).toBe("2026-09-04T00:10:00Z");
     expect(isMoney(record.baseAmount)).toBe(true);
     expect(record).not.toHaveProperty("source_payload");
   });
 
-  test("계보를 행이 아니라 활성 build에서 읽는다", async () => {
+  test("계보는 행이 아니라 build가 가지므로 행 매핑에 계보가 섞이지 않는다", async () => {
     const adapter = await import("./drizzle-organization-attempt-reader");
     const record = adapter.mapAttemptRow(row as never);
 
-    expect(record.martRelease).toBe("42");
-    expect(record.calcVersion).toBe("mart-r1");
+    for (const name of ["martRelease", "buildId", "calcVersion", "computedAt", "sourceReleaseId"]) {
+      expect(record).not.toHaveProperty(name);
+    }
   });
 
-  test("소수 넷째 자리 그날 하한과 하한 미만 수는 V1 계약에 반올림해 싣지 않는다", async () => {
+  test("그날 하한은 투찰률 축이라 넷째 자리를 반올림 없이 옮기고 하한 미만 수를 함께 싣는다", async () => {
     const adapter = await import("./drizzle-organization-attempt-reader");
     const record = adapter.mapAttemptRow(row as never);
 
-    // 그날 하한의 권위는 금액 축이고 표시 비율은 소수 넷째 자리다. V1 `BidRate`는 셋째 자리 고정이라
-    // 값을 잘라 넣는 대신 비워 둔다. 두 축을 다 싣는 것은 응답 계약을 함께 움직이는 변경의 몫이다.
-    expect(record.dayFloorRate).toBeNull();
-    expect(record.invalidCount).toBeNull();
+    expect(record.dayFloorRate).toBe("88.0347");
+    expect(record.belowDayFloorCount).toBe(2);
+    // 사정률 축과 섞이지 않는다. 셋째 자리 문자열은 이 열의 scale이 아니다.
+    expect(() => adapter.mapAttemptRow({ ...row, day_floor_bid_rate: "88.035" } as never)).toThrow(TypeError);
   });
 
   test("품목 코드나 라벨이 없으면 라벨을 지어내지 않고 item을 unknown으로 남긴다", async () => {

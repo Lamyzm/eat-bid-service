@@ -25,9 +25,9 @@ const validAttempts: OrganizationAuctionAttemptsV1Response = {
       baseAmount: { amount: '2761700.00', currency: 'KRW' },
       winRate: { value: '90.309', unit: 'percentage-points' },
       secondRate: { value: '90.360', unit: 'percentage-points' },
-      dayFloorRate: null,
+      dayFloorRate: { value: '88.0347', unit: 'percentage-points' },
       listCount: 17,
-      invalidCount: 2,
+      belowDayFloorCount: 2,
       winnerSupplierPartyId: '9',
       supersedesAttemptId: null
     }
@@ -36,9 +36,12 @@ const validAttempts: OrganizationAuctionAttemptsV1Response = {
   meta: {
     sampleCount: 1,
     item: null,
-    martRelease: '2026-09-04T00',
+    buildId: '501',
+    sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
+    calcVersion: 'mart-r1',
     computedAt: '2026-09-04T00:10:00Z',
-    calcVersion: 'v1'
+    coverage: 'unknown',
+    regionScheme: 'eat:auction-location-sigungu'
   }
 };
 

@@ -18,9 +18,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2794011.00', currency: 'KRW' },
     winRate: { value: '90.126', unit: 'percentage-points' },
     secondRate: { value: '90.148', unit: 'percentage-points' },
-    dayFloorRate: { value: '89.847', unit: 'percentage-points' },
+    dayFloorRate: { value: '89.8470', unit: 'percentage-points' },
     listCount: 91,
-    invalidCount: 5,
+    belowDayFloorCount: 5,
     winnerSupplierPartyId: '9100000',
     supersedesAttemptId: null
   },
@@ -33,9 +33,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2953576.00', currency: 'KRW' },
     winRate: { value: '90.044', unit: 'percentage-points' },
     secondRate: { value: '90.173', unit: 'percentage-points' },
-    dayFloorRate: { value: '89.684', unit: 'percentage-points' },
+    dayFloorRate: { value: '89.6840', unit: 'percentage-points' },
     listCount: 75,
-    invalidCount: 5,
+    belowDayFloorCount: 5,
     winnerSupplierPartyId: '9100037',
     supersedesAttemptId: null
   },
@@ -48,9 +48,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2796408.00', currency: 'KRW' },
     winRate: { value: '90.303', unit: 'percentage-points' },
     secondRate: { value: '90.441', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.133', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.1330', unit: 'percentage-points' },
     listCount: 55,
-    invalidCount: 3,
+    belowDayFloorCount: 3,
     winnerSupplierPartyId: '9100074',
     supersedesAttemptId: null
   },
@@ -63,9 +63,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2839471.00', currency: 'KRW' },
     winRate: { value: '90.391', unit: 'percentage-points' },
     secondRate: { value: '90.451', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.036', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.0360', unit: 'percentage-points' },
     listCount: 82,
-    invalidCount: 5,
+    belowDayFloorCount: 5,
     winnerSupplierPartyId: null,
     supersedesAttemptId: null
   },
@@ -78,9 +78,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2524141.00', currency: 'KRW' },
     winRate: { value: '90.226', unit: 'percentage-points' },
     secondRate: { value: '90.304', unit: 'percentage-points' },
-    dayFloorRate: { value: '89.944', unit: 'percentage-points' },
+    dayFloorRate: { value: '89.9440', unit: 'percentage-points' },
     listCount: 20,
-    invalidCount: 5,
+    belowDayFloorCount: 5,
     winnerSupplierPartyId: '9100148',
     supersedesAttemptId: null
   },
@@ -93,9 +93,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2689329.00', currency: 'KRW' },
     winRate: { value: '90.233', unit: 'percentage-points' },
     secondRate: { value: '90.305', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.176', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.1760', unit: 'percentage-points' },
     listCount: 32,
-    invalidCount: 4,
+    belowDayFloorCount: 4,
     winnerSupplierPartyId: '9100185',
     supersedesAttemptId: '5663802'
   },
@@ -108,9 +108,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2710308.00', currency: 'KRW' },
     winRate: { value: '90.375', unit: 'percentage-points' },
     secondRate: { value: '90.424', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.107', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.1070', unit: 'percentage-points' },
     listCount: 60,
-    invalidCount: 1,
+    belowDayFloorCount: 1,
     winnerSupplierPartyId: '9100222',
     supersedesAttemptId: null
   },
@@ -123,9 +123,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2989391.00', currency: 'KRW' },
     winRate: { value: '90.051', unit: 'percentage-points' },
     secondRate: { value: '90.132', unit: 'percentage-points' },
-    dayFloorRate: { value: '89.801', unit: 'percentage-points' },
+    dayFloorRate: { value: '89.8010', unit: 'percentage-points' },
     listCount: 50,
-    invalidCount: 1,
+    belowDayFloorCount: 1,
     winnerSupplierPartyId: null,
     supersedesAttemptId: null
   },
@@ -138,9 +138,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2696072.00', currency: 'KRW' },
     winRate: { value: '90.261', unit: 'percentage-points' },
     secondRate: { value: '90.282', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.176', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.1760', unit: 'percentage-points' },
     listCount: 14,
-    invalidCount: 6,
+    belowDayFloorCount: 6,
     winnerSupplierPartyId: '9100296',
     supersedesAttemptId: null
   },
@@ -153,9 +153,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2959908.00', currency: 'KRW' },
     winRate: { value: '90.346', unit: 'percentage-points' },
     secondRate: { value: '90.453', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.224', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.2240', unit: 'percentage-points' },
     listCount: 18,
-    invalidCount: 6,
+    belowDayFloorCount: 6,
     winnerSupplierPartyId: '9100333',
     supersedesAttemptId: null
   },
@@ -168,9 +168,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2611323.00', currency: 'KRW' },
     winRate: { value: '90.360', unit: 'percentage-points' },
     secondRate: { value: '90.446', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.304', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.3040', unit: 'percentage-points' },
     listCount: 26,
-    invalidCount: 2,
+    belowDayFloorCount: 2,
     winnerSupplierPartyId: '9100370',
     supersedesAttemptId: null
   },
@@ -183,9 +183,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2924312.00', currency: 'KRW' },
     winRate: { value: '90.301', unit: 'percentage-points' },
     secondRate: { value: '90.448', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.116', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.1160', unit: 'percentage-points' },
     listCount: 44,
-    invalidCount: 2,
+    belowDayFloorCount: 2,
     winnerSupplierPartyId: null,
     supersedesAttemptId: null
   },
@@ -198,9 +198,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2706814.00', currency: 'KRW' },
     winRate: { value: '90.147', unit: 'percentage-points' },
     secondRate: { value: '90.269', unit: 'percentage-points' },
-    dayFloorRate: { value: '89.887', unit: 'percentage-points' },
+    dayFloorRate: { value: '89.8870', unit: 'percentage-points' },
     listCount: 71,
-    invalidCount: 5,
+    belowDayFloorCount: 5,
     winnerSupplierPartyId: '9100444',
     supersedesAttemptId: null
   },
@@ -213,9 +213,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2471640.00', currency: 'KRW' },
     winRate: { value: '90.345', unit: 'percentage-points' },
     secondRate: { value: '90.454', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.050', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.0500', unit: 'percentage-points' },
     listCount: 59,
-    invalidCount: 3,
+    belowDayFloorCount: 3,
     winnerSupplierPartyId: '9100481',
     supersedesAttemptId: null
   },
@@ -228,9 +228,9 @@ export const attemptsFixture = {
     baseAmount: { amount: '2965655.00', currency: 'KRW' },
     winRate: { value: '90.230', unit: 'percentage-points' },
     secondRate: { value: '90.316', unit: 'percentage-points' },
-    dayFloorRate: { value: '90.039', unit: 'percentage-points' },
+    dayFloorRate: { value: '90.0390', unit: 'percentage-points' },
     listCount: 21,
-    invalidCount: 4,
+    belowDayFloorCount: 4,
     winnerSupplierPartyId: '9100518',
     supersedesAttemptId: null
   },
@@ -245,7 +245,7 @@ export const attemptsFixture = {
     secondRate: { value: '90.475', unit: 'percentage-points' },
     dayFloorRate: null,
     listCount: 56,
-    invalidCount: 5,
+    belowDayFloorCount: 5,
     winnerSupplierPartyId: null,
     supersedesAttemptId: null
   },
@@ -260,7 +260,7 @@ export const attemptsFixture = {
     secondRate: { value: '90.386', unit: 'percentage-points' },
     dayFloorRate: null,
     listCount: 49,
-    invalidCount: 2,
+    belowDayFloorCount: 2,
     winnerSupplierPartyId: '9100592',
     supersedesAttemptId: null
   },
@@ -275,7 +275,7 @@ export const attemptsFixture = {
     secondRate: { value: '90.260', unit: 'percentage-points' },
     dayFloorRate: null,
     listCount: 84,
-    invalidCount: 1,
+    belowDayFloorCount: 1,
     winnerSupplierPartyId: '9100629',
     supersedesAttemptId: null
   },
@@ -290,7 +290,7 @@ export const attemptsFixture = {
     secondRate: { value: '90.121', unit: 'percentage-points' },
     dayFloorRate: null,
     listCount: 56,
-    invalidCount: 4,
+    belowDayFloorCount: 4,
     winnerSupplierPartyId: '9100666',
     supersedesAttemptId: null
   },
@@ -305,7 +305,7 @@ export const attemptsFixture = {
     secondRate: { value: '90.153', unit: 'percentage-points' },
     dayFloorRate: null,
     listCount: 21,
-    invalidCount: 1,
+    belowDayFloorCount: 1,
     winnerSupplierPartyId: null,
     supersedesAttemptId: null
   }
@@ -314,8 +314,11 @@ export const attemptsFixture = {
   meta: {
     sampleCount: 92,
     item: null,
-    martRelease: '2026-09-04T00',
+    buildId: '501',
+    sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
+    calcVersion: 'mart-r1',
     computedAt: '2026-09-04T00:10:00Z',
-    calcVersion: 'v1'
+    coverage: 'unknown',
+    regionScheme: 'eat:auction-location-sigungu'
   }
 } satisfies OrganizationAuctionAttemptsV1Response;

@@ -20,7 +20,7 @@ function makeRow(
     dayFloorMilli: null,
     winnerText: '—',
     listCount: null,
-    invalidCount: null,
+    belowDayFloorCount: null,
     isSelectedItem: true,
     ...overrides
   };

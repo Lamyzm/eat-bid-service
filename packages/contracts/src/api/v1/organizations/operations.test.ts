@@ -2,6 +2,17 @@ import { describe, expect, test } from "bun:test";
 import { organizationV1Operations } from "./operations";
 import { organizationAuctionAttemptsV1ResponseSchema } from "./list-auction-attempts.response";
 
+const EMPTY_META = {
+  sampleCount: 0,
+  item: null,
+  buildId: null,
+  sourceReleaseId: null,
+  calcVersion: null,
+  computedAt: null,
+  coverage: null,
+  regionScheme: null,
+} as const;
+
 describe("listOrganizationAuctionAttempts 계약", () => {
   test("경로와 query를 canonical 형태로 조립한다", () => {
     const path = organizationV1Operations.listAuctionAttempts.buildPath({
@@ -18,23 +29,44 @@ describe("listOrganizationAuctionAttempts 계약", () => {
     expect(() => querySchema.parse({ limit: "201" })).toThrow();
   });
 
-  test("빈 이력 응답도 meta의 표본 수와 release를 요구한다", () => {
+  test("빈 이력 응답도 meta의 표본 수와 build 계보 자리를 요구한다", () => {
     const parsed = organizationAuctionAttemptsV1ResponseSchema.parse({
       organizationId: "42",
       attempts: [],
       nextCursor: null,
-      meta: { sampleCount: 0, item: null, martRelease: null, computedAt: null, calcVersion: null },
+      meta: EMPTY_META,
     });
     expect(parsed.attempts).toHaveLength(0);
+    // 활성 build가 아직 없는 상태는 오류가 아니라 계보 전체가 null인 정상 응답이다(ADR 0034).
+    expect(parsed.meta.buildId).toBeNull();
   });
 
   test("meta는 요청 품목 echo를 요구하고 품목 없는 조회는 null이다", () => {
     const meta = organizationAuctionAttemptsV1ResponseSchema.shape.meta;
-    expect(meta.parse({ sampleCount: 3, item: "7", martRelease: null, computedAt: null, calcVersion: null }).item)
-      .toBe("7");
-    expect(() => meta.parse({ sampleCount: 3, martRelease: null, computedAt: null, calcVersion: null })).toThrow();
-    expect(() => meta.parse({ sampleCount: 3, item: "0", martRelease: null, computedAt: null, calcVersion: null }))
-      .toThrow();
+    expect(meta.parse({ ...EMPTY_META, sampleCount: 3, item: "7" }).item).toBe("7");
+    const { item: _omitted, ...withoutItem } = EMPTY_META;
+    expect(() => meta.parse({ ...withoutItem, sampleCount: 3 })).toThrow();
+    expect(() => meta.parse({ ...EMPTY_META, sampleCount: 3, item: "0" })).toThrow();
+  });
+
+  test("meta는 build 계보를 build id와 봉인된 release id로 싣고 martRelease를 거부한다", () => {
+    const meta = organizationAuctionAttemptsV1ResponseSchema.shape.meta;
+    const lineage = {
+      ...EMPTY_META,
+      sampleCount: 12,
+      buildId: "501",
+      sourceReleaseId: "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f",
+      calcVersion: "mart-r1",
+      computedAt: "2026-09-04T00:00:00Z",
+      coverage: "unknown",
+      regionScheme: "eat:auction-location-sigungu",
+    };
+    expect(meta.parse(lineage)).toEqual(lineage);
+    // 이름이 둘이 되면 어느 쪽이 권위인지 알 수 없다. 옛 이름은 계약이 거부한다.
+    expect(() => meta.parse({ ...lineage, martRelease: "2026-09-04T00" })).toThrow();
+    // release id는 소문자 canonical UUID만 받는다.
+    expect(() => meta.parse({ ...lineage, sourceReleaseId: "0F5F5D3C-6A1B-4F2E-9C8D-1A2B3C4D5E6F" })).toThrow();
+    expect(() => meta.parse({ ...lineage, coverage: "unclear" })).toThrow();
   });
 
   test("품목 라벨은 512자까지 허용하고 그보다 길면 거부한다", () => {
@@ -43,7 +75,7 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: null,
       item: { codeValueId: "7", label: "가".repeat(512) },
       floorRate: null, baseAmount: { amount: "2761700.00", currency: "KRW" },
-      winRate: null, secondRate: null, dayFloorRate: null, listCount: null, invalidCount: null,
+      winRate: null, secondRate: null, dayFloorRate: null, listCount: null, belowDayFloorCount: null,
       winnerSupplierPartyId: null, supersedesAttemptId: null,
     };
     expect(attempt.parse(row).item?.label).toHaveLength(512);
@@ -57,7 +89,7 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       floorRate: { value: "90.000", unit: "percentage-points" },
       baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: { value: "90.309", unit: "percentage-points" },
-      secondRate: null, dayFloorRate: null, listCount: 17, invalidCount: 2,
+      secondRate: null, dayFloorRate: null, listCount: 17, belowDayFloorCount: 2,
       winnerSupplierPartyId: "9", supersedesAttemptId: null,
     };
     expect(organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse(row)).toEqual(row);
@@ -66,5 +98,21 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       ...row,
       baseAmount: { amount: "2761700.00", currency: "USD" },
     })).toThrow();
+  });
+
+  test("그날 하한은 투찰률 축이라 넷째 자리를 손실 없이 담고 셋째 자리 값을 거부한다", () => {
+    const attempt = organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element;
+    const row = {
+      attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: "2026-09-04T05:00:00Z",
+      item: null, floorRate: { value: "90.000", unit: "percentage-points" },
+      baseAmount: { amount: "6913400.00", currency: "KRW" },
+      winRate: null, secondRate: null,
+      // 남산초 5669410의 그날 하한이다. 셋째 자리로 끊으면 88.035가 되어 원본과 달라진다.
+      dayFloorRate: { value: "88.0347", unit: "percentage-points" },
+      listCount: 85, belowDayFloorCount: 0,
+      winnerSupplierPartyId: null, supersedesAttemptId: null,
+    };
+    expect(attempt.parse(row).dayFloorRate?.value).toBe("88.0347");
+    expect(() => attempt.parse({ ...row, dayFloorRate: { value: "88.035", unit: "percentage-points" } })).toThrow();
   });
 });

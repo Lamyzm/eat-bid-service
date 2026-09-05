@@ -57,8 +57,12 @@ describe('기관 회차 이력 표시 모델', () => {
     const presentation = presentHistory(attemptsFixture, null);
     expect(presentation.computedAtText).toBe('09-04 09:10');
     expect(presentation.sampleCount).toBe(attemptsFixture.meta.sampleCount);
-    expect(presentation.martRelease).toBe(attemptsFixture.meta.martRelease);
+    expect(presentation.buildId).toBe(attemptsFixture.meta.buildId);
+    expect(presentation.sourceReleaseId).toBe(attemptsFixture.meta.sourceReleaseId);
     expect(presentation.calcVersion).toBe(attemptsFixture.meta.calcVersion);
+    // 모집단을 어디까지 덮었는지 모르는 표본이라는 사실이 화면까지 그대로 온다(PDR-0003).
+    expect(presentation.coverage).toBe('unknown');
+    expect(presentation.regionScheme).toBe(attemptsFixture.meta.regionScheme);
 
     const withoutComputedAt = presentHistory({ ...attemptsFixture, meta: { ...attemptsFixture.meta, computedAt: null } }, null);
     expect(withoutComputedAt.computedAtText).toBeNull();

@@ -125,6 +125,11 @@ const seed = `
     (501, 104, 212, 43, 7, '축산', '2026-09-05T00:00:00Z', null,
      90.000, null, 900000.00, null, 'KRW', null, null, null, null, null,
      null, null, null, null, null, null, 'unknown', null);
+  insert into mart.build_coverage
+    (build_id, region_code_value_id, month_kst, expected_count, observed_count,
+     normalized_count, quarantined_count, coverage)
+  values (501, null, '2026-08-01', 10, 10, 10, 0, 'complete'),
+         (501, null, '2026-09-01', 10, 10, 10, 0, 'unknown');
   update mart.build
      set status = 'verified', computed_at = '2026-09-04T00:10:00Z', row_count = 4
    where build_id = 501;
@@ -132,6 +137,7 @@ const seed = `
      set status = 'active', activated_at = '2026-09-04T00:11:00Z'
    where build_id = 501;
 `;
+
 
 async function withSeededDatabase(
   work: (context: { readonly url: string; readonly client: ReturnType<typeof postgres> }) => Promise<void>,
@@ -198,18 +204,25 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         baseAmount: { amount: "2761700.00", currency: "KRW" },
         winRate: null,
         listCount: 17,
-        // 유효·무효 판정은 우리가 하지 않으므로 mart에서 사라졌고 V1 응답에서는 unknown이다.
-        invalidCount: null,
-        // 계보는 행이 아니라 활성 build가 갖는다.
-        martRelease: "501",
-        calcVersion: "mart-r1",
+        // 유효·무효 판정은 우리가 하지 않는다. 우리가 센 것은 그날 하한 미만 명단 행 수뿐이다.
+        belowDayFloorCount: 2,
       });
+      // 계보는 행이 아니라 이 페이지를 읽은 활성 build 하나가 갖는다.
+      expect(first.lineage).toMatchObject({
+        buildId: 501n,
+        sourceReleaseId: "00000000-0000-0000-0000-000000000141",
+        calcVersion: "mart-r1",
+        regionScheme: "eat:auction-location-sigungu",
+        coverage: "unknown",
+      });
+      expect(first.lineage!.computedAt.toString()).toBe("2026-09-04T00:10:00Z");
       expect(first.attempts[0]!.announcedAt.toString()).toBe("2026-09-03T00:00:00Z");
       expect(first.attempts[1]).toMatchObject({
         winRate: "90.309",
         secondRate: "90.412",
-        // 그날 하한은 금액 축이 권위이고 표시 비율은 소수 넷째 자리다. V1 계약이 담지 못한다.
-        dayFloorRate: null,
+        // 그날 하한은 투찰률 축이라 넷째 자리를 반올림 없이 옮긴다.
+        dayFloorRate: "89.1000",
+        belowDayFloorCount: 0,
         winnerSupplierPartyId: 77n,
       });
 
@@ -281,7 +294,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
           secondRate: null,
           dayFloorRate: null,
           listCount: 17,
-          invalidCount: null,
+          belowDayFloorCount: 2,
           winnerSupplierPartyId: null,
           supersedesAttemptId: null,
         }]);
@@ -289,9 +302,13 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         expect(response.body.meta).toEqual({
           sampleCount: 3,
           item: null,
-          martRelease: "501",
-          computedAt: "2026-09-04T00:10:00Z",
+          buildId: "501",
+          sourceReleaseId: "00000000-0000-0000-0000-000000000141",
           calcVersion: "mart-r1",
+          computedAt: "2026-09-04T00:10:00Z",
+          // 두 보유율 행 중 가장 나쁜 값이다. 지금 수집 구간에는 시도 축이 없어 unknown이 이긴다.
+          coverage: "unknown",
+          regionScheme: "eat:auction-location-sigungu",
         });
         const foreignCursor = await request(server).get(
           organizationV1Operations.listAuctionAttempts.buildPath({

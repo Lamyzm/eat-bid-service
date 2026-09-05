@@ -1,12 +1,14 @@
 /** @module 책임: 기관 회차 이력 조회 port와 mart 요약 한 행의 application record 형태를 소유한다. */
-import type { BidRate, Money, Temporal } from "@eatbid/domain";
+import type { BaseRelativeBidRate, BidRate, Money, Temporal } from "@eatbid/domain";
+import type { MartBuildLineage } from "./mart-build-lineage";
 import type { OrganizationId } from "../domain/organization-id";
 
 /**
- * mart.org_round_summary 한 행을 도메인 값으로만 표현한다. 계산 출처(mart_release,
- * computed_at, calc_version)를 행마다 들고 다녀야 화면이 어떤 파생 릴리스를 본 것인지 재현된다.
- * 비율은 일반 percentage-point가 아니라 `BidRate`다. scale(소수 셋째 자리)과 범위를 어댑터
- * 경계에서 한 번만 닫고, 직렬화 단계는 그 값을 다시 검증하지 않는다.
+ * mart.org_round_summary 한 행을 도메인 값으로만 표현한다. 계보는 행이 아니라 build가 갖는다
+ * (ADR 0034) — 같은 사실을 수백만 행에 복제하면 권위가 둘이 된다.
+ * 비율은 일반 percentage-point가 아니다. 사정률(`BidRate`)의 분모는 예정가격이고 그날 하한
+ * (`BaseRelativeBidRate`)의 분모는 기초금액이라 축이 다르다. scale과 범위는 어댑터 경계에서 한 번만
+ * 닫고, 직렬화 단계는 그 값을 다시 검증하지 않는다.
  */
 export interface OrganizationAttemptRecord {
   readonly attemptId: bigint;
@@ -17,14 +19,11 @@ export interface OrganizationAttemptRecord {
   readonly baseAmount: Money;
   readonly winRate: BidRate | null;
   readonly secondRate: BidRate | null;
-  readonly dayFloorRate: BidRate | null;
+  readonly dayFloorRate: BaseRelativeBidRate | null;
   readonly listCount: number | null;
-  readonly invalidCount: number | null;
+  readonly belowDayFloorCount: number | null;
   readonly winnerSupplierPartyId: bigint | null;
   readonly supersedesAttemptId: bigint | null;
-  readonly martRelease: string;
-  readonly computedAt: Temporal.Instant;
-  readonly calcVersion: string;
 }
 
 export interface OrganizationAttemptQuery {
@@ -37,11 +36,14 @@ export interface OrganizationAttemptQuery {
 /**
  * `sampleCount`는 cursor 위치와 무관하게 필터 조건을 만족하는 전체 회차 수다.
  * 페이지 길이로 대신하면 지표의 표본 수가 스크롤 위치에 따라 달라진다.
+ * `lineage`는 이 페이지를 읽은 활성 build 하나다. 아직 빌드된 적이 없으면 null이며 그것은 오류가
+ * 아니라 파생물이 아직 만들어지지 않은 정상 상태다(ADR 0011, ADR 0034).
  */
 export interface OrganizationAttemptPage {
   readonly attempts: readonly OrganizationAttemptRecord[];
   readonly nextCursor: bigint | null;
   readonly sampleCount: number;
+  readonly lineage: MartBuildLineage | null;
 }
 
 /**

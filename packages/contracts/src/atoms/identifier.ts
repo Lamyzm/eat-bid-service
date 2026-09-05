@@ -1,3 +1,4 @@
+/** @module 책임: bigint 식별자와 봉인된 release UUID의 canonical wire 문자열 형태를 소유한다. */
 import { z } from "zod";
 
 const postgresSignedBigintMax = "9223372036854775807";
@@ -17,6 +18,18 @@ export const positiveBigintTextSchema = canonicalPositiveBigintTextSchema.meta({
   description: signedBigintDescription,
   example: postgresSignedBigintMax,
 });
+
+// 봉인된 입력 집합의 정체성은 `ingest.source_release`의 UUID다. 대소문자를 섞으면 같은 release가 두
+// 문자열이 되므로 소문자 canonical 형태만 받는다. runtime refine은 OpenAPI로 전파되지 않아 정적
+// 패턴이 wire 형태를 직접 소유한다.
+export const sourceReleaseIdTextSchema = z.string()
+  .length(36)
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+  .meta({
+    id: "SourceReleaseIdText",
+    description: "Canonical lowercase UUID text for a sealed ingest source release.",
+    example: "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f",
+  });
 
 export const auctionIdPathSchema = canonicalPositiveBigintTextSchema.meta({
   id: "AuctionId",

@@ -2,11 +2,12 @@
 import {
   instantCodec,
   moneyCodec,
+  type BaseRelativeBidRateWire,
   type BidRateWire,
   type OrganizationAuctionAttempt,
   type OrganizationAuctionAttemptsV1Response,
 } from "@eatbid/contracts";
-import type { BidRate, Temporal } from "@eatbid/domain";
+import type { BaseRelativeBidRate, BidRate, Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import { z } from "zod";
 import { AuctionDependencyUnavailable } from "./find-auction";
@@ -55,6 +56,11 @@ function rateText(value: BidRate | null): BidRateWire | null {
   return value === null ? null : { value, unit: "percentage-points" };
 }
 
+// 단위 문자열은 같지만 분모가 다르다. 두 축을 한 함수로 합치면 타입이 그 차이를 더 막지 못한다.
+function baseRelativeRateText(value: BaseRelativeBidRate | null): BaseRelativeBidRateWire | null {
+  return value === null ? null : { value, unit: "percentage-points" };
+}
+
 function attemptResource(record: OrganizationAttemptRecord): OrganizationAuctionAttempt {
   return {
     // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
@@ -68,9 +74,9 @@ function attemptResource(record: OrganizationAttemptRecord): OrganizationAuction
     baseAmount: z.encode(moneyCodec, record.baseAmount),
     winRate: rateText(record.winRate),
     secondRate: rateText(record.secondRate),
-    dayFloorRate: rateText(record.dayFloorRate),
+    dayFloorRate: baseRelativeRateText(record.dayFloorRate),
     listCount: record.listCount,
-    invalidCount: record.invalidCount,
+    belowDayFloorCount: record.belowDayFloorCount,
     winnerSupplierPartyId: bigintText(record.winnerSupplierPartyId),
     supersedesAttemptId: bigintText(record.supersedesAttemptId),
   };
@@ -80,9 +86,9 @@ export function toOrganizationAttemptsResponse(
   query: OrganizationAttemptQuery,
   page: OrganizationAttemptPage,
 ): OrganizationAuctionAttemptsV1Response {
-  // 파생 출처는 행마다 붙어 있지만 응답의 meta는 가장 최근 회차가 어느 릴리스에서 계산됐는지를
-  // 알린다. 이력이 비면 릴리스를 지어내지 않고 unknown으로 남긴다.
-  const latest = page.attempts[0];
+  // 계보는 행이 아니라 이 페이지를 읽은 build 하나가 갖는다(ADR 0034). 활성 build가 아직 없으면
+  // 계보를 지어내지 않고 전부 null로 남긴다 — 파생물이 없는 것은 오류가 아니다.
+  const { lineage } = page;
   return {
     organizationId: organizationIdToString(query.organizationId),
     attempts: page.attempts.map(attemptResource),
@@ -91,9 +97,12 @@ export function toOrganizationAttemptsResponse(
       sampleCount: page.sampleCount,
       // 표본을 좁힌 품목을 응답에 되돌려야 sampleCount가 어떤 코호트의 수인지 응답만으로 재현된다.
       item: bigintText(query.itemCodeValueId),
-      martRelease: latest?.martRelease ?? null,
-      computedAt: latest === undefined ? null : z.encode(instantCodec, latest.computedAt),
-      calcVersion: latest?.calcVersion ?? null,
+      buildId: lineage === null ? null : lineage.buildId.toString(10),
+      sourceReleaseId: lineage?.sourceReleaseId ?? null,
+      calcVersion: lineage?.calcVersion ?? null,
+      computedAt: lineage === null ? null : z.encode(instantCodec, lineage.computedAt),
+      coverage: lineage?.coverage ?? null,
+      regionScheme: lineage?.regionScheme ?? null,
     },
   };
 }

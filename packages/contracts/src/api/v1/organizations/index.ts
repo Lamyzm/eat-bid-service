@@ -10,5 +10,9 @@ export {
   organizationAuctionAttemptsV1ResponseSchema,
   type OrganizationAuctionAttemptsV1Response,
 } from "./list-auction-attempts.response";
-export { type OrganizationAuctionAttempt } from "./attempt.resource";
+export {
+  martCoverageSchema,
+  type MartCoverage,
+  type OrganizationAuctionAttempt,
+} from "./attempt.resource";
 export { organizationV1OperationRegistry, organizationV1Operations } from "./operations";
