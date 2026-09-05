@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -88,9 +90,49 @@ test("issue create는 --description-file 값을 긴 옵션 이름으로 정확�
   assert.equal(parsed.descriptionFile, ".superpowers/body.md");
   assert.equal(parsed.description, null);
   assert.equal(
-    resolveIssueDescription(parsed, (file) => `읽은 본문: ${file}`),
-    "읽은 본문: .superpowers/body.md",
+    resolveIssueDescription(parsed, () => "읽은 본문", [process.cwd()]),
+    "읽은 본문",
   );
+});
+
+test("issue create 본문 파일은 작업 공간과 임시 디렉터리 안에서만 읽는다", () => {
+  const worktree = path.resolve("F:/Project/eat-bid-service/.claude/worktrees/eat-53");
+  const roots = [worktree, tmpdir()];
+  const read = (file) => `읽음:${file}`;
+  const parsedFor = (descriptionFile) => ({ description: null, descriptionFile });
+
+  assert.match(
+    resolveIssueDescription(parsedFor(path.join(worktree, "body.md")), read, roots),
+    /^읽음:/,
+  );
+  assert.match(
+    resolveIssueDescription(parsedFor(path.join(tmpdir(), "eat-53", "body.md")), read, roots),
+    /^읽음:/,
+  );
+
+  let readCount = 0;
+  const countingRead = (file) => {
+    readCount += 1;
+    return file;
+  };
+  for (const outside of [
+    "C:/Users/kano/.infisical.json",
+    path.join(worktree, "..", "..", "..", ".env"),
+  ]) {
+    assert.throws(
+      () => resolveIssueDescription(parsedFor(outside), countingRead, roots),
+      /--description-file must point inside the worktree, the repository or the temporary directory/,
+      outside,
+    );
+  }
+  assert.equal(readCount, 0);
+
+  // 허용 루트를 하나도 알아내지 못하면 어떤 파일도 읽지 않는다.
+  assert.throws(
+    () => resolveIssueDescription(parsedFor("body.md"), countingRead, []),
+    /--description-file must point inside/,
+  );
+  assert.equal(readCount, 0);
 });
 
 test("issue list는 기본으로 끝난 상태를 빼고 40건까지 읽는다", () => {
@@ -155,6 +197,7 @@ test("issue create는 검증한 인자만 Linear client에 넘기고 식별자�
   const calls = [];
   const lines = [];
   const created = await runIssueCreate({
+    allowedDescriptionRoots: [process.cwd()],
     args: ["--title", "검증용 issue", "--priority", "3", "--description-file", "body.md"],
     client: {
       createIssue: async (input) => {

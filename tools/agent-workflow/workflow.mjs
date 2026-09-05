@@ -1,6 +1,7 @@
 /** @module 책임: 에이전트 도구 호출의 변경 가능성과 Linear issue 식별자를 순수하게 판정한다. */
 import path from "node:path";
 
+import { isOutsideRepositoryRoots } from "./repository-paths.mjs";
 import { classifyCurl, classifyInlineInterpreter } from "./shell-read-only.mjs";
 
 const ISSUE_IDENTIFIER = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/i;
@@ -199,6 +200,16 @@ export function extractPromptIssueIdentifier(prompt) {
 }
 
 /**
+ * 편집 도구가 대상 파일을 담는 키는 provider마다 다르다. gate와 worklog가 서로 다른 키를 먼저 보면
+ * 두 키가 함께 오는 도구에서 판정한 파일과 기록한 파일이 갈라지므로 순서를 여기 하나로 모은다.
+ */
+export function editedPathCandidate(toolInput) {
+  return (
+    toolInput?.file_path ?? toolInput?.path ?? toolInput?.notebook_path ?? toolInput?.target_file ?? null
+  );
+}
+
+/**
  * 저장소 밖 경로를 상대 경로로 판정하지 않는다. 상대 경로는 실행 cwd에 따라 다른 파일을 가리키므로
  * hook이 아는 worktree root 기준으로 해석하면 같은 문자열이 세션마다 다른 뜻이 된다.
  */
@@ -216,21 +227,19 @@ export function repositoryRelativePath(candidate, worktreeRoot) {
 }
 
 // 편집 도구가 저장소 밖 절대 경로를 가리키면 lease가 지키려는 대상이 아니다. Claude memory 디렉터리나
-// scratchpad에 쓰는 일까지 막으면 세션은 claim 없이 자기 기록조차 남기지 못한다. root를 알 수 없거나
-// 경로가 없으면 저장소 안으로 간주해 계속 fail-closed한다.
-function editsOutsideRepository(toolInput, resolveWorktreeRoot) {
-  if (typeof resolveWorktreeRoot !== "function") return false;
-  const candidate =
-    toolInput?.file_path ?? toolInput?.notebook_path ?? toolInput?.target_file ?? toolInput?.path;
-  if (typeof candidate !== "string" || !path.isAbsolute(candidate)) return false;
-  let worktreeRoot;
+// scratchpad에 쓰는 일까지 막으면 세션은 claim 없이 자기 기록조차 남기지 못한다. "밖"의 기준은 이
+// worktree가 아니라 저장소 전체이며, 루트를 알아내지 못하면 밖이라고 말하지 않는다.
+function editsOutsideRepository(toolInput, resolveRepositoryRoots, options) {
+  if (typeof resolveRepositoryRoots !== "function") return false;
+  const candidate = editedPathCandidate(toolInput);
+  if (typeof candidate !== "string") return false;
+  let roots;
   try {
-    worktreeRoot = resolveWorktreeRoot();
+    roots = resolveRepositoryRoots();
   } catch {
     return false;
   }
-  if (typeof worktreeRoot !== "string" || worktreeRoot.length === 0) return false;
-  return repositoryRelativePath(candidate, worktreeRoot) === null;
+  return isOutsideRepositoryRoots(candidate, roots, options);
 }
 
 function shellCommand(toolInput) {
@@ -268,11 +277,15 @@ function classifyShellStage(command) {
   return { mutatesRepository: true, reason: "unclassified-command-requires-claim" };
 }
 
-export function classifyToolCall(toolName, toolInput = {}, { resolveWorktreeRoot = null } = {}) {
+export function classifyToolCall(
+  toolName,
+  toolInput = {},
+  { platform, realPath, resolveRepositoryRoots = null } = {},
+) {
   const normalizedName = String(toolName ?? "").toLowerCase();
 
   if (FILE_EDIT_TOOLS.has(normalizedName)) {
-    return editsOutsideRepository(toolInput, resolveWorktreeRoot)
+    return editsOutsideRepository(toolInput, resolveRepositoryRoots, { platform, realPath })
       ? { mutatesRepository: false, reason: "file-edit-outside-repository" }
       : { mutatesRepository: true, reason: "file-edit-tool" };
   }

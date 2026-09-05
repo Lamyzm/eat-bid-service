@@ -9,6 +9,7 @@ import {
 } from "./state.mjs";
 import {
   classifyToolCall,
+  editedPathCandidate,
   extractIssueIdentifier,
   extractPromptIssueIdentifier,
   normalizeHookEvent,
@@ -27,8 +28,7 @@ function eventRecord({ createId, issueIdentifier, kind, now, provider, ...extra 
 }
 
 function changedPaths(toolName, toolInput, worktreeRoot) {
-  const candidate =
-    toolInput?.file_path ?? toolInput?.path ?? toolInput?.notebook_path ?? toolInput?.target_file;
+  const candidate = editedPathCandidate(toolInput);
   if (typeof candidate === "string" && candidate.length > 0) {
     const normalized = repositoryRelativePath(candidate, worktreeRoot);
     return normalized ? [normalized] : [];
@@ -104,6 +104,7 @@ export function handleHookEvent({
   input,
   now = () => new Date(),
   provider = "unknown",
+  repositoryRoots = null,
   state,
   worktreeRoot,
 }) {
@@ -122,8 +123,10 @@ export function handleHookEvent({
     };
   }
 
-  // 편집 대상이 저장소 밖인지 판정하려면 분류기가 이 worktree root를 알아야 한다.
-  const classifyOptions = { resolveWorktreeRoot: () => worktreeRoot };
+  // 편집 대상이 저장소 밖인지 판정하려면 분류기가 저장소의 모든 루트를 알아야 한다. 이 함수는
+  // worktree 하나만 받으므로 목록을 주지 못하며, 목록 없이는 밖으로 판정하지 않고 lease를 요구한다.
+  // 실제 gate인 `hook.mjs`는 `repositoryGuardRoots`로 저장소 전체를 넘긴다.
+  const classifyOptions = { resolveRepositoryRoots: repositoryRoots };
 
   if (eventName === "pretooluse") {
     const classification = classifyToolCall(event.toolName, event.toolInput, classifyOptions);

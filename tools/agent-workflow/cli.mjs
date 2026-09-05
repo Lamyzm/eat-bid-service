@@ -1,6 +1,7 @@
 /** @module 책임: Linear issue 발행·claim·sync·release와 local worktree lease 명령을 조정한다. */
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { checkoutClaimBranch } from "./branch.mjs";
@@ -8,7 +9,13 @@ import { parseWorkflowArguments } from "./command-line.mjs";
 import { doctorReport, recoverLockReport } from "./diagnostics.mjs";
 import { runIssueCreate, runIssueList } from "./issue-command.mjs";
 import { flushOutbox } from "./linear.mjs";
-import { config, linearClient, repositoryContext, targetRepositoryContext } from "./runtime.mjs";
+import {
+  config,
+  linearClient,
+  repositoryContext,
+  repositoryGuardRoots,
+  targetRepositoryContext,
+} from "./runtime.mjs";
 import {
   clearPendingWorktreeClaim,
   finalizePendingWorktreeClaim,
@@ -221,7 +228,14 @@ async function worktree() {
 async function issue() {
   const [subcommand, ...rest] = process.argv.slice(process.argv.indexOf("issue") + 1);
   if (subcommand === "create") {
-    await runIssueCreate({ args: rest, client: linearClient(), config });
+    // 본문 파일을 읽는 범위는 작업 공간과 임시 디렉터리로 한정한다. 저장소 루트를 알아내지 못하면
+    // 임시 디렉터리만 남으므로 임의 경로가 조용히 통과하지 않는다.
+    await runIssueCreate({
+      allowedDescriptionRoots: [...repositoryGuardRoots(process.cwd()), tmpdir()],
+      args: rest,
+      client: linearClient(),
+      config,
+    });
     return;
   }
   if (subcommand === "list") {

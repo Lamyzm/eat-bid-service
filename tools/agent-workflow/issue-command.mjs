@@ -1,5 +1,6 @@
 /** @module 책임: `workflow:issue`의 create·list 인자를 검증해 Linear 발행·조회 입력으로 바꾸고 결과 식별자와 목록만 표준 출력에 남긴다. */
 import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const TITLE_OPTION = "--title";
 const DESCRIPTION_OPTION = "--description";
@@ -123,13 +124,33 @@ export function parseIssueListArguments(args, { terminalStates = [] } = {}) {
 /**
  * 본문은 파일로 받는 경로를 기본으로 둔다. 여러 줄 한국어 본문을 shell 인자로 넘기면 따옴표·줄바꿈이
  * 플랫폼마다 다르게 잘리고, hook 분류기도 그런 명령을 복합 명령으로 읽어 lease 없이는 막는다.
+ *
+ * 다만 이 명령은 lease 없이 실행되고 읽은 내용을 그대로 Linear로 보낸다. 경로를 제한하지 않으면
+ * `--description-file C:/Users/<사용자>/.infisical.json` 한 줄로 로컬 비밀 파일을 외부 서비스에
+ * 올릴 수 있다. 그래서 작업 공간과 임시 디렉터리 안의 파일만 읽는다.
  */
-export function resolveIssueDescription(parsed, readFile = (file) => readFileSync(file, "utf8")) {
-  if (parsed.descriptionFile) return readFile(parsed.descriptionFile);
-  return parsed.description;
+export function resolveIssueDescription(
+  parsed,
+  readFile = (file) => readFileSync(file, "utf8"),
+  allowedRoots = [],
+) {
+  if (!parsed.descriptionFile) return parsed.description;
+  const file = path.resolve(parsed.descriptionFile);
+  const roots = allowedRoots.filter((root) => typeof root === "string" && root.length > 0);
+  const withinAllowedRoot = roots.some((root) => {
+    const relative = path.relative(path.resolve(root), file);
+    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  });
+  if (!withinAllowedRoot) {
+    throw new Error(
+      `${DESCRIPTION_FILE_OPTION} must point inside the worktree, the repository or the temporary directory, got: ${file}`,
+    );
+  }
+  return readFile(file);
 }
 
 export async function runIssueCreate({
+  allowedDescriptionRoots = [],
   args,
   client,
   config,
@@ -141,7 +162,7 @@ export async function runIssueCreate({
     defaultState: config.issueDefaultState,
   });
   const created = await client.createIssue({
-    description: resolveIssueDescription(parsed, readFile),
+    description: resolveIssueDescription(parsed, readFile, allowedDescriptionRoots),
     priority: parsed.priority,
     projectName: parsed.projectName,
     stateName: parsed.stateName,

@@ -36,6 +36,39 @@ export function repositoryContext(cwd) {
   };
 }
 
+// lease gate가 지키는 대상은 이 worktree 하나가 아니라 저장소 전체다. main checkout의 추적 파일,
+// 형제 worktree, `.git` common dir, 그리고 lease state 파일 자신까지 모두 여기에 들어와야 "밖이면
+// 허용" 규칙이 gate 자신을 열지 않는다. 하나라도 알아내지 못하면 빈 목록을 돌려 fail-closed한다.
+export function repositoryGuardRoots(cwd) {
+  const repository = repositoryContext(cwd);
+  if (!repository.isGitWorktree) return [];
+  const commonDirectory = git(repository.worktreeRoot, ["rev-parse", "--git-common-dir"]);
+  if (!commonDirectory) return [];
+  const absoluteCommonDirectory = path.isAbsolute(commonDirectory)
+    ? commonDirectory
+    : path.resolve(repository.worktreeRoot, commonDirectory);
+
+  const worktreeList = git(repository.worktreeRoot, ["worktree", "list", "--porcelain"]);
+  if (!worktreeList) return [];
+  const linkedWorktrees = worktreeList
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("worktree "))
+    .map((line) => line.slice("worktree ".length).trim())
+    .filter(Boolean);
+  if (linkedWorktrees.length === 0) return [];
+
+  return [
+    repository.worktreeRoot,
+    absoluteCommonDirectory,
+    // common dir의 부모는 주 저장소 루트다. `.git`이 파일이 아니라 디렉터리인 main checkout에서
+    // 이 값이 추적 파일 전체를 덮는다.
+    path.dirname(absoluteCommonDirectory),
+    ...linkedWorktrees,
+    // state 경로는 환경변수로 옮길 수 있어 common dir 아래라고 가정하지 않는다.
+    path.dirname(repository.statePath),
+  ];
+}
+
 // `--worktree`는 세션 cwd 밖의 lease를 다루므로 존재하지 않거나 git worktree가 아닌 경로에서
 // cwd 기준으로 조용히 fallback하면 엉뚱한 lease를 지운다. 명시적으로 실패한다.
 export function targetRepositoryContext(cwd, worktreePath) {

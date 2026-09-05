@@ -194,7 +194,9 @@ pnpm workflow:issue create -- --title "제목" --project "다른 project"
 - `--priority`는 Linear 값 그대로 `1`(Urgent)부터 `4`(Low)까지만 받는다. "없음"은 triage를 다시
   사람에게 미루는 값이라 받지 않는다.
 - 본문은 여러 줄 한국어가 대부분이므로 `--description-file <path>`를 기본 경로로 쓴다. 한 줄짜리에만
-  `--description`을 쓴다.
+  `--description`을 쓴다. 이 명령은 lease 없이 실행되고 읽은 내용을 그대로 Linear로 보내므로 본문
+  파일은 현재 worktree·저장소·임시 디렉터리 안에 있을 때만 읽는다. 그 밖의 경로는 읽지 않고 거부한다.
+  제한이 없으면 `--description-file`이 로컬 비밀 파일을 외부 서비스로 올리는 한 줄이 된다.
 - state나 project 이름을 해소하지 못하면 그 자리를 비운 채 발행하지 않고 후보 목록과 함께 실패한다.
   triage에도 roadmap에도 걸리지 않는 issue가 조용히 생기는 쪽이 더 나쁘기 때문이다.
 - 발행 자체는 lease를 요구하지 않는다. 아직 claim할 issue가 없는 세션이 실행하는 명령이라 lease를
@@ -276,9 +278,15 @@ pipe는 단계별로 본다. 따옴표를 인식해 `|`로 단계를 나눈 뒤 
 lease를 요구하기 때문이다. 닫히지 않은 따옴표는 어디까지가 한 단계인지 말할 수 없으므로 차단하고,
 `||`는 빈 단계를 만들어 자동으로 걸린다. 테스트도 fixture나 snapshot을 쓸 수 있으므로
 shell verification은 lease 안에서 수행한다.
-편집 도구가 저장소 루트 밖의 절대 경로를 가리키면 lease가 지키려는 대상이 아니므로 막지 않는다.
+편집 도구가 저장소 밖의 절대 경로를 가리키면 lease가 지키려는 대상이 아니므로 막지 않는다.
 Claude memory 디렉터리나 scratchpad 기록까지 막으면 세션은 claim 없이 자기 기록조차 남기지 못한다.
-상대 경로는 실행 cwd에 따라 다른 파일을 가리키므로 밖으로 판정하지 않고 계속 lease를 요구한다.
+여기서 "저장소"는 현재 worktree 하나가 아니라 `git rev-parse --git-common-dir`와 그 부모(main
+checkout 루트), `git worktree list`의 모든 worktree 루트, 그리고 lease state 파일이 있는 디렉터리를
+모두 합친 것이다. 기준이 현재 worktree였다면 main checkout의 추적 파일, 형제 worktree,
+`.git/hooks/*`, 그리고 lease state 파일 자신까지 lease 없이 쓸 수 있어 gate가 자기 자신을 연다.
+경로는 심볼릭 링크를 해석하고(없는 파일은 존재하는 조상까지) Windows에서는 대소문자를 무시해
+비교한다. `\\?\`·`\\.\` 표기는 벗겨 판정하고, UNC 경로·제어문자가 섞인 경로·상대 경로·루트를
+알아내지 못한 경우는 "밖"이라고 말하지 않고 계속 lease를 요구한다. 판정 불가는 허용이 아니다.
 분류되지 않은 새 도구와 Linear 쓰기 MCP 도구는 읽기로 추측하지 않고 lease가 필요한 변경 가능 도구로
 fail-closed한다.
 

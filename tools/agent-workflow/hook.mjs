@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 
 import { handleHookEvent } from "./hook-runtime.mjs";
-import { config, repositoryContext } from "./runtime.mjs";
+import { config, repositoryContext, repositoryGuardRoots } from "./runtime.mjs";
 import { withStateTransaction } from "./state-lock.mjs";
 import { classifyToolCall, normalizeHookEvent } from "./workflow.mjs";
 
@@ -28,11 +28,12 @@ async function main() {
   // repository context는 git을 세 번 실행한다. 읽기 도구까지 매번 그 비용을 내지 않도록 실제로 저장소
   // 경계를 알아야 하는 판정에서만 한 번 계산하고 이후 재사용한다.
   let repository = null;
+  let guardRoots = null;
   const resolveRepository = () => (repository ??= repositoryContext(cwd));
   if (
     (normalizedEventName === "pretooluse" || normalizedEventName === "posttooluse") &&
     !classifyToolCall(normalizedEvent.toolName, normalizedEvent.toolInput, {
-      resolveWorktreeRoot: () => resolveRepository().worktreeRoot,
+      resolveRepositoryRoots: () => (guardRoots ??= repositoryGuardRoots(cwd)),
     }).mutatesRepository
   ) {
     return;
@@ -46,6 +47,7 @@ async function main() {
       createId: randomUUID,
       input,
       provider: argument("--provider", "unknown"),
+      repositoryRoots: () => (guardRoots ??= repositoryGuardRoots(cwd)),
       state,
       worktreeRoot: repository.worktreeRoot,
     });

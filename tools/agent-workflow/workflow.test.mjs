@@ -8,8 +8,23 @@ import {
   splitPipelineStages,
 } from "./workflow.mjs";
 
-const REPOSITORY_ROOT = "F:/Project/eat-bid-service/.claude/worktrees/eat-53-agent-self-service";
-const insideRepository = { resolveWorktreeRoot: () => REPOSITORY_ROOT };
+// gate가 지키는 것은 worktree 하나가 아니라 저장소 전체다. main checkout, 형제 worktree, common dir,
+// lease state 디렉터리를 모두 루트로 주고 판정한다. 심볼릭 링크 해석은 여기서 검증 대상이 아니므로
+// 실제 파일 시스템 대신 항등 함수를 주입해 플랫폼과 무관하게 같은 결과를 본다.
+const REPOSITORY_ROOT = "F:/Project/eat-bid-service";
+const WORKTREE_ROOT = "F:/Project/eat-bid-service/.claude/worktrees/eat-53-agent-self-service";
+const SIBLING_WORKTREE = "F:/Project/eat-bid-service/.claude/worktrees/eat-42-roster-normalization";
+const repositoryGuard = {
+  platform: "win32",
+  realPath: (value) => value,
+  resolveRepositoryRoots: () => [
+    WORKTREE_ROOT,
+    `${REPOSITORY_ROOT}/.git`,
+    REPOSITORY_ROOT,
+    SIBLING_WORKTREE,
+    `${REPOSITORY_ROOT}/.git/eatbid-agent-workflow`,
+  ],
+};
 
 test("extractIssueIdentifier는 Linear 식별자를 정규화하고 일반 문장의 하이픈은 무시한다", () => {
   assert.equal(extractIssueIdentifier("eat-42 작업을 시작해줘"), "EAT-42");
@@ -667,31 +682,82 @@ test("순수 읽기 명령은 lease 없이 허용하고 파일을 쓰거나 실�
   }
 });
 
-test("저장소 밖 절대 경로 편집은 lease 없이 허용하고 저장소 안이나 상대 경로는 계속 차단한다", () => {
-  assert.deepEqual(
-    classifyToolCall(
-      "Write",
-      { file_path: "C:/Users/kano/.claude/projects/eatbid/memory/note.md" },
-      insideRepository,
-    ),
-    { mutatesRepository: false, reason: "file-edit-outside-repository" },
-  );
-  assert.deepEqual(
-    classifyToolCall(
-      "Edit",
-      { file_path: `${REPOSITORY_ROOT}/tools/agent-workflow/cli.mjs` },
-      insideRepository,
-    ),
-    { mutatesRepository: true, reason: "file-edit-tool" },
-  );
-  // worktree root를 알 수 없거나 상대 경로라 어느 저장소인지 모르면 계속 mutation으로 둔다.
+test("저장소 밖 절대 경로 편집은 lease 없이 허용한다", () => {
+  for (const file of [
+    "C:/Users/kano/.claude/projects/eatbid/memory/note.md",
+    "C:/Users/kano/AppData/Local/Temp/claude/scratchpad/report.md",
+    "F:/Project/other-repository/README.md",
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Write", { file_path: file }, repositoryGuard),
+      { mutatesRepository: false, reason: "file-edit-outside-repository" },
+      file,
+    );
+  }
+});
+
+test("현재 worktree 밖이어도 같은 저장소의 main checkout·형제 worktree·common dir·lease state는 차단한다", () => {
+  for (const file of [
+    `${WORKTREE_ROOT}/tools/agent-workflow/cli.mjs`,
+    `${REPOSITORY_ROOT}/apps/server/src/main.ts`,
+    `${REPOSITORY_ROOT}/AGENTS.md`,
+    `${SIBLING_WORKTREE}/AGENTS.md`,
+    `${REPOSITORY_ROOT}/.git/hooks/pre-commit`,
+    `${REPOSITORY_ROOT}/.git/eatbid-agent-workflow/state.json`,
+    // 드라이브 문자만 소문자로 바꾼 같은 파일이다.
+    `f:/project/eat-bid-service/AGENTS.md`,
+  ]) {
+    assert.deepEqual(
+      classifyToolCall("Write", { file_path: file }, repositoryGuard),
+      { mutatesRepository: true, reason: "file-edit-tool" },
+      file,
+    );
+  }
+});
+
+test("경로 표기 우회와 판정 불가 입력은 저장소 밖으로 읽지 않고 lease를 요구한다", () => {
+  for (const file of [
+    // `\\?\`로 감싼 자기 worktree 안 파일. prefix를 벗겨 같은 파일로 판정해야 한다.
+    "\\\\?\\F:\\Project\\eat-bid-service\\.claude\\worktrees\\eat-53-agent-self-service\\AGENTS.md",
+    // UNC는 로컬 루트와 문자열로 이어지지 않으므로 판정하지 않는다.
+    "\\\\localhost\\F$\\Project\\eat-bid-service\\tools\\x.mjs",
+    "\\\\?\\UNC\\localhost\\F$\\Project\\eat-bid-service\\tools\\x.mjs",
+    // 제어문자가 섞인 경로는 사람이 의도한 이름이 아니다.
+    `${WORKTREE_ROOT}/tools/x.mjs\u0001`,
+    "C:/Users/kano/.claude/memory/note.md\u0000",
+    // 상대 경로는 실행 cwd에 따라 다른 파일을 가리킨다.
+    "../../outside.md",
+  ]) {
+    assert.equal(
+      classifyToolCall("Write", { file_path: file }, repositoryGuard).mutatesRepository,
+      true,
+      JSON.stringify(file),
+    );
+  }
+});
+
+test("저장소 루트를 알아내지 못하거나 경로가 없으면 편집은 계속 차단한다", () => {
   assert.equal(classifyToolCall("Write", { file_path: "C:/tmp/a.md" }).mutatesRepository, true);
   assert.equal(
-    classifyToolCall("Write", { file_path: "../../outside.md" }, insideRepository).mutatesRepository,
+    classifyToolCall("Write", { file_path: "C:/tmp/a.md" }, { ...repositoryGuard, resolveRepositoryRoots: () => [] })
+      .mutatesRepository,
     true,
   );
   assert.equal(
-    classifyToolCall("apply_patch", { command: "*** Add File: a.ts" }, insideRepository)
+    classifyToolCall(
+      "Write",
+      { file_path: "C:/tmp/a.md" },
+      {
+        ...repositoryGuard,
+        resolveRepositoryRoots: () => {
+          throw new Error("git을 실행할 수 없음");
+        },
+      },
+    ).mutatesRepository,
+    true,
+  );
+  assert.equal(
+    classifyToolCall("apply_patch", { command: "*** Add File: a.ts" }, repositoryGuard)
       .mutatesRepository,
     true,
   );
