@@ -35,13 +35,13 @@
     "floorRate": { "value": "90.000", "unit": "percentage-points" },
     "plannedPriceMethod": {
       "sourceSystem": "eat",
-      "codeScheme": "eat:PLNPRC_TYPE_CD",
+      "codeScheme": "eat:planned-price-type",
       "code": "002",
       "label": "복수예정가격"
     },
     "awardMethod": {
       "sourceSystem": "eat",
-      "codeScheme": "eat:SUCBID_DCSN_MTH_CD",
+      "codeScheme": "eat:award-method",
       "code": "003",
       "label": "예정가격의 [90]%이상 입찰가 중 최저가 낙찰"
     }
@@ -54,13 +54,13 @@
           "sourceSystem": "eat",
           "accountCode": {
             "sourceSystem": "eat",
-            "codeScheme": "eat:SHIPPER_CD",
+            "codeScheme": "eat:supplier-account",
             "code": "0200000",
             "label": "한빛식자재"
           },
           "businessNumber": {
             "sourceSystem": "eat",
-            "codeScheme": "eat:BIZ_NO",
+            "codeScheme": "eat:business-number",
             "code": "0100000000",
             "label": null
           }
@@ -72,13 +72,13 @@
         "rank": 1,
         "sourceStatus": {
           "sourceSystem": "eat",
-          "codeScheme": "eat:BID_STT",
+          "codeScheme": "eat:bid-status",
           "code": "002",
           "label": "낙찰"
         },
         "withdrawalFlag": {
           "sourceSystem": "eat",
-          "codeScheme": "eat:WITHDRAWAL_YN",
+          "codeScheme": "eat:withdrawal-flag",
           "code": "N",
           "label": null
         },
@@ -92,13 +92,13 @@
       "sourceSystem": "eat",
       "accountCode": {
         "sourceSystem": "eat",
-        "codeScheme": "eat:SHIPPER_CD",
+        "codeScheme": "eat:supplier-account",
         "code": "0200000",
         "label": "한빛식자재"
       },
       "businessNumber": {
         "sourceSystem": "eat",
-        "codeScheme": "eat:BIZ_NO",
+        "codeScheme": "eat:business-number",
         "code": "0100000000",
         "label": null
       }
@@ -109,7 +109,7 @@
     "runnerUpRate": { "value": "90.382", "unit": "percentage-points" },
     "sourceStatus": {
       "sourceSystem": "eat",
-      "codeScheme": "eat:BID_STT",
+      "codeScheme": "eat:bid-status",
       "code": "002",
       "label": "낙찰"
     }
@@ -122,7 +122,7 @@
         "amount": { "amount": "6717477.00", "currency": "KRW" },
         "chosen": {
           "sourceSystem": "eat",
-          "codeScheme": "eat:CHC_YN",
+          "codeScheme": "eat:reserve-price-selection-flag",
           "code": "Y",
           "label": null
         }
@@ -133,7 +133,7 @@
         "amount": { "amount": "7063878.00", "currency": "KRW" },
         "chosen": {
           "sourceSystem": "eat",
-          "codeScheme": "eat:CHC_YN",
+          "codeScheme": "eat:reserve-price-selection-flag",
           "code": "N",
           "label": null
         }
@@ -148,7 +148,7 @@
         "displayBidNumber": "E260829-000000-0",
         "sourceStatus": {
           "sourceSystem": "eat",
-          "codeScheme": "eat:ETN_BID_STT",
+          "codeScheme": "eat:chain-bid-status",
           "code": "009",
           "label": "유찰"
         },

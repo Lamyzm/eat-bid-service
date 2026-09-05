@@ -27,7 +27,7 @@ def test_하한율은_소수_세_자리_비율로_관측된다() -> None:
     assert terms.floor_rate.value == "90.000"
     assert terms.planned_price_method is not None
     assert terms.planned_price_method.code == "002"
-    assert terms.planned_price_method.code_scheme == "eat:PLNPRC_TYPE_CD"
+    assert terms.planned_price_method.code_scheme == "eat:planned-price-type"
 
 
 def test_낙찰자_결정_방법은_ds_info의_코드_column에서_읽고_표시_문장은_라벨로_남긴다() -> None:
@@ -40,7 +40,7 @@ def test_낙찰자_결정_방법은_ds_info의_코드_column에서_읽고_표시
 
     assert terms.award_method is not None
     assert terms.award_method.code == "003"
-    assert terms.award_method.code_scheme == "eat:SUCBID_DCSN_MTH_CD"
+    assert terms.award_method.code_scheme == "eat:award-method"
     assert terms.award_method.label is not None
     assert terms.award_method.label.root == "예정가격의 [90]%이상 입찰가 중 최저가 낙찰"
 

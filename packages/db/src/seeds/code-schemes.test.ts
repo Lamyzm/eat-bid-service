@@ -10,6 +10,26 @@ const approvedNamespaces = [
   "neis:school",
   "eat:organization",
   "eat:supplier-account",
+  "eat:bid-status",
+  "eat:withdrawal-flag",
+  "eat:business-number",
+  "eat:planned-price-type",
+  "eat:award-method",
+  "eat:reserve-price-selection-flag",
+  "eat:chain-bid-status",
+];
+
+// eaT 상세 파서(`apps/dataplane/src/eatbid/source/eat/code_schemes.py`)가 싣는 여덟이다. 같은 목록을
+// Python 쪽 `test_code_schemes.py`가 반대 방향으로 검사하므로 한쪽만 늘리면 반드시 실패한다.
+const eatDetailParserNamespaces = [
+  "eat:bid-status",
+  "eat:withdrawal-flag",
+  "eat:supplier-account",
+  "eat:business-number",
+  "eat:planned-price-type",
+  "eat:award-method",
+  "eat:reserve-price-selection-flag",
+  "eat:chain-bid-status",
 ];
 
 const approvedCodeSchemes = [
@@ -55,6 +75,48 @@ const approvedCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  {
+    namespace: "eat:bid-status",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
+    namespace: "eat:withdrawal-flag",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
+    namespace: "eat:business-number",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
+    namespace: "eat:planned-price-type",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
+    namespace: "eat:award-method",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
+    namespace: "eat:reserve-price-selection-flag",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
+    namespace: "eat:chain-bid-status",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
 ];
 
 describe("내장 code scheme seed", () => {
@@ -88,7 +150,18 @@ describe("내장 code scheme seed", () => {
     await seedCodeSchemes(db);
 
     expect([...rows.values()]).toEqual(approvedCodeSchemes);
-    expect(rows).toHaveLength(7);
+    expect(rows).toHaveLength(14);
     expect(conflictTargets).toEqual([codeScheme.namespace, codeScheme.namespace]);
+  });
+
+  test("eat 코드 체계를 전부 등록한다", () => {
+    const seeded = new Set(builtinCodeSchemes.map(({ namespace }) => namespace));
+    const missing = eatDetailParserNamespaces.filter((namespace) => !seeded.has(namespace));
+
+    expect(missing).toEqual([]);
+    // 소스 column명을 정체성으로 되돌리는 회귀를 막는다. `eat:SHIPPER_CD`처럼 대문자 소스 column이
+    // 다시 namespace가 되면 같은 code scheme이 두 이름을 갖게 된다(AGENTS 2·6).
+    const sourceColumnShaped = [...seeded].filter((namespace) => /[A-Z_]/.test(namespace.split(":")[1] ?? ""));
+    expect(sourceColumnShaped).toEqual([]);
   });
 });

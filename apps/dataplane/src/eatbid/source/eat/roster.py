@@ -12,6 +12,13 @@ from eatbid.generated.ingestion_v2 import (
     NormalizedSupplierAccount,
     SourceCode,
 )
+from eatbid.source.eat.code_schemes import (
+    BID_STATUS,
+    BUSINESS_NUMBER,
+    SUPPLIER_ACCOUNT,
+    WITHDRAWAL_FLAG,
+    optional_scheme_value,
+)
 from eatbid.source.eat.wire_text import optional_text
 from eatbid.source.eat.wire_values_v2 import (
     SOURCE_SYSTEM,
@@ -19,7 +26,6 @@ from eatbid.source.eat.wire_values_v2 import (
     optional_money,
     optional_nonnegative_count,
     optional_observed_bid_rate,
-    optional_source_coded_value,
 )
 from eatbid.source.eat.xml import ParsedNexacro
 
@@ -57,9 +63,7 @@ def _submission(row: Mapping[str, str]) -> NormalizedBidSubmission:
     amount = optional_money(row, "BID_CALC_AMT")
     if amount is None:
         raise ValueError("BID_CALC_AMT is required on an observed roster row")
-    status = optional_source_coded_value(
-        row, "BID_STT", code_scheme="eat:BID_STT", label_field="BID_STT_NM"
-    )
+    status = optional_scheme_value(row, BID_STATUS)
     if status is None:
         raise ValueError("BID_STT is required on an observed roster row")
     return NormalizedBidSubmission(
@@ -70,18 +74,14 @@ def _submission(row: Mapping[str, str]) -> NormalizedBidSubmission:
         bid_rate=bid_rate,
         rank=optional_nonnegative_count(row, "RNK"),
         source_status=status,
-        withdrawal_flag=optional_source_coded_value(
-            row, "WITHDRAWAL_YN", code_scheme="eat:WITHDRAWAL_YN"
-        ),
+        withdrawal_flag=optional_scheme_value(row, WITHDRAWAL_FLAG),
         draw_numbers=_draw_numbers(row),
         observed_roster_size=optional_nonnegative_count(row, "TOTAL_NUM"),
     )
 
 
 def _supplier_account(row: Mapping[str, str]) -> NormalizedSupplierAccount:
-    account = optional_source_coded_value(
-        row, "SHIPPER_CD", code_scheme="eat:SHIPPER_CD", label_field="SHIPPER_NM"
-    )
+    account = optional_scheme_value(row, SUPPLIER_ACCOUNT)
     if account is None:
         raise ValueError("SHIPPER_CD is required on an observed roster row")
     # NARA_BIZ_NO는 사업자번호가 아니라 "부정당업자가 아닙니다." 같은 문장이라 읽지 않는다. 이름이
@@ -89,9 +89,7 @@ def _supplier_account(row: Mapping[str, str]) -> NormalizedSupplierAccount:
     return NormalizedSupplierAccount(
         source_system=SOURCE_SYSTEM,
         account_code=account,
-        business_number=optional_source_coded_value(
-            row, "BIZ_NO", code_scheme="eat:BIZ_NO"
-        ),
+        business_number=optional_scheme_value(row, BUSINESS_NUMBER),
     )
 
 

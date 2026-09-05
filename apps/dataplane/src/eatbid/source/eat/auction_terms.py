@@ -6,10 +6,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from eatbid.generated.ingestion_v2 import NormalizedAuctionTerms
-from eatbid.source.eat.wire_values_v2 import (
-    optional_bid_rate,
-    optional_source_coded_value,
+from eatbid.source.eat.code_schemes import (
+    AWARD_METHOD,
+    PLANNED_PRICE_TYPE,
+    optional_scheme_value,
 )
+from eatbid.source.eat.wire_values_v2 import optional_bid_rate
 
 
 def parse_auction_terms(info: Mapping[str, str]) -> NormalizedAuctionTerms:
@@ -27,16 +29,6 @@ def parse_auction_terms(info: Mapping[str, str]) -> NormalizedAuctionTerms:
     """
     return NormalizedAuctionTerms(
         floor_rate=optional_bid_rate(info, "PLNPRCE_SUCBD_STD"),
-        planned_price_method=optional_source_coded_value(
-            info,
-            "PLNPRC_TYPE_CD",
-            code_scheme="eat:PLNPRC_TYPE_CD",
-            label_field="PLNPRCE_TYPE_NM",
-        ),
-        award_method=optional_source_coded_value(
-            info,
-            "SUCBID_DCSN_MTH_CD",
-            code_scheme="eat:SUCBID_DCSN_MTH_CD",
-            label_field="SUCBD_DECISION_MTHD_NM",
-        ),
+        planned_price_method=optional_scheme_value(info, PLANNED_PRICE_TYPE),
+        award_method=optional_scheme_value(info, AWARD_METHOD),
     )
