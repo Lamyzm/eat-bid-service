@@ -6,6 +6,10 @@ metadata:
 spec:
   entrypoint: scheduled-pipeline
   serviceAccountName: eatbid-dataplane
+  # fan-out 폭을 단일 노드 용량 아래로 묶는다. 2026-09-05 첫 backfill은 normalize 131개를 한꺼번에
+  # 띄워 kubelet pod 상한(110)을 넘기고 postgres readiness까지 지연시켜 22건이 DB 연결 시간 초과로
+  # 죽었다. capture는 source semaphore로 이미 직렬이므로 이 값은 사실상 normalize 동시성이다.
+  parallelism: 4
   arguments:
     parameters:
       # mode는 CLI `discover --mode`로 그대로 전달되고 날짜 창은 CLI가 번역한다. poll-open과

@@ -171,6 +171,10 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     spec = _spec(workflow_template)
     assert spec["entrypoint"] == "scheduled-pipeline"
     assert spec["serviceAccountName"] == "eatbid-dataplane"
+    # withParam fan-out은 발견 건수만큼 pod를 만들므로 workflow 전체 동시성 상한이 없으면 단일 노드의
+    # kubelet pod 상한(110)과 DB 연결을 한 번에 소진한다(2026-09-05 backfill 131건 중 22건 실패).
+    parallelism = spec["parallelism"]
+    assert isinstance(parallelism, int) and 1 <= parallelism <= 16
     reviewed_parser_versions = {key[2] for key in REVIEWED_EAT_SCHEMA_CONTRACTS}
     workflow_parameters = {
         item["name"]: item["value"]
