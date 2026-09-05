@@ -40,6 +40,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0031](0031-decision-screen-frontend-rendering.md) | Accepted | 결정 화면의 상태 소유(nuqs)·직접 그린 차트·headless 표·측정 후 가상화 |
 | [0032](0032-authentication-and-authorization-boundary.md) | Proposed | 인증·인가 경계: Nest가 Better Auth를 마운트, principal bigint, 역할 owner|member, 운영자 부여 이력, 권한 7단계 |
 | [0033](0033-bid-submission-partitioning-and-supplier-core.md) | Accepted | 투찰·낙찰·업체 core 테이블 다섯, `core.bid_submission`의 개찰 연도 range 파티션, `auction.v2` 발행 개방 |
+| [0034](0034-mart-build-identity-and-atomic-activation.md) | Proposed | `mart.build` 빌드 원장, partial unique index 활성 포인터와 상태 trigger, mart 단위 전량 재빌드, build 속성으로서의 지역 코드 체계 |
 
 ## 새 ADR 형식
 
