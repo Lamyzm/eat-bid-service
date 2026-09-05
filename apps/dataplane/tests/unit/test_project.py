@@ -47,6 +47,7 @@ def test_auction_projection_contract가_필수_lineage_fields을_허용한다() 
         base_amount=None,
         planned_amount=None,
         currency="KRW",
+        floor_rate=None,
         source_payload={"contractVersion": "eatbid.ingestion.auction.v1"},
     )
 
@@ -135,6 +136,18 @@ def test_projection_factory가_검토된_source_code_reference만_내보낸다()
         ("eat:auction-location-sigungu", "0110", "location_sigungu"),
         ("eat:eligibility-area", "01", "eligibility_area"),
         ("eat:eligibility-area", "02", "eligibility_area"),
+    ]
+
+
+def test_v1_계약에는_공고_조건이_없으므로_하한율과_방식_관계를_만들지_않는다() -> None:
+    """v1 record에 `terms`가 없다는 사실을 null로 남긴다. 추측으로 메우지 않는다(AGENTS 3)."""
+    projection = build_eat_auction_projection(frozen_member())
+
+    assert projection.floor_rate is None
+    assert not [
+        reference
+        for reference in projection.code_refs
+        if reference.role in {"award_method", "planned_price_method"}
     ]
 
 

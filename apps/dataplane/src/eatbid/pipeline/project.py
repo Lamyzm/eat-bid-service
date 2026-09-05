@@ -172,6 +172,8 @@ def build_eat_auction_projection(
         opened_at=instant_datetime(record.schedule.opened_at),
         base_amount=money_decimal(record.pricing.base_amount),
         planned_amount=money_decimal(record.pricing.planned_amount),
+        # v1 계약에는 `terms` 블록이 없다. 관측하지 못한 조건은 null이며 추측으로 메우지 않는다.
+        floor_rate=None,
         currency="KRW",
         source_payload=source_payload,
     )

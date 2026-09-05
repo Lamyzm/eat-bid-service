@@ -22,8 +22,10 @@ from eatbid.core.projection_validation import validate_projection
 from eatbid.core.repository import FrozenPublicationMember, ProjectionContractError
 from eatbid.source.eat.code_schemes import (
     ATTEMPT_STATUS,
+    AWARD_METHOD,
     BID_STATUS,
     BUSINESS_NUMBER,
+    PLANNED_PRICE_TYPE,
     SUPPLIER_ACCOUNT,
 )
 from eatbid.source.eat.normalize import canonical_payload, normalize_bid_detail_payload
@@ -125,6 +127,63 @@ def test_낙찰_판정_코드를_파생_상태로_바꾸지_않는다() -> None:
         for name in dir(award)
         if any(word in name for word in ("won", "invalid", "floor"))
     ]
+
+
+def test_공고_조건을_하한율_열과_검토된_코드_role로_옮긴다() -> None:
+    projection = build_eat_auction_v2_projection(frozen_member())
+    validate_projection(projection)
+
+    assert projection.floor_rate == Decimal("90.000")
+    assert [
+        (reference.namespace, reference.code, reference.role)
+        for reference in projection.code_refs
+        if reference.role in {"award_method", "planned_price_method"}
+    ] == [
+        (PLANNED_PRICE_TYPE.namespace, "002", "planned_price_method"),
+        (AWARD_METHOD.namespace, "003", "award_method"),
+    ]
+
+
+def test_공고_조건이_관측되지_않으면_비운다() -> None:
+    """관측하지 못한 조건을 기본값으로 메우면 코호트 키가 조용히 거짓이 된다(AGENTS 3)."""
+    payload = normalized_payload("bid-detail-roster.xml", ROSTER_BID_ID)
+    payload["terms"] = {
+        "floorRate": None,
+        "plannedPriceMethod": None,
+        "awardMethod": None,
+    }
+
+    projection = build_eat_auction_v2_projection(
+        frozen_member(normalized_payload=payload)
+    )
+    validate_projection(projection)
+
+    assert projection.floor_rate is None
+    assert not [
+        reference
+        for reference in projection.code_refs
+        if reference.role in {"award_method", "planned_price_method"}
+    ]
+
+
+def test_공고_조건_코드의_체계가_바뀌면_투영하지_않고_끊는다() -> None:
+    """role은 우리가 붙이고 체계는 관측이 준다. 둘이 어긋나면 조용히 라벨을 바꾸지 않는다."""
+    payload = normalized_payload("bid-detail-roster.xml", ROSTER_BID_ID)
+    terms = payload["terms"]
+    assert isinstance(terms, dict)
+    award_method = terms["awardMethod"]
+    assert isinstance(award_method, dict)
+    payload["terms"] = {
+        **terms,
+        "awardMethod": {**award_method, "codeScheme": "eat:bid-status"},
+    }
+
+    projection = build_eat_auction_v2_projection(
+        frozen_member(normalized_payload=payload)
+    )
+
+    with pytest.raises(ProjectionContractError, match="not reviewed"):
+        validate_projection(projection)
 
 
 def test_사업자번호가_없는_명단_행은_업체_정체성_없이_투영된다() -> None:

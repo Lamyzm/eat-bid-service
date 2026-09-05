@@ -37,6 +37,11 @@ PARSER_VERSION = "eat-v2"
 _ROW = re.compile(rb"<Row>.*?</Row>", re.DOTALL)
 _BID_RATE = re.compile(rb'<Col id="SAJEONG_PCT">([0-9.]+)</Col>')
 _AWARDED_STATUS = re.compile(rb'<Col id="BID_STT">002</Col>')
+# 공고 조건도 같은 이유로 원본에서 직접 읽는다. 기대값을 손으로 적으면 파서가 다른 column을 읽어도
+# 대조가 통과한다.
+_FLOOR_RATE = re.compile(rb'<Col id="PLNPRCE_SUCBD_STD">([0-9.]+)</Col>')
+_AWARD_METHOD = re.compile(rb'<Col id="SUCBID_DCSN_MTH_CD">([^<]+)</Col>')
+_PLANNED_PRICE_TYPE = re.compile(rb'<Col id="PLNPRC_TYPE_CD">([^<]+)</Col>')
 
 
 def _roster_rows(body: bytes) -> list[bytes]:
@@ -90,8 +95,19 @@ def validated_v2_publication(
     return publish_v2_observation(services, fixture.read_bytes())
 
 
+def _source_group(pattern: re.Pattern[bytes], body: bytes) -> str:
+    match = pattern.search(body)
+    assert match is not None, "원본에 그 조건 column이 있어야 한다"
+    return match.group(1).decode()
+
+
 ROSTER_ROWS = source_roster_size(ROSTER_FIXTURE.read_bytes())
 AWARDED_RATE = source_awarded_rate(ROSTER_FIXTURE.read_bytes())
+SOURCE_FLOOR_RATE = Decimal(_source_group(_FLOOR_RATE, ROSTER_FIXTURE.read_bytes()))
+SOURCE_AWARD_METHOD = _source_group(_AWARD_METHOD, ROSTER_FIXTURE.read_bytes())
+SOURCE_PLANNED_PRICE_TYPE = _source_group(
+    _PLANNED_PRICE_TYPE, ROSTER_FIXTURE.read_bytes()
+)
 
 
 def roster_rows(services: PipelineServices, external_bid_id: str) -> list[tuple]:
@@ -154,6 +170,54 @@ def test_eat_v2_발행은_명단과_낙찰을_한_트랜잭션에_남긴다(
     assert award[2] == Decimal("90.382")
     assert award[3] == "002"
     assert award[4] == rows[0][6]
+
+
+def test_eat_v2_발행은_공고_조건을_열과_코드_관계로_남긴다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """하한율·낙찰 방식·예정가격 방식이 jsonb 밖의 조회 가능한 사실이 되는지 본다(ADR 0033 §4-가)."""
+    publication_id, external_bid_id = validated_v2_publication(pipeline_services)
+
+    project_publication(
+        publication_id=publication_id,
+        projector_version=BUILD_SHA,
+        activated_at=ACTIVATED_AT,
+        repository=pipeline_services.projection_repository,
+    )
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select ar.floor_rate
+            from core.auction_revision ar
+            join core.auction_attempt aa using (auction_attempt_id)
+            where aa.external_bid_id = %s
+            """,
+            (external_bid_id,),
+        )
+        revision = cursor.fetchone()
+        cursor.execute(
+            """
+            select rcv.role, cs.namespace, cv.code
+            from core.auction_revision_code_value rcv
+            join core.auction_revision ar using (auction_revision_id)
+            join core.auction_attempt aa using (auction_attempt_id)
+            join core.code_value cv on cv.code_value_id = rcv.code_value_id
+            join core.code_scheme cs using (code_scheme_id)
+            where aa.external_bid_id = %s
+              and rcv.role in ('award_method', 'planned_price_method')
+            order by rcv.role
+            """,
+            (external_bid_id,),
+        )
+        terms = cursor.fetchall()
+
+    assert revision is not None
+    assert revision[0] == SOURCE_FLOOR_RATE
+    assert terms == [
+        ("award_method", "eat:award-method", SOURCE_AWARD_METHOD),
+        ("planned_price_method", "eat:planned-price-type", SOURCE_PLANNED_PRICE_TYPE),
+    ]
 
 
 def test_사업자번호가_없으면_계정마다_별도_업체를_만든다(
