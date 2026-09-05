@@ -120,10 +120,26 @@ detail run `5e8cfcc3-…`는 `published`, `expected_count=captured_count=publish
 않은 채 남아 있다. 관측 133건과 정규화 109건은 원본 증거로서 유효하고 어떤 publication에도 속하지
 않는다. 상태를 손으로 고치지 않았다. 중단된 run을 `failed`로 닫는 절차는 없으며 별도 결정이 필요하다.
 
+## 5.4 첫 스케줄 실행 — daily-reconcile 2026-09-06 07:00 KST
+
+CronWorkflow `eatbid-daily-reconcile`이 사람 개입 없이 22:00:00Z에 `eatbid-daily-reconcile-1788645600`을
+만들었고 23:39:25Z에 Succeeded했다(1시간 39분). 이미지는 v0.1.11, `parallelism=4` 상속.
+
+| 단계 | 결과 |
+|---|---|
+| discover | 254건(열린 공고 전체, backfill의 131건 포함) |
+| capture | 254/254 |
+| normalize | 254/254, 격리 0 |
+| validate · project | publication `95b3ff6e-…` published, expected=normalized=published=254 |
+
+core는 attempt 254(재관측된 131건은 새 revision으로 append), revision 385. 이 실행이 "매일 07시
+daily-reconcile Succeeded" 수용 기준을 채운다. poll-open은 평일 스케줄이라 첫 실행은 2026-09-07(월)
+08:00 KST다.
+
 ## 6. 남은 것
 
-- poll-open(평일 08~19시 30분)·daily-reconcile(매일 07시 KST) 첫 스케줄 실행 확인. 2026-09-05는
-  토요일이라 poll-open은 돌지 않았다.
+- poll-open(평일 08~19시 30분) 첫 실행 확인(2026-09-07 월 08:00 KST). 2026-09-05·06은 주말이라
+  돌지 않았다.
 - EAT-59: 실패 pod가 예외 종류와 메시지를 JSON으로 남기게 한다.
 - EAT-49: dataplane 역할 grant를 수동 SQL이 아니라 provisioning 스크립트로 옮긴다.
 - 중단된 run·source_release를 닫는 절차(5.3절)와 eat-v1 projection의 기관 정보 공백(5.2절)은
