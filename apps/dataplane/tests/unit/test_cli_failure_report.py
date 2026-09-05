@@ -19,6 +19,16 @@ FIELDS = frozenset(
     {"build_sha", "category", "error", "message", "parser_version", "run_id"}
 )
 
+_비밀_환경변수 = ("DATABASE_URL", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")
+
+
+@pytest.fixture(autouse=True)
+def _비밀_환경변수를_비운다(monkeypatch: pytest.MonkeyPatch) -> None:
+    """왜: 이 모듈만 마스킹된 문자열을 문자 그대로 비교한다. `_secret_values`는 설정과 함께
+    실행 환경의 비밀값도 읽으므로, runner에 남은 DSN·R2 키가 결과를 바꾸지 못하게 먼저 비운다."""
+    for name in _비밀_환경변수:
+        monkeypatch.delenv(name, raising=False)
+
 
 def _한줄_JSON(captured: str) -> dict[str, Any]:
     lines = captured.splitlines()
@@ -131,6 +141,19 @@ def test_설정에_없는_DSN도_비밀번호_자리를_가린다(
 
     assert "unlisted-password" not in str(payload["message"])
     assert "postgres://other:***@replica:5432/eatbid" in str(payload["message"])
+
+
+def test_비밀번호가_database_이름과_같아도_누출없이_가린다(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgres://eatbid:eatbid@localhost:5432/eatbid")
+
+    가려진 = redact_secrets(
+        "psycopg failed on postgres://eatbid:eatbid@localhost:5432/eatbid"
+    )
+
+    assert "eatbid" not in 가려진
+    assert "***" in 가려진
 
 
 def test_settings가_없으면_환경변수의_비밀값으로_지운다(
