@@ -35,6 +35,7 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 | 여러 work item의 우선순위·담당·진행 상태는 무엇인가? | Linear project의 issue view | GitHub Project, 별도 Markdown task board |
 | 기능 행동이 이번 변경에서 어떻게 달라지는가? | Linear issue acceptance, 필요 시 OpenSpec delta | 구현자가 대화에서 만든 암묵적 가정 |
 | 시스템 경계를 왜 선택했는가? | Accepted ADR | plan, PR 코멘트만으로 남긴 결정 |
+| 제품 판단(무엇을 왜 하지 않기로 했는가)은 무엇인가? | `docs/product/decisions/`(PDR) | agent 대화, PLANNING-LOG 서술 |
 | 목표 데이터·런타임 구조는 무엇인가? | `docs/architecture/` | 현재 코드에서 우연히 추론한 구조 |
 | 실제 구현은 무엇인가? | 병합된 code·schema·migration | spec 또는 plan의 예상 파일 목록 |
 | 완료됐는가? | PR diff + CI + acceptance evidence | agent의 “완료했습니다” 선언 |
