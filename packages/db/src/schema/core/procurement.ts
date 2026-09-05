@@ -1,3 +1,9 @@
+/**
+ * @module 책임: core schema에서 공고 attempt·revision과 그 revision에 매달린 조직·code value 관계 table을 소유한다.
+ *
+ * 참여 업체 identity는 `./suppliers.js`, 투찰·낙찰 사실은 `./bidding.js`가 소유한다.
+ * 공고 관측 grain과 투찰 결과 grain은 함께 바뀌지 않으므로 이 module에 되돌려 놓지 않는다.
+ */
 import {
   bigint,
   char,

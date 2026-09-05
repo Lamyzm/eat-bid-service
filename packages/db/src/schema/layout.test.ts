@@ -15,11 +15,18 @@ describe("schema module 배치", () => {
   });
 
   test("core aggregate를 역할별 module에 둔다", () => {
-    for (const file of ["codes.ts", "organizations.ts", "procurement.ts", "index.ts"]) {
+    for (const file of [
+      "codes.ts",
+      "organizations.ts",
+      "procurement.ts",
+      "suppliers.ts",
+      "bidding.ts",
+      "index.ts",
+    ]) {
       expect(existsSync(path.join(schemaRoot, "core", file))).toBe(true);
     }
 
-    for (const file of ["codes.ts", "organizations.ts", "procurement.ts"]) {
+    for (const file of ["codes.ts", "organizations.ts", "procurement.ts", "suppliers.ts", "bidding.ts"]) {
       expect(existsSync(path.join(schemaRoot, file))).toBe(false);
     }
   });
