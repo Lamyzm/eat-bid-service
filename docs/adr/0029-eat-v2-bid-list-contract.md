@@ -82,6 +82,8 @@ def fingerprint(self) -> str:
 - **`auction.v2` record 는 아직 projectable 하지 않다.** `PROJECTABLE_RECORD_TYPES` 는 `auction.v1`
   하나이며 v2 record 가 projection 에 닿으면 typed 실패로 멈춘다. core 테이블과 projector 를 만드는
   EAT-43 이 이 집합을 넓힌다. 그 전까지 v2 정규화는 격리·전수 리포트용이지 `core` 발행 경로가 아니다.
+  **(해소됨 — EAT-43, [ADR 0033](0033-bid-submission-partitioning-and-supplier-core.md) §5가
+  `auction.v2`를 발행 가능으로 열었다.)**
 
 전수 재정규화 결과와 계약 상한 조정의 근거는
 [2026-09-04 리포트](../evidence/normalization/2026-09-04-eat-v2-renormalization.md)(계산 버전 `eat-v2-r3`)에 있다.
@@ -90,19 +92,20 @@ def fingerprint(self) -> str:
 
 EAT-42가 의도적으로 열어 둔 결정이다. 여기가 이 목록의 유일한 저장소 내 원본이다.
 
-**EAT-43 (core 테이블·projector와 같은 변경에서 닫는다)**
+**EAT-43 (core 테이블·projector와 같은 변경에서 닫는다) — 넷 모두 해소됨 (2026-09-06)**
 
-- **`AttemptLink.externalBidId` 타입.** 재입찰 사슬의 외부 공고 id를 지금은 관측 문자열로 담는다.
-  core가 `AuctionAttempt` 내부 id로 잇는 순간 두 표현의 경계를 정해야 한다.
-- **`CodeScheme` 등록과 code scheme 문자열의 단일 출처.** 여덟(`eat:BID_STT`·`eat:WITHDRAWAL_YN`·
-  `eat:SHIPPER_CD`·`eat:BIZ_NO`·`eat:PLNPRC_TYPE_CD`·`eat:SUCBID_DCSN_MTH_CD`·`eat:CHC_YN`·
-  `eat:ETN_BID_STT`)이 지금은 파서 네 모듈의 인라인 리터럴이고
-  [`time-and-value-contracts.md`](../architecture/time-and-value-contracts.md)의 표가 권위를 대신한다.
-  등록 테이블을 만들 때 `source/eat/code_schemes.py` 한 모듈로 모으고 문서 표가 그것을 가리키게 한다.
-- **`ObservedBidRate`의 mart 표현.** 관측된 사정률은 `numeric(6,3)`에 들어가지 않는다. mart column을
-  소유하는 쪽이 정한다(EAT-43·44).
-- **`foundation.py` 980줄의 책임 분리 검토.** 이 브랜치의 부채는 아니지만 projector를 붙이면 다시
-  커진다. AGENTS 18은 새 기능을 더하기 **전에** 경계 추출을 요구하므로 계획 단계에서 결정한다.
+- ~~**`AttemptLink.externalBidId` 타입.**~~ **해소** — [ADR 0033](0033-bid-submission-partitioning-and-supplier-core.md) §1:
+  core는 외부 문자열을 관계 키로 쓰지 않고 내부 attempt id로만 잇는다. 아직 수집하지 않은 사슬 상대는
+  identity 전용 `core.auction_attempt` 행으로 먼저 발급한다.
+- ~~**`CodeScheme` 등록과 code scheme 문자열의 단일 출처.**~~ **해소** — EAT-61이
+  `apps/dataplane/src/eatbid/source/eat/code_schemes.py`를 권위로 만들고 namespace를 소스 column명이
+  아닌 의미 이름(`eat:bid-status` 등)으로 통일했다. EAT-43이 남은 넷(`eat:organization`·공고지역
+  시도·시군구·참가제한지역)을 같은 표로 옮겼고, dataplane source 전체에 scheme 리터럴이 남지 않았음을
+  `tests/unit/test_code_schemes.py`가 고정한다.
+- ~~**`ObservedBidRate`의 mart 표현.**~~ **해소** — [ADR 0033](0033-bid-submission-partitioning-and-supplier-core.md) §2:
+  `core`와 `mart` 모두 `numeric(15,3)`이다. 공개 API의 `BidRate`(0~100, `numeric(6,3)`)는 그대로 둔다.
+- ~~**`foundation.py` 980줄의 책임 분리 검토.**~~ **해소** — EAT-62가
+  `foundation_checkpoint.py`·`foundation_verification.py`·`foundation_values.py`로 갈랐다.
 
 **시기 미정**
 

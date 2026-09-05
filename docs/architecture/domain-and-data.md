@@ -83,8 +83,17 @@ erDiagram
 - `AuctionRevision`은 `normalized_record_id`를 직접 참조하고 그 interpretation으로 유일하다.
 - 같은 normalized record replay는 revision을 재사용하고 새 parser interpretation은 별도 revision이다.
 - 공고 상태, 공고 변경, 취소, 마감, 금액, 방식의 시간 변화를 보존한다.
-- 재입찰/상위 공고 관계는 `AuctionRelation`과 원본 `UP_ELCTRN_BID_ID`로 연결한다.
+- 재입찰/상위 공고 관계는 `core.auction_attempt_link`가 갖는다. 관측 원본은 `ds_bidHistory` 행과
+  `ds_info.UP_ELCTRN_BID_ID`이며 관계 종류는 `chain_member`와 `parent` 둘이다
+  ([ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §1).
 - 공고번호 접미사나 제목을 파싱해 차수를 만들지 않는다.
+- **사슬 상대는 내부 attempt id로만 잇는다.** 아직 수집하지 않은 상대에게도 `AuctionAttempt` identity
+  행(`source_system`·`external_bid_id`만)을 먼저 발급하고 그 id로 관계를 만든다. 외부 문자열을 관계
+  키로 들고 있다가 나중에 잇지 않는다(규칙 2).
+- **그래서 revision이 0개인 `AuctionAttempt`는 유효한 상태다.** "관계로만 알려진 공고"라는 뜻이며
+  오류가 아니다(규칙 3).
+- **공고 수를 세는 질의와 공개 API는 revision의 존재를 조건으로 삼는다.** `auction_attempt`를 그냥
+  세면 아직 관측하지 못한 사슬 상대까지 공고로 발표하게 된다.
 
 ### 3.2 Organization
 
@@ -109,6 +118,16 @@ canonical 이름이나 학교 유형으로 승격하지 않는다.
 - 한 법적 사업자에 여러 소스 계정이 있을 수 있고 그 반대 관계는 명시적으로 검증한다.
 - 워크스페이스는 `WorkspaceSupplier`로 자신이 운영하는 법적 사업자를 연결한다.
 
+**승격 규칙**([ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §1). `eat:business-number`
+(`BIZ_NO`) 관측이 있으면 그 code value가 `SupplierParty`의 유일 키이고, 같은 사업자번호를 가진 여러
+계정은 한 party에 붙는다. 사업자번호가 없으면 그 계정이 자기 party를 갖는다. 나중에 사업자번호가
+관측되어 둘이 같은 사업자로 밝혀져도 **자동 병합하지 않는다** — 병합은 `code_mapping`과 같은 급의
+명시적 reconciliation이다(규칙 3). 레이크 전수 명단 11,080,463행에서 `BIZ_NO` 결측은 0건이지만
+(계산 버전 `eat-v2-r4-eat43`) 소스가 그 필드를 보장하지 않으므로 결측 경로를 없애지 않는다.
+
+업체명(`SHIPPER_NM`)은 기관명과 같은 규칙이다. `language='und'`인 code label 관측으로 남고
+`supplier_party.canonical_name`으로 승격하지 않는다. 이름이 바뀌어도 정체성은 바뀌지 않는다.
+
 ### 3.4 BidSubmission과 AwardDecision
 
 `won boolean`으로 개찰 사실을 축약하지 않는다.
@@ -117,6 +136,30 @@ canonical 이름이나 학교 유형으로 승격하지 않는다.
 - `AwardDecision`: 낙찰/유찰/재공고 등 결정, 결정 시각, 선택된 submission/업체, 원본 근거
 - withdrawal은 낙찰 실패와 다른 상태다.
 - 동일 공고의 source revision에 따라 결과가 정정될 수 있으므로 관측 이력을 보존한다.
+
+#### 확정된 열과 파티션
+
+[ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §1·§3이 다음을 확정했다.
+`packages/db/src/schema/core/bidding.ts`가 DDL의 권위다.
+
+- **grain은 revision이다.** `core.bid_submission`의 발행 grain은
+  `(auction_revision_id, roster_ordinal, opened_at)`이고 `roster_ordinal`은 `ds_bidList`의 관측 순서
+  (0-based)이지 소스가 준 번호가 아니다. 소스 정정으로 새 revision이 생기면 명단이 한 벌 더 쌓이며
+  현재 뷰는 최신 revision을 고르는 질의가 만든다.
+- **`core.bid_submission`은 `opened_at`으로 range 파티션한다.** 경계는 KST 연도이고 초기 커버리지는
+  2023~2027 다섯 연도 + `DEFAULT`다. 파티션 키는 nullable이며 그래서 이 테이블에는 primary key가 없고
+  `unique nulls not distinct` 둘이 대리키와 발행 grain을 각각 지킨다.
+- **`won boolean`도, 계산된 실효하한도, "무효" 열도 두지 않는다.** 판정 권위는 `BID_STT` 코드
+  하나이고 그날 하한은 `mart`의 파생 계산이다(규칙 7·8). 이 금지는 열 목록 테스트가 집행한다.
+- **`AwardDecision`은 revision당 0 또는 1이다.** 근거는 전수 리포트의 `multiple_award_rows = 0`이며,
+  위반이 관측되면 두 행을 만드는 것이 아니라 격리한다.
+- **낙찰 행은 명단 행을 FK로 가리키지 않는다.** `awarded_roster_ordinal`은 같은 revision 명단의 관측
+  좌표다. 파티션 테이블을 참조하는 FK는 동작하지만 연도 추가 때마다의 `DETACH`/`ATTACH`와 씨름하게
+  되므로 운영 절차의 단순함을 참조 무결성 위에 둔다. 대신 projector가 같은 트랜잭션에서 좌표의 존재와
+  그 행의 판정 코드가 `002`인지 검증한다.
+- **재발행은 upsert 멱등이다.** `on conflict ... do nothing` 뒤 기존 행을 읽어 값이 같은지 확인하고
+  다르면 실패로 끊는다. 삭제-재삽입은 봉인된 발행물의 append-only 계약과 어긋나고 부분 실패가 현재
+  공개 뷰를 비운다.
 
 #### 원본 판정에는 "무효"가 없다
 
@@ -134,8 +177,9 @@ eaT 명단 행의 판정 코드 `BID_STT`는 레이크 전수 11,080,463행에�
 - **사정률은 100을 넘는다.** `SAJEONG_PCT`는 투찰가를 예정가격으로 나눈 소스 계산값이라 예정가격을
   넘겨 투찰하면 100을 초과하고, 단가 입찰(낙찰 방식 `013`·`014`)에서 총액을 넣은 행은 훨씬 크게 튄다.
   ingestion v2는 이 값을 상한 없는 `ObservedBidRate`(소수 3자리, 정수부 최대 12자리)로 받는다. 공개
-  API의 `BidRate`와 하한율은 정의상 0~100이라 그대로다. **mart 표현은 미결이다** —
-  `numeric(6,3)`에 들어가지 않으므로 mart column을 소유하는 EAT-43·44가 정한다.
+  API의 `BidRate`와 하한율은 정의상 0~100이라 그대로다. **DB 표현은 `numeric(15,3)`이다** — `core`와
+  `mart` 모두 같으며 [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §2가
+  정했다.
 - **사정률을 집계하면 낙찰 방식으로 코호트를 나눈다.** 낙찰 방식 코드
   (`ds_info.SUCBID_DCSN_MTH_CD`)는 8종이고 `003`이 99%다. `013`·`014`는 단가 입찰이라 같은 축의 값이
   아니다.

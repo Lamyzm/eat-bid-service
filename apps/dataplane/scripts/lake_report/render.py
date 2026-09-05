@@ -172,6 +172,10 @@ def render_markdown(report: LakeReport) -> str:
             [[name, f"{count:,}"] for name, count in report.invariants.items()],
         ),
         "",
+        "## 결측 관측 (위반이 아니라 소스가 보장하지 않는 값이다)",
+        "",
+        _missing_table(report),
+        "",
     ]
     if report.rounds is not None:
         sections.extend(_rounds_sections(report.rounds))
@@ -237,6 +241,36 @@ def _run_table(report: LakeReport) -> str:
             ],
             ["개찰 기간", period],
             ["구매기관 수", f"{report.organization_count:,}"],
+        ],
+    )
+
+
+def _missing_table(report: LakeReport) -> str:
+    """개찰 시각과 사업자번호의 결측을 각자의 분모와 함께 낸다.
+
+    분모가 다르다. 개찰 시각은 회차 하나의 값이고 사업자번호는 명단 행 하나의 값이라, 두 수를 같은
+    표본 수로 나누면 둘 다 틀린다.
+    """
+    missing = report.missing_observations
+    return table(
+        ["항목", "결측", "분모", "비율"],
+        [
+            [
+                "개찰 시각 없는 회차",
+                f"{missing['opened_at_missing_rounds']:,}",
+                f"{missing['normalized_rounds']:,}",
+                ratio_text(
+                    missing["opened_at_missing_rounds"], missing["normalized_rounds"]
+                ),
+            ],
+            [
+                "사업자번호 없는 명단 행",
+                f"{missing['business_number_missing_rows']:,}",
+                f"{missing['roster_rows']:,}",
+                ratio_text(
+                    missing["business_number_missing_rows"], missing["roster_rows"]
+                ),
+            ],
         ],
     )
 

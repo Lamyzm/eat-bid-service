@@ -90,6 +90,12 @@ class FileObservation:
     masked_amount_rows: int = 0
     masked_withdrawn_rows: int = 0
     award_rows: int = 0
+    # 명단 행 가운데 `BIZ_NO`를 관측하지 못한 행 수다. 업체 정체성 승격 규칙(사업자번호가 없으면
+    # 계정마다 별도 party)이 실제로 몇 행에 적용되는지가 이 수다.
+    business_number_missing_rows: int = 0
+    # 정규화 결과의 `schedule.openedAt`이 없는가. 원본 `OPNG_DT` 유무(`opened_on`)와 달리 계약을
+    # 통과한 뒤의 사실이며, `core.bid_submission`의 파티션 키 결측이 바로 이 값이다.
+    opened_at_missing: bool = False
     award_rate: str | None = None
     runner_up_gap: str | None = None
     floor_rate: str | None = None
@@ -199,8 +205,11 @@ def _raw_facts(parsed: ParsedNexacro) -> dict[str, object]:
     max_draw_numbers = 0
     masked = 0
     masked_withdrawn = 0
+    business_number_missing = 0
     for row in roster_rows:
         statuses[row.get("BID_STT", "")] += 1
+        if not (row.get("BIZ_NO") or "").strip():
+            business_number_missing += 1
         observed = decimal_or_none(row.get("SAJEONG_PCT"))
         if observed is not None and (max_bid_rate is None or observed > max_bid_rate):
             max_bid_rate = observed
@@ -234,6 +243,7 @@ def _raw_facts(parsed: ParsedNexacro) -> dict[str, object]:
         "masked_amount_rows": masked,
         "masked_withdrawn_rows": masked_withdrawn,
         "award_rows": statuses[AWARDED_STATUS_CODE],
+        "business_number_missing_rows": business_number_missing,
         "draw_average_checked": checked,
         "draw_average_mismatch": mismatch,
     }
@@ -292,6 +302,7 @@ def _derived_facts(record: EatbidIngestionAuctionV2) -> dict[str, object]:
     awarded = decimal_or_none(award_rate)
     return {
         "award_rate": award_rate,
+        "opened_at_missing": record.schedule.opened_at is None,
         "runner_up_gap": str(gap) if gap is not None else None,
         "floor_rate": terms.floor_rate.value if terms.floor_rate is not None else None,
         "below_floor_rows": len(below),

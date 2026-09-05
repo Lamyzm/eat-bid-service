@@ -122,6 +122,14 @@ GitHub monorepo
   hook Job이 migration 뒤·앱 앞 sync-wave에서 멱등하게 적용한다. 역할 생성과 비밀번호만 사람 단계로
   남으며, 사람이 psql로 넣은 GRANT는 다음 sync에 이 파일의 상태로 되돌아간다.
 - 애플리케이션은 기대 schema migration/version을 시작 시 확인한다.
+- **`core.bid_submission`의 연도 파티션을 더하는 것도 migration lane이다.** 개찰 연도 range 파티션은
+  운영 작업이 아니라 DDL이므로 `packages/db`의 새 마이그레이션 하나가 `DETACH DEFAULT` → 연도 파티션
+  생성 → 행 이동 → `ATTACH DEFAULT`를 한 트랜잭션에서 수행한다. `DEFAULT` 파티션에 해당 연도 행이
+  하나라도 있으면 PostgreSQL이 단순 `CREATE TABLE ... PARTITION OF`를 거부하므로 그 순서를 문서가
+  아니라 마이그레이션 파일이 소유한다
+  ([ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §3). 파티션 자식도 `core`
+  스키마의 관계이므로 `infra/product/db-provisioning.sql`의 default privileges가 함께 따라오는지
+  같은 변경에서 확인한다.
 - Workflow CRD/controller 같은 플랫폼 수명주기와 제품 배포를 별도 Argo CD application으로 둔다.
 - 초기에는 Argo Events, 내장 MinIO, 별도 workflow archive DB를 추가하지 않는다.
 
