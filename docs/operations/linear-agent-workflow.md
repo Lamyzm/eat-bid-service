@@ -237,7 +237,9 @@ AI가 답변에서 완료를 주장했다는 이유만으로 hook이 `Done`으�
 
 lease 없이 허용하는 것은 `tools/agent-workflow/workflow.mjs` 분류기의 허용 목록뿐이며 원칙은 "저장소 파일을
 바꾸지 않는 것"이다. 읽기 도구(Read, Glob, Grep, WebFetch, WebSearch, ToolSearch)와
-EnterWorktree/ExitWorktree, Linear MCP의 `get_* | list_* | search_*` 읽기 도구와 부트스트랩용
+EnterWorktree/ExitWorktree, agent 사이 메시지 도구 SendMessage/ListAgents(하위 세션을 실행하는
+Agent/Task는 그 세션이 파일을 바꿀 수 있으므로 제외),
+Linear MCP의 `get_* | list_* | search_*` 읽기 도구와 부트스트랩용
 `create_issue | create_comment`, chrome-devtools MCP의
 `navigate_page | take_screenshot | take_snapshot | evaluate_script | list_pages | select_page | wait_for |
 list_console_messages | get_console_message | list_network_requests | get_network_request`,

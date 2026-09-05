@@ -230,6 +230,20 @@ test("Linear MCP 읽기 도구와 ToolSearch는 허용하고 Linear 쓰기 도�
   }
 });
 
+test("agent 사이 메시지 도구는 lease 없이 허용하고 하위 agent 실행은 계속 차단한다", () => {
+  for (const toolName of ["SendMessage", "ListAgents"]) {
+    assert.deepEqual(
+      classifyToolCall(toolName, { to: "team-lead", message: "보고" }),
+      { mutatesRepository: false, reason: "agent-messaging-tool" },
+      toolName,
+    );
+  }
+  // Agent와 Task는 하위 세션이 파일을 바꿀 수 있으므로 계속 lease를 요구한다.
+  for (const toolName of ["Agent", "Task", "TaskStop"]) {
+    assert.equal(classifyToolCall(toolName, {}).mutatesRepository, true, toolName);
+  }
+});
+
 test("Linear MCP의 issue·댓글 생성은 lease 없이 허용하고 상태 전환과 삭제는 계속 차단한다", () => {
   for (const toolName of ["mcp__linear__create_issue", "mcp__linear__create_comment"]) {
     assert.deepEqual(

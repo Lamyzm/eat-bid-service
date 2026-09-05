@@ -39,6 +39,10 @@ const READ_ONLY_TOOLS = new Set(["glob", "grep", "read", "toolsearch", "webfetch
 // worktree에는 lease가 없으므로 여기서 막으면 세션이 그 안에서 claim할 기회조차 얻지 못한다.
 const WORKTREE_TOOLS = new Set(["enterworktree", "exitworktree"]);
 
+// 다른 agent에게 보내는 메시지는 저장소 파일을 바꾸지 않는다. 여기서 막으면 lease를 푼 세션이 작업
+// 결과를 보고할 수 없어, 보고 한 줄을 위해 lease를 다시 잡았다 푸는 일이 생긴다.
+const AGENT_MESSAGING_TOOLS = new Set(["sendmessage", "listagents"]);
+
 // Linear MCP 도구 중 조회만 lease 없이 허용한다. 인계 절차가 "worklog 읽기 → claim" 순서이므로
 // 읽기까지 막으면 받는 세션은 issue를 보기 전에 claim해야 한다.
 const LINEAR_READ_TOOL = /^mcp__linear__(?:get|list|search)_[a-z_]+$/i;
@@ -326,6 +330,10 @@ export function classifyToolCall(
 
   if (WORKTREE_TOOLS.has(normalizedName)) {
     return { mutatesRepository: false, reason: "worktree-navigation-tool" };
+  }
+
+  if (AGENT_MESSAGING_TOOLS.has(normalizedName)) {
+    return { mutatesRepository: false, reason: "agent-messaging-tool" };
   }
 
   if (LINEAR_READ_TOOL.test(normalizedName)) {
