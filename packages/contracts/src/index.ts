@@ -2,6 +2,7 @@ export * from "./common/problem-details";
 export * from "./api/operation";
 export * from "./api/registry";
 export * from "./operations/health";
+export * from "./atoms/calendar";
 export * from "./atoms/count";
 export * from "./atoms/decimal";
 export * from "./atoms/geo";
@@ -10,6 +11,12 @@ export * from "./atoms/instant";
 export * from "./atoms/source-code";
 export * from "./values/code-reference";
 export * from "./values/coordinate";
+export {
+  martBuildLineageSchema,
+  martCoverageSchema,
+  type MartBuildLineageWire,
+  type MartCoverage,
+} from "./values/mart-lineage";
 export * from "./values/money";
 export * from "./values/provenance";
 export * from "./values/rate";

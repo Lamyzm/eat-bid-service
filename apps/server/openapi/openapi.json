@@ -626,14 +626,14 @@
           }
         },
         "required": [
-          "sampleCount",
-          "item",
           "buildId",
           "sourceReleaseId",
           "calcVersion",
           "computedAt",
           "coverage",
-          "regionScheme"
+          "regionScheme",
+          "sampleCount",
+          "item"
         ],
         "type": "object"
       },
