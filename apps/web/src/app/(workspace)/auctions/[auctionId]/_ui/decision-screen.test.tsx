@@ -66,7 +66,8 @@ describe('결정 화면', () => {
     expect(screen.getByRole('img', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
     expect(screen.getByText('90.000 썼다면')).toBeTruthy();
     expect(screen.getByText('내 값 90.000')).toBeTruthy();
-    expect(screen.getByText('지난 17회 중 낙찰됐을 회차')).toBeTruthy();
+    // 품목 7의 17회차 중 예정가격이 관측된 15회차만 판정할 수 있다.
+    expect(screen.getByText('지난 15회 중 낙찰됐을 회차')).toBeTruthy();
   });
 
   test('탭 링크는 기간·모집단·품목 조건을 그대로 들고 간다', () => {

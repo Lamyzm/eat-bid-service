@@ -25,6 +25,7 @@ const validAttempts: OrganizationAuctionAttemptsV1Response = {
       baseAmount: { amount: '2761700.00', currency: 'KRW' },
       winRate: { value: '90.309', unit: 'percentage-points' },
       secondRate: { value: '90.360', unit: 'percentage-points' },
+      awardedBidRate: { value: '88.3020', unit: 'percentage-points' },
       dayFloorRate: { value: '88.0350', unit: 'percentage-points' },
       listCount: 17,
       belowDayFloorCount: 2,

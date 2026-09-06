@@ -66,9 +66,11 @@ function useHistoryColumns(rateMilli: bigint, rate: string) {
     () => [
       columnHelper.accessor('openedText', { id: 'opened', header: '개찰' }),
       columnHelper.accessor('itemLabel', { id: 'item', header: '품목' }),
-      columnHelper.accessor((row) => row.winRateText ?? '—', { id: 'winRate', header: '낙찰률' }),
-      columnHelper.accessor((row) => row.secondRateText ?? '—', { id: 'secondRate', header: '2등가' }),
-      columnHelper.accessor((row) => row.dayFloorText ?? '—', { id: 'dayFloor', header: '그날 하한' }),
+      // 축을 머리글에 적지 않으면 사정률 두 열과 투찰률 두 열이 같은 눈금으로 읽힌다. 남산초에서
+      // 두 축은 최대 2.19%p 벌어지므로 이 표기는 장식이 아니라 값의 의미다(AGENTS 15, PDR-0004).
+      columnHelper.accessor((row) => row.winRateText ?? '—', { id: 'winRate', header: '낙찰률(사정률)' }),
+      columnHelper.accessor((row) => row.secondRateText ?? '—', { id: 'secondRate', header: '2등가(사정률)' }),
+      columnHelper.accessor((row) => row.dayFloorText ?? '—', { id: 'dayFloor', header: '그날 하한(투찰률)' }),
       columnHelper.accessor('winnerText', { id: 'winner', header: '낙찰 업체' }),
       columnHelper.display({ id: 'list', header: '명단', cell: (context) => <ListCell row={context.row.original} /> }),
       columnHelper.display({
