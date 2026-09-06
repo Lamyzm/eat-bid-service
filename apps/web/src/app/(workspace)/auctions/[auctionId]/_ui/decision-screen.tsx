@@ -14,6 +14,7 @@ import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
 
 type HistoryState = DecisionPageData['history'];
+type DistributionState = DecisionPageData['distribution'];
 
 function HistoryCard({ presentation }: { readonly presentation: HistoryPresentation }) {
   return (
@@ -39,11 +40,13 @@ function HistoryCard({ presentation }: { readonly presentation: HistoryPresentat
 export function DecisionScreen({
   decision,
   search,
-  history
+  history,
+  distribution
 }: {
   readonly decision: DecisionPresentation;
   readonly search: DecisionSearch;
   readonly history: HistoryState;
+  readonly distribution: DistributionState;
 }) {
   // 선택 품목이 아닌 회차는 경쟁 구조가 달라 같은 분모에 넣으면 거짓이 된다. "이 값이면"은 선택
   // 품목 회차만 센다.
@@ -56,7 +59,12 @@ export function DecisionScreen({
         banner={<DecisionBanner decision={decision} />}
         evidence={
           <div className='grid gap-4'>
-            <EvidenceTabs auctionId={decision.identity.auctionId} search={search} history={history} />
+            <EvidenceTabs
+              auctionId={decision.identity.auctionId}
+              search={search}
+              history={history}
+              distribution={distribution}
+            />
             <details className='rounded-xl bg-card p-4 shadow-xs'>
               <summary className='cursor-pointer text-[15px] font-semibold'>원문과 추적 정보</summary>
               <dl className='mt-3 grid gap-3 sm:grid-cols-2'>

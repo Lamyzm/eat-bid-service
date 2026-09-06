@@ -14,6 +14,15 @@ const auction = {
   baseAmount: krw(canonicalDecimal("1234567890.50", 2)),
   plannedAmount: null,
   organization: { organizationId: 7n, name: "서울특별시교육청", type: "education-office" },
+  terms: {
+    floorRate: "90.000",
+    awardMethod: { codeValueId: 31n, code: "003", scheme: "eat:award-method", label: "적격심사" },
+  },
+  location: {
+    sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
+    sigungu: null,
+  },
+  classification: { itemLabel: "축산" },
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",
@@ -53,6 +62,16 @@ describe("FindAuction 조회 use case", () => {
         normalizedRecordId: "9007199254740999",
         contentSha256: "a".repeat(64),
       },
+      // 코드 참조의 숫자 id도 bigint라 십진 문자열로만 나간다. 하한율은 사정률 축의 wire 봉투를 쓴다.
+      terms: {
+        floorRate: { value: "90.000", unit: "percentage-points" },
+        awardMethod: { codeValueId: "31", code: "003", scheme: "eat:award-method", label: "적격심사" },
+      },
+      location: {
+        sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
+        sigungu: null,
+      },
+      classification: { itemLabel: "축산" },
     });
   });
 

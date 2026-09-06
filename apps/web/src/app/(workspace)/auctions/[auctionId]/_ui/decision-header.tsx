@@ -18,9 +18,9 @@ export function DecisionHeader({ decision, search }: { readonly decision: Decisi
       {/* 제목은 nowrap 대상이 아니다: 전역적으로 글자 잘림을 두지 않으므로 truncate 대신 줄바꿈을 허용한다. */}
       <h1 id='decision-title' className='min-w-0 break-keep text-xl font-bold tracking-tight'>{decision.identity.title}</h1>
       {/* 정보 값이므로 본문 15px를 쓴다. 13px는 단위 꼬리·보조 라벨 전용이다. */}
-      <span className='text-[15px] font-semibold whitespace-nowrap text-muted-foreground'>공고 {decision.identity.displayBidNumber ?? '미확인'} · 하한율 미확인</span>
+      <span className='text-[15px] font-semibold whitespace-nowrap text-muted-foreground'>공고 {decision.identity.displayBidNumber ?? '미확인'} · 하한율 {decision.floorRateText}</span>
       <div className='ml-auto flex items-center gap-2'>
-        <Chip tail='공고 기준'>품목 미확인</Chip>
+        <Chip tail='공고 기준'>{decision.itemLabelText}</Chip>
         {/* 기간·모집단은 후속 슬라이스에서 드롭다운이 되므로 드롭다운 표시를 tail로 미리 붙인다. */}
         <Chip tail='▾'>{search.period}</Chip>
         <Chip tail='▾'>{search.scope}</Chip>

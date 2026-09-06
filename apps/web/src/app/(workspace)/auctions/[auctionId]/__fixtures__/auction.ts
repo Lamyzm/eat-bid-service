@@ -25,7 +25,17 @@ export const auctionFixture = {
     observationId: '9007199254740997',
     normalizedRecordId: '9007199254740999',
     contentSha256: 'a'.repeat(64)
-  }
+  },
+  // 코호트 재료다. 하한율 90·낙찰방식 003·경남 창원은 남산초 실관측 회차의 값이다.
+  terms: {
+    floorRate: { value: '90.000', unit: 'percentage-points' },
+    awardMethod: { codeValueId: '31', code: '003', scheme: 'eat:award-method', label: '적격심사' }
+  },
+  location: {
+    sido: { codeValueId: '41', code: '48', scheme: 'eat:auction-location-sido', label: '경상남도' },
+    sigungu: { codeValueId: '43', code: '48120', scheme: 'eat:auction-location-sigungu', label: '창원시' }
+  },
+  classification: { itemLabel: '축산' }
 } satisfies AuctionV1Response;
 
 /** 마감·개찰이 관측된 진행 중 공고. 2026-09-03T01:30Z(10:30 KST)에 보면 마감 24시간 30분 전이다. */

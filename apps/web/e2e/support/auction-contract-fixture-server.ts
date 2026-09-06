@@ -1,6 +1,19 @@
 import { auctionV1Operations, auctionV1ResponseSchema } from '@eatbid/contracts/api/v1/auctions';
 
 import { organizationAttemptsResponse } from './organization-attempts-fixture';
+import { winRateDistributionResponse } from './win-rate-distribution-fixture';
+
+// 호가창이 코호트를 만들 재료다. 하한율 90·낙찰방식 003·경남 창원은 남산초 실관측 회차의 값이며
+// 이 셋이 없으면 비교집단 탭이 조회 자체를 만들지 못한다.
+const COHORT_TERMS = {
+  floorRate: { value: '90.000', unit: 'percentage-points' },
+  awardMethod: { codeValueId: '31', code: '003', scheme: 'eat:award-method', label: '적격심사' }
+} as const;
+const COHORT_LOCATION = {
+  sido: { codeValueId: '41', code: '48', scheme: 'eat:auction-location-sido', label: '경상남도' },
+  sigungu: { codeValueId: '43', code: '48120', scheme: 'eat:auction-location-sigungu', label: '창원시' }
+} as const;
+const COHORT_CLASSIFICATION = { itemLabel: '축산' } as const;
 
 const HOSTNAME = '127.0.0.1';
 const PORT = 4410;
@@ -50,7 +63,10 @@ function auctionResponse(auctionId: string) {
       observationId: '9007199254740997',
       normalizedRecordId: '9007199254740999',
       contentSha256: 'a'.repeat(64)
-    }
+    },
+    terms: COHORT_TERMS,
+    location: COHORT_LOCATION,
+    classification: COHORT_CLASSIFICATION
   });
 }
 
@@ -83,7 +99,10 @@ function openAuctionResponse(auctionId: string) {
       observationId: '9007199254740997',
       normalizedRecordId: '9007199254740999',
       contentSha256: 'a'.repeat(64)
-    }
+    },
+    terms: COHORT_TERMS,
+    location: COHORT_LOCATION,
+    classification: COHORT_CLASSIFICATION
   });
 }
 
@@ -115,7 +134,10 @@ function closedAuctionResponse(auctionId: string) {
       observationId: '9007199254740997',
       normalizedRecordId: '9007199254740999',
       contentSha256: 'a'.repeat(64)
-    }
+    },
+    terms: COHORT_TERMS,
+    location: COHORT_LOCATION,
+    classification: COHORT_CLASSIFICATION
   });
 }
 
@@ -168,6 +190,9 @@ Bun.serve({
 
     const organizationResponse = organizationAttemptsResponse(request);
     if (organizationResponse) return organizationResponse;
+
+    const distributionResponse = winRateDistributionResponse(request);
+    if (distributionResponse) return distributionResponse;
 
     return new Response(null, { status: 404 });
   }

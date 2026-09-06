@@ -34,7 +34,7 @@
 | -- | -- | -- | -- | -- | -- | -- |
 | 헤더(기관·품목·하한율·정정 차수) + 상태 배너(기초·마감·개찰·공고 시각) | `findAuction` GET `/api/v1/auctions/{auctionId}` (있음, 확장) | path id | organization{id,name,type,region}, items[], floorRate, baseAmount, schedule, revision{no,supersedes} | `core.auction_revision` PK 1행 + 코드 조인 | 1,000명 × 20건/일 ≈ 0.3 req/s. PK 조회, 무시 가능 | RSC. 캐시 태그 `auction:<id>`; 정정 공고 ingest publish 때만 무효화 |
 | 배너 참여 수 추이(마감 전 BID_CNT) | `findAuctionParticipation` GET `/api/v1/auctions/{auctionId}/participation` | path id | points[{observedAt, bidCount}] ≤ 96점(15분 폴링 × 24h) | `mart.open_auction_snapshot` 공고별 ≤ 96행 | 열린 공고만. 0.3 req/s. 인덱스 (auction_id, observed_at) | RSC. 태그 `auction:<id>`; poll-open 실행마다 무효화. 닫힌 공고는 마지막 스냅샷만 |
-| 호가창(낙찰률 분포 ladder) | `findWinRateDistribution` GET `/api/v1/win-rate-distribution` | query: scope(nation/sido/sigungu/org), regionCode?, itemCode, floorRate, period(1m/3m/12m/60m), center?(선택, 기본 최빈) | bins[{rate(0.01 단위), count, isMode}] ≤ 25단(중심 ±12), sampleCount, modeRate, unknownCount | `mart.win_rate_distribution_monthly` (scope, region, item, floor, month, bin) → 기간 합산. 12m: 12월 × 80칸 = 960행, 60m: 4,800행 | 요청당 ≤ 4,800행 인덱스 range scan ≈ 2–5 ms. 키 조합 실측 상한 96k, 실제 활성 조합 수천. 활성 build당 1회만 DB 도달 | RSC → inline HTML ladder(ADR 0031-3). 필터는 URL. 태그 `mart:<buildId>`. **결정:** 60m처럼 큰 기간도 mart에 rolling window 열을 두지 않고 월 합산으로 간다. 4,800행 range scan은 캐시 뒤에서 충분하며 mart 테이블을 두 벌 유지하는 비용이 더 크다 |
+| 호가창(낙찰률 분포 ladder) | `findWinRateDistribution` GET `/api/v1/win-rate-distribution` (구현됨, EAT-38) | query: `scope`(national/province/district/organization), `regionCodeValueId?`, `organizationId?`, `floorRate`(필수), `awardMethod`(필수, codeValueId), `from`/`to`(YYYY-MM, 양끝 함께·최대 12개월), `binWidth`(기본 0.010), `granularity`(total/month) | `bins[{from,to,count}]`(횟수>0인 칸만, 오름차순), `medianBin`, `modeRange{from,to,count,share}`, `months[{month,sampleCount,coverage,bins}]`, `meta` | `mart.win_rate_distribution_monthly` (scope, region, org, item, floor, award_method, month, bin) → 기간 합산 | **실측**(2026-09-06, 38,050행 표): 읽은 행 37, shared hit 7, 0.175 ms, `win_rate_distribution_monthly_cohort_key` index scan. `granularity=month` 12개월 응답 8.6 KB. 새 index 없음 | RSC → inline HTML ladder(ADR 0031-3). 필터는 URL. 태그 `mart:<buildId>`. **결정:** 큰 기간도 mart에 rolling window 열을 두지 않고 월 합산으로 간다 |
 | 흐름(회차별 낙찰률 선) + 과거 회차 표 | `listOrganizationAuctionAttempts` GET `/api/v1/organizations/{organizationId}/auction-attempts` | path org id; query: `item?`(품목 codeValueId), `cursor?`, `limit`(기본 12, ≤ 200) | attempts[{attemptId, announcedAt, openedAt, item{codeValueId,label}, floorRate, baseAmount, winRate, secondRate, dayFloorRate(투찰률 축 4자리), listCount, belowDayFloorCount, winnerSupplierPartyId, supersedesAttemptId}], nextCursor, meta{sampleCount, item, buildId, sourceReleaseId, calcVersion, computedAt, coverage, regionScheme} | `mart.org_round_summary` (org_id, announced_at desc) 인덱스, 기관당 5년 ≤ 200행 | 0.3 req/s × 12행. 무시 가능. 흐름은 첫 페이지를 한 번에 받아 같은 응답으로 표와 차트를 그린다(요청 2개 금지) | RSC → 흐름 inline SVG, 표 TanStack Table headless. 페이지 cursor는 URL. 태그 `org:<id>` + `mart:<buildId>` |
 | 투찰 레일(스텝·금액) | 없음 | — | — | — | — | client. 금액 계산은 `_model/bid-rate.ts` BigInt. 서버 왕복 없음 |
 | 레일 "이 값이면"(지난 N회 낙찰됐을·무효였을 회차, 보통 참여 수) | 없음 (**결정:** 별도 엔드포인트 만들지 않음) | — | — | 위 `auction-attempts` 응답 ≤ 200행을 브라우저에서 비교 | 스텝마다 서버를 부르면 사용자당 수백 req. 클라이언트 계산으로 0 | client 순수 함수 `_model/rehearsal.ts`(입력: 투찰률, attempts[]). 200행 비교 < 1 ms |
@@ -42,6 +42,26 @@
 | 업체 탭(반복 참여 업체·회차별 자리) | `listOrganizationSuppliers` GET `/api/v1/organizations/{organizationId}/suppliers` | path org id; query: period(12m/60m), cursor?, limit ≤ 100 | suppliers[{supplierPartyId, name, participations, wins, lastRank, lastRate}] | `core.bid_submission` 기관 회차 ≤ 200 × 명단 평균 55 = 1.1만 행 group by. p95 197곳 × 200회차 = 4만 행 | 탭 열 때만. 사용자 10%가 연다고 보면 0.03 req/s × 1.1만 행 ≈ 20–40 ms. 태그 캐시 뒤에서 release당 1회 | client 탭 → TanStack Query lazy. **결정:** 지금은 요청 시 group by. 실측 p95 > 100 ms면 `mart.org_supplier_summary` 추가(EAT-44 후속). 표는 TanStack Table, 100행 초과 확인 시 virtual |
 | 대형 코호트(학교 회차 60회+ 압축 뷰) | 위 `auction-attempts` limit 200 | — | — | 같은 mart 200행 | 같음 | RSC. 60행 초과면 SVG는 점 대신 월 집계로 접는다(디자인 LargeCohort). 서버 계약 추가 없음 |
 | 원문과 추적 정보(disclosure) | `findAuction` 응답의 provenance{rawObjectKey, ingestRunId, parserVersion} | — | — | 같은 1행 | 없음 | RSC. R2 raw 링크는 서명 URL을 서버가 만든다(별도 op `findAuctionRawLink`, 클릭 시) |
+
+호가창 계약의 확정 사항(EAT-38, [PDR-0004](../decisions/0004-order-book-axis-is-assessment-rate.md)):
+
+- **scope 이름은 mart의 `distributionScopes`를 그대로 쓴다**(`national|province|district|organization`).
+  이 문서가 적었던 `nation/sido/sigungu/org`는 mart·빌더·DB check 제약과 달라 폐기했다. 이름이 두 벌이면
+  어느 쪽이 모집단의 권위인지 알 수 없다.
+- **지역은 문자열 코드가 아니라 `regionCodeValueId`(숫자 id)로 받는다**(AGENTS 2). 그 id가 어느 체계의
+  것인지는 응답 `meta.regionScheme`이 말한다.
+- **`floorRate`와 `awardMethod`는 필수다.** mart의 코호트 키가 not null이고, 합산하면 없는 두 봉우리가
+  생긴다. 선택 값으로 두고 서버가 기본값을 고르면 그 선택이 숨은 제품 판단이 된다.
+- **`itemCode`는 v1에 없다.** 분포 mart에 품목 축이 비어 있다(빌더가 항상 null을 넣는다). 응답 meta는
+  `item: null`을 늘 명시적으로 실어 "품목으로 좁히지 않은 표본"임을 화면이 말하게 한다. EAT-66이 품목
+  `CodeScheme`을 만든 뒤 새 `calc_version`의 build와 함께 선택 parameter로 더한다.
+- **`center`와 `unknownCount`는 없다.** 창의 중심(최빈 칸 기준 25줄)은 화면이 정하고, 알 수 없는 상태는
+  `coverage`와 계보 null이 이미 말한다. 표본 수는 `meta.sampleCount` 한 자리만 갖는다.
+- **표본 부족 라벨(n<10, 10≤n<30)은 응답에 없다.** 임계값은 관측 사실이 아니라 제품 판단이라 web의 단일
+  모듈이 소유한다.
+- **기본 기간은 계약이 아니라 use case가 정한다.** "최근 12개월"은 현재 시각의 함수라 정적 schema에 넣을
+  수 없다. 생략하면 주입된 clock으로 `[이번 KST 달 - 11, 이번 KST 달]`을 만들고 `meta.period`에 되돌려
+  싣는다.
 
 회차 조회의 기간: 이 엔드포인트는 달력 기간(`until`·`period`)을 받지 않는다. 표본은 최신 회차부터
 `limit`회를 잘라낸 창이며, 각 행의 `announcedAt`으로 그 창이 실제로 어느 구간이었는지 재현된다.
