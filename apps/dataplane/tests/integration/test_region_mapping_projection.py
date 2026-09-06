@@ -117,8 +117,8 @@ def test_매핑은_근거_observation과_유효기간_경계를_반드시_갖는
         _observe_eat_code(
             cursor,
             namespace=ELIGIBILITY_AREA.namespace,
-            code="01000",
-            label="서울특별시 / 전체",
+            code="01023",
+            label="서울 / 종로구",
             observation_id=observation_id,
         )
         result = project_region_mappings(
@@ -140,6 +140,64 @@ def test_매핑은_근거_observation과_유효기간_경계를_반드시_갖는
         assert (relation, status) == ("exact", "label_verified")
         assert valid_from == CAPTURED_AT
         assert evidence == observation_id
+    connection.rollback()
+
+
+def test_축약_시도명이_붙은_참가제한지역_라벨이_행안부_code_value에_닿는다(
+    connection, release
+) -> None:
+    """eaT가 실제로 보내는 `PDLC_NM` 어휘(`서울/전체`·`서울/종로구`)로 고정한다.
+
+    `서울/노원구`도 `서울/종로구`와 같은 모양이며, 이 fixture가 싣는 시군구가 종로구다.
+    """
+    code_release_id, observation_id = release
+    with connection.cursor() as cursor:
+        시도 = _observe_eat_code(
+            cursor,
+            namespace=ELIGIBILITY_AREA.namespace,
+            code="01000",
+            label="서울/전체",
+            observation_id=observation_id,
+        )
+        시군구 = _observe_eat_code(
+            cursor,
+            namespace=ELIGIBILITY_AREA.namespace,
+            code="01023",
+            label="서울/종로구",
+            observation_id=observation_id,
+        )
+        # 2023 개편으로 이름이 바뀐 시도도 같은 표 하나로 닿는다.
+        개편_시군구 = _observe_eat_code(
+            cursor,
+            namespace=ELIGIBILITY_AREA.namespace,
+            code="05111",
+            label="강원/춘천시",
+            observation_id=observation_id,
+        )
+        result = project_region_mappings(
+            cursor,
+            from_scheme=ELIGIBILITY_AREA.namespace,
+            code_release_id=code_release_id,
+            observation_id=observation_id,
+            valid_from=CAPTURED_AT,
+        )
+        assert result.created_count == 3
+
+        cursor.execute(
+            """
+            select m.from_code_value_id, v.code, m.relation, m.status
+            from core.code_mapping m
+            join core.code_value v on v.code_value_id = m.to_code_value_id
+            where m.from_code_value_id in (%s, %s, %s)
+            """,
+            (시도, 시군구, 개편_시군구),
+        )
+        rows = {int(row[0]): (row[1], row[2], row[3]) for row in cursor.fetchall()}
+        assert rows == {
+            시도: ("1100000000", "exact", "reviewed"),
+            시군구: ("1111000000", "exact", "label_verified"),
+            개편_시군구: ("5111000000", "exact", "label_verified"),
+        }
     connection.rollback()
 
 

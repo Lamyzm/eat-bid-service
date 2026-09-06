@@ -73,11 +73,22 @@ ORGANIZATION = EatCodeScheme("eat:organization", "PURR_CD", "PURR_NM")
 
 # 공고지역 시도·시군구다. 행정안전부 행정구역과 별개 체계이며 명시적 매핑 없이 같다고 보지 않는다
 # (AGENTS 6).
+#
+# 왜 이 둘만 라벨 column이 없나. 소스가 주지 않아서다. `ds_info` 전수 181,150행에 `SIDO_NM`·
+# `SIGUNGU_NM`이 아예 없다(`docs/audit-source/census-detail.txt` §ds_info). 이름을 붙이려면 주소
+# 문자열을 쪼개거나 `PDLC_CD` 자릿수를 분해해야 하는데 둘 다 기각된 경로다(PDR-0001, ADR 0035
+# Rejected alternatives). 라벨이 없으면 이 두 체계는 결정적 일치의 입력이 없고, 매핑 결과는 그것을
+# `without_label`로 따로 센다 — 조용히 0이 되지 않는다.
 AUCTION_LOCATION_SIDO = EatCodeScheme("eat:auction-location-sido", "SIDO_CD")
 AUCTION_LOCATION_SIGUNGU = EatCodeScheme("eat:auction-location-sigungu", "SIGUNGU_CD")
 
 # 참가제한지역이다. 공고지역과 같은 자릿수 문자열이 와도 다른 체계다(AGENTS 6).
-ELIGIBILITY_AREA = EatCodeScheme("eat:eligibility-area", "PDLC_CD")
+#
+# 라벨 `PDLC_NM`은 `{시도 축약}/{시군구|전체}` 형태이며 전수 327,168행에 100% 채워져 있다
+# (`docs/audit-source/census-detail.txt` §ds_areaList). 이름 다중 79건은 전부 `서울 / 전체`와
+# `서울/전체`의 공백 변이라 `code_labels.normalize_code_label` 하나로 흡수된다. 이 체계가 지역 축에서
+# 유일하게 이름 경로를 관측하므로 행안부 대조의 입력도 여기서 나온다(ADR 0035 결정 6).
+ELIGIBILITY_AREA = EatCodeScheme("eat:eligibility-area", "PDLC_CD", "PDLC_NM")
 
 # 상세 파서가 `optional_scheme_value`로 직접 읽어 정규화 모델에 싣는 체계다.
 # 시드 `packages/db/src/seeds/code-schemes.ts`와 같은지 `tests/unit/test_code_schemes.py`가 고정한다.

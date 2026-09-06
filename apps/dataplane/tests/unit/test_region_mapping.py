@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from eatbid.core.region_label_aliases import SIDO_LABEL_ALIASES, official_sido_labels
 from eatbid.core.region_mapping import (
     EXACT_RELATION,
     LABEL_VERIFIED_STATUS,
     OVERLAPS_RELATION,
+    REVIEWED_STATUS,
     eat_label_path,
     propose_region_mappings,
 )
@@ -78,15 +80,70 @@ def test_전체_토막은_시도_자체를_가리키고_시군구_토막은_그�
     assert mapped == {1: 10, 2: 22}
 
 
-def test_자동_생성_행은_exact_label_verified_뿐이다() -> None:
+def test_자동_생성_행의_relation은_언제나_exact다() -> None:
     proposal = propose_region_mappings(
-        source_labels={1: ["서울특별시/전체"]}, target_labels=행안부
+        source_labels={1: ["서울특별시/전체"], 2: ["경기도/수원시"]},
+        target_labels=행안부,
     )
-    candidate = proposal.candidates[0]
-    assert candidate.relation == EXACT_RELATION
-    assert candidate.status == LABEL_VERIFIED_STATUS
+    assert {item.relation for item in proposal.candidates} == {EXACT_RELATION}
     # overlaps는 자동 생성 경로에서 나오지 않는다. 사람이 만드는 유일한 부류다.
     assert all(item.relation != OVERLAPS_RELATION for item in proposal.candidates)
+
+
+def test_시도_행은_reviewed이고_시군구_행은_label_verified다() -> None:
+    # 시도 대응의 근거는 승인된 별칭 표이고, 시군구 대응의 근거는 그 시도 안의 유일한 라벨 일치다.
+    proposal = propose_region_mappings(
+        source_labels={1: ["서울/전체"], 2: ["서울/종로구"]}, target_labels=행안부
+    )
+    상태 = {item.from_code_value_id: item.status for item in proposal.candidates}
+    assert 상태 == {1: REVIEWED_STATUS, 2: LABEL_VERIFIED_STATUS}
+
+
+def test_축약_시도명은_승인된_별칭_표로만_정식명에_닿는다() -> None:
+    # eaT `PDLC_NM`은 `서울/노원구`처럼 시도를 축약해 보낸다. 표에 있는 축약만 열린다.
+    닿음 = propose_region_mappings(
+        source_labels={1: ["서울/전체"], 2: ["경기/수원시"], 3: ["경기/수원시/장안구"]},
+        target_labels=행안부,
+    )
+    assert {
+        item.from_code_value_id: item.to_code_value_id for item in 닿음.candidates
+    } == {1: 10, 2: 21, 3: 22}
+
+    # 표에 없는 축약은 접두사가 같아도 열리지 않는다. 유사도로 잇는 문을 만들지 않는다.
+    닫힘 = propose_region_mappings(
+        source_labels={1: ["서울특별/전체"], 2: ["경기남부/수원시"]}, target_labels=행안부
+    )
+    assert 닫힘.candidates == ()
+    assert 닫힘.unmatched_source_code_value_ids == (1, 2)
+
+
+def test_개편된_시도는_옛_이름과_새_이름을_모두_별칭으로_갖는다() -> None:
+    # 2023 강원특별자치도·2024 전북특별자치도 개편이다. 어느 이름이 활성인지는 release가 말한다.
+    assert official_sido_labels("강원") == ("강원특별자치도", "강원도")
+    assert official_sido_labels("전북") == ("전북특별자치도", "전라북도")
+    assert official_sido_labels("없는이름") == ()
+
+    새_release = propose_region_mappings(
+        source_labels={1: ["강원/춘천시"]},
+        target_labels={30: ["강원특별자치도"], 31: ["강원특별자치도 춘천시"]},
+    )
+    옛_release = propose_region_mappings(
+        source_labels={1: ["강원/춘천시"]},
+        target_labels={30: ["강원도"], 31: ["강원도 춘천시"]},
+    )
+    assert [item.to_code_value_id for item in 새_release.candidates] == [31]
+    assert [item.to_code_value_id for item in 옛_release.candidates] == [31]
+
+
+def test_별칭_표는_열일곱_시도만_열고_값은_전부_정식명이다() -> None:
+    assert len(SIDO_LABEL_ALIASES) == 17
+    for 축약, 정식들 in SIDO_LABEL_ALIASES.items():
+        assert len(축약) == 2
+        assert 정식들
+        # 축약명 자체를 정식명으로 두면 표가 있으나 마나가 된다.
+        assert 축약 not in 정식들
+        assert all(len(official) > len(축약) for official in 정식들)
+        assert len(set(정식들)) == len(정식들)
 
 
 def test_매핑없는_코드는_행_대신_미매핑_수로_보고된다() -> None:
