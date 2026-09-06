@@ -37,6 +37,11 @@ const packageJson = JSON.stringify({
       import: "./src/api/v1/organizations/index.ts",
       default: "./src/api/v1/organizations/index.ts",
     },
+    "./api/v1/win-rate-distribution": {
+      types: "./src/api/v1/win-rate-distribution/index.ts",
+      import: "./src/api/v1/win-rate-distribution/index.ts",
+      default: "./src/api/v1/win-rate-distribution/index.ts",
+    },
   },
 });
 
@@ -89,6 +94,11 @@ test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", 
           import: "./src/api/v1/organizations/index.ts",
           default: "./src/api/v1/organizations/index.ts",
         },
+        "./api/v1/win-rate-distribution": {
+          types: "./src/api/v1/win-rate-distribution/index.ts",
+          import: "./src/api/v1/win-rate-distribution/index.ts",
+          default: "./src/api/v1/win-rate-distribution/index.ts",
+        },
       },
     }),
     "packages/contracts/src/api/index.ts": "import 'server-only'; export const protocol = {};\n",
@@ -120,6 +130,11 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
           types: "./src/api/v1/organizations/index.ts",
           import: "./src/api/v1/organizations/index.ts",
           default: "./src/api/v1/organizations/index.ts",
+        },
+        "./api/v1/win-rate-distribution": {
+          types: "./src/api/v1/win-rate-distribution/index.ts",
+          import: "./src/api/v1/win-rate-distribution/index.ts",
+          default: "./src/api/v1/win-rate-distribution/index.ts",
         },
       },
     }),
