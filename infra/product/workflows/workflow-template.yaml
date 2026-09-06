@@ -276,6 +276,9 @@ spec:
                 "--completed-at", created_at,
                 "--start-date", os.environ.get("EATBID_START_DATE", ""),
                 "--end-date", os.environ.get("EATBID_END_DATE", ""),
+                # 월 창 TOT_CNT 약 17,000이 SOURCE_PAGE_BUDGET(기본 100) 안에 들려면 CLI 기본 100이
+                # 아니라 계약 상한 page size로 불러야 한다.
+                "--page-size", os.environ["EATBID_DISCOVER_PAGE_SIZE"],
                 "--result-dir", result_dir,
             ]
             os.execvp(argv[0], argv)
@@ -300,6 +303,8 @@ spec:
             value: "{{workflow.parameters.end-date}}"
           - name: EATBID_RELEASE_NAME
             value: "{{workflow.parameters.release-name}}"
+          - name: EATBID_DISCOVER_PAGE_SIZE
+            value: "1000"
           - &env-database-url
             name: DATABASE_URL
             valueFrom:

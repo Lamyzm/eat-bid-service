@@ -101,7 +101,9 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 
 무릎이 7일과 30일 사이이고 90일로 넓혀 얻는 것은 0.13창뿐인데 실패한 실행이 다시 도는 범위가
 3배가 된다. 달력 월은 사람이 재현·추적하기 쉽고 급식 공고가 몰리는 납품 월 경계와 맞으며, 피크
-월도 `PAGE_SIZE=1000` 기준 17페이지로 `SOURCE_PAGE_BUDGET`(기본 100) 안이다.
+월도 `PAGE_SIZE=1000` 기준 17페이지로 `SOURCE_PAGE_BUDGET`(기본 100) 안이다. 그 page size는 CLI
+기본값이 아니라 WorkflowTemplate discover 단계의 `EATBID_DISCOVER_PAGE_SIZE` env가 정하며, 예산과의
+곱이 월 창 상한을 덮는지는 `infra/tests/test_workflow_contract.py`가 검사한다.
 
 중복 제거 규칙:
 
