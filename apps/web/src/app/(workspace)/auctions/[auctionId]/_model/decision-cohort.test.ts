@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { auctionFixture } from '../__fixtures__/auction';
 import type { DecisionSearch } from '../_lib/decision-search-params';
-import { cohortOf, periodOf, regionSchemeOf } from './decision-cohort';
+import { cohortOf, periodOf } from './decision-cohort';
 
 const search: DecisionSearch = {
   period: '12개월',
@@ -67,13 +67,5 @@ describe('결정 화면 코호트', () => {
     expect(cohortOf(noAxis, { ...search, scope: '시군' }, period)).toEqual({ kind: 'missing-axis' });
     expect(cohortOf(noAxis, { ...search, scope: '이 기관' }, period)).toEqual({ kind: 'missing-axis' });
     expect(cohortOf(noAxis, search, period).kind).toBe('ready');
-  });
-
-  test('지역 모집단만 이 공고의 코드 체계를 말한다', () => {
-    expect(regionSchemeOf(auctionFixture, '도')).toBe('eat:auction-location-sido');
-    expect(regionSchemeOf(auctionFixture, '시군')).toBe('eat:auction-location-sigungu');
-    // 전국과 이 기관은 지역 축이 없으므로 체계를 대조할 대상 자체가 없다.
-    expect(regionSchemeOf(auctionFixture, '전국')).toBeNull();
-    expect(regionSchemeOf(auctionFixture, '이 기관')).toBeNull();
   });
 });

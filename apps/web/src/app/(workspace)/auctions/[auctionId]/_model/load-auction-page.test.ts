@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { auctionFixture, fixtureNow } from '../__fixtures__/auction';
+import { floor90DistributionFixture } from '../__fixtures__/distribution';
 import type { DecisionSearch } from '../_lib/decision-search-params';
 import { loadAuctionPage } from './load-auction-page';
 
@@ -25,6 +26,7 @@ function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage
     isNotFound: () => false,
     now: () => fixtureNow,
     listAttempts: async () => attemptsFixture,
+    findDistribution: async () => floor90DistributionFixture,
     ...overrides
   };
 }

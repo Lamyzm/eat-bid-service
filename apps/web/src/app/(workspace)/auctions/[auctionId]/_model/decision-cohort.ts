@@ -72,13 +72,3 @@ export function cohortOf(
     }
   };
 }
-
-/**
- * 이 공고의 지역 코드가 어떤 체계인지. 분포 응답 meta의 `regionScheme`과 대조해 같은 체계일 때만
- * 지역 모집단을 그린다(AGENTS 6). 두 값이 다르면 같은 숫자를 다른 뜻으로 읽는 것이다.
- */
-export function regionSchemeOf(auction: AuctionV1Response, scope: DecisionSearch['scope']): string | null {
-  if (scope === '도') return auction.location?.sido?.scheme ?? null;
-  if (scope === '시군') return auction.location?.sigungu?.scheme ?? null;
-  return null;
-}

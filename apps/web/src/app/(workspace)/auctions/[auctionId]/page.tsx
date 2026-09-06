@@ -6,6 +6,7 @@ import {
   parseAuctionId
 } from '@/api/auctions/server';
 import { listOrganizationAuctionAttemptsFromServer } from '@/api/organizations/server';
+import { findWinRateDistributionFromServer } from '@/api/win-rate-distribution/server';
 import { notFound } from 'next/navigation';
 import { createLoader } from 'nuqs/server';
 import { Suspense } from 'react';
@@ -34,11 +35,19 @@ async function AuctionLoader({
     getAuction: getAuctionFromServer,
     isNotFound: isAuctionNotFoundError,
     now: () => systemClock.now().toString(),
-    listAttempts: listOrganizationAuctionAttemptsFromServer
+    listAttempts: listOrganizationAuctionAttemptsFromServer,
+    findDistribution: findWinRateDistributionFromServer
   });
 
   if (!data) notFound();
-  return <DecisionScreen decision={data.decision} search={search} history={data.history} />;
+  return (
+    <DecisionScreen
+      decision={data.decision}
+      search={search}
+      history={data.history}
+      distribution={data.distribution}
+    />
+  );
 }
 
 // params·searchParams를 page 최상위에서 await하면 static shell이 사라진다(ADR 0028). promise를 Suspense
