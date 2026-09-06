@@ -20,9 +20,16 @@ export const organizationAuctionAttemptSchema = z.strictObject({
   baseAmount: moneyWireSchema,
   winRate: bidRateWireSchema.nullable(),
   secondRate: bidRateWireSchema.nullable(),
-  // 그날 하한만 축이 다르다. 하한율은 사정률 축의 상수이고 이 값은 그것을 기초금액 분모로 번역한
-  // 파생값이라 분모가 다르다. 3자리에서 반올림하면 예정가격이 기초금액에 가까운 회차들의 하한이
-  // 같은 값으로 뭉개지므로 넷째 자리를 담는 별도 wire 계약을 쓴다(설계 §1.3).
+  // 아래 둘은 위 사정률들과 분모가 다르다. 하한율은 사정률 축의 상수이고 그날 하한은 그것을 기초금액
+  // 분모로 번역한 파생값이며, awardedBidRate는 같은 낙찰을 그 회차의 예정가격/기초금액 배율로 옮긴
+  // 값이다. 3자리에서 반올림하면 예정가격이 기초금액에 가까운 회차들이 같은 값으로 뭉개지므로 둘 다
+  // 넷째 자리를 담는 별도 wire 계약을 쓴다(설계 §1.3).
+  //
+  // winRate와 awardedBidRate는 같은 사실의 두 축이지 서로의 대체재가 아니다. 사용자가 투찰률로 넣는
+  // 값의 "이 값이면 낙찰" 판정은 반드시 이 값과 견줘야 하고, 낙찰률 분포·호가창 눈금은 사정률
+  // 축이어야 한다(PDR-0004). 예정가격이 아직 관측되지 않은 회차는 축을 옮길 입력이 없어 null이며
+  // 그것은 오류가 아니라 판정할 수 없는 상태다(AGENTS 3).
+  awardedBidRate: baseRelativeBidRateWireSchema.nullable(),
   dayFloorRate: baseRelativeBidRateWireSchema.nullable(),
   listCount: nonNegativeCountSchema.nullable(),
   // "무효"는 우리가 하는 판정이 아니라 소스의 판정이다(PDR-0002). 우리가 셀 수 있는 것은 그날 하한

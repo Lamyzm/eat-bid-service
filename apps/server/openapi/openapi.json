@@ -534,6 +534,14 @@
           "attemptId": {
             "$ref": "#/components/schemas/PositiveBigintText"
           },
+          "awardedBidRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BaseRelativeBidRate"
+              }
+            ],
+            "nullable": true
+          },
           "baseAmount": {
             "$ref": "#/components/schemas/Money"
           },
@@ -638,6 +646,7 @@
           "baseAmount",
           "winRate",
           "secondRate",
+          "awardedBidRate",
           "dayFloorRate",
           "listCount",
           "belowDayFloorCount",
