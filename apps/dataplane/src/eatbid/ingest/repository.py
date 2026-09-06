@@ -17,7 +17,16 @@ from eatbid.ingest.models import (
 from eatbid.object_store import StoredRawObject
 from eatbid.source.client import SourceResponse
 
-CaptureRunMode = Literal["poll-open", "daily-reconcile", "backfill"]
+# eaT 목록 조회의 날짜 창으로 번역되는 모드다. `discover --mode`가 받는 값이 정확히 이 셋이다.
+CollectionRunMode = Literal["poll-open", "daily-reconcile", "backfill"]
+# `reference`는 창이 없는 실행이다. 정부 공개 파일 한 벌이 곧 관측 하나여서 번역할 기간이 없다.
+# run 정체성·실패 분류·관측 보존 규칙은 수집과 같으므로 run mode 목록에는 함께 두되, 창을 만드는
+# 목록과는 분리한다. 하나로 두면 `discover --mode reference`가 받아들여지고 창이 비어 버린다.
+ReferenceRunMode = Literal["reference"]
+# 두 목록의 합을 Literal로 다시 적는 이유: `Literal[...] | Literal[...]`은 `get_args`가 문자열이
+# 아니라 Literal 타입 둘을 돌려주어 값 검사가 조용히 통과한다. 셋이 어긋나지 않는지는
+# `tests/unit/test_run_modes.py`가 고정한다.
+CaptureRunMode = Literal["poll-open", "daily-reconcile", "backfill", "reference"]
 
 
 def canonical_request_params(params: Mapping[str, str]) -> bytes:

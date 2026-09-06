@@ -48,6 +48,8 @@ class _기록애플리케이션:
     def project(self, args: Namespace) -> None: self._record("project", args)
     def replay(self, args: Namespace) -> None: self._record("replay", args)
     def build_marts(self, args: Namespace) -> None: self._record("build-marts", args)
+    def capture_reference(self, args: Namespace) -> None: self._record("capture-reference", args)
+    def project_reference(self, args: Namespace) -> None: self._record("project-reference", args)
 
 
 def _공통(command: str) -> list[str]:
@@ -70,6 +72,14 @@ def _명령(command: str) -> list[str]:
                    "--validated-at", "2026-09-01T00:02:00Z", "--activated-at", "2026-09-01T00:03:00Z"],
         "build-marts": ["--calc-version", "mart-r1", "--as-of", "2026-09-01T00:00:00Z",
                         "--built-at", "2026-09-01T00:04:00Z"],
+        "capture-reference": ["--source", "mois-standard-code", "--dataset", "legal-dong",
+                              "--release-name", "legal-dong 2026-09-06",
+                              "--as-of", "2026-09-01T00:00:00Z",
+                              "--started-at", "2026-09-01T00:00:00Z"],
+        "project-reference": ["--source", "mois-standard-code", "--dataset", "legal-dong",
+                              "--observation-id", "1",
+                              "--release-name", "legal-dong 2026-09-06",
+                              "--projected-at", "2026-09-01T00:05:00Z"],
     }
     return _공통(command) + extras[command]
 

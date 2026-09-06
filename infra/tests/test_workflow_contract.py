@@ -30,6 +30,9 @@ SCHEDULED_COMMANDS = ("discover", "capture", "normalize", "validate", "project")
 SCHEDULED_TASKS = (*SCHEDULED_COMMANDS, "marts")
 TASK_COMMANDS = {**{name: name for name in SCHEDULED_COMMANDS}, "marts": "build-marts"}
 SHELL_STAGES = ("capture", "normalize", "validate", "project", "marts")
+# 정부 코드 reference 실행의 DAG task와 CLI 명령이다. 여기서는 단계 이름과 명령 이름이 같다.
+REFERENCE_COMMANDS = ("capture-reference", "project-reference")
+REFERENCE_TASKS = REFERENCE_COMMANDS
 PYTHON_ENTRYPOINT_TEMPLATES = ("discover", "replay")
 # shell 단계가 `$NAME`으로 읽는 값의 표본이다. BUILD_SHA만 container env가 아니라 image ENV에서 온다.
 SAMPLE_STAGE_ENV = {
@@ -218,7 +221,12 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         task = next(task for task in tasks if task["name"] == current)
         assert task["dependencies"] == [previous]
 
-    assert _cli_commands() == (*SCHEDULED_COMMANDS, "replay", "build-marts")
+    assert _cli_commands() == (
+        *SCHEDULED_COMMANDS,
+        "replay",
+        "build-marts",
+        *REFERENCE_COMMANDS,
+    )
     assert "replay" in templates
     assert "marts" in templates
     # verify pod는 만들지 않는다. build의 `verified` 전이가 이미 행 수 검증을 갖는다(ADR 0034).

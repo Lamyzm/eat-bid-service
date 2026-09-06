@@ -23,11 +23,22 @@ from eatbid.ingest.postgres_run_planning import (
     require_capture_mode,
 )
 from eatbid.ingest.repository import request_params_sha256
-from eatbid.object_store import StoredRawObject
+from eatbid.object_store import (
+    MEDIA_TEXT,
+    MEDIA_XML,
+    StoredRawObject,
+    parse_raw_object_key,
+)
 from eatbid.source.client import SourceResponse
 
-_CONTENT_TYPE = "application/xml"
+# blob 봉투는 객체 키가 말하는 미디어를 따른다. 상수 하나로 고정하면 탭 구분 텍스트를 받은 날
+# 저장 메타데이터가 내용에 대해 거짓말을 한다.
+_CONTENT_TYPES = {MEDIA_XML: "application/xml", MEDIA_TEXT: "text/plain; charset=cp949"}
 _CONTENT_ENCODING = "gzip"
+
+
+def _content_type(object_key: str) -> str:
+    return _CONTENT_TYPES[parse_raw_object_key(object_key).media]
 class PsycopgObservationRepository(PostgresRunPlanningMixin):
     def __init__(self, connection: psycopg.Connection[Any]) -> None:
         self._connection = connection
@@ -65,7 +76,7 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
                     stored.content_sha256,
                     stored.object_key,
                     stored.byte_length,
-                    _CONTENT_TYPE,
+                    _content_type(stored.object_key),
                     _CONTENT_ENCODING,
                     stored.stored_at,
                 ),
@@ -274,7 +285,7 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
         expected = (
             stored.object_key,
             stored.byte_length,
-            _CONTENT_TYPE,
+            _content_type(stored.object_key),
             _CONTENT_ENCODING,
             stored.stored_at,
         )

@@ -21,6 +21,11 @@ MOIS_STANDARD_CODE = "mois-standard-code"
 LEGAL_DONG_DATASET = "legal-dong"
 LEGAL_DONG_CHANGE_DATASET = "legal-dong-change"
 
+# 행정안전부 행정구역 code scheme namespace의 Python 단일 선언이다. 짝이 되는 선언은 시드
+# `packages/db/src/seeds/code-schemes.ts` 하나뿐이며, 파서·투영·매핑은 전부 이 이름을 참조만 한다
+# (PDR-0001 "선언은 한 곳이고 나머지는 전부 참조").
+MOIS_ADMINISTRATIVE_REGION_SCHEME = "mois:administrative-region"
+
 
 @dataclass(frozen=True, slots=True)
 class ReferenceRequestContract:
@@ -57,6 +62,9 @@ class ReferenceDatasetContract:
     dataset: str
     availability: str
     required: bool
+    # 이 dataset이 채우는 code scheme이다. 파서가 scheme 이름을 따로 적으면 "이 파일이 어느 체계를
+    # 만드는가"가 두 곳에 살고 그 둘이 어긋나도 아무도 모른다.
+    scheme: str | None
     request: ReferenceRequestContract | None
     payload: ReferencePayloadContract | None
 
@@ -94,6 +102,7 @@ _MOIS_LEGAL_DONG = ReferenceDatasetContract(
     dataset=LEGAL_DONG_DATASET,
     availability="observed",
     required=True,
+    scheme=MOIS_ADMINISTRATIVE_REGION_SCHEME,
     request=ReferenceRequestContract(
         method="POST",
         url="https://www.code.go.kr/etc/codeFullDown.do",
@@ -120,6 +129,7 @@ _MOIS_LEGAL_DONG_CHANGE = ReferenceDatasetContract(
     dataset=LEGAL_DONG_CHANGE_DATASET,
     availability="absent",
     required=False,
+    scheme=MOIS_ADMINISTRATIVE_REGION_SCHEME,
     request=None,
     payload=None,
 )

@@ -13,7 +13,7 @@ from eatbid.core.build_identity import validate_build_sha
 from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
-from eatbid.ingest.repository import CaptureRunMode
+from eatbid.ingest.repository import CollectionRunMode
 from eatbid.source.client import SourceClient, SourceResponse
 from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.models import BidListPage
@@ -28,7 +28,7 @@ class DiscoveryPlan:
     detail_run_id: UUID
     # 어떤 모드가 이 발견을 만들었는지는 run ledger의 사실이다. 창은 이미 번역된 뒤이므로 여기서는
     # 모드를 다시 해석하지 않고 기록만 한다.
-    mode: CaptureRunMode
+    mode: CollectionRunMode
     release_name: str
     as_of: datetime
     build_sha: str
@@ -52,7 +52,8 @@ class DiscoveryPlan:
             raise ValueError("discovery and detail run identities must differ")
         if not self.release_name or not self.parser_version:
             raise ValueError("release_name and parser_version are required")
-        if self.mode not in get_args(CaptureRunMode):
+        # 발견은 날짜 창을 번역하는 실행이므로 창이 있는 모드만 받는다. `reference`는 창이 없다.
+        if self.mode not in get_args(CollectionRunMode):
             raise ValueError("discovery mode must be a capture run mode")
         validate_build_sha(self.build_sha)
         if self.started_at.utcoffset() is None or self.completed_at.utcoffset() is None:

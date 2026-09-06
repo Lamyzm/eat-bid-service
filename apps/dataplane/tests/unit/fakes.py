@@ -6,6 +6,7 @@ from typing import Any
 from botocore.exceptions import ClientError
 
 from eatbid.object_store import (
+    MEDIA_XML,
     StoredRawObject,
     build_raw_object_key,
     parse_raw_object_key,
@@ -18,8 +19,12 @@ class MemoryRawObjectStore:
         self._objects: dict[str, tuple[bytes, StoredRawObject]] = {}
         self._now = now if now is not None else lambda: datetime.now(UTC)
 
-    def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
-        object_key = build_raw_object_key(source=source, endpoint=endpoint, body=body)
+    def put(
+        self, *, source: str, endpoint: str, body: bytes, media: str = MEDIA_XML
+    ) -> StoredRawObject:
+        object_key = build_raw_object_key(
+            source=source, endpoint=endpoint, body=body, media=media
+        )
         existing = self._objects.get(object_key)
         if existing is not None:
             return existing[1]
@@ -47,8 +52,12 @@ class RecordingStore:
         self._delegate = MemoryRawObjectStore()
         self._events = events
 
-    def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
-        stored = self._delegate.put(source=source, endpoint=endpoint, body=body)
+    def put(
+        self, *, source: str, endpoint: str, body: bytes, media: str = MEDIA_XML
+    ) -> StoredRawObject:
+        stored = self._delegate.put(
+            source=source, endpoint=endpoint, body=body, media=media
+        )
         self._events.append("object_stored")
         return stored
 
@@ -57,7 +66,9 @@ class RecordingStore:
 
 
 class FailingRawObjectStore:
-    def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
+    def put(
+        self, *, source: str, endpoint: str, body: bytes, media: str = MEDIA_XML
+    ) -> StoredRawObject:
         raise RuntimeError("archive unavailable")
 
     def read(self, object_key: str) -> bytes:

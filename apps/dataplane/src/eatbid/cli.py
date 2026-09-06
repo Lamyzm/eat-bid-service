@@ -12,10 +12,12 @@ from typing import Protocol, Self
 
 from eatbid.cli_arguments import build_parser as build_argument_parser
 from eatbid.config import ApplicationSettings
+from eatbid.core.code_release_projection import CodeReleaseProjectionResult
 from eatbid.failure_report import render_failure
 from eatbid.ingest.models import CapturedObservation
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.discover import DiscoveryResult
+from eatbid.pipeline.reference import ReferenceCaptureResult
 
 CONFIGURATION_EXIT_CODE = 64
 DATA_QUARANTINED_EXIT_CODE = 65
@@ -50,6 +52,8 @@ class CliApplication(Protocol):
     def project(self, args: argparse.Namespace) -> None: ...
     def replay(self, args: argparse.Namespace) -> None: ...
     def build_marts(self, args: argparse.Namespace) -> object: ...
+    def capture_reference(self, args: argparse.Namespace) -> object: ...
+    def project_reference(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[[argparse.Namespace, CliApplication], int]
@@ -89,6 +93,25 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
         return {
             "content_sha256": result.content_sha256,
             "observation_id": result.observation_id,
+        }
+    if method_name == "capture_reference":
+        if not isinstance(result, ReferenceCaptureResult):
+            raise TypeError("capture-reference returned an invalid result")
+        return {
+            "content_sha256": result.content_sha256,
+            "observation_id": result.observation_id,
+            "source_release_id": str(result.source_release_id),
+            "member_count": result.member_count,
+        }
+    if method_name == "project_reference":
+        if not isinstance(result, CodeReleaseProjectionResult):
+            raise TypeError("project-reference returned an invalid result")
+        # 상위를 얻지 못한 member 수를 실행 결과로 남긴다. 계층 결측이 조용하면 화면이 코드를
+        # 평평하게 보여 주고도 아무도 그것이 결측인지 모른다.
+        return {
+            "code_release_id": result.code_release_id,
+            "member_count": result.member_count,
+            "members_without_parent": result.members_without_parent,
         }
     if method_name == "build_marts":
         if not isinstance(result, tuple) or any(
@@ -133,6 +156,8 @@ COMMAND_METHODS: Mapping[str, str] = {
     "project": "project",
     "replay": "replay",
     "build-marts": "build_marts",
+    "capture-reference": "capture_reference",
+    "project-reference": "project_reference",
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
