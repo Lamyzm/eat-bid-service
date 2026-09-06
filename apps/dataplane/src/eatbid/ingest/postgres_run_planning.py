@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from typing import Any, get_args
 from uuid import UUID
 
 import psycopg
@@ -12,9 +12,14 @@ from psycopg.types.json import Jsonb
 
 from eatbid.core.build_identity import BUILD_SHA_PATTERN
 from eatbid.ingest.models import CaptureRequest, PlannedRequestUnit
-from eatbid.ingest.repository import CaptureRunMode, request_params_sha256
+from eatbid.ingest.repository import (
+    CaptureRunMode,
+    CollectionRunMode,
+    ReferenceRunMode,
+    request_params_sha256,
+)
 
-_CAPTURE_RUN_MODES = {"poll-open", "daily-reconcile", "backfill"}
+_CAPTURE_RUN_MODES = set(get_args(CollectionRunMode)) | set(get_args(ReferenceRunMode))
 
 
 class IngestIntegrityError(RuntimeError):

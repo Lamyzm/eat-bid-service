@@ -37,10 +37,17 @@ from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.pipeline.normalize import normalize_observation
 from eatbid.pipeline.project import project_publication
+from eatbid.pipeline.reference import (
+    ReferenceCapturePlan,
+    ReferenceServices,
+    capture_reference,
+    project_reference,
+)
 from eatbid.pipeline.replay import ReplayServices, replay_observations
 from eatbid.pipeline.validate import validate_run
 from eatbid.r2_store import R2RawObjectStore, R2Settings
 from eatbid.source.eat.http_client import EatHttpClient
+from eatbid.source.reference.mois_client import build_reference_client
 from eatbid.source.retry import TransientRetryPolicy
 
 
@@ -60,6 +67,7 @@ class Application:
         replay_repository: Any = None,
         projection_repository: Any = None,
         mart_repository: Any = None,
+        reference_http_client: Any = None,
         page_budget: int = 1,
     ) -> None:
         self._connection = connection
@@ -72,6 +80,9 @@ class Application:
         self._replay = replay_repository
         self._projection = projection_repository
         self._mart = mart_repository
+        # 정부 파일 다운로드는 eaT client의 재시도·헤더 정책을 쓰지 않는다. 소스가 다르면 실패
+        # 모양도 다르고, 한쪽 정책을 다른 쪽에 물려 두면 어느 소스의 규칙인지 알 수 없어진다.
+        self._reference_http = reference_http_client
         self._page_budget = page_budget
         self._closed = False
 
@@ -194,6 +205,44 @@ class Application:
             ),
         )
 
+    def capture_reference(self, args: argparse.Namespace) -> Any:
+        return capture_reference(
+            ReferenceCapturePlan(
+                run_id=args.run_id,
+                source_release_id=args.source_release_id,
+                source_id=args.source,
+                dataset=args.dataset,
+                release_name=args.release_name,
+                build_sha=args.build_sha,
+                parser_version=args.parser_version,
+                as_of=args.as_of,
+                started_at=args.started_at,
+            ),
+            ReferenceServices(
+                http_client=self._reference_http,
+                store=self._store,
+                ingest_repository=self._ingest,
+                release_repository=self._release,
+            ),
+        )
+
+    def project_reference(self, args: argparse.Namespace) -> Any:
+        self._release.require_sealed(args.source_release_id)
+        self._release.require_observation_member(
+            args.source_release_id, args.observation_id
+        )
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            return project_reference(
+                cursor,
+                store=self._store,
+                source_id=args.source,
+                dataset=args.dataset,
+                source_release_id=args.source_release_id,
+                observation_id=args.observation_id,
+                source_version=args.release_name,
+                projected_at=args.projected_at,
+            )
+
     def build_marts(self, args: argparse.Namespace) -> Any:
         record_types = publication_record_types(self._mart, args.publication_id)
         marts = resolve_marts(requested=args.mart, record_types=record_types)
@@ -223,6 +272,11 @@ class Application:
             self._http.close()
         except Exception:  # noqa: BLE001 - provider detail은 composition 밖에 노출하지 않는다.
             failure = True
+        if self._reference_http is not None:
+            try:
+                self._reference_http.close()
+            except Exception:  # noqa: BLE001 - provider detail은 숨긴다.
+                failure = True
         try:
             self._connection.close()
         except Exception:  # noqa: BLE001 - DSN/provider detail은 숨긴다.
@@ -250,6 +304,7 @@ def build_application(config: ApplicationSettings) -> Application:
     dsn = config.database_url.get_secret_value()
     connection: Any = None
     http_client: Any = None
+    reference_client: Any = None
     store: Any = None
     construction_failure: ApplicationConfigurationError | None = None
     try:
@@ -263,6 +318,7 @@ def build_application(config: ApplicationSettings) -> Application:
         http_client = EatHttpClient(
             timeout=timeout, retry_policy=_retry_policy(config)
         )
+        reference_client = build_reference_client(timeout)
         store = R2RawObjectStore(
             R2Settings(
                 endpoint_url=config.r2_endpoint_url,
@@ -273,7 +329,7 @@ def build_application(config: ApplicationSettings) -> Application:
         )
     except Exception as cause:  # noqa: BLE001 - provider 예외 객체는 여기서 닫고 이름만 옮긴다.
         construction_failure = ApplicationConfigurationError(cause)
-        for resource in (http_client, connection):
+        for resource in (http_client, reference_client, connection):
             if resource is not None:
                 _close_ignoring_error(resource)
     if construction_failure is not None:
@@ -300,6 +356,7 @@ def build_application(config: ApplicationSettings) -> Application:
                 "open_auction_snapshot": open_auction_snapshot_filler(store),
             },
         ),
+        reference_http_client=reference_client,
         page_budget=config.source_page_budget,
     )
 

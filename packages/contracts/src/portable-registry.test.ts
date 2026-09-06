@@ -27,7 +27,7 @@ describe("portable 계약 registry와 JSON Schema emitter", () => {
     expect(registry, "portable registry가 존재해야 한다").toBeDefined();
 
     const ids = registry!.portableContracts.map((entry) => entry.id);
-    expect(ids).toEqual(["EatbidIngestionAuctionV1", "EatbidIngestionAuctionV2"]);
+    expect(ids).toEqual(["EatbidIngestionAuctionV1", "EatbidIngestionAuctionV2", "EatbidCodeReleaseV1"]);
     expect(new Set(ids).size).toBe(ids.length);
     for (const entry of registry!.portableContracts) {
       expect(entry.schema.meta()?.id).toBe(entry.id);
@@ -68,6 +68,7 @@ describe("portable 계약 registry와 JSON Schema emitter", () => {
     expect(paths.map((path) => path.split(/[\\/]/).at(-1))).toEqual([
       "ingestion-v1.schema.json",
       "ingestion-v2.schema.json",
+      "code-release-v1.schema.json",
     ]);
     const document = JSON.parse(await readFile(paths[1]!, "utf8"));
     expect(document.$id).toBe("EatbidIngestionAuctionV2");

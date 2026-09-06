@@ -105,6 +105,54 @@ spec:
                 - name: publication-id
                   value: "{{tasks.discover.outputs.parameters.publication-id}}"
 
+    # 정부 코드 reference 적재다. eaT 수집과 같은 template·이미지·serviceaccount로 돌지만 발견도
+    # fan-out도 없다. 파일 하나가 곧 관측 하나이고 release 하나여서 단계가 둘뿐이다(ADR 0035).
+    # 별도 CronJob이나 스케줄러를 만들지 않는다(AGENTS 9).
+    - name: reference-pipeline
+      inputs:
+        parameters:
+          # source·dataset의 요청 모양과 컬럼 계약은 검토된 source 계약이 갖는다. 여기서는 어느
+          # 계약을 실행할지의 이름만 고른다.
+          - name: reference-source
+            value: mois-standard-code
+          - name: reference-dataset
+            value: legal-dong
+          # 정부 파일 파서의 version이다. eaT parser-version과 별개인 이유는 두 소스의 해석 규칙이
+          # 서로 무관하게 움직이기 때문이다.
+          - name: reference-parser-version
+            value: mois-v1
+      dag:
+        tasks:
+          - name: capture-reference
+            template: capture-reference
+            arguments:
+              parameters:
+                - name: reference-source
+                  value: "{{inputs.parameters.reference-source}}"
+                - name: reference-dataset
+                  value: "{{inputs.parameters.reference-dataset}}"
+                - name: reference-parser-version
+                  value: "{{inputs.parameters.reference-parser-version}}"
+          - name: project-reference
+            template: project-reference
+            dependencies: [capture-reference]
+            arguments:
+              parameters:
+                - name: reference-source
+                  value: "{{inputs.parameters.reference-source}}"
+                - name: reference-dataset
+                  value: "{{inputs.parameters.reference-dataset}}"
+                - name: reference-parser-version
+                  value: "{{inputs.parameters.reference-parser-version}}"
+                - name: source-release-id
+                  value: "{{tasks.capture-reference.outputs.parameters.source-release-id}}"
+                - name: observation-id
+                  value: "{{tasks.capture-reference.outputs.parameters.observation-id}}"
+                # 수집이 쓴 release 이름을 그대로 받는다. 두 단계가 각자 이름을 지으면 같은 실행에서
+                # 다른 release를 가리킨다.
+                - name: release-name
+                  value: "{{tasks.capture-reference.outputs.parameters.release-name}}"
+
     # replay는 ad hoc 실행이지만 core를 다시 앉힌 뒤 mart를 다시 만들지 않으면 화면이 옛 build를
     # 계속 읽는다. replay 전용 DAG를 따로 두어 예약 실행과 같은 marts task를 잇는다.
     - name: replay-pipeline
@@ -461,6 +509,149 @@ spec:
           - name: EATBID_MART_CALC_VERSION
             value: "{{workflow.parameters.calc-version}}"
           - *env-parser-version
+          - *env-created-at
+          - *env-result-dir
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
+    - name: capture-reference
+      inputs:
+        parameters:
+          - name: reference-source
+          - name: reference-dataset
+          - name: reference-parser-version
+      synchronization:
+        semaphores:
+          # eaT 수집과 같은 semaphore를 쓴다. 소스는 다르지만 이 클러스터가 밖으로 내는 동시 호출의
+          # 상한은 하나여야 운영이 그 값을 한 곳에서 본다.
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-limit
+      outputs:
+        parameters:
+          - name: source-release-id
+            valueFrom:
+              path: /tmp/eatbid/source_release_id
+          - name: observation-id
+            valueFrom:
+              path: /tmp/eatbid/observation_id
+          - name: release-name
+            valueFrom:
+              path: /tmp/eatbid/release_name
+          - name: member-count
+            valueFrom:
+              path: /tmp/eatbid/member_count
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [python, -c]
+        args:
+          - |
+            import os
+            import sys
+            import uuid
+
+            def fail(message: str) -> None:
+                print(message, file=sys.stderr)
+                raise SystemExit(64)
+
+            try:
+                run_id = uuid.UUID(os.environ["EATBID_RUN_ID"])
+            except (KeyError, ValueError):
+                fail("EATBID_RUN_ID must be the workflow UUID")
+            created_at = os.environ.get("EATBID_WORKFLOW_CREATED_AT", "")
+            source = os.environ.get("EATBID_REFERENCE_SOURCE", "")
+            dataset = os.environ.get("EATBID_REFERENCE_DATASET", "")
+            if not created_at or not source or not dataset:
+                fail("EATBID_WORKFLOW_CREATED_AT, EATBID_REFERENCE_SOURCE, EATBID_REFERENCE_DATASET are required")
+
+            # release 정체성은 workflow uid에서 결정적으로 파생한다. 같은 pod가 다시 뜨면 새 정체성을
+            # 만들어 고아 release를 남기는 대신 같은 정체성으로 충돌해 멈춘다.
+            source_release_id = uuid.uuid5(run_id, "eatbid:reference-release")
+            release_name = os.environ.get("EATBID_RELEASE_NAME") or f"{dataset} {created_at} {run_id}"
+
+            argv = [
+                "eatbid", "capture-reference",
+                "--run-id", str(run_id),
+                "--source-release-id", str(source_release_id),
+                "--source", source,
+                "--dataset", dataset,
+                "--release-name", release_name,
+                "--as-of", created_at,
+                "--started-at", created_at,
+                "--build-sha", os.environ["BUILD_SHA"],
+                "--parser-version", os.environ["EATBID_REFERENCE_PARSER_VERSION"],
+                "--result-dir", os.environ["EATBID_RESULT_DIR"],
+            ]
+            os.execvp(argv[0], argv)
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: reference
+          - *env-run-id
+          - &env-reference-source
+            name: EATBID_REFERENCE_SOURCE
+            value: "{{inputs.parameters.reference-source}}"
+          - &env-reference-dataset
+            name: EATBID_REFERENCE_DATASET
+            value: "{{inputs.parameters.reference-dataset}}"
+          - &env-reference-parser-version
+            name: EATBID_REFERENCE_PARSER_VERSION
+            value: "{{inputs.parameters.reference-parser-version}}"
+          - *env-created-at
+          - *env-result-dir
+          - name: EATBID_RELEASE_NAME
+            value: "{{workflow.parameters.release-name}}"
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
+    - name: project-reference
+      inputs:
+        parameters:
+          - name: reference-source
+          - name: reference-dataset
+          - name: reference-parser-version
+          - name: source-release-id
+          - name: observation-id
+          - name: release-name
+      synchronization:
+        mutexes:
+          # core 발행과 같은 mutex다. 코드 한 벌을 앉히는 동안 공고 투영이 같은 code_value를 만들면
+          # 두 실행이 같은 행을 두고 다툰다.
+          - name: eatbid-core-publication
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid project-reference --run-id "$EATBID_RUN_ID"
+            --source-release-id "$EATBID_SOURCE_RELEASE_ID"
+            --source "$EATBID_REFERENCE_SOURCE"
+            --dataset "$EATBID_REFERENCE_DATASET"
+            --observation-id "$EATBID_OBSERVATION_ID"
+            --release-name "$EATBID_RELEASE_NAME"
+            --projected-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            --build-sha "$BUILD_SHA"
+            --parser-version "$EATBID_REFERENCE_PARSER_VERSION"
+            --result-dir "$EATBID_RESULT_DIR"
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: reference
+          - *env-run-id
+          - *env-source-release-id
+          - *env-reference-source
+          - *env-reference-dataset
+          - *env-reference-parser-version
+          - name: EATBID_OBSERVATION_ID
+            value: "{{inputs.parameters.observation-id}}"
+          - name: EATBID_RELEASE_NAME
+            value: "{{inputs.parameters.release-name}}"
           - *env-created-at
           - *env-result-dir
           - *env-database-url

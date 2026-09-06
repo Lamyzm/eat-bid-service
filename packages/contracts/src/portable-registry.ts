@@ -1,5 +1,6 @@
 /** @module 책임: 이식 가능한 계약 root와 각 계약이 낼 생성 artifact 파일명의 대응을 단일 목록으로 소유한다. */
 import { normalizedAuctionV1Schema } from "./ingestion/v1/normalized-auction";
+import { normalizedCodeReleaseV1Schema } from "./ingestion/v1/normalized-code-release";
 import { normalizedAuctionV2Schema } from "./ingestion/v2/normalized-auction";
 
 // artifact 파일명이 registry 항목의 일부인 이유: emitter가 계약마다 하나의 추적 생성물을 내고, 그
@@ -7,6 +8,7 @@ import { normalizedAuctionV2Schema } from "./ingestion/v2/normalized-auction";
 export const portableContracts = Object.freeze([
   { id: "EatbidIngestionAuctionV1", artifact: "ingestion-v1.schema.json", schema: normalizedAuctionV1Schema },
   { id: "EatbidIngestionAuctionV2", artifact: "ingestion-v2.schema.json", schema: normalizedAuctionV2Schema },
+  { id: "EatbidCodeReleaseV1", artifact: "code-release-v1.schema.json", schema: normalizedCodeReleaseV1Schema },
 ] as const);
 
 export type PortableContractId = (typeof portableContracts)[number]["id"];

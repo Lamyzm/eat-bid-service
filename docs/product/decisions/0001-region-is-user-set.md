@@ -91,6 +91,9 @@ eaT 참가제한지역(`PDLC_CD`)은 별개 `CodeScheme`(`eat:eligibility-area`)
   옮겨지더라도 **선언은 한 곳**이라는 규칙은 그대로다.
 - EAT-57: 지역·코드 중복 선언 제거. 행안부 행정구역 코드를 `core.code_value`로 적재하고 web의 지역
   이름 문자열과 좌표 변이표를 코드 id 참조로 바꾼다. 이 PDR이 그 작업의 근거다.
+  그 적재의 canonical 파일·grain·좌표·매핑 정책은
+  [ADR 0035](../../adr/0035-administrative-region-canonical-and-mapping.md)가 소유한다. 매핑 자동
+  생성은 정규화 라벨이 양쪽에서 유일할 때로만 제한되므로 이 PDR이 기각한 유사도 병합은 열리지 않는다.
 - EAT-39 오늘 화면 필터: 대조 상대는 `location.eligibilityCodes`이며 `location.sidoCode`가 아니다.
 - ADR 0032(인증·인가 경계)와 [도메인·데이터](../../architecture/domain-and-data.md) §4.2의 scheme
   분리표. 이 PDR은 그 분리를 제품 설정 축으로 확장한 것이며 데이터 권위를 대체하지 않는다.

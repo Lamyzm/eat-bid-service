@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Literal, get_args
 from zoneinfo import ZoneInfo
 
-from eatbid.ingest.repository import CaptureRunMode
+from eatbid.ingest.repository import CollectionRunMode
 
 _SEOUL_TIME = ZoneInfo("Asia/Seoul")
 _EAT_DATE_WIRE = "%Y%m%d"
@@ -17,7 +17,7 @@ _EAT_DATE_WIRE = "%Y%m%d"
 DAILY_RECONCILE_LOOKBACK = timedelta(days=6)
 
 ScheduledMode = Literal["poll-open", "daily-reconcile"]
-COLLECTION_MODES: tuple[CaptureRunMode, ...] = get_args(CaptureRunMode)
+COLLECTION_MODES: tuple[CollectionRunMode, ...] = get_args(CollectionRunMode)
 
 
 @dataclass(frozen=True, slots=True)

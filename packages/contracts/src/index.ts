@@ -11,6 +11,7 @@ export * from "./atoms/instant";
 export * from "./atoms/source-code";
 export * from "./values/code-reference";
 export * from "./values/coordinate";
+export * from "./values/region-code";
 export {
   martBuildLineageSchema,
   martCoverageSchema,
@@ -32,7 +33,17 @@ export * from "./codecs/money";
 export * from "./codecs/temporal";
 export * from "./api/v1/auctions";
 export * from "./api/v1/organizations";
+export {
+  codeSchemeV1OperationRegistry,
+  codeSchemeV1Operations,
+  listCodesMetaSchema,
+  listCodesQuerySchema,
+  listCodesV1ResponseSchema,
+  type ListCodesMeta,
+  type ListCodesV1Response,
+} from "./api/v1/code-schemes";
 export * from "./api/v1/win-rate-distribution";
+export * from "./ingestion/v1/normalized-code-release";
 export * from "./ingestion/v1/resources/identity";
 export * from "./ingestion/v1/resources/buyer";
 export * from "./ingestion/v1/resources/location";

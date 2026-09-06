@@ -1,3 +1,7 @@
+"""모듈 책임: R2에 raw 객체를 내용 주소로 한 번만 쓰고, 읽을 때 그 주소 계약이 깨지지 않았음을
+확인하며, provider 예외를 밖으로 흘리지 않는다.
+"""
+
 from __future__ import annotations
 
 import gzip
@@ -13,6 +17,8 @@ from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from eatbid.object_store import (
+    MEDIA_TEXT,
+    MEDIA_XML,
     RawObjectAddress,
     StoredRawObject,
     build_raw_object_key,
@@ -22,7 +28,9 @@ from eatbid.object_store import (
 )
 
 _CONTENT_ENCODING = "gzip"
-_CONTENT_TYPE = "application/xml"
+# 미디어별 content type 표다. 저장 봉투가 내용과 어긋나면 나중에 그 객체를 여는 소비자가
+# 파서를 잘못 고른다.
+_CONTENT_TYPES = {MEDIA_XML: "application/xml", MEDIA_TEXT: "text/plain; charset=cp949"}
 _HASH_METADATA_KEY = "source-sha256"
 _LENGTH_METADATA_KEY = "source-byte-length"
 _NOT_FOUND_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
@@ -120,8 +128,12 @@ class R2RawObjectStore:
             )
         self._client = client
 
-    def put(self, *, source: str, endpoint: str, body: bytes) -> StoredRawObject:
-        object_key = build_raw_object_key(source=source, endpoint=endpoint, body=body)
+    def put(
+        self, *, source: str, endpoint: str, body: bytes, media: str = MEDIA_XML
+    ) -> StoredRawObject:
+        object_key = build_raw_object_key(
+            source=source, endpoint=endpoint, body=body, media=media
+        )
         address = parse_raw_object_key(object_key)
         compressed = deterministic_gzip(body)
 
@@ -154,7 +166,7 @@ class R2RawObjectStore:
                 Key=object_key,
                 Body=compressed,
                 ContentEncoding=_CONTENT_ENCODING,
-                ContentType=_CONTENT_TYPE,
+                ContentType=_CONTENT_TYPES[address.media],
                 IfNoneMatch="*",
                 Metadata={
                     _HASH_METADATA_KEY: address.content_sha256,
@@ -271,7 +283,7 @@ def _validate_existing_object(
     if (
         response.get("ContentLength") != compressed_length
         or response.get("ContentEncoding") != _CONTENT_ENCODING
-        or response.get("ContentType") != _CONTENT_TYPE
+        or response.get("ContentType") != _CONTENT_TYPES[address.media]
         or metadata.get(_HASH_METADATA_KEY) != address.content_sha256
         or metadata.get(_LENGTH_METADATA_KEY) != str(raw_length)
     ):
@@ -312,7 +324,7 @@ def _validate_read_envelope(
         or str(raw_length) != raw_length_text
         or response.get("ContentLength") != compressed_length
         or response.get("ContentEncoding") != _CONTENT_ENCODING
-        or response.get("ContentType") != _CONTENT_TYPE
+        or response.get("ContentType") != _CONTENT_TYPES[address.media]
         or metadata.get(_HASH_METADATA_KEY) != address.content_sha256
     ):
         raise ObjectCorruptionError("stored raw object is corrupt")

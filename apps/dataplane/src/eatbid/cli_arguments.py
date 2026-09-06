@@ -94,6 +94,22 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     for name in ("started-at", "normalized-at", "validated-at", "activated-at"):
         replay.add_argument(f"--{name}", required=True, type=aware_datetime)
 
+    # 정부 코드 파일은 발견도 fan-out도 없다. source·dataset 이름만 받고 요청 모양과 컬럼 계약은
+    # 검토된 source 계약이 갖는다(ADR 0035).
+    capture_reference = commands["capture-reference"]
+    capture_reference.add_argument("--source", required=True)
+    capture_reference.add_argument("--dataset", required=True)
+    capture_reference.add_argument("--release-name", required=True)
+    capture_reference.add_argument("--as-of", required=True, type=aware_datetime)
+    capture_reference.add_argument("--started-at", required=True, type=aware_datetime)
+
+    project_reference = commands["project-reference"]
+    project_reference.add_argument("--source", required=True)
+    project_reference.add_argument("--dataset", required=True)
+    project_reference.add_argument("--observation-id", required=True, type=positive_id)
+    project_reference.add_argument("--release-name", required=True)
+    project_reference.add_argument("--projected-at", required=True, type=aware_datetime)
+
     build_marts = commands["build-marts"]
     # 발행이 없으면 전량 재빌드다. 있으면 그 발행이 실은 record type이 영향 범위를 정한다.
     build_marts.add_argument("--publication-id", type=UUID, default=None)

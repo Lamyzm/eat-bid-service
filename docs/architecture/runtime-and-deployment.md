@@ -30,6 +30,13 @@ mutex는 `eatbid-core-publication`이 아니라 **`eatbid-mart-build`**다. 같�
 다음 수집의 발행을 막아 소스 관측이 늦어지는데, mart는 파생물이라 stale이 정상 상태다(ADR 0011).
 `replay`도 core를 다시 앉히므로 `replay-pipeline` DAG가 같은 task를 뒤에 잇는다.
 
+정부 코드 reference 적재는 같은 `WorkflowTemplate`의 별도 entrypoint `reference-pipeline`이다
+(ADR 0035). DAG는 `capture-reference`(공식 파일 GET → sha256 → R2 → `ingest.raw_observation` →
+`source_release` 봉인) → `project-reference`(`core.code_release`·`code_release_member`·`code_value`·
+`code_label_observation`·`code_mapping` 투영) 둘이며, source semaphore와 core 발행 mutex를 eaT 수집과
+공유한다. 별도 스케줄러·CronJob은 만들지 않는다(AGENTS 9). 같은 파일 sha256이면 release manifest
+unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
+
 `verify`(8)는 아직 별도 pod로 만들지 않는다. build의 `verified` 전이가 이미 저장된 행을 다시 세어
 `row_count`를 고정하므로 pod 하나를 더 띄우는 값이 증명되지 않았다(AGENTS 11).
 
@@ -41,6 +48,7 @@ mutex는 `eatbid-core-publication`이 아니라 **`eatbid-mart-build`**다. 같�
 | `daily-reconcile` | 전체 상태·변경·개찰·낙찰을 재대조 | 일 1회 |
 | `backfill` | 날짜×지역×상태 범위를 수동/운영 승인으로 채움 | ad hoc |
 | `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
+| `reference` | 정부 공개 코드 파일을 새 code release로 적재 | 월 1회 (`reference-pipeline` entrypoint) |
 
 스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다. `parser-version` 기본값은
 `eat-v2`다(2026-09-06, EAT-69). 상세 응답의 명단·낙찰·재공고 블록을 읽는 version이 그것뿐이라 기본값이
