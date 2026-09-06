@@ -52,6 +52,9 @@ SURVEY = _GENERATORS / "namsan.json"
 
 _ASSESSMENT_QUANTUM = Decimal("0.001")
 _DISPLAY_QUANTUM = Decimal("0.0001")
+# 같은 DB를 `test_lake_projection.py`와 공유하므로 이 파일이 발행하는 회차의 외부 식별자를 따로 둔다.
+# 같은 id로 두 번 발행하면 그쪽의 attempt 하나에 revision과 낙찰이 둘씩 생겨 그 test가 깨진다.
+_ID_PREFIX = "mart-"
 
 pytestmark = pytest.mark.lake
 
@@ -126,7 +129,7 @@ def test_남산초_12회차의_mart_파생값이_조사_자료의_행과_일치�
         publication_id, _ = publish_v2_observation(
             pipeline_services,
             gzip.decompress(path.read_bytes()),
-            external_bid_id=external_bid_id,
+            external_bid_id=_ID_PREFIX + external_bid_id,
         )
         project_publication(
             publication_id=publication_id,
@@ -143,7 +146,7 @@ def test_남산초_12회차의_mart_파생값이_조사_자료의_행과_일치�
     mismatches: list[str] = []
     for round_ in _rounds:
         external_bid_id = str(round_["bidId"])
-        row = _summary(pipeline_services, build_id, external_bid_id)
+        row = _summary(pipeline_services, build_id, _ID_PREFIX + external_bid_id)
         if row is None:
             mismatches.append(f"{external_bid_id}: mart 행이 없다")
             continue
