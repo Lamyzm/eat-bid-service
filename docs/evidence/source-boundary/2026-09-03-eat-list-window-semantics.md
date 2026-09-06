@@ -106,7 +106,8 @@ uv run --project apps/dataplane python apps/dataplane/scripts/probe_eat_list.py 
 
 ## 7. 확인하지 않은 것
 
-- `BID_CNT`가 같은 공고에서 시간에 따라 오르는지. 기준 스냅샷만 확보했고 재관측이 필요하다.
-- `PAGE_SIZE` 상한값.
 - 코퍼스 시작 연도.
-- 재공고와 차수가 목록에서 어떻게 구분되는지.
+
+`BID_CNT`의 시간 변화, `PAGE_SIZE` 상한, 목록에서의 재공고·차수 구분은
+[목록이 남긴 네 질문의 실측](2026-09-06-list-open-questions.md)에서 닫혔다. §4의 "1000까지 거부되지
+않았다"는 관측은 유효하지만 **1000이 소스의 상한은 아니다** — 5000까지 절단 없이 돌려준다.

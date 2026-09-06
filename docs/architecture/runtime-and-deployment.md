@@ -72,6 +72,40 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 fan-out하고 `validate`·`project`는 detail run 정체성으로 발행한다. CLI `--result-dir`가 machine
 result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 
+### 2.2 backfill 구간 분할 단위와 중복 제거 (2026-09-06, EAT-46)
+
+**과거 구간을 여러 실행으로 나눌 때 한 실행의 창은 달력 월 하나다.** 근거는
+[목록이 남긴 네 질문의 실측](../evidence/source-boundary/2026-09-06-list-open-questions.md) §6이다.
+
+창이 입찰기간 겹침 필터라 인접 창은 같은 공고를 다시 돌려주고, `discover`는 창 사이 중복을
+제거하지 않으므로 그 겹침이 상세 재호출로 그대로 번진다. 한 공고가 걸리는 창 수의 기댓값은
+`1 + 입찰기간 / 분할`이고 실측 입찰기간은 중앙 6일이다.
+
+| 분할 | 공고당 창 수 | 2026-08을 그 분할로 돌 때의 상세 호출 |
+|---|---|---|
+| 1일 | 7.02 | 약 99,000 |
+| 7일 | 1.86 | 약 26,000 |
+| 30일 | 1.20 | 16,973 (실측 `TOT_CNT`) |
+| 90일 | 1.07 | — |
+
+피크 월의 고유 공고는 약 14,100건이고 30일 창의 `TOT_CNT` 16,973이 이미 그 1.20배다. 같은 달을
+주 단위로 쪼개면 26,000건, 하루씩 쪼개면 99,000건의 상세를 부른다.
+
+무릎이 7일과 30일 사이이고 90일로 넓혀 얻는 것은 0.13창뿐인데 실패한 실행이 다시 도는 범위가
+3배가 된다. 달력 월은 사람이 재현·추적하기 쉽고 급식 공고가 몰리는 납품 월 경계와 맞으며, 피크
+월도 `PAGE_SIZE=1000` 기준 17페이지로 `SOURCE_PAGE_BUDGET`(기본 100) 안이다.
+
+중복 제거 규칙:
+
+- 중복 제거 키는 숫자 `ETN_BID_ID`다. 표시용 `ETN_BID_NO`의 사슬 기준선으로 합치지 않는다 —
+  재공고 차수는 서로 다른 `AuctionAttempt`다(AGENTS 2·4, [ADR 0006](../adr/0006-identifiers-and-code-schemes.md)).
+- 한 창 안의 중복은 계약이 막는다. `parse_bid_list_page`가 페이지 안 유일성을, `discover_release`가
+  페이지 사이 유일성을 검사하고 위반을 `SOURCE_CONTRACT`로 닫는다.
+- 창 사이 중복은 제거하지 않는다. 같은 공고를 새 관측으로 다시 캡처하되 R2가 content hash로 앉히고
+  정규화 fingerprint가 같으면 기존 canonical revision을 재사용한다.
+- `TOT_CNT` 대조는 창 단위 사실이다. 여러 창을 합친 고유 건수를 `TOT_CNT` 합계와 비교하면 겹침만큼
+  항상 어긋나므로 그렇게 검증하지 않는다.
+
 ## 3. 실행 안전장치
 
 - source 전역 semaphore를 둔다. 초기 capacity는 1이며 관측 후 늘린다.
@@ -79,6 +113,9 @@ result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 - pod는 stateless다. hostPath, 로컬 SQLite, 공유 JSON 파일을 단계 계약으로 쓰지 않는다.
 - 각 실행/관측/로그에 `run_id`, correlation ID, Git SHA, image digest, parser/projector version을 남긴다.
 - 목록 응답의 `TOT_CNT`와 실제 발견/캡처 건수를 request unit 단위로 정확히 대조한다.
+- `PAGE_SIZE` 상한 1000은 소스 정책이 아니라 우리 정책이다. 소스는 5000까지 절단 없이 돌려주며 묶는
+  것은 `BID_LIST_MAX_RESPONSE_BYTES`(16 MiB)와 행당 약 1.8 KB, 즉 약 9,300행이다(2026-09-06 실측,
+  EAT-46). 1000은 그 한계의 9분의 1이라 여유가 있으므로 유지하되 "소스가 거부한다"로 설명하지 않는다.
 - 한 건이라도 조용히 누락되면 성공 처리하지 않는다. failure count가 있으면 비영(0이 아닌) exit다.
 - retry는 timeout/일시적 네트워크/일시적 5xx만 대상으로 한다. 403, 429, 차단 신호, 계약 위반,
   인증/설정 오류는 무한 재시도하지 않고 명시적으로 중단한다.
