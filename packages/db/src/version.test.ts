@@ -9,11 +9,11 @@ import {
 
 describe("schema version 검증", () => {
   test("commit된 스냅샷 상세 조인 migration으로 고정한다", () => {
-    expect(expectedMigration).toBe("20260906033918_canonical_code_releases");
+    expect(expectedMigration).toBe("20260906034010_code_value_coordinate");
   });
 
   test("migration 이름에 인코딩된 UTC Instant를 사용한다", () => {
-    expect(expectedMigrationInstant.toString()).toBe("2026-09-06T03:39:18Z");
+    expect(expectedMigrationInstant.toString()).toBe("2026-09-06T03:40:10Z");
     expect(migrationNameInstant(expectedMigration).equals(expectedMigrationInstant)).toBe(true);
   });
 
@@ -24,9 +24,9 @@ describe("schema version 검증", () => {
   });
 
   test("journal epoch millisecond 문자열을 Number 없이 lossless Instant로 복원한다", () => {
-    expect(migrationJournalInstant("1788665958000").equals(expectedMigrationInstant)).toBe(true);
-    expect(migrationJournalInstant(1_788_665_958_000n).equals(expectedMigrationInstant)).toBe(true);
-    expect(() => migrationJournalInstant(1_788_665_958_000 as never)).toThrow("invalid timestamp");
-    expect(() => migrationJournalInstant("1788665958000.0")).toThrow("invalid timestamp");
+    expect(migrationJournalInstant("1788666010000").equals(expectedMigrationInstant)).toBe(true);
+    expect(migrationJournalInstant(1_788_666_010_000n).equals(expectedMigrationInstant)).toBe(true);
+    expect(() => migrationJournalInstant(1_788_666_010_000 as never)).toThrow("invalid timestamp");
+    expect(() => migrationJournalInstant("1788666010000.0")).toThrow("invalid timestamp");
   });
 });
