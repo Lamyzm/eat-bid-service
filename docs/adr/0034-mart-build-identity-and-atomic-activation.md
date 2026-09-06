@@ -64,6 +64,25 @@ INSERT·UPDATE·DELETE를 거부한다.** 쓰기는 `building` build에만 가�
 빌드는 Argo `marts` 단계에서만 실행하며 mutex는 `eatbid-mart-build`로 core 발행과 분리한다.
 mart는 파생물이라 stale이 정상 상태이므로(ADR 0011) 발행이 빌드를 기다리지 않는다.
 
+## 후속 결정 — 스냅샷은 목록과 최신 상세의 조인이다 (2026-09-06, EAT-68)
+
+`open_auction_snapshot`의 입력은 §4.4가 정한 목록 raw 재파싱 하나였다. 그런데 오늘 화면이 요구하는
+지역·품목 필터와 하한 열이 목록에 없고, discover된 공고는 전부 상세를 계획하므로 열린 공고의 최신
+`core.auction_revision`에는 그 값이 있다(2026-09-06 daily-reconcile 실측: 열린 254건 전부 capture).
+
+그래서 이 mart의 입력은 **목록 관측 + 같은 attempt의 최신 revision** 둘이다. 조인은 요청 시점이
+아니라 빌드 시점에 한 번 한다. 요청마다 core를 lateral 조인하면 목록 화면이 원본 점 조회를 하게
+되고, build마다 봉인되지 않은 조인은 같은 `build_id`를 읽은 두 요청이 서로 다른 값을 보게 만든다 —
+"계보는 `mart.build` 한 행이 갖는다"가 그 순간 거짓이 된다.
+
+지역 축은 `region_sido_code_value_id`와 `region_sigungu_code_value_id` 둘이다. 위 "지역 코드 체계"
+절의 `region_code_value_id` 하나 규칙을 깨는 것이 아니다. 두 열은 같은 `mart.build.region_scheme`
+안의 계층이지 두 체계가 아니며, 행정안전부 전환은 여전히 새 `calc_version`의 새 build다.
+
+`terms_revision_id`는 그 파생 열들을 어느 해석에서 읽었는지의 계보이고 표의 check가 "값이 있으면
+계보도 있다"를 강제한다. `organization_label`은 조직 코드에 매달린 관측이라 이 계보 밖이다.
+계산 규칙이 바뀌었으므로 배포 기본 `calc-version`은 `mart-r1`에서 `mart-r2`로 올린다.
+
 ## Consequences
 
 - 전환 순간 mart 하나가 두 벌 존재한다. 실측 160~220 MB이고 mart 셋을 합쳐 1 GB 미만이다.

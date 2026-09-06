@@ -34,6 +34,8 @@ describe("mart.open_auction_snapshot 스키마", () => {
     expect(indexNames(openAuctionSnapshot)).toEqual([
       "open_auction_snapshot_build_closes_idx",
       "open_auction_snapshot_attempt_observed_idx",
+      "open_auction_snapshot_build_region_sido_idx",
+      "open_auction_snapshot_build_item_label_idx",
     ]);
   });
 
@@ -42,5 +44,36 @@ describe("mart.open_auction_snapshot 스키마", () => {
 
     expect(checks).toContain("open_auction_snapshot_currency_required_with_amount");
     expect(checks).toContain("open_auction_snapshot_bid_count_nonnegative");
+  });
+
+  test("상세에서 온 하한율·지역·계보 열은 전부 null 허용이다", () => {
+    const nullability = columnNullability(openAuctionSnapshot);
+
+    expect(nullability.floor_rate).toBe(false);
+    expect(nullability.region_sido_code_value_id).toBe(false);
+    expect(nullability.region_sigungu_code_value_id).toBe(false);
+    expect(nullability.organization_label).toBe(false);
+    expect(nullability.terms_revision_id).toBe(false);
+  });
+
+  test("지역 축은 code value를 가리키고 계보는 revision을 가리킨다", () => {
+    const foreignKeys = foreignKeyColumnSets(openAuctionSnapshot);
+
+    expect(foreignKeys).toContainEqual({
+      columns: ["region_sido_code_value_id"],
+      foreignTable: "code_value",
+    });
+    expect(foreignKeys).toContainEqual({
+      columns: ["region_sigungu_code_value_id"],
+      foreignTable: "code_value",
+    });
+    expect(foreignKeys).toContainEqual({
+      columns: ["terms_revision_id"],
+      foreignTable: "auction_revision",
+    });
+  });
+
+  test("상세에서 온 값이 있으면 어느 revision에서 왔는지도 있어야 한다", () => {
+    expect(checkNames(openAuctionSnapshot)).toContain("open_auction_snapshot_terms_lineage_required");
   });
 });

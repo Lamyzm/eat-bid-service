@@ -44,7 +44,7 @@ SAMPLE_STAGE_ENV = {
     "EATBID_PUBLICATION_ID": "00000000-0000-0000-0000-000000000004",
     "EATBID_EXTERNAL_BID_ID": "5610615",
     "EATBID_OBSERVATION_ID": "7",
-    "EATBID_MART_CALC_VERSION": "mart-r1",
+    "EATBID_MART_CALC_VERSION": "mart-r2",
 }
 SHELL_CLOCK = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
 SHELL_VARIABLE = re.compile(r"\$\{?([A-Z_][A-Z0-9_]*)\}?")
@@ -656,7 +656,7 @@ def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
     assert parameters == {
         "mode": "poll-open",
         "parser-version": "eat-v2",
-        "calc-version": "mart-r1",
+        "calc-version": "mart-r2",
         "start-date": "",
         "end-date": "",
         "release-name": "",

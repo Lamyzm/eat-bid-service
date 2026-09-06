@@ -6,6 +6,10 @@ R2에 남기 때문이다. 그래서 검토된 목록 파서를 그대로 다시
 
 목록에만 있고 아직 상세를 따지 않은 공고는 identity 전용 `core.auction_attempt` 행으로 먼저 만든다.
 그 행은 관측된 외부 식별자일 뿐이고 revision이 없으므로 회차로 발표되지 않는다(ADR 0033).
+
+목록에 없는 하한율·품목 라벨·지역 코드·기관 이름은 적재 뒤 같은 build 안에서 core를 한 번 조인해
+채운다. 오늘 화면이 요청마다 core를 되짚으면 목록 경로가 원본 점 조회를 하게 되고, 그 조인 결과가
+build마다 봉인되지 않으면 같은 build를 두 번 읽은 화면이 서로 다른 값을 본다(EAT-39 판정 A·B·C).
 """
 
 from __future__ import annotations
@@ -66,6 +70,69 @@ insert into mart.open_auction_snapshot (
   null, null, %(base_amount)s, %(currency)s, null, null, null
 )
 on conflict on constraint open_auction_snapshot_observation_grain_key do nothing
+"""
+
+# 한 attempt의 "최신 revision"은 `auction_revision_id` 최대값이다. 관측 시각으로 고르지 않는 이유는
+# 같은 raw의 replay가 시각을 되돌릴 수 있기 때문이고, revision id는 identity라 append 순서로
+# 단조롭다 — `org_round_summary`가 쓰는 규칙과 같다.
+#
+# 상세가 없는 공고는 아무 열도 채우지 않는다. `terms_revision_id`가 비면 나머지 파생 열도 비어야
+# 한다는 것은 표의 check가 강제한다.
+_FILL_TERMS_SQL = """
+update mart.open_auction_snapshot as snapshot
+   set terms_revision_id = latest.auction_revision_id,
+       floor_rate = latest.floor_rate,
+       item_label = latest.item_label,
+       region_sido_code_value_id = latest.sido_code_value_id,
+       region_sigungu_code_value_id = latest.sigungu_code_value_id
+  from (
+    select distinct on (revision.auction_attempt_id)
+           revision.auction_attempt_id,
+           revision.auction_revision_id,
+           revision.floor_rate,
+           -- 품목 code scheme이 아직 없다. 관측 라벨을 코드로 승격시키지 않는다(EAT-44 판정 §4.2).
+           nullif(btrim(coalesce(
+             revision.source_payload #>> '{classification,sourceCategoryLabel}', ''
+           )), '') as item_label,
+           sido.code_value_id as sido_code_value_id,
+           sigungu.code_value_id as sigungu_code_value_id
+      from core.auction_revision as revision
+      left join core.auction_revision_code_value as sido
+        on sido.auction_revision_id = revision.auction_revision_id
+       and sido.role = 'location_sido'
+      left join core.auction_revision_code_value as sigungu
+        on sigungu.auction_revision_id = revision.auction_revision_id
+       and sigungu.role = 'location_sigungu'
+     where revision.auction_attempt_id in (
+             select auction_attempt_id from mart.open_auction_snapshot
+              where build_id = %(build_id)s
+           )
+     -- 한 revision에 같은 role의 코드가 둘 이상 관측되면 어느 것을 실었는지가 실행마다 달라진다.
+     order by revision.auction_attempt_id, revision.auction_revision_id desc,
+              sido.code_value_id, sigungu.code_value_id
+  ) as latest
+ where snapshot.build_id = %(build_id)s
+   and snapshot.auction_attempt_id = latest.auction_attempt_id
+"""
+
+# 기관 이름은 이 공고의 revision이 아니라 조직 코드에 매달린 관측이다. 그래서 상세가 아직 없는
+# 공고도 그 조직의 다른 관측에서 이름을 얻을 수 있고, `terms_revision_id` 계보에는 들어가지 않는다.
+# `organization.canonical_name`이 아니라 관측 라벨을 싣는 이유는 이름이 정체성이 아니기 때문이다
+# (AGENTS 2, EAT-39 판정 G).
+_FILL_ORGANIZATION_LABEL_SQL = """
+update mart.open_auction_snapshot as snapshot
+   set organization_label = (
+         select observation.label
+           from core.organization_identifier as identifier
+           join core.code_label_observation as observation
+             on observation.code_value_id = identifier.code_value_id
+          where identifier.organization_id = snapshot.organization_id
+          order by observation.observed_at desc,
+                   observation.code_label_observation_id desc
+          limit 1
+       )
+ where snapshot.build_id = %(build_id)s
+   and snapshot.organization_id is not null
 """
 
 
@@ -138,7 +205,19 @@ def fill_open_auction_snapshot(
                 )
                 inserted += cursor.rowcount
 
+    _fill_terms(connection, build_id=build_id)
     return inserted
+
+
+def _fill_terms(connection: Any, *, build_id: int) -> None:
+    """이 build의 스냅샷 행에 최신 상세 해석과 기관 관측 이름을 덧입힌다.
+
+    행 수를 바꾸지 않으므로 `verify_build`의 표본 검증과 어긋나지 않는다. 같은 build에 다시 돌려도
+    같은 입력에서 같은 값을 다시 쓰기 때문에 재개한 빌드가 화면 값을 흔들지 않는다.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(_FILL_TERMS_SQL, {"build_id": build_id})
+        cursor.execute(_FILL_ORGANIZATION_LABEL_SQL, {"build_id": build_id})
 
 
 def _organization_id(cursor: Any, *, code: str | None) -> int | None:
