@@ -1,3 +1,7 @@
 # 줄 끝은 저장소에서 LF로 고정한다. 이미 CRLF로 커밋된 파일은 exact AST fingerprint ledger의
 # 영향을 확인한 뒤 별도 변경에서 renormalize한다.
 * text=auto eol=lf
+
+# 행안부 공식 파일 표본은 CP949 바이트와 CRLF 줄끝이 계약의 일부다. 줄끝을 정규화하면 파서 계약
+# 테스트가 원본이 아닌 모양을 검증하게 되므로 이 표본만 변환에서 뺀다.
+apps/dataplane/tests/fixtures/reference/*.txt -text

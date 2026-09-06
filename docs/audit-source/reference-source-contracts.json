@@ -1,0 +1,79 @@
+{
+  "note": "정부 공개 코드 파일 source의 read-only 관측 기록이다. 실행 시점의 권위는 apps/dataplane/src/eatbid/source/reference/source_contracts.py이며 둘의 동치는 tests/unit/test_reference_source_contracts.py가 고정한다. 원본 파일은 저장소에 커밋하지 않는다.",
+  "observed_at": "2026-09-06T03:19:24Z",
+  "sources": [
+    {
+      "source_id": "mois-standard-code",
+      "owner": "행정안전부 행정표준코드관리시스템",
+      "origin": "https://www.code.go.kr",
+      "schema_fingerprint": "e877938cbdc28a41b72a7a192586b3688a9e42f70b508e27144e70822fae6f1c",
+      "datasets": [
+        {
+          "dataset": "legal-dong",
+          "availability": "observed",
+          "required": true,
+          "request": {
+            "method": "POST",
+            "url": "https://www.code.go.kr/etc/codeFullDown.do",
+            "referer": "https://www.code.go.kr/stdcode/regCodeL.do",
+            "form": { "codeseId": "법정동코드" }
+          },
+          "response": {
+            "status": 200,
+            "content_type": "application/octet-stream;;charset=utf-8",
+            "content_disposition_filename": "법정동코드 전체자료.zip",
+            "container": "zip",
+            "entry_count": 1,
+            "entry_suffix": ".txt",
+            "downloaded_bytes": 413346
+          },
+          "payload": {
+            "encoding": "cp949",
+            "delimiter": "TAB",
+            "line_terminator": "CRLF",
+            "has_header": true,
+            "columns": ["법정동코드", "법정동명", "폐지여부"],
+            "code_column": "법정동코드",
+            "label_column": "법정동명",
+            "state_column": "폐지여부",
+            "code_length": 10,
+            "active_state": "존재",
+            "retired_state": "폐지",
+            "date_columns": [],
+            "entry_bytes": 2471662,
+            "entry_sha256": "8cfd829c797270b56243a46e9f1e4e95377c2135153c36909021a35a1e32966a"
+          },
+          "census": {
+            "row_count": 53387,
+            "code_length_values": [10],
+            "state_values": ["존재", "폐지"],
+            "sido_row_count": 25,
+            "sido_active_count": 15,
+            "sigungu_row_count": 512,
+            "sigungu_active_count": 269,
+            "name_with_surrounding_whitespace_count": 4,
+            "sigungu_active_without_name_path_parent": ["3611000000"],
+            "notes": [
+              "시도 grain은 코드 뒤 8자리가 0인 행, 시군구 grain은 3~5자리가 0이 아니면서 뒤 5자리가 0인 행이다. 이 자릿수 구조는 행정안전부가 공표한 법정동코드 규격이며 eaT PDLC_CD의 자릿수 분해와는 다른 사안이다.",
+              "시군구 grain에는 자치구가 아닌 행정구(예: 4111100000 경기도 수원시 장안구)가 포함된다. 상위는 같은 release의 이름 경로(경기도 수원시)로만 얻는다.",
+              "3611000000 세종특별자치시는 시군구 grain에만 있고 3600000000 행 자체가 파일에 없어 상위가 null이다.",
+              "이 vintage는 1200000000 전남광주통합특별시가 존재이고 2900000000 광주광역시·4600000000 전라남도가 폐지다. eaT SIDO_CD=18이 두 이름으로 관측되는 것과 같은 사건으로 보이지만, 대조표가 없으므로 매핑은 사람이 만든다."
+            ]
+          },
+          "sample_fixture": {
+            "path": "apps/dataplane/tests/fixtures/reference/mois-legal-dong-sample.txt",
+            "row_count": 14,
+            "sha256": "222122019d842a142374d77ed951a4c375fd623ac1313bd0233806acf44ddd49",
+            "selection": "시도·시군구·읍면동·폐지·행정구·이름 뒤 공백·상위 없는 시군구를 각각 한 행 이상 담도록 원본에서 그대로 뽑았다."
+          }
+        },
+        {
+          "dataset": "legal-dong-change",
+          "availability": "absent",
+          "required": false,
+          "evidence": "2026-09-06 관측에서 https://www.code.go.kr/stdcode/regCodeL.do 가 제공하는 다운로드는 func_fileDown(사용자 검색자료)와 func_fullfileDown(전체자료) 둘뿐이고 변동내역 파일 링크가 없다. 전체자료에도 날짜 컬럼이 없으므로 code_value.valid_from·valid_to를 채울 원본이 지금 없다(ADR 0035 결정 4)."
+        }
+      ]
+    }
+  ]
+}
