@@ -26,6 +26,8 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   SOURCE_FILE_SIZE: "source-file-size",
   TRANSPORT_RUNTIME_CROSS_IMPORT: "transport-runtime-cross-import",
   UNCHECKED_JSON_CAST: "unchecked-json-cast",
+  USE_CACHE_PLACEMENT: "use-cache-placement",
+  USE_CACHE_USER_DATA: "use-cache-user-data",
   UNCHECKED_RESPONSE_BODY: "unchecked-response-body",
   UNCHECKED_RESPONSE_JSON: "unchecked-response-json",
   RESOURCE_TRANSPORT_IMPORT: "resource-transport-import",
@@ -138,6 +140,14 @@ export function isPublicApiEntry(targetPath) {
   return /\/api\/[^/]+$/.test(normalized)
     || /\/api\/[^/]+\/(?:index|server)$/.test(normalized)
     || /\/api\/[^/]+\/(?:index|server)\.[cm]?tsx?$/.test(normalized);
+}
+
+// ADR 0028-4는 `use cache`를 api resource의 server entry read 함수에만 허용한다. 태그를 만들고
+// 지우는 소유자가 그 파일이므로 다른 층이 캐시 경계를 열면 태그 어휘가 흩어진다.
+const CACHE_OWNER_PATH = /^apps\/web\/src\/api\/[^/]+\/server\.[cm]?tsx?$/;
+
+export function isCacheOwnerPath(displayPath) {
+  return CACHE_OWNER_PATH.test(displayPath);
 }
 
 export function isEndpointAuthorityPath(repoRoot, sourcePath) {

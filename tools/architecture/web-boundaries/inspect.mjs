@@ -12,6 +12,7 @@ import {
   WEB_BOUNDARY_RULES,
   applyLegacyBaseline,
   codePointCompare,
+  isCacheOwnerPath,
   isCanonicalLayerPath,
   isClientDomainCalculationPath,
   isEndpointAuthorityPath,
@@ -189,6 +190,47 @@ function isLegacyPageContainerPath(root, file) {
   return display(root, file) === "apps/web/src/components/layout/page-container.tsx";
 }
 
+// 캐시 경계는 directive 하나로 열린다. 함수 안이든 파일 최상단이든 같은 규칙이 적용돼야 하므로
+// 위치를 가리지 않고 directive 문장 자체를 찾는다.
+function hasUseCacheDirective(sourceFile) {
+  let found = false;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isExpressionStatement(node) && ts.isStringLiteral(node.expression)
+      && node.expression.text === "use cache") {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+// 요청마다 다른 입력을 캐시 경계 안에서 읽으면 한 사용자의 응답이 다른 사용자에게 재사용된다.
+// 사람 규율이 아니라 이 규칙이 그 동거를 막는다(ADR 0028-4, ADR 0036-8).
+const REQUEST_SCOPED_CALLS = new Set(["cookies", "headers", "draftMode", "connection"]);
+
+function usesRequestScopedInput(sourceFile) {
+  let found = false;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier)
+      && node.moduleSpecifier.text === "next/headers") {
+      found = true;
+      return;
+    }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)
+      && REQUEST_SCOPED_CALLS.has(node.expression.text)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
 function isExported(statement) {
   return Boolean(statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
 }
@@ -343,6 +385,10 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
     }
     const layer = sourceLayer(file);
     const displayPath = display(root, file);
+    if (hasUseCacheDirective(sourceFile)) {
+      if (!isCacheOwnerPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.USE_CACHE_PLACEMENT, file, "SourceFile", sourceFile, "use cache는 api/<resource>/server.ts의 read 함수에만 허용합니다.", undefined, fingerprintEvidence);
+      if (usesRequestScopedInput(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.USE_CACHE_USER_DATA, file, "SourceFile", sourceFile, "use cache를 담은 파일은 cookies·headers 같은 요청별 입력을 읽을 수 없습니다.", undefined, fingerprintEvidence);
+    }
     if (isClientDomainCalculationPath(displayPath)) for (const statement of exportedRuntimeStatements(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION, file, statement, sourceFile, `legacy client 업무 계산(${exportedNames(statement).join(", ")})은 Server 계약 응답으로 대체한 뒤 삭제해야 합니다.`);
     if (isLegacyHooksPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY, file, "SourceFile", sourceFile, "hooks/ 디렉터리는 신규 파일을 받지 않습니다. generic hook은 shared/lib/hooks, 그 외는 소비 slice 내부에 둡니다.", undefined, fingerprintEvidence);
     if (isLegacyLibPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_LIB_DIRECTORY, file, "SourceFile", sourceFile, "lib/ 디렉터리는 신규 파일을 받지 않습니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.", undefined, fingerprintEvidence);
