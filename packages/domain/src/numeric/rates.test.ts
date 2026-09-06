@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { canonicalDecimal } from "./canonical-decimal.js";
 import {
+  baseRelativeBidRate,
   bidRate,
   floorRate,
   percentagePoints,
@@ -103,6 +104,14 @@ describe("의미가 분리된 정확 비율", () => {
     expect(() =>
       percentagePointsToRatio(points, { sourceScale: 5, targetScale: 6, rounding: "reject" }),
     ).toThrow();
+  });
+
+  test("투찰률은 기초금액 분모라 100을 넘는 관측도 그대로 담는다", () => {
+    // 예정가격이 기초금액보다 크면 같은 하한율이 100을 넘는 투찰률로 번역된다. 상한을 두면 관측을
+    // 격리하게 되므로 정밀도만 호출자가 고정한다.
+    expect(baseRelativeBidRate(canonicalDecimal("88.0350", 4))).toBe("88.0350");
+    expect(baseRelativeBidRate(canonicalDecimal("112.5000", 4))).toBe("112.5000");
+    expect(() => baseRelativeBidRate(canonicalDecimal("88.035", 4))).toThrow();
   });
 
 });

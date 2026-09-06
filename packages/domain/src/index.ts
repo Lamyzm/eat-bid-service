@@ -17,6 +17,7 @@ export {
 } from "./numeric/canonical-decimal.js";
 export { isMoney, krw, type Currency, type Money } from "./numeric/money.js";
 export {
+  baseRelativeBidRate,
   bidRate,
   floorRate,
   percentagePoints,
@@ -24,6 +25,7 @@ export {
   ratio,
   ratioToPercentagePoints,
   sharePercent,
+  type BaseRelativeBidRate,
   type BidRate,
   type ExactRateConversionOptions,
   type FloorRate,

@@ -1,11 +1,12 @@
 /** @module 책임: 기관 회차 이력 계약 응답을 결정 화면 표가 그대로 렌더링할 표시 행·요약 문자열로 바꾼다. */
 import { Temporal } from '@eatbid/domain';
 import type {
+  MartCoverage,
   OrganizationAuctionAttempt,
   OrganizationAuctionAttemptsV1Response
 } from '@eatbid/contracts/api/v1/organizations';
 
-import { toMilli } from './bid-rate';
+import { toMilli, toMilliCeiling } from './bid-rate';
 
 export type HistoryRow = {
   readonly attemptId: string;
@@ -20,7 +21,7 @@ export type HistoryRow = {
   readonly dayFloorMilli: bigint | null;
   readonly winnerText: string;
   readonly listCount: number | null;
-  readonly invalidCount: number | null;
+  readonly belowDayFloorCount: number | null;
   readonly isSelectedItem: boolean;
 };
 
@@ -28,9 +29,12 @@ export type HistoryPresentation = {
   readonly organizationId: string;
   readonly rows: readonly HistoryRow[];
   readonly sampleCount: number;
-  readonly martRelease: string | null;
+  readonly buildId: string | null;
+  readonly sourceReleaseId: string | null;
   readonly computedAtText: string | null;
   readonly calcVersion: string | null;
+  readonly coverage: MartCoverage | null;
+  readonly regionScheme: string | null;
   readonly selectedItem: { readonly codeValueId: string; readonly label: string } | null;
 };
 
@@ -72,10 +76,12 @@ function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | 
     winRateMilli: attempt.winRate ? toMilli(attempt.winRate.value) : null,
     secondRateText: attempt.secondRate?.value ?? null,
     dayFloorText: attempt.dayFloorRate?.value ?? null,
-    dayFloorMilli: attempt.dayFloorRate ? toMilli(attempt.dayFloorRate.value) : null,
+    // 그날 하한은 소수 넷째 자리인데 손잡이는 셋째 자리다. 내림하면 하한 바로 아래 값이 유효로
+    // 보이므로 하한 쪽으로 올려 비교한다. 손잡이가 셋째 자리이므로 이 올림은 판정과 정확히 같다.
+    dayFloorMilli: attempt.dayFloorRate ? toMilliCeiling(attempt.dayFloorRate.value) : null,
     winnerText: attempt.winnerSupplierPartyId ? `#${attempt.winnerSupplierPartyId}` : '—',
     listCount: attempt.listCount,
-    invalidCount: attempt.invalidCount,
+    belowDayFloorCount: attempt.belowDayFloorCount,
     isSelectedItem: selectedItem === null || attempt.item?.codeValueId === selectedItem
   };
 }
@@ -98,9 +104,12 @@ export function presentHistory(
     organizationId: response.organizationId,
     rows: response.attempts.map((attempt) => presentRow(attempt, selectedItem)),
     sampleCount: response.meta.sampleCount,
-    martRelease: response.meta.martRelease,
+    buildId: response.meta.buildId,
+    sourceReleaseId: response.meta.sourceReleaseId,
     computedAtText: response.meta.computedAt ? kstMinute(response.meta.computedAt) : null,
     calcVersion: response.meta.calcVersion,
+    coverage: response.meta.coverage,
+    regionScheme: response.meta.regionScheme,
     selectedItem: selectedItem === null ? null : resolveSelectedItem(response.attempts, selectedItem)
   };
 }

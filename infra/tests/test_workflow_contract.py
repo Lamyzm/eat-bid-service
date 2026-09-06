@@ -25,6 +25,11 @@ CLI = ROOT / "apps" / "dataplane" / "src" / "eatbid" / "cli.py"
 BUILD_WORKFLOW = ROOT / ".github" / "workflows" / "build.yml"
 
 SCHEDULED_COMMANDS = ("discover", "capture", "normalize", "validate", "project")
+# DAG task 이름과 CLI 명령 이름이 하나 어긋난다. `marts` 단계는 `build-marts`를 부른다 — 단계는
+# 무엇을 다시 만드는지를, 명령은 무엇을 실행하는지를 이름으로 말한다.
+SCHEDULED_TASKS = (*SCHEDULED_COMMANDS, "marts")
+TASK_COMMANDS = {**{name: name for name in SCHEDULED_COMMANDS}, "marts": "build-marts"}
+SHELL_STAGES = ("capture", "normalize", "validate", "project", "marts")
 PYTHON_ENTRYPOINT_TEMPLATES = ("discover", "replay")
 # shell 단계가 `$NAME`으로 읽는 값의 표본이다. BUILD_SHA만 container env가 아니라 image ENV에서 온다.
 SAMPLE_STAGE_ENV = {
@@ -39,6 +44,7 @@ SAMPLE_STAGE_ENV = {
     "EATBID_PUBLICATION_ID": "00000000-0000-0000-0000-000000000004",
     "EATBID_EXTERNAL_BID_ID": "5610615",
     "EATBID_OBSERVATION_ID": "7",
+    "EATBID_MART_CALC_VERSION": "mart-r1",
 }
 SHELL_CLOCK = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
 SHELL_VARIABLE = re.compile(r"\$\{?([A-Z_][A-Z0-9_]*)\}?")
@@ -119,15 +125,13 @@ def _cli_commands() -> tuple[str, ...]:
         for node in module.body
         if isinstance(node, ast.AnnAssign)
         and isinstance(node.target, ast.Name)
-        and node.target.id == "COMMAND_HANDLERS"
+        and node.target.id == "COMMAND_METHODS"
     )
-    # CLI는 handler dict를 comprehension으로 만든다. 이름 목록은 그 comprehension이 도는
-    # tuple 하나이므로 실행 없이 그 tuple만 읽어 workflow가 부르는 명령과 대조한다.
-    comprehension = assignment.value
-    assert isinstance(comprehension, ast.DictComp)
-    commands = ast.literal_eval(comprehension.generators[0].iter)
-    assert isinstance(commands, tuple)
-    return commands
+    # CLI는 kebab-case 명령과 snake_case method의 대응을 dict 하나에 둔다. 실행 없이 그 literal만
+    # 읽어 workflow가 부르는 명령과 대조한다.
+    commands = ast.literal_eval(assignment.value)
+    assert isinstance(commands, dict)
+    return tuple(commands)
 
 
 def test_product와_base_render가_kind_구성을_유지한다(
@@ -197,16 +201,17 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
 
     templates = _templates(workflow_template)
     tasks = _dag_tasks(workflow_template)
-    assert [task["name"] for task in tasks] == list(SCHEDULED_COMMANDS)
-    assert [task["template"] for task in tasks] == list(SCHEDULED_COMMANDS)
+    assert [task["name"] for task in tasks] == list(SCHEDULED_TASKS)
+    assert [task["template"] for task in tasks] == list(SCHEDULED_TASKS)
     assert tasks[0].get("dependencies", []) == []
-    for previous, current in pairwise(SCHEDULED_COMMANDS):
+    for previous, current in pairwise(SCHEDULED_TASKS):
         task = next(task for task in tasks if task["name"] == current)
         assert task["dependencies"] == [previous]
 
-    assert _cli_commands() == (*SCHEDULED_COMMANDS, "replay")
+    assert _cli_commands() == (*SCHEDULED_COMMANDS, "replay", "build-marts")
     assert "replay" in templates
-    assert "build-marts" not in templates
+    assert "marts" in templates
+    # verify pod는 만들지 않는다. build의 `verified` 전이가 이미 행 수 검증을 갖는다(ADR 0034).
     assert "verify" not in templates
     # 어떤 template도 튜닝 상수를 인자에 박지 않는다. 페이지 크기·기간·지역 수 같은 값이
     # 여기 들어오면 workflow 매니페스트가 CLI와 별개의 두 번째 설정 원천이 된다.
@@ -234,7 +239,18 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     project_mutexes = [_mapping(item) for item in _sequence(project_sync["mutexes"])]
     assert project_mutexes == [{"name": "eatbid-core-publication"}]
 
-    containers = [_mapping(templates[name]["container"]) for name in (*SCHEDULED_COMMANDS, "replay")]
+    # mart 빌드가 core 발행과 같은 mutex를 쓰면 다음 수집의 발행이 빌드를 기다려 소스 관측이 늦어진다.
+    marts_sync = _mapping(templates["marts"]["synchronization"])
+    marts_mutexes = [_mapping(item) for item in _sequence(marts_sync["mutexes"])]
+    assert marts_mutexes == [{"name": "eatbid-mart-build"}]
+    assert "semaphores" not in marts_sync
+    # mart 빌드는 fan-out하지 않는다. 한 mart를 한 build로 통째로 다시 만드는 것이 원자 단위다.
+    assert "withParam" not in next(task for task in tasks if task["name"] == "marts")
+
+    containers = [
+        _mapping(templates[name]["container"])
+        for name in (*SCHEDULED_COMMANDS, "marts", "replay")
+    ]
     dataplane_images = {str(container["image"]) for container in containers}
     assert len(dataplane_images) == 1
     assert re.fullmatch(
@@ -244,7 +260,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     for container in containers:
         template_name = next(
             name
-            for name in (*SCHEDULED_COMMANDS, "replay")
+            for name in (*SCHEDULED_COMMANDS, "marts", "replay")
             if templates[name]["container"] is container
         )
         command = str(_sequence(container["args"])[0])
@@ -253,7 +269,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
             assert '"--build-sha", os.environ["BUILD_SHA"]' in command
         else:
             assert container["command"] == ["/bin/sh", "-ec"]
-            assert command.startswith(f"exec eatbid {template_name} ")
+            assert command.startswith(f"exec eatbid {TASK_COMMANDS[template_name]} ")
             assert '--build-sha "$BUILD_SHA"' in command
             assert "$(BUILD_SHA)" not in command
         assert _env(container, "EATBID_PARSER_VERSION")["value"] == (
@@ -500,7 +516,7 @@ def test_discover_단계는_workflow_uid_없이_CLI를_부르지_않는다(
         assert error.value.code == 64
 
 
-@pytest.mark.parametrize("template_name", ["capture", "normalize", "validate", "project"])
+@pytest.mark.parametrize("template_name", SHELL_STAGES)
 def test_shell_단계의_argv는_CLI_parser의_필수_인자를_모두_채운다(
     manifests: ManifestSet, template_name: str
 ) -> None:
@@ -510,7 +526,7 @@ def test_shell_단계의_argv는_CLI_parser의_필수_인자를_모두_채운다
     command = str(_sequence(container["args"])[0])
 
     argv = _render_shell_argv(command, SAMPLE_STAGE_ENV)
-    assert argv[0:2] == ["eatbid", template_name]
+    assert argv[0:2] == ["eatbid", TASK_COMMANDS[template_name]]
     parsed = build_parser().parse_args(argv[1:])
     # 발견 뒤의 모든 단계는 detail run 정체성으로 돈다. 첫 live 실행에서 discovery run으로 발행을
     # 시도해 membership 오류가 났던 것이 근거다.
@@ -533,7 +549,7 @@ def test_shell_단계의_argv는_CLI_parser의_필수_인자를_모두_채운다
         ), name
 
 
-@pytest.mark.parametrize("template_name", ["capture", "normalize", "validate", "project"])
+@pytest.mark.parametrize("template_name", SHELL_STAGES)
 def test_이미지가_굽는_release_commit_40자_BUILD_SHA로도_argv가_통과한다(
     manifests: ManifestSet, template_name: str
 ) -> None:
@@ -578,7 +594,7 @@ def test_DAG는_discover_output으로_capture와_normalize를_fan_out한다(
     assert "withParam" not in tasks["validate"]
     assert "withParam" not in tasks["project"]
 
-    for name in ("capture", "normalize", "validate", "project"):
+    for name in SHELL_STAGES:
         arguments = _task_arguments(tasks[name])
         assert set(arguments) == _input_names(templates[name]), name
         assert arguments["source-release-id"] == (
@@ -589,10 +605,33 @@ def test_DAG는_discover_output으로_capture와_normalize를_fan_out한다(
         )
     assert _task_arguments(tasks["capture"])["external-bid-id"] == "{{item}}"
     assert _task_arguments(tasks["normalize"])["observation-id"] == "{{item}}"
-    for name in ("validate", "project"):
+    for name in ("validate", "project", "marts"):
         assert _task_arguments(tasks[name])["publication-id"] == (
             "{{tasks.discover.outputs.parameters.publication-id}}"
         )
+
+
+def test_replay_DAG는_core를_다시_앉힌_뒤_같은_marts_task를_잇는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: replay가 core를 다시 앉혀도 mart를 다시 만들지 않으면 화면이 옛 build를 계속 읽는다."""
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+    dag = _mapping(templates["replay-pipeline"]["dag"])
+    tasks = {str(_mapping(task)["name"]): _mapping(task) for task in _sequence(dag["tasks"])}
+
+    assert set(tasks) == {"replay", "marts"}
+    assert tasks["replay"].get("dependencies", []) == []
+    assert tasks["marts"]["dependencies"] == ["replay"]
+    assert tasks["marts"]["template"] == "marts"
+    # replay-pipeline이 받는 입력만으로 replay가 완전히 채워져야 ad hoc 실행이 CLI에서 멈추지 않는다.
+    assert _input_names(templates["replay-pipeline"]) == _input_names(templates["replay"])
+    for name, value in _task_arguments(tasks["replay"]).items():
+        assert value == f"{{{{inputs.parameters.{name}}}}}", name
+    marts_arguments = _task_arguments(tasks["marts"])
+    assert set(marts_arguments) == _input_names(templates["marts"])
+    # replay는 discovery 없이 workflow uid 하나로 돈다.
+    assert marts_arguments["detail-run-id"] == "{{workflow.uid}}"
 
 
 def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
@@ -607,6 +646,7 @@ def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
     assert parameters == {
         "mode": "poll-open",
         "parser-version": "eat-v1",
+        "calc-version": "mart-r1",
         "start-date": "",
         "end-date": "",
         "release-name": "",

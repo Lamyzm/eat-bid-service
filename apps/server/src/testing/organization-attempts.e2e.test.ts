@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
 import { organizationV1Operations } from "@eatbid/contracts";
-import { bidRate, canonicalDecimal, krw, Temporal } from "@eatbid/domain";
+import { baseRelativeBidRate, bidRate, canonicalDecimal, krw, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import type {
@@ -19,14 +19,20 @@ const attempt = {
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
   winRate: bidRate(canonicalDecimal("90.309", 3)),
   secondRate: null,
-  dayFloorRate: null,
+  dayFloorRate: baseRelativeBidRate(canonicalDecimal("88.0350", 4)),
   listCount: 17,
-  invalidCount: 2,
+  belowDayFloorCount: 2,
   winnerSupplierPartyId: 9n,
   supersedesAttemptId: null,
-  martRelease: "2026-09-04T00",
+} as const;
+
+const lineage = {
+  buildId: 501n,
+  sourceReleaseId: "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f",
+  calcVersion: "mart-r1",
   computedAt: Temporal.Instant.from("2026-09-04T00:10:00Z"),
-  calcVersion: "v1",
+  coverage: "unknown",
+  regionScheme: "eat:auction-location-sigungu",
 } as const;
 
 const environment = parseEnvironment({
@@ -70,7 +76,12 @@ describe("기관 회차 이력 HTTP 경로", () => {
         observed.push(query);
         return {
           kind: "page",
-          page: { attempts: [attempt], nextCursor: 9_007_199_254_740_993n, sampleCount: 92 },
+          page: {
+            attempts: [attempt],
+            nextCursor: 9_007_199_254_740_993n,
+            sampleCount: 92,
+            lineage,
+          },
         };
       },
     }, async (server) => {
@@ -93,9 +104,9 @@ describe("기관 회차 이력 HTTP 경로", () => {
           baseAmount: { amount: "2761700.00", currency: "KRW" },
           winRate: { value: "90.309", unit: "percentage-points" },
           secondRate: null,
-          dayFloorRate: null,
+          dayFloorRate: { value: "88.0350", unit: "percentage-points" },
           listCount: 17,
-          invalidCount: 2,
+          belowDayFloorCount: 2,
           winnerSupplierPartyId: "9",
           supersedesAttemptId: null,
         }],
@@ -103,9 +114,12 @@ describe("기관 회차 이력 HTTP 경로", () => {
         meta: {
           sampleCount: 92,
           item: null,
-          martRelease: "2026-09-04T00",
+          buildId: "501",
+          sourceReleaseId: "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f",
+          calcVersion: "mart-r1",
           computedAt: "2026-09-04T00:10:00Z",
-          calcVersion: "v1",
+          coverage: "unknown",
+          regionScheme: "eat:auction-location-sigungu",
         },
       });
     });
@@ -117,7 +131,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       exists: async () => true,
       listAttempts: async (query) => {
         observed.push(query);
-        return { kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0 } };
+        return { kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0, lineage: null } };
       },
     }, async (server) => {
       const response = await request(server).get(attemptsPath("42", {
@@ -136,9 +150,12 @@ describe("기관 회차 이력 HTTP 경로", () => {
       expect(response.body.meta).toEqual({
         sampleCount: 0,
         item: "7",
-        martRelease: null,
-        computedAt: null,
+        buildId: null,
+        sourceReleaseId: null,
         calcVersion: null,
+        computedAt: null,
+        coverage: null,
+        regionScheme: null,
       });
     });
   });
@@ -149,7 +166,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       exists: async () => { calls += 1; return true; },
       listAttempts: async () => {
         calls += 1;
-        return { kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0 } };
+        return { kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0, lineage: null } };
       },
     };
     await withServer(reader, async (server) => {
@@ -207,6 +224,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
           attempts: [{ ...attempt, item: { codeValueId: 7n, label: "축".repeat(513) } }],
           nextCursor: null,
           sampleCount: 1,
+          lineage,
         },
       }),
     }, async (server) => {

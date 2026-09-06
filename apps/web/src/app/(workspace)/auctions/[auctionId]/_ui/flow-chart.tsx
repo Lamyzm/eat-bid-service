@@ -18,15 +18,27 @@ import {
 
 const UNKNOWN = '미확인';
 
+// 보유율은 표본을 어디까지 믿어도 되는지를 말한다. 영문 판정값을 그대로 보이면 화면이 계약 어휘를
+// 사용자에게 떠넘긴다.
+const COVERAGE_TEXT: Record<'complete' | 'partial' | 'none' | 'unknown' | 'missing', string> = {
+  complete: '완전',
+  partial: '일부',
+  none: '없음',
+  unknown: '모름',
+  missing: UNKNOWN
+};
+
 // "최근 N회 표시"의 N은 실제로 그린 점 수다. 낙찰률이 없는 회차는 y를 만들 수 없어 점이 없으므로
 // 응답 행 수를 쓰면 차트에 없는 회차까지 그렸다고 말하게 된다.
 function caption(presentation: HistoryPresentation, shown: number): string {
   return [
     `표본 ${presentation.sampleCount}회`,
     `최근 ${shown}회 표시`,
-    `mart ${presentation.martRelease ?? UNKNOWN}`,
+    `build ${presentation.buildId ?? UNKNOWN}`,
     `계산 ${presentation.calcVersion ?? UNKNOWN}`,
-    `산출 ${presentation.computedAtText ?? UNKNOWN}`
+    `산출 ${presentation.computedAtText ?? UNKNOWN}`,
+    // 모집단을 어디까지 덮었는지 모르는 표본이라면 화면이 그 사실을 먼저 말해야 한다(PDR-0003).
+    `모집단 ${COVERAGE_TEXT[presentation.coverage ?? 'missing']}`
   ].join(' · ');
 }
 

@@ -56,7 +56,7 @@ function ListCell({ row }: { readonly row: HistoryRow }) {
   return (
     <>
       {row.listCount}
-      {row.invalidCount === null ? null : <span className='text-[13px] font-medium text-muted-foreground'> 무효 {row.invalidCount}</span>}
+      {row.belowDayFloorCount === null ? null : <span className='text-[13px] font-medium text-muted-foreground'> 하한 미만 {row.belowDayFloorCount}</span>}
     </>
   );
 }

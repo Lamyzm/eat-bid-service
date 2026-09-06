@@ -1,3 +1,4 @@
+/** @module 책임: 분모가 다른 비율들을 서로 섞이지 않는 타입으로 나누고 정확한 scale 변환만 허용한다. */
 import {
   canonicalDecimal,
   MAX_DECIMAL_SCALE,
@@ -7,6 +8,7 @@ import {
 declare const percentagePointsBrand: unique symbol;
 declare const ratioBrand: unique symbol;
 declare const bidRateBrand: unique symbol;
+declare const baseRelativeBidRateBrand: unique symbol;
 declare const floorRateBrand: unique symbol;
 declare const sharePercentBrand: unique symbol;
 
@@ -20,6 +22,15 @@ export type Ratio = CanonicalDecimal & {
 
 export type BidRate = PercentagePoints & {
   readonly [bidRateBrand]: "BidRate";
+};
+
+/**
+ * 투찰률 축이다. 단위는 사정률(`BidRate`)과 같은 percentage-points지만 분모가 예정가격이 아니라
+ * 기초금액이라 같은 축의 값이 아니다. 두 값을 한 타입으로 묶으면 화면이 다른 분모의 수를 나란히
+ * 비교하게 된다(AGENTS 15).
+ */
+export type BaseRelativeBidRate = CanonicalDecimal & {
+  readonly [baseRelativeBidRateBrand]: "BaseRelativeBidRate";
 };
 
 export type FloorRate = PercentagePoints & {
@@ -71,6 +82,14 @@ export function ratio(value: CanonicalDecimal): Ratio {
 export function bidRate(value: CanonicalDecimal): BidRate {
   assertAtMost(value, "100");
   return value as BidRate;
+}
+
+/**
+ * 상한을 두지 않는다. 예정가격이 기초금액보다 크면 이 값이 100을 넘고 그것은 오류가 아니라 관측
+ * 가능한 상태다(AGENTS 3). 정밀도는 호출자가 넘기는 `canonicalDecimal`의 scale이 고정한다.
+ */
+export function baseRelativeBidRate(value: CanonicalDecimal): BaseRelativeBidRate {
+  return value as BaseRelativeBidRate;
 }
 
 export function floorRate(value: CanonicalDecimal): FloorRate {

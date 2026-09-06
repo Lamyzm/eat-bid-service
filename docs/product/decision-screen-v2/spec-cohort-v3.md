@@ -45,7 +45,11 @@
 - 입력: `scope` ∈ {national, province, district, organization}, `regionCode`(행안부) 또는 `organizationId`,
   `itemCode`, `floorRate`, `from`, `to`, `binWidth`(기본 0.01), `compareFrom/compareTo`(선택).
 - 출력: `bins[]{from,to,count}`, `sampleSize`, `median`, `modeRange{from,to,share}`, `period`, `sourceRelease`,
-  `calcVersion`, `computedAt`, `coverage` ∈ {complete, partial, none}.
+  `calcVersion`, `computedAt`, `coverage` ∈ {complete, partial, none, **unknown**}.
+- `unknown`은 그 (지역, 달) 구간을 그 축으로 나눠 수집하지 않아 분모를 낼 수 없다는 뜻이다. `partial`로
+  뭉개면 "일부 수집됨"이라고 거짓말하고 `none`으로 적으면 "공고가 없었다"는 더 나쁜 거짓이 된다
+  ([PDR-0003](../decisions/0003-coverage-unknown.md)). 코호트에 여러 구간이 걸리면 가장 나쁜 값을
+  싣는다: `none` > `unknown` > `partial` > `complete`.
 - 기존 `/api/wins/crowd`(전국·60일 상한)는 이 계약으로 대체한다. 지역별은 `coverage=complete`일 때만 200 본문에 bins를 채운다.
 - 계약은 `packages/contracts`의 operation에서 정의하고 Nest·OpenAPI·Web은 파생한다. (AGENTS 19)
 

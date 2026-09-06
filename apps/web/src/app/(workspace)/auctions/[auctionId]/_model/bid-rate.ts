@@ -13,6 +13,16 @@ export function toMilli(rate: string): bigint {
   return BigInt(whole) * RATE_SCALE + BigInt((fraction + '000').slice(0, 3));
 }
 
+/**
+ * 하한처럼 "이 값 미만이면 안 된다"는 경계는 내림하면 안 된다. 넷째 자리를 버리는 순간 하한 바로
+ * 아래 투찰이 유효로 보이기 때문이다. 손잡이가 셋째 자리이므로 경계를 위로 올리면 판정이 정확해진다.
+ */
+export function toMilliCeiling(rate: string): bigint {
+  const [, fraction = ''] = rate.split('.');
+  const remainder = fraction.slice(3).replace(/0+$/, '');
+  return toMilli(rate) + (remainder === '' ? BigInt(0) : BigInt(1));
+}
+
 function fromMilli(milli: bigint): BidRate {
   const whole = milli / RATE_SCALE;
   const fraction = (milli % RATE_SCALE).toString().padStart(3, '0');

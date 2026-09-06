@@ -29,10 +29,11 @@ describe('과거 회차 표', () => {
     expect(headers).toEqual(['개찰', '품목', '낙찰률', '2등가', '그날 하한', '낙찰 업체', '명단', '90.000 썼다면']);
   });
 
-  test('명단 셀은 참여 수와 무효 수를 함께 보인다', () => {
+  test('명단 셀은 참여 수와 하한 미만 수를 함께 보인다', () => {
+    // 무효 판정은 소스가 한다. 우리가 센 것은 그날 하한 미만으로 들어온 명단 행 수뿐이다(PDR-0002).
     const screen = renderTable('90.000');
     const first = screen.container.querySelectorAll('tbody tr')[0];
-    expect(first.textContent).toContain('91 무효 5');
+    expect(first.textContent).toContain('91 하한 미만 5');
   });
 
   test('그날 하한을 밑도는 값이면 낙찰·놓침이 아니라 무효로 적는다', () => {

@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 from uuid import UUID
 
+from eatbid.mart.build_coverage import fill_build_coverage
 from eatbid.mart.models import MartBuildPlan, MartName, OpenedMartBuild
 from eatbid.mart.repository import MartBuildContractError
 
@@ -123,6 +124,10 @@ class PsycopgMartBuildRepository:
             f"delete from {MART_TABLES[plan.mart_name]} where build_id = %s",
             (build_id,),
         )
+        # 보유율 행도 이 build의 산출물이다. 남겨 두면 재개한 빌드가 같은 grain을 다시 넣다 끊긴다.
+        cursor.execute(
+            "delete from mart.build_coverage where build_id = %s", (build_id,)
+        )
         if status == "building":
             return OpenedMartBuild(build_id=build_id, status="building", row_count=None)
         # 실패한 build는 `failed → building` 전이가 없으므로 행과 함께 지우고 새로 연다.
@@ -134,6 +139,9 @@ class PsycopgMartBuildRepository:
         if builder is None:
             raise MartBuildContractError(f"mart has no builder [mart={plan.mart_name}]")
         row_count = builder(self._connection, plan=plan, build_id=build_id)
+        # 보유율은 같은 build의 사실이므로 같은 트랜잭션에서 쓴다. 지표만 발표되고 그 지표를
+        # 어디까지 믿어도 되는지가 빠지면 화면이 모르는 것을 아는 척한다(AGENTS 3).
+        fill_build_coverage(self._connection, plan=plan, build_id=build_id)
         self._connection.commit()
         return row_count
 

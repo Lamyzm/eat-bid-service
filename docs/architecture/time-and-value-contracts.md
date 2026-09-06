@@ -161,30 +161,35 @@ apps/dataplane/src/eatbid/generated/
 | `PercentagePoints` | `90.125000` | 100을 기준으로 한 표시 단위 |
 | `Ratio` | `0.901250` | 1을 기준으로 한 계산 단위 |
 | `FloorRate` | `88.745000` | source가 제공한 낙찰하한 퍼센트포인트 |
-| `BidRate` | `90.123000` | source가 관측한 투찰 퍼센트포인트 |
+| `BidRate` | `90.123000` | source가 관측한 사정률 퍼센트포인트(분모: 예정가격) |
+| `BaseRelativeBidRate` | `88.0350` | 기초금액을 분모로 옮긴 투찰률 퍼센트포인트 |
 | `SharePercent` | `42.500000` | 0..100 점유율 |
 
 `BidRate`와 `FloorRate`는 같은 표현이라도 서로 다른 업무 사실이다. `PercentagePoints ↔ Ratio`
 변환은 명명한 함수만 허용한다. source 범위 밖 값은 raw에서 삭제하지 않고 validation/quarantine 상태로
 남긴다. `double precision`은 canonical rate DDL에 사용하지 않는다.
 
-#### wire 비율 계약 다섯이 나뉘어 있는 이유
+#### wire 비율 계약 여섯이 나뉘어 있는 이유
 
-`packages/contracts/src/values/rate.ts`의 다섯은 표현이 겹쳐도 범위와 소비자가 다르다. 하나로
+`packages/contracts/src/values/rate.ts`의 여섯은 표현이 겹쳐도 범위와 소비자가 다르다. 하나로
 합치면 좁은 계약이 넓은 관측을 격리하거나, 넓은 계약이 공개 응답의 범위 보장을 잃는다.
 
 | wire 계약 | 정밀도·범위 | 지금 쓰는 곳 | 왜 따로 두나 |
 |---|---|---|---|
 | `PercentagePoints` | 소수 6자리, 0~100 | 공개 API 응답의 일반 비율 | 표시 단위의 기본형 |
 | `Ratio` | 소수 6자리, 0~1 | 아직 자원 필드 소비자가 없다. 경계 테스트만 고정한다 | `PercentagePoints`의 계산 단위 짝. 0~1로 닫힌 계약이 필요할 때 새로 만들지 않게 자리를 지킨다 |
-| `BidRate` | 소수 3자리, 0~100 | ingestion v2 `terms.floorRate`, api/v1 회차 응답의 낙찰률·2등·그날 하한 | mart `numeric(6,3)`과 같은 정밀도. 하한율과 공개 낙찰률은 정의상 100을 넘지 않는다 |
+| `BidRate` | 소수 3자리, 0~100 | ingestion v2 `terms.floorRate`, api/v1 회차 응답의 하한율·낙찰률·2등 | mart `numeric(6,3)`과 같은 정밀도. 하한율과 공개 낙찰률은 정의상 100을 넘지 않는다 |
+| `BaseRelativeBidRate` | 소수 4자리, 정수부 최대 5자리 | api/v1 회차 응답의 그날 하한 | **분모가 다르다.** 사정률의 분모는 예정가격이고 이 값의 분모는 기초금액이다. mart `numeric(9,4)`와 같은 정밀도이며 셋째 자리에서 끊으면 예정가격이 기초금액에 가까운 회차들의 하한이 같은 값으로 뭉개진다 |
 | `ObservedBidRate` | 소수 3자리, 정수부 최대 12자리, **상한 없음** | ingestion v2 `submission.bidRate`, `award.awardedRate`, `award.runnerUpRate` | `SAJEONG_PCT`는 예정가격 대비 소스 계산값이라 100을 넘고 단가 입찰에서는 훨씬 크게 튄다. 상한을 두면 관측을 격리하게 된다(규칙 3) |
 | `ReservePriceRatio` | 소수 6자리, 0~9.999999 | ingestion v2 `reservePriceDraw` 후보의 `ratio` | `CMNM_PLNPRC_RT`는 0~1 비율이 아니라 기초금액 대비 배율이라 1을 넘는 관측이 있다 |
 
 `ObservedBidRate`의 **DB 표현은 `numeric(15,3)`이다**(`core`와 `mart` 모두). `numeric(6,3)`에 들어가지
 않으므로 [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §2가 정했고
 `core.bid_submission.bid_rate`·`core.award_decision.awarded_rate`·`runner_up_rate`가 그 열이다.
-공개 API가 계속 `BidRate`인 이유는 낙찰 행의 사정률이 100을 넘는 공고가
+파생된 투찰률 축(`mart.org_round_summary.day_floor_bid_rate`·`awarded_bid_rate`)은 `numeric(9,4)`이고
+금액 축의 `day_floor_amount numeric(18,2)`가 레일 비교의 권위다. 비율 열은 표시용이다.
+
+공개 API가 사정률에 계속 `BidRate`를 쓰는 이유는 낙찰 행의 사정률이 100을 넘는 공고가
 전수에서 0건이기 때문이며, 그 관측 근거는
 [2026-09-04 전수 재정규화 리포트](../evidence/normalization/2026-09-04-eat-v2-renormalization.md)
 (계산 버전 `eat-v2-r3`)다.

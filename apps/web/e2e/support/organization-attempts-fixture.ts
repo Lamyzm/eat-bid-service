@@ -18,9 +18,13 @@ const NAMSAN_ATTEMPTS = (namsanAttemptsFixture as { readonly attempts: readonly 
 // 예시 값이다(창원 남산초 실제 표본 수와는 무관하다).
 const META = {
   sampleCount: 92,
-  martRelease: '2026-09-04T00',
+  buildId: '501',
+  sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
+  calcVersion: 'mart-r1',
   computedAt: '2026-09-04T00:10:00Z',
-  calcVersion: 'v1'
+  // 지금 수집 구간에는 시도 축이 없어 모집단 보유율을 그 grain으로 낼 수 없다(PDR-0003).
+  coverage: 'unknown',
+  regionScheme: 'eat:auction-location-sigungu'
 } as const;
 
 function organizationProblemResponse(status: 400 | 404, code: string, title: string): Response {

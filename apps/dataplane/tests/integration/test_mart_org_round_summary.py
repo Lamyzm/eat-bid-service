@@ -35,9 +35,9 @@ SUMMARY_COLUMNS = (
 )
 
 
-def _publish_and_project(services: PipelineServices) -> str:
+def _publish_and_project(services: PipelineServices, body: bytes | None = None) -> str:
     publication_id, external_bid_id = publish_v2_observation(
-        services, ROSTER_FIXTURE.read_bytes()
+        services, ROSTER_FIXTURE.read_bytes() if body is None else body
     )
     project_publication(
         publication_id=publication_id,
@@ -134,6 +134,32 @@ def test_그날_하한_금액은_내림하고_레일_비교의_권위를_금액_
     # 90% × 6,762,461 = 6,086,214.9다. 올림하면 이 금액에 딱 맞춘 투찰이 하한 미만이 된다.
     assert row[6] == Decimal("6086214.90")
     # 같은 사실을 투찰률 축으로 옮기면 조사 자료(`namsan.json` 5669410)의 실효하한 88.035와 같다.
+    assert row[7] == Decimal("88.0350")
+
+
+def test_하한_미만_수는_합성_명단에서_손으로_셀_수_있다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """왜 합성인가: 원본 회차(5669410)는 하한 미만이 0이라 그 축의 계산을 고정하지 못한다.
+
+    명단 두 행만 하한율 아래로 내린 관측을 만들어 CI에서도 세는 규칙을 고정한다. 실제 12회차
+    대조는 레이크가 있는 기계에서 `test_lake_marts.py`가 한다.
+    """
+    lowered = (
+        ROSTER_FIXTURE.read_bytes()
+        .replace(b'<Col id="SAJEONG_PCT">90.512</Col>', b'<Col id="SAJEONG_PCT">89.512</Col>')
+        .replace(b'<Col id="SAJEONG_PCT">90.567</Col>', b'<Col id="SAJEONG_PCT">89.567</Col>')
+    )
+    external_bid_id = _publish_and_project(pipeline_services, lowered)
+    plan = mart_plan(create_source_release(pipeline_services))
+
+    build_id, _ = build_mart(pipeline_services, plan, fill_org_round_summary)
+
+    (row,) = _rows_for(pipeline_services, build_id, external_bid_id)
+    assert row[9] == 7
+    # 89.512와 89.567 둘만 하한율 90.000 아래다. 나눗셈이 없어 반올림이 개입하지 않는다.
+    assert row[10] == 2
+    # 하한 미만이 생겨도 그날 하한 자체는 예정가격과 하한율만으로 정해진다.
     assert row[7] == Decimal("88.0350")
 
 

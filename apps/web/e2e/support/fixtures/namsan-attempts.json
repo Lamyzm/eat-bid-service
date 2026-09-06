@@ -26,11 +26,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.994",
+        "value": "89.9940",
         "unit": "percentage-points"
       },
       "listCount": 86,
-      "invalidCount": 42,
+      "belowDayFloorCount": 42,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -59,11 +59,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.869",
+        "value": "89.8690",
         "unit": "percentage-points"
       },
       "listCount": 45,
-      "invalidCount": 43,
+      "belowDayFloorCount": 43,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -92,11 +92,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.997",
+        "value": "89.9970",
         "unit": "percentage-points"
       },
       "listCount": 78,
-      "invalidCount": 52,
+      "belowDayFloorCount": 52,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -125,11 +125,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.966",
+        "value": "89.9660",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 14,
+      "belowDayFloorCount": 14,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -158,11 +158,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.961",
+        "value": "89.9610",
         "unit": "percentage-points"
       },
       "listCount": 56,
-      "invalidCount": 49,
+      "belowDayFloorCount": 49,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -191,11 +191,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.934",
+        "value": "89.9340",
         "unit": "percentage-points"
       },
       "listCount": 87,
-      "invalidCount": 8,
+      "belowDayFloorCount": 8,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -224,11 +224,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.935",
+        "value": "89.9350",
         "unit": "percentage-points"
       },
       "listCount": 65,
-      "invalidCount": 60,
+      "belowDayFloorCount": 60,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -257,11 +257,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.945",
+        "value": "89.9450",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 27,
+      "belowDayFloorCount": 27,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -290,11 +290,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.991",
+        "value": "89.9910",
         "unit": "percentage-points"
       },
       "listCount": 84,
-      "invalidCount": 66,
+      "belowDayFloorCount": 66,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -323,11 +323,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.963",
+        "value": "89.9630",
         "unit": "percentage-points"
       },
       "listCount": 81,
-      "invalidCount": 67,
+      "belowDayFloorCount": 67,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -356,11 +356,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.991",
+        "value": "89.9910",
         "unit": "percentage-points"
       },
       "listCount": 91,
-      "invalidCount": 46,
+      "belowDayFloorCount": 46,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -390,7 +390,7 @@
       },
       "dayFloorRate": null,
       "listCount": 85,
-      "invalidCount": 0,
+      "belowDayFloorCount": 0,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -419,11 +419,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.974",
+        "value": "89.9740",
         "unit": "percentage-points"
       },
       "listCount": 86,
-      "invalidCount": 42,
+      "belowDayFloorCount": 42,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -452,11 +452,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.879",
+        "value": "89.8790",
         "unit": "percentage-points"
       },
       "listCount": 45,
-      "invalidCount": 43,
+      "belowDayFloorCount": 43,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -485,11 +485,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.987",
+        "value": "89.9870",
         "unit": "percentage-points"
       },
       "listCount": 78,
-      "invalidCount": 52,
+      "belowDayFloorCount": 52,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -518,11 +518,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.986",
+        "value": "89.9860",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 14,
+      "belowDayFloorCount": 14,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -551,11 +551,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.961",
+        "value": "89.9610",
         "unit": "percentage-points"
       },
       "listCount": 56,
-      "invalidCount": 49,
+      "belowDayFloorCount": 49,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -584,11 +584,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.914",
+        "value": "89.9140",
         "unit": "percentage-points"
       },
       "listCount": 87,
-      "invalidCount": 8,
+      "belowDayFloorCount": 8,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -617,11 +617,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.945",
+        "value": "89.9450",
         "unit": "percentage-points"
       },
       "listCount": 65,
-      "invalidCount": 60,
+      "belowDayFloorCount": 60,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -650,11 +650,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.935",
+        "value": "89.9350",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 27,
+      "belowDayFloorCount": 27,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -683,11 +683,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "90.011",
+        "value": "90.0110",
         "unit": "percentage-points"
       },
       "listCount": 84,
-      "invalidCount": 66,
+      "belowDayFloorCount": 66,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -716,11 +716,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.963",
+        "value": "89.9630",
         "unit": "percentage-points"
       },
       "listCount": 81,
-      "invalidCount": 67,
+      "belowDayFloorCount": 67,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -749,11 +749,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.971",
+        "value": "89.9710",
         "unit": "percentage-points"
       },
       "listCount": 91,
-      "invalidCount": 46,
+      "belowDayFloorCount": 46,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -783,7 +783,7 @@
       },
       "dayFloorRate": null,
       "listCount": 85,
-      "invalidCount": 0,
+      "belowDayFloorCount": 0,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -812,11 +812,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "90.004",
+        "value": "90.0040",
         "unit": "percentage-points"
       },
       "listCount": 86,
-      "invalidCount": 42,
+      "belowDayFloorCount": 42,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -845,11 +845,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.859",
+        "value": "89.8590",
         "unit": "percentage-points"
       },
       "listCount": 45,
-      "invalidCount": 43,
+      "belowDayFloorCount": 43,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -878,11 +878,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "90.017",
+        "value": "90.0170",
         "unit": "percentage-points"
       },
       "listCount": 78,
-      "invalidCount": 52,
+      "belowDayFloorCount": 52,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -911,11 +911,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.966",
+        "value": "89.9660",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 14,
+      "belowDayFloorCount": 14,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -944,11 +944,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.941",
+        "value": "89.9410",
         "unit": "percentage-points"
       },
       "listCount": 56,
-      "invalidCount": 49,
+      "belowDayFloorCount": 49,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -977,11 +977,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.944",
+        "value": "89.9440",
         "unit": "percentage-points"
       },
       "listCount": 87,
-      "invalidCount": 8,
+      "belowDayFloorCount": 8,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1010,11 +1010,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.925",
+        "value": "89.9250",
         "unit": "percentage-points"
       },
       "listCount": 65,
-      "invalidCount": 60,
+      "belowDayFloorCount": 60,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1043,11 +1043,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.965",
+        "value": "89.9650",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 27,
+      "belowDayFloorCount": 27,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1076,11 +1076,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.991",
+        "value": "89.9910",
         "unit": "percentage-points"
       },
       "listCount": 84,
-      "invalidCount": 66,
+      "belowDayFloorCount": 66,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1109,11 +1109,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.943",
+        "value": "89.9430",
         "unit": "percentage-points"
       },
       "listCount": 81,
-      "invalidCount": 67,
+      "belowDayFloorCount": 67,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1142,11 +1142,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "90.001",
+        "value": "90.0010",
         "unit": "percentage-points"
       },
       "listCount": 91,
-      "invalidCount": 46,
+      "belowDayFloorCount": 46,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1176,7 +1176,7 @@
       },
       "dayFloorRate": null,
       "listCount": 85,
-      "invalidCount": 0,
+      "belowDayFloorCount": 0,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1205,11 +1205,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.984",
+        "value": "89.9840",
         "unit": "percentage-points"
       },
       "listCount": 86,
-      "invalidCount": 42,
+      "belowDayFloorCount": 42,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1238,11 +1238,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.889",
+        "value": "89.8890",
         "unit": "percentage-points"
       },
       "listCount": 45,
-      "invalidCount": 43,
+      "belowDayFloorCount": 43,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1271,11 +1271,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.997",
+        "value": "89.9970",
         "unit": "percentage-points"
       },
       "listCount": 78,
-      "invalidCount": 52,
+      "belowDayFloorCount": 52,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1304,11 +1304,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.946",
+        "value": "89.9460",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 14,
+      "belowDayFloorCount": 14,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1337,11 +1337,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.971",
+        "value": "89.9710",
         "unit": "percentage-points"
       },
       "listCount": 56,
-      "invalidCount": 49,
+      "belowDayFloorCount": 49,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1370,11 +1370,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.924",
+        "value": "89.9240",
         "unit": "percentage-points"
       },
       "listCount": 87,
-      "invalidCount": 8,
+      "belowDayFloorCount": 8,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1403,11 +1403,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.955",
+        "value": "89.9550",
         "unit": "percentage-points"
       },
       "listCount": 65,
-      "invalidCount": 60,
+      "belowDayFloorCount": 60,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1436,11 +1436,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.945",
+        "value": "89.9450",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 27,
+      "belowDayFloorCount": 27,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1469,11 +1469,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.971",
+        "value": "89.9710",
         "unit": "percentage-points"
       },
       "listCount": 84,
-      "invalidCount": 66,
+      "belowDayFloorCount": 66,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1502,11 +1502,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.973",
+        "value": "89.9730",
         "unit": "percentage-points"
       },
       "listCount": 81,
-      "invalidCount": 67,
+      "belowDayFloorCount": 67,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1535,11 +1535,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.981",
+        "value": "89.9810",
         "unit": "percentage-points"
       },
       "listCount": 91,
-      "invalidCount": 46,
+      "belowDayFloorCount": 46,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1569,7 +1569,7 @@
       },
       "dayFloorRate": null,
       "listCount": 85,
-      "invalidCount": 0,
+      "belowDayFloorCount": 0,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1598,11 +1598,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "90.014",
+        "value": "90.0140",
         "unit": "percentage-points"
       },
       "listCount": 86,
-      "invalidCount": 42,
+      "belowDayFloorCount": 42,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1631,11 +1631,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.869",
+        "value": "89.8690",
         "unit": "percentage-points"
       },
       "listCount": 45,
-      "invalidCount": 43,
+      "belowDayFloorCount": 43,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1664,11 +1664,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.977",
+        "value": "89.9770",
         "unit": "percentage-points"
       },
       "listCount": 78,
-      "invalidCount": 52,
+      "belowDayFloorCount": 52,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1697,11 +1697,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.976",
+        "value": "89.9760",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 14,
+      "belowDayFloorCount": 14,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1730,11 +1730,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.951",
+        "value": "89.9510",
         "unit": "percentage-points"
       },
       "listCount": 56,
-      "invalidCount": 49,
+      "belowDayFloorCount": 49,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1763,11 +1763,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.954",
+        "value": "89.9540",
         "unit": "percentage-points"
       },
       "listCount": 87,
-      "invalidCount": 8,
+      "belowDayFloorCount": 8,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1796,11 +1796,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.935",
+        "value": "89.9350",
         "unit": "percentage-points"
       },
       "listCount": 65,
-      "invalidCount": 60,
+      "belowDayFloorCount": 60,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1829,11 +1829,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.925",
+        "value": "89.9250",
         "unit": "percentage-points"
       },
       "listCount": 88,
-      "invalidCount": 27,
+      "belowDayFloorCount": 27,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1862,11 +1862,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "90.001",
+        "value": "90.0010",
         "unit": "percentage-points"
       },
       "listCount": 84,
-      "invalidCount": 66,
+      "belowDayFloorCount": 66,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1895,11 +1895,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "89.953",
+        "value": "89.9530",
         "unit": "percentage-points"
       },
       "listCount": 81,
-      "invalidCount": 67,
+      "belowDayFloorCount": 67,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1928,11 +1928,11 @@
         "unit": "percentage-points"
       },
       "dayFloorRate": {
-        "value": "90.011",
+        "value": "90.0110",
         "unit": "percentage-points"
       },
       "listCount": 91,
-      "invalidCount": 46,
+      "belowDayFloorCount": 46,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     },
@@ -1962,7 +1962,7 @@
       },
       "dayFloorRate": null,
       "listCount": 85,
-      "invalidCount": 0,
+      "belowDayFloorCount": 0,
       "winnerSupplierPartyId": null,
       "supersedesAttemptId": null
     }

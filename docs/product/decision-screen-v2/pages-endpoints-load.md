@@ -7,16 +7,20 @@
   ≈ 3 req/s, 결정 화면은 사용자당 하루 열람 공고 20건).
 - 상태 소유와 렌더 방식은 ADR 0031(Accepted)을 따른다. 필터는 URL(nuqs), 첫 화면은 RSC, 사용자
   행위 갱신만 TanStack Query.
-- 모든 집계 응답은 `meta { sampleCount, 코호트, 기간, martRelease, computedAt, calcVersion }`을
-  가진다(AGENTS 7항). 이 문서에서는 반복하지 않는다. 코호트와 기간의 필드 이름은 그 엔드포인트가
-  실제로 받는 필터를 따른다. 예로 `listOrganizationAuctionAttempts`의 코호트는 `meta.item`이고
-  기간은 달력 구간이 아니라 최근 `limit`회 창이다.
+- 모든 집계 응답은 `meta { sampleCount, 코호트, 기간, buildId, sourceReleaseId, calcVersion,
+  computedAt, coverage, regionScheme }`을 가진다(AGENTS 7항). 이 문서에서는 반복하지 않는다.
+  코호트와 기간의 필드 이름은 그 엔드포인트가 실제로 받는 필터를 따른다. 예로
+  `listOrganizationAuctionAttempts`의 코호트는 `meta.item`이고 기간은 달력 구간이 아니라 최근
+  `limit`회 창이다. 계보는 행이 아니라 `mart.build` 한 행이 갖는다(ADR 0034) — `martRelease`라는
+  자유 문자열은 삭제됐다. 활성 build가 아직 없으면 계보 필드가 모두 null이며 그것은 오류가 아니다.
+  `coverage`는 그 코호트에 걸린 `mart.build_coverage` 행 가운데 가장 나쁜 값이다
+  (`none` > `unknown` > `partial` > `complete`, PDR-0003).
 
 ## 공통 결정
 
 | 항목 | 결정 | 이유 |
 | -- | -- | -- |
-| 캐시 키 | 응답 헤더 `ETag = martRelease + 요청 파라미터 해시`, web은 `use cache` + `cacheTag('mart:<release>')` | 같은 mart release면 DB를 다시 읽지 않는다. release 전환 시 태그 하나로 무효화. **web `use cache`·`cacheTag` 적용은 EAT-45로 분리했다**(ADR 0028 무효화 owner 미결). EAT-37은 캐시 없이 매 요청 조회한다 |
+| 캐시 키 | 응답 헤더 `ETag = buildId + 요청 파라미터 해시`, web은 `use cache` + `cacheTag('mart:<buildId>')` | 같은 build면 DB를 다시 읽지 않는다. 활성 build 전환 시 태그 하나로 무효화. **web `use cache`·`cacheTag` 적용은 EAT-45로 분리했다**(ADR 0028 무효화 owner 미결). EAT-37은 캐시 없이 매 요청 조회한다 |
 | 페이지네이션 | cursor(정수 ID 기반) + `limit ≤ 200` | offset은 대형 표에서 비선형. 문자열 키 금지(규칙 2) |
 | ID wire | bigint는 decimal string (ADR 0018) | JS number 손실 방지 |
 | 에러 | Problem Details 400/404/409/500/503 | 기존 `findAuction`과 동일 |
@@ -30,8 +34,8 @@
 | -- | -- | -- | -- | -- | -- | -- |
 | 헤더(기관·품목·하한율·정정 차수) + 상태 배너(기초·마감·개찰·공고 시각) | `findAuction` GET `/api/v1/auctions/{auctionId}` (있음, 확장) | path id | organization{id,name,type,region}, items[], floorRate, baseAmount, schedule, revision{no,supersedes} | `core.auction_revision` PK 1행 + 코드 조인 | 1,000명 × 20건/일 ≈ 0.3 req/s. PK 조회, 무시 가능 | RSC. 캐시 태그 `auction:<id>`; 정정 공고 ingest publish 때만 무효화 |
 | 배너 참여 수 추이(마감 전 BID_CNT) | `findAuctionParticipation` GET `/api/v1/auctions/{auctionId}/participation` | path id | points[{observedAt, bidCount}] ≤ 96점(15분 폴링 × 24h) | `mart.open_auction_snapshot` 공고별 ≤ 96행 | 열린 공고만. 0.3 req/s. 인덱스 (auction_id, observed_at) | RSC. 태그 `auction:<id>`; poll-open 실행마다 무효화. 닫힌 공고는 마지막 스냅샷만 |
-| 호가창(낙찰률 분포 ladder) | `findWinRateDistribution` GET `/api/v1/win-rate-distribution` | query: scope(nation/sido/sigungu/org), regionCode?, itemCode, floorRate, period(1m/3m/12m/60m), center?(선택, 기본 최빈) | bins[{rate(0.01 단위), count, isMode}] ≤ 25단(중심 ±12), sampleCount, modeRate, unknownCount | `mart.win_rate_distribution_monthly` (scope, region, item, floor, month, bin) → 기간 합산. 12m: 12월 × 80칸 = 960행, 60m: 4,800행 | 요청당 ≤ 4,800행 인덱스 range scan ≈ 2–5 ms. 키 조합 실측 상한 96k, 실제 활성 조합 수천. mart release당 1회만 DB 도달 | RSC → inline HTML ladder(ADR 0031-3). 필터는 URL. 태그 `mart:<release>`. **결정:** 60m처럼 큰 기간도 mart에 rolling window 열을 두지 않고 월 합산으로 간다. 4,800행 range scan은 캐시 뒤에서 충분하며 mart 테이블을 두 벌 유지하는 비용이 더 크다 |
-| 흐름(회차별 낙찰률 선) + 과거 회차 표 | `listOrganizationAuctionAttempts` GET `/api/v1/organizations/{organizationId}/auction-attempts` | path org id; query: `item?`(품목 codeValueId), `cursor?`, `limit`(기본 12, ≤ 200) | attempts[{attemptId, announcedAt, openedAt, item{codeValueId,label}, floorRate, baseAmount, winRate, secondRate, dayFloorRate, listCount, invalidCount, winnerSupplierPartyId, supersedesAttemptId}], nextCursor, meta{sampleCount, item, martRelease, computedAt, calcVersion} | `mart.org_round_summary` (org_id, announced_at desc) 인덱스, 기관당 5년 ≤ 200행 | 0.3 req/s × 12행. 무시 가능. 흐름은 첫 페이지를 한 번에 받아 같은 응답으로 표와 차트를 그린다(요청 2개 금지) | RSC → 흐름 inline SVG, 표 TanStack Table headless. 페이지 cursor는 URL. 태그 `org:<id>` + `mart:<release>` |
+| 호가창(낙찰률 분포 ladder) | `findWinRateDistribution` GET `/api/v1/win-rate-distribution` | query: scope(nation/sido/sigungu/org), regionCode?, itemCode, floorRate, period(1m/3m/12m/60m), center?(선택, 기본 최빈) | bins[{rate(0.01 단위), count, isMode}] ≤ 25단(중심 ±12), sampleCount, modeRate, unknownCount | `mart.win_rate_distribution_monthly` (scope, region, item, floor, month, bin) → 기간 합산. 12m: 12월 × 80칸 = 960행, 60m: 4,800행 | 요청당 ≤ 4,800행 인덱스 range scan ≈ 2–5 ms. 키 조합 실측 상한 96k, 실제 활성 조합 수천. 활성 build당 1회만 DB 도달 | RSC → inline HTML ladder(ADR 0031-3). 필터는 URL. 태그 `mart:<buildId>`. **결정:** 60m처럼 큰 기간도 mart에 rolling window 열을 두지 않고 월 합산으로 간다. 4,800행 range scan은 캐시 뒤에서 충분하며 mart 테이블을 두 벌 유지하는 비용이 더 크다 |
+| 흐름(회차별 낙찰률 선) + 과거 회차 표 | `listOrganizationAuctionAttempts` GET `/api/v1/organizations/{organizationId}/auction-attempts` | path org id; query: `item?`(품목 codeValueId), `cursor?`, `limit`(기본 12, ≤ 200) | attempts[{attemptId, announcedAt, openedAt, item{codeValueId,label}, floorRate, baseAmount, winRate, secondRate, dayFloorRate(투찰률 축 4자리), listCount, belowDayFloorCount, winnerSupplierPartyId, supersedesAttemptId}], nextCursor, meta{sampleCount, item, buildId, sourceReleaseId, calcVersion, computedAt, coverage, regionScheme} | `mart.org_round_summary` (org_id, announced_at desc) 인덱스, 기관당 5년 ≤ 200행 | 0.3 req/s × 12행. 무시 가능. 흐름은 첫 페이지를 한 번에 받아 같은 응답으로 표와 차트를 그린다(요청 2개 금지) | RSC → 흐름 inline SVG, 표 TanStack Table headless. 페이지 cursor는 URL. 태그 `org:<id>` + `mart:<buildId>` |
 | 투찰 레일(스텝·금액) | 없음 | — | — | — | — | client. 금액 계산은 `_model/bid-rate.ts` BigInt. 서버 왕복 없음 |
 | 레일 "이 값이면"(지난 N회 낙찰됐을·무효였을 회차, 보통 참여 수) | 없음 (**결정:** 별도 엔드포인트 만들지 않음) | — | — | 위 `auction-attempts` 응답 ≤ 200행을 브라우저에서 비교 | 스텝마다 서버를 부르면 사용자당 수백 req. 클라이언트 계산으로 0 | client 순수 함수 `_model/rehearsal.ts`(입력: 투찰률, attempts[]). 200행 비교 < 1 ms |
 | 내 기록 (rail 하단 + 과거 회차 "내 기록" 열) | `listBidWorkItems` GET `/api/v1/workspaces/{workspaceId}/bid-work-items?auctionId=` / `putBidWorkItem` PUT `/api/v1/workspaces/{workspaceId}/bid-work-items/{attemptId}` | body {rateMilli, amountCents, note?}; recordedAt은 서버 시각 | item{attemptId, rateMilli, amount, recordedAt, updatedAt} | `app.bid_work_item` PK (workspace_id, attempt_id) upsert | 쓰기 사용자당 하루 ≤ 20. 읽기는 결정 화면 로드마다 1 PK | client TanStack Query(mutation + invalidate). 권위는 `app`. 낙관적 갱신 허용, 실패 시 되돌림. 로컬 임시 상태는 저장 성공 전까지만 |
@@ -79,7 +83,7 @@
 
 | 컴포넌트 | 엔드포인트 | 요청 | 응답 핵심 | 저장소·행 | 부하 (피크) | 렌더·상태 |
 | -- | -- | -- | -- | -- | -- | -- |
-| 월별 투찰·낙찰·무효·2등 차이 | `findSupplierRecord` GET `/api/v1/workspaces/{workspaceId}/suppliers/{supplierPartyId}/record` | query: period(12m/60m) | months[{month, bids, wins, invalids, avgGapToSecondMilli}], totals, sampleCount | `mart.supplier_monthly_record` (supplier_party_id, month) ≤ 60행 | 사용자당 하루 1–2회. 무시 가능 | RSC → inline SVG 막대. 태그 `supplier:<id>` + `mart:<release>`. **워크스페이스가 등록한 사업자만** 빌드·조회 가능(권한 검사 server) |
+| 월별 투찰·낙찰·무효·2등 차이 | `findSupplierRecord` GET `/api/v1/workspaces/{workspaceId}/suppliers/{supplierPartyId}/record` | query: period(12m/60m) | months[{month, bids, wins, invalids, avgGapToSecondMilli}], totals, sampleCount | `mart.supplier_monthly_record` (supplier_party_id, month) ≤ 60행 | 사용자당 하루 1–2회. 무시 가능 | RSC → inline SVG 막대. 태그 `supplier:<id>` + `mart:<buildId>`. **워크스페이스가 등록한 사업자만** 빌드·조회 가능(권한 검사 server) |
 | 회차별 결과 목록 | `listSupplierAttempts` GET `…/suppliers/{supplierPartyId}/attempts` | query: cursor?, limit ≤ 100 | attempts[{attemptId, organization, openedAt, myRateMilli, winRate, rank, status}] | `core.bid_submission` (supplier_party_id, opened_at) 인덱스 ≤ 수천 행, 페이지 100 | 0.05 req/s | RSC → TanStack Table, cursor URL |
 
 ## 5. 부하 총괄과 병목 후보

@@ -9,8 +9,13 @@ import type {
 } from "../../application/organization-attempt-reader";
 import type { OrganizationId } from "../../domain/organization-id";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
-import { activeMartBuildId } from "./drizzle-mart-build-reader";
-import { bidRateValue, bigintValue, moneyValue } from "./postgres-row-values";
+import { activeMartBuildId, readActiveMartBuildLineage } from "./drizzle-mart-build-reader";
+import {
+  baseRelativeBidRateValue,
+  bidRateValue,
+  bigintValue,
+  moneyValue,
+} from "./postgres-row-values";
 
 const ORG_ROUND_SUMMARY = "org_round_summary";
 
@@ -28,12 +33,11 @@ type OrganizationAttemptRow = Readonly<{
   currency: string;
   awarded_assessment_rate: string | null;
   runner_up_assessment_rate: string | null;
+  day_floor_bid_rate: string | null;
   list_count: number | null;
+  below_day_floor_count: number | null;
   winner_supplier_party_id: string | bigint | null;
   supersedes_attempt_id: string | bigint | null;
-  build_id: string | bigint;
-  computed_at: PostgresTimestamp;
-  calc_version: string;
 }>;
 
 function requiredInstant(value: PostgresTimestamp, label: string): Temporal.Instant {
@@ -57,24 +61,18 @@ export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptR
     // 사정률 축(분모가 예정가격)의 관측값이다. V1 계약의 이름이 아직 축을 담지 못해 그대로 싣는다.
     winRate: bidRateValue(row.awarded_assessment_rate),
     secondRate: bidRateValue(row.runner_up_assessment_rate),
-    // 그날 하한은 이제 금액 축(`day_floor_amount`)이 권위이고 비율은 소수 넷째 자리 투찰률 축이다.
-    // V1 `BidRate` wire 계약은 소수 셋째 자리 고정이라 그 값을 손실 없이 담지 못하므로, 계약이
-    // 두 축을 갖게 되기 전까지 이 자리를 반올림한 값으로 채우지 않는다.
-    dayFloorRate: null,
+    // 그날 하한만 축이 다르다. 금액 축(`day_floor_amount`)이 소스 규칙의 권위이고 이 비율은
+    // 기초금액 분모의 표시용 파생값이라 넷째 자리까지 그대로 옮긴다(설계 §1.3).
+    dayFloorRate: baseRelativeBidRateValue(row.day_floor_bid_rate),
     listCount: row.list_count,
-    // 유효·무효 판정은 우리가 하지 않는다. 하한 미만 수는 새 계약이 생길 때 자기 이름으로 나간다.
-    invalidCount: null,
+    // 유효·무효 판정은 우리가 하지 않는다. 우리가 센 것은 그날 하한 미만 명단 행 수뿐이다(PDR-0002).
+    belowDayFloorCount: row.below_day_floor_count,
     winnerSupplierPartyId: row.winner_supplier_party_id === null
       ? null
       : bigintValue(row.winner_supplier_party_id),
     supersedesAttemptId: row.supersedes_attempt_id === null
       ? null
       : bigintValue(row.supersedes_attempt_id),
-    // 계보는 행이 아니라 build가 갖는다. V1 meta가 아직 `buildId`를 모르므로 build 식별자를 문자열로
-    // 싣고, 이름을 바꾸는 것은 응답 계약을 함께 움직이는 변경의 몫이다(ADR 0034).
-    martRelease: bigintValue(row.build_id).toString(10),
-    computedAt: requiredInstant(row.computed_at, "computed"),
-    calcVersion: row.calc_version,
   };
 }
 
@@ -94,7 +92,11 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     if (query.cursor !== null && !(await this.hasCursorAnchor(query.organizationId, query.cursor))) {
       return { kind: "cursor-not-found", cursor: query.cursor };
     }
-    const [rows, sampleCount] = await Promise.all([this.pageRows(query), this.countAttempts(query)]);
+    const [rows, sampleCount, lineage] = await Promise.all([
+      this.pageRows(query),
+      this.countAttempts(query),
+      readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY),
+    ]);
     // 한 행을 더 읽어 다음 페이지 유무를 판단한다. 별도 count로는 keyset 경계를 알 수 없다.
     const hasMore = rows.length > query.limit;
     const attempts = (hasMore ? rows.slice(0, query.limit) : rows).map(mapAttemptRow);
@@ -104,6 +106,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
         attempts,
         nextCursor: hasMore ? attempts.at(-1)?.attemptId ?? null : null,
         sampleCount,
+        lineage,
       },
     };
   }
@@ -133,14 +136,12 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
         summary.currency,
         summary.awarded_assessment_rate,
         summary.runner_up_assessment_rate,
+        summary.day_floor_bid_rate,
         summary.list_count,
+        summary.below_day_floor_count,
         summary.winner_supplier_party_id,
-        summary.supersedes_attempt_id,
-        build.build_id,
-        build.computed_at,
-        build.calc_version
+        summary.supersedes_attempt_id
       from mart.org_round_summary summary
-      join mart.build build on build.build_id = summary.build_id
       where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
         and summary.organization_id = ${query.organizationId}
         and (${query.itemCodeValueId}::bigint is null
