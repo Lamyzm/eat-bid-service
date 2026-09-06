@@ -220,7 +220,6 @@ export function reviewedBaselineMetadata(item) {
     if (item.path.includes("/app/dashboard/")) return ["기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.", "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"];
   }
   if (item.rule === WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE) {
-    if (item.path.endsWith("/lib/region-coords.ts")) return ["기존 지역 좌표 lookup은 생성·보정된 지리 데이터 목록이며 dashboard presentation이 아닙니다.", "좌표 source/provenance contract 또는 generated lookup pipeline을 도입해 데이터를 분리할 때"];
     if (item.path.includes("/components/ui/")) return ["기존 UI composite primitive는 vendor-style presentation과 compatibility surface를 함께 포함합니다.", "다음 primitive behavior 변경에서 focused UI modules로 분리할 때"];
     if (item.path.includes("/app/dashboard/")) return ["기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.", "해당 route를 RSC model과 route-private UI leaf로 전환할 때"];
     if (item.path.includes("/app/welcome/")) return ["기존 welcome route는 안내 presentation을 한 파일에 보유한 legacy 화면입니다.", "다음 welcome content 또는 interaction 변경에서 section UI로 분리할 때"];

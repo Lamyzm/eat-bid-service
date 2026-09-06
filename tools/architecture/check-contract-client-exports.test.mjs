@@ -22,6 +22,11 @@ function inspect(files) {
 
 const packageJson = JSON.stringify({
   exports: {
+    "./atoms/code-scheme-names": {
+      types: "./src/atoms/code-scheme-names.ts",
+      import: "./src/atoms/code-scheme-names.ts",
+      default: "./src/atoms/code-scheme-names.ts",
+    },
     "./api": {
       types: "./src/api/index.ts",
       import: "./src/api/index.ts",
@@ -79,6 +84,11 @@ test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", 
   const findings = inspect({
     "packages/contracts/package.json": JSON.stringify({
       exports: {
+        "./atoms/code-scheme-names": {
+          types: "./src/atoms/code-scheme-names.ts",
+          import: "./src/atoms/code-scheme-names.ts",
+          default: "./src/atoms/code-scheme-names.ts",
+        },
         "./api": {
           types: "./dist/api/index.d.ts",
           import: "./dist/api/index.js",
@@ -116,6 +126,11 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
   const findings = inspect({
     "packages/contracts/package.json": JSON.stringify({
       exports: {
+        "./atoms/code-scheme-names": {
+          types: "./src/atoms/code-scheme-names.ts",
+          import: "./src/atoms/code-scheme-names.ts",
+          default: "./src/atoms/code-scheme-names.ts",
+        },
         "./api": {
           types: "./src/api/index.ts",
           import: "./src/api/index.ts",

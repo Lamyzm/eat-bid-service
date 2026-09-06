@@ -3,6 +3,7 @@ export * from "./api/operation";
 export * from "./api/registry";
 export * from "./operations/health";
 export * from "./atoms/calendar";
+export * from "./atoms/code-scheme-names";
 export * from "./atoms/count";
 export * from "./atoms/decimal";
 export * from "./atoms/geo";

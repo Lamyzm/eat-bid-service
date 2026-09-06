@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 const clientExports = Object.freeze([
+  // 코드 체계 이름은 transport도 resource도 아니지만 화면이 참조해야 하는 어휘라서 자체 subpath를 갖는다.
+  // 이 진입점이 없으면 화면이 체계 문자열을 다시 선언하게 된다(ADR 0035, `lint:region-vocabulary`).
+  ["./atoms/code-scheme-names", "./src/atoms/code-scheme-names.ts"],
   ["./api", "./src/api/index.ts"],
   ["./api/v1/auctions", "./src/api/v1/auctions/index.ts"],
   ["./api/v1/organizations", "./src/api/v1/organizations/index.ts"],

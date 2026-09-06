@@ -43,6 +43,23 @@ def test_dataplane_모듈에는_code_scheme_리터럴이_남지_않는다() -> N
     assert {name: hits for name, hits in offenders.items() if hits} == {}
 
 
+def test_행안부_체계_이름은_source_계약_모듈_하나만_선언한다() -> None:
+    """행안부 체계 이름도 eaT 체계와 같은 규칙을 받는다.
+
+    TypeScript 쪽은 `pnpm lint:region-vocabulary`가 같은 사실을 지키므로 Python 전용 도구를 따로
+    만들지 않고 이 자리에서 단일 선언만 확인한다(AGENTS 22).
+    """
+    seeded = {name for name in _seed_namespaces() if name.startswith("mois:")}
+    assert seeded, "시드가 행안부 체계를 등록해야 한다"
+
+    declaring = {
+        str(module.relative_to(_SOURCE_ROOT))
+        for module in sorted(_SOURCE_ROOT.rglob("*.py"))
+        if any(name in module.read_text(encoding="utf-8") for name in seeded)
+    }
+    assert declaring == {str(Path("source") / "reference" / "source_contracts.py")}
+
+
 def test_code_scheme_이름은_소스_column명이_아니라_의미_이름이다() -> None:
     for scheme in ALL_EAT_CODE_SCHEMES:
         namespace = scheme.namespace

@@ -12,6 +12,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./atoms/code-scheme-names": {
+      "types": "./src/atoms/code-scheme-names.ts",
+      "import": "./src/atoms/code-scheme-names.ts",
+      "default": "./src/atoms/code-scheme-names.ts"
+    },
     "./api": {
       "types": "./src/api/index.ts",
       "import": "./src/api/index.ts",

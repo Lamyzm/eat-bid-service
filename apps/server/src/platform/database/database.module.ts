@@ -5,14 +5,17 @@ import postgres from "postgres";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
+import type { CodeReader } from "../../modules/reference/application/code-reader";
 import { DrizzleAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOrganizationAttemptReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-organization-attempt-reader";
 import { DrizzleWinRateDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-win-rate-distribution-reader";
+import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzle/drizzle-code-reader";
 import type { Environment } from "../config/environment";
 import type { DatabaseReadiness } from "../health/readiness-state";
 import { createDatabaseReadiness } from "./database-readiness";
 import {
   AUCTION_READER,
+  CODE_READER,
   DATABASE_CONNECTION,
   DATABASE_READINESS,
   ORGANIZATION_ATTEMPT_READER,
@@ -26,6 +29,7 @@ export interface DatabaseModuleOverrides {
   readonly auctionReader?: AuctionReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
+  readonly codeReader?: CodeReader;
 }
 
 class ManagedDatabase implements OnApplicationShutdown {
@@ -90,6 +94,12 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): WinRateDistributionReader =>
           overrides.winRateDistributionReader ?? new DrizzleWinRateDistributionReader(connection.database),
       },
+      {
+        provide: CODE_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): CodeReader =>
+          overrides.codeReader ?? new DrizzleCodeReader(connection.database),
+      },
     ];
     return {
       global: true,
@@ -101,6 +111,7 @@ export class DatabaseModule {
         AUCTION_READER,
         ORGANIZATION_ATTEMPT_READER,
         WIN_RATE_DISTRIBUTION_READER,
+        CODE_READER,
       ],
     };
   }

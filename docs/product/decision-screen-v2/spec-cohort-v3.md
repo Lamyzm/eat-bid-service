@@ -30,6 +30,29 @@
 >
 > 모집단 이름도 mart의 `distributionScopes`(`national|province|district|organization`)를 권위로 쓴다.
 
+> **해금 판정(2026-09-06, EAT-57 lane B). 지역 모집단은 계속 잠근다 — 조건 미충족.**
+>
+> EAT-57이 행안부 법정동코드 release·좌표·매핑 규칙과 `listCodes` 계약을 열었고, mart 빌더는
+> `--region-scheme mois:administrative-region`으로 새 `calc_version` build를 만들 수 있게 됐다.
+> 그런데도 지금 전환하면 지역 모집단이 **비어서** 켜진다.
+>
+> 남은 하나는 코드가 아니라 데이터다. 운영 DB의 eaT ↔ 행안부 매핑이 **0행**이며 원인은 매핑 규칙이
+> 아니라 **라벨이 `core.code_label_observation`까지 흐르지 않는다**는 것이다. `eat:eligibility-area`의
+> `PDLC_NM`은 파서 표에 선언돼 있지만 봉인된 정규화 계약(`eatbid.ingestion.auction.v1`/`v2`)의
+> `normalizedLocation`에 라벨 자리가 없다(ADR 0025). `eat:auction-location-sido/sigungu`는 소스에
+> 이름 column 자체가 없다. 라벨이 없으면 결정적 일치도 없고, 매핑이 없으면 번역도 없다.
+>
+> **해금 조건은 다음 셋을 모두 만족할 때다.**
+> 1. 지역 라벨을 싣는 새 수집 계약 버전이 열리고 그 라벨이 `core.code_label_observation`에 쌓인다.
+> 2. `docs/operations/reference-data-coverage.md` §3의 매핑률이 **운영 DB 실측**으로 갱신되고,
+>    §4가 정한 미매핑 수가 화면에 보여도 되는 수준임을 사람이 판정한다.
+> 3. 새 `calc_version`의 build가 `region_scheme = mois:administrative-region`으로 verified를 통과해
+>    활성이 된다. 빌더의 체계 검증이 이것을 강제한다.
+>
+> 그때까지 화면 문구는 지금 그대로다("지역 코드 체계가 행안부 기준이 아닙니다"). 잠금을 먼저 푸는 것은
+> 사용자에게 **빈 지역 분포를 지역 분포라고 보여주는 것**이라 §8의 "지역 미완결 상태에서 지역 값 표시"에
+> 정면으로 걸린다.
+
 ## 3. 기간
 칩: 이번 달 · 지난 달 · 3개월 · 12개월 · 직접(시작~끝). 기본 12개월.
 "지난 달과 겹쳐 보기" 토글: 선택 기간은 채움, 비교 기간은 윤곽선으로 같은 축에 겹친다.

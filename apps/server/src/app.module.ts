@@ -13,7 +13,9 @@ import { DatabaseModule } from "./platform/database/database.module";
 import type { AuctionReader } from "./modules/procurement/application/auction-reader";
 import type { OrganizationAttemptReader } from "./modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "./modules/procurement/application/win-rate-distribution-reader";
+import type { CodeReader } from "./modules/reference/application/code-reader";
 import { ProcurementModule } from "./modules/procurement/procurement.module";
+import { ReferenceModule } from "./modules/reference/reference.module";
 
 @Module({
   imports: [EffectModule],
@@ -36,9 +38,11 @@ export class AppModule {
           auctionReader: runtime.auctionReader,
           organizationAttemptReader: runtime.organizationAttemptReader,
           winRateDistributionReader: runtime.winRateDistributionReader,
+          codeReader: runtime.codeReader,
         }),
         HealthModule.forState(runtime.readiness),
         ProcurementModule,
+        ReferenceModule,
         ...(runtime.testOnlyImports ?? []),
       ],
     };
@@ -55,5 +59,6 @@ export interface AppModuleRuntime {
   readonly auctionReader?: AuctionReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
+  readonly codeReader?: CodeReader;
   readonly testOnlyImports?: readonly Type[];
 }

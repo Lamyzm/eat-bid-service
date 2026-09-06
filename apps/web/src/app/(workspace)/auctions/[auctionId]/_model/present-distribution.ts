@@ -1,4 +1,5 @@
 /** @module 책임: 낙찰률 분포 응답을 호가창 사다리 표시 모델로 옮기고 회색 처리 사유를 정한다. */
+import { CODE_SCHEME_NAMES } from '@eatbid/contracts/atoms/code-scheme-names';
 import type { WinRateDistributionV1Response } from '@eatbid/contracts/api/v1/win-rate-distribution';
 
 import { sampleSizeLabel, type SampleSizeLabel } from './sample-size';
@@ -45,9 +46,6 @@ export type DistributionPresentation = {
 const WINDOW_ROWS = 25;
 const HALF_WINDOW = (WINDOW_ROWS - 1) / 2;
 
-/** 지역 모집단을 그릴 수 있는 유일한 체계다. eaT 공고지역과 명시적 매핑 없이 같다고 보지 않는다. */
-const ADMINISTRATIVE_REGION_SCHEME = 'mois:administrative-region';
-
 // web tsconfig target이 ES2020 미만이라 BigInt 리터럴을 쓸 수 없다. `bid-rate.ts`와 같은 규약이다.
 const RATE_SCALE = BigInt(1000);
 const MY_RATE_PATTERN = /^[0-9]{1,3}(?:\.[0-9]{1,3})?$/;
@@ -83,7 +81,9 @@ function unknownReason(
 ): string | null {
   const { meta } = response;
   if (meta.buildId === null) return '아직 이 조건의 분포를 만든 적이 없습니다';
-  if (isRegionScope && meta.regionScheme !== ADMINISTRATIVE_REGION_SCHEME) {
+  // 행안부 체계는 지역 모집단을 그릴 수 있는 유일한 체계다. eaT 공고지역과 명시적 매핑 없이 같다고
+  // 보지 않으며, 체계 이름 자체는 계약 atom 하나만 선언한다(ADR 0035).
+  if (isRegionScope && meta.regionScheme !== CODE_SCHEME_NAMES.administrativeRegion) {
     return `지역 코드 체계가 행안부 기준이 아닙니다(지금 수집 기준: ${meta.regionScheme ?? '미확인'})`;
   }
   // 지역 모집단만 보유율로 잠근다. 전국·이 기관은 지역 축이 없어 이 판정의 분모가 애초에 다르다.

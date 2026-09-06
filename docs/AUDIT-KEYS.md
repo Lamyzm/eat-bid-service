@@ -4,6 +4,11 @@
 
 **판정 기호:** 🔴 코드 있는데 문자열 씀 · 🟡 코드처럼 생겼지만 아님 · 🟢 코드 없음(이름이 유일) · ⚪ 문자열이 맞음
 
+> **상태(2026-09-06, EAT-57):** §2-D와 §3의 `lib/region-coords.ts`(136키)와 그 유일한 소비자
+> `dashboard/market/`는 **삭제됐다.** 지역 canonical은 [ADR 0035](adr/0035-administrative-region-canonical-and-mapping.md)가
+> 정한 행안부 코드이고 좌표는 `core.code_value_coordinate`가, 공개 노출은 `listCodes` operation이 갖는다.
+> 재선언은 `pnpm lint:region-vocabulary`가 막는다. 이 문서의 나머지 판정은 여전히 현행 조사 자료다.
+
 ---
 
 ## 1. 코드 후보 판정 — `코드→이름`이 함수인가 (전수 실측)

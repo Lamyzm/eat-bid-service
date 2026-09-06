@@ -12,6 +12,7 @@ from uuid import UUID
 
 from eatbid.mart.build_coverage import fill_build_coverage
 from eatbid.mart.models import MartBuildPlan, MartName, OpenedMartBuild
+from eatbid.mart.region_axis import assert_build_region_scheme
 from eatbid.mart.repository import MartBuildContractError
 
 # build_id FK를 가진 표의 이름이다. 재개할 때 이전 행을 지우는 대상이며, 새 mart를 더하면 여기와
@@ -150,7 +151,11 @@ class PsycopgMartBuildRepository:
 
         빌더가 돌려준 수를 그대로 믿으면 부분 적재가 "검증됨"으로 통과하고, 그 build가 활성이 되는
         순간 화면이 조용히 적은 표본을 본다(ADR 0010).
+
+        지역 축도 같은 자리에서 확인한다. 한 build는 한 체계이며, 선언한 체계 밖의 코드를 실은 build를
+        올리면 화면이 한 사다리에서 두 체계의 지역을 함께 읽는다(설계 §6 전환의 불변식).
         """
+        assert_build_region_scheme(self._connection, plan=plan, build_id=build_id)
         with self._connection.cursor() as cursor:
             cursor.execute(
                 f"select count(*) from {MART_TABLES[plan.mart_name]} where build_id = %s",
