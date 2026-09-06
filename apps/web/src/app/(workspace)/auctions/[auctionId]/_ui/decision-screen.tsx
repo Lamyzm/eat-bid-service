@@ -1,6 +1,7 @@
 /** @module 책임: 결정 화면 v2 셸을 조립한다. 계약이 있는 영역만 채우고 없는 영역은 수집 전 카드로 둔다. */
 import type { DecisionSearch } from '../_lib/decision-search-params';
 import type { HistoryPresentation } from '../_model/attempt-history';
+import { historyWindow, historyWindowText } from '../_model/history-window';
 import type { DecisionPageData } from '../_model/load-auction-page';
 import type { DecisionPresentation } from '../_model/present-decision';
 import { BidRail } from './bid-rail';
@@ -9,7 +10,7 @@ import { DecisionBanner } from './decision-banner';
 import { DecisionFrame } from './decision-frame';
 import { DecisionHeader } from './decision-header';
 import { EvidenceTabs, HISTORY_PENDING_REASON } from './evidence-tabs';
-import { HistoryTable, SHOWN_ROWS } from './history-table';
+import { HistoryTable } from './history-table';
 import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
 
@@ -22,9 +23,10 @@ function HistoryCard({ presentation }: { readonly presentation: HistoryPresentat
       <div className='flex items-baseline gap-2 px-4 pt-4'>
         <span className='text-xl font-bold'>과거 회차</span>
         {/* 표본 수는 전체 회차지만 표가 그리는 행은 상한에 걸린다. 실제로 그린 행 수를 적어야
-            "12회 표시"가 5행짜리 기관에서 거짓이 되지 않는다. */}
+            "12회 표시"가 5행짜리 기관에서 거짓이 되지 않는다. 세는 일은 _model이 하고 여기서는 그
+            결과 문구만 놓는다. */}
         <span className='text-[13px] font-semibold text-muted-foreground'>
-          {presentation.sampleCount}회 · 최근 {Math.min(presentation.rows.length, SHOWN_ROWS)}회 표시
+          {historyWindowText(historyWindow(presentation.sampleCount, presentation.rows.length))}
         </span>
       </div>
       {/* 디자인 원문은 "파란 열"이지만 이 저장소의 primary 토큰은 파랑이 아니다. 색 이름 대신 자리로

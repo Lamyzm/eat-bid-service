@@ -6,11 +6,10 @@ import { useMemo } from 'react';
 
 import type { HistoryRow } from '../_model/attempt-history';
 import { toMilli } from '../_model/bid-rate';
+import { HISTORY_WINDOW_LIMIT } from '../_model/history-window';
 import { judgeRow, type RowVerdict } from '../_model/rehearsal';
 import { useBidRate } from './bid-rate-context';
 
-/** 표가 그리는 최대 행 수. 캡션의 "최근 N회 표시"가 같은 상한을 써야 문구와 표가 어긋나지 않는다. */
-export const SHOWN_ROWS = 12;
 const columnHelper = createColumnHelper<HistoryRow>();
 
 // 왼쪽 열은 사실, 마지막 열은 가정이다. 열 정렬·색 역할을 여기 한 곳에서만 정해 헤더와 셀이 어긋나지
@@ -90,7 +89,7 @@ export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] })
   const { rate } = useBidRate();
   const rateMilli = toMilli(rate);
   // 응답이 최근 → 오래된 순이라 그대로 앞에서 잘라 최근 12회가 된다. 열 클릭 정렬은 넣지 않는다.
-  const data = useMemo(() => rows.slice(0, SHOWN_ROWS), [rows]);
+  const data = useMemo(() => rows.slice(0, HISTORY_WINDOW_LIMIT), [rows]);
   const columns = useHistoryColumns(rateMilli, rate);
   // oxlint-disable-next-line react/incompatible-library -- headless table 인스턴스는 함수를 돌려주지만 React Compiler는 annotation mode라 이 컴포넌트를 메모하지 않는다(apps/web AGENTS.md). "use memo"를 붙일 때 이 표를 함께 검증한다.
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
