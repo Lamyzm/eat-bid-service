@@ -11,6 +11,7 @@ from types import TracebackType
 from typing import Protocol, Self
 
 from eatbid.cli_arguments import build_parser as build_argument_parser
+from eatbid.cli_chunks import CHUNK_COMMANDS, chunk_payload, run_chunk_command
 from eatbid.config import ApplicationSettings
 from eatbid.core.code_release_projection import CodeReleaseProjectionResult
 from eatbid.failure_categories import (
@@ -23,7 +24,6 @@ from eatbid.failure_categories import (
     failure_category_for_error,
 )
 from eatbid.failure_report import render_failure
-from eatbid.ingest.models import CapturedObservation
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
@@ -61,22 +61,50 @@ class CliApplication(Protocol):
     def project_reference(self, args: argparse.Namespace) -> object: ...
 
 
-CommandHandler = Callable[[argparse.Namespace, CliApplication], int]
+CommandHandler = Callable[
+    [argparse.Namespace, CliApplication, ApplicationSettings | None], int
+]
 ApplicationFactory = Callable[[ApplicationSettings], CliApplication]
 
 
 def _handler(method_name: str) -> CommandHandler:
-    def run(args: argparse.Namespace, application: CliApplication) -> int:
+    def run(
+        args: argparse.Namespace,
+        application: CliApplication,
+        settings: ApplicationSettings | None,
+    ) -> int:
         result = getattr(application, method_name)(args)
         payload = _machine_result(method_name, result)
         if payload is not None:
-            print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
-            result_dir = getattr(args, "result_dir", None)
-            if result_dir is not None:
-                _write_result_files(result_dir, payload)
+            _emit(payload, args)
         return 0
 
     return run
+
+
+def _chunk_handler(command_name: str, method_name: str) -> CommandHandler:
+    """chunk 명령은 건별 결과를 모아 machine result로 내고 실패가 있으면 비영 exit로 닫는다."""
+    command = CHUNK_COMMANDS[command_name]
+
+    def run(
+        args: argparse.Namespace,
+        application: CliApplication,
+        settings: ApplicationSettings | None,
+    ) -> int:
+        outcome = run_chunk_command(
+            command, getattr(application, method_name), args, settings
+        )
+        _emit(chunk_payload(command, outcome), args)
+        return outcome.exit_code
+
+    return run
+
+
+def _emit(payload: Mapping[str, object], args: argparse.Namespace) -> None:
+    print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    result_dir = getattr(args, "result_dir", None)
+    if result_dir is not None:
+        _write_result_files(result_dir, payload)
 
 
 def _machine_result(method_name: str, result: object) -> dict[str, object] | None:
@@ -89,15 +117,13 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "detail_run_id": str(result.detail_run_id),
             "discovered_count": result.expected_count,
             "external_bid_ids": list(result.external_bid_ids),
+            # capture fan-out은 이 chunk 목록을 쓴다. 평평한 `external_bid_ids`는 사람이 실행을
+            # 되짚을 때 읽는 증거로만 남기고 workflow output parameter로는 내보내지 않는다.
+            "external_bid_id_chunks": [
+                list(chunk) for chunk in result.external_bid_id_chunks
+            ],
             "manifest_sha256": result.discovered_manifest_sha256,
             "source_release_id": str(result.source_release_id),
-        }
-    if method_name == "capture":
-        if not isinstance(result, CapturedObservation):
-            raise TypeError("capture returned an invalid result")
-        return {
-            "content_sha256": result.content_sha256,
-            "observation_id": result.observation_id,
         }
     if method_name == "capture_reference":
         if not isinstance(result, ReferenceCaptureResult):
@@ -167,7 +193,12 @@ COMMAND_METHODS: Mapping[str, str] = {
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
-    name: _handler(method) for name, method in COMMAND_METHODS.items()
+    name: (
+        _chunk_handler(name, method)
+        if name in CHUNK_COMMANDS
+        else _handler(method)
+    )
+    for name, method in COMMAND_METHODS.items()
 }
 
 
@@ -194,7 +225,7 @@ def main(
 
             factory = build_application
         with factory(settings) as application:
-            return COMMAND_HANDLERS[args.command](args, application)
+            return COMMAND_HANDLERS[args.command](args, application, settings)
     except Exception as error:  # noqa: BLE001 - CLI는 모든 provider detail을 닫는 최종 경계다.
         category = failure_category_for_error(error)
         exit_code = EXIT_CODE_BY_CATEGORY[category]

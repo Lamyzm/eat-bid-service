@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from argparse import Namespace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Self
 from uuid import UUID
@@ -13,6 +14,7 @@ from eatbid.cli import COMMAND_HANDLERS, build_parser, main
 from eatbid.composition import Application, build_application
 from eatbid.config import ApplicationSettings
 from eatbid.errors import SourceContractError, SourceUnavailableError
+from eatbid.ingest.models import CapturedObservation
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.discover import DiscoveryResult
@@ -22,11 +24,14 @@ RUN_ID = "43000000-0000-0000-0000-000000000001"
 RELEASE_ID = "43000000-0000-0000-0000-000000000002"
 PUBLICATION_ID = "43000000-0000-0000-0000-000000000003"
 SHA = "a" * 64
+FETCHED_AT = datetime(2026, 9, 1, 0, 0, tzinfo=UTC)
 
 
 class _기록애플리케이션:
     def __init__(self, *, error: Exception | None = None) -> None:
         self.calls: list[tuple[str, UUID]] = []
+        self.captured: list[str] = []
+        self.normalized: list[int] = []
         self.error = error
         self.close_count = 0
 
@@ -42,8 +47,21 @@ class _기록애플리케이션:
         self.calls.append((command, args.source_release_id))
 
     def discover(self, args: Namespace) -> None: self._record("discover", args)
-    def capture(self, args: Namespace) -> None: self._record("capture", args)
-    def normalize(self, args: Namespace) -> None: self._record("normalize", args)
+
+    def capture(self, args: Namespace) -> CapturedObservation:
+        self._record("capture", args)
+        self.captured.append(args.external_bid_id)
+        return CapturedObservation(
+            observation_id=len(self.captured),
+            content_sha256="c" * 64,
+            object_key=f"raw/eat/bid-detail/{args.external_bid_id}.xml.gz",
+            fetched_at=FETCHED_AT,
+        )
+
+    def normalize(self, args: Namespace) -> None:
+        self._record("normalize", args)
+        self.normalized.append(args.observation_id)
+
     def validate(self, args: Namespace) -> None: self._record("validate", args)
     def project(self, args: Namespace) -> None: self._record("project", args)
     def replay(self, args: Namespace) -> None: self._record("replay", args)
@@ -63,8 +81,10 @@ def _명령(command: str) -> list[str]:
                      "--release-name", "R0 offline", "--as-of", "2026-09-01T00:00:00Z",
                      "--started-at", "2026-09-01T00:00:00Z", "--completed-at", "2026-09-01T00:01:00Z",
                      "--start-date", "20260901", "--end-date", "20260901"],
-        "capture": ["--external-bid-id", "5610615", "--started-at", "2026-09-01T00:00:00Z"],
-        "normalize": ["--observation-id", "1", "--normalized-at", "2026-09-01T00:01:00Z"],
+        "capture": ["--external-bid-ids-json", '["5610615"]',
+                    "--started-at", "2026-09-01T00:00:00Z"],
+        "normalize": ["--observation-ids-json", "[1]",
+                      "--normalized-at", "2026-09-01T00:01:00Z"],
         "validate": ["--publication-id", PUBLICATION_ID, "--validated-at", "2026-09-01T00:02:00Z"],
         "project": ["--publication-id", PUBLICATION_ID, "--activated-at", "2026-09-01T00:03:00Z"],
         "replay": ["--publication-id", PUBLICATION_ID, "--observation-id", "1",
@@ -261,9 +281,157 @@ def test_result_dir는_machine_result의_key마다_workflow가_읽을_파일을_
         "detail_run_id": PUBLICATION_ID,
         "discovered_count": "2",
         "external_bid_ids": '["7","11"]',
+        "external_bid_id_chunks": '[["7","11"]]',
         "manifest_sha256": "b" * 64,
         "source_release_id": RELEASE_ID,
     }
+
+
+def test_발견은_50건_단위_chunk를_발견_순서대로_낸다() -> None:
+    result = DiscoveryResult(
+        source_release_id=UUID(RELEASE_ID),
+        expected_count=120,
+        external_bid_ids=tuple(str(number) for number in range(1, 121)),
+        observation_ids=(1,),
+        detail_run_id=UUID(PUBLICATION_ID),
+        detail_request_unit_ids=(),
+        discovered_manifest_sha256="b" * 64,
+    )
+
+    chunks = result.external_bid_id_chunks
+
+    assert [len(chunk) for chunk in chunks] == [50, 50, 20]
+    assert tuple(value for chunk in chunks for value in chunk) == result.external_bid_ids
+
+
+def test_capture_chunk는_건별로_application을_부르고_관측_ID를_fan_out에_남긴다(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    application = _기록애플리케이션()
+    argv = _공통("capture") + [
+        "--external-bid-ids-json", '["5610615","5610616","5610617"]',
+        "--started-at", "2026-09-01T00:00:00Z",
+        "--result-dir", str(tmp_path / "capture"),
+    ]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 0
+
+    assert application.captured == ["5610615", "5610616", "5610617"]
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["observation_ids"] == [1, 2, 3]
+    assert printed["failed_count"] == 0
+    assert [item["key"] for item in printed["results"]] == application.captured
+    assert all(item["status"] == "succeeded" for item in printed["results"])
+    written = (tmp_path / "capture" / "observation_ids").read_text(encoding="utf-8")
+    assert written == "[1,2,3]"
+
+
+def test_normalize_chunk는_관측_ID를_숫자로_되돌려_건별로_부른다(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    application = _기록애플리케이션()
+    argv = _공통("normalize") + [
+        "--observation-ids-json", "[7,11]",
+        "--normalized-at", "2026-09-01T00:01:00Z",
+    ]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 0
+
+    assert application.normalized == [7, 11]
+    printed = json.loads(capsys.readouterr().out)
+    assert "observation_ids" not in printed
+    assert [item["key"] for item in printed["results"]] == ["7", "11"]
+
+
+class _한건실패애플리케이션(_기록애플리케이션):
+    def __init__(self, failing_key: str, error: Exception) -> None:
+        super().__init__()
+        self.failing_key = failing_key
+        self.failure = error
+        self.attempts: list[str] = []
+
+    def capture(self, args: Namespace) -> CapturedObservation:
+        self.attempts.append(args.external_bid_id)
+        if args.external_bid_id == self.failing_key:
+            raise self.failure
+        return super().capture(args)
+
+
+def test_chunk_안_한_건의_전송_실패는_그_건만_실패로_남기고_fail_closed로_끝난다(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    application = _한건실패애플리케이션(
+        "5610616", SourceUnavailableError("host=access-secret", attempts=3)
+    )
+    argv = _공통("capture") + [
+        "--external-bid-ids-json", '["5610615","5610616","5610617"]',
+        "--started-at", "2026-09-01T00:00:00Z",
+    ]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 69
+
+    assert application.attempts == ["5610615", "5610616", "5610617"]
+    captured = capsys.readouterr()
+    printed = json.loads(captured.out)
+    assert printed["observation_ids"] == [1, 2]
+    assert printed["failed_count"] == 1
+    assert printed["skipped"] == []
+    failed = [item for item in printed["results"] if item["status"] == "failed"]
+    assert failed == [
+        {"key": "5610616", "status": "failed", "failure_category": "TRANSIENT_NETWORK"}
+    ]
+    reported = json.loads(captured.err.strip())
+    assert reported["chunk_item"] == "5610616"
+    assert reported["category"] == "TRANSIENT_NETWORK"
+    assert "access-secret" not in captured.err
+
+
+def test_소스가_차단하면_남은_건을_시도하지_않고_차단_exit_code로_닫는다(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    application = _한건실패애플리케이션("5610616", SourceThrottledError(429))
+    argv = _공통("capture") + [
+        "--external-bid-ids-json", '["5610615","5610616","5610617"]',
+        "--started-at", "2026-09-01T00:00:00Z",
+    ]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 75
+
+    assert application.attempts == ["5610615", "5610616"]
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["skipped"] == ["5610617"]
+    assert printed["observation_ids"] == [1]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "[]", "not-json", "{}", '"5610615"', "[5610615]", '["5610615","5610615"]',
+        '["0610615"]', '["-1"]', '["5610615; touch /tmp/eatbid-injection"]',
+        '["$(touch /tmp/eatbid-substitution)"]', '["*"]', "[null]",
+    ],
+)
+def test_capture_chunk_인자는_숫자_ID의_고유한_JSON_배열만_받는다(value: str) -> None:
+    argv = _공통("capture") + [
+        "--external-bid-ids-json", value, "--started-at", "2026-09-01T00:00:00Z",
+    ]
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(argv)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["[]", "not-json", "{}", '["7"]', "[0]", "[-1]", "[true]",
+     "[9223372036854775808]", "[7,7]"],
+)
+def test_normalize_chunk_인자는_양의_bigint_고유_JSON_배열만_받는다(value: str) -> None:
+    argv = _공통("normalize") + [
+        "--observation-ids-json", value, "--normalized-at", "2026-09-01T00:01:00Z",
+    ]
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(argv)
 
 
 class _마트결과애플리케이션(_기록애플리케이션):

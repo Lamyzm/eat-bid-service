@@ -7,6 +7,7 @@ dispatch·exit code와 나눈 이유는 함께 바뀌지 않기 때문이다. �
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,10 @@ from uuid import UUID
 from eatbid.core.build_identity import validate_build_sha
 from eatbid.mart.models import DEFAULT_REGION_SCHEME, MART_NAMES
 from eatbid.pipeline.collection_window import COLLECTION_MODES
+
+# PostgreSQL bigint 상한이다. observation ID는 bigint 열이므로 그 범위를 넘는 값은 저장소에 닿기
+# 전에 인자 단계에서 닫는다.
+_MAX_BIGINT = 9_223_372_036_854_775_807
 
 
 def build_sha(value: str) -> str:
@@ -41,6 +46,57 @@ def positive_id(value: str) -> int:
     if parsed < 1:
         raise argparse.ArgumentTypeError("must be positive")
     return parsed
+
+
+def _json_array(value: str, *, label: str) -> list[object]:
+    """왜: chunk 인자는 workflow가 만든 JSON 배열 하나로 도착한다. shell이 그 문자열을 쪼개거나
+    확장하지 못하도록 argv 한 칸으로 받고, 모양 검사는 저장소에 닿기 전 이 자리에서 끝낸다."""
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        raise argparse.ArgumentTypeError(f"{label} must be a JSON array") from None
+    if not isinstance(parsed, list) or not parsed:
+        raise argparse.ArgumentTypeError(f"{label} must be a non-empty JSON array")
+    return parsed
+
+
+def external_bid_id_chunk(value: str) -> tuple[str, ...]:
+    label = "external bid IDs"
+    ids = tuple(
+        _external_bid_id(item, label=label) for item in _json_array(value, label=label)
+    )
+    if len(set(ids)) != len(ids):
+        raise argparse.ArgumentTypeError(f"{label} must be unique")
+    return ids
+
+
+def _external_bid_id(value: object, *, label: str) -> str:
+    if not isinstance(value, str):
+        raise argparse.ArgumentTypeError(f"every value in {label} must be a JSON string")
+    # 발견은 숫자 `ETN_BID_ID`를 int로 정렬해 manifest를 만든다. 같은 모양을 여기서도 요구해야
+    # 목록이 만든 ID와 상세가 부르는 ID가 갈라지지 않는다.
+    positive_id(value)
+    return value
+
+
+def observation_id_chunk(value: str) -> tuple[int, ...]:
+    label = "observation IDs"
+    ids = tuple(
+        _observation_id(item, label=label) for item in _json_array(value, label=label)
+    )
+    if len(set(ids)) != len(ids):
+        raise argparse.ArgumentTypeError(f"{label} must be unique")
+    return ids
+
+
+def _observation_id(value: object, *, label: str) -> int:
+    # `type(...) is not int`인 이유는 bool이 int의 하위 타입이라 isinstance로는 `true`가 통과하기
+    # 때문이다. JSON `true`를 observation 1로 읽으면 엉뚱한 관측을 정규화한다.
+    if type(value) is not int or not 1 <= value <= _MAX_BIGINT:
+        raise argparse.ArgumentTypeError(
+            f"every value in {label} must be a positive bigint"
+        )
+    return value
 
 
 def add_common_arguments(command: argparse.ArgumentParser) -> None:
@@ -72,12 +128,24 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     discover.add_argument("--region-code", default="")
     discover.add_argument("--page-size", type=int, default=100)
 
+    # capture와 normalize는 pod 하나가 chunk 하나를 순차로 처리한다. 건별 raw 저장·request unit·
+    # 관측 grain은 그대로이고 fan-out 폭만 줄어든다(EAT-79).
     capture = commands["capture"]
-    capture.add_argument("--external-bid-id", required=True)
+    capture.add_argument(
+        "--external-bid-ids-json",
+        dest="external_bid_ids",
+        required=True,
+        type=external_bid_id_chunk,
+    )
     capture.add_argument("--started-at", required=True, type=aware_datetime)
 
     normalize = commands["normalize"]
-    normalize.add_argument("--observation-id", required=True, type=positive_id)
+    normalize.add_argument(
+        "--observation-ids-json",
+        dest="observation_ids",
+        required=True,
+        type=observation_id_chunk,
+    )
     normalize.add_argument("--normalized-at", required=True, type=aware_datetime)
 
     validate = commands["validate"]
