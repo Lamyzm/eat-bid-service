@@ -31,6 +31,9 @@ describe("공개 공고 V1 응답 계약", () => {
         normalizedRecordId: "9007199254740999",
         contentSha256: "a".repeat(64),
       },
+      terms: null,
+      location: null,
+      classification: null,
     };
 
     expect(contract!.auctionV1ResponseSchema.parse(response)).toEqual(response);
@@ -38,6 +41,63 @@ describe("공개 공고 V1 응답 계약", () => {
     expect(contract!.auctionV1ResponseSchema.safeParse({
       auctionId: "9007199254740993",
       revisionId: "9007199254740995",
+    }).success).toBe(false);
+  });
+
+  test("하한율·낙찰방식·소재지·품목 라벨을 코드 참조로 싣고 관측되지 않은 블록은 null로 남긴다", async () => {
+    const { auctionV1ResponseSchema } = await import("./get-auction.response");
+
+    const base = {
+      identity: {
+        auctionId: "9007199254740993",
+        revisionId: "9007199254740995",
+        externalBidId: "opaque",
+        displayBidNumber: null,
+        title: "급식 식재료",
+        status: "OPEN",
+      },
+      organization: { organizationId: "3101", name: "창원 남산초등학교", type: "school" },
+      schedule: { announcedAt: "2026-08-30T00:00:00Z", deadlineAt: null, openedAt: null },
+      pricing: { baseAmount: { amount: "1234567890.50", currency: "KRW" }, plannedAmount: null },
+      provenance: {
+        sourceSystem: "eat",
+        observationId: "9007199254740997",
+        normalizedRecordId: "9007199254740999",
+        contentSha256: "a".repeat(64),
+      },
+    };
+
+    const observed = {
+      ...base,
+      terms: {
+        floorRate: { value: "90.000", unit: "percentage-points" },
+        awardMethod: { codeValueId: "31", code: "003", scheme: "eat:award-method", label: "최저가" },
+      },
+      location: {
+        sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: null },
+        sigungu: { codeValueId: "43", code: "48120", scheme: "eat:auction-location-sigungu", label: null },
+      },
+      classification: { itemLabel: "축산" },
+    };
+    expect(auctionV1ResponseSchema.parse(observed)).toEqual(observed);
+
+    // 코드 참조의 정체성은 숫자 id다. 문자열 코드만 실어 오는 형태는 계약이 받지 않는다(AGENTS 2).
+    expect(auctionV1ResponseSchema.safeParse({
+      ...observed,
+      terms: { floorRate: null, awardMethod: { code: "003", scheme: "eat:award-method", label: null } },
+    }).success).toBe(false);
+    // 하한율은 0~100으로 닫힌 사정률 축 상수다. 관측 상한 없는 축을 여기에 실으면 축이 섞인다.
+    expect(auctionV1ResponseSchema.safeParse({
+      ...observed,
+      terms: { ...observed.terms, floorRate: { value: "100.001", unit: "percentage-points" } },
+    }).success).toBe(false);
+    expect(auctionV1ResponseSchema.safeParse({
+      ...observed,
+      classification: { itemLabel: "축산", itemCodeValueId: "7" },
+    }).success).toBe(false);
+    expect(auctionV1ResponseSchema.safeParse({
+      ...observed,
+      location: { sido: observed.location.sido },
     }).success).toBe(false);
   });
 
