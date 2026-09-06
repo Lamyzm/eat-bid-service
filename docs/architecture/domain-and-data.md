@@ -405,6 +405,15 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
 | `mart.win_rate_distribution_monthly` | 대리키 + `(scope, region, org, item, floor_rate, award_method, month, bin)` | 결정(호가창), 비교집단 |
 | `mart.open_auction_snapshot` | `(build_id, auction_attempt_id, observed_at)` | 오늘(열린 공고), 결정(참여 수 추이) |
 
+`mart.open_auction_snapshot`은 목록 관측만으로 만들어지지 않는다. 목록에는 마감·기초금액·참여 수만
+있고 하한율·품목·지역·기관 이름이 없어서, 빌더가 같은 `auction_attempt`의 **최신
+`core.auction_revision`**을 조인해 `floor_rate`·`item_label`·`region_sido_code_value_id`·
+`region_sigungu_code_value_id`를 함께 싣는다. "최신"은 `auction_revision_id` 최대값이며 replay가
+관측 시각을 되돌려도 append 순서는 단조롭다. 그 값을 어느 해석에서 읽었는지는 `terms_revision_id`가
+가리키고, 상세를 아직 따지 않은 공고는 네 열과 계보가 모두 null이다. `organization_label`은 이
+공고의 revision이 아니라 조직 코드에 매달린 `core.code_label_observation`의 최신 관측이므로 계보에
+포함되지 않는다 — 이름은 표시값이고 조직 정체성은 여전히 code value가 갖는다.
+
 업체 성적표 mart(`supplier_monthly_record`)는 `app`의 workspace 모델이 확정된 뒤로 미뤘다. 대상
 집합이 "워크스페이스가 등록한 사업자"인데 그 표가 아직 없고, 전체 업체를 빌드하는 것은 명단이
 공개라도 우리가 만든 프로파일이라 제품 규칙이 금지한다.

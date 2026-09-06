@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -147,6 +148,41 @@ def seed_organization(services: PipelineServices, name: str) -> int:
     return int(row[0])
 
 
+def seed_organization_identity(
+    services: PipelineServices,
+    *,
+    organization_id: int,
+    code: str,
+    label: str | None,
+    observation_id: int,
+) -> int:
+    """조직을 관측된 코드로 잇고 그 코드의 이름 관측을 남긴다. code value id를 돌려준다.
+
+    이름은 `core.organization.canonical_name`이 아니라 `core.code_label_observation`으로 간다.
+    관측된 표시 이름을 정체성 자리에 올리지 않는 실제 발행 경로와 같은 모양이다(AGENTS 2).
+    """
+    code_value_id = code_value(services, namespace="eat:organization", code=code)
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "insert into core.organization_identifier "
+            "(organization_id, code_value_id, observation_id) values (%s, %s, %s) "
+            "on conflict on constraint organization_identifier_code_value_key do nothing",
+            (organization_id, code_value_id, observation_id),
+        )
+        if label is not None:
+            cursor.execute(
+                """
+                insert into core.code_label_observation
+                  (code_value_id, label, language, observed_at, observation_id)
+                values (%s, %s, 'und', now(), %s)
+                on conflict on constraint code_label_observation_evidence_key do nothing
+                """,
+                (code_value_id, label, observation_id),
+            )
+    services.connection.commit()
+    return code_value_id
+
+
 def seed_round(
     services: PipelineServices,
     evidence: SeededEvidence,
@@ -160,13 +196,35 @@ def seed_round(
     sigungu_code_value_id: int | None = None,
     base_amount: Decimal = Decimal("1000000.00"),
     planned_amount: Decimal = Decimal("1000000.00"),
+    external_bid_id: str | None = None,
+    item_label: str | None = None,
 ) -> int:
-    """회차 하나를 core에 심고 attempt id를 돌려준다."""
-    external_bid_id = f"synthetic-{uuid4().hex}"
+    """회차 하나를 core에 심고 attempt id를 돌려준다.
+
+    `external_bid_id`를 주면 이미 있는 attempt에 revision을 덧붙인다. 목록에서 먼저 만들어진
+    identity 전용 attempt에 상세 해석을 얹는 상황을 test가 그대로 재현하기 위한 통로다.
+    """
+    external_bid_id = external_bid_id or f"synthetic-{uuid4().hex}"
+    payload = json.dumps(
+        {
+            "lineage": {"links": []},
+            **(
+                {"classification": {"sourceCategoryLabel": item_label}}
+                if item_label is not None
+                else {}
+            ),
+        }
+    )
     with services.connection.cursor() as cursor:
         cursor.execute(
             "insert into core.auction_attempt (source_system, external_bid_id) "
-            "values ('eat', %s) returning auction_attempt_id",
+            "values ('eat', %s) "
+            "on conflict on constraint auction_attempt_source_external_bid_key do nothing",
+            (external_bid_id,),
+        )
+        cursor.execute(
+            "select auction_attempt_id from core.auction_attempt "
+            "where source_system = 'eat' and external_bid_id = %s",
             (external_bid_id,),
         )
         attempt = cursor.fetchone()
@@ -176,10 +234,10 @@ def seed_round(
             insert into ingest.normalized_record
               (observation_id, record_type, source_entity_id, normalized_payload,
                parser_version, normalized_at)
-            values (%s, 'auction.v2', %s, '{"lineage": {"links": []}}'::jsonb, 'eat-v2', now())
+            values (%s, 'auction.v2', %s, %s::jsonb, 'eat-v2', now())
             returning normalized_record_id
             """,
-            (evidence.observation_id, external_bid_id),
+            (evidence.observation_id, external_bid_id, payload),
         )
         record = cursor.fetchone()
         assert record is not None
@@ -190,7 +248,7 @@ def seed_round(
                source_status, title, announced_at, opened_at, floor_rate,
                base_amount, planned_amount, currency, source_payload)
             values (%s, %s, %s, %s, 'CLOSED', '합성 회차', now(), %s, %s, %s, %s, 'KRW',
-                    '{"lineage": {"links": []}}'::jsonb)
+                    %s::jsonb)
             returning auction_revision_id
             """,
             (
@@ -202,6 +260,7 @@ def seed_round(
                 floor_rate,
                 base_amount,
                 planned_amount,
+                payload,
             ),
         )
         revision = cursor.fetchone()
