@@ -7,3 +7,4 @@ resources:
   - workflow-template.yaml
   - poll-open.yaml
   - daily-reconcile.yaml
+  - reference-refresh.yaml

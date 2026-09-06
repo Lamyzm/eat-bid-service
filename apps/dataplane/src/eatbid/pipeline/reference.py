@@ -55,6 +55,9 @@ class ReferenceCaptureResult:
     content_sha256: str
     source_release_id: UUID
     member_count: int
+    # 투영이 같은 이름으로 release를 읽어야 하므로 수집이 쓴 이름을 결과로 돌려준다. 두 단계가 각자
+    # 이름을 지으면 같은 실행에서 다른 release를 가리키게 된다.
+    release_name: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +170,7 @@ def capture_reference(
         content_sha256=payload.content_sha256,
         source_release_id=plan.source_release_id,
         member_count=len(release.members),
+        release_name=plan.release_name,
     )
 
 

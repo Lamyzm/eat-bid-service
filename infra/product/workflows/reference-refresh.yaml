@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: eatbid-reference-refresh
+  namespace: eatbid
+spec:
+  schedules:
+    # 월 1회다. 법정동코드는 변경이 곧 법 개정이라 하루 단위로 볼 이유가 없고, 같은 파일 sha256이면
+    # release manifest unique가 두 번째 봉인을 막으므로 헛도는 실행이 행을 만들지도 않는다.
+    - "0 5 1 * *"
+  timezone: Asia/Seoul
+  # 첫 release는 사람이 확인한 뒤 켠다. 지역 축은 활성 release 하나가 화면 전체의 모집단이 되므로,
+  # 아무도 보지 않은 파일이 스케줄로 먼저 들어오면 그것이 곧 기준이 된다. Task 13에서 실수집으로
+  # 첫 release를 확인하고 그 커밋에서 suspend를 푼다(ADR 0035).
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  workflowSpec:
+    workflowTemplateRef:
+      name: eatbid-dataplane
+    entrypoint: reference-pipeline
+    arguments:
+      parameters:
+        - name: mode
+          value: reference

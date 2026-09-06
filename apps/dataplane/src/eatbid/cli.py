@@ -102,6 +102,7 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "observation_id": result.observation_id,
             "source_release_id": str(result.source_release_id),
             "member_count": result.member_count,
+            "release_name": result.release_name,
         }
     if method_name == "project_reference":
         if not isinstance(result, CodeReleaseProjectionResult):
