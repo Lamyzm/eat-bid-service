@@ -30,19 +30,21 @@ import {
 const WIN_RATE_DISTRIBUTION = "win_rate_distribution_monthly";
 
 type DistributionRow = Readonly<{
-  month_kst: Date | string;
+  month_kst: string;
   bin_lower: string;
   bin_width: string;
   attempt_count: string | number | bigint;
 }>;
 
-type CoverageRow = Readonly<{ month_kst: Date | string; coverage: string }>;
+type CoverageRow = Readonly<{ month_kst: string; coverage: string }>;
 
-// `date` 열은 driver 설정에 따라 문자열이나 Date로 온다. 달 경계는 KST이고 이 값은 이미 그 달 1일이라
-// 시간대 변환을 다시 하면 하루가 밀려 달이 바뀐다. 앞 7자만 읽어 달 이름을 그대로 되살린다.
-function monthOf(value: Date | string) {
-  const text = value instanceof Date ? value.toISOString() : value;
-  return kstMonth(text.slice(0, 7));
+/**
+ * `month_kst`는 조회가 `to_char(..., 'YYYY-MM')`으로 이미 달 이름까지 좁혀 돌려준다. driver가 주는
+ * `Date`를 여기서 읽지 않는 이유는 두 가지다. 그 표현의 유일한 경계는 `drizzle-auction-reader.ts`이고
+ * (AGENTS 17), 이 값은 시각이 아니라 달력 구간이라 시간대 변환을 한 번 더 거치면 하루가 밀려 달이 바뀐다.
+ */
+function monthOf(value: string) {
+  return kstMonth(value);
 }
 
 function countOf(value: string | number | bigint): number {
@@ -130,7 +132,8 @@ export class DrizzleWinRateDistributionReader implements WinRateDistributionRead
 
   private async binRows(query: WinRateDistributionQuery): Promise<DistributionRow[]> {
     const result = await this.database.execute(sql`
-      select summary.month_kst, summary.bin_lower, summary.bin_width, summary.attempt_count
+      select to_char(summary.month_kst, 'YYYY-MM') as month_kst,
+             summary.bin_lower, summary.bin_width, summary.attempt_count
       from mart.win_rate_distribution_monthly summary
       where summary.build_id = ${activeMartBuildId(WIN_RATE_DISTRIBUTION)}
         and summary.scope = ${query.cohort.scope}
@@ -149,14 +152,14 @@ export class DrizzleWinRateDistributionReader implements WinRateDistributionRead
 
   private async coverageRows(query: WinRateDistributionQuery): Promise<DistributionMonthCoverage[]> {
     const result = await this.database.execute(sql`
-      select worst.month_kst,
+      select to_char(worst.month_kst, 'YYYY-MM') as month_kst,
              (array_agg(worst.coverage order by ${worstCoverageOrder(sql`worst.coverage`)}))[1] as coverage
       from mart.build_coverage worst
       where worst.build_id = ${activeMartBuildId(WIN_RATE_DISTRIBUTION)}
         and worst.month_kst between ${kstMonthFirstDayText(query.period.from)}::date
                                 and ${kstMonthFirstDayText(query.period.to)}::date
         ${coverageAxisPredicate(query.cohort)}
-      group by worst.month_kst
+      group by 1
     `);
     const rows = Array.isArray(result) ? result as CoverageRow[] : [];
     return rows.map(mapCoverageRow);

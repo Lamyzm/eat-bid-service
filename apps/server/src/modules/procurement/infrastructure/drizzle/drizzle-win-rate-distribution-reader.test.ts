@@ -5,9 +5,9 @@ import { groupDistributionRows, mapCoverageRow } from "./drizzle-win-rate-distri
 describe("DrizzleWinRateDistributionReader row 경계", () => {
   test("달별 칸 행을 달 단위로 묶고 numeric 문자열을 milli 정수로 닫는다", () => {
     const reading = groupDistributionRows([
-      { month_kst: "2026-08-01", bin_lower: "90.000", bin_width: "0.010", attempt_count: "2" },
-      { month_kst: "2026-08-01", bin_lower: "90.030", bin_width: "0.010", attempt_count: "1" },
-      { month_kst: "2026-09-01", bin_lower: "90.000", bin_width: "0.010", attempt_count: 3 },
+      { month_kst: "2026-08", bin_lower: "90.000", bin_width: "0.010", attempt_count: "2" },
+      { month_kst: "2026-08", bin_lower: "90.030", bin_width: "0.010", attempt_count: "1" },
+      { month_kst: "2026-09", bin_lower: "90.000", bin_width: "0.010", attempt_count: 3 },
     ]);
     expect(reading.storedBinWidthMilli).toBe(10n);
     expect(reading.months).toEqual([
@@ -23,14 +23,14 @@ describe("DrizzleWinRateDistributionReader row 경계", () => {
   test("한 build 안에서 칸 폭이 갈라진 행은 조용히 합치지 않고 끊는다", () => {
     // 같은 build 안에서 폭은 상수다. 갈라진 폭을 합치면 화면이 요청하지 않은 눈금을 보게 된다.
     expect(() => groupDistributionRows([
-      { month_kst: "2026-09-01", bin_lower: "90.000", bin_width: "0.010", attempt_count: "1" },
-      { month_kst: "2026-09-01", bin_lower: "90.100", bin_width: "0.050", attempt_count: "1" },
+      { month_kst: "2026-09", bin_lower: "90.000", bin_width: "0.010", attempt_count: "1" },
+      { month_kst: "2026-09", bin_lower: "90.100", bin_width: "0.050", attempt_count: "1" },
     ])).toThrow(TypeError);
   });
 
-  test("KST 달 1일 date를 달 값으로 되돌리고 알 수 없는 보유율은 끊는다", () => {
-    expect(mapCoverageRow({ month_kst: "2026-09-01", coverage: "partial" }))
+  test("조회가 좁혀 준 달 이름을 그대로 읽고 알 수 없는 보유율은 끊는다", () => {
+    expect(mapCoverageRow({ month_kst: "2026-09", coverage: "partial" }))
       .toEqual({ month: "2026-09", coverage: "partial" });
-    expect(() => mapCoverageRow({ month_kst: "2026-09-01", coverage: "unclear" })).toThrow(TypeError);
+    expect(() => mapCoverageRow({ month_kst: "2026-09", coverage: "unclear" })).toThrow(TypeError);
   });
 });
