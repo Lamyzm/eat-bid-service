@@ -89,16 +89,16 @@ def test_actual_CLI가_discover부터_validate_복구와_project까지_실행한
         200, (FIXTURES / "bid-detail-one.xml").read_bytes(), NOW
     )
     capture_args = _공통("capture", detail_run_id, release_id) + [
-        "--external-bid-id", "5610615",
+        "--external-bid-ids-json", '["5610615"]',
         "--started-at", NOW.isoformat(),
     ]
     assert main(capture_args, application_factory=factory, settings=settings) == 0
     captured = json.loads(capsys.readouterr().out)
-    observation_id = int(captured["observation_id"])
-    assert len(captured["content_sha256"]) == 64
+    (observation_id,) = captured["observation_ids"]
+    assert len(captured["results"][0]["content_sha256"]) == 64
 
     normalize_args = _공통("normalize", detail_run_id, release_id) + [
-        "--observation-id", str(observation_id),
+        "--observation-ids-json", json.dumps([observation_id]),
         "--normalized-at", NOW.isoformat(),
     ]
     assert main(normalize_args, application_factory=factory, settings=settings) == 0

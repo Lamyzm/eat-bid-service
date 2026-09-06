@@ -45,7 +45,10 @@ SAMPLE_STAGE_ENV = {
     "EATBID_SOURCE_RELEASE_ID": "00000000-0000-0000-0000-000000000002",
     "EATBID_DETAIL_RUN_ID": "00000000-0000-0000-0000-000000000003",
     "EATBID_PUBLICATION_ID": "00000000-0000-0000-0000-000000000004",
-    "EATBID_EXTERNAL_BID_ID": "5610615",
+    # chunk 단계는 JSON 배열 하나를 argv 한 칸으로 받는다. 표본도 배열이어야 shell이 그 문자열을
+    # 다시 쪼개지 않는다는 것을 확인할 수 있다.
+    "EATBID_EXTERNAL_BID_IDS_JSON": '["5610615","5610616"]',
+    "EATBID_OBSERVATION_IDS_JSON": "[7,11]",
     "EATBID_OBSERVATION_ID": "7",
     "EATBID_MART_CALC_VERSION": "mart-r2",
 }
@@ -570,14 +573,34 @@ def _output_paths(template: Mapping[str, object]) -> dict[str, str]:
 
 
 def _render_shell_argv(command: str, environment: Mapping[str, str]) -> list[str]:
-    """`sh -ec` 문자열을 표본 env로 펼친다. 시계 치환과 `$NAME` 확장 외의 shell 기능은 없어야 한다."""
+    """`sh -ec` 문자열을 표본 env로 펼친다. 시계 치환과 `$NAME` 확장 외의 shell 기능은 없어야 한다.
+
+    왜 값을 바로 끼워 넣지 않나. `sh`는 큰따옴표 안에서 확장한 값을 다시 토큰으로 쪼개거나 그 안의
+    따옴표를 문법으로 읽지 않는다. 치환 뒤에 `shlex.split`을 돌리면 그 규칙이 깨져 JSON 배열 인자가
+    실제 pod에서와 다르게 잘린다. 그래서 shell 문법이 없는 표식으로 먼저 바꿔 토큰을 나눈 뒤 값을
+    되돌린다.
+    """
     rendered = command.replace(SHELL_CLOCK, "2026-09-04T03:05:00Z")
     assert "$(" not in rendered, command
     assert "`" not in rendered, command
-    rendered = SHELL_VARIABLE.sub(lambda match: environment[match.group(1)], rendered)
-    argv = shlex.split(rendered)
+    values: dict[str, str] = {}
+
+    def mark(match: re.Match[str]) -> str:
+        name = match.group(1)
+        token = f"ENVTOKEN{name}ENVTOKEN"
+        values[token] = environment[name]
+        return token
+
+    rendered = SHELL_VARIABLE.sub(mark, rendered)
+    argv = [_restore(word, values) for word in shlex.split(rendered)]
     assert argv[0] == "exec"
     return argv[1:]
+
+
+def _restore(word: str, values: Mapping[str, str]) -> str:
+    for token, value in values.items():
+        word = word.replace(token, value)
+    return word
 
 
 def _execute_discover_script(
@@ -705,6 +728,59 @@ def test_shell_단계의_argv는_CLI_parser의_필수_인자를_모두_채운다
         ), name
 
 
+def _stage_argv(
+    manifests: ManifestSet, template_name: str, environment: Mapping[str, str]
+) -> list[str]:
+    template = _templates(manifests.workflow_template("eatbid-dataplane"))[template_name]
+    command = str(_sequence(_mapping(template["container"])["args"])[0])
+    return _render_shell_argv(command, environment)
+
+
+def test_chunk_단계의_argv가_JSON_배열을_잘리지_않고_CLI_목록으로_넘긴다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: chunk는 argv 한 칸에 담긴 JSON 배열이다. shell이 그 값을 다시 토큰으로 쪼개면 CLI는
+    배열이 아니라 조각을 받고 pod는 인자 단계에서 죽는다."""
+    capture = _stage_argv(manifests, "capture", SAMPLE_STAGE_ENV)
+    normalize = _stage_argv(manifests, "normalize", SAMPLE_STAGE_ENV)
+
+    assert capture.count("--external-bid-ids-json") == 1
+    assert normalize.count("--observation-ids-json") == 1
+    assert build_parser().parse_args(capture[1:]).external_bid_ids == (
+        "5610615",
+        "5610616",
+    )
+    assert build_parser().parse_args(normalize[1:]).observation_ids == (7, 11)
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("EATBID_EXTERNAL_BID_IDS_JSON", "[]"),
+        ("EATBID_EXTERNAL_BID_IDS_JSON", "not-json"),
+        ("EATBID_EXTERNAL_BID_IDS_JSON", '["5610615","5610615"]'),
+        ("EATBID_EXTERNAL_BID_IDS_JSON", '["5610615; touch /tmp/eatbid-injection"]'),
+        ("EATBID_EXTERNAL_BID_IDS_JSON", '["$(touch /tmp/eatbid-substitution)"]'),
+        ("EATBID_OBSERVATION_IDS_JSON", "[]"),
+        ("EATBID_OBSERVATION_IDS_JSON", '["7"]'),
+        ("EATBID_OBSERVATION_IDS_JSON", "[7,7]"),
+        ("EATBID_OBSERVATION_IDS_JSON", "[0]"),
+    ],
+)
+def test_망가진_chunk_값은_shell_확장_없이_인자_단계에서_닫힌다(
+    manifests: ManifestSet, variable: str, value: str
+) -> None:
+    template_name = (
+        "capture" if variable == "EATBID_EXTERNAL_BID_IDS_JSON" else "normalize"
+    )
+    argv = _stage_argv(
+        manifests, template_name, {**SAMPLE_STAGE_ENV, variable: value}
+    )
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(argv[1:])
+
+
 @pytest.mark.parametrize("template_name", SHELL_STAGES)
 def test_이미지가_굽는_release_commit_40자_BUILD_SHA로도_argv가_통과한다(
     manifests: ManifestSet, template_name: str
@@ -730,22 +806,26 @@ def test_DAG는_discover_output으로_capture와_normalize를_fan_out한다(
 
     discover_outputs = _output_paths(templates["discover"])
     result_dir = _env(_mapping(templates["discover"]["container"]), "EATBID_RESULT_DIR")["value"]
+    # 평평한 `external_bid_ids`는 pod 안에 파일로 남지만 output parameter가 아니다. 피크 월
+    # 17,000건이면 아무도 읽지 않는 그 목록만으로 workflow status가 수백 KB 늘어난다.
     assert discover_outputs == {
         "source-release-id": f"{result_dir}/source_release_id",
         "detail-run-id": f"{result_dir}/detail_run_id",
         "publication-id": f"{result_dir}/publication_id",
-        "external-bid-ids": f"{result_dir}/external_bid_ids",
+        "external-bid-id-chunks": f"{result_dir}/external_bid_id_chunks",
         "discovered-count": f"{result_dir}/discovered_count",
     }
     assert _output_paths(templates["capture"]) == {
-        "observation-id": f"{result_dir}/observation_id"
+        "observation-ids": f"{result_dir}/observation_ids"
     }
 
+    # fan-out 단위는 발견 건이 아니라 chunk다. 건당 pod를 띄우면 건당 약 17초 중 10초가 pod
+    # 생성·종료 비용이라 한 달 백필이 80시간이 된다(EAT-51 증거 §6, EAT-79).
     assert tasks["capture"]["withParam"] == (
-        "{{tasks.discover.outputs.parameters.external-bid-ids}}"
+        "{{tasks.discover.outputs.parameters.external-bid-id-chunks}}"
     )
     assert tasks["normalize"]["withParam"] == (
-        "{{tasks.capture.outputs.parameters.observation-id}}"
+        "{{tasks.capture.outputs.parameters.observation-ids}}"
     )
     assert "withParam" not in tasks["validate"]
     assert "withParam" not in tasks["project"]
@@ -759,8 +839,8 @@ def test_DAG는_discover_output으로_capture와_normalize를_fan_out한다(
         assert arguments["detail-run-id"] == (
             "{{tasks.discover.outputs.parameters.detail-run-id}}"
         )
-    assert _task_arguments(tasks["capture"])["external-bid-id"] == "{{item}}"
-    assert _task_arguments(tasks["normalize"])["observation-id"] == "{{item}}"
+    assert _task_arguments(tasks["capture"])["external-bid-ids-json"] == "{{item}}"
+    assert _task_arguments(tasks["normalize"])["observation-ids-json"] == "{{item}}"
     for name in ("validate", "project", "marts"):
         assert _task_arguments(tasks[name])["publication-id"] == (
             "{{tasks.discover.outputs.parameters.publication-id}}"

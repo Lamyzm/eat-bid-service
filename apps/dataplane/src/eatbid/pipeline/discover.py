@@ -14,6 +14,7 @@ from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
 from eatbid.ingest.repository import CollectionRunMode
+from eatbid.pipeline.chunk import split_into_chunks
 from eatbid.source.client import SourceClient, SourceResponse
 from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.models import BidListPage
@@ -75,6 +76,13 @@ class DiscoveryResult:
     detail_run_id: UUID
     detail_request_unit_ids: tuple[int, ...]
     discovered_manifest_sha256: str
+
+    @property
+    def external_bid_id_chunks(self) -> tuple[tuple[str, ...], ...]:
+        """왜 발견이 fan-out 단위를 정하나. 다음 단계가 몇 개의 pod로 펼쳐질지는 발견한 ID 목록에서
+        곧바로 나오는 사실이고, 그 분할을 workflow manifest가 계산하면 매니페스트가 CLI와 별개의
+        두 번째 설정 원천이 된다. 여기서 나눠 두면 봉인된 manifest 순서 그대로 chunk가 된다."""
+        return split_into_chunks(self.external_bid_ids)
 
 
 class DiscoveryPersistence(Protocol):
