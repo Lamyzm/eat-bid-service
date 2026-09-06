@@ -19,6 +19,7 @@ import type { DatabaseReadiness } from "../platform/health/health.module";
 import type { AuctionReader } from "../modules/procurement/application/auction-reader";
 import type { OrganizationAttemptReader } from "../modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "../modules/procurement/application/win-rate-distribution-reader";
+import type { CodeReader } from "../modules/reference/application/code-reader";
 import { ReadinessState } from "../platform/health/readiness-state";
 import {
   problemForStatus,
@@ -46,6 +47,7 @@ export interface CreateAppOptions {
   readonly auctionReader?: AuctionReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
+  readonly codeReader?: CodeReader;
   readonly mountPreParserRawTransport?: (application: Express) => void;
   readonly testOnlyImports?: readonly Type[];
 }
@@ -126,6 +128,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
       auctionReader: options.auctionReader,
       organizationAttemptReader: options.organizationAttemptReader,
       winRateDistributionReader: options.winRateDistributionReader,
+      codeReader: options.codeReader,
       testOnlyImports: options.testOnlyImports,
     }),
     adapter,

@@ -2,6 +2,7 @@
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
+import type { CodeReader } from "../../modules/reference/application/code-reader";
 import type { DatabaseReadiness } from "../health/readiness-state";
 import type { UnitOfWork } from "./unit-of-work";
 
@@ -11,6 +12,7 @@ export const UNIT_OF_WORK = Symbol("UNIT_OF_WORK");
 export const AUCTION_READER = Symbol("AUCTION_READER");
 export const ORGANIZATION_ATTEMPT_READER = Symbol("ORGANIZATION_ATTEMPT_READER");
 export const WIN_RATE_DISTRIBUTION_READER = Symbol("WIN_RATE_DISTRIBUTION_READER");
+export const CODE_READER = Symbol("CODE_READER");
 
 export interface DatabasePurposePorts {
   readonly readiness: DatabaseReadiness;
@@ -18,4 +20,5 @@ export interface DatabasePurposePorts {
   readonly auctionReader: AuctionReader;
   readonly organizationAttemptReader: OrganizationAttemptReader;
   readonly winRateDistributionReader: WinRateDistributionReader;
+  readonly codeReader: CodeReader;
 }
