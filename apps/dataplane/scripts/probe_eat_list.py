@@ -11,84 +11,29 @@ import argparse
 import json
 import sys
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
-from xml.etree import ElementTree
 
-from eatbid.ingest.models import CaptureRequest
-from eatbid.source.eat.http_client import EatHttpClient
-from eatbid.source.eat.registry import require, require_transport
+from eat_probe import fetch_page, total_count
 
-DATASET_NS = "{http://www.nexacroplatform.com/platform/dataset}"
+from eatbid.source.eat.registry import require
+
 TRACKED_COLUMNS = ("BID_CNT", "LAST_CHG_DT", "ETN_BID_STT_NM", "BID_END_DT", "BID_NM")
 OPEN_STATES = frozenset({"입찰공고", "진행중"})
-
-
-def _rows(body: bytes) -> tuple[list[str], list[dict[str, str]]]:
-    root = ElementTree.fromstring(body.decode("utf-8"))
-    dataset = root.find(f"{DATASET_NS}Dataset")
-    if dataset is None:
-        raise SystemExit("응답에 Dataset이 없다")
-    columns = [
-        column.attrib["id"]
-        for column in dataset.iter(f"{DATASET_NS}Column")
-        if "id" in column.attrib
-    ]
-    rows = [
-        {
-            cell.attrib["id"]: (cell.text or "")
-            for cell in row
-            if "id" in cell.attrib
-        }
-        for row in dataset.iter(f"{DATASET_NS}Row")
-    ]
-    return columns, rows
-
-
-def _fetch(
-    *, start_date: str, end_date: str, page_size: int, page: int, region_code: str
-) -> tuple[list[str], list[dict[str, str]]]:
-    transport = require_transport("bid-list")
-    params = transport.build_page_params(
-        start_date=start_date,
-        end_date=end_date,
-        progress_status_code="",
-        region_code=region_code,
-        page_number=page,
-        page_size=page_size,
-    )
-    request = CaptureRequest(
-        request_unit_id=1,
-        run_id=uuid4(),
-        source="eat",
-        endpoint="bid-list",
-        params=params,
-    )
-    with EatHttpClient() as client:
-        response = client.fetch(request)
-    if response.status_code != 200:
-        raise SystemExit(f"HTTP {response.status_code}")
-    return _rows(response.body)
-
-
-def _total(rows: Sequence[Mapping[str, str]]) -> str:
-    totals = {row.get("TOT_CNT", "") for row in rows}
-    return totals.pop() if len(totals) == 1 else f"불일치 {totals}"
 
 
 def columns_command(args: argparse.Namespace) -> None:
     """응답 컬럼과 검토된 파서 계약의 차이를 보고한다."""
     contract = require("bid-list", parser_version="eat-v1")
-    columns, rows = _fetch(
+    columns, rows = fetch_page(
         start_date=args.start_date,
         end_date=args.end_date,
         page_size=args.page_size,
         page=1,
         region_code=args.region_code,
     )
-    print(f"응답 컬럼 {len(columns)}개, 행 {len(rows)}개, TOT_CNT={_total(rows)}")
+    print(f"응답 컬럼 {len(columns)}개, 행 {len(rows)}개, TOT_CNT={total_count(rows)}")
     for dataset, known in contract.datasets.items():
         unknown = [column for column in columns if column not in known]
         print(f"  계약 {dataset}: {list(known)}")
@@ -98,7 +43,7 @@ def columns_command(args: argparse.Namespace) -> None:
 def pagination_command(args: argparse.Namespace) -> None:
     """요청한 PAGE_SIZE와 실제 반환 행 수, RN 연속성을 대조한다."""
     for page_size in args.page_sizes:
-        columns, rows = _fetch(
+        columns, rows = fetch_page(
             start_date=args.start_date,
             end_date=args.end_date,
             page_size=page_size,
@@ -112,7 +57,7 @@ def pagination_command(args: argparse.Namespace) -> None:
         )
         print(
             f"PAGE_SIZE={page_size:<5} page={args.page} 반환={len(rows):<5}"
-            f" TOT_CNT={_total(rows):<8} RN연속={row_numbers == expected}"
+            f" TOT_CNT={total_count(rows):<8} RN연속={row_numbers == expected}"
         )
 
 
@@ -122,7 +67,7 @@ def window_command(args: argparse.Namespace) -> None:
         start_date, _, end_date = window.partition("..")
         if not end_date:
             raise SystemExit(f"창 형식은 YYYYMMDD..YYYYMMDD 이다: {window}")
-        _, rows = _fetch(
+        _, rows = fetch_page(
             start_date=start_date,
             end_date=end_date,
             page_size=args.page_size,
@@ -130,19 +75,19 @@ def window_command(args: argparse.Namespace) -> None:
             region_code=args.region_code,
         )
         states = Counter(row.get("ETN_BID_STT_NM", "") for row in rows)
-        print(f"{window}  TOT_CNT={_total(rows):<8} 반환={len(rows):<5} 상태={dict(states)}")
+        print(f"{window}  TOT_CNT={total_count(rows):<8} 반환={len(rows):<5} 상태={dict(states)}")
 
 
 def dates_command(args: argparse.Namespace) -> None:
     """반환 행의 날짜 컬럼 범위를 보여 창 파라미터가 어느 필드를 거는지 식별한다."""
-    _, rows = _fetch(
+    _, rows = fetch_page(
         start_date=args.start_date,
         end_date=args.end_date,
         page_size=args.page_size,
         page=1,
         region_code=args.region_code,
     )
-    print(f"창 {args.start_date}..{args.end_date} 반환={len(rows)} TOT_CNT={_total(rows)}")
+    print(f"창 {args.start_date}..{args.end_date} 반환={len(rows)} TOT_CNT={total_count(rows)}")
     date_columns = [
         column
         for column in ("PBANC_YMD", "BID_STRT_DT", "BID_END_DT", "LAST_CHG_DT", "DLVRY_STRT_DT", "DLVRY_END_DT")
@@ -161,7 +106,7 @@ def dates_command(args: argparse.Namespace) -> None:
 
 def settle_command(args: argparse.Namespace) -> None:
     """마감 뒤 며칠까지 값이 바뀌는지 재서 daily-reconcile 창의 근거를 만든다."""
-    _, rows = _fetch(
+    _, rows = fetch_page(
         start_date=args.start_date,
         end_date=args.end_date,
         page_size=args.page_size,
@@ -191,7 +136,7 @@ def settle_command(args: argparse.Namespace) -> None:
 def snapshot_command(args: argparse.Namespace) -> None:
     """열린 공고의 추적 컬럼을 저장하고 이전 스냅샷과 대조한다."""
     observed_at = datetime.now(UTC).isoformat()
-    _, rows = _fetch(
+    _, rows = fetch_page(
         start_date=args.start_date,
         end_date=args.end_date,
         page_size=args.page_size,
