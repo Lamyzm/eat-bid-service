@@ -49,9 +49,33 @@ async function docker(...args: string[]): Promise<string> {
   return stdout.trim();
 }
 
-async function taskContainers(): Promise<string[]> {
-  const output = await docker("ps", "-a", "--filter", `label=${taskLabel}`, "--format", "{{.Names}}");
+// 이 실행이 직접 만든 container만 소유로 본다. 같은 label은 다른 프로세스가 같은 파일을 동시에
+// 돌릴 때도 붙으므로 label만으로 판정하면 남이 정리 중인 container가 이 실행을 실패시킨다.
+const ownedContainerPrefix = `eatbid-gate16-3-${process.pid}-`;
+
+async function ownedTaskContainers(): Promise<string[]> {
+  const output = await docker(
+    "ps", "-a",
+    "--filter", `label=${taskLabel}`,
+    "--filter", `name=^${ownedContainerPrefix}`,
+    "--format", "{{.Names}}",
+  );
   return output ? output.split(/\r?\n/) : [];
+}
+
+/**
+ * `docker run --rm`의 삭제는 container가 멈춘 뒤 daemon이 비동기로 끝낸다. 한 번만 조회하면 정리에
+ * 성공한 실행도 아직 목록에 남은 이름 때문에 실패하므로 상한 안에서 비워지기를 기다린다. 상한을
+ * 넘기면 남은 이름을 그대로 드러내 진짜 누수와 반영 지연을 구분한다.
+ */
+async function expectOwnedContainersCleanedUp(): Promise<void> {
+  const deadline = Date.now() + 30_000;
+  let remaining = await ownedTaskContainers();
+  while (remaining.length > 0 && Date.now() < deadline) {
+    await Bun.sleep(200);
+    remaining = await ownedTaskContainers();
+  }
+  expect(remaining).toEqual([]);
 }
 
 async function expectDenied(label: string, work: () => Promise<unknown>): Promise<void> {
@@ -74,7 +98,7 @@ interface DisposableDatabase {
 }
 
 async function withDisposableDatabase<A>(work: (database: DisposableDatabase) => Promise<A>): Promise<A> {
-  const name = `eatbid-gate16-3-${process.pid}-${Date.now()}`;
+  const name = `${ownedContainerPrefix}${Date.now()}`;
   let owner: ReturnType<typeof postgres> | undefined;
   let api: ReturnType<typeof postgres> | undefined;
   await docker(
@@ -317,7 +341,7 @@ describe("owner 범위 PostgreSQL 경계", () => {
       expect(await owner`select count(*)::int as count from drizzle.__drizzle_migrations`)
         .toEqual([{ count: committedMigrationCount }]);
     });
-    expect(await taskContainers()).toEqual([]);
+    await expectOwnedContainersCleanedUp();
   }, 120_000);
 
   test("identity insert는 sequence grant 없이 동작하고 readiness는 sequence 권한·소유권을 거부한다", async () => {
@@ -422,7 +446,7 @@ describe("owner 범위 PostgreSQL 경계", () => {
       }
       expect(await readiness.isReady()).toBe(true);
     });
-    expect(await taskContainers()).toEqual([]);
+    await expectOwnedContainersCleanedUp();
   }, 120_000);
 
   test("readiness가 database·schema·table·ownership·flag·role 권한 상승을 거부한다", async () => {
@@ -608,7 +632,7 @@ describe("owner 범위 PostgreSQL 경계", () => {
       }
       expect(await readiness.isReady()).toBe(true);
     });
-    expect(await taskContainers()).toEqual([]);
+    await expectOwnedContainersCleanedUp();
   }, 120_000);
 
   test("readiness가 모든 유효 protected column 권한을 거부한다", async () => {
@@ -739,7 +763,7 @@ describe("owner 범위 PostgreSQL 경계", () => {
         { attack: "public.api_column_probe REFERENCES(id)", ready: false },
       ]);
     });
-    expect(await taskContainers()).toEqual([]);
+    await expectOwnedContainersCleanedUp();
   }, 120_000);
 
   test("provisioning 뒤에 생긴 표에도 default privileges가 붙어 readiness가 유지된다", async () => {
@@ -778,7 +802,7 @@ describe("owner 범위 PostgreSQL 경계", () => {
       await owner.unsafe(provisioningSql);
       expect(await readiness.isReady()).toBe(true);
     });
-    expect(await taskContainers()).toEqual([]);
+    await expectOwnedContainersCleanedUp();
   }, 120_000);
 
   test("dataplane 역할이 mart를 쓰고 읽지만 mart에 표를 만들지는 못한다", async () => {
@@ -839,13 +863,13 @@ describe("owner 범위 PostgreSQL 경계", () => {
         await dataplane.end({ timeout: 1 }).catch(() => undefined);
       }
     });
-    expect(await taskContainers()).toEqual([]);
+    await expectOwnedContainersCleanedUp();
   }, 120_000);
 
   test("의도한 실패 뒤 task 소유 container를 정리한다", async () => {
     await expect(withDisposableDatabase(async () => {
       throw new Error("intentional cleanup probe");
     })).rejects.toThrow("intentional cleanup probe");
-    expect(await taskContainers()).toEqual([]);
+    await expectOwnedContainersCleanedUp();
   }, 120_000);
 });

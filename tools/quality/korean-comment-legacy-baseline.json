@@ -227,14 +227,6 @@
       "sha256": "a70b8edeef3d6617387c4554d820e090fcd05a6520c012ee73db577df6c82424"
     },
     {
-      "path": "apps/server/tools/dev-smoke.ts",
-      "sha256": "d995f03dfc6a91f5eb5416fd4a52afa63a61260e4da6a5f0dda6047e02c8c6d2"
-    },
-    {
-      "path": "apps/server/tools/inventory-legacy-routes.ts",
-      "sha256": "eabb5787e9a3b9f28a3d954cbd48922c3a4850fb84078bff104cef4e39800a7a"
-    },
-    {
       "path": "apps/web/scripts/cleanup.js",
       "sha256": "af70872d9c06ce9b68b3dd0375d61960a407a75d1abb41bc22a9e717020b34aa"
     },
