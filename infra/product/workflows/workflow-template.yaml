@@ -465,6 +465,17 @@ spec:
           - *env-detail-run-id
           - *env-publication-id
           - *env-parser-version
+          - &env-web-internal-url
+            # web ClusterIP Service다. 터널·Ingress를 지나지 않으므로 `/internal` ipAllowList 규칙의
+            # 판정 대상이 아니고, 이 값이 비면 무효화를 건너뛴다(발행은 실패시키지 않는다).
+            name: EATBID_WEB_INTERNAL_URL
+            value: http://web
+          - &env-cache-revalidate-token
+            name: EATBID_CACHE_REVALIDATE_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: eatbid-database-dataplane
+                key: EATBID_CACHE_REVALIDATE_TOKEN
           - *env-database-url
           - *env-r2-endpoint
           - *env-r2-bucket
@@ -511,6 +522,8 @@ spec:
           - *env-parser-version
           - *env-created-at
           - *env-result-dir
+          - *env-web-internal-url
+          - *env-cache-revalidate-token
           - *env-database-url
           - *env-r2-endpoint
           - *env-r2-bucket

@@ -9,6 +9,7 @@ resources:
   - migration.yaml
   - db-provisioning.yaml
   - secrets.yaml
+  - internal-ingress.yaml
   - workflows
 
 # SQL을 ConfigMap에 손으로 옮겨 적으면 저장소와 클러스터의 권한 집합이 갈라진다. generator가 파일을
@@ -42,4 +43,5 @@ patches:
       name: daily-refresh|poll-open-day|poll-open-off|poll-open-weekend
   - path: patches/postgres-secret-env.patch.yaml
   - path: patches/server-secret-env.patch.yaml
+  - path: patches/web-secret-env.patch.yaml
   - path: patches/sync-waves.patch.yaml

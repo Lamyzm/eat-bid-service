@@ -374,6 +374,7 @@ def test_product_manifest는_소비할_product_image_넷을_정확히_갖는다(
         "migration.yaml",
         "db-provisioning.yaml",
         "secrets.yaml",
+        "internal-ingress.yaml",
         "workflows",
     ]
     # db-provisioning의 SQL은 generator로만 실린다. 손으로 쓴 ConfigMap이 끼어들면 저장소 파일과

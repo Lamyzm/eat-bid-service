@@ -9,7 +9,8 @@ product cutover; Argo CD and Argo Workflows only consume them.
 | `eatbid-postgres-bootstrap` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | database operator / environment bootstrap | PostgreSQL bootstrap container, `eatbid-db-provisioning` hook Job |
 | `eatbid-database-migrator` | `DATABASE_URL` (owner-scoped migrator role) | database operator / environment bootstrap | Sync migration job only |
 | `eatbid-database-api` | `DATABASE_URL` (non-owner API role) | database operator / environment bootstrap | Nest server only |
-| `eatbid-database-dataplane` | `DATABASE_URL` (`eatbid_dataplane` role; `ingest`/`core` 쓰기) | database operator / environment bootstrap | dataplane WorkflowTemplate only |
+| `eatbid-database-dataplane` | `DATABASE_URL` (`eatbid_dataplane` role; `ingest`/`core` 쓰기), `EATBID_CACHE_REVALIDATE_TOKEN` | database operator / environment bootstrap | dataplane WorkflowTemplate only |
+| `eatbid-cache-revalidate` | `EATBID_CACHE_REVALIDATE_TOKEN` | product operator / environment bootstrap | web (`POST /internal/cache/revalidate`) |
 | `eatbid-r2` | `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | storage operator / environment bootstrap | dataplane |
 | `eatbid-auth` | `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | product operator / environment bootstrap | server |
 | `eatbid-share` | `EATBID_SHARE_SECRET` | product operator / environment bootstrap | server |
@@ -18,6 +19,18 @@ product cutover; Argo CD and Argo Workflows only consume them.
 
 Secret readiness, access scope, and connectivity must be verified before the dormant
 product composition is wired to the live Argo CD Application or any schedule is resumed.
+
+## 캐시 무효화 토큰의 두 경로와 회전
+
+`EATBID_CACHE_REVALIDATE_TOKEN`은 부르는 쪽(dataplane)과 받는 쪽(web)이 같은 값을 봐야 하는
+유일한 비밀이다. Infisical `prod:/runtime/web`과 `prod:/runtime/dataplane` 두 경로에 같은 이름으로
+같은 값을 둔다. web은 새 InfisicalSecret `eatbid-cache-revalidate`가, dataplane은 이미
+`/runtime/dataplane` 전체를 당겨 오는 `eatbid-database-dataplane`이 실어 온다.
+
+회전은 두 경로를 함께 바꾼다. 한쪽만 바꾸면 무효화가 401로 실패하지만 발행·빌드는 계속 성공하고
+화면만 `cacheLife` 상한(최대 1시간) 안에서 늙는다 — 조용한 실패라 로그에서 먼저 드러난다
+(`event: "cache-revalidate-failed"`). 토큰이 유출됐을 때 가능한 행위는 캐시를 비우는 것뿐이며
+데이터 노출도 쓰기도 아니다(ADR 0036).
 
 ## 역할 provisioning의 소유자와 순서
 

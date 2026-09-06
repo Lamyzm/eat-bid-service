@@ -790,6 +790,32 @@ def test_replay_DAG는_core를_다시_앉힌_뒤_같은_marts_task를_잇는다(
     assert marts_arguments["detail-run-id"] == "{{workflow.uid}}"
 
 
+def test_발행과_mart_활성화_단계만_web_캐시_무효화_설정을_받는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 무효화를 부를 수 있는 것은 새 사실을 방금 공개한 단계뿐이다. 관측 단계까지 토큰을 들면
+    필요 없는 곳에 비밀이 퍼지고, 무효화 시점이 발행 시점과 어긋난다(ADR 0036-2)."""
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+
+    for name in ("project", "marts"):
+        container = _mapping(templates[name]["container"])
+        # Service ClusterIP다. 터널·Ingress를 지나지 않으므로 `/internal` ipAllowList의 대상이 아니다.
+        assert _env(container, "EATBID_WEB_INTERNAL_URL")["value"] == "http://web"
+        assert _secret_ref(_env(container, "EATBID_CACHE_REVALIDATE_TOKEN")) == (
+            "eatbid-database-dataplane",
+            "EATBID_CACHE_REVALIDATE_TOKEN",
+        )
+
+    for name in ("discover", "capture", "normalize", "validate", "replay"):
+        container = _mapping(templates[name]["container"])
+        declared = {
+            str(_mapping(item)["name"]) for item in _sequence(container.get("env", []))
+        }
+        assert "EATBID_CACHE_REVALIDATE_TOKEN" not in declared, name
+        assert "EATBID_WEB_INTERNAL_URL" not in declared, name
+
+
 def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
     manifests: ManifestSet,
 ) -> None:
