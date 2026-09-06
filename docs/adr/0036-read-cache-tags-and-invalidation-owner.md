@@ -1,6 +1,6 @@
 # 0036 — 결정 화면 읽기 캐시의 태그 어휘와 무효화 소유자
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-06
 - 관계: [0031](0031-decision-screen-frontend-rendering.md) **7항을 대체한다.**
   [0028](0028-cache-components-and-self-hosted-cache.md) 4항의 `use cache` 범위 규칙 안에서 동작하며

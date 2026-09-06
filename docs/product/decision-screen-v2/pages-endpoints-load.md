@@ -20,7 +20,8 @@
 
 | 항목 | 결정 | 이유 |
 | -- | -- | -- |
-| 캐시 키 | 응답 헤더 `ETag = buildId + 요청 파라미터 해시`, web은 `use cache` + `cacheTag('mart:<buildId>')` | 같은 build면 DB를 다시 읽지 않는다. 활성 build 전환 시 태그 하나로 무효화. **web `use cache`·`cacheTag` 적용은 EAT-45로 분리했다**(ADR 0028 무효화 owner 미결). EAT-37은 캐시 없이 매 요청 조회한다 |
+| 캐시 키 | web `use cache` + 안정 태그(`mart:<mart_name>`·`auction:<id>`·`org:<id>`·`allAuctions`)와 유계 `cacheLife`(stale 300 / revalidate 900 / expire 3600). 무효화는 dataplane이 발행·활성 전환 뒤 `POST /internal/cache/revalidate`로 push한다 | 같은 build면 DB를 다시 읽지 않고, 전환 뒤 첫 열람은 새 값이다(EAT-45, ADR 0036). `mart:<buildId>`는 쓸 수 없다 — 지우는 쪽이 아는 id와 캐시 항목에 붙은 id가 정의상 다르다 |
+| 서버 캐시 헤더 | 내지 않는다. buildId 기반 ETag와 304 협상은 채택하지 않았다 | 304는 본문이 없어 "unknown 응답을 계약 schema로 parse한다"는 transport 불변식과 충돌하고, Express 기본 weak ETag는 본문 해시라 DB 읽기를 줄이지 못한다. 절약 대상도 클러스터 내부 바이트뿐이다. 공개 CDN이 mart 응답을 직접 받는 날 다시 검토한다 |
 | 페이지네이션 | cursor(정수 ID 기반) + `limit ≤ 200` | offset은 대형 표에서 비선형. 문자열 키 금지(규칙 2) |
 | ID wire | bigint는 decimal string (ADR 0018) | JS number 손실 방지 |
 | 에러 | Problem Details 400/404/409/500/503 | 기존 `findAuction`과 동일 |

@@ -30,6 +30,14 @@ mutex는 `eatbid-core-publication`이 아니라 **`eatbid-mart-build`**다. 같�
 다음 수집의 발행을 막아 소스 관측이 늦어지는데, mart는 파생물이라 stale이 정상 상태다(ADR 0011).
 `replay`도 core를 다시 앉히므로 `replay-pipeline` DAG가 같은 task를 뒤에 잇는다.
 
+web 읽기 캐시 무효화는 **새 pod도 새 task도 아니다**. `project`가 발행을 끝낸 뒤, `build-marts`가
+활성 포인터를 옮긴 뒤 그 프로세스가 직접 web ClusterIP Service(`EATBID_WEB_INTERNAL_URL`, 기본
+`http://web`)의 `POST /internal/cache/revalidate`를 부른다(ADR 0036). 무효화 시점을 아는 것은 새 사실을
+방금 공개한 그 프로세스이고, 그 판단을 workflow YAML로 옮기면 같은 판단이 두 곳에 산다.
+실패는 발행·빌드를 실패시키지 않고 JSON 한 줄(`event: "cache-revalidate-failed"`)로만 남으며, 화면은
+`cacheLife` 상한(최대 1시간) 안에서 스스로 회복한다. 요청은 터널·Ingress를 지나지 않고, 밖에서 온
+`/internal` 요청은 Traefik `ipAllowList` middleware가 403으로 닫는다.
+
 정부 코드 reference 적재는 같은 `WorkflowTemplate`의 별도 entrypoint `reference-pipeline`이다
 (ADR 0035). DAG는 `capture-reference`(공식 파일 GET → sha256 → R2 → `ingest.raw_observation` →
 `source_release` 봉인) → `project-reference`(`core.code_release`·`code_release_member`·`code_value`·
