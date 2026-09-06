@@ -98,7 +98,9 @@ test.describe('결정 화면 호가창 fixture', () => {
     await expect(ladder.getByRole('rowheader', { name: '90.000' })).toBeVisible();
     await expect(page.getByText('전체의 24%')).toBeVisible();
     await expect(page.getByText('90.030 ~ 90.040')).toBeVisible();
-    await expect(page.getByText(/하한율 90\.000/)).toBeVisible();
+    // 헤더 칩도 `하한율 90.000`을 그리므로 각주 문단으로 좁혀 본다. 각주 문구 자체는 그대로다.
+    const footnote = page.locator('p', { hasText: /^전국 · 품목 전체 · 하한율 90\.000 · / });
+    await expect(footnote).toBeVisible();
     // 기본값이 없으므로 처음에는 어떤 줄도 관통되지 않는다(PDR-0004).
     await expect(page.locator('tr[aria-current="true"]')).toHaveCount(0);
   });

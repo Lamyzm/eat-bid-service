@@ -39,11 +39,22 @@ export function OrderBook({
       <div className='min-w-0 overflow-x-auto'>
         <table className='w-full min-w-[280px] border-separate border-spacing-y-0.5 text-[15px]'>
           <caption className='pb-2 text-left text-[13px] font-medium text-muted-foreground'>{caption}</caption>
-          <thead className='sr-only'>
-            <tr>
-              <th scope='col'>사정률 구간</th>
-              <th scope='col'>낙찰 횟수</th>
-              <th scope='col'>표시</th>
+          {/*
+            열 이름을 `sr-only`로 숨기면 `position: absolute`가 thead를 표 상자 밖으로 빼내 `scope='col'`
+            연결이 끊기고, 1px 상자 안에서 nowrap 글자가 잘려 폭 검사(decision-screen.spec.ts)에도 걸린다.
+            열 이름은 표 흐름 안에 그대로 두고 시각적으로만 낮춘다.
+          */}
+          <thead>
+            <tr className='text-[13px] font-medium text-muted-foreground'>
+              <th scope='col' className='pr-2 pb-1 text-left font-medium whitespace-nowrap'>
+                사정률
+              </th>
+              <th scope='col' className='pr-2 pb-1 text-right font-medium whitespace-nowrap'>
+                낙찰
+              </th>
+              <th scope='col' className='pb-1 text-left font-medium whitespace-nowrap'>
+                분포
+              </th>
             </tr>
           </thead>
           <tbody>
