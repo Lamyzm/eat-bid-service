@@ -8,7 +8,7 @@ import { BidRateProvider } from './bid-rate-context';
 import { EvidenceTabs } from './evidence-tabs';
 
 const history = { state: 'ready', presentation: presentHistory(attemptsFixture, '7') } as const;
-const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null });
+const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, expand: false });
 
 function renderTabs(view: DecisionView) {
   return render(
@@ -37,7 +37,7 @@ describe('근거 탭', () => {
   test('비교집단 안내문은 지금 모집단을 문장에 넣어 말한다', () => {
     const screen = render(
       <BidRateProvider initialRate='90.000'>
-        <EvidenceTabs auctionId='4821' search={{ period: '12개월', scope: '시군', view: '비교집단', item: null }} history={history} />
+        <EvidenceTabs auctionId='4821' search={{ period: '12개월', scope: '시군', view: '비교집단', item: null, myRate: null, expand: false }} history={history} />
       </BidRateProvider>
     );
     expect(screen.getByText('시군에서 값마다 낙찰된 횟수입니다. 모집단은 위 필터에서 바꿉니다.')).toBeTruthy();

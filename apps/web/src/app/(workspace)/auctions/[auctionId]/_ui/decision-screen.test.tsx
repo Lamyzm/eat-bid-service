@@ -10,7 +10,7 @@ import type { DecisionPageData } from '../_model/load-auction-page';
 import { presentDecision } from '../_model/present-decision';
 import { DecisionScreen } from './decision-screen';
 
-const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null });
+const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, expand: false });
 const search = searchOn('비교집단');
 const flowSearch = searchOn('흐름');
 const decision = () => presentDecision(openAuctionFixture, fixtureNow);
@@ -54,7 +54,7 @@ describe('결정 화면', () => {
   });
 
   test('탭 링크는 기간·모집단·품목 조건을 그대로 들고 간다', () => {
-    const withItem: DecisionSearch = { period: '3개월', scope: '시군', view: '비교집단', item: '7' };
+    const withItem: DecisionSearch = { period: '3개월', scope: '시군', view: '비교집단', item: '7', myRate: null, expand: false };
     const screen = render(<DecisionScreen decision={decision()} search={withItem} history={readyHistory} />);
     const href = screen.getByRole('link', { name: '흐름' }).getAttribute('href') ?? '';
     const query = new URLSearchParams(href.slice(href.indexOf('?')));

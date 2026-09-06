@@ -5,7 +5,7 @@ import { fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { presentDecision } from '../_model/present-decision';
 import { DecisionHeader } from './decision-header';
 
-const search = { period: '12개월', scope: '전국', view: '비교집단', item: null } as const;
+const search = { period: '12개월', scope: '전국', view: '비교집단', item: null, myRate: null, expand: false } as const;
 
 describe('결정 화면 헤더', () => {
   test('제목과 화면 조건 칩 셋을 보인다', () => {
