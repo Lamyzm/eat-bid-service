@@ -1,0 +1,7649 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "d8553fe8-597b-412c-8570-9a4e4c81062f",
+  "prevIds": [
+    "9e1c0a1b-2a3a-4c4e-98cc-0ad749262bda"
+  ],
+  "ddl": [
+    {
+      "name": "app",
+      "entityType": "schemas"
+    },
+    {
+      "name": "core",
+      "entityType": "schemas"
+    },
+    {
+      "name": "ingest",
+      "entityType": "schemas"
+    },
+    {
+      "name": "mart",
+      "entityType": "schemas"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "run",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "request_unit",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "raw_blob",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "raw_observation",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "normalized_record",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "publication",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "normalization_attempt",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "normalization_attempt_record",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "publication_record",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "replay_input",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "source_release",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "source_release_dataset",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "source_release_observation",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "source_release_run",
+      "entityType": "tables",
+      "schema": "ingest"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "code_label_observation",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "code_mapping",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "code_scheme",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "code_value",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "code_release",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "code_release_member",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "organization",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "organization_identifier",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "auction_attempt",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "auction_organization",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "auction_revision",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "auction_revision_code_value",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "source_supplier_account",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "supplier_party",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "auction_attempt_link",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "award_decision",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "bid_submission",
+      "entityType": "tables",
+      "schema": "core"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "identity_subject",
+      "entityType": "tables",
+      "schema": "app"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "principal",
+      "entityType": "tables",
+      "schema": "app"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "workspace",
+      "entityType": "tables",
+      "schema": "app"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "workspace_membership",
+      "entityType": "tables",
+      "schema": "app"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "build",
+      "entityType": "tables",
+      "schema": "mart"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "build_coverage",
+      "entityType": "tables",
+      "schema": "mart"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "org_round_summary",
+      "entityType": "tables",
+      "schema": "mart"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "win_rate_distribution_monthly",
+      "entityType": "tables",
+      "schema": "mart"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "open_auction_snapshot",
+      "entityType": "tables",
+      "schema": "mart"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "mode",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "build_sha",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "parser_version",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ended_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failure_category",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "captured_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "published_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "request_unit_request_unit_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "request_unit_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "endpoint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_params",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_params_hash",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observed_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_sha256",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "object_key",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "byte_length",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_type",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_encoding",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stored_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "raw_observation_observation_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_unit_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "endpoint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "request_params",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "fetched_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "http_status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_sha256",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "normalized_record_normalized_record_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "normalized_record_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "record_type",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_entity_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_payload",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "parser_version",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "publication_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "validated_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "activated_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "published_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "canonical_fingerprint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "projector_version",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "normalization_attempt_normalization_attempt_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "normalization_attempt_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "parser_version",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "attempted_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "schema_fingerprint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quarantine_reason",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalization_attempt_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt_record"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_record_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "normalization_attempt_record"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "publication_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication_record"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_record_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "publication_record"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "replay_input"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "replay_input"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_release_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "release_name",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "as_of",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "manifest_sha256",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "sealed_at",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failure_category",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_release_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "endpoint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "dataset",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "record_type",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "parser_version",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "schema_fingerprint",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observed_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quarantined_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "required",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_release_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_observation"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_release_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_run"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "run_id",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "source_release_run"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "code_label_observation_code_label_observation_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "code_label_observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "label",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "language",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observed_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "code_mapping_code_mapping_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "code_mapping_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "from_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "to_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "relation",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "valid_from",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "valid_to",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "evidence_observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "code_scheme_code_scheme_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "code_scheme_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_scheme"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "namespace",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_scheme"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "owner",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_scheme"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "version_policy",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_scheme"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "valid_time_policy",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_scheme"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "code_value_code_value_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code_scheme_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "valid_from",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "valid_to",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "active",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "code_release_code_release_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "code_release_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_release_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code_scheme_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "varchar(128)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_version",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "published_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 1,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "promoted_grain",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_row_count",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "member_count",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "excluded_row_count",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code_release_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "parent_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "grain",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "active",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "valid_from",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "valid_to",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "organization_organization_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "organization_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "organization"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "type",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "organization"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "canonical_name",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "organization"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "organization"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "organization_identifier_organization_identifier_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "organization_identifier_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "organization_identifier"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "organization_identifier"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "organization_identifier"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "organization_identifier"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "auction_attempt_auction_attempt_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "auction_attempt_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_system",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "external_bid_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_revision_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_organization"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_organization"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "role",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_organization"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "auction_revision_auction_revision_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "auction_revision_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_attempt_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_record_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "char(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "content_sha256",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "display_bid_no",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_status",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "title",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "announced_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "deadline_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "opened_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_amount",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_amount",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "numeric(6,3)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "floor_rate",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "char(3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "currency",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_payload",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_revision_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision_code_value"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision_code_value"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "role",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_revision_code_value"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "source_supplier_account_source_supplier_account_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "source_supplier_account_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "supplier_party_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_system",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "account_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "supplier_party_supplier_party_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "supplier_party_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "supplier_party"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "type",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "supplier_party"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "canonical_name",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "supplier_party"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "business_number_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "supplier_party"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "supplier_party"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "auction_attempt_link_auction_attempt_link_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "auction_attempt_link_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_revision_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "from_auction_attempt_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "to_auction_attempt_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "relation",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "display_bid_no",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_status_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "bid_opened_from",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "bid_closed_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_amount",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_amount",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "char(3)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "currency",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "award_decision_award_decision_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "award_decision_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_revision_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_attempt_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "awarded_roster_ordinal",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_supplier_account_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "supplier_party_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "awarded_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "awarded_amount",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "char(3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "currency",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "numeric(15,3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "awarded_rate",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "numeric(15,3)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "runner_up_rate",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_status_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "bid_submission_bid_submission_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "bid_submission_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_revision_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_attempt_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "opened_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "roster_ordinal",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_supplier_account_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "supplier_party_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "submitted_at",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "amount",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "effective_amount",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "char(3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "currency",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "numeric(15,3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "bid_rate",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "rank",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_status_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "withdrawal_code_value_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 1,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "draw_numbers",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observed_roster_size",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "identity_subject_identity_subject_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "identity_subject_id",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "identity_subject"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "principal_id",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "identity_subject"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "provider",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "identity_subject"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issuer",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "identity_subject"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "subject",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "identity_subject"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "identity_subject"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "principal_principal_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "principal_id",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "principal"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "principal"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "workspace_workspace_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "workspace_id",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "workspace"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "workspace"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "workspace"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "workspace_id",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "workspace_membership"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "principal_id",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "workspace_membership"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "role",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "workspace_membership"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "app",
+      "table": "workspace_membership"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "build_build_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "build_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "mart_name",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_release_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "publication_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "calc_version",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "builder_version",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "region_scheme",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "as_of",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "started_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "computed_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "activated_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "superseded_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "row_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "retain_until",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failure_category",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "build_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "region_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "month_kst",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observed_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "normalized_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "quarantined_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "coverage",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "build_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_attempt_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_revision_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_label",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "announced_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "opened_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "numeric(6,3)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "floor_rate",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "award_method_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_amount",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "planned_amount",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "char(3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "currency",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "numeric(15,3)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "awarded_assessment_rate",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "numeric(15,3)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "runner_up_assessment_rate",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "day_floor_amount",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "numeric(9,4)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "day_floor_bid_rate",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "numeric(9,4)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "awarded_bid_rate",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "list_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "below_day_floor_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "withdrawn_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "withdrawal_cohort_age_days",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "winner_supplier_party_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "supersedes_attempt_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "lineage_status",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "opened_month_kst",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "build_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "win_rate_distribution_monthly_win_rate_distribution_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "win_rate_distribution_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "scope",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "region_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "numeric(6,3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "floor_rate",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "award_method_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "month_kst",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "numeric(15,3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "bin_lower",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "numeric(15,3)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "bin_width",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "attempt_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "build_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "open_auction_snapshot_open_auction_snapshot_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "open_auction_snapshot_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "auction_attempt_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observed_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "observation_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "bid_count",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_last_changed_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "closes_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "opens_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "announced_at",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "numeric(18,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "base_amount",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "char(3)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "currency",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "item_label",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_status_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "numeric(6,3)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "floor_rate",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "region_sido_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "region_sigungu_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_label",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "terms_revision_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "source",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "manifest_sha256",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"manifest_sha256\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "source_release_source_manifest_sha256_key",
+      "entityType": "indexes",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "auction_attempt_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "bid_submission_auction_attempt_idx",
+      "entityType": "indexes",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "supplier_party_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "opened_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "bid_submission_supplier_party_opened_idx",
+      "entityType": "indexes",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "mart_name",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"status\" = 'active'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "mart_build_active_key",
+      "entityType": "indexes",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "mart_name",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "mart_build_mart_status_idx",
+      "entityType": "indexes",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "build_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "organization_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "announced_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "auction_attempt_id",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "org_round_summary_build_org_announced_idx",
+      "entityType": "indexes",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "build_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "organization_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "item_code_value_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "announced_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "auction_attempt_id",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "org_round_summary_build_org_item_announced_idx",
+      "entityType": "indexes",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "build_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "closes_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "auction_attempt_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "open_auction_snapshot_build_closes_idx",
+      "entityType": "indexes",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "auction_attempt_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "observed_at",
+          "isExpression": false,
+          "asc": false,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "open_auction_snapshot_attempt_observed_idx",
+      "entityType": "indexes",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "build_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "region_sido_code_value_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "open_auction_snapshot_build_region_sido_idx",
+      "entityType": "indexes",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "build_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "item_label",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "open_auction_snapshot_build_item_label_idx",
+      "entityType": "indexes",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "request_unit_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "raw_observation_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "request_unit_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "request_unit",
+      "columnsTo": [
+        "request_unit_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "raw_observation_mxWqbwvUOxBy_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "content_sha256"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_blob",
+      "columnsTo": [
+        "content_sha256"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "raw_observation_content_sha256_raw_blob_content_sha256_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "request_unit_id",
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "request_unit",
+      "columnsTo": [
+        "request_unit_id",
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "raw_observation_request_unit_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "raw_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "normalized_record_YVx965oGliOv_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "publication_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "normalization_attempt_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "normalization_attempt_2aB48gsQFeih_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "normalization_attempt_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "normalization_attempt",
+      "columnsTo": [
+        "normalization_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "normalization_attempt_record_C6jcxJRkuJbb_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "normalization_attempt_record"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "normalized_record_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "normalized_record",
+      "columnsTo": [
+        "normalized_record_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "normalization_attempt_record_4tMeOI1LZ5rR_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "normalization_attempt_record"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "publication_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "publication",
+      "columnsTo": [
+        "publication_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "publication_record_aroJ2ZYN2yAV_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "publication_record"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "normalized_record_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "normalized_record",
+      "columnsTo": [
+        "normalized_record_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "publication_record_OkmovJzgKyKQ_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "publication_record"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "replay_input_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "replay_input"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "replay_input_observation_id_raw_observation_observation_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "replay_input"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "source_release_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "source_release",
+      "columnsTo": [
+        "source_release_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "source_release_dataset_HS19Pl3hjraU_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "source_release_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "source_release",
+      "columnsTo": [
+        "source_release_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "source_release_observation_dufcKiIUBtW2_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "source_release_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "source_release_observation_In0Vbhr12fDW_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "source_release_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "source_release_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "source_release",
+      "columnsTo": [
+        "source_release_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "source_release_run_peaRjLf0syj9_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "source_release_run"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "run_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "run",
+      "columnsTo": [
+        "run_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "source_release_run_run_id_run_run_id_fkey",
+      "entityType": "fks",
+      "schema": "ingest",
+      "table": "source_release_run"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_label_observation_la4H1hXzGNup_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_label_observation_T9Quh6WzLukF_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "from_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_mapping_from_code_value_id_code_value_code_value_id_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "to_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_mapping_to_code_value_id_code_value_code_value_id_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "evidence_observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_mapping_2cKX1iOoAuI0_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "code_scheme_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_scheme",
+      "columnsTo": [
+        "code_scheme_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_value_code_scheme_id_code_scheme_code_scheme_id_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "code_scheme_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_scheme",
+      "columnsTo": [
+        "code_scheme_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_release_code_scheme_id_code_scheme_code_scheme_id_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source_release_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "source_release",
+      "columnsTo": [
+        "source_release_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_release_source_release_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_release_member_code_value_id_code_value_code_value_id_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "code_release_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_release",
+      "columnsTo": [
+        "code_release_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_release_member_release_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "code_release_id",
+        "parent_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_release_member",
+      "columnsTo": [
+        "code_release_id",
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "code_release_member_parent_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "organization_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "organization",
+      "columnsTo": [
+        "organization_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "organization_identifier_TD5SDIyrLAVD_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "organization_identifier"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "organization_identifier_idcHuDcsZh71_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "organization_identifier"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "organization_identifier_m13O1dlwZTMH_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "organization_identifier"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "auction_revision_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_revision",
+      "columnsTo": [
+        "auction_revision_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_organization_p42qwxorJn1f_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_organization"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "organization_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "organization",
+      "columnsTo": [
+        "organization_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_organization_iKxEkTQEMUXz_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_organization"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "auction_attempt_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_attempt",
+      "columnsTo": [
+        "auction_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_revision_YX75sNYJPj5R_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "normalized_record_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "normalized_record",
+      "columnsTo": [
+        "normalized_record_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_revision_kvTOaxDn4KoF_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_revision_7bISUFzqRJ9r_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "auction_revision_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_revision",
+      "columnsTo": [
+        "auction_revision_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_revision_code_value_orktJF5dHNCB_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_revision_code_value"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_revision_code_value_NpfuycI19Tc7_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_revision_code_value"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "supplier_party_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "supplier_party",
+      "columnsTo": [
+        "supplier_party_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "source_supplier_account_VPfRNv90aatK_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "account_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "source_supplier_account_38yy6xG90JMk_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "source_supplier_account_OHq3xFYT7J4Q_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "business_number_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "supplier_party_DfbWcxxC8xXE_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "supplier_party"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "auction_revision_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_revision",
+      "columnsTo": [
+        "auction_revision_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_attempt_link_4hmjQVgCn5SM_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "from_auction_attempt_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_attempt",
+      "columnsTo": [
+        "auction_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_attempt_link_k02aKHd5O9AH_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "to_auction_attempt_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_attempt",
+      "columnsTo": [
+        "auction_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_attempt_link_sNoZ0Tbubaue_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "source_status_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_attempt_link_d9vNMJ0QJejX_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "auction_attempt_link_aEh0s5y4wfVY_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "source_status_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "award_decision_OxFYuEC3zTZ1_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "award_decision_hTYA5UZpoPmA_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "auction_revision_id",
+        "auction_attempt_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_revision",
+      "columnsTo": [
+        "auction_revision_id",
+        "auction_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "award_decision_auction_revision_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source_supplier_account_id",
+        "supplier_party_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "source_supplier_account",
+      "columnsTo": [
+        "source_supplier_account_id",
+        "supplier_party_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "award_decision_supplier_account_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "source_status_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "bid_submission_OxIrnq28dyVn_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "withdrawal_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "bid_submission_j0cyPDBcEvAQ_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "bid_submission_hU12YGpu2uiW_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "auction_revision_id",
+        "auction_attempt_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_revision",
+      "columnsTo": [
+        "auction_revision_id",
+        "auction_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "bid_submission_auction_revision_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source_supplier_account_id",
+        "supplier_party_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "source_supplier_account",
+      "columnsTo": [
+        "source_supplier_account_id",
+        "supplier_party_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "bid_submission_supplier_account_fkey",
+      "entityType": "fks",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "principal_id"
+      ],
+      "schemaTo": "app",
+      "tableTo": "principal",
+      "columnsTo": [
+        "principal_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "identity_subject_principal_id_principal_principal_id_fkey",
+      "entityType": "fks",
+      "schema": "app",
+      "table": "identity_subject"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "workspace_id"
+      ],
+      "schemaTo": "app",
+      "tableTo": "workspace",
+      "columnsTo": [
+        "workspace_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "workspace_membership_workspace_id_workspace_workspace_id_fkey",
+      "entityType": "fks",
+      "schema": "app",
+      "table": "workspace_membership"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "principal_id"
+      ],
+      "schemaTo": "app",
+      "tableTo": "principal",
+      "columnsTo": [
+        "principal_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "workspace_membership_principal_id_principal_principal_id_fkey",
+      "entityType": "fks",
+      "schema": "app",
+      "table": "workspace_membership"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "source_release_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "source_release",
+      "columnsTo": [
+        "source_release_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "build_source_release_id_source_release_source_release_id_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "publication_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "publication",
+      "columnsTo": [
+        "publication_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "build_publication_id_publication_publication_id_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "build_id"
+      ],
+      "schemaTo": "mart",
+      "tableTo": "build",
+      "columnsTo": [
+        "build_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "build_coverage_build_id_build_build_id_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "region_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "build_coverage_ju8u2opCy2yu_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "build_id"
+      ],
+      "schemaTo": "mart",
+      "tableTo": "build",
+      "columnsTo": [
+        "build_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "org_round_summary_build_id_build_build_id_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "auction_attempt_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_attempt",
+      "columnsTo": [
+        "auction_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "org_round_summary_UUASDpbYBBUW_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "auction_revision_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_revision",
+      "columnsTo": [
+        "auction_revision_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "org_round_summary_Q6e5Fi27C7C6_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "organization_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "organization",
+      "columnsTo": [
+        "organization_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "org_round_summary_nBmz2lUE0cls_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "item_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "org_round_summary_ikplppfegVcK_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "award_method_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "org_round_summary_rZw51Ui9ZnGa_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "winner_supplier_party_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "supplier_party",
+      "columnsTo": [
+        "supplier_party_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "org_round_summary_a6cHh7AAz1e2_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "supersedes_attempt_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_attempt",
+      "columnsTo": [
+        "auction_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "org_round_summary_lBkqnbMgXtrE_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "build_id"
+      ],
+      "schemaTo": "mart",
+      "tableTo": "build",
+      "columnsTo": [
+        "build_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "win_rate_distribution_monthly_build_id_build_build_id_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "region_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "win_rate_distribution_monthly_1dq9i5Zyw2Ox_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "organization_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "organization",
+      "columnsTo": [
+        "organization_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "win_rate_distribution_monthly_6bxUyj8O4L1W_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "item_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "win_rate_distribution_monthly_y3Z7F0opi3gw_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "award_method_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "win_rate_distribution_monthly_IOdzhCJ4gXbm_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "build_id"
+      ],
+      "schemaTo": "mart",
+      "tableTo": "build",
+      "columnsTo": [
+        "build_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_build_id_build_build_id_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "auction_attempt_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_attempt",
+      "columnsTo": [
+        "auction_attempt_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_RpP6tYjy5PH7_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "observation_id"
+      ],
+      "schemaTo": "ingest",
+      "tableTo": "raw_observation",
+      "columnsTo": [
+        "observation_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_LLwxUv0oO0xB_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "organization_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "organization",
+      "columnsTo": [
+        "organization_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_VvKWbUcv0qFr_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "item_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_om2fEFC6ajpf_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "source_status_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_UtaIyeBBTD2K_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "region_sido_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_Wyx43gIjRZaY_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "region_sigungu_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_HP8fQgNUipVl_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "terms_revision_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "auction_revision",
+      "columnsTo": [
+        "auction_revision_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_eFSU23AEY2sB_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "columns": [
+        "normalization_attempt_id",
+        "normalized_record_id"
+      ],
+      "nameExplicit": false,
+      "name": "normalization_attempt_record_pkey",
+      "entityType": "pks",
+      "schema": "ingest",
+      "table": "normalization_attempt_record"
+    },
+    {
+      "columns": [
+        "publication_id",
+        "normalized_record_id"
+      ],
+      "nameExplicit": false,
+      "name": "publication_record_pkey",
+      "entityType": "pks",
+      "schema": "ingest",
+      "table": "publication_record"
+    },
+    {
+      "columns": [
+        "run_id",
+        "observation_id"
+      ],
+      "nameExplicit": false,
+      "name": "replay_input_pkey",
+      "entityType": "pks",
+      "schema": "ingest",
+      "table": "replay_input"
+    },
+    {
+      "columns": [
+        "source_release_id",
+        "dataset"
+      ],
+      "nameExplicit": false,
+      "name": "source_release_dataset_pkey",
+      "entityType": "pks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "columns": [
+        "source_release_id",
+        "observation_id"
+      ],
+      "nameExplicit": false,
+      "name": "source_release_observation_pkey",
+      "entityType": "pks",
+      "schema": "ingest",
+      "table": "source_release_observation"
+    },
+    {
+      "columns": [
+        "source_release_id",
+        "run_id"
+      ],
+      "nameExplicit": false,
+      "name": "source_release_run_pkey",
+      "entityType": "pks",
+      "schema": "ingest",
+      "table": "source_release_run"
+    },
+    {
+      "columns": [
+        "code_release_id",
+        "code_value_id"
+      ],
+      "nameExplicit": true,
+      "name": "code_release_member_pkey",
+      "entityType": "pks",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "columns": [
+        "auction_revision_id",
+        "organization_id",
+        "role"
+      ],
+      "nameExplicit": false,
+      "name": "auction_organization_pkey",
+      "entityType": "pks",
+      "schema": "core",
+      "table": "auction_organization"
+    },
+    {
+      "columns": [
+        "auction_revision_id",
+        "code_value_id",
+        "role"
+      ],
+      "nameExplicit": false,
+      "name": "auction_revision_code_value_pkey",
+      "entityType": "pks",
+      "schema": "core",
+      "table": "auction_revision_code_value"
+    },
+    {
+      "columns": [
+        "workspace_id",
+        "principal_id"
+      ],
+      "nameExplicit": false,
+      "name": "workspace_membership_pkey",
+      "entityType": "pks",
+      "schema": "app",
+      "table": "workspace_membership"
+    },
+    {
+      "columns": [
+        "build_id",
+        "auction_attempt_id"
+      ],
+      "nameExplicit": false,
+      "name": "org_round_summary_pkey",
+      "entityType": "pks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "columns": [
+        "run_id"
+      ],
+      "nameExplicit": false,
+      "name": "run_pkey",
+      "schema": "ingest",
+      "table": "run",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "request_unit_id"
+      ],
+      "nameExplicit": false,
+      "name": "request_unit_pkey",
+      "schema": "ingest",
+      "table": "request_unit",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "content_sha256"
+      ],
+      "nameExplicit": false,
+      "name": "raw_blob_pkey",
+      "schema": "ingest",
+      "table": "raw_blob",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "observation_id"
+      ],
+      "nameExplicit": false,
+      "name": "raw_observation_pkey",
+      "schema": "ingest",
+      "table": "raw_observation",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "normalized_record_id"
+      ],
+      "nameExplicit": false,
+      "name": "normalized_record_pkey",
+      "schema": "ingest",
+      "table": "normalized_record",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "publication_id"
+      ],
+      "nameExplicit": false,
+      "name": "publication_pkey",
+      "schema": "ingest",
+      "table": "publication",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "normalization_attempt_id"
+      ],
+      "nameExplicit": false,
+      "name": "normalization_attempt_pkey",
+      "schema": "ingest",
+      "table": "normalization_attempt",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "source_release_id"
+      ],
+      "nameExplicit": false,
+      "name": "source_release_pkey",
+      "schema": "ingest",
+      "table": "source_release",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "code_label_observation_id"
+      ],
+      "nameExplicit": false,
+      "name": "code_label_observation_pkey",
+      "schema": "core",
+      "table": "code_label_observation",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "code_mapping_id"
+      ],
+      "nameExplicit": false,
+      "name": "code_mapping_pkey",
+      "schema": "core",
+      "table": "code_mapping",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "code_scheme_id"
+      ],
+      "nameExplicit": false,
+      "name": "code_scheme_pkey",
+      "schema": "core",
+      "table": "code_scheme",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "code_value_id"
+      ],
+      "nameExplicit": false,
+      "name": "code_value_pkey",
+      "schema": "core",
+      "table": "code_value",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "code_release_id"
+      ],
+      "nameExplicit": false,
+      "name": "code_release_pkey",
+      "schema": "core",
+      "table": "code_release",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "organization_id"
+      ],
+      "nameExplicit": false,
+      "name": "organization_pkey",
+      "schema": "core",
+      "table": "organization",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "organization_identifier_id"
+      ],
+      "nameExplicit": false,
+      "name": "organization_identifier_pkey",
+      "schema": "core",
+      "table": "organization_identifier",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "auction_attempt_id"
+      ],
+      "nameExplicit": false,
+      "name": "auction_attempt_pkey",
+      "schema": "core",
+      "table": "auction_attempt",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "auction_revision_id"
+      ],
+      "nameExplicit": false,
+      "name": "auction_revision_pkey",
+      "schema": "core",
+      "table": "auction_revision",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "source_supplier_account_id"
+      ],
+      "nameExplicit": false,
+      "name": "source_supplier_account_pkey",
+      "schema": "core",
+      "table": "source_supplier_account",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "supplier_party_id"
+      ],
+      "nameExplicit": false,
+      "name": "supplier_party_pkey",
+      "schema": "core",
+      "table": "supplier_party",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "auction_attempt_link_id"
+      ],
+      "nameExplicit": false,
+      "name": "auction_attempt_link_pkey",
+      "schema": "core",
+      "table": "auction_attempt_link",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "award_decision_id"
+      ],
+      "nameExplicit": false,
+      "name": "award_decision_pkey",
+      "schema": "core",
+      "table": "award_decision",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "identity_subject_id"
+      ],
+      "nameExplicit": false,
+      "name": "identity_subject_pkey",
+      "schema": "app",
+      "table": "identity_subject",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "principal_id"
+      ],
+      "nameExplicit": false,
+      "name": "principal_pkey",
+      "schema": "app",
+      "table": "principal",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "workspace_id"
+      ],
+      "nameExplicit": false,
+      "name": "workspace_pkey",
+      "schema": "app",
+      "table": "workspace",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "build_id"
+      ],
+      "nameExplicit": false,
+      "name": "build_pkey",
+      "schema": "mart",
+      "table": "build",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "win_rate_distribution_id"
+      ],
+      "nameExplicit": false,
+      "name": "win_rate_distribution_monthly_pkey",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "open_auction_snapshot_id"
+      ],
+      "nameExplicit": false,
+      "name": "open_auction_snapshot_pkey",
+      "schema": "mart",
+      "table": "open_auction_snapshot",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "request_unit_id",
+        "run_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "request_unit_id_run_id_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "run_id",
+        "source",
+        "endpoint",
+        "request_params_hash"
+      ],
+      "nullsNotDistinct": false,
+      "name": "request_unit_run_source_endpoint_params_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "object_key"
+      ],
+      "nullsNotDistinct": false,
+      "name": "raw_blob_object_key_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "observation_id",
+        "record_type",
+        "source_entity_id",
+        "parser_version"
+      ],
+      "nullsNotDistinct": false,
+      "name": "normalized_record_observation_type_entity_parser_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "normalized_record"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "run_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "publication_run_id_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "run_id",
+        "observation_id",
+        "parser_version"
+      ],
+      "nullsNotDistinct": false,
+      "name": "normalization_attempt_run_observation_parser_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source",
+        "release_name"
+      ],
+      "nullsNotDistinct": false,
+      "name": "source_release_source_release_name_key",
+      "entityType": "uniques",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "code_value_id",
+        "label",
+        "language",
+        "observation_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "code_label_observation_evidence_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "code_label_observation"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "namespace"
+      ],
+      "nullsNotDistinct": false,
+      "name": "code_scheme_namespace_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "code_scheme"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "code_scheme_id",
+        "code"
+      ],
+      "nullsNotDistinct": false,
+      "name": "code_value_scheme_code_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source_release_id",
+        "code_scheme_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "code_release_source_release_scheme_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "code_value_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "organization_identifier_code_value_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "organization_identifier"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source_system",
+        "external_bid_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "auction_attempt_source_external_bid_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "auction_attempt"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "normalized_record_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "auction_revision_normalized_record_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "auction_revision_id",
+        "auction_attempt_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "auction_revision_attempt_pair_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "auction_revision"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "account_code_value_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "source_supplier_account_code_value_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source_supplier_account_id",
+        "supplier_party_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "source_supplier_account_party_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "source_supplier_account"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "business_number_code_value_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "supplier_party_business_number_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "supplier_party"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "auction_revision_id",
+        "to_auction_attempt_id",
+        "relation"
+      ],
+      "nullsNotDistinct": false,
+      "name": "auction_attempt_link_observation_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "auction_revision_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "award_decision_auction_revision_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "award_decision"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "bid_submission_id",
+        "opened_at"
+      ],
+      "nullsNotDistinct": true,
+      "name": "bid_submission_surrogate_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "auction_revision_id",
+        "roster_ordinal",
+        "opened_at"
+      ],
+      "nullsNotDistinct": true,
+      "name": "bid_submission_roster_grain_key",
+      "entityType": "uniques",
+      "schema": "core",
+      "table": "bid_submission"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "provider",
+        "issuer",
+        "subject"
+      ],
+      "nullsNotDistinct": false,
+      "name": "identity_subject_provider_issuer_subject_key",
+      "entityType": "uniques",
+      "schema": "app",
+      "table": "identity_subject"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "mart_name",
+        "calc_version",
+        "source_release_id",
+        "publication_id"
+      ],
+      "nullsNotDistinct": true,
+      "name": "mart_build_idempotency_key",
+      "entityType": "uniques",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "build_id",
+        "region_code_value_id",
+        "month_kst"
+      ],
+      "nullsNotDistinct": true,
+      "name": "mart_build_coverage_grain_key",
+      "entityType": "uniques",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "build_id",
+        "scope",
+        "region_code_value_id",
+        "organization_id",
+        "item_code_value_id",
+        "floor_rate",
+        "award_method_code_value_id",
+        "month_kst",
+        "bin_lower"
+      ],
+      "nullsNotDistinct": true,
+      "name": "win_rate_distribution_monthly_cohort_key",
+      "entityType": "uniques",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "build_id",
+        "auction_attempt_id",
+        "observed_at"
+      ],
+      "nullsNotDistinct": true,
+      "name": "open_auction_snapshot_observation_grain_key",
+      "entityType": "uniques",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "value": "\"status\" in ('planned', 'running', 'failed', 'validated', 'published')",
+      "name": "run_status_allowed",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"expected_count\" >= 0",
+      "name": "run_expected_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"captured_count\" >= 0",
+      "name": "run_captured_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"published_count\" >= 0",
+      "name": "run_published_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"ended_at\" is null or \"ended_at\" >= \"started_at\"",
+      "name": "run_end_chronology",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "(\n        \"status\" = 'failed'\n        and \"failure_category\" is not null\n        and \"ended_at\" is not null\n      ) or (\n        \"status\" = 'published'\n        and \"failure_category\" is null\n        and \"ended_at\" is not null\n      ) or (\n        \"status\" in ('planned', 'running', 'validated')\n        and \"failure_category\" is null\n        and \"ended_at\" is null\n      )",
+      "name": "run_terminal_metadata",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "(\n        \"status\" = 'published'\n        and \"published_count\" = \"expected_count\"\n      ) or (\n        \"status\" <> 'published'\n        and \"published_count\" = 0\n      )",
+      "name": "run_published_count_matches_expected",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "run"
+    },
+    {
+      "value": "\"expected_count\" >= 0",
+      "name": "request_unit_expected_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "value": "\"observed_count\" >= 0",
+      "name": "request_unit_observed_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "value": "\"byte_length\" >= 0",
+      "name": "raw_blob_byte_length_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "raw_blob"
+    },
+    {
+      "value": "\"status\" in ('pending', 'validated', 'published', 'failed')",
+      "name": "publication_status_allowed",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"expected_count\" >= 0",
+      "name": "publication_expected_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"normalized_count\" >= 0",
+      "name": "publication_normalized_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"published_count\" >= 0",
+      "name": "publication_published_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"activated_at\" is null or \"validated_at\" is null or \"activated_at\" >= \"validated_at\"",
+      "name": "publication_activation_chronology",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"status\" not in ('validated', 'published') or \"validated_at\" is not null",
+      "name": "publication_validated_requires_validation_timestamp",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"canonical_fingerprint\" is null or \"canonical_fingerprint\" ~ '^[0-9a-f]{64}$'",
+      "name": "publication_canonical_fingerprint_sha256",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"projector_version\" is null or char_length(\"projector_version\") > 0",
+      "name": "publication_projector_version_nonempty",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"status\" = 'published' or (\n        \"activated_at\" is null\n        and \"published_count\" = 0\n        and \"canonical_fingerprint\" is null\n        and \"projector_version\" is null\n      )",
+      "name": "publication_nonpublished_metadata_empty",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"status\" <> 'published' or (\n        \"validated_at\" is not null\n        and \"activated_at\" is not null\n        and \"expected_count\" = \"normalized_count\"\n        and \"normalized_count\" = \"published_count\"\n        and \"canonical_fingerprint\" is not null\n        and \"projector_version\" is not null\n      )",
+      "name": "publication_published_requires_gate",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "publication"
+    },
+    {
+      "value": "\"status\" in ('normalized', 'quarantined')",
+      "name": "normalization_attempt_status_allowed",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "value": "(\n        \"status\" = 'normalized'\n        and \"schema_fingerprint\" is not null\n        and \"quarantine_reason\" is null\n      ) or (\n        \"status\" = 'quarantined'\n        and \"quarantine_reason\" is not null\n      )",
+      "name": "normalization_attempt_final_metadata",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "value": "\"schema_fingerprint\" is null or \"schema_fingerprint\" ~ '^[0-9a-f]{64}$'",
+      "name": "normalization_attempt_schema_fingerprint_sha256",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "value": "\"quarantine_reason\" is null or char_length(\"quarantine_reason\") <= 500",
+      "name": "normalization_attempt_quarantine_reason_bounded",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "normalization_attempt"
+    },
+    {
+      "value": "\"status\" in ('planned', 'sealed', 'failed')",
+      "name": "source_release_status_allowed",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "value": "\"manifest_sha256\" is null or \"manifest_sha256\" ~ '^[0-9a-f]{64}$'",
+      "name": "source_release_manifest_sha256",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "value": "(\n        \"status\" = 'sealed'\n        and \"manifest_sha256\" is not null\n        and \"sealed_at\" is not null\n        and \"failure_category\" is null\n      ) or (\n        \"status\" = 'failed'\n        and \"manifest_sha256\" is null\n        and \"sealed_at\" is null\n        and \"failure_category\" is not null\n      ) or (\n        \"status\" = 'planned'\n        and \"manifest_sha256\" is null\n        and \"sealed_at\" is null\n        and \"failure_category\" is null\n      )",
+      "name": "source_release_terminal_metadata",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release"
+    },
+    {
+      "value": "\"schema_fingerprint\" ~ '^[0-9a-f]{64}$'",
+      "name": "source_release_dataset_schema_fingerprint_sha256",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "value": "\"expected_count\" >= 0",
+      "name": "source_release_dataset_expected_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "value": "\"observed_count\" >= 0",
+      "name": "source_release_dataset_observed_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "value": "\"normalized_count\" >= 0",
+      "name": "source_release_dataset_normalized_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "value": "\"quarantined_count\" >= 0",
+      "name": "source_release_dataset_quarantined_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "value": "\"observed_count\" <= \"expected_count\"",
+      "name": "source_release_dataset_observed_count_not_above_expected",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "value": "\"normalized_count\" + \"quarantined_count\" <= \"observed_count\"",
+      "name": "source_release_dataset_terminal_count_not_above_observed",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "source_release_dataset"
+    },
+    {
+      "value": "\"valid_from\" is not null or \"valid_to\" is not null",
+      "name": "code_mapping_has_validity_boundary",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "value": "\"valid_to\" is null or \"valid_from\" is null or \"valid_to\" >= \"valid_from\"",
+      "name": "code_mapping_valid_time_order",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "code_mapping"
+    },
+    {
+      "value": "\"valid_to\" is null or \"valid_from\" is null or \"valid_to\" >= \"valid_from\"",
+      "name": "code_value_valid_time_order",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "code_value"
+    },
+    {
+      "value": "array_length(\"promoted_grain\", 1) >= 1",
+      "name": "code_release_promoted_grain_present",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "value": "\"source_row_count\" >= 0 and \"member_count\" >= 0 and \"excluded_row_count\" >= 0",
+      "name": "code_release_row_counts_nonnegative",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "value": "\"member_count\" + \"excluded_row_count\" = \"source_row_count\"",
+      "name": "code_release_row_counts_partition_source",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "code_release"
+    },
+    {
+      "value": "\"parent_code_value_id\" is distinct from \"code_value_id\"",
+      "name": "code_release_member_parent_is_not_self",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "value": "\"valid_to\" is null or \"valid_from\" is null or \"valid_to\" >= \"valid_from\"",
+      "name": "code_release_member_valid_time_order",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "code_release_member"
+    },
+    {
+      "value": "\"role\" in ('location_sido', 'location_sigungu', 'eligibility_area', 'award_method', 'planned_price_method')",
+      "name": "auction_revision_code_value_role_allowed",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "auction_revision_code_value"
+    },
+    {
+      "value": "\"relation\" in ('parent', 'chain_member')",
+      "name": "auction_attempt_link_relation_allowed",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "value": "(\"base_amount\" is null and \"planned_amount\" is null) or \"currency\" is not null",
+      "name": "auction_attempt_link_currency_required_with_amount",
+      "entityType": "checks",
+      "schema": "core",
+      "table": "auction_attempt_link"
+    },
+    {
+      "value": "\"mart_name\" in ('org_round_summary', 'win_rate_distribution_monthly', 'open_auction_snapshot')",
+      "name": "mart_build_name_allowed",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"status\" in ('building', 'verified', 'active', 'superseded', 'failed')",
+      "name": "mart_build_status_allowed",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"builder_version\" ~ '^([0-9a-f]{40}|[0-9a-f]{64})$'",
+      "name": "mart_build_builder_version_build_sha",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"row_count\" is null or \"row_count\" >= 0",
+      "name": "mart_build_row_count_nonnegative",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"status\" not in ('verified', 'active', 'superseded')\n        or (\"computed_at\" is not null and \"row_count\" is not null)",
+      "name": "mart_build_verified_requires_evidence",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"status\" <> 'active'\n        or (\"activated_at\" is not null and \"failure_category\" is null and \"superseded_at\" is null)",
+      "name": "mart_build_active_requires_activation",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"status\" <> 'superseded' or (\"superseded_at\" is not null and \"activated_at\" is not null)",
+      "name": "mart_build_superseded_requires_timestamp",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "(\"status\" = 'failed') = (\"failure_category\" is not null)",
+      "name": "mart_build_failed_requires_category",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"status\" <> 'failed' or \"activated_at\" is null",
+      "name": "mart_build_failed_is_never_activated",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"activated_at\" is null or \"computed_at\" is null or \"activated_at\" >= \"computed_at\"",
+      "name": "mart_build_activation_chronology",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"superseded_at\" is null or \"activated_at\" is null or \"superseded_at\" >= \"activated_at\"",
+      "name": "mart_build_supersession_chronology",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build"
+    },
+    {
+      "value": "\"coverage\" in ('complete', 'partial', 'none', 'unknown')",
+      "name": "mart_build_coverage_value_allowed",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "value": "\"expected_count\" >= 0 and \"observed_count\" >= 0\n        and \"normalized_count\" >= 0 and \"quarantined_count\" >= 0",
+      "name": "mart_build_coverage_counts_nonnegative",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "value": "\"normalized_count\" + \"quarantined_count\" <= \"observed_count\"",
+      "name": "mart_build_coverage_terminal_within_observed",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "build_coverage"
+    },
+    {
+      "value": "\"lineage_status\" in ('observed', 'unknown')",
+      "name": "org_round_summary_lineage_status_allowed",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "value": "\"day_floor_amount\" is null or (\"planned_amount\" is not null and \"floor_rate\" is not null)",
+      "name": "org_round_summary_day_floor_requires_planned_amount",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "value": "\"below_day_floor_count\" is null or \"floor_rate\" is not null",
+      "name": "org_round_summary_below_day_floor_needs_floor_rate",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "value": "(\"list_count\" is null or \"list_count\" >= 0)\n        and (\"below_day_floor_count\" is null or \"below_day_floor_count\" >= 0)\n        and (\"withdrawn_count\" is null or \"withdrawn_count\" >= 0)",
+      "name": "org_round_summary_counts_nonnegative",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "value": "\"below_day_floor_count\" is null or \"list_count\" is null\n        or \"below_day_floor_count\" <= \"list_count\"",
+      "name": "org_round_summary_below_day_floor_within_list",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "org_round_summary"
+    },
+    {
+      "value": "\"scope\" in ('national', 'province', 'district', 'organization')",
+      "name": "win_rate_distribution_monthly_scope_allowed",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "value": "(\"scope\" = 'national' and \"region_code_value_id\" is null and \"organization_id\" is null)\n        or (\"scope\" in ('province', 'district')\n            and \"region_code_value_id\" is not null and \"organization_id\" is null)\n        or (\"scope\" = 'organization'\n            and \"region_code_value_id\" is null and \"organization_id\" is not null)",
+      "name": "win_rate_distribution_monthly_scope_axis_required",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "value": "\"bin_width\" > 0",
+      "name": "win_rate_distribution_monthly_bin_width_positive",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "value": "\"attempt_count\" > 0",
+      "name": "win_rate_distribution_monthly_attempt_count_positive",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "win_rate_distribution_monthly"
+    },
+    {
+      "value": "\"base_amount\" is null or \"currency\" is not null",
+      "name": "open_auction_snapshot_currency_required_with_amount",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "value": "\"bid_count\" is null or \"bid_count\" >= 0",
+      "name": "open_auction_snapshot_bid_count_nonnegative",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "value": "\"terms_revision_id\" is not null\n        or (\"floor_rate\" is null and \"item_label\" is null\n          and \"region_sido_code_value_id\" is null\n          and \"region_sigungu_code_value_id\" is null)",
+      "name": "open_auction_snapshot_terms_lineage_required",
+      "entityType": "checks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    }
+  ],
+  "renames": []
+}
