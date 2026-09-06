@@ -397,17 +397,30 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
 
 분석은 `core`의 사실을 소비하되 별도 `mart` 테이블에 저장한다.
 
-권장 mart:
+지금 존재하는 mart는 셋이고 각각 결정 화면의 한 자리를 읽는다.
 
-- institution/category/floor outcome cohort
-- supplier participation and award history
-- market thickness by time/region/category
-- workspace-owned supplier history
-- auction replay snapshot
-- procurement cadence/calendar
+| 표 | grain | 읽는 화면 |
+|---|---|---|
+| `mart.org_round_summary` | `(build_id, auction_attempt_id)` | 결정(흐름·과거 회차·레일), 오늘(기관 요약) |
+| `mart.win_rate_distribution_monthly` | 대리키 + `(scope, region, org, item, floor_rate, award_method, month, bin)` | 결정(호가창), 비교집단 |
+| `mart.open_auction_snapshot` | `(build_id, auction_attempt_id, observed_at)` | 오늘(열린 공고), 결정(참여 수 추이) |
 
-모든 mart 행/빌드는 `mart_build_id`, `computation_version`, `source_release/run set`, `as_of`,
-`built_at`, `sample_n`을 가진다. 대규모 JSON 결과를 Organization/Auction master 행에 넣지 않는다.
+업체 성적표 mart(`supplier_monthly_record`)는 `app`의 workspace 모델이 확정된 뒤로 미뤘다. 대상
+집합이 "워크스페이스가 등록한 사업자"인데 그 표가 아직 없고, 전체 업체를 빌드하는 것은 명단이
+공개라도 우리가 만든 프로파일이라 제품 규칙이 금지한다.
+
+**계보는 행이 아니라 `mart.build` 한 행이 갖는다.** 모든 mart 행의 첫 열은 `build_id`이고
+`source_release_id`·`publication_id`·`calc_version`·`builder_version`·`region_scheme`·`as_of`·
+`computed_at`·`row_count`는 build가 한 벌만 갖는다. 같은 사실을 수백만 행에 복제하면 권위가 둘이
+되고 한쪽만 바뀌는 순간을 DB가 막지 못한다. 활성 build는 mart마다 최대 하나이며 그것이 partial
+unique index로 강제된다. 표본 수(`sample_n`)는 조회 시점의 코호트에 따라 달라지므로 행이 아니라
+응답이 싣는다. 자세한 것은 [ADR 0034](../adr/0034-mart-build-identity-and-atomic-activation.md)다.
+
+`mart.build_coverage`는 그 build가 읽은 (지역, 달) 구간의 모집단 보유율을 기록한다. 판정은
+`complete`·`partial`·`none`·`unknown` 넷이며 `unknown`은 그 축으로 나뉘어 수집되지 않아 분모를 낼 수
+없다는 뜻이다([PDR-0003](../product/decisions/0003-coverage-unknown.md)).
+
+대규모 JSON 결과를 Organization/Auction master 행에 넣지 않는다.
 
 ## 8. 시간과 정량 값
 

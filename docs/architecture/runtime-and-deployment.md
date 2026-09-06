@@ -25,6 +25,14 @@ flowchart LR
     validate -->|invalid| quarantine[(quarantine)]
 ```
 
+`marts`(7)는 `WorkflowTemplate`의 실제 task이며 `project` 뒤에 붙고 CLI `build-marts`를 부른다.
+mutex는 `eatbid-core-publication`이 아니라 **`eatbid-mart-build`**다. 같은 mutex를 쓰면 mart 빌드가
+다음 수집의 발행을 막아 소스 관측이 늦어지는데, mart는 파생물이라 stale이 정상 상태다(ADR 0011).
+`replay`도 core를 다시 앉히므로 `replay-pipeline` DAG가 같은 task를 뒤에 잇는다.
+
+`verify`(8)는 아직 별도 pod로 만들지 않는다. build의 `verified` 전이가 이미 저장된 행을 다시 세어
+`row_count`를 고정하므로 pod 하나를 더 띄우는 값이 증명되지 않았다(AGENTS 11).
+
 하나의 `WorkflowTemplate`과 dataplane 이미지로 다음 모드를 실행한다.
 
 | mode | 목적 | 초기 예약 |
@@ -95,7 +103,18 @@ result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 6. 영향 범위 mart를 새 build ID로 생성·검증한 뒤 active build를 전환한다.
 7. 끝에서 source-to-core 지연, 건수, quarantine, mart freshness를 검증한다.
 
-실패 실행은 진단을 위해 남지만 현재 공개 상태를 부분적으로 덮어쓰지 않는다.
+**"영향 범위"는 어느 행을 고칠지가 아니라 어느 mart를 통째로 다시 만들지의 문제다.** 발행이 실은
+record type이 그 범위를 정하고(`auction.v1`은 회차 요약만, `auction.v2`는 분포까지, 목록 관측은 오늘
+화면만), mart 안에서는 전량을 새 build로 다시 만든다. 행 단위 증분은 "이전 build에서 무엇을
+물려받았는가"라는 상태를 하나 더 만들고, 실측이 전량 재빌드를 감당한다
+([규모 실측](../evidence/mart/2026-09-06-mart-build-sizing.md), [ADR 0034](../adr/0034-mart-build-identity-and-atomic-activation.md)).
+
+전환은 이전 active를 `superseded`로, 새 `verified`를 `active`로 바꾸는 한 트랜잭션이며 런타임 DDL이
+없다. 동시 전환은 두 번째가 partial unique index 위반으로 끊긴다. 활성 build가 아직 없는 상태는
+오류가 아니라 빈 목록이다.
+
+실패 실행은 진단을 위해 남지만 현재 공개 상태를 부분적으로 덮어쓰지 않는다. mart 표에 대한 쓰기는
+`building` 상태의 build에만 허용되므로 활성 build의 행을 고치는 것이 물리적으로 불가능하다.
 
 ## 5. GitOps와 이미지 공급망
 

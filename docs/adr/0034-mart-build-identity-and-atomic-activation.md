@@ -1,6 +1,6 @@
 # 0034 — mart build 정체성과 원자적 활성화
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-06
 - Supersedes: 없음. [0011](0011-versioned-derived-analytics.md)이 정한 "버전된 재생성 가능
   파생물"을 실행 가능한 경계로 푼다.
@@ -19,6 +19,12 @@
 2026-09-06 일회용 PostgreSQL 16.13 실측에서 5년 전국 규모(74만 회차·2,774만 명단 행)의
 `org_round_summary` 전량 재빌드가 6.7초, `win_rate_distribution_monthly`가 4.6초였다. 두 mart를
 합쳐 15초 안쪽이고 build 한 벌의 저장 비용은 160~220 MB다.
+
+**그 설계 실측은 FK 제약이 없는 합성 표에 적재한 시간이다.** 같은 날 실제 스키마에서 다시 잰
+[규모 실측](../evidence/mart/2026-09-06-mart-build-sizing.md)은 4만 회차·100만 명단 행에서 7.0초였고,
+그중 5.6초가 삽입 행마다 도는 FK 검증이었다(집계만은 1.4초). 즉 전량 빌드 시간은 명단 행 수가 아니라
+만들어지는 mart 행 수가 지배하며, 행당 제약 비용은 약 141 µs다. 지금 레이크 규모(23.8만 회차)에서
+약 36초이고 60초에 닿는 지점은 약 40만 회차다.
 
 ## Decision
 
@@ -46,7 +52,8 @@ INSERT·UPDATE·DELETE를 거부한다.** 쓰기는 `building` build에만 가�
 문제로 해석한다. 전량 빌드가 결정적이고, `verified` 검증이 `row_count`와 표본 합계 하나로 단순해지며,
 실측이 그 비용을 감당한다. `org_round_summary` 전량 빌드가 60초를 넘으면 개찰 연도 `partition_key`를
 `mart.build`에 더하고 활성 포인터를 `(mart_name, partition_key)`로 넓힌다 — 그때까지는 만들지
-않는다(AGENTS 11).
+않는다(AGENTS 11). 그 처방이 듣는 이유는 실측에 있다: build 하나가 삽입하는 행 수가 줄면 지배 비용인
+제약 검증 호출 수가 그만큼 준다.
 
 지역 코드 체계는 열이 아니라 build의 속성이다. mart 행은 `region_code_value_id` FK 하나만 갖고
 어떤 `CodeScheme`으로 만든 build인지는 `mart.build.region_scheme`이 기록한다. 지금 build는

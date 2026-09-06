@@ -110,13 +110,13 @@ flowchart LR
 
 ### 3.3 mart 빌드 규칙
 
-- 빌드는 publish 트랜잭션 뒤 영향 범위만 새 build id로 만들고 검증한 뒤 active를 바꾼다(runtime §4). 화면 응답은 `sourceRelease`·`buildId`·`computedAt`을 싣는다.
-- `win_rate_distribution_monthly`: (scope, region_code, item_code, floor_rate, month, bin) → count. 기간 조회는 월 행 합산. 지역 코드는 행안부 체계(규칙 6).
+- 빌드는 publish 트랜잭션 뒤 영향 범위만 새 build id로 만들고 검증한 뒤 active를 바꾼다(runtime §4). "영향 범위"는 어느 mart를 통째로 다시 만들지의 문제이고 mart 안에서는 전량을 다시 만든다([ADR 0034](../../adr/0034-mart-build-identity-and-atomic-activation.md)). 화면 응답 meta는 `buildId`·`sourceReleaseId`·`calcVersion`·`computedAt`·`coverage`·`regionScheme`을 싣는다. 자유 문자열 `martRelease`는 삭제됐다 — "release"라는 이름의 값이 둘이면 어느 쪽이 권위인지 알 수 없다.
+- `win_rate_distribution_monthly`: (scope, region_code, item_code, floor_rate, award_method, month, bin) → count. 기간 조회는 월 행 합산. 지역 코드 체계는 열이 아니라 build가 기록한다(`mart.build.region_scheme`). 지금 build는 eaT 공고지역이고 행안부 코드를 적재한 뒤에는 새 `calc_version`의 새 build가 그 체계로 만든다(규칙 6).
 - `org_round_summary`: 회차 1행 요약(낙찰률·2등 사정률·그날 하한·명단 수·하한 미만 수·낙찰 업체 id). 흐름·과거 회차·rail이 이것만 읽는다. 그날 하한과 하한 미만 수는 이 빌드가 만드는 파생 계산이므로 계산 버전을 함께 싣는다(규칙 7).
-- `supplier_monthly_record`: (supplier_party_id, month) → 투찰·낙찰·하한 미만·2등 차이. 성적표. **워크스페이스가 등록한 사업자만 빌드한다.** 명단은 공개 자료지만 집계는 우리가 만든 프로파일이라 타인 것은 mart에도 두지 않는다.
+- `supplier_monthly_record`: (supplier_party_id, month) → 투찰·낙찰·하한 미만·2등 차이. 성적표. **워크스페이스가 등록한 사업자만 빌드한다.** 명단은 공개 자료지만 집계는 우리가 만든 프로파일이라 타인 것은 mart에도 두지 않는다. **EAT-44에서는 만들지 않았다** — 대상 집합인 `app.workspace_supplier`가 workspace 모델(ADR 0032)에 묶여 있어, 그 전에 만들면 추측 설계가 된다.
 - `open_auction_snapshot`: poll-open마다 교체. 오늘 화면. 목록 계약은 행마다 기관 요약을 **포함**해 한 쿼리로 내고(N+1 금지), 응답에 release·ETag를 붙여 같은 release면 캐시한다. 1,000명 동시 새로고침 부하 실측은 EAT-44 acceptance.
 - 진행 중인 달은 build 전환 전까지 `부분`으로 표시하고 `computedAt`을 병기한다. mart는 파생물이라 stale이 정상 상태다(ADR 0011). 겹쳐 보기의 지난 달은 닫힌 달이라 stale이 없다.
-- `coverage`: 시도별 보유율을 release manifest에서 계산해 응답에 싣는다. 분모(`TOT_CNT`)는 EAT-34가 끝나야 생기므로 **그 전엔 `unknown`**이다. 백필 완료 전 미완결 지역은 회색.
+- `coverage`: 시도별 보유율을 `mart.build_coverage`에 적어 응답에 싣는다. 축은 목록 요청 단위의 매개변수가, 수는 봉인된 release의 상세 dataset이 말한다. `ingest.source_release_dataset`은 grain이 (release, dataset)이라 지역 축이 없다. **지금 수집은 전국 단위 날짜 창으로만 돌아 시도 축이 아예 없으므로 결과가 `unknown`이다**([PDR-0003](../decisions/0003-coverage-unknown.md)). 백필 완료 전 미완결 지역은 회색.
 
 ## 4. 화면별 요청 경로
 
