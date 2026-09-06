@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "6a63f955-7fcb-4de7-8833-71544dc45b84",
+  "id": "ac606a29-e953-401c-88e7-00d9677962f5",
   "prevIds": [
-    "d8553fe8-597b-412c-8570-9a4e4c81062f"
+    "1347bab0-939f-4d87-9590-0e76b3d93a7c"
   ],
   "ddl": [
     {
@@ -520,6 +520,19 @@
       "generated": null,
       "identity": null,
       "name": "observed_count",
+      "entityType": "columns",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "1",
+      "generated": null,
+      "identity": null,
+      "name": "attempt_count",
       "entityType": "columns",
       "schema": "ingest",
       "table": "request_unit"
@@ -7385,6 +7398,13 @@
     {
       "value": "\"observed_count\" >= 0",
       "name": "request_unit_observed_count_nonnegative",
+      "entityType": "checks",
+      "schema": "ingest",
+      "table": "request_unit"
+    },
+    {
+      "value": "\"attempt_count\" >= 1",
+      "name": "request_unit_attempt_count_positive",
       "entityType": "checks",
       "schema": "ingest",
       "table": "request_unit"
