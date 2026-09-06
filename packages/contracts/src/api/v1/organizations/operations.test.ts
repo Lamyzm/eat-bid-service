@@ -105,14 +105,14 @@ describe("listOrganizationAuctionAttempts 계약", () => {
     const row = {
       attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: "2026-09-04T05:00:00Z",
       item: null, floorRate: { value: "90.000", unit: "percentage-points" },
-      baseAmount: { amount: "6913400.00", currency: "KRW" },
+      baseAmount: { amount: "8888360.00", currency: "KRW" },
       winRate: null, secondRate: null,
-      // 남산초 5669410의 그날 하한이다. 셋째 자리로 끊으면 88.035가 되어 원본과 달라진다.
-      dayFloorRate: { value: "88.0347", unit: "percentage-points" },
-      listCount: 85, belowDayFloorCount: 0,
+      // 남산초 5669545의 그날 하한이다. 셋째 자리로 끊으면 89.959가 되어 원본의 넷째 자리를 잃는다.
+      dayFloorRate: { value: "89.9592", unit: "percentage-points" },
+      listCount: 91, belowDayFloorCount: 46,
       winnerSupplierPartyId: null, supersedesAttemptId: null,
     };
-    expect(attempt.parse(row).dayFloorRate?.value).toBe("88.0347");
-    expect(() => attempt.parse({ ...row, dayFloorRate: { value: "88.035", unit: "percentage-points" } })).toThrow();
+    expect(attempt.parse(row).dayFloorRate?.value).toBe("89.9592");
+    expect(() => attempt.parse({ ...row, dayFloorRate: { value: "89.959", unit: "percentage-points" } })).toThrow();
   });
 });

@@ -12,7 +12,7 @@ const row = {
   currency: "KRW",
   awarded_assessment_rate: "90.309",
   runner_up_assessment_rate: null,
-  day_floor_bid_rate: "88.0347",
+  day_floor_bid_rate: "88.0350",
   list_count: 17,
   below_day_floor_count: 2,
   winner_supplier_party_id: "9",
@@ -55,7 +55,7 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
     const adapter = await import("./drizzle-organization-attempt-reader");
     const record = adapter.mapAttemptRow(row as never);
 
-    expect(record.dayFloorRate).toBe("88.0347");
+    expect(record.dayFloorRate).toBe("88.0350");
     expect(record.belowDayFloorCount).toBe(2);
     // 사정률 축과 섞이지 않는다. 셋째 자리 문자열은 이 열의 scale이 아니다.
     expect(() => adapter.mapAttemptRow({ ...row, day_floor_bid_rate: "88.035" } as never)).toThrow(TypeError);
