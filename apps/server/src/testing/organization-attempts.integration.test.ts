@@ -220,7 +220,9 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       expect(first.attempts[1]).toMatchObject({
         winRate: "90.309",
         secondRate: "90.412",
-        // 그날 하한은 투찰률 축이라 넷째 자리를 반올림 없이 옮긴다.
+        // 같은 낙찰의 투찰률 축 표현이다. 사정률 90.309와 값이 달라야 두 열이 섞이지 않았다는 뜻이다.
+        awardedBidRate: "89.4059",
+        // 그날 하한도 투찰률 축이라 넷째 자리를 반올림 없이 옮긴다.
         dayFloorRate: "89.1000",
         belowDayFloorCount: 0,
         winnerSupplierPartyId: 77n,
@@ -292,6 +294,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
           baseAmount: { amount: "2761700.00", currency: "KRW" },
           winRate: null,
           secondRate: null,
+          awardedBidRate: null,
           dayFloorRate: null,
           listCount: 17,
           belowDayFloorCount: 2,

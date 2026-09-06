@@ -74,6 +74,7 @@ function attemptResource(record: OrganizationAttemptRecord): OrganizationAuction
     baseAmount: z.encode(moneyCodec, record.baseAmount),
     winRate: rateText(record.winRate),
     secondRate: rateText(record.secondRate),
+    awardedBidRate: baseRelativeRateText(record.awardedBidRate),
     dayFloorRate: baseRelativeRateText(record.dayFloorRate),
     listCount: record.listCount,
     belowDayFloorCount: record.belowDayFloorCount,

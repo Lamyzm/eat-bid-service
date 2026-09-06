@@ -33,6 +33,7 @@ type OrganizationAttemptRow = Readonly<{
   currency: string;
   awarded_assessment_rate: string | null;
   runner_up_assessment_rate: string | null;
+  awarded_bid_rate: string | null;
   day_floor_bid_rate: string | null;
   list_count: number | null;
   below_day_floor_count: number | null;
@@ -61,7 +62,10 @@ export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptR
     // 사정률 축(분모가 예정가격)의 관측값이다. V1 계약의 이름이 아직 축을 담지 못해 그대로 싣는다.
     winRate: bidRateValue(row.awarded_assessment_rate),
     secondRate: bidRateValue(row.runner_up_assessment_rate),
-    // 그날 하한만 축이 다르다. 금액 축(`day_floor_amount`)이 소스 규칙의 권위이고 이 비율은
+    // 같은 낙찰을 투찰률 축으로 옮긴 값이다. 화면의 손잡이가 투찰률이라 "이 값이면 낙찰" 판정은
+    // winRate가 아니라 이 값과 견줘야 한다(EAT-71). 예정가격이 아직 없는 회차는 null이다.
+    awardedBidRate: baseRelativeBidRateValue(row.awarded_bid_rate),
+    // 그날 하한도 같은 투찰률 축이다. 금액 축(`day_floor_amount`)이 소스 규칙의 권위이고 이 비율은
     // 기초금액 분모의 표시용 파생값이라 넷째 자리까지 그대로 옮긴다(설계 §1.3).
     dayFloorRate: baseRelativeBidRateValue(row.day_floor_bid_rate),
     listCount: row.list_count,
@@ -136,6 +140,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
         summary.currency,
         summary.awarded_assessment_rate,
         summary.runner_up_assessment_rate,
+        summary.awarded_bid_rate,
         summary.day_floor_bid_rate,
         summary.list_count,
         summary.below_day_floor_count,
