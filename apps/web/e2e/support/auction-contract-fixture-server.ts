@@ -1,5 +1,14 @@
 import { auctionV1Operations, auctionV1ResponseSchema } from '@eatbid/contracts/api/v1/auctions';
 
+import {
+  ACTIVATE_BUILD_PATH,
+  COUNTS_PATH,
+  RESET_PATH,
+  activateNextBuild,
+  countRequest,
+  observedCounts,
+  resetObservations
+} from './cache-observability';
 import { organizationAttemptsResponse } from './organization-attempts-fixture';
 import { winRateDistributionResponse } from './win-rate-distribution-fixture';
 
@@ -16,7 +25,9 @@ const COHORT_LOCATION = {
 const COHORT_CLASSIFICATION = { itemLabel: '축산' } as const;
 
 const HOSTNAME = '127.0.0.1';
-const PORT = 4410;
+// 캐시 e2e는 프로덕션 빌드로 도는 별도 web 인스턴스를 쓰므로 fixture도 자기 포트에서 따로 뜬다.
+// 두 스위트가 같은 fixture 프로세스를 공유하면 요청 카운터가 서로 섞인다.
+const PORT = Number(process.env.EATBID_FIXTURE_PORT ?? 4410);
 const SUCCESS_AUCTION_ID = '9007199254740993';
 const FAILURE_AUCTION_ID = '9007199254740994';
 const MISSING_AUCTION_ID = '9007199254740996';
@@ -173,6 +184,15 @@ Bun.serve({
   async fetch(request) {
     const { pathname } = new URL(request.url);
     if (pathname === '/health') return new Response('ok');
+    // 관측·제어 경로는 계약 operation이 아니라 캐시 e2e가 쓰는 검증 표면이다. `__` 접두사로 공개
+    // 경로와 겹치지 않게 두고, 요청 카운터보다 앞에 두어 제어 호출 자체가 카운트되지 않게 한다.
+    if (pathname === COUNTS_PATH) return Response.json(observedCounts());
+    if (pathname === ACTIVATE_BUILD_PATH) return Response.json({ activations: activateNextBuild() });
+    if (pathname === RESET_PATH) {
+      resetObservations();
+      return new Response(null, { status: 204 });
+    }
+    countRequest(pathname);
     if (request.method !== 'GET') return new Response(null, { status: 405 });
 
     if (pathname === auctionPath(SUCCESS_AUCTION_ID)) {

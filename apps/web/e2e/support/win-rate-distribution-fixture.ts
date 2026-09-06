@@ -5,7 +5,11 @@ import {
   winRateDistributionV1ResponseSchema
 } from '@eatbid/contracts/api/v1/win-rate-distribution';
 
+import { activatedBuildId } from './cache-observability';
+
 const operation = winRateDistributionV1Operations.find;
+
+const BASE_BUILD_ID = '601';
 
 // 남산초 실관측 92회차 중 하한율 90 코호트(82건)의 0.01칸 집계다. 화면 단위 test의 fixture와 같은
 // 숫자여야 브라우저에서 보는 사다리가 test가 본 사다리와 같다.
@@ -55,7 +59,8 @@ export function winRateDistributionResponse(request: Request): Response | undefi
       awardMethod: searchParams.get('awardMethod') ?? '31',
       binWidth: rate(searchParams.get('binWidth') ?? '0.010'),
       period: { from, to },
-      buildId: '601',
+      // 활성 build 전환을 재현할 수 있도록 요청 시점에 읽는다(캐시 e2e).
+      buildId: activatedBuildId(BASE_BUILD_ID),
       sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
       calcVersion: 'mart-r1',
       computedAt: '2026-09-06T00:10:00Z',
