@@ -13,9 +13,9 @@ export type Rehearsal = {
   readonly rateSpan: { readonly min: string; readonly max: string; readonly median: string } | null;
 };
 
-type DeterminedRow = HistoryRow & { readonly winRateMilli: bigint; readonly winRateText: string };
+type ObservedRateRow = HistoryRow & { readonly winRateMilli: bigint; readonly winRateText: string };
 
-function hasWinRate(row: HistoryRow): row is DeterminedRow {
+function hasWinRate(row: HistoryRow): row is ObservedRateRow {
   return row.winRateMilli !== null && row.winRateText !== null;
 }
 
@@ -25,12 +25,18 @@ export type RowVerdict = 'won' | 'missed' | 'invalid' | 'unknown';
 // eaT는 그날 하한 이상인 투찰 중 가장 낮은 투찰률이 낙찰한다. 손잡이 값이 실제 낙찰률 이하이면서
 // 하한을 밑돌지 않으면(같은 값은 추첨이므로 낙찰로 센다) 그 회차를 낙찰됐을 회차로 센다. 하한을
 // 밑돈 회차는 애초에 무효라 낙찰 여부를 따지지 않으므로 무효 판정이 먼저다.
+//
+// 세 값이 모두 투찰률 축(분모 기초금액)이어야 한 비교식에 들어갈 수 있다(AGENTS 15). 표에 함께 보이는
+// 낙찰률 `winRateMilli`는 분모가 예정가격인 사정률이라 이 판정에 넣지 않는다. 남산초 실관측 92회차에서
+// 두 축은 전부 0.01%p 이상, 최대 2.19%p 벌어지고 90.000 손잡이에서는 92회차 중 42회차가 갈린다.
 export function judgeRow(row: HistoryRow, rateMilli: bigint): RowVerdict {
   // 그날 하한만 알면 무효는 확정이다. 낙찰률이 없는 회차라도 하한 미달을 'unknown'으로 감추면
   // "무효였을 회차"가 실제보다 적게 보인다.
   if (row.dayFloorMilli !== null && rateMilli < row.dayFloorMilli) return 'invalid';
-  if (!hasWinRate(row)) return 'unknown';
-  return rateMilli <= row.winRateMilli ? 'won' : 'missed';
+  // 예정가격이 아직 관측되지 않아 축을 옮길 수 없는 회차다. 사정률로 대신 판정하면 그 회차만
+  // 다른 축의 답을 내므로 판정 불가로 남긴다(AGENTS 3·8).
+  if (row.awardedBidRateMilli === null) return 'unknown';
+  return rateMilli <= row.awardedBidRateMilli ? 'won' : 'missed';
 }
 
 function medianOf(values: readonly number[]): number {
@@ -56,7 +62,9 @@ function buildByYear(
     .map(([year, bucket]) => ({ year, ...bucket }));
 }
 
-function buildRateSpan(rows: readonly DeterminedRow[]): Rehearsal['rateSpan'] {
+// 관측된 낙찰률의 범위는 사정률 축의 사실이다. 호가창 눈금과 같은 축이라야 두 화면이 같은 값을
+// 말한다(PDR-0004). 판정과 축이 다르므로 여기서는 winRate를 그대로 쓴다.
+function buildRateSpan(rows: readonly ObservedRateRow[]): Rehearsal['rateSpan'] {
   if (rows.length === 0) return null;
   const sorted = [...rows].sort((a, b) => (a.winRateMilli < b.winRateMilli ? -1 : a.winRateMilli > b.winRateMilli ? 1 : 0));
   return {

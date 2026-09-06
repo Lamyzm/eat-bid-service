@@ -1,5 +1,5 @@
 {
-  "note": "12회 실데이터(창원 남산초 축산물, docs/product/decision-screen-v2/design-generators/namsan_rounds.json) + 48회 합성 예시. baseAmount는 예시 값이며 원본 금액이 아니다.",
+  "note": "12회 실데이터(창원 남산초 축산물, docs/product/decision-screen-v2/design-generators/namsan_rounds.json) + 48회 합성 예시. baseAmount는 예시 값이며 원본 금액이 아니다. awardedBidRate는 이 fixture 자신의 winRate·dayFloorRate·floorRate로 파생한 투찰률 축 값이다(예정가격/기초금액 배율 = dayFloorRate/floorRate).",
   "attempts": [
     {
       "attemptId": "5780681",
@@ -23,6 +23,10 @@
       },
       "secondRate": {
         "value": "90.032",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0040",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -58,6 +62,10 @@
         "value": "90.859",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0138",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.8690",
         "unit": "percentage-points"
@@ -89,6 +97,10 @@
       },
       "secondRate": {
         "value": "90.020",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0140",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -124,6 +136,10 @@
         "value": "90.080",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9940",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9660",
         "unit": "percentage-points"
@@ -155,6 +171,10 @@
       },
       "secondRate": {
         "value": "90.146",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0680",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -190,6 +210,10 @@
         "value": "90.054",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9670",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9340",
         "unit": "percentage-points"
@@ -221,6 +245,10 @@
       },
       "secondRate": {
         "value": "90.180",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0159",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -256,6 +284,10 @@
         "value": "90.066",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9740",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9450",
         "unit": "percentage-points"
@@ -287,6 +319,10 @@
       },
       "secondRate": {
         "value": "90.153",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0600",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -322,6 +358,10 @@
         "value": "90.088",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9940",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9630",
         "unit": "percentage-points"
@@ -353,6 +393,10 @@
       },
       "secondRate": {
         "value": "90.045",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0250",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -388,6 +432,7 @@
         "value": "90.382",
         "unit": "percentage-points"
       },
+      "awardedBidRate": null,
       "dayFloorRate": null,
       "listCount": 85,
       "belowDayFloorCount": 0,
@@ -416,6 +461,10 @@
       },
       "secondRate": {
         "value": "90.012",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "89.9640",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -451,6 +500,10 @@
         "value": "90.869",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0338",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.8790",
         "unit": "percentage-points"
@@ -482,6 +535,10 @@
       },
       "secondRate": {
         "value": "90.010",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "89.9940",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -517,6 +574,10 @@
         "value": "90.100",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0340",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9860",
         "unit": "percentage-points"
@@ -548,6 +609,10 @@
       },
       "secondRate": {
         "value": "90.146",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0680",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -583,6 +648,10 @@
         "value": "90.034",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9270",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9140",
         "unit": "percentage-points"
@@ -614,6 +683,10 @@
       },
       "secondRate": {
         "value": "90.190",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0359",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -649,6 +722,10 @@
         "value": "90.056",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9540",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9350",
         "unit": "percentage-points"
@@ -680,6 +757,10 @@
       },
       "secondRate": {
         "value": "90.173",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.1000",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -715,6 +796,10 @@
         "value": "90.088",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9940",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9630",
         "unit": "percentage-points"
@@ -746,6 +831,10 @@
       },
       "secondRate": {
         "value": "90.025",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "89.9850",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -781,6 +870,7 @@
         "value": "90.392",
         "unit": "percentage-points"
       },
+      "awardedBidRate": null,
       "dayFloorRate": null,
       "listCount": 85,
       "belowDayFloorCount": 0,
@@ -809,6 +899,10 @@
       },
       "secondRate": {
         "value": "90.042",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0240",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -844,6 +938,10 @@
         "value": "90.849",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9938",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.8590",
         "unit": "percentage-points"
@@ -875,6 +973,10 @@
       },
       "secondRate": {
         "value": "90.040",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0540",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -910,6 +1012,10 @@
         "value": "90.080",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9940",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9660",
         "unit": "percentage-points"
@@ -941,6 +1047,10 @@
       },
       "secondRate": {
         "value": "90.126",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0279",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -976,6 +1086,10 @@
         "value": "90.064",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9870",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9440",
         "unit": "percentage-points"
@@ -1007,6 +1121,10 @@
       },
       "secondRate": {
         "value": "90.170",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "89.9959",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1042,6 +1160,10 @@
         "value": "90.086",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0140",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9650",
         "unit": "percentage-points"
@@ -1073,6 +1195,10 @@
       },
       "secondRate": {
         "value": "90.153",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0600",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1108,6 +1234,10 @@
         "value": "90.068",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9540",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9430",
         "unit": "percentage-points"
@@ -1139,6 +1269,10 @@
       },
       "secondRate": {
         "value": "90.055",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0450",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1174,6 +1308,7 @@
         "value": "90.372",
         "unit": "percentage-points"
       },
+      "awardedBidRate": null,
       "dayFloorRate": null,
       "listCount": 85,
       "belowDayFloorCount": 0,
@@ -1202,6 +1337,10 @@
       },
       "secondRate": {
         "value": "90.022",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "89.9840",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1237,6 +1376,10 @@
         "value": "90.879",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0538",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.8890",
         "unit": "percentage-points"
@@ -1268,6 +1411,10 @@
       },
       "secondRate": {
         "value": "90.020",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0140",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1303,6 +1450,10 @@
         "value": "90.060",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9540",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9460",
         "unit": "percentage-points"
@@ -1334,6 +1485,10 @@
       },
       "secondRate": {
         "value": "90.156",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0880",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1369,6 +1524,10 @@
         "value": "90.044",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9470",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9240",
         "unit": "percentage-points"
@@ -1400,6 +1559,10 @@
       },
       "secondRate": {
         "value": "90.200",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0559",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1435,6 +1598,10 @@
         "value": "90.066",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9740",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9450",
         "unit": "percentage-points"
@@ -1466,6 +1633,10 @@
       },
       "secondRate": {
         "value": "90.133",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0200",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1501,6 +1672,10 @@
         "value": "90.098",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0140",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9730",
         "unit": "percentage-points"
@@ -1532,6 +1707,10 @@
       },
       "secondRate": {
         "value": "90.035",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0050",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1567,6 +1746,7 @@
         "value": "90.402",
         "unit": "percentage-points"
       },
+      "awardedBidRate": null,
       "dayFloorRate": null,
       "listCount": 85,
       "belowDayFloorCount": 0,
@@ -1595,6 +1775,10 @@
       },
       "secondRate": {
         "value": "90.052",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0440",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1630,6 +1814,10 @@
         "value": "90.859",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0138",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.8690",
         "unit": "percentage-points"
@@ -1661,6 +1849,10 @@
       },
       "secondRate": {
         "value": "90.000",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "89.9740",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1696,6 +1888,10 @@
         "value": "90.090",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0140",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9760",
         "unit": "percentage-points"
@@ -1727,6 +1923,10 @@
       },
       "secondRate": {
         "value": "90.136",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0479",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1762,6 +1962,10 @@
         "value": "90.074",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "90.0070",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9540",
         "unit": "percentage-points"
@@ -1793,6 +1997,10 @@
       },
       "secondRate": {
         "value": "90.180",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0159",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1828,6 +2036,10 @@
         "value": "90.046",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9340",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9250",
         "unit": "percentage-points"
@@ -1859,6 +2071,10 @@
       },
       "secondRate": {
         "value": "90.163",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0800",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1894,6 +2110,10 @@
         "value": "90.078",
         "unit": "percentage-points"
       },
+      "awardedBidRate": {
+        "value": "89.9740",
+        "unit": "percentage-points"
+      },
       "dayFloorRate": {
         "value": "89.9530",
         "unit": "percentage-points"
@@ -1925,6 +2145,10 @@
       },
       "secondRate": {
         "value": "90.065",
+        "unit": "percentage-points"
+      },
+      "awardedBidRate": {
+        "value": "90.0650",
         "unit": "percentage-points"
       },
       "dayFloorRate": {
@@ -1960,6 +2184,7 @@
         "value": "90.382",
         "unit": "percentage-points"
       },
+      "awardedBidRate": null,
       "dayFloorRate": null,
       "listCount": 85,
       "belowDayFloorCount": 0,

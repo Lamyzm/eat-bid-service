@@ -16,6 +16,9 @@ export type HistoryRow = {
   readonly itemCodeValueId: string | null;
   readonly winRateText: string | null;
   readonly winRateMilli: bigint | null;
+  /** 같은 낙찰의 투찰률 축(분모 기초금액) 표현이다. 손잡이와 같은 축이라 판정은 이 값과 견준다. */
+  readonly awardedBidRateText: string | null;
+  readonly awardedBidRateMilli: bigint | null;
   readonly secondRateText: string | null;
   readonly dayFloorText: string | null;
   readonly dayFloorMilli: bigint | null;
@@ -74,6 +77,10 @@ function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | 
     itemCodeValueId: attempt.item?.codeValueId ?? null,
     winRateText: attempt.winRate?.value ?? null,
     winRateMilli: attempt.winRate ? toMilli(attempt.winRate.value) : null,
+    awardedBidRateText: attempt.awardedBidRate?.value ?? null,
+    // 낙찰률은 "이 값 이하면 이겼다"는 경계라 하한과 반대로 내려야 한다. 손잡이가 셋째 자리이므로
+    // 넷째 자리를 버린 값과의 `<=` 비교는 넷째 자리를 그대로 둔 비교와 정확히 같다.
+    awardedBidRateMilli: attempt.awardedBidRate ? toMilli(attempt.awardedBidRate.value) : null,
     secondRateText: attempt.secondRate?.value ?? null,
     dayFloorText: attempt.dayFloorRate?.value ?? null,
     // 그날 하한은 소수 넷째 자리인데 손잡이는 셋째 자리다. 내림하면 하한 바로 아래 값이 유효로

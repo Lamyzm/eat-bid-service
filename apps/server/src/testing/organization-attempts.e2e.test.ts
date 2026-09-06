@@ -19,6 +19,8 @@ const attempt = {
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
   winRate: bidRate(canonicalDecimal("90.309", 3)),
   secondRate: null,
+  // 같은 낙찰의 투찰률 축 표현이다. 사정률 90.309와 값이 다른 것이 축이 다르다는 증거다.
+  awardedBidRate: baseRelativeBidRate(canonicalDecimal("88.3020", 4)),
   dayFloorRate: baseRelativeBidRate(canonicalDecimal("88.0350", 4)),
   listCount: 17,
   belowDayFloorCount: 2,
@@ -104,6 +106,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
           baseAmount: { amount: "2761700.00", currency: "KRW" },
           winRate: { value: "90.309", unit: "percentage-points" },
           secondRate: null,
+          awardedBidRate: { value: "88.3020", unit: "percentage-points" },
           dayFloorRate: { value: "88.0350", unit: "percentage-points" },
           listCount: 17,
           belowDayFloorCount: 2,
