@@ -46,30 +46,31 @@ spec:
           - name: capture
             template: capture
             dependencies: [discover]
-            # 발견된 ID마다 상세 pod 하나다. source semaphore가 capture template에 걸려 있어 fan-out
-            # 폭과 무관하게 소스 동시 호출은 capacity를 넘지 않는다.
-            withParam: "{{tasks.discover.outputs.parameters.external-bid-ids}}"
+            # chunk 하나가 상세 pod 하나다. 건당 pod를 띄우면 건당 약 17초 중 10초가 pod 생성·종료
+            # 비용이라 한 달 백필이 80시간이 된다(EAT-51 증거 §6). CLI가 chunk를 순차로 관측하므로
+            # 건별 raw 저장·request unit grain은 그대로고 pod 수만 줄어든다.
+            withParam: "{{tasks.discover.outputs.parameters.external-bid-id-chunks}}"
             arguments:
               parameters:
                 - name: source-release-id
                   value: "{{tasks.discover.outputs.parameters.source-release-id}}"
                 - name: detail-run-id
                   value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
-                - name: external-bid-id
+                - name: external-bid-ids-json
                   value: "{{item}}"
           - name: normalize
             template: normalize
             dependencies: [capture]
-            # 확장된 capture의 output parameter `observation-id`가 JSON 배열로 모인다. stdout 결과가
-            # 아니라 파일 output parameter를 쓰므로 값이 문자열 JSON이 아닌 item 그대로 도착한다.
-            withParam: "{{tasks.capture.outputs.parameters.observation-id}}"
+            # 확장된 capture의 output parameter `observation-ids`가 chunk마다 하나씩 모인다. capture가
+            # 묶은 그 단위를 그대로 이어받아 정규화도 pod 하나가 chunk 하나를 돈다.
+            withParam: "{{tasks.capture.outputs.parameters.observation-ids}}"
             arguments:
               parameters:
                 - name: source-release-id
                   value: "{{tasks.discover.outputs.parameters.source-release-id}}"
                 - name: detail-run-id
                   value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
-                - name: observation-id
+                - name: observation-ids-json
                   value: "{{item}}"
           - name: validate
             template: validate
@@ -216,9 +217,12 @@ spec:
           - name: publication-id
             valueFrom:
               path: /tmp/eatbid/publication_id
-          - name: external-bid-ids
+          # capture fan-out 단위다. 평평한 `external_bid_ids`도 같은 디렉터리에 남지만 output
+          # parameter로 내보내지 않는다. 피크 월 17,000건이면 그 목록만으로 workflow status가
+          # 수백 KB 늘어나는데 아무 단계도 그것을 읽지 않는다.
+          - name: external-bid-id-chunks
             valueFrom:
-              path: /tmp/eatbid/external_bid_ids
+              path: /tmp/eatbid/external_bid_id_chunks
           - name: discovered-count
             valueFrom:
               path: /tmp/eatbid/discovered_count
@@ -332,26 +336,30 @@ spec:
         parameters:
           - name: source-release-id
           - name: detail-run-id
-          - name: external-bid-id
+          - name: external-bid-ids-json
       synchronization:
         semaphores:
+          # semaphore는 chunk pod 단위로 잡힌다. chunk가 커져도 소스 동시 호출은 여전히 capacity를
+          # 넘지 않는다.
           - configMapKeyRef:
               name: eatbid-workflow-limits
               key: eatbid-source-limit
       outputs:
         parameters:
-          - name: observation-id
+          - name: observation-ids
             valueFrom:
-              path: /tmp/eatbid/observation_id
+              path: /tmp/eatbid/observation_ids
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
         command: [/bin/sh, -ec]
         args:
+          # chunk는 JSON 배열 하나로 argv 한 칸에 들어간다. shell이 그 문자열을 쪼개거나 확장하지
+          # 못하게 큰따옴표 안에서만 펼치고, 모양 검사는 CLI 인자 단계가 fail-closed로 한다.
           - >-
             exec eatbid capture --run-id "$EATBID_DETAIL_RUN_ID"
             --source-release-id "$EATBID_SOURCE_RELEASE_ID"
-            --external-bid-id "$EATBID_EXTERNAL_BID_ID"
+            --external-bid-ids-json "$EATBID_EXTERNAL_BID_IDS_JSON"
             --started-at "$EATBID_WORKFLOW_CREATED_AT"
             --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
             --result-dir "$EATBID_RESULT_DIR"
@@ -364,8 +372,8 @@ spec:
           - &env-detail-run-id
             name: EATBID_DETAIL_RUN_ID
             value: "{{inputs.parameters.detail-run-id}}"
-          - name: EATBID_EXTERNAL_BID_ID
-            value: "{{inputs.parameters.external-bid-id}}"
+          - name: EATBID_EXTERNAL_BID_IDS_JSON
+            value: "{{inputs.parameters.external-bid-ids-json}}"
           - *env-parser-version
           - *env-created-at
           - *env-result-dir
@@ -380,7 +388,7 @@ spec:
         parameters:
           - name: source-release-id
           - name: detail-run-id
-          - name: observation-id
+          - name: observation-ids-json
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
@@ -389,7 +397,7 @@ spec:
           - >-
             exec eatbid normalize --run-id "$EATBID_DETAIL_RUN_ID"
             --source-release-id "$EATBID_SOURCE_RELEASE_ID"
-            --observation-id "$EATBID_OBSERVATION_ID"
+            --observation-ids-json "$EATBID_OBSERVATION_IDS_JSON"
             --normalized-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
         env:
@@ -397,8 +405,8 @@ spec:
             value: "{{workflow.parameters.mode}}"
           - *env-source-release-id
           - *env-detail-run-id
-          - name: EATBID_OBSERVATION_ID
-            value: "{{inputs.parameters.observation-id}}"
+          - name: EATBID_OBSERVATION_IDS_JSON
+            value: "{{inputs.parameters.observation-ids-json}}"
           - *env-parser-version
           - *env-database-url
           - *env-r2-endpoint
