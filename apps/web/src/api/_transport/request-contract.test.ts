@@ -28,7 +28,10 @@ const validAuction = {
     observationId: '9007199254740997',
     normalizedRecordId: '9007199254740999',
     contentSha256: 'a'.repeat(64)
-  }
+  },
+  terms: null,
+  location: null,
+  classification: null
 } as const;
 
 const auctionInput = {
