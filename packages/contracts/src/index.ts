@@ -9,6 +9,7 @@ export { auctionIdPathSchema, positiveBigintTextSchema } from "./atoms/identifie
 export * from "./atoms/instant";
 export * from "./atoms/source-code";
 export * from "./values/coordinate";
+export * from "./values/region-code";
 export * from "./values/money";
 export * from "./values/provenance";
 export * from "./values/rate";
@@ -21,6 +22,16 @@ export * from "./codecs/money";
 export * from "./codecs/temporal";
 export * from "./api/v1/auctions";
 export * from "./api/v1/organizations";
+export {
+  codeSchemeV1OperationRegistry,
+  codeSchemeV1Operations,
+  listCodesMetaSchema,
+  listCodesQuerySchema,
+  listCodesV1ResponseSchema,
+  type ListCodesMeta,
+  type ListCodesV1Response,
+} from "./api/v1/code-schemes";
+export * from "./ingestion/v1/normalized-code-release";
 export * from "./ingestion/v1/resources/identity";
 export * from "./ingestion/v1/resources/buyer";
 export * from "./ingestion/v1/resources/location";

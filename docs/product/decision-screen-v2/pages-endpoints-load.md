@@ -62,7 +62,7 @@
 | 열린 공고 목록(기관·품목·마감·기초·참여 수·**기관 요약**: 최근 낙찰률·회차 수) | `listOpenAuctions` GET `/api/v1/auctions?state=open` | query: regionCode?(행안부 체계), itemCode?, closesWithin?(h), sort(closesAt/announcedAt), cursor?, limit ≤ 100 | auctions[{auctionId, organization{id,name,region}, items[], floorRate, baseAmount, closesAt, bidCount, orgSummary{lastWinRate, lastDayFloorRate, attemptCount, sampleCount}}], nextCursor, snapshotRelease | `mart.open_auction_snapshot` 최신 release ≤ 3,000행(열린 공고 상한 실측 필요, EAT-44) + `org_round_summary` 조인. **행마다 기관 요약 포함, N+1 금지** | 3 req/s가 전부 여기로 온다. 응답이 snapshot release로 ETag 되므로 같은 release면 304. poll-open 15분마다 release 1회 → DB 실제 조회 ≈ 필터 조합 수 × 15분당 1회 | RSC 목록, 필터·정렬·cursor는 URL. 태그 `snapshot:<release>`. 표는 TanStack Table headless, 100행 페이지라 virtual 없음 |
 | "지금 값이면 무효였을 회차" 열 | 없음 (**결정:** 목록 응답의 orgSummary.lastDayFloorRate로 클라이언트 비교) | — | — | 같은 조인 | 0 | client 계산. 서버는 회차 값만 준다 |
 | 내 기록 열 | `listBidWorkItems` GET `…/bid-work-items?state=open` | workspace | items[] ≤ 열린 공고 수 | `app.bid_work_item` (workspace_id) 인덱스 ≤ 수십 행 | 0.3 req/s PK range | client TanStack Query, 목록과 별도 요청(권위가 다른 저장소를 한 응답에 섞지 않는다) |
-| 지역·품목 칩 | `listCodes` GET `/api/v1/code-schemes/{scheme}/codes` | scheme(mois-region / eat-item) | codes[{code, label, parent?}] | `core.code` 수백 행 | 정적. 태그 `codes:<scheme>` 무기한 | RSC. 선택값은 URL |
+| 지역·품목 칩 | `listCodes` GET `/api/v1/code-schemes/{scheme}/codes` (**EAT-57 소유**) | path: scheme(코드 체계 namespace), query: grain? | codes[{codeValueId, scheme, code, label, parentCodeValueId, active, validFrom, validTo, coordinate}], meta{codeReleaseId, sourceVersion, publishedAt, promotedGrain, codesWithoutCoordinateCount} | 활성 `core.code_release`의 `code_release_member` 수백 행 + `code_value_coordinate` 좌조인 | 정적. 태그 `codes:<scheme>` 무기한 | RSC. 선택·링크는 `codeValueId`로만 하고 `label`은 표시에만 쓴다(AGENTS 2) |
 
 오늘 페이지 결정: 목록 응답 크기가 3,000행 × 300 B ≈ 1 MB라면 첫 페이지 100행으로 제한하고 지역
 필터를 기본값(워크스페이스 사업자 소재지)으로 둔다. 전국 전체 스크롤은 cursor로 이어 받는다.
@@ -104,6 +104,7 @@
 1. EAT-37: `listOrganizationAuctionAttempts` (흐름·과거 회차·레일 계산·대형 코호트가 전부 이 하나에 의존)
 2. EAT-38: `findWinRateDistribution`
 3. EAT-40: `listBidWorkItems` / `putBidWorkItem`
-4. EAT-39: `listOpenAuctions`(+ `findAuctionParticipation`), `listAuctionBids`, `listOrganizationSuppliers`, `findSupplierRecord`, `listSupplierAttempts`, `listCodes`
+4. EAT-39: `listOpenAuctions`(+ `findAuctionParticipation`), `listAuctionBids`, `listOrganizationSuppliers`, `findSupplierRecord`, `listSupplierAttempts`
+5. EAT-57: `listCodes` — 지역 어휘를 만드는 쪽이 그 어휘를 내보내는 계약도 갖는다
 
 각 계약은 `packages/contracts` operation → Nest → web 순서(eatbid-vertical-slice)로 하나씩 닫는다.

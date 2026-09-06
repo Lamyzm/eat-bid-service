@@ -22,6 +22,7 @@ GENERATED_ROOT = DATAPLANE_ROOT / "src" / "eatbid" / "generated"
 CONTRACTS: tuple[tuple[Path, Path], ...] = (
     (SCHEMA_ROOT / "ingestion-v1.schema.json", GENERATED_ROOT / "ingestion_v1.py"),
     (SCHEMA_ROOT / "ingestion-v2.schema.json", GENERATED_ROOT / "ingestion_v2.py"),
+    (SCHEMA_ROOT / "code-release-v1.schema.json", GENERATED_ROOT / "code_release_v1.py"),
 )
 
 
