@@ -100,3 +100,47 @@ eaT `18 → 전남광주`는 행안부 2026 vintage의 `1200000000 전남광주�
 원본이 대조표를 주지 않는다. 이 코드는 `relation='overlaps'` 두 행(`전라남도`·`광주광역시`)을 사람이
 만들며 자동 경로는 이 관계를 만들지 않는다. `overlaps`는 등가가 아니므로 mart 번역에서 쓰지 않고
 미매핑으로 센다.
+
+## 4. mart 지역 축 전환 (EAT-57 lane B, 2026-09-06)
+
+전환 자체는 **코드와 절차로 준비만 됐고 운영 기본값은 바꾸지 않았다.** 매핑률이 0인 상태에서 축을
+옮기면 지역 모집단이 통째로 비고, 그것은 개선이 아니라 화면에서 지역이 사라지는 사건이다.
+
+### 무엇이 코드로 닫혔나
+
+| 사실 | 어디가 소유하나 |
+|---|---|
+| 관측된 eaT 지역 코드를 선언한 체계로 번역한다 | `apps/dataplane/src/eatbid/mart/region_axis.py`의 `REGION_TRANSLATION_CTE` |
+| `relation='exact'`가 **유일할 때만** 번역한다 | 같은 CTE의 `having count(distinct ...) = 1` |
+| `relation='overlaps'`는 번역하지 않고 미매핑으로 센다 | 같은 CTE의 `relation` 조건 |
+| 번역되지 않은 코드는 지역 모집단에서 빠진다(전국·기관은 그대로) | `win_rate_distribution.py`의 `populations` |
+| build가 선언한 체계 밖의 코드를 실으면 `verified`로 올라가지 않는다 | `assert_build_region_scheme`, `PsycopgMartBuildRepository.verify_build` |
+| 번역되지 않는 관측 지역 코드 수 | `count_unmapped_region_codes` |
+
+**강제 조건은 이름이 아니라 구조다.** 선언한 `region_scheme`에 `core.code_release`가 **있을 때만** 그
+build의 지역 축을 그 체계로 강제한다. eaT 관측 축은 시도와 시군구가 서로 다른 `code_scheme`이라 한
+이름으로 묶이지 않으므로, release가 없는 체계를 선언한 build는 전환 이전 상태이며 관측된 코드를 그대로
+싣는다. 정부 release가 적재되고 그 체계를 선언한 build가 나오는 순간부터 번역과 검증이 함께 켜진다 —
+전환이 침묵하지 않는다(ADR 0034·0035).
+
+### 전환 절차
+
+1. 행안부 release와 좌표 release를 봉인·투영한다(`reference-pipeline`, 지금 `suspend: true`).
+2. 매핑을 만들고 이 문서 §3의 수치를 **운영 DB 실측으로** 갱신한다.
+3. 새 `calc_version`(`mart-r2` → `mart-r3`)으로
+   `build-marts --region-scheme mois:administrative-region`을 실행한다.
+4. 빌더가 verified 승격 전에 체계를 질의로 확인한다. 실패하면 활성 포인터는 움직이지 않는다.
+5. 되돌리기는 `mart-r2` build를 다시 활성으로 올리는 것이다. `mart-r2`는 지우지 않고 `superseded`로 남는다.
+
+### 운영 현재 상태
+
+- 활성 build의 `region_scheme`은 여전히 `eat:auction-location-sigungu`이고 `calc_version`은 `mart-r2`다.
+  WorkflowTemplate 기본값도 그대로다(이번 변경은 `infra/**`를 만지지 않았다).
+- **운영 DB의 eaT ↔ 행안부 매핑은 0행이다.** 원인은 매핑 규칙이 아니라 **라벨이 core에 없다**는 것이다.
+  `eat:eligibility-area`의 `PDLC_NM`은 파서 표에 선언돼 있지만 봉인된 정규화 계약
+  (`eatbid.ingestion.auction.v1`/`v2`)의 `normalizedLocation`에 라벨 자리가 없어
+  `core.code_label_observation`까지 흐르지 않는다(ADR 0025 sealed membership).
+  `eat:auction-location-sido/sigungu`는 소스에 이름 column 자체가 없어 `without_label`로 센다.
+- 따라서 지금 3단계를 실행하면 모든 지역 코드가 미매핑이 되어 지역 모집단이 빈다. 전환은
+  **라벨 수집 계약이 새 버전으로 열린 뒤**에 한다. 그 계약 변경은 이 작업의 범위 밖이며 별도 이슈다.
+- §3의 매핑률 표는 그때까지 **audit 표본에 저장소 규칙을 적용한 값**이며 운영 실측이 아니다.

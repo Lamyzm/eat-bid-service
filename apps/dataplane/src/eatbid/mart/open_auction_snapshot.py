@@ -20,6 +20,7 @@ from typing import Any
 
 from eatbid.core.projection_models import instant_datetime, money_decimal
 from eatbid.mart.models import MartBuildPlan
+from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 from eatbid.object_store import RawObjectStore
 from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.code_schemes import ORGANIZATION
@@ -78,7 +79,7 @@ on conflict on constraint open_auction_snapshot_observation_grain_key do nothing
 #
 # 상세가 없는 공고는 아무 열도 채우지 않는다. `terms_revision_id`가 비면 나머지 파생 열도 비어야
 # 한다는 것은 표의 check가 강제한다.
-_FILL_TERMS_SQL = """
+_FILL_TERMS_SQL = "with " + REGION_TRANSLATION_CTE.strip() + """
 update mart.open_auction_snapshot as snapshot
    set terms_revision_id = latest.auction_revision_id,
        floor_rate = latest.floor_rate,
@@ -94,8 +95,10 @@ update mart.open_auction_snapshot as snapshot
            nullif(btrim(coalesce(
              revision.source_payload #>> '{classification,sourceCategoryLabel}', ''
            )), '') as item_label,
-           sido.code_value_id as sido_code_value_id,
-           sigungu.code_value_id as sigungu_code_value_id
+           -- 선언한 체계로 번역되지 않는 지역은 null로 남는다. 코드가 있는 척하면 화면이 다른
+           -- 체계의 구역을 이 build의 구역으로 읽는다(ADR 0035 결정 7).
+           province_axis.region_code_value_id as sido_code_value_id,
+           district_axis.region_code_value_id as sigungu_code_value_id
       from core.auction_revision as revision
       left join core.auction_revision_code_value as sido
         on sido.auction_revision_id = revision.auction_revision_id
@@ -103,6 +106,10 @@ update mart.open_auction_snapshot as snapshot
       left join core.auction_revision_code_value as sigungu
         on sigungu.auction_revision_id = revision.auction_revision_id
        and sigungu.role = 'location_sigungu'
+      left join region_translation as province_axis
+        on province_axis.source_code_value_id = sido.code_value_id
+      left join region_translation as district_axis
+        on district_axis.source_code_value_id = sigungu.code_value_id
      where revision.auction_attempt_id in (
              select auction_attempt_id from mart.open_auction_snapshot
               where build_id = %(build_id)s
@@ -205,18 +212,21 @@ def fill_open_auction_snapshot(
                 )
                 inserted += cursor.rowcount
 
-    _fill_terms(connection, build_id=build_id)
+    _fill_terms(connection, build_id=build_id, region_scheme=plan.region_scheme)
     return inserted
 
 
-def _fill_terms(connection: Any, *, build_id: int) -> None:
+def _fill_terms(connection: Any, *, build_id: int, region_scheme: str | None) -> None:
     """이 build의 스냅샷 행에 최신 상세 해석과 기관 관측 이름을 덧입힌다.
 
     행 수를 바꾸지 않으므로 `verify_build`의 표본 검증과 어긋나지 않는다. 같은 build에 다시 돌려도
     같은 입력에서 같은 값을 다시 쓰기 때문에 재개한 빌드가 화면 값을 흔들지 않는다.
     """
     with connection.cursor() as cursor:
-        cursor.execute(_FILL_TERMS_SQL, {"build_id": build_id})
+        cursor.execute(
+            _FILL_TERMS_SQL,
+            {"build_id": build_id, "region_scheme": region_scheme},
+        )
         cursor.execute(_FILL_ORGANIZATION_LABEL_SQL, {"build_id": build_id})
 
 
