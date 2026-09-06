@@ -22,6 +22,16 @@ def normalize_code_label(label: str) -> str:
     return _SLASH_PADDING.sub("/", _WHITESPACE_RUN.sub(" ", label).strip())
 
 
+def label_path_segments(label: str) -> tuple[str, ...]:
+    """계층 이름 경로를 토막의 tuple로 돌려준다.
+
+    조립한 문자열 키(`'{시도}|{시군구}'`)를 만들지 않는 이유는 그 키가 곧 새 어휘가 되기 때문이다
+    (AGENTS 2). 토막의 tuple은 표기 변이를 흡수하지 않으므로 "이 소스가 이 이름으로 불렀다"가
+    그대로 남고, 맞지 않으면 결측으로 드러난다.
+    """
+    return tuple(normalize_code_label(label).split(" "))
+
+
 def label_path_parent(label: str) -> str | None:
     """계층 이름 경로의 상위 라벨을 돌려준다. 토막이 하나뿐이면 상위가 없다.
 
