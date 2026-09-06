@@ -17,7 +17,12 @@ from eatbid.source.eat.http_client import (
     EatHttpClient,
 )
 
-from .eat_http_test_support import FETCHED_AT, RecordingTransport, capture_request
+from .eat_http_test_support import (
+    FETCHED_AT,
+    RecordingSleeper,
+    RecordingTransport,
+    capture_request,
+)
 
 
 def test_fetch는_fixed_warmup과_검토된_POST를_같은_session에서_한번만_보낸다() -> None:
@@ -65,8 +70,14 @@ def test_fetch는_named_timeout을_모든_HTTP_phase에_고정한다() -> None:
     assert all(request.extensions["timeout"] == expected for request in transport.requests)
 
 
-@pytest.mark.parametrize("status_code", [302, 403, 429, 500])
-def test_endpoint_non_2xx와_redirect는_body와_status를_그대로_반환한다(status_code: int) -> None:
+@pytest.mark.parametrize(
+    ("status_code", "expected_requests"),
+    # 5xx만 일시 실패로 다시 보내고, 소진하면 마지막 응답을 그대로 capture에 넘긴다.
+    [(302, 2), (403, 2), (429, 2), (500, 4)],
+)
+def test_endpoint_non_2xx와_redirect는_body와_status를_그대로_반환한다(
+    status_code: int, expected_requests: int
+) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
             return httpx.Response(200, content=b"warm")
@@ -77,22 +88,26 @@ def test_endpoint_non_2xx와_redirect는_body와_status를_그대로_반환한�
         )
 
     transport = RecordingTransport(handler)
-    with EatHttpClient(transport=transport, clock=lambda: FETCHED_AT) as client:
+    with EatHttpClient(
+        transport=transport, clock=lambda: FETCHED_AT, sleeper=RecordingSleeper()
+    ) as client:
         response = client.fetch(capture_request())
 
     assert response.status_code == status_code
     assert response.body == b"source bytes first"
     assert response.fetched_at == FETCHED_AT
-    assert len(transport.requests) == 2
+    assert len(transport.requests) == expected_requests
 
 
-@pytest.mark.parametrize("status_code", [302, 403, 500])
+@pytest.mark.parametrize("status_code", [302, 403])
 def test_warmup_non_2xx는_endpoint를_호출하지_않고_typed_failure로_끝난다(status_code: int) -> None:
     transport = RecordingTransport(
         lambda request: httpx.Response(status_code, content=b"secret warmup body")
     )
     with (
-        EatHttpClient(transport=transport, clock=lambda: FETCHED_AT) as client,
+        EatHttpClient(
+            transport=transport, clock=lambda: FETCHED_AT, sleeper=RecordingSleeper()
+        ) as client,
         pytest.raises(SourceContractError, match="warmup-status") as caught,
     ):
         client.fetch(capture_request())

@@ -3,13 +3,14 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.errors import SourceContractError, SourceUnavailableError
 from eatbid.source.eat.http_client import WARMUP_MAX_RESPONSE_BYTES, EatHttpClient
 from eatbid.source.eat.registry import require_transport
 
 from .eat_http_test_support import (
     FETCHED_AT,
     FailingStream,
+    RecordingSleeper,
     RecordingTransport,
     TrackingStream,
     capture_request,
@@ -54,31 +55,36 @@ def test_warmup도_streaming_byte_cap을_적용한다() -> None:
 
 
 @pytest.mark.parametrize(
-    ("upstream_error", "category"),
+    ("upstream_error", "category", "error_type"),
     [
-        (httpx.ConnectTimeout("url-secret"), "warmup-connect-timeout"),
-        (httpx.ReadTimeout("read-secret"), "warmup-read-timeout"),
-        (httpx.WriteTimeout("write-secret"), "warmup-write-timeout"),
-        (httpx.PoolTimeout("pool-secret"), "warmup-pool-timeout"),
-        (httpx.ConnectError("cookie-secret"), "warmup-connect-error"),
-        (httpx.ReadError("read-secret"), "warmup-read-error"),
-        (httpx.WriteError("write-secret"), "warmup-write-error"),
-        (httpx.CloseError("close-secret"), "warmup-close-error"),
-        (httpx.ProtocolError("authorization-secret"), "warmup-protocol-error"),
-        (httpx.DecodingError("body-secret"), "warmup-decoding-error"),
-        (httpx.TransportError("fallback-secret"), "warmup-transport-error"),
+        (httpx.ConnectTimeout("url-secret"), "warmup-connect-timeout", SourceUnavailableError),
+        (httpx.ReadTimeout("read-secret"), "warmup-read-timeout", SourceUnavailableError),
+        (httpx.WriteTimeout("write-secret"), "warmup-write-timeout", SourceUnavailableError),
+        (httpx.PoolTimeout("pool-secret"), "warmup-pool-timeout", SourceUnavailableError),
+        (httpx.ConnectError("cookie-secret"), "warmup-connect-error", SourceUnavailableError),
+        (httpx.ReadError("read-secret"), "warmup-read-error", SourceUnavailableError),
+        (httpx.WriteError("write-secret"), "warmup-write-error", SourceUnavailableError),
+        (httpx.CloseError("close-secret"), "warmup-close-error", SourceUnavailableError),
+        (httpx.ProtocolError("authorization-secret"), "warmup-protocol-error", SourceUnavailableError),
+        # 응답을 다 받은 뒤의 decoding 실패는 다시 보내도 같은 결론이라 계약 위반으로 남는다.
+        (httpx.DecodingError("body-secret"), "warmup-decoding-error", SourceContractError),
+        (httpx.TransportError("fallback-secret"), "warmup-transport-error", SourceUnavailableError),
     ],
 )
 def test_transport_error는_endpoint와_safe_category만_남기고_원인을_제거한다(
-    upstream_error: httpx.HTTPError, category: str
+    upstream_error: httpx.HTTPError, category: str, error_type: type[Exception]
 ) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise upstream_error
 
     transport = RecordingTransport(handler)
     with (
-        EatHttpClient(transport=transport, clock=lambda: FETCHED_AT) as client,
-        pytest.raises(SourceContractError) as caught,
+        EatHttpClient(
+            transport=transport,
+            clock=lambda: FETCHED_AT,
+            sleeper=RecordingSleeper(),
+        ) as client,
+        pytest.raises(error_type) as caught,
     ):
         client.fetch(capture_request())
 

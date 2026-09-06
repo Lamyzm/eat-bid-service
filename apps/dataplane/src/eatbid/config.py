@@ -45,6 +45,20 @@ class ApplicationSettings(BaseSettings):
     source_page_budget: int = Field(
         100, validation_alias="SOURCE_PAGE_BUDGET", ge=1, le=10_000
     )
+    # 왜: 재시도 상한은 manifest가 아니라 설정이 소유한다. 한 pod가 소스를 붙잡는 시간이 늘어나면
+    # source semaphore 뒤의 다른 실행이 밀리므로 횟수와 총 대기 시간을 함께 bounded로 둔다.
+    source_retry_max_attempts: int = Field(
+        3, validation_alias="SOURCE_RETRY_MAX_ATTEMPTS", ge=1, le=10
+    )
+    source_retry_initial_backoff_seconds: int = Field(
+        1, validation_alias="SOURCE_RETRY_INITIAL_BACKOFF_SECONDS", ge=0, le=60
+    )
+    source_retry_backoff_multiplier: int = Field(
+        2, validation_alias="SOURCE_RETRY_BACKOFF_MULTIPLIER", ge=1, le=10
+    )
+    source_retry_max_total_backoff_seconds: int = Field(
+        30, validation_alias="SOURCE_RETRY_MAX_TOTAL_BACKOFF_SECONDS", ge=0, le=600
+    )
 
     @field_validator("database_url")
     @classmethod

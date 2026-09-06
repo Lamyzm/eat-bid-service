@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import timedelta
 from types import TracebackType
 from typing import Any, Self
 
@@ -40,6 +41,7 @@ from eatbid.pipeline.replay import ReplayServices, replay_observations
 from eatbid.pipeline.validate import validate_run
 from eatbid.r2_store import R2RawObjectStore, R2Settings
 from eatbid.source.eat.http_client import EatHttpClient
+from eatbid.source.retry import TransientRetryPolicy
 
 
 class Application:
@@ -258,7 +260,9 @@ def build_application(config: ApplicationSettings) -> Application:
             write=config.source_write_timeout_seconds,
             pool=config.source_pool_timeout_seconds,
         )
-        http_client = EatHttpClient(timeout=timeout)
+        http_client = EatHttpClient(
+            timeout=timeout, retry_policy=_retry_policy(config)
+        )
         store = R2RawObjectStore(
             R2Settings(
                 endpoint_url=config.r2_endpoint_url,
@@ -297,6 +301,19 @@ def build_application(config: ApplicationSettings) -> Application:
             },
         ),
         page_budget=config.source_page_budget,
+    )
+
+
+def _retry_policy(config: ApplicationSettings) -> TransientRetryPolicy:
+    """왜: 초 단위 환경변수를 단위 있는 duration으로 바꾸는 자리는 이 조립 경계 하나뿐이다.
+    아래 계층에는 숫자가 아니라 timedelta만 내려간다."""
+    return TransientRetryPolicy(
+        max_attempts=config.source_retry_max_attempts,
+        initial_backoff=timedelta(seconds=config.source_retry_initial_backoff_seconds),
+        backoff_multiplier=config.source_retry_backoff_multiplier,
+        max_total_backoff=timedelta(
+            seconds=config.source_retry_max_total_backoff_seconds
+        ),
     )
 
 

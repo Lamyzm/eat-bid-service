@@ -19,6 +19,9 @@ from eatbid.pipeline.discover import DiscoveryResult
 
 CONFIGURATION_EXIT_CODE = 64
 DATA_QUARANTINED_EXIT_CODE = 65
+# 왜: sysexits의 EX_UNAVAILABLE 자리다. "서비스가 지금 응답하지 못했다"는 뜻이 이미 이 숫자에
+# 붙어 있어 계약 위반(76)·차단(75)과 운영자가 눈으로도 구분할 수 있다.
+TRANSIENT_NETWORK_EXIT_CODE = 69
 SOURCE_THROTTLED_EXIT_CODE = 75
 SOURCE_CONTRACT_EXIT_CODE = 76
 
@@ -26,6 +29,7 @@ SOURCE_CONTRACT_EXIT_CODE = 76
 FAILURE_CATEGORIES: Mapping[int, str] = {
     CONFIGURATION_EXIT_CODE: "CONFIGURATION",
     DATA_QUARANTINED_EXIT_CODE: "DATA_QUARANTINED",
+    TRANSIENT_NETWORK_EXIT_CODE: "TRANSIENT_NETWORK",
     SOURCE_THROTTLED_EXIT_CODE: "SOURCE_THROTTLED",
     SOURCE_CONTRACT_EXIT_CODE: "SOURCE_CONTRACT",
 }
@@ -173,7 +177,7 @@ def main(
 
 
 def exit_code_for_error(error: Exception) -> int:
-    from eatbid.errors import SourceContractError
+    from eatbid.errors import SourceContractError, SourceUnavailableError
     from eatbid.pipeline.capture import SourceThrottledError
     from eatbid.pipeline.normalize import DataQuarantinedError
 
@@ -181,6 +185,10 @@ def exit_code_for_error(error: Exception) -> int:
         return DATA_QUARANTINED_EXIT_CODE
     if isinstance(error, SourceThrottledError):
         return SOURCE_THROTTLED_EXIT_CODE
+    # 왜: 응답 자체가 오지 않은 일시 장애는 이미 CLI 안에서 상한까지 재시도한 뒤에만 여기 온다.
+    # 계약 위반과 같은 exit로 묶으면 운영이 "코드를 고쳐야 하는 실패"로 오독한다.
+    if isinstance(error, SourceUnavailableError):
+        return TRANSIENT_NETWORK_EXIT_CODE
     if isinstance(error, SourceContractError):
         return SOURCE_CONTRACT_EXIT_CODE
     return CONFIGURATION_EXIT_CODE
