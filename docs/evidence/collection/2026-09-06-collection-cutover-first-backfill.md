@@ -148,4 +148,7 @@ daily-reconcile Succeeded" 수용 기준을 채운다. poll-open은 평일 스�
   각각 별도 결정으로 다룬다.
 - capture 건당 약 17초 중 소스 응답은 약 7초이고 나머지는 pod 생성·종료 비용이다. 피크(하루
   7,000건대)에서는 backfill 한 창이 하루를 넘기므로, 그 전에 capture 단위를 pod당 여러 건으로 묶을지
-  판단해야 한다.
+  판단해야 한다. → **EAT-79에서 묶기로 결정했고 구현했다.** discover가 발견 목록을 50건 단위
+  chunk로 내고 capture·normalize가 chunk 하나를 pod 하나로 받는다. 건별 raw 저장·request unit·관측
+  grain과 source semaphore, `parallelism: 4`는 그대로다. 여기 남은 건당 17초는 그 전의 값이며
+  chunk 방식의 실측은 별도 증거로 남긴다.

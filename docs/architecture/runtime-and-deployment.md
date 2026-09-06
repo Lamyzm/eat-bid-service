@@ -68,9 +68,9 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 | `backfill` | 사람이 지정 | `argo submit --from workflowtemplate/eatbid-dataplane -p mode=backfill -p start-date=YYYYMMDD -p end-date=YYYYMMDD` |
 
 단계 사이의 정체성은 `discover`가 workflow uid에서 결정적으로 파생해 output parameter로 넘긴다.
-`capture`는 발견된 `external-bid-ids`로, `normalize`는 확장된 `capture`의 `observation-id`로
-fan-out하고 `validate`·`project`는 detail run 정체성으로 발행한다. CLI `--result-dir`가 machine
-result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
+`capture`는 `discover`의 `external-bid-id-chunks`로, `normalize`는 확장된 `capture`의
+`observation-ids`로 fan-out하고 `validate`·`project`는 detail run 정체성으로 발행한다. CLI
+`--result-dir`가 machine result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 
 ### 2.2 backfill 구간 분할 단위와 중복 제거 (2026-09-06, EAT-46)
 
@@ -106,6 +106,26 @@ result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 - `TOT_CNT` 대조는 창 단위 사실이다. 여러 창을 합친 고유 건수를 `TOT_CNT` 합계와 비교하면 겹침만큼
   항상 어긋나므로 그렇게 검증하지 않는다.
 
+### 2.3 fan-out 단위는 발견 건이 아니라 chunk다 (2026-09-06, EAT-79)
+
+**`capture`와 `normalize`의 pod 하나는 공고 여러 건을 순차로 처리한다.** 근거는
+[수집 cutover와 첫 backfill](../evidence/collection/2026-09-06-collection-cutover-first-backfill.md) §6이다.
+건당 pod 하나일 때 상세 한 건은 약 17초였고 그중 소스 응답은 약 7초뿐이라 나머지는 pod 생성·wait
+컨테이너·종료 비용이었다. 2026-08 한 달 목록이 16,973건이므로 그 구조로는 한 달 백필이 약 80시간,
+12개월이 40일이다.
+
+| 값 | 소유자 | 내용 |
+|---|---|---|
+| chunk 크기 50 | `apps/dataplane/src/eatbid/pipeline/chunk.py` | manifest가 아니라 코드가 갖는다. workflow 인자에 숫자를 두면 매니페스트가 CLI와 별개의 두 번째 설정 원천이 된다 |
+| `external-bid-id-chunks` | `discover` output parameter | 봉인된 manifest 순서 그대로 나눈 JSON 배열의 배열. capture가 이것으로 fan-out한다 |
+| `observation-ids` | `capture` output parameter | chunk 하나가 실제로 관측한 ID 목록. normalize가 같은 단위를 이어받는다 |
+| `--external-bid-ids-json` / `--observation-ids-json` | CLI | chunk는 argv 한 칸의 JSON 배열이다. 모양 검사(비어 있지 않음·고유·양의 숫자)는 인자 단계가 fail-closed로 한다 |
+
+바뀌지 않는 것: 건별 `request_unit`·raw 객체·관측 grain, source semaphore(chunk pod 단위로 잡히므로
+소스 동시 호출은 그대로), `parallelism: 4`, `retryStrategy` 부재. 평평한 `external-bid-ids`는 pod 안에
+파일로 남지만 output parameter가 아니다. 피크 월이면 아무 단계도 읽지 않는 그 목록만으로 workflow
+status가 수백 KB 늘어난다.
+
 ## 3. 실행 안전장치
 
 - source 전역 semaphore를 둔다. 초기 capacity는 1이며 관측 후 늘린다.
@@ -117,6 +137,15 @@ result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
   것은 `BID_LIST_MAX_RESPONSE_BYTES`(16 MiB)와 행당 약 1.8 KB, 즉 약 9,300행이다(2026-09-06 실측,
   EAT-46). 1000은 그 한계의 9분의 1이라 여유가 있으므로 유지하되 "소스가 거부한다"로 설명하지 않는다.
 - 한 건이라도 조용히 누락되면 성공 처리하지 않는다. failure count가 있으면 비영(0이 아닌) exit다.
+- chunk 안의 한 건이 실패해도 그 chunk 전체를 실패로 접지 않는다. 실패한 건만 실패로 기록하고
+  나머지는 계속 관측하되, chunk는 반드시 비영 exit로 끝나 DAG가 뒤 단계를 잇지 못한다. 계속
+  진행할지는 취향이 아니라 run ledger의 상태가 정한다. `SOURCE_THROTTLED`와 `SOURCE_CONTRACT`는
+  그 자리에서 run을 실패로 닫아 뒤의 건이 terminal state로 거부되므로 남은 건을 시도하지 않고,
+  `CONFIGURATION`은 애초에 그 건의 문제가 아니다. 계속 도는 것은 응답 자체가 오지 않은
+  `TRANSIENT_NETWORK`와 그 관측 하나에 갇힌 `DATA_QUARANTINED`뿐이다. 실패가 범주별로 섞이면
+  종료 코드는 먼저 멈춰야 할 범주를 따른다(`SOURCE_THROTTLED` → `CONFIGURATION` →
+  `SOURCE_CONTRACT` → `DATA_QUARANTINED` → `TRANSIENT_NETWORK`). 삼킨 실패는 건마다 한 줄 JSON으로
+  stderr에 남으며 최종 실패와 같은 비밀값 제거 규칙을 쓴다(2026-09-06, EAT-79).
 - retry는 timeout/일시적 네트워크/일시적 5xx만 대상으로 한다. 403, 429, 차단 신호, 계약 위반,
   인증/설정 오류는 무한 재시도하지 않고 명시적으로 중단한다.
 - 그 retry는 WorkflowTemplate이 아니라 CLI 프로세스 안에서 한다. `retryStrategy`를 두면 source
@@ -128,7 +157,8 @@ result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 - `withParam` fan-out 폭은 workflow 전체 `parallelism`으로 클러스터 용량 아래에 묶는다. 발견 건수만큼
   pod를 한꺼번에 띄우면 단일 노드의 pod 상한과 DB 연결을 소진한다(2026-09-05 첫 backfill에서 실측,
   [수집 cutover와 첫 backfill](../evidence/collection/2026-09-06-collection-cutover-first-backfill.md)).
-  source semaphore는 소스 보호, `parallelism`은 클러스터 보호이며 서로 대체하지 않는다.
+  source semaphore는 소스 보호, `parallelism`은 클러스터 보호이며 서로 대체하지 않는다. fan-out
+  단위가 chunk가 된 뒤에도 이 둘은 그대로다(§2.3).
 - workflow timeout/retry/schedule 값은 단위가 붙은 config와 명명한 duration factory에서만 만들며,
   calendar 기간과 elapsed timeout을 같은 숫자로 취급하지 않는다.
 - run/observation/publication timestamp는 UTC absolute instant로 기록하고 source 지역 시각은 IANA zone을
