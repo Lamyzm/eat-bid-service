@@ -13,7 +13,9 @@ import pytest
 import yaml
 from conftest import ManifestSet
 from eatbid.cli import build_parser
+from eatbid.config import ApplicationSettings
 from eatbid.core.record_types import is_projectable_record_type
+from eatbid.source.eat.payload import MAX_PAGE_SIZE_ROWS
 from eatbid.source.eat.registry import require
 from eatbid.source.eat.schema_contract import REVIEWED_EAT_SCHEMA_CONTRACTS
 
@@ -34,6 +36,9 @@ SHELL_STAGES = ("capture", "normalize", "validate", "project", "marts")
 REFERENCE_COMMANDS = ("capture-reference", "project-reference")
 REFERENCE_TASKS = REFERENCE_COMMANDS
 PYTHON_ENTRYPOINT_TEMPLATES = ("discover", "replay")
+# 피크 월 창의 `TOT_CNT` 실측 약 17,000에 여유를 둔 상한이다. discover는 `total_count`가
+# page size × page budget을 넘으면 창을 거부하므로 그 곱이 이 값 아래로 내려가면 월 백필이 막힌다.
+MONTHLY_WINDOW_TOTAL_COUNT_CEILING = 20_000
 # shell 단계가 `$NAME`으로 읽는 값의 표본이다. BUILD_SHA만 container env가 아니라 image ENV에서 온다.
 SAMPLE_STAGE_ENV = {
     "BUILD_SHA": "a" * 64,
@@ -617,6 +622,10 @@ def _execute_discover_script(
 
     for key in list(SAMPLE_STAGE_ENV) + ["EATBID_START_DATE", "EATBID_END_DATE", "EATBID_RELEASE_NAME"]:
         monkeypatch.delenv(key, raising=False)  # type: ignore[attr-defined]
+    # page size는 workflow 파라미터가 아니라 template이 고정한 env라 pod가 받는 값 그대로 넣는다.
+    monkeypatch.setenv(  # type: ignore[attr-defined]
+        "EATBID_DISCOVER_PAGE_SIZE", str(_env(container, "EATBID_DISCOVER_PAGE_SIZE")["value"])
+    )
     for key, value in environment.items():
         monkeypatch.setenv(key, value)  # type: ignore[attr-defined]
     monkeypatch.setattr(os, "execvp", capture_execvp)  # type: ignore[attr-defined]
@@ -693,6 +702,28 @@ def test_discover_단계는_workflow_uid_없이_CLI를_부르지_않는다(
                 {**SAMPLE_STAGE_ENV, "EATBID_RUN_ID": broken, "EATBID_RESULT_DIR": str(tmp_path)},
             )
         assert error.value.code == 64
+
+
+def test_discover_단계의_page_size와_page_budget_곱이_월_창_상한을_덮는다(
+    manifests: ManifestSet, monkeypatch: object, tmp_path: Path
+) -> None:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    container = _mapping(_templates(workflow_template)["discover"]["container"])
+    page_size = int(str(_env(container, "EATBID_DISCOVER_PAGE_SIZE")["value"]))
+    # 예산은 template이 덮어쓰지 않으므로 설정 기본값이 pod에서 유효한 값이다.
+    env_names = {str(_mapping(item)["name"]) for item in _sequence(container["env"])}
+    assert "SOURCE_PAGE_BUDGET" not in env_names
+    page_budget = ApplicationSettings.model_fields["source_page_budget"].default
+
+    assert 1 <= page_size <= MAX_PAGE_SIZE_ROWS
+    assert page_size * page_budget >= MONTHLY_WINDOW_TOTAL_COUNT_CEILING
+
+    argv = _execute_discover_script(
+        manifests,
+        monkeypatch,
+        {**SAMPLE_STAGE_ENV, "EATBID_RESULT_DIR": str(tmp_path / "result")},
+    )
+    assert build_parser().parse_args(argv[1:]).page_size == page_size
 
 
 @pytest.mark.parametrize("template_name", SHELL_STAGES)
