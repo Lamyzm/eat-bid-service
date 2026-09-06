@@ -11,6 +11,7 @@ import type { DecisionPageData } from '../_model/load-auction-page';
 import { presentDecision } from '../_model/present-decision';
 import { presentDistribution } from '../_model/present-distribution';
 import { DecisionScreen } from './decision-screen';
+import { DecisionScreenSkeleton } from './decision-screen-skeleton';
 
 const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, expand: false });
 const search = searchOn('비교집단');
@@ -94,6 +95,35 @@ describe('결정 화면', () => {
   test('구매기관이 정규화되지 않은 공고는 흐름 탭에서 이유를 그대로 말한다', () => {
     const markup = renderToStaticMarkup(<DecisionScreen decision={decision()} search={flowSearch} history={{ state: 'no-organization' }} distribution={lockedDistribution} />);
     expect(markup).toContain('이 공고의 구매기관이 아직 정규화되지 않았습니다');
+  });
+
+  test('호가창의 상태 넷이 각각 다른 것을 그린다', () => {
+    // loading은 route의 skeleton이 소유하므로 여기서는 나머지 셋을 화면 조립 수준에서 고정한다.
+    const scarce = {
+      ...floor90DistributionFixture,
+      meta: { ...floor90DistributionFixture.meta, sampleCount: 7 }
+    };
+    const unknown: DecisionPageData['distribution'] = {
+      state: 'ready',
+      presentation: presentDistribution(scarce, { myRate: null, isRegionScope: false }),
+      response: scarce
+    };
+    const failed: DecisionPageData['distribution'] = { state: 'unavailable' };
+
+    const success = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={readyDistribution} />);
+    expect(success.getByText('전국 · 값마다 낙찰된 횟수')).toBeTruthy();
+
+    const grey = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={unknown} />);
+    expect(grey.getByText('표본 7회차')).toBeTruthy();
+
+    const error = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={failed} />);
+    expect(error.getByText('분포를 지금 불러오지 못했습니다')).toBeTruthy();
+  });
+
+  test('route 로딩 skeleton은 근거 카드 자리를 실제 높이로 잡아 도착 순간 화면을 밀지 않는다', () => {
+    const markup = renderToStaticMarkup(<DecisionScreenSkeleton />);
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).toContain('data-slot="decision-screen"');
   });
 
   test('회차 이력 조회가 실패하면 빈 화면 대신 실패 사실을 말한다', () => {
