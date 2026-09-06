@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
 from types import TracebackType
@@ -10,13 +10,21 @@ from typing import Self
 
 import httpx
 
-from eatbid.errors import SourceContractError
+from eatbid.errors import SourceContractError, SourceUnavailableError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.source.client import SourceResponse
+from eatbid.source.eat.exchange import EatExchange
 from eatbid.source.eat.registry import (
     EAT_ORIGIN,
     EatEndpointTransport,
     require_transport,
+)
+from eatbid.source.retry import (
+    DEFAULT_TRANSIENT_RETRY_POLICY,
+    Sleeper,
+    TransientRetryPolicy,
+    is_transient_status,
+    sleep_between_attempts,
 )
 
 CONNECT_TIMEOUT_SECONDS = 10.0
@@ -48,24 +56,6 @@ _ENDPOINT_HEADERS = {
 }
 _WARMUP_HEADERS = {"User-Agent": USER_AGENT_HEADER}
 
-_TRANSPORT_ERROR_CATEGORIES: tuple[tuple[type[httpx.HTTPError], str], ...] = (
-    (httpx.ConnectTimeout, "connect-timeout"),
-    (httpx.ReadTimeout, "read-timeout"),
-    (httpx.WriteTimeout, "write-timeout"),
-    (httpx.PoolTimeout, "pool-timeout"),
-    (httpx.ConnectError, "connect-error"),
-    (httpx.ReadError, "read-error"),
-    (httpx.WriteError, "write-error"),
-    (httpx.CloseError, "close-error"),
-    (httpx.ProtocolError, "protocol-error"),
-    (httpx.DecodingError, "decoding-error"),
-    (httpx.TransportError, "transport-error"),
-)
-
-
-class _ResponseTooLarge(Exception):
-    pass
-
 
 class _ClientLifecycle(Enum):
     OPEN = auto()
@@ -85,6 +75,8 @@ class EatHttpClient:
         transport: httpx.BaseTransport | None = None,
         clock: Callable[[], datetime] = _system_utc_clock,
         timeout: httpx.Timeout = _TIMEOUT,
+        retry_policy: TransientRetryPolicy = DEFAULT_TRANSIENT_RETRY_POLICY,
+        sleeper: Sleeper = sleep_between_attempts,
     ) -> None:
         self._clock = clock
         # verify 인자를 노출하거나 덮어쓰지 않아 httpx의 CA 검증 기본값을 유지한다.
@@ -92,6 +84,9 @@ class EatHttpClient:
             timeout=timeout,
             follow_redirects=False,
             transport=transport,
+        )
+        self._exchange = EatExchange(
+            self._client, retry_policy=retry_policy, sleeper=sleeper
         )
         self._warmed = False
         self._lifecycle = _ClientLifecycle.OPEN
@@ -109,7 +104,9 @@ class EatHttpClient:
             raise self._failure(endpoint, category)
         transport, payload = self._prepare(request)
         self._ensure_warmup(transport.endpoint)
-        status_code, body = self._exchange(
+        # 왜: endpoint 응답은 status와 무관하게 capture가 raw로 보존한다. 재시도로도 5xx가 계속되면
+        # 그 마지막 응답을 그대로 넘겨 관측을 남기고, 해석은 capture 단계 분류에 맡긴다.
+        outcome = self._exchange.run(
             endpoint=transport.endpoint,
             phase="endpoint",
             method=transport.method,
@@ -118,7 +115,9 @@ class EatHttpClient:
             content=payload,
             max_response_bytes=transport.max_response_bytes,
         )
-        return SourceResponse(status_code, body, self._fetched_at(transport.endpoint))
+        return SourceResponse(
+            outcome.status_code, outcome.body, self._fetched_at(transport.endpoint)
+        )
 
     def _prepare(self, request: CaptureRequest) -> tuple[EatEndpointTransport, bytes]:
         if not isinstance(request, CaptureRequest):
@@ -135,7 +134,7 @@ class EatHttpClient:
     def _ensure_warmup(self, endpoint: str) -> None:
         if self._warmed:
             return
-        status_code, _ = self._exchange(
+        outcome = self._exchange.run(
             endpoint=endpoint,
             phase="warmup",
             method="GET",
@@ -144,74 +143,26 @@ class EatHttpClient:
             content=None,
             max_response_bytes=WARMUP_MAX_RESPONSE_BYTES,
         )
-        if not 200 <= status_code < 300:
+        if is_transient_status(outcome.status_code):
+            # 왜: warmup 응답은 어디에도 보존하지 않는다. 재시도까지 소진한 5xx는 남길 관측이 없는
+            # 소스 장애이므로 계약 위반이 아니라 일시 장애로 닫아 exit code를 구분한다.
+            raise SourceUnavailableError(
+                f"eaT request failed [endpoint={endpoint} category=warmup-status "
+                f"attempts={outcome.attempts}]",
+                attempts=outcome.attempts,
+            ) from None
+        if not 200 <= outcome.status_code < 300:
             raise SourceContractError(
                 f"eaT request failed [endpoint={endpoint} category=warmup-status]",
-                status_code=status_code,
+                status_code=outcome.status_code,
             )
         self._warmed = True
-
-    def _exchange(
-        self,
-        *,
-        endpoint: str,
-        phase: str,
-        method: str,
-        url: str,
-        headers: Mapping[str, str],
-        content: bytes | None,
-        max_response_bytes: int,
-    ) -> tuple[int, bytes]:
-        safe_error: SourceContractError | None = None
-        result: tuple[int, bytes] | None = None
-        try:
-            with self._client.stream(
-                method, url, headers=headers, content=content
-            ) as response:
-                body = self._read_limited(response, max_response_bytes)
-                result = (response.status_code, body)
-        except httpx.HTTPError as error:
-            category = self._transport_error_category(error)
-            safe_error = self._failure(endpoint, f"{phase}-{category}")
-        except _ResponseTooLarge:
-            category = (
-                "warmup-response-too-large"
-                if phase == "warmup"
-                else "response-too-large"
-            )
-            safe_error = self._failure(endpoint, category)
-
-        if safe_error is not None:
-            raise safe_error from None
-        if (
-            result is None
-        ):  # pragma: no cover - every branch above returns or translates
-            raise RuntimeError("eaT exchange did not produce a result")
-        return result
-
-    @staticmethod
-    def _read_limited(response: httpx.Response, max_response_bytes: int) -> bytes:
-        chunks: list[bytes] = []
-        total_bytes = 0
-        for chunk in response.iter_bytes():
-            total_bytes += len(chunk)
-            if total_bytes > max_response_bytes:
-                raise _ResponseTooLarge
-            chunks.append(chunk)
-        return b"".join(chunks)
 
     @staticmethod
     def _failure(endpoint: str, category: str) -> SourceContractError:
         return SourceContractError(
             f"eaT request failed [endpoint={endpoint} category={category}]"
         )
-
-    @staticmethod
-    def _transport_error_category(error: httpx.HTTPError) -> str:
-        for error_type, category in _TRANSPORT_ERROR_CATEGORIES:
-            if isinstance(error, error_type):
-                return category
-        return "request-error"
 
     def _fetched_at(self, endpoint: str) -> datetime:
         safe_error: SourceContractError | None = None

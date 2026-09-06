@@ -8,7 +8,7 @@ import pytest
 
 from eatbid.cli import main
 from eatbid.composition import build_application
-from eatbid.errors import SourceContractError
+from eatbid.errors import SourceContractError, SourceUnavailableError
 from eatbid.failure_report import redact_secrets
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.normalize import DataQuarantinedError
@@ -173,6 +173,12 @@ def test_settings가_없으면_환경변수의_비밀값으로_지운다(
     [
         (RuntimeError("설정이 없다"), 64, "CONFIGURATION", "RuntimeError"),
         (DataQuarantinedError(7, "격리"), 65, "DATA_QUARANTINED", "DataQuarantinedError"),
+        (
+            SourceUnavailableError("일시 장애", attempts=3),
+            69,
+            "TRANSIENT_NETWORK",
+            "SourceUnavailableError",
+        ),
         (SourceThrottledError(429), 75, "SOURCE_THROTTLED", "SourceThrottledError"),
         (SourceContractError("계약 위반"), 76, "SOURCE_CONTRACT", "SourceContractError"),
     ],

@@ -74,6 +74,11 @@ result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 - 한 건이라도 조용히 누락되면 성공 처리하지 않는다. failure count가 있으면 비영(0이 아닌) exit다.
 - retry는 timeout/일시적 네트워크/일시적 5xx만 대상으로 한다. 403, 429, 차단 신호, 계약 위반,
   인증/설정 오류는 무한 재시도하지 않고 명시적으로 중단한다.
+- 그 retry는 WorkflowTemplate이 아니라 CLI 프로세스 안에서 한다. `retryStrategy`를 두면 source
+  semaphore 밖에서 pod가 늘어나므로, semaphore 안에서 도는 dataplane이 횟수와 총 대기 시간 상한을
+  가진 지수 backoff로 직접 다시 보낸다. 응답이 오지 않은 실패만 다시 보내며, 응답이 도착한 뒤의
+  전송 중단·decoding 실패·크기 초과는 다시 보내도 같은 결론이라 즉시 중단한다. 상한은 manifest가
+  아니라 `SOURCE_RETRY_*` 설정이 소유한다(2026-09-06 backfill 실측, EAT-72).
 - backfill은 같은 source semaphore를 공유해 정기 poll을 압도하지 않게 우선순위/동시성을 제한한다.
 - `withParam` fan-out 폭은 workflow 전체 `parallelism`으로 클러스터 용량 아래에 묶는다. 발견 건수만큼
   pod를 한꺼번에 띄우면 단일 노드의 pod 상한과 DB 연결을 소진한다(2026-09-05 첫 backfill에서 실측,
@@ -84,16 +89,19 @@ result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 - run/observation/publication timestamp는 UTC absolute instant로 기록하고 source 지역 시각은 IANA zone을
   명시해 해석한다. container의 local timezone이나 수동 offset에 의미를 맡기지 않는다.
 
-권장 exit category:
+exit category와 exit code:
 
-| category | 재시도 | 의미 |
-|---|---|---|
-| `TRANSIENT_NETWORK` | 제한적 exponential backoff | 일시적 연결/5xx |
-| `SOURCE_THROTTLED` | workflow 중단, 운영 확인 | 429/차단 징후 |
-| `SOURCE_CONTRACT` | 재시도 금지 | schema/TOT_CNT/불변식 위반 |
-| `DATA_QUARANTINED` | raw 보존 후 실행 실패 | 파싱 불가/미지원 코드 |
-| `CONFIGURATION` | 재시도 금지 | secret/endpoint/argument 오류 |
-| `INTERNAL` | 제한적 또는 재배포 후 | 코드/DB 예외 |
+| category | exit code | 재시도 | 의미 |
+|---|---|---|---|
+| `TRANSIENT_NETWORK` | 69 | CLI 안에서 이미 소진 | 응답이 오지 않은 연결/timeout, warmup 5xx |
+| `SOURCE_THROTTLED` | 75 | workflow 중단, 운영 확인 | 429/차단 징후 |
+| `SOURCE_CONTRACT` | 76 | 재시도 금지 | schema/TOT_CNT/불변식 위반, 소진 후에도 남은 endpoint 5xx |
+| `DATA_QUARANTINED` | 65 | raw 보존 후 실행 실패 | 파싱 불가/미지원 코드 |
+| `CONFIGURATION` | 64 | 재시도 금지 | secret/endpoint/argument 오류 |
+
+`TRANSIENT_NETWORK`가 나왔다는 것은 상한까지 다시 보내고도 응답이 없었다는 뜻이므로 같은 실행을
+자동으로 또 돌리지 않는다. endpoint 응답은 status와 무관하게 raw로 보존하므로 재시도 후에도 5xx가
+남으면 그 관측을 남기고 `SOURCE_CONTRACT`로 닫는다.
 
 ## 4. 발행 트랜잭션
 

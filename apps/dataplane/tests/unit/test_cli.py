@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from eatbid.cli import COMMAND_HANDLERS, build_parser, main
 from eatbid.composition import Application, build_application
 from eatbid.config import ApplicationSettings
-from eatbid.errors import SourceContractError
+from eatbid.errors import SourceContractError, SourceUnavailableError
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.discover import DiscoveryResult
@@ -99,6 +99,7 @@ def test_command_handler가_주입된_application_method를_실행하고_0을_�
 @pytest.mark.parametrize(("error", "expected"), [
     (RuntimeError("dsn=postgresql://user:db-password@localhost/eatbid"), 64),
     (DataQuarantinedError(7, "store rejected r2-secret"), 65),
+    (SourceUnavailableError("host=access-secret", attempts=3), 69),
     (SourceThrottledError(429), 75),
     (SourceContractError("key=access-secret"), 76),
 ])

@@ -231,6 +231,8 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
             continue
         for argument in _sequence(_mapping(container)["args"]):
             assert not re.search(r"--[\w-]+[=\s]+\"?\d", str(argument)), argument
+    # workflow retry는 source semaphore 밖에서 pod를 늘려 소스를 압박한다. 일시 실패 재시도는
+    # semaphore 안에서 도는 CLI가 상한을 들고 직접 하며(EAT-72), 여기서는 그 자리를 비워 둔다.
     assert "retryStrategy" not in yaml.safe_dump(workflow_template)
     assert "artifact" not in yaml.safe_dump(workflow_template).lower()
 

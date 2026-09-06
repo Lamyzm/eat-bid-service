@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Self
 from uuid import UUID
@@ -79,6 +79,41 @@ class RecordingTransport(httpx.BaseTransport):
     def close(self) -> None:
         self.closed = True
         self.close_calls += 1
+
+
+class RecordingSleeper:
+    """실제로 잠들지 않고 재시도 대기 간격만 기록해 backoff 계약을 단위 테스트에서 검증한다."""
+
+    def __init__(self) -> None:
+        self.delays: list[timedelta] = []
+
+    def __call__(self, delay: timedelta) -> None:
+        self.delays.append(delay)
+
+
+class SequencedTransport(httpx.BaseTransport):
+    """요청 순서대로 status 또는 전송 예외를 돌려주며 마지막 항목을 남은 요청에 계속 사용한다."""
+
+    def __init__(
+        self, outcomes: Sequence[int | httpx.HTTPError], *, body: bytes = b"ok"
+    ) -> None:
+        if not outcomes:
+            raise ValueError("outcomes must not be empty")
+        self._outcomes = tuple(outcomes)
+        self._body = body
+        self.requests: list[httpx.Request] = []
+        self.closed = False
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        index = min(len(self.requests), len(self._outcomes) - 1)
+        self.requests.append(request)
+        outcome = self._outcomes[index]
+        if isinstance(outcome, httpx.HTTPError):
+            raise outcome
+        return httpx.Response(outcome, content=self._body)
+
+    def close(self) -> None:
+        self.closed = True
 
 
 class ExplodingTimezone(tzinfo):
