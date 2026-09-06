@@ -27,6 +27,9 @@ EXPECTED_SECRET_PATHS = {
     "eatbid-database-api": "/runtime/server",
     "eatbid-database-dataplane": "/runtime/dataplane",
     "eatbid-r2": "/runtime/dataplane/r2",
+    # web 캐시 무효화 토큰. 부르는 쪽(dataplane)은 같은 값을 `/runtime/dataplane`에서 읽으므로
+    # 이미 있는 `eatbid-database-dataplane`이 그 키를 함께 실어 온다(ADR 0036-7).
+    "eatbid-cache-revalidate": "/runtime/web",
 }
 
 
@@ -51,7 +54,7 @@ def _infisical_secrets(manifests: ManifestSet) -> tuple[dict[str, Any], ...]:
     return manifests.of_kind("InfisicalSecret")
 
 
-def test_product_render가_선언한_InfisicalSecret_다섯을_그대로_갖는다(
+def test_product_render가_선언한_InfisicalSecret_여섯을_그대로_갖는다(
     manifests: ManifestSet,
 ) -> None:
     declared = {

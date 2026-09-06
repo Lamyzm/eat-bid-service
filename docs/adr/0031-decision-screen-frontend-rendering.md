@@ -42,9 +42,12 @@ lightweight-charts, shadcn data-table(TanStack Table) 래퍼, zustand가 남아 
    `@tanstack/react-virtual`을 추가하고, 추가 시점에 행 수와 렌더 시간을 이 ADR에 기록한다.
 6. **컴포넌트는 route-private에서 시작한다.** `(workspace)/auctions/[auctionId]/_ui`에 두고, 두
    번째 route가 실제로 쓸 때만 `shared/ui`로 승격한다(`0023`).
-7. **캐시 태그는 공고와 mart 발행 단위로 건다.** 근거 영역은 `use cache` + `cacheTag('auction:<id>')`
-   와 `cacheTag('mart:<release>')`를 쓰고, ingest가 검증된 실행 단위를 발행할 때만 revalidate한다.
-   부분 수집으로 현재 뷰를 덮지 않는다(`AGENTS.md` 변경 절차).
+7. ~~**캐시 태그는 공고와 mart 발행 단위로 건다.** 근거 영역은 `use cache` + `cacheTag('auction:<id>')`
+   와 `cacheTag('mart:<release>')`를 쓰고, ingest가 검증된 실행 단위를 발행할 때만 revalidate한다.~~
+   **[0036](0036-read-cache-tags-and-invalidation-owner.md)이 이 항을 대체한다.** EAT-44가 `mart_release`를
+   지운 뒤 `mart:<release>`는 가리키는 대상이 없고, 활성화한 build id로는 캐시 항목의 태그를 지울 수 없다.
+   태그 어휘와 무효화 소유자는 0036이 정한다. 부분 수집으로 현재 뷰를 덮지 않는다는 조건은 그대로다
+   (`AGENTS.md` 변경 절차).
 
 ## Consequences
 

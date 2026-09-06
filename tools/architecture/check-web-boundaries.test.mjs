@@ -964,6 +964,38 @@ test("routing 층의 legacy dashboard 경로와 hooks 디렉터리 신규 파일
   );
 });
 
+test("use cache는 api resource server entry 밖과 요청별 입력 동거를 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/server.ts": "export async function read() {\n  'use cache';\n  return 1;\n}\n",
+    "apps/web/src/api/auctions/get-auction.ts": "export async function leaked() {\n  'use cache';\n  return 2;\n}\n",
+    "apps/web/src/app/(workspace)/auctions/page.tsx": "export default async function Page() {\n  'use cache';\n  return null;\n}\n",
+    "apps/web/src/api/organizations/server.ts": "import { cookies } from 'next/headers';\nexport async function read() {\n  'use cache';\n  return cookies();\n}\n",
+  });
+
+  assert.deepEqual(
+    report.unmatchedFindings
+      .filter((finding) => finding.rule === "use-cache-placement")
+      .map((finding) => finding.path)
+      .sort(),
+    ["apps/web/src/api/auctions/get-auction.ts", "apps/web/src/app/(workspace)/auctions/page.tsx"],
+  );
+  assert.deepEqual(
+    report.unmatchedFindings
+      .filter((finding) => finding.rule === "use-cache-user-data")
+      .map((finding) => finding.path),
+    ["apps/web/src/api/organizations/server.ts"],
+  );
+});
+
+test("use cache 없는 파일의 요청별 입력과 server entry의 캐시 경계는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/auctions/server.ts": "export async function read(input: { auctionId: string }) {\n  'use cache';\n  return input.auctionId;\n}\n",
+    "apps/web/src/app/(workspace)/layout.tsx": "import { cookies } from 'next/headers';\nexport default async function Layout() {\n  return cookies();\n}\n",
+  });
+
+  assert.deepEqual(rules(report).filter((rule) => rule.startsWith("use-cache")), []);
+});
+
 test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상으로 보고한다", async () => {
   const report = await inspect({
     "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nfunction hidden(value: number) { return value / 2; }\nexport { hidden };\nconst internal = 1; void internal;\ntype Local = { hi: number };\ntype Other = { lo: number };\nexport { type Local };\nexport type { Other };\nexport {};\nexport type Band = { lo: number };\n",

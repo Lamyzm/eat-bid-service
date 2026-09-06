@@ -30,6 +30,15 @@ class ApplicationSettings(BaseSettings):
     r2_secret_access_key: SecretStr = Field(
         validation_alias="R2_SECRET_ACCESS_KEY", min_length=1, repr=False
     )
+    # 왜 둘 다 선택인가: 무효화는 발행이 끝난 뒤의 알림이고, 설정이 없으면 조용히 건너뛴다.
+    # 필수로 만들면 web을 아직 세우지 않은 환경에서 수집 자체가 기동하지 못한다(ADR 0036-3).
+    # 클러스터 내부 Service URL이라 터널·Ingress를 지나지 않는다.
+    web_internal_url: AnyHttpUrl | None = Field(
+        None, validation_alias="EATBID_WEB_INTERNAL_URL"
+    )
+    cache_revalidate_token: SecretStr | None = Field(
+        None, validation_alias="EATBID_CACHE_REVALIDATE_TOKEN", repr=False
+    )
     source_connect_timeout_seconds: int = Field(
         10, validation_alias="SOURCE_CONNECT_TIMEOUT_SECONDS", ge=1, le=300
     )

@@ -17,10 +17,20 @@
       "import": "./src/atoms/code-scheme-names.ts",
       "default": "./src/atoms/code-scheme-names.ts"
     },
+    "./values/cache-tag": {
+      "types": "./src/values/cache-tag.ts",
+      "import": "./src/values/cache-tag.ts",
+      "default": "./src/values/cache-tag.ts"
+    },
     "./api": {
       "types": "./src/api/index.ts",
       "import": "./src/api/index.ts",
       "default": "./src/api/index.ts"
+    },
+    "./api/internal": {
+      "types": "./src/api/internal/index.ts",
+      "import": "./src/api/internal/index.ts",
+      "default": "./src/api/internal/index.ts"
     },
     "./api/v1/auctions": {
       "types": "./src/api/v1/auctions/index.ts",

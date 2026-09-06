@@ -192,7 +192,12 @@ blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`
 - RSC: route-level client component와 non-serializable prop을 검토한다.
 - compiler: annotation mode 대상만 opt-in하고 build·행동 회귀 evidence 없이 범위를 넓히지 않는다.
 - cache: `next build`가 canonical route의 blocking-prerender 오류를 gate한다. `use cache`는
-  `api/<resource>/server.ts` read 함수에만 두고 사용자별·session 데이터에는 쓰지 않는다.
+  `api/<resource>/server.ts` read 함수에만 두고 사용자별·session 데이터에는 쓰지 않는다. 이 두 조건은
+  `lint:web-boundaries`의 `use-cache-placement`·`use-cache-user-data`가 검사한다. 태그 어휘와 유계
+  `cacheLife`, 무효화 소유자는 [ADR 0036](../adr/0036-read-cache-tags-and-invalidation-owner.md)이
+  정하며, `use cache`의 인자는 직렬화 가능해야 하므로 캐시된 read 함수는 `AbortSignal`을 받지 않는다.
+  캐시 동작의 증거는 `test:e2e:cache` 하나뿐이다 — 그 스위트만 `next build && next start`로 돌고,
+  dev 모드 통과는 배포 동작의 증거가 아니다.
 - size: 300줄 초과는 responsibility split 또는 reason/owner/split trigger가 있는 waiver가 필요하다.
 - tests: 신규·변경 test name은 한국어다.
 - browser: `test:e2e:foundation`은 별도 contract fixture와 Chromium으로 loading stream, exact money,

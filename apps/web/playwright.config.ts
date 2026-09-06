@@ -7,6 +7,9 @@ const WEB_START_TIMEOUT_MILLISECONDS = 120_000;
 
 export default defineConfig({
   testDir: './e2e',
+  // 캐시 스위트는 프로덕션 build로만 의미가 있다. 여기서 함께 돌면 dev 모드 결과를 배포 동작의
+  // 증거로 착각하게 되므로 config 자체를 나눈다(playwright.cache.config.ts).
+  testIgnore: '**/cache-invalidation.spec.ts',
   fullyParallel: false,
   workers: 1,
   reporter: 'line',

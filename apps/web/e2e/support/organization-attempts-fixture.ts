@@ -2,6 +2,7 @@
  * auction-contract-fixture-server.ts가 300줄을 넘지 않도록 회차 응답만 이 모듈이 소유한다. */
 import { organizationAuctionAttemptsV1ResponseSchema, organizationV1Operations } from '@eatbid/contracts/api/v1/organizations';
 
+import { activatedBuildId } from './cache-observability';
 import namsanAttemptsFixture from './fixtures/namsan-attempts.json';
 
 const ORGANIZATION_ID = '3101';
@@ -16,9 +17,10 @@ const NAMSAN_ATTEMPTS = (namsanAttemptsFixture as { readonly attempts: readonly 
 
 // 실데이터 12회 + 합성 48회가 60행이지만, meta.sampleCount는 그보다 표본이 더 있었다는 것을 보여주는
 // 예시 값이다(창원 남산초 실제 표본 수와는 무관하다).
+const BASE_BUILD_ID = '501';
+
 const META = {
   sampleCount: 92,
-  buildId: '501',
   sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
   calcVersion: 'mart-r1',
   computedAt: '2026-09-04T00:10:00Z',
@@ -77,7 +79,8 @@ export function organizationAttemptsResponse(request: Request): Response | null 
     attempts: scoped.slice(0, query.limit),
     nextCursor: null,
     // 서버와 같이 요청 품목을 그대로 되돌려 실어야 화면이 fixture에서도 같은 코호트를 읽는다.
-    meta: { ...META, item: query.item ?? null }
+    // buildId는 활성 build 전환을 재현할 수 있도록 요청 시점에 읽는다(캐시 e2e).
+    meta: { ...META, buildId: activatedBuildId(BASE_BUILD_ID), item: query.item ?? null }
   });
   return Response.json(body);
 }

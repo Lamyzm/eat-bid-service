@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import argparse
 from datetime import timedelta
+from functools import partial
 from types import TracebackType
 from typing import Any, Self
 
 import httpx
 import psycopg
 
+from eatbid.cache_revalidation import (
+    WebCacheTarget,
+    all_auctions_scope,
+    mart_scope,
+    revalidate_web_cache,
+)
 from eatbid.config import ApplicationSettings
 from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
 from eatbid.failure_report import ApplicationConfigurationError
@@ -68,6 +75,7 @@ class Application:
         projection_repository: Any = None,
         mart_repository: Any = None,
         reference_http_client: Any = None,
+        notify_cache: Any = None,
         page_budget: int = 1,
     ) -> None:
         self._connection = connection
@@ -83,6 +91,9 @@ class Application:
         # 정부 파일 다운로드는 eaT client의 재시도·헤더 정책을 쓰지 않는다. 소스가 다르면 실패
         # 모양도 다르고, 한쪽 정책을 다른 쪽에 물려 두면 어느 소스의 규칙인지 알 수 없어진다.
         self._reference_http = reference_http_client
+        # 무효화 알림은 조립 시점에 주입한다. 설정이 없으면 None이고 파이프라인은 그 사실을 모른 채
+        # 그대로 돈다 — 캐시 신선도는 발행의 성공 조건이 아니다(ADR 0036-3).
+        self._notify_cache = notify_cache
         self._page_budget = page_budget
         self._closed = False
 
@@ -180,6 +191,8 @@ class Application:
             activated_at=args.activated_at,
             repository=self._projection,
         )
+        # core가 새 사실을 공개한 뒤에만 부른다. 앞에서 부르면 화면이 옛 값을 다시 캐시한다.
+        self._revalidate_web_cache(all_auctions_scope())
 
     def replay(self, args: argparse.Namespace) -> None:
         self._release.require_sealed(args.source_release_id)
@@ -261,7 +274,14 @@ class Application:
                 computed_at=args.built_at,
             )
 
-        return build_marts(marts=marts, plan_for=plan_for, repository=self._mart)
+        results = build_marts(marts=marts, plan_for=plan_for, repository=self._mart)
+        # 활성 포인터가 이미 움직인 뒤다. 여기서 실패해도 전환을 되돌리지 않는다(ADR 0034·0036-3).
+        self._revalidate_web_cache(mart_scope([result.mart_name for result in results]))
+        return results
+
+    def _revalidate_web_cache(self, scope: Any) -> None:
+        if self._notify_cache is not None:
+            self._notify_cache(scope)
 
     def close(self) -> None:
         if self._closed:
@@ -357,7 +377,20 @@ def build_application(config: ApplicationSettings) -> Application:
             },
         ),
         reference_http_client=reference_client,
+        notify_cache=partial(
+            revalidate_web_cache, target=_web_cache_target(config), client=httpx
+        ),
         page_budget=config.source_page_budget,
+    )
+
+
+def _web_cache_target(config: ApplicationSettings) -> WebCacheTarget | None:
+    """왜: 둘 중 하나만 있는 설정은 "무효화를 켜려다 만 상태"다. 반쪽 설정으로 401을 반복해서
+    남기는 것보다 켜지 않은 것으로 보는 편이 운영에서 읽기 쉽다."""
+    if config.web_internal_url is None or config.cache_revalidate_token is None:
+        return None
+    return WebCacheTarget(
+        base_url=str(config.web_internal_url), token=config.cache_revalidate_token
     )
 
 
