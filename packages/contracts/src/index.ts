@@ -32,6 +32,7 @@ export * from "./codecs/money";
 export * from "./codecs/temporal";
 export * from "./api/v1/auctions";
 export * from "./api/v1/organizations";
+export * from "./api/v1/win-rate-distribution";
 export * from "./ingestion/v1/resources/identity";
 export * from "./ingestion/v1/resources/buyer";
 export * from "./ingestion/v1/resources/location";
