@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { auctionV1Operations, organizationV1Operations, publicHttpOperationRegistry } from "@eatbid/contracts";
+import {
+  auctionV1Operations,
+  organizationV1Operations,
+  publicHttpOperationRegistry,
+  winRateDistributionV1Operations,
+} from "@eatbid/contracts";
 
 function openApiStringSchemaAccepts(
   schema: { type?: string; minLength?: number; maxLength?: number; pattern?: string },
@@ -23,6 +28,7 @@ describe("canonical OpenAPI 산출물", () => {
     expect(Object.keys(document.paths).sort()).toEqual([
       "/api/v1/auctions/{auctionId}",
       "/api/v1/organizations/{organizationId}/auction-attempts",
+      "/api/v1/win-rate-distribution",
       "/health/live",
       "/health/ready",
     ]);
@@ -30,7 +36,13 @@ describe("canonical OpenAPI 산출물", () => {
     const operationIds = operations.map((operation) => operation.operationId);
     expect(new Set(operationIds).size).toBe(operationIds.length);
     expect(operationIds.sort())
-      .toEqual(["findAuction", "healthLive", "healthReady", "listOrganizationAuctionAttempts"]);
+      .toEqual([
+        "findAuction",
+        "findWinRateDistribution",
+        "healthLive",
+        "healthReady",
+        "listOrganizationAuctionAttempts",
+      ]);
     for (const operation of operations) {
       expect(operation.responses["200"].content["application/json"].schema).toBeDefined();
       expect(Object.values(operation.responses).some((response: any) =>
@@ -90,6 +102,39 @@ describe("canonical OpenAPI 산출물", () => {
     });
     expect(auction.responses["404"].content["application/problem+json"].schema).toBeDefined();
     expect(auction.responses["503"].content["application/problem+json"].schema).toBeDefined();
+  });
+
+  test("낙찰률 분포 operation의 코호트 query parameter와 사정률 축 schema를 계약에서 파생한다", async () => {
+    const module = await import("./openapi");
+    const document = module.createOpenApiDocument() as any;
+    const distribution = document.paths[winRateDistributionV1Operations.find.path].get;
+    expect(distribution.operationId).toBe("findWinRateDistribution");
+    // `.check()`를 붙여도 query가 ZodObject로 남아야 parameter가 생긴다. union이면 조용히 0개가 된다.
+    expect(distribution.parameters.map((parameter: any) => [parameter.name, parameter.required ?? false]))
+      .toEqual([
+        ["scope", true],
+        ["regionCodeValueId", false],
+        ["organizationId", false],
+        ["floorRate", true],
+        ["awardMethod", true],
+        ["from", false],
+        ["to", false],
+        ["binWidth", false],
+        ["granularity", false],
+      ]);
+    expect(distribution.parameters[7].schema).toMatchObject({ default: "0.010" });
+    expect(distribution.parameters[8].schema).toMatchObject({ enum: ["total", "month"], default: "total" });
+    expect(distribution.responses["200"].content["application/json"].schema).toEqual({
+      $ref: "#/components/schemas/EatbidApiV1WinRateDistribution",
+    });
+    // 칸 경계는 100을 넘는 관측을 담는 축이고 하한율·칸 폭은 0~100으로 닫힌 축이다(AGENTS 15).
+    expect(document.components.schemas.WinRateDistributionBin.properties.from)
+      .toEqual({ $ref: "#/components/schemas/ObservedBidRate" });
+    expect(document.components.schemas.WinRateDistributionMeta.properties.floorRate)
+      .toEqual({ $ref: "#/components/schemas/BidRate" });
+    expect(document.components.schemas.WinRateDistributionModeRange.properties.share)
+      .toEqual({ $ref: "#/components/schemas/Ratio" });
+    expect(document.components.schemas.KstMonthText).toMatchObject({ type: "string", maxLength: 7 });
   });
 
   test("기관 회차 이력 operation의 path·query parameter와 응답 schema를 계약에서 파생한다", async () => {

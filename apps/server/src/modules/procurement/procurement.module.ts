@@ -2,11 +2,20 @@
 import { Module } from "@nestjs/common";
 import type { AuctionReader } from "./application/auction-reader";
 import { FindAuction } from "./application/find-auction";
+import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
 import { ListOrganizationAuctionAttempts } from "./application/list-organization-auction-attempts";
 import type { OrganizationAttemptReader } from "./application/organization-attempt-reader";
+import type { WinRateDistributionReader } from "./application/win-rate-distribution-reader";
 import { AuctionController } from "./presentation/http/auction.controller";
 import { OrganizationController } from "./presentation/http/organization.controller";
-import { AUCTION_READER, ORGANIZATION_ATTEMPT_READER } from "../../platform/database/database.tokens";
+import { WinRateDistributionController } from "./presentation/http/win-rate-distribution.controller";
+import {
+  AUCTION_READER,
+  ORGANIZATION_ATTEMPT_READER,
+  WIN_RATE_DISTRIBUTION_READER,
+} from "../../platform/database/database.tokens";
+import type { Clock } from "@eatbid/domain";
+import { CLOCK } from "../../platform/clock/clock.module";
 
 const findAuctionProvider = {
   provide: FindAuction,
@@ -20,8 +29,20 @@ const listOrganizationAuctionAttemptsProvider = {
   useFactory: (reader: OrganizationAttemptReader) => new ListOrganizationAuctionAttempts(reader),
 };
 
+// 기본 기간은 현재 시각의 함수라 use case가 clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며
+// 주입된 clock만 쓴다(AGENTS 17).
+const findWinRateDistributionProvider = {
+  provide: FindWinRateDistribution,
+  inject: [WIN_RATE_DISTRIBUTION_READER, CLOCK],
+  useFactory: (reader: WinRateDistributionReader, clock: Clock) => new FindWinRateDistribution(reader, clock),
+};
+
 @Module({
-  controllers: [AuctionController, OrganizationController],
-  providers: [findAuctionProvider, listOrganizationAuctionAttemptsProvider],
+  controllers: [AuctionController, OrganizationController, WinRateDistributionController],
+  providers: [
+    findAuctionProvider,
+    listOrganizationAuctionAttemptsProvider,
+    findWinRateDistributionProvider,
+  ],
 })
 export class ProcurementModule {}
