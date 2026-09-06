@@ -27,6 +27,10 @@ describe("canonical OpenAPI 산출물", () => {
     expect(document.openapi).toBe("3.0.3");
     expect(Object.keys(document.paths).sort()).toEqual([
       "/api/v1/auctions/{auctionId}",
+      // listCodes는 EAT-57이 계약을 소유하고 Nest handler는 아직 없다. registry가 OpenAPI의 단일
+      // 출처이므로 계약이 열린 사실이 여기 그대로 드러나야 하고, 구현이 붙는 변경에서 handler와
+      // e2e가 같이 온다.
+      "/api/v1/code-schemes/{scheme}/codes",
       "/api/v1/organizations/{organizationId}/auction-attempts",
       "/api/v1/win-rate-distribution",
       "/health/live",
@@ -41,6 +45,7 @@ describe("canonical OpenAPI 산출물", () => {
         "findWinRateDistribution",
         "healthLive",
         "healthReady",
+        "listCodes",
         "listOrganizationAuctionAttempts",
       ]);
     for (const operation of operations) {
