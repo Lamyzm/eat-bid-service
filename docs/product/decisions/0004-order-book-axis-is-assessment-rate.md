@@ -68,6 +68,8 @@
 - `packages/contracts`의 `findWinRateDistribution` 응답에서 칸 경계가 `ObservedBidRate`(사정률 축)인 것.
 - `apps/web`의 `decision-search-params.ts` `myRate` parser, `_model/present-distribution.ts`,
   `_ui/my-rate-input.tsx`.
-- 결정 화면 `_model/rehearsal.ts`의 `judgeRow`는 같은 손잡이 값을 투찰률 축(그날 하한)과 사정률
-  축(낙찰률) 양쪽에 비교하고 있다. 이 결정과 같은 취지의 결함이지만 EAT-37 계약을 넓혀야 고칠 수
-  있어 별도 검토 단위로 남긴다.
+- 결정 화면 `_model/rehearsal.ts`의 `judgeRow`는 EAT-71(2026-09-06)에서 고쳤다.
+  `listOrganizationAuctionAttempts` 계약이 투찰률 축 낙찰률 `awardedBidRate`를 실어, 낙찰
+  판정을 이제 그 값과 견준다. 그날 하한 판정은 원래부터 투찰률 축이라 그대로 둔다. 예정가격이
+  아직 관측되지 않아 축을 옮길 수 없는 회차는 사정률로 추측하지 않고 판정 불가로 남기며 분모에서도
+  빠진다.
