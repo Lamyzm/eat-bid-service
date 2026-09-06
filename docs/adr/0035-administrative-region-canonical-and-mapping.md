@@ -1,6 +1,6 @@
 # 0035 — 행정구역 코드 canonical과 매핑 정책
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-06
 - Refines: [0006](0006-identifiers-and-code-schemes.md) (내부 ID와 source-scoped code scheme)
 - Relates: [0025](0025-source-release-manifest.md), [0034](0034-mart-build-identity-and-atomic-activation.md),
@@ -59,7 +59,31 @@
    그 판정을 우리가 하면 그것이 규칙이 된다. 개편으로 이름이 바뀐 시도(2023 강원, 2024 전북)는 옛
    이름과 새 이름을 함께 값으로 갖고, 어느 쪽이 활성인지는 release가 말한다.
 7. mart의 체계 전환은 새 `calc_version`의 새 build다. 한 build는 한 체계이며 그 사실은
-   `mart.build.region_scheme`이 기록한다(ADR 0034).
+   `mart.build.region_scheme`이 기록한다(ADR 0034). 기록만으로는 부족하므로 빌더가 `verified` 승격
+   전에 그 사실을 질의로 확인하고, 아니면 build를 실패로 끝낸다. 강제는 이름이 아니라 구조에 건다 —
+   선언한 체계에 `core.code_release`가 있을 때만 그 축을 강제하며, release가 없는 관측 축을 선언한
+   build는 전환 이전 상태로 관측된 코드를 그대로 싣는다.
+
+## 확정 근거 (Accepted, 2026-09-06)
+
+이 결정은 종이 위 판단이 아니라 아래를 실제로 실행해 확정했다.
+
+- **정부 파일 실측.** 2026-09-06 공식 전체자료를 read-only로 받아 53,387행·컬럼 셋·인코딩·날짜 컬럼
+  부재를 확인하고 그 계약을 `docs/audit-source/reference-source-contracts.json`에 고정했다.
+- **적재·좌표·매핑 경로.** `core.code_release`·`code_release_member`·`code_value_coordinate` DDL과
+  MOIS adapter·좌표 투영·매핑 생성기가 실제 PostgreSQL 통합 테스트에서 돌아간다. 승격 537행 중 활성
+  member 284행, 상위를 얻지 못한 33행, 유효기간 전부 null이라는 결과가 그대로 재현된다.
+- **재선언 방지.** `pnpm lint:region-vocabulary`가 이름 조립 키·체계 문자열 재선언·이름 비교·좌표표
+  재선언·교차 체계 조인을 거부하며, ledger는 비어 있다. 좌표표(`region-coords.ts` 136키)와 그 소비
+  화면은 삭제됐다.
+- **공개 계약.** `listCodes`가 활성 release의 코드와 좌표를 싣고, 활성 release가 없는 체계는 빈 배열이
+  아니라 404로 답한다.
+- **전환의 불변식.** "한 build는 한 체계"가 통합 테스트로 닫혔고, `overlaps`가 번역되지 않는다는 것과
+  번역되지 않은 코드가 미매핑으로 세어진다는 것도 같은 자리에서 확인했다.
+
+확정하지 **못한** 것은 운영 매핑률이다. 라벨이 봉인된 정규화 계약을 통과하지 못해 운영 DB의 매핑은
+0행이며, 그 사실과 후속 조건은 `docs/operations/reference-data-coverage.md` §4가 센다. 이 결정은 그
+공백을 숨기지 않는 것을 포함한다.
 
 ### 라벨 정규화의 범위
 
