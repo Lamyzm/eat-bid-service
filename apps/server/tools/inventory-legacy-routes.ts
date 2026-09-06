@@ -1,3 +1,8 @@
+/**
+ * @module 책임: 고정된 legacy commit의 `app.module.ts`·`main.ts`를 git blob에서 읽어 controller와 route
+ * surface를 정적으로 산출하고, 같은 입력에서 항상 byte-identical한 JSON artifact를 쓰며, 산출에 쓴
+ * git 호출이 실패하면 어떤 호출이 왜 실패했는지 드러낸다.
+ */
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -80,8 +85,17 @@ function git(repoRoot: string, args: readonly string[]): Buffer {
     windowsHide: true,
     maxBuffer: 16 * 1024 * 1024,
   });
+  // 부하로 프로세스 생성 자체가 실패하면 status도 stderr도 null이다. 그때 TypeError로 죽으면
+  // 어떤 git 호출이 왜 실패했는지가 사라진다.
+  if (result.error) {
+    throw new Error(`git ${args.join(" ")} could not start in ${repoRoot}: ${result.error.message}`);
+  }
   if (result.status !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${result.stderr.toString("utf8").trim()}`);
+    throw new Error(
+      `git ${args.join(" ")} failed in ${repoRoot} with exit ${result.status}`
+      + `${result.signal ? ` (signal ${result.signal})` : ""}: `
+      + `${result.stderr?.toString("utf8").trim() ?? "<stderr 없음>"}`,
+    );
   }
   return result.stdout;
 }
