@@ -185,16 +185,26 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     parallelism = spec["parallelism"]
     assert isinstance(parallelism, int) and 1 <= parallelism <= 16
     reviewed_parser_versions = {key[2] for key in REVIEWED_EAT_SCHEMA_CONTRACTS}
+    # 명단 블록(`ds_bidList`)을 아는 상세 계약을 가진 version이다. 이 블록이 없는 version으로 발행하면
+    # 투찰·낙찰·업체가 정규화 record에 아예 담기지 않아 core 테이블이 비어 있는 채로 남는다.
+    roster_parser_versions = {
+        parser_version
+        for (_, endpoint, parser_version), contract in REVIEWED_EAT_SCHEMA_CONTRACTS.items()
+        if endpoint == "bid-detail" and "ds_bidList" in contract.datasets
+    }
     workflow_parameters = {
         item["name"]: item["value"]
         for item in _sequence(_mapping(spec["arguments"])["parameters"])
         if isinstance(item, Mapping)
     }
     template_parser_version = workflow_parameters["parser-version"]
-    # 검토된 version은 eat-v1·eat-v2 둘이지만 기본값은 발행 경로가 열린 version이어야 한다. eat-v2는
-    # EAT-43 전까지 projection에서 typed 실패로 멈추므로(ADR 0029 후속 결정) 기본값이 되면 크롤 예산만
-    # 쓰고 core에는 아무것도 도착하지 않는다.
+    # 검토된 version은 eat-v1·eat-v2 둘이고 기본값은 발행 경로가 열린 쪽이어야 한다. EAT-43이
+    # `auction.v2`를 발행 가능 record type에 넣은 뒤로 그 조건을 만족하는 것은 명단을 가진 eat-v2뿐이다.
+    # 2026-09-06 운영 실측에서 기본값 eat-v1로 발행된 385 revision은 전부 floor_rate가 없고
+    # bid_submission·award_decision·supplier_party가 비어 있었다(EAT-69).
     assert template_parser_version in reviewed_parser_versions
+    assert template_parser_version == "eat-v2"
+    assert roster_parser_versions == {template_parser_version}
     assert is_projectable_record_type(
         require("bid-detail", parser_version=template_parser_version).record_type
     )
@@ -645,7 +655,7 @@ def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
     }
     assert parameters == {
         "mode": "poll-open",
-        "parser-version": "eat-v1",
+        "parser-version": "eat-v2",
         "calc-version": "mart-r1",
         "start-date": "",
         "end-date": "",

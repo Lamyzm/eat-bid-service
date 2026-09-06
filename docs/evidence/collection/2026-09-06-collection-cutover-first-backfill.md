@@ -142,6 +142,8 @@ daily-reconcile Succeeded" 수용 기준을 채운다. poll-open은 평일 스�
   돌지 않았다.
 - EAT-59: 실패 pod가 예외 종류와 메시지를 JSON으로 남기게 한다.
 - EAT-49: dataplane 역할 grant를 수동 SQL이 아니라 provisioning 스크립트로 옮긴다.
+- EAT-69: 2절의 `parser-version`은 이 실행 시점의 값이다. 그 뒤 WorkflowTemplate 기본값을 `eat-v2`로
+  옮겼으므로(다음 daily-reconcile부터 적용) 여기 남은 v1 발행물과 새 v2 revision은 서로 다른 실행이다.
 - 중단된 run·source_release를 닫는 절차(5.3절)와 eat-v1 projection의 기관 정보 공백(5.2절)은
   각각 별도 결정으로 다룬다.
 - capture 건당 약 17초 중 소스 응답은 약 7초이고 나머지는 pod 생성·종료 비용이다. 피크(하루

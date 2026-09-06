@@ -42,7 +42,9 @@ mutex는 `eatbid-core-publication`이 아니라 **`eatbid-mart-build`**다. 같�
 | `backfill` | 날짜×지역×상태 범위를 수동/운영 승인으로 채움 | ad hoc |
 | `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
 
-스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다.
+스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다. `parser-version` 기본값은
+`eat-v2`다(2026-09-06, EAT-69). 상세 응답의 명단·낙찰·재공고 블록을 읽는 version이 그것뿐이라 기본값이
+`eat-v1`이면 하한율·투찰·낙찰 core 테이블이 비어 있는 채로 발행된다.
 
 ### 2.1 모드가 날짜 창이 되는 곳 (2026-09-04, EAT-34)
 
