@@ -1,10 +1,16 @@
-/** @module 책임: 공고 route의 ID 검증·조회·404 분기, 회차 이력 순차 조회(공고 응답의 organizationId가 있어야 조회할 수 있다)와 두 presentation의 조립 순서를 소유한다. */
+/** @module 책임: 공고 route의 ID 검증·조회·404 분기, 공고 응답이 있어야 만들 수 있는 회차 이력·분포의 병렬 조회와 세 presentation의 조립 순서를 소유한다. */
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 import type { OrganizationAuctionAttemptsV1Response } from '@eatbid/contracts/api/v1/organizations';
+import type {
+  WinRateDistributionCohort,
+  WinRateDistributionV1Response
+} from '@/api/win-rate-distribution';
 
 import type { DecisionSearch } from '../_lib/decision-search-params';
 import { presentHistory, type HistoryPresentation } from './attempt-history';
+import { cohortOf, periodOf } from './decision-cohort';
 import { presentDecision, type DecisionPresentation } from './present-decision';
+import { presentDistribution, type DistributionPresentation } from './present-distribution';
 
 // query 계약의 item(positiveBigintTextSchema)과 같은 모양이다. URL에 남은 잘못된 값을 네트워크
 // 호출 전에 걸러 무효 요청을 보내지 않는다.
@@ -19,9 +25,23 @@ type HistoryLoadResult =
   | { readonly state: 'no-organization' }
   | { readonly state: 'unavailable' };
 
+/**
+ * `locked`는 코호트를 만들 재료가 공고에 없다는 뜻이고 `unavailable`은 조회가 실패했다는 뜻이다.
+ * 둘을 합치면 사용자가 할 일이 달라진다 — 앞은 수집이 더 필요하고 뒤는 다시 열어보면 될 수 있다.
+ */
+export type DistributionLoadResult =
+  | {
+      readonly state: 'ready';
+      readonly presentation: DistributionPresentation;
+      readonly response: WinRateDistributionV1Response;
+    }
+  | { readonly state: 'locked'; readonly reason: 'missing-terms' | 'missing-axis' }
+  | { readonly state: 'unavailable' };
+
 export type DecisionPageData = {
   readonly decision: DecisionPresentation;
   readonly history: HistoryLoadResult;
+  readonly distribution: DistributionLoadResult;
 };
 
 type AuctionPageDependencies = {
@@ -34,6 +54,9 @@ type AuctionPageDependencies = {
     readonly item?: string;
     readonly limit?: number;
   }) => Promise<OrganizationAuctionAttemptsV1Response>;
+  readonly findDistribution: (
+    input: WinRateDistributionCohort
+  ) => Promise<WinRateDistributionV1Response>;
 };
 
 // 회차 이력은 공고 화면의 부차 evidence라 실패해도(404·400·기타) 화면 전체를 죽이지 않고
@@ -53,6 +76,31 @@ async function loadHistory(
       limit: 60
     });
     return { state: 'ready', presentation: presentHistory(attempts, item) };
+  } catch {
+    return { state: 'unavailable' };
+  }
+}
+
+// 분포도 부차 evidence다. 실패가 화면 전체를 죽이지 않게 회차 이력과 같은 규약으로 담는다.
+async function loadDistribution(
+  response: AuctionV1Response,
+  search: DecisionSearch,
+  dependencies: AuctionPageDependencies
+): Promise<DistributionLoadResult> {
+  const lock = cohortOf(response, search, periodOf(search.period, dependencies.now()));
+  if (lock.kind !== 'ready') return { state: 'locked', reason: lock.kind };
+  const isRegionScope = search.scope === '도' || search.scope === '시군';
+  try {
+    // 크게 보기는 같은 계약을 달별 칸까지 요청해 두 번째 endpoint 없이 히트맵을 그린다.
+    const distribution = await dependencies.findDistribution({
+      ...lock.cohort,
+      granularity: search.expand ? 'month' : 'total'
+    });
+    return {
+      state: 'ready',
+      presentation: presentDistribution(distribution, { myRate: search.myRate, isRegionScope }),
+      response: distribution
+    };
   } catch {
     return { state: 'unavailable' };
   }
@@ -82,6 +130,11 @@ export async function loadAuctionPage(
   }
 
   const decision = presentDecision(response, dependencies.now());
-  const history = await loadHistory(response, search, dependencies);
-  return { decision, history };
+  // 회차 이력과 분포는 서로 의존하지 않으므로 공고 조회 뒤 한 번에 부른다. 순차로 부르면 첫 로드가
+  // 두 왕복만큼 늦어진다.
+  const [history, distribution] = await Promise.all([
+    loadHistory(response, search, dependencies),
+    loadDistribution(response, search, dependencies)
+  ]);
+  return { decision, history, distribution };
 }

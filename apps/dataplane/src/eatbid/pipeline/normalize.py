@@ -6,6 +6,7 @@ from datetime import datetime
 from hashlib import sha256
 from uuid import UUID
 
+from eatbid.failure_categories import DATA_QUARANTINED, EXIT_CODE_BY_CATEGORY
 from eatbid.ingest.normalization_repository import (
     NormalizationRepository,
     StoredNormalizedRecord,
@@ -19,8 +20,7 @@ from eatbid.source.eat.normalize import (
 from eatbid.source.eat.registry import require
 from eatbid.source.eat.xml import NexacroParseError
 
-DATA_QUARANTINED = "DATA_QUARANTINED"
-DATA_QUARANTINED_EXIT_CODE = 65
+DATA_QUARANTINED_EXIT_CODE = EXIT_CODE_BY_CATEGORY[DATA_QUARANTINED]
 
 
 class RawObjectIntegrityError(RuntimeError):

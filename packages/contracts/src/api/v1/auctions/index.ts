@@ -7,5 +7,9 @@ export type {
   PublicHttpOperation,
 } from "../../operation";
 export { auctionResourceSchema, type AuctionResource } from "./resource";
+export { auctionClassificationSchema, type AuctionClassification } from "../../../resources/procurement/classification";
+export { auctionLocationSchema, type AuctionLocation } from "../../../resources/procurement/location";
+export { auctionTermsSchema, type AuctionTerms } from "../../../resources/procurement/terms";
+export { codeReferenceSchema, type CodeReference } from "../../../values/code-reference";
 export { auctionV1ResponseSchema, type AuctionV1Response } from "./get-auction.response";
 export { auctionV1OperationRegistry, auctionV1Operations } from "./operations";

@@ -22,6 +22,14 @@
 지역은 **행안부 행정구역 코드**로 자르며 eaT 공고지역·참가제한지역 코드와 섞지 않는다. (AGENTS 6)
 표본 규칙: n ≥ 30 정상, 10 ≤ n < 30 "표본 적음" 라벨과 함께 표시, n < 10 회색 "표본 부족".
 
+> **현황(2026-09-06, EAT-38 구현 시점).** 행안부 코드는 아직 **적재 0건**이다. 지금 build의
+> `mart.build.region_scheme`은 `eat:auction-location-*`이며, 그래서 도·시군 모집단은 화면에서 회색으로
+> 잠기고 그 사유("지역 코드 체계가 행안부 기준이 아닙니다")를 말한다. API는 네 모집단 모두 실데이터를
+> 낸다 — 잠그는 것은 화면뿐이다. 회색이 풀리는 조건은 EAT-20(행안부 코드 release 수집)과 EAT-57 뒤 새
+> `calc_version`의 build가 `region_scheme = mois:administrative-region`으로 만들어질 때다.
+>
+> 모집단 이름도 mart의 `distributionScopes`(`national|province|district|organization`)를 권위로 쓴다.
+
 ## 3. 기간
 칩: 이번 달 · 지난 달 · 3개월 · 12개월 · 직접(시작~끝). 기본 12개월.
 "지난 달과 겹쳐 보기" 토글: 선택 기간은 채움, 비교 기간은 윤곽선으로 같은 축에 겹친다.
@@ -29,28 +37,54 @@
 ## 4. 화면 구성 (비교집단 탭)
 1. **모집단 선택 = 작은 분포 4장**이 한 줄. 각 장: 이름, 표본 n, 0.01 칸 미니 히스토그램, 내 값 세로선.
    선택된 장은 파란 테두리 없이 배경 0.07로 표시(보더 약하게). 회색 장은 눌리지 않는다.
-2. **요약 줄** (선택 모집단): `많이 나온 값 90.02 ~ 90.05 · 전체의 41%` / `중앙 90.033` / `내 값보다 낮게 1,690 · 높게 90`.
+2. **요약 줄** (선택 모집단): `많이 나온 값 90.000 ~ 90.010 · 전체의 24%` / `중앙 90.030 ~ 90.040` /
+   `내 값 90.030 · 낮게 낙찰 36 · 위 38 · 같은 칸 8`.
    "많이 나온 값"은 최빈 0.01칸을 중심으로 밀도가 절반으로 떨어질 때까지 넓힌 연속 구간이다. 비율은 표본 대비.
+   **중앙은 점이 아니라 칸이다**(칸별 횟수만 가진 표본에서 점을 내면 없는 정밀도를 만든다). **내 값과 같은
+   칸은 낮게에도 위에도 넣지 않는다** — 같은 값은 추첨이라 "낮게"에 넣으면 거짓이다. 위 숫자는 남산초
+   하한율 90 코호트 82회차 실측이다.
 3. **큰 히스토그램**: 하한율 ~ 하한율+0.8, 0.01 칸. 내 값 선(파랑) 하나만 색. 비교 기간 윤곽선은 잉크 회색.
 4. **각주**: `경상남도 · 축산 · 하한율 90 · 2025-09-04 ~ 2026-09-03 · 1,150회차 · 08-13 수집분 · 계산 v3`.
 5. **크게 보기**: 12개월 × 0.01칸 히트맵으로 달마다 몰린 자리가 움직였는지 본다. 행 끝에 그 달 표본 n.
 
 ## 5. 상호작용
 - 모집단 장을 누르면 요약·큰 차트·각주가 바뀐다. 기간 칩도 같다.
-- 내 값 손잡이(rail)를 움직이면 네 장의 세로선과 "낮게/높게" 수가 함께 움직인다.
+- **호가창의 내 값은 레일 손잡이와 다른 값이다.** 사다리 눈금은 사정률(분모 예정가격)이고 레일 손잡이는
+  투찰률(분모 기초금액)이라 분모가 다르며, 마감 전에는 변환에 필요한 예정가격이 아직 추첨되지 않았다.
+  호가창은 URL param `myRate`가 소유하는 사정률 축 전용 입력을 따로 받고 **기본값을 두지 않는다**
+  ([PDR-0004](../decisions/0004-order-book-axis-is-assessment-rate.md)).
 - 회색 장을 누르면 이유 한 줄: "창원시 수집이 아직 끝나지 않았습니다" 또는 "표본 7회차".
 
 ## 6. 데이터 계약 (신규)
-`GET /api/v1/win-rate-distribution`
-- 입력: `scope` ∈ {national, province, district, organization}, `regionCode`(행안부) 또는 `organizationId`,
-  `itemCode`, `floorRate`, `from`, `to`, `binWidth`(기본 0.01), `compareFrom/compareTo`(선택).
-- 출력: `bins[]{from,to,count}`, `sampleSize`, `median`, `modeRange{from,to,share}`, `period`, `sourceRelease`,
-  `calcVersion`, `computedAt`, `coverage` ∈ {complete, partial, none, **unknown**}.
+`GET /api/v1/win-rate-distribution` — **구현됨(EAT-38).** 실제 계약은 아래와 같다.
+- 입력: `scope` ∈ {national, province, district, organization}, `regionCodeValueId`(숫자 id) 또는
+  `organizationId`, `floorRate`(필수), `awardMethod`(필수, `eat:award-method`의 codeValueId),
+  `from`/`to`(`YYYY-MM`, 양끝을 함께 지정하거나 둘 다 생략, 최대 12개월), `binWidth`(기본 0.010),
+  `granularity` ∈ {total, month}.
+  - **`itemCode`는 없다.** 분포 mart에 품목 축이 비어 있어(빌더가 항상 null) 받아 놓고 무시하면 OpenAPI가
+    거짓말을 한다. 응답 meta는 `item: null`을 늘 싣는다. EAT-66 뒤에 더한다.
+  - **`awardMethod`가 새로 필수다.** 없으면 단가입찰(`013`·`014`)의 사정률이 총액(`003`)과 한 분포에
+    섞인다(domain-and-data §3.4).
+  - **지역은 문자열 코드가 아니라 숫자 id다**(AGENTS 2). 체계는 응답 `meta.regionScheme`이 말한다.
+  - `compareFrom/compareTo`(겹쳐 보기)는 이번 슬라이스에 없다.
+- 출력: `bins[]{from,to,count}`(횟수>0인 칸만), `medianBin{from,to}`, `modeRange{from,to,count,share}`,
+  `months[]{month,sampleCount,coverage,bins}`, `meta{sampleCount, item, scope, regionCodeValueId,
+  organizationId, floorRate, awardMethod, binWidth, period, buildId, sourceReleaseId, calcVersion,
+  computedAt, coverage, regionScheme}`.
+  - **중앙값은 점이 아니라 칸이다.** 우리가 가진 것은 칸별 횟수뿐이라 `90.033` 같은 점을 내면 없는
+    정밀도를 만든다.
+  - 표본 수 이름은 `sampleCount` 하나다(`sampleSize` 폐기). `coverage` ∈ {complete, partial, none, **unknown**}.
 - `unknown`은 그 (지역, 달) 구간을 그 축으로 나눠 수집하지 않아 분모를 낼 수 없다는 뜻이다. `partial`로
   뭉개면 "일부 수집됨"이라고 거짓말하고 `none`으로 적으면 "공고가 없었다"는 더 나쁜 거짓이 된다
   ([PDR-0003](../decisions/0003-coverage-unknown.md)). 코호트에 여러 구간이 걸리면 가장 나쁜 값을
   싣는다: `none` > `unknown` > `partial` > `complete`.
-- 기존 `/api/wins/crowd`(전국·60일 상한)는 이 계약으로 대체한다. 지역별은 `coverage=complete`일 때만 200 본문에 bins를 채운다.
+- **기존 `/api/wins/crowd`를 이 계약으로 대체하지 않는다.** 레거시가 세는 것은 **투찰 건수**("그 값 자리에
+  몇 명이 서 있나")이고 이 계약이 세는 것은 **낙찰 횟수**("그 값에서 몇 번 낙찰됐나")다. 두 사실은 다르며
+  낙찰 분포로 그 자리를 채우면 "몰림"의 뜻이 조용히 바뀐다(AGENTS 3). 레거시 `/dashboard/*` 호출은
+  건드리지 않는다. 투찰 깊이 분포(`core.bid_submission` 집계)는 별도 mart와 별도 계약이 필요하며 후속
+  이슈다.
+- **`coverage=complete` 게이트를 철회한다.** 지금 수집 상태에서 그 조건은 영원히 거짓이라 지역 사다리가
+  계약 차원에서 죽는다. **bins는 언제나 채우고** `coverage`를 함께 실어 화면이 회색 처리를 결정한다.
 - 계약은 `packages/contracts`의 operation에서 정의하고 Nest·OpenAPI·Web은 파생한다. (AGENTS 19)
 
 ## 7. 지금 만들 보드

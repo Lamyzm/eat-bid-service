@@ -15,6 +15,8 @@ function makeRow(
     itemCodeValueId: '7',
     winRateText: null,
     winRateMilli: null,
+    awardedBidRateText: null,
+    awardedBidRateMilli: null,
     secondRateText: null,
     dayFloorText: null,
     dayFloorMilli: null,
@@ -26,24 +28,30 @@ function makeRow(
   };
 }
 
+// 예정가격과 기초금액이 같은 회차, 곧 두 축의 배율이 1인 합성 회차다. 사정률과 투찰률이 같은 값이라
+// 이 파일의 집계 검사가 축 차이에 흔들리지 않는다. 축이 벌어졌을 때의 판정은 rehearsal-axis.test.ts가
+// 남산초 실관측 92회차로 따로 검사한다.
 function winRow(openedText: string, openedYear: string, winRate: string, dayFloor: string | null): HistoryRow {
   return makeRow({
     openedText,
     openedYear,
     winRateText: winRate,
     winRateMilli: toMilli(winRate),
+    awardedBidRateText: `${winRate}0`,
+    awardedBidRateMilli: toMilli(winRate),
     dayFloorText: dayFloor,
     dayFloorMilli: dayFloor === null ? null : toMilli(dayFloor)
   });
 }
 
 describe('이 값이면 재현 계산', () => {
-  test('fixture 20회 중 90.309로 낙찰됐을 회차 수는 7이다', () => {
+  test('fixture 20회 중 투찰률 92.500으로 낙찰됐을 회차 수는 10이다', () => {
     const rows = presentHistory(attemptsFixture, null).rows;
-    const rehearsal = rehearse(rows, '90.309');
-    expect(rehearsal.total).toBe(20);
-    expect(rehearsal.won).toBe(7);
-    expect(rehearsal.wonFlags).toHaveLength(20);
+    const rehearsal = rehearse(rows, '92.500');
+    // 예정가격을 모르는 5회차는 축을 옮길 수 없어 판정 불가이므로 분모에서 빠진다.
+    expect(rehearsal.total).toBe(15);
+    expect(rehearsal.won).toBe(10);
+    expect(rehearsal.wonFlags).toHaveLength(15);
   });
 
   test('그날 하한이 null인 회차는 무효 집계에서 제외된다', () => {
@@ -51,20 +59,21 @@ describe('이 값이면 재현 계산', () => {
     const rehearsal = rehearse(rows, '1.000');
     // dayFloor가 있는 15회만 무효로 세고, dayFloor가 null인 5회는 무효 집계에서 빠진다.
     expect(rehearsal.invalid).toBe(15);
-    expect(rehearsal.total).toBe(20);
+    // 그 5회는 예정가격을 모르는 회차라 낙찰 판정도 할 수 없어 분모에도 들어가지 않는다.
+    expect(rehearsal.total).toBe(15);
   });
 
-  test('winRate 없는 회차는 분모에서 빠진다', () => {
+  test('투찰률 축 낙찰률이 없는 회차는 분모에서 빠진다', () => {
     const rows = [
       winRow('26-03-01', '2026', '90.200', null),
-      makeRow({ openedText: '26-02-01', openedYear: '2026', winRateText: null, winRateMilli: null })
+      makeRow({ openedText: '26-02-01', openedYear: '2026' })
     ];
     const rehearsal = rehearse(rows, '90.200');
     expect(rehearsal.total).toBe(1);
     expect(rehearsal.wonFlags).toHaveLength(1);
   });
 
-  test('낙찰률이 없어도 그날 하한만 알면 무효로 센다', () => {
+  test('투찰률 축 낙찰률이 없어도 그날 하한만 알면 무효로 센다', () => {
     const rows = [
       winRow('26-03-01', '2026', '90.200', null),
       makeRow({

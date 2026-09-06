@@ -102,15 +102,23 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
                 ),
             )
             observation = cursor.fetchone()
+            # attempt_count는 이 관측을 얻기까지 든 HTTP 시도 횟수다. 실패 카테고리와 달리 성공한
+            # 요청에도 남아야 소스가 얼마나 불안정했는지를 사후에 셀 수 있다.
             cursor.execute(
                 """
                 update ingest.request_unit
                 set observed_count = observed_count + 1,
+                    attempt_count = %s,
                     status = case when %s then 'failed' else 'captured' end
                 where request_unit_id = %s and run_id = %s
                   and status in ('planned', 'captured')
                 """,
-                (failed, request.request_unit_id, request.run_id),
+                (
+                    response.attempts,
+                    failed,
+                    request.request_unit_id,
+                    request.run_id,
+                ),
             )
             if cursor.rowcount != 1:
                 raise PlannedRequestMismatchError("planned request unit disappeared")

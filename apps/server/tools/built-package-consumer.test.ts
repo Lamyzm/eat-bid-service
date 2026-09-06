@@ -23,6 +23,12 @@ test("빌드된 CommonJS server가 domain·contracts·db package를 실제 Node�
       baseAmount: domain.krw(domain.canonicalDecimal("1234567890.50", 2)),
       plannedAmount: null,
       organization: { organizationId: 7n, name: "서울특별시교육청", type: "education-office" },
+      terms: {
+        floorRate: "90.000",
+        awardMethod: { codeValueId: 31n, code: "003", scheme: "eat:award-method", label: null },
+      },
+      location: { sido: null, sigungu: null },
+      classification: { itemLabel: "축산" },
       provenance: {
         sourceSystem: "eat",
         externalBidId: "external-opaque-id",
@@ -37,6 +43,7 @@ test("빌드된 CommonJS server가 domain·contracts·db package를 실제 Node�
     if (response.schedule.announcedAt !== "2026-08-30T00:00:00.123456789Z") process.exit(4);
     if (response.pricing.baseAmount.amount !== "1234567890.50") process.exit(5);
     if (response.organization.organizationId !== "7") process.exit(8);
+    if (response.terms.awardMethod.codeValueId !== "31") process.exit(9);
     if ("auctionOperations" in contracts || "auctionResponseSchema" in contracts) process.exit(6);
     if (database.expectedMigrationInstant.toString() !== "${expectedMigrationInstant.toString()}") process.exit(7);
   `;

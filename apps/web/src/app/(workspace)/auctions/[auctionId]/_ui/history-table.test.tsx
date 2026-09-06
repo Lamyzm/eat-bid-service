@@ -23,10 +23,13 @@ describe('과거 회차 표', () => {
     expect(screen.getByText('90.000 썼다면')).toBeTruthy();
   });
 
-  test('열 순서가 개찰·품목·낙찰률·2등가·그날 하한·낙찰 업체·명단·가정이다', () => {
+  test('열 머리는 순서와 함께 비율 열의 축을 사정률·투찰률로 밝힌다', () => {
     const screen = renderTable('90.000');
     const headers = [...screen.container.querySelectorAll('thead th')].map((node) => node.textContent);
-    expect(headers).toEqual(['개찰', '품목', '낙찰률', '2등가', '그날 하한', '낙찰 업체', '명단', '90.000 썼다면']);
+    // 같은 percentage-point지만 분모가 다르다. 축을 적지 않으면 네 열이 한 눈금으로 읽힌다(AGENTS 15).
+    expect(headers).toEqual([
+      '개찰', '품목', '낙찰률(사정률)', '2등가(사정률)', '그날 하한(투찰률)', '낙찰 업체', '명단', '90.000 썼다면'
+    ]);
   });
 
   test('명단 셀은 참여 수와 하한 미만 수를 함께 보인다', () => {

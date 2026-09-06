@@ -1,0 +1,2 @@
+ALTER TABLE "ingest"."request_unit" ADD COLUMN "attempt_count" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "ingest"."request_unit" ADD CONSTRAINT "request_unit_attempt_count_positive" CHECK ("attempt_count" >= 1);

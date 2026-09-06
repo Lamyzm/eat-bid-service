@@ -2,11 +2,19 @@ import { describe, expect, test } from 'bun:test';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { auctionFixture, fixtureNow } from '../__fixtures__/auction';
+import { floor90DistributionFixture } from '../__fixtures__/distribution';
 import type { DecisionSearch } from '../_lib/decision-search-params';
 import { loadAuctionPage } from './load-auction-page';
 
 const canonicalAuctionId = auctionFixture.identity.auctionId;
-const search: DecisionSearch = { period: '12개월', scope: '전국', view: '비교집단', item: null };
+const search: DecisionSearch = {
+  period: '12개월',
+  scope: '전국',
+  view: '비교집단',
+  item: null,
+  myRate: null,
+  expand: false
+};
 
 function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage>[2]> = {}) {
   return {
@@ -18,6 +26,7 @@ function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage
     isNotFound: () => false,
     now: () => fixtureNow,
     listAttempts: async () => attemptsFixture,
+    findDistribution: async () => floor90DistributionFixture,
     ...overrides
   };
 }
@@ -156,5 +165,129 @@ describe('공고 상세 route loader', () => {
     expect(requestedItems).toEqual([undefined]);
     expect(result?.history.state).toBe('ready');
     if (result?.history.state === 'ready') expect(result.history.presentation.selectedItem).toBeNull();
+  });
+
+  test('분포는 공고의 하한율·낙찰방식·기간을 코호트로 옮겨 조회한다', async () => {
+    const requested: unknown[] = [];
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      search,
+      createDependencies({
+        findDistribution: async (input) => {
+          requested.push(input);
+          return floor90DistributionFixture;
+        }
+      })
+    );
+
+    expect(requested).toEqual([
+      {
+        scope: 'national',
+        floorRate: '90.000',
+        awardMethod: '31',
+        // fixtureNow(2026-09-03T01:30Z)는 KST로 10:30이라 이번 달이 2026-09다.
+        from: '2025-10',
+        to: '2026-09',
+        granularity: 'total'
+      }
+    ]);
+    expect(result?.distribution.state).toBe('ready');
+  });
+
+  test('크게 보기는 같은 계약을 달별 칸까지 요청한다', async () => {
+    const requested: { granularity?: string }[] = [];
+    await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      { ...search, expand: true },
+      createDependencies({
+        findDistribution: async (input) => {
+          requested.push(input);
+          return floor90DistributionFixture;
+        }
+      })
+    );
+    expect(requested[0]?.granularity).toBe('month');
+  });
+
+  test('코호트 재료가 없으면 조회하지 않고 잠긴 이유를 담는다', async () => {
+    let called = false;
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      search,
+      createDependencies({
+        getAuction: async () => ({ ...auctionFixture, terms: null }),
+        findDistribution: async () => {
+          called = true;
+          return floor90DistributionFixture;
+        }
+      })
+    );
+    expect(result?.distribution).toEqual({ state: 'locked', reason: 'missing-terms' });
+    expect(called).toBe(false);
+  });
+
+  test('분포 조회가 실패해도 화면 전체를 죽이지 않고 unavailable로 담는다', async () => {
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      search,
+      createDependencies({
+        findDistribution: async () => {
+          throw new Error('503');
+        }
+      })
+    );
+    expect(result?.decision.identity.auctionId).toBe(canonicalAuctionId);
+    expect(result?.distribution).toEqual({ state: 'unavailable' });
+    expect(result?.history.state).toBe('ready');
+  });
+
+  test('회차 이력과 분포는 공고 조회 뒤 함께 부른다', async () => {
+    const started: string[] = [];
+    const finished: string[] = [];
+    await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      search,
+      createDependencies({
+        listAttempts: async () => {
+          started.push('history');
+          await Promise.resolve();
+          finished.push('history');
+          return attemptsFixture;
+        },
+        findDistribution: async () => {
+          started.push('distribution');
+          finished.push('distribution');
+          return floor90DistributionFixture;
+        }
+      })
+    );
+    // 순차로 부르면 분포 시작이 회차 이력 완료 뒤에 온다. 병렬이면 둘 다 먼저 시작한다.
+    expect(started).toEqual(['history', 'distribution']);
+    expect(finished).toEqual(['distribution', 'history']);
+  });
+
+  test('URL의 내 값을 사다리 표시 모델에 그대로 넘긴다', async () => {
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      { ...search, myRate: '90.030' },
+      createDependencies()
+    );
+    expect(result?.distribution.state).toBe('ready');
+    if (result?.distribution.state === 'ready') {
+      expect(result.distribution.presentation.ladder?.myRate?.text).toBe('90.030');
+    }
+  });
+
+  test('지역 모집단은 build의 코드 체계가 행안부가 아니면 회색으로 담긴다', async () => {
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      { ...search, scope: '도' },
+      createDependencies()
+    );
+    expect(result?.distribution.state).toBe('ready');
+    if (result?.distribution.state === 'ready') {
+      expect(result.distribution.presentation.state).toBe('unknown');
+      expect(result.distribution.presentation.reason).toContain('행안부 기준이 아닙니다');
+    }
   });
 });

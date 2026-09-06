@@ -12,6 +12,7 @@ const row = {
   currency: "KRW",
   awarded_assessment_rate: "90.309",
   runner_up_assessment_rate: null,
+  awarded_bid_rate: "88.3020",
   day_floor_bid_rate: "88.0350",
   list_count: 17,
   below_day_floor_count: 2,
@@ -32,6 +33,8 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
       baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: "90.309",
       secondRate: null,
+      // 같은 낙찰의 두 축이 각자의 열에서 온다. 값이 같아지면 어느 한쪽을 다른 쪽에서 지어낸 것이다.
+      awardedBidRate: "88.3020",
       listCount: 17,
       winnerSupplierPartyId: 9n,
       supersedesAttemptId: null,
@@ -59,6 +62,17 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
     expect(record.belowDayFloorCount).toBe(2);
     // 사정률 축과 섞이지 않는다. 셋째 자리 문자열은 이 열의 scale이 아니다.
     expect(() => adapter.mapAttemptRow({ ...row, day_floor_bid_rate: "88.035" } as never)).toThrow(TypeError);
+  });
+
+  test("투찰률 축 낙찰률은 사정률 열이 아니라 awarded_bid_rate 열에서만 온다", async () => {
+    const adapter = await import("./drizzle-organization-attempt-reader");
+
+    // 예정가격이 아직 관측되지 않은 회차는 축을 옮길 입력이 없다. 사정률로 대신 채우지 않는다.
+    const unknownAxis = adapter.mapAttemptRow({ ...row, awarded_bid_rate: null } as never);
+    expect(unknownAxis.awardedBidRate).toBeNull();
+    expect(unknownAxis.winRate).toBe("90.309");
+    // 그날 하한과 같은 넷째 자리 scale이라야 화면이 두 값을 같은 정밀도로 견준다.
+    expect(() => adapter.mapAttemptRow({ ...row, awarded_bid_rate: "88.302" } as never)).toThrow(TypeError);
   });
 
   test("품목 코드나 라벨이 없으면 라벨을 지어내지 않고 item을 unknown으로 남긴다", async () => {

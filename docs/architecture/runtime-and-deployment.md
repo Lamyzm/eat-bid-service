@@ -99,17 +99,27 @@ result를 파일로 남기므로 workflow는 stdout을 파싱하지 않는다.
 
 exit category와 exit code:
 
-| category | exit code | 재시도 | 의미 |
-|---|---|---|---|
-| `TRANSIENT_NETWORK` | 69 | CLI 안에서 이미 소진 | 응답이 오지 않은 연결/timeout, warmup 5xx |
-| `SOURCE_THROTTLED` | 75 | workflow 중단, 운영 확인 | 429/차단 징후 |
-| `SOURCE_CONTRACT` | 76 | 재시도 금지 | schema/TOT_CNT/불변식 위반, 소진 후에도 남은 endpoint 5xx |
-| `DATA_QUARANTINED` | 65 | raw 보존 후 실행 실패 | 파싱 불가/미지원 코드 |
-| `CONFIGURATION` | 64 | 재시도 금지 | secret/endpoint/argument 오류 |
+| category | exit code | 재시도 | replay 적격 | 의미 |
+|---|---|---|---|---|
+| `TRANSIENT_NETWORK` | 69 | CLI 안에서 이미 소진 | 예 | 응답이 오지 않은 연결/timeout, warmup 5xx |
+| `SOURCE_THROTTLED` | 75 | workflow 중단, 운영 확인 | 예 | 429/차단 징후 |
+| `SOURCE_CONTRACT` | 76 | 재시도 금지 | 예 | schema/TOT_CNT/불변식 위반, 소진 후에도 남은 endpoint 5xx |
+| `DATA_QUARANTINED` | 65 | raw 보존 후 실행 실패 | 예 | 파싱 불가/미지원 코드 |
+| `CONFIGURATION` | 64 | 재시도 금지 | 아니오 | secret/endpoint/argument 오류 |
+
+이 표의 category 이름은 프로세스 exit code와 `ingest.run.failure_category`·
+`ingest.source_release.failure_category`에 같은 문자열로 남으며, 권위는
+`apps/dataplane/src/eatbid/failure_categories.py` 하나다. 실패한 실행을 pod 종료 코드로 보든 run
+표로 보든 같은 원인을 읽어야 하므로 예외→category 분류도 그 모듈이 소유한다. 검증 시각 없이 닫힌
+실패(`TRANSIENT_NETWORK`·`SOURCE_THROTTLED`·`SOURCE_CONTRACT`·`DATA_QUARANTINED`)는 보존된 raw만
+남기므로 `replay`로 복구하며, 이미 검증을 통과한 뒤의 `PROJECTION_CONTRACT`는 얼린 publication을
+유지해야 해서 부분 topology를 허용하지 않는다.
 
 `TRANSIENT_NETWORK`가 나왔다는 것은 상한까지 다시 보내고도 응답이 없었다는 뜻이므로 같은 실행을
 자동으로 또 돌리지 않는다. endpoint 응답은 status와 무관하게 raw로 보존하므로 재시도 후에도 5xx가
-남으면 그 관측을 남기고 `SOURCE_CONTRACT`로 닫는다.
+남으면 그 관측을 남기고 `SOURCE_CONTRACT`로 닫는다. 몇 번째 시도에서 응답을 받았는지는 해석이
+아니라 관측이라 `ingest.request_unit.attempt_count`(기본값 1)에 남겨 성공한 실행에서도 소스
+불안정을 사후에 셀 수 있게 한다.
 
 ## 4. 발행 트랜잭션
 

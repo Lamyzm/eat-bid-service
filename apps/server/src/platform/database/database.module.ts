@@ -4,8 +4,10 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
+import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
 import { DrizzleAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOrganizationAttemptReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-organization-attempt-reader";
+import { DrizzleWinRateDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-win-rate-distribution-reader";
 import type { Environment } from "../config/environment";
 import type { DatabaseReadiness } from "../health/readiness-state";
 import { createDatabaseReadiness } from "./database-readiness";
@@ -15,6 +17,7 @@ import {
   DATABASE_READINESS,
   ORGANIZATION_ATTEMPT_READER,
   UNIT_OF_WORK,
+  WIN_RATE_DISTRIBUTION_READER,
 } from "./database.tokens";
 import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
 
@@ -22,6 +25,7 @@ export interface DatabaseModuleOverrides {
   readonly readiness?: DatabaseReadiness;
   readonly auctionReader?: AuctionReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
+  readonly winRateDistributionReader?: WinRateDistributionReader;
 }
 
 class ManagedDatabase implements OnApplicationShutdown {
@@ -80,12 +84,24 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): OrganizationAttemptReader =>
           overrides.organizationAttemptReader ?? new DrizzleOrganizationAttemptReader(connection.database),
       },
+      {
+        provide: WIN_RATE_DISTRIBUTION_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): WinRateDistributionReader =>
+          overrides.winRateDistributionReader ?? new DrizzleWinRateDistributionReader(connection.database),
+      },
     ];
     return {
       global: true,
       module: DatabaseModule,
       providers,
-      exports: [DATABASE_READINESS, UNIT_OF_WORK, AUCTION_READER, ORGANIZATION_ATTEMPT_READER],
+      exports: [
+        DATABASE_READINESS,
+        UNIT_OF_WORK,
+        AUCTION_READER,
+        ORGANIZATION_ATTEMPT_READER,
+        WIN_RATE_DISTRIBUTION_READER,
+      ],
     };
   }
 }

@@ -3,11 +3,12 @@ import {
   instantCodec,
   moneyCodec,
   type AuctionV1Response,
+  type CodeReference,
 } from "@eatbid/contracts";
 import type { Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import { z } from "zod";
-import type { AuctionReader, AuctionRecord } from "./auction-reader";
+import type { AuctionReader, AuctionRecord, CodeReferenceRecord } from "./auction-reader";
 import type { AuctionId } from "../domain/auction-id";
 import { auctionIdToString } from "../domain/auction-id";
 
@@ -35,6 +36,11 @@ export class AuctionDependencyUnavailable extends Error {
 
 function instantText(value: Temporal.Instant | null): string | null {
   return value === null ? null : z.encode(instantCodec, value);
+}
+
+function codeReference(value: CodeReferenceRecord | null): CodeReference | null {
+  // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
+  return value === null ? null : { ...value, codeValueId: value.codeValueId.toString(10) };
 }
 
 export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
@@ -68,6 +74,19 @@ export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
       normalizedRecordId: record.provenance.normalizedRecordId.toString(10),
       contentSha256: record.provenance.contentSha256,
     },
+    terms: record.terms === null ? null : {
+      // scale과 범위는 어댑터의 bidRateValue가 이미 닫았다. 여기서 다시 만들면 같은 불변식이 두 곳에
+      // 생겨 한쪽만 바뀔 때 조용히 갈라진다.
+      floorRate: record.terms.floorRate === null
+        ? null
+        : { value: record.terms.floorRate, unit: "percentage-points" },
+      awardMethod: codeReference(record.terms.awardMethod),
+    },
+    location: record.location === null ? null : {
+      sido: codeReference(record.location.sido),
+      sigungu: codeReference(record.location.sigungu),
+    },
+    classification: record.classification,
   };
 }
 

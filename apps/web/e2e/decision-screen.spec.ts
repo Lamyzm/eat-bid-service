@@ -58,16 +58,66 @@ test.describe('결정 화면 폭별 밀림', () => {
     }
   }
 
-  test('1440px 진행 중 공고 기본 탭(비교집단)에서 nowrap 글자가 줄바꿈되거나 넘치지 않는다', async ({ page }) => {
+  // 기본 탭인 비교집단은 사다리 25줄과 각주 한 줄이 함께 그려져 흐름 탭과 다른 폭을 요구한다.
+  for (const width of WIDTHS) {
+    test(`${width}px 진행 중 공고 기본 탭(비교집단)에서 nowrap 글자가 줄바꿈되거나 넘치지 않는다`, async ({ page }) => {
+      test.setTimeout(90_000);
+      await page.setViewportSize({ width, height: 1200 });
+      await page.goto(`/auctions/${OPEN_AUCTION_ID}`);
+      await page.getByText('이 공고가 열려 있습니다').waitFor();
+      await page.getByText('전국 · 값마다 낙찰된 횟수').waitFor();
+
+      const report = await overflowReport(page);
+      expect(report.overflow).toBe(0);
+      expect(report.wrapped).toBe(0);
+      expect(report.bodyWidth).toBeLessThanOrEqual(width);
+    });
+  }
+
+  test('768px 크게 보기 히트맵은 페이지를 밀지 않고 자기 안에서만 가로 스크롤한다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 768, height: 1200 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}?expand=true`);
+    await page.getByText('달마다 값이 몰린 자리. 진할수록 낙찰 횟수가 많습니다.').waitFor();
+
+    const report = await overflowReport(page);
+    expect(report.overflow).toBe(0);
+    expect(report.bodyWidth).toBeLessThanOrEqual(768);
+  });
+});
+
+test.describe('결정 화면 호가창 fixture', () => {
+  test('남산초 실관측 코호트가 사다리 25줄과 요약·각주로 그려진다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: 1440, height: 1200 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}`);
     await page.getByText('이 공고가 열려 있습니다').waitFor();
 
-    const report = await overflowReport(page);
-    expect(report.overflow).toBe(0);
-    expect(report.wrapped).toBe(0);
-    expect(report.bodyWidth).toBeLessThanOrEqual(1440);
+    const ladder = page.locator('table', { has: page.getByText('전국 · 값마다 낙찰된 횟수') });
+    await expect(ladder.locator('tbody tr')).toHaveCount(25);
+    await expect(ladder.getByRole('rowheader', { name: '90.000' })).toBeVisible();
+    await expect(page.getByText('전체의 24%')).toBeVisible();
+    await expect(page.getByText('90.030 ~ 90.040')).toBeVisible();
+    // 헤더 칩도 `하한율 90.000`을 그리므로 각주 문단으로 좁혀 본다. 각주 문구 자체는 그대로다.
+    const footnote = page.locator('p', { hasText: /^전국 · 품목 전체 · 하한율 90\.000 · / });
+    await expect(footnote).toBeVisible();
+    // 기본값이 없으므로 처음에는 어떤 줄도 관통되지 않는다(PDR-0004).
+    await expect(page.locator('tr[aria-current="true"]')).toHaveCount(0);
+  });
+
+  test('내 값을 놓으면 그 줄이 관통되고 낮게·위·같은 칸 수가 보인다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}`);
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+
+    await page.getByLabel('내 값(사정률)').fill('90.030');
+    await page.getByRole('link', { name: '사다리에 놓기' }).click();
+
+    await expect(page.locator('tr[aria-current="true"]')).toHaveCount(1);
+    await expect(page.getByText('내 값 90.030')).toBeVisible();
+    await expect(page.getByText(/낮게 낙찰 36/)).toBeVisible();
+    await expect(page.getByText(/같은 칸 8/)).toBeVisible();
   });
 });
 

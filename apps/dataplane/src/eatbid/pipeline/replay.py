@@ -11,6 +11,11 @@ from eatbid.core.repository import (
     ProjectionContractError,
 )
 from eatbid.errors import SourceContractError
+from eatbid.failure_categories import (
+    DATA_QUARANTINED,
+    PROJECTION_CONTRACT,
+    SOURCE_CONTRACT,
+)
 from eatbid.ingest.normalization_repository import NormalizationRepository
 from eatbid.ingest.publication_repository import PublicationRepository
 from eatbid.ingest.replay_repository import (
@@ -26,11 +31,10 @@ from eatbid.pipeline.project import project_publication
 from eatbid.pipeline.stages import validate_stage_timestamps
 from eatbid.pipeline.validate import validate_run
 
-DATA_QUARANTINED = "DATA_QUARANTINED"
-SOURCE_CONTRACT = "SOURCE_CONTRACT"
-PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
-
 __all__ = [
+    "DATA_QUARANTINED",
+    "PROJECTION_CONTRACT",
+    "SOURCE_CONTRACT",
     "ReplayResult",
     "ReplayServices",
     "canonical_replay_manifest",

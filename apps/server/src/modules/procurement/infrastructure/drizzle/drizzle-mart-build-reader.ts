@@ -28,18 +28,25 @@ type MartBuildLineageRow = Readonly<{
   coverage: string | null;
 }>;
 
-// 나쁜 순서다. 코호트에 여러 행이 걸리면 화면은 가장 나쁜 값을 봐야 하며, 판정 순서가 SQL과 화면
-// 두 곳에 살면 갈라지므로 순서를 SQL 하나가 소유한다(설계 §5).
-const WORST_COVERAGE_ORDER = sql`
-  case coverage
-    when 'none' then 0
-    when 'unknown' then 1
-    when 'partial' then 2
-    else 3
-  end
-`;
+/**
+ * 나쁜 순서다. 코호트에 여러 행이 걸리면 화면은 가장 나쁜 값을 봐야 하며, 판정 순서가 여러 조회에
+ * 흩어지면 같은 build가 조회마다 다른 보유율을 낸다. 열을 인자로 받는 이유는 분포 조회가 별칭 붙은
+ * 열로 같은 순서를 다시 쓰기 때문이다.
+ */
+export function worstCoverageOrder(column: SQL): SQL {
+  return sql`
+    case ${column}
+      when 'none' then 0
+      when 'unknown' then 1
+      when 'partial' then 2
+      else 3
+    end
+  `;
+}
 
-function coverageValue(value: string | null): MartCoverage | null {
+const WORST_COVERAGE_ORDER = worstCoverageOrder(sql`coverage`);
+
+export function coverageValue(value: string | null): MartCoverage | null {
   if (value === null) return null;
   const parsed = martCoverageSchema.safeParse(value);
   // 계약이 모르는 보유율 값은 화면이 해석할 수 없다. 조용히 complete로 떨어뜨리는 대신 끊는다.

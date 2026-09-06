@@ -1,12 +1,55 @@
 {
   "components": {
     "schemas": {
+      "AuctionClassification": {
+        "additionalProperties": false,
+        "description": "Observed source category label of one auction revision; a display fact, not a code or a join key.",
+        "properties": {
+          "itemLabel": {
+            "maxLength": 512,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemLabel"
+        ],
+        "type": "object"
+      },
       "AuctionId": {
         "description": "Canonical positive decimal text for an auction ID stored as a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
         "example": "9223372036854775807",
         "maxLength": 19,
         "pattern": "^(?:[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[01][0-9]{17}|92[01][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[01][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-7])$",
         "type": "string"
+      },
+      "AuctionLocation": {
+        "additionalProperties": false,
+        "description": "Observed announcement-region codes of one auction revision in the source region scheme.",
+        "properties": {
+          "sido": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CodeReference"
+              }
+            ],
+            "nullable": true
+          },
+          "sigungu": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CodeReference"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "sido",
+          "sigungu"
+        ],
+        "type": "object"
       },
       "AuctionOrganization": {
         "additionalProperties": false,
@@ -119,6 +162,59 @@
         ],
         "type": "object"
       },
+      "AuctionTerms": {
+        "additionalProperties": false,
+        "description": "Observed award terms of one auction revision: floor rate on the assessment-rate axis and the award-method code.",
+        "properties": {
+          "awardMethod": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CodeReference"
+              }
+            ],
+            "nullable": true
+          },
+          "floorRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidRate"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "floorRate",
+          "awardMethod"
+        ],
+        "type": "object"
+      },
+      "BaseRelativeBidRate": {
+        "additionalProperties": false,
+        "description": "A bid rate measured against the base amount on a 100-point scale with exactly four fractional digits, matching numeric(9,4) mart columns.",
+        "properties": {
+          "unit": {
+            "enum": [
+              "percentage-points"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/BaseRelativeBidRateText"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "BaseRelativeBidRateText": {
+        "description": "Bid-rate percentage-points text measured against the base amount with exactly four fractional digits and at most five integer digits, matching numeric(9,4) mart columns.",
+        "maxLength": 10,
+        "pattern": "^(?:0|[1-9][0-9]{0,4})\\.[0-9]{4}$",
+        "type": "string"
+      },
       "BidRate": {
         "additionalProperties": false,
         "description": "A bid rate expressed on a 100-point scale with exactly three fractional digits, matching numeric(6,3) mart columns.",
@@ -151,6 +247,40 @@
         "pattern": "^(?:0|[1-9][0-9]{0,15})\\.[0-9]{2}$",
         "type": "string"
       },
+      "CodeReference": {
+        "additionalProperties": false,
+        "description": "A public reference to one core code value: numeric identity plus its scheme, code text and optional observed label.",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/SourceCode"
+          },
+          "codeValueId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "label": {
+            "maxLength": 256,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "scheme": {
+            "$ref": "#/components/schemas/CodeScheme"
+          }
+        },
+        "required": [
+          "codeValueId",
+          "code",
+          "scheme",
+          "label"
+        ],
+        "type": "object"
+      },
+      "CodeScheme": {
+        "description": "Source-scoped scheme identifier; schemes are never compared implicitly.",
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
       "ContentSha256": {
         "description": "Lowercase hexadecimal SHA-256 digest of immutable source content.",
         "pattern": "^[0-9a-f]{64}$",
@@ -159,8 +289,24 @@
       "EatbidApiV1Auction": {
         "additionalProperties": false,
         "properties": {
+          "classification": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuctionClassification"
+              }
+            ],
+            "nullable": true
+          },
           "identity": {
             "$ref": "#/components/schemas/PublicAuctionIdentity"
+          },
+          "location": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuctionLocation"
+              }
+            ],
+            "nullable": true
           },
           "organization": {
             "allOf": [
@@ -178,6 +324,14 @@
           },
           "schedule": {
             "$ref": "#/components/schemas/AuctionSchedule"
+          },
+          "terms": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuctionTerms"
+              }
+            ],
+            "nullable": true
           }
         },
         "required": [
@@ -185,7 +339,10 @@
           "organization",
           "schedule",
           "pricing",
-          "provenance"
+          "provenance",
+          "terms",
+          "location",
+          "classification"
         ],
         "type": "object"
       },
@@ -222,6 +379,52 @@
         ],
         "type": "object"
       },
+      "EatbidApiV1WinRateDistribution": {
+        "additionalProperties": false,
+        "properties": {
+          "bins": {
+            "items": {
+              "$ref": "#/components/schemas/WinRateDistributionBin"
+            },
+            "maxItems": 4096,
+            "type": "array"
+          },
+          "medianBin": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WinRateDistributionBinBoundary"
+              }
+            ],
+            "nullable": true
+          },
+          "meta": {
+            "$ref": "#/components/schemas/WinRateDistributionMeta"
+          },
+          "modeRange": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WinRateDistributionModeRange"
+              }
+            ],
+            "nullable": true
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/WinRateDistributionMonth"
+            },
+            "maxItems": 12,
+            "type": "array"
+          }
+        },
+        "required": [
+          "bins",
+          "medianBin",
+          "modeRange",
+          "months",
+          "meta"
+        ],
+        "type": "object"
+      },
       "ExternalBidId": {
         "description": "Opaque source-scoped auction identifier; never parsed for identity.",
         "maxLength": 512,
@@ -233,6 +436,14 @@
         "example": "2026-08-30T00:00:00Z",
         "maxLength": 35,
         "pattern": "^(?:(?:[0-9][0-9][2468][048]|[0-9][0-9][13579][26]|[0-9][0-9]0[48]|[02468][048]00|[13579][26]00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|(?:02)-(?:0[1-9]|1[0-9]|2[0-8])))T(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{0,8}[1-9])?(?:Z))$",
+        "type": "string"
+      },
+      "KstMonthText": {
+        "description": "Canonical KST calendar month text as YYYY-MM; the month boundary is Asia/Seoul.",
+        "example": "2026-09",
+        "maxLength": 7,
+        "minLength": 7,
+        "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])$",
         "type": "string"
       },
       "LiveHealth": {
@@ -250,6 +461,16 @@
           "status"
         ],
         "type": "object"
+      },
+      "MartCoverage": {
+        "description": "Worst population coverage verdict across the requested cohort.",
+        "enum": [
+          "complete",
+          "partial",
+          "none",
+          "unknown"
+        ],
+        "type": "string"
       },
       "Money": {
         "additionalProperties": false,
@@ -277,6 +498,32 @@
         "minimum": 0,
         "type": "integer"
       },
+      "ObservedBidRate": {
+        "additionalProperties": false,
+        "description": "A source-computed bid rate on a 100-point scale with exactly three fractional digits; may exceed 100. The mart representation is decided where the mart column is owned.",
+        "properties": {
+          "unit": {
+            "enum": [
+              "percentage-points"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/ObservedBidRateText"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "ObservedBidRateText": {
+        "description": "Source-computed bid-rate percentage-points text with exactly three fractional digits and at most twelve integer digits; not capped at 100 because bids above the planned price are observed.",
+        "maxLength": 16,
+        "pattern": "^(?:0|[1-9][0-9]{0,11})\\.[0-9]{3}$",
+        "type": "string"
+      },
       "OrganizationAuctionAttempt": {
         "additionalProperties": false,
         "description": "One auction attempt summarized from mart.org_round_summary.",
@@ -287,13 +534,29 @@
           "attemptId": {
             "$ref": "#/components/schemas/PositiveBigintText"
           },
+          "awardedBidRate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BaseRelativeBidRate"
+              }
+            ],
+            "nullable": true
+          },
           "baseAmount": {
             "$ref": "#/components/schemas/Money"
+          },
+          "belowDayFloorCount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
           },
           "dayFloorRate": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/BidRate"
+                "$ref": "#/components/schemas/BaseRelativeBidRate"
               }
             ],
             "nullable": true
@@ -302,14 +565,6 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/BidRate"
-              }
-            ],
-            "nullable": true
-          },
-          "invalidCount": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/NonNegativeCount"
               }
             ],
             "nullable": true
@@ -391,9 +646,10 @@
           "baseAmount",
           "winRate",
           "secondRate",
+          "awardedBidRate",
           "dayFloorRate",
           "listCount",
-          "invalidCount",
+          "belowDayFloorCount",
           "winnerSupplierPartyId",
           "supersedesAttemptId"
         ],
@@ -402,6 +658,14 @@
       "OrganizationAuctionAttemptsMeta": {
         "additionalProperties": false,
         "properties": {
+          "buildId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
           "calcVersion": {
             "maxLength": 32,
             "minLength": 1,
@@ -416,6 +680,14 @@
             ],
             "nullable": true
           },
+          "coverage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MartCoverage"
+              }
+            ],
+            "nullable": true
+          },
           "item": {
             "allOf": [
               {
@@ -424,7 +696,7 @@
             ],
             "nullable": true
           },
-          "martRelease": {
+          "regionScheme": {
             "maxLength": 64,
             "minLength": 1,
             "nullable": true,
@@ -432,14 +704,25 @@
           },
           "sampleCount": {
             "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "sourceReleaseId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SourceReleaseIdText"
+              }
+            ],
+            "nullable": true
           }
         },
         "required": [
-          "sampleCount",
-          "item",
-          "martRelease",
+          "buildId",
+          "sourceReleaseId",
+          "calcVersion",
           "computedAt",
-          "calcVersion"
+          "coverage",
+          "regionScheme",
+          "sampleCount",
+          "item"
         ],
         "type": "object"
       },
@@ -541,6 +824,32 @@
         ],
         "type": "object"
       },
+      "Ratio": {
+        "additionalProperties": false,
+        "description": "A rate expressed on a 1.0 scale.",
+        "properties": {
+          "unit": {
+            "enum": [
+              "ratio"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/RatioText"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "RatioText": {
+        "description": "Canonical ratio text from 0.000000 through 1.000000.",
+        "maxLength": 8,
+        "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)$",
+        "type": "string"
+      },
       "ReadyHealth": {
         "additionalProperties": false,
         "description": "The server is accepting application work.",
@@ -557,10 +866,258 @@
         ],
         "type": "object"
       },
+      "SourceCode": {
+        "description": "Opaque source code text that preserves leading zeroes.",
+        "maxLength": 512,
+        "minLength": 1,
+        "type": "string"
+      },
+      "SourceReleaseIdText": {
+        "description": "Canonical lowercase UUID text for a sealed ingest source release.",
+        "example": "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f",
+        "maxLength": 36,
+        "minLength": 36,
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "type": "string"
+      },
       "SourceSystem": {
         "description": "Bounded identifier of the system that supplied an observation.",
         "maxLength": 64,
         "minLength": 1,
+        "type": "string"
+      },
+      "WinRateDistributionBin": {
+        "additionalProperties": false,
+        "description": "Half-open assessment-rate bin [from, to) and its win count.",
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "from": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          },
+          "to": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "count"
+        ],
+        "type": "object"
+      },
+      "WinRateDistributionBinBoundary": {
+        "additionalProperties": false,
+        "description": "Half-open assessment-rate interval without a count.",
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          },
+          "to": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "WinRateDistributionMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "awardMethod": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "binWidth": {
+            "$ref": "#/components/schemas/BidRate"
+          },
+          "buildId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "calcVersion": {
+            "maxLength": 32,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "computedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
+          "coverage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MartCoverage"
+              }
+            ],
+            "nullable": true
+          },
+          "floorRate": {
+            "$ref": "#/components/schemas/BidRate"
+          },
+          "item": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "organizationId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "period": {
+            "$ref": "#/components/schemas/WinRateDistributionPeriod"
+          },
+          "regionCodeValueId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "regionScheme": {
+            "maxLength": 64,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "sampleCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/WinRateDistributionScope"
+          },
+          "sourceReleaseId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SourceReleaseIdText"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "buildId",
+          "sourceReleaseId",
+          "calcVersion",
+          "computedAt",
+          "coverage",
+          "regionScheme",
+          "sampleCount",
+          "item",
+          "scope",
+          "regionCodeValueId",
+          "organizationId",
+          "floorRate",
+          "awardMethod",
+          "binWidth",
+          "period"
+        ],
+        "type": "object"
+      },
+      "WinRateDistributionModeRange": {
+        "additionalProperties": false,
+        "description": "Contiguous interval around the modal bin with its share of the sample.",
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "from": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          },
+          "share": {
+            "$ref": "#/components/schemas/Ratio"
+          },
+          "to": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "count",
+          "share"
+        ],
+        "type": "object"
+      },
+      "WinRateDistributionMonth": {
+        "additionalProperties": false,
+        "description": "One KST month of the requested cohort.",
+        "properties": {
+          "bins": {
+            "items": {
+              "$ref": "#/components/schemas/WinRateDistributionBin"
+            },
+            "maxItems": 4096,
+            "nullable": true,
+            "type": "array"
+          },
+          "coverage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MartCoverage"
+              }
+            ],
+            "nullable": true
+          },
+          "month": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "sampleCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          }
+        },
+        "required": [
+          "month",
+          "sampleCount",
+          "coverage",
+          "bins"
+        ],
+        "type": "object"
+      },
+      "WinRateDistributionPeriod": {
+        "additionalProperties": false,
+        "description": "Inclusive KST month range the sample was counted over.",
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/KstMonthText"
+          },
+          "to": {
+            "$ref": "#/components/schemas/KstMonthText"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "WinRateDistributionScope": {
+        "description": "Population the distribution counts over.",
+        "enum": [
+          "national",
+          "province",
+          "district",
+          "organization"
+        ],
         "type": "string"
       }
     }
@@ -743,6 +1300,164 @@
           }
         },
         "summary": "기관의 회차 요약을 최근 순으로 조회한다",
+        "tags": [
+          "procurement"
+        ]
+      }
+    },
+    "/api/v1/win-rate-distribution": {
+      "get": {
+        "operationId": "findWinRateDistribution",
+        "parameters": [
+          {
+            "description": "Population the distribution counts over.",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WinRateDistributionScope"
+            }
+          },
+          {
+            "in": "query",
+            "name": "regionCodeValueId",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "organizationId",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Canonical bid-rate percentage-points text with exactly three fractional digits, matching numeric(6,3) mart columns; from 0.000 through 100.000.",
+            "in": "query",
+            "name": "floorRate",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BidRateText"
+            }
+          },
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "query",
+            "name": "awardMethod",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/KstMonthText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/KstMonthText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "binWidth",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/BidRateText"
+                }
+              ],
+              "default": "0.010"
+            }
+          },
+          {
+            "in": "query",
+            "name": "granularity",
+            "schema": {
+              "default": "total",
+              "enum": [
+                "total",
+                "month"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EatbidApiV1WinRateDistribution"
+                }
+              }
+            },
+            "description": "낙찰률 분포 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않거나 모집단과 축의 짝, 기간 상한, 칸 폭 배수 규칙을 어김"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "요청한 기관 또는 지역 코드값을 찾을 수 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스를 사용할 수 없음"
+          }
+        },
+        "summary": "모집단·코호트별 낙찰 사정률 분포를 달 단위로 합산해 조회한다. 전국은 지역·기관 축이 없어야 하고, 도·시군은 regionCodeValueId만, 이 기관은 organizationId만 가져야 한다. 기간은 양끝을 함께 지정하며 12개월을 넘을 수 없다.",
         "tags": [
           "procurement"
         ]

@@ -3,14 +3,21 @@ import Link from 'next/link';
 
 import {
   DECISION_VIEWS,
+  buildDecisionExpandRoute,
   buildDecisionViewRoute,
   type DecisionSearch,
   type DecisionView
 } from '../_lib/decision-search-params';
 import type { DecisionPageData } from '../_model/load-auction-page';
+import { DistributionFootnote } from './distribution-footnote';
+import { DistributionHeatmap } from './distribution-heatmap';
 import { FlowChart } from './flow-chart';
+import { MyRateInput } from './my-rate-input';
+import { OrderBook } from './order-book';
+import { OrderBookSummary } from './order-book-summary';
 
 type HistoryState = DecisionPageData['history'];
+type DistributionState = DecisionPageData['distribution'];
 
 // 탭마다 이 화면이 무엇을 보여 주는지 한 줄로 말한다. 본문이 아직 없는 탭도 무엇이 올 자리인지는
 // 밝힌다. 빈 카드는 사용자에게 "고장"으로 읽힌다. 비교집단은 지금 모집단이 무엇인지가 문장의
@@ -30,10 +37,19 @@ function note(view: DecisionView, scope: DecisionSearch['scope']): string {
   }
 }
 
-const PENDING_REASON: Record<Exclude<DecisionView, '흐름'>, string> = {
-  비교집단: '낙찰률 분포 계약(EAT-38)이 붙으면 호가창이 보입니다.',
+const PENDING_REASON: Record<Exclude<DecisionView, '비교집단' | '흐름'>, string> = {
   '그날 하한': '회차별 하한 자리 계약이 붙으면 이 탭이 보입니다.',
   업체: '회차별 명단 계약이 붙으면 참여 업체가 보입니다.'
+};
+
+/**
+ * 분포를 못 그린 이유. 재료가 없는 것(locked)과 조회가 실패한 것(unavailable)은 사용자가 할 일이
+ * 다르다. 앞은 수집이 더 필요하고 뒤는 다시 열어보면 될 수 있다.
+ */
+export const DISTRIBUTION_PENDING_REASON: Record<'missing-terms' | 'missing-axis' | 'unavailable', string> = {
+  'missing-terms': '이 공고의 하한율과 낙찰방식이 아직 수집되지 않았습니다',
+  'missing-axis': '이 모집단을 만들 지역·기관이 아직 정규화되지 않았습니다',
+  unavailable: '분포를 지금 불러오지 못했습니다'
 };
 
 /**
@@ -84,14 +100,64 @@ function FlowBody({ history }: { readonly history: HistoryState }) {
   return <FlowChart presentation={history.presentation} />;
 }
 
+function CohortBody({
+  auctionId,
+  search,
+  distribution
+}: {
+  readonly auctionId: string;
+  readonly search: DecisionSearch;
+  readonly distribution: DistributionState;
+}) {
+  if (distribution.state !== 'ready') {
+    const reason = distribution.state === 'locked' ? distribution.reason : 'unavailable';
+    return <PendingBody reason={DISTRIBUTION_PENDING_REASON[reason]} />;
+  }
+  const { presentation, response } = distribution;
+  return (
+    <div className='grid min-w-0 gap-3'>
+      <MyRateInput auctionId={auctionId} search={search} />
+      {presentation.ladder === null ? (
+        // 회색 자리도 사유를 말한다. 사유 없는 빈 카드는 사용자에게 "고장"으로 읽힌다.
+        <p className='flex items-baseline gap-2 text-[15px] font-medium text-muted-foreground'>
+          <span className='text-[13px] font-semibold whitespace-nowrap'>미확인</span>
+          <span>{presentation.reason}</span>
+        </p>
+      ) : (
+        <>
+          <OrderBookSummary ladder={presentation.ladder} />
+          {search.expand ? (
+            <DistributionHeatmap months={response.months} ladder={presentation.ladder} />
+          ) : (
+            <OrderBook ladder={presentation.ladder} caption={`${search.scope} · 값마다 낙찰된 횟수`} />
+          )}
+        </>
+      )}
+      <div className='flex flex-wrap items-baseline justify-between gap-2'>
+        <DistributionFootnote meta={presentation.meta} scope={search.scope} />
+        {presentation.ladder === null ? null : (
+          <Link
+            href={buildDecisionExpandRoute(auctionId, search, !search.expand)}
+            className='text-[13px] font-semibold whitespace-nowrap text-primary'
+          >
+            {search.expand ? '사다리로 보기' : '크게 보기'}
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function EvidenceTabs({
   auctionId,
   search,
-  history
+  history,
+  distribution
 }: {
   readonly auctionId: string;
   readonly search: DecisionSearch;
   readonly history: HistoryState;
+  readonly distribution: DistributionState;
 }) {
   const active = search.view;
 
@@ -115,7 +181,13 @@ export function EvidenceTabs({
         {active === '흐름' ? <FlowLegend /> : null}
       </div>
       <p className='text-[13px] font-medium text-muted-foreground'>{note(active, search.scope)}</p>
-      {active === '흐름' ? <FlowBody history={history} /> : <PendingBody reason={PENDING_REASON[active]} />}
+      {active === '비교집단' ? (
+        <CohortBody auctionId={auctionId} search={search} distribution={distribution} />
+      ) : active === '흐름' ? (
+        <FlowBody history={history} />
+      ) : (
+        <PendingBody reason={PENDING_REASON[active]} />
+      )}
     </div>
   );
 }

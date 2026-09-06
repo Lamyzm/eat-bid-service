@@ -26,6 +26,11 @@
       "types": "./src/api/v1/organizations/index.ts",
       "import": "./src/api/v1/organizations/index.ts",
       "default": "./src/api/v1/organizations/index.ts"
+    },
+    "./api/v1/win-rate-distribution": {
+      "types": "./src/api/v1/win-rate-distribution/index.ts",
+      "import": "./src/api/v1/win-rate-distribution/index.ts",
+      "default": "./src/api/v1/win-rate-distribution/index.ts"
     }
   },
   "scripts": {

@@ -75,7 +75,8 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: null,
       item: { codeValueId: "7", label: "가".repeat(512) },
       floorRate: null, baseAmount: { amount: "2761700.00", currency: "KRW" },
-      winRate: null, secondRate: null, dayFloorRate: null, listCount: null, belowDayFloorCount: null,
+      winRate: null, secondRate: null, awardedBidRate: null, dayFloorRate: null,
+      listCount: null, belowDayFloorCount: null,
       winnerSupplierPartyId: null, supersedesAttemptId: null,
     };
     expect(attempt.parse(row).item?.label).toHaveLength(512);
@@ -89,7 +90,7 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       floorRate: { value: "90.000", unit: "percentage-points" },
       baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: { value: "90.309", unit: "percentage-points" },
-      secondRate: null, dayFloorRate: null, listCount: 17, belowDayFloorCount: 2,
+      secondRate: null, awardedBidRate: null, dayFloorRate: null, listCount: 17, belowDayFloorCount: 2,
       winnerSupplierPartyId: "9", supersedesAttemptId: null,
     };
     expect(organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse(row)).toEqual(row);
@@ -106,7 +107,7 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: "2026-09-04T05:00:00Z",
       item: null, floorRate: { value: "90.000", unit: "percentage-points" },
       baseAmount: { amount: "8888360.00", currency: "KRW" },
-      winRate: null, secondRate: null,
+      winRate: null, secondRate: null, awardedBidRate: null,
       // 남산초 5669545의 그날 하한이다. 셋째 자리로 끊으면 89.959가 되어 원본의 넷째 자리를 잃는다.
       dayFloorRate: { value: "89.9592", unit: "percentage-points" },
       listCount: 91, belowDayFloorCount: 46,
@@ -114,5 +115,28 @@ describe("listOrganizationAuctionAttempts 계약", () => {
     };
     expect(attempt.parse(row).dayFloorRate?.value).toBe("89.9592");
     expect(() => attempt.parse({ ...row, dayFloorRate: { value: "89.959", unit: "percentage-points" } })).toThrow();
+  });
+
+  test("낙찰률은 사정률 축과 투찰률 축 두 필드로 나뉘고 서로의 정밀도를 받지 않는다", () => {
+    const attempt = organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element;
+    // 남산초 5780681이다. 같은 낙찰 하나가 사정률 축에서는 90.010, 투찰률 축에서는 89.8460이다.
+    const row = {
+      attemptId: "5780681", announcedAt: "2026-08-10T00:00:00Z", openedAt: "2026-08-13T04:00:00Z",
+      item: { codeValueId: "7", label: "축산" },
+      floorRate: { value: "90.000", unit: "percentage-points" },
+      baseAmount: { amount: "4986290.00", currency: "KRW" },
+      winRate: { value: "90.010", unit: "percentage-points" },
+      secondRate: { value: "90.032", unit: "percentage-points" },
+      awardedBidRate: { value: "89.8460", unit: "percentage-points" },
+      dayFloorRate: { value: "89.8360", unit: "percentage-points" },
+      listCount: 86, belowDayFloorCount: 42,
+      winnerSupplierPartyId: null, supersedesAttemptId: null,
+    };
+    expect(attempt.parse(row)).toEqual(row);
+    // 투찰률 축은 그날 하한과 같은 넷째 자리다. 셋째 자리를 받으면 손잡이 판정이 하한과 다른
+    // 정밀도로 비교되므로 거부한다.
+    expect(() => attempt.parse({ ...row, awardedBidRate: { value: "89.846", unit: "percentage-points" } })).toThrow();
+    // 예정가격이 아직 관측되지 않은 회차는 축을 옮길 입력이 없어 null이며 그것은 정상 상태다.
+    expect(attempt.parse({ ...row, awardedBidRate: null }).awardedBidRate).toBeNull();
   });
 });
