@@ -18,10 +18,12 @@ spec:
       #     -p mode=backfill -p start-date=20250901 -p end-date=20251130
       - name: mode
         value: poll-open
-      # eat-v2는 EAT-43 전까지 발행 경로가 아니다 — capture와 normalize는 성공하고 projection에서
-      # typed 실패(`ProjectionContractError`)로 멈추므로 그때까지 쓴 크롤 예산은 회수되지 않는다.
+      # eat-v2가 기본값인 이유는 상세 응답의 명단·낙찰·재공고 블록을 읽는 유일한 version이기
+      # 때문이다. EAT-43이 `auction.v2`를 발행 가능 record type에 넣기 전에는 v1이 기본값이었고,
+      # 2026-09-06 실측에서 그 v1 발행 385 revision은 전부 하한율이 없고 투찰·낙찰·업체가 비어 있었다.
+      # v1으로 이미 봉인된 발행물은 그대로 두고 같은 공고가 v2로 다시 관측되면 새 revision이 생긴다.
       - name: parser-version
-        value: eat-v1
+        value: eat-v2
       # mart 계산 규칙의 version이다. parser-version과 같은 자리에 두는 이유는 둘 다 "이 실행이 어떤
       # 해석 규칙으로 만든 결과인가"를 기록하는 값이고, 규칙을 바꾼 배포가 옛 build를 조용히 덮어쓰지
       # 않으려면 새 값으로 새 build를 만들어야 하기 때문이다(ADR 0034).
