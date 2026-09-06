@@ -3,6 +3,7 @@ import {
   bigint,
   char,
   check,
+  integer,
   jsonb,
   text,
   timestamp,
@@ -82,6 +83,10 @@ export const requestUnit = ingestSchema.table(
     requestParamsHash: char("request_params_hash", { length: 64 }).notNull(),
     expectedCount: bigint("expected_count", { mode: "bigint" }).notNull(),
     observedCount: bigint("observed_count", { mode: "bigint" }).notNull(),
+    // 몇 번째 HTTP 시도에서 이 요청 단위의 관측을 얻었는지는 해석이 아니라 관측이다. 소스가 얼마나
+    // 불안정했는지를 사후에 세려면 성공한 실행에도 남아야 하므로 실패 카테고리와 따로 기록한다.
+    // 재시도가 없었던 요청이 1이라 계획 시점의 기본값도 1이다.
+    attemptCount: integer("attempt_count").notNull().default(1),
     status: varchar("status", { length: 16, enum: requestUnitStatuses }).notNull(),
   },
   (table) => [
@@ -94,5 +99,6 @@ export const requestUnit = ingestSchema.table(
     ),
     check("request_unit_expected_count_nonnegative", sql`${table.expectedCount} >= 0`),
     check("request_unit_observed_count_nonnegative", sql`${table.observedCount} >= 0`),
+    check("request_unit_attempt_count_positive", sql`${table.attemptCount} >= 1`),
   ],
 );

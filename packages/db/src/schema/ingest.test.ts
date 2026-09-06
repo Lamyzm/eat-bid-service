@@ -64,6 +64,16 @@ describe("ingest identity 불변식", () => {
     ]);
   });
 
+  test("request_unit.attempt_count는 재시도 없는 요청을 1로 두는 not null integer다", () => {
+    const attemptCount = getTableConfig(requestUnit).columns.find(
+      (column) => column.name === "attempt_count",
+    );
+
+    expect(attemptCount?.getSQLType()).toBe("integer");
+    expect(attemptCount?.notNull).toBe(true);
+    expect(attemptCount?.default).toBe(1);
+  });
+
   test("run.build_sha는 40자 release commit을 패딩 없이 담는 varchar다", () => {
     const buildSha = getTableConfig(ingestRun).columns.find((column) => column.name === "build_sha");
 
@@ -94,6 +104,7 @@ describe("ingest identity 불변식", () => {
       "request_params_hash",
       "expected_count",
       "observed_count",
+      "attempt_count",
       "status",
     ]));
     expect(columnNames(rawBlob)).toEqual(expect.arrayContaining([
@@ -211,6 +222,7 @@ describe("ingest identity 불변식", () => {
     expect(checkNames(requestUnit)).toEqual(expect.arrayContaining([
       "request_unit_expected_count_nonnegative",
       "request_unit_observed_count_nonnegative",
+      "request_unit_attempt_count_positive",
     ]));
     expect(checkNames(rawBlob)).toContain("raw_blob_byte_length_nonnegative");
     expect(checkNames(publication)).toEqual(expect.arrayContaining([

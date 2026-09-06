@@ -1,3 +1,7 @@
+"""모듈 책임: replay run의 정체성과 얼린 관측 manifest를 PostgreSQL에서 잠그고, 저장된 run·publication
+상태가 그 manifest와 어긋나지 않는지 판정한다.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -7,13 +11,16 @@ from uuid import UUID
 import psycopg
 from psycopg.pq import TransactionStatus
 
+from eatbid.failure_categories import (
+    DATA_QUARANTINED,
+    PRE_VALIDATION_FAILURE_CATEGORIES,
+    PROJECTION_CONTRACT,
+)
 from eatbid.ingest.replay_repository import (
     ReplayRunState,
     validate_replay_start,
 )
 from eatbid.postgres_topology import LockedAuctionTopology, lock_auction_topology
-
-DATA_QUARANTINED = "DATA_QUARANTINED"
 
 
 class ReplayIntegrityError(RuntimeError):
@@ -256,11 +263,11 @@ class PsycopgReplayRunRepository:
         fingerprint = row[17]
         projector_version = row[18]
         topology_must_be_frozen = run_status in {"validated", "published"} or (
-            run_status == "failed" and failure_category == "PROJECTION_CONTRACT"
+            run_status == "failed" and failure_category == PROJECTION_CONTRACT
         )
         topology_may_be_partial = run_status == "running" or (
             run_status == "failed"
-            and failure_category in {"SOURCE_CONTRACT", DATA_QUARANTINED}
+            and failure_category in PRE_VALIDATION_FAILURE_CATEGORIES
         )
         if topology_may_be_partial and not topology.partial_coherent:
             raise ReplayIntegrityError(
@@ -323,7 +330,7 @@ class PsycopgReplayRunRepository:
                 and fingerprint is None
                 and projector_version is None
             )
-            if failure_category == "PROJECTION_CONTRACT":
+            if failure_category == PROJECTION_CONTRACT:
                 coherent = (
                     base_coherent
                     and validated_at is not None
@@ -331,7 +338,7 @@ class PsycopgReplayRunRepository:
                     and topology.coherent
                     and normalized_count == len(topology.member_ids)
                 )
-            elif failure_category in {"SOURCE_CONTRACT", DATA_QUARANTINED}:
+            elif failure_category in PRE_VALIDATION_FAILURE_CATEGORIES:
                 coherent = (
                     base_coherent
                     and validated_at is None
@@ -363,7 +370,7 @@ class PsycopgReplayRunRepository:
         )
         persisted_members = tuple(int(row[0]) for row in cursor.fetchall())
         if run_status in {"validated", "published"} or (
-            run_status == "failed" and failure_category == "PROJECTION_CONTRACT"
+            run_status == "failed" and failure_category == PROJECTION_CONTRACT
         ):
             expected_members = topology.member_ids
         else:
