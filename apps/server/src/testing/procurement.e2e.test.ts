@@ -19,6 +19,12 @@ const publicAuction = {
   baseAmount: krw(canonicalDecimal("1234567890.50", 2)),
   plannedAmount: null,
   organization: { organizationId: 7n, name: "서울특별시교육청", type: "education-office" },
+  terms: { floorRate: "90.000", awardMethod: null },
+  location: {
+    sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
+    sigungu: null,
+  },
+  classification: { itemLabel: "축산" },
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",
@@ -93,6 +99,13 @@ describe("canonical procurement HTTP 경로", () => {
           normalizedRecordId: "9007199254740999",
           contentSha256: "a".repeat(64),
         },
+        // 코호트 재료도 같은 응답에 실린다. 화면이 하한율·소재지를 얻을 다른 경로는 없다.
+        terms: { floorRate: { value: "90.000", unit: "percentage-points" }, awardMethod: null },
+        location: {
+          sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
+          sigungu: null,
+        },
+        classification: { itemLabel: "축산" },
       });
       expect(response.body).not.toHaveProperty("sourcePayload");
     });
