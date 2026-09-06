@@ -12,26 +12,31 @@ from typing import Protocol, Self
 
 from eatbid.cli_arguments import build_parser as build_argument_parser
 from eatbid.config import ApplicationSettings
+from eatbid.failure_categories import (
+    CONFIGURATION,
+    DATA_QUARANTINED,
+    EXIT_CODE_BY_CATEGORY,
+    SOURCE_CONTRACT,
+    SOURCE_THROTTLED,
+    TRANSIENT_NETWORK,
+    failure_category_for_error,
+)
 from eatbid.failure_report import render_failure
 from eatbid.ingest.models import CapturedObservation
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.discover import DiscoveryResult
 
-CONFIGURATION_EXIT_CODE = 64
-DATA_QUARANTINED_EXIT_CODE = 65
-# 왜: sysexits의 EX_UNAVAILABLE 자리다. "서비스가 지금 응답하지 못했다"는 뜻이 이미 이 숫자에
-# 붙어 있어 계약 위반(76)·차단(75)과 운영자가 눈으로도 구분할 수 있다.
-TRANSIENT_NETWORK_EXIT_CODE = 69
-SOURCE_THROTTLED_EXIT_CODE = 75
-SOURCE_CONTRACT_EXIT_CODE = 76
+# 왜: exit code와 DB failure_category는 하나의 어휘여야 한다. 숫자를 여기서 다시 적으면 프로세스가
+# 끝난 이유와 run 표에 남은 이유가 조용히 갈라진다. 권위는 `eatbid.failure_categories`다.
+CONFIGURATION_EXIT_CODE = EXIT_CODE_BY_CATEGORY[CONFIGURATION]
+DATA_QUARANTINED_EXIT_CODE = EXIT_CODE_BY_CATEGORY[DATA_QUARANTINED]
+TRANSIENT_NETWORK_EXIT_CODE = EXIT_CODE_BY_CATEGORY[TRANSIENT_NETWORK]
+SOURCE_THROTTLED_EXIT_CODE = EXIT_CODE_BY_CATEGORY[SOURCE_THROTTLED]
+SOURCE_CONTRACT_EXIT_CODE = EXIT_CODE_BY_CATEGORY[SOURCE_CONTRACT]
 
 # workflow 실패 파라미터와 재시도 정책이 이 이름에 묶여 있으므로 exit code와 짝을 바꾸지 않는다.
 FAILURE_CATEGORIES: Mapping[int, str] = {
-    CONFIGURATION_EXIT_CODE: "CONFIGURATION",
-    DATA_QUARANTINED_EXIT_CODE: "DATA_QUARANTINED",
-    TRANSIENT_NETWORK_EXIT_CODE: "TRANSIENT_NETWORK",
-    SOURCE_THROTTLED_EXIT_CODE: "SOURCE_THROTTLED",
-    SOURCE_CONTRACT_EXIT_CODE: "SOURCE_CONTRACT",
+    exit_code: category for category, exit_code in EXIT_CODE_BY_CATEGORY.items()
 }
 
 
@@ -165,8 +170,8 @@ def main(
         with factory(settings) as application:
             return COMMAND_HANDLERS[args.command](args, application)
     except Exception as error:  # noqa: BLE001 - CLI는 모든 provider detail을 닫는 최종 경계다.
-        exit_code = exit_code_for_error(error)
-        category = FAILURE_CATEGORIES.get(exit_code, "CONFIGURATION")
+        category = failure_category_for_error(error)
+        exit_code = EXIT_CODE_BY_CATEGORY[category]
         # 왜: 카테고리 한 단어로는 권한 부재와 연결 시간 초과를 구분할 수 없어 원인을 pod 이벤트로
         # 역추적해야 했다. 예외 클래스와 비밀값을 지운 메시지를 같은 줄에 남긴다.
         print(
@@ -177,18 +182,4 @@ def main(
 
 
 def exit_code_for_error(error: Exception) -> int:
-    from eatbid.errors import SourceContractError, SourceUnavailableError
-    from eatbid.pipeline.capture import SourceThrottledError
-    from eatbid.pipeline.normalize import DataQuarantinedError
-
-    if isinstance(error, DataQuarantinedError):
-        return DATA_QUARANTINED_EXIT_CODE
-    if isinstance(error, SourceThrottledError):
-        return SOURCE_THROTTLED_EXIT_CODE
-    # 왜: 응답 자체가 오지 않은 일시 장애는 이미 CLI 안에서 상한까지 재시도한 뒤에만 여기 온다.
-    # 계약 위반과 같은 exit로 묶으면 운영이 "코드를 고쳐야 하는 실패"로 오독한다.
-    if isinstance(error, SourceUnavailableError):
-        return TRANSIENT_NETWORK_EXIT_CODE
-    if isinstance(error, SourceContractError):
-        return SOURCE_CONTRACT_EXIT_CODE
-    return CONFIGURATION_EXIT_CODE
+    return EXIT_CODE_BY_CATEGORY[failure_category_for_error(error)]

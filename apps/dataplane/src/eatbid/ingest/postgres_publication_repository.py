@@ -10,6 +10,12 @@ from uuid import UUID
 
 import psycopg
 
+from eatbid.failure_categories import (
+    DATA_QUARANTINED,
+    PRE_VALIDATION_FAILURE_CATEGORIES,
+    PROJECTION_CONTRACT,
+    SOURCE_CONTRACT,
+)
 from eatbid.ingest.publication_repository import (
     CompletenessValidator,
     PublicationValidation,
@@ -23,9 +29,6 @@ from eatbid.source.eat.code_schemes import FOUNDATION_CODE_SCHEMES
 REQUIRED_SCHEMES = tuple(
     scheme.namespace for scheme in FOUNDATION_CODE_SCHEMES
 )
-SOURCE_CONTRACT = "SOURCE_CONTRACT"
-PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
-DATA_QUARANTINED = "DATA_QUARANTINED"
 
 
 class PublicationIntegrityError(RuntimeError):
@@ -408,10 +411,12 @@ class PsycopgPublicationRepository:
                 )
         elif run_ended_at is None:
             raise PublicationIntegrityError("failed run must have an end timestamp")
-        elif run_failure_category in {SOURCE_CONTRACT, DATA_QUARANTINED}:
+        elif run_failure_category in PRE_VALIDATION_FAILURE_CATEGORIES:
+            # 검증에 들어가기 전에 닫힌 실패라 발행 검증 시각이 있을 수 없다. 카테고리 목록을 여기서
+            # 다시 적으면 새 어휘가 늘 때마다 어느 판정에도 걸리지 않는 run 상태가 생긴다.
             if publication[2] is not None:
                 raise PublicationIntegrityError(
-                    "source-contract failure cannot have a validation timestamp"
+                    "pre-validation failure cannot have a validation timestamp"
                 )
         elif run_failure_category == PROJECTION_CONTRACT:
             if publication[2] is None:

@@ -5,17 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from eatbid.failure_categories import failure_category_for_error
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import SourceReleasePlan
 from eatbid.ingest.release_repository import SourceReleaseRepository
 from eatbid.ingest.repository import IngestRepository
 from eatbid.object_store import RawObjectStore
-from eatbid.pipeline.capture import (
-    SOURCE_CONTRACT,
-    SOURCE_THROTTLED,
-    SourceThrottledError,
-    capture_response,
-)
+from eatbid.pipeline.capture import capture_response
 from eatbid.pipeline.discover import DiscoveryPlan
 from eatbid.source.client import SourceResponse
 from eatbid.source.eat.registry import require
@@ -118,13 +114,13 @@ class RawFirstDiscoveryPersistence:
         )
 
     def fail_run(self, plan: DiscoveryPlan, error: Exception) -> None:
-        category = (
-            SOURCE_THROTTLED if isinstance(error, SourceThrottledError) else SOURCE_CONTRACT
-        )
+        """왜: run 표에 남는 카테고리는 프로세스 exit code와 같은 판정이어야 한다. 여기서 비-throttle을
+        모두 계약 위반으로 접으면, 응답조차 오지 않아 exit 69로 끝난 실행이 ledger에는 '코드를 고쳐야
+        하는 실패'로 남아 운영자가 원인을 반대로 읽는다."""
         try:
             self._ingest.fail_run(
                 run_id=plan.run_id,
-                failure_category=category,
+                failure_category=failure_category_for_error(error),
                 failed_at=plan.completed_at,
             )
         except Exception:  # noqa: BLE001 - 원래 typed discovery 실패를 덮지 않는다.

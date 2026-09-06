@@ -116,7 +116,10 @@ class EatHttpClient:
             max_response_bytes=transport.max_response_bytes,
         )
         return SourceResponse(
-            outcome.status_code, outcome.body, self._fetched_at(transport.endpoint)
+            outcome.status_code,
+            outcome.body,
+            self._fetched_at(transport.endpoint),
+            outcome.attempts,
         )
 
     def _prepare(self, request: CaptureRequest) -> tuple[EatEndpointTransport, bytes]:
