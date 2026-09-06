@@ -61,10 +61,9 @@ function rebucket(
     const lower = (bin.lowerMilli / widthMilli) * widthMilli;
     totals.set(lower, (totals.get(lower) ?? 0) + bin.count);
   }
-  return [...totals.entries()]
-    .filter(([, count]) => count > 0)
-    .toSorted(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-    .map(([lowerMilli, count]) => ({ lowerMilli, count }));
+  const entries: Array<[bigint, number]> = [...totals.entries()].filter(([, count]) => count > 0);
+  entries.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  return entries.map(([lowerMilli, count]) => ({ lowerMilli, count }));
 }
 
 /** 정렬된 표본의 `floor(n / 2)`번째(0-based) 관측이 속한 칸. `rehearsal.ts`의 medianOf와 같은 규칙이다. */
