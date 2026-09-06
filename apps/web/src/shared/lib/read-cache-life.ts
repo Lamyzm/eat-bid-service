@@ -14,3 +14,10 @@ export const READ_CACHE_LIFE = Object.freeze({
   revalidate: 900,
   expire: 3600
 });
+
+/**
+ * `revalidateTag`의 둘째 인자는 "표시한 뒤에도 얼마나 더 옛 값을 내보내도 되는가"다. 기본 profile을
+ * 주면 발행 직후 첫 열람이 여전히 옛 값을 받아 "전환 뒤 첫 열람은 새 값"이라는 acceptance를 정의상
+ * 만족하지 못한다. push는 이미 새 사실이 있다는 신호이므로 유예를 두지 않는다(ADR 0036-2).
+ */
+export const REVALIDATE_IMMEDIATELY = Object.freeze({ expire: 0 });

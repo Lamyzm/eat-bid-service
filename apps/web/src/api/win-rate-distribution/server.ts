@@ -28,3 +28,4 @@ export async function findWinRateDistributionFromServer(
 }
 
 export { isDistributionCohortNotFoundError };
+export { revalidateWinRateDistributionCache } from './revalidate';

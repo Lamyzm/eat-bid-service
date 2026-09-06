@@ -27,10 +27,20 @@ const packageJson = JSON.stringify({
       import: "./src/atoms/code-scheme-names.ts",
       default: "./src/atoms/code-scheme-names.ts",
     },
+    "./values/cache-tag": {
+      types: "./src/values/cache-tag.ts",
+      import: "./src/values/cache-tag.ts",
+      default: "./src/values/cache-tag.ts",
+    },
     "./api": {
       types: "./src/api/index.ts",
       import: "./src/api/index.ts",
       default: "./src/api/index.ts",
+    },
+    "./api/internal": {
+      types: "./src/api/internal/index.ts",
+      import: "./src/api/internal/index.ts",
+      default: "./src/api/internal/index.ts",
     },
     "./api/v1/auctions": {
       types: "./src/api/v1/auctions/index.ts",
@@ -89,10 +99,20 @@ test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", 
           import: "./src/atoms/code-scheme-names.ts",
           default: "./src/atoms/code-scheme-names.ts",
         },
+        "./values/cache-tag": {
+          types: "./src/values/cache-tag.ts",
+          import: "./src/values/cache-tag.ts",
+          default: "./src/values/cache-tag.ts",
+        },
         "./api": {
           types: "./dist/api/index.d.ts",
           import: "./dist/api/index.js",
           default: "./dist/api/index.js",
+        },
+        "./api/internal": {
+          types: "./src/api/internal/index.ts",
+          import: "./src/api/internal/index.ts",
+          default: "./src/api/internal/index.ts",
         },
         "./api/v1/auctions": {
           types: "./src/api/v1/auctions/index.ts",
@@ -131,10 +151,20 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
           import: "./src/atoms/code-scheme-names.ts",
           default: "./src/atoms/code-scheme-names.ts",
         },
+        "./values/cache-tag": {
+          types: "./src/values/cache-tag.ts",
+          import: "./src/values/cache-tag.ts",
+          default: "./src/values/cache-tag.ts",
+        },
         "./api": {
           types: "./src/api/index.ts",
           import: "./src/api/index.ts",
           default: "./src/api/index.ts",
+        },
+        "./api/internal": {
+          types: "./src/api/internal/index.ts",
+          import: "./src/api/internal/index.ts",
+          default: "./src/api/internal/index.ts",
         },
         "./api/v1/auctions": {
           types: "./dist/api/v1/auctions/index.d.ts",

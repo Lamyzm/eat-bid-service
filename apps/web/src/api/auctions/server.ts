@@ -32,3 +32,4 @@ export async function getAuctionFromServer(input: {
 }
 
 export { isAuctionNotFoundError };
+export { revalidateAuctionCache } from './revalidate';

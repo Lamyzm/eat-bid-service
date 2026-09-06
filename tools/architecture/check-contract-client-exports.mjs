@@ -12,6 +12,9 @@ const clientExports = Object.freeze([
   // 태그 문자열이 계약과 화면 두 곳에 살고, 한쪽만 바뀌는 순간 무효화가 조용히 아무것도 지우지 않는다.
   ["./values/cache-tag", "./src/values/cache-tag.ts"],
   ["./api", "./src/api/index.ts"],
+  // web이 소유한 클러스터 내부 operation이다. route handler가 계약에서만 경로·본문을 파생하려면
+  // 이 진입점이 있어야 하고, graph는 zod와 계약 값만 참조해 browser-safe 조건도 그대로 만족한다.
+  ["./api/internal", "./src/api/internal/index.ts"],
   ["./api/v1/auctions", "./src/api/v1/auctions/index.ts"],
   ["./api/v1/organizations", "./src/api/v1/organizations/index.ts"],
   ["./api/v1/win-rate-distribution", "./src/api/v1/win-rate-distribution/index.ts"],
