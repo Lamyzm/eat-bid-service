@@ -17,6 +17,11 @@
       "import": "./src/atoms/code-scheme-names.ts",
       "default": "./src/atoms/code-scheme-names.ts"
     },
+    "./values/cache-tag": {
+      "types": "./src/values/cache-tag.ts",
+      "import": "./src/values/cache-tag.ts",
+      "default": "./src/values/cache-tag.ts"
+    },
     "./api": {
       "types": "./src/api/index.ts",
       "import": "./src/api/index.ts",
