@@ -256,16 +256,24 @@ JSON은 bigint를 직접 표현하지 못하므로 HTTP path/response에서는 �
 
 ### 4.2 반드시 분리할 scheme
 
-| scheme | 의미 | 직접 비교 가능한 범위 |
-|---|---|---|
-| `eat:auction-location-sido` | eaT 공고 소재 시도 | 같은 scheme/버전 |
-| `eat:auction-location-sigungu` | eaT 공고 소재 시군구 | 같은 scheme/버전 |
-| `eat:eligibility-area` | eaT 참가제한 `PDLC_CD` | 같은 scheme/버전 |
-| `mois:administrative-region` | 행정안전부 법정/행정구역 | 동일 하위 scheme/버전 |
-| `neis:school` | NEIS 학교 식별자 | 같은 scheme/버전 |
+| scheme | 의미 | grain | 좌표 | 직접 비교 가능한 범위 |
+|---|---|---|---|---|
+| `eat:auction-location-sido` | eaT 공고 소재 시도 | 관측된 `SIDO_CD` | 없음 | 같은 scheme/버전 |
+| `eat:auction-location-sigungu` | eaT 공고 소재 시군구 | 관측된 `SIGUNGU_CD` | 없음 | 같은 scheme/버전 |
+| `eat:eligibility-area` | eaT 참가제한 `PDLC_CD` | 관측된 `PDLC_CD` | 없음 | 같은 scheme/버전 |
+| `mois:administrative-region` | 행정안전부 **법정동코드** | 시도·시군구 두 단계만 승격 | `core.code_value_coordinate` | 같은 scheme/release |
+| `neis:school` | NEIS 학교 식별자 | 학교 | 없음 | 같은 scheme/버전 |
 
 `SIDO_CD`/`SIGUNGU_CD`와 `PDLC_CD`가 같은 지역처럼 보여도 직접 조인하지 않는다. 소유기관과
 의미가 다른 코드 체계이므로 근거가 있는 `CodeMapping`을 통해서만 eligibility에 사용한다.
+
+`mois:administrative-region`의 canonical 파일·grain·계층·좌표·매핑 정책은
+[ADR 0035](../adr/0035-administrative-region-canonical-and-mapping.md)가 소유한다. 요약하면
+code는 원본 10자리 문자열 그대로, 계층은 `core.code_release_member.parent_code_value_id`가
+release별 사실로, 좌표는 `core.code_value_coordinate`가 CRS·근거 observation과 함께,
+eaT 대응은 `core.code_mapping`의 `label_verified`(자동, 양쪽 유일 라벨 일치) 또는
+`reviewed`(사람) 행으로만 성립한다. 매핑 없음은 행의 부재이며 그 수는
+[`reference-data-coverage.md`](../operations/reference-data-coverage.md)가 센다.
 
 ### 4.3 정부 코드가 없는 분류
 
