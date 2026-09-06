@@ -251,14 +251,6 @@
       "sha256": "070525dbf3347d7871c9a685f05105229dc58ae379b80b07b2ca1a059ac94513"
     },
     {
-      "path": "apps/web/src/app/dashboard/market/market-map.tsx",
-      "sha256": "310299f9e1a738c57a5ef92034552055f0328f80df7d655d72c9ad0e1f70c356"
-    },
-    {
-      "path": "apps/web/src/app/dashboard/market/page.tsx",
-      "sha256": "81f7ff5b30f69d0cc1a8fadb40290d5ccd143841cc0c4dde8925306f9071fe1b"
-    },
-    {
       "path": "apps/web/src/app/dashboard/my/page.tsx",
       "sha256": "cb061093850df312f8b189ff7aaae971486015b832a33824c92c463f6d2c9bd5"
     },
@@ -789,10 +781,6 @@
     {
       "path": "apps/web/src/lib/rate-text.ts",
       "sha256": "3ca7a5bb2f8df604b47d498821b4ad510f1cc5c37fcd2a0ccde2c761e459dd95"
-    },
-    {
-      "path": "apps/web/src/lib/region-coords.ts",
-      "sha256": "5dcb2678d3f50ac1203520a31f314adb0998287b0a0a6948648ee1a7f63ea70b"
     },
     {
       "path": "apps/web/src/lib/region.ts",
