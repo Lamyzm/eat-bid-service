@@ -135,6 +135,12 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(page.locator('table tbody tr')).toHaveCount(12);
     await expect(page.locator('table thead th').last()).toHaveText('90.000 썼다면');
 
+    // 부제의 표시 회차 수는 서버 컴포넌트가 센다. 상한 상수를 'use client' 모듈에서 읽으면 서버 쪽에서
+    // 숫자가 아니게 되어 NaN이 렌더된다(EAT-77). 단위 테스트는 RSC 경계를 재현하지 못하므로 실제
+    // 브라우저에서 화면 전체에 NaN이 없는지 함께 본다.
+    await expect(page.locator('section[aria-label="과거 회차"]').getByText(/^\d+회 · 최근 \d+회 표시$/)).toBeVisible();
+    await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText('NaN');
+
     await expect(page.getByText('이 값이면', { exact: true })).toBeVisible();
     await expect(page.getByText(/지난 \d+회 중 낙찰됐을 회차/)).toBeVisible();
   });

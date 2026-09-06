@@ -19,6 +19,15 @@ const flowSearch = searchOn('흐름');
 const decision = () => presentDecision(openAuctionFixture, fixtureNow);
 
 const readyHistory: DecisionPageData['history'] = { state: 'ready', presentation: presentHistory(attemptsFixture, '7') };
+// 회차가 거의 없는 기관(열린 공고 하나뿐인 학교)을 fixture 앞에서 잘라 만든다. 표본 수도 함께 줄여야
+// 부제가 실제로 그 기관을 말한 것이 된다.
+const historyOf = (count: number): DecisionPageData['history'] => ({
+  state: 'ready',
+  presentation: presentHistory(
+    { ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, count), meta: { ...attemptsFixture.meta, sampleCount: count } },
+    null
+  )
+});
 const unavailable: DecisionPageData['history'] = { state: 'unavailable' };
 
 const readyDistribution: DecisionPageData['distribution'] = {
@@ -91,6 +100,15 @@ describe('결정 화면', () => {
     };
     const short = render(<DecisionScreen decision={decision()} search={flowSearch} history={fiveRows} distribution={readyDistribution} />);
     expect(short.getByText(`${attemptsFixture.meta.sampleCount}회 · 최근 5회 표시`)).toBeTruthy();
+  });
+
+  test('회차가 0건이거나 1건이어도 캡션에 NaN이 나오지 않는다', () => {
+    const none = renderToStaticMarkup(<DecisionScreen decision={decision()} search={flowSearch} history={historyOf(0)} distribution={readyDistribution} />);
+    expect(none).not.toContain('NaN');
+    expect(none).toContain('0회 · 최근 표시 없음');
+
+    const single = render(<DecisionScreen decision={decision()} search={flowSearch} history={historyOf(1)} distribution={readyDistribution} />);
+    expect(single.getByText('1회 · 최근 1회 표시')).toBeTruthy();
   });
 
   test('구매기관이 정규화되지 않은 공고는 흐름 탭에서 이유를 그대로 말한다', () => {
