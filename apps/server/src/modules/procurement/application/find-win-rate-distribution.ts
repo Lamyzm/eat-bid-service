@@ -11,6 +11,7 @@ import { Effect } from "effect";
 import { z } from "zod";
 import {
   rateMilliText,
+  rateTextMilli,
   ratioMillionthsText,
   summarizeDistribution,
   type DistributionBinBoundary,
@@ -81,11 +82,6 @@ type CohortCheck = Effect.Effect<
   AuctionDependencyUnavailable | DistributionRegionNotFound | OrganizationNotFound,
   never
 >;
-
-function rateMilli(rate: BidRate): bigint {
-  const [whole, fraction = ""] = rate.split(".");
-  return BigInt(whole) * 1000n + BigInt((fraction + "000").slice(0, 3));
-}
 
 function binResource(bin: DistributionBinCount, widthMilli: bigint): DistributionBin {
   return {
@@ -184,7 +180,7 @@ export class FindWinRateDistribution {
     period: { readonly from: KstMonth; readonly to: KstMonth },
     reading: DistributionReading,
   ): Effect.Effect<WinRateDistributionV1Response, DistributionBinWidthInvalid, never> {
-    const widthMilli = rateMilli(input.binWidth);
+    const widthMilli = rateTextMilli(input.binWidth);
     const stored = reading.storedBinWidthMilli;
     // 저장 폭보다 좁거나 배수가 아닌 칸은 만들 수 없다. 행이 없으면 검증할 대상 자체가 없다.
     if (stored !== null && (widthMilli < stored || widthMilli % stored !== 0n)) {

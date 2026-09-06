@@ -37,6 +37,17 @@ export function rateMilliText(milli: bigint): string {
   return `${milli / RATE_SCALE}.${(milli % RATE_SCALE).toString().padStart(3, "0")}`;
 }
 
+/**
+ * 소수 셋째 자리 canonical 십진 문자열을 milli 정수로 옮긴다. 자릿수를 정확히 요구하는 이유는
+ * 어댑터와 use case가 같은 변환을 두 벌로 갖지 않게 하기 위해서다. `Number`를 거치지 않으므로
+ * 큰 사정률(단가입찰 코호트)도 손실 없이 들어온다.
+ */
+export function rateTextMilli(text: string): bigint {
+  const match = /^([0-9]+)\.([0-9]{3})$/.exec(text);
+  if (match === null) throw new RangeError(`Rate text must have exactly three fractional digits but was ${text}`);
+  return BigInt(match[1]!) * RATE_SCALE + BigInt(match[2]!);
+}
+
 export function ratioMillionthsText(millionths: bigint): string {
   return `${millionths / RATIO_SCALE}.${(millionths % RATIO_SCALE).toString().padStart(6, "0")}`;
 }
