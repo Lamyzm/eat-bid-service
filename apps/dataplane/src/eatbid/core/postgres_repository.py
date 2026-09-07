@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -18,15 +18,15 @@ from uuid import UUID
 import psycopg
 from psycopg.pq import TransactionStatus
 
-from eatbid.core.models import (
-    AuctionProjection,
-    ProjectionFingerprintItem,
-    ProjectResult,
-    canonical_projection_fingerprint,
-)
+from eatbid.core.models import AuctionProjection, ProjectResult
 from eatbid.core.postgres_projection_writer import CanonicalProjectionWriter
 from eatbid.core.projection_models import AppliedProjectionCounts
-from eatbid.core.projection_validation import validate_projection
+from eatbid.core.projection_stream import (
+    PROJECTION_BATCH_SIZE,
+    MemberEvidence,
+    batched_ids,
+    project_member_batches,
+)
 from eatbid.core.repository import (
     FrozenPublicationMember,
     ProjectionContractError,
@@ -60,20 +60,23 @@ class _PublicationState:
     ended_at: datetime | None
 
 
-@dataclass(frozen=True, slots=True)
-class _MemberEvidence:
-    member: FrozenPublicationMember
-    observed_at: datetime
-
-
 class PsycopgCanonicalProjectionRepository:
     def __init__(
         self,
         connection: psycopg.Connection[Any],
         failure_connection_factory: Callable[[], psycopg.Connection[Any]],
+        *,
+        batch_size: int = PROJECTION_BATCH_SIZE,
     ) -> None:
+        if (
+            isinstance(batch_size, bool)
+            or not isinstance(batch_size, int)
+            or batch_size < 1
+        ):
+            raise ValueError("projection batch size must be a positive integer")
         self._connection = connection
         self._failure_connection_factory = failure_connection_factory
+        self._batch_size = batch_size
 
     def project_publication(
         self,
@@ -199,30 +202,39 @@ class PsycopgCanonicalProjectionRepository:
                 "publication activation chronology is invalid"
             )
 
-        evidence = self._lock_members(
+        manifest_ids = self._lock_members(
             cursor,
             publication_id=publication_id,
             topology=topology,
-            run_parser_version=state.parser_version,
             expected_count=state.expected_count,
             normalized_count=state.normalized_count,
         )
-        projections = tuple(projection_factory(item.member) for item in evidence)
-        for item, projection in zip(evidence, projections, strict=True):
-            validate_projection(projection)
-            self._verify_factory_output(item.member, projection)
-        fingerprint = _fingerprint(projections)
         allow_insert = state.publication_status == "validated"
-
-        applied = AppliedProjectionCounts()
         writer = CanonicalProjectionWriter()
-        for item, projection in zip(evidence, projections, strict=True):
-            applied += writer.apply(
+
+        def apply(
+            projection: AuctionProjection, observed_at: datetime
+        ) -> AppliedProjectionCounts:
+            return writer.apply(
                 cursor,
                 projection=projection,
-                observed_at=item.observed_at,
+                observed_at=observed_at,
                 allow_insert=allow_insert,
             )
+
+        # 구성원 행은 위에서 전부 잠갔고 여기서는 batch마다 payload만 다시 읽는다. 발행 전체를 한 번에
+        # 올리면 16,000건 창에서 노드 메모리를 넘긴다(EAT-94). 한 transaction 안이므로 어느 batch에서
+        # 실패해도 공개되는 것은 없다.
+        streamed = project_member_batches(
+            self._member_batches(
+                cursor, manifest_ids, run_parser_version=state.parser_version
+            ),
+            projection_factory=projection_factory,
+            verify_output=self._verify_factory_output,
+            apply=apply,
+        )
+        fingerprint = streamed.canonical_fingerprint
+        applied = streamed.applied
 
         if state.publication_status == "published":
             if state.canonical_fingerprint != fingerprint:
@@ -265,7 +277,7 @@ class PsycopgCanonicalProjectionRepository:
 
         return ProjectResult(
             publication_id=publication_id,
-            members_projected=len(projections),
+            members_projected=streamed.members_projected,
             auction_attempts_inserted=applied.auction_attempts,
             auction_revisions_inserted=applied.auction_revisions,
             organizations_inserted=applied.organizations,
@@ -395,10 +407,15 @@ class PsycopgCanonicalProjectionRepository:
         *,
         publication_id: UUID,
         topology: LockedAuctionTopology,
-        run_parser_version: str,
         expected_count: int,
         normalized_count: int,
-    ) -> tuple[_MemberEvidence, ...]:
+    ) -> tuple[int, ...]:
+        """봉인된 manifest와 구성원 행을 전부 잠그고 id만 돌려준다.
+
+        잠금은 발행 전체를 한 번에 잡아야 한다 — batch마다 잠그면 뒤 batch를 잠그기 전에 다른 실행이
+        앞 batch의 관측을 바꿀 수 있다. 대신 payload는 여기서 읽지 않는다. id 16,000개는 작지만
+        payload 16,000개는 노드 메모리를 넘긴다(EAT-94).
+        """
         cursor.execute(
             """
             select normalized_record_id
@@ -423,9 +440,7 @@ class PsycopgCanonicalProjectionRepository:
 
         cursor.execute(
             """
-            select n.normalized_record_id, n.observation_id, o.source, o.endpoint,
-                   n.record_type, n.source_entity_id, n.normalized_payload,
-                   n.parser_version, o.content_sha256, o.fetched_at
+            select n.normalized_record_id
             from ingest.publication_record pr
             join ingest.normalized_record n using (normalized_record_id)
             join ingest.raw_observation o using (observation_id)
@@ -435,36 +450,70 @@ class PsycopgCanonicalProjectionRepository:
             """,
             (publication_id,),
         )
-        rows = cursor.fetchall()
-        if tuple(int(row[0]) for row in rows) != manifest_ids:
+        locked_ids = tuple(int(row[0]) for row in cursor.fetchall())
+        if locked_ids != manifest_ids:
             raise ProjectionContractError(
                 "publication member lineage differs from frozen manifest"
             )
-        result: list[_MemberEvidence] = []
-        for row in rows:
-            payload = row[6]
-            if not isinstance(payload, dict):
-                raise ProjectionContractError(
-                    "normalized payload must be a JSON object"
-                )
-            result.append(
-                _MemberEvidence(
-                    member=FrozenPublicationMember(
-                        normalized_record_id=int(row[0]),
-                        observation_id=int(row[1]),
-                        source_system=str(row[2]),
-                        endpoint=str(row[3]),
-                        run_parser_version=run_parser_version,
-                        record_type=str(row[4]),
-                        source_entity_id=str(row[5]),
-                        normalized_payload=payload,
-                        parser_version=str(row[7]),
-                        raw_content_sha256=str(row[8]),
-                    ),
-                    observed_at=row[9],
-                )
+        return manifest_ids
+
+    def _member_batches(
+        self,
+        cursor: psycopg.Cursor[Any],
+        manifest_ids: tuple[int, ...],
+        *,
+        run_parser_version: str,
+    ) -> Iterator[tuple[MemberEvidence, ...]]:
+        """잠근 구성원의 payload를 manifest 순서대로 batch씩 읽는다.
+
+        `for update`를 다시 붙이지 않는 이유는 이 transaction이 `_lock_members`에서 이미 그 행을 잠갔기
+        때문이다. batch가 요청한 id와 돌아온 id가 하나라도 다르면 잠근 뒤에 행이 사라진 것이므로 계약
+        위반으로 닫는다.
+        """
+        for batch_ids in batched_ids(manifest_ids, self._batch_size):
+            cursor.execute(
+                """
+                select n.normalized_record_id, n.observation_id, o.source, o.endpoint,
+                       n.record_type, n.source_entity_id, n.normalized_payload,
+                       n.parser_version, o.content_sha256, o.fetched_at
+                from ingest.normalized_record n
+                join ingest.raw_observation o using (observation_id)
+                where n.normalized_record_id = any(%s)
+                order by n.normalized_record_id
+                """,
+                (list(batch_ids),),
             )
-        return tuple(result)
+            rows = cursor.fetchall()
+            if tuple(int(row[0]) for row in rows) != batch_ids:
+                raise ProjectionContractError(
+                    "publication member lineage differs from frozen manifest"
+                )
+            batch: list[MemberEvidence] = []
+            for row in rows:
+                payload = row[6]
+                if not isinstance(payload, dict):
+                    raise ProjectionContractError(
+                        "normalized payload must be a JSON object"
+                    )
+                batch.append(
+                    MemberEvidence(
+                        member=FrozenPublicationMember(
+                            normalized_record_id=int(row[0]),
+                            observation_id=int(row[1]),
+                            source_system=str(row[2]),
+                            endpoint=str(row[3]),
+                            run_parser_version=run_parser_version,
+                            record_type=str(row[4]),
+                            source_entity_id=str(row[5]),
+                            normalized_payload=payload,
+                            parser_version=str(row[7]),
+                            raw_content_sha256=str(row[8]),
+                        ),
+                        observed_at=row[9],
+                    )
+                )
+            del rows
+            yield tuple(batch)
 
     @staticmethod
     def _verify_factory_output(
@@ -576,16 +625,3 @@ class PsycopgCanonicalProjectionRepository:
         )
         if cursor.rowcount != 1:
             raise ProjectionContractError("projection failure transition failed")
-
-
-def _fingerprint(projections: tuple[AuctionProjection, ...]) -> str:
-    return canonical_projection_fingerprint(
-        ProjectionFingerprintItem(
-            source_system=projection.source_system,
-            external_bid_id=projection.external_bid_id,
-            raw_content_sha256=projection.raw_content_sha256,
-            parser_version=projection.parser_version,
-            normalized_payload_sha256=projection.normalized_payload_sha256,
-        )
-        for projection in projections
-    )

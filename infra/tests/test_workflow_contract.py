@@ -950,6 +950,36 @@ def test_발행과_mart_활성화_단계만_web_캐시_무효화_설정을_받�
         assert "EATBID_WEB_INTERNAL_URL" not in declared, name
 
 
+def _memory_gib(quantity: object) -> float:
+    """Kubernetes 메모리 quantity를 GiB로 읽는다. 여기서 쓰는 단위는 Gi·Mi뿐이다."""
+    text = str(quantity)
+    if text.endswith("Gi"):
+        return float(text[:-2])
+    if text.endswith("Mi"):
+        return float(text[:-2]) / 1024
+    raise AssertionError(f"memory quantity must be Gi or Mi: {text}")
+
+
+def test_project와_marts_container는_노드_아래의_메모리_requests와_limits를_명시한다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 2026-09-07 16,410건 창의 project pod가 한도 없이 노드(allocatable 약 12 GiB)를 통째로 잡아먹고
+    SystemOOM으로 죽었다(EAT-94). namespace LimitRange도 없으므로 한도는 이 template이 가져야 하며,
+    발행 뒤 mart 빌드도 같은 노드에서 돌아 같은 이유로 한도를 둔다."""
+    node_allocatable_gib = 12
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+
+    for name in ("project", "marts"):
+        container = _mapping(templates[name]["container"])
+        resources = _mapping(container["resources"])
+        request_gib = _memory_gib(_mapping(resources["requests"])["memory"])
+        limit_gib = _memory_gib(_mapping(resources["limits"])["memory"])
+        assert 0 < request_gib <= limit_gib, name
+        # 한도가 노드의 4분의 1을 넘으면 발행·mart·web·server가 한 노드에 함께 들어가지 못한다.
+        assert limit_gib <= node_allocatable_gib / 4, name
+
+
 def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
     manifests: ManifestSet,
 ) -> None:

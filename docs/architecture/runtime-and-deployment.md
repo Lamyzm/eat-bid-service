@@ -170,6 +170,12 @@ status가 수백 KB 늘어난다.
   backfill 기본값보다 높은 priority를 갖고, 스케줄 실행의 최대 대기는 진행 중인 backfill chunk 하나의
   길이다. WorkflowTemplate 자체에는 priority를 두지 않는다 — 거기 두면 backfill도 같은 값을 받는다
   (2026-09-07 08:00 poll-open discover가 backfill 창 뒤에서 95분 기다린 실측, EAT-93).
+- `project`의 상주 메모리는 발행 크기가 아니라 batch 크기(500건, `core/projection_stream.py`가 소유)에
+  비례한다. 잠금은 manifest·구성원 행 전체를 한 transaction에서 먼저 잡고 payload만 batch로 읽어
+  투영·검증·기록하며, 발행(activate)은 여전히 마지막에 한 번이라 어느 batch에서 실패해도 공개되는 것은
+  없다. `project`·`marts` container는 `resources.requests/limits.memory`(1Gi/2Gi)를 명시해 pod 하나가
+  노드(allocatable 약 12 GiB)를 독점하지 못하게 한다(2026-09-07 16,410건 창 project pod SystemOOM 실측,
+  EAT-94). 한도 존재는 `infra/tests/test_workflow_contract.py`가 검사한다.
 - `withParam` fan-out 폭은 workflow 전체 `parallelism`으로 클러스터 용량 아래에 묶는다. 발견 건수만큼
   pod를 한꺼번에 띄우면 단일 노드의 pod 상한과 DB 연결을 소진한다(2026-09-05 첫 backfill에서 실측,
   [수집 cutover와 첫 backfill](../evidence/collection/2026-09-06-collection-cutover-first-backfill.md)).
