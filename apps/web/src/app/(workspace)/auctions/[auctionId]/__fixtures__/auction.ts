@@ -35,7 +35,9 @@ export const auctionFixture = {
     sido: { codeValueId: '41', code: '48', scheme: 'eat:auction-location-sido', label: '경상남도' },
     sigungu: { codeValueId: '43', code: '48120', scheme: 'eat:auction-location-sigungu', label: '창원시' }
   },
-  classification: { itemLabel: '축산' }
+  classification: { itemLabel: '축산' },
+  // 목록 스냅샷에 잡힌 적 없는 공고다. 참여 수는 미확인이어야 한다.
+  participation: null
 } satisfies AuctionV1Response;
 
 /** 마감·개찰이 관측된 진행 중 공고. 2026-09-03T01:30Z(10:30 KST)에 보면 마감 24시간 30분 전이다. */
@@ -43,7 +45,12 @@ export const openAuctionFixture = {
   ...auctionFixture,
   identity: { ...auctionFixture.identity, auctionId: '5796468', revisionId: '5796469', title: '창원 남산초등학교 축산물 구매' },
   schedule: { announcedAt: '2026-09-01T00:00:00Z', deadlineAt: '2026-09-04T02:00:00Z', openedAt: '2026-09-04T05:00:00Z' },
-  pricing: { baseAmount: { amount: '2761700.00', currency: 'KRW' }, plannedAmount: null }
+  pricing: { baseAmount: { amount: '2761700.00', currency: 'KRW' }, plannedAmount: null },
+  // 목록 관측 BID_CNT다. fixtureNow 직전 관측 4곳, 하루 전 관측 2곳 → "어제보다 +2".
+  participation: {
+    latest: { bidCount: 4, observedAt: '2026-09-03T01:00:00Z' },
+    dayEarlier: { bidCount: 2, observedAt: '2026-09-02T00:30:00Z' }
+  }
 } satisfies AuctionV1Response;
 
 /** 개찰이 끝난 공고. now가 openedAt 뒤다. */

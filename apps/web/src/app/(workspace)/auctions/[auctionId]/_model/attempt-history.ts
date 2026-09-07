@@ -10,6 +10,8 @@ import { toMilli, toMilliCeiling } from './bid-rate';
 
 export type HistoryRow = {
   readonly attemptId: string;
+  /** wire instant 그대로다. 헤더의 발주 주기·배너의 지난 공고는 이 값으로 간격을 재며 표시 문자열을 되파싱하지 않는다(AGENTS 15). */
+  readonly announcedAt: string;
   readonly openedText: string;
   readonly openedYear: string;
   /** 흐름 차트 x축 달 라벨용 KST `YY-MM`. 같은 달인지 비교하는 열쇠이기도 하므로 표시 문자열에서 되파싱하지 않는다. */
@@ -91,6 +93,7 @@ function openedKstDay(attempt: OrganizationAuctionAttempt): number {
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
   return {
     attemptId: attempt.attemptId,
+    announcedAt: attempt.announcedAt,
     openedText: openedText(attempt),
     openedYear: openedYear(attempt),
     openedMonthText: openedMonthText(attempt),

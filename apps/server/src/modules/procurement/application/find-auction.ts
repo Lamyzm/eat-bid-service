@@ -8,7 +8,12 @@ import {
 import type { Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import { z } from "zod";
-import type { AuctionReader, AuctionRecord, CodeReferenceRecord } from "./auction-reader";
+import type {
+  AuctionReader,
+  AuctionRecord,
+  CodeReferenceRecord,
+  ParticipationObservationRecord,
+} from "./auction-reader";
 import type { AuctionId } from "../domain/auction-id";
 import { auctionIdToString } from "../domain/auction-id";
 
@@ -41,6 +46,12 @@ function instantText(value: Temporal.Instant | null): string | null {
 function codeReference(value: CodeReferenceRecord | null): CodeReference | null {
   // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
   return value === null ? null : { ...value, codeValueId: value.codeValueId.toString(10) };
+}
+
+function participationObservation(
+  value: ParticipationObservationRecord,
+): NonNullable<AuctionV1Response["participation"]>["latest"] {
+  return { bidCount: value.bidCount, observedAt: z.encode(instantCodec, value.observedAt) };
 }
 
 export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
@@ -87,6 +98,12 @@ export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
       sigungu: codeReference(record.location.sigungu),
     },
     classification: record.classification,
+    participation: record.participation === null ? null : {
+      latest: participationObservation(record.participation.latest),
+      dayEarlier: record.participation.dayEarlier === null
+        ? null
+        : participationObservation(record.participation.dayEarlier),
+    },
   };
 }
 

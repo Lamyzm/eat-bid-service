@@ -23,6 +23,10 @@ const auction = {
     sigungu: null,
   },
   classification: { itemLabel: "축산" },
+  participation: {
+    latest: { bidCount: 4, observedAt: Temporal.Instant.from("2026-09-03T01:30:00Z") },
+    dayEarlier: { bidCount: 2, observedAt: Temporal.Instant.from("2026-09-02T01:00:00Z") },
+  },
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",
@@ -72,6 +76,11 @@ describe("FindAuction 조회 use case", () => {
         sigungu: null,
       },
       classification: { itemLabel: "축산" },
+      // 참여 수는 관측 시각과 짝지어 나간다. 시각 없는 참여 수는 추정으로 읽힌다.
+      participation: {
+        latest: { bidCount: 4, observedAt: "2026-09-03T01:30:00Z" },
+        dayEarlier: { bidCount: 2, observedAt: "2026-09-02T01:00:00Z" },
+      },
     });
   });
 

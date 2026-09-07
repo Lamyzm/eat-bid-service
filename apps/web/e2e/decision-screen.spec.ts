@@ -153,6 +153,42 @@ test.describe('결정 화면 호가창 fixture', () => {
   });
 });
 
+test.describe('결정 화면 헤더·배너 사실', () => {
+  // 헤더 네 조각과 배너 참여 수는 계약(findAuction·회차 이력)에서만 온다. fixture 서버가 준 값이 그대로 보이고
+  // 관측 없는 값은 미확인이라고 말하는지 실제 브라우저에서 본다(EAT-90).
+  test('진행 중 공고는 소재지·누적 회차·발주 주기와 참여 업체 수·어제 대비를, 정정·납품은 미확인으로 보인다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}`);
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+
+    const header = page.locator('[data-slot="decision-screen"] > header');
+    await expect(header.getByText('소재지 경상남도 창원시')).toBeVisible();
+    await expect(header.getByText(/^\d+회$/)).toBeVisible();
+    await expect(header.getByText(/^보통 \d+일마다 공고/)).toBeVisible();
+    await expect(header.getByText(/^간격 \d+회 기준$/)).toBeVisible();
+
+    const banner = page.locator('section[aria-label="공고 상태"]');
+    await expect(banner.getByText('4곳')).toBeVisible();
+    await expect(banner.getByText('어제보다 +2')).toBeVisible();
+    await expect(banner.getByText('정정 미확인')).toBeVisible();
+    await expect(banner.getByText('납품', { exact: true })).toBeVisible();
+    await expect(banner.getByText(/^지난 공고 \d{2}-\d{2} · \d+일 만$/)).toBeVisible();
+  });
+
+  test('개찰 완료 공고는 하루 전 관측이 없어 증감 대신 관측 시각을 보인다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto(`/auctions/${CLOSED_AUCTION_ID}`);
+    await page.getByText('개찰이 끝났습니다').waitFor();
+
+    const banner = page.locator('section[aria-label="공고 상태"]');
+    await expect(banner.getByText('13곳')).toBeVisible();
+    await expect(banner.getByText(/^\d{2}-\d{2} \d{2}:\d{2} 관측$/)).toBeVisible();
+    await expect(banner.getByText('어제보다')).toHaveCount(0);
+  });
+});
+
 test.describe('결정 화면 근거 영역 fixture', () => {
   test('흐름 차트와 과거 회차 12행이 실데이터 모양 fixture로 그려진다', async ({ page }) => {
     test.setTimeout(90_000);

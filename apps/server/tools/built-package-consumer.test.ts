@@ -29,6 +29,10 @@ test("빌드된 CommonJS server가 domain·contracts·db package를 실제 Node�
       },
       location: { sido: null, sigungu: null },
       classification: { itemLabel: "축산" },
+      participation: {
+        latest: { bidCount: 4, observedAt: domain.Temporal.Instant.from("2026-09-03T01:30:00Z") },
+        dayEarlier: null,
+      },
       provenance: {
         sourceSystem: "eat",
         externalBidId: "external-opaque-id",

@@ -34,6 +34,7 @@ describe("공개 공고 V1 응답 계약", () => {
       terms: null,
       location: null,
       classification: null,
+      participation: null,
     };
 
     expect(contract!.auctionV1ResponseSchema.parse(response)).toEqual(response);
@@ -65,6 +66,7 @@ describe("공개 공고 V1 응답 계약", () => {
         normalizedRecordId: "9007199254740999",
         contentSha256: "a".repeat(64),
       },
+      participation: null,
     };
 
     const observed = {
@@ -99,6 +101,46 @@ describe("공개 공고 V1 응답 계약", () => {
       ...observed,
       location: { sido: observed.location.sido },
     }).success).toBe(false);
+  });
+
+  test("참여 수는 관측 시각과 짝지어 싣고 하루 전 관측이 없으면 null이며 시각 없는 참여 수는 거부한다", async () => {
+    const { auctionV1ResponseSchema } = await import("./get-auction.response");
+    const base = {
+      identity: {
+        auctionId: "5796468",
+        revisionId: "5796469",
+        externalBidId: "opaque",
+        displayBidNumber: null,
+        title: "급식 식재료",
+        status: "OPEN",
+      },
+      organization: null,
+      schedule: { announcedAt: "2026-09-01T00:00:00Z", deadlineAt: null, openedAt: null },
+      pricing: { baseAmount: { amount: "2761700.00", currency: "KRW" }, plannedAmount: null },
+      provenance: {
+        sourceSystem: "eat",
+        observationId: "9007199254740997",
+        normalizedRecordId: "9007199254740999",
+        contentSha256: "a".repeat(64),
+      },
+      terms: null,
+      location: null,
+      classification: null,
+    };
+    const observed = {
+      ...base,
+      participation: {
+        latest: { bidCount: 4, observedAt: "2026-09-03T01:30:00Z" },
+        dayEarlier: { bidCount: 2, observedAt: "2026-09-02T01:00:00Z" },
+      },
+    };
+    expect(auctionV1ResponseSchema.parse(observed)).toEqual(observed);
+    const latestOnly = { ...base, participation: { latest: { bidCount: 0, observedAt: "2026-09-03T01:30:00Z" }, dayEarlier: null } };
+    expect(auctionV1ResponseSchema.parse(latestOnly)).toEqual(latestOnly);
+    // 관측 시각 없는 참여 수는 사실이 아니라 추정으로 읽히므로 계약이 받지 않는다.
+    expect(auctionV1ResponseSchema.safeParse({ ...base, participation: { latest: { bidCount: 4 }, dayEarlier: null } }).success).toBe(false);
+    expect(auctionV1ResponseSchema.safeParse({ ...base, participation: { latest: { bidCount: -1, observedAt: "2026-09-03T01:30:00Z" }, dayEarlier: null } }).success).toBe(false);
+    expect(auctionV1ResponseSchema.safeParse({ ...base }).success).toBe(false);
   });
 
   test("UTC instant와 rate 및 좌표의 canonical 경계를 엄격히 지킨다", async () => {

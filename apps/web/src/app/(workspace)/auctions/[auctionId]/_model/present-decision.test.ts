@@ -36,4 +36,18 @@ describe('결정 화면 표시 모델', () => {
     );
     expect(decision.baseAmount.text).toBe('1,234,567,890.50');
   });
+
+  test('소재지는 관측된 시도·시군구 라벨을 잇고 라벨이 없는 축은 코드로 대신하지 않는다', () => {
+    expect(presentDecision(openAuctionFixture, fixtureNow).locationText).toBe('경상남도 창원시');
+    const sidoOnly = { ...openAuctionFixture, location: { sido: openAuctionFixture.location.sido, sigungu: { ...openAuctionFixture.location.sigungu, label: null } } };
+    expect(presentDecision(sidoOnly, fixtureNow).locationText).toBe('경상남도');
+    expect(presentDecision({ ...openAuctionFixture, location: null }, fixtureNow).locationText).toBe('미확인');
+  });
+  test('참여 수는 관측 시각과 어제 대비 증감을 함께 내고 증감 0도 그대로 말한다', () => {
+    const decision = presentDecision(openAuctionFixture, fixtureNow);
+    expect(decision.participation).toEqual({ countText: '4곳', deltaText: '어제보다 +2', observedAtText: '09-03 10:00' });
+    const flat = { ...openAuctionFixture, participation: { latest: { bidCount: 2, observedAt: '2026-09-03T01:00:00Z' }, dayEarlier: { bidCount: 2, observedAt: '2026-09-02T00:30:00Z' } } };
+    expect(presentDecision(flat, fixtureNow).participation.deltaText).toBe('어제보다 +0');
+    expect(presentDecision(auctionFixture, fixtureNow).participation).toEqual({ countText: '미확인', deltaText: null, observedAtText: null });
+  });
 });

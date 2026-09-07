@@ -79,7 +79,8 @@ function auctionResponse(auctionId: string) {
     },
     terms: COHORT_TERMS,
     location: COHORT_LOCATION,
-    classification: COHORT_CLASSIFICATION
+    classification: COHORT_CLASSIFICATION,
+    participation: null
   });
 }
 
@@ -115,7 +116,12 @@ function openAuctionResponse(auctionId: string) {
     },
     terms: COHORT_TERMS,
     location: COHORT_LOCATION,
-    classification: COHORT_CLASSIFICATION
+    classification: COHORT_CLASSIFICATION,
+    // 목록 관측 BID_CNT다. 요청 30분 전 4곳, 하루 전 2곳이라 배너가 "어제보다 +2"를 그린다.
+    participation: {
+      latest: { bidCount: 4, observedAt: instantSecondsIso(now - 30 * 60 * 1000) },
+      dayEarlier: { bidCount: 2, observedAt: instantSecondsIso(now - 25 * 60 * 60 * 1000) }
+    }
   });
 }
 
@@ -167,7 +173,12 @@ function closedAuctionResponse(auctionId: string) {
     },
     terms: COHORT_TERMS,
     location: COHORT_LOCATION,
-    classification: COHORT_CLASSIFICATION
+    classification: COHORT_CLASSIFICATION,
+    // 마감 직전 관측 하나만 남은 개찰 완료 공고다. 하루 전 관측이 없으면 증감을 그리지 않는다.
+    participation: {
+      latest: { bidCount: 13, observedAt: instantSecondsIso(now + CLOSED_DEADLINE_OFFSET_MILLISECONDS - 10 * 60 * 1000) },
+      dayEarlier: null
+    }
   });
 }
 

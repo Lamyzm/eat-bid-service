@@ -13,6 +13,7 @@ function makeRow(
     attemptId: '1',
     openedMonthText: '26-01',
     openedKstDay: 20_454,
+    announcedAt: '2025-12-29T00:00:00Z',
     itemLabel: '축산',
     itemCodeValueId: '7',
     winRateText: null,
