@@ -1018,3 +1018,44 @@ test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상�
     ["apps/web/src/lib/utils.ts"],
   );
 });
+
+test("서버 모듈이 use client 모듈의 상수·함수·hook을 import하면 거부하고 이름을 안내한다", async () => {
+  const report = await inspect({
+    "apps/web/src/capabilities/decision/history-table.tsx": "'use client';\nexport const SHOWN_ROWS = 5;\nexport function useRows() { return SHOWN_ROWS; }\nexport function HistoryTable() { return null; }\n",
+    "apps/web/src/capabilities/decision/decision-screen.tsx": "import { HistoryTable, SHOWN_ROWS, useRows } from './history-table';\nvoid HistoryTable; void SHOWN_ROWS; void useRows;\n",
+    "apps/web/src/capabilities/decision/namespace-consumer.tsx": "import * as History from './history-table';\nvoid History;\n",
+  });
+
+  const findings = report.unmatchedFindings.filter((finding) => finding.rule === "client-value-export-import");
+  assert.deepEqual(findings.map((finding) => finding.path).sort(), [
+    "apps/web/src/capabilities/decision/decision-screen.tsx",
+    "apps/web/src/capabilities/decision/namespace-consumer.tsx",
+  ]);
+  assert.match(findings[0].reason, /SHOWN_ROWS, useRows/);
+  assert.match(findings[0].reason, /_model/);
+  assert.doesNotMatch(findings[0].reason, /HistoryTable/);
+});
+
+test("서버 모듈의 컴포넌트·타입 import와 client 모듈 사이의 값 import는 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/capabilities/decision/history-table.tsx": "'use client';\nimport { SelectPrimitive, memo } from './vendor';\nexport const SHOWN_ROWS = 5;\nexport interface Row { id: number }\nexport type RowCount = number;\nexport function HistoryTable() { return null; }\nexport const MemoTable = memo(HistoryTable);\nexport const Select = SelectPrimitive.Root;\nexport default function DefaultTable() { return null; }\n",
+    "apps/web/src/capabilities/decision/vendor.ts": "export const SelectPrimitive = { Root: () => null };\nexport const memo = (component) => component;\n",
+    "apps/web/src/capabilities/decision/decision-screen.tsx": "import DefaultTable, { HistoryTable, MemoTable, Select, type RowCount } from './history-table';\nimport type { Row } from './history-table';\nvoid DefaultTable; void HistoryTable; void MemoTable; void Select;\nexport const count: RowCount = 1; export const row: Row = { id: 1 };\n",
+    "apps/web/src/capabilities/decision/history-toolbar.tsx": "'use client';\nimport { SHOWN_ROWS } from './history-table';\nvoid SHOWN_ROWS;\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings, []);
+});
+
+test("barrel 재수출 자체는 허용하고 barrel을 거쳐 값을 쓰는 서버 모듈만 거부한다", async () => {
+  const report = await inspect({
+    "apps/web/src/shell/theme/active-theme.tsx": "'use client';\nexport function useThemeConfig() { return {}; }\nexport function ThemeProvider() { return null; }\n",
+    "apps/web/src/shell/index.ts": "export { useThemeConfig, ThemeProvider } from './theme/active-theme';\n",
+    "apps/web/src/app/layout.tsx": "import { ThemeProvider } from '@/shell';\nvoid ThemeProvider;\n",
+    "apps/web/src/app/page.tsx": "import { useThemeConfig } from '@/shell';\nvoid useThemeConfig;\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+    ["client-value-export-import", "apps/web/src/app/page.tsx"],
+  ]);
+});

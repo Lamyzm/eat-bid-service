@@ -1,3 +1,4 @@
+/** @module 책임: 이 체크아웃의 TypeScript·Python 테스트 제목이 한국어 행위 명세인지 AST로 검사하고 위반을 CLI 실패로 보고한다. */
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { readdirSync, readFileSync } from "node:fs";
@@ -11,7 +12,9 @@ const root = process.env.TEST_NAMES_ROOT
 const requireFromServer = createRequire(path.join(repositoryRoot, "apps", "server", "package.json"));
 const ts = requireFromServer("typescript");
 const pythonChecker = path.join(repositoryRoot, "tools", "quality", "check-python-test-names.py");
+// `.claude/worktrees/**`는 병렬 에이전트의 worktree라 스캔 도중 파일이 사라진다. 검사 대상은 이 체크아웃뿐이다.
 const excludedDirectories = new Set([
+  ".claude",
   ".git",
   ".next",
   ".turbo",
@@ -34,8 +37,17 @@ const englishBehaviorWords = new Set([
 const koreanBehaviorPredicate = /다[.!]?$/;
 const javascriptExtensions = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]);
 
+function readEntries(directory) {
+  try {
+    return readdirSync(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
 function walk(directory, predicate, collected = []) {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+  for (const entry of readEntries(directory)) {
     if (entry.isDirectory() && excludedDirectories.has(entry.name)) continue;
     const target = path.join(directory, entry.name);
     if (entry.isDirectory()) walk(target, predicate, collected);
@@ -444,7 +456,11 @@ compilerHost.getSourceFile = (file, languageVersion) => {
 };
 const program = ts.createProgram(typescriptFiles, compilerOptions, compilerHost);
 const checker = program.getTypeChecker();
-const typescriptResults = typescriptFiles.map((file) => inspectTypeScript(program.getSourceFile(file), checker));
+// 목록을 만든 뒤 사라진 파일은 program에 없다. 없는 파일을 검사하려 들지 않고 건너뛴다.
+const typescriptResults = typescriptFiles
+  .map((file) => program.getSourceFile(file))
+  .filter((sourceFile) => sourceFile !== undefined)
+  .map((sourceFile) => inspectTypeScript(sourceFile, checker));
 const pythonResult = runPythonChecker();
 const violations = [
   ...typescriptResults.flatMap((result) => result.violations),

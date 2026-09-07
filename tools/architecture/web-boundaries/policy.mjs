@@ -7,6 +7,7 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   API_RESOURCE_CROSS_IMPORT: "api-resource-cross-import",
   CAPABILITY_INTERNAL_IMPORT: "capability-internal-import",
   CLIENT_DOMAIN_CALCULATION: "client-domain-calculation",
+  CLIENT_VALUE_EXPORT_IMPORT: "client-value-export-import",
   LEGACY_HOOKS_DIRECTORY: "legacy-hooks-directory",
   LEGACY_IDENTITY_ROUTE: "legacy-identity-route",
   LEGACY_LIB_DIRECTORY: "legacy-lib-directory",
