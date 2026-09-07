@@ -34,6 +34,7 @@ const MISSING_AUCTION_ID = '9007199254740996';
 const REDUCED_MOTION_AUCTION_ID = '9007199254741000';
 const OPEN_AUCTION_ID = '5796468';
 const CLOSED_AUCTION_ID = '5780681';
+const LONG_HEADER_AUCTION_ID = '5796470';
 const SUCCESS_RESPONSE_DELAY_MILLISECONDS = 350;
 const REDUCED_MOTION_RESPONSE_DELAY_MILLISECONDS = 5_000;
 const OPEN_DEADLINE_OFFSET_MILLISECONDS = 24 * 60 * 60 * 1_000;
@@ -114,6 +115,23 @@ function openAuctionResponse(auctionId: string) {
     terms: COHORT_TERMS,
     location: COHORT_LOCATION,
     classification: COHORT_CLASSIFICATION
+  });
+}
+
+// 운영에서 관측된 긴 헤더 재료다(EAT-82). 기관명이 길고 품목 라벨이 쉼표로 이어진 여러 품목이면 헤더 칩 줄이
+// 768폭 근거 열을 넘겨 문서를 가로로 밀었다. 남산초 코호트는 그대로 두어 과거 회차·비교집단 fixture가 같은
+// 조회로 채워지게 하고 헤더 재료만 바꾼다.
+function longHeaderAuctionResponse(auctionId: string) {
+  const open = openAuctionResponse(auctionId);
+  return auctionV1ResponseSchema.parse({
+    ...open,
+    identity: {
+      ...open.identity,
+      externalBidId: 'fixture-long-header-opaque-id',
+      displayBidNumber: 'E260818-651960-0',
+      title: '금정구종합사회복지관식자재납품업체 선정입찰공고'
+    },
+    classification: { itemLabel: '농산물 , 수산물 , 육류 , 가공식품 , 김치류 , 곡류 , 가금류' }
   });
 }
 
@@ -205,6 +223,7 @@ Bun.serve({
     }
     if (pathname === auctionPath(OPEN_AUCTION_ID)) return Response.json(openAuctionResponse(OPEN_AUCTION_ID));
     if (pathname === auctionPath(CLOSED_AUCTION_ID)) return Response.json(closedAuctionResponse(CLOSED_AUCTION_ID));
+    if (pathname === auctionPath(LONG_HEADER_AUCTION_ID)) return Response.json(longHeaderAuctionResponse(LONG_HEADER_AUCTION_ID));
     if (pathname === auctionPath(FAILURE_AUCTION_ID)) return problemResponse(503);
     if (pathname === auctionPath(MISSING_AUCTION_ID)) return problemResponse(404);
 
