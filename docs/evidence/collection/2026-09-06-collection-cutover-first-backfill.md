@@ -144,6 +144,10 @@ daily-reconcile Succeeded" 수용 기준을 채운다. poll-open은 평일 스�
   95분을 기다렸고, `concurrencyPolicy: Forbid`라 08:30·09:00 회차는 만들어지지 않았다. "평일 30분
   poll-open Succeeded" 수용 기준은 채웠지만 backfill이 도는 동안 poll-open이 굶는 문제는 EAT-93으로
   넘긴다(semaphore 큐에서 poll-open 우선).
+- EAT-93 반영 뒤 실측(main 5f5c7f1, 2026-09-07 11:00 KST `eatbid-poll-open-1788746400`): backfill 창
+  2026-05-24~31(7,070건)의 capture chunk가 semaphore를 쥔 채 돌던 중에도 discover가 57초 만에
+  끝났다(반영 전 08:00 회차는 95분). 스케줄 실행의 최대 대기는 진행 중인 chunk 하나 길이라는 판정이
+  운영에서 확인됐다.
 - EAT-59: 실패 pod가 예외 종류와 메시지를 JSON으로 남기게 한다.
 - EAT-49: dataplane 역할 grant를 수동 SQL이 아니라 provisioning 스크립트로 옮긴다.
 - EAT-69: 2절의 `parser-version`은 이 실행 시점의 값이다. 그 뒤 WorkflowTemplate 기본값을 `eat-v2`로
