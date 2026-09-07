@@ -12,6 +12,7 @@ function makeRow(
   return {
     attemptId: '1',
     openedMonthText: '26-01',
+    openedKstDay: 20_454,
     itemLabel: '축산',
     itemCodeValueId: '7',
     winRateText: null,
@@ -134,12 +135,56 @@ describe('이 값이면 재현 계산', () => {
     expect(rehearsal.byYear).toEqual([{ year: '2026', won: 1, total: 1 }]);
   });
 
+  test('fixture에서 92.700을 냈다면 낙찰값 이하 9회 중 6회가 낙찰값 바로 위 0.1 안이다', () => {
+    const rows = presentHistory(attemptsFixture, null).rows;
+    const rehearsal = rehearse(rows, '92.700');
+    // 투찰률 축 낙찰률 92.7183~92.7617 여섯 회차가 (92.700, 92.800] 안이고 92.8078·92.8985·92.9953은 밖이다.
+    expect(rehearsal.won).toBe(9);
+    expect(rehearsal.nearAbove).toBe(6);
+  });
+
+  test('낙찰값 바로 위 0.1 안은 투찰률 축 낙찰률로만 재고 사정률로 재지 않는다', () => {
+    // 사정률(winRate)로 재면 0.05%p 차이라 안에 들지만, 투찰률 축에서는 0.5%p 위라 밖이다.
+    const rows = [
+      makeRow({
+        openedText: '26-01-01',
+        openedYear: '2026',
+        winRateText: '90.250',
+        winRateMilli: toMilli('90.250'),
+        awardedBidRateText: '90.7000',
+        awardedBidRateMilli: toMilli('90.7000')
+      })
+    ];
+    const rehearsal = rehearse(rows, '90.200');
+    expect(rehearsal.won).toBe(1);
+    expect(rehearsal.nearAbove).toBe(0);
+  });
+
+  test('낙찰값과 정확히 0.1%p 차이는 안으로, 같은 값도 안으로, 0.101%p는 밖으로 센다', () => {
+    const rows = [
+      winRow('26-01-03', '2026', '90.300', null), // 0.100 위
+      winRow('26-01-02', '2026', '90.200', null), // 같은 값(추첨)
+      winRow('26-01-01', '2026', '90.301', null) // 0.101 위
+    ];
+    const rehearsal = rehearse(rows, '90.200');
+    expect(rehearsal.won).toBe(3);
+    expect(rehearsal.nearAbove).toBe(2);
+  });
+
+  test('그날 하한 아래 회차는 낙찰값이 가까워도 바로 위 0.1 안으로 세지 않는다', () => {
+    const rows = [winRow('26-01-01', '2026', '90.250', '90.240')];
+    const rehearsal = rehearse(rows, '90.200');
+    expect(rehearsal.belowDayFloor).toBe(1);
+    expect(rehearsal.nearAbove).toBe(0);
+  });
+
   test('행이 없으면 rateSpan과 usualListCount가 null이다', () => {
     const rehearsal = rehearse([], '90.200');
     expect(rehearsal.rateSpan).toBeNull();
     expect(rehearsal.usualListCount).toBeNull();
     expect(rehearsal.total).toBe(0);
     expect(rehearsal.won).toBe(0);
+    expect(rehearsal.nearAbove).toBe(0);
     expect(rehearsal.wonFlags).toEqual([]);
     expect(rehearsal.byYear).toEqual([]);
   });

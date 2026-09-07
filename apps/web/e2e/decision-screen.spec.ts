@@ -295,4 +295,41 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(page.locator('line[data-series="my-rate"]')).toHaveCount(0);
     await expect(page.locator('[data-slot="flow-my-rate-outside"]')).toContainText('내 값 90.812 ▲ 범위 밖');
   });
+
+  // 시안 `상세 1440 · 실데이터 창원 남산초`(펼침 상태)·spec C-15의 rail 하단 두 요소다(EAT-87).
+  test('레일에 낙찰값 바로 위 0.1 안에 행이 있고 이 학교와 내 기록 더 보기를 펼치면 기관 요약이 넘침 없이 보인다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+
+    const rail = page.locator('aside[aria-label="투찰"]');
+    // 손잡이가 비어 있으면 이 행도 세지 않는다(EAT-84). 기관 요약은 값과 무관하므로 접힌 채 이미 있다.
+    await expect(rail.getByText('낙찰값 바로 위 0.1 안에')).toHaveCount(0);
+    const toggle = rail.getByRole('button', { name: '이 학교와 내 기록 더 보기' });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(rail.getByText('누적 회차')).toBeHidden();
+
+    const input = page.getByRole('textbox', { name: '투찰률', exact: true });
+    await input.fill('90.000');
+    await input.blur();
+    await expect(rail.getByText('낙찰값 바로 위 0.1 안에')).toBeVisible();
+    await expect(rail.getByText('낙찰값 이하 중 0.1%p 안')).toBeVisible();
+
+    await toggle.click();
+    await expect(rail.getByRole('button', { name: '접기' })).toHaveAttribute('aria-expanded', 'true');
+    await expect(rail.getByText('누적 회차')).toBeVisible();
+    await expect(rail.getByText('최근 낙찰')).toBeVisible();
+    await expect(rail.getByText('발주 주기')).toBeVisible();
+    await expect(rail.getByText(/보통 \d+일/)).toBeVisible();
+    await expect(rail.getByText('사업자 인증 뒤에 붙습니다')).toBeVisible();
+    await expect(rail.getByText('기록 없음').first()).toBeVisible();
+    await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText('NaN');
+
+    // 펼친 rail의 부제·값은 nowrap이라 340px 안에서 밀리면 e2e 폭 검사가 잡아야 한다.
+    const report = await overflowReport(page);
+    expect(report.overflow).toBe(0);
+    expect(report.wrapped).toBe(0);
+    expectDocumentFits(report, 1440);
+  });
 });

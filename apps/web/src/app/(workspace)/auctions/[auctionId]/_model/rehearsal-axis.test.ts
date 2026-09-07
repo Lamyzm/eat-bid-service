@@ -35,6 +35,7 @@ function makeRow(overrides: Partial<HistoryRow>): HistoryRow {
     openedText: '26-01-01',
     openedYear: '2026',
     openedMonthText: '26-01',
+    openedKstDay: 20_454,
     itemLabel: '축산',
     itemCodeValueId: '7',
     winRateText: null,
