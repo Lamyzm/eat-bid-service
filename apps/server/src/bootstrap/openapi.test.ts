@@ -26,6 +26,7 @@ describe("canonical OpenAPI 산출물", () => {
     const document = JSON.parse(first) as any;
     expect(document.openapi).toBe("3.0.3");
     expect(Object.keys(document.paths).sort()).toEqual([
+      "/api/v1/auctions",
       "/api/v1/auctions/{auctionId}",
       // listCodes는 EAT-57이 계약을 소유하고 Nest handler는 아직 없다. registry가 OpenAPI의 단일
       // 출처이므로 계약이 열린 사실이 여기 그대로 드러나야 하고, 구현이 붙는 변경에서 handler와
@@ -46,6 +47,7 @@ describe("canonical OpenAPI 산출물", () => {
         "healthLive",
         "healthReady",
         "listCodes",
+        "listOpenAuctions",
         "listOrganizationAuctionAttempts",
       ]);
     for (const operation of operations) {
