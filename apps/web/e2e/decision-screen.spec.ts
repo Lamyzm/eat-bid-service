@@ -161,4 +161,19 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(headerLast).toHaveText('90.001 썼다면');
     expect(await rehearsalPanel.innerText()).not.toBe(before);
   });
+
+  test('흐름 차트는 레일의 투찰률을 사정률 눈금에 긋지 않고 사정률로 놓은 내 값만 긋는다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+
+    // 손잡이 90.000은 분모가 기초금액이라 사정률 눈금 위의 선이 될 수 없다(PDR-0004).
+    await expect(page.getByText('내 값 90.000')).toHaveCount(0);
+    await expect(page.getByText(/레일의 투찰률 90\.000은 분모가 기초금액이라 사정률 눈금에 놓지 않습니다/)).toBeVisible();
+
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}&myRate=90.030`);
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+    await expect(page.locator('figure svg').getByText('내 값 90.030')).toBeVisible();
+  });
 });

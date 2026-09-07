@@ -20,10 +20,10 @@ const outsideFixture = {
   )
 };
 
-function renderChart(value: ReturnType<typeof presentHistory>) {
+function renderChart(value: ReturnType<typeof presentHistory>, myRate: string | null = null) {
   return render(
     <BidRateProvider initialRate='90.000'>
-      <FlowChart presentation={value} />
+      <FlowChart presentation={value} myRate={myRate} />
     </BidRateProvider>
   );
 }
@@ -44,12 +44,25 @@ describe('흐름 차트 SVG', () => {
     expect(screen.getByText('▼ 89.712')).toBeTruthy();
   });
 
-  test('내 값 수평선과 표본·build·계산 버전·모집단 캡션을 함께 보인다', () => {
+  test('눈금 이름 사정률과 표본·build·계산 버전·모집단 캡션을 함께 보인다', () => {
     const screen = renderChart(presentation);
-    expect(screen.getByText('내 값 90.000')).toBeTruthy();
+    expect(screen.container.querySelector('svg')?.textContent).toContain('사정률');
     expect(screen.getByText(
       '표본 92회 · 최근 20회 표시 · build 501 · 계산 mart-r1 · 산출 09-04 09:10 · 모집단 모름'
     )).toBeTruthy();
+  });
+
+  test('사정률로 놓은 내 값이 있으면 그 값의 수평선을 긋는다', () => {
+    const screen = renderChart(presentation, '90.030');
+    expect(screen.getByText('내 값 90.030')).toBeTruthy();
+    expect(screen.container.querySelector('[data-slot="flow-my-rate-note"]')).toBeNull();
+  });
+
+  test('사정률 내 값이 없으면 레일의 투찰률을 사정률 눈금에 긋지 않고 그 이유를 각주로 남긴다', () => {
+    const screen = renderChart(presentation);
+    expect(screen.queryByText('내 값 90.000')).toBeNull();
+    expect(screen.container.querySelectorAll('line[data-series="my-rate"]').length).toBe(0);
+    expect(screen.getByText(/레일의 투찰률 90\.000은 분모가 기초금액이라 사정률 눈금에 놓지 않습니다/)).toBeTruthy();
   });
 
   test('낙찰률이 없어 그리지 못한 회차는 표시 회차 수에서 뺀다', () => {
