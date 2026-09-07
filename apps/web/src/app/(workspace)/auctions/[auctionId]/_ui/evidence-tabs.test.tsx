@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { render } from '@testing-library/react';
+import { render, within } from '@testing-library/react';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { floor90DistributionFixture } from '../__fixtures__/distribution';
@@ -10,13 +10,14 @@ import { presentDistribution } from '../_model/present-distribution';
 import { BidRateProvider } from './bid-rate-context';
 import { EvidenceTabs } from './evidence-tabs';
 
-const history = { state: 'ready', presentation: presentHistory(attemptsFixture, '7') } as const;
+const presentation = presentHistory(attemptsFixture, '7');
+const history = { state: 'ready', presentation, expanded: { presentation, loadFailed: false } } as const;
 const distribution: DecisionPageData['distribution'] = {
   state: 'ready',
   presentation: presentDistribution(floor90DistributionFixture, { myRate: null, isRegionScope: false }),
   response: floor90DistributionFixture
 };
-const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, rate: null, expand: false });
+const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, rate: null, expand: null, pages: 1 });
 
 function renderTabs(view: DecisionView) {
   return render(
@@ -29,7 +30,7 @@ function renderTabs(view: DecisionView) {
 describe('근거 탭', () => {
   test('탭 넷을 순서대로 그리고 현재 탭만 aria-current로 표시한다', () => {
     const screen = renderTabs('흐름');
-    const links = screen.getAllByRole('link');
+    const links = within(screen.getByRole('navigation', { name: '근거 보기' })).getAllByRole('link');
     expect(links.map((node) => node.textContent)).toEqual(['비교집단', '흐름', '그날 하한', '업체']);
     expect(links.filter((node) => node.getAttribute('aria-current') === 'page').map((node) => node.textContent)).toEqual(['흐름']);
   });
@@ -45,7 +46,7 @@ describe('근거 탭', () => {
   test('비교집단 안내문은 지금 모집단을 문장에 넣어 말한다', () => {
     const screen = render(
       <BidRateProvider initialRate='90.000'>
-        <EvidenceTabs auctionId='4821' search={{ period: '12개월', scope: '시군', view: '비교집단', item: null, myRate: null, rate: null, expand: false }} history={history} distribution={distribution} />
+        <EvidenceTabs auctionId='4821' search={{ period: '12개월', scope: '시군', view: '비교집단', item: null, myRate: null, rate: null, expand: null, pages: 1 }} history={history} distribution={distribution} />
       </BidRateProvider>
     );
     expect(screen.getByText('시군에서 값마다 낙찰된 횟수입니다. 모집단은 위 필터에서 바꿉니다.')).toBeTruthy();
@@ -74,27 +75,35 @@ describe('근거 탭', () => {
     expect(screen.queryByText('낙찰률 분포 계약(EAT-38)이 붙으면 호가창이 보입니다.')).toBeNull();
   });
 
-  test('크게 보기 링크는 조건을 그대로 들고 expand만 켠다', () => {
+  test('크게 보기 링크는 조건을 그대로 들고 expand에 지금 탭 이름을 싣는다', () => {
     const screen = renderTabs('비교집단');
     const href = screen.getByRole('link', { name: '크게 보기' }).getAttribute('href') ?? '';
-    expect(href).toContain('expand=true');
+    expect(href).toContain(new URLSearchParams({ expand: '비교집단' }).toString());
     expect(href).toContain('view=%EB%B9%84%EA%B5%90%EC%A7%91%EB%8B%A8');
   });
 
-  test('크게 보기 상태에서는 사다리 대신 히트맵을 그린다', () => {
+  test('크게 보기 링크는 수집 전 탭을 포함해 네 탭 모두에 있다', () => {
+    for (const view of ['비교집단', '흐름', '그날 하한', '업체'] as const) {
+      const screen = renderTabs(view);
+      const href = screen.getByRole('link', { name: '크게 보기' }).getAttribute('href') ?? '';
+      expect(href).toContain(new URLSearchParams({ expand: view }).toString());
+      screen.unmount();
+    }
+  });
+
+  test('모달이 열린 주소에서도 탭 본문은 사다리 그대로이고 히트맵은 인라인으로 그리지 않는다', () => {
     const screen = render(
       <BidRateProvider initialRate='90.000'>
         <EvidenceTabs
           auctionId='4821'
-          search={{ ...searchOn('비교집단'), expand: true }}
+          search={{ ...searchOn('비교집단'), expand: '비교집단' }}
           history={history}
           distribution={distribution}
         />
       </BidRateProvider>
     );
-    expect(screen.getByText('달마다 값이 몰린 자리. 진할수록 낙찰 횟수가 많습니다.')).toBeTruthy();
-    expect(screen.queryByText('전국 · 값마다 낙찰된 횟수')).toBeNull();
-    expect(screen.getByRole('link', { name: '사다리로 보기' })).toBeTruthy();
+    expect(screen.queryByText('달마다 값이 몰린 자리. 진할수록 낙찰 횟수가 많습니다.')).toBeNull();
+    expect(screen.getByText('전국 · 값마다 낙찰된 횟수')).toBeTruthy();
   });
 
   test('분포 조회가 실패하면 빈 카드 대신 실패 사실을 말한다', () => {

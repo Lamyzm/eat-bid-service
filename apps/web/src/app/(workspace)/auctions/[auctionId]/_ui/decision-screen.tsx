@@ -1,5 +1,7 @@
 /** @module 책임: 결정 화면 v2 셸을 조립한다. 계약이 있는 영역만 채우고 없는 영역은 수집 전 카드로 둔다. */
-import type { DecisionSearch } from '../_lib/decision-search-params';
+import Link from 'next/link';
+
+import { buildDecisionExpandRoute, type DecisionSearch } from '../_lib/decision-search-params';
 import type { HistoryPresentation } from '../_model/attempt-history';
 import { historyWindow, historyWindowText } from '../_model/history-window';
 import type { DecisionPageData } from '../_model/load-auction-page';
@@ -10,6 +12,7 @@ import { DecisionBanner } from './decision-banner';
 import { DecisionFrame } from './decision-frame';
 import { DecisionHeader } from './decision-header';
 import { EvidenceTabs, HISTORY_PENDING_REASON } from './evidence-tabs';
+import { DecisionExpand } from './expand/decision-expand';
 import { HistoryTable } from './history-table';
 import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
@@ -17,10 +20,18 @@ import { RehearsalPanel } from './rehearsal-panel';
 type HistoryState = DecisionPageData['history'];
 type DistributionState = DecisionPageData['distribution'];
 
-function HistoryCard({ presentation }: { readonly presentation: HistoryPresentation }) {
+function HistoryCard({
+  presentation,
+  auctionId,
+  search
+}: {
+  readonly presentation: HistoryPresentation;
+  readonly auctionId: string;
+  readonly search: DecisionSearch;
+}) {
   return (
     <div className='overflow-hidden rounded-xl bg-card shadow-xs'>
-      <div className='flex items-baseline gap-2 px-4 pt-4'>
+      <div className='flex flex-wrap items-baseline gap-2 px-4 pt-4'>
         <span className='text-xl font-bold'>과거 회차</span>
         {/* 표본 수는 전체 회차지만 표가 그리는 행은 상한에 걸린다. 실제로 그린 행 수를 적어야
             "12회 표시"가 5행짜리 기관에서 거짓이 되지 않는다. 세는 일은 _model이 하고 여기서는 그
@@ -28,6 +39,14 @@ function HistoryCard({ presentation }: { readonly presentation: HistoryPresentat
         <span className='text-[13px] font-semibold text-muted-foreground'>
           {historyWindowText(historyWindow(presentation.sampleCount, presentation.rows.length))}
         </span>
+        {/* 12행 상한을 푼 12열 표는 모달(expand=과거 회차)이 그린다. 열림은 주소이므로 링크 하나면 된다. */}
+        <Link
+          href={buildDecisionExpandRoute(auctionId, search, '과거 회차')}
+          scroll={false}
+          className='ml-auto text-[13px] font-semibold whitespace-nowrap text-primary'
+        >
+          크게 보기
+        </Link>
       </div>
       {/* 디자인 원문은 "파란 열"이지만 이 저장소의 primary 토큰은 파랑이 아니다. 색 이름 대신 자리로
           가리켜 테마가 바뀌어도 문구가 거짓이 되지 않게 한다. */}
@@ -92,13 +111,15 @@ export function DecisionScreen({
         }
         history={
           history.state === 'ready' ? (
-            <HistoryCard presentation={history.presentation} />
+            <HistoryCard presentation={history.presentation} auctionId={decision.identity.auctionId} search={search} />
           ) : (
             <PendingCard title='과거 회차' reason={HISTORY_PENDING_REASON[history.state]} />
           )
         }
         rail={<BidRail decision={decision} rehearsal={history.state === 'ready' ? <RehearsalPanel rows={selectedRows} /> : null} />}
       />
+      {/* 크게 보기 모달은 URL expand가 열고 닫는다. 프레임 밖에 두어 section 순서 검사에 섞이지 않게 한다. */}
+      <DecisionExpand decision={decision} search={search} history={history} distribution={distribution} />
     </BidRateProvider>
   );
 }

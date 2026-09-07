@@ -14,7 +14,8 @@ const search: DecisionSearch = {
   item: null,
   myRate: null,
   rate: null,
-  expand: false
+  expand: null,
+  pages: 1
 };
 
 function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage>[2]> = {}) {
@@ -217,7 +218,7 @@ describe('공고 상세 route loader', () => {
     const requested: { granularity?: string }[] = [];
     await loadAuctionPage(
       Promise.resolve({ auctionId: canonicalAuctionId }),
-      { ...search, expand: true },
+      { ...search, expand: '비교집단' },
       createDependencies({
         findDistribution: async (input) => {
           requested.push(input);
@@ -226,6 +227,62 @@ describe('공고 상세 route loader', () => {
       })
     );
     expect(requested[0]?.granularity).toBe('month');
+  });
+
+  test('과거 회차 모달의 pages만큼 nextCursor를 따라 이어 붙이고 첫 페이지 presentation은 그대로 둔다', async () => {
+    const requested: { cursor?: string; limit?: number }[] = [];
+    const second = { ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, 3).map((attempt) => ({ ...attempt, attemptId: `9${attempt.attemptId}` })), nextCursor: null };
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      { ...search, expand: '과거 회차', pages: 3 },
+      createDependencies({
+        listAttempts: async ({ cursor, limit }) => {
+          requested.push({ cursor, limit });
+          return cursor === undefined ? { ...attemptsFixture, nextCursor: '77' } : second;
+        }
+      })
+    );
+    if (result?.history.state !== 'ready') throw new Error('회차 이력이 준비되지 않았다');
+    // 두 번째 페이지가 이력 끝이라 세 번째 요청은 나가지 않는다.
+    expect(requested).toEqual([{ cursor: undefined, limit: 60 }, { cursor: '77', limit: 60 }]);
+    expect(result.history.presentation.rows).toHaveLength(attemptsFixture.attempts.length);
+    expect(result.history.expanded.presentation.rows).toHaveLength(attemptsFixture.attempts.length + 3);
+    expect(result.history.expanded.presentation.nextCursor).toBeNull();
+    expect(result.history.expanded.loadFailed).toBe(false);
+  });
+
+  test('pages는 과거 회차 모달이 열렸을 때만 뜻이 있고 손으로 고친 값은 1 이상 상한 이하로만 믿는다', async () => {
+    for (const [expand, pages, expectedCalls] of [[null, 5, 1], ['과거 회차', 0, 1], ['과거 회차', 2.5, 1], ['과거 회차', 99, 10]] as const) {
+      let calls = 0;
+      await loadAuctionPage(
+        Promise.resolve({ auctionId: canonicalAuctionId }),
+        { ...search, expand, pages },
+        createDependencies({
+          listAttempts: async () => {
+            calls += 1;
+            return { ...attemptsFixture, nextCursor: String(calls) };
+          }
+        })
+      );
+      expect(calls).toBe(expectedCalls);
+    }
+  });
+
+  test('이어 부르던 페이지가 실패하면 그 앞까지만 싣고 실패 사실을 남긴다', async () => {
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      { ...search, expand: '과거 회차', pages: 2 },
+      createDependencies({
+        listAttempts: async ({ cursor }) => {
+          if (cursor !== undefined) throw new Error('cursor invalid');
+          return { ...attemptsFixture, nextCursor: '77' };
+        }
+      })
+    );
+    if (result?.history.state !== 'ready') throw new Error('회차 이력이 준비되지 않았다');
+    expect(result.history.expanded.loadFailed).toBe(true);
+    expect(result.history.expanded.presentation.rows).toHaveLength(attemptsFixture.attempts.length);
+    expect(result.history.expanded.presentation.nextCursor).toBe('77');
   });
 
   test('코호트 재료가 없으면 조회하지 않고 잠긴 이유를 담는다', async () => {

@@ -6,13 +6,17 @@ import type {
   OrganizationAuctionAttemptsV1Response
 } from '@eatbid/contracts/api/v1/organizations';
 
-import { toMilli, toMilliCeiling } from './bid-rate';
+import { formatWon, toMilli, toMilliCeiling } from './bid-rate';
 
 export type HistoryRow = {
   readonly attemptId: string;
   readonly openedText: string;
   readonly openedYear: string;
+  /** KST `YYYY-MM`. 크게 보기 부제의 기간 범위용이며 `openedText`를 되파싱하지 않는다(AGENTS 15). */
+  readonly openedMonth: string;
   readonly itemLabel: string;
+  readonly floorRateText: string | null;
+  readonly baseAmountText: string;
   readonly itemCodeValueId: string | null;
   readonly winRateText: string | null;
   readonly winRateMilli: bigint | null;
@@ -31,6 +35,8 @@ export type HistoryRow = {
 export type HistoryPresentation = {
   readonly organizationId: string;
   readonly rows: readonly HistoryRow[];
+  /** 계약의 keyset cursor 그대로. null이면 이력 끝이라 크게 보기가 더 부르지 않는다. */
+  readonly nextCursor: string | null;
   readonly sampleCount: number;
   readonly buildId: string | null;
   readonly sourceReleaseId: string | null;
@@ -68,12 +74,28 @@ function openedYear(attempt: OrganizationAuctionAttempt): string {
   return Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul').year.toString();
 }
 
+function openedMonth(attempt: OrganizationAuctionAttempt): string {
+  const zoned = Temporal.Instant.from(attempt.openedAt ?? attempt.announcedAt).toZonedDateTimeISO('Asia/Seoul');
+  return `${zoned.year}-${pad2(zoned.month)}`;
+}
+
+// 기초금액 wire는 소수 둘째 자리까지 실린다. 소수부가 0이면 볼 이유가 없는 정밀도라 생략하고, 0이
+// 아니면 관측된 값 그대로 보인다(present-decision.ts와 같은 규칙).
+function amountText(amount: string): string {
+  const [whole, fraction = ''] = amount.split('.');
+  const padded = (fraction + '00').slice(0, 2);
+  return padded === '00' ? formatWon(whole) : `${formatWon(whole)}.${padded}`;
+}
+
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
   return {
     attemptId: attempt.attemptId,
     openedText: openedText(attempt),
     openedYear: openedYear(attempt),
+    openedMonth: openedMonth(attempt),
     itemLabel: attempt.item?.label ?? '미확인',
+    floorRateText: attempt.floorRate?.value ?? null,
+    baseAmountText: amountText(attempt.baseAmount.amount),
     itemCodeValueId: attempt.item?.codeValueId ?? null,
     winRateText: attempt.winRate?.value ?? null,
     winRateMilli: attempt.winRate ? toMilli(attempt.winRate.value) : null,
@@ -120,6 +142,7 @@ export function presentHistory(
   return {
     organizationId: response.organizationId,
     rows: others.map((attempt) => presentRow(attempt, selectedItem)),
+    nextCursor: response.nextCursor,
     sampleCount: response.meta.sampleCount,
     buildId: response.meta.buildId,
     sourceReleaseId: response.meta.sourceReleaseId,

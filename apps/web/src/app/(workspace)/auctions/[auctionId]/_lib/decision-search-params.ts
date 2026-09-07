@@ -1,10 +1,15 @@
 /** @module 책임: 결정 화면 전체 조건(기간·모집단·내 값·손잡이 투찰률·크게 보기)을 URL search param으로 보존하는 nuqs parser를 한 곳에서 소유한다. page.tsx의 Suspense loader가 서버에서 `createLoader`로 이 parser를 실행하므로 client 전용 'nuqs'가 아니라 'nuqs/server'에서 가져온다. */
-import { parseAsBoolean, parseAsString, parseAsStringLiteral } from 'nuqs/server';
+import { parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs/server';
 
 export const DECISION_PERIODS = ['12개월', '3개월', '이번 달', '지난 달'] as const;
 export const DECISION_SCOPES = ['전국', '도', '시군', '이 기관'] as const;
 // 근거 영역의 탭. 호가창이 첫 탭이다. "내 값이 어디쯤인가"가 첫 질문이고 흐름은 그다음이다.
 export const DECISION_VIEWS = ['비교집단', '흐름', '그날 하한', '업체'] as const;
+/**
+ * 크게 보기 모달의 본문 종류. 근거 탭 넷은 탭 이름 그대로이고 과거 회차 카드는 탭이 아니라서 따로 있다.
+ * 값이 탭 이름과 같으므로 탭에서 여는 링크는 `search.view`를 그대로 실을 수 있다.
+ */
+export const DECISION_EXPANDS = ['과거 회차', ...DECISION_VIEWS] as const;
 
 export const decisionSearchParsers = {
   period: parseAsStringLiteral(DECISION_PERIODS).withDefault('12개월'),
@@ -27,8 +32,16 @@ export const decisionSearchParsers = {
    * PDR-0004, EAT-84). 형식 검증은 `_ui/bid-rate-context.tsx`가 `parseBidRate`로 하며 틀린 값은 빈 상태다.
    */
   rate: parseAsString,
-  // 크게 보기(12개월 × 칸 히트맵)도 주소다. 같은 endpoint를 granularity=month로 다시 부른다.
-  expand: parseAsBoolean.withDefault(false)
+  // 크게 보기 모달도 주소다. 어느 본문이 열렸는지가 주소에 남아야 뒤로 가기가 모달을 닫고 링크로 그
+  // 상태를 공유할 수 있다. 비교집단 모달은 같은 분포 endpoint를 granularity=month로 다시 부른다.
+  // 기본값을 두지 않아 닫힌 상태는 주소에 남지 않는다.
+  expand: parseAsStringLiteral(DECISION_EXPANDS),
+  /**
+   * 과거 회차 모달이 cursor를 따라 이어 붙인 페이지 수. 서버가 페이지를 부르므로(`presentHistory`의 Temporal을
+   * client bundle에 넣지 않는다) "더 불러오기"는 이 값을 하나 올린 주소다. 상한·정수 검증은 loader가 한다.
+   * nuqs는 이 property 이름을 URL key로 쓰므로 `decisionQuery`가 쓰는 `pages`와 같은 이름이어야 한다.
+   */
+  pages: parseAsInteger.withDefault(1)
 };
 
 export type DecisionSearch = {
@@ -38,10 +51,12 @@ export type DecisionSearch = {
   readonly item: string | null;
   readonly myRate: string | null;
   readonly rate: string | null;
-  readonly expand: boolean;
+  readonly expand: DecisionExpand | null;
+  readonly pages: number;
 };
 
 export type DecisionView = (typeof DECISION_VIEWS)[number];
+export type DecisionExpand = (typeof DECISION_EXPANDS)[number];
 
 /** 옮겨 가려는 탭은 query에 늘 실리므로 `?` 뒤가 빈 주소는 나오지 않는다. */
 export type DecisionRoute = `/auctions/${string}?${string}`;
@@ -53,7 +68,10 @@ function decisionQuery(search: DecisionSearch): URLSearchParams {
   if (search.item !== null) query.set('item', search.item);
   if (search.myRate !== null) query.set('myRate', search.myRate);
   if (search.rate !== null) query.set('rate', search.rate);
-  if (search.expand) query.set('expand', 'true');
+  if (search.expand !== null) query.set('expand', search.expand);
+  // 페이지 수는 과거 회차 모달 안에서만 뜻이 있다. 다른 본문·닫힌 상태의 주소에 끌고 다니면 다시 열 때
+  // 옛 페이지 수가 되살아난다.
+  if (search.expand === '과거 회차' && search.pages > 1) query.set('pages', String(search.pages));
   return query;
 }
 
@@ -69,7 +87,16 @@ export function buildDecisionViewRoute(auctionId: string, search: DecisionSearch
   return `${pathname}?${query.toString()}`;
 }
 
-/** 크게 보기 토글. 탭과 나머지 조건은 그대로 두고 `expand`만 뒤집는다. */
-export function buildDecisionExpandRoute(auctionId: string, search: DecisionSearch, expand: boolean): DecisionRoute {
+/** 과거 회차 모달의 다음 페이지 링크. 모달 본문은 그대로 두고 페이지 수만 바꾼다. */
+export function buildDecisionHistoryPagesRoute(auctionId: string, search: DecisionSearch, pages: number): DecisionRoute {
+  return buildDecisionViewRoute(auctionId, { ...search, expand: '과거 회차', pages }, search.view);
+}
+
+/** 크게 보기 열기(`expand`에 본문 이름)·닫기(null). 탭과 나머지 조건은 그대로 둔다. */
+export function buildDecisionExpandRoute(
+  auctionId: string,
+  search: DecisionSearch,
+  expand: DecisionExpand | null
+): DecisionRoute {
   return buildDecisionViewRoute(auctionId, { ...search, expand }, search.view);
 }

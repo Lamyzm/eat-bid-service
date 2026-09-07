@@ -22,6 +22,12 @@ const BASE_BUILD_ID = '501';
 // 개찰 기준 시각이다. fixture 회차는 전부 이보다 앞서 개찰됐으므로 `opened=only`가 행을 줄이지 않는다.
 const FIXTURE_AS_OF = '2026-09-06T00:00:00Z';
 
+// 한 페이지 상한. 계약 상한(200)보다 낮은 이유는 60행 fixture로 keyset 페이지네이션(크게 보기 "더 불러오기")을
+// 재현하기 위해서다 — 첫 화면이 limit 60을 요청해도 40행 뒤에 nextCursor가 붙어 다음 페이지가 실제로 있다.
+// 40 아래로 내리면 손잡이 90.000→90.001에서 판정이 갈리는 회차(그날 하한 90.0010, 35번째)가 첫 페이지에서
+// 빠져 손잡이 e2e가 "이 값이면"의 변화를 볼 수 없다.
+const FIXTURE_PAGE_LIMIT = 40;
+
 const META = {
   sampleCount: 92,
   sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
@@ -55,9 +61,15 @@ function hasCodeValueId(item: unknown, codeValueId: string): boolean {
     && (item as { item: { codeValueId: string } | null }).item?.codeValueId === codeValueId;
 }
 
+function attemptIdOf(attempt: unknown): string | null {
+  if (typeof attempt !== 'object' || attempt === null || !('attemptId' in attempt)) return null;
+  return String((attempt as { attemptId: string }).attemptId);
+}
+
 /**
- * 이 operation 경로가 아니면 null을 돌려줘 호출부가 다음 route로 넘어가게 한다. 이 슬라이스는
- * cursor 페이지네이션을 쓰지 않으므로 cursor가 실려 오면 400으로 막는다.
+ * 이 operation 경로가 아니면 null을 돌려줘 호출부가 다음 route로 넘어가게 한다. cursor는 서버와 같이
+ * "이 회차 다음부터"의 keyset이며(drizzle-organization-attempt-reader.ts), 이 기관에 없는 회차를 가리키면
+ * 서버처럼 400으로 답한다.
  */
 export function organizationAttemptsResponse(request: Request): Response | null {
   const url = new URL(request.url);
@@ -75,9 +87,6 @@ export function organizationAttemptsResponse(request: Request): Response | null 
   } catch {
     return organizationProblemResponse(400, 'VALIDATION_ERROR', '기관 ID 또는 query가 유효하지 않음');
   }
-  if (query.cursor !== undefined) {
-    return organizationProblemResponse(400, 'VALIDATION_ERROR', '기관 ID 또는 query가 유효하지 않음');
-  }
 
   // 서버와 같은 순서로 거른다: 개찰 여부(기본 only) → 품목. 표본 수는 응답 예시 값이라 그대로 둔다.
   const opened = query.opened === 'only'
@@ -87,10 +96,21 @@ export function organizationAttemptsResponse(request: Request): Response | null 
     ? opened
     : opened.filter((attempt) => hasCodeValueId(attempt, query.item!));
 
+  let start = 0;
+  if (query.cursor !== undefined) {
+    const cursorIndex = scoped.findIndex((attempt) => attemptIdOf(attempt) === query.cursor);
+    if (cursorIndex < 0) {
+      return organizationProblemResponse(400, 'VALIDATION_ERROR', '기관 ID 또는 query가 유효하지 않음');
+    }
+    start = cursorIndex + 1;
+  }
+  const pageEnd = start + Math.min(query.limit, FIXTURE_PAGE_LIMIT);
+  const page = scoped.slice(start, pageEnd);
+
   const body = organizationAuctionAttemptsV1ResponseSchema.parse({
     organizationId: ORGANIZATION_ID,
-    attempts: scoped.slice(0, query.limit),
-    nextCursor: null,
+    attempts: page,
+    nextCursor: pageEnd < scoped.length ? attemptIdOf(page[page.length - 1]) : null,
     // 서버와 같이 요청 품목·개찰 필터를 그대로 되돌려 실어야 화면이 fixture에서도 같은 코호트를 읽는다.
     // buildId는 활성 build 전환을 재현할 수 있도록 요청 시점에 읽는다(캐시 e2e).
     meta: {

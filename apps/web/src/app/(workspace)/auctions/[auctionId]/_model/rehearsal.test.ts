@@ -11,7 +11,10 @@ function makeRow(
 ): HistoryRow {
   return {
     attemptId: '1',
+    openedMonth: '2026-01',
     itemLabel: '축산',
+    floorRateText: '87.745',
+    baseAmountText: '2,761,700',
     itemCodeValueId: '7',
     winRateText: null,
     winRateMilli: null,

@@ -5,7 +5,7 @@ import { fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { presentDecision } from '../_model/present-decision';
 import { DecisionHeader, summarizeItemLabel } from './decision-header';
 
-const search = { period: '12개월', scope: '전국', view: '비교집단', item: null, myRate: null, rate: null, expand: false } as const;
+const search = { period: '12개월', scope: '전국', view: '비교집단', item: null, myRate: null, rate: null, expand: null, pages: 1 } as const;
 // 운영 화면에서 관측된 원천 라벨 모양 그대로다(쉼표 앞뒤 공백 포함).
 const MULTI_ITEM_LABEL = '농산물 , 수산물 , 육류 , 가공식품 , 김치류 , 곡류 , 가금류';
 

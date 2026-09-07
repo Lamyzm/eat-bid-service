@@ -11,7 +11,8 @@ const search: DecisionSearch = {
   item: null,
   myRate: null,
   rate: null,
-  expand: false
+  expand: null,
+  pages: 1
 };
 
 const period = { from: '2025-10', to: '2026-09' };
