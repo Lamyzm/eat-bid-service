@@ -3,6 +3,7 @@ import type { DecisionSearch } from '../_lib/decision-search-params';
 import type { HistoryPresentation } from '../_model/attempt-history';
 import { historyWindow, historyWindowText } from '../_model/history-window';
 import type { DecisionPageData } from '../_model/load-auction-page';
+import { presentOrgCadence } from '../_model/org-cadence';
 import type { DecisionPresentation } from '../_model/present-decision';
 import { BidRail } from './bid-rail';
 import { BidRateProvider } from './bid-rate-context';
@@ -53,13 +54,15 @@ export function DecisionScreen({
   // 선택 품목이 아닌 회차는 경쟁 구조가 달라 같은 분모에 넣으면 거짓이 된다. "이 값이면"은 선택
   // 품목 회차만 센다.
   const selectedRows = history.state === 'ready' ? history.presentation.rows.filter((row) => row.isSelectedItem) : [];
+  // 누적 회차·발주 주기·지난 공고는 헤더와 배너가 같은 계산을 봐야 한다. 두 곳에서 따로 세면 표본이 어긋난다.
+  const cadence = presentOrgCadence(history, { announcedAt: decision.announcedAt });
 
   return (
     // 손잡이는 사용자가 주소에 남긴 값으로만 시작한다. 여기서 값을 정해 주면 그것이 추천값이 된다(AGENTS 8, EAT-84).
     <BidRateProvider initialRate={search.rate}>
       <DecisionFrame
-        header={<DecisionHeader decision={decision} search={search} />}
-        banner={<DecisionBanner decision={decision} />}
+        header={<DecisionHeader decision={decision} cadence={cadence} search={search} />}
+        banner={<DecisionBanner decision={decision} cadence={cadence} />}
         evidence={
           <div className='grid gap-4'>
             <EvidenceTabs
@@ -76,6 +79,7 @@ export function DecisionScreen({
                   ['관측 ID', decision.provenance.observationId],
                   ['정규화 레코드 ID', decision.provenance.normalizedRecordId],
                   ['내용 SHA-256', decision.provenance.contentSha256],
+                  ['공고 번호', decision.identity.displayBidNumber ?? '미확인'],
                   ['공고 상태', decision.identity.status],
                   ['리비전 ID', decision.identity.revisionId],
                   ['외부 공고 ID', decision.identity.externalBidId],

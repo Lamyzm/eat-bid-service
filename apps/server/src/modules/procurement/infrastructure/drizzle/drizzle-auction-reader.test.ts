@@ -37,6 +37,10 @@ function cohortRow(overrides: Record<string, unknown>): never {
     location_sigungu_scheme: null,
     location_sigungu_label: null,
     item_label: null,
+    participation_bid_count: null,
+    participation_observed_at: null,
+    participation_day_earlier_bid_count: null,
+    participation_day_earlier_observed_at: null,
     ...overrides,
   } as never;
 }
@@ -157,5 +161,35 @@ describe("DrizzleAuctionReader row 경계", () => {
     });
     // 공백뿐인 라벨은 "관측되지 않았다"이므로 분류 블록 자체가 없다.
     expect(record.classification).toBeNull();
+  });
+
+  test("참여 수 최신 관측과 하루 전 관측을 시각과 함께 매핑하고 하루 전이 없으면 null로 남긴다", async () => {
+    const adapter = await import("./drizzle-auction-reader");
+    const both = adapter.mapAuctionRow(cohortRow({
+      participation_bid_count: 4,
+      participation_observed_at: "2026-09-03T01:30:00Z",
+      participation_day_earlier_bid_count: 2,
+      participation_day_earlier_observed_at: new Date("2026-09-02T01:00:00.000Z"),
+    }));
+    expect(both.participation?.latest.bidCount).toBe(4);
+    expect(both.participation?.latest.observedAt.toString()).toBe("2026-09-03T01:30:00Z");
+    expect(both.participation?.dayEarlier?.bidCount).toBe(2);
+    expect(both.participation?.dayEarlier?.observedAt.toString()).toBe("2026-09-02T01:00:00Z");
+
+    const latestOnly = adapter.mapAuctionRow(cohortRow({
+      participation_bid_count: 0,
+      participation_observed_at: "2026-09-03T01:30:00Z",
+    }));
+    expect(latestOnly.participation).toEqual({
+      latest: { bidCount: 0, observedAt: Temporal.Instant.from("2026-09-03T01:30:00Z") },
+      dayEarlier: null,
+    });
+  });
+
+  test("목록 스냅샷에 잡힌 적 없는 공고는 참여 블록이 null이고, 수와 시각 중 하나만 있으면 끊는다", async () => {
+    const adapter = await import("./drizzle-auction-reader");
+    expect(adapter.mapAuctionRow(cohortRow({})).participation).toBeNull();
+    expect(() => adapter.mapAuctionRow(cohortRow({ participation_bid_count: 3 }))).toThrow(TypeError);
+    expect(() => adapter.mapAuctionRow(cohortRow({ participation_observed_at: "2026-09-03T01:30:00Z" }))).toThrow(TypeError);
   });
 });

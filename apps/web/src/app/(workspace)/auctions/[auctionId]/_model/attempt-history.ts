@@ -10,6 +10,8 @@ import { toMilli, toMilliCeiling } from './bid-rate';
 
 export type HistoryRow = {
   readonly attemptId: string;
+  /** wire instant 그대로다. 헤더의 발주 주기·배너의 지난 공고는 이 값으로 간격을 재며 표시 문자열을 되파싱하지 않는다(AGENTS 15). */
+  readonly announcedAt: string;
   readonly openedText: string;
   readonly openedYear: string;
   readonly itemLabel: string;
@@ -71,6 +73,7 @@ function openedYear(attempt: OrganizationAuctionAttempt): string {
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
   return {
     attemptId: attempt.attemptId,
+    announcedAt: attempt.announcedAt,
     openedText: openedText(attempt),
     openedYear: openedYear(attempt),
     itemLabel: attempt.item?.label ?? '미확인',

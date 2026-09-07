@@ -14,6 +14,8 @@ import type {
   OpenAuctionPage,
   OpenAuctionQuery,
 } from "../modules/procurement/application/open-auction-reader";
+import { auctionId } from "../modules/procurement/domain/auction-id";
+import { DrizzleAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOpenAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-open-auction-reader";
 
 const repositoryRoot = resolve(import.meta.dir, "../../../..");
@@ -162,9 +164,15 @@ const seed = `
      900000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
     (601, 205, '2026-09-07T00:30:00Z', 304, 41, 2, null, '2026-09-10T05:00:00Z',
      43879200.00, 'KRW', '축산', 88.000, 41, 44, '창원 남산초등학교', 510),
-    -- 물린 build의 행은 목록에 나오면 안 된다.
+    -- 물린 build의 행은 목록에 나오면 안 된다. 다만 참여 수 추이(공고 상세의 하루 전 관측)는 retain 안의
+    -- 물린 build 행까지 같은 시계열로 읽는다(ADR 0034).
     (602, 202, '2026-09-06T00:30:00Z', 303, 43, 0, null, '2026-09-08T05:00:00Z',
-     10000000.00, 'KRW', null, null, null, null, '다른 학교', null);
+     10000000.00, 'KRW', null, null, null, null, '다른 학교', null),
+    (602, 201, '2026-09-06T00:00:00Z', 303, 41, 1, null, '2026-09-07T05:00:00Z',
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+    -- 최신 관측에서 24시간이 안 되는 관측은 "어제"가 아니다.
+    (602, 201, '2026-09-06T01:00:00Z', 303, 41, 2, null, '2026-09-07T05:00:00Z',
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509);
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)
@@ -234,6 +242,27 @@ const baseQuery: OpenAuctionQuery = {
 };
 
 const ids = (page: OpenAuctionPage) => page.auctions.map((auction) => auction.auctionAttemptId);
+
+describe("공고 상세 참여 수 관측 PostgreSQL 경계", () => {
+  test("최신 관측과 24시간 이상 앞선 가장 늦은 관측을 물린 build까지 읽고 관측 없는 공고는 null이다", async () => {
+    await withSeededDatabase(async ({ client }) => {
+      const reader = new DrizzleAuctionReader(drizzle({ client }));
+      // 201: 활성 build의 00:30 관측(5)이 최신이고, 하루 전은 물린 build 602의 09-06 00:00 관측(1)이다.
+      // 09-06 01:00 관측(2)은 최신에서 23시간 30분 앞이라 "어제"가 아니다.
+      const open = await reader.findById(auctionId(201n));
+      expect(open?.participation?.latest.bidCount).toBe(5);
+      expect(open?.participation?.latest.observedAt.toString()).toBe("2026-09-07T00:30:00Z");
+      expect(open?.participation?.dayEarlier?.bidCount).toBe(1);
+      expect(open?.participation?.dayEarlier?.observedAt.toString()).toBe("2026-09-06T00:00:00Z");
+      // 205: 관측 하나뿐이라 하루 전이 없다.
+      const single = await reader.findById(auctionId(205n));
+      expect(single?.participation?.latest.bidCount).toBe(2);
+      expect(single?.participation?.dayEarlier).toBeNull();
+      // 101: 목록 스냅샷에 잡힌 적 없는 개찰된 회차는 블록째 null이다.
+      expect((await reader.findById(auctionId(101n)))?.participation).toBeNull();
+    });
+  });
+});
 
 describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
   test("마감 임박 정렬·최신 관측 선택·필터·keyset 페이지·기관 요약이 실제 mart 행에서 맞는다", async () => {

@@ -5,8 +5,10 @@ import type {
   AuctionReader,
   AuctionRecord,
   CodeReferenceRecord,
+  ParticipationObservationRecord,
 } from "../../application/auction-reader";
 import { auctionId, type AuctionId } from "../../domain/auction-id";
+import { dayEarlierParticipationJoin, latestParticipationJoin } from "./auction-participation-queries";
 import { bidRateValue, bigintValue, moneyValue } from "./postgres-row-values";
 
 export interface AuctionReadDatabase {
@@ -40,6 +42,10 @@ type AuctionRow = Readonly<
     observation_id: string | bigint;
     normalized_record_id: string | bigint;
     content_sha256: string;
+    participation_bid_count: number | null;
+    participation_observed_at: Date | string | null;
+    participation_day_earlier_bid_count: number | null;
+    participation_day_earlier_observed_at: Date | string | null;
   }
   & CodeReferenceColumns<"award_method">
   & CodeReferenceColumns<"location_sido">
@@ -86,10 +92,25 @@ function nullWhenEmpty<Block extends Record<string, unknown>>(block: Block): Blo
   return Object.values(block).every((value) => value === null) ? null : block;
 }
 
+// driver 시간 표현은 AuctionRow와 postgresInstant만 이름으로 부른다(AGENTS 17). 다른 자리는 그 서명에서 빌려 쓴다.
+type PostgresTimestamp = Parameters<typeof postgresInstant>[0];
+
+// 참여 수와 관측 시각은 한 행에서 함께 오거나 함께 없다. 한쪽만 있으면 스냅샷 grain이 깨진 것이다.
+function participationObservation(
+  bidCount: number | null,
+  observedAt: PostgresTimestamp,
+): ParticipationObservationRecord | null {
+  if (bidCount === null && observedAt === null) return null;
+  const instant = postgresInstant(observedAt);
+  if (bidCount === null || instant === null) throw new TypeError("Database participation observation is incomplete");
+  return { bidCount, observedAt: instant };
+}
+
 export function mapAuctionRow(row: AuctionRow): AuctionRecord {
   const announcedAt = postgresInstant(row.announced_at);
   if (announcedAt === null) throw new TypeError("Database announced timestamp is required");
   const itemLabel = observedLabel(row.item_label);
+  const latestParticipation = participationObservation(row.participation_bid_count, row.participation_observed_at);
   return {
     auctionId: auctionId(bigintValue(row.auction_id)),
     revisionId: bigintValue(row.revision_id),
@@ -136,6 +157,13 @@ export function mapAuctionRow(row: AuctionRow): AuctionRecord {
       ),
     }),
     classification: itemLabel === null ? null : { itemLabel },
+    participation: latestParticipation === null ? null : {
+      latest: latestParticipation,
+      dayEarlier: participationObservation(
+        row.participation_day_earlier_bid_count,
+        row.participation_day_earlier_observed_at,
+      ),
+    },
     provenance: {
       sourceSystem: row.source_system,
       externalBidId: row.external_bid_id,
@@ -212,7 +240,11 @@ export class DrizzleAuctionReader implements AuctionReader {
         attempt.external_bid_id,
         revision.observation_id,
         revision.normalized_record_id,
-        revision.content_sha256
+        revision.content_sha256,
+        participation.bid_count as participation_bid_count,
+        participation.observed_at as participation_observed_at,
+        participation_day_earlier.bid_count as participation_day_earlier_bid_count,
+        participation_day_earlier.observed_at as participation_day_earlier_observed_at
       from core.auction_attempt attempt
       join core.auction_revision revision
         on revision.auction_attempt_id = attempt.auction_attempt_id
@@ -224,6 +256,8 @@ export class DrizzleAuctionReader implements AuctionReader {
       ${codeReferenceJoin("award_method", "award_method")}
       ${codeReferenceJoin("location_sido", "location_sido")}
       ${codeReferenceJoin("location_sigungu", "location_sigungu")}
+      ${latestParticipationJoin("participation")}
+      ${dayEarlierParticipationJoin("participation", "participation_day_earlier")}
       where attempt.auction_attempt_id = ${id}
       order by revision.auction_revision_id desc, purchaser_org.organization_id asc
       limit 1

@@ -32,6 +32,7 @@ function expectedVerdict(attempt: OrganizationAuctionAttempt, rateTenThousandth:
 function makeRow(overrides: Partial<HistoryRow>): HistoryRow {
   return {
     attemptId: '1',
+    announcedAt: '2025-12-29T00:00:00Z',
     openedText: '26-01-01',
     openedYear: '2026',
     itemLabel: '축산',

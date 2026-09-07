@@ -14,6 +14,12 @@ export { codeReferenceSchema, type CodeReference } from "../../../values/code-re
 export { martCoverageSchema, type MartBuildLineageWire, type MartCoverage } from "../../../values/mart-lineage";
 export { auctionV1ResponseSchema, type AuctionV1Response } from "./get-auction.response";
 export {
+  auctionParticipationObservationSchema,
+  auctionParticipationSchema,
+  type AuctionParticipation,
+  type AuctionParticipationObservation,
+} from "./participation.resource";
+export {
   DEFAULT_OPEN_AUCTION_LIMIT,
   openAuctionListQuerySchema,
   type OpenAuctionListQuery,

@@ -13,6 +13,11 @@ export interface CodeReferenceRecord {
   readonly label: string | null;
 }
 
+export interface ParticipationObservationRecord {
+  readonly bidCount: number;
+  readonly observedAt: Temporal.Instant;
+}
+
 export interface AuctionRecord {
   readonly auctionId: AuctionId;
   readonly revisionId: bigint;
@@ -44,6 +49,15 @@ export interface AuctionRecord {
   } | null;
   // 품목은 아직 CodeScheme이 없어 관측 라벨뿐이다. 조인 키나 코호트 키로 승격시키지 않는다.
   readonly classification: { readonly itemLabel: string } | null;
+  /**
+   * 목록이 표시한 참여 수(`BID_CNT`)의 관측이다. 우리가 세지 않으며(ADR 0030) 관측 시각과 떼어 쓰지
+   * 않는다. `dayEarlier`는 최신 관측보다 24시간 이상 앞선 관측 중 가장 늦은 것이고, 목록 스냅샷에
+   * 잡힌 적이 없는 공고는 블록째 null이다.
+   */
+  readonly participation: {
+    readonly latest: ParticipationObservationRecord;
+    readonly dayEarlier: ParticipationObservationRecord | null;
+  } | null;
   readonly provenance: {
     readonly sourceSystem: string;
     readonly externalBidId: string;

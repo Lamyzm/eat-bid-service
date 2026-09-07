@@ -37,7 +37,8 @@ const validAuction = {
   },
   terms: null,
   location: null,
-  classification: null
+  classification: null,
+  participation: null
 } as const;
 
 function requestDouble(
