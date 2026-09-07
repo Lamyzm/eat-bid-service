@@ -96,6 +96,35 @@ def _애플리케이션(
     )
 
 
+def _build_marts_인자(round_number: int, *, built_at: datetime) -> SimpleNamespace:
+    identity = _정체성(round_number)
+    return SimpleNamespace(
+        source_release_id=identity["source_release_id"],
+        run_id=identity["detail_run_id"],
+        publication_id=identity["publication_id"],
+        mart=None,
+        calc_version="mart-eat-98",
+        build_sha=BUILD_SHA,
+        parser_version="eat-v1",
+        region_scheme=DEFAULT_REGION_SCHEME,
+        as_of=built_at,
+        built_at=built_at,
+    )
+
+
+def _스냅샷_build_수(services: PipelineServices, publication_id: UUID) -> int:
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "select count(*) from mart.build "
+            "where mart_name = 'open_auction_snapshot' and publication_id = %s",
+            (publication_id,),
+        )
+        row = cursor.fetchone()
+    services.connection.commit()
+    assert row is not None
+    return int(row[0])
+
+
 def _mart_repository(
     services: PipelineServices, migrated_db: MigratedDatabase
 ) -> PsycopgMartBuildRepository:
@@ -253,19 +282,7 @@ def test_poll_open_발행의_build_marts가_열린_공고_스냅샷_활성_build
         pipeline_services,
         fetched_at=polled_at,
         mart_repository=_mart_repository(pipeline_services, migrated_db),
-    ).build_marts(
-        SimpleNamespace(
-            source_release_id=identity["source_release_id"],
-            publication_id=identity["publication_id"],
-            mart=None,
-            calc_version="mart-eat-98",
-            build_sha=BUILD_SHA,
-            parser_version="eat-v1",
-            region_scheme=DEFAULT_REGION_SCHEME,
-            as_of=built_at,
-            built_at=built_at,
-        )
-    )
+    ).build_marts(_build_marts_인자(5, built_at=built_at))
 
     # --mart 없이 발행의 record type(eat-v1 → auction.v1, 명단 없음)으로 골랐는데도 스냅샷이
     # 따라온다. 분포는 v1 발행의 영향 범위가 아니라 빠진다.
@@ -289,3 +306,31 @@ def test_poll_open_발행의_build_marts가_열린_공고_스냅샷_활성_build
         active_rows = cursor.fetchone()
     pipeline_services.connection.commit()
     assert active_rows is not None and active_rows[0] == snapshot.row_count > 0
+
+
+def test_backfill_발행의_build_marts는_열린_공고_스냅샷_build를_만들지_않는다(
+    pipeline_services: PipelineServices, migrated_db: MigratedDatabase
+) -> None:
+    backfilled_at = T0 + 20 * POLL
+    # 회차 6: 과거 창을 읽는 backfill. 같은 목록 fixture라도 스냅샷은 열린 공고의 관측이 아니다.
+    backfill = _발견(
+        pipeline_services,
+        round_number=6,
+        mode="backfill",
+        list_body=LIST_FIXTURE.read_bytes(),
+        as_of=backfilled_at,
+    )
+    assert backfill.detail_external_bid_ids == ("5610615",)
+    _상세까지_발행한다(pipeline_services, backfill, round_number=6, at=backfilled_at)
+    identity = _정체성(6)
+
+    results = _애플리케이션(
+        pipeline_services,
+        fetched_at=backfilled_at,
+        mart_repository=_mart_repository(pipeline_services, migrated_db),
+    ).build_marts(_build_marts_인자(6, built_at=backfilled_at))
+
+    # core mart는 그대로 만들되 스냅샷 build 행 자체가 생기지 않는다 — 마감된 과거 공고로 활성
+    # 스냅샷을 물리면 오늘 화면이 빈다.
+    assert {result.mart_name for result in results} == {"org_round_summary"}
+    assert _스냅샷_build_수(pipeline_services, identity["publication_id"]) == 0

@@ -260,7 +260,11 @@ class Application:
 
     def build_marts(self, args: argparse.Namespace) -> Any:
         record_types = publication_record_types(self._mart, args.publication_id)
-        marts = resolve_marts(requested=args.mart, record_types=record_types)
+        marts = resolve_marts(
+            requested=args.mart,
+            record_types=record_types,
+            run_mode=self._mart.run_mode(args.run_id),
+        )
 
         def plan_for(mart_name: MartName) -> MartBuildPlan:
             return MartBuildPlan(

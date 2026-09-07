@@ -57,6 +57,8 @@ select distinct record.record_type
  where member.publication_id = %(publication_id)s
 """
 
+_RUN_MODE_SQL = "select mode from ingest.run where run_id = %(run_id)s"
+
 
 class PsycopgMartBuildRepository:
     """왜 실패 기록만 별도 연결인가: 빌드 트랜잭션이 되감기면 실패 사실까지 함께 사라진다.
@@ -230,4 +232,11 @@ class PsycopgMartBuildRepository:
                 _PUBLICATION_RECORD_TYPES_SQL, {"publication_id": publication_id}
             )
             return tuple(str(row[0]) for row in cursor.fetchall())
+
+    def run_mode(self, run_id: UUID) -> str | None:
+        """이 빌드를 부른 run의 mode를 돌려준다. run이 없으면 None이고 호출부가 모름으로 다룬다."""
+        with self._connection.cursor() as cursor:
+            cursor.execute(_RUN_MODE_SQL, {"run_id": run_id})
+            row = cursor.fetchone()
+        return None if row is None else str(row[0])
 

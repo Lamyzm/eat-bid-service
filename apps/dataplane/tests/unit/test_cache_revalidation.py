@@ -136,6 +136,9 @@ class _mart저장소:
     def publication_marts(self, _publication_id: UUID) -> tuple[str, ...]:
         return (AUCTION_V2,)
 
+    def run_mode(self, _run_id: UUID) -> str | None:
+        return "poll-open"
+
     def open_build(self, _plan: Any) -> OpenedMartBuild:
         # 같은 봉인된 입력의 결과가 이미 공개 중인 상태다. 다시 쌓지 않고 활성 결과만 돌려준다.
         return OpenedMartBuild(build_id=7, status="active", row_count=3)
@@ -177,6 +180,7 @@ def test_활성_전환이_끝난_뒤_다시_만든_mart_이름만_알린다() ->
         Namespace(
             mart=None,
             source_release_id=RELEASE_ID,
+            run_id=RUN_ID,
             publication_id=PUBLICATION_ID,
             calc_version="mart-r2",
             build_sha=BUILD_SHA,
@@ -187,7 +191,7 @@ def test_활성_전환이_끝난_뒤_다시_만든_mart_이름만_알린다() ->
         )
     )
 
-    # 열린 공고 스냅샷은 record type과 무관하게 언제나 다시 만들므로 무효화 범위에도 들어간다.
+    # poll-open run의 발행이라 열린 공고 스냅샷도 다시 만들고 무효화 범위에 들어간다.
     rebuilt = ["org_round_summary", "win_rate_distribution_monthly", "open_auction_snapshot"]
     assert [result.mart_name for result in results] == rebuilt
     assert 기록 == [{"marts": rebuilt}]

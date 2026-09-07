@@ -186,23 +186,30 @@ def test_실패한_build를_다시_열면_행과_함께_새로_시작한다(
     assert count[0] == 1
 
 
-def test_영향_범위는_발행이_실은_record_type이_고른다() -> None:
-    assert resolve_marts(requested=None, record_types=()) == MART_NAMES
-    # 열린 공고 스냅샷은 record type이 아니라 release의 목록 관측을 읽으므로 언제나 따라온다.
-    assert resolve_marts(requested=None, record_types=("auction.v1",)) == (
-        "org_round_summary",
-        "open_auction_snapshot",
+def test_영향_범위는_발행이_실은_record_type과_run_mode가_고른다() -> None:
+    assert (
+        resolve_marts(requested=None, record_types=(), run_mode="poll-open") == MART_NAMES
     )
-    assert resolve_marts(requested=None, record_types=("auction.v2",)) == (
-        "org_round_summary",
-        "win_rate_distribution_monthly",
-        "open_auction_snapshot",
-    )
+    # 열린 공고 스냅샷은 record type이 아니라 run mode가 고른다. 열린 공고를 읽는 run에서만 따라온다.
+    assert resolve_marts(
+        requested=None, record_types=("auction.v1",), run_mode="poll-open"
+    ) == ("org_round_summary", "open_auction_snapshot")
+    assert resolve_marts(
+        requested=None, record_types=("auction.v2",), run_mode="daily-reconcile"
+    ) == ("org_round_summary", "win_rate_distribution_monthly", "open_auction_snapshot")
+    assert resolve_marts(
+        requested=None, record_types=("auction.v2",), run_mode="backfill"
+    ) == ("org_round_summary", "win_rate_distribution_monthly")
     # 이름을 직접 주면 언제나 그것이 이긴다.
     assert resolve_marts(
-        requested=["open_auction_snapshot"], record_types=("auction.v2",)
+        requested=["open_auction_snapshot"], record_types=("auction.v2",), run_mode="backfill"
     ) == ("open_auction_snapshot",)
     # 모르는 record type을 조용히 무시하지 않는다. 화면이 옛 build를 계속 읽는 편이 더 나쁘다.
-    assert resolve_marts(requested=None, record_types=("auction.v9",)) == MART_NAMES
+    assert (
+        resolve_marts(requested=None, record_types=("auction.v9",), run_mode="poll-open")
+        == MART_NAMES
+    )
     with pytest.raises(MartBuildContractError):
-        resolve_marts(requested=["supplier_monthly_record"], record_types=())
+        resolve_marts(
+            requested=["supplier_monthly_record"], record_types=(), run_mode="poll-open"
+        )
