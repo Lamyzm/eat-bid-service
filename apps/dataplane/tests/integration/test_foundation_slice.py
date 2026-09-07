@@ -43,6 +43,48 @@ from .conftest import (
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "eat" / "bid-detail-one.xml"
 EXTERNAL_BID_ID = "task-13-bid-detail-one"
 FAILED_EXTERNAL_BID_ID = "task-13-count-mismatch"
+RELEASE_COMMIT = "7807b4199929b3ba7df029c39aa7ac82d7d92bc9"
+
+
+def test_foundation_slice는_release_commit_40자_build_sha로_run을_시작해_발행한다(
+    pipeline_services: PipelineServices,
+) -> None:
+    run_id = UUID("13000000-0000-0000-0000-000000000081")
+    publication_id = UUID("13000000-0000-0000-0000-000000000082")
+
+    result = run_foundation_slice(
+        run_id=run_id,
+        publication_id=publication_id,
+        mode="poll-open",
+        build_sha=RELEASE_COMMIT,
+        parser_version="eat-v1",
+        started_at=FOUNDATION_STARTED_AT,
+        normalized_at=FOUNDATION_NORMALIZED_AT,
+        validated_at=FOUNDATION_VALIDATED_AT,
+        activated_at=FOUNDATION_ACTIVATED_AT,
+        source="eat",
+        endpoint="bid-detail",
+        request_params={"ELCTRN_BID_ID": "task-13-release-commit"},
+        expected_count=1,
+        services=FoundationServices(
+            checkpoint_repository=pipeline_services.checkpoint_repository,
+            ingest_repository=pipeline_services.repository,
+            normalization_repository=pipeline_services.normalization_repository,
+            publication_repository=pipeline_services.publication_repository,
+            projection_repository=pipeline_services.projection_repository,
+            raw_store=pipeline_services.store,
+            source_client=StaticSourceClient(
+                SourceResponse(200, FIXTURE.read_bytes(), FOUNDATION_FETCHED_AT)
+            ),
+        ),
+    )
+
+    assert result.publication_status == "published"
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select status, build_sha from ingest.run where run_id = %s", (run_id,)
+        )
+        assert cursor.fetchone() == ("published", RELEASE_COMMIT)
 
 
 def _concurrent_foundation(

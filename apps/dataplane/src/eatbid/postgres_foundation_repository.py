@@ -1,7 +1,8 @@
+"""모듈 책임: foundation slice의 run·request·observation·publication checkpoint를 PostgreSQL에서 시작·재개·검증한다."""
+
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from datetime import datetime
@@ -12,6 +13,7 @@ import psycopg
 from psycopg.pq import TransactionStatus
 from psycopg.types.json import Jsonb
 
+from eatbid.core.build_identity import validate_build_sha
 from eatbid.foundation_repository import (
     FoundationCheckpoint,
     FoundationCheckpointRepository,
@@ -26,7 +28,6 @@ from eatbid.ingest.models import CaptureRequest
 from eatbid.ingest.repository import CaptureRunMode, request_params_sha256
 from eatbid.postgres_topology import lock_auction_topology
 
-_BUILD_SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
 _CAPTURE_MODES = {"poll-open", "daily-reconcile", "backfill"}
 
 
@@ -79,8 +80,8 @@ class PsycopgFoundationCheckpointRepository(FoundationCheckpointRepository):
             raise TypeError("publication_id must be a UUID")
         if mode not in _CAPTURE_MODES:
             raise ValueError("foundation mode must be a capture mode")
-        if _BUILD_SHA_PATTERN.fullmatch(build_sha) is None:
-            raise ValueError("build_sha must be a lowercase SHA-256 digest")
+        # capture run과 같은 배포 스탬프 모양이어야 이 checkpoint가 `ingest.run.build_sha`와 대조된다.
+        validate_build_sha(build_sha)
         if not parser_version or parser_version.strip() != parser_version:
             raise ValueError("parser_version must be a nonempty trimmed string")
         if started_at.utcoffset() is None:

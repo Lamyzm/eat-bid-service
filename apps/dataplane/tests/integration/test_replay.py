@@ -45,6 +45,8 @@ from .test_normalize_validate import (
 ACTIVATED_AT = VALIDATED_AT + timedelta(minutes=1)
 REPLAY_STARTED_AT = FETCHED_AT + timedelta(seconds=1)
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "eat" / "bid-detail-one.xml"
+# 운영 BUILD_SHA는 git commit(40 hex)이다. 2026-09-07 첫 replay가 이 모양을 SHA-256으로 검증해 죽었다.
+RELEASE_COMMIT = "7807b4199929b3ba7df029c39aa7ac82d7d92bc9"
 
 
 def _services(
@@ -252,6 +254,34 @@ def test_동일한_replay_run은_중복_state_없이_재개한다(
             (publication_id,),
         )
         assert cursor.fetchone() == (1,)
+
+
+def test_replay_observations는_release_commit_40자_build_sha로_run과_publication을_만든다(
+    pipeline_services: PipelineServices,
+) -> None:
+    observation_ids = _capture(pipeline_services)
+    run_id, publication_id = uuid4(), uuid4()
+
+    result = _run(
+        pipeline_services,
+        observation_ids,
+        run_id=run_id,
+        publication_id=publication_id,
+        build_sha=RELEASE_COMMIT,
+    )
+
+    assert result.status == "published"
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "select mode, status, build_sha from ingest.run where run_id = %s",
+            (run_id,),
+        )
+        assert cursor.fetchone() == ("replay", "published", RELEASE_COMMIT)
+        cursor.execute(
+            "select run_id, status from ingest.publication where publication_id = %s",
+            (publication_id,),
+        )
+        assert cursor.fetchone() == (run_id, "published")
 
 
 def test_observation_repository는_replay_run을_생성할_수_없다(

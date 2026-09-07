@@ -7,7 +7,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from eatbid.core.build_identity import validate_build_sha
 from eatbid.ingest.postgres_replay_repository import PsycopgReplayRunRepository
+from eatbid.ingest.replay_repository import validate_replay_start
 from eatbid.pipeline.replay import (
     ReplayServices,
     canonical_replay_manifest,
@@ -16,7 +18,25 @@ from eatbid.pipeline.replay import (
 )
 
 BUILD_SHA = "a" * 64
+# 운영 BUILD_SHA는 git commit(40 hex)이며 discover가 그대로 `ingest.run.build_sha`에 넣는다.
+RELEASE_COMMIT = "7807b4199929b3ba7df029c39aa7ac82d7d92bc9"
 STARTED_AT = datetime(2026, 8, 29, 5, 0, tzinfo=UTC)
+
+
+@pytest.mark.parametrize("build_sha", [RELEASE_COMMIT, BUILD_SHA])
+def test_discover가_받아들인_build_sha를_replay_시작_검증도_받아들인다(build_sha: str) -> None:
+    assert validate_build_sha(build_sha) == build_sha
+
+    manifest = validate_replay_start(
+        run_id=uuid4(),
+        publication_id=uuid4(),
+        observation_ids=(3, 1, 2),
+        build_sha=build_sha,
+        parser_version="eat-v2",
+        started_at=STARTED_AT,
+    )
+
+    assert manifest == (1, 2, 3)
 
 
 class RecordingReplayRepository:
@@ -75,6 +95,8 @@ def test_replay가_유효하지_않은_manifest에서_모든_repository_write를
         {"observation_ids": (True,)},
         {"observation_ids": (1, 1)},
         {"build_sha": "bad"},
+        {"build_sha": RELEASE_COMMIT[:-1]},
+        {"build_sha": RELEASE_COMMIT.upper()},
         {"parser_version": ""},
         {"started_at": STARTED_AT.replace(tzinfo=None)},
     ],

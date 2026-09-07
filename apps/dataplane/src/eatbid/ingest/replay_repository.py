@@ -1,16 +1,17 @@
+"""모듈 책임: replay run의 port와 시작 인자·고정 manifest 검증을 소유하며 DB 접근 전에 잘못된 정체성을 막는다."""
+
 from __future__ import annotations
 
 import hashlib
 import json
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 from uuid import UUID
 
-ReplayStatus = Literal["running", "validated", "published", "failed"]
+from eatbid.core.build_identity import validate_build_sha
 
-_BUILD_SHA_PATTERN = re.compile(r"[0-9a-f]{64}")
+ReplayStatus = Literal["running", "validated", "published", "failed"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,11 +95,9 @@ def validate_processing_start(
         raise TypeError("run_id must be a UUID")
     if not isinstance(publication_id, UUID):
         raise TypeError("publication_id must be a UUID")
-    if (
-        not isinstance(build_sha, str)
-        or _BUILD_SHA_PATTERN.fullmatch(build_sha) is None
-    ):
-        raise ValueError("build_sha must be a lowercase SHA-256 digest")
+    # replay는 `ingest.run.build_sha`에 discover·capture가 넣은 값과 같은 배포 스탬프를 받는다. 여기서
+    # 별도 정규식을 두면 운영 BUILD_SHA(git commit 40자)가 replay에서만 CONFIGURATION으로 죽는다.
+    validate_build_sha(build_sha)
     if (
         not isinstance(parser_version, str)
         or not parser_version
