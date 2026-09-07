@@ -14,6 +14,9 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 스케줄 수집은 backfill(기본 priority 0)보다 먼저 source semaphore를 받는다. poll-open과 같은 값이며
+    # 근거는 그쪽 주석(EAT-93)이다.
+    priority: 100
     arguments:
       parameters:
         - name: mode

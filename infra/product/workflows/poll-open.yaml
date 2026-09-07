@@ -16,6 +16,10 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # source semaphore 대기 큐는 priority 내림차순 → 생성 시각 순이다(Argo v4.0.8 sync manager). 이 값이
+    # 없으면 backfill chunk(기본 0)와 생성 순으로 줄을 서서 2026-09-07 08:00 회차의 discover가 95분 굶었고
+    # concurrencyPolicy Forbid 때문에 다음 회차도 만들어지지 않았다(EAT-93). daily-reconcile과 같은 값이다.
+    priority: 100
     arguments:
       parameters:
         - name: mode
