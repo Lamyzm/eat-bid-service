@@ -35,6 +35,7 @@ describe('결정 화면 URL 조건', () => {
       view: '비교집단',
       item: '7',
       myRate: null,
+      rate: null,
       expand: false
     };
     expect(buildDecisionViewRoute('4821', search, '흐름')).toBe(
@@ -48,6 +49,7 @@ describe('결정 화면 URL 조건', () => {
       view: '흐름',
       item: null,
       myRate: null,
+      rate: null,
       expand: false
     };
     expect(buildDecisionViewRoute('4821', search, '업체')).toBe('/auctions/4821?view=%EC%97%85%EC%B2%B4');
@@ -59,6 +61,7 @@ describe('결정 화면 URL 조건', () => {
       view: '흐름',
       item: null,
       myRate: null,
+      rate: null,
       expand: false
     };
     expect(buildDecisionViewRoute('48/21', search, '흐름')).toContain('/auctions/48%2F21?');
@@ -71,6 +74,7 @@ describe('결정 화면 URL 조건', () => {
       view: '비교집단',
       item: null,
       myRate: '90.030',
+      rate: null,
       expand: true
     };
     const moved = buildDecisionViewRoute('4821', search, '흐름');
@@ -88,6 +92,7 @@ describe('결정 화면 URL 조건', () => {
       view: '비교집단',
       item: null,
       myRate: '90.030',
+      rate: null,
       expand: false
     };
     const expanded = buildDecisionExpandRoute('4821', search, true);
@@ -101,5 +106,22 @@ describe('결정 화면 URL 조건', () => {
     // 최빈 칸이나 하한율을 기본값으로 두면 그것이 추천값이 된다(AGENTS 8, PDR-0004).
     expect(decisionSearchParsers.myRate.parse('90.030')).toBe('90.030');
     expect(decisionSearchParsers.expand.defaultValue).toBe(false);
+  });
+
+  test('손잡이 투찰률 rate는 기본값이 없고 사용자가 놓은 값만 탭 링크에 실린다', () => {
+    // 손잡이에 90.000 같은 시작값을 두면 표 마지막 열·이 값이면까지 번지는 추천값이 된다(AGENTS 8, EAT-84).
+    expect('defaultValue' in decisionSearchParsers.rate && decisionSearchParsers.rate.defaultValue !== undefined).toBe(false);
+    expect(decisionSearchParsers.rate.parse('90.300')).toBe('90.300');
+    const search: DecisionSearch = {
+      period: '12개월',
+      scope: '전국',
+      view: '비교집단',
+      item: null,
+      myRate: null,
+      rate: '90.300',
+      expand: false
+    };
+    expect(buildDecisionViewRoute('4821', search, '흐름')).toContain('rate=90.300');
+    expect(buildDecisionViewRoute('4821', { ...search, rate: null }, '흐름')).not.toContain('rate=');
   });
 });

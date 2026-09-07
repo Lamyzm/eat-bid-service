@@ -3,7 +3,7 @@
 
 import type { HistoryRow } from '../_model/attempt-history';
 import { rehearse, type Rehearsal } from '../_model/rehearsal';
-import { REHEARSAL_PHRASE } from '../_model/verdict-vocabulary';
+import { NO_RATE_PHRASE, REHEARSAL_PHRASE } from '../_model/verdict-vocabulary';
 import { useBidRate } from './bid-rate-context';
 
 // 칸 하나가 회차 하나다. 이보다 많아지면 칸이 1px 아래로 뭉개져 세는 뜻을 잃으므로 비율 막대로 바꾼다.
@@ -72,13 +72,19 @@ function WonYears({ byYear, won, total }: { readonly byYear: Rehearsal['byYear']
 
 export function RehearsalPanel({ rows }: { readonly rows: readonly HistoryRow[] }) {
   const { rate } = useBidRate();
-  const result = rehearse(rows, rate);
-  const byCells = result.total <= CELL_LIMIT;
+  // 값이 없으면 세지 않는다. 어떤 값으로든 대신 세어 보이면 그 값이 추천값이 된다(AGENTS 8, EAT-84).
+  const result = rate === null ? null : rehearse(rows, rate);
+  const byCells = result !== null && result.total <= CELL_LIMIT;
 
   return (
     <div className='flex flex-col'>
       <span className='pt-1 pb-1 text-[15px] font-semibold'>이 값이면</span>
-      {result.total === 0 ? (
+      {result === null ? (
+        <p className='flex flex-col gap-px pb-2 text-[15px]'>
+          <span className='font-semibold text-muted-foreground'>{NO_RATE_PHRASE.panel.text}</span>
+          <span className='font-medium text-muted-foreground'>{NO_RATE_PHRASE.panel.sub}</span>
+        </p>
+      ) : result.total === 0 ? (
         <p className='pb-2 text-[15px] font-medium text-muted-foreground'>비교할 회차가 없습니다</p>
       ) : (
         <>

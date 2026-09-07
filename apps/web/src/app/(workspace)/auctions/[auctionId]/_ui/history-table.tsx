@@ -8,7 +8,7 @@ import type { HistoryRow } from '../_model/attempt-history';
 import { toMilli } from '../_model/bid-rate';
 import { HISTORY_WINDOW_LIMIT } from '../_model/history-window';
 import { judgeRow, type RowVerdict } from '../_model/rehearsal';
-import { ROW_VERDICT_PHRASE } from '../_model/verdict-vocabulary';
+import { NO_RATE_PHRASE, ROW_VERDICT_PHRASE } from '../_model/verdict-vocabulary';
 import { useBidRate } from './bid-rate-context';
 
 const columnHelper = createColumnHelper<HistoryRow>();
@@ -108,7 +108,8 @@ function ListCell({ row }: { readonly row: HistoryRow }) {
   );
 }
 
-function useHistoryColumns(rateMilli: bigint, rate: string) {
+// 손잡이가 비어 있으면 마지막 열은 무엇을 하면 계산되는지만 말하고 어떤 값으로도 판정하지 않는다(EAT-84).
+function useHistoryColumns(rateMilli: bigint | null, rate: string | null) {
   return useMemo(
     () => [
       columnHelper.accessor('openedText', { id: 'opened', header: '개찰' }),
@@ -124,8 +125,9 @@ function useHistoryColumns(rateMilli: bigint, rate: string) {
       columnHelper.display({ id: 'list', header: '명단', cell: (context) => <ListCell row={context.row.original} /> }),
       columnHelper.display({
         id: 'verdict',
-        header: `${rate} 썼다면`,
+        header: rate === null ? NO_RATE_PHRASE.header.text : `${rate} 썼다면`,
         cell: (context) => {
+          if (rateMilli === null) return <span className={VERDICT_CLASS.unknown}>{NO_RATE_PHRASE.row.text}</span>;
           const verdict = judgeRow(context.row.original, rateMilli);
           return <span className={VERDICT_CLASS[verdict]}>{VERDICT_TEXT[verdict]}</span>;
         }
@@ -137,7 +139,7 @@ function useHistoryColumns(rateMilli: bigint, rate: string) {
 
 export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] }) {
   const { rate } = useBidRate();
-  const rateMilli = toMilli(rate);
+  const rateMilli = rate === null ? null : toMilli(rate);
   // 응답이 최근 → 오래된 순이라 그대로 앞에서 잘라 최근 12회가 된다. 열 클릭 정렬은 넣지 않는다.
   const data = useMemo(() => rows.slice(0, HISTORY_WINDOW_LIMIT), [rows]);
   const columns = useHistoryColumns(rateMilli, rate);

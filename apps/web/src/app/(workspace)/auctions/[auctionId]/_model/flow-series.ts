@@ -24,14 +24,16 @@ export function decideMyRateLine({
   bidRate
 }: {
   readonly myRate: string | null;
-  readonly bidRate: BidRate;
+  readonly bidRate: BidRate | null;
 }): MyRateLine {
   const trimmed = myRate?.trim() ?? '';
   if (trimmed === '') {
+    // 손잡이가 비어 있으면 값 없이 축의 차이만 말한다. 여기서 숫자를 지어 넣으면 그것이 추천값이 된다(EAT-84).
+    const handle = bidRate === null ? '레일의 투찰률은' : `레일의 투찰률 ${bidRate}은`;
     return {
       kind: 'withheld',
       reason:
-        `레일의 투찰률 ${bidRate}은 분모가 기초금액이라 ${FLOW_AXIS.name} 눈금에 놓지 않습니다. ` +
+        `${handle} 분모가 기초금액이라 ${FLOW_AXIS.name} 눈금에 놓지 않습니다. ` +
         `${FLOW_AXIS.name} 내 값은 비교집단 탭에서 놓고, 손잡이 값과 회차의 비교는 과거 회차 표 마지막 열이 합니다.`
     };
   }

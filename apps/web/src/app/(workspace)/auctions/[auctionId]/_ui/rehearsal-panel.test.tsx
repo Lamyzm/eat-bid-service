@@ -15,7 +15,8 @@ import { RehearsalPanel } from './rehearsal-panel';
 const rows = presentHistory(attemptsFixture, null).rows;
 const decision = presentDecision(openAuctionFixture, fixtureNow);
 
-function renderPanel(initialRate: string) {
+// initialRate는 사용자가 URL `rate`에 남긴 값을 흉내 낸다. 화면 자체의 시작값은 없다(EAT-84).
+function renderPanel(initialRate: string | null) {
   return render(
     <BidRateProvider initialRate={initialRate}>
       <RehearsalPanel rows={rows} />
@@ -24,6 +25,15 @@ function renderPanel(initialRate: string) {
 }
 
 describe('이 값이면 패널', () => {
+  test('손잡이 값이 없으면 회차를 세지 않고 값 없음과 무엇을 하면 계산되는지만 말한다', () => {
+    const screen = renderPanel(null);
+    expect(screen.getByText('이 값이면')).toBeTruthy();
+    expect(screen.getByText('값 없음')).toBeTruthy();
+    expect(screen.getByText('투찰률을 넣으면 지난 회차와 견줍니다')).toBeTruthy();
+    expect(screen.queryByText(/낙찰값 이하였을 회차/)).toBeNull();
+    expect(screen.queryByText(/\d+회/)).toBeNull();
+  });
+
   test('지난 회차 수와 낙찰값 이하였을 회차를 칸 스트립과 함께 보인다', () => {
     // 손잡이는 투찰률이라 비교 값도 투찰률 축이다. 예정가격을 모르는 5회차는 분모에서 빠진다.
     const screen = renderPanel('92.500');
