@@ -511,3 +511,27 @@ def test_길이가_다르거나_대문자인_build_sha는_인자_단계에서_�
 
     with pytest.raises(SystemExit):
         parser.parse_args(argv)
+
+
+class _replay인자기록애플리케이션(_기록애플리케이션):
+    def __init__(self) -> None:
+        super().__init__()
+        self.replay_args: list[Namespace] = []
+
+    def replay(self, args: Namespace) -> None:
+        self.replay_args.append(args)
+        super().replay(args)
+
+
+def test_replay_command는_release_commit_40자_build_sha를_받아_handler에_그대로_넘긴다(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    application = _replay인자기록애플리케이션()
+    argv = _명령("replay")
+    argv[argv.index("--build-sha") + 1] = RELEASE_COMMIT
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 0
+
+    assert [args.build_sha for args in application.replay_args] == [RELEASE_COMMIT]
+    assert application.calls == [("replay", UUID(RELEASE_ID))]
+    assert "CONFIGURATION" not in capsys.readouterr().err

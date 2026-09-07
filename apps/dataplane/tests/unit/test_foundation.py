@@ -22,13 +22,57 @@ from eatbid.foundation_repository import (
 )
 from eatbid.ingest.publication_repository import PublicationValidation
 from eatbid.ingest.repository import request_params_sha256
+from eatbid.postgres_foundation_repository import PsycopgFoundationCheckpointRepository
 
 RUN_ID = UUID("13000000-0000-0000-0000-000000000101")
 PUBLICATION_ID = UUID("13000000-0000-0000-0000-000000000102")
 OTHER_ID = UUID("13000000-0000-0000-0000-000000000199")
 BUILD_SHA = "d" * 64
+RELEASE_COMMIT = "7807b4199929b3ba7df029c39aa7ac82d7d92bc9"
 STARTED_AT = datetime(2026, 8, 29, 4, 0, tzinfo=UTC)
 PARAMS = {"ELCTRN_BID_ID": "unit-foundation"}
+
+
+class _DatabaseReached(AssertionError):
+    """검증을 통과해 connection에 손을 댔다는 표식이다."""
+
+
+class _NoDatabaseAccess:
+    def __getattribute__(self, name: str):
+        raise _DatabaseReached(name)
+
+
+def _start_foundation(build_sha: str) -> None:
+    PsycopgFoundationCheckpointRepository(_NoDatabaseAccess()).start_or_load(  # type: ignore[arg-type]
+        run_id=RUN_ID,
+        publication_id=PUBLICATION_ID,
+        mode="poll-open",
+        build_sha=build_sha,
+        parser_version="eat-v2",
+        started_at=STARTED_AT,
+        source="eat",
+        endpoint="bid-detail",
+        request_params=PARAMS,
+        expected_count=1,
+    )
+
+
+@pytest.mark.parametrize("build_sha", [RELEASE_COMMIT, BUILD_SHA])
+def test_foundation_checkpoint는_discover와_같은_build_sha_모양을_받아_DB까지_간다(
+    build_sha: str,
+) -> None:
+    with pytest.raises(_DatabaseReached):
+        _start_foundation(build_sha)
+
+
+@pytest.mark.parametrize(
+    "build_sha", [RELEASE_COMMIT[:-1], RELEASE_COMMIT.upper(), "d" * 63]
+)
+def test_foundation_checkpoint는_hex_정체성이_아닌_build_sha를_DB_접근_전에_거부한다(
+    build_sha: str,
+) -> None:
+    with pytest.raises(ValueError, match="lowercase 40 or 64 character"):
+        _start_foundation(build_sha)
 
 
 def _canonical_auction_payload(*, external_bid_id: str = "unit-foundation") -> bytes:
