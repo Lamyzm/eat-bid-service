@@ -8,6 +8,7 @@ const row = {
   item_code_value_id: "7",
   item_label: "축산",
   floor_rate: "90.000",
+  award_method_code_value_id: null,
   base_amount: "2761700.00",
   currency: "KRW",
   awarded_assessment_rate: "90.309",

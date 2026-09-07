@@ -11,7 +11,7 @@ import { READ_CACHE_LIFE } from '@/shared/lib/read-cache-life';
 
 import { serverRequest } from '../_transport/server-request.server';
 import { organizationAttemptsReadCacheTags } from './cache-tags';
-import { listOrganizationAuctionAttemptsWith } from './list-auction-attempts';
+import { listOrganizationAuctionAttemptsWith, type OrganizationAttemptsReadInput } from './list-auction-attempts';
 import { isOrganizationCursorInvalidError, isOrganizationNotFoundError } from './organization-resource-error';
 
 export function parseOrganizationId(organizationId: string): string {
@@ -20,16 +20,11 @@ export function parseOrganizationId(organizationId: string): string {
 }
 
 /**
- * 캐시 경계다. 네 입력값이 그대로 캐시 키가 되며 `signal`은 직렬화되지 않으므로 여기서 받지 않는다.
+ * 캐시 경계다. 모든 조회 조건이 캐시 키가 되며 `signal`은 직렬화되지 않으므로 여기서 받지 않는다.
  * 태그는 응답 계보가 아니라 요청한 기관과 mart 이름에서만 파생한다 — 읽은 build id로는 다음 build를
  * 활성화한 쪽이 그 항목을 지울 수 없다(ADR 0036).
  */
-export async function listOrganizationAuctionAttemptsFromServer(input: {
-  readonly organizationId: string;
-  readonly item?: string;
-  readonly cursor?: string;
-  readonly limit?: number;
-}): Promise<OrganizationAuctionAttemptsV1Response> {
+export async function listOrganizationAuctionAttemptsFromServer(input: Omit<OrganizationAttemptsReadInput, 'signal'>): Promise<OrganizationAuctionAttemptsV1Response> {
   'use cache';
   cacheTag(...organizationAttemptsReadCacheTags(input.organizationId));
   cacheLife(READ_CACHE_LIFE);

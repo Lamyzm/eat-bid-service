@@ -30,6 +30,7 @@ type OrganizationAttemptRow = Readonly<{
   item_code_value_id: string | bigint | null;
   item_label: string | null;
   floor_rate: string | null;
+  award_method_code_value_id: string | bigint | null;
   base_amount: string | null;
   currency: string;
   awarded_assessment_rate: string | null;
@@ -54,6 +55,25 @@ function requiredInstant(value: PostgresTimestamp, label: string): Temporal.Inst
   return instant;
 }
 
+/** 페이지·전체 개수·cursor가 동일 집단을 보도록 술어를 공유한다. unknown은 SQL NULL과만 일치한다. */
+function cohortCondition(query: OrganizationAttemptQuery) {
+  const floor = query.floorRate;
+  const method = query.awardMethodCodeValueId;
+  const floorCondition = floor === undefined || floor === "all" ? sql`true`
+    : floor === "unknown" ? sql`summary.floor_rate is null` : sql`summary.floor_rate = ${floor}::numeric`;
+  const methodCondition = method === undefined || method === "all" ? sql`true`
+    : method === "unknown" ? sql`summary.award_method_code_value_id is null`
+      : sql`summary.award_method_code_value_id = ${method}::bigint`;
+  return sql`${floorCondition} and ${methodCondition}
+    and (${query.itemCodeValueId}::bigint is null or summary.item_code_value_id = ${query.itemCodeValueId}::bigint)
+    and (${instantParameter(query.openedAtOrBefore)}::timestamptz is null
+      or summary.opened_at <= ${instantParameter(query.openedAtOrBefore)}::timestamptz)
+    and (${instantParameter(query.openedFrom ?? null)}::timestamptz is null
+      or summary.opened_at >= ${instantParameter(query.openedFrom ?? null)}::timestamptz)
+    and (${instantParameter(query.openedBefore ?? null)}::timestamptz is null
+      or summary.opened_at < ${instantParameter(query.openedBefore ?? null)}::timestamptz)`;
+}
+
 export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptRecord {
   return {
     attemptId: bigintValue(row.auction_attempt_id),
@@ -65,6 +85,7 @@ export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptR
       ? null
       : { codeValueId: bigintValue(row.item_code_value_id), label: row.item_label.trim() },
     floorRate: bidRateValue(row.floor_rate),
+    awardMethodCodeValueId: row.award_method_code_value_id === null ? null : bigintValue(row.award_method_code_value_id),
     baseAmount: moneyValue(row.base_amount, row.currency, true),
     // 사정률 축(분모가 예정가격)의 관측값이다. V1 계약의 이름이 아직 축을 담지 못해 그대로 싣는다.
     winRate: observedBidRateValue(row.awarded_assessment_rate),
@@ -100,7 +121,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
 
   async listAttempts(query: OrganizationAttemptQuery): Promise<OrganizationAttemptListing> {
     // anchor를 먼저 확인해야 남의 기관 cursor와 사라진 cursor가 "이력 끝"으로 위장하지 않는다.
-    if (query.cursor !== null && !(await this.hasCursorAnchor(query.organizationId, query.cursor))) {
+    if (query.cursor !== null && !(await this.hasCursorAnchor(query))) {
       return { kind: "cursor-not-found", cursor: query.cursor };
     }
     const [rows, sampleCount, lineage] = await Promise.all([
@@ -122,13 +143,14 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     };
   }
 
-  private async hasCursorAnchor(id: OrganizationId, cursor: bigint): Promise<boolean> {
+  private async hasCursorAnchor(query: OrganizationAttemptQuery): Promise<boolean> {
     const result = await this.database.execute(sql`
       select 1 as present
       from mart.org_round_summary summary
       where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
-        and summary.auction_attempt_id = ${cursor}::bigint
-        and summary.organization_id = ${id}
+        and summary.auction_attempt_id = ${query.cursor}::bigint
+        and summary.organization_id = ${query.organizationId}
+        and ${cohortCondition(query)}
       limit 1
     `);
     return Array.isArray(result) && result.length > 0;
@@ -143,6 +165,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
         summary.item_code_value_id,
         summary.item_label,
         summary.floor_rate,
+        summary.award_method_code_value_id,
         summary.base_amount,
         summary.currency,
         summary.awarded_assessment_rate,
@@ -156,11 +179,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
       from mart.org_round_summary summary
       where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
         and summary.organization_id = ${query.organizationId}
-        and (${query.itemCodeValueId}::bigint is null
-             or summary.item_code_value_id = ${query.itemCodeValueId}::bigint)
-        -- 개찰 시각이 미관측(null)인 회차는 비교 결과가 unknown이라 기준이 있으면 자연히 빠진다.
-        and (${instantParameter(query.openedAtOrBefore)}::timestamptz is null
-             or summary.opened_at <= ${instantParameter(query.openedAtOrBefore)}::timestamptz)
+        and ${cohortCondition(query)}
         and (${query.cursor}::bigint is null
              or (summary.announced_at, summary.auction_attempt_id)
                 < (select cursor_row.announced_at, cursor_row.auction_attempt_id
@@ -184,10 +203,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
       from mart.org_round_summary summary
       where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
         and summary.organization_id = ${query.organizationId}
-        and (${query.itemCodeValueId}::bigint is null
-             or summary.item_code_value_id = ${query.itemCodeValueId}::bigint)
-        and (${instantParameter(query.openedAtOrBefore)}::timestamptz is null
-             or summary.opened_at <= ${instantParameter(query.openedAtOrBefore)}::timestamptz)
+        and ${cohortCondition(query)}
     `);
     const rows = Array.isArray(result) ? result as ReadonlyArray<{ sample_count: number }> : [];
     return rows[0]?.sample_count ?? 0;

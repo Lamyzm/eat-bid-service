@@ -16,4 +16,10 @@ export {
   type OrganizationAttemptOpenedFilter,
   type OrganizationAuctionAttempt,
 } from "./attempt.resource";
-export { organizationV1OperationRegistry, organizationV1Operations } from "./operations";
+export { organizationV1OperationRegistry, organizationV1Operations, type OrganizationAuctionAttemptsQuery } from "./operations";
+export {
+  organizationAttemptCohortSchema,
+  type OrganizationAttemptCohort,
+  type OrganizationAttemptFloorFilter,
+  type OrganizationAttemptAwardMethodFilter,
+} from "./cohort.resource";

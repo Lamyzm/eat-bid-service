@@ -1292,6 +1292,142 @@
         ],
         "type": "string"
       },
+      "OrganizationAttemptCohort": {
+        "additionalProperties": false,
+        "properties": {
+          "awardMethod": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "all"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "unknown"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "codeValueId": {
+                    "$ref": "#/components/schemas/PositiveBigintText"
+                  },
+                  "kind": {
+                    "enum": [
+                      "exact"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "codeValueId"
+                ],
+                "type": "object"
+              }
+            ],
+            "type": "object"
+          },
+          "floorRate": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "all"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "unknown"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "exact"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/BidRate"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "type": "object"
+              }
+            ],
+            "type": "object"
+          },
+          "period": {
+            "additionalProperties": false,
+            "nullable": true,
+            "properties": {
+              "from": {
+                "$ref": "#/components/schemas/KstMonthText"
+              },
+              "to": {
+                "$ref": "#/components/schemas/KstMonthText"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "floorRate",
+          "awardMethod",
+          "period"
+        ],
+        "type": "object"
+      },
       "OrganizationAuctionAttempt": {
         "additionalProperties": false,
         "description": "One auction attempt summarized from mart.org_round_summary.",
@@ -1306,6 +1442,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/BaseRelativeBidRate"
+              }
+            ],
+            "nullable": true
+          },
+          "awardMethodCodeValueId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
               }
             ],
             "nullable": true
@@ -1447,6 +1591,13 @@
             "minLength": 1,
             "nullable": true,
             "type": "string"
+          },
+          "cohort": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrganizationAttemptCohort"
+              }
+            ]
           },
           "computedAt": {
             "allOf": [
@@ -2434,6 +2585,64 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "floorRate",
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/BidRateText"
+                },
+                {
+                  "enum": [
+                    "all",
+                    "unknown"
+                  ],
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "awardMethod",
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                },
+                {
+                  "enum": [
+                    "all",
+                    "unknown"
+                  ],
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/KstMonthText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/KstMonthText"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -2488,7 +2697,7 @@
             "description": "데이터베이스를 사용할 수 없음"
           }
         },
-        "summary": "기관의 회차 요약을 최근 순으로 조회한다",
+        "summary": "기관의 회차 요약을 최근 순으로 조회한다. 하한율·낙찰 방식은 정확한 값/all/unknown으로 구분하고, 개찰월 기간은 양끝을 함께 지정하며 60개월을 넘을 수 없다. 새 조건을 명시하면 조건 meta와 행별 낙찰 방식을 포함한다.",
         "tags": [
           "procurement"
         ]

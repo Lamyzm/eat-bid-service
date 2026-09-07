@@ -15,6 +15,7 @@ import {
   type OrganizationAuctionAttemptsV1Response,
 } from "@eatbid/contracts";
 import type { z } from "zod";
+import { bidRate, canonicalDecimal } from "@eatbid/domain";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
@@ -23,8 +24,10 @@ import {
   AttemptCursorInvalid,
   ListOrganizationAuctionAttempts,
   OrganizationNotFound,
+  type ListOrganizationAuctionAttemptsInput,
 } from "../../application/list-organization-auction-attempts";
 import { organizationId } from "../../domain/organization-id";
+import { kstMonth } from "../../domain/kst-month";
 
 const operation = organizationV1Operations.listAuctionAttempts;
 
@@ -51,25 +54,26 @@ export class OrganizationController {
     @Param("organizationId", new StandardSchemaPipe(operation.pathSchema.shape.organizationId)) rawId: string,
     @Query(new StandardSchemaPipe(operation.querySchema)) query: AttemptsQuery,
   ): Promise<OrganizationAuctionAttemptsV1Response> {
-    let id: bigint;
-    let itemCodeValueId: bigint | null;
-    let cursor: bigint | null;
+    let input: ListOrganizationAuctionAttemptsInput;
     try {
       // 계약 검증 뒤에도 변환 자체는 예외를 낼 수 있으므로 transport 400 경계 안에서 닫는다.
-      id = BigInt(rawId);
-      itemCodeValueId = query.item === undefined ? null : BigInt(query.item);
-      cursor = query.cursor === undefined ? null : BigInt(query.cursor);
+      input = {
+        organizationId: organizationId(BigInt(rawId)),
+        itemCodeValueId: query.item === undefined ? null : BigInt(query.item),
+        cursor: query.cursor === undefined ? null : BigInt(query.cursor),
+        limit: query.limit,
+        opened: query.opened,
+        floorRate: query.floorRate === undefined || query.floorRate === "all" || query.floorRate === "unknown"
+          ? query.floorRate : bidRate(canonicalDecimal(query.floorRate, 3)),
+        awardMethodCodeValueId: query.awardMethod === undefined || query.awardMethod === "all" || query.awardMethod === "unknown"
+          ? query.awardMethod : BigInt(query.awardMethod),
+        period: query.from === undefined || query.to === undefined ? undefined : { from: kstMonth(query.from), to: kstMonth(query.to) },
+      };
     } catch {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
-      return await this.effectRunner.run(this.listAttempts.execute({
-        organizationId: organizationId(id),
-        itemCodeValueId,
-        cursor,
-        limit: query.limit,
-        opened: query.opened,
-      }));
+      return await this.effectRunner.run(this.listAttempts.execute(input));
     } catch (error) {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
       if (error instanceof AttemptCursorInvalid) {

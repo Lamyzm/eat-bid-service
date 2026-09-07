@@ -2,7 +2,7 @@
 import type { OrganizationAuctionAttemptsV1Response } from '@eatbid/contracts/api/v1/organizations';
 
 import { browserRequest } from '../_transport/browser-request';
-import { listOrganizationAuctionAttemptsWith } from './list-auction-attempts';
+import { listOrganizationAuctionAttemptsWith, type OrganizationAttemptsReadInput } from './list-auction-attempts';
 import { createOrganizationQueries } from './queries';
 
 export type {
@@ -10,13 +10,7 @@ export type {
   OrganizationAuctionAttemptsV1Response
 } from '@eatbid/contracts/api/v1/organizations';
 
-export function listOrganizationAuctionAttempts(input: {
-  readonly organizationId: string;
-  readonly item?: string;
-  readonly cursor?: string;
-  readonly limit?: number;
-  readonly signal?: AbortSignal;
-}): Promise<OrganizationAuctionAttemptsV1Response> {
+export function listOrganizationAuctionAttempts(input: OrganizationAttemptsReadInput): Promise<OrganizationAuctionAttemptsV1Response> {
   return listOrganizationAuctionAttemptsWith(browserRequest, input);
 }
 

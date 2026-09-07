@@ -16,6 +16,7 @@ const attempt = {
   openedAt: Temporal.Instant.from("2026-09-02T02:00:00Z"),
   item: { codeValueId: 7n, label: "축산" },
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
+  awardMethodCodeValueId: null,
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
   winRate: observedBidRate(canonicalDecimal("90.309", 3)),
   secondRate: null,

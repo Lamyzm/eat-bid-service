@@ -6,10 +6,11 @@ import {
   type BidRateWire,
   type ObservedBidRateWire,
   type OrganizationAttemptOpenedFilter,
+  type OrganizationAttemptCohort,
   type OrganizationAuctionAttempt,
   type OrganizationAuctionAttemptsV1Response,
 } from "@eatbid/contracts";
-import type { BaseRelativeBidRate, BidRate, Clock, ObservedBidRate, Temporal } from "@eatbid/domain";
+import { Temporal, type BaseRelativeBidRate, type BidRate, type Clock, type ObservedBidRate } from "@eatbid/domain";
 import { Effect } from "effect";
 import { z } from "zod";
 import { AuctionDependencyUnavailable } from "./find-auction";
@@ -21,6 +22,7 @@ import type {
   OrganizationAttemptRecord,
 } from "./organization-attempt-reader";
 import { organizationIdToString, type OrganizationId } from "../domain/organization-id";
+import type { KstMonth } from "../domain/kst-month";
 
 export class OrganizationNotFound extends Error {
   readonly code = "ORGANIZATION_NOT_FOUND" as const;
@@ -51,6 +53,28 @@ export interface ListOrganizationAuctionAttemptsInput {
   readonly cursor: bigint | null;
   readonly limit: number;
   readonly opened: OrganizationAttemptOpenedFilter;
+  readonly floorRate?: BidRate | "all" | "unknown";
+  readonly awardMethodCodeValueId?: bigint | "all" | "unknown";
+  readonly period?: { readonly from: KstMonth; readonly to: KstMonth };
+}
+
+/** 명시 조건만 새 응답 projection에 참여한다. 구형 strict 소비자에게 새 필드를 강제로 보내지 않는다. */
+function cohortOf(input: ListOrganizationAuctionAttemptsInput): OrganizationAttemptCohort | undefined {
+  if (input.floorRate === undefined && input.awardMethodCodeValueId === undefined && input.period === undefined) return undefined;
+  const floor = input.floorRate ?? "all";
+  const method = input.awardMethodCodeValueId ?? "all";
+  return {
+    floorRate: floor === "all" ? { kind: "all" } : floor === "unknown" ? { kind: "unknown" }
+      : { kind: "exact", value: { value: floor, unit: "percentage-points" } },
+    awardMethod: method === "all" || method === "unknown" ? { kind: method } : { kind: "exact", codeValueId: method.toString(10) },
+    period: input.period ?? null,
+  };
+}
+
+/** 원본 분포의 month_kst와 같은 KST 개찰월 경계다. 드라이버 Date나 서버 로컬 시간대를 거치지 않는다. */
+function monthBoundary(month: KstMonth, next: boolean): Temporal.Instant {
+  const yearMonth = Temporal.PlainYearMonth.from(month).add({ months: next ? 1 : 0 });
+  return yearMonth.toPlainDate({ day: 1 }).toZonedDateTime({ timeZone: "Asia/Seoul", plainTime: "00:00" }).toInstant();
 }
 
 function instantText(value: Temporal.Instant | null): string | null {
@@ -77,7 +101,7 @@ function baseRelativeRateText(value: BaseRelativeBidRate | null): BaseRelativeBi
   return value === null ? null : { value, unit: "percentage-points" };
 }
 
-function attemptResource(record: OrganizationAttemptRecord): OrganizationAuctionAttempt {
+function attemptResource(record: OrganizationAttemptRecord, includeCohort: boolean): OrganizationAuctionAttempt {
   return {
     // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
     attemptId: record.attemptId.toString(10),
@@ -87,6 +111,7 @@ function attemptResource(record: OrganizationAttemptRecord): OrganizationAuction
       ? null
       : { codeValueId: record.item.codeValueId.toString(10), label: record.item.label },
     floorRate: rateText(record.floorRate),
+    awardMethodCodeValueId: includeCohort ? bigintText(record.awardMethodCodeValueId) : undefined,
     baseAmount: z.encode(moneyCodec, record.baseAmount),
     winRate: observedRateText(record.winRate),
     secondRate: observedRateText(record.secondRate),
@@ -107,9 +132,10 @@ export function toOrganizationAttemptsResponse(
   // 계보는 행이 아니라 이 페이지를 읽은 build 하나가 갖는다(ADR 0034). 활성 build가 아직 없으면
   // 계보를 지어내지 않고 전부 null로 남긴다 — 파생물이 없는 것은 오류가 아니다.
   const { lineage } = page;
+  const cohort = cohortOf(input);
   return {
     organizationId: organizationIdToString(query.organizationId),
-    attempts: page.attempts.map(attemptResource),
+    attempts: page.attempts.map((record) => attemptResource(record, cohort !== undefined)),
     nextCursor: bigintText(page.nextCursor),
     meta: {
       sampleCount: page.sampleCount,
@@ -118,6 +144,7 @@ export function toOrganizationAttemptsResponse(
       // 표본이 개찰된 회차로 좁혀졌는지와 그 기준 시각을 되돌려야 sampleCount가 재현된다(AGENTS 7).
       opened: input.opened,
       asOf: instantText(query.openedAtOrBefore),
+      cohort,
       buildId: lineage === null ? null : lineage.buildId.toString(10),
       sourceReleaseId: lineage?.sourceReleaseId ?? null,
       calcVersion: lineage?.calcVersion ?? null,
@@ -144,6 +171,10 @@ export class ListOrganizationAuctionAttempts {
       cursor: input.cursor,
       limit: input.limit,
       openedAtOrBefore: input.opened === "only" ? this.clock.now() : null,
+      floorRate: input.floorRate,
+      awardMethodCodeValueId: input.awardMethodCodeValueId,
+      openedFrom: input.period === undefined ? undefined : monthBoundary(input.period.from, false),
+      openedBefore: input.period === undefined ? undefined : monthBoundary(input.period.to, true),
     };
     // 존재 확인을 먼저 끝내야 "기관이 없음"과 "이력이 아직 없음"이 같은 빈 목록으로 뭉개지지 않는다.
     return Effect.tryPromise({

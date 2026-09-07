@@ -16,6 +16,7 @@ export interface OrganizationAttemptRecord {
   readonly openedAt: Temporal.Instant | null;
   readonly item: { readonly codeValueId: bigint; readonly label: string } | null;
   readonly floorRate: BidRate | null;
+  readonly awardMethodCodeValueId: bigint | null;
   readonly baseAmount: Money;
   readonly winRate: ObservedBidRate | null;
   readonly secondRate: ObservedBidRate | null;
@@ -39,6 +40,11 @@ export interface OrganizationAttemptQuery {
    * 개찰 시각이 미관측인 회차는 개찰됐다고 단정할 수 없어 기준이 있으면 빠진다(AGENTS 3).
    */
   readonly openedAtOrBefore: Temporal.Instant | null;
+  readonly floorRate?: BidRate | "all" | "unknown";
+  readonly awardMethodCodeValueId?: bigint | "all" | "unknown";
+  /** KST 개찰월의 시작 포함·끝 제외 시각이다. 개찰 시각 미관측 행은 기간 조회에서 빠진다. */
+  readonly openedFrom?: Temporal.Instant;
+  readonly openedBefore?: Temporal.Instant;
 }
 
 /**

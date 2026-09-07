@@ -9,6 +9,7 @@ const record = {
   openedAt: null,
   item: { codeValueId: 7n, label: "축산" },
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
+  awardMethodCodeValueId: null,
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
   winRate: observedBidRate(canonicalDecimal("90.309", 3)),
   secondRate: null,

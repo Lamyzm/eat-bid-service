@@ -7,6 +7,7 @@ import { instantTextSchema } from "../../../atoms/instant";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
 import { moneyWireSchema } from "../../../values/money";
 import { baseRelativeBidRateWireSchema, bidRateWireSchema, observedBidRateWireSchema } from "../../../values/rate";
+import { organizationAttemptCohortSchema } from "./cohort.resource";
 
 /**
  * 과거 회차 표는 개찰된 회차만 싣고 열린 회차는 상태 배너가 담당한다(EAT-81). `only`는 서버 clock 기준
@@ -25,6 +26,8 @@ export const organizationAuctionAttemptSchema = z.strictObject({
   item: z.strictObject({ codeValueId: positiveBigintTextSchema, label: z.string().min(1).max(512) }).nullable(),
   // 공고 조건의 하한율은 100 이하이고, 낙찰·차순위의 원천 관측은 그 상한을 공유하지 않는다(ADR 0040).
   floorRate: bidRateWireSchema.nullable(),
+  // 새 집단 조건을 명시한 요청에만 싣는다. null은 미확인, 필드 부재는 이전 응답 projection이다.
+  awardMethodCodeValueId: positiveBigintTextSchema.nullable().optional(),
   baseAmount: moneyWireSchema,
   winRate: observedBidRateWireSchema.nullable(),
   secondRate: observedBidRateWireSchema.nullable(),
@@ -57,6 +60,7 @@ export const organizationAuctionAttemptsMetaSchema = martBuildLineageSchema.safe
   // 서버가 비교한 clock 시각이고, `any`는 비교 자체가 없었으므로 null이다 — 없는 기준을 지어내지 않는다.
   opened: organizationAttemptOpenedFilterSchema,
   asOf: instantTextSchema.nullable(),
+  cohort: organizationAttemptCohortSchema.optional(),
 }).meta({ id: "OrganizationAuctionAttemptsMeta" });
 
 export type OrganizationAuctionAttempt = z.infer<typeof organizationAuctionAttemptSchema>;
