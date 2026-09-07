@@ -8,6 +8,8 @@ import type { Page } from '@playwright/test';
 // fixture 서버가 요청 시각 기준 상대 오프셋으로 매번 다시 계산해 주는 공고 id들이다.
 const OPEN_AUCTION_ID = '5796468';
 const CLOSED_AUCTION_ID = '5780681';
+// 긴 기관명 + 쉼표로 이어진 7개 품목 라벨. 운영에서 768폭 헤더 칩 줄을 75px 넘기게 한 재료다(EAT-82).
+const LONG_HEADER_AUCTION_ID = '5796470';
 const WIDTHS = [1440, 1280, 1024, 768] as const;
 const SCENARIOS = [
   { label: '진행 중', auctionId: OPEN_AUCTION_ID, waitText: '이 공고가 열려 있습니다' },
@@ -34,8 +36,17 @@ async function overflowReport(page: Page) {
       const overflowsParent = node.getBoundingClientRect().right > parent.getBoundingClientRect().right + 1;
       return overflowsScroll || overflowsParent;
     }).length;
-    return { overflow, wrapped, bodyWidth: document.documentElement.scrollWidth };
+    // 문서 전체 폭은 결정 화면 slot 밖(셸·헤더 칩 줄)이 밀어도 함께 늘어난다. slot 안 노드만 세면 헤더 칩 줄처럼
+    // 자기 컨테이너는 넘치지 않으면서 문서를 미는 경우를 놓친다(EAT-82). viewport는 setViewportSize 값이 아니라
+    // 브라우저가 실제로 잡은 innerWidth와 비교한다.
+    return { overflow, wrapped, bodyWidth: document.documentElement.scrollWidth, viewportWidth: window.innerWidth };
   });
+}
+
+// 문서 가로 스크롤 금지는 slot 검사와 별개로 페이지 전체에 거는 조건이다.
+function expectDocumentFits(report: Awaited<ReturnType<typeof overflowReport>>, width: number) {
+  expect(report.viewportWidth).toBe(width);
+  expect(report.bodyWidth).toBeLessThanOrEqual(report.viewportWidth);
 }
 
 test.describe('결정 화면 폭별 밀림', () => {
@@ -53,7 +64,7 @@ test.describe('결정 화면 폭별 밀림', () => {
         const report = await overflowReport(page);
         expect(report.overflow).toBe(0);
         expect(report.wrapped).toBe(0);
-        expect(report.bodyWidth).toBeLessThanOrEqual(width);
+        expectDocumentFits(report, width);
       });
     }
   }
@@ -70,7 +81,28 @@ test.describe('결정 화면 폭별 밀림', () => {
       const report = await overflowReport(page);
       expect(report.overflow).toBe(0);
       expect(report.wrapped).toBe(0);
-      expect(report.bodyWidth).toBeLessThanOrEqual(width);
+      expectDocumentFits(report, width);
+    });
+  }
+
+  // 남산초 fixture는 제목·품목이 짧아 헤더 칩 줄이 넘치는 경우를 재현하지 못했다. 운영에서 관측된 긴 기관명과
+  // 여러 품목 라벨로 헤더가 문서를 밀지 않는지 네 폭 모두에서 본다.
+  for (const width of WIDTHS) {
+    test(`${width}px 긴 기관명·여러 품목 공고에서 헤더 칩 줄이 문서를 가로로 밀지 않는다`, async ({ page }) => {
+      test.setTimeout(90_000);
+      await page.setViewportSize({ width, height: 1200 });
+      await page.goto(`/auctions/${LONG_HEADER_AUCTION_ID}`);
+      await page.getByText('이 공고가 열려 있습니다').waitFor();
+      await page.getByText('전국 · 값마다 낙찰된 횟수').waitFor();
+
+      const header = page.locator('[data-slot="decision-screen"] > header');
+      await expect(header.getByText('농산물 외 6')).toBeVisible();
+      await expect(header.getByText('12개월')).toBeVisible();
+
+      const report = await overflowReport(page);
+      expect(report.overflow).toBe(0);
+      expect(report.wrapped).toBe(0);
+      expectDocumentFits(report, width);
     });
   }
 
@@ -82,7 +114,7 @@ test.describe('결정 화면 폭별 밀림', () => {
 
     const report = await overflowReport(page);
     expect(report.overflow).toBe(0);
-    expect(report.bodyWidth).toBeLessThanOrEqual(768);
+    expectDocumentFits(report, 768);
   });
 });
 
