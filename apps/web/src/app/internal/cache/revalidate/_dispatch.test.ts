@@ -13,7 +13,8 @@ function recorder() {
       scopes.push(scope);
     },
     orgRoundSummary: () => calls.push('orgRoundSummary'),
-    winRateDistributionMonthly: () => calls.push('winRateDistributionMonthly')
+    winRateDistributionMonthly: () => calls.push('winRateDistributionMonthly'),
+    openAuctionSnapshot: () => calls.push('openAuctionSnapshot')
   };
   return { calls, scopes, revalidators };
 }
@@ -108,10 +109,10 @@ describe('캐시 무효화 범위 라우팅', () => {
     expect(scopes).toEqual([{ auctionIds: undefined, allAuctions: true }]);
   });
 
-  test('읽는 화면이 아직 없는 mart 이름도 받아들이되 아무것도 지우지 않는다', async () => {
+  test('열린 공고 스냅샷 mart 이름은 오늘 목록 무효화 함수로 간다', async () => {
     const { response, calls } = await dispatch({ marts: ['open_auction_snapshot'] }, authorized);
     expect(response.status).toBe(204);
-    expect(calls).toEqual([]);
+    expect(calls).toEqual(['openAuctionSnapshot']);
   });
 
   test('계약에 없는 본문은 400이고 아무것도 지우지 않는다', async () => {

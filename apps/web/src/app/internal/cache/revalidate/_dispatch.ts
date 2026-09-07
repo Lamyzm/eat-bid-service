@@ -16,6 +16,7 @@ export type CacheRevalidators = Readonly<{
   }) => void;
   orgRoundSummary: () => void;
   winRateDistributionMonthly: () => void;
+  openAuctionSnapshot: () => void;
 }>;
 
 export type DispatchInput = Readonly<{
@@ -81,14 +82,14 @@ async function parsedBody(request: Request): Promise<unknown> {
   }
 }
 
-type MartRevalidator = 'orgRoundSummary' | 'winRateDistributionMonthly';
+type MartRevalidator = 'orgRoundSummary' | 'winRateDistributionMonthly' | 'openAuctionSnapshot';
 
-const MART_ROUTES: Readonly<Record<MartName, MartRevalidator | undefined>> = {
+// mart 셋 전부 읽는 화면이 있다. 이름을 받아들이되 아무 함수에도 닿지 않는 값은 남기지 않는다 —
+// 그런 항목은 무효화가 조용히 아무것도 지우지 않는 구멍이 된다(ADR 0036).
+const MART_ROUTES: Readonly<Record<MartName, MartRevalidator>> = {
   org_round_summary: 'orgRoundSummary',
   win_rate_distribution_monthly: 'winRateDistributionMonthly',
-  // 오늘 목록(EAT-39)이 이 mart를 읽기 시작하면 그때 무효화 대상을 더한다. 지금 읽는 쪽이 없으므로
-  // 이름을 받아들이되 아무것도 지우지 않는다 — 400으로 막으면 dataplane이 셋을 한 번에 못 보낸다.
-  open_auction_snapshot: undefined
+  open_auction_snapshot: 'openAuctionSnapshot'
 };
 
 /**
@@ -112,8 +113,7 @@ export async function dispatchRevalidate(input: DispatchInput): Promise<Response
     revalidators.auctions({ auctionIds, allAuctions });
   }
   for (const martName of marts ?? []) {
-    const route = MART_ROUTES[martName];
-    if (route !== undefined) revalidators[route]();
+    revalidators[MART_ROUTES[martName]]();
   }
   return new Response(null, { status: 204 });
 }
