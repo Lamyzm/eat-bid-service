@@ -29,6 +29,9 @@
   canonical route에 새로 추가하지 않는다. nuqs adapter와 legacy infobar provider도 dashboard layout이
   소유하므로 canonical route에서 URL 상태가 필요하면 그 route의 Suspense 경계 안에서 새로 마운트한다. `use cache`는 `api/<resource>/server.ts` read 함수에만 허용하고 사용자별·session
   데이터에는 쓰지 않는다.
+- `use cache` read 함수는 예상된 실패(404·사라진 cursor)를 예외 대신 `{ kind: ... }` 결과 값으로 돌려준다.
+  캐시 경계를 넘은 예외는 Flight로 옮겨져 class 정체성을 잃으므로 호출자가 `instanceof`로 가려낼 수 없고,
+  `notFound()`로 가야 할 404가 error 경계로 샌다. 예상 밖 실패만 그대로 던진다.
 - 모노레포 package manager는 루트 `package.json`에 고정된 `pnpm 10.12.1`이다. 앱 내부
   script가 Bun 명령을 호출하더라도 workspace 설치·실행 계약을 Bun으로 바꾸지 않는다.
 - Server Component를 기본으로 하고 브라우저 상태나 상호작용이 필요할 때만 `'use client'`를

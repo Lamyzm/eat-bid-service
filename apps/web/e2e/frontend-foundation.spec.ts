@@ -33,6 +33,8 @@ test('유효하지 않거나 존재하지 않는 공고 ID는 같은 셸 안에�
   for (const auctionId of ['01', MISSING_AUCTION_ID]) {
     await page.goto(`/auctions/${auctionId}`);
     await expect(page.getByRole('heading', { name: '공고를 찾을 수 없습니다' })).toBeVisible();
+    // 404 Problem이 `use cache` 경계를 예외로 넘으면 class 정체성을 잃어 error 경계로 샌다(EAT-97).
+    await expect(page.getByRole('heading', { name: '공고 정보를 불러오지 못했습니다' })).toHaveCount(0);
     await expect(page.getByLabel('색상 테마')).toBeVisible();
   }
 });
