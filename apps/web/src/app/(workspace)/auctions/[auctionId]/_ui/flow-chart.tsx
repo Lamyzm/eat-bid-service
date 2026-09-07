@@ -1,7 +1,8 @@
-/** @module 책임: 기관 회차 이력을 직접 그린 inline SVG 흐름 차트로 렌더링하고 내 값 선을 그 위에 겹친다. */
+/** @module 책임: 기관 회차 이력을 직접 그린 inline SVG 흐름 차트로 렌더링하고, 같은 사정률 축으로 놓인 내 값 선만 그 위에 겹친다. */
 'use client';
 
 import type { HistoryPresentation } from '../_model/attempt-history';
+import { FLOW_AXIS, decideMyRateLine } from '../_model/flow-series';
 import { useBidRate } from './bid-rate-context';
 import {
   FLOW_TICKS,
@@ -52,9 +53,15 @@ function Grid() {
   );
 }
 
+// 눈금 이름은 눈금 숫자와 같은 열에 둔다. 숫자만 보이면 레일의 투찰률과 같은 축으로 읽히고, 그 오독이
+// 바로 손잡이 값을 이 눈금에 꽂게 만든 원인이다(PDR-0004). 위쪽 여백 16 안에서 맨 위 눈금 글자(13px,
+// baseline 20)와 겹치지 않으려면 10px 글자를 baseline 8에 둬야 한다.
 function TickLabels() {
   return (
     <g className='text-muted-foreground'>
+      <text x={TICK_LABEL_X} y={8} textAnchor='end' fontSize={10} fontWeight={600} fill='currentColor'>
+        {FLOW_AXIS.name}
+      </text>
       {FLOW_TICKS.map((tick, index) => (
         <text key={tick} x={TICK_LABEL_X} y={tickY(index) + 4} textAnchor='end' fontSize={13} fontWeight={600} fill='currentColor'>
           {tick}
@@ -117,10 +124,29 @@ function MyRateLabel({ rate, y }: { readonly rate: string; readonly y: number })
   );
 }
 
-export function FlowChart({ presentation }: { readonly presentation: HistoryPresentation }) {
+// 내 값 선은 사정률로 놓은 값(URL `myRate`)만 긋는다. 레일의 투찰률은 분모가 달라 이 눈금 위의
+// 선이 될 수 없으므로 여기서는 각주에 그 값이 왜 없는지 말하는 데만 쓴다(PDR-0004, EAT-80).
+function MyRateLine({ rate }: { readonly rate: string }) {
+  const mine = myRatePlacement(rate);
+  return (
+    <g className='text-primary'>
+      {/* 안내문이 "굵은 선이 내 값"이라 말하므로 낙찰선(2)보다 실제로 굵어야 한다. 디자인 원본도 3이다. */}
+      <line data-series='my-rate' x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={mine.y} y2={mine.y} stroke='currentColor' strokeWidth={3} />
+      <MyRateLabel rate={rate} y={mine.y} />
+    </g>
+  );
+}
+
+export function FlowChart({
+  presentation,
+  myRate
+}: {
+  readonly presentation: HistoryPresentation;
+  readonly myRate: string | null;
+}) {
   const { rate } = useBidRate();
   const points = flowPoints(presentation.rows);
-  const mine = myRatePlacement(rate);
+  const line = decideMyRateLine({ myRate, bidRate: rate });
   const path = selectedPath(points);
 
   return (
@@ -145,12 +171,14 @@ export function FlowChart({ presentation }: { readonly presentation: HistoryPres
           )
         )}
         {points.map((point) => (point.outside === null ? null : <OutsideMark key={`outside-${point.key}`} point={point} />))}
-        <g className='text-primary'>
-          {/* 안내문이 "굵은 선이 내 값"이라 말하므로 낙찰선(2)보다 실제로 굵어야 한다. 디자인 원본도 3이다. */}
-          <line x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={mine.y} y2={mine.y} stroke='currentColor' strokeWidth={3} />
-          <MyRateLabel rate={rate} y={mine.y} />
-        </g>
+        {line.kind === 'drawn' ? <MyRateLine rate={line.rate} /> : null}
       </svg>
+      {line.kind === 'withheld' ? (
+        // 범례에 "내 값"이 있는데 선이 없으면 고장으로 읽힌다. 선을 긋지 않은 이유를 차트 바로 아래에서 말한다.
+        <p data-slot='flow-my-rate-note' className='text-[13px] font-medium text-muted-foreground'>
+          {line.reason}
+        </p>
+      ) : null}
       <figcaption className='text-[13px] font-medium text-muted-foreground'>{caption(presentation, points.length)}</figcaption>
     </figure>
   );

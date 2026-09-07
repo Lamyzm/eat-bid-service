@@ -95,9 +95,11 @@ function FlowLegend() {
   );
 }
 
-function FlowBody({ history }: { readonly history: HistoryState }) {
+// 흐름 차트의 내 값 선은 호가창과 같은 사정률 값(URL `myRate`)을 쓴다. 두 탭이 다른 "내 값"을 그리면
+// 사용자가 같은 줄을 두 번 놓아야 한다(PDR-0004).
+function FlowBody({ history, myRate }: { readonly history: HistoryState; readonly myRate: string | null }) {
   if (history.state !== 'ready') return <PendingBody reason={HISTORY_PENDING_REASON[history.state]} />;
-  return <FlowChart presentation={history.presentation} />;
+  return <FlowChart presentation={history.presentation} myRate={myRate} />;
 }
 
 function CohortBody({
@@ -184,7 +186,7 @@ export function EvidenceTabs({
       {active === '비교집단' ? (
         <CohortBody auctionId={auctionId} search={search} distribution={distribution} />
       ) : active === '흐름' ? (
-        <FlowBody history={history} />
+        <FlowBody history={history} myRate={search.myRate} />
       ) : (
         <PendingBody reason={PENDING_REASON[active]} />
       )}
