@@ -14,15 +14,16 @@ from eatbid.core.record_types import AUCTION_V1, AUCTION_V2
 from eatbid.mart.models import MART_NAMES, MartBuildPlan, MartBuildResult, MartName
 from eatbid.mart.repository import MartBuildContractError, MartBuildRepository
 
-# 발행이 실은 record type이 어느 mart의 입력을 바꾸는가.
-# `auction.v1`에는 명단이 없어 분포의 입력이 생기지 않는다. 목록 관측만 담긴 발행은 오늘 화면만
-# 바꾼다. 이 표가 영향 범위의 단일 권위이며 workflow YAML이 같은 판단을 따로 하지 않는다.
+# 발행이 실은 record type이 어느 core 입력 mart를 바꾸는가.
+# `auction.v1`에는 명단이 없어 분포의 입력이 생기지 않는다. 이 표가 core를 읽는 mart의 영향 범위
+# 단일 권위이며 workflow YAML이 같은 판단을 따로 하지 않는다.
 IMPACT_SCOPE: dict[str, tuple[MartName, ...]] = {
     AUCTION_V1: ("org_round_summary",),
     AUCTION_V2: ("org_round_summary", "win_rate_distribution_monthly"),
 }
 
-# 영향 범위를 알 수 없는 발행에서도 오늘 화면은 목록 관측만 읽으므로 따로 다룬다.
+# 스냅샷의 입력은 release의 목록 관측(R2 raw)이지 발행의 record type이 아니므로 위 표로는 영향
+# 범위를 알 수 없다. 목록은 모든 eaT release의 필수 dataset이라 `--mart` 없는 모든 발행에서 만든다.
 OPEN_AUCTION_MARTS: tuple[MartName, ...] = ("open_auction_snapshot",)
 
 
@@ -33,9 +34,10 @@ def resolve_marts(
 ) -> tuple[MartName, ...]:
     """다시 만들 mart를 고른다.
 
-    이름을 직접 받으면 그대로 쓴다. 발행이 실은 record type을 알면 영향 범위만 고르고, 아무 단서가
-    없으면 셋 다 다시 만든다. 모르는 record type을 만나면 조용히 무시하지 않고 셋 다 만든다 —
-    새 record type이 생겼을 때 화면이 옛 build를 계속 읽는 것보다 다시 만드는 편이 안전하다.
+    이름을 직접 받으면 그대로 쓴다. 발행이 실은 record type을 알면 core 입력 mart는 영향 범위만
+    고르고, 아무 단서가 없으면 셋 다 다시 만든다. 모르는 record type을 만나면 조용히 무시하지 않고
+    셋 다 만든다 — 새 record type이 생겼을 때 화면이 옛 build를 계속 읽는 것보다 다시 만드는 편이
+    안전하다. 열린 공고 스냅샷은 record type과 무관하게 언제나 포함한다(EAT-98).
     """
     if requested:
         return tuple(_require_known(name) for name in requested)
@@ -48,6 +50,9 @@ def resolve_marts(
         for mart_name in IMPACT_SCOPE[record_type]:
             if mart_name not in scoped:
                 scoped.append(mart_name)
+    for mart_name in OPEN_AUCTION_MARTS:
+        if mart_name not in scoped:
+            scoped.append(mart_name)
     return tuple(scoped)
 
 

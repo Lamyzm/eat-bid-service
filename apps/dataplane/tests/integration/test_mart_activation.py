@@ -188,12 +188,15 @@ def test_실패한_build를_다시_열면_행과_함께_새로_시작한다(
 
 def test_영향_범위는_발행이_실은_record_type이_고른다() -> None:
     assert resolve_marts(requested=None, record_types=()) == MART_NAMES
+    # 열린 공고 스냅샷은 record type이 아니라 release의 목록 관측을 읽으므로 언제나 따라온다.
     assert resolve_marts(requested=None, record_types=("auction.v1",)) == (
         "org_round_summary",
+        "open_auction_snapshot",
     )
     assert resolve_marts(requested=None, record_types=("auction.v2",)) == (
         "org_round_summary",
         "win_rate_distribution_monthly",
+        "open_auction_snapshot",
     )
     # 이름을 직접 주면 언제나 그것이 이긴다.
     assert resolve_marts(

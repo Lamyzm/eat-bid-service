@@ -187,11 +187,10 @@ def test_활성_전환이_끝난_뒤_다시_만든_mart_이름만_알린다() ->
         )
     )
 
-    assert [result.mart_name for result in results] == [
-        "org_round_summary",
-        "win_rate_distribution_monthly",
-    ]
-    assert 기록 == [{"marts": ["org_round_summary", "win_rate_distribution_monthly"]}]
+    # 열린 공고 스냅샷은 record type과 무관하게 언제나 다시 만들므로 무효화 범위에도 들어간다.
+    rebuilt = ["org_round_summary", "win_rate_distribution_monthly", "open_auction_snapshot"]
+    assert [result.mart_name for result in results] == rebuilt
+    assert 기록 == [{"marts": rebuilt}]
 
 
 def test_무효화_설정이_없는_조립에서도_발행은_그대로_끝난다() -> None:
