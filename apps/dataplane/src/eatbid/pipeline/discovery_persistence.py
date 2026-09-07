@@ -13,6 +13,8 @@ from eatbid.ingest.repository import IngestRepository
 from eatbid.object_store import RawObjectStore
 from eatbid.pipeline.capture import capture_response
 from eatbid.pipeline.discover import DiscoveryPlan
+from eatbid.pipeline.refetch_baseline import RefetchBaselineReader
+from eatbid.pipeline.refetch_policy import RefetchBaseline
 from eatbid.source.client import SourceResponse
 from eatbid.source.eat.registry import require
 
@@ -26,10 +28,12 @@ class RawFirstDiscoveryPersistence:
         ingest_repository: IngestRepository,
         release_repository: SourceReleaseRepository,
         raw_store: RawObjectStore,
+        baseline_reader: RefetchBaselineReader,
     ) -> None:
         self._ingest = ingest_repository
         self._release = release_repository
         self._raw_store = raw_store
+        self._baseline_reader = baseline_reader
         self._completed_at: datetime | None = None
 
     def start_run(self, plan: DiscoveryPlan) -> None:
@@ -94,6 +98,9 @@ class RawFirstDiscoveryPersistence:
             params=contract.build_detail_params(external_bid_id),
             expected_count=1,
         )
+
+    def load_refetch_baseline(self, plan: DiscoveryPlan) -> RefetchBaseline | None:
+        return self._baseline_reader.load(parser_version=plan.parser_version)
 
     def plan_release(self, plan: SourceReleasePlan) -> None:
         self._release.plan_release(plan)

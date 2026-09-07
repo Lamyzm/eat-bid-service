@@ -54,6 +54,7 @@ def test_응답없는_일시실패_run은_DB에_TRANSIENT_NETWORK로_남고_repl
         ingest_repository=services.repository,
         release_repository=_사용하지_않는_release(),
         raw_store=_사용하지_않는_store(),
+        baseline_reader=_사용하지_않는_store(),  # 실패 경로는 기준을 읽기 전에 닫힌다.
     )
     persistence.start_run(plan)
 

@@ -50,6 +50,7 @@ from eatbid.pipeline.reference import (
     capture_reference,
     project_reference,
 )
+from eatbid.pipeline.refetch_baseline import PsycopgRefetchBaselineReader
 from eatbid.pipeline.replay import ReplayServices, replay_observations
 from eatbid.pipeline.validate import validate_run
 from eatbid.r2_store import R2RawObjectStore, R2Settings
@@ -106,6 +107,7 @@ class Application:
             ingest_repository=self._ingest,
             release_repository=self._release,
             raw_store=self._store,
+            baseline_reader=PsycopgRefetchBaselineReader(self._connection, self._store),
         )
         window = resolve_collection_window(
             args.mode,

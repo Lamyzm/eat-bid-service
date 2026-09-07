@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
@@ -15,9 +16,14 @@ from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedReq
 from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
 from eatbid.ingest.repository import CollectionRunMode
 from eatbid.pipeline.chunk import split_into_chunks
+from eatbid.pipeline.refetch_policy import (
+    NARROWED_MODES,
+    RefetchBaseline,
+    select_detail_refetch,
+)
 from eatbid.source.client import SourceClient, SourceResponse
 from eatbid.source.eat.bid_list import parse_bid_list_page
-from eatbid.source.eat.models import BidListPage
+from eatbid.source.eat.models import BidListPage, BidListRow
 from eatbid.source.eat.registry import require
 from eatbid.source.eat.xml import EatPayloadError
 
@@ -71,18 +77,28 @@ class DiscoveryPlan:
 class DiscoveryResult:
     source_release_id: UUID
     expected_count: int
+    # 목록이 준 전체 ID다. 발견 manifest와 `TOT_CNT` 대조는 이 목록의 사실이다.
     external_bid_ids: tuple[str, ...]
     observation_ids: tuple[int, ...]
     detail_run_id: UUID
     detail_request_unit_ids: tuple[int, ...]
     discovered_manifest_sha256: str
+    # 이번 회차가 실제로 상세를 부르는 ID다. poll-open은 목록 신호가 바뀐 공고로 좁히므로
+    # `external_bid_ids`의 부분집합이고, 그 외 모드에서는 둘이 같다(ADR 0037).
+    detail_external_bid_ids: tuple[str, ...]
+    refetch_reason_counts: Mapping[str, int]
+    baseline_source_release_id: UUID | None
+
+    def __post_init__(self) -> None:
+        if not set(self.detail_external_bid_ids) <= set(self.external_bid_ids):
+            raise ValueError("detail IDs must be discovered IDs")
 
     @property
     def external_bid_id_chunks(self) -> tuple[tuple[str, ...], ...]:
-        """왜 발견이 fan-out 단위를 정하나. 다음 단계가 몇 개의 pod로 펼쳐질지는 발견한 ID 목록에서
-        곧바로 나오는 사실이고, 그 분할을 workflow manifest가 계산하면 매니페스트가 CLI와 별개의
-        두 번째 설정 원천이 된다. 여기서 나눠 두면 봉인된 manifest 순서 그대로 chunk가 된다."""
-        return split_into_chunks(self.external_bid_ids)
+        """왜 발견이 fan-out 단위를 정하나. 다음 단계가 몇 개의 pod로 펼쳐질지는 상세를 부를 ID
+        목록에서 곧바로 나오는 사실이고, 그 분할을 workflow manifest가 계산하면 매니페스트가 CLI와
+        별개의 두 번째 설정 원천이 된다. 여기서 나눠 두면 계획된 request unit 순서 그대로 chunk가 된다."""
+        return split_into_chunks(self.detail_external_bid_ids)
 
 
 class DiscoveryPersistence(Protocol):
@@ -103,6 +119,8 @@ class DiscoveryPersistence(Protocol):
     def plan_detail(
         self, plan: DiscoveryPlan, external_bid_id: str
     ) -> PlannedRequestUnit: ...
+
+    def load_refetch_baseline(self, plan: DiscoveryPlan) -> RefetchBaseline | None: ...
 
     def plan_release(self, plan: SourceReleasePlan) -> None: ...
 
@@ -130,6 +148,7 @@ def discover_release(
     repository.start_run(plan)
     observations: list[CapturedObservation] = []
     source_ids: list[str] = []
+    rows: list[BidListRow] = []
     try:
         first = _fetch_page(plan, 1, repository, client)
         observations.append(first[0])
@@ -141,6 +160,7 @@ def discover_release(
         repository.finalize_run_expected_count(plan.run_id, required_pages)
         _require_page_size(page.external_bid_ids, 1, required_pages, total_count, plan.page_size)
         source_ids.extend(page.external_bid_ids)
+        rows.extend(page.rows)
         seen = set(page.external_bid_ids)
 
         for page_number in range(2, required_pages + 1):
@@ -162,15 +182,26 @@ def discover_release(
                 raise SourceContractError("discovery contains duplicate source IDs")
             seen.update(current.external_bid_ids)
             source_ids.extend(current.external_bid_ids)
+            rows.extend(current.rows)
 
         if len(source_ids) != total_count:
             raise SourceContractError("discovery row total differs from source count")
         ordered_ids = tuple(sorted(source_ids, key=int))
-        repository.start_detail_run(plan, total_count)
-        detail_units = tuple(
-            repository.plan_detail(plan, source_id) for source_id in ordered_ids
+        # 기준 읽기는 목록 관측이 끝난 뒤, 상세 run을 만들기 전이다. 기준을 못 읽는 실패도 이 run의
+        # 실패로 남아야 하고, 좁히지 않는 모드는 R2를 다시 읽을 이유가 없다.
+        baseline = (
+            repository.load_refetch_baseline(plan) if plan.mode in NARROWED_MODES else None
         )
-        release_plan = _release_plan(plan, total_count)
+        selection = select_detail_refetch(
+            rows, mode=plan.mode, baseline=baseline, as_of=plan.as_of
+        )
+        detail_count = len(selection.external_bid_ids)
+        repository.start_detail_run(plan, detail_count)
+        detail_units = tuple(
+            repository.plan_detail(plan, source_id)
+            for source_id in selection.external_bid_ids
+        )
+        release_plan = _release_plan(plan, total_count, detail_count)
         repository.plan_release(release_plan)
         repository.attach_run(plan.source_release_id, plan.run_id)
         repository.attach_run(plan.source_release_id, plan.detail_run_id)
@@ -190,6 +221,9 @@ def discover_release(
             detail_run_id=plan.detail_run_id,
             detail_request_unit_ids=tuple(unit.request_unit_id for unit in detail_units),
             discovered_manifest_sha256=sha256(manifest).hexdigest(),
+            detail_external_bid_ids=selection.external_bid_ids,
+            refetch_reason_counts=selection.reason_counts(),
+            baseline_source_release_id=selection.baseline_source_release_id,
         )
     except Exception as error:
         _best_effort_fail(repository, plan, error)
@@ -246,7 +280,12 @@ def _require_page_size(
         raise SourceContractError("discovery page row count is not exact")
 
 
-def _release_plan(plan: DiscoveryPlan, expected_count: int) -> SourceReleasePlan:
+def _release_plan(
+    plan: DiscoveryPlan, expected_count: int, detail_count: int
+) -> SourceReleasePlan:
+    """목록 dataset의 expected는 소스가 선언한 `TOT_CNT`이고 상세 dataset의 expected는 이번 회차가
+    계획한 request unit 수다. 상세 dataset의 완결성은 "계획한 것을 전부 관측했다"이지 "목록 전부를
+    관측했다"가 아니다(ADR 0037). 목록 전부를 부르는 모드에서는 두 수가 같다."""
     list_contract = require("bid-list", parser_version=plan.parser_version)
     detail_contract = require("bid-detail", parser_version=plan.parser_version)
     (list_dataset,) = list_contract.response_datasets
@@ -275,7 +314,7 @@ def _release_plan(plan: DiscoveryPlan, expected_count: int) -> SourceReleasePlan
                 record_type=detail_contract.record_type,
                 parser_version=detail_contract.parser_version,
                 schema_fingerprint=detail_contract.schema_fingerprint,
-                expected_count=expected_count,
+                expected_count=detail_count,
                 observed_count=0,
                 normalized_count=0,
                 quarantined_count=0,

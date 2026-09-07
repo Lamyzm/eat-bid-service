@@ -43,6 +43,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0034](0034-mart-build-identity-and-atomic-activation.md) | Accepted | `mart.build` 빌드 원장, partial unique index 활성 포인터와 상태 trigger, mart 단위 전량 재빌드, build 속성으로서의 지역 코드 체계 |
 | [0035](0035-administrative-region-canonical-and-mapping.md) | Accepted | 행정안전부 법정동코드 canonical, 시도·시군구 grain, release별 계층, 별도 표의 좌표, 증거 기반 eaT 매핑 |
 | [0036](0036-read-cache-tags-and-invalidation-owner.md) | Accepted | 결정 화면 읽기 캐시의 안정 태그 어휘, dataplane이 부르는 web `/internal/cache/revalidate`, 유계 `cacheLife` (0031 7항 대체) |
+| [0037](0037-poll-open-detail-refetch-policy.md) | Accepted | poll-open 상세 재호출을 목록 신호 넷(`BID_CNT`·상태·마감·변경시각)의 변화와 마감 전이로 좁히고, 기준은 마지막 봉인 release, 강제 전량 재호출은 daily-reconcile |
 
 ## 새 ADR 형식
 

@@ -21,6 +21,7 @@ from eatbid.pipeline.capture import capture
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.pipeline.normalize import normalize_observation
+from eatbid.pipeline.refetch_baseline import PsycopgRefetchBaselineReader
 from eatbid.source.client import SourceResponse
 
 from ..unit.fakes import StaticSourceClient
@@ -47,6 +48,9 @@ def test_offline_discover가_raw와_detail_manifest를_같은_planned_release에
         ingest_repository=pipeline_services.repository,
         release_repository=release_repository,
         raw_store=pipeline_services.store,
+        baseline_reader=PsycopgRefetchBaselineReader(
+            pipeline_services.connection, pipeline_services.store
+        ),
     )
 
     result = discover_release(

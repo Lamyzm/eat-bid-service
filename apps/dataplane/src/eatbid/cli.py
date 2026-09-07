@@ -122,6 +122,15 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "external_bid_id_chunks": [
                 list(chunk) for chunk in result.external_bid_id_chunks
             ],
+            # 상세를 실제로 부르는 수와 그 이유별 집계다. poll-open이 목록 신호로 좁힌 결과를 회차마다
+            # 되짚을 수 있어야 "왜 이 공고를 안 불렀나"에 답할 수 있다(ADR 0037).
+            "detail_count": len(result.detail_external_bid_ids),
+            "refetch_reasons": dict(result.refetch_reason_counts),
+            "baseline_source_release_id": (
+                str(result.baseline_source_release_id)
+                if result.baseline_source_release_id is not None
+                else ""
+            ),
             "manifest_sha256": result.discovered_manifest_sha256,
             "source_release_id": str(result.source_release_id),
         }
@@ -171,8 +180,8 @@ def _write_result_files(result_dir: Path, payload: Mapping[str, object]) -> None
     result_dir.mkdir(parents=True, exist_ok=True)
     for key, value in payload.items():
         text = (
-            json.dumps(value, separators=(",", ":"))
-            if isinstance(value, list)
+            json.dumps(value, separators=(",", ":"), sort_keys=True)
+            if isinstance(value, list | dict)
             else str(value)
         )
         (result_dir / key).write_text(text, encoding="utf-8")

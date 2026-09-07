@@ -868,10 +868,18 @@ def test_DAG는_discover_output으로_capture와_normalize를_fan_out한다(
         "publication-id": f"{result_dir}/publication_id",
         "external-bid-id-chunks": f"{result_dir}/external_bid_id_chunks",
         "discovered-count": f"{result_dir}/discovered_count",
+        # poll-open이 상세를 몇 건 왜 다시 불렀는지는 workflow status에서 읽는다(ADR 0037).
+        "detail-count": f"{result_dir}/detail_count",
+        "refetch-reasons": f"{result_dir}/refetch_reasons",
     }
     assert _output_paths(templates["capture"]) == {
         "observation-ids": f"{result_dir}/observation_ids"
     }
+    # poll-open이 상세 0건으로 좁힌 회차는 capture가 "Skipped, empty params"로 건너뛰어지고, Argo
+    # v4.0.8은 건너뛴 task의 output에 valueFrom.default만 채운다. 이 값이 없으면 normalize의
+    # withParam이 해석되지 않아 목록 관측만 있는 빈 회차가 발행되지 못한다(ADR 0037).
+    (capture_output,) = _sequence(_mapping(templates["capture"]["outputs"])["parameters"])
+    assert _mapping(_mapping(capture_output)["valueFrom"])["default"] == "[]"
 
     # fan-out 단위는 발견 건이 아니라 chunk다. 건당 pod를 띄우면 건당 약 17초 중 10초가 pod
     # 생성·종료 비용이라 한 달 백필이 80시간이 된다(EAT-51 증거 §6, EAT-79).

@@ -52,8 +52,8 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 
 | mode | 목적 | 초기 예약 |
 |---|---|---|
-| `poll-open` | 열린 공고·변경을 업무시간에 짧은 지연으로 반영 | 약 30분, source 정책에 맞춰 조정 |
-| `daily-reconcile` | 전체 상태·변경·개찰·낙찰을 재대조 | 일 1회 |
+| `poll-open` | 열린 공고·변경을 업무시간에 짧은 지연으로 반영. 상세는 목록 신호가 바뀐 공고만 다시 부른다(§2.4) | 약 30분, source 정책에 맞춰 조정 |
+| `daily-reconcile` | 전체 상태·변경·개찰·낙찰을 재대조. 창 안 공고 전부의 상세를 부르는 강제 재호출이다 | 일 1회 |
 | `backfill` | 날짜×지역×상태 범위를 수동/운영 승인으로 채움 | ad hoc |
 | `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
 | `reference` | 정부 공개 코드 파일을 새 code release로 적재 | 월 1회 (`reference-pipeline` entrypoint) |
@@ -138,13 +138,46 @@ semaphore 큐에서 backfill chunk보다 먼저 받게 한다(2026-09-07, EAT-93
 파일로 남지만 output parameter가 아니다. 피크 월이면 아무 단계도 읽지 않는 그 목록만으로 workflow
 status가 수백 KB 늘어난다.
 
+### 2.4 poll-open은 목록 신호가 바뀐 공고의 상세만 다시 부른다 (2026-09-07, EAT-76)
+
+**`poll-open`의 `discover`는 목록 전부를 관측하되 상세 request unit은 마지막으로 봉인된 정기 수집
+release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요청 수 비교는
+[ADR 0037](../adr/0037-poll-open-detail-refetch-policy.md), 운영 실측은
+[poll-open 재호출 정책 전후](../evidence/collection/2026-09-07-poll-open-refetch-policy.md)다.
+규칙의 소유자는 `apps/dataplane/src/eatbid/pipeline/refetch_policy.py` 하나이고 기준 읽기는
+`refetch_baseline.py`가 R2의 목록 원본을 검토된 파서로 다시 읽어 만든다.
+
+| 재호출 이유 | 조건 |
+|---|---|
+| `new` | 기준 목록에 없던 `ETN_BID_ID`(재공고 차수도 새 ID라 여기 든다) |
+| `signal-changed` | `BID_CNT`·`ETN_BID_STT_NM`·`BID_END_DT`·`LAST_CHG_DT` 중 하나라도 다름 |
+| `deadline-passed` | 기준 관측 시각과 이번 `--as-of` 사이에 `BID_END_DT`가 지남 |
+| `post-deadline-window` | `BID_END_DT` 뒤 2시간 안(개찰 뒤 명단이 들어오는 구간을 신호와 무관하게 따라간다) |
+| `no-baseline` / `full-mode` | 봉인된 기준이 없거나 `daily-reconcile`·`backfill` 모드 — 목록 전부 |
+
+바뀐 것과 바뀌지 않은 것:
+
+- 목록 dataset의 `expected_count`는 여전히 `TOT_CNT`이고 발견 manifest도 목록 전부다. 상세 dataset과
+  detail run의 `expected_count`는 **이번 회차가 계획한 request unit 수**다. 봉인 조건 "계획한 것을 전부
+  관측했다"(ADR 0025)는 그대로이며, `TOT_CNT`와 상세 수가 같아야 한다는 옛 가정만 뗐다.
+- 기준은 파생물(mart)이 아니라 R2의 목록 원본이고, 봉인된 release만 기준이 된다. 상세 캡처가 실패해
+  봉인되지 않은 회차는 기준에서 빠지므로 그 회차에만 보였던 변화는 다음 회차가 다시 잡는다.
+- `discover`는 `detail_count`·`refetch_reasons`·`baseline_source_release_id`를 machine result로 남긴다.
+  "왜 이 공고를 이번 회차에 안 불렀나"는 그 파일과 request unit 부재로 답한다.
+- 상세 0건인 회차도 목록 관측·봉인·발행·mart 스냅샷까지 간다. capture는 `withParam: []`로
+  건너뛰어지고 그 output `observation-ids`의 `valueFrom.default: "[]"`가 normalize를 같은 방식으로
+  건너뛰게 한다. Argo v4.0.8은 건너뛴 task의 선언된 output에 default만 채운다.
+- 창 사이 중복 제거(§2.2)는 여전히 하지 않는다. 이 정책은 poll-open의 회차 사이 판단이며 backfill 창
+  분할의 비용 모델(달력 월)을 바꾸지 않는다.
+
 ## 3. 실행 안전장치
 
 - source 전역 semaphore를 둔다. 초기 capacity는 1이며 관측 후 늘린다.
 - canonical publication/projector에는 mutex를 둬 서로 다른 실행의 활성화가 엇갈리지 않게 한다.
 - pod는 stateless다. hostPath, 로컬 SQLite, 공유 JSON 파일을 단계 계약으로 쓰지 않는다.
 - 각 실행/관측/로그에 `run_id`, correlation ID, Git SHA, image digest, parser/projector version을 남긴다.
-- 목록 응답의 `TOT_CNT`와 실제 발견/캡처 건수를 request unit 단위로 정확히 대조한다.
+- 목록 응답의 `TOT_CNT`와 실제 발견 건수를 request unit 단위로 정확히 대조한다. 상세 캡처 건수는
+  `TOT_CNT`가 아니라 그 회차가 계획한 상세 request unit 수와 대조한다(§2.4, ADR 0037).
 - `PAGE_SIZE` 상한 1000은 소스 정책이 아니라 우리 정책이다. 소스는 5000까지 절단 없이 돌려주며 묶는
   것은 `BID_LIST_MAX_RESPONSE_BYTES`(16 MiB)와 행당 약 1.8 KB, 즉 약 9,300행이다(2026-09-06 실측,
   EAT-46). 1000은 그 한계의 9분의 1이라 여유가 있으므로 유지하되 "소스가 거부한다"로 설명하지 않는다.

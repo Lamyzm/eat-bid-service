@@ -260,6 +260,9 @@ class _발견결과애플리케이션(_기록애플리케이션):
             detail_run_id=UUID(PUBLICATION_ID),
             detail_request_unit_ids=(2, 3),
             discovered_manifest_sha256="b" * 64,
+            detail_external_bid_ids=("7", "11"),
+            refetch_reason_counts={"full-mode": 2, "unchanged": 0},
+            baseline_source_release_id=None,
         )
 
 
@@ -282,6 +285,9 @@ def test_result_dir는_machine_result의_key마다_workflow가_읽을_파일을_
         "discovered_count": "2",
         "external_bid_ids": '["7","11"]',
         "external_bid_id_chunks": '[["7","11"]]',
+        "detail_count": "2",
+        "refetch_reasons": '{"full-mode":2,"unchanged":0}',
+        "baseline_source_release_id": "",
         "manifest_sha256": "b" * 64,
         "source_release_id": RELEASE_ID,
     }
@@ -296,12 +302,45 @@ def test_발견은_50건_단위_chunk를_발견_순서대로_낸다() -> None:
         detail_run_id=UUID(PUBLICATION_ID),
         detail_request_unit_ids=(),
         discovered_manifest_sha256="b" * 64,
+        detail_external_bid_ids=tuple(str(number) for number in range(1, 121)),
+        refetch_reason_counts={"full-mode": 120, "unchanged": 0},
+        baseline_source_release_id=None,
     )
 
     chunks = result.external_bid_id_chunks
 
     assert [len(chunk) for chunk in chunks] == [50, 50, 20]
     assert tuple(value for chunk in chunks for value in chunk) == result.external_bid_ids
+
+
+def test_chunk는_목록_전체가_아니라_상세를_부르기로_한_ID만_담는다() -> None:
+    result = DiscoveryResult(
+        source_release_id=UUID(RELEASE_ID),
+        expected_count=3,
+        external_bid_ids=("1", "2", "3"),
+        observation_ids=(1,),
+        detail_run_id=UUID(PUBLICATION_ID),
+        detail_request_unit_ids=(),
+        discovered_manifest_sha256="b" * 64,
+        detail_external_bid_ids=("2",),
+        refetch_reason_counts={"signal-changed": 1, "unchanged": 2},
+        baseline_source_release_id=UUID(RELEASE_ID),
+    )
+
+    assert result.external_bid_id_chunks == (("2",),)
+    with pytest.raises(ValueError, match="discovered IDs"):
+        DiscoveryResult(
+            source_release_id=UUID(RELEASE_ID),
+            expected_count=1,
+            external_bid_ids=("1",),
+            observation_ids=(1,),
+            detail_run_id=UUID(PUBLICATION_ID),
+            detail_request_unit_ids=(),
+            discovered_manifest_sha256="b" * 64,
+            detail_external_bid_ids=("9",),
+            refetch_reason_counts={"new": 1, "unchanged": 0},
+            baseline_source_release_id=None,
+        )
 
 
 def test_capture_chunk는_건별로_application을_부르고_관측_ID를_fan_out에_남긴다(

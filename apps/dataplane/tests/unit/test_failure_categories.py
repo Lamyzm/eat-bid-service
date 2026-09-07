@@ -60,6 +60,7 @@ def _영속화(ingest: _기록_ingest) -> RawFirstDiscoveryPersistence:
         ingest_repository=ingest,  # type: ignore[arg-type]
         release_repository=object(),  # type: ignore[arg-type]
         raw_store=object(),  # type: ignore[arg-type]
+        baseline_reader=object(),  # type: ignore[arg-type]
     )
 
 
