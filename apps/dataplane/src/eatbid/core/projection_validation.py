@@ -130,6 +130,12 @@ def _validate_code_refs(projection: AuctionProjection) -> None:
             )
         if REVIEWED_CODE_ROLES.get(reference.namespace) != reference.role:
             raise ProjectionContractError("projection code reference is not reviewed")
+        if reference.label is not None and (
+            not isinstance(reference.label, str) or not reference.label.strip()
+        ):
+            raise ProjectionContractError(
+                "projection code reference label must be text or null"
+            )
         identity = (reference.namespace, reference.code, reference.role)
         if identity in identities:
             raise ProjectionContractError(

@@ -44,6 +44,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0035](0035-administrative-region-canonical-and-mapping.md) | Accepted | 행정안전부 법정동코드 canonical, 시도·시군구 grain, release별 계층, 별도 표의 좌표, 증거 기반 eaT 매핑 |
 | [0036](0036-read-cache-tags-and-invalidation-owner.md) | Accepted | 결정 화면 읽기 캐시의 안정 태그 어휘, dataplane이 부르는 web `/internal/cache/revalidate`, 유계 `cacheLife` (0031 7항 대체) |
 | [0037](0037-poll-open-detail-refetch-policy.md) | Accepted | poll-open 상세 재호출을 목록 신호 넷(`BID_CNT`·상태·마감·변경시각)의 변화와 마감 전이로 좁히고, 기준은 마지막 봉인 release, 강제 전량 재호출은 daily-reconcile |
+| [0038](0038-additive-ingestion-fields-and-parser-version.md) | Accepted | 봉인된 수집 계약의 optional 가산 확장(`exclude_unset` canonical 재직렬화), `location.eligibilityAreas`, 라벨을 싣는 파서는 새 version `eat-v3` (0014·0025·0029 refine) |
 
 ## 새 ADR 형식
 

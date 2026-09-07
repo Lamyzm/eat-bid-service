@@ -95,6 +95,17 @@ class CanonicalProjectionWriter:
                 allow_insert=allow_insert,
             )
             code_values_inserted += inserted
+            if reference.label is not None:
+                # 라벨은 코드 관계가 아니라 이 관측이 남긴 증거라 관계 집합 검증 밖에 둔다. 같은 코드를
+                # 다른 이름으로 부른 관측이 있어도 행이 늘 뿐 충돌이 아니다(AGENTS 3).
+                label_inserted += resolve_label(
+                    cursor,
+                    code_value_id=code_value_id,
+                    label=reference.label,
+                    observation_id=projection.observation_id,
+                    observed_at=observed_at,
+                    allow_insert=allow_insert,
+                )
             expected_code_relationships.add((code_value_id, reference.role))
             relationships_inserted += self._resolve_relationship(
                 cursor,

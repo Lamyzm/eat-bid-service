@@ -213,6 +213,24 @@ _EAT_V2_BID_DETAIL = ReviewedSchemaContract(
 # v2 실행이 목록 계약을 못 찾으면 발견 자체가 멈추므로 같은 모양을 v2 이름으로 다시 등록한다.
 _EAT_V2_BID_LIST_PAGE = replace(_EAT_V1_BID_LIST, parser_version="eat-v2")
 
+# eat-v3는 eat-v2와 같은 응답을 읽되 `ds_areaList.PDLC_NM`(참가제한지역 라벨)을 해석해 `auction.v2`
+# 계약의 가산 필드 `location.eligibilityAreas`에 싣는다(ADR 0038). 왜 eat-v2를 고치지 않고 이름을
+# 더하나. `ingest.normalized_record`는 `(observation, record_type, entity, parser_version)`마다 payload
+# 하나를 봉인하고 같은 키에 다른 payload가 오면 비결정으로 거부한다(ADR 0014). 라벨이 붙은 payload는
+# 다른 바이트이므로 그것을 eat-v2라 부르면 이미 정규화된 관측의 재실행·replay가 전부 그 guard에
+# 막힌다. `required`는 v2와 같아 fingerprint도 같다 — 라벨은 없어도 사실을 만들 수 있는 선택 column이다.
+_EAT_V3_BID_DETAIL = replace(
+    _EAT_V2_BID_DETAIL,
+    parser_version="eat-v3",
+    datasets=MappingProxyType(
+        {
+            **_EAT_V2_BID_DETAIL.datasets,
+            "ds_areaList": ("PDLC_CD", "PDLC_NM"),
+        }
+    ),
+)
+_EAT_V3_BID_LIST_PAGE = replace(_EAT_V1_BID_LIST, parser_version="eat-v3")
+
 REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
     {
         (contract.source, contract.endpoint, contract.parser_version): contract
@@ -221,6 +239,8 @@ REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
             _EAT_V1_BID_DETAIL,
             _EAT_V2_BID_LIST_PAGE,
             _EAT_V2_BID_DETAIL,
+            _EAT_V3_BID_LIST_PAGE,
+            _EAT_V3_BID_DETAIL,
         )
     }
 )

@@ -121,6 +121,23 @@ def test_eat_v2_상세_계약이_실측된_명단_column_수를_고정한다() -
     }
 
 
+def test_eat_v3는_v2와_같은_record_type과_fingerprint로_참가제한지역_라벨_column만_더_안다() -> None:
+    """라벨은 `auction.v2`의 가산 필드라 record type이 갈리지 않고, 선택 column이라 fingerprint도 같다."""
+    v2 = require("bid-detail", parser_version="eat-v2")
+    v3 = require("bid-detail", parser_version="eat-v3")
+
+    assert v3.transport is v2.transport
+    assert v3.record_type == v2.record_type == "auction.v2"
+    assert v3.schema_fingerprint == v2.schema_fingerprint == SEALED_V1_DETAIL_FINGERPRINT
+    assert v3.schema_contract.required_datasets == v2.schema_contract.required_datasets
+    assert v3.datasets["ds_areaList"] == ("PDLC_CD", "PDLC_NM")
+    assert v2.datasets["ds_areaList"] == ("PDLC_CD",)
+    assert {name: columns for name, columns in v3.datasets.items() if name != "ds_areaList"} == {
+        name: columns for name, columns in v2.datasets.items() if name != "ds_areaList"
+    }
+    assert require("bid-list", parser_version="eat-v3").record_type == "auction-discovery.v1"
+
+
 def test_모르는_parser_version은_계약을_주지_않는다() -> None:
     with pytest.raises(SourceContractError, match="unknown-parser-version"):
         require("bid-detail", parser_version="eat-v9")

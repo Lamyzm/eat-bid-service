@@ -42,6 +42,7 @@ from eatbid.source.eat.code_schemes import (
     AUCTION_LOCATION_SIGUNGU,
     ELIGIBILITY_AREA,
 )
+from eatbid.source.eat.normalize import canonical_payload, canonical_record_object
 
 # 통화는 계약 `Money`가 `KRW` 하나로 고정한다. 금액만 옮기고 통화를 잃으면 그 숫자는 해석할 수 없다
 # (AGENTS 15).
@@ -59,13 +60,7 @@ def parse_canonical_normalized_auction_v2(value: bytes) -> EatbidIngestionAuctio
         if not isinstance(decoded, dict):
             raise TypeError("normalized payload must be a JSON object")
         record = EatbidIngestionAuctionV2.model_validate_json(value, strict=True)
-        canonical = json.dumps(
-            record.model_dump(mode="json", by_alias=True),
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        if canonical != value:
+        if canonical_payload(record) != value:
             raise ValueError("normalized payload is not canonical JSON")
         return record
     except (TypeError, ValueError, ValidationError) as error:
@@ -90,7 +85,7 @@ def build_eat_auction_v2_projection(
         raise ProjectionContractError("projection raw content hash is invalid")
 
     try:
-        canonical_payload = json.dumps(
+        canonical_bytes = json.dumps(
             member.normalized_payload,
             ensure_ascii=False,
             sort_keys=True,
@@ -100,7 +95,7 @@ def build_eat_auction_v2_projection(
         raise ProjectionContractError(
             "projection normalized payload is invalid"
         ) from error
-    record = parse_canonical_normalized_auction_v2(canonical_payload)
+    record = parse_canonical_normalized_auction_v2(canonical_bytes)
     if record.identity.external_bid_id != member.source_entity_id:
         raise ProjectionContractError("projection external ID differs from lineage")
 
@@ -111,7 +106,7 @@ def build_eat_auction_v2_projection(
         endpoint=member.endpoint,
         parser_version=member.parser_version,
         raw_content_sha256=member.raw_content_sha256,
-        normalized_payload_sha256=hashlib.sha256(canonical_payload).hexdigest(),
+        normalized_payload_sha256=hashlib.sha256(canonical_bytes).hexdigest(),
         external_bid_id=record.identity.external_bid_id,
         display_bid_no=(
             record.identity.display_bid_number.root
@@ -120,7 +115,7 @@ def build_eat_auction_v2_projection(
         ),
         organization_code=record.buyer.organization_code,
         organization_label=record.buyer.organization_name,
-        code_refs=_code_refs(record),
+        code_refs=_code_refs(record, source_system=member.source_system),
         source_status=record.identity.status,
         title=record.identity.title,
         announced_at=instant_datetime(record.schedule.announced_at),
@@ -130,17 +125,22 @@ def build_eat_auction_v2_projection(
         planned_amount=money_decimal(record.pricing.planned_amount),
         floor_rate=_floor_rate(record),
         currency=_CURRENCY,
-        source_payload=record.model_dump(mode="json", by_alias=True),
+        source_payload=canonical_record_object(record),
         roster=_roster(record),
         award=_award(record),
         attempt_links=_attempt_links(record),
     )
 
 
-def _code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef, ...]:
+def _code_refs(
+    record: EatbidIngestionAuctionV2, *, source_system: str
+) -> tuple[ExternalCodeRef, ...]:
     eligibility_codes = tuple(code.root for code in record.location.eligibility_codes)
     if len(set(eligibility_codes)) != len(eligibility_codes):
         raise ProjectionContractError("projection has duplicate eligibility codes")
+    labels = _eligibility_labels(
+        record, eligibility_codes=eligibility_codes, source_system=source_system
+    )
     refs: list[ExternalCodeRef] = []
     if record.location.sido_code is not None:
         refs.append(
@@ -163,11 +163,44 @@ def _code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef, ...]:
             namespace=ELIGIBILITY_AREA.namespace,
             code=code,
             role="eligibility_area",
+            label=labels.get(code),
         )
         for code in eligibility_codes
     )
     refs.extend(_terms_code_refs(record))
     return tuple(refs)
+
+
+def _eligibility_labels(
+    record: EatbidIngestionAuctionV2,
+    *,
+    eligibility_codes: tuple[str, ...],
+    source_system: str,
+) -> dict[str, str]:
+    """`eligibilityAreas`가 실은 라벨을 코드별로 모은다. 키가 없는 payload는 빈 dict다.
+
+    같은 payload가 코드를 두 자리에 싣는 이유는 `eligibilityCodes`가 봉인된 identity 목록이고
+    `eligibilityAreas`가 그 뒤에 가산된 관측이기 때문이다(ADR 0038). 두 자리가 어긋나면 어느 쪽이 사실인지
+    projector가 고를 수 없으므로 계약 위반으로 끊는다 — 순서까지 같아야 "같은 행의 관측"이 성립한다.
+    """
+    areas = record.location.eligibility_areas
+    if areas is None:
+        return {}
+    if tuple(area.code for area in areas) != eligibility_codes:
+        raise ProjectionContractError(
+            "projection eligibility areas differ from eligibility codes"
+        )
+    for area in areas:
+        if (
+            area.code_scheme != ELIGIBILITY_AREA.namespace
+            or area.source_system != source_system
+        ):
+            raise ProjectionContractError(
+                "projection eligibility area scheme is not reviewed"
+            )
+    return {
+        area.code: area.label.root for area in areas if area.label is not None
+    }
 
 
 def _terms_code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef, ...]:

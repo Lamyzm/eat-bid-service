@@ -13,7 +13,21 @@
   "location": {
     "sidoCode": "01",
     "sigunguCode": null,
-    "eligibilityCodes": ["001", "01002"]
+    "eligibilityCodes": ["001", "01002"],
+    "eligibilityAreas": [
+      {
+        "sourceSystem": "eat",
+        "codeScheme": "eat:eligibility-area",
+        "code": "001",
+        "label": "서울 / 전체"
+      },
+      {
+        "sourceSystem": "eat",
+        "codeScheme": "eat:eligibility-area",
+        "code": "01002",
+        "label": "서울/종로구"
+      }
+    ]
   },
   "schedule": {
     "announcedAt": "2026-08-29T15:00:00Z",

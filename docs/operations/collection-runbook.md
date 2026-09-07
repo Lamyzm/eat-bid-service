@@ -152,7 +152,54 @@ Workflow의 `creationTimestamp`이고 활성 build 전환은 여기서 일어난
 묶지 않는 이유는 `workflowTemplateRef`를 쓰는 Workflow가 자기 template을 더할 수 없고 `scheduled-pipeline`
 DAG는 `discover`부터 시작하기 때문이다.
 
-## 2. 하지 않는 것
+## 2. 참가제한지역 라벨을 켜기 — `eat-v3` 기본값 전환과 replay (2026-09-07, EAT-75)
+
+`eat-v3`는 `eat-v2`와 같은 응답을 같은 `auction.v2`로 정규화하되 `ds_areaList.PDLC_NM`을
+`location.eligibilityAreas`에 실어 projector가 `core.code_label_observation`을 남기게 한다
+([ADR 0038](../adr/0038-additive-ingestion-fields-and-parser-version.md)). 그 라벨이 있어야
+`region_mapping`이 행안부 코드와의 `core.code_mapping` 행을 만든다(ADR 0035 결정 6). 순서가 중요하다 —
+**템플릿 기본값을 이미지보다 먼저 올리면 옛 이미지가 모르는 version 이름을 받아 `unknown-parser-version`으로
+멈춘다**(EAT-95).
+
+### 2.1 순서
+
+1. `eat-v3`를 아는 이미지를 릴리즈하고 Argo CD가 dataplane 이미지를 동기화한 것을 확인한다.
+   ```powershell
+   kubectl get workflowtemplate eatbid-dataplane -n eatbid -o jsonpath='{.spec.templates[?(@.name=="normalize")].container.image}'
+   ```
+2. 그 뒤 **별도 커밋**으로 `infra/product/workflows/workflow-template.yaml`의 `parser-version` 기본값을
+   `eat-v3`로 올리고 `infra/tests/test_workflow_contract.py`의 기본값 assert를 같이 고친다. 이 커밋은
+   EAT-75 branch에 넣지 않았다.
+3. 다음 `poll-open`부터 새 관측이 라벨을 싣는다. 확인:
+   ```sql
+   select count(*) from core.code_label_observation o
+   join core.code_value v using (code_value_id)
+   join core.code_scheme s using (code_scheme_id)
+   where s.namespace = 'eat:eligibility-area';
+   ```
+
+### 2.2 이미 발행된 revision의 라벨 — replay 한 번
+
+매핑은 revision이 아니라 코드에 매달리므로 새 수집만으로도 관측된 코드부터 라벨이 쌓인다. 189종을 빨리
+채우려면 §1.2의 `replay-pipeline`을 **`parser-version: eat-v3`**로 낸다. `eat-v2`로 replay하면 같은
+`(observation, parser_version)` 키에 이미 봉인된 payload가 있어 재사용될 뿐 라벨은 생기지 않고, `eat-v2`
+파서 자체는 바이트를 바꾸지 않으므로 비결정 오류도 나지 않는다.
+
+```yaml
+  arguments:
+    parameters:
+      - name: parser-version
+        value: eat-v3
+      # 나머지는 §1.2와 같다: source-release-id, 새 publication-id, observation-ids-json, 네 시각.
+```
+
+replay는 관측마다 새 `normalized_record`·새 `core.auction_revision`을 만들고 원래 eat-v2 발행물은
+그대로 둔다(같은 attempt에 revision이 하나 늘어난다). 라벨 수집이 끝나면 `reference-pipeline`의 매핑
+단계가 `core.code_mapping`을 채우고, 매핑률은 [`reference-data-coverage.md`](reference-data-coverage.md)
+§3에 운영 실측으로 적는다. 그 값이 충분할 때 §4의 mart 전환(새 `calc_version`, `--region-scheme
+mois:administrative-region`)을 한다.
+
+## 3. 하지 않는 것
 
 - 실패한 publication의 `status`나 run의 `build_sha`를 SQL로 고치지 않는다. 상태 전이는 CLI transaction만
   하고, `build_sha`를 바꾸면 그 run이 어느 코드로 관측·정규화됐는지의 lineage가 거짓이 된다.

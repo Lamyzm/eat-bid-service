@@ -41,6 +41,7 @@ from eatbid.source.eat.code_schemes import (
     AUCTION_LOCATION_SIGUNGU,
     ELIGIBILITY_AREA,
 )
+from eatbid.source.eat.normalize import canonical_payload, canonical_record_object
 
 __all__ = [
     "ProjectionFingerprintItem",
@@ -73,13 +74,7 @@ def parse_canonical_normalized_auction(value: object) -> EatbidIngestionAuctionV
         if not isinstance(decoded, dict):
             raise TypeError("normalized payload must be a JSON object")
         record = EatbidIngestionAuctionV1.model_validate_json(value, strict=True)
-        canonical_payload = json.dumps(
-            record.model_dump(mode="json", by_alias=True),
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        if canonical_payload != value:
+        if canonical_payload(record) != value:
             raise ValueError("normalized payload is not canonical JSON")
         return record
     except (TypeError, ValueError, ValidationError) as error:
@@ -103,7 +98,7 @@ def build_eat_auction_projection(
         raise ProjectionContractError("projection raw content hash is invalid")
 
     try:
-        canonical_payload = json.dumps(
+        canonical_bytes = json.dumps(
             member.normalized_payload,
             ensure_ascii=False,
             sort_keys=True,
@@ -113,7 +108,7 @@ def build_eat_auction_projection(
         raise ProjectionContractError(
             "projection normalized payload is invalid"
         ) from error
-    record = parse_canonical_normalized_auction(canonical_payload)
+    record = parse_canonical_normalized_auction(canonical_bytes)
     if record.identity.external_bid_id != member.source_entity_id:
         raise ProjectionContractError("projection external ID differs from lineage")
     eligibility_codes = tuple(code.root for code in record.location.eligibility_codes)
@@ -146,7 +141,7 @@ def build_eat_auction_projection(
         for code in eligibility_codes
     )
 
-    source_payload = record.model_dump(mode="json", by_alias=True)
+    source_payload = canonical_record_object(record)
 
     return AuctionProjection(
         normalized_record_id=member.normalized_record_id,
@@ -155,7 +150,7 @@ def build_eat_auction_projection(
         endpoint=member.endpoint,
         parser_version=member.parser_version,
         raw_content_sha256=member.raw_content_sha256,
-        normalized_payload_sha256=hashlib.sha256(canonical_payload).hexdigest(),
+        normalized_payload_sha256=hashlib.sha256(canonical_bytes).hexdigest(),
         external_bid_id=record.identity.external_bid_id,
         display_bid_no=(
             record.identity.display_bid_number.root

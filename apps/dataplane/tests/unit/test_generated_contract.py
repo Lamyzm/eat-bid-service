@@ -96,7 +96,33 @@ def test_v2_golden_fixture가_alias_왕복에서_바뀌지_않는다() -> None:
     model = EatbidIngestionAuctionV2.model_validate(payload)
 
     assert model.contract_version == "eatbid.ingestion.auction.v2"
-    assert model.model_dump(by_alias=True, mode="json") == payload
+    assert model.model_dump(by_alias=True, mode="json", exclude_unset=True) == payload
+
+
+def test_v2_참가제한지역_라벨은_원문_그대로_실리고_공백_변이도_보존된다() -> None:
+    model = EatbidIngestionAuctionV2.model_validate(golden_payload_v2())
+
+    areas = model.location.eligibility_areas
+    assert areas is not None
+    assert [area.code for area in areas] == ["001", "01002"]
+    assert [area.label.root if area.label else None for area in areas] == [
+        "서울 / 전체",
+        "서울/종로구",
+    ]
+
+
+def test_라벨_키가_없는_봉인된_v2_payload는_그대로_통과하고_재직렬화에_새_키를_내지_않는다() -> None:
+    """ADR 0038: optional 가산 필드는 producer가 쓰지 않은 키를 재직렬화가 만들어 내지 않아야 한다."""
+    payload = golden_payload_v2()
+    location = payload["location"]
+    assert isinstance(location, dict)
+    del location["eligibilityAreas"]
+
+    model = EatbidIngestionAuctionV2.model_validate(payload)
+
+    assert model.location.eligibility_areas is None
+    assert model.model_dump(by_alias=True, mode="json", exclude_unset=True) == payload
+    assert "eligibilityAreas" in model.model_dump(by_alias=True, mode="json")["location"]
 
 
 def test_v2_generated_model이_선행_0을_코드_문자열로_보존한다() -> None:
