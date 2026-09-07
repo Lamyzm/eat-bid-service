@@ -38,6 +38,13 @@
 수백만 행에 복제하면 권위가 둘이 되고 한쪽만 바뀌는 순간을 DB가 막지 못한다(AGENTS 1). 읽기
 경로는 활성 build 하나를 조인해 응답 meta에 계보를 싣는다.
 
+한 응답이 mart 둘을 읽으면 계보도 둘이다. 오늘 목록(`listOpenAuctions`)은 행을
+`open_auction_snapshot`에서, 기관 요약을 `org_round_summary`에서 읽으며 둘은 서로 다른
+release·`calc_version`에서 나올 수 있다. 그래서 응답 meta는 계보를 하나로 합치지 않고 **build마다
+이름 붙인 계보 객체**(`openAuctionSnapshotBuild`, `orgRoundSummaryBuild`)로 싣는다. 하나로 합치면
+어느 build가 어느 열을 만들었는지 응답만으로 재현할 수 없다(AGENTS 7). 이것은 결정을 바꾸는 것이
+아니라 "계보는 build 하나가 갖는다"의 적용 범위를 적는 것이다.
+
 활성 build는 `create unique index on mart.build (mart_name) where status = 'active'`로 mart마다
 최대 하나가 DB 제약이다. 전환은 이전 active를 `superseded`로, 새 `verified`를 `active`로 바꾸는 한
 트랜잭션이며 DDL이 없다. 동시 전환은 두 번째가 partial unique index 위반으로 끊긴다.
