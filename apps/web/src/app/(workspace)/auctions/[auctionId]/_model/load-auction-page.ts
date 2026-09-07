@@ -75,7 +75,11 @@ async function loadHistory(
       item: item ?? undefined,
       limit: 60
     });
-    return { state: 'ready', presentation: presentHistory(attempts, item) };
+    // 공고 ID는 회차(AuctionAttempt) ID와 같은 식별자라 응답 행과 그대로 견줄 수 있다.
+    return {
+      state: 'ready',
+      presentation: presentHistory(attempts, item, { currentAttemptId: response.identity.auctionId })
+    };
   } catch {
     return { state: 'unavailable' };
   }

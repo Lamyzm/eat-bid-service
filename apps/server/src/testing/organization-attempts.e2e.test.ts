@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
 import { organizationV1Operations } from "@eatbid/contracts";
-import { baseRelativeBidRate, bidRate, canonicalDecimal, krw, Temporal } from "@eatbid/domain";
+import { baseRelativeBidRate, bidRate, canonicalDecimal, fixedClock, krw, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import type {
@@ -37,6 +37,9 @@ const lineage = {
   regionScheme: "eat:auction-location-sigungu",
 } as const;
 
+// 개찰 기준 시각은 서버의 주입 clock이다. 고정해야 reader가 받은 기준과 meta.asOf를 문자 그대로 검사한다.
+const NOW = Temporal.Instant.from("2026-09-06T01:00:00Z");
+
 const environment = parseEnvironment({
   NODE_ENV: "test",
   PORT: "0",
@@ -45,7 +48,7 @@ const environment = parseEnvironment({
 
 const attemptsPath = (
   organizationId: string,
-  query?: { item?: string; cursor?: string; limit?: number },
+  query?: { item?: string; cursor?: string; limit?: number; opened?: "only" | "any" },
 ): string => organizationV1Operations.listAuctionAttempts.buildPath({
   path: { organizationId },
   query,
@@ -60,6 +63,7 @@ async function withServer(
     logWriter: () => undefined,
     databaseReadiness: { isReady: () => true },
     organizationAttemptReader: reader,
+    clock: fixedClock(NOW),
   } as never);
   const server = await runtime.listen(0, "127.0.0.1");
   try {
@@ -89,11 +93,13 @@ describe("기관 회차 이력 HTTP 경로", () => {
     }, async (server) => {
       const response = await request(server).get(attemptsPath("9007199254740993"));
       expect(response.status).toBe(200);
+      // query를 생략하면 개찰된 회차만이며 그 기준은 clock 시각 하나다.
       expect(observed).toEqual([{
         organizationId: 9_007_199_254_740_993n,
         itemCodeValueId: null,
         cursor: null,
         limit: 12,
+        openedAtOrBefore: NOW,
       }] as never);
       expect(response.body).toEqual({
         organizationId: "9007199254740993",
@@ -117,6 +123,8 @@ describe("기관 회차 이력 HTTP 경로", () => {
         meta: {
           sampleCount: 92,
           item: null,
+          opened: "only",
+          asOf: "2026-09-06T01:00:00Z",
           buildId: "501",
           sourceReleaseId: "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f",
           calcVersion: "mart-r1",
@@ -128,7 +136,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
     });
   });
 
-  test("item·cursor·limit query를 손실 없이 use case 입력으로 옮긴다", async () => {
+  test("item·cursor·limit·opened query를 손실 없이 use case 입력으로 옮긴다", async () => {
     const observed: OrganizationAttemptQuery[] = [];
     await withServer({
       exists: async () => true,
@@ -141,18 +149,23 @@ describe("기관 회차 이력 HTTP 경로", () => {
         item: "7",
         cursor: "9007199254740993",
         limit: 200,
+        opened: "any",
       }));
       expect(response.status).toBe(200);
+      // any는 개찰 여부로 거르지 않으므로 기준 시각 자체가 없다.
       expect(observed).toEqual([{
         organizationId: 42n,
         itemCodeValueId: 7n,
         cursor: 9_007_199_254_740_993n,
         limit: 200,
+        openedAtOrBefore: null,
       }] as never);
-      // 이력이 비어도 요청 품목은 되돌아와야 표본 0이 어느 코호트의 0인지 응답만으로 닫힌다.
+      // 이력이 비어도 요청 품목과 개찰 필터는 되돌아와야 표본 0이 어느 코호트의 0인지 응답만으로 닫힌다.
       expect(response.body.meta).toEqual({
         sampleCount: 0,
         item: "7",
+        opened: "any",
+        asOf: null,
         buildId: null,
         sourceReleaseId: null,
         calcVersion: null,
@@ -178,7 +191,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
         expect(response.status, invalid).toBe(400);
         expect(response.body.code, invalid).toBe("VALIDATION_ERROR");
       }
-      for (const invalid of ["limit=0", "limit=201", "limit=abc", "item=0", "cursor=01", "unknown=1"]) {
+      for (const invalid of ["limit=0", "limit=201", "limit=abc", "item=0", "cursor=01", "unknown=1", "opened=all", "opened=true"]) {
         const response = await request(server).get(`/api/v1/organizations/42/auction-attempts?${invalid}`);
         expect(response.status, invalid).toBe(400);
         expect(response.body.code, invalid).toBe("VALIDATION_ERROR");

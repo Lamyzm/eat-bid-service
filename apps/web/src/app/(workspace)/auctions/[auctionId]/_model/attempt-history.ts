@@ -1,4 +1,4 @@
-/** @module 책임: 기관 회차 이력 계약 응답을 결정 화면 표가 그대로 렌더링할 표시 행·요약 문자열로 바꾼다. */
+/** @module 책임: 기관 회차 이력 계약 응답을 결정 화면 표가 그대로 렌더링할 표시 행·요약 문자열로 바꾸고, 보고 있는 공고 자신만 표에서 뺀다. */
 import { Temporal } from '@eatbid/domain';
 import type {
   MartCoverage,
@@ -103,13 +103,23 @@ function resolveSelectedItem(
   return { codeValueId: selectedItem, label: match?.item?.label ?? '미확인' };
 }
 
+/**
+ * 어떤 회차가 "과거"인지는 화면이 정하지 않는다. 개찰 여부 필터는 계약 기본값(`opened=only`)과 서버
+ * clock이 걸고, 여기서는 응답 행을 그대로 싣되 보고 있는 공고 자신만 뺀다 — 이미 개찰된 공고를 열어
+ * 보면 그 회차가 자기 과거 표에 다시 나타나기 때문이다(EAT-81). 표본 수는 응답 meta의 사실이므로
+ * 자신을 뺐다고 고쳐 쓰지 않는다.
+ */
 export function presentHistory(
   response: OrganizationAuctionAttemptsV1Response,
-  selectedItem: string | null
+  selectedItem: string | null,
+  options: { readonly currentAttemptId?: string } = {}
 ): HistoryPresentation {
+  const others = options.currentAttemptId === undefined
+    ? response.attempts
+    : response.attempts.filter((attempt) => attempt.attemptId !== options.currentAttemptId);
   return {
     organizationId: response.organizationId,
-    rows: response.attempts.map((attempt) => presentRow(attempt, selectedItem)),
+    rows: others.map((attempt) => presentRow(attempt, selectedItem)),
     sampleCount: response.meta.sampleCount,
     buildId: response.meta.buildId,
     sourceReleaseId: response.meta.sourceReleaseId,

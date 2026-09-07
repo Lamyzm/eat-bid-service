@@ -33,6 +33,12 @@ export interface OrganizationAttemptQuery {
   readonly itemCodeValueId: bigint | null;
   readonly cursor: bigint | null;
   readonly limit: number;
+  /**
+   * 개찰 시각이 이 시각 이하인 회차만 읽는다. null이면 개찰 여부로 거르지 않는다. 시각은 use case가
+   * 주입된 clock에서 한 번 읽어 넘기므로 어댑터는 현재 시각을 스스로 알지 못한다(AGENTS 15·17).
+   * 개찰 시각이 미관측인 회차는 개찰됐다고 단정할 수 없어 기준이 있으면 빠진다(AGENTS 3).
+   */
+  readonly openedAtOrBefore: Temporal.Instant | null;
 }
 
 /**

@@ -41,6 +41,12 @@ type OrganizationAttemptRow = Readonly<{
   supersedes_attempt_id: string | bigint | null;
 }>;
 
+// Instant는 driver가 모르는 타입이라 ISO 문자열로 넘기고 SQL 쪽에서 timestamptz로 닫는다. Date를 거치면
+// 밀리초 아래가 잘리고 계층 경계를 `Date`로 통과시키는 셈이라 금지다(AGENTS 15).
+function instantParameter(value: Temporal.Instant | null): string | null {
+  return value === null ? null : value.toString();
+}
+
 function requiredInstant(value: PostgresTimestamp, label: string): Temporal.Instant {
   const instant = postgresInstant(value);
   if (instant === null) throw new TypeError(`Database ${label} timestamp is required`);
@@ -151,6 +157,9 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
         and summary.organization_id = ${query.organizationId}
         and (${query.itemCodeValueId}::bigint is null
              or summary.item_code_value_id = ${query.itemCodeValueId}::bigint)
+        -- 개찰 시각이 미관측(null)인 회차는 비교 결과가 unknown이라 기준이 있으면 자연히 빠진다.
+        and (${instantParameter(query.openedAtOrBefore)}::timestamptz is null
+             or summary.opened_at <= ${instantParameter(query.openedAtOrBefore)}::timestamptz)
         and (${query.cursor}::bigint is null
              or (summary.announced_at, summary.auction_attempt_id)
                 < (select cursor_row.announced_at, cursor_row.auction_attempt_id
@@ -167,7 +176,8 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
   }
 
   private async countAttempts(query: OrganizationAttemptQuery): Promise<number> {
-    // 표본 수는 cursor와 무관해야 하므로 페이지 조건을 뺀 같은 인덱스 범위를 한 번 더 센다.
+    // 표본 수는 cursor와 무관해야 하므로 페이지 조건을 뺀 같은 인덱스 범위를 한 번 더 센다. 개찰 기준은
+    // 페이지와 같은 시각이어야 표본 수와 행이 같은 코호트를 말한다.
     const result = await this.database.execute(sql`
       select count(*)::int as sample_count
       from mart.org_round_summary summary
@@ -175,6 +185,8 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
         and summary.organization_id = ${query.organizationId}
         and (${query.itemCodeValueId}::bigint is null
              or summary.item_code_value_id = ${query.itemCodeValueId}::bigint)
+        and (${instantParameter(query.openedAtOrBefore)}::timestamptz is null
+             or summary.opened_at <= ${instantParameter(query.openedAtOrBefore)}::timestamptz)
     `);
     const rows = Array.isArray(result) ? result as ReadonlyArray<{ sample_count: number }> : [];
     return rows[0]?.sample_count ?? 0;

@@ -21,6 +21,26 @@ describe('기관 회차 이력 표시 모델', () => {
     expect(presentation.rows[0]?.openedYear).toBe('2026');
   });
 
+  test('보고 있는 공고 자신은 표에서 빼고 나머지 회차와 표본 수는 응답 그대로 싣는다', () => {
+    const current = attemptsFixture.attempts[0]!.attemptId;
+    const presentation = presentHistory(attemptsFixture, null, { currentAttemptId: current });
+    expect(presentation.rows.map((row) => row.attemptId)).not.toContain(current);
+    expect(presentation.rows).toHaveLength(attemptsFixture.attempts.length - 1);
+    // 표본 수는 서버가 센 코호트의 사실이다. 화면이 한 행을 뺐다고 고쳐 쓰지 않는다.
+    expect(presentation.sampleCount).toBe(attemptsFixture.meta.sampleCount);
+  });
+
+  test('응답에 없는 공고 ID를 넘기면 어떤 행도 빠지지 않고 개찰 여부로 다시 거르지도 않는다', () => {
+    // 개찰 전 회차를 거르는 것은 계약(opened=only)과 서버 clock의 몫이다. 화면은 응답 행을 그대로 믿는다.
+    const withUnopened = {
+      ...attemptsFixture,
+      attempts: [{ ...attemptsFixture.attempts[0]!, attemptId: '1', openedAt: null }, ...attemptsFixture.attempts]
+    };
+    const presentation = presentHistory(withUnopened, null, { currentAttemptId: '999999999' });
+    expect(presentation.rows).toHaveLength(withUnopened.attempts.length);
+    expect(presentation.rows[0]?.attemptId).toBe('1');
+  });
+
   test('품목이 없는 회차는 미확인으로 표시하고 코드값은 null이다', () => {
     const response = {
       ...attemptsFixture,

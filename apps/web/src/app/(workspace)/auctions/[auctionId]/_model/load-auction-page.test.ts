@@ -149,6 +149,24 @@ describe('공고 상세 route loader', () => {
     }
   });
 
+  test('회차 이력에 보고 있는 공고 자신이 있으면 표 행에서 뺀다', async () => {
+    // 이미 개찰된 공고를 열면 서버 필터를 통과한 그 회차가 자기 과거 표에 실린다. 그 한 행만 화면이 뺀다.
+    const self = { ...attemptsFixture.attempts[0]!, attemptId: canonicalAuctionId };
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      search,
+      createDependencies({
+        listAttempts: async () => ({ ...attemptsFixture, attempts: [self, ...attemptsFixture.attempts] })
+      })
+    );
+
+    expect(result?.history.state).toBe('ready');
+    if (result?.history.state === 'ready') {
+      expect(result.history.presentation.rows.map((row) => row.attemptId)).not.toContain(canonicalAuctionId);
+      expect(result.history.presentation.rows).toHaveLength(attemptsFixture.attempts.length);
+    }
+  });
+
   test('URL의 item이 양의 정수 형식이 아니면 회차 이력 조회 전에 무효 처리한다', async () => {
     const requestedItems: (string | undefined)[] = [];
     const result = await loadAuctionPage(

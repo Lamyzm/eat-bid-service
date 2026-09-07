@@ -13,6 +13,7 @@ export {
 export {
   martCoverageSchema,
   type MartCoverage,
+  type OrganizationAttemptOpenedFilter,
   type OrganizationAuctionAttempt,
 } from "./attempt.resource";
 export { organizationV1OperationRegistry, organizationV1Operations } from "./operations";

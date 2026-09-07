@@ -736,6 +736,14 @@
       "OrganizationAuctionAttemptsMeta": {
         "additionalProperties": false,
         "properties": {
+          "asOf": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
           "buildId": {
             "allOf": [
               {
@@ -774,6 +782,13 @@
             ],
             "nullable": true
           },
+          "opened": {
+            "enum": [
+              "only",
+              "any"
+            ],
+            "type": "string"
+          },
           "regionScheme": {
             "maxLength": 64,
             "minLength": 1,
@@ -800,7 +815,9 @@
           "coverage",
           "regionScheme",
           "sampleCount",
-          "item"
+          "item",
+          "opened",
+          "asOf"
         ],
         "type": "object"
       },
@@ -1494,6 +1511,18 @@
               "maximum": 200,
               "minimum": 1,
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "opened",
+            "schema": {
+              "default": "only",
+              "enum": [
+                "only",
+                "any"
+              ],
+              "type": "string"
             }
           }
         ],

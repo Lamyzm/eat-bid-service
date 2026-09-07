@@ -19,6 +19,9 @@ const NAMSAN_ATTEMPTS = (namsanAttemptsFixture as { readonly attempts: readonly 
 // 예시 값이다(창원 남산초 실제 표본 수와는 무관하다).
 const BASE_BUILD_ID = '501';
 
+// 개찰 기준 시각이다. fixture 회차는 전부 이보다 앞서 개찰됐으므로 `opened=only`가 행을 줄이지 않는다.
+const FIXTURE_AS_OF = '2026-09-06T00:00:00Z';
+
 const META = {
   sampleCount: 92,
   sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
@@ -39,6 +42,12 @@ function organizationProblemResponse(status: 400 | 404, code: string, title: str
     requestId: `fixture-request-organization-${status}`
   });
   return Response.json(problem, { status });
+}
+
+function openedAtOrBefore(attempt: unknown, asOf: string): boolean {
+  if (typeof attempt !== 'object' || attempt === null || !('openedAt' in attempt)) return false;
+  const openedAt = (attempt as { openedAt: string | null }).openedAt;
+  return openedAt !== null && openedAt <= asOf;
 }
 
 function hasCodeValueId(item: unknown, codeValueId: string): boolean {
@@ -70,17 +79,27 @@ export function organizationAttemptsResponse(request: Request): Response | null 
     return organizationProblemResponse(400, 'VALIDATION_ERROR', '기관 ID 또는 query가 유효하지 않음');
   }
 
+  // 서버와 같은 순서로 거른다: 개찰 여부(기본 only) → 품목. 표본 수는 응답 예시 값이라 그대로 둔다.
+  const opened = query.opened === 'only'
+    ? NAMSAN_ATTEMPTS.filter((attempt) => openedAtOrBefore(attempt, FIXTURE_AS_OF))
+    : NAMSAN_ATTEMPTS;
   const scoped = query.item === undefined
-    ? NAMSAN_ATTEMPTS
-    : NAMSAN_ATTEMPTS.filter((attempt) => hasCodeValueId(attempt, query.item!));
+    ? opened
+    : opened.filter((attempt) => hasCodeValueId(attempt, query.item!));
 
   const body = organizationAuctionAttemptsV1ResponseSchema.parse({
     organizationId: ORGANIZATION_ID,
     attempts: scoped.slice(0, query.limit),
     nextCursor: null,
-    // 서버와 같이 요청 품목을 그대로 되돌려 실어야 화면이 fixture에서도 같은 코호트를 읽는다.
+    // 서버와 같이 요청 품목·개찰 필터를 그대로 되돌려 실어야 화면이 fixture에서도 같은 코호트를 읽는다.
     // buildId는 활성 build 전환을 재현할 수 있도록 요청 시점에 읽는다(캐시 e2e).
-    meta: { ...META, buildId: activatedBuildId(BASE_BUILD_ID), item: query.item ?? null }
+    meta: {
+      ...META,
+      buildId: activatedBuildId(BASE_BUILD_ID),
+      item: query.item ?? null,
+      opened: query.opened,
+      asOf: query.opened === 'only' ? FIXTURE_AS_OF : null
+    }
   });
   return Response.json(body);
 }

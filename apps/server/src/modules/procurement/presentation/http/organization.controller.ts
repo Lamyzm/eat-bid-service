@@ -68,6 +68,7 @@ export class OrganizationController {
         itemCodeValueId,
         cursor,
         limit: query.limit,
+        opened: query.opened,
       }));
     } catch (error) {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.

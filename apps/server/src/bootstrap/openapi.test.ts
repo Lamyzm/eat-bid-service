@@ -148,8 +148,16 @@ describe("canonical OpenAPI 산출물", () => {
     const attempts = document.paths[organizationV1Operations.listAuctionAttempts.path].get;
     expect(attempts.operationId).toBe("listOrganizationAuctionAttempts");
     expect(attempts.parameters.map((parameter: any) => [parameter.in, parameter.name, parameter.required ?? false]))
-      .toEqual([["path", "organizationId", true], ["query", "item", false], ["query", "cursor", false], ["query", "limit", false]]);
+      .toEqual([
+        ["path", "organizationId", true],
+        ["query", "item", false],
+        ["query", "cursor", false],
+        ["query", "limit", false],
+        ["query", "opened", false],
+      ]);
     expect(attempts.parameters[3].schema).toMatchObject({ type: "integer", minimum: 1, maximum: 200, default: 12 });
+    // 개찰 필터의 기본값이 문서에 드러나야 소비자가 "생략하면 개찰된 회차만"을 계약에서 읽는다.
+    expect(attempts.parameters[4].schema).toMatchObject({ type: "string", enum: ["only", "any"], default: "only" });
     expect(attempts.responses["200"].content["application/json"].schema).toEqual({
       $ref: "#/components/schemas/EatbidApiV1OrganizationAuctionAttempts",
     });
