@@ -10,7 +10,9 @@ import pytest
 from eatbid.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import SourceReleasePlan
+from eatbid.ingest.repository import CollectionRunMode
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
+from eatbid.pipeline.refetch_policy import ListSignal, RefetchBaseline
 from eatbid.source.client import SourceResponse
 
 RUN_ID = UUID("41000000-0000-0000-0000-000000000001")
@@ -19,10 +21,13 @@ RELEASE_ID = UUID("41000000-0000-0000-0000-000000000002")
 NOW = datetime(2026, 9, 1, 1, 0, tzinfo=UTC)
 
 
-def _목록_xml(total: int, ids: tuple[str, ...]) -> bytes:
+def _목록_xml(
+    total: int, ids: tuple[str, ...], *, bid_counts: dict[str, int] | None = None
+) -> bytes:
+    counts = bid_counts or {}
     rows = "".join(
         f'<Row><Col id="TOT_CNT">{total}</Col><Col id="ETN_BID_ID">{bid_id}</Col>'
-        '<Col id="BID_CNT">0</Col><Col id="ETN_BID_STT_NM">입찰공고</Col>'
+        f'<Col id="BID_CNT">{counts.get(bid_id, 0)}</Col><Col id="ETN_BID_STT_NM">입찰공고</Col>'
         '<Col id="BID_END_DT">20260914100000000</Col>'
         '<Col id="LAST_CHG_DT">20260902175956000</Col></Row>'
         for bid_id in ids
@@ -39,13 +44,17 @@ def _목록_xml(total: int, ids: tuple[str, ...]) -> bytes:
 
 
 def _계획(
-    *, page_size: int = 2, page_budget: int = 4, parser_version: str = "eat-v1"
+    *,
+    page_size: int = 2,
+    page_budget: int = 4,
+    parser_version: str = "eat-v1",
+    mode: CollectionRunMode = "backfill",
 ) -> DiscoveryPlan:
     return DiscoveryPlan(
         source_release_id=RELEASE_ID,
         run_id=RUN_ID,
         detail_run_id=DETAIL_RUN_ID,
-        mode="backfill",
+        mode=mode,
         release_name="R0 오프라인 발견",
         as_of=NOW,
         build_sha="a" * 64,
@@ -78,12 +87,22 @@ class _상태:
 
 
 class _기록저장소:
-    def __init__(self, *, fail_error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        fail_error: Exception | None = None,
+        baseline: RefetchBaseline | None = None,
+    ) -> None:
         self.events: list[str] = []
         self.observations: list[CapturedObservation] = []
         self.release_plan: SourceReleasePlan | None = None
         self.detail_ids: list[str] = []
         self.fail_error = fail_error
+        self.baseline = baseline
+
+    def load_refetch_baseline(self, plan: DiscoveryPlan) -> RefetchBaseline | None:
+        self.events.append("baseline_loaded")
+        return self.baseline
 
     def start_run(self, plan: DiscoveryPlan) -> None: self.events.append("discovery_started")
     def plan_page(self, plan: DiscoveryPlan, page_number: int) -> PlannedRequestUnit:
@@ -202,6 +221,90 @@ def test_failure_기록실패는_원래_typed_error와_context를_바꾸지_않�
     assert captured.value.__context__ is None
     assert "secret" not in repr(captured.value)
     assert original_response.status_code == 500
+
+
+def _기준(signals: dict[str, int]) -> RefetchBaseline:
+    return RefetchBaseline(
+        source_release_id=UUID("41000000-0000-0000-0000-00000000000b"),
+        observed_at=datetime(2026, 9, 1, 0, 30, tzinfo=UTC),
+        signals={
+            bid_id: ListSignal(
+                competitor_count=count,
+                status_name="입찰공고",
+                deadline_at=datetime(2026, 9, 14, 1, 0, tzinfo=UTC),
+                last_changed_at=datetime(2026, 9, 2, 8, 59, 56, tzinfo=UTC),
+            )
+            for bid_id, count in signals.items()
+        },
+    )
+
+
+def test_poll_open은_기준과_신호가_같은_공고의_상세를_계획하지_않는다() -> None:
+    repository = _기록저장소(baseline=_기준({"1": 0, "2": 0, "3": 0}))
+    client = _쪽클라이언트((_목록_xml(3, ("3", "1")), _목록_xml(3, ("2",))))
+
+    result = discover_release(_계획(mode="poll-open"), repository, client)
+
+    assert result.external_bid_ids == ("1", "2", "3")
+    assert result.detail_external_bid_ids == ()
+    assert result.external_bid_id_chunks == ()
+    assert repository.detail_ids == []
+    assert result.refetch_reason_counts == {"unchanged": 3}
+    assert result.baseline_source_release_id == repository.baseline.source_release_id
+    assert "detail_started_0" in repository.events
+    assert repository.release_plan is not None
+    assert [
+        (item.endpoint, item.expected_count) for item in repository.release_plan.datasets
+    ] == [("bid-list", 3), ("bid-detail", 0)]
+    assert repository.events.index("baseline_loaded") < repository.events.index(
+        "detail_started_0"
+    )
+
+
+def test_poll_open은_BID_CNT가_오른_공고와_기준에_없던_공고만_상세를_계획한다() -> None:
+    repository = _기록저장소(baseline=_기준({"1": 0, "3": 5}))
+    client = _쪽클라이언트(
+        (_목록_xml(3, ("3", "1"), bid_counts={"3": 6}), _목록_xml(3, ("2",)))
+    )
+
+    result = discover_release(_계획(mode="poll-open"), repository, client)
+
+    assert result.detail_external_bid_ids == ("2", "3")
+    assert repository.detail_ids == ["2", "3"]
+    assert result.refetch_reason_counts == {
+        "new": 1,
+        "signal-changed": 1,
+        "unchanged": 1,
+    }
+    assert result.discovered_manifest_sha256 == sha256(b'["1","2","3"]').hexdigest()
+    assert repository.release_plan is not None
+    assert [
+        (item.endpoint, item.expected_count) for item in repository.release_plan.datasets
+    ] == [("bid-list", 3), ("bid-detail", 2)]
+
+
+def test_poll_open이라도_봉인된_기준이_없으면_전부_상세를_계획한다() -> None:
+    repository = _기록저장소(baseline=None)
+    client = _쪽클라이언트((_목록_xml(2, ("1", "2")),))
+
+    result = discover_release(_계획(mode="poll-open"), repository, client)
+
+    assert result.detail_external_bid_ids == ("1", "2")
+    assert result.refetch_reason_counts == {"no-baseline": 2, "unchanged": 0}
+    assert result.baseline_source_release_id is None
+
+
+def test_backfill과_daily_reconcile은_기준을_읽지_않고_목록_전부의_상세를_계획한다() -> None:
+    for mode in ("backfill", "daily-reconcile"):
+        repository = _기록저장소(baseline=_기준({"1": 0, "2": 0}))
+        client = _쪽클라이언트((_목록_xml(2, ("1", "2")),))
+
+        result = discover_release(_계획(mode=mode), repository, client)
+
+        assert "baseline_loaded" not in repository.events, mode
+        assert result.detail_external_bid_ids == ("1", "2"), mode
+        assert result.refetch_reason_counts == {"full-mode": 2, "unchanged": 0}, mode
+        assert result.baseline_source_release_id is None, mode
 
 
 def test_release_commit_40자_build_sha로도_발견_계획을_만든다() -> None:

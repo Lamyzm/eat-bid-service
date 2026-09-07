@@ -228,6 +228,15 @@ spec:
           - name: discovered-count
             valueFrom:
               path: /tmp/eatbid/discovered_count
+          # poll-open이 목록 신호로 좁힌 결과다. 회차마다 몇 건을 왜 다시 불렀는지를 workflow status에서
+          # 읽을 수 있어야 정책의 요청 수 효과를 pod 로그 없이 실측한다(ADR 0037). 이유별 집계 JSON
+          # 객체 하나라 크기는 발견 건수와 무관하다.
+          - name: detail-count
+            valueFrom:
+              path: /tmp/eatbid/detail_count
+          - name: refetch-reasons
+            valueFrom:
+              path: /tmp/eatbid/refetch_reasons
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
@@ -356,6 +365,12 @@ spec:
           - name: observation-ids
             valueFrom:
               path: /tmp/eatbid/observation_ids
+              # poll-open이 목록 신호로 좁혀 상세 0건이면 discover의 chunk가 `[]`라 capture 자체가
+              # "Skipped, empty params"로 건너뛰어진다. Argo v4.0.8은 건너뛴 task의 선언된 output에
+              # 이 default만 채우므로(addSkippedNodeOutputsToScope) 이 값이 없으면 normalize의
+              # withParam이 해석되지 않아 빈 회차가 실패한다. 빈 회차도 목록 관측과 스냅샷 mart는
+              # 발행해야 한다(ADR 0037).
+              default: "[]"
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent

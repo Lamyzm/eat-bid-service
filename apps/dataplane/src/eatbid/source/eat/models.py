@@ -11,8 +11,10 @@ class BidListRow(BaseModel):
     """목록 한 행에서 검토된 column만 해석한 값이다.
 
     왜 목록 행이 모델인가. 2026-09-03 실측(EAT-34)에서 목록 한 페이지가 전국 열린 공고의 `BID_CNT`와
-    `LAST_CHG_DT`를 이미 준다. 경쟁자 수 추적과 상세 재호출 판단은 이 값으로 하며, 상세는 최초 1회와
-    소스 변경 시각이 움직였을 때만 부른다. wire column 이름은 파서에만 있고 여기서는 의미로 부른다.
+    `LAST_CHG_DT`를 이미 준다. 경쟁자 수 추적과 상세 재호출 판단은 이 값으로 한다. 단 `LAST_CHG_DT`는
+    투찰 도착을 반영하지 않으므로(2026-09-06 실측) poll-open의 재호출은 `BID_CNT`·상태·마감·변경
+    시각 넷의 변화와 마감 전이로 정한다(ADR 0037). wire column 이름은 파서에만 있고 여기서는 의미로
+    부른다.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
