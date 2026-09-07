@@ -4,9 +4,10 @@ import { attemptsFixture } from '../__fixtures__/attempts';
 import { auctionFixture, fixtureNow } from '../__fixtures__/auction';
 import { floor90DistributionFixture } from '../__fixtures__/distribution';
 import type { DecisionSearch } from '../_lib/decision-search-params';
-import { loadAuctionPage } from './load-auction-page';
+import { loadAuctionPage, type DecisionAuctionRead } from './load-auction-page';
 
 const canonicalAuctionId = auctionFixture.identity.auctionId;
+const auctionRead: DecisionAuctionRead = { kind: 'auction', response: auctionFixture };
 const search: DecisionSearch = {
   period: '12개월',
   scope: '전국',
@@ -23,8 +24,7 @@ function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage
       if (auctionId !== canonicalAuctionId) throw new Error('유효하지 않은 ID');
       return auctionId;
     },
-    getAuction: async () => auctionFixture,
-    isNotFound: () => false,
+    getAuction: async () => auctionRead,
     now: () => fixtureNow,
     listAttempts: async () => attemptsFixture,
     findDistribution: async () => floor90DistributionFixture,
@@ -41,7 +41,7 @@ describe('공고 상세 route loader', () => {
       createDependencies({
         getAuction: async ({ auctionId }) => {
           requestedIds.push(auctionId);
-          return auctionFixture;
+          return auctionRead;
         }
       })
     );
@@ -58,7 +58,7 @@ describe('공고 상세 route loader', () => {
       createDependencies({
         getAuction: async () => {
           requestCount += 1;
-          return auctionFixture;
+          return auctionRead;
         }
       })
     );
@@ -67,17 +67,12 @@ describe('공고 상세 route loader', () => {
     expect(requestCount).toBe(0);
   });
 
-  test('resource not found만 not-found로 바꾸고 500과 503은 다시 던진다', async () => {
-    const notFoundError = new Error('공고 없음');
+  test('not-found 결과 값만 404로 바꾸고 500과 503 예외는 다시 던진다', async () => {
+    // 없음은 `use cache` 경계를 예외로 넘을 수 없어 값으로 온다. 예외로 오는 것은 모두 예상 밖 실패다.
     const notFoundResult = await loadAuctionPage(
       Promise.resolve({ auctionId: canonicalAuctionId }),
       search,
-      createDependencies({
-        getAuction: async () => {
-          throw notFoundError;
-        },
-        isNotFound: (error) => error === notFoundError
-      })
+      createDependencies({ getAuction: async () => ({ kind: 'not-found' }) })
     );
     expect(notFoundResult).toBeNull();
 
@@ -103,7 +98,7 @@ describe('공고 상세 route loader', () => {
       Promise.resolve({ auctionId: canonicalAuctionId }),
       search,
       createDependencies({
-        getAuction: async () => ({ ...auctionFixture, organization: null }),
+        getAuction: async () => ({ kind: 'auction', response: { ...auctionFixture, organization: null } }),
         listAttempts: async () => {
           listCalled = true;
           return attemptsFixture;
@@ -234,7 +229,7 @@ describe('공고 상세 route loader', () => {
       Promise.resolve({ auctionId: canonicalAuctionId }),
       search,
       createDependencies({
-        getAuction: async () => ({ ...auctionFixture, terms: null }),
+        getAuction: async () => ({ kind: 'auction', response: { ...auctionFixture, terms: null } }),
         findDistribution: async () => {
           called = true;
           return floor90DistributionFixture;

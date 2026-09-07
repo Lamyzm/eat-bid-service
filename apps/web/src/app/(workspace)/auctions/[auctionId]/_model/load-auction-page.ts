@@ -44,10 +44,15 @@ export type DecisionPageData = {
   readonly distribution: DistributionLoadResult;
 };
 
+// 없는 공고는 예외가 아니라 결과다. 캐시된 server read가 예외의 class 정체성을 보존하지 못하므로
+// 예상된 실패는 값으로 받는다(`api/auctions/server.ts`).
+export type DecisionAuctionRead =
+  | { readonly kind: 'auction'; readonly response: AuctionV1Response }
+  | { readonly kind: 'not-found' };
+
 type AuctionPageDependencies = {
   readonly parseAuctionId: (auctionId: string) => string;
-  readonly getAuction: (input: { readonly auctionId: string }) => Promise<AuctionV1Response>;
-  readonly isNotFound: (error: unknown) => boolean;
+  readonly getAuction: (input: { readonly auctionId: string }) => Promise<DecisionAuctionRead>;
   readonly now: () => string;
   readonly listAttempts: (input: {
     readonly organizationId: string;
@@ -125,13 +130,10 @@ export async function loadAuctionPage(
     return null;
   }
 
-  let response: AuctionV1Response;
-  try {
-    response = await dependencies.getAuction({ auctionId });
-  } catch (error) {
-    if (dependencies.isNotFound(error)) return null;
-    throw error;
-  }
+  // 없음은 값으로 오고 그 밖의 실패는 그대로 올라가 route error 경계가 받는다.
+  const read = await dependencies.getAuction({ auctionId });
+  if (read.kind === 'not-found') return null;
+  const { response } = read;
 
   const decision = presentDecision(response, dependencies.now());
   // 회차 이력과 분포는 서로 의존하지 않으므로 공고 조회 뒤 한 번에 부른다. 순차로 부르면 첫 로드가

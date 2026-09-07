@@ -1,4 +1,4 @@
-/** @module 책임: RSC에서만 쓰는 공고 ID 검증·캐시된 조회·열린 공고 목록 조회·오류 판별 표면을 제공한다. */
+/** @module 책임: RSC에서만 쓰는 공고 ID 검증과 `use cache` 경계 안의 공고·열린 공고 목록 조회를 예상된 실패까지 결과 값으로 돌려주는 표면을 제공한다. */
 import 'server-only';
 
 import {
@@ -21,25 +21,35 @@ export function parseAuctionId(auctionId: string): string {
 }
 
 /**
+ * 없는 공고는 예외가 아니라 결과다. `use cache` 경계를 넘는 예외는 Flight로 옮겨지며 class 정체성을 잃어
+ * 호출자가 `instanceof`로 404를 가려낼 수 없고, 그러면 `notFound()` 대신 error 경계가 뜬다. 캐시 함수는
+ * 예상된 실패를 값으로 돌려준다.
+ */
+export type AuctionRead =
+  | { readonly kind: 'auction'; readonly response: AuctionV1Response }
+  | { readonly kind: 'not-found' };
+
+/**
  * 캐시 경계다. `use cache`의 인자는 직렬화 가능해야 하므로 `signal`은 여기서 받지 않는다. 취소 가능한
  * 조회가 필요한 호출자는 transport 독립 `getAuctionWith`를 그대로 쓴다.
  *
- * 오류는 캐시되지 않는다. 아직 발행되지 않은 공고를 열면 매번 Nest에 닿고, 발행되는 순간 무효화 없이
- * 보이게 된다. 이것은 의도된 성질이다.
+ * `not-found`도 하나의 결과라 캐시된다. 아직 발행되지 않은 공고를 열면 그 항목은 `READ_CACHE_LIFE`
+ * 동안 없음으로 남고, 발행 push(`revalidateAuctionCache`)가 같은 태그를 지우는 순간 다시 보인다.
+ * 그 밖의 실패는 캐시되지 않고 그대로 올라가 route error 경계가 받는다.
  */
-export async function getAuctionFromServer(input: {
-  readonly auctionId: string;
-}): Promise<AuctionV1Response> {
+export async function getAuctionFromServer(input: { readonly auctionId: string }): Promise<AuctionRead> {
   'use cache';
   cacheTag(...auctionReadCacheTags(input.auctionId));
   cacheLife(READ_CACHE_LIFE);
-  return await getAuctionWith(serverRequest, input);
+  try {
+    return { kind: 'auction', response: await getAuctionWith(serverRequest, input) };
+  } catch (error) {
+    if (isAuctionNotFoundError(error)) return { kind: 'not-found' };
+    throw error;
+  }
 }
 
-/**
- * 사라진 cursor는 예외가 아니라 결과다. `use cache` 경계를 넘는 예외는 Flight로 옮겨지며 class 정체성을
- * 잃어 호출자가 `instanceof`로 구분할 수 없으므로, 캐시 함수는 예상된 실패를 값으로 돌려준다.
- */
+/** 사라진 cursor도 같은 이유로 결과 값이다. */
 export type OpenAuctionListRead =
   | { readonly kind: 'page'; readonly response: OpenAuctionListV1Response }
   | { readonly kind: 'cursor-not-found' };
@@ -61,5 +71,4 @@ export async function listOpenAuctionsFromServer(input: OpenAuctionListInput): P
   }
 }
 
-export { isAuctionNotFoundError, isOpenAuctionCursorInvalidError };
 export { revalidateAuctionCache, revalidateOpenAuctionSnapshotCache } from './revalidate';
