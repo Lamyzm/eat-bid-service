@@ -58,7 +58,9 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 | `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
 | `reference` | 정부 공개 코드 파일을 새 code release로 적재 | 월 1회 (`reference-pipeline` entrypoint) |
 
-스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다. `parser-version` 기본값은
+스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다. 수집 스케줄(`poll-open`·
+`daily-reconcile`)의 `workflowSpec.priority`는 ad hoc `backfill`의 기본값보다 높게 두어 같은 source
+semaphore 큐에서 backfill chunk보다 먼저 받게 한다(2026-09-07, EAT-93). `parser-version` 기본값은
 `eat-v2`다(2026-09-06, EAT-69). 상세 응답의 명단·낙찰·재공고 블록을 읽는 version이 그것뿐이라 기본값이
 `eat-v1`이면 하한율·투찰·낙찰 core 테이블이 비어 있는 채로 발행된다.
 
@@ -163,7 +165,11 @@ status가 수백 KB 늘어난다.
   가진 지수 backoff로 직접 다시 보낸다. 응답이 오지 않은 실패만 다시 보내며, 응답이 도착한 뒤의
   전송 중단·decoding 실패·크기 초과는 다시 보내도 같은 결론이라 즉시 중단한다. 상한은 manifest가
   아니라 `SOURCE_RETRY_*` 설정이 소유한다(2026-09-06 backfill 실측, EAT-72).
-- backfill은 같은 source semaphore를 공유해 정기 poll을 압도하지 않게 우선순위/동시성을 제한한다.
+- backfill은 같은 source semaphore를 공유하되 정기 수집을 압도하지 못한다. semaphore 대기 큐는
+  `spec.priority` 내림차순 → 생성 시각 순이므로(Argo Workflows sync manager) 스케줄 CronWorkflow만
+  backfill 기본값보다 높은 priority를 갖고, 스케줄 실행의 최대 대기는 진행 중인 backfill chunk 하나의
+  길이다. WorkflowTemplate 자체에는 priority를 두지 않는다 — 거기 두면 backfill도 같은 값을 받는다
+  (2026-09-07 08:00 poll-open discover가 backfill 창 뒤에서 95분 기다린 실측, EAT-93).
 - `withParam` fan-out 폭은 workflow 전체 `parallelism`으로 클러스터 용량 아래에 묶는다. 발견 건수만큼
   pod를 한꺼번에 띄우면 단일 노드의 pod 상한과 DB 연결을 소진한다(2026-09-05 첫 backfill에서 실측,
   [수집 cutover와 첫 backfill](../evidence/collection/2026-09-06-collection-cutover-first-backfill.md)).

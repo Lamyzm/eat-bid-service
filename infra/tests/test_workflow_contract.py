@@ -371,6 +371,29 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     assert "entrypoint: replay" not in rendered
 
 
+def test_스케줄_CronWorkflow는_backfill_기본_우선순위보다_높다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: source semaphore 대기 큐는 priority 내림차순 → 생성 시각 순이다(Argo v4.0.8
+    `workflow/sync/sync_manager.go`, `wf.Spec.Priority` 미지정은 0). `argo submit`으로 내는 backfill은
+    priority가 없으므로 스케줄 수집이 그보다 높지 않으면 backfill chunk 수백 개 뒤에 줄을 선다
+    (2026-09-07 08:00 poll-open discover 95분 대기, EAT-93)."""
+    backfill_default_priority = 0
+    scheduled = {
+        str(_metadata(cron)["name"]): _mapping(_spec(cron)["workflowSpec"]).get("priority")
+        for cron in manifests.of_kind("CronWorkflow")
+    }
+    collection_priorities = {scheduled["eatbid-poll-open"], scheduled["eatbid-daily-reconcile"]}
+    # 두 수집 스케줄은 서로 경쟁하지 않고 backfill보다만 앞서면 되므로 값 하나를 같이 쓴다.
+    assert len(collection_priorities) == 1
+    priority = collection_priorities.pop()
+    assert isinstance(priority, int) and priority > backfill_default_priority
+    # 월 1회 reference는 기본값이다. 여기에도 값을 주면 "누가 backfill보다 앞서는가"가 두 곳에 산다.
+    assert scheduled["eatbid-reference-refresh"] is None
+    # WorkflowTemplate 자체에 priority를 두면 그 template으로 내는 backfill도 같은 값을 받아 구분이 사라진다.
+    assert "priority" not in _spec(manifests.workflow_template("eatbid-dataplane"))
+
+
 def _execute_replay_script(
     manifests: ManifestSet,
     monkeypatch: object,
