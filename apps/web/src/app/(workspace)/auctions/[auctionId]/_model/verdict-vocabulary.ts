@@ -47,8 +47,14 @@ export const REHEARSAL_PHRASE = {
     text: '그날 하한보다 낮았을 회차',
     sub: '하한율 × 예정가로 계산',
     basis: { kind: 'derived', comparedWith: 'day-floor' }
+  },
+  // 낙찰값 이하 회차 중 낙찰값이 손잡이 값과 0.1%p 안에 있던 회차. 두 값 모두 투찰률 축이다(EAT-87).
+  nearAbove: {
+    text: '낙찰값 바로 위 0.1 안에',
+    sub: '낙찰값 이하 중 0.1%p 안',
+    basis: { kind: 'derived', comparedWith: 'awarded-bid-rate' }
   }
-} as const satisfies Record<'won' | 'belowDayFloor', VerdictPhrase>;
+} as const satisfies Record<'won' | 'belowDayFloor' | 'nearAbove', VerdictPhrase>;
 
 /**
  * 손잡이가 비어 있을 때 표 마지막 열과 "이 값이면" 패널이 보이는 상태 문구. 화면이 값을 먼저 놓으면 그것이

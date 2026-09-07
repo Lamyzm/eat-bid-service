@@ -80,6 +80,57 @@ describe('이 값이면 패널', () => {
     expect(won?.textContent).toContain('53%');
   });
 
+  test('낙찰값 바로 위 0.1 안에 행은 낙찰값 이하 회차를 분모로 투찰률 축에서 센다', () => {
+    const screen = renderPanel('92.700');
+    const row = screen.getByText('낙찰값 바로 위 0.1 안에').closest('div');
+    expect(row?.textContent).toContain('6회');
+    expect(row?.textContent).toContain('9회 중');
+    expect(screen.getByText('낙찰값 이하 중 0.1%p 안')).toBeTruthy();
+  });
+
+  test('손잡이 값이 없으면 낙찰값 바로 위 0.1 안에 행도 세지 않는다', () => {
+    const screen = renderPanel(null);
+    expect(screen.queryByText('낙찰값 바로 위 0.1 안에')).toBeNull();
+    expect(screen.getByText('값 없음')).toBeTruthy();
+  });
+
+  test('이 학교와 내 기록 더 보기는 손잡이 값이 없어도 접힌 채 있고, 펼치면 기관 요약과 빈 내 기록 슬롯이 보인다', () => {
+    const screen = renderPanel(null);
+    const toggle = screen.getByRole('button', { name: '이 학교와 내 기록 더 보기' }) as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    // 접힌 동안은 세어 놓은 숫자가 DOM에도 없어야 "값 없음" 레일이 정말 비어 있다.
+    expect(screen.queryByText('누적 회차')).toBeNull();
+
+    fireEvent.click(toggle);
+
+    expect(screen.getByRole('button', { name: '접기' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('누적 회차').closest('div')?.textContent).toContain('20회');
+    // 최근 낙찰은 사정률이라 축 이름을 함께 적는다. 손잡이(투찰률)와 바로 견주면 안 된다(PDR-0004).
+    const latest = screen.getByText('최근 낙찰').closest('div');
+    expect(latest?.textContent).toContain('90.126');
+    expect(latest?.textContent).toContain('사정률');
+    expect(latest?.textContent).toContain('26-08-10 개찰');
+    expect(screen.getByText('발주 주기').closest('div')?.textContent).toContain('보통 30일');
+    expect(screen.getByText('내 기록')).toBeTruthy();
+    expect(screen.getByText('사업자 인증 뒤에 붙습니다')).toBeTruthy();
+    expect(screen.getByText('기록 없음')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '접기' }));
+    expect(screen.getByRole('button', { name: '이 학교와 내 기록 더 보기' })).toBeTruthy();
+  });
+
+  test('회차가 없으면 기관 요약도 숫자를 지어내지 않고 기록 없음으로 둔다', () => {
+    const screen = render(
+      <BidRateProvider initialRate={null}>
+        <RehearsalPanel rows={[]} />
+      </BidRateProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: '이 학교와 내 기록 더 보기' }));
+    expect(screen.getByText('누적 회차').closest('div')?.textContent).toContain('0회');
+    expect(screen.getByText('최근 낙찰').closest('div')?.textContent).toContain('기록 없음');
+    expect(screen.getByText('발주 주기').closest('div')?.textContent).toContain('기록 없음');
+  });
+
   test('비교할 회차가 없으면 숫자를 지어내지 않고 없다고 말한다', () => {
     const screen = render(
       <BidRateProvider initialRate='90.000'>

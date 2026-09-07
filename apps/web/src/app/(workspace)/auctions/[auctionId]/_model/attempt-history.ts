@@ -12,6 +12,8 @@ export type HistoryRow = {
   readonly attemptId: string;
   readonly openedText: string;
   readonly openedYear: string;
+  /** 개찰일(개찰 전이면 공고일)의 KST 달력 날짜를 1970-01-01부터 센 날 수. 회차 사이 간격을 일 단위로 세는 용도다. */
+  readonly openedKstDay: number;
   readonly itemLabel: string;
   readonly itemCodeValueId: string | null;
   readonly winRateText: string | null;
@@ -68,11 +70,22 @@ function openedYear(attempt: OrganizationAuctionAttempt): string {
   return Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul').year.toString();
 }
 
+const KST_DAY_EPOCH = Temporal.PlainDate.from('1970-01-01');
+
+// 회차 간격은 client 컴포넌트(레일 패널)가 세는데 `@eatbid/domain` runtime은 client bundle에 넣지 않으므로
+// 날짜 산술은 여기서 끝내고 정수 날 수만 넘긴다. openedText('YY-MM-DD')를 다시 파싱하지 않는다(규칙 15).
+function openedKstDay(attempt: OrganizationAuctionAttempt): number {
+  const instant = attempt.openedAt ?? attempt.announcedAt;
+  const date = Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul').toPlainDate();
+  return KST_DAY_EPOCH.until(date, { largestUnit: 'days' }).days;
+}
+
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
   return {
     attemptId: attempt.attemptId,
     openedText: openedText(attempt),
     openedYear: openedYear(attempt),
+    openedKstDay: openedKstDay(attempt),
     itemLabel: attempt.item?.label ?? '미확인',
     itemCodeValueId: attempt.item?.codeValueId ?? null,
     winRateText: attempt.winRate?.value ?? null,

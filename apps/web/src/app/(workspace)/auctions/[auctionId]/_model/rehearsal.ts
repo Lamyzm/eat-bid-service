@@ -1,4 +1,4 @@
-/** @module 책임: 손잡이가 가리키는 투찰률을 선택 품목의 회차 이력에 적용해 "이 값이면" 낙찰값 이하·그날 하한 아래 회차 수를 순수 계산한다. */
+/** @module 책임: 손잡이가 가리키는 투찰률을 선택 품목의 회차 이력에 적용해 "이 값이면" 낙찰값 이하·그날 하한 아래·낙찰값 바로 위 0.1 안 회차 수를 순수 계산한다. */
 import type { BidRate } from './bid-rate';
 import { toMilli } from './bid-rate';
 import type { HistoryRow } from './attempt-history';
@@ -9,6 +9,11 @@ export type Rehearsal = {
   readonly wonFlags: readonly boolean[];
   /** 손잡이 값이 우리가 계산한 그날 하한보다 낮았을 회차 수. 소스 판정이 아니라 파생 서술이다(PDR-0002). */
   readonly belowDayFloor: number;
+  /**
+   * 낙찰값 이하였을 회차 중 낙찰값이 손잡이 값 바로 위 0.1%p 안에 있던 회차 수. 두 값이 모두 투찰률
+   * 축이라야 차이를 %p로 말할 수 있으므로 `winRate`(사정률)로 대신 재지 않는다(PDR-0004).
+   */
+  readonly nearAbove: number;
   readonly byYear: readonly { readonly year: string; readonly won: number; readonly total: number }[];
   readonly usualListCount: number | null;
   readonly rateSpan: { readonly min: string; readonly max: string; readonly median: string } | null;
@@ -43,6 +48,14 @@ export function judgeRow(row: HistoryRow, rateMilli: bigint): RowVerdict {
   // 다른 축의 답을 내므로 비교 불가로 남긴다(AGENTS 3·8).
   if (row.awardedBidRateMilli === null) return 'unknown';
   return rateMilli <= row.awardedBidRateMilli ? 'won' : 'missed';
+}
+
+// 손잡이가 셋째 자리라 0.1%p는 100 milli다. 같은 값(차이 0)은 추첨이라 이미 낙찰값 이하로 세며, 그보다
+// 더 붙은 자리는 없으므로 여기서도 안에 든 것으로 센다.
+const NEAR_ABOVE_MILLI = BigInt(100);
+
+function isNearAbove(row: HistoryRow, rateMilli: bigint): boolean {
+  return row.awardedBidRateMilli !== null && row.awardedBidRateMilli - rateMilli <= NEAR_ABOVE_MILLI;
 }
 
 function medianOf(values: readonly number[]): number {
@@ -93,6 +106,8 @@ export function rehearse(rows: readonly HistoryRow[], rate: BidRate): Rehearsal 
   const wonFlags = judged.map((entry) => entry.verdict === 'won');
   const won = wonFlags.filter(Boolean).length;
   const belowDayFloor = judged.filter((entry) => entry.verdict === 'invalid').length;
+  // 낙찰값 이하로 판정된 회차만 잰다. 하한 아래 회차는 낙찰값과 견준 적이 없어 거리를 말할 수 없다.
+  const nearAbove = judged.filter((entry) => entry.verdict === 'won' && isNearAbove(entry.row, rateMilli)).length;
 
   const listCounts = rows
     .map((row) => row.listCount)
@@ -103,6 +118,7 @@ export function rehearse(rows: readonly HistoryRow[], rate: BidRate): Rehearsal 
     won,
     wonFlags,
     belowDayFloor,
+    nearAbove,
     byYear: buildByYear(judged.map((entry) => entry.row), wonFlags),
     usualListCount: listCounts.length === 0 ? null : medianOf(listCounts),
     // 낙찰률 분포는 실제로 관측된 낙찰률만의 사실이라 하한 비교와 분모를 공유하지 않는다.
