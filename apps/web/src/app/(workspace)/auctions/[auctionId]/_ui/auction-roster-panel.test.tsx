@@ -36,6 +36,15 @@ function clientWith(data: AuctionRosterV1Response) {
   return client;
 }
 describe('회차 명단 상세', () => {
+  test('원천 낙찰 상태를 유지하면서 철회 관측을 별도로 보여준다', () => {
+    const data = payload(selected.attemptId);
+    data.rows[0]!.withdrawal = { codeValueId: '6', code: 'Y', scheme: 'eat:withdrawal-flag', label: null };
+    const screen = render(<QueryClientProvider client={clientWith(data)}>
+      <AuctionRosterPanel row={selected} onClose={() => undefined} />
+    </QueryClientProvider>);
+    expect(screen.getByText('낙찰실패')).toBeTruthy();
+    expect(screen.getByText('철회')).toBeTruthy();
+  });
   test('원천 계산용 자리표시자를 제출금액으로 보여주지 않고 관측 제출금액과 세 자리 비율을 보존한다', () => {
     const screen = render(<QueryClientProvider client={clientWith(payload(selected.attemptId))}>
       <AuctionRosterPanel row={selected} onClose={() => undefined} />
@@ -50,7 +59,8 @@ describe('회차 명단 상세', () => {
     const screen = render(<QueryClientProvider client={clientWith(data)}>
       <AuctionRosterPanel row={selected} onClose={() => undefined} />
     </QueryClientProvider>);
-    expect(screen.getByText('미확인')).toBeTruthy();
+    expect(screen.getAllByText('미확인')).toHaveLength(2);
+    expect(screen.queryByText('철회 아님')).toBeNull();
     expect(screen.container.textContent).not.toContain('10,000,000,043,768');
   });
   test('참여 수를 누른 회차의 명단만 열고 닫을 수 있다', () => {

@@ -2,10 +2,21 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import type { AuctionRosterV1Response } from '@eatbid/contracts/api/v1/auctions';
 import { auctionQueries } from '@/api/auctions';
 import { Button } from '@/shared/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 import type { HistoryRow } from '../_model/attempt-history';
+
+function withdrawalText(value: AuctionRosterV1Response['rows'][number]['withdrawal']): string {
+  if (value === null) return '미확인';
+  // 검토된 eaT WITHDRAWAL_YN 코드만 번역한다. 낙찰 상태와 독립이며 미관측을 N으로 메우지 않는다.
+  if (value.scheme === 'eat:withdrawal-flag') {
+    if (value.code === 'Y') return '철회';
+    if (value.code === 'N') return '철회 아님';
+  }
+  return value.label ?? '미확인';
+}
 
 function amountText(value: string): string {
   const [whole, fraction] = value.split('.');
@@ -51,7 +62,7 @@ export function AuctionRosterPanel({ row, onClose }: {
                   <TableRow>
                     <TableHead>순위</TableHead><TableHead>업체</TableHead>
                     <TableHead className='text-right'>제출금액</TableHead>
-                    <TableHead className='text-right'>예정가격 대비 (%)</TableHead><TableHead>결과</TableHead>
+                    <TableHead className='text-right'>예정가격 대비 (%)</TableHead><TableHead>결과</TableHead><TableHead>철회 여부</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -64,6 +75,7 @@ export function AuctionRosterPanel({ row, onClose }: {
                         : '미확인'}</TableCell>
                       <TableCell className='text-right tabular-nums'>{submission.bidRate.value}</TableCell>
                       <TableCell>{submission.sourceStatus.label ?? '상태 미확인'}</TableCell>
+                      <TableCell>{withdrawalText(submission.withdrawal)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
