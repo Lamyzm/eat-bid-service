@@ -1,6 +1,9 @@
 /** @module 책임: 조달 기능의 use case와 HTTP controller를 주입 토큰에 연결하는 Nest 조립만 담당한다. */
 import { Module } from "@nestjs/common";
 import type { AuctionReader } from "./application/auction-reader";
+import type { AuctionRosterReader } from "./application/auction-roster-reader";
+import { GetAuctionRoster } from "./application/get-auction-roster";
+import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
 import { FindAuction } from "./application/find-auction";
 import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
 import { ListOpenAuctions } from "./application/list-open-auctions";
@@ -13,6 +16,7 @@ import { OrganizationController } from "./presentation/http/organization.control
 import { WinRateDistributionController } from "./presentation/http/win-rate-distribution.controller";
 import {
   AUCTION_READER,
+  AUCTION_ROSTER_READER,
   OPEN_AUCTION_READER,
   ORGANIZATION_ATTEMPT_READER,
   WIN_RATE_DISTRIBUTION_READER,
@@ -48,8 +52,10 @@ const listOpenAuctionsProvider = {
 };
 
 @Module({
-  controllers: [AuctionController, OrganizationController, WinRateDistributionController],
+  controllers: [AuctionController, AuctionRosterController, OrganizationController, WinRateDistributionController],
   providers: [
+    { provide: GetAuctionRoster, inject: [AUCTION_ROSTER_READER],
+      useFactory: (reader: AuctionRosterReader) => new GetAuctionRoster(reader) },
     findAuctionProvider,
     listOrganizationAuctionAttemptsProvider,
     findWinRateDistributionProvider,

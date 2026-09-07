@@ -202,7 +202,10 @@ eaT 명단 행의 판정 코드 `BID_STT`는 레이크 전수 11,080,463행에�
   아니다.
 - **`BID_CALC_AMT`는 금액이 아닐 수 있다.** 명단 행의 44%가 1e13대 자리표시자이고 한 공고 안에서
   `K − EFT_ALL_AMT` 관계를 지킨다. 정규화는 이 값을 `submission.amount`에 관측 그대로 싣는다.
-  화면·지표가 명단 금액을 쓰기 전에 `EFT_ALL_AMT`를 권위로 삼을지 결정해야 하며 그 결정은 아직 없다.
+  [ADR 0041](../adr/0041-attempt-roster-read-and-observed-amount.md)에 따라 명단 읽기 화면은
+  `EFT_ALL_AMT` 관측만 `submittedAmount`로 표시하고 부재는 null로 둔다. 원천 계산값은
+  `sourceCalculatedAmount`로 별도 보존하며 금액×비율로 복원하지 않는다. 이 표시 정책으로
+  기존 mart 계산이나 단가·계약액의 의미를 변경하지 않는다.
 - **`awardedAt`은 날짜 정밀도다.** 원본 `SUCBD_DT`가 날짜만 오므로 낙찰 시각은 그날 자정 instant다.
   시각으로 정렬하거나 같은 날 안의 선후를 이 값으로 판단하지 않는다.
 

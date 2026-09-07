@@ -3,6 +3,8 @@
 
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/button';
+import { AuctionRosterPanel } from './auction-roster-panel';
 
 import type { HistoryRow } from '../_model/attempt-history';
 import { toMilli } from '../_model/bid-rate';
@@ -98,18 +100,18 @@ const VERDICT_CLASS: Record<RowVerdict, string> = {
   unknown: 'text-muted-foreground'
 };
 
-function ListCell({ row }: { readonly row: HistoryRow }) {
-  if (row.listCount === null) return <>—</>;
+function ListCell({ row, onOpen }: { readonly row: HistoryRow; readonly onOpen: (attemptId: string) => void }) {
   return (
-    <>
-      {row.listCount}
+    <Button variant='link' size='sm' className='h-auto p-0' onClick={() => onOpen(row.attemptId)}
+      aria-label={`${row.openedText} 회차 참여 기록 보기`}>
+      {row.listCount ?? '명단 보기'}
       {row.belowDayFloorCount === null ? null : <span className='text-[13px] font-medium text-muted-foreground'> 하한 아래 {row.belowDayFloorCount}</span>}
-    </>
+    </Button>
   );
 }
 
 // 손잡이가 비어 있으면 마지막 열은 무엇을 하면 계산되는지만 말하고 어떤 값으로도 판정하지 않는다(EAT-84).
-function useHistoryColumns(rateMilli: bigint | null, rate: string | null) {
+function useHistoryColumns(rateMilli: bigint | null, rate: string | null, onOpen: (attemptId: string) => void) {
   return useMemo(
     () => [
       columnHelper.accessor('openedText', { id: 'opened', header: '개찰' }),
@@ -122,7 +124,7 @@ function useHistoryColumns(rateMilli: bigint | null, rate: string | null) {
       // '—'로 두면 다른 열의 "관측 없음"과 같은 모양이 되어 왜 없는지가 사라진다(EAT-74).
       columnHelper.accessor((row) => row.dayFloorText ?? '예정가격 미관측', { id: 'dayFloor', header: '그날 하한(투찰률)' }),
       columnHelper.accessor('winnerText', { id: 'winner', header: '낙찰 업체' }),
-      columnHelper.display({ id: 'list', header: '명단', cell: (context) => <ListCell row={context.row.original} /> }),
+      columnHelper.display({ id: 'list', header: '명단', cell: (context) => <ListCell row={context.row.original} onOpen={onOpen} /> }),
       columnHelper.display({
         id: 'verdict',
         header: rate === null ? NO_RATE_PHRASE.header.text : `${rate} 썼다면`,
@@ -133,16 +135,21 @@ function useHistoryColumns(rateMilli: bigint | null, rate: string | null) {
         }
       })
     ],
-    [rate, rateMilli]
+    [rate, rateMilli, onOpen]
   );
 }
 
 export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] }) {
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+  const selectedRow = rows.find((row) => row.attemptId === selectedAttemptId);
+  useEffect(() => {
+    if (selectedAttemptId !== null && !rows.some((row) => row.attemptId === selectedAttemptId)) setSelectedAttemptId(null);
+  }, [rows, selectedAttemptId]);
   const { rate } = useBidRate();
   const rateMilli = rate === null ? null : toMilli(rate);
   // 응답이 최근 → 오래된 순이라 그대로 앞에서 잘라 최근 12회가 된다. 열 클릭 정렬은 넣지 않는다.
   const data = useMemo(() => rows.slice(0, HISTORY_WINDOW_LIMIT), [rows]);
-  const columns = useHistoryColumns(rateMilli, rate);
+  const columns = useHistoryColumns(rateMilli, rate, setSelectedAttemptId);
   // oxlint-disable-next-line react/incompatible-library -- headless table 인스턴스는 함수를 돌려주지만 React Compiler는 annotation mode라 이 컴포넌트를 메모하지 않는다(apps/web AGENTS.md). "use memo"를 붙일 때 이 표를 함께 검증한다.
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
 
@@ -152,6 +159,7 @@ export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] })
   // 아니라 이 컨테이너만 가로로 움직이고, 첫·마지막 열은 고정돼 판정 열이 잘려 보이지 않는다.
   // border-collapse에서는 sticky 셀이 행 테두리를 끌고 가지 못해 separate로 두고 테두리를 셀에 건다.
   return (
+    <>
     <div ref={ref} data-scroll-left={edges.left ? '' : undefined} data-scroll-right={edges.right ? '' : undefined} className='overflow-x-auto'>
       <table className='w-full border-separate border-spacing-0'>
         <thead>
@@ -185,5 +193,7 @@ export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] })
         </tbody>
       </table>
     </div>
+    {selectedRow ? <AuctionRosterPanel key={selectedRow.attemptId} row={selectedRow} onClose={() => setSelectedAttemptId(null)} /> : null}
+    </>
   );
 }

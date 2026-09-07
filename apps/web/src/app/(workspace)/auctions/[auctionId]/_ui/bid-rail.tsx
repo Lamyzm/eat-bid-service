@@ -65,7 +65,7 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
         <span className='text-xl font-bold'>복기</span>
         <p className='mt-2 flex flex-col gap-0.5 text-[15px] font-medium text-muted-foreground'>
           <span>개찰이 끝난 공고입니다</span>
-          <span>결과 명단은 다음 슬라이스에서 붙습니다</span>
+          <span>지난 회차의 참여 기록은 과거 회차 표에서 확인할 수 있어요</span>
         </p>
       </div>
     );

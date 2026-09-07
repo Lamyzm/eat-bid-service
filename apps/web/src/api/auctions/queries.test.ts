@@ -19,6 +19,24 @@ function requestDouble(inputs: unknown[]): ContractRequest {
 }
 
 describe('공고 Query Options', () => {
+  test('회차 명단은 revision별 캐시를 분리하고 선택 전에는 조회하지 않는다', async () => {
+    const inputs: unknown[] = [];
+    const queries = createAuctionQueries(requestDouble(inputs));
+    const latest = queries.roster('9007199254740993');
+    const pinned = queries.roster('9007199254740993', '99');
+    expect(latest.queryKey).not.toEqual(pinned.queryKey);
+    expect(inputs).toHaveLength(0);
+    expect(() => queries.roster('01')).toThrow();
+    expect(() => queries.roster('1', '0')).toThrow();
+    const controller = new AbortController();
+    if (!pinned.queryFn) throw new Error('queryFn이 필요합니다.');
+    await pinned.queryFn({
+      client: new QueryClient(), queryKey: pinned.queryKey, signal: controller.signal, meta: undefined
+    });
+    expect(inputs).toEqual([expect.objectContaining({
+      path: { auctionId: '9007199254740993' }, query: { revisionId: '99' }, signal: controller.signal
+    })]);
+  });
   test('계층형 key가 bigint ID 문자열을 손실 없이 보존한다', () => {
     const queries = createAuctionQueries(requestDouble([]));
 

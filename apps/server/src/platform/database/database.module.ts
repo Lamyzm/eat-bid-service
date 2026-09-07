@@ -3,6 +3,8 @@ import { DynamicModule, Global, Module, type OnApplicationShutdown, type Provide
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
+import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
+import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
 import type { OpenAuctionReader } from "../../modules/procurement/application/open-auction-reader";
 import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
@@ -17,6 +19,7 @@ import type { DatabaseReadiness } from "../health/readiness-state";
 import { createDatabaseReadiness } from "./database-readiness";
 import {
   AUCTION_READER,
+  AUCTION_ROSTER_READER,
   CODE_READER,
   DATABASE_CONNECTION,
   DATABASE_READINESS,
@@ -30,6 +33,7 @@ import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
 export interface DatabaseModuleOverrides {
   readonly readiness?: DatabaseReadiness;
   readonly auctionReader?: AuctionReader;
+  readonly auctionRosterReader?: AuctionRosterReader;
   readonly openAuctionReader?: OpenAuctionReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
@@ -93,6 +97,12 @@ export class DatabaseModule {
           overrides.openAuctionReader ?? new DrizzleOpenAuctionReader(connection.database),
       },
       {
+        provide: AUCTION_ROSTER_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): AuctionRosterReader =>
+          overrides.auctionRosterReader ?? new DrizzleAuctionRosterReader(connection.database),
+      },
+      {
         provide: ORGANIZATION_ATTEMPT_READER,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): OrganizationAttemptReader =>
@@ -119,6 +129,7 @@ export class DatabaseModule {
         DATABASE_READINESS,
         UNIT_OF_WORK,
         AUCTION_READER,
+        AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,
         ORGANIZATION_ATTEMPT_READER,
         WIN_RATE_DISTRIBUTION_READER,
