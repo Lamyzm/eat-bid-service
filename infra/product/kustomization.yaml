@@ -23,16 +23,16 @@ configMapGenerator:
 images:
   - name: eatbid-web
     newName: ghcr.io/lamyzm/eatbid-web
-    digest: sha256:53914f62fbbd030c10400e06bafbcc8bc7613b960e98b176160eee02df635750
+    digest: sha256:57cae68c8b622b490922e2f70f702f11aea3b036844d5333091e91513f58ffa2
   - name: eatbid-server
     newName: ghcr.io/lamyzm/eatbid-server
-    digest: sha256:fc17b5db2a2e95dcddc3042aa8351719dc5937d5de0344847d18cd141cb1b204
+    digest: sha256:e1ba15eb640b2a9450ec4a070a168d72327a216fd3e9a21315c3db02a00c0904
   - name: eatbid-dataplane
     newName: ghcr.io/lamyzm/eatbid-dataplane
-    digest: sha256:e9a0cb23dc1f16f7257eb351c8c243f72f6093d1a0fa2082c7fcd4da106abc60
+    digest: sha256:1690ab35a5abaaa99c2989599e185bfe0200059908cb96e5084ff67a64eed006
   - name: eatbid-migration
     newName: ghcr.io/lamyzm/eatbid-migration
-    digest: sha256:36576cc4a8f50623f9ce9c937c4e0e966ba7e3be1d07b81b4c25f2162431efca
+    digest: sha256:1fd3b4f3bb866ec13bb5781f02ccd18d50af4a26604160f5cf683c1e2f9e3bf9
 
 patches:
   - path: patches/legacy-cronjobs.delete.yaml
