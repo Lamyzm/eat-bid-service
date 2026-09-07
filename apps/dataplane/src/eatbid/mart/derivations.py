@@ -24,8 +24,23 @@ DISPLAY_RATE_QUANTUM = Decimal("0.0001")
 DISTRIBUTION_BIN_WIDTH = Decimal("0.010")
 
 
+def planned_amount_observed(planned_amount: Decimal | None) -> bool:
+    """예정가격이 관측됐는지는 `is not None`이 아니라 양수인지로 본다.
+
+    eaT는 추첨 전 공고의 예정가격을 빈 값이 아니라 `0`으로 보내고 정규화는 그 관측을 보존한다.
+    0은 금액이 아니라 "아직 추첨하지 않음"이므로 예정가격에서 파생하는 값은 전부 만들지 않는다(EAT-74).
+    """
+    return planned_amount is not None and planned_amount > 0
+
+
+def _require_observed_planned_amount(planned_amount: Decimal) -> None:
+    if not planned_amount_observed(planned_amount):
+        raise ValueError("planned amount must be observed (positive) to derive from it")
+
+
 def day_floor_amount(*, floor_rate: Decimal, planned_amount: Decimal) -> Decimal:
     """그날 하한 금액이다. 내림하는 이유는 올림이 유효한 투찰 하나를 없는 것으로 만들기 때문이다."""
+    _require_observed_planned_amount(planned_amount)
     return (floor_rate / Decimal(100) * planned_amount).quantize(
         MONEY_QUANTUM, rounding=ROUND_DOWN
     )
@@ -48,6 +63,7 @@ def awarded_bid_rate(
 def _to_bid_axis(
     rate: Decimal, *, planned_amount: Decimal, base_amount: Decimal
 ) -> Decimal:
+    _require_observed_planned_amount(planned_amount)
     if base_amount <= 0:
         raise ValueError("base amount must be positive to translate a rate axis")
     return (rate * planned_amount / base_amount).quantize(
@@ -55,8 +71,17 @@ def _to_bid_axis(
     )
 
 
-def below_day_floor_count(assessment_rates: tuple[Decimal, ...], *, floor_rate: Decimal) -> int:
-    """사정률 축에서 그날 하한 미만을 센다. 부등식 양변에 같은 양수를 곱한 것이라 투찰률 축에서 세도 같다."""
+def below_day_floor_count(
+    assessment_rates: tuple[Decimal, ...], *, floor_rate: Decimal, planned_amount: Decimal
+) -> int | None:
+    """사정률 축에서 그날 하한 미만을 센다. 부등식 양변에 같은 양수를 곱한 것이라 투찰률 축에서 세도 같다.
+
+    예정가격이 관측되지 않은 회차는 `None`이다. 사정률은 투찰가를 예정가격으로 나눈 소스 계산값이라
+    분모가 없는 회차에서는 그 부등식 자체가 성립하지 않고, 0으로 메우면 "하한 미만이 없었다"는 거짓
+    관측이 된다(AGENTS 3).
+    """
+    if not planned_amount_observed(planned_amount):
+        return None
     return sum(1 for rate in assessment_rates if rate < floor_rate)
 
 

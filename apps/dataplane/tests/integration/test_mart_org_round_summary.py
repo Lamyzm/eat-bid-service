@@ -163,6 +163,37 @@ def test_하한_미만_수는_합성_명단에서_손으로_셀_수_있다(
     assert row[7] == Decimal("88.0350")
 
 
+def test_예정가격_미관측_회차는_그날_하한과_하한_미만_수를_null로_두고_예정가격_관측은_보존한다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """왜 0인가: eaT는 추첨 전 공고의 `ELCTRN_BID_PLNPRC`를 빈 값이 아니라 `0`으로 보낸다(EAT-74).
+
+    정규화는 그 관측을 보존하므로 core에는 `0.00`이 앉는다. 하한 미만 행이 있는 명단에 그 0을
+    얹어, 파생값이 `0.0000`·`0`이라는 거짓 관측이 아니라 null이 되는지를 고정한다.
+    """
+    unobserved = (
+        ROSTER_FIXTURE.read_bytes()
+        .replace(b'<Col id="ELCTRN_BID_PLNPRC">6762461</Col>', b'<Col id="ELCTRN_BID_PLNPRC">0</Col>')
+        .replace(b'<Col id="SAJEONG_PCT">90.512</Col>', b'<Col id="SAJEONG_PCT">89.512</Col>')
+        .replace(b'<Col id="SAJEONG_PCT">90.567</Col>', b'<Col id="SAJEONG_PCT">89.567</Col>')
+    )
+    external_bid_id = _publish_and_project(pipeline_services, unobserved)
+    plan = mart_plan(create_source_release(pipeline_services))
+
+    build_id, _ = build_mart(pipeline_services, plan, fill_org_round_summary)
+
+    (row,) = _rows_for(pipeline_services, build_id, external_bid_id)
+    # 관측은 관측대로 남는다. 0을 null로 고쳐 쓰면 소스가 0을 보냈다는 사실이 사라진다.
+    assert row[0] == Decimal("90.000")
+    assert row[2] == Decimal("0.00")
+    assert row[9] == 7
+    # 예정가격에서 파생하는 값은 전부 없음이다. 명단에 하한율 아래 행이 둘 있어도 셀 수 없다.
+    assert row[6] is None
+    assert row[7] is None
+    assert row[8] is None
+    assert row[10] is None
+
+
 def test_한_attempt의_최신_revision만_요약한다(
     pipeline_services: PipelineServices,
 ) -> None:

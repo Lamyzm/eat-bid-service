@@ -127,10 +127,11 @@ build의 지역 축을 그 체계로 강제한다. eaT 관측 축은 시도와 �
 
 1. 행안부 release와 좌표 release를 봉인·투영한다(`reference-pipeline`, 지금 `suspend: true`).
 2. 매핑을 만들고 이 문서 §3의 수치를 **운영 DB 실측으로** 갱신한다.
-3. 새 `calc_version`(`mart-r2` → `mart-r3`)으로
-   `build-marts --region-scheme mois:administrative-region`을 실행한다.
+3. 새 `calc_version`(WorkflowTemplate 기본값의 다음 값. 기본값은 계산 규칙이 바뀔 때마다 오르므로
+   여기 숫자를 적지 않는다)으로 `build-marts --region-scheme mois:administrative-region`을 실행한다.
 4. 빌더가 verified 승격 전에 체계를 질의로 확인한다. 실패하면 활성 포인터는 움직이지 않는다.
-5. 되돌리기는 `mart-r2` build를 다시 활성으로 올리는 것이다. `mart-r2`는 지우지 않고 `superseded`로 남는다.
+5. 되돌리기는 직전 `calc_version`의 build를 다시 활성으로 올리는 것이다. 그 build는 지우지 않고
+   `superseded`로 남는다.
 
 ### 운영 현재 상태
 

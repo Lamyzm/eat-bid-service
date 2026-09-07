@@ -64,6 +64,28 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
     expect(() => adapter.mapAttemptRow({ ...row, day_floor_bid_rate: "88.035" } as never)).toThrow(TypeError);
   });
 
+  test("예정가격 미관측 회차는 그날 하한과 하한 미만 수가 0이 아니라 null로 온다", async () => {
+    const adapter = await import("./drizzle-organization-attempt-reader");
+
+    // mart가 예정가격 0(추첨 전) 회차의 파생값을 비워 보낸다(EAT-74). 어댑터는 그 없음을 0으로
+    // 메우지 않고 그대로 옮겨야 화면이 그 회차를 판정 분모에서 뺄 수 있다.
+    const unobserved = adapter.mapAttemptRow({
+      ...row,
+      opened_at: null,
+      awarded_assessment_rate: null,
+      awarded_bid_rate: null,
+      day_floor_bid_rate: null,
+      below_day_floor_count: null,
+      winner_supplier_party_id: null,
+    } as never);
+    expect(unobserved.dayFloorRate).toBeNull();
+    expect(unobserved.belowDayFloorCount).toBeNull();
+    expect(unobserved.awardedBidRate).toBeNull();
+    // 하한율 자체는 공고 조건의 관측값이라 예정가격과 무관하게 남는다.
+    expect(unobserved.floorRate).toBe("90.000");
+    expect(unobserved.listCount).toBe(17);
+  });
+
   test("투찰률 축 낙찰률은 사정률 열이 아니라 awarded_bid_rate 열에서만 온다", async () => {
     const adapter = await import("./drizzle-organization-attempt-reader");
 

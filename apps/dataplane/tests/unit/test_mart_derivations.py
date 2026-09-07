@@ -20,8 +20,11 @@ from eatbid.mart.derivations import (
     day_floor_bid_rate,
     distribution_bin_lower,
     opened_month_kst,
+    planned_amount_observed,
     withdrawal_cohort_age_days,
 )
+
+PLANNED = Decimal("1000000.00")
 
 _ROUNDS_FILE = (
     Path(__file__).resolve().parents[4]
@@ -73,9 +76,32 @@ def test_하한_미만은_사정률_축에서_세고_투찰률_축과_분모가_
 def test_하한_미만_수는_부등식으로만_세고_반올림을_거치지_않는다() -> None:
     rates = (Decimal("89.999"), Decimal("90.000"), Decimal("90.001"), Decimal("88.500"))
 
-    assert below_day_floor_count(rates, floor_rate=Decimal("90.000")) == 2
-    assert below_day_floor_count(rates, floor_rate=Decimal("88.000")) == 0
-    assert below_day_floor_count((), floor_rate=Decimal("90.000")) == 0
+    assert below_day_floor_count(rates, floor_rate=Decimal("90.000"), planned_amount=PLANNED) == 2
+    assert below_day_floor_count(rates, floor_rate=Decimal("88.000"), planned_amount=PLANNED) == 0
+    assert below_day_floor_count((), floor_rate=Decimal("90.000"), planned_amount=PLANNED) == 0
+
+
+def test_예정가격_미관측_회차는_그날_하한을_만들지_않고_하한_미만_수도_없음이다() -> None:
+    # eaT는 추첨 전 예정가격을 0으로 보낸다. 0은 금액이 아니라 미관측이며 null과 같은 뜻이다.
+    assert planned_amount_observed(Decimal("0.00")) is False
+    assert planned_amount_observed(None) is False
+    assert planned_amount_observed(Decimal("0.01")) is True
+
+    rates = (Decimal("89.999"), Decimal("90.001"))
+    # 하한 미만이 "0건"이 아니라 "셀 수 없음"이다. 0으로 메우면 거짓 관측이 된다.
+    assert below_day_floor_count(rates, floor_rate=Decimal("90.000"), planned_amount=Decimal(0)) is None
+
+    for derive in (
+        lambda: day_floor_amount(floor_rate=Decimal("90.000"), planned_amount=Decimal(0)),
+        lambda: day_floor_bid_rate(
+            floor_rate=Decimal("90.000"), planned_amount=Decimal(0), base_amount=Decimal(1000)
+        ),
+        lambda: awarded_bid_rate(
+            assessment_rate=Decimal("90.218"), planned_amount=Decimal(0), base_amount=Decimal(1000)
+        ),
+    ):
+        with pytest.raises(ValueError):
+            derive()
 
 
 def test_그날_하한_금액은_내림한다() -> None:
