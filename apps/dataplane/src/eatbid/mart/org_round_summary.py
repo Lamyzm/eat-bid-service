@@ -19,6 +19,14 @@ from eatbid.mart.models import MartBuildPlan
 # revision이 0개인 attempt는 행을 만들지 않는다. 관계로만 알려진 공고를 회차로 발표하면 안 된다.
 # 공고 시각이나 기초금액을 관측하지 못한 revision도 제외한다 — 화면의 회차 표는 그 둘을 요구하고,
 # 없는 값을 추측으로 메우지 않는다(AGENTS 3).
+#
+# 예정가격은 "관측됐다"의 기준이 `is not null`이 아니라 `> 0`이다. eaT는 추첨 전 공고의
+# `ELCTRN_BID_PLNPRC`를 빈 값이 아니라 `0`으로 보내고, 정규화는 관측을 보존하므로 core에는 `0.00`이
+# 앉는다(EAT-74 운영 실측). 그 0은 금액이 아니라 "아직 추첨하지 않음"이며, 그 위에 그날 하한을
+# 계산하면 `0.0000`이라는 거짓 하한이 생긴다. 그래서 회차 행의 `planned_amount`는 관측 그대로 싣되
+# 예정가격에서 파생하는 값 — 그날 하한 금액·비율, 투찰률 축 낙찰률, 하한 미만 수 — 은 전부 null로
+# 둔다. 하한 미만 수까지 비우는 이유는 명단의 사정률이 예정가격 분모의 소스 계산값이라 예정가격이
+# 없는 회차에서는 그 부등식 자체가 성립하지 않기 때문이다(derivations.py).
 ORG_ROUND_SUMMARY_FILL_SQL = """
 insert into mart.org_round_summary (
   build_id, auction_attempt_id, auction_revision_id, organization_id,
@@ -77,21 +85,24 @@ select
   award.awarded_rate,
   award.runner_up_rate,
   case
-    when latest.floor_rate is not null and latest.planned_amount is not null
+    when latest.floor_rate is not null and latest.planned_amount > 0
     then floor(latest.floor_rate / 100 * latest.planned_amount * 100) / 100
   end,
   case
-    when latest.floor_rate is not null and latest.planned_amount is not null
+    when latest.floor_rate is not null and latest.planned_amount > 0
          and latest.base_amount > 0
     then round(latest.floor_rate * latest.planned_amount / latest.base_amount, 4)
   end,
   case
-    when award.awarded_rate is not null and latest.planned_amount is not null
+    when award.awarded_rate is not null and latest.planned_amount > 0
          and latest.base_amount > 0
     then round(award.awarded_rate * latest.planned_amount / latest.base_amount, 4)
   end,
   roster.list_count,
-  case when latest.floor_rate is not null then roster.below_day_floor_count end,
+  case
+    when latest.floor_rate is not null and latest.planned_amount > 0
+    then roster.below_day_floor_count
+  end,
   roster.withdrawn_count,
   case
     when latest.opened_at is not null

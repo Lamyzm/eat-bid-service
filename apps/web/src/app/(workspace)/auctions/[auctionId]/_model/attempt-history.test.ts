@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { presentHistory } from './attempt-history';
+import { rehearse } from './rehearsal';
 
 describe('기관 회차 이력 표시 모델', () => {
   test('개찰 시각이 있으면 KST YY-MM-DD로 표시하고 openedYear는 4자리다', () => {
@@ -29,6 +30,38 @@ describe('기관 회차 이력 표시 모델', () => {
     const presentation = presentHistory(response, null);
     expect(presentation.rows[0]?.itemLabel).toBe('미확인');
     expect(presentation.rows[0]?.itemCodeValueId).toBeNull();
+  });
+
+  test('예정가격 미관측 회차는 그날 하한·하한 미만 수가 null이고 이 값이면 분모에서 빠진다', () => {
+    // 추첨 전 회차는 예정가격이 없어 그날 하한을 만들 수 없다. 응답은 0.0000이 아니라 null을 싣고
+    // (EAT-74) 화면은 그 없음을 0으로 읽지 않는다.
+    const unobserved = {
+      ...attemptsFixture.attempts[0]!,
+      attemptId: '5796468',
+      openedAt: null,
+      winRate: null,
+      secondRate: null,
+      awardedBidRate: null,
+      dayFloorRate: null,
+      listCount: 3,
+      belowDayFloorCount: null,
+      winnerSupplierPartyId: null
+    };
+    const response = { ...attemptsFixture, attempts: [unobserved, ...attemptsFixture.attempts] };
+    const presentation = presentHistory(response, null);
+    const row = presentation.rows[0]!;
+    expect(row.dayFloorText).toBeNull();
+    expect(row.dayFloorMilli).toBeNull();
+    expect(row.belowDayFloorCount).toBeNull();
+    expect(row.awardedBidRateMilli).toBeNull();
+
+    // 판정할 수 없는 회차는 무효로도 낙찰로도 세지 않는다. 남산초 fixture의 분모 15는 그대로다.
+    const baseline = rehearse(presentHistory(attemptsFixture, null).rows, '1.000');
+    const withUnobserved = rehearse(presentation.rows, '1.000');
+    expect(baseline.total).toBe(15);
+    expect(withUnobserved.total).toBe(baseline.total);
+    expect(withUnobserved.invalid).toBe(baseline.invalid);
+    expect(withUnobserved.won).toBe(baseline.won);
   });
 
   test('선택 품목이 없으면 모든 행이 isSelectedItem true다', () => {
