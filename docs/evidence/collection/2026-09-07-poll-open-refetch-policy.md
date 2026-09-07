@@ -34,7 +34,21 @@ review_trigger: poll-open-schedule-or-refetch-policy-change
 하루로 환산하면 24회 × 평균 169건 = **약 4,060 상세 호출**이다. 발견 건수가 한 시간에 165→175로
 늘었으므로 오전에는 회차당 3~7건이 새로 들어온다.
 
-## 3. 정책 후 실측 (배포 뒤 채운다)
+## 3. 정책 후 실측 (v0.1.21 배포 뒤, 2026-09-07 KST)
+
+| 회차(KST) | workflow | discover | 발견 | 상세 호출 | 이유별 | 회차 전체 |
+|---|---|---|---|---|---|---|
+| 12:30 | `eatbid-poll-open-1788751800` | 20초 | 181 | 15 | signal-changed 14 · post-deadline-window 1 · unchanged 166 | 108분* |
+| 14:30 | `eatbid-poll-open-1788759000` | — | 186 | 80 | new 5 · signal-changed 74 · deadline-passed 1 · unchanged 106 | 13분 50초 |
+
+\* 12:30 회차의 project 단계가 같은 시각에 돌던 복구 replay의 `eatbid-core-publication` mutex를
+기다렸다(EAT-99). 13:00·13:30 회차는 `concurrencyPolicy: Forbid`로 생성되지 않았고, 14:30 회차는 두 시간
+만의 실행이라 신호 변화가 누적돼 상세 비율이 43%로 높다. 정책 전 회차(§2)는 발견 전량을 상세로
+불렀으므로 같은 조건에서 각각 181·186건이었을 것이다. 정상 30분 주기의 대표값은 12:30 회차(8%)이며,
+하루치 표는 다음 평일에 채운다.
+
+원래 안내:
+
 
 같은 방법으로 `discover` pod의 output parameter `detail-count`와 `refetch-reasons`를 읽는다.
 `refetch-reasons`는 `{"new":N,"signal-changed":N,"deadline-passed":N,"post-deadline-window":N,"unchanged":N}`
