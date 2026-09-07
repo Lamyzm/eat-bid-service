@@ -8,6 +8,7 @@ import type { HistoryRow } from '../_model/attempt-history';
 import { toMilli } from '../_model/bid-rate';
 import { HISTORY_WINDOW_LIMIT } from '../_model/history-window';
 import { judgeRow, type RowVerdict } from '../_model/rehearsal';
+import { ROW_VERDICT_PHRASE } from '../_model/verdict-vocabulary';
 import { useBidRate } from './bid-rate-context';
 
 const columnHelper = createColumnHelper<HistoryRow>();
@@ -36,11 +37,12 @@ const HEAD_CLASS: Record<string, string> = {
   verdict: 'text-right tabular-nums bg-primary/10 text-primary'
 };
 
+// 마지막 열은 원본 판정이 아니라 내 값과 낙찰값·그날 하한의 비교이므로 문구는 파생 서술 어휘에서만 가져온다(PDR-0002).
 const VERDICT_TEXT: Record<RowVerdict, string> = {
-  won: '낙찰',
-  missed: '놓침',
-  invalid: '무효',
-  unknown: '—'
+  won: ROW_VERDICT_PHRASE.won.text,
+  missed: ROW_VERDICT_PHRASE.missed.text,
+  invalid: ROW_VERDICT_PHRASE.invalid.text,
+  unknown: ROW_VERDICT_PHRASE.unknown.text
 };
 
 const VERDICT_CLASS: Record<RowVerdict, string> = {
@@ -55,7 +57,7 @@ function ListCell({ row }: { readonly row: HistoryRow }) {
   return (
     <>
       {row.listCount}
-      {row.belowDayFloorCount === null ? null : <span className='text-[13px] font-medium text-muted-foreground'> 하한 미만 {row.belowDayFloorCount}</span>}
+      {row.belowDayFloorCount === null ? null : <span className='text-[13px] font-medium text-muted-foreground'> 하한 아래 {row.belowDayFloorCount}</span>}
     </>
   );
 }
