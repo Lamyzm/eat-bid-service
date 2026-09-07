@@ -80,7 +80,7 @@ describe('기관 회차 이력 표시 모델', () => {
     const withUnobserved = rehearse(presentation.rows, '1.000');
     expect(baseline.total).toBe(15);
     expect(withUnobserved.total).toBe(baseline.total);
-    expect(withUnobserved.invalid).toBe(baseline.invalid);
+    expect(withUnobserved.belowDayFloor).toBe(baseline.belowDayFloor);
     expect(withUnobserved.won).toBe(baseline.won);
   });
 
