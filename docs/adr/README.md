@@ -45,6 +45,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0036](0036-read-cache-tags-and-invalidation-owner.md) | Accepted | 결정 화면 읽기 캐시의 안정 태그 어휘, dataplane이 부르는 web `/internal/cache/revalidate`, 유계 `cacheLife` (0031 7항 대체) |
 | [0037](0037-poll-open-detail-refetch-policy.md) | Accepted | poll-open 상세 재호출을 목록 신호 넷(`BID_CNT`·상태·마감·변경시각)의 변화와 마감 전이로 좁히고, 기준은 마지막 봉인 release, 강제 전량 재호출은 daily-reconcile |
 | [0038](0038-additive-ingestion-fields-and-parser-version.md) | Accepted | 봉인된 수집 계약의 optional 가산 확장(`exclude_unset` canonical 재직렬화), `location.eligibilityAreas`, 라벨을 싣는 파서는 새 version `eat-v3` (0014·0025·0029 refine) |
+| [0040](0040-observed-rates-in-organization-history.md) | Accepted | 기관 이력의 낙찰·차순위 사정률은 ObservedBidRate로 보존하며 하한율의 100 상한은 유지(0033 §2 일부 대체) |
 
 ## 새 ADR 형식
 

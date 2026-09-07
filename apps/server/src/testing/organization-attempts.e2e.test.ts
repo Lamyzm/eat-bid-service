@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
 import { organizationV1Operations } from "@eatbid/contracts";
-import { baseRelativeBidRate, bidRate, canonicalDecimal, fixedClock, krw, Temporal } from "@eatbid/domain";
+import { baseRelativeBidRate, bidRate, canonicalDecimal, fixedClock, krw, observedBidRate, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import type {
@@ -17,7 +17,7 @@ const attempt = {
   item: { codeValueId: 7n, label: "축산" },
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
-  winRate: bidRate(canonicalDecimal("90.309", 3)),
+  winRate: observedBidRate(canonicalDecimal("90.309", 3)),
   secondRate: null,
   // 같은 낙찰의 투찰률 축 표현이다. 사정률 90.309와 값이 다른 것이 축이 다르다는 증거다.
   awardedBidRate: baseRelativeBidRate(canonicalDecimal("88.3020", 4)),

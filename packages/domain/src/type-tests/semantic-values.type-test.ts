@@ -1,10 +1,15 @@
+/** @module 책임: 서로 다른 비율·수량의 도메인 타입이 암묵적으로 호환되지 않는지 컴파일 단계에서 검증한다. */
 import { canonicalDecimal } from "../numeric/canonical-decimal.js";
 import {
   bidRate,
   floorRate,
+  observedBidRate,
   sharePercent,
   type BidRate,
   type FloorRate,
+  type ObservedBidRate,
+  type PercentagePoints,
+  type BaseRelativeBidRate,
   type SharePercent,
 } from "../numeric/rates.js";
 import {
@@ -25,6 +30,16 @@ import {
 const bid: BidRate = bidRate(canonicalDecimal("90.123000", 6));
 const floor: FloorRate = floorRate(canonicalDecimal("88.745000", 6));
 const share: SharePercent = sharePercent(canonicalDecimal("42.500000", 6));
+const observed: ObservedBidRate = observedBidRate(canonicalDecimal("102.297", 3));
+
+// @ts-expect-error 원천 관측을 100 이하를 보장하는 비율로 암묵 변환할 수 없다.
+const boundedFromObserved: PercentagePoints = observed;
+// @ts-expect-error 하한율은 예정가격 대비 원천 사정률과 다른 업무 사실이다.
+const floorFromObserved: FloorRate = observed;
+// @ts-expect-error 기초금액과 예정가격은 같은 분모가 아니다.
+const baseRelativeFromObserved: BaseRelativeBidRate = observed;
+// @ts-expect-error bounded BidRate도 관측 생성자 없이 원천 사정률이 되지 않는다.
+const observedFromBounded: ObservedBidRate = bid;
 
 // @ts-expect-error BidRate와 FloorRate는 서로 다른 업무 사실이다.
 const floorFromBid: FloorRate = bid;
@@ -52,6 +67,10 @@ const bytesFromSample: ByteLength = sample;
 const limitFromBytes: PayloadByteLimit = bytes;
 
 void [
+  boundedFromObserved,
+  floorFromObserved,
+  baseRelativeFromObserved,
+  observedFromBounded,
   floorFromBid,
   shareFromFloor,
   bidFromShare,

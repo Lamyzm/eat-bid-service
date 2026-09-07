@@ -21,6 +21,21 @@ const row = {
 } as const;
 
 describe("DrizzleOrganizationAttemptReader row 경계", () => {
+  test("낙찰과 차순위의 100 초과 관측률을 각각 손실 없이 옮긴다", async () => {
+    const { mapAttemptRow } = await import("./drizzle-organization-attempt-reader");
+    for (const value of ["100.001", "101.975", "102.297", "999999999999.999"]) {
+      expect(mapAttemptRow({ ...row, awarded_assessment_rate: value }).winRate).toBe(value);
+      expect(mapAttemptRow({ ...row, runner_up_assessment_rate: value }).secondRate).toBe(value);
+    }
+    expect(mapAttemptRow({ ...row, awarded_assessment_rate: null }).winRate).toBeNull();
+    expect(mapAttemptRow(row).secondRate).toBeNull();
+    for (const value of ["-1.000", "102.2970", "102.29", "1000000000000.000"]) {
+      expect(() => mapAttemptRow({ ...row, awarded_assessment_rate: value })).toThrow(TypeError);
+      expect(() => mapAttemptRow({ ...row, runner_up_assessment_rate: value })).toThrow(TypeError);
+    }
+    expect(() => mapAttemptRow({ ...row, floor_rate: "100.001" })).toThrow(TypeError);
+  });
+
   test("mart 요약 행을 도메인 값으로 매핑하고 numeric 문자열의 정밀도를 보존한다", async () => {
     const adapter = await import("./drizzle-organization-attempt-reader").catch(() => undefined);
     expect(adapter, "기관 회차 어댑터가 있어야 한다").toBeDefined();

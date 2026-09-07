@@ -4,11 +4,12 @@ import {
   moneyCodec,
   type BaseRelativeBidRateWire,
   type BidRateWire,
+  type ObservedBidRateWire,
   type OrganizationAttemptOpenedFilter,
   type OrganizationAuctionAttempt,
   type OrganizationAuctionAttemptsV1Response,
 } from "@eatbid/contracts";
-import type { BaseRelativeBidRate, BidRate, Clock, Temporal } from "@eatbid/domain";
+import type { BaseRelativeBidRate, BidRate, Clock, ObservedBidRate, Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import { z } from "zod";
 import { AuctionDependencyUnavailable } from "./find-auction";
@@ -66,6 +67,11 @@ function rateText(value: BidRate | null): BidRateWire | null {
   return value === null ? null : { value, unit: "percentage-points" };
 }
 
+// 관측률은 하한율과 상한이 다르므로 같은 직렬화 모양이어도 입력 타입을 합치지 않는다.
+function observedRateText(value: ObservedBidRate | null): ObservedBidRateWire | null {
+  return value === null ? null : { value, unit: "percentage-points" };
+}
+
 // 단위 문자열은 같지만 분모가 다르다. 두 축을 한 함수로 합치면 타입이 그 차이를 더 막지 못한다.
 function baseRelativeRateText(value: BaseRelativeBidRate | null): BaseRelativeBidRateWire | null {
   return value === null ? null : { value, unit: "percentage-points" };
@@ -82,8 +88,8 @@ function attemptResource(record: OrganizationAttemptRecord): OrganizationAuction
       : { codeValueId: record.item.codeValueId.toString(10), label: record.item.label },
     floorRate: rateText(record.floorRate),
     baseAmount: z.encode(moneyCodec, record.baseAmount),
-    winRate: rateText(record.winRate),
-    secondRate: rateText(record.secondRate),
+    winRate: observedRateText(record.winRate),
+    secondRate: observedRateText(record.secondRate),
     awardedBidRate: baseRelativeRateText(record.awardedBidRate),
     dayFloorRate: baseRelativeRateText(record.dayFloorRate),
     listCount: record.listCount,

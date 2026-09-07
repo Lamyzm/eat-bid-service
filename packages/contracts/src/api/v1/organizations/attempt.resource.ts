@@ -6,7 +6,7 @@ import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
 import { moneyWireSchema } from "../../../values/money";
-import { baseRelativeBidRateWireSchema, bidRateWireSchema } from "../../../values/rate";
+import { baseRelativeBidRateWireSchema, bidRateWireSchema, observedBidRateWireSchema } from "../../../values/rate";
 
 /**
  * 과거 회차 표는 개찰된 회차만 싣고 열린 회차는 상태 배너가 담당한다(EAT-81). `only`는 서버 clock 기준
@@ -23,11 +23,11 @@ export const organizationAuctionAttemptSchema = z.strictObject({
   // 품목 라벨 상한은 기관 이름(AuctionOrganization.name)과 같은 512자다. 원본 라벨이 잘려 들어오는
   // 것보다 계약이 통째로 실패하는 편이 관측 사실을 왜곡하지 않는다.
   item: z.strictObject({ codeValueId: positiveBigintTextSchema, label: z.string().min(1).max(512) }).nullable(),
-  // eaT 사정률·낙찰률은 소수 셋째 자리까지 관측되며 mart numeric(6,3)과 같다(values/rate.ts).
+  // 공고 조건의 하한율은 100 이하이고, 낙찰·차순위의 원천 관측은 그 상한을 공유하지 않는다(ADR 0040).
   floorRate: bidRateWireSchema.nullable(),
   baseAmount: moneyWireSchema,
-  winRate: bidRateWireSchema.nullable(),
-  secondRate: bidRateWireSchema.nullable(),
+  winRate: observedBidRateWireSchema.nullable(),
+  secondRate: observedBidRateWireSchema.nullable(),
   // 아래 둘은 위 사정률들과 분모가 다르다. 하한율은 사정률 축의 상수이고 그날 하한은 그것을 기초금액
   // 분모로 번역한 파생값이며, awardedBidRate는 같은 낙찰을 그 회차의 예정가격/기초금액 배율로 옮긴
   // 값이다. 3자리에서 반올림하면 예정가격이 기초금액에 가까운 회차들이 같은 값으로 뭉개지므로 둘 다

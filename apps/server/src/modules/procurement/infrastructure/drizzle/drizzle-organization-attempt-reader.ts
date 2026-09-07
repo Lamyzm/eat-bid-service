@@ -15,6 +15,7 @@ import {
   bidRateValue,
   bigintValue,
   moneyValue,
+  observedBidRateValue,
 } from "./postgres-row-values";
 
 const ORG_ROUND_SUMMARY = "org_round_summary";
@@ -66,8 +67,8 @@ export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptR
     floorRate: bidRateValue(row.floor_rate),
     baseAmount: moneyValue(row.base_amount, row.currency, true),
     // 사정률 축(분모가 예정가격)의 관측값이다. V1 계약의 이름이 아직 축을 담지 못해 그대로 싣는다.
-    winRate: bidRateValue(row.awarded_assessment_rate),
-    secondRate: bidRateValue(row.runner_up_assessment_rate),
+    winRate: observedBidRateValue(row.awarded_assessment_rate),
+    secondRate: observedBidRateValue(row.runner_up_assessment_rate),
     // 같은 낙찰을 투찰률 축으로 옮긴 값이다. 화면의 손잡이가 투찰률이라 "이 값이면 낙찰" 판정은
     // winRate가 아니라 이 값과 견줘야 한다(EAT-71). 예정가격이 아직 없는 회차는 null이다.
     awardedBidRate: baseRelativeBidRateValue(row.awarded_bid_rate),

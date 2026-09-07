@@ -8,6 +8,7 @@ import {
 declare const percentagePointsBrand: unique symbol;
 declare const ratioBrand: unique symbol;
 declare const bidRateBrand: unique symbol;
+declare const observedBidRateBrand: unique symbol;
 declare const baseRelativeBidRateBrand: unique symbol;
 declare const floorRateBrand: unique symbol;
 declare const sharePercentBrand: unique symbol;
@@ -24,8 +25,13 @@ export type BidRate = PercentagePoints & {
   readonly [bidRateBrand]: "BidRate";
 };
 
+/** 예정가격 분모의 원천 관측은 100을 넘을 수 있어 bounded PercentagePoints와 분리한다. */
+export type ObservedBidRate = CanonicalDecimal & {
+  readonly [observedBidRateBrand]: "ObservedBidRate";
+};
+
 /**
- * 투찰률 축이다. 단위는 사정률(`BidRate`)과 같은 percentage-points지만 분모가 예정가격이 아니라
+ * 투찰률 축이다. 단위는 관측 사정률(`ObservedBidRate`)과 같은 percentage-points지만 분모가 예정가격이 아니라
  * 기초금액이라 같은 축의 값이 아니다. 두 값을 한 타입으로 묶으면 화면이 다른 분모의 수를 나란히
  * 비교하게 된다(AGENTS 15).
  */
@@ -82,6 +88,15 @@ export function ratio(value: CanonicalDecimal): Ratio {
 export function bidRate(value: CanonicalDecimal): BidRate {
   assertAtMost(value, "100");
   return value as BidRate;
+}
+
+/** 원천 관측을 절단하지 않되 canonical wire와 numeric(15,3)의 정밀도 경계는 유지한다. */
+export function observedBidRate(value: CanonicalDecimal): ObservedBidRate {
+  canonicalDecimal(value, 3);
+  if (value.length > 16) {
+    throw new RangeError("Observed bid rate must have at most twelve integer digits");
+  }
+  return value as ObservedBidRate;
 }
 
 /**

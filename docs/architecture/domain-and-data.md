@@ -192,8 +192,9 @@ eaT 명단 행의 판정 코드 `BID_STT`는 레이크 전수 11,080,463행에�
 
 - **사정률은 100을 넘는다.** `SAJEONG_PCT`는 투찰가를 예정가격으로 나눈 소스 계산값이라 예정가격을
   넘겨 투찰하면 100을 초과하고, 단가 입찰(낙찰 방식 `013`·`014`)에서 총액을 넣은 행은 훨씬 크게 튄다.
-  ingestion v2는 이 값을 상한 없는 `ObservedBidRate`(소수 3자리, 정수부 최대 12자리)로 받는다. 공개
-  API의 `BidRate`와 하한율은 정의상 0~100이라 그대로다. **DB 표현은 `numeric(15,3)`이다** — `core`와
+  ingestion v2와 공개 기관 이력의 `winRate`·`secondRate`는 100 상한 없는 `ObservedBidRate`
+  (소수 3자리, 정수부 최대 12자리)로 보존한다. 하한율의 `BidRate`는 0~100을 유지한다
+  ([ADR 0040](../adr/0040-observed-rates-in-organization-history.md)). **DB 표현은 `numeric(15,3)`이다** — `core`와
   `mart` 모두 같으며 [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §2가
   정했다.
 - **사정률을 집계하면 낙찰 방식으로 코호트를 나눈다.** 낙찰 방식 코드

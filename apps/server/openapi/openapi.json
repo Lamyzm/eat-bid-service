@@ -77,6 +77,44 @@
         ],
         "type": "object"
       },
+      "AuctionParticipation": {
+        "additionalProperties": false,
+        "description": "Observed list-side participant count (BID_CNT) of one auction attempt: latest observation and the newest one at least a day older.",
+        "properties": {
+          "dayEarlier": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuctionParticipationObservation"
+              }
+            ],
+            "nullable": true
+          },
+          "latest": {
+            "$ref": "#/components/schemas/AuctionParticipationObservation"
+          }
+        },
+        "required": [
+          "latest",
+          "dayEarlier"
+        ],
+        "type": "object"
+      },
+      "AuctionParticipationObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "bidCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "observedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          }
+        },
+        "required": [
+          "bidCount",
+          "observedAt"
+        ],
+        "type": "object"
+      },
       "AuctionPricing": {
         "additionalProperties": false,
         "description": "Exact observed auction amounts with currency attached to each value.",
@@ -316,6 +354,14 @@
             ],
             "nullable": true
           },
+          "participation": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AuctionParticipation"
+              }
+            ],
+            "nullable": true
+          },
           "pricing": {
             "$ref": "#/components/schemas/AuctionPricing"
           },
@@ -342,7 +388,8 @@
           "provenance",
           "terms",
           "location",
-          "classification"
+          "classification",
+          "participation"
         ],
         "type": "object"
       },
@@ -1137,7 +1184,7 @@
           "secondRate": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/BidRate"
+                "$ref": "#/components/schemas/ObservedBidRate"
               }
             ],
             "nullable": true
@@ -1161,7 +1208,7 @@
           "winRate": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/BidRate"
+                "$ref": "#/components/schemas/ObservedBidRate"
               }
             ],
             "nullable": true

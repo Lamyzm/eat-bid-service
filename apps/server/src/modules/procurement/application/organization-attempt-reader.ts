@@ -1,12 +1,12 @@
 /** @module 책임: 기관 회차 이력 조회 port와 mart 요약 한 행의 application record 형태를 소유한다. */
-import type { BaseRelativeBidRate, BidRate, Money, Temporal } from "@eatbid/domain";
+import type { BaseRelativeBidRate, BidRate, Money, ObservedBidRate, Temporal } from "@eatbid/domain";
 import type { MartBuildLineage } from "./mart-build-lineage";
 import type { OrganizationId } from "../domain/organization-id";
 
 /**
  * mart.org_round_summary 한 행을 도메인 값으로만 표현한다. 계보는 행이 아니라 build가 갖는다
  * (ADR 0034) — 같은 사실을 수백만 행에 복제하면 권위가 둘이 된다.
- * 비율은 일반 percentage-point가 아니다. 사정률(`BidRate`)의 분모는 예정가격이고 그날 하한·투찰률 축
+ * 비율은 일반 percentage-point가 아니다. 관측 사정률(`ObservedBidRate`)의 분모는 예정가격이고 그날 하한·투찰률 축
  * 낙찰률(`BaseRelativeBidRate`)의 분모는 기초금액이라 축이 다르다. scale과 범위는 어댑터 경계에서 한
  * 번만 닫고, 직렬화 단계는 그 값을 다시 검증하지 않는다.
  */
@@ -17,8 +17,8 @@ export interface OrganizationAttemptRecord {
   readonly item: { readonly codeValueId: bigint; readonly label: string } | null;
   readonly floorRate: BidRate | null;
   readonly baseAmount: Money;
-  readonly winRate: BidRate | null;
-  readonly secondRate: BidRate | null;
+  readonly winRate: ObservedBidRate | null;
+  readonly secondRate: ObservedBidRate | null;
   /** `winRate`와 같은 낙찰의 투찰률 축 표현이다. 대체재가 아니라 짝이므로 둘 다 싣는다. */
   readonly awardedBidRate: BaseRelativeBidRate | null;
   readonly dayFloorRate: BaseRelativeBidRate | null;

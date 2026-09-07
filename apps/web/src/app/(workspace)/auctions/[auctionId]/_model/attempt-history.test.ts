@@ -1,10 +1,25 @@
 import { describe, expect, test } from 'bun:test';
+import { organizationAuctionAttemptsV1ResponseSchema } from '@eatbid/contracts/api/v1/organizations';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { presentHistory } from './attempt-history';
 import { rehearse } from './rehearsal';
 
 describe('기관 회차 이력 표시 모델', () => {
+  test('100 초과 낙찰과 차순위 관측값을 응답 검증부터 표의 소수 셋째 자리까지 보존한다', () => {
+    const response = organizationAuctionAttemptsV1ResponseSchema.parse({
+      ...attemptsFixture,
+      attempts: [{
+        ...attemptsFixture.attempts[0]!,
+        winRate: { value: '101.975', unit: 'percentage-points' },
+        secondRate: { value: '102.297', unit: 'percentage-points' }
+      }]
+    });
+    const row = presentHistory(response, null).rows[0]!;
+    expect(row.winRateText).toBe('101.975');
+    expect(row.secondRateText).toBe('102.297');
+  });
+
   test('개찰 시각이 있으면 KST YY-MM-DD로 표시하고 openedYear는 4자리다', () => {
     const presentation = presentHistory(attemptsFixture, null);
     // 첫 회차는 openedAt '2026-08-10T04:00:00Z' → KST 13시, 날짜는 그대로 08-10이다.

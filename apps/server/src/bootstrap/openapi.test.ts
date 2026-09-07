@@ -169,7 +169,12 @@ describe("canonical OpenAPI 산출물", () => {
       meta: { $ref: "#/components/schemas/OrganizationAuctionAttemptsMeta" },
     });
     expect(document.components.schemas.OrganizationAuctionAttempt.properties.winRate)
+      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/ObservedBidRate" }], nullable: true });
+    expect(document.components.schemas.OrganizationAuctionAttempt.properties.secondRate)
+      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/ObservedBidRate" }], nullable: true });
+    expect(document.components.schemas.OrganizationAuctionAttempt.properties.floorRate)
       .toMatchObject({ allOf: [{ $ref: "#/components/schemas/BidRate" }], nullable: true });
+    expect(document.components.schemas.ObservedBidRateText).toMatchObject({ type: "string", maxLength: 16 });
     expect(document.components.schemas.BidRateText).toMatchObject({ type: "string", maxLength: 7 });
   });
 
