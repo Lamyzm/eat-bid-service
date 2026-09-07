@@ -54,12 +54,12 @@ describe('이 값이면 재현 계산', () => {
     expect(rehearsal.wonFlags).toHaveLength(15);
   });
 
-  test('그날 하한이 null인 회차는 무효 집계에서 제외된다', () => {
+  test('그날 하한이 null인 회차는 하한 아래 집계에서 제외된다', () => {
     const rows = presentHistory(attemptsFixture, null).rows;
     const rehearsal = rehearse(rows, '1.000');
-    // dayFloor가 있는 15회만 무효로 세고, dayFloor가 null인 5회는 무효 집계에서 빠진다.
-    expect(rehearsal.invalid).toBe(15);
-    // 그 5회는 예정가격을 모르는 회차라 낙찰 판정도 할 수 없어 분모에도 들어가지 않는다.
+    // dayFloor가 있는 15회만 하한 아래로 세고, dayFloor가 null인 5회는 그 집계에서 빠진다.
+    expect(rehearsal.belowDayFloor).toBe(15);
+    // 그 5회는 예정가격을 모르는 회차라 낙찰값과도 견줄 수 없어 분모에도 들어가지 않는다.
     expect(rehearsal.total).toBe(15);
   });
 
@@ -73,7 +73,7 @@ describe('이 값이면 재현 계산', () => {
     expect(rehearsal.wonFlags).toHaveLength(1);
   });
 
-  test('투찰률 축 낙찰률이 없어도 그날 하한만 알면 무효로 센다', () => {
+  test('투찰률 축 낙찰률이 없어도 그날 하한만 알면 하한 아래로 센다', () => {
     const rows = [
       winRow('26-03-01', '2026', '90.200', null),
       makeRow({
@@ -84,8 +84,8 @@ describe('이 값이면 재현 계산', () => {
       })
     ];
     const rehearsal = rehearse(rows, '89.000');
-    expect(rehearsal.invalid).toBe(1);
-    // 무효로 판정된 회차는 낙찰률이 없어도 분모에 들어간다.
+    expect(rehearsal.belowDayFloor).toBe(1);
+    // 하한 아래로 센 회차는 낙찰률이 없어도 분모에 들어간다.
     expect(rehearsal.total).toBe(2);
     expect(rehearsal.wonFlags).toEqual([false, true]);
   });

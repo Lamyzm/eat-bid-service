@@ -88,7 +88,7 @@ describe('judgeRow 축 정합', () => {
     expect(judgeRow(row, toMilli('90.200'))).toBe('unknown');
   });
 
-  test('투찰률 축 낙찰률이 없어도 그날 하한을 밑돌면 무효는 확정이다', () => {
+  test('투찰률 축 낙찰률이 없어도 그날 하한을 밑돌면 하한 아래는 확정이다', () => {
     const row = makeRow({
       winRateText: '90.500',
       winRateMilli: toMilli('90.500'),
@@ -162,10 +162,10 @@ describe('남산초 92회차 실관측 축 대조', () => {
     expect(rows.filter((row) => judgeRow(row, rateMilli) === 'won')).toHaveLength(4);
   });
 
-  test('90.000 이 값이면 요약도 투찰률 축을 따라 92회 중 4회 낙찰·36회 무효다', () => {
+  test('90.000 이 값이면 요약도 투찰률 축을 따라 92회 중 4회 낙찰값 이하·36회 하한 아래다', () => {
     const rehearsal = rehearse(rows, '90.000');
     expect(rehearsal.total).toBe(92);
     expect(rehearsal.won).toBe(4);
-    expect(rehearsal.invalid).toBe(36);
+    expect(rehearsal.belowDayFloor).toBe(36);
   });
 });

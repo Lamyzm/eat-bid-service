@@ -6,6 +6,7 @@ import { fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { createMemoryBidRecordPort } from '../_lib/bid-record-port';
 import { presentHistory } from '../_model/attempt-history';
 import { presentDecision } from '../_model/present-decision';
+import { FORBIDDEN_VERDICT_WORDS } from '../_model/verdict-vocabulary';
 import { BidRail } from './bid-rail';
 import { BidRateProvider } from './bid-rate-context';
 import { HistoryTable } from './history-table';
@@ -23,36 +24,48 @@ function renderPanel(initialRate: string) {
 }
 
 describe('이 값이면 패널', () => {
-  test('지난 회차 수와 낙찰됐을 회차를 칸 스트립과 함께 보인다', () => {
-    // 손잡이는 투찰률이라 판정 값도 투찰률 축이다. 예정가격을 모르는 5회차는 분모에서 빠진다.
+  test('지난 회차 수와 낙찰값 이하였을 회차를 칸 스트립과 함께 보인다', () => {
+    // 손잡이는 투찰률이라 비교 값도 투찰률 축이다. 예정가격을 모르는 5회차는 분모에서 빠진다.
     const screen = renderPanel('92.500');
-    expect(screen.getByText('지난 15회 중 낙찰됐을 회차')).toBeTruthy();
+    expect(screen.getByText('지난 15회 중 낙찰값 이하였을 회차')).toBeTruthy();
     expect(screen.getByText('10회')).toBeTruthy();
     expect(screen.getByText('지금 값을 그때 냈다면')).toBeTruthy();
   });
 
-  test('무효였을 회차가 없으면 무효 행을 아예 만들지 않는다', () => {
+  test('그날 하한보다 낮았을 회차가 없으면 그 행을 아예 만들지 않는다', () => {
     const screen = renderPanel('92.500');
-    expect(screen.queryByText('그날 하한보다 낮아 무효였을 회차')).toBeNull();
+    expect(screen.queryByText('그날 하한보다 낮았을 회차')).toBeNull();
   });
 
-  test('그날 하한을 밑도는 값이면 무효였을 회차를 같은 분모와 함께 센다', () => {
+  test('그날 하한을 밑도는 값이면 하한보다 낮았을 회차를 같은 분모와 함께 센다', () => {
     const screen = renderPanel('90.100');
-    const row = screen.getByText('그날 하한보다 낮아 무효였을 회차').closest('div');
+    const row = screen.getByText('그날 하한보다 낮았을 회차').closest('div');
     expect(row?.textContent).toContain('7회');
     expect(row?.textContent).toContain('15회 중');
     expect(screen.getByText('8회')).toBeTruthy();
   });
 
+  test('그날 하한 행의 부제는 하한이 관측이 아니라 계산한 값임을 밝힌다', () => {
+    const screen = renderPanel('90.100');
+    expect(screen.getByText('하한율 × 예정가로 계산')).toBeTruthy();
+  });
+
+  test('패널 어디에도 원본 판정 코드에 없는 판정어(무효·유효·실격 등)가 나오지 않는다', () => {
+    // 하한 아래 행까지 그려지는 값이라 패널의 모든 문구가 한 번에 나온다.
+    const screen = renderPanel('90.100');
+    const markup = screen.container.textContent ?? '';
+    for (const word of FORBIDDEN_VERDICT_WORDS) expect(markup).not.toContain(word);
+  });
+
   test('회차가 칸으로 세기에 많으면 칸 대신 비율을 숫자로 함께 말한다', () => {
-    // 칸 스트립 상한(24회)을 넘기려고 같은 회차를 두 벌로 늘린다. 낙찰·무효 판정은 그대로 두 배다.
+    // 칸 스트립 상한(24회)을 넘기려고 같은 회차를 두 벌로 늘린다. 낙찰값 이하·하한 아래 수는 그대로 두 배다.
     const many = [...rows, ...rows.map((row) => ({ ...row, attemptId: `${row.attemptId}-b` }))];
     const screen = render(
       <BidRateProvider initialRate='90.100'>
         <RehearsalPanel rows={many} />
       </BidRateProvider>
     );
-    const won = screen.getByText('지난 30회 중 낙찰됐을 회차').closest('div');
+    const won = screen.getByText('지난 30회 중 낙찰값 이하였을 회차').closest('div');
     expect(won?.textContent).toContain('16회');
     expect(won?.textContent).toContain('53%');
   });
