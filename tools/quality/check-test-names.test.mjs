@@ -347,3 +347,19 @@ test("다른 symbol과 shadowing은 테스트 API로 오인하지 않는다", ()
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   });
 });
+
+test("병렬 에이전트 worktree인 .claude 디렉터리는 스캔하지 않는다", () => {
+  withFixture({
+    ".claude/worktrees/agent-1/other.test.ts": `
+      import { test } from "node:test";
+      test("English title in another worktree", () => {});
+    `,
+    "own.test.ts": `
+      import { test } from "node:test";
+      test("이 체크아웃의 명세만 검사한다", () => {});
+    `,
+  }, (result) => {
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    assert.match(result.stdout, /TypeScript 1개/);
+  });
+});

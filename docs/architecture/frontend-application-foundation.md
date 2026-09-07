@@ -189,7 +189,9 @@ blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`
 - transport: network call 위치, client/server entry 분리와 runtime schema parse를 검사한다.
 - package graph: browser-safe contract subpath와 clean dev/build를 검사하고 Node/ingestion/domain runtime 유입을 거부한다.
 - identity/value: ID `Number` 변환, exact money/rate의 float authority를 거부한다.
-- RSC: route-level client component와 non-serializable prop을 검토한다.
+- RSC: route-level client component와 non-serializable prop을 검토한다. 서버 모듈이 `'use client'` 모듈의
+  컴포넌트가 아닌 값(상수·함수·hook)을 import하면 `client-value-export-import`가 거부한다(EAT-77 NaN 사고).
+  그런 값은 `_model/**` 같은 지시자 없는 모듈에 둔다.
 - compiler: annotation mode 대상만 opt-in하고 build·행동 회귀 evidence 없이 범위를 넓히지 않는다.
 - cache: `next build`가 canonical route의 blocking-prerender 오류를 gate한다. `use cache`는
   `api/<resource>/server.ts` read 함수에만 두고 사용자별·session 데이터에는 쓰지 않는다. 이 두 조건은

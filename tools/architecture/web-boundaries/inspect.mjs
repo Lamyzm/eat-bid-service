@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { clientValueExportCrossings } from "./client-value-exports.mjs";
 import { exportedManualDtos } from "./dto-provenance.mjs";
 import { isDomLibrarySymbol, isGlobalFetchCall } from "./global-fetch-analysis.mjs";
 import {
@@ -401,6 +402,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, baselinePath 
         add(findings, root, WEB_BOUNDARY_RULES.MANUAL_API_RESPONSE, declarationFile.fileName, declaration, declarationFile, "src/api의 public response는 수동 선언이 아닌 contract-inferred type이어야 합니다.");
       }
     }
+    for (const crossing of clientValueExportCrossings(checker, sourceFile, source)) add(findings, root, WEB_BOUNDARY_RULES.CLIENT_VALUE_EXPORT_IMPORT, file, crossing.statement, sourceFile, `'use client' 모듈의 컴포넌트가 아닌 값(${crossing.names.join(", ")})을 서버 모듈이 import하면 client reference로 바뀝니다. 값은 _model/** 같은 지시자 없는 모듈로 옮기세요.`);
     const visit = (node) => {
       const moduleReference = reference(checker, node);
       if (moduleReference) {
