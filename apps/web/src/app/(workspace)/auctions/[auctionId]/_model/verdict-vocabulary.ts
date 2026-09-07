@@ -50,8 +50,20 @@ export const REHEARSAL_PHRASE = {
   }
 } as const satisfies Record<'won' | 'belowDayFloor', VerdictPhrase>;
 
+/**
+ * 손잡이가 비어 있을 때 표 마지막 열과 "이 값이면" 패널이 보이는 상태 문구. 화면이 값을 먼저 놓으면 그것이
+ * 추천값으로 읽히므로(AGENTS 8, PDR-0004) 빈 상태는 고장이 아니라 시작 상태이며, 문구는 무엇을 하면 계산이
+ * 시작되는지만 말하고 어떤 값도 예로 들지 않는다.
+ */
+export const NO_RATE_PHRASE = {
+  header: { text: '값을 넣으면 계산', basis: { kind: 'derived', comparedWith: 'none' } },
+  row: { text: '—', basis: { kind: 'derived', comparedWith: 'none' } },
+  panel: { text: '값 없음', sub: '투찰률을 넣으면 지난 회차와 견줍니다', basis: { kind: 'derived', comparedWith: 'none' } }
+} as const satisfies Record<'header' | 'row' | 'panel', VerdictPhrase>;
+
 export const ALL_VERDICT_PHRASES: readonly VerdictPhrase[] = [
   ...Object.values(SOURCE_VERDICT_PHRASE),
   ...Object.values(ROW_VERDICT_PHRASE),
-  ...Object.values(REHEARSAL_PHRASE)
+  ...Object.values(REHEARSAL_PHRASE),
+  ...Object.values(NO_RATE_PHRASE)
 ];

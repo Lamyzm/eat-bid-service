@@ -1,4 +1,4 @@
-/** @module 책임: 투찰률 손잡이·직접 입력·넣을 금액·내 값 기록의 브라우저 상태를 소유한다. 추천값은 만들지 않고 사용자가 정한 값만 다룬다. */
+/** @module 책임: 투찰률 손잡이·직접 입력·넣을 금액·내 값 기록의 브라우저 상태를 소유한다. 추천값은 만들지 않고 사용자가 정한 값만 다루며, 값이 없는 동안은 손잡이·금액·기록을 멈춘다. */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { createMemoryBidRecordPort, type BidRecord, type BidRecordPort } from '../_lib/bid-record-port';
 import { type BidRateStep, bidAmount, formatWon, parseBidRate, stepBidRate } from '../_model/bid-rate';
 import type { DecisionPresentation } from '../_model/present-decision';
+import { NO_RATE_PHRASE } from '../_model/verdict-vocabulary';
 import { useBidRate } from './bid-rate-context';
 
 type BidRailProps = {
@@ -35,10 +36,11 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
   // 투찰률은 레일만의 상태가 아니다. 흐름 차트와 표의 마지막 열이 같은 값을 봐야 하므로 화면
   // 전체가 공유하는 context가 소유하고, 손잡이·직접 입력은 그 값을 바꾸기만 한다.
   const { rate, setRate } = useBidRate();
-  const [draft, setDraft] = useState(rate);
+  const [draft, setDraft] = useState(rate ?? '');
   const [record, setRecord] = useState<BidRecord | null>(null);
   const [actionFailure, setActionFailure] = useState<ActionFailure>(null);
-  const amount = bidAmount(decision.baseAmount.raw, rate);
+  // 값이 없으면 금액도 없다. 빈 손잡이에서 어떤 원점으로든 계산해 보이면 그 원점이 추천값이 된다(AGENTS 8).
+  const amount = rate === null ? null : bidAmount(decision.baseAmount.raw, rate);
 
   // 마운트 시 이 공고에 이미 저장된 값이 있으면 복원한다. 진실 원천은 port 하나이며 이 컴포넌트는
   // 그 값을 반영만 한다.
@@ -70,12 +72,21 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
   }
 
   function commitDraft() {
+    // 지운 입력은 잘못된 입력이 아니라 "값 없음"으로 돌아가겠다는 뜻이다. 이전 값을 되살리면 지울 수 없다.
+    if (draft.trim() === '') {
+      setRate(null);
+      setDraft('');
+      return;
+    }
     const parsed = parseBidRate(draft);
     if (parsed) setRate(parsed);
-    setDraft(parsed ?? rate);
+    setDraft(parsed ?? rate ?? '');
   }
 
+  // 손잡이는 있는 값을 옮길 뿐 값을 만들지 않는다. 빈 상태에서 눌렀을 때 어떤 원점에서 출발하든 그
+  // 원점이 화면이 놓은 첫 값, 곧 추천값이 된다.
   function applyStep(step: BidRateStep) {
+    if (rate === null) return;
     const next = stepBidRate(rate, step);
     setRate(next);
     setDraft(next);
@@ -84,6 +95,7 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
   // 기록 시각은 서버 영속화가 저장 시점에 붙이는 사실이다(규칙 15·17). 이 슬라이스는 영속화가 없으니
   // 값을 만들지 않고 null을 저장한다.
   async function saveRecord() {
+    if (rate === null || amount === null) return;
     const next: BidRecord = { auctionId: decision.identity.auctionId, rate, amount, recordedAt: null };
     try {
       await port.save(next);
@@ -99,6 +111,7 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
   // 허용하는데, ElapsedMilliseconds는 @eatbid/domain 소유라 client bundle에 넣을 수 없다(rule 15·17,
   // apps/web AGENTS.md). 타이머 없이 다음 시도(재복사 성공/실패)에서 자연스럽게 사라지게 한다.
   async function copyAmount() {
+    if (amount === null) return;
     try {
       await navigator.clipboard?.writeText(amount);
       setActionFailure(null);
@@ -115,14 +128,16 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
           <span className='text-[15px] font-semibold text-muted-foreground'>투찰률</span>
           <span className='text-[15px] font-medium text-muted-foreground'>눌러서 직접 입력</span>
         </label>
+        {/* placeholder는 상태 이름이지 예시 값이 아니다. 숫자를 예로 보이면 그 숫자가 추천값으로 읽힌다. */}
         <input
           id='bid-rate'
           aria-label='투찰률'
           inputMode='decimal'
+          placeholder={NO_RATE_PHRASE.panel.text}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commitDraft}
-          className='ml-auto w-36 bg-transparent text-right text-[32px] leading-tight font-bold tracking-tight tabular-nums outline-none'
+          className='ml-auto w-36 bg-transparent text-right text-[32px] leading-tight font-bold tracking-tight tabular-nums outline-none placeholder:text-[20px] placeholder:font-semibold placeholder:text-muted-foreground/60'
         />
       </div>
       <div className='flex gap-1.5'>
@@ -131,8 +146,9 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
             key={step}
             type='button'
             aria-label={stepLabel(step)}
+            disabled={rate === null}
             onClick={() => applyStep(step)}
-            className='h-11 flex-1 rounded-lg bg-foreground/5 text-[15px] font-semibold tabular-nums whitespace-nowrap'
+            className='h-11 flex-1 rounded-lg bg-foreground/5 text-[15px] font-semibold tabular-nums whitespace-nowrap disabled:opacity-40'
           >
             {step.replace('-', '−')}
           </button>
@@ -140,19 +156,29 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
       </div>
       <div className='flex items-center gap-2 px-1'>
         <span className='text-[15px] font-semibold text-muted-foreground'>넣을 금액</span>
-        <span className='ml-auto flex items-baseline gap-1 whitespace-nowrap'>
-          <span className='text-2xl font-bold tracking-tight tabular-nums'>{formatWon(amount)}</span>
-          <span className='text-[13px] font-semibold text-muted-foreground'>원</span>
-        </span>
+        {amount === null ? (
+          <span className='ml-auto text-[15px] font-semibold whitespace-nowrap text-muted-foreground'>{NO_RATE_PHRASE.panel.text}</span>
+        ) : (
+          <span className='ml-auto flex items-baseline gap-1 whitespace-nowrap'>
+            <span className='text-2xl font-bold tracking-tight tabular-nums'>{formatWon(amount)}</span>
+            <span className='text-[13px] font-semibold text-muted-foreground'>원</span>
+          </span>
+        )}
         <button
           type='button'
+          disabled={amount === null}
           onClick={() => void copyAmount()}
-          className='h-8 rounded-lg bg-foreground/5 px-3 text-[15px] font-semibold whitespace-nowrap'
+          className='h-8 rounded-lg bg-foreground/5 px-3 text-[15px] font-semibold whitespace-nowrap disabled:opacity-40'
         >
           {actionFailure === 'copy' ? '복사 실패' : '금액 복사'}
         </button>
       </div>
-      <button type='button' onClick={() => void saveRecord()} className='h-12 rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground'>
+      <button
+        type='button'
+        disabled={rate === null}
+        onClick={() => void saveRecord()}
+        className='h-12 rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40'
+      >
         내 값 기록
       </button>
       <div className='flex items-baseline gap-2 px-1'>

@@ -1,4 +1,4 @@
-/** @module 책임: 결정 화면 전체 조건(기간·모집단·내 값·크게 보기)을 URL search param으로 보존하는 nuqs parser를 한 곳에서 소유한다. page.tsx의 Suspense loader가 서버에서 `createLoader`로 이 parser를 실행하므로 client 전용 'nuqs'가 아니라 'nuqs/server'에서 가져온다. */
+/** @module 책임: 결정 화면 전체 조건(기간·모집단·내 값·손잡이 투찰률·크게 보기)을 URL search param으로 보존하는 nuqs parser를 한 곳에서 소유한다. page.tsx의 Suspense loader가 서버에서 `createLoader`로 이 parser를 실행하므로 client 전용 'nuqs'가 아니라 'nuqs/server'에서 가져온다. */
 import { parseAsBoolean, parseAsString, parseAsStringLiteral } from 'nuqs/server';
 
 export const DECISION_PERIODS = ['12개월', '3개월', '이번 달', '지난 달'] as const;
@@ -21,6 +21,12 @@ export const decisionSearchParsers = {
    * 추천값이 된다(AGENTS 8). 형식 검증은 `_model/present-distribution.ts`가 한다.
    */
   myRate: parseAsString,
+  /**
+   * 투찰 레일 손잡이의 **투찰률**(분모 기초금액). 사용자가 놓은 값만 실리고 **기본값을 두지 않는다** —
+   * 화면이 먼저 놓아 준 손잡이 값은 표 마지막 열·"이 값이면"까지 번지는 추천값이 된다(AGENTS 8,
+   * PDR-0004, EAT-84). 형식 검증은 `_ui/bid-rate-context.tsx`가 `parseBidRate`로 하며 틀린 값은 빈 상태다.
+   */
+  rate: parseAsString,
   // 크게 보기(12개월 × 칸 히트맵)도 주소다. 같은 endpoint를 granularity=month로 다시 부른다.
   expand: parseAsBoolean.withDefault(false)
 };
@@ -31,6 +37,7 @@ export type DecisionSearch = {
   readonly view: (typeof DECISION_VIEWS)[number];
   readonly item: string | null;
   readonly myRate: string | null;
+  readonly rate: string | null;
   readonly expand: boolean;
 };
 
@@ -45,6 +52,7 @@ function decisionQuery(search: DecisionSearch): URLSearchParams {
   if (search.scope !== decisionSearchParsers.scope.defaultValue) query.set('scope', search.scope);
   if (search.item !== null) query.set('item', search.item);
   if (search.myRate !== null) query.set('myRate', search.myRate);
+  if (search.rate !== null) query.set('rate', search.rate);
   if (search.expand) query.set('expand', 'true');
   return query;
 }

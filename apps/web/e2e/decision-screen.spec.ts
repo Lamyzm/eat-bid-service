@@ -165,7 +165,11 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(page.locator('circle[data-item="selected"]')).not.toHaveCount(0);
 
     await expect(page.locator('table tbody tr')).toHaveCount(12);
-    await expect(page.locator('table thead th').last()).toHaveText('90.000 썼다면');
+    // 손잡이는 값 없이 시작한다. 시작값이 있으면 표 머리글까지 번지는 추천값이 된다(AGENTS 8, EAT-84).
+    await expect(page.locator('table thead th').last()).toHaveText('값을 넣으면 계산');
+    await expect(page.getByRole('textbox', { name: '투찰률', exact: true })).toHaveValue('');
+    await expect(page.getByRole('button', { name: '투찰률 0.001 올리기' })).toBeDisabled();
+    await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText('썼다면');
 
     // 부제의 표시 회차 수는 서버 컴포넌트가 센다. 상한 상수를 'use client' 모듈에서 읽으면 서버 쪽에서
     // 숫자가 아니게 되어 NaN이 렌더된다(EAT-77). 단위 테스트는 RSC 경계를 재현하지 못하므로 실제
@@ -174,17 +178,23 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText('NaN');
 
     await expect(page.getByText('이 값이면', { exact: true })).toBeVisible();
-    await expect(page.getByText(/지난 \d+회 중 낙찰값 이하였을 회차/)).toBeVisible();
+    await expect(page.getByText('투찰률을 넣으면 지난 회차와 견줍니다')).toBeVisible();
   });
 
-  test('투찰률 손잡이를 누르면 표 마지막 열 헤더와 이 값이면 값이 함께 바뀐다', async ({ page }) => {
+  test('투찰률을 직접 넣은 뒤 손잡이를 누르면 표 마지막 열 헤더와 이 값이면 값이 함께 바뀌고 주소에 남는다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: 1440, height: 1200 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
     await page.getByText('이 공고가 열려 있습니다').waitFor();
 
     const headerLast = page.locator('table thead th').last();
+    await expect(headerLast).toHaveText('값을 넣으면 계산');
+
+    const input = page.getByRole('textbox', { name: '투찰률', exact: true });
+    await input.fill('90.000');
+    await input.blur();
     await expect(headerLast).toHaveText('90.000 썼다면');
+    await expect(page.getByText(/지난 \d+회 중 낙찰값 이하였을 회차/)).toBeVisible();
     const rehearsalPanel = page.getByText('이 값이면', { exact: true }).locator('..');
     const before = await rehearsalPanel.innerText();
 
@@ -192,6 +202,13 @@ test.describe('결정 화면 근거 영역 fixture', () => {
 
     await expect(headerLast).toHaveText('90.001 썼다면');
     expect(await rehearsalPanel.innerText()).not.toBe(before);
+
+    // 놓은 값은 세션 동안 주소에 남아 새로 고쳐도 같은 값으로 그려진다(EAT-84).
+    await expect(page).toHaveURL(/rate=90\.001/);
+    await page.reload();
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+    await expect(page.locator('table thead th').last()).toHaveText('90.001 썼다면');
+    await expect(page.getByRole('textbox', { name: '투찰률', exact: true })).toHaveValue('90.001');
   });
 
   test('흐름 차트는 레일의 투찰률을 사정률 눈금에 긋지 않고 사정률로 놓은 내 값만 긋는다', async ({ page }) => {
@@ -200,9 +217,9 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
     await page.getByText('이 공고가 열려 있습니다').waitFor();
 
-    // 손잡이 90.000은 분모가 기초금액이라 사정률 눈금 위의 선이 될 수 없다(PDR-0004).
-    await expect(page.getByText('내 값 90.000')).toHaveCount(0);
-    await expect(page.getByText(/레일의 투찰률 90\.000은 분모가 기초금액이라 사정률 눈금에 놓지 않습니다/)).toBeVisible();
+    // 손잡이는 분모가 기초금액이라 사정률 눈금 위의 선이 될 수 없고, 비어 있으면 각주에 값도 없다(PDR-0004, EAT-84).
+    await expect(page.locator('line[data-series="my-rate"]')).toHaveCount(0);
+    await expect(page.getByText(/레일의 투찰률은 분모가 기초금액이라 사정률 눈금에 놓지 않습니다/)).toBeVisible();
 
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}&myRate=90.030`);
     await page.getByText('이 공고가 열려 있습니다').waitFor();

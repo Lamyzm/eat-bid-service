@@ -9,7 +9,8 @@ import { HistoryTable } from './history-table';
 
 const presentation = presentHistory(attemptsFixture, null);
 
-function renderTable(initialRate: string) {
+// initialRate는 사용자가 URL `rate`에 남긴 값을 흉내 낸다. 화면 자체의 시작값은 없다(EAT-84).
+function renderTable(initialRate: string | null) {
   return render(
     <BidRateProvider initialRate={initialRate}>
       <HistoryTable rows={presentation.rows} />
@@ -18,6 +19,14 @@ function renderTable(initialRate: string) {
 }
 
 describe('과거 회차 표', () => {
+  test('손잡이 값이 없으면 마지막 열 머리는 값을 넣으라는 안내이고 어떤 회차도 판정하지 않는다', () => {
+    const screen = renderTable(null);
+    expect(screen.container.querySelector('thead th:last-child')?.textContent).toBe('값을 넣으면 계산');
+    expect(screen.queryByText(/썼다면/)).toBeNull();
+    const lastCells = [...screen.container.querySelectorAll('tbody tr')].map((row) => row.querySelector('td:last-child')?.textContent);
+    expect(new Set(lastCells)).toEqual(new Set(['—']));
+  });
+
   test('최근 12회만 그리고 마지막 열 머리에 지금 값을 적는다', () => {
     const screen = renderTable('90.000');
     expect(screen.container.querySelectorAll('tbody tr').length).toBe(12);

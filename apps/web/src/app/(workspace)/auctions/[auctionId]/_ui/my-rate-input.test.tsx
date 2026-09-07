@@ -14,6 +14,7 @@ const search: DecisionSearch = {
   view: '비교집단',
   item: null,
   myRate: null,
+  rate: null,
   expand: false
 };
 

@@ -37,4 +37,13 @@ describe('흐름 차트 내 값 선의 축 결정', () => {
     if (line.kind !== 'withheld') throw new Error('선을 그으면 안 된다');
     expect(line.reason).toContain('90.000');
   });
+
+  test('손잡이도 비어 있으면 각주에 어떤 숫자도 넣지 않고 축의 차이만 말한다', () => {
+    // 여기서 숫자를 지어 넣으면 그것이 추천값이 된다(AGENTS 8, EAT-84).
+    const line = decideMyRateLine({ myRate: null, bidRate: null });
+    expect(line.kind).toBe('withheld');
+    if (line.kind !== 'withheld') throw new Error('선을 그으면 안 된다');
+    expect(line.reason).toContain('레일의 투찰률은 분모가 기초금액이라');
+    expect(line.reason).not.toMatch(/\d/);
+  });
 });

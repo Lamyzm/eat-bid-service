@@ -55,7 +55,8 @@ export function DecisionScreen({
   const selectedRows = history.state === 'ready' ? history.presentation.rows.filter((row) => row.isSelectedItem) : [];
 
   return (
-    <BidRateProvider initialRate='90.000'>
+    // 손잡이는 사용자가 주소에 남긴 값으로만 시작한다. 여기서 값을 정해 주면 그것이 추천값이 된다(AGENTS 8, EAT-84).
+    <BidRateProvider initialRate={search.rate}>
       <DecisionFrame
         header={<DecisionHeader decision={decision} search={search} />}
         banner={<DecisionBanner decision={decision} />}

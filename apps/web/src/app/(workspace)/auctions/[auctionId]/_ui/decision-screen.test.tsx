@@ -13,7 +13,7 @@ import { presentDistribution } from '../_model/present-distribution';
 import { DecisionScreen } from './decision-screen';
 import { DecisionScreenSkeleton } from './decision-screen-skeleton';
 
-const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, expand: false });
+const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, rate: null, expand: false });
 const search = searchOn('비교집단');
 const flowSearch = searchOn('흐름');
 const decision = () => presentDecision(openAuctionFixture, fixtureNow);
@@ -70,8 +70,21 @@ describe('결정 화면', () => {
     expect(screen.getByText('이 공고의 하한율과 낙찰방식이 아직 수집되지 않았습니다')).toBeTruthy();
   });
 
-  test('흐름 탭이면 차트·과거 회차 표·이 값이면 패널을 하나의 투찰률로 함께 그린다', () => {
+  test('손잡이 값 없이 열면 표 머리글·이 값이면·흐름 각주 어디에도 화면이 정한 투찰률이 없다', () => {
+    // 90.000 같은 시작값은 곧 추천값이다(AGENTS 8, PDR-0004, EAT-84). 사용자가 놓기 전에는 빈 상태다.
     const screen = render(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} distribution={readyDistribution} />);
+    expect(screen.getByRole('img', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
+    expect(screen.queryByText(/썼다면/)).toBeNull();
+    expect(screen.getByText('값을 넣으면 계산')).toBeTruthy();
+    expect(screen.getByText('투찰률을 넣으면 지난 회차와 견줍니다')).toBeTruthy();
+    expect(screen.getByText(/레일의 투찰률은 분모가 기초금액이라/)).toBeTruthy();
+    expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
+    expect(screen.container.textContent).not.toContain('90.000 썼다면');
+  });
+
+  test('URL rate로 놓은 투찰률이 있으면 차트·과거 회차 표·이 값이면 패널을 그 값 하나로 함께 그린다', () => {
+    const withRate: DecisionSearch = { ...flowSearch, rate: '90.000' };
+    const screen = render(<DecisionScreen decision={decision()} search={withRate} history={readyHistory} distribution={readyDistribution} />);
     expect(screen.getByRole('img', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
     expect(screen.getByText('90.000 썼다면')).toBeTruthy();
     // 손잡이 값은 표의 마지막 열(투찰률 축)에만 쓰고 사정률 눈금인 흐름 차트에는 선으로 긋지 않는다(PDR-0004).
@@ -82,7 +95,7 @@ describe('결정 화면', () => {
   });
 
   test('탭 링크는 기간·모집단·품목 조건을 그대로 들고 간다', () => {
-    const withItem: DecisionSearch = { period: '3개월', scope: '시군', view: '비교집단', item: '7', myRate: null, expand: false };
+    const withItem: DecisionSearch = { period: '3개월', scope: '시군', view: '비교집단', item: '7', myRate: null, rate: null, expand: false };
     const screen = render(<DecisionScreen decision={decision()} search={withItem} history={readyHistory} distribution={readyDistribution} />);
     const href = screen.getByRole('link', { name: '흐름' }).getAttribute('href') ?? '';
     const query = new URLSearchParams(href.slice(href.indexOf('?')));

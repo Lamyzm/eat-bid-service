@@ -11,9 +11,59 @@ import { BidRateProvider } from './bid-rate-context';
 const decision = presentDecision(openAuctionFixture, fixtureNow);
 
 // 투찰률은 이제 화면 전체가 공유하는 context가 소유한다. 레일만 떼어 검증할 때도 같은 Provider를 씌운다.
-function renderRail(node: React.ReactNode, initialRate = '90.309') {
+// 아래 값들은 사용자가 URL `rate`에 남긴 값을 흉내 낸 것이지 화면의 시작값이 아니다.
+function renderRail(node: React.ReactNode, initialRate: string | null = '90.309') {
   return render(<BidRateProvider initialRate={initialRate}>{node}</BidRateProvider>);
 }
+
+describe('투찰 rail 빈 상태(EAT-84)', () => {
+  test('놓은 값이 없으면 손잡이가 비어 있고 넣을 금액·금액 복사·내 값 기록·단계 버튼이 멈춘다', () => {
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />, null);
+    expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
+    expect(screen.container.textContent).not.toContain('90.000');
+    expect(screen.getByText('값 없음')).toBeTruthy();
+    expect((screen.getByRole('button', { name: '금액 복사' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '내 값 기록' }) as HTMLButtonElement).disabled).toBe(true);
+    const step = screen.getByRole('button', { name: '투찰률 0.001 올리기' }) as HTMLButtonElement;
+    expect(step.disabled).toBe(true);
+    // 눌러도 어떤 원점에서 출발하지 않는다. 원점을 두면 그것이 추천값이다.
+    fireEvent.click(step);
+    expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
+  });
+
+  test('값을 직접 넣는 순간부터 금액이 계산되고 손잡이가 움직인다', async () => {
+    const user = userEvent.setup();
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />, null);
+    const input = screen.getByLabelText('투찰률');
+    await user.type(input, '90.309');
+    fireEvent.blur(input);
+    expect(screen.getByDisplayValue('90.309')).toBeTruthy();
+    expect(screen.getByText('2,494,063')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '투찰률 0.001 올리기' }));
+    expect(screen.getByDisplayValue('90.310')).toBeTruthy();
+    expect(window.location.search).toContain('rate=90.310');
+  });
+
+  test('입력을 지우면 값 없음 상태로 돌아가고 주소에서도 rate가 빠진다', async () => {
+    const user = userEvent.setup();
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
+    expect(window.location.search).toContain('rate=90.309');
+    const input = screen.getByLabelText('투찰률');
+    // happy-dom에서 clear만으로는 React onChange가 오지 않는다(위 주석). 공백 한 글자를 쳐서 "지운 입력"을 만든다.
+    await user.clear(input);
+    await user.type(input, ' ');
+    fireEvent.blur(input);
+    expect(screen.getByText('값 없음')).toBeTruthy();
+    expect((input as HTMLInputElement).value).toBe('');
+    expect(window.location.search).not.toContain('rate=');
+  });
+
+  test('형식이 틀린 URL rate는 고쳐 쓰지 않고 빈 상태로 시작한다', () => {
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />, '구십');
+    expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
+    expect(screen.getByText('값 없음')).toBeTruthy();
+  });
+});
 
 describe('투찰 rail', () => {
   test('손잡이를 누르면 투찰률과 넣을 금액이 같이 바뀐다', () => {
