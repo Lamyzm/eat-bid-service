@@ -1,5 +1,5 @@
 /** @module 책임: 결정 화면이 데스크톱 네 폭 × 진행 중·개찰 완료 두 상태에서 요소가 겹치거나 nowrap 글자가
- * 밀리지 않고 렌더되는지 검사하고, 기관 회차 이력 fixture(namsan-attempts.json)로 흐름 차트·과거 회차
+ * 밀리지 않고 렌더되는지, 크게 보기 모달 5종이 세 폭에서 넘치지 않고 주소로 열리고 닫히는지 검사하고, 기관 회차 이력 fixture(namsan-attempts.json)로 흐름 차트·과거 회차
  * 표·손잡이 상호작용이 실데이터 모양 그대로 그려지는지 검사한다. 이 route는 RSC가 서버에서 계약을
  * 조회하므로 브라우저 `page.route` 가로채기가 닿지 않는다. 대신 fixture 서버에 등록된 공고 id를 그대로 연다. */
 import { expect, test } from '@playwright/test';
@@ -106,15 +106,115 @@ test.describe('결정 화면 폭별 밀림', () => {
     });
   }
 
-  test('768px 크게 보기 히트맵은 페이지를 밀지 않고 자기 안에서만 가로 스크롤한다', async ({ page }) => {
-    test.setTimeout(90_000);
-    await page.setViewportSize({ width: 768, height: 1200 });
-    await page.goto(`/auctions/${OPEN_AUCTION_ID}?expand=true`);
-    await page.getByText('달마다 값이 몰린 자리. 진할수록 낙찰 횟수가 많습니다.').waitFor();
+});
 
-    const report = await overflowReport(page);
-    expect(report.overflow).toBe(0);
-    expectDocumentFits(report, 768);
+// 모달은 body에 portal로 그려져 결정 화면 slot 밖이다. 같은 규칙(overflow-x 컨테이너 자신은 제외)으로 모달 안만 센다.
+async function dialogOverflowReport(page: Page) {
+  return page.evaluate(() => {
+    const dialog = document.querySelector('[role="dialog"]');
+    if (!dialog) return null;
+    const nodes = [dialog, ...dialog.querySelectorAll('*')];
+    const overflow = nodes.filter((node) => {
+      if (node.scrollWidth <= node.clientWidth + 1) return false;
+      const overflowX = getComputedStyle(node).overflowX;
+      return overflowX !== 'auto' && overflowX !== 'scroll';
+    }).length;
+    const wrapped = nodes.filter((node) => {
+      if (node.children.length !== 0 || !node.textContent?.trim()) return false;
+      if (getComputedStyle(node).whiteSpace !== 'nowrap') return false;
+      const parent = node.parentElement;
+      if (!parent) return false;
+      return node.scrollWidth > node.clientWidth + 1 || node.getBoundingClientRect().right > parent.getBoundingClientRect().right + 1;
+    }).length;
+    const box = dialog.getBoundingClientRect();
+    return { overflow, wrapped, right: box.right, left: box.left, viewportWidth: window.innerWidth };
+  });
+}
+
+const EXPANDS = [
+  { expand: '과거 회차', waitText: '낙찰률(사정률)' },
+  { expand: '비교집단', waitText: '달마다 값이 몰린 자리. 진할수록 낙찰 횟수가 많습니다.' },
+  { expand: '흐름', waitText: '회차마다 낙찰된 사정률입니다. 굵은 선이 내 값이고 아래 막대는 그 회차의 명단 수입니다.' },
+  { expand: '그날 하한', waitText: '회차별 하한 자리 계약이 붙으면 이 탭이 보입니다.' },
+  { expand: '업체', waitText: '회차별 명단 계약이 붙으면 참여 업체가 보입니다.' }
+] as const;
+const expandQuery = (expand: string) => `?${new URLSearchParams({ expand }).toString()}`;
+
+test.describe('크게 보기 모달', () => {
+  // 시안의 모달 5종이 세 폭 모두에서 viewport 안에 들어가고 안쪽 표·차트가 페이지를 밀지 않아야 한다.
+  for (const width of [1440, 1024, 768] as const) {
+    for (const { expand, waitText } of EXPANDS) {
+      test(`${width}px ${expand} 모달이 viewport 안에서 넘치지 않는다`, async ({ page }) => {
+        test.setTimeout(90_000);
+        await page.setViewportSize({ width, height: 1000 });
+        await page.goto(`/auctions/${OPEN_AUCTION_ID}${expandQuery(expand)}`);
+        const dialog = page.getByRole('dialog');
+        await dialog.waitFor();
+        await dialog.getByText(waitText).waitFor();
+
+        const report = await dialogOverflowReport(page);
+        if (!report) throw new Error('모달을 찾지 못했다');
+        expect(report.overflow).toBe(0);
+        expect(report.wrapped).toBe(0);
+        expect(report.left).toBeGreaterThanOrEqual(0);
+        expect(report.right).toBeLessThanOrEqual(report.viewportWidth);
+        const pageReport = await overflowReport(page);
+        expectDocumentFits(pageReport, width);
+      });
+    }
+  }
+
+  test('탭의 크게 보기 링크가 모달을 열고 ESC·뒤로 가기가 주소의 expand를 지우며 닫는다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+
+    await page.locator('section[aria-label="근거"]').getByRole('link', { name: '크게 보기' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: '회차별 흐름' })).toBeVisible();
+    await expect(page).toHaveURL(/expand=/);
+    // 포커스는 모달 안에 갇힌다. 여러 번 Tab을 눌러도 활성 요소가 모달 밖으로 나가지 않는다.
+    for (let step = 0; step < 6; step += 1) await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.activeElement?.closest('[role="dialog"]') !== null)).toBe(true);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(page).not.toHaveURL(/expand=/);
+    // 뒤로 가기는 모달을 다시 열지 않고, 열린 상태에서의 뒤로 가기는 모달을 닫는다.
+    await page.locator('section[aria-label="과거 회차"]').getByRole('link', { name: '크게 보기' }).click();
+    await expect(page.getByRole('dialog').getByRole('heading', { name: '과거 회차' })).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page).not.toHaveURL(/expand=/);
+  });
+
+  test('과거 회차 모달은 12행 상한 없이 첫 페이지를 그리고 cursor로 다음 페이지를 이어 붙인다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}${expandQuery('과거 회차')}&myRate=90.030`);
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+
+    // fixture는 한 페이지 40행이라 첫 화면 60 요청도 40행 뒤에 cursor가 붙는다.
+    await expect(dialog.locator('tbody tr')).toHaveCount(40);
+    await expect(dialog.getByText('표본 92회 중 40회 표시')).toBeVisible();
+    await expect(dialog.locator('thead th').last()).toHaveText('값을 넣으면 계산');
+    await expect(dialog.getByText('낙찰 − 내 값 90.030')).toBeVisible();
+
+    // 다음 페이지는 서버가 cursor를 따라 이어 붙이고 주소(pages)에 남는다.
+    await dialog.getByRole('link', { name: '더 불러오기' }).click();
+    await expect(page).toHaveURL(/pages=2/);
+    // 주소는 즉시 바뀌지만 행은 RSC 왕복(회차 두 페이지 + 분포) 뒤에 온다. next dev에서는 기본 5초를 넘길 수 있다.
+    await expect(dialog.locator('tbody tr')).toHaveCount(60, { timeout: 30_000 });
+    await expect(dialog.getByText('표본 92회 중 60회 표시')).toBeVisible();
+    await expect(dialog.getByText('이력 끝')).toBeVisible();
+    await expect(dialog.getByRole('link', { name: '더 불러오기' })).toHaveCount(0);
+    await expect(dialog).not.toContainText('NaN');
+    // 닫으면 페이지 수도 주소에서 함께 빠진다.
+    await page.keyboard.press('Escape');
+    await expect(page).not.toHaveURL(/pages=|expand=/);
   });
 });
 

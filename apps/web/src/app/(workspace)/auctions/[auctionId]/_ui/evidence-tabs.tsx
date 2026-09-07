@@ -1,4 +1,4 @@
-/** @module 책임: 근거 카드의 탭 스트립·안내문·범례를 그리고 URL의 view 값에 해당하는 본문 하나만 렌더링한다. */
+/** @module 책임: 근거 카드의 탭 스트립·안내문·범례를 그리고 URL의 view 값에 해당하는 본문 하나와 그 탭의 크게 보기 링크를 렌더링한다. 수집 전 사유 문구는 여기 한 곳이 소유해 모달과 같은 말을 한다. */
 import Link from 'next/link';
 
 import {
@@ -10,7 +10,6 @@ import {
 } from '../_lib/decision-search-params';
 import type { DecisionPageData } from '../_model/load-auction-page';
 import { DistributionFootnote } from './distribution-footnote';
-import { DistributionHeatmap } from './distribution-heatmap';
 import { FlowChart } from './flow-chart';
 // 범례는 계열 토글이라 브라우저 상태가 필요해 client 모듈이 소유한다. 이 서버 카드는 자리만 정한다.
 import { FlowLegend } from './flow-legend';
@@ -39,7 +38,8 @@ function note(view: DecisionView, scope: DecisionSearch['scope']): string {
   }
 }
 
-const PENDING_REASON: Record<Exclude<DecisionView, '비교집단' | '흐름'>, string> = {
+/** 계약이 아직 없는 탭의 사유. 탭 본문과 크게 보기 모달이 같은 문장을 써야 한다. */
+export const EXPAND_PENDING_REASON: Record<Exclude<DecisionView, '비교집단' | '흐름'>, string> = {
   '그날 하한': '회차별 하한 자리 계약이 붙으면 이 탭이 보입니다.',
   업체: '회차별 명단 계약이 붙으면 참여 업체가 보입니다.'
 };
@@ -64,10 +64,11 @@ export const HISTORY_PENDING_REASON: Record<Exclude<HistoryState['state'], 'read
   unavailable: '회차 이력을 지금 불러오지 못했습니다'
 };
 
-function PendingBody({ reason }: { readonly reason: string }) {
+/** 빈 자리에도 사유를 붙인다. 사유 없는 빈 카드·빈 모달은 사용자에게 "고장"으로 읽힌다. */
+export function PendingBody({ reason, label = '수집 전' }: { readonly reason: string; readonly label?: '수집 전' | '미확인' }) {
   return (
     <p className='flex items-baseline gap-2 text-[15px] font-medium text-muted-foreground'>
-      <span className='text-[13px] font-semibold whitespace-nowrap'>수집 전</span>
+      <span className='text-[13px] font-semibold whitespace-nowrap'>{label}</span>
       <span>{reason}</span>
     </p>
   );
@@ -93,38 +94,37 @@ function CohortBody({
     const reason = distribution.state === 'locked' ? distribution.reason : 'unavailable';
     return <PendingBody reason={DISTRIBUTION_PENDING_REASON[reason]} />;
   }
-  const { presentation, response } = distribution;
+  const { presentation } = distribution;
   return (
     <div className='grid min-w-0 gap-3'>
       <MyRateInput auctionId={auctionId} search={search} />
       {presentation.ladder === null ? (
-        // 회색 자리도 사유를 말한다. 사유 없는 빈 카드는 사용자에게 "고장"으로 읽힌다.
-        <p className='flex items-baseline gap-2 text-[15px] font-medium text-muted-foreground'>
-          <span className='text-[13px] font-semibold whitespace-nowrap'>미확인</span>
-          <span>{presentation.reason}</span>
-        </p>
+        // 회색 자리도 사유를 말한다.
+        <PendingBody label='미확인' reason={presentation.reason ?? ''} />
       ) : (
         <>
           <OrderBookSummary ladder={presentation.ladder} />
-          {search.expand ? (
-            <DistributionHeatmap months={response.months} ladder={presentation.ladder} />
-          ) : (
-            <OrderBook ladder={presentation.ladder} caption={`${search.scope} · 값마다 낙찰된 횟수`} />
-          )}
+          <OrderBook ladder={presentation.ladder} caption={`${search.scope} · 값마다 낙찰된 횟수`} />
         </>
       )}
-      <div className='flex flex-wrap items-baseline justify-between gap-2'>
-        <DistributionFootnote meta={presentation.meta} scope={search.scope} />
-        {presentation.ladder === null ? null : (
-          <Link
-            href={buildDecisionExpandRoute(auctionId, search, !search.expand)}
-            className='text-[13px] font-semibold whitespace-nowrap text-primary'
-          >
-            {search.expand ? '사다리로 보기' : '크게 보기'}
-          </Link>
-        )}
-      </div>
+      <DistributionFootnote meta={presentation.meta} scope={search.scope} />
     </div>
+  );
+}
+
+/**
+ * 탭마다 늘 있는 크게 보기 링크. 모달은 주소(`expand=<탭>`)가 열므로 링크 하나면 되고, 본문이 수집 전이어도
+ * 링크는 남는다 — 모달이 같은 사유를 말한다. 같은 화면 안 주소 변경이라 스크롤 위치는 그대로 둔다.
+ */
+function ExpandLink({ auctionId, search }: { readonly auctionId: string; readonly search: DecisionSearch }) {
+  return (
+    <Link
+      href={buildDecisionExpandRoute(auctionId, search, search.view)}
+      scroll={false}
+      className='ml-auto text-[13px] font-semibold whitespace-nowrap text-primary'
+    >
+      크게 보기
+    </Link>
   );
 }
 
@@ -166,8 +166,11 @@ export function EvidenceTabs({
       ) : active === '흐름' ? (
         <FlowBody history={history} myRate={search.myRate} />
       ) : (
-        <PendingBody reason={PENDING_REASON[active]} />
+        <PendingBody reason={EXPAND_PENDING_REASON[active]} />
       )}
+      <div className='flex'>
+        <ExpandLink auctionId={auctionId} search={search} />
+      </div>
     </div>
   );
 }

@@ -15,7 +15,8 @@ const search: DecisionSearch = {
   item: null,
   myRate: null,
   rate: null,
-  expand: false
+  expand: null,
+  pages: 1
 };
 
 describe('내 값 입력', () => {

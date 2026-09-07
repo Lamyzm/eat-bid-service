@@ -13,21 +13,27 @@ import { presentDistribution } from '../_model/present-distribution';
 import { DecisionScreen } from './decision-screen';
 import { DecisionScreenSkeleton } from './decision-screen-skeleton';
 
-const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, rate: null, expand: false });
+const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, rate: null, expand: null, pages: 1 });
 const search = searchOn('비교집단');
 const flowSearch = searchOn('흐름');
 const decision = () => presentDecision(openAuctionFixture, fixtureNow);
 
-const readyHistory: DecisionPageData['history'] = { state: 'ready', presentation: presentHistory(attemptsFixture, '7') };
+// 화면 셸 테스트는 첫 페이지만 본다. 모달용 expanded는 같은 페이지를 그대로 둔다.
+const ready = (presentation: ReturnType<typeof presentHistory>): DecisionPageData['history'] => ({
+  state: 'ready',
+  presentation,
+  expanded: { presentation, loadFailed: false }
+});
+const readyHistory = ready(presentHistory(attemptsFixture, '7'));
 // 회차가 거의 없는 기관(열린 공고 하나뿐인 학교)을 fixture 앞에서 잘라 만든다. 표본 수도 함께 줄여야
 // 부제가 실제로 그 기관을 말한 것이 된다.
-const historyOf = (count: number): DecisionPageData['history'] => ({
-  state: 'ready',
-  presentation: presentHistory(
-    { ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, count), meta: { ...attemptsFixture.meta, sampleCount: count } },
-    null
-  )
-});
+const historyOf = (count: number): DecisionPageData['history'] =>
+  ready(
+    presentHistory(
+      { ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, count), meta: { ...attemptsFixture.meta, sampleCount: count } },
+      null
+    )
+  );
 const unavailable: DecisionPageData['history'] = { state: 'unavailable' };
 
 const readyDistribution: DecisionPageData['distribution'] = {
@@ -95,7 +101,7 @@ describe('결정 화면', () => {
   });
 
   test('탭 링크는 기간·모집단·품목 조건을 그대로 들고 간다', () => {
-    const withItem: DecisionSearch = { period: '3개월', scope: '시군', view: '비교집단', item: '7', myRate: null, rate: null, expand: false };
+    const withItem: DecisionSearch = { period: '3개월', scope: '시군', view: '비교집단', item: '7', myRate: null, rate: null, expand: null, pages: 1 };
     const screen = render(<DecisionScreen decision={decision()} search={withItem} history={readyHistory} distribution={readyDistribution} />);
     const href = screen.getByRole('link', { name: '흐름' }).getAttribute('href') ?? '';
     const query = new URLSearchParams(href.slice(href.indexOf('?')));
@@ -109,10 +115,7 @@ describe('결정 화면', () => {
     const full = render(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} distribution={readyDistribution} />);
     expect(full.getByText(`${attemptsFixture.meta.sampleCount}회 · 최근 12회 표시`)).toBeTruthy();
 
-    const fiveRows: DecisionPageData['history'] = {
-      state: 'ready',
-      presentation: presentHistory({ ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, 5) }, '7')
-    };
+    const fiveRows = ready(presentHistory({ ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, 5) }, '7'));
     const short = render(<DecisionScreen decision={decision()} search={flowSearch} history={fiveRows} distribution={readyDistribution} />);
     expect(short.getByText(`${attemptsFixture.meta.sampleCount}회 · 최근 5회 표시`)).toBeTruthy();
   });

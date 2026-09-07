@@ -8,7 +8,7 @@ import { presentOrgCadence } from '../_model/org-cadence';
 import { presentDecision } from '../_model/present-decision';
 import { DecisionHeader, summarizeItemLabel } from './decision-header';
 
-const search = { period: '12개월', scope: '전국', view: '비교집단', item: null, myRate: null, rate: null, expand: false } as const;
+const search = { period: '12개월', scope: '전국', view: '비교집단', item: null, myRate: null, rate: null, expand: null, pages: 1 } as const;
 const cadence = presentOrgCadence({ state: 'ready', presentation: presentHistory(attemptsFixture, null) }, { announcedAt: openAuctionFixture.schedule.announcedAt });
 const unknownCadence = presentOrgCadence({ state: 'unavailable' }, { announcedAt: openAuctionFixture.schedule.announcedAt });
 // 운영 화면에서 관측된 원천 라벨 모양 그대로다(쉼표 앞뒤 공백 포함).
