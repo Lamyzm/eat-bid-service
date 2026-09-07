@@ -138,8 +138,12 @@ daily-reconcile Succeeded" 수용 기준을 채운다. poll-open은 평일 스�
 
 ## 6. 남은 것
 
-- poll-open(평일 08~19시 30분) 첫 실행 확인(2026-09-07 월 08:00 KST). 2026-09-05·06은 주말이라
-  돌지 않았다.
+- poll-open 첫 실행 확인됨: 2026-09-07(월) 08:00 KST `eatbid-poll-open-1788735600` Succeeded(160건),
+  09:30 `eatbid-poll-open-1788741000` Succeeded(162건, 4분 26초). 08:00 실행은 같은 시각에 돌던
+  backfill 창(2026-06-16~30, 16,410건)의 capture chunk와 source semaphore를 다투느라 discover가
+  95분을 기다렸고, `concurrencyPolicy: Forbid`라 08:30·09:00 회차는 만들어지지 않았다. "평일 30분
+  poll-open Succeeded" 수용 기준은 채웠지만 backfill이 도는 동안 poll-open이 굶는 문제는 EAT-93으로
+  넘긴다(semaphore 큐에서 poll-open 우선).
 - EAT-59: 실패 pod가 예외 종류와 메시지를 JSON으로 남기게 한다.
 - EAT-49: dataplane 역할 grant를 수동 SQL이 아니라 provisioning 스크립트로 옮긴다.
 - EAT-69: 2절의 `parser-version`은 이 실행 시점의 값이다. 그 뒤 WorkflowTemplate 기본값을 `eat-v2`로
