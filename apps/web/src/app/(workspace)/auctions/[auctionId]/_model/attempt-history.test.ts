@@ -10,6 +10,16 @@ describe('기관 회차 이력 표시 모델', () => {
     // 첫 회차는 openedAt '2026-08-10T04:00:00Z' → KST 13시, 날짜는 그대로 08-10이다.
     expect(presentation.rows[0]?.openedText).toBe('26-08-10');
     expect(presentation.rows[0]?.openedYear).toBe('2026');
+    expect(presentation.rows[0]?.openedMonthText).toBe('26-08');
+  });
+
+  test('달 라벨은 UTC가 아니라 KST 달이다', () => {
+    // 2026-08-31T16:00Z는 KST로 9월 1일 01:00이다. UTC로 읽으면 8월 라벨이 된다.
+    const response = {
+      ...attemptsFixture,
+      attempts: [{ ...attemptsFixture.attempts[0]!, openedAt: '2026-08-31T16:00:00Z' }]
+    };
+    expect(presentHistory(response, null).rows[0]?.openedMonthText).toBe('26-09');
   });
 
   test('개찰 전(openedAt null) 회차는 공고일 뒤에 공고를 붙이고 openedYear는 공고 연도다', () => {

@@ -11,6 +11,7 @@ function makeRow(
 ): HistoryRow {
   return {
     attemptId: '1',
+    openedMonthText: '26-01',
     itemLabel: '축산',
     itemCodeValueId: '7',
     winRateText: null,

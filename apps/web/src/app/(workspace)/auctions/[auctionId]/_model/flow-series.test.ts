@@ -1,6 +1,19 @@
 import { describe, expect, test } from 'bun:test';
 
-import { FLOW_AXIS, decideMyRateLine } from './flow-series';
+import { DAY_FLOOR_WITHHELD_REASON, FLOW_AXIS, FLOW_SERIES, decideMyRateLine } from './flow-series';
+
+describe('흐름 차트 계열 어휘', () => {
+  test('계열은 낙찰·2등·내 값·다른 품목·명단 순이고 명단만 건수 축이다', () => {
+    expect(FLOW_SERIES.map((series) => series.name)).toEqual(['낙찰', '2등', '내 값', '다른 품목', '명단']);
+    expect(FLOW_SERIES.filter((series) => series.axis === 'count').map((series) => series.key)).toEqual(['listCount']);
+  });
+
+  test('그날 하한은 계열이 아니며 각주가 투찰률 축이라는 이유와 표의 자리를 말한다', () => {
+    expect(FLOW_SERIES.some((series) => series.name.includes('하한'))).toBe(false);
+    expect(DAY_FLOOR_WITHHELD_REASON).toContain('기초금액');
+    expect(DAY_FLOOR_WITHHELD_REASON).toContain('과거 회차 표');
+  });
+});
 
 describe('흐름 차트 내 값 선의 축 결정', () => {
   test('흐름 차트의 눈금은 사정률이고 분모는 예정가격이다', () => {

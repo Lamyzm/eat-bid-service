@@ -163,6 +163,23 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     const chart = page.locator('figure svg[aria-label="회차별 낙찰률 흐름"]');
     await expect(chart).toHaveCount(1);
     await expect(page.locator('circle[data-item="selected"]')).not.toHaveCount(0);
+    // 시안(상세 1440 · 흐름 탭)의 2등 점선·명단 막대 띠·KST 달 라벨이 실데이터 모양 fixture로 함께 그려진다(EAT-89).
+    await expect(chart.locator('g[data-series="list-count"] rect').first()).toBeAttached();
+    await expect(chart.locator('g[data-axis="month"] text').first()).toHaveText(/^\d{2}-\d{2}$/);
+    await expect(chart).toContainText('명단');
+    // 그날 하한은 투찰률 축이라 사정률 창의 계열도 범례도 아니며 각주가 그 이유를 말한다(PDR-0004).
+    await expect(page.getByRole('button', { name: '그날 하한' })).toHaveCount(0);
+    await expect(page.locator('[data-slot="flow-day-floor-note"]')).toContainText('기초금액(투찰률)');
+    // 범례는 토글이다. 시안대로 2등은 꺼진 채 시작하고, 켜면 점선 계열이 차트에 붙으며 주소는 그대로다.
+    const runnerUpToggle = page.getByRole('button', { name: '2등' });
+    await expect(runnerUpToggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(chart.locator('g[data-series="runner-up"]')).toHaveCount(0);
+    await runnerUpToggle.click();
+    await expect(runnerUpToggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(chart.locator('g[data-series="runner-up"] circle').first()).toBeAttached();
+    await expect(page).not.toHaveURL(/runnerUp|series/);
+    await runnerUpToggle.click();
+    await expect(chart.locator('g[data-series="runner-up"]')).toHaveCount(0);
 
     await expect(page.locator('table tbody tr')).toHaveCount(12);
     // 손잡이는 값 없이 시작한다. 시작값이 있으면 표 머리글까지 번지는 추천값이 된다(AGENTS 8, EAT-84).
@@ -271,5 +288,11 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}&myRate=90.030`);
     await page.getByText('이 공고가 열려 있습니다').waitFor();
     await expect(page.locator('figure svg').getByText('내 값 90.030')).toBeVisible();
+
+    // 창 밖 내 값은 경계에 붙이면 창 끝값에 놓은 것처럼 읽히므로 선 없이 방향과 "범위 밖"만 쓴다(EAT-80 후속).
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}&myRate=90.812`);
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+    await expect(page.locator('line[data-series="my-rate"]')).toHaveCount(0);
+    await expect(page.locator('[data-slot="flow-my-rate-outside"]')).toContainText('내 값 90.812 ▲ 범위 밖');
   });
 });
