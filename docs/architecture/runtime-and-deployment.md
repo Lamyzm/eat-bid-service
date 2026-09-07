@@ -61,8 +61,10 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다. 수집 스케줄(`poll-open`·
 `daily-reconcile`)의 `workflowSpec.priority`는 ad hoc `backfill`의 기본값보다 높게 두어 같은 source
 semaphore 큐에서 backfill chunk보다 먼저 받게 한다(2026-09-07, EAT-93). `parser-version` 기본값은
-`eat-v2`다(2026-09-06, EAT-69). 상세 응답의 명단·낙찰·재공고 블록을 읽는 version이 그것뿐이라 기본값이
-`eat-v1`이면 하한율·투찰·낙찰 core 테이블이 비어 있는 채로 발행된다.
+`eat-v2`다(2026-09-06, EAT-69). 상세 응답의 명단·낙찰·재공고 블록을 읽는 version이 아니면 하한율·투찰·낙찰
+core 테이블이 비어 있는 채로 발행된다. `eat-v3`(2026-09-07, EAT-75)는 같은 블록에 참가제한지역 라벨을
+더해 같은 `auction.v2`로 싣는 version이며, 기본값 전환은 이미지 릴리즈·배포 뒤의 별도 커밋이다
+([`collection-runbook.md`](../operations/collection-runbook.md) §2, [ADR 0037](../adr/0037-additive-ingestion-fields-and-parser-version.md)).
 
 ### 2.1 모드가 날짜 창이 되는 곳 (2026-09-04, EAT-34)
 

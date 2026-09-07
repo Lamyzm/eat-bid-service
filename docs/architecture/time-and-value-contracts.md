@@ -116,10 +116,17 @@ apps/dataplane/src/eatbid/generated/
 └─ ingestion_v2.py
 ```
 
-`ingestion/v2`는 v1을 고친 것이 아니라 별도 root다. v1 root에 필드를 더하면 optional이어도 재직렬화가
-새 키를 내보내 봉인된 canonical payload가 전부 불일치가 되기 때문이다(ADR 0025). 두 계약을 가르는 것은
-`parser_version`이고 reviewed source schema fingerprint는 `required` 부분집합으로 계산해 v1·v2가 같다
+`ingestion/v2`는 v1을 고친 것이 아니라 별도 root다. 필수 필드를 더하거나 의미를 바꾸면 봉인된 canonical
+payload가 전부 불일치가 되기 때문이다(ADR 0025). 두 계약을 가르는 것은 `parser_version`이고 reviewed
+source schema fingerprint는 `required` 부분집합으로 계산해 v1·v2가 같다
 ([ADR 0029](../adr/0029-eat-v2-bid-list-contract.md)).
+
+optional 필드는 같은 root에 **가산**할 수 있다. canonical 재직렬화가 producer가 쓴 키만 내기 때문이다
+(`canonical_record_object`의 `exclude_unset`, [ADR 0037](../adr/0037-additive-ingestion-fields-and-parser-version.md)).
+첫 사례가 `ingestion/v2/resources/location.ts`의 `eligibilityAreas`다 — `eligibilityCodes`와 같은 순서로
+`SourceCodedValue`(`eat:eligibility-area` 코드와 `PDLC_NM` 원문 라벨)를 싣고, 키 없음은 "라벨을 관측하지
+않은 parser version", 빈 배열은 "참가제한지역이 없는 공고"다. 새 키를 내는 파서는 새 `parser_version`
+(`eat-v3`)이며 record type은 그대로 `auction.v2`다.
 
 승인된 공개 응답에 restriction 필드가 아직 없으므로 public `resources/procurement/restrictions.ts`는
 의도적으로 만들지 않는다. source ingestion의 별도 제한 정보가 곧바로 공개 lifecycle 계약이 되지는 않는다.
@@ -204,8 +211,8 @@ apps/dataplane/src/eatbid/generated/
 `SourceCodedValue`로 관측 그대로 보존되고, 어느 쪽도 내부 정체성이 아니다. `SupplierParty`로의 승격은
 projector가 별도 정책으로 한다(`domain-and-data.md` §3.3).
 
-ingestion v2가 지금 싣는 code scheme은 여덟이다. namespace는 `<source>:<kebab-case 의미>`이며 소스
-column명은 정체성이 아니라 "지금 어디서 관측하는가"를 적은 메타데이터다. 문자열과 column 짝의 단일
+ingestion v2가 `SourceCodedValue`로 싣는 code scheme은 아홉이다. namespace는 `<source>:<kebab-case 의미>`이며
+소스 column명은 정체성이 아니라 "지금 어디서 관측하는가"를 적은 메타데이터다. 문자열과 column 짝의 단일
 권위는 `apps/dataplane/src/eatbid/source/eat/code_schemes.py`이고 아래가 그 표 전부다.
 
 | code scheme | 원본 column | 파서 |
@@ -218,6 +225,7 @@ column명은 정체성이 아니라 "지금 어디서 관측하는가"를 적은
 | `eat:award-method` | `ds_info.SUCBID_DCSN_MTH_CD` (라벨 `SUCBD_DECISION_MTHD_NM`) | `source/eat/auction_terms.py` |
 | `eat:reserve-price-selection-flag` | `ds_pList.CHC_YN` | `source/eat/reserve_price.py` |
 | `eat:attempt-status` | `ds_bidHistory.ETN_BID_STT` (라벨 `ETN_BID_STT_NM`) | `source/eat/lineage.py` |
+| `eat:eligibility-area` | `ds_areaList.PDLC_CD` (라벨 `PDLC_NM`, `eat-v3`부터 `location.eligibilityAreas`) | `source/eat/normalize.py` |
 
 낙찰 방식은 `SUCBD_DECISION_MTHD`가 아니라 `SUCBID_DCSN_MTH_CD`다. 앞 이름은 `ds_bidList`·
 `ds_bidHistory`에만 있고 `ds_info`에는 없으며, `SUCBD_DECISION_MTHD_NM`은 라벨이지 코드가 아니다.
@@ -228,7 +236,7 @@ column명은 정체성이 아니라 "지금 어디서 관측하는가"를 적은
 입찰공고라 grain이 `AuctionAttempt`이며(규칙 4), 지금은 재입찰 사슬 블록에서만 관측되지만 그 블록은
 관측 위치이지 정체성이 아니다. 투찰 한 건의 판정인 `eat:bid-status`와 묶지 않는다.
 
-이 여덟의 `CodeScheme` 등록(소유기관·버전·유효기간)은 `packages/db/src/seeds/code-schemes.ts`가 갖고,
+이 아홉의 `CodeScheme` 등록(소유기관·버전·유효기간)은 `packages/db/src/seeds/code-schemes.ts`가 갖고,
 두 목록이 같은지는 `apps/dataplane/tests/unit/test_code_schemes.py`와 같은 이름의 시드 테스트가
 양방향으로 고정한다. 서로 다른 scheme을 매핑 없이 같다고 보지 않는다(규칙 6).
 

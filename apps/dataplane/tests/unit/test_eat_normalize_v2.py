@@ -35,6 +35,26 @@ _SEALED_V1_PAYLOAD_DIGESTS = {
 }
 
 
+# EAT-75 직전(f70271e)의 eat-v2 파서가 같은 fixture에서 낸 canonical payload의 digest다. eat-v3가 라벨을
+# 싣기 시작해도 eat-v2의 바이트는 그대로여야 한다 — `ingest.normalized_record`가 같은 parser version
+# 키에 다른 payload를 비결정으로 거부하기 때문이다(ADR 0037). 값을 갱신해야 한다고 느껴지면 그건 새
+# parser version이 필요한 변경이다.
+_SEALED_V2_PAYLOAD_DIGESTS = {
+    "bid-detail-one.xml": (
+        "0a80eea6bd640d3aef41ab865b96a803ad85f282a07783bb79442ec0e780414e"
+    ),
+    "bid-detail-roster.xml": (
+        "f7c7d5e8bf962fa938f5ab5b004af0ba87658e3ca88201cc862f9abe75710a19"
+    ),
+    "bid-detail-rebid.xml": (
+        "cb60bf647c51bee5dc053007c24862113da9b292f1d7b04a1bb4b36caa7118fd"
+    ),
+    "bid-detail-no-roster.xml": (
+        "0a80eea6bd640d3aef41ab865b96a803ad85f282a07783bb79442ec0e780414e"
+    ),
+}
+
+
 def _payload(name: str) -> bytes:
     return (FIXTURES / name).read_bytes()
 
@@ -169,6 +189,97 @@ def test_v2_경로가_생겨도_v1_canonical_payload_바이트가_그대로다(
     digest = sha256(canonical_payload(record)).hexdigest()
 
     assert digest == _SEALED_V1_PAYLOAD_DIGESTS[fixture]
+
+
+@pytest.mark.parametrize("fixture", sorted(_SEALED_V2_PAYLOAD_DIGESTS))
+def test_v3_경로가_생겨도_v2_canonical_payload_바이트가_그대로다(fixture: str) -> None:
+    record = normalize_bid_detail(
+        _payload(fixture), external_bid_id="5669410", parser_version="eat-v2"
+    )
+
+    assert isinstance(record, EatbidIngestionAuctionV2)
+    assert record.location.eligibility_areas is None
+    assert b"eligibilityAreas" not in canonical_payload(record)
+    assert sha256(canonical_payload(record)).hexdigest() == _SEALED_V2_PAYLOAD_DIGESTS[fixture]
+
+
+def test_eat_v3는_참가제한지역_라벨을_코드와_같은_순서로_원문_그대로_싣는다() -> None:
+    record = normalize_bid_detail(
+        _payload("bid-detail-roster.xml"),
+        external_bid_id="5669410",
+        parser_version="eat-v2",
+    )
+    labelled = normalize_bid_detail(
+        _payload("bid-detail-roster.xml"),
+        external_bid_id="5669410",
+        parser_version="eat-v3",
+    )
+
+    assert isinstance(record, EatbidIngestionAuctionV2)
+    assert isinstance(labelled, EatbidIngestionAuctionV2)
+    # 같은 계약, 같은 record type이다. 라벨은 새 root가 아니라 가산 필드다(ADR 0037).
+    assert labelled.contract_version == record.contract_version
+    areas = labelled.location.eligibility_areas
+    assert areas is not None
+    assert [area.code for area in areas] == [
+        code.root for code in labelled.location.eligibility_codes
+    ] == ["15714"]
+    assert [area.code_scheme for area in areas] == ["eat:eligibility-area"]
+    assert [area.label.root if area.label else None for area in areas] == ["경남/창원시"]
+    # 라벨 키 하나만 다르고 나머지 바이트는 v2와 같다.
+    v3_bytes = canonical_payload(labelled)
+    area_key = (
+        '"eligibilityAreas":[{"code":"15714","codeScheme":"eat:eligibility-area",'
+        '"label":"경남/창원시","sourceSystem":"eat"}],'
+    ).encode()
+    assert area_key in v3_bytes
+    assert v3_bytes.replace(area_key, b"") == canonical_payload(record)
+
+
+def test_eat_v3는_참가제한지역이_없는_상세에_빈_라벨_목록을_명시한다() -> None:
+    """키 없음(라벨을 보지 않은 version)과 빈 목록(지역이 없는 공고)은 다른 사실이다."""
+    body = (
+        (FIXTURES / "bid-detail-one.xml")
+        .read_text(encoding="utf-8")
+        .replace('<Rows><Row><Col id="PDLC_CD">15653</Col></Row></Rows>', "<Rows></Rows>", 1)
+        .encode("utf-8")
+    )
+
+    record = normalize_bid_detail(body, external_bid_id="1", parser_version="eat-v3")
+
+    assert isinstance(record, EatbidIngestionAuctionV2)
+    assert record.location.eligibility_codes == []
+    assert record.location.eligibility_areas == []
+    assert b'"eligibilityAreas":[]' in canonical_payload(record)
+
+
+def test_eat_v3는_라벨_column이_없는_원본에서도_코드만_싣고_격리하지_않는다() -> None:
+    """`bid-detail-one.xml`은 `PDLC_NM` column 자체가 없는 아카이브 모양이다. 라벨은 선택 column이다."""
+    record = normalize_bid_detail(
+        _payload("bid-detail-one.xml"), external_bid_id="1", parser_version="eat-v3"
+    )
+
+    assert isinstance(record, EatbidIngestionAuctionV2)
+    assert record.location.eligibility_areas is not None
+    assert [(area.code, area.label) for area in record.location.eligibility_areas] == [
+        ("15653", None)
+    ]
+
+
+def test_eat_v3는_라벨이_비어_있어도_코드만_남기고_격리하지_않는다() -> None:
+    body = (
+        (FIXTURES / "bid-detail-roster.xml")
+        .read_text(encoding="utf-8")
+        .replace('<Col id="PDLC_NM">경남/창원시</Col>', '<Col id="PDLC_NM"></Col>', 1)
+        .encode("utf-8")
+    )
+
+    record = normalize_bid_detail(body, external_bid_id="5669410", parser_version="eat-v3")
+
+    assert isinstance(record, EatbidIngestionAuctionV2)
+    assert record.location.eligibility_areas is not None
+    assert record.location.eligibility_areas[0].code == "15714"
+    assert record.location.eligibility_areas[0].label is None
 
 
 def test_v1_canonical_payload가_봉인된_바이트를_그대로_낸다() -> None:

@@ -67,7 +67,7 @@
           "$ref": "#/$defs/NormalizedAuctionLineage"
         },
         "location": {
-          "$ref": "#/$defs/NormalizedLocation"
+          "$ref": "#/$defs/NormalizedLocationV2"
         },
         "pricing": {
           "$ref": "#/$defs/NormalizedAuctionPricing"
@@ -613,10 +613,17 @@
       ],
       "type": "object"
     },
-    "NormalizedLocation": {
+    "NormalizedLocationV2": {
       "additionalProperties": false,
-      "description": "Observed source-scoped location and eligibility codes; code text preserves leading zeroes.",
+      "description": "Observed source-scoped location codes plus, when the parser version observes them, the eligibility codes with their source labels in the same order as eligibilityCodes.",
       "properties": {
+        "eligibilityAreas": {
+          "items": {
+            "$ref": "#/$defs/SourceCodedValue"
+          },
+          "maxItems": 512,
+          "type": "array"
+        },
         "eligibilityCodes": {
           "items": {
             "$ref": "#/$defs/SourceCode"

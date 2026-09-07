@@ -30,6 +30,10 @@ class ExternalCodeRef:
     namespace: str
     code: str
     role: str
+    # 코드 옆에서 관측된 소스 라벨이다. 정체성이 아니라 `core.code_label_observation`으로 가는 증거이며
+    # (AGENTS 2), 기본값 None은 "이 계약·version은 라벨을 관측하지 않았다"다. v1과 라벨 이전 v2 발행물은
+    # 이 값을 절대 갖지 않으므로 기본값이 곧 그 사실이다.
+    label: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

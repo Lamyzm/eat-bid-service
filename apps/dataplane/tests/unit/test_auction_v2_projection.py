@@ -25,6 +25,7 @@ from eatbid.source.eat.code_schemes import (
     AWARD_METHOD,
     BID_STATUS,
     BUSINESS_NUMBER,
+    ELIGIBILITY_AREA,
     PLANNED_PRICE_TYPE,
     SUPPLIER_ACCOUNT,
 )
@@ -35,13 +36,42 @@ ROSTER_BID_ID = "5669410"
 REBID_BID_ID = "5669411"
 
 
-def normalized_payload(fixture: str, external_bid_id: str) -> dict[str, object]:
+def normalized_payload(
+    fixture: str, external_bid_id: str, *, parser_version: str = "eat-v2"
+) -> dict[str, object]:
     record = normalize_bid_detail_payload(
         (FIXTURES / fixture).read_bytes(),
         external_bid_id=external_bid_id,
-        parser_version="eat-v2",
+        parser_version=parser_version,
     ).record
     return json.loads(canonical_payload(record))
+
+
+def labelled_member(**overrides: object) -> FrozenPublicationMember:
+    """eat-v3 run이 봉인한 구성원이다. record type은 eat-v2와 같은 `auction.v2`다."""
+    values: dict[str, object] = {
+        "run_parser_version": "eat-v3",
+        "parser_version": "eat-v3",
+        "normalized_payload": normalized_payload(
+            "bid-detail-roster.xml", ROSTER_BID_ID, parser_version="eat-v3"
+        ),
+    }
+    values.update(overrides)
+    return frozen_member(**values)
+
+
+def _eligibility_refs(projection) -> list[tuple[str, str | None]]:
+    return [
+        (reference.code, reference.label)
+        for reference in projection.code_refs
+        if reference.namespace == ELIGIBILITY_AREA.namespace
+    ]
+
+
+def _with_areas(payload: dict[str, object], areas: object) -> dict[str, object]:
+    location = payload["location"]
+    assert isinstance(location, dict)
+    return {**payload, "location": {**location, "eligibilityAreas": areas}}
 
 
 def frozen_member(**overrides: object) -> FrozenPublicationMember:
@@ -72,6 +102,71 @@ def with_roster_row(index: int, **changes: object) -> dict[str, object]:
     assert isinstance(submissions, list)
     submissions[index] = {**submissions[index], **changes}
     return payload
+
+
+def test_eat_v3_구성원은_참가제한지역_코드에_관측_라벨을_붙여_옮긴다() -> None:
+    projection = build_eat_auction_v2_projection(labelled_member())
+    validate_projection(projection)
+
+    assert _eligibility_refs(projection) == [("15714", "경남/창원시")]
+    # 봉인된 payload가 되읽기에서도 canonical이다. source_payload도 producer가 쓴 키만 싣는다.
+    assert "eligibilityAreas" in projection.source_payload["location"]  # type: ignore[index]
+
+
+def test_라벨_이전_v2_구성원은_라벨_없이_그대로_투영된다() -> None:
+    """이미 봉인된 eat-v2 발행물은 새 키를 모른다. 그것을 canonical 위반으로 읽으면 과거 발행이 전부 끊긴다."""
+    projection = build_eat_auction_v2_projection(frozen_member())
+    validate_projection(projection)
+
+    assert _eligibility_refs(projection) == [("15714", None)]
+    assert "eligibilityAreas" not in projection.source_payload["location"]  # type: ignore[index]
+
+
+def test_라벨_목록이_코드_목록과_어긋나면_투영하지_않고_끊는다() -> None:
+    payload = normalized_payload(
+        "bid-detail-roster.xml", ROSTER_BID_ID, parser_version="eat-v3"
+    )
+    area = {
+        "sourceSystem": "eat",
+        "codeScheme": ELIGIBILITY_AREA.namespace,
+        "code": "15714",
+        "label": "경남/창원시",
+    }
+    candidates = [
+        _with_areas(payload, []),
+        _with_areas(payload, [{**area, "code": "15715"}]),
+        _with_areas(payload, [area, area]),
+        _with_areas(payload, [{**area, "codeScheme": BID_STATUS.namespace}]),
+        _with_areas(payload, [{**area, "sourceSystem": "nara"}]),
+    ]
+
+    for candidate in candidates:
+        with pytest.raises(ProjectionContractError):
+            build_eat_auction_v2_projection(labelled_member(normalized_payload=candidate))
+
+
+def test_라벨이_비어_있는_행은_코드만_옮기고_격리하지_않는다() -> None:
+    payload = normalized_payload(
+        "bid-detail-roster.xml", ROSTER_BID_ID, parser_version="eat-v3"
+    )
+    payload = _with_areas(
+        payload,
+        [
+            {
+                "sourceSystem": "eat",
+                "codeScheme": ELIGIBILITY_AREA.namespace,
+                "code": "15714",
+                "label": None,
+            }
+        ],
+    )
+
+    projection = build_eat_auction_v2_projection(
+        labelled_member(normalized_payload=payload)
+    )
+    validate_projection(projection)
+
+    assert _eligibility_refs(projection) == [("15714", None)]
 
 
 def test_명단_행을_관측_순서_그대로_옮긴다() -> None:

@@ -215,7 +215,9 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     # bid_submission·award_decision·supplier_party가 비어 있었다(EAT-69).
     assert template_parser_version in reviewed_parser_versions
     assert template_parser_version == "eat-v2"
-    assert roster_parser_versions == {template_parser_version}
+    # eat-v3(EAT-75, 참가제한지역 라벨)도 명단을 알지만 기본값 전환은 이미지 릴리즈 뒤의 별도 커밋이다
+    # (EAT-95: 템플릿이 이미지보다 먼저 동기화되면 옛 이미지가 모르는 version 이름을 받는다).
+    assert template_parser_version in roster_parser_versions
     assert is_projectable_record_type(
         require("bid-detail", parser_version=template_parser_version).record_type
     )

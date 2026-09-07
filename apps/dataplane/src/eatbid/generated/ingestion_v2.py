@@ -156,20 +156,6 @@ class NormalizedBuyer(BaseModel):
     ]
 
 
-class NormalizedLocation(BaseModel):
-    """Observed source-scoped location and eligibility codes; code text preserves leading zeroes."""
-
-    model_config = ConfigDict(
-        extra='forbid',
-        populate_by_name=True,
-    )
-    eligibility_codes: Annotated[
-        list[SourceCode], Field(alias='eligibilityCodes', max_length=512)
-    ]
-    sido_code: Annotated[SourceCode | None, Field(alias='sidoCode')]
-    sigungu_code: Annotated[SourceCode | None, Field(alias='sigunguCode')]
-
-
 class ObservedBidRate(BaseModel):
     """A source-computed bid rate on a 100-point scale with exactly three fractional digits; may exceed 100. The mart representation is decided where the mart column is owned."""
 
@@ -260,6 +246,23 @@ class NormalizedAuctionTerms(BaseModel):
     planned_price_method: Annotated[
         SourceCodedValue | None, Field(alias='plannedPriceMethod')
     ]
+
+
+class NormalizedLocationV2(BaseModel):
+    """Observed source-scoped location codes plus, when the parser version observes them, the eligibility codes with their source labels in the same order as eligibilityCodes."""
+
+    model_config = ConfigDict(
+        extra='forbid',
+        populate_by_name=True,
+    )
+    eligibility_areas: Annotated[
+        list[SourceCodedValue] | None, Field(alias='eligibilityAreas', max_length=512)
+    ] = None
+    eligibility_codes: Annotated[
+        list[SourceCode], Field(alias='eligibilityCodes', max_length=512)
+    ]
+    sido_code: Annotated[SourceCode | None, Field(alias='sidoCode')]
+    sigungu_code: Annotated[SourceCode | None, Field(alias='sigunguCode')]
 
 
 class NormalizedReservePriceCandidate(BaseModel):
@@ -369,7 +372,7 @@ class EatbidIngestionAuctionV2(BaseModel):
     ]
     identity: NormalizedAuctionIdentity
     lineage: NormalizedAuctionLineage
-    location: NormalizedLocation
+    location: NormalizedLocationV2
     pricing: NormalizedAuctionPricing
     reserve_price_draw: Annotated[
         NormalizedReservePriceDraw, Field(alias='reservePriceDraw')

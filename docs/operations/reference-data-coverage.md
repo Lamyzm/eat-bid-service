@@ -89,10 +89,11 @@ member의 `valid_from`·`valid_to`는 null이다. 이는 "처음부터"가 아�
 - 자동 매핑 경로는 규칙을 느슨하게 하지 않고도 표본에서 91~100%를 만든다. 열린 문은 **시도 토막
   하나**뿐이고, 시군구는 여전히 그 시도 안에서 유일 일치일 때만 행이 된다.
 - 남은 미매핑은 결함이 아니라 **정부 파일이 대조표를 주지 않은 구간**이다. 숨기지 않고 센다.
-- 운영 DB의 매핑률은 아직 0이다. 정규화 수집 계약(`eatbid.ingestion.auction.v1`/`v2`)이 봉인된 payload
-  모양을 갖고 있어 `PDLC_NM`을 실을 자리가 없기 때문이다(ADR 0025 sealed membership). 관측된 라벨을
-  `core.code_label_observation`까지 옮기려면 새 수집 계약 버전이 필요하며, 그전까지 이 표의 수치는
-  저장소 규칙을 audit 표본에 적용한 값이다.
+- 운영 DB의 매핑률은 아직 0이다. 2026-09-07(EAT-75)까지 정규화 수집 계약에 `PDLC_NM`을 실을 자리가
+  없었기 때문이다. 이제 `auction.v2`의 가산 필드 `location.eligibilityAreas`와 parser version `eat-v3`가
+  라벨을 `core.code_label_observation`까지 옮긴다([ADR 0037](../adr/0037-additive-ingestion-fields-and-parser-version.md)).
+  운영에서 `eat-v3`가 기본값이 되고 replay가 끝나기 전까지 이 표의 수치는 저장소 규칙을 audit 표본에
+  적용한 값이다.
 
 ### `SIDO_CD=18`
 
@@ -137,11 +138,15 @@ build의 지역 축을 그 체계로 강제한다. eaT 관측 축은 시도와 �
 
 - 활성 build의 `region_scheme`은 여전히 `eat:auction-location-sigungu`이고 `calc_version`은 `mart-r2`다.
   WorkflowTemplate 기본값도 그대로다(이번 변경은 `infra/**`를 만지지 않았다).
-- **운영 DB의 eaT ↔ 행안부 매핑은 0행이다.** 원인은 매핑 규칙이 아니라 **라벨이 core에 없다**는 것이다.
-  `eat:eligibility-area`의 `PDLC_NM`은 파서 표에 선언돼 있지만 봉인된 정규화 계약
-  (`eatbid.ingestion.auction.v1`/`v2`)의 `normalizedLocation`에 라벨 자리가 없어
-  `core.code_label_observation`까지 흐르지 않는다(ADR 0025 sealed membership).
+- **운영 DB의 eaT ↔ 행안부 매핑은 0행이다.** 원인은 매핑 규칙이 아니라 **라벨이 core에 없다**는 것이었다.
   `eat:auction-location-sido/sigungu`는 소스에 이름 column 자체가 없어 `without_label`로 센다.
-- 따라서 지금 3단계를 실행하면 모든 지역 코드가 미매핑이 되어 지역 모집단이 빈다. 전환은
-  **라벨 수집 계약이 새 버전으로 열린 뒤**에 한다. 그 계약 변경은 이 작업의 범위 밖이며 별도 이슈다.
+- 라벨 경로는 2026-09-07(EAT-75)에 코드로 닫혔다. `auction.v2` 계약의 가산 optional 필드
+  `location.eligibilityAreas`(코드와 같은 순서의 `SourceCodedValue`, `PDLC_NM` 원문)와 parser version
+  `eat-v3`가 그것이고, projector가 라벨을 관측 근거와 함께 `core.code_label_observation`에 남긴다.
+  통합 테스트(`tests/integration/test_region_label_flow.py`)가 fixture 라벨 `서울/종로구` →
+  `1111000000`(`label_verified`)까지와 eat-v2 발행물의 eat-v3 replay를 실제 PostgreSQL에서 확인한다
+  ([ADR 0037](../adr/0037-additive-ingestion-fields-and-parser-version.md)).
+- 운영 반영 순서는 [`collection-runbook.md`](collection-runbook.md) §2다: 이미지 릴리즈 → 템플릿 기본값
+  `eat-v3` → 기존 revision `replay --parser-version eat-v3` → 매핑 투영 → 이 문서 §3을 운영 실측으로 갱신.
+  그 전에 3단계를 실행하면 모든 지역 코드가 미매핑이 되어 지역 모집단이 빈다.
 - §3의 매핑률 표는 그때까지 **audit 표본에 저장소 규칙을 적용한 값**이며 운영 실측이 아니다.

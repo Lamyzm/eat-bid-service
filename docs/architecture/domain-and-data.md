@@ -267,7 +267,7 @@ JSON은 bigint를 직접 표현하지 못하므로 HTTP path/response에서는 �
 |---|---|---|---|---|
 | `eat:auction-location-sido` | eaT 공고 소재 시도 | 관측된 `SIDO_CD` | 없음 | 같은 scheme/버전 |
 | `eat:auction-location-sigungu` | eaT 공고 소재 시군구 | 관측된 `SIGUNGU_CD` | 없음 | 같은 scheme/버전 |
-| `eat:eligibility-area` | eaT 참가제한 `PDLC_CD` | 관측된 `PDLC_CD` | 없음 | 같은 scheme/버전 |
+| `eat:eligibility-area` | eaT 참가제한 `PDLC_CD` (라벨 `PDLC_NM`은 `eat-v3`부터 `code_label_observation`으로) | 관측된 `PDLC_CD` | 없음 | 같은 scheme/버전 |
 | `mois:administrative-region` | 행정안전부 **법정동코드** | 시도·시군구 두 단계만 승격 | `core.code_value_coordinate` | 같은 scheme/release |
 | `neis:school` | NEIS 학교 식별자 | 학교 | 없음 | 같은 scheme/버전 |
 

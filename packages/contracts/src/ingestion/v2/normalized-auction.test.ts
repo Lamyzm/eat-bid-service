@@ -110,6 +110,38 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
     }).success).toBe(false);
   });
 
+  test("golden fixture의 참가제한지역 라벨은 코드와 같은 순서로 원문 그대로 실린다", async () => {
+    const golden = await Bun.file(goldenUrl).json();
+
+    const parsed = normalizedAuctionV2Schema.parse(golden);
+
+    expect(parsed.location.eligibilityAreas?.map((area) => area.code)).toEqual(parsed.location.eligibilityCodes);
+    expect(parsed.location.eligibilityAreas?.map((area) => area.label)).toEqual(["서울 / 전체", "서울/종로구"]);
+    expect(parsed.location.eligibilityAreas?.every((area) => area.codeScheme === "eat:eligibility-area")).toBe(true);
+  });
+
+  test("라벨 키가 없는 봉인된 v2 payload는 그대로 통과하고 키를 만들어 내지 않는다", () => {
+    const parsed = normalizedAuctionV2Schema.parse(v2Fixture);
+
+    expect(parsed).toEqual(v2Fixture);
+    expect("eligibilityAreas" in parsed.location).toBe(false);
+  });
+
+  test("참가제한지역 라벨은 SourceCodedValue 모양만 받고 문자열·null 배열은 거부한다", () => {
+    const withAreas = (eligibilityAreas: unknown) => ({
+      ...v2Fixture,
+      location: { ...v2Fixture.location, eligibilityAreas },
+    });
+    const area = { sourceSystem: "eat", codeScheme: "eat:eligibility-area", code: "15653", label: "경남/창원시" };
+
+    expect(normalizedAuctionV2Schema.safeParse(withAreas([area])).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withAreas([{ ...area, label: null }])).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withAreas([])).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withAreas(null)).success).toBe(false);
+    expect(normalizedAuctionV2Schema.safeParse(withAreas(["경남/창원시"])).success).toBe(false);
+    expect(normalizedAuctionV2Schema.safeParse(withAreas([{ code: "15653", label: "경남/창원시" }])).success).toBe(false);
+  });
+
   test("v1 root는 v2 필드가 없어도 그대로 통과한다", () => {
     expect(normalizedAuctionV1Schema.parse(v1Fixture)).toEqual(v1Fixture);
   });

@@ -60,5 +60,6 @@ export * from "./ingestion/v2/resources/award-decision";
 export * from "./ingestion/v2/resources/reserve-price-draw";
 export * from "./ingestion/v2/resources/attempt-link";
 export * from "./ingestion/v2/resources/auction-terms";
+export * from "./ingestion/v2/resources/location";
 export * from "./ingestion/v2/normalized-auction";
 export * from "./portable-registry";

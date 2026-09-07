@@ -87,7 +87,9 @@ AUCTION_LOCATION_SIGUNGU = EatCodeScheme("eat:auction-location-sigungu", "SIGUNG
 # 라벨 `PDLC_NM`은 `{시도 축약}/{시군구|전체}` 형태이며 전수 327,168행에 100% 채워져 있다
 # (`docs/audit-source/census-detail.txt` §ds_areaList). 이름 다중 79건은 전부 `서울 / 전체`와
 # `서울/전체`의 공백 변이라 `code_labels.normalize_code_label` 하나로 흡수된다. 이 체계가 지역 축에서
-# 유일하게 이름 경로를 관측하므로 행안부 대조의 입력도 여기서 나온다(ADR 0035 결정 6).
+# 유일하게 이름 경로를 관측하므로 행안부 대조의 입력도 여기서 나온다(ADR 0035 결정 6). 코드 목록은
+# 모든 parser version이 `eligibilityCodes`로 싣고, 라벨은 eat-v3부터 `optional_scheme_value`로 읽어
+# `eligibilityAreas`에 얹는다(ADR 0037).
 ELIGIBILITY_AREA = EatCodeScheme("eat:eligibility-area", "PDLC_CD", "PDLC_NM")
 
 # 상세 파서가 `optional_scheme_value`로 직접 읽어 정규화 모델에 싣는 체계다.
@@ -103,9 +105,10 @@ EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     ATTEMPT_STATUS,
 )
 
-# 파서가 `SourceCodedValue`로 싣지 않고 core 투영·발행 완결성 검사가 이름으로 요구하는 체계다.
-# 두 표를 나누는 이유는 `optional_scheme_value`가 쓰이는 곳과 쓰이지 않는 곳이 다르기 때문이며,
-# 정체성과 관측 column의 단일 출처라는 성질은 두 표가 같다.
+# core 투영·발행 완결성 검사가 이름으로 요구하는 체계다. 위 표와 나누는 이유는 이 넷의 코드가
+# `SourceCodedValue` 밖의 자리(`buyer`·`location`의 코드 문자열)로 먼저 실리기 때문이며, 정체성과 관측
+# column의 단일 출처라는 성질은 두 표가 같다. `ELIGIBILITY_AREA`의 라벨만 eat-v3가 `optional_scheme_value`로
+# 덧붙인다.
 FOUNDATION_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     ORGANIZATION,
     AUCTION_LOCATION_SIDO,

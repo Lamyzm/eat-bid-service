@@ -171,15 +171,19 @@ EAT_ENDPOINT_TRANSPORTS: Mapping[str, EatEndpointTransport] = MappingProxyType(
     }
 )
 
-# 목록 record_type이 두 parser version에서 같은 이유는 eat-v2가 목록 응답의 해석을 바꾸지 않기
+# 목록 record_type이 세 parser version에서 같은 이유는 eat-v2·eat-v3가 목록 응답의 해석을 바꾸지 않기
 # 때문이다. v2에서 깊어진 것은 상세 해석뿐이므로 목록 정규화 결과의 이름을 바꾸면 같은 사실에 두 이름이
-# 생긴다. 상세만 `auction.v2`로 갈라진다.
+# 생긴다. 상세만 `auction.v2`로 갈라진다. eat-v3 상세도 `auction.v2`다 — 라벨은 그 계약의 가산 optional
+# 필드이지 새 record type이 아니며(ADR 0037), 이름을 가르면 발행 가능 목록·빌더·topology 검사가 같은
+# 계약에 두 이름을 갖게 된다.
 _RECORD_TYPES: Mapping[tuple[str, str], str] = MappingProxyType(
     {
         ("bid-list", "eat-v1"): "auction-discovery.v1",
         ("bid-list", "eat-v2"): "auction-discovery.v1",
+        ("bid-list", "eat-v3"): "auction-discovery.v1",
         ("bid-detail", "eat-v1"): "auction.v1",
         ("bid-detail", "eat-v2"): "auction.v2",
+        ("bid-detail", "eat-v3"): "auction.v2",
     }
 )
 
