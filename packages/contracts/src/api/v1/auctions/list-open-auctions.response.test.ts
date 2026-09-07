@@ -1,0 +1,147 @@
+import { describe, expect, test } from "bun:test";
+import { auctionV1Operations } from "./operations";
+import { openAuctionListQuerySchema } from "./list-open-auctions.query";
+import { openAuctionListV1ResponseSchema } from "./list-open-auctions.response";
+import { openAuctionRowSchema } from "./open-auction.resource";
+
+const nullLineage = {
+  buildId: null,
+  sourceReleaseId: null,
+  calcVersion: null,
+  computedAt: null,
+  coverage: null,
+  regionScheme: null,
+};
+
+const lineage = {
+  buildId: "601",
+  sourceReleaseId: "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f",
+  calcVersion: "mart-r2",
+  computedAt: "2026-09-07T01:00:00Z",
+  coverage: "unknown",
+  regionScheme: "eat:auction-location-sigungu",
+};
+
+const row = {
+  auctionAttemptId: "5796468",
+  organization: { organizationId: "3101", label: "창원 남산초등학교", type: "unknown" },
+  itemLabel: "축산",
+  floorRate: { value: "90.000", unit: "percentage-points" },
+  region: {
+    sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
+    sigungu: null,
+  },
+  termsRevisionId: "5796469",
+  closesAt: "2026-09-08T02:00:00Z",
+  baseAmount: { amount: "2761700.00", currency: "KRW" },
+  bidCount: 5,
+  observedAt: "2026-09-07T00:30:00Z",
+  sourceLastChangedAt: null,
+  orgSummary: {
+    attemptCount: 17,
+    medianListCount: 5,
+    listCountSampleCount: 12,
+    lastRound: {
+      auctionAttemptId: "5780681",
+      openedAt: "2026-09-02T02:00:00Z",
+      awardedBidRate: { value: "88.3020", unit: "percentage-points" },
+      dayFloorBidRate: { value: "88.0350", unit: "percentage-points" },
+      listCount: 17,
+      belowDayFloorCount: 2,
+    },
+  },
+};
+
+const meta = {
+  sampleCount: 1,
+  asOf: "2026-09-07T01:30:00Z",
+  region: null,
+  item: null,
+  closesWithinHours: null,
+  baseAmountMin: null,
+  baseAmountMax: null,
+  openAuctionSnapshotBuild: lineage,
+  orgRoundSummaryBuild: lineage,
+};
+
+describe("열린 공고 목록 계약", () => {
+  test("열린 공고 목록 응답은 계보 둘을 각각 전부 null로 허용한다", () => {
+    const parsed = openAuctionListV1ResponseSchema.safeParse({
+      auctions: [],
+      nextCursor: null,
+      meta: { ...meta, sampleCount: 0, openAuctionSnapshotBuild: nullLineage, orgRoundSummaryBuild: nullLineage },
+    });
+    expect(parsed.success).toBe(true);
+    // 두 계보는 서로 독립이다. 한쪽만 활성 build가 있는 상태가 실제로 있다.
+    expect(openAuctionListV1ResponseSchema.safeParse({
+      auctions: [row],
+      nextCursor: "5796468",
+      meta: { ...meta, orgRoundSummaryBuild: nullLineage },
+    }).success).toBe(true);
+  });
+
+  test("열린 공고 행은 기관 없음과 기관 이름 미확인을 다른 값으로 구분한다", () => {
+    expect(openAuctionRowSchema.safeParse({ ...row, organization: null, orgSummary: null }).success).toBe(true);
+    expect(openAuctionRowSchema.safeParse({
+      ...row,
+      organization: { organizationId: "3101", label: null, type: "unknown" },
+    }).success).toBe(true);
+    // 빈 문자열 라벨은 관측이 아니다. null이어야 한다.
+    expect(openAuctionRowSchema.safeParse({
+      ...row,
+      organization: { organizationId: "3101", label: "", type: "unknown" },
+    }).success).toBe(false);
+  });
+
+  test("상세 파생 열 셋이 비면 계보도 비어야 하고 기관 요약의 최근 회차는 null일 수 있다", () => {
+    expect(openAuctionRowSchema.safeParse({
+      ...row,
+      itemLabel: null,
+      floorRate: null,
+      region: null,
+      termsRevisionId: null,
+      orgSummary: { attemptCount: 0, medianListCount: null, listCountSampleCount: 0, lastRound: null },
+    }).success).toBe(true);
+    // 사정률 축(3자리)을 투찰률 축(4자리) 자리에 실으면 거부된다(AGENTS 15).
+    expect(openAuctionRowSchema.safeParse({
+      ...row,
+      orgSummary: {
+        ...row.orgSummary,
+        lastRound: { ...row.orgSummary.lastRound, awardedBidRate: { value: "88.302", unit: "percentage-points" } },
+      },
+    }).success).toBe(false);
+  });
+
+  test("query는 state=open만 받고 알 수 없는 key를 거부한다", () => {
+    expect(openAuctionListQuerySchema.parse({})).toEqual({ state: "open", limit: 50 });
+    expect(openAuctionListQuerySchema.safeParse({ state: "closed" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ sort: "closesAt" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ region: "0" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ item: "" }).success).toBe(false);
+  });
+
+  test("closesWithinHours는 0과 721을 거부하고 1과 720을 받는다", () => {
+    expect(openAuctionListQuerySchema.safeParse({ closesWithinHours: "0" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ closesWithinHours: "721" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.parse({ closesWithinHours: "1" }).closesWithinHours).toBe(1);
+    expect(openAuctionListQuerySchema.parse({ closesWithinHours: "720" }).closesWithinHours).toBe(720);
+  });
+
+  test("기초금액 경계는 소수 둘째 자리 고정 문자열만 받는다", () => {
+    expect(openAuctionListQuerySchema.safeParse({ baseAmountMin: "2000000.00" }).success).toBe(true);
+    expect(openAuctionListQuerySchema.safeParse({ baseAmountMin: "2000000" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ baseAmountMax: "2,000,000.00" }).success).toBe(false);
+  });
+
+  test("operation buildPath는 /api/v1/auctions와 정렬된 query string을 만든다", () => {
+    expect(auctionV1Operations.listOpen.path).toBe("/api/v1/auctions");
+    expect(auctionV1Operations.listOpen.handlerPath).toBe("");
+    expect(auctionV1Operations.listOpen.buildPath({ path: {} })).toBe("/api/v1/auctions?limit=50&state=open");
+    expect(auctionV1Operations.listOpen.buildPath({
+      path: {},
+      query: { region: "41", closesWithinHours: 72, cursor: "5796468", item: "축산" },
+    })).toBe("/api/v1/auctions?closesWithinHours=72&cursor=5796468&item=%EC%B6%95%EC%82%B0&limit=50&region=41&state=open");
+    // 응답 schema는 operation이 가리키는 것과 같은 객체다.
+    expect(auctionV1Operations.listOpen.successResponses[200].schema).toBe(openAuctionListV1ResponseSchema);
+  });
+});
