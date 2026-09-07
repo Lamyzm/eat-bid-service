@@ -12,6 +12,8 @@ import type { DecisionPageData } from '../_model/load-auction-page';
 import { DistributionFootnote } from './distribution-footnote';
 import { DistributionHeatmap } from './distribution-heatmap';
 import { FlowChart } from './flow-chart';
+// 범례는 계열 토글이라 브라우저 상태가 필요해 client 모듈이 소유한다. 이 서버 카드는 자리만 정한다.
+import { FlowLegend } from './flow-legend';
 import { MyRateInput } from './my-rate-input';
 import { OrderBook } from './order-book';
 import { OrderBookSummary } from './order-book-summary';
@@ -68,30 +70,6 @@ function PendingBody({ reason }: { readonly reason: string }) {
       <span className='text-[13px] font-semibold whitespace-nowrap'>수집 전</span>
       <span>{reason}</span>
     </p>
-  );
-}
-
-// 범례는 이번 슬라이스에서 스위치가 아니라 색 이름표다. 상태를 색만으로 전달하지 않기 위해 차트 옆에
-// 늘 붙여 둔다.
-const LEGEND: readonly { readonly mark: string; readonly name: string; readonly tone: string }[] = [
-  { mark: '━', name: '낙찰', tone: 'text-foreground' },
-  { mark: '━', name: '내 값', tone: 'text-primary' },
-  { mark: '━', name: '그날 하한', tone: 'text-destructive' },
-  { mark: '○', name: '다른 품목', tone: 'text-muted-foreground' }
-];
-
-function FlowLegend() {
-  return (
-    <span className='ml-auto inline-flex items-center gap-2 text-[13px] font-semibold'>
-      {LEGEND.map((item, index) => (
-        <span key={item.name} className='inline-flex items-center gap-2'>
-          {index > 0 ? <span className='text-muted-foreground/50'>·</span> : null}
-          <span className={`whitespace-nowrap ${item.tone}`}>
-            {item.mark} {item.name}
-          </span>
-        </span>
-      ))}
-    </span>
   );
 }
 

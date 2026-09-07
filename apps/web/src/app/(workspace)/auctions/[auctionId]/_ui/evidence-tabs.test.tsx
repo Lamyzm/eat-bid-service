@@ -38,8 +38,12 @@ describe('근거 탭', () => {
     const screen = renderTabs('흐름');
     expect(screen.getByRole('img', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
     expect(screen.getByText('회차마다 낙찰된 사정률입니다. 굵은 선이 내 값입니다.')).toBeTruthy();
-    expect(screen.getByText('━ 그날 하한')).toBeTruthy();
-    expect(screen.getByText('○ 다른 품목')).toBeTruthy();
+    // 범례는 계열 토글 버튼이며 그날 하한은 사정률 축 계열이 아니라 범례에도 없다(PDR-0004).
+    const toggles = screen.getAllByRole('button', { pressed: true });
+    expect(toggles.map((node) => node.textContent)).toEqual(['━낙찰', '━내 값', '○다른 품목', '▮명단']);
+    // 2등은 시안대로 꺼진 채 시작하지만 범례에는 있어 켤 수 있다.
+    expect(screen.getByRole('button', { name: '2등', pressed: false })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '그날 하한' })).toBeNull();
   });
 
   test('비교집단 안내문은 지금 모집단을 문장에 넣어 말한다', () => {
@@ -59,7 +63,7 @@ describe('근거 탭', () => {
   });
 
   test('범례는 흐름 탭에서만 보인다', () => {
-    expect(renderTabs('비교집단').queryByText('━ 낙찰')).toBeNull();
+    expect(renderTabs('비교집단').queryByRole('button', { name: '낙찰' })).toBeNull();
   });
 
   test('비교집단 탭은 호가창 사다리·요약·각주·내 값 입력을 함께 그린다', () => {

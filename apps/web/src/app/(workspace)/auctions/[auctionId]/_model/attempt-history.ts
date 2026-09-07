@@ -12,6 +12,8 @@ export type HistoryRow = {
   readonly attemptId: string;
   readonly openedText: string;
   readonly openedYear: string;
+  /** 흐름 차트 x축 달 라벨용 KST `YY-MM`. 같은 달인지 비교하는 열쇠이기도 하므로 표시 문자열에서 되파싱하지 않는다. */
+  readonly openedMonthText: string;
   readonly itemLabel: string;
   readonly itemCodeValueId: string | null;
   readonly winRateText: string | null;
@@ -68,11 +70,18 @@ function openedYear(attempt: OrganizationAuctionAttempt): string {
   return Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul').year.toString();
 }
 
+// 흐름 차트의 달 경계도 표와 같은 KST다. openedText를 잘라 쓰면 ' 공고' 접미사 행에서 달이 어긋난다.
+function openedMonthText(attempt: OrganizationAuctionAttempt): string {
+  const zoned = Temporal.Instant.from(attempt.openedAt ?? attempt.announcedAt).toZonedDateTimeISO('Asia/Seoul');
+  return `${pad2(zoned.year % 100)}-${pad2(zoned.month)}`;
+}
+
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
   return {
     attemptId: attempt.attemptId,
     openedText: openedText(attempt),
     openedYear: openedYear(attempt),
+    openedMonthText: openedMonthText(attempt),
     itemLabel: attempt.item?.label ?? '미확인',
     itemCodeValueId: attempt.item?.codeValueId ?? null,
     winRateText: attempt.winRate?.value ?? null,
