@@ -10,6 +10,7 @@ import { FORBIDDEN_VERDICT_WORDS } from '../_model/verdict-vocabulary';
 import { BidRail } from './bid-rail';
 import { BidRateProvider } from './bid-rate-context';
 import { HistoryTable } from './history-table';
+import { AttemptSelectionProvider } from './attempt-selection';
 import { RehearsalPanel } from './rehearsal-panel';
 
 const rows = presentHistory(attemptsFixture, null).rows;
@@ -145,7 +146,7 @@ describe('이 값이면 패널', () => {
     const screen = render(
       <BidRateProvider initialRate='92.760'>
         <BidRail decision={decision} port={createMemoryBidRecordPort()} rehearsal={<RehearsalPanel rows={rows} />} />
-        <HistoryTable rows={rows} />
+        <AttemptSelectionProvider rows={rows}><HistoryTable rows={rows} /></AttemptSelectionProvider>
       </BidRateProvider>
     );
     expect(screen.getByText('92.760 썼다면')).toBeTruthy();

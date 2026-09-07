@@ -17,6 +17,8 @@ import { DecisionExpand } from './expand/decision-expand';
 import { HistoryTable } from './history-table';
 import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
+import { AttemptSelectionProvider } from './attempt-selection';
+import { SelectedAttemptRail } from './auction-roster-panel';
 
 type HistoryState = DecisionPageData['history'];
 type DistributionState = DecisionPageData['distribution'];
@@ -52,7 +54,8 @@ function HistoryCard({
       {/* 디자인 원문은 "파란 열"이지만 이 저장소의 primary 토큰은 파랑이 아니다. 색 이름 대신 자리로
           가리켜 테마가 바뀌어도 문구가 거짓이 되지 않게 한다. */}
       <p className='px-4 py-2 text-[13px] font-medium text-muted-foreground'>
-        <span className='text-primary'>마지막 열</span>은 지금 값을 그때 냈다고 치고 계산한 것입니다. 실제로 낸 적은 없습니다.
+        <span className='text-primary'>마지막 열</span>은 지금 값을 그때 냈다고 치고 계산한
+        것입니다. 실제로 낸 적은 없습니다.
       </p>
       <HistoryTable rows={presentation.rows} />
     </div>
@@ -72,58 +75,86 @@ export function DecisionScreen({
 }) {
   // 선택 품목이 아닌 회차는 경쟁 구조가 달라 같은 분모에 넣으면 거짓이 된다. "이 값이면"은 선택
   // 품목 회차만 센다.
-  const selectedRows = history.state === 'ready' ? history.presentation.rows.filter((row) => row.isSelectedItem) : [];
+  const selectedRows =
+    history.state === 'ready' ? history.presentation.rows.filter((row) => row.isSelectedItem) : [];
   // 누적 회차·발주 주기·지난 공고는 헤더와 배너가 같은 계산을 봐야 한다. 두 곳에서 따로 세면 표본이 어긋난다.
   const cadence = presentOrgCadence(history, { announcedAt: decision.announcedAt });
 
   return (
     // 손잡이는 사용자가 주소에 남긴 값으로만 시작한다. 여기서 값을 정해 주면 그것이 추천값이 된다(AGENTS 8, EAT-84).
     <BidRateProvider initialRate={search.rate}>
-      <DecisionFrame
-        header={<DecisionHeader decision={decision} cadence={cadence} search={search} />}
-        banner={<DecisionBanner decision={decision} cadence={cadence} />}
-        evidence={
-          <div className='grid gap-4'>
-            <EvidenceTabs
-              auctionId={decision.identity.auctionId}
-              search={search}
-              history={history}
-              distribution={distribution}
+      <AttemptSelectionProvider
+        key={decision.identity.auctionId}
+        rows={history.state === 'ready' ? history.presentation.rows : []}
+      >
+        <DecisionFrame
+          header={<DecisionHeader decision={decision} cadence={cadence} search={search} />}
+          banner={<DecisionBanner decision={decision} cadence={cadence} />}
+          evidence={
+            <div className='grid gap-4'>
+              <EvidenceTabs
+                auctionId={decision.identity.auctionId}
+                search={search}
+                history={history}
+                distribution={distribution}
+              />
+              <details className='rounded-xl bg-card p-4 shadow-xs'>
+                <summary className='cursor-pointer text-[15px] font-semibold'>
+                  원문과 추적 정보
+                </summary>
+                <dl className='mt-3 grid gap-3 sm:grid-cols-2'>
+                  {[
+                    ['원천 시스템', decision.provenance.sourceSystem],
+                    ['관측 ID', decision.provenance.observationId],
+                    ['정규화 레코드 ID', decision.provenance.normalizedRecordId],
+                    ['내용 SHA-256', decision.provenance.contentSha256],
+                    ['공고 번호', decision.identity.displayBidNumber ?? '미확인'],
+                    ['공고 상태', decision.identity.status],
+                    ['리비전 ID', decision.identity.revisionId],
+                    ['외부 공고 ID', decision.identity.externalBidId],
+                    ['예정금액', decision.plannedAmount.text]
+                  ].map(([label, value]) => (
+                    <div key={label} className='grid gap-1'>
+                      <dt className='text-[13px] font-semibold text-muted-foreground'>{label}</dt>
+                      <dd className='min-w-0 text-[15px] font-medium break-all'>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            </div>
+          }
+          history={
+            history.state === 'ready' ? (
+              <HistoryCard
+                presentation={history.presentation}
+                auctionId={decision.identity.auctionId}
+                search={search}
+              />
+            ) : (
+              <PendingCard title='과거 회차' reason={HISTORY_PENDING_REASON[history.state]} />
+            )
+          }
+          rail={
+            <SelectedAttemptRail
+              fallback={
+                <BidRail
+                  decision={decision}
+                  rehearsal={
+                    history.state === 'ready' ? <RehearsalPanel rows={selectedRows} /> : null
+                  }
+                />
+              }
             />
-            <details className='rounded-xl bg-card p-4 shadow-xs'>
-              <summary className='cursor-pointer text-[15px] font-semibold'>원문과 추적 정보</summary>
-              <dl className='mt-3 grid gap-3 sm:grid-cols-2'>
-                {[
-                  ['원천 시스템', decision.provenance.sourceSystem],
-                  ['관측 ID', decision.provenance.observationId],
-                  ['정규화 레코드 ID', decision.provenance.normalizedRecordId],
-                  ['내용 SHA-256', decision.provenance.contentSha256],
-                  ['공고 번호', decision.identity.displayBidNumber ?? '미확인'],
-                  ['공고 상태', decision.identity.status],
-                  ['리비전 ID', decision.identity.revisionId],
-                  ['외부 공고 ID', decision.identity.externalBidId],
-                  ['예정금액', decision.plannedAmount.text]
-                ].map(([label, value]) => (
-                  <div key={label} className='grid gap-1'>
-                    <dt className='text-[13px] font-semibold text-muted-foreground'>{label}</dt>
-                    <dd className='min-w-0 text-[15px] font-medium break-all'>{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </details>
-          </div>
-        }
-        history={
-          history.state === 'ready' ? (
-            <HistoryCard presentation={history.presentation} auctionId={decision.identity.auctionId} search={search} />
-          ) : (
-            <PendingCard title='과거 회차' reason={HISTORY_PENDING_REASON[history.state]} />
-          )
-        }
-        rail={<BidRail decision={decision} rehearsal={history.state === 'ready' ? <RehearsalPanel rows={selectedRows} /> : null} />}
-      />
-      {/* 크게 보기 모달은 URL expand가 열고 닫는다. 프레임 밖에 두어 section 순서 검사에 섞이지 않게 한다. */}
-      <DecisionExpand decision={decision} search={search} history={history} distribution={distribution} />
+          }
+        />
+        {/* 크게 보기 모달은 URL expand가 열고 닫는다. 프레임 밖에 두어 section 순서 검사에 섞이지 않게 한다. */}
+        <DecisionExpand
+          decision={decision}
+          search={search}
+          history={history}
+          distribution={distribution}
+        />
+      </AttemptSelectionProvider>
     </BidRateProvider>
   );
 }
