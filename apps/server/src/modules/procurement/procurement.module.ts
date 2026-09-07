@@ -23,14 +23,15 @@ const findAuctionProvider = {
   useFactory: (reader: AuctionReader) => new FindAuction(reader),
 };
 
+// 개찰 필터의 기준 시각과 분포의 기본 기간은 현재 시각의 함수라 두 use case가 clock을 요구한다.
+// `Temporal.Now` 직접 호출은 금지이며 주입된 clock만 쓴다(AGENTS 17).
 const listOrganizationAuctionAttemptsProvider = {
   provide: ListOrganizationAuctionAttempts,
-  inject: [ORGANIZATION_ATTEMPT_READER],
-  useFactory: (reader: OrganizationAttemptReader) => new ListOrganizationAuctionAttempts(reader),
+  inject: [ORGANIZATION_ATTEMPT_READER, CLOCK],
+  useFactory: (reader: OrganizationAttemptReader, clock: Clock) =>
+    new ListOrganizationAuctionAttempts(reader, clock),
 };
 
-// 기본 기간은 현재 시각의 함수라 use case가 clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며
-// 주입된 clock만 쓴다(AGENTS 17).
 const findWinRateDistributionProvider = {
   provide: FindWinRateDistribution,
   inject: [WIN_RATE_DISTRIBUTION_READER, CLOCK],

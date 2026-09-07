@@ -4,17 +4,22 @@ import { z } from "zod";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { problemDetailsSchema } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
+import { organizationAttemptOpenedFilterSchema } from "./attempt.resource";
 import { organizationAuctionAttemptsV1ResponseSchema } from "./list-auction-attempts.response";
 
 // 기본값 12는 결정 화면 과거 회차 표가 그리는 12행이다. 첫 화면이 표를 채우는 데 필요한 만큼만
 // 받아 흐름 차트와 표가 같은 한 응답을 쓴다.
 const DEFAULT_ATTEMPT_LIMIT = 12;
+// 기본값이 `only`인 이유: 이 응답의 첫 소비자인 과거 회차 표·흐름 차트는 개찰된 회차만 그려야 하고,
+// 열린 회차를 표에 섞으면 아직 없는 낙찰률 자리가 과거처럼 읽힌다(EAT-81).
+const DEFAULT_OPENED_FILTER = "only";
 
 export const organizationAuctionAttemptsQuerySchema = z.strictObject({
   item: positiveBigintTextSchema.optional(),
   cursor: positiveBigintTextSchema.optional(),
   // 상한 200은 pages-endpoints-load.md의 "기관 회차 ≤ 200" 점 조회 상한과 같다.
   limit: z.coerce.number().int().min(1).max(200).default(DEFAULT_ATTEMPT_LIMIT),
+  opened: organizationAttemptOpenedFilterSchema.default(DEFAULT_OPENED_FILTER),
 });
 
 export const organizationV1Operations = {
@@ -27,7 +32,10 @@ export const organizationV1Operations = {
     summary: "기관의 회차 요약을 최근 순으로 조회한다",
     tags: ["procurement"],
     pathSchema: z.strictObject({ organizationId: positiveBigintTextSchema }),
-    querySchema: organizationAuctionAttemptsQuerySchema.default({ limit: DEFAULT_ATTEMPT_LIMIT }),
+    querySchema: organizationAuctionAttemptsQuerySchema.default({
+      limit: DEFAULT_ATTEMPT_LIMIT,
+      opened: DEFAULT_OPENED_FILTER,
+    }),
     bodySchema: z.undefined(),
     successResponses: { 200: { description: "기관 회차 요약 조회 성공", schema: organizationAuctionAttemptsV1ResponseSchema } },
     problemResponses: {

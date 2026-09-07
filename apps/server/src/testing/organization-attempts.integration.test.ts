@@ -6,6 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import request from "supertest";
 import { auctionV1Operations, organizationV1Operations } from "@eatbid/contracts";
+import { fixedClock, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import type {
@@ -19,6 +20,10 @@ const repositoryRoot = resolve(import.meta.dir, "../../../..");
 const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
 const postgresImage = "postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416";
 const taskLabel = "eatbid.task=eat37-org-attempts";
+
+// 운영 표본을 본뜬 시나리오다: 개찰 시각이 지난 회차(101·102), 개찰 시각 미관측(103), 개찰 예정이 아직
+// 오지 않은 회차(105). 오늘이 09-06이면 표에는 101·102만 실려야 한다(EAT-81).
+const NOW = Temporal.Instant.from("2026-09-06T00:00:00Z");
 
 async function docker(...args: string[]): Promise<string> {
   const child = Bun.spawn(["docker", ...args], { cwd: repositoryRoot, stdout: "pipe", stderr: "pipe" });
@@ -44,7 +49,8 @@ const seed = `
   insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
   overriding system value
   values (101, 'eat', 'external-101'), (102, 'eat', 'external-102'),
-         (103, 'eat', 'external-103'), (104, 'eat', 'external-104');
+         (103, 'eat', 'external-103'), (104, 'eat', 'external-104'),
+         (105, 'eat', 'external-105');
   insert into ingest.run
     (run_id, mode, status, build_sha, parser_version, started_at, ended_at,
      failure_category, expected_count, captured_count, published_count)
@@ -76,7 +82,8 @@ const seed = `
   values (205, 203, 'auction.v1', 'external-103', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
          (206, 203, 'auction.v1', 'external-102', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
          (209, 203, 'auction.v1', 'external-101', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
-         (210, 203, 'auction.v1', 'external-104', '{}', 'eat-v1', '2026-09-03T00:00:40Z');
+         (210, 203, 'auction.v1', 'external-104', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
+         (213, 203, 'auction.v1', 'external-105', '{}', 'eat-v1', '2026-09-03T00:00:40Z');
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
@@ -89,7 +96,9 @@ const seed = `
          (211, 101, 209, 203, '${"f".repeat(64)}', null, 'OPEN', '축산물 구매',
     '2026-09-01T00:00:00Z', null, '2026-09-03T05:00:00Z', 500000.00, null, 'KRW', '{}'),
          (212, 104, 210, 203, '${"0".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-05T00:00:00Z', null, null, 900000.00, null, 'KRW', '{}');
+    '2026-09-05T00:00:00Z', null, null, 900000.00, null, 'KRW', '{}'),
+         (214, 105, 213, 203, '${"1".repeat(64)}', null, 'OPEN', '축산물 구매',
+    '2026-09-06T00:00:00Z', null, '2026-09-09T05:00:00Z', 700000.00, null, 'KRW', '{}');
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   values (207, 41, 'purchaser'), (207, 43, 'supplier-contact');
   insert into core.supplier_party (supplier_party_id, type, canonical_name)
@@ -124,14 +133,17 @@ const seed = `
      null, null, null, null, null, null, 'unknown', '2026-09-01'),
     (501, 104, 212, 43, 7, '축산', '2026-09-05T00:00:00Z', null,
      90.000, null, 900000.00, null, 'KRW', null, null, null, null, null,
-     null, null, null, null, null, null, 'unknown', null);
+     null, null, null, null, null, null, 'unknown', null),
+    (501, 105, 214, 41, 7, '축산', '2026-09-06T00:00:00Z', '2026-09-09T05:00:00Z',
+     90.000, null, 700000.00, null, 'KRW', null, null, null, null, null,
+     null, null, null, null, null, null, 'unknown', '2026-09-01');
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)
   values (501, null, '2026-08-01', 10, 10, 10, 0, 'complete'),
          (501, null, '2026-09-01', 10, 10, 10, 0, 'unknown');
   update mart.build
-     set status = 'verified', computed_at = '2026-09-04T00:10:00Z', row_count = 4
+     set status = 'verified', computed_at = '2026-09-04T00:10:00Z', row_count = 5
    where build_id = 501;
   update mart.build
      set status = 'active', activated_at = '2026-09-04T00:11:00Z'
@@ -189,16 +201,20 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       expect(await reader.exists(organizationId(41n))).toBe(true);
       expect(await reader.exists(organizationId(9_007_199_254_740_993n))).toBe(false);
 
+      // 개찰 기준이 없으면(any) 개찰 예정·미관측 회차까지 전부 최근 순이다.
       const first = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
         itemCodeValueId: null,
         cursor: null,
-        limit: 2,
+        limit: 3,
+        openedAtOrBefore: null,
       }));
-      expect(first.attempts.map((attempt) => attempt.attemptId)).toEqual([103n, 102n]);
+      expect(first.attempts.map((attempt) => attempt.attemptId)).toEqual([105n, 103n, 102n]);
       expect(first.nextCursor).toBe(102n);
-      expect(first.sampleCount).toBe(3);
-      expect(first.attempts[0]).toMatchObject({
+      expect(first.sampleCount).toBe(4);
+      expect(first.attempts[0]!.openedAt!.toString()).toBe("2026-09-09T05:00:00Z");
+      expect(first.attempts[1]!.openedAt).toBeNull();
+      expect(first.attempts[1]).toMatchObject({
         item: { codeValueId: 7n, label: "축산" },
         floorRate: "90.000",
         baseAmount: { amount: "2761700.00", currency: "KRW" },
@@ -216,8 +232,8 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         coverage: "unknown",
       });
       expect(first.lineage!.computedAt.toString()).toBe("2026-09-04T00:10:00Z");
-      expect(first.attempts[0]!.announcedAt.toString()).toBe("2026-09-03T00:00:00Z");
-      expect(first.attempts[1]).toMatchObject({
+      expect(first.attempts[1]!.announcedAt.toString()).toBe("2026-09-03T00:00:00Z");
+      expect(first.attempts[2]).toMatchObject({
         winRate: "90.309",
         secondRate: "90.412",
         // 같은 낙찰의 투찰률 축 표현이다. 사정률 90.309와 값이 달라야 두 열이 섞이지 않았다는 뜻이다.
@@ -233,27 +249,51 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: null,
         cursor: first.nextCursor,
         limit: 2,
+        openedAtOrBefore: null,
       }));
       // 라벨 없는 품목은 코드가 있어도 unknown으로 남으며 표본 수는 cursor와 무관하게 같다.
       expect(second.attempts.map((attempt) => attempt.attemptId)).toEqual([101n]);
       expect(second.attempts[0]!.item).toBeNull();
       expect(second.nextCursor).toBeNull();
-      expect(second.sampleCount).toBe(3);
+      expect(second.sampleCount).toBe(4);
+
+      // 개찰 기준이 있으면 기준 이하로 개찰된 회차만이다. 개찰 예정(105)과 미관측(103)은 표본에서도 빠진다.
+      const opened = pageOf(await reader.listAttempts({
+        organizationId: organizationId(41n),
+        itemCodeValueId: null,
+        cursor: null,
+        limit: 12,
+        openedAtOrBefore: NOW,
+      }));
+      expect(opened.attempts.map((attempt) => attempt.attemptId)).toEqual([102n, 101n]);
+      expect(opened.sampleCount).toBe(2);
+      // 개찰 시각과 같은 순간은 포함이다. 개찰 직후 회차가 다음 tick까지 표에서 사라지면 안 된다.
+      const justOpened = pageOf(await reader.listAttempts({
+        organizationId: organizationId(41n),
+        itemCodeValueId: null,
+        cursor: null,
+        limit: 12,
+        openedAtOrBefore: Temporal.Instant.from("2026-09-09T05:00:00Z"),
+      }));
+      expect(justOpened.attempts.map((attempt) => attempt.attemptId)).toEqual([105n, 102n, 101n]);
+      expect(justOpened.sampleCount).toBe(3);
 
       const filtered = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
         itemCodeValueId: 7n,
         cursor: null,
         limit: 12,
+        openedAtOrBefore: null,
       }));
-      expect(filtered.attempts.map((attempt) => attempt.attemptId)).toEqual([103n, 101n]);
-      expect(filtered.sampleCount).toBe(2);
+      expect(filtered.attempts.map((attempt) => attempt.attemptId)).toEqual([105n, 103n, 101n]);
+      expect(filtered.sampleCount).toBe(3);
 
       const empty = pageOf(await reader.listAttempts({
         organizationId: organizationId(43n),
         itemCodeValueId: 9n,
         cursor: null,
         limit: 12,
+        openedAtOrBefore: null,
       }));
       expect(empty.attempts).toEqual([]);
       expect(empty.sampleCount).toBe(0);
@@ -264,17 +304,20 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: null,
         cursor: 104n,
         limit: 12,
+        openedAtOrBefore: null,
       })).toEqual({ kind: "cursor-not-found", cursor: 104n });
       expect(await reader.listAttempts({
         organizationId: organizationId(41n),
         itemCodeValueId: null,
         cursor: 9_007_199_254_740_993n,
         limit: 12,
+        openedAtOrBefore: null,
       })).toEqual({ kind: "cursor-not-found", cursor: 9_007_199_254_740_993n });
 
       const runtime = await createApp({
         environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: url }),
         logWriter: () => undefined,
+        clock: fixedClock(NOW),
       });
       const server = await runtime.listen(0, "127.0.0.1");
       try {
@@ -285,26 +328,29 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
           }),
         );
         expect(response.status).toBe(200);
+        // query를 생략한 HTTP 기본값은 개찰된 회차만이다. 개찰 예정 105와 미관측 103은 첫 행이 아니다.
         expect(response.body.attempts).toEqual([{
-          attemptId: "103",
-          announcedAt: "2026-09-03T00:00:00Z",
-          openedAt: null,
-          item: { codeValueId: "7", label: "축산" },
+          attemptId: "102",
+          announcedAt: "2026-09-02T00:00:00Z",
+          openedAt: "2026-09-04T05:00:00Z",
+          item: { codeValueId: "9", label: "농산" },
           floorRate: { value: "90.000", unit: "percentage-points" },
-          baseAmount: { amount: "2761700.00", currency: "KRW" },
-          winRate: null,
-          secondRate: null,
-          awardedBidRate: null,
-          dayFloorRate: null,
-          listCount: 17,
-          belowDayFloorCount: 2,
-          winnerSupplierPartyId: null,
+          baseAmount: { amount: "1000000.00", currency: "KRW" },
+          winRate: { value: "90.309", unit: "percentage-points" },
+          secondRate: { value: "90.412", unit: "percentage-points" },
+          awardedBidRate: { value: "89.4059", unit: "percentage-points" },
+          dayFloorRate: { value: "89.1000", unit: "percentage-points" },
+          listCount: 5,
+          belowDayFloorCount: 0,
+          winnerSupplierPartyId: "77",
           supersedesAttemptId: null,
         }]);
-        expect(response.body.nextCursor).toBe("103");
+        expect(response.body.nextCursor).toBe("102");
         expect(response.body.meta).toEqual({
-          sampleCount: 3,
+          sampleCount: 2,
           item: null,
+          opened: "only",
+          asOf: "2026-09-06T00:00:00Z",
           buildId: "501",
           sourceReleaseId: "00000000-0000-0000-0000-000000000141",
           calcVersion: "mart-r1",
@@ -313,6 +359,15 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
           coverage: "unknown",
           regionScheme: "eat:auction-location-sigungu",
         });
+        const anyAttempt = await request(server).get(
+          organizationV1Operations.listAuctionAttempts.buildPath({
+            path: { organizationId: "41" },
+            query: { limit: 1, opened: "any" },
+          }),
+        );
+        expect(anyAttempt.status).toBe(200);
+        expect(anyAttempt.body.attempts.map((attempt: { attemptId: string }) => attempt.attemptId)).toEqual(["105"]);
+        expect(anyAttempt.body.meta).toMatchObject({ sampleCount: 4, opened: "any", asOf: null });
         const foreignCursor = await request(server).get(
           organizationV1Operations.listAuctionAttempts.buildPath({
             path: { organizationId: "41" },

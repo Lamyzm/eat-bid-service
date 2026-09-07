@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { baseRelativeBidRate, bidRate, canonicalDecimal, krw, Temporal } from "@eatbid/domain";
+import { baseRelativeBidRate, bidRate, canonicalDecimal, fixedClock, krw, Temporal } from "@eatbid/domain";
 import { EffectRunner } from "../../../platform/effect/effect-runner";
+import type { OrganizationAttemptQuery } from "./organization-attempt-reader";
 
 const record = {
   attemptId: 5_796_468n,
@@ -30,7 +31,11 @@ const lineage = {
   regionScheme: "eat:auction-location-sigungu",
 } as const;
 
-const query = { organizationId: 42n, itemCodeValueId: null, cursor: null, limit: 12 } as const;
+const query = { organizationId: 42n, itemCodeValueId: null, cursor: null, limit: 12, opened: "only" } as const;
+
+// 개찰 기준 시각은 clock에서만 온다. 고정 clock이어야 응답의 asOf를 문자 그대로 검사할 수 있다.
+const NOW = Temporal.Instant.from("2026-09-06T01:00:00Z");
+const clock = fixedClock(NOW);
 
 describe("ListOrganizationAuctionAttempts 조회 use case", () => {
   test("회차 요약을 공개 응답으로 직렬화하고 meta는 활성 build의 계보를 싣는다", async () => {
@@ -42,7 +47,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
         kind: "page",
         page: { attempts: [record], nextCursor: 5_796_468n, sampleCount: 92, lineage },
       }),
-    });
+    }, clock);
     const response = await new EffectRunner().run(useCase.execute(query));
     expect(response.organizationId).toBe("42");
     expect(response.nextCursor).toBe("5796468");
@@ -65,6 +70,8 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
     expect(response.meta).toEqual({
       sampleCount: 92,
       item: null,
+      opened: "only",
+      asOf: "2026-09-06T01:00:00Z",
       buildId: "501",
       sourceReleaseId: "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f",
       calcVersion: "mart-r1",
@@ -72,6 +79,25 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
       coverage: "unknown",
       regionScheme: "eat:auction-location-sigungu",
     });
+  });
+
+  test("opened가 only면 clock 시각을 개찰 기준으로 reader에 넘기고 any면 기준 없이 읽는다", async () => {
+    const application = await import("./list-organization-auction-attempts");
+    const observed: OrganizationAttemptQuery[] = [];
+    const useCase = new application.ListOrganizationAuctionAttempts({
+      exists: async () => true,
+      listAttempts: async (readerQuery) => {
+        observed.push(readerQuery);
+        return { kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0, lineage } };
+      },
+    }, clock);
+    const runner = new EffectRunner();
+    const onlyOpened = await runner.run(useCase.execute(query));
+    const anyAttempt = await runner.run(useCase.execute({ ...query, opened: "any" }));
+    expect(observed.map((item) => item.openedAtOrBefore)).toEqual([NOW, null]);
+    // 표본 수 0이 "개찰된 회차가 없다"인지 "회차 자체가 없다"인지는 meta가 말해야 한다(AGENTS 7).
+    expect(onlyOpened.meta).toMatchObject({ opened: "only", asOf: "2026-09-06T01:00:00Z" });
+    expect(anyAttempt.meta).toMatchObject({ opened: "any", asOf: null });
   });
 
   test("품목을 지정한 조회는 meta.item에 요청 품목을 그대로 되돌려 싣는다", async () => {
@@ -82,7 +108,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
         kind: "page",
         page: { attempts: [record], nextCursor: null, sampleCount: 20, lineage },
       }),
-    });
+    }, clock);
     const response = await new EffectRunner().run(useCase.execute({ ...query, itemCodeValueId: 7n }));
     expect(response.meta.item).toBe("7");
     expect(response.meta.sampleCount).toBe(20);
@@ -96,12 +122,14 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
         kind: "page",
         page: { attempts: [], nextCursor: null, sampleCount: 0, lineage: null },
       }),
-    });
+    }, clock);
     const response = await new EffectRunner().run(useCase.execute(query));
     expect(response.attempts).toEqual([]);
     expect(response.meta).toEqual({
       sampleCount: 0,
       item: null,
+      opened: "only",
+      asOf: "2026-09-06T01:00:00Z",
       buildId: null,
       sourceReleaseId: null,
       calcVersion: null,
@@ -120,7 +148,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
         listed += 1;
         throw new Error("unreachable");
       },
-    });
+    }, clock);
     await expect(new EffectRunner().run(useCase.execute(query))).rejects.toMatchObject({
       name: "OrganizationNotFound",
       code: "ORGANIZATION_NOT_FOUND",
@@ -134,7 +162,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
     const useCase = new application.ListOrganizationAuctionAttempts({
       exists: async () => true,
       listAttempts: async () => ({ kind: "cursor-not-found", cursor: 5_796_468n }),
-    });
+    }, clock);
     await expect(new EffectRunner().run(useCase.execute({ ...query, cursor: 5_796_468n })))
       .rejects.toMatchObject({
         name: "AttemptCursorInvalid",
@@ -150,7 +178,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
     const existsFailure = new application.ListOrganizationAuctionAttempts({
       exists: async () => { throw new Error("credential=must-not-escape"); },
       listAttempts: async () => { throw new Error("unreachable"); },
-    });
+    }, clock);
     await expect(runner.run(existsFailure.execute(query))).rejects.toMatchObject({
       name: "AuctionDependencyUnavailable",
       code: "DEPENDENCY_UNAVAILABLE",
@@ -158,7 +186,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
     const listFailure = new application.ListOrganizationAuctionAttempts({
       exists: async () => true,
       listAttempts: async () => { throw new Error("credential=must-not-escape"); },
-    });
+    }, clock);
     const failure = await runner.run(listFailure.execute(query)).catch((error: unknown) => error);
     expect(failure).toMatchObject({ name: "AuctionDependencyUnavailable", code: "DEPENDENCY_UNAVAILABLE" });
     expect(String(failure)).not.toContain("must-not-escape");

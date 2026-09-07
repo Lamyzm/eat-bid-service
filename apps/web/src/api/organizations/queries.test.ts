@@ -26,12 +26,12 @@ describe('기관 회차 이력 Query Options', () => {
     expect(queries.attemptsLists()).toEqual(['organizations', 'attempts']);
     expect(
       Array.from(queries.attempts({ organizationId: '3101', item: '7', limit: 60 }).queryKey)
-    ).toEqual(['organizations', 'attempts', '3101', { item: '7', limit: 60 }]);
+    ).toEqual(['organizations', 'attempts', '3101', { item: '7', limit: 60, opened: 'only' }]);
     expect(
       Array.from(
         queries.attempts({ organizationId: '9223372036854775807' }).queryKey
       )
-    ).toEqual(['organizations', 'attempts', '9223372036854775807', { limit: 12 }]);
+    ).toEqual(['organizations', 'attempts', '9223372036854775807', { limit: 12, opened: 'only' }]);
   });
 
   test('동일한 input은 동일한 query key를 만든다', () => {

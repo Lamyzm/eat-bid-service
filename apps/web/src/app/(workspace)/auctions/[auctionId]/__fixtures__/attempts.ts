@@ -334,6 +334,8 @@ export const attemptsFixture = {
   meta: {
     sampleCount: 92,
     item: null,
+    opened: 'only',
+    asOf: '2026-09-06T00:00:00Z',
     buildId: '501',
     sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
     calcVersion: 'mart-r1',

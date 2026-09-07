@@ -8,6 +8,14 @@ import { martBuildLineageSchema } from "../../../values/mart-lineage";
 import { moneyWireSchema } from "../../../values/money";
 import { baseRelativeBidRateWireSchema, bidRateWireSchema } from "../../../values/rate";
 
+/**
+ * 과거 회차 표는 개찰된 회차만 싣고 열린 회차는 상태 배너가 담당한다(EAT-81). `only`는 서버 clock 기준
+ * `openedAt <= now`인 회차만, `any`는 개찰 여부와 무관하게 전부다. 개찰 시각을 관측하지 못한 회차는
+ * 개찰됐다고 단정할 수 없으므로 `only`에서 빠진다 — unknown을 열림으로도 개찰로도 메우지 않는다(AGENTS 3).
+ */
+export const organizationAttemptOpenedFilterSchema = z.enum(["only", "any"]);
+export type OrganizationAttemptOpenedFilter = z.infer<typeof organizationAttemptOpenedFilterSchema>;
+
 export const organizationAuctionAttemptSchema = z.strictObject({
   attemptId: positiveBigintTextSchema,
   announcedAt: instantTextSchema,
@@ -45,6 +53,10 @@ export const organizationAuctionAttemptsMetaSchema = martBuildLineageSchema.safe
   // 표본이 어떤 품목으로 좁혀졌는지는 응답만 보고 재현돼야 한다(AGENTS 7). 요청 query의 item을
   // 그대로 되돌려 싣고, 품목을 지정하지 않은 전체 조회는 null이다.
   item: positiveBigintTextSchema.nullable(),
+  // 표본이 개찰된 회차로 좁혀졌는지와 그 기준 시각도 응답만으로 재현돼야 한다. `asOf`는 `only`일 때
+  // 서버가 비교한 clock 시각이고, `any`는 비교 자체가 없었으므로 null이다 — 없는 기준을 지어내지 않는다.
+  opened: organizationAttemptOpenedFilterSchema,
+  asOf: instantTextSchema.nullable(),
 }).meta({ id: "OrganizationAuctionAttemptsMeta" });
 
 export type OrganizationAuctionAttempt = z.infer<typeof organizationAuctionAttemptSchema>;

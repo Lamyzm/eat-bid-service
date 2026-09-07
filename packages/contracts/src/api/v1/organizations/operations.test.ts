@@ -5,6 +5,8 @@ import { organizationAuctionAttemptsV1ResponseSchema } from "./list-auction-atte
 const EMPTY_META = {
   sampleCount: 0,
   item: null,
+  opened: "only",
+  asOf: "2026-09-06T00:00:00Z",
   buildId: null,
   sourceReleaseId: null,
   calcVersion: null,
@@ -19,14 +21,33 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       path: { organizationId: "42" },
       query: { limit: 60, cursor: "5796468", item: "7" },
     });
-    expect(path).toBe("/api/v1/organizations/42/auction-attempts?cursor=5796468&item=7&limit=60");
+    expect(path).toBe("/api/v1/organizations/42/auction-attempts?cursor=5796468&item=7&limit=60&opened=only");
   });
 
   test("limit 기본값은 12이고 200을 넘으면 거부한다", () => {
     const { querySchema } = organizationV1Operations.listAuctionAttempts;
-    expect(querySchema.parse({})).toEqual({ limit: 12 });
-    expect(querySchema.parse({ limit: "200" })).toEqual({ limit: 200 });
+    expect(querySchema.parse({})).toEqual({ limit: 12, opened: "only" });
+    expect(querySchema.parse({ limit: "200" })).toEqual({ limit: 200, opened: "only" });
     expect(() => querySchema.parse({ limit: "201" })).toThrow();
+  });
+
+  test("opened 기본값은 only이고 any만 대안으로 받으며 다른 값은 거부한다", () => {
+    const { querySchema } = organizationV1Operations.listAuctionAttempts;
+    // query 자체를 생략한 요청도 개찰된 회차만 받는다. 표가 열린 회차를 과거로 싣는 경로를 남기지 않는다.
+    expect(querySchema.parse(undefined).opened).toBe("only");
+    expect(querySchema.parse({ opened: "any" })).toEqual({ limit: 12, opened: "any" });
+    expect(() => querySchema.parse({ opened: "true" })).toThrow();
+    expect(() => querySchema.parse({ opened: "" })).toThrow();
+  });
+
+  test("meta는 개찰 필터와 기준 시각을 요구하고 any는 기준 시각이 null이다", () => {
+    const meta = organizationAuctionAttemptsV1ResponseSchema.shape.meta;
+    expect(meta.parse({ ...EMPTY_META, opened: "any", asOf: null })).toMatchObject({ opened: "any", asOf: null });
+    const { opened: _opened, asOf: _asOf, ...withoutFilter } = EMPTY_META;
+    // 필터를 되돌리지 않은 표본 수는 어느 코호트의 수인지 응답만으로 알 수 없다(AGENTS 7).
+    expect(() => meta.parse(withoutFilter)).toThrow();
+    expect(() => meta.parse({ ...EMPTY_META, opened: "all" })).toThrow();
+    expect(() => meta.parse({ ...EMPTY_META, asOf: "2026-09-06" })).toThrow();
   });
 
   test("빈 이력 응답도 meta의 표본 수와 build 계보 자리를 요구한다", () => {

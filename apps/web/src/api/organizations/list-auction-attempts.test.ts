@@ -37,6 +37,8 @@ const validAttempts: OrganizationAuctionAttemptsV1Response = {
   meta: {
     sampleCount: 1,
     item: null,
+    opened: 'only',
+    asOf: '2026-09-06T00:00:00Z',
     buildId: '501',
     sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
     calcVersion: 'mart-r1',
@@ -75,7 +77,7 @@ describe('기관 회차 이력 resource 조회', () => {
       {
         operation: organizationV1Operations.listAuctionAttempts,
         path: { organizationId: '3101' },
-        query: { item: '7', limit: 60 },
+        query: { item: '7', limit: 60, opened: 'only' },
         signal: controller.signal
       }
     ]);
@@ -93,7 +95,8 @@ describe('기관 회차 이력 resource 조회', () => {
 
       await listOrganizationAuctionAttemptsWith(request, { organizationId });
       expect(targets).toEqual([
-        `/api/v1/organizations/${organizationId}/auction-attempts?limit=12`
+        // 계약 기본값이 URL에 그대로 드러난다. 개찰된 회차만 받는 것이 화면이 아니라 계약의 결정이다.
+        `/api/v1/organizations/${organizationId}/auction-attempts?limit=12&opened=only`
       ]);
     }
   });

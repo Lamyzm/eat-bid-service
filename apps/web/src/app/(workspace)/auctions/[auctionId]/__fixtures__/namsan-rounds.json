@@ -96,5 +96,5 @@
     {"attemptId": "5356471", "announcedAt": "2024-02-20T00:00:00Z", "openedAt": "2024-02-23T04:00:00Z", "item": {"codeValueId": "11", "label": "공산"}, "floorRate": {"value": "90.000", "unit": "percentage-points"}, "baseAmount": {"amount": "10554540.00", "currency": "KRW"}, "winRate": {"value": "90.083", "unit": "percentage-points"}, "secondRate": {"value": "90.122", "unit": "percentage-points"}, "awardedBidRate": {"value": "91.2003", "unit": "percentage-points"}, "dayFloorRate": {"value": "91.1163", "unit": "percentage-points"}, "listCount": 49, "belowDayFloorCount": 42, "winnerSupplierPartyId": null, "supersedesAttemptId": null}
   ],
   "nextCursor": null,
-  "meta": {"sampleCount": 92, "item": null, "buildId": "501", "sourceReleaseId": "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f", "calcVersion": "mart-r1", "computedAt": "2026-09-04T00:10:00Z", "coverage": "unknown", "regionScheme": "eat:auction-location-sigungu"}
+  "meta": {"sampleCount": 92, "item": null, "opened": "only", "asOf": "2026-09-06T00:00:00Z", "buildId": "501", "sourceReleaseId": "0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f", "calcVersion": "mart-r1", "computedAt": "2026-09-04T00:10:00Z", "coverage": "unknown", "regionScheme": "eat:auction-location-sigungu"}
 }
