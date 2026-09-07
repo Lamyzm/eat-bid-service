@@ -1,0 +1,43 @@
+/** @module 책임: 열린 공고 목록 query를 listOpenAuctions operation 계약으로 검증하고 transport 독립 조회를 수행한다. */
+import {
+  auctionV1Operations,
+  type OpenAuctionListV1Response
+} from '@eatbid/contracts/api/v1/auctions';
+
+import type { ContractRequest } from '../_transport/request-contract';
+import { mapOpenAuctionListError } from './auction-resource-error';
+
+export type OpenAuctionListInput = {
+  readonly region?: string;
+  readonly item?: string;
+  readonly closesWithinHours?: number;
+  readonly baseAmountMin?: string;
+  readonly baseAmountMax?: string;
+  readonly cursor?: string;
+  readonly limit?: number;
+};
+
+export async function listOpenAuctionsWith(
+  request: ContractRequest,
+  input: OpenAuctionListInput & { readonly signal?: AbortSignal }
+): Promise<OpenAuctionListV1Response> {
+  const query = auctionV1Operations.listOpen.querySchema.parse({
+    region: input.region,
+    item: input.item,
+    closesWithinHours: input.closesWithinHours,
+    baseAmountMin: input.baseAmountMin,
+    baseAmountMax: input.baseAmountMax,
+    cursor: input.cursor,
+    limit: input.limit
+  });
+  try {
+    return await request({
+      operation: auctionV1Operations.listOpen,
+      path: {},
+      query,
+      signal: input.signal
+    });
+  } catch (error) {
+    throw mapOpenAuctionListError(request, error, { hasCursor: query.cursor !== undefined });
+  }
+}

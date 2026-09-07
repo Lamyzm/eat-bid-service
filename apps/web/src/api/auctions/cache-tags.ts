@@ -1,7 +1,8 @@
-/** @module 책임: 공고 조회 캐시 항목에 걸 태그 집합을 계약 어휘에서 파생한다. */
+/** @module 책임: 공고 조회와 열린 공고 목록 캐시 항목에 걸 태그 집합을 계약 어휘에서 파생한다. */
 import {
   ALL_AUCTIONS_CACHE_TAG,
   auctionCacheTag,
+  martCacheTag,
   type CacheTag
 } from '@eatbid/contracts/values/cache-tag';
 
@@ -12,4 +13,12 @@ import {
  */
 export function auctionReadCacheTags(auctionId: string): readonly CacheTag[] {
   return [auctionCacheTag(auctionId), ALL_AUCTIONS_CACHE_TAG];
+}
+
+/**
+ * 열린 공고 목록은 두 mart를 읽는다. 행은 `open_auction_snapshot`, 기관 요약은 `org_round_summary`
+ * build 전환이 신선도를 좌우하므로 어느 한쪽이 전환돼도 항목이 지워져야 한다(ADR 0036).
+ */
+export function openAuctionsReadCacheTags(): readonly CacheTag[] {
+  return [martCacheTag('open_auction_snapshot'), martCacheTag('org_round_summary')];
 }

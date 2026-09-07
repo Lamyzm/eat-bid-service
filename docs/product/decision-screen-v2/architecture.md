@@ -19,7 +19,7 @@
 | 그날 하한 | 하한율 × 그 회차 예정가격, 그리고 명단 내 자리 | `ds_info.PLNPRCE_SUCBD_STD`(하한율) + `ds_pList` 선택 후보로 정해진 예정가격 | 회차 | eat-v2 계약이 읽는다(하한율·예정가격 모두 관측) | `core.auction_revision`(하한율), `core.award_decision`(예정가격) → `mart.org_round_summary` | **파생 계산**. 소스에 "하한 미달" 판정이 없으므로 관측값이 아니다 |
 | rail 이 값이면 | 지난 N회 낙찰됐을 회차, 그날 하한 미만이었을 회차, 보통 참여, 낙찰값 위 0.1 안 곳수 | `mart.org_round_summary` + `core.bid_submission` | 회차 | — | 위와 같음 | 요청 시 N ≤ 200행 계산 |
 | 업체 탭 | 기관별 반복 참여 업체, 회차별 자리 | `ds_bidList.SHIPPER_CD` ↔ `SupplierParty` | 업체 × 회차 | eat-v2 계약이 읽는다 | `core.supplier_party`, `core.source_supplier_account` | 요청 시 |
-| 오늘 | 열린 공고 목록 + 지금 값이면 그날 하한 미만이었을 회차 + 내 기록 | `ds_list` + `mart.org_round_summary` + `app.bid_work_item` | 공고 | 목록 파싱 확장 필요 | `mart.open_auction_snapshot`, `app` | poll-open |
+| 오늘 | 열린 공고 목록(목록 관측 + 빌드 시점에 조인한 최신 상세의 하한율·품목 라벨·지역 코드·기관 관측 라벨) + 기관 최근 회차 요약 + 내 기록 | `ds_list` + `core.auction_revision`(빌드 시 조인) + `mart.org_round_summary` + `app.bid_work_item` | 공고 | 목록 원본에는 품목·지역·하한이 없다. 상세를 딴 공고만 그 열이 채워지고 나머지는 미확인이다 | `mart.open_auction_snapshot`, `app` | poll-open. 지금 값이면 열은 EAT-47 뒤 |
 | 성적표·복기 | 사업자번호로 대조한 내 투찰·낙찰·하한 미만(파생)·2등 차이, 회차별 결과 | `ds_bidList`(사업자·사정률·판정 코드) ↔ 워크스페이스 사업자 | 사업자 × 회차, 월 | eat-v2 계약이 읽는다 | `mart.supplier_monthly_record` | publish 뒤 mart 빌드 |
 | 내 값 기록 | 사용자가 적어둔 투찰률·금액·시각 | 사용자 입력 | 워크스페이스 × 회차 | — | `app.bid_work_item` | API 쓰기 |
 

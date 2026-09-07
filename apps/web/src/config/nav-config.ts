@@ -39,7 +39,8 @@ export const navGroups: NavGroup[] = [
   {
     label: '공고',
     items: [
-      { title: '오늘', url: '/dashboard/today', icon: 'sun', isActive: false, shortcut: ['t', 't'], items: [] },
+      // 오늘은 canonical `/today`(EAT-39)가 소유한다. legacy `/dashboard/today`는 삭제 전용 ledger로만 남는다.
+      { title: '오늘', url: '/today', icon: 'sun', isActive: false, shortcut: ['t', 't'], items: [] },
       { title: '학교 찾기', url: '/dashboard/schools', icon: 'search', isActive: false, shortcut: ['s', 's'], items: [] }
     ]
   },

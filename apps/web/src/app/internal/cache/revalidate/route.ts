@@ -1,7 +1,7 @@
 /** @module 책임: web 소유 캐시 무효화 operation을 resource 무효화 함수와 runtime 토큰에 조립한다. */
 import { randomUUID } from 'node:crypto';
 
-import { revalidateAuctionCache } from '@/api/auctions/server';
+import { revalidateAuctionCache, revalidateOpenAuctionSnapshotCache } from '@/api/auctions/server';
 import { revalidateOrgRoundSummaryCache } from '@/api/organizations/server';
 import { revalidateWinRateDistributionCache } from '@/api/win-rate-distribution/server';
 
@@ -16,7 +16,8 @@ export async function POST(request: Request): Promise<Response> {
     revalidators: {
       auctions: revalidateAuctionCache,
       orgRoundSummary: revalidateOrgRoundSummaryCache,
-      winRateDistributionMonthly: revalidateWinRateDistributionCache
+      winRateDistributionMonthly: revalidateWinRateDistributionCache,
+      openAuctionSnapshot: revalidateOpenAuctionSnapshotCache
     },
     requestId: randomUUID()
   });

@@ -60,9 +60,23 @@ describe('공고 Query Options', () => {
     expect(inputs).toEqual([expect.objectContaining({ signal: controller.signal })]);
   });
 
+  test('열린 공고 목록 query key는 기본값까지 정규화된 필터를 담는다', () => {
+    const queries = createAuctionQueries(requestDouble([]));
+    expect(queries.openLists()).toEqual(['auctions', 'open']);
+    expect(Array.from(queries.open({ region: '41', closesWithinHours: 72 }).queryKey)).toEqual([
+      'auctions',
+      'open',
+      { state: 'open', region: '41', closesWithinHours: 72, limit: 50 }
+    ]);
+    expect(queries.open({}).queryKey).toEqual(queries.open({ limit: 50 }).queryKey);
+    expect(() => queries.open({ closesWithinHours: 721 })).toThrow();
+  });
+
   test('browser 공개 진입점은 server 전용 함수를 재수출하지 않는다', () => {
     expect('getAuction' in auctionClient).toBe(true);
+    expect('listOpenAuctions' in auctionClient).toBe(true);
     expect('auctionQueries' in auctionClient).toBe(true);
     expect('getAuctionFromServer' in auctionClient).toBe(false);
+    expect('listOpenAuctionsFromServer' in auctionClient).toBe(false);
   });
 });

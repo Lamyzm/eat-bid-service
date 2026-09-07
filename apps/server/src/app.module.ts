@@ -11,6 +11,7 @@ import { LoggingModule, type RedactingJsonLogger } from "./platform/logging/logg
 import { RequestContextModule, type RequestContextStore } from "./platform/request-context/request-context.module";
 import { DatabaseModule } from "./platform/database/database.module";
 import type { AuctionReader } from "./modules/procurement/application/auction-reader";
+import type { OpenAuctionReader } from "./modules/procurement/application/open-auction-reader";
 import type { OrganizationAttemptReader } from "./modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "./modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "./modules/reference/application/code-reader";
@@ -36,6 +37,7 @@ export class AppModule {
         DatabaseModule.forRuntime(runtime.environment, {
           readiness: runtime.databaseReadiness,
           auctionReader: runtime.auctionReader,
+          openAuctionReader: runtime.openAuctionReader,
           organizationAttemptReader: runtime.organizationAttemptReader,
           winRateDistributionReader: runtime.winRateDistributionReader,
           codeReader: runtime.codeReader,
@@ -57,6 +59,7 @@ export interface AppModuleRuntime {
   readonly readiness: ReadinessState;
   readonly databaseReadiness?: DatabaseReadiness;
   readonly auctionReader?: AuctionReader;
+  readonly openAuctionReader?: OpenAuctionReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly codeReader?: CodeReader;

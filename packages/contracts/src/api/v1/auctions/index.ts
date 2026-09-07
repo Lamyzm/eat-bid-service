@@ -11,5 +11,23 @@ export { auctionClassificationSchema, type AuctionClassification } from "../../.
 export { auctionLocationSchema, type AuctionLocation } from "../../../resources/procurement/location";
 export { auctionTermsSchema, type AuctionTerms } from "../../../resources/procurement/terms";
 export { codeReferenceSchema, type CodeReference } from "../../../values/code-reference";
+export { martCoverageSchema, type MartBuildLineageWire, type MartCoverage } from "../../../values/mart-lineage";
 export { auctionV1ResponseSchema, type AuctionV1Response } from "./get-auction.response";
+export {
+  DEFAULT_OPEN_AUCTION_LIMIT,
+  openAuctionListQuerySchema,
+  type OpenAuctionListQuery,
+} from "./list-open-auctions.query";
+export {
+  openAuctionListMetaSchema,
+  openAuctionListV1ResponseSchema,
+  type OpenAuctionListMeta,
+  type OpenAuctionListV1Response,
+} from "./list-open-auctions.response";
+export {
+  openAuctionRowSchema,
+  type OpenAuction,
+  type OpenAuctionLastRound,
+  type OpenAuctionOrgSummary,
+} from "./open-auction.resource";
 export { auctionV1OperationRegistry, auctionV1Operations } from "./operations";

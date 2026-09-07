@@ -9,6 +9,7 @@ import {
   observedCounts,
   resetObservations
 } from './cache-observability';
+import { openAuctionsResponse } from './open-auctions-fixture';
 import { organizationAttemptsResponse } from './organization-attempts-fixture';
 import { winRateDistributionResponse } from './win-rate-distribution-fixture';
 
@@ -212,6 +213,10 @@ Bun.serve({
     }
     countRequest(pathname);
     if (request.method !== 'GET') return new Response(null, { status: 405 });
+
+    // 목록 경로는 `:auctionId` 경로보다 앞에서 본다. 경로가 다르므로 순서는 읽기 편의일 뿐이다.
+    const openAuctions = openAuctionsResponse(request);
+    if (openAuctions) return openAuctions;
 
     if (pathname === auctionPath(SUCCESS_AUCTION_ID)) {
       await Bun.sleep(SUCCESS_RESPONSE_DELAY_MILLISECONDS);
