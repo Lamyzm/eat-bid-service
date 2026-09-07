@@ -177,6 +177,52 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(page.getByText(/지난 \d+회 중 낙찰값 이하였을 회차/)).toBeVisible();
   });
 
+  // 1280에서 근거 열은 사이드바·rail을 뺀 636px인데 8열 표는 이보다 넓다. 표가 컨테이너 안에서만 움직여도
+  // 마지막 판정 열이 화면 밖에 있으면 "열이 사라졌다"로 읽히므로, 첫·마지막 열은 고정돼 항상 보이고 덮인
+  // 열이 있음을 그림자 힌트로 알려야 한다(EAT-86).
+  test('1280px에서 과거 회차 표의 판정 열이 잘리지 않고 보이며 넘친 쪽에 스크롤 힌트가 있다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1280, height: 1200 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
+    await page.getByText('이 공고가 열려 있습니다').waitFor();
+
+    const section = page.locator('section[aria-label="과거 회차"]');
+    const scroller = section.locator('table').locator('..');
+    const headerLast = section.locator('table thead th').last();
+    await expect(headerLast).toHaveText('90.000 썼다면');
+    await expect(headerLast).toBeVisible();
+
+    const geometry = await scroller.evaluate((node) => ({
+      overflows: node.scrollWidth > node.clientWidth + 1,
+      right: node.getBoundingClientRect().right
+    }));
+    const lastBox = await headerLast.boundingBox();
+    const firstBox = await section.locator('table thead th').first().boundingBox();
+    const sectionBox = await section.boundingBox();
+    if (!lastBox || !firstBox || !sectionBox) throw new Error('표 머리글 위치를 읽지 못했다');
+    // 판정 열은 스크롤 위치와 무관하게 컨테이너 오른쪽 안에 통째로 들어 있어야 한다.
+    expect(lastBox.x + lastBox.width).toBeLessThanOrEqual(geometry.right + 1);
+    expect(lastBox.x).toBeGreaterThanOrEqual(sectionBox.x);
+    // 넘치면 오른쪽 힌트가 켜지고 왼쪽 끝이라 왼쪽 힌트는 꺼진다. 넘치지 않으면 어떤 힌트도 남지 않는다.
+    // 힌트는 hydration 뒤 effect가 붙이므로 SSR HTML만 보고 판정하지 않도록 auto-wait하는 expect로 본다.
+    if (geometry.overflows) await expect(scroller).toHaveAttribute('data-scroll-right', '');
+    else await expect(scroller).not.toHaveAttribute('data-scroll-right', '');
+    await expect(scroller).not.toHaveAttribute('data-scroll-left', '');
+
+    if (geometry.overflows) {
+      await scroller.evaluate((node) => node.scrollTo({ left: node.scrollWidth }));
+      await expect(scroller).toHaveAttribute('data-scroll-left', '');
+      await expect(scroller).not.toHaveAttribute('data-scroll-right', '');
+      // 끝까지 밀어도 첫 열(개찰)은 왼쪽에 고정돼 남는다.
+      const firstAfter = await section.locator('table thead th').first().boundingBox();
+      expect(firstAfter?.x).toBeCloseTo(firstBox.x, 0);
+    }
+
+    const report = await overflowReport(page);
+    expect(report.overflow).toBe(0);
+    expectDocumentFits(report, 1280);
+  });
+
   test('투찰률 손잡이를 누르면 표 마지막 열 헤더와 이 값이면 값이 함께 바뀐다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: 1440, height: 1200 });

@@ -2,7 +2,7 @@
 'use client';
 
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { HistoryRow } from '../_model/attempt-history';
 import { toMilli } from '../_model/bid-rate';
@@ -23,7 +23,7 @@ const CELL_CLASS: Record<string, string> = {
   dayFloor: 'text-right text-[15px] font-medium tabular-nums text-destructive',
   winner: 'text-[15px] font-medium',
   list: 'text-right text-[15px] font-medium tabular-nums',
-  verdict: 'text-right text-[15px] tabular-nums bg-primary/10'
+  verdict: 'text-right text-[15px] tabular-nums'
 };
 
 const HEAD_CLASS: Record<string, string> = {
@@ -34,7 +34,7 @@ const HEAD_CLASS: Record<string, string> = {
   dayFloor: 'text-right',
   winner: 'text-left',
   list: 'text-right',
-  verdict: 'text-right tabular-nums bg-primary/10 text-primary'
+  verdict: 'text-right tabular-nums text-primary'
 };
 
 // 마지막 열은 원본 판정이 아니라 내 값과 낙찰값·그날 하한의 비교이므로 문구는 파생 서술 어휘에서만 가져온다(PDR-0002).
@@ -44,6 +44,52 @@ const VERDICT_TEXT: Record<RowVerdict, string> = {
   invalid: ROW_VERDICT_PHRASE.invalid.text,
   unknown: ROW_VERDICT_PHRASE.unknown.text
 };
+
+// 첫 열(개찰)과 마지막 열(판정)은 표가 근거 열보다 넓을 때 양 끝에 고정된다. 고정 열이 아래 열을 덮으므로
+// 바탕이 불투명해야 한다. 판정 열의 primary 10% 기운을 반투명 `bg-primary/10`으로 두면 덮인 글자가 비치므로
+// 카드색과 미리 섞은 불투명 색 하나만 건다(다른 bg-* 유틸리티와 함께 두면 stylesheet 순서가 이긴다).
+const STICKY_CLASS: Record<string, string> = {
+  opened: 'sticky left-0 z-10 bg-card',
+  verdict: 'sticky right-0 z-10 bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))]'
+};
+const OPENED_EDGE_SHADOW = 'shadow-[14px_0_14px_-10px_rgb(0_0_0/0.3)]';
+const VERDICT_EDGE_SHADOW = 'shadow-[-14px_0_14px_-10px_rgb(0_0_0/0.3)]';
+
+type ScrollEdges = { readonly left: boolean; readonly right: boolean };
+
+// 컨테이너가 가로로 넘칠 때만 고정 열 안쪽에 그림자를 걸어 "이 밑에 열이 더 있다"를 알린다. 넘치지 않으면
+// 아무 힌트도 없어야 표가 열에 맞는 폭에서 장식이 남지 않는다(EAT-86).
+function useScrollEdges() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState<ScrollEdges>({ left: false, right: false });
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const update = () => {
+      const left = node.scrollLeft > 1;
+      const right = node.scrollLeft + node.clientWidth < node.scrollWidth - 1;
+      setEdges((previous) => (previous.left === left && previous.right === right ? previous : { left, right }));
+    };
+    update();
+    node.addEventListener('scroll', update, { passive: true });
+    // 폭은 viewport뿐 아니라 손잡이 값(머리글 길이)·행 데이터로도 바뀌므로 컨테이너와 표 둘 다 관측한다.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(node);
+    if (node.firstElementChild) observer?.observe(node.firstElementChild);
+    return () => {
+      node.removeEventListener('scroll', update);
+      observer?.disconnect();
+    };
+  }, []);
+  return { ref, edges };
+}
+
+function edgeClass(columnId: string, edges: ScrollEdges) {
+  const sticky = STICKY_CLASS[columnId];
+  if (!sticky) return '';
+  if (columnId === 'opened') return `${sticky} ${edges.left ? OPENED_EDGE_SHADOW : ''}`;
+  return `${sticky} ${edges.right ? VERDICT_EDGE_SHADOW : ''}`;
+}
 
 const VERDICT_CLASS: Record<RowVerdict, string> = {
   won: 'text-primary font-semibold',
@@ -98,16 +144,23 @@ export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] })
   // oxlint-disable-next-line react/incompatible-library -- headless table 인스턴스는 함수를 돌려주지만 React Compiler는 annotation mode라 이 컴포넌트를 메모하지 않는다(apps/web AGENTS.md). "use memo"를 붙일 때 이 표를 함께 검증한다.
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
 
+  const { ref, edges } = useScrollEdges();
+
   // 1024에서도 8열이 근거 열 안에 들어가도록 xl 아래에서는 셀 여백을 줄인다. 그래도 넘치면 페이지가
-  // 아니라 이 컨테이너만 가로로 움직인다.
+  // 아니라 이 컨테이너만 가로로 움직이고, 첫·마지막 열은 고정돼 판정 열이 잘려 보이지 않는다.
+  // border-collapse에서는 sticky 셀이 행 테두리를 끌고 가지 못해 separate로 두고 테두리를 셀에 건다.
   return (
-    <div className='overflow-x-auto'>
-      <table className='w-full border-collapse'>
+    <div ref={ref} data-scroll-left={edges.left ? '' : undefined} data-scroll-right={edges.right ? '' : undefined} className='overflow-x-auto'>
+      <table className='w-full border-separate border-spacing-0'>
         <thead>
           {table.getHeaderGroups().map((group) => (
-            <tr key={group.id} className='border-b border-border'>
+            <tr key={group.id}>
               {group.headers.map((header) => (
-                <th key={header.id} scope='col' className={`px-2 py-2 text-[13px] font-semibold whitespace-nowrap text-muted-foreground xl:px-3 ${HEAD_CLASS[header.column.id]}`}>
+                <th
+                  key={header.id}
+                  scope='col'
+                  className={`border-b border-border px-2 py-2 text-[13px] font-semibold whitespace-nowrap text-muted-foreground xl:px-3 ${HEAD_CLASS[header.column.id]} ${edgeClass(header.column.id, edges)}`}
+                >
                   {flexRender(header.column.columnDef.header, header.getContext())}
                 </th>
               ))}
@@ -116,9 +169,12 @@ export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] })
         </thead>
         <tbody>
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className='border-b border-border/60 last:border-0'>
+            <tr key={row.id} className='group/row'>
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className={`px-2 py-2 whitespace-nowrap xl:px-3 ${CELL_CLASS[cell.column.id]}`}>
+                <td
+                  key={cell.id}
+                  className={`border-b border-border/60 px-2 py-2 whitespace-nowrap group-last/row:border-b-0 xl:px-3 ${CELL_CLASS[cell.column.id]} ${edgeClass(cell.column.id, edges)}`}
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
