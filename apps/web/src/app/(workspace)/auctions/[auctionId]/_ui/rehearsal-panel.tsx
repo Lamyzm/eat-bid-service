@@ -3,6 +3,7 @@
 
 import type { HistoryRow } from '../_model/attempt-history';
 import { rehearse, type Rehearsal } from '../_model/rehearsal';
+import { REHEARSAL_PHRASE } from '../_model/verdict-vocabulary';
 import { useBidRate } from './bid-rate-context';
 
 // 칸 하나가 회차 하나다. 이보다 많아지면 칸이 1px 아래로 뭉개져 세는 뜻을 잃으므로 비율 막대로 바꾼다.
@@ -81,20 +82,21 @@ export function RehearsalPanel({ rows }: { readonly rows: readonly HistoryRow[] 
         <p className='pb-2 text-[15px] font-medium text-muted-foreground'>비교할 회차가 없습니다</p>
       ) : (
         <>
+          {/* 판정어는 verdict-vocabulary가 소유한다. 소스에 없는 판정(무효 등)을 여기서 만들지 않는다(PDR-0002). */}
           <StatRow
-            label={`지난 ${result.total}회 중 낙찰됐을 회차`}
-            sub='지금 값을 그때 냈다면'
+            label={`지난 ${result.total}회 중 ${REHEARSAL_PHRASE.won.text}`}
+            sub={REHEARSAL_PHRASE.won.sub}
             value={`${result.won}회`}
             // 칸 스트립은 칸을 세면 비율이 보이지만 비율 막대는 그렇지 않아 숫자로 함께 말한다.
             tail={byCells ? undefined : `${Math.round((result.won / result.total) * 100)}%`}
             tone='text-primary'
           />
           {byCells ? <WonCells wonFlags={result.wonFlags} /> : <WonYears byYear={result.byYear} won={result.won} total={result.total} />}
-          {result.invalid > 0 ? (
+          {result.belowDayFloor > 0 ? (
             <StatRow
-              label='그날 하한보다 낮아 무효였을 회차'
-              sub='그날 하한: 추첨 뒤 실제로 적용된 하한'
-              value={`${result.invalid}회`}
+              label={REHEARSAL_PHRASE.belowDayFloor.text}
+              sub={REHEARSAL_PHRASE.belowDayFloor.sub}
+              value={`${result.belowDayFloor}회`}
               // 낙찰 행과 같은 분모를 명시한다. 두 행이 다른 기간을 말하는 것처럼 읽히면 안 된다.
               tail={`${result.total}회 중`}
               tone='text-destructive'

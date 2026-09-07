@@ -77,8 +77,8 @@ describe('결정 화면', () => {
     // 손잡이 값은 표의 마지막 열(투찰률 축)에만 쓰고 사정률 눈금인 흐름 차트에는 선으로 긋지 않는다(PDR-0004).
     expect(screen.queryByText('내 값 90.000')).toBeNull();
     expect(screen.getByText(/레일의 투찰률 90\.000은 분모가 기초금액이라/)).toBeTruthy();
-    // 품목 7의 17회차 중 예정가격이 관측된 15회차만 판정할 수 있다.
-    expect(screen.getByText('지난 15회 중 낙찰됐을 회차')).toBeTruthy();
+    // 품목 7의 17회차 중 예정가격이 관측된 15회차만 낙찰값과 견줄 수 있다.
+    expect(screen.getByText('지난 15회 중 낙찰값 이하였을 회차')).toBeTruthy();
   });
 
   test('탭 링크는 기간·모집단·품목 조건을 그대로 들고 간다', () => {

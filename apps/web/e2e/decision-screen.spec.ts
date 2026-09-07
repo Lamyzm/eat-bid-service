@@ -142,7 +142,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText('NaN');
 
     await expect(page.getByText('이 값이면', { exact: true })).toBeVisible();
-    await expect(page.getByText(/지난 \d+회 중 낙찰됐을 회차/)).toBeVisible();
+    await expect(page.getByText(/지난 \d+회 중 낙찰값 이하였을 회차/)).toBeVisible();
   });
 
   test('투찰률 손잡이를 누르면 표 마지막 열 헤더와 이 값이면 값이 함께 바뀐다', async ({ page }) => {
