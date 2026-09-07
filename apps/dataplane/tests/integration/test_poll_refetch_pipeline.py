@@ -7,13 +7,19 @@ from uuid import UUID
 
 from eatbid.composition import Application
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
+from eatbid.mart.models import DEFAULT_REGION_SCHEME
+from eatbid.mart.open_auction_snapshot import open_auction_snapshot_filler
+from eatbid.mart.org_round_summary import fill_org_round_summary
+from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
+from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
 from eatbid.pipeline.discover import DiscoveryPlan, DiscoveryResult, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.pipeline.refetch_baseline import PsycopgRefetchBaselineReader
 from eatbid.source.client import SourceResponse
 
 from ..unit.fakes import StaticSourceClient
-from .conftest import PipelineServices
+from .conftest import MigratedDatabase, PipelineServices
+from .mart_support import MART_AS_OF
 
 LIST_FIXTURE = Path(__file__).parents[1] / "fixtures" / "eat" / "bid-list-one.xml"
 DETAIL_FIXTURE = Path(__file__).parents[1] / "fixtures" / "eat" / "bid-detail-one.xml"
@@ -71,7 +77,9 @@ def _발견(
     )
 
 
-def _애플리케이션(services: PipelineServices, *, fetched_at: datetime) -> Application:
+def _애플리케이션(
+    services: PipelineServices, *, fetched_at: datetime, mart_repository: object = None
+) -> Application:
     return Application(
         connection=services.connection,
         http_client=StaticSourceClient(
@@ -84,6 +92,50 @@ def _애플리케이션(services: PipelineServices, *, fetched_at: datetime) -> 
         publication_repository=services.publication_repository,
         replay_repository=services.replay_repository,
         projection_repository=services.projection_repository,
+        mart_repository=mart_repository,
+    )
+
+
+def _build_marts_인자(round_number: int, *, built_at: datetime) -> SimpleNamespace:
+    identity = _정체성(round_number)
+    return SimpleNamespace(
+        source_release_id=identity["source_release_id"],
+        run_id=identity["detail_run_id"],
+        publication_id=identity["publication_id"],
+        mart=None,
+        calc_version="mart-eat-98",
+        build_sha=BUILD_SHA,
+        parser_version="eat-v1",
+        region_scheme=DEFAULT_REGION_SCHEME,
+        as_of=built_at,
+        built_at=built_at,
+    )
+
+
+def _스냅샷_build_수(services: PipelineServices, publication_id: UUID) -> int:
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "select count(*) from mart.build "
+            "where mart_name = 'open_auction_snapshot' and publication_id = %s",
+            (publication_id,),
+        )
+        row = cursor.fetchone()
+    services.connection.commit()
+    assert row is not None
+    return int(row[0])
+
+
+def _mart_repository(
+    services: PipelineServices, migrated_db: MigratedDatabase
+) -> PsycopgMartBuildRepository:
+    return PsycopgMartBuildRepository(
+        services.connection,
+        migrated_db.connect,
+        {
+            "org_round_summary": fill_org_round_summary,
+            "win_rate_distribution_monthly": fill_win_rate_distribution,
+            "open_auction_snapshot": open_auction_snapshot_filler(services.store),
+        },
     )
 
 
@@ -194,3 +246,91 @@ def test_poll_open은_봉인된_직전_release를_기준으로_바뀐_공고만_
         detail_run = cursor.fetchone()
     pipeline_services.connection.commit()
     assert detail_run == (1,)
+
+
+def test_poll_open_발행의_build_marts가_열린_공고_스냅샷_활성_build를_만든다(
+    pipeline_services: PipelineServices, migrated_db: MigratedDatabase
+) -> None:
+    unchanged = LIST_FIXTURE.read_bytes()
+    changed = unchanged.replace(
+        b'<Col id="BID_CNT">0</Col>', b'<Col id="BID_CNT">2</Col>', 1
+    )
+    baseline_at = T0 + 10 * POLL
+    polled_at = baseline_at + POLL
+
+    # 회차 4: poll-open의 기준이 될 daily-reconcile. 회차 5: 신호가 바뀐 poll-open 발행.
+    baseline = _발견(
+        pipeline_services,
+        round_number=4,
+        mode="daily-reconcile",
+        list_body=unchanged,
+        as_of=baseline_at,
+    )
+    _상세까지_발행한다(pipeline_services, baseline, round_number=4, at=baseline_at)
+    polled = _발견(
+        pipeline_services, round_number=5, mode="poll-open", list_body=changed, as_of=polled_at
+    )
+    assert polled.detail_external_bid_ids == ("5610615",)
+    _상세까지_발행한다(pipeline_services, polled, round_number=5, at=polled_at)
+    identity = _정체성(5)
+    # 활성 전환은 공유 DB의 현재 활성 build를 물리므로 빌드 시각이 그 build의 활성 시각보다 뒤여야
+    # `mart_build_supersession_chronology`를 지난다. 다른 mart test의 고정 시계(MART_AS_OF)보다 뒤에 둔다.
+    assert polled_at > MART_AS_OF
+    built_at = polled_at
+
+    results = _애플리케이션(
+        pipeline_services,
+        fetched_at=polled_at,
+        mart_repository=_mart_repository(pipeline_services, migrated_db),
+    ).build_marts(_build_marts_인자(5, built_at=built_at))
+
+    # --mart 없이 발행의 record type(eat-v1 → auction.v1, 명단 없음)으로 골랐는데도 스냅샷이
+    # 따라온다. 분포는 v1 발행의 영향 범위가 아니라 빠진다.
+    assert {result.mart_name for result in results} == {
+        "org_round_summary",
+        "open_auction_snapshot",
+    }
+    snapshot = next(r for r in results if r.mart_name == "open_auction_snapshot")
+    assert snapshot.status == "active"
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select count(*)
+              from mart.open_auction_snapshot as snapshot
+              join mart.build as build on build.build_id = snapshot.build_id
+             where build.mart_name = 'open_auction_snapshot' and build.status = 'active'
+               and build.publication_id = %s
+            """,
+            (identity["publication_id"],),
+        )
+        active_rows = cursor.fetchone()
+    pipeline_services.connection.commit()
+    assert active_rows is not None and active_rows[0] == snapshot.row_count > 0
+
+
+def test_backfill_발행의_build_marts는_열린_공고_스냅샷_build를_만들지_않는다(
+    pipeline_services: PipelineServices, migrated_db: MigratedDatabase
+) -> None:
+    backfilled_at = T0 + 20 * POLL
+    # 회차 6: 과거 창을 읽는 backfill. 같은 목록 fixture라도 스냅샷은 열린 공고의 관측이 아니다.
+    backfill = _발견(
+        pipeline_services,
+        round_number=6,
+        mode="backfill",
+        list_body=LIST_FIXTURE.read_bytes(),
+        as_of=backfilled_at,
+    )
+    assert backfill.detail_external_bid_ids == ("5610615",)
+    _상세까지_발행한다(pipeline_services, backfill, round_number=6, at=backfilled_at)
+    identity = _정체성(6)
+
+    results = _애플리케이션(
+        pipeline_services,
+        fetched_at=backfilled_at,
+        mart_repository=_mart_repository(pipeline_services, migrated_db),
+    ).build_marts(_build_marts_인자(6, built_at=backfilled_at))
+
+    # core mart는 그대로 만들되 스냅샷 build 행 자체가 생기지 않는다 — 마감된 과거 공고로 활성
+    # 스냅샷을 물리면 오늘 화면이 빈다.
+    assert {result.mart_name for result in results} == {"org_round_summary"}
+    assert _스냅샷_build_수(pipeline_services, identity["publication_id"]) == 0
