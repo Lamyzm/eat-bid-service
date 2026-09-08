@@ -25,8 +25,8 @@ import { Icons } from '@/components/icons';
 
 interface AppSidebarProps {
   /**
-   * 계정 허브처럼 session store·auth client를 읽는 legacy footer는 sidebar가 직접 import하지 않는다.
-   * legacy dashboard layout만 주입하고 canonical 업무 route는 session 계약이 생기기 전까지 비워 둔다.
+   * 세션 계약과 provider client를 읽는 계정 허브는 sidebar가 직접 import하지 않는다. shell은 endpoint를
+   * 읽지 않으므로 소유 layout이 이 slot으로 주입한다(ADR 0023, ADR 0032 §1).
    */
   readonly footer?: React.ReactNode;
 }

@@ -31,5 +31,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "plans", "scripts/cleanup-templates"]
+  "exclude": ["node_modules", "plans", "scripts/cleanup-templates", "scripts/auth-e2e.ts"]
 }

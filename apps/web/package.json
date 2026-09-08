@@ -20,6 +20,8 @@
     "test:e2e:today": "playwright test today-screen.spec.ts",
     "pretest:e2e:cache": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/shared build",
     "test:e2e:cache": "playwright test --config playwright.cache.config.ts",
+    "pretest:e2e:auth": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/shared build && pnpm --filter @eatbid/db build",
+    "test:e2e:auth": "cd ../server && bun ../web/scripts/auth-e2e.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix && bun format",
     "lint:strict": "pnpm --dir ../.. lint:web-boundaries && pnpm --dir ../.. lint:endpoints && oxlint --deny-warnings",

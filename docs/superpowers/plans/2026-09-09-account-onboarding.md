@@ -373,3 +373,51 @@ ledger 항목으로 남는다.
   1.0.0-rc.4 root에는 그 export가 없다. 우리는 관계 헬퍼를 선언하지 않고 adapter도 관계가 없으면 일반
   질의로 되돌아가므로 대조에서 그 자리만 대역으로 채웠다. 표·열·제약은 원문 그대로 평가한다.
 - 세션 갱신은 브라우저 POST에만 있으므로 web이 그 갱신을 실제로 호출해야 한다. 화면 연결 작업이 닫는다.
+
+## web 구현 결과 (2026-09-09)
+
+5단계 web까지 구현했다. 계획과 달라졌거나 계획에 없던 결정은 다음과 같다.
+
+- **전환 감지는 세션 hook 하나가 소유한다.** provider가 관측한 사용자 id를 세션 query key의 마지막 자리에
+  담아 계정 전환을 캐시 항목 분리로 표현한다. `authenticated` boolean은 A→B 직접 전환을 알아채지 못한다.
+  이 값은 전환 marker일 뿐이고 principal·워크스페이스의 권위는 세션 응답 union이 그대로 갖는다.
+- **복귀 경로 판정은 `shell/auth/return-path` 하나다.** 로그인만 끝난 사용자를 설정으로 넘길 때도 같은
+  `next` 값을 이어 나른다. 사업자등록번호처럼 사용자 자료는 이 parameter에 담지 않는다.
+- **legacy `/dashboard/my`는 화면을 남기지 않고 `/setup`으로 영구 이동한다.** 같은 개념의 진실 원천이
+  둘로 보이지 않게 하고, 브라우저에 남은 번호를 계정으로 옮기지 않는다.
+- **개인 응답 transport를 `api/_transport/private-server-request.server.ts`로 나눴다.** 공개 read는 `use cache`
+  경계 안에서 돌아 쿠키를 읽을 수 없으므로 adapter를 합치면 공개 read가 깨진다. 이 adapter는 resource
+  `server.ts`의 exact runtime import만 허용하는 web boundary 규칙과 함께 들어왔다.
+- **`app/(auth)`를 canonical layer 정규식에 넣었다(계획의 gate 영향 항목).** 그 결과 새 route group이 쓰던
+  `alert`·`card`·`input`·`label`·`badge`를 `shared/ui`로 옮기고 `components/ui`의 같은 경로는 legacy 소비자를
+  위한 재수출 barrel로만 남겼다. canonical UI는 `transition-all`을 쓸 수 없어 badge는 실제로 바뀌는 속성
+  목록으로 고쳤다. 예외를 넓히지 않고 검사 범위를 넓히는 방향이다.
+- **Nest `abortOnError`는 test runtime에서만 끈다.** `process.abort`는 finally를 건너뛰므로, 조립이 실패하면
+  일회용 PostgreSQL container를 소유한 harness가 자기 자원을 정리하지 못한 채 사라진다. 운영은 그대로
+  abort해 반쯤 산 프로세스가 트래픽을 받지 않게 한다. `create-app.test.ts`가 그 경계를 검사한다.
+
+### 실행한 검증
+
+- `pnpm lint:web-boundaries` 통과, `node --test tools/architecture/check-web-boundaries.test.mjs` 68 pass.
+- `pnpm --filter @eatbid/web typecheck` 통과, 같은 filter `test` 473 pass/0 fail(84파일), `build` 성공.
+  `/login`·`/setup`은 부분 prerender이고 `(workspace)` shell의 static은 그대로다.
+- `pnpm quality:check`(테스트명 1663·module 주석 752)와 `pnpm architecture:check`(endpoint·contracts·
+  contracts:python·skill projection 포함) 통과.
+- 서버: `bun test src/bootstrap src/platform src/modules` 122 pass, `src/testing/account-http.integration.test.ts`
+  6 pass(일회용 PostgreSQL), `src/bootstrap`+`operational-http.e2e` 18 pass. 모두 `apps/server` cwd에서 실행했다.
+- 인증 E2E: `pnpm --filter @eatbid/web test:e2e:auth` 12 passed. 실제 migration DB·실제 Nest 조립·실제 서명
+  세션·Chromium 경로이며 합성 세션이지 실제 Google 왕복이 아니다.
+
+### 미검증과 알려진 관측
+
+- 실제 Google OAuth 왕복은 client 발급과 redirect URI 등록이 사용자 계정 작업이라 여전히 미검증이다.
+- 배포 전 시안 대조는 하지 않았다. 남은 캡처는 `test-results/auth/setup-registered.png` 한 장뿐이다.
+- 서버 통합 스위트 전체(`src/testing`)는 다시 돌리지 않았다. 이번 변경과 관련된 파일만 재실행했다.
+- `pnpm --filter @eatbid/web lint`와 `lint:strict`는 이번 변경 이전부터 legacy `app/dashboard`·`components/ui`
+  스타터 파일 때문에 실패한다. 이번에 만들거나 고친 파일만 좁혀 돌린 `oxlint --deny-warnings`는 finding 0이다.
+- 저장소 루트 cwd에서 `bun test`를 돌리면 root tsconfig에 `emitDecoratorMetadata`가 없어 Nest DI가 생성자
+  타입을 잃고 무관한 실패가 난다. 서버 검사는 `apps/server` cwd에서 실행한다.
+- dev 서버는 `/dashboard/my`의 영구 이동을 `instant`를 확인할 수 없다는 경고로 남긴다. 실제 이동은 E2E가
+  확인했고 production build도 그 route를 부분 prerender로 만든다.
+- 이전 세션이 turn 한도로 끝나면서 `eatbid-eat47-account-*` container 10개가 남아 있다. 이 작업의 범위는
+  container mutation을 포함하지 않아 지우지 않았다.

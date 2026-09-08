@@ -183,7 +183,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
         testOnlyImports: options.testOnlyImports,
       }),
       adapter,
-      { abortOnError: true, bodyParser: false, logger },
+      // 운영에서는 조립 실패를 그대로 죽여 반쯤 산 프로세스가 트래픽을 받지 않게 한다. 검사 실행에서만
+      // 오류를 호출자에게 돌려주는 이유는 `process.abort`가 finally를 건너뛰어, 일회용 PostgreSQL
+      // container를 소유한 harness가 자기 자원을 정리하지 못한 채 사라지기 때문이다.
+      { abortOnError: environment.runtimeMode !== "test", bodyParser: false, logger },
     );
   } catch (error) {
     // 이 지점 이후의 실패는 Nest 종료 단계가 같은 풀을 닫는다.

@@ -5,5 +5,11 @@ export {
   IconClock,
   IconBriefcase,
   IconFileDescription,
-  IconLayoutSidebarRight
+  IconLayoutSidebarRight,
+  IconUserCircle,
+  IconSelector,
+  IconSettings,
+  IconLogin,
+  IconLogout,
+  IconAlertTriangle
 } from '@tabler/icons-react';

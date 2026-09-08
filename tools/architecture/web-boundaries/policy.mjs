@@ -43,7 +43,7 @@ export const MIN_DUPLICATE_BYTES = 200;
 // legacy는 폴더를 옮기지 않고 import 방향으로만 격리한다. 신규 층이 스타터 수평 폴더를 다시 참조하면
 // 폴더 이동만으로 target-compliant처럼 보이는 상태가 되므로 여기서 역참조를 끊는다.
 // legacy route-private module(dashboard·welcome·s)도 canonical 층이 끌어다 쓰면 같은 역참조다.
-const CANONICAL_LAYER_PATH = /^apps\/web\/src\/(?:app\/\(workspace\)|shell|capabilities|api|shared|routing)\//;
+const CANONICAL_LAYER_PATH = /^apps\/web\/src\/(?:app\/\((?:workspace|auth)\)|shell|capabilities|api|shared|routing)\//;
 const LEGACY_DIRECTORY_SPECIFIER = /^@\/(?:components|hooks|lib|config|types|app\/(?:dashboard|welcome|s))(?:\/|$)/;
 const LEGACY_DIRECTORY_PATH = /^apps\/web\/src\/(?:components|hooks|lib|config|types|app\/(?:dashboard|welcome|s))\//;
 
