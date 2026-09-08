@@ -148,6 +148,17 @@ acceptance가 작고 분명한 변경이 적합하다. `F-001` 전체를 한 번
 
 ## 7. Codex와 Claude의 협업 규칙
 
+### 운영 역할과 작업량
+
+Codex는 범위·선행조건·결정 원문을 확인하고, Claude Code는 정해진 범위의 주 구현자가 된다.
+Codex가 제출 diff와 증거를 검토하고 하나의 dev에 통합한다. 같은 변경을 두 AI가 다시 구현하지
+않는다. 기본 동시 writer는 한 명이며, 경로와 계약 의존성이 분리된 인프라·프론트 작업에만
+별도 issue/worktree로 두 명까지 허용한다. subagent는 독립 조사·명세 검토처럼 작게 분리된 일에 쓴다.
+
+실행 단위는 **사용자가 확인할 수 있는 작은 결과 하나**다. Kanban의 작업량 제한과 짧은 명세,
+필요한 데이터→API→화면 연결을 함께 적용한다. ‘프론트 완료’처럼 범위가 열린 일을 통째로 넘기지
+않는다. 반복 실행은 [공통 delivery Skill](../../.agents/skills/eatbid-supervised-delivery/SKILL.md)을 쓴다.
+
 ### 7.1 한 work item, 한 writing agent
 
 - 파일을 쓰기 전에 Linear issue를 자신에게 assign하고 `branch/worktree | owned paths`를 마지막
@@ -189,6 +200,45 @@ M/L 변경은 구현하지 않은 다른 agent가 다음 순서로 검토한다.
   구현하지 않은 reviewer의 검토, 사람의 명시적 승인이 모두 있을 때만 임시로 merge할 수 있다.
   `required check 미구성`을 그대로 남기며 자동 merge는 금지한다.
 - CI가 실패했는데 agent의 자기확인이나 사람의 승인만으로 우회하지 않는다.
+
+### 7.5 작업 묶음과 통합 판정
+
+위임할 때 다음을 고정한다. Linear issue는 이 묶음의 범위·상태를 소유하고 Git 문서 원문을 복제하지 않는다.
+
+| 항목 | 필요한 내용 |
+|---|---|
+| 결과 | 사용자 질문, 변경 행동, 비목표, acceptance |
+| 기준 | 시작 commit, 명세·PDR/ADR의 경로와 상태·적용 절, 디자인 원본 버전, 소비 계약 commit |
+| 소유 | issue, worktree, writer session, 허용 경로, 기존 재사용 대상 |
+| 증거 | acceptance별 검사, 고정 fixture·viewport·테마·필터·패널 상태, 실제 API 검증 대상 |
+| 인계 | 결과 commit, 실행한 검사와 실패, 잔여 차이, 결정 필요 사항 |
+
+구현자는 처음과 인계 전에 기준 파일을 대조한다. 원문이 없거나 대체·변경되면 해당 결정을 추측하지
+않고 총괄에게 알린다. 계약 변경의 영향을 받은 소비자만 기준을 갱신하고 관련 검사를 다시 실행한다.
+hash 일치는 이해의 증명이 아니므로 실제 예시 한 개로 값·선택 대상의 의미도 확인한다.
+
+UI 인수는 두 증거로 나눈다. **같은 fixture와 viewport**로 시안 충실도를 비교하고, **실제 API
+자료**로 값·선택·빈 상태를 확인한다. 회차 수가 다른 실제 화면 캡처 하나만으로 픽셀 일치를
+판정하지 않는다. 시안에 맞추려고 실제 행을 숨기거나 모의 데이터를 서비스에 섞지 않는다.
+
+인프라는 단계별 테스트 외에 재시작 후 부족분 회수, 동일 입력의 멱등성, 불완전 실행의 발행 차단을
+확인한다. 재생성 검증은 격리 환경/파생 사본에서 실행한다. 실제 운영 삭제나 호스트 재부팅을 하지
+않았다면 수행했다고 쓰지 않는다. 5년 전체 수집의 완료와 작은 내부 화면 검증은 별도 인수 조건이다.
+
+결정적 gate 뒤 `pnpm review:ai`의 읽기 전용 advisory를 사용한다. 총괄은 diff와 제출 증거를 검토하고
+실제 통합 commit에서 필요한 smoke를 확인한다. 원인 없이 전체 검사를 계속 반복하지 않는다.
+‘구현 검증’, ‘dev 통합’, ‘운영 배포’, ‘사용자 인수’는 각각 확인된 상태만 보고한다.
+
+### 7.6 사용자 판단과 비용
+
+새 제품 의미·비교 분모·자료 노출 범위·과금 경계·기존 결정을 뒤집는 행동은 총괄이 선택지, 영향,
+권고를 정리해 사용자에게 묻는다. 승인된 범위의 컴포넌트 재사용·간격·테스트·복구는 계속 진행한다.
+질문이 남은 동안 독립 작업은 수행하며, 답을 기다리는 시간으로 승인을 대신하지 않는다.
+
+Claude CLI에는 관련 원문과 작은 작업 묶음만 전달한다. 관련 수정은 같은 세션으로 이어가고 무관한
+작업은 새 세션으로 시작한다. 저장소 hooks를 유지하고 별도 과금 key나 권한 우회 옵션을 주입하지
+않는다. 첫 세 작업에서 제공되는 사용량·소요 시간·재작업 횟수를 기록하되 구독 사용량과 API 청구액을
+혼동하지 않는다. Codex 구현 중복 감소가 목표이며 총 토큰 절감을 미리 보장하지 않는다.
 
 ## 8. Linear 운영안
 
@@ -234,12 +284,16 @@ target date와 진척률 숫자는 만들지 않는다.
 1. `AGENTS.md`와 얇은 Claude adapter를 공통 진입점으로 사용한다.
 2. 기존 roadmap은 capability와 outcome gate만 소유하게 한다.
 3. 새 delivery work는 Linear issue template의 공통 intake 형식으로 시작한다.
-4. 다음의 작은 M 규모 변경 하나에서 OpenSpec을 파일럿한다.
-5. 반복이 실제로 확인된 절차만 공용 Agent Skill로 만든다.
+4. 공통 delivery 절차로 시안 복원 한 묶음을 Claude에 위임하고 dev 인수까지 확인한다.
+5. 다음으로 Argo 복구 한 묶음과 작은 실제 데이터 연결을 검증한다. OpenSpec 설치는 이 파일럿의 선행조건이 아니다.
 6. Issue 품질, worktree 격리, CI 판정이 안정된 뒤에만 장기 agent orchestration을 검토한다.
 
 ## 11. 참고한 공식 자료
 
+- [The Kanban Guide — 흐름과 진행 중 작업량](https://kanbanguides.org/the-kanban-guide/)
+- [Claude Code — 프로그램에서 실행](https://code.claude.com/docs/en/headless)
+- [Claude Code — 비용과 context 관리](https://code.claude.com/docs/en/costs)
+- [Linear — project milestones](https://linear.app/docs/project-milestones)
 - [OpenAI — Harness engineering](https://openai.com/index/harness-engineering/)
 - [Claude Code — project memory와 AGENTS.md import](https://code.claude.com/docs/en/memory)
 - [Claude Code — Agent Skills](https://code.claude.com/docs/en/slash-commands)
