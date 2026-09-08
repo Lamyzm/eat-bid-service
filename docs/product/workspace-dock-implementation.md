@@ -1,7 +1,7 @@
 # 전역 오른쪽 공간과 전체 폭 분석 화면의 구현 계획
 
-**상태:** 2026-09-08 사용자 검토용 계획. 사용자가 "지금 바로 하지 말고 코드 어떻게 가져가야 할지
-기획부터"라고 지시했으므로 이 수정에서는 제품 코드를 변경하지 않는다.
+**상태:** 2026-09-08 계획 검토와 전역 메뉴/전체 폭 기준 재확인 후 사용자가 "진행해봐"로 실행을
+승인했다. 아래 A/B와 브라우저 검증을 dev에 구현했으며 마지막 AI advisory와 handoff를 기록한다.
 
 **목표:** 분석 화면의 좌우 바깥 여백과 최대 폭 제한을 없애고, 공고·기록 도구와 선택 상세를
 공통 레이아웃의 오른쪽 끝에 배치한다. 기존 차트·표·명단·shadcn 컴포넌트를 재사용한다.
@@ -70,6 +70,10 @@ type DockSlotName = 'panel' | 'rail' | 'header';
 - host는 공통 레이아웃이 안정된 callback ref로 제공하고, `DockSlot`은 같은 host에 portal을 만든다.
   패널 열림이나 테마 전환으로 host DOM을 교체하지 않는다. route의 QueryClient·선택·후보 context는
   portal을 통과해 유지되므로 shell로 데이터나 ReactNode state를 복사할 필요가 없다.
+- Next의 Activity가 이전 화면을 숨겨 보관할 때 단순 portal은 숨은 DOM 때문에 전역 상세 폭을
+  남겼다. slot별로 안정된 mount 노드를 만들고 layout Effect에서 host에 붙이거나 해제한다.
+  Activity의 Effect 정리에 따라 지면을 비우고 다시 활성화하면 같은 노드를 붙여 상태를 복원한다.
+  provider는 host만 소유하며 API나 전역 selector를 추가하지 않는다.
 - `AttemptSelectionProvider`는 중앙 분석 대상과 다른 `selectedId`, 공고/기록 관점, 열림을 유지한다.
   이번 실제 연결은 기존의 한 개 활성 패널만 사용한다. 전역 세 목록을 연결하는 후속 작업에서도
   동시에 다른 패널을 추가하지 않고 이 한 공간의 활성 관점을 전환해야 한다.
@@ -116,13 +120,14 @@ type DockSlotName = 'panel' | 'rail' | 'header';
 추가: `apps/web/src/shell/layout/workspace-dock.tsx`, `workspace-layout.css`,
 `apps/web/src/shared/ui/workspace-dock-slots.tsx`, `workspace-dock-slots.test.tsx`.
 
-- [ ] 먼저 slot 안에서 route context 값을 읽는 통합 테스트를 쓴다. 값 변경 후 같은 상세에 반영되고
+- [x] 먼저 slot 안에서 route context 값을 읽는 통합 테스트를 쓴다. 값 변경 후 같은 상세에 반영되고
   route child를 제거하면 공통 host가 비는 것을 확인한다. 구현 전 실패를 확인한다.
-- [ ] `createPortal(children, host)`로 slot primitive를 구현한다. callback ref가 host를 해제하면
+- [x] `createPortal(children, mount)`로 slot primitive를 구현한다. callback ref가 host를 해제하면
   portal도 해제한다. 새 query/store/서버 호출을 만들지 않는다.
-- [ ] shell에서 Header 아래 공통 열을 조립하고, 오른쪽 상세·도구의 폭과 높이는 shell CSS가 소유한다.
+- [x] shell에서 Header 아래 공통 열을 조립하고, 오른쪽 상세·도구의 폭과 높이는 shell CSS가 소유한다.
   기존 `SidebarInset`을 재사용해 main landmark를 중복 생성하지 않는다.
-- [ ] 통합 테스트와 TypeScript를 통과시키고 공통 slot 단위를 커밋한다.
+- [x] 통합 테스트와 TypeScript를 통과시켰다. 실제 연결과 Activity 검증을 함께 검토하도록 B와 같은
+  구현 커밋으로 묶는다.
 
 ### B. 실제 공고·기록 이동과 전체 폭
 
@@ -132,32 +137,33 @@ type DockSlotName = 'panel' | 'rail' | 'header';
 추가: 같은 `_ui/auction-workspace-dock.tsx`.
 공유 패널의 테두리·높이 조정이 필요하면 `shared/ui/responsive-dock.tsx`에서 시각 variant로 제공한다.
 
-- [ ] 기존 테스트를 공통 host가 있는 harness로 확장한다. 기록 선택 후 명단은 frame 외부 host에 있고,
+- [x] 기존 테스트를 공통 host가 있는 harness로 확장한다. 기록 선택 후 명단은 frame 외부 host에 있고,
   중앙 공고 제목은 그대로이며 닫기 후 선택이 유지되는 것을 구현 전 실패로 확인한다.
-- [ ] 기존 `SelectedAttemptRail`의 조립 책임을 `AuctionWorkspaceDock`으로 옮긴다. 실제 명단 rendering과
+- [x] 기존 `SelectedAttemptRail`의 조립 책임을 `AuctionWorkspaceDock`으로 옮긴다. 실제 명단 rendering과
   query는 `AuctionRosterPanel`에 남기고 복제하지 않는다. 상단 진입도 Header slot으로 옮긴다.
-- [ ] `DecisionFrame`의 `rail`·`toolbar`와 내부 aside를 제거하고 실제 화면과 skeleton을 함께 고친다.
+- [x] `DecisionFrame`의 `rail`·`toolbar`와 내부 aside를 제거하고 실제 화면과 skeleton을 함께 고친다.
   상위 root의 max-width·margin auto·외곽 수평 padding만 없앤다. 차트·표 내부 여백은 유지한다.
-- [ ] 우측 geometry CSS를 shell로 옮기고 route CSS에는 필터와 중앙 chart/history 배분만 남긴다.
+- [x] 우측 geometry CSS를 shell로 옮기고 route CSS에는 필터와 중앙 chart/history 배분만 남긴다.
   기존 차트 `autoSize`를 활용하고 패널 열림이나 폭 변경을 차트 key에 넣지 않는다.
-- [ ] UI 상태·명단·화면 테스트, TypeScript, scoped lint, `pnpm quality:check`,
+- [x] UI 상태·명단·화면 테스트, TypeScript, scoped lint, `pnpm quality:check`,
   `pnpm lint:web-boundaries`, `git diff --check`를 통과시키고 커밋한다.
 
 ### C. 시안과 실제 화면의 완료 판정
 
-- [ ] 시안 A와 dev를 같은 viewport·왼쪽 접힘 상태·오른쪽 열림 상태·일반/집중 보기로 캡처한다.
+- [x] 시안 A와 dev를 같은 viewport·왼쪽 접힘 상태·오른쪽 열림 상태·일반/집중 보기로 캡처한다.
   시안의 검토용 상단 바는 비교에서 제외하고 제품 헤더 아래 경계를 기준으로 정렬한다.
-- [ ] 1920×1080, 2560×1440에서 기본 화면 폭이 1600px에 머무르지 않고 가용 폭을 쓰는지 확인한다.
+- [x] 1920×1080, 2560×1440에서 기본 화면이 가용 폭을 쓰는지 확인한다. 왼쪽 256px와 전역 메뉴
+  64px가 열려 있으면 중앙은 각각 1600px·2240px이며 두 폭 모두 바깥 여백이 없다.
   공통 도구 줄의 오른쪽 경계가 스크롤바를 제외한 layout viewport 오른쪽과 1 CSS px 이내인지 확인한다.
-- [ ] 1440×1000, 1200×900, 1199×900, 1024×768, 375×812에서 가로 넘침이 없고,
+- [x] 1440×1000, 1200×900, 1199×900, 1024×768, 375×812에서 가로 넘침이 없고,
   1199px 이하 오른쪽 너비 0과 공통 헤더 진입·Sheet Escape·초점 복귀를 확인한다.
-- [ ] 실제 공고 5270의 과거 회차 명단 6건·34건을 전환한다. 차트 인스턴스·보이는 시간/비율 범위와
+- [x] 실제 공고 5270의 과거 회차 명단 6건·34건을 전환한다. 차트 인스턴스·보이는 시간/비율 범위와
   표 스크롤·선택을 확인한다. 폭이 달라지는 동안 캔버스 픽셀 일치는 요구하지 않는다. 같은 폭으로
   닫아 돌아왔을 때의 범위와 표시를 비교한다.
-- [ ] `/today`, `/dashboard/delivery`, `/dashboard/my`로 이동해 공통 배치와 원래 화면 폭·스크롤·메뉴를
+- [x] `/today`, `/dashboard/delivery`, `/dashboard/my`로 이동해 공통 배치와 원래 화면 폭·스크롤·메뉴를
   확인하고 전역 메뉴 유지와 공고 route의 낡은 맥락·명단 해제를 각각 확인한다.
-  loading/error에도 host가 유지되는지 본다.
-- [ ] 시안 대비 남은 차이를 `notice-dev-cohort-integration.md`에 적는다. 테스트 통과와 시안 일치를
+  실제 not-found와 skeleton 테스트, Activity 숨김·복원에서 host의 수명주기를 확인했다.
+- [x] 시안 대비 남은 차이를 `notice-dev-cohort-integration.md`에 적는다. 테스트 통과와 시안 일치를
   별도 결과로 보고한다. 실제 데이터 부족은 레이아웃 일치로 해결됐다고 주장하지 않는다.
 - [ ] 결정적 검사 후 clean commit을 `pnpm review:ai -- --base b78a76c`으로 검토하고
   evidence와 대조한 결과를 남긴다. Linear handoff 후 lease를 해제한다.

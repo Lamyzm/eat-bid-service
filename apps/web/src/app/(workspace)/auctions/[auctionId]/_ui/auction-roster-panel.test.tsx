@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render as renderUI } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { WorkspaceDockFixture } from '../__fixtures__/workspace-dock';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AuctionRosterV1Response } from '@eatbid/contracts/api/v1/auctions';
 import { auctionQueries } from '@/api/auctions';
@@ -7,12 +9,15 @@ import { attemptsFixture } from '../__fixtures__/attempts';
 import { presentHistory } from '../_model/attempt-history';
 import { BidRateProvider } from './bid-rate-context';
 import { HistoryTable } from './history-table';
-import { AuctionRosterPanel, SelectedAttemptRail } from './auction-roster-panel';
+import { AuctionRosterPanel } from './auction-roster-panel';
+import { AuctionWorkspaceDock } from './auction-workspace-dock';
 import { DecisionScreen } from './decision-screen';
 import { fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { presentDecision } from '../_model/present-decision';
 import type { DecisionSearch } from '../_lib/decision-search-params';
 import { AttemptSelectionProvider } from './attempt-selection';
+
+const render = (ui: ReactNode) => renderUI(ui, { wrapper: WorkspaceDockFixture });
 
 const rows = presentHistory(attemptsFixture, null).rows;
 const selected = rows[0]!;
@@ -70,7 +75,7 @@ describe('회차 명단 상세', () => {
           <BidRateProvider initialRate={null}>
             <AttemptSelectionProvider rows={currentRows}>
               <HistoryTable rows={currentRows} />
-              <SelectedAttemptRail fallback={<p>현재 공고 본문</p>} />
+              <AuctionWorkspaceDock fallback={<p>현재 공고 본문</p>} />
             </AttemptSelectionProvider>
           </BidRateProvider>
         </QueryClientProvider>
@@ -99,7 +104,7 @@ describe('회차 명단 상세', () => {
         <BidRateProvider initialRate={null}>
           <AttemptSelectionProvider rows={rows}>
             <HistoryTable rows={rows} />
-            <SelectedAttemptRail fallback={null} />
+            <AuctionWorkspaceDock fallback={null} />
           </AttemptSelectionProvider>
         </BidRateProvider>
       </QueryClientProvider>
@@ -199,7 +204,7 @@ describe('회차 명단 상세', () => {
         <BidRateProvider initialRate={null}>
           <AttemptSelectionProvider rows={rows}>
             <HistoryTable rows={rows} />
-            <SelectedAttemptRail fallback={null} />
+            <AuctionWorkspaceDock fallback={null} />
           </AttemptSelectionProvider>
         </BidRateProvider>
       </QueryClientProvider>

@@ -50,7 +50,7 @@ export function DecisionTools({ placement }: { readonly placement: 'top' | 'rail
       </div>
     );
   return (
-    <nav data-slot='decision-tool-rail' aria-label='공고 도구'>
+    <nav data-slot='decision-tool-rail' aria-label='공고 도구' className='grid gap-2'>
       <Button
         variant={panel === 'current' ? 'secondary' : 'ghost'}
         aria-label='현재 공고 정보'

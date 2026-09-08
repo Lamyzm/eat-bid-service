@@ -20,8 +20,8 @@ import { HistoryTable } from './history-table';
 import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
 import { AttemptSelectionProvider } from './attempt-selection';
-import { SelectedAttemptRail } from './auction-roster-panel';
-import { CurrentAuctionFacts, DecisionTools } from './decision-tools';
+import { AuctionWorkspaceDock } from './auction-workspace-dock';
+import { CurrentAuctionFacts } from './decision-tools';
 
 type HistoryState = DecisionPageData['history'];
 type DistributionState = DecisionPageData['distribution'];
@@ -87,7 +87,6 @@ export function DecisionScreen({
         <DecisionFrame
           focus={search.expand === '흐름' && search.view === '흐름'}
           header={<DecisionHeader decision={decision} cadence={cadence} />}
-          toolbar={<DecisionTools placement='top' />}
           banner={<DecisionBanner decision={decision} cadence={cadence} />}
           filters={
             <DecisionFilters
@@ -117,22 +116,20 @@ export function DecisionScreen({
               <PendingCard title='과거 회차' reason={HISTORY_PENDING_REASON[history.state]} />
             )
           }
-          rail={
-            <SelectedAttemptRail
-              fallback={
-                <>
-                  <CurrentAuctionFacts decision={decision} />
-                  {decision.railState === 'closed' ? null : (
-                    <BidRail
-                      decision={decision}
-                      rehearsal={
-                        history.state === 'ready' ? <RehearsalPanel rows={selectedRows} /> : null
-                      }
-                    />
-                  )}
-                </>
-              }
-            />
+        />
+        <AuctionWorkspaceDock
+          fallback={
+            <>
+              <CurrentAuctionFacts decision={decision} />
+              {decision.railState === 'closed' ? null : (
+                <BidRail
+                  decision={decision}
+                  rehearsal={
+                    history.state === 'ready' ? <RehearsalPanel rows={selectedRows} /> : null
+                  }
+                />
+              )}
+            </>
           }
         />
         {/* 크게 보기 모달은 URL expand가 열고 닫는다. 프레임 밖에 두어 section 순서 검사에 섞이지 않게 한다. */}

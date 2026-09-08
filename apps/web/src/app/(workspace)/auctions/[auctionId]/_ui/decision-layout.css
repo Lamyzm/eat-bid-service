@@ -1,12 +1,7 @@
 /* 공고 분석의 일반 문서 흐름과 큰 viewport의 차트 집중 분할만 소유한다. */
-[data-slot='decision-screen'] > header { background: var(--background); padding-block: 4px; }
-[data-slot='decision-filter-bar'] { background: var(--background); border-block: 1px solid var(--border); padding-block: 10px; }
-[data-slot='decision-screen'][data-focus] { max-width: none; }
-[data-slot='decision-screen'] aside:empty { display: none; }
-[data-slot='decision-columns']:has(> aside:empty) { grid-template-columns: minmax(0, 1fr); }
-[data-slot='decision-columns'] > aside { display: none; }
-[data-slot='decision-tools-top'] { display: flex; justify-content: flex-end; }
-[data-slot='decision-tool-rail'] { display: none; }
+[data-slot='decision-screen'] > header { background: var(--background); padding: 4px 16px; }
+[data-slot='decision-filter-bar'] { background: var(--background); border-block: 1px solid var(--border); padding: 10px 16px; }
+[data-slot='decision-columns'] { grid-template-columns: minmax(0, 1fr); }
 
 /* 공통 셸과 회차 표를 재사용하며 v7의 평평한 분석 지면만 테마에 맞춘다. */
 [data-theme='toss'] [data-slot='decision-screen'] { gap: 10px; }
@@ -19,23 +14,11 @@
 
 /* 일반 보기는 문서 하나가 스크롤하고 현재 공고를 지난 뒤에도 분석 조건에 접근할 수 있다. */
 @media (min-width: 640px) {
-  [data-slot='decision-filter-bar'] { position: sticky; top: 56px; z-index: 20; }
-}
-@media (min-width: 1200px) {
-  [data-slot='decision-columns'] { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
-  [data-slot='decision-columns'] > aside { display: block; position: sticky; top: 128px; max-height: calc(100dvh - 144px); }
-  [data-slot='decision-tools-top'] { display: none; }
-  [data-slot='decision-dock'] { display: flex; align-items: flex-start; gap: 8px; max-height: inherit; }
-  [data-slot='responsive-dock'] { width: 320px; max-height: inherit; overflow-y: auto; overscroll-behavior: contain; }
-  [data-slot='responsive-dock'][hidden] { display: none; }
-  [data-slot='responsive-dock'] > header { position: sticky; top: 0; z-index: 10; background: var(--card); }
-  [data-slot='decision-tool-rail'] { display: flex; width: 56px; flex-shrink: 0; flex-direction: column; gap: 8px; }
-  [data-slot='decision-tool-rail'] > button { height: 56px; flex-direction: column; gap: 5px; padding-inline: 3px; }
-  [data-slot='decision-tool-rail'] span { font-size: 12px; }
+  [data-slot='decision-filter-bar'] { position: sticky; top: var(--workspace-header-height, 56px); z-index: 20; }
 }
 
 @media (min-width: 1280px) and (min-height: 850px) {
-  [data-slot='decision-screen'][data-focus] { height: calc(100dvh - 56px); grid-template-rows: auto auto auto minmax(0, 1fr); gap: 8px; }
+  [data-slot='decision-screen'][data-focus] { height: calc(100dvh - var(--workspace-header-height, 56px)); grid-template-rows: auto auto auto minmax(0, 1fr); gap: 8px; }
   [data-slot='decision-screen'][data-focus] [data-slot='decision-filter-bar'] { position: static; }
   [data-slot='decision-screen'][data-focus] [data-slot='decision-columns'] { min-height: 0; align-items: stretch; }
   [data-slot='decision-screen'][data-focus] [data-slot='decision-main'] { min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(220px, 34%); gap: 10px; }
@@ -45,12 +28,9 @@
   [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'] { display: block; }
   [data-slot='decision-screen'][data-focus] figure { flex: 1; min-height: 0; }
   [data-slot='decision-screen'][data-focus] [data-slot='flow-canvas'] { height: auto; min-height: 120px; flex: 1; flex-basis: 0; }
-  [data-slot='decision-screen'][data-focus] aside { min-height: 0; max-height: 100%; }
-  [data-slot='decision-screen'][data-focus] [data-slot='decision-dock'] { height: 100%; }
   [data-slot='decision-screen'][data-focus] section[aria-label='과거 회차'] { min-height: 0; overflow: hidden; }
   [data-slot='decision-screen'][data-focus] [data-slot='history-card'] { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   [data-slot='decision-screen'][data-focus] [data-slot='history-card'] > :first-child { flex-shrink: 0; padding-bottom: 8px; }
   [data-slot='decision-screen'][data-focus] [data-slot='history-table-scroll'] { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
   [data-slot='decision-screen'][data-focus] [data-slot='history-table-scroll'] th { position: sticky; top: 0; z-index: 20; background: var(--card); }
-  [data-slot='decision-screen'][data-focus] aside { position: static; }
 }

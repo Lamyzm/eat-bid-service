@@ -48,7 +48,6 @@ export function DecisionScreenSkeleton() {
             <Skeleton className='h-[520px] w-full' />
           </div>
         }
-        rail={<Skeleton className='h-96 w-full rounded-xl' />}
       />
     </div>
   );

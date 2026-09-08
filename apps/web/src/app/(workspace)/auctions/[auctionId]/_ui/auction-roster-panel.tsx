@@ -2,42 +2,13 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 import type { AuctionRosterV1Response } from '@eatbid/contracts/api/v1/auctions';
 import { CODE_SCHEME_NAMES } from '@eatbid/contracts/atoms/code-scheme-names';
 import { auctionQueries } from '@/api/auctions';
 import { Button } from '@/shared/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 import type { HistoryRow } from '../_model/attempt-history';
-import { useAttemptSelection } from './attempt-selection';
-import { ResponsiveDock } from '@/shared/ui/responsive-dock';
-import { DecisionTools } from './decision-tools';
-
-/** 현재 공고의 보조 정보와 선택 회차 명단이 같은 rail을 사용하도록 기존 명단 컴포넌트를 배치한다. */
-export function SelectedAttemptRail({ fallback }: { readonly fallback: ReactNode }) {
-  const { row, panel, close, returnFocus } = useAttemptSelection();
-  return (
-    <div data-slot='decision-dock' data-open={panel !== null || undefined}>
-      <ResponsiveDock
-        open={panel !== null}
-        title={panel === 'record' ? '선택 회차 기록' : '현재 공고 정보'}
-        onClose={close}
-        returnFocus={returnFocus}
-      >
-        <div hidden={panel !== 'current'}>{fallback}</div>
-        {row && panel === 'record' ? (
-          <AuctionRosterPanel
-            key={row.attemptId}
-            row={row}
-            onClose={close}
-            showCloseButton={false}
-          />
-        ) : null}
-      </ResponsiveDock>
-      <DecisionTools placement='rail' />
-    </div>
-  );
-}
 
 function withdrawalText(value: AuctionRosterV1Response['rows'][number]['withdrawal']): string {
   if (value === null) return '미확인';

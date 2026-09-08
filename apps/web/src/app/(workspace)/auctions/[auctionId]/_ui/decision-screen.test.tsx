@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { render } from '@testing-library/react';
+import { render as renderUI } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { WorkspaceDockFixture } from '../__fixtures__/workspace-dock';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
@@ -13,7 +15,18 @@ import { presentDistribution } from '../_model/present-distribution';
 import { DecisionScreen } from './decision-screen';
 import { DecisionScreenSkeleton } from './decision-screen-skeleton';
 
-const searchOn = (view: DecisionView): DecisionSearch => ({ period: '12개월', scope: '전국', view, item: null, myRate: null, rate: null, expand: null, pages: 1 });
+const render = (ui: ReactNode) => renderUI(ui, { wrapper: WorkspaceDockFixture });
+
+const searchOn = (view: DecisionView): DecisionSearch => ({
+  period: '12개월',
+  scope: '전국',
+  view,
+  item: null,
+  myRate: null,
+  rate: null,
+  expand: null,
+  pages: 1
+});
 const search = searchOn('비교집단');
 const flowSearch = searchOn('흐름');
 const decision = () => presentDecision(openAuctionFixture, fixtureNow);
@@ -30,7 +43,11 @@ const readyHistory = ready(presentHistory(attemptsFixture, '7'));
 const historyOf = (count: number): DecisionPageData['history'] =>
   ready(
     presentHistory(
-      { ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, count), meta: { ...attemptsFixture.meta, sampleCount: count } },
+      {
+        ...attemptsFixture,
+        attempts: attemptsFixture.attempts.slice(0, count),
+        meta: { ...attemptsFixture.meta, sampleCount: count }
+      },
       null
     )
   );
@@ -38,14 +55,27 @@ const unavailable: DecisionPageData['history'] = { state: 'unavailable' };
 
 const readyDistribution: DecisionPageData['distribution'] = {
   state: 'ready',
-  presentation: presentDistribution(floor90DistributionFixture, { myRate: null, isRegionScope: false }),
+  presentation: presentDistribution(floor90DistributionFixture, {
+    myRate: null,
+    isRegionScope: false
+  }),
   response: floor90DistributionFixture
 };
-const lockedDistribution: DecisionPageData['distribution'] = { state: 'locked', reason: 'missing-terms' };
+const lockedDistribution: DecisionPageData['distribution'] = {
+  state: 'locked',
+  reason: 'missing-terms'
+};
 
 describe('결정 화면', () => {
   test('서버 markup에 프레임·제목·배너·근거 탭이 있다', () => {
-    const markup = renderToStaticMarkup(<DecisionScreen decision={decision()} search={search} history={unavailable} distribution={readyDistribution} />);
+    const markup = renderToStaticMarkup(
+      <DecisionScreen
+        decision={decision()}
+        search={search}
+        history={unavailable}
+        distribution={readyDistribution}
+      />
+    );
     expect(markup).toContain('data-slot="decision-screen"');
     expect(markup).toContain('aria-labelledby="decision-title"');
     expect(markup).toContain('이 공고가 열려 있습니다');
@@ -56,34 +86,77 @@ describe('결정 화면', () => {
   });
 
   test('금지 문구가 없다', () => {
-    const markup = renderToStaticMarkup(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} distribution={readyDistribution} />);
-    for (const banned of ['NeaT', '탈락선', '밀림', '추천', '안전 구간']) expect(markup).not.toContain(banned);
+    const markup = renderToStaticMarkup(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
+    for (const banned of ['NeaT', '탈락선', '밀림', '추천', '안전 구간'])
+      expect(markup).not.toContain(banned);
   });
 
-  test('section 순서가 상태·근거·과거 회차·공고 보조 정보다', () => {
-    const screen = render(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} distribution={readyDistribution} />);
-    const labels = [...screen.container.querySelectorAll('section, aside')].map((node) => node.getAttribute('aria-label'));
-    expect(labels).toEqual(['공고 상태', '근거', '과거 회차', '공고 보조 정보']);
+  test('중앙은 상태·근거·과거 회차만 소유하고 보조 진입은 전역 위치에 둔다', () => {
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
+    const frame = screen.container.querySelector('[data-slot="decision-screen"]')!;
+    const labels = [...frame.querySelectorAll('section, aside')].map((node) =>
+      node.getAttribute('aria-label')
+    );
+    expect(labels).toEqual(['공고 상태', '근거', '과거 회차']);
+    expect(frame.querySelector('aside')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: '현재 공고 정보' }).closest('[data-dock-host="rail"]')
+    ).not.toBeNull();
     const filters = screen.getByRole('button', { name: '기간: 12개월' });
     expect(filters.closest('header')).toBeNull();
     expect(filters.closest('[data-slot="decision-filter-bar"]')).not.toBeNull();
   });
 
   test('분포 탭은 흐름 차트 대신 호가창을 보인다', () => {
-    const screen = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={readyDistribution} />);
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={search}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
     expect(screen.queryByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeNull();
     expect(screen.getByText('전국 · 값마다 낙찰된 횟수')).toBeTruthy();
     expect(screen.getByText('90.000 ~ 90.010')).toBeTruthy();
   });
 
   test('코호트 재료가 없으면 호가창 자리에 그 사유를 말한다', () => {
-    const screen = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={lockedDistribution} />);
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={search}
+        history={readyHistory}
+        distribution={lockedDistribution}
+      />
+    );
     expect(screen.getByText('이 공고의 하한율과 낙찰방식이 아직 수집되지 않았습니다')).toBeTruthy();
   });
 
   test('손잡이 값 없이 열면 표 머리글·이 값이면·흐름 각주 어디에도 화면이 정한 투찰률이 없다', () => {
     // 90.000 같은 시작값은 곧 추천값이다(AGENTS 8, PDR-0004, EAT-84). 사용자가 놓기 전에는 빈 상태다.
-    const screen = render(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} distribution={readyDistribution} />);
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
     expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
     expect(screen.queryByText(/썼다면/)).toBeNull();
     expect(screen.queryByText('값을 넣으면 계산')).toBeNull();
@@ -95,7 +168,14 @@ describe('결정 화면', () => {
 
   test('URL rate로 놓은 투찰률이 있으면 차트·과거 회차 표·이 값이면 패널을 그 값 하나로 함께 그린다', () => {
     const withRate: DecisionSearch = { ...flowSearch, rate: '90.000' };
-    const screen = render(<DecisionScreen decision={decision()} search={withRate} history={readyHistory} distribution={readyDistribution} />);
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={withRate}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
     expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
     expect(screen.getByText('90.000 썼다면')).toBeTruthy();
     // 손잡이 값은 표의 마지막 열(투찰률 축)에만 쓰고 사정률 눈금인 흐름 차트에는 선으로 긋지 않는다(PDR-0004).
@@ -105,8 +185,24 @@ describe('결정 화면', () => {
   });
 
   test('탭 링크는 기간·모집단·품목 조건을 그대로 들고 간다', () => {
-    const withItem: DecisionSearch = { period: '3개월', scope: '시군', view: '비교집단', item: '7', myRate: null, rate: null, expand: null, pages: 1 };
-    const screen = render(<DecisionScreen decision={decision()} search={withItem} history={readyHistory} distribution={readyDistribution} />);
+    const withItem: DecisionSearch = {
+      period: '3개월',
+      scope: '시군',
+      view: '비교집단',
+      item: '7',
+      myRate: null,
+      rate: null,
+      expand: null,
+      pages: 1
+    };
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={withItem}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
     const href = screen.getByRole('link', { name: '흐름' }).getAttribute('href') ?? '';
     const query = new URLSearchParams(href.slice(href.indexOf('?')));
     expect(query.get('view')).toBe('흐름');
@@ -116,25 +212,62 @@ describe('결정 화면', () => {
   });
 
   test('과거 회차 캡션은 표가 실제로 그린 행 수를 적는다', () => {
-    const full = render(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} distribution={readyDistribution} />);
+    const full = render(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
     expect(full.getByText(`${attemptsFixture.meta.sampleCount}회 · 최근 12회 표시`)).toBeTruthy();
 
-    const fiveRows = ready(presentHistory({ ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, 5) }, '7'));
-    const short = render(<DecisionScreen decision={decision()} search={flowSearch} history={fiveRows} distribution={readyDistribution} />);
+    const fiveRows = ready(
+      presentHistory({ ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, 5) }, '7')
+    );
+    const short = render(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={fiveRows}
+        distribution={readyDistribution}
+      />
+    );
     expect(short.getByText(`${attemptsFixture.meta.sampleCount}회 · 최근 5회 표시`)).toBeTruthy();
   });
 
   test('회차가 0건이거나 1건이어도 캡션에 NaN이 나오지 않는다', () => {
-    const none = renderToStaticMarkup(<DecisionScreen decision={decision()} search={flowSearch} history={historyOf(0)} distribution={readyDistribution} />);
+    const none = renderToStaticMarkup(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={historyOf(0)}
+        distribution={readyDistribution}
+      />
+    );
     expect(none).not.toContain('NaN');
     expect(none).toContain('0회 · 최근 표시 없음');
 
-    const single = render(<DecisionScreen decision={decision()} search={flowSearch} history={historyOf(1)} distribution={readyDistribution} />);
+    const single = render(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={historyOf(1)}
+        distribution={readyDistribution}
+      />
+    );
     expect(single.getByText('1회 · 최근 1회 표시')).toBeTruthy();
   });
 
   test('구매기관이 정규화되지 않은 공고는 흐름 탭에서 이유를 그대로 말한다', () => {
-    const markup = renderToStaticMarkup(<DecisionScreen decision={decision()} search={flowSearch} history={{ state: 'no-organization' }} distribution={lockedDistribution} />);
+    const markup = renderToStaticMarkup(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={{ state: 'no-organization' }}
+        distribution={lockedDistribution}
+      />
+    );
     expect(markup).toContain('이 공고의 구매기관이 아직 정규화되지 않았습니다');
   });
 
@@ -151,13 +284,34 @@ describe('결정 화면', () => {
     };
     const failed: DecisionPageData['distribution'] = { state: 'unavailable' };
 
-    const success = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={readyDistribution} />);
+    const success = render(
+      <DecisionScreen
+        decision={decision()}
+        search={search}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
     expect(success.getByText('전국 · 값마다 낙찰된 횟수')).toBeTruthy();
 
-    const grey = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={unknown} />);
+    const grey = render(
+      <DecisionScreen
+        decision={decision()}
+        search={search}
+        history={readyHistory}
+        distribution={unknown}
+      />
+    );
     expect(grey.getByText('표본 7회차')).toBeTruthy();
 
-    const error = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={failed} />);
+    const error = render(
+      <DecisionScreen
+        decision={decision()}
+        search={search}
+        history={readyHistory}
+        distribution={failed}
+      />
+    );
     expect(error.getByText('분포를 지금 불러오지 못했습니다')).toBeTruthy();
   });
 
@@ -168,7 +322,14 @@ describe('결정 화면', () => {
   });
 
   test('회차 이력 조회가 실패하면 빈 화면 대신 실패 사실을 말한다', () => {
-    const markup = renderToStaticMarkup(<DecisionScreen decision={decision()} search={flowSearch} history={unavailable} distribution={readyDistribution} />);
+    const markup = renderToStaticMarkup(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={unavailable}
+        distribution={readyDistribution}
+      />
+    );
     expect(markup).toContain('회차 이력을 지금 불러오지 못했습니다');
   });
 });
