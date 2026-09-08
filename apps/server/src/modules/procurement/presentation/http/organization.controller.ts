@@ -63,6 +63,7 @@ export class OrganizationController {
         cursor: query.cursor === undefined ? null : BigInt(query.cursor),
         limit: query.limit,
         opened: query.opened,
+        includeItemLabel: query.includeItemLabel === "true",
         floorRate: query.floorRate === undefined || query.floorRate === "all" || query.floorRate === "unknown"
           ? query.floorRate : bidRate(canonicalDecimal(query.floorRate, 3)),
         awardMethodCodeValueId: query.awardMethod === undefined || query.awardMethod === "all" || query.awardMethod === "unknown"

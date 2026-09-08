@@ -1500,6 +1500,12 @@
             ],
             "type": "object"
           },
+          "itemLabel": {
+            "maxLength": 512,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
           "listCount": {
             "allOf": [
               {
@@ -2551,6 +2557,16 @@
                   "$ref": "#/components/schemas/PositiveBigintText"
                 }
               ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeItemLabel",
+            "schema": {
+              "enum": [
+                "true"
+              ],
+              "type": "string"
             }
           },
           {

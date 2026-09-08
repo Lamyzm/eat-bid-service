@@ -108,7 +108,7 @@ async function loadHistory(
   if (!response.organization) return { state: 'no-organization' };
 
   const item = normalizeItemParam(search.item);
-  const input = { organizationId: response.organization.organizationId, ...historyCohortOf(response, search, period) };
+  const input = { organizationId: response.organization.organizationId, includeItemLabel: 'true' as const, ...historyCohortOf(response, search, period) };
   try {
     const attempts = await dependencies.listAttempts({ ...input, limit: HISTORY_PAGE_LIMIT });
     const more = await loadMorePages(attempts, normalizeHistoryPages(search), input, dependencies);

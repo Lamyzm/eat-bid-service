@@ -53,6 +53,7 @@ export interface ListOrganizationAuctionAttemptsInput {
   readonly cursor: bigint | null;
   readonly limit: number;
   readonly opened: OrganizationAttemptOpenedFilter;
+  readonly includeItemLabel?: boolean;
   readonly floorRate?: BidRate | "all" | "unknown";
   readonly awardMethodCodeValueId?: bigint | "all" | "unknown";
   readonly period?: { readonly from: KstMonth; readonly to: KstMonth };
@@ -101,7 +102,7 @@ function baseRelativeRateText(value: BaseRelativeBidRate | null): BaseRelativeBi
   return value === null ? null : { value, unit: "percentage-points" };
 }
 
-function attemptResource(record: OrganizationAttemptRecord, includeCohort: boolean): OrganizationAuctionAttempt {
+function attemptResource(record: OrganizationAttemptRecord, includeCohort: boolean, includeItemLabel: boolean): OrganizationAuctionAttempt {
   return {
     // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
     attemptId: record.attemptId.toString(10),
@@ -110,6 +111,7 @@ function attemptResource(record: OrganizationAttemptRecord, includeCohort: boole
     item: record.item === null
       ? null
       : { codeValueId: record.item.codeValueId.toString(10), label: record.item.label },
+    itemLabel: includeItemLabel ? record.itemLabel : undefined,
     floorRate: rateText(record.floorRate),
     awardMethodCodeValueId: includeCohort ? bigintText(record.awardMethodCodeValueId) : undefined,
     baseAmount: z.encode(moneyCodec, record.baseAmount),
@@ -135,7 +137,7 @@ export function toOrganizationAttemptsResponse(
   const cohort = cohortOf(input);
   return {
     organizationId: organizationIdToString(query.organizationId),
-    attempts: page.attempts.map((record) => attemptResource(record, cohort !== undefined)),
+    attempts: page.attempts.map((record) => attemptResource(record, cohort !== undefined, input.includeItemLabel === true)),
     nextCursor: bigintText(page.nextCursor),
     meta: {
       sampleCount: page.sampleCount,

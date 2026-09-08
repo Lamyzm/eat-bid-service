@@ -24,6 +24,9 @@ export const organizationAuctionAttemptSchema = z.strictObject({
   // 품목 라벨 상한은 기관 이름(AuctionOrganization.name)과 같은 512자다. 원본 라벨이 잘려 들어오는
   // 것보다 계약이 통째로 실패하는 편이 관측 사실을 왜곡하지 않는다.
   item: z.strictObject({ codeValueId: positiveBigintTextSchema, label: z.string().min(1).max(512) }).nullable(),
+  // 코드가 없어도 원문 라벨은 관측 사실이다. 누락은 구형 projection, null은 미관측이며
+  // 이 문자열을 품목 ID·필터·집단 연결 키로 쓰지 않는다.
+  itemLabel: z.string().min(1).max(512).nullable().optional(),
   // 공고 조건의 하한율은 100 이하이고, 낙찰·차순위의 원천 관측은 그 상한을 공유하지 않는다(ADR 0040).
   floorRate: bidRateWireSchema.nullable(),
   // 새 집단 조건을 명시한 요청에만 싣는다. null은 미확인, 필드 부재는 이전 응답 projection이다.

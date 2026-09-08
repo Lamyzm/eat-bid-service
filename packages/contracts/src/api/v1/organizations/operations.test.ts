@@ -16,6 +16,13 @@ const EMPTY_META = {
 } as const;
 
 describe("listOrganizationAuctionAttempts 계약", () => {
+  test("품목명 표시 확장은 명시 요청만 허용하고 false 문자열을 true로 해석하지 않는다", () => {
+    const { querySchema } = organizationV1Operations.listAuctionAttempts;
+    expect(querySchema.parse({ includeItemLabel: "true" }).includeItemLabel).toBe("true");
+    expect(querySchema.parse({})).not.toHaveProperty("includeItemLabel");
+    expect(() => querySchema.parse({ includeItemLabel: "false" })).toThrow();
+  });
+
   test("경로와 query를 canonical 형태로 조립한다", () => {
     const path = organizationV1Operations.listAuctionAttempts.buildPath({
       path: { organizationId: "42" },

@@ -27,7 +27,7 @@ async function load(overrides: Partial<DecisionSearch> = {}, auction = auctionFi
 describe('실제 화면의 기관 비교 조건 연결', () => {
   test('기관 표와 흐름을 공고 하한율·방식·같은 KST 기간으로 서버 조회한다', async () => {
     const { historyCalls, clockCalls } = await load();
-    expect(historyCalls).toEqual([{ organizationId: '3101', floorRate: '90.000', awardMethod: '31', from: '2025-10', to: '2026-09', opened: 'only', limit: 60 }]);
+    expect(historyCalls).toEqual([{ organizationId: '3101', includeItemLabel: 'true', floorRate: '90.000', awardMethod: '31', from: '2025-10', to: '2026-09', opened: 'only', limit: 60 }]);
     expect(clockCalls).toBe(1);
   });
 

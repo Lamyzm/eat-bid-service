@@ -122,7 +122,7 @@ function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | 
     openedMonthText: openedMonthText(attempt),
     openedKstDay: openedKstDay(attempt),
     openedMonth: openedMonth(attempt),
-    itemLabel: attempt.item?.label ?? '미확인',
+    itemLabel: attempt.itemLabel ?? attempt.item?.label ?? '미확인',
     floorRateText: attempt.floorRate?.value ?? null,
     baseAmountText: amountText(attempt.baseAmount.amount),
     itemCodeValueId: attempt.item?.codeValueId ?? null,

@@ -448,6 +448,14 @@ unique index로 강제된다. 표본 수(`sample_n`)는 조회 시점의 코호�
 `complete`·`partial`·`none`·`unknown` 넷이며 `unknown`은 그 축으로 나뉘어 수집되지 않아 분모를 낼 수
 없다는 뜻이다([PDR-0003](../product/decisions/0003-coverage-unknown.md)).
 
+기관 회차의 `item_label`은 원본 `classification.sourceCategoryLabel`의 관측 표시값이다.
+`item_code_value_id`가 없어도 라벨을 버리지 않는다. 공개 V1 기관 이력은 `includeItemLabel=true`를
+요청한 소비자에게 `itemLabel`을 별도로 전달한다. null은 라벨 미관측, 키 부재는 이전 응답 형태다.
+기존 `item`의 코드 관계와 필터는 유지하고 라벨을 분해하거나 같은 문자열이라는 이유로 품목 ID,
+필터 또는 차트 연결 집단으로 승격하지 않는다. DB·ingestion 변경과 replay는 필요하지 않다.
+기존 strict 소비자는 새 query를 보내지 않아 응답 형태가 유지된다. 서버를 먼저 반영한 뒤 Web이
+명시 query를 보내며, 이전 Web으로 되돌려도 기존 응답을 계속 읽는다.
+
 대규모 JSON 결과를 Organization/Auction master 행에 넣지 않는다.
 
 ## 8. 시간과 정량 값

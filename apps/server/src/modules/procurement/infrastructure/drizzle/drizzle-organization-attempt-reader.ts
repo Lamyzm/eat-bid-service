@@ -84,6 +84,7 @@ export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptR
     item: row.item_code_value_id === null || row.item_label === null || row.item_label.trim() === ""
       ? null
       : { codeValueId: bigintValue(row.item_code_value_id), label: row.item_label.trim() },
+    itemLabel: row.item_label?.trim() || null,
     floorRate: bidRateValue(row.floor_rate),
     awardMethodCodeValueId: row.award_method_code_value_id === null ? null : bigintValue(row.award_method_code_value_id),
     baseAmount: moneyValue(row.base_amount, row.currency, true),

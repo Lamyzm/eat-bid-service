@@ -15,6 +15,7 @@ const attempt = {
   announcedAt: Temporal.Instant.from("2026-09-01T00:00:00Z"),
   openedAt: Temporal.Instant.from("2026-09-02T02:00:00Z"),
   item: { codeValueId: 7n, label: "축산" },
+  itemLabel: "축산",
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
   awardMethodCodeValueId: null,
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
@@ -75,6 +76,26 @@ async function withServer(
 }
 
 describe("기관 회차 이력 HTTP 경로", () => {
+  test("관측 품목명은 요청한 소비자에게만 보내고 기존 응답에는 새 키를 추가하지 않는다", async () => {
+    await withServer({
+      exists: async () => true,
+      listAttempts: async () => ({ kind: "page", page: {
+        attempts: [{ ...attempt, item: null, itemLabel: "육류 , 가금류" }],
+        nextCursor: null, sampleCount: 1, lineage,
+      } }),
+    }, async (server) => {
+      const oldResponse = await request(server).get(attemptsPath("42"));
+      expect(oldResponse.status).toBe(200);
+      expect(oldResponse.body.attempts[0]).not.toHaveProperty("itemLabel");
+      const path = organizationV1Operations.listAuctionAttempts.buildPath({
+        path: { organizationId: "42" }, query: { includeItemLabel: "true" },
+      });
+      const response = await request(server).get(path);
+      expect(response.status).toBe(200);
+      expect(response.body.attempts[0]).toMatchObject({ item: null, itemLabel: "육류 , 가금류" });
+    });
+  });
+
   test("bigint ID와 회차 값을 제한된 JSON으로 왕복 보존하고 query 기본값을 적용한다", async () => {
     const observed: OrganizationAttemptQuery[] = [];
     await withServer({

@@ -8,6 +8,7 @@ const record = {
   announcedAt: Temporal.Instant.from("2026-09-01T00:00:00Z"),
   openedAt: null,
   item: { codeValueId: 7n, label: "축산" },
+  itemLabel: "축산",
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
   awardMethodCodeValueId: null,
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),

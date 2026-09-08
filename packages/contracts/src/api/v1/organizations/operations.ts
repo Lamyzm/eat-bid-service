@@ -33,6 +33,8 @@ function periodRule(ctx: z.core.ParsePayload<{ from?: string; to?: string }>): v
 
 export const organizationAuctionAttemptsQuerySchema = z.strictObject({
   item: positiveBigintTextSchema.optional(),
+  // 기존 strict V1 소비자의 응답 shape를 유지한다. 새 표시값을 요청한 소비자에게만 확장한다.
+  includeItemLabel: z.literal("true").optional(),
   cursor: positiveBigintTextSchema.optional(),
   // 상한 200은 pages-endpoints-load.md의 "기관 회차 ≤ 200" 점 조회 상한과 같다.
   limit: z.coerce.number().int().min(1).max(200).default(DEFAULT_ATTEMPT_LIMIT),

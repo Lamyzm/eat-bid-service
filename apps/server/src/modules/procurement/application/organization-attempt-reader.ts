@@ -15,6 +15,8 @@ export interface OrganizationAttemptRecord {
   readonly announcedAt: Temporal.Instant;
   readonly openedAt: Temporal.Instant | null;
   readonly item: { readonly codeValueId: bigint; readonly label: string } | null;
+  /** 품목 코드 유무와 무관한 원문 표시값이며 코호트 정체성이 아니다. */
+  readonly itemLabel: string | null;
   readonly floorRate: BidRate | null;
   readonly awardMethodCodeValueId: bigint | null;
   readonly baseAmount: Money;

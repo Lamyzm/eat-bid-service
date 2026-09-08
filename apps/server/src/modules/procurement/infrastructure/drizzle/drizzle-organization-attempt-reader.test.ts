@@ -22,6 +22,16 @@ const row = {
 } as const;
 
 describe("DrizzleOrganizationAttemptReader row 경계", () => {
+  test("품목 코드가 없어도 관측 라벨은 보존하고 코드 정체성을 만들지 않는다", async () => {
+    const { mapAttemptRow } = await import("./drizzle-organization-attempt-reader");
+    const result = mapAttemptRow({ ...row, item_code_value_id: null, item_label: " 육류 , 가금류 " });
+    expect(result.item).toBeNull();
+    expect(result.itemLabel).toBe("육류 , 가금류");
+    for (const item_label of [null, "", "   "]) {
+      expect(mapAttemptRow({ ...row, item_label }).itemLabel).toBeNull();
+    }
+  });
+
   test("낙찰과 차순위의 100 초과 관측률을 각각 손실 없이 옮긴다", async () => {
     const { mapAttemptRow } = await import("./drizzle-organization-attempt-reader");
     for (const value of ["100.001", "101.975", "102.297", "999999999999.999"]) {
