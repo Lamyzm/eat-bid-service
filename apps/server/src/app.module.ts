@@ -1,6 +1,8 @@
 /** @module 책임: 검증이 끝난 환경과 어댑터를 주입받아 루트 Nest 모듈 그래프를 조립만 한다. */
 import { DynamicModule, Module, type Type } from "@nestjs/common";
 import type { Clock } from "@eatbid/domain";
+import { AuthModule } from "./platform/auth/auth.module";
+import type { SessionAuthenticator } from "./platform/auth/session-authenticator";
 import { ClockModule } from "./platform/clock/clock.module";
 import { EffectModule } from "./platform/effect/effect.module";
 import { PlatformConfigModule } from "./platform/config/config.module";
@@ -10,12 +12,15 @@ import { ReadinessState } from "./platform/health/readiness-state";
 import { LoggingModule, type RedactingJsonLogger } from "./platform/logging/logging.module";
 import { RequestContextModule, type RequestContextStore } from "./platform/request-context/request-context.module";
 import { DatabaseModule } from "./platform/database/database.module";
+import type { ManagedDatabase } from "./platform/database/managed-database";
 import type { AuctionReader } from "./modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "./modules/procurement/application/auction-roster-reader";
 import type { OpenAuctionReader } from "./modules/procurement/application/open-auction-reader";
 import type { OrganizationAttemptReader } from "./modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "./modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "./modules/reference/application/code-reader";
+import type { AccountRepository } from "./modules/account/application/account-repository";
+import { AccountModule } from "./modules/account/account.module";
 import { ProcurementModule } from "./modules/procurement/procurement.module";
 import { ReferenceModule } from "./modules/reference/reference.module";
 
@@ -36,6 +41,7 @@ export class AppModule {
         LoggingModule.forLogger(runtime.logger),
         RequestContextModule.forStore(runtime.requestContext),
         DatabaseModule.forRuntime(runtime.environment, {
+          connection: runtime.connection,
           readiness: runtime.databaseReadiness,
           auctionReader: runtime.auctionReader,
           auctionRosterReader: runtime.auctionRosterReader,
@@ -43,8 +49,11 @@ export class AppModule {
           organizationAttemptReader: runtime.organizationAttemptReader,
           winRateDistributionReader: runtime.winRateDistributionReader,
           codeReader: runtime.codeReader,
+          accountRepository: runtime.accountRepository,
         }),
+        AuthModule.forRuntime({ sessionAuthenticator: runtime.sessionAuthenticator ?? null }),
         HealthModule.forState(runtime.readiness),
+        AccountModule,
         ProcurementModule,
         ReferenceModule,
         ...(runtime.testOnlyImports ?? []),
@@ -66,5 +75,8 @@ export interface AppModuleRuntime {
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly codeReader?: CodeReader;
+  readonly accountRepository?: AccountRepository;
+  readonly connection?: ManagedDatabase;
+  readonly sessionAuthenticator?: SessionAuthenticator | null;
   readonly testOnlyImports?: readonly Type[];
 }

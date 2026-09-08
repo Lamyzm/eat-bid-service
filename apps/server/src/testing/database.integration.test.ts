@@ -255,6 +255,12 @@ describe("owner 범위 PostgreSQL 경계", () => {
           has_update: false,
         },
         {
+          sequence_name: "registered_business_registered_business_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
           sequence_name: "workspace_workspace_id_seq",
           has_usage: false,
           has_select: false,

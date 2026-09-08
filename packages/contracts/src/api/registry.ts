@@ -2,7 +2,9 @@
 import { healthOperationRegistry } from "../operations/health";
 import { auctionV1OperationRegistry } from "./v1/auctions/operations";
 import { codeSchemeV1OperationRegistry } from "./v1/code-schemes/operations";
+import { meV1OperationRegistry } from "./v1/me/operations";
 import { organizationV1OperationRegistry } from "./v1/organizations/operations";
+import { sessionV1OperationRegistry } from "./v1/session/operations";
 import { winRateDistributionV1OperationRegistry } from "./v1/win-rate-distribution/operations";
 import { createOperationRegistry } from "./operation";
 
@@ -12,5 +14,7 @@ export const publicHttpOperationRegistry = createOperationRegistry([
   ...organizationV1OperationRegistry,
   ...codeSchemeV1OperationRegistry,
   ...winRateDistributionV1OperationRegistry,
+  ...sessionV1OperationRegistry,
+  ...meV1OperationRegistry,
   ...healthOperationRegistry,
 ] as const);

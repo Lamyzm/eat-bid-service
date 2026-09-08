@@ -8,7 +8,7 @@ import {
 import { NestFactory } from "@nestjs/core";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import { SwaggerModule } from "@nestjs/swagger";
-import { healthOperations } from "@eatbid/contracts";
+import { healthOperations, meV1OperationRegistry, sessionV1OperationRegistry } from "@eatbid/contracts";
 import { systemClock, type Clock } from "@eatbid/domain";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
@@ -16,6 +16,15 @@ import type { Server } from "node:http";
 import { AppModule } from "../app.module";
 import { type Environment, readEnvironment } from "../platform/config/environment";
 import type { DatabaseReadiness } from "../platform/health/health.module";
+import type { AccountRepository } from "../modules/account/application/account-repository";
+import { createAuthInstance, type AuthInstance } from "../platform/auth/auth-instance";
+import { createAuthTransportMount } from "../platform/auth/auth-transport";
+import { createBetterAuthSessionAuthenticator } from "../platform/auth/better-auth-session-authenticator";
+import { OriginGuard } from "../platform/auth/origin.guard";
+import { mountPrivateResponseHeaders } from "../platform/auth/private-response.middleware";
+import type { SessionAuthenticator } from "../platform/auth/session-authenticator";
+import { createAuthDatabaseBinding } from "../platform/database/auth-database-adapter";
+import { createManagedDatabase, type ManagedDatabase } from "../platform/database/managed-database";
 import type { AuctionReader } from "../modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "../modules/procurement/application/auction-roster-reader";
 import type { OpenAuctionReader } from "../modules/procurement/application/open-auction-reader";
@@ -52,6 +61,12 @@ export interface CreateAppOptions {
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly codeReader?: CodeReader;
+  readonly accountRepository?: AccountRepository;
+  /**
+   * 실제 provider 대신 주체만 주입하는 자리다. 테스트가 Google 네트워크를 부르지 않게 하되, production
+   * 코드에는 환경변수나 헤더로 인증을 건너뛰는 분기를 두지 않는다(ADR 0032 §9).
+   */
+  readonly sessionAuthenticator?: SessionAuthenticator;
   readonly mountPreParserRawTransport?: (application: Express) => void;
   readonly testOnlyImports?: readonly Type[];
 }
@@ -85,6 +100,21 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
   const readiness = new ReadinessState();
   const expressApplication = express();
   const adapter = new ExpressAdapter(expressApplication);
+  // 연결 handle을 여기서 먼저 만드는 이유는 인증 adapter가 Nest DI보다 앞선 slot에서 필요하기 때문이다.
+  // 이 시점에는 실제 dial이 일어나지 않고 풀 소유권은 그대로 Nest 종료 단계가 갖는다.
+  const connection: ManagedDatabase = createManagedDatabase(environment.databaseUrl);
+  const auth: AuthInstance | null = environment.auth === null
+    ? null
+    : createAuthInstance({
+      environment: environment.auth,
+      database: createAuthDatabaseBinding(connection),
+      trustedOrigins: environment.corsOrigins,
+      logger,
+    });
+  // 인증을 켜지 않은 배포가 조용히 지나가지 않게 시작 로그에 남긴다. 공개 read는 그대로 동작한다.
+  if (auth === null) logger.lifecycle("auth_disabled");
+  const sessionAuthenticator: SessionAuthenticator | null = options.sessionAuthenticator
+    ?? (auth === null ? null : createBetterAuthSessionAuthenticator(auth));
 
   expressApplication.disable("x-powered-by");
   expressApplication.set("trust proxy", environment.proxyHops);
@@ -98,8 +128,14 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     },
   });
 
+  // 개인 응답 경로는 guard보다 먼저 캐시 금지를 붙인다. guard가 끊는 401·403에도 헤더가 남아야 한다.
+  mountPrivateResponseHeaders(expressApplication, [
+    ...sessionV1OperationRegistry,
+    ...meV1OperationRegistry,
+  ]);
+
   // 원문 바이트 서명 검증은 보안 헤더/CORS 뒤이면서 파서 앞이어야 하므로 이 슬롯을 고정한다.
-  options.mountPreParserRawTransport?.(expressApplication);
+  (options.mountPreParserRawTransport ?? createAuthTransportMount(auth))(expressApplication);
 
   expressApplication.use(express.json({ limit: environment.payloadLimit, strict: true }));
   expressApplication.use(express.urlencoded({
@@ -135,6 +171,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
       organizationAttemptReader: options.organizationAttemptReader,
       winRateDistributionReader: options.winRateDistributionReader,
       codeReader: options.codeReader,
+      accountRepository: options.accountRepository,
+      connection,
+      sessionAuthenticator,
       testOnlyImports: options.testOnlyImports,
     }),
     adapter,
@@ -153,6 +192,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     new RequestCompletionInterceptor(logger),
     new ResponseSchemaInterceptor(),
   );
+  // Origin 검사를 전역에 두는 이유: 새 mutation operation 하나가 decorator를 빠뜨려도 검사가 남는다.
+  // `/api/auth/*`는 Nest 앞 Express에서 끝나므로 provider 자신의 CSRF 검사가 그 경로를 맡는다.
+  app.useGlobalGuards(new OriginGuard(environment.corsOrigins));
   app.useGlobalFilters(new ProblemDetailsFilter(logger));
 
   const openApiDocument = createOpenApiDocument();

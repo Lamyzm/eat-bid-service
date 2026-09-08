@@ -33,7 +33,12 @@ describe("canonical OpenAPI 산출물", () => {
       // 출처이므로 계약이 열린 사실이 여기 그대로 드러나야 하고, 구현이 붙는 변경에서 handler와
       // e2e가 같이 온다.
       "/api/v1/code-schemes/{scheme}/codes",
+      // 한 path에 조회와 등록 두 method가 함께 있다. path item을 덮어쓰면 하나가 문서에서 사라진다.
+      "/api/v1/me/businesses",
+      "/api/v1/me/businesses/{businessId}/location",
+      "/api/v1/me/initialization",
       "/api/v1/organizations/{organizationId}/auction-attempts",
+      "/api/v1/session",
       "/api/v1/win-rate-distribution",
       "/health/live",
       "/health/ready",
@@ -43,17 +48,30 @@ describe("canonical OpenAPI 산출물", () => {
     expect(new Set(operationIds).size).toBe(operationIds.length);
     expect(operationIds.sort())
       .toEqual([
+        "clearMyBusinessLocation",
         "findAuction",
         "findWinRateDistribution",
         "getAuctionRoster",
+        "getCurrentSession",
         "healthLive",
         "healthReady",
+        "initializeCurrentAccount",
         "listCodes",
+        "listMyBusinesses",
         "listOpenAuctions",
         "listOrganizationAuctionAttempts",
+        "registerMyBusiness",
+        "setMyBusinessLocation",
       ]);
+    // 성공 status를 200으로 고정하지 않는다. 생성 command는 201이며, 그 사실을 registry에서 읽는다.
+    const successStatusById = new Map(publicHttpOperationRegistry
+      .map((operation) => [operation.operationId, operation.successStatuses]));
     for (const operation of operations) {
-      expect(operation.responses["200"].content["application/json"].schema).toBeDefined();
+      const statuses = successStatusById.get(operation.operationId) ?? [];
+      expect(statuses.length).toBeGreaterThan(0);
+      for (const status of statuses) {
+        expect(operation.responses[String(status)].content["application/json"].schema).toBeDefined();
+      }
       expect(Object.values(operation.responses).some((response: any) =>
         response.content?.["application/problem+json"]?.schema)).toBe(true);
     }

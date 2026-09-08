@@ -37,10 +37,20 @@
       "import": "./src/api/v1/auctions/index.ts",
       "default": "./src/api/v1/auctions/index.ts"
     },
+    "./api/v1/me": {
+      "types": "./src/api/v1/me/index.ts",
+      "import": "./src/api/v1/me/index.ts",
+      "default": "./src/api/v1/me/index.ts"
+    },
     "./api/v1/organizations": {
       "types": "./src/api/v1/organizations/index.ts",
       "import": "./src/api/v1/organizations/index.ts",
       "default": "./src/api/v1/organizations/index.ts"
+    },
+    "./api/v1/session": {
+      "types": "./src/api/v1/session/index.ts",
+      "import": "./src/api/v1/session/index.ts",
+      "default": "./src/api/v1/session/index.ts"
     },
     "./api/v1/win-rate-distribution": {
       "types": "./src/api/v1/win-rate-distribution/index.ts",

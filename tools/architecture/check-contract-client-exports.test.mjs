@@ -47,10 +47,20 @@ const packageJson = JSON.stringify({
       import: "./src/api/v1/auctions/index.ts",
       default: "./src/api/v1/auctions/index.ts",
     },
+    "./api/v1/me": {
+      types: "./src/api/v1/me/index.ts",
+      import: "./src/api/v1/me/index.ts",
+      default: "./src/api/v1/me/index.ts",
+    },
     "./api/v1/organizations": {
       types: "./src/api/v1/organizations/index.ts",
       import: "./src/api/v1/organizations/index.ts",
       default: "./src/api/v1/organizations/index.ts",
+    },
+    "./api/v1/session": {
+      types: "./src/api/v1/session/index.ts",
+      import: "./src/api/v1/session/index.ts",
+      default: "./src/api/v1/session/index.ts",
     },
     "./api/v1/win-rate-distribution": {
       types: "./src/api/v1/win-rate-distribution/index.ts",
@@ -119,10 +129,20 @@ test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", 
           import: "./src/api/v1/auctions/index.ts",
           default: "./src/api/v1/auctions/index.ts",
         },
+        "./api/v1/me": {
+          types: "./src/api/v1/me/index.ts",
+          import: "./src/api/v1/me/index.ts",
+          default: "./src/api/v1/me/index.ts",
+        },
         "./api/v1/organizations": {
           types: "./src/api/v1/organizations/index.ts",
           import: "./src/api/v1/organizations/index.ts",
           default: "./src/api/v1/organizations/index.ts",
+        },
+        "./api/v1/session": {
+          types: "./src/api/v1/session/index.ts",
+          import: "./src/api/v1/session/index.ts",
+          default: "./src/api/v1/session/index.ts",
         },
         "./api/v1/win-rate-distribution": {
           types: "./src/api/v1/win-rate-distribution/index.ts",
@@ -171,10 +191,20 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
           import: "./dist/api/v1/auctions/index.js",
           default: "./dist/api/v1/auctions/index.js",
         },
+        "./api/v1/me": {
+          types: "./src/api/v1/me/index.ts",
+          import: "./src/api/v1/me/index.ts",
+          default: "./src/api/v1/me/index.ts",
+        },
         "./api/v1/organizations": {
           types: "./src/api/v1/organizations/index.ts",
           import: "./src/api/v1/organizations/index.ts",
           default: "./src/api/v1/organizations/index.ts",
+        },
+        "./api/v1/session": {
+          types: "./src/api/v1/session/index.ts",
+          import: "./src/api/v1/session/index.ts",
+          default: "./src/api/v1/session/index.ts",
         },
         "./api/v1/win-rate-distribution": {
           types: "./src/api/v1/win-rate-distribution/index.ts",

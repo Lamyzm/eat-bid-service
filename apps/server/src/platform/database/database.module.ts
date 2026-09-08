@@ -1,7 +1,7 @@
 /** @module 책임: PostgreSQL 연결 수명주기를 감추고 목적별 조회·트랜잭션 port만 주입 가능하게 만든다. */
-import { DynamicModule, Global, Module, type OnApplicationShutdown, type Provider } from "@nestjs/common";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { DynamicModule, Global, Module, type Provider } from "@nestjs/common";
+import type { AccountRepository } from "../../modules/account/application/account-repository";
+import { DrizzleAccountRepository } from "../../modules/account/infrastructure/drizzle/drizzle-account-repository";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
 import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
@@ -17,7 +17,9 @@ import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzl
 import type { Environment } from "../config/environment";
 import type { DatabaseReadiness } from "../health/readiness-state";
 import { createDatabaseReadiness } from "./database-readiness";
+import { createManagedDatabase, ManagedDatabase } from "./managed-database";
 import {
+  ACCOUNT_REPOSITORY,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
   CODE_READER,
@@ -31,31 +33,16 @@ import {
 import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
 
 export interface DatabaseModuleOverrides {
+  /** bootstrap이 인증 전송보다 먼저 만든 연결이다. 주지 않으면 모듈이 자기 풀을 연다. */
+  readonly connection?: ManagedDatabase;
   readonly readiness?: DatabaseReadiness;
+  readonly accountRepository?: AccountRepository;
   readonly auctionReader?: AuctionReader;
   readonly auctionRosterReader?: AuctionRosterReader;
   readonly openAuctionReader?: OpenAuctionReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly codeReader?: CodeReader;
-}
-
-class ManagedDatabase implements OnApplicationShutdown {
-  readonly client: ReturnType<typeof postgres>;
-  readonly database: ReturnType<typeof drizzle>;
-
-  constructor(databaseUrl: string) {
-    this.client = postgres(databaseUrl, {
-      max: 10,
-      connection: { application_name: "eatbid-api" },
-    });
-    this.database = drizzle({ client: this.client });
-  }
-
-  async onApplicationShutdown(): Promise<void> {
-    // Nest 자원 종료 단계가 풀의 유일한 소유자여야 drain 전에 연결이 먼저 끊기지 않는다.
-    await this.client.end();
-  }
 }
 
 @Global()
@@ -69,7 +56,7 @@ export class DatabaseModule {
     const providers: Provider[] = [
       {
         provide: DATABASE_CONNECTION,
-        useFactory: () => new ManagedDatabase(environment.databaseUrl),
+        useFactory: () => overrides.connection ?? createManagedDatabase(environment.databaseUrl),
       },
       {
         provide: DATABASE_READINESS,
@@ -120,12 +107,19 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): CodeReader =>
           overrides.codeReader ?? new DrizzleCodeReader(connection.database),
       },
+      {
+        provide: ACCOUNT_REPOSITORY,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): AccountRepository =>
+          overrides.accountRepository ?? new DrizzleAccountRepository(connection.database),
+      },
     ];
     return {
       global: true,
       module: DatabaseModule,
       providers,
       exports: [
+        ACCOUNT_REPOSITORY,
         DATABASE_READINESS,
         UNIT_OF_WORK,
         AUCTION_READER,

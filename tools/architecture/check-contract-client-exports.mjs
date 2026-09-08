@@ -16,7 +16,10 @@ const clientExports = Object.freeze([
   // 이 진입점이 있어야 하고, graph는 zod와 계약 값만 참조해 browser-safe 조건도 그대로 만족한다.
   ["./api/internal", "./src/api/internal/index.ts"],
   ["./api/v1/auctions", "./src/api/v1/auctions/index.ts"],
+  // 계정 계약은 로그인·설정 화면이 소비한다. subpath가 없으면 web이 응답 형태를 다시 선언하게 된다.
+  ["./api/v1/me", "./src/api/v1/me/index.ts"],
   ["./api/v1/organizations", "./src/api/v1/organizations/index.ts"],
+  ["./api/v1/session", "./src/api/v1/session/index.ts"],
   ["./api/v1/win-rate-distribution", "./src/api/v1/win-rate-distribution/index.ts"],
 ]);
 const forbiddenGraphPath = /\/(?:codecs|ingestion|operations)\/|\/portable-registry\.ts$|\/generate-json-schema\.ts$/;
