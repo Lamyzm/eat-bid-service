@@ -24,6 +24,7 @@ const wholeHistory = {
   itemCodeValueId: null,
   cursor: null,
   limit: 12,
+  expectedBuildId: null,
   openedAtOrBefore: null,
 } satisfies OrganizationAttemptQuery;
 
@@ -78,6 +79,32 @@ describe("mart 발행 경합 아래 기관 회차 이력 build 정합성", () =>
       // 501에만 있던 회차의 cursor는 502에서 가리킬 행이 없다. 빈 페이지가 아니라 명시적 실패다.
       expect(await afterPublish.listAttempts({ ...wholeHistory, cursor: 103n }))
         .toEqual({ kind: "cursor-not-found", cursor: 103n });
+    }, seedNextBuild);
+  }, 180_000);
+
+  test("이어 읽기가 고정한 build가 사라지면 빈 페이지가 아니라 재조회 신호를 돌려준다", async () => {
+    await withSeededDatabase(async ({ client }) => {
+      const reader = new DrizzleOrganizationAttemptReader(drizzle({ client }));
+
+      // 고정한 build가 아직 활성이면 그대로 이어 읽고, 요약이 요약한 revision도 함께 온다.
+      const pinned = pageOf(await reader.listAttempts({ ...wholeHistory, expectedBuildId: 501n }));
+      expect(pinned.lineage?.buildId).toBe(501n);
+      expect(pinned.attempts.map((attempt) => [attempt.attemptId, attempt.revisionId]))
+        .toEqual([[105n, 214n], [103n, 207n], [102n, 208n], [101n, 211n]]);
+
+      // 있지도 않은 build를 고정한 요청은 활성 build의 페이지로 대신 답하지 않는다.
+      expect(await reader.listAttempts({ ...wholeHistory, expectedBuildId: 999n }))
+        .toEqual({ kind: "build-changed", expectedBuildId: 999n, activeBuildId: 501n });
+
+      await publishNextBuild(client);
+      // 페이지 사이에 발행이 일어났다. 새 build의 페이지를 이어 주면 한 화면이 두 계보를 섞는다.
+      expect(await reader.listAttempts({ ...wholeHistory, expectedBuildId: 501n, cursor: 103n }))
+        .toEqual({ kind: "build-changed", expectedBuildId: 501n, activeBuildId: 502n });
+
+      await supersedeAllBuilds(client);
+      // 활성 build가 하나도 없는 상태도 고정 요청에는 재조회 신호다. 빈 이력으로 위장하지 않는다.
+      expect(await reader.listAttempts({ ...wholeHistory, expectedBuildId: 502n }))
+        .toEqual({ kind: "build-changed", expectedBuildId: 502n, activeBuildId: null });
     }, seedNextBuild);
   }, 180_000);
 

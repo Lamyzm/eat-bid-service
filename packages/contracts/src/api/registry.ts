@@ -2,6 +2,7 @@
 import { healthOperationRegistry } from "../operations/health";
 import { auctionV1OperationRegistry } from "./v1/auctions/operations";
 import { codeSchemeV1OperationRegistry } from "./v1/code-schemes/operations";
+import { myBidObservationV1OperationRegistry } from "./v1/me/bid-observations.operations";
 import { meV1OperationRegistry } from "./v1/me/operations";
 import { organizationV1OperationRegistry } from "./v1/organizations/operations";
 import { sessionV1OperationRegistry } from "./v1/session/operations";
@@ -16,5 +17,8 @@ export const publicHttpOperationRegistry = createOperationRegistry([
   ...winRateDistributionV1OperationRegistry,
   ...sessionV1OperationRegistry,
   ...meV1OperationRegistry,
+  // 같은 `me` resource라 private 응답 헤더 prefix는 이미 계정 registry가 만든다. OpenAPI와 경계
+  // 검사가 이 operation을 보려면 공개 registry에도 함께 있어야 한다.
+  ...myBidObservationV1OperationRegistry,
   ...healthOperationRegistry,
 ] as const);

@@ -46,6 +46,34 @@ export class AttemptCursorInvalid extends Error {
   }
 }
 
+/**
+ * 이어 읽기를 요청한 build가 더 이상 활성이 아니다. cursor 오류(400)와 나누는 이유는 회복 방법이
+ * 다르기 때문이다. cursor는 요청 하나를 고치면 되지만 이쪽은 누적 목록과 그 위에 붙인 개인 결과를
+ * 함께 버리고 처음부터 다시 조회해야 한다.
+ */
+export class AttemptBuildChanged extends Error {
+  readonly code = "CONFLICT" as const;
+
+  constructor(readonly expectedBuildId: bigint, readonly activeBuildId: bigint | null) {
+    super(`Mart build ${expectedBuildId.toString(10)} is no longer active`);
+    this.name = "AttemptBuildChanged";
+  }
+}
+
+/**
+ * 첫 페이지가 볼 수 없었던 미래 시각을 기준으로 이어 읽으면, 그 사이 개찰될 회차까지 포함한 집합을
+ * 처음부터 있었던 것처럼 말하게 된다. 고정은 이미 지난 경계를 되돌려 보내는 일이므로 미래는 요청
+ * 오류다.
+ */
+export class AttemptAsOfInFuture extends Error {
+  readonly code = "VALIDATION_ERROR" as const;
+
+  constructor(readonly asOf: Temporal.Instant) {
+    super(`Pinned asOf ${asOf.toString()} is in the future`);
+    this.name = "AttemptAsOfInFuture";
+  }
+}
+
 /** HTTP query에서 온 조회 입력이다. 기준 시각은 여기 없고 use case가 clock에서 읽어 reader query로 옮긴다. */
 export interface ListOrganizationAuctionAttemptsInput {
   readonly organizationId: OrganizationId;
@@ -54,6 +82,10 @@ export interface ListOrganizationAuctionAttemptsInput {
   readonly limit: number;
   readonly opened: OrganizationAttemptOpenedFilter;
   readonly includeItemLabel?: boolean;
+  readonly includeRevision?: boolean;
+  /** 첫 응답 meta의 buildId·asOf를 되돌려 받은 값이다. 둘은 계약이 한 쌍으로 강제한다. */
+  readonly expectedBuildId?: bigint;
+  readonly asOf?: Temporal.Instant;
   readonly floorRate?: BidRate | "all" | "unknown";
   readonly awardMethodCodeValueId?: bigint | "all" | "unknown";
   readonly period?: { readonly from: KstMonth; readonly to: KstMonth };
@@ -102,18 +134,25 @@ function baseRelativeRateText(value: BaseRelativeBidRate | null): BaseRelativeBi
   return value === null ? null : { value, unit: "percentage-points" };
 }
 
-function attemptResource(record: OrganizationAttemptRecord, includeCohort: boolean, includeItemLabel: boolean): OrganizationAuctionAttempt {
+interface AttemptProjection {
+  readonly includeCohort: boolean;
+  readonly includeItemLabel: boolean;
+  readonly includeRevision: boolean;
+}
+
+function attemptResource(record: OrganizationAttemptRecord, projection: AttemptProjection): OrganizationAuctionAttempt {
   return {
     // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
     attemptId: record.attemptId.toString(10),
+    revisionId: projection.includeRevision ? record.revisionId.toString(10) : undefined,
     announcedAt: z.encode(instantCodec, record.announcedAt),
     openedAt: instantText(record.openedAt),
     item: record.item === null
       ? null
       : { codeValueId: record.item.codeValueId.toString(10), label: record.item.label },
-    itemLabel: includeItemLabel ? record.itemLabel : undefined,
+    itemLabel: projection.includeItemLabel ? record.itemLabel : undefined,
     floorRate: rateText(record.floorRate),
-    awardMethodCodeValueId: includeCohort ? bigintText(record.awardMethodCodeValueId) : undefined,
+    awardMethodCodeValueId: projection.includeCohort ? bigintText(record.awardMethodCodeValueId) : undefined,
     baseAmount: z.encode(moneyCodec, record.baseAmount),
     winRate: observedRateText(record.winRate),
     secondRate: observedRateText(record.secondRate),
@@ -135,9 +174,14 @@ export function toOrganizationAttemptsResponse(
   // 계보를 지어내지 않고 전부 null로 남긴다 — 파생물이 없는 것은 오류가 아니다.
   const { lineage } = page;
   const cohort = cohortOf(input);
+  const projection: AttemptProjection = {
+    includeCohort: cohort !== undefined,
+    includeItemLabel: input.includeItemLabel === true,
+    includeRevision: input.includeRevision === true,
+  };
   return {
     organizationId: organizationIdToString(query.organizationId),
-    attempts: page.attempts.map((record) => attemptResource(record, cohort !== undefined, input.includeItemLabel === true)),
+    attempts: page.attempts.map((record) => attemptResource(record, projection)),
     nextCursor: bigintText(page.nextCursor),
     meta: {
       sampleCount: page.sampleCount,
@@ -162,17 +206,23 @@ export class ListOrganizationAuctionAttempts {
 
   execute(input: ListOrganizationAuctionAttemptsInput): Effect.Effect<
     OrganizationAuctionAttemptsV1Response,
-    AttemptCursorInvalid | OrganizationNotFound | AuctionDependencyUnavailable,
+    AttemptAsOfInFuture | AttemptBuildChanged | AttemptCursorInvalid | OrganizationNotFound | AuctionDependencyUnavailable,
     never
   > {
     // "개찰됨"은 현재 시각의 함수라 정적 계약에 넣을 수 없다. 주입된 clock을 요청당 한 번만 읽어 페이지와
-    // 표본 수가 같은 기준 시각을 쓰게 한다(AGENTS 17). `any`는 기준 자체가 없으므로 null이다.
+    // 표본 수가 같은 기준 시각을 쓰게 한다(AGENTS 17). 이어 읽는 요청은 첫 페이지가 쓴 시각을 되돌려
+    // 보내므로 그 값이 clock을 대신한다. `any`는 기준 자체가 없으므로 null이다.
+    const now = this.clock.now();
+    if (input.asOf !== undefined && Temporal.Instant.compare(input.asOf, now) > 0) {
+      return Effect.fail(new AttemptAsOfInFuture(input.asOf));
+    }
     const query: OrganizationAttemptQuery = {
       organizationId: input.organizationId,
       itemCodeValueId: input.itemCodeValueId,
       cursor: input.cursor,
       limit: input.limit,
-      openedAtOrBefore: input.opened === "only" ? this.clock.now() : null,
+      expectedBuildId: input.expectedBuildId ?? null,
+      openedAtOrBefore: input.opened === "only" ? input.asOf ?? now : null,
       floorRate: input.floorRate,
       awardMethodCodeValueId: input.awardMethodCodeValueId,
       openedFrom: input.period === undefined ? undefined : monthBoundary(input.period.from, false),
@@ -193,9 +243,17 @@ export class ListOrganizationAuctionAttempts {
           catch: (cause) => new AuctionDependencyUnavailable(cause),
         })
         : Effect.fail(new OrganizationNotFound(query.organizationId))),
-      Effect.flatMap((listing) => listing.kind === "page"
-        ? Effect.succeed(toOrganizationAttemptsResponse(input, query, listing.page))
-        : Effect.fail(new AttemptCursorInvalid(query.organizationId, listing.cursor))),
+      Effect.flatMap((listing): Effect.Effect<
+        OrganizationAuctionAttemptsV1Response,
+        AttemptBuildChanged | AttemptCursorInvalid,
+        never
+      > => {
+        if (listing.kind === "page") return Effect.succeed(toOrganizationAttemptsResponse(input, query, listing.page));
+        if (listing.kind === "build-changed") {
+          return Effect.fail(new AttemptBuildChanged(listing.expectedBuildId, listing.activeBuildId));
+        }
+        return Effect.fail(new AttemptCursorInvalid(query.organizationId, listing.cursor));
+      }),
     );
   }
 }

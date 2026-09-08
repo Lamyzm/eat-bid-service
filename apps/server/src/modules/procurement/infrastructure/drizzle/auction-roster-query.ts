@@ -1,5 +1,5 @@
 /** @module 책임: 선택 revision의 명단과 같은 원본 관측의 업체명·판정 라벨·관측 시각을 한 SQL snapshot으로 읽는다. */
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import type { AuctionRosterQuery } from "../../application/auction-roster-reader";
 
 /**
@@ -26,8 +26,11 @@ const ORGANIZATION_CODE_SCHEME = "eat:organization";
  * 판정은 reader가 한다. 후보가 없어도 revision 행 자체는 남아야 "없는 공고"와 구별된다.
  *
  * 왜 문자열로 건네는가: driver의 `Date`는 밀리초까지만 담아 raw 관측의 마이크로초를 잃는다.
+ *
+ * 왜 별칭을 인자로 받는가: 한 회차를 읽는 조회와 여러 회차를 한 번에 읽는 개인 조회가 같은 관측 시각
+ * 규칙을 써야 한다. 두 벌로 두면 한쪽만 바뀔 때 같은 회차의 관측 시각이 화면마다 달라진다.
  */
-function purchaserObservedAtJoin() {
+export function purchaserObservedAtJoin(source: SQL) {
   return sql`
     left join lateral (
       select count(distinct label.observed_at)::integer as observed_at_count,
@@ -44,8 +47,8 @@ function purchaserObservedAtJoin() {
          and organization_scheme.namespace = ${ORGANIZATION_CODE_SCHEME}
         join core.code_label_observation label
           on label.code_value_id = organization_code.code_value_id
-         and label.observation_id = selected.observation_id
-       where purchaser.auction_revision_id = selected.auction_revision_id
+         and label.observation_id = ${source}.observation_id
+       where purchaser.auction_revision_id = ${source}.auction_revision_id
          and purchaser.role = 'purchaser'
     ) observation on true`;
 }
@@ -65,7 +68,7 @@ export function auctionRosterQuery(query: AuctionRosterQuery) {
           then jsonb_array_length(selected.source_payload #> '{roster,submissions}') end as expected_count,
         (selected.source_payload #>> '{roster,sourceRosterSize}')::integer as source_roster_size
       from selected
-      ${purchaserObservedAtJoin()}
+      ${purchaserObservedAtJoin(sql.raw("selected"))}
     )
     select r.auction_attempt_id as auction_id, r.auction_revision_id as revision_id,
       r.observation_id, r.normalized_record_id, r.content_sha256, r.source_system,

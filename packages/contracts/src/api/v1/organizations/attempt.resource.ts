@@ -19,6 +19,15 @@ export type OrganizationAttemptOpenedFilter = z.infer<typeof organizationAttempt
 
 export const organizationAuctionAttemptSchema = z.strictObject({
   attemptId: positiveBigintTextSchema,
+  /**
+   * 이 요약이 어느 해석을 요약했는지다. `mart.org_round_summary.auction_revision_id`는 not null이라
+   * 미관측이 없으므로 `nullable`이 아니고, 필드 부재는 "이 소비자가 요청하지 않았다"만 뜻한다.
+   *
+   * 무조건 싣지 않는 이유: 이 resource는 strict object이고 web이 같은 schema로 응답을 parse한다.
+   * 서버만 먼저 배포되면 구 소비자가 모르는 key 하나 때문에 응답 전체를 거부한다. 그래서 새 표시값을
+   * 요청한 소비자에게만 넓히는 `itemLabel`과 같은 opt-in을 쓴다.
+   */
+  revisionId: positiveBigintTextSchema.optional(),
   announcedAt: instantTextSchema,
   openedAt: instantTextSchema.nullable(),
   // 품목 라벨 상한은 기관 이름(AuctionOrganization.name)과 같은 512자다. 원본 라벨이 잘려 들어오는

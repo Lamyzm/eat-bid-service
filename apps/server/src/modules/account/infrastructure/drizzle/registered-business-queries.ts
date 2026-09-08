@@ -6,12 +6,13 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { maxRegisteredBusinesses } from "@eatbid/contracts";
-import type {
-  ChangeLocationInput,
-  ChangeLocationResult,
-  RegisterBusinessInput,
-  RegisterBusinessResult,
-  RegisteredBusinessRecord,
+import {
+  RegisteredBusinessEvidenceConflict,
+  type ChangeLocationInput,
+  type ChangeLocationResult,
+  type RegisterBusinessInput,
+  type RegisterBusinessResult,
+  type RegisteredBusinessRecord,
 } from "../../application/account-repository";
 import {
   BUSINESS_NUMBER_SCHEME,
@@ -53,7 +54,7 @@ function toBusiness(row: BusinessRow): RegisteredBusinessRecord {
   // 골라 연결하면 남의 성적표를 내 것으로 붙이는 일이고, 미관측으로 낮추면 있는 증거를 감춘다.
   // 자동 병합은 `code_mapping`과 같은 급의 명시적 reconciliation이므로(ADR 0033 §1) 여기서는 실패한다.
   if (Number.isFinite(partyCount) && partyCount > 1) {
-    throw new TypeError("Business number resolves to more than one supplier party");
+    throw new RegisteredBusinessEvidenceConflict();
   }
   return {
     registeredBusinessId: identifier(row.registered_business_id),

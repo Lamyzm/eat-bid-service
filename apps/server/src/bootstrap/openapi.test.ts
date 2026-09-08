@@ -35,6 +35,7 @@ describe("canonical OpenAPI 산출물", () => {
       "/api/v1/code-schemes/{scheme}/codes",
       // 한 path에 조회와 등록 두 method가 함께 있다. path item을 덮어쓰면 하나가 문서에서 사라진다.
       "/api/v1/me/businesses",
+      "/api/v1/me/businesses/{businessId}/bid-observations",
       "/api/v1/me/businesses/{businessId}/location",
       "/api/v1/me/initialization",
       "/api/v1/organizations/{organizationId}/auction-attempts",
@@ -50,6 +51,7 @@ describe("canonical OpenAPI 산출물", () => {
       .toEqual([
         "clearMyBusinessLocation",
         "findAuction",
+        "findMyBidObservations",
         "findWinRateDistribution",
         "getAuctionRoster",
         "getCurrentSession",
@@ -174,6 +176,9 @@ describe("canonical OpenAPI 산출물", () => {
         ["path", "organizationId", true],
         ["query", "item", false],
         ["query", "includeItemLabel", false],
+        ["query", "includeRevision", false],
+        ["query", "expectedBuildId", false],
+        ["query", "asOf", false],
         ["query", "cursor", false],
         ["query", "limit", false],
         ["query", "opened", false],
@@ -182,9 +187,15 @@ describe("canonical OpenAPI 산출물", () => {
         ["query", "from", false],
         ["query", "to", false],
       ]);
-    expect(attempts.parameters[4].schema).toMatchObject({ type: "integer", minimum: 1, maximum: 200, default: 12 });
+    expect(attempts.parameters[7].schema).toMatchObject({ type: "integer", minimum: 1, maximum: 200, default: 12 });
     // 개찰 필터의 기본값이 문서에 드러나야 소비자가 "생략하면 개찰된 회차만"을 계약에서 읽는다.
-    expect(attempts.parameters[5].schema).toMatchObject({ type: "string", enum: ["only", "any"], default: "only" });
+    expect(attempts.parameters[8].schema).toMatchObject({ type: "string", enum: ["only", "any"], default: "only" });
+    // 이어 읽기 고정은 build와 기준 시각 한 쌍이라 둘 다 문서에 있어야 소비자가 반쪽을 보내지 않는다.
+    expect(attempts.parameters[4].schema)
+      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/PositiveBigintText" }] });
+    expect(attempts.parameters[5].schema)
+      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/InstantText" }] });
+    expect(attempts.responses["409"].content["application/problem+json"].schema).toBeDefined();
     expect(attempts.responses["200"].content["application/json"].schema).toEqual({
       $ref: "#/components/schemas/EatbidApiV1OrganizationAuctionAttempts",
     });

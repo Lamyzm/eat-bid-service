@@ -3,6 +3,7 @@ import { isMoney, Temporal } from "@eatbid/domain";
 
 const row = {
   auction_attempt_id: "5796468",
+  auction_revision_id: "208",
   announced_at: new Date("2026-09-01T00:00:00.000Z"),
   opened_at: null,
   item_code_value_id: "7",
@@ -53,6 +54,8 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
     const record = adapter!.mapAttemptRow({ ...row, source_payload: { mustNotEscape: true } } as never);
     expect(record).toMatchObject({
       attemptId: 5_796_468n,
+      // 요약이 요약한 해석이다. 개인 투찰 조회가 이 값으로 명단을 찾으므로 최신 revision과 섞이면 안 된다.
+      revisionId: 208n,
       openedAt: null,
       item: { codeValueId: 7n, label: "축산" },
       floorRate: "90.000",

@@ -12,13 +12,21 @@ import type { OpenAuctionReader } from "./application/open-auction-reader";
 import type { OrganizationAttemptReader } from "./application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "./application/win-rate-distribution-reader";
 import { AuctionController } from "./presentation/http/auction.controller";
+import { MyBidObservationsController } from "./presentation/http/my-bid-observations.controller";
 import { OrganizationController } from "./presentation/http/organization.controller";
 import { WinRateDistributionController } from "./presentation/http/win-rate-distribution.controller";
+import { FindMyBidObservations } from "./application/find-my-bid-observations";
+import type { OwnBidReader } from "./application/own-bid-reader";
+import type { RegisteredBusinessReader } from "../account/application/registered-business-reader";
+import type { UnitOfWork } from "../../platform/database/unit-of-work";
 import {
   AUCTION_READER,
   AUCTION_ROSTER_READER,
   OPEN_AUCTION_READER,
   ORGANIZATION_ATTEMPT_READER,
+  OWN_BID_READER,
+  READ_SNAPSHOT,
+  REGISTERED_BUSINESS_READER,
   WIN_RATE_DISTRIBUTION_READER,
 } from "../../platform/database/database.tokens";
 import type { Clock } from "@eatbid/domain";
@@ -51,8 +59,22 @@ const listOpenAuctionsProvider = {
   useFactory: (reader: OpenAuctionReader, clock: Clock) => new ListOpenAuctions(reader, clock),
 };
 
+// 등록 사업자 소유 판정과 mart 조회가 같은 스냅샷을 읽어야 하므로 use case가 읽기 경계도 함께 받는다.
+const findMyBidObservationsProvider = {
+  provide: FindMyBidObservations,
+  inject: [READ_SNAPSHOT, REGISTERED_BUSINESS_READER, OWN_BID_READER],
+  useFactory: (snapshot: UnitOfWork, businesses: RegisteredBusinessReader, reader: OwnBidReader) =>
+    new FindMyBidObservations(snapshot, businesses, reader),
+};
+
 @Module({
-  controllers: [AuctionController, AuctionRosterController, OrganizationController, WinRateDistributionController],
+  controllers: [
+    AuctionController,
+    AuctionRosterController,
+    MyBidObservationsController,
+    OrganizationController,
+    WinRateDistributionController,
+  ],
   providers: [
     { provide: GetAuctionRoster, inject: [AUCTION_ROSTER_READER],
       useFactory: (reader: AuctionRosterReader) => new GetAuctionRoster(reader) },
@@ -60,6 +82,7 @@ const listOpenAuctionsProvider = {
     listOrganizationAuctionAttemptsProvider,
     findWinRateDistributionProvider,
     listOpenAuctionsProvider,
+    findMyBidObservationsProvider,
   ],
 })
 export class ProcurementModule {}

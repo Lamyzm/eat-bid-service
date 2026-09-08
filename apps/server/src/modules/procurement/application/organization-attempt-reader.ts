@@ -12,6 +12,11 @@ import type { OrganizationId } from "../domain/organization-id";
  */
 export interface OrganizationAttemptRecord {
   readonly attemptId: bigint;
+  /**
+   * 이 요약이 어느 해석을 요약했는지다. 개인 투찰 조회가 같은 회차의 명단을 찾을 때 최신 revision을
+   * 다시 고르지 않고 이 값을 그대로 쓴다. mart 열이 not null이라 미관측 상태가 없다.
+   */
+  readonly revisionId: bigint;
   readonly announcedAt: Temporal.Instant;
   readonly openedAt: Temporal.Instant | null;
   readonly item: { readonly codeValueId: bigint; readonly label: string } | null;
@@ -36,6 +41,11 @@ export interface OrganizationAttemptQuery {
   readonly itemCodeValueId: bigint | null;
   readonly cursor: bigint | null;
   readonly limit: number;
+  /**
+   * 소비자가 이어 읽겠다고 지정한 build다. null이면 지금 활성인 build를 쓴다. 지정한 build가 더 이상
+   * 활성이 아니면 다음 페이지를 조용히 새 build에서 읽지 않고 결과로 그 사실을 알린다(ADR 0034).
+   */
+  readonly expectedBuildId: bigint | null;
   /**
    * 개찰 시각이 이 시각 이하인 회차만 읽는다. null이면 개찰 여부로 거르지 않는다. 시각은 use case가
    * 주입된 clock에서 한 번 읽어 넘기므로 어댑터는 현재 시각을 스스로 알지 못한다(AGENTS 15·17).
@@ -68,7 +78,12 @@ export interface OrganizationAttemptPage {
  */
 export type OrganizationAttemptListing =
   | { readonly kind: "page"; readonly page: OrganizationAttemptPage }
-  | { readonly kind: "cursor-not-found"; readonly cursor: bigint };
+  | { readonly kind: "cursor-not-found"; readonly cursor: bigint }
+  /**
+   * 이어 읽겠다고 지정한 build가 더 이상 활성이 아니다. cursor 오류와 다른 결과인 이유는 회복 방법이
+   * 다르기 때문이다. cursor는 요청을 고치면 되지만 이쪽은 지금까지 쌓은 목록 전체를 버려야 한다.
+   */
+  | { readonly kind: "build-changed"; readonly expectedBuildId: bigint; readonly activeBuildId: bigint | null };
 
 /** 존재 확인과 목록 조회를 나눠야 "기관 없음"과 "이력 없음"을 use case가 구분할 수 있다. */
 export interface OrganizationAttemptReader {

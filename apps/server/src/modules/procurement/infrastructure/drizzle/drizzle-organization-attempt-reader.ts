@@ -9,7 +9,7 @@ import type {
 } from "../../application/organization-attempt-reader";
 import type { OrganizationId } from "../../domain/organization-id";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
-import { readActiveMartBuildLineage } from "./drizzle-mart-build-reader";
+import { ORG_ROUND_SUMMARY, readActiveMartBuildLineage } from "./drizzle-mart-build-reader";
 import {
   baseRelativeBidRateValue,
   bidRateValue,
@@ -18,13 +18,12 @@ import {
   observedBidRateValue,
 } from "./postgres-row-values";
 
-const ORG_ROUND_SUMMARY = "org_round_summary";
-
 // driver 시간 표현은 AGENTS 17이 지정한 어댑터가 소유하므로 그 경계의 입력 타입을 그대로 파생한다.
 type PostgresTimestamp = Parameters<typeof postgresInstant>[0];
 
 type OrganizationAttemptRow = Readonly<{
   auction_attempt_id: string | bigint;
+  auction_revision_id: string | bigint;
   announced_at: PostgresTimestamp;
   opened_at: PostgresTimestamp;
   item_code_value_id: string | bigint | null;
@@ -77,6 +76,7 @@ function cohortCondition(query: OrganizationAttemptQuery) {
 export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptRecord {
   return {
     attemptId: bigintValue(row.auction_attempt_id),
+    revisionId: bigintValue(row.auction_revision_id),
     announcedAt: requiredInstant(row.announced_at, "announced"),
     openedAt: postgresInstant(row.opened_at),
     // 라벨 없는 품목은 화면 계약을 만족하지 못한다. 라벨을 지어내지 않고 unknown으로 남긴다.
@@ -127,6 +127,15 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     // "이력 끝"으로 위장한다. 고른 build는 superseded가 돼도 retain_until 전까지 읽을 수 있으므로
     // 새 잠금이나 transaction 없이 아래 조회들이 같은 사실을 말한다.
     const lineage = await readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY);
+    // 이어 읽기를 요청한 build가 그 사이 superseded 되었거나 아예 사라졌다. 새 build의 페이지를
+    // 이어 주면 한 화면이 두 계보의 회차를 섞으므로 여기서 끊고 소비자가 처음부터 다시 조회한다.
+    if (query.expectedBuildId !== null && lineage?.buildId !== query.expectedBuildId) {
+      return {
+        kind: "build-changed",
+        expectedBuildId: query.expectedBuildId,
+        activeBuildId: lineage?.buildId ?? null,
+      };
+    }
     // 활성 build가 없으면 읽을 파생물 자체가 없다. 빈 이력은 오류가 아니며(ADR 0011) 그때 cursor가
     // 가리킬 행도 없으므로 빈 페이지로 뭉개지 않고 잘못된 cursor로 닫는다.
     if (lineage === null) {
@@ -173,6 +182,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     const result = await this.database.execute(sql`
       select
         summary.auction_attempt_id,
+        summary.auction_revision_id,
         summary.announced_at,
         summary.opened_at,
         summary.item_code_value_id,

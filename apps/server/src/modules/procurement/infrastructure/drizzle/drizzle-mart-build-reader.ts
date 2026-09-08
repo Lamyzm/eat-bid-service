@@ -9,6 +9,9 @@ import type { MartBuildLineage } from "../../application/mart-build-lineage";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
 import { bigintValue } from "./postgres-row-values";
 
+/** 결정 화면의 회차 요약 mart 이름이다. 이 이름으로 활성 build를 고르는 조회가 둘 이상이다. */
+export const ORG_ROUND_SUMMARY = "org_round_summary";
+
 // `mart.build`의 partial unique index가 mart마다 활성 build를 하나로 강제하므로 이 하위 질의는
 // 행을 하나 또는 0개만 돌려준다. 아직 빌드된 적이 없으면 null이고, 그때 목록은 비어야 한다.
 // 빈 목록은 오류가 아니라 파생물이 아직 만들어지지 않은 정상 상태다(ADR 0011, ADR 0034).

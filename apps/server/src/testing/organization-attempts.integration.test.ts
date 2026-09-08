@@ -36,7 +36,8 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: null,
         cursor: null,
         limit: 3,
-        openedAtOrBefore: null,
+        expectedBuildId: null,
+        openedAtOrBefore:null,
       }));
       expect(first.attempts.map((attempt) => attempt.attemptId)).toEqual([105n, 103n, 102n]);
       expect(first.nextCursor).toBe(102n);
@@ -78,7 +79,8 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: null,
         cursor: first.nextCursor,
         limit: 2,
-        openedAtOrBefore: null,
+        expectedBuildId: null,
+        openedAtOrBefore:null,
       }));
       // 라벨 없는 품목은 코드가 있어도 unknown으로 남으며 표본 수는 cursor와 무관하게 같다.
       expect(second.attempts.map((attempt) => attempt.attemptId)).toEqual([101n]);
@@ -92,7 +94,8 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: null,
         cursor: null,
         limit: 12,
-        openedAtOrBefore: NOW,
+        expectedBuildId: null,
+        openedAtOrBefore:NOW,
       }));
       expect(opened.attempts.map((attempt) => attempt.attemptId)).toEqual([102n, 101n]);
       expect(opened.sampleCount).toBe(2);
@@ -102,7 +105,8 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: null,
         cursor: null,
         limit: 12,
-        openedAtOrBefore: Temporal.Instant.from("2026-09-09T05:00:00Z"),
+        expectedBuildId: null,
+        openedAtOrBefore:Temporal.Instant.from("2026-09-09T05:00:00Z"),
       }));
       expect(justOpened.attempts.map((attempt) => attempt.attemptId)).toEqual([105n, 102n, 101n]);
       expect(justOpened.sampleCount).toBe(3);
@@ -112,7 +116,8 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: 7n,
         cursor: null,
         limit: 12,
-        openedAtOrBefore: null,
+        expectedBuildId: null,
+        openedAtOrBefore:null,
       }));
       expect(filtered.attempts.map((attempt) => attempt.attemptId)).toEqual([105n, 103n, 101n]);
       expect(filtered.sampleCount).toBe(3);
@@ -122,7 +127,8 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: 9n,
         cursor: null,
         limit: 12,
-        openedAtOrBefore: null,
+        expectedBuildId: null,
+        openedAtOrBefore:null,
       }));
       expect(empty.attempts).toEqual([]);
       expect(empty.sampleCount).toBe(0);
@@ -133,14 +139,16 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         itemCodeValueId: null,
         cursor: 104n,
         limit: 12,
-        openedAtOrBefore: null,
+        expectedBuildId: null,
+        openedAtOrBefore:null,
       })).toEqual({ kind: "cursor-not-found", cursor: 104n });
       expect(await reader.listAttempts({
         organizationId: organizationId(41n),
         itemCodeValueId: null,
         cursor: 9_007_199_254_740_993n,
         limit: 12,
-        openedAtOrBefore: null,
+        expectedBuildId: null,
+        openedAtOrBefore:null,
       })).toEqual({ kind: "cursor-not-found", cursor: 9_007_199_254_740_993n });
 
       const runtime = await createApp({

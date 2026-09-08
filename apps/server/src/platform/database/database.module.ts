@@ -2,6 +2,8 @@
 import { DynamicModule, Global, Module, type Provider } from "@nestjs/common";
 import type { AccountRepository } from "../../modules/account/application/account-repository";
 import { DrizzleAccountRepository } from "../../modules/account/infrastructure/drizzle/drizzle-account-repository";
+import { DrizzleRegisteredBusinessReader } from "../../modules/account/infrastructure/drizzle/drizzle-registered-business-reader";
+import { DrizzleOwnBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-own-bid-reader";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
 import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
@@ -27,6 +29,9 @@ import {
   DATABASE_READINESS,
   OPEN_AUCTION_READER,
   ORGANIZATION_ATTEMPT_READER,
+  OWN_BID_READER,
+  READ_SNAPSHOT,
+  REGISTERED_BUSINESS_READER,
   UNIT_OF_WORK,
   WIN_RATE_DISTRIBUTION_READER,
 } from "./database.tokens";
@@ -70,6 +75,30 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): UnitOfWork => createUnitOfWork({
           transaction: (work) => connection.database.transaction((transaction) => work(transaction)),
         }),
+      },
+      {
+        /**
+         * 개인 조회 하나가 권한 판정과 사실 조회를 같은 시점에서 읽게 하는 경계다. `repeatable read`인
+         * 이유는 그 둘 사이에 커밋된 변경이 보이면 권한과 자료가 어긋난 응답이 만들어지기 때문이고,
+         * `read only`인 이유는 읽기 경로가 쓰기 권한을 갖지 않아야 하기 때문이다.
+         */
+        provide: READ_SNAPSHOT,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): UnitOfWork => createUnitOfWork({
+          transaction: (work) => connection.database.transaction(
+            (transaction) => work(transaction),
+            { isolationLevel: "repeatable read", accessMode: "read only" },
+          ),
+        }),
+      },
+      {
+        // 스냅샷 handle만 받아 읽으므로 연결을 직접 들지 않는다.
+        provide: REGISTERED_BUSINESS_READER,
+        useValue: new DrizzleRegisteredBusinessReader(),
+      },
+      {
+        provide: OWN_BID_READER,
+        useValue: new DrizzleOwnBidReader(),
       },
       {
         provide: AUCTION_READER,
@@ -122,6 +151,9 @@ export class DatabaseModule {
         ACCOUNT_REPOSITORY,
         DATABASE_READINESS,
         UNIT_OF_WORK,
+        READ_SNAPSHOT,
+        REGISTERED_BUSINESS_READER,
+        OWN_BID_READER,
         AUCTION_READER,
         AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,
