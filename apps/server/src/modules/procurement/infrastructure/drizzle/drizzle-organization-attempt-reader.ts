@@ -1,4 +1,4 @@
-/** @module 책임: 기관 회차 이력 port를 활성 build의 mart.org_round_summary keyset 조회와 행 매핑으로 구현한다. */
+/** @module 책임: 기관 회차 이력 port를 응답마다 하나로 고정한 mart.org_round_summary build의 keyset 조회와 행 매핑으로 구현한다. */
 import { sql } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type {
@@ -9,7 +9,7 @@ import type {
 } from "../../application/organization-attempt-reader";
 import type { OrganizationId } from "../../domain/organization-id";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
-import { activeMartBuildId, readActiveMartBuildLineage } from "./drizzle-mart-build-reader";
+import { readActiveMartBuildLineage } from "./drizzle-mart-build-reader";
 import {
   baseRelativeBidRateValue,
   bidRateValue,
@@ -121,14 +121,26 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
   }
 
   async listAttempts(query: OrganizationAttemptQuery): Promise<OrganizationAttemptListing> {
+    // 이 응답의 기준 build를 여기서 한 번만 고른다. mart 발행은 이전 active를 superseded로, 새
+    // verified를 active로 바꾸는 한 트랜잭션이라 호출 도중에도 일어난다(ADR 0034). 조회마다 활성
+    // build를 다시 물으면 행은 A인데 표본 수와 계보는 B인 응답이 만들어지고, A에만 있는 cursor가
+    // "이력 끝"으로 위장한다. 고른 build는 superseded가 돼도 retain_until 전까지 읽을 수 있으므로
+    // 새 잠금이나 transaction 없이 아래 조회들이 같은 사실을 말한다.
+    const lineage = await readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY);
+    // 활성 build가 없으면 읽을 파생물 자체가 없다. 빈 이력은 오류가 아니며(ADR 0011) 그때 cursor가
+    // 가리킬 행도 없으므로 빈 페이지로 뭉개지 않고 잘못된 cursor로 닫는다.
+    if (lineage === null) {
+      return query.cursor === null
+        ? { kind: "page", page: { attempts: [], nextCursor: null, sampleCount: 0, lineage: null } }
+        : { kind: "cursor-not-found", cursor: query.cursor };
+    }
     // anchor를 먼저 확인해야 남의 기관 cursor와 사라진 cursor가 "이력 끝"으로 위장하지 않는다.
-    if (query.cursor !== null && !(await this.hasCursorAnchor(query))) {
+    if (query.cursor !== null && !(await this.hasCursorAnchor(query, lineage.buildId))) {
       return { kind: "cursor-not-found", cursor: query.cursor };
     }
-    const [rows, sampleCount, lineage] = await Promise.all([
-      this.pageRows(query),
-      this.countAttempts(query),
-      readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY),
+    const [rows, sampleCount] = await Promise.all([
+      this.pageRows(query, lineage.buildId),
+      this.countAttempts(query, lineage.buildId),
     ]);
     // 한 행을 더 읽어 다음 페이지 유무를 판단한다. 별도 count로는 keyset 경계를 알 수 없다.
     const hasMore = rows.length > query.limit;
@@ -144,11 +156,11 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     };
   }
 
-  private async hasCursorAnchor(query: OrganizationAttemptQuery): Promise<boolean> {
+  private async hasCursorAnchor(query: OrganizationAttemptQuery, buildId: bigint): Promise<boolean> {
     const result = await this.database.execute(sql`
       select 1 as present
       from mart.org_round_summary summary
-      where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
+      where summary.build_id = ${buildId}::bigint
         and summary.auction_attempt_id = ${query.cursor}::bigint
         and summary.organization_id = ${query.organizationId}
         and ${cohortCondition(query)}
@@ -157,7 +169,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     return Array.isArray(result) && result.length > 0;
   }
 
-  private async pageRows(query: OrganizationAttemptQuery): Promise<OrganizationAttemptRow[]> {
+  private async pageRows(query: OrganizationAttemptQuery, buildId: bigint): Promise<OrganizationAttemptRow[]> {
     const result = await this.database.execute(sql`
       select
         summary.auction_attempt_id,
@@ -178,7 +190,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
         summary.winner_supplier_party_id,
         summary.supersedes_attempt_id
       from mart.org_round_summary summary
-      where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
+      where summary.build_id = ${buildId}::bigint
         and summary.organization_id = ${query.organizationId}
         and ${cohortCondition(query)}
         and (${query.cursor}::bigint is null
@@ -196,13 +208,13 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     return Array.isArray(result) ? result as OrganizationAttemptRow[] : [];
   }
 
-  private async countAttempts(query: OrganizationAttemptQuery): Promise<number> {
+  private async countAttempts(query: OrganizationAttemptQuery, buildId: bigint): Promise<number> {
     // 표본 수는 cursor와 무관해야 하므로 페이지 조건을 뺀 같은 인덱스 범위를 한 번 더 센다. 개찰 기준은
     // 페이지와 같은 시각이어야 표본 수와 행이 같은 코호트를 말한다.
     const result = await this.database.execute(sql`
       select count(*)::int as sample_count
       from mart.org_round_summary summary
-      where summary.build_id = ${activeMartBuildId(ORG_ROUND_SUMMARY)}
+      where summary.build_id = ${buildId}::bigint
         and summary.organization_id = ${query.organizationId}
         and ${cohortCondition(query)}
     `);
