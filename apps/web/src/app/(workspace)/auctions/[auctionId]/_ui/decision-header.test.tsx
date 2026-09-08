@@ -97,7 +97,7 @@ describe('결정 화면 헤더', () => {
     // 두 값은 오른쪽 현재 공고 정보 패널이 소유한다. 헤더가 함께 강조하면 같은 사실이 두 번 경쟁한다(EAT-115).
     const screen = renderHeader(<DecisionHeader decision={presentDecision(openAuctionFixture, fixtureNow)} />);
     expect(screen.queryByText(/일마다 공고/)).toBeNull();
-    expect(screen.queryByText(/어제보다/)).toBeNull();
+    expect(screen.queryByText(/대비 [+-]\d/)).toBeNull();
     expect(screen.container.textContent).not.toContain('4곳');
   });
 

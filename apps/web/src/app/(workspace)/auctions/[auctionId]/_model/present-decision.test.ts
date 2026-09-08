@@ -43,11 +43,35 @@ describe('결정 화면 표시 모델', () => {
     expect(presentDecision(sidoOnly, fixtureNow).locationText).toBe('경상남도');
     expect(presentDecision({ ...openAuctionFixture, location: null }, fixtureNow).locationText).toBe('미확인');
   });
-  test('참여 수는 관측 시각과 어제 대비 증감을 함께 내고 증감 0도 그대로 말한다', () => {
+  test('참여 수는 최신 관측 시각과 비교 관측 날짜 대비 증감을 함께 내고 증감 0도 그대로 말한다', () => {
     const decision = presentDecision(openAuctionFixture, fixtureNow);
-    expect(decision.participation).toEqual({ countText: '4곳', deltaText: '어제보다 +2', observedAtText: '09-03 10:00' });
+    expect(decision.participation).toEqual({ countText: '4곳', deltaText: '09-02 대비 +2', observedAtText: '09-03 10:00' });
     const flat = { ...openAuctionFixture, participation: { latest: { bidCount: 2, observedAt: '2026-09-03T01:00:00Z' }, dayEarlier: { bidCount: 2, observedAt: '2026-09-02T00:30:00Z' } } };
-    expect(presentDecision(flat, fixtureNow).participation.deltaText).toBe('어제보다 +0');
+    expect(presentDecision(flat, fixtureNow).participation.deltaText).toBe('09-02 대비 +0');
+  });
+  // 계약의 dayEarlier는 24시간 "이상" 앞선 관측이라 상한이 없다. 사흘 전 관측을 어제라고 부르지 않는지 본다.
+  test('비교 관측이 사흘 전이면 어제라 하지 않고 그 날짜를 그대로 말한다', () => {
+    const stale = {
+      ...openAuctionFixture,
+      participation: { latest: { bidCount: 4, observedAt: '2026-09-03T01:00:00Z' }, dayEarlier: { bidCount: 4, observedAt: '2026-08-31T02:00:00Z' } }
+    };
+    const { participation } = presentDecision(stale, fixtureNow);
+    expect(participation.deltaText).toBe('08-31 대비 +0');
+    expect(participation.deltaText).not.toContain('어제');
+    // 최신 기준 시각이 함께 나와야 사용자가 두 날짜의 간격을 읽을 수 있다.
+    expect(participation.observedAtText).toBe('09-03 10:00');
+  });
+  // 해를 넘긴 비교는 월일만으로 최신 날짜와 구분되지 않는다. 그때만 연도를 붙인다.
+  test('비교 관측이 최신과 다른 해면 연도까지 말한다', () => {
+    const acrossYear = {
+      ...openAuctionFixture,
+      participation: { latest: { bidCount: 4, observedAt: '2027-01-02T01:00:00Z' }, dayEarlier: { bidCount: 4, observedAt: '2026-12-31T02:00:00Z' } }
+    };
+    expect(presentDecision(acrossYear, '2027-01-02T01:30:00Z').participation.deltaText).toBe('2026-12-31 대비 +0');
+  });
+  test('비교 관측이 없으면 증감을 지어내지 않고 관측 자체가 없으면 시각도 비운다', () => {
+    const latestOnly = { ...openAuctionFixture, participation: { latest: { bidCount: 13, observedAt: '2026-09-03T01:00:00Z' }, dayEarlier: null } };
+    expect(presentDecision(latestOnly, fixtureNow).participation).toEqual({ countText: '13곳', deltaText: null, observedAtText: '09-03 10:00' });
     expect(presentDecision(auctionFixture, fixtureNow).participation).toEqual({ countText: '미확인', deltaText: null, observedAtText: null });
   });
 });
