@@ -1,7 +1,7 @@
 # 0032 — 인증·인가 경계와 등록된 사업자
 
-- Status: Proposed
-- Date: 2026-09-04 (2026-09-09 개정)
+- Status: Accepted
+- Date: 2026-09-04 (2026-09-09 개정·확정)
 - 관계: `0018`(application identity와 bigint wire)의 `identity_subject → principal_id` 해소를 런타임
   경계로 구체화한다. `0023`(web 모듈 경계)의 "shell은 session endpoint를 직접 읽지 않고 상위 layout이
   검증해 전달한다"를 실제 layout 규칙으로 확정한다. `0028`(Cache Components)의 Suspense·`use cache`
@@ -15,15 +15,19 @@
 
 ## 2026-09-09 개정 요지
 
-이 ADR의 2026-09-04 초안은 두 가지를 잘못 정했고 이번 개정이 그것을 되돌린다.
+이 ADR의 2026-09-04 초안은 네 가지를 잘못 정했고 이번 개정이 그것을 되돌린 뒤 backend 구현으로 확정했다.
 
 1. **사업자번호 전역 배타 선점을 "실질적 방어"라고 적었다.** 사업자등록번호는 공개 정보이므로
    먼저 넣은 사람이 이기는 규칙은 방어가 아니라 비용 없는 서비스 거부다(§7).
 2. **로그인 경계를 세우는 변경에서 모든 공개 read를 함께 잠그도록 적었다.** 그것은 인증 기반과 별개인
    제품·요금 결정이며 같은 변경에 묶을 근거가 없다(§5).
+3. **provider 사용자 생성 hook을 원자 경계로 썼다.** pinned Better Auth 1.7.2의
+   `queueAfterTransactionHook`은 commit 뒤에 hook을 돌린다. 계정 생성은 명시적 command가 한다(§2).
+4. **가입 방법을 이메일·비밀번호까지 열어 두었다.** 이번 범위의 가입은 Google 하나이고, 메일 발송·재설정·
+   비밀번호 저장은 이 슬라이스의 보안 표면이 아니다(§1).
 
-나머지 결정(Nest가 Better Auth를 마운트, bigint principal, `owner|member`, 운영자 부여 이력)은 유지한다.
-이 ADR은 총괄 검토 전까지 `Proposed`이며, 아래 표와 DDL은 승인된 작은 범위의 목표지 완료 선언이 아니다.
+이 개정은 backend 경계까지 구현·검증했으므로 `Accepted`다. 화면 연결은 다음 작업이며 이 문서가 정한 계약을
+그대로 소비한다.
 
 ## Context
 
@@ -68,8 +72,23 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
   `better-auth migrate`, `db:push`, 수기 DDL은 어떤 환경에서도 쓰지 않는다(`AGENTS.md` 10항).
 - `/api/auth/*`의 요청·응답 본문은 Better Auth 라이브러리 계약을 그대로 유지한다. canonical
   `/api/v1/**` operation의 RFC 9457 계약과 섞지 않는다(`0018`).
+- **가입 방법은 Google 하나다.** `emailAndPassword`는 끈다. 메일 발송·재설정·비밀번호 저장은 각각 별도의
+  보안 표면이고 지금 필요한 것은 기존 Better Auth/Google 선택의 재사용뿐이다.
 - 세션은 same-origin 쿠키(`HttpOnly`, `Secure`, `SameSite=Lax`)다. web과 server가 같은 origin 뒤에
-  있으므로 브라우저 요청과 RSC 요청 모두 같은 쿠키를 쓴다.
+  있으므로 브라우저 요청과 RSC 요청 모두 같은 쿠키를 쓴다. `Secure`를 붙일 수 없는 배포는 시작 시점에
+  막는다. production은 https base URL만 허용하고, http는 개발자 기기의 loopback host에서만 허용한다.
+  검사를 뒤로 미루면 로그인은 되는데 쿠키가 평문으로 오가는 배포가 정상처럼 동작한다.
+- **세션 갱신은 브라우저가 한다.** provider의 `session.deferSessionRefresh`를 켜고, 서버가 부르는 검증은
+  `disableRefresh`·`disableCookieCache`로 읽기만 한다. 이 옵션이 없으면 GET 하나가 DB 만료를 연장하며
+  `Set-Cookie`를 만드는데, RSC와 서버 간 조회는 그 헤더를 브라우저에 전달하지 못해 DB 수명과 쿠키 수명이
+  갈라진다. 만료 세션의 DB 삭제도 GET에서 일어나지 않으므로 읽기 한 번이 로그아웃을 확정하지 않는다.
+  실제 갱신은 브라우저가 provider endpoint에 POST해 `Set-Cookie`를 직접 받는다.
+- **provider 로그는 저장소의 안전한 로그 경계를 지난다.** 기본 logger는 `console.error(message, error)`로
+  driver 예외를 그대로 쏟고, 그 예외의 message·params에는 세션 토큰이 들어 있다. provider logger를 주입해
+  고정 event와 분류형 오류만 남기고 원문 문자열을 복사하지 않는다.
+- **사용자별 응답은 캐시하지 않는다.** 개인 operation 경로에는 guard보다 앞선 middleware가
+  `Cache-Control: private, no-store`와 `Vary: cookie`를 붙인다. guard가 끊는 401·403과 의존성 장애 503에도
+  같은 헤더가 남아야 하므로 controller나 interceptor가 아니라 그 앞자리에 둔다.
 - `apps/web/src/proxy.ts`는 세션을 검증하지 않는다. 이유는 두 가지다. 첫째, `0028`이 요구하는 static
   shell을 위해서는 요청마다 쿠키를 읽는 전역 경계를 두지 않는 편이 낫다. 둘째, Next middleware를
   유일한 인가 지점으로 두는 구조는 헤더 조작으로 우회된 전례가 있고(CVE-2025-29927,
@@ -91,17 +110,26 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
 - guard는 세션에서 `(provider, issuer, subject)`를 얻어 `app.identity_subject`로 `principal_id bigint`를
   해소한다. Better Auth의 문자열 user id는 `identity_subject.subject`에만 남고 어떤 application FK도
   되지 않는다(`0018`).
-- `provider`/`issuer` 값은 고정한다. 자체 이메일 로그인은 `('credential', 'eatbid')`, Google은
-  `('google', 'https://accounts.google.com')`. 새 provider는 이 ADR을 갱신해서만 추가한다.
-- **행을 만드는 곳은 로그인 경로 하나다.** `app.principal` 삽입과 `app.identity_subject` 삽입은
-  Better Auth의 사용자 생성 hook에서 같은 트랜잭션으로 수행하고
-  `identity_subject_provider_issuer_subject_key`에 대한 upsert로 멱등하게 만든다. 동시 첫 로그인 두
-  건이 principal 두 개를 만들지 않는다.
-- **guard는 읽기 전용이다.** 유효 세션인데 principal을 해소하지 못하면 401이 아니라 `500 INTERNAL_ERROR`와
-  `principal_unresolved` 로그로 끊는다. 이유: 401은 "다시 로그인하라"는 뜻인데 재로그인은 이미 존재하는
-  사용자에 대해 생성 hook을 다시 돌리지 않으므로 사용자가 고칠 수 없는 상태를 사용자 탓으로 돌린다.
-  그리고 요청 경로에서 계정을 다시 만들 수 있게 하면 회수된 계정이 조용히 되살아나고 모든 읽기
-  endpoint가 쓰기 트랜잭션을 갖는다. 복구는 운영 재-provision이다.
+- **`subject`는 provider의 `sub`가 아니라 이 인증 시스템이 만든 사용자 식별자다.** 설치된 1.7.2의 OAuth
+  연결 경로는 provider가 준 id를 버리고(`const { id: _id, ... } = userInfo`) 자기 user 행을 새로 만든 뒤
+  외부 subject를 `account.accountId`/`account.issuer`에만 남긴다. 그래서 `identity_subject`의 좌표는
+  `('better-auth', 'urn:eatbid:auth', user.id)`다.
+- **`issuer`는 배포 origin이 아니라 고정 namespace다.** origin을 쓰면 포트 하나만 바뀌어도 같은 사람이
+  다른 principal이 되고 이미 저장된 워크스페이스가 통째로 보이지 않는다. 새 provider namespace는 이 ADR을
+  갱신해서만 추가한다.
+- **행을 만드는 곳은 명시적 초기화 command 하나다.** provider hook을 쓰지 않는 이유는 설치본의
+  `queueAfterTransactionHook`이 provider transaction commit 뒤에 hook을 실행하기 때문이다. hook에서
+  principal을 만들면 hook 실패가 "계정은 있는데 app 관계가 없는" 상태로 굳고, 이미 존재하는 user라
+  재로그인해도 hook이 다시 돌지 않아 사용자가 스스로 복구할 수 없다. `initializeCurrentAccount`는 몇 번을
+  불러도 같은 결과이고 그 자체가 복구 경로다.
+- **초기화는 하나의 app transaction이다.** identity가 없으면 principal·identity를, 기본 워크스페이스가
+  없으면 워크스페이스·owner membership·기본 관계를 만든다. 두 unique 제약 중 하나라도 경쟁에서 지면
+  트랜잭션 전체가 되돌아가므로 주인 없는 principal도 워크스페이스도 남지 않고, 그때는 이긴 쪽이 이미
+  커밋돼 있으므로 한 번 더 읽으면 끝난다. Drizzle이 driver 오류를 감싸므로 이 재시도 판정은 원인 사슬의
+  23505를 제한된 깊이까지 따라간다.
+- **guard는 읽기 전용이다.** 요청 경로에서 계정을 다시 만들 수 있게 하면 회수된 계정이 조용히 되살아나고
+  모든 읽기 endpoint가 쓰기 트랜잭션을 갖는다. 유효 세션인데 principal이 없으면 그것은 "초기화가 아직
+  끝나지 않았다"이므로 401이 아니라 403이다(§6).
 - provider가 소유한 세션 테이블에 `principal_id`를 비정규화하지 않는다. `0018`의 Better Auth CLI
   schema conformance gate를 깨뜨리기 때문이다. 요청당 조회 2회(세션 1, identity_subject 1)를 받아들인다.
 - 해소된 principal은 `RequestContextStore`에 넣지 않는다. 그 store는 상관관계 ID만 담고 인증 정보를
@@ -166,36 +194,42 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
 | 수준 | 판정 |
 | --- | --- |
 | `public` | 세션을 보지 않는다 |
-| `authenticated` | 유효 세션 → `principal_id` 해소 성공 |
-| `workspace_member` | 요청의 workspace에 대한 `workspace_membership` 존재 |
+| `provider_session` | 유효 provider 세션. app 관계를 전제하지 않는다 |
+| `workspace_member` | principal 해소 성공 + 기본 워크스페이스 membership |
 | `workspace_owner` | 그 membership의 `role = owner` |
-| `registered_business` | 대상이 그 워크스페이스에 활성 등록된 `workspace_supplier` |
-| `subscription_active` | 유료 상태(§10에서 미룸) |
+| `registered_business` | 대상이 그 워크스페이스에 활성 등록된 `registered_business` |
+| `subscription_active` | 유료 상태(§11에서 미룸) |
 | `operator` | 회수되지 않은 `operator_grant` |
 
 이번 변경이 추가하는 operation:
 
 | operationId | method·path | 요구 수준 | 실패 |
 | --- | --- | --- | --- |
-| (Better Auth 전송) | `/api/auth/*` | `public` | provider 계약 |
-| `getCurrentSession` | `GET /api/v1/session` | `public` | — |
-| `listMyBusinesses` | `GET /api/v1/me/businesses` | `authenticated` | 401 |
-| `registerMyBusiness` | `POST /api/v1/me/businesses` | `authenticated` | 400·401·409 |
-| `setMyBusinessLocation` | `PUT /api/v1/me/businesses/{businessId}/location` | `registered_business` | 400·401·403·404 |
+| (Better Auth 전송) | `/api/auth/*` | `public` | provider 계약, 미설정 배포는 503 |
+| `getCurrentSession` | `GET /api/v1/session` | `public` | 500·503 |
+| `initializeCurrentAccount` | `POST /api/v1/me/initialization` | `provider_session` | 401·403·500·503 |
+| `listMyBusinesses` | `GET /api/v1/me/businesses` | `workspace_member` | 401·403·500·503 |
+| `registerMyBusiness` | `POST /api/v1/me/businesses` | `workspace_owner` | 400·401·403·409·500·503 |
+| `setMyBusinessLocation` | `PUT /api/v1/me/businesses/{businessId}/location` | `workspace_owner` + `registered_business` | 400·401·403·404·500·503 |
+| `clearMyBusinessLocation` | `DELETE /api/v1/me/businesses/{businessId}/location` | `workspace_owner` + `registered_business` | 400·401·403·404·500·503 |
 
 `getCurrentSession`이 `public`인 것은 의도다. 미로그인에서 401을 던지면 진입 화면이 정상 흐름에서
 오류를 렌더해야 한다. 세션 조회는 "너는 누구인가"의 답이지 보호 자원이 아니다. 그리고 **GET은 행을
 만들지 않는다.** 워크스페이스 초기화는 §8의 명시적 저장 command에서만 일어난다.
 
-`registerMyBusiness`가 `workspace_owner`가 아니라 `authenticated`인 이유는 §8이다. 워크스페이스가 아직
-없는 사용자가 첫 사업자를 등록하면서 자기 워크스페이스를 갖게 되며, 이미 있으면 그 워크스페이스의
-`owner`여야 한다. 이 두 판정은 같은 use case 안에 있다.
+**상태를 바꾸는 operation은 전부 403을 계약에 표현한다.** Origin 거절, 초기화 미완료, 남의 워크스페이스
+자원, `owner` 권한 부족이 모두 403이다. 실제로 나오는 status를 계약이 숨기면 소비자가 처리할 수 없는
+실패가 되고, 그것을 피하려고 401이나 500으로 바꾸면 화면이 잘못된 복구를 안내한다.
+
+**등록과 위치 변경은 `owner`만 한다.** 조회는 `member`도 한다. 워크스페이스가 아직 없는 사용자는
+§8의 초기화로 자기 워크스페이스의 `owner`가 되므로 첫 등록이 막히지 않는다. 이 판정은 use case 한
+곳에 있고 화면이 버튼을 감추는 것으로 대신하지 않는다.
 
 **기존 공개 read의 요구 수준은 이번 변경에서 바꾸지 않는다.** `findAuction`,
 `listOrganizationAuctionAttempts`, `findWinRateDistribution`, `listOpenAuctions`, `listCodes`는 지금 그대로
 둔다. 근거: 게스트 모드 폐기는 "브라우저 localStorage가 사용자 기록의 진실 원천이 아니다"라는 결정이지
 "공개 관측 사실을 로그인 뒤로 숨긴다"는 결정이 아니다. 후자는 무료/유료 경계와 공유 링크 정책을 함께
-정해야 하는 제품 결정이고(§10), 로그인 기반과 같은 변경에 묶으면 요금제가 정해질 때까지 인증을 배포할 수
+정해야 하는 제품 결정이고(§11), 로그인 기반과 같은 변경에 묶으면 요금제가 정해질 때까지 인증을 배포할 수
 없다. 또 지금 그 read들은 dev 화면과 `test:e2e:foundation` fixture가 쓰고 있어 같은 변경에서 잠그면
 인증 실패와 화면 회귀를 구분할 수 없게 된다. 잠그는 변경은 별도 issue에서 이 표의 해당 줄과 guard
 테스트를 함께 고친다.
@@ -215,8 +249,11 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
 
 ### 6. 인가 실패의 wire 표현
 
-- 세션이 없거나 만료: `401`, `code: UNAUTHENTICATED`.
-- 세션은 있으나 대상에 대한 권한 없음: `403`, `code: FORBIDDEN`.
+- 세션이 없거나 만료·로그아웃: `401`, `code: UNAUTHENTICATED`. 재로그인이 답이다.
+- 세션은 유효하나 이 요청이 허용되지 않음: `403`, `code: FORBIDDEN`. 초기화 미완료, `owner` 권한 부족,
+  남의 워크스페이스 자원, 신뢰하지 않는 `Origin`이 모두 여기다. 응답 본문은 넷 중 무엇인지 적지 않는다.
+  어느 쪽인지는 `getCurrentSession`의 상태값이 말한다. 둘을 401 하나로 합치면 초기화 미완료 사용자가
+  고칠 수 없는 로그인을 반복한다.
 - 입력 형식 위반(사업자번호 형식 등): `400`, `code: VALIDATION_ERROR`.
 - 같은 워크스페이스에 이미 활성 등록된 사업자: `409`, `code: CONFLICT`.
 - 이 code들은 `packages/contracts/src/common/problem-details.ts`의 `problemCodeSchema`에 이미 있고
@@ -250,14 +287,25 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
   붙일지의 라벨일 뿐이다. 남의 번호를 등록해도 남의 작성 자료는 보이지 않는다.
 - **번호는 대조 키이지 식별자가 아니다.** 등록 입력은 문자열이지만 관계는 `supplier_party_id bigint`다
   (`AGENTS.md` 2항). 대조는 `eat:business-number` CodeScheme의 정확한 번호 일치 하나이며, 이름·유사도·
-  부분 일치로 찾지 않는다.
-- **관측되지 않은 번호도 등록은 성공한다.** 대조에 실패하면 `supplier_party_id`를 `null`로 두고
-  사용자가 넣은 번호를 `app`에 그대로 보존한다. `core.supplier_party`나 `core.code_value`를 사용자
-  입력으로 만들지 않는다(`AGENTS.md` 1·3항). 응답은 "아직 원본에서 관측되지 않았다"를 명시하고 화면은
-  그것을 "참여 기록 없음"으로 바꿔 말하지 않는다. 자료 없음과 미참여는 다른 사실이다.
-- **`verification_state`는 지금 아무 권한도 승격시키지 않는다.** 초기값 `unverified`를 남기되 이 값으로
-  분기하는 코드를 만들지 않는다. 증빙 절차와 `verified` 조건은 후속 이슈가 정한다. 값만 있고 절차가
-  없는 상태에서 분기를 만들면 그 분기가 곧 검증됐다는 뜻으로 읽힌다.
+  부분 일치로 찾지 않는다. 소스가 표기를 보장하지 않으므로 숫자 표기와 하이픈 표기 두 값을 정확한
+  값으로 열거해 대조한다. 이것은 표기 차이를 흡수할 뿐 일치 조건을 넓히지 않는다.
+- **연결은 저장하지 않고 읽을 때 파생한다.** `app`에 `supplier_party_id`나 `linked_at`을 저장하면 나중에
+  원본이 그 사업자를 처음 관측해도 저장된 `null`이 그대로 남아 영원히 미연결이 된다. 사용자 입력 등록은
+  `app`의 권위이고 번호→`SupplierParty`는 `core`의 권위이므로, 조회가 그때의 `core` 사실로 연결을 만든다.
+  background job도, GET에서의 `app` 쓰기도, 사용자 입력으로 만드는 `core` 행도 없다.
+- **관측되지 않은 번호도 등록은 성공한다.** 대조 결과가 없으면 응답이 "아직 원본에서 관측되지 않았다"를
+  명시한다. `core.supplier_party`나 `core.code_value`를 사용자 입력으로 만들지 않는다(`AGENTS.md` 1·3항).
+  화면은 그것을 "참여 기록 없음"으로 바꿔 말하지 않는다. 자료 없음과 미참여는 다른 사실이다.
+- **한 번호가 서로 다른 party 둘을 가리키면 연결을 고르지 않는다.** 원본은 사업자번호가 없던 계정과 있는
+  계정을 자동 병합하지 않으므로(ADR 0033 §1) 같은 번호가 둘 이상의 party에 닿는 상태가 존재할 수 있다.
+  하나를 고르면 남의 성적표를 내 것으로 붙이는 일이고, 미관측으로 낮추면 있는 증거를 감춘다. 조회는
+  증거 불일치로 실패하고 그 회복은 `code_mapping`과 같은 급의 명시적 reconciliation이다.
+- **활성 등록 수에는 상한이 있다.** 응답 계약의 배열 상한과 같은 값을 등록 시점이 강제하고, 그 검사는
+  워크스페이스 행을 잠근 같은 트랜잭션 안에서 한다. 상한을 넘겨 저장하면 이미 저장된 정상 상태를
+  그 다음 조회가 응답 검증에서 읽지 못한다.
+- **검증 상태 열을 지금 만들지 않는다.** 어떤 권한도 승격시키지 않는 `verification_state`를 미리 두면
+  값만 있고 절차가 없는 상태에서 그 값이 "검증됨"으로 읽힌다. 증빙 절차와 그 열은 절차를 정하는 이슈가
+  같이 만든다.
 - **형식 검증과 소유 증명을 구분한다.** 입력은 하이픈·공백을 걷어낸 숫자 10자리로 정규화하고 국세청
   체크디짓 규칙으로 오타를 거른다. 이것은 오타 차단이지 실재·소유 증명이 아니며 문서·화면·응답
   어디에서도 "확인된 사업자"로 부르지 않는다.
@@ -265,27 +313,33 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
 DDL(권위는 `packages/db`):
 
 ```text
-app.workspace_supplier(
-  workspace_supplier_id      bigint pk generated always as identity,
+app.registered_business(
+  registered_business_id     bigint pk generated always as identity,
   workspace_id               bigint not null fk -> app.workspace,
   business_number            char(10) not null,          -- 정규화된 사용자 입력. 대조 키이지 식별자가 아니다
-  supplier_party_id          bigint null fk -> core.supplier_party,
-  linked_at                  timestamptz null,           -- 정확 대조가 성공한 시각
   registered_by_principal_id bigint not null fk -> app.principal,
   registered_at              timestamptz not null,
   revoked_at                 timestamptz null,
-  verification_state         text not null,              -- unverified | verified | disputed
   unique (workspace_id, business_number) where revoked_at is null,
-  check (supplier_party_id is null) = (linked_at is null)
+  check (business_number ~ '^[0-9]{10}$')
+)
+
+app.registered_business_location(
+  registered_business_id  bigint pk fk -> app.registered_business,
+  address_text            text not null,
+  updated_at              timestamptz not null,
+  updated_by_principal_id bigint not null fk -> app.principal,
+  check (length(btrim(address_text)) > 0)
 )
 ```
 
-2026-09-04 초안의 `primary key (workspace_id, supplier_party_id)`를 대리키로 바꾼다. 미관측 번호를
-보존하려면 `supplier_party_id`가 nullable이어야 하고 nullable 열은 PK가 될 수 없다. `businessId` path
-parameter는 이 대리키의 decimal string이며 사업자등록번호를 URL에 싣지 않는다.
+2026-09-04 초안의 `primary key (workspace_id, supplier_party_id)`와 저장된 `supplier_party_id`·`linked_at`·
+`verification_state` 열을 없앤다. `core` 연결은 저장하지 않고 조회가 파생하며, 어떤 권한도 승격시키지 않는
+`verification_state`는 값만 있고 절차가 없는 상태에서 "검증됨"으로 읽힌다. `businessId` path parameter는
+대리키의 decimal string이며 사업자등록번호를 URL에 싣지 않는다. 요청 경로는 접근 로그와 referrer에 남는다.
 
 한 워크스페이스는 여러 사업자를 등록할 수 있다(`product-and-quality.md` §1의 다사업자 운영).
-인가 판정의 단위는 `Workspace × workspace_supplier`다. `BidWorkItem`의 grain은
+인가 판정의 단위는 `Workspace × registered_business`다. `BidWorkItem`의 grain은
 `domain-and-data.md` §3.5의 `unique(workspace_id, supplier_party_id, auction_attempt_id)`를 따르며
 `pages-endpoints-load.md`가 적은 `PK (workspace_id, attempt_id)`와 다르므로 그 계약을 만드는 EAT-40이
 한쪽으로 맞춘다. 미연결 등록에는 `supplier_party_id`가 없으므로 `BidWorkItem`은 연결된 등록에만 붙는다.
@@ -296,30 +350,28 @@ parameter는 이 대리키의 decimal string이며 사업자등록번호를 URL�
 얻지 못하면서 가입을 한 단계 늘린다. 동시에 워크스페이스 관계 자체는 유지한다. 구성원 1~2명과
 다사업자는 실제 요구사항이고, 나중에 도입하려면 이미 저장된 자료의 소유자를 옮겨야 한다.
 
-- `registerMyBusiness`는 하나의 트랜잭션에서 다음을 수행한다: 이 principal의 `owner` membership이 있는
-  워크스페이스를 찾고, 없으면 `app.workspace` 한 행과 `role = owner` membership을 만든 뒤, 그
-  워크스페이스에 `workspace_supplier`를 등록한다.
+- `initializeCurrentAccount`는 하나의 트랜잭션에서 principal·identity와 개인 워크스페이스·`owner`
+  membership·기본 워크스페이스 관계를 만든다. 여러 번 불러도 같은 관계를 돌려준다.
 - 새 워크스페이스의 `name`은 사용자에게 묻지 않고 서버가 정한 초기값을 넣는다. 이름 변경은 owner의
   나중 선택이지 가입 조건이 아니다.
-- **중복 저장과 동시 초기화**: 같은 principal의 요청 두 건이 동시에 오면 두 워크스페이스가 생길 수 있다.
-  이것은 `app.workspace_membership`에 `(principal_id) where role = 'owner'` 부분 unique를 걸어 DB가 막는다.
-  진 쪽은 충돌을 잡아 이긴 워크스페이스를 다시 읽고 등록만 이어 간다. 애플리케이션 선검사로만 막지
-  않는 이유는 두 트랜잭션이 서로의 미커밋 행을 보지 못하기 때문이다.
-  같은 번호를 두 번 등록하면 `(workspace_id, business_number)` 부분 unique가 막고 `409 CONFLICT`가 된다.
-- 이 부분 unique는 "한 사람은 자기 워크스페이스 하나의 owner"라는 지금의 제품 형태를 강제한다. 초대로
-  두 번째 워크스페이스의 owner가 되어야 하는 날에는 이 제약을 푸는 것이 그 이슈의 명시적 결정이 된다.
-  제약 없이 시작하면 그날까지 조용히 중복 워크스페이스가 쌓인다.
+- **기본 워크스페이스 관계를 따로 둔다.**
 
-**위치는 사용자가 직접 쓰는 app 상태다.**
+  ```text
+  app.principal_default_workspace(
+    principal_id   bigint pk fk -> app.principal,
+    workspace_id   bigint not null fk -> app.workspace,
+    initialized_at timestamptz not null
+  )
+  ```
 
-```text
-app.workspace_supplier_location(
-  workspace_supplier_id   bigint pk fk -> app.workspace_supplier,
-  address_text            text not null,
-  updated_at              timestamptz not null,
-  updated_by_principal_id bigint not null fk -> app.principal
-)
-```
+  동시 초기화가 워크스페이스를 둘 만들지 않게 하는 데 필요한 것은 이 관계의 PK 하나다. `membership`에
+  `(principal_id) where role = 'owner'` 전역 unique를 거는 대신 이 표를 쓰는 이유는, 그 제약이 경쟁 방지가
+  아니라 "한 사람은 한 워크스페이스의 owner"라는 도메인 권한 제한이 되어 초대와 다중 소유를 미리 막기
+  때문이다. 경쟁에서 진 트랜잭션은 통째로 되돌아가므로 주인 없는 워크스페이스도 남지 않는다.
+- 같은 번호를 두 번 등록하면 `(workspace_id, business_number)` 부분 unique가 막고 `409 CONFLICT`가 된다.
+  애플리케이션 선검사로만 막지 않는 이유는 두 트랜잭션이 서로의 미커밋 행을 보지 못하기 때문이다.
+
+**위치는 사용자가 직접 쓰는 app 상태다.** DDL은 §7의 `app.registered_business_location`이다.
 
 - 미설정은 **행이 없는 것**이다. 빈 문자열이나 기본 지역을 넣지 않는다(`AGENTS.md` 3항).
 - 저장하는 것은 사용자가 적은 주소 문장 하나뿐이다. 행정구역 코드 열도 좌표 열도 지금 만들지 않는다.
@@ -329,6 +381,8 @@ app.workspace_supplier_location(
   eaT 참가제한지역 자격을 판정하거나 사업장 소재지를 추정하지 않고 GPS를 요구하지 않는다.
 - 위치는 등록된 사업자별로 소유한다. 워크스페이스에 매달면 다사업자 사용자의 서로 다른 사업장이 한
   값으로 섞인다.
+- 소유 확인·쓰기·응답 조회는 한 트랜잭션이고 응답 조회는 그 등록 하나로 좁힌다. 나누면 다른 등록의
+  증거 불일치가 이미 커밋된 변경을 사용자에게 실패로 보이게 만든다.
 
 ### 9. 세션 수명주기와 브라우저 경계
 
@@ -336,11 +390,10 @@ app.workspace_supplier_location(
   실리지 않는다. 그 위에 Nest guard가 상태 변경 method에 대해 `Origin` 헤더를 확인하고 허용 목록과
   정확히 일치하지 않으면 `403`으로 끊는다. 허용 목록은 이미 있는 `CORS_ORIGINS` 환경 계약 하나를
   재사용하고 별도 목록을 만들지 않는다. `Origin`이 아예 없는 상태 변경 요청도 거부한다.
-- **계정 연결을 자동으로 하지 않는다.** Google 계정과 이메일 계정의 주소가 같아도 자동으로 한 계정에
-  묶지 않는다. provider가 검증했다고 말하는 이메일을 그대로 믿고 병합하면 provider 쪽 이메일 변경이
-  곧 계정 탈취 경로가 된다. 결과적으로 같은 사람이 다른 방법으로 로그인하면 다른 principal이 되고 다른
-  워크스페이스를 본다. 로그인 화면은 이 사실을 문장으로 알린다. 명시적 연결 기능은 재인증 요구와 함께
-  별도 이슈에서 만든다.
+- **계정 연결을 자동으로 하지 않는다.** provider가 검증했다고 말하는 이메일을 그대로 믿고 계정을 합치면
+  provider 쪽 이메일 변경이 곧 계정 탈취 경로가 된다. `accountLinking`을 끄고 암묵 연결도 막는다.
+  두 번째 provider가 생기면 같은 사람이 다른 방법으로 로그인할 때 다른 principal이 되며, 명시적 연결
+  기능은 재인증 요구와 함께 별도 이슈에서 만든다.
 - **로그아웃**은 Better Auth의 세션 무효화를 부르고 브라우저의 TanStack Query 캐시를 통째로 비운다.
   legacy localStorage는 새 경로가 읽지도 쓰지도 않으므로 지우지 않는다. 남의 PC에서 남의 기록이 섞이는
   경로를 만들지 않기 위해 로그인 시 기존 브라우저 로컬 기록을 계정으로 이전하지 않는다.
@@ -350,11 +403,25 @@ app.workspace_supplier_location(
   권한의 권위가 아니다.
 - **다른 워크스페이스 ID를 넣은 요청**은 membership 조회 실패로 `403`이다. 응답 본문은 그 ID가 존재하는지
   말하지 않는다.
-- **테스트용 fake provider는 주입 경계에만 둔다.** 서버는 이미 `createApp`이 reader port를 주입받는
-  구조이므로 같은 방식으로 principal resolver를 주입한다. 환경변수나 헤더로 인증을 건너뛰는 분기를
-  production 코드에 만들지 않는다. `NODE_ENV`를 보는 auth bypass는 한 번의 배포 설정 실수로 전면 개방이 된다.
+- **테스트용 대역은 주입 경계에만 둔다.** 서버는 이미 `createApp`이 port를 주입받는 구조이므로 같은
+  방식으로 session authenticator를 주입한다. 환경변수나 헤더로 인증을 건너뛰는 분기를 production 코드에
+  만들지 않는다. `NODE_ENV`를 보는 auth bypass는 한 번의 배포 설정 실수로 전면 개방이 된다.
 
-### 10. 구독 상태는 이 ADR이 정하지 않는다
+### 10. provider schema conformance
+
+- 표·열·index·참조는 pinned `auth` CLI generator가 **같은 adapter 설정으로** 만든 결과와 대조한다.
+  `schemaName`·`camelCase`를 생성 전용 기본값으로 두면 검사는 통과하는데 실제 배포되는 표와 다른 모양을
+  검증하게 되므로, runtime과 생성이 같은 adapter option 객체 하나를 읽는다.
+- 대조는 byte 비교가 아니라 구조 비교다(ADR 0018). 생성 결과를 평가해 양쪽 모두 같은 Drizzle
+  `getTableConfig`로 정규화한 뒤 물리 table 이름, adapter가 접근하는 property key, 물리 열 이름,
+  JavaScript 매핑, PostgreSQL 타입, not null, primary key, 참조 대상과 `onDelete`, index를 비교한다.
+- generator 결과와 다르게 둘 값은 정확한 예외 목록에만 적는다. 지금 둘은 두 가지다. 밀리초 epoch 열은
+  물리 타입이 같은 bigint를 유지하되 JavaScript number mode를 쓰지 않고, 시각 열은 timezone을 갖는다.
+  목록에 없는 차이는 전부 실패이고, 목록에 있는데 실제 차이가 사라진 항목도 실패로 드러낸다.
+- 이 검사는 DB 연결도 비밀값도 요구하지 않는다. 검사 자체가 drift를 잡는지는 표 누락·이름 변경·property
+  이름 변경·primary key 제거·타입 축소를 각각 실패시키는 테스트가 증명한다.
+
+### 11. 구독 상태는 이 ADR이 정하지 않는다
 
 `subscription_active`는 **판정 지점만** 여기서 정하고 상태의 저장·결제 연동·요금제 정의는 별도 ADR로
 미룬다. 구현은 `SubscriptionPolicy` port 하나를 두고, 그 ADR이 나오기 전까지는 모든 로그인 principal에
@@ -368,9 +435,11 @@ app.workspace_supplier_location(
 - 요청마다 조회 2회가 늘어난다. 피크 3 req/s 가정에서 무시할 수 있는 비용이며, 줄이려고 provider
   세션 테이블에 `principal_id`를 심는 것은 `0018` conformance gate가 막는다.
 - 세션 의존 함수는 `use cache`를 쓰지 못한다. `mart` 기반 집계만 태그 캐시의 이득을 본다.
-- 같은 사람이 Google과 이메일로 각각 로그인하면 두 계정이 되고 각자 사업자를 등록해야 한다. 지원
-  문의가 늘어나는 대가로 provider 이메일 변경이 탈취 경로가 되는 것을 막는다.
-- 한 사람이 한 워크스페이스의 owner라는 제약 때문에, 초대 기능을 만들 때 제약 해제가 먼저 필요하다.
+- 자동 계정 연결을 끈 대가로, 두 번째 provider가 생기면 같은 사람이 두 계정을 가질 수 있다. 그 대신
+  provider 이메일 변경이 탈취 경로가 되지 않는다.
+- 세션 갱신이 브라우저 POST에만 있으므로 web은 그 갱신을 실제로 호출해야 한다. 서버 조회만 반복하는
+  화면은 세션을 연장하지 못하고 만료 시점에 로그아웃된다. 이 경계는 화면 연결 작업이 닫는다.
+- 인증 설정이 없는 배포에서 `/api/v1/session`과 `/api/auth/*`가 503이다. 공개 read는 그대로 동작한다.
 - 권한 매트릭스가 문서와 guard 테스트 양쪽에 있으므로 둘이 어긋나면 테스트가 먼저 깨진다. 표의 한 줄을
   바꾸는 변경은 이 ADR과 테스트를 같이 고쳐야 한다.
 - **잘못됐을 때 비용:** 인가 판정이 endpoint마다 흩어지면 새 계약 하나가 남의 워크스페이스 작성 자료를

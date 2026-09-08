@@ -73,7 +73,7 @@ Linear EAT-47. base `be1e52c`. writer는 worktree
 - **계정 라벨에 원본 이메일을 싣지 않는다.** 계정 전환 확인에 필요한 최소값은 표시 이름과 마스킹된
   이메일이며 마스킹은 서버 presentation이 한다. 전체 주소를 응답에 실으면 화면 캡처·로그·오류 보고에
   그대로 따라다닌다.
-- **사업자번호는 path·query에 넣지 않는다.** `businessId`는 `workspace_supplier_id`의 decimal string이다.
+- **사업자번호는 path·query에 넣지 않는다.** `businessId`는 `registered_business_id`의 decimal string이다.
   번호는 요청 body와 응답 본문에만 나타난다. 요청 경로는 접근 로그와 referrer에 남는다.
 - **형식 검증은 `packages/domain`이 소유한다.** 하이픈·공백 제거 → 숫자 10자리 → 국세청 체크디짓.
   이 값은 오타 차단이며 실재·소유 증명이 아니다. 검증 fixture는 `core.code_value`의
@@ -311,11 +311,39 @@ ledger 항목으로 남는다.
 `flow-series.ts`에 실제 투찰 계열을 추가하지 않는다. legacy `lib/session.ts`의 기록을 계정으로 이전하지
 않는다. git push, 운영 DB 변경, container mutation, Infisical secret dump를 하지 않는다.
 
+## backend 구현 결과 (2026-09-09)
+
+계획의 1~4단계를 backend로 구현했고 5단계 web은 다음 작업이다. 설계와 달라진 결정과 그 근거는 다음과 같다.
+
+- **provider hook을 쓰지 않는다.** 설치본의 `queueAfterTransactionHook`이 commit 뒤 hook을 돌리는 것을
+  소스에서 확인했다. 그래서 A안(hook 트랜잭션)을 버리고 명시적 `initializeCurrentAccount` command로 갔다.
+  계정 초기화 실패는 같은 command 재호출로 복구된다.
+- **가입 방법은 Google 하나로 좁혔다.** 이메일·비밀번호는 범위 밖이다.
+- **`app.registered_business`에 `supplier_party_id`·`linked_at`·`verification_state`를 두지 않는다.**
+  저장된 파생 FK는 나중에 원본이 그 사업자를 관측해도 미연결로 남는다. 연결은 조회가 파생한다.
+- **기본 워크스페이스는 `app.principal_default_workspace`가 소유한다.** membership에 owner 전역 unique를
+  걸면 경쟁 방지가 아니라 도메인 권한 제한이 되어 초대와 다중 소유를 미리 막는다.
+- **등록과 위치 변경은 `owner`만 한다.** 조회는 `member`도 한다.
+- **개인 응답에는 guard 앞 middleware가 `Cache-Control: private, no-store`와 `Vary: cookie`를 붙인다.**
+- **provider logger를 주입해** driver 예외의 원문 message·params가 로그에 남지 않게 했다.
+- **schema conformance는 pinned `auth@1.7.2`의 `generateDrizzleSchema`를 실제 adapter 설정으로 실행**해
+  구조를 대조한다. 허용한 차이는 밀리초 epoch 열의 JavaScript bigint mode와 시각 열의 timezone 둘뿐이다.
+
+실행한 검증(모두 격리된 일회용 PostgreSQL):
+
+- `apps/server/src/testing/account.integration.test.ts` — 초기화 멱등·동시 초기화 무고아·부분 실패 복구·
+  타 워크스페이스 동일 번호 등록·중복·미관측 보존·후속 관측 연결·모호한 party 실패·등록 상한·위치 소유.
+- `apps/server/src/testing/auth-session.integration.test.ts` — 실제 adapter 저장, rate limit 밀리초 왕복,
+  canonical 검증의 무변경, 브라우저 POST 갱신의 `Set-Cookie`, 만료·로그아웃 거부, 로그 비노출.
+- `apps/server/src/testing/account-http.integration.test.ts` — 미로그인·초기화 미완료 구분, Origin 거부,
+  owner/member 403, 중복 409, 형식 400, 계정 간 격리, 인증 미설정 배포의 503, 캐시 헤더.
+
 ## 남은 확인
 
-- pinned `better-auth@1.7.2`의 사용자 생성 hook이 adapter transaction 안에서 도는지(§1). 1단계에서
-  실행으로 확인하고 A/B 중 하나를 이 문서에 기록한다.
-- 독립 CLI package `auth`의 1.7.2가 offline으로 Drizzle schema를 생성하는지. 실패하면 conformance를
-  “미수행”으로 남기고 총괄에게 알린다. 손으로 맞춘 schema를 대조 통과라고 쓰지 않는다.
-- Google OAuth client 발급과 redirect URI 등록은 사용자 계정 작업이다. 없으면 이메일 로그인만으로
-  1~5단계를 인수하고 Google 경로는 미검증으로 보고한다.
+- Google OAuth client 발급과 redirect URI 등록은 사용자 계정 작업이다. 실제 Google 왕복은 네트워크가
+  필요해 이번 검증에 포함하지 못했고 미검증으로 남는다. 세션 표·쿠키 서명·갱신 정책·adapter는 실제
+  경로로 검증했다.
+- pinned CLI generator가 Drizzle v0 시절의 `relations()` 헬퍼를 함께 내보내는데 이 저장소의 drizzle-orm
+  1.0.0-rc.4 root에는 그 export가 없다. 우리는 관계 헬퍼를 선언하지 않고 adapter도 관계가 없으면 일반
+  질의로 되돌아가므로 대조에서 그 자리만 대역으로 채웠다. 표·열·제약은 원문 그대로 평가한다.
+- 세션 갱신은 브라우저 POST에만 있으므로 web이 그 갱신을 실제로 호출해야 한다. 화면 연결 작업이 닫는다.

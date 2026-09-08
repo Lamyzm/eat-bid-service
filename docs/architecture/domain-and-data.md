@@ -124,7 +124,7 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
 - `SupplierParty`: 사업자등록번호 등 법적 정체성
 - `SourceSupplierAccount`: eaT `SHIPPER_CD` 같은 소스별 참여 계정
 - 한 법적 사업자에 여러 소스 계정이 있을 수 있고 그 반대 관계는 명시적으로 검증한다.
-- 워크스페이스는 `WorkspaceSupplier`로 자신이 운영하는 법적 사업자를 연결한다.
+- 워크스페이스는 `app.registered_business`로 자신이 운영한다고 적어 둔 사업자를 가리킨다.
 
 **승격 규칙**([ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §1). `eat:business-number`
 (`BIZ_NO`) 관측이 있으면 그 code value가 `SupplierParty`의 유일 키이고, 같은 사업자번호를 가진 여러
@@ -138,21 +138,26 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
 
 #### 워크스페이스가 등록한 사업자
 
-`app.workspace_supplier`는 **사용자 작성 상태**이지 관측 사실이 아니다. 사용자가 "내 화면의 기준을 이
+`app.registered_business`는 **사용자 작성 상태**이지 관측 사실이 아니다. 사용자가 "내 화면의 기준을 이
 사업자로 놓아 달라"고 적어 둔 것이며 법적 소유권 증명이 아니다. 소유권 경계와 근거는
 [ADR 0032](../adr/0032-authentication-and-authorization-boundary.md) §7이 정한다.
 
-- 등록 입력은 사업자등록번호 문자열이지만 정체성은 `workspace_supplier_id bigint`다. `core` 연결은
-  `supplier_party_id bigint`이며 대조는 `eat:business-number` scheme의 정확한 번호 일치 하나다.
-- **관측되지 않은 번호도 등록은 보존한다.** 대조에 실패하면 `supplier_party_id`는 `null`이고 사용자가 넣은
-  번호는 `app`에 남는다. 사용자 입력으로 `core.supplier_party`나 `core.code_value`를 만들지 않는다(규칙 1·3).
-  "원본에서 아직 관측되지 않음"과 "참여하지 않음"은 서로 다른 사실이며 화면과 응답에서 구분한다.
+- 등록 입력은 사업자등록번호 문자열이지만 정체성은 `registered_business_id bigint`다. 대조는
+  `eat:business-number` scheme의 정확한 번호 일치 하나다.
+- **`core` 연결은 저장하지 않고 조회가 파생한다.** `app`에 `supplier_party_id`를 저장하면 나중에 원본이 그
+  사업자를 처음 관측해도 저장된 `null`이 그대로 남아 영원히 미연결이 된다. 사용자 입력 등록은 `app`의
+  권위이고 번호→`SupplierParty`는 `core`의 권위이므로, 조회가 그때의 `core` 사실로 연결을 만든다.
+- **관측되지 않은 번호도 등록은 보존한다.** 사용자 입력으로 `core.supplier_party`나 `core.code_value`를
+  만들지 않는다(규칙 1·3). "원본에서 아직 관측되지 않음"과 "참여하지 않음"은 서로 다른 사실이며 화면과
+  응답에서 구분한다.
+- **한 번호가 서로 다른 party 둘을 가리키면 연결을 고르지 않는다.** 승격 규칙이 자동 병합을 금지하므로
+  그 상태는 증거 불일치이고 조회는 실패한다. 하나를 고르면 남의 성적표를 내 것으로 붙이는 일이다.
 - **활성 등록의 유일성은 워크스페이스 안에서만 강제한다.** `revoked_at is null`인 행에 대해
   `(workspace_id, business_number)` 부분 unique를 건다. 같은 번호를 서로 다른 워크스페이스가 등록하는
   것은 충돌이 아니다. 사업자등록번호는 공개 정보라 전역 선착순 잠금은 방어가 아니라 서비스 거부다.
 - 비공개 자료의 격리는 등록이 아니라 `workspace_membership`이 한다.
 
-사업자별 위치도 같은 성격의 `app` 상태다. `app.workspace_supplier_location`은 사용자가 적은 주소 문장
+사업자별 위치도 같은 성격의 `app` 상태다. `app.registered_business_location`은 사용자가 적은 주소 문장
 하나(`address_text`)만 보존하고, 위치 미설정은 **행이 없는 것**이다. 행정구역 코드 열도 좌표 열도 두지
 않는다. 채울 출처가 없는 열은 결국 주소 문자열 파싱으로 채워지고 그 추측이 §4.2의 행정안전부 체계와
 같은 자리에 앉는다(규칙 6). 주소 검색과 지도 위 점은 정확한 좌표 출처를 확인한 뒤 열을 함께 추가한다.
