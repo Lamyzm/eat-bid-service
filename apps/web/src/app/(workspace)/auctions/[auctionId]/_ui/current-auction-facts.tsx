@@ -6,7 +6,11 @@ import type { DecisionPresentation } from '../_model/present-decision';
 
 // 꼬리는 조각 목록이다. 좁은 dock에서 한 문자열로 두면 "09-07 대비"와 "+1"이 서로 다른 줄로 갈라져
 // 날짜 없는 증감처럼 읽힌다. 조각 사이에서만 줄이 바뀌도록 각 조각을 끊기지 않는 단위로 넘긴다.
-type FactRow = { readonly label: string; readonly value: string; readonly tail?: readonly string[] };
+type FactRow = {
+  readonly label: string;
+  readonly value: string;
+  readonly tail?: readonly string[];
+};
 
 function auctionRows(decision: DecisionPresentation): readonly FactRow[] {
   const { participation } = decision;
@@ -64,8 +68,11 @@ function FactList({ rows }: { readonly rows: readonly FactRow[] }) {
               // 조각 사이의 공백만 줄바꿈 자리다. 조각 자체는 `nowrap`이라 "09-07 대비 +1"이 갈라지지 않고,
               // 폭 검사가 nowrap 넘침을 세므로 조각이 dock 폭을 넘기면 조용히 잘리지 않고 실패로 드러난다.
               <Fragment key={part}>
-                {index === 0 ? ' ' : ' · '}
-                <span className='text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>{part}</span>
+                {' '}
+                <span className='text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>
+                  {index > 0 ? '· ' : ''}
+                  {part}
+                </span>
               </Fragment>
             ))}
           </dd>
