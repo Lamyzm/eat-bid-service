@@ -40,7 +40,7 @@ EAT-40의 own bid 점을 같은 명단 revision에 붙이기 전에 이 응답 �
 - [x] 활성 build 없음, 다른 기관 cursor, 같은 조건 필터 밖 cursor, 발행 뒤 새 요청이 B임을 확인한다.
 - [x] 수정 전 같은 검사가 실패하는 것을 먼저 확인한다.
 - [x] server 단위·통합 검사, typecheck, architecture, quality gate를 실행한다.
-- [ ] 결정적 gate 뒤 canonical `pnpm review:ai -- --base be1e52c --provider auto`를 실행한다.
+- [x] 결정적 gate 뒤 canonical `pnpm review:ai -- --base be1e52c --provider auto`를 실행한다.
 
 ## 증거
 
@@ -76,6 +76,10 @@ error: expect(received).toEqual(expected)
 | `pnpm quality:check` | 통과 |
 | `pnpm --filter @eatbid/server architecture:check` | 0 violations |
 | `node tools/architecture/check-semantic-values.mjs` | 통과 |
+
+구현 커밋은 `8345cf5`다. 결정적 gate 뒤 `pnpm review:ai -- --base be1e52c --provider auto`를
+실행했고 Codex advisory는 변경 코드와 저장소 근거에서 추가 finding을 확인하지 못했다고 보고했다.
+그 문장은 완료 판정이 아니며, 위 결정적 검사와 아래 한계가 이 단위의 인수 근거다.
 
 ## 한계
 
