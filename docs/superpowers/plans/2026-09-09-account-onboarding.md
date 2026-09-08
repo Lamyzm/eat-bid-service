@@ -407,6 +407,9 @@ ledger 항목으로 남는다.
   6 pass(일회용 PostgreSQL), `src/bootstrap`+`operational-http.e2e` 18 pass. 모두 `apps/server` cwd에서 실행했다.
 - 인증 E2E: `pnpm --filter @eatbid/web test:e2e:auth` 12 passed. 실제 migration DB·실제 Nest 조립·실제 서명
   세션·Chromium 경로이며 합성 세션이지 실제 Google 왕복이 아니다.
+- canonical `pnpm review:ai -- --base HEAD~1`이 fragment만 붙은 복귀 경로가 기본 화면으로 바뀌는 결함을
+  지적했다. 소스에서 근거를 확인해 pathname·query 분리를 한 함수로 모아 고치고, 같은 명령을 다시 돌려
+  finding 0을 확인한 뒤 인증 E2E 12 passed를 재실행했다.
 
 ### 미검증과 알려진 관측
 

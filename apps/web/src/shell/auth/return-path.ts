@@ -77,13 +77,23 @@ export function safeReturnPath(value: unknown, fallback: string = DEFAULT_RETURN
  * 두어 필터가 걸린 화면으로 돌아온 사용자가 조건을 다시 고르지 않게 한다.
  */
 export function returnRoute(value: unknown): ReturnRoute {
-  const path = safeReturnPath(value);
-  const separator = path.indexOf('?');
-  const pathname = separator === -1 ? path : path.slice(0, separator);
+  const { pathname, search } = splitReturnPath(safeReturnPath(value));
   const target = knownScreen(pathname);
   if (target === undefined) return DEFAULT_RETURN_PATH;
-  const search = separator === -1 ? '' : path.slice(separator + 1);
   return search === '' ? target : `${target}?${search}`;
+}
+
+/**
+ * 화면 판정은 pathname만 본다. query는 보존하고 fragment는 싣지 않는다. 복귀 대상은 typed route라
+ * fragment를 모양으로 모델링하지 않는데, 그 한 조각 때문에 판정이 어긋나 보던 화면을 통째로 잃는 쪽이
+ * 앵커 하나를 잃는 것보다 훨씬 나쁘다.
+ */
+function splitReturnPath(path: string): { readonly pathname: string; readonly search: string } {
+  const fragment = path.indexOf('#');
+  const addressed = fragment === -1 ? path : path.slice(0, fragment);
+  const separator = addressed.indexOf('?');
+  if (separator === -1) return { pathname: addressed, search: '' };
+  return { pathname: addressed.slice(0, separator), search: addressed.slice(separator + 1) };
 }
 
 type KnownScreen = (typeof REDIRECT_TARGETS)[number] | `/auctions/${string}`;
@@ -97,9 +107,7 @@ function knownScreen(pathname: string): KnownScreen | undefined {
 
 /** 복귀 대상이 공고 상세인지 말한다. 화면은 이 사실로 링크 문구만 고른다. */
 export function isAuctionReturn(value: unknown): boolean {
-  const path = safeReturnPath(value, '');
-  const separator = path.indexOf('?');
-  return AUCTION_DETAIL_PATH.test(separator === -1 ? path : path.slice(0, separator));
+  return AUCTION_DETAIL_PATH.test(splitReturnPath(safeReturnPath(value, '')).pathname);
 }
 
 /**

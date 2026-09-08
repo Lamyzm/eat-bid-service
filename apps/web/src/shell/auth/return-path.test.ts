@@ -60,6 +60,9 @@ describe('로그인 복귀 경로 검증', () => {
     // 공고 상세는 이 앱에서 가장 흔한 복귀 지점이라 식별자 모양을 검사해 그대로 돌려준다.
     expect(returnRoute('/auctions/9007199254740993')).toBe('/auctions/9007199254740993');
     expect(returnRoute('/auctions/5796468?view=흐름')).toBe('/auctions/5796468?view=흐름');
+    // fragment는 판정 대상이 아니다. 앵커 하나 때문에 보던 공고를 잃지 않는다.
+    expect(returnRoute('/auctions/5796468#history')).toBe('/auctions/5796468');
+    expect(returnRoute('/today?region=1#상세')).toBe('/today?region=1');
     // 없는 화면, 식별자가 아닌 segment, 안전하지 않은 값은 모두 기본 진입으로 되돌린다.
     expect(returnRoute('/auctions/0123')).toBe(DEFAULT_RETURN_PATH);
     expect(returnRoute('/auctions/5796468/edit')).toBe(DEFAULT_RETURN_PATH);
@@ -70,6 +73,7 @@ describe('로그인 복귀 경로 검증', () => {
   test('복귀 대상이 공고인지 구분해 링크 문구를 고를 수 있게 한다', () => {
     expect(isAuctionReturn('/auctions/5796468')).toBe(true);
     expect(isAuctionReturn('/auctions/5796468?view=흐름')).toBe(true);
+    expect(isAuctionReturn('/auctions/5796468#history')).toBe(true);
     expect(isAuctionReturn('/today')).toBe(false);
     expect(isAuctionReturn('//evil.example/auctions/1')).toBe(false);
   });
