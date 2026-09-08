@@ -9,6 +9,7 @@ import {
   observedCounts,
   resetObservations
 } from './cache-observability';
+import { auctionRosterResponse } from './auction-roster-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
 import { organizationAttemptsResponse } from './organization-attempts-fixture';
 import { winRateDistributionResponse } from './win-rate-distribution-fixture';
@@ -228,6 +229,10 @@ Bun.serve({
     // 목록 경로는 `:auctionId` 경로보다 앞에서 본다. 경로가 다르므로 순서는 읽기 편의일 뿐이다.
     const openAuctions = openAuctionsResponse(request);
     if (openAuctions) return openAuctions;
+
+    // 명단은 `:auctionId/roster`라 상세 경로와 구별되지만, 상세 분기가 pathname 완전 일치이므로 앞에 둔다.
+    const roster = auctionRosterResponse(request);
+    if (roster) return roster;
 
     if (pathname === auctionPath(SUCCESS_AUCTION_ID)) {
       await Bun.sleep(SUCCESS_RESPONSE_DELAY_MILLISECONDS);

@@ -13,7 +13,7 @@ import { presentDecision, type DecisionPresentation } from './present-decision';
 import { presentDistribution, type DistributionPresentation } from './present-distribution';
 
 /**
- * 과거 회차 모달이 cursor를 따라 더 부를 수 있는 페이지 상한. 첫 페이지 60행 × 10이면 계약 점 조회 상한
+ * 과거 회차 확대가 cursor를 따라 더 부를 수 있는 페이지 상한. 첫 페이지 60행 × 10이면 계약 점 조회 상한
  * (≤ 200)과 같은 자릿수의 회차를 한 화면에 싣는 셈이라 그 위는 주소로 요청해도 잘라낸다.
  */
 const MAX_HISTORY_PAGES = 10;
@@ -24,7 +24,7 @@ type HistoryLoadResult =
       readonly state: 'ready';
       /** 첫 페이지. 흐름 차트·표·"이 값이면"은 페이지를 더 불러도 이 표본을 그대로 쓴다. */
       readonly presentation: HistoryPresentation;
-      /** 과거 회차 모달용. 요청한 페이지까지 이어 붙였고, 이어 부르다 실패하면 그 앞까지만 싣고 사실을 남긴다. */
+      /** 과거 회차 확대와 회차 선택용. 요청한 페이지까지 이어 붙였고, 이어 부르다 실패하면 그 앞까지만 싣고 사실을 남긴다. */
       readonly expanded: { readonly presentation: HistoryPresentation; readonly loadFailed: boolean };
     }
   | { readonly state: 'no-organization' }
@@ -68,9 +68,13 @@ type AuctionPageDependencies = {
   ) => Promise<WinRateDistributionV1Response>;
 };
 
-// 주소의 페이지 수는 사용자가 손으로 고칠 수 있다. 정수 1 이상 상한 이하만 믿고 나머지는 1로 본다.
+/**
+ * 주소의 페이지 수는 사용자가 손으로 고칠 수 있다. 정수 1 이상 상한 이하만 믿고 나머지는 1로 본다.
+ * 확대 여부는 보지 않는다 — `pages`는 열린 화면이 아니라 이 조회가 이어 붙인 표본 크기이고, 확대를
+ * 닫을 때 1로 되돌리면 불러온 회차와 그 회차를 고른 선택이 함께 사라진다(EAT-115).
+ */
 function normalizeHistoryPages(search: DecisionSearch): number {
-  if (search.expand !== '과거 회차' || !Number.isInteger(search.pages) || search.pages < 1) return 1;
+  if (!Number.isInteger(search.pages) || search.pages < 1) return 1;
   return Math.min(search.pages, MAX_HISTORY_PAGES);
 }
 

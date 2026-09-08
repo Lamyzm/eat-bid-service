@@ -160,6 +160,106 @@ describe('회차 명단 상세', () => {
     expect(screen.queryByRole('region', { name: '선택 회차 참여 기록' })).toBeNull();
     expect(screen.getByLabelText('투찰률')).toBeTruthy();
   });
+  test('두 번째 페이지 회차도 기록을 열고 확대를 닫아도 그 선택과 누적 페이지를 유지한다', () => {
+    // 첫 페이지만 선택 provider에 주면 두 번째 페이지 회차가 "조회 밖"으로 판정돼 고르는 즉시 풀린다(EAT-115).
+    const presentation = presentHistory(attemptsFixture, null);
+    const secondPageId = `1${rows[0]!.attemptId}`;
+    const merged = presentHistory(
+      {
+        ...attemptsFixture,
+        attempts: [
+          ...attemptsFixture.attempts,
+          ...attemptsFixture.attempts.map((attempt) => ({ ...attempt, attemptId: `1${attempt.attemptId}` }))
+        ],
+        nextCursor: null
+      },
+      null
+    );
+    const client = clientWith(payload(secondPageId));
+    const search: DecisionSearch = {
+      period: '12개월',
+      scope: '전국',
+      view: '흐름',
+      item: null,
+      myRate: null,
+      rate: null,
+      expand: '과거 회차',
+      pages: 2
+    };
+    function Screen({ current }: { current: DecisionSearch }) {
+      return (
+        <QueryClientProvider client={client}>
+          <DecisionScreen
+            decision={presentDecision(openAuctionFixture, fixtureNow)}
+            search={current}
+            history={{ state: 'ready', presentation, expanded: { presentation: merged, loadFailed: false } }}
+            distribution={{ state: 'locked', reason: 'missing-terms' }}
+          />
+        </QueryClientProvider>
+      );
+    }
+    const screen = render(<Screen current={search} />);
+    const table = screen.getByRole('region', { name: '과거 회차' });
+    const buttons = screen.getAllByRole('button', { name: /회차 참여 기록 보기/ });
+    expect(buttons.length).toBe(merged.rows.length);
+
+    fireEvent.click(buttons[presentation.rows.length]!);
+
+    const panel = screen.getByRole('region', { name: '선택 회차 참여 기록' });
+    expect(panel.textContent).toContain('검증 업체');
+    const selectedRows = [...table.querySelectorAll('tbody tr[data-selected]')];
+    expect(selectedRows).toHaveLength(1);
+    expect(selectedRows[0]).toBe([...table.querySelectorAll('tbody tr')][presentation.rows.length]!);
+
+    // 확대를 닫아도 오른쪽 기록과 누적 표본이 남고 현재 공고 제목은 바뀌지 않는다. 좁은 화면 Sheet가
+    // 열려 있는 동안 뒤 본문은 접근성 트리에서 감춰지므로 표는 role이 아니라 같은 노드로 확인한다.
+    screen.rerender(<Screen current={{ ...search, expand: null }} />);
+    expect(screen.getByRole('region', { name: '선택 회차 참여 기록' }).textContent).toContain('검증 업체');
+    expect(screen.container.querySelector('#decision-title')?.textContent).toBe(
+      openAuctionFixture.identity.title
+    );
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(12);
+    expect(table.querySelectorAll('tbody tr[data-selected]')).toHaveLength(0);
+  });
+
+  test('필터가 선택 회차를 조회에서 빼면 오른쪽 기록도 함께 닫힌다', () => {
+    const presentation = presentHistory(attemptsFixture, null);
+    const client = clientWith(payload(selected.attemptId));
+    const search: DecisionSearch = {
+      period: '12개월',
+      scope: '전국',
+      view: '흐름',
+      item: null,
+      myRate: null,
+      rate: null,
+      expand: null,
+      pages: 1
+    };
+    const narrowed = {
+      ...presentation,
+      rows: presentation.rows.filter((row) => row.attemptId !== selected.attemptId)
+    };
+    function Screen({ current }: { current: typeof presentation }) {
+      return (
+        <QueryClientProvider client={client}>
+          <DecisionScreen
+            decision={presentDecision(openAuctionFixture, fixtureNow)}
+            search={search}
+            history={{ state: 'ready', presentation: current, expanded: { presentation: current, loadFailed: false } }}
+            distribution={{ state: 'locked', reason: 'missing-terms' }}
+          />
+        </QueryClientProvider>
+      );
+    }
+    const screen = render(<Screen current={presentation} />);
+    fireEvent.click(screen.getAllByRole('button', { name: /회차 참여 기록 보기/ })[0]!);
+    expect(screen.getByRole('region', { name: '선택 회차 참여 기록' })).toBeTruthy();
+
+    screen.rerender(<Screen current={narrowed} />);
+
+    expect(screen.queryByRole('region', { name: '선택 회차 참여 기록' })).toBeNull();
+  });
+
   test('원천 낙찰 상태를 유지하면서 철회 관측을 별도로 보여준다', () => {
     const data = payload(selected.attemptId);
     data.rows[0]!.withdrawal = {

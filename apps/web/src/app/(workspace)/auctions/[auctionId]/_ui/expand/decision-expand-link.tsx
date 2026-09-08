@@ -1,16 +1,19 @@
-/** @module 책임: 확대 링크의 URL 전환과 Escape·일반 보기 스크롤 복귀를 연결하며 차트 인스턴스와 필터 상태는 부모에 둔다. */
+/** @module 책임: 확대 링크의 URL 전환과 Escape·일반 보기 스크롤 복귀를 연결하며 차트·표 인스턴스와 필터 상태는 부모에 둔다. */
 'use client';
 
 import Link from 'next/link';
 import { useLayoutEffect, useRef } from 'react';
 import { Button } from '@/shared/ui/button';
-import { buildDecisionExpandRoute, type DecisionSearch } from '../../_lib/decision-search-params';
+import { buildDecisionExpandRoute, type DecisionExpand, type DecisionSearch } from '../../_lib/decision-search-params';
 
-export function DecisionExpandLink({ auctionId, search }: {
+export function DecisionExpandLink({ auctionId, search, target }: {
   readonly auctionId: string;
   readonly search: DecisionSearch;
+  /** 이 링크가 키우는 본문. 흐름 차트와 과거 회차 표는 같은 집중 모드를 쓰므로 링크 하나를 공유한다. */
+  readonly target: DecisionExpand;
 }) {
-  const expanded = search.expand === '흐름' && search.view === '흐름';
+  // 비교집단만 모달로 열리고 자신의 닫기를 갖는다. 이 링크는 그 본문에서는 여는 방향만 맡는다.
+  const expanded = search.expand === target && target !== '비교집단';
   const label = expanded ? '작게 보기' : '크게 보기';
   const link = useRef<HTMLAnchorElement>(null);
   const previousScroll = useRef<number | null>(null);
@@ -42,11 +45,11 @@ export function DecisionExpandLink({ auctionId, search }: {
       render={<Link
         ref={link}
         aria-label={label}
-        href={buildDecisionExpandRoute(auctionId, search, expanded ? null : search.view)}
+        href={buildDecisionExpandRoute(auctionId, search, expanded ? null : target)}
         replace={expanded}
         scroll={false}
         onClick={(event) => {
-          if (!expanded && search.view === '흐름' && !event.defaultPrevented &&
+          if (!expanded && target !== '비교집단' && !event.defaultPrevented &&
               event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
             previousScroll.current = window.scrollY;
           }

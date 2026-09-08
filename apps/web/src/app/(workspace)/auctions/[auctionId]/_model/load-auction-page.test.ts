@@ -224,7 +224,7 @@ describe('공고 상세 route loader', () => {
     expect(requested[0]?.granularity).toBe('month');
   });
 
-  test('과거 회차 모달의 pages만큼 nextCursor를 따라 이어 붙이고 첫 페이지 presentation은 그대로 둔다', async () => {
+  test('과거 회차 확대의 pages만큼 nextCursor를 따라 이어 붙이고 첫 페이지 presentation은 그대로 둔다', async () => {
     const requested: { cursor?: string; limit?: number }[] = [];
     const second = { ...attemptsFixture, attempts: attemptsFixture.attempts.slice(0, 3).map((attempt) => ({ ...attempt, attemptId: `9${attempt.attemptId}` })), nextCursor: null };
     const result = await loadAuctionPage(
@@ -246,8 +246,9 @@ describe('공고 상세 route loader', () => {
     expect(result.history.expanded.loadFailed).toBe(false);
   });
 
-  test('pages는 과거 회차 모달이 열렸을 때만 뜻이 있고 손으로 고친 값은 1 이상 상한 이하로만 믿는다', async () => {
-    for (const [expand, pages, expectedCalls] of [[null, 5, 1], ['과거 회차', 0, 1], ['과거 회차', 2.5, 1], ['과거 회차', 99, 10]] as const) {
+  test('pages는 확대를 닫아도 같은 표본을 이어 붙이고 손으로 고친 값은 1 이상 상한 이하로만 믿는다', async () => {
+    // 닫혔다고 1로 되돌리면 이어 붙인 회차와 그 회차를 고른 선택이 함께 사라진다(EAT-115).
+    for (const [expand, pages, expectedCalls] of [[null, 5, 5], ['과거 회차', 0, 1], ['과거 회차', 2.5, 1], ['과거 회차', 99, 10]] as const) {
       let calls = 0;
       await loadAuctionPage(
         Promise.resolve({ auctionId: canonicalAuctionId }),

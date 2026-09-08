@@ -1,4 +1,4 @@
-/* 공고 분석의 일반 문서 흐름과 큰 viewport의 차트 집중 분할만 소유한다. */
+/* 공고 분석의 일반 문서 흐름과 큰 viewport의 집중 분할만 소유한다. */
 [data-slot='decision-screen'] > header { background: var(--background); padding: 4px 16px; }
 [data-slot='decision-filter-bar'] { background: var(--background); border-block: 1px solid var(--border); padding: 10px 16px; }
 [data-slot='decision-columns'] { grid-template-columns: minmax(0, 1fr); }
@@ -17,33 +17,49 @@
   [data-slot='decision-filter-bar'] { position: sticky; top: var(--workspace-header-height, 56px); z-index: 20; }
 }
 
-/* 확대는 같은 차트에 중앙의 남은 높이를 돌려준다. 표는 DOM을 유지한 채 접어 선택과 스크롤을 보존한다. */
-[data-slot='decision-screen'][data-focus] {
-  height: calc(100dvh - var(--workspace-header-height, 56px));
-  min-height: 580px;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 8px;
-  padding-block: 8px;
-}
-[data-slot='decision-screen'][data-focus] [data-slot='decision-summary'],
-[data-slot='decision-screen'][data-focus] section[aria-label='공고 상태'],
-[data-slot='decision-screen'][data-focus] section[aria-label='과거 회차'] { display: none; }
-[data-slot='decision-screen'][data-focus] h1 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-[data-slot='decision-screen'][data-focus] [data-slot='decision-filter-bar'] { position: static; }
-[data-slot='decision-screen'][data-focus] [data-slot='decision-columns'] { min-height: 0; align-items: stretch; }
-[data-slot='decision-screen'][data-focus] [data-slot='decision-main'] { min-height: 0; grid-template-rows: minmax(0, 1fr); }
-[data-slot='decision-screen'][data-focus] section[aria-label='근거'],
-[data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'],
-[data-slot='decision-screen'][data-focus] [data-slot='decision-evidence'] { min-height: 0; height: 100%; }
-[data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'] { display: block; }
-[data-slot='decision-screen'][data-focus] [data-slot='decision-evidence'] { padding-block: 8px; }
-[data-slot='decision-screen'][data-focus] figure { flex: 1; min-height: 0; }
-[data-slot='decision-screen'][data-focus] [data-slot='flow-canvas'] { height: auto; min-height: 120px; flex: 1; flex-basis: 0; }
-[data-slot='decision-screen'][data-focus] figure > :not([data-slot='flow-canvas']) { flex-shrink: 0; }
+/* 집중 모드는 접힌 본문이 비운 높이를 나머지 하나에 준다. 그 자리가 읽을 만할 때만 뜻이 있으므로 창이
+   낮으면 들어가지 않는다 — 낮은 창에서 뷰포트 높이를 강제하면 문서와 본문이 함께 세로로 스크롤해
+   같은 화면에 스크롤 소유자가 둘이 된다. 아래 높이 미만에서는 확대 주소도 일반 문서 흐름으로 읽고,
+   접힌 본문 대신 요약·조건·확대 링크가 모두 문서 안에 남는다(EAT-115).
+   기준 640px은 공통 헤더(56·64px)를 뺀 뒤에도 이전 집중 모드의 최소 높이 580px 언저리가 남는 값이다. */
+@media (min-height: 640px) {
+  /* 집중 모드의 공통 geometry. 중앙의 남은 높이를 키울 본문 하나에 돌려주고 문서 스크롤을 없앤다.
+     어느 본문을 키우는지는 아래에서 data-focus 값이 정하며, 전역 오른쪽 상세와 가용 폭은 셸이 그대로 소유한다. */
+  [data-slot='decision-screen'][data-focus] {
+    height: calc(100dvh - var(--workspace-header-height, 56px));
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 8px;
+    padding-block: 8px;
+  }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-summary'] { display: none; }
+  [data-slot='decision-screen'][data-focus] h1 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-filter-bar'] { position: static; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-columns'] { min-height: 0; align-items: stretch; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-main'] { min-height: 0; grid-template-rows: minmax(0, 1fr); }
 
-@media (max-width: 767px) {
-  [data-slot='decision-screen'][data-focus] [data-slot='evidence-toolbar'] { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
-  [data-slot='decision-screen'][data-focus] [data-slot='evidence-toolbar'] > nav { grid-column: 1; grid-row: 1; }
-  [data-slot='decision-screen'][data-focus] [data-slot='decision-expand-link'] { grid-column: 2; grid-row: 1; }
-  [data-slot='decision-screen'][data-focus] [data-slot='evidence-toolbar'] > span { grid-column: 1 / -1; grid-row: 2; margin-left: 0; }
+  /* 차트 확대는 표를 접고 같은 캔버스에 높이를 준다. 표는 DOM을 유지한 채 접어 선택과 스크롤을 보존한다. */
+  [data-slot='decision-screen'][data-focus='flow'] section[aria-label='과거 회차'] { display: none; }
+  [data-slot='decision-screen'][data-focus='flow'] section[aria-label='근거'],
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-evidence-stack'],
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-evidence'] { min-height: 0; height: 100%; }
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-evidence-stack'] { display: block; }
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-evidence'] { padding-block: 8px; }
+  [data-slot='decision-screen'][data-focus='flow'] figure { flex: 1; min-height: 0; }
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='flow-canvas'] { height: auto; min-height: 120px; flex: 1; flex-basis: 0; }
+  [data-slot='decision-screen'][data-focus='flow'] figure > :not([data-slot='flow-canvas']) { flex-shrink: 0; }
+
+  /* 과거 회차 확대는 반대로 차트를 접고 같은 표에 높이를 준다. 표만 안에서 스크롤하고 문서는 움직이지 않는다. */
+  [data-slot='decision-screen'][data-focus='history'] section[aria-label='근거'] { display: none; }
+  [data-slot='decision-screen'][data-focus='history'] section[aria-label='과거 회차'] { min-height: 0; height: 100%; }
+  [data-slot='decision-screen'][data-focus='history'] [data-slot='history-card'] {
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; min-height: 0;
+  }
+  [data-slot='decision-screen'][data-focus='history'] [data-slot='history-table-scroll'] { min-height: 0; overflow: auto; }
+}
+
+@media (max-width: 767px) and (min-height: 640px) {
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='evidence-toolbar'] { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='evidence-toolbar'] > nav { grid-column: 1; grid-row: 1; }
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-expand-link'] { grid-column: 2; grid-row: 1; }
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='evidence-toolbar'] > span { grid-column: 1 / -1; grid-row: 2; margin-left: 0; }
 }

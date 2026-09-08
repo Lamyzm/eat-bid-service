@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { render as renderUI } from '@testing-library/react';
+import { fireEvent, render as renderUI, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { WorkspaceDockFixture } from '../__fixtures__/workspace-dock';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -31,12 +31,28 @@ const search = searchOn('비교집단');
 const flowSearch = searchOn('흐름');
 const decision = () => presentDecision(openAuctionFixture, fixtureNow);
 
-// 화면 셸 테스트는 첫 페이지만 본다. 모달용 expanded는 같은 페이지를 그대로 둔다.
+// 화면 셸 테스트는 첫 페이지만 본다. 이어 붙인 expanded는 같은 페이지를 그대로 둔다.
 const ready = (presentation: ReturnType<typeof presentHistory>): DecisionPageData['history'] => ({
   state: 'ready',
   presentation,
   expanded: { presentation, loadFailed: false }
 });
+// 두 번째 페이지까지 이어 붙인 조회. 첫 페이지는 그대로 두고 확대·선택만 누적 행을 본다.
+const mergedHistory = (): DecisionPageData['history'] => {
+  const presentation = presentHistory(attemptsFixture, '7');
+  const merged = presentHistory(
+    {
+      ...attemptsFixture,
+      attempts: [
+        ...attemptsFixture.attempts,
+        ...attemptsFixture.attempts.map((attempt) => ({ ...attempt, attemptId: `1${attempt.attemptId}` }))
+      ],
+      nextCursor: '5'
+    },
+    '7'
+  );
+  return { state: 'ready', presentation, expanded: { presentation: merged, loadFailed: false } };
+};
 const readyHistory = ready(presentHistory(attemptsFixture, '7'));
 // 회차가 거의 없는 기관(열린 공고 하나뿐인 학교)을 fixture 앞에서 잘라 만든다. 표본 수도 함께 줄여야
 // 부제가 실제로 그 기관을 말한 것이 된다.
@@ -67,7 +83,7 @@ const lockedDistribution: DecisionPageData['distribution'] = {
 };
 
 describe('결정 화면', () => {
-  test('서버 markup에 프레임·제목·배너·근거 탭이 있다', () => {
+  test('서버 markup에 프레임·제목·상태 배지·근거 탭이 있다', () => {
     const markup = renderToStaticMarkup(
       <DecisionScreen
         decision={decision()}
@@ -78,7 +94,8 @@ describe('결정 화면', () => {
     );
     expect(markup).toContain('data-slot="decision-screen"');
     expect(markup).toContain('aria-labelledby="decision-title"');
-    expect(markup).toContain('이 공고가 열려 있습니다');
+    expect(markup).toContain('검토 중인 공고');
+    expect(markup).toContain('진행 중');
     expect(markup).not.toContain(openAuctionFixture.provenance.contentSha256);
     expect(markup).not.toContain('원문과 추적 정보');
     expect(markup).not.toContain('실제로 낸 적은 없습니다');
@@ -98,7 +115,7 @@ describe('결정 화면', () => {
       expect(markup).not.toContain(banned);
   });
 
-  test('중앙은 상태·근거·과거 회차만 소유하고 보조 진입은 전역 위치에 둔다', () => {
+  test('중앙은 근거·과거 회차만 소유하고 보조 진입은 전역 위치에 둔다', () => {
     const screen = render(
       <DecisionScreen
         decision={decision()}
@@ -111,7 +128,7 @@ describe('결정 화면', () => {
     const labels = [...frame.querySelectorAll('section, aside')].map((node) =>
       node.getAttribute('aria-label')
     );
-    expect(labels).toEqual(['공고 상태', '근거', '과거 회차']);
+    expect(labels).toEqual(['근거', '과거 회차']);
     expect(frame.querySelector('aside')).toBeNull();
     expect(
       screen.getByRole('button', { name: '현재 공고 정보' }).closest('[data-dock-host="rail"]')
@@ -119,6 +136,107 @@ describe('결정 화면', () => {
     const filters = screen.getByRole('button', { name: '기간: 12개월' });
     expect(filters.closest('header')).toBeNull();
     expect(filters.closest('[data-slot="decision-filter-bar"]')).not.toBeNull();
+  });
+
+  test('본문의 이 공고 정보 버튼이 전역 오른쪽 패널의 현재 공고 사실을 연다', () => {
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={flowSearch}
+        history={readyHistory}
+        distribution={readyDistribution}
+      />
+    );
+    const button = screen.getByRole('button', { name: '이 공고 정보' });
+    expect(button.closest('[data-slot="decision-screen"]')).not.toBeNull();
+    expect(screen.queryByRole('region', { name: '현재 공고 사실' })).toBeNull();
+
+    fireEvent.click(button);
+
+    const facts = screen.getByRole('region', { name: '현재 공고 사실' });
+    expect(facts.closest('[data-slot="decision-screen"]')).toBeNull();
+    // 배너가 강조하던 사실은 사라지지 않고 이 패널이 소유한다(EAT-115).
+    expect(facts.textContent).toContain('4곳');
+    expect(facts.textContent).toContain('어제보다 +2');
+    expect(facts.textContent).toContain('보통');
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  test('과거 회차 확대는 모달이 아니라 같은 본문의 집중 모드로 누적 행을 그린다', () => {
+    const history = mergedHistory();
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={{ ...flowSearch, expand: '과거 회차', pages: 2 }}
+        history={history}
+        distribution={readyDistribution}
+      />
+    );
+    const frame = screen.container.querySelector('[data-slot="decision-screen"]')!;
+    expect(frame.getAttribute('data-focus')).toBe('history');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // 확대해도 현재 공고 제목은 그대로다. 선택 회차가 중앙 분석 대상을 덮지 않는다.
+    expect(screen.container.querySelector('#decision-title')?.textContent).toBe(
+      openAuctionFixture.identity.title
+    );
+    const table = screen.getByRole('region', { name: '과거 회차' });
+    expect(table.querySelectorAll('tbody tr').length).toBe(
+      history.state === 'ready' ? history.expanded.presentation.rows.length : 0
+    );
+    expect(within(table).getByRole('link', { name: '작게 보기' })).toBeTruthy();
+    expect(within(table).getByRole('link', { name: '더 불러오기' }).getAttribute('href')).toContain('pages=3');
+  });
+
+  test('확대와 복귀는 같은 표 DOM을 유지하고 조회 조건이 바뀔 때만 새로 만든다', () => {
+    // 표를 분기마다 다른 자리에서 감싸면 같은 컴포넌트여도 DOM이 다시 마운트돼 확대에서 보던 위치를
+    // 잃는다. 반대로 조건이 바뀌면 다른 집단이라 그 위치를 물려받으면 안 된다(EAT-115).
+    const history = mergedHistory();
+    const focused = { ...flowSearch, expand: '과거 회차' as const, pages: 2 };
+    const screen = render(
+      <DecisionScreen decision={decision()} search={focused} history={history} distribution={readyDistribution} />
+    );
+    const scroller = () => screen.container.querySelector('[data-slot="history-table-scroll"]');
+    const opened = scroller();
+    expect(opened).not.toBeNull();
+
+    screen.rerender(
+      <DecisionScreen decision={decision()} search={{ ...focused, expand: null }} history={history} distribution={readyDistribution} />
+    );
+    expect(scroller()).toBe(opened);
+
+    screen.rerender(
+      <DecisionScreen decision={decision()} search={focused} history={history} distribution={readyDistribution} />
+    );
+    expect(scroller()).toBe(opened);
+
+    screen.rerender(
+      <DecisionScreen decision={decision()} search={{ ...focused, period: '3개월' }} history={history} distribution={readyDistribution} />
+    );
+    expect(scroller()).not.toBe(opened);
+  });
+
+  test('확대를 닫으면 12행으로 돌아가고 같은 표·열을 쓴다', () => {
+    const history = mergedHistory();
+    const screen = render(
+      <DecisionScreen
+        decision={decision()}
+        search={{ ...flowSearch, pages: 2 }}
+        history={history}
+        distribution={readyDistribution}
+      />
+    );
+    const frame = screen.container.querySelector('[data-slot="decision-screen"]')!;
+    expect(frame.getAttribute('data-focus')).toBeNull();
+    const table = screen.getByRole('region', { name: '과거 회차' });
+    expect(table.querySelectorAll('tbody tr').length).toBe(12);
+    expect([...table.querySelectorAll('thead th')].map((node) => node.textContent)).toEqual([
+      '개찰',
+      '품목',
+      '낙찰률(사정률)',
+      '2등가(사정률)',
+      '명단'
+    ]);
+    expect(within(table).getByRole('link', { name: '크게 보기' })).toBeTruthy();
   });
 
   test('분포 탭은 흐름 차트 대신 호가창을 보인다', () => {

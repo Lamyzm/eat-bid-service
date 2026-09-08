@@ -21,15 +21,18 @@ export function DecisionScreenSkeleton() {
       <span className='sr-only'>공고 정보를 불러오는 중</span>
       <DecisionFrame
         header={
-          <div className='flex items-center gap-3'>
+          <div className='grid gap-2'>
             <h1 id='decision-title' className='sr-only'>
               공고 정보를 불러오는 중
             </h1>
+            <Skeleton className='h-5 w-28' />
             <Skeleton className='h-7 w-64' />
-            <Skeleton className='ml-auto h-8 w-24' />
+            <div className='flex items-center gap-3'>
+              <Skeleton className='h-6 w-72' />
+              <Skeleton className='ml-auto h-8 w-24' />
+            </div>
           </div>
         }
-        banner={<Skeleton className='h-20 w-full rounded-xl' />}
         filters={<Skeleton className='h-10 w-full max-w-lg' />}
         evidence={
           <div className='grid gap-4'>

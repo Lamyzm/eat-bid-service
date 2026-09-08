@@ -1,4 +1,4 @@
-/** @module 책임: 현재 공고와 선택 회차에 대한 진입을 좁은 상단 메뉴와 넓은 도구 줄로 제공한다. */
+/** @module 책임: 현재 공고와 선택 회차에 대한 진입을 공고 본문·좁은 상단 메뉴·넓은 도구 줄 세 자리에서 제공하고 모두 같은 전역 오른쪽 패널을 연다. */
 'use client';
 import { useRef } from 'react';
 import { Button } from '@/shared/ui/button';
@@ -14,7 +14,6 @@ import {
   IconLayoutSidebarRight
 } from '@/shared/ui/workspace-icons';
 import { useAttemptSelection } from './attempt-selection';
-import type { DecisionPresentation } from '../_model/present-decision';
 
 export function DecisionTools({ placement }: { readonly placement: 'top' | 'rail' }) {
   const { row, panel, openCurrent, openRecord, close, setReturnFocus } = useAttemptSelection();
@@ -74,29 +73,29 @@ export function DecisionTools({ placement }: { readonly placement: 'top' | 'rail
   );
 }
 
-export function CurrentAuctionFacts({ decision }: { readonly decision: DecisionPresentation }) {
+/**
+ * 공고 본문 안의 진입이다. 도구 줄·상단 메뉴와 같은 `openCurrent()`를 부르므로 어느 자리에서 눌러도
+ * 같은 전역 오른쪽 패널이 열리고, 초점은 누른 버튼으로 돌아온다(EAT-115).
+ */
+export function CurrentAuctionInfoButton() {
+  const { panel, openCurrent, close, setReturnFocus } = useAttemptSelection();
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
-    <section aria-label='현재 공고 사실' className='border-b px-4 py-3'>
-      <h3 className='mb-3 text-sm font-semibold break-keep wrap-anywhere'>
-        {decision.identity.title}
-      </h3>
-      <dl className='grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm'>
-        {(
-          [
-            ['공고 지역', decision.locationText],
-            ['품목', decision.itemLabelText],
-            ['기초금액', `${decision.baseAmount.text}원`],
-            ['하한율', decision.floorRateText],
-            ['마감 (KST)', decision.banner.deadlineAt],
-            ['개찰 (KST)', decision.banner.openedAt]
-          ] as const
-        ).map(([label, value]) => (
-          <div key={label} className='contents'>
-            <dt className='text-muted-foreground'>{label}</dt>
-            <dd className='m-0 text-right break-keep wrap-anywhere tabular-nums'>{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <Button
+      ref={trigger}
+      variant='outline'
+      size='sm'
+      aria-expanded={panel === 'current'}
+      onClick={() => {
+        if (panel === 'current') {
+          close();
+          return;
+        }
+        openCurrent();
+        setReturnFocus(trigger.current);
+      }}
+    >
+      이 공고 정보
+    </Button>
   );
 }

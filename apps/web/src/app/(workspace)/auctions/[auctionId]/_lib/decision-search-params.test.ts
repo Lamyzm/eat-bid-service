@@ -4,6 +4,7 @@ import { createSerializer } from 'nuqs';
 import {
   DECISION_EXPANDS,
   buildDecisionExpandRoute,
+  buildDecisionFilterRoute,
   buildDecisionHistoryPagesRoute,
   buildDecisionViewRoute,
   decisionSearchParsers,
@@ -114,7 +115,9 @@ describe('결정 화면 URL 조건', () => {
     expect(buildDecisionExpandRoute('4821', { ...search, expand: '흐름' }, null)).not.toContain('expand');
   });
 
-  test('pages는 과거 회차 모달이 열린 주소에서 2 이상일 때만 실리고 다른 본문·닫힌 상태에는 남지 않는다', () => {
+  test('이어 붙인 pages는 확대를 닫아도 주소에 남고 1회차면 남지 않는다', () => {
+    // pages는 "확대가 열렸다"가 아니라 이 조회가 이어 붙인 표본 크기다. 닫을 때 지우면 불러온 회차와
+    // 그 회차를 고른 선택이 함께 사라진다(EAT-115).
     const search: DecisionSearch = {
       period: '12개월',
       scope: '전국',
@@ -122,15 +125,30 @@ describe('결정 화면 URL 조건', () => {
       item: null,
       myRate: null,
       rate: null,
-      expand: null,
+      expand: '과거 회차',
       pages: 3
     };
-    expect(buildDecisionViewRoute('4821', search, '흐름')).not.toContain('pages');
-    expect(buildDecisionExpandRoute('4821', search, '흐름')).not.toContain('pages');
-    expect(buildDecisionHistoryPagesRoute('4821', search, 2)).toContain('pages=2');
-    expect(buildDecisionHistoryPagesRoute('4821', search, 2)).toContain(expandQuery('과거 회차'));
-    expect(buildDecisionHistoryPagesRoute('4821', search, 1)).not.toContain('pages');
+    expect(buildDecisionExpandRoute('4821', search, null)).toContain('pages=3');
+    expect(buildDecisionExpandRoute('4821', search, null)).not.toContain('expand');
+    expect(buildDecisionViewRoute('4821', search, '비교집단')).toContain('pages=3');
+    expect(buildDecisionViewRoute('4821', { ...search, pages: 1 }, '흐름')).not.toContain('pages');
+    expect(buildDecisionHistoryPagesRoute('4821', search, 4)).toContain('pages=4');
+    expect(buildDecisionHistoryPagesRoute('4821', search, 4)).toContain(expandQuery('과거 회차'));
     expect(decisionSearchParsers.pages.defaultValue).toBe(1);
+  });
+
+  test('조건을 바꾸면 이전 집단의 cursor 페이지 수를 물려받지 않는다', () => {
+    const search: DecisionSearch = {
+      period: '12개월',
+      scope: '전국',
+      view: '흐름',
+      item: null,
+      myRate: null,
+      rate: null,
+      expand: '과거 회차',
+      pages: 3
+    };
+    expect(buildDecisionFilterRoute('4821', search, { period: '3개월' })).not.toContain('pages');
   });
 
   test('expand는 지원하는 확대 보기만 통과하고 기본값이 없어 닫힌 상태는 null이다', () => {
