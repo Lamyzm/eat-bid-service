@@ -157,7 +157,8 @@ describe('결정 화면', () => {
     expect(facts.closest('[data-slot="decision-screen"]')).toBeNull();
     // 배너가 강조하던 사실은 사라지지 않고 이 패널이 소유한다(EAT-115).
     expect(facts.textContent).toContain('4곳');
-    expect(facts.textContent).toContain('어제보다 +2');
+    // 참여 수는 언제 본 값인지와 무엇에 견준 증감인지를 함께 말한다.
+    expect(facts.textContent).toContain('09-03 10:00 기준 · 09-02 대비 +2');
     expect(facts.textContent).toContain('보통');
     expect(button.getAttribute('aria-expanded')).toBe('true');
   });
