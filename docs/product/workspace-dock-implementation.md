@@ -1,4 +1,162 @@
-# 오른쪽 보조 공간의 최소 구현 계획
+# 전역 오른쪽 공간과 전체 폭 분석 화면의 구현 계획
+
+**상태:** 2026-09-08 사용자 검토용 계획. 사용자가 "지금 바로 하지 말고 코드 어떻게 가져가야 할지
+기획부터"라고 지시했으므로 이 수정에서는 제품 코드를 변경하지 않는다.
+
+**목표:** 분석 화면의 좌우 바깥 여백과 최대 폭 제한을 없애고, 공고·기록 도구와 선택 상세를
+공통 레이아웃의 오른쪽 끝에 배치한다. 기존 차트·표·명단·shadcn 컴포넌트를 재사용한다.
+
+**구조:** `ApplicationShell`은 화면의 열·높이·고정 위치를, 공고 route는 현재 공고와 선택 회차를
+소유한다. shared의 작은 portal slot primitive를 통해 route의 React context를 보존한 채 표시 위치만
+옮긴다. shell이 공고 API나 route-private 모듈을 import하지 않는다.
+
+**기술:** 현재 React/Next.js, Base UI 기반 shadcn, React DOM portal, 기존 Lightweight Charts 엔진.
+**명세:** `screen-system.md` §4의 최신 배치 합의. 이 계획의 아래 완료 체크는 이전 로컬 패널의
+구현 기록이며 이번 전역 배치의 완료 증거가 아니다.
+
+## 1. 고정할 기준과 범위
+
+- 배치 비교 기준은 `b78a76c` 시점의 `prototypes/shell-comparison-2026-09-08/` A 왼쪽 메뉴 시안이다.
+  이후 구현에 맞춰 시안을 몰래 수정하지 않는다. 초기 Claude 화면과 v6/v7은 참고 자료다.
+- 분석 route의 `max-w-[1600px]`, 중앙 정렬용 `mx-auto`, 외곽 `px-3/sm:px-4`를 제거한다.
+  차트 축·텍스트·클릭 영역의 **내부 padding**은 유지한다. 폰트나 데이터 표시를 이번에 다시 설계하지 않는다.
+- 왼쪽 업무 메뉴와 실제 경로를 유지한다. 홈·설정의 읽기 폭은 각 화면이 소유한다.
+  이번 전체 폭 변경은 분석 화면에 적용하며 모든 대시보드의 폭 제한을 일괄 삭제하지 않는다.
+- 오른쪽 도구 줄의 기준 폭은 시안과 같은 64px, 펼친 상세는 320px이다. 두 영역 사이와 중앙 본문
+  사이에는 불필요한 gutter를 두지 않고 경계선으로 구분한다. 닫으면 상세 폭 전체를 중앙에 반환한다.
+- 오른쪽 도구와 상세는 상단 공통 헤더 바로 아래부터 viewport 하단까지 이어진다.
+  공고 제목·배너·필터 아래에서 시작하거나 중앙 본문 최대 폭 안에 들어가지 않는다.
+- 1200px 미만에서는 오른쪽 줄 자체가 0px이고 **공통 헤더**에서 접근한다. 상세는 기존 Sheet를 쓴다.
+- 관심·최근 본·내 공고는 전역 기능을 위한 설계 대상이다. 실제 조회·저장은 이 레이아웃 수정에
+  포함하지 않는다. 빈 목록을 조회 성공처럼 보이게 하거나 복제된 placeholder endpoint를 만들지 않는다.
+  미제공 기능 때문에 공고·기록을 route 내부 배치로 되돌리지 않는다.
+
+## 2. 코드의 책임과 조립
+
+```text
+ApplicationShell
+└ SidebarProvider + DockSlotsProvider
+  ├ AppSidebar                         기존 왼쪽 탐색
+  └ SidebarInset                       기존 단일 main landmark
+    ├ Header                           전역 헤더 / 좁은 화면의 도구 진입 slot
+    └ WorkspaceColumns                 화면 전체 가용 폭
+      ├ WorkspacePage                  route children, min-width: 0
+      │ └ DecisionScreen
+      │   ├ DecisionFrame              제목·상태·필터·차트·표만
+      │   └ AuctionWorkspaceDock       공고의 도구와 상세를 slot으로 전달
+      ├ DockSlotHost(panel)            전역 상세 영역
+      └ WorkspaceToolRail
+        └ DockSlotHost(rail)           공고·기록 / 추후 전역 바로가기
+```
+
+`DockSlotsProvider`, `DockSlotHost`, `DockSlot`은
+`apps/web/src/shared/ui/workspace-dock-slots.tsx`가 제공하는 범용 UI primitive다.
+`slot`은 `'panel' | 'rail' | 'header'`로 제한하며 DOM host와 표시할 `ReactNode`만 취급한다.
+호스트 없는 독립 렌더에서는 slot을 출력하지 않는다. 제품 코드와 통합 테스트는 provider/host로 감싼다.
+DOM selector, `document.querySelector`, 전역 window registry, 별도 event bus를 사용하지 않는다.
+
+```tsx
+type DockSlotName = 'panel' | 'rail' | 'header';
+// 각 함수의 children은 ReactNode, Host의 className은 선택적 string이다.
+<DockSlotsProvider>{children}</DockSlotsProvider>
+<DockSlotHost slot='panel' />
+<DockSlot slot='panel'>{panelContent}</DockSlot>
+```
+
+- host는 공통 레이아웃이 안정된 callback ref로 제공하고, `DockSlot`은 같은 host에 portal을 만든다.
+  패널 열림이나 테마 전환으로 host DOM을 교체하지 않는다. route의 QueryClient·선택·후보 context는
+  portal을 통과해 유지되므로 shell로 데이터나 ReactNode state를 복사할 필요가 없다.
+- `AttemptSelectionProvider`는 중앙 분석 대상과 다른 `selectedId`, 공고/기록 관점, 열림을 유지한다.
+  이번 실제 연결은 기존의 한 개 활성 패널만 사용한다. 전역 세 목록을 연결하는 후속 작업에서도
+  동시에 다른 패널을 추가하지 않고 이 한 공간의 활성 관점을 전환해야 한다.
+- `AuctionWorkspaceDock`은 route-private 모듈이다. `DecisionTools`, `CurrentAuctionFacts`,
+  `AuctionRosterPanel`, `BidRail`, `ResponsiveDock`을 조립한다. shell은 이 모듈을 import하지 않는다.
+- 공통 헤더의 `dockControls` slot과 shell의 rail은 위치만 제공한다. `DecisionTools`가 자신의
+  DropdownMenu와 진입 버튼을 함께 portal로 전달해 Base UI와 공고 context를 보존한다.
+- 조건 필터가 선택 회차를 제외하면 기존대로 무효화한다. 다른 공고로 이동하면 이전 route의
+  portal도 해제되어 다른 페이지에 낡은 공고·기록 버튼이나 명단이 남지 않는다.
+
+## 3. 선택과 스크롤 동작
+
+| 행동 | 중앙 | 오른쪽 |
+|---|---|---|
+| 공고 정보 열기 | 분석 대상 유지 | 현재 공고 제목·상태·사실 |
+| 차트 점 / 과거 회차 선택 | 선택 강조, 분석 대상 유지 | 선택 회차의 상세·실제 참여 기록 |
+| 닫기 / 재열기 | 차트 범위·표 스크롤·선택 유지 | 마지막으로 요청한 관점 표시 |
+| 다른 공고 페이지로 이동 | 새 분석 대상 | 이전 회차 내용 해제 |
+| 필터로 선택 회차 제외 | 새 조회 표본 | 이전 선택 및 명단 해제 |
+
+배치가 전역이라는 이유로 중앙 공고 ID를 선택 회차 ID로 덮어쓰지 않는다. 현재 공고와 과거 회차는
+제목·품목·개찰일 등 확인된 정보로 구분한다. 부족한 기관명·분류를 이름에서 추정하지 않는다.
+
+분석은 기본 보기부터 전체 가용 **폭**을 쓴다. `크게 보기`는 같은 본문에서 차트의 **높이 배분**을
+늘린다. 기본 보기의 날짜·과거 회차 영역을 무작정 줄여 전체 화면처럼 보이게 하지 않는다.
+
+일반 보기는 기존 문서 스크롤 하나와 sticky 공통 헤더·필터를 유지한다. 오른쪽 도구는 viewport에
+남고 긴 명단만 패널 내부에서 스크롤한다. 중앙에 추가 세로 스크롤 wrapper를 만들지 않는다.
+집중 보기는 기존의 충분한 높이 조건에서 중앙 높이를 제한하고 이력 표만 내부 스크롤하며 문서
+스크롤을 없앤다. 낮은 화면은 문서 스크롤로 돌아간다. 상단 높이를 여러 파일의 56/128px 계산으로
+복제하지 않고 공통 레이아웃 CSS 변수 하나로 전달한다.
+
+## 4. 구현 단위와 검증 순서
+
+실행 시 `superpowers:executing-plans`로 아래 단위를 따른다. 이 문서 작성 자체는 구현 시작이 아니다.
+
+### A. 공통 레이아웃의 자리와 수명주기
+
+수정: `apps/web/src/shell/layout/application-shell.tsx`,
+`apps/web/src/components/layout/header.tsx`.
+추가: `apps/web/src/shell/layout/workspace-dock.tsx`, `workspace-layout.css`,
+`apps/web/src/shared/ui/workspace-dock-slots.tsx`, `workspace-dock-slots.test.tsx`.
+
+- [ ] 먼저 slot 안에서 route context 값을 읽는 통합 테스트를 쓴다. 값 변경 후 같은 상세에 반영되고
+  route child를 제거하면 공통 host가 비는 것을 확인한다. 구현 전 실패를 확인한다.
+- [ ] `createPortal(children, host)`로 slot primitive를 구현한다. callback ref가 host를 해제하면
+  portal도 해제한다. 새 query/store/서버 호출을 만들지 않는다.
+- [ ] shell에서 Header 아래 공통 열을 조립하고, 오른쪽 상세·도구의 폭과 높이는 shell CSS가 소유한다.
+  기존 `SidebarInset`을 재사용해 main landmark를 중복 생성하지 않는다.
+- [ ] 통합 테스트와 TypeScript를 통과시키고 공통 slot 단위를 커밋한다.
+
+### B. 실제 공고·기록 이동과 전체 폭
+
+수정: canonical auctions `[auctionId]/_ui/decision-frame.tsx`, `decision-layout.css`,
+`decision-screen.tsx`, `decision-screen-skeleton.tsx`, `decision-tools.tsx`,
+`auction-roster-panel.tsx`, 해당 `decision-screen.test.tsx`, `auction-roster-panel.test.tsx`.
+추가: 같은 `_ui/auction-workspace-dock.tsx`.
+공유 패널의 테두리·높이 조정이 필요하면 `shared/ui/responsive-dock.tsx`에서 시각 variant로 제공한다.
+
+- [ ] 기존 테스트를 공통 host가 있는 harness로 확장한다. 기록 선택 후 명단은 frame 외부 host에 있고,
+  중앙 공고 제목은 그대로이며 닫기 후 선택이 유지되는 것을 구현 전 실패로 확인한다.
+- [ ] 기존 `SelectedAttemptRail`의 조립 책임을 `AuctionWorkspaceDock`으로 옮긴다. 실제 명단 rendering과
+  query는 `AuctionRosterPanel`에 남기고 복제하지 않는다. 상단 진입도 Header slot으로 옮긴다.
+- [ ] `DecisionFrame`의 `rail`·`toolbar`와 내부 aside를 제거하고 실제 화면과 skeleton을 함께 고친다.
+  상위 root의 max-width·margin auto·외곽 수평 padding만 없앤다. 차트·표 내부 여백은 유지한다.
+- [ ] 우측 geometry CSS를 shell로 옮기고 route CSS에는 필터와 중앙 chart/history 배분만 남긴다.
+  기존 차트 `autoSize`를 활용하고 패널 열림이나 폭 변경을 차트 key에 넣지 않는다.
+- [ ] UI 상태·명단·화면 테스트, TypeScript, scoped lint, `pnpm quality:check`,
+  `pnpm lint:web-boundaries`, `git diff --check`를 통과시키고 커밋한다.
+
+### C. 시안과 실제 화면의 완료 판정
+
+- [ ] 시안 A와 dev를 같은 viewport·왼쪽 접힘 상태·오른쪽 열림 상태·일반/집중 보기로 캡처한다.
+  시안의 검토용 상단 바는 비교에서 제외하고 제품 헤더 아래 경계를 기준으로 정렬한다.
+- [ ] 1920×1080, 2560×1440에서 기본 화면 폭이 1600px에 머무르지 않고 가용 폭을 쓰는지 확인한다.
+  공통 도구 줄의 오른쪽 경계가 스크롤바를 제외한 layout viewport 오른쪽과 1 CSS px 이내인지 확인한다.
+- [ ] 1440×1000, 1200×900, 1199×900, 1024×768, 375×812에서 가로 넘침이 없고,
+  1199px 이하 오른쪽 너비 0과 공통 헤더 진입·Sheet Escape·초점 복귀를 확인한다.
+- [ ] 실제 공고 5270의 과거 회차 명단 6건·34건을 전환한다. 차트 인스턴스·보이는 시간/비율 범위와
+  표 스크롤·선택을 확인한다. 폭이 달라지는 동안 캔버스 픽셀 일치는 요구하지 않는다. 같은 폭으로
+  닫아 돌아왔을 때의 범위와 표시를 비교한다.
+- [ ] `/today`, `/dashboard/delivery`, `/dashboard/my`로 이동해 공통 배치와 원래 화면 폭·스크롤·메뉴를
+  확인하고 공고 route의 버튼·명단이 남지 않는지 확인한다. loading/error에도 host가 유지되는지 본다.
+- [ ] 시안 대비 남은 차이를 `notice-dev-cohort-integration.md`에 적는다. 테스트 통과와 시안 일치를
+  별도 결과로 보고한다. 실제 데이터 부족은 레이아웃 일치로 해결됐다고 주장하지 않는다.
+- [ ] 결정적 검사 후 clean commit을 `pnpm review:ai -- --base b78a76c`으로 검토하고
+  evidence와 대조한 결과를 남긴다. Linear handoff 후 lease를 해제한다.
+
+## 이전 로컬 패널 구현 기록
+
+아래는 b0424b0/b78a76c에서 확인한 범위다. 공통 셸 배치·전체 폭은 위 미완료 단위로 교정한다.
 
 실행자는 `superpowers:executing-plans`에 따라 아래 검증 단위를 순서대로 수행한다.
 
