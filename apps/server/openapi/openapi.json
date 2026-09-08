@@ -762,6 +762,85 @@
         ],
         "type": "object"
       },
+      "EatbidApiV1MyBidObservations": {
+        "additionalProperties": false,
+        "properties": {
+          "businessId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "meta": {
+            "additionalProperties": false,
+            "properties": {
+              "buildId": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/PositiveBigintText"
+                  }
+                ],
+                "nullable": true
+              },
+              "calcVersion": {
+                "maxLength": 32,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "computedAt": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/InstantText"
+                  }
+                ],
+                "nullable": true
+              },
+              "coverage": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/MartCoverage"
+                  }
+                ],
+                "nullable": true
+              },
+              "regionScheme": {
+                "maxLength": 64,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "sourceReleaseId": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceReleaseIdText"
+                  }
+                ],
+                "nullable": true
+              }
+            },
+            "required": [
+              "buildId",
+              "sourceReleaseId",
+              "calcVersion",
+              "computedAt",
+              "coverage",
+              "regionScheme"
+            ],
+            "type": "object"
+          },
+          "organizationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "supplier": {
+            "$ref": "#/components/schemas/MyBidObservationSupplier"
+          }
+        },
+        "required": [
+          "businessId",
+          "organizationId",
+          "supplier",
+          "meta"
+        ],
+        "type": "object"
+      },
       "EatbidApiV1OpenAuctions": {
         "additionalProperties": false,
         "properties": {
@@ -946,6 +1025,264 @@
         "required": [
           "amount",
           "currency"
+        ],
+        "type": "object"
+      },
+      "MyAttemptBidObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "submitted"
+                    ],
+                    "type": "string"
+                  },
+                  "observedAt": {
+                    "$ref": "#/components/schemas/InstantText"
+                  },
+                  "provenance": {
+                    "$ref": "#/components/schemas/AuctionProvenance"
+                  },
+                  "rosterRowCount": {
+                    "$ref": "#/components/schemas/NonNegativeCount"
+                  },
+                  "rows": {
+                    "items": {
+                      "$ref": "#/components/schemas/MyBidSubmission"
+                    },
+                    "maxItems": 2048,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "rows",
+                  "rosterRowCount",
+                  "observedAt",
+                  "provenance"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "absent-from-roster"
+                    ],
+                    "type": "string"
+                  },
+                  "observedAt": {
+                    "$ref": "#/components/schemas/InstantText"
+                  },
+                  "provenance": {
+                    "$ref": "#/components/schemas/AuctionProvenance"
+                  },
+                  "rosterRowCount": {
+                    "$ref": "#/components/schemas/NonNegativeCount"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "rosterRowCount",
+                  "observedAt",
+                  "provenance"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "roster-not-observed"
+                    ],
+                    "type": "string"
+                  },
+                  "provenance": {
+                    "$ref": "#/components/schemas/AuctionProvenance"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "provenance"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "evidence-conflict"
+                    ],
+                    "type": "string"
+                  },
+                  "reason": {
+                    "$ref": "#/components/schemas/MyBidEvidenceConflict"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            ],
+            "type": "object"
+          },
+          "revisionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          }
+        },
+        "required": [
+          "attemptId",
+          "revisionId",
+          "result"
+        ],
+        "type": "object"
+      },
+      "MyBidEvidenceConflict": {
+        "enum": [
+          "roster-count-mismatch",
+          "roster-ordinal-duplicate",
+          "roster-observation-mismatch",
+          "observation-time-conflict",
+          "roster-value-invalid"
+        ],
+        "type": "string"
+      },
+      "MyBidObservationSupplier": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "attempts": {
+                "items": {
+                  "$ref": "#/components/schemas/MyAttemptBidObservation"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "observed"
+                ],
+                "type": "string"
+              },
+              "supplierPartyId": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            },
+            "required": [
+              "kind",
+              "supplierPartyId",
+              "attempts"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "unobserved"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "evidence-conflict"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
+      "MyBidSubmission": {
+        "additionalProperties": false,
+        "properties": {
+          "bidRate": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          },
+          "rank": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
+          },
+          "rosterOrdinal": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "sourceCalculatedAmount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "sourceStatus": {
+            "$ref": "#/components/schemas/CodeReference"
+          },
+          "sourceSupplierAccountId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "submissionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "submittedAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              }
+            ],
+            "nullable": true
+          },
+          "submittedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
+          "supplierPartyId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          }
+        },
+        "required": [
+          "submissionId",
+          "rosterOrdinal",
+          "supplierPartyId",
+          "sourceSupplierAccountId",
+          "sourceCalculatedAmount",
+          "submittedAmount",
+          "bidRate",
+          "rank",
+          "submittedAt",
+          "sourceStatus"
         ],
         "type": "object"
       },
@@ -1661,6 +1998,13 @@
               }
             ],
             "nullable": true
+          },
+          "revisionId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ]
           },
           "secondRate": {
             "allOf": [
@@ -2934,6 +3278,108 @@
         ]
       }
     },
+    "/api/v1/me/businesses/{businessId}/bid-observations": {
+      "post": {
+        "operationId": "findMyBidObservations",
+        "parameters": [
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EatbidApiV1MyBidObservations"
+                }
+              }
+            },
+            "description": "내 투찰 관측 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "요청 본문이 유효하지 않거나(회차 200건 초과·중복 회차 포함) 지정한 회차·revision 조합이 그 build와 기관의 mart에 없음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료 또는 다른 워크스페이스의 등록 사업자"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "등록된 사업자를 찾을 수 없음"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "지정한 mart build가 더 이상 활성이 아님"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "내 워크스페이스가 등록한 사업자가 지정한 build·기관의 회차들에 실제로 남긴 투찰 관측을 한 번에 조회한다. 원본 대조가 안 된 사업자, 명단에 없는 회차, 명단 자체가 미관측인 회차, 증거가 어긋난 회차를 서로 다른 상태로 구분하며 미참여로 단정하지 않는다.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/v1/me/businesses/{businessId}/location": {
       "delete": {
         "operationId": "clearMyBusinessLocation",
@@ -3213,6 +3659,38 @@
           },
           {
             "in": "query",
+            "name": "includeRevision",
+            "schema": {
+              "enum": [
+                "true"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expectedBuildId",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/InstantText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
             "name": "cursor",
             "schema": {
               "allOf": [
@@ -3334,6 +3812,16 @@
             },
             "description": "기관을 찾을 수 없음"
           },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "고정을 요청한 mart build가 더 이상 활성이 아님"
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -3355,7 +3843,7 @@
             "description": "데이터베이스를 사용할 수 없음"
           }
         },
-        "summary": "기관의 회차 요약을 최근 순으로 조회한다. 하한율·낙찰 방식은 정확한 값/all/unknown으로 구분하고, 개찰월 기간은 양끝을 함께 지정하며 60개월을 넘을 수 없다. 새 조건을 명시하면 조건 meta와 행별 낙찰 방식을 포함한다.",
+        "summary": "기관의 회차 요약을 최근 순으로 조회한다. 하한율·낙찰 방식은 정확한 값/all/unknown으로 구분하고, 개찰월 기간은 양끝을 함께 지정하며 60개월을 넘을 수 없다. 새 조건을 명시하면 조건 meta와 행별 낙찰 방식을 포함한다. 다음 페이지는 첫 응답의 buildId·asOf를 되돌려 보내 같은 build와 같은 개찰 기준 시각을 이어 읽는다.",
         "tags": [
           "procurement"
         ]
