@@ -17,20 +17,33 @@
   [data-slot='decision-filter-bar'] { position: sticky; top: var(--workspace-header-height, 56px); z-index: 20; }
 }
 
-@media (min-width: 1280px) and (min-height: 850px) {
-  [data-slot='decision-screen'][data-focus] { height: calc(100dvh - var(--workspace-header-height, 56px)); grid-template-rows: auto auto auto minmax(0, 1fr); gap: 8px; }
-  [data-slot='decision-screen'][data-focus] [data-slot='decision-filter-bar'] { position: static; }
-  [data-slot='decision-screen'][data-focus] [data-slot='decision-columns'] { min-height: 0; align-items: stretch; }
-  [data-slot='decision-screen'][data-focus] [data-slot='decision-main'] { min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(220px, 34%); gap: 10px; }
-  [data-slot='decision-screen'][data-focus] section[aria-label='근거'],
-  [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'],
-  [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence'] { min-height: 0; height: 100%; }
-  [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'] { display: block; }
-  [data-slot='decision-screen'][data-focus] figure { flex: 1; min-height: 0; }
-  [data-slot='decision-screen'][data-focus] [data-slot='flow-canvas'] { height: auto; min-height: 120px; flex: 1; flex-basis: 0; }
-  [data-slot='decision-screen'][data-focus] section[aria-label='과거 회차'] { min-height: 0; overflow: hidden; }
-  [data-slot='decision-screen'][data-focus] [data-slot='history-card'] { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  [data-slot='decision-screen'][data-focus] [data-slot='history-card'] > :first-child { flex-shrink: 0; padding-bottom: 8px; }
-  [data-slot='decision-screen'][data-focus] [data-slot='history-table-scroll'] { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-  [data-slot='decision-screen'][data-focus] [data-slot='history-table-scroll'] th { position: sticky; top: 0; z-index: 20; background: var(--card); }
+/* 확대는 같은 차트에 중앙의 남은 높이를 돌려준다. 표는 DOM을 유지한 채 접어 선택과 스크롤을 보존한다. */
+[data-slot='decision-screen'][data-focus] {
+  height: calc(100dvh - var(--workspace-header-height, 56px));
+  min-height: 580px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 8px;
+  padding-block: 8px;
+}
+[data-slot='decision-screen'][data-focus] [data-slot='decision-summary'],
+[data-slot='decision-screen'][data-focus] section[aria-label='공고 상태'],
+[data-slot='decision-screen'][data-focus] section[aria-label='과거 회차'] { display: none; }
+[data-slot='decision-screen'][data-focus] h1 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+[data-slot='decision-screen'][data-focus] [data-slot='decision-filter-bar'] { position: static; }
+[data-slot='decision-screen'][data-focus] [data-slot='decision-columns'] { min-height: 0; align-items: stretch; }
+[data-slot='decision-screen'][data-focus] [data-slot='decision-main'] { min-height: 0; grid-template-rows: minmax(0, 1fr); }
+[data-slot='decision-screen'][data-focus] section[aria-label='근거'],
+[data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'],
+[data-slot='decision-screen'][data-focus] [data-slot='decision-evidence'] { min-height: 0; height: 100%; }
+[data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'] { display: block; }
+[data-slot='decision-screen'][data-focus] [data-slot='decision-evidence'] { padding-block: 8px; }
+[data-slot='decision-screen'][data-focus] figure { flex: 1; min-height: 0; }
+[data-slot='decision-screen'][data-focus] [data-slot='flow-canvas'] { height: auto; min-height: 120px; flex: 1; flex-basis: 0; }
+[data-slot='decision-screen'][data-focus] figure > :not([data-slot='flow-canvas']) { flex-shrink: 0; }
+
+@media (max-width: 767px) {
+  [data-slot='decision-screen'][data-focus] [data-slot='evidence-toolbar'] { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  [data-slot='decision-screen'][data-focus] [data-slot='evidence-toolbar'] > nav { grid-column: 1; grid-row: 1; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-expand-link'] { grid-column: 2; grid-row: 1; }
+  [data-slot='decision-screen'][data-focus] [data-slot='evidence-toolbar'] > span { grid-column: 1 / -1; grid-row: 2; margin-left: 0; }
 }

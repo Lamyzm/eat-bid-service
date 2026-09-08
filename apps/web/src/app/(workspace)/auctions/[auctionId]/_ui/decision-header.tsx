@@ -54,9 +54,9 @@ export function DecisionHeader({ decision, cadence }: {
       {/* 제목은 nowrap 대상이 아니다: 전역적으로 글자 잘림을 두지 않으므로 truncate 대신 줄바꿈을 허용한다.
           break-keep은 어절 안에서 끊지 않지만, 띄어쓰기 없는 긴 기관명은 어절 하나가 열보다 길 수 있어
           wrap-anywhere로 그때만 어절 안 줄바꿈을 허용한다. */}
-      <h1 id='decision-title' className='min-w-0 break-keep wrap-anywhere text-xl font-bold tracking-tight'>{decision.identity.title}</h1>
+      <h1 id='decision-title' title={decision.identity.title} className='min-w-0 break-keep wrap-anywhere text-xl font-bold tracking-tight'>{decision.identity.title}</h1>
       {/* 사실은 각 조각 단위로 줄바꿈하고, 제목은 자체 행을 사용해 긴 공고명과 경쟁하지 않는다. */}
-    <div className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1'>
+    <div data-slot='decision-summary' className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1'>
       <Fact>{`소재지 ${decision.locationText}`}</Fact>
       <Fact>{`하한율 ${decision.floorRateText}`}</Fact>
       <Fact>{cadence.attemptCountText}</Fact>

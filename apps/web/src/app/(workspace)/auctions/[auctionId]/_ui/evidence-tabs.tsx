@@ -1,10 +1,8 @@
 /** @module 책임: 공고 분석의 흐름·분포 전환과 범례를 조립하고 URL 조건에 맞는 본문과 확대 동작을 연결한다. */
 import Link from 'next/link';
-import { Button } from '@/shared/ui/button';
 
 import {
   DECISION_VIEWS,
-  buildDecisionExpandRoute,
   buildDecisionViewRoute,
   type DecisionSearch,
   type DecisionView
@@ -12,6 +10,7 @@ import {
 import type { DecisionPageData } from '../_model/load-auction-page';
 import { DistributionFootnote } from './distribution-footnote';
 import { FlowChart } from './flow-chart';
+import { DecisionExpandLink } from './expand/decision-expand-link';
 // 범례는 계열 토글이라 브라우저 상태가 필요해 client 모듈이 소유한다. 이 서버 카드는 자리만 정한다.
 import { FlowLegend } from './flow-legend';
 import { MyRateInput } from './my-rate-input';
@@ -102,27 +101,6 @@ function CohortBody({
   );
 }
 
-/**
- * 탭마다 늘 있는 크게 보기 링크. 모달은 주소(`expand=<탭>`)가 열므로 링크 하나면 되고, 본문이 수집 전이어도
- * 링크는 남는다 — 모달이 같은 사유를 말한다. 같은 화면 안 주소 변경이라 스크롤 위치는 그대로 둔다.
- */
-function ExpandLink({ auctionId, search }: { readonly auctionId: string; readonly search: DecisionSearch }) {
-  const expanded = search.expand === '흐름' && search.view === '흐름';
-  const label = expanded ? '작게 보기' : '크게 보기';
-  return (
-    <Button
-      render={<Link aria-label={label} href={buildDecisionExpandRoute(auctionId, search, expanded ? null : search.view)} scroll={false} />}
-      nativeButton={false}
-      role='link'
-      variant='outline'
-      size='default'
-      className='ml-auto'
-    >
-      {label}
-    </Button>
-  );
-}
-
 export function EvidenceTabs({
   auctionId,
   search,
@@ -138,7 +116,7 @@ export function EvidenceTabs({
 
   return (
     <div data-slot='decision-evidence' className='flex min-w-0 flex-col gap-3 overflow-hidden rounded-xl bg-card p-4 shadow-xs'>
-      <div className='flex min-w-0 flex-wrap items-center gap-1'>
+      <div data-slot='evidence-toolbar' className='flex min-w-0 flex-wrap items-center gap-1'>
         <nav aria-label='근거 보기' className='flex flex-wrap items-center gap-1'>
           {DECISION_VIEWS.map((view) => (
             <Link
@@ -154,7 +132,7 @@ export function EvidenceTabs({
           ))}
         </nav>
         {active === '흐름' ? <FlowLegend /> : null}
-        <ExpandLink auctionId={auctionId} search={search} />
+        <DecisionExpandLink auctionId={auctionId} search={search} />
       </div>
       {active === '비교집단' ? <p className='text-[13px] font-medium text-muted-foreground'>{note(active, search.scope)}</p> : null}
       {active === '비교집단' ? (
