@@ -1,4 +1,4 @@
-/** @module 책임: 과거 회차 크게 보기의 12열 표를 행 상한 없이 그리고, 사정률 축 "낙찰 − 내 값"과 투찰률 축 "지금 값 썼다면"을 각자의 축 값으로만 계산해 붙인다. */
+/** @module 책임: 과거 회차 크게 보기의 표를 행 상한 없이 그리고, 사정률 축 "낙찰 − 내 값"과 투찰률 축 "지금 값 썼다면"을 각자의 축 값으로만 계산해 붙인다. */
 'use client';
 
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
@@ -22,15 +22,13 @@ const HEAD_CLASS: Record<string, string> = {
   floorRate: NUMERIC,
   winRate: NUMERIC,
   secondRate: NUMERIC,
-  dayFloor: NUMERIC,
-  winner: 'text-left',
   list: NUMERIC,
   belowFloor: 'text-left',
   delta: `${NUMERIC} text-primary`,
   verdict: `${NUMERIC} text-primary`
 };
 
-// 빨강은 그날 하한 하나에만, 파란 기운은 내 값이 들어간 두 열에만 건다(history-table.tsx와 같은 역할 배정).
+// 파란 기운은 내 값이 들어간 두 열에만 건다(history-table.tsx와 같은 역할 배정).
 const CELL_CLASS: Record<string, string> = {
   opened: 'font-medium',
   item: 'font-medium',
@@ -38,8 +36,6 @@ const CELL_CLASS: Record<string, string> = {
   floorRate: `${NUMERIC} font-medium text-muted-foreground`,
   winRate: `${NUMERIC} font-semibold`,
   secondRate: `${NUMERIC} font-medium text-muted-foreground`,
-  dayFloor: `${NUMERIC} font-medium text-destructive`,
-  winner: 'font-medium',
   list: `${NUMERIC} font-medium`,
   belowFloor: 'font-medium',
   delta: `${NUMERIC} font-medium`,
@@ -82,8 +78,7 @@ function useExpandColumns(rate: string | null, myRate: string | null) {
       // 축을 머리글에 적지 않으면 사정률과 투찰률이 같은 눈금으로 읽힌다(AGENTS 15, PDR-0004).
       columnHelper.accessor((row) => row.winRateText ?? '—', { id: 'winRate', header: '낙찰률(사정률)' }),
       columnHelper.accessor((row) => row.secondRateText ?? '—', { id: 'secondRate', header: '2등가(사정률)' }),
-      columnHelper.accessor((row) => row.dayFloorText ?? '예정가격 미관측', { id: 'dayFloor', header: '그날 하한(투찰률)' }),
-      columnHelper.accessor('winnerText', { id: 'winner', header: '낙찰 업체' }),
+      // 기본 표와 같은 결정으로 그날 하한·낙찰 업체 열은 빼고 나머지 관측 값과 정밀도는 그대로 둔다(EAT-115).
       columnHelper.accessor((row) => (row.listCount === null ? '—' : row.listCount.toLocaleString('ko-KR')), { id: 'list', header: '명단' }),
       columnHelper.display({ id: 'belowFloor', header: '하한 아래', cell: (context) => <BelowFloorCell row={context.row.original} /> }),
       // 내 값(URL `myRate`)은 사정률이라 낙찰률과 같은 축이다. 값이 없으면 어떤 값으로도 빼지 않는다(AGENTS 8).
@@ -124,7 +119,7 @@ export function HistoryExpandTable({
   // oxlint-disable-next-line react/incompatible-library -- headless table 인스턴스는 함수를 돌려주지만 React Compiler는 annotation mode라 이 컴포넌트를 메모하지 않는다(apps/web AGENTS.md).
   const table = useReactTable({ data: rows as HistoryRow[], columns, getCoreRowModel: getCoreRowModel() });
 
-  // 12열은 1024·768에서 모달 폭을 넘는다. 페이지가 아니라 이 컨테이너만 가로로 움직인다.
+  // 열이 좁은 화면에서 모달 폭을 넘을 수 있다. 페이지가 아니라 이 컨테이너만 가로로 움직인다.
   return (
     <div data-slot='history-expand-table' className='min-w-0 overflow-x-auto'>
       <table className='w-full border-separate border-spacing-0 text-[15px]'>

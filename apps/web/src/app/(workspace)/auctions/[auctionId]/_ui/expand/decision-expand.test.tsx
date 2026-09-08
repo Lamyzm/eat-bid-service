@@ -74,13 +74,14 @@ describe('크게 보기 모달', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  test('과거 회차 모달은 role=dialog에 제목·표본·12열 표와 더 불러오기를 함께 그린다', () => {
+  test('과거 회차 모달은 role=dialog에 제목·표본·10열 표와 더 불러오기를 함께 그린다', () => {
     const screen = renderExpand('과거 회차');
     const dialog = screen.getByRole('dialog');
     expect(screen.getByRole('heading', { name: '과거 회차' })).toBeTruthy();
     const headers = [...dialog.querySelectorAll('thead th')].map((node) => node.textContent);
+    // 확대 표도 기본 표와 같이 그날 하한·낙찰 업체 열을 빼고 나머지 값과 순서를 유지한다(EAT-115).
     expect(headers).toEqual([
-      '개찰', '품목', '기초금액', '하한율', '낙찰률(사정률)', '2등가(사정률)', '그날 하한(투찰률)', '낙찰 업체',
+      '개찰', '품목', '기초금액', '하한율', '낙찰률(사정률)', '2등가(사정률)',
       '명단', '하한 아래', '낙찰 − 내 값 90.030', '90.000 썼다면'
     ]);
     // 12행 상한이 풀려 fixture 20회가 전부 그려진다.
@@ -119,7 +120,7 @@ describe('크게 보기 모달', () => {
   test('낙찰 − 내 값 열은 사정률 내 값만 빼고, 내 값이 없으면 어떤 값도 빼지 않는다', () => {
     const screen = renderExpand('과거 회차', { search: { ...searchWith('과거 회차'), myRate: null } });
     expect(screen.getByText('낙찰 − 내 값')).toBeTruthy();
-    const deltaCells = [...screen.getByRole('dialog').querySelectorAll('tbody tr')].map((row) => row.querySelectorAll('td')[10]?.textContent);
+    const deltaCells = [...screen.getByRole('dialog').querySelectorAll('tbody tr')].map((row) => row.querySelectorAll('td')[8]?.textContent);
     expect(new Set(deltaCells)).toEqual(new Set(['—']));
   });
 

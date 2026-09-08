@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { presentHistory } from '../_model/attempt-history';
@@ -29,7 +29,7 @@ describe('과거 회차 표', () => {
     );
     expect(screen.queryByText(/썼다면/)).toBeNull();
     expect(screen.queryByText('값을 넣으면 계산')).toBeNull();
-    expect(screen.container.querySelectorAll('thead th').length).toBe(7);
+    expect(screen.container.querySelectorAll('thead th').length).toBe(5);
   });
 
   test('최근 12회만 그리고 마지막 열 머리에 지금 값을 적는다', () => {
@@ -43,14 +43,13 @@ describe('과거 회차 표', () => {
     const headers = [...screen.container.querySelectorAll('thead th')].map(
       (node) => node.textContent
     );
-    // 같은 percentage-point지만 분모가 다르다. 축을 적지 않으면 네 열이 한 눈금으로 읽힌다(AGENTS 15).
+    // 같은 percentage-point지만 분모가 다르다. 축을 적지 않으면 두 열이 한 눈금으로 읽힌다(AGENTS 15).
+    // 사용자가 뺀 그날 하한·낙찰 업체 열은 여기 없어야 한다(EAT-115).
     expect(headers).toEqual([
       '개찰',
       '품목',
       '낙찰률(사정률)',
       '2등가(사정률)',
-      '그날 하한(투찰률)',
-      '낙찰 업체',
       '명단',
       '90.000 썼다면'
     ]);
@@ -60,7 +59,26 @@ describe('과거 회차 표', () => {
     // 원본에는 무효 판정이 없다. 우리가 센 것은 그날 하한 아래로 들어온 명단 행 수뿐이다(PDR-0002).
     const screen = renderTable('90.000');
     const first = screen.container.querySelectorAll('tbody tr')[0];
-    expect(first.textContent).toContain('91 하한 아래 5');
+    expect(first.textContent).toContain('91');
+    expect(first.textContent).toContain('하한 아래 5');
+  });
+
+  test('기록 진입은 이름이 보이는 버튼이고 누르면 그 회차만 선택된다', () => {
+    const screen = renderTable('90.000');
+    const buttons = screen.getAllByRole('button', { name: /회차 참여 기록 보기$/ });
+    // 작은 숫자가 아니라 이름으로 진입하고, 기본 button이라 Tab과 Enter로도 같은 자리에 닿는다.
+    expect(buttons[0]!.textContent).toBe('기록 보기');
+    expect(buttons[0]!.tagName).toBe('BUTTON');
+    expect(buttons[0]!.getAttribute('aria-label')).toContain(
+      presentation.rows[0]!.openedText
+    );
+
+    fireEvent.click(buttons[1]!);
+
+    const rows = [...screen.container.querySelectorAll('tbody tr')];
+    const selected = rows.filter((row) => row.hasAttribute('data-selected'));
+    expect(selected).toHaveLength(1);
+    expect(selected[0]).toBe(rows[1]!);
   });
 
   test('그날 하한을 밑도는 값이면 낙찰값과 견주지 않고 하한 아래로 적는다', () => {

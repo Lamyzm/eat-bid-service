@@ -21,14 +21,12 @@ import { useBidRate } from './bid-rate-context';
 const columnHelper = createColumnHelper<HistoryRow>();
 
 // 왼쪽 열은 사실, 마지막 열은 가정이다. 열 정렬·색 역할을 여기 한 곳에서만 정해 헤더와 셀이 어긋나지
-// 않게 한다. 파란 기운은 '내 값' 하나에만, 빨강은 '그날 하한' 하나에만 건다.
+// 않게 한다. 파란 기운은 '내 값' 하나에만 건다.
 const CELL_CLASS: Record<string, string> = {
   opened: 'text-[15px] font-medium',
   item: 'text-[15px] font-medium',
   winRate: 'text-right text-[15px] font-semibold tabular-nums',
   secondRate: 'text-right text-[15px] font-medium tabular-nums',
-  dayFloor: 'text-right text-[15px] font-medium tabular-nums text-destructive',
-  winner: 'text-[15px] font-medium',
   list: 'text-right text-[15px] font-medium tabular-nums',
   verdict: 'text-right text-[15px] tabular-nums'
 };
@@ -38,8 +36,6 @@ const HEAD_CLASS: Record<string, string> = {
   item: 'text-left',
   winRate: 'text-right',
   secondRate: 'text-right',
-  dayFloor: 'text-right',
-  winner: 'text-left',
   list: 'text-right',
   verdict: 'text-right tabular-nums text-primary'
 };
@@ -107,6 +103,9 @@ const VERDICT_CLASS: Record<RowVerdict, string> = {
   unknown: 'text-muted-foreground'
 };
 
+// 참여 수는 관측 사실이고 기록 열람은 사용자의 행동이다. 숫자 자체를 링크로 두면 무엇이 열리는지
+// 이름이 없어 작은 숫자를 눌러야 알 수 있으므로, 수는 그대로 두고 진입만 이름이 보이는 버튼으로
+// 분리한다. 화면 이름은 짧게 두되 aria-label은 어느 회차인지 말하도록 개찰일을 유지한다(EAT-115).
 function ListCell({
   row,
   onOpen
@@ -115,21 +114,23 @@ function ListCell({
   readonly onOpen: (attemptId: string) => void;
 }) {
   return (
-    <Button
-      variant='link'
-      size='sm'
-      className='h-auto p-0'
-      onClick={() => onOpen(row.attemptId)}
-      aria-label={`${row.openedText} 회차 참여 기록 보기`}
-    >
-      {row.listCount ?? '명단 보기'}
+    <span className='flex items-center justify-end gap-2'>
+      <span className='tabular-nums'>{row.listCount ?? '—'}</span>
       {row.belowDayFloorCount === null ? null : (
         <span className='text-[13px] font-medium text-muted-foreground'>
-          {' '}
           하한 아래 {row.belowDayFloorCount}
         </span>
       )}
-    </Button>
+      <Button
+        variant='link'
+        size='sm'
+        className='h-auto p-0'
+        onClick={() => onOpen(row.attemptId)}
+        aria-label={`${row.openedText} 회차 참여 기록 보기`}
+      >
+        기록 보기
+      </Button>
+    </span>
   );
 }
 
@@ -153,13 +154,8 @@ function useHistoryColumns(
         id: 'secondRate',
         header: '2등가(사정률)'
       }),
-      // 그날 하한이 없는 회차는 값이 비어 있는 것이 아니라 예정가격이 아직 추첨되지 않은 회차다.
-      // '—'로 두면 다른 열의 "관측 없음"과 같은 모양이 되어 왜 없는지가 사라진다(EAT-74).
-      columnHelper.accessor((row) => row.dayFloorText ?? '예정가격 미관측', {
-        id: 'dayFloor',
-        header: '그날 하한(투찰률)'
-      }),
-      columnHelper.accessor('winnerText', { id: 'winner', header: '낙찰 업체' }),
+      // 그날 하한·낙찰 업체 열은 사용자가 이 표에서 빼기로 결정했다. 값 자체는 계속 관측 사실이라
+      // 마지막 열의 판정 계산과 오른쪽 참여 기록에서 그대로 읽으며, 표에서만 보이지 않는다(EAT-115).
       columnHelper.display({
         id: 'list',
         header: '명단',
@@ -192,7 +188,7 @@ export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] })
 
   const { ref, edges } = useScrollEdges();
 
-  // 1024에서도 8열이 근거 열 안에 들어가도록 xl 아래에서는 셀 여백을 줄인다. 그래도 넘치면 페이지가
+  // 좁은 폭에서도 열이 근거 영역 안에 들어가도록 xl 아래에서는 셀 여백을 줄인다. 그래도 넘치면 페이지가
   // 아니라 이 컨테이너만 가로로 움직이고, 첫·마지막 열은 고정돼 판정 열이 잘려 보이지 않는다.
   // border-collapse에서는 sticky 셀이 행 테두리를 끌고 가지 못해 separate로 두고 테두리를 셀에 건다.
   return (
