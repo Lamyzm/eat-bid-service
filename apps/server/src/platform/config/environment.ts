@@ -1,3 +1,7 @@
+/**
+ * @module 책임: 런타임 환경 변수를 기동 시점에 한 번 검증해 불변 설정으로 좁히고, 잘못된 조합이 배포되지
+ * 않도록 여기서 끊는다.
+ */
 import { z } from "zod";
 import {
   milliseconds,
@@ -5,6 +9,24 @@ import {
   type ElapsedMilliseconds,
   type PayloadByteLimit,
 } from "@eatbid/domain";
+
+/**
+ * 인증 설정은 네 값이 모두 있을 때만 존재한다. 하나라도 빠진 상태를 "일부 켜짐"으로 두면 로그인 화면은
+ * 열리는데 콜백이 실패하는 배포가 되고, 그 실패는 사용자 오류처럼 보인다. 값이 아예 없는 배포는
+ * 인증을 끈 배포이고 공개 read는 그대로 동작한다(ADR 0032 §1).
+ */
+export interface AuthEnvironment {
+  readonly secret: string;
+  readonly baseUrl: string;
+  readonly googleClientId: string;
+  readonly googleClientSecret: string;
+  /**
+   * `Secure` 쿠키는 https에서만 브라우저에 저장된다. loopback HTTP dev에서 이 값을 강제로 켜면 로그인이
+   * 성공해도 세션 쿠키가 버려져 매 요청이 미로그인이 된다. 그래서 base URL의 scheme이 이 값을 정하며,
+   * 이 값이 거짓일 수 있는 경우는 startup이 이미 loopback 개발 host로 좁혀 놓았다.
+   */
+  readonly useSecureCookies: boolean;
+}
 
 export interface Environment {
   readonly runtimeMode: "development" | "test" | "production";
@@ -16,6 +38,7 @@ export interface Environment {
   readonly swaggerEnabled: boolean;
   readonly buildSha: string;
   readonly databaseUrl: string;
+  readonly auth: AuthEnvironment | null;
 }
 
 type EnvironmentSource = Readonly<Record<string, string | undefined>>;
@@ -34,6 +57,10 @@ const sourceSchema = z.object({
   SWAGGER_ENABLED: z.enum(["true", "false"]).optional(),
   BUILD_SHA: z.string().optional(),
   DATABASE_URL: z.string().min(1),
+  BETTER_AUTH_SECRET: z.string().min(32).optional(),
+  BETTER_AUTH_URL: z.string().min(1).optional(),
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 }).passthrough();
 
 function parseOrigins(value: string): readonly string[] {
@@ -67,6 +94,54 @@ function parseDatabaseUrl(value: string): string {
   return value;
 }
 
+// http는 브라우저가 `Secure` 쿠키를 저장하지 않는 경우에만 쓸 수 있다. 그 경우는 개발자 자기 기기의
+// loopback 하나뿐이며, 다른 host의 http는 세션 쿠키를 평문으로 실어 보내는 배포다.
+const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+function parseAuth(
+  parsed: z.infer<typeof sourceSchema>,
+  runtimeMode: Environment["runtimeMode"],
+): AuthEnvironment | null {
+  const entries = {
+    BETTER_AUTH_SECRET: parsed.BETTER_AUTH_SECRET,
+    BETTER_AUTH_URL: parsed.BETTER_AUTH_URL,
+    GOOGLE_CLIENT_ID: parsed.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: parsed.GOOGLE_CLIENT_SECRET,
+  };
+  const missing = Object.entries(entries).filter(([, value]) => value === undefined).map(([key]) => key);
+  if (missing.length === Object.keys(entries).length) return null;
+  if (missing.length > 0) {
+    throw new Error(`Authentication configuration is incomplete; missing ${missing.join(", ")}`);
+  }
+  let url: URL;
+  try {
+    url = new URL(entries.BETTER_AUTH_URL!);
+  } catch {
+    throw new Error("BETTER_AUTH_URL must be an absolute http or https URL");
+  }
+  if ((url.protocol !== "http:" && url.protocol !== "https:") || url.search || url.hash
+    || url.username || url.password) {
+    throw new Error("BETTER_AUTH_URL must contain only scheme, authority and path");
+  }
+  // https가 아니면 세션 쿠키에 `Secure`를 붙일 수 없다. 그 상태를 배포가 조용히 고르지 못하게 시작 시점에
+  // 막는다. 검사를 뒤로 미루면 로그인은 되는데 쿠키가 평문으로 오가는 배포가 정상처럼 동작한다.
+  if (url.protocol === "http:") {
+    if (runtimeMode === "production") {
+      throw new Error("BETTER_AUTH_URL must use https in production");
+    }
+    if (!loopbackHosts.has(url.hostname)) {
+      throw new Error("BETTER_AUTH_URL may only use http on a loopback host outside production");
+    }
+  }
+  return Object.freeze({
+    secret: entries.BETTER_AUTH_SECRET!,
+    baseUrl: url.origin + (url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "")),
+    googleClientId: entries.GOOGLE_CLIENT_ID!,
+    googleClientSecret: entries.GOOGLE_CLIENT_SECRET!,
+    useSecureCookies: url.protocol === "https:",
+  });
+}
+
 export function parseEnvironment(source: EnvironmentSource): Environment {
   const parsed = sourceSchema.parse(source);
   const production = parsed.NODE_ENV === "production";
@@ -93,6 +168,7 @@ export function parseEnvironment(source: EnvironmentSource): Environment {
     swaggerEnabled,
     buildSha,
     databaseUrl: parseDatabaseUrl(parsed.DATABASE_URL),
+    auth: parseAuth(parsed, parsed.NODE_ENV),
   });
 }
 

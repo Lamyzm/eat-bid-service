@@ -76,7 +76,12 @@ function operationDocument(operation: PublicHttpOperation): ZodOpenApiOperationO
 function operationPaths(): ZodOpenApiPathsObject {
   const paths: ZodOpenApiPathsObject = {};
   for (const operation of publicHttpOperationRegistry) {
-    const pathItem: ZodOpenApiPathItemObject = {};
+    // 같은 semantic path에 method가 둘 이상 있을 수 있다(`GET`·`POST /api/v1/me/businesses`).
+    // path item을 새로 만들어 대입하면 먼저 등록한 method가 조용히 사라져 문서에서만 endpoint가 없어진다.
+    const pathItem: ZodOpenApiPathItemObject = paths[operation.openApiPath] ?? {};
+    if (pathItem[operation.method]) {
+      throw new Error(`중복 method+path: ${operation.method} ${operation.openApiPath}`);
+    }
     pathItem[operation.method] = operationDocument(operation);
     paths[operation.openApiPath] = pathItem;
   }
