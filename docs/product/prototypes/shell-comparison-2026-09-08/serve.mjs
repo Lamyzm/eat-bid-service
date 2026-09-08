@@ -1,7 +1,7 @@
 /** @module 책임: 저장소 컴포넌트를 독립 시안으로 빌드하여 루프백 주소에서만 제공하며 생성물은 저장소 밖에 둔다. */
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve, join } from "node:path";
+import { dirname, resolve, join, relative, isAbsolute, sep } from "node:path";
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -11,7 +11,10 @@ const root = resolve(source, "../../../..");
 const web = join(root, "apps/web");
 const require = createRequire(join(web, "package.json"));
 const output = resolve(process.argv[2] || join(tmpdir(), "eatbid-shell-comparison"));
-if (output.startsWith(root)) throw new Error("생성물 경로는 저장소 밖으로 지정하세요.");
+const outputRelative = relative(root, output);
+if (!isAbsolute(outputRelative) && outputRelative !== ".." && !outputRelative.startsWith(`..${sep}`)) {
+  throw new Error("생성물 경로는 저장소 밖으로 지정하세요.");
+}
 await mkdir(output, { recursive: true });
 // 시안용 추가 의존성을 제품에 넣지 않고 frozen install에 이미 있는 빌드 도구를 사용한다.
 const packages = await readdir(join(root, "node_modules/.pnpm"));

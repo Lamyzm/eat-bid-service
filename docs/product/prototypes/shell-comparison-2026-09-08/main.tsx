@@ -92,7 +92,7 @@ function Navigation({ scene, go }: { scene: Scene; go: (scene: Scene) => void })
 function App() {
   const [layout, setLayout] = useState<"side" | "top">("side");
   const [scene, setScene] = useState<Scene>("home");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1200);
   const [panel, setPanel] = useState<Panel>(null);
   const [focus, setFocus] = useState(false);
   const [selected, setSelected] = useState("111");

@@ -28,7 +28,7 @@ small { font-size: 13px; font-weight: 400; margin-left: 6px; }
 .review-sidebar [data-slot=sidebar-header] { padding: 22px 20px; overflow: hidden; }
 .sidebar-brand { font-size: 18px; font-weight: 750; white-space: nowrap; }
 .sidebar-brand span { display: block; font-size: 10px; letter-spacing: 1.3px; color: var(--muted-foreground); font-weight: 500; }
-.review-sidebar[data-state=collapsed] .sidebar-brand { visibility: hidden; }
+.review-frame > [data-slot=sidebar][data-state=collapsed] .sidebar-brand { visibility: hidden; }
 .review-sidebar [data-slot=sidebar-content], .review-sidebar [data-slot=sidebar-footer] { padding: 12px; }
 .review-sidebar [data-slot=sidebar-menu] { gap: 6px; }
 .review-sidebar [data-slot=sidebar-menu-button] { height: 42px; font-size: 15px; }

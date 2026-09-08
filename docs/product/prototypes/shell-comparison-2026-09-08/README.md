@@ -32,3 +32,16 @@ node docs/product/prototypes/shell-comparison-2026-09-08/serve.mjs
 출력 폴더를 첫 인자로 지정할 수 있으며 저장소 밖이어야 한다. 로컬 주소는 `127.0.0.1:8770`이다.
 시안이 열린 뒤 소스를 바꾸면 서버를 종료하고 같은 명령으로 다시 빌드한다.
 리뷰 시안은 제품의 API 경로, 레거시 예외, 전역 내비게이션 계약에 예외를 추가하지 않는다.
+
+## 검증과 advisory 판단
+
+- 시안 TypeScript와 scoped lint, 저장소 `quality:check`를 통과했다.
+- 홈·설정·분석의 A/B와 패널 열림을 5개 viewport에서 검토했고 문서 가로 넘침은 없었다.
+- 차트 확대 후 패널 전환·닫기에서 캔버스 픽셀, 선택 회차와 표 스크롤을 보존했다.
+- `pnpm review:ai -- --base HEAD~1`의 Windows 출력 경로 검사 지적은 확인 후 반영했다.
+  대소문자를 구분하는 문자열 prefix 대신 운영체제의 상대 경로 해석으로 내부 출력을 거부한다.
+- 테마 지적은 재사용한 `createFlowChart`의 `MutationObserver`가 HTML 테마를 관찰해
+  모든 계열 색을 갱신하므로 채택하지 않았다. 엔진을 다시 만들면 확대 보존을 해친다.
+- Effect Event 지적은 Effect에서 등록·해제하는 차트 구독 콜백이라는 실제 경계를 확인했다.
+  [React 공식 문서의 외부 이벤트 구독 예시](https://react.dev/reference/react/useEffectEvent#using-an-event-listener-with-latest-values)와
+  같은 수명주기이며 다른 React 컴포넌트나 Hook에 함수를 전달하는 경우가 아니므로 유지했다.
