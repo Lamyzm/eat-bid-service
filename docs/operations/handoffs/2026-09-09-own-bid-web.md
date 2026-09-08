@@ -1,6 +1,6 @@
 # EAT-40 실제 내 투찰을 기존 차트에 연결한다
 
-이 단계는 EAT47 실제 로그인·사업자 설정 웹과 EAT40 batch backend, EAT115 승인 UI가 검증·통합된 뒤 실행한다. root가 통합 base를 넘기기 전에는 시작하지 않는다. 사용자 승인 범위는 로그인 사용자가 등록한 사업자의 실제 제출을 차트에서 보고 점을 눌러 같은 회차 명단을 여는 최소 기능이다. 추천·자동투찰·성적표·지도·새 전역 레이아웃은 추가하지 않는다. sole writer assign/claim/doctor, 관련 AGENTS/계약/vertical slice skill을 적용하고 실제 구현·브라우저 검증까지 완료한다. 공유 outbox sync와 운영 DB 쓰기·DDL·배포 금지.
+이 단계는 EAT47 실제 로그인·사업자 설정 웹과 EAT40 batch backend, EAT115 승인 UI가 검증·통합된 뒤 실행한다. 현재 인수 담당 Claude/Codex가 그 증거를 검토하고 통합 base를 확정한다. 이전 Codex 세션이 살아 있어야 하는 조건은 없다. 사용자 승인 범위는 로그인 사용자가 등록한 사업자의 실제 제출을 차트에서 보고 점을 눌러 같은 회차 명단을 여는 최소 기능이다. 추천·자동투찰·성적표·지도·새 전역 레이아웃은 추가하지 않는다. sole writer assign/claim/doctor, 관련 AGENTS/계약/vertical slice skill을 적용하고 실제 구현·브라우저 검증까지 완료한다. 공유 outbox sync와 운영 DB 쓰기·DDL·배포 금지.
 
 ## 선행 결과를 재사용
 

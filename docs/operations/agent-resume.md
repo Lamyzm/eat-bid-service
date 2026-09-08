@@ -15,6 +15,19 @@ review_trigger: agent-handoff-or-resume-change
 
 > AGENTS.md와 docs/operations/agent-resume.md부터 읽고 현재 MVP를 이어받아. 실행 중인 writer와 lease를 먼저 확인하고, 이전 대화 없이 Git·Linear의 실제 상태에서 다음 미완료 단계부터 진행해.
 
+## 총괄 역할도 함께 승계한다
+
+사용자가 "이어받아"라고 지정한 새 Claude/Codex는 이전 총괄의 **역할**을 승계한다.
+인계에 나오는 `root`·`총괄`·`인수 담당`은 특정한 살아 있는 Codex 세션을 뜻하지 않는다.
+받은 세션이 이미 승인된 MVP 범위 안에서 diff 검토, 필요한 검증, lease 이전, 격리 통합,
+다음 구현 또는 위임을 결정한다. 이전 세션의 별도 허가를 기다리지 않는다.
+새 제품 의미·배포·운영 데이터 변경까지 승인 범위를 넓히는 권한은 아니다.
+
+기존 writer가 살아 있으면 그 구현이 끝날 때까지 해당 쓰기는 기다리는 것이 정상이다.
+그동안 후속 계약·시안·인수 조건을 읽기 검토하고, 종료 후 실제 결과로 다음 단계를 판정한다.
+빈 시간을 채우려고 새 work item이나 중복 구현을 만들 필요는 없다. 즉시 강제 교대를 요청받은
+경우에도 writer와 시험 자원의 종료·변경 보존이 먼저이며, 생존 확인 없이 lease만 회수하지 않는다.
+
 ## 처음 할 일
 
 1. `AGENTS.md`의 필수 원문, 이 문서의 현재 인계 링크, 해당 Linear issue의 최신 handoff를 읽는다.
@@ -33,6 +46,32 @@ review_trigger: agent-handoff-or-resume-change
 
 작업 폴더를 바꿀 때는 새 Claude를 그 폴더에서 시작한다. 이미 writer로 결박된 세션이 `cd`로
 다른 worktree의 파일을 수정해 hook을 우회하지 않는다. 문서를 읽는 일에는 새 claim이 필요 없다.
+
+### Windows에서 출력 범위를 좁힌 확인 예시
+
+아래 값은 현재 handoff의 관측 값으로 바꾼다. 프로세스 목록은 조회만 하며 종료하지 않는다.
+
+```powershell
+$resumeSession = 'handoff에 적힌 Claude 세션 UUID'
+$observedWriterPid = 26564
+$processSnapshot = Get-CimInstance Win32_Process
+$processSnapshot |
+  Where-Object { $_.Name -eq 'claude.exe' -and $_.CommandLine -like ('*' + $resumeSession + '*') } |
+  Select-Object ProcessId, ParentProcessId, CreationDate
+$processSnapshot |
+  Where-Object { $_.ParentProcessId -eq $observedWriterPid } |
+  Select-Object ProcessId, ParentProcessId, Name, CreationDate
+```
+
+자식이 있으면 그 PID를 부모로 같은 조회를 이어 자손 시험까지 확인한다. UUID 인자가 없는
+interactive 프로세스는 첫 조회로 종료를 판정할 수 없으므로 실제 실행 로그와 생성 시각을 함께 본다.
+PID 일치만으로 다른 프로세스를 그 작업 소유라고 단정하지 않는다.
+
+`node tools/agent-workflow/cli.mjs doctor`는 네트워크 없이 로컬 lease를 읽는 명령이다.
+`pnpm workflow:doctor:infisical`은 설정된 credential을 자식에 주입하는 온라인 진단 경로이며,
+신규 claim은 `pnpm workflow:claim -- EAT-번호`의 원격 검증을 거쳐야 한다.
+다른 폴더를 루트에서 읽는 정확한 예는
+`pnpm workflow:doctor -- --worktree F:/Project/eat-bid-service/.worktrees/eat-47-account-foundation`이다.
 
 ## 미커밋 변경과 Claude 대화
 
