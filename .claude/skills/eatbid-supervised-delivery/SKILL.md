@@ -12,6 +12,7 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
 
 1. 기존 Linear issue와 마일스톤을 먼저 찾는다. 사용자 결과 하나, 비목표, 완료 조건을 고정한다.
 2. 시작 commit, 필수 명세·결정 원문/상태/적용 절, 디자인 원본 버전, 소비 계약 commit을 명시한다.
+   AGENTS 필수 읽기 목록도 실제 경로로 펼쳐 전달한다. 자동 AGENTS 주입을 원문 조회로 세지 않는다.
 3. issue·별도 worktree·writer·허용 경로와 재사용 컴포넌트를 지정한다. 계약과 경로가 겹치는 writer는 직렬화한다.
 4. acceptance별 검증을 정한다. UI는 같은 fixture·viewport·테마·필터·패널 상태의 비교와 실제 API
    검증을 별개로 적는다. 인프라는 재시작·멱등성·부분 발행 차단을 포함한다.
@@ -23,7 +24,9 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
 2. `docs/operations/linear-agent-workflow.md`와 저장소 config에 따라 assign·claim·doctor를 확인한 뒤
    수정한다. 첫 mutation session만 writer다. hooks나 lease 실패를 수기 상태 수정으로 우회하지 않는다.
 3. 지정된 경로에서 기존 구성요소를 재사용한다. 새 계약·범위가 필요하면 해당 변경만 멈추고 총괄에게 알린다.
-4. 범위에 맞는 결정적 검사를 실행하고 실패를 해결한다. 문서·계약 기준을 다시 대조하고 결과 commit을 남긴다.
+4. 범위에 맞는 결정적 검사를 실행하고 실패를 해결한다. 명령은 작업 경로가 분명한 개별 명령으로
+   실행하고 출력 축약 pipe의 성공을 원래 검사의 exit code로 쓰지 않는다. 설치 상태를 먼저 확인하며
+   통과 후 새 실패 근거 없이 검사를 늘리지 않는다. 문서·계약 기준을 다시 대조하고 결과 commit을 남긴다.
 5. 인계는 commit·변경 경로·검사 결과·증거 위치·잔여 차이·결정 필요 사항만 간결히 제출한다.
    공유 outbox에 다른 작업이 섞여 있으면 전체를 재전송하지 않고 해당 이슈 handoff를 정확히 연결한다.
 
