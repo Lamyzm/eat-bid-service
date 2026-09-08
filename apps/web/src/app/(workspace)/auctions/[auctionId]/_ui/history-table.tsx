@@ -199,6 +199,7 @@ export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] })
     <>
       <div
         ref={ref}
+        data-slot='history-table-scroll'
         data-scroll-left={edges.left ? '' : undefined}
         data-scroll-right={edges.right ? '' : undefined}
         className='overflow-x-auto'

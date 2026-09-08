@@ -58,7 +58,7 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
         <Button variant='ghost' size='sm' onClick={() => controller.current?.reset()}>기본 범위</Button>
       </div>
       {model.points.length === 0 ? <p className='grid min-h-48 place-items-center text-sm text-muted-foreground'>선택한 조건의 낙찰 기록이 없습니다.</p> : error ? <p role='alert' className='text-sm text-muted-foreground'>차트를 불러오지 못했습니다. 아래 과거 회차 표에서 기록을 확인해 주세요.</p> : (
-        <div ref={element} data-slot='flow-canvas' aria-label='낙찰률 차트. 점을 누르거나 아래 회차 표에서 참여 기록을 여세요.' className={focus ? 'min-h-[320px] flex-1 basis-[52dvh]' : 'h-[360px] min-w-0 sm:h-[400px]'} />
+        <div ref={element} data-slot='flow-canvas' aria-label='낙찰률 차트. 점을 누르거나 아래 회차 표에서 참여 기록을 여세요.' className='h-[clamp(260px,38dvh,440px)] min-w-0' />
       )}
       <div className='min-h-8 text-xs text-muted-foreground' aria-live='polite'>
         {inspection.length ? <div className='flex flex-wrap gap-1'>{inspection.map(({ row }) => <Button key={row.attemptId} variant='secondary' size='sm' onClick={() => selection?.select(row.attemptId)} disabled={!selection}>
@@ -69,6 +69,7 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
         <span>{model.points.length}회 표시 · 조회 표본 {presentation.sampleCount}회</span>
         <span>{presentation.cohort?.period ? `${presentation.cohort.period.from}–${presentation.cohort.period.to}` : '조회 기간 미확인'}</span>
         <span>{focus ? '휠로 날짜 확대 · 드래그로 이동' : '일반 휠은 페이지 이동 · 날짜 축 드래그로 확대'}</span>
+        <span className='ml-auto'>개찰일 (KST)</span>
       </figcaption>
     </figure>
   );

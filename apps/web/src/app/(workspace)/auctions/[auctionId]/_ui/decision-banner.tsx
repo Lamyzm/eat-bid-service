@@ -19,7 +19,7 @@ function Fact({ label, value, tail }: { readonly label: string; readonly value: 
   return (
     <div className='flex items-baseline gap-2 whitespace-nowrap'>
       <span className='text-[13px] font-semibold text-muted-foreground/70'>{label}</span>
-      <span className='text-base font-semibold tabular-nums text-foreground'>{value}</span>
+      <span className='text-sm font-semibold tabular-nums text-foreground'>{value}</span>
       {tail ? <span className='text-[13px] font-semibold text-muted-foreground'>{tail}</span> : null}
     </div>
   );
@@ -38,11 +38,11 @@ export function DecisionBanner({ decision, cadence }: DecisionBannerProps) {
   // 미확인이라고 적는다(AGENTS 3). 지난 공고는 회차 이력에서 오며 앞선 회차가 없으면 조각을 그리지 않는다.
   const badges = ['정정 미확인', cadence.lastAnnouncementText].filter((text): text is string => text !== null);
   return (
-    <div className='relative flex flex-col gap-2 overflow-hidden rounded-xl bg-card px-5 py-3 shadow-xs'>
+    <div className='relative flex flex-col gap-2 overflow-hidden rounded-lg bg-card px-4 py-2 shadow-xs'>
       <div className='absolute inset-y-0 left-0 w-1 bg-primary' aria-hidden />
       <div className='flex flex-wrap items-center gap-2'>
         <span className='text-[15px] font-semibold whitespace-nowrap text-primary'>{SENTENCE[railState]}</span>
-        <span className='inline-flex h-8 items-center gap-1.5 rounded-lg bg-foreground/5 px-3 text-[15px] font-semibold whitespace-nowrap'>
+        <span className='inline-flex h-7 items-center gap-1.5 rounded-lg bg-foreground/5 px-2 text-sm font-semibold whitespace-nowrap'>
           기초 {decision.baseAmount.text}원
         </span>
         {/* 배지 줄도 조각마다 직계 자식이다. 한 nowrap에 이으면 768에서 문장·기초금액 칩과 한 줄을 다투다 문서를 민다. */}
@@ -52,7 +52,7 @@ export function DecisionBanner({ decision, cadence }: DecisionBannerProps) {
           </span>
         ))}
       </div>
-      <div className='flex flex-wrap gap-x-7 gap-y-1'>
+      <div className='flex flex-wrap gap-x-5 gap-y-1'>
         <Fact label={firstLabel} value={banner.remaining} tail={firstTail} />
         {/* closed일 때 개찰 시각은 이미 첫 Fact의 꼬리로 나왔으므로 여기서는 마감 시각을 짝짓는다(중복 방지). */}
         {railState === 'closed' ? <Fact label='마감' value={banner.deadlineAt} /> : <Fact label='개찰' value={banner.openedAt} />}

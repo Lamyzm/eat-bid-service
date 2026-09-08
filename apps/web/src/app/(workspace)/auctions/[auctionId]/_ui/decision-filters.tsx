@@ -27,6 +27,7 @@ export function DecisionFilters({ decision, search, history }: {
   if (item !== null && !items.has(item)) items.set(item, '선택한 품목');
   return (
     <div className='flex min-w-0 flex-wrap items-center gap-2' aria-label='분석 조건'>
+      <span className='mr-1 text-sm font-semibold'>과거 이력</span>
       <ConditionMenu label='기간' value={search.period} choices={DECISION_PERIODS.map((period) => ({ label: period, href: route({ period }), selected: search.period === period }))} />
       <ConditionMenu label='하한율' value={floor === 'all' ? '전체' : floor === 'unknown' ? '미확인' : `${floor}%`} choices={floorChoices.map(({ value, label }) => ({ label, href: route({ floor: value }), selected: floor === value }))} />
       <ConditionMenu label='품목' value={item === null ? '전체 품목' : items.get(item) ?? '선택한 품목'} choices={[

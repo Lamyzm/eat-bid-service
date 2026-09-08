@@ -13,6 +13,7 @@ import { BidRateProvider } from './bid-rate-context';
 import { DecisionBanner } from './decision-banner';
 import { DecisionFrame } from './decision-frame';
 import { DecisionHeader } from './decision-header';
+import { DecisionFilters } from './decision-filters';
 import { EvidenceTabs, HISTORY_PENDING_REASON } from './evidence-tabs';
 import { DecisionExpand } from './expand/decision-expand';
 import { HistoryTable } from './history-table';
@@ -34,7 +35,7 @@ function HistoryCard({
   readonly search: DecisionSearch;
 }) {
   return (
-    <div className='overflow-hidden rounded-xl bg-card shadow-xs'>
+    <div data-slot='history-card' className='overflow-hidden rounded-xl bg-card shadow-xs'>
       <div className='flex flex-wrap items-baseline gap-2 px-4 pt-4'>
         <span className='text-xl font-bold'>과거 회차</span>
         {/* 표본 수는 전체 회차지만 표가 그리는 행은 상한에 걸린다. 실제로 그린 행 수를 적어야
@@ -84,8 +85,9 @@ export function DecisionScreen({
       >
         <DecisionFrame
           focus={search.expand === '흐름' && search.view === '흐름'}
-          header={<DecisionHeader decision={decision} cadence={cadence} search={search} history={history.state === 'ready' ? history.presentation : undefined} />}
+          header={<DecisionHeader decision={decision} cadence={cadence} />}
           banner={<DecisionBanner decision={decision} cadence={cadence} />}
+          filters={<DecisionFilters decision={decision} search={search} history={history.state === 'ready' ? history.presentation : undefined} />}
           evidence={
             <div data-slot='decision-evidence-stack' className='grid gap-4'>
               <EvidenceTabs

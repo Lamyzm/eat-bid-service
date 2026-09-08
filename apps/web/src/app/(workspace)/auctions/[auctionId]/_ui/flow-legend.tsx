@@ -2,6 +2,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { Button } from '@/shared/ui/button';
 
 import { FLOW_SERIES, type FlowSeriesKey } from '../_model/flow-series';
 
@@ -58,8 +59,9 @@ export function FlowLegend() {
         return (
           <span key={series.key} className='inline-flex items-center gap-1'>
             {index > 0 ? <span className='text-muted-foreground/50'>·</span> : null}
-            <button
-              type='button'
+            <Button
+              variant='ghost'
+              size='default'
               aria-pressed={on}
               onClick={() => toggleFlowSeries(series.key)}
               className={`inline-flex h-7 items-center gap-1 rounded-md px-1.5 whitespace-nowrap ${
@@ -68,7 +70,7 @@ export function FlowLegend() {
             >
               <span aria-hidden='true'>{MARK[series.key].glyph}</span>
               {series.name}
-            </button>
+            </Button>
           </span>
         );
       })}

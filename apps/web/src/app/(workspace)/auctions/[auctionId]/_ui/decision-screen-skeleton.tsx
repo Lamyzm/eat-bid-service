@@ -30,6 +30,7 @@ export function DecisionScreenSkeleton() {
           </div>
         }
         banner={<Skeleton className='h-20 w-full rounded-xl' />}
+        filters={<Skeleton className='h-10 w-full max-w-lg' />}
         evidence={
           <div className='grid gap-4'>
             {/* 근거 탭 카드는 탭 줄·안내문·본문 세 켜다. 실제 높이를 비워 두면 도착 순간 화면이 밀린다. */}

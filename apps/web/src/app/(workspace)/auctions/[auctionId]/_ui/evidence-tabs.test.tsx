@@ -35,10 +35,10 @@ describe('근거 탭', () => {
     expect(links.filter((node) => node.getAttribute('aria-current') === 'page').map((node) => node.textContent)).toEqual(['흐름']);
   });
 
-  test('흐름 탭은 차트와 안내문·범례를 함께 보인다', () => {
+  test('흐름 탭은 차트와 범례를 보이고 점 선택 안내를 반복하지 않는다', () => {
     const screen = renderTabs('흐름');
     expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
-    expect(screen.getByText('이 기관의 개찰일별 낙찰 기록입니다. 점을 누르면 참여 기록을 볼 수 있어요.')).toBeTruthy();
+    expect(screen.getByText('점을 누르면 해당 회차의 참여 기록을 오른쪽에서 볼 수 있어요.')).toBeTruthy();
     // 범례는 계열 토글 버튼이며 그날 하한은 사정률 축 계열이 아니라 범례에도 없다(PDR-0004).
     const toggles = screen.getAllByRole('button', { pressed: true });
     expect(toggles.map((node) => node.textContent)).toEqual(['━낙찰', '━내 값', '○다른 품목', '▮명단']);

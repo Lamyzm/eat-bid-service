@@ -64,6 +64,9 @@ describe('결정 화면', () => {
     const screen = render(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} distribution={readyDistribution} />);
     const labels = [...screen.container.querySelectorAll('section, aside')].map((node) => node.getAttribute('aria-label'));
     expect(labels).toEqual(['공고 상태', '근거', '과거 회차', '공고 보조 정보']);
+    const filters = screen.getByRole('button', { name: '기간: 12개월' });
+    expect(filters.closest('header')).toBeNull();
+    expect(filters.closest('[data-slot="decision-filter-bar"]')).not.toBeNull();
   });
 
   test('분포 탭은 흐름 차트 대신 호가창을 보인다', () => {

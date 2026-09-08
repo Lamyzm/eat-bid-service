@@ -1,5 +1,6 @@
 /** @module 책임: 공고 분석의 흐름·분포 전환과 범례를 조립하고 URL 조건에 맞는 본문과 확대 동작을 연결한다. */
 import Link from 'next/link';
+import { Button } from '@/shared/ui/button';
 
 import {
   DECISION_VIEWS,
@@ -106,14 +107,19 @@ function CohortBody({
  * 링크는 남는다 — 모달이 같은 사유를 말한다. 같은 화면 안 주소 변경이라 스크롤 위치는 그대로 둔다.
  */
 function ExpandLink({ auctionId, search }: { readonly auctionId: string; readonly search: DecisionSearch }) {
+  const expanded = search.expand === '흐름' && search.view === '흐름';
+  const label = expanded ? '작게 보기' : '크게 보기';
   return (
-    <Link
-      href={buildDecisionExpandRoute(auctionId, search, search.expand === '흐름' && search.view === '흐름' ? null : search.view)}
-      scroll={false}
-      className='ml-auto text-[13px] font-semibold whitespace-nowrap text-primary'
+    <Button
+      render={<Link aria-label={label} href={buildDecisionExpandRoute(auctionId, search, expanded ? null : search.view)} scroll={false} />}
+      nativeButton={false}
+      role='link'
+      variant='outline'
+      size='default'
+      className='ml-auto'
     >
-      {search.expand === '흐름' && search.view === '흐름' ? '작게 보기' : '크게 보기'}
-    </Link>
+      {label}
+    </Button>
   );
 }
 
@@ -148,16 +154,14 @@ export function EvidenceTabs({
           ))}
         </nav>
         {active === '흐름' ? <FlowLegend /> : null}
+        <ExpandLink auctionId={auctionId} search={search} />
       </div>
-      <p className='text-[13px] font-medium text-muted-foreground'>{note(active, search.scope)}</p>
+      {active === '비교집단' ? <p className='text-[13px] font-medium text-muted-foreground'>{note(active, search.scope)}</p> : null}
       {active === '비교집단' ? (
         <CohortBody auctionId={auctionId} search={search} distribution={distribution} />
       ) : (
         <FlowBody history={history} myRate={search.myRate} focus={search.expand === '흐름'} />
       )}
-      <div className='flex'>
-        <ExpandLink auctionId={auctionId} search={search} />
-      </div>
     </div>
   );
 }
