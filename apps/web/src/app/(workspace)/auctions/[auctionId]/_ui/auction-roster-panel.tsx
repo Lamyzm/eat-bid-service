@@ -10,14 +10,31 @@ import { Button } from '@/shared/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 import type { HistoryRow } from '../_model/attempt-history';
 import { useAttemptSelection } from './attempt-selection';
+import { ResponsiveDock } from '@/shared/ui/responsive-dock';
+import { DecisionTools } from './decision-tools';
 
 /** 현재 공고의 보조 정보와 선택 회차 명단이 같은 rail을 사용하도록 기존 명단 컴포넌트를 배치한다. */
 export function SelectedAttemptRail({ fallback }: { readonly fallback: ReactNode }) {
-  const { row, close } = useAttemptSelection();
-  if (!row) return fallback;
+  const { row, panel, close, returnFocus } = useAttemptSelection();
   return (
-    <div className='fixed top-16 right-0 bottom-0 z-40 w-[360px] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-l-xl border border-border bg-card shadow-lg xl:static xl:max-h-[calc(100dvh-6rem)] xl:w-auto xl:max-w-none xl:rounded-xl xl:shadow-xs'>
-      <AuctionRosterPanel key={row.attemptId} row={row} onClose={close} />
+    <div data-slot='decision-dock' data-open={panel !== null || undefined}>
+      <ResponsiveDock
+        open={panel !== null}
+        title={panel === 'record' ? '선택 회차 기록' : '현재 공고 정보'}
+        onClose={close}
+        returnFocus={returnFocus}
+      >
+        <div hidden={panel !== 'current'}>{fallback}</div>
+        {row && panel === 'record' ? (
+          <AuctionRosterPanel
+            key={row.attemptId}
+            row={row}
+            onClose={close}
+            showCloseButton={false}
+          />
+        ) : null}
+      </ResponsiveDock>
+      <DecisionTools placement='rail' />
     </div>
   );
 }
@@ -39,10 +56,12 @@ function amountText(value: string): string {
 }
 export function AuctionRosterPanel({
   row,
-  onClose
+  onClose,
+  showCloseButton = true
 }: {
   readonly row: HistoryRow;
   readonly onClose: () => void;
+  readonly showCloseButton?: boolean;
 }) {
   const query = useQuery(auctionQueries.roster(row.attemptId));
   const data = query.data;
@@ -77,9 +96,11 @@ export function AuctionRosterPanel({
             {row.openedText} · {row.itemLabel} · 회차 {row.attemptId}
           </p>
         </div>
-        <Button variant='ghost' size='sm' onClick={onClose}>
-          닫기
-        </Button>
+        {showCloseButton ? (
+          <Button variant='ghost' size='sm' onClick={onClose}>
+            닫기
+          </Button>
+        ) : null}
       </div>
       {query.isPending ? (
         <p className='py-6 text-sm' role='status'>

@@ -23,6 +23,7 @@ small { font-size: 13px; font-weight: 400; margin-left: 6px; }
 .header-tools { margin-left: auto; }
 .account-avatar { display: grid; place-items: center; width: 30px; height: 30px; background: var(--secondary); border-radius: 50%; font-size: 13px; }
 .layout-side .top-navigation { display: none; }
+.compact-shortcuts { display: none; }
 .review-frame { min-height: calc(100dvh - var(--review-top)); }
 .review-sidebar[data-slot=sidebar-container] { top: var(--review-top); height: calc(100dvh - var(--review-top)); border-right: 1px solid var(--border); }
 .review-sidebar [data-slot=sidebar-header] { padding: 22px 20px; overflow: hidden; }
@@ -134,6 +135,8 @@ footer { padding: 36px 0; margin-top: 40px; border-top: 1px solid var(--border);
   .is-focused .utility-panel, .is-focused .utility-rail { position: static; height: 100%; }
 }
 @media(max-width:1199px) {
+  .utility-rail { display: none; }
+  .compact-shortcuts { display: block; }
   .workspace-label { display: none; }
   .review-header { gap: 16px; }
   .overview { padding: 15px; }

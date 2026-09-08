@@ -21,6 +21,7 @@ import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
 import { AttemptSelectionProvider } from './attempt-selection';
 import { SelectedAttemptRail } from './auction-roster-panel';
+import { CurrentAuctionFacts, DecisionTools } from './decision-tools';
 
 type HistoryState = DecisionPageData['history'];
 type DistributionState = DecisionPageData['distribution'];
@@ -86,8 +87,15 @@ export function DecisionScreen({
         <DecisionFrame
           focus={search.expand === '흐름' && search.view === '흐름'}
           header={<DecisionHeader decision={decision} cadence={cadence} />}
+          toolbar={<DecisionTools placement='top' />}
           banner={<DecisionBanner decision={decision} cadence={cadence} />}
-          filters={<DecisionFilters decision={decision} search={search} history={history.state === 'ready' ? history.presentation : undefined} />}
+          filters={
+            <DecisionFilters
+              decision={decision}
+              search={search}
+              history={history.state === 'ready' ? history.presentation : undefined}
+            />
+          }
           evidence={
             <div data-slot='decision-evidence-stack' className='grid gap-4'>
               <EvidenceTabs
@@ -111,13 +119,18 @@ export function DecisionScreen({
           }
           rail={
             <SelectedAttemptRail
-              fallback={decision.railState === 'closed' ? null :
-                <BidRail
-                  decision={decision}
-                  rehearsal={
-                    history.state === 'ready' ? <RehearsalPanel rows={selectedRows} /> : null
-                  }
-                />
+              fallback={
+                <>
+                  <CurrentAuctionFacts decision={decision} />
+                  {decision.railState === 'closed' ? null : (
+                    <BidRail
+                      decision={decision}
+                      rehearsal={
+                        history.state === 'ready' ? <RehearsalPanel rows={selectedRows} /> : null
+                      }
+                    />
+                  )}
+                </>
               }
             />
           }

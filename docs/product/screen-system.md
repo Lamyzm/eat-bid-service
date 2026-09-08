@@ -2,7 +2,7 @@
 id: PRODUCT-SCREEN-SYSTEM
 status: active
 canonical_for: product-information-architecture-and-screen-contracts
-last_reviewed: 2026-08-31
+last_reviewed: 2026-09-08
 review_trigger: product-navigation-core-work-surface-or-visual-language-change
 ---
 
@@ -100,6 +100,21 @@ sidebar를 이 세 항목으로 바꾸는 시점은 `/work` route가 생기는 s
   분리해 보여 준다.
 - 숫자·공고명·기관명 전역 검색은 source label을 찾아 내부 ID로 이동하며 문자열을 identity로 쓰지 않는다.
 - page title 오른쪽에 해당 화면의 `as_of` 또는 마지막 동기화 시각을 둔다.
+
+### 공통 셸의 2026-09-08 합의
+
+기존 왼쪽 업무 메뉴를 유지하고 분석할 때 접어 폭을 확보한다. 설정의 세부 메뉴는 설정 화면 내부가
+소유하며 오른쪽에 전역 메뉴 계층을 복제하지 않는다. 오른쪽 관심·최근 본·내 공고는 보조 목록이며
+현재 공고 정보·선택 회차 기록과 한 번에 하나의 보조 공간을 사용한다.
+
+브라우저 viewport가 1200px 미만이면 오른쪽 도구 줄 자체를 숨겨 본문에 폭을 돌려준다.
+상단 진입으로 목록을 열고, 차트 점이나 표의 기록 선택은 해당 회차 상세를 Sheet로 연다.
+닫아도 선택 회차·차트 확대·표 스크롤은 보존한다. 조회 범위에서 제외된 회차 선택은 해제한다.
+넓은 화면에서는 본문 옆의 보조 패널을 사용하며 차트 확대 자체는 모달로 만들지 않는다.
+
+이번 실제 구현은 확인된 현재 공고와 회차 명단부터 연결한다. 관심·최근 본·내 공고는 각각의
+canonical 사용자 상태/업무 조회 계약이 준비된 뒤 제공한다. 미구현 목록을 실제 데이터처럼
+채우거나 레거시 local mark를 새 사용자 상태 SSOT로 가져오지 않는다.
 
 ## 5. 핵심 업무 표면: 목록 + 판단 도크
 

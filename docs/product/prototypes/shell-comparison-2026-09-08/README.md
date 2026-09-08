@@ -11,6 +11,7 @@
 3. A에서는 메뉴를 접어 본문 폭을 회복할 수 있다.
 4. 오른쪽 관심·최근 본·내 공고와 공고 정보·선택 회차 기록은 한 공간에서 전환한다.
 5. 공고 분석에서 크게 보기, 표의 기록 보기, 차트 확대 후 패널 열기·닫기를 비교한다.
+6. 1200px 미만에서는 오른쪽 아이콘 줄을 완전히 숨기고 상단 `바로가기`로 세 목록을 연다.
 
 기존 shadcn Sidebar·Select·Sheet·Input과 shared Button·Table을 직접 import한다.
 차트는 dev의 `createFlowChart`와 `buildFlowChartModel`, 색은 기존 Eatbid/Toss 테마를 재사용한다.

@@ -70,7 +70,7 @@ describe('회차 명단 상세', () => {
           <BidRateProvider initialRate={null}>
             <AttemptSelectionProvider rows={currentRows}>
               <HistoryTable rows={currentRows} />
-              <SelectedAttemptRail fallback={<p>현재 공고 정보</p>} />
+              <SelectedAttemptRail fallback={<p>현재 공고 본문</p>} />
             </AttemptSelectionProvider>
           </BidRateProvider>
         </QueryClientProvider>
@@ -83,7 +83,7 @@ describe('회차 명단 상세', () => {
       <Workspace currentRows={rows.filter((row) => row.attemptId !== selected.attemptId)} />
     );
     expect(screen.queryByRole('region', { name: '선택 회차 참여 기록' })).toBeNull();
-    expect(screen.getByText('현재 공고 정보')).toBeTruthy();
+    expect(screen.getByText('현재 공고 본문')).toBeTruthy();
     screen.rerender(<Workspace currentRows={rows} />);
     expect(screen.queryByRole('region', { name: '선택 회차 참여 기록' })).toBeNull();
   });
@@ -147,11 +147,11 @@ describe('회차 명단 상세', () => {
     const beforeRows = table.querySelectorAll('tbody tr').length;
     fireEvent.click(screen.getAllByRole('button', { name: /회차 참여 기록 보기/ })[0]!);
     const panel = screen.getByRole('region', { name: '선택 회차 참여 기록' });
-    expect(panel.closest('aside')).not.toBeNull();
+    expect(screen.getByRole('dialog').contains(panel)).toBe(true);
     expect(panel.textContent).toContain('검증 업체');
     expect(table.querySelectorAll('tbody tr').length).toBe(beforeRows);
     expect(screen.container.querySelector('#decision-title')?.textContent).toBe(title);
-    fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+    fireEvent.click(screen.getByRole('button', { name: '보조 패널 닫기' }));
     expect(screen.queryByRole('region', { name: '선택 회차 참여 기록' })).toBeNull();
     expect(screen.getByLabelText('투찰률')).toBeTruthy();
   });
@@ -209,7 +209,7 @@ describe('회차 명단 상세', () => {
     expect(screen.getByRole('region', { name: '선택 회차 참여 기록' }).textContent).toContain(
       '검증 업체'
     );
-    fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+    fireEvent.click(screen.getByRole('button', { name: '보조 패널 닫기' }));
     expect(screen.queryByRole('region', { name: '선택 회차 참여 기록' })).toBeNull();
   });
 });

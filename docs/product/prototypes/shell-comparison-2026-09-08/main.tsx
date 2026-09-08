@@ -22,6 +22,7 @@ import {
   IconArrowLeft,
 } from "@tabler/icons-react";
 import { Button, Choice } from "./controls";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/shared/ui/dropdown-menu';
 import { Analysis } from "./analysis";
 import { Settings, WorkSurface } from "./work-surfaces";
 import { UtilityPanel, UtilityRail } from "./utility-panel";
@@ -172,6 +173,11 @@ function App() {
           ))}
         </nav>
         <div className="header-tools">
+          <div className='compact-shortcuts'><DropdownMenu><DropdownMenuTrigger render={<Button variant='outline' />}>바로가기</DropdownMenuTrigger><DropdownMenuContent align='end'>
+            <DropdownMenuItem onClick={() => setPanel('saved')}>관심</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPanel('recent')}>최근 본</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPanel('mine')}>내 공고</DropdownMenuItem>
+          </DropdownMenuContent></DropdownMenu></div>
           <Choice
             label="시안 테마"
             value={theme}
