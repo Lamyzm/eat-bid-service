@@ -1,7 +1,8 @@
 # 전역 오른쪽 공간과 전체 폭 분석 화면의 구현 계획
 
 **상태:** 2026-09-08 계획 검토와 전역 메뉴/전체 폭 기준 재확인 후 사용자가 "진행해봐"로 실행을
-승인했다. 아래 A/B와 브라우저 검증을 dev에 구현했으며 마지막 AI advisory와 handoff를 기록한다.
+승인했다. 구현 커밋 9d9de55에 A/B와 브라우저 검증을 완료했고 canonical AI advisory도 추가 finding 없이
+끝났다. 이 기록은 dev의 전역 배치 완료이며 전역 세 목록의 데이터 기능이나 운영 배포 완료가 아니다.
 
 **목표:** 분석 화면의 좌우 바깥 여백과 최대 폭 제한을 없애고, 공고·기록 도구와 선택 상세를
 공통 레이아웃의 오른쪽 끝에 배치한다. 기존 차트·표·명단·shadcn 컴포넌트를 재사용한다.
@@ -165,7 +166,7 @@ type DockSlotName = 'panel' | 'rail' | 'header';
   실제 not-found와 skeleton 테스트, Activity 숨김·복원에서 host의 수명주기를 확인했다.
 - [x] 시안 대비 남은 차이를 `notice-dev-cohort-integration.md`에 적는다. 테스트 통과와 시안 일치를
   별도 결과로 보고한다. 실제 데이터 부족은 레이아웃 일치로 해결됐다고 주장하지 않는다.
-- [ ] 결정적 검사 후 clean commit을 `pnpm review:ai -- --base b78a76c`으로 검토하고
+- [x] 결정적 검사 후 clean commit을 `pnpm review:ai -- --base b78a76c`으로 검토하고
   evidence와 대조한 결과를 남긴다. Linear handoff 후 lease를 해제한다.
 
 ## 이전 로컬 패널 구현 기록
