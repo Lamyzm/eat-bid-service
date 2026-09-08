@@ -14,7 +14,9 @@ type DbId = string | bigint;
 type Timestamp = Parameters<typeof postgresInstant>[0];
 type RosterRow = Readonly<{
   auction_id: DbId; revision_id: DbId; observation_id: DbId; normalized_record_id: DbId;
-  source_system: string; content_sha256: string; fetched_at: Timestamp;
+  source_system: string; content_sha256: string;
+  // 관측 시각만 text로 건너온다. driver의 `Date`는 밀리초까지만 담아 원본의 마이크로초를 잃는다.
+  observed_at: string | null; observed_at_count: number;
   expected_count: number | null; source_roster_size: number | null;
   submission_id: DbId | null; roster_ordinal: number; supplier_party_id: DbId;
   source_supplier_account_id: DbId; supplier_name: string | null;
@@ -78,8 +80,15 @@ export class DrizzleAuctionRosterReader implements AuctionRosterReader {
       !submissions.some((row) => row.roster_ordinal === first.awarded_roster_ordinal)) {
       throw new AuctionRosterIntegrityError("낙찰 좌표가 명단에 없습니다");
     }
+    // 증거가 없거나 여러 시각으로 갈리면 revision은 찾았으므로 "없는 공고"가 아니라 결함이다.
+    // 한쪽을 골라 채우면 화면이 관측하지 않은 시각을 원본 관측으로 읽는다(AGENTS 3).
+    if (first.observed_at_count !== 1 || first.observed_at === null) {
+      throw new AuctionRosterIntegrityError(first.observed_at_count === 0
+        ? "명단 관측 시각의 근거 라벨이 없습니다"
+        : "명단 관측 시각의 근거가 하나로 모이지 않습니다");
+    }
     try {
-      const observedAt = postgresInstant(first.fetched_at);
+      const observedAt = postgresInstant(first.observed_at);
       if (observedAt === null) throw new TypeError("명단 관측 시각이 없습니다");
       return {
         auctionId: auctionId(bigintValue(first.auction_id)), revisionId: bigintValue(first.revision_id),

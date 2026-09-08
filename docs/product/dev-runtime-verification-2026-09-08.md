@@ -23,15 +23,25 @@
 
 이는 권한 누락이 아니다. `infra/product/db-provisioning.sql`과 readiness는 API의 `ingest` 접근을 의도적으로 금지한다. 명단의 `core.bid_submission`·`core.award_decision` 읽기 권한은 있다. 진단 SELECT에서 금지 JOIN만 제거하면 5271 명단은 34행, 기대 34행, 고유 순번 34개로 일치한다.
 
-현재 `core.auction_revision`과 그 `source_payload`에는 해당 raw 관측의 정확한 `fetched_at`이 없다. 공개 명단 계약은 `observedAt`을 필수로 요구하므로 JOIN만 삭제하거나 임의 시각을 채우는 수정은 불완전하다. 라벨 관측일·개찰일·제출일을 대신 사용하거나 API에 `ingest` 접근 권한을 주지 않는다.
+## 2026-09-09 정정 — core에 정확한 관측 시각이 이미 있다
+
+위 조사가 "`core`에는 해당 raw 관측의 정확한 `fetched_at`이 없다"고 단정한 것은 사실이 아니었다. `core.auction_revision`의 열과 `source_payload`만 본 결론이며, 같은 발행 transaction이 남기는 코드 라벨 증거를 보지 않았다.
+
+발행 경로는 raw `fetched_at`을 그대로 라벨 관측 시각으로 투영한다. `apps/dataplane/src/eatbid/core/postgres_repository.py`의 frozen member reader가 `ingest.raw_observation.fetched_at`을 읽고, `projection_stream.py`가 그 값을 `apply`에 넘기며, `postgres_projection_writer.py`의 `apply`가 수집 계약상 필수인 구매기관 이름을 같은 transaction에서 `postgres_code_values.resolve_label`로 `core.code_label_observation.observed_at`에 앉힌다. `resolve_label`은 같은 증거에 다른 시각이 붙는 것을 거절한다.
+
+따라서 필요한 것은 새 열도 새 projection도 아니라 읽는 관계의 정정이다. 선택한 revision → `auction_organization`(role=purchaser) → `organization_identifier` → `eat:organization` 소유 체계의 `code_value` → 그 revision의 `observation_id`를 가진 `code_label_observation`이다. `organization_identifier.observation_id`는 정체성을 처음 이은 관측이라 회차의 관측 시각이 아니고, 다른 소유 체계의 라벨은 같은 시각으로 섞지 않는다. 후보가 하나의 시각으로 모이지 않으면 값을 고르지 않고 무결성 결함으로 닫는다.
+
+바뀌지 않은 것: API의 `ingest` 접근 금지, `observedAt`의 필수 여부와 의미(원본 관측 시각), 개찰일·제출일·발행 시각·현재 시각으로의 대체 금지, DDL과 수집 계약.
+
+## 이 기록이 검증한 것과 검증하지 않은 것
+
+- 검증함: 2026-09-08 dev에서 실제 `eatbid_api` 역할의 readiness와 화면 진입, 그리고 명단 요청이 `42501`로 실패한다는 사실.
+- 검증하지 않음: 정정한 조회가 운영 자료에서 내는 값. dev의 회차 5271 명단 34행과 그 관측 시각은 총괄의 읽기 전용 재검증 결과가 나오기 전까지 이 문서에 적지 않는다.
 
 ## 후속 인수 조건
 
-EAT-114에서 공개 관측 시각을 소유할 canonical 표현과 projection을 먼저 정한다. 저장 표현이 필요하면 Drizzle migration 및 과거 발행 자료 전환을 같은 검토 단위로 수행한다. EAT-110의 DB writer와는 직렬로 인계한다.
-
-- 실제 `eatbid_api` 역할로 명단 endpoint를 호출하는 PostgreSQL 통합 테스트를 추가한다.
+- 실제 `eatbid_api` 역할로 명단을 읽는 PostgreSQL 통합 검사를 둔다. 저장소에서는 `apps/server/src/testing/auction-roster.integration.test.ts`가 커밋된 migration과 `infra/product/db-provisioning.sql`을 그대로 실행해 이 조건을 닫았다.
 - `ingest` 접근 금지를 유지한 채 공고와 특정 revision의 명단 조회가 성공해야 한다.
-- 관측 시각이 보존 원본과 같고 명단 34행의 순번·금액·비율·판정이 일치해야 한다.
-- 현재 공고 89를 유지하며 5271 선택 → 명단 확인 → 다른 회차 선택을 dev에서 다시 검증한다.
+- 총괄이 dev에서 읽기 전용으로 확인할 것: 공고 89를 유지한 채 5271 선택 → 명단 확인 → 다른 회차 선택, 명단 행 수와 순번·금액·비율·판정, 그리고 공개된 관측 시각이 보존 원본의 `fetched_at`과 같은 값인지.
 
 이전 별도 환경의 명단 조회 증거는 이번 실제 최소 권한 검증을 대신하지 않는다. EAT-114는 완료로 전환하지 않는다.

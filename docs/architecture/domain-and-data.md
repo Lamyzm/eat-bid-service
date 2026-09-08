@@ -109,6 +109,14 @@ erDiagram
 `PURR_NM`은 `language='und'`인 observation-scoped code label 증거이며 별도 reconciliation 정책 없이
 canonical 이름이나 학교 유형으로 승격하지 않는다.
 
+**그래서 `core`는 revision마다 그 원본 관측의 정확한 시각을 이미 갖고 있다.** 구매기관 이름이 수집
+계약의 필수 필드라 projector는 revision을 앉히는 같은 transaction에서 raw `fetched_at`을
+`code_label_observation.observed_at`으로 남긴다. `ingest`를 읽지 못하는 API 역할이 회차의 관측 시각을
+알아야 할 때는 이 관계를 읽는다 — 선택한 revision의 `observation_id`와 `eat:organization` 소유 체계의
+code value가 짝인 label 관측이다. `organization_identifier.observation_id`는 정체성을 처음 이은 관측이라
+회차 시각이 아니고, 다른 소유기관의 code scheme 라벨은 같은 시각으로 섞지 않는다(규칙 6). 후보가
+하나의 시각으로 모이지 않으면 하나를 골라 채우지 않고 무결성 결함으로 닫는다(규칙 3).
+
 ### 3.3 SupplierParty
 
 법적 사업자와 소스 계정을 분리한다.

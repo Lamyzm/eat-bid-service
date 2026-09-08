@@ -5,7 +5,8 @@ import { auctionId } from "../../domain/auction-id";
 const submissionRow = {
   auction_id: "5270", revision_id: "4708", expected_count: 1, source_roster_size: 2,
   observation_id: "5052", normalized_record_id: "4817", source_system: "eat",
-  content_sha256: "a".repeat(64), fetched_at: "2026-09-06T17:18:17.785575Z",
+  content_sha256: "a".repeat(64),
+  observed_at: "2026-09-06T17:18:17.785575Z", observed_at_count: 1,
   submission_id: "9007199254740993", roster_ordinal: 0, supplier_party_id: "30",
   source_supplier_account_id: "40", supplier_name: "관측 업체",
   amount: "1000000000000.01", effective_amount: null, currency: "KRW", bid_rate: "100.001",
@@ -37,6 +38,18 @@ describe("회차 명단 조회 경계", () => {
     expect(result?.rows[0]?.supplierName).toBe("관측 업체");
     expect(result?.rows[0]?.rank).toBeNull();
     expect(result?.observedAt.toString()).toBe("2026-09-06T17:18:17.785575Z");
+  });
+  test("관측 시각 근거가 없거나 하나로 모이지 않으면 회차를 못 찾은 것과 구분한다", async () => {
+    for (const evidence of [
+      { observed_at: null, observed_at_count: 0 },
+      { observed_at: null, observed_at_count: 2 },
+    ]) {
+      const reader = new DrizzleAuctionRosterReader({
+        execute: async () => [{ ...submissionRow, ...evidence }],
+      });
+      const result = reader.find({ auctionId: auctionId(5270n), revisionId: null });
+      await expect(result).rejects.toThrow("명단 관측 시각");
+    }
   });
   test("중복 명단 좌표와 명단 밖 낙찰 좌표는 성공 응답에서 격리한다", async () => {
     for (const rows of [
