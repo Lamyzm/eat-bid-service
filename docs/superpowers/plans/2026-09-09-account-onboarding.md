@@ -424,3 +424,16 @@ ledger 항목으로 남는다.
   확인했고 production build도 그 route를 부분 prerender로 만든다.
 - 이전 세션이 turn 한도로 끝나면서 `eatbid-eat47-account-*` container 10개가 남아 있다. 이 작업의 범위는
   container mutation을 포함하지 않아 지우지 않았다.
+
+### 다음 인계
+
+- branch `codex/eat-47-account-foundation`, worktree `.worktrees/eat-47-account-foundation`, 기준 commit은
+  이 문서를 담은 web 마감 commit이다. owned paths는 `apps/web`의 계정 경로, `apps/server/src/bootstrap`,
+  `tools/architecture/web-boundaries`, 이 계획 문서와 ADR 0032다. 작업 tree는 clean이고 lease는 반납한다.
+- 다음 한 단계는 EAT-40의 실제 내 투찰을 결정 화면 차트에 연결하는 것이다. 입력은 main의
+  `docs/operations/handoffs/2026-09-09-own-bid-web.md`이며 이 branch에는 아직 그 파일이 없다. 이 branch의
+  commit을 가져갈 때는 ancestry를 먼저 확인해 이미 포함된 backend commit을 다시 적용하지 않는다.
+- 이 세션이 하지 않은 외부 작업: 원격 push, 운영 DB 쓰기·DDL·배포, 운영에 연결된 dev 3002/4400에서의
+  인증 시험, container 정리.
+- Linear 기록은 남기지 못했다. 공유 outbox에 다른 작업의 오래된 이벤트 433개가 섞여 있어 전체
+  `workflow:sync`가 금지돼 있고 이 세션에는 Linear MCP가 없다. 다음 세션이 EAT-47 comment로 이 절을 옮긴다.
