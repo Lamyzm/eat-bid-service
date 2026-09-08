@@ -1,6 +1,44 @@
 {
   "components": {
     "schemas": {
+      "AccountInitializationV1Response": {
+        "additionalProperties": false,
+        "properties": {
+          "principalId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/WorkspaceSummary"
+          }
+        },
+        "required": [
+          "principalId",
+          "workspace"
+        ],
+        "type": "object"
+      },
+      "AccountLabel": {
+        "additionalProperties": false,
+        "properties": {
+          "displayName": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "maskedEmail": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "maskedEmail"
+        ],
+        "type": "object"
+      },
       "AuctionClassification": {
         "additionalProperties": false,
         "description": "Observed source category label of one auction revision; a display fact, not a code or a join key.",
@@ -470,6 +508,14 @@
         "pattern": "^(?:(?:0|[1-9][0-9]?)\\.[0-9]{3}|100\\.000)$",
         "type": "string"
       },
+      "BusinessNumberText": {
+        "description": "Canonical ten-digit Korean business registration number text used only as a lookup key.",
+        "example": "1248100998",
+        "maxLength": 10,
+        "minLength": 10,
+        "pattern": "^[0-9]{10}$",
+        "type": "string"
+      },
       "CanonicalMoneyAmount": {
         "description": "Canonical nonnegative KRW amount with exactly two fractional digits.",
         "maxLength": 19,
@@ -514,6 +560,72 @@
         "description": "Lowercase hexadecimal SHA-256 digest of immutable source content.",
         "pattern": "^[0-9a-f]{64}$",
         "type": "string"
+      },
+      "CurrentSessionV1Response": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "enum": [
+                  "unauthenticated"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "account": {
+                "$ref": "#/components/schemas/AccountLabel"
+              },
+              "state": {
+                "enum": [
+                  "uninitialized"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "account"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "account": {
+                "$ref": "#/components/schemas/AccountLabel"
+              },
+              "principalId": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "state": {
+                "enum": [
+                  "active"
+                ],
+                "type": "string"
+              },
+              "workspace": {
+                "$ref": "#/components/schemas/WorkspaceSummary"
+              }
+            },
+            "required": [
+              "state",
+              "account",
+              "principalId",
+              "workspace"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
       },
       "EatbidApiV1Auction": {
         "additionalProperties": false,
@@ -834,6 +946,34 @@
         "required": [
           "amount",
           "currency"
+        ],
+        "type": "object"
+      },
+      "MyBusinessesV1Response": {
+        "additionalProperties": false,
+        "properties": {
+          "businesses": {
+            "items": {
+              "$ref": "#/components/schemas/RegisteredBusiness"
+            },
+            "maxItems": 50,
+            "type": "array"
+          }
+        },
+        "required": [
+          "businesses"
+        ],
+        "type": "object"
+      },
+      "MyBusinessV1Response": {
+        "additionalProperties": false,
+        "properties": {
+          "business": {
+            "$ref": "#/components/schemas/RegisteredBusiness"
+          }
+        },
+        "required": [
+          "business"
         ],
         "type": "object"
       },
@@ -1875,6 +2015,96 @@
         ],
         "type": "object"
       },
+      "RegisteredBusiness": {
+        "additionalProperties": false,
+        "properties": {
+          "businessId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "businessNumber": {
+            "$ref": "#/components/schemas/BusinessNumberText"
+          },
+          "location": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RegisteredBusinessLocation"
+              }
+            ],
+            "nullable": true
+          },
+          "registeredAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "supplier": {
+            "$ref": "#/components/schemas/RegisteredBusinessSupplier"
+          }
+        },
+        "required": [
+          "businessId",
+          "businessNumber",
+          "registeredAt",
+          "supplier",
+          "location"
+        ],
+        "type": "object"
+      },
+      "RegisteredBusinessLocation": {
+        "additionalProperties": false,
+        "properties": {
+          "addressText": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          }
+        },
+        "required": [
+          "addressText",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "RegisteredBusinessSupplier": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "linked"
+                ],
+                "type": "string"
+              },
+              "supplierPartyId": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            },
+            "required": [
+              "kind",
+              "supplierPartyId"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "unobserved"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
       "SourceCode": {
         "description": "Opaque source code text that preserves leading zeroes.",
         "maxLength": 512,
@@ -2152,6 +2382,35 @@
           "organization"
         ],
         "type": "string"
+      },
+      "WorkspaceRole": {
+        "enum": [
+          "owner",
+          "member"
+        ],
+        "type": "string"
+      },
+      "WorkspaceSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "workspaceId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "name",
+          "role"
+        ],
+        "type": "object"
       }
     }
   },
@@ -2535,6 +2794,389 @@
         ]
       }
     },
+    "/api/v1/me/businesses": {
+      "get": {
+        "operationId": "listMyBusinesses",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyBusinessesV1Response"
+                }
+              }
+            },
+            "description": "등록 사업자 조회 성공"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료, 남의 워크스페이스 자원 또는 owner 권한 부족"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "내 워크스페이스가 등록한 사업자를 원본 대조 결과·위치와 함께 조회한다.",
+        "tags": [
+          "account"
+        ]
+      },
+      "post": {
+        "operationId": "registerMyBusiness",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyBusinessV1Response"
+                }
+              }
+            },
+            "description": "사업자 등록 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "요청 본문 또는 사업자번호 형식이 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료, 남의 워크스페이스 자원 또는 owner 권한 부족"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "이 워크스페이스에 이미 등록된 사업자이거나 활성 등록이 50건 상한에 도달함"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "사업자등록번호를 내 분석 기준으로 등록한다. 워크스페이스 owner만 등록할 수 있고, 원본에서 아직 관측되지 않은 번호도 미연결로 보존하며 다른 워크스페이스의 등록과 충돌하지 않는다.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/v1/me/businesses/{businessId}/location": {
+      "delete": {
+        "operationId": "clearMyBusinessLocation",
+        "parameters": [
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyBusinessV1Response"
+                }
+              }
+            },
+            "description": "위치 삭제 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "요청 본문 또는 사업자번호 형식이 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료, 남의 워크스페이스 자원 또는 owner 권한 부족"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "등록된 사업자를 찾을 수 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "등록한 사업자의 위치를 미설정으로 되돌린다. 워크스페이스 owner만 바꿀 수 있고 미설정은 빈 문자열이 아니라 값이 없는 상태다.",
+        "tags": [
+          "account"
+        ]
+      },
+      "put": {
+        "operationId": "setMyBusinessLocation",
+        "parameters": [
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyBusinessV1Response"
+                }
+              }
+            },
+            "description": "위치 저장 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "요청 본문 또는 사업자번호 형식이 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료, 남의 워크스페이스 자원 또는 owner 권한 부족"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "등록된 사업자를 찾을 수 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "등록한 사업자의 사업장 위치를 사용자가 적은 주소 문장으로 저장한다. 워크스페이스 owner만 바꿀 수 있고 해석된 행정구역 코드나 좌표로 바꾸지 않는다.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/v1/me/initialization": {
+      "post": {
+        "operationId": "initializeCurrentAccount",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountInitializationV1Response"
+                }
+              }
+            },
+            "description": "계정 초기화 완료"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료, 남의 워크스페이스 자원 또는 owner 권한 부족"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "유효한 provider 세션으로 principal·identity·개인 워크스페이스를 멱등하게 만든다. 이미 초기화된 계정에는 같은 관계를 그대로 돌려준다.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/v1/organizations/{organizationId}/auction-attempts": {
       "get": {
         "operationId": "listOrganizationAuctionAttempts",
@@ -2716,6 +3358,47 @@
         "summary": "기관의 회차 요약을 최근 순으로 조회한다. 하한율·낙찰 방식은 정확한 값/all/unknown으로 구분하고, 개찰월 기간은 양끝을 함께 지정하며 60개월을 넘을 수 없다. 새 조건을 명시하면 조건 meta와 행별 낙찰 방식을 포함한다.",
         "tags": [
           "procurement"
+        ]
+      }
+    },
+    "/api/v1/session": {
+      "get": {
+        "operationId": "getCurrentSession",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentSessionV1Response"
+                }
+              }
+            },
+            "description": "세션 상태 조회 성공"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "현재 요청의 세션 상태를 미로그인·초기화 미완료·활성 셋 중 하나로 조회한다. 이 조회는 어떤 행도 만들지 않는다.",
+        "tags": [
+          "account"
         ]
       }
     },
