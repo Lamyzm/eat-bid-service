@@ -99,3 +99,17 @@
 
 - 구현·검증 결과와 남은 차이는 `notice-design-fidelity.md`가 소유한다. 이 문서는 계획 단위를
   다시 쓰지 않는다.
+
+## 6. 최종 리뷰 보완 (2026-09-09)
+
+`decision-screen.spec.ts`의 폭 판정 helper는 `[data-slot="decision-screen"]` 안만 셌다. 현재 공고 상세와
+투찰 레일·펼친 기관 요약은 전역 dock portal로 옮겨졌으므로, 그 둘을 펼친 뒤 부르는 검사 2개가 문서
+가로폭만 보고 노드별 nowrap·넘침은 보지 못했다. helper가 root selector 목록을 받게 좁게 고치고 두 검사에만
+dock root를 더했다. 상자가 없는 노드(닫힌 패널·숨긴 관점)는 제외하고 표의 `overflow-x` 컨테이너 제외 규칙은
+그대로 둔다. selector가 없으면 조용히 통과하지 않고 실패한다.
+
+- 부정 대조: dock의 `dd` 하나를 nowrap 긴 문자열로 바꾸면 dock 포함 판정은 `overflow 4 · wrapped 1`,
+  기존 화면 slot 판정은 `0 · 0`이었다. 보완한 검사가 실제로 dock 내용을 본다는 근거다. 이 주입은 확인 뒤 되돌렸다.
+- 검증: `playwright test decision-screen.spec.ts` 35개 통과, `pnpm --filter @eatbid/web typecheck` 통과,
+  변경 파일 `oxlint --deny-warnings` 통과, `pnpm quality:check` 통과. `lint:strict` 전체는 legacy
+  `src/components`·`src/app/dashboard` 경고로 이 변경 전부터 실패하며 이번 변경 파일과 무관하다.

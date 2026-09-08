@@ -44,9 +44,21 @@ async function openCurrentAuctionPanel(page: Page) {
   await expect(page.getByRole('region', { name: '현재 공고 사실', exact: true })).toBeVisible();
 }
 
-async function overflowReport(page: Page) {
-  return page.evaluate(() => {
-    const nodes = [...document.querySelectorAll('[data-slot="decision-screen"] *')];
+const SCREEN_ROOT = '[data-slot="decision-screen"]';
+// 현재 공고 상세와 투찰 레일은 이제 결정 화면 slot 밖의 전역 dock portal에 산다. 그 내용을 펼쳐 놓고
+// 보는 폭 검사는 dock도 같은 root로 넣어야 노드별 nowrap·넘침을 실제로 본다(EAT-115).
+const DOCK_ROOT = '[data-slot="responsive-dock"]';
+
+async function overflowReport(page: Page, roots: readonly string[] = [SCREEN_ROOT]) {
+  return page.evaluate((selectors) => {
+    const nodes = selectors
+      .flatMap((selector) => {
+        const root = document.querySelector(selector);
+        if (!root) throw new Error(`${selector} 자리를 찾지 못했다`);
+        return [...root.querySelectorAll('*')];
+      })
+      // 닫힌 패널과 숨긴 관점은 상자가 없어 폭을 말할 수 없다. 열려 있는 내용만 센다.
+      .filter((node) => node.getClientRects().length > 0);
     // 과거 회차 표는 `overflow-x-auto`로 자기 안에서만 가로 스크롤되도록 설계됐다(history-table.tsx).
     // 그 컨테이너 자신의 scrollWidth > clientWidth는 페이지가 밀린 게 아니라 의도한 동작이라 제외한다.
     const overflow = nodes.filter((node) => {
@@ -67,7 +79,7 @@ async function overflowReport(page: Page) {
     // 자기 컨테이너는 넘치지 않으면서 문서를 미는 경우를 놓친다(EAT-82). viewport는 setViewportSize 값이 아니라
     // 브라우저가 실제로 잡은 innerWidth와 비교한다.
     return { overflow, wrapped, bodyWidth: document.documentElement.scrollWidth, viewportWidth: window.innerWidth };
-  });
+  }, roots);
 }
 
 // 문서 가로 스크롤 금지는 slot 검사와 별개로 페이지 전체에 거는 조건이다.
@@ -419,7 +431,8 @@ test.describe('현재 공고 요약과 상세 진입', () => {
     await expect(facts.getByText(/^간격 \d+회 기준$/)).toBeVisible();
     await expect(facts.getByText(/^지난 공고 \d{2}-\d{2} · \d+일 만$/)).toBeVisible();
 
-    const report = await overflowReport(page);
+    // 상세는 dock 안에 있으므로 열어 둔 채 dock까지 함께 본다. 화면 slot만 보면 이 목록의 밀림을 놓친다.
+    const report = await overflowReport(page, [SCREEN_ROOT, DOCK_ROOT]);
     expect(report.overflow).toBe(0);
     expect(report.wrapped).toBe(0);
     expectDocumentFits(report, 1440);
@@ -653,8 +666,9 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(details.getByText('기록 없음').first()).toBeVisible();
     await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText('NaN');
 
-    // 펼친 rail의 부제·값은 nowrap이라 340px 안에서 밀리면 e2e 폭 검사가 잡아야 한다.
-    const report = await overflowReport(page);
+    // 펼친 rail의 부제·값은 nowrap이라 340px 안에서 밀리면 e2e 폭 검사가 잡아야 한다. rail은 dock 안이므로
+    // 그 root를 함께 넣어야 이 펼침 영역이 검사에 든다.
+    const report = await overflowReport(page, [SCREEN_ROOT, DOCK_ROOT]);
     expect(report.overflow).toBe(0);
     expect(report.wrapped).toBe(0);
     expectDocumentFits(report, 1440);
