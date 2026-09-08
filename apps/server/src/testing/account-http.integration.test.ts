@@ -57,7 +57,15 @@ async function withServer<A>(
 function expectPrivateResponse(response: { headers: Record<string, string> }): void {
   // 개인 응답은 성공이든 실패든 공유 캐시에 남으면 안 된다. guard가 끊는 401·403에도 같은 헤더가 있어야 한다.
   expect(response.headers["cache-control"]).toBe("private, no-store");
-  expect(response.headers["vary"]).toContain("cookie");
+  const vary = (response.headers["vary"] ?? "").toLowerCase();
+  expect(vary).toContain("cookie");
+}
+
+function expectVaryKeepsOrigin(response: { headers: Record<string, string> }): void {
+  // CORS가 붙인 `Vary: Origin`을 덮어쓰면 origin마다 달라지는 응답이 공유 캐시에서 섞인다.
+  const vary = (response.headers["vary"] ?? "").toLowerCase();
+  expect(vary).toContain("origin");
+  expect(vary).toContain("cookie");
 }
 
 describe("계정 HTTP 경계", () => {
@@ -67,10 +75,11 @@ describe("계정 HTTP 경계", () => {
       const session = await signInThroughAdapter(auth, { email: "http-uninit@example.com" });
 
       await withServer(apiUrl, true, async (server) => {
-        const anonymous = await request(server).get(sessionPath);
+        const anonymous = await request(server).get(sessionPath).set("origin", origin);
         expect(anonymous.status).toBe(200);
         expect(anonymous.body).toEqual({ state: "unauthenticated" });
         expectPrivateResponse(anonymous);
+        expectVaryKeepsOrigin(anonymous);
 
         const before = await owner.unsafe(`select count(*)::int as total from app.principal`);
         const uninitialized = await request(server).get(sessionPath)

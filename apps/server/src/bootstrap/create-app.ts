@@ -101,84 +101,96 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
   const expressApplication = express();
   const adapter = new ExpressAdapter(expressApplication);
   // 연결 handle을 여기서 먼저 만드는 이유는 인증 adapter가 Nest DI보다 앞선 slot에서 필요하기 때문이다.
-  // 이 시점에는 실제 dial이 일어나지 않고 풀 소유권은 그대로 Nest 종료 단계가 갖는다.
+  // 이 시점에는 실제 dial이 일어나지 않지만 소유권은 아직 Nest 종료 단계에 없다. 조립이 실패하면
+  // 재시작 루프가 연결을 계속 쌓으므로, Nest가 소유권을 받기 전 실패만 여기서 닫는다.
   const connection: ManagedDatabase = createManagedDatabase(environment.databaseUrl);
-  const auth: AuthInstance | null = environment.auth === null
-    ? null
-    : createAuthInstance({
-      environment: environment.auth,
-      database: createAuthDatabaseBinding(connection),
-      trustedOrigins: environment.corsOrigins,
-      logger,
+
+  // Nest가 자원으로 받기 전까지 풀 종료 책임은 이 조립에 있다. 여기서 실패하면 종료 lifecycle이 아직
+  // 이 풀을 모르므로, 같은 프로세스에서 조립을 반복하는 경우 연결이 계속 쌓인다.
+  let app: INestApplication;
+  try {
+    const auth: AuthInstance | null = environment.auth === null
+      ? null
+      : createAuthInstance({
+        environment: environment.auth,
+        database: createAuthDatabaseBinding(connection),
+        trustedOrigins: environment.corsOrigins,
+        logger,
+      });
+    // 인증을 켜지 않은 배포가 조용히 지나가지 않게 시작 로그에 남긴다. 공개 read는 그대로 동작한다.
+    if (auth === null) logger.lifecycle("auth_disabled");
+    const sessionAuthenticator: SessionAuthenticator | null = options.sessionAuthenticator
+      ?? (auth === null ? null : createBetterAuthSessionAuthenticator(auth));
+
+    expressApplication.disable("x-powered-by");
+    expressApplication.set("trust proxy", environment.proxyHops);
+    expressApplication.use(createRequestContextMiddleware(requestContext));
+    expressApplication.use(createInflightMiddleware(tracker));
+    expressApplication.use(helmet());
+    adapter.enableCors({
+      credentials: true,
+      origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
+        callback(null, origin === undefined || environment.corsOrigins.includes(origin));
+      },
     });
-  // 인증을 켜지 않은 배포가 조용히 지나가지 않게 시작 로그에 남긴다. 공개 read는 그대로 동작한다.
-  if (auth === null) logger.lifecycle("auth_disabled");
-  const sessionAuthenticator: SessionAuthenticator | null = options.sessionAuthenticator
-    ?? (auth === null ? null : createBetterAuthSessionAuthenticator(auth));
 
-  expressApplication.disable("x-powered-by");
-  expressApplication.set("trust proxy", environment.proxyHops);
-  expressApplication.use(createRequestContextMiddleware(requestContext));
-  expressApplication.use(createInflightMiddleware(tracker));
-  expressApplication.use(helmet());
-  adapter.enableCors({
-    credentials: true,
-    origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
-      callback(null, origin === undefined || environment.corsOrigins.includes(origin));
-    },
-  });
+    // 개인 응답 경로는 guard보다 먼저 캐시 금지를 붙인다. guard가 끊는 401·403에도 헤더가 남아야 한다.
+    mountPrivateResponseHeaders(expressApplication, [
+      ...sessionV1OperationRegistry,
+      ...meV1OperationRegistry,
+    ]);
 
-  // 개인 응답 경로는 guard보다 먼저 캐시 금지를 붙인다. guard가 끊는 401·403에도 헤더가 남아야 한다.
-  mountPrivateResponseHeaders(expressApplication, [
-    ...sessionV1OperationRegistry,
-    ...meV1OperationRegistry,
-  ]);
+    // 원문 바이트 서명 검증은 보안 헤더/CORS 뒤이면서 파서 앞이어야 하므로 이 슬롯을 고정한다.
+    (options.mountPreParserRawTransport ?? createAuthTransportMount(auth))(expressApplication);
 
-  // 원문 바이트 서명 검증은 보안 헤더/CORS 뒤이면서 파서 앞이어야 하므로 이 슬롯을 고정한다.
-  (options.mountPreParserRawTransport ?? createAuthTransportMount(auth))(expressApplication);
+    expressApplication.use(express.json({ limit: environment.payloadLimit, strict: true }));
+    expressApplication.use(express.urlencoded({
+      extended: false,
+      limit: environment.payloadLimit,
+      parameterLimit: 100,
+    }));
+    expressApplication.use((
+      error: unknown,
+      request: Request,
+      response: Response,
+      next: NextFunction,
+    ): void => {
+      // 공격자가 임의 status를 붙인 오류를 4xx로 위장하지 못하도록 파서가 만드는 좁은 형태만 신뢰한다.
+      const status = supportedBodyParserStatus(error);
+      if (status === undefined) return next(error);
+      response.status(status).type("application/problem+json").send(
+        problemForStatus(status, response.getHeader("x-request-id")?.toString() ?? "unavailable"),
+      );
+    });
 
-  expressApplication.use(express.json({ limit: environment.payloadLimit, strict: true }));
-  expressApplication.use(express.urlencoded({
-    extended: false,
-    limit: environment.payloadLimit,
-    parameterLimit: 100,
-  }));
-  expressApplication.use((
-    error: unknown,
-    request: Request,
-    response: Response,
-    next: NextFunction,
-  ): void => {
-    // 공격자가 임의 status를 붙인 오류를 4xx로 위장하지 못하도록 파서가 만드는 좁은 형태만 신뢰한다.
-    const status = supportedBodyParserStatus(error);
-    if (status === undefined) return next(error);
-    response.status(status).type("application/problem+json").send(
-      problemForStatus(status, response.getHeader("x-request-id")?.toString() ?? "unavailable"),
+    app = await NestFactory.create(
+      AppModule.forRuntime({
+        environment,
+        clock,
+        logger,
+        requestContext,
+        readiness,
+        databaseReadiness: options.databaseReadiness,
+        auctionReader: options.auctionReader,
+        auctionRosterReader: options.auctionRosterReader,
+        openAuctionReader: options.openAuctionReader,
+        organizationAttemptReader: options.organizationAttemptReader,
+        winRateDistributionReader: options.winRateDistributionReader,
+        codeReader: options.codeReader,
+        accountRepository: options.accountRepository,
+        connection,
+        sessionAuthenticator,
+        testOnlyImports: options.testOnlyImports,
+      }),
+      adapter,
+      { abortOnError: true, bodyParser: false, logger },
     );
-  });
+  } catch (error) {
+    // 이 지점 이후의 실패는 Nest 종료 단계가 같은 풀을 닫는다.
+    await connection.client.end().catch(() => undefined);
+    throw error;
+  }
 
-  const app = await NestFactory.create(
-    AppModule.forRuntime({
-      environment,
-      clock,
-      logger,
-      requestContext,
-      readiness,
-      databaseReadiness: options.databaseReadiness,
-      auctionReader: options.auctionReader,
-      auctionRosterReader: options.auctionRosterReader,
-      openAuctionReader: options.openAuctionReader,
-      organizationAttemptReader: options.organizationAttemptReader,
-      winRateDistributionReader: options.winRateDistributionReader,
-      codeReader: options.codeReader,
-      accountRepository: options.accountRepository,
-      connection,
-      sessionAuthenticator,
-      testOnlyImports: options.testOnlyImports,
-    }),
-    adapter,
-    { abortOnError: true, bodyParser: false, logger },
-  );
   app.setGlobalPrefix("api", {
     exclude: [
       // 운영 probe와 원문 인증 전송은 API 버전 수명주기에 결합하지 않는다.
