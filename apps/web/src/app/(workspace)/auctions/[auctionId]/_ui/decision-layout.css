@@ -1,0 +1,33 @@
+/* 공고 분석의 일반 문서 흐름과 큰 viewport의 차트 집중 분할만 소유한다. */
+[data-slot='decision-screen'] > header { background: var(--background); padding-block: 8px; }
+[data-slot='decision-screen'][data-focus] { max-width: none; }
+[data-slot='decision-screen'] aside:empty { display: none; }
+[data-slot='decision-columns']:has(> aside:empty) { grid-template-columns: minmax(0, 1fr); }
+
+/* 공통 셸과 회차 표를 재사용하며 v7의 평평한 분석 지면만 테마에 맞춘다. */
+[data-theme='toss'] [data-slot='decision-screen'] { gap: 12px; }
+[data-theme='toss'] [data-slot='decision-screen'] > header { border-bottom: 1px solid var(--border); padding-block: 12px; }
+[data-theme='toss'] [data-slot='decision-screen'] h1 { font-size: 18px; line-height: 1.45; letter-spacing: -0.35px; font-weight: 650; }
+[data-theme='toss'] [data-slot='decision-evidence'] { border-radius: 0; box-shadow: none; padding-inline: 16px; }
+[data-theme='toss'] [data-slot='decision-screen'] nav[aria-label='근거 보기'] a { border-radius: 0; padding-inline: 4px; margin-right: 16px; }
+[data-theme='toss'] [data-slot='decision-screen'] nav[aria-label='근거 보기'] a[aria-current='page'] { background: transparent; box-shadow: inset 0 -3px var(--primary); color: var(--foreground); }
+[data-theme='toss'] [data-slot='decision-screen'] section[aria-label='과거 회차'] { border-top: 1px solid var(--border); }
+[data-theme='toss'] [data-slot='decision-screen'] section[aria-label='과거 회차'] > div { border-radius: 0; box-shadow: none; }
+
+@media (min-width: 1280px) and (min-height: 850px) {
+  [data-slot='decision-screen'] > header { position: sticky; top: 56px; z-index: 20; }
+  [data-slot='decision-screen'][data-focus] { height: calc(100dvh - 56px); grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-columns'] { min-height: 0; align-items: stretch; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-main'] { min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(180px, 28%); gap: 10px; }
+  [data-slot='decision-screen'][data-focus] section[aria-label='근거'],
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'],
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence'] { min-height: 0; height: 100%; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'] { display: block; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence-stack'] > details { display: none; }
+  [data-slot='decision-screen'][data-focus] [data-slot='decision-evidence'] > p { display: none; }
+  [data-slot='decision-screen'][data-focus] figure { flex: 1; min-height: 0; }
+  [data-slot='decision-screen'][data-focus] [data-slot='flow-canvas'] { min-height: 120px; flex: 1; flex-basis: 0; }
+  [data-slot='decision-screen'][data-focus] section[aria-label='과거 회차'],
+  [data-slot='decision-screen'][data-focus] aside { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  [data-slot='decision-screen'][data-focus] aside { position: static; }
+}

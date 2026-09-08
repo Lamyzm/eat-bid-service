@@ -1,12 +1,12 @@
 /** @module 책임: 결정 화면 전체 조건(기간·모집단·내 값·손잡이 투찰률·크게 보기)을 URL search param으로 보존하는 nuqs parser를 한 곳에서 소유한다. page.tsx의 Suspense loader가 서버에서 `createLoader`로 이 parser를 실행하므로 client 전용 'nuqs'가 아니라 'nuqs/server'에서 가져온다. */
 import { parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs/server';
 
-export const DECISION_PERIODS = ['12개월', '3개월', '이번 달', '지난 달'] as const;
+export const DECISION_PERIODS = ['5년', '12개월', '3개월', '이번 달', '지난 달'] as const;
 export const DECISION_SCOPES = ['전국', '도', '시군', '이 기관'] as const;
-// 근거 영역의 탭. 호가창이 첫 탭이다. "내 값이 어디쯤인가"가 첫 질문이고 흐름은 그다음이다.
-export const DECISION_VIEWS = ['비교집단', '흐름', '그날 하한', '업체'] as const;
+// MVP는 기관 이력부터 보고 같은 조건의 낙찰 분포로 전환한다. 미구현 분석 탭은 만들지 않는다.
+export const DECISION_VIEWS = ['흐름', '비교집단'] as const;
 /**
- * 크게 보기 모달의 본문 종류. 근거 탭 넷은 탭 이름 그대로이고 과거 회차 카드는 탭이 아니라서 따로 있다.
+ * 확대할 본문 종류. 분석 보기는 view 값을 그대로 사용하고 과거 회차는 별도 대상으로 둔다.
  * 값이 탭 이름과 같으므로 탭에서 여는 링크는 `search.view`를 그대로 실을 수 있다.
  */
 export const DECISION_EXPANDS = ['과거 회차', ...DECISION_VIEWS] as const;
@@ -16,10 +16,12 @@ export const decisionSearchParsers = {
   scope: parseAsStringLiteral(DECISION_SCOPES).withDefault('전국'),
   // 탭은 화면 상태가 아니라 주소다. 링크로 특정 근거를 그대로 공유할 수 있어야 하고 (workspace)에는
   // nuqs adapter가 없어 client hook을 쓸 수 없다.
-  view: parseAsStringLiteral(DECISION_VIEWS).withDefault('비교집단'),
+  view: parseAsStringLiteral(DECISION_VIEWS).withDefault('흐름'),
   // 형식 검증(양의 정수 codeValueId)은 여기서 하지 않는다. `load-auction-page.ts`의 loader가
   // 회차 이력 조회 직전에 검증해 무효 값을 null로 다룬다.
   item: parseAsString,
+  // 생략은 현재 공고의 확인된 하한율이다. all과 unknown을 같은 빈 값으로 바꾸지 않는다.
+  floor: parseAsString,
   /**
    * 호가창에 얹는 "내 값"이다. **사정률**(분모 예정가격)이며 레일 손잡이의 투찰률(분모 기초금액)과
    * 다른 축이다(PDR-0004). **기본값을 두지 않는다** — 최빈 칸이나 하한율을 기본값으로 두면 그것이
@@ -49,6 +51,7 @@ export type DecisionSearch = {
   readonly scope: (typeof DECISION_SCOPES)[number];
   readonly view: (typeof DECISION_VIEWS)[number];
   readonly item: string | null;
+  readonly floor?: string | null;
   readonly myRate: string | null;
   readonly rate: string | null;
   readonly expand: DecisionExpand | null;
@@ -66,6 +69,7 @@ function decisionQuery(search: DecisionSearch): URLSearchParams {
   if (search.period !== decisionSearchParsers.period.defaultValue) query.set('period', search.period);
   if (search.scope !== decisionSearchParsers.scope.defaultValue) query.set('scope', search.scope);
   if (search.item !== null) query.set('item', search.item);
+  if (search.floor != null) query.set('floor', search.floor);
   if (search.myRate !== null) query.set('myRate', search.myRate);
   if (search.rate !== null) query.set('rate', search.rate);
   if (search.expand !== null) query.set('expand', search.expand);
@@ -99,4 +103,13 @@ export function buildDecisionExpandRoute(
   expand: DecisionExpand | null
 ): DecisionRoute {
   return buildDecisionViewRoute(auctionId, { ...search, expand }, search.view);
+}
+
+/** 조건이 달라지면 이전 집단 cursor 페이지 수를 물려받지 않는다. 보기와 사용자 입력은 유지한다. */
+export function buildDecisionFilterRoute(
+  auctionId: string,
+  search: DecisionSearch,
+  change: Partial<Pick<DecisionSearch, 'period' | 'scope' | 'item' | 'floor'>>
+): DecisionRoute {
+  return buildDecisionViewRoute(auctionId, { ...search, ...change, pages: 1 }, search.view);
 }

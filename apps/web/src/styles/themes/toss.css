@@ -1,0 +1,89 @@
+/* v7 검토 시안의 흰 지면·파란 강조·읽기 대비를 기존 shadcn 토큰으로 제공한다. */
+[data-theme='toss'] {
+  --background: #ffffff;
+  --foreground: #253247;
+  --card: #ffffff;
+  --card-foreground: #253247;
+  --popover: #ffffff;
+  --popover-foreground: #253247;
+  --primary: #195fae;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f5f9;
+  --secondary-foreground: #34445a;
+  --muted: #f7f8fa;
+  --muted-foreground: #536176;
+  --accent: #e8f0fb;
+  --accent-foreground: #172f50;
+  --destructive: #c63b50;
+  --destructive-foreground: #ffffff;
+  --border: #e5e8ec;
+  --input: #dbe1e9;
+  --ring: #175bb0;
+  --chart-1: #3182f6;
+  --chart-2: #c63b50;
+  --chart-3: #9a6b22;
+  --chart-4: #536176;
+  --chart-5: #8da1bb;
+  --sidebar: #fbfcfd;
+  --sidebar-foreground: #34445a;
+  --sidebar-primary: #195fae;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8f0fb;
+  --sidebar-accent-foreground: #172f50;
+  --sidebar-border: #e5e8ec;
+  --sidebar-ring: #175bb0;
+  --font-sans: 'Pretendard Variable', Pretendard, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+  --font-serif: Georgia, serif;
+  --radius: 0.5rem;
+  --shadow-2xs: 0 1px 2px rgb(37 50 71 / 0.02);
+  --shadow-xs: 0 1px 2px rgb(37 50 71 / 0.03);
+  --shadow-sm: 0 1px 3px rgb(37 50 71 / 0.05);
+  --shadow: 0 2px 5px rgb(37 50 71 / 0.06);
+  --shadow-md: 0 4px 12px rgb(37 50 71 / 0.08);
+  --shadow-lg: 0 8px 24px rgb(37 50 71 / 0.1);
+  --shadow-xl: 0 12px 32px rgb(37 50 71 / 0.12);
+  --shadow-2xl: 0 20px 48px rgb(37 50 71 / 0.14);
+}
+
+/* Next font의 body 변수보다 선택한 테마의 글꼴을 우선한다. */
+[data-theme='toss'] body {
+  --font-sans: inherit;
+  --font-mono: inherit;
+  --font-serif: inherit;
+}
+
+[data-theme='toss'].dark {
+  --background: #15171b;
+  --foreground: #e8edf4;
+  --card: #1d2026;
+  --card-foreground: #e8edf4;
+  --popover: #242830;
+  --popover-foreground: #e8edf4;
+  --primary: #8ab9ff;
+  --primary-foreground: #102646;
+  --secondary: #2a3039;
+  --secondary-foreground: #d6e0ed;
+  --muted: #242830;
+  --muted-foreground: #a5b1c2;
+  --accent: #243b5b;
+  --accent-foreground: #c5dcff;
+  --destructive: #ff8394;
+  --destructive-foreground: #3d1720;
+  --border: #353b45;
+  --input: #485363;
+  --ring: #8ab9ff;
+  --chart-1: #76adff;
+  --chart-2: #ff8394;
+  --chart-3: #dbb36e;
+  --chart-4: #a5b1c2;
+  --chart-5: #7890ae;
+  --sidebar: #191c21;
+  --sidebar-foreground: #d6e0ed;
+  --sidebar-primary: #8ab9ff;
+  --sidebar-primary-foreground: #102646;
+  --sidebar-accent: #243b5b;
+  --sidebar-accent-foreground: #c5dcff;
+  --sidebar-border: #353b45;
+  --sidebar-ring: #8ab9ff;
+}

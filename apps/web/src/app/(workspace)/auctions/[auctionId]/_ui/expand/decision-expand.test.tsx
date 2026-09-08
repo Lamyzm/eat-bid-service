@@ -125,32 +125,14 @@ describe('크게 보기 모달', () => {
 
   test('비교집단 모달은 12개월 히트맵과 모집단 부제를 그린다', () => {
     const screen = renderExpand('비교집단');
-    expect(screen.getByRole('heading', { name: '비교집단 · 달마다 어디에 몰렸나' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '낙찰값 분포 · 달마다 어디에 몰렸나' })).toBeTruthy();
     expect(screen.getByText('달마다 값이 몰린 자리. 진할수록 낙찰 횟수가 많습니다.')).toBeTruthy();
     expect(screen.getByText(/전국 · 품목 전체 · 하한율 90\.000 · 12개월 · 표본/)).toBeTruthy();
   });
 
-  test('흐름 모달은 흐름 차트·범례·명단 막대를 함께 그린다', () => {
+  test('흐름 크게 보기는 페이지가 소유하므로 별도 모달을 만들지 않는다', () => {
     const screen = renderExpand('흐름');
-    expect(screen.getByRole('heading', { name: '회차별 흐름' })).toBeTruthy();
-    expect(screen.getByRole('img', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
-    expect(screen.getByRole('img', { name: '회차별 명단 수' })).toBeTruthy();
-    // 범례는 EAT-89의 계열 토글이며 그날 하한은 사정률 창에서 뺐다(PDR-0004). 2등은 시안대로 꺼진 채 시작한다.
-    expect(screen.getByRole('button', { name: '2등', pressed: false })).toBeTruthy();
-    expect(screen.getByText('축산 · 표본 92회')).toBeTruthy();
-  });
-
-  test('계약이 없는 그날 하한·업체 모달은 수집 전과 사유를 그대로 말하고 판정어를 쓰지 않는다', () => {
-    const floor = renderExpand('그날 하한');
-    expect(floor.getByRole('heading', { name: '그날 하한 위 자리' })).toBeTruthy();
-    expect(floor.getByText('수집 전')).toBeTruthy();
-    expect(floor.getByText('회차별 하한 자리 계약이 붙으면 이 탭이 보입니다.')).toBeTruthy();
-    for (const banned of FORBIDDEN_VERDICT_WORDS) expect(floor.getByRole('dialog').textContent).not.toContain(banned);
-    floor.unmount();
-
-    const supplier = renderExpand('업체');
-    expect(supplier.getByRole('heading', { name: '참여 업체' })).toBeTruthy();
-    expect(supplier.getByText('회차별 명단 계약이 붙으면 참여 업체가 보입니다.')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   test('회차 이력이 없으면 과거 회차·흐름 모달도 같은 사유를 말한다', () => {
@@ -161,7 +143,7 @@ describe('크게 보기 모달', () => {
 
   test('닫기를 누르면 expand만 지운 주소로 replace한다', () => {
     const replaced: string[] = [];
-    const screen = renderExpand('흐름', { replaced });
+    const screen = renderExpand('비교집단', { replaced });
     screen.getByRole('button', { name: '닫기 ×' }).click();
     expect(replaced).toHaveLength(1);
     expect(replaced[0]).not.toContain('expand');

@@ -1,4 +1,4 @@
-/** @module 책임: 기관 회차 이력 최근 12회를 표로 그리고 마지막 열에 내 값을 그때 냈다면 어땠을지 붙인다. */
+/** @module 책임: 기관 회차 이력 최근 12회를 비교 표로 제공하고 사용자가 값을 입력했을 때만 가정 계산 열을 붙인다. */
 'use client';
 
 import {
@@ -188,7 +188,7 @@ export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] })
   const data = useMemo(() => rows.slice(0, HISTORY_WINDOW_LIMIT), [rows]);
   const columns = useHistoryColumns(rateMilli, rate, selection.select);
   // oxlint-disable-next-line react/incompatible-library -- headless table 인스턴스는 함수를 돌려주지만 React Compiler는 annotation mode라 이 컴포넌트를 메모하지 않는다(apps/web AGENTS.md). "use memo"를 붙일 때 이 표를 함께 검증한다.
-  const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
+  const table = useReactTable({ data, columns, state: { columnVisibility: { verdict: rate !== null } }, getCoreRowModel: getCoreRowModel() });
 
   const { ref, edges } = useScrollEdges();
 

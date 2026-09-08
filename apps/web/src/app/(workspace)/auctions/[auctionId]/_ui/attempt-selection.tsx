@@ -36,8 +36,13 @@ export function AttemptSelectionProvider({
 }
 
 export function useAttemptSelection(): AttemptSelection {
-  const value = useContext(Context);
+  const value = useOptionalAttemptSelection();
   if (!value)
     throw new Error('회차 선택은 현재 공고의 AttemptSelectionProvider 안에서 사용해야 합니다.');
   return value;
+}
+
+/** 독립 차트 미리보기에는 상세 패널이 없다. 제품 화면에서는 동일 provider의 선택을 사용한다. */
+export function useOptionalAttemptSelection(): AttemptSelection | null {
+  return useContext(Context);
 }

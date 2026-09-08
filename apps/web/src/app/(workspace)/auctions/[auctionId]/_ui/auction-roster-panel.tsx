@@ -4,6 +4,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { AuctionRosterV1Response } from '@eatbid/contracts/api/v1/auctions';
+import { CODE_SCHEME_NAMES } from '@eatbid/contracts/atoms/code-scheme-names';
 import { auctionQueries } from '@/api/auctions';
 import { Button } from '@/shared/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
@@ -24,7 +25,7 @@ export function SelectedAttemptRail({ fallback }: { readonly fallback: ReactNode
 function withdrawalText(value: AuctionRosterV1Response['rows'][number]['withdrawal']): string {
   if (value === null) return '미확인';
   // 검토된 eaT WITHDRAWAL_YN 코드만 번역한다. 낙찰 상태와 독립이며 미관측을 N으로 메우지 않는다.
-  if (value.scheme === 'eat:withdrawal-flag') {
+  if (value.scheme === CODE_SCHEME_NAMES.withdrawalFlag) {
     if (value.code === 'Y') return '철회';
     if (value.code === 'N') return '철회 아님';
   }
@@ -170,19 +171,6 @@ export function AuctionRosterPanel({
               </Table>
             </div>
           )}
-          <details className='mt-4 text-xs text-muted-foreground'>
-            <summary className='cursor-pointer'>자료 정보</summary>
-            <div className='mt-2 grid gap-1 break-all'>
-              <div>
-                원천 관측 시각: <time dateTime={data.meta.observedAt}>{data.meta.observedAt}</time>
-              </div>
-              <div>관측된 공고 참여 수: {data.meta.sourceRosterSize ?? '미확인'}</div>
-              <div>
-                회차 {data.auctionId} · 기록 {data.revisionId}
-              </div>
-              <div>원본 확인값: {data.meta.provenance.contentSha256}</div>
-            </div>
-          </details>
         </>
       ) : null}
     </section>

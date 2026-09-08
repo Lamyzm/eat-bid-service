@@ -10,7 +10,7 @@ function requestDouble(inputs: unknown[]): ContractRequest {
   return Object.assign(
     async (input: unknown) => {
       inputs.push(input);
-      return { ok: true };
+      return { meta: { cohort: { floorRate: { kind: 'exact', value: { value: '88.000', unit: 'percentage-points' } }, awardMethod: { kind: 'exact', codeValueId: '31' }, period: { from: '2021-10', to: '2026-09' } } } };
     },
     {
       isProblem: (error: unknown): error is HttpProblemError => error instanceof HttpProblemError

@@ -1,4 +1,4 @@
-'use client';
+/** @module 책임: 기존 차트·지도와 공고 분석이 공유하는 테마별 캔버스 색상 팔레트를 한 곳에서 제공한다. */
 /**
  * 차트 색 단일화 — DESIGN.md D-1
  * CSS 변수를 못 읽는 캔버스 라이브러리(lightweight-charts·leaflet)용 hex는 여기서만 정의한다.
@@ -29,21 +29,29 @@ const DARK = {
   volume: 'rgba(150,160,155,0.45)',
 } as const;
 
+function isToss(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.theme === 'toss';
+}
+
+const TOSS_LIGHT = { ...LIGHT, win: '#3182f6', second: '#9a6b22', me: '#7659c5', volume: 'rgba(141,161,187,0.4)', band: 'rgba(49,130,246,0.3)' };
+const TOSS_DARK = { ...DARK, win: '#76adff', second: '#dbb36e', me: '#bda5ff', volume: 'rgba(141,161,187,0.5)', band: 'rgba(118,173,255,0.3)' };
+const currentPalette = () => isToss() ? (isDark() ? TOSS_DARK : TOSS_LIGHT) : (isDark() ? DARK : LIGHT);
+
 export const CHART = {
-  /** 낙찰(관인 녹색 = --primary) */
-  get win() { return isDark() ? DARK.win : LIGHT.win; },
+  /** 낙찰 계열은 선택한 테마의 주 강조색을 따른다. */
+  get win() { return currentPalette().win; },
   /** 밀림·2등가(앰버 = --chart-3) */
-  get second() { return isDark() ? DARK.second : LIGHT.second; },
+  get second() { return currentPalette().second; },
   /** 무효·실효하한(회갈) */
   get invalid() { return isDark() ? DARK.invalid : LIGHT.invalid; },
   /** 하한선(인주 적 = --destructive) */
   get floor() { return isDark() ? DARK.floor : LIGHT.floor; },
   /** 잘 나온 구간 음영 */
-  get band() { return isDark() ? DARK.band : LIGHT.band; },
-  /** 나(내 값·기회) — 코발트 */
-  get me() { return isDark() ? DARK.me : LIGHT.me; },
+  get band() { return currentPalette().band; },
+  /** 사용자 값은 낙찰 계열과 구별되는 강조색을 쓴다. */
+  get me() { return currentPalette().me; },
   /** 참여 수 볼륨 */
-  get volume() { return isDark() ? DARK.volume : LIGHT.volume; },
+  get volume() { return currentPalette().volume; },
 };
 
 /** 내 투찰 마커 — 다크에서 #111이 사라지는 문제 대응 */
@@ -54,6 +62,7 @@ export function myMarker(): string {
 /** lightweight-charts 축·테두리 (테마별) */
 export function chartFrame() {
   const dark = isDark();
+  if (isToss()) return { text: dark ? '#a5b1c2' : '#536176', border: dark ? '#353b45' : '#e5e8ec' };
   return { text: dark ? '#9aa5a0' : '#6b7570', border: dark ? '#3a423e' : '#d7ddd9' };
 }
 

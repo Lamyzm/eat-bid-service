@@ -22,16 +22,14 @@ function renderTable(initialRate: string | null) {
 }
 
 describe('과거 회차 표', () => {
-  test('손잡이 값이 없으면 마지막 열 머리는 값을 넣으라는 안내이고 어떤 회차도 판정하지 않는다', () => {
+  test('사용자가 값을 넣기 전에는 가정 계산 열 없이 관측 기록만 보인다', () => {
     const screen = renderTable(null);
     expect(screen.container.querySelector('thead th:last-child')?.textContent).toBe(
-      '값을 넣으면 계산'
+      '명단'
     );
     expect(screen.queryByText(/썼다면/)).toBeNull();
-    const lastCells = [...screen.container.querySelectorAll('tbody tr')].map(
-      (row) => row.querySelector('td:last-child')?.textContent
-    );
-    expect(new Set(lastCells)).toEqual(new Set(['—']));
+    expect(screen.queryByText('값을 넣으면 계산')).toBeNull();
+    expect(screen.container.querySelectorAll('thead th').length).toBe(7);
   });
 
   test('최근 12회만 그리고 마지막 열 머리에 지금 값을 적는다', () => {

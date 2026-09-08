@@ -1,4 +1,4 @@
-/** @module 책임: 근거 카드의 탭 스트립·안내문·범례를 그리고 URL의 view 값에 해당하는 본문 하나와 그 탭의 크게 보기 링크를 렌더링한다. 수집 전 사유 문구는 여기 한 곳이 소유해 모달과 같은 말을 한다. */
+/** @module 책임: 공고 분석의 흐름·분포 전환과 범례를 조립하고 URL 조건에 맞는 본문과 확대 동작을 연결한다. */
 import Link from 'next/link';
 
 import {
@@ -20,37 +20,26 @@ import { OrderBookSummary } from './order-book-summary';
 type HistoryState = DecisionPageData['history'];
 type DistributionState = DecisionPageData['distribution'];
 
-// 탭마다 이 화면이 무엇을 보여 주는지 한 줄로 말한다. 본문이 아직 없는 탭도 무엇이 올 자리인지는
-// 밝힌다. 빈 카드는 사용자에게 "고장"으로 읽힌다. 비교집단은 지금 모집단이 무엇인지가 문장의
-// 일부라 조건에서 읽어 넣는다.
+// 분포는 조회 범위가 해석에 영향을 주므로 현재 조건을 안내문에도 함께 표시한다.
 function note(view: DecisionView, scope: DecisionSearch['scope']): string {
   switch (view) {
     case '비교집단':
       return `${scope}에서 값마다 낙찰된 횟수입니다. 모집단은 위 필터에서 바꿉니다.`;
-    // 디자인 원문은 "파란 선"이지만 이 저장소의 primary 토큰은 파랑이 아니다. 색 이름 대신 굵기로
-    // 가리켜 테마가 바뀌어도 문구가 거짓이 되지 않게 한다.
     case '흐름':
-      return '회차마다 낙찰된 사정률입니다. 굵은 선이 내 값입니다.';
-    case '그날 하한':
-      return '가로 0은 그날 하한입니다. 낙찰값은 늘 그 바로 위입니다.';
-    case '업체':
-      return '이 기관 회차에 참여한 업체와 그 업체가 선 자리입니다.';
+      return '이 기관의 개찰일별 낙찰 기록입니다. 점을 누르면 참여 기록을 볼 수 있어요.';
   }
 }
 
-/** 계약이 아직 없는 탭의 사유. 탭 본문과 크게 보기 모달이 같은 문장을 써야 한다. */
-export const EXPAND_PENDING_REASON: Record<Exclude<DecisionView, '비교집단' | '흐름'>, string> = {
-  '그날 하한': '회차별 하한 자리 계약이 붙으면 이 탭이 보입니다.',
-  업체: '회차별 명단 계약이 붙으면 참여 업체가 보입니다.'
-};
+const VIEW_LABEL: Record<DecisionView, string> = { 흐름: '흐름', 비교집단: '분포' };
 
 /**
  * 분포를 못 그린 이유. 재료가 없는 것(locked)과 조회가 실패한 것(unavailable)은 사용자가 할 일이
  * 다르다. 앞은 수집이 더 필요하고 뒤는 다시 열어보면 될 수 있다.
  */
-export const DISTRIBUTION_PENDING_REASON: Record<'missing-terms' | 'missing-axis' | 'unavailable', string> = {
+export const DISTRIBUTION_PENDING_REASON: Record<'missing-terms' | 'missing-axis' | 'unavailable' | 'unsupported-filter', string> = {
   'missing-terms': '이 공고의 하한율과 낙찰방식이 아직 수집되지 않았습니다',
   'missing-axis': '이 모집단을 만들 지역·기관이 아직 정규화되지 않았습니다',
+  'unsupported-filter': '분포는 전체 품목·한 가지 하한율·12개월 이하에서 볼 수 있습니다. 선택한 조건의 기관 이력은 흐름과 과거 회차에서 확인하세요.',
   unavailable: '분포를 지금 불러오지 못했습니다'
 };
 
@@ -76,9 +65,9 @@ export function PendingBody({ reason, label = '수집 전' }: { readonly reason:
 
 // 흐름 차트의 내 값 선은 호가창과 같은 사정률 값(URL `myRate`)을 쓴다. 두 탭이 다른 "내 값"을 그리면
 // 사용자가 같은 줄을 두 번 놓아야 한다(PDR-0004).
-function FlowBody({ history, myRate }: { readonly history: HistoryState; readonly myRate: string | null }) {
+function FlowBody({ history, myRate, focus }: { readonly history: HistoryState; readonly myRate: string | null; readonly focus: boolean }) {
   if (history.state !== 'ready') return <PendingBody reason={HISTORY_PENDING_REASON[history.state]} />;
-  return <FlowChart presentation={history.presentation} myRate={myRate} />;
+  return <FlowChart presentation={history.presentation} myRate={myRate} focus={focus} />;
 }
 
 function CohortBody({
@@ -119,11 +108,11 @@ function CohortBody({
 function ExpandLink({ auctionId, search }: { readonly auctionId: string; readonly search: DecisionSearch }) {
   return (
     <Link
-      href={buildDecisionExpandRoute(auctionId, search, search.view)}
+      href={buildDecisionExpandRoute(auctionId, search, search.expand === '흐름' && search.view === '흐름' ? null : search.view)}
       scroll={false}
       className='ml-auto text-[13px] font-semibold whitespace-nowrap text-primary'
     >
-      크게 보기
+      {search.expand === '흐름' && search.view === '흐름' ? '작게 보기' : '크게 보기'}
     </Link>
   );
 }
@@ -142,7 +131,7 @@ export function EvidenceTabs({
   const active = search.view;
 
   return (
-    <div className='flex min-w-0 flex-col gap-3 overflow-hidden rounded-xl bg-card p-4 shadow-xs'>
+    <div data-slot='decision-evidence' className='flex min-w-0 flex-col gap-3 overflow-hidden rounded-xl bg-card p-4 shadow-xs'>
       <div className='flex min-w-0 flex-wrap items-center gap-1'>
         <nav aria-label='근거 보기' className='flex flex-wrap items-center gap-1'>
           {DECISION_VIEWS.map((view) => (
@@ -154,7 +143,7 @@ export function EvidenceTabs({
                 view === active ? 'bg-primary/10 font-semibold text-primary' : 'font-medium text-muted-foreground'
               }`}
             >
-              {view}
+              {VIEW_LABEL[view]}
             </Link>
           ))}
         </nav>
@@ -163,10 +152,8 @@ export function EvidenceTabs({
       <p className='text-[13px] font-medium text-muted-foreground'>{note(active, search.scope)}</p>
       {active === '비교집단' ? (
         <CohortBody auctionId={auctionId} search={search} distribution={distribution} />
-      ) : active === '흐름' ? (
-        <FlowBody history={history} myRate={search.myRate} />
       ) : (
-        <PendingBody reason={EXPAND_PENDING_REASON[active]} />
+        <FlowBody history={history} myRate={search.myRate} focus={search.expand === '흐름'} />
       )}
       <div className='flex'>
         <ExpandLink auctionId={auctionId} search={search} />

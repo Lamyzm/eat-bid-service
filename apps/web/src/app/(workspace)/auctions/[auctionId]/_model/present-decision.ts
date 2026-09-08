@@ -15,6 +15,7 @@ export type DecisionPresentation = {
   // 헤더가 읽는 표시 문자열이다. 코호트를 만드는 원값은 `decision-cohort.ts`가 계약 응답에서
   // 직접 읽는다. 표시용으로 다듬은 문자열을 되파싱해 의미를 되살리지 않는다(AGENTS 15).
   readonly floorRateText: string;
+  readonly floorRateValue?: string | null;
   readonly itemLabelText: string;
   /** 공고지역 시도·시군구의 관측 라벨을 이은 소재지 문자열이다. 코드는 코호트 몫이고 여기는 표시만이다. */
   readonly locationText: string;
@@ -103,6 +104,7 @@ export function presentDecision(response: AuctionV1Response, nowIso: string): De
     plannedAmount: { text: response.pricing.plannedAmount ? formatAmountText(response.pricing.plannedAmount.amount) : '미확인' },
     // 관측되지 않은 하한율을 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3).
     floorRateText: response.terms?.floorRate?.value ?? '미확인',
+    floorRateValue: response.terms?.floorRate?.value ?? null,
     itemLabelText: response.classification?.itemLabel ?? '품목 미확인',
     locationText: locationText(response.location),
     participation: participationText(response.participation),

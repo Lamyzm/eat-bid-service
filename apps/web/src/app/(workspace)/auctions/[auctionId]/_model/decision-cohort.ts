@@ -1,6 +1,7 @@
 /** @module 책임: 화면 조건 칩(기간·모집단)과 공고 응답의 코호트 재료를 분포 조회 query로 옮긴다. */
 import { Temporal } from '@eatbid/domain';
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
+import { organizationV1Operations, type OrganizationAuctionAttemptsQuery } from '@eatbid/contracts/api/v1/organizations';
 import type { WinRateDistributionCohort } from '@/api/win-rate-distribution';
 
 import type { DecisionSearch } from '../_lib/decision-search-params';
@@ -9,7 +10,8 @@ import type { DecisionSearch } from '../_lib/decision-search-params';
 export type CohortLock =
   | { readonly kind: 'ready'; readonly cohort: WinRateDistributionCohort }
   | { readonly kind: 'missing-terms' }
-  | { readonly kind: 'missing-axis' };
+  | { readonly kind: 'missing-axis' }
+  | { readonly kind: 'unsupported-filter' };
 
 export type DistributionPeriod = { readonly from: string; readonly to: string };
 
@@ -37,7 +39,7 @@ function kstMonthOrdinal(nowIso: string): number {
 export function periodOf(period: DecisionSearch['period'], nowIso: string): DistributionPeriod {
   const now = kstMonthOrdinal(nowIso);
   if (period === '지난 달') return { from: monthText(now - 1), to: monthText(now - 1) };
-  const months = period === '12개월' ? 12 : period === '3개월' ? 3 : 1;
+  const months = period === '5년' ? 60 : period === '12개월' ? 12 : period === '3개월' ? 3 : 1;
   return { from: monthText(now - (months - 1)), to: monthText(now) };
 }
 
@@ -50,10 +52,14 @@ export function cohortOf(
   search: DecisionSearch,
   period: DistributionPeriod
 ): CohortLock {
-  const floorRate = auction.terms?.floorRate?.value;
+  const floorRate = historyFloorOf(auction.terms?.floorRate?.value, search.floor);
   const awardMethod = auction.terms?.awardMethod?.codeValueId;
   // 하한율과 낙찰방식은 모든 모집단의 코호트 키다. 둘 중 하나라도 없으면 어떤 사다리도 만들 수 없다.
-  if (floorRate === undefined || awardMethod === undefined) return { kind: 'missing-terms' };
+  if (awardMethod === undefined) return { kind: 'missing-terms' };
+  if (floorRate === 'unknown' && search.floor == null) return { kind: 'missing-terms' };
+  if (floorRate === 'all' || floorRate === 'unknown' || normalizeItemParam(search.item) !== null || search.period === '5년') {
+    return { kind: 'unsupported-filter' };
+  }
   const base = { floorRate, awardMethod, from: period.from, to: period.to } as const;
   if (search.scope === '전국') return { kind: 'ready', cohort: { ...base, scope: 'national' } };
   if (search.scope === '이 기관') {
@@ -70,5 +76,28 @@ export function cohortOf(
       scope: search.scope === '도' ? 'province' : 'district',
       regionCodeValueId: region.codeValueId
     }
+  };
+}
+
+/** URL을 직접 편집한 값도 공개 식별자 계약으로 검증한다. 라벨로 ID를 추측하지 않는다. */
+export function normalizeItemParam(item: string | null): string | null {
+  const parsed = organizationV1Operations.listAuctionAttempts.querySchema.unwrap().shape.item.safeParse(item);
+  return parsed.success ? parsed.data ?? null : null;
+}
+
+/** 하한율은 공고 조건의 exact 값이며 미확인을 90으로 채우지 않는다. */
+export function historyFloorOf(currentFloor: string | undefined, requested: string | null | undefined) {
+  const parsed = organizationV1Operations.listAuctionAttempts.querySchema.unwrap().shape.floorRate.safeParse(requested);
+  return parsed.success && parsed.data !== undefined ? parsed.data : currentFloor ?? 'unknown';
+}
+
+export function historyCohortOf(auction: AuctionV1Response, search: DecisionSearch, period: DistributionPeriod): Omit<OrganizationAuctionAttemptsQuery, 'limit' | 'cursor'> {
+  const item = normalizeItemParam(search.item);
+  return {
+    floorRate: historyFloorOf(auction.terms?.floorRate?.value, search.floor),
+    awardMethod: auction.terms?.awardMethod?.codeValueId ?? 'unknown',
+    ...period,
+    opened: 'only',
+    ...(item === null ? {} : { item })
   };
 }

@@ -1,4 +1,4 @@
-/** @module 책임: 제품 코드가 참조하는 지역 축 코드 체계 이름을 계약 층에서 한 번만 선언한다. */
+/** @module 책임: 제품 코드가 참조하는 코드 체계 이름을 계약 층에서 한 번만 선언한다. */
 
 // 체계 이름을 화면·서버가 각자 문자열로 적으면 개편 때 한쪽만 바뀌고 두 층이 서로 다른 체계를 같은
 // 것으로 믿는다(AGENTS 6). 값의 권위는 `packages/db/src/seeds/code-schemes.ts`이며 여기는 그 이름을
@@ -11,6 +11,8 @@ export const CODE_SCHEME_NAMES = {
   auctionLocationSigungu: "eat:auction-location-sigungu",
   /** eaT 참가제한지역. 라벨을 주는 유일한 eaT 지역 축이다. */
   eligibilityArea: "eat:eligibility-area",
+  /** eaT 명단의 철회 여부. 낙찰 상태와 별도로 해석한다. */
+  withdrawalFlag: "eat:withdrawal-flag",
 } as const;
 
 export type CodeSchemeName = (typeof CODE_SCHEME_NAMES)[keyof typeof CODE_SCHEME_NAMES];

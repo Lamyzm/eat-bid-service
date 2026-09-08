@@ -49,8 +49,10 @@ describe('결정 화면', () => {
     expect(markup).toContain('data-slot="decision-screen"');
     expect(markup).toContain('aria-labelledby="decision-title"');
     expect(markup).toContain('이 공고가 열려 있습니다');
-    expect(markup).toContain(openAuctionFixture.provenance.contentSha256);
-    for (const view of ['비교집단', '흐름', '그날 하한', '업체']) expect(markup).toContain(view);
+    expect(markup).not.toContain(openAuctionFixture.provenance.contentSha256);
+    expect(markup).not.toContain('원문과 추적 정보');
+    expect(markup).not.toContain('실제로 낸 적은 없습니다');
+    for (const view of ['흐름', '분포']) expect(markup).toContain(view);
   });
 
   test('금지 문구가 없다', () => {
@@ -64,9 +66,9 @@ describe('결정 화면', () => {
     expect(labels).toEqual(['공고 상태', '근거', '과거 회차', '공고 보조 정보']);
   });
 
-  test('기본 탭은 비교집단이고 흐름 차트 대신 호가창을 보인다', () => {
+  test('분포 탭은 흐름 차트 대신 호가창을 보인다', () => {
     const screen = render(<DecisionScreen decision={decision()} search={search} history={readyHistory} distribution={readyDistribution} />);
-    expect(screen.queryByRole('img', { name: '회차별 낙찰률 흐름' })).toBeNull();
+    expect(screen.queryByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeNull();
     expect(screen.getByText('전국 · 값마다 낙찰된 횟수')).toBeTruthy();
     expect(screen.getByText('90.000 ~ 90.010')).toBeTruthy();
   });
@@ -79,11 +81,11 @@ describe('결정 화면', () => {
   test('손잡이 값 없이 열면 표 머리글·이 값이면·흐름 각주 어디에도 화면이 정한 투찰률이 없다', () => {
     // 90.000 같은 시작값은 곧 추천값이다(AGENTS 8, PDR-0004, EAT-84). 사용자가 놓기 전에는 빈 상태다.
     const screen = render(<DecisionScreen decision={decision()} search={flowSearch} history={readyHistory} distribution={readyDistribution} />);
-    expect(screen.getByRole('img', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
+    expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
     expect(screen.queryByText(/썼다면/)).toBeNull();
-    expect(screen.getByText('값을 넣으면 계산')).toBeTruthy();
+    expect(screen.queryByText('값을 넣으면 계산')).toBeNull();
     expect(screen.getByText('투찰률을 넣으면 지난 회차와 견줍니다')).toBeTruthy();
-    expect(screen.getByText(/레일의 투찰률은 분모가 기초금액이라/)).toBeTruthy();
+    expect(screen.queryByText('내 값 90.000')).toBeNull();
     expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
     expect(screen.container.textContent).not.toContain('90.000 썼다면');
   });
@@ -91,11 +93,10 @@ describe('결정 화면', () => {
   test('URL rate로 놓은 투찰률이 있으면 차트·과거 회차 표·이 값이면 패널을 그 값 하나로 함께 그린다', () => {
     const withRate: DecisionSearch = { ...flowSearch, rate: '90.000' };
     const screen = render(<DecisionScreen decision={decision()} search={withRate} history={readyHistory} distribution={readyDistribution} />);
-    expect(screen.getByRole('img', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
+    expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
     expect(screen.getByText('90.000 썼다면')).toBeTruthy();
     // 손잡이 값은 표의 마지막 열(투찰률 축)에만 쓰고 사정률 눈금인 흐름 차트에는 선으로 긋지 않는다(PDR-0004).
     expect(screen.queryByText('내 값 90.000')).toBeNull();
-    expect(screen.getByText(/레일의 투찰률 90\.000은 분모가 기초금액이라/)).toBeTruthy();
     // 품목 7의 17회차 중 예정가격이 관측된 15회차만 낙찰값과 견줄 수 있다.
     expect(screen.getByText('지난 15회 중 낙찰값 이하였을 회차')).toBeTruthy();
   });

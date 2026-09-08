@@ -57,6 +57,11 @@ function requestDouble(
 }
 
 describe('기관 회차 이력 resource 조회', () => {
+  test('새 비교 조건을 보냈는데 조건 증거가 없는 구버전 응답이면 필터 결과로 받아들이지 않는다', async () => {
+    const request = requestDouble(async () => validAttempts);
+    await expect(listOrganizationAuctionAttemptsWith(request, { organizationId: '3101', floorRate: '88.000' })).rejects.toThrow('요청한 비교 조건의 적용 여부를 확인할 수 없습니다.');
+  });
+
   test('operation과 canonical path·query 및 동일한 AbortSignal을 transport에 전달한다', async () => {
     const inputs: unknown[] = [];
     const controller = new AbortController();

@@ -54,13 +54,13 @@ describe('결정 화면 헤더', () => {
     expect(screen.queryByText(MULTI_ITEM_LABEL)).toBeNull();
   });
 
-  test('품목 칩은 기간·모집단 칩과 같은 줄바꿈 컨테이너의 직계 자식이다', () => {
+  test('현재 공고 품목은 제목 옆에 두고 조회 기간은 분석 조건에서 바꾼다', () => {
     const screen = render(<DecisionHeader decision={presentDecision(openAuctionFixture, fixtureNow)} cadence={cadence} search={search} />);
     const itemChip = screen.getByText('축산').parentElement;
-    const periodChip = screen.getByText('12개월').parentElement;
+    const periodChip = screen.getByRole('button', { name: '기간: 12개월' });
     const heading = screen.getByRole('heading', { name: openAuctionFixture.identity.title });
-    expect(itemChip?.parentElement).toBe(heading.parentElement);
-    expect(periodChip?.parentElement).toBe(heading.parentElement);
+    expect(itemChip?.parentElement === heading.parentElement).toBe(true);
+    expect(periodChip.closest('[aria-label="분석 조건"]') !== null).toBe(true);
     expect(heading.parentElement?.className).toContain('flex-wrap');
   });
 

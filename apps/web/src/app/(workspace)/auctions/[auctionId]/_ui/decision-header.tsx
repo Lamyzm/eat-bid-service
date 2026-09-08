@@ -4,6 +4,8 @@
 import type { DecisionSearch } from '../_lib/decision-search-params';
 import type { OrgCadencePresentation } from '../_model/org-cadence';
 import type { DecisionPresentation } from '../_model/present-decision';
+import type { HistoryPresentation } from '../_model/attempt-history';
+import { DecisionFilters } from './decision-filters';
 
 // children을 별도 span으로 감싸 tail(꼬리 라벨·드롭다운 표시)이 붙어도 값 텍스트가 단독 노드로 남게 한다.
 function Chip({ children, tail, className = '', title }: {
@@ -47,10 +49,11 @@ export function summarizeItemLabel(label: string): ItemLabelSummary {
   return { text: `${parts[0]} 외 ${parts.length - 1}`, full: parts.join(', ') };
 }
 
-export function DecisionHeader({ decision, cadence, search }: {
+export function DecisionHeader({ decision, cadence, search, history }: {
   readonly decision: DecisionPresentation;
   readonly cadence: OrgCadencePresentation;
   readonly search: DecisionSearch;
+  readonly history?: HistoryPresentation;
 }) {
   const item = summarizeItemLabel(decision.itemLabelText);
   return (
@@ -59,6 +62,7 @@ export function DecisionHeader({ decision, cadence, search }: {
     // 첫 줄 오른쪽에 붙고 기간·모집단이 다음 줄로 내려가는 배치다. 사실 네 조각도 같은 이유로 한 span에
     // 잇지 않고 조각마다 직계 자식으로 둔다 — 소재지·회차·주기를 한 nowrap에 이으면 768에서 그 줄 하나가
     // 근거 열보다 길어진다.
+    <div className='grid min-w-0 gap-3'>
     <div className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2'>
       {/* 제목은 nowrap 대상이 아니다: 전역적으로 글자 잘림을 두지 않으므로 truncate 대신 줄바꿈을 허용한다.
           break-keep은 어절 안에서 끊지 않지만, 띄어쓰기 없는 긴 기관명은 어절 하나가 열보다 길 수 있어
@@ -69,9 +73,8 @@ export function DecisionHeader({ decision, cadence, search }: {
       <Fact>{cadence.attemptCountText}</Fact>
       {cadence.cadenceText ? <Fact tail={cadence.cadenceBasisText}>{cadence.cadenceText}</Fact> : null}
       <Chip tail='공고 기준' className='ml-auto' title={item.full ?? undefined}>{item.text}</Chip>
-      {/* 기간·모집단은 후속 슬라이스에서 드롭다운이 되므로 드롭다운 표시를 tail로 미리 붙인다. */}
-      <Chip tail='▾'>{search.period}</Chip>
-      <Chip tail='▾'>{search.scope}</Chip>
+    </div>
+      <DecisionFilters decision={decision} search={search} history={history} />
     </div>
   );
 }

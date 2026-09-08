@@ -1,6 +1,6 @@
 /** @module 책임: 공고 route의 ID 검증·조회·404 분기, 공고 응답이 있어야 만들 수 있는 회차 이력·분포의 병렬 조회와 세 presentation의 조립 순서를 소유한다. */
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
-import type { OrganizationAuctionAttemptsV1Response } from '@eatbid/contracts/api/v1/organizations';
+import type { OrganizationAuctionAttemptsV1Response, OrganizationAuctionAttemptsQuery } from '@eatbid/contracts/api/v1/organizations';
 import type {
   WinRateDistributionCohort,
   WinRateDistributionV1Response
@@ -8,17 +8,9 @@ import type {
 
 import type { DecisionSearch } from '../_lib/decision-search-params';
 import { presentHistory, type HistoryPresentation } from './attempt-history';
-import { cohortOf, periodOf } from './decision-cohort';
+import { cohortOf, historyCohortOf, normalizeItemParam, periodOf, type DistributionPeriod } from './decision-cohort';
 import { presentDecision, type DecisionPresentation } from './present-decision';
 import { presentDistribution, type DistributionPresentation } from './present-distribution';
-
-// query 계약의 item(positiveBigintTextSchema)과 같은 모양이다. URL에 남은 잘못된 값을 네트워크
-// 호출 전에 걸러 무효 요청을 보내지 않는다.
-const ITEM_ID_PATTERN = /^[1-9][0-9]{0,18}$/;
-
-function normalizeItemParam(item: string | null): string | null {
-  return item !== null && ITEM_ID_PATTERN.test(item) ? item : null;
-}
 
 /**
  * 과거 회차 모달이 cursor를 따라 더 부를 수 있는 페이지 상한. 첫 페이지 60행 × 10이면 계약 점 조회 상한
@@ -48,7 +40,7 @@ export type DistributionLoadResult =
       readonly presentation: DistributionPresentation;
       readonly response: WinRateDistributionV1Response;
     }
-  | { readonly state: 'locked'; readonly reason: 'missing-terms' | 'missing-axis' }
+  | { readonly state: 'locked'; readonly reason: 'missing-terms' | 'missing-axis' | 'unsupported-filter' }
   | { readonly state: 'unavailable' };
 
 export type DecisionPageData = {
@@ -63,16 +55,14 @@ export type DecisionAuctionRead =
   | { readonly kind: 'auction'; readonly response: AuctionV1Response }
   | { readonly kind: 'not-found' };
 
+// HTTP의 coerce 입력(unknown)을 내부 조회 port로 퍼뜨리지 않는다. 페이지 크기는 로더가 정수로 정한다.
+type HistoryReadInput = Omit<OrganizationAuctionAttemptsQuery, 'limit'> & { readonly organizationId: string; readonly limit?: number };
+
 type AuctionPageDependencies = {
   readonly parseAuctionId: (auctionId: string) => string;
   readonly getAuction: (input: { readonly auctionId: string }) => Promise<DecisionAuctionRead>;
   readonly now: () => string;
-  readonly listAttempts: (input: {
-    readonly organizationId: string;
-    readonly item?: string;
-    readonly cursor?: string;
-    readonly limit?: number;
-  }) => Promise<OrganizationAuctionAttemptsV1Response>;
+  readonly listAttempts: (input: HistoryReadInput) => Promise<OrganizationAuctionAttemptsV1Response>;
   readonly findDistribution: (
     input: WinRateDistributionCohort
   ) => Promise<WinRateDistributionV1Response>;
@@ -92,7 +82,7 @@ function normalizeHistoryPages(search: DecisionSearch): number {
 async function loadMorePages(
   first: OrganizationAuctionAttemptsV1Response,
   pageCount: number,
-  input: { readonly organizationId: string; readonly item: string | undefined },
+  input: Omit<HistoryReadInput, 'limit'>,
   dependencies: AuctionPageDependencies
 ): Promise<{ readonly merged: OrganizationAuctionAttemptsV1Response; readonly loadFailed: boolean }> {
   let merged = first;
@@ -112,12 +102,13 @@ async function loadMorePages(
 async function loadHistory(
   response: AuctionV1Response,
   search: DecisionSearch,
-  dependencies: AuctionPageDependencies
+  dependencies: AuctionPageDependencies,
+  period: DistributionPeriod
 ): Promise<HistoryLoadResult> {
   if (!response.organization) return { state: 'no-organization' };
 
   const item = normalizeItemParam(search.item);
-  const input = { organizationId: response.organization.organizationId, item: item ?? undefined };
+  const input = { organizationId: response.organization.organizationId, ...historyCohortOf(response, search, period) };
   try {
     const attempts = await dependencies.listAttempts({ ...input, limit: HISTORY_PAGE_LIMIT });
     const more = await loadMorePages(attempts, normalizeHistoryPages(search), input, dependencies);
@@ -137,9 +128,10 @@ async function loadHistory(
 async function loadDistribution(
   response: AuctionV1Response,
   search: DecisionSearch,
-  dependencies: AuctionPageDependencies
+  dependencies: AuctionPageDependencies,
+  period: DistributionPeriod
 ): Promise<DistributionLoadResult> {
-  const lock = cohortOf(response, search, periodOf(search.period, dependencies.now()));
+  const lock = cohortOf(response, search, period);
   if (lock.kind !== 'ready') return { state: 'locked', reason: lock.kind };
   const isRegionScope = search.scope === '도' || search.scope === '시군';
   try {
@@ -178,12 +170,15 @@ export async function loadAuctionPage(
   if (read.kind === 'not-found') return null;
   const { response } = read;
 
-  const decision = presentDecision(response, dependencies.now());
+  // 한 요청이 KST 월 경계를 지나도 표와 분포가 서로 다른 기간을 읽지 않게 clock을 한 번만 읽는다.
+  const now = dependencies.now();
+  const period = periodOf(search.period, now);
+  const decision = presentDecision(response, now);
   // 회차 이력과 분포는 서로 의존하지 않으므로 공고 조회 뒤 한 번에 부른다. 순차로 부르면 첫 로드가
   // 두 왕복만큼 늦어진다.
   const [history, distribution] = await Promise.all([
-    loadHistory(response, search, dependencies),
-    loadDistribution(response, search, dependencies)
+    loadHistory(response, search, dependencies, period),
+    loadDistribution(response, search, dependencies, period)
   ]);
   return { decision, history, distribution };
 }

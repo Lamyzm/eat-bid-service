@@ -6,14 +6,11 @@ import { sampleSizeText } from '../../_model/sample-size';
 import { DistributionHeatmap } from '../distribution-heatmap';
 import {
   DISTRIBUTION_PENDING_REASON,
-  EXPAND_PENDING_REASON,
   HISTORY_PENDING_REASON,
   PendingBody
 } from '../evidence-tabs';
-// 범례는 계열 토글이라 client 모듈이 소유한다(EAT-89). 모달과 탭이 같은 토글 상태를 공유한다.
-import { FlowLegend } from '../flow-legend';
 import { ExpandDialog } from './expand-dialog';
-import { FlowExpand } from './flow-expand';
+
 import { HistoryExpand } from './history-expand';
 import { loadedRangeText } from './history-range';
 
@@ -30,10 +27,8 @@ type ExpandContent = {
 // 시안 제목을 따르되 "탈락"은 소스 판정 코드에 없는 판정어라 쓰지 않는다(verdict-vocabulary.ts).
 const TITLE: Record<DecisionExpand, string> = {
   '과거 회차': '과거 회차',
-  비교집단: '비교집단 · 달마다 어디에 몰렸나',
-  흐름: '회차별 흐름',
-  '그날 하한': '그날 하한 위 자리',
-  업체: '참여 업체'
+  비교집단: '낙찰값 분포 · 달마다 어디에 몰렸나',
+  흐름: '기관별 흐름'
 };
 
 function historyContent(history: HistoryState, decision: DecisionPresentation, search: DecisionSearch): ExpandContent {
@@ -45,8 +40,7 @@ function historyContent(history: HistoryState, decision: DecisionPresentation, s
   return {
     title: TITLE['과거 회차'],
     subtitle: [`${presentation.sampleCount.toLocaleString('ko-KR')}회`, range].filter((part) => part !== null).join(' · '),
-    // 마지막 두 열은 원본 판정이 아니라 내 값과의 비교다. 표 안쪽 카드와 같은 문장으로 말한다.
-    note: '마지막 두 열은 지금 값을 그때 냈다고 치고 계산한 것입니다. 실제로 낸 적은 없습니다.',
+    note: null,
     body: (
       <HistoryExpand
         auctionId={decision.identity.auctionId}
@@ -78,34 +72,8 @@ function cohortContent(distribution: DistributionState, search: DecisionSearch):
   };
 }
 
-function flowContent(history: HistoryState, search: DecisionSearch): ExpandContent {
-  const title = TITLE.흐름;
-  if (history.state !== 'ready') {
-    return { title, subtitle: null, note: null, body: <PendingBody reason={HISTORY_PENDING_REASON[history.state]} /> };
-  }
-  const { presentation } = history;
-  return {
-    title,
-    subtitle: `${presentation.selectedItem?.label ?? '품목 전체'} · 표본 ${presentation.sampleCount.toLocaleString('ko-KR')}회`,
-    note: '회차마다 낙찰된 사정률입니다. 굵은 선이 내 값이고 아래 막대는 그 회차의 명단 수입니다.',
-    body: (
-      <div className='grid min-w-0 gap-3'>
-        <div className='flex flex-wrap items-center'>
-          <FlowLegend />
-        </div>
-        <FlowExpand presentation={presentation} myRate={search.myRate} />
-      </div>
-    )
-  };
-}
-
-function pendingContent(expand: '그날 하한' | '업체'): ExpandContent {
-  // 계약이 없는 본문은 모달을 열어도 무엇이 올 자리인지와 수집 전임만 말한다. 빈 모달은 고장으로 읽힌다.
-  return { title: TITLE[expand], subtitle: null, note: null, body: <PendingBody reason={EXPAND_PENDING_REASON[expand]} /> };
-}
-
 function contentOf(
-  expand: DecisionExpand,
+  expand: Exclude<DecisionExpand, '흐름'>,
   input: {
     readonly decision: DecisionPresentation;
     readonly search: DecisionSearch;
@@ -118,11 +86,6 @@ function contentOf(
       return historyContent(input.history, input.decision, input.search);
     case '비교집단':
       return cohortContent(input.distribution, input.search);
-    case '흐름':
-      return flowContent(input.history, input.search);
-    case '그날 하한':
-    case '업체':
-      return pendingContent(expand);
   }
 }
 
@@ -138,7 +101,8 @@ export function DecisionExpand({
   readonly history: HistoryState;
   readonly distribution: DistributionState;
 }) {
-  if (search.expand === null) return null;
+  // 흐름 확대는 현재 DecisionFrame을 넓힌다. 동일 차트를 모달에 복제하면 선택·범위가 서로 갈라진다.
+  if (search.expand === null || search.expand === '흐름') return null;
   const content = contentOf(search.expand, { decision, search, history, distribution });
   return (
     // 본문이 바뀌면 셸의 로컬 닫힘 상태도 버려야 하므로 key로 다시 만든다.
