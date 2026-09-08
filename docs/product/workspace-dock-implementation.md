@@ -50,7 +50,7 @@
 - [x] 기존 공고 UI 테스트와 새 선택 상태 테스트, TypeScript, scoped lint, quality와 web boundary를 실행한다.
 - [x] dev 실데이터에서 회차 5274/5271 선택, 현재 공고 전환, 닫기·재열기, 모바일 Escape를 확인한다.
 - [x] 확대 차트·표 스크롤의 유지, 1199/1200px 전환, 375px 가로 넘침을 확인한다.
-- [ ] canonical AI advisory를 읽고 실제 근거와 대조한 결과를 작업 기록에 남긴다.
+- [x] canonical AI advisory를 읽고 실제 근거와 대조한 결과를 작업 기록에 남긴다.
 
 ## 다음 데이터 단위
 
