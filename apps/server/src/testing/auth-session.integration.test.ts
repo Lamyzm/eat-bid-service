@@ -5,6 +5,18 @@ import { createTestAuth, signInThroughAdapter, sqlLiteral } from "../../fixtures
 
 type Owner = { unsafe: (query: string) => Promise<Array<Record<string, unknown>>> };
 
+function cookieHeader(value: string): Headers {
+  const headers = new Headers();
+  headers.set("cookie", value);
+  return headers;
+}
+
+/** 서명은 쿠키 값 끝에 붙는다. 마지막 한 자리만 바꿔 토큰과 이름은 그대로 두고 서명만 무효로 만든다. */
+function withBrokenSignature(cookie: string): string {
+  const last = cookie.at(-1);
+  return `${cookie.slice(0, -1)}${last === "A" ? "B" : "A"}`;
+}
+
 async function sessionRow(owner: Owner, token: string) {
   const [row] = await owner.unsafe(`
     select "expiresAt"::text as expires_at, "updatedAt"::text as updated_at
@@ -117,21 +129,27 @@ describe("실제 Better Auth adapter와 세션 수명", () => {
     });
   }, 300_000);
 
-  test("로그아웃한 세션과 서명 없는 쿠키는 미로그인이다", async () => {
+  test("살아 있는 세션도 서명이 유효한 쿠키만 통과하고 로그아웃하면 그 쿠키가 거부된다", async () => {
     await withAccountDatabase(async ({ api }) => {
       const { auth } = createTestAuth(api);
       const session = await signInThroughAdapter(auth, { email: "signout@example.com" });
       const authenticator = createBetterAuthSessionAuthenticator(auth);
+      // 이름을 테스트가 다시 적으면 provider 기본값으로 되돌아가도 검사가 통과한다. 실제로 읽는 이름을 쓴다.
+      const cookieName = (await auth.$context).authCookies.sessionToken.name;
+      const signed = session.headers.get("cookie")!;
+
+      expect(signed.startsWith(`${cookieName}=`)).toBe(true);
       expect(await authenticator.authenticate(session.headers)).not.toBeNull();
+
+      // 아래 둘은 DB에 살아 있는 바로 그 세션이다. 서명 검증이 사라지면 저장소 조회가 성공해 통과한다.
+      expect(await authenticator.authenticate(cookieHeader(`${cookieName}=${session.token}`))).toBeNull();
+      expect(await authenticator.authenticate(cookieHeader(withBrokenSignature(signed)))).toBeNull();
+      expect(await authenticator.authenticate(new Headers())).toBeNull();
 
       await auth.api.signOut({ headers: session.headers });
 
+      // 서명이 여전히 유효한 원래 쿠키다. 로그아웃은 그 서명이 아니라 저장된 세션을 없앤다.
       expect(await authenticator.authenticate(session.headers)).toBeNull();
-      expect(await authenticator.authenticate(new Headers())).toBeNull();
-      const forged = new Headers();
-      // 서명 없는 값은 세션이 아니다. 토큰 문자열을 아는 것만으로는 통과하지 못한다.
-      forged.set("cookie", `eatbid.session_token=${session.token}`);
-      expect(await authenticator.authenticate(forged)).toBeNull();
     });
   }, 300_000);
 

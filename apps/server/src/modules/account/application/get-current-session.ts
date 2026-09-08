@@ -6,14 +6,13 @@
  */
 import { type CurrentSessionV1Response } from "@eatbid/contracts";
 import { Effect } from "effect";
-import { maskEmail } from "../../../platform/auth/auth-identity";
 import type { PrincipalReader } from "../../../platform/auth/principal-reader";
 import {
   AuthDependencyUnavailable,
   type SessionAuthenticator,
 } from "../../../platform/auth/session-authenticator";
 import { AccountDependencyUnavailable } from "./account-repository";
-import { toWorkspaceSummary } from "./account-presentation";
+import { toAccountLabel, toWorkspaceSummary } from "./account-presentation";
 
 export class GetCurrentSession {
   constructor(
@@ -35,10 +34,7 @@ export class GetCurrentSession {
     }).pipe(
       Effect.flatMap((subject) => {
         if (subject === null) return Effect.succeed<CurrentSessionV1Response>({ state: "unauthenticated" });
-        const account = {
-          displayName: subject.displayName,
-          maskedEmail: maskEmail(subject.email),
-        };
+        const account = toAccountLabel(subject);
         return Effect.tryPromise({
           try: () => this.reader.findBySubject(subject.subject),
           catch: (cause) => new AccountDependencyUnavailable(cause),
