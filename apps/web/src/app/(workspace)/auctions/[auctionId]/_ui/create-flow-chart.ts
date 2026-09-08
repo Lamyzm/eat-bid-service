@@ -60,6 +60,7 @@ export function createFlowChart(element: HTMLElement, model: FlowChartModel, onI
     onInspect(candidates.length === 1 ? candidates : points, true);
   };
   chart.subscribeClick(inspect);
+  // 후보 버튼은 캔버스 밖에 있다. 이탈 즉시 지우면 같은 날짜에 겹친 회차를 버튼으로 선택할 수 없다.
   chart.subscribeCrosshairMove((event) => { if (typeof event.time === 'number') onInspect((byDay.get(event.time) ?? []).filter(isVisible), false); });
   chart.timeScale().fitContent();
   if (model.initialRange) chart.priceScale('right').setVisibleRange(model.initialRange);

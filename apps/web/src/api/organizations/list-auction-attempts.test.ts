@@ -57,6 +57,40 @@ function requestDouble(
 }
 
 describe('기관 회차 이력 resource 조회', () => {
+  test('응답 조건이 있어도 요청의 하한율·낙찰 방식·기간과 다르면 거부한다', async () => {
+    const request = requestDouble(async () => ({
+      ...validAttempts,
+      meta: { ...validAttempts.meta, cohort: {
+        floorRate: { kind: 'exact', value: { value: '88.000', unit: 'percentage-points' } },
+        awardMethod: { kind: 'exact', codeValueId: '31' },
+        period: { from: '2021-10', to: '2026-09' }
+      } }
+    }));
+    for (const condition of [
+      { floorRate: '90.000' }, { floorRate: 'all' }, { floorRate: 'unknown' },
+      { awardMethod: '32' }, { awardMethod: 'all' }, { awardMethod: 'unknown' },
+      { from: '2022-10', to: '2026-09' }, { from: '2021-10', to: '2026-08' }
+    ]) {
+      await expect(listOrganizationAuctionAttemptsWith(request, { organizationId: '3101', ...condition }))
+        .rejects.toThrow('요청한 비교 조건의 적용 여부를 확인할 수 없습니다.');
+    }
+  });
+
+  test('정확한 값·전체·미확인 조건이 일치한 응답은 각각 보존한다', async () => {
+    for (const condition of ['all', 'unknown', 'exact'] as const) {
+      const response: OrganizationAuctionAttemptsV1Response = { ...validAttempts, meta: { ...validAttempts.meta, cohort: {
+        floorRate: condition === 'exact' ? { kind: 'exact', value: { value: '88.000', unit: 'percentage-points' } } : { kind: condition },
+        awardMethod: condition === 'exact' ? { kind: 'exact', codeValueId: '31' } : { kind: condition },
+        period: { from: '2021-10', to: '2026-09' }
+      } } };
+      const request = requestDouble(async () => response);
+      await expect(listOrganizationAuctionAttemptsWith(request, {
+        organizationId: '3101', floorRate: condition === 'exact' ? '88.000' : condition,
+        awardMethod: condition === 'exact' ? '31' : condition, from: '2021-10', to: '2026-09'
+      })).resolves.toEqual(response);
+    }
+  });
+
   test('새 비교 조건을 보냈는데 조건 증거가 없는 구버전 응답이면 필터 결과로 받아들이지 않는다', async () => {
     const request = requestDouble(async () => validAttempts);
     await expect(listOrganizationAuctionAttemptsWith(request, { organizationId: '3101', floorRate: '88.000' })).rejects.toThrow('요청한 비교 조건의 적용 여부를 확인할 수 없습니다.');
