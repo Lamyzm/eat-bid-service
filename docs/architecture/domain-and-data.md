@@ -136,6 +136,27 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
 업체명(`SHIPPER_NM`)은 기관명과 같은 규칙이다. `language='und'`인 code label 관측으로 남고
 `supplier_party.canonical_name`으로 승격하지 않는다. 이름이 바뀌어도 정체성은 바뀌지 않는다.
 
+#### 워크스페이스가 등록한 사업자
+
+`app.workspace_supplier`는 **사용자 작성 상태**이지 관측 사실이 아니다. 사용자가 "내 화면의 기준을 이
+사업자로 놓아 달라"고 적어 둔 것이며 법적 소유권 증명이 아니다. 소유권 경계와 근거는
+[ADR 0032](../adr/0032-authentication-and-authorization-boundary.md) §7이 정한다.
+
+- 등록 입력은 사업자등록번호 문자열이지만 정체성은 `workspace_supplier_id bigint`다. `core` 연결은
+  `supplier_party_id bigint`이며 대조는 `eat:business-number` scheme의 정확한 번호 일치 하나다.
+- **관측되지 않은 번호도 등록은 보존한다.** 대조에 실패하면 `supplier_party_id`는 `null`이고 사용자가 넣은
+  번호는 `app`에 남는다. 사용자 입력으로 `core.supplier_party`나 `core.code_value`를 만들지 않는다(규칙 1·3).
+  "원본에서 아직 관측되지 않음"과 "참여하지 않음"은 서로 다른 사실이며 화면과 응답에서 구분한다.
+- **활성 등록의 유일성은 워크스페이스 안에서만 강제한다.** `revoked_at is null`인 행에 대해
+  `(workspace_id, business_number)` 부분 unique를 건다. 같은 번호를 서로 다른 워크스페이스가 등록하는
+  것은 충돌이 아니다. 사업자등록번호는 공개 정보라 전역 선착순 잠금은 방어가 아니라 서비스 거부다.
+- 비공개 자료의 격리는 등록이 아니라 `workspace_membership`이 한다.
+
+사업자별 위치도 같은 성격의 `app` 상태다. `app.workspace_supplier_location`은 사용자가 적은 주소 문장
+하나(`address_text`)만 보존하고, 위치 미설정은 **행이 없는 것**이다. 행정구역 코드 열도 좌표 열도 두지
+않는다. 채울 출처가 없는 열은 결국 주소 문자열 파싱으로 채워지고 그 추측이 §4.2의 행정안전부 체계와
+같은 자리에 앉는다(규칙 6). 주소 검색과 지도 위 점은 정확한 좌표 출처를 확인한 뒤 열을 함께 추가한다.
+
 ### 3.4 BidSubmission과 AwardDecision
 
 `won boolean`으로 개찰 사실을 축약하지 않는다.
@@ -231,6 +252,12 @@ unique(workspace_id, supplier_party_id, auction_attempt_id)
 `recorded_value`는 사용자가 eatbid에 적어둔 판단이고, 실제 제출은 `BidSubmission`에서만
 관측한다. “NeaT 입력 확인” 역시 사용자 확인 이벤트이지 source-observed submission이 아니다.
 
+화면도 이 둘을 같은 이름으로 부르지 않는다. 결정 화면 흐름 차트의 “내 값”은 사용자가 URL에 놓은 입력이고
+(`apps/web/src/app/(workspace)/auctions/[auctionId]/_model/flow-series.ts`), “실제 내 투찰”은 등록된 사업자의
+`core.bid_submission` 관측이다. 실제 투찰을 같은 눈금에 올리려면 같은 회차 revision, 같은 낙찰 방식 코호트,
+같은 분모(예정가격 기준 사정률)로 조회해야 한다. 분모나 revision이 다른 값을 한 계열로 그리면 사용자는
+자기 제출이 아닌 숫자를 자기 제출로 읽는다.
+
 ### 3.6 Principal과 Workspace identity
 
 인증 제공자의 계정 식별자와 eatbid application identity를 분리한다.
@@ -248,6 +275,14 @@ FK로 사용하지 않는다. `packages/shared`의 기존 문자열 user/workspa
 `app.workspace_membership`만 만든다. 네 테이블의 PK/FK는 모두 PostgreSQL bigint이고,
 `identity_subject`만 `(provider, issuer, subject)`를 보존해 bigint `principal_id`에 연결한다.
 API role은 이 application-owned 테이블만 읽고 쓸 수 있으며 schema 생성 권한은 갖지 않는다.
+
+**워크스페이스는 첫 저장이 만든다.** 혼자 쓰는 사용자에게 조직 생성 화면을 먼저 보이지 않되 관계는
+그대로 둔다. `principal`과 `identity_subject`는 로그인 경로에서 만들고, `workspace`와 `owner` membership은
+사용자가 첫 사업자를 저장하는 command 안에서 같은 트랜잭션으로 만든다. 안전해야 할 세션 조회(GET)가
+행을 만들지 않게 하기 위한 것이다. 동시 첫 저장 두 건이 워크스페이스를 둘 만들지 않도록
+`workspace_membership`에 `(principal_id) where role = 'owner'` 부분 unique를 두고, `role`은 `owner|member`
+check로 좁힌다. 애플리케이션 선검사만으로는 서로의 미커밋 행을 보지 못해 막을 수 없다. 상세는
+[ADR 0032](../adr/0032-authentication-and-authorization-boundary.md) §3·§8을 따른다.
 
 JSON은 bigint를 직접 표현하지 못하므로 HTTP path/response에서는 내부 ID를 선행 0 없는 양의 10진 문자열로
 인코딩하되 PostgreSQL signed bigint 최대값 `9223372036854775807`을 넘지 않는다. presentation boundary가

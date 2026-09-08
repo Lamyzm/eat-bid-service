@@ -38,7 +38,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0029](0029-eat-v2-bid-list-contract.md) | Accepted | `eat-v2` 상세 계약에 `ds_bidList` 블록 (`eat-v1` 은 유지) |
 | [0030](0030-competitor-count-is-the-primary-material.md) | Accepted | 화면의 주인공을 경쟁자 수와 승률 곡선으로 (학교별 추이는 내리지 않고 자리만 뒤로) |
 | [0031](0031-decision-screen-frontend-rendering.md) | Accepted | 결정 화면의 상태 소유(nuqs)·직접 그린 차트·headless 표·측정 후 가상화 |
-| [0032](0032-authentication-and-authorization-boundary.md) | Proposed | 인증·인가 경계: Nest가 Better Auth를 마운트, principal bigint, 역할 owner|member, 운영자 부여 이력, 권한 7단계 |
+| [0032](0032-authentication-and-authorization-boundary.md) | Proposed | 인증·인가 경계: Nest가 Better Auth를 마운트, principal bigint, 역할 owner\|member, 등록된 사업자는 워크스페이스 안에서만 유일(전역 선점 철회), 첫 저장이 개인 워크스페이스를 만든다 |
 | [0033](0033-bid-submission-partitioning-and-supplier-core.md) | Accepted | 투찰·낙찰·업체 core 테이블 다섯, `core.bid_submission`의 개찰 연도 range 파티션, `auction.v2` 발행 개방 |
 | [0034](0034-mart-build-identity-and-atomic-activation.md) | Accepted | `mart.build` 빌드 원장, partial unique index 활성 포인터와 상태 trigger, mart 단위 전량 재빌드, build 속성으로서의 지역 코드 체계 |
 | [0035](0035-administrative-region-canonical-and-mapping.md) | Accepted | 행정안전부 법정동코드 canonical, 시도·시군구 grain, release별 계층, 별도 표의 좌표, 증거 기반 eaT 매핑 |
