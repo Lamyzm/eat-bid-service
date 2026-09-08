@@ -1,0 +1,101 @@
+/** @module 책임: 배치 비교용으로만 쓰는 가상 공고·사업자·회차 fixture를 공급하며 실제 데이터와 분리한다. */
+import type { HistoryRow } from "../../../../apps/web/src/app/(workspace)/auctions/[auctionId]/_model/attempt-history";
+
+// 배치 검토 전용 fixture다. 실제 공고·수집 범위·업체·참가자격을 뜻하지 않는다.
+export const notices = [
+  {
+    id: 1,
+    organization: "가람고등학교",
+    item: "축산물",
+    region: "경남",
+    deadline: "오늘 14:00",
+    amount: "32,460,000",
+    status: "검토 중",
+  },
+  {
+    id: 2,
+    organization: "온빛중학교",
+    item: "공산품",
+    region: "경남",
+    deadline: "오늘 16:00",
+    amount: "24,800,000",
+    status: "새 공고",
+  },
+  {
+    id: 3,
+    organization: "다솜학교 공동구매",
+    item: "축산물",
+    region: "부산",
+    deadline: "내일 10:00",
+    amount: "58,200,000",
+    status: "변경 확인",
+  },
+  {
+    id: 4,
+    organization: "한결초등학교",
+    item: "공산품",
+    region: "서울",
+    deadline: "내일 12:00",
+    amount: "18,650,000",
+    status: "검토 전",
+  },
+  {
+    id: 5,
+    organization: "새솔고등학교",
+    item: "축산물",
+    region: "경북",
+    deadline: "9.10 10:00",
+    amount: "41,270,000",
+    status: "검토 전",
+  },
+];
+const samples = [
+  ["2025-09-02", 20333, "88.164", "88.192", 32],
+  ["2025-10-02", 20363, "88.237", "88.261", 28],
+  ["2025-11-03", 20395, "88.113", "88.156", 35],
+  ["2025-12-02", 20424, "88.294", "88.320", 30],
+  ["2026-01-05", 20458, "88.189", "88.212", 27],
+  ["2026-02-03", 20487, "88.072", "88.098", 31],
+  ["2026-03-03", 20515, "88.205", "88.232", 33],
+  ["2026-04-02", 20545, "88.152", "88.173", 29],
+  ["2026-05-04", 20577, "88.268", "88.281", 34],
+  ["2026-06-02", 20606, "88.127", "88.148", 36],
+  ["2026-07-02", 20636, "88.214", "88.239", 32],
+  ["2026-08-03", 20668, "88.178", "88.195", 30],
+] as const;
+export const history: HistoryRow[] = samples.map(([day, ordinal, win, second, count], index) => ({
+  attemptId: String(100 + index),
+  openedAt: `${day}T02:00:00Z`,
+  announcedAt: `${day}T00:00:00Z`,
+  openedText: day.slice(2),
+  openedYear: day.slice(0, 4),
+  openedMonthText: day.slice(2, 7),
+  openedMonth: day.slice(0, 7),
+  openedKstDay: ordinal,
+  itemLabel: "축산물",
+  floorRateText: "88.000",
+  baseAmountText: "32,460,000원",
+  itemCodeValueId: "1",
+  awardMethodCodeValueId: "1",
+  winRateText: win,
+  winRateMilli: null,
+  awardedBidRateText: null,
+  awardedBidRateMilli: null,
+  secondRateText: second,
+  dayFloorText: null,
+  dayFloorMilli: null,
+  winnerText: "예시 업체",
+  listCount: count,
+  belowDayFloorCount: null,
+  isSelectedItem: true,
+}));
+export type Scene = "home" | "explore" | "work" | "results" | "analysis" | "settings";
+export type Panel = "saved" | "recent" | "mine" | "record" | "notice" | null;
+export const sceneLabels: Record<Scene, string> = {
+  home: "홈",
+  explore: "탐색",
+  work: "내 투찰",
+  results: "결과",
+  analysis: "공고 분석",
+  settings: "설정",
+};
