@@ -39,8 +39,9 @@ export const decisionSearchParsers = {
   // 기본값을 두지 않아 닫힌 상태는 주소에 남지 않는다.
   expand: parseAsStringLiteral(DECISION_EXPANDS),
   /**
-   * 과거 회차 모달이 cursor를 따라 이어 붙인 페이지 수. 서버가 페이지를 부르므로(`presentHistory`의 Temporal을
+   * 과거 회차 조회가 cursor를 따라 이어 붙인 페이지 수. 서버가 페이지를 부르므로(`presentHistory`의 Temporal을
    * client bundle에 넣지 않는다) "더 불러오기"는 이 값을 하나 올린 주소다. 상한·정수 검증은 loader가 한다.
+   * 확대를 닫아도 남는다 — 이어 붙인 회차와 그 회차의 선택이 확대 여부에 매달리면 안 된다(EAT-115).
    * nuqs는 이 property 이름을 URL key로 쓰므로 `decisionQuery`가 쓰는 `pages`와 같은 이름이어야 한다.
    */
   pages: parseAsInteger.withDefault(1)
@@ -73,9 +74,10 @@ function decisionQuery(search: DecisionSearch): URLSearchParams {
   if (search.myRate !== null) query.set('myRate', search.myRate);
   if (search.rate !== null) query.set('rate', search.rate);
   if (search.expand !== null) query.set('expand', search.expand);
-  // 페이지 수는 과거 회차 모달 안에서만 뜻이 있다. 다른 본문·닫힌 상태의 주소에 끌고 다니면 다시 열 때
-  // 옛 페이지 수가 되살아난다.
-  if (search.expand === '과거 회차' && search.pages > 1) query.set('pages', String(search.pages));
+  // 페이지 수는 "확대가 열렸다"가 아니라 "이 조회가 이어 붙인 표본 크기"다. 확대를 닫을 때 이 값을
+  // 지우면 불러온 회차와 그 회차를 고른 선택이 함께 사라진다(EAT-115). 조건이 바뀌면 조회 자체가
+  // 달라지므로 `buildDecisionFilterRoute`가 1로 되돌린다.
+  if (search.pages > 1) query.set('pages', String(search.pages));
   return query;
 }
 
@@ -91,7 +93,7 @@ export function buildDecisionViewRoute(auctionId: string, search: DecisionSearch
   return `${pathname}?${query.toString()}`;
 }
 
-/** 과거 회차 모달의 다음 페이지 링크. 모달 본문은 그대로 두고 페이지 수만 바꾼다. */
+/** 과거 회차 확대의 다음 페이지 링크. 열린 본문은 그대로 두고 페이지 수만 바꾼다. */
 export function buildDecisionHistoryPagesRoute(auctionId: string, search: DecisionSearch, pages: number): DecisionRoute {
   return buildDecisionViewRoute(auctionId, { ...search, expand: '과거 회차', pages }, search.view);
 }

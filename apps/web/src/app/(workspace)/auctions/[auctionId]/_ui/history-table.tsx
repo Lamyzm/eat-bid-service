@@ -1,4 +1,4 @@
-/** @module 책임: 기관 회차 이력 최근 12회를 비교 표로 제공하고 사용자가 값을 입력했을 때만 가정 계산 열을 붙인다. */
+/** @module 책임: 기관 회차 이력을 일반·확대 어디서나 같은 열·정렬·기록 진입으로 그리고 사용자가 값을 입력했을 때만 가정 계산 열을 붙인다. 몇 행을 넘길지는 상위 composition이 정한다. */
 'use client';
 
 import {
@@ -13,7 +13,6 @@ import { useAttemptSelection } from './attempt-selection';
 
 import type { HistoryRow } from '../_model/attempt-history';
 import { toMilli } from '../_model/bid-rate';
-import { HISTORY_WINDOW_LIMIT } from '../_model/history-window';
 import { judgeRow, type RowVerdict } from '../_model/rehearsal';
 import { NO_RATE_PHRASE, ROW_VERDICT_PHRASE } from '../_model/verdict-vocabulary';
 import { useBidRate } from './bid-rate-context';
@@ -51,33 +50,52 @@ const VERDICT_TEXT: Record<RowVerdict, string> = {
 // 첫 열(개찰)과 마지막 열(판정)은 표가 근거 열보다 넓을 때 양 끝에 고정된다. 고정 열이 아래 열을 덮으므로
 // 바탕이 불투명해야 한다. 판정 열의 primary 10% 기운을 반투명 `bg-primary/10`으로 두면 덮인 글자가 비치므로
 // 카드색과 미리 섞은 불투명 색 하나만 건다(다른 bg-* 유틸리티와 함께 두면 stylesheet 순서가 이긴다).
-const STICKY_CLASS: Record<string, string> = {
-  opened: 'sticky left-0 z-10 bg-card',
-  verdict: 'sticky right-0 z-10 bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))]'
+const STICKY_EDGE: Record<string, string> = { opened: 'left-0', verdict: 'right-0' };
+const STICKY_BACKGROUND: Record<string, string> = {
+  verdict: 'bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))]'
 };
 const OPENED_EDGE_SHADOW = 'shadow-[14px_0_14px_-10px_rgb(0_0_0/0.3)]';
 const VERDICT_EDGE_SHADOW = 'shadow-[-14px_0_14px_-10px_rgb(0_0_0/0.3)]';
 
 type ScrollEdges = { readonly left: boolean; readonly right: boolean };
 
-// 컨테이너가 가로로 넘칠 때만 고정 열 안쪽에 그림자를 걸어 "이 밑에 열이 더 있다"를 알린다. 넘치지 않으면
-// 아무 힌트도 없어야 표가 열에 맞는 폭에서 장식이 남지 않는다(EAT-86).
-function useScrollEdges() {
+/**
+ * 이 표 컨테이너의 스크롤 상태 하나를 소유한다.
+ *
+ * 가로: 넘칠 때만 고정 열 안쪽에 그림자를 걸어 "이 밑에 열이 더 있다"를 알린다. 넘치지 않으면 아무 힌트도
+ * 없어야 표가 열에 맞는 폭에서 장식이 남지 않는다(EAT-86).
+ *
+ * 세로: 확대를 닫으면 12행만 남아 컨테이너가 더 이상 세로로 넘치지 않고, 그 순간 브라우저가 `scrollTop`을
+ * 0으로 잘라 버린다. 다시 확대해도 두 번째 페이지에서 보던 자리를 잃으므로, 넘치는 동안의 위치를 기억했다가
+ * 다시 넘치게 되는 전환에서만 되돌린다. 사용자가 맨 위로 올린 것도 0으로 기억하므로 임의로 끌어내리지 않는다.
+ * 조회 조건이 바뀌면 다른 집단이라 기억을 물려받으면 안 되는데, 그 초기화는 `HistoryCard`가 코호트 key로
+ * 이 컴포넌트를 다시 만들어 처리한다(EAT-115).
+ */
+function useTableScroll() {
   const ref = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState<ScrollEdges>({ left: false, right: false });
+  const rememberedTop = useRef(0);
+  const wasScrollable = useRef(false);
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
     const update = () => {
       const left = node.scrollLeft > 1;
       const right = node.scrollLeft + node.clientWidth < node.scrollWidth - 1;
+      const scrollable = node.scrollHeight > node.clientHeight + 1;
+      if (scrollable) {
+        if (wasScrollable.current) rememberedTop.current = node.scrollTop;
+        else node.scrollTop = Math.min(rememberedTop.current, node.scrollHeight - node.clientHeight);
+      }
+      wasScrollable.current = scrollable;
       setEdges((previous) =>
         previous.left === left && previous.right === right ? previous : { left, right }
       );
     };
     update();
     node.addEventListener('scroll', update, { passive: true });
-    // 폭은 viewport뿐 아니라 손잡이 값(머리글 길이)·행 데이터로도 바뀌므로 컨테이너와 표 둘 다 관측한다.
+    // 폭·높이는 viewport뿐 아니라 손잡이 값(머리글 길이)·행 수·집중 모드 전환으로도 바뀌므로 컨테이너와 표
+    // 둘 다 관측한다. 확대 전환도 이 관측으로 도착하므로 별도 mode prop이 필요 없다.
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
     observer?.observe(node);
     if (node.firstElementChild) observer?.observe(node.firstElementChild);
@@ -89,11 +107,17 @@ function useScrollEdges() {
   return { ref, edges };
 }
 
-function edgeClass(columnId: string, edges: ScrollEdges) {
-  const sticky = STICKY_CLASS[columnId];
-  if (!sticky) return '';
-  if (columnId === 'opened') return `${sticky} ${edges.left ? OPENED_EDGE_SHADOW : ''}`;
-  return `${sticky} ${edges.right ? VERDICT_EDGE_SHADOW : ''}`;
+// 열 머리는 세로로도 고정한다. 확대 집중 모드의 긴 표가 안에서 스크롤할 때 열 이름이 남아야 하고,
+// 12행 표에는 세로 스크롤이 없어 보이는 차이가 없으므로 모드 boolean을 두지 않는다. 양 끝 고정 열은
+// 두 축이 만나는 모서리라 나머지 머리(z-20)와 본문 고정 셀(z-10)보다 위에 있어야 서로 덮지 않는다.
+function edgeClass(columnId: string, edges: ScrollEdges, isHeader: boolean) {
+  const edge = STICKY_EDGE[columnId];
+  if (!edge) return isHeader ? 'sticky top-0 z-20 bg-card' : '';
+  const shadow = columnId === 'opened'
+    ? (edges.left ? OPENED_EDGE_SHADOW : '')
+    : (edges.right ? VERDICT_EDGE_SHADOW : '');
+  const background = STICKY_BACKGROUND[columnId] ?? 'bg-card';
+  return `sticky ${edge} ${isHeader ? 'top-0 z-30' : 'z-10'} ${background} ${shadow}`;
 }
 
 const VERDICT_CLASS: Record<RowVerdict, string> = {
@@ -106,6 +130,7 @@ const VERDICT_CLASS: Record<RowVerdict, string> = {
 // 참여 수는 관측 사실이고 기록 열람은 사용자의 행동이다. 숫자 자체를 링크로 두면 무엇이 열리는지
 // 이름이 없어 작은 숫자를 눌러야 알 수 있으므로, 수는 그대로 두고 진입만 이름이 보이는 버튼으로
 // 분리한다. 화면 이름은 짧게 두되 aria-label은 어느 회차인지 말하도록 개찰일을 유지한다(EAT-115).
+// 하한 아래 수 같은 내부 세부는 주 표에서 걷고 오른쪽 명단 상세에서 실제 상태와 함께 읽는다.
 function ListCell({
   row,
   onOpen
@@ -116,11 +141,6 @@ function ListCell({
   return (
     <span className='flex items-center justify-end gap-2'>
       <span className='tabular-nums'>{row.listCount ?? '—'}</span>
-      {row.belowDayFloorCount === null ? null : (
-        <span className='text-[13px] font-medium text-muted-foreground'>
-          하한 아래 {row.belowDayFloorCount}
-        </span>
-      )}
       <Button
         variant='link'
         size='sm'
@@ -176,66 +196,65 @@ function useHistoryColumns(
   );
 }
 
+/** 응답의 최근 → 오래된 순을 그대로 그린다. 몇 행을 넘길지(일반 12행 / 확대 누적)는 `HistoryCard`가 정하고
+ * 열 클릭 정렬은 넣지 않는다. 여기서 다시 자르면 확대에서 같은 표를 쓸 수 없다(EAT-115). */
 export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] }) {
   const selection = useAttemptSelection();
   const { rate } = useBidRate();
   const rateMilli = rate === null ? null : toMilli(rate);
-  // 응답이 최근 → 오래된 순이라 그대로 앞에서 잘라 최근 12회가 된다. 열 클릭 정렬은 넣지 않는다.
-  const data = useMemo(() => rows.slice(0, HISTORY_WINDOW_LIMIT), [rows]);
+  const data = useMemo(() => [...rows], [rows]);
   const columns = useHistoryColumns(rateMilli, rate, selection.select);
   // oxlint-disable-next-line react/incompatible-library -- headless table 인스턴스는 함수를 돌려주지만 React Compiler는 annotation mode라 이 컴포넌트를 메모하지 않는다(apps/web AGENTS.md). "use memo"를 붙일 때 이 표를 함께 검증한다.
   const table = useReactTable({ data, columns, state: { columnVisibility: { verdict: rate !== null } }, getCoreRowModel: getCoreRowModel() });
 
-  const { ref, edges } = useScrollEdges();
+  const { ref, edges } = useTableScroll();
 
   // 좁은 폭에서도 열이 근거 영역 안에 들어가도록 xl 아래에서는 셀 여백을 줄인다. 그래도 넘치면 페이지가
   // 아니라 이 컨테이너만 가로로 움직이고, 첫·마지막 열은 고정돼 판정 열이 잘려 보이지 않는다.
   // border-collapse에서는 sticky 셀이 행 테두리를 끌고 가지 못해 separate로 두고 테두리를 셀에 건다.
   return (
-    <>
-      <div
-        ref={ref}
-        data-slot='history-table-scroll'
-        data-scroll-left={edges.left ? '' : undefined}
-        data-scroll-right={edges.right ? '' : undefined}
-        className='overflow-x-auto'
-      >
-        <table className='w-full border-separate border-spacing-0'>
-          <thead>
-            {table.getHeaderGroups().map((group) => (
-              <tr key={group.id}>
-                {group.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    scope='col'
-                    className={`border-b border-border px-2 py-2 text-[13px] font-semibold whitespace-nowrap text-muted-foreground xl:px-3 ${HEAD_CLASS[header.column.id]} ${edgeClass(header.column.id, edges)}`}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr
-                key={row.id}
-                data-selected={row.original.attemptId === selection.row?.attemptId ? '' : undefined}
-                className='group/row data-selected:bg-primary/5'
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <td
-                    key={cell.id}
-                    className={`border-b border-border/60 px-2 py-2 whitespace-nowrap group-last/row:border-b-0 xl:px-3 ${CELL_CLASS[cell.column.id]} ${edgeClass(cell.column.id, edges)}`}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+    <div
+      ref={ref}
+      data-slot='history-table-scroll'
+      data-scroll-left={edges.left ? '' : undefined}
+      data-scroll-right={edges.right ? '' : undefined}
+      className='min-w-0 overflow-x-auto'
+    >
+      <table className='w-full border-separate border-spacing-0'>
+        <thead>
+          {table.getHeaderGroups().map((group) => (
+            <tr key={group.id}>
+              {group.headers.map((header) => (
+                <th
+                  key={header.id}
+                  scope='col'
+                  className={`border-b border-border px-2 py-2 text-[13px] font-semibold whitespace-nowrap text-muted-foreground xl:px-3 ${HEAD_CLASS[header.column.id]} ${edgeClass(header.column.id, edges, true)}`}
+                >
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr
+              key={row.id}
+              data-selected={row.original.attemptId === selection.row?.attemptId ? '' : undefined}
+              className='group/row data-selected:bg-primary/5'
+            >
+              {row.getVisibleCells().map((cell) => (
+                <td
+                  key={cell.id}
+                  className={`border-b border-border/60 px-2 py-2 whitespace-nowrap group-last/row:border-b-0 xl:px-3 ${CELL_CLASS[cell.column.id]} ${edgeClass(cell.column.id, edges, false)}`}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

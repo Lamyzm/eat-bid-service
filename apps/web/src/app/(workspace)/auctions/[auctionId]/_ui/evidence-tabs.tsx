@@ -132,7 +132,7 @@ export function EvidenceTabs({
           ))}
         </nav>
         {active === '흐름' ? <FlowLegend /> : null}
-        <DecisionExpandLink auctionId={auctionId} search={search} />
+        <DecisionExpandLink auctionId={auctionId} search={search} target={active} />
       </div>
       {active === '비교집단' ? <p className='text-[13px] font-medium text-muted-foreground'>{note(active, search.scope)}</p> : null}
       {active === '비교집단' ? (
