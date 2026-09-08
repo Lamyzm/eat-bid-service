@@ -16,6 +16,9 @@
 
 ## 1. 고정할 기준과 범위
 
+- **서로 독립된 두 정책:** 오른쪽 메뉴는 앱의 전역 탐색 영역이다. 현재 공고 분석 화면은 차트 작업
+  화면이므로 중앙 지면의 좌우 여백 없이 가용 폭 전체를 쓴다. 전역 메뉴가 있다는 이유로 중앙에
+  별도 여백이나 route 내부 사이드바를 만들지 않는다. 홈·설정의 중앙 폭 정책은 이와 별개다.
 - 배치 비교 기준은 `b78a76c` 시점의 `prototypes/shell-comparison-2026-09-08/` A 왼쪽 메뉴 시안이다.
   이후 구현에 맞춰 시안을 몰래 수정하지 않는다. 초기 Claude 화면과 v6/v7은 참고 자료다.
 - 분석 route의 `max-w-[1600px]`, 중앙 정렬용 `mx-auto`, 외곽 `px-3/sm:px-4`를 제거한다.
@@ -46,7 +49,8 @@ ApplicationShell
       │   └ AuctionWorkspaceDock       공고의 도구와 상세를 slot으로 전달
       ├ DockSlotHost(panel)            전역 상세 영역
       └ WorkspaceToolRail
-        └ DockSlotHost(rail)           공고·기록 / 추후 전역 바로가기
+        ├ GlobalShortcuts             전역 메뉴 구성은 shell 소유
+        └ DockSlotHost(rail)           공고·기록 등 현재 화면의 맥락 도구
 ```
 
 `DockSlotsProvider`, `DockSlotHost`, `DockSlot`은
@@ -73,8 +77,11 @@ type DockSlotName = 'panel' | 'rail' | 'header';
   `AuctionRosterPanel`, `BidRail`, `ResponsiveDock`을 조립한다. shell은 이 모듈을 import하지 않는다.
 - 공통 헤더의 `dockControls` slot과 shell의 rail은 위치만 제공한다. `DecisionTools`가 자신의
   DropdownMenu와 진입 버튼을 함께 portal로 전달해 Base UI와 공고 context를 보존한다.
+- `GlobalShortcuts`는 `workspace-dock.tsx` 안에서 shell이 조립하는 전역 메뉴다. 공고 화면이
+  전역 메뉴 자체를 생성하거나 제거하지 않는다. 현재 화면의 맥락 도구 slot과 전역 메뉴는 별개이며,
+  상세 내용이 바뀌어도 전역 메뉴의 위치와 구성이 함께 바뀌지 않는다.
 - 조건 필터가 선택 회차를 제외하면 기존대로 무효화한다. 다른 공고로 이동하면 이전 route의
-  portal도 해제되어 다른 페이지에 낡은 공고·기록 버튼이나 명단이 남지 않는다.
+  portal도 해제되어 다른 페이지에 낡은 공고·기록 버튼이나 명단이 남지 않는다. 전역 메뉴는 유지한다.
 
 ## 3. 선택과 스크롤 동작
 
@@ -148,7 +155,8 @@ type DockSlotName = 'panel' | 'rail' | 'header';
   표 스크롤·선택을 확인한다. 폭이 달라지는 동안 캔버스 픽셀 일치는 요구하지 않는다. 같은 폭으로
   닫아 돌아왔을 때의 범위와 표시를 비교한다.
 - [ ] `/today`, `/dashboard/delivery`, `/dashboard/my`로 이동해 공통 배치와 원래 화면 폭·스크롤·메뉴를
-  확인하고 공고 route의 버튼·명단이 남지 않는지 확인한다. loading/error에도 host가 유지되는지 본다.
+  확인하고 전역 메뉴 유지와 공고 route의 낡은 맥락·명단 해제를 각각 확인한다.
+  loading/error에도 host가 유지되는지 본다.
 - [ ] 시안 대비 남은 차이를 `notice-dev-cohort-integration.md`에 적는다. 테스트 통과와 시안 일치를
   별도 결과로 보고한다. 실제 데이터 부족은 레이아웃 일치로 해결됐다고 주장하지 않는다.
 - [ ] 결정적 검사 후 clean commit을 `pnpm review:ai -- --base b78a76c`으로 검토하고
