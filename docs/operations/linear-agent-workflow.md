@@ -325,6 +325,10 @@ writer 보장은 하나의 Git common dir을 공유하는 local worktree 범위�
 모델 교대는 새 작업을 시작하는 행위가 아니라 같은 Linear issue의 writing owner를 순차적으로
 이전하는 행위다. 대화 요약이나 도구별 memory를 완료 상태의 근거로 사용하지 않는다.
 
+현재 작업의 재개 진입점과 비정상 종료·미커밋 변경·실행 중 자식 시험의 처리 순서는
+[`agent-resume.md`](agent-resume.md)를 따른다. 아래 clean 인계는 정상 종료 절차이며,
+갑작스러운 종료에서 clean을 만들려고 미커밋 변경을 버려서는 안 된다.
+
 보내는 세션은 다음 순서를 지킨다.
 
 1. 허용된 owned path만 포함한 검토 가능한 commit을 만들고 working tree를 clean하게 만든다.
@@ -333,6 +337,10 @@ writer 보장은 하나의 Git common dir을 공유하는 local worktree 범위�
 3. 다음 세션이 시작할 commit과 worktree, 이어서 수행할 첫 단계, 금지된 외부 작업을 명시한다.
 4. `pnpm workflow:sync`로 worklog를 Linear에 전송하고 `pnpm workflow:release`로 현재 lease를
    해제한 뒤 다시 `pnpm workflow:sync`한다.
+
+공유 outbox에 다른 작업의 오래된 이벤트가 섞였다고 확인된 경우에는 전체 sync를 실행하지 않는다.
+해당 issue의 handoff만 연결된 Linear 도구로 기록하고 기존 `workflow:release`를 사용한다.
+미전송 이벤트는 보존하며 state/outbox 파일을 직접 고치지 않는다.
 
 받는 세션은 다음 순서를 지킨다.
 

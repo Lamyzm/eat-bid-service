@@ -8,6 +8,17 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
 역할·권위·결정 기준은 `docs/governance/ai-driven-documentation.md` 7절을 읽는다.
 이 절차는 Linear 상태 원장이나 도구별 품질 규칙을 추가하지 않는다.
 
+## 세션 중단에도 남는 인계
+
+- 교대와 복구는 `docs/operations/agent-resume.md`에서 시작한다. Claude 대화 ID는 보조 경로이며
+  대화가 없어도 Git의 작업 계획·실제 diff·Linear 최신 인계만으로 첫 행동을 정할 수 있어야 한다.
+- 작업을 시작하거나 단계를 넘기기 전에 issue의 인계에 branch/worktree, 기준 commit, owned paths,
+  재사용할 원문 위치와 다음 한 단계를 남긴다. 진행 중 Claude를 새 세션과 동시에 재개하지 않는다.
+- 코드와 함께 해당 worktree의 실행 계획을 갱신하고, 종료 시 검증 결과와 미검증을 구별해 인계한다.
+  마지막 자연어 답변이나 Codex 전용 외부 폴더만이 유일한 인계 자료가 되면 안 된다.
+- 갑작스러운 종료로 dirty tree가 남으면 차이를 보존하고 실행자·자식 시험 종료를 확인한 뒤
+  기존 lifecycle 명령으로 lease를 이전한다. 상태 파일 수기 편집과 변경 폐기는 복구 방법이 아니다.
+
 ## 총괄: 시작할 수 있는 작업 만들기
 
 1. 기존 Linear issue와 마일스톤을 먼저 찾는다. 사용자 결과 하나, 비목표, 완료 조건을 고정한다.

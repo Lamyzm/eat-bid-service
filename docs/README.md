@@ -17,6 +17,7 @@
 | 제품 기획 판단을 왜 그렇게 정했고 언제 다시 보는가? | [`product/decisions/README.md`](product/decisions/README.md) |
 | 데이터·런타임·품질 경계는 무엇인가? | [`architecture/README.md`](architecture/README.md) |
 | 운영자가 실제로 무엇을 실행하는가? | [`operations/`](operations/) |
+| AI 세션이 끊겼을 때 지금 작업을 어디서 이어받는가? | [`operations/agent-resume.md`](operations/agent-resume.md) |
 | Codex와 Claude가 Linear 작업 상태를 어떻게 공유하는가? | [`operations/linear-agent-workflow.md`](operations/linear-agent-workflow.md) |
 | Codex와 Claude가 구현을 번갈아 맡을 때 어떻게 안전하게 인계하는가? | [`operations/linear-agent-workflow.md#7-codex와-claude-사이-작업-인계`](operations/linear-agent-workflow.md#7-codex와-claude-사이-작업-인계) |
 | 비밀은 Infisical의 어느 환경·경로에 있고 어떻게 주입하는가? | [`operations/infisical.md`](operations/infisical.md) |

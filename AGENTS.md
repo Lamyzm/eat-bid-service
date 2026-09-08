@@ -4,6 +4,9 @@
 구현을 시작하기 전에 반드시 [`ARCHITECTURE.md`](ARCHITECTURE.md)와
 [`docs/architecture/README.md`](docs/architecture/README.md)를 읽어라.
 
+중단된 작업을 이어받거나 Codex·Claude 사이에서 교대할 때는
+[`docs/operations/agent-resume.md`](docs/operations/agent-resume.md)에서 현재 인계 진입점과 소유권 확인 순서를 먼저 찾는다.
+
 ## 절대로 어기지 말 것
 
 1. **하나의 진실 원천을 소유권별로 하나만 둔다.** 원본 증거는 R2의 불변 raw 객체,
