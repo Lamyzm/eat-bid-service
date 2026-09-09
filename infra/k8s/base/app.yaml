@@ -88,7 +88,7 @@ spec:
             - name: GOOGLE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef: { name: eatbid-auth, key: GOOGLE_CLIENT_SECRET }
-            - { name: BETTER_AUTH_URL, value: "http://localhost:8081" }
+            - { name: BETTER_AUTH_URL, value: "https://eatbid.net" }
           ports: [{ containerPort: 4400 }]
           livenessProbe:
             httpGet: { path: /health/live, port: 4400 }
