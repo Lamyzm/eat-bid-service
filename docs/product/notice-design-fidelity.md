@@ -187,4 +187,6 @@ dark theme과 좁은 폭은 같은 harness 위 Chrome에서 손으로 확인했�
 - 시안에는 `내 투찰` 계열이 없어 고정 fixture 시안 대조는 대상이 아니다. 색·표식은 범례 규칙(낙찰 원·
   가정 선·실제 마름모)만 정했고 디자인 검토는 별도다.
 - 명단 미관측 회차가 많은 기관에서는 요약 문구가 길다. 문구를 줄이는 결정은 제품 검토가 정한다.
-- 실제 Google OAuth 왕복은 여전히 미검증이다(dev 설정 위치가 없다).
+- 실제 Google OAuth 왕복은 2026-09-09에 확인했다. 운영 client를 dev vault로 복사하고 Google Cloud
+  `eatbid-web` client에 로컬 리디렉션 URI를 등록한 뒤, 일회용 DB harness에서 실제 Chrome으로 `ajvls98@gmail.com`
+  로그인 왕복을 마쳤고 등록한 관측 사업자의 내 투찰 점이 실제 인증으로 차트에 떴다. 운영 배포는 별개다.

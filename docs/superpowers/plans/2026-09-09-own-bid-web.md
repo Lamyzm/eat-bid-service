@@ -1118,7 +1118,9 @@ pnpm --filter @eatbid/web test:e2e:own-bid
 | `pnpm --filter @eatbid/server test` (전체) | 258 pass |
 | `pnpm architecture:check` (quality·boundary·endpoint·contracts·python 포함) | 통과 |
 
-미검증: 실제 Google OAuth 왕복(dev 설정 위치 없음), 고정 fixture 시안 대조(시안에 이 계열이 없음), 운영 배포.
+실제 Google OAuth 왕복 검증(2026-09-09 추가): 운영 Secret `eatbid-auth`의 Google client(id·secret)를 Infisical `dev:/runtime/server`로 복사하고 `BETTER_AUTH_URL=http://localhost:3002`를 넣었다. Google Cloud 프로젝트 `eatbid`의 OAuth client `eatbid-web`에 리디렉션 URI 두 개(`http://127.0.0.1:3147/api/auth/callback/google`, `http://localhost:3002/api/auth/callback/google`)를 추가했다. 일회용 DB·Nest 4447·web 3147 harness에서 실제 Chrome으로 `Google로 로그인`을 눌러 `ajvls98@gmail.com`으로 왕복을 완료했고(DB에 user·session·google account 각 1행 생성), 사업자 `9000000016`을 실제 계약으로 등록하니 결정 화면 차트에 내 투찰 마름모 4개와 요약 `내 투찰 4건(3회차)`이 실제 인증으로 표시됐다.
+
+미검증: 고정 fixture 시안 대조(시안에 이 계열이 없음), 운영 배포.
 
 ## 자기 검토
 
