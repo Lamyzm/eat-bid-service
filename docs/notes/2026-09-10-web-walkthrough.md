@@ -558,6 +558,25 @@ layout이나 URL이 시각·build를 정해 슬롯에 내려보내는 것이고,
 같은 형태다. 그리고 탭을 슬롯 경계로 만들면 방금 없애기로 한 서버 왕복이 되살아나므로 탭은 슬롯 **안의**
 클라이언트 전환으로 남겨야 한다. `default.tsx`와 soft navigation 시 슬롯 유지 규칙도 새 학습 비용이다.
 
+## 8-2. 리뷰 체크리스트 (서브에이전트 브랜치를 받을 때)
+
+보고를 믿지 않고 직접 확인한다. 순서대로 본다.
+
+1. **범위.** issue가 정한 owned path 밖을 건드렸는가. 다른 세션 소유 경로를 만졌는가. `git diff --stat`으로 먼저 본다.
+2. **acceptance 대조.** issue의 항목을 하나씩 실제 결과와 맞춘다. "했다"는 문장이 아니라 명령 출력이 근거다.
+   증명하지 못한 항목은 "못 보였다"고 적혀 있어야 한다. 조용히 빠져 있으면 반려다.
+3. **검사 재실행.** 내가 직접 돌린다. `npx tsc --noEmit`, `bun test src`, `node tools/architecture/run-checks.mjs --changed`.
+   서버가 걸리면 `pnpm --filter @eatbid/server test`. 숫자가 보고와 다르면 반려다.
+4. **회귀.** 기존 테스트가 지워지거나 약해지지 않았는가. 테스트를 고쳤다면 명세가 바뀔 이유가 있었는가.
+   `git diff`에서 `expect` 삭제와 `.skip`을 찾는다.
+5. **AGENTS 규칙.** 한국어 이유 주석·테스트명·커밋 본문, 신규·변경 production 모듈의 `@module 책임:`,
+   경로·계약 리터럴 신설 없음, 시간·금액·비율 타입, 300줄 초과 시 waiver 한 줄.
+6. **설계 기준(`eatbid-component-design`).** 상태가 union인가 boolean 재계산인가. 표현 폴더에 계산 모듈이
+   들어갔는가. client 경계가 잎에 있는가. 중복을 남긴 판단에 이유가 있는가.
+7. **삭제 근거.** 지운 export·파일마다 참조 없음을 어떻게 확인했는지 근거가 있는가. 동적 import와 문자열 경로까지 봤는가.
+8. **커밋 위생.** `--no-verify` 흔적, 한 커밋에 두 관심사 혼재, 무관한 파일 포함.
+9. **되돌릴 수 있는가.** 병합 전에 브랜치가 main에 rebase 없이 깨끗이 얹히는지 확인한다.
+
 ## 9. 다음에 볼 것
 
 `/auctions/[auctionId]`(진입·로더는 봄, 표시 모델·UI 남음) → `/login`·`/setup` → `shell`(레이아웃·dock·테마·명령 검색) → `components`·`shared`(UI 두 벌) → `api/` 층 → `packages/contracts`.
