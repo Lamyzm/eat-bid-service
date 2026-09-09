@@ -425,7 +425,16 @@ build 바뀜·관측 없음·증거 충돌·관측됨). 셋의 곱이 13이다. 
   `packages/domain` 몫이다(EAT-133).
 
 **층 지도도 문서와 다르다.** `src` 최상위에 결정된 여섯 층에 없는 `components/`·`hooks/`·`lib/`가 남아 있다.
-canonical 층에서 직접 import하는 곳은 없다(테스트 하나 제외). 죽은 층이 지도만 흐린다.
+
+> **정정(EAT-140 검증).** 처음에 "canonical 층에서 직접 import하는 곳은 없다"고 적었는데 **틀렸다.**
+> 실제 진입점이 여섯이다. `app/layout.tsx`(→`ui/sonner`), `app/not-found.tsx`(→`ui/button`),
+> `shell/layout/application-shell.tsx`(→`command-palette`·`layout/app-sidebar`·`layout/header`·`ui/sidebar`),
+> `shell/theme/theme-mode-toggle.tsx`, `shell/theme/theme-selector.tsx`, `types/index.ts`(→`icons`).
+> 그래서 세 폴더는 한 번에 못 지운다. `components/ui`의 재수출 shim 다섯과 `lib/utils.ts`를 건드리는 순간
+> legacy-import gate와 `korean-comments` gate가 vendored 파일 열 개까지 함께 요구하므로 한 덩어리로 처리해야 한다.
+> `hooks/` 셋 중 `use-mobile`만 바로 옮길 수 있고 나머지 둘은 `config/nav-config`·`types`에 묶여 있다.
+> `components/search-input.tsx`는 production 참조가 없고 명령 팔레트 테스트만 쓴다. 즉 Cmd+K 말고 팔레트를
+> 여는 마우스 수단이 코드엔 있는데 헤더에 안 붙어 있다. 남길지는 명령 검색 결정과 함께 본다.
 
 **층 체계 자체를 다시 볼지는 별도 결정이다.** 현재 ADR 0023은 full FSD를 기각한 상태로 적혀 있다. FSD를
 채택하기로 했다면 그 ADR을 supersede해야 하고, 그 전까지는 문서와 코드가 서로 다른 말을 한다. 어느 쪽이든
