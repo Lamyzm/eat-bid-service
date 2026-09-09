@@ -9,7 +9,7 @@ const repoRoot = process.env.REGION_VOCABULARY_ROOT
 
 // 어휘를 소비하는 TypeScript 층 전부를 본다. Python 쪽은 새 도구를 만들지 않고
 // `apps/dataplane/tests/unit/test_code_schemes.py`가 같은 단일 선언을 고정한다(AGENTS 22).
-const SOURCE_ROOTS = ["apps/web/src", "apps/server/src", "packages/contracts/src", "packages/db/src", "packages/shared/src"];
+const SOURCE_ROOTS = ["apps/web/src", "apps/server/src", "packages/contracts/src", "packages/db/src"];
 
 const baselinePath = process.env.REGION_VOCABULARY_BASELINE
   ? path.resolve(process.env.REGION_VOCABULARY_BASELINE)

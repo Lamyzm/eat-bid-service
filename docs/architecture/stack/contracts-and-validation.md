@@ -8,9 +8,9 @@ future packages or projections already exist.
 The bounded contract layer is now `packages/contracts`: Zod 4 `ingestion/v1` owns
 canonical process JSON and `api/v1` owns public HTTP wire JSON. Nest 12 consumes those
 schemas through Standard Schema request/response boundaries and emits the reviewed
-OpenAPI 3.0.3 artifact. `packages/shared/src/domain` and its older Drizzle schema remain
-frontend/shared legacy debt only; their exact AST fingerprints may be deleted but do
-not become future contract or DDL authority.
+OpenAPI 3.0.3 artifact. 그린필드 이전의 `packages/shared`(domain helper와 옛 Drizzle schema)는
+두 번째 DDL 권위를 없애기 위해 package째 제거했다(ADR 0009). 남은 frontend legacy 부채는 삭제 전용
+ledger에서만 관리한다.
 
 `packages/domain` owns semantic values and invariants, while `packages/db` owns exact
 Drizzle DDL. Known eaT source records/columns use hand-written source Pydantic while the reviewed parser contract and
@@ -95,7 +95,7 @@ pnpm contracts:python:check
 `tools/quality/check-python-semantic-values.py`, Korean test-name quality, JSON Schema drift, and Python model
 drift. Check mode never rewrites tracked outputs and normalizes CRLF/LF only for logical drift comparison. The
 TypeScript checker uses compiler symbols and use-site assignments; the Python checker uses lexical-scope,
-use-site-aware `ast` import/re-export resolution. Only `apps/web`/`packages/shared` exact path + node kind +
+use-site-aware `ast` import/re-export resolution. Only `apps/web` exact path + node kind +
 normalized-text hash fingerprints may remain in the deletion-only ledger. The portable registry file and exactly
 one exported const top-level `portableContracts` root are mandatory. Its reachable graph includes called factory
 bodies/returns. A `z.custom` guarded codec output outside the graph and a non-Zod helper named `transform` are not

@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.json",
-  "compilerOptions": { "outDir": "dist", "rootDir": "src" },
-  "include": ["src"],
-  // 테스트는 bun 이 직접 실행한다(`bun test`). tsc 빌드에 넣으면 `bun:test` 타입을
-  // 못 찾아 도커 빌드가 죽는다 — 실제로 그렇게 한 번 깨졌고, 로컬 빌드는 통과하는데
-  // 이미지 빌드만 실패해서 옛 이미지로 롤아웃되는 형태로 나타났다.
-  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts"]
-}

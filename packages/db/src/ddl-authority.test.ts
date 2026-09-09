@@ -83,12 +83,19 @@ describe("DDL package 권한 경계", () => {
     expect(root.scripts?.test).toContain("pnpm --filter @eatbid/db test");
   });
 
-  test("Drizzle authoring tool을 shared 밖에 둔다", () => {
-    const shared = json("packages/shared/package.json");
+  test("Drizzle authoring tool을 packages/db 밖의 어느 workspace package에도 두지 않는다", () => {
+    // 과거 packages/shared가 두 번째 drizzle.config를 들고 있었다. 특정 package 이름을 다시 고정하면
+    // 다음 중복 schema는 다른 이름으로 조용히 생기므로 workspace 전체를 본다(AGENTS 10).
+    const outsiders = workspaceManifests().filter(
+      ({ relativePath }) => relativePath !== "packages/db/package.json",
+    );
 
-    expect(shared.scripts?.["db:generate"]).toBeUndefined();
-    expect(shared.scripts?.["db:push"]).toBeUndefined();
-    expect(shared.devDependencies?.["drizzle-kit"]).toBeUndefined();
+    expect(outsiders.length).toBeGreaterThan(0);
+    for (const { relativePath, manifest } of outsiders) {
+      expect([relativePath, manifest.scripts?.["db:generate"]]).toEqual([relativePath, undefined]);
+      expect([relativePath, manifest.scripts?.["db:push"]]).toEqual([relativePath, undefined]);
+      expect([relativePath, manifest.devDependencies?.["drizzle-kit"]]).toEqual([relativePath, undefined]);
+    }
   });
 
   test("postgres-js catalog를 정확히 고정하고 server infrastructure consumer만 허용한다", () => {

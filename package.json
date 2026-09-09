@@ -50,7 +50,7 @@
     "dataplane:test": "uv run --project apps/dataplane pytest apps/dataplane/tests",
     "dataplane:lint": "uv run --project apps/dataplane ruff check apps/dataplane/src apps/dataplane/tests apps/dataplane/scripts",
     "dataplane:typecheck": "uv run --project apps/dataplane pyright apps/dataplane/src apps/dataplane/scripts",
-    "test": "pnpm test:quality && pnpm --filter @eatbid/web test && bun test packages/shared/src --timeout 30000 && pnpm --filter @eatbid/db test && pnpm --filter @eatbid/contracts test && pnpm --filter @eatbid/domain test && pnpm --filter @eatbid/server test",
+    "test": "pnpm test:quality && pnpm --filter @eatbid/web test && pnpm --filter @eatbid/db test && pnpm --filter @eatbid/contracts test && pnpm --filter @eatbid/domain test && pnpm --filter @eatbid/server test",
     "prepare": "node tools/git/configure-hooks.mjs"
   },
   "devDependencies": {

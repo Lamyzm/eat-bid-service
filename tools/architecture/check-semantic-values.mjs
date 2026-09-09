@@ -18,7 +18,7 @@ const baselinePath = process.env.SEMANTIC_VALUES_BASELINE
   ? path.resolve(process.env.SEMANTIC_VALUES_BASELINE)
   : path.join(repositoryRoot, "tools", "architecture", "semantic-value-legacy-baseline.json");
 const writeBaseline = process.argv.slice(2).includes("--write-baseline");
-const allowedLegacyPrefixes = ["apps/web/src/", "packages/shared/src/"];
+const allowedLegacyPrefixes = ["apps/web/src/"];
 const forbiddenDatePackages = new Set(["dayjs", "date-fns", "moment", "luxon"]);
 const canonicalFloatingColumn = /(?:^|_)(?:amount|money|price|rate|ratio|percent|percentage)(?:_|$)/i;
 const durationName = /(?:timeout|interval|ttl|grace|delay|debounce|throttle)(?:ms|millis|milliseconds)?$/i;
@@ -861,7 +861,7 @@ if (writeBaseline) {
       continue;
     }
     if (!allowedLegacyPrefixes.some((prefix) => entry.path.startsWith(prefix))) {
-      baselineFailures.push(`legacy baseline entry ${index} is outside apps/web or packages/shared: ${entry.path}`);
+      baselineFailures.push(`legacy baseline entry ${index} is outside apps/web: ${entry.path}`);
     }
     if (!/^sha256:[0-9a-f]{64}$/.test(entry.fingerprint)) {
       baselineFailures.push(`legacy baseline entry ${index} has an invalid fingerprint`);

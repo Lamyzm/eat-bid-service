@@ -128,9 +128,6 @@ importers:
       '@eatbid/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@eatbid/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@sentry/nextjs':
         specifier: ^10.45.0
         version: 10.71.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(next@16.3.4(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@22.10.2)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(webpack@5.106.2(postcss@8.5.25))
@@ -353,19 +350,6 @@ importers:
     devDependencies:
       typescript:
         specifier: 5.9.3
-        version: 5.9.3
-
-  packages/shared:
-    dependencies:
-      drizzle-orm:
-        specifier: 'catalog:'
-        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(bun-types@1.2.22(@types/react@19.2.14))(effect@4.0.0-rc.112)(postgres@3.4.9)(zod@4.5.4)
-      zod:
-        specifier: 'catalog:'
-        version: 4.5.4
-    devDependencies:
-      typescript:
-        specifier: ^5.7.0
         version: 5.9.3
 
 packages:

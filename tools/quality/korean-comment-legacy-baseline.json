@@ -475,26 +475,6 @@
       "sha256": "26e16bb65bfedc08151e0e0f89df167e9cdacc665d828892efa9610f7ba8d5fd"
     },
     {
-      "path": "packages/shared/src/domain/auction.ts",
-      "sha256": "a0eb39b97d4008bccd0c12a841e0a3b9b58828c3c8b96a5e666ac736174c5dde"
-    },
-    {
-      "path": "packages/shared/src/domain/category.ts",
-      "sha256": "299363f814cc5dab2423a3214b784e35d4eab3c98d008db990d121f2bf97406f"
-    },
-    {
-      "path": "packages/shared/src/domain/date.ts",
-      "sha256": "865c6f23316a314e39f395e50e68fcfd5cec7180315e0a6928b0d19c6e4a175b"
-    },
-    {
-      "path": "packages/shared/src/domain/firm.ts",
-      "sha256": "8ce3c019584dcfcbef4cbd600fe89820b69d68b812c609326f03095cb39c0889"
-    },
-    {
-      "path": "packages/shared/src/domain/query.ts",
-      "sha256": "f8d876aa4329068d66f846be2904eaf854c495803acb673426ef8b90a33224ba"
-    },
-    {
       "path": "tools/agent-workflow/state-lock.mjs",
       "sha256": "8daab9a5af4bc44912a10f06b1a600ac95a1fea4a925c30980feb783ccadbefe"
     },

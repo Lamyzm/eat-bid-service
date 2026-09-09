@@ -274,7 +274,8 @@ unique(workspace_id, supplier_party_id, auction_attempt_id)
 
 Better Auth 같은 provider가 문자열 user ID를 요구해도 그 값은 provider-owned auth table과
 `IdentitySubject.subject`에만 남는다. workspace, supplier, work item 등 application 관계가 그 문자열을
-FK로 사용하지 않는다. `packages/shared`의 기존 문자열 user/workspace schema는 목표 DDL이 아니다.
+FK로 사용하지 않는다. 그린필드 이전 `packages/shared`가 들고 있던 문자열 user/workspace schema는 목표
+DDL이 아니었고, 두 번째 Drizzle 권위를 없애기 위해 package째 제거했다(ADR 0009).
 
 첫 application DDL은 `app.principal`, `app.identity_subject`, `app.workspace`,
 `app.workspace_membership`만 만든다. 네 테이블의 PK/FK는 모두 PostgreSQL bigint이고,
