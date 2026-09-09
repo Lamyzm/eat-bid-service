@@ -1076,6 +1076,40 @@ pnpm --filter @eatbid/web test:e2e:own-bid
 - [ ] 이 문서 끝에 `## 실행 결과` 절: commit, 실행한 검사와 수, 미검증(실제 Google 왕복, 시안 대조), 남은 차이.
 - [ ] Linear EAT-40 코멘트: branch/worktree · 기준 commit · owned paths · 검증/미검증 · 하지 않은 외부 작업. `pnpm workflow:release`.
 
+## 실행 결과 — 2026-09-09
+
+계획의 Task 0~8을 같은 branch에서 순서대로 마쳤다. 계획과 달라진 점과 인수 중 발견한 결함은 아래에 적는다.
+
+- 통합 base: `codex/eat-40-own-bid` `645dbf3`에 dev `81be4b6`과 계정 기반 `132b8fc`를 merge했다(충돌 없음).
+  통합 base의 서버 검사 2개가 Vary 대소문자 때문에 깨져 Task 0에서 검사만 고쳤다(`8a40a25`).
+- Task 1·2·3: `76d08f6` `2f1486c` `5ff9080`. uncached entry는 별도 transport adapter 대신 같은 `serverRequest`를
+  `use cache` 밖에서 부른다 — resource `server.ts`는 승인된 adapter 하나만 exact import한다는 boundary 규칙
+  때문이며, cacheComponents 아래에서 `use cache` 밖 fetch는 캐시되지 않는다.
+- Task 4·5: `a8fa658`. 금액 문자열 helper는 client-safe한 `bid-rate.ts`로 옮겼다(`attempt-history.ts`는 Temporal을
+  쓰므로 client 모듈이 값을 import할 수 없다).
+- Task 6·7: `22cfcb9` `9f2e464`. 계획대로 `page.tsx`가 provider로 감싸 `DecisionScreen`과 기존 검사를 그대로 뒀다.
+- 인수 중 발견해 고친 결함(`120628b` `5c877e9`): (1) 한 등록의 증거가 갈리면 등록 목록 전체가 503 — 목록 계약
+  `RegisteredBusinessSupplier`에 `evidence-conflict`를 additive로 더하고 내부 record를 세 상태 값으로 바꿨다.
+  (2) 캔버스 클릭 거리 계산이 데이터 없는 참조 계열 좌표를 써서 내 점만 있는 날은 클릭이 닿지 않았다.
+  (3) Base UI radio 항목은 고른 뒤에도 메뉴를 열어 두고, 그룹 라벨은 RadioGroup 밖에서 예외를 낸다.
+- Task 8(`5626c03`): mart 행은 build가 building일 때만 쓸 수 있어 web seed를 `seedOwnBid`의 `beforeActivation`
+  hook으로 옮겼고, 증거가 갈린 번호는 등록 뒤에 갈라야 하므로 첫째 계정 등록을 harness가 실제 계약으로 마친 뒤
+  `observeConflictingSupplier`를 실행한다. 명단 행은 revision의 개찰 시각과 정확히 같은 `opened_at`에서만
+  세므로 겹친 제출 seed는 세 자리에 같은 시각을 쓴다.
+
+검증(모두 실제 실행):
+
+| 검사 | 결과 |
+|---|---|
+| `pnpm --filter @eatbid/web test` | 503 pass |
+| `pnpm --filter @eatbid/web typecheck` | 통과 |
+| `pnpm --filter @eatbid/web test:e2e:own-bid` (실제 DB·Nest·Chromium) | 8 passed |
+| `pnpm --filter @eatbid/web test:e2e:decision` (정적 fixture) | 35 passed |
+| server 계정·own-bid·통합 검사 | 22 pass, 72 pass(procurement 포함) |
+| `pnpm architecture:check` (quality·boundary·endpoint·contracts·python 포함) | 통과 |
+
+미검증: 실제 Google OAuth 왕복(dev 설정 위치 없음), 고정 fixture 시안 대조(시안에 이 계열이 없음), 운영 배포.
+
 ## 자기 검토
 
 - 인계 원문 대조: revision opt-in(Task 1·2), roster에 revision 전달(2), batch 하나·N+1 금지·60 vs 200(4·7), 사업자 선택·URL 금지·principal 한정(7),
