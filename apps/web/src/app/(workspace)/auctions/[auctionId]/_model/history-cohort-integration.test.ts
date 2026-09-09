@@ -19,6 +19,9 @@ async function load(overrides: Partial<DecisionSearch> = {}, auction = auctionFi
       historyCalls.push(input);
       return { kind: 'page', response: { ...attemptsFixture, nextCursor: input.cursor ? null : '77' } };
     },
+    listAttemptsLatest: async () => {
+      throw new Error('cached 진입은 latest 읽기를 부르지 않는다');
+    },
     findDistribution: async (input) => { distributionCalls.push(input); return floor90DistributionFixture; }
   });
   return { result, historyCalls, distributionCalls, clockCalls };

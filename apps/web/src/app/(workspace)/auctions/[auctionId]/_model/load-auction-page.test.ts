@@ -32,6 +32,7 @@ function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage
     getAuction: async () => auctionRead,
     now: () => fixtureNow,
     listAttempts: async () => page(attemptsFixture),
+    listAttemptsLatest: async () => page(attemptsFixture),
     findDistribution: async () => floor90DistributionFixture,
     ...overrides
   };
@@ -396,6 +397,23 @@ describe('공고 상세 route loader', () => {
       })
     );
     expect(result?.history).toEqual({ state: 'build-changed' });
+  });
+
+  test('historyRead=latest는 캐시 없는 읽기를 쓰고 기본 진입은 캐시 읽기를 쓴다', async () => {
+    const used: string[] = [];
+    const deps = createDependencies({
+      listAttempts: async () => {
+        used.push('cached');
+        return page(attemptsFixture);
+      },
+      listAttemptsLatest: async () => {
+        used.push('latest');
+        return page(attemptsFixture);
+      }
+    });
+    await loadAuctionPage(Promise.resolve({ auctionId: canonicalAuctionId }), search, deps);
+    await loadAuctionPage(Promise.resolve({ auctionId: canonicalAuctionId }), { ...search, historyRead: 'latest' }, deps);
+    expect(used).toEqual(['cached', 'latest']);
   });
 
   test('첫 응답에 build나 asOf가 없으면 다른 계보를 이어 붙이지 않고 그 사실만 남긴다', async () => {

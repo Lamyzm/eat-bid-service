@@ -13,6 +13,7 @@ import { DecisionHeader } from './decision-header';
 import { DecisionFilters } from './decision-filters';
 import { EvidenceTabs, HISTORY_PENDING_REASON } from './evidence-tabs';
 import { DecisionExpand } from './expand/decision-expand';
+import { HistoryBuildRecovery } from './history-build-recovery';
 import { HistoryCard } from './history-card';
 import { PendingCard } from './pending-card';
 import { RehearsalPanel } from './rehearsal-panel';
@@ -89,7 +90,13 @@ export function DecisionScreen({
                 focused={focus === 'history'}
               />
             ) : (
-              <PendingCard title='과거 회차' reason={HISTORY_PENDING_REASON[history.state]} />
+              <div className='grid gap-2'>
+                <PendingCard title='과거 회차' reason={HISTORY_PENDING_REASON[history.state]} />
+                {/* build 전환은 조회 실패가 아니라 다시 읽으면 되는 사실이다. 복구 진입을 같은 자리에 둔다. */}
+                {history.state === 'build-changed' ? (
+                  <HistoryBuildRecovery auctionId={decision.identity.auctionId} search={search} />
+                ) : null}
+              </div>
             )
           }
         />

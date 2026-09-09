@@ -6,6 +6,7 @@ import {
   buildDecisionExpandRoute,
   buildDecisionFilterRoute,
   buildDecisionHistoryPagesRoute,
+  buildDecisionHistoryReadRoute,
   buildDecisionViewRoute,
   decisionSearchParsers,
   type DecisionSearch
@@ -135,6 +136,30 @@ describe('결정 화면 URL 조건', () => {
     expect(buildDecisionHistoryPagesRoute('4821', search, 4)).toContain('pages=4');
     expect(buildDecisionHistoryPagesRoute('4821', search, 4)).toContain(expandQuery('과거 회차'));
     expect(decisionSearchParsers.pages.defaultValue).toBe(1);
+  });
+
+  test('historyRead는 latest 하나뿐이며 기본 cached 경로는 주소에 남지 않는다', () => {
+    expect(decisionSearchParsers.historyRead.parse('latest')).toBe('latest');
+    expect(decisionSearchParsers.historyRead.parse('nonce-123')).toBeNull();
+    const base: DecisionSearch = {
+      period: '12개월',
+      scope: '전국',
+      view: '흐름',
+      item: null,
+      myRate: null,
+      rate: null,
+      expand: null,
+      pages: 1
+    };
+    const latest: DecisionSearch = { ...base, historyRead: 'latest' };
+    // 같은 공고 안의 링크는 모두 모드를 보존한다. 하나라도 빠지면 복구 중에 stale 캐시로 되돌아간다.
+    expect(buildDecisionViewRoute('4821', latest, '흐름')).toContain('historyRead=latest');
+    expect(buildDecisionExpandRoute('4821', latest, '과거 회차')).toContain('historyRead=latest');
+    expect(buildDecisionHistoryPagesRoute('4821', latest, 2)).toContain('historyRead=latest');
+    expect(buildDecisionFilterRoute('4821', latest, { period: '3개월' })).toContain('historyRead=latest');
+    expect(buildDecisionHistoryReadRoute('4821', base, 'latest')).toContain('historyRead=latest');
+    expect(buildDecisionHistoryReadRoute('4821', latest, null)).not.toContain('historyRead');
+    expect(buildDecisionViewRoute('4821', base, '흐름')).not.toContain('historyRead');
   });
 
   test('조건을 바꾸면 이전 집단의 cursor 페이지 수를 물려받지 않는다', () => {

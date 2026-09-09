@@ -9,8 +9,7 @@ import { cacheLife, cacheTag } from 'next/cache';
 
 import { READ_CACHE_LIFE } from '@/shared/lib/read-cache-life';
 
-import type { ContractRequest } from '../_transport/request-contract';
-import { serverRequest, uncachedServerRequest } from '../_transport/server-request.server';
+import { serverRequest } from '../_transport/server-request.server';
 import { organizationAttemptsReadCacheTags } from './cache-tags';
 import { listOrganizationAuctionAttemptsWith, type OrganizationAttemptsReadInput } from './list-auction-attempts';
 import {
@@ -35,9 +34,9 @@ export type OrganizationAttemptsRead =
 
 type AttemptsReadInput = Omit<OrganizationAttemptsReadInput, 'signal'>;
 
-async function readAttempts(request: ContractRequest, input: AttemptsReadInput): Promise<OrganizationAttemptsRead> {
+async function readAttempts(read: () => Promise<OrganizationAuctionAttemptsV1Response>): Promise<OrganizationAttemptsRead> {
   try {
-    return { kind: 'page', response: await listOrganizationAuctionAttemptsWith(request, input) };
+    return { kind: 'page', response: await read() };
   } catch (error) {
     if (isOrganizationBuildChangedError(error)) return { kind: 'build-changed' };
     if (isOrganizationCursorInvalidError(error)) return { kind: 'cursor-not-found' };
@@ -54,15 +53,17 @@ export async function listOrganizationAuctionAttemptsFromServer(input: AttemptsR
   'use cache';
   cacheTag(...organizationAttemptsReadCacheTags(input.organizationId));
   cacheLife(READ_CACHE_LIFE);
-  return await readAttempts(serverRequest, input);
+  return await readAttempts(() => listOrganizationAuctionAttemptsWith(serverRequest, input));
 }
 
 /**
- * `historyRead=latest`의 uncached entry다. 쿠키를 읽지 않고 공유 캐시에도 쓰지 않는다. 부를 때마다 Nest를
- * 다시 부르므로 build 전환 복구 경로에서만 쓰고 기본 진입은 위 cached entry다.
+ * `historyRead=latest`의 uncached entry다. `use cache` 밖의 fetch는 Next가 캐시하지 않으므로(cacheComponents)
+ * 부를 때마다 Nest를 다시 부른다. 쿠키를 읽지 않고 공유 캐시에도 쓰지 않는다. 비용이 있으니 build 전환
+ * 복구 경로에서만 쓰고 기본 진입은 위 cached entry다. 바깥 `use cache`를 호출한 채 안쪽만 바꾸면 stale은
+ * 그대로라 entry 자체를 나눈다.
  */
 export async function listOrganizationAuctionAttemptsFromServerLatest(input: AttemptsReadInput): Promise<OrganizationAttemptsRead> {
-  return await readAttempts(uncachedServerRequest, input);
+  return await readAttempts(() => listOrganizationAuctionAttemptsWith(serverRequest, input));
 }
 
 export { isOrganizationCursorInvalidError, isOrganizationNotFoundError };

@@ -10,6 +10,11 @@ export const DECISION_VIEWS = ['흐름', '비교집단'] as const;
  * 값이 탭 이름과 같으므로 탭에서 여는 링크는 `search.view`를 그대로 실을 수 있다.
  */
 export const DECISION_EXPANDS = ['과거 회차', ...DECISION_VIEWS] as const;
+/**
+ * build 전환(409) 복구가 다시 들어오는 유한 신선도 모드다. nonce나 timestamp가 아니라 값 하나뿐이며 기본은
+ * cached 경로다. 이 모드에서만 RSC가 회차 이력을 캐시 없이 읽어 표·선택·개인 점을 같은 새 집합으로 갱신한다.
+ */
+export const HISTORY_READ_MODES = ['latest'] as const;
 
 export const decisionSearchParsers = {
   period: parseAsStringLiteral(DECISION_PERIODS).withDefault('12개월'),
@@ -44,7 +49,9 @@ export const decisionSearchParsers = {
    * 확대를 닫아도 남는다 — 이어 붙인 회차와 그 회차의 선택이 확대 여부에 매달리면 안 된다(EAT-115).
    * nuqs는 이 property 이름을 URL key로 쓰므로 `decisionQuery`가 쓰는 `pages`와 같은 이름이어야 한다.
    */
-  pages: parseAsInteger.withDefault(1)
+  pages: parseAsInteger.withDefault(1),
+  // 기본값을 두지 않아 cached 진입은 주소에 남지 않는다. 다른 공고로 새로 들어갈 때도 기본 cached 경로다.
+  historyRead: parseAsStringLiteral(HISTORY_READ_MODES)
 };
 
 export type DecisionSearch = {
@@ -57,7 +64,10 @@ export type DecisionSearch = {
   readonly rate: string | null;
   readonly expand: DecisionExpand | null;
   readonly pages: number;
+  readonly historyRead?: HistoryReadMode | null;
 };
+
+export type HistoryReadMode = (typeof HISTORY_READ_MODES)[number];
 
 export type DecisionView = (typeof DECISION_VIEWS)[number];
 export type DecisionExpand = (typeof DECISION_EXPANDS)[number];
@@ -78,6 +88,9 @@ function decisionQuery(search: DecisionSearch): URLSearchParams {
   // 지우면 불러온 회차와 그 회차를 고른 선택이 함께 사라진다(EAT-115). 조건이 바뀌면 조회 자체가
   // 달라지므로 `buildDecisionFilterRoute`가 1로 되돌린다.
   if (search.pages > 1) query.set('pages', String(search.pages));
+  // 신선도 모드는 같은 공고 안의 모든 링크가 보존한다. 탭·확대·페이지 링크에서 빠지면 복구 중인 화면이
+  // 다시 stale 캐시로 돌아간다.
+  if (search.historyRead === 'latest') query.set('historyRead', 'latest');
   return query;
 }
 
@@ -105,6 +118,15 @@ export function buildDecisionExpandRoute(
   expand: DecisionExpand | null
 ): DecisionRoute {
   return buildDecisionViewRoute(auctionId, { ...search, expand }, search.view);
+}
+
+/** 409 복구 전용. cached 상태에서 한 번 latest로 들어오고, 복구가 끝나면 다시 cached 주소로 돌아갈 수 있다. */
+export function buildDecisionHistoryReadRoute(
+  auctionId: string,
+  search: DecisionSearch,
+  mode: HistoryReadMode | null
+): DecisionRoute {
+  return buildDecisionViewRoute(auctionId, { ...search, historyRead: mode }, search.view);
 }
 
 /** 조건이 달라지면 이전 집단 cursor 페이지 수를 물려받지 않는다. 보기와 사용자 입력은 유지한다. */

@@ -67,6 +67,8 @@ type AuctionPageDependencies = {
   readonly getAuction: (input: { readonly auctionId: string }) => Promise<DecisionAuctionRead>;
   readonly now: () => string;
   readonly listAttempts: HistoryReader;
+  /** `historyRead=latest`가 쓰는 캐시 없는 읽기다. 기본 진입은 `listAttempts`(cached)다. */
+  readonly listAttemptsLatest: HistoryReader;
   readonly findDistribution: (
     input: WinRateDistributionCohort
   ) => Promise<WinRateDistributionV1Response>;
@@ -129,6 +131,8 @@ async function loadHistory(
 ): Promise<HistoryLoadResult> {
   if (!response.organization) return { state: 'no-organization' };
 
+  // latest는 409 복구가 한 번 들어오는 모드다. 캐시를 통째로 비우는 대신 이 읽기만 Nest를 다시 부른다.
+  const listAttempts = search.historyRead === 'latest' ? dependencies.listAttemptsLatest : dependencies.listAttempts;
   const item = normalizeItemParam(search.item);
   // revision은 개인 투찰 조회와 오른쪽 기록이 어느 명단을 읽을지 정하는 값이라 항상 요청한다(opt-in 계약).
   const input = {
@@ -138,10 +142,10 @@ async function loadHistory(
     ...historyCohortOf(response, search, period)
   };
   try {
-    const first = await dependencies.listAttempts({ ...input, limit: HISTORY_PAGE_LIMIT });
+    const first = await listAttempts({ ...input, limit: HISTORY_PAGE_LIMIT });
     // 첫 페이지에는 고정이 없어 build 전환이 올 수 없고, cursor도 없다. 그 밖의 결과는 조회 실패다.
     if (first.kind !== 'page') return { state: 'unavailable' };
-    const more = await loadMorePages(first.response, normalizeHistoryPages(search), input, dependencies.listAttempts);
+    const more = await loadMorePages(first.response, normalizeHistoryPages(search), input, listAttempts);
     if (more.kind === 'build-changed') return { state: 'build-changed' };
     // 공고 ID는 회차(AuctionAttempt) ID와 같은 식별자라 응답 행과 그대로 견줄 수 있다.
     const options = { currentAttemptId: response.identity.auctionId };
