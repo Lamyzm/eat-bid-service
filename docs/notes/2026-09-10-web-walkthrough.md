@@ -153,6 +153,14 @@ PageProps<'/today'>` 하나로 줄이면 파일당 한 번이 된다. `login`·`
   목록 상태를 `view` union으로, 빈 상태 공용 컴포넌트, 품목 라벨 축약 한 곳, `buildTodayRoute`를
   nuqs serializer로. 링크의 한글은 이제 인코딩 전 형태이며 브라우저가 요청 시 인코딩한다.
 
+### 이 훑기에서 나온 산출물
+
+- `.agents/skills/eatbid-component-design/SKILL.md` (EAT-137) — 변경 용이성 네 기준과 상충·저울질, 선언적
+  판정, 상태 union, 분리 기준, 중복 허용과 결합도, server/client 경계, 자료형, 코드 스멜. 파일 크기·계약·
+  문구·접근성은 기존 규칙에 위임한다.
+- `docs/adr/0044-route-segment-slice-structure.md` (Proposed) — segment 내부를 `_features/<name>/{ui,model,lib}`와
+  `_widgets/`로. 전면 FSD와 병렬 라우트는 기각 대안에 이유와 함께 적었다.
+
 ### 진행 중인 issue
 
 - EAT-133 의미 값 SSOT(domain 9개 삭제·시간 규칙·KST·milli 연산·scale/통화 JSON·CronWorkflow 시간대 테스트)
