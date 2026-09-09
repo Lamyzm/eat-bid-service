@@ -1,13 +1,12 @@
-/** @module 책임: production 모듈의 한국어 책임 설명과 삭제 전용 legacy ledger를 검사한다. */
+/** @module 책임: merge-base 이후 신규·수정된 production 모듈에 한국어 책임 설명이 있는지 검사하고, 기준을 못 찾은 경우를 실패 대신 경고로 드러낸다. */
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-const BASELINE_VERSION = "eatbid.korean-module-comments/v1";
-const DEFAULT_LEGACY_COMMIT = "e7fdcd2";
+import { changedScope, describeScope } from "../git/changed-paths.mjs";
+
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const pythonChecker = path.join(moduleDirectory, "check-python-korean-comments.py");
 const sourceExtension = /\.(?:[cm]?[jt]sx?|py)$/iu;
@@ -21,16 +20,12 @@ const genericDescription =
   /^(?:이\s*)?(?:모듈|코드|기능|해당\s*코드)(?:을|를)?\s*(?:설명|담당)(?:한다|합니다)?[.!]?$/u;
 const compare = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
 
-function sha256(value) {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function git(repoRoot, args, options = {}) {
+function git(repoRoot, args) {
   return execFileSync("git", args, {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    ...options,
+    windowsHide: true,
   });
 }
 
@@ -38,7 +33,12 @@ function trackedAndUntrackedFiles(repoRoot) {
   return git(repoRoot, ["ls-files", "--cached", "--others", "--exclude-standard", "-z"])
     .split("\0")
     .filter(Boolean)
-    .map((item) => item.replaceAll("\\", "/"))
+    .map((item) => item.replaceAll("\\", "/"));
+}
+
+function sourceFiles(repoRoot, changedPaths) {
+  const candidates = changedPaths ? [...changedPaths] : trackedAndUntrackedFiles(repoRoot);
+  return [...new Set(candidates.map((item) => item.replaceAll("\\", "/")))]
     .filter((item) => sourceExtension.test(item) && existsSync(path.join(repoRoot, item)))
     .sort(compare);
 }
@@ -69,10 +69,9 @@ function pureBarrel(file, source) {
 }
 
 function eligible(file, source) {
-  const normalized = file.replaceAll("\\", "/");
-  if (excludedPath.test(normalized) || excludedFile.test(path.basename(normalized))) return false;
-  if (/(?:^|\/)schemas?(?:\/|$)/iu.test(normalized)) return false;
-  return !pureBarrel(normalized, source);
+  if (excludedPath.test(file) || excludedFile.test(path.basename(file))) return false;
+  if (/(?:^|\/)schemas?(?:\/|$)/iu.test(file)) return false;
+  return !pureBarrel(file, source);
 }
 
 function meaningful(description) {
@@ -148,176 +147,65 @@ function runPythonChecker(repoRoot, paths) {
   throw new Error("Python 책임 주석 검사에 필요한 python/python3를 찾지 못했습니다.");
 }
 
-function rawInspection(repoRoot) {
-  const files = trackedAndUntrackedFiles(repoRoot);
-  const sources = new Map(
-    files.map((file) => [file, readFileSync(path.join(repoRoot, file), "utf8")]),
-  );
+/**
+ * 규칙 23은 신규·실질 변경 모듈에만 설명을 요구하므로 `changedPaths`가 주어지면 그 안의 production 모듈만
+ * 검사한다. 생략하면 추적·미추적 source 전체를 검사하며, 이는 감사(`--all`)와 기준 미정 경고에만 쓴다.
+ */
+export function inspectKoreanComments({ repoRoot, changedPaths }) {
+  const root = path.resolve(repoRoot);
+  const files = sourceFiles(root, changedPaths);
+  const sources = new Map(files.map((file) => [file, readFileSync(path.join(root, file), "utf8")]));
   const eligibleFiles = files.filter((file) => eligible(file, sources.get(file)));
   const javascriptViolations = eligibleFiles
     .filter((file) => !pythonExtension.test(file))
     .map((file) => inspectJavaScript(file, sources.get(file)))
     .filter(Boolean);
-  const pythonResults = runPythonChecker(
-    repoRoot,
+  const pythonViolations = runPythonChecker(
+    root,
     eligibleFiles.filter((file) => pythonExtension.test(file)),
-  );
-  const pythonViolations = pythonResults
+  )
     .filter((item) => !item.valid)
     .map(({ path: file, message }) => ({ path: file, message }));
   return {
-    eligibleFiles,
-    sources,
+    inspectedCount: eligibleFiles.length,
     violations: [...javascriptViolations, ...pythonViolations].sort((left, right) =>
       compare(left.path, right.path),
     ),
   };
 }
 
-function resolvedCommit(repoRoot, legacyCommit) {
-  return git(repoRoot, [
-    "rev-parse",
-    "--verify",
-    "--end-of-options",
-    `${legacyCommit}^{commit}`,
-  ]).trim();
-}
-
-function legacyBlobs(repoRoot, commit, files) {
-  if (files.length === 0) return new Map();
-  if (files.some((file) => file.includes("\n")))
-    throw new Error("줄바꿈을 포함한 source 경로는 검사할 수 없습니다.");
-  const result = spawnSync("git", ["cat-file", "--batch"], {
-    cwd: repoRoot,
-    input: files.map((file) => `${commit}:${file}\n`).join(""),
-    maxBuffer: 64 * 1024 * 1024,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(result.stderr.toString("utf8"));
-
-  const blobs = new Map();
-  let offset = 0;
-  for (const file of files) {
-    const headerEnd = result.stdout.indexOf(0x0a, offset);
-    if (headerEnd < 0) throw new Error("Git batch 응답 header가 완전하지 않습니다.");
-    const header = result.stdout.subarray(offset, headerEnd).toString("utf8");
-    offset = headerEnd + 1;
-    if (header.endsWith(" missing")) {
-      blobs.set(file, null);
-      continue;
-    }
-    const match = header.match(/^[a-f0-9]+ blob (\d+)$/u);
-    if (!match) throw new Error(`예상하지 못한 Git batch 응답입니다: ${header}`);
-    const size = Number.parseInt(match[1], 10);
-    blobs.set(file, result.stdout.subarray(offset, offset + size));
-    offset += size + 1;
-  }
-  return blobs;
-}
-
-function readBaseline(baselinePath) {
-  if (!existsSync(baselinePath))
-    return { version: BASELINE_VERSION, legacyCommit: null, entries: [] };
-  return JSON.parse(readFileSync(baselinePath, "utf8"));
-}
-
-function validBaselineEntries(repoRoot, baseline, legacyCommit) {
-  const failures = [];
-  if (
-    baseline.version !== BASELINE_VERSION ||
-    baseline.legacyCommit !== legacyCommit ||
-    !Array.isArray(baseline.entries)
-  ) {
-    return {
-      entries: new Map(),
-      failures: ["legacy ledger 형식이나 기준 commit이 유효하지 않습니다."],
-    };
-  }
-  const entries = new Map();
-  const paths = baseline.entries.flatMap((entry) =>
-    typeof entry?.path === "string" ? [entry.path] : [],
-  );
-  const blobs = legacyBlobs(repoRoot, legacyCommit, paths);
-  for (const entry of baseline.entries) {
-    const blob = typeof entry?.path === "string" ? blobs.get(entry.path) : null;
-    if (!blob || entry.sha256 !== sha256(blob))
-      failures.push(`기준 commit으로 증명되지 않은 legacy entry: ${entry?.path ?? "unknown"}`);
-    else entries.set(entry.path, entry.sha256);
-  }
-  return { entries, failures };
-}
-
-/** 신규·변경 production 모듈의 설명 누락과 ledger 위변조를 함께 검사한다. */
-export function inspectKoreanComments({
-  repoRoot,
-  baselinePath,
-  legacyCommit = DEFAULT_LEGACY_COMMIT,
-}) {
-  const root = path.resolve(repoRoot);
-  const commit = resolvedCommit(root, legacyCommit);
-  const inspection = rawInspection(root);
-  const baseline = readBaseline(path.resolve(baselinePath));
-  const validated = validBaselineEntries(root, baseline, commit);
-  const violations = inspection.violations.filter((violation) => {
-    const sourceHash = sha256(Buffer.from(inspection.sources.get(violation.path), "utf8"));
-    return validated.entries.get(violation.path) !== sourceHash;
-  });
-  return {
-    inspectedCount: inspection.eligibleFiles.length,
-    violations,
-    baselineFailures: validated.failures,
-  };
-}
-
-/** 기준 commit과 현재 byte가 완전히 같은 기존 부채만 한 번 ledger로 생성한다. */
-export function writeKoreanCommentBaseline({
-  repoRoot,
-  baselinePath,
-  legacyCommit = DEFAULT_LEGACY_COMMIT,
-}) {
-  const root = path.resolve(repoRoot);
-  const target = path.resolve(baselinePath);
-  if (existsSync(target)) throw new Error(`한국어 책임 주석 baseline이 이미 존재합니다: ${target}`);
-  const commit = resolvedCommit(root, legacyCommit);
-  const inspection = rawInspection(root);
-  const blobs = legacyBlobs(
-    root,
-    commit,
-    inspection.violations.map((violation) => violation.path),
-  );
-  const entries = inspection.violations.flatMap((violation) => {
-    const current = Buffer.from(inspection.sources.get(violation.path), "utf8");
-    const legacy = blobs.get(violation.path);
-    return legacy && current.equals(legacy)
-      ? [{ path: violation.path, sha256: sha256(current) }]
-      : [];
-  });
-  const baseline = { version: BASELINE_VERSION, legacyCommit: commit, entries };
-  mkdirSync(path.dirname(target), { recursive: true });
-  writeFileSync(target, `${JSON.stringify(baseline, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
-  return baseline;
-}
-
 function main() {
-  const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
-  const baselinePath = path.join(moduleDirectory, "korean-comment-legacy-baseline.json");
-  if (process.argv.includes("--write-baseline")) {
-    const baseline = writeKoreanCommentBaseline({ repoRoot, baselinePath });
-    console.log(`한국어 책임 주석 legacy ${baseline.entries.length}개를 기록했습니다.`);
+  const repoRoot = process.env.KOREAN_COMMENTS_ROOT
+    ? path.resolve(process.env.KOREAN_COMMENTS_ROOT)
+    : fileURLToPath(new URL("../../", import.meta.url));
+  const scope = changedScope({ repoRoot });
+  if (scope.mode === "unresolved") {
+    // 기준이 없으면 무엇이 "신규·수정"인지 말할 수 없다. 실패로 만들면 shallow clone·source archive에서
+    // gate가 자기 자신을 막고, 조용히 통과시키면 약해진 사실이 숨는다. 그래서 전체를 검사하되 결과를
+    // 경고로 낮추고, 실패 판정을 원하면 `--base <ref>`를 명시하도록 안내한다.
+    const report = inspectKoreanComments({ repoRoot });
+    console.warn(`경고: ${scope.reason}`);
+    console.warn(
+      `production ${report.inspectedCount}개 전체를 검사했고 설명이 없는 ${report.violations.length}개는 실패로 세지 않습니다. --base <ref>로 기준을 지정하면 실패로 판정합니다.`,
+    );
+    for (const violation of report.violations) console.warn(`- ${violation.path}: ${violation.message}`);
+    console.log("한국어 module 책임 주석 검사를 경고로 마쳤습니다.");
     return;
   }
-  const report = inspectKoreanComments({ repoRoot, baselinePath });
-  if (report.baselineFailures.length || report.violations.length) {
-    console.error("한국어 module 책임 주석 검사가 실패했습니다:");
-    for (const message of report.baselineFailures) console.error(`- baseline: ${message}`);
+  const report = inspectKoreanComments({
+    repoRoot,
+    changedPaths: scope.mode === "changed" ? scope.paths : undefined,
+  });
+  if (report.violations.length) {
+    console.error(`한국어 module 책임 주석 검사가 실패했습니다(${describeScope(scope)}):`);
     for (const violation of report.violations)
       console.error(`- ${violation.path}: ${violation.message}`);
     process.exitCode = 1;
     return;
   }
-  console.log(`한국어 module 책임 주석 검사가 통과했습니다. production ${report.inspectedCount}개`);
+  console.log(
+    `한국어 module 책임 주석 검사가 통과했습니다. ${describeScope(scope)}, production ${report.inspectedCount}개`,
+  );
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
