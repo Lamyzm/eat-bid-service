@@ -6,7 +6,6 @@
  * 열거하는 규칙이 두 곳에 살면 한쪽만 바뀌는 순간 같은 등록이 화면마다 다른 party에 연결된다.
  */
 import { sql } from "drizzle-orm";
-import { RegisteredBusinessEvidenceConflict } from "../../application/account-repository";
 import type {
   RegisteredBusinessLookup,
   RegisteredBusinessLookupInput,
@@ -32,16 +31,12 @@ export class DrizzleRegisteredBusinessReader implements RegisteredBusinessReader
     if (!owner) return { kind: "not-found" };
     if (identifier(owner.workspace_id) !== input.workspaceId) return { kind: "forbidden" };
 
-    try {
-      const [business] = await readBusinesses(database, input.workspaceId, input.registeredBusinessId);
-      // 같은 스냅샷 안에서 소유를 확인한 등록이 사라질 수 없다. 사라졌다면 스냅샷 가정이 깨진 것이다.
-      if (!business) throw new TypeError("Registered business disappeared inside its own snapshot");
-      return { kind: "found", business };
-    } catch (cause) {
-      // 증거 불일치는 저장소 장애가 아니라 원본이 말해 주지 않는 사실이다. 호출자가 응답의 구분되는
-      // 상태로 옮길 수 있도록 값으로 돌려주고, 그 밖의 실패는 그대로 올린다.
-      if (cause instanceof RegisteredBusinessEvidenceConflict) return { kind: "evidence-conflict" };
-      throw cause;
-    }
+    const [business] = await readBusinesses(database, input.workspaceId, input.registeredBusinessId);
+    // 같은 스냅샷 안에서 소유를 확인한 등록이 사라질 수 없다. 사라졌다면 스냅샷 가정이 깨진 것이다.
+    if (!business) throw new TypeError("Registered business disappeared inside its own snapshot");
+    // 증거 불일치는 저장소 장애가 아니라 원본이 말해 주지 않는 사실이다. 호출자가 응답의 구분되는
+    // 상태로 옮길 수 있도록 값으로 돌려준다.
+    if (business.supplier.kind === "evidence-conflict") return { kind: "evidence-conflict" };
+    return { kind: "found", business };
   }
 }

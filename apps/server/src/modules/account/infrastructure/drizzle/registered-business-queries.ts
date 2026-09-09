@@ -6,13 +6,13 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { maxRegisteredBusinesses } from "@eatbid/contracts";
-import {
-  RegisteredBusinessEvidenceConflict,
-  type ChangeLocationInput,
-  type ChangeLocationResult,
-  type RegisterBusinessInput,
-  type RegisterBusinessResult,
-  type RegisteredBusinessRecord,
+import type {
+  ChangeLocationInput,
+  ChangeLocationResult,
+  RegisterBusinessInput,
+  RegisterBusinessResult,
+  RegisteredBusinessRecord,
+  RegisteredSupplierEvidence,
 } from "../../application/account-repository";
 import {
   BUSINESS_NUMBER_SCHEME,
@@ -48,19 +48,25 @@ const businessNumberCandidates = sql`(
     || substr(registration.business_number::text, 6, 5)
 )`;
 
-function toBusiness(row: BusinessRow): RegisteredBusinessRecord {
+/**
+ * 한 번호가 서로 다른 party 둘을 가리키면 어느 쪽이 이 사업자인지 원본이 말해 주지 않는다. 하나를 골라
+ * 연결하면 남의 성적표를 내 것으로 붙이는 일이고, 미관측으로 낮추면 있는 증거를 감춘다. 자동 병합은
+ * `code_mapping`과 같은 급의 명시적 reconciliation이므로(ADR 0033 §1) 여기서는 그 사실을 상태로 돌려준다.
+ * 예외로 던지면 등록 하나가 갈리는 순간 워크스페이스의 목록 전체가 닫힌다.
+ */
+function supplierOf(row: BusinessRow): RegisteredSupplierEvidence {
   const partyCount = Number(row.supplier_party_count);
-  // 한 번호가 서로 다른 party 둘을 가리키면 어느 쪽이 이 사업자인지 원본이 말해 주지 않는다. 하나를
-  // 골라 연결하면 남의 성적표를 내 것으로 붙이는 일이고, 미관측으로 낮추면 있는 증거를 감춘다.
-  // 자동 병합은 `code_mapping`과 같은 급의 명시적 reconciliation이므로(ADR 0033 §1) 여기서는 실패한다.
-  if (Number.isFinite(partyCount) && partyCount > 1) {
-    throw new RegisteredBusinessEvidenceConflict();
-  }
+  if (Number.isFinite(partyCount) && partyCount > 1) return { kind: "evidence-conflict" };
+  if (row.supplier_party_id === null) return { kind: "unobserved" };
+  return { kind: "linked", supplierPartyId: identifier(row.supplier_party_id) };
+}
+
+function toBusiness(row: BusinessRow): RegisteredBusinessRecord {
   return {
     registeredBusinessId: identifier(row.registered_business_id),
     businessNumber: row.business_number,
     registeredAt: instantOf(row.registered_at),
-    supplierPartyId: row.supplier_party_id === null ? null : identifier(row.supplier_party_id),
+    supplier: supplierOf(row),
     location: row.address_text === null || row.location_updated_at === null
       ? null
       : { addressText: row.address_text, updatedAt: instantOf(row.location_updated_at) },

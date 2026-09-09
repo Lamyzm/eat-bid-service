@@ -75,11 +75,11 @@ export function toRegisteredBusiness(record: RegisteredBusinessRecord): Register
     businessId: record.registeredBusinessId.toString(10),
     businessNumber: record.businessNumber,
     registeredAt: instantText(record.registeredAt),
-    // 미관측을 "supplierPartyId: null"이 아니라 이름 있는 상태로 내보낸다. null은 화면에서 쉽게
-    // "참여 기록 없음"으로 읽히지만 이것은 자료 없음이다.
-    supplier: record.supplierPartyId === null
-      ? { kind: "unobserved" }
-      : { kind: "linked", supplierPartyId: record.supplierPartyId.toString(10) },
+    // 미관측과 증거 불일치를 "supplierPartyId: null"이 아니라 이름 있는 상태로 내보낸다. null은 화면에서
+    // 쉽게 "참여 기록 없음"으로 읽히지만 앞은 자료 없음이고 뒤는 판정 불가다.
+    supplier: record.supplier.kind === "linked"
+      ? { kind: "linked", supplierPartyId: record.supplier.supplierPartyId.toString(10) }
+      : { kind: record.supplier.kind },
     location: record.location === null
       ? null
       : { addressText: record.location.addressText, updatedAt: instantText(record.location.updatedAt) },

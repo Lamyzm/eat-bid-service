@@ -13,12 +13,21 @@ export interface RegisteredBusinessLocationRecord {
   readonly updatedAt: Temporal.Instant;
 }
 
+/**
+ * 읽는 시점의 원본 대조 결과다. 미관측은 실패가 아니라 구분되는 상태이고, 한 번호가 서로 다른 party 둘을
+ * 가리키는 증거 불일치도 저장소 장애가 아니라 원본이 말해 주지 않는 사실이다. 셋을 `null` 하나로 합치면
+ * 화면이 자료 없음과 판정 불가를 같은 문장으로 말한다(ADR 0032 §7, ADR 0033 §1).
+ */
+export type RegisteredSupplierEvidence =
+  | { readonly kind: "linked"; readonly supplierPartyId: bigint }
+  | { readonly kind: "unobserved" }
+  | { readonly kind: "evidence-conflict" };
+
 export interface RegisteredBusinessRecord {
   readonly registeredBusinessId: bigint;
   readonly businessNumber: string;
   readonly registeredAt: Temporal.Instant;
-  /** 원본에서 아직 관측되지 않은 사업자는 `null`이다. 실패가 아니라 구분되는 상태다. */
-  readonly supplierPartyId: bigint | null;
+  readonly supplier: RegisteredSupplierEvidence;
   readonly location: RegisteredBusinessLocationRecord | null;
 }
 
@@ -104,24 +113,6 @@ export class RegisteredBusinessForbidden extends Error {
   constructor() {
     super("Registered business belongs to another workspace");
     this.name = "RegisteredBusinessForbidden";
-  }
-}
-
-/**
- * 한 사업자번호가 서로 다른 `SupplierParty` 둘을 가리킨다. 하나를 고르면 남의 성적표를 내 것으로
- * 붙이고, 미관측으로 낮추면 있는 증거를 감춘다. 자동 병합은 `code_mapping`과 같은 급의 명시적
- * reconciliation이므로 조회는 여기서 멈춘다(ADR 0032 §7, ADR 0033 §1).
- *
- * 이름 있는 오류로 두는 이유: 목록 조회는 이 실패를 그대로 드러내야 하지만, 개인 투찰 조회는 같은
- * 사실을 응답의 구분되는 상태로 말해야 한다. 익명 `TypeError`면 호출자가 저장소 장애와 이 사실을
- * 가려낼 수 없어 둘 다 같은 503이 된다.
- */
-export class RegisteredBusinessEvidenceConflict extends Error {
-  readonly code = "EVIDENCE_CONFLICT" as const;
-
-  constructor() {
-    super("Business number resolves to more than one supplier party");
-    this.name = "RegisteredBusinessEvidenceConflict";
   }
 }
 

@@ -68,7 +68,9 @@ type Outcome =
  * 그것은 우리가 하지 않은 미참여 판정이다(ADR 0032 §7).
  */
 function supplierPartyOf(lookup: RegisteredBusinessLookup): bigint | null {
-  return lookup.kind === "found" ? lookup.business.supplierPartyId : null;
+  return lookup.kind === "found" && lookup.business.supplier.kind === "linked"
+    ? lookup.business.supplier.supplierPartyId
+    : null;
 }
 
 export class FindMyBidObservations {

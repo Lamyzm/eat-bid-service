@@ -9,9 +9,15 @@ export { businessNumberDisplay } from '@/shared/lib/business-number-display';
  * 사실이고, 같은 번호를 원본이 나중에 관측하면 같은 등록이 저절로 연결된다(ADR 0032 §7).
  */
 export function supplierStatusText(business: RegisteredBusiness): string {
-  return business.supplier.kind === 'linked'
-    ? '수집 원본에서 이 번호를 확인했습니다'
-    : '수집 원본에 아직 이 번호가 없습니다';
+  switch (business.supplier.kind) {
+    case 'linked':
+      return '수집 원본에서 이 번호를 확인했습니다';
+    case 'unobserved':
+      return '수집 원본에 아직 이 번호가 없습니다';
+    // 원본이 같은 번호를 서로 다른 두 업체로 관측한 상태다. 하나를 골라 연결했다고 말하지 않는다.
+    case 'evidence-conflict':
+      return '수집 원본에서 이 번호가 두 업체를 가리켜 연결을 확정하지 못했습니다';
+  }
 }
 
 export type BusinessNumberCheck =

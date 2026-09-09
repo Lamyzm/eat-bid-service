@@ -23,6 +23,9 @@ describe('등록 사업자 표시', () => {
   });
 
   test('미관측을 미참여로 바꿔 말하지 않는다', () => {
+    expect(supplierStatusText(business({ kind: 'evidence-conflict' }))).toBe(
+      '수집 원본에서 이 번호가 두 업체를 가리켜 연결을 확정하지 못했습니다'
+    );
     expect(supplierStatusText(business({ kind: 'unobserved' }))).toBe(
       '수집 원본에 아직 이 번호가 없습니다'
     );

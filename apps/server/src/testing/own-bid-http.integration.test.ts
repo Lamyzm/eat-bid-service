@@ -147,6 +147,12 @@ describe("내 투찰 관측 HTTP 경계", () => {
         // 등록 뒤에 원본이 같은 번호를 다른 표기로 다시 관측해 party가 둘이 됐다.
         await observeConflictingSupplier(owner);
 
+        // 등록 하나의 증거가 갈렸다고 워크스페이스 목록 전체가 닫히지 않는다. 그 등록만 상태로 말한다.
+        const listed = await request(server).get(businessesPath).set("cookie", cookie).set("origin", origin);
+        expect(listed.status).toBe(200);
+        expect(listed.body.businesses.map((business: { supplier: { kind: string } }) => business.supplier.kind))
+          .toEqual(["linked", "unobserved", "evidence-conflict"]);
+
         const command = {
           organizationId: TARGET_ORGANIZATION_ID.toString(10),
           buildId: ACTIVE_BUILD_ID.toString(10),
