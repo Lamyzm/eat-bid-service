@@ -442,6 +442,37 @@ def test_소스가_차단하면_남은_건을_시도하지_않고_차단_exit_co
     assert printed["observation_ids"] == [1]
 
 
+class _격리애플리케이션(_기록애플리케이션):
+    def normalize(self, args: Namespace) -> None:
+        if args.observation_id == 2:
+            raise DataQuarantinedError(2, "unknown code r2-secret")
+        super().normalize(args)
+
+
+def test_normalize_chunk의_격리_한_건은_실패가_아니라_기록된_최종_상태로_남고_0으로_끝난다(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    application = _격리애플리케이션()
+    argv = _공통("normalize") + [
+        "--observation-ids-json", "[1,2,3]", "--normalized-at", "2026-09-01T00:01:00Z",
+    ]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 0
+
+    assert application.normalized == [1, 3]
+    captured = capsys.readouterr()
+    printed = json.loads(captured.out)
+    assert printed["failed_count"] == 0
+    assert printed["quarantined_count"] == 1
+    assert [item["status"] for item in printed["results"]] == [
+        "succeeded", "quarantined", "succeeded",
+    ]
+    reported = json.loads(captured.err.strip())
+    assert reported["chunk_item"] == "2"
+    assert reported["category"] == "DATA_QUARANTINED"
+    assert "r2-secret" not in captured.err
+
+
 @pytest.mark.parametrize(
     "value",
     [

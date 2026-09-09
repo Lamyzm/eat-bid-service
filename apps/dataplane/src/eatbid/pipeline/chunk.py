@@ -37,14 +37,17 @@ DEFAULT_CHUNK_SIZE = 50
 # 문제가 아니다. 남는 것은 응답 자체가 오지 않은 전송 실패와 그 관측 하나에 갇힌 격리뿐이다.
 CONTINUABLE_FAILURE_CATEGORIES = frozenset({TRANSIENT_NETWORK, DATA_QUARANTINED})
 
-# 왜: 한 chunk가 여러 건을 처리하므로 실패 범주가 섞일 수 있는데 pod 종료 코드는 하나뿐이다.
-# 운영이 먼저 알아야 하는 것은 "소스를 더 부르면 안 된다"와 "이 실행은 무엇을 해도 실패한다"라서
-# 그 둘을 앞에 둔다.
+# 왜 격리는 chunk의 실패가 아닌가. 격리는 그 관측 하나의 최종 상태로 ledger에 이미 기록됐고(ADR 0014),
+# release는 격리 수를 포함해 봉인되며 발행 가능 여부는 validate의 완결 gate가 정한다(ADR 0025).
+# chunk가 65로 죽으면 validate가 오지 못해 release가 영원히 planned로 남고 replay 입구도 막힌다
+# (EAT-122). 격리는 건별 보고로 드러내되 종료 코드는 나머지 실패 범주만 정한다.
+# 한 chunk가 여러 건을 처리하므로 실패 범주가 섞일 수 있는데 pod 종료 코드는 하나뿐이다. 운영이
+# 먼저 알아야 하는 것은 "소스를 더 부르면 안 된다"와 "이 실행은 무엇을 해도 실패한다"라서 그 둘을
+# 앞에 둔다.
 _FAILURE_PRECEDENCE = (
     SOURCE_THROTTLED,
     CONFIGURATION,
     SOURCE_CONTRACT,
-    DATA_QUARANTINED,
     TRANSIENT_NETWORK,
 )
 
@@ -73,6 +76,10 @@ class ChunkItemOutcome[Result]:
     def succeeded(self) -> bool:
         return self.failure_category is None
 
+    @property
+    def quarantined(self) -> bool:
+        return self.failure_category == DATA_QUARANTINED
+
 
 @dataclass(frozen=True, slots=True)
 class ChunkOutcome[Result]:
@@ -84,13 +91,20 @@ class ChunkOutcome[Result]:
         return tuple(item for item in self.attempted if item.succeeded)
 
     @property
+    def quarantined(self) -> tuple[ChunkItemOutcome[Result], ...]:
+        return tuple(item for item in self.attempted if item.quarantined)
+
+    @property
     def failed(self) -> tuple[ChunkItemOutcome[Result], ...]:
-        return tuple(item for item in self.attempted if not item.succeeded)
+        return tuple(
+            item for item in self.attempted if not item.succeeded and not item.quarantined
+        )
 
     @property
     def exit_code(self) -> int:
         """왜: 한 건이라도 조용히 빠지면 성공이 아니다. 실패가 하나라도 있으면 비영 exit로 닫아
-        DAG가 뒤 단계를 잇지 못하게 한다(`runtime-and-deployment.md` §3)."""
+        DAG가 뒤 단계를 잇지 못하게 한다(`runtime-and-deployment.md` §3). 격리된 건은 ledger에
+        최종 상태로 남은 관측이라 여기 들지 않는다."""
         categories = {item.failure_category for item in self.failed}
         for category in _FAILURE_PRECEDENCE:
             if category in categories:

@@ -93,6 +93,10 @@ failure는 completeness를 다시 요구하지 않지만 남아 있는 lineage�
   test가 함께 강제한다.
 - manifest-only, 일부 normalized, validated, published checkpoint 재호출은 같은 identity와 frozen
   member를 유지하며 중복 run/publication/attempt/core revision을 만들지 않는다.
+- 격리는 chunk의 실패가 아니라 publication의 실패다(2026-09-10, EAT-122). normalize는 격리만 남으면
+  0으로 끝나고, release는 격리 수를 포함해 봉인되며, validate가 publication을 `DATA_QUARANTINED`로 닫아
+  같은 release를 parser 수정 뒤 replay의 입력으로 남긴다. capture는 같은 run에서 이미 관측한 unit을
+  소스에 다시 묻지 않아 실패한 chunk만 다시 돌리는 재개가 성립한다.
 
 ## Rejected alternatives
 

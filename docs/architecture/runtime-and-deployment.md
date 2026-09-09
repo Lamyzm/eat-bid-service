@@ -185,14 +185,24 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   EAT-46). 1000은 그 한계의 9분의 1이라 여유가 있으므로 유지하되 "소스가 거부한다"로 설명하지 않는다.
 - 한 건이라도 조용히 누락되면 성공 처리하지 않는다. failure count가 있으면 비영(0이 아닌) exit다.
 - chunk 안의 한 건이 실패해도 그 chunk 전체를 실패로 접지 않는다. 실패한 건만 실패로 기록하고
-  나머지는 계속 관측하되, chunk는 반드시 비영 exit로 끝나 DAG가 뒤 단계를 잇지 못한다. 계속
-  진행할지는 취향이 아니라 run ledger의 상태가 정한다. `SOURCE_THROTTLED`와 `SOURCE_CONTRACT`는
+  나머지는 계속 관측하되, 실패가 남은 chunk는 반드시 비영 exit로 끝나 DAG가 뒤 단계를 잇지 못한다.
+  계속 진행할지는 취향이 아니라 run ledger의 상태가 정한다. `SOURCE_THROTTLED`와 `SOURCE_CONTRACT`는
   그 자리에서 run을 실패로 닫아 뒤의 건이 terminal state로 거부되므로 남은 건을 시도하지 않고,
   `CONFIGURATION`은 애초에 그 건의 문제가 아니다. 계속 도는 것은 응답 자체가 오지 않은
   `TRANSIENT_NETWORK`와 그 관측 하나에 갇힌 `DATA_QUARANTINED`뿐이다. 실패가 범주별로 섞이면
   종료 코드는 먼저 멈춰야 할 범주를 따른다(`SOURCE_THROTTLED` → `CONFIGURATION` →
-  `SOURCE_CONTRACT` → `DATA_QUARANTINED` → `TRANSIENT_NETWORK`). 삼킨 실패는 건마다 한 줄 JSON으로
+  `SOURCE_CONTRACT` → `TRANSIENT_NETWORK`). 삼킨 실패와 격리는 건마다 한 줄 JSON으로
   stderr에 남으며 최종 실패와 같은 비밀값 제거 규칙을 쓴다(2026-09-06, EAT-79).
+- **격리는 chunk의 실패가 아니다.** 격리는 그 관측의 최종 상태로 ledger에 남고(ADR 0014) release는
+  격리 수를 포함해 봉인된다(ADR 0025). 그래서 normalize chunk는 격리만 남으면 0으로 끝나고 발행 가능
+  여부는 `validate`가 정한다 — release를 먼저 봉인한 뒤 격리가 있으면 publication을 `DATA_QUARANTINED`로
+  실패시키고 프로세스도 그 category로 종료한다. chunk가 65로 죽으면 validate가 오지 못해 release가
+  영원히 `planned`로 남고 replay 입구도 막히므로 그렇게 하지 않는다(2026-09-10, EAT-122).
+- 단계는 run ledger에서 재개한다. `capture`는 같은 run에서 이미 `captured`인 상세 unit을 소스에 다시
+  묻지 않고 기존 관측 id를 그대로 chunk 출력에 싣는다. 그래서 실패한 chunk pod만 다시 돌리면
+  (`argo retry`, [collection-runbook.md](../operations/collection-runbook.md) §4) 못 받은 건만 마저
+  받는다. 이 재개는 같은 run·같은 이미지 안의 일이며, 이미지가 바뀐 뒤에는 lineage가 막으므로
+  (ADR 0015) 새 backfill이 답이다(EAT-122).
 - retry는 timeout/일시적 네트워크/일시적 5xx만 대상으로 한다. 403, 429, 차단 신호, 계약 위반,
   인증/설정 오류는 무한 재시도하지 않고 명시적으로 중단한다.
 - 그 retry는 WorkflowTemplate이 아니라 CLI 프로세스 안에서 한다. `retryStrategy`를 두면 source
@@ -228,8 +238,9 @@ exit category와 exit code:
 | `TRANSIENT_NETWORK` | 69 | CLI 안에서 이미 소진 | 예 | 응답이 오지 않은 연결/timeout, warmup 5xx |
 | `SOURCE_THROTTLED` | 75 | workflow 중단, 운영 확인 | 예 | 429/차단 징후 |
 | `SOURCE_CONTRACT` | 76 | 재시도 금지 | 예 | schema/TOT_CNT/불변식 위반, 소진 후에도 남은 endpoint 5xx |
-| `DATA_QUARANTINED` | 65 | raw 보존 후 실행 실패 | 예 | 파싱 불가/미지원 코드 |
+| `DATA_QUARANTINED` | 65 | normalize chunk는 0으로 끝나고 `validate`가 이 category로 닫음 | 예 | 파싱 불가/미지원 코드 |
 | `CONFIGURATION` | 64 | 재시도 금지 | 아니오 | secret/endpoint/argument 오류 |
+| `INTERRUPTED` | 없음 | 운영자가 `fail-release`로 닫을 때만 | 예(받은 관측만) | OOM·중단·노드 유실로 결론 없이 끝난 실행 |
 
 이 표의 category 이름은 프로세스 exit code와 `ingest.run.failure_category`·
 `ingest.source_release.failure_category`에 같은 문자열로 남으며, 권위는
@@ -237,11 +248,17 @@ exit category와 exit code:
 표로 보든 같은 원인을 읽어야 하므로 예외→category 분류도 그 모듈이 소유한다. 검증 시각 없이 닫힌
 실패(`TRANSIENT_NETWORK`·`SOURCE_THROTTLED`·`SOURCE_CONTRACT`·`DATA_QUARANTINED`)는 보존된 raw만
 남기므로 `replay`로 복구하며, 이미 검증을 통과한 뒤의 `PROJECTION_CONTRACT`는 얼린 publication을
-유지해야 해서 부분 topology를 허용하지 않는다.
+유지해야 해서 부분 topology를 허용하지 않는다. `INTERRUPTED`는 `PROJECTION_CONTRACT`처럼 프로세스
+종료 어휘가 아니라 저장된 상태에만 쓰이며, 운영자가 결론 없이 끝난 release를 닫을 때 exit code가
+말해 주지 않는 원인을 그대로 적기 위한 이름이다.
 
 `TRANSIENT_NETWORK`가 나왔다는 것은 상한까지 다시 보내고도 응답이 없었다는 뜻이므로 같은 실행을
-자동으로 또 돌리지 않는다. endpoint 응답은 status와 무관하게 raw로 보존하므로 재시도 후에도 5xx가
-남으면 그 관측을 남기고 `SOURCE_CONTRACT`로 닫는다. 몇 번째 시도에서 응답을 받았는지는 해석이
+자동으로 또 돌리지 않는다. 운영자가 실패한 chunk만 `argo retry`로 다시 돌리는 절차는
+[collection-runbook.md](../operations/collection-runbook.md) §4다. 결론 없이 끝난 release는 자동으로
+`failed`가 되지 않고 `planned`로 남는데, 그것은 "아직 이어서 할 수 있음"의 정당한 상태다. 포기는
+운영자가 `fail-release`로 명시하며 그때 `running` run도 같은 category로 닫힌다(ADR 0025의
+`planned → failed` 전이, EAT-122). endpoint 응답은 status와 무관하게 raw로 보존하므로 재시도 후에도
+5xx가 남으면 그 관측을 남기고 `SOURCE_CONTRACT`로 닫는다. 몇 번째 시도에서 응답을 받았는지는 해석이
 아니라 관측이라 `ingest.request_unit.attempt_count`(기본값 1)에 남겨 성공한 실행에서도 소스
 불안정을 사후에 셀 수 있게 한다.
 

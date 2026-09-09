@@ -74,7 +74,7 @@ def test_모든_건이_성공하면_exit_code가_0이다() -> None:
     assert outcome.failed == ()
 
 
-def test_격리된_파싱_실패는_다음_건을_계속_정규화한다() -> None:
+def test_격리된_파싱_실패는_다음_건을_계속_정규화하고_chunk를_실패로_닫지_않는다() -> None:
     def run_item(key: str) -> str:
         if key == "1":
             raise DataQuarantinedError(1, "malformed payload")
@@ -83,8 +83,26 @@ def test_격리된_파싱_실패는_다음_건을_계속_정규화한다() -> No
     outcome = run_chunk(("1", "2"), run_item, _무시)
 
     assert [item.key for item in outcome.attempted] == ["1", "2"]
-    assert outcome.exit_code == 65
-    assert [item.failure_category for item in outcome.failed] == [DATA_QUARANTINED]
+    # 격리는 ledger에 남은 최종 상태다. 발행 가능 여부는 validate가 정하므로 chunk는 0으로 끝난다.
+    assert outcome.exit_code == 0
+    assert outcome.failed == ()
+    assert [item.failure_category for item in outcome.quarantined] == [DATA_QUARANTINED]
+    assert [item.key for item in outcome.succeeded] == ["2"]
+
+
+def test_격리와_전송_실패가_섞이면_전송_실패만_exit_code를_정한다() -> None:
+    def run_item(key: str) -> str:
+        if key == "1":
+            raise DataQuarantinedError(1, "malformed payload")
+        if key == "2":
+            raise SourceUnavailableError("host unreachable", attempts=3)
+        return key
+
+    outcome = run_chunk(("1", "2", "3"), run_item, _무시)
+
+    assert outcome.exit_code == 69
+    assert [item.key for item in outcome.quarantined] == ["1"]
+    assert [item.key for item in outcome.failed] == ["2"]
 
 
 @pytest.mark.parametrize(

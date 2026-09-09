@@ -42,10 +42,21 @@ def failure_category_for_error(error: Exception) -> str:
     다른 원인을 읽는다. 두 표현이 같은 판정을 쓰도록 예외 분류를 이 한 곳에만 둔다."""
     # 이 모듈은 pipeline과 source가 함께 의존하는 어휘 소유자라, 예외 클래스를 top-level에서
     # 끌어오면 import cycle이 생긴다. 분류 시점에만 필요하므로 함수 안에서 가져온다.
-    from eatbid.failures.errors import SourceContractError, SourceUnavailableError
+    from eatbid.failures.errors import (
+        PublicationFailedError,
+        SourceContractError,
+        SourceUnavailableError,
+    )
     from eatbid.pipeline.capture import SourceThrottledError
     from eatbid.pipeline.normalize import DataQuarantinedError
 
+    # validate가 기록한 category를 그대로 exit code로 옮긴다. 프로세스 어휘에 없는 category가
+    # 오면 아래 CONFIGURATION으로 떨어져 "코드가 예상 못 한 상태"로 드러난다.
+    if (
+        isinstance(error, PublicationFailedError)
+        and error.failure_category in EXIT_CODE_BY_CATEGORY
+    ):
+        return error.failure_category
     if isinstance(error, DataQuarantinedError):
         return DATA_QUARANTINED
     if isinstance(error, SourceThrottledError):

@@ -162,6 +162,11 @@ class PsycopgPublicationRepository:
                 expected_count=int(expected_count),
                 required=mode == "replay",
             )
+            failure_category = (
+                DATA_QUARANTINED
+                if topology.quarantined_current_attempts > 0
+                else SOURCE_CONTRACT
+            )
             self._persist_failed(
                 cursor,
                 run_id=run_id,
@@ -169,11 +174,7 @@ class PsycopgPublicationRepository:
                 failed_at=validated_at,
                 expected_count=int(expected_count),
                 normalized_count=len(topology.members),
-                failure_category=(
-                    DATA_QUARANTINED
-                    if topology.quarantined_current_attempts > 0
-                    else SOURCE_CONTRACT
-                ),
+                failure_category=failure_category,
                 consume_pending=consume_pending,
             )
             return PublicationValidation(
@@ -183,6 +184,7 @@ class PsycopgPublicationRepository:
                 expected_count=int(expected_count),
                 normalized_count=len(topology.members),
                 member_ids=(),
+                failure_category=failure_category,
             )
 
     @staticmethod
@@ -452,6 +454,10 @@ class PsycopgPublicationRepository:
             expected_count=int(publication[4]),
             normalized_count=int(publication[5]),
             member_ids=member_ids,
+            # 재호출도 같은 typed failure로 끝나야 한다. run에 남은 category가 그 권위다.
+            failure_category=(
+                run_failure_category if publication_status == "failed" else None
+            ),
         )
 
 

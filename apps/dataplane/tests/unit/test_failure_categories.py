@@ -15,7 +15,11 @@ from eatbid.failures.categories import (
     TRANSIENT_NETWORK,
     failure_category_for_error,
 )
-from eatbid.failures.errors import SourceContractError, SourceUnavailableError
+from eatbid.failures.errors import (
+    PublicationFailedError,
+    SourceContractError,
+    SourceUnavailableError,
+)
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.discover import DiscoveryPlan
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
@@ -78,6 +82,18 @@ def test_예외_종류가_그대로_failure_category가_된다(
     error: Exception, expected: str
 ) -> None:
     assert failure_category_for_error(error) == expected
+
+
+def test_기록된_발행_실패는_ledger의_category를_그대로_exit_code로_옮긴다() -> None:
+    quarantined = PublicationFailedError(DATA_QUARANTINED, publication_id=uuid4())
+    contract = PublicationFailedError(SOURCE_CONTRACT, publication_id=uuid4())
+    # 프로세스 어휘에 없는 category는 코드가 예상 못 한 상태이므로 설정 오류로 드러난다.
+    unknown = PublicationFailedError(PROJECTION_CONTRACT, publication_id=uuid4())
+
+    assert failure_category_for_error(quarantined) == DATA_QUARANTINED
+    assert exit_code_for_error(quarantined) == 65
+    assert exit_code_for_error(contract) == 76
+    assert failure_category_for_error(unknown) == "CONFIGURATION"
 
 
 def test_exit_code와_failure_category가_같은_판정을_쓴다() -> None:

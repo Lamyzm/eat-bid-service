@@ -19,6 +19,7 @@ from eatbid.cache_revalidation import (
 )
 from eatbid.config import ApplicationSettings
 from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
+from eatbid.failures.errors import PublicationFailedError
 from eatbid.failures.report import ApplicationConfigurationError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.ingest.postgres_normalization_repository import (
@@ -173,15 +174,26 @@ class Application:
         )
 
     def validate(self, args: argparse.Namespace) -> Any:
+        # release 봉인이 먼저다. 격리가 있어도 관측 집합은 완결됐고(ADR 0025), 발행 가능 여부는 그
+        # 다음 완결 gate가 따로 판정한다. 그래야 실패한 회차도 replay 입력이 되는 봉인된 release를 남긴다.
         self._release.reconcile_and_seal(
             args.source_release_id, args.run_id, sealed_at=args.validated_at
         )
-        return validate_run(
+        validation = validate_run(
             run_id=args.run_id,
             publication_id=args.publication_id,
             validated_at=args.validated_at,
             repository=self._publication,
         )
+        # publication을 실패로 기록한 뒤 0으로 끝나면 DAG가 project로 이어져 엉뚱한 자리에서 설정
+        # 오류로 죽는다. ledger에 남긴 category가 곧 이 프로세스의 exit code다(EAT-122).
+        if validation.status == "failed":
+            if validation.failure_category is None:
+                raise RuntimeError("failed publication has no failure category")
+            raise PublicationFailedError(
+                validation.failure_category, publication_id=args.publication_id
+            )
+        return validation
 
     def project(self, args: argparse.Namespace) -> None:
         self._release.require_publication_corpus(

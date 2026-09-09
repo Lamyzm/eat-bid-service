@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from eatbid.config import ApplicationSettings
 from eatbid.failures.report import render_failure
 from eatbid.ingest.models import CapturedObservation
-from eatbid.pipeline.chunk import ChunkOutcome, run_chunk
+from eatbid.pipeline.chunk import ChunkItemOutcome, ChunkOutcome, run_chunk
 
 __all__ = ["CHUNK_COMMANDS", "ChunkCommand", "chunk_payload", "run_chunk_command"]
 
@@ -113,6 +113,12 @@ def _item_arguments(
     return argparse.Namespace(**values)
 
 
+def _item_status(item: ChunkItemOutcome[object]) -> str:
+    if item.succeeded:
+        return "succeeded"
+    return "quarantined" if item.quarantined else "failed"
+
+
 def _item_key(command: ChunkCommand, key: str) -> object:
     # observation ID는 숫자 정체성이고 external bid ID는 소스가 준 문자열 그대로다. chunk는 순서를
     # 남기려고 둘 다 문자열로 다루므로 application에 넘기기 직전에 원래 타입으로 되돌린다.
@@ -126,15 +132,18 @@ def chunk_payload(
     results = [
         {
             "key": item.key,
-            "status": "succeeded" if item.succeeded else "failed",
+            "status": _item_status(item),
             "failure_category": item.failure_category,
             **(command.describe(item.result) if item.succeeded else {}),
         }
         for item in outcome.attempted
     ]
+    # 격리는 실패와 따로 센다. 운영이 "소스가 안 왔다"와 "받았지만 우리가 해석하지 못했다"를 한 숫자로
+    # 읽으면 재시도할 일과 파서를 고칠 일을 구분하지 못한다.
     payload: dict[str, object] = {
         "results": results,
         "failed_count": len(outcome.failed),
+        "quarantined_count": len(outcome.quarantined),
         "skipped": list(outcome.skipped),
     }
     if command.fan_out is not None:
