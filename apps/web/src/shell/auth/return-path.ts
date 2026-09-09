@@ -2,14 +2,14 @@
 import type { Route } from 'next';
 
 /** 돌아갈 곳이 정해지지 않았거나 값이 안전하지 않을 때의 기본 진입 경로다. */
-export const DEFAULT_RETURN_PATH = '/setup';
+export const DEFAULT_RETURN_PATH = '/today';
 
 /**
  * Next redirect가 받는 값은 존재하는 route여야 하므로 복귀 대상을 실제 화면 목록으로 좁힌다. provider에
  * 넘기는 `callbackURL`은 브라우저 탐색이라 검증된 상대 경로 전체를 그대로 쓴다. 두 경계의 요구가 달라서
  * 함수도 둘이다.
  */
-const REDIRECT_TARGETS = ['/', '/setup'] as const;
+const REDIRECT_TARGETS = ['/', '/today', '/setup'] as const;
 
 /**
  * 공고 상세는 이 앱에서 가장 흔한 복귀 지점이라 목록에 적을 수 없는 동적 route를 하나 더 받는다.
