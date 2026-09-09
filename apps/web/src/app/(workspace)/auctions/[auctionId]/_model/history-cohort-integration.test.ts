@@ -17,7 +17,7 @@ async function load(overrides: Partial<DecisionSearch> = {}, auction = auctionFi
     now: () => { clockCalls += 1; return fixtureNow; },
     listAttempts: async (input) => {
       historyCalls.push(input);
-      return { ...attemptsFixture, nextCursor: input.cursor ? null : '77' };
+      return { kind: 'page', response: { ...attemptsFixture, nextCursor: input.cursor ? null : '77' } };
     },
     findDistribution: async (input) => { distributionCalls.push(input); return floor90DistributionFixture; }
   });
@@ -27,7 +27,7 @@ async function load(overrides: Partial<DecisionSearch> = {}, auction = auctionFi
 describe('실제 화면의 기관 비교 조건 연결', () => {
   test('기관 표와 흐름을 공고 하한율·방식·같은 KST 기간으로 서버 조회한다', async () => {
     const { historyCalls, clockCalls } = await load();
-    expect(historyCalls).toEqual([{ organizationId: '3101', includeItemLabel: 'true', floorRate: '90.000', awardMethod: '31', from: '2025-10', to: '2026-09', opened: 'only', limit: 60 }]);
+    expect(historyCalls).toEqual([{ organizationId: '3101', includeItemLabel: 'true', includeRevision: 'true', floorRate: '90.000', awardMethod: '31', from: '2025-10', to: '2026-09', opened: 'only', limit: 60 }]);
     expect(clockCalls).toBe(1);
   });
 
@@ -35,7 +35,8 @@ describe('실제 화면의 기관 비교 조건 연결', () => {
     const { historyCalls } = await load({ floor: '88.000', item: '7', period: '5년', expand: '과거 회차', pages: 2 });
     expect(historyCalls).toHaveLength(2);
     for (const input of historyCalls) expect(input).toMatchObject({ floorRate: '88.000', awardMethod: '31', item: '7', from: '2021-10', to: '2026-09' });
-    expect(historyCalls[1]?.cursor).toBe('77');
+    // 두 번째 페이지는 첫 응답의 build·asOf에 고정된다. 없으면 다른 계보의 회차를 이어 붙이게 된다.
+    expect(historyCalls[1]).toMatchObject({ cursor: '77', expectedBuildId: '501', asOf: '2026-09-06T00:00:00Z' });
   });
 
   test('하한 전체와 미확인은 서로 다른 요청이고 지원하지 않는 분포를 조회하지 않는다', async () => {

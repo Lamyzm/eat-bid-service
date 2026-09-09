@@ -50,7 +50,9 @@ export const DISTRIBUTION_PENDING_REASON: Record<'missing-terms' | 'missing-axis
  */
 export const HISTORY_PENDING_REASON: Record<Exclude<HistoryState['state'], 'ready'>, string> = {
   'no-organization': '이 공고의 구매기관이 아직 정규화되지 않았습니다',
-  unavailable: '회차 이력을 지금 불러오지 못했습니다'
+  unavailable: '회차 이력을 지금 불러오지 못했습니다',
+  // 이어 읽는 사이 자료 기준이 바뀐 경우다. 부분 목록을 보이지 않으며 복구는 과거 회차 카드가 안내한다.
+  'build-changed': '자료가 방금 갱신되어 회차 이력을 새 기준으로 다시 불러와야 합니다'
 };
 
 /** 빈 자리에도 사유를 붙인다. 사유 없는 빈 카드·빈 모달은 사용자에게 "고장"으로 읽힌다. */

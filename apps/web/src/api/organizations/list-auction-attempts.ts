@@ -48,7 +48,8 @@ export async function listOrganizationAuctionAttemptsWith(
   } catch (error) {
     throw mapOrganizationResourceError(request, error, {
       organizationId: path.organizationId,
-      hasCursor: query.cursor !== undefined
+      hasCursor: query.cursor !== undefined,
+      hasBuildPin: query.expectedBuildId !== undefined
     });
   }
 }

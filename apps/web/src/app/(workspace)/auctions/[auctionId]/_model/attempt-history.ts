@@ -10,6 +10,8 @@ import { formatWon, toMilli, toMilliCeiling } from './bid-rate';
 
 export type HistoryRow = {
   readonly attemptId: string;
+  /** 이 요약이 요약한 해석이다. 서버가 opt-in을 무시한 응답은 null이며, null을 최신 revision으로 추정하지 않는다. */
+  readonly revisionId: string | null;
   readonly openedAt?: string | null;
   /** wire instant 그대로다. 헤더의 발주 주기·배너의 지난 공고는 이 값으로 간격을 재며 표시 문자열을 되파싱하지 않는다(AGENTS 15). */
   readonly announcedAt: string;
@@ -106,7 +108,7 @@ function openedMonth(attempt: OrganizationAuctionAttempt): string {
 
 // 기초금액 wire는 소수 둘째 자리까지 실린다. 소수부가 0이면 볼 이유가 없는 정밀도라 생략하고, 0이
 // 아니면 관측된 값 그대로 보인다(present-decision.ts와 같은 규칙).
-function amountText(amount: string): string {
+export function amountText(amount: string): string {
   const [whole, fraction = ''] = amount.split('.');
   const padded = (fraction + '00').slice(0, 2);
   return padded === '00' ? formatWon(whole) : `${formatWon(whole)}.${padded}`;
@@ -115,6 +117,7 @@ function amountText(amount: string): string {
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
   return {
     attemptId: attempt.attemptId,
+    revisionId: attempt.revisionId ?? null,
     openedAt: attempt.openedAt,
     announcedAt: attempt.announcedAt,
     openedText: openedText(attempt),

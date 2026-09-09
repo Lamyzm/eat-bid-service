@@ -11,6 +11,7 @@ export const attemptsFixture = {
   attempts: [
   {
     attemptId: '5669410',
+    revisionId: '56694101',
     announcedAt: '2026-08-07T00:00:00Z',
     openedAt: '2026-08-10T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -27,6 +28,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5668541',
+    revisionId: '56685411',
     announcedAt: '2026-07-08T00:00:00Z',
     openedAt: '2026-07-11T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -43,6 +45,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5668095',
+    revisionId: '56680951',
     announcedAt: '2026-06-09T00:00:00Z',
     openedAt: '2026-06-12T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -59,6 +62,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5667147',
+    revisionId: '56671471',
     announcedAt: '2026-05-10T00:00:00Z',
     openedAt: '2026-05-13T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -75,6 +79,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5666027',
+    revisionId: '56660271',
     announcedAt: '2026-03-11T00:00:00Z',
     openedAt: '2026-03-14T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -91,6 +96,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5664874',
+    revisionId: '56648741',
     announcedAt: '2026-02-12T00:00:00Z',
     openedAt: '2026-02-15T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -107,6 +113,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5663802',
+    revisionId: '56638021',
     announcedAt: '2026-01-13T00:00:00Z',
     openedAt: '2026-01-16T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -123,6 +130,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5662741',
+    revisionId: '56627411',
     announcedAt: '2025-12-14T00:00:00Z',
     openedAt: '2025-12-17T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -139,6 +147,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5662366',
+    revisionId: '56623661',
     announcedAt: '2025-11-15T00:00:00Z',
     openedAt: '2025-11-18T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -155,6 +164,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5661689',
+    revisionId: '56616891',
     announcedAt: '2025-09-16T00:00:00Z',
     openedAt: '2025-09-19T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -171,6 +181,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5660935',
+    revisionId: '56609351',
     announcedAt: '2025-08-17T00:00:00Z',
     openedAt: '2025-08-20T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -187,6 +198,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5659858',
+    revisionId: '56598581',
     announcedAt: '2025-07-18T00:00:00Z',
     openedAt: '2025-07-21T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -203,6 +215,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5658818',
+    revisionId: '56588181',
     announcedAt: '2025-06-19T00:00:00Z',
     openedAt: '2025-06-22T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -219,6 +232,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5657737',
+    revisionId: '56577371',
     announcedAt: '2025-05-20T00:00:00Z',
     openedAt: '2025-05-23T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -235,6 +249,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5656632',
+    revisionId: '56566321',
     announcedAt: '2025-03-21T00:00:00Z',
     openedAt: '2025-03-24T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -251,6 +266,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5655795',
+    revisionId: '56557951',
     announcedAt: '2025-02-07T00:00:00Z',
     openedAt: '2025-02-10T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -267,6 +283,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5654898',
+    revisionId: '56548981',
     announcedAt: '2025-01-08T00:00:00Z',
     openedAt: '2025-01-11T04:00:00Z',
     item: { codeValueId: '7', label: '축산' },
@@ -283,6 +300,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5654113',
+    revisionId: '56541131',
     announcedAt: '2024-12-09T00:00:00Z',
     openedAt: '2024-12-12T04:00:00Z',
     item: { codeValueId: '8', label: '공산' },
@@ -299,6 +317,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5652975',
+    revisionId: '56529751',
     announcedAt: '2024-10-10T00:00:00Z',
     openedAt: '2024-10-13T04:00:00Z',
     item: { codeValueId: '8', label: '공산' },
@@ -315,6 +334,7 @@ export const attemptsFixture = {
   },
   {
     attemptId: '5651958',
+    revisionId: '56519581',
     announcedAt: '2024-09-11T00:00:00Z',
     openedAt: '2024-09-14T04:00:00Z',
     item: { codeValueId: '8', label: '공산' },

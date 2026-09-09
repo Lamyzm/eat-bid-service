@@ -11,6 +11,7 @@ function makeRow(
 ): HistoryRow {
   return {
     attemptId: '1',
+    revisionId: null,
     openedMonthText: '26-01',
     openedKstDay: 20_454,
     announcedAt: '2025-12-29T00:00:00Z',

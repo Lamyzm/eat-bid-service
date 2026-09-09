@@ -1,6 +1,7 @@
 /** @module 책임: 공고 route의 ID 검증·조회·404 분기, 공고 응답이 있어야 만들 수 있는 회차 이력·분포의 병렬 조회와 세 presentation의 조립 순서를 소유한다. */
 import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 import type { OrganizationAuctionAttemptsV1Response, OrganizationAuctionAttemptsQuery } from '@eatbid/contracts/api/v1/organizations';
+import type { OrganizationAttemptsRead } from '@/api/organizations/server';
 import type {
   WinRateDistributionCohort,
   WinRateDistributionV1Response
@@ -28,7 +29,9 @@ type HistoryLoadResult =
       readonly expanded: { readonly presentation: HistoryPresentation; readonly loadFailed: boolean };
     }
   | { readonly state: 'no-organization' }
-  | { readonly state: 'unavailable' };
+  | { readonly state: 'unavailable' }
+  /** 이어 읽는 사이 활성 build가 바뀌었다. 두 계보를 섞은 부분 목록을 싣지 않고 전체를 버린다(ADR 0034). */
+  | { readonly state: 'build-changed' };
 
 /**
  * `locked`는 코호트를 만들 재료가 공고에 없다는 뜻이고 `unavailable`은 조회가 실패했다는 뜻이다.
@@ -57,12 +60,13 @@ export type DecisionAuctionRead =
 
 // HTTP의 coerce 입력(unknown)을 내부 조회 port로 퍼뜨리지 않는다. 페이지 크기는 로더가 정수로 정한다.
 type HistoryReadInput = Omit<OrganizationAuctionAttemptsQuery, 'limit'> & { readonly organizationId: string; readonly limit?: number };
+type HistoryReader = (input: HistoryReadInput) => Promise<OrganizationAttemptsRead>;
 
 type AuctionPageDependencies = {
   readonly parseAuctionId: (auctionId: string) => string;
   readonly getAuction: (input: { readonly auctionId: string }) => Promise<DecisionAuctionRead>;
   readonly now: () => string;
-  readonly listAttempts: (input: HistoryReadInput) => Promise<OrganizationAuctionAttemptsV1Response>;
+  readonly listAttempts: HistoryReader;
   readonly findDistribution: (
     input: WinRateDistributionCohort
   ) => Promise<WinRateDistributionV1Response>;
@@ -78,27 +82,41 @@ function normalizeHistoryPages(search: DecisionSearch): number {
   return Math.min(search.pages, MAX_HISTORY_PAGES);
 }
 
+type MorePages =
+  | { readonly kind: 'merged'; readonly merged: OrganizationAuctionAttemptsV1Response; readonly loadFailed: boolean }
+  | { readonly kind: 'build-changed' };
+
 /**
  * 첫 페이지 뒤로 keyset cursor를 따라 페이지를 이어 붙인다. 이어진 응답을 하나의 계약 응답 모양으로 합쳐
- * `presentHistory`에 넣으므로 표시 규칙(자기 회차 제외·표본 수)은 한 곳에 남는다. 중간 페이지가 실패하면
- * (build 전환으로 cursor가 사라진 경우 포함) 거기서 멈추고 실패 사실을 함께 돌려준다.
+ * `presentHistory`에 넣으므로 표시 규칙(자기 회차 제외·표본 수)은 한 곳에 남는다.
+ *
+ * 후속 페이지는 첫 응답의 build·asOf에 고정한다(계약 buildPinRule). 둘 중 하나라도 없으면 같은 코호트를
+ * 이어 읽는다고 말할 수 없으므로 다른 계보를 붙이는 대신 더 읽지 않고 그 사실을 남긴다. 중간에 build가
+ * 바뀌면 앞까지의 목록도 버린다 — 부분 성공은 두 계보의 회차를 한 화면에 섞는다.
  */
 async function loadMorePages(
   first: OrganizationAuctionAttemptsV1Response,
   pageCount: number,
   input: Omit<HistoryReadInput, 'limit'>,
-  dependencies: AuctionPageDependencies
-): Promise<{ readonly merged: OrganizationAuctionAttemptsV1Response; readonly loadFailed: boolean }> {
+  listAttempts: HistoryReader
+): Promise<MorePages> {
   let merged = first;
+  const pin = first.meta.buildId !== null && first.meta.asOf !== null
+    ? { expectedBuildId: first.meta.buildId, asOf: first.meta.asOf }
+    : null;
   for (let page = 2; page <= pageCount && merged.nextCursor !== null; page += 1) {
+    if (pin === null) return { kind: 'merged', merged, loadFailed: true };
+    let next: OrganizationAttemptsRead;
     try {
-      const next = await dependencies.listAttempts({ ...input, cursor: merged.nextCursor, limit: HISTORY_PAGE_LIMIT });
-      merged = { ...merged, attempts: [...merged.attempts, ...next.attempts], nextCursor: next.nextCursor };
+      next = await listAttempts({ ...input, ...pin, cursor: merged.nextCursor, limit: HISTORY_PAGE_LIMIT });
     } catch {
-      return { merged, loadFailed: true };
+      return { kind: 'merged', merged, loadFailed: true };
     }
+    if (next.kind === 'build-changed') return { kind: 'build-changed' };
+    if (next.kind === 'cursor-not-found') return { kind: 'merged', merged, loadFailed: true };
+    merged = { ...merged, attempts: [...merged.attempts, ...next.response.attempts], nextCursor: next.response.nextCursor };
   }
-  return { merged, loadFailed: false };
+  return { kind: 'merged', merged, loadFailed: false };
 }
 
 // 회차 이력은 공고 화면의 부차 evidence라 실패해도(404·400·기타) 화면 전체를 죽이지 않고
@@ -112,15 +130,24 @@ async function loadHistory(
   if (!response.organization) return { state: 'no-organization' };
 
   const item = normalizeItemParam(search.item);
-  const input = { organizationId: response.organization.organizationId, includeItemLabel: 'true' as const, ...historyCohortOf(response, search, period) };
+  // revision은 개인 투찰 조회와 오른쪽 기록이 어느 명단을 읽을지 정하는 값이라 항상 요청한다(opt-in 계약).
+  const input = {
+    organizationId: response.organization.organizationId,
+    includeItemLabel: 'true' as const,
+    includeRevision: 'true' as const,
+    ...historyCohortOf(response, search, period)
+  };
   try {
-    const attempts = await dependencies.listAttempts({ ...input, limit: HISTORY_PAGE_LIMIT });
-    const more = await loadMorePages(attempts, normalizeHistoryPages(search), input, dependencies);
+    const first = await dependencies.listAttempts({ ...input, limit: HISTORY_PAGE_LIMIT });
+    // 첫 페이지에는 고정이 없어 build 전환이 올 수 없고, cursor도 없다. 그 밖의 결과는 조회 실패다.
+    if (first.kind !== 'page') return { state: 'unavailable' };
+    const more = await loadMorePages(first.response, normalizeHistoryPages(search), input, dependencies.listAttempts);
+    if (more.kind === 'build-changed') return { state: 'build-changed' };
     // 공고 ID는 회차(AuctionAttempt) ID와 같은 식별자라 응답 행과 그대로 견줄 수 있다.
     const options = { currentAttemptId: response.identity.auctionId };
     return {
       state: 'ready',
-      presentation: presentHistory(attempts, item, options),
+      presentation: presentHistory(first.response, item, options),
       expanded: { presentation: presentHistory(more.merged, item, options), loadFailed: more.loadFailed }
     };
   } catch {

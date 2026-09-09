@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test';
+import type { OrganizationAuctionAttemptsV1Response } from '@eatbid/contracts/api/v1/organizations';
+import type { OrganizationAttemptsRead } from '@/api/organizations/server';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { auctionFixture, fixtureNow } from '../__fixtures__/auction';
@@ -8,6 +10,8 @@ import { loadAuctionPage, type DecisionAuctionRead } from './load-auction-page';
 
 const canonicalAuctionId = auctionFixture.identity.auctionId;
 const auctionRead: DecisionAuctionRead = { kind: 'auction', response: auctionFixture };
+// 회차 이력 read는 예상된 실패를 값으로 돌려준다. 성공 페이지를 그 모양으로 감싼다.
+const page = (response: OrganizationAuctionAttemptsV1Response): OrganizationAttemptsRead => ({ kind: 'page', response });
 const search: DecisionSearch = {
   period: '12개월',
   scope: '전국',
@@ -27,7 +31,7 @@ function createDependencies(overrides: Partial<Parameters<typeof loadAuctionPage
     },
     getAuction: async () => auctionRead,
     now: () => fixtureNow,
-    listAttempts: async () => attemptsFixture,
+    listAttempts: async () => page(attemptsFixture),
     findDistribution: async () => floor90DistributionFixture,
     ...overrides
   };
@@ -102,7 +106,7 @@ describe('공고 상세 route loader', () => {
         getAuction: async () => ({ kind: 'auction', response: { ...auctionFixture, organization: null } }),
         listAttempts: async () => {
           listCalled = true;
-          return attemptsFixture;
+          return page(attemptsFixture);
         }
       })
     );
@@ -134,7 +138,7 @@ describe('공고 상세 route loader', () => {
       createDependencies({
         listAttempts: async ({ organizationId }) => {
           requestedOrganizationIds.push(organizationId);
-          return attemptsFixture;
+          return page(attemptsFixture);
         }
       })
     );
@@ -153,7 +157,7 @@ describe('공고 상세 route loader', () => {
       Promise.resolve({ auctionId: canonicalAuctionId }),
       search,
       createDependencies({
-        listAttempts: async () => ({ ...attemptsFixture, attempts: [self, ...attemptsFixture.attempts] })
+        listAttempts: async () => page({ ...attemptsFixture, attempts: [self, ...attemptsFixture.attempts] })
       })
     );
 
@@ -172,7 +176,7 @@ describe('공고 상세 route loader', () => {
       createDependencies({
         listAttempts: async ({ item }) => {
           requestedItems.push(item);
-          return attemptsFixture;
+          return page(attemptsFixture);
         }
       })
     );
@@ -233,7 +237,7 @@ describe('공고 상세 route loader', () => {
       createDependencies({
         listAttempts: async ({ cursor, limit }) => {
           requested.push({ cursor, limit });
-          return cursor === undefined ? { ...attemptsFixture, nextCursor: '77' } : second;
+          return page(cursor === undefined ? { ...attemptsFixture, nextCursor: '77' } : second);
         }
       })
     );
@@ -256,7 +260,7 @@ describe('공고 상세 route loader', () => {
         createDependencies({
           listAttempts: async () => {
             calls += 1;
-            return { ...attemptsFixture, nextCursor: String(calls) };
+            return page({ ...attemptsFixture, nextCursor: String(calls) });
           }
         })
       );
@@ -271,7 +275,7 @@ describe('공고 상세 route loader', () => {
       createDependencies({
         listAttempts: async ({ cursor }) => {
           if (cursor !== undefined) throw new Error('cursor invalid');
-          return { ...attemptsFixture, nextCursor: '77' };
+          return page({ ...attemptsFixture, nextCursor: '77' });
         }
       })
     );
@@ -324,7 +328,7 @@ describe('공고 상세 route loader', () => {
           started.push('history');
           await Promise.resolve();
           finished.push('history');
-          return attemptsFixture;
+          return page(attemptsFixture);
         },
         findDistribution: async () => {
           started.push('distribution');
@@ -361,5 +365,53 @@ describe('공고 상세 route loader', () => {
       expect(result.distribution.presentation.state).toBe('unknown');
       expect(result.distribution.presentation.reason).toContain('행안부 기준이 아닙니다');
     }
+  });
+
+  test('회차 이력에 revision을 요청하고 후속 페이지는 첫 응답의 build·asOf로 고정한다', async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const first = { ...attemptsFixture, nextCursor: '5' };
+    await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      { ...search, pages: 2 },
+      createDependencies({
+        listAttempts: async (input) => {
+          calls.push(input);
+          return page(calls.length === 1 ? first : { ...attemptsFixture, nextCursor: null });
+        }
+      })
+    );
+    expect(calls[0]).toMatchObject({ includeRevision: 'true' });
+    expect(calls[0]).not.toHaveProperty('expectedBuildId');
+    expect(calls[1]).toMatchObject({ cursor: '5', expectedBuildId: '501', asOf: '2026-09-06T00:00:00Z' });
+  });
+
+  test('이어 읽는 사이 build가 바뀌면 부분 목록을 싣지 않고 build-changed로 닫는다', async () => {
+    let call = 0;
+    const first = { ...attemptsFixture, nextCursor: '5' };
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      { ...search, pages: 3 },
+      createDependencies({
+        listAttempts: async () => (call++ === 0 ? page(first) : { kind: 'build-changed' })
+      })
+    );
+    expect(result?.history).toEqual({ state: 'build-changed' });
+  });
+
+  test('첫 응답에 build나 asOf가 없으면 다른 계보를 이어 붙이지 않고 그 사실만 남긴다', async () => {
+    const first = { ...attemptsFixture, nextCursor: '5', meta: { ...attemptsFixture.meta, buildId: null, asOf: null } };
+    let calls = 0;
+    const result = await loadAuctionPage(
+      Promise.resolve({ auctionId: canonicalAuctionId }),
+      { ...search, pages: 2 },
+      createDependencies({
+        listAttempts: async () => {
+          calls += 1;
+          return page(first);
+        }
+      })
+    );
+    expect(calls).toBe(1);
+    expect(result?.history.state === 'ready' && result.history.expanded.loadFailed).toBe(true);
   });
 });

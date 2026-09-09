@@ -17,6 +17,14 @@ describe('기관 회차 이력 표시 모델', () => {
     expect(presentHistory(response, '7').rows[0]?.isSelectedItem).toBe(false);
   });
 
+  test('요청한 revision을 행에 그대로 보존하고 없으면 최신으로 추정하지 않는다', () => {
+    const withRevision = { ...attemptsFixture.attempts[0]!, revisionId: '9007199254740999' };
+    const { revisionId: _omitted, ...withoutRevision } = attemptsFixture.attempts[1]!;
+    const rows = presentHistory({ ...attemptsFixture, attempts: [withRevision, withoutRevision] }, null).rows;
+    expect(rows[0]?.revisionId).toBe('9007199254740999');
+    expect(rows[1]?.revisionId).toBeNull();
+  });
+
   test('100 초과 낙찰과 차순위 관측값을 응답 검증부터 표의 소수 셋째 자리까지 보존한다', () => {
     const response = organizationAuctionAttemptsV1ResponseSchema.parse({
       ...attemptsFixture,
