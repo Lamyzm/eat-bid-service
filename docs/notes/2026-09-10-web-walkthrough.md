@@ -125,13 +125,409 @@ PageProps<'/today'>` 하나로 줄이면 파일당 한 번이 된다. `login`·`
 - poll-open `*/30 8-19 평일`, Forbid, 실행 3~5분, 소스 동시 호출 1. 신규 공고 하루 60→86→106→133건(최근 4영업일). 최대 지연 35분.
 - 제안: 업무시간 10분 주기(상세는 신규·변경만이라 비용은 목록 몇 장), 헤더에 수집 시각 표시, SLO "신규 공고 노출 15분 이내"를 runtime 문서 §2와 CronWorkflow에 같이 반영.
 
+## 5-1. 이 훑기에서 답한 질문 (다시 파헤치지 않기 위해)
+
+- **`__fixtures__/open-auctions.ts`는 왜 있나.** 테스트 전용 예시다. production import는 없다(확인함). 값이 계약
+  응답 타입으로 선언돼 있어 계약이 바뀌면 화면 테스트보다 fixture가 먼저 컴파일에서 깨진다. 표시 변환·로더·
+  화면·표 네 테스트가 같은 예시를 공유한다. 다만 `app/` 세그먼트 규칙이 정한 폴더(`_model`/`_ui`/`_lib`)에
+  `__fixtures__`는 없다. 관례로만 있으니 이름을 규칙에 맞추거나 apps/web AGENTS에 한 줄을 넣어야 한다.
+- **표시 model이 왜 따로인가.** 계약은 없음과 단위를 정직하게 말해야 하고(`floorRate: {value, unit} | null`,
+  `baseAmount: {amount, currency} | null`), 화면은 그 셋을 서로 다른 한국어("미확인"·"개찰 회차 없음"·
+  "낙찰 미관측")로 말해야 한다. 서버가 문자열을 내려주면 API가 화면 전용이 되고 단위가 사라진다(AGENTS 15).
+  컴포넌트에서 바로 포맷하면 "색만으로 말하지 않는다" 같은 규칙이 JSX에 흩어지고 자정 경계를 렌더 없이
+  검증할 수 없다. 층이 과한 게 아니라 그 층 안의 중복(KST·천 단위·기관 요약 포맷)이 과하다.
+- **API 흐름.** 계약 하나에서 서버와 웹이 파생한다. `operations.ts`의 `defineOperation`이 경로·쿼리·상태별
+  응답을 소유하고 `buildPath`가 `/api/v1/auctions?limit=50&state=open`을 만든다. Nest는 `handlerPath`·
+  `querySchema`·`successResponses`를 그대로 decorator에 쓴다. 웹은 `_transport/request-contract.ts`가 같은
+  operation으로 URL을 만들고 응답을 `safeParse`한다. 전송 조립은 셋(서버 절대 origin, 개인 쿠키+no-store,
+  브라우저 상대 경로)이고 자원 함수(`listOpenAuctionsWith`)는 전송을 인자로 받아 한 벌이다. 진입은 둘이다.
+  `server.ts`는 `use cache`+태그로 감싸고 예상 실패를 값으로 돌려주며, `index.ts`는 브라우저 전송을 끼운
+  TanStack 표면이다. 캐시를 지우는 쪽은 dataplane → `/internal/cache/revalidate` 하나다.
+
 ## 6. 열어 둔 issue
+
+### 이미 처리됨 (다시 열지 말 것)
+
+- **EAT-135 merged** — page의 route 리터럴 중복을 파일당 한 번으로. `redirect`가 검사 밖이라는 진단은 틀렸고 취소.
+- **EAT-136 merged** — 오늘 표를 server component로(표 라이브러리 제거·열 서술 하나·"내 기록" 열 제거),
+  목록 상태를 `view` union으로, 빈 상태 공용 컴포넌트, 품목 라벨 축약 한 곳, `buildTodayRoute`를
+  nuqs serializer로. 링크의 한글은 이제 인코딩 전 형태이며 브라우저가 요청 시 인코딩한다.
+
+### 진행 중인 issue
 
 - EAT-133 의미 값 SSOT(domain 9개 삭제·시간 규칙·KST·milli 연산·scale/통화 JSON·CronWorkflow 시간대 테스트)
 - EAT-134 lint 이관(`pnpm lint`·권고형 file-size·검사 카탈로그)
 - EAT-124 운영 뷰(ADR 먼저, Backlog)
-- (미발행) web 읽기 경로 정합과 부하 목표 / 수집 주기 10분 / web 잔재(UI 두 벌·명령 검색·404·테마는 유지) / `/today` 클라이언트 필터링·내 기록 열
 
-## 7. 다음에 볼 것
+## 7. 아직 발행하지 않은 고칠 것 (범위 산정)
 
-`/today` 나머지 파일(`present-open-auctions.ts`, `today-search-params.ts`, `open-auction-table.tsx`, `today-filters.tsx`) → `/auctions/[auctionId]` → `/login`·`/setup` → `shell`·`components`·`shared` → `api/` 층 → `packages/contracts`.
+훑기가 끝난 뒤 issue로 발행해 서브에이전트에게 넘긴다. 규모는 서브에이전트 한 세션 기준이다.
+
+| # | 고칠 것 | 대상 | 규모 | 선행·위험 |
+| --- | --- | --- | --- | --- |
+| 1 | 로그인 게이트를 실제로 건다 | `proxy.ts`, Nest guard 확인, 앱 route `noindex`, ADR 0032 한 절 | 중 | 정책과 현재 상태가 어긋나 가장 급함. 세션 확인이 요청마다 DB를 치지 않게 cookie cache와 같이 본다 |
+| 2 | 서버 fetch에 timeout·retry (ky 도입) | `_transport` 3개 조립점, `request-contract.ts` 주입 유지 | 중 | Next가 감싼 fetch를 늦은 바인딩으로 유지해야 캐시·계측이 죽지 않는다. `use cache` 안 재시도는 예산 안에서 |
+| 3 | 서버가 읽은 세션을 브라우저가 다시 읽지 않게 | `/setup`·AccountHub·`shell/providers`, `HydrationBoundary` 도입 | 중 | 왕복 셋 → 하나. 명단 패널은 `(공고, revision)` 키 캐시를 Nest 쪽에 |
+| 4 | 부하 목표를 숫자로 | k6 300명·1만 명 프로필, p95·DB QPS | 중 | 2·3 뒤에 측정해야 의미가 있다. CF B안 판단 근거 |
+| 5 | 수집 주기 10분 + 화면에 수집 시각 | `poll-open` CronWorkflow, runtime 문서 §2, 오늘 헤더 | 소 | 상세는 신규·변경만이라 비용은 목록 몇 장 |
+| 6 | 시간·KST·표시 형식 중복 제거 | `Asia/Seoul` 9곳, `pad2`·천 단위 헬퍼, `read-cache-life` 초 값 | 중 | EAT-133에 흡수. 도메인이 KST 달력을 소유 |
+| 7 | 결정 화면 이력 표도 표 라이브러리 제거 판단 | `history-table.tsx`(`columnVisibility` 하나만 사용) | 소 | 제거하면 `@tanstack/react-table` 의존성 자체가 빠진다. 결정 화면 훑을 때 확정 |
+| 8 | 지역 라벨 `코드 4` | API `region.*.label`이 null인 원인(관측 없음 vs 미탑재) | 미정 | 지역 어휘 계약이 필요. 사용자 보류 지시 |
+| 9 | 404 영문 스타터 문구 | `app/not-found.tsx` | 소 | 규칙 21 |
+| 10 | 명령 검색(Cmd+K) 정리 | `shell` 명령 팔레트 180줄, 항목 2개+테마 | 소 | 남길지 결정 필요. dock·테마 12종은 유지 |
+| 11 | 미사용 client query factory | `api/*/queries.ts` 일부, index 재수출 | 소 | 대칭으로 만든 죽은 표면 |
+| 12 | `__fixtures__` 폴더 규칙 | 이름 또는 apps/web AGENTS 한 줄 | 소 | 결정만 하면 끝 |
+| 13 | 오늘 클라이언트 필터링·누적 페이징 | `today` 진입 설계와 함께 | 대 | `/today`는 임시 진입점이라 새 진입 설계로 넘긴다 |
+
+## 7-1. 구조 평가 (2026-09-10, 오늘 화면까지 본 시점)
+
+**단단한 곳.** 계약이 실제로 하나이고 프론트에 엔드포인트 상수가 없다. 관측 못 함·없음·파싱 실패가 서로
+다른 상태로 남고 화면 문구까지 다르다. 캐시 경계를 넘은 예외가 정체를 잃는 것까지 알고 예상 실패를 값으로
+돌려준다. 빌드가 바뀌면 이어 받은 목록을 통째로 버린다. 계보(build·calcVersion·산출 시각)를 화면까지 끌고
+온다. 경계 검사가 문서가 아니라 커밋을 막는 코드다.
+
+**약한 곳.** 단일 원천을 데이터에는 적용했는데 코드 표현에는 덜 적용했다(KST 9곳, 사정률 milli 3벌, 빈 상태
+카드 화면마다). 값을 못 내는 도구를 들고 있다(표 라이브러리 기능 0, TanStack 하이드레이션 미사용, 미사용
+의존성 다수, 결정만 있고 코드에 없는 ky). 정책과 구현이 벌어져 있다(로그인 필수인데 게이트 없음 — 부채가
+아니라 결함). 만드는 규율에 비해 돌리는 규율이 얇다(수집 블랙박스, timeout·retry 없음, 지연 목표 없음).
+스타터 잔재가 경계를 흐린다(UI 두 벌, 404 영문, 명령 검색).
+
+**총평.** 설계 문서가 코드를 지배하는 쪽이다. 일관성을 얻고 속도를 낸다. 200~300명 규모에서 옳은 선택이고,
+숫자가 의심받을 때 되짚을 수 있는 구조를 먼저 만들어 둔 것이 자산이다. 다만 운영 신호가 없으면 그 일관성이
+헛돈다. 지금 부채는 위험한 종류가 아니라 성가신 종류이며, 예외는 로그인 게이트 하나다.
+
+## 8. issue 초안 (그대로 발행 가능)
+
+### A. 로그인 게이트를 실제로 건다
+- 문제: 정책은 공개 화면 없음인데 `proxy.ts`가 `NextResponse.next()`뿐이다. 오늘·결정 화면과 Nest 공유 read가 열려 있다.
+- outcome: proxy에서 세션 확인 후 `/login`으로, 권위는 Nest guard, 앱 route에 `noindex`, ADR 0032에 한 절.
+- non-goals: 권한 모델 확장, 조직 단위 접근 제어.
+- acceptance: 비로그인 요청이 화면과 공유 read 모두에서 막힌다. e2e 한 개가 그것을 확인한다.
+
+### B. web 읽기 경로 정합과 부하 목표
+- 문제: 서버 fetch에 timeout·retry가 없다. 서버가 읽은 세션을 브라우저가 다시 읽는다(설정 화면 왕복 셋). 명단 패널은 revision당 불변인데 캐시가 없다. 1만 명을 숫자로 확인한 적이 없다.
+- outcome: `_transport` 세 조립점에 ky(늦은 바인딩 fetch, 조회만 재시도, 공개/개인 3초·브라우저 8초). 서버가 읽은 세션·사업자 목록을 `HydrationBoundary`로 전달. 명단은 `(공고, revision)` 키 캐시. k6 300명·1만 명 프로필로 p95와 DB QPS 측정.
+- non-goals: CF에 데이터 캐시(B안)는 측정에서 web CPU 병목이 확인될 때.
+- acceptance: 측정 보고서에 "DB QPS가 사용자 수에 비례하지 않음"이 숫자로 남는다.
+
+### C. 수집 주기 10분과 화면의 수집 시각
+- 문제: poll-open이 30분 주기라 신규 공고가 최대 35분 늦게 보인다. 화면에 마지막 수집 시각이 없다.
+- outcome: 업무시간 10분 주기, 헤더에 "마지막 수집 · 다음 수집", SLO "신규 공고 노출 15분 이내"를 runtime 문서 §2와 CronWorkflow에 함께.
+- acceptance: infra 테스트가 주기와 시간대를 단언한다.
+
+### D. web 잔재 정리
+- 문제: 공용 UI가 두 벌(`components/ui` 17개, `shared/ui` 19개, 이름 겹침 5)이다. 404가 영문 스타터 문구다. 명령 검색이 화면 이동 2개와 테마뿐이다. 미사용 client query factory가 있다. `__fixtures__`가 세그먼트 폴더 규칙에 없다.
+- outcome: UI 한 벌로 수렴, 404 한국어, 명령 검색은 남길지 결정, 죽은 표면 제거, fixtures 규칙 한 줄.
+- non-goals: dock 제거, 테마 12종 축소. 둘 다 유지가 결정이다.
+- acceptance: `pnpm --filter @eatbid/web lint`가 변경 범위에서 통과하고 죽은 export가 남지 않는다.
+
+### E. 결정 화면 이력 표의 표 라이브러리 제거(판단 포함)
+- 문제: `history-table.tsx`가 `columnVisibility` 하나만 쓴다. 제거하면 `@tanstack/react-table` 의존성 자체가 빠진다.
+- acceptance: 제거하거나, 유지할 이유를 한 문장으로 남긴다.
+
+### F. 지역 라벨 `코드 4` (보류)
+- 문제: API `region.sido.label`·`sigungu.label`이 null이라 화면이 코드로 부른다.
+- 선행: 라벨이 관측 자체가 없는지 응답에 안 싣는지 확인. 지역 어휘 계약이 필요할 수 있다. 사용자 보류 지시.
+
+### G. 오늘 진입 재설계 (큰 것)
+- 문제: `/today`는 임시 진입점이다. 필터가 서버 왕복이라 조합마다 캐시 항목이 생기고 `<Link>` 기본값이 스크롤을 올린다. 페이징이 누적이 아니라 교체다.
+- outcome: 진입 화면 자체를 다시 설계하고 그 안에서 클라이언트 필터링·누적 로드를 정한다.
+
+## 8-1. `/auctions/[auctionId]` 관찰 (진행 중)
+
+파일 60여 개로 web에서 가장 큰 화면이다. 진입은 오늘과 같은 모양(Suspense 안 loader)이고 로더가 네 가지를
+소유한다. 식별자 검증과 404, 공고 조회, 이력·분포 병렬 조회, keyset cursor 이어 붙이기.
+
+**잘 된 것.** 실패를 상태로 구분한다(`ready`·`no-organization`·`unavailable`·`build-changed`, 분포는 `locked`
+사유까지). 이어 읽는 중 build가 바뀌면 앞까지의 목록도 버린다. 시각을 한 번만 읽어 표와 분포가 다른 달을
+보지 않는다. 손잡이 초기값을 주소에서만 받아 추천값을 만들지 않는다(AGENTS 8). 공고가 바뀌면 `key`로 회차
+선택을 초기화하고, 이어 붙인 페이지를 선택 provider에 넘겨 2페이지 회차가 "조회 밖"으로 판정되지 않게 한다.
+참여 수 증감을 "어제 대비"라 부르지 않고 비교한 관측의 실제 날짜를 말한다.
+
+**고칠 후보.**
+- 주소가 서버 왕복 수를 정한다. `pages` 하나로 최대 10회 이어 조회(한 페이지 60행, 최대 600행).
+- 캐시 조합이 넓다. 공고·기간·지역 범위·품목·페이지 수·확대 여부가 모두 키에 들어간다.
+- `historyRead=latest`가 캐시를 우회하는 모드로 주소에 노출돼 있다. 409 복구용인데 누구나 붙일 수 있다.
+- 조립 컴포넌트가 화면 규칙을 갖고 있다. `focusOf`가 주소 두 값의 조합으로 집중 모드를 정하고, 선택 품목
+  회차 거르기도 화면에서 한다. 둘 다 표시 모델 몫이다.
+- dock의 `fallback`이 실제로는 기본 배치다. 이름이 동작과 다르다.
+- 표시 형식 중복이 여기서 또 나온다. `pad2`·`Asia/Seoul`·`formatAmountText`가 오늘 화면과 같은 코드다.
+  천 단위 헬퍼는 `bid-rate.ts`에서 가져오고 오늘 화면은 자기 것을 쓴다. 금액 포맷이 두 벌이다.
+- `floorRateValue?: string | null`은 부재를 두 가지로 표현한다(없음과 null). 하나로.
+- `identity`·`provenance`를 계약 타입 그대로 표시 모델에 통과시킨다. 화면이 wire 필드에 직접 의존한다.
+- 시간 단위 리터럴 `60_000`이 있다(EAT-133 대상).
+
+### 운영 실측 (2026-09-10, `https://eatbid.net/auctions/110`, v0.1.25)
+
+| 항목 | 값 |
+| --- | --- |
+| 응답 본문(비압축) | 172,034 B |
+| 그중 RSC 페이로드 | 65,415 B (38%) |
+| 압축 전송량 | 18,084 B |
+| TTFB(내 PC, CF 경유) | 0.23 ~ 0.39 s |
+| 총 시간 | 0.35 ~ 0.49 s |
+
+헤더: `x-nextjs-prerender: 1`, `x-nextjs-postponed: 1`(껍데기 prerender + 본문 streaming 작동),
+`x-nextjs-stale-time: 300`(설정과 일치), `cf-cache-status: DYNAMIC`,
+`Cache-Control: private, no-cache, no-store`(HTML은 CF도 브라우저도 캐시하지 않는다).
+
+**여기서 나온 고칠 것.** 응답의 38%가 RSC 페이로드다. 서버가 그린 이력 행이 HTML에 한 번, client provider
+(`AttemptSelectionProvider`, `OwnBidProvider`는 둘 다 `'use client'`)로 넘어가며 직렬화돼 또 한 번 실린다.
+주소의 `pages`를 10까지 올리면 600행이 두 벌이 된다. 줄이는 길은 둘이다. 선택 provider에 행 전체가 아니라
+식별자 집합만 넘기거나, 확대를 별도 조회로 떼는 것이다.
+
+### 진입점이 요구하는 데이터 (사용자 질문)
+
+셋을 서버가 가져오고, 개인 자료만 브라우저가 가져온다.
+
+1. **공고 하나** (`auctions.find`). `identity`(공고·revision·외부 입찰번호·제목·상태), `organization`,
+   `schedule`(공고·마감·개찰), `pricing`(기초금액·예정가, 통화 동반), `terms`(하한율), `location`(시도·시군구
+   코드와 라벨), `classification`(품목 라벨), `participation`(최신 참여 수와 관측 시각, 하루 이상 전 관측),
+   `provenance`(원본 관측·정규화 id·sha256). 헤더·배너·rail·현재 공고 패널이 쓴다. 나머지 둘의 질의 재료
+   (기관 id, 코호트 조건)도 여기서 나오므로 반드시 먼저 온다.
+2. **기관 회차 이력** (`organizations.listAuctionAttempts`). `attempts[]`(최대 200), `nextCursor`,
+   `meta`(build·asOf·표본). 흐름 차트, 과거 회차 표, "이 값이면", 발주 주기가 쓴다.
+3. **낙찰률 분포** (`winRateDistribution.find`). `bins[]`(최대 4096), `medianBin`, `modeRange`,
+   `months[]`(최대 12), `meta`. 호가창 사다리와 비교집단 히트맵이 쓴다. 표본 0도 200이고 build 없음도 오류가
+   아니라 계보 null인 빈 결과다.
+4. **개인 자료는 브라우저.** 세션·내 사업자·내 투찰 batch는 `OwnBidProvider`의 TanStack Query, 명단은 클릭
+   시 조회다. `use cache`에 넣을 수 없는 자료라 캐시 층 자체가 다르다.
+
+**`Promise.all`을 쓰는 이유.** 공고는 앞에 두고(의존) 이력·분포만 병렬이다. `allSettled`가 필요 없는 것은
+두 로더가 내부에서 실패를 잡아 타입 있는 상태 값으로 돌려주기 때문이다. `allSettled`는 `reason: unknown`을
+주는데 화면은 그걸로 문구를 고를 수 없다. 지금은 실패에 이름이 있다(기관 없음·조회 실패·build 바뀜·재료 없음).
+
+**`_model`이 큰 이유.** 모듈 16개다. 이 화면이 근거 뷰 넷(흐름 차트·과거 회차 표·분포 사다리·"이 값이면")을
+한 화면에 얹었고 각 뷰가 자기 표시 모델을 갖는다. 성격은 넷이다. 계약→표시 변환 4개, 화면 좌표·창 계산 5개,
+도메인 계산 3개(`bid-rate`의 BigInt 사정률, `rehearsal`, `org-cadence`), 어휘·임계 2개, 조립·코호트 2개.
+문제는 개수가 아니라 셋이다. 이름이 비슷해 어디를 볼지 모른다(`flow-chart-model` vs `flow-series`). 계산과
+표시가 한 파일에 섞였다(`bid-rate`가 BigInt 계산과 천 단위 표시를 함께 소유). 도메인 계산이 화면 폴더에 산다
+(사정률 milli·KST는 `packages/domain` 몫, EAT-133).
+
+### 강점으로 유지할 것
+
+- 화면과 skeleton이 같은 frame 컴포넌트를 공유한다(`TodayFrame`, `DecisionFrame`). 골격·section 순서·열
+  구조가 한 곳에 있어 로딩과 본문이 어긋나지 않는다. 새 화면도 이 규약을 따른다.
+
+### 공유 사실 + 개인 겹침 (반복될 문제의 규칙)
+
+문제는 "서버 조회냐 브라우저 조회냐"가 아니다. **두 파생 데이터가 같은 스냅샷을 봐야 한다**는 것이다.
+회차 이력은 mart build N이고 내 투찰은 그 회차에 붙는다. 읽는 사이 build가 N+1로 넘어가면 점과 표가 다른
+계보를 말한다. 그래서 서버가 `buildId`를 내려주고 개인 조회가 그 키로 묻는다(`expectedBuildId`,
+`build-changed` 오류). 이 핀은 브라우저에서 전부 조회해도 그대로 필요하다. 옮겨질 뿐 사라지지 않는다.
+
+선택지 셋과 비용:
+
+- **A. 개인 자료도 서버에서** (`privateServerRequest`로 RSC 안에서). 핀 문제가 서버 안에서 끝난다. 대신 그
+  subtree는 캐시할 수 없어 사용자마다 렌더한다. 작고 상호작용 없는 개인 조각에 맞다(예: 오늘 표의 "내 기록").
+- **B. 하나의 API가 공유+개인을 합쳐서 준다.** 응답이 사용자별이 되어 공유 캐시가 사라지고 mart 값을 사람 수
+  만큼 다시 보낸다. 우리 캐시 전략과 정면으로 충돌한다.
+- **C. 현재 방식. 공유는 서버 캐시, 개인은 브라우저 겹침.** 캐시 히트율이 가장 높고, 사업자 전환처럼 상호작용
+  으로 바뀌는 개인 자료에 맞다.
+
+**규칙으로 굳힐 것.** ① 공유 사실은 서버가 스냅샷 키와 함께 렌더한다. ② 개인 겹침은 그 키를 인용해 조회한다.
+③ 키가 어긋나면 조용히 섞지 말고 다시 읽기를 제시한다. ④ 개인 자료는 공유 캐시에 넣지 않는다.
+⑤ **client provider에 넘기는 것은 키와 식별자이지 데이터 본문이 아니다.**
+
+지금 코드는 ⑤를 어긴다. `AttemptSelectionProvider`와 `OwnBidProvider`에 행 배열을 통째로 넘겨 RSC 페이로드가
+응답의 38%가 됐다. 필요한 것은 `organizationId`, `buildId`, 그리고 회차 식별자 집합뿐이다. 개인 조회 응답이
+오면 그때 행과 맞춘다. 상호작용 없는 개인 조각은 A안(개인 RSC subtree)이 더 낫다.
+
+### `OwnBidProvider`와 `deriveStatus` (상태가 13개인 이유)
+
+`deriveStatus`는 순수 함수다. 여러 비동기·인증 소스를 하나의 판별 union으로 접고, 검사 순서가 곧 우선순위다.
+소비처는 `own-bid-controls.tsx`의 `switch` 하나라 화면이 상태를 다시 계산하지 않는다. 오늘 화면이 boolean
+두 개로 하던 것의 반대이며, 이쪽이 옳은 형태다.
+
+상태가 많은 이유는 이 조각이 세 축을 동시에 만나기 때문이다. **인증**(의존성 죽음·확인 중·로그아웃·워크스페이스
+미초기화), **소유**(사업자 목록 조회 중·실패·0개·여럿인데 미선택), **계보**(이력 준비 안 됨·회차 0·조회 중·
+build 바뀜·관측 없음·증거 충돌·관측됨). 셋의 곱이 13이다. 뭉치면 "표시할 수 없음" 하나가 되고 사용자는 무엇을
+해야 할지 모른다. 등록이 하나면 고르라고 하지 않고 여럿이면 기본값을 두지 않는 것도 규칙(AGENTS 8)의 반영이다.
+
+**냄새.**
+- `retry: () => void query.refetch()` — 값 union 안에 함수가 들어 있다. 상태는 데이터, 행동은 UI가 갖는 게 낫다.
+  직렬화도 동등 비교도 안 된다.
+- `checking`이 세션과 사업자 목록 두 축에서 나온다. 사용자에겐 같지만 `data-own-status`로 DOM에 노출되므로
+  진단에서 구분이 사라진다.
+- 마지막 `display === null ? loading : observed`는 성공 뒤의 동기 계산이라 사실상 도달하지 않는 분기다.
+- provider 하나가 상태 판정·선택 상태·query 셋·표시 모델 조립을 모두 소유한다(145줄). 판정은 `_model` 몫이다.
+- `NO_SCOPE = { principalId: '', workspaceId: '' }` 빈 문자열 센티넬이 query key에 들어간다. TanStack v5의
+  `skipToken`이 이 자리의 정석이다.
+
+**바꿀 방향(검색 근거 포함).** Vercel KB와 RSC 해설이 말하는 바는 우리가 잰 것과 같다. client component에
+넘긴 props는 RSC 페이로드로 직렬화되고 HTML과 사실상 중복되며, 큰 배열은 그만큼 바이트가 된다. 그래서
+① client 경계를 더 아래로 내린다(지금은 화면 전체를 감싸지만 내 투찰이 필요한 곳은 흐름 차트 점과 컨트롤뿐).
+② 서버가 넘기는 것을 행 배열이 아니라 회차 키 배열(`attemptId`,`revisionId`)로 줄인다. provider가 하는 첫 일이
+바로 rows에서 그 키만 뽑는 것이다. ③ 상호작용 없는 개인 조각은 개인 RSC subtree로.
+
+### 인증축을 어디까지 위임할 수 있나 (사용자 질문)
+
+**이미 위임돼 있다.** 누가 로그인했는지는 Nest의 Better Auth(`platform/auth/auth-instance.ts`, Google 단독,
+`deferSessionRefresh: true`)가 소유한다. 웹이 따로 갖는 canonical 세션 union은 Better Auth가 답할 수 없는 것을
+답한다. app principal과 workspace가 초기화됐는지다. 이 분리는 ADR 0032가 정한 의도다. 그러니 없앨 수 있는 것은
+축이 아니라 **"확인 중"이라는 과도 상태**다.
+
+**세 가지를 하면 과도 상태가 사라진다.**
+
+1. **로그인 게이트**(issue A). workspace 안에서는 세션이 항상 active가 되므로 `signed-out`·`uninitialized`가
+   provider에서 도달 불가가 된다. 미초기화는 게이트가 `/setup`으로 보낸다.
+2. **Better Auth `session.cookieCache`를 켠다.** 현재 설정에 없다. 게이트가 요청마다 세션을 보게 되므로 이걸
+   켜지 않으면 게이트 자체가 DB 부하가 된다. 둘은 한 쌍이다. 취소 반영이 캐시 수명만큼 늦으므로 수명은 짧게
+   (60초 수준) 두고 로그아웃은 지금처럼 POST로 쿠키를 즉시 무효화한다.
+3. **세션과 내 사업자 목록을 서버에서 읽어 `HydrationBoundary`로 심는다.** `(workspace)/layout.tsx`는 지금
+   server component인데 아무것도 읽지 않고, `AccountHub`가 브라우저에서 세션을 다시 읽는다. 개인 자료라
+   `use cache`는 금지이고 `privateServerRequest`가 그 규칙을 이미 지킨다. props로 내리는 것보다 hydration이
+   나은 이유는 사업자 등록 후 무효화가 같은 query key로 이어지기 때문이다.
+
+**결과.** 13개 중 사라지는 것은 `auth-unavailable`(게이트로 이동)·`checking`(세션)·`checking`(사업자 목록)·
+`signed-out`·`uninitialized`다. 남는 것은 사실 상태 8개이며 그중 과도 상태는 내 투찰 `loading` 하나다.
+`no-businesses`와 `select-business`는 사용자가 할 일이 있는 진짜 상태라 남는다.
+
+### 흐름·분포 탭이 누를 때마다 서버를 친다 (사용자 관찰, 확인됨)
+
+탭은 `<Link href={buildDecisionViewRoute(...)}>`이고 `view`가 URL 값이다. 그래서 클릭 한 번이 soft navigation
+이고 Next가 그 주소의 RSC 페이로드를 서버에서 받아 온다. 전체 새로고침은 아니지만 서버 렌더 왕복은 맞다.
+
+**여기서 낭비인 지점.** `loadAuctionPage`는 `view`와 무관하게 이력과 분포를 **항상 둘 다** 부른다
+(`Promise.all`). 즉 탭이 고르는 것은 이미 받아 둔 두 데이터 중 무엇을 그릴지뿐이다. 데이터가 달라지는
+전환이 아닌데 서버 왕복을 한다. 측정치로 보면 전환마다 압축 18KB와 0.3초 안팎이다.
+
+**고치는 법.** 탭을 클라이언트 전환으로 바꾼다. 두 본문을 서버에서 함께 렌더해 두고 클라이언트 상태로
+바꿔 끼우며, URL은 nuqs의 shallow 갱신으로 유지한다(주소 공유·뒤로가기는 그대로, 서버 요청은 없음).
+페이로드는 숨은 본문만큼 늘지만 전환마다의 왕복이 사라진다.
+
+**서버 왕복을 유지해야 하는 전환.** 데이터 질의가 실제로 달라지는 것들이다. 기간·모집단 범위·품목 조건,
+`pages`(이어 읽기), `historyRead=latest`, 그리고 `expand=비교집단`(분포를 달별 granularity로 다시 부른다).
+
+**부수 개선.** `next.config`에 `experimental.staleTimes`가 없어 client router cache가 dynamic 구간을 보관하지
+않는다. 서버 왕복을 남기는 전환에 한해 짧은 값을 주면 되돌아올 때가 즉시가 된다.
+
+### `_ui`에 로직이 들어 있다 (리뷰에서 반려할 것)
+
+세그먼트에 화면 전용 표현을 두는 것 자체는 문제가 아니다. 문제는 `_ui`가 표현이 아닌 것을 갖고 있다는 것이다.
+결정 화면 `_ui` 파일 30여 개 중:
+
+- `create-flow-chart.ts` 171줄, `own-bid/own-bid-series.ts` 115줄, `expand/history-range.ts`. `.tsx`가 아니라
+  `.ts`다. 렌더가 아니라 계산이고, `_ui`에 있을 이유가 없다.
+- `own-bid-provider.tsx` 145줄이 상태 기계 판정(13갈래) + query 셋 + 선택 상태 + 표시 모델 조립을 한 파일에서 갖는다.
+- `attempt-selection.tsx`, `bid-rate-context.tsx`가 화면 간 공유 상태를 `_ui`에서 소유한다.
+- 내 투찰은 독립된 사용자 intent와 권한 흐름과 세 resource orchestration(세션·내 사업자·투찰 관측)을 모두
+  갖는다. 규칙상 capability 승격 조건을 충족하는데 화면 폴더에 갇혀 있다.
+- 도메인 계산(`_model/bid-rate.ts`의 사정률 BigInt, KST 달력, `rehearsal`)은 web의 어느 층도 아니고
+  `packages/domain` 몫이다(EAT-133).
+
+**층 지도도 문서와 다르다.** `src` 최상위에 결정된 여섯 층에 없는 `components/`·`hooks/`·`lib/`가 남아 있다.
+canonical 층에서 직접 import하는 곳은 없다(테스트 하나 제외). 죽은 층이 지도만 흐린다.
+
+**층 체계 자체를 다시 볼지는 별도 결정이다.** 현재 ADR 0023은 full FSD를 기각한 상태로 적혀 있다. FSD를
+채택하기로 했다면 그 ADR을 supersede해야 하고, 그 전까지는 문서와 코드가 서로 다른 말을 한다. 어느 쪽이든
+위 다섯 항목은 어떤 층 체계에서도 반려 대상이다.
+
+### 층 체계 재검토 (2026-09-10 조사)
+
+**FSD 공식 지침(App Router).** `app/`은 라우팅만 두고 제품 구조는 `src/`의 층으로 둔다. 층은
+app(초기화·provider) → pages → widgets → features → entities → shared. Next와 이름이 겹치므로 FSD의 `app`·
+`pages`는 `_app`·`_pages`로 바꾸라고 공식 문서가 명시한다. `app/**/page.tsx`는 "조립과 배선"만 하고 도메인
+로직을 담지 않는다. 도메인 질의는 `entities/*/api`에, 변이와 캐시 무효화(`revalidateTag`)는 feature slice가
+소유한다. 기본은 server component이고 client 경계는 feature 안에서 좁게 가둔다. server 전용 모듈은
+`index.server.ts`로 공개 표면을 분리한다. 공식 linter는 steiger다.
+
+**업계 일반 지침.** route colocation(같은 폴더에 UI·hook·action)과 feature 폴더의 혼합이 성장기 프로젝트의
+표준이다. 안티패턴으로 꼽히는 것은 거대한 `components/` 한 폴더와 컴포넌트 안의 업무 로직이다.
+
+**우리 층을 FSD에 대입하면 이렇다.** `shell` ≈ FSD app(provider·chrome), `capabilities` ≈ features,
+`api/<resource>` ≈ entities의 api 세그먼트, `shared` ≈ shared, route-private `_model`/`_ui`/`_lib` ≈ pages 층
+슬라이스. 없는 것은 `widgets`와 `entities` 본체이며, 도메인 모델은 `packages/domain`이 이미 갖고 있다.
+즉 이름만 다른 부분집합이다. FSD 2.1이 "pages first"로 옮겨 재사용 없는 것은 page slice에 두라고 한 것도
+우리 route-private와 같은 방향이다.
+
+**그래서 진짜 결손은 이름이 아니다.** route-private와 capability 사이에 중간 자리가 없고, 승격 조건이
+문장으로만 있어 아무도 승격시키지 않는다. 그래서 안 올라간 것이 전부 `_ui`·`_model`에 쌓인다.
+
+**선택지.**
+- **A. 전면 FSD 채택.** ADR 0023 supersede, 층 이름 변경(`_pages`·widgets·entities 신설), steiger 도입.
+  비용은 300여 파일 이동과 기존 `web-boundaries` 검사 재작성. 사용자에게 보이는 이득은 없다.
+- **B. 층은 유지하고 결손만 메운다(권고).** ① `_ui`에는 렌더링 모듈만. 비렌더 `.ts` 금지를 lint로 막는다.
+  ② 승격 조건을 만족하면 실제로 승격한다(내 투찰부터). ③ 도메인 계산은 `packages/domain`으로.
+  ④ 죽은 `components/`·`hooks/`·`lib/` 제거. ⑤ 슬라이스 내부 세그먼트 이름을 FSD와 같게 유지(`ui`/`model`/`lib`).
+- **C. A를 나중에.** B를 먼저 하면 A로 가는 이동 비용이 줄어든다. B의 결과물이 그대로 FSD 슬라이스가 된다.
+
+**정정: A에 이득이 없다는 앞의 서술은 틀렸다.** A의 이득은 "규율을 도구가 강제한다"는 것이고, 그건 우리
+문제(승격 규칙이 문장으로만 있어 아무도 승격시키지 않음)에 정확히 맞는 이득이다. 구체적으로 ① 새 사람과
+AI가 이미 아는 공용 어휘(우리 `capabilities`·`shell`은 매번 설명이 필요하다) ② 기성 linter steiger가 층 방향·
+슬라이스 격리·public API를 검사한다(우리는 `web-boundaries`를 직접 유지 중) ③ 층이 존재하면 "어디 둘지"가
+선택이 아니라 위치로 결정된다. 비용은 파일 300여 개 이동, gate 재작성, ADR supersede이고, 우리 경우
+`packages/domain`이 이미 entities의 도메인 부분을 갖고 있어 FSD entities가 반쪽이 된다는 점이 남는다.
+
+### Toss 방법론 (조사)
+
+Toss는 층 분류법을 규정하지 않는다. 판단 축을 준다. 좋은 코드는 **변경하기 쉬운 코드**이고 축은 넷이다.
+가독성 > 예측 가능성 > 응집도 > 결합도 순서로 본다. 폴더에 대해서는 하나만 말한다.
+**함께 수정되는 파일을 같은 디렉터리에 둔다.** `components/`·`hooks/`·`utils/`처럼 **파일 유형별로 나누는 것을
+안티패턴으로 본다.** 도메인 폴더 안에 그 유형들을 넣고, 두세 도메인이 공유하면 중간 도메인을 새로 만들어
+단방향 의존을 유지한다. 페이지 전용 기능이면 `pages/PageName/` 아래가 더 실용적이라고 명시한다.
+중복 허용, 책임 하나씩, props drilling 제거도 같은 문서의 항목이다. 비유는 "개발자 캐시 적중"이다.
+
+**우리에 대입하면 결정적인 지점이 나온다.** `_ui`와 `_model`은 세그먼트 수준의 **파일 유형별 분리**다.
+흐름 차트를 고치려면 `_ui/flow-chart.tsx`, `_ui/create-flow-chart.ts`, `_ui/flow-legend.tsx`,
+`_model/flow-chart-model.ts`, `_model/flow-series.ts` 다섯을 두 폴더에서 오간다. FSD의 slice-then-segment와
+Toss의 "함께 바뀌는 것을 함께"는 같은 곳을 가리킨다. 유형이 아니라 **변경 단위**로 묶으라는 것이다.
+
+### mw-auction의 기존 규칙 (같은 사용자의 다른 저장소, 그대로 쓸 수 있음)
+
+`F:\Project\mw-auction\.claude\rules\folder-structure.md`와 `component-layers.md`가 이미 토스 Effective
+Component + FSD + Clean Architecture를 하나로 합쳐 놓았다. 요지는 이렇다.
+
+- 라우트 세그먼트 안이 **slice-then-segment**다. `_widgets/`(페이지 섹션 단위 자족 블록),
+  `_features/{name}/{ui,model,lib}`(미니 FSD), `_lib/`(페이지 전용). 전역은 `features/`, `entities/`(2곳 이상
+  공유), `api/`, `components/{ui,custom}`, `hooks/`, `lib/`, `shared/`.
+- 승격 사다리가 명시돼 있다. 자족 UI 블록 → `_widgets/`, 유저 인터랙션 → `_features/{name}`, 2곳 이상 →
+  `entities/`, 도메인 무관 → `components/`, 새 기능 → `features/{name}`.
+- 8계층 import 방향표가 있다. 특히 **Feature Model은 JSX 금지, Feature Lib는 React·hooks·JSX 금지**,
+  Page는 오케스트레이터로 50줄 이하.
+- 분리 기준도 토스식이다. 복잡도 낮추기나 재사용이 목적이 아니면 분리하지 않는다. 한 컴포넌트가
+  데이터 관리·표시 결정·상호작용 중 둘 이상을 하면 나눈다.
+- `ui/` 비대화는 파일 수를 늘리는 대신 합성으로 푼다. prefix로 그룹이 되면 서브폴더를 만들지 않는다.
+
+**eatbid에 대입.** 우리 여섯 층은 이 지도와 거의 1:1이다(`capabilities`≈`features`, `shared/ui`≈
+`components/{ui,custom}`, `api/<resource>`≈`api/`). 없는 것은 `entities`와 `_widgets`, 그리고 **세그먼트 내부가
+type-first**라는 점이다. `_model`/`_ui`는 토스 문서가 안티패턴으로 든 `components/`·`hooks/` 분리와 같은 모양을
+세그먼트 안에서 반복한 것이다.
+
+**제안하는 결정 화면 구조.**
+
+```
+auctions/[auctionId]/
+  page.tsx                       # 오케스트레이터
+  _widgets/                      # decision-frame, evidence-tabs, history-card, bid-rail, workspace-dock
+  _features/
+    flow/{ui,model,lib}          # flow-chart, create-flow-chart, flow-series, flow-legend
+    history/{ui,model,lib}       # history-table, attempt-history, history-window, attempt-selection
+    distribution/{ui,model,lib}  # order-book, present-distribution, distribution-heatmap
+    rehearsal/{ui,model,lib}
+    own-bid/{ui,model,lib}       # 2곳에서 쓰이면 capabilities로 승격
+  _lib/                          # decision-search-params
+```
+
+도메인 계산(사정률 BigInt, KST 달력)은 어느 쪽도 아니고 `packages/domain`으로 간다.
+
+**lint로 굳힐 것.** `_features/*/lib`에 React import 금지, `_features/*/model`에 JSX 금지, `page.tsx` 줄 수 상한.
+이 셋이면 오늘 반려한 다섯 중 넷이 기계로 막힌다.
+
+### 병렬 라우트(`@slot`) 안 평가
+
+사용자가 제안한 구조다. 근거 영역·과거 회차·오른쪽 레일을 `@evidence`·`@history`·`@rail` 슬롯으로 나누면
+각 슬롯이 자기 `loading`·`error`와 model·ui·hook을 갖는다.
+
+**얻는 것.** 폴더가 곧 경계라 "어디 둘지"가 사라진다. 슬롯별 streaming이라 느린 영역 하나가 화면 전체를
+잡아 두지 않는다(지금은 로더 하나가 셋을 다 기다린다). 실패도 슬롯 경계에서 끝난다.
+
+**치를 비용.** 교차 일관성이 흩어진다. 지금 로더가 보장하는 두 가지, 곧 "시각을 한 번만 읽어 표와 분포가
+같은 달을 본다"와 "build를 고정해 두 계보를 섞지 않는다"가 슬롯마다 따로 일어나면 깨진다. 해결은 상위
+layout이나 URL이 시각·build를 정해 슬롯에 내려보내는 것이고, 이는 앞서 정한 "공유 사실 + 개인 겹침" 규칙과
+같은 형태다. 그리고 탭을 슬롯 경계로 만들면 방금 없애기로 한 서버 왕복이 되살아나므로 탭은 슬롯 **안의**
+클라이언트 전환으로 남겨야 한다. `default.tsx`와 soft navigation 시 슬롯 유지 규칙도 새 학습 비용이다.
+
+## 9. 다음에 볼 것
+
+`/auctions/[auctionId]`(진입·로더는 봄, 표시 모델·UI 남음) → `/login`·`/setup` → `shell`(레이아웃·dock·테마·명령 검색) → `components`·`shared`(UI 두 벌) → `api/` 층 → `packages/contracts`.
