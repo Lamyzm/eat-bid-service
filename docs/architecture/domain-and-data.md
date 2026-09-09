@@ -109,6 +109,14 @@ erDiagram
 `PURR_NM`은 `language='und'`인 observation-scoped code label 증거이며 별도 reconciliation 정책 없이
 canonical 이름이나 학교 유형으로 승격하지 않는다.
 
+**그래서 `core`는 revision마다 그 원본 관측의 정확한 시각을 이미 갖고 있다.** 구매기관 이름이 수집
+계약의 필수 필드라 projector는 revision을 앉히는 같은 transaction에서 raw `fetched_at`을
+`code_label_observation.observed_at`으로 남긴다. `ingest`를 읽지 못하는 API 역할이 회차의 관측 시각을
+알아야 할 때는 이 관계를 읽는다 — 선택한 revision의 `observation_id`와 `eat:organization` 소유 체계의
+code value가 짝인 label 관측이다. `organization_identifier.observation_id`는 정체성을 처음 이은 관측이라
+회차 시각이 아니고, 다른 소유기관의 code scheme 라벨은 같은 시각으로 섞지 않는다(규칙 6). 후보가
+하나의 시각으로 모이지 않으면 하나를 골라 채우지 않고 무결성 결함으로 닫는다(규칙 3).
+
 ### 3.3 SupplierParty
 
 법적 사업자와 소스 계정을 분리한다.
@@ -116,7 +124,7 @@ canonical 이름이나 학교 유형으로 승격하지 않는다.
 - `SupplierParty`: 사업자등록번호 등 법적 정체성
 - `SourceSupplierAccount`: eaT `SHIPPER_CD` 같은 소스별 참여 계정
 - 한 법적 사업자에 여러 소스 계정이 있을 수 있고 그 반대 관계는 명시적으로 검증한다.
-- 워크스페이스는 `WorkspaceSupplier`로 자신이 운영하는 법적 사업자를 연결한다.
+- 워크스페이스는 `app.registered_business`로 자신이 운영한다고 적어 둔 사업자를 가리킨다.
 
 **승격 규칙**([ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §1). `eat:business-number`
 (`BIZ_NO`) 관측이 있으면 그 code value가 `SupplierParty`의 유일 키이고, 같은 사업자번호를 가진 여러
@@ -127,6 +135,32 @@ canonical 이름이나 학교 유형으로 승격하지 않는다.
 
 업체명(`SHIPPER_NM`)은 기관명과 같은 규칙이다. `language='und'`인 code label 관측으로 남고
 `supplier_party.canonical_name`으로 승격하지 않는다. 이름이 바뀌어도 정체성은 바뀌지 않는다.
+
+#### 워크스페이스가 등록한 사업자
+
+`app.registered_business`는 **사용자 작성 상태**이지 관측 사실이 아니다. 사용자가 "내 화면의 기준을 이
+사업자로 놓아 달라"고 적어 둔 것이며 법적 소유권 증명이 아니다. 소유권 경계와 근거는
+[ADR 0032](../adr/0032-authentication-and-authorization-boundary.md) §7이 정한다.
+
+- 등록 입력은 사업자등록번호 문자열이지만 정체성은 `registered_business_id bigint`다. 대조는
+  `eat:business-number` scheme의 정확한 번호 일치 하나다.
+- **`core` 연결은 저장하지 않고 조회가 파생한다.** `app`에 `supplier_party_id`를 저장하면 나중에 원본이 그
+  사업자를 처음 관측해도 저장된 `null`이 그대로 남아 영원히 미연결이 된다. 사용자 입력 등록은 `app`의
+  권위이고 번호→`SupplierParty`는 `core`의 권위이므로, 조회가 그때의 `core` 사실로 연결을 만든다.
+- **관측되지 않은 번호도 등록은 보존한다.** 사용자 입력으로 `core.supplier_party`나 `core.code_value`를
+  만들지 않는다(규칙 1·3). "원본에서 아직 관측되지 않음"과 "참여하지 않음"은 서로 다른 사실이며 화면과
+  응답에서 구분한다.
+- **한 번호가 서로 다른 party 둘을 가리키면 연결을 고르지 않는다.** 승격 규칙이 자동 병합을 금지하므로
+  그 상태는 증거 불일치이고 조회는 실패한다. 하나를 고르면 남의 성적표를 내 것으로 붙이는 일이다.
+- **활성 등록의 유일성은 워크스페이스 안에서만 강제한다.** `revoked_at is null`인 행에 대해
+  `(workspace_id, business_number)` 부분 unique를 건다. 같은 번호를 서로 다른 워크스페이스가 등록하는
+  것은 충돌이 아니다. 사업자등록번호는 공개 정보라 전역 선착순 잠금은 방어가 아니라 서비스 거부다.
+- 비공개 자료의 격리는 등록이 아니라 `workspace_membership`이 한다.
+
+사업자별 위치도 같은 성격의 `app` 상태다. `app.registered_business_location`은 사용자가 적은 주소 문장
+하나(`address_text`)만 보존하고, 위치 미설정은 **행이 없는 것**이다. 행정구역 코드 열도 좌표 열도 두지
+않는다. 채울 출처가 없는 열은 결국 주소 문자열 파싱으로 채워지고 그 추측이 §4.2의 행정안전부 체계와
+같은 자리에 앉는다(규칙 6). 주소 검색과 지도 위 점은 정확한 좌표 출처를 확인한 뒤 열을 함께 추가한다.
 
 ### 3.4 BidSubmission과 AwardDecision
 
@@ -192,8 +226,9 @@ eaT 명단 행의 판정 코드 `BID_STT`는 레이크 전수 11,080,463행에�
 
 - **사정률은 100을 넘는다.** `SAJEONG_PCT`는 투찰가를 예정가격으로 나눈 소스 계산값이라 예정가격을
   넘겨 투찰하면 100을 초과하고, 단가 입찰(낙찰 방식 `013`·`014`)에서 총액을 넣은 행은 훨씬 크게 튄다.
-  ingestion v2는 이 값을 상한 없는 `ObservedBidRate`(소수 3자리, 정수부 최대 12자리)로 받는다. 공개
-  API의 `BidRate`와 하한율은 정의상 0~100이라 그대로다. **DB 표현은 `numeric(15,3)`이다** — `core`와
+  ingestion v2와 공개 기관 이력의 `winRate`·`secondRate`는 100 상한 없는 `ObservedBidRate`
+  (소수 3자리, 정수부 최대 12자리)로 보존한다. 하한율의 `BidRate`는 0~100을 유지한다
+  ([ADR 0040](../adr/0040-observed-rates-in-organization-history.md)). **DB 표현은 `numeric(15,3)`이다** — `core`와
   `mart` 모두 같으며 [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §2가
   정했다.
 - **사정률을 집계하면 낙찰 방식으로 코호트를 나눈다.** 낙찰 방식 코드
@@ -201,7 +236,10 @@ eaT 명단 행의 판정 코드 `BID_STT`는 레이크 전수 11,080,463행에�
   아니다.
 - **`BID_CALC_AMT`는 금액이 아닐 수 있다.** 명단 행의 44%가 1e13대 자리표시자이고 한 공고 안에서
   `K − EFT_ALL_AMT` 관계를 지킨다. 정규화는 이 값을 `submission.amount`에 관측 그대로 싣는다.
-  화면·지표가 명단 금액을 쓰기 전에 `EFT_ALL_AMT`를 권위로 삼을지 결정해야 하며 그 결정은 아직 없다.
+  [ADR 0041](../adr/0041-attempt-roster-read-and-observed-amount.md)에 따라 명단 읽기 화면은
+  `EFT_ALL_AMT` 관측만 `submittedAmount`로 표시하고 부재는 null로 둔다. 원천 계산값은
+  `sourceCalculatedAmount`로 별도 보존하며 금액×비율로 복원하지 않는다. 이 표시 정책으로
+  기존 mart 계산이나 단가·계약액의 의미를 변경하지 않는다.
 - **`awardedAt`은 날짜 정밀도다.** 원본 `SUCBD_DT`가 날짜만 오므로 낙찰 시각은 그날 자정 instant다.
   시각으로 정렬하거나 같은 날 안의 선후를 이 값으로 판단하지 않는다.
 
@@ -218,6 +256,12 @@ unique(workspace_id, supplier_party_id, auction_attempt_id)
 
 `recorded_value`는 사용자가 eatbid에 적어둔 판단이고, 실제 제출은 `BidSubmission`에서만
 관측한다. “NeaT 입력 확인” 역시 사용자 확인 이벤트이지 source-observed submission이 아니다.
+
+화면도 이 둘을 같은 이름으로 부르지 않는다. 결정 화면 흐름 차트의 “내 값”은 사용자가 URL에 놓은 입력이고
+(`apps/web/src/app/(workspace)/auctions/[auctionId]/_model/flow-series.ts`), “실제 내 투찰”은 등록된 사업자의
+`core.bid_submission` 관측이다. 실제 투찰을 같은 눈금에 올리려면 같은 회차 revision, 같은 낙찰 방식 코호트,
+같은 분모(예정가격 기준 사정률)로 조회해야 한다. 분모나 revision이 다른 값을 한 계열로 그리면 사용자는
+자기 제출이 아닌 숫자를 자기 제출로 읽는다.
 
 ### 3.6 Principal과 Workspace identity
 
@@ -236,6 +280,14 @@ FK로 사용하지 않는다. `packages/shared`의 기존 문자열 user/workspa
 `app.workspace_membership`만 만든다. 네 테이블의 PK/FK는 모두 PostgreSQL bigint이고,
 `identity_subject`만 `(provider, issuer, subject)`를 보존해 bigint `principal_id`에 연결한다.
 API role은 이 application-owned 테이블만 읽고 쓸 수 있으며 schema 생성 권한은 갖지 않는다.
+
+**워크스페이스는 첫 저장이 만든다.** 혼자 쓰는 사용자에게 조직 생성 화면을 먼저 보이지 않되 관계는
+그대로 둔다. `principal`과 `identity_subject`는 로그인 경로에서 만들고, `workspace`와 `owner` membership은
+사용자가 첫 사업자를 저장하는 command 안에서 같은 트랜잭션으로 만든다. 안전해야 할 세션 조회(GET)가
+행을 만들지 않게 하기 위한 것이다. 동시 첫 저장 두 건이 워크스페이스를 둘 만들지 않도록
+`workspace_membership`에 `(principal_id) where role = 'owner'` 부분 unique를 두고, `role`은 `owner|member`
+check로 좁힌다. 애플리케이션 선검사만으로는 서로의 미커밋 행을 보지 못해 막을 수 없다. 상세는
+[ADR 0032](../adr/0032-authentication-and-authorization-boundary.md) §3·§8을 따른다.
 
 JSON은 bigint를 직접 표현하지 못하므로 HTTP path/response에서는 내부 ID를 선행 0 없는 양의 10진 문자열로
 인코딩하되 PostgreSQL signed bigint 최대값 `9223372036854775807`을 넘지 않는다. presentation boundary가
@@ -443,6 +495,14 @@ unique index로 강제된다. 표본 수(`sample_n`)는 조회 시점의 코호�
 `mart.build_coverage`는 그 build가 읽은 (지역, 달) 구간의 모집단 보유율을 기록한다. 판정은
 `complete`·`partial`·`none`·`unknown` 넷이며 `unknown`은 그 축으로 나뉘어 수집되지 않아 분모를 낼 수
 없다는 뜻이다([PDR-0003](../product/decisions/0003-coverage-unknown.md)).
+
+기관 회차의 `item_label`은 원본 `classification.sourceCategoryLabel`의 관측 표시값이다.
+`item_code_value_id`가 없어도 라벨을 버리지 않는다. 공개 V1 기관 이력은 `includeItemLabel=true`를
+요청한 소비자에게 `itemLabel`을 별도로 전달한다. null은 라벨 미관측, 키 부재는 이전 응답 형태다.
+기존 `item`의 코드 관계와 필터는 유지하고 라벨을 분해하거나 같은 문자열이라는 이유로 품목 ID,
+필터 또는 차트 연결 집단으로 승격하지 않는다. DB·ingestion 변경과 replay는 필요하지 않다.
+기존 strict 소비자는 새 query를 보내지 않아 응답 형태가 유지된다. 서버를 먼저 반영한 뒤 Web이
+명시 query를 보내며, 이전 Web으로 되돌려도 기존 응답을 계속 읽는다.
 
 대규모 JSON 결과를 Organization/Auction master 행에 넣지 않는다.
 

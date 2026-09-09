@@ -569,6 +569,22 @@ test("server transport는 canonical server-request.server.ts만 resource server�
   ]);
 });
 
+test("개인 응답 transport는 resource server.ts의 exact runtime import만 허용한다", async () => {
+  const report = await inspect({
+    "apps/web/src/api/account/server.ts": "import { privateServerRequest } from '@/api/_transport/private-server-request.server'; void privateServerRequest;\n",
+    "apps/web/src/api/account/index.ts": "import { privateServerRequest } from '@/api/_transport/private-server-request.server'; void privateServerRequest;\n",
+    "apps/web/src/api/orders/server.ts": "import { privateServerRequest as request } from '@/api/_transport/private-server-request.server'; void request;\n",
+    "apps/web/src/capabilities/setup/view.ts": "import { privateServerRequest } from '@/api/_transport/private-server-request.server'; void privateServerRequest;\n",
+    "apps/web/src/api/_transport/private-server-request.server.ts": "export const privateServerRequest = () => undefined;\n",
+  });
+
+  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").map((finding) => finding.path).sort(), [
+    "apps/web/src/api/account/index.ts",
+    "apps/web/src/api/orders/server.ts",
+    "apps/web/src/capabilities/setup/view.ts",
+  ]);
+});
+
 test("dynamic import transport는 resource와 외부 consumer에서 거부하고 contract import은 허용한다", async () => {
   const report = await inspect({
     "apps/web/src/api/auctions/index.ts": "export const browser = () => import('@/api/_transport/browser-request');\n",
@@ -915,6 +931,7 @@ test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리�
     "apps/web/src/shell/layout/shell.tsx": "import Header from '@/components/layout/header'; export const Shell = () => Header;\n",
     "apps/web/src/shell/theme/toggle.tsx": "import { Kbd } from '../../components/ui/kbd'; export const toggle = Kbd;\n",
     "apps/web/src/app/(workspace)/auctions/page.tsx": "import { deadline } from '@/lib/deadline'; export default function Page() { return deadline; }\n",
+    "apps/web/src/app/(auth)/login/_ui/login-screen.tsx": "import { Kbd } from '@/components/ui/kbd'; export const LoginScreen = () => Kbd;\n",
     "apps/web/src/routing/auction.ts": "import type { Route } from '@/types/route'; export const route = (value: Route) => value;\n",
     "apps/web/src/shell/layout/controls.tsx": "export { LegacyHeaderControls } from '@/app/dashboard/_ui/legacy-header-controls';\n",
     "apps/web/src/shared/lib/deadline-type.ts": "export type Deadline = typeof import('@/lib/deadline');\n",
@@ -931,6 +948,7 @@ test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리�
 
   const legacy = report.unmatchedFindings.filter((finding) => finding.rule === "legacy-import");
   assert.deepEqual(legacy.map((finding) => finding.path).sort(), [
+    "apps/web/src/app/(auth)/login/_ui/login-screen.tsx",
     "apps/web/src/app/(workspace)/auctions/page.tsx",
     "apps/web/src/routing/auction.ts",
     "apps/web/src/shared/lib/deadline-type.ts",

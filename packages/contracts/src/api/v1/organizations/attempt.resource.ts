@@ -6,7 +6,8 @@ import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
 import { moneyWireSchema } from "../../../values/money";
-import { baseRelativeBidRateWireSchema, bidRateWireSchema } from "../../../values/rate";
+import { baseRelativeBidRateWireSchema, bidRateWireSchema, observedBidRateWireSchema } from "../../../values/rate";
+import { organizationAttemptCohortSchema } from "./cohort.resource";
 
 /**
  * 과거 회차 표는 개찰된 회차만 싣고 열린 회차는 상태 배너가 담당한다(EAT-81). `only`는 서버 clock 기준
@@ -18,16 +19,30 @@ export type OrganizationAttemptOpenedFilter = z.infer<typeof organizationAttempt
 
 export const organizationAuctionAttemptSchema = z.strictObject({
   attemptId: positiveBigintTextSchema,
+  /**
+   * 이 요약이 어느 해석을 요약했는지다. `mart.org_round_summary.auction_revision_id`는 not null이라
+   * 미관측이 없으므로 `nullable`이 아니고, 필드 부재는 "이 소비자가 요청하지 않았다"만 뜻한다.
+   *
+   * 무조건 싣지 않는 이유: 이 resource는 strict object이고 web이 같은 schema로 응답을 parse한다.
+   * 서버만 먼저 배포되면 구 소비자가 모르는 key 하나 때문에 응답 전체를 거부한다. 그래서 새 표시값을
+   * 요청한 소비자에게만 넓히는 `itemLabel`과 같은 opt-in을 쓴다.
+   */
+  revisionId: positiveBigintTextSchema.optional(),
   announcedAt: instantTextSchema,
   openedAt: instantTextSchema.nullable(),
   // 품목 라벨 상한은 기관 이름(AuctionOrganization.name)과 같은 512자다. 원본 라벨이 잘려 들어오는
   // 것보다 계약이 통째로 실패하는 편이 관측 사실을 왜곡하지 않는다.
   item: z.strictObject({ codeValueId: positiveBigintTextSchema, label: z.string().min(1).max(512) }).nullable(),
-  // eaT 사정률·낙찰률은 소수 셋째 자리까지 관측되며 mart numeric(6,3)과 같다(values/rate.ts).
+  // 코드가 없어도 원문 라벨은 관측 사실이다. 누락은 구형 projection, null은 미관측이며
+  // 이 문자열을 품목 ID·필터·집단 연결 키로 쓰지 않는다.
+  itemLabel: z.string().min(1).max(512).nullable().optional(),
+  // 공고 조건의 하한율은 100 이하이고, 낙찰·차순위의 원천 관측은 그 상한을 공유하지 않는다(ADR 0040).
   floorRate: bidRateWireSchema.nullable(),
+  // 새 집단 조건을 명시한 요청에만 싣는다. null은 미확인, 필드 부재는 이전 응답 projection이다.
+  awardMethodCodeValueId: positiveBigintTextSchema.nullable().optional(),
   baseAmount: moneyWireSchema,
-  winRate: bidRateWireSchema.nullable(),
-  secondRate: bidRateWireSchema.nullable(),
+  winRate: observedBidRateWireSchema.nullable(),
+  secondRate: observedBidRateWireSchema.nullable(),
   // 아래 둘은 위 사정률들과 분모가 다르다. 하한율은 사정률 축의 상수이고 그날 하한은 그것을 기초금액
   // 분모로 번역한 파생값이며, awardedBidRate는 같은 낙찰을 그 회차의 예정가격/기초금액 배율로 옮긴
   // 값이다. 3자리에서 반올림하면 예정가격이 기초금액에 가까운 회차들이 같은 값으로 뭉개지므로 둘 다
@@ -57,6 +72,7 @@ export const organizationAuctionAttemptsMetaSchema = martBuildLineageSchema.safe
   // 서버가 비교한 clock 시각이고, `any`는 비교 자체가 없었으므로 null이다 — 없는 기준을 지어내지 않는다.
   opened: organizationAttemptOpenedFilterSchema,
   asOf: instantTextSchema.nullable(),
+  cohort: organizationAttemptCohortSchema.optional(),
 }).meta({ id: "OrganizationAuctionAttemptsMeta" });
 
 export type OrganizationAuctionAttempt = z.infer<typeof organizationAuctionAttemptSchema>;

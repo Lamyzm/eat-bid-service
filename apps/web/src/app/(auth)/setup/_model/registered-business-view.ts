@@ -1,0 +1,35 @@
+/** @module 책임: 등록 사업자 응답을 화면 문구로 옮기고 입력 사업자번호를 계약 command로 검증한다. */
+import { registerMyBusinessCommandSchema, type RegisteredBusiness } from '@eatbid/contracts/api/v1/me';
+
+// 표기 규칙은 결정 화면의 내 투찰 선택도 같이 쓰므로 shared에 하나만 둔다. 이 route의 소비자는 그대로 둔다.
+export { businessNumberDisplay } from '@/shared/lib/business-number-display';
+
+/**
+ * "아직 원본에서 관측되지 않았다"를 "참여 기록이 없다"로 바꿔 말하지 않는다. 자료 없음과 미참여는 다른
+ * 사실이고, 같은 번호를 원본이 나중에 관측하면 같은 등록이 저절로 연결된다(ADR 0032 §7).
+ */
+export function supplierStatusText(business: RegisteredBusiness): string {
+  switch (business.supplier.kind) {
+    case 'linked':
+      return '수집 원본에서 이 번호를 확인했습니다';
+    case 'unobserved':
+      return '수집 원본에 아직 이 번호가 없습니다';
+    // 원본이 같은 번호를 서로 다른 두 업체로 관측한 상태다. 하나를 골라 연결했다고 말하지 않는다.
+    case 'evidence-conflict':
+      return '수집 원본에서 이 번호가 두 업체를 가리켜 연결을 확정하지 못했습니다';
+  }
+}
+
+export type BusinessNumberCheck =
+  | { readonly ok: true; readonly businessNumber: string }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * 입력 검증의 권위는 계약 command 하나다. 화면이 자체 정규식을 만들면 서버가 받는 값과 화면이 통과시킨
+ * 값이 갈라진다. 이 검사는 오타를 거를 뿐 실재하는 사업자인지도, 그 주인이 사용자인지도 말하지 않는다.
+ */
+export function checkBusinessNumberInput(value: string): BusinessNumberCheck {
+  const parsed = registerMyBusinessCommandSchema.safeParse({ businessNumber: value.trim() });
+  if (parsed.success) return { ok: true, businessNumber: parsed.data.businessNumber };
+  return { ok: false, message: '숫자 열 자리 사업자등록번호를 확인해 주세요.' };
+}

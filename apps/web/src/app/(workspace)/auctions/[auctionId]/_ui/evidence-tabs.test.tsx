@@ -28,20 +28,20 @@ function renderTabs(view: DecisionView) {
 }
 
 describe('근거 탭', () => {
-  test('탭 넷을 순서대로 그리고 현재 탭만 aria-current로 표시한다', () => {
+  test('시안의 흐름·분포 두 탭만 보이고 현재 탭을 표시한다', () => {
     const screen = renderTabs('흐름');
     const links = within(screen.getByRole('navigation', { name: '근거 보기' })).getAllByRole('link');
-    expect(links.map((node) => node.textContent)).toEqual(['비교집단', '흐름', '그날 하한', '업체']);
+    expect(links.map((node) => node.textContent)).toEqual(['흐름', '분포']);
     expect(links.filter((node) => node.getAttribute('aria-current') === 'page').map((node) => node.textContent)).toEqual(['흐름']);
   });
 
-  test('흐름 탭은 차트와 안내문·범례를 함께 보인다', () => {
+  test('흐름 탭은 차트와 범례를 보이고 점 선택 안내를 반복하지 않는다', () => {
     const screen = renderTabs('흐름');
-    expect(screen.getByRole('img', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
-    expect(screen.getByText('회차마다 낙찰된 사정률입니다. 굵은 선이 내 값입니다.')).toBeTruthy();
+    expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
+    expect(screen.getByText('점을 누르면 해당 회차의 참여 기록을 오른쪽에서 볼 수 있어요.')).toBeTruthy();
     // 범례는 계열 토글 버튼이며 그날 하한은 사정률 축 계열이 아니라 범례에도 없다(PDR-0004).
     const toggles = screen.getAllByRole('button', { pressed: true });
-    expect(toggles.map((node) => node.textContent)).toEqual(['━낙찰', '━내 값', '○다른 품목', '▮명단']);
+    expect(toggles.map((node) => node.textContent)).toEqual(['━낙찰', '━내 값', '◆내 투찰', '○다른 품목', '▮명단']);
     // 2등은 시안대로 꺼진 채 시작하지만 범례에는 있어 켤 수 있다.
     expect(screen.getByRole('button', { name: '2등', pressed: false })).toBeTruthy();
     expect(screen.queryByRole('button', { name: '그날 하한' })).toBeNull();
@@ -54,13 +54,6 @@ describe('근거 탭', () => {
       </BidRateProvider>
     );
     expect(screen.getByText('시군에서 값마다 낙찰된 횟수입니다. 모집단은 위 필터에서 바꿉니다.')).toBeTruthy();
-  });
-
-  test('본문이 아직 없는 탭은 무엇이 올 자리인지와 수집 전임을 함께 말한다', () => {
-    const screen = renderTabs('업체');
-    expect(screen.getByText('수집 전')).toBeTruthy();
-    expect(screen.getByText('회차별 명단 계약이 붙으면 참여 업체가 보입니다.')).toBeTruthy();
-    expect(screen.queryByRole('img', { name: '회차별 낙찰률 흐름' })).toBeNull();
   });
 
   test('범례는 흐름 탭에서만 보인다', () => {
@@ -86,8 +79,8 @@ describe('근거 탭', () => {
     expect(href).toContain('view=%EB%B9%84%EA%B5%90%EC%A7%91%EB%8B%A8');
   });
 
-  test('크게 보기 링크는 수집 전 탭을 포함해 네 탭 모두에 있다', () => {
-    for (const view of ['비교집단', '흐름', '그날 하한', '업체'] as const) {
+  test('크게 보기 링크는 두 분석 탭에 있다', () => {
+    for (const view of ['흐름', '비교집단'] as const) {
       const screen = renderTabs(view);
       const href = screen.getByRole('link', { name: '크게 보기' }).getAttribute('href') ?? '';
       expect(href).toContain(new URLSearchParams({ expand: view }).toString());

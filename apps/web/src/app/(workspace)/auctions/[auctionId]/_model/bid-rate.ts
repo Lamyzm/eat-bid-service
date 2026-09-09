@@ -57,3 +57,11 @@ export function bidAmount(baseAmount: string, rate: BidRate): string {
 export function formatWon(amount: string): string {
   return amount.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
+
+// 금액 wire는 소수 둘째 자리까지 실린다. 소수부가 0이면 볼 이유가 없는 정밀도라 생략하고, 0이 아니면
+// 관측된 값 그대로 보인다. 표·현재 공고·내 투찰이 같은 규칙으로 금액을 읽는다.
+export function amountText(amount: string): string {
+  const [whole, fraction = ''] = amount.split('.');
+  const padded = (fraction + '00').slice(0, 2);
+  return padded === '00' ? formatWon(whole!) : `${formatWon(whole!)}.${padded}`;
+}

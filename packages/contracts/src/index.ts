@@ -2,6 +2,7 @@ export * from "./common/problem-details";
 export * from "./api/operation";
 export * from "./api/registry";
 export * from "./operations/health";
+export * from "./atoms/business-number";
 export * from "./atoms/calendar";
 export * from "./atoms/code-scheme-names";
 export * from "./atoms/count";
@@ -24,6 +25,7 @@ export * from "./values/money";
 export * from "./values/provenance";
 export * from "./values/rate";
 export * from "./values/source-coded-value";
+export * from "./resources/account/workspace";
 export * from "./resources/procurement/classification";
 export * from "./resources/procurement/identity";
 export * from "./resources/procurement/location";
@@ -44,6 +46,8 @@ export {
   type ListCodesMeta,
   type ListCodesV1Response,
 } from "./api/v1/code-schemes";
+export * from "./api/v1/me";
+export * from "./api/v1/session";
 export * from "./api/v1/win-rate-distribution";
 export * from "./ingestion/v1/normalized-code-release";
 export * from "./ingestion/v1/resources/identity";

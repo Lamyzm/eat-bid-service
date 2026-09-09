@@ -87,6 +87,9 @@
 - 확정 사실을 먼저, 직접 비교를 다음에, 원자료·산식·revision을 상세 단계에 둔다.
 - 상태는 색만으로 전달하지 않고 텍스트를 함께 제공한다.
 - 화면 문구를 enum이나 계산 로직으로 다시 읽지 않는다.
+- 화면 문구는 사용자가 할 일과 실패만 말한다. 내부 결정과 구현 사정(초기화, 워크스페이스 생성, 의존성,
+  캐시, 역할 식별자)을 설명하지 않는다. 문구를 이유로 내부 상태를 없애거나 실패를 빈 상태로 바꾸지 않고,
+  계약 union과 명시적 command는 그대로 둔 채 표현만 사용자 언어로 옮긴다.
 - formatting은 single quote, JSX single quote, no trailing comma, 2-space indent를 따른다.
 - source가 300줄을 넘으면 책임 분리를 검토한다. 유지할 경우 reason, owner와 다음 split trigger가 있는
   명시적 waiver가 필요하다.

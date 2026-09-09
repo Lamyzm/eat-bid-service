@@ -16,6 +16,13 @@ const EMPTY_META = {
 } as const;
 
 describe("listOrganizationAuctionAttempts 계약", () => {
+  test("품목명 표시 확장은 명시 요청만 허용하고 false 문자열을 true로 해석하지 않는다", () => {
+    const { querySchema } = organizationV1Operations.listAuctionAttempts;
+    expect(querySchema.parse({ includeItemLabel: "true" }).includeItemLabel).toBe("true");
+    expect(querySchema.parse({})).not.toHaveProperty("includeItemLabel");
+    expect(() => querySchema.parse({ includeItemLabel: "false" })).toThrow();
+  });
+
   test("경로와 query를 canonical 형태로 조립한다", () => {
     const path = organizationV1Operations.listAuctionAttempts.buildPath({
       path: { organizationId: "42" },
@@ -115,6 +122,16 @@ describe("listOrganizationAuctionAttempts 계약", () => {
       winnerSupplierPartyId: "9", supersedesAttemptId: null,
     };
     expect(organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse(row)).toEqual(row);
+    const attempt = organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element;
+    for (const value of ["100.001", "101.975", "102.297", "999999999999.999"]) {
+      expect(attempt.parse({ ...row, winRate: { value, unit: "percentage-points" } }).winRate?.value).toBe(value);
+      expect(attempt.parse({ ...row, secondRate: { value, unit: "percentage-points" } }).secondRate?.value).toBe(value);
+    }
+    for (const value of ["-1.000", "102.2970", "1000000000000.000"]) {
+      expect(() => attempt.parse({ ...row, winRate: { value, unit: "percentage-points" } })).toThrow();
+      expect(() => attempt.parse({ ...row, secondRate: { value, unit: "percentage-points" } })).toThrow();
+    }
+    expect(() => attempt.parse({ ...row, floorRate: { value: "100.001", unit: "percentage-points" } })).toThrow();
     expect(() => organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse({ ...row, winRate: 90.309 })).toThrow();
     expect(() => organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse({
       ...row,

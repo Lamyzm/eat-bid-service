@@ -9,6 +9,7 @@ import {
   observedCounts,
   resetObservations
 } from './cache-observability';
+import { auctionRosterResponse } from './auction-roster-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
 import { organizationAttemptsResponse } from './organization-attempts-fixture';
 import { winRateDistributionResponse } from './win-rate-distribution-fixture';
@@ -117,7 +118,8 @@ function openAuctionResponse(auctionId: string) {
     terms: COHORT_TERMS,
     location: COHORT_LOCATION,
     classification: COHORT_CLASSIFICATION,
-    // 목록 관측 BID_CNT다. 요청 30분 전 4곳, 하루 전 2곳이라 배너가 "어제보다 +2"를 그린다.
+    // 목록 관측 BID_CNT다. 요청 30분 전 4곳, 25시간 전 2곳이라 상세가 "…기준 · (그 날짜) 대비 +2"를 그린다.
+    // 두 관측이 25시간 떨어져 있어 KST 달력일이 반드시 달라지고, 표시된 비교 날짜가 최신 날짜와 다른지 볼 수 있다.
     participation: {
       latest: { bidCount: 4, observedAt: instantSecondsIso(now - 30 * 60 * 1000) },
       dayEarlier: { bidCount: 2, observedAt: instantSecondsIso(now - 25 * 60 * 60 * 1000) }
@@ -228,6 +230,10 @@ Bun.serve({
     // 목록 경로는 `:auctionId` 경로보다 앞에서 본다. 경로가 다르므로 순서는 읽기 편의일 뿐이다.
     const openAuctions = openAuctionsResponse(request);
     if (openAuctions) return openAuctions;
+
+    // 명단은 `:auctionId/roster`라 상세 경로와 구별되지만, 상세 분기가 pathname 완전 일치이므로 앞에 둔다.
+    const roster = auctionRosterResponse(request);
+    if (roster) return roster;
 
     if (pathname === auctionPath(SUCCESS_AUCTION_ID)) {
       await Bun.sleep(SUCCESS_RESPONSE_DELAY_MILLISECONDS);

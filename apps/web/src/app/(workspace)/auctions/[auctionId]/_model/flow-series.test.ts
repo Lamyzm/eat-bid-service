@@ -3,8 +3,10 @@ import { describe, expect, test } from 'bun:test';
 import { DAY_FLOOR_WITHHELD_REASON, FLOW_AXIS, FLOW_SERIES, decideMyRateLine } from './flow-series';
 
 describe('흐름 차트 계열 어휘', () => {
-  test('계열은 낙찰·2등·내 값·다른 품목·명단 순이고 명단만 건수 축이다', () => {
-    expect(FLOW_SERIES.map((series) => series.name)).toEqual(['낙찰', '2등', '내 값', '다른 품목', '명단']);
+  test('계열은 낙찰·2등·내 값·내 투찰·다른 품목·명단 순이고 명단만 건수 축이다', () => {
+    expect(FLOW_SERIES.map((series) => series.name)).toEqual(['낙찰', '2등', '내 값', '내 투찰', '다른 품목', '명단']);
+    // 실제 제출과 가정 선은 서로 다른 계열이다. 이름이 같아지면 가정이 사실처럼 읽힌다.
+    expect(FLOW_SERIES.find((series) => series.key === 'own')?.name).not.toBe(FLOW_SERIES.find((series) => series.key === 'myRate')?.name);
     expect(FLOW_SERIES.filter((series) => series.axis === 'count').map((series) => series.key)).toEqual(['listCount']);
   });
 

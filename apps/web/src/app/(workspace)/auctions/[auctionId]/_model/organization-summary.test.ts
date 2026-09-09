@@ -8,6 +8,7 @@ import { summarizeOrganization } from './organization-summary';
 function makeRow(overrides: Partial<HistoryRow> & { readonly openedKstDay: number }): HistoryRow {
   return {
     attemptId: String(overrides.openedKstDay),
+    revisionId: null,
     announcedAt: '2025-12-29T00:00:00Z',
     openedText: '26-01-01',
     openedYear: '2026',

@@ -18,7 +18,8 @@ export type OrgCadencePresentation = {
 type HistoryInput =
   | { readonly state: 'ready'; readonly presentation: HistoryPresentation }
   | { readonly state: 'no-organization' }
-  | { readonly state: 'unavailable' };
+  | { readonly state: 'unavailable' }
+  | { readonly state: 'build-changed' };
 
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const pad2 = (value: number): string => value.toString().padStart(2, '0');

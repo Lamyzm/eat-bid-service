@@ -363,7 +363,15 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 - source credential, R2 credential, DB role별 credential을 분리하고 최소 권한을 적용한다.
 - workflow service account는 필요한 Workflow/Secret/DB/R2 권한만 가진다.
 - API는 workspace와 supplier 소유권을 모든 command/query에서 검증한다.
-- 로그에 사업자등록번호, credential, 전체 source payload를 기록하지 않는다.
+- 로그에 사업자등록번호, credential, 전체 source payload를 기록하지 않는다. 사업자등록번호는 URL과
+  path parameter에도 싣지 않는다. 요청 경로는 접근 로그와 referrer에 남기 때문이다.
+- 인증 비밀값(세션 서명 key, Google OAuth client id/secret)은 다른 비밀값과 같이 Infisical이 소유하고
+  Git에는 key 계약만 둔다. server는 이 값들이 없으면 기동하지 않는다. 없는 값을 기본값으로 채우면
+  모든 배포가 같은 서명 key를 쓰게 된다.
+- 인증·권한 기능의 인수 검증은 운영 PostgreSQL과 `eatbid_api` 역할이 아니라 격리된 일회용
+  PostgreSQL에서 한다. 운영 DB에 대고 검증하면 새 migration·역할·권한이 검증 대상이 아니라 사고가 된다.
+  fixture는 커밋된 migration과 배포되는 `infra/product/db-provisioning.sql`을 그대로 실행하는
+  `apps/server/fixtures/disposable-database.fixture.ts`를 재사용한다.
 - raw bucket은 lifecycle/retention 변경을 운영 승인 대상으로 하고 삭제 권한을 일반 ingestor에서 뺀다.
 
 ## 8. 관측성과 운영

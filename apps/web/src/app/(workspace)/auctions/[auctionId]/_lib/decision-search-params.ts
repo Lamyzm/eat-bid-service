@@ -1,25 +1,32 @@
 /** @module 책임: 결정 화면 전체 조건(기간·모집단·내 값·손잡이 투찰률·크게 보기)을 URL search param으로 보존하는 nuqs parser를 한 곳에서 소유한다. page.tsx의 Suspense loader가 서버에서 `createLoader`로 이 parser를 실행하므로 client 전용 'nuqs'가 아니라 'nuqs/server'에서 가져온다. */
 import { parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs/server';
 
-export const DECISION_PERIODS = ['12개월', '3개월', '이번 달', '지난 달'] as const;
+export const DECISION_PERIODS = ['5년', '12개월', '3개월', '이번 달', '지난 달'] as const;
 export const DECISION_SCOPES = ['전국', '도', '시군', '이 기관'] as const;
-// 근거 영역의 탭. 호가창이 첫 탭이다. "내 값이 어디쯤인가"가 첫 질문이고 흐름은 그다음이다.
-export const DECISION_VIEWS = ['비교집단', '흐름', '그날 하한', '업체'] as const;
+// MVP는 기관 이력부터 보고 같은 조건의 낙찰 분포로 전환한다. 미구현 분석 탭은 만들지 않는다.
+export const DECISION_VIEWS = ['흐름', '비교집단'] as const;
 /**
- * 크게 보기 모달의 본문 종류. 근거 탭 넷은 탭 이름 그대로이고 과거 회차 카드는 탭이 아니라서 따로 있다.
+ * 확대할 본문 종류. 분석 보기는 view 값을 그대로 사용하고 과거 회차는 별도 대상으로 둔다.
  * 값이 탭 이름과 같으므로 탭에서 여는 링크는 `search.view`를 그대로 실을 수 있다.
  */
 export const DECISION_EXPANDS = ['과거 회차', ...DECISION_VIEWS] as const;
+/**
+ * build 전환(409) 복구가 다시 들어오는 유한 신선도 모드다. nonce나 timestamp가 아니라 값 하나뿐이며 기본은
+ * cached 경로다. 이 모드에서만 RSC가 회차 이력을 캐시 없이 읽어 표·선택·개인 점을 같은 새 집합으로 갱신한다.
+ */
+export const HISTORY_READ_MODES = ['latest'] as const;
 
 export const decisionSearchParsers = {
   period: parseAsStringLiteral(DECISION_PERIODS).withDefault('12개월'),
   scope: parseAsStringLiteral(DECISION_SCOPES).withDefault('전국'),
   // 탭은 화면 상태가 아니라 주소다. 링크로 특정 근거를 그대로 공유할 수 있어야 하고 (workspace)에는
   // nuqs adapter가 없어 client hook을 쓸 수 없다.
-  view: parseAsStringLiteral(DECISION_VIEWS).withDefault('비교집단'),
+  view: parseAsStringLiteral(DECISION_VIEWS).withDefault('흐름'),
   // 형식 검증(양의 정수 codeValueId)은 여기서 하지 않는다. `load-auction-page.ts`의 loader가
   // 회차 이력 조회 직전에 검증해 무효 값을 null로 다룬다.
   item: parseAsString,
+  // 생략은 현재 공고의 확인된 하한율이다. all과 unknown을 같은 빈 값으로 바꾸지 않는다.
+  floor: parseAsString,
   /**
    * 호가창에 얹는 "내 값"이다. **사정률**(분모 예정가격)이며 레일 손잡이의 투찰률(분모 기초금액)과
    * 다른 축이다(PDR-0004). **기본값을 두지 않는다** — 최빈 칸이나 하한율을 기본값으로 두면 그것이
@@ -37,11 +44,14 @@ export const decisionSearchParsers = {
   // 기본값을 두지 않아 닫힌 상태는 주소에 남지 않는다.
   expand: parseAsStringLiteral(DECISION_EXPANDS),
   /**
-   * 과거 회차 모달이 cursor를 따라 이어 붙인 페이지 수. 서버가 페이지를 부르므로(`presentHistory`의 Temporal을
+   * 과거 회차 조회가 cursor를 따라 이어 붙인 페이지 수. 서버가 페이지를 부르므로(`presentHistory`의 Temporal을
    * client bundle에 넣지 않는다) "더 불러오기"는 이 값을 하나 올린 주소다. 상한·정수 검증은 loader가 한다.
+   * 확대를 닫아도 남는다 — 이어 붙인 회차와 그 회차의 선택이 확대 여부에 매달리면 안 된다(EAT-115).
    * nuqs는 이 property 이름을 URL key로 쓰므로 `decisionQuery`가 쓰는 `pages`와 같은 이름이어야 한다.
    */
-  pages: parseAsInteger.withDefault(1)
+  pages: parseAsInteger.withDefault(1),
+  // 기본값을 두지 않아 cached 진입은 주소에 남지 않는다. 다른 공고로 새로 들어갈 때도 기본 cached 경로다.
+  historyRead: parseAsStringLiteral(HISTORY_READ_MODES)
 };
 
 export type DecisionSearch = {
@@ -49,11 +59,15 @@ export type DecisionSearch = {
   readonly scope: (typeof DECISION_SCOPES)[number];
   readonly view: (typeof DECISION_VIEWS)[number];
   readonly item: string | null;
+  readonly floor?: string | null;
   readonly myRate: string | null;
   readonly rate: string | null;
   readonly expand: DecisionExpand | null;
   readonly pages: number;
+  readonly historyRead?: HistoryReadMode | null;
 };
+
+export type HistoryReadMode = (typeof HISTORY_READ_MODES)[number];
 
 export type DecisionView = (typeof DECISION_VIEWS)[number];
 export type DecisionExpand = (typeof DECISION_EXPANDS)[number];
@@ -66,12 +80,17 @@ function decisionQuery(search: DecisionSearch): URLSearchParams {
   if (search.period !== decisionSearchParsers.period.defaultValue) query.set('period', search.period);
   if (search.scope !== decisionSearchParsers.scope.defaultValue) query.set('scope', search.scope);
   if (search.item !== null) query.set('item', search.item);
+  if (search.floor != null) query.set('floor', search.floor);
   if (search.myRate !== null) query.set('myRate', search.myRate);
   if (search.rate !== null) query.set('rate', search.rate);
   if (search.expand !== null) query.set('expand', search.expand);
-  // 페이지 수는 과거 회차 모달 안에서만 뜻이 있다. 다른 본문·닫힌 상태의 주소에 끌고 다니면 다시 열 때
-  // 옛 페이지 수가 되살아난다.
-  if (search.expand === '과거 회차' && search.pages > 1) query.set('pages', String(search.pages));
+  // 페이지 수는 "확대가 열렸다"가 아니라 "이 조회가 이어 붙인 표본 크기"다. 확대를 닫을 때 이 값을
+  // 지우면 불러온 회차와 그 회차를 고른 선택이 함께 사라진다(EAT-115). 조건이 바뀌면 조회 자체가
+  // 달라지므로 `buildDecisionFilterRoute`가 1로 되돌린다.
+  if (search.pages > 1) query.set('pages', String(search.pages));
+  // 신선도 모드는 같은 공고 안의 모든 링크가 보존한다. 탭·확대·페이지 링크에서 빠지면 복구 중인 화면이
+  // 다시 stale 캐시로 돌아간다.
+  if (search.historyRead === 'latest') query.set('historyRead', 'latest');
   return query;
 }
 
@@ -87,7 +106,7 @@ export function buildDecisionViewRoute(auctionId: string, search: DecisionSearch
   return `${pathname}?${query.toString()}`;
 }
 
-/** 과거 회차 모달의 다음 페이지 링크. 모달 본문은 그대로 두고 페이지 수만 바꾼다. */
+/** 과거 회차 확대의 다음 페이지 링크. 열린 본문은 그대로 두고 페이지 수만 바꾼다. */
 export function buildDecisionHistoryPagesRoute(auctionId: string, search: DecisionSearch, pages: number): DecisionRoute {
   return buildDecisionViewRoute(auctionId, { ...search, expand: '과거 회차', pages }, search.view);
 }
@@ -99,4 +118,22 @@ export function buildDecisionExpandRoute(
   expand: DecisionExpand | null
 ): DecisionRoute {
   return buildDecisionViewRoute(auctionId, { ...search, expand }, search.view);
+}
+
+/** 409 복구 전용. cached 상태에서 한 번 latest로 들어오고, 복구가 끝나면 다시 cached 주소로 돌아갈 수 있다. */
+export function buildDecisionHistoryReadRoute(
+  auctionId: string,
+  search: DecisionSearch,
+  mode: HistoryReadMode | null
+): DecisionRoute {
+  return buildDecisionViewRoute(auctionId, { ...search, historyRead: mode }, search.view);
+}
+
+/** 조건이 달라지면 이전 집단 cursor 페이지 수를 물려받지 않는다. 보기와 사용자 입력은 유지한다. */
+export function buildDecisionFilterRoute(
+  auctionId: string,
+  search: DecisionSearch,
+  change: Partial<Pick<DecisionSearch, 'period' | 'scope' | 'item' | 'floor'>>
+): DecisionRoute {
+  return buildDecisionViewRoute(auctionId, { ...search, ...change, pages: 1 }, search.view);
 }

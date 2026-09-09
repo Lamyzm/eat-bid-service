@@ -4,6 +4,7 @@ import { auctionV1Operations } from '@eatbid/contracts/api/v1/auctions';
 
 import type { ContractRequest } from '../_transport/request-contract';
 import { getAuctionWith } from './get-auction';
+import { getAuctionRosterWith } from './get-auction-roster';
 import { listOpenAuctionsWith, type OpenAuctionListInput } from './list-open-auctions';
 
 const auctionQueryKeys = {
@@ -20,6 +21,14 @@ export function createAuctionQueries(request: ContractRequest) {
   return {
     all: auctionQueryKeys.all,
     details: auctionQueryKeys.details,
+    roster(auctionId: string, revisionId?: string) {
+      const path = auctionV1Operations.roster.pathSchema.parse({ auctionId });
+      const query = auctionV1Operations.roster.querySchema.parse({ revisionId });
+      return queryOptions({
+        queryKey: [...auctionQueryKeys.detail(path.auctionId), 'roster', query] as const,
+        queryFn: ({ signal }) => getAuctionRosterWith(request, { auctionId: path.auctionId, ...query, signal })
+      });
+    },
     openLists: auctionQueryKeys.openLists,
     detail(auctionId: string) {
       const path = auctionV1Operations.find.pathSchema.parse({ auctionId });

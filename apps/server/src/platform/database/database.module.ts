@@ -1,8 +1,12 @@
 /** @module 책임: PostgreSQL 연결 수명주기를 감추고 목적별 조회·트랜잭션 port만 주입 가능하게 만든다. */
-import { DynamicModule, Global, Module, type OnApplicationShutdown, type Provider } from "@nestjs/common";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { DynamicModule, Global, Module, type Provider } from "@nestjs/common";
+import type { AccountRepository } from "../../modules/account/application/account-repository";
+import { DrizzleAccountRepository } from "../../modules/account/infrastructure/drizzle/drizzle-account-repository";
+import { DrizzleRegisteredBusinessReader } from "../../modules/account/infrastructure/drizzle/drizzle-registered-business-reader";
+import { DrizzleOwnBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-own-bid-reader";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
+import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
+import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
 import type { OpenAuctionReader } from "../../modules/procurement/application/open-auction-reader";
 import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
@@ -15,43 +19,35 @@ import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzl
 import type { Environment } from "../config/environment";
 import type { DatabaseReadiness } from "../health/readiness-state";
 import { createDatabaseReadiness } from "./database-readiness";
+import { createManagedDatabase, ManagedDatabase } from "./managed-database";
 import {
+  ACCOUNT_REPOSITORY,
   AUCTION_READER,
+  AUCTION_ROSTER_READER,
   CODE_READER,
   DATABASE_CONNECTION,
   DATABASE_READINESS,
   OPEN_AUCTION_READER,
   ORGANIZATION_ATTEMPT_READER,
+  OWN_BID_READER,
+  READ_SNAPSHOT,
+  REGISTERED_BUSINESS_READER,
   UNIT_OF_WORK,
   WIN_RATE_DISTRIBUTION_READER,
 } from "./database.tokens";
 import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
 
 export interface DatabaseModuleOverrides {
+  /** bootstrap이 인증 전송보다 먼저 만든 연결이다. 주지 않으면 모듈이 자기 풀을 연다. */
+  readonly connection?: ManagedDatabase;
   readonly readiness?: DatabaseReadiness;
+  readonly accountRepository?: AccountRepository;
   readonly auctionReader?: AuctionReader;
+  readonly auctionRosterReader?: AuctionRosterReader;
   readonly openAuctionReader?: OpenAuctionReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly codeReader?: CodeReader;
-}
-
-class ManagedDatabase implements OnApplicationShutdown {
-  readonly client: ReturnType<typeof postgres>;
-  readonly database: ReturnType<typeof drizzle>;
-
-  constructor(databaseUrl: string) {
-    this.client = postgres(databaseUrl, {
-      max: 10,
-      connection: { application_name: "eatbid-api" },
-    });
-    this.database = drizzle({ client: this.client });
-  }
-
-  async onApplicationShutdown(): Promise<void> {
-    // Nest 자원 종료 단계가 풀의 유일한 소유자여야 drain 전에 연결이 먼저 끊기지 않는다.
-    await this.client.end();
-  }
 }
 
 @Global()
@@ -65,7 +61,7 @@ export class DatabaseModule {
     const providers: Provider[] = [
       {
         provide: DATABASE_CONNECTION,
-        useFactory: () => new ManagedDatabase(environment.databaseUrl),
+        useFactory: () => overrides.connection ?? createManagedDatabase(environment.databaseUrl),
       },
       {
         provide: DATABASE_READINESS,
@@ -81,6 +77,30 @@ export class DatabaseModule {
         }),
       },
       {
+        /**
+         * 개인 조회 하나가 권한 판정과 사실 조회를 같은 시점에서 읽게 하는 경계다. `repeatable read`인
+         * 이유는 그 둘 사이에 커밋된 변경이 보이면 권한과 자료가 어긋난 응답이 만들어지기 때문이고,
+         * `read only`인 이유는 읽기 경로가 쓰기 권한을 갖지 않아야 하기 때문이다.
+         */
+        provide: READ_SNAPSHOT,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): UnitOfWork => createUnitOfWork({
+          transaction: (work) => connection.database.transaction(
+            (transaction) => work(transaction),
+            { isolationLevel: "repeatable read", accessMode: "read only" },
+          ),
+        }),
+      },
+      {
+        // 스냅샷 handle만 받아 읽으므로 연결을 직접 들지 않는다.
+        provide: REGISTERED_BUSINESS_READER,
+        useValue: new DrizzleRegisteredBusinessReader(),
+      },
+      {
+        provide: OWN_BID_READER,
+        useValue: new DrizzleOwnBidReader(),
+      },
+      {
         provide: AUCTION_READER,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): AuctionReader =>
@@ -91,6 +111,12 @@ export class DatabaseModule {
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): OpenAuctionReader =>
           overrides.openAuctionReader ?? new DrizzleOpenAuctionReader(connection.database),
+      },
+      {
+        provide: AUCTION_ROSTER_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): AuctionRosterReader =>
+          overrides.auctionRosterReader ?? new DrizzleAuctionRosterReader(connection.database),
       },
       {
         provide: ORGANIZATION_ATTEMPT_READER,
@@ -110,15 +136,26 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): CodeReader =>
           overrides.codeReader ?? new DrizzleCodeReader(connection.database),
       },
+      {
+        provide: ACCOUNT_REPOSITORY,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): AccountRepository =>
+          overrides.accountRepository ?? new DrizzleAccountRepository(connection.database),
+      },
     ];
     return {
       global: true,
       module: DatabaseModule,
       providers,
       exports: [
+        ACCOUNT_REPOSITORY,
         DATABASE_READINESS,
         UNIT_OF_WORK,
+        READ_SNAPSHOT,
+        REGISTERED_BUSINESS_READER,
+        OWN_BID_READER,
         AUCTION_READER,
+        AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,
         ORGANIZATION_ATTEMPT_READER,
         WIN_RATE_DISTRIBUTION_READER,

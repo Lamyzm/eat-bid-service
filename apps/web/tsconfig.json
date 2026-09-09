@@ -14,6 +14,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@/lib/chart-colors": ["./src/shared/lib/chart-colors.ts"],
       "@/*": ["./src/*"]
     },
     "incremental": true,
@@ -30,5 +31,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "plans", "scripts/cleanup-templates"]
+  "exclude": ["node_modules", "plans", "scripts/cleanup-templates", "scripts/auth-e2e.ts", "scripts/own-bid-e2e.ts"]
 }

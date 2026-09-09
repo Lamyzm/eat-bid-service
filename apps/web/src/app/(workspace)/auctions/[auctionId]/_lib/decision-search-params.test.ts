@@ -4,7 +4,9 @@ import { createSerializer } from 'nuqs';
 import {
   DECISION_EXPANDS,
   buildDecisionExpandRoute,
+  buildDecisionFilterRoute,
   buildDecisionHistoryPagesRoute,
+  buildDecisionHistoryReadRoute,
   buildDecisionViewRoute,
   decisionSearchParsers,
   type DecisionSearch
@@ -28,10 +30,12 @@ describe('결정 화면 URL 조건', () => {
     expect(serialize({ period: '12개월', scope: '전국', item: null })).toBe('');
     expect(serialize({ period: '12개월', scope: '전국', item: '7' })).toContain('item=7');
   });
-  test('view는 기본값이 비교집단이고 허용된 탭만 통과한다', () => {
+  test('기본 화면은 흐름이고 삭제한 분석 탭은 파싱하지 않는다', () => {
     expect(decisionSearchParsers.view.parse('흐름')).toBe('흐름');
     expect(decisionSearchParsers.view.parse('아무 탭')).toBeNull();
-    expect(decisionSearchParsers.view.defaultValue).toBe('비교집단');
+    expect(decisionSearchParsers.view.defaultValue).toBe('흐름');
+    expect(decisionSearchParsers.view.parse('업체')).toBeNull();
+    expect(decisionSearchParsers.view.parse('그날 하한')).toBeNull();
   });
   test('탭 링크는 지금 조건을 그대로 들고 간다', () => {
     const search: DecisionSearch = {
@@ -59,7 +63,7 @@ describe('결정 화면 URL 조건', () => {
       expand: null,
   pages: 1
     };
-    expect(buildDecisionViewRoute('4821', search, '업체')).toBe('/auctions/4821?view=%EC%97%85%EC%B2%B4');
+    expect(buildDecisionViewRoute('4821', search, '비교집단')).toBe('/auctions/4821?view=%EB%B9%84%EA%B5%90%EC%A7%91%EB%8B%A8');
   });
   test('공고 ID는 주소 조각으로 인코딩한다', () => {
     const search: DecisionSearch = {
@@ -112,7 +116,9 @@ describe('결정 화면 URL 조건', () => {
     expect(buildDecisionExpandRoute('4821', { ...search, expand: '흐름' }, null)).not.toContain('expand');
   });
 
-  test('pages는 과거 회차 모달이 열린 주소에서 2 이상일 때만 실리고 다른 본문·닫힌 상태에는 남지 않는다', () => {
+  test('이어 붙인 pages는 확대를 닫아도 주소에 남고 1회차면 남지 않는다', () => {
+    // pages는 "확대가 열렸다"가 아니라 이 조회가 이어 붙인 표본 크기다. 닫을 때 지우면 불러온 회차와
+    // 그 회차를 고른 선택이 함께 사라진다(EAT-115).
     const search: DecisionSearch = {
       period: '12개월',
       scope: '전국',
@@ -120,20 +126,59 @@ describe('결정 화면 URL 조건', () => {
       item: null,
       myRate: null,
       rate: null,
-      expand: null,
+      expand: '과거 회차',
       pages: 3
     };
-    expect(buildDecisionViewRoute('4821', search, '흐름')).not.toContain('pages');
-    expect(buildDecisionExpandRoute('4821', search, '흐름')).not.toContain('pages');
-    expect(buildDecisionHistoryPagesRoute('4821', search, 2)).toContain('pages=2');
-    expect(buildDecisionHistoryPagesRoute('4821', search, 2)).toContain(expandQuery('과거 회차'));
-    expect(buildDecisionHistoryPagesRoute('4821', search, 1)).not.toContain('pages');
+    expect(buildDecisionExpandRoute('4821', search, null)).toContain('pages=3');
+    expect(buildDecisionExpandRoute('4821', search, null)).not.toContain('expand');
+    expect(buildDecisionViewRoute('4821', search, '비교집단')).toContain('pages=3');
+    expect(buildDecisionViewRoute('4821', { ...search, pages: 1 }, '흐름')).not.toContain('pages');
+    expect(buildDecisionHistoryPagesRoute('4821', search, 4)).toContain('pages=4');
+    expect(buildDecisionHistoryPagesRoute('4821', search, 4)).toContain(expandQuery('과거 회차'));
     expect(decisionSearchParsers.pages.defaultValue).toBe(1);
   });
 
-  test('expand는 모달 본문 다섯 가지만 통과하고 기본값이 없어 닫힌 상태는 null이다', () => {
+  test('historyRead는 latest 하나뿐이며 기본 cached 경로는 주소에 남지 않는다', () => {
+    expect(decisionSearchParsers.historyRead.parse('latest')).toBe('latest');
+    expect(decisionSearchParsers.historyRead.parse('nonce-123')).toBeNull();
+    const base: DecisionSearch = {
+      period: '12개월',
+      scope: '전국',
+      view: '흐름',
+      item: null,
+      myRate: null,
+      rate: null,
+      expand: null,
+      pages: 1
+    };
+    const latest: DecisionSearch = { ...base, historyRead: 'latest' };
+    // 같은 공고 안의 링크는 모두 모드를 보존한다. 하나라도 빠지면 복구 중에 stale 캐시로 되돌아간다.
+    expect(buildDecisionViewRoute('4821', latest, '흐름')).toContain('historyRead=latest');
+    expect(buildDecisionExpandRoute('4821', latest, '과거 회차')).toContain('historyRead=latest');
+    expect(buildDecisionHistoryPagesRoute('4821', latest, 2)).toContain('historyRead=latest');
+    expect(buildDecisionFilterRoute('4821', latest, { period: '3개월' })).toContain('historyRead=latest');
+    expect(buildDecisionHistoryReadRoute('4821', base, 'latest')).toContain('historyRead=latest');
+    expect(buildDecisionHistoryReadRoute('4821', latest, null)).not.toContain('historyRead');
+    expect(buildDecisionViewRoute('4821', base, '흐름')).not.toContain('historyRead');
+  });
+
+  test('조건을 바꾸면 이전 집단의 cursor 페이지 수를 물려받지 않는다', () => {
+    const search: DecisionSearch = {
+      period: '12개월',
+      scope: '전국',
+      view: '흐름',
+      item: null,
+      myRate: null,
+      rate: null,
+      expand: '과거 회차',
+      pages: 3
+    };
+    expect(buildDecisionFilterRoute('4821', search, { period: '3개월' })).not.toContain('pages');
+  });
+
+  test('expand는 지원하는 확대 보기만 통과하고 기본값이 없어 닫힌 상태는 null이다', () => {
     for (const expand of DECISION_EXPANDS) expect(decisionSearchParsers.expand.parse(expand)).toBe(expand);
-    expect(DECISION_EXPANDS).toEqual(['과거 회차', '비교집단', '흐름', '그날 하한', '업체']);
+    expect(DECISION_EXPANDS).toEqual(['과거 회차', '흐름', '비교집단']);
     expect(decisionSearchParsers.expand.parse('true')).toBeNull();
     expect('defaultValue' in decisionSearchParsers.expand && decisionSearchParsers.expand.defaultValue !== undefined).toBe(false);
   });

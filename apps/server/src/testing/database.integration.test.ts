@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import request from "supertest";
@@ -14,127 +13,30 @@ import { createDatabaseReadiness } from "../platform/database/database-readiness
 import { createUnitOfWork, transactionDatabase } from "../platform/database/unit-of-work";
 import { DrizzleAuctionReader, type AuctionReadDatabase } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { auctionId } from "../modules/procurement/domain/auction-id";
+import {
+  disposableDatabase,
+  expectDenied,
+  migrationFolder,
+  provisioningSqlPath,
+  repositoryRoot,
+  sqlText,
+} from "../../fixtures/disposable-database.fixture";
 
-const repositoryRoot = resolve(import.meta.dir, "../../../..");
-const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
 // 두 번 적용해도 journal이 커밋된 migration 수만큼만 늘어나는 것이 이 검증의 요점이다.
 // 기대치를 상수로 박으면 migration을 더할 때마다 무관한 실패가 난다.
 const committedMigrationCount = readdirSync(migrationFolder, { withFileTypes: true })
   .filter((entry) => entry.isDirectory()).length;
-// 배포되는 권한 선언 그 자체를 실행한다. fixture가 GRANT를 따로 적으면 readiness 계약이 통과해도
-// 클러스터에 같은 권한이 선다는 보장이 없어진다(2026-09-04 server 503, 2026-09-05 dataplane exit 64).
-const provisioningSqlPath = resolve(repositoryRoot, "infra/product/db-provisioning.sql");
 const provisioningSql = readFileSync(provisioningSqlPath, "utf8");
-const sqlText = (value: string): string => value.replaceAll("'", "''");
 const normalizedAuctionFixture = normalizedAuctionV1Schema.parse(JSON.parse(readFileSync(
   resolve(repositoryRoot, "packages/contracts/fixtures/ingestion-v1/normalized-auction.json"),
   "utf8",
 )));
 const canonicalNormalizedAuctionPayload = sqlText(JSON.stringify(normalizedAuctionFixture));
-const postgresImage = "postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416";
-const taskLabel = "eatbid.task=gate16-3";
 
-async function docker(...args: string[]): Promise<string> {
-  const process = Bun.spawn(["docker", ...args], {
-    cwd: repositoryRoot,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(process.stdout).text(),
-    new Response(process.stderr).text(),
-    process.exited,
-  ]);
-  if (exitCode !== 0) throw new Error(`docker ${args[0]} failed: ${stderr.trim()}`);
-  return stdout.trim();
-}
-
-// 이 실행이 직접 만든 container만 소유로 본다. 같은 label은 다른 프로세스가 같은 파일을 동시에
-// 돌릴 때도 붙으므로 label만으로 판정하면 남이 정리 중인 container가 이 실행을 실패시킨다.
-const ownedContainerPrefix = `eatbid-gate16-3-${process.pid}-`;
-
-async function ownedTaskContainers(): Promise<string[]> {
-  const output = await docker(
-    "ps", "-a",
-    "--filter", `label=${taskLabel}`,
-    "--filter", `name=^${ownedContainerPrefix}`,
-    "--format", "{{.Names}}",
-  );
-  return output ? output.split(/\r?\n/) : [];
-}
-
-/**
- * `docker run --rm`의 삭제는 container가 멈춘 뒤 daemon이 비동기로 끝낸다. 한 번만 조회하면 정리에
- * 성공한 실행도 아직 목록에 남은 이름 때문에 실패하므로 상한 안에서 비워지기를 기다린다. 상한을
- * 넘기면 남은 이름을 그대로 드러내 진짜 누수와 반영 지연을 구분한다.
- */
-async function expectOwnedContainersCleanedUp(): Promise<void> {
-  const deadline = Date.now() + 30_000;
-  let remaining = await ownedTaskContainers();
-  while (remaining.length > 0 && Date.now() < deadline) {
-    await Bun.sleep(200);
-    remaining = await ownedTaskContainers();
-  }
-  expect(remaining).toEqual([]);
-}
-
-async function expectDenied(label: string, work: () => Promise<unknown>): Promise<void> {
-  let denied = false;
-  try {
-    await work();
-  } catch {
-    denied = true;
-  }
-  expect(denied, `${label} must be denied`).toBe(true);
-}
-
-interface DisposableDatabase {
-  readonly ownerUrl: string;
-  readonly apiUrl: string;
-  // mart 빌드를 Argo `marts` 단계가 실행하므로 dataplane 역할의 권한도 같은 배포 파일이 증명해야 한다.
-  readonly dataplaneUrl: string;
-  readonly owner: ReturnType<typeof postgres>;
-  readonly api: ReturnType<typeof postgres>;
-}
-
-async function withDisposableDatabase<A>(work: (database: DisposableDatabase) => Promise<A>): Promise<A> {
-  const name = `${ownedContainerPrefix}${Date.now()}`;
-  let owner: ReturnType<typeof postgres> | undefined;
-  let api: ReturnType<typeof postgres> | undefined;
-  await docker(
-    "run", "--detach", "--rm",
-    "--name", name,
-    "--label", taskLabel,
-    "--env", "POSTGRES_USER=eatbid_owner",
-    "--env", "POSTGRES_PASSWORD=owner-test-secret",
-    "--env", "POSTGRES_DB=eatbid_test",
-    "--publish", "127.0.0.1::5432",
-    postgresImage,
-  );
-  try {
-    const portOutput = await docker("port", name, "5432/tcp");
-    const port = portOutput.match(/:(\d+)$/)?.[1];
-    if (!port) throw new Error(`Could not determine PostgreSQL port from ${portOutput}`);
-    const ownerUrl = `postgres://eatbid_owner:owner-test-secret@127.0.0.1:${port}/eatbid_test`;
-    const apiUrl = `postgres://eatbid_api:api-test-secret@127.0.0.1:${port}/eatbid_test`;
-    const dataplaneUrl = `postgres://eatbid_dataplane:dataplane-test-secret@127.0.0.1:${port}/eatbid_test`;
-    owner = postgres(ownerUrl, { max: 1, connect_timeout: 1, onnotice: () => undefined });
-    const deadline = Date.now() + 30_000;
-    while (true) {
-      try {
-        await owner`select 1`;
-        break;
-      } catch (error) {
-        if (Date.now() >= deadline) throw error;
-        await Bun.sleep(100);
-      }
-    }
-    const ownerDatabase = drizzle({ client: owner });
-    const first = await migrate(ownerDatabase, { migrationsFolder: migrationFolder });
-    if (first) throw new Error(`First migration apply failed with ${first.exitCode}`);
-    const second = await migrate(ownerDatabase, { migrationsFolder: migrationFolder });
-    if (second) throw new Error(`Second migration apply failed with ${second.exitCode}`);
-
+const { withDatabase: withDisposableDatabase, expectOwnedContainersCleanedUp } = disposableDatabase({
+  task: "gate16-3",
+  migrationApplyCount: 2,
+  seed: async (owner) => {
     await owner.unsafe(`
       insert into ingest.run
         (run_id, mode, status, build_sha, parser_version, started_at, ended_at,
@@ -189,28 +91,9 @@ async function withDisposableDatabase<A>(work: (database: DisposableDatabase) =>
          '${canonicalNormalizedAuctionPayload}');
       create table mart.api_read_probe (probe_id bigint primary key);
       insert into mart.api_read_probe values (1);
-      create role eatbid_migrator login password 'migrator-test-secret'
-        nosuperuser nocreatedb nocreaterole noinherit;
-      create role eatbid_api login password 'api-test-secret'
-        nosuperuser nocreatedb nocreaterole noinherit;
-      create role eatbid_dataplane login password 'dataplane-test-secret'
-        nosuperuser nocreatedb nocreaterole noinherit;
     `);
-    // 역할 생성만 fixture의 책임이고(비밀번호는 Infisical 소유) 권한은 배포 파일이 선언한다.
-    await owner.unsafe(provisioningSql);
-    api = postgres(apiUrl, {
-      max: 4,
-      connect_timeout: 2,
-      connection: { statement_timeout: 5_000, lock_timeout: 2_000 },
-    });
-    await api`select 1`;
-    return await work({ ownerUrl, apiUrl, dataplaneUrl, owner, api });
-  } finally {
-    if (api) await api.end({ timeout: 1 }).catch(() => undefined);
-    if (owner) await owner.end({ timeout: 1 }).catch(() => undefined);
-    await docker("rm", "--force", name).catch(() => undefined);
-  }
-}
+  },
+});
 
 describe("owner 범위 PostgreSQL 경계", () => {
   test("migration을 두 번 적용하고 API로 canonical auction을 읽어 최소 권한을 증명한다", async () => {
@@ -367,6 +250,12 @@ describe("owner 범위 PostgreSQL 경계", () => {
         },
         {
           sequence_name: "principal_principal_id_seq",
+          has_usage: false,
+          has_select: false,
+          has_update: false,
+        },
+        {
+          sequence_name: "registered_business_registered_business_id_seq",
           has_usage: false,
           has_select: false,
           has_update: false,

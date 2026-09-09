@@ -46,7 +46,7 @@ export const openAuctionFixture = {
   identity: { ...auctionFixture.identity, auctionId: '5796468', revisionId: '5796469', title: '창원 남산초등학교 축산물 구매' },
   schedule: { announcedAt: '2026-09-01T00:00:00Z', deadlineAt: '2026-09-04T02:00:00Z', openedAt: '2026-09-04T05:00:00Z' },
   pricing: { baseAmount: { amount: '2761700.00', currency: 'KRW' }, plannedAmount: null },
-  // 목록 관측 BID_CNT다. fixtureNow 직전 관측 4곳, 하루 전 관측 2곳 → "어제보다 +2".
+  // 목록 관측 BID_CNT다. fixtureNow 직전 관측 4곳, 하루 전 관측 2곳 → "09-03 10:00 기준 · 09-02 대비 +2".
   participation: {
     latest: { bidCount: 4, observedAt: '2026-09-03T01:00:00Z' },
     dayEarlier: { bidCount: 2, observedAt: '2026-09-02T00:30:00Z' }

@@ -9,7 +9,7 @@ import { parseMyRate } from './present-distribution';
  */
 export const FLOW_AXIS = { name: '사정률', denominator: '예정가격' } as const;
 
-export type FlowSeriesKey = 'win' | 'runnerUp' | 'myRate' | 'otherItems' | 'listCount';
+export type FlowSeriesKey = 'win' | 'runnerUp' | 'myRate' | 'own' | 'otherItems' | 'listCount';
 
 export type FlowSeries = {
   readonly key: FlowSeriesKey;
@@ -27,6 +27,8 @@ export const FLOW_SERIES: readonly FlowSeries[] = [
   { key: 'win', name: '낙찰', axis: 'assessment-rate' },
   { key: 'runnerUp', name: '2등', axis: 'assessment-rate' },
   { key: 'myRate', name: '내 값', axis: 'assessment-rate' },
+  // 실제 제출은 가정 선 `내 값`과 이름·색·표식이 다르다. 가정을 실제로 이름만 바꿔 부르지 않는다(인계 원문).
+  { key: 'own', name: '내 투찰', axis: 'assessment-rate' },
   { key: 'otherItems', name: '다른 품목', axis: 'assessment-rate' },
   { key: 'listCount', name: '명단', axis: 'count' }
 ];

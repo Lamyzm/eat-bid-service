@@ -1,3 +1,6 @@
+/**
+ * @module 책임: 로그 출력을 분류형 필드로만 좁혀, 외부 문자열과 비밀값이 기록에 남지 않는 경계를 소유한다.
+ */
 import { ConsoleLogger, DynamicModule, Global, LoggerService, Module } from "@nestjs/common";
 import {
   formatInstantText,
@@ -151,8 +154,21 @@ export class RedactingJsonLogger implements LoggerService {
     });
   }
 
-  lifecycle(event: "application_ready"): void {
+  lifecycle(event: "application_ready" | "auth_disabled"): void {
     this.emit("info", event, {});
+  }
+
+  /**
+   * 인증 provider의 진단을 고정 event와 안전한 오류 분류로만 남긴다.
+   *
+   * provider 원문을 그대로 쓰지 않는 이유: 설치본은 세션 저장 실패를 `logger.error(message, error)`로
+   * 넘기고 그 error가 driver 예외이면 message와 params에 세션 토큰이 그대로 들어 있다. 문자열을 복사하는
+   * 순간 로그가 그 토큰을 보관한다.
+   */
+  provider(fields: { readonly level: string; readonly error: unknown }): void {
+    this.emit(fields.level === "debug" ? "debug" : fields.level, "auth_provider", {
+      ...(fields.error === undefined ? {} : serializeSafeError(fields.error)),
+    });
   }
 
   shutdown(fields: { readonly forced: boolean; readonly inflight: number }): void {

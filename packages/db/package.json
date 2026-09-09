@@ -22,7 +22,8 @@
     "test": "bun test src && tsc -p tsconfig.type-tests.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "pnpm build && node dist/migrate.js",
-    "db:check": "drizzle-kit check"
+    "db:check": "drizzle-kit check",
+    "auth:schema:check": "bun run tools/check-auth-schema.ts"
   },
   "dependencies": {
     "@eatbid/domain": "workspace:*",
@@ -31,6 +32,8 @@
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
+    "auth": "1.7.2",
+    "better-auth": "1.7.2",
     "drizzle-kit": "catalog:",
     "typescript": "^5.7.0"
   }

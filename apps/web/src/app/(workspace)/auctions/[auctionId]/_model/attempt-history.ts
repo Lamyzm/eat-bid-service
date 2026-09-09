@@ -6,10 +6,13 @@ import type {
   OrganizationAuctionAttemptsV1Response
 } from '@eatbid/contracts/api/v1/organizations';
 
-import { formatWon, toMilli, toMilliCeiling } from './bid-rate';
+import { amountText, toMilli, toMilliCeiling } from './bid-rate';
 
 export type HistoryRow = {
   readonly attemptId: string;
+  /** 이 요약이 요약한 해석이다. 서버가 opt-in을 무시한 응답은 null이며, null을 최신 revision으로 추정하지 않는다. */
+  readonly revisionId: string | null;
+  readonly openedAt?: string | null;
   /** wire instant 그대로다. 헤더의 발주 주기·배너의 지난 공고는 이 값으로 간격을 재며 표시 문자열을 되파싱하지 않는다(AGENTS 15). */
   readonly announcedAt: string;
   readonly openedText: string;
@@ -24,6 +27,7 @@ export type HistoryRow = {
   readonly floorRateText: string | null;
   readonly baseAmountText: string;
   readonly itemCodeValueId: string | null;
+  readonly awardMethodCodeValueId?: string | null;
   readonly winRateText: string | null;
   readonly winRateMilli: bigint | null;
   /** 같은 낙찰의 투찰률 축(분모 기초금액) 표현이다. 손잡이와 같은 축이라 판정은 이 값과 견준다. */
@@ -51,6 +55,7 @@ export type HistoryPresentation = {
   readonly coverage: MartCoverage | null;
   readonly regionScheme: string | null;
   readonly selectedItem: { readonly codeValueId: string; readonly label: string } | null;
+  readonly cohort?: OrganizationAuctionAttemptsV1Response['meta']['cohort'];
 };
 
 const pad2 = (value: number): string => value.toString().padStart(2, '0');
@@ -101,27 +106,22 @@ function openedMonth(attempt: OrganizationAuctionAttempt): string {
   return `${zoned.year}-${pad2(zoned.month)}`;
 }
 
-// 기초금액 wire는 소수 둘째 자리까지 실린다. 소수부가 0이면 볼 이유가 없는 정밀도라 생략하고, 0이
-// 아니면 관측된 값 그대로 보인다(present-decision.ts와 같은 규칙).
-function amountText(amount: string): string {
-  const [whole, fraction = ''] = amount.split('.');
-  const padded = (fraction + '00').slice(0, 2);
-  return padded === '00' ? formatWon(whole) : `${formatWon(whole)}.${padded}`;
-}
-
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
   return {
     attemptId: attempt.attemptId,
+    revisionId: attempt.revisionId ?? null,
+    openedAt: attempt.openedAt,
     announcedAt: attempt.announcedAt,
     openedText: openedText(attempt),
     openedYear: openedYear(attempt),
     openedMonthText: openedMonthText(attempt),
     openedKstDay: openedKstDay(attempt),
     openedMonth: openedMonth(attempt),
-    itemLabel: attempt.item?.label ?? '미확인',
+    itemLabel: attempt.itemLabel ?? attempt.item?.label ?? '미확인',
     floorRateText: attempt.floorRate?.value ?? null,
     baseAmountText: amountText(attempt.baseAmount.amount),
     itemCodeValueId: attempt.item?.codeValueId ?? null,
+    awardMethodCodeValueId: attempt.awardMethodCodeValueId ?? null,
     winRateText: attempt.winRate?.value ?? null,
     winRateMilli: attempt.winRate ? toMilli(attempt.winRate.value) : null,
     awardedBidRateText: attempt.awardedBidRate?.value ?? null,
@@ -175,6 +175,7 @@ export function presentHistory(
     calcVersion: response.meta.calcVersion,
     coverage: response.meta.coverage,
     regionScheme: response.meta.regionScheme,
-    selectedItem: selectedItem === null ? null : resolveSelectedItem(response.attempts, selectedItem)
+    selectedItem: selectedItem === null ? null : resolveSelectedItem(response.attempts, selectedItem),
+    cohort: response.meta.cohort
   };
 }

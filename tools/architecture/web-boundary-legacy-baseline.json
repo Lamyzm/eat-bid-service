@@ -1421,15 +1421,6 @@
     },
     {
       "rule": "legacy-lib-directory",
-      "path": "apps/web/src/lib/chart-colors.ts",
-      "kind": "SourceFile",
-      "sha256": "sha256:c1c58c181c7d5a3b08e72de2acd02decd9810240c61c77cba98c9a8e0113eca3",
-      "reason": "스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.",
-      "owner": "EAT-9 frontend foundation",
-      "splitTrigger": "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"
-    },
-    {
-      "rule": "legacy-lib-directory",
       "path": "apps/web/src/lib/compose-refs.ts",
       "kind": "SourceFile",
       "sha256": "sha256:79bb63b6dd8e008cf4fc91f14c905aebe66278dcb260d4675dd7eeefc57445c3",

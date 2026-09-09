@@ -55,8 +55,18 @@ client code를 한꺼번에 재수출하지 않는다.
 
 route는 metadata, RSC read/prefetch와 shell model 주입에 한해 resource `server.ts`를 직접 사용한다.
 shell은 endpoint를 읽지 않고 상위 layout에서 받은 serializable session/workspace view만 렌더링한다. header
-control과 sidebar 계정 허브는 상위 layout이 slot으로 주입하며, session 계약이 없는 지금은 legacy `dashboard`
-layout만 legacy control을 주입하고 canonical `(workspace)` route에는 계정 허브·로그인·전역 설정이 없다.
+control과 sidebar 계정 허브는 상위 layout이 slot으로 주입한다. canonical `(workspace)/layout.tsx`는 Suspense
+안 loader에서 session 계약을 읽어 그 view를 `sidebarFooter`로 내려보내며, layout 최상위에서 `cookies()`를
+await하지 않는다(ADR 0028 2항). session 의존 read 함수에는 `use cache`를 쓰지 않고, 세션 쿠키를 내부 origin
+으로 전달하는 별도 authenticated server entry만 그 전달을 소유한다. 로그인 여부로 화면을 가리는 layout
+판정은 UX이고 권위는 Nest guard의 401/403이다
+([ADR 0032](../adr/0032-authentication-and-authorization-boundary.md) §1).
+
+로그인, 첫 사업자 등록, 위치 입력, 계정 허브는 독립된 사용자 intent이고 command/권한/피드백 lifecycle을
+가지므로 `capabilities/account`로 승격한다. 각 화면은 그 capability의 public entry를 조합할 뿐 form 상태나
+session 상태를 shell로 올리지 않는다. 공고 상세처럼 route가 소유한 상태는 계속 route가 소유하고 shell dock
+slot은 배치만 맡는다. 계정·사업자 전환이 개인 자료 캐시를 섞지 않도록 사용자별 query key에 workspace와
+등록 사업자 ID를 포함하고, principal이 바뀌면 캐시를 비운다.
 한 route에서만 필요한 presentation과 interactive leaf는 segment private `_model`/`_ui`/`_lib`에 둔다.
 독립된 사용자 intent, command/permission/feedback lifecycle 또는 여러 resource orchestration이 생길 때만
 capability로 승격한다.

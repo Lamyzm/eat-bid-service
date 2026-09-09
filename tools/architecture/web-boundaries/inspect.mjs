@@ -334,6 +334,9 @@ function transportViolation(root, layer, file, target, node, reference) {
   const isOperation = isResource && !["index.ts", "server.ts"].includes(source[2]);
   if (targetPath === "apps/web/src/api/_transport/browser-request.ts") return isResourceIndex && exactRuntimeNamedImport(node, "browserRequest") ? undefined : "browser-request는 exact resource index.ts의 exact runtime import만 허용합니다.";
   if (targetPath === "apps/web/src/api/_transport/server-request.server.ts") return isResourceServer && exactRuntimeNamedImport(node, "serverRequest") ? undefined : "server-request.server는 exact resource server.ts의 exact runtime import만 허용합니다.";
+  // 개인 응답 adapter는 요청 쿠키를 읽으므로 `use cache` 경계 안에서 실행될 수 없다. 공개 read adapter와
+  // 같은 자리에 두면 하나의 import 실수가 사용자 응답을 공유 캐시에 넣는다(ADR 0032 §1).
+  if (targetPath === "apps/web/src/api/_transport/private-server-request.server.ts") return isResourceServer && exactRuntimeNamedImport(node, "privateServerRequest") ? undefined : "private-server-request.server는 exact resource server.ts의 exact runtime import만 허용합니다.";
   if (targetPath === "apps/web/src/api/_transport/request-contract.ts") return isOperation && exactContractRequestTypeImport(node) ? undefined : "resource operation은 exact ContractRequest만 exact type-only import할 수 있습니다.";
   return "resource는 승인되지 않은 api/_transport module을 import 또는 re-export할 수 없습니다.";
 }

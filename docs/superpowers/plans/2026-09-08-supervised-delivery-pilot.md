@@ -23,11 +23,12 @@
   재검토에서 고정 fixture와 live 검증을 독립 요구했다. projection/agent-config 11개와 quality check를 통과했다.
 - [x] EAT-115를 기존 M1에 연결하고 별도 worktree에서 Claude가 직접 claim한 뒤 구현을 시작한다.
   최초 lease 전 복합 명령이 실제 hook에 차단되었고, 순차 claim·doctor 후 수정으로 이어졌다.
-- [ ] 두 표에서 제거 요청한 열이 없고 기록 진입이 같은 attempt를 선택하는 회귀를 확인한다.
+- [x] 두 표에서 제거 요청한 열이 없고 일반 표 기록 진입이 같은 attempt를 선택하는 회귀를 확인한다.
   기존 낙찰·2등 정밀도, 참여 명단, 필터가 유지되어야 한다.
-- [ ] 관련 단위 테스트·typecheck·lint·quality 뒤 공통 AI advisory와 총괄 diff 검토를 수행한다.
-- [ ] dev 통합 후 실제 공고 89/5270의 기록을 확인한다. 고정 fixture UI 비교의 수행 여부를 별도로 보고한다.
-- [ ] Linear 기존 실행 문서에 역할·다음 순서·Git 기준을 연결한다. 구현/통합/배포/사용자 인수를 분리한다.
+- [x] 관련 단위 테스트·typecheck·lint·quality 뒤 공통 AI advisory와 총괄 diff 검토를 수행한다.
+- [x] dev 통합 후 실제 공고 89/5270의 기록을 확인한다. 고정 fixture UI 비교의 수행 여부를 별도로 보고한다.
+- [x] Linear 기존 실행 문서에 역할·다음 순서·Git 기준을 연결한다. 구현/통합/배포/사용자 인수를 분리한다.
+- [ ] 확대 표의 기록 진입과 복귀를 별도로 완성한다. 첫 네 파일 변경의 성공을 전체 인수로 확대하지 않는다.
 
 ## 범위를 넘는 조건
 
@@ -47,3 +48,20 @@ EAT-107의 별도 미완료 acceptance다. 이번 파일럿이 통과해도 모�
   CLI에 보고되었다. 반복 context를 포함한 수치로 실제 청구액이나 Codex 대비 절감률이 아니다.
 - 운영 문서의 canonical AI advisory는 Claude timeout으로 결과를 받지 못했다. projection/quality와
   읽기 전용 절차 검토 통과를 AI 코드 리뷰 성공으로 바꿔 쓰지 않는다.
+
+## 통합 결과와 다음 인계
+
+같은 Claude 세션을 재개해 원문 확인과 남은 검증·커밋·lease 반납을 완료했다. 구현 `c28d8de`는
+269개 UI 검사·typecheck·변경 lint·quality·Web 경계 검사를 통과했고, 공통 `pnpm review:ai`의
+Codex advisory는 추가 finding이 없었다. 총괄은 파생값을 사실로 잘못 설명한 이유 주석을 발견해
+같은 writer에게 정정하도록 했으며 `77e7ada`에서 해결했다. 주석만 고친 뒤는 diff와 quality만 확인했다.
+
+dev 통합본은 `codex/eat-111-dev-integration`의 `e559b12`다. 공통 절차와 Claude projection도
+같은 dev 작업본에 합치고 projection check를 통과했다. main 병합·운영 배포는 수행하지 않았다.
+[시안 차이 문서](../../product/notice-design-fidelity.md)에 같은 7회차의 고정 컴포넌트 비교와
+실제 공고 89·5270의 34건 참여 기록, 현재 공고 유지, 1440·1280 폭 검증 및 남은 차이를 남겼다.
+
+기존 Linear 「R1 실행 기획 — M0~M4의 산출물·선행조건·완료 증거」에 현재 실행 방식을 추가하고
+EAT-107·EAT-115·EAT-110의 순서를 연결했다. EAT-115의 확대 표 기록 진입과 EAT-107의 양 클라이언트
+자동 참조 검증은 미완료다. 다음은 EAT-110의 기존 복구 구현을 별도 단위로 검증한다.
+첫 파일럿은 위임·검토·dev 통합 가능성을 확인했지만 토큰 절감률은 검증하지 못했다.

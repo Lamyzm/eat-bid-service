@@ -1,10 +1,44 @@
 import { describe, expect, test } from 'bun:test';
+import { organizationAuctionAttemptsV1ResponseSchema } from '@eatbid/contracts/api/v1/organizations';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { presentHistory } from './attempt-history';
 import { rehearse } from './rehearsal';
 
 describe('기관 회차 이력 표시 모델', () => {
+  test('코드 없는 원문 품목명도 표시하되 코드 필터와 집단 정체성으로 사용하지 않는다', () => {
+    const response = organizationAuctionAttemptsV1ResponseSchema.parse({
+      ...attemptsFixture,
+      attempts: [{ ...attemptsFixture.attempts[0]!, item: null, itemLabel: '육류 , 가금류' }]
+    });
+    const row = presentHistory(response, null).rows[0]!;
+    expect(row.itemLabel).toBe('육류 , 가금류');
+    expect(row.itemCodeValueId).toBeNull();
+    expect(presentHistory(response, '7').rows[0]?.isSelectedItem).toBe(false);
+  });
+
+  test('요청한 revision을 행에 그대로 보존하고 없으면 최신으로 추정하지 않는다', () => {
+    const withRevision = { ...attemptsFixture.attempts[0]!, revisionId: '9007199254740999' };
+    const { revisionId: _omitted, ...withoutRevision } = attemptsFixture.attempts[1]!;
+    const rows = presentHistory({ ...attemptsFixture, attempts: [withRevision, withoutRevision] }, null).rows;
+    expect(rows[0]?.revisionId).toBe('9007199254740999');
+    expect(rows[1]?.revisionId).toBeNull();
+  });
+
+  test('100 초과 낙찰과 차순위 관측값을 응답 검증부터 표의 소수 셋째 자리까지 보존한다', () => {
+    const response = organizationAuctionAttemptsV1ResponseSchema.parse({
+      ...attemptsFixture,
+      attempts: [{
+        ...attemptsFixture.attempts[0]!,
+        winRate: { value: '101.975', unit: 'percentage-points' },
+        secondRate: { value: '102.297', unit: 'percentage-points' }
+      }]
+    });
+    const row = presentHistory(response, null).rows[0]!;
+    expect(row.winRateText).toBe('101.975');
+    expect(row.secondRateText).toBe('102.297');
+  });
+
   test('개찰 시각이 있으면 KST YY-MM-DD로 표시하고 openedYear는 4자리다', () => {
     const presentation = presentHistory(attemptsFixture, null);
     // 첫 회차는 openedAt '2026-08-10T04:00:00Z' → KST 13시, 날짜는 그대로 08-10이다.

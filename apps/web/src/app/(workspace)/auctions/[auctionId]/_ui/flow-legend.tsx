@@ -2,6 +2,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { Button } from '@/shared/ui/button';
 
 import { FLOW_SERIES, type FlowSeriesKey } from '../_model/flow-series';
 
@@ -9,7 +10,7 @@ export type FlowSeriesVisibility = Readonly<Record<FlowSeriesKey, boolean>>;
 
 // 시안(상세 1440 · 흐름 탭)의 시작 상태다. 2등은 낙찰 바로 위를 따라가는 보조 계열이라 근거 열 폭에서는 낙찰선을
 // 가리므로 꺼진 채 시작하고, 나머지는 켜져 있어야 회차 점·내 값·명단이 첫 화면에서 읽힌다.
-const INITIAL: FlowSeriesVisibility = { win: true, runnerUp: false, myRate: true, otherItems: true, listCount: true };
+const INITIAL: FlowSeriesVisibility = { win: true, runnerUp: false, myRate: true, own: true, otherItems: true, listCount: true };
 
 /*
  * 범례는 탭 스트립 줄에, 차트는 본문에 있어 같은 부모가 없다. 서버 컴포넌트인 근거 카드에 provider를 끼우지
@@ -45,6 +46,8 @@ const MARK: Record<FlowSeriesKey, { readonly glyph: string; readonly tone: strin
   win: { glyph: '━', tone: 'text-foreground' },
   runnerUp: { glyph: '┅', tone: 'text-muted-foreground' },
   myRate: { glyph: '━', tone: 'text-primary' },
+  // 실제 제출은 마름모다. 낙찰 점(원)·가정 선(줄)과 표식이 달라야 색약에서도 구별된다.
+  own: { glyph: '◆', tone: 'text-fuchsia-700 dark:text-fuchsia-300' },
   otherItems: { glyph: '○', tone: 'text-foreground' },
   listCount: { glyph: '▮', tone: 'text-muted-foreground' }
 };
@@ -58,8 +61,9 @@ export function FlowLegend() {
         return (
           <span key={series.key} className='inline-flex items-center gap-1'>
             {index > 0 ? <span className='text-muted-foreground/50'>·</span> : null}
-            <button
-              type='button'
+            <Button
+              variant='ghost'
+              size='default'
               aria-pressed={on}
               onClick={() => toggleFlowSeries(series.key)}
               className={`inline-flex h-7 items-center gap-1 rounded-md px-1.5 whitespace-nowrap ${
@@ -68,7 +72,7 @@ export function FlowLegend() {
             >
               <span aria-hidden='true'>{MARK[series.key].glyph}</span>
               {series.name}
-            </button>
+            </Button>
           </span>
         );
       })}

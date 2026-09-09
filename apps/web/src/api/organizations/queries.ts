@@ -2,11 +2,11 @@
 import { queryOptions } from '@tanstack/react-query';
 import {
   organizationV1Operations,
-  type OrganizationAttemptOpenedFilter
+  type OrganizationAuctionAttemptsQuery
 } from '@eatbid/contracts/api/v1/organizations';
 
 import type { ContractRequest } from '../_transport/request-contract';
-import { listOrganizationAuctionAttemptsWith } from './list-auction-attempts';
+import { listOrganizationAuctionAttemptsWith, type OrganizationAttemptsReadInput } from './list-auction-attempts';
 
 const organizationQueryKeys = {
   all: () => ['organizations'] as const,
@@ -14,12 +14,7 @@ const organizationQueryKeys = {
   attemptsList: (
     organizationId: string,
     // 개찰 필터가 key에 없으면 only·any 응답이 같은 cache 항목을 덮어쓴다.
-    query: {
-      readonly item?: string;
-      readonly cursor?: string;
-      readonly limit: number;
-      readonly opened: OrganizationAttemptOpenedFilter;
-    }
+    query: OrganizationAuctionAttemptsQuery
   ) => [...organizationQueryKeys.attemptsLists(), organizationId, query] as const
 };
 
@@ -27,28 +22,18 @@ export function createOrganizationQueries(request: ContractRequest) {
   return {
     all: organizationQueryKeys.all,
     attemptsLists: organizationQueryKeys.attemptsLists,
-    attempts(input: {
-      readonly organizationId: string;
-      readonly item?: string;
-      readonly cursor?: string;
-      readonly limit?: number;
-    }) {
+    attempts(input: Omit<OrganizationAttemptsReadInput, 'signal'>) {
+      const { organizationId, ...queryInput } = input;
       const path = organizationV1Operations.listAuctionAttempts.pathSchema.parse({
-        organizationId: input.organizationId
+        organizationId
       });
-      const query = organizationV1Operations.listAuctionAttempts.querySchema.parse({
-        item: input.item,
-        cursor: input.cursor,
-        limit: input.limit
-      });
+      const query = organizationV1Operations.listAuctionAttempts.querySchema.parse(queryInput);
       return queryOptions({
         queryKey: organizationQueryKeys.attemptsList(path.organizationId, query),
         queryFn: ({ signal }) =>
           listOrganizationAuctionAttemptsWith(request, {
             organizationId: path.organizationId,
-            item: query.item,
-            cursor: query.cursor,
-            limit: query.limit,
+            ...query,
             signal
           })
       });

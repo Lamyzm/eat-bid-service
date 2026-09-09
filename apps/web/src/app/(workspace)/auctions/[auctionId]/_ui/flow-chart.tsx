@@ -1,258 +1,127 @@
-/** @module 책임: 기관 회차 이력을 직접 그린 inline SVG 흐름 차트로 렌더링한다 — 사정률 창의 낙찰·2등·내 값, 아래 띠의 명단 막대, KST 달 라벨을 범례 토글에 따라 겹친다. */
+/** @module 책임: 기관 흐름 차트의 기존 표시 모델·계열 토글·오른쪽 회차 선택·내 투찰 점을 캔버스와 접근 가능한 조작에 연결한다. */
 'use client';
 
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { Button } from '@/shared/ui/button';
 import type { HistoryPresentation } from '../_model/attempt-history';
-import { DAY_FLOOR_WITHHELD_REASON, FLOW_AXIS, FLOW_SERIES, decideMyRateLine, type FlowSeriesKey } from '../_model/flow-series';
+import { buildFlowChartModel, type FlowInspection } from '../_model/flow-chart-model';
+import { decideMyRateLine } from '../_model/flow-series';
+import type { OwnChartPoint } from '../_model/own-bid-points';
 import { useBidRate } from './bid-rate-context';
-import {
-  BAR_BOTTOM,
-  BAR_TOP,
-  FLOW_TICKS,
-  FLOW_VIEW_HEIGHT,
-  FLOW_VIEW_WIDTH,
-  LIST_BAR_CAP,
-  MONTH_LABEL_Y,
-  PLOT_LEFT,
-  PLOT_RIGHT,
-  TICK_LABEL_X,
-  flowPoints,
-  listBars,
-  monthLabels,
-  myRatePlacement,
-  tickY,
-  type FlowPoint
-} from './flow-geometry';
 import { useFlowSeriesVisibility } from './flow-legend';
+import { useOptionalAttemptSelection } from './attempt-selection';
+import { useOptionalOwnBid } from './own-bid/own-bid-context';
+import type { FlowChartController } from './create-flow-chart';
 
-const UNKNOWN = '미확인';
+type Props = { readonly presentation: HistoryPresentation; readonly myRate: string | null; readonly focus?: boolean };
 
-const SERIES_NAME = Object.fromEntries(FLOW_SERIES.map((series) => [series.key, series.name])) as Record<FlowSeriesKey, string>;
+// provider가 없거나 점이 없는 동안 같은 참조를 돌려줘 effect가 헛돌지 않게 한다.
+const NO_OWN_POINTS: readonly OwnChartPoint[] = [];
 
-// 보유율은 표본을 어디까지 믿어도 되는지를 말한다. 영문 판정값을 그대로 보이면 화면이 계약 어휘를
-// 사용자에게 떠넘긴다.
-const COVERAGE_TEXT: Record<'complete' | 'partial' | 'none' | 'unknown' | 'missing', string> = {
-  complete: '완전',
-  partial: '일부',
-  none: '없음',
-  unknown: '모름',
-  missing: UNKNOWN
-};
-
-// "최근 N회 표시"의 N은 실제로 그린 점 수다. 낙찰률이 없는 회차는 y를 만들 수 없어 점이 없으므로
-// 응답 행 수를 쓰면 차트에 없는 회차까지 그렸다고 말하게 된다.
-function caption(presentation: HistoryPresentation, shown: number): string {
-  return [
-    `표본 ${presentation.sampleCount}회`,
-    `최근 ${shown}회 표시`,
-    `build ${presentation.buildId ?? UNKNOWN}`,
-    `계산 ${presentation.calcVersion ?? UNKNOWN}`,
-    `산출 ${presentation.computedAtText ?? UNKNOWN}`,
-    // 모집단을 어디까지 덮었는지 모르는 표본이라면 화면이 그 사실을 먼저 말해야 한다(PDR-0003).
-    `모집단 ${COVERAGE_TEXT[presentation.coverage ?? 'missing']}`
-  ].join(' · ');
+function dayLabel(item: FlowInspection): string {
+  const { row } = item.point;
+  return `${row.openedYear}.${row.openedText.slice(3).replace('-', '.')}`;
 }
 
-function Grid() {
+function InspectionButton({ item, onChoose, disabled }: { readonly item: FlowInspection; readonly onChoose: (attemptId: string) => void; readonly disabled: boolean }) {
+  const { row } = item.point;
   return (
-    <g className='text-border'>
-      {FLOW_TICKS.map((tick, index) => (
-        <line key={tick} x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={tickY(index)} y2={tickY(index)} stroke='currentColor' strokeWidth={1} />
-      ))}
-    </g>
+    <Button variant='secondary' size='sm' onClick={() => onChoose(row.attemptId)} disabled={disabled}>
+      {item.kind === 'win'
+        ? `${dayLabel(item)} · ${row.itemLabel} · ${row.winRateText}% · 회차 ${row.attemptId}`
+        // 실제 제출은 exact 비율과 관측 금액을 그대로 읽는다. 금액이 없으면 계산 금액으로 채우지 않는다.
+        : `${dayLabel(item)} · 내 투찰 ${item.point.rateText}% · ${item.point.amountText === null ? '금액 미확인' : `${item.point.amountText}원`} · 회차 ${row.attemptId}`}
+    </Button>
   );
 }
 
-// 눈금 이름은 눈금 숫자와 같은 열에 둔다. 숫자만 보이면 레일의 투찰률과 같은 축으로 읽히고, 그 오독이
-// 바로 손잡이 값을 이 눈금에 꽂게 만든 원인이다(PDR-0004). 위쪽 여백 16 안에서 맨 위 눈금 글자(13px,
-// baseline 20)와 겹치지 않으려면 10px 글자를 baseline 8에 둬야 한다.
-function TickLabels() {
-  return (
-    <g className='text-muted-foreground'>
-      <text x={TICK_LABEL_X} y={8} textAnchor='end' fontSize={10} fontWeight={600} fill='currentColor'>
-        {FLOW_AXIS.name}
-      </text>
-      {FLOW_TICKS.map((tick, index) => (
-        <text key={tick} x={TICK_LABEL_X} y={tickY(index) + 4} textAnchor='end' fontSize={13} fontWeight={600} fill='currentColor'>
-          {tick}
-        </text>
-      ))}
-    </g>
-  );
-}
-
-// 막대 띠의 눈금은 위가 상한, 아래가 0이다. 이름은 사정률 이름과 같은 자리·크기로 두어 두 띠가 다른 축임을 같은 어법으로 말한다.
-function BarAxis() {
-  return (
-    <g className='text-muted-foreground'>
-      <text x={TICK_LABEL_X} y={BAR_TOP - 16} textAnchor='end' fontSize={10} fontWeight={600} fill='currentColor'>
-        {SERIES_NAME.listCount}
-      </text>
-      <text x={TICK_LABEL_X} y={BAR_TOP + 4} textAnchor='end' fontSize={13} fontWeight={600} fill='currentColor'>
-        {`${LIST_BAR_CAP}+`}
-      </text>
-      <text x={TICK_LABEL_X} y={BAR_BOTTOM + 4} textAnchor='end' fontSize={13} fontWeight={600} fill='currentColor'>
-        0
-      </text>
-    </g>
-  );
-}
-
-function ListBars({ points }: { readonly points: readonly FlowPoint[] }) {
-  return (
-    <g data-series='list-count' className='text-muted-foreground'>
-      {listBars(points).map((bar) => (
-        <g key={bar.key}>
-          <rect x={bar.x} y={bar.top} width={bar.width} height={BAR_BOTTOM - bar.top} fill='currentColor' opacity={0.45} />
-          {bar.overflowText === null ? null : (
-            <text x={bar.x + bar.width / 2} y={bar.top - 3} textAnchor='middle' fontSize={11} fontWeight={600} fill='currentColor'>
-              {bar.overflowText}
-            </text>
-          )}
-        </g>
-      ))}
-    </g>
-  );
-}
-
-function MonthAxis({ points }: { readonly points: readonly FlowPoint[] }) {
-  return (
-    <g data-axis='month' className='text-muted-foreground'>
-      {monthLabels(points).map((label) => (
-        <text key={label.text} x={label.x} y={MONTH_LABEL_Y} textAnchor='middle' fontSize={13} fontWeight={600} fill='currentColor'>
-          {label.text}
-        </text>
-      ))}
-    </g>
-  );
-}
-
-// 선은 선택 품목의 회차만, 그것도 창 안에 있는 점만 잇는다. 다른 품목은 경쟁 구조가 달라 같은 선으로
-// 이으면 추세처럼 보이는 거짓이 되고, 경계에 붙인 창 밖 점을 이으면 없는 평평한 구간이 생긴다.
-function selectedPath(points: readonly FlowPoint[], y: (point: FlowPoint) => number | null): string {
-  return points
-    .flatMap((point) => {
-      const value = point.selected ? y(point) : null;
-      return value === null ? [] : [`${point.x},${value}`];
-    })
-    .join(' ');
-}
-
-// 2등은 낙찰 바로 위의 얇은 점선이다. 낙찰선과 같은 굵기면 어느 쪽이 낙찰인지 색으로만 갈리게 된다.
-function RunnerUpSeries({ points }: { readonly points: readonly FlowPoint[] }) {
-  const path = selectedPath(points, (point) => point.runnerUpY);
-  return (
-    <g data-series='runner-up' className='text-muted-foreground'>
-      {path ? <polyline points={path} fill='none' stroke='currentColor' strokeWidth={1.5} strokeDasharray='3 3' /> : null}
-      {points.map((point) =>
-        point.runnerUpY === null ? null : <circle key={point.key} cx={point.x} cy={point.runnerUpY} r={2.5} fill='currentColor' />
-      )}
-    </g>
-  );
-}
-
-// 창 밖 표시는 경계 점 바깥에 쓰되 viewBox 안에 머물러야 한다. 13px 글자의 baseline을 14/232에 두면
-// 위로 글자 높이가, 아래로 descender가 위아래 여백 16 안에 들어온다.
-function OutsideMark({ point }: { readonly point: FlowPoint }) {
-  const above = point.outside === 'above';
-  return (
-    <text
-      x={point.x}
-      y={above ? point.y - 2 : point.y + 8}
-      textAnchor='middle'
-      fontSize={13}
-      fontWeight={600}
-      fill='currentColor'
-      className='text-muted-foreground'
-    >
-      {`${above ? '▲' : '▼'} ${point.rateText}`}
-    </text>
-  );
-}
-
-const MINE_PILL_HEIGHT = 22;
-
-// 내 값은 회차 점과 같은 높이로 지나가므로 글자만 얹으면 겹쳐 읽을 수 없다. 디자인 원본처럼 채운 알약 위에
-// 얹고, 창 위쪽에 붙어 알약이 잘릴 때만 선 아래로 내린다.
-function MyRatePill({ text, y, width }: { readonly text: string; readonly y: number; readonly width: number }) {
-  const below = y - MINE_PILL_HEIGHT - 2 < 0;
-  const top = below ? y + 2 : y - MINE_PILL_HEIGHT - 2;
-  return (
-    <>
-      <rect x={PLOT_RIGHT - width} y={top} width={width} height={MINE_PILL_HEIGHT} rx={6} fill='currentColor' />
-      <text x={PLOT_RIGHT - width / 2} y={top + 15} textAnchor='middle' fontSize={13} fontWeight={700} fill='var(--primary-foreground)'>
-        {text}
-      </text>
-    </>
-  );
-}
-
-// 내 값 선은 사정률로 놓은 값(URL `myRate`)만 긋는다. 창 밖 값은 경계에 붙이면 창 끝값에 놓은 것처럼
-// 읽히므로 선을 긋지 않고 방향과 함께 "범위 밖"이라고만 쓴다(EAT-80 후속).
-function MyRateLine({ rate }: { readonly rate: string }) {
-  const mine = myRatePlacement(rate);
-  if (mine.outside !== null) {
-    return (
-      <g data-slot='flow-my-rate-outside' className='text-primary'>
-        <MyRatePill text={`${SERIES_NAME.myRate} ${rate} ${mine.outside === 'above' ? '▲' : '▼'} 범위 밖`} y={mine.y} width={150} />
-      </g>
-    );
-  }
-  return (
-    <g className='text-primary'>
-      {/* 안내문이 "굵은 선이 내 값"이라 말하므로 낙찰선(2)보다 실제로 굵어야 한다. 디자인 원본도 3이다. */}
-      <line data-series='my-rate' x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={mine.y} y2={mine.y} stroke='currentColor' strokeWidth={3} />
-      <MyRatePill text={`${SERIES_NAME.myRate} ${rate}`} y={mine.y} width={92} />
-    </g>
-  );
-}
-
-export function FlowChart({
-  presentation,
-  myRate
-}: {
-  readonly presentation: HistoryPresentation;
-  readonly myRate: string | null;
-}) {
-  const { rate } = useBidRate();
+function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
+  const [model] = useState(() => buildFlowChartModel(presentation));
+  const [inspection, setInspection] = useState<readonly FlowInspection[]>([]);
+  const [error, setError] = useState(false);
+  const element = useRef<HTMLDivElement>(null);
+  const controller = useRef<FlowChartController | null>(null);
+  const selection = useOptionalAttemptSelection();
   const visible = useFlowSeriesVisibility();
-  const points = flowPoints(presentation.rows);
+  const { rate } = useBidRate();
+  const ownBid = useOptionalOwnBid();
+  const ownPoints = ownBid?.display?.points ?? NO_OWN_POINTS;
   const line = decideMyRateLine({ myRate, bidRate: rate });
-  const path = selectedPath(points, (point) => (point.outside === null ? point.y : null));
+  const ownRate = line.kind === 'drawn' ? line.rate : null;
+  const inspect = useEffectEvent((items: readonly FlowInspection[], choose: boolean) => {
+    setInspection(items);
+    if (choose && items.length === 1) selection?.select(items[0]!.point.row.attemptId);
+  });
+  const initialize = useEffectEvent((api: FlowChartController) => {
+    api.update(visible, ownRate);
+    api.focus(focus);
+    api.select(selection?.row?.attemptId);
+    api.setOwnSubmissions(ownPoints);
+  });
+  useEffect(() => {
+    let cancelled = false;
+    // 큰 엔진을 서버 렌더나 다른 탭의 초기 bundle에 넣지 않는다. 늦게 도착한 import는 해제된 DOM을 만들지 않는다.
+    // 낙찰 점이 하나도 없어도 개찰일 달력이 있으면 엔진을 세운다. 내 투찰만 있는 회차도 그려야 한다.
+    import('./create-flow-chart').then(({ createFlowChart }) => {
+      if (cancelled || !element.current || model.calendar.length === 0) return;
+      const api = createFlowChart(element.current, model, (items, choose) => inspect(items, choose));
+      controller.current = api;
+      initialize(api);
+    }).catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; controller.current?.remove(); controller.current = null; };
+  }, [model]);
+  useEffect(() => { controller.current?.update(visible, ownRate); }, [visible, ownRate]);
+  useEffect(() => { controller.current?.focus(focus); }, [focus]);
+  useEffect(() => { controller.current?.select(selection?.row?.attemptId); }, [selection?.row?.attemptId]);
+  // own 계열만 갈아 끼운다. 캔버스를 다시 만들거나 범위를 되돌리지 않으므로 사용자의 확대·선택이 유지된다.
+  useEffect(() => { controller.current?.setOwnSubmissions(ownPoints); }, [ownPoints]);
+  // 후보 버튼은 현재 점 집합에 있는 제출만 보인다. 사업자·계정이 바뀌면 이전 제출의 비율·금액이 담긴 버튼이
+  // 다음 crosshair 이벤트까지 남는데, 그것은 앞 사람의 개인 자료다. 낙찰 후보는 공개 사실이라 그대로 둔다.
+  const ownSubmissionIds = new Set(ownPoints.map((point) => point.submissionId));
+  const visibleInspection = inspection.filter((item) => item.kind === 'win' || ownSubmissionIds.has(item.point.submissionId));
 
   return (
-    // 이름은 svg 하나만 갖는다. figure에도 같은 aria-label을 두면 보조기술이 같은 이름을 두 번 읽는다.
-    <figure className='m-0 grid gap-2'>
-      <svg viewBox={`0 0 ${FLOW_VIEW_WIDTH} ${FLOW_VIEW_HEIGHT}`} role='img' aria-label='회차별 낙찰률 흐름' className='h-auto w-full'>
-        <Grid />
-        <TickLabels />
-        <BarAxis />
-        {visible.listCount ? <ListBars points={points} /> : null}
-        <MonthAxis points={points} />
-        {visible.runnerUp ? <RunnerUpSeries points={points} /> : null}
-        {visible.win && path ? <polyline points={path} fill='none' stroke='currentColor' strokeWidth={2} strokeLinejoin='round' /> : null}
-        {points.map((point) =>
-          point.selected ? (
-            visible.win ? <circle key={point.key} data-item='selected' cx={point.x} cy={point.y} r={3.5} fill='currentColor' /> : null
-          ) : visible.otherItems ? (
-            <circle key={point.key} data-item='other' cx={point.x} cy={point.y} r={3.5} fill='none' stroke='currentColor' strokeWidth={1.5} />
-          ) : null
-        )}
-        {points.map((point) =>
-          point.outside === null || !(point.selected ? visible.win : visible.otherItems) ? null : <OutsideMark key={`outside-${point.key}`} point={point} />
-        )}
-        {visible.myRate && line.kind === 'drawn' ? <MyRateLine rate={line.rate} /> : null}
-      </svg>
-      {visible.myRate && line.kind === 'withheld' ? (
-        // 범례에 "내 값"이 있는데 선이 없으면 고장으로 읽힌다. 선을 긋지 않은 이유를 차트 바로 아래에서 말한다.
-        <p data-slot='flow-my-rate-note' className='text-[13px] font-medium text-muted-foreground'>
-          {line.reason}
-        </p>
-      ) : null}
-      {/* 과거 회차 표에는 그날 하한 열이 있는데 차트에는 없다. 그 차이가 누락이 아니라 축의 결정임을 여기서 말한다(PDR-0004). */}
-      <p data-slot='flow-day-floor-note' className='text-[13px] font-medium text-muted-foreground'>
-        {DAY_FLOOR_WITHHELD_REASON}
-      </p>
-      <figcaption className='text-[13px] font-medium text-muted-foreground'>{caption(presentation, points.length)}</figcaption>
+    <figure className='m-0 flex min-h-0 flex-col gap-2' aria-label='회차별 낙찰률 흐름' data-own-points={ownPoints.length}>
+      <div className='flex flex-wrap items-center gap-1'>
+        <span className='mr-auto text-sm font-semibold'>낙찰률 <span className='text-xs font-normal text-muted-foreground'>예정가격 대비 · %</span></span>
+        <Button variant='ghost' size='sm' aria-label='비율 축 확대' onClick={() => controller.current?.zoom(0.7)}>＋</Button>
+        <Button variant='ghost' size='sm' aria-label='비율 축 축소' onClick={() => controller.current?.zoom(1 / 0.7)}>−</Button>
+        <Button variant='ghost' size='sm' onClick={() => controller.current?.fit()}>전체 값</Button>
+        <Button variant='ghost' size='sm' onClick={() => controller.current?.reset()}>기본 범위</Button>
+      </div>
+      {model.calendar.length === 0 ? <p className='grid min-h-48 place-items-center text-sm text-muted-foreground'>선택한 조건의 낙찰 기록이 없습니다.</p> : error ? <p role='alert' className='text-sm text-muted-foreground'>차트를 불러오지 못했습니다. 아래 과거 회차 표에서 기록을 확인해 주세요.</p> : (
+        <>
+          {model.points.length === 0 ? <p className='text-sm text-muted-foreground'>선택한 조건의 낙찰 기록이 없습니다.</p> : null}
+          <div ref={element} data-slot='flow-canvas' aria-label='낙찰률 차트. 점을 누르거나 아래 회차 표에서 참여 기록을 여세요.' className='h-[clamp(260px,38dvh,440px)] min-w-0' />
+        </>
+      )}
+      <div className='min-h-8 text-xs text-muted-foreground' aria-live='polite'>
+        {visibleInspection.length ? (
+          <div className='flex flex-wrap gap-1'>
+            {visibleInspection.map((item) => (
+              <InspectionButton
+                key={item.kind === 'win' ? `win:${item.point.row.attemptId}` : `own:${item.point.submissionId}`}
+                item={item}
+                onChoose={(attemptId) => selection?.select(attemptId)}
+                disabled={!selection}
+              />
+            ))}
+          </div>
+        ) : '점을 누르면 해당 회차의 참여 기록을 오른쪽에서 볼 수 있어요.'}
+      </div>
+      <figcaption className='flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground'>
+        <span>{model.points.length}회 표시 · 조회 표본 {presentation.sampleCount}회</span>
+        <span>{presentation.cohort?.period ? `${presentation.cohort.period.from}–${presentation.cohort.period.to}` : '조회 기간 미확인'}</span>
+        <span>{focus ? '휠로 날짜 확대 · 드래그로 이동' : '일반 휠은 페이지 이동 · 날짜 축 드래그로 확대'}</span>
+        <span className='ml-auto'>개찰일 (KST)</span>
+      </figcaption>
     </figure>
   );
+}
+
+export function FlowChart(props: Props) {
+  // 확대 주소만 바뀌면 같은 캔버스를 유지한다. 데이터 release·조건·표시 행이 바뀔 때만 범위를 초기화한다.
+  // own 응답·사업자 ID는 여기에 넣지 않는다. 그 값이 바뀔 때 캔버스를 다시 만들면 사용자의 확대가 사라진다.
+  const revision = JSON.stringify([props.presentation.buildId, props.presentation.cohort, props.presentation.selectedItem?.codeValueId, props.presentation.rows.map((row) => [row.attemptId, row.winRateText, row.secondRateText])]);
+  return <FlowChartCanvas key={revision} {...props} />;
 }

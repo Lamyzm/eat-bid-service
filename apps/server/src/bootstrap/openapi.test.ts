@@ -28,11 +28,18 @@ describe("canonical OpenAPI 산출물", () => {
     expect(Object.keys(document.paths).sort()).toEqual([
       "/api/v1/auctions",
       "/api/v1/auctions/{auctionId}",
+      "/api/v1/auctions/{auctionId}/roster",
       // listCodes는 EAT-57이 계약을 소유하고 Nest handler는 아직 없다. registry가 OpenAPI의 단일
       // 출처이므로 계약이 열린 사실이 여기 그대로 드러나야 하고, 구현이 붙는 변경에서 handler와
       // e2e가 같이 온다.
       "/api/v1/code-schemes/{scheme}/codes",
+      // 한 path에 조회와 등록 두 method가 함께 있다. path item을 덮어쓰면 하나가 문서에서 사라진다.
+      "/api/v1/me/businesses",
+      "/api/v1/me/businesses/{businessId}/bid-observations",
+      "/api/v1/me/businesses/{businessId}/location",
+      "/api/v1/me/initialization",
       "/api/v1/organizations/{organizationId}/auction-attempts",
+      "/api/v1/session",
       "/api/v1/win-rate-distribution",
       "/health/live",
       "/health/ready",
@@ -42,16 +49,31 @@ describe("canonical OpenAPI 산출물", () => {
     expect(new Set(operationIds).size).toBe(operationIds.length);
     expect(operationIds.sort())
       .toEqual([
+        "clearMyBusinessLocation",
         "findAuction",
+        "findMyBidObservations",
         "findWinRateDistribution",
+        "getAuctionRoster",
+        "getCurrentSession",
         "healthLive",
         "healthReady",
+        "initializeCurrentAccount",
         "listCodes",
+        "listMyBusinesses",
         "listOpenAuctions",
         "listOrganizationAuctionAttempts",
+        "registerMyBusiness",
+        "setMyBusinessLocation",
       ]);
+    // 성공 status를 200으로 고정하지 않는다. 생성 command는 201이며, 그 사실을 registry에서 읽는다.
+    const successStatusById = new Map(publicHttpOperationRegistry
+      .map((operation) => [operation.operationId, operation.successStatuses]));
     for (const operation of operations) {
-      expect(operation.responses["200"].content["application/json"].schema).toBeDefined();
+      const statuses = successStatusById.get(operation.operationId) ?? [];
+      expect(statuses.length).toBeGreaterThan(0);
+      for (const status of statuses) {
+        expect(operation.responses[String(status)].content["application/json"].schema).toBeDefined();
+      }
       expect(Object.values(operation.responses).some((response: any) =>
         response.content?.["application/problem+json"]?.schema)).toBe(true);
     }
@@ -153,13 +175,27 @@ describe("canonical OpenAPI 산출물", () => {
       .toEqual([
         ["path", "organizationId", true],
         ["query", "item", false],
+        ["query", "includeItemLabel", false],
+        ["query", "includeRevision", false],
+        ["query", "expectedBuildId", false],
+        ["query", "asOf", false],
         ["query", "cursor", false],
         ["query", "limit", false],
         ["query", "opened", false],
+        ["query", "floorRate", false],
+        ["query", "awardMethod", false],
+        ["query", "from", false],
+        ["query", "to", false],
       ]);
-    expect(attempts.parameters[3].schema).toMatchObject({ type: "integer", minimum: 1, maximum: 200, default: 12 });
+    expect(attempts.parameters[7].schema).toMatchObject({ type: "integer", minimum: 1, maximum: 200, default: 12 });
     // 개찰 필터의 기본값이 문서에 드러나야 소비자가 "생략하면 개찰된 회차만"을 계약에서 읽는다.
-    expect(attempts.parameters[4].schema).toMatchObject({ type: "string", enum: ["only", "any"], default: "only" });
+    expect(attempts.parameters[8].schema).toMatchObject({ type: "string", enum: ["only", "any"], default: "only" });
+    // 이어 읽기 고정은 build와 기준 시각 한 쌍이라 둘 다 문서에 있어야 소비자가 반쪽을 보내지 않는다.
+    expect(attempts.parameters[4].schema)
+      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/PositiveBigintText" }] });
+    expect(attempts.parameters[5].schema)
+      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/InstantText" }] });
+    expect(attempts.responses["409"].content["application/problem+json"].schema).toBeDefined();
     expect(attempts.responses["200"].content["application/json"].schema).toEqual({
       $ref: "#/components/schemas/EatbidApiV1OrganizationAuctionAttempts",
     });
@@ -169,7 +205,12 @@ describe("canonical OpenAPI 산출물", () => {
       meta: { $ref: "#/components/schemas/OrganizationAuctionAttemptsMeta" },
     });
     expect(document.components.schemas.OrganizationAuctionAttempt.properties.winRate)
+      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/ObservedBidRate" }], nullable: true });
+    expect(document.components.schemas.OrganizationAuctionAttempt.properties.secondRate)
+      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/ObservedBidRate" }], nullable: true });
+    expect(document.components.schemas.OrganizationAuctionAttempt.properties.floorRate)
       .toMatchObject({ allOf: [{ $ref: "#/components/schemas/BidRate" }], nullable: true });
+    expect(document.components.schemas.ObservedBidRateText).toMatchObject({ type: "string", maxLength: 16 });
     expect(document.components.schemas.BidRateText).toMatchObject({ type: "string", maxLength: 7 });
   });
 

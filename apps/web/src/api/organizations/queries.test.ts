@@ -10,7 +10,7 @@ function requestDouble(inputs: unknown[]): ContractRequest {
   return Object.assign(
     async (input: unknown) => {
       inputs.push(input);
-      return { ok: true };
+      return { meta: { cohort: { floorRate: { kind: 'exact', value: { value: '88.000', unit: 'percentage-points' } }, awardMethod: { kind: 'exact', codeValueId: '31' }, period: { from: '2021-10', to: '2026-09' } } } };
     },
     {
       isProblem: (error: unknown): error is HttpProblemError => error instanceof HttpProblemError
@@ -19,6 +19,20 @@ function requestDouble(inputs: unknown[]): ContractRequest {
 }
 
 describe('기관 회차 이력 Query Options', () => {
+  test('하한율·낙찰 방식·개찰월 조건을 캐시와 실제 요청에 함께 보존한다', async () => {
+    const inputs: unknown[] = [];
+    const queries = createOrganizationQueries(requestDouble(inputs));
+    const filters = { floorRate: '88.000', awardMethod: '31', from: '2021-10', to: '2026-09' };
+    const options = queries.attempts({ organizationId: '3101', ...filters });
+    expect(Array.from(options.queryKey)).toEqual(['organizations', 'attempts', '3101', { ...filters, limit: 12, opened: 'only' }]);
+    expect(options.queryKey).not.toEqual(queries.attempts({ organizationId: '3101', ...filters, floorRate: 'all' }).queryKey);
+    expect(options.queryKey).not.toEqual(queries.attempts({ organizationId: '3101', ...filters, awardMethod: 'unknown' }).queryKey);
+    if (!options.queryFn) throw new Error('queryFn이 필요합니다.');
+    const controller = new AbortController();
+    await options.queryFn({ client: new QueryClient(), queryKey: options.queryKey, signal: controller.signal, meta: undefined });
+    expect(inputs).toEqual([expect.objectContaining({ query: { ...filters, limit: 12, opened: 'only' }, signal: controller.signal })]);
+  });
+
   test('계층형 key가 bigint 기관 ID 문자열과 정규화된 query를 함께 보존한다', () => {
     const queries = createOrganizationQueries(requestDouble([]));
 

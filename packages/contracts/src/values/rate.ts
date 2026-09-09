@@ -15,8 +15,7 @@ export const percentagePointsWireSchema = z.strictObject({
   unit: z.literal("percentage-points"),
 }).meta({ id: "PercentagePoints", description: "A rate expressed on a 100-point scale." });
 
-// eaT 사정률·낙찰률은 소수 셋째 자리까지 관측되며 mart numeric(6,3)과 같다. 6자리 고정인
-// percentagePointsWireSchema와는 원본 정밀도가 달라 별도 wire 계약을 둔다.
+// 하한율처럼 100 이하인 소수 셋째 자리 계약이다. 낙찰·차순위 관측에는 아래 ObservedBidRate를 쓴다.
 export const bidRateWireSchema = z.strictObject({
   value: bidRateTextSchema,
   unit: z.literal("percentage-points"),
@@ -35,7 +34,7 @@ export const observedBidRateWireSchema = z.strictObject({
     + "may exceed 100. The mart representation is decided where the mart column is owned.",
 });
 
-// 같은 `percentage-points` 단위지만 분모가 다르다. 사정률(`BidRate`)의 분모는 예정가격이고 이 값의
+// 같은 `percentage-points` 단위지만 분모가 다르다. 관측 사정률의 분모는 예정가격이고 이 값의
 // 분모는 기초금액이다. 두 축을 한 계약으로 묶으면 화면이 다른 분모의 두 수를 나란히 비교하게 된다.
 export const baseRelativeBidRateWireSchema = z.strictObject({
   value: baseRelativeBidRateTextSchema,

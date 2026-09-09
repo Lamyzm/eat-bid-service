@@ -3,11 +3,13 @@ import { isMoney, Temporal } from "@eatbid/domain";
 
 const row = {
   auction_attempt_id: "5796468",
+  auction_revision_id: "208",
   announced_at: new Date("2026-09-01T00:00:00.000Z"),
   opened_at: null,
   item_code_value_id: "7",
   item_label: "축산",
   floor_rate: "90.000",
+  award_method_code_value_id: null,
   base_amount: "2761700.00",
   currency: "KRW",
   awarded_assessment_rate: "90.309",
@@ -21,12 +23,39 @@ const row = {
 } as const;
 
 describe("DrizzleOrganizationAttemptReader row 경계", () => {
+  test("품목 코드가 없어도 관측 라벨은 보존하고 코드 정체성을 만들지 않는다", async () => {
+    const { mapAttemptRow } = await import("./drizzle-organization-attempt-reader");
+    const result = mapAttemptRow({ ...row, item_code_value_id: null, item_label: " 육류 , 가금류 " });
+    expect(result.item).toBeNull();
+    expect(result.itemLabel).toBe("육류 , 가금류");
+    for (const item_label of [null, "", "   "]) {
+      expect(mapAttemptRow({ ...row, item_label }).itemLabel).toBeNull();
+    }
+  });
+
+  test("낙찰과 차순위의 100 초과 관측률을 각각 손실 없이 옮긴다", async () => {
+    const { mapAttemptRow } = await import("./drizzle-organization-attempt-reader");
+    for (const value of ["100.001", "101.975", "102.297", "999999999999.999"]) {
+      expect(mapAttemptRow({ ...row, awarded_assessment_rate: value }).winRate).toBe(value);
+      expect(mapAttemptRow({ ...row, runner_up_assessment_rate: value }).secondRate).toBe(value);
+    }
+    expect(mapAttemptRow({ ...row, awarded_assessment_rate: null }).winRate).toBeNull();
+    expect(mapAttemptRow(row).secondRate).toBeNull();
+    for (const value of ["-1.000", "102.2970", "102.29", "1000000000000.000"]) {
+      expect(() => mapAttemptRow({ ...row, awarded_assessment_rate: value })).toThrow(TypeError);
+      expect(() => mapAttemptRow({ ...row, runner_up_assessment_rate: value })).toThrow(TypeError);
+    }
+    expect(() => mapAttemptRow({ ...row, floor_rate: "100.001" })).toThrow(TypeError);
+  });
+
   test("mart 요약 행을 도메인 값으로 매핑하고 numeric 문자열의 정밀도를 보존한다", async () => {
     const adapter = await import("./drizzle-organization-attempt-reader").catch(() => undefined);
     expect(adapter, "기관 회차 어댑터가 있어야 한다").toBeDefined();
     const record = adapter!.mapAttemptRow({ ...row, source_payload: { mustNotEscape: true } } as never);
     expect(record).toMatchObject({
       attemptId: 5_796_468n,
+      // 요약이 요약한 해석이다. 개인 투찰 조회가 이 값으로 명단을 찾으므로 최신 revision과 섞이면 안 된다.
+      revisionId: 208n,
       openedAt: null,
       item: { codeValueId: 7n, label: "축산" },
       floorRate: "90.000",

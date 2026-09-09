@@ -37,3 +37,5 @@ export {
   type OpenAuctionOrgSummary,
 } from "./open-auction.resource";
 export { auctionV1OperationRegistry, auctionV1Operations } from "./operations";
+export * from "./get-auction-roster.response";
+export * from "./get-auction-roster.query";

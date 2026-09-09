@@ -38,13 +38,15 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0029](0029-eat-v2-bid-list-contract.md) | Accepted | `eat-v2` 상세 계약에 `ds_bidList` 블록 (`eat-v1` 은 유지) |
 | [0030](0030-competitor-count-is-the-primary-material.md) | Accepted | 화면의 주인공을 경쟁자 수와 승률 곡선으로 (학교별 추이는 내리지 않고 자리만 뒤로) |
 | [0031](0031-decision-screen-frontend-rendering.md) | Accepted | 결정 화면의 상태 소유(nuqs)·직접 그린 차트·headless 표·측정 후 가상화 |
-| [0032](0032-authentication-and-authorization-boundary.md) | Proposed | 인증·인가 경계: Nest가 Better Auth를 마운트, principal bigint, 역할 owner|member, 운영자 부여 이력, 권한 7단계 |
+| [0032](0032-authentication-and-authorization-boundary.md) | Accepted | 인증·인가 경계: Nest가 Better Auth(Google)를 마운트, principal bigint, 역할 owner\|member, 명시적 계정 초기화, 등록된 사업자는 워크스페이스 안에서만 유일하고 core 연결은 조회가 파생 |
 | [0033](0033-bid-submission-partitioning-and-supplier-core.md) | Accepted | 투찰·낙찰·업체 core 테이블 다섯, `core.bid_submission`의 개찰 연도 range 파티션, `auction.v2` 발행 개방 |
 | [0034](0034-mart-build-identity-and-atomic-activation.md) | Accepted | `mart.build` 빌드 원장, partial unique index 활성 포인터와 상태 trigger, mart 단위 전량 재빌드, build 속성으로서의 지역 코드 체계 |
 | [0035](0035-administrative-region-canonical-and-mapping.md) | Accepted | 행정안전부 법정동코드 canonical, 시도·시군구 grain, release별 계층, 별도 표의 좌표, 증거 기반 eaT 매핑 |
 | [0036](0036-read-cache-tags-and-invalidation-owner.md) | Accepted | 결정 화면 읽기 캐시의 안정 태그 어휘, dataplane이 부르는 web `/internal/cache/revalidate`, 유계 `cacheLife` (0031 7항 대체) |
 | [0037](0037-poll-open-detail-refetch-policy.md) | Accepted | poll-open 상세 재호출을 목록 신호 넷(`BID_CNT`·상태·마감·변경시각)의 변화와 마감 전이로 좁히고, 기준은 마지막 봉인 release, 강제 전량 재호출은 daily-reconcile |
 | [0038](0038-additive-ingestion-fields-and-parser-version.md) | Accepted | 봉인된 수집 계약의 optional 가산 확장(`exclude_unset` canonical 재직렬화), `location.eligibilityAreas`, 라벨을 싣는 파서는 새 version `eat-v3` (0014·0025·0029 refine) |
+| [0040](0040-observed-rates-in-organization-history.md) | Accepted | 기관 이력의 낙찰·차순위 사정률은 ObservedBidRate로 보존하며 하한율의 100 상한은 유지(0033 §2 일부 대체) |
+| [0041](0041-attempt-roster-read-and-observed-amount.md) | Accepted | 회차 명단의 동일 revision 조회와 EFT_ALL_AMT 관측 제출금액 표시, 계산용 원천 금액 분리 |
 
 ## 새 ADR 형식
 
