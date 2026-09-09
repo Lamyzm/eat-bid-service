@@ -177,6 +177,27 @@ def test_midstream_전송실패는_재시도하지_않고_계약_실패로_남�
     assert sleeper.delays == []
 
 
+def test_기본_재시도_예산은_설정_기본값과_같고_1분_남짓의_장애를_흡수한다() -> None:
+    # 두 기본값이 어긋나면 설정 없이 조립한 client와 운영 pod가 서로 다른 예산으로 돈다.
+    from eatbid.composition import _retry_policy
+    from eatbid.config import ApplicationSettings
+    from eatbid.source.retry import DEFAULT_TRANSIENT_RETRY_POLICY
+
+    settings = ApplicationSettings(
+        DATABASE_URL="postgresql://user:password@localhost:5432/eatbid",
+        R2_ENDPOINT_URL="https://account.r2.cloudflarestorage.com",
+        R2_BUCKET="eatbid-raw",
+        R2_ACCESS_KEY_ID="key",
+        R2_SECRET_ACCESS_KEY="secret",
+    )
+
+    assert _retry_policy(settings) == DEFAULT_TRANSIENT_RETRY_POLICY
+    delays = DEFAULT_TRANSIENT_RETRY_POLICY.backoff_delays()
+    # 총 30초 예산은 몇 초짜리 흔들림에도 한 달 창을 죽였다(EAT-122). 5·10·20·40초로 1분 남짓을 버틴다.
+    assert len(delays) == 4
+    assert sum(delays, timedelta()) == timedelta(seconds=75)
+
+
 @pytest.mark.parametrize(
     ("max_attempts", "initial", "multiplier", "budget"),
     [

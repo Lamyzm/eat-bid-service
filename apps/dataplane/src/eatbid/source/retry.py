@@ -47,10 +47,12 @@ class TransientRetryPolicy:
     pod 하나로 직렬화한다. 그래서 일시 실패를 다시 시도할 수 있는 유일한 자리는 semaphore 안에서
     도는 이 프로세스이며, 그 상한도 manifest가 아니라 이 값 객체가 소유한다."""
 
-    max_attempts: int = 3
-    initial_backoff: timedelta = timedelta(seconds=1)
+    # 기본값은 config.py의 SOURCE_RETRY_* 기본값과 같다. 둘이 어긋나면 설정 없이 조립한 client와 운영
+    # pod가 서로 다른 예산으로 돈다.
+    max_attempts: int = 5
+    initial_backoff: timedelta = timedelta(seconds=5)
     backoff_multiplier: int = 2
-    max_total_backoff: timedelta = timedelta(seconds=30)
+    max_total_backoff: timedelta = timedelta(seconds=120)
 
     def __post_init__(self) -> None:
         if self.max_attempts < 1:

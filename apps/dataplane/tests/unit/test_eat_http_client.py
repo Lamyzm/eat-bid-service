@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import cast
 
 import httpx
@@ -16,6 +17,7 @@ from eatbid.source.eat.http_client import (
     WRITE_TIMEOUT_SECONDS,
     EatHttpClient,
 )
+from eatbid.source.retry import TransientRetryPolicy
 
 from .eat_http_test_support import (
     FETCHED_AT,
@@ -88,8 +90,18 @@ def test_endpoint_non_2xx와_redirect는_body와_status를_그대로_반환한�
         )
 
     transport = RecordingTransport(handler)
+    # 요청 수는 재시도 예산에 묶인다. 기본 예산이 바뀌어도 이 테스트의 뜻이 흔들리지 않게 정책을 명시한다.
+    policy = TransientRetryPolicy(
+        max_attempts=3,
+        initial_backoff=timedelta(seconds=1),
+        backoff_multiplier=2,
+        max_total_backoff=timedelta(seconds=30),
+    )
     with EatHttpClient(
-        transport=transport, clock=lambda: FETCHED_AT, sleeper=RecordingSleeper()
+        transport=transport,
+        clock=lambda: FETCHED_AT,
+        sleeper=RecordingSleeper(),
+        retry_policy=policy,
     ) as client:
         response = client.fetch(capture_request())
 
