@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { Suspense } from 'react';
-import { SidebarAccount } from '@/components/layout/sidebar-account';
+import { AccountHub } from '@/capabilities/account';
 import { InfobarProvider } from '@/components/ui/infobar';
 import { DashboardScreenSkeleton } from './_ui/dashboard-screen-skeleton';
 import { LegacyHeaderControls } from './_ui/legacy-header-controls';
@@ -35,7 +35,7 @@ async function LegacyRequestBoundary({ children }: { readonly children: React.Re
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ApplicationShell headerControls={<LegacyHeaderControls />} sidebarFooter={<SidebarAccount />}>
+    <ApplicationShell headerControls={<LegacyHeaderControls />} sidebarFooter={<AccountHub />}>
       <Suspense fallback={<DashboardScreenSkeleton />}>
         <LegacyRequestBoundary>{children}</LegacyRequestBoundary>
       </Suspense>

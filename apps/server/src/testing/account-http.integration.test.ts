@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import request from "supertest";
-import { meV1Operations, sessionV1Operations } from "@eatbid/contracts";
+import {
+  accountLabelSchema,
+  currentSessionV1ResponseSchema,
+  meV1Operations,
+  sessionV1Operations,
+} from "@eatbid/contracts";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import { withAccountDatabase } from "../../fixtures/account.fixture";
@@ -57,7 +62,15 @@ async function withServer<A>(
 function expectPrivateResponse(response: { headers: Record<string, string> }): void {
   // 개인 응답은 성공이든 실패든 공유 캐시에 남으면 안 된다. guard가 끊는 401·403에도 같은 헤더가 있어야 한다.
   expect(response.headers["cache-control"]).toBe("private, no-store");
-  expect(response.headers["vary"]).toContain("cookie");
+  const vary = (response.headers["vary"] ?? "").toLowerCase();
+  expect(vary).toContain("cookie");
+}
+
+function expectVaryKeepsOrigin(response: { headers: Record<string, string> }): void {
+  // CORS가 붙인 `Vary: Origin`을 덮어쓰면 origin마다 달라지는 응답이 공유 캐시에서 섞인다.
+  const vary = (response.headers["vary"] ?? "").toLowerCase();
+  expect(vary).toContain("origin");
+  expect(vary).toContain("cookie");
 }
 
 describe("계정 HTTP 경계", () => {
@@ -67,10 +80,11 @@ describe("계정 HTTP 경계", () => {
       const session = await signInThroughAdapter(auth, { email: "http-uninit@example.com" });
 
       await withServer(apiUrl, true, async (server) => {
-        const anonymous = await request(server).get(sessionPath);
+        const anonymous = await request(server).get(sessionPath).set("origin", origin);
         expect(anonymous.status).toBe(200);
         expect(anonymous.body).toEqual({ state: "unauthenticated" });
         expectPrivateResponse(anonymous);
+        expectVaryKeepsOrigin(anonymous);
 
         const before = await owner.unsafe(`select count(*)::int as total from app.principal`);
         const uninitialized = await request(server).get(sessionPath)
@@ -213,6 +227,41 @@ describe("계정 HTTP 경계", () => {
         expect(saved.body.business.location.addressText).toBe("서울특별시 중구 세종대로 110");
         expect(cleared.status).toBe(200);
         expect(cleared.body.business.location).toBeNull();
+      });
+    });
+  }, 300_000);
+
+  test("계약 상한을 넘는 provider 표시 이름과 공백 이름이 정상 세션 응답을 깨지 않는다", async () => {
+    await withAccountDatabase(async ({ api, apiUrl }) => {
+      const { auth } = createTestAuth(api);
+      const displayNameLimit = accountLabelSchema.shape.displayName.unwrap().maxLength!;
+      // provider도 저장 열도 이름 길이를 제한하지 않는다. 사용자가 Google 프로필에 적을 수 있는 값이다.
+      const providerName = "가".repeat(displayNameLimit * 2);
+      const long = await signInThroughAdapter(auth, {
+        email: "http-long-name@example.com",
+        name: providerName,
+      });
+      const blank = await signInThroughAdapter(auth, {
+        email: "http-blank-name@example.com",
+        name: "   ",
+      });
+
+      await withServer(apiUrl, true, async (server) => {
+        const longResponse = await request(server).get(sessionPath)
+          .set("cookie", long.headers.get("cookie")!);
+        const blankResponse = await request(server).get(sessionPath)
+          .set("cookie", blank.headers.get("cookie")!);
+
+        // 응답 경계는 계약 위반을 500으로 fail-closed한다. 정상 로그인이 온보딩 전에 그렇게 끝나면 안 된다.
+        expect(longResponse.status).toBe(200);
+        expect(currentSessionV1ResponseSchema.safeParse(longResponse.body).success).toBe(true);
+        expect(longResponse.body.state).toBe("uninitialized");
+        expect(longResponse.body.account.displayName).not.toBe(providerName);
+        expect(longResponse.body.account.displayName.startsWith("가가가")).toBe(true);
+
+        expect(blankResponse.status).toBe(200);
+        // 공백만 남은 이름은 빈 문자열이 아니라 표시할 이름이 없는 상태다.
+        expect(blankResponse.body.account.displayName).toBeNull();
       });
     });
   }, 300_000);

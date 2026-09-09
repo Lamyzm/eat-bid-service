@@ -16,8 +16,9 @@ Linear EAT-47. base `be1e52c`. writer는 worktree
 로그인이 생겼다는 이유로 상태를 shell에 모으거나 화면을 새로 복제하지 않는다.
 
 경계 결정의 권위는 [ADR 0032](../../adr/0032-authentication-and-authorization-boundary.md)다.
-이 계획은 그 ADR을 실행 단계로 펼칠 뿐 새 경계를 만들지 않는다. ADR은 아직 `Proposed`이며 총괄 검토
-전까지 이 계획의 어떤 단계도 “결정 확정”으로 보고하지 않는다.
+이 계획은 그 ADR을 실행 단계로 펼칠 뿐 새 경계를 만들지 않는다. ADR은 2026-09-09 개정으로 `Accepted`가
+됐고 backend 1~4단계는 구현·검증이 끝났다. 계약의 최종 모양은 `packages/contracts`의 operation과 ADR
+0032이며, 이 계획 본문과 어긋나는 곳이 있으면 그쪽이 옳다.
 
 ## 승인된 제품 동작
 
@@ -57,33 +58,48 @@ Linear EAT-47. base `be1e52c`. writer는 worktree
 
 ### 2. 계약: session·내 사업자·위치
 
-새 operation 넷을 `packages/contracts`가 소유한다. method·path·`operationId`·상태별 schema는 여기서만
+> **2026-09-09 갱신.** 아래 표와 목록은 구현된 계약이다. 이 절의 초안이 적었던 operation 넷,
+> `authenticated` boolean union, 세션 응답에 실리는 등록 사업자 요약, `link.kind`는 모두 폐기됐다.
+> web writer는 초안 어휘가 아니라 이 절과 `packages/contracts`를 그대로 소비한다.
+
+새 operation 여섯을 `packages/contracts`가 소유한다. method·path·`operationId`·상태별 schema는 여기서만
 정의하고 Nest decorator와 web 요청 경로를 그로부터 파생한다(AGENTS 19).
 
 | operationId | method·path | 입력 | 성공 | 실패 |
 | --- | --- | --- | --- | --- |
 | `getCurrentSession` | `GET /api/v1/session` | 없음 | 200 | 500·503 |
-| `listMyBusinesses` | `GET /api/v1/me/businesses` | 없음 | 200 | 401·500·503 |
-| `registerMyBusiness` | `POST /api/v1/me/businesses` | `{ businessNumber }` | 201 | 400·401·409·500·503 |
+| `initializeCurrentAccount` | `POST /api/v1/me/initialization` | 없음 | 200 | 401·403·500·503 |
+| `listMyBusinesses` | `GET /api/v1/me/businesses` | 없음 | 200 | 401·403·500·503 |
+| `registerMyBusiness` | `POST /api/v1/me/businesses` | `{ businessNumber }` | 201 | 400·401·403·409·500·503 |
 | `setMyBusinessLocation` | `PUT /api/v1/me/businesses/{businessId}/location` | `{ addressText }` | 200 | 400·401·403·404·500·503 |
+| `clearMyBusinessLocation` | `DELETE /api/v1/me/businesses/{businessId}/location` | 없음 | 200 | 400·401·403·404·500·503 |
 
-- `getCurrentSession` 응답은 `authenticated`로 갈라지는 discriminated union이다. 거짓 쪽은
-  `{ authenticated: false }` 하나뿐이라 화면이 “미로그인”을 오류로 렌더할 이유가 없다. 참 쪽은
-  `principalId`, 표시용 계정 라벨, `workspace`(없으면 `null`), 등록 사업자 요약을 담는다.
+- `getCurrentSession` 응답은 `state`로 갈라지는 discriminated union이고 값은
+  `unauthenticated`·`uninitialized`·`active` 셋이다. `authenticated: boolean` 하나로 줄이지 않는 이유는
+  “로그인하지 않았다”와 “로그인했지만 app 계정 초기화가 아직 안 됐다”가 화면이 서로 다른 행동을 해야 하는
+  서로 다른 사실이기 때문이다. `unauthenticated`는 그 값 하나뿐이고, `uninitialized`는 계정 라벨만,
+  `active`는 라벨과 `principalId`·`workspace`를 담는다.
+- **세션 응답에 등록 사업자를 싣지 않는다.** 목록은 `listMyBusinesses`가 소유한다. 두 곳이 같은 목록을
+  실으면 등록 직후 두 응답이 서로 다른 값을 말한다.
+- **초기화는 조회가 아니라 `initializeCurrentAccount` command다.** `uninitialized` 상태의 사용자는 이
+  command를 부른 뒤에야 `active`가 된다. 그 전의 `me` 자원 요청은 401이 아니라 403이다.
 - **계정 라벨에 원본 이메일을 싣지 않는다.** 계정 전환 확인에 필요한 최소값은 표시 이름과 마스킹된
   이메일이며 마스킹은 서버 presentation이 한다. 전체 주소를 응답에 실으면 화면 캡처·로그·오류 보고에
   그대로 따라다닌다.
+- **표시 라벨의 길이·빈값 정책도 서버 presentation이 정한다.** provider가 소유한 이름에는 길이 제한이
+  없으므로 계약 상한을 넘으면 잘라서 싣고, 공백뿐이거나 표시할 수 없는 값은 `null`이다. web은 라벨을
+  다시 자르지 않고 `null`을 빈 문자열로 바꾸지 않는다.
 - **사업자번호는 path·query에 넣지 않는다.** `businessId`는 `registered_business_id`의 decimal string이다.
   번호는 요청 body와 응답 본문에만 나타난다. 요청 경로는 접근 로그와 referrer에 남는다.
 - **형식 검증은 `packages/domain`이 소유한다.** 하이픈·공백 제거 → 숫자 10자리 → 국세청 체크디짓.
   이 값은 오타 차단이며 실재·소유 증명이 아니다. 검증 fixture는 `core.code_value`의
   `eat:business-number` 실제 관측값에서 뽑아 우리 구현이 진짜 번호를 거부하지 않음을 증명한다.
 - **대조는 정확 일치 하나다.** `eat:business-number` scheme의 code value를 찾고 그 party를 연결한다.
-  실패하면 `supplier_party_id`는 `null`, `linked_at`도 `null`이며 응답은 `link: { kind: "unobserved" }`로
-  말한다. 사용자 입력으로 `core` 행을 만들지 않는다.
+  연결은 저장된 FK가 아니라 조회가 파생하며, 실패하면 응답이 `supplier: { kind: "unobserved" }`로 말한다.
+  사용자 입력으로 `core` 행을 만들지 않는다.
 - **빈 설정과 미연결을 응답이 구분한다.** 등록 0건(`businesses: []`), 등록은 있으나 미연결
-  (`link.kind = "unobserved"`), 등록되고 연결됨(`link.kind = "linked"`), 위치 미설정(`location: null`)은
-  각각 다른 상태이며 화면이 다른 문장을 쓴다.
+  (`supplier.kind = "unobserved"`), 등록되고 연결됨(`supplier.kind = "linked"`),
+  위치 미설정(`location: null`)은 각각 다른 상태이며 화면이 다른 문장을 쓴다.
 - 계약 조립은 atom → value → resource → versioned endpoint 순서를 지킨다. ingestion·command·public
   response·DB row family를 서로 `pick`하지 않는다. 이 API 계약은 portable registry에 들어가지 않는다.
   그 registry는 ingestion 교환 계약만 담는다.
@@ -125,7 +141,7 @@ Linear EAT-47. base `be1e52c`. writer는 worktree
 - **UI**: 기존 shadcn primitive를 쓴다. Button은 시각·접근성만 갖고 인증 요구와 command는 capability의
   action component가 주입한다. 새 아이콘이 필요하면 `shared/ui`로 옮긴 뒤 쓴다.
 - **선택된 사업자**는 URL 상태다. 중앙 current auction, 선택된 과거 회차와 서로 다른 상태이며 한
-  store로 합치지 않는다. 세션 응답의 등록 목록에 없는 값이면 무시하고 기본값으로 돌아간다.
+  store로 합치지 않는다. `listMyBusinesses` 결과에 없는 값이면 무시하고 기본값으로 돌아간다.
 - **로그인 화면 하나, 설정 화면 하나만** 만든다. 랜딩·가격·`signup` 분리는 EAT-48이 소유한다. 기존
   legacy `/welcome`은 건드리지 않는다.
 
@@ -198,8 +214,9 @@ apps/server/src/modules/account/presentation/http/session.controller.ts
 고치는 경로: `packages/contracts/src/api/registry.ts`, `packages/contracts/src/index.ts`,
 `apps/server/src/app.module.ts`.
 
-인수 조건: 미로그인 200 + `authenticated:false`, 로그인 200 + principal·workspace·등록 요약,
-워크스페이스 없는 로그인 사용자도 200, OpenAPI에 `getCurrentSession`이 계약대로 나타난다.
+인수 조건: 미로그인 200 + `state: "unauthenticated"`, 초기화 전 로그인 200 + `state: "uninitialized"`,
+초기화 뒤 200 + `state: "active"`와 principal·workspace, 인증 의존성 미설정 배포는 200이 아니라 503,
+OpenAPI에 `getCurrentSession`이 계약대로 나타난다.
 
 ### 3단계 — 내 사업자 등록·조회
 
@@ -221,8 +238,9 @@ apps/server/src/modules/account/presentation/http/my-businesses.controller.ts
 
 인수 조건:
 
-- 관측된 번호는 `supplier_party_id`가 채워지고 `linked_at`이 남는다.
-- 미관측 번호도 201이며 `link.kind = "unobserved"`, `supplier_party_id`는 `null`이다. `core` 행은 늘지
+- 관측된 번호는 조회가 party를 찾아 `supplier.kind = "linked"`와 `supplierPartyId`를 돌려준다.
+  등록 행에는 그 파생 FK를 저장하지 않는다.
+- 미관측 번호도 201이며 `supplier.kind = "unobserved"`다. `core` 행은 늘지
   않는다(등록 전후 `core.supplier_party`·`core.code_value` 카운트 동일).
 - **다른 워크스페이스가 같은 번호를 등록해도 성공한다.** 이 검사가 철회된 전역 선점 규칙의 회귀 방지다.
 - 같은 워크스페이스의 같은 번호 재등록은 `409 CONFLICT`.
@@ -328,6 +346,10 @@ ledger 항목으로 남는다.
 - **provider logger를 주입해** driver 예외의 원문 message·params가 로그에 남지 않게 했다.
 - **schema conformance는 pinned `auth@1.7.2`의 `generateDrizzleSchema`를 실제 adapter 설정으로 실행**해
   구조를 대조한다. 허용한 차이는 밀리초 epoch 열의 JavaScript bigint mode와 시각 열의 timezone 둘뿐이다.
+- **표시 라벨의 길이·빈값 정책을 `account-presentation.ts`가 소유한다.** provider가 소유한 이름에는 길이
+  제한이 없고 `auth_user.name`은 `text`라, 계약 상한을 넘는 이름을 그대로 실으면 정상 세션이 응답 검증
+  500으로 끊겨 온보딩 자체가 막혔다. 상한은 계약 schema에서 읽고 넘으면 잘라 싣는다. auth 원본 프로필과
+  식별자는 바꾸지 않는다.
 
 실행한 검증(모두 격리된 일회용 PostgreSQL):
 
@@ -335,8 +357,12 @@ ledger 항목으로 남는다.
   타 워크스페이스 동일 번호 등록·중복·미관측 보존·후속 관측 연결·모호한 party 실패·등록 상한·위치 소유.
 - `apps/server/src/testing/auth-session.integration.test.ts` — 실제 adapter 저장, rate limit 밀리초 왕복,
   canonical 검증의 무변경, 브라우저 POST 갱신의 `Set-Cookie`, 만료·로그아웃 거부, 로그 비노출.
+  쿠키 서명 검사는 **살아 있는** 세션의 같은 토큰을 provider가 실제로 읽는 이름으로 실어 확인한다.
+  서명 제거와 서명 한 자리 변조가 모두 미로그인이고, 같은 자리에서 정상 서명은 통과한다. 죽은 세션이나
+  하드코딩한 쿠키 이름으로는 서명 검증이 사라져도 검사가 통과하므로 그렇게 쓰지 않는다.
 - `apps/server/src/testing/account-http.integration.test.ts` — 미로그인·초기화 미완료 구분, Origin 거부,
-  owner/member 403, 중복 409, 형식 400, 계정 간 격리, 인증 미설정 배포의 503, 캐시 헤더.
+  owner/member 403, 중복 409, 형식 400, 계정 간 격리, 인증 미설정 배포의 503, 캐시 헤더,
+  계약 상한을 넘는 provider 표시 이름과 공백 이름의 세션 응답.
 
 ## 남은 확인
 
@@ -347,3 +373,67 @@ ledger 항목으로 남는다.
   1.0.0-rc.4 root에는 그 export가 없다. 우리는 관계 헬퍼를 선언하지 않고 adapter도 관계가 없으면 일반
   질의로 되돌아가므로 대조에서 그 자리만 대역으로 채웠다. 표·열·제약은 원문 그대로 평가한다.
 - 세션 갱신은 브라우저 POST에만 있으므로 web이 그 갱신을 실제로 호출해야 한다. 화면 연결 작업이 닫는다.
+
+## web 구현 결과 (2026-09-09)
+
+5단계 web까지 구현했다. 계획과 달라졌거나 계획에 없던 결정은 다음과 같다.
+
+- **전환 감지는 세션 hook 하나가 소유한다.** provider가 관측한 사용자 id를 세션 query key의 마지막 자리에
+  담아 계정 전환을 캐시 항목 분리로 표현한다. `authenticated` boolean은 A→B 직접 전환을 알아채지 못한다.
+  이 값은 전환 marker일 뿐이고 principal·워크스페이스의 권위는 세션 응답 union이 그대로 갖는다.
+- **복귀 경로 판정은 `shell/auth/return-path` 하나다.** 로그인만 끝난 사용자를 설정으로 넘길 때도 같은
+  `next` 값을 이어 나른다. 사업자등록번호처럼 사용자 자료는 이 parameter에 담지 않는다.
+- **legacy `/dashboard/my`는 화면을 남기지 않고 `/setup`으로 영구 이동한다.** 같은 개념의 진실 원천이
+  둘로 보이지 않게 하고, 브라우저에 남은 번호를 계정으로 옮기지 않는다.
+- **개인 응답 transport를 `api/_transport/private-server-request.server.ts`로 나눴다.** 공개 read는 `use cache`
+  경계 안에서 돌아 쿠키를 읽을 수 없으므로 adapter를 합치면 공개 read가 깨진다. 이 adapter는 resource
+  `server.ts`의 exact runtime import만 허용하는 web boundary 규칙과 함께 들어왔다.
+- **`app/(auth)`를 canonical layer 정규식에 넣었다(계획의 gate 영향 항목).** 그 결과 새 route group이 쓰던
+  `alert`·`card`·`input`·`label`·`badge`를 `shared/ui`로 옮기고 `components/ui`의 같은 경로는 legacy 소비자를
+  위한 재수출 barrel로만 남겼다. canonical UI는 `transition-all`을 쓸 수 없어 badge는 실제로 바뀌는 속성
+  목록으로 고쳤다. 예외를 넓히지 않고 검사 범위를 넓히는 방향이다.
+- **Nest `abortOnError`는 test runtime에서만 끈다.** `process.abort`는 finally를 건너뛰므로, 조립이 실패하면
+  일회용 PostgreSQL container를 소유한 harness가 자기 자원을 정리하지 못한 채 사라진다. 운영은 그대로
+  abort해 반쯤 산 프로세스가 트래픽을 받지 않게 한다. `create-app.test.ts`가 그 경계를 검사한다.
+
+### 실행한 검증
+
+- `pnpm lint:web-boundaries` 통과, `node --test tools/architecture/check-web-boundaries.test.mjs` 68 pass.
+- `pnpm --filter @eatbid/web typecheck` 통과, 같은 filter `test` 473 pass/0 fail(84파일), `build` 성공.
+  `/login`·`/setup`은 부분 prerender이고 `(workspace)` shell의 static은 그대로다.
+- `pnpm quality:check`(테스트명 1663·module 주석 752)와 `pnpm architecture:check`(endpoint·contracts·
+  contracts:python·skill projection 포함) 통과.
+- 서버: `bun test src/bootstrap src/platform src/modules` 122 pass, `src/testing/account-http.integration.test.ts`
+  6 pass(일회용 PostgreSQL), `src/bootstrap`+`operational-http.e2e` 18 pass. 모두 `apps/server` cwd에서 실행했다.
+- 인증 E2E: `pnpm --filter @eatbid/web test:e2e:auth` 12 passed. 실제 migration DB·실제 Nest 조립·실제 서명
+  세션·Chromium 경로이며 합성 세션이지 실제 Google 왕복이 아니다.
+- canonical `pnpm review:ai -- --base HEAD~1`이 fragment만 붙은 복귀 경로가 기본 화면으로 바뀌는 결함을
+  지적했다. 소스에서 근거를 확인해 pathname·query 분리를 한 함수로 모아 고치고, 같은 명령을 다시 돌려
+  finding 0을 확인한 뒤 인증 E2E 12 passed를 재실행했다.
+
+### 미검증과 알려진 관측
+
+- 실제 Google OAuth 왕복은 client 발급과 redirect URI 등록이 사용자 계정 작업이라 여전히 미검증이다.
+- 배포 전 시안 대조는 하지 않았다. 남은 캡처는 `test-results/auth/setup-registered.png` 한 장뿐이다.
+- 서버 통합 스위트 전체(`src/testing`)는 다시 돌리지 않았다. 이번 변경과 관련된 파일만 재실행했다.
+- `pnpm --filter @eatbid/web lint`와 `lint:strict`는 이번 변경 이전부터 legacy `app/dashboard`·`components/ui`
+  스타터 파일 때문에 실패한다. 이번에 만들거나 고친 파일만 좁혀 돌린 `oxlint --deny-warnings`는 finding 0이다.
+- 저장소 루트 cwd에서 `bun test`를 돌리면 root tsconfig에 `emitDecoratorMetadata`가 없어 Nest DI가 생성자
+  타입을 잃고 무관한 실패가 난다. 서버 검사는 `apps/server` cwd에서 실행한다.
+- dev 서버는 `/dashboard/my`의 영구 이동을 `instant`를 확인할 수 없다는 경고로 남긴다. 실제 이동은 E2E가
+  확인했고 production build도 그 route를 부분 prerender로 만든다.
+- 이전 세션이 turn 한도로 끝나면서 `eatbid-eat47-account-*` container 10개가 남아 있다. 이 작업의 범위는
+  container mutation을 포함하지 않아 지우지 않았다.
+
+### 다음 인계
+
+- branch `codex/eat-47-account-foundation`, worktree `.worktrees/eat-47-account-foundation`, 기준 commit은
+  이 문서를 담은 web 마감 commit이다. owned paths는 `apps/web`의 계정 경로, `apps/server/src/bootstrap`,
+  `tools/architecture/web-boundaries`, 이 계획 문서와 ADR 0032다. 작업 tree는 clean이고 lease는 반납한다.
+- 다음 한 단계는 EAT-40의 실제 내 투찰을 결정 화면 차트에 연결하는 것이다. 입력은 main의
+  `docs/operations/handoffs/2026-09-09-own-bid-web.md`이며 이 branch에는 아직 그 파일이 없다. 이 branch의
+  commit을 가져갈 때는 ancestry를 먼저 확인해 이미 포함된 backend commit을 다시 적용하지 않는다.
+- 이 세션이 하지 않은 외부 작업: 원격 push, 운영 DB 쓰기·DDL·배포, 운영에 연결된 dev 3002/4400에서의
+  인증 시험, container 정리.
+- Linear 기록은 남기지 못했다. 공유 outbox에 다른 작업의 오래된 이벤트 433개가 섞여 있어 전체
+  `workflow:sync`가 금지돼 있고 이 세션에는 Linear MCP가 없다. 다음 세션이 EAT-47 comment로 이 절을 옮긴다.

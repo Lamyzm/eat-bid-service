@@ -56,14 +56,19 @@ export interface SignedInSession {
 /** provider adapter로 사용자·계정·세션을 만들고 provider와 같은 방식으로 서명한 쿠키를 돌려준다. */
 export async function signInThroughAdapter(
   auth: AuthInstance,
-  input: { readonly email: string; readonly expiresInSeconds?: number },
+  input: {
+    readonly email: string;
+    readonly expiresInSeconds?: number;
+    /** provider가 소유한 원본 표시 이름이다. 길이 제한은 provider에도 저장 열에도 없다. */
+    readonly name?: string;
+  },
 ): Promise<SignedInSession> {
   const context = await auth.$context;
   const now = new Date();
   const user = await context.adapter.create<Record<string, unknown>, { id: string }>({
     model: "user",
     data: {
-      name: "김이름",
+      name: input.name ?? "김이름",
       email: input.email,
       emailVerified: true,
       createdAt: now,

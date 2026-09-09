@@ -34,7 +34,9 @@ export function mountPrivateResponseHeaders(
   for (const prefix of privateResourcePrefixes(operations)) {
     application.use(prefix, (_request: Request, response: Response, next: NextFunction): void => {
       response.setHeader("cache-control", PRIVATE_CACHE_CONTROL);
-      response.setHeader("vary", "cookie");
+      // `Vary`는 덮어쓰지 않고 더한다. CORS가 이미 붙인 `Vary: Origin`을 지우면 origin마다 달라지는
+      // 응답이 공유 캐시에서 섞인다.
+      response.vary("Cookie");
       next();
     });
   }

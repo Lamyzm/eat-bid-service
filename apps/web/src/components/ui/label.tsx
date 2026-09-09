@@ -1,21 +1,3 @@
-'use client';
-
-import * as React from 'react';
-
-import { cn } from '@/lib/utils';
-
-function Label({ className, ...props }: React.ComponentProps<'label'>) {
-  return (
-    // oxlint-disable-next-line jsx-a11y/label-has-associated-control -- htmlFor/children arrive via props at each call site
-    <label
-      data-slot='label'
-      className={cn(
-        'flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
-        className
-      )}
-      {...props}
-    />
-  );
-}
-
-export { Label };
+// 구현은 canonical `shared/ui/label`이 소유한다. 이 경로는 legacy 화면이 아직 쓰는 재수출 barrel이며
+// 남은 legacy import를 옮길 때 통째로 삭제한다.
+export { Label } from '@/shared/ui/label';

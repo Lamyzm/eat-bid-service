@@ -56,7 +56,9 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: '내 성적', url: '/dashboard/record', icon: 'checks', isActive: false, shortcut: ['r', 'r'], items: [] },
       { title: '납품', url: '/dashboard/delivery', icon: 'calendar', isActive: false, shortcut: ['d', 'd'], items: [] },
-      { title: '내 사업자', url: '/dashboard/my', icon: 'settings', isActive: false, shortcut: ['b', 'b'], items: [] }
+      // 사업자 등록의 진실 원천은 로그인 계정이다. 이 항목이 localStorage 화면을 가리키면 같은 개념의
+      // 진실 원천이 둘로 보인다. canonical `/setup`이 유일한 진입이다(ADR 0032 §5).
+      { title: '내 사업자', url: '/setup', icon: 'settings', isActive: false, shortcut: ['b', 'b'], items: [] }
     ]
   }
 ];
