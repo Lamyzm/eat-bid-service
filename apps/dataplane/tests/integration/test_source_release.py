@@ -486,6 +486,8 @@ def test_fail_release는_planned_release와_열린_run을_같은_category로_닫
             (result.closed_run_ids[0],),
         )
         assert cursor.fetchone() == ("failed", "TRANSIENT_NETWORK", failed_at)
+    # terminal 전이는 idle connection을 요구한다. 검증 cursor가 연 transaction을 먼저 닫는다.
+    pipeline_services.connection.commit()
 
     # 같은 category의 재호출은 정정이 아니라 멱등한 반복이고, 다른 category는 terminal 정정이라 거부된다.
     again = repository.fail_release(
