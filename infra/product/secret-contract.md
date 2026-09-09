@@ -7,11 +7,11 @@ product cutover; Argo CD and Argo Workflows only consume them.
 | Secret | Required keys | Owner / injector | Consumers |
 |---|---|---|---|
 | `eatbid-postgres-bootstrap` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | database operator / environment bootstrap | PostgreSQL bootstrap container, `eatbid-db-provisioning` hook Job |
-| `eatbid-database-migrator` | `DATABASE_URL` (owner-scoped migrator role) | database operator / environment bootstrap | Sync migration job only |
+| `eatbid-database-migrator` | `DATABASE_URL` (owner-scoped migrator role) | database operator / environment bootstrap | Sync migration job, `eatbid-db-backup` CronWorkflow의 `pg_dump`(모든 schema 읽기가 필요해 소유자 역할을 빌린다. 백업 전용 읽기 역할은 후속) |
 | `eatbid-database-api` | `DATABASE_URL` (non-owner API role) | database operator / environment bootstrap | Nest server only |
 | `eatbid-database-dataplane` | `DATABASE_URL` (`eatbid_dataplane` role; `ingest`/`core` 쓰기), `EATBID_CACHE_REVALIDATE_TOKEN` | database operator / environment bootstrap | dataplane WorkflowTemplate only |
 | `eatbid-cache-revalidate` | `EATBID_CACHE_REVALIDATE_TOKEN` | product operator / environment bootstrap | web (`POST /internal/cache/revalidate`) |
-| `eatbid-r2` | `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | storage operator / environment bootstrap | dataplane |
+| `eatbid-r2` | `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | storage operator / environment bootstrap | dataplane, `eatbid-db-backup` CronWorkflow(`backup/postgres/` prefix에 쓰기) |
 | `eatbid-auth` | `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | product operator / environment bootstrap | server |
 | `cloudflared-creds` | `credentials.json` | network operator / environment bootstrap | cloudflared |
 | `ghcr-pull` | `.dockerconfigjson` | delivery operator / environment bootstrap | namespace default and dataplane ServiceAccounts |

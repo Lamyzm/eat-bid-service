@@ -12,24 +12,51 @@
     eatbid/eatbid-infisical-operator Infisical universal auth — 나머지 비밀값을 받아오는 열쇠라 사본이 될 수 없다
     eatbid/ghcr-pull                image pull 자격증명 — Infisical operator보다 먼저 필요하다
     eatbid/cloudflared-creds        터널 자격증명 — 터널 ID가 tunnel.yaml에 박혀 있어 같은 값이어야 한다
-  값은 SourceContext(현재 k3d 클러스터)에서 그대로 복사한다. 복구 사본은 Infisical prod:/platform/kubernetes.
+  값은 SourceContext(옛 클러스터)가 닿으면 거기서 복사하고, 닿지 않으면(-FromInfisical 또는 옛 클러스터 없음)
+  Infisical prod:/platform/kubernetes의 복구 사본(K8S_SECRET_<NS>_<NAME>, Export-EatbidManualSecrets.ps1이 올림)에서
+  다시 만든다. eatbid-infisical-operator는 같은 경로의 INFISICAL_CLIENT_ID/SECRET로 조립한다. 재해 복구(EAT-131)는
+  옛 클러스터가 없으므로 이 경로만 쓴다.
 
 .EXAMPLE
   .\infra\vm\Bootstrap-EatbidCluster.ps1 -RepoRoot F:\Project\eat-bid-service
+  .\infra\vm\Bootstrap-EatbidCluster.ps1 -RepoRoot F:\Project\eat-bid-service -TargetContext eatbid-prod -FromInfisical
 #>
 [CmdletBinding()]
 param(
   [string]$TargetContext = 'eatbid-vm',
   [string]$SourceContext = 'k3d-eatbid',
   [string]$ArgoCdVersion = 'v3.5.1',
+  [switch]$FromInfisical,
+  [string]$InfisicalProjectId = '0d794ce1-e0e3-4e48-83ea-88f2f05f9a65',
+  [string]$InfisicalEnvironment = 'prod',
+  [string]$InfisicalSecretsPath = '/platform/kubernetes',
   [Parameter(Mandatory = $true)][string]$RepoRoot
 )
 
 $ErrorActionPreference = 'Stop'
 
+function Get-InfisicalValue([string]$Key) {
+  $value = infisical secrets get $Key --env=$InfisicalEnvironment --path=$InfisicalSecretsPath --projectId $InfisicalProjectId --plain 2>$null
+  if (-not $value) { throw "Infisical ${InfisicalEnvironment}:${InfisicalSecretsPath}에 $Key 가 없다. Export-EatbidManualSecrets.ps1로 먼저 올린다." }
+  return ($value | Select-Object -Last 1).Trim()
+}
+
 function Copy-Secret([string]$Namespace, [string]$Name) {
   if (kubectl --context $TargetContext -n $Namespace get secret $Name -o name 2>$null) {
     Write-Host "secret $Namespace/$Name 이미 있음"; return
+  }
+  if ($FromInfisical) {
+    if ($Name -eq 'eatbid-infisical-operator') {
+      # operator identity는 값 자체가 Infisical에 평문으로 있으므로 manifest 사본 없이 두 키로 조립한다.
+      $clientId = Get-InfisicalValue 'INFISICAL_CLIENT_ID'
+      $clientSecret = Get-InfisicalValue 'INFISICAL_CLIENT_SECRET'
+      kubectl --context $TargetContext -n $Namespace create secret generic $Name --from-literal=clientId=$clientId --from-literal=clientSecret=$clientSecret | Out-Null
+      Write-Host "secret $Namespace/$Name Infisical identity로 생성"; return
+    }
+    $key = ('K8S_SECRET_{0}_{1}' -f $Namespace, $Name).ToUpperInvariant().Replace('-', '_')
+    $manifest = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Get-InfisicalValue $key)))
+    $manifest | kubectl --context $TargetContext apply -f - | Out-Null
+    Write-Host "secret $Namespace/$Name Infisical 복구 사본으로 생성"; return
   }
   $json = kubectl --context $SourceContext -n $Namespace get secret $Name -o json | ConvertFrom-Json
   $clean = [ordered]@{
