@@ -37,7 +37,8 @@ function BusinessPicker({ ownBid }: { readonly ownBid: OwnBidValue }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' className='min-w-52'>
         {/* Base UI의 group label은 Group·RadioGroup 안에서만 산다. 밖에 두면 메뉴를 여는 순간 route 오류 경계로 떨어진다. */}
-        <DropdownMenuRadioGroup value={ownBid.selectedBusinessId ?? undefined} onValueChange={(value) => ownBid.select(String(value))}>
+        {/* 선택이 없을 때도 빈 문자열로 controlled를 유지한다. undefined로 시작하면 첫 선택에서 Base UI가 uncontrolled→controlled 전환을 경고한다. */}
+        <DropdownMenuRadioGroup value={ownBid.selectedBusinessId ?? ''} onValueChange={(value) => ownBid.select(String(value))}>
           <DropdownMenuLabel>내 투찰을 볼 사업자</DropdownMenuLabel>
           {ownBid.businesses.map((business: RegisteredBusiness) => (
             // 사업자 하나를 고르는 순간 메뉴를 닫는다. radio 항목의 기본값은 열어 두는 것이라 뒤 캔버스 조작이 막힌다.

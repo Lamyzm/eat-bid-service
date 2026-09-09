@@ -159,7 +159,7 @@ describe("사업자 등록의 소유와 대조", () => {
       });
 
       const [business] = await repository.listBusinesses(account.workspace.workspaceId);
-      expect(business?.supplierPartyId).toBeNull();
+      expect(business?.supplier).toEqual({ kind: "unobserved" });
     });
   }, 180_000);
 
@@ -172,7 +172,8 @@ describe("사업자 등록의 소유와 대조", () => {
         principalId: account.principalId,
         businessNumber: unobservedBusinessNumber,
       });
-      expect((await repository.listBusinesses(account.workspace.workspaceId))[0]?.supplierPartyId).toBeNull();
+      expect((await repository.listBusinesses(account.workspace.workspaceId))[0]?.supplier)
+        .toEqual({ kind: "unobserved" });
 
       // 저장된 파생 FK가 없으므로 원본 관측 하나로 다음 조회가 저절로 연결된다.
       await owner.unsafe(`
@@ -184,12 +185,12 @@ describe("사업자 등록의 소유와 대조", () => {
         values (${rivalSupplierPartyId}, 'company', 9007199254740996);
       `);
 
-      expect((await repository.listBusinesses(account.workspace.workspaceId))[0]?.supplierPartyId)
-        .toBe(rivalSupplierPartyId);
+      expect((await repository.listBusinesses(account.workspace.workspaceId))[0]?.supplier)
+        .toEqual({ kind: "linked", supplierPartyId: rivalSupplierPartyId });
     });
   }, 180_000);
 
-  test("한 번호가 서로 다른 party 둘을 가리키면 임의로 고르지 않고 실패한다", async () => {
+  test("한 번호가 서로 다른 party 둘을 가리키면 임의로 고르지 않고 충돌 증거로 돌려준다", async () => {
     await withAccountDatabase(async ({ api, owner }) => {
       const repository = new DrizzleAccountRepository(drizzle({ client: api }) as unknown as AccountDatabase);
       const account = await repository.initializeAccount({ subject: "ambiguous", workspaceName });
@@ -200,6 +201,7 @@ describe("사업자 등록의 소유와 대조", () => {
       });
       // 원본이 같은 사업자를 하이픈 표기로도 관측하고 그 code value가 다른 party에 붙은 상태다.
       // 자동 병합은 명시적 reconciliation의 몫이라 조회는 하나를 고르지 않는다(ADR 0033 §1).
+      // 목록 전체를 실패시키면 같은 워크스페이스의 다른 등록까지 못 보므로 그 등록만 충돌로 표시한다.
       await owner.unsafe(`
         insert into core.code_value (code_value_id, code_scheme_id, code)
         overriding system value
@@ -209,7 +211,8 @@ describe("사업자 등록의 소유와 대조", () => {
         values (${rivalSupplierPartyId}, 'company', 9007199254740998);
       `);
 
-      expect(repository.listBusinesses(account.workspace.workspaceId)).rejects.toThrow();
+      const [business] = await repository.listBusinesses(account.workspace.workspaceId);
+      expect(business?.supplier).toEqual({ kind: "evidence-conflict" });
     });
   }, 180_000);
 
@@ -255,7 +258,7 @@ describe("위치 저장의 소유 경계", () => {
       if (registered.kind !== "registered") throw new Error("등록이 성공해야 합니다");
       const businessId = registered.business.registeredBusinessId;
       expect(registered.business.location).toBeNull();
-      expect(registered.business.supplierPartyId).toBe(linkedSupplierPartyId);
+      expect(registered.business.supplier).toEqual({ kind: "linked", supplierPartyId: linkedSupplierPartyId });
 
       const saved = await repository.changeLocation({
         workspaceId: mine.workspace.workspaceId,
