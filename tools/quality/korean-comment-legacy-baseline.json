@@ -307,6 +307,10 @@
       "sha256": "25b4abda757b996b9210b85d19b5bdf3416f0a86197e4748b3a7f637baa7e342"
     },
     {
+      "path": "apps/web/src/hooks/use-mobile.ts",
+      "sha256": "58b2cc5fa259358e9192125abf072c832144193d87f3d66a90b13089a0196cef"
+    },
+    {
       "path": "apps/web/src/hooks/use-nav.ts",
       "sha256": "ad0cbe9247f620fa88aff833912b1c7146ec82c7e81bccc03a22b3691f6dc635"
     },
