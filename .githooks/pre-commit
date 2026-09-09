@@ -1,0 +1,3 @@
+#!/bin/sh
+# 커밋 직전에는 merge-base 대비 변경 경로에 해당하는 architecture 검사만 병렬로 실행한다. 전체 gate는 main pre-push와 CI가 맡는다.
+exec node tools/architecture/run-checks.mjs --changed

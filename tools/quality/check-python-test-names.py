@@ -1,3 +1,5 @@
+"""모듈 책임: pytest 함수명이 한국어 행위 명세인지 AST로 판정하고 결과를 JSON으로 돌려준다."""
+
 from __future__ import annotations
 
 import ast
@@ -69,12 +71,20 @@ def python_files(root: Path) -> list[Path]:
     )
 
 
+def requested_files(root: Path) -> list[Path]:
+    """드라이버가 변경 경로만 넘기면 그 파일만 보고, 아니면 체크아웃 전체를 훑는다."""
+    if "--paths-from-stdin" not in sys.argv[2:]:
+        return python_files(root)
+    requested = json.load(sys.stdin)["paths"]
+    return sorted(root / item for item in requested if (root / item).is_file())
+
+
 def main() -> int:
     root = Path(sys.argv[1]).resolve()
     violations: list[dict[str, object]] = []
     declaration_count = 0
 
-    for path in python_files(root):
+    for path in requested_files(root):
         relative_path = path.relative_to(root).as_posix()
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative_path)
