@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -10,7 +10,7 @@ const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 const checker = path.join(repositoryRoot, "tools", "architecture", "check-semantic-values.mjs");
 const temporaryDirectories = [];
 
-function fixture(files, baseline = { version: 1, entries: [] }, { includeRegistry = true } = {}) {
+function fixture(files, { includeRegistry = true } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "eatbid-semantic-values-"));
   temporaryDirectories.push(root);
   const fixtureFiles = { ...files };
@@ -26,19 +26,17 @@ function fixture(files, baseline = { version: 1, entries: [] }, { includeRegistr
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, contents);
   }
-  const baselinePath = path.join(root, "semantic-value-legacy-baseline.json");
-  writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-  return { root, baselinePath };
+  return { root };
 }
 
-function run(target, ...args) {
+function run(target, { args = [], env: extraEnv = {} } = {}) {
+  const env = { ...process.env, SEMANTIC_VALUES_ROOT: target.root };
+  delete env.EATBID_CHANGED_PATHS;
+  delete env.EATBID_CHANGED_BASE;
+  Object.assign(env, extraEnv);
   const result = spawnSync(process.execPath, [checker, ...args], {
     cwd: repositoryRoot,
-    env: {
-      ...process.env,
-      SEMANTIC_VALUES_ROOT: target.root,
-      SEMANTIC_VALUES_BASELINE: target.baselinePath,
-    },
+    env,
     encoding: "utf8",
   });
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
@@ -249,7 +247,7 @@ test("portable schema graph의 codec·transform·runtime custom predicate를 별
 test("portable registry와 top-level root가 없으면 실패하고 도달 가능한 factory body를 검사한다", () => {
   const missingRegistry = fixture({
     "packages/contracts/src/portable-schema.ts": "import { z } from 'zod'; export const schema = z.string();",
-  }, { version: 1, entries: [] }, { includeRegistry: false });
+  }, { includeRegistry: false });
   const missingRegistryResult = run(missingRegistry);
   assert.notEqual(missingRegistryResult.status, 0, missingRegistryResult.output);
   assert.match(missingRegistryResult.output, /portable registry.*required/i);
@@ -389,39 +387,32 @@ test("counterfeit duration helper는 raw timer 값을 semantic duration으로 �
   assert.match(result.output, /\[raw-timer-value\]/);
 });
 
-test("legacy ledger는 정확한 path·node kind·normalized text hash만 허용하고 삭제만 허용한다", () => {
-  const target = fixture({ "apps/web/src/legacy.ts": "export const now = Date.now();\n" });
-  const writeResult = run(target, "--write-baseline");
-  assert.equal(writeResult.status, 0, writeResult.output);
-  const written = JSON.parse(readFileSync(target.baselinePath, "utf8"));
-  assert.equal(written.entries.length, 1);
-  assert.deepEqual(
-    Object.keys(written.entries[0]),
-    ["path", "rule", "nodeKind", "fingerprint", "reason", "removalGate"],
-  );
-  assert.equal(run(target).status, 0);
+test("apps/web의 위반도 예외 ledger 없이 backend와 같은 판정으로 실패한다", () => {
+  const target = fixture({
+    "apps/web/src/screen.ts": "export const now = Date.now();\n",
+    "apps/server/src/ok.ts": "export const value = 1;\n",
+  });
+  const result = run(target);
+  assert.notEqual(result.status, 0, result.output);
+  assert.match(result.output, /apps\/web\/src\/screen\.ts:1:\d+ \[ambient-date\]/);
+  assert.doesNotMatch(result.output, /ledger|baseline|frozen/i);
 
-  writeFileSync(path.join(target.root, "apps/web/src/legacy.ts"), "export const now = Date.parse('2026-08-30');\n");
-  const drift = run(target);
-  assert.notEqual(drift.status, 0, drift.output);
-  assert.match(drift.output, /legacy fingerprint drift/);
-
-  writeFileSync(path.join(target.root, "apps/web/src/legacy.ts"), "export const now = 0;\n");
-  assert.equal(run(target).status, 0, "baseline deletion must be allowed");
-
-  writeFileSync(
-    path.join(target.root, "apps/web/src/legacy.ts"),
-    "export const first = Date.now();\nexport const second = Date.now();\n",
-  );
-  const duplicateAddition = run(target);
-  assert.notEqual(duplicateAddition.status, 0, duplicateAddition.output);
-  assert.match(duplicateAddition.output, /new legacy violation/);
+  writeFileSync(path.join(target.root, "apps/web/src/screen.ts"), "export const now = 0;\n");
+  const fixed = run(target);
+  assert.equal(fixed.status, 0, fixed.output);
+  assert.match(fixed.output, /통과했습니다\. 범위: 전체, governed source 3개/);
 });
 
-test("baseline write mode도 backend 위반을 예외로 만들지 않는다", () => {
-  const target = fixture({ "apps/server/src/bad.ts": "Date.now();\n" });
-  const result = run(target, "--write-baseline");
-  assert.notEqual(result.status, 0, result.output);
-  assert.match(result.output, /\[ambient-date\]/);
-  assert.equal(JSON.parse(readFileSync(target.baselinePath, "utf8")).entries.length, 0);
+test("드라이버가 변경 경로를 넘기면 그 파일만 governed root로 삼되 portable registry는 항상 포함한다", () => {
+  const target = fixture({
+    "apps/web/src/screen.ts": "export const now = Date.now();\n",
+    "apps/server/src/ok.ts": "export const value = 1;\n",
+  });
+  const scoped = run(target, { env: { EATBID_CHANGED_PATHS: "apps/server/src/ok.ts", EATBID_CHANGED_BASE: "main@abc1234" } });
+  assert.equal(scoped.status, 0, scoped.output);
+  assert.match(scoped.output, /드라이버 전달\(main@abc1234\) 1개 경로, governed source 2개/);
+
+  const touched = run(target, { env: { EATBID_CHANGED_PATHS: "apps/web/src/screen.ts" } });
+  assert.notEqual(touched.status, 0, touched.output);
+  assert.match(touched.output, /screen\.ts:1:\d+ \[ambient-date\]/);
 });

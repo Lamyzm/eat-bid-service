@@ -1,11 +1,10 @@
-/** @module 책임: TypeScript source를 훑어 지역 어휘 재선언 다섯 규칙의 finding과 안정적인 fingerprint를 만든다. */
+/** @module 책임: TypeScript source를 훑어 지역 어휘 재선언 다섯 규칙의 finding을 예외 없이 만든다. */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import {
   MIN_COORDINATE_TABLE_ENTRIES,
   REGION_VOCABULARY_RULES,
-  applyLegacyBaseline,
   codePointCompare,
   coordinateKeysOf,
   isObservedNameMember,
@@ -15,9 +14,7 @@ import {
   isTypeScriptSource,
   normalizedPath,
   readDeclaredSchemeNames,
-  readLegacyBaseline,
   schemeAtomFailures,
-  sha256,
 } from "./policy.mjs";
 
 const IGNORED_DIRECTORIES = new Set(["node_modules", ".next", "dist", "coverage", "drizzle", "generated"]);
@@ -123,12 +120,12 @@ function schemesInText(text, schemes) {
 }
 
 function add(findings, relativePath, rule, node, sourceFile, reason) {
-  const evidence = node.getText(sourceFile).replace(/\s+/g, " ").trim();
+  const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
   findings.push({
     rule,
     path: relativePath,
     kind: ts.SyntaxKind[node.kind],
-    sha256: sha256(evidence),
+    line: line + 1,
     reason,
   });
 }
@@ -191,7 +188,8 @@ function scanFile(findings, sourceFile, relativePath, schemes) {
   ts.forEachChild(sourceFile, visit);
 }
 
-export function inspectRegionVocabulary({ repoRoot, sourceRoots, baselinePath }) {
+/** 모든 finding이 곧 실패다. 예외 목록을 두지 않는 이유는 좌표표가 그 자리로 되돌아오기 때문이다(ADR 0035). */
+export function inspectRegionVocabulary({ repoRoot, sourceRoots }) {
   const { schemes, failures } = readDeclaredSchemeNames(repoRoot);
   const findings = [];
   for (const root of sourceRoots) {
@@ -201,13 +199,10 @@ export function inspectRegionVocabulary({ repoRoot, sourceRoots, baselinePath })
       scanFile(findings, sourceFile, normalizedPath(repoRoot, file), schemes);
     }
   }
-  findings.sort((left, right) => codePointCompare(`${left.path}${left.rule}${left.sha256}`, `${right.path}${right.rule}${right.sha256}`));
-  const { baseline, baselineFailures } = readLegacyBaseline(baselinePath);
-  const applied = applyLegacyBaseline(findings, baseline);
+  findings.sort((left, right) => codePointCompare(`${left.path}\0${left.rule}\0${String(left.line).padStart(8, "0")}`, `${right.path}\0${right.rule}\0${String(right.line).padStart(8, "0")}`));
   return {
     schemes: [...schemes].sort(codePointCompare),
     findings,
-    unmatchedFindings: applied.unmatchedFindings,
-    baselineFailures: [...failures, ...schemeAtomFailures(repoRoot, schemes), ...baselineFailures, ...applied.baselineFailures],
+    failures: [...failures, ...schemeAtomFailures(repoRoot, schemes)],
   };
 }

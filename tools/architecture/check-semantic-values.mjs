@@ -1,24 +1,20 @@
-/** @module 책임: 시간·금액·비율·식별자 값이 승인된 의미 타입 경계를 우회하지 않는지 검사한다. */
-import { createHash } from "node:crypto";
-import {
-  existsSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+/** @module 책임: 시간·금액·비율·식별자 값이 승인된 의미 타입 경계를 우회하지 않는지 governed source 전체에 예외 없이 검사한다. */
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
+import { changedScope, describeScope } from "../git/changed-paths.mjs";
+
 const repositoryRoot = process.env.SEMANTIC_VALUES_ROOT
   ? path.resolve(process.env.SEMANTIC_VALUES_ROOT)
   : fileURLToPath(new URL("../../", import.meta.url));
-const baselinePath = process.env.SEMANTIC_VALUES_BASELINE
-  ? path.resolve(process.env.SEMANTIC_VALUES_BASELINE)
-  : path.join(repositoryRoot, "tools", "architecture", "semantic-value-legacy-baseline.json");
-const writeBaseline = process.argv.slice(2).includes("--write-baseline");
-const allowedLegacyPrefixes = ["apps/web/src/"];
+// 규칙은 예외가 없으므로 기본은 governed source 전체다. 드라이버가 변경 경로를 넘기거나 `--changed`를 준 경우에만
+// program root를 그 파일로 좁힌다. import된 의존 파일은 여전히 program에 실려 symbol 추적은 같고,
+// portable registry는 graph 검사의 진입점이라 항상 포함한다.
+const scope = changedScope({ repoRoot: repositoryRoot, defaultMode: "all" });
+const scopedPaths = scope.mode === "changed" ? scope.paths : undefined;
+const portableRegistryPath = "packages/contracts/src/portable-registry.ts";
 const forbiddenDatePackages = new Set(["dayjs", "date-fns", "moment", "luxon"]);
 const canonicalFloatingColumn = /(?:^|_)(?:amount|money|price|rate|ratio|percent|percentage)(?:_|$)/i;
 const durationName = /(?:timeout|interval|ttl|grace|delay|debounce|throttle)(?:ms|millis|milliseconds)?$/i;
@@ -64,7 +60,13 @@ function governedFiles() {
     files.push(entry);
   };
   for (const root of roots) visit(root);
-  return files.sort();
+  if (!scopedPaths) return files.sort();
+  return files
+    .filter((file) => {
+      const relative = normalizePath(file);
+      return relative === portableRegistryPath || scopedPaths.has(relative);
+    })
+    .sort();
 }
 
 const fileNames = governedFiles();
@@ -557,16 +559,11 @@ function displayNode(sourceFile, node) {
 
 const violations = [];
 function report(sourceFile, node, rule, message) {
-  const repositoryPath = normalizePath(sourceFile.fileName);
-  const normalizedText = node.getText(sourceFile).replace(/\s+/g, " ").trim();
-  const fingerprint = `sha256:${createHash("sha256").update(normalizedText).digest("hex")}`;
   const position = displayNode(sourceFile, node);
   violations.push({
-    path: repositoryPath,
+    path: normalizePath(sourceFile.fileName),
     rule,
     nodeKind: ts.SyntaxKind[node.kind],
-    fingerprint,
-    normalizedText,
     line: position.line,
     column: position.column,
     message,
@@ -801,107 +798,25 @@ function scanPortableGraph() {
 scanPortableGraph();
 
 const uniqueViolations = [...new Map(violations.map((item) => [
-  [item.path, item.rule, item.nodeKind, item.line, item.column, item.fingerprint].join("\0"),
+  [item.path, item.rule, item.nodeKind, item.line, item.column].join("\0"),
   item,
 ])).values()].sort((left, right) =>
   left.path.localeCompare(right.path)
   || left.line - right.line
   || left.column - right.column
   || left.rule.localeCompare(right.rule));
-const legacyViolations = uniqueViolations.filter((item) => allowedLegacyPrefixes.some((prefix) => item.path.startsWith(prefix)));
-const strictViolations = uniqueViolations.filter((item) => !allowedLegacyPrefixes.some((prefix) => item.path.startsWith(prefix)));
 
-function baselineEntry(item) {
-  return {
-    path: item.path,
-    rule: item.rule,
-    nodeKind: item.nodeKind,
-    fingerprint: item.fingerprint,
-    reason: "Pre-existing frontend/shared semantic-value debt frozen on 2026-08-30.",
-    removalGate: "Delete or migrate this exact AST node; additions and replacement fingerprints are rejected.",
-  };
-}
-
-function printViolations(items, heading = "TypeScript semantic-value architecture check failed:") {
-  if (!items.length) return;
-  console.error(heading);
-  for (const item of items) {
+// 예외 ledger는 없다. apps/web을 포함한 governed source 전체가 같은 판정을 받으며, 명명된 adapter 예외는
+// 코드 안의 exact 경로·선언(`AuctionRow`·`postgresInstant`·`systemClock`)뿐이다(ADR 0042).
+if (uniqueViolations.length) {
+  console.error("TypeScript 의미 값 architecture 검사가 실패했습니다:");
+  for (const item of uniqueViolations) {
     console.error(`- ${item.path}:${item.line}:${item.column} [${item.rule}] ${item.message}`);
   }
 }
-
-if (writeBaseline) {
-  if (strictViolations.length || configurationFailures.length) {
-    printViolations(strictViolations);
-    for (const failure of configurationFailures) console.error(`- ${failure}`);
-    process.exitCode = 1;
-  } else {
-    const document = { version: 1, entries: legacyViolations.map(baselineEntry) };
-    writeFileSync(baselinePath, `${JSON.stringify(document, null, 2)}\n`, "utf8");
-    console.log(`Wrote ${document.entries.length} exact legacy semantic-value fingerprints.`);
-  }
-} else {
-  const baselineFailures = [];
-  let baseline;
-  try {
-    baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
-  } catch (error) {
-    baselineFailures.push(`cannot read ${normalizePath(baselinePath)}: ${error.message}`);
-    baseline = { version: undefined, entries: [] };
-  }
-  if (baseline.version !== 1 || !Array.isArray(baseline.entries)) {
-    baselineFailures.push("legacy baseline must have version 1 and an entries array");
-    baseline.entries = [];
-  }
-  const exactCounts = new Map();
-  for (const [index, entry] of baseline.entries.entries()) {
-    const expectedKeys = ["path", "rule", "nodeKind", "fingerprint", "reason", "removalGate"];
-    if (!entry || typeof entry !== "object" || JSON.stringify(Object.keys(entry)) !== JSON.stringify(expectedKeys)) {
-      baselineFailures.push(`legacy baseline entry ${index} must contain the exact ordered fields ${expectedKeys.join(", ")}`);
-      continue;
-    }
-    if (!allowedLegacyPrefixes.some((prefix) => entry.path.startsWith(prefix))) {
-      baselineFailures.push(`legacy baseline entry ${index} is outside apps/web: ${entry.path}`);
-    }
-    if (!/^sha256:[0-9a-f]{64}$/.test(entry.fingerprint)) {
-      baselineFailures.push(`legacy baseline entry ${index} has an invalid fingerprint`);
-    }
-    const key = [entry.path, entry.rule, entry.nodeKind, entry.fingerprint].join("\0");
-    exactCounts.set(key, (exactCounts.get(key) ?? 0) + 1);
-  }
-  const baselineByShape = new Map();
-  for (const entry of baseline.entries) {
-    const shape = [entry.path, entry.rule, entry.nodeKind].join("\0");
-    if (!baselineByShape.has(shape)) baselineByShape.set(shape, []);
-    baselineByShape.get(shape).push(entry);
-  }
-  for (const violation of legacyViolations) {
-    const exact = [violation.path, violation.rule, violation.nodeKind, violation.fingerprint].join("\0");
-    const remaining = exactCounts.get(exact) ?? 0;
-    if (remaining > 0) {
-      exactCounts.set(exact, remaining - 1);
-      continue;
-    }
-    const shape = [violation.path, violation.rule, violation.nodeKind].join("\0");
-    const shapeEntries = baselineByShape.get(shape) ?? [];
-    if (shapeEntries.some((entry) => entry.fingerprint === violation.fingerprint)) {
-      baselineFailures.push(`new legacy violation: ${violation.path}:${violation.line}:${violation.column} [${violation.rule}]`);
-    } else if (shapeEntries.length) {
-      baselineFailures.push(`legacy fingerprint drift: ${violation.path} [${violation.rule}] ${violation.nodeKind}`);
-    } else {
-      baselineFailures.push(`new legacy violation: ${violation.path}:${violation.line}:${violation.column} [${violation.rule}]`);
-    }
-  }
-
-  if (strictViolations.length) printViolations(strictViolations);
-  if (baselineFailures.length) {
-    console.error("Semantic-value legacy baseline check failed:");
-    for (const failure of baselineFailures) console.error(`- ${failure}`);
-  }
-  if (configurationFailures.length) {
-    console.error("Portable registry configuration check failed:");
-    for (const failure of configurationFailures) console.error(`- ${failure}`);
-  }
-  if (strictViolations.length || baselineFailures.length || configurationFailures.length) process.exitCode = 1;
-  else console.log(`TypeScript semantic-value architecture check passed (${legacyViolations.length} frozen legacy fingerprints).`);
+if (configurationFailures.length) {
+  console.error("Portable registry configuration check failed:");
+  for (const failure of configurationFailures) console.error(`- ${failure}`);
 }
+if (uniqueViolations.length || configurationFailures.length) process.exitCode = 1;
+else console.log(`TypeScript 의미 값 architecture 검사가 통과했습니다. ${describeScope(scope)}, governed source ${sourceFilesByPath.size}개`);
