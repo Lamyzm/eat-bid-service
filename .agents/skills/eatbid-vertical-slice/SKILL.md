@@ -10,7 +10,7 @@ description: versioned API, 서버 module, database adapter와 선택적 Next.js
 ## 좁게 시작하기
 
 1. root `AGENTS.md`, `ARCHITECTURE.md`와 관련 아키텍처 절을 읽는다.
-2. mutation 전에 Linear issue, 현재 lease와 의도한 owned path를 확인한다.
+2. 커밋 전에 Linear issue, 현재 worktree의 claim과 의도한 owned path를 확인한다.
 3. 입력 하나, 성공 결과 하나와 예상 실패 상태를 적는다.
 4. 파일이나 dependency 이름을 정하기 전에 가장 가까운 기존 slice를 추적한다.
 

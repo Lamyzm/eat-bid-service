@@ -1,198 +1,60 @@
-/** @module 책임: 에이전트 도구 호출의 변경 가능성과 Linear issue 식별자를 순수하게 판정한다. */
+/** @module 책임: hook 입력의 provider 중립 정규화와 Linear issue 식별자 추출, holder가 아닌 세션에도 여는 도구 목록을 순수하게 판정한다. */
 import path from "node:path";
-
-import { isOutsideRepositoryRoots } from "./repository-paths.mjs";
-import { classifyCurl, classifyInlineInterpreter } from "./shell-read-only.mjs";
 
 const ISSUE_IDENTIFIER = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/i;
 
 // 제어문자가 섞인 경로는 사람이 의도한 파일 이름이 아니다. 경로 판정을 시도하지 않고 거부한다.
-const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/u;
+function hasControlCharacter(value) {
+  for (const character of value) {
+    const code = character.codePointAt(0);
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
 
-// 사용자가 실제로 요청한 이슈만 세션 상태에 남긴다. 브랜치 슬러그·경로·scratchpad 이름은 소문자
-// `eat-34` 모양이라 대소문자를 구분하면 저절로 걸러지고, 경로 구분자·점·하이픈 뒤도 제외한다.
-const PROMPT_ISSUE_IDENTIFIER = /(?<![\w/\\.-])([A-Z][A-Z0-9]{1,9}-\d+)(?![\w-])/;
-
-// harness가 프롬프트에 끼워 넣는 블록은 사용자의 요청이 아니라 배경 정보다. 여기서 읽은 이슈 번호로
-// 세션 요청 이슈를 바꾸면 다른 agent의 알림 한 줄이 이 세션의 lease 게이트를 잠근다.
-const INJECTED_BLOCKS = [
-  /<teammate-message[\s\S]*?<\/teammate-message>/g,
-  /<cross-session-message[\s\S]*?<\/cross-session-message>/g,
-  /<task-notification[\s\S]*?<\/task-notification>/g,
-  /<system-reminder[\s\S]*?<\/system-reminder>/g,
-  /\[SYSTEM NOTIFICATION[\s\S]*$/,
-];
-
-const FILE_EDIT_TOOLS = new Set([
-  "apply_patch",
-  "edit",
-  "multiedit",
-  "notebookedit",
-  "write",
-]);
+export const FILE_EDIT_TOOLS = new Set(["apply_patch", "edit", "multiedit", "notebookedit", "write"]);
 
 const SHELL_TOOLS = new Set(["bash", "exec_command", "powershell", "shell"]);
 
-const READ_ONLY_TOOLS = new Set(["glob", "grep", "read", "toolsearch", "webfetch", "websearch"]);
+// holder가 아닌 세션은 "다른 writer가 잡은 작업은 read-only로 조사·review만 한다"(AGENTS 20)는 규칙의
+// 대상이다. 저장소 파일에 닿지 않는 조회·탐색·대화 도구만 연다. 이름 목록이며 명령 본문은 해석하지 않는다.
+const OBSERVER_TOOLS = new Set([
+  "askuserquestion",
+  "enterworktree",
+  "exitworktree",
+  "glob",
+  "grep",
+  "listagents",
+  "ls",
+  "notebookread",
+  "read",
+  "sendmessage",
+  "toolsearch",
+  "webfetch",
+  "websearch",
+]);
 
-// worktree 진입·이탈은 tracked 파일이 아니라 세션 cwd만 바꾼다. lease는 worktree root 단위라 새
-// worktree에는 lease가 없으므로 여기서 막으면 세션이 그 안에서 claim할 기회조차 얻지 못한다.
-const WORKTREE_TOOLS = new Set(["enterworktree", "exitworktree"]);
-
-// 다른 agent에게 보내는 메시지는 저장소 파일을 바꾸지 않는다. 여기서 막으면 lease를 푼 세션이 작업
-// 결과를 보고할 수 없어, 보고 한 줄을 위해 lease를 다시 잡았다 푸는 일이 생긴다.
-const AGENT_MESSAGING_TOOLS = new Set(["sendmessage", "listagents"]);
-
-// Linear MCP 도구 중 조회만 lease 없이 허용한다. 인계 절차가 "worklog 읽기 → claim" 순서이므로
-// 읽기까지 막으면 받는 세션은 issue를 보기 전에 claim해야 한다.
 const LINEAR_READ_TOOL = /^mcp__linear__(?:get|list|search)_[a-z_]+$/i;
 
-// issue 생성만 저장소 파일을 바꾸지 않는 부트스트랩 동작이다. 막으면 "lease를 잡으려면 issue가
-// 있어야 하는데 issue를 만들려면 lease가 필요한" 순환이 생기고, 그 순환은 이 하나로 끊긴다.
-// 댓글(`create_comment`)은 claim 이후 행위이며 worklog는 인계에서 완료 근거로 읽는 기록이라
-// claim하지 않은 세션이 남의 issue에 쓰게 두지 않는다. 상태 전환(`update_issue`)도 claim·release가 소유한다.
-const LINEAR_CREATE_TOOL = /^mcp__linear__create_issue$/i;
+// 잠금을 넘겨받거나 상태를 보는 lifecycle 명령까지 막으면 막힌 세션은 사용자에게 명령을 대신 쳐 달라고
+// 부탁하는 것 말고는 할 수 있는 일이 없다. 단일 `pnpm workflow:*` 명령만, chaining·redirect 없이 연다.
+const WORKFLOW_COMMAND =
+  /^\s*pnpm\s+(?:--dir(?:=|\s+)[^\s;&|<>`$]+\s+)?workflow:[a-z][a-z:-]*(?:\s+[^\s;&|<>`$]+)*\s*$/i;
 
-// 브라우저 도구는 저장소 파일에 닿지 않는다. 화면 확인은 구현 중 검증의 일부라 lease 없이도 열되,
-// 폼 입력·클릭·파일 업로드처럼 외부 상태를 바꾸는 상호작용은 계속 fail-closed로 둔다.
-const CHROME_DEVTOOLS_READ_TOOL =
-  /^mcp__chrome-devtools__(?:navigate_page|take_screenshot|take_snapshot|evaluate_script|list_pages|select_page|wait_for|list_console_messages|get_console_message|list_network_requests|get_network_request)$/i;
-
-// 경로 인자는 공백 없는 토큰이나 큰따옴표 문자열만 허용한다. 치환·pipe 문자는 SHELL_COMPOSITION이
-// 먼저 거르지만, 경로 자리에서 다른 토큰이 시작되지 않도록 여기서도 제외한다.
-const PATH_ARGUMENT = String.raw`(?:"[^"|;&><$\x60\r\n]+"|[^\s|;&><$\x60"']+)`;
-const ISSUE_ARGUMENT = String.raw`[A-Z][A-Z0-9]{1,9}-\d+`;
-
-// 브랜치 이름과 경로 자리에서 option 토큰이 시작되지 않게 한다. `--force`나 `-D`가 경로처럼 통과하면
-// 브랜치 생성 허용이 브랜치 삭제·강제 이동 허용으로 넓어진다.
-const BRANCH_ARGUMENT = String.raw`(?!-)[A-Za-z0-9._/-]+`;
-const NON_OPTION_PATH_ARGUMENT = String.raw`(?:"[^"|;&><$\x60\r\n]+"|(?!-)[^\s|;&><$\x60"']+)`;
-
-// issue 제목·본문·project 이름은 사람이 읽는 한국어 문장이라 공백을 담는다. 따옴표 안이라도 치환·
-// redirect·pipe 문자는 계속 제외해 "제목처럼 보이는 인자"가 새 명령을 여는 통로가 되지 않게 한다.
-const TEXT_ARGUMENT = String.raw`(?:"[^"|;&><$\x60\r\n]*"|(?!-)[^\s|;&><$\x60"']+)`;
-
-// `workflow:issue`는 Linear에만 issue를 만들거나 읽고 저장소 파일과 lease state를 건드리지 않는다.
-// 아직 claim할 issue가 없는 세션이 실행하는 명령이므로 lease를 요구하면 자기 자신을 막는다.
-const ISSUE_COMMAND_ARGUMENT = String.raw`create|list|--title(?:=|\s+)${TEXT_ARGUMENT}|--description-file(?:=|\s+)${PATH_ARGUMENT}|--description(?:=|\s+)${TEXT_ARGUMENT}|--priority(?:=|\s+)[1-4]|--state(?:=|\s+)${TEXT_ARGUMENT}|--project(?:=|\s+)${TEXT_ARGUMENT}|--limit(?:=|\s+)\d{1,2}`;
-
-// 다른 worktree에서 lease를 다룰 때는 `pnpm --dir <path> workflow:*` 형태가 기본이다. `--dir`는 실행
-// 위치만 고르므로 같은 lifecycle 명령이며, 이것을 막으면 세션 cwd가 아닌 worktree의 lease를 스스로
-// 다룰 수 없다.
-const PNPM_DIRECTORY_PREFIX = String.raw`(?:--dir(?:=|\s+)${PATH_ARGUMENT}\s+)?`;
-
-// `pnpm workflow:*`는 저장소 파일이 아니라 lease state·Linear·git worktree 목록만 바꾸며 lease를
-// 만들고 푸는 유일한 경로다. 단일 명령 형태만 허용하고 chaining·redirect는 SHELL_COMPOSITION이,
-// pipe는 단계별 읽기 판정이 먼저 거른다. 인자는 issue 식별자, `--worktree <path>`,
-// `worktree remove <path> | prune`, `issue create|list`의 발행·조회 option뿐이다.
-const WORKFLOW_LIFECYCLE_COMMAND = new RegExp(
-  String.raw`^pnpm\s+${PNPM_DIRECTORY_PREFIX}workflow:[a-z][a-z:-]*(?:\s+(?:--|${ISSUE_ARGUMENT}|--worktree(?:=|\s+)${PATH_ARGUMENT}|--branch(?:=|\s+)${BRANCH_ARGUMENT}|--review|remove\s+${PATH_ARGUMENT}|prune|${ISSUE_COMMAND_ARGUMENT}))*\s*$`,
-  "i",
-);
-
-// 폴더 생성·목록은 비밀값을 읽지도 쓰지도 않고 저장소 파일도 바꾸지 않는다. 값을 다루는
-// `infisical secrets set|get|list`와 임의 프로그램을 실행하는 `infisical run`은 여기에 넣지 않는다.
-// 값 출력은 transcript 유출이고, `secrets set`은 kubectl 변경 subcommand와 같은 운영 사고 범주이며,
-// `run -- node <script>`는 주입된 key로 저장소 파일을 바꿀 수 있기 때문이다.
-const SECRET_FOLDER_COMMAND = new RegExp(
-  String.raw`^infisical\s+secrets\s+folders\s+(?:create|list)(?:\s+${PATH_ARGUMENT})*\s*$`,
-  "i",
-);
-
-// 브랜치 생성과 worktree 추가는 새 ref와 새 디렉터리를 만들 뿐 추적 파일 내용을 바꾸지 않는다.
-// lease 없이 이것마저 막으면 claim 전에 올바른 브랜치로 옮길 방법이 없어 이슈 전환이 교착한다.
-// `checkout -b`·`switch -c`는 start-point를 주면 그 commit의 tree로 작업 파일을 갈아끼우므로 이름
-// 하나만 받는 형태(현재 HEAD 기준)까지만 허용한다. `git branch <name> [<start>]`는 HEAD를 옮기지
-// 않는 순수 ref 생성이라 start-point가 있어도 허용한다.
-const WORKTREE_ADD_ARGUMENT = String.raw`(?:--quiet|--detach|-b\s+${BRANCH_ARGUMENT}|${NON_OPTION_PATH_ARGUMENT})`;
-const BRANCH_CREATION_COMMAND = new RegExp(
-  String.raw`^git\s+(?:branch\s+${BRANCH_ARGUMENT}(?:\s+${BRANCH_ARGUMENT})?|(?:checkout\s+-b|switch\s+-c)\s+${BRANCH_ARGUMENT}|worktree\s+add(?:\s+${WORKTREE_ADD_ARGUMENT})+)\s*$`,
-);
-
-// kubectl 조회 subcommand는 cluster 상태를 읽을 뿐이다. exec·apply·delete·edit·patch처럼 cluster를
-// 바꾸는 subcommand는 저장소 밖이라도 운영 사고가 되므로 lease 안에서만 실행한다.
-const KUBECTL_READ_COMMAND = /^kubectl\s+(?:get|describe|logs|top)\b/;
-
-// 다른 worktree를 조회할 때는 `git -C <path>` 형태가 기본이므로 같은 read-only subcommand를 허용한다.
-// 소문자 `-c key=value`는 core.pager·diff.external 같은 config로 read-only subcommand 안에서 임의 실행을
-// 일으키므로, git 정규식은 대소문자를 구분해 대문자 `-C`만 경로 prefix로 받는다.
-const GIT_PATH_PREFIX = String.raw`(?:-C\s+${PATH_ARGUMENT}\s+)?`;
-
-const MUTATING_COMMANDS = [
-  /(?:^|[;&|]\s*)(?:rm|mv|cp|mkdir|touch)\b/i,
-  /(?:^|[;&|]\s*)(?:remove-item|move-item|copy-item|new-item|set-content|add-content|out-file)\b/i,
-  /(?:^|[;&|]\s*)git\s+(?:add|commit|push|mv|rm|checkout|switch|reset|restore|rebase|merge|cherry-pick|tag)\b/i,
-  /(?:^|[;&|]\s*)(?:pnpm|npm|yarn|bun)\s+(?:add|remove|install|uninstall|update|upgrade)\b/i,
-  /(?:^|[;&|]\s*)sed\s+-[^\s]*i\b/i,
-  /(^|[^<>])>(?![>=])/,
-];
-
-// 표준 입력이나 파일을 읽어 줄이고 모양만 바꾸는 명령이다. 파일을 쓰는 수단을 가진 것은 넣지 않는다.
-// `tee`는 인자로, `sort`는 `-o`로, `xargs`는 뒤 명령으로 파일을 바꿀 수 있어 제외한다.
-const TEXT_FILTER_COMMAND = /^(?:grep|egrep|fgrep|cat|head|tail|wc|cut|tr|nl|jq|ls|dir)\b/i;
-
-// `uniq INPUT OUTPUT`는 두 번째 파일 인자를 덮어쓴다. 다른 필터와 달리 인자 수가 읽기와 쓰기를
-// 가르므로, option을 뺀 파일 인자가 하나 이하일 때만 읽기로 본다. 단독 `-`는 option이 아니라
-// 표준 입력을 뜻하는 파일 피연산자다. option으로 세면 `uniq - out.txt`의 출력 파일이 남는다.
-const UNIQ_READ_COMMAND = /^uniq(?:\s+-[^\s]+)*(?:\s+(?:-|(?!-)[^\s]+))?\s*$/i;
-
-// `find`는 파일을 지우거나(`-delete`) 결과를 파일로 쓰거나(`-fprint`, `-fprint0`, `-fprintf`, `-fls`)
-// 다른 프로그램을 실행하는(`-exec`, `-execdir`, `-ok`, `-okdir`) 술어를 갖는다. 술어 끝을 `\b`로
-// 고정하면 `-fprint0`처럼 숫자가 붙은 변종이 빠져나가므로 접두 일치로 잡는다. `-f`로 시작하는 술어는
-// 출력용이 기본이라 전부 막고, 읽기 전용인 `-follow`·`-fstype`만 예외로 남긴다.
-const FIND_READ_COMMAND =
-  /^find\b(?!.*\s-(?:exec|ok|delete|f(?!ollow(?:\s|$)|stype(?:\s|$))))/i;
-
-// PowerShell pipeline의 표시·집계 cmdlet이다. script block을 실행하는 `Where-Object`·`ForEach-Object`는
-// 그 안에서 임의 cmdlet을 호출할 수 있으므로 넣지 않는다.
-const POWERSHELL_FILTER_COMMAND =
-  /^(?:select-object|measure-object|sort-object|format-list|format-table|out-string|convertto-json)\b/i;
-
-const READ_ONLY_COMMANDS = [
-  /^rg\b/i,
-  /^(?:get-content|get-childitem|test-path|select-string)\b/i,
-  TEXT_FILTER_COMMAND,
-  UNIQ_READ_COMMAND,
-  FIND_READ_COMMAND,
-  POWERSHELL_FILTER_COMMAND,
-  new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}(?:status|diff|log|show|rev-parse|worktree\s+(?:list|prune))\b`),
-  new RegExp(String.raw`^git\s+${GIT_PATH_PREFIX}branch\s+--show-current\b`),
-  KUBECTL_READ_COMMAND,
-];
-
-// pipe는 여기서 빼고 따로 다룬다. `pnpm workflow:release -- EAT-37 | tail`처럼 결과를 줄여 읽는
-// 형태까지 unclassified로 막으면 lease를 푸는 명령 자체가 lease를 요구하게 된다(EAT-52).
-const SHELL_COMPOSITION = /[;&><\r\n]|`|\$\(|(?:^|\s)(?:--fix|--write|--output(?:=|\s)|--ext-diff\b|--textconv\b|--pre(?:=|\s)|--update(?:-?snapshots?)?\b|--updateSnapshot\b|-u(?:\s|$))/i;
-
-/**
- * pipe로 명령을 단계로 나눈다. 따옴표 안의 `|`는 구분자가 아니라 인자의 일부이므로 세지 않는다.
- * 닫히지 않은 따옴표는 어디까지가 한 단계인지 말할 수 없으므로 `null`로 fail-closed한다.
- * `||`는 빈 단계를 만들고, 빈 단계는 어떤 읽기 목록에도 없어 자동으로 차단된다.
- */
-export function splitPipelineStages(command) {
-  const stages = [];
-  let current = "";
-  let quote = null;
-  for (const character of command) {
-    if (quote) {
-      if (character === quote) quote = null;
-      current += character;
-      continue;
-    }
-    if (character === '"' || character === "'") {
-      quote = character;
-      current += character;
-      continue;
-    }
-    if (character === "|") {
-      stages.push(current);
-      current = "";
-      continue;
-    }
-    current += character;
+function shellCommand(toolInput) {
+  if (!toolInput || typeof toolInput !== "object") return "";
+  for (const key of ["command", "cmd", "script"]) {
+    if (typeof toolInput[key] === "string") return toolInput[key];
   }
-  stages.push(current);
-  return quote ? null : stages;
+  return "";
+}
+
+export function toolIsOpenToObservers(toolName, toolInput = {}) {
+  const normalizedName = String(toolName ?? "").toLowerCase();
+  if (OBSERVER_TOOLS.has(normalizedName)) return true;
+  if (LINEAR_READ_TOOL.test(normalizedName)) return true;
+  if (SHELL_TOOLS.has(normalizedName)) return WORKFLOW_COMMAND.test(shellCommand(toolInput));
+  return false;
 }
 
 export function extractIssueIdentifier(value) {
@@ -207,15 +69,9 @@ export function extractIssueIdentifier(value) {
   return value.match(ISSUE_IDENTIFIER)?.[1]?.toUpperCase() ?? null;
 }
 
-export function extractPromptIssueIdentifier(prompt) {
-  if (typeof prompt !== "string") return null;
-  const authored = INJECTED_BLOCKS.reduce((text, block) => text.replace(block, " "), prompt);
-  return authored.match(PROMPT_ISSUE_IDENTIFIER)?.[1] ?? null;
-}
-
 /**
- * 편집 도구가 대상 파일을 담는 키는 provider마다 다르다. gate와 worklog가 서로 다른 키를 먼저 보면
- * 두 키가 함께 오는 도구에서 판정한 파일과 기록한 파일이 갈라지므로 순서를 여기 하나로 모은다.
+ * 편집 도구가 대상 파일을 담는 키는 provider마다 다르다. worklog가 서로 다른 키를 먼저 보면 도구마다
+ * 기록한 파일이 갈라지므로 순서를 여기 하나로 모은다.
  */
 export function editedPathCandidate(toolInput) {
   return (
@@ -228,7 +84,7 @@ export function editedPathCandidate(toolInput) {
  * hook이 아는 worktree root 기준으로 해석하면 같은 문자열이 세션마다 다른 뜻이 된다.
  */
 export function repositoryRelativePath(candidate, worktreeRoot) {
-  if (typeof candidate !== "string" || candidate.length === 0 || CONTROL_CHARACTER.test(candidate)) {
+  if (typeof candidate !== "string" || candidate.length === 0 || hasControlCharacter(candidate)) {
     return null;
   }
   const root = path.resolve(worktreeRoot);
@@ -240,135 +96,18 @@ export function repositoryRelativePath(candidate, worktreeRoot) {
   return relative;
 }
 
-// 편집 도구가 저장소 밖 절대 경로를 가리키면 lease가 지키려는 대상이 아니다. Claude memory 디렉터리나
-// scratchpad에 쓰는 일까지 막으면 세션은 claim 없이 자기 기록조차 남기지 못한다. "밖"의 기준은 이
-// worktree가 아니라 저장소 전체이며, 루트를 알아내지 못하면 밖이라고 말하지 않는다.
-function editsOutsideRepository(toolInput, resolveRepositoryRoots, options) {
-  if (typeof resolveRepositoryRoots !== "function") return false;
-  const candidate = editedPathCandidate(toolInput);
-  if (typeof candidate !== "string") return false;
-  let roots;
-  try {
-    roots = resolveRepositoryRoots();
-  } catch {
-    return false;
-  }
-  return isOutsideRepositoryRoots(candidate, roots, options);
-}
-
-function shellCommand(toolInput) {
-  if (!toolInput || typeof toolInput !== "object") return "";
-  for (const key of ["command", "cmd", "script"]) {
-    if (typeof toolInput[key] === "string") return toolInput[key];
-  }
-  return "";
-}
-
-// pipe를 걷어낸 뒤 남은 한 단계를 판정한다. 순서는 "위험한 형태 먼저, 허용 목록 나중"이며 pipe만
-// 여기 오기 전에 처리된다. 앞 단계가 쓰는 명령이면 뒤가 필터여도 그대로 mutation으로 남는다.
-function classifyShellStage(command) {
-  if (BRANCH_CREATION_COMMAND.test(command.trim())) {
-    return { mutatesRepository: false, reason: "branch-creation-command" };
-  }
-  // MUTATING_COMMANDS는 `(?:^|[;&|]\s*)`로 시작한다. pipe로 나눈 두 번째 이후 단계는 앞에 공백이
-  // 남고 `|`는 이미 제거돼 있어 trim 없이는 어느 쪽에도 걸리지 않는다. 다른 검사와 같은 문자열을 본다.
-  if (MUTATING_COMMANDS.some((pattern) => pattern.test(command.trim()))) {
-    return { mutatesRepository: true, reason: "mutating-command" };
-  }
-  if (WORKFLOW_LIFECYCLE_COMMAND.test(command.trim())) {
-    return { mutatesRepository: false, reason: "workflow-lifecycle-command" };
-  }
-  if (SECRET_FOLDER_COMMAND.test(command.trim())) {
-    return { mutatesRepository: false, reason: "secret-folder-command" };
-  }
-  if (READ_ONLY_COMMANDS.some((pattern) => pattern.test(command.trim()))) {
-    return { mutatesRepository: false, reason: "read-or-verification-command" };
-  }
-  const curl = classifyCurl(command);
-  if (curl !== null) {
-    return curl
-      ? { mutatesRepository: false, reason: "curl-read-request" }
-      : { mutatesRepository: true, reason: "curl-writes-or-uploads" };
-  }
-  return { mutatesRepository: true, reason: "unclassified-command-requires-claim" };
-}
-
-export function classifyToolCall(
-  toolName,
-  toolInput = {},
-  { platform, realPath, resolveRepositoryRoots = null } = {},
-) {
-  const normalizedName = String(toolName ?? "").toLowerCase();
-
-  if (FILE_EDIT_TOOLS.has(normalizedName)) {
-    return editsOutsideRepository(toolInput, resolveRepositoryRoots, { platform, realPath })
-      ? { mutatesRepository: false, reason: "file-edit-outside-repository" }
-      : { mutatesRepository: true, reason: "file-edit-tool" };
-  }
-
-  if (SHELL_TOOLS.has(normalizedName)) {
-    const command = shellCommand(toolInput);
-    // 인라인 코드는 따옴표 안 `;`가 chaining이 아니므로 SHELL_COMPOSITION보다 먼저 자기 규칙으로 판정한다.
-    const inlineInterpreter = classifyInlineInterpreter(command);
-    if (inlineInterpreter !== null) {
-      return inlineInterpreter
-        ? { mutatesRepository: false, reason: "inline-interpreter-read-only" }
-        : { mutatesRepository: true, reason: "inline-interpreter-writes" };
-    }
-    // chaining·redirect(`>`와 `>>`)·치환은 pipe를 나누기 전에 명령 전체에서 본다. 뒤 단계에만 있는
-    // `>> out.log`가 앞 단계 판정으로 통과하면 pipe 완화가 그대로 파일 쓰기 허용이 된다.
-    if (SHELL_COMPOSITION.test(command)) {
-      return { mutatesRepository: true, reason: "compound-or-writing-command" };
-    }
-    const stages = splitPipelineStages(command);
-    if (stages === null) return { mutatesRepository: true, reason: "compound-or-writing-command" };
-    // 모든 단계가 저장소를 바꾸지 않을 때만 통과시키고, 이유는 실제로 무엇을 실행하는지 말해 주는
-    // 첫 단계의 것을 쓴다. 한 단계라도 쓰기면 그 단계의 이유를 그대로 돌려준다.
-    const classifications = stages.map((stage) => classifyShellStage(stage));
-    return classifications.find((entry) => entry.mutatesRepository) ?? classifications[0];
-  }
-
-  if (READ_ONLY_TOOLS.has(normalizedName)) {
-    return { mutatesRepository: false, reason: "known-read-only-tool" };
-  }
-
-  if (WORKTREE_TOOLS.has(normalizedName)) {
-    return { mutatesRepository: false, reason: "worktree-navigation-tool" };
-  }
-
-  if (AGENT_MESSAGING_TOOLS.has(normalizedName)) {
-    return { mutatesRepository: false, reason: "agent-messaging-tool" };
-  }
-
-  if (LINEAR_READ_TOOL.test(normalizedName)) {
-    return { mutatesRepository: false, reason: "linear-read-tool" };
-  }
-
-  if (LINEAR_CREATE_TOOL.test(normalizedName)) {
-    return { mutatesRepository: false, reason: "linear-issue-bootstrap-tool" };
-  }
-
-  if (CHROME_DEVTOOLS_READ_TOOL.test(normalizedName)) {
-    return { mutatesRepository: false, reason: "browser-inspection-tool" };
-  }
-
-  return { mutatesRepository: true, reason: "unclassified-tool-requires-claim" };
-}
-
 export function normalizeHookEvent(input = {}) {
   const hookEventName =
     input.hook_event_name ?? input.hookEventName ?? input.event_name ?? input.eventName ?? input.event;
   const toolName = input.tool_name ?? input.toolName ?? input.tool?.name;
   const toolInput = input.tool_input ?? input.toolInput ?? input.tool?.input ?? {};
-  const prompt = input.prompt ?? input.user_prompt ?? input.userPrompt ?? input.message;
   // Claude Code hooks 문서의 PreToolUse 입력은 `initiated_by`("assistant" | "user")로 사용자가 직접
-  // 실행한 도구 호출을 구분한다. 문자열이 아니면 빈 값으로 두어 fail-closed로 agent 호출처럼 다룬다.
+  // 실행한 도구 호출을 구분한다. 문자열이 아니면 빈 값으로 두어 agent 호출처럼 다룬다.
   const initiatedBy = input.initiated_by ?? input.initiatedBy;
 
   return {
     hookEventName: typeof hookEventName === "string" ? hookEventName : "Unknown",
     initiatedBy: typeof initiatedBy === "string" ? initiatedBy.toLowerCase() : "",
-    prompt: typeof prompt === "string" ? prompt : "",
     sessionId: String(input.session_id ?? input.sessionId ?? "default"),
     toolInput,
     toolName: typeof toolName === "string" ? toolName : "",

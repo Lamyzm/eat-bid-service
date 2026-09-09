@@ -293,16 +293,16 @@ infisical secrets set POSTGRES_PASSWORD=<value> --env=prod --path=/runtime/postg
 - 폴더는 항상 부모 경로를 `--path`로 주고 이름만 `--name`으로 준다. 최상위 `infisical folders`
   명령은 존재하지 않는다.
 - `infisical secrets set`은 같은 key가 이미 있으면 값을 덮어쓴다. 운영 값을 바꾸는 행위이므로
-  kubectl의 cluster 변경 subcommand와 같은 범주로 보고 lease 안에서 실행한다.
+  kubectl의 cluster 변경 subcommand와 같은 범주로 보고 issue에 승인 범위를 남긴 뒤 실행한다.
 - 만든 값을 확인하려고 `infisical secrets get ... --plain`이나 경로 전체 나열을 실행하지 않는다.
   존재 확인은 `infisical secrets folders list`나 소비하는 프로세스의 기동으로 대신한다.
 - 새 path와 key를 만들었으면 4절의 key 이름 계약과 3절의 경로 표를 같은 변경에서 갱신한다.
 - 위 "해서는 안 되는 일"은 그대로 유효하다. 이 절이 여는 것은 승인된 경로에 값을 넣는 일뿐이며
   API key 발급·권한 확대·회전·폐기는 계속 사람의 행위다.
 
-lease gate는 `infisical secrets folders create | list`만 lease 없이 허용한다. 폴더 이름은 비밀이
-아니고 저장소 파일도 바꾸지 않기 때문이다. 값을 다루는 `secrets set | get`과 임의 프로그램을
-실행하는 `infisical run -- <command>`는 lease 안에서 실행한다.
+agent hook은 명령 본문을 해석하지 않으므로(ADR 0043) Infisical 명령을 따로 허용하거나 막지 않는다.
+값을 다루는 `secrets set | get`과 임의 프로그램을 실행하는 `infisical run -- <command>`를 언제 실행할
+수 있는지는 이 문서의 승인 절차와 issue의 범위가 정한다.
 
 사람 몫으로 남는 것은 셋뿐이다. Infisical 계정 로그인(`infisical login`) 유지, project·organization
 권한 부여와 machine identity 발급, 그리고 결제와 plan 변경이다.

@@ -48,6 +48,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0040](0040-observed-rates-in-organization-history.md) | Accepted | 기관 이력의 낙찰·차순위 사정률은 ObservedBidRate로 보존하며 하한율의 100 상한은 유지(0033 §2 일부 대체) |
 | [0041](0041-attempt-roster-read-and-observed-amount.md) | Accepted | 회차 명단의 동일 revision 조회와 EFT_ALL_AMT 관측 제출금액 표시, 계산용 원천 금액 분리 |
 | [0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md) | Accepted | 삭제 전용 legacy ledger 넷 철거, merge-base 변경 범위 검사와 파일 머리 `@boundary-waiver`, 병렬 단일 드라이버 `architecture:check`와 `--changed` pre-commit (0020·0023·0035의 ledger 조항 대체) |
+| [0043](0043-session-lock-and-commit-boundary-guard.md) | Accepted | agent workflow 가드를 명령 가로채기 lease에서 worktree 세션 잠금(holder)과 pre-commit·pre-push의 branch↔claim 검사로 바꾸고, 명령 분류기·lease 만료·writer 결박을 삭제 (2026-08-30 workflow 설계 §4.1·§6과 0026 결정 3의 허용 목록 운영 대체) |
 
 ## 새 ADR 형식
 

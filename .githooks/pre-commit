@@ -1,3 +1,4 @@
 #!/bin/sh
-# 커밋 직전에는 merge-base 대비 변경 경로에 해당하는 architecture 검사만 병렬로 실행한다. 전체 gate는 main pre-push와 CI가 맡는다.
+# 커밋 직전에 branch의 issue와 worktree claim의 일치를 network 없이 확인한 뒤, merge-base 대비 변경 경로의 architecture 검사만 병렬로 실행한다. 전체 gate는 main pre-push와 CI가 맡는다.
+node tools/agent-workflow/commit-guard.mjs pre-commit || exit 1
 exec node tools/architecture/run-checks.mjs --changed

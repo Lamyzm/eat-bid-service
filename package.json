@@ -42,6 +42,7 @@
     "workflow:issues": "node tools/agent-workflow/infisical.mjs issue list",
     "workflow:release": "node tools/agent-workflow/cli.mjs release",
     "workflow:release:review": "node tools/agent-workflow/infisical.mjs release --review",
+    "workflow:session": "node tools/agent-workflow/cli.mjs session",
     "workflow:recover-lock": "node tools/agent-workflow/cli.mjs recover-lock",
     "workflow:worktree": "node tools/agent-workflow/cli.mjs worktree",
     "workflow:sync": "node tools/agent-workflow/infisical.mjs sync",

@@ -37,6 +37,27 @@ test("모든 push에 필수 테스트를 실행하고 main에만 아키텍처와
   assert.deepEqual(calls, ["test", "architecture:check", "review:origin/main"]);
 });
 
+test("branch와 claim이 어긋난 push는 테스트를 돌리기 전에 막는다", async () => {
+  const calls = [];
+  const code = await runPrePush({
+    stdin: update("refs/heads/feature"),
+    env: {},
+    checkClaims: async (stdin, environment) => {
+      calls.push(["claims", stdin.trim(), environment]);
+      return 1;
+    },
+    runRequired: async (command) => {
+      calls.push([command]);
+      return 0;
+    },
+    runAdvisory: async () => ({ category: "success" }),
+    warn: () => undefined,
+  });
+
+  assert.equal(code, 1);
+  assert.deepEqual(calls, [["claims", update("refs/heads/feature").trim(), {}]]);
+});
+
 test("필수 명령 실패는 push를 막고 advisory unavailable은 막지 않는다", async () => {
   assert.equal(
     await runPrePush({
