@@ -196,3 +196,57 @@ test("유효하지 않은 ref와 파일·줄·patch 한도를 각각 fail-closed
     fixture.close();
   }
 });
+
+test("lockfile 변경은 거부하지 않고 리뷰 대상·patch에서 제외한 뒤 코드 변경만 리뷰한다", () => {
+  const fixture = repository();
+  try {
+    const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fixture.root, encoding: "utf8" }).trim();
+    writeFileSync(path.join(fixture.root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\npackages:\n  표시금지본문\n", "utf8");
+    writeFileSync(path.join(fixture.root, "review.ts"), "export const 검증값 = true;\n", "utf8");
+    fixture.git("add", "pnpm-lock.yaml", "review.ts");
+    fixture.git("commit", "-qm", "lockfile과 코드 변경");
+
+    const scope = inspectReviewScope({ repoRoot: fixture.root, baseRef: base });
+    assert.equal(scope.ok, true);
+    assert.deepEqual(scope.changedPaths, ["review.ts"]);
+    assert.deepEqual(scope.excludedArtifactPaths, ["pnpm-lock.yaml"]);
+    assert.match(scope.patch, /\+export const 검증값 = true;/);
+    assert.doesNotMatch(scope.patch, /lockfileVersion|표시금지본문|pnpm-lock\.yaml/);
+  } finally {
+    fixture.close();
+  }
+});
+
+test("생성물·lockfile만 바뀌면 리뷰할 코드가 없어 no-reviewable-change로 멈춘다", () => {
+  const fixture = repository();
+  try {
+    const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fixture.root, encoding: "utf8" }).trim();
+    writeFileSync(path.join(fixture.root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+    fixture.git("add", "pnpm-lock.yaml");
+    fixture.git("commit", "-qm", "lockfile만 변경");
+
+    const scope = inspectReviewScope({ repoRoot: fixture.root, baseRef: base });
+    assert.equal(scope.category, "no-reviewable-change");
+    assert.equal(scope.patch, undefined);
+  } finally {
+    fixture.close();
+  }
+});
+
+test("생성물과 secret이 함께 바뀌면 secret 우선으로 전체를 거부한다", () => {
+  const fixture = repository();
+  try {
+    const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: fixture.root, encoding: "utf8" }).trim();
+    writeFileSync(path.join(fixture.root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+    writeFileSync(path.join(fixture.root, ".env"), "SECRET=값\n", "utf8");
+    writeFileSync(path.join(fixture.root, "review.ts"), "export const 값 = 1;\n", "utf8");
+    fixture.git("add", "pnpm-lock.yaml", ".env", "review.ts");
+    fixture.git("commit", "-qm", "lockfile·secret·코드 변경");
+
+    const scope = inspectReviewScope({ repoRoot: fixture.root, baseRef: base });
+    assert.equal(scope.category, "denied-path");
+    assert.equal(scope.patch, undefined);
+  } finally {
+    fixture.close();
+  }
+});

@@ -68,3 +68,16 @@ compatibility, dependency-automation, and backup/restore gates. Restore-drill ev
 must include the artifact used, isolated target, elapsed recovery, and verified raw/DB
 contents. Correlation fields must cross workflow, dataplane, server, and publication
 logs; a field omitted at any handoff is a release-blocking defect.
+
+## 운영 메모 — 이미지 취약점 게이트 사례 (2026-09-09)
+
+로그인·계정 기능(`better-auth`)을 server 프로덕션 의존성에 넣자, better-auth의 선택적(optional)
+peer `drizzle-kit`(→`esbuild`)이 런타임 이미지까지 딸려 들어가 `release/v0.1.24` 빌드가 Trivy
+HIGH/CRITICAL 게이트에서 거부됐다. `esbuild 0.25.12`의 Go 바이너리(go1.23.12)에 crypto/tls
+`CVE-2025-68121`(CRITICAL) 외 stdlib 취약점 22건, 그리고 nest가 끌어온 `multer 2.2.0`에 DoS
+`CVE-2026-77037`(HIGH)이 걸렸다. 런타임 소스는 둘 다 직접 import하지 않는다(빌드·마이그레이션 도구).
+루트 `pnpm.overrides`로 `esbuild` 0.28.2(go1.26.5로 빌드 확인)·`multer` 2.3.0을 고정해 소거하고
+`release/v0.1.25` 태그로 재발행했다. 교훈: 프로덕션 의존성을 추가하면 그 optional peer가 런타임
+이미지에 build 도구(및 취약한 네이티브 바이너리)를 끌고 올 수 있다. 릴리즈 전
+`pnpm --filter @eatbid/server list <pkg> --prod --depth Infinity`로 실제 프로덕션 그래프를 확인하고,
+필요하면 override로 패치 버전을 고정한다. `.trivyignore`로 스캔을 우회하지 않는다.
