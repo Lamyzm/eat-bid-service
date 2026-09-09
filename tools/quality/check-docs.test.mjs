@@ -148,7 +148,8 @@ test("존재하지 않는 파일이나 heading 앵커를 가리키는 상대 링
   const fixture = repository(baseFiles);
   try {
     const report = inspect(fixture, {
-      "docs/operations/links.md": `${frontmatter("link-fixture", "draft")}# 링크\n\n[없음](missing.md) [앵커 없음](runbook.md#없는-절) [정상](runbook.md#복구-절차) [외부](https://example.com/x.md)\n`,
+      "docs/operations/links.md": `${frontmatter("link-fixture", "draft")}# 링크\n\n[없음](missing.md) [앵커 없음](runbook.md#없는-절) [정상](runbook.md#복구-절차) [외부](https://example.com/x.md) [괄호 경로](../../apps/(group)/page.md) [꺾쇠](<../../apps/(group)/page.md>)\n`,
+      "apps/(group)/page.md": "# 그룹 페이지\n",
     });
     assert.deepEqual(
       report.violations.map((item) => item.message),

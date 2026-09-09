@@ -2,7 +2,7 @@
 id: PRODUCT-SCREEN-SYSTEM
 status: active
 canonical_for: product-information-architecture-and-screen-contracts
-last_reviewed: 2026-09-08
+last_reviewed: 2026-09-10
 review_trigger: product-navigation-core-work-surface-or-visual-language-change
 ---
 
@@ -296,10 +296,11 @@ neutral/slate, 저장 후보와 사용자 행동만 blue를 사용한다.
 
 ### 6.4 기관 이전 기록: 시간 산점도와 연결 표
 
-기관 이력은 현재 web 분석판의 좋은 자산을 계승하되 의미와 행동을 고친다. 현행 구현은
-[`analysis-board.tsx`](../../apps/web/src/app/dashboard/analysis/[id]/analysis-board.tsx)와
-[`time-dot-chart.tsx`](../../apps/web/src/components/time-dot-chart.tsx)에 시간 흐름과 기록 표가 있다.
-2026-08-31 로컬 화면에서 김해율하유치원은 전체 88회, 축산물 34회의 source-observed 기록을 제공했다.
+기관 이력은 옛 web 분석판의 좋은 자산을 계승하되 의미와 행동을 고친다. 옛 `dashboard/analysis` 분석판과
+`time-dot-chart`는 2026-09-10 main에서 legacy 화면 잔재로 제거됐고(commit `17672c64`), 시간 흐름과 기록 표는
+결정 화면의 [`flow-chart.tsx`](../../apps/web/src/app/(workspace)/auctions/[auctionId]/_ui/flow-chart.tsx)와
+`_ui/expand/` 이력 표가 잇는다.
+2026-08-31 옛 로컬 화면에서 김해율하유치원은 전체 88회, 축산물 34회의 source-observed 기록을 제공했다.
 이 수치는 현재 구현 확인 예시이며 target architecture의 고정 fixture가 아니다.
 
 - X축은 개찰일, Y축은 source-observed `award_bid_rate`이며 점 하나가 하나의 `AuctionAttempt`다.

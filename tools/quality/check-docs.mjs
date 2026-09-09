@@ -143,8 +143,9 @@ function relativeLinks(source) {
   for (const line of normalizeSource(source).split("\n")) {
     if (/^\s*(?:```|~~~)/u.test(line)) inFence = !inFence;
     if (inFence) continue;
-    for (const match of line.matchAll(/\]\(<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/gu)) {
-      const target = match[1];
+    // Next route group 경로 `(workspace)`처럼 균형 잡힌 괄호 한 겹과 `<…>` 감싼 경로를 GitHub와 같이 허용한다.
+    for (const match of line.matchAll(/\]\((?:<([^>]+)>|((?:[^()\s]|\([^()\s]*\))+))(?:\s+"[^"]*")?\)/gu)) {
+      const target = match[1] ?? match[2];
       if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/iu.test(target)) continue;
       links.push(target);
     }
