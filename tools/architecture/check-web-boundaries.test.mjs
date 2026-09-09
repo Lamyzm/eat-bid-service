@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -18,26 +18,31 @@ function fixture(files) {
     mkdirSync(path.dirname(target), { recursive: true });
     writeFileSync(target, contents, "utf8");
   }
-  const baselinePath = path.join(root, "baseline.json");
-  writeFileSync(baselinePath, "{\n  \"version\": 1,\n  \"entries\": []\n}\n", "utf8");
-  return { root, baselinePath, sourceRoot: path.join(root, "apps", "web", "src") };
+  return { root, sourceRoot: path.join(root, "apps", "web", "src") };
 }
 
-async function inspect(files) {
+async function inspect(files, changedPaths) {
   const subject = fixture(files);
   try {
     return await inspectWebBoundaries({
       repoRoot: subject.root,
       sourceRoot: subject.sourceRoot,
-      baselinePath: subject.baselinePath,
+      changedPaths,
     });
   } finally {
     rmSync(subject.root, { recursive: true, force: true });
   }
 }
 
+function runCli(root, args = []) {
+  const env = { ...process.env, WEB_BOUNDARIES_ROOT: root };
+  delete env.EATBID_CHANGED_PATHS;
+  delete env.EATBID_CHANGED_BASE;
+  return spawnSync(process.execPath, [cli, ...args], { cwd: repositoryRoot, encoding: "utf8", env });
+}
+
 function rules(report) {
-  return [...new Set(report.unmatchedFindings.map((finding) => finding.rule))];
+  return [...new Set(report.findings.map((finding) => finding.rule))];
 }
 
 test("shell의 API와 capability 의존 및 내부 deep import를 거부한다", async () => {
@@ -63,7 +68,7 @@ test("공개 API resource index와 server import는 허용한다", async () => {
     "apps/web/src/api/auctions/server.ts": "export const getAuctionFromServer = () => undefined;\n",
   });
 
-  assert.equal(report.unmatchedFindings.length, 0);
+  assert.equal(report.findings.length, 0);
 });
 
 test("contracts의 src/api 경로를 Web API resource로 오인하지 않는다", async () => {
@@ -72,7 +77,7 @@ test("contracts의 src/api 경로를 Web API resource로 오인하지 않는다"
     "packages/contracts/src/api/v1/auctions/index.ts": "export const operation = {};\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings, []);
+  assert.deepEqual(report.findings, []);
 });
 
 test("browser transport의 server 전용 import와 server transport의 browser import를 거부한다", async () => {
@@ -82,7 +87,7 @@ test("browser transport의 server 전용 import와 server transport의 browser i
     "apps/web/src/api/_transport/server-request.server.ts": "import { browserRequest } from './browser-request'; void browserRequest;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "transport-runtime-cross-import").length, 3);
+  assert.equal(report.findings.filter((finding) => finding.rule === "transport-runtime-cross-import").length, 3);
 });
 
 test("transport 밖 fetch와 안전하지 않은 JSON 응답 처리를 거부한다", async () => {
@@ -105,7 +110,7 @@ test("window와 globalThis fetch 우회도 transport 밖에서 거부한다", as
     "apps/web/src/api/auctions/get.ts": "export const load = () => window.fetch('/auction');\nexport const retry = () => globalThis.fetch('/auction');\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "raw-fetch").length, 2);
 });
 
 test("route client 선언과 bigint Number 변환을 거부한다", async () => {
@@ -136,7 +141,7 @@ test("완전히 같은 큰 source 그룹과 300줄 초과 source를 보고한다
   });
 
   assert.deepEqual(rules(report).sort(), ["duplicate-source-group", "source-file-size"].sort());
-  const duplicateFinding = report.unmatchedFindings.find((finding) => finding.rule === "duplicate-source-group");
+  const duplicateFinding = report.findings.find((finding) => finding.rule === "duplicate-source-group");
   assert.deepEqual(duplicateFinding.members, ["apps/web/src/shared/one.ts", "apps/web/src/shared/two.ts"]);
 });
 
@@ -159,7 +164,7 @@ test("canonical 화면의 임의 motion과 shared control의 업무 의존을 �
     "shared-control-responsibility",
   ].sort());
   assert.equal(
-    report.unmatchedFindings.filter(
+    report.findings.filter(
       (finding) => finding.rule === "shared-control-responsibility",
     ).length,
     2,
@@ -180,7 +185,7 @@ test("공통 primitive의 token 기반 press motion은 허용한다", async () =
     ].join("\n"),
   });
 
-  assert.deepEqual(report.unmatchedFindings, []);
+  assert.deepEqual(report.findings, []);
 });
 
 test("loading route의 직접 Skeleton 조립과 범용 PageContainer loading 상태를 거부한다", async () => {
@@ -216,7 +221,7 @@ test("loading route가 sibling ScreenSkeleton 하나만 반환하면 허용한�
       "export function AuctionScreenSkeleton() { return <main aria-busy='true' />; }\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings, []);
+  assert.deepEqual(report.findings, []);
 });
 
 test("root loading route도 Client Component이면 거부한다", async () => {
@@ -233,74 +238,105 @@ test("root loading route도 Client Component이면 거부한다", async () => {
   assert.deepEqual(rules(report), ["route-loading-boundary"]);
 });
 
-test("정확한 legacy fingerprint는 허용하고 변경 추가 이름 변경은 거부한다", async () => {
-  const subject = fixture({
-    "apps/web/src/legacy.ts": "export async function load() { return fetch('/legacy') }\n",
+test("파일 머리 waiver는 source-file-size finding만 면제하고 stale·형식 오류·다른 규칙 waiver는 실패로 보고한다", async () => {
+  const oversized = Array.from({ length: 301 }, (_, index) => `export const line${index} = ${index};`).join("\n");
+  const waiver = '// @boundary-waiver source-file-size owner=EAT-121 reason="vendored 구현이라 한 파일로 유지한다" splitTrigger="동작을 바꾸는 첫 변경"';
+  const report = await inspect({
+    "apps/web/src/components/ui/waived.tsx": `${waiver}\n'use client';\n${oversized}\n`,
+    "apps/web/src/components/ui/block.tsx": `/**\n * @module 책임: 블록 주석 안의 waiver도 파일 머리로 본다.\n * ${waiver.slice(3)}\n */\n${oversized}\n`,
+    "apps/web/src/components/ui/stale.tsx": `${waiver}\nexport const small = 1;\n`,
+    "apps/web/src/components/ui/late.tsx": `export const first = 1;\n${waiver}\n${oversized}\n`,
+    "apps/web/src/components/ui/english.tsx": `// @boundary-waiver source-file-size owner=EAT-121 reason="keep vendored" splitTrigger="next change"\n${oversized}\n`,
+    "apps/web/src/components/ui/missing.tsx": `// @boundary-waiver source-file-size owner=EAT-121\n${oversized}\n`,
+    "apps/web/src/hooks/other-rule.ts": '// @boundary-waiver legacy-hooks-directory owner=EAT-121 reason="옮기기 전까지 둔다" splitTrigger="다음 변경"\nexport const useOther = () => 1;\n',
   });
-  try {
-    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-    const finding = initial.unmatchedFindings.find((candidate) => candidate.rule === "raw-fetch");
-    writeFileSync(subject.baselinePath, `${JSON.stringify({
-      version: 1,
-      entries: [{
-        rule: finding.rule,
-        path: finding.path,
-        kind: finding.kind,
-        sha256: finding.sha256,
-        reason: "기존 legacy fetch는 다음 transport 전환에서 제거한다.",
-        owner: "EAT-9 web foundation",
-        splitTrigger: "canonical resource transport가 이 module을 대체할 때",
-      }],
-    }, null, 2)}\n`);
-    assert.equal((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).unmatchedFindings.length, 0);
 
-    writeFileSync(path.join(subject.sourceRoot, "legacy.ts"), "export async function load() { return fetch('/changed') }\n");
-    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /legacy fingerprint drift/);
-
-    writeFileSync(path.join(subject.sourceRoot, "renamed.ts"), "export async function load() { return fetch('/legacy') }\n");
-    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /new legacy finding/);
-  } finally {
-    rmSync(subject.root, { recursive: true, force: true });
-  }
+  assert.deepEqual(report.waived.map((item) => item.path).sort(), [
+    "apps/web/src/components/ui/block.tsx",
+    "apps/web/src/components/ui/waived.tsx",
+  ]);
+  assert.equal(report.waived[0].waiver.owner, "EAT-121");
+  assert.deepEqual(
+    report.findings.filter((item) => item.rule === "source-file-size").map((item) => item.path).sort(),
+    ["apps/web/src/components/ui/english.tsx", "apps/web/src/components/ui/late.tsx", "apps/web/src/components/ui/missing.tsx"],
+  );
+  const failures = report.failures.join("\n");
+  assert.match(failures, /stale\.tsx:1 stale waiver/u);
+  assert.match(failures, /late\.tsx: @boundary-waiver는 import와 코드보다 앞선/u);
+  assert.match(failures, /english\.tsx:1 .*한국어 문장/u);
+  assert.match(failures, /missing\.tsx:1 waiver에 reason, splitTrigger가 필요/u);
+  assert.match(failures, /other-rule\.ts:1 legacy-hooks-directory 규칙은 waiver로 면제할 수 없습니다/u);
+  assert.ok(report.findings.some((item) => item.rule === "legacy-hooks-directory" && item.path === "apps/web/src/hooks/other-rule.ts"));
 });
 
-test("기존 baseline은 write-baseline으로 덮어쓰지 않는다", () => {
-  const subject = fixture({ "apps/web/src/legacy.ts": "export const value = 1;\n" });
-  try {
-    assert.throws(() => execFileSync(process.execPath, [cli, "--write-baseline"], {
-      cwd: repositoryRoot,
-      env: { ...process.env, WEB_BOUNDARIES_ROOT: subject.root, WEB_BOUNDARIES_BASELINE: subject.baselinePath },
-      encoding: "utf8",
-      stdio: "pipe",
-    }), /refuses to overwrite|baseline already exists/i);
-  } finally {
-    rmSync(subject.root, { recursive: true, force: true });
-  }
+test("변경 범위가 주어지면 legacy import·hooks·lib 규칙은 변경된 파일에서만 보고하고 나머지 규칙은 그대로 보고한다", async () => {
+  const files = {
+    "apps/web/src/shell/layout/shell.tsx": "import Header from '@/components/layout/header'; export const Shell = () => Header;\n",
+    "apps/web/src/shell/theme/toggle.tsx": "import { Kbd } from '@/components/ui/kbd'; export const toggle = Kbd;\n",
+    "apps/web/src/hooks/use-old.ts": "export const useOld = () => 1;\n",
+    "apps/web/src/hooks/use-new.ts": "export const useNew = () => 1;\n",
+    "apps/web/src/lib/utils.ts": "export const cn = (value: string) => value;\n",
+    "apps/web/src/api/auctions/get.ts": "export async function load() { return fetch('/x') }\n",
+    "apps/web/src/components/layout/header.tsx": "export default function Header() { return null; }\n",
+    "apps/web/src/components/ui/kbd.tsx": "export const Kbd = () => null;\n",
+  };
+  const pairs = (items) => items.map((item) => [item.rule, item.path]).sort();
+
+  const strict = await inspect(files);
+  assert.deepEqual(pairs(strict.findings), [
+    ["legacy-hooks-directory", "apps/web/src/hooks/use-new.ts"],
+    ["legacy-hooks-directory", "apps/web/src/hooks/use-old.ts"],
+    ["legacy-import", "apps/web/src/shell/layout/shell.tsx"],
+    ["legacy-import", "apps/web/src/shell/theme/toggle.tsx"],
+    ["legacy-lib-directory", "apps/web/src/lib/utils.ts"],
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+  ]);
+  assert.deepEqual(strict.skipped, []);
+
+  const scoped = await inspect(files, new Set(["apps/web/src/shell/theme/toggle.tsx", "apps/web/src/hooks/use-new.ts"]));
+  assert.deepEqual(pairs(scoped.findings), [
+    ["legacy-hooks-directory", "apps/web/src/hooks/use-new.ts"],
+    ["legacy-import", "apps/web/src/shell/theme/toggle.tsx"],
+    ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
+  ]);
+  assert.deepEqual(pairs(scoped.skipped), [
+    ["legacy-hooks-directory", "apps/web/src/hooks/use-old.ts"],
+    ["legacy-import", "apps/web/src/shell/layout/shell.tsx"],
+    ["legacy-lib-directory", "apps/web/src/lib/utils.ts"],
+  ]);
+
+  const untouched = await inspect(files, new Set());
+  assert.deepEqual(pairs(untouched.findings), [["raw-fetch", "apps/web/src/api/auctions/get.ts"]]);
 });
 
-test("legacy baseline은 삭제를 허용하고 replacement rename addition multiplicity를 분리한다", async () => {
-  const subject = fixture({ "apps/web/src/legacy.ts": "fetch('/same');\nfetch('/same');\n" });
+test("CLI는 기준 branch가 없으면 legacy 변경 범위 규칙을 경고로 보류하고 명시한 기준 뒤에는 변경 파일만 판정한다", () => {
+  const subject = fixture({ "apps/web/src/hooks/use-old.ts": "export const useOld = () => 1;\n" });
+  const git = (...args) => execFileSync("git", args, { cwd: subject.root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   try {
-    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-    const [first] = initial.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch");
-    const baseline = { version: 1, entries: [{ ...first, reason: "legacy", owner: "EAT-9", splitTrigger: "migrate" }] };
-    writeFileSync(subject.baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-    const multiplicity = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-    assert.match(multiplicity.baselineFailures.join("\n"), /multiplicity increase/);
+    git("init", "-q", "-b", "trunk");
+    git("config", "user.name", "검증 사용자");
+    git("config", "user.email", "quality@example.com");
+    git("config", "commit.gpgsign", "false");
+    git("add", ".");
+    git("commit", "-qm", "초기 코드");
 
-    writeFileSync(path.join(subject.sourceRoot, "legacy.ts"), "");
-    const deletion = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-    assert.equal(deletion.baselineFailures.length, 0);
+    const unresolved = runCli(subject.root);
+    assert.equal(unresolved.status, 0, `${unresolved.stdout}${unresolved.stderr}`);
+    assert.match(unresolved.stderr, /경고: 기준 branch/u);
+    assert.match(unresolved.stdout, /legacy finding 1개 생략/u);
 
-    writeFileSync(path.join(subject.sourceRoot, "legacy.ts"), "fetch('/replacement');\n");
-    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /fingerprint drift/);
+    const explicit = runCli(subject.root, ["--base", "trunk"]);
+    assert.equal(explicit.status, 0, `${explicit.stdout}${explicit.stderr}`);
+    assert.match(explicit.stdout, /trunk@[0-9a-f]{7} merge-base 이후 0개 경로/u);
 
-    writeFileSync(path.join(subject.sourceRoot, "legacy.ts"), "");
-    writeFileSync(path.join(subject.sourceRoot, "renamed.ts"), "fetch('/same');\n");
-    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /new legacy finding/);
+    writeFileSync(path.join(subject.sourceRoot, "hooks", "use-old.ts"), "export const useOld = () => 2;\n");
+    const touched = runCli(subject.root, ["--base", "trunk"]);
+    assert.equal(touched.status, 1);
+    assert.match(touched.stderr, /use-old\.ts \[legacy-hooks-directory\]/u);
 
-    writeFileSync(path.join(subject.sourceRoot, "added.ts"), "fetch('/added');\n");
-    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /new legacy finding/);
+    const audit = runCli(subject.root, ["--all"]);
+    assert.equal(audit.status, 1);
+    assert.match(audit.stderr, /범위: 전체/u);
   } finally {
     rmSync(subject.root, { recursive: true, force: true });
   }
@@ -320,7 +356,7 @@ test("import와 export-from은 resource public entry와 transport 소유권을 �
   });
 
   assert.deepEqual(rules(report).sort(), ["resource-transport-import", "web-api-deep-import"].sort());
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 4);
+  assert.equal(report.findings.filter((finding) => finding.rule === "resource-transport-import").length, 4);
 });
 
 test("전역 fetch와 Response decoder만 검사하고 shadow parser는 허용한다", async () => {
@@ -333,10 +369,10 @@ test("전역 fetch와 Response decoder만 검사하고 shadow parser는 허용�
     ].join("\n"),
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 0);
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 0);
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-json-cast").length, 1);
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 4);
+  assert.equal(report.findings.filter((finding) => finding.rule === "raw-fetch").length, 0);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-json").length, 0);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-json-cast").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-body").length, 4);
 });
 
 test("ID 변환만 검사하고 pagination timestamp slider month 변환은 허용한다", async () => {
@@ -344,7 +380,7 @@ test("ID 변환만 검사하고 pagination timestamp slider month 변환은 허�
     "apps/web/src/routing/ids.ts": "type AuctionId = string & { readonly brand: 'AuctionId' }; export const id = (auctionId: string, branded: AuctionId, createdAt: string, page: string, sliderValue: string, month: string) => [Number(auctionId), parseInt(branded, 10), Number(createdAt), Number(page), Number(sliderValue), parseInt(month, 10)];\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "id-number-conversion").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "id-number-conversion").length, 2);
 });
 
 test("v1 v2 endpoint literal은 막고 package import와 fixture authority는 허용한다", async () => {
@@ -353,7 +389,7 @@ test("v1 v2 endpoint literal은 막고 package import와 fixture authority는 �
     "apps/web/src/api/auctions/fixture.test.ts": "export const fixture = '/api/v2/allowed';\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "api-endpoint-literal").length, 2);
 });
 
 test("간접 manual DTO export는 막고 imported contract alias는 허용한다", async () => {
@@ -363,7 +399,7 @@ test("간접 manual DTO export는 막고 imported contract alias는 허용한다
     "apps/web/src/api/auctions/contract.ts": "import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions'; export type AuctionResponse = AuctionV1Response;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "manual-api-response").length, 1);
 });
 
 test("physical line count는 300 경계의 trailing newline을 올림하지 않는다", async () => {
@@ -374,51 +410,18 @@ test("physical line count는 300 경계의 trailing newline을 올림하지 않�
     "apps/web/src/shared/too-large.ts": lines(301, "\n"),
   });
 
-  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "source-file-size").map((finding) => finding.path), ["apps/web/src/shared/too-large.ts"]);
+  assert.deepEqual(report.findings.filter((finding) => finding.rule === "source-file-size").map((finding) => finding.path), ["apps/web/src/shared/too-large.ts"]);
 });
 
-test("source-derived fingerprint은 같은 category 편집과 duplicate group 동시 편집을 거부한다", async () => {
-  const duplicate = (suffix) => Array.from({ length: 10 }, (_, index) => `export const item${index} = '${suffix}-${"x".repeat(16)}';`).join("\n");
-  const subject = fixture({
-    "apps/web/src/app/page.tsx": `'use client';\n${Array.from({ length: 300 }, (_, index) => `export const page${index} = ${index};`).join("\n")}\n`,
-    "apps/web/src/shared/one.ts": duplicate("before"),
-    "apps/web/src/shared/two.ts": duplicate("before"),
+test("한국어 module 책임 주석만 다른 두 파일은 같은 duplicate source group으로 본다", async () => {
+  const body = Array.from({ length: 12 }, (_, index) => `export const item${index} = '${"x".repeat(16)}';`).join("\n");
+  const report = await inspect({
+    "apps/web/src/shared/one.ts": `/** @module 책임: 첫 번째 복제본의 책임 설명이다. */\n${body}\n`,
+    "apps/web/src/shared/two.ts": `${body}\n`,
   });
-  try {
-    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-    writeFileSync(subject.baselinePath, `${JSON.stringify({ version: 1, entries: initial.findings.map((finding) => ({ ...finding, reason: "legacy", owner: "EAT-9", splitTrigger: "migrate" })) }, null, 2)}\n`);
-    writeFileSync(path.join(subject.sourceRoot, "app", "page.tsx"), `'use client';\n// edited but still a client route\n${Array.from({ length: 300 }, (_, index) => `export const page${index} = ${index};`).join("\n")}\n`);
-    writeFileSync(path.join(subject.sourceRoot, "shared", "one.ts"), duplicate("after"));
-    writeFileSync(path.join(subject.sourceRoot, "shared", "two.ts"), duplicate("after"));
-    const changed = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-    assert.equal(changed.baselineFailures.filter((failure) => /fingerprint drift/.test(failure)).length, 3);
 
-    writeFileSync(path.join(subject.sourceRoot, "app", "page.tsx"), "export default function Page() { return null }\n");
-    writeFileSync(path.join(subject.sourceRoot, "shared", "one.ts"), "export const one = 1;\n");
-    writeFileSync(path.join(subject.sourceRoot, "shared", "two.ts"), "export const two = 2;\n");
-    assert.equal((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.length, 0);
-  } finally {
-    rmSync(subject.root, { recursive: true, force: true });
-  }
-});
-
-test("한국어 module 책임 주석은 source 전체 legacy fingerprint를 바꾸지 않는다", async () => {
-  const body = Array.from({ length: 300 }, (_, index) => `export const page${index} = ${index};`).join("\n");
-  const subject = fixture({
-    "apps/web/src/app/page.tsx": `'use client';\n${body}\n`,
-  });
-  try {
-    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-    writeFileSync(subject.baselinePath, `${JSON.stringify({ version: 1, entries: initial.findings.map((finding) => ({ ...finding, reason: "legacy", owner: "EAT-9", splitTrigger: "migrate" })) }, null, 2)}\n`);
-    writeFileSync(path.join(subject.sourceRoot, "app", "page.tsx"), `/** @module 책임: 기존 client route의 화면 책임을 설명한다. */\n'use client';\n${body}\n`);
-
-    const commented = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-
-    assert.equal(commented.baselineFailures.length, 0);
-    assert.equal(commented.unmatchedFindings.length, 0);
-  } finally {
-    rmSync(subject.root, { recursive: true, force: true });
-  }
+  const group = report.findings.find((finding) => finding.rule === "duplicate-source-group");
+  assert.deepEqual(group?.members, ["apps/web/src/shared/one.ts", "apps/web/src/shared/two.ts"]);
 });
 
 test("transport import은 exact owner와 ContractRequest type-only form만 허용한다", async () => {
@@ -436,7 +439,7 @@ test("transport import은 exact owner와 ContractRequest type-only form만 허�
     "apps/web/src/api/_transport/private.ts": "export const anything = 1;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 5);
+  assert.equal(report.findings.filter((finding) => finding.rule === "resource-transport-import").length, 5);
 });
 
 test("Response subclass union decoder는 막고 local parser decoder는 허용한다", async () => {
@@ -444,8 +447,8 @@ test("Response subclass union decoder는 막고 local parser decoder는 허용�
     "apps/web/src/api/auctions/get.ts": "class CustomResponse extends Response {} const parser = { json: () => 1 }; export function load(response: CustomResponse | (Response & {})) { parser.json(); return [response.json(), response.text()]; }\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-body").length, 1);
 });
 
 test("dynamic contract import과 Windows fixture path는 허용하고 Web openapi v9 literal은 거부한다", async () => {
@@ -454,7 +457,7 @@ test("dynamic contract import과 Windows fixture path는 허용하고 Web openap
     "apps/web/src/api/auctions/get.ts": "export const load = () => import('@eatbid/contracts/api/v1/auctions');\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
   assert.equal(isTestOrFixture("apps\\web\\src\\fixtures\\authority.ts"), true);
 });
 
@@ -466,7 +469,7 @@ test("local alias와 generic wrapper manual DTO는 막고 contract alias는 허�
     "apps/web/src/api/auctions/contract.ts": "import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions'; export type ContractResponse = AuctionV1Response;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "manual-api-response").length, 2);
 });
 
 test("transport ownership은 exact resource와 transport path만 허용한다", async () => {
@@ -483,7 +486,7 @@ test("transport ownership은 exact resource와 transport path만 허용한다", 
     "apps/web/src/api/_transport/internal/browser-request.ts": "export const browserRequest = () => undefined;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
+  assert.equal(report.findings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
 });
 
 test("overridden Response decoder도 receiver inheritance로 거부한다", async () => {
@@ -491,8 +494,8 @@ test("overridden Response decoder도 receiver inheritance로 거부한다", asyn
     "apps/web/src/api/auctions/get.ts": "class OverrideResponse extends Response { json() { return Promise.resolve({}); } text() { return Promise.resolve(''); } } const parser = { text: () => '' }; export function load(response: OverrideResponse) { parser.text(); return [response.json(), response.text()]; }\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-body").length, 1);
 });
 
 test("endpoint authority는 repo-root prefix와 template static path만 허용한다", async () => {
@@ -501,7 +504,7 @@ test("endpoint authority는 repo-root prefix와 template static path만 허용�
     "apps/web/src/api/auctions/get.ts": "export const dynamic = (id: string) => `/api/v9/auctions/${id}`; export const staticPath = `/api/v8/auctions`;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 3);
+  assert.equal(report.findings.filter((finding) => finding.rule === "api-endpoint-literal").length, 3);
 });
 
 test("manual DTO graph은 local compound shape를 거부하고 resolved contract type은 허용한다", async () => {
@@ -519,39 +522,7 @@ test("manual DTO graph은 local compound shape를 거부하고 resolved contract
     "node_modules/@eatbid/contracts/api/v1/auctions.d.ts": "export interface AuctionV1Response { id: string }\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").length, 7);
-});
-
-test("duplicate baseline은 member subset cleanup을 허용하고 content 또는 member 증가를 거부한다", async () => {
-  const duplicate = (prefix) => Array.from({ length: 10 }, (_, index) => `export const ${prefix}${index} = '${"x".repeat(16)}';`).join("\n");
-  const subject = fixture({
-    "apps/web/src/shared/a.ts": duplicate("a"),
-    "apps/web/src/shared/b.ts": duplicate("a"),
-    "apps/web/src/shared/c.ts": duplicate("a"),
-  });
-  try {
-    const initial = await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath });
-    writeFileSync(subject.baselinePath, `${JSON.stringify({ version: 1, entries: initial.findings.map((finding) => ({ ...finding, reason: "legacy", owner: "EAT-9", splitTrigger: "migrate" })) }, null, 2)}\n`);
-    writeFileSync(path.join(subject.sourceRoot, "shared", "a.ts"), "export const removed = 1;\n");
-    assert.equal((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.length, 0);
-
-    writeFileSync(path.join(subject.sourceRoot, "shared", "a.ts"), duplicate("a"));
-    writeFileSync(path.join(subject.sourceRoot, "shared", "c.ts"), "export const removed = 3;\n");
-    assert.equal((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.length, 0);
-
-    writeFileSync(path.join(subject.sourceRoot, "shared", "c.ts"), duplicate("changed"));
-    writeFileSync(path.join(subject.sourceRoot, "shared", "a.ts"), duplicate("changed"));
-    writeFileSync(path.join(subject.sourceRoot, "shared", "b.ts"), duplicate("changed"));
-    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /fingerprint drift/);
-
-    writeFileSync(path.join(subject.sourceRoot, "shared", "a.ts"), duplicate("a"));
-    writeFileSync(path.join(subject.sourceRoot, "shared", "b.ts"), duplicate("a"));
-    writeFileSync(path.join(subject.sourceRoot, "shared", "c.ts"), duplicate("a"));
-    writeFileSync(path.join(subject.sourceRoot, "shared", "d.ts"), duplicate("a"));
-    assert.match((await inspectWebBoundaries({ repoRoot: subject.root, sourceRoot: subject.sourceRoot, baselinePath: subject.baselinePath })).baselineFailures.join("\n"), /membership increase/);
-  } finally {
-    rmSync(subject.root, { recursive: true, force: true });
-  }
+  assert.equal(report.findings.filter((finding) => finding.rule === "manual-api-response").length, 7);
 });
 
 test("server transport는 canonical server-request.server.ts만 resource server에 허용한다", async () => {
@@ -563,7 +534,7 @@ test("server transport는 canonical server-request.server.ts만 resource server�
     "apps/web/src/api/_transport/server-request.ts": "export const serverRequest = () => undefined;\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").map((finding) => finding.path).sort(), [
+  assert.deepEqual(report.findings.filter((finding) => finding.rule === "resource-transport-import").map((finding) => finding.path).sort(), [
     "apps/web/src/api/orders/index.ts",
     "apps/web/src/api/orders/server.ts",
   ]);
@@ -578,7 +549,7 @@ test("개인 응답 transport는 resource server.ts의 exact runtime import만 �
     "apps/web/src/api/_transport/private-server-request.server.ts": "export const privateServerRequest = () => undefined;\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").map((finding) => finding.path).sort(), [
+  assert.deepEqual(report.findings.filter((finding) => finding.rule === "resource-transport-import").map((finding) => finding.path).sort(), [
     "apps/web/src/api/account/index.ts",
     "apps/web/src/api/orders/server.ts",
     "apps/web/src/capabilities/setup/view.ts",
@@ -595,7 +566,7 @@ test("dynamic import transport는 resource와 외부 consumer에서 거부하고
     "apps/web/src/api/_transport/request-contract.ts": "export interface ContractRequest {}\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
+  assert.equal(report.findings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
 });
 
 test("resolved TypeScript contract와 builtin object utility DTO provenance를 구분한다", async () => {
@@ -609,7 +580,7 @@ test("resolved TypeScript contract와 builtin object utility DTO provenance를 �
     "node_modules/@eatbid/contracts/api/v1/live.ts": "export interface LiveAuctionResponse { id: string }\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").map((finding) => finding.path).sort(), [
+  assert.deepEqual(report.findings.filter((finding) => finding.rule === "manual-api-response").map((finding) => finding.path).sort(), [
     "apps/web/src/api/auctions/promise.ts",
     "apps/web/src/api/auctions/record.ts",
   ]);
@@ -620,7 +591,7 @@ test("endpoint template의 static version expression만 canonical literal로 거
     "apps/web/src/api/auctions/get.ts": "export const numeric = `/api/v${1}/auctions`; export const string = `/api/${'v1'}/auctions`; export const dynamic = (version: string) => `/api/v${version}/auctions`; export const unrelated = (value: string) => `prefix/${value}`;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "api-endpoint-literal").length, 2);
 });
 
 test("Response bracket decoder와 prototype call apply bind bypass를 거부한다", async () => {
@@ -628,8 +599,8 @@ test("Response bracket decoder와 prototype call apply bind bypass를 거부한�
     "apps/web/src/api/auctions/get.ts": "class CustomResponse extends Response {} const parser = { ['json']: () => 1, text: () => 2 }; export function load(response: CustomResponse | (Response & {}), value: unknown) { parser['json'](); parser.text(); return [response['json'](), Response.prototype.text.call(response), Response.prototype.json.apply(response), Response.prototype.text.bind(response)(), Response.prototype.text.call(value)]; }\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 2);
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-json").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
 });
 
 test("dynamic transport specifier의 const template concat unknown segment를 fail-closed로 거부한다", async () => {
@@ -639,7 +610,7 @@ test("dynamic transport specifier의 const template concat unknown segment를 fa
     "apps/web/src/api/_transport/server-request.server.ts": "export const serverRequest = () => undefined;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
+  assert.equal(report.findings.filter((finding) => finding.rule === "resource-transport-import").length, 3);
 });
 
 test("manual DTO provenance는 local type query class callable parameter와 object builtin을 거부한다", async () => {
@@ -663,7 +634,7 @@ test("manual DTO provenance는 local type query class callable parameter와 obje
     "node_modules/@eatbid/contracts/api/v1/auctions.ts": "export interface AuctionResponse { id: string }\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.filter((finding) => finding.rule === "manual-api-response").map((finding) => finding.path).sort(), [
+  assert.deepEqual(report.findings.filter((finding) => finding.rule === "manual-api-response").map((finding) => finding.path).sort(), [
     "apps/web/src/api/auctions/callable.ts", "apps/web/src/api/auctions/class.ts", "apps/web/src/api/auctions/conditional.ts", "apps/web/src/api/auctions/indexed.ts", "apps/web/src/api/auctions/keyof.ts", "apps/web/src/api/auctions/map.ts", "apps/web/src/api/auctions/native-response.ts", "apps/web/src/api/auctions/parameter.ts", "apps/web/src/api/auctions/set.ts", "apps/web/src/api/auctions/typeof.ts", "apps/web/src/api/auctions/url.ts",
   ]);
 });
@@ -673,7 +644,7 @@ test("endpoint static evaluator는 const assertion satisfies concat과 arithmeti
     "apps/web/src/api/auctions/get.ts": "const one = 1 as const; const base = '/api/v' satisfies string; export const asserted = `${base}${one}/auctions`; export const concat = '/api/' + ('v2' as const) + '/auctions'; export const arithmetic = `/api/v${1 + 2}/auctions`; export const unknown = (part: string) => `/api/v${part}/auctions`;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 3);
+  assert.equal(report.findings.filter((finding) => finding.rule === "api-endpoint-literal").length, 3);
 });
 
 test("Response syntax normalization은 wrapped const key global prototype와 bracket apply를 거부한다", async () => {
@@ -681,8 +652,8 @@ test("Response syntax normalization은 wrapped const key global prototype와 bra
     "apps/web/src/api/auctions/get.ts": "const key = 'json' as const; const parser = { json: () => 1 }; export function load(response: Response, value: unknown) { parser[key](); return [(response['json'])(), response[key](), (Response.prototype.json).call(response), globalThis.Response.prototype.text.call(response), Response.prototype.json['apply'](response), (Response.prototype.text.bind(response))(), Response.prototype.text.call(value)]; }\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 4);
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-json").length, 4);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
 });
 
 test("static evaluator는 같은 const 재사용을 허용하고 실제 순환만 중단한다", async () => {
@@ -690,7 +661,7 @@ test("static evaluator는 같은 const 재사용을 허용하고 실제 순환�
     "apps/web/src/api/auctions/get.ts": "const version = 1 as const; export const repeated = `/api/v${version + version}/auctions`; const cycleA = cycleB; const cycleB = cycleA; export const cyclic = `/api/v${cycleA}/auctions`;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
 });
 
 test("import type DTO는 local shape를 거부하고 contract authority를 허용한다", async () => {
@@ -703,7 +674,7 @@ test("import type DTO는 local shape를 거부하고 contract authority를 허�
     "node_modules/@eatbid/contracts/api/v1/auctions.d.ts": "export interface AuctionResponse { id: string }\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+  assert.deepEqual(report.findings.map((finding) => [finding.rule, finding.path]), [
     ["api-endpoint-literal", "apps/web/src/api/auctions/literal.ts"],
     ["manual-api-response", "apps/web/src/api/auctions/responses.ts"],
   ]);
@@ -714,8 +685,8 @@ test("Response instance decoder의 call apply bind 우회를 거부하고 parser
     "apps/web/src/api/auctions/get.ts": "const key = 'json' as const; const parser = { json: () => 1, text: () => 2 }; export function load(response: Response) { parser.json.call(parser); parser.text.apply(parser); return [response[key]['call'](response), (response.text).apply(response), (response.blob.bind(response))()]; }\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-json").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "unchecked-response-body").length, 2);
 });
 
 test("unresolved dynamic transport fallback은 Web transport root에만 적용한다", async () => {
@@ -723,7 +694,7 @@ test("unresolved dynamic transport fallback은 Web transport root에만 적용�
     "apps/web/src/api/auctions/get.ts": "declare const segment: string; export const web = () => import(`@/api/_transport/${segment}`); export const vendor = () => import(`@vendor/api/_transport/${segment}`); export const shared = () => import(`@/shared/api/_transport/${segment}`);\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "resource-transport-import").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "resource-transport-import").length, 1);
 });
 
 test("중첩 endpoint template은 outermost finding 하나만 보고한다", async () => {
@@ -731,7 +702,7 @@ test("중첩 endpoint template은 outermost finding 하나만 보고한다", asy
     "apps/web/src/api/auctions/get.ts": "const version = 1 as const; export const path = `prefix-${`/api/v${version}/auctions`}`;\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "api-endpoint-literal").length, 1);
 });
 
 test("wrapped bracket global fetch는 거부하고 local shadow는 허용한다", async () => {
@@ -740,7 +711,7 @@ test("wrapped bracket global fetch는 거부하고 local shadow는 허용한다"
     "apps/web/src/shared/local.ts": "const key = 'fetch' as const; const fetch = (value: string) => value; const window = { fetch: (value: string) => value }; export const safe = () => [(fetch)('one'), window[key]('two')];\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.equal(report.findings.filter((finding) => finding.rule === "raw-fetch").length, 4);
 });
 
 test("call bind comma wrapper의 전역 fetch만 거부하고 local shadow와 임의 객체는 허용한다", async () => {
@@ -749,7 +720,7 @@ test("call bind comma wrapper의 전역 fetch만 거부하고 local shadow와 �
     "apps/web/src/shared/local.ts": "const fetch = (value: string) => value; const client = { fetch: (value: string) => value }; export function safe(window: { fetch(value: string): string }, globalThis: { fetch(value: string): string }) { return [window['fetch'].call(window, 'one'), globalThis.fetch.bind(globalThis)('two'), (0, fetch)('three'), client.fetch.call(client, 'four')]; }\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+  assert.deepEqual(report.findings.map((finding) => [finding.rule, finding.path]), [
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
@@ -762,7 +733,7 @@ test("중첩 comma bind call 조합의 전역 fetch만 재귀적으로 거부한
     "apps/web/src/shared/local.ts": "const fetch = (value: string) => value; export function safe(window: { fetch(value: string): string }, globalThis: { fetch(value: string): string }) { return [(0, window.fetch).call(window, 'one'), (0, fetch.bind(globalThis))('two'), globalThis.fetch.bind(globalThis).call(undefined, 'three'), (0, (0, (0, fetch)))('four')]; }\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+  assert.deepEqual(report.findings.map((finding) => [finding.rule, finding.path]), [
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
@@ -776,8 +747,8 @@ test("call apply bind 다중 조합은 global fetch origin일 때만 거부한�
     "apps/web/src/shared/local.ts": "const fetch = (value: string) => value; const client = { run: (value: string) => value }; export function safe(window: { fetch(value: string): string }, globalThis: { fetch(value: string): string }) { return [window.fetch.call.bind(window.fetch)(window, 'one'), fetch.apply.bind(fetch)(globalThis, ['two']), globalThis.fetch.bind(globalThis).apply(undefined, ['three']), fetch.call.call(fetch, globalThis, 'four'), client.run.call.bind(client.run)(client, 'five')]; }\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
-  assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
+  assert.equal(report.findings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.ok(report.findings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
 });
 
 test("40단계 comma wrapper는 global fetch를 fail closed로 막고 local shadow는 허용한다", async () => {
@@ -787,7 +758,7 @@ test("40단계 comma wrapper는 global fetch를 fail closed로 막고 local shad
     "apps/web/src/shared/local.ts": `const fetch = (value: string) => value; export const safe = () => ${wrap("fetch")}('deep');\n`,
   });
 
-  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+  assert.deepEqual(report.findings.map((finding) => [finding.rule, finding.path]), [
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
   ]);
 });
@@ -797,7 +768,7 @@ test("fetch 반환값 method chain은 원 fetch 호출 하나만 보고한다", 
     "apps/web/src/api/auctions/get.ts": "export const load = () => fetch('/auction').then((response) => response);\n",
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 1);
+  assert.equal(report.findings.filter((finding) => finding.rule === "raw-fetch").length, 1);
 });
 
 test("bind를 call apply로 역호출한 전역 fetch만 재귀적으로 거부한다", async () => {
@@ -826,8 +797,8 @@ test("bind를 call apply로 역호출한 전역 fetch만 재귀적으로 거부�
     ].join("\n"),
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
-  assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
+  assert.equal(report.findings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.ok(report.findings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
 });
 
 test("120단계 callable 경계는 전역 fetch 근거만 fail closed로 거부한다", async () => {
@@ -843,7 +814,7 @@ test("120단계 callable 경계는 전역 fetch 근거만 fail closed로 거부�
     ].join("\n"),
   });
 
-  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+  assert.deepEqual(report.findings.map((finding) => [finding.rule, finding.path]), [
     ["raw-fetch", "apps/web/src/api/auctions/get.ts"],
   ]);
 });
@@ -875,8 +846,8 @@ test("spread tuple로 bind를 역호출해도 전역 fetch만 한 번 거부한�
     ].join("\n"),
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
-  assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
+  assert.equal(report.findings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.ok(report.findings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
 });
 
 test("spread 모양이 불명확하면 DOM fetch 근거만 fail closed로 거부한다", async () => {
@@ -905,8 +876,8 @@ test("spread 모양이 불명확하면 DOM fetch 근거만 fail closed로 거부
     ].join("\n"),
   });
 
-  assert.equal(report.unmatchedFindings.filter((finding) => finding.rule === "raw-fetch").length, 4);
-  assert.ok(report.unmatchedFindings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
+  assert.equal(report.findings.filter((finding) => finding.rule === "raw-fetch").length, 4);
+  assert.ok(report.findings.every((finding) => finding.path === "apps/web/src/api/auctions/get.ts"));
 });
 
 test("불명확한 spread 앞의 bind 대상 위치를 보존해 thisArg와 boundArg의 fetch는 허용한다", async () => {
@@ -923,7 +894,7 @@ test("불명확한 spread 앞의 bind 대상 위치를 보존해 thisArg와 boun
     ].join("\n"),
   });
 
-  assert.deepEqual(report.unmatchedFindings, []);
+  assert.deepEqual(report.findings, []);
 });
 
 test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리와 shared 참조는 허용한다", async () => {
@@ -946,7 +917,7 @@ test("신규 층의 legacy 폴더 역참조를 거부하고 legacy 폴더끼리�
     "apps/web/src/shared/lib/cn.ts": "export const cn = (value: string) => value;\n",
   });
 
-  const legacy = report.unmatchedFindings.filter((finding) => finding.rule === "legacy-import");
+  const legacy = report.findings.filter((finding) => finding.rule === "legacy-import");
   assert.deepEqual(legacy.map((finding) => finding.path).sort(), [
     "apps/web/src/app/(auth)/login/_ui/login-screen.tsx",
     "apps/web/src/app/(workspace)/auctions/page.tsx",
@@ -969,7 +940,7 @@ test("routing 층의 legacy dashboard 경로와 hooks 디렉터리 신규 파일
     "apps/web/src/shared/lib/hooks/use-generic.ts": "export const useGeneric = () => 1;\n",
   });
 
-  const identity = report.unmatchedFindings.filter((finding) => finding.rule === "legacy-identity-route");
+  const identity = report.findings.filter((finding) => finding.rule === "legacy-identity-route");
   assert.deepEqual(identity.map((finding) => finding.path).sort(), [
     "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts",
     "apps/web/src/app/dashboard/analysis/_lib/analysis-route.ts",
@@ -977,7 +948,7 @@ test("routing 층의 legacy dashboard 경로와 hooks 디렉터리 신규 파일
     "apps/web/src/routing/shim.ts",
   ]);
   assert.deepEqual(
-    report.unmatchedFindings.filter((finding) => finding.rule === "legacy-hooks-directory").map((finding) => finding.path),
+    report.findings.filter((finding) => finding.rule === "legacy-hooks-directory").map((finding) => finding.path),
     ["apps/web/src/hooks/new-hook.ts"],
   );
 });
@@ -991,14 +962,14 @@ test("use cache는 api resource server entry 밖과 요청별 입력 동거를 �
   });
 
   assert.deepEqual(
-    report.unmatchedFindings
+    report.findings
       .filter((finding) => finding.rule === "use-cache-placement")
       .map((finding) => finding.path)
       .sort(),
     ["apps/web/src/api/auctions/get-auction.ts", "apps/web/src/app/(workspace)/auctions/page.tsx"],
   );
   assert.deepEqual(
-    report.unmatchedFindings
+    report.findings
       .filter((finding) => finding.rule === "use-cache-user-data")
       .map((finding) => finding.path),
     ["apps/web/src/api/organizations/server.ts"],
@@ -1014,27 +985,18 @@ test("use cache 없는 파일의 요청별 입력과 server entry의 캐시 경�
   assert.deepEqual(rules(report).filter((rule) => rule.startsWith("use-cache")), []);
 });
 
-test("legacy lib의 client 업무 계산 export는 삭제 전용 ledger 대상으로 보고한다", async () => {
+test("legacy lib 디렉터리의 파일은 이름과 무관하게 파일 단위로 보고하고 테스트는 제외한다", async () => {
   const report = await inspect({
-    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\nexport const floor = (value: number) => Math.floor(value);\nfunction hidden(value: number) { return value / 2; }\nexport { hidden };\nconst internal = 1; void internal;\ntype Local = { hi: number };\ntype Other = { lo: number };\nexport { type Local };\nexport type { Other };\nexport {};\nexport type Band = { lo: number };\n",
-    "apps/web/src/lib/deadline.ts": "function mixedRuntime(value: number) { return value + 1; }\ntype MixedType = number;\nexport { mixedRuntime, type MixedType };\n",
+    "apps/web/src/lib/band.ts": "export function pickBand(rate: number) { return rate * 100; }\n",
     "apps/web/src/lib/utils.ts": "export function cn(value: string) { return value; }\n",
     "apps/web/src/lib/__tests__/band.test.ts": "export const fixture = 1;\n",
   });
 
-  const calculations = report.unmatchedFindings.filter((finding) => finding.rule === "client-domain-calculation");
   assert.deepEqual(
-    calculations.map((finding) => `${finding.path.split("/").at(-1)}:${finding.kind}`).sort(),
-    ["band.ts:ExportDeclaration", "band.ts:FunctionDeclaration", "band.ts:VariableStatement", "deadline.ts:ExportDeclaration"],
+    report.findings.filter((finding) => finding.rule === "legacy-lib-directory").map((finding) => finding.path),
+    ["apps/web/src/lib/band.ts", "apps/web/src/lib/utils.ts"],
   );
-  assert.ok(calculations.some((finding) => finding.reason.includes("pickBand")));
-  assert.ok(calculations.some((finding) => finding.reason.includes("mixedRuntime")));
-  assert.ok(calculations.every((finding) => !/Local|Other|\(\)/.test(finding.reason)));
-  // 계산 ledger 파일은 export 단위로만 추적해 파일 전체 fingerprint와 겹치지 않는다.
-  assert.deepEqual(
-    report.unmatchedFindings.filter((finding) => finding.rule === "legacy-lib-directory").map((finding) => finding.path),
-    ["apps/web/src/lib/utils.ts"],
-  );
+  assert.deepEqual(rules(report), ["legacy-lib-directory"]);
 });
 
 test("서버 모듈이 use client 모듈의 상수·함수·hook을 import하면 거부하고 이름을 안내한다", async () => {
@@ -1044,7 +1006,7 @@ test("서버 모듈이 use client 모듈의 상수·함수·hook을 import하면
     "apps/web/src/capabilities/decision/namespace-consumer.tsx": "import * as History from './history-table';\nvoid History;\n",
   });
 
-  const findings = report.unmatchedFindings.filter((finding) => finding.rule === "client-value-export-import");
+  const findings = report.findings.filter((finding) => finding.rule === "client-value-export-import");
   assert.deepEqual(findings.map((finding) => finding.path).sort(), [
     "apps/web/src/capabilities/decision/decision-screen.tsx",
     "apps/web/src/capabilities/decision/namespace-consumer.tsx",
@@ -1062,7 +1024,7 @@ test("서버 모듈의 컴포넌트·타입 import와 client 모듈 사이의 �
     "apps/web/src/capabilities/decision/history-toolbar.tsx": "'use client';\nimport { SHOWN_ROWS } from './history-table';\nvoid SHOWN_ROWS;\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings, []);
+  assert.deepEqual(report.findings, []);
 });
 
 test("barrel 재수출 자체는 허용하고 barrel을 거쳐 값을 쓰는 서버 모듈만 거부한다", async () => {
@@ -1073,7 +1035,7 @@ test("barrel 재수출 자체는 허용하고 barrel을 거쳐 값을 쓰는 서
     "apps/web/src/app/page.tsx": "import { useThemeConfig } from '@/shell';\nvoid useThemeConfig;\n",
   });
 
-  assert.deepEqual(report.unmatchedFindings.map((finding) => [finding.rule, finding.path]), [
+  assert.deepEqual(report.findings.map((finding) => [finding.rule, finding.path]), [
     ["client-value-export-import", "apps/web/src/app/page.tsx"],
   ]);
 });

@@ -1,3 +1,7 @@
+/**
+ * @module 책임: vendored shadcn Sidebar primitive의 열림 상태·cookie·키보드 단축키·레이아웃 변형을 한 파일에서 소유한다.
+ * @boundary-waiver source-file-size owner=EAT-121 reason="vendored shadcn sidebar는 upstream과 diff를 맞추는 재vendoring 단위라 한 파일로 유지한다" splitTrigger="sidebar 동작을 upstream과 다르게 바꾸는 첫 변경"
+ */
 'use client';
 
 import * as React from 'react';

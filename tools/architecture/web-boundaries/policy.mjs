@@ -1,12 +1,10 @@
-/** @module 책임: Web boundary rule ID·허용 경로·legacy waiver metadata 정책을 선언한다. */
+/** @module 책임: Web boundary rule ID·허용 경로·변경 범위에서만 판정하는 legacy 규칙 집합의 정책을 선언한다. */
 import path from "node:path";
-import { existsSync, readFileSync } from "node:fs";
 
 export const WEB_BOUNDARY_RULES = Object.freeze({
   API_ENDPOINT_LITERAL: "api-endpoint-literal",
   API_RESOURCE_CROSS_IMPORT: "api-resource-cross-import",
   CAPABILITY_INTERNAL_IMPORT: "capability-internal-import",
-  CLIENT_DOMAIN_CALCULATION: "client-domain-calculation",
   CLIENT_VALUE_EXPORT_IMPORT: "client-value-export-import",
   LEGACY_HOOKS_DIRECTORY: "legacy-hooks-directory",
   LEGACY_IDENTITY_ROUTE: "legacy-identity-route",
@@ -36,6 +34,17 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   WEB_API_DEEP_IMPORT: "web-api-deep-import",
 });
 
+// legacy 위치·역참조 규칙은 "신규 파일을 받지 않고 새 edge를 만들지 않는다"는 규칙이므로 merge-base 이후
+// 변경된 파일에만 판정한다. 건드리지 않은 스타터 잔재는 보고하지 않고, 수정하는 순간 옮겨야 한다(ADR 0042).
+// 나머지 규칙은 파일이 언제 생겼든 예외 없이 판정한다.
+export const CHANGE_SCOPED_RULES = Object.freeze(
+  new Set([
+    WEB_BOUNDARY_RULES.LEGACY_IMPORT,
+    WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY,
+    WEB_BOUNDARY_RULES.LEGACY_LIB_DIRECTORY,
+  ]),
+);
+
 export const MAX_SOURCE_LINES = 300;
 export const MIN_DUPLICATE_NONBLANK_LINES = 10;
 export const MIN_DUPLICATE_BYTES = 200;
@@ -47,16 +56,6 @@ const CANONICAL_LAYER_PATH = /^apps\/web\/src\/(?:app\/\((?:workspace|auth)\)|sh
 const LEGACY_DIRECTORY_SPECIFIER = /^@\/(?:components|hooks|lib|config|types|app\/(?:dashboard|welcome|s))(?:\/|$)/;
 const LEGACY_DIRECTORY_PATH = /^apps\/web\/src\/(?:components|hooks|lib|config|types|app\/(?:dashboard|welcome|s))\//;
 
-// client 업무 계산은 AST로 식별하는 것이 목표지만, 첫 버전은 금액·비율·마감·식별자 계산이 확인된
-// 파일 목록으로 고정한다. 목록은 줄어들기만 하며 새 항목을 더하려면 계산을 Server 계약으로 옮기는 편이 맞다.
-export const CLIENT_DOMAIN_CALCULATION_PATHS = Object.freeze([
-  "apps/web/src/lib/band.ts",
-  "apps/web/src/lib/deadline.ts",
-  "apps/web/src/lib/mark-rates.ts",
-  "apps/web/src/lib/rate-text.ts",
-  "apps/web/src/lib/school-id.ts",
-]);
-
 export function isCanonicalLayerPath(displayPath) {
   return CANONICAL_LAYER_PATH.test(displayPath);
 }
@@ -66,16 +65,12 @@ export function isLegacyDirectoryReference(specifier, targetDisplayPath) {
     || (targetDisplayPath !== undefined && LEGACY_DIRECTORY_PATH.test(targetDisplayPath));
 }
 
-export function isClientDomainCalculationPath(displayPath) {
-  return CLIENT_DOMAIN_CALCULATION_PATHS.includes(displayPath);
-}
-
 // generic hook의 목적지는 shared/lib/hooks, generic helper는 shared/lib, 그 외는 소비하는 route/capability 내부다.
-// 스타터 잔재 hooks/·lib/ 디렉터리는 삭제 전용 ledger로만 남기고 새 파일을 받지 않는다.
+// 스타터 잔재 hooks/·lib/ 디렉터리는 새 파일을 받지 않으며, 기존 파일도 수정하는 변경에서 함께 옮긴다.
 const LEGACY_HOOKS_PATH = /^apps\/web\/src\/hooks\//;
 const LEGACY_LIB_PATH = /^apps\/web\/src\/lib\//;
 // routing 층은 canonical decimal ID route만 만든다. 복합 문자열 identity를 쓰는 legacy dashboard route
-// builder는 legacy route 옆 `_lib`에 두고 삭제 전용 ledger로 추적한다.
+// builder는 canonical 층에 들어올 수 없다.
 const LEGACY_IDENTITY_SCOPE = /^apps\/web\/src\/(?:routing\/|app\/(?:.+\/)?_lib\/)/;
 const LEGACY_ROUTE_PREFIX = /^\/dashboard(?:\/|$)/;
 
@@ -83,10 +78,8 @@ export function isLegacyHooksPath(displayPath) {
   return LEGACY_HOOKS_PATH.test(displayPath);
 }
 
-// 계산 ledger 파일은 export 단위 fingerprint로 추적하므로 파일 전체 fingerprint를 겹쳐 두면
-// 함수 하나를 지울 때마다 drift가 나 export 단위 삭제가 막힌다. 그 파일들은 lib 전체 규칙에서 뺀다.
 export function isLegacyLibPath(displayPath) {
-  return LEGACY_LIB_PATH.test(displayPath) && !isClientDomainCalculationPath(displayPath);
+  return LEGACY_LIB_PATH.test(displayPath);
 }
 
 export function isLegacyIdentityScope(displayPath) {
@@ -153,101 +146,4 @@ export function isCacheOwnerPath(displayPath) {
 
 export function isEndpointAuthorityPath(repoRoot, sourcePath) {
   return normalizedPath(repoRoot, sourcePath).startsWith("packages/contracts/src/api/");
-}
-
-function baselineKey(entry) {
-  return `${entry.rule}\u0000${entry.path}\u0000${entry.kind}`;
-}
-
-export function readLegacyBaseline(baselinePath) {
-  if (!existsSync(baselinePath)) return { baseline: { version: 1, entries: [] }, baselineFailures: [] };
-  try {
-    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
-    if (baseline.version !== 1 || !Array.isArray(baseline.entries)) {
-      return { baseline: { version: 1, entries: [] }, baselineFailures: ["legacy baseline must have version 1 and an entries array"] };
-    }
-    const required = ["rule", "path", "kind", "sha256", "reason", "owner", "splitTrigger"];
-    const baselineFailures = [];
-    for (const [index, entry] of baseline.entries.entries()) {
-      for (const key of required) if (typeof entry[key] !== "string" || !entry[key].trim()) baselineFailures.push(`legacy baseline entry ${index} must contain ${key}`);
-      if (!/^sha256:[a-f0-9]{64}$/.test(entry.sha256 ?? "")) baselineFailures.push(`legacy baseline entry ${index} has an invalid sha256 fingerprint`);
-      if (entry.members && (!Array.isArray(entry.members) || entry.members.some((member) => typeof member !== "string"))) baselineFailures.push(`legacy baseline entry ${index} has invalid duplicate members`);
-      if (entry.contentSha256 && !/^sha256:[a-f0-9]{64}$/.test(entry.contentSha256)) baselineFailures.push(`legacy baseline entry ${index} has an invalid duplicate content fingerprint`);
-    }
-    return { baseline, baselineFailures };
-  } catch (error) {
-    return { baseline: { version: 1, entries: [] }, baselineFailures: [`cannot read legacy baseline: ${error.message}`] };
-  }
-}
-
-export function applyLegacyBaseline(findings, baseline) {
-  const baselineFailures = [];
-  const entriesByKey = new Map();
-  const availableExact = new Map();
-  for (const entry of baseline.entries) {
-    const key = baselineKey(entry);
-    const entries = entriesByKey.get(key) ?? [];
-    entries.push(entry);
-    entriesByKey.set(key, entries);
-    const exactKey = `${key}\u0000${entry.sha256}\u0000${JSON.stringify(entry.members ?? [])}`;
-    const exactEntries = availableExact.get(exactKey) ?? [];
-    exactEntries.push(entry);
-    availableExact.set(exactKey, exactEntries);
-  }
-  const unmatchedFindings = [];
-  const consumedDuplicateEntries = new Set();
-  for (const item of findings) {
-    if (item.rule === WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP) {
-      const candidates = baseline.entries.filter((entry) => entry.rule === item.rule && entry.contentSha256 === item.contentSha256 && !consumedDuplicateEntries.has(entry));
-      const matching = candidates.find((entry) => item.members.every((member) => entry.members?.includes(member)));
-      if (matching) {
-        consumedDuplicateEntries.add(matching);
-        continue;
-      }
-      const sameContent = baseline.entries.some((entry) => entry.rule === item.rule && entry.contentSha256 === item.contentSha256);
-      baselineFailures.push(`${sameContent ? "legacy duplicate membership increase" : "legacy fingerprint drift"}: ${item.path} [${item.rule}] ${item.kind}`);
-      unmatchedFindings.push(item);
-      continue;
-    }
-    const entries = entriesByKey.get(baselineKey(item)) ?? [];
-    const exactKey = `${baselineKey(item)}\u0000${item.sha256}\u0000${JSON.stringify(item.members ?? [])}`;
-    const matching = availableExact.get(exactKey)?.shift();
-    if (matching) continue;
-    if (entries.some((entry) => entry.sha256 === item.sha256 && JSON.stringify(entry.members ?? []) === JSON.stringify(item.members ?? []))) {
-      baselineFailures.push(`legacy fingerprint multiplicity increase: ${item.path} [${item.rule}] ${item.kind}`);
-      unmatchedFindings.push(item);
-    } else if (entries.length) baselineFailures.push(`legacy fingerprint drift: ${item.path} [${item.rule}] ${item.kind}`);
-    else {
-      baselineFailures.push(`new legacy finding: ${item.path} [${item.rule}] ${item.kind}`);
-      unmatchedFindings.push(item);
-    }
-  }
-  return { unmatchedFindings, baselineFailures };
-}
-
-export function reviewedBaselineMetadata(item) {
-  if (item.rule === WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT) {
-    if (item.path.includes("/app/welcome/")) return ["기존 welcome page는 interactive legacy 안내 화면으로 client component를 사용합니다.", "다음 welcome interaction 변경에서 client leaf와 Server Component route로 분리할 때"];
-    if (item.path.includes("/app/dashboard/")) return ["기존 dashboard page는 data/state와 presentation을 함께 가진 client route입니다.", "해당 dashboard route를 RSC model과 interactive client leaf로 전환할 때"];
-  }
-  if (item.rule === WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE) {
-    if (item.path.includes("/components/ui/")) return ["기존 UI composite primitive는 vendor-style presentation과 compatibility surface를 함께 포함합니다.", "다음 primitive behavior 변경에서 focused UI modules로 분리할 때"];
-    if (item.path.includes("/app/dashboard/")) return ["기존 dashboard route는 data preparation과 presentation을 함께 가진 legacy 화면입니다.", "해당 route를 RSC model과 route-private UI leaf로 전환할 때"];
-    if (item.path.includes("/app/welcome/")) return ["기존 welcome route는 안내 presentation을 한 파일에 보유한 legacy 화면입니다.", "다음 welcome content 또는 interaction 변경에서 section UI로 분리할 때"];
-  }
-  return {
-    [WEB_BOUNDARY_RULES.CLIENT_DOMAIN_CALCULATION]: ["legacy client 업무 계산. Server 계약 응답으로 대체한 뒤 삭제한다.", "해당 화면 slice를 api/<resource> 계약으로 교체할 때"],
-    [WEB_BOUNDARY_RULES.LEGACY_IMPORT]: ["신규 층이 legacy 수평 폴더를 참조하는 기존 edge이며 대체 module이 생기면 삭제합니다.", "해당 legacy module을 shell/navigation 또는 shared/ui로 옮길 때"],
-    [WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY]: ["스타터 잔재 hook 디렉터리입니다. 신규 hook은 shared/lib/hooks 또는 소비 route/capability 내부에 둡니다.", "해당 hook을 shared/lib/hooks 또는 소비 slice로 옮기거나 삭제할 때"],
-    [WEB_BOUNDARY_RULES.LEGACY_LIB_DIRECTORY]: ["스타터 잔재 lib 디렉터리입니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.", "해당 module을 shared/lib로 옮기거나 Server 계약 응답으로 대체해 삭제할 때"],
-    [WEB_BOUNDARY_RULES.LEGACY_IDENTITY_ROUTE]: ["복합 문자열 학교 identity. canonical organization route가 생기면 삭제", "canonical organization decimal ID route가 /dashboard/analysis를 대체할 때"],
-    [WEB_BOUNDARY_RULES.DUPLICATE_SOURCE_GROUP]: ["기존 mobile viewport helper 두 파일은 동일한 legacy 구현이며 EAT-9 canonical shared extraction 전까지 동결합니다.", "mobile viewport helper를 하나의 shared module로 통합할 때"],
-    [WEB_BOUNDARY_RULES.ID_NUMBER_CONVERSION]: ["기존 dashboard와 table filter의 numeric URL/filter 처리 부채는 canonical decimal ID route 전환 전까지 동결합니다.", "해당 화면이 contract-backed decimal identifier를 소비하도록 전환할 때"],
-    [WEB_BOUNDARY_RULES.PAGE_CONTAINER_LOADING_STATE]: ["기존 PageContainer는 범용 loading UI를 소유한 legacy 화면 container이며 신규 route로 전파하지 않습니다.", "각 legacy 화면을 route 소유 ScreenSkeleton과 loading.tsx 경계로 전환할 때"],
-    [WEB_BOUNDARY_RULES.RAW_FETCH]: ["기존 Web 화면·component·hook의 직접 network 호출은 legacy product surface이며 EAT-9 transport 전환 전까지 동결합니다.", "해당 endpoint consumer를 api/_transport와 resource adapter로 이전할 때"],
-    [WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT]: ["기존 Web route의 client component 경계는 EAT-9 이전 legacy presentation입니다.", "route lifecycle과 interactive leaf를 분리해 page/layout을 Server Component로 바꿀 때"],
-    [WEB_BOUNDARY_RULES.SOURCE_FILE_SIZE]: ["기존 dashboard presentation file은 300줄을 넘는 legacy 책임 혼합이며 기능 전환과 함께 분리합니다.", "다음 기능 변경이 route model, UI leaf 또는 data adapter 책임을 함께 건드릴 때"],
-    [WEB_BOUNDARY_RULES.UNCHECKED_JSON_CAST]: ["기존 Web response type assertion은 legacy wire 처리이며 contract runtime parsing 도입 전까지 동결합니다.", "해당 response를 operation schema가 parse하는 api resource로 이전할 때"],
-    [WEB_BOUNDARY_RULES.UNCHECKED_RESPONSE_JSON]: ["기존 Web response body decode는 legacy network boundary이며 EAT-9 transport 전환 전까지 동결합니다.", "해당 response decode를 api/_transport의 validated request path로 이전할 때"],
-  }[item.rule] ?? ["EAT-9 이전 Web boundary 부채를 canonical slice 전환까지 동결합니다.", "해당 legacy module을 canonical Web boundary로 전환할 때"];
 }
