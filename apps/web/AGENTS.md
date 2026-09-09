@@ -48,6 +48,8 @@
   쓰는 RSC 표면은 `server.ts`로 분리하고 server entry를 client-safe barrel에서 재수출하지 않는다.
 - route는 metadata, RSC read/prefetch와 shell model 주입에 한해 API resource server entry를 직접 쓴다.
   shell은 제품 endpoint를 읽지 않고 상위 layout이 전달한 serializable view를 렌더링한다.
+- segment의 여러 테스트가 함께 쓰는 test-only 표본과 렌더 도우미는 그 segment의 `__fixtures__`에 두며,
+  production 모듈은 `__fixtures__`를 import하지 않는다.
 - 한 route에만 필요한 presentation과 interactive leaf는 segment private `_model`/`_ui`/`_lib`에 둔다.
   단순 조회 화면이나 두 곳에서 쓴다는 이유만으로 capability를 만들지 않는다. 독립된 사용자 intent,
   command/permission/feedback lifecycle 또는 여러 resource orchestration이 있을 때만 승격한다.

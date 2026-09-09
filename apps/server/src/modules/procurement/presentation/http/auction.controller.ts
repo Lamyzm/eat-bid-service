@@ -7,6 +7,7 @@ import {
   Param,
   Query,
   ServiceUnavailableException,
+  UseGuards,
   VERSION_NEUTRAL,
 } from "@nestjs/common";
 import { ApiOperation, ApiResponse } from "@nestjs/swagger";
@@ -16,6 +17,7 @@ import {
   type OpenAuctionListV1Response,
 } from "@eatbid/contracts";
 import type { z } from "zod";
+import { ProviderSessionGuard } from "../../../../platform/auth/session.guard";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
@@ -31,6 +33,12 @@ const listOperation = auctionV1Operations.listOpen;
 
 type OpenAuctionQuery = z.output<typeof listOperation.querySchema>;
 
+/**
+ * 공고 판단 재료는 로그인해야 열린다. class에 붙이는 이유는 이 controller에 새 handler가 붙을 때
+ * decorator를 빠뜨리면 그 하나만 조용히 공개되기 때문이다. 요구 수준은 `provider_session`이라 app
+ * 계정 초기화 여부는 보지 않는다(ADR 0032 §5·§12).
+ */
+@UseGuards(ProviderSessionGuard)
 @Controller({
   path: auctionV1Operations.find.controllerPath,
   version: auctionV1Operations.find.version ?? VERSION_NEUTRAL,
@@ -47,6 +55,7 @@ export class AuctionController {
   @ApiOperation({ operationId: listOperation.operationId, summary: listOperation.summary })
   @ApiResponse({ status: 200, description: listOperation.successResponses[200].description })
   @ApiResponse({ status: 400, description: listOperation.problemResponses[400].description })
+  @ApiResponse({ status: 401, description: listOperation.problemResponses[401].description })
   @ApiResponse({ status: 503, description: listOperation.problemResponses[503].description })
   @ResponseSchema(listOperation.successResponses[200].schema)
   async listOpen(
@@ -90,6 +99,7 @@ export class AuctionController {
   })
   @ApiResponse({ status: 200, description: auctionV1Operations.find.successResponses[200].description })
   @ApiResponse({ status: 400, description: auctionV1Operations.find.problemResponses[400].description })
+  @ApiResponse({ status: 401, description: auctionV1Operations.find.problemResponses[401].description })
   @ApiResponse({ status: 404, description: auctionV1Operations.find.problemResponses[404].description })
   @ApiResponse({ status: 503, description: auctionV1Operations.find.problemResponses[503].description })
   @ResponseSchema(auctionV1Operations.find.successResponses[200].schema)

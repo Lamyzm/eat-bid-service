@@ -11,6 +11,7 @@ import {
 } from './cache-observability';
 import { auctionRosterResponse } from './auction-roster-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
+import { sessionResponse } from './session-fixture';
 import { organizationAttemptsResponse } from './organization-attempts-fixture';
 import { winRateDistributionResponse } from './win-rate-distribution-fixture';
 
@@ -226,6 +227,11 @@ Bun.serve({
     }
     countRequest(pathname);
     if (request.method !== 'GET') return new Response(null, { status: 405 });
+
+    // 로그인 게이트가 걸린 뒤로 업무 화면은 세션 계약을 먼저 읽는다. 이 fixture가 답하지 않으면
+    // 모든 스위트가 화면이 아니라 게이트에서 멈춘다.
+    const session = sessionResponse(request);
+    if (session) return session;
 
     // 목록 경로는 `:auctionId` 경로보다 앞에서 본다. 경로가 다르므로 순서는 읽기 편의일 뿐이다.
     const openAuctions = openAuctionsResponse(request);

@@ -13,14 +13,14 @@ export default function NotFound() {
       <span className='from-foreground bg-linear-to-b to-transparent bg-clip-text text-[10rem] leading-none font-extrabold text-transparent'>
         404
       </span>
-      <h2 className='font-heading my-2 text-2xl font-bold'>Something&apos;s missing</h2>
-      <p>Sorry, the page you are looking for doesn&apos;t exist or has been moved.</p>
+      <h2 className='font-heading my-2 text-2xl font-bold'>찾는 화면이 없습니다</h2>
+      <p>주소를 확인해 다시 열거나 아래에서 이동하세요.</p>
       <div className='mt-8 flex justify-center gap-2'>
         <Button onClick={() => router.back()} variant='default' size='lg'>
-          Go back
+          뒤로 가기
         </Button>
         <Button onClick={() => router.push('/today')} variant='ghost' size='lg'>
-          Back to Home
+          오늘 공고
         </Button>
       </div>
     </div>

@@ -25,8 +25,8 @@ describe("listCodes operation 계약", () => {
     expect(listCodes.querySchema.parse({ grain: "sigungu" })).toEqual({ grain: "sigungu" });
   });
 
-  test("알 수 없는 체계와 활성 release 부재는 404 Problem이다", () => {
-    expect(listCodes.problemStatuses).toEqual([400, 404, 500, 503]);
+  test("알 수 없는 체계와 활성 release 부재는 404 Problem이고 미로그인은 401이다", () => {
+    expect(listCodes.problemStatuses).toEqual([400, 401, 404, 500, 503]);
   });
 
   test("성공 응답은 목록과 release meta를 함께 싣는다", () => {

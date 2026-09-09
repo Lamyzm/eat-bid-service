@@ -388,6 +388,12 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 - 인증 비밀값(세션 서명 key, Google OAuth client id/secret)은 다른 비밀값과 같이 Infisical이 소유하고
   Git에는 key 계약만 둔다. server는 이 값들이 없으면 기동하지 않는다. 없는 값을 기본값으로 채우면
   모든 배포가 같은 서명 key를 쓰게 된다.
+- 공고 read는 전부 로그인 뒤에만 열린다(ADR 0032 §12). 그래서 인증을 켜지 않은 배포는 화면이 비어
+  보이는 것이 아니라 공유 read까지 503이다. 이것은 미로그인(401)과 구분돼야 하는 별개의 사실이며,
+  인증 비밀값이 빠진 배포를 "동작하지만 로그인만 안 되는 상태"로 오해하지 않게 한다.
+- 세션 확인은 서명된 쿠키 사본으로 60초 동안 저장소를 읽지 않는다. 회수 반영이 그만큼 늦으므로
+  세션을 즉시 끊어야 하는 운영 조치는 provider 무효화 호출까지 포함해야 하고, 사본 수명을 바꾸는 것은
+  ADR 0032 §12를 고치는 일이다.
 - 인증·권한 기능의 인수 검증은 운영 PostgreSQL과 `eatbid_api` 역할이 아니라 격리된 일회용
   PostgreSQL에서 한다. 운영 DB에 대고 검증하면 새 migration·역할·권한이 검증 대상이 아니라 사고가 된다.
   fixture는 커밋된 migration과 배포되는 `infra/product/db-provisioning.sql`을 그대로 실행하는

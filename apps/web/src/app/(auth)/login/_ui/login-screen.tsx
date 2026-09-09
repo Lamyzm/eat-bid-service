@@ -44,8 +44,7 @@ export function LoginScreen({ returnPath, authUnavailable, hasReturnScreen }: Lo
         <CardHeader>
           <CardTitle id='login-title' className='text-xl'>로그인</CardTitle>
           <CardDescription>
-            Google 계정으로 로그인하면 사업자를 등록할 수 있습니다. 공고와 개찰 기록은 로그인 없이도
-            그대로 볼 수 있습니다.
+            Google 계정으로 로그인하면 공고와 개찰 기록을 보고 사업자를 등록할 수 있습니다.
             {hasReturnScreen ? ' 로그인하면 보던 화면으로 돌아갑니다.' : null}
           </CardDescription>
         </CardHeader>

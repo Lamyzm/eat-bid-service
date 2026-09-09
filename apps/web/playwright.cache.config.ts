@@ -1,11 +1,14 @@
 import { defineConfig } from '@playwright/test';
 
+import { signedInStorageState } from './e2e/support/session-fixture';
+
 // dev 모드의 `use cache` 수명은 프로덕션과 다르다. dev에서 통과한 캐시 테스트는 배포된 동작의
 // 증거가 아니므로 이 스위트만 `next build && next start`로 돈다(ADR 0036, 판정 §4).
 // 기존 두 스위트와 동시에 돌 수 있도록 web·fixture 포트를 모두 따로 쓴다.
-const WEB_ORIGIN = 'http://127.0.0.1:3102';
+const HOST = '127.0.0.1';
+const WEB_ORIGIN = `http://${HOST}:3102`;
 const FIXTURE_PORT = '4411';
-const FIXTURE_ORIGIN = `http://127.0.0.1:${FIXTURE_PORT}`;
+const FIXTURE_ORIGIN = `http://${HOST}:${FIXTURE_PORT}`;
 const FIXTURE_START_TIMEOUT_MILLISECONDS = 30_000;
 // 프로덕션 build 한 번이 이 스위트의 비용이다. 그 비용을 내는 이유가 dev와 다른 캐시 수명이다.
 const WEB_START_TIMEOUT_MILLISECONDS = 600_000;
@@ -23,7 +26,9 @@ export default defineConfig({
   use: {
     baseURL: WEB_ORIGIN,
     browserName: 'chromium',
-    trace: 'retain-on-failure'
+    trace: 'retain-on-failure',
+    // 캐시 스위트도 업무 화면을 열어야 하므로 같은 로그인 상태에서 시작한다.
+    storageState: signedInStorageState(HOST)
   },
   webServer: [
     {

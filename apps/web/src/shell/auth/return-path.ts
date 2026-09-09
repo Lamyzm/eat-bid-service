@@ -21,6 +21,13 @@ const AUCTION_DETAIL_PATH = /^\/auctions\/([1-9]\d{0,19})$/;
 /** 요청 URL과 로그인 화면 사이에 오가는 query parameter 이름이다. */
 export const RETURN_PATH_PARAMETER = 'next';
 
+/**
+ * 게이트가 요청 경로를 화면 트리로 넘기는 헤더다. layout은 자기 URL을 받지 못하므로 이 값이 없으면
+ * 미초기화 사용자를 설정으로 보낼 때 보던 화면을 잃는다. 값은 proxy가 매 요청 덮어쓰고 받는 쪽이
+ * `safeReturnPath`로 한 번 더 판정하므로 브라우저가 넣은 값이 그대로 복귀 대상이 되지 않는다.
+ */
+export const RETURN_PATH_HEADER = 'x-eatbid-return-path';
+
 export type LoginRoute = '/login' | `/login?${string}`;
 export type SetupRoute = '/setup' | `/setup?${string}`;
 /** typedRoutes의 `Route`는 동적 route를 literal 형태로만 인정하므로 공고 상세 template을 함께 적는다. */

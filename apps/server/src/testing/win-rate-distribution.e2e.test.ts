@@ -10,6 +10,7 @@ import type {
   WinRateDistributionReader,
 } from "../modules/procurement/application/win-rate-distribution-reader";
 import { kstMonth } from "../modules/procurement/domain/kst-month";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 const environment = parseEnvironment({
   NODE_ENV: "test",
@@ -50,6 +51,7 @@ async function withServer(
     logWriter: () => undefined,
     databaseReadiness: { isReady: () => true },
     winRateDistributionReader: reader,
+    sessionAuthenticator: signedInSessionAuthenticator,
   } as never);
   const server = await runtime.listen(0, "127.0.0.1");
   try {

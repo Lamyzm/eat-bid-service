@@ -13,6 +13,7 @@ import type {
 } from "../modules/procurement/application/organization-attempt-reader";
 import { organizationId } from "../modules/procurement/domain/organization-id";
 import { DrizzleOrganizationAttemptReader } from "../modules/procurement/infrastructure/drizzle/drizzle-organization-attempt-reader";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 // 운영 표본을 본뜬 시나리오다: 개찰 시각이 지난 회차(101·102), 개찰 시각 미관측(103), 개찰 예정이 아직
 // 오지 않은 회차(105). 오늘이 09-06이면 표에는 101·102만 실려야 한다(EAT-81).
@@ -155,6 +156,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
         environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: url }),
         logWriter: () => undefined,
         clock: fixedClock(NOW),
+        sessionAuthenticator: signedInSessionAuthenticator,
       });
       const server = await runtime.listen(0, "127.0.0.1");
       try {

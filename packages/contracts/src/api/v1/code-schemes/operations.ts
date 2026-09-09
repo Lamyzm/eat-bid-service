@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 import { codeSchemeSchema } from "../../../atoms/source-code";
-import { problemDetailsSchema } from "../../../common/problem-details";
+import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
 import { listCodesV1ResponseSchema } from "./list-codes.response";
 
@@ -27,6 +27,7 @@ export const codeSchemeV1Operations = {
     successResponses: { 200: { description: "코드 목록 조회 성공", schema: listCodesV1ResponseSchema } },
     problemResponses: {
       400: { description: "코드 체계 이름 또는 query가 유효하지 않음", schema: problemDetailsSchema },
+      ...unauthenticatedProblemResponse,
       // 활성 release가 없는 scheme은 404다. 빈 배열로 답하면 "코드가 없는 체계"와 "아직 적재하지
       // 않은 체계"가 화면에서 같아 보인다(AGENTS 3).
       404: { description: "코드 체계 또는 활성 release를 찾을 수 없음", schema: problemDetailsSchema },

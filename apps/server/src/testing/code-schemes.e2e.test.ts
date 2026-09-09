@@ -10,6 +10,7 @@ import type {
   CodeReader,
   CodeReleaseListing,
 } from "../modules/reference/application/code-reader";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 const environment = parseEnvironment({
   NODE_ENV: "test",
@@ -67,6 +68,7 @@ async function withServer(
     logWriter: () => undefined,
     databaseReadiness: { isReady: () => true },
     codeReader: reader,
+    sessionAuthenticator: signedInSessionAuthenticator,
   } as never);
   const server = await runtime.listen(0, "127.0.0.1");
   try {

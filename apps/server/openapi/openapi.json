@@ -2890,6 +2890,16 @@
             },
             "description": "query가 유효하지 않음"
           },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -2951,6 +2961,16 @@
               }
             },
             "description": "공고 ID가 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
           },
           "404": {
             "content": {
@@ -3035,6 +3055,16 @@
             },
             "description": "공고 또는 revision ID가 유효하지 않음"
           },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
           "404": {
             "content": {
               "application/problem+json": {
@@ -3115,6 +3145,16 @@
               }
             },
             "description": "코드 체계 이름 또는 query가 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
           },
           "404": {
             "content": {
@@ -3817,6 +3857,16 @@
             },
             "description": "기관 ID 또는 query가 유효하지 않음"
           },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
           "404": {
             "content": {
               "application/problem+json": {
@@ -4025,6 +4075,16 @@
               }
             },
             "description": "query가 유효하지 않거나 모집단과 축의 짝, 기간 상한, 칸 폭 배수 규칙을 어김"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
           },
           "404": {
             "content": {

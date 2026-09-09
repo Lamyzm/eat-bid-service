@@ -153,6 +153,14 @@ PageProps<'/today'>` 하나로 줄이면 파일당 한 번이 된다. `login`·`
   목록 상태를 `view` union으로, 빈 상태 공용 컴포넌트, 품목 라벨 축약 한 곳, `buildTodayRoute`를
   nuqs serializer로. 링크의 한글은 이제 인코딩 전 형태이며 브라우저가 요청 시 인코딩한다.
 
+### 이 훑기에서 나온 산출물
+
+- `.agents/skills/eatbid-component-design/SKILL.md` (EAT-137) — 변경 용이성 네 기준과 상충·저울질, 선언적
+  판정, 상태 union, 분리 기준, 중복 허용과 결합도, server/client 경계, 자료형, 코드 스멜. 파일 크기·계약·
+  문구·접근성은 기존 규칙에 위임한다.
+- `docs/adr/0044-route-segment-slice-structure.md` (Proposed) — segment 내부를 `_features/<name>/{ui,model,lib}`와
+  `_widgets/`로. 전면 FSD와 병렬 라우트는 기각 대안에 이유와 함께 적었다.
+
 ### 진행 중인 issue
 
 - EAT-133 의미 값 SSOT(domain 9개 삭제·시간 규칙·KST·milli 연산·scale/통화 JSON·CronWorkflow 시간대 테스트)
@@ -417,7 +425,16 @@ build 바뀜·관측 없음·증거 충돌·관측됨). 셋의 곱이 13이다. 
   `packages/domain` 몫이다(EAT-133).
 
 **층 지도도 문서와 다르다.** `src` 최상위에 결정된 여섯 층에 없는 `components/`·`hooks/`·`lib/`가 남아 있다.
-canonical 층에서 직접 import하는 곳은 없다(테스트 하나 제외). 죽은 층이 지도만 흐린다.
+
+> **정정(EAT-140 검증).** 처음에 "canonical 층에서 직접 import하는 곳은 없다"고 적었는데 **틀렸다.**
+> 실제 진입점이 여섯이다. `app/layout.tsx`(→`ui/sonner`), `app/not-found.tsx`(→`ui/button`),
+> `shell/layout/application-shell.tsx`(→`command-palette`·`layout/app-sidebar`·`layout/header`·`ui/sidebar`),
+> `shell/theme/theme-mode-toggle.tsx`, `shell/theme/theme-selector.tsx`, `types/index.ts`(→`icons`).
+> 그래서 세 폴더는 한 번에 못 지운다. `components/ui`의 재수출 shim 다섯과 `lib/utils.ts`를 건드리는 순간
+> legacy-import gate와 `korean-comments` gate가 vendored 파일 열 개까지 함께 요구하므로 한 덩어리로 처리해야 한다.
+> `hooks/` 셋 중 `use-mobile`만 바로 옮길 수 있고 나머지 둘은 `config/nav-config`·`types`에 묶여 있다.
+> `components/search-input.tsx`는 production 참조가 없고 명령 팔레트 테스트만 쓴다. 즉 Cmd+K 말고 팔레트를
+> 여는 마우스 수단이 코드엔 있는데 헤더에 안 붙어 있다. 남길지는 명령 검색 결정과 함께 본다.
 
 **층 체계 자체를 다시 볼지는 별도 결정이다.** 현재 ADR 0023은 full FSD를 기각한 상태로 적혀 있다. FSD를
 채택하기로 했다면 그 ADR을 supersede해야 하고, 그 전까지는 문서와 코드가 서로 다른 말을 한다. 어느 쪽이든
@@ -514,6 +531,28 @@ auctions/[auctionId]/
 **lint로 굳힐 것.** `_features/*/lib`에 React import 금지, `_features/*/model`에 JSX 금지, `page.tsx` 줄 수 상한.
 이 셋이면 오늘 반려한 다섯 중 넷이 기계로 막힌다.
 
+### "정면 충돌" 재검증 (내 기존 판정을 다시 봄)
+
+서브에이전트가 mw-auction 규칙 8개를 eatbid와 정면 충돌로 분류했다. 충돌이라는 이유로 배울 것이 없다고
+넘기면 앞서 FSD를 두고 현행을 옹호한 것과 같은 실수다. 하나씩 "어느 쪽이 우리에게 더 나은가"로 다시 봤다.
+
+| 항목 | 판정 | 이유 |
+| --- | --- | --- |
+| 파일 크기 200줄 강제 vs 우리 300줄 권고 | **배울 것 있음** | 숫자가 아니라 **분리 트리거 표**(controller 라우트 8개+, service 메서드 6개+ 등)와 **`page.tsx`는 오케스트레이터**라는 규칙이 값이다. 우리 300줄 권고와 충돌하지 않고 그것을 실행 가능하게 만든다 |
+| FSD 8계층 | **배울 것 있음** | 이미 ADR 0044로 slice-then-segment를 받았다. 추가로 `_widgets/`와 `entities/`가 실제 빈 자리를 메운다 |
+| shadcn 설치 경로 | **우리 문제가 더 큼** | 저쪽은 UI 폴더가 하나, 우리는 둘이다. 경로 충돌이 아니라 우리가 정리할 일이다(EAT-140) |
+| react-hook-form vs TanStack Form | **충돌 아님** | 라이브러리는 우리 선택을 유지한다. "팝오버는 독립 폼 경계", "필드 prefix로 동적 배열 중복 제거" 개념은 우리 라이브러리로 옮길 수 있다 |
+| 라우트 타입 생성기 | **우리가 낫다** | Next 16 내장 `typedRoutes`가 외부 생성기보다 낫고 mirror 금지도 유효하다 |
+| Temporal 폴리필 | **우리가 낫다** | 진입점을 하나로 묶고 정적 gate로 막는 쪽이 안전하다 |
+| Zustand 전역 표준 | **우리가 낫다** | 좁게 허용하는 현행이 맞다. 지금 client 상태는 context 둘로 충분하다 |
+| 자체 에러 포맷 | **우리가 낫다** | RFC 9457 Problem Details가 표준이고 계약이 이미 소유한다 |
+
+**빈 자리로 확인된 것: `entities` 층.** 도메인을 알지만 화면에 매이지 않은 표시 조각이 갈 곳이 없다.
+`shared/ui`는 규칙상 도메인을 모르고(alert·badge·button·card·table 류), `capabilities`는 독립된 사용자 흐름만
+받는다. 그래서 금액 표시, 품목 라벨 축약, 빈 상태 카드, 표본 수 문구, 판정 어휘가 화면마다 복사됐다.
+실제로 이번 훑기에서 잡은 중복 넷이 전부 이 성격이다. ADR 0044에 `entities/` 층과 "두 화면 이상에서 쓰면
+승격"을 넣었다.
+
 ### 병렬 라우트(`@slot`) 안 평가
 
 사용자가 제안한 구조다. 근거 영역·과거 회차·오른쪽 레일을 `@evidence`·`@history`·`@rail` 슬롯으로 나누면
@@ -527,6 +566,25 @@ auctions/[auctionId]/
 layout이나 URL이 시각·build를 정해 슬롯에 내려보내는 것이고, 이는 앞서 정한 "공유 사실 + 개인 겹침" 규칙과
 같은 형태다. 그리고 탭을 슬롯 경계로 만들면 방금 없애기로 한 서버 왕복이 되살아나므로 탭은 슬롯 **안의**
 클라이언트 전환으로 남겨야 한다. `default.tsx`와 soft navigation 시 슬롯 유지 규칙도 새 학습 비용이다.
+
+## 8-2. 리뷰 체크리스트 (서브에이전트 브랜치를 받을 때)
+
+보고를 믿지 않고 직접 확인한다. 순서대로 본다.
+
+1. **범위.** issue가 정한 owned path 밖을 건드렸는가. 다른 세션 소유 경로를 만졌는가. `git diff --stat`으로 먼저 본다.
+2. **acceptance 대조.** issue의 항목을 하나씩 실제 결과와 맞춘다. "했다"는 문장이 아니라 명령 출력이 근거다.
+   증명하지 못한 항목은 "못 보였다"고 적혀 있어야 한다. 조용히 빠져 있으면 반려다.
+3. **검사 재실행.** 내가 직접 돌린다. `npx tsc --noEmit`, `bun test src`, `node tools/architecture/run-checks.mjs --changed`.
+   서버가 걸리면 `pnpm --filter @eatbid/server test`. 숫자가 보고와 다르면 반려다.
+4. **회귀.** 기존 테스트가 지워지거나 약해지지 않았는가. 테스트를 고쳤다면 명세가 바뀔 이유가 있었는가.
+   `git diff`에서 `expect` 삭제와 `.skip`을 찾는다.
+5. **AGENTS 규칙.** 한국어 이유 주석·테스트명·커밋 본문, 신규·변경 production 모듈의 `@module 책임:`,
+   경로·계약 리터럴 신설 없음, 시간·금액·비율 타입, 300줄 초과 시 waiver 한 줄.
+6. **설계 기준(`eatbid-component-design`).** 상태가 union인가 boolean 재계산인가. 표현 폴더에 계산 모듈이
+   들어갔는가. client 경계가 잎에 있는가. 중복을 남긴 판단에 이유가 있는가.
+7. **삭제 근거.** 지운 export·파일마다 참조 없음을 어떻게 확인했는지 근거가 있는가. 동적 import와 문자열 경로까지 봤는가.
+8. **커밋 위생.** `--no-verify` 흔적, 한 커밋에 두 관심사 혼재, 무관한 파일 포함.
+9. **되돌릴 수 있는가.** 병합 전에 브랜치가 main에 rebase 없이 깨끗이 얹히는지 확인한다.
 
 ## 9. 다음에 볼 것
 
