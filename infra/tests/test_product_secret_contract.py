@@ -6,13 +6,13 @@ from typing import Any
 from conftest import ManifestSet
 
 # 클러스터에서 사람이 직접 만들어 둔 Secret. Infisical operator가 자기 자신을 인증하는
-# `eatbid-infisical-operator`는 닭과 달걀 문제라 영원히 수기이고, 나머지 셋은 아직 Infisical로
+# `eatbid-infisical-operator`는 닭과 달걀 문제라 영원히 수기이고, 나머지 둘은 아직 Infisical로
 # 옮기지 않은 잔여 부채다. 목록을 넓혀서 "아무도 만들지 않는 Secret 참조"를 통과시키지 마라.
+# `eatbid-share`는 어떤 코드도 읽지 않는 env를 요구하던 것이라 2026-09-10에 뺐다(EAT-126).
 HAND_INJECTED_SECRETS = frozenset(
     {
         "cloudflared-creds",
         "eatbid-auth",
-        "eatbid-share",
         "ghcr-pull",
     }
 )

@@ -57,10 +57,10 @@ Copy-Secret -Namespace argocd -Name repo-eatbid
 Copy-Secret -Namespace eatbid -Name ghcr-pull
 Copy-Secret -Namespace eatbid -Name eatbid-infisical-operator
 Copy-Secret -Namespace eatbid -Name cloudflared-creds
-# server가 읽는 auth·share Secret은 InfisicalSecret 선언이 없는 수동 자산이다(옛 클러스터에서 손으로 만들어졌고
+# server가 읽는 auth Secret은 InfisicalSecret 선언이 없는 수동 자산이다(옛 클러스터에서 손으로 만들어졌고
 # 2026-09-05 부트스트랩에서 server CreateContainerConfigError로 드러났다). Infisical 경로로 옮기는 것은 후속이다.
+# `eatbid-share`는 어떤 코드도 읽지 않아 2026-09-10에 계약에서 뺐다(EAT-126).
 Copy-Secret -Namespace eatbid -Name eatbid-auth
-Copy-Secret -Namespace eatbid -Name eatbid-share
 
 # migration Job·server·web은 default ServiceAccount로 돌고 manifest에 imagePullSecrets가 없다. 옛 클러스터는 이
 # SA를 손으로 패치해 두었고 그것이 미기록 자산이었다. 여기서 같은 패치를 기록된 절차로 남긴다.
