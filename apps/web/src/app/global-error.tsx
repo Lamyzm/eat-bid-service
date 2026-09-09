@@ -1,3 +1,4 @@
+/** @module 책임: 루트 레이아웃까지 깨졌을 때를 대체하는 전역 오류 경계로, globals.css 없이 인라인 스타일만으로 최소 복구 UI와 Sentry 보고를 제공한다. */
 'use client';
 
 import * as Sentry from '@sentry/nextjs';
