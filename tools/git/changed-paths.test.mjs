@@ -135,6 +135,11 @@ test("범위 판정은 드라이버 env 목록, --all, --base, 자동 탐색 순
 
     assert.equal(changedScope({ repoRoot: repo.root, argv: [], env: {}, defaultMode: "all" }).mode, "all");
     assert.equal(changedScope({ repoRoot: repo.root, argv: ["--changed"], env: {}, defaultMode: "all" }).mode, "changed");
+    // 예외 없는 규칙은 base만으로 좁히지 않는다. CI가 base를 명시해도 전체 판정을 유지해야 한다.
+    assert.equal(changedScope({ repoRoot: repo.root, argv: ["--base", "main"], env: {}, defaultMode: "all" }).mode, "all");
+    assert.equal(changedScope({ repoRoot: repo.root, argv: [], env: { [CHANGED_BASE_ENV]: "main" }, defaultMode: "all" }).mode, "all");
+    assert.equal(changedScope({ repoRoot: repo.root, argv: ["--changed", "--base", "main"], env: {}, defaultMode: "all" }).base.kind, "explicit");
+    assert.equal(changedScope({ repoRoot: repo.root, argv: [], env: { [CHANGED_BASE_ENV]: "main" } }).base.kind, "explicit");
   } finally {
     repo.close();
   }

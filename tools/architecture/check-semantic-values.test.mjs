@@ -415,4 +415,9 @@ test("드라이버가 변경 경로를 넘기면 그 파일만 governed root로 
   const touched = run(target, { env: { EATBID_CHANGED_PATHS: "apps/web/src/screen.ts" } });
   assert.notEqual(touched.status, 0, touched.output);
   assert.match(touched.output, /screen\.ts:1:\d+ \[ambient-date\]/);
+
+  // 드라이버가 전체 모드에서 base만 넘긴 경우(CI의 --base origin/main)에는 좁히지 않고 전체를 본다.
+  const baseOnly = run(target, { env: { EATBID_CHANGED_BASE: "origin/main" } });
+  assert.notEqual(baseOnly.status, 0, baseOnly.output);
+  assert.match(baseOnly.output, /screen\.ts:1:\d+ \[ambient-date\]/);
 });

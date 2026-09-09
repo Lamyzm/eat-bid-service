@@ -105,8 +105,10 @@ export function changedScope({ repoRoot, argv = process.argv.slice(2), env = pro
       base: { kind: "driver", ref: env[CHANGED_BASE_ENV] || "(driver)" },
     };
   }
+  // 규칙에 예외가 없는 검사는 `--changed`나 드라이버 목록이 있을 때만 좁힌다. `--base`는 기준을 정할 뿐이며
+  // 그것만으로 좁히면 CI의 `architecture:check -- --base origin/main`이 전체 판정을 잃는다.
+  if (defaultMode === "all" && !args.includes("--changed")) return { mode: "all" };
   const base = argumentValue(args, "--base") ?? (env[CHANGED_BASE_ENV] || undefined);
-  if (defaultMode === "all" && !args.includes("--changed") && base === undefined) return { mode: "all" };
   const resolved = resolveChangedBase({ repoRoot, base });
   if (resolved.kind === "unresolved") return { mode: "unresolved", reason: resolved.reason };
   return {
