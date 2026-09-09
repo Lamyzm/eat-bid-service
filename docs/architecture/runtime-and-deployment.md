@@ -25,6 +25,9 @@ flowchart LR
     validate -->|invalid| quarantine[(quarantine)]
 ```
 
+각 단계가 R2와 어느 `ingest`·`core`·`mart` 표에 무엇을 어떤 transaction·잠금 경계로 쓰는지는
+[수집 쓰기 지도](ingestion-write-map.md)가 모듈 단위로 답한다.
+
 `marts`(7)는 `WorkflowTemplate`의 실제 task이며 `project` 뒤에 붙고 CLI `build-marts`를 부른다.
 mutex는 `eatbid-core-publication`이 아니라 **`eatbid-mart-build`**다. 같은 mutex를 쓰면 mart 빌드가
 다음 수집의 발행을 막아 소스 관측이 늦어지는데, mart는 파생물이라 stale이 정상 상태다(ADR 0011).

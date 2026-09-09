@@ -12,6 +12,8 @@
 | [domain-and-data.md](domain-and-data.md) | 어떤 사실을 어떤 단위와 식별자로 저장하는가? |
 | [c4.md](c4.md) | 사람·외부 시스템·컨테이너·컴포넌트 경계는 무엇인가? |
 | [runtime-and-deployment.md](runtime-and-deployment.md) | 수집·재처리·배포·복구는 어떻게 흐르는가? |
+| [ingestion-write-map.md](ingestion-write-map.md) | 수집의 어느 단계가 R2와 어느 표에 무엇을 어떤 경계로 쓰는가? (모듈별 표는 검사로 소스와 맞춘다) |
+| [generated/](generated/) | 스키마별 표·컬럼·외래키는 지금 실제로 어떤 모양인가? (Drizzle snapshot에서 생성, 직접 편집 금지) |
 | [arc42.md](arc42.md) | 전체 설계를 한 문맥에서 어떻게 설명하는가? |
 | [legacy-disposition.md](legacy-disposition.md) | 무엇을 보존하고 무엇을 폐기하는가? |
 | [backend-application-foundation.md](backend-application-foundation.md) | Nest·Effect·HTTP·DB application boundary를 어떻게 책임 분리하는가? |
