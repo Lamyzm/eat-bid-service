@@ -106,7 +106,8 @@ export class OwnPointsSeries implements ICustomSeriesPaneView<Time, OwnDayDatum,
       ...customSeriesDefaultOptions,
       color: '#b31cbf',
       selectedAttemptId: null,
-      radius: 5,
+      // 낙찰 점(반지름 4)보다 한 단계 크게 둔다. 같은 값에 겹쳐도 마름모가 원 밖으로 드러나야 두 사실로 읽힌다.
+      radius: 6,
       priceLineVisible: false,
       lastValueVisible: false
     };

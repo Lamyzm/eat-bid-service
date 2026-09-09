@@ -53,7 +53,7 @@ export function createFlowChart(element: HTMLElement, model: FlowChartModel, onI
   chart.panes()[0]?.setStretchFactor(5);
   chart.panes()[1]?.setStretchFactor(1);
   // 실제 제출은 custom series 하나가 그린다. 같은 날의 여러 제출을 LineSeries에 넣으면 첫 값만 남는다.
-  const own = chart.addCustomSeries(new OwnPointsSeries(), { color: CHART.own, selectedAttemptId: null, radius: 5, priceLineVisible: false, lastValueVisible: false });
+  const own = chart.addCustomSeries(new OwnPointsSeries(), { color: CHART.own, selectedAttemptId: null, radius: 6, priceLineVisible: false, lastValueVisible: false });
   const selected = chart.addSeries(LineSeries, { ...options, color: CHART.me, lineVisible: false, pointMarkersRadius: 7 });
   const reference = chart.addSeries(LineSeries, { ...options, visible: true, lineVisible: false });
   let mine: IPriceLine | null = null;
@@ -75,14 +75,16 @@ export function createFlowChart(element: HTMLElement, model: FlowChartModel, onI
   const valuesOf = (item: FlowInspection): number[] => item.kind === 'own'
     ? [item.point.value]
     : [item.point.value, ...(visibility?.runnerUp && item.point.row.secondRateText !== null ? [Number(item.point.row.secondRateText)] : [])];
+  // 좌표 변환은 데이터를 가진 계열에서만 답한다. own 점만 있는 캔버스에서는 own 계열이, 낙찰 점만 있으면 낙찰 계열이 답한다.
+  const toCoordinate = (value: number): number | null =>
+    own.priceToCoordinate(value) ?? wins[0]?.win.priceToCoordinate(value) ?? null;
   const inspect: Parameters<typeof chart.subscribeClick>[0] = (event) => {
     const items = typeof event.time === 'number' ? candidatesAt(event.time) : [];
     if (!event.point || !items.length) return;
     // 같은 날 여러 회차·제출은 가까운 점으로 고르고 값까지 겹치면 후보를 보여 사용자가 선택한다.
-    // 좌표 변환은 데이터가 없는 계열에서도 가능하므로 낙찰 점이 없는 캔버스에서도 own 점을 고를 수 있다.
     const distances = items.map((item) => ({
       item,
-      distance: Math.min(...valuesOf(item).map((value) => Math.abs((reference.priceToCoordinate(value) ?? Infinity) - event.point!.y)))
+      distance: Math.min(...valuesOf(item).map((value) => Math.abs((toCoordinate(value) ?? Infinity) - event.point!.y)))
     }));
     const nearest = Math.min(...distances.map((entry) => entry.distance));
     if (!Number.isFinite(nearest) || nearest > 12) return;
