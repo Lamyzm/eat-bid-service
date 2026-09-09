@@ -427,17 +427,16 @@ Collector, Prometheus/Grafana/Loki를 추가한다. 제품 경로에 특정 관�
 
 ## 11. 현재 실행 가능 경계
 
-Task 13에서 production `run_foundation_slice` composition과 실제 psycopg repository를 통해 한
-`bid-detail-one.xml`의 `start/plan → capture/archive → observation → normalize → validate/freeze →
-project → replay`가 자동 검증된다. transport 대역은 `MemoryRawObjectStore`와 fake `SourceClient`지만
-parser, schema contract, publication, projector, replay는 production 구현을 그대로 호출한다. 같은 raw와
-`eat-v1` replay는 새 run/publication에서 원 observation을 참조하고 같은 canonical fingerprint와 기존
-canonical revision을 재사용한다.
+`eatbid` CLI의 command 표(`eatbid/cli.py`의 `COMMAND_METHODS`)에 있는 모든 command가 production
+composition root에 연결되어 있고, product WorkflowTemplate `eatbid-dataplane`은 그 표의 command만 호출한다.
+`infra/tests`가 WorkflowTemplate이 부르는 command와 이 표를 대조하므로 한쪽에만 있는 command는 gate에서
+드러난다. 수집 schedule은 CronWorkflow 세 개뿐이며 `poll-open`·`daily-reconcile`은 활성이고
+`reference-refresh`는 `spec.suspend: true`다. 레거시 Kubernetes CronJob과 수기 `schema.sql`은 base
+manifest에서 제거했고, 같은 `infra/tests`가 base·product 렌더 양쪽에서 native CronJob 0을 강제한다
+(AGENTS 9·10).
 
-이 capability는 아직 외부 실행기가 아니다. eaT list/detail HTTP transport, live R2 adapter wiring,
-stage별 PostgreSQL ledger를 여는 CLI composition은 Task 14 범위다. 현재 여섯 CLI command는 placeholder
-exit 64이며 WorkflowTemplate을 실행 성공 상태로 만들 수 없다. 따라서 product WorkflowTemplate과 두
-CronWorkflow는 **dormant**이고 두 schedule은 계속 `spec.suspend: true`다. live source/R2 호출, image
-publish, Workflow submit, Argo CD sync, schedule resume는 Task 14 구현·오프라인 gate와 별도 사용자 승인
-전에는 실행하지 않는다. 오프라인 fixture capability와 외부 execution evidence의 판정은
-[data-foundation-gate.md](../operations/data-foundation-gate.md)를 따른다.
+자동 검증은 `apps/dataplane/tests/integration`이 disposable PostgreSQL에 Drizzle migration을 적용한 뒤
+`pipeline_services` fixture로 production repository·projector·replay를 그대로 호출하는 방식이다. 초기의
+오프라인 전용 `run_foundation_slice` harness와 checkpoint repository는 live pipeline이 같은 네 단계를
+소유하게 된 뒤 제거했다. 실패한 실행의 단계별 복구 절차는
+[collection-runbook.md](../operations/collection-runbook.md)가 소유한다.

@@ -59,14 +59,13 @@ def test_모르는_record_type은_여전히_발행_대상이_아니다() -> None
     "module",
     [
         Path("pipeline") / "project.py",
-        Path("foundation.py"),
         Path("postgres_topology.py"),
     ],
 )
-def test_발행_판정하는_세_곳이_record_type_문자열을_직접_들지_않는다(
+def test_발행_판정하는_두_곳이_record_type_문자열을_직접_들지_않는다(
     module: Path,
 ) -> None:
-    """세 곳이 각자 문자열을 비교하면 새 record type을 열 때 한 곳만 열려 나머지 둘이 조용히 막는다.
+    """두 곳이 각자 문자열을 비교하면 새 record type을 열 때 한 곳만 열려 나머지 하나가 조용히 막는다.
 
     그 실패는 발행 시점에야 드러나므로 단위 테스트로는 재현되지 않는다. 여기서 막는 것은 값이
     아니라 권위가 다시 흩어지는 일이다.

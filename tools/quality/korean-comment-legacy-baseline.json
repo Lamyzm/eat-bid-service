@@ -27,10 +27,6 @@
       "sha256": "b1107387b544a850c52873e932f7795f046decdec4542a9f69cb0c633cd54819"
     },
     {
-      "path": "apps/dataplane/src/eatbid/foundation_repository.py",
-      "sha256": "884543ad80ca4f3e81a57876463be451d06d2a64112d30d7307f80bc62955ff2"
-    },
-    {
       "path": "apps/dataplane/src/eatbid/ingest/models.py",
       "sha256": "0d4cad300316b8efd0da3076ff12fad5c93550809dcaeec79597547b0be7c7b0"
     },
@@ -81,10 +77,6 @@
     {
       "path": "apps/dataplane/src/eatbid/pipeline/validate.py",
       "sha256": "bfdd3f939340f0b740685a349d62e1817738d7c03194236358cfb2655e343bf1"
-    },
-    {
-      "path": "apps/dataplane/src/eatbid/postgres_foundation_repository.py",
-      "sha256": "afcf8dbc041d8a04505005ebe0567b6df068eca7bb3b753d451c26da70f4683a"
     },
     {
       "path": "apps/dataplane/src/eatbid/r2_store.py",

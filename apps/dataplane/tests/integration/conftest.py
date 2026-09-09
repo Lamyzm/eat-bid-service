@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -15,36 +13,17 @@ from docker.errors import NotFound
 from testcontainers.community.postgres import PostgresContainer
 
 from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
-from eatbid.foundation import FoundationResult, FoundationServices, run_foundation_slice
 from eatbid.ingest.postgres_normalization_repository import (
     PsycopgNormalizationRepository,
 )
 from eatbid.ingest.postgres_publication_repository import PsycopgPublicationRepository
 from eatbid.ingest.postgres_replay_repository import PsycopgReplayRunRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
-from eatbid.pipeline.replay import ReplayResult, ReplayServices, replay_observations
-from eatbid.postgres_foundation_repository import PsycopgFoundationCheckpointRepository
-from eatbid.source.client import SourceResponse
 
-from ..unit.fakes import MemoryRawObjectStore, StaticSourceClient
+from ..unit.fakes import MemoryRawObjectStore
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 FIXTURE_ROOT = Path(__file__).parents[1] / "fixtures"
-FOUNDATION_CAPTURE_RUN_ID = UUID("13000000-0000-0000-0000-000000000001")
-FOUNDATION_CAPTURE_PUBLICATION_ID = UUID("13000000-0000-0000-0000-000000000002")
-FOUNDATION_REPLAY_RUN_ID = UUID("13000000-0000-0000-0000-000000000003")
-FOUNDATION_REPLAY_PUBLICATION_ID = UUID("13000000-0000-0000-0000-000000000004")
-FOUNDATION_BUILD_SHA = "d" * 64
-FOUNDATION_PARSER_VERSION = "eat-v1"
-FOUNDATION_STARTED_AT = datetime(2026, 8, 29, 4, 0, 0, tzinfo=UTC)
-FOUNDATION_FETCHED_AT = datetime(2026, 8, 29, 4, 5, 0, tzinfo=UTC)
-FOUNDATION_NORMALIZED_AT = datetime(2026, 8, 29, 4, 6, 0, tzinfo=UTC)
-FOUNDATION_VALIDATED_AT = datetime(2026, 8, 29, 4, 7, 0, tzinfo=UTC)
-FOUNDATION_ACTIVATED_AT = datetime(2026, 8, 29, 4, 8, 0, tzinfo=UTC)
-FOUNDATION_REPLAY_STARTED_AT = datetime(2026, 8, 29, 4, 10, 0, tzinfo=UTC)
-FOUNDATION_REPLAY_NORMALIZED_AT = datetime(2026, 8, 29, 4, 11, 0, tzinfo=UTC)
-FOUNDATION_REPLAY_VALIDATED_AT = datetime(2026, 8, 29, 4, 12, 0, tzinfo=UTC)
-FOUNDATION_REPLAY_ACTIVATED_AT = datetime(2026, 8, 29, 4, 13, 0, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -65,96 +44,11 @@ class PipelineServices:
     replay_repository: PsycopgReplayRunRepository
     projection_repository: PsycopgCanonicalProjectionRepository
     store: MemoryRawObjectStore
-    checkpoint_repository: PsycopgFoundationCheckpointRepository
-
-
-class FoundationHarness(Protocol):
-    def run_fixture(
-        self,
-        relative_path: str,
-        *,
-        expected_count: int,
-        parser_version: str = FOUNDATION_PARSER_VERSION,
-    ) -> FoundationResult: ...
-
-    def replay(
-        self, observation_ids: Sequence[int], *, parser_version: str
-    ) -> ReplayResult: ...
-
-
-@dataclass(frozen=True)
-class _FoundationHarness:
-    services: PipelineServices
-
-    def run_fixture(
-        self,
-        relative_path: str,
-        *,
-        expected_count: int,
-        parser_version: str = FOUNDATION_PARSER_VERSION,
-    ) -> FoundationResult:
-        """parser version을 인자로 받는 이유는 그것이 실행 단위의 사실이기 때문이다.
-
-        `eat-v1`과 `eat-v2`는 같은 응답을 서로 다른 record type으로 저장하므로, 한 harness가 두 계약을
-        각각 돌릴 수 있어야 v2 발행 경로를 v1과 같은 조건에서 검증할 수 있다.
-        """
-        fixture = (FIXTURE_ROOT / relative_path).resolve()
-        if not fixture.is_relative_to(FIXTURE_ROOT.resolve()):
-            raise ValueError("fixture path must remain below the fixture root")
-        body = fixture.read_bytes()
-        return run_foundation_slice(
-            run_id=FOUNDATION_CAPTURE_RUN_ID,
-            publication_id=FOUNDATION_CAPTURE_PUBLICATION_ID,
-            mode="poll-open",
-            build_sha=FOUNDATION_BUILD_SHA,
-            parser_version=parser_version,
-            started_at=FOUNDATION_STARTED_AT,
-            normalized_at=FOUNDATION_NORMALIZED_AT,
-            validated_at=FOUNDATION_VALIDATED_AT,
-            activated_at=FOUNDATION_ACTIVATED_AT,
-            source="eat",
-            endpoint="bid-detail",
-            request_params={"ELCTRN_BID_ID": "task-13-bid-detail-one"},
-            expected_count=expected_count,
-            services=FoundationServices(
-                checkpoint_repository=self.services.checkpoint_repository,
-                ingest_repository=self.services.repository,
-                normalization_repository=self.services.normalization_repository,
-                publication_repository=self.services.publication_repository,
-                projection_repository=self.services.projection_repository,
-                raw_store=self.services.store,
-                source_client=StaticSourceClient(
-                    SourceResponse(200, body, FOUNDATION_FETCHED_AT)
-                ),
-            ),
-        )
-
-    def replay(
-        self, observation_ids: Sequence[int], *, parser_version: str
-    ) -> ReplayResult:
-        return replay_observations(
-            run_id=FOUNDATION_REPLAY_RUN_ID,
-            publication_id=FOUNDATION_REPLAY_PUBLICATION_ID,
-            observation_ids=tuple(observation_ids),
-            build_sha=FOUNDATION_BUILD_SHA,
-            parser_version=parser_version,
-            started_at=FOUNDATION_REPLAY_STARTED_AT,
-            normalized_at=FOUNDATION_REPLAY_NORMALIZED_AT,
-            validated_at=FOUNDATION_REPLAY_VALIDATED_AT,
-            activated_at=FOUNDATION_REPLAY_ACTIVATED_AT,
-            services=ReplayServices(
-                replay_repository=self.services.replay_repository,
-                normalization_repository=self.services.normalization_repository,
-                publication_repository=self.services.publication_repository,
-                projection_repository=self.services.projection_repository,
-                store=self.services.store,
-            ),
-        )
 
 
 @pytest.fixture(scope="session")
 def migrated_db() -> MigratedDatabase:
-    container_name = f"eatbid-foundation-{uuid4().hex}"
+    container_name = f"eatbid-dataplane-test-{uuid4().hex}"
     container = PostgresContainer(
         "postgres:16-alpine",
         username="eatbid",
@@ -213,12 +107,6 @@ def pipeline_services(migrated_db: MigratedDatabase) -> PipelineServices:
             store=MemoryRawObjectStore(
                 now=lambda: datetime(2026, 8, 29, 4, 5, 6, tzinfo=UTC)
             ),
-            checkpoint_repository=PsycopgFoundationCheckpointRepository(connection),
         )
     finally:
         connection.close()
-
-
-@pytest.fixture
-def foundation(pipeline_services: PipelineServices) -> FoundationHarness:
-    return _FoundationHarness(pipeline_services)
