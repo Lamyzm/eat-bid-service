@@ -1,4 +1,6 @@
 /** @module 책임: 검토 중인 공고 하나를 상태·제목·마감·기초금액·하한율과 오른쪽 상세 진입까지 한 문맥으로 보인다. 기관 이력 수치와 원본 추적 정보는 여기서 다시 강조하지 않는다. */
+import { summarizeItemLabel } from '@/shared/lib/item-label';
+
 import type { DecisionPresentation } from '../_model/present-decision';
 import { CurrentAuctionInfoButton } from './decision-tools';
 
@@ -35,20 +37,6 @@ const STATUS_TEXT = { open: '진행 중', closed: '개찰 완료', unknown: '마
 
 /** `present-decision.ts`가 관측 없는 지역에 싣는 값이다. 요약 줄에서 뺄지 판단할 때만 쓰고 다른 뜻을 되살리지 않는다. */
 const UNOBSERVED_TEXT = '미확인';
-
-export type ItemLabelSummary = { readonly text: string; readonly full: string | null };
-
-/** 원천 품목 라벨은 "농산물 , 수산물 , …"처럼 쉼표로 이어진 여러 품목일 수 있다. 칩 한 개가 그 전체를 nowrap으로
- * 품으면 768폭 근거 열(약 480px)을 혼자 넘기므로 첫 품목과 나머지 개수로 접는다. 여기서 나눈 조각은 표시에만 쓰고
- * 코호트·조인 키로 되살리지 않는다(AGENTS 2·15). 품목이 하나면 라벨을 그대로 두고 full은 비운다. */
-export function summarizeItemLabel(label: string): ItemLabelSummary {
-  const parts = label
-    .split(',')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-  if (parts.length <= 1) return { text: label, full: null };
-  return { text: `${parts[0]} 외 ${parts.length - 1}`, full: parts.join(', ') };
-}
 
 /**
  * 마감 조각은 상태마다 다른 사실을 짝짓는다: open은 남은 시간과 마감 시각, closed는 개찰 후 지난 시간과

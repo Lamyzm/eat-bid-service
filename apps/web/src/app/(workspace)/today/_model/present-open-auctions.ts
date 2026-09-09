@@ -42,11 +42,22 @@ export type OpenAuctionRowPresentation = {
   } | null;
 };
 
+/**
+ * 목록이 무엇을 보여야 하는지는 표시 모델이 정한다. 화면이 build 유무와 행 개수로 상태를 다시 계산하면
+ * 같은 판정이 두 곳에 살고, 세 상태 중 하나를 더할 때 화면이 조용히 빠뜨린다.
+ *
+ * 활성 build가 없는 것은 파생물이 아직 없다는 뜻이고(ADR 0011·0034), 0건은 조건에 맞는 공고가 없다는
+ * 뜻이다. 사용자가 할 일이 다르므로 합치지 않는다.
+ */
+export type OpenAuctionListView =
+  | { readonly kind: 'no-snapshot' }
+  | { readonly kind: 'empty' }
+  | { readonly kind: 'list'; readonly rows: readonly OpenAuctionRowPresentation[] };
+
 export type OpenAuctionListPresentation = {
-  readonly rows: readonly OpenAuctionRowPresentation[];
+  readonly view: OpenAuctionListView;
   readonly sampleCount: number;
   readonly asOfText: string;
-  readonly hasSnapshotBuild: boolean;
   readonly lineageText: string;
   readonly nextCursor: string | null;
 };
@@ -154,12 +165,18 @@ function lineageText(response: OpenAuctionListV1Response): string {
   return parts.filter((part): part is string => part !== null).join(' · ');
 }
 
+// build가 없으면 목록이 비어 있어도 "조건에 맞는 공고가 없다"고 말할 수 없다. 그래서 build를 먼저 본다.
+function viewOf(response: OpenAuctionListV1Response, nowIso: string): OpenAuctionListView {
+  if (response.meta.openAuctionSnapshotBuild.buildId === null) return { kind: 'no-snapshot' };
+  if (response.auctions.length === 0) return { kind: 'empty' };
+  return { kind: 'list', rows: response.auctions.map((auction) => presentOpenAuction(auction, nowIso)) };
+}
+
 export function presentOpenAuctionList(response: OpenAuctionListV1Response, nowIso: string): OpenAuctionListPresentation {
   return {
-    rows: response.auctions.map((auction) => presentOpenAuction(auction, nowIso)),
+    view: viewOf(response, nowIso),
     sampleCount: response.meta.sampleCount,
     asOfText: kstDateTime(response.meta.asOf),
-    hasSnapshotBuild: response.meta.openAuctionSnapshotBuild.buildId !== null,
     lineageText: lineageText(response),
     nextCursor: response.nextCursor
   };

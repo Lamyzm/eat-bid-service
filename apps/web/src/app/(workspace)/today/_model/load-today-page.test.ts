@@ -32,7 +32,7 @@ describe('오늘 route loader', () => {
     expect(inputs).toEqual([{ region: undefined, item: '축산', closesWithinHours: undefined, baseAmountMin: undefined, baseAmountMax: '3000000.00', cursor: undefined }]);
     expect(data.search).toEqual({ region: null, item: '축산', closesWithinHours: null, baseAmountMin: null, baseAmountMax: '3000000.00', cursor: null });
     expect(data.cursorReset).toBe(false);
-    expect(data.presentation.rows.length).toBe(4);
+    expect(data.presentation.view.kind === 'list' ? data.presentation.view.rows.length : 0).toBe(4);
   });
 
   test('cursor가 무효면 cursor 없이 한 번만 다시 조회하고 그 사실을 남긴다', async () => {
@@ -67,8 +67,7 @@ describe('오늘 route loader', () => {
   test('활성 스냅샷 build가 없으면 계보 없음 상태다', async () => {
     const { dependencies: deps } = dependencies({ listOpenAuctions: async () => ({ kind: 'page', response: noSnapshotFixture }) });
     const data = await loadTodayPage(EMPTY_TODAY_SEARCH, deps);
-    expect(data.presentation.hasSnapshotBuild).toBe(false);
-    expect(data.presentation.rows).toEqual([]);
+    expect(data.presentation.view).toEqual({ kind: 'no-snapshot' });
   });
 
   test('정규화는 계약 schema의 같은 필드로 판정한다', () => {

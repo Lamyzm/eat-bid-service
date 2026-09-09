@@ -65,6 +65,21 @@ Linear issue와 ADR이며, 훑기가 끝나면 issue로 옮기고 이 파일은 
 - 대칭으로 만든 미사용 client query factory(`auctions.open/detail`, account·win-rate index 재수출).
 - 시간 리터럴: `query-client.ts` `60_000`, `read-cache-life.ts` `300/3600`(EAT-133 규칙 대상).
 
+### `open-auction-table.tsx` 관찰
+
+- TanStack Table을 쓰지만 `getCoreRowModel`만 쓴다. 정렬·필터·페이징·가상화·열 표시 상태가 전부 없다.
+  반응형 열 접기는 라이브러리 기능이 아니라 CSS 클래스 record다. 저장소 전체에서 이 라이브러리를 쓰는 파일은
+  둘이고(오늘 표, 결정 화면 이력 표) 이력 표가 쓰는 것도 `columnVisibility` boolean 하나다.
+- 그 결과 이 컴포넌트가 `'use client'`인 유일한 이유가 표 라이브러리다. 행 값은 이미 서버에서 문자열로
+  만들어져 있고 셀 안 상호작용은 `<Link>`뿐이라, 라이브러리를 빼면 표 전체가 서버 컴포넌트가 된다.
+  오늘 화면에서 가장 큰 덩어리의 브라우저 JS와 hydration이 사라진다. 부하 목표와 직접 연결된다.
+- 열 하나를 바꾸려면 네 곳을 맞춰야 한다. column 정의, `VISIBILITY`, `ALIGN`, `WRAPPING_CELLS`. id가 빠져도
+  className에 `undefined`가 들어갈 뿐 조용히 지나간다. 한 서술 배열(`{ id, header, align, hideBelow, wrap, cell }`)에서
+  파생하면 어긋날 수 없다.
+- "내 기록" 열은 모든 행이 `없음`이다(148행). 미구현이 사실처럼 읽힌다. 인증 슬롯이 채워지기 전에는 열을 뺀다.
+- `summarizeItemLabel`이 두 파일에 같은 코드로 두 벌 있다(`open-auction-table.tsx:83`,
+  `decision-header.tsx:44`). 품목 라벨을 접는 표시 규칙이 화면마다 산다. 한 곳으로.
+
 ### 계약과 transport (사용자 질문: DTO 한 곳·Zod 검증·ky·패치가 두 군데)
 
 - DTO는 이미 한 곳이다. `packages/contracts`의 operation registry가 method·path·입력·상태별 응답을 소유하고

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { fixtureNow, laterRow, openAuctionsFixture, todayRow, tomorrowRow, unknownClosesRow } from '../__fixtures__/open-auctions';
+import { fixtureNow, laterRow, noSnapshotFixture, openAuctionsFixture, todayRow, tomorrowRow, unknownClosesRow } from '../__fixtures__/open-auctions';
 import { dDayOf, presentOpenAuction, presentOpenAuctionList } from './present-open-auctions';
 
 describe('열린 공고 표시 변환', () => {
@@ -59,12 +59,20 @@ describe('열린 공고 표시 변환', () => {
     }, fixtureNow).orgSummary!.lastAwardedText).toBe('낙찰 미관측');
   });
 
+  test('활성 build가 없는 것과 조건에 맞는 공고가 없는 것을 다른 종류로 낸다', () => {
+    // build가 없으면 목록이 비어 있어도 "공고가 없다"고 말할 수 없다. 종류를 화면이 아니라 여기서 정한다.
+    expect(presentOpenAuctionList(noSnapshotFixture, fixtureNow).view).toEqual({ kind: 'no-snapshot' });
+    const empty = { ...openAuctionsFixture, auctions: [], meta: { ...openAuctionsFixture.meta, sampleCount: 0 } };
+    expect(presentOpenAuctionList(empty, fixtureNow).view).toEqual({ kind: 'empty' });
+  });
+
   test('목록 표시는 응답 순서를 그대로 두고 기준 시각과 두 build의 계보를 문장으로 낸다', () => {
     const presentation = presentOpenAuctionList(openAuctionsFixture, fixtureNow);
-    expect(presentation.rows.map((row) => row.auctionAttemptId)).toEqual(['5796468', '5796470', '5796471', '5796472']);
+    expect(presentation.view.kind).toBe('list');
+    const rows = presentation.view.kind === 'list' ? presentation.view.rows : [];
+    expect(rows.map((row) => row.auctionAttemptId)).toEqual(['5796468', '5796470', '5796471', '5796472']);
     expect(presentation.sampleCount).toBe(4);
     expect(presentation.asOfText).toBe('09-07 10:30');
-    expect(presentation.hasSnapshotBuild).toBe(true);
     expect(presentation.lineageText).toBe(
       '열린 공고 스냅샷 build 601 · mart-r2 · 09-07 10:00 산출 · 지역 체계 eat:auction-location-sigungu · 기관 회차 요약 build 501 · mart-r1'
     );
