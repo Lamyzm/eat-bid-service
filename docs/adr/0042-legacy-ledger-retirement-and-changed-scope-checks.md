@@ -76,7 +76,8 @@ production 모듈만 검사한다. 건드리지 않은 기존 모듈은 묻지 �
   ```
 
   waiver는 shebang·빈 줄·주석·directive만 이어지는 파일 머리에만 둘 수 있고, `owner`·`reason`·`splitTrigger`가
-  모두 있어야 하며 reason과 splitTrigger는 한국어 문장이다. 면제 대상 finding이 없는 waiver는 stale로
+  모두 있어야 한다. owner는 `EAT-N` 형식의 Linear issue 식별자이고(AGENTS 20의 소유권 단위) reason과
+  splitTrigger는 한국어 문장이다. 면제 대상 finding이 없는 waiver는 stale로
   실패한다(파일이 300줄 이하로 돌아오면 지운다). 다른 규칙의 waiver는 실패다. 근거는 AGENTS 18과
   `apps/web/AGENTS.md`의 "명시적 waiver" 문장이며, 이 결정에서 `components/ui/sidebar.tsx`에 "vendored shadcn
   sidebar는 upstream과 diff를 맞추는 재vendoring 단위라 한 파일로 유지한다"는 waiver를 달았다.

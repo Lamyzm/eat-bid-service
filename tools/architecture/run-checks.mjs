@@ -122,13 +122,19 @@ const TOOLING_PATH = /^(?:package\.json|pnpm-workspace\.yaml|pnpm-lock\.yaml|too
 export function parseArguments(argv) {
   const args = argv.filter((item) => item !== "--");
   const options = { changed: false, list: false, base: undefined, only: undefined, jobs: undefined };
+  // 값이 빠진 옵션을 조용히 무시하면 `--base` 오타가 자동 기준 탐색으로 강등돼 ADR 0042의 명시 base 실패 성질을 잃는다.
+  const valueOf = (index) => {
+    const value = args[index + 1];
+    if (value === undefined || value.startsWith("--")) throw new Error(`${args[index]} 옵션에는 값이 필요합니다.`);
+    return value;
+  };
   for (let index = 0; index < args.length; index += 1) {
     const item = args[index];
     if (item === "--changed") options.changed = true;
     else if (item === "--list") options.list = true;
-    else if (item === "--base") options.base = args[(index += 1)];
-    else if (item === "--only") options.only = new Set((args[(index += 1)] ?? "").split(",").filter(Boolean));
-    else if (item === "--jobs") options.jobs = Number.parseInt(args[(index += 1)], 10);
+    else if (item === "--base") options.base = valueOf(index++);
+    else if (item === "--only") options.only = new Set(valueOf(index++).split(",").filter(Boolean));
+    else if (item === "--jobs") options.jobs = Number.parseInt(valueOf(index++), 10);
     else throw new Error(`알 수 없는 옵션입니다: ${item}`);
   }
   if (options.only?.size === 0) throw new Error("--only에는 검사 id를 쉼표로 이어 적습니다.");

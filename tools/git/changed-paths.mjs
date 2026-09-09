@@ -86,7 +86,11 @@ export function listChangedPaths({ repoRoot, baseCommit }) {
 
 function argumentValue(args, name) {
   const index = args.indexOf(name);
-  return index >= 0 ? args[index + 1] : undefined;
+  if (index < 0) return undefined;
+  const value = args[index + 1];
+  // 값이 빠진 `--base`를 무시하면 자동 탐색으로 강등돼 명시 base가 해석되지 않으면 실패한다는 성질이 깨진다.
+  if (value === undefined || value.startsWith("--")) throw new Error(`${name} 옵션에는 ref 값이 필요합니다.`);
+  return value;
 }
 
 /**
@@ -97,6 +101,7 @@ function argumentValue(args, name) {
 export function changedScope({ repoRoot, argv = process.argv.slice(2), env = process.env, defaultMode = "changed" }) {
   const args = argv.filter((item) => item !== "--");
   const envPaths = env[CHANGED_PATHS_ENV];
+  const explicitBase = argumentValue(args, "--base");
   if (args.includes("--all")) return { mode: "all" };
   if (typeof envPaths === "string") {
     return {
@@ -108,7 +113,7 @@ export function changedScope({ repoRoot, argv = process.argv.slice(2), env = pro
   // 규칙에 예외가 없는 검사는 `--changed`나 드라이버 목록이 있을 때만 좁힌다. `--base`는 기준을 정할 뿐이며
   // 그것만으로 좁히면 CI의 `architecture:check -- --base origin/main`이 전체 판정을 잃는다.
   if (defaultMode === "all" && !args.includes("--changed")) return { mode: "all" };
-  const base = argumentValue(args, "--base") ?? (env[CHANGED_BASE_ENV] || undefined);
+  const base = explicitBase ?? (env[CHANGED_BASE_ENV] || undefined);
   const resolved = resolveChangedBase({ repoRoot, base });
   if (resolved.kind === "unresolved") return { mode: "unresolved", reason: resolved.reason };
   return {

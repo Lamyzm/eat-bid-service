@@ -140,6 +140,9 @@ test("범위 판정은 드라이버 env 목록, --all, --base, 자동 탐색 순
     assert.equal(changedScope({ repoRoot: repo.root, argv: [], env: { [CHANGED_BASE_ENV]: "main" }, defaultMode: "all" }).mode, "all");
     assert.equal(changedScope({ repoRoot: repo.root, argv: ["--changed", "--base", "main"], env: {}, defaultMode: "all" }).base.kind, "explicit");
     assert.equal(changedScope({ repoRoot: repo.root, argv: [], env: { [CHANGED_BASE_ENV]: "main" } }).base.kind, "explicit");
+    // 값이 빠진 --base는 어느 검사에서도 자동 탐색으로 강등되지 않는다.
+    assert.throws(() => changedScope({ repoRoot: repo.root, argv: ["--base"], env: {} }), /--base 옵션에는 ref 값이 필요/u);
+    assert.throws(() => changedScope({ repoRoot: repo.root, argv: ["--base", "--all"], env: {}, defaultMode: "all" }), /--base 옵션에는 ref 값이 필요/u);
   } finally {
     repo.close();
   }

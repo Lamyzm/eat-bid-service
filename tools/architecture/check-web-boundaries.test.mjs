@@ -248,6 +248,7 @@ test("파일 머리 waiver는 source-file-size finding만 면제하고 stale·�
     "apps/web/src/components/ui/late.tsx": `export const first = 1;\n${waiver}\n${oversized}\n`,
     "apps/web/src/components/ui/english.tsx": `// @boundary-waiver source-file-size owner=EAT-121 reason="keep vendored" splitTrigger="next change"\n${oversized}\n`,
     "apps/web/src/components/ui/missing.tsx": `// @boundary-waiver source-file-size owner=EAT-121\n${oversized}\n`,
+    "apps/web/src/components/ui/owner.tsx": `// @boundary-waiver source-file-size owner=unknown reason="소유자가 없는 waiver다" splitTrigger="다음 변경"\n${oversized}\n`,
     "apps/web/src/hooks/other-rule.ts": '// @boundary-waiver legacy-hooks-directory owner=EAT-121 reason="옮기기 전까지 둔다" splitTrigger="다음 변경"\nexport const useOther = () => 1;\n',
   });
 
@@ -258,13 +259,19 @@ test("파일 머리 waiver는 source-file-size finding만 면제하고 stale·�
   assert.equal(report.waived[0].waiver.owner, "EAT-121");
   assert.deepEqual(
     report.findings.filter((item) => item.rule === "source-file-size").map((item) => item.path).sort(),
-    ["apps/web/src/components/ui/english.tsx", "apps/web/src/components/ui/late.tsx", "apps/web/src/components/ui/missing.tsx"],
+    [
+      "apps/web/src/components/ui/english.tsx",
+      "apps/web/src/components/ui/late.tsx",
+      "apps/web/src/components/ui/missing.tsx",
+      "apps/web/src/components/ui/owner.tsx",
+    ],
   );
   const failures = report.failures.join("\n");
   assert.match(failures, /stale\.tsx:1 stale waiver/u);
   assert.match(failures, /late\.tsx: @boundary-waiver는 import와 코드보다 앞선/u);
   assert.match(failures, /english\.tsx:1 .*한국어 문장/u);
   assert.match(failures, /missing\.tsx:1 waiver에 reason, splitTrigger가 필요/u);
+  assert.match(failures, /owner\.tsx:1 waiver의 owner는 EAT-N 형식/u);
   assert.match(failures, /other-rule\.ts:1 legacy-hooks-directory 규칙은 waiver로 면제할 수 없습니다/u);
   assert.ok(report.findings.some((item) => item.rule === "legacy-hooks-directory" && item.path === "apps/web/src/hooks/other-rule.ts"));
 });

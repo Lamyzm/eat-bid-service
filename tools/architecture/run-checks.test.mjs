@@ -40,6 +40,10 @@ test("인자 해석은 pnpm이 넘기는 리터럴 --를 무시하고 알 수 �
   assert.equal(parseArguments(["--jobs", "2"]).jobs, 2);
   assert.throws(() => parseArguments(["--write-baseline"]), /알 수 없는 옵션/u);
   assert.throws(() => parseArguments(["--jobs", "0"]), /--jobs/u);
+  // 값이 빠진 --base는 자동 기준 탐색으로 강등되지 않고 실패한다.
+  assert.throws(() => parseArguments(["--changed", "--base"]), /--base 옵션에는 값이 필요/u);
+  assert.throws(() => parseArguments(["--base", "--changed"]), /--base 옵션에는 값이 필요/u);
+  assert.throws(() => parseArguments(["--only"]), /--only 옵션에는 값이 필요/u);
 });
 
 test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바뀌면 전부 고른다", () => {
