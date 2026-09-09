@@ -17,9 +17,9 @@ shared          generic config/lib/UI
 ```
 
 브라우저 generic hook은 `shared/lib/hooks/`에, generic helper는 `shared/lib/`에, 그 외 hook은 소비하는
-route-private 또는 capability 내부에 둔다. 스타터 잔재 `hooks/`와 `lib/`는 삭제 전용 ledger로만 남고 새 파일을
-받지 않는다. legacy route-private module(`app/dashboard`, `app/welcome`, `app/s`)도 canonical 층에서 import하지
-않는다.
+route-private 또는 capability 내부에 둔다. 스타터 잔재 `hooks/`와 `lib/`는 새 파일을 받지 않으며, 기존 파일도
+수정하는 변경에서 함께 옮긴다(변경 범위 검사, [ADR 0042](../adr/0042-legacy-ledger-retirement-and-changed-scope-checks.md)).
+legacy route-private module(`app/dashboard`, `app/welcome`, `app/s`)도 canonical 층에서 import하지 않는다.
 
 ```mermaid
 flowchart LR
@@ -112,7 +112,7 @@ route/capability
 
 - bigint ID는 canonical decimal string 상태로 key, URL과 props를 통과한다.
 - `AbortSignal`은 Query function에서 transport의 `fetch`까지 전달한다.
-- resource의 raw `fetch`/`Response.json()` 우회는 legacy baseline이 아닌 신규 차단 대상이다.
+- resource의 raw `fetch`/`Response.json()` 우회는 예외 없는 차단 대상이다.
 - malformed 2xx는 contract error, RFC 9457은 typed HTTP error, abort는 사용자 오류 toast 대상이 아니다.
 - browser는 same-origin ingress, RSC는 `API_URL` 내부 origin을 쓰되 operation/schema는 같다.
 - client-safe `index.ts`와 `server-only`인 `server.ts`를 분리한다.
@@ -131,7 +131,7 @@ route/capability
 - `Link`, router API, `PageProps`, `LayoutProps`, `RouteContext`는 생성 route type을 사용한다.
 - one-off 정적 path는 typed literal, 반복되는 동적 path만 `src/routing/<resource>.ts` builder를 사용한다.
 - `routing/`은 canonical decimal ID route만 만든다. 복합 문자열 identity를 쓰는 legacy route builder는
-  legacy route 옆 `_lib`에 두고 삭제 전용 ledger로 추적한다.
+  canonical 층에 들어올 수 없다.
 - exhaustive `ROUTES` mirror, route group/parallel slot 이름 노출, placeholder route와 `as Route` cast를 금지한다.
 - `/api/**` ingress는 Nest 전용이며 신규 Next Route Handler는 기본 금지한다. Web-owned handler 예외는 별도
   ADR, non-`/api` prefix, ingress rule과 owner contract를 요구한다.
@@ -193,9 +193,9 @@ blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`
 
 - import graph: reverse edge, cross-capability/API deep import, API resource 간 import와 source cycle을 거부한다.
 - legacy import: 신규 층(`app/(workspace)`, `shell`, `capabilities`, `api`, `shared`, `routing`)은
-  `components/hooks/lib/config/types`를 import하지 않는다. 기존 edge는 삭제 전용 fingerprint로만 남는다.
-- client 업무 계산: `lib/band.ts`, `deadline.ts`, `mark-rates.ts`, `rate-text.ts`, `school-id.ts`의 export는
-  삭제 전용 ledger로 고정하며 Server 계약 응답으로 대체할 때만 지운다.
+  `components/hooks/lib/config/types`를 import하지 않는다. 기존 edge는 그 파일을 수정하는 변경에서 함께 옮긴다.
+- legacy 디렉터리: `hooks/`·`lib/`는 신규 파일을 받지 않고, 수정되는 기존 파일은 `shared/lib` 또는 소비
+  slice로 옮긴다. client 업무 계산은 Server 계약 응답으로 대체하며 Web에 새로 만들지 않는다.
 - transport: network call 위치, client/server entry 분리와 runtime schema parse를 검사한다.
 - package graph: browser-safe contract subpath와 clean dev/build를 검사하고 Node/ingestion/domain runtime 유입을 거부한다.
 - identity/value: ID `Number` 변환, exact money/rate의 float authority를 거부한다.
@@ -210,11 +210,14 @@ blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`
   정하며, `use cache`의 인자는 직렬화 가능해야 하므로 캐시된 read 함수는 `AbortSignal`을 받지 않는다.
   캐시 동작의 증거는 `test:e2e:cache` 하나뿐이다 — 그 스위트만 `next build && next start`로 돌고,
   dev 모드 통과는 배포 동작의 증거가 아니다.
-- size: 300줄 초과는 responsibility split 또는 reason/owner/split trigger가 있는 waiver가 필요하다.
+- size: 300줄 초과는 responsibility split 또는 reason/owner/split trigger가 있는 waiver가 필요하다. waiver는
+  파일 머리 주석 `@boundary-waiver source-file-size owner=… reason="…" splitTrigger="…"` 한 줄이며, 파일이
+  300줄 이하로 돌아오면 지운다(stale waiver는 실패).
 - tests: 신규·변경 test name은 한국어다.
 - browser: `test:e2e:foundation`은 별도 contract fixture와 Chromium으로 loading stream, exact money,
   404/503, 공통 셸과 reduced motion을 검증한다. fixture 증거를 실제 dev 데이터 증거로 부르지 않는다.
-- baseline: 기존 실패 목록은 삭제 방향으로만 변하며 새 위반을 허용하지 않는다.
+- 변경 범위: legacy import·`hooks/`·`lib/` 규칙은 merge-base(main) 대비 변경된 파일에만 적용한다. 예외
+  ledger는 없으며 건드리지 않은 legacy finding은 보고하지 않고, 건드리면 그 자리에서 해결한다(ADR 0042).
 
 전체 typecheck/lint/build가 green이 되기 전에는 production-ready라고 표시하지 않는다. 변경 범위의
-focused gate와 기존 baseline을 PR evidence에서 분리해 보고한다.
+focused gate 결과와 건드리지 않아 보고되지 않은 legacy finding 수를 PR evidence에 함께 적는다.

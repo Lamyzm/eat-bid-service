@@ -66,7 +66,8 @@
   network 호출, query key나 server state를 화면 route builder에 섞지 않는다.
 - 아이콘은 `@/components/icons`에서만 가져온다. 단 canonical layer(`app/(workspace)`, `shell`, `capabilities`,
   `api`, `shared`, `routing`)는 legacy-import gate 때문에 이 module을 직접 import할 수 없으므로, 필요한 아이콘을
-  `shared/ui`로 옮긴 뒤 사용한다. shell/theme의 기존 import는 삭제 전용 ledger 항목이다.
+  `shared/ui`로 옮긴 뒤 사용한다. shell/theme·shell/layout의 기존 legacy import는 변경 범위 규칙 대상이라
+  건드리지 않으면 보고되지 않지만, 그 파일을 수정하는 변경에서는 함께 옮겨야 한다(ADR 0042).
 - 내부 bigint ID는 HTTP 경계에서 선행 0 없는 양의 10진 문자열이다. JavaScript `Number`로
   변환하지 않는다. 상세 계약은 ADR 0018을 따른다.
 - Button primitive는 시각·접근성·공통 press motion만 소유한다. 인증·권한·로깅·command는 capability의
@@ -92,7 +93,10 @@
   계약 union과 명시적 command는 그대로 둔 채 표현만 사용자 언어로 옮긴다.
 - formatting은 single quote, JSX single quote, no trailing comma, 2-space indent를 따른다.
 - source가 300줄을 넘으면 책임 분리를 검토한다. 유지할 경우 reason, owner와 다음 split trigger가 있는
-  명시적 waiver가 필요하다.
+  명시적 waiver가 필요하다. waiver는 파일 머리 주석의
+  `@boundary-waiver source-file-size owner=EAT-N reason="…" splitTrigger="…"` 한 줄이며 `lint:web-boundaries`가
+  읽는다. reason·splitTrigger는 한국어 문장이고, 파일이 300줄 이하로 돌아오면 waiver를 지운다(stale waiver는
+  실패). 다른 규칙은 waiver로 면제할 수 없다.
 - 신규·변경 테스트 이름은 한국어로 작성한다.
 - 기존 hook·shared helper·`es-toolkit` 재사용과 React/Next advisory 검토는 `pnpm review:ai`의 실제
   저장소 근거를 사용한다. AI finding은 자동 수정하거나 lint·type·test·architecture 판정을 대체하지 않는다.

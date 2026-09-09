@@ -59,12 +59,14 @@
     `Temporal.Now`는 `packages/domain/src/time/clock.ts`의 top-level `systemClock`,
     PostgreSQL driver `Date | string`은
     `apps/server/src/modules/procurement/infrastructure/drizzle/drizzle-auction-reader.ts`의 `AuctionRow`와
-    top-level `postgresInstant`만 허용한다. web/shared 기존 부채는 exact AST fingerprint ledger에서 삭제만
-    허용한다.
+    top-level `postgresInstant`만 허용한다. 예외 ledger는 없으며 Web을 포함한 governed source 전체가 같은
+    판정을 받는다(ADR 0042).
 18. **300줄을 넘는 코드 파일은 책임 분리를 검토한다.** 새 기능을 더하기 전에 도메인 책임,
     port/adapter, schema 계층, UI 역할, 테스트 fixture처럼 함께 변경되는 이유가 다른 경계를 우선
     추출하라. 줄 수만 맞추는 기계적 분리는 금지한다. 하나의 응집된 알고리즘, 생성 코드, 선언형
     schema·fixture처럼 분리가 더 해로우면 유지할 수 있지만 작업 보고서에 그 이유를 한 문장으로 남겨라.
+    Web source는 파일 머리의 `@boundary-waiver source-file-size` 한 줄로 이유·owner·분리 조건을 남기며
+    그 형식은 `apps/web/AGENTS.md`가 소유한다.
 19. **공개 endpoint는 operation 계약에서만 정의한다.** method, version, semantic path와 입력,
     status별 응답/Problem schema, `operationId`는 `packages/contracts`의 resource operation이 소유하고
     Nest decorator, OpenAPI와 Web request path는 여기서 파생하라. Server/Web source에 canonical
@@ -92,8 +94,9 @@
 23. **production 모듈은 책임을 한국어로 먼저 설명한다.** 신규·실질 변경 JavaScript/TypeScript 모듈은
     directive와 import·실행 코드보다 앞에 `@module 책임:` 주석을, Python 모듈은 첫 docstring에
     `모듈 책임:`을 둔다. 함께 바뀌는 이유와 소유 경계를 구체적으로 한 문장으로 적고 “이 모듈을 설명한다”
-    같은 장식 문구를 쓰지 않는다. 테스트·fixture·생성물·순수 barrel·선언형 config/schema는 제외하며,
-    기존 부채는 `e7fdcd2`와 byte가 같은 삭제 전용 ledger만 허용한다. `pnpm quality:check`를 우회하지 않는다.
+    같은 장식 문구를 쓰지 않는다. 테스트·fixture·생성물·순수 barrel·선언형 config/schema는 제외한다.
+    검사는 merge-base(main) 대비 신규·수정된 production 모듈만 보므로 건드리지 않은 기존 모듈은 묻지 않지만,
+    수정하는 순간 설명을 함께 넣는다(ADR 0042). `pnpm quality:check`를 우회하지 않는다.
 
 ## 변경 절차
 
@@ -111,6 +114,9 @@
 - 계약이나 의미 값을 바꾼 뒤 `pnpm architecture:check`, `pnpm contracts:check`,
   `pnpm contracts:python:check`를 check mode로 실행하라. CI에서 drift 확인 전에 pnpm/uv frozen install을
   완료하며 check mode는 추적된 생성물을 다시 쓰지 않는다.
+- 커밋마다 pre-commit hook이 `pnpm architecture:check -- --changed`로 merge-base 대비 변경 경로에 해당하는
+  검사만 병렬 실행한다. 전체 gate는 main push와 CI가 실행하며 `--no-verify`로 건너뛴 커밋도 거기서 같은
+  판정을 받는다. 예외 ledger는 없고 기준 결정 규칙은 ADR 0042가 소유한다.
 
 ## 필수 읽기 순서
 
