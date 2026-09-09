@@ -10,10 +10,13 @@ TRANSIENT_NETWORK = "TRANSIENT_NETWORK"
 SOURCE_THROTTLED = "SOURCE_THROTTLED"
 SOURCE_CONTRACT = "SOURCE_CONTRACT"
 PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
+# 프로세스 종료 어휘가 아니라 저장된 상태에만 쓰는 category다. OOM·중단·노드 유실처럼 결론 없이
+# 끝난 실행을 운영자가 닫을 때 exit code가 말해 주지 않는 원인을 그대로 적는다(EAT-122).
+INTERRUPTED = "INTERRUPTED"
 
 # 왜: workflow 실패 파라미터와 운영 문서가 이 숫자에 묶여 있으므로 카테고리와 짝을 바꾸지 않는다.
-# sysexits 자리를 그대로 써서 pod 종료 코드만 봐도 카테고리를 되짚을 수 있다. PROJECTION_CONTRACT는
-# 프로세스 종료 어휘가 아니라 저장된 run 상태에만 쓰이므로 여기에 없다.
+# sysexits 자리를 그대로 써서 pod 종료 코드만 봐도 카테고리를 되짚을 수 있다. PROJECTION_CONTRACT와
+# INTERRUPTED는 프로세스 종료 어휘가 아니라 저장된 상태에만 쓰이므로 여기에 없다.
 EXIT_CODE_BY_CATEGORY: Mapping[str, int] = {
     CONFIGURATION: 64,
     DATA_QUARANTINED: 65,
@@ -21,6 +24,11 @@ EXIT_CODE_BY_CATEGORY: Mapping[str, int] = {
     SOURCE_THROTTLED: 75,
     SOURCE_CONTRACT: 76,
 }
+
+# 왜: 운영자가 fail-release로 planned release를 닫을 때 고를 수 있는 어휘다. 죽은 pod의 exit code를
+# 그대로 옮기는 프로세스 어휘에 INTERRUPTED를 더한 것이고, PROJECTION_CONTRACT는 검증을 통과한 뒤의
+# 실패라 봉인되지 않은 release에는 맞지 않는다.
+OPERATOR_CLOSE_CATEGORIES: frozenset[str] = frozenset(EXIT_CODE_BY_CATEGORY) | {INTERRUPTED}
 
 # 왜: 정규화·검증에 들어가기 전에 닫힌 실패들이다. 남은 것이 보존된 raw 관측뿐이라 publication에
 # 검증 시각이 없고 topology가 부분일 수 있다는 구조가 이 카테고리들에서 모두 같다. 그래서 이 모양의

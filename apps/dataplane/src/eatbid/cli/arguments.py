@@ -14,6 +14,7 @@ from pathlib import Path
 from uuid import UUID
 
 from eatbid.core.build_identity import validate_build_sha
+from eatbid.failures.categories import OPERATOR_CLOSE_CATEGORIES
 from eatbid.mart.models import DEFAULT_REGION_SCHEME, MART_NAMES
 from eatbid.pipeline.collection_window import COLLECTION_MODES
 
@@ -111,8 +112,10 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="eatbid")
     subcommands = parser.add_subparsers(dest="command", required=True)
     commands = {name: subcommands.add_parser(name) for name in command_names}
-    for command in commands.values():
-        add_common_arguments(command)
+    for name, command in commands.items():
+        # fail-release는 run·parser version이 없는 운영자 판정이라 공통 인수를 받지 않는다.
+        if name != "fail-release":
+            add_common_arguments(command)
 
     discover = commands["discover"]
     discover.add_argument("--detail-run-id", required=True, type=UUID)
@@ -177,6 +180,17 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     project_reference.add_argument("--observation-id", required=True, type=positive_id)
     project_reference.add_argument("--release-name", required=True)
     project_reference.add_argument("--projected-at", required=True, type=aware_datetime)
+
+    # 운영자가 결론 없이 끝난 release를 닫는다. category는 죽은 pod의 exit code 어휘와 INTERRUPTED뿐이고
+    # 그 밖의 값은 저장소에 닿기 전에 여기서 닫는다(EAT-122).
+    fail_release = commands["fail-release"]
+    fail_release.add_argument("--source-release-id", required=True, type=UUID)
+    fail_release.add_argument("--build-sha", required=True, type=build_sha)
+    fail_release.add_argument(
+        "--failure-category", required=True, choices=sorted(OPERATOR_CLOSE_CATEGORIES)
+    )
+    fail_release.add_argument("--failed-at", required=True, type=aware_datetime)
+    fail_release.add_argument("--result-dir", type=Path, default=None)
 
     build_marts = commands["build-marts"]
     # 발행이 없으면 전량 재빌드다. 있으면 그 발행이 실은 record type이 영향 범위를 정한다.

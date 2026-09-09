@@ -113,3 +113,14 @@ class SealedSourceRelease:
     as_of: AwareUtcDatetime
     manifest_sha256: Sha256
     sealed_at: AwareUtcDatetime
+
+
+@dataclass(frozen=True, slots=True, kw_only=True, config=_RELEASE_CONFIG)
+class FailedSourceRelease:
+    """운영자가 닫은 release다. 같은 transaction에서 함께 닫힌 run이 어느 것인지도 결과에 남긴다."""
+
+    source_release_id: UUID
+    source: str
+    as_of: AwareUtcDatetime
+    failure_category: str = Field(min_length=1, max_length=64)
+    closed_run_ids: tuple[UUID, ...]

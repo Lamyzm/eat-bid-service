@@ -195,6 +195,15 @@ class Application:
             )
         return validation
 
+    def fail_release(self, args: argparse.Namespace) -> Any:
+        # 운영자 판정이다. planned는 같은 run으로 이어 갈 수 있는 상태라 어떤 단계도 자동으로 여기 오지
+        # 않으며, 포기를 정한 사람이 release와 열린 run을 같은 category로 닫는다(EAT-122).
+        return self._release.fail_release(
+            args.source_release_id,
+            failure_category=args.failure_category,
+            failed_at=args.failed_at,
+        )
+
     def project(self, args: argparse.Namespace) -> None:
         self._release.require_publication_corpus(
             args.source_release_id, args.run_id, args.publication_id

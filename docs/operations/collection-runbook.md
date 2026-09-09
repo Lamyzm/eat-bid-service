@@ -2,7 +2,7 @@
 id: COLLECTION-RUNBOOK
 status: active
 canonical_for: collection-workflow-recovery-procedures
-last_reviewed: 2026-09-07
+last_reviewed: 2026-09-10
 review_trigger: workflow-template-stage-or-publication-lineage-change
 ---
 
@@ -207,3 +207,99 @@ mois:administrative-region`)을 한다.
   `require_publication_corpus`에서 exit 64로 닫힌다.
 - WorkflowTemplate에 `retryStrategy`를 더해 OOM을 재시도로 덮지 않는다. OOM은 `project` 메모리 한도가
   잡아 pod만 죽이며, 원인은 코드나 한도의 문제다(runtime-and-deployment §3).
+- `fail-release`를 `onExit` 같은 자동 핸들러에 걸지 않는다. `planned`는 "아직 이어서 할 수 있음"의 정당한
+  상태이고 자동으로 닫으면 §4.2의 재개가 막힌다. 포기는 사람이 §4.3으로 정한다.
+
+## 4. capture·normalize 단계가 죽은 실행 복구 (2026-09-10, EAT-122)
+
+`validate`에 이르지 못한 실행은 release가 `planned`로 남는다. 원본은 R2·`raw_observation`에 있고
+아무것도 발행되지 않았으므로 데이터가 깨진 상태는 아니다. 무엇을 할지는 죽은 pod의 exit code가 정한다.
+
+| 죽은 단계 | exit | 뜻 | 조치 |
+|---|---|---|---|
+| capture | 69 `TRANSIENT_NETWORK` | 응답 없음, pod 안 재시도 소진 | §4.2 `argo retry` |
+| capture | 75 `SOURCE_THROTTLED` | 차단 징후 | 원인 확인 뒤 §4.2, 반복되면 §4.3 |
+| discover·capture | 76 `SOURCE_CONTRACT`, 64 `CONFIGURATION` | 계약 위반·설정 오류 | 코드·설정 수정 뒤 새 backfill, 옛 release는 §4.3 |
+| validate | 65 `DATA_QUARANTINED` | 격리가 있어 발행 불가. release는 **sealed**, publication은 failed | 파서 수정 뒤 §1.2 replay |
+| project | 137 OOM, 143 중단 | 결론 없이 끝남 | §1(project만 다시) 또는 §4.3 `INTERRUPTED` |
+
+### 4.1 전제 확인 (읽기 전용)
+
+```sql
+select sr.release_name, sr.status, r.mode, r.status as run_status, r.failure_category,
+       (select count(*) from ingest.request_unit u
+         where u.run_id = r.run_id and u.endpoint = 'bid-detail' and u.status = 'captured') as captured,
+       (select count(*) from ingest.request_unit u
+         where u.run_id = r.run_id and u.endpoint = 'bid-detail') as planned_units
+from ingest.source_release sr
+join ingest.source_release_run srr using (source_release_id)
+join ingest.run r using (run_id)
+where sr.status = 'planned'
+order by sr.as_of;
+```
+
+- `planned` release마다 discovery run(`validated`)과 detail run(`running`)이 하나씩이다.
+  `captured < planned_units`면 capture가 덜 끝난 것이다.
+- 살아 있는 workflow가 있는지는 `kubectl get workflow -n eatbid --sort-by=.metadata.creationTimestamp`의
+  Running 항목과 `release_name`의 시각을 대조한다. 실행 중인 release는 건드리지 않는다.
+- 죽은 pod와 exit code는 `kubectl get pods -n eatbid --field-selector=status.phase=Failed`의
+  `.status.containerStatuses[0].state.terminated.exitCode`로 읽는다.
+
+### 4.2 같은 이미지에서 실패한 chunk만 다시 돌리기 — `argo retry`
+
+`argo retry`는 Failed·Error 노드와 그 하류만 다시 만들고 Succeeded 노드의 출력은 그대로 쓴다.
+`capture`는 같은 run에서 이미 `captured`인 unit을 소스에 다시 묻지 않으므로 다시 도는 chunk도 못 받은
+건만 부른다. `argo` CLI가 없으면 controller와 같은 계열의 release를 받는다. `kubectl`만으로는 노드
+재실행을 할 수 없다.
+
+```powershell
+argo retry -n eatbid <workflow-name>
+```
+
+- 실패한 workflow의 dataplane 이미지 digest가 지금 WorkflowTemplate의 것과 **같을 때만** 쓴다. run의
+  `build_sha`와 다른 이미지로 이어 가면 `project`가 lineage 검사에서 거부한다(ADR 0015). 다르면 새
+  backfill을 낸다.
+- Succeeded 뒤 §4.1 SQL에서 `captured = planned_units`, release `sealed`를 확인한다.
+
+### 4.3 이어 갈 수 없는 release를 닫기 — `fail-release`
+
+이미지가 바뀌었거나 원인이 코드·소스 계약이라 같은 run으로 이어 갈 수 없을 때, 운영자가 release를
+`failed`로 닫고 `running` run을 같은 category로 끝낸다. 상태 전이는 CLI transaction만 한다(§3).
+category는 죽은 pod의 exit code를 그대로 옮기고, OOM·중단처럼 exit 어휘가 없는 종료는 `INTERRUPTED`다.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: eatbid-fail-release-
+  namespace: eatbid
+spec:
+  workflowTemplateRef:
+    name: eatbid-dataplane
+  entrypoint: fail-release
+  arguments:
+    parameters:
+      - name: source-release-id
+        value: <planned release id>
+      # TRANSIENT_NETWORK · SOURCE_THROTTLED · SOURCE_CONTRACT · DATA_QUARANTINED · CONFIGURATION · INTERRUPTED
+      - name: failure-category
+        value: TRANSIENT_NETWORK
+```
+
+```powershell
+kubectl create -n eatbid -f fail-release.yaml
+```
+
+Succeeded 뒤:
+
+```sql
+select sr.status, sr.failure_category, r.mode, r.status as run_status, r.failure_category as run_category
+from ingest.source_release sr
+join ingest.source_release_run srr using (source_release_id)
+join ingest.run r using (run_id)
+where sr.source_release_id = :'source_release_id'::uuid;
+```
+
+release는 `failed`, detail run은 같은 category의 `failed`, discovery run은 `validated` 그대로여야 한다.
+같은 category로 다시 내면 멱등하게 같은 결과를 돌려주고, 다른 category나 이미 `sealed`인 release는
+거부된다. 닫은 release의 창은 새 backfill로 다시 낸다.

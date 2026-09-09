@@ -807,3 +807,33 @@ spec:
           - *env-r2-bucket
           - *env-r2-access-key
           - *env-r2-secret-key
+
+    # 운영자 entrypoint다. 어떤 DAG에도 들지 않고, 결론 없이 끝난 release를 planned → failed로 닫으며
+    # 열린 run을 같은 category로 끝낸다(collection-runbook §4.3). onExit 같은 자동 핸들러로 걸지 않는
+    # 이유는 planned가 같은 run으로 이어 갈 수 있는 상태이기 때문이다(EAT-122).
+    - name: fail-release
+      inputs:
+        parameters:
+          - name: source-release-id
+          - name: failure-category
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid fail-release
+            --source-release-id "$EATBID_SOURCE_RELEASE_ID"
+            --failure-category "$EATBID_FAILURE_CATEGORY"
+            --failed-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            --build-sha "$BUILD_SHA" --result-dir "$EATBID_RESULT_DIR"
+        env:
+          - *env-source-release-id
+          - name: EATBID_FAILURE_CATEGORY
+            value: "{{inputs.parameters.failure-category}}"
+          - *env-result-dir
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key

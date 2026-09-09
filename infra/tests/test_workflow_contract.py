@@ -35,6 +35,8 @@ SHELL_STAGES = ("capture", "normalize", "validate", "project", "marts")
 # 정부 코드 reference 실행의 DAG task와 CLI 명령이다. 여기서는 단계 이름과 명령 이름이 같다.
 REFERENCE_COMMANDS = ("capture-reference", "project-reference")
 REFERENCE_TASKS = REFERENCE_COMMANDS
+# 운영자가 직접 entrypoint로 부르는 명령이다. 어떤 DAG도 task로 갖지 않는다(EAT-122).
+OPERATOR_COMMANDS = ("fail-release",)
 PYTHON_ENTRYPOINT_TEMPLATES = ("discover", "replay")
 # 피크 월 창의 `TOT_CNT` 실측 약 17,000에 여유를 둔 상한이다. discover는 `total_count`가
 # page size × page budget을 넘으면 창을 거부하므로 그 곱이 이 값 아래로 내려가면 월 백필이 막힌다.
@@ -236,6 +238,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         "replay",
         "build-marts",
         *REFERENCE_COMMANDS,
+        *OPERATOR_COMMANDS,
     )
     assert "replay" in templates
     assert "marts" in templates
@@ -1182,3 +1185,34 @@ def test_platform_application은_최소_version으로_고정되고_live에_연�
     assert "minio" not in values
     assert "argo-events" not in values
     assert "automated" not in application["spec"].get("syncPolicy", {})
+
+
+def test_fail_release_template은_DAG_밖의_운영자_entrypoint다(manifests: ManifestSet) -> None:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+    template = templates["fail-release"]
+    assert _input_names(template) == {"source-release-id", "failure-category"}
+    # 어떤 DAG도 이 template을 task로 부르지 않는다. 자동으로 닫으면 planned의 재개가 막힌다(EAT-122).
+    for candidate in templates.values():
+        dag = candidate.get("dag")
+        if dag is None:
+            continue
+        task_templates = [_mapping(task)["template"] for task in _sequence(_mapping(dag)["tasks"])]
+        assert "fail-release" not in task_templates
+    assert "synchronization" not in template
+    container = _mapping(template["container"])
+    command = str(_sequence(container["args"])[0])
+    assert container["command"] == ["/bin/sh", "-ec"]
+    assert command.startswith("exec eatbid fail-release ")
+    assert '--build-sha "$BUILD_SHA"' in command
+    assert '--failure-category "$EATBID_FAILURE_CATEGORY"' in command
+    assert _env(container, "EATBID_FAILURE_CATEGORY")["value"] == (
+        "{{inputs.parameters.failure-category}}"
+    )
+    assert _env(container, "EATBID_SOURCE_RELEASE_ID")["value"] == (
+        "{{inputs.parameters.source-release-id}}"
+    )
+    assert _secret_ref(_env(container, "DATABASE_URL")) == (
+        "eatbid-database-dataplane",
+        "DATABASE_URL",
+    )

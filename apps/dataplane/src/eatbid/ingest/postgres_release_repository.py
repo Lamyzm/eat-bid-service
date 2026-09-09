@@ -9,6 +9,7 @@ from uuid import UUID
 import psycopg
 from psycopg import sql
 
+from eatbid.failures.categories import OPERATOR_CLOSE_CATEGORIES
 from eatbid.ingest.postgres_release_errors import (
     MemberKind,
     raise_duplicate_member,
@@ -21,8 +22,12 @@ from eatbid.ingest.postgres_release_mapping import (
     load_release_datasets,
     lock_observation_source,
 )
-from eatbid.ingest.postgres_release_sealing import seal_release_transaction
+from eatbid.ingest.postgres_release_sealing import (
+    fail_release_transaction,
+    seal_release_transaction,
+)
 from eatbid.ingest.release_models import (
+    FailedSourceRelease,
     ReleaseCompleteness,
     ReleaseDatasetProgress,
     SealedSourceRelease,
@@ -180,6 +185,34 @@ class PsycopgSourceReleaseRepository(PostgresReleaseGuardMixin):
         except psycopg.errors.UniqueViolation as error:
             raise ReleaseManifestConflictError(
                 "canonical source release manifest already exists"
+            ) from error
+        except psycopg.Error as error:
+            if error.sqlstate == "25000":
+                raise ReleaseIsolationContractError(
+                    "database rejected the terminal isolation contract",
+                    sqlstate=error.sqlstate,
+                ) from error
+            raise
+
+    def fail_release(
+        self, source_release_id: UUID, *, failure_category: str, failed_at: datetime
+    ) -> FailedSourceRelease:
+        if failed_at.utcoffset() is None:
+            raise ValueError("failed_at must be timezone-aware")
+        if failure_category not in OPERATOR_CLOSE_CATEGORIES:
+            raise ValueError("failure_category is not an operator close category")
+        require_terminal_scope(self._connection)
+        try:
+            return fail_release_transaction(
+                self._connection,
+                source_release_id,
+                failure_category=failure_category,
+                failed_at=failed_at,
+            )
+        except psycopg.errors.CheckViolation as error:
+            # run_end_chronology: 닫는 시각이 run 시작보다 앞서면 DB가 거부한다. 인자 오류다.
+            raise ReleaseProgressError(
+                "fail-release timestamp violates run chronology"
             ) from error
         except psycopg.Error as error:
             if error.sqlstate == "25000":

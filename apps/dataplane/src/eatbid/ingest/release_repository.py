@@ -11,6 +11,7 @@ from uuid import UUID
 
 from eatbid.ingest.models import PlannedRequestUnit
 from eatbid.ingest.release_models import (
+    FailedSourceRelease,
     ReleaseCompleteness,
     ReleaseDatasetProgress,
     ReleaseObservation,
@@ -69,6 +70,10 @@ class SourceReleaseRepository(Protocol):
     def seal_release(
         self, source_release_id: UUID, *, sealed_at: datetime
     ) -> SealedSourceRelease: ...
+
+    def fail_release(
+        self, source_release_id: UUID, *, failure_category: str, failed_at: datetime
+    ) -> FailedSourceRelease: ...
 
 
 class SourceReleaseRepositoryError(RuntimeError):

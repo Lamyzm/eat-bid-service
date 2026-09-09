@@ -8,6 +8,9 @@ import pytest
 from eatbid.cli import exit_code_for_error
 from eatbid.failures.categories import (
     DATA_QUARANTINED,
+    EXIT_CODE_BY_CATEGORY,
+    INTERRUPTED,
+    OPERATOR_CLOSE_CATEGORIES,
     PRE_VALIDATION_FAILURE_CATEGORIES,
     PROJECTION_CONTRACT,
     SOURCE_CONTRACT,
@@ -126,6 +129,13 @@ def test_차단과_계약위반은_각자의_카테고리로_남는다() -> None
         SOURCE_THROTTLED,
         SOURCE_CONTRACT,
     ]
+
+
+def test_운영자가_닫는_어휘는_프로세스_어휘에_INTERRUPTED만_더한다() -> None:
+    assert OPERATOR_CLOSE_CATEGORIES == frozenset(EXIT_CODE_BY_CATEGORY) | {INTERRUPTED}
+    # 결론 없이 끝난 실행의 이름이지 종료 코드가 아니다. 검증 뒤 실패는 planned release에 맞지 않는다.
+    assert INTERRUPTED not in EXIT_CODE_BY_CATEGORY
+    assert PROJECTION_CONTRACT not in OPERATOR_CLOSE_CATEGORIES
 
 
 def test_TRANSIENT_NETWORK는_replay로_복구하는_검증전_실패에_속한다() -> None:

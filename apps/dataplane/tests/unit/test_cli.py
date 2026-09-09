@@ -15,6 +15,7 @@ from eatbid.composition import Application, build_application
 from eatbid.config import ApplicationSettings
 from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.ingest.models import CapturedObservation
+from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.discover import DiscoveryResult
@@ -68,6 +69,7 @@ class _기록애플리케이션:
     def build_marts(self, args: Namespace) -> None: self._record("build-marts", args)
     def capture_reference(self, args: Namespace) -> None: self._record("capture-reference", args)
     def project_reference(self, args: Namespace) -> None: self._record("project-reference", args)
+    def fail_release(self, args: Namespace) -> None: self._record("fail-release", args)
 
 
 def _공통(command: str) -> list[str]:
@@ -76,6 +78,10 @@ def _공통(command: str) -> list[str]:
 
 
 def _명령(command: str) -> list[str]:
+    if command == "fail-release":
+        # 운영자 판정 명령이라 run·parser version 같은 공통 인수가 없다.
+        return [command, "--source-release-id", RELEASE_ID, "--build-sha", SHA,
+                "--failure-category", "INTERRUPTED", "--failed-at", "2026-09-01T00:06:00Z"]
     extras = {
         "discover": ["--detail-run-id", PUBLICATION_ID, "--mode", "backfill",
                      "--release-name", "R0 offline", "--as-of", "2026-09-01T00:00:00Z",
@@ -471,6 +477,44 @@ def test_normalize_chunk의_격리_한_건은_실패가_아니라_기록된_최�
     assert reported["chunk_item"] == "2"
     assert reported["category"] == "DATA_QUARANTINED"
     assert "r2-secret" not in captured.err
+
+
+class _닫기애플리케이션(_기록애플리케이션):
+    def fail_release(self, args: Namespace) -> FailedSourceRelease:
+        self._record("fail-release", args)
+        return FailedSourceRelease(
+            source_release_id=args.source_release_id,
+            source="eat",
+            as_of=FETCHED_AT,
+            failure_category=args.failure_category,
+            closed_run_ids=(UUID(RUN_ID),),
+        )
+
+
+def test_fail_release는_닫은_release와_run을_machine_result로_남긴다(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    application = _닫기애플리케이션()
+    argv = _명령("fail-release") + ["--result-dir", str(tmp_path)]
+
+    assert main(argv, application_factory=lambda _: application, settings=_설정()) == 0
+
+    printed = json.loads(capsys.readouterr().out)
+    assert printed == {
+        "source_release_id": RELEASE_ID,
+        "status": "failed",
+        "failure_category": "INTERRUPTED",
+        "closed_run_ids": [RUN_ID],
+    }
+    assert (tmp_path / "failure_category").read_text(encoding="utf-8") == "INTERRUPTED"
+
+
+def test_fail_release는_운영_어휘_밖의_category를_인자_단계에서_거부한다() -> None:
+    argv = _명령("fail-release")
+    argv[argv.index("INTERRUPTED")] = "PROJECTION_CONTRACT"
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(argv)
 
 
 @pytest.mark.parametrize(

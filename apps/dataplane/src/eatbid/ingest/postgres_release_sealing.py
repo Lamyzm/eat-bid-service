@@ -14,6 +14,7 @@ from eatbid.ingest.postgres_release_mapping import (
     load_release_observations,
 )
 from eatbid.ingest.release_models import (
+    FailedSourceRelease,
     ReleaseDatasetPlan,
     SealedSourceRelease,
     SourceReleasePlan,
@@ -157,3 +158,101 @@ def _require_all_observation_runs(
         raise ReleaseIncompleteError(
             "release observation run is not an exact release member"
         )
+
+
+def fail_release_transaction(
+    connection: psycopg.Connection[Any],
+    source_release_id: UUID,
+    *,
+    failure_category: str,
+    failed_at: datetime,
+) -> FailedSourceRelease:
+    with connection.transaction(), connection.cursor() as cursor:
+        cursor.execute("set transaction isolation level read committed")
+        return fail_release_locked(
+            cursor,
+            source_release_id,
+            failure_category=failure_category,
+            failed_at=failed_at,
+        )
+
+
+def fail_release_locked(
+    cursor: psycopg.Cursor[Any],
+    source_release_id: UUID,
+    *,
+    failure_category: str,
+    failed_at: datetime,
+) -> FailedSourceRelease:
+    """왜: 결론 없이 끝난 실행은 자동으로 닫지 않는다. planned는 같은 run으로 이어 갈 수 있는 상태라
+    닫는 순간 재개가 막히므로, 운영자가 포기를 정한 그 한 transaction에서 release와 아직 열린 run을
+    같은 category로 함께 닫는다(ADR 0025의 planned → failed 전이, EAT-122)."""
+    cursor.execute(
+        """
+        select source, status, as_of, failure_category
+        from ingest.source_release
+        where source_release_id = %s
+        for update
+        """,
+        (source_release_id,),
+    )
+    parent = cursor.fetchone()
+    if parent is None:
+        raise ReleaseNotFoundError("source release does not exist")
+    source, status, as_of, recorded = str(parent[0]), str(parent[1]), parent[2], parent[3]
+    if status == "failed":
+        # 같은 category의 재호출은 정정이 아니라 멱등한 반복이다. 다른 category는 terminal 정정이라
+        # 거부한다.
+        if recorded == failure_category:
+            return FailedSourceRelease(
+                source_release_id=source_release_id,
+                source=source,
+                as_of=as_of,
+                failure_category=failure_category,
+                closed_run_ids=(),
+            )
+        raise ReleaseSealedError("failed source release cannot change its failure category")
+    if status != "planned":
+        raise ReleaseSealedError(f"{status} source release cannot be mutated")
+    # 결론이 없는 run만 닫는다. validated·published run은 자기 결론이 있고 그것을 바꾸는 것은
+    # lineage 정정이라 여기서 하지 않는다.
+    cursor.execute(
+        """
+        select r.run_id
+        from ingest.source_release_run sr
+        join ingest.run r on r.run_id = sr.run_id
+        where sr.source_release_id = %s and r.status in ('planned', 'running')
+        order by r.run_id
+        for update of r
+        """,
+        (source_release_id,),
+    )
+    open_runs = tuple(row[0] for row in cursor.fetchall())
+    for run_id in open_runs:
+        cursor.execute(
+            """
+            update ingest.run
+            set status = 'failed', failure_category = %s, ended_at = %s
+            where run_id = %s and status in ('planned', 'running')
+            """,
+            (failure_category, failed_at, run_id),
+        )
+        if cursor.rowcount != 1:
+            raise ReleaseSealedError("release run became terminal during fail-release")
+    cursor.execute(
+        """
+        update ingest.source_release
+        set status = 'failed', failure_category = %s
+        where source_release_id = %s and status = 'planned'
+        """,
+        (failure_category, source_release_id),
+    )
+    if cursor.rowcount != 1:
+        raise ReleaseSealedError("source release became terminal")
+    return FailedSourceRelease(
+        source_release_id=source_release_id,
+        source=source,
+        as_of=as_of,
+        failure_category=failure_category,
+        closed_run_ids=open_runs,
+    )

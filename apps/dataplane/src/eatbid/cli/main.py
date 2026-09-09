@@ -24,6 +24,7 @@ from eatbid.failures.categories import (
     failure_category_for_error,
 )
 from eatbid.failures.report import render_failure
+from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
@@ -59,6 +60,7 @@ class CliApplication(Protocol):
     def build_marts(self, args: argparse.Namespace) -> object: ...
     def capture_reference(self, args: argparse.Namespace) -> object: ...
     def project_reference(self, args: argparse.Namespace) -> object: ...
+    def fail_release(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[
@@ -154,6 +156,17 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "member_count": result.member_count,
             "members_without_parent": result.members_without_parent,
         }
+    if method_name == "fail_release":
+        if not isinstance(result, FailedSourceRelease):
+            raise TypeError("fail-release returned an invalid result")
+        # 닫힌 run id를 함께 남긴다. 운영자가 어느 run을 끝냈는지 workflow 결과에서 읽어야
+        # 뒤에 같은 run을 되살리려는 시도를 막을 수 있다.
+        return {
+            "source_release_id": str(result.source_release_id),
+            "status": "failed",
+            "failure_category": result.failure_category,
+            "closed_run_ids": [str(run_id) for run_id in result.closed_run_ids],
+        }
     if method_name == "build_marts":
         if not isinstance(result, tuple) or any(
             not isinstance(item, MartBuildResult) for item in result
@@ -199,6 +212,8 @@ COMMAND_METHODS: Mapping[str, str] = {
     "build-marts": "build_marts",
     "capture-reference": "capture_reference",
     "project-reference": "project_reference",
+    # 운영자 entrypoint다. DAG 단계가 아니라 사람이 planned release를 닫을 때만 부른다(EAT-122).
+    "fail-release": "fail_release",
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {

@@ -458,3 +458,57 @@ def test_같은_source_release_name은_plan_name_conflict로_보존된다(
 
     assert caught.value.conflict_kind == "source_release_name"
     assert isinstance(caught.value.__cause__, psycopg.errors.UniqueViolation)
+
+
+def test_fail_release는_planned_release와_열린_run을_같은_category로_닫는다(
+    pipeline_services: PipelineServices,
+) -> None:
+    repository, plan, _, _ = _prepared_release(pipeline_services, suffix="fail-release")
+    failed_at = datetime(2026, 9, 1, 4, tzinfo=UTC)
+
+    result = repository.fail_release(
+        plan.source_release_id, failure_category="TRANSIENT_NETWORK", failed_at=failed_at
+    )
+
+    assert result.failure_category == "TRANSIENT_NETWORK"
+    assert len(result.closed_run_ids) == 1
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select status, failure_category, manifest_sha256, sealed_at
+            from ingest.source_release where source_release_id = %s
+            """,
+            (plan.source_release_id,),
+        )
+        assert cursor.fetchone() == ("failed", "TRANSIENT_NETWORK", None, None)
+        cursor.execute(
+            "select status, failure_category, ended_at from ingest.run where run_id = %s",
+            (result.closed_run_ids[0],),
+        )
+        assert cursor.fetchone() == ("failed", "TRANSIENT_NETWORK", failed_at)
+
+    # 같은 category의 재호출은 정정이 아니라 멱등한 반복이고, 다른 category는 terminal 정정이라 거부된다.
+    again = repository.fail_release(
+        plan.source_release_id, failure_category="TRANSIENT_NETWORK", failed_at=failed_at
+    )
+    assert again.closed_run_ids == ()
+    with pytest.raises(ReleaseSealedError):
+        repository.fail_release(
+            plan.source_release_id, failure_category="INTERRUPTED", failed_at=failed_at
+        )
+
+
+def test_fail_release는_봉인된_release와_운영_어휘_밖의_category를_거부한다(
+    pipeline_services: PipelineServices,
+) -> None:
+    repository, plan, _, _ = _prepared_release(pipeline_services, suffix="fail-sealed")
+    repository.seal_release(plan.source_release_id, sealed_at=SEALED_AT)
+
+    with pytest.raises(ReleaseSealedError):
+        repository.fail_release(
+            plan.source_release_id, failure_category="INTERRUPTED", failed_at=SEALED_AT
+        )
+    with pytest.raises(ValueError):
+        repository.fail_release(
+            plan.source_release_id, failure_category="PROJECTION_CONTRACT", failed_at=SEALED_AT
+        )
