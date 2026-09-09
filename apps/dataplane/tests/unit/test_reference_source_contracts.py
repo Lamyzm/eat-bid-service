@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.reference.source_contracts import (
     LEGAL_DONG_CHANGE_DATASET,
     LEGAL_DONG_DATASET,

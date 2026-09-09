@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from eatbid.errors import SourceContractError
-from eatbid.failure_categories import SOURCE_CONTRACT, SOURCE_THROTTLED
+from eatbid.failures.categories import SOURCE_CONTRACT, SOURCE_THROTTLED
+from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest
 from eatbid.ingest.repository import IngestRepository
-from eatbid.object_store import RawObjectStore, raw_content_sha256
 from eatbid.source.client import SourceClient, SourceResponse
+from eatbid.storage.object_store import RawObjectStore, raw_content_sha256
 
 __all__ = [
     "SOURCE_CONTRACT",

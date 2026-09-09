@@ -23,7 +23,6 @@ from eatbid.ingest.release_models import (
     ReleaseDatasetProgress,
     SourceReleasePlan,
 )
-from eatbid.object_store import MEDIA_TEXT
 from eatbid.source.client import SourceResponse
 from eatbid.source.reference.mois_client import fetch_reference_payload
 from eatbid.source.reference.mois_parser import parse_legal_dong_release
@@ -32,6 +31,7 @@ from eatbid.source.reference.source_contracts import (
     reference_dataset_contract,
     reference_source_contract,
 )
+from eatbid.storage.object_store import MEDIA_TEXT
 
 REFERENCE_RECORD_TYPE = "code-release"
 

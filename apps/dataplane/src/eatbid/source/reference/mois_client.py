@@ -14,7 +14,7 @@ from typing import Protocol
 
 import httpx
 
-from eatbid.errors import SourceContractError, SourceUnavailableError
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.source.reference.source_contracts import ReferenceDatasetContract
 
 # 압축을 푼 본문을 통째로 메모리에 올린다. 실측 2.4 MiB이고 월 1회 실행이라 스트리밍이 사는 비용을

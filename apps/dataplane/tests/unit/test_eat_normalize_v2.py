@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.generated.ingestion_v2 import EatbidIngestionAuctionV2
 from eatbid.source.eat.normalize import (
     EatDetailValidationError,

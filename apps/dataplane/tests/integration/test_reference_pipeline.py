@@ -9,7 +9,7 @@ from zipfile import ZipFile
 import httpx
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
 from eatbid.pipeline.reference import (

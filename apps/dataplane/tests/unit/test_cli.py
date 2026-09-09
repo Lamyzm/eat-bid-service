@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from eatbid.cli import COMMAND_HANDLERS, build_parser, main
 from eatbid.composition import Application, build_application
 from eatbid.config import ApplicationSettings
-from eatbid.errors import SourceContractError, SourceUnavailableError
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.ingest.models import CapturedObservation
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.capture import SourceThrottledError

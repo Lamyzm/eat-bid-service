@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from eatbid.errors import SourceContractError, SourceUnavailableError
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.source.eat.http_client import WARMUP_MAX_RESPONSE_BYTES, EatHttpClient
 from eatbid.source.eat.registry import require_transport
 

@@ -7,7 +7,7 @@ from typing import cast
 import httpx
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.eat.http_client import EatHttpClient
 
 from .eat_http_test_support import (

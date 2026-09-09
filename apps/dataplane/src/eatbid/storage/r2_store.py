@@ -16,7 +16,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from eatbid.object_store import (
+from eatbid.storage.object_store import (
     MEDIA_TEXT,
     MEDIA_XML,
     RawObjectAddress,

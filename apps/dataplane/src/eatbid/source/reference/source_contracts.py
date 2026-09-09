@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from types import MappingProxyType
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 
 # 이 저장소의 source id다. `ingest.source_release.source`는 소문자 kebab-case slug만 받는다.
 MOIS_STANDARD_CODE = "mois-standard-code"

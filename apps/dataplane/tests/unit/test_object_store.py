@@ -5,7 +5,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from eatbid.object_store import (
+from eatbid.storage.object_store import (
     build_raw_object_key,
     deterministic_gzip,
     parse_raw_object_key,

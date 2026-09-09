@@ -5,13 +5,13 @@ from typing import Any
 
 from botocore.exceptions import ClientError
 
-from eatbid.object_store import (
+from eatbid.source.client import SourceResponse
+from eatbid.storage.object_store import (
     MEDIA_XML,
     StoredRawObject,
     build_raw_object_key,
     parse_raw_object_key,
 )
-from eatbid.source.client import SourceResponse
 
 
 class MemoryRawObjectStore:

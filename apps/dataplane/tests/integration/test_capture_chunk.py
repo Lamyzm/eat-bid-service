@@ -11,7 +11,7 @@ import pytest
 from eatbid.cli import main
 from eatbid.composition import Application
 from eatbid.config import ApplicationSettings
-from eatbid.errors import SourceUnavailableError
+from eatbid.failures.errors import SourceUnavailableError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
 from eatbid.source.client import SourceResponse

@@ -8,8 +8,8 @@ import pytest
 
 from eatbid.cli import main
 from eatbid.composition import build_application
-from eatbid.errors import SourceContractError, SourceUnavailableError
-from eatbid.failure_report import redact_secrets
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
+from eatbid.failures.report import redact_secrets
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.normalize import DataQuarantinedError
 

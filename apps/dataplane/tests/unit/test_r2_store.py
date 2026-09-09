@@ -7,12 +7,12 @@ import pytest
 from botocore.exceptions import EndpointConnectionError
 from pydantic import ValidationError
 
-from eatbid.object_store import (
+from eatbid.storage.object_store import (
     build_raw_object_key,
     deterministic_gzip,
     raw_content_sha256,
 )
-from eatbid.r2_store import (
+from eatbid.storage.r2_store import (
     ObjectCollisionError,
     ObjectCorruptionError,
     R2ProviderError,

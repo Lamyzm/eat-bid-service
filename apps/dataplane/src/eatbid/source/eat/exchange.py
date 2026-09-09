@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from eatbid.errors import SourceContractError, SourceUnavailableError
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.source.retry import (
     DEFAULT_TRANSIENT_RETRY_POLICY,
     TRANSIENT_TRANSPORT_CATEGORIES,

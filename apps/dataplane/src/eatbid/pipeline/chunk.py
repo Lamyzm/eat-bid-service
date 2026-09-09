@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from eatbid.failure_categories import (
+from eatbid.failures.categories import (
     CONFIGURATION,
     DATA_QUARANTINED,
     EXIT_CODE_BY_CATEGORY,

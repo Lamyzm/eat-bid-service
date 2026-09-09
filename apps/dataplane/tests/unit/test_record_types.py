@@ -59,7 +59,7 @@ def test_모르는_record_type은_여전히_발행_대상이_아니다() -> None
     "module",
     [
         Path("pipeline") / "project.py",
-        Path("postgres_topology.py"),
+        Path("core") / "postgres_topology.py",
     ],
 )
 def test_발행_판정하는_두_곳이_record_type_문자열을_직접_들지_않는다(

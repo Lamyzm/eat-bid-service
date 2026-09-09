@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation
 from io import StringIO
 
 from eatbid.code_labels import normalize_code_label
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 
 # 좌표계는 파일이 아니라 계약이 말한다. 파일이 좌표계를 적어 주지 않으므로 우리가 어느 계로 읽는지를
 # 계약에 남기고, 다른 계의 파일을 받으면 값 범위 검사에서 걸리게 한다.

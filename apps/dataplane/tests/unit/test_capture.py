@@ -12,7 +12,6 @@ from hypothesis import strategies as st
 from eatbid.cli import exit_code_for_error
 from eatbid.ingest.models import CapturedObservation, CaptureRequest
 from eatbid.ingest.repository import canonical_request_params, request_params_sha256
-from eatbid.object_store import StoredRawObject
 from eatbid.pipeline.capture import (
     SOURCE_CONTRACT,
     SOURCE_THROTTLED,
@@ -22,6 +21,7 @@ from eatbid.pipeline.capture import (
     capture,
 )
 from eatbid.source.client import SourceResponse
+from eatbid.storage.object_store import StoredRawObject
 
 from .fakes import (
     FailingRawObjectStore,
@@ -199,7 +199,7 @@ def test_throttled_response_body는_error_반환_전에_archive하고_record한�
 
 
 def test_다른_non_success_response는_archive되고_source_contract_failure가_된다() -> None:
-    from eatbid.errors import SourceContractError as CommonSourceContractError
+    from eatbid.failures.errors import SourceContractError as CommonSourceContractError
 
     store = MemoryRawObjectStore()
     repository = RecordingRepository()

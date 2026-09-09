@@ -5,7 +5,7 @@ from xml.etree import ElementTree
 
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.eat.registry import (
     EAT_ENDPOINT_TRANSPORTS,
     require,

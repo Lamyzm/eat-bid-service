@@ -8,7 +8,7 @@ from decimal import InvalidOperation
 
 from pydantic import ValidationError
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.eat.models import BidListPage, BidListRow
 from eatbid.source.eat.payload import MAX_ELECTRONIC_BID_ID_DIGITS
 from eatbid.source.eat.schema_contract import reviewed_schema_contract

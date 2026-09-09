@@ -10,7 +10,7 @@ from collections import Counter
 from collections.abc import Sequence
 
 from eatbid.code_labels import label_path_parent, normalize_code_label
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.generated.code_release_v1 import (
     EatbidCodeReleaseV1,
     NormalizedCodeReleaseMember,

@@ -23,7 +23,7 @@ ROOT = Path(__file__).parents[2]
 PRODUCT_KUSTOMIZATION = ROOT / "infra" / "product" / "kustomization.yaml"
 PLATFORM_APPLICATION = ROOT / "infra" / "platform" / "argo-workflows.application.yaml"
 LIVE_APPLICATION = ROOT / "infra" / "argocd" / "application.yaml"
-CLI = ROOT / "apps" / "dataplane" / "src" / "eatbid" / "cli.py"
+CLI = ROOT / "apps" / "dataplane" / "src" / "eatbid" / "cli" / "main.py"
 BUILD_WORKFLOW = ROOT / ".github" / "workflows" / "build.yml"
 
 SCHEDULED_COMMANDS = ("discover", "capture", "normalize", "validate", "project")

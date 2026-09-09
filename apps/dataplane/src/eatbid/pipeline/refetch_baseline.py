@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Protocol
 
-from eatbid.object_store import RawObjectStore
 from eatbid.pipeline.refetch_policy import ListSignal, RefetchBaseline
 from eatbid.source.eat.bid_list import parse_bid_list_page
+from eatbid.storage.object_store import RawObjectStore
 
 LIST_ENDPOINT = "bid-list"
 # 기준이 될 수 있는 모드다. backfill은 과거 창이라 오늘 열린 공고를 담고 있다고 볼 수 없다.

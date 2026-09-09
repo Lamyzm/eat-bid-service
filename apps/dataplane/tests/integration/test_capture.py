@@ -12,10 +12,10 @@ from eatbid.ingest.postgres_repository import (
     RawBlobIntegrityError,
     TerminalCaptureStateError,
 )
-from eatbid.object_store import RawObjectStore, StoredRawObject
 from eatbid.pipeline.capture import SourceThrottledError, capture
-from eatbid.r2_store import R2RawObjectStore, R2Settings
 from eatbid.source.client import SourceResponse
+from eatbid.storage.object_store import RawObjectStore, StoredRawObject
+from eatbid.storage.r2_store import R2RawObjectStore, R2Settings
 
 from ..unit.fakes import (
     MemoryRawObjectStore,

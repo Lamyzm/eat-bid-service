@@ -1,3 +1,6 @@
+"""모듈 책임: normalize 단계가 대기 관측을 읽고 정규화 시도·레코드를 앉히는 저장소 port와 그 교환 record 모양을
+소유한다. PostgreSQL 구현은 postgres_normalization_repository가 갖고 여기는 계약만 둔다."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -6,7 +9,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from eatbid.object_store import RawObjectStore
+from eatbid.storage.object_store import RawObjectStore
 
 
 @dataclass(frozen=True, slots=True)

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from eatbid.errors import SourceContractError, SourceUnavailableError
-from eatbid.failure_categories import (
+from eatbid.failures.categories import (
     CONFIGURATION,
     DATA_QUARANTINED,
     SOURCE_CONTRACT,
     SOURCE_THROTTLED,
     TRANSIENT_NETWORK,
 )
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.chunk import (
     DEFAULT_CHUNK_SIZE,

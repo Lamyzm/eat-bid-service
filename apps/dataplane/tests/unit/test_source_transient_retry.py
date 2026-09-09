@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from eatbid.cli import exit_code_for_error
-from eatbid.errors import SourceContractError, SourceUnavailableError
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.source.eat.http_client import EatHttpClient
 from eatbid.source.retry import TransientRetryPolicy
 

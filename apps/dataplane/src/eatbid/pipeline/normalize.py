@@ -6,12 +6,11 @@ from datetime import datetime
 from hashlib import sha256
 from uuid import UUID
 
-from eatbid.failure_categories import DATA_QUARANTINED, EXIT_CODE_BY_CATEGORY
+from eatbid.failures.categories import DATA_QUARANTINED, EXIT_CODE_BY_CATEGORY
 from eatbid.ingest.normalization_repository import (
     NormalizationRepository,
     StoredNormalizedRecord,
 )
-from eatbid.object_store import RawObjectStore
 from eatbid.source.eat.normalize import (
     EatDetailValidationError,
     canonical_payload,
@@ -19,6 +18,7 @@ from eatbid.source.eat.normalize import (
 )
 from eatbid.source.eat.registry import require
 from eatbid.source.eat.xml import NexacroParseError
+from eatbid.storage.object_store import RawObjectStore
 
 DATA_QUARANTINED_EXIT_CODE = EXIT_CODE_BY_CATEGORY[DATA_QUARANTINED]
 

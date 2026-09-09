@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.generated.ingestion_v1 import EatbidIngestionAuctionV1
 from eatbid.generated.ingestion_v2 import EatbidIngestionAuctionV2, SourceCodedValue
 from eatbid.source.eat.auction_terms import parse_auction_terms

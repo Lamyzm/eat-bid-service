@@ -23,13 +23,13 @@ from eatbid.ingest.postgres_run_planning import (
     require_capture_mode,
 )
 from eatbid.ingest.repository import request_params_sha256
-from eatbid.object_store import (
+from eatbid.source.client import SourceResponse
+from eatbid.storage.object_store import (
     MEDIA_TEXT,
     MEDIA_XML,
     StoredRawObject,
     parse_raw_object_key,
 )
-from eatbid.source.client import SourceResponse
 
 # blob 봉투는 객체 키가 말하는 미디어를 따른다. 상수 하나로 고정하면 탭 구분 텍스트를 받은 날
 # 저장 메타데이터가 내용에 대해 거짓말을 한다.

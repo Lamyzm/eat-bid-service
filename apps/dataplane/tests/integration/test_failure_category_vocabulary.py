@@ -3,18 +3,18 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from eatbid.errors import SourceUnavailableError
-from eatbid.failure_categories import (
+from eatbid.failures.categories import (
     PRE_VALIDATION_FAILURE_CATEGORIES,
     TRANSIENT_NETWORK,
 )
+from eatbid.failures.errors import SourceUnavailableError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.ingest.release_repository import SourceReleaseRepository
-from eatbid.object_store import RawObjectStore
 from eatbid.pipeline.capture import capture
 from eatbid.pipeline.discover import DiscoveryPlan
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.source.client import SourceResponse
+from eatbid.storage.object_store import RawObjectStore
 
 from ..unit.fakes import StaticSourceClient
 from .conftest import PipelineServices

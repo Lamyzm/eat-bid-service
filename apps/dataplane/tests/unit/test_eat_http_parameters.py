@@ -5,7 +5,7 @@ from uuid import UUID
 import httpx
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.source.eat.http_client import EatHttpClient
 

@@ -233,7 +233,7 @@ exit category와 exit code:
 
 이 표의 category 이름은 프로세스 exit code와 `ingest.run.failure_category`·
 `ingest.source_release.failure_category`에 같은 문자열로 남으며, 권위는
-`apps/dataplane/src/eatbid/failure_categories.py` 하나다. 실패한 실행을 pod 종료 코드로 보든 run
+`apps/dataplane/src/eatbid/failures/categories.py` 하나다. 실패한 실행을 pod 종료 코드로 보든 run
 표로 보든 같은 원인을 읽어야 하므로 예외→category 분류도 그 모듈이 소유한다. 검증 시각 없이 닫힌
 실패(`TRANSIENT_NETWORK`·`SOURCE_THROTTLED`·`SOURCE_CONTRACT`·`DATA_QUARANTINED`)는 보존된 raw만
 남기므로 `replay`로 복구하며, 이미 검증을 통과한 뒤의 `PROJECTION_CONTRACT`는 얼린 publication을
@@ -427,7 +427,7 @@ Collector, Prometheus/Grafana/Loki를 추가한다. 제품 경로에 특정 관�
 
 ## 11. 현재 실행 가능 경계
 
-`eatbid` CLI의 command 표(`eatbid/cli.py`의 `COMMAND_METHODS`)에 있는 모든 command가 production
+`eatbid` CLI의 command 표(`eatbid/cli/main.py`의 `COMMAND_METHODS`)에 있는 모든 command가 production
 composition root에 연결되어 있고, product WorkflowTemplate `eatbid-dataplane`은 그 표의 command만 호출한다.
 `infra/tests`가 WorkflowTemplate이 부르는 command와 이 표를 대조하므로 한쪽에만 있는 command는 gate에서
 드러난다. 수집 schedule은 CronWorkflow 세 개뿐이며 `poll-open`·`daily-reconcile`은 활성이고

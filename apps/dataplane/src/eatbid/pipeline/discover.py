@@ -11,7 +11,7 @@ from typing import Protocol, get_args
 from uuid import UUID
 
 from eatbid.core.build_identity import validate_build_sha
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import ReleaseDatasetPlan, SourceReleasePlan
 from eatbid.ingest.repository import CollectionRunMode

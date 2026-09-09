@@ -8,7 +8,7 @@ from datetime import date
 from types import MappingProxyType
 from xml.etree import ElementTree
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.eat.xml import NEXACRO_DATASET_NAMESPACE
 
 _ASCII_DATE = re.compile(r"[0-9]{8}")

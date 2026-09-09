@@ -11,7 +11,8 @@ from uuid import UUID
 import psycopg
 from psycopg.pq import TransactionStatus
 
-from eatbid.failure_categories import (
+from eatbid.core.postgres_topology import LockedAuctionTopology, lock_auction_topology
+from eatbid.failures.categories import (
     DATA_QUARANTINED,
     PRE_VALIDATION_FAILURE_CATEGORIES,
     PROJECTION_CONTRACT,
@@ -20,7 +21,6 @@ from eatbid.ingest.replay_repository import (
     ReplayRunState,
     validate_replay_start,
 )
-from eatbid.postgres_topology import LockedAuctionTopology, lock_auction_topology
 
 
 class ReplayIntegrityError(RuntimeError):

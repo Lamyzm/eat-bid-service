@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.reference.centroid_parser import CENTROID_CRS, parse_centroid_rows
 
 SAMPLE_PATH = Path(__file__).parents[1] / "fixtures" / "reference" / "sgg-centroid-sample.csv"

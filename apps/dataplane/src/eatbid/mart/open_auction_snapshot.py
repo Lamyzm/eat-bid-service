@@ -21,9 +21,9 @@ from typing import Any
 from eatbid.core.projection_models import instant_datetime, money_decimal
 from eatbid.mart.models import MartBuildPlan
 from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
-from eatbid.object_store import RawObjectStore
 from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.code_schemes import ORGANIZATION
+from eatbid.storage.object_store import RawObjectStore
 
 LIST_ENDPOINT = "bid-list"
 

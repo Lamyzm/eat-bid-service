@@ -5,7 +5,7 @@ from typing import cast
 import httpx
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.eat.http_client import (
     ACCEPT_HEADER,
     CONNECT_TIMEOUT_SECONDS,

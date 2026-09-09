@@ -7,7 +7,7 @@ from uuid import UUID
 
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import SourceReleasePlan
 from eatbid.ingest.repository import CollectionRunMode

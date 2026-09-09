@@ -20,6 +20,7 @@ from psycopg.pq import TransactionStatus
 
 from eatbid.core.models import AuctionProjection, ProjectResult
 from eatbid.core.postgres_projection_writer import CanonicalProjectionWriter
+from eatbid.core.postgres_topology import LockedAuctionTopology, lock_auction_topology
 from eatbid.core.projection_models import AppliedProjectionCounts
 from eatbid.core.projection_stream import (
     PROJECTION_BATCH_SIZE,
@@ -34,7 +35,6 @@ from eatbid.core.repository import (
     ProjectionTransactionScopeError,
     PublishedProjectionEvidence,
 )
-from eatbid.postgres_topology import LockedAuctionTopology, lock_auction_topology
 
 PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
 

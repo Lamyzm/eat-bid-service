@@ -42,7 +42,7 @@ def failure_category_for_error(error: Exception) -> str:
     다른 원인을 읽는다. 두 표현이 같은 판정을 쓰도록 예외 분류를 이 한 곳에만 둔다."""
     # 이 모듈은 pipeline과 source가 함께 의존하는 어휘 소유자라, 예외 클래스를 top-level에서
     # 끌어오면 import cycle이 생긴다. 분류 시점에만 필요하므로 함수 안에서 가져온다.
-    from eatbid.errors import SourceContractError, SourceUnavailableError
+    from eatbid.failures.errors import SourceContractError, SourceUnavailableError
     from eatbid.pipeline.capture import SourceThrottledError
     from eatbid.pipeline.normalize import DataQuarantinedError
 

@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from eatbid.config import ApplicationSettings
-from eatbid.failure_report import render_failure
+from eatbid.failures.report import render_failure
 from eatbid.ingest.models import CapturedObservation
 from eatbid.pipeline.chunk import ChunkOutcome, run_chunk
 

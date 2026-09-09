@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.reference.mois_client import unwrap_reference_archive
 from eatbid.source.reference.mois_parser import (
     PROMOTED_GRAINS,

@@ -19,7 +19,7 @@ from eatbid.cache_revalidation import (
 )
 from eatbid.config import ApplicationSettings
 from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
-from eatbid.failure_report import ApplicationConfigurationError
+from eatbid.failures.report import ApplicationConfigurationError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.ingest.postgres_normalization_repository import (
     PsycopgNormalizationRepository,
@@ -53,10 +53,10 @@ from eatbid.pipeline.reference import (
 from eatbid.pipeline.refetch_baseline import PsycopgRefetchBaselineReader
 from eatbid.pipeline.replay import ReplayServices, replay_observations
 from eatbid.pipeline.validate import validate_run
-from eatbid.r2_store import R2RawObjectStore, R2Settings
 from eatbid.source.eat.http_client import EatHttpClient
 from eatbid.source.reference.mois_client import build_reference_client
 from eatbid.source.retry import TransientRetryPolicy
+from eatbid.storage.r2_store import R2RawObjectStore, R2Settings
 
 
 class Application:

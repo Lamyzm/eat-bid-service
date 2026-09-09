@@ -14,7 +14,7 @@ import pytest
 from psycopg.types.json import Jsonb
 
 from eatbid.core.repository import ProjectionContractError
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.ingest.postgres_publication_repository import PsycopgPublicationRepository
 from eatbid.ingest.postgres_replay_repository import (

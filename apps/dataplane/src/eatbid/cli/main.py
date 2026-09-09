@@ -10,11 +10,11 @@ from pathlib import Path
 from types import TracebackType
 from typing import Protocol, Self
 
-from eatbid.cli_arguments import build_parser as build_argument_parser
-from eatbid.cli_chunks import CHUNK_COMMANDS, chunk_payload, run_chunk_command
+from eatbid.cli.arguments import build_parser as build_argument_parser
+from eatbid.cli.chunks import CHUNK_COMMANDS, chunk_payload, run_chunk_command
 from eatbid.config import ApplicationSettings
 from eatbid.core.code_release_projection import CodeReleaseProjectionResult
-from eatbid.failure_categories import (
+from eatbid.failures.categories import (
     CONFIGURATION,
     DATA_QUARANTINED,
     EXIT_CODE_BY_CATEGORY,
@@ -23,13 +23,13 @@ from eatbid.failure_categories import (
     TRANSIENT_NETWORK,
     failure_category_for_error,
 )
-from eatbid.failure_report import render_failure
+from eatbid.failures.report import render_failure
 from eatbid.mart.models import MartBuildResult
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
 
 # 왜: exit code와 DB failure_category는 하나의 어휘여야 한다. 숫자를 여기서 다시 적으면 프로세스가
-# 끝난 이유와 run 표에 남은 이유가 조용히 갈라진다. 권위는 `eatbid.failure_categories`다.
+# 끝난 이유와 run 표에 남은 이유가 조용히 갈라진다. 권위는 `eatbid.failures.categories`다.
 CONFIGURATION_EXIT_CODE = EXIT_CODE_BY_CATEGORY[CONFIGURATION]
 DATA_QUARANTINED_EXIT_CODE = EXIT_CODE_BY_CATEGORY[DATA_QUARANTINED]
 TRANSIENT_NETWORK_EXIT_CODE = EXIT_CODE_BY_CATEGORY[TRANSIENT_NETWORK]

@@ -10,7 +10,8 @@ from uuid import UUID
 
 import psycopg
 
-from eatbid.failure_categories import (
+from eatbid.core.postgres_topology import lock_auction_topology
+from eatbid.failures.categories import (
     DATA_QUARANTINED,
     PRE_VALIDATION_FAILURE_CATEGORIES,
     PROJECTION_CONTRACT,
@@ -21,7 +22,6 @@ from eatbid.ingest.publication_repository import (
     PublicationValidation,
     SourceContractValidator,
 )
-from eatbid.postgres_topology import lock_auction_topology
 from eatbid.source.eat.code_schemes import FOUNDATION_CODE_SCHEMES
 
 # 발행 완결성 검사가 존재를 요구하는 scheme이다. 이름의 권위는 `source/eat/code_schemes.py`이며

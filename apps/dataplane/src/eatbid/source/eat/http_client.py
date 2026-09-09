@@ -10,7 +10,7 @@ from typing import Self
 
 import httpx
 
-from eatbid.errors import SourceContractError, SourceUnavailableError
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.ingest.models import CaptureRequest
 from eatbid.source.client import SourceResponse
 from eatbid.source.eat.exchange import EatExchange

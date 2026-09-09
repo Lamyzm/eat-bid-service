@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from eatbid.errors import SourceContractError
+from eatbid.failures.errors import SourceContractError
 from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.schema_contract import (
     reviewed_schema_contract,

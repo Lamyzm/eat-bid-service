@@ -6,8 +6,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from eatbid.cli import exit_code_for_error
-from eatbid.errors import SourceContractError, SourceUnavailableError
-from eatbid.failure_categories import (
+from eatbid.failures.categories import (
     DATA_QUARANTINED,
     PRE_VALIDATION_FAILURE_CATEGORIES,
     PROJECTION_CONTRACT,
@@ -16,6 +15,7 @@ from eatbid.failure_categories import (
     TRANSIENT_NETWORK,
     failure_category_for_error,
 )
+from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.discover import DiscoveryPlan
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence

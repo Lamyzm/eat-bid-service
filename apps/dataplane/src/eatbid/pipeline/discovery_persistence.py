@@ -5,18 +5,18 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from eatbid.failure_categories import failure_category_for_error
+from eatbid.failures.categories import failure_category_for_error
 from eatbid.ingest.models import CapturedObservation, CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.release_models import SourceReleasePlan
 from eatbid.ingest.release_repository import SourceReleaseRepository
 from eatbid.ingest.repository import IngestRepository
-from eatbid.object_store import RawObjectStore
 from eatbid.pipeline.capture import capture_response
 from eatbid.pipeline.discover import DiscoveryPlan
 from eatbid.pipeline.refetch_baseline import RefetchBaselineReader
 from eatbid.pipeline.refetch_policy import RefetchBaseline
 from eatbid.source.client import SourceResponse
 from eatbid.source.eat.registry import require
+from eatbid.storage.object_store import RawObjectStore
 
 
 class RawFirstDiscoveryPersistence:

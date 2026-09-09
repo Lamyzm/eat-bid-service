@@ -14,8 +14,8 @@ from eatbid.ingest.models import (
     CaptureRequest,
     PlannedRequestUnit,
 )
-from eatbid.object_store import StoredRawObject
 from eatbid.source.client import SourceResponse
+from eatbid.storage.object_store import StoredRawObject
 
 # eaT 목록 조회의 날짜 창으로 번역되는 모드다. `discover --mode`가 받는 값이 정확히 이 셋이다.
 CollectionRunMode = Literal["poll-open", "daily-reconcile", "backfill"]
