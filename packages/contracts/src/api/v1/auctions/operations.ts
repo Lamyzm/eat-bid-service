@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 import { auctionIdPathSchema } from "../../../atoms/identifier";
-import { problemDetailsSchema } from "../../../common/problem-details";
+import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
 import { auctionV1ResponseSchema } from "./get-auction.response";
 import { auctionRosterV1ResponseSchema } from "./get-auction-roster.response";
@@ -10,6 +10,11 @@ import { auctionRosterQuerySchema } from "./get-auction-roster.query";
 import { DEFAULT_OPEN_AUCTION_LIMIT, openAuctionListQuerySchema } from "./list-open-auctions.query";
 import { openAuctionListV1ResponseSchema } from "./list-open-auctions.response";
 
+/**
+ * 공고 read는 전부 로그인 뒤에만 열린다. eatbid는 공개 화면이 없는 업무 도구이고, 그 판정의 권위는
+ * Nest guard다. 이 세 operation은 요구 수준이 `provider_session`이라 403을 내지 않는다. 세션은 있는데
+ * app 계정 초기화가 아직 끝나지 않은 사용자도 공고 판단 재료는 읽을 수 있어야 하기 때문이다(ADR 0032 §5).
+ */
 export const auctionV1Operations = {
   roster: defineOperation({
     method: "get",
@@ -27,6 +32,7 @@ export const auctionV1Operations = {
     },
     problemResponses: {
       400: { description: "공고 또는 revision ID가 유효하지 않음", schema: problemDetailsSchema },
+      ...unauthenticatedProblemResponse,
       404: { description: "공고와 일치하는 revision을 찾을 수 없음", schema: problemDetailsSchema },
       500: { description: "명단 무결성 또는 서버 결함", schema: problemDetailsSchema },
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
@@ -34,7 +40,6 @@ export const auctionV1Operations = {
   }),
   // 목록에는 "없는 자원"이 없어 404를 두지 않는다. cursor가 활성 build에 없을 때만 400이며, 남의
   // cursor·사라진 cursor를 빈 페이지로 위장하면 호출자가 "끝"과 "잘못된 요청"을 구분하지 못한다.
-  // 401은 guard가 붙는 변경에서 함께 선언한다 — 서버가 절대 내지 않는 응답을 적으면 계약이 거짓말한다.
   listOpen: defineOperation({
     method: "get",
     versioning: { kind: "uri", prefix: "api", version: "1" },
@@ -51,6 +56,7 @@ export const auctionV1Operations = {
     },
     problemResponses: {
       400: { description: "query가 유효하지 않음", schema: problemDetailsSchema },
+      ...unauthenticatedProblemResponse,
       500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
     },
@@ -71,6 +77,7 @@ export const auctionV1Operations = {
     },
     problemResponses: {
       400: { description: "공고 ID가 유효하지 않음", schema: problemDetailsSchema },
+      ...unauthenticatedProblemResponse,
       404: { description: "공고를 찾을 수 없음", schema: problemDetailsSchema },
       500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },

@@ -5,6 +5,7 @@ import { fixedClock, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import { withSeededDatabase } from "../../fixtures/organization-attempts.fixture";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 test("PostgreSQL의 100 초과 관측률이 기관 회차 HTTP 200과 정확한 문자열로 전달된다", async () => {
   await withSeededDatabase(async ({ url }) => {
@@ -12,6 +13,7 @@ test("PostgreSQL의 100 초과 관측률이 기관 회차 HTTP 200과 정확한 
       environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: url }),
       logWriter: () => undefined,
       clock: fixedClock(Temporal.Instant.from("2026-09-06T00:00:00Z")),
+      sessionAuthenticator: signedInSessionAuthenticator,
     });
     const server = await runtime.listen(0, "127.0.0.1");
     try {

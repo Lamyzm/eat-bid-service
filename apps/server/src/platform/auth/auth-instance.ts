@@ -12,6 +12,16 @@ import type { AuthDatabaseBinding } from "./auth-database";
 
 export const AUTH_BASE_PATH = "/api/auth";
 
+/**
+ * 서명된 세션 사본을 쿠키에 두고 그 수명 동안 세션 조회가 저장소를 읽지 않게 하는 창이다. 로그인
+ * 게이트가 요청마다 세션을 보게 되므로 이 값이 없으면 게이트 자체가 요청당 DB 조회 하나가 된다.
+ *
+ * 60초인 이유: 캐시가 유효한 동안에는 회수된 세션도 통과하므로 그 창이 곧 취소 반영이 늦는 시간이다.
+ * 로그아웃은 브라우저 POST가 세션 쿠키와 이 사본을 함께 즉시 무효화하므로 이 창은 "다른 기기에서
+ * 회수했을 때"에만 남고, 그 지연을 1분으로 묶는 대신 요청당 조회를 없앤다(ADR 0032 §12).
+ */
+const SESSION_COOKIE_CACHE_SECONDS = 60;
+
 export interface AuthInstanceInput {
   readonly environment: AuthEnvironment;
   readonly database: AuthDatabaseBinding;
@@ -45,6 +55,12 @@ export function createAuthInstance(input: AuthInstanceInput) {
     emailAndPassword: { enabled: false },
     session: {
       ...database.schemaOptions.session,
+      /**
+       * 서명된 세션 사본을 쿠키에 실어 유효한 동안 저장소를 읽지 않는다. 로그인 게이트를 거는 변경과
+       * 이 옵션은 한 쌍이다. 게이트만 세우면 화면 진입마다 세션 조회가 하나씩 늘어 게이트가 곧 DB
+       * 부하가 된다. 사본은 provider secret으로 서명되므로 브라우저가 내용을 고쳐 통과할 수 없다.
+       */
+      cookieCache: { enabled: true, maxAge: SESSION_COOKIE_CACHE_SECONDS },
       /**
        * GET `/get-session`이 세션 수명을 바꾸지 못하게 한다. 이 옵션이 없으면 GET 하나가 DB `expiresAt`을
        * 연장하면서 `Set-Cookie`를 함께 만드는데, RSC나 서버 간 조회는 그 헤더를 브라우저로 전달하지

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { kstMonthTextSchema } from "../../../atoms/calendar";
 import { bidRateTextSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
-import { problemDetailsSchema } from "../../../common/problem-details";
+import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation } from "../../operation";
 import { distributionScopeSchema } from "./distribution.resource";
 import { winRateDistributionV1ResponseSchema } from "./find-win-rate-distribution.response";
@@ -105,6 +105,7 @@ export const winRateDistributionV1Operations = {
         description: "query가 유효하지 않거나 모집단과 축의 짝, 기간 상한, 칸 폭 배수 규칙을 어김",
         schema: problemDetailsSchema,
       },
+      ...unauthenticatedProblemResponse,
       404: { description: "요청한 기관 또는 지역 코드값을 찾을 수 없음", schema: problemDetailsSchema },
       500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },

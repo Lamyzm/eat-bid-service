@@ -1,7 +1,7 @@
 # 0032 — 인증·인가 경계와 등록된 사업자
 
 - Status: Accepted
-- Date: 2026-09-04 (2026-09-09 개정·확정)
+- Date: 2026-09-04 (2026-09-09 개정·확정, 2026-09-10 로그인 게이트 개정)
 - 관계: `0018`(application identity와 bigint wire)의 `identity_subject → principal_id` 해소를 런타임
   경계로 구체화한다. `0023`(web 모듈 경계)의 "shell은 session endpoint를 직접 읽지 않고 상위 layout이
   검증해 전달한다"를 실제 layout 규칙으로 확정한다. `0028`(Cache Components)의 Suspense·`use cache`
@@ -11,7 +11,9 @@
   EAT-40(사업자번호 대조와 성적표), `docs/architecture/domain-and-data.md` §3.3·§3.6,
   `docs/product/decision-screen-v2/pages-endpoints-load.md`,
   사용자 결정 2026-09-04(게스트 모드 폐기, 권한별 화면 분리),
-  사용자 결정 2026-09-09(로그인 → 내 사업자번호 → 직접 입력 위치 → 기존 차트의 실제 내 투찰)
+  사용자 결정 2026-09-09(로그인 → 내 사업자번호 → 직접 입력 위치 → 기존 차트의 실제 내 투찰),
+  Linear EAT-138(로그인 게이트와 세션 쿠키 캐시), 사용자 결정 2026-09-10(공개 화면 없음),
+  `docs/notes/2026-09-10-web-walkthrough.md` §0·§4
 
 ## 2026-09-09 개정 요지
 
@@ -28,6 +30,15 @@
 
 이 개정은 backend 경계까지 구현·검증했으므로 `Accepted`다. 화면 연결은 다음 작업이며 이 문서가 정한 계약을
 그대로 소비한다.
+
+## 2026-09-10 개정 요지
+
+제품 결정이 이 ADR의 유보 하나를 지웠다. eatbid에는 공개 화면이 없고 공고 데이터는 로그인해야 본다.
+§5가 "기존 공개 read의 요구 수준은 이번 변경에서 바꾸지 않는다"로 미뤄 둔 이유는 무료/유료 경계가 아직
+정해지지 않아 인증 배포를 요금제에 묶고 싶지 않다는 것이었는데, 이제 그 경계가 "전부 로그인 뒤"로
+정해졌으므로 유보의 전제가 없다. 새 §12가 그 줄과 화면 route 표를 대체하고, 2026-09-04 초안의
+"`proxy.ts`는 계속 no-op으로 두거나 삭제한다"를 함께 철회한다. 철회하는 것은 no-op 결정 하나이며
+"middleware를 유일한 인가 지점으로 삼지 않는다"는 판단은 그대로다.
 
 ## Context
 
@@ -89,11 +100,11 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
 - **사용자별 응답은 캐시하지 않는다.** 개인 operation 경로에는 guard보다 앞선 middleware가
   `Cache-Control: private, no-store`와 `Vary: cookie`를 붙인다. guard가 끊는 401·403과 의존성 장애 503에도
   같은 헤더가 남아야 하므로 controller나 interceptor가 아니라 그 앞자리에 둔다.
-- `apps/web/src/proxy.ts`는 세션을 검증하지 않는다. 이유는 두 가지다. 첫째, `0028`이 요구하는 static
-  shell을 위해서는 요청마다 쿠키를 읽는 전역 경계를 두지 않는 편이 낫다. 둘째, Next middleware를
-  유일한 인가 지점으로 두는 구조는 헤더 조작으로 우회된 전례가 있고(CVE-2025-29927,
-  `x-middleware-subrequest`) Next 공식 문서도 middleware를 단독 인증 경계로 쓰지 말라고 적는다.
-  `proxy.ts`는 계속 no-op으로 두거나 삭제한다.
+- `apps/web/src/proxy.ts`는 세션을 **검증하지** 않는다. Next middleware를 유일한 인가 지점으로 두는
+  구조는 헤더 조작으로 우회된 전례가 있고(CVE-2025-29927, `x-middleware-subrequest`) Next 공식 문서도
+  middleware를 단독 인증 경계로 쓰지 말라고 적는다. 2026-09-10 개정은 여기에 검증이 아닌 **쿠키 유무
+  판정**을 둔다(§12). 그 판정은 네트워크를 부르지 않으므로 `0028`의 static shell과 요청당 비용을 건드리지
+  않고, 위조한 쿠키로 얻을 수 있는 것은 401을 받는 화면뿐이다.
 - 화면 판정은 `(workspace)/layout.tsx`의 Suspense 안 loader가 `getCurrentSession` 서버 계약으로 한다.
   layout 최상위에서 `cookies()`를 await하면 모든 canonical route의 shell이 dynamic이 된다(`0028` 2항).
 - **web guard는 UX이고 권위는 Nest guard다.** Next layout은 자식 page의 렌더 시작을 막지 못하므로
@@ -225,14 +236,10 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
 §8의 초기화로 자기 워크스페이스의 `owner`가 되므로 첫 등록이 막히지 않는다. 이 판정은 use case 한
 곳에 있고 화면이 버튼을 감추는 것으로 대신하지 않는다.
 
-**기존 공개 read의 요구 수준은 이번 변경에서 바꾸지 않는다.** `findAuction`,
-`listOrganizationAuctionAttempts`, `findWinRateDistribution`, `listOpenAuctions`, `listCodes`는 지금 그대로
-둔다. 근거: 게스트 모드 폐기는 "브라우저 localStorage가 사용자 기록의 진실 원천이 아니다"라는 결정이지
-"공개 관측 사실을 로그인 뒤로 숨긴다"는 결정이 아니다. 후자는 무료/유료 경계와 공유 링크 정책을 함께
-정해야 하는 제품 결정이고(§11), 로그인 기반과 같은 변경에 묶으면 요금제가 정해질 때까지 인증을 배포할 수
-없다. 또 지금 그 read들은 dev 화면과 `test:e2e:foundation` fixture가 쓰고 있어 같은 변경에서 잠그면
-인증 실패와 화면 회귀를 구분할 수 없게 된다. 잠그는 변경은 별도 issue에서 이 표의 해당 줄과 guard
-테스트를 함께 고친다.
+**기존 공개 read의 요구 수준은 §12가 `provider_session`으로 올린다.** 2026-09-04 초안이 `findAuction`,
+`listOrganizationAuctionAttempts`, `findWinRateDistribution`, `listOpenAuctions`, `listCodes`를 `public`으로
+남긴 이유는 "공개 관측 사실을 로그인 뒤로 숨긴다"가 무료/유료 경계를 함께 정해야 하는 제품 결정이라서였다
+(§11). 2026-09-10 사용자 결정이 그 경계를 "전부 로그인 뒤"로 정했으므로 유보가 끝났다.
 
 화면 route:
 
@@ -240,12 +247,12 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
 | --- | --- | --- | --- |
 | `(auth)` | `/login` | `public` | 이미 로그인이면 `next` 또는 `/today` |
 | `(auth)` | `/setup` | `authenticated` | `/login?next=/setup` |
-| `(workspace)` | `/today`, `/auctions/[auctionId]` | 이번 변경에서 바꾸지 않음 | — |
+| `(workspace)` | `/today`, `/auctions/[auctionId]` | `workspace_member` | 쿠키 없음은 `/login?next=…`, 초기화 미완료는 `/setup?next=…`(§12) |
 | 레거시 | `/s/[token]`, `/dashboard/**`, `/welcome` | 판정 대상 아님 | legacy disposition Gate에서 제거 |
 
 등록된 사업자가 없는 로그인 사용자도 결정 화면은 그대로 열린다. 막히는 것은 사업자 축에 붙는
 개인 자료(내 기록, 위치, 실제 내 투찰)뿐이다. 이유: 사업자 등록 전에도 공고 판단 재료는 볼 수 있어야
-제품 가치를 확인하고 결제한다.
+제품 가치를 확인하고 결제한다. 등록 없음과 초기화 미완료는 다른 상태다. 앞은 통과, 뒤는 `/setup`이다.
 
 ### 6. 인가 실패의 wire 표현
 
@@ -445,18 +452,71 @@ app.registered_business_location(
 대해 참을 돌려준다. 그래야 요금제가 정해질 때 바꿀 곳이 한 군데다. 이 port를 통과하지 않는 곳에
 "무료/유료" 분기를 흩어 놓지 않는다. 이번 슬라이스는 이 port도 만들지 않는다. 분기가 아직 없기 때문이다.
 
+### 12. 화면은 로그인해야 열리고 세션 확인은 요청마다 저장소를 읽지 않는다
+
+**판정은 세 겹이고 권위는 한 겹이다.** 겹이 셋인 이유는 각 자리가 답할 수 있는 질문이 다르기 때문이지
+같은 판정을 세 번 하려는 것이 아니다.
+
+1. `proxy.ts`는 provider 세션 쿠키가 있는지만 본다. 없으면 `/login?next=<현재 경로>`로 보낸다. 서버에
+   물어보지 않는 이유는 그 왕복이 모든 화면 요청에 하나씩 붙어 게이트 자체가 부하가 되기 때문이다.
+   여는 경로를 적는 목록으로 판정해 새 업무 route가 기본으로 공개되지 않게 한다. 열려 있는 것은
+   `/login`, `/setup`과 화면이 아닌 표면(`/api`, `/internal`, Sentry tunnel)뿐이다.
+2. `(workspace)/layout.tsx`의 Suspense 안 loader가 `getCurrentSession`을 읽어 `unauthenticated`는
+   `/login`, `uninitialized`는 `/setup`으로 보낸다. 쿠키는 "app 계정 초기화가 끝났는가"를 답할 수
+   없으므로 이 판정은 계약을 읽는 자리에만 둘 수 있다. loader는 화면을 그리지 않고 자식과 나란히 서서
+   page가 가진 static shell을 dynamic 경계 안으로 끌어들이지 않는다(`0028` 2항). 자식 page가 이 판정보다
+   먼저 렌더를 시작할 수 있다는 §1의 사실은 그대로이며, 그때 데이터가 새지 않는 이유도 그대로 3번이다.
+   복귀 경로는 layout이 자기 URL을 받지 못하므로 proxy가 요청 헤더로 실어 주고, 받는 쪽이
+   `shell/auth/return-path`로 한 번 더 판정한다. 열린 리디렉션 판정 자리는 여전히 그 파일 하나다(§6).
+3. **권위는 Nest guard다.** `listOpenAuctions`, `findAuction`, `getAuctionRoster`,
+   `listOrganizationAuctionAttempts`, `findWinRateDistribution`, `listCodes`의 요구 수준을
+   `provider_session`으로 올리고 계약의 `problemResponses`에 401을 선언한다. guard는 controller class에
+   붙인다. handler마다 붙이면 새 handler 하나가 decorator를 빠뜨려 조용히 공개된다.
+
+**이 여섯에 403을 만들지 않는다.** 요구 수준이 `provider_session`이므로 app 계정 초기화 여부를 보지
+않는다. 초기화 미완료 사용자를 API에서 막으면 화면이 `/setup`으로 안내할 재료를 API 실패에서 다시 꺼내야
+하고, 그 판정은 이미 세션 계약이 상태로 말한다.
+
+**세션 쿠키 캐시를 켠다.** 게이트와 캐시는 한 쌍이다. 게이트를 세우면 화면 진입마다 세션 확인이 하나씩
+늘고, 캐시가 없으면 그 확인이 그대로 DB 조회가 된다. `session.cookieCache`를 60초로 켜고 서버 검증에서
+`disableCookieCache`를 뺀다. 서명된 사본이 실린 요청은 저장소를 읽지 않는다.
+
+- 사본은 provider secret으로 서명되므로 브라우저가 고쳐 통과할 수 없고, 세션 토큰 쿠키가 없으면 사본
+  단독으로는 주체가 되지 않는다.
+- 대가는 회수된 세션이 최대 60초 더 통과한다는 것이다. 자기 로그아웃은 지연되지 않는다. 브라우저 POST가
+  세션 쿠키와 사본을 함께 즉시 무효화하기 때문이다(§9). 남는 것은 "다른 기기에서 회수했을 때"의 60초다.
+- 사본을 채우는 것은 서버 간 검증이 아니라 브라우저가 부르는 provider 세션 hook이다. 서버 검증은
+  `disableRefresh`로 읽기만 하므로 `Set-Cookie`를 만들지 않고, 만들어도 그 헤더는 RSC 경로에서 버려진다.
+  즉 사본 수명은 화면이 provider hook을 마운트하고 있다는 사실에 기대며, 그 hook은 §1이 이미 요구한다.
+- 60초는 취소 반영 지연의 상한이다. 늘리면 회수가 늦어지고, 줄이면 저장소 조회가 늘어난다.
+
+**앱 표면은 색인을 거부한다.** proxy가 통과·리디렉션 응답 모두에 `X-Robots-Tag: noindex, nofollow`를
+붙인다. 사이트가 검색되는 것과 공고 데이터가 검색되는 것은 다른 일이고, 지금 이 앱에는 검색돼야 할
+화면이 없다. 붙이는 자리를 게이트와 같게 두는 이유는 "무엇이 화면 표면인가"라는 같은 목록을 두 번
+적지 않기 위해서다.
+
+**틀렸을 때 비용.** 게이트만 세우고 캐시를 켜지 않으면 로그인 도입이 곧 DB 부하 증가로 나타나고, 그
+증상은 인증 결함이 아니라 성능 문제로 보여 원인을 찾기 어렵다. 반대로 캐시만 켜고 게이트를 세우지
+않으면 공고 데이터가 계속 공개된 채로 남는다.
+
 ## Consequences
 
 - 게스트 모드가 사라진다. `apps/web/src/lib/session.ts`의 localStorage 진실 원천과
   `/api/me/*` PUT 동기화 경로는 legacy disposition 대상이 된다. 이 ADR은 자동 이전을 허용하지 않는다.
 - 요청마다 조회 2회가 늘어난다. 피크 3 req/s 가정에서 무시할 수 있는 비용이며, 줄이려고 provider
-  세션 테이블에 `principal_id`를 심는 것은 `0018` conformance gate가 막는다.
+  세션 테이블에 `principal_id`를 심는 것은 `0018` conformance gate가 막는다. §12의 쿠키 캐시가 그중
+  세션 조회 1회를 사본 수명 동안 없앤다. `identity_subject` 조회 1회는 남는다.
 - 세션 의존 함수는 `use cache`를 쓰지 못한다. `mart` 기반 집계만 태그 캐시의 이득을 본다.
 - 자동 계정 연결을 끈 대가로, 두 번째 provider가 생기면 같은 사람이 두 계정을 가질 수 있다. 그 대신
   provider 이메일 변경이 탈취 경로가 되지 않는다.
 - 세션 갱신이 브라우저 POST에만 있으므로 web은 그 갱신을 실제로 호출해야 한다. 서버 조회만 반복하는
   화면은 세션을 연장하지 못하고 만료 시점에 로그아웃된다. 이 경계는 화면 연결 작업이 닫는다.
-- 인증 설정이 없는 배포에서 `/api/v1/session`과 `/api/auth/*`가 503이다. 공개 read는 그대로 동작한다.
+- 인증 설정이 없는 배포에서 `/api/v1/session`과 `/api/auth/*`가 503이고, §12 이후에는 공유 read도 503이다.
+  로그인할 수 없는 배포에서 업무 화면을 여는 방법은 없다는 뜻이며, 그것이 "미로그인"과 구분돼야 하므로
+  401이 아니라 503으로 남는다. 인증을 켜지 않은 로컬·검사 실행은 `createApp`의 authenticator 주입 지점을
+  쓴다. 환경변수나 헤더로 guard를 건너뛰는 분기는 만들지 않는다(§9).
+- 브라우저로 화면을 검사하는 스위트는 로그인 상태에서 시작해야 한다. fixture 세션 쿠키와 세션 계약
+  응답을 support fixture가 소유하고, 게이트 자체를 검사하는 스위트만 그 상태를 비운다.
 - 권한 매트릭스가 문서와 guard 테스트 양쪽에 있으므로 둘이 어긋나면 테스트가 먼저 깨진다. 표의 한 줄을
   바꾸는 변경은 이 ADR과 테스트를 같이 고쳐야 한다.
 - **잘못됐을 때 비용:** 인가 판정이 endpoint마다 흩어지면 새 계약 하나가 남의 워크스페이스 작성 자료를
@@ -470,9 +530,11 @@ app.registered_business_location(
   않은 지역·기간의 사업자가 제품을 쓸 수 없다. 미연결 상태를 그대로 보존하고 말하는 편이 정확하다.
 - **첫 로그인에서 워크스페이스를 자동 생성한다(GET 포함)**: 안전해야 할 세션 조회가 행을 만들게 되고,
   둘러보기만 한 사용자에게도 빈 워크스페이스가 쌓인다. 첫 저장 command 하나가 만드는 편이 낫다.
-- **web middleware(`proxy.ts`)에서 세션을 검증한다**: 요청마다 전역 dynamic 경계가 생겨 `0028`의 static
-  shell이 사라지고, 헤더 조작 우회 전례(CVE-2025-29927)가 있어 단독 인가 지점으로 부적합하다. 무엇보다
-  API 권위가 Nest에 있는데 인가 판정만 web에 두면 진실 원천이 둘이 된다.
+- **web middleware(`proxy.ts`)에서 세션을 검증한다**: 요청마다 세션 계약 왕복이 붙어 게이트 자체가
+  부하가 되고, 헤더 조작 우회 전례(CVE-2025-29927)가 있어 단독 인가 지점으로 부적합하다. 무엇보다
+  API 권위가 Nest에 있는데 인가 판정만 web에 두면 진실 원천이 둘이 된다. §12가 여기 두는 것은 검증이
+  아니라 네트워크를 부르지 않는 쿠키 유무 판정이며, 그 결과로 열리는 화면도 Nest guard 앞에서는
+  401을 받는다.
 - **Better Auth를 Next Route Handler에 마운트한다**: `AGENTS.md` 19항의 `/api/**` Nest ingress 규칙과
   `0023`의 "Route Handler는 두 번째 업무 진실 원천이 될 수 없다"를 동시에 깬다. Nest가 세션을 직접
   읽지 못해 server 쪽 guard가 web을 역참조해야 한다.

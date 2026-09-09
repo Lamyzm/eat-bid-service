@@ -17,6 +17,7 @@ import type {
 import { auctionId } from "../modules/procurement/domain/auction-id";
 import { DrizzleAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOpenAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-open-auction-reader";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 const repositoryRoot = resolve(import.meta.dir, "../../../..");
 const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
@@ -351,6 +352,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: url }),
         logWriter: () => undefined,
         clock: fixedClock(NOW),
+        sessionAuthenticator: signedInSessionAuthenticator,
       });
       const server = await runtime.listen(0, "127.0.0.1");
       try {

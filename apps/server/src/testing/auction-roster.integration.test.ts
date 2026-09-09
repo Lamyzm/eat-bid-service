@@ -8,6 +8,7 @@ import { parseEnvironment } from "../platform/config/environment";
 import { DrizzleAuctionRosterReader } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
 import { auctionId } from "../modules/procurement/domain/auction-id";
 import { disposableDatabase } from "../../fixtures/disposable-database.fixture";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 // raw `fetched_at`이 그대로 code label 증거의 `observed_at`이 되는 발행 경로를 fixture가 재현한다.
 // API 역할은 `ingest`를 읽지 못하므로 이 값이 core로 투영돼 있는지가 명단 조회 성공의 조건이다.
@@ -220,6 +221,7 @@ describe("실제 API 역할의 회차 명단 관측 시각", () => {
       const runtime = await createApp({
         environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: apiUrl }),
         logWriter: () => undefined,
+        sessionAuthenticator: signedInSessionAuthenticator,
       });
       const server = await runtime.listen(0, "127.0.0.1");
       const rosterPath = (attempt: string) =>
