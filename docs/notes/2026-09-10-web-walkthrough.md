@@ -41,6 +41,21 @@ Linear issue와 ADR이며, 훑기가 끝나면 issue로 옮기고 이 파일은 
 - 404 페이지 영문 스타터 문구 → 한국어(규칙 21).
 - 헤더에 "마지막 수집 HH:MM · 다음 HH:MM" 표시(수집 주기 issue와 함께).
 
+### `today-screen.tsx` 분기 (사용자 지적)
+
+- `list` prop이 중첩 삼항이다. 계보 없음, 0건, 목록 셋이 한 식에 들어 있고 마지막 가지는 이름 없는 30줄이다.
+- 더 깊은 문제는 화면이 상태를 다시 계산한다는 것이다. 판정 재료가 `hasSnapshotBuild`와 `rows.length === 0`
+  두 boolean이다. 결정 화면은 이미 union(`history.state`가 `ready`·`no-organization`·`unavailable`·`build-changed`)으로
+  모델링돼 있어 화면이 매칭만 한다. 오늘 화면만 boolean으로 남았다.
+- 고칠 방향: `present-open-auctions.ts`가 `{ kind: 'no-snapshot' | 'empty' | 'list' }`를 돌려주고 화면은
+  `switch (view.kind)` 세 갈래로 early return. 목록 가지는 `OpenAuctionList`로 이름을 준다. 라이브러리는 필요 없다.
+  `<Switch>`/`<Case>` 컴포넌트는 union이 없을 때 쓰는 우회로이고, 여기서는 union이 먼저다.
+- 빈 상태 표현이 화면마다 따로다. 오늘의 `NoSnapshot`·`EmptyResult`, 결정 화면의 `pending-card.tsx`·
+  `history-build-recovery.tsx`. `shared/ui`에 문구를 모르는 `EmptyState`(제목·문장·행동 슬롯) 하나를 두고
+  문구는 화면이 준다. 문구를 enum이나 상태에서 다시 읽지 않는다는 web 계약을 지키려면 슬롯형이어야 한다.
+- `regionTextOf`는 지역 칩 라벨을 응답 행에서 찾는다. 행이 0건이면 라벨을 못 찾아 칩이 "지역 전체"로 보인다.
+  지역 어휘 계약이 없어서 생긴 우회로다(지역 라벨 issue와 같은 뿌리).
+
 ## 4. web 읽기 경로(캐시·하이드레이션) 관찰
 
 - 세 캐시 층: Next `use cache`(공유, 태그 push 무효화, stale 5분/만료 1시간), TanStack(브라우저별, staleTime 60초, 소비처 셋: `/setup` 사업자 목록, `AccountHub` 세션, 명단 패널), CF(현재 정적만).
@@ -49,6 +64,25 @@ Linear issue와 ADR이며, 훑기가 끝나면 issue로 옮기고 이 파일은 
 - 로그인 게이트 없음: `proxy.ts`는 `NextResponse.next()`뿐. `/today`·결정 화면·Nest 공유 read가 공개. 정책대로 proxy 게이트 + Nest guard + 앱 route `noindex`. ADR 0032에 한 절.
 - 대칭으로 만든 미사용 client query factory(`auctions.open/detail`, account·win-rate index 재수출).
 - 시간 리터럴: `query-client.ts` `60_000`, `read-cache-life.ts` `300/3600`(EAT-133 규칙 대상).
+
+### 계약과 transport (사용자 질문: DTO 한 곳·Zod 검증·ky·패치가 두 군데)
+
+- DTO는 이미 한 곳이다. `packages/contracts`의 operation registry가 method·path·입력·상태별 응답을 소유하고
+  Nest controller, OpenAPI, web이 모두 여기서 파생한다(AGENTS 19). web에 `/api/v1/...` 리터럴은 없다.
+- 검증도 실제로 한다. `_transport/request-contract.ts`의 `parseSuccess`가 응답을 계약 schema로 `safeParse`하고
+  실패하면 `ContractResponseError`를 던진다. 보내는 body는 `operation.bodySchema.parse`, 실패 응답은 Problem
+  Details schema로 검증한다. 서버가 계약과 다른 걸 주면 화면이 아니라 여기서 멈춘다.
+- Next는 별도 API를 갖지 않는다. 업무 데이터는 전부 Nest에서 온다. Next route handler는
+  `/internal/cache/revalidate` 하나뿐이고 그것은 캐시 무효화 신호이지 데이터 경로가 아니다. 그래서 분리가
+  다시 엮이지 않는다. RSC가 서버에서 Nest를 부르는 것과 브라우저가 same-origin `/api`로 Nest를 부르는 것의
+  차이일 뿐이고, TanStack Query는 후자(상호작용 이후 조회)를 계속 담당한다.
+- "패치가 두 군데"로 보이는 이유: 조회 함수 자체는 하나다(`list-open-auctions.ts`의 `listOpenAuctionsWith`).
+  transport만 둘로 주입한다. `server.ts`는 절대 origin + `use cache` + 태그, `index.ts`는 same-origin +
+  AbortSignal. 파일이 갈린 이유는 `server-only`와 client bundle 분리다.
+- ky는 저장소에 없다. 의존성에도 ADR에도 없다. 지금 adapter가 URL 조립과 검증을 이미 갖고 있어 ky와 겹치는
+  부분은 작고, 넣는다면 `createContractRequest`의 `fetch` 자리에 끼워 retry·timeout만 얻는 형태다.
+- 실제로 빠진 것: 서버 fetch에 timeout도 retry도 없다. Nest가 늦으면 RSC 렌더가 그만큼 붙잡힌다.
+  부하 목표를 숫자로 정하는 issue에서 같이 다룬다.
 
 ## 4-1. route 경로 문자열 (`PageProps<'/today'>` 질문)
 
