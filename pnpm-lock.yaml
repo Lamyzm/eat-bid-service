@@ -168,7 +168,7 @@ importers:
         specifier: ^1.4.2
         version: 1.5.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       ky:
-        specifier: ^2.1.0
+        specifier: 2.1.0
         version: 2.1.0
       leaflet:
         specifier: ^1.9.4

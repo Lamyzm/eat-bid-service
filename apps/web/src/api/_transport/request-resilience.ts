@@ -1,5 +1,7 @@
 /** @module 책임: 조립 지점별 시간 예산과 재시도 규칙을 정의하고 주입된 fetch를 ky로 감싼 한 번의 응답으로 되돌린다. */
 import type { ElapsedMilliseconds } from '@eatbid/domain';
+// 아래 재시도 다리가 ky의 `HTTPError` 생성자와 "throwHttpErrors가 꺼져 있으면 ky가 응답 본문을 읽지
+// 않는다"는 내부 동작에 기대므로, minor 상향이 계약 판정을 조용히 바꾸지 않도록 정확한 버전에 고정한다.
 import ky, { HTTPError, type NormalizedOptions } from 'ky';
 
 export type FetchImplementation = (
@@ -54,12 +56,20 @@ const retryableStatuses = [408, 429, 500, 502, 503, 504];
 const retryableMethods = ['get', 'head'] as const;
 
 /**
- * ky는 스스로 `Request`를 만들기 때문에 절대 URL이 필요하다. same-origin 조립 지점은 상대 경로를 쓰므로
- * 해석되지 않는 예약 도메인(RFC 2606)을 붙여 ky 내부 표현만 만들고, 실제 호출에는 원래 경로를 그대로 넘긴다.
+ * ky는 스스로 `Request`를 만들기 때문에 절대 URL이 필요하다. 브라우저는 `location`으로 상대 경로를
+ * 풀지만 Node runtime에는 그 전역이 없어 `Failed to parse URL`로 죽는다(Node 24에서 확인). same-origin
+ * 조립 지점이 두 runtime에서 같게 돌도록 해석되지 않는 예약 도메인(RFC 2606)을 붙여 ky 내부 표현만
+ * 만들고, 실제 호출에는 원래 상대 경로를 그대로 넘긴다.
  */
 const sameOriginBase = 'http://same-origin.invalid';
 
-/** ky는 이 snapshot을 재시도 판정에 쓰지 않고 오류에 보관만 하며, 그 오류는 이 모듈 밖으로 나가지 않는다. */
+/**
+ * ky가 status를 직접 보게 하면(`throwHttpErrors` 기본값) 오류를 만들면서 응답 본문을 끝까지 읽어
+ * `error.response.json()`이 죽는다. Node 24에서 재시도 대상 503과 재시도 대상이 아닌 404 모두
+ * `bodyUsed: true`로 관측했다. 그러면 Problem Details가 사라져 404가 `notFound()`로 가지 못하므로,
+ * 본문을 건드리지 않는 이 경로를 유지하고 재시도 신호만 직접 만든다. ky는 이 snapshot을 재시도 판정에
+ * 쓰지 않고 오류에 보관만 하며, 그 오류는 이 모듈 밖으로 나가지 않는다.
+ */
 const retrySignalOptions = {} as NormalizedOptions;
 
 export interface ResilientRequest {
