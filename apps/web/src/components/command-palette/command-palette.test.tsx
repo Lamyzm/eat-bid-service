@@ -89,7 +89,7 @@ test('navigation action은 선택한 내부 경로를 한 번 실행한다', () 
     [
       {
         label: '공고',
-        items: [{ title: '오늘', url: '/today', items: [] }]
+        items: [{ title: '오늘', url: '/setup', items: [] }]
       }
     ],
     (url) => visited.push(url)
@@ -97,5 +97,5 @@ test('navigation action은 선택한 내부 경로를 한 번 실행한다', () 
 
   navigation[0].onSelect();
 
-  expect(visited).toEqual(['/today']);
+  expect(visited).toEqual(['/setup']);
 });

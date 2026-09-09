@@ -97,8 +97,6 @@ test.describe('로그인 계정의 사업자 설정', () => {
     await page.goto(`/setup?next=${ENCODED_AUCTION_PATH}`);
     await expect(page).toHaveURL(`${WEB_ORIGIN}/login?next=${ENCODED_AUCTION_PATH}`);
 
-    await page.goto('/today');
-    await expect(page.getByRole('region', { name: '열린 공고' })).toBeVisible();
     await guest.close();
   });
 
@@ -241,7 +239,7 @@ test.describe('로그인 계정의 사업자 설정', () => {
   });
 
   test('전역 메뉴의 사업자 진입은 canonical 설정 하나로 모인다', async () => {
-    await firstPage.goto('/today');
+    await firstPage.goto(AUCTION_PATH);
     await firstPage.getByRole('link', { name: '내 사업자' }).click();
     await expect(firstPage).toHaveURL(`${WEB_ORIGIN}/setup`);
   });

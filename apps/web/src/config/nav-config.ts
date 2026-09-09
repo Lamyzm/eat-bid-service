@@ -37,13 +37,6 @@ import type { NavGroup } from '@/types';
  */
 export const navGroups: NavGroup[] = [
   {
-    label: '공고',
-    items: [
-      // 오늘은 canonical `/today`(EAT-39)가 소유한다.
-      { title: '오늘', url: '/today', icon: 'sun', isActive: false, shortcut: ['t', 't'], items: [] }
-    ]
-  },
-  {
     label: '나',
     items: [
       // 사업자 등록의 진실 원천은 로그인 계정이다. 이 항목이 localStorage 화면을 가리키면 같은 개념의
