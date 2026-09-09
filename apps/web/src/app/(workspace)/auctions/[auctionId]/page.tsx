@@ -16,8 +16,7 @@ import { DecisionScreen } from './_ui/decision-screen';
 import { DecisionScreenSkeleton } from './_ui/decision-screen-skeleton';
 import { OwnBidProvider } from './_ui/own-bid/own-bid-provider';
 
-type AuctionPageParams = PageProps<'/auctions/[auctionId]'>['params'];
-type AuctionPageSearchParams = PageProps<'/auctions/[auctionId]'>['searchParams'];
+type AuctionPageProps = PageProps<'/auctions/[auctionId]'>;
 
 const loadDecisionSearch = createLoader(decisionSearchParsers);
 
@@ -25,8 +24,8 @@ async function AuctionLoader({
   params,
   searchParams
 }: {
-  readonly params: AuctionPageParams;
-  readonly searchParams: AuctionPageSearchParams;
+  readonly params: AuctionPageProps['params'];
+  readonly searchParams: AuctionPageProps['searchParams'];
 }) {
   // history 조회가 URL의 item param을 필요로 하므로 search를 먼저 기다린 뒤 loader에 넘긴다.
   const search = await loadDecisionSearch(searchParams);
@@ -62,7 +61,7 @@ async function AuctionLoader({
 // params·searchParams를 page 최상위에서 await하면 static shell이 사라진다(ADR 0028). promise를 Suspense
 // 안 loader에 넘겨 shell은 prerender하고 공고 본문만 request 시점에 streaming한다. fallback은 loading.tsx와
 // 같은 skeleton이다.
-export default function AuctionPage({ params, searchParams }: PageProps<'/auctions/[auctionId]'>) {
+export default function AuctionPage({ params, searchParams }: AuctionPageProps) {
   return (
     <Suspense fallback={<DecisionScreenSkeleton />}>
       <AuctionLoader params={params} searchParams={searchParams} />
