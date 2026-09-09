@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AuctionRosterV1Response } from '@eatbid/contracts/api/v1/auctions';
 import { auctionQueries } from '@/api/auctions';
 import { attemptsFixture } from '../__fixtures__/attempts';
-import { presentHistory } from '../_model/attempt-history';
+import { attemptKeys, presentHistory } from '../_model/attempt-history';
 import { BidRateProvider } from './bid-rate-context';
 import { HistoryTable } from './history-table';
 import { AuctionRosterPanel } from './auction-roster-panel';
@@ -21,6 +21,7 @@ const render = (ui: ReactNode) => renderUI(ui, { wrapper: WorkspaceDockFixture }
 
 const rows = presentHistory(attemptsFixture, null).rows;
 const selected = rows[0]!;
+const selectedKey = attemptKeys([selected])[0]!;
 // fixture 행의 revision 규칙(`<attemptId>1`)과 같아야 표 행이 고른 revision의 명단으로 조회된다.
 function payload(auctionId: string): AuctionRosterV1Response {
   return {
@@ -71,7 +72,7 @@ describe('회차 명단 상세', () => {
   test('행의 revision이 없으면 최신 명단으로 추정하지 않고 확인 불가를 말한다', () => {
     const screen = render(
       <QueryClientProvider client={clientWith(payload(selected.attemptId))}>
-        <AuctionRosterPanel row={{ ...selected, revisionId: null }} onClose={() => undefined} />
+        <AuctionRosterPanel attempt={{ ...selectedKey, revisionId: null }} onClose={() => undefined} />
       </QueryClientProvider>
     );
     expect(screen.getByRole('alert').textContent).toContain('회차 해석을 확인하지 못해');
@@ -86,7 +87,7 @@ describe('회차 명단 상세', () => {
     client.setQueryData(auctionQueries.roster(selected.attemptId, '99').queryKey, latest);
     const screen = render(
       <QueryClientProvider client={client}>
-        <AuctionRosterPanel row={selected} onClose={() => undefined} />
+        <AuctionRosterPanel attempt={selectedKey} onClose={() => undefined} />
       </QueryClientProvider>
     );
     expect(screen.getByText('검증 업체', { exact: false })).toBeTruthy();
@@ -99,7 +100,7 @@ describe('회차 명단 상세', () => {
       return (
         <QueryClientProvider client={client}>
           <BidRateProvider initialRate={null}>
-            <AttemptSelectionProvider rows={currentRows}>
+            <AttemptSelectionProvider attempts={attemptKeys(currentRows)}>
               <HistoryTable rows={currentRows} />
               <AuctionWorkspaceDock fallback={<p>현재 공고 본문</p>} />
             </AttemptSelectionProvider>
@@ -128,7 +129,7 @@ describe('회차 명단 상세', () => {
     const screen = render(
       <QueryClientProvider client={client}>
         <BidRateProvider initialRate={null}>
-          <AttemptSelectionProvider rows={rows}>
+          <AttemptSelectionProvider attempts={attemptKeys(rows)}>
             <HistoryTable rows={rows} />
             <AuctionWorkspaceDock fallback={null} />
           </AttemptSelectionProvider>
@@ -297,7 +298,7 @@ describe('회차 명단 상세', () => {
     };
     const screen = render(
       <QueryClientProvider client={clientWith(data)}>
-        <AuctionRosterPanel row={selected} onClose={() => undefined} />
+        <AuctionRosterPanel attempt={selectedKey} onClose={() => undefined} />
       </QueryClientProvider>
     );
     expect(screen.getByText('낙찰실패')).toBeTruthy();
@@ -306,7 +307,7 @@ describe('회차 명단 상세', () => {
   test('원천 계산용 자리표시자를 제출금액으로 보여주지 않고 관측 제출금액과 세 자리 비율을 보존한다', () => {
     const screen = render(
       <QueryClientProvider client={clientWith(payload(selected.attemptId))}>
-        <AuctionRosterPanel row={selected} onClose={() => undefined} />
+        <AuctionRosterPanel attempt={selectedKey} onClose={() => undefined} />
       </QueryClientProvider>
     );
     expect(screen.getByText('43,120,180 원')).toBeTruthy();
@@ -318,7 +319,7 @@ describe('회차 명단 상세', () => {
     data.rows[0]!.submittedAmount = null;
     const screen = render(
       <QueryClientProvider client={clientWith(data)}>
-        <AuctionRosterPanel row={selected} onClose={() => undefined} />
+        <AuctionRosterPanel attempt={selectedKey} onClose={() => undefined} />
       </QueryClientProvider>
     );
     expect(screen.getAllByText('미확인')).toHaveLength(2);
@@ -329,7 +330,7 @@ describe('회차 명단 상세', () => {
     const screen = render(
       <QueryClientProvider client={clientWith(payload(selected.attemptId))}>
         <BidRateProvider initialRate={null}>
-          <AttemptSelectionProvider rows={rows}>
+          <AttemptSelectionProvider attempts={attemptKeys(rows)}>
             <HistoryTable rows={rows} />
             <AuctionWorkspaceDock fallback={null} />
           </AttemptSelectionProvider>

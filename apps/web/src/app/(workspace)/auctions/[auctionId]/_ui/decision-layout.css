@@ -44,6 +44,10 @@
   [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-evidence'] { min-height: 0; height: 100%; }
   [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-evidence-stack'] { display: block; }
   [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-evidence'] { padding-block: 8px; }
+  /* 두 본문이 같은 카드에 함께 있고 켜진 쪽만 보인다(EAT-139). 남은 높이는 그 자리가 받아 캔버스에 넘긴다. */
+  [data-slot='decision-screen'][data-focus='flow'] [data-slot='evidence-panel'][data-view='흐름'] {
+    display: flex; flex-direction: column; flex: 1; min-height: 0;
+  }
   [data-slot='decision-screen'][data-focus='flow'] figure { flex: 1; min-height: 0; }
   [data-slot='decision-screen'][data-focus='flow'] [data-slot='flow-canvas'] { height: auto; min-height: 120px; flex: 1; flex-basis: 0; }
   [data-slot='decision-screen'][data-focus='flow'] figure > :not([data-slot='flow-canvas']) { flex-shrink: 0; }

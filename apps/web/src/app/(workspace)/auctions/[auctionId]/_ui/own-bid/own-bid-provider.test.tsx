@@ -31,7 +31,7 @@ mock.module('@/api/account/find-my-bid-observations', () => ({
 
 const { accountQueries } = await import('@/api/account');
 const { attemptsFixture } = await import('../../__fixtures__/attempts');
-const { presentHistory } = await import('../../_model/attempt-history');
+const { presentHistory, observableAttemptKeys } = await import('../../_model/attempt-history');
 const { OwnBidProvider } = await import('./own-bid-provider');
 const { useOptionalOwnBid } = await import('./own-bid-context');
 type OwnBidValue = NonNullable<ReturnType<typeof useOptionalOwnBid>>;
@@ -107,7 +107,7 @@ function harness(session: CurrentSessionV1Response, businesses: MyBusinessesV1Re
   }
   const tree = (current: typeof rows = rows) => (
     <QueryClientProvider client={client}>
-      <OwnBidProvider organizationId='3101' buildId='501' rows={current}>
+      <OwnBidProvider organizationId='3101' buildId='501' attempts={observableAttemptKeys(current)}>
         <Probe />
       </OwnBidProvider>
     </QueryClientProvider>
@@ -159,7 +159,7 @@ describe('내 투찰 provider', () => {
     expect(pending[0]!.input.businessId).toBe('8');
   });
 
-  test('관측 응답이 오면 점이 생기고 계정이 바뀌면 이전 선택과 점이 사라지며 늦은 응답은 새 화면에 닿지 않는다', async () => {
+  test('관측 응답이 오면 그 회차 결과가 도착하고 계정이 바뀌면 이전 선택과 결과가 사라지며 늦은 응답은 새 화면에 닿지 않는다', async () => {
     const { client, tree, latest } = harness(firstAccount, { businesses: [business('7', '9000000016'), business('8', '9000000020')] });
     const screen = render(tree());
     await flush();
@@ -173,8 +173,9 @@ describe('내 투찰 provider', () => {
     });
     await flush();
     expect(latest().status.kind).toBe('observed');
-    expect(latest().display?.points).toHaveLength(1);
-    expect(latest().display?.points[0]?.rateText).toBe('89.001');
+    // 점 좌표는 행을 가진 차트가 만든다. provider는 그 회차 결과를 그대로 넘기고 요약만 센다(EAT-139).
+    expect(latest().observations).toHaveLength(1);
+    expect(latest().observations?.[0]?.attemptId).toBe(target.attemptId);
 
     // 둘째 계정으로 전환. 등록 목록은 미리 채워 두어 전환 즉시 판정된다.
     client.setQueryData(accountQueries.businesses({ principalId: secondAccount.principalId, workspaceId: '12' }).queryKey, { businesses: [business('9', '9000000035'), business('10', '9000000043')] });
@@ -184,7 +185,7 @@ describe('내 투찰 provider', () => {
     });
     await flush();
     expect(latest().selectedBusinessId).toBeNull();
-    expect(latest().display).toBeNull();
+    expect(latest().observations).toBeNull();
     expect(latest().status.kind).toBe('select-business');
 
     // 둘째 계정에서 같은 businessId를 골라도 첫째 계정의 답을 재사용하지 않는다. 다른 principal의 key라 새로 묻는다.
@@ -194,7 +195,7 @@ describe('내 투찰 provider', () => {
     await flush();
     expect(pending).toHaveLength(2);
     expect(latest().status.kind).toBe('loading');
-    expect(latest().display).toBeNull();
+    expect(latest().observations).toBeNull();
   });
 
   test('revision이 없는 행이 하나라도 있으면 묻지 않고 준비 안 됨으로 둔다', async () => {

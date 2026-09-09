@@ -7,10 +7,12 @@ import {
 } from '@/api/organizations/server';
 import { findWinRateDistributionFromServer } from '@/api/win-rate-distribution/server';
 import { notFound } from 'next/navigation';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { createLoader } from 'nuqs/server';
 import { Suspense } from 'react';
 
 import { decisionSearchParsers } from './_lib/decision-search-params';
+import { observableAttemptKeys } from './_model/attempt-history';
 import { loadAuctionPage } from './_model/load-auction-page';
 import { DecisionScreen } from './_ui/decision-screen';
 import { DecisionScreenSkeleton } from './_ui/decision-screen-skeleton';
@@ -40,21 +42,26 @@ async function AuctionLoader({
 
   if (!data) notFound();
   // 내 투찰은 로그인 사용자의 개인 자료라 RSC 캐시 밖의 브라우저 provider가 조립한다. 차트가 그리는 첫 페이지
-  // 표본과 같은 build를 넘겨 표와 점이 같은 계보를 말하게 한다. DecisionScreen 자체는 모른다.
+  // 표본과 같은 build를 넘겨 표와 점이 같은 계보를 말하게 한다. 표 행이 아니라 물어볼 회차 열쇠만 넘긴다 —
+  // 행을 통째로 넘기면 이미 렌더한 자료가 RSC 페이로드에 한 벌 더 실린다(EAT-139). DecisionScreen 자체는 모른다.
   const sample = data.history.state === 'ready' ? data.history.presentation : null;
   return (
-    <OwnBidProvider
-      organizationId={sample?.organizationId ?? null}
-      buildId={sample?.buildId ?? null}
-      rows={sample?.rows ?? []}
-    >
-      <DecisionScreen
-        decision={data.decision}
-        search={search}
-        history={data.history}
-        distribution={data.distribution}
-      />
-    </OwnBidProvider>
+    // 흐름↔분포 전환은 이미 받은 두 본문을 바꿔 끼우는 표시 전환이라 서버를 다시 부르지 않는다. 그 전환이
+    // 주소의 `view`를 shallow로 고치려면 이 route 안에 nuqs adapter가 있어야 한다(apps/web AGENTS).
+    <NuqsAdapter>
+      <OwnBidProvider
+        organizationId={sample?.organizationId ?? null}
+        buildId={sample?.buildId ?? null}
+        attempts={observableAttemptKeys(sample?.rows ?? [])}
+      >
+        <DecisionScreen
+          decision={data.decision}
+          search={search}
+          history={data.history}
+          distribution={data.distribution}
+        />
+      </OwnBidProvider>
+    </NuqsAdapter>
   );
 }
 

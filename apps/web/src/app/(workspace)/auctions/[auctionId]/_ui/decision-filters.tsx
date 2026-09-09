@@ -4,6 +4,7 @@ import type { HistoryPresentation } from '../_model/attempt-history';
 import { historyFloorOf, normalizeItemParam } from '../_model/decision-cohort';
 import type { DecisionPresentation } from '../_model/present-decision';
 import { ConditionMenu } from './condition-menu';
+import { EvidenceViewOnly } from './evidence-view';
 
 export function DecisionFilters({ decision, search, history }: {
   readonly decision: DecisionPresentation;
@@ -34,7 +35,10 @@ export function DecisionFilters({ decision, search, history }: {
         { label: '전체 품목', href: route({ item: null }), selected: item === null },
         ...[...items].map(([id, label]) => ({ label, href: route({ item: id }), selected: item === id }))
       ]} />
-      {search.view === '비교집단' ? <ConditionMenu label='분포 범위' value={search.scope} choices={DECISION_SCOPES.map((scope) => ({ label: scope, href: route({ scope }), selected: search.scope === scope }))} /> : null}
+      {/* 모집단 범위는 분포에만 쓰인다. 어느 본문을 보는지가 브라우저 상태이므로 이 자리도 그것을 따라간다. */}
+      <EvidenceViewOnly view='비교집단'>
+        <ConditionMenu label='분포 범위' value={search.scope} choices={DECISION_SCOPES.map((scope) => ({ label: scope, href: route({ scope }), selected: search.scope === scope }))} />
+      </EvidenceViewOnly>
       <span className='text-xs text-muted-foreground'>기관 이력 · 현재 공고와 같은 낙찰 방식</span>
     </div>
   );

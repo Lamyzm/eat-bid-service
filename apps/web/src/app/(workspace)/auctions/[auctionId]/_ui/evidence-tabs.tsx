@@ -1,5 +1,4 @@
-/** @module 책임: 공고 분석의 흐름·분포 전환과 범례를 조립하고 URL 조건에 맞는 본문과 확대 동작을 연결한다. */
-import Link from 'next/link';
+/** @module 책임: 공고 분석의 흐름·분포 두 본문을 한 번에 렌더해 두고 어느 것을 보일지·어떻게 키울지를 브라우저 전환과 확대 링크에 연결한다. */
 import { Suspense } from 'react';
 
 import {
@@ -10,8 +9,10 @@ import {
 } from '../_lib/decision-search-params';
 import type { DecisionPageData } from '../_model/load-auction-page';
 import { DistributionFootnote } from './distribution-footnote';
-import { FlowChart } from './flow-chart';
+// 본문 전환은 브라우저 상태라 client 모듈이 소유한다. 이 서버 카드는 자리와 두 본문의 내용만 정한다.
+import { EvidenceViewOnly, EvidenceViewPanel, EvidenceViewTabs, type EvidenceTab } from './evidence-view';
 import { DecisionExpandLink } from './expand/decision-expand-link';
+import { FlowChart } from './flow-chart';
 // 범례는 계열 토글이라 브라우저 상태가 필요해 client 모듈이 소유한다. 이 서버 카드는 자리만 정한다.
 import { FlowLegend } from './flow-legend';
 import { MyRateInput } from './my-rate-input';
@@ -23,13 +24,8 @@ type HistoryState = DecisionPageData['history'];
 type DistributionState = DecisionPageData['distribution'];
 
 // 분포는 조회 범위가 해석에 영향을 주므로 현재 조건을 안내문에도 함께 표시한다.
-function note(view: DecisionView, scope: DecisionSearch['scope']): string {
-  switch (view) {
-    case '비교집단':
-      return `${scope}에서 값마다 낙찰된 횟수입니다. 모집단은 위 필터에서 바꿉니다.`;
-    case '흐름':
-      return '이 기관의 개찰일별 낙찰 기록입니다. 점을 누르면 참여 기록을 볼 수 있어요.';
-  }
+function cohortNote(scope: DecisionSearch['scope']): string {
+  return `${scope}에서 값마다 낙찰된 횟수입니다. 모집단은 위 필터에서 바꿉니다.`;
 }
 
 const VIEW_LABEL: Record<DecisionView, string> = { 흐름: '흐름', 비교집단: '분포' };
@@ -134,34 +130,34 @@ export function EvidenceTabs({
   readonly history: HistoryState;
   readonly distribution: DistributionState;
 }) {
-  const active = search.view;
+  // 두 본문을 함께 렌더한다. `loadAuctionPage`가 view와 무관하게 이력과 분포를 둘 다 읽으므로 탭 전환에
+  // 필요한 자료는 이미 이 응답 안에 있고, 다시 부를 이유가 없다(EAT-139).
+  const tabs: readonly EvidenceTab[] = DECISION_VIEWS.map((view) => ({
+    view,
+    label: VIEW_LABEL[view],
+    href: buildDecisionViewRoute(auctionId, search, view)
+  }));
 
   return (
     <div data-slot='decision-evidence' className='flex min-w-0 flex-col gap-3 overflow-hidden rounded-xl bg-card p-4 shadow-xs'>
       <div data-slot='evidence-toolbar' className='flex min-w-0 flex-wrap items-center gap-1'>
-        <nav aria-label='근거 보기' className='flex flex-wrap items-center gap-1'>
-          {DECISION_VIEWS.map((view) => (
-            <Link
-              key={view}
-              href={buildDecisionViewRoute(auctionId, search, view)}
-              aria-current={view === active ? 'page' : undefined}
-              className={`inline-flex h-9 items-center rounded-md px-3 text-[15px] whitespace-nowrap ${
-                view === active ? 'bg-primary/10 font-semibold text-primary' : 'font-medium text-muted-foreground'
-              }`}
-            >
-              {VIEW_LABEL[view]}
-            </Link>
-          ))}
-        </nav>
-        {active === '흐름' ? <FlowLegend /> : null}
-        <DecisionExpandLink auctionId={auctionId} search={search} target={active} />
+        <EvidenceViewTabs tabs={tabs} />
+        {/* 범례·확대 링크는 지금 보는 본문에만 뜻이 있다. 두 본문 몫을 미리 그려 두고 켜진 쪽만 남긴다. */}
+        <EvidenceViewOnly view='흐름'>
+          <FlowLegend />
+          <DecisionExpandLink auctionId={auctionId} search={search} target='흐름' />
+        </EvidenceViewOnly>
+        <EvidenceViewOnly view='비교집단'>
+          <DecisionExpandLink auctionId={auctionId} search={search} target='비교집단' />
+        </EvidenceViewOnly>
       </div>
-      {active === '비교집단' ? <p className='text-[13px] font-medium text-muted-foreground'>{note(active, search.scope)}</p> : null}
-      {active === '비교집단' ? (
+      <EvidenceViewPanel view='비교집단' className='grid min-w-0 gap-3'>
+        <p className='text-[13px] font-medium text-muted-foreground'>{cohortNote(search.scope)}</p>
         <CohortBody auctionId={auctionId} search={search} distribution={distribution} />
-      ) : (
+      </EvidenceViewPanel>
+      <EvidenceViewPanel view='흐름' className='grid min-w-0 gap-3'>
         <FlowBody auctionId={auctionId} search={search} history={history} focus={search.expand === '흐름'} />
-      )}
+      </EvidenceViewPanel>
     </div>
   );
 }

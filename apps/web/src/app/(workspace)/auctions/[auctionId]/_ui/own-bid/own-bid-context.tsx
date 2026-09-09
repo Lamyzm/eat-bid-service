@@ -3,8 +3,9 @@
 
 import { createContext, useContext } from 'react';
 
+import type { MyAttemptBidObservation } from '@eatbid/contracts/api/v1/me';
 import type { RegisteredBusiness } from '@/api/account';
-import type { OwnDisplayModel } from '../../_model/own-bid-points';
+import type { OwnAttemptSummary } from '../../_model/own-bid-points';
 
 /**
  * 상태를 이름으로 나눈다. "점이 없다"는 미로그인·사업자 없음·미관측·명단 없음·조회 실패가 모두 만들 수 있는
@@ -19,7 +20,7 @@ export type OwnBidStatus =
   | { readonly kind: 'select-business' }
   | { readonly kind: 'history-not-ready' }
   | { readonly kind: 'loading' }
-  | { readonly kind: 'observed'; readonly display: OwnDisplayModel }
+  | { readonly kind: 'observed'; readonly summary: OwnAttemptSummary }
   | { readonly kind: 'unobserved' }
   | { readonly kind: 'evidence-conflict' }
   | { readonly kind: 'build-changed' }
@@ -31,8 +32,11 @@ export type OwnBidValue = {
   /** 등록이 하나면 그 사업자, 여럿이면 사용자가 고른 사업자다. 고르기 전에는 null이며 기본값을 두지 않는다. */
   readonly selectedBusinessId: string | null;
   readonly select: (businessId: string) => void;
-  /** 캔버스가 그릴 점이다. `observed`가 아닌 상태에서는 이전 응답이 남지 않도록 null이다. */
-  readonly display: OwnDisplayModel | null;
+  /**
+   * 캔버스가 점을 만들 원본 관측이다. 점 좌표는 회차 행이 있어야 만들 수 있으므로 이미 행을 가진 차트가
+   * 만들고, 여기서는 회차 결과만 넘긴다. `observed`가 아닌 상태에서는 이전 응답이 남지 않도록 null이다.
+   */
+  readonly observations: readonly MyAttemptBidObservation[] | null;
 };
 
 export const OwnBidContext = createContext<OwnBidValue | null>(null);

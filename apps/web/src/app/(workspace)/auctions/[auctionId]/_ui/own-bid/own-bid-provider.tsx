@@ -15,8 +15,7 @@ import {
   type RegisteredBusiness
 } from '@/api/account';
 import { useAccountSession } from '@/capabilities/account';
-import type { HistoryRow } from '../../_model/attempt-history';
-import { buildOwnDisplayModel, type OwnDisplayModel } from '../../_model/own-bid-points';
+import { summarizeOwnAttempts, type OwnAttemptSummary } from '../../_model/own-bid-points';
 import { OwnBidContext, type OwnBidStatus, type OwnBidValue } from './own-bid-context';
 
 const NO_BUSINESSES: readonly RegisteredBusiness[] = [];
@@ -29,10 +28,9 @@ type StatusInput = {
   readonly businessesQuery: UseQueryResult<MyBusinessesV1Response>;
   readonly businesses: readonly RegisteredBusiness[];
   readonly businessId: string | null;
-  readonly historyReady: boolean;
   readonly attemptCount: number;
   readonly observations: UseQueryResult<MyBidObservationsV1Response>;
-  readonly display: OwnDisplayModel | null;
+  readonly summary: OwnAttemptSummary | null;
 };
 
 /** 상태 판정은 순수하게 둔다. 순서가 곧 우선순위다 — 로그인보다 앞선 사실(의존성 없음)이 먼저다. */
@@ -46,7 +44,7 @@ function deriveStatus(input: StatusInput): OwnBidStatus {
   if (businessesQuery.isError) return { kind: 'error', retry: () => void businessesQuery.refetch() };
   if (businesses.length === 0) return { kind: 'no-businesses' };
   if (businessId === null) return { kind: 'select-business' };
-  if (!input.historyReady || input.attemptCount === 0) return { kind: 'history-not-ready' };
+  if (input.attemptCount === 0) return { kind: 'history-not-ready' };
   if (observations.isPending) return { kind: 'loading' };
   if (observations.isError) {
     if (isBidObservationsBuildChangedError(observations.error)) return { kind: 'build-changed' };
@@ -55,19 +53,22 @@ function deriveStatus(input: StatusInput): OwnBidStatus {
   const supplier = observations.data.supplier;
   if (supplier.kind === 'unobserved') return { kind: 'unobserved' };
   if (supplier.kind === 'evidence-conflict') return { kind: 'evidence-conflict' };
-  return input.display === null ? { kind: 'loading' } : { kind: 'observed', display: input.display };
+  return input.summary === null ? { kind: 'loading' } : { kind: 'observed', summary: input.summary };
 }
 
 export function OwnBidProvider({
   organizationId,
   buildId,
-  rows,
+  attempts,
   children
 }: {
   readonly organizationId: string | null;
   readonly buildId: string | null;
-  /** 차트가 그리는 첫 페이지 표본이다. 더 불러온 페이지의 회차는 묻지 않는다(인계 원문). */
-  readonly rows: readonly HistoryRow[];
+  /**
+   * 차트가 그리는 첫 페이지 표본의 회차 열쇠다. 더 불러온 페이지의 회차는 묻지 않는다(인계 원문).
+   * 표 행이 아니라 열쇠만 받는다 — 행을 통째로 받으면 같은 자료가 RSC 페이로드에 한 벌 더 실린다(EAT-139).
+   */
+  readonly attempts: readonly BidObservationAttemptKey[];
   readonly children: ReactNode;
 }) {
   const account = useAccountSession();
@@ -90,16 +91,10 @@ export function OwnBidProvider({
   // 등록이 하나면 고르라고 요구하지 않는다. 여럿이면 기본값을 두지 않는다 — 화면이 고른 사업자는 사용자 결정이 아니다.
   const businessId = businesses.length === 1 ? businesses[0]!.businessId : chosen;
 
-  const attempts = useMemo<readonly BidObservationAttemptKey[]>(
-    () =>
-      rows
-        .filter((row) => row.openedAt != null && row.revisionId !== null)
-        .map((row) => ({ attemptId: row.attemptId, revisionId: row.revisionId! })),
-    [rows]
-  );
-  // revision이 하나라도 없으면 서버가 opt-in을 무시한 응답이다. 최신 revision으로 추정해 묻지 않는다.
-  const historyReady = rows.length > 0 && rows.every((row) => row.revisionId !== null) && organizationId !== null && buildId !== null;
-  const enabled = scope !== null && businessId !== null && historyReady && attempts.length > 0;
+  // 물어볼 회차 열쇠는 서버가 이미 골라 두었다(`observableAttemptKeys`). 빈 배열이면 개찰 전이거나
+  // revision을 모르는 응답이다. 기관·build를 모르면 어느 계보의 회차인지 말할 수 없어 마찬가지로 묻지 않는다.
+  const askableCount = organizationId === null || buildId === null ? 0 : attempts.length;
+  const enabled = scope !== null && businessId !== null && askableCount > 0;
   const observations = useQuery({
     ...accountQueries.bidObservations(scope ?? NO_SCOPE, {
       businessId: businessId ?? '',
@@ -109,9 +104,10 @@ export function OwnBidProvider({
     }),
     enabled
   });
-  const display = useMemo(
-    () => (observations.data?.supplier.kind === 'observed' ? buildOwnDisplayModel(rows, observations.data.supplier.attempts) : null),
-    [observations.data, rows]
+  const observed = observations.data?.supplier.kind === 'observed' ? observations.data.supplier.attempts : null;
+  const summary = useMemo(
+    () => (observed === null ? null : summarizeOwnAttempts(attempts, observed)),
+    [attempts, observed]
   );
   const status = deriveStatus({
     account,
@@ -119,10 +115,9 @@ export function OwnBidProvider({
     businessesQuery,
     businesses,
     businessId,
-    historyReady,
-    attemptCount: attempts.length,
+    attemptCount: askableCount,
     observations,
-    display
+    summary
   });
   const select = useCallback(
     (next: string) => {
@@ -136,10 +131,10 @@ export function OwnBidProvider({
       businesses,
       selectedBusinessId: businessId,
       select,
-      // 관측 상태에서만 점을 준다. 사업자·계정을 바꾸는 사이 이전 응답의 점이 캔버스에 남지 않게 한다.
-      display: status.kind === 'observed' ? status.display : null
+      // 관측 상태에서만 관측을 준다. 사업자·계정을 바꾸는 사이 이전 응답의 점이 캔버스에 남지 않게 한다.
+      observations: status.kind === 'observed' ? observed : null
     }),
-    [status, businesses, businessId, select]
+    [status, businesses, businessId, select, observed]
   );
   return <OwnBidContext.Provider value={value}>{children}</OwnBidContext.Provider>;
 }

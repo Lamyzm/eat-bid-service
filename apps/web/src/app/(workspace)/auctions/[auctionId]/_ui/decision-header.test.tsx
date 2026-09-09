@@ -12,7 +12,7 @@ const MULTI_ITEM_LABEL = '농산물 , 수산물 , 육류 , 가공식품 , 김치
 
 // 헤더의 `이 공고 정보`는 회차 선택 context의 패널 상태를 읽는다. 회차 목록은 이 화면 조각과 무관하다.
 const renderHeader = (ui: ReactNode) =>
-  render(<AttemptSelectionProvider rows={[]}>{ui}</AttemptSelectionProvider>);
+  render(<AttemptSelectionProvider attempts={[]}>{ui}</AttemptSelectionProvider>);
 
 describe('결정 화면 헤더', () => {
   test('현재 공고 제목과 품목을 보이고 분석 기간 메뉴는 분리한다', () => {

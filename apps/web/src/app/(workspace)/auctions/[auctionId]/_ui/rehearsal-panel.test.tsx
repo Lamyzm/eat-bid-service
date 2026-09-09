@@ -4,7 +4,7 @@ import { fireEvent, render } from '@testing-library/react';
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { createMemoryBidRecordPort } from '../_lib/bid-record-port';
-import { presentHistory } from '../_model/attempt-history';
+import { attemptKeys, presentHistory } from '../_model/attempt-history';
 import { presentDecision } from '../_model/present-decision';
 import { FORBIDDEN_VERDICT_WORDS } from '../_model/verdict-vocabulary';
 import { BidRail } from './bid-rail';
@@ -146,7 +146,7 @@ describe('이 값이면 패널', () => {
     const screen = render(
       <BidRateProvider initialRate='92.760'>
         <BidRail decision={decision} port={createMemoryBidRecordPort()} rehearsal={<RehearsalPanel rows={rows} />} />
-        <AttemptSelectionProvider rows={rows}><HistoryTable rows={rows} /></AttemptSelectionProvider>
+        <AttemptSelectionProvider attempts={attemptKeys(rows)}><HistoryTable rows={rows} /></AttemptSelectionProvider>
       </BidRateProvider>
     );
     expect(screen.getByText('92.760 썼다면')).toBeTruthy();

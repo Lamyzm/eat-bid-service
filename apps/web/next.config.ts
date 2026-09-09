@@ -17,6 +17,12 @@ const baseConfig: NextConfig = {
     }),
   // ADR 0028: canonical route는 static shell + Suspense streaming이며 legacy dashboard와 /s/[token]만 instant=false로 제외한다.
   cacheComponents: true,
+  experimental: {
+    // 질의가 달라지는 전환(기간·모집단·품목·pages)에서 되돌아올 때 방금 본 화면을 다시 받지 않게 client
+    // router cache에 짧은 수명을 준다. 30초는 사용자가 조건을 견주는 왕복은 덮으면서, 개찰·명단처럼 분
+    // 단위로 바뀌는 사실이 오래 묵지 않는 길이다.
+    staleTimes: { dynamic: 30 }
+  },
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
   images: {
     remotePatterns: [

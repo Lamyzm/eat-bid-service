@@ -1,11 +1,11 @@
-/** @module 책임: 현재 공고의 이력 표와 오른쪽 상세가 선택 회차 ID 하나를 공유하고 조회 범위 밖의 선택을 해제한다. */
+/** @module 책임: 현재 공고의 이력 표와 오른쪽 상세가 선택 회차 하나를 공유하고 조회 범위 밖의 선택을 해제한다. */
 'use client';
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
-import type { HistoryRow } from '../_model/attempt-history';
+import type { AttemptKey } from '../_model/attempt-history';
 
 type AttemptSelection = {
-  readonly row: HistoryRow | undefined;
+  readonly attempt: AttemptKey | undefined;
   readonly panel: 'current' | 'record' | null;
   readonly openCurrent: () => void;
   readonly openRecord: () => void;
@@ -17,19 +17,20 @@ type AttemptSelection = {
 const Context = createContext<AttemptSelection | null>(null);
 
 export function AttemptSelectionProvider({
-  rows,
+  attempts,
   children
 }: {
-  readonly rows: readonly HistoryRow[];
+  /** 지금 조회가 담고 있는 회차 열쇠다. 표 행 자체는 이미 표와 차트가 그리므로 여기까지 나르지 않는다(EAT-139). */
+  readonly attempts: readonly AttemptKey[];
   readonly children: ReactNode;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panel, setPanel] = useState<'current' | 'record' | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
-  // 서버 행을 별도 상태로 복사하지 않는다. 새 조회가 선택 회차를 제외하면 이전 명단을 노출하지 않는다.
-  const row = rows.find((candidate) => candidate.attemptId === selectedId);
+  // 서버가 준 열쇠를 별도 상태로 복사하지 않는다. 새 조회가 선택 회차를 제외하면 이전 명단을 노출하지 않는다.
+  const attempt = attempts.find((candidate) => candidate.attemptId === selectedId);
   // 조건부로 현재 컴포넌트의 선택만 초기화해, 제외 후 다시 포함해도 예전 선택이 되살아나지 않는다.
-  if (selectedId !== null && !row) {
+  if (selectedId !== null && !attempt) {
     setSelectedId(null);
     if (panel === 'record') setPanel(null);
   }
@@ -51,13 +52,13 @@ export function AttemptSelectionProvider({
     setPanel('current');
   };
   const openRecord = () => {
-    if (!row) return;
+    if (!attempt) return;
     trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setPanel('record');
   };
   return (
     <Context.Provider
-      value={{ row, panel, openCurrent, openRecord, returnFocus, setReturnFocus, select, close }}
+      value={{ attempt, panel, openCurrent, openRecord, returnFocus, setReturnFocus, select, close }}
     >
       {children}
     </Context.Provider>

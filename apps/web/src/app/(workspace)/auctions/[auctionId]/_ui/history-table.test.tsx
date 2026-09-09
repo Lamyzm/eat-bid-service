@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { fireEvent, render } from '@testing-library/react';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
-import { presentHistory } from '../_model/attempt-history';
+import { attemptKeys, presentHistory } from '../_model/attempt-history';
 import { FORBIDDEN_VERDICT_WORDS } from '../_model/verdict-vocabulary';
 import { BidRateProvider } from './bid-rate-context';
 import { HistoryTable } from './history-table';
@@ -14,7 +14,7 @@ const presentation = presentHistory(attemptsFixture, null);
 function renderTable(initialRate: string | null, rows = presentation.rows) {
   return render(
     <BidRateProvider initialRate={initialRate}>
-      <AttemptSelectionProvider rows={rows}>
+      <AttemptSelectionProvider attempts={attemptKeys(rows)}>
         <HistoryTable rows={rows} />
       </AttemptSelectionProvider>
     </BidRateProvider>

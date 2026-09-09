@@ -9,6 +9,7 @@ import {
   buildDecisionHistoryReadRoute,
   buildDecisionViewRoute,
   decisionSearchParsers,
+  withDecisionView,
   type DecisionSearch
 } from './decision-search-params';
 
@@ -204,5 +205,28 @@ describe('결정 화면 URL 조건', () => {
     };
     expect(buildDecisionViewRoute('4821', search, '흐름')).toContain('rate=90.300');
     expect(buildDecisionViewRoute('4821', { ...search, rate: null }, '흐름')).not.toContain('rate=');
+  });
+
+  test('서버가 그린 주소의 view만 지금 보는 본문으로 갈아 끼우고 나머지 조건은 건드리지 않는다', () => {
+    // 흐름↔분포는 서버 왕복 없이 바뀌므로 서버가 아는 view는 한 걸음 지날 수 있다(EAT-139).
+    const search: DecisionSearch = {
+      period: '3개월',
+      scope: '시군',
+      view: '흐름',
+      item: '7',
+      myRate: '90.030',
+      rate: null,
+      expand: null,
+      pages: 2
+    };
+    const route = withDecisionView(buildDecisionFilterRoute('4821', search, { period: '12개월' }), '비교집단');
+    const query = new URLSearchParams(route.slice(route.indexOf('?')));
+    expect(query.get('view')).toBe('비교집단');
+    expect(query.get('scope')).toBe('시군');
+    expect(query.get('item')).toBe('7');
+    expect(query.get('myRate')).toBe('90.030');
+    // 조건이 달라지면 이전 집단의 cursor 페이지 수는 물려받지 않는다.
+    expect(query.get('pages')).toBeNull();
+    expect(route.startsWith('/auctions/4821?')).toBe(true);
   });
 });

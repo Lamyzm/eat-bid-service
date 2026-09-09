@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import { buildDecisionViewRoute, type DecisionSearch } from '../_lib/decision-search-params';
 import { parseMyRate } from '../_model/present-distribution';
+import { useDecisionRoute } from './evidence-view';
 
 /**
  * 이 눈금은 사정률(분모 예정가격)이고 레일 손잡이는 투찰률(분모 기초금액)이다. 마감 전에는 예정가격이
@@ -21,6 +22,8 @@ export function MyRateInput({
   readonly search: DecisionSearch;
 }) {
   const [draft, setDraft] = useState(search.myRate ?? '');
+  // 이 입력은 분포 본문에 산다. 근거 탭이 서버 왕복 없이 바뀜므로 주소도 지금 보는 본문으로 고쳐 만든다.
+  const route = useDecisionRoute();
   const parsed = parseMyRate(draft);
   const isBlank = draft.trim() === '';
   // 잘못된 입력은 링크를 만들지 않는다. URL에 넣고 모델이 버리게 하면 주소가 조용히 오염된다.
@@ -49,7 +52,7 @@ export function MyRateInput({
         </span>
       ) : (
         <Link
-          href={buildDecisionViewRoute(auctionId, target, search.view)}
+          href={route(buildDecisionViewRoute(auctionId, target, search.view))}
           className='inline-flex h-9 items-center rounded-md bg-primary/10 px-3 text-[15px] font-semibold whitespace-nowrap text-primary'
         >
           사다리에 놓기
@@ -57,7 +60,7 @@ export function MyRateInput({
       )}
       {search.myRate === null ? null : (
         <Link
-          href={buildDecisionViewRoute(auctionId, { ...search, myRate: null }, search.view)}
+          href={route(buildDecisionViewRoute(auctionId, { ...search, myRate: null }, search.view))}
           className='inline-flex h-9 items-center rounded-md px-3 text-[15px] font-medium whitespace-nowrap text-muted-foreground'
         >
           지우기
