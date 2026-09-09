@@ -5,6 +5,7 @@ import { fixedClock, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import { withSeededDatabase } from "../../fixtures/organization-attempts.fixture";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 test("기관 회차 HTTP의 집단별 전체 개수와 cursor 및 KST 개찰월이 함께 일치한다", async () => {
   await withSeededDatabase(async ({ url }) => {
@@ -12,6 +13,7 @@ test("기관 회차 HTTP의 집단별 전체 개수와 cursor 및 KST 개찰월�
       environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: url }),
       logWriter: () => undefined,
       clock: fixedClock(Temporal.Instant.from("2026-09-10T00:00:00Z")),
+      sessionAuthenticator: signedInSessionAuthenticator,
     });
     const server = await runtime.listen(0, "127.0.0.1");
     // operation의 기본 query는 제거하고 각 사례가 자기 query를 한 번만 전달한다.

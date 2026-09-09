@@ -62,6 +62,15 @@ await하지 않는다(ADR 0028 2항). session 의존 read 함수에는 `use cach
 판정은 UX이고 권위는 Nest guard의 401/403이다
 ([ADR 0032](../adr/0032-authentication-and-authorization-boundary.md) §1).
 
+업무 화면은 로그인해야 열린다(같은 ADR §12). 판정 자리는 둘이며 각자 답할 수 있는 질문이 다르다.
+`proxy.ts`는 세션 쿠키가 있는지만 보고 없으면 `/login?next=…`로 보낸다. 네트워크를 부르지 않으므로
+static shell과 요청당 비용을 건드리지 않고, 여는 경로를 적는 목록이라 새 업무 route가 기본으로 공개되지
+않는다. app 계정 초기화 여부는 쿠키가 답할 수 없으므로 `(workspace)/layout.tsx`의 Suspense 안 loader가
+세션 계약으로 판정해 `/setup`으로 보낸다. 그 loader는 화면을 그리지 않고 자식과 나란히 서서 page의
+static shell을 dynamic 경계 안으로 끌어들이지 않으며, layout이 받지 못하는 요청 경로는 proxy가 헤더로
+실어 주고 받는 쪽이 `shell/auth/return-path`로 다시 판정한다. 색인 거부 헤더도 같은 목록을 쓰는 proxy가
+붙인다.
+
 로그인, 첫 사업자 등록, 위치 입력, 계정 허브는 독립된 사용자 intent이고 command/권한/피드백 lifecycle을
 가지므로 `capabilities/account`로 승격한다. 각 화면은 그 capability의 public entry를 조합할 뿐 form 상태나
 session 상태를 shell로 올리지 않는다. 공고 상세처럼 route가 소유한 상태는 계속 route가 소유하고 shell dock

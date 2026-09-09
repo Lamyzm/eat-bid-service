@@ -10,6 +10,7 @@ import type {
   OpenAuctionReader,
   OpenAuctionRecord,
 } from "../modules/procurement/application/open-auction-reader";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 const record: OpenAuctionRecord = {
   auctionAttemptId: 9_007_199_254_740_993n,
@@ -69,6 +70,7 @@ async function withServer(reader: OpenAuctionReader, run: (server: Server) => Pr
     databaseReadiness: { isReady: () => true },
     openAuctionReader: reader,
     clock: fixedClock(NOW),
+    sessionAuthenticator: signedInSessionAuthenticator,
   } as never);
   const server = await runtime.listen(0, "127.0.0.1");
   try {

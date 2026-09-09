@@ -21,6 +21,7 @@ import {
   repositoryRoot,
   sqlText,
 } from "../../fixtures/disposable-database.fixture";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 // 두 번 적용해도 journal이 커밋된 migration 수만큼만 늘어나는 것이 이 검증의 요점이다.
 // 기대치를 상수로 박으면 migration을 더할 때마다 무관한 실패가 난다.
@@ -208,6 +209,7 @@ describe("owner 범위 PostgreSQL 경계", () => {
           DATABASE_URL: apiUrl,
         }),
         logWriter: () => undefined,
+        sessionAuthenticator: signedInSessionAuthenticator,
       });
       const server = await runtime.listen(0, "127.0.0.1");
       try {

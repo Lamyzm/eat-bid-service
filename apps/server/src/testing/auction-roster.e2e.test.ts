@@ -7,6 +7,7 @@ import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import { AuctionRosterIntegrityError, type AuctionRosterReader, type AuctionRosterQuery, type AuctionRosterRecord } from "../modules/procurement/application/auction-roster-reader";
 import { auctionId } from "../modules/procurement/domain/auction-id";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 const environment = parseEnvironment({
   NODE_ENV: "test", PORT: "0",
@@ -33,6 +34,7 @@ async function withServer(reader: AuctionRosterReader, run: (server: Server) => 
   const runtime = await createApp({
     environment, logWriter: () => undefined, databaseReadiness: { isReady: () => true },
     auctionRosterReader: reader,
+    sessionAuthenticator: signedInSessionAuthenticator,
   });
   const server = await runtime.listen(0, "127.0.0.1");
   try { await run(server); } finally { await runtime.shutdown(); }

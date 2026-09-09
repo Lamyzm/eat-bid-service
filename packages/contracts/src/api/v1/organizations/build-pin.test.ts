@@ -54,7 +54,7 @@ describe("회차 이력 build 고정과 revision 노출 계약", () => {
   test("build 전환은 cursor 오류와 다른 status로 계약에 있다", () => {
     // 400은 같은 build 안의 잘못된 cursor다. 409는 그 build 자체가 사라진 것이라 재조회가 답이다.
     expect(organizationV1Operations.listAuctionAttempts.problemStatuses)
-      .toEqual([400, 404, 409, 500, 503]);
+      .toEqual([400, 401, 404, 409, 500, 503]);
   });
 
   test("고정 query도 canonical 경로로 조립된다", () => {

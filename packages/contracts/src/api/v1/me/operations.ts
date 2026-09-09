@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { businessNumberInputSchema } from "../../../atoms/business-number";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
-import { problemDetailsSchema } from "../../../common/problem-details";
+import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { workspaceSummarySchema } from "../../../resources/account/workspace";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
 import { maxRegisteredBusinesses, registeredBusinessSchema } from "./business.resource";
@@ -47,7 +47,7 @@ const forbiddenProblem = {
 } as const;
 
 const sessionProblems = {
-  401: { description: "유효한 세션이 없음", schema: problemDetailsSchema },
+  ...unauthenticatedProblemResponse,
   500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
   503: { description: "데이터베이스 또는 인증 의존성을 사용할 수 없음", schema: problemDetailsSchema },
 } as const;

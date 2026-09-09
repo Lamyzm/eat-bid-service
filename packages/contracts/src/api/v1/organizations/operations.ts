@@ -5,7 +5,7 @@ import { organizationAttemptAwardMethodFilterSchema, organizationAttemptFloorFil
 
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
-import { problemDetailsSchema } from "../../../common/problem-details";
+import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
 import { organizationAttemptOpenedFilterSchema } from "./attempt.resource";
 import { organizationAuctionAttemptsV1ResponseSchema } from "./list-auction-attempts.response";
@@ -99,6 +99,7 @@ export const organizationV1Operations = {
     successResponses: { 200: { description: "기관 회차 요약 조회 성공", schema: organizationAuctionAttemptsV1ResponseSchema } },
     problemResponses: {
       400: { description: "기관 ID 또는 query가 유효하지 않음", schema: problemDetailsSchema },
+      ...unauthenticatedProblemResponse,
       404: { description: "기관을 찾을 수 없음", schema: problemDetailsSchema },
       /**
        * 고정을 요청한 build가 더 이상 활성이 아니다. 소비자는 지금까지 쌓은 목록과 그 위에 붙인 개인

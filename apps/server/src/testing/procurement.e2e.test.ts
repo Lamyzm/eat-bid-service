@@ -6,6 +6,7 @@ import { canonicalDecimal, krw, Temporal } from "@eatbid/domain";
 import { createApp } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
 import type { AuctionReader } from "../modules/procurement/application/auction-reader";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 const publicAuction = {
   auctionId: 9_007_199_254_740_993n,
@@ -54,6 +55,7 @@ async function withServer(
     logWriter: () => undefined,
     databaseReadiness: { isReady: () => true },
     auctionReader: reader,
+    sessionAuthenticator: signedInSessionAuthenticator,
   } as never);
   const server = await runtime.listen(0, "127.0.0.1");
   try {

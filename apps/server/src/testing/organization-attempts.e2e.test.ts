@@ -9,6 +9,7 @@ import type {
   OrganizationAttemptQuery,
   OrganizationAttemptReader,
 } from "../modules/procurement/application/organization-attempt-reader";
+import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 const attempt = {
   attemptId: 9_007_199_254_740_993n,
@@ -67,6 +68,7 @@ async function withServer(
     databaseReadiness: { isReady: () => true },
     organizationAttemptReader: reader,
     clock: fixedClock(NOW),
+    sessionAuthenticator: signedInSessionAuthenticator,
   } as never);
   const server = await runtime.listen(0, "127.0.0.1");
   try {

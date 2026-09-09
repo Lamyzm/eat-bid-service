@@ -150,7 +150,7 @@ describe("낙찰률 분포 조회 operation 계약", () => {
   });
 
   test("실패 status마다 Problem Details schema를 공개한다", () => {
-    expect(operation.problemStatuses).toEqual([400, 404, 500, 503]);
+    expect(operation.problemStatuses).toEqual([400, 401, 404, 500, 503]);
     for (const status of operation.problemStatuses) {
       expect(operation.problemResponses[status]?.schema).toBeDefined();
     }
