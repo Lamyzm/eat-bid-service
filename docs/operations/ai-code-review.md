@@ -2,7 +2,7 @@
 id: AI-CODE-REVIEW
 status: active
 canonical_for: local-ai-advisory-review
-last_reviewed: 2026-09-02
+last_reviewed: 2026-09-10
 review_trigger: review-policy-provider-adapter-or-git-hook-change
 ---
 
@@ -16,6 +16,9 @@ PR에서는 publication 권한이 없는 `.github/workflows/validate.yml`이 결
 required check가 되지 않는다.
 
 ```text
+모든 commit
+  → node tools/architecture/run-checks.mjs --changed (필수, merge-base 대비 변경 경로에 해당하는 검사만 병렬)
+
 모든 push
   → pnpm test (필수, 실패 시 중단)
 
@@ -78,7 +81,9 @@ Anthropic 계정의 요금제와 정책은 외부 상태다. `pnpm review:doctor
 ## 4. Hook 권위와 main 전환 상태
 
 hook 권위는 루트 `.githooks` 하나다. `pnpm install`의 root `prepare`가 `core.hooksPath=.githooks`를 설정한다.
-hook은 `origin/main`을 review base로 쓴다.
+`pre-commit`은 `pnpm architecture:check -- --changed`와 같은 드라이버를 호출해 변경 범위 검사만 실행하고,
+`pre-push`는 main push에서 전체 `architecture:check`를 실행하며 `origin/main`을 review base로 쓴다. 변경 범위
+검사의 기준 결정 규칙과 예외 ledger 철거는 ADR 0042가 소유한다.
 
 저장소의 `build.yml`은 canonical annotated `release/v<MAJOR>.<MINOR>.<PATCH>` tag push에서만 image
 publication을 시작하며 `main` push와 수동 실행에는 그 권한이 없다. private GitHub Free에서는 branch

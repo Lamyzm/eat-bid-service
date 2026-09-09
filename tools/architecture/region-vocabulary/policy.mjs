@@ -1,5 +1,4 @@
-/** @module 책임: 지역 어휘 재선언 규칙의 판정 기준·선언 권위 읽기·legacy ledger 대조를 소유한다. */
-import { createHash } from "node:crypto";
+/** @module 책임: 지역 어휘 재선언 규칙의 판정 기준과 선언 권위 읽기를 소유하며 예외 목록은 두지 않는다. */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -29,8 +28,6 @@ const COORDINATE_KEY_GROUPS = [
   ["lat", "lng"],
   ["lat", "lon"],
 ];
-
-export const sha256 = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
 export function codePointCompare(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -106,64 +103,4 @@ export function isObservedNameMember(name) {
 export function coordinateKeysOf(keys) {
   const lowered = new Set([...keys].map((key) => key.toLowerCase()));
   return COORDINATE_KEY_GROUPS.some((group) => group.every((key) => lowered.has(key)));
-}
-
-/**
- * legacy ledger는 **삭제만** 허용한다. 새 항목을 넣을 자리를 열면 좌표표가 되돌아오므로 비어 있는 채로
- * 시작하며, 이 함수는 형식만 확인하고 규칙 예외를 만들지 않는다.
- */
-export function readLegacyBaseline(baselinePath) {
-  if (!existsSync(baselinePath)) return { baseline: { version: 1, entries: [] }, baselineFailures: [] };
-  try {
-    const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
-    if (baseline.version !== 1 || !Array.isArray(baseline.entries)) {
-      return { baseline: { version: 1, entries: [] }, baselineFailures: ["region vocabulary baseline must have version 1 and an entries array"] };
-    }
-    const baselineFailures = [];
-    for (const [index, entry] of baseline.entries.entries()) {
-      for (const key of ["rule", "path", "kind", "sha256", "reason", "owner", "splitTrigger"]) {
-        if (typeof entry[key] !== "string" || !entry[key].trim()) baselineFailures.push(`region vocabulary baseline entry ${index} must contain ${key}`);
-      }
-      if (!/^sha256:[a-f0-9]{64}$/.test(entry.sha256 ?? "")) baselineFailures.push(`region vocabulary baseline entry ${index} has an invalid sha256 fingerprint`);
-    }
-    return { baseline, baselineFailures };
-  } catch (error) {
-    return { baseline: { version: 1, entries: [] }, baselineFailures: [`cannot read region vocabulary baseline: ${error.message}`] };
-  }
-}
-
-function baselineKey(entry) {
-  return `${entry.rule}\u0000${entry.path}\u0000${entry.kind}`;
-}
-
-export function applyLegacyBaseline(findings, baseline) {
-  const available = new Map();
-  for (const entry of baseline.entries) {
-    const key = `${baselineKey(entry)}\u0000${entry.sha256}`;
-    available.set(key, (available.get(key) ?? 0) + 1);
-  }
-  const unmatchedFindings = [];
-  const baselineFailures = [];
-  const matchedKeys = new Set();
-  for (const item of findings) {
-    const exactKey = `${baselineKey(item)}\u0000${item.sha256}`;
-    const remaining = available.get(exactKey) ?? 0;
-    if (remaining > 0) {
-      available.set(exactKey, remaining - 1);
-      matchedKeys.add(exactKey);
-      continue;
-    }
-    if (baseline.entries.some((entry) => baselineKey(entry) === baselineKey(item))) {
-      baselineFailures.push(`legacy fingerprint drift: ${item.path} [${item.rule}] ${item.kind}`);
-    }
-    unmatchedFindings.push(item);
-  }
-  // 사라진 부채는 ledger에서도 사라져야 한다. 남겨 두면 다음 재선언이 그 자리에 조용히 들어앉는다.
-  for (const [key, remaining] of available) {
-    if (remaining > 0 && !matchedKeys.has(key)) {
-      const [rule, filePath, kind] = key.split("\u0000");
-      baselineFailures.push(`stale legacy entry: ${filePath} [${rule}] ${kind}`);
-    }
-  }
-  return { unmatchedFindings, baselineFailures };
 }

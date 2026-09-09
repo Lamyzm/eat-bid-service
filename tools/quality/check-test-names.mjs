@@ -5,10 +5,16 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { changedScope, describeScope } from "../git/changed-paths.mjs";
+
 const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 const root = process.env.TEST_NAMES_ROOT
   ? path.resolve(process.env.TEST_NAMES_ROOT)
   : repositoryRoot;
+// 규칙 자체는 예외가 없으므로 기본은 전체 검사다. 드라이버가 변경 경로를 넘기거나 `--changed`를 준 경우에만
+// 그 파일로 좁혀 pre-commit 시간을 줄인다. 기준을 못 찾으면 좁히지 않고 전체를 본다.
+const scope = changedScope({ repoRoot: root, defaultMode: "all" });
+const scopedPaths = scope.mode === "changed" ? scope.paths : undefined;
 const requireFromServer = createRequire(path.join(repositoryRoot, "apps", "server", "package.json"));
 const ts = requireFromServer("typescript");
 const pythonChecker = path.join(repositoryRoot, "tools", "quality", "check-python-test-names.py");
@@ -419,14 +425,16 @@ function inspectTypeScript(sourceFile, checker) {
   return { declarationCount, violations };
 }
 
-function runPythonChecker() {
+function runPythonChecker(pythonPaths) {
+  if (pythonPaths && pythonPaths.length === 0) return { declarationCount: 0, violations: [] };
   const candidates = process.env.PYTHON
     ? [process.env.PYTHON]
     : process.platform === "win32" ? ["python", "python3"] : ["python3", "python"];
   for (const executable of candidates) {
-    const result = spawnSync(executable, [pythonChecker, root], {
+    const result = spawnSync(executable, [pythonChecker, root, ...(pythonPaths ? ["--paths-from-stdin"] : [])], {
       encoding: "utf8",
       env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+      input: pythonPaths ? JSON.stringify({ paths: pythonPaths }) : undefined,
     });
     if (result.error?.code === "ENOENT") continue;
     if (result.error) throw result.error;
@@ -436,7 +444,9 @@ function runPythonChecker() {
   throw new Error("Python AST 검사기를 실행할 python/python3를 찾지 못했습니다.");
 }
 
-const typescriptFiles = walk(root, (name) => javascriptExtensions.has(path.extname(name)));
+const typescriptFiles = walk(root, (name) => javascriptExtensions.has(path.extname(name)))
+  .filter((file) => !scopedPaths || scopedPaths.has(display(file)));
+const pythonPaths = scopedPaths ? [...scopedPaths].filter((item) => item.endsWith(".py")).sort() : undefined;
 const compilerOptions = {
   allowJs: true,
   checkJs: false,
@@ -461,7 +471,7 @@ const typescriptResults = typescriptFiles
   .map((file) => program.getSourceFile(file))
   .filter((sourceFile) => sourceFile !== undefined)
   .map((sourceFile) => inspectTypeScript(sourceFile, checker));
-const pythonResult = runPythonChecker();
+const pythonResult = runPythonChecker(pythonPaths);
 const violations = [
   ...typescriptResults.flatMap((result) => result.violations),
   ...pythonResult.violations,
@@ -479,6 +489,6 @@ if (violations.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `한국어 테스트 명세 검사가 통과했습니다. TypeScript ${typescriptDeclarationCount}개, Python ${pythonResult.declarationCount}개`,
+    `한국어 테스트 명세 검사가 통과했습니다. ${describeScope(scope)}, TypeScript ${typescriptDeclarationCount}개, Python ${pythonResult.declarationCount}개`,
   );
 }

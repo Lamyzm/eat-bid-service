@@ -343,10 +343,10 @@ compiler symbol로 추적한다. Python gate는 lexical scope와 사용 순서�
 구분한다. HTTP public boundary의 exported manual type/interface는 이름 suffix와 무관하게 금지하고 Zod
 inferred type만 허용한다.
 
-레거시 예외 ledger는 exact repository path, AST node kind, normalized node text SHA-256, 이유, 제거 gate와
-동일 fingerprint의 multiplicity를 고정한다. line number만 기록해 이동으로 우회하지 않고 감소/삭제만
-허용하며 추가·text drift·동일 node 복제를 거부한다. 신규 server/domain/contracts/db/dataplane에는 일반
-예외를 허용하지 않는다.
+예외 ledger는 없다. TypeScript gate는 `apps/web`을 포함한 governed source 전체에 같은 판정을 내리며,
+허용된 예외는 코드 안의 exact 경로·선언(`AuctionRow`·`postgresInstant`·`systemClock`)뿐이다
+([ADR 0042](../adr/0042-legacy-ledger-retirement-and-changed-scope-checks.md)). `pnpm architecture:check -- --changed`는
+같은 규칙을 merge-base 대비 변경된 파일로 좁혀 pre-commit에서 실행하고, 전체 판정은 main push와 CI가 맡는다.
 
 CI와 로컬의 권위 명령은 다음과 같다.
 

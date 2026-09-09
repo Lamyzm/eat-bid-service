@@ -350,10 +350,10 @@ writer 보장은 하나의 Git common dir을 공유하는 local worktree 범위�
 3. 받는 세션이 그 worktree 안에서 직접 `pnpm workflow:claim -- EAT-123`을 실행해 새 lease를 얻은 뒤에만
    mutation을 시작한다. Claude Code project hook은 이 명령과 Linear 읽기 도구를 lease 없이 허용하므로
    사용자가 대신 claim할 필요가 없다.
-4. 계획을 쓰기 전에 옮기거나 import를 바꿀 파일이 `tools/architecture/*-legacy-baseline.json`과
-   `tools/quality/korean-comment-legacy-baseline.json` 같은 삭제 전용 ledger에 동결돼 있는지 확인한다.
-   동결 파일은 삭제만 허용되므로 이동·수정을 전제한 계획을 세우지 말고 shim이나 새 경로로 우회할지
-   먼저 정한다.
+4. 계획을 쓰기 전에 옮기거나 import를 바꿀 파일이 변경 범위 규칙의 대상인지 확인한다. 건드리지 않은
+   legacy 파일은 검사하지 않지만, `apps/web/src/hooks`·`lib`의 기존 파일이나 canonical 층의 legacy import를
+   수정하는 순간 옮겨야 하고 production 모듈을 수정하면 `@module 책임:` 설명을 넣어야 하므로(ADR 0042)
+   그 비용을 계획에 넣는다.
 5. 이전 세션이 완료했다고 적은 작업을 다시 구현하지 않는다. 다만 검증 결과를 신뢰로 대체하지 않고,
    변경할 경계의 관련 gate는 새 세션에서도 다시 실행한다.
 6. 구현자와 최종 reviewer를 가능하면 다른 세션이나 모델로 분리한다. reviewer는 수정하지 않고

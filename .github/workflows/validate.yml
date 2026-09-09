@@ -21,7 +21,7 @@ jobs:
       - name: 전체 이력 checkout
         uses: actions/checkout@v4
         with:
-          # 삭제 전용 legacy ledger가 고정 기준 commit의 blob을 직접 검증한다.
+          # 변경 범위 검사(한국어 책임 주석·Web legacy 규칙)가 origin/main과의 merge-base를 구하려면 main 이력이 필요하다.
           fetch-depth: 0
       - name: Node 설치
         uses: actions/setup-node@v4
@@ -47,7 +47,8 @@ jobs:
         working-directory: apps/dataplane
         run: uv sync --frozen
       - name: 아키텍처와 생성 계약 drift 검사
-        run: pnpm architecture:check
+        # base를 명시해야 origin/main이 없는 잘못된 checkout이 경고로 조용히 통과하지 않고 실패한다.
+        run: pnpm architecture:check -- --base origin/main
       - name: 저장소 테스트
         run: pnpm test
       - name: TypeScript workspace 빌드

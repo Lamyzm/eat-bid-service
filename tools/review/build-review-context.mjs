@@ -31,17 +31,22 @@ function countByRule(findings) {
 
 async function boundaryEvidence(root, changedPaths) {
   const sourceRoot = path.join(root, "apps", "web", "src");
-  if (!existsSync(sourceRoot)) return { findingCounts: {}, scopedFindings: [], unmatchedFindingCount: 0, baselineFailures: [] };
-  const report = await inspectWebBoundaries({
-    repoRoot: root,
-    sourceRoot,
-    baselinePath: path.join(root, "tools", "architecture", "web-boundary-legacy-baseline.json"),
-  });
+  if (!existsSync(sourceRoot)) {
+    return { findingCounts: {}, scopedFindings: [], skippedLegacyFindingCount: 0, waivedFindingCount: 0, failures: [] };
+  }
   const changed = new Set(changedPaths);
+  // legacy 변경 범위 규칙은 리뷰 범위와 같은 변경 경로로 판정한다(ADR 0042). 예외 ledger는 없다.
+  const report = await inspectWebBoundaries({ repoRoot: root, sourceRoot, changedPaths: changed });
   const scopedFindings = report.findings
     .filter((finding) => changed.has(finding.path) || finding.members?.some((member) => changed.has(member)))
     .map((finding) => ({ rule: finding.rule, path: finding.path, kind: finding.kind, ...(finding.members ? { members: finding.members } : {}) }));
-  return { findingCounts: countByRule(report.findings), scopedFindings, unmatchedFindingCount: report.unmatchedFindings.length, baselineFailures: report.baselineFailures };
+  return {
+    findingCounts: countByRule(report.findings),
+    scopedFindings,
+    skippedLegacyFindingCount: report.skipped.length,
+    waivedFindingCount: report.waived.length,
+    failures: report.failures,
+  };
 }
 
 /** AGENTS.md의 절대 규칙 section만 상한 안에서 발췌한다. 다른 section을 복사하면 prompt가 규칙의 두 번째 원천이 된다. */

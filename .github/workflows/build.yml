@@ -212,8 +212,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        # 삭제 전용 legacy ledger 검사가 고정 기준 commit의 blob을 직접 읽으므로 shallow clone으로는
-        # 그 commit을 해석할 수 없다.
+        # 변경 범위 검사가 origin/main과의 merge-base를 구하려면 shallow clone이 아니라 main 이력이 필요하다.
         with:
           ref: ${{ needs.preflight.outputs.release_commit }}
           fetch-depth: 0
@@ -237,7 +236,7 @@ jobs:
         working-directory: apps/dataplane
         run: uv sync --frozen
       - name: Check architecture and generated contract drift on Windows
-        run: pnpm architecture:check
+        run: pnpm architecture:check -- --base origin/main
       - name: Test semantic mutation gates on Windows
         run: pnpm test:quality
 

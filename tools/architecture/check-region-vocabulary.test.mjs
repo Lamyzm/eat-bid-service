@@ -27,22 +27,20 @@ function fixture(files) {
   };
   write("packages/db/src/seeds/code-schemes.ts", SEED);
   for (const [relativePath, contents] of Object.entries(files)) write(relativePath, contents);
-  const baselinePath = path.join(root, "baseline.json");
-  writeFileSync(baselinePath, '{\n  "version": 1,\n  "entries": []\n}\n', "utf8");
-  return { root, baselinePath };
+  return { root };
 }
 
 function inspect(files, sourceRoots = ["apps/web/src", "packages/db/src", "packages/contracts/src"]) {
   const subject = fixture(files);
   try {
-    return inspectRegionVocabulary({ repoRoot: subject.root, sourceRoots, baselinePath: subject.baselinePath });
+    return inspectRegionVocabulary({ repoRoot: subject.root, sourceRoots });
   } finally {
     rmSync(subject.root, { recursive: true, force: true });
   }
 }
 
 function rules(report) {
-  return [...new Set(report.unmatchedFindings.map((finding) => finding.rule))].sort();
+  return [...new Set(report.findings.map((finding) => finding.rule))].sort();
 }
 
 test("지역 이름을 이어 붙인 키를 거부한다", () => {
@@ -72,15 +70,15 @@ test("선언 권위와 계약 atom은 체계 이름을 가질 수 있다", () =>
     "apps/web/src/scheme.ts": "import { NAMES } from '@eatbid/contracts/atoms/code-scheme-names';\nexport const scheme = NAMES.region;\n",
   });
   assert.deepEqual(rules(report), []);
-  assert.deepEqual(report.baselineFailures, []);
+  assert.deepEqual(report.failures, []);
 });
 
 test("계약 atom이 seed에 없는 체계를 열면 실패를 보고한다", () => {
   const report = inspect({
     "packages/contracts/src/atoms/code-scheme-names.ts": 'export const NAMES = { region: "mois:unknown-region" } as const;\n',
   });
-  assert.equal(report.baselineFailures.length, 1);
-  assert.match(report.baselineFailures[0], /mois:unknown-region/);
+  assert.equal(report.failures.length, 1);
+  assert.match(report.failures[0], /mois:unknown-region/);
 });
 
 test("지역을 이름 문자열이나 관측 라벨과 비교하면 거부한다", () => {
@@ -89,7 +87,7 @@ test("지역을 이름 문자열이나 관측 라벨과 비교하면 거부한�
       + " row.sigungu === '창원시' || row.sigungu === row.region.label;\n",
   });
   assert.deepEqual(rules(report), ["region-name-comparison"]);
-  assert.equal(report.unmatchedFindings.length, 2);
+  assert.equal(report.findings.length, 2);
 });
 
 test("코드 체계 이름 비교와 코드 값 식별자 비교는 이름 비교가 아니다", () => {
