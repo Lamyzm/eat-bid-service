@@ -114,6 +114,21 @@ export const CHECKS = Object.freeze([
     weight: 1,
     scope: [/^docs\/architecture\/stack\//],
   },
+  {
+    id: "write-map",
+    label: "수집 쓰기 지도 drift",
+    script: "tools/architecture/check-write-map.mjs",
+    weight: 1,
+    scope: [/^apps\/dataplane\/src\//, /^docs\/architecture\/ingestion-write-map\.md$/],
+  },
+  {
+    id: "db-erd",
+    label: "DB ERD 생성물 drift",
+    script: "tools/architecture/generate-db-erd.mjs",
+    args: ["--check"],
+    weight: 1,
+    scope: [/^packages\/db\/drizzle\//, /^docs\/architecture\/generated\//],
+  },
 ]);
 
 // 검사기 자신·루트 manifest·lockfile이 바뀌면 어떤 검사가 영향을 받는지 경로만으로 말할 수 없다. 전부 실행한다.

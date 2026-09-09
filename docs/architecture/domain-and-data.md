@@ -16,6 +16,9 @@
 권장 DB 역할은 `migrator`, `ingestor`, `projector`, `api`다. API는 `core`/`mart`를 읽고
 `app`만 쓴다. ingestor는 `ingest`만, projector는 검증된 `ingest`를 읽어 `core`/`mart`를 쓴다.
 
+어느 수집 단계가 어느 표에 어떤 transaction 경계로 쓰는지는 [수집 쓰기 지도](ingestion-write-map.md)가
+모듈 단위로 답하고, 각 스키마의 현재 표·컬럼·외래키 모양은 [생성된 ERD](generated/)가 보여 준다.
+
 ## 2. 식별자 원칙
 
 문자열을 모두 제거하는 것이 목표가 아니다. **문자열이 정체성과 관계를 암묵적으로 결정하는
@@ -533,7 +536,9 @@ canonical 사실은 값의 표현뿐 아니라 의미와 단위를 보존한다.
 
 `packages/db`의 Drizzle schema가 DDL 작성의 유일한 원천이다. 생성된 SQL migration을 검토·
 커밋하고 같은 Git SHA의 migration image가 배포 전에 적용한다. `schema.sql`과 `db:push`는
-목표 구조에서 제거한다.
+목표 구조에서 제거한다. 최신 migration snapshot에서 만든 스키마별 ERD는
+[generated/](generated/)에 두며 `pnpm architecture:erd:write`로만 갱신하고 `architecture:check`가
+drift를 실패시킨다.
 
 Interchange/API 계약은 `packages/contracts`에서 별도로 정의한다. DB 테이블을 그대로 외부 응답으로
 노출하지 않는다. 손으로 작성한 Python Pydantic은 source payload를 담당하고 normalized Pydantic은

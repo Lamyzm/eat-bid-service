@@ -62,7 +62,10 @@ test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바�
     "contracts-python-models",
     "korean-comments",
     "python-semantic-values",
+    "write-map",
   ]);
+  assert.deepEqual(ids(selectChecks({ changedPaths: ["packages/db/drizzle/20260908180418_x/snapshot.json"] })), ["db-erd"]);
+  assert.deepEqual(ids(selectChecks({ changedPaths: ["docs/architecture/ingestion-write-map.md"] })), ["write-map"]);
   assert.deepEqual(ids(selectChecks({ changedPaths: ["apps/server/src/app.test.ts"] })), [
     "http-operations",
     "korean-comments",
