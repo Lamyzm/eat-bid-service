@@ -44,7 +44,7 @@ const LINEAGE = {
   regionScheme: 'eat:auction-location-sigungu'
 } as const;
 
-function organizationProblemResponse(status: 400 | 404, code: string, title: string): Response {
+function organizationProblemResponse(status: 400 | 404 | 409, code: string, title: string): Response {
   const schema = operation.problemResponses[status].schema;
   const problem = schema.parse({
     type: `https://eatbid.dev/problems/${code.toLowerCase().replaceAll('_', '-')}`,
@@ -112,11 +112,15 @@ function cohortOf(query: Query) {
   };
 }
 
-// 서버는 코호트 조회일 때만 회차의 낙찰방식을 싣는다. fixture 행은 항상 들고 있으므로 같은 규칙으로 덜어낸다.
-function attemptResource(attempt: FixtureAttempt, includeCohort: boolean) {
-  if (includeCohort) return attempt;
-  const { awardMethodCodeValueId: _omitted, ...rest } = attempt;
-  return rest;
+// 서버는 코호트 조회일 때만 회차의 낙찰방식을 싣고, revision은 opt-in 요청에만 싣는다. fixture 행은 낙찰방식을
+// 항상 들고 있으므로 같은 규칙으로 덜어내고, revision은 회차 ID 뒤에 1을 붙인 규칙으로 만든다(명단 fixture와 같은 규칙).
+function attemptResource(attempt: FixtureAttempt, includeCohort: boolean, includeRevision: boolean) {
+  const { awardMethodCodeValueId, ...rest } = attempt;
+  return {
+    ...rest,
+    ...(includeCohort ? { awardMethodCodeValueId } : {}),
+    ...(includeRevision ? { revisionId: `${attempt.attemptId}1` } : {})
+  };
 }
 
 /**
@@ -141,6 +145,12 @@ export function organizationAttemptsResponse(request: Request): Response | null 
     return organizationProblemResponse(400, 'VALIDATION_ERROR', '기관 ID 또는 query가 유효하지 않음');
   }
 
+  // 고정을 요청한 build가 활성 build와 다르면 서버처럼 409로 닫는다. 다음 페이지를 새 계보로 이어 주면 화면이
+  // 두 build의 회차를 섞는다(ADR 0034).
+  if (query.expectedBuildId !== undefined && query.expectedBuildId !== activatedBuildId(BASE_BUILD_ID)) {
+    return organizationProblemResponse(409, 'CONFLICT', '고정을 요청한 mart build가 더 이상 활성이 아님');
+  }
+
   // 표본 수는 페이지가 아니라 같은 술어를 통과한 전체 회차다. 페이지와 다른 집단을 세면 화면의
   // "표본 N회 중 M회 표시"가 재현 불가능한 숫자가 된다(AGENTS 7).
   const scoped = NAMSAN_ATTEMPTS.filter((attempt) => matchesQuery(attempt, query));
@@ -159,7 +169,7 @@ export function organizationAttemptsResponse(request: Request): Response | null 
 
   const body = organizationAuctionAttemptsV1ResponseSchema.parse({
     organizationId: ORGANIZATION_ID,
-    attempts: page.map((attempt) => attemptResource(attempt, cohort !== undefined)),
+    attempts: page.map((attempt) => attemptResource(attempt, cohort !== undefined, query.includeRevision === 'true')),
     nextCursor: pageEnd < scoped.length ? page[page.length - 1]?.attemptId ?? null : null,
     // 서버와 같이 적용한 조건을 그대로 되돌려야 화면이 fixture에서도 같은 코호트를 읽는다.
     // buildId는 활성 build 전환을 재현할 수 있도록 요청 시점에 읽는다(캐시 e2e).

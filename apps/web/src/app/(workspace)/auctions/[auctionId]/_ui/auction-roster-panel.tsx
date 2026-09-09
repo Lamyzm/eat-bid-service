@@ -34,7 +34,12 @@ export function AuctionRosterPanel({
   readonly onClose: () => void;
   readonly showCloseButton?: boolean;
 }) {
-  const query = useQuery(auctionQueries.roster(row.attemptId));
+  // 표와 차트가 읽은 요약의 revision을 그대로 전달한다. null이면 서버가 opt-in을 무시한 응답이라 최신 명단으로
+  // 추정하지 않고 확인 불가로 닫는다(ADR 0041 §1). 최신 명단은 그 요약이 말한 회차 결과와 다를 수 있다.
+  const query = useQuery({
+    ...auctionQueries.roster(row.attemptId, row.revisionId ?? undefined),
+    enabled: row.revisionId !== null
+  });
   const data = query.data;
   const panel = useRef<HTMLElement>(null);
   // rail이 회차 ID를 key로 사용하므로 새로운 상세를 열 때만 포커스를 옮기고 재조회는 읽기를 방해하지 않는다.
@@ -73,7 +78,11 @@ export function AuctionRosterPanel({
           </Button>
         ) : null}
       </div>
-      {query.isPending ? (
+      {row.revisionId === null ? (
+        <p className='py-6 text-sm' role='alert'>
+          회차 해석을 확인하지 못해 기록을 열 수 없습니다. 화면을 새로 열어 주세요.
+        </p>
+      ) : query.isPending ? (
         <p className='py-6 text-sm' role='status'>
           참여 기록을 불러오고 있어요.
         </p>

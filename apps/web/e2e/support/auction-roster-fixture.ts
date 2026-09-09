@@ -65,17 +65,20 @@ function submissions(attempt: FixtureAttempt, count: number) {
 
 /** 이 operation 경로가 아니면 null을 돌려줘 호출부가 다음 route로 넘어가게 한다. */
 export function auctionRosterResponse(request: Request): Response | null {
-  const match = new URL(request.url).pathname.match(ROSTER_PATH_PATTERN);
+  const url = new URL(request.url);
+  const match = url.pathname.match(ROSTER_PATH_PATTERN);
   if (!match) return null;
 
   const auctionId = decodeURIComponent(match[1]!);
+  // 화면이 고정한 revision을 그대로 되돌린다. 요청이 없으면 최신 해석(여기서는 99)이다.
+  const revisionId = url.searchParams.get('revisionId') ?? '99';
   const attempt = NAMSAN_ATTEMPTS.find((candidate) => candidate.attemptId === auctionId);
   // 이 fixture가 모르는 회차는 명단 블록을 관측하지 못한 회차로 답한다. 빈 배열을 실제 0명으로 꾸미지 않는다.
   if (!attempt || attempt.listCount === null || attempt.listCount === 0) {
     return Response.json(
       auctionRosterV1ResponseSchema.parse({
         auctionId,
-        revisionId: '99',
+        revisionId,
         state: 'not-observed',
         rows: [],
         award: null,
@@ -89,7 +92,7 @@ export function auctionRosterResponse(request: Request): Response | null {
   return Response.json(
     auctionRosterV1ResponseSchema.parse({
       auctionId,
-      revisionId: '99',
+      revisionId,
       state: 'observed',
       rows,
       award: {

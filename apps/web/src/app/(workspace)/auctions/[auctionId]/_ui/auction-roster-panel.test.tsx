@@ -21,10 +21,11 @@ const render = (ui: ReactNode) => renderUI(ui, { wrapper: WorkspaceDockFixture }
 
 const rows = presentHistory(attemptsFixture, null).rows;
 const selected = rows[0]!;
+// fixture 행의 revision 규칙(`<attemptId>1`)과 같아야 표 행이 고른 revision의 명단으로 조회된다.
 function payload(auctionId: string): AuctionRosterV1Response {
   return {
     auctionId,
-    revisionId: '99',
+    revisionId: `${auctionId}1`,
     state: 'observed',
     rows: [
       {
@@ -63,10 +64,35 @@ function clientWith(data: AuctionRosterV1Response) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } }
   });
-  client.setQueryData(auctionQueries.roster(data.auctionId).queryKey, data);
+  client.setQueryData(auctionQueries.roster(data.auctionId, data.revisionId).queryKey, data);
   return client;
 }
 describe('회차 명단 상세', () => {
+  test('행의 revision이 없으면 최신 명단으로 추정하지 않고 확인 불가를 말한다', () => {
+    const screen = render(
+      <QueryClientProvider client={clientWith(payload(selected.attemptId))}>
+        <AuctionRosterPanel row={{ ...selected, revisionId: null }} onClose={() => undefined} />
+      </QueryClientProvider>
+    );
+    expect(screen.getByRole('alert').textContent).toContain('회차 해석을 확인하지 못해');
+    expect(screen.queryByText('검증 업체', { exact: false })).toBeNull();
+  });
+
+  test('행이 고른 revision의 명단을 조회하고 최신 revision 항목은 읽지 않는다', () => {
+    const client = clientWith(payload(selected.attemptId));
+    // 같은 회차의 다른(최신) 해석이 캐시에 있어도 행이 고른 revision과 다르면 읽지 않는다.
+    const latest = { ...payload(selected.attemptId), revisionId: '99' };
+    latest.rows[0]!.supplier.name = '최신 해석 업체';
+    client.setQueryData(auctionQueries.roster(selected.attemptId, '99').queryKey, latest);
+    const screen = render(
+      <QueryClientProvider client={client}>
+        <AuctionRosterPanel row={selected} onClose={() => undefined} />
+      </QueryClientProvider>
+    );
+    expect(screen.getByText('검증 업체', { exact: false })).toBeTruthy();
+    expect(screen.queryByText('최신 해석 업체', { exact: false })).toBeNull();
+  });
+
   test('조회에서 제외한 회차는 닫고 조건을 되돌려도 지난 선택을 다시 열지 않는다', () => {
     const client = clientWith(payload(selected.attemptId));
     function Workspace({ currentRows }: { currentRows: typeof rows }) {
@@ -98,7 +124,7 @@ describe('회차 명단 상세', () => {
     const client = clientWith(payload(selected.attemptId));
     const next = payload(second.attemptId);
     next.rows[0]!.supplier.name = '다음 회차 업체';
-    client.setQueryData(auctionQueries.roster(second.attemptId).queryKey, next);
+    client.setQueryData(auctionQueries.roster(second.attemptId, next.revisionId).queryKey, next);
     const screen = render(
       <QueryClientProvider client={client}>
         <BidRateProvider initialRate={null}>
@@ -169,7 +195,8 @@ describe('회차 명단 상세', () => {
         ...attemptsFixture,
         attempts: [
           ...attemptsFixture.attempts,
-          ...attemptsFixture.attempts.map((attempt) => ({ ...attempt, attemptId: `1${attempt.attemptId}` }))
+          // 두 번째 페이지 회차도 자기 revision을 갖는다. 규칙은 payload와 같은 `<attemptId>1`이다.
+          ...attemptsFixture.attempts.map((attempt) => ({ ...attempt, attemptId: `1${attempt.attemptId}`, revisionId: `1${attempt.attemptId}1` }))
         ],
         nextCursor: null
       },
