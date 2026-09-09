@@ -5,18 +5,20 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-  claimWorktreeLease,
-  clearWorktreeSessionIssues,
+  clearWorktreeClaim,
+  clearWorktreeHolder,
   createEmptyState,
   enqueueEvent,
+  findWorktreesByIssue,
   getSessionState,
-  getPendingWorktreeClaim,
-  getWorktreeLease,
+  getWorktreeClaim,
+  getWorktreeHolder,
+  listWorktreeClaims,
   loadState,
+  removeWorktreeEntry,
   saveState,
-  reserveWorktreeClaim,
-  finalizePendingWorktreeClaim,
-  setWorktreeLease,
+  setWorktreeClaim,
+  setWorktreeHolder,
   updateSessionState,
 } from "./state.mjs";
 import {
@@ -36,22 +38,22 @@ async function withTempDirectory(run) {
   }
 }
 
-test("상태는 각 worktree의 독립적인 session 기록을 보존한다", async () => {
+test("상태는 각 worktree의 독립적인 session 변경 기록을 보존한다", async () => {
   await withTempDirectory(async (directory) => {
     const statePath = path.join(directory, "state.json");
     let state = await loadState(statePath);
-    state = updateSessionState(state, "F:/repo-a", "session-1", { activeIssue: "EAT-10" });
-    state = updateSessionState(state, "F:/repo-b", "session-1", { activeIssue: "EAT-20" });
+    state = updateSessionState(state, "F:/repo-a", "session-1", { changedFiles: ["a.ts"] });
+    state = updateSessionState(state, "F:/repo-b", "session-1", { changedFiles: ["b.ts"] });
     await saveState(statePath, state);
 
     const reloaded = await loadState(statePath);
-    assert.equal(getSessionState(reloaded, "F:/repo-a", "session-1").activeIssue, "EAT-10");
-    assert.equal(getSessionState(reloaded, "F:/repo-b", "session-1").activeIssue, "EAT-20");
+    assert.deepEqual(getSessionState(reloaded, "F:/repo-a", "session-1").changedFiles, ["a.ts"]);
+    assert.deepEqual(getSessionState(reloaded, "F:/repo-b", "session-1").changedFiles, ["b.ts"]);
   });
 });
 
 test("enqueueEvent는 FIFO 순서를 보존하고 입력 상태를 변경하지 않는다", () => {
-  const initial = { version: 1, worktrees: {}, outbox: [] };
+  const initial = createEmptyState();
   const first = enqueueEvent(initial, { id: "one", issueIdentifier: "EAT-1", kind: "worklog" });
   const second = enqueueEvent(first, { id: "two", issueIdentifier: "EAT-1", kind: "worklog" });
 
@@ -75,111 +77,105 @@ test("loadState는 잘못된 JSON을 격리하고 안전하게 실패한다", as
   });
 });
 
-test("worktree lease는 session 소유 상태가 되지 않고 영속화된다", async () => {
+test("worktree claim은 Linear 검증 필드만 남기고 영속화되며 session 기록과 섞이지 않는다", async () => {
   await withTempDirectory(async (directory) => {
     const statePath = path.join(directory, "state.json");
-    let state = setWorktreeLease(await loadState(statePath), "F:/repo", {
+    let state = setWorktreeClaim(await loadState(statePath), "F:/repo", {
+      assigneeId: "viewer",
+      assigneeName: "Owner",
+      branch: "codex/eat-7-thing",
+      claimedAt: "2026-09-10T00:00:00.000Z",
+      expiresAt: "2026-09-11T00:00:00.000Z",
+      issueId: "issue-uuid",
       issueIdentifier: "EAT-7",
-      expiresAt: "2026-08-31T00:00:00.000Z",
+      teamKey: "EAT",
+      writer: { sessionId: "old" },
     });
     await saveState(statePath, state);
     state = await loadState(statePath);
 
-    assert.equal(getWorktreeLease(state, "F:/repo").issueIdentifier, "EAT-7");
+    assert.deepEqual(getWorktreeClaim(state, "F:/repo"), {
+      assigneeId: "viewer",
+      assigneeName: "Owner",
+      branch: "codex/eat-7-thing",
+      claimedAt: "2026-09-10T00:00:00.000Z",
+      issueId: "issue-uuid",
+      issueIdentifier: "EAT-7",
+      teamKey: "EAT",
+      verifiedAt: "2026-09-10T00:00:00.000Z",
+    });
     assert.deepEqual(getSessionState(state, "F:/repo", "new-session"), {});
+    assert.equal(getWorktreeClaim(clearWorktreeClaim(state, "F:/repo"), "F:/repo"), null);
+    assert.throws(() => setWorktreeClaim(state, "F:/repo", { teamKey: "EAT" }), /issue identifier/);
   });
 });
 
-test("하나의 issue는 두 worktree에서 활성 lease를 가질 수 없다", () => {
-  const now = () => new Date("2026-08-30T00:00:00.000Z");
-  const first = claimWorktreeLease(createEmptyState(), "F:/repo-a", {
-    issueIdentifier: "EAT-7",
-    expiresAt: "2026-08-31T00:00:00.000Z",
-  }, { now });
-
-  assert.throws(
-    () => claimWorktreeLease(first, "F:/repo-b", {
-      issueIdentifier: "EAT-7",
-      expiresAt: "2026-08-31T00:00:00.000Z",
-    }, { now }),
-    /already leased/i,
-  );
-});
-
-test("활성 worktree lease는 다른 issue를 claim하기 전에 해제해야 한다", () => {
-  const now = () => new Date("2026-08-30T00:00:00.000Z");
-  const first = claimWorktreeLease(createEmptyState(), "F:/repo", {
-    issueIdentifier: "EAT-7",
-    expiresAt: "2026-08-31T00:00:00.000Z",
-  }, { now });
-
-  assert.throws(
-    () => claimWorktreeLease(first, "F:/repo", {
-      issueIdentifier: "EAT-8",
-      expiresAt: "2026-08-31T00:00:00.000Z",
-    }, { now }),
-    /release/i,
-  );
-});
-
-test("원격 claim 전에 예약하고 같은 시도만 최종 lease로 확정한다", () => {
-  const now = () => new Date("2026-08-30T00:00:00.000Z");
-  const pending = {
-    attemptId: "attempt-1",
-    issueIdentifier: "EAT-7",
-    expiresAt: "2026-08-31T00:00:00.000Z",
-    requestedAt: "2026-08-30T00:00:00.000Z",
-  };
-  const reserved = reserveWorktreeClaim(createEmptyState(), "F:/repo", pending, { now });
-
-  assert.deepEqual(getPendingWorktreeClaim(reserved, "F:/repo"), pending);
-  assert.throws(
-    () => reserveWorktreeClaim(reserved, "F:/repo", { ...pending, issueIdentifier: "EAT-8" }, { now }),
-    /pending/i,
-  );
-  assert.throws(
-    () => finalizePendingWorktreeClaim(reserved, "F:/repo", "other-attempt", pending, { now }),
-    /attempt/i,
-  );
-
-  const finalized = finalizePendingWorktreeClaim(
-    reserved,
-    "F:/repo",
-    pending.attemptId,
-    { ...pending, teamKey: "EAT" },
-    { now },
-  );
-  assert.equal(getPendingWorktreeClaim(finalized, "F:/repo"), null);
-  assert.equal(getWorktreeLease(finalized, "F:/repo").issueIdentifier, "EAT-7");
-});
-
-test("같은 issue는 서로 다른 worktree에서 pending claim을 예약할 수 없다", () => {
-  const now = () => new Date("2026-08-30T00:00:00.000Z");
-  const first = reserveWorktreeClaim(
-    createEmptyState(),
-    "F:/repo-a",
-    {
-      attemptId: "attempt-a",
-      issueIdentifier: "EAT-7",
-      expiresAt: "2026-08-31T00:00:00.000Z",
-    },
-    { now },
-  );
-
-  assert.throws(
-    () =>
-      reserveWorktreeClaim(
-        first,
-        "F:/repo-b",
-        {
-          attemptId: "attempt-b",
-          issueIdentifier: "EAT-7",
-          expiresAt: "2026-08-31T00:00:00.000Z",
+test("v1 lease state는 claim으로 읽히고 pendingClaim·writer·prompt issue 기록은 버려진다", async () => {
+  await withTempDirectory(async (directory) => {
+    const statePath = path.join(directory, "state.json");
+    await writeFile(
+      statePath,
+      JSON.stringify({
+        version: 1,
+        worktrees: {
+          "f:/repo": {
+            lease: {
+              issueIdentifier: "EAT-41",
+              teamKey: "EAT",
+              claimedAt: "2026-09-09T00:00:00.000Z",
+              expiresAt: "2026-09-09T12:00:00.000Z",
+              writer: { provider: "claude", sessionId: "old-session" },
+            },
+            pendingClaim: { attemptId: "a", issueIdentifier: "EAT-42" },
+            sessions: {
+              "old-session": { activeIssue: "EAT-41", requestedIssue: "EAT-9", changedFiles: ["src/a.ts"] },
+            },
+          },
         },
-        { now },
-      ),
-    /pending claim.*another worktree/i,
+        outbox: [{ id: "e1", kind: "worklog", issueIdentifier: "EAT-41" }],
+      }),
+      "utf8",
+    );
+
+    const state = await loadState(statePath);
+
+    assert.equal(state.version, 2);
+    assert.equal(getWorktreeClaim(state, "F:/repo").issueIdentifier, "EAT-41");
+    assert.equal(getWorktreeClaim(state, "F:/repo").verifiedAt, "2026-09-09T00:00:00.000Z");
+    assert.equal(getWorktreeClaim(state, "F:/repo").expiresAt, undefined);
+    assert.equal(getWorktreeHolder(state, "F:/repo"), null);
+    assert.equal(state.worktrees["f:/repo"].pendingClaim, undefined);
+    assert.deepEqual(getSessionState(state, "F:/repo", "old-session"), { changedFiles: ["src/a.ts"] });
+    assert.equal(state.outbox.length, 1);
+  });
+});
+
+test("holder는 worktree마다 하나이고 claim과 독립적으로 지워진다", () => {
+  let state = setWorktreeClaim(createEmptyState(), "F:/repo", { issueIdentifier: "EAT-7" });
+  state = setWorktreeHolder(state, "F:/repo", { provider: "claude", sessionId: "s-1", lastSeenAt: "x" });
+
+  assert.equal(getWorktreeHolder(state, "F:/repo").sessionId, "s-1");
+  assert.equal(getWorktreeHolder(clearWorktreeHolder(state, "F:/repo"), "F:/repo"), null);
+  assert.equal(getWorktreeClaim(clearWorktreeHolder(state, "F:/repo"), "F:/repo").issueIdentifier, "EAT-7");
+  assert.throws(() => setWorktreeHolder(state, "F:/repo", { provider: "claude" }), /session id/);
+});
+
+test("issue 조회는 claim이 있는 worktree와 그 holder를 함께 돌려주고 항목 삭제는 다른 worktree를 보존한다", () => {
+  let state = setWorktreeClaim(createEmptyState(), "F:/repo", { issueIdentifier: "EAT-7" });
+  state = setWorktreeHolder(state, "F:/repo", { provider: "claude", sessionId: "s-1" });
+  state = setWorktreeClaim(state, "F:/repo/.worktrees/x", { issueIdentifier: "EAT-8" });
+
+  const matches = findWorktreesByIssue(state, "eat-7");
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].holder.sessionId, "s-1");
+  assert.deepEqual(
+    listWorktreeClaims(state).map((entry) => entry.claim.issueIdentifier).sort(),
+    ["EAT-7", "EAT-8"],
   );
+
+  const removed = removeWorktreeEntry(state, "F:/repo");
+  assert.equal(getWorktreeClaim(removed, "F:/repo"), null);
+  assert.equal(getWorktreeClaim(removed, "F:/repo/.worktrees/x").issueIdentifier, "EAT-8");
 });
 
 test("상태 transaction은 동시 hook process의 갱신을 잃지 않고 직렬화한다", async () => {
@@ -282,19 +278,4 @@ test("비정상 종료로 남은 sync lock도 복구 명령이 격리한다", as
     assert.equal(recovered.recovered, true);
     assert.match(recovered.quarantinePath, /\.sync\.lock\.recovered-/);
   });
-});
-
-test("clearWorktreeSessionIssues는 해당 worktree session의 issue 기록만 지우고 변경 경로와 다른 worktree는 보존한다", () => {
-  let state = updateSessionState(createEmptyState(), "F:/repo", "session-a", {
-    activeIssue: "EAT-9",
-    changedFiles: ["src/a.ts"],
-    requestedIssue: "EAT-9",
-  });
-  state = updateSessionState(state, "F:/repo/.worktrees/x", "session-b", { requestedIssue: "EAT-9" });
-
-  const cleared = clearWorktreeSessionIssues(state, "F:/repo");
-
-  assert.deepEqual(getSessionState(cleared, "F:/repo", "session-a"), { changedFiles: ["src/a.ts"] });
-  assert.deepEqual(getSessionState(cleared, "F:/repo/.worktrees/x", "session-b"), { requestedIssue: "EAT-9" });
-  assert.equal(getSessionState(state, "F:/repo", "session-a").requestedIssue, "EAT-9");
 });

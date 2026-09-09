@@ -17,7 +17,7 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
 - 코드와 함께 해당 worktree의 실행 계획을 갱신하고, 종료 시 검증 결과와 미검증을 구별해 인계한다.
   마지막 자연어 답변이나 Codex 전용 외부 폴더만이 유일한 인계 자료가 되면 안 된다.
 - 갑작스러운 종료로 dirty tree가 남으면 차이를 보존하고 실행자·자식 시험 종료를 확인한 뒤
-  기존 lifecycle 명령으로 lease를 이전한다. 상태 파일 수기 편집과 변경 폐기는 복구 방법이 아니다.
+  기존 lifecycle 명령으로 claim과 세션 잠금을 넘겨받는다. 상태 파일 수기 편집과 변경 폐기는 복구 방법이 아니다.
 
 ## 총괄: 시작할 수 있는 작업 만들기
 
@@ -33,7 +33,7 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
 
 1. AGENTS 필수 읽기와 위임된 원문을 읽고 적용 예시를 제시한다. 제목·요약·hash만으로 읽었다고 쓰지 않는다.
 2. `docs/operations/linear-agent-workflow.md`와 저장소 config에 따라 assign·claim·doctor를 확인한 뒤
-   수정한다. 첫 mutation session만 writer다. hooks나 lease 실패를 수기 상태 수정으로 우회하지 않는다.
+   수정한다. 한 worktree는 한 세션만 쓴다. hooks나 claim 검사 실패를 수기 상태 수정으로 우회하지 않는다.
 3. 지정된 경로에서 기존 구성요소를 재사용한다. 새 계약·범위가 필요하면 해당 변경만 멈추고 총괄에게 알린다.
 4. 범위에 맞는 결정적 검사를 실행하고 실패를 해결한다. 명령은 작업 경로가 분명한 개별 명령으로
    실행하고 출력 축약 pipe의 성공을 원래 검사의 exit code로 쓰지 않는다. 설치 상태를 먼저 확인하며
@@ -49,7 +49,7 @@ description: Eatbid 작업을 Claude 또는 다른 AI에 위임하거나, 구현
   대신하지 않는다. 고정 fixture 비교가 없으면 시안 충실도 검증을 미수행으로 남긴다.
 - 실제 공고·선택 회차·필터가 섞이지 않는지 dev에서 확인한다. 없는 API를 mock으로 연결하고 기능 완료라 쓰지 않는다.
 - 결정적 gate 뒤 `pnpm review:ai`만 코드 advisory 경로로 사용한다. finding은 총괄이 판정한다.
-- 인계 writer의 lease를 종료한 뒤 통합 worktree의 소유권을 확인하고 통합한다. 필요한 smoke를 실행한다.
+- 인계 writer의 claim을 release한 뒤 통합 worktree의 소유권을 확인하고 통합한다. 필요한 smoke를 실행한다.
 - 구현 검증/dev 통합/운영 배포/사용자 인수를 각각 보고한다. 전체 MVP나 5년 수집 완료를 부분 증거로 선언하지 않는다.
 
 ## 재작업과 다음 작업

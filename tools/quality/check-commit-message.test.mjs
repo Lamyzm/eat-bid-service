@@ -21,7 +21,7 @@ test("영문이나 비어 있는 커밋 요약을 거부한다", () => {
   }
 });
 
-test("Git trailer와 URL 및 코드 블록을 제외한 설명 문단은 한국어를 요구한다", () => {
+test("설명은 문단 단위로 한국어를 요구하므로 식별자·경로 줄은 한국어 문장 옆에 놓을 수 있다", () => {
   assert.equal(
     validateCommitMessage(
       "feat(review): 한국어 gate를 추가한다\n\nhttps://example.com/spec\n\n```ts\nconst value = true;\n```\n\nCo-authored-by: Codex <codex@example.com>\n",
@@ -29,14 +29,23 @@ test("Git trailer와 URL 및 코드 블록을 제외한 설명 문단은 한국�
     true,
   );
   assert.equal(
-    validateCommitMessage("feat(review): 한국어 gate를 추가한다\n\nOnly English prose remains.\n")
-      .ok,
+    validateCommitMessage(
+      "refactor(dataplane): 실패 모듈을 나눈다\n\n다음 파일을 옮겼다.\ncli/(main·arguments·chunks),\nfailures/(errors·categories·report)\n(EAT-122, ADR 0014).\n",
+    ).ok,
+    true,
+  );
+  assert.equal(
+    validateCommitMessage("feat(review): 한국어 gate를 추가한다\n\nOnly English prose remains.\n").ok,
     false,
   );
   assert.equal(
     validateCommitMessage(
-      "feat(review): 한국어 gate를 추가한다\n\nToken: English prose is not a terminal trailer\n\n이유를 설명한다.\n",
+      "feat(review): 한국어 gate를 추가한다\n\nToken: English prose is not a terminal trailer\n\nStill English.\n",
     ).ok,
     false,
+  );
+  assert.match(
+    validateCommitMessage("feat(review): 한국어 gate를 추가한다\n\nOnly English prose remains.\n").errors[0],
+    /한국어 문장이 없습니다: Only English/,
   );
 });

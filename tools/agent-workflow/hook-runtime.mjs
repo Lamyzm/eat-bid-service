@@ -1,19 +1,23 @@
-/** @module 책임: provider 중립 hook event를 worktree lease·writer 규칙에 대조해 차단 여부와 session worklog 전이를 결정한다. */
+/** @module 책임: provider 중립 hook event를 worktree holder 규칙에 대조해 차단 여부와 session worklog 전이를 결정한다. */
+import {
+  blockedByHolderMessage,
+  describeHolder,
+  endWorktreeHolder,
+  resolveWorktreeHolder,
+} from "./session.mjs";
 import {
   enqueueEvent,
   getSessionState,
-  getWorktreeLease,
-  listWorktreeLeases,
-  setWorktreeLease,
+  getWorktreeClaim,
+  getWorktreeHolder,
   updateSessionState,
 } from "./state.mjs";
 import {
-  classifyToolCall,
+  FILE_EDIT_TOOLS,
   editedPathCandidate,
-  extractIssueIdentifier,
-  extractPromptIssueIdentifier,
   normalizeHookEvent,
   repositoryRelativePath,
+  toolIsOpenToObservers,
 } from "./workflow.mjs";
 
 function eventRecord({ createId, issueIdentifier, kind, now, provider, ...extra }) {
@@ -41,36 +45,12 @@ function changedPaths(toolName, toolInput, worktreeRoot) {
     }).filter(Boolean);
   }
 
-  return ["bash", "exec_command", "powershell", "shell"].includes(String(toolName).toLowerCase())
-    ? ["(shell mutation; inspect PR diff)"]
-    : [];
-}
-
-// 차단 메시지에 어느 issue가 어느 worktree를 언제까지 잡고 있는지와 푸는 명령을 같이 적는다. 이것이
-// 없으면 agent는 lease가 있는데 왜 막히는지 알 수 없고 사용자가 doctor를 대신 실행하게 된다.
-function describeLeases(state, now) {
-  const leases = listWorktreeLeases(state);
-  if (leases.length === 0) return "";
-  const nowMilliseconds = now().getTime();
-  const lines = leases.map(({ lease, worktreeRoot }) => {
-    const expiresAt = Date.parse(lease.expiresAt ?? "");
-    const status = Number.isFinite(expiresAt) && expiresAt > nowMilliseconds ? "expires" : "expired";
-    const writer = lease.writer ? `, writer ${lease.writer.provider}/${lease.writer.sessionId}` : "";
-    return `  - ${lease.issueIdentifier} @ ${worktreeRoot} (${status} ${lease.expiresAt ?? "unknown"}${writer}) → \`pnpm workflow:release -- ${lease.issueIdentifier}\``;
-  });
-  return `\nCurrent leases:\n${lines.join("\n")}\nA lease whose worktree directory is gone is cleared by \`pnpm workflow:worktree prune\`.`;
-}
-
-// 왜 막혔는지만 적고 끝나면 세션이 할 수 있는 일은 사용자에게 명령을 대신 쳐 달라고 부탁하는 것뿐이다.
-// lease가 정답인 모든 차단은 같은 한 줄로 끝나서 agent가 스스로 복구하도록 한다. 재claim은 만료를
-// 늘리고 writer 결박을 새 세션으로 옮기므로 만료·branch 불일치·writer 충돌에 모두 맞는 명령이다.
-function recoveryCommand(issueIdentifier) {
-  return `\n지금 풀려면: \`pnpm workflow:claim -- ${issueIdentifier}\``;
+  return [];
 }
 
 export function finalizeSessionWorklog({
+  claim,
   createId,
-  lease,
   now = () => new Date(),
   provider,
   sessionId,
@@ -78,7 +58,7 @@ export function finalizeSessionWorklog({
   worktreeRoot,
 }) {
   const session = getSessionState(state, worktreeRoot, sessionId);
-  const activeIssue = session.activeIssue ?? lease?.issueIdentifier;
+  const activeIssue = claim?.issueIdentifier;
   const changedFiles = [...new Set(session.changedFiles ?? [])].sort();
   if (!activeIssue || changedFiles.length === 0) return state;
 
@@ -97,147 +77,90 @@ export function finalizeSessionWorklog({
   return nextState;
 }
 
+const pass = (state) => ({ exitCode: 0, message: "", state });
+
 export function handleHookEvent({
-  branch = "",
   config = {},
   createId,
   input,
+  isProcessAlive,
   now = () => new Date(),
+  pid = null,
   provider = "unknown",
-  repositoryRoots = null,
   state,
   worktreeRoot,
 }) {
   const event = normalizeHookEvent(input);
-  const session = getSessionState(state, worktreeRoot, event.sessionId);
-  const lease = getWorktreeLease(state, worktreeRoot);
   const eventName = event.hookEventName.toLowerCase();
+  const staleAfterMs = (config.sessionStaleMinutes ?? 30) * 60 * 1000;
+  const identity = { isProcessAlive, now, pid, provider, sessionId: event.sessionId, staleAfterMs };
+  const claim = getWorktreeClaim(state, worktreeRoot);
 
-  if (eventName === "userpromptsubmit") {
-    const requestedIssue = extractPromptIssueIdentifier(event.prompt);
-    if (!requestedIssue) return { exitCode: 0, message: "", state };
-    return {
-      exitCode: 0,
-      message: "",
-      state: updateSessionState(state, worktreeRoot, event.sessionId, { requestedIssue }),
-    };
+  if (eventName === "sessionstart") {
+    const resolved = resolveWorktreeHolder(state, worktreeRoot, identity);
+    // SessionStart는 차단할 수 없는 event다. 다른 세션이 잡고 있으면 그 사실을 context로 알려 세션이
+    // 첫 쓰기에서 막히기 전에 다른 worktree로 옮길 수 있게 한다.
+    const context =
+      resolved.decision === "blocked"
+        ? `eatbid workflow: ${blockedByHolderMessage(resolved.holder, worktreeRoot)}`
+        : `eatbid workflow: 이 세션이 ${worktreeRoot}를 잡았습니다(${resolved.decision}). claim: ${claim?.issueIdentifier ?? "없음"}. 쓰기 전에 \`pnpm workflow:claim -- EAT-N\`으로 issue를 연결하세요.`;
+    return { ...pass(resolved.nextState), context };
   }
 
-  // 편집 대상이 저장소 밖인지 판정하려면 분류기가 저장소의 모든 루트를 알아야 한다. 이 함수는
-  // worktree 하나만 받으므로 목록을 주지 못하며, 목록 없이는 밖으로 판정하지 않고 lease를 요구한다.
-  // 실제 gate인 `hook.mjs`는 `repositoryGuardRoots`로 저장소 전체를 넘긴다.
-  const classifyOptions = { resolveRepositoryRoots: repositoryRoots };
-
   if (eventName === "pretooluse") {
-    const classification = classifyToolCall(event.toolName, event.toolInput, classifyOptions);
-    if (!classification.mutatesRepository) return { exitCode: 0, message: "", state };
-    // lease는 agent가 남의 작업을 덮어쓰지 못하게 하는 규율이다. 사용자가 `!`로 직접 친 명령은
-    // 사용자의 행위이므로 막지 않되, writer 결박이나 activeIssue 같은 agent 세션 상태도 바꾸지 않는다.
-    if (event.initiatedBy === "user") return { exitCode: 0, message: "", state };
-
-    const leaseExpiresAt = lease?.expiresAt ? Date.parse(lease.expiresAt) : Number.NaN;
-    const leaseIsActive =
-      Boolean(lease?.issueIdentifier) && Number.isFinite(leaseExpiresAt) && leaseExpiresAt > now().getTime();
-    if (!leaseIsActive) {
-      const reason = lease?.issueIdentifier
-        ? `the Linear lease ${lease.issueIdentifier} for ${worktreeRoot} expired at ${lease.expiresAt ?? "unknown"}`
-        : `create a verified Linear lease for ${worktreeRoot} first with \`pnpm workflow:claim -- EAT-123\``;
-      const recovery = lease?.issueIdentifier ? recoveryCommand(lease.issueIdentifier) : "";
-      return {
-        exitCode: 2,
-        message: `Repository mutation blocked: ${reason}. Read-only research and verification remain available.${describeLeases(state, now)}${recovery}`,
-        state,
-      };
+    // 세션 잠금은 agent가 남의 worktree를 덮어쓰지 못하게 하는 규율이다. 사용자가 `!`로 직접 친 명령은
+    // 사용자의 행위이므로 막지 않고, holder가 아닌 세션에도 열린 도구는 잠금을 보지 않는다.
+    if (event.initiatedBy === "user") return pass(state);
+    if (toolIsOpenToObservers(event.toolName, event.toolInput)) return pass(state);
+    const resolved = resolveWorktreeHolder(state, worktreeRoot, identity);
+    if (resolved.decision === "blocked") {
+      return { exitCode: 2, message: blockedByHolderMessage(resolved.holder, worktreeRoot), state };
     }
-
-    // 브랜치는 커밋이 실제로 쌓이는 자리라 lease와 다르면 남의 작업을 오염시킨다. 여기서는 계속 막는다.
-    const branchIssue = extractIssueIdentifier(branch);
-    if (branchIssue && branchIssue !== lease.issueIdentifier) {
-      return {
-        exitCode: 2,
-        message: `Repository mutation blocked: ${branchIssue} does not match the verified lease ${lease.issueIdentifier}. Release or claim the intended issue explicitly.${describeLeases(state, now)}${recoveryCommand(lease.issueIdentifier)}`,
-        state,
-      };
+    const result = pass(resolved.nextState);
+    // 통과하는 호출의 stderr는 세션에 전달되지 않는다. 죽은 세션의 잠금을 넘겨받았다는 사실은 hook JSON의
+    // `systemMessage`로만 세션이 읽는다.
+    if (resolved.decision === "taken-over") {
+      const previous = getWorktreeHolder(state, worktreeRoot);
+      result.systemMessage = `eatbid workflow: 끝난 세션의 worktree 잠금을 넘겨받았습니다 (이전: ${describeHolder(previous)}).`;
     }
-
-    // 프롬프트에서 읽은 요청 이슈는 lease·branch가 이미 일치하면 소유권 근거가 아니라 잡음이다.
-    // 차단하면 사용자가 채팅에 이슈 번호를 다시 쳐야만 풀리므로 경고만 남기고 lease를 정답으로 삼는다.
-    // 통과하는 호출의 exit code는 0이고 그때 stderr는 transcript에 남지 않는다. 경고는 hook JSON의
-    // `systemMessage`로 내보내야 세션이 실제로 읽는다.
-    const staleRequestedIssue =
-      session.requestedIssue && session.requestedIssue !== lease.issueIdentifier
-        ? session.requestedIssue
-        : null;
-    const systemMessage = staleRequestedIssue
-      ? {
-          systemMessage: `경고: 요청 이슈 ${staleRequestedIssue}가 lease ${lease.issueIdentifier}와 다릅니다. lease를 따릅니다.`,
-        }
-      : {};
-
-    const requestedWriter = { provider, sessionId: event.sessionId };
-    if (
-      lease.writer &&
-      (lease.writer.provider !== requestedWriter.provider ||
-        lease.writer.sessionId !== requestedWriter.sessionId)
-    ) {
-      return {
-        exitCode: 2,
-        message: `Repository mutation blocked: the verified lease belongs to writing session ${lease.writer.provider}/${lease.writer.sessionId}. Release and claim explicitly to hand off.${describeLeases(state, now)}${recoveryCommand(lease.issueIdentifier)}`,
-        state,
-      };
-    }
-
-    const claimedState = lease.writer
-      ? state
-      : setWorktreeLease(state, worktreeRoot, {
-          ...lease,
-          writer: {
-            ...requestedWriter,
-            boundAt: now().toISOString(),
-          },
-        });
-
-    return {
-      exitCode: 0,
-      message: "",
-      ...systemMessage,
-      state: updateSessionState(claimedState, worktreeRoot, event.sessionId, {
-        activeIssue: lease.issueIdentifier,
-        ...(staleRequestedIssue ? { requestedIssue: lease.issueIdentifier } : {}),
-      }),
-    };
+    return result;
   }
 
   if (eventName === "posttooluse") {
-    const classification = classifyToolCall(event.toolName, event.toolInput, classifyOptions);
-    if (!classification.mutatesRepository) return { exitCode: 0, message: "", state };
+    if (!FILE_EDIT_TOOLS.has(String(event.toolName).toLowerCase())) return pass(state);
     const files = changedPaths(event.toolName, event.toolInput, worktreeRoot);
-    if (files.length === 0) return { exitCode: 0, message: "", state };
-
-    return {
-      exitCode: 0,
-      message: "",
-      state: updateSessionState(state, worktreeRoot, event.sessionId, {
+    if (files.length === 0) return pass(state);
+    const session = getSessionState(state, worktreeRoot, event.sessionId);
+    return pass(
+      updateSessionState(state, worktreeRoot, event.sessionId, {
         changedFiles: [...new Set([...(session.changedFiles ?? []), ...files])],
       }),
-    };
+    );
+  }
+
+  if (eventName === "userpromptsubmit") {
+    const resolved = resolveWorktreeHolder(state, worktreeRoot, identity);
+    return pass(resolved.decision === "blocked" ? state : resolved.nextState);
   }
 
   if (eventName === "stop" || eventName === "sessionend") {
-    return {
-      exitCode: 0,
-      message: "",
-      state: finalizeSessionWorklog({
-        createId,
-        lease,
-        now,
-        provider,
-        sessionId: event.sessionId,
-        state,
-        worktreeRoot,
-      }),
-    };
+    let nextState = finalizeSessionWorklog({
+      claim,
+      createId,
+      now,
+      provider,
+      sessionId: event.sessionId,
+      state,
+      worktreeRoot,
+    });
+    if (eventName === "sessionend") {
+      nextState = endWorktreeHolder(nextState, worktreeRoot, { now, provider, sessionId: event.sessionId });
+    } else {
+      const resolved = resolveWorktreeHolder(nextState, worktreeRoot, identity);
+      if (resolved.decision !== "blocked") nextState = resolved.nextState;
+    }
+    return pass(nextState);
   }
 
-  return { exitCode: 0, message: "", state };
+  return pass(state);
 }

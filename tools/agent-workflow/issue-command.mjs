@@ -123,9 +123,9 @@ export function parseIssueListArguments(args, { terminalStates = [] } = {}) {
 
 /**
  * 본문은 파일로 받는 경로를 기본으로 둔다. 여러 줄 한국어 본문을 shell 인자로 넘기면 따옴표·줄바꿈이
- * 플랫폼마다 다르게 잘리고, hook 분류기도 그런 명령을 복합 명령으로 읽어 lease 없이는 막는다.
+ * 플랫폼마다 다르게 잘린다.
  *
- * 다만 이 명령은 lease 없이 실행되고 읽은 내용을 그대로 Linear로 보낸다. 경로를 제한하지 않으면
+ * 다만 이 명령은 claim 없이 실행되고 읽은 내용을 그대로 Linear로 보낸다. 경로를 제한하지 않으면
  * `--description-file C:/Users/<사용자>/.infisical.json` 한 줄로 로컬 비밀 파일을 외부 서비스에
  * 올릴 수 있다. 그래서 작업 공간과 임시 디렉터리 안의 파일만 읽는다.
  */

@@ -1,6 +1,6 @@
-/** @module 책임: 세션 cwd 또는 `--worktree` 대상에서 git worktree root·branch·공유 state 경로를 결정하고 Linear client를 만든다. */
+/** @module 책임: 세션 cwd 또는 `--worktree` 대상에서 git worktree root·common dir·공유 state 경로·branch를 결정하고 Linear client를 만든다. */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,61 +18,83 @@ function git(cwd, args, fallback = "") {
   }
 }
 
-export function repositoryContext(cwd) {
-  const toplevel = git(cwd, ["rev-parse", "--show-toplevel"]);
-  const worktreeRoot = toplevel || path.resolve(cwd);
-  const gitCommonDirectory = git(worktreeRoot, ["rev-parse", "--git-common-dir"]);
-  const commonDirectory = path.isAbsolute(gitCommonDirectory)
-    ? gitCommonDirectory
-    : path.resolve(worktreeRoot, gitCommonDirectory || ".git");
-  const statePath = process.env.EATBID_WORKFLOW_STATE_PATH
-    ? path.resolve(process.env.EATBID_WORKFLOW_STATE_PATH)
-    : path.join(commonDirectory, "eatbid-agent-workflow", "state.json");
+function readTrimmed(filePath) {
+  try {
+    return readFileSync(filePath, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+function realPathOrSelf(candidate) {
+  try {
+    return realpathSync.native(candidate);
+  } catch {
+    return path.resolve(candidate);
+  }
+}
+
+/**
+ * git을 실행하지 않고 파일만 읽어 worktree root와 common dir을 찾는다. hook은 도구 호출마다 실행되므로
+ * child process 셋을 띄우는 비용을 매번 낼 수 없다. `.git`이 디렉터리면 그것이 common dir이고, linked
+ * worktree의 `.git` 파일은 `gitdir:`로 가리키는 디렉터리의 `commondir` 파일이 common dir을 말한다.
+ */
+export function locateRepository(cwd) {
+  let current = realPathOrSelf(cwd);
+  for (;;) {
+    const marker = path.join(current, ".git");
+    let markerStat = null;
+    try {
+      markerStat = statSync(marker);
+    } catch {
+      markerStat = null;
+    }
+    if (markerStat?.isDirectory()) {
+      return { commonDirectory: marker, isGitWorktree: true, worktreeRoot: current };
+    }
+    if (markerStat?.isFile()) {
+      const pointer = readTrimmed(marker).match(/^gitdir:\s*(.+)$/m)?.[1]?.trim();
+      if (!pointer) return { commonDirectory: null, isGitWorktree: false, worktreeRoot: current };
+      const gitDirectory = path.resolve(current, pointer);
+      const commonPointer = readTrimmed(path.join(gitDirectory, "commondir"));
+      const commonDirectory = commonPointer ? path.resolve(gitDirectory, commonPointer) : gitDirectory;
+      return { commonDirectory, isGitWorktree: true, worktreeRoot: current };
+    }
+    const parent = path.dirname(current);
+    if (parent === current) return { commonDirectory: null, isGitWorktree: false, worktreeRoot: null };
+    current = parent;
+  }
+}
+
+export function statePathFor(commonDirectory) {
+  if (process.env.EATBID_WORKFLOW_STATE_PATH) return path.resolve(process.env.EATBID_WORKFLOW_STATE_PATH);
+  return path.join(commonDirectory, "eatbid-agent-workflow", "state.json");
+}
+
+/** hook이 쓰는 가벼운 context다. branch를 읽지 않으므로 git을 실행하지 않는다. */
+export function hookRepositoryContext(cwd) {
+  const located = locateRepository(cwd);
+  if (!located.isGitWorktree) return null;
   return {
-    branch: git(worktreeRoot, ["branch", "--show-current"]),
-    isGitWorktree: Boolean(toplevel),
-    statePath,
+    statePath: statePathFor(located.commonDirectory),
+    worktreeRoot: located.worktreeRoot,
+  };
+}
+
+export function repositoryContext(cwd) {
+  const located = locateRepository(cwd);
+  const worktreeRoot = located.worktreeRoot ?? path.resolve(cwd);
+  const commonDirectory = located.commonDirectory ?? path.join(worktreeRoot, ".git");
+  return {
+    branch: located.isGitWorktree ? git(worktreeRoot, ["branch", "--show-current"]) : "",
+    isGitWorktree: located.isGitWorktree,
+    statePath: statePathFor(commonDirectory),
     worktreeRoot,
   };
 }
 
-// lease gate가 지키는 대상은 이 worktree 하나가 아니라 저장소 전체다. main checkout의 추적 파일,
-// 형제 worktree, `.git` common dir, 그리고 lease state 파일 자신까지 모두 여기에 들어와야 "밖이면
-// 허용" 규칙이 gate 자신을 열지 않는다. 하나라도 알아내지 못하면 빈 목록을 돌려 fail-closed한다.
-export function repositoryGuardRoots(cwd) {
-  const repository = repositoryContext(cwd);
-  if (!repository.isGitWorktree) return [];
-  const commonDirectory = git(repository.worktreeRoot, ["rev-parse", "--git-common-dir"]);
-  if (!commonDirectory) return [];
-  const absoluteCommonDirectory = path.isAbsolute(commonDirectory)
-    ? commonDirectory
-    : path.resolve(repository.worktreeRoot, commonDirectory);
-
-  const worktreeList = git(repository.worktreeRoot, ["worktree", "list", "--porcelain"]);
-  if (!worktreeList) return [];
-  const linkedWorktrees = worktreeList
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith("worktree "))
-    .map((line) => line.slice("worktree ".length).trim())
-    .filter(Boolean);
-  if (linkedWorktrees.length === 0) return [];
-
-  return [
-    repository.worktreeRoot,
-    absoluteCommonDirectory,
-    // common dir의 부모는 주 저장소 루트다. `.git`이 파일이 아니라 디렉터리인 main checkout에서
-    // 이 값이 추적 파일 전체를 덮는다.
-    path.dirname(absoluteCommonDirectory),
-    ...linkedWorktrees,
-    // state 경로는 환경변수로 옮길 수 있어 common dir 아래라고 가정하지 않는다. 다만 보호 대상은
-    // 그 파일 하나이며, 부모 디렉터리를 root로 잡으면 state를 임시 디렉터리로 옮긴 세션이 그 디렉터리
-    // 전체를 쓰지 못하게 된다.
-    repository.statePath,
-  ];
-}
-
-// `--worktree`는 세션 cwd 밖의 lease를 다루므로 존재하지 않거나 git worktree가 아닌 경로에서
-// cwd 기준으로 조용히 fallback하면 엉뚱한 lease를 지운다. 명시적으로 실패한다.
+// `--worktree`는 세션 cwd 밖의 claim을 다루므로 존재하지 않거나 git worktree가 아닌 경로에서
+// cwd 기준으로 조용히 fallback하면 엉뚱한 claim을 지운다. 명시적으로 실패한다.
 export function targetRepositoryContext(cwd, worktreePath) {
   if (!worktreePath) return repositoryContext(cwd);
   const target = path.resolve(cwd, worktreePath);
@@ -80,6 +102,18 @@ export function targetRepositoryContext(cwd, worktreePath) {
   const repository = repositoryContext(target);
   if (!repository.isGitWorktree) throw new Error(`--worktree path is not a git worktree: ${target}`);
   return repository;
+}
+
+// claim 명령은 Bash 도구의 child로 실행되므로 hook처럼 session id를 stdin으로 받지 못한다. Claude Code는
+// child 환경에 세션 id와 자기 pid를 넣어 주며, 없는 provider에서는 "이 세션"을 알 수 없다고 본다.
+export function currentSessionIdentity(environment = process.env) {
+  const sessionId = environment.CLAUDE_CODE_SESSION_ID;
+  const pid = Number.parseInt(environment.CLAUDE_PID ?? "", 10);
+  return {
+    pid: Number.isInteger(pid) && pid > 0 ? pid : null,
+    provider: sessionId ? "claude" : null,
+    sessionId: sessionId || null,
+  };
 }
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);

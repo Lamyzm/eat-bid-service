@@ -193,6 +193,35 @@ export function createLinearClient({
       };
     },
 
+    // push 시점의 재검증은 상태를 바꾸지 않는다. claim이 In Progress로 옮기는 일까지 여기서 반복하면
+    // In Review로 보낸 issue가 push마다 되돌아간다. 팀·assignee·terminal 상태만 본다.
+    async verifyIssueOwnership(identifier, { teamKey, terminalStates }) {
+      const data = await request(CLAIM_QUERY, { id: identifier });
+      const issue = data?.issue;
+      const viewer = data?.viewer;
+      if (!issue || !viewer) throw new LinearApiError(`Linear claim context was not found for ${identifier}`);
+      if (issue.team?.key?.toUpperCase() !== teamKey.toUpperCase()) {
+        throw new LinearApiError(
+          `Linear issue ${identifier} belongs to team ${issue.team?.key ?? "unknown"}, expected ${teamKey}`,
+        );
+      }
+      if (issue.assignee && issue.assignee.id !== viewer.id) {
+        throw new LinearApiError(
+          `Linear issue ${identifier} is assigned to ${issue.assignee.name ?? "another owner"}`,
+        );
+      }
+      const stateName = issue.state?.name ?? "unknown";
+      if (terminalStates.map((state) => state.toLowerCase()).includes(stateName.toLowerCase())) {
+        throw new LinearApiError(`Linear issue ${identifier} is already in terminal state ${stateName}`);
+      }
+      return {
+        assigneeId: issue.assignee?.id ?? null,
+        assigneeName: issue.assignee?.name ?? null,
+        issueIdentifier: issue.identifier,
+        stateName,
+      };
+    },
+
     async moveIssueToState(identifier, stateName) {
       const issue = await getIssue(identifier);
       if (issue.state?.name?.toLowerCase() === stateName.toLowerCase()) return;

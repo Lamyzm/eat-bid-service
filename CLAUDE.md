@@ -6,7 +6,7 @@
 
 - "이어서 진행", "작업 인계", "Codex 종료 후 재개" 요청은 먼저
   [`docs/operations/agent-resume.md`](docs/operations/agent-resume.md)를 읽는다. 다른 실행자가 살아 있는지
-  확인하기 전에 같은 세션을 resume하거나 lease를 회수하지 않는다.
+  확인하기 전에 같은 세션을 resume하거나 그 worktree의 세션 잠금을 넘겨받지 않는다.
 
 - 제품·아키텍처·데이터 불변식은 `AGENTS.md`와 Accepted ADR만 권위가 있다.
 - 문서 권위와 읽기 순서는 `docs/README.md`를 따른다.

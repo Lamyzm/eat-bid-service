@@ -1,10 +1,11 @@
-/** @module 책임: provider hook의 stdin·stdout·exit code 계약을 lease 판정 runtime에 연결하고 실패해도 fail-closed로 끝낸다. */
+/** @module 책임: provider hook의 stdin·stdout·exit code 계약을 worktree holder 판정 runtime에 연결하고 쓰기가 필요할 때만 state lock을 잡는다. */
 import { randomUUID } from "node:crypto";
 
 import { handleHookEvent } from "./hook-runtime.mjs";
-import { config, repositoryContext, repositoryGuardRoots } from "./runtime.mjs";
+import { config, currentSessionIdentity, hookRepositoryContext } from "./runtime.mjs";
+import { loadState } from "./state.mjs";
 import { withStateTransaction } from "./state-lock.mjs";
-import { classifyToolCall, normalizeHookEvent } from "./workflow.mjs";
+import { normalizeHookEvent, toolIsOpenToObservers } from "./workflow.mjs";
 
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -18,49 +19,67 @@ async function readStdinJson() {
   return JSON.parse(raw);
 }
 
+function emit(result) {
+  const output = {};
+  if (result.systemMessage) output.systemMessage = result.systemMessage;
+  if (Object.keys(output).length > 0) process.stdout.write(`${JSON.stringify(output)}\n`);
+  // SessionStart와 UserPromptSubmit의 stdout은 세션 context에 들어간다. 잠금 결과는 그 경로로 알린다.
+  if (result.context) process.stdout.write(`${result.context}\n`);
+  if (result.message) process.stderr.write(`${result.message}\n`);
+  process.exitCode = result.exitCode;
+}
+
 let currentHookEventName = "";
 async function main() {
   const input = await readStdinJson();
   currentHookEventName = String(input.hook_event_name ?? input.hookEventName ?? "");
-  const normalizedEvent = normalizeHookEvent(input);
-  const normalizedEventName = normalizedEvent.hookEventName.toLowerCase();
-  const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
-  // repository context는 git을 세 번 실행한다. 읽기 도구까지 매번 그 비용을 내지 않도록 실제로 저장소
-  // 경계를 알아야 하는 판정에서만 한 번 계산하고 이후 재사용한다.
-  let repository = null;
-  let guardRoots = null;
-  const resolveRepository = () => (repository ??= repositoryContext(cwd));
+  const event = normalizeHookEvent(input);
+  const eventName = event.hookEventName.toLowerCase();
+
+  // 읽기 도구와 사용자가 직접 친 명령은 저장소 위치조차 계산하지 않는다. 매 도구 호출의 비용은 여기서 끝난다.
   if (
-    (normalizedEventName === "pretooluse" || normalizedEventName === "posttooluse") &&
-    !classifyToolCall(normalizedEvent.toolName, normalizedEvent.toolInput, {
-      resolveRepositoryRoots: () => (guardRoots ??= repositoryGuardRoots(cwd)),
-    }).mutatesRepository
+    eventName === "pretooluse" &&
+    (event.initiatedBy === "user" || toolIsOpenToObservers(event.toolName, event.toolInput))
   ) {
     return;
   }
-  resolveRepository();
-  let hookResult;
-  await withStateTransaction(repository.statePath, async (state) => {
-    hookResult = handleHookEvent({
-      branch: repository.branch,
+
+  const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
+  const repository = hookRepositoryContext(cwd);
+  if (!repository) return;
+
+  const identity = currentSessionIdentity();
+  const run = (state) =>
+    handleHookEvent({
       config,
       createId: randomUUID,
       input,
+      pid: identity.pid,
       provider: argument("--provider", "unknown"),
-      repositoryRoots: () => (guardRoots ??= repositoryGuardRoots(cwd)),
       state,
       worktreeRoot: repository.worktreeRoot,
     });
-    return hookResult.state;
-  });
 
-  // 차단(exit 2)은 stderr가 그대로 agent에게 전달되지만 통과(exit 0)는 그렇지 않다. 통과하면서
-  // 알려야 할 내용은 hook JSON 계약의 `systemMessage`로만 나간다.
-  if (hookResult.systemMessage) {
-    process.stdout.write(`${JSON.stringify({ systemMessage: hookResult.systemMessage })}\n`);
+  // 판정은 lock 없이 읽은 state로 먼저 한다. 대부분의 호출은 holder가 자기 자신이라 쓸 것이 없고, 그때
+  // lock을 잡으면 도구 호출마다 lock directory를 만들고 지우는 비용이 든다. 쓸 것이 있을 때만 transaction
+  // 안에서 같은 판정을 다시 해 동시 hook의 갱신을 잃지 않는다.
+  const snapshot = await loadState(repository.statePath);
+  const preview = run(snapshot);
+  if (preview.state === snapshot && preview.exitCode === 0) {
+    emit(preview);
+    return;
   }
-  if (hookResult.message) process.stderr.write(`${hookResult.message}\n`);
-  process.exitCode = hookResult.exitCode;
+  if (preview.exitCode !== 0) {
+    emit(preview);
+    return;
+  }
+
+  let result = preview;
+  await withStateTransaction(repository.statePath, async (state) => {
+    result = run(state);
+    return result.state;
+  });
+  emit(result);
 }
 
 main().catch((error) => {

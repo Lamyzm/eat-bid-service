@@ -13,6 +13,6 @@
     "path": "/tooling/linear",
     "projectId": "0d794ce1-e0e3-4e48-83ea-88f2f05f9a65"
   },
-  "leaseHours": 12,
+  "sessionStaleMinutes": 30,
   "requestTimeoutMs": 5000
 }

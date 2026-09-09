@@ -68,8 +68,8 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 - hook은 공용 script를 자동 호출할 수 있지만 hook 자체에 유일한 품질 규칙을 구현하지 않는다.
 - `.claude/skills`는 `.agents/skills`의 생성 projection이다. `pnpm agent:skills:write`로만 갱신하고
   `pnpm architecture:check`가 drift를 실패시킨다.
-- Claude Code project hook은 `pnpm workflow:*` lifecycle 명령과 Linear 읽기 MCP 도구를 lease 없이 허용하므로
-  Claude 세션도 스스로 claim한다.
+- Claude Code project hook은 worktree 세션 잠금만 강제하고 명령 본문을 해석하지 않으므로 Claude 세션도
+  스스로 claim하고 커밋한다(ADR 0043).
 
 ### 3.3 Codex adapter
 
@@ -85,7 +85,8 @@ eatbid는 특정 AI 도구의 대화나 task list가 아니라 **공유 작업 �
 - Codex와 Claude Code는 공식 `https://mcp.linear.app/mcp`를 각 client의 OAuth로 연결한다.
 - 두 client의 project hook은 `tools/agent-workflow/hook.mjs`만 호출한다. 도구별 hook 파일에
   서로 다른 업무 규칙을 복사하지 않는다.
-- 읽기·조사는 issue 없이 허용하고 저장소 mutation 전 온라인 검증된 Linear lease를 요구한다.
+- 읽기·조사와 편집은 issue 없이 허용하고, issue branch의 commit·push는 온라인 검증된 Linear claim과
+  branch 식별자의 일치를 요구한다. 한 worktree는 살아 있는 세션 하나만 쓴다.
 - deterministic claim/sync용 API key는 전용 process 환경변수로만 주입한다. 실패 event는 `.git` 아래
   outbox에 보존하며 GitHub Issue나 Markdown board를 fallback으로 만들지 않는다.
 - 실제 연결, 진단, 장애 복구 절차는
@@ -166,8 +167,8 @@ Codex가 제출 diff와 증거를 검토하고 하나의 dev에 통합한다. �
   표시한다.
 - 이미 다른 writing owner가 있거나 claim 상태를 확인할 수 없으면 파일을 쓰지 않고 read-only
   조사·review만 한다.
-- 한 issue에는 하나의 active worktree lease만 두고, 그 worktree에서는 lease에 결박된 한
-  provider/session만 파일을 쓴다.
+- 한 issue는 살아 있는 세션이 잡은 worktree 하나에서만 claim하고, 한 worktree는 세션 잠금을 가진
+  provider/session 하나만 파일을 쓴다.
 - 다른 agent는 같은 파일을 병렬 수정하지 않고 research, 공격적 review, 검증을 맡는다.
 - 병렬 구현이 필요하면 파일 소유권을 분리하고 별도 worktree를 사용한다.
 - handoff는 “대화 요약”이 아니라 Linear issue, OpenSpec/ADR, 실제 diff, 검증 결과로 한다.
