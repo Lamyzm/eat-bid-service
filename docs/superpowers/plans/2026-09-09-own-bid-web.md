@@ -1096,6 +1096,14 @@ pnpm --filter @eatbid/web test:e2e:own-bid
   hook으로 옮겼고, 증거가 갈린 번호는 등록 뒤에 갈라야 하므로 첫째 계정 등록을 harness가 실제 계약으로 마친 뒤
   `observeConflictingSupplier`를 실행한다. 명단 행은 revision의 개찰 시각과 정확히 같은 `opened_at`에서만
   세므로 겹친 제출 seed는 세 자리에 같은 시각을 쓴다.
+- 인수 뒤 보완(`866845d` `64680ac`): (4) 사업자·계정을 바꾼 뒤에도 crosshair 후보 버튼에 앞 사람의 제출이 다음
+  이벤트까지 남던 것을 현재 점 집합으로 걸렀다(`pnpm review:ai` advisory에서 찾음, E2E 단언 추가). (5) 사업자 radio
+  그룹이 `undefined`로 시작해 첫 선택에 uncontrolled→controlled 경고를 내던 것을 빈 문자열 controlled로 고정했다.
+  서버 계정 통합 검사는 목록 record의 `supplier` union 형태로 갱신했다.
+- 수동 시인성 확인(Chrome, 실제 DB·Nest·next dev): dark theme 1440px에서 마름모(fuchsia-300)가 낙찰 원과 구별되고
+  상태 문구·요약이 읽힌다. 600px에서는 컨트롤이 두 줄로 접히고 가로 넘침이 없으며 창 크기만 바꾸면 사업자 선택과
+  점 4개가 유지된다. 390px 모바일 에뮬레이션에서도 `내 투찰 · 사업자 선택 · 안내 문구`가 한 줄에 들어가고 본문 가로
+  스크롤이 없다(기기 에뮬레이션 전환은 브라우저가 페이지를 다시 읽어 선택이 초기화되는데, 이는 도구의 reload다).
 
 검증(모두 실제 실행):
 
@@ -1103,9 +1111,11 @@ pnpm --filter @eatbid/web test:e2e:own-bid
 |---|---|
 | `pnpm --filter @eatbid/web test` | 503 pass |
 | `pnpm --filter @eatbid/web typecheck` | 통과 |
-| `pnpm --filter @eatbid/web test:e2e:own-bid` (실제 DB·Nest·Chromium) | 8 passed |
+| `pnpm --filter @eatbid/web test:e2e:own-bid` (실제 DB·Nest·Chromium, 13차 실행) | 8 passed · 브라우저 콘솔 경고 0 |
 | `pnpm --filter @eatbid/web test:e2e:decision` (정적 fixture) | 35 passed |
-| server 계정·own-bid·통합 검사 | 22 pass, 72 pass(procurement 포함) |
+| `pnpm --filter @eatbid/web test:e2e:auth` (정적 fixture) | 12 passed |
+| `pnpm --filter @eatbid/web build` | 통과 |
+| `pnpm --filter @eatbid/server test` (전체) | 258 pass |
 | `pnpm architecture:check` (quality·boundary·endpoint·contracts·python 포함) | 통과 |
 
 미검증: 실제 Google OAuth 왕복(dev 설정 위치 없음), 고정 fixture 시안 대조(시안에 이 계열이 없음), 운영 배포.
