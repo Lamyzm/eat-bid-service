@@ -220,8 +220,9 @@ mois:administrative-region`)을 한다.
 | capture | 69 `TRANSIENT_NETWORK` | 응답 없음, pod 안 재시도 소진 | §4.2 `argo retry` |
 | capture | 75 `SOURCE_THROTTLED` | 차단 징후 | 원인 확인 뒤 §4.2, 반복되면 §4.3 |
 | discover·capture | 76 `SOURCE_CONTRACT`, 64 `CONFIGURATION` | 계약 위반·설정 오류 | 코드·설정 수정 뒤 새 backfill, 옛 release는 §4.3 |
+| capture·normalize | 137 OOM, 143 중단 | 결론 없이 끝남. release는 아직 `planned` | 같은 이미지면 §4.2, 아니면 §4.3 `INTERRUPTED` |
 | validate | 65 `DATA_QUARANTINED` | 격리가 있어 발행 불가. release는 **sealed**, publication은 failed | 파서 수정 뒤 §1.2 replay |
-| project | 137 OOM, 143 중단 | 결론 없이 끝남 | §1(project만 다시) 또는 §4.3 `INTERRUPTED` |
+| project | 137 OOM, 143 중단 | 결론 없이 끝남. release는 이미 **sealed**라 `fail-release` 대상이 아니다 | §1(replay 또는 같은 이미지의 project 재실행) |
 
 ### 4.1 전제 확인 (읽기 전용)
 
