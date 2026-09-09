@@ -343,6 +343,10 @@ const martSeed = `
       ${FIXED_ATTEMPT_COUNT + BULK_ATTEMPT_COUNT}, ${FIXED_ATTEMPT_COUNT + BULK_ATTEMPT_COUNT}, 0, 'complete'),
     (${NEXT_BUILD_ID}, null, '2026-09-01', 1, 1, 1, 0, 'complete');
   ${bulkSummarySeed}
+`;
+
+// mart 행은 build가 building일 때만 쓸 수 있다(ADR 0034 trigger). 검증·활성화는 행 쓰기가 전부 끝난 뒤 한 번에 한다.
+const martActivationSeed = `
   update mart.build set status = 'verified', computed_at = '2026-09-05T00:10:00Z',
     row_count = ${FIXED_ATTEMPT_COUNT + BULK_ATTEMPT_COUNT}
    where build_id = ${ACTIVE_BUILD_ID};
@@ -352,17 +356,28 @@ const martSeed = `
    where build_id = ${ACTIVE_BUILD_ID};
 `;
 
+/**
+ * 어댑터·HTTP 검사와 브라우저 harness가 같은 사실 위에서 돌도록 seed를 함수로 빌려준다. mart 행을 더 얹어야
+ * 하는 harness는 `beforeActivation`에서 쓴다 — build가 verified·active가 된 뒤에는 trigger가 행 쓰기를 막는다.
+ */
+export async function seedOwnBid(
+  owner: ReturnType<typeof postgres>,
+  options: { readonly beforeActivation?: (owner: ReturnType<typeof postgres>) => Promise<void> } = {},
+): Promise<void> {
+  await owner.unsafe(identitySeed);
+  await owner.unsafe(evidenceSeed);
+  await owner.unsafe(auctionSeed);
+  await owner.unsafe(bulkSeed);
+  await owner.unsafe(rosterSeed);
+  await owner.unsafe(martSeed);
+  await options.beforeActivation?.(owner);
+  await owner.unsafe(martActivationSeed);
+}
+
 export const ownBidDatabase = disposableDatabase({
   task: "eat40-own-bid",
   migrationApplyCount: 1,
-  seed: async (owner) => {
-    await owner.unsafe(identitySeed);
-    await owner.unsafe(evidenceSeed);
-    await owner.unsafe(auctionSeed);
-    await owner.unsafe(bulkSeed);
-    await owner.unsafe(rosterSeed);
-    await owner.unsafe(martSeed);
-  },
+  seed: (owner) => seedOwnBid(owner),
 });
 
 /**
