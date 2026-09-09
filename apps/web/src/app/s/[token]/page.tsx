@@ -80,7 +80,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         <p className='text-muted-foreground text-sm'>
           공공 개찰 결과의 요약입니다 · 본인 전적은 본인 번호로 직접 조회하세요.
         </p>
-        <Link href='/welcome'
+        <Link href='/setup'
           className='bg-primary text-primary-foreground inline-block rounded-md px-6 py-3 font-semibold'>
           내 번호로 조회 →
         </Link>

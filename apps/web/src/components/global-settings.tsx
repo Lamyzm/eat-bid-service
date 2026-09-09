@@ -1,3 +1,4 @@
+/** @module 책임: 내게 보일 것(등록 사업자와 거기서 파생된 지역·품목)을 한 모달에서 보여 주고 canonical 사업자 설정으로 보낸다. */
 'use client';
 /**
  * 전역 설정 모달 — "내게 보일 것" (사업자 → 지역·품목 파생 관계를 한 화면에)
@@ -75,7 +76,7 @@ export function GlobalSettingsDialog() {
             {bizNos.length === 0 ? (
               <p className='text-muted-foreground text-sm'>
                 등록된 사업자가 없습니다.{' '}
-                <Link href='/welcome' className='text-primary hover:underline' onClick={() => setOpen(false)}>사업자 등록 →</Link>
+                <Link href='/setup' className='text-primary hover:underline' onClick={() => setOpen(false)}>사업자 등록 →</Link>
               </p>
             ) : (
               <ul className='space-y-1'>
@@ -87,7 +88,7 @@ export function GlobalSettingsDialog() {
                 ))}
               </ul>
             )}
-            <Link href='/dashboard/my' className='text-primary text-xs hover:underline'
+            <Link href='/setup' className='text-primary text-xs hover:underline'
               onClick={() => setOpen(false)}>사업자 관리 →</Link>
           </section>
 

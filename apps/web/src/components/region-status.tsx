@@ -1,3 +1,4 @@
+/** @module 책임: 지금 어느 지역 기준으로 보고 있는지와 자격 지역 설정 진입을 화면 제목 아래 한 줄로 표시한다. */
 'use client';
 /**
  * 데이터 화면 제목 아래 상태 한 줄 (배치 #5)
@@ -55,7 +56,7 @@ export function RegionStatus({ extra }: { extra?: React.ReactNode }) {
         <span>· 자격 {homes.length}곳{isBrowsing ? ` 중 다른 지역(${view}) 보는 중` : view === 'home' && homes.length > 1 ? ' 전체 보는 중' : ''}</span>
       )}
       {homes.length === 0 && (
-        <span>· <Link href='/dashboard/my' className='text-primary hover:underline'>내 자격 지역 설정</Link></span>
+        <span>· <Link href='/setup' className='text-primary hover:underline'>내 자격 지역 설정</Link></span>
       )}
       {extra}
       {regionsFailed && <LoadError what='지역 목록' inline />}

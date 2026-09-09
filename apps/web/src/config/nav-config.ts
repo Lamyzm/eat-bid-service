@@ -39,23 +39,13 @@ export const navGroups: NavGroup[] = [
   {
     label: '공고',
     items: [
-      // 오늘은 canonical `/today`(EAT-39)가 소유한다. legacy `/dashboard/today`는 삭제 전용 ledger로만 남는다.
-      { title: '오늘', url: '/today', icon: 'sun', isActive: false, shortcut: ['t', 't'], items: [] },
-      { title: '학교 찾기', url: '/dashboard/schools', icon: 'search', isActive: false, shortcut: ['s', 's'], items: [] }
-    ]
-  },
-  {
-    label: '낙찰',
-    items: [
-      { title: '개찰 속보', url: '/dashboard/wins', icon: 'trendingUp', isActive: false, shortcut: ['w', 'w'], items: [] },
-      { title: '업체', url: '/dashboard/firms', icon: 'teams', isActive: false, shortcut: ['f', 'f'], items: [] }
+      // 오늘은 canonical `/today`(EAT-39)가 소유한다.
+      { title: '오늘', url: '/today', icon: 'sun', isActive: false, shortcut: ['t', 't'], items: [] }
     ]
   },
   {
     label: '나',
     items: [
-      { title: '내 성적', url: '/dashboard/record', icon: 'checks', isActive: false, shortcut: ['r', 'r'], items: [] },
-      { title: '납품', url: '/dashboard/delivery', icon: 'calendar', isActive: false, shortcut: ['d', 'd'], items: [] },
       // 사업자 등록의 진실 원천은 로그인 계정이다. 이 항목이 localStorage 화면을 가리키면 같은 개념의
       // 진실 원천이 둘로 보인다. canonical `/setup`이 유일한 진입이다(ADR 0032 §5).
       { title: '내 사업자', url: '/setup', icon: 'settings', isActive: false, shortcut: ['b', 'b'], items: [] }

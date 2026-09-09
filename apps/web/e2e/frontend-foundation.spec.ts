@@ -48,15 +48,6 @@ test('canonical 공고 화면의 header에는 legacy 지역 칩과 전역 설정
   await expect(page.getByText(/^(계정|게스트)$/)).toHaveCount(0);
 });
 
-test('legacy dashboard는 slot으로 주입된 전역 설정 control과 계정 허브와 본문을 그대로 보여 준다', async ({ page }) => {
-  await page.goto('/dashboard/today', { waitUntil: 'commit' });
-  await expect(page.getByRole('button', { name: '전역 설정' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
-  await expect(page.getByText(/^(계정|게스트)$/).first()).toBeVisible();
-  await expect(page.getByRole('status', { name: '대시보드를 불러오는 중' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: '오늘', level: 1 })).toBeVisible();
-});
-
 test('503은 404로 바꾸지 않고 안전한 재시도 경계에 전달한다', async ({ page }) => {
   await page.goto(`/auctions/${FAILURE_AUCTION_ID}`);
 

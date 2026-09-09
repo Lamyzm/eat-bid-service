@@ -1,3 +1,4 @@
+/** @module 책임: 존재하지 않는 route로 들어온 요청에 뒤로 가기와 canonical 시작 화면 복귀만 제공한다. */
 'use client';
 
 import { useRouter } from 'next/navigation';
@@ -18,7 +19,7 @@ export default function NotFound() {
         <Button onClick={() => router.back()} variant='default' size='lg'>
           Go back
         </Button>
-        <Button onClick={() => router.push('/dashboard')} variant='ghost' size='lg'>
+        <Button onClick={() => router.push('/today')} variant='ghost' size='lg'>
           Back to Home
         </Button>
       </div>

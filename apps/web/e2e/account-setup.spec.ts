@@ -240,10 +240,7 @@ test.describe('로그인 계정의 사업자 설정', () => {
     await replay.close();
   });
 
-  test('legacy 사업자 화면과 전역 메뉴는 canonical 설정 하나로 모인다', async () => {
-    await firstPage.goto('/dashboard/my');
-    await expect(firstPage).toHaveURL(`${WEB_ORIGIN}/setup`);
-
+  test('전역 메뉴의 사업자 진입은 canonical 설정 하나로 모인다', async () => {
     await firstPage.goto('/today');
     await firstPage.getByRole('link', { name: '내 사업자' }).click();
     await expect(firstPage).toHaveURL(`${WEB_ORIGIN}/setup`);
