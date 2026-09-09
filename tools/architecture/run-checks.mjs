@@ -72,6 +72,13 @@ export const CHECKS = Object.freeze([
     scope: [/\.(?:[cm]?[jt]sx?|py)$/i],
   },
   {
+    id: "docs",
+    label: "문서 위계",
+    script: "tools/quality/check-docs.mjs",
+    weight: 2,
+    scope: [/^docs\/.*\.md$/i, /^(?:AGENTS|ARCHITECTURE)\.md$/],
+  },
+  {
     id: "contracts-json-schema",
     label: "계약 JSON Schema drift",
     command: "pnpm contracts:check",
