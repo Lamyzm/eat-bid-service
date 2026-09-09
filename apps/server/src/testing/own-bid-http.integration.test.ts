@@ -46,7 +46,8 @@ function environmentFor(databaseUrl: string) {
 function expectPrivateResponse(response: { headers: Record<string, string> }): void {
   // 개인 응답은 성공이든 실패든 공유 캐시에 남으면 안 된다. guard가 끊는 401·403에도 같은 헤더가 있어야 한다.
   expect(response.headers["cache-control"]).toBe("private, no-store");
-  expect(response.headers["vary"]).toContain("cookie");
+  // Vary 토큰은 대소문자를 구분하지 않고, CORS가 먼저 붙인 `Origin`과 함께 온다(215ce0d).
+  expect(response.headers["vary"].toLowerCase().split(",").map((token) => token.trim())).toContain("cookie");
 }
 
 describe("내 투찰 관측 HTTP 경계", () => {
