@@ -14,7 +14,6 @@ function fixture(files) {
     "package.json": '{"private":true}\n',
     "apps/web/package.json":
       '{"name":"@eatbid/web","dependencies":{"@tanstack/react-query":"5.0.0"}}\n',
-    "tools/architecture/web-boundary-legacy-baseline.json": '{"version":1,"entries":[]}\n',
   };
   for (const [relativePath, contents] of Object.entries({ ...defaults, ...files })) {
     const target = path.join(root, relativePath);
@@ -84,7 +83,9 @@ test("review context는 350개 module에서도 필수 section과 완전한 JSON�
     assert.ok(Buffer.byteLength(first, "utf8") <= 98_304);
     assert.equal(Buffer.from(first, "utf8").toString("utf8"), first);
     assert.equal(scope.changedPaths.length, 350);
-    assert.equal(boundaries.unmatchedFindingCount, 0);
+    assert.equal(boundaries.skippedLegacyFindingCount, 0);
+    assert.equal(boundaries.waivedFindingCount, 0);
+    assert.deepEqual(boundaries.failures, []);
     assert.ok(rules.suppressedAdvice.some((item) => item.id === "data.generic-swr"));
     assert.match(first, /## 리뷰 계약\n\n/);
     assert.match(first, /이 진단은 계속 권위를 가지며/);
