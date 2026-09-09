@@ -118,7 +118,8 @@ function openAuctionResponse(auctionId: string) {
     terms: COHORT_TERMS,
     location: COHORT_LOCATION,
     classification: COHORT_CLASSIFICATION,
-    // 목록 관측 BID_CNT다. 요청 30분 전 4곳, 하루 전 2곳이라 배너가 "어제보다 +2"를 그린다.
+    // 목록 관측 BID_CNT다. 요청 30분 전 4곳, 25시간 전 2곳이라 상세가 "…기준 · (그 날짜) 대비 +2"를 그린다.
+    // 두 관측이 25시간 떨어져 있어 KST 달력일이 반드시 달라지고, 표시된 비교 날짜가 최신 날짜와 다른지 볼 수 있다.
     participation: {
       latest: { bidCount: 4, observedAt: instantSecondsIso(now - 30 * 60 * 1000) },
       dayEarlier: { bidCount: 2, observedAt: instantSecondsIso(now - 25 * 60 * 60 * 1000) }

@@ -1,14 +1,26 @@
 /** @module 책임: 전역 오른쪽 패널이 여는 현재 공고 상세 — 본문 요약이 줄인 일정·참여·미확인 항목과 이 기관의 발주 주기를 관측 그대로 나열한다. */
+import { Fragment } from 'react';
+
 import type { OrgCadencePresentation } from '../_model/org-cadence';
 import type { DecisionPresentation } from '../_model/present-decision';
 
-type FactRow = { readonly label: string; readonly value: string; readonly tail?: string | null };
+// 꼬리는 조각 목록이다. 좁은 dock에서 한 문자열로 두면 "09-07 대비"와 "+1"이 서로 다른 줄로 갈라져
+// 날짜 없는 증감처럼 읽힌다. 조각 사이에서만 줄이 바뀌도록 각 조각을 끊기지 않는 단위로 넘긴다.
+type FactRow = {
+  readonly label: string;
+  readonly value: string;
+  readonly tail?: readonly string[];
+};
 
 function auctionRows(decision: DecisionPresentation): readonly FactRow[] {
   const { participation } = decision;
-  // 참여 꼬리는 하루 전 관측이 있으면 증감, 없으면 관측 시각이다. 관측 시각 없는 참여 수는 추정으로
-  // 읽히므로 둘 다 없을 때(참여 미확인)만 꼬리를 비운다.
-  const participationTail = participation.deltaText ?? (participation.observedAtText ? `${participation.observedAtText} 관측` : null);
+  // 참여 꼬리는 "언제 본 값인가"를 먼저 말하고 비교 관측이 있을 때만 증감을 잇는다. 증감만 보이면 어느
+  // 시점의 수가 얼마나 변한 것인지 알 수 없고, 두 날짜가 나란히 있어야 오래된 비교를 사용자가 알아본다.
+  // 관측이 아예 없을 때(참여 미확인)만 꼬리를 비운다.
+  const participationTail = [
+    participation.observedAtText === null ? null : `${participation.observedAtText} 기준`,
+    participation.deltaText
+  ].filter((part): part is string => part !== null);
   return [
     { label: '공고 지역', value: decision.locationText },
     { label: '품목', value: decision.itemLabelText },
@@ -31,7 +43,13 @@ function cadenceRows(cadence: OrgCadencePresentation): readonly FactRow[] {
     { label: '누적 회차', value: cadence.attemptCountText },
     ...(cadence.cadenceText === null
       ? []
-      : [{ label: '발주 주기', value: cadence.cadenceText, tail: cadence.cadenceBasisText }]),
+      : [
+          {
+            label: '발주 주기',
+            value: cadence.cadenceText,
+            tail: cadence.cadenceBasisText === null ? [] : [cadence.cadenceBasisText]
+          }
+        ]),
     ...(cadence.lastAnnouncementText === null
       ? []
       : [{ label: '지난 공고', value: cadence.lastAnnouncementText }])
@@ -41,12 +59,22 @@ function cadenceRows(cadence: OrgCadencePresentation): readonly FactRow[] {
 function FactList({ rows }: { readonly rows: readonly FactRow[] }) {
   return (
     <dl className='grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm'>
-      {rows.map(({ label, value, tail }) => (
+      {rows.map(({ label, value, tail = [] }) => (
         <div key={label} className='contents'>
           <dt className='text-muted-foreground'>{label}</dt>
           <dd className='m-0 text-right break-keep wrap-anywhere tabular-nums'>
             {value}
-            {tail ? <span className='ml-1 text-[13px] font-semibold text-muted-foreground'>{tail}</span> : null}
+            {tail.map((part, index) => (
+              // 조각 사이의 공백만 줄바꿈 자리다. 조각 자체는 `nowrap`이라 "09-07 대비 +1"이 갈라지지 않고,
+              // 폭 검사가 nowrap 넘침을 세므로 조각이 dock 폭을 넘기면 조용히 잘리지 않고 실패로 드러난다.
+              <Fragment key={part}>
+                {' '}
+                <span className='text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>
+                  {index > 0 ? '· ' : ''}
+                  {part}
+                </span>
+              </Fragment>
+            ))}
           </dd>
         </div>
       ))}

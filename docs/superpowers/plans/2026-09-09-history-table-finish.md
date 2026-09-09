@@ -113,3 +113,32 @@ dock root를 더했다. 상자가 없는 노드(닫힌 패널·숨긴 관점)는
 - 검증: `playwright test decision-screen.spec.ts` 35개 통과, `pnpm --filter @eatbid/web typecheck` 통과,
   변경 파일 `oxlint --deny-warnings` 통과, `pnpm quality:check` 통과. `lint:strict` 전체는 legacy
   `src/components`·`src/app/dashboard` 경고로 이 변경 전부터 실패하며 이번 변경 파일과 무관하다.
+
+## 7. 참여 관측 날짜 보완 (2026-09-09)
+
+계약의 `participation.dayEarlier`는 "최신 관측보다 24시간 이상 앞선 관측 중 가장 늦은 것"이라 상한이 없다.
+그런데 화면은 무조건 `어제보다 +n`이라 적어, 사흘이나 몇 주 전 관측을 어제 것으로 위장할 수 있었다. 값 자체는
+실제 관측이므로 지우거나 조회를 다시 설계하지 않고, 이미 응답에 있는 두 `observedAt`으로 비교 대상을 밝힌다.
+
+- `present-decision.ts`: `deltaText`가 `09-07 대비 +1`처럼 비교한 관측의 KST 날짜를 말한다. 기존 `kst()`와 같은
+  방식의 날짜 formatter를 쓰고 문자열을 되파싱하지 않는다. 하루 전 관측이 없으면 여전히 `null`이다.
+  최신 관측과 해가 다르면 `2026-12-31 대비`처럼 연도를 붙인다. `dayEarlier`에 상한이 없어 해를 넘긴 관측도
+  올 수 있고, 그때 월일만 보이면 작년 관측이 며칠 전으로 읽힌다(`pnpm review:ai` finding 1건을 이렇게 판정했다.
+  패널의 다른 시각은 `MM-DD`라 항상 연도를 붙이는 대신 해가 다른 경우로 좁혔다).
+- `current-auction-facts.tsx`: 참여 꼬리가 최신 관측 시각(`09-08 19:31 기준`)을 먼저 말하고 비교가 있을 때만
+  증감을 잇는다. 꼬리는 조각 목록이며 조각마다 `whitespace-nowrap`이라 `09-07 대비`와 `+1`이 다른 줄로 갈라지지
+  않는다. 좁은 dock에서 실제로 갈라지던 것을 실물 확인으로 잡았다.
+- 실제 API 확인: `API_URL=http://127.0.0.1:4400`으로 별도 dev(3111)를 띄워 공고 89를 Chromium으로 열었다.
+  참여 행이 `1곳 09-08 19:31 기준 · 09-07 대비 +1`로 그려졌고, 이는 응답의 `latest 2026-09-08T10:31:04Z`(1곳)과
+  `dayEarlier 2026-09-07T10:30:49Z`(0곳)와 같다. 임시 config·spec은 확인 뒤 삭제했다.
+- 회귀: 비교가 사흘 전인 경우 `08-31 대비 +0`이라 적고 `어제`를 쓰지 않는 단위 검사, 해를 넘긴 비교가 연도까지
+  말하는 검사, 비교 관측이 없을 때 증감 없이 기준 시각만 남는 검사, 참여 관측 자체가 없을 때 셋 다 비는 검사를
+  `present-decision.test.ts`에 뒀다. 브라우저 검사는 25시간 떨어진 fixture 두 관측의 KST 날짜가 서로 다른지까지 본다.
+- 검증: `pnpm --filter @eatbid/web test` 434개 통과, `typecheck` 통과, `test:e2e:decision` 35개 통과,
+  변경 파일 `oxlint --deny-warnings` 통과, `pnpm quality:check`·`pnpm lint:web-boundaries` 통과. 계약과 서버는
+  건드리지 않아 `contracts:check`는 대상이 아니다.
+- 남은 차이: `지난 공고` 행은 dt 라벨과 dd 값(`지난 공고 07-24 · 41일 만`)이 겹쳐 읽힌다. 값 문자열은
+  `org-cadence.ts`가 소유하므로 이번 writer 범위 밖이라 그대로 뒀다.
+- 총괄 마감 검토: 두 번째 AI advisory의 구분점 단독 줄바꿈 지적을 표시 품질 문제로 수용했다. `·`를
+  뒤따르는 날짜 조각의 `nowrap` 안으로 옮기고 조각 앞 공백에서만 줄을 바꾸게 했다. 사실·계약·레이아웃
+  구조는 바뀌지 않으며 이 마감은 기존 표시 단위 검사와 변경 파일 lint로 확인한다.

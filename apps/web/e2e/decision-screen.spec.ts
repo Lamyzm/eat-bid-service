@@ -416,13 +416,19 @@ test.describe('현재 공고 요약과 상세 진입', () => {
     await expect(header.getByText(/^하한율 \d+\.\d{3}$/)).toBeVisible();
     // 기관 발주 주기와 참여 수는 헤더가 다시 강조하지 않는다.
     await expect(header.getByText(/일마다 공고/)).toHaveCount(0);
-    await expect(header.getByText('어제보다 +2')).toHaveCount(0);
+    await expect(header.getByText(/대비 \+2/)).toHaveCount(0);
 
     await header.getByRole('button', { name: '이 공고 정보', exact: true }).click();
     const facts = page.getByRole('region', { name: '현재 공고 사실', exact: true });
     await expect(facts).toBeVisible();
-    await expect(facts.getByText('4곳')).toBeVisible();
-    await expect(facts.getByText('어제보다 +2')).toBeVisible();
+    // 참여 행은 최신 관측 시각과 비교 관측의 실제 날짜를 함께 말한다. fixture의 두 관측은 25시간 떨어져
+    // 있으므로 두 날짜가 반드시 다르고, 화면이 그 간격을 "어제"로 뭉뚱그리지 않는지 여기서 본다(EAT-115).
+    const participationRow = facts.getByText('참여', { exact: true }).locator('xpath=following-sibling::dd[1]');
+    const participationText = ((await participationRow.textContent()) ?? '').replaceAll(/\s+/g, ' ').trim();
+    expect(participationText).toMatch(/^4곳 \d{2}-\d{2} \d{2}:\d{2} 기준 · \d{2}-\d{2} 대비 \+2$/);
+    expect(participationText).not.toContain('어제');
+    const [latestDate, earlierDate] = participationText.match(/\d{2}-\d{2}/g) ?? [];
+    expect(earlierDate).not.toBe(latestDate);
     await expect(facts.getByText('정정')).toBeVisible();
     await expect(facts.getByText('납품')).toBeVisible();
     await expect(facts.getByText(/^\d+회$/)).toBeVisible();
@@ -438,7 +444,7 @@ test.describe('현재 공고 요약과 상세 진입', () => {
     expectDocumentFits(report, 1440);
   });
 
-  test('개찰 완료 공고는 개찰 후 지난 시간을 읽고 하루 전 관측이 없어 증감 대신 관측 시각을 보인다', async ({ page }) => {
+  test('개찰 완료 공고는 개찰 후 지난 시간을 읽고 비교 관측이 없어 증감 없이 기준 시각만 보인다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: 1440, height: 1200 });
     await page.goto(`/auctions/${CLOSED_AUCTION_ID}`);
@@ -450,8 +456,8 @@ test.describe('현재 공고 요약과 상세 진입', () => {
     await header.getByRole('button', { name: '이 공고 정보', exact: true }).click();
     const facts = page.getByRole('region', { name: '현재 공고 사실', exact: true });
     await expect(facts.getByText('13곳')).toBeVisible();
-    await expect(facts.getByText(/^\d{2}-\d{2} \d{2}:\d{2} 관측$/)).toBeVisible();
-    await expect(facts.getByText('어제보다')).toHaveCount(0);
+    await expect(facts.getByText(/^\d{2}-\d{2} \d{2}:\d{2} 기준$/)).toBeVisible();
+    await expect(facts.getByText(/대비 [+-]/)).toHaveCount(0);
   });
 
   test('넓은 화면에서도 키보드만으로 이 공고 정보를 열고 닫으며 초점이 그 버튼으로 돌아온다', async ({ page }) => {

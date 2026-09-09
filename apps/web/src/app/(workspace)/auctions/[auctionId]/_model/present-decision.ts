@@ -22,7 +22,7 @@ export type DecisionPresentation = {
   readonly participation: {
     /** "4곳" 또는 "미확인". 목록이 표시한 BID_CNT 관측이지 우리가 센 수가 아니다(ADR 0030). */
     readonly countText: string;
-    /** "어제보다 +2". 하루 전 관측이 없으면 null이며 증감을 지어내지 않는다. */
+    /** "09-02 대비 +2". 비교한 관측의 실제 날짜를 말한다. 하루 전 관측이 없으면 null이며 증감을 지어내지 않는다. */
     readonly deltaText: string | null;
     /** 최신 관측 시각(KST). 열린 공고의 참여 수는 시각 없이는 사실이 아니다. */
     readonly observedAtText: string | null;
@@ -44,6 +44,16 @@ function kst(instant: string | null): string {
   if (!instant) return '미확인';
   const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul');
   return `${pad2(zoned.month)}-${pad2(zoned.day)} ${pad2(zoned.hour)}:${pad2(zoned.minute)}`;
+}
+
+/** 비교 관측을 가리키는 KST 날짜다. 분까지 보이면 오히려 읽기 어려워 날짜만 쓰되, 최신 관측과 해가 다르면
+ * `2026-12-31`처럼 연도를 붙인다. `dayEarlier`에는 상한이 없어 해를 넘긴 관측도 오는데 월일만 보이면 작년
+ * 관측이 며칠 전으로 읽히고, 정확히 1년 전 같은 월일은 최신 날짜와 구분되지도 않는다. */
+function kstComparisonDate(instant: string, latestInstant: string): string {
+  const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO('Asia/Seoul');
+  const latest = Temporal.Instant.from(latestInstant).toZonedDateTimeISO('Asia/Seoul');
+  const monthDay = `${pad2(zoned.month)}-${pad2(zoned.day)}`;
+  return zoned.year === latest.year ? monthDay : `${zoned.year}-${monthDay}`;
 }
 
 // 시(정수부)가 24를 넘으면 자릿수가 커져 오히려 못 읽으므로 일 단위로 접는다(분은 버린다). 시가 0이면
@@ -84,13 +94,16 @@ function locationText(location: AuctionV1Response['location']): string {
 function participationText(participation: AuctionV1Response['participation']): DecisionPresentation['participation'] {
   if (participation === null) return { countText: '미확인', deltaText: null, observedAtText: null };
   const { latest, dayEarlier } = participation;
-  const delta = dayEarlier === null ? null : latest.bidCount - dayEarlier.bidCount;
-  return {
-    countText: `${latest.bidCount}곳`,
-    // 증감 0도 사실이다. "+0"은 하루 사이 늘지 않았다는 관측이라 그대로 적는다.
-    deltaText: delta === null ? null : `어제보다 ${delta >= 0 ? '+' : ''}${delta}`,
-    observedAtText: kst(latest.observedAt)
-  };
+  const countText = `${latest.bidCount}곳`;
+  const observedAtText = kst(latest.observedAt);
+  if (dayEarlier === null) return { countText, deltaText: null, observedAtText };
+  // 계약의 `dayEarlier`는 "최신보다 24시간 이상 앞선 관측 중 가장 늦은 것"이라 상한이 없다. 사흘 전이나
+  // 몇 주 전 관측일 수 있으므로 "어제보다"라고 부르면 없는 하루 간격을 지어낸다(AGENTS 3). 비교한 관측의
+  // 실제 날짜를 그대로 말해 사용자가 최신 기준 시각과 나란히 보고 간격을 판단하게 둔다. 증감 0도 사실이지만
+  // 어느 날짜 대비인지 없는 "+0"은 변화 없음으로 읽히므로 날짜와 떼어 내보내지 않는다.
+  const delta = latest.bidCount - dayEarlier.bidCount;
+  const comparedAt = kstComparisonDate(dayEarlier.observedAt, latest.observedAt);
+  return { countText, deltaText: `${comparedAt} 대비 ${delta >= 0 ? '+' : ''}${delta}`, observedAtText };
 }
 
 export function presentDecision(response: AuctionV1Response, nowIso: string): DecisionPresentation {
