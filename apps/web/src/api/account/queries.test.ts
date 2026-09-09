@@ -48,6 +48,31 @@ describe('계정 Query Options', () => {
     ]);
   });
 
+  test('내 투찰 key는 principal·workspace 아래에 사업자·기관·build·회차 집합을 담고 계정 전환에서 함께 사라진다', async () => {
+    const queries = createAccountQueries(requestDouble([]));
+    const input = {
+      businessId: '7',
+      organizationId: '41',
+      buildId: '501',
+      attempts: [{ attemptId: '2', revisionId: '9' }, { attemptId: '1', revisionId: '8' }]
+    };
+    const key = queries.bidObservations(first, input).queryKey;
+    expect(Array.from(key)).toEqual(['account', 'private', '9007199254740993', '11', 'bid-observations', '7', '41', '501', '1:8,2:9']);
+    // 같은 집합을 다른 순서로 물어도 같은 항목이고, build가 바뀌면 다른 항목이다.
+    expect(queries.bidObservations(first, { ...input, attempts: input.attempts.toReversed() }).queryKey).toEqual(key);
+    expect(queries.bidObservations(first, { ...input, buildId: '502' }).queryKey).not.toEqual(key);
+
+    const client = new QueryClient();
+    client.setQueryData(key, {
+      businessId: '7',
+      organizationId: '41',
+      supplier: { kind: 'unobserved' },
+      meta: { buildId: '501', sourceReleaseId: null, calcVersion: null, computedAt: null, coverage: null, regionScheme: null }
+    });
+    await discardOtherPrincipals(client, second.principalId);
+    expect(client.getQueryData(key)).toBeUndefined();
+  });
+
   test('다른 principal의 등록 목록은 같은 URL이어도 다른 캐시 항목이다', () => {
     const queries = createAccountQueries(requestDouble([]));
 

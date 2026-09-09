@@ -1,6 +1,7 @@
 /** @module 책임: 기관 회차를 동일 조건의 추이 구간과 KST 달력 좌표로 바꾸며 원문 값과 중복 날짜를 보존한다. */
 import type { UTCTimestamp } from 'lightweight-charts';
 import type { HistoryPresentation, HistoryRow } from './attempt-history';
+import type { OwnChartPoint } from './own-bid-points';
 
 export type FlowChartPoint = { readonly time: UTCTimestamp; readonly value: number; readonly row: HistoryRow };
 export type FlowChartSeries = { readonly points: readonly FlowChartPoint[]; readonly connected: boolean };
@@ -13,9 +14,15 @@ export type FlowChartModel = {
 
 // 원문 시각을 UTC로 바꾸는 함수가 아니다. 서버가 계산한 KST 달력 날짜를 라이브러리의 하루 좌표에
 // 놓는다. 같은 날의 회차는 같은 x를 유지하며 순서를 만들기 위한 가짜 초/밀리초를 더하지 않는다.
-function chartDay(dayOrdinal: number): UTCTimestamp {
+// 내 투찰 점도 같은 함수로 x를 놓아야 같은 날의 낙찰 점과 겹친다.
+export function chartDay(dayOrdinal: number): UTCTimestamp {
   return (dayOrdinal * 86400) as UTCTimestamp;
 }
+
+/** 캔버스 위 후보 하나. 낙찰 점과 내 투찰 점은 같은 날 같은 값에 겹칠 수 있어 종류를 이름으로 나눈다. */
+export type FlowInspection =
+  | { readonly kind: 'win'; readonly point: FlowChartPoint }
+  | { readonly kind: 'own'; readonly point: OwnChartPoint };
 
 function sameConditions(a: HistoryRow, b: HistoryRow): boolean {
   return a.itemCodeValueId !== null && a.floorRateText !== null && a.awardMethodCodeValueId != null

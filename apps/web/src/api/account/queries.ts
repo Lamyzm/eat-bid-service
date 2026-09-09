@@ -2,6 +2,17 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 
 import type { ContractRequest } from '../_transport/request-contract';
+import {
+  isAccountForbiddenError,
+  isAccountUnauthenticatedError,
+  isBidObservationsBuildChangedError,
+  isBidObservationsLineageError
+} from './account-resource-error';
+import {
+  bidObservationsIdentity,
+  findMyBidObservationsWith,
+  type MyBidObservationsInput
+} from './find-my-bid-observations';
 import { getCurrentSessionWith } from './get-current-session';
 import { listMyBusinessesWith } from './my-businesses';
 
@@ -18,7 +29,23 @@ const accountQueryKeys = {
   workspace: (principalId: string, workspaceId: string) =>
     [...accountQueryKeys.privateRoot(), principalId, workspaceId] as const,
   businesses: (principalId: string, workspaceId: string) =>
-    [...accountQueryKeys.workspace(principalId, workspaceId), 'businesses'] as const
+    [...accountQueryKeys.workspace(principalId, workspaceId), 'businesses'] as const,
+  bidObservations: (
+    principalId: string,
+    workspaceId: string,
+    businessId: string,
+    organizationId: string,
+    buildId: string,
+    attempts: string
+  ) =>
+    [
+      ...accountQueryKeys.workspace(principalId, workspaceId),
+      'bid-observations',
+      businessId,
+      organizationId,
+      buildId,
+      attempts
+    ] as const
 };
 
 export interface PrivateWorkspaceScope {
@@ -51,6 +78,30 @@ export function createAccountQueries(request: ContractRequest) {
       return queryOptions({
         queryKey: accountQueryKeys.businesses(scope.principalId, scope.workspaceId),
         queryFn: ({ signal }) => listMyBusinessesWith(request, { signal })
+      });
+    },
+    /**
+     * 개인 하위 트리 아래라 계정 전환·로그아웃의 폐기가 그대로 적용된다. build·회차 집합이 key라 build 전환
+     * 뒤 옛 응답을 새 표 위에 겹칠 수 없고, 늦게 도착한 이전 build 응답은 이미 버린 항목에만 닿는다.
+     */
+    bidObservations(scope: PrivateWorkspaceScope, input: Omit<MyBidObservationsInput, 'signal'>) {
+      return queryOptions({
+        queryKey: accountQueryKeys.bidObservations(
+          scope.principalId,
+          scope.workspaceId,
+          input.businessId,
+          input.organizationId,
+          input.buildId,
+          bidObservationsIdentity(input.attempts)
+        ),
+        queryFn: ({ signal }) => findMyBidObservationsWith(request, { ...input, signal }),
+        // 전환·권한·계보 오류는 재시도로 풀리지 않는다. 자동 재시도가 복구 안내를 몇 초 늦추면 안 된다.
+        retry: (count, error) =>
+          count < 1 &&
+          !isBidObservationsBuildChangedError(error) &&
+          !isBidObservationsLineageError(error) &&
+          !isAccountUnauthenticatedError(error) &&
+          !isAccountForbiddenError(error)
       });
     }
   };

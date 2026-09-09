@@ -57,6 +57,56 @@ class AccountDependencyUnavailableError extends Error {
   }
 }
 
+/**
+ * 내 투찰 조회는 요청을 고쳐서 풀리는 실패와 목록 전체를 다시 읽어야 하는 실패를 나눈다. 409는 후자이며
+ * 자동 재시도로 풀리지 않는다 — 회차 이력과 같은 새 build를 읽는 복구 경로가 답이다(ADR 0034).
+ */
+class BidObservationsBuildChangedError extends Error {
+  readonly name = 'BidObservationsBuildChangedError';
+
+  constructor(cause: unknown) {
+    super('자료 기준이 바뀌어 내 투찰을 다시 불러와야 합니다.', { cause });
+  }
+}
+
+class BidObservationsRejectedError extends Error {
+  readonly name = 'BidObservationsRejectedError';
+
+  constructor(cause: unknown) {
+    super('요청한 회차 조합을 이 자료 기준에서 찾지 못했습니다.', { cause });
+  }
+}
+
+/** 응답 계보가 요청과 다르면 표와 점이 서로 다른 계보를 한 응답처럼 보이게 된다. 서버 결함이라 재시도하지 않는다. */
+class BidObservationsLineageError extends Error {
+  readonly name = 'BidObservationsLineageError';
+
+  constructor(readonly lineage: { readonly requested: Record<string, string>; readonly received: Record<string, string | null> }) {
+    super('내 투찰 응답의 자료 기준이 요청과 다릅니다.');
+  }
+}
+
+export function mapBidObservationsError(request: ContractRequest, error: unknown): unknown {
+  if (!request.isProblem(error)) return error;
+  if (error.status === 409) return new BidObservationsBuildChangedError(error);
+  if (error.status === 400) return new BidObservationsRejectedError(error);
+  return mapAccountResourceError(request, error);
+}
+
+export function isBidObservationsBuildChangedError(error: unknown): error is BidObservationsBuildChangedError {
+  return error instanceof BidObservationsBuildChangedError;
+}
+
+export function isBidObservationsRejectedError(error: unknown): error is BidObservationsRejectedError {
+  return error instanceof BidObservationsRejectedError;
+}
+
+export function isBidObservationsLineageError(error: unknown): error is BidObservationsLineageError {
+  return error instanceof BidObservationsLineageError;
+}
+
+export { BidObservationsLineageError };
+
 export function mapAccountResourceError(request: ContractRequest, error: unknown): unknown {
   if (!request.isProblem(error)) return error;
   if (error.status === 401) return new AccountUnauthenticatedError(error);

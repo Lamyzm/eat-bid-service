@@ -6,7 +6,7 @@ import type {
   OrganizationAuctionAttemptsV1Response
 } from '@eatbid/contracts/api/v1/organizations';
 
-import { formatWon, toMilli, toMilliCeiling } from './bid-rate';
+import { amountText, toMilli, toMilliCeiling } from './bid-rate';
 
 export type HistoryRow = {
   readonly attemptId: string;
@@ -104,14 +104,6 @@ function openedKstDay(attempt: OrganizationAuctionAttempt): number {
 function openedMonth(attempt: OrganizationAuctionAttempt): string {
   const zoned = Temporal.Instant.from(attempt.openedAt ?? attempt.announcedAt).toZonedDateTimeISO('Asia/Seoul');
   return `${zoned.year}-${pad2(zoned.month)}`;
-}
-
-// 기초금액 wire는 소수 둘째 자리까지 실린다. 소수부가 0이면 볼 이유가 없는 정밀도라 생략하고, 0이
-// 아니면 관측된 값 그대로 보인다(present-decision.ts와 같은 규칙).
-export function amountText(amount: string): string {
-  const [whole, fraction = ''] = amount.split('.');
-  const padded = (fraction + '00').slice(0, 2);
-  return padded === '00' ? formatWon(whole) : `${formatWon(whole)}.${padded}`;
 }
 
 function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | null): HistoryRow {
