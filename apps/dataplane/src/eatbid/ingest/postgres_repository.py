@@ -166,34 +166,57 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
                 )
                 if status == "planned":
                     return None
-                cursor.execute(
-                    """
-                    select o.observation_id, o.http_status, o.content_sha256,
-                           o.fetched_at, b.object_key
-                    from ingest.raw_observation o
-                    join ingest.raw_blob b using (content_sha256)
-                    where o.request_unit_id = %s and o.run_id = %s
-                    """,
-                    (request.request_unit_id, request.run_id),
-                )
-                rows = cursor.fetchall()
-                # 왜 응답 body를 대조하지 않나. 2026-09-03 실측에서 eaT 상세 응답은 마감까지 남은
-                # 시간을 실어 보내 매 호출마다 바이트가 다르다. byte 동일성을 요구하면 전송 오류
-                # 한 번으로 그 공고가 run 안에서 영구히 막힌다. 계획된 요청 하나는 run 안에서 한 번
-                # 관측되며, 재호출은 세계를 다시 관측하는 것이 아니라 운영상의 재시도다. 세계를 다시
-                # 관측하려면 새 run이 요청을 다시 계획해야 한다. 요청 동일성은 params hash가 이미
-                # 위에서 검증했다.
-                if len(rows) != 1:
-                    raise PlannedRequestMismatchError(
-                        "detail request unit must have exactly one canonical observation"
-                    )
-                row = rows[0]
-                return CapturedObservation(
-                    int(row[0]), str(row[2]), str(row[4]), row[3]
-                )
+                return self._canonical_detail_observation(cursor, request)
         except Exception:
             self.release_capture(request=request)
             raise
+
+    def find_captured_observation(
+        self, *, request: CaptureRequest
+    ) -> CapturedObservation | None:
+        """왜: 같은 run에서 이미 관측한 상세 unit은 소스를 다시 부를 이유가 없다. 실패한 chunk를 다시
+        돌리는 운영 재시도가 이미 받은 건까지 재호출하면 한 달 창이 처음부터가 되고 소스만 한 번 더
+        두드린다(EAT-122). 목록 unit은 append-only 다중 관측이 정상이라 여기서 판단하지 않는다."""
+        if request.endpoint != "bid-detail":
+            return None
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            status = self._lock_and_verify_request(
+                cursor,
+                request=request,
+                params_hash=request_params_sha256(request.params),
+                params=dict(request.params),
+            )
+            if status != "captured":
+                return None
+            return self._canonical_detail_observation(cursor, request)
+
+    @staticmethod
+    def _canonical_detail_observation(
+        cursor: psycopg.Cursor[Any], request: CaptureRequest
+    ) -> CapturedObservation:
+        cursor.execute(
+            """
+            select o.observation_id, o.http_status, o.content_sha256,
+                   o.fetched_at, b.object_key
+            from ingest.raw_observation o
+            join ingest.raw_blob b using (content_sha256)
+            where o.request_unit_id = %s and o.run_id = %s
+            """,
+            (request.request_unit_id, request.run_id),
+        )
+        rows = cursor.fetchall()
+        # 왜 응답 body를 대조하지 않나. 2026-09-03 실측에서 eaT 상세 응답은 마감까지 남은
+        # 시간을 실어 보내 매 호출마다 바이트가 다르다. byte 동일성을 요구하면 전송 오류
+        # 한 번으로 그 공고가 run 안에서 영구히 막힌다. 계획된 요청 하나는 run 안에서 한 번
+        # 관측되며, 재호출은 세계를 다시 관측하는 것이 아니라 운영상의 재시도다. 세계를 다시
+        # 관측하려면 새 run이 요청을 다시 계획해야 한다. 요청 동일성은 params hash가 이미
+        # 검증했다.
+        if len(rows) != 1:
+            raise PlannedRequestMismatchError(
+                "detail request unit must have exactly one canonical observation"
+            )
+        row = rows[0]
+        return CapturedObservation(int(row[0]), str(row[2]), str(row[4]), row[3])
 
     def release_capture(self, *, request: CaptureRequest) -> None:
         if request.endpoint == "bid-detail":

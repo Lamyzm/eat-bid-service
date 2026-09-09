@@ -574,3 +574,56 @@ def test_source_error_body와_실패_status를_원자적으로_commit한다(
     digest = sha256(body).hexdigest()
     assert row == (429, digest, 1, "failed", 1, "failed", "SOURCE_THROTTLED", FETCHED_AT)
     assert services.store.read(f"raw/eat/bid-list/{digest}.xml.gz") == body
+
+
+def test_같은_run의_captured_상세_unit은_소스를_다시_부르지_않고_같은_관측을_돌려준다(
+    pipeline_services: PipelineServices,
+) -> None:
+    services = pipeline_services
+    repository = services.repository
+    run_id = uuid4()
+    repository.start_run(
+        run_id=run_id,
+        mode="poll-open",
+        build_sha=BUILD_SHA,
+        parser_version="eat-v1",
+        started_at=FETCHED_AT,
+        expected_count=1,
+    )
+    planned = repository.plan_request_unit(
+        run_id=run_id,
+        source="eat",
+        endpoint="bid-detail",
+        params={"ELCTRN_BID_ID": "5610615"},
+        expected_count=1,
+    )
+    request = CaptureRequest(
+        request_unit_id=planned.request_unit_id,
+        run_id=run_id,
+        source="eat",
+        endpoint="bid-detail",
+        params=planned.params,
+    )
+    first_client = StaticSourceClient(
+        SourceResponse(200, b"<result>first</result>", FETCHED_AT)
+    )
+    first = capture(request, services.store, repository, first_client)
+
+    # 재시도 시점의 소스는 다른 바이트를 돌려줄 수 있다. 그래도 같은 run의 관측은 하나여야 한다.
+    second_client = StaticSourceClient(
+        SourceResponse(200, b"<result>second</result>", FETCHED_AT)
+    )
+    second = capture(request, services.store, repository, second_client)
+
+    assert second == first
+    assert second_client.requests == []
+    with services.connection.cursor() as cursor:
+        cursor.execute(
+            "select observed_count, status from ingest.request_unit where request_unit_id = %s",
+            (request.request_unit_id,),
+        )
+        assert cursor.fetchone() == (1, "captured")
+        cursor.execute(
+            "select count(*) from ingest.raw_observation where run_id = %s", (run_id,)
+        )
+        assert cursor.fetchone() == (1,)

@@ -63,11 +63,23 @@ class RecordingRepository:
     def reserve_capture(self, **kwargs: object) -> None:
         return None
 
+    def find_captured_observation(self, **kwargs: object) -> CapturedObservation | None:
+        return None
+
     def release_capture(self, **kwargs: object) -> None:
         return None
 
     def fail_run(self, **kwargs: object) -> None:
         raise AssertionError("capture failure must be recorded atomically")
+
+
+class _재개저장소(RecordingRepository):
+    def __init__(self, existing: CapturedObservation) -> None:
+        super().__init__()
+        self.existing = existing
+
+    def find_captured_observation(self, **kwargs: object) -> CapturedObservation | None:
+        return self.existing
 
 
 class _해제실패저장소(RecordingRepository):
@@ -106,6 +118,18 @@ def test_capture가_observation_기록_전에_body를_보관한다() -> None:
 
     assert events == ["object_stored", "observation_recorded"]
     assert result.observation_id == 1
+
+
+def test_같은_run에서_이미_관측한_상세는_소스를_부르지_않고_기존_관측을_돌려준다() -> None:
+    existing = CapturedObservation(7, "a" * 64, "raw/eat/bid-detail/x", FETCHED_AT)
+    repository = _재개저장소(existing)
+    client = StaticSourceClient(SourceResponse(200, b"new body", FETCHED_AT))
+
+    result = capture(capture_request(), MemoryRawObjectStore(), repository, client)
+
+    assert result is existing
+    assert client.requests == []
+    assert repository.records == []
 
 
 def test_canonical_재시도_unlock_실패는_성공을_보고하지_않고_secret을_숨긴다() -> None:

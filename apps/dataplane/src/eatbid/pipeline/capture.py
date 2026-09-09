@@ -40,6 +40,12 @@ def capture(
     repository: IngestRepository,
     client: SourceClient,
 ) -> CapturedObservation:
+    # 왜 fetch 전에 ledger를 보나. 실패한 chunk를 다시 돌리는 재시도는 세계를 다시 관측하는 것이
+    # 아니라 못 받은 건을 마저 받는 일이다. 이미 받은 건까지 다시 부르면 재시도 비용이 chunk 전체가
+    # 되고, 응답 뒤의 reserve가 어차피 기존 관측을 돌려주므로 호출만 낭비된다(EAT-122).
+    existing = repository.find_captured_observation(request=request)
+    if existing is not None:
+        return existing
     response = client.fetch(request)
     return capture_response(request, response, store, repository)
 

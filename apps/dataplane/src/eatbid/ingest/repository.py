@@ -93,6 +93,10 @@ class IngestRepository(Protocol):
         content_sha256: str,
     ) -> CapturedObservation | None: ...
 
+    def find_captured_observation(
+        self, *, request: CaptureRequest
+    ) -> CapturedObservation | None: ...
+
     def release_capture(self, *, request: CaptureRequest) -> None: ...
 
     def fail_run(
