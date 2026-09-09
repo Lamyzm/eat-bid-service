@@ -36,6 +36,12 @@ describe('기관 흐름 차트 데이터 경계', () => {
     expect(result.calendar).toHaveLength(3);
   });
 
+  test('낙찰값이 하나도 없어도 개찰일이 있으면 달력을 만들어 own 점만으로 엔진이 설 수 있다', () => {
+    const result = model([row('2', '2026-07-02T00:00:00Z', { winRate: null }), row('1', '2026-07-01T00:00:00Z', { winRate: null })]);
+    expect(result.points).toHaveLength(0);
+    expect(result.calendar).toHaveLength(2);
+  });
+
   test('차트 좌표만 근사 숫자로 바꾸고 원문 비율과 큰 회차 ID를 보존한다', () => {
     const result = model([row('9007199254740993', '2026-07-01T00:00:00Z', { winRate: { value: '101.123', unit: 'percentage-points' } })]);
     expect(result.points[0]?.row.winRateText).toBe('101.123');

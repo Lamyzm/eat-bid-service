@@ -17,6 +17,7 @@ const LIGHT = {
   floor: '#e5484d',
   band: 'rgba(20,154,128,0.55)',
   me: '#2962ff',
+  own: '#b31cbf',
   volume: 'rgba(120,130,125,0.45)',
 } as const;
 const DARK = {
@@ -26,6 +27,7 @@ const DARK = {
   floor: '#f16a67',
   band: 'rgba(76,194,164,0.55)',
   me: '#6f9bff',
+  own: '#e879f9',
   volume: 'rgba(150,160,155,0.45)',
 } as const;
 
@@ -33,8 +35,8 @@ function isToss(): boolean {
   return typeof document !== 'undefined' && document.documentElement.dataset.theme === 'toss';
 }
 
-const TOSS_LIGHT = { ...LIGHT, win: '#3182f6', second: '#9a6b22', me: '#7659c5', volume: 'rgba(141,161,187,0.4)', band: 'rgba(49,130,246,0.3)' };
-const TOSS_DARK = { ...DARK, win: '#76adff', second: '#dbb36e', me: '#bda5ff', volume: 'rgba(141,161,187,0.5)', band: 'rgba(118,173,255,0.3)' };
+const TOSS_LIGHT = { ...LIGHT, win: '#3182f6', second: '#9a6b22', me: '#7659c5', own: '#c74bd6', volume: 'rgba(141,161,187,0.4)', band: 'rgba(49,130,246,0.3)' };
+const TOSS_DARK = { ...DARK, win: '#76adff', second: '#dbb36e', me: '#bda5ff', own: '#e6a0f0', volume: 'rgba(141,161,187,0.5)', band: 'rgba(118,173,255,0.3)' };
 const currentPalette = () => isToss() ? (isDark() ? TOSS_DARK : TOSS_LIGHT) : (isDark() ? DARK : LIGHT);
 
 export const CHART = {
@@ -50,6 +52,8 @@ export const CHART = {
   get band() { return currentPalette().band; },
   /** 사용자 값은 낙찰 계열과 구별되는 강조색을 쓴다. */
   get me() { return currentPalette().me; },
+  /** 실제 제출 점. 사용자 가정 `me`(파랑)·낙찰 `win`과 색이 겹치면 가정과 사실이 같은 색으로 읽힌다. */
+  get own() { return currentPalette().own; },
   /** 참여 수 볼륨 */
   get volume() { return currentPalette().volume; },
 };

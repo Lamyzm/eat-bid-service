@@ -41,7 +41,7 @@ describe('근거 탭', () => {
     expect(screen.getByText('점을 누르면 해당 회차의 참여 기록을 오른쪽에서 볼 수 있어요.')).toBeTruthy();
     // 범례는 계열 토글 버튼이며 그날 하한은 사정률 축 계열이 아니라 범례에도 없다(PDR-0004).
     const toggles = screen.getAllByRole('button', { pressed: true });
-    expect(toggles.map((node) => node.textContent)).toEqual(['━낙찰', '━내 값', '○다른 품목', '▮명단']);
+    expect(toggles.map((node) => node.textContent)).toEqual(['━낙찰', '━내 값', '◆내 투찰', '○다른 품목', '▮명단']);
     // 2등은 시안대로 꺼진 채 시작하지만 범례에는 있어 켤 수 있다.
     expect(screen.getByRole('button', { name: '2등', pressed: false })).toBeTruthy();
     expect(screen.queryByRole('button', { name: '그날 하한' })).toBeNull();

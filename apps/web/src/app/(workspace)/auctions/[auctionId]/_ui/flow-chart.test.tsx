@@ -37,6 +37,19 @@ describe('캔버스 흐름의 접근 가능한 표시와 조작', () => {
     expect(screen.container.querySelector('[data-slot=flow-canvas]')).toBeNull();
   });
 
+  test('낙찰 기록이 없어도 개찰일이 있으면 캔버스 자리를 만들고 낙찰 없음을 문장으로 말한다', () => {
+    const noWins = { ...presentation, rows: presentation.rows.map((row) => ({ ...row, winRateText: null, winRateMilli: null })) };
+    const screen = show(noWins);
+    expect(screen.container.querySelector('[data-slot=flow-canvas]')).not.toBeNull();
+    expect(screen.getByText('선택한 조건의 낙찰 기록이 없습니다.')).toBeTruthy();
+  });
+
+  test('own provider가 없으면 내 투찰 점을 0으로 표시하고 캔버스 조작은 그대로다', () => {
+    const screen = show();
+    expect(screen.getByRole('figure').getAttribute('data-own-points')).toBe('0');
+    expect(screen.getByRole('button', { name: '전체 값' })).toBeTruthy();
+  });
+
   test('차트에는 읽을 값과 조건만 보이고 운영 추적 식별자는 노출하지 않는다', () => {
     const screen = show();
     expect(screen.queryByText('자료 기준')).toBeNull();
