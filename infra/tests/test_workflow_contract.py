@@ -160,10 +160,9 @@ def test_product와_base_render가_kind_구성을_유지한다(
     assert manifests.kinds.count("Application") == 0
     assert manifests.kinds.count("Secret") == 0
 
-    assert base_manifests.kinds.count("CronJob") == 4
-    assert {
-        _metadata(cron_job)["name"] for cron_job in base_manifests.of_kind("CronJob")
-    } == {"daily-refresh", "poll-open-day", "poll-open-off", "poll-open-weekend"}
+    # 크롤링 schedule은 Argo CronWorkflow 하나뿐이다(AGENTS 9). 레거시 CronJob은 base에서도 걷어냈으므로
+    # 삭제 patch 없이 base 자체가 0이어야 한다. 여기가 다시 늘면 스케줄러가 둘로 갈라진 것이다.
+    assert base_manifests.kinds.count("CronJob") == 0
 
 
 def test_live_application은_main의_product_composition을_소비한다() -> None:

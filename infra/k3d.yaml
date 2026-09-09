@@ -52,7 +52,7 @@ ports:
     nodeFilters:
       - loadbalancer
 
-# 레이크 — app.yaml·poll.yaml 의 CronJob 4개가 hostPath: /lake 로 읽고 쓴다.
+# 레이크 — 레거시 CronJob이 hostPath: /lake 로 읽고 썼던 자리다. 지금 수집은 Argo Workflow가 R2로 쓴다.
 #
 # 실측(2026-08-28): F:\Project\eat-bid\data -> /lake (bind, RW)
 #   docker inspect k3d-eatbid-server-0 --format '{{json .Mounts}}'

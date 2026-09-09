@@ -35,12 +35,6 @@ images:
     digest: sha256:efce367150cc509dbbf44be7f9f6782bcc5ae0794fc14bb74fb765de163a3c20
 
 patches:
-  - path: patches/legacy-cronjobs.delete.yaml
-    target:
-      group: batch
-      version: v1
-      kind: CronJob
-      name: daily-refresh|poll-open-day|poll-open-off|poll-open-weekend
   - path: patches/postgres-secret-env.patch.yaml
   - path: patches/server-secret-env.patch.yaml
   - path: patches/web-secret-env.patch.yaml
