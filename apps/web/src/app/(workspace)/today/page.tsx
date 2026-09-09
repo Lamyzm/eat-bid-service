@@ -9,11 +9,13 @@ import { loadTodayPage } from './_model/load-today-page';
 import { TodayScreen } from './_ui/today-screen';
 import { TodayScreenSkeleton } from './_ui/today-screen-skeleton';
 
-type TodayPageSearchParams = PageProps<'/today'>['searchParams'];
+// route 이름은 `app/` 폴더가 소유하고 이 리터럴은 생성된 route 목록을 참조할 뿐이다. 파일 안에서 한 번만
+// 적어 이름이 바뀔 때 고칠 자리도 하나로 둔다.
+type TodayPageProps = PageProps<'/today'>;
 
 const loadTodaySearch = createLoader(todaySearchParsers);
 
-async function TodayLoader({ searchParams }: { readonly searchParams: TodayPageSearchParams }) {
+async function TodayLoader({ searchParams }: { readonly searchParams: TodayPageProps['searchParams'] }) {
   const search = await loadTodaySearch(searchParams);
   const data = await loadTodayPage(search, {
     listOpenAuctions: listOpenAuctionsFromServer,
@@ -25,7 +27,7 @@ async function TodayLoader({ searchParams }: { readonly searchParams: TodayPageS
 
 // searchParams를 page 최상위에서 await하면 static shell이 사라진다(ADR 0028). promise를 Suspense 안 loader에
 // 넘겨 shell은 prerender하고 목록만 request 시점에 streaming한다. fallback은 loading.tsx와 같은 skeleton이다.
-export default function TodayPage({ searchParams }: PageProps<'/today'>) {
+export default function TodayPage({ searchParams }: TodayPageProps) {
   return (
     <Suspense fallback={<TodayScreenSkeleton />}>
       <TodayLoader searchParams={searchParams} />

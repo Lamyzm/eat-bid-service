@@ -12,9 +12,9 @@ import {
 import { SetupScreen } from './_ui/setup-screen';
 import { SetupScreenSkeleton } from './_ui/setup-screen-skeleton';
 
-type SetupSearchParams = PageProps<'/setup'>['searchParams'];
+type SetupPageProps = PageProps<'/setup'>;
 
-async function SetupLoader({ searchParams }: { readonly searchParams: SetupSearchParams }) {
+async function SetupLoader({ searchParams }: { readonly searchParams: SetupPageProps['searchParams'] }) {
   const search = await searchParams;
   const requested = search[RETURN_PATH_PARAMETER];
   // 돌아갈 경로는 화면에 닿기 전에 좁힌다. 검증을 client로 미루면 검증 전 값이 한 번은 렌더 트리에 실린다.
@@ -27,7 +27,7 @@ async function SetupLoader({ searchParams }: { readonly searchParams: SetupSearc
   return <SetupScreen returnPath={returnPath} />;
 }
 
-export default function SetupPage({ searchParams }: PageProps<'/setup'>) {
+export default function SetupPage({ searchParams }: SetupPageProps) {
   return (
     <Suspense fallback={<SetupScreenSkeleton />}>
       <SetupLoader searchParams={searchParams} />

@@ -14,9 +14,9 @@ import {
 import { LoginScreen } from './_ui/login-screen';
 import { LoginScreenSkeleton } from './_ui/login-screen-skeleton';
 
-type LoginSearchParams = PageProps<'/login'>['searchParams'];
+type LoginPageProps = PageProps<'/login'>;
 
-async function LoginLoader({ searchParams }: { readonly searchParams: LoginSearchParams }) {
+async function LoginLoader({ searchParams }: { readonly searchParams: LoginPageProps['searchParams'] }) {
   const search = await searchParams;
   // 돌아갈 경로는 화면에 닿기 전에 좁힌다. 검증을 client로 미루면 검증 전 값이 한 번은 렌더 트리에 실린다.
   const requested = search[RETURN_PATH_PARAMETER];
@@ -39,7 +39,7 @@ async function LoginLoader({ searchParams }: { readonly searchParams: LoginSearc
   );
 }
 
-export default function LoginPage({ searchParams }: PageProps<'/login'>) {
+export default function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <Suspense fallback={<LoginScreenSkeleton />}>
       <LoginLoader searchParams={searchParams} />
