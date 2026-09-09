@@ -177,11 +177,15 @@ test.describe('결정 화면의 실제 내 투찰', () => {
     await firstPage.getByRole('button', { name: '비율 축 확대' }).click();
     const zoomed = await canvas(firstPage).getAttribute('data-price-range');
     expect(zoomed).not.toBe(before);
+    // 후보 버튼에 이전 사업자의 제출이 떠 있는 채로 바꾼다. 새 상태에는 앞 사업자의 비율·금액이 남으면 안 된다.
+    await findDayX(firstPage, /내 투찰 89\.500%/);
+    await expect(candidateButtons(firstPage, /내 투찰/)).toHaveCount(2);
 
     await pickBusiness(firstPage, unobservedNumber);
     await expect(controls(firstPage)).toHaveAttribute('data-own-status', 'unobserved');
     await expect(controls(firstPage)).toContainText('수집 원본에 아직 이 번호가 없어');
     await expect(figure(firstPage)).toHaveAttribute('data-own-points', '0');
+    await expect(candidateButtons(firstPage, /내 투찰/)).toHaveCount(0);
     expect(await canvas(firstPage).getAttribute('data-price-range')).toBe(zoomed);
 
     await pickBusiness(firstPage, observedNumber);
@@ -261,6 +265,9 @@ test.describe('결정 화면의 실제 내 투찰', () => {
 
   test('로그아웃하면 점과 문구가 사라지고 다른 계정은 앞 계정의 점을 보지 못한다', async ({ browser }) => {
     test.setTimeout(120_000);
+    // 후보 버튼에 내 제출이 떠 있는 채로 로그아웃한다. 새 상태에는 앞 계정의 제출이 남으면 안 된다.
+    await findDayX(firstPage, /내 투찰 89\.500%/);
+    await expect(candidateButtons(firstPage, /내 투찰/)).toHaveCount(2);
     // next dev의 issue 배지가 사이드바 바닥의 계정 메뉴를 덮어 포인터 클릭을 가로챈다. 키보드로 같은 경로를 연다.
     await firstPage.getByRole('button', { name: '계정 메뉴' }).focus();
     await firstPage.keyboard.press('Enter');
@@ -270,6 +277,7 @@ test.describe('결정 화면의 실제 내 투찰', () => {
     await firstPage.keyboard.press('Enter');
     await expect(controls(firstPage)).toHaveAttribute('data-own-status', 'signed-out');
     await expect(figure(firstPage)).toHaveAttribute('data-own-points', '0');
+    await expect(candidateButtons(firstPage, /내 투찰/)).toHaveCount(0);
 
     const secondContext = await signedInContext(browser, requiredEnvironment('EATBID_E2E_SESSION_COOKIE_SECOND'));
     await registerViaApi(secondContext, [unobservedNumber]);

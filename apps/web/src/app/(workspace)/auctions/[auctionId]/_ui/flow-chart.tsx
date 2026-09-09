@@ -75,6 +75,10 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
   useEffect(() => { controller.current?.select(selection?.row?.attemptId); }, [selection?.row?.attemptId]);
   // own 계열만 갈아 끼운다. 캔버스를 다시 만들거나 범위를 되돌리지 않으므로 사용자의 확대·선택이 유지된다.
   useEffect(() => { controller.current?.setOwnSubmissions(ownPoints); }, [ownPoints]);
+  // 후보 버튼은 현재 점 집합에 있는 제출만 보인다. 사업자·계정이 바뀌면 이전 제출의 비율·금액이 담긴 버튼이
+  // 다음 crosshair 이벤트까지 남는데, 그것은 앞 사람의 개인 자료다. 낙찰 후보는 공개 사실이라 그대로 둔다.
+  const ownSubmissionIds = new Set(ownPoints.map((point) => point.submissionId));
+  const visibleInspection = inspection.filter((item) => item.kind === 'win' || ownSubmissionIds.has(item.point.submissionId));
 
   return (
     <figure className='m-0 flex min-h-0 flex-col gap-2' aria-label='회차별 낙찰률 흐름' data-own-points={ownPoints.length}>
@@ -92,9 +96,9 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
         </>
       )}
       <div className='min-h-8 text-xs text-muted-foreground' aria-live='polite'>
-        {inspection.length ? (
+        {visibleInspection.length ? (
           <div className='flex flex-wrap gap-1'>
-            {inspection.map((item) => (
+            {visibleInspection.map((item) => (
               <InspectionButton
                 key={item.kind === 'win' ? `win:${item.point.row.attemptId}` : `own:${item.point.submissionId}`}
                 item={item}
