@@ -1,10 +1,8 @@
 /** @module 책임: 등록 사업자 응답을 화면 문구로 옮기고 입력 사업자번호를 계약 command로 검증한다. */
 import { registerMyBusinessCommandSchema, type RegisteredBusiness } from '@eatbid/contracts/api/v1/me';
 
-/** 사람이 읽는 표기다. 저장·조회·관계는 canonical 숫자 열 자리를 그대로 쓴다. */
-export function businessNumberDisplay(businessNumber: string): string {
-  return `${businessNumber.slice(0, 3)}-${businessNumber.slice(3, 5)}-${businessNumber.slice(5)}`;
-}
+// 표기 규칙은 결정 화면의 내 투찰 선택도 같이 쓰므로 shared에 하나만 둔다. 이 route의 소비자는 그대로 둔다.
+export { businessNumberDisplay } from '@/shared/lib/business-number-display';
 
 /**
  * "아직 원본에서 관측되지 않았다"를 "참여 기록이 없다"로 바꿔 말하지 않는다. 자료 없음과 미참여는 다른

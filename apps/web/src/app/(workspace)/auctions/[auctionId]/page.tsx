@@ -14,6 +14,7 @@ import { decisionSearchParsers } from './_lib/decision-search-params';
 import { loadAuctionPage } from './_model/load-auction-page';
 import { DecisionScreen } from './_ui/decision-screen';
 import { DecisionScreenSkeleton } from './_ui/decision-screen-skeleton';
+import { OwnBidProvider } from './_ui/own-bid/own-bid-provider';
 
 type AuctionPageParams = PageProps<'/auctions/[auctionId]'>['params'];
 type AuctionPageSearchParams = PageProps<'/auctions/[auctionId]'>['searchParams'];
@@ -39,13 +40,22 @@ async function AuctionLoader({
   });
 
   if (!data) notFound();
+  // 내 투찰은 로그인 사용자의 개인 자료라 RSC 캐시 밖의 브라우저 provider가 조립한다. 차트가 그리는 첫 페이지
+  // 표본과 같은 build를 넘겨 표와 점이 같은 계보를 말하게 한다. DecisionScreen 자체는 모른다.
+  const sample = data.history.state === 'ready' ? data.history.presentation : null;
   return (
-    <DecisionScreen
-      decision={data.decision}
-      search={search}
-      history={data.history}
-      distribution={data.distribution}
-    />
+    <OwnBidProvider
+      organizationId={sample?.organizationId ?? null}
+      buildId={sample?.buildId ?? null}
+      rows={sample?.rows ?? []}
+    >
+      <DecisionScreen
+        decision={data.decision}
+        search={search}
+        history={data.history}
+        distribution={data.distribution}
+      />
+    </OwnBidProvider>
   );
 }
 

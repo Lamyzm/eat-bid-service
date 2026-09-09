@@ -1,5 +1,6 @@
 /** @module 책임: 공고 분석의 흐름·분포 전환과 범례를 조립하고 URL 조건에 맞는 본문과 확대 동작을 연결한다. */
 import Link from 'next/link';
+import { Suspense } from 'react';
 
 import {
   DECISION_VIEWS,
@@ -16,6 +17,7 @@ import { FlowLegend } from './flow-legend';
 import { MyRateInput } from './my-rate-input';
 import { OrderBook } from './order-book';
 import { OrderBookSummary } from './order-book-summary';
+import { OwnBidControls } from './own-bid/own-bid-controls';
 
 type HistoryState = DecisionPageData['history'];
 type DistributionState = DecisionPageData['distribution'];
@@ -67,9 +69,27 @@ export function PendingBody({ reason, label = '수집 전' }: { readonly reason:
 
 // 흐름 차트의 내 값 선은 호가창과 같은 사정률 값(URL `myRate`)을 쓴다. 두 탭이 다른 "내 값"을 그리면
 // 사용자가 같은 줄을 두 번 놓아야 한다(PDR-0004).
-function FlowBody({ history, myRate, focus }: { readonly history: HistoryState; readonly myRate: string | null; readonly focus: boolean }) {
+function FlowBody({
+  auctionId,
+  search,
+  history,
+  focus
+}: {
+  readonly auctionId: string;
+  readonly search: DecisionSearch;
+  readonly history: HistoryState;
+  readonly focus: boolean;
+}) {
   if (history.state !== 'ready') return <PendingBody reason={HISTORY_PENDING_REASON[history.state]} />;
-  return <FlowChart presentation={history.presentation} myRate={myRate} focus={focus} />;
+  return (
+    <>
+      {/* 컨트롤은 현재 경로를 읽어 로그인·설정 복귀 링크를 만든다. usePathname은 static shell 생성 중 suspend하므로 leaf로 내린다(ADR 0028). */}
+      <Suspense fallback={null}>
+        <OwnBidControls auctionId={auctionId} search={search} />
+      </Suspense>
+      <FlowChart presentation={history.presentation} myRate={search.myRate} focus={focus} />
+    </>
+  );
 }
 
 function CohortBody({
@@ -140,7 +160,7 @@ export function EvidenceTabs({
       {active === '비교집단' ? (
         <CohortBody auctionId={auctionId} search={search} distribution={distribution} />
       ) : (
-        <FlowBody history={history} myRate={search.myRate} focus={search.expand === '흐름'} />
+        <FlowBody auctionId={auctionId} search={search} history={history} focus={search.expand === '흐름'} />
       )}
     </div>
   );
