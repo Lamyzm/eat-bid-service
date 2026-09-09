@@ -1,5 +1,5 @@
 /** @module 책임: 오늘 화면 필터(지역·품목·기간·기초금액·cursor)를 URL search param으로 보존하는 nuqs parser와 필터 링크 빌더를 한 곳에서 소유한다. page.tsx의 Suspense loader가 서버에서 `createLoader`로 이 parser를 실행하므로 client 전용 'nuqs'가 아니라 'nuqs/server'에서 가져온다. */
-import { parseAsInteger, parseAsString } from 'nuqs/server';
+import { createSerializer, parseAsInteger, parseAsString, type inferParserType } from 'nuqs/server';
 
 // 형식 검증(양의 정수 id, 소수 둘째 자리 금액, 1..720시간)은 여기서 하지 않는다. `_model/load-today-page.ts`의
 // loader가 계약 schema로 조회 직전에 걸러 무효 값을 null로 다루고, 네트워크 호출 전에 무효 요청을 없앤다.
@@ -12,14 +12,8 @@ export const todaySearchParsers = {
   cursor: parseAsString
 };
 
-export type TodaySearch = {
-  readonly region: string | null;
-  readonly item: string | null;
-  readonly closesWithinHours: number | null;
-  readonly baseAmountMin: string | null;
-  readonly baseAmountMax: string | null;
-  readonly cursor: string | null;
-};
+/** 조건의 이름과 타입은 위 parser 선언이 소유한다. 여기서 같은 목록을 다시 적으면 둘이 조용히 어긋난다. */
+export type TodaySearch = Readonly<inferParserType<typeof todaySearchParsers>>;
 
 export const EMPTY_TODAY_SEARCH: TodaySearch = {
   region: null,
@@ -48,20 +42,20 @@ export const BASE_AMOUNT_PRESETS = [
 export type TodayRoute = '/today' | `/today?${string}`;
 
 /**
+ * 링크를 만드는 쪽도 주소를 읽는 쪽과 같은 parser를 쓴다. 조건 이름과 인코딩 규칙을 여기서 다시 적으면
+ * 이름 하나를 바꿀 때 읽기와 쓰기가 조용히 어긋난다(같은 이유로 `TodaySearch`도 parser에서 파생한다).
+ */
+const serializeTodaySearch = createSerializer(todaySearchParsers);
+
+/**
  * 필터 링크. `UrlObject`는 typedRoutes 검사를 받지 않으므로 typed template literal로 만든다. 값이 없는
- * 조건은 주소에 남기지 않는다. 필터가 바뀌면 cursor는 의미를 잃으므로 호출자가 cursor를 null로 넘긴다 —
+ * 조건은 serializer가 주소에서 뺀다. 필터가 바뀌면 cursor는 의미를 잃으므로 호출자가 cursor를 null로 넘긴다 —
  * 여기서 조용히 지우면 "다음 페이지" 링크도 cursor를 잃는다.
  */
 export function buildTodayRoute(search: TodaySearch): TodayRoute {
-  const query = new URLSearchParams();
-  if (search.region !== null) query.set('region', search.region);
-  if (search.item !== null) query.set('item', search.item);
-  if (search.closesWithinHours !== null) query.set('closesWithinHours', String(search.closesWithinHours));
-  if (search.baseAmountMin !== null) query.set('baseAmountMin', search.baseAmountMin);
-  if (search.baseAmountMax !== null) query.set('baseAmountMax', search.baseAmountMax);
-  if (search.cursor !== null) query.set('cursor', search.cursor);
-  const encoded = query.toString();
-  return encoded === '' ? '/today' : `/today?${encoded}`;
+  // serializer는 `?`까지 붙인 검색 문자열을 준다. `/today?${string}` 형태를 유지하려고 앞의 `?`만 떼어 낸다.
+  const query = serializeTodaySearch(search).replace(/^\?/, '');
+  return query === '' ? '/today' : `/today?${query}`;
 }
 
 /** 조건 하나를 바꾸는 링크는 다른 조건을 지우지 않되 cursor만 되돌린다. */

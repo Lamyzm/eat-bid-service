@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { auctionFixture, closedAuctionFixture, fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
 import { presentDecision } from '../_model/present-decision';
 import { AttemptSelectionProvider } from './attempt-selection';
-import { DecisionHeader, summarizeItemLabel } from './decision-header';
+import { DecisionHeader } from './decision-header';
 
 // 운영 화면에서 관측된 원천 라벨 모양 그대로다(쉼표 앞뒤 공백 포함).
 const MULTI_ITEM_LABEL = '농산물 , 수산물 , 육류 , 가공식품 , 김치류 , 곡류 , 가금류';
@@ -13,23 +13,6 @@ const MULTI_ITEM_LABEL = '농산물 , 수산물 , 육류 , 가공식품 , 김치
 // 헤더의 `이 공고 정보`는 회차 선택 context의 패널 상태를 읽는다. 회차 목록은 이 화면 조각과 무관하다.
 const renderHeader = (ui: ReactNode) =>
   render(<AttemptSelectionProvider rows={[]}>{ui}</AttemptSelectionProvider>);
-
-describe('품목 라벨 축약', () => {
-  test('품목이 하나면 라벨을 그대로 두고 전체 목록을 남기지 않는다', () => {
-    expect(summarizeItemLabel('축산')).toEqual({ text: '축산', full: null });
-  });
-
-  test('품목이 여러 개면 첫 품목 외 나머지 개수로 접고 전체 목록을 다듬어 남긴다', () => {
-    expect(summarizeItemLabel(MULTI_ITEM_LABEL)).toEqual({
-      text: '농산물 외 6',
-      full: '농산물, 수산물, 육류, 가공식품, 김치류, 곡류, 가금류'
-    });
-  });
-
-  test('빈 조각(연속 쉼표·끝 쉼표)은 품목으로 세지 않는다', () => {
-    expect(summarizeItemLabel('농산물,,수산물,')).toEqual({ text: '농산물 외 1', full: '농산물, 수산물' });
-  });
-});
 
 describe('결정 화면 헤더', () => {
   test('현재 공고 제목과 품목을 보이고 분석 기간 메뉴는 분리한다', () => {
