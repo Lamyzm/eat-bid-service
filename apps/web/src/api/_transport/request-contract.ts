@@ -9,11 +9,13 @@ import {
 } from '@eatbid/contracts/api';
 import { parseApiOrigin } from './api-origin';
 import { ContractResponseError, HttpProblemError, HttpStatusError } from './http-problem';
+import {
+  sendWithResilience,
+  type FetchImplementation,
+  type TransportResilience
+} from './request-resilience';
 
-export type FetchImplementation = (
-  input: RequestInfo | URL,
-  init?: RequestInit
-) => Promise<Response>;
+export type { FetchImplementation };
 
 export interface ContractRequest {
   <Operation extends PublicHttpOperation>(input: {
@@ -29,6 +31,8 @@ export interface ContractRequest {
 export interface ContractRequestOptions {
   readonly fetch: FetchImplementation;
   readonly resolveOrigin?: () => string | undefined;
+  /** 생략하면 시간 제한도 재시도도 없다. 조립 지점이 자기 예산을 명시할 때만 전송에 얹는다. */
+  readonly resilience?: TransportResilience;
 }
 
 const safeRequestIdPattern = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -56,6 +60,11 @@ function requestTarget(relativePath: string, resolveOrigin?: () => string | unde
 function requestBody(operation: PublicHttpOperation, body: unknown): BodyInit | undefined {
   const parsed = operation.bodySchema.parse(body);
   return parsed === undefined ? undefined : JSON.stringify(parsed);
+}
+
+function requestHeaders(body: BodyInit | undefined): Record<string, string> {
+  const accept = 'application/json, application/problem+json';
+  return body === undefined ? { accept } : { accept, 'content-type': 'application/json' };
 }
 
 async function parseSuccess<Operation extends PublicHttpOperation>(
@@ -100,17 +109,14 @@ export function createContractRequest(options: ContractRequestOptions): Contract
     }): Promise<OperationSuccess<Operation>> => {
       const relativePath = input.operation.buildPath({ path: input.path, query: input.query });
       const body = requestBody(input.operation, input.body);
-      const response = await options.fetch(requestTarget(relativePath, options.resolveOrigin), {
+      const response = await sendWithResilience({
+        fetch: options.fetch,
+        target: requestTarget(relativePath, options.resolveOrigin),
         method: input.operation.method.toUpperCase(),
-        headers:
-          body === undefined
-            ? { accept: 'application/json, application/problem+json' }
-            : {
-                accept: 'application/json, application/problem+json',
-                'content-type': 'application/json'
-              },
+        headers: requestHeaders(body),
         body,
-        signal: input.signal
+        signal: input.signal,
+        resilience: options.resilience
       });
       return response.ok
         ? parseSuccess(input.operation, response)

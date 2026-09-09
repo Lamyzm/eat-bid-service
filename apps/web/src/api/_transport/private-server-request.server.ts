@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 
 import { readServerApiOrigin } from './api-origin';
 import { createContractRequest } from './request-contract';
+import { transportResilience } from './request-resilience';
 
 /**
  * provider가 소유한 쿠키 이름만 전달한다. 요청 헤더 전체를 relay하면 내부 origin 호출에 사용자 헤더가
@@ -41,5 +42,6 @@ export const privateServerRequest = createContractRequest({
       headers: cookie === undefined ? init?.headers : { ...init?.headers, cookie }
     });
   },
-  resolveOrigin: () => readServerApiOrigin(process.env)
+  resolveOrigin: () => readServerApiOrigin(process.env),
+  resilience: transportResilience.privateServerRead
 });
