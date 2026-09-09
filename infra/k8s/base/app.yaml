@@ -65,10 +65,6 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - { name: DATABASE_URL, value: "postgres://eatbid:eatbid@postgres:5432/eatbid" }
-            # 공유 토큰 서명 키 — placeholder: 리더가 실값 주입 (k8s Secret 권장)
-            - name: EATBID_SHARE_SECRET
-              valueFrom:
-                secretKeyRef: { name: eatbid-share, key: EATBID_SHARE_SECRET }
             # Better Auth — Secret eatbid-auth 에 리더가 실값 주입
             # kubectl -n eatbid create secret generic eatbid-auth             #   --from-literal=BETTER_AUTH_SECRET=... --from-literal=GOOGLE_CLIENT_ID=...             #   --from-literal=GOOGLE_CLIENT_SECRET=...
             # ⚠ optional: true 를 뗐다. 그게 조용한 실패였다 —
@@ -124,10 +120,11 @@ spec:
           env:
             - { name: API_URL, value: "http://server" }
           ports: [{ containerPort: 3000 }]
-          # 스타터 데모 라우트(/dashboard/overview)를 가리키고 있었다. 그 라우트를 지우면
-          # 파드가 영영 Ready 가 안 되는데 원인이 커밋 diff 에 안 보인다 — 잔재 삭제의 전제.
+          # probe 경로는 실제 Next page 라우트여야 한다. 라우트를 지우면 파드가 영영 Ready가 안 되는데
+          # 원인이 커밋 diff에 안 보인다(2026-09-09 `/dashboard/today` 삭제, EAT-126).
+          # `infra/tests/test_server_health_probes.py`가 이 경로를 `apps/web/src/app`과 대조한다.
           readinessProbe:
-            httpGet: { path: /dashboard/today, port: 3000 }
+            httpGet: { path: /today, port: 3000 }
             periodSeconds: 10
             timeoutSeconds: 5
 ---
