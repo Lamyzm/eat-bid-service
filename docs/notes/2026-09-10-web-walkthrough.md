@@ -125,13 +125,60 @@ PageProps<'/today'>` 하나로 줄이면 파일당 한 번이 된다. `login`·`
 - poll-open `*/30 8-19 평일`, Forbid, 실행 3~5분, 소스 동시 호출 1. 신규 공고 하루 60→86→106→133건(최근 4영업일). 최대 지연 35분.
 - 제안: 업무시간 10분 주기(상세는 신규·변경만이라 비용은 목록 몇 장), 헤더에 수집 시각 표시, SLO "신규 공고 노출 15분 이내"를 runtime 문서 §2와 CronWorkflow에 같이 반영.
 
+## 5-1. 이 훑기에서 답한 질문 (다시 파헤치지 않기 위해)
+
+- **`__fixtures__/open-auctions.ts`는 왜 있나.** 테스트 전용 예시다. production import는 없다(확인함). 값이 계약
+  응답 타입으로 선언돼 있어 계약이 바뀌면 화면 테스트보다 fixture가 먼저 컴파일에서 깨진다. 표시 변환·로더·
+  화면·표 네 테스트가 같은 예시를 공유한다. 다만 `app/` 세그먼트 규칙이 정한 폴더(`_model`/`_ui`/`_lib`)에
+  `__fixtures__`는 없다. 관례로만 있으니 이름을 규칙에 맞추거나 apps/web AGENTS에 한 줄을 넣어야 한다.
+- **표시 model이 왜 따로인가.** 계약은 없음과 단위를 정직하게 말해야 하고(`floorRate: {value, unit} | null`,
+  `baseAmount: {amount, currency} | null`), 화면은 그 셋을 서로 다른 한국어("미확인"·"개찰 회차 없음"·
+  "낙찰 미관측")로 말해야 한다. 서버가 문자열을 내려주면 API가 화면 전용이 되고 단위가 사라진다(AGENTS 15).
+  컴포넌트에서 바로 포맷하면 "색만으로 말하지 않는다" 같은 규칙이 JSX에 흩어지고 자정 경계를 렌더 없이
+  검증할 수 없다. 층이 과한 게 아니라 그 층 안의 중복(KST·천 단위·기관 요약 포맷)이 과하다.
+- **API 흐름.** 계약 하나에서 서버와 웹이 파생한다. `operations.ts`의 `defineOperation`이 경로·쿼리·상태별
+  응답을 소유하고 `buildPath`가 `/api/v1/auctions?limit=50&state=open`을 만든다. Nest는 `handlerPath`·
+  `querySchema`·`successResponses`를 그대로 decorator에 쓴다. 웹은 `_transport/request-contract.ts`가 같은
+  operation으로 URL을 만들고 응답을 `safeParse`한다. 전송 조립은 셋(서버 절대 origin, 개인 쿠키+no-store,
+  브라우저 상대 경로)이고 자원 함수(`listOpenAuctionsWith`)는 전송을 인자로 받아 한 벌이다. 진입은 둘이다.
+  `server.ts`는 `use cache`+태그로 감싸고 예상 실패를 값으로 돌려주며, `index.ts`는 브라우저 전송을 끼운
+  TanStack 표면이다. 캐시를 지우는 쪽은 dataplane → `/internal/cache/revalidate` 하나다.
+
 ## 6. 열어 둔 issue
+
+### 이미 처리됨 (다시 열지 말 것)
+
+- **EAT-135 merged** — page의 route 리터럴 중복을 파일당 한 번으로. `redirect`가 검사 밖이라는 진단은 틀렸고 취소.
+- **EAT-136 merged** — 오늘 표를 server component로(표 라이브러리 제거·열 서술 하나·"내 기록" 열 제거),
+  목록 상태를 `view` union으로, 빈 상태 공용 컴포넌트, 품목 라벨 축약 한 곳, `buildTodayRoute`를
+  nuqs serializer로. 링크의 한글은 이제 인코딩 전 형태이며 브라우저가 요청 시 인코딩한다.
+
+### 진행 중인 issue
 
 - EAT-133 의미 값 SSOT(domain 9개 삭제·시간 규칙·KST·milli 연산·scale/통화 JSON·CronWorkflow 시간대 테스트)
 - EAT-134 lint 이관(`pnpm lint`·권고형 file-size·검사 카탈로그)
 - EAT-124 운영 뷰(ADR 먼저, Backlog)
-- (미발행) web 읽기 경로 정합과 부하 목표 / 수집 주기 10분 / web 잔재(UI 두 벌·명령 검색·404·테마는 유지) / `/today` 클라이언트 필터링·내 기록 열
 
-## 7. 다음에 볼 것
+## 7. 아직 발행하지 않은 고칠 것 (범위 산정)
 
-`/today` 나머지 파일(`present-open-auctions.ts`, `today-search-params.ts`, `open-auction-table.tsx`, `today-filters.tsx`) → `/auctions/[auctionId]` → `/login`·`/setup` → `shell`·`components`·`shared` → `api/` 층 → `packages/contracts`.
+훑기가 끝난 뒤 issue로 발행해 서브에이전트에게 넘긴다. 규모는 서브에이전트 한 세션 기준이다.
+
+| # | 고칠 것 | 대상 | 규모 | 선행·위험 |
+| --- | --- | --- | --- | --- |
+| 1 | 로그인 게이트를 실제로 건다 | `proxy.ts`, Nest guard 확인, 앱 route `noindex`, ADR 0032 한 절 | 중 | 정책과 현재 상태가 어긋나 가장 급함. 세션 확인이 요청마다 DB를 치지 않게 cookie cache와 같이 본다 |
+| 2 | 서버 fetch에 timeout·retry (ky 도입) | `_transport` 3개 조립점, `request-contract.ts` 주입 유지 | 중 | Next가 감싼 fetch를 늦은 바인딩으로 유지해야 캐시·계측이 죽지 않는다. `use cache` 안 재시도는 예산 안에서 |
+| 3 | 서버가 읽은 세션을 브라우저가 다시 읽지 않게 | `/setup`·AccountHub·`shell/providers`, `HydrationBoundary` 도입 | 중 | 왕복 셋 → 하나. 명단 패널은 `(공고, revision)` 키 캐시를 Nest 쪽에 |
+| 4 | 부하 목표를 숫자로 | k6 300명·1만 명 프로필, p95·DB QPS | 중 | 2·3 뒤에 측정해야 의미가 있다. CF B안 판단 근거 |
+| 5 | 수집 주기 10분 + 화면에 수집 시각 | `poll-open` CronWorkflow, runtime 문서 §2, 오늘 헤더 | 소 | 상세는 신규·변경만이라 비용은 목록 몇 장 |
+| 6 | 시간·KST·표시 형식 중복 제거 | `Asia/Seoul` 9곳, `pad2`·천 단위 헬퍼, `read-cache-life` 초 값 | 중 | EAT-133에 흡수. 도메인이 KST 달력을 소유 |
+| 7 | 결정 화면 이력 표도 표 라이브러리 제거 판단 | `history-table.tsx`(`columnVisibility` 하나만 사용) | 소 | 제거하면 `@tanstack/react-table` 의존성 자체가 빠진다. 결정 화면 훑을 때 확정 |
+| 8 | 지역 라벨 `코드 4` | API `region.*.label`이 null인 원인(관측 없음 vs 미탑재) | 미정 | 지역 어휘 계약이 필요. 사용자 보류 지시 |
+| 9 | 404 영문 스타터 문구 | `app/not-found.tsx` | 소 | 규칙 21 |
+| 10 | 명령 검색(Cmd+K) 정리 | `shell` 명령 팔레트 180줄, 항목 2개+테마 | 소 | 남길지 결정 필요. dock·테마 12종은 유지 |
+| 11 | 미사용 client query factory | `api/*/queries.ts` 일부, index 재수출 | 소 | 대칭으로 만든 죽은 표면 |
+| 12 | `__fixtures__` 폴더 규칙 | 이름 또는 apps/web AGENTS 한 줄 | 소 | 결정만 하면 끝 |
+| 13 | 오늘 클라이언트 필터링·누적 페이징 | `today` 진입 설계와 함께 | 대 | `/today`는 임시 진입점이라 새 진입 설계로 넘긴다 |
+
+## 8. 다음에 볼 것
+
+`/auctions/[auctionId]`(진입·로더는 봄, 표시 모델·UI 남음) → `/login`·`/setup` → `shell`(레이아웃·dock·테마·명령 검색) → `components`·`shared`(UI 두 벌) → `api/` 층 → `packages/contracts`.
