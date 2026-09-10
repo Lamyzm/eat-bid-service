@@ -723,3 +723,159 @@ SSOT, EAT-134 lint 이관, EAT-124 운영 뷰 ADR, 그리고 8-5의 진행 중 �
 ## 9. 다음에 볼 것
 
 `/auctions/[auctionId]`(진입·로더는 봄, 표시 모델·UI 남음) → `/login`·`/setup` → `shell`(레이아웃·dock·테마·명령 검색) → `components`·`shared`(UI 두 벌) → `api/` 층 → `packages/contracts`.
+
+**§10이 이 순서를 대신 소화했다.** 남은 것은 §10-7의 발행 순서를 따른다.
+
+## 10. 폴더별 코드 감사 (2026-09-10 저녁, 읽기 전용 8분할)
+
+배포 작업과 겹치지 않게 `infra/**`를 제외하고 폴더별 읽기 전용 에이전트 여덟을 돌렸다. 보고는 믿지 않고
+리뷰어가 파일·행으로 다시 확인한 것만 아래에 적는다.
+
+**실행 메모.** 서브에이전트 기본 모델은 세션 모델과 별개다. 세션을 Opus 5로 바꾼 뒤에도 두 번(16개)이
+Fable 한도로 즉사했고 `model`을 명시하고서야 돌았다. 읽기 전용 훑기는 sonnet으로 충분했다.
+
+### 10-1. 종합 판정
+
+기능 결함은 거의 없다. dataplane·db·contracts·domain 넷은 규율이 높고 심각 결함 0건이다. 원본 보존 순서,
+문자열 정체성 0건, float 0건, 시간대 없는 시각 0건, 계층 방향 위반 0건, 테스트명 한국어 100%가 전부
+전수 확인됐다. **진짜 부채는 코드가 아니라 셋이다: CI가 검사하지 않는 경계, ADR 0044 재편 직후의 기능 간
+결합, `packages/domain`의 공개 표면.**
+
+### 10-2. 1순위 — CI가 인가 경계를 한 번도 검사하지 않는다
+
+`validate.yml`의 PR 게이트는 e2e 둘(`foundation`·`decision`)만 돈다. `auth`·`cache`·`today`·`own-bid`
+넷은 스크립트로 존재하는데 CI 어디에도 이름이 없다. 계정 간 자료 격리, 남의 등록 id로 보낸 요청의 403,
+로그아웃 뒤 쿠키 재사용 거부(ADR 0032가 정한 인가 경계)를 검사하는 유일한 경로가 `test:e2e:auth`인데
+그것이 안 돈다. EAT-143이 만든 "서버가 세션을 정확히 한 번 읽는다"는 단언도 production 빌드 모드에서만
+실행되는데 그 모드를 돌리는 `test:e2e:cache`도 CI에 없다. 오늘 만든 보장의 서버 쪽 절반이 미판정이다.
+
+같은 자리에 둘째 구멍이 있다. **dataplane 파이썬 검사가 PR에 전혀 없다.** 루트 `pnpm test`는 tools와
+TypeScript 패키지 다섯만 돌고 파이썬은 품질 검사용 파일 하나뿐이다. pytest 632개·ruff·pyright는 전부
+`build.yml`에 있고 그 워크플로는 `tags: ["release/v*"]`에서만 뜬다. 파이썬 회귀는 릴리즈 시점에야 걸린다.
+
+### 10-3. 2순위 — `_features` 사이의 순환과 역방향 의존
+
+ADR 0044 재편 뒤 결정 화면의 기능 다섯이 서로를 직접 부른다. production 기준 16건이고 그중
+`flow/model/flow-chart-model` ↔ `own-bid/model/own-bid-points`는 **실제 순환**이다. 방향은
+flow→own-bid 4, own-bid→history 3, rehearsal→history 3, flow→history 2, history→rehearsal 2,
+flow→distribution 1, own-bid→flow 1.
+
+여기에 방향이 뒤집힌 것이 하나 더 있다. `distribution/ui/my-rate-input.tsx`가 `_widgets/evidence-view`의
+hook을 쓴다. widget이 feature를 조립하는 것이 정상인데 반대다. 그 widget을 지우면 feature가 조용히 깨진다.
+`_lib`에 이미 같은 성격의 context 둘(bid-rate-context·attempt-selection)이 정상 위치에 있어 선례가 있다.
+
+ADR 0044 Consequences가 정확히 이 모양을 스스로 신호로 지목했다. 다섯 기능이 같은 회차 행을 보는 근거
+화면이라 결합 자체가 전부 잘못은 아니지만, `HistoryRow`를 `_lib`로 올리면 순환이 끊기고 나머지 참조도
+대부분 사라진다. 세그먼트 공용인 `_lib`(28건)·`__fixtures__`(18건) 참조는 정상이라 건드리지 않는다.
+
+### 10-4. 3순위 — `packages/domain`의 공개 표면이 EAT-133을 막는다
+
+`packages/domain`의 exports는 `"."` 하나뿐이고 `sideEffects` 선언이 없다. 형제인 `packages/contracts`는
+이미 subpath 41개로 같은 문제를 풀었다. domain의 그 barrel이 `Temporal`을 재수출하고 그것이
+`temporal-polyfill`을 끌고 오므로 client 컴포넌트는 domain을 통째로 피한다. 확인 결과 domain을 import하는
+web 파일 넷은 전부 서버 전용이고 client 컴포넌트는 0건이다.
+
+대가가 코드에 남아 있다. `api/_transport/request-resilience.ts`는 domain의 `seconds()` 대신 `1_000`을
+손으로 적고 그 이유를 주석으로 설명한다. `_widgets/bid-rail.tsx`는 의미 있는 지연 타입을 쓸 수 없어
+타이머 자체를 없앴다. **EAT-133은 사정률 milli 계산을 domain으로 모으려 하는데 그 계산이 필요한 곳이 바로
+client 컴포넌트다. subpath를 먼저 열지 않으면 새 모듈도 같은 이유로 회피되고 리터럴이 하나 더 생긴다.**
+
+EAT-133의 집계도 실제보다 작다. 죽은 export가 9개가 아니라 16개 이상이고 `canonicalDecimal` 리터럴이
+6곳이 아니라 8곳이다. 빠진 하나가 contracts의 금액 codec이라 "서버" 기준으로 세면 놓친다.
+
+### 10-5. 상대 경로 규칙 — 측정과 결론
+
+사용자 제안(`../../` 금지)을 재기 위해 전 패키지를 셌다.
+
+| 범위 | `../` | `../../` | `../../../` | `../../../../` | 별칭 |
+|---|---:|---:|---:|---:|---|
+| apps/web/src | 188 | 29 | 48 | 0 | `@/` 200회 |
+| apps/server/src | 157 | 164 | 15 | 54 | 없음 |
+| packages/contracts/src | 28 | 32 | 124 | 0 | 없음 |
+| packages/db/src | 45 | 0 | 1 | 0 | 없음 |
+| packages/domain/src | 3 | 0 | 0 | 0 | 없음 |
+| apps/dataplane(Python) | 0 | 0 | 0 | 0 | 절대 import |
+
+**깊이로 막으면 우리가 승인한 구조와 싸운다.** 웹의 깊이 3은 전부 ADR 0044의 `_features/<name>/{ui,model,lib}`가
+세그먼트 `_lib`에 닿는 정상 경로다. 계약의 깊이 3은 124건 전부 ADR 0021의 원자→endpoint 정상 방향이고
+역방향 0건이다. 반면 서버의 깊이 4(54건)는 모듈에서 `platform`으로 나가는, 소유 단위를 벗어나는 경로다.
+
+**결론: 재는 자는 깊이가 아니라 소유 단위다.** 상대 경로는 자기 소유 단위 안에서만 쓰고 벗어나면 별칭을
+쓴다. 단위는 web이 `_features/<이름>`·최상위 층·route segment, 서버가 `platform`·`bootstrap`·`modules/<모듈>`,
+패키지가 각 계층 폴더다. 이 규칙이면 10-3의 순환 16건과 역방향 1건이 전부 자동으로 걸리고 정상 46건은
+통과한다. 깊이는 규칙이 아니라 신호로 둔다(단위 안인데 깊이 4면 그 단위가 너무 깊다).
+
+**별칭 도입 비용은 처음 추정보다 크다.** Node `imports` 필드는 런타임은 이해하지만 TypeScript는 아니다.
+`apps/server`와 `packages/contracts` 둘 다 `moduleResolution: "node"`(레거시 Node10)라 `imports`·`exports`를
+해석하지 못해 지금 넣으면 빌드가 깨진다. 해석 방식을 `node16` 계열로 올리거나 `paths`+후처리를 붙여야 하고,
+계약 쪽은 컴파일타임 fixture 테스트가 해석 모드를 하드코딩해 함께 고쳐야 한다. bun 테스트는 소스를 직접
+읽어 tsc가 깨져도 초록으로 보일 수 있다(§8-5의 교훈과 같은 계열).
+
+린트 자리는 `tools/architecture`다. `check-web-boundaries.mjs`의 `resolveModule`(ts.resolveModuleName 기반)을
+재사용해야 별칭·index·확장자를 tsconfig와 같게 판정한다. 판정 자체는 경로만 보면 되는 국소 검사다.
+
+### 10-6. 폴더별 나머지 발견
+
+- **web A(auth·shell·capabilities).** 전역 오류 화면이 영문이고 `lang='en'`이라 스크린리더가 영어로 읽는다
+  (형제인 `not-found.tsx`는 이미 한국어). 공고 상세 breadcrumb이 영문 "auctions"와 원시 숫자 id로 그려진다
+  (`segmentKo`에 단수형 `auction`만 있고 실제 route는 복수형). **같은 파일에 복합 문자열을 정체성으로 쓰는
+  분기가 남아 있다**(`시군구|학교명`을 `|`로 자름, 규칙 2·5 금지). 동작하지 않는 단축키 힌트가 화면에 보이고
+  `T T`를 서로 다른 두 동작이 주장한다. 죽은 tsconfig 별칭·오래된 주석 넷.
+- **web B(api·shared·entities).** `shared/lib/chart-colors.ts`가 도메인 어휘를 아는데 한 화면만 쓰고 export
+  셋(`bubbleColor`·`mapTiles`·`myMarker`)은 참조 0건이다. `shared/ui`의 두 파일이 자기네 아이콘 registry를
+  우회한다. `api/win-rate-distribution/index.ts`와 `auctionQueries.open`·`.detail`이 참조 0건이다.
+  `rehearsal-axis.test.ts`는 같은 이름의 구현 파일이 없다.
+- **db.** `core.code_mapping`의 `status`와 `relation` 두 열에 허용값 check가 없다. 저장소의 다른 상태·역할
+  열은 전부 있다. 두 열의 어휘(`label_verified`·`reviewed`, `exact`·`overlaps`)는 Python 상수에만 있어
+  업무 사실의 권위가 PostgreSQL이라는 원칙과 어긋난다. 운영 행 0건이라 호환 위험은 없다. `http_status`가
+  bigint다(bounded number 관례와 어긋나나 서버는 안 읽음). `migrate.ts`에 모듈 책임 주석이 없다.
+  EAT-153 후속 인덱스 둘의 근거가 보강됐다(명단 라벨 조회 패턴이 네 곳에서 쓰임).
+  문서가 말하는 `BidWorkItem`이 저장소 전체에 0건이다.
+- **dataplane.** 모듈 책임 docstring 4개 파일 누락. 300줄 초과 12개 중 큰 셋은 분리 근거를 이미 적고 있고
+  `composition.py`(441줄)만 없다. `core/postgres_projection_writer.py`는 ADR 0033이 "새 기능 전에 나눈다"고
+  적어 둔 부채다. `source`↔`ingest` 상호 참조가 문서에 없다. Ruff가 기본 규칙셋만 돈다.
+- **domain.** 10-4 외에 `POSTGRES_SIGNED_BIGINT_MAX`가 domain과 contracts 두 곳에 독립적으로 타이핑돼 있고
+  drift 테스트가 없다(오늘 EAT-152에서 그 상수를 만들 때 리뷰어가 놓쳤다). 값 자체는 contracts 감사가
+  경계값 8,159개로 대조해 불일치 0건을 확인했다. type-test가 금액·좌표·`PercentagePoints`↔`Ratio`를 안 덮는다.
+  **`packages/shared`는 이미 없다**(git 추적 0건, ADR 0009에서 패키지째 제거, import 0건). 디스크의 것은 잔재다.
+- **contracts.** 코드 체계 진입점만 exports map에서 빠졌다(형제 넷은 있음). 내 투찰 계약 하나가 공유 401
+  상수를 안 쓰고 손으로 다시 썼다. 금액·십진 경계 스키마 셋에 전용 테스트가 없다. mart 이름 어휘가 TS·Python
+  두 곳인데 교차 검증이 없다(주석 스스로 "갈라지면 무효화는 성공하고 화면만 옛 build를 읽는다"고 경고).
+- **tools.** `release --worktree`가 엉뚱한 저장소를 가리킬 수 있다. 경로 해석이 `.git`을 찾을 때까지 부모로
+  올라가는데 대상 검사는 존재 여부와 worktree 여부만 본다. 그 경로가 실제 worktree 뿌리인지는 안 본다.
+  바로 위 주석이 "조용히 fallback하면 엉뚱한 claim을 지운다"고 적으면서 가드가 그 경우를 못 막는다.
+  오늘 리뷰어가 겪은 그 버그다. 한 줄로 고친다. 의미 값 검사의 registry 그래프 순회가 변경 범위 모드에서
+  파일 경계에 끊긴다(병합 게이트는 안전). 300줄 기계 검사가 apps/web에만 있다. workflow 도구 오류 메시지가
+  영문이다. `tools/m1`·`mechanism`·`synth`는 보존 근거가 문서에 있어 폐기 대상이 아니다.
+- **server.** 경계·Effect·트랜잭션·의미 값·guard 배치는 전수 확인 결과 문제가 없다. 발견 넷 중 둘이 크다.
+  **운영 로거가 모든 로그 레코드를 영구 배열에 쌓았다**(EAT-157, 같은 날 고쳐 병합). EAT-149가 guard 거부마다
+  로그를 남기게 만들어 증가 속도가 올랐고, `/api/**`가 인터넷에 열려 있어 인증 없는 요청 하나가 영구 객체
+  하나를 만들었다. **통합 테스트 여섯이 소유자 권한으로만 reader를 검증한다**(EAT-159). 공용 fixture를 안 쓰고
+  컨테이너를 각자 재구현하면서 운영 최소 권한 역할을 만들지 않는다. 그 fixture 주석이 이 격차로 난 운영 장애
+  두 건을 근거로 든다. 나머지: 인증 경로 리터럴이 상수에서 파생되지 않음, 미사용 테스트 의존성 하나,
+  `@module` 누락 17개(전부 grandfathered).
+  **mart build 고정 문제는 이미 EAT-103으로 있었다.** 감사가 독립적으로 다시 찾았고, 확인하니 범위가 셋에서
+  둘로 줄어 있었다(기관 회차 reader는 그 사이 고쳐져 나머지 둘의 참고 구현이 됐다). EAT-151의 10분 주기가
+  위험도를 올려 Ready로 승격했다.
+
+### 10-8. 감사가 낳은 이슈와 그 뒤
+
+발행: EAT-157(로거 누수, **완료**) · EAT-158(CI 게이트 둘) · EAT-159(통합 테스트 권한) ·
+EAT-160(`release --worktree` 가드) · EAT-161(기능 슬라이스 순환) · EAT-162(테스트 typecheck 공백).
+갱신: EAT-103을 Backlog에서 Ready로, 범위를 reader 둘로.
+
+**EAT-162는 EAT-157을 고치다 나왔다.** 리뷰어가 e2e의 타입 캐스트를 런타임 검사로 바꾸라고 했는데,
+구현 에이전트가 그대로 하면 좁혀진 타입이 반환 지점까지 안 따라간다는 반례를 임시 tsconfig로 실제 컴파일해
+찾아냈고 `asserts` 서명으로 바꿨다. 그 과정에서 같은 이유로 깨진 선언 하나를 더 발견했다.
+**두 오류 다 `bun test`와 `tsc -p tsconfig.build.json` 어느 쪽도 잡지 못했다.** 테스트 파일이 빌드 설정의
+`exclude`에 있고 bun은 타입을 안 보기 때문이다. §8-5의 push 1차 실패(mock export 집합)도 같은 계열의 공백이다.
+
+### 10-7. 발행 순서 제안
+
+1. **CI 게이트 둘**(10-2). 인가 e2e와 파이썬 검사가 PR에서 돌게 한다. 가장 위험하고 코드 변경이 없다.
+2. **`release --worktree` 가드 한 줄**(10-6 tools). 우리 작업 도구의 안전 문제다.
+3. **`_features` 순환과 역방향**(10-3). `HistoryRow`를 `_lib`로, `useDecisionRoute`를 `_lib`로.
+4. **domain subpath export**(10-4). EAT-133의 선행 작업으로 그 이슈에 넣는다.
+5. **소유 단위 상대 경로 린트**(10-5). 3번을 고친 뒤에 넣어야 새 검사가 곧바로 초록이다.
+6. **묶음 정리**: web 잔재(영문 오류 화면·breadcrumb·문자열 정체성 분기·단축키 힌트·죽은 코드),
+   db check 제약 둘, dataplane docstring 넷, contracts 넷.
