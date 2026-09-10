@@ -9,3 +9,4 @@ resources:
   - daily-reconcile.yaml
   - reference-refresh.yaml
   - db-backup.yaml
+  - expectation-check.yaml

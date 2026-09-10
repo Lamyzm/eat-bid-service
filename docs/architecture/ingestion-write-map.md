@@ -1,3 +1,11 @@
+---
+id: INGESTION-WRITE-MAP
+status: active
+canonical_for: dataplane-write-targets-and-boundaries
+last_reviewed: 2026-09-11
+review_trigger: dataplane-write-target-or-transaction-boundary-change
+---
+
 # 수집 쓰기 지도
 
 이 문서는 "어느 수집 단계가 R2와 어느 표에 무엇을 어떤 경계로 쓰는가"에 답한다. 3절의 모듈별 표는
@@ -48,6 +56,7 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | discover | `ingest/postgres_release_repository.py` | `ingest.source_release`, `ingest.source_release_dataset`, `ingest.source_release_run`, `ingest.source_release_observation` |
 | discover, capture | `ingest/postgres_repository.py` | `ingest.raw_blob`, `ingest.raw_observation`, `ingest.request_unit`, `ingest.run` |
 | discover, capture, capture-reference | `storage/r2_store.py` | `R2 raw/{source}/{endpoint}/{sha256}.{xml\|txt}.gz` |
+| check-expectations | `monitoring/store.py` | `R2 monitoring/{환경}/expectation-state.json` (수집 단계가 아닌 운영 감시의 가변 상태. raw와 접두사·코드를 나눈다) |
 | capture, validate | `ingest/postgres_release_guards.py` | `ingest.source_release_observation`, `ingest.source_release_dataset` |
 | normalize, replay | `ingest/postgres_normalization_repository.py` | `ingest.normalization_attempt`, `ingest.normalization_attempt_record`, `ingest.normalized_record` |
 | validate, replay | `ingest/postgres_publication_repository.py` | `ingest.publication`, `ingest.publication_record`, `ingest.run` |

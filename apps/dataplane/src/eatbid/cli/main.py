@@ -26,6 +26,7 @@ from eatbid.failures.categories import (
 from eatbid.failures.report import render_failure
 from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
+from eatbid.monitoring.runner import MonitoringResult
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
 
@@ -61,6 +62,7 @@ class CliApplication(Protocol):
     def capture_reference(self, args: argparse.Namespace) -> object: ...
     def project_reference(self, args: argparse.Namespace) -> object: ...
     def fail_release(self, args: argparse.Namespace) -> object: ...
+    def check_expectations(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[
@@ -167,6 +169,17 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "failure_category": result.failure_category,
             "closed_run_ids": [str(run_id) for run_id in result.closed_run_ids],
         }
+    if method_name == "check_expectations":
+        if not isinstance(result, MonitoringResult):
+            raise TypeError("check-expectations returned an invalid result")
+        # 무엇이 새로 열렸고 무엇이 해소됐는지 회차마다 남긴다. 이 기록이 쌓여야 한두 주 뒤에 기대의
+        # 임계가 맞았는지 다시 판단할 수 있다(ADR 0046 Consequences).
+        return {
+            "evaluated": result.evaluated,
+            "opened": list(result.opened),
+            "resolved": list(result.resolved),
+            "still_open": list(result.still_open),
+        }
     if method_name == "build_marts":
         if not isinstance(result, tuple) or any(
             not isinstance(item, MartBuildResult) for item in result
@@ -214,6 +227,8 @@ COMMAND_METHODS: Mapping[str, str] = {
     "project-reference": "project_reference",
     # 운영자 entrypoint다. DAG 단계가 아니라 사람이 planned release를 닫을 때만 부른다(EAT-122).
     "fail-release": "fail_release",
+    # 스케줄 entrypoint다. 수집 상태를 바꾸지 않고 기대만 평가해 위반을 알린다(EAT-170, ADR 0046).
+    "check-expectations": "check_expectations",
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {

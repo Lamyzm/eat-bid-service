@@ -113,8 +113,9 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     subcommands = parser.add_subparsers(dest="command", required=True)
     commands = {name: subcommands.add_parser(name) for name in command_names}
     for name, command in commands.items():
-        # fail-release는 run·parser version이 없는 운영자 판정이라 공통 인수를 받지 않는다.
-        if name != "fail-release":
+        # fail-release와 check-expectations는 특정 run에 매이지 않는 운영 entrypoint라 공통 인수를
+        # 받지 않는다. 감시는 어떤 release에도 속하지 않고 지금의 DB 상태만 본다.
+        if name not in {"fail-release", "check-expectations"}:
             add_common_arguments(command)
 
     discover = commands["discover"]

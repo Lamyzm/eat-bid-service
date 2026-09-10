@@ -71,6 +71,17 @@ class ApplicationSettings(BaseSettings):
     source_retry_max_total_backoff_seconds: int = Field(
         120, validation_alias="SOURCE_RETRY_MAX_TOTAL_BACKOFF_SECONDS", ge=0, le=600
     )
+    # 감시(check-expectations)만 쓰는 값이다. 왜 선택인가: 수집 pod는 이 값 없이 떠야 한다. 필수로
+    # 만들면 알림 설정이 빠진 환경에서 수집 자체가 기동하지 못한다(cache 무효화와 같은 이유, ADR 0036-3).
+    # 알림 대상이 없으면 감시 명령이 그 사실을 밝히고 실패한다. 조용히 건너뛰면 알림이 안 가는 상태가
+    # 정상으로 보인다.
+    environment_name: str = Field(
+        "unknown", validation_alias="EATBID_ENVIRONMENT", min_length=1, max_length=32
+    )
+    telegram_bot_token: SecretStr | None = Field(
+        None, validation_alias="TELEGRAM_BOT_TOKEN", repr=False
+    )
+    telegram_chat_id: str | None = Field(None, validation_alias="TELEGRAM_CHAT_ID")
 
     @field_validator("database_url")
     @classmethod
