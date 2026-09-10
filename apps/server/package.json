@@ -8,6 +8,7 @@
     "predev": "tsc -p tsconfig.build.json",
     "dev": "concurrently --kill-others-on-fail --names tsc,node \"tsc -p tsconfig.build.json --watch --preserveWatchOutput\" \"node --watch --enable-source-maps dist/main.js\"",
     "dev:smoke": "bun test tools/dev-smoke.test.ts",
+    "seed:dev-login": "pnpm --filter @eatbid/db build && bun src/platform/auth/dev-login-seed.ts",
     "start": "node --enable-source-maps dist/main.js",
     "pretest": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build && pnpm --filter @eatbid/db build && tsc -p tsconfig.build.json",
     "test": "bun test src tools --timeout 30000",
