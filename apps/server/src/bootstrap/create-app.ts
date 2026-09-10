@@ -94,7 +94,11 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
   if (options.testOnlyImports && environment.runtimeMode !== "test") {
     throw new Error("testOnlyImports can only be used in the test runtime");
   }
-  const logger = LoggingModule.create(environment, clock, options.logWriter);
+  // 관측 배열(records)은 test runtime에서만 필요하다(EAT-157). production·development 경로와
+  // dev-login-seed 같은 CLI는 records가 아예 없는 LoggingModule.create를 그대로 받는다.
+  const logger = environment.runtimeMode === "test"
+    ? LoggingModule.createForTest(environment, clock, options.logWriter)
+    : LoggingModule.create(environment, clock, options.logWriter);
   const requestContext = new RequestContextStore();
   const tracker = new InflightTracker();
   const readiness = new ReadinessState();

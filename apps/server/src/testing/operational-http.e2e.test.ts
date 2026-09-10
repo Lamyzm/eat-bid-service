@@ -10,6 +10,7 @@ import {
 import request from "supertest";
 import { createApp, type OperationalHttpApplication } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
+import type { RecordingJsonLogger } from "../platform/logging/logging.module";
 
 @Controller("routing-probe")
 class RoutingProbeController {
@@ -30,15 +31,20 @@ const environment = (overrides: Record<string, string> = {}) => parseEnvironment
   ...overrides,
 });
 
+// 이 파일의 environment()는 NODE_ENV를 항상 "test"로 고정한다. create-app.ts는 그 값을 보고 records를
+// 보관하는 RecordingJsonLogger를 만들므로, 아래 단언들이 읽는 runtime.logger.records를 위해 그 사실을
+// 타입에 반영한다(EAT-157).
+type TestRuntime = OperationalHttpApplication & { readonly logger: RecordingJsonLogger };
+
 async function start(
   options: Parameters<typeof createApp>[0] = {},
-): Promise<{ runtime: OperationalHttpApplication; server: Server }> {
+): Promise<{ runtime: TestRuntime; server: Server }> {
   const runtime = await createApp({
     environment: environment(),
     logWriter: () => undefined,
     databaseReadiness: { isReady: () => true },
     ...options,
-  });
+  }) as TestRuntime;
   const server = await runtime.listen(0, "127.0.0.1");
   return { runtime, server };
 }

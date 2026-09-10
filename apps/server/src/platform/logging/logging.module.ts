@@ -1,5 +1,6 @@
 /**
- * @module 책임: 로그 출력을 분류형 필드로만 좁혀, 외부 문자열과 비밀값이 기록에 남지 않는 경계를 소유한다.
+ * @module 책임: 로그 출력을 분류형 필드로만 좁혀 외부 문자열과 비밀값이 기록에 남지 않게 하고,
+ * production 인스턴스가 그 기록을 보관하지 않아 요청마다 영구 객체가 쌓이지 않는 경계도 함께 소유한다.
  */
 import { ConsoleLogger, DynamicModule, Global, LoggerService, Module } from "@nestjs/common";
 import {
@@ -130,7 +131,6 @@ export function writeSafeFailure(
 }
 
 export class RedactingJsonLogger implements LoggerService {
-  readonly records: LogRecord[] = [];
   private readonly buildSha: string;
   private readonly clock: Clock;
   private readonly write: Writer;
@@ -242,8 +242,28 @@ export class RedactingJsonLogger implements LoggerService {
       event,
       ...fields,
     });
-    this.records.push(record);
     this.write(`${JSON.stringify(record)}\n`);
+    this.retain(record);
+  }
+
+  /**
+   * 기본은 아무 것도 하지 않는다. 이 클래스는 process당 한 번 만들어져 수명 내내 사는 production
+   * singleton이고 EAT-149 이후 guard 거부까지 매 emit을 거치므로, 여기서 보관하면 인증 없는 요청
+   * 하나하나가 영구 객체 하나를 만든다. 관측이 필요한 test runtime은 아래 RecordingJsonLogger로만 받는다(EAT-157).
+   */
+  protected retain(_record: LogRecord): void {}
+}
+
+/**
+ * write 부작용 없이 로그 내용을 assert해야 하는 테스트 전용 관측 하위 클래스다. RedactingJsonLogger
+ * 자체에는 records 필드가 없어 production·dev-login-seed 같은 CLI 경로는 이 클래스를 만들 수단이 없고,
+ * LoggingModule.createForTest와 다섯 테스트 파일의 직접 생성 지점만 이 클래스를 쓴다(EAT-157).
+ */
+export class RecordingJsonLogger extends RedactingJsonLogger {
+  readonly records: LogRecord[] = [];
+
+  protected override retain(record: LogRecord): void {
+    this.records.push(record);
   }
 }
 
@@ -260,5 +280,13 @@ export class LoggingModule {
 
   static create(environment: Environment, clock: Clock, write?: Writer): RedactingJsonLogger {
     return new RedactingJsonLogger({ buildSha: environment.buildSha, clock, write });
+  }
+
+  /**
+   * create-app.ts의 test runtime 분기만 부른다. dev-login-seed.ts 같은 CLI는 NODE_ENV가 test여도
+   * 위 create()를 그대로 쓰므로 이 factory를 부르는 것 자체가 관측 의도의 표시다(EAT-157).
+   */
+  static createForTest(environment: Environment, clock: Clock, write?: Writer): RecordingJsonLogger {
+    return new RecordingJsonLogger({ buildSha: environment.buildSha, clock, write });
   }
 }
