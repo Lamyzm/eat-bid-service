@@ -48,10 +48,16 @@ curl.exe -L -o C:\VMs\eatbid\noble-server-cloudimg-amd64.img https://cloud-image
 kubectl --context eatbid-vm get application -n argocd
 ```
 
-Argo CD `v3.5.1`을 upstream manifest로 설치하고, Argo가 스스로 만들 수 없는 수동 Secret 넷을 옛
-클러스터에서 복사한 뒤 `infra/platform`·`infra/argocd`의 Application 셋을 적용한다. 나머지는 Argo CD가
-`main`의 `infra/product`로 세운다. 수동 Secret 넷의 이유는 스크립트 머리말에 있고, 복구 사본은 Infisical
-`prod:/platform/kubernetes`다.
+Argo CD `v3.5.1`을 upstream manifest로 설치하고, Argo가 스스로 만들 수 없는 수동 Secret 다섯
+(`argocd/repo-eatbid`, `ghcr-pull`, `eatbid-infisical-operator`, `cloudflared-creds`, `eatbid-auth`)을
+옛 클러스터에서 복사한 뒤 `infra/platform`·`infra/argocd`의 Application 셋을 적용한다.
+나머지는 Argo CD가 `main`의 `infra/product`로 세운다. 이유는 스크립트 머리말에 있다.
+
+옛 클러스터가 없을 때(재해 복구)는 `-FromInfisical`로 Infisical `prod:/platform/kubernetes`의 복구 사본에서
+다시 만든다. 사본은 `Export-EatbidManualSecrets.ps1`이 올리며 2026-09-10 이전에는 이 경로에
+`INFISICAL_CLIENT_ID/SECRET` 둘만 있었다(EAT-127). 사본 형식은 `K8S_SECRET_<NS>_<NAME>` = 정리된 Secret
+manifest JSON의 base64이고, `eatbid-infisical-operator`는 두 identity 값으로 조립한다. Secret 값을 회전하면
+Export를 다시 돌린다.
 
 postgres는 Infisical `prod:/runtime/postgres`(`POSTGRES_USER`·`POSTGRES_PASSWORD`·`POSTGRES_DB=eatbid`)가
 있어야 뜬다. 운영자 identity는 읽기 전용이라 이 폴더는 사용자가 만든다. 값은 옛 클러스터와 같은

@@ -8,3 +8,4 @@ resources:
   - poll-open.yaml
   - daily-reconcile.yaml
   - reference-refresh.yaml
+  - db-backup.yaml

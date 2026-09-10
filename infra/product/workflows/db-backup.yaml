@@ -1,0 +1,103 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: eatbid-db-backup
+  namespace: eatbid
+spec:
+  schedules:
+    # 매시 5분. 정각은 poll-open(30분 주기)과 겹치므로 5분 비켜 둔다. 손실 허용치(RPO)는 1시간이며
+    # 그 사이 관측은 R2 raw와 daily-reconcile이 소스에서 다시 받는다(EAT-127, runtime §9).
+    - "5 * * * *"
+  timezone: Asia/Seoul
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  workflowSpec:
+    serviceAccountName: eatbid-dataplane
+    entrypoint: backup
+    podGC:
+      strategy: OnPodSuccess
+    ttlStrategy:
+      secondsAfterSuccess: 3600
+      secondsAfterFailure: 86400
+    templates:
+      # pg_dump와 R2 업로드는 서로 다른 이미지가 필요하므로 한 파드 안의 두 컨테이너가 emptyDir을 공유한다.
+      # 두 파드로 나누면 덤프를 artifact로 옮겨야 하고 artifact repository가 없다.
+      - name: backup
+        volumes:
+          - name: work
+            emptyDir: {}
+        containerSet:
+          volumeMounts:
+            - name: work
+              mountPath: /work
+          containers:
+            - name: dump
+              # postgres Deployment와 같은 major. migrator 역할은 모든 schema를 소유해 전체 덤프를 읽을 수 있고
+              # 쓰기는 하지 않는다. custom format이라 부분 복원(schema 선택)이 가능하다(EAT-130 dev 첫 채움).
+              image: postgres:16-alpine
+              command: [sh, -c]
+              args:
+                - |
+                  set -eu
+                  pg_dump --format=custom --no-owner --no-privileges --file=/work/eatbid.dump "$DATABASE_URL"
+                  ls -l /work/eatbid.dump
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: eatbid-database-migrator
+                      key: DATABASE_URL
+              resources:
+                requests:
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+            - name: upload
+              image: rclone/rclone:1.68
+              dependencies:
+                - dump
+              command: [sh, -c]
+              args:
+                - |
+                  set -eu
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  hourly="r2:${R2_BUCKET}/backup/postgres/hourly/${stamp}.dump"
+                  rclone copyto /work/eatbid.dump "$hourly" --s3-no-check-bucket
+                  # 하루 한 번(KST 03시 회차)은 30일 보존 폴더에도 둔다. 시각 판정은 KST 기준이며 컨테이너는 UTC다.
+                  if [ "$(TZ=Asia/Seoul date +%H)" = "03" ]; then
+                    rclone copyto /work/eatbid.dump "r2:${R2_BUCKET}/backup/postgres/daily/${stamp}.dump" --s3-no-check-bucket
+                  fi
+                  rclone delete "r2:${R2_BUCKET}/backup/postgres/hourly" --min-age 168h
+                  rclone delete "r2:${R2_BUCKET}/backup/postgres/daily" --min-age 720h
+                  rclone lsl "r2:${R2_BUCKET}/backup/postgres/hourly" | tail -n 3
+              env:
+                - name: RCLONE_CONFIG_R2_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_R2_PROVIDER
+                  value: Cloudflare
+                - name: RCLONE_CONFIG_R2_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: eatbid-r2
+                      key: R2_ENDPOINT_URL
+                - name: RCLONE_CONFIG_R2_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: eatbid-r2
+                      key: R2_ACCESS_KEY_ID
+                - name: RCLONE_CONFIG_R2_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: eatbid-r2
+                      key: R2_SECRET_ACCESS_KEY
+                - name: R2_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: eatbid-r2
+                      key: R2_BUCKET
+              resources:
+                requests:
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi

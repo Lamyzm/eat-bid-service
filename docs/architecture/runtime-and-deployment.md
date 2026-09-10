@@ -438,14 +438,16 @@ Collector, Prometheus/Grafana/Loki를 추가한다. 제품 경로에 특정 관�
 ## 9. 백업과 복구
 
 - R2 raw: versioning/retention을 사용하고 content hash로 무결성을 검사한다.
-- PostgreSQL: 정기 full backup과 WAL/증분 전략을 R2 또는 독립 backup 위치에 둔다.
+- PostgreSQL: 매시간 `pg_dump` full backup을 R2 `backup/postgres/`에 둔다(2026-09-10, EAT-127, 절차는
+  [`backup-and-restore.md`](../operations/backup-and-restore.md)). WAL/증분은 다중 노드·CloudNativePG 전환과 함께 둔다.
 - `app` 사용자 상태는 raw로 재생성할 수 없으므로 최우선 복구 대상이다.
 - `core`는 raw+version으로 재구성 가능하지만 복구시간 단축을 위해 DB backup에도 포함한다.
 - `mart`는 DB 복구 후 재생성 가능하다.
 - restore drill은 새 namespace/임시 DB에서 수행하고 실제 query/count/freshness 검증까지 완료한다.
 
-초기 복구 목표는 **사용자 상태 RPO 1시간 이내, 핵심 서비스 RTO 4시간 이내**로 두되,
-현재 단일 노드 환경에서 WAL 보관이 준비되기 전에는 달성 보장이 아닌 목표로 표시한다.
+초기 복구 목표는 **사용자 상태 RPO 1시간 이내, 핵심 서비스 RTO 4시간 이내**다. RPO 1시간은 매시간
+덤프로 충족하고, RTO는 R2에서 새 클러스터를 세우는 재해 복구 절차(EAT-131)가 리허설로 증명하기 전까지
+목표로 표시한다.
 
 ## 10. 도입 순서와 보류 스택
 

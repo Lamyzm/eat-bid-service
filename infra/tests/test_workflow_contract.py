@@ -151,7 +151,8 @@ def test_product와_base_render가_kind_구성을_유지한다(
     manifests: ManifestSet, base_manifests: ManifestSet
 ) -> None:
     assert manifests.kinds.count("WorkflowTemplate") == 1
-    assert manifests.kinds.count("CronWorkflow") == 3
+    # 수집 스케줄 셋 + DB 백업 하나. 백업은 소스를 부르지 않는 별개 계약이라 아래 백업 테스트가 따로 본다.
+    assert manifests.kinds.count("CronWorkflow") == 4
     # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
     # 하는지 먼저 답해야 한다.
     assert manifests.kinds.count("Job") == 2
@@ -326,7 +327,11 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
 def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     manifests: ManifestSet,
 ) -> None:
-    cron_workflows = manifests.of_kind("CronWorkflow")
+    cron_workflows = [
+        cron
+        for cron in manifests.of_kind("CronWorkflow")
+        if _metadata(cron)["name"] != "eatbid-db-backup"
+    ]
     assert {_metadata(cron)["name"] for cron in cron_workflows} == {
         "eatbid-poll-open",
         "eatbid-daily-reconcile",
@@ -376,6 +381,64 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     rendered = yaml.safe_dump_all(manifests.documents)
     assert "backfill" not in rendered
     assert "entrypoint: replay" not in rendered
+
+
+def test_DB_백업_CronWorkflow는_매시간_migrator로_덤프해_R2에_두고_소스와_템플릿을_건드리지_않는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 백업은 수집 파이프라인이 아니다. source semaphore·publication mutex·eatbid-dataplane 템플릿을
+    쓰지 않아야 수집 정지·재개 판단과 얽히지 않고, 실패해도 발행에 영향이 없다(EAT-127)."""
+    backup = manifests.named("CronWorkflow", "eatbid-db-backup")
+    spec = _spec(backup)
+    assert spec["schedules"] == ["5 * * * *"]
+    assert spec["timezone"] == "Asia/Seoul"
+    assert spec["suspend"] is False
+    assert spec["concurrencyPolicy"] == "Forbid"
+    workflow_spec = _mapping(spec["workflowSpec"])
+    assert "workflowTemplateRef" not in workflow_spec
+    assert workflow_spec["entrypoint"] == "backup"
+    assert workflow_spec["podGC"] == {"strategy": "OnPodSuccess"}
+    assert workflow_spec["ttlStrategy"] == {"secondsAfterSuccess": 3600, "secondsAfterFailure": 86400}
+    rendered = yaml.safe_dump(backup)
+    assert "semaphore" not in rendered and "mutex" not in rendered
+    template = next(
+        _mapping(item) for item in _sequence(workflow_spec["templates"]) if _mapping(item)["name"] == "backup"
+    )
+    containers = {
+        _mapping(item)["name"]: _mapping(item)
+        for item in _sequence(_mapping(template["containerSet"])["containers"])
+    }
+    assert set(containers) == {"dump", "upload"}
+    assert containers["dump"]["image"] == "postgres:16-alpine"
+    assert containers["upload"]["dependencies"] == ["dump"]
+    dump_env = {
+        _mapping(item)["name"]: _mapping(item) for item in _sequence(containers["dump"]["env"])
+    }
+    # 전체 덤프는 모든 schema를 읽어야 하므로 소유자인 migrator 역할을 쓴다. api·dataplane 역할은 app·mart를 못 읽는다.
+    assert dump_env["DATABASE_URL"]["valueFrom"]["secretKeyRef"] == {
+        "name": "eatbid-database-migrator",
+        "key": "DATABASE_URL",
+    }
+    upload_env = {
+        _mapping(item)["name"]: _mapping(item) for item in _sequence(containers["upload"]["env"])
+    }
+    for key in ("RCLONE_CONFIG_R2_ENDPOINT", "RCLONE_CONFIG_R2_ACCESS_KEY_ID", "RCLONE_CONFIG_R2_SECRET_ACCESS_KEY", "R2_BUCKET"):
+        assert upload_env[key]["valueFrom"]["secretKeyRef"]["name"] == "eatbid-r2"
+    upload_script = "".join(str(item) for item in _sequence(containers["upload"]["args"]))
+    assert "backup/postgres/hourly" in upload_script and "backup/postgres/daily" in upload_script
+    assert "--min-age 168h" in upload_script and "--min-age 720h" in upload_script
+
+
+def test_WorkflowTemplate은_성공_파드를_즉시_지우고_끝난_Workflow를_TTL로_거둔다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 2026-09-09 실측에서 Workflow 38개가 완료 파드 6,561개를 남겨 단일 노드를 눌렀다(EAT-127).
+    파드는 증거가 아니다(단계 결과는 DB·R2에 있다). 실패 파드는 원인 확인을 위해 Workflow TTL까지 둔다."""
+    spec = _spec(manifests.workflow_template("eatbid-dataplane"))
+    assert spec["podGC"] == {"strategy": "OnPodSuccess"}
+    assert spec["ttlStrategy"] == {"secondsAfterSuccess": 3600, "secondsAfterFailure": 86400}
+    # skill 규율: CLI가 transient/terminal 종료 범주를 제공하기 전에는 Argo retryStrategy를 두지 않는다.
+    assert "retryStrategy" not in yaml.safe_dump(spec)
 
 
 def test_스케줄_CronWorkflow는_backfill_기본_우선순위보다_높다(

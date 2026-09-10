@@ -10,6 +10,15 @@ spec:
   # 띄워 kubelet pod 상한(110)을 넘기고 postgres readiness까지 지연시켜 22건이 DB 연결 시간 초과로
   # 죽었다. capture는 source semaphore로 이미 직렬이므로 이 값은 사실상 normalize 동시성이다.
   parallelism: 4
+  # 완료 파드와 끝난 Workflow를 컨트롤러가 스스로 지운다. 2026-09-09 실측에서 Workflow 38개가 파드 6,561개를
+  # 남겨 단일 노드 API 서버·etcd를 눌렀다(EAT-127). 성공한 파드는 즉시 지우고(로그는 단계 결과가 DB·R2에
+  # 남으므로 파드가 증거가 아니다), 실패한 파드는 원인 확인을 위해 Workflow가 지워질 때까지 둔다.
+  # 실패 Workflow를 하루 두는 이유는 fail-release·재개(EAT-122) 판단이 그 안에서 이뤄지기 때문이다.
+  podGC:
+    strategy: OnPodSuccess
+  ttlStrategy:
+    secondsAfterSuccess: 3600
+    secondsAfterFailure: 86400
   arguments:
     parameters:
       # mode는 CLI `discover --mode`로 그대로 전달되고 날짜 창은 CLI가 번역한다. poll-open과
