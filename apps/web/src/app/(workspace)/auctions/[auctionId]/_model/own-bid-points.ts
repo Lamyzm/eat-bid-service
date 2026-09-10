@@ -1,6 +1,6 @@
 /** @module 책임: 내 투찰 batch 응답을 흐름 차트의 own 점과 회차 상태 요약으로 옮기며 원문 비율·금액 부재·회차별 상태 구분을 보존한다. */
 import type { UTCTimestamp } from 'lightweight-charts';
-import type { MyAttemptBidObservation } from '@eatbid/contracts/api/v1/me';
+import type { BidObservationAttemptKey, MyAttemptBidObservation } from '@eatbid/contracts/api/v1/me';
 
 import type { HistoryRow } from './attempt-history';
 import { amountText } from './bid-rate';
@@ -20,8 +20,6 @@ export type OwnChartPoint = {
   readonly row: HistoryRow;
 };
 
-export type OwnResultKind = MyAttemptBidObservation['result']['kind'];
-
 /** 회차별 결과를 서로 다른 수로 센다. "명단에 없음"과 "명단 미관측"과 "확인 불가"는 같은 사실이 아니다. */
 export type OwnAttemptSummary = {
   readonly submitted: number;
@@ -31,46 +29,26 @@ export type OwnAttemptSummary = {
   readonly conflict: number;
 };
 
-export type OwnDisplayModel = {
-  readonly points: readonly OwnChartPoint[];
-  readonly summary: OwnAttemptSummary;
-  readonly resultByAttempt: ReadonlyMap<string, OwnResultKind>;
-};
-
-export function buildOwnDisplayModel(
-  rows: readonly HistoryRow[],
-  attempts: readonly MyAttemptBidObservation[]
-): OwnDisplayModel {
-  const byAttempt = new Map(rows.map((row) => [row.attemptId, row] as const));
-  const points: OwnChartPoint[] = [];
-  const resultByAttempt = new Map<string, OwnResultKind>();
+/**
+ * 회차별 결과를 센다. 어느 명단의 결과인지는 `attemptId`·`revisionId`가 정하므로 표 행 없이 물어본
+ * 열쇠만으로 셀 수 있고, 그래서 이 계산은 표 행을 client provider까지 나르지 않는다(EAT-139).
+ * 물어보지 않은 회차나 다른 revision의 답은 어느 명단의 결과인지 말할 수 없어 확인 불가로 센다.
+ */
+export function summarizeOwnAttempts(
+  asked: readonly BidObservationAttemptKey[],
+  observed: readonly MyAttemptBidObservation[]
+): OwnAttemptSummary {
+  const revisionByAttempt = new Map(asked.map((key) => [key.attemptId, key.revisionId] as const));
   const summary = { submitted: 0, submissions: 0, absent: 0, notObserved: 0, conflict: 0 };
-  for (const attempt of attempts) {
-    const row = byAttempt.get(attempt.attemptId);
-    // 행이 없거나 revision이 다르면 어느 명단의 결과인지 말할 수 없다. 최신 해석으로 추정하지 않는다.
-    if (!row || row.revisionId !== attempt.revisionId) {
+  for (const attempt of observed) {
+    if (revisionByAttempt.get(attempt.attemptId) !== attempt.revisionId) {
       summary.conflict += 1;
-      resultByAttempt.set(attempt.attemptId, 'evidence-conflict');
       continue;
     }
-    resultByAttempt.set(attempt.attemptId, attempt.result.kind);
     switch (attempt.result.kind) {
       case 'submitted':
         summary.submitted += 1;
         summary.submissions += attempt.result.rows.length;
-        // 개찰일이 없는 회차는 x 좌표가 없다. 결과는 요약에 세되 점으로 놓지 않는다.
-        if (row.openedAt == null) break;
-        for (const submission of attempt.result.rows) {
-          points.push({
-            time: chartDay(row.openedKstDay),
-            value: Number(submission.bidRate.value),
-            rateText: submission.bidRate.value,
-            amountText: submission.submittedAmount ? amountText(submission.submittedAmount.amount) : null,
-            submissionId: submission.submissionId,
-            sourceSupplierAccountId: submission.sourceSupplierAccountId,
-            row
-          });
-        }
         break;
       case 'absent-from-roster':
         summary.absent += 1;
@@ -83,8 +61,38 @@ export function buildOwnDisplayModel(
         break;
     }
   }
+  return summary;
+}
+
+/**
+ * 캔버스에 놓을 점. 개찰일 좌표와 회차 원문이 필요하므로 이미 그 행을 가진 차트 쪽에서 만든다.
+ * 행이 없거나 revision이 다르면 어느 명단의 결과인지 말할 수 없어 점으로 놓지 않고, 개찰일이 없는
+ * 회차는 x 좌표가 없어 요약에만 남는다.
+ */
+export function buildOwnPoints(
+  rows: readonly HistoryRow[],
+  observed: readonly MyAttemptBidObservation[]
+): readonly OwnChartPoint[] {
+  const byAttempt = new Map(rows.map((row) => [row.attemptId, row] as const));
+  const points: OwnChartPoint[] = [];
+  for (const attempt of observed) {
+    const row = byAttempt.get(attempt.attemptId);
+    if (!row || row.revisionId !== attempt.revisionId || row.openedAt == null) continue;
+    if (attempt.result.kind !== 'submitted') continue;
+    for (const submission of attempt.result.rows) {
+      points.push({
+        time: chartDay(row.openedKstDay),
+        value: Number(submission.bidRate.value),
+        rateText: submission.bidRate.value,
+        amountText: submission.submittedAmount ? amountText(submission.submittedAmount.amount) : null,
+        submissionId: submission.submissionId,
+        sourceSupplierAccountId: submission.sourceSupplierAccountId,
+        row
+      });
+    }
+  }
   points.sort((a, b) => a.time - b.time || a.value - b.value);
-  return { points, summary, resultByAttempt };
+  return points;
 }
 
 /** own 점만으로 비율 축 범위를 정할 때 쓴다. 낙찰 점의 `flowObservedRange`와 같은 여백 규칙이다. */

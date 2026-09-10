@@ -539,9 +539,12 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await runnerUpToggle.click();
     await expect(runnerUpToggle).toHaveAttribute('aria-pressed', 'false');
 
-    await expect(page.locator('table tbody tr')).toHaveCount(12);
+    // 근거 카드는 흐름·분포 두 본문을 함께 들고 꺼진 쪽을 `hidden`으로 접는다(EAT-139). 그 안의 호가창
+    // 사다리도 `table`이라 페이지 전체 CSS locator는 보이지 않는 행까지 센다. 이 검사가 말하는 표는 과거 회차 하나다.
+    const historyTable = page.locator('section[aria-label="과거 회차"]');
+    await expect(historyTable.locator('tbody tr')).toHaveCount(12);
     // 손잡이는 값 없이 시작한다. 시작값이 있으면 표 머리글까지 번지는 추천값이 되므로 가정 계산 열 자체가 없다(AGENTS 8, EAT-84).
-    await expect(page.locator('table thead th').last()).toHaveText('명단');
+    await expect(historyTable.locator('thead th').last()).toHaveText('명단');
     await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText('썼다면');
 
     // 부제의 표시 회차 수는 서버 컴포넌트가 센다. 상한 상수를 'use client' 모듈에서 읽으면 서버 쪽에서
@@ -613,7 +616,8 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await waitForDecision(page);
     await openCurrentAuctionPanel(page);
 
-    const headerLast = page.locator('table thead th').last();
+    // 꺼진 분포 본문의 사다리도 `table`이므로 말하려는 표로 좁힌다(EAT-139).
+    const headerLast = page.locator('section[aria-label="과거 회차"] thead th').last();
     await expect(headerLast).toHaveText('명단');
 
     const input = page.getByRole('textbox', { name: '투찰률', exact: true });
@@ -633,7 +637,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(page).toHaveURL(/rate=90\.001/);
     await page.reload();
     await waitForDecision(page);
-    await expect(page.locator('table thead th').last()).toHaveText('90.001 썼다면');
+    await expect(page.locator('section[aria-label="과거 회차"] thead th').last()).toHaveText('90.001 썼다면');
     await openCurrentAuctionPanel(page);
     await expect(page.getByRole('textbox', { name: '투찰률', exact: true })).toHaveValue('90.001');
   });

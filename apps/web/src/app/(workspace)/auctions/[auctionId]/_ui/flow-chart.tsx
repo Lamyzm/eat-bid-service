@@ -1,12 +1,12 @@
 /** @module 책임: 기관 흐름 차트의 기존 표시 모델·계열 토글·오른쪽 회차 선택·내 투찰 점을 캔버스와 접근 가능한 조작에 연결한다. */
 'use client';
 
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/button';
 import type { HistoryPresentation } from '../_model/attempt-history';
 import { buildFlowChartModel, type FlowInspection } from '../_model/flow-chart-model';
 import { decideMyRateLine } from '../_model/flow-series';
-import type { OwnChartPoint } from '../_model/own-bid-points';
+import { buildOwnPoints, type OwnChartPoint } from '../_model/own-bid-points';
 import { useBidRate } from './bid-rate-context';
 import { useFlowSeriesVisibility } from './flow-legend';
 import { useOptionalAttemptSelection } from './attempt-selection';
@@ -45,7 +45,12 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
   const visible = useFlowSeriesVisibility();
   const { rate } = useBidRate();
   const ownBid = useOptionalOwnBid();
-  const ownPoints = ownBid?.display?.points ?? NO_OWN_POINTS;
+  // 점 좌표는 회차 행이 있어야 만들 수 있고 그 행은 이 차트가 이미 갖고 있다. provider는 관측만 넘긴다(EAT-139).
+  const observations = ownBid?.observations ?? null;
+  const ownPoints = useMemo(
+    () => (observations === null ? NO_OWN_POINTS : buildOwnPoints(presentation.rows, observations)),
+    [observations, presentation.rows]
+  );
   const line = decideMyRateLine({ myRate, bidRate: rate });
   const ownRate = line.kind === 'drawn' ? line.rate : null;
   const inspect = useEffectEvent((items: readonly FlowInspection[], choose: boolean) => {
@@ -55,7 +60,7 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
   const initialize = useEffectEvent((api: FlowChartController) => {
     api.update(visible, ownRate);
     api.focus(focus);
-    api.select(selection?.row?.attemptId);
+    api.select(selection?.attempt?.attemptId);
     api.setOwnSubmissions(ownPoints);
   });
   useEffect(() => {
@@ -72,7 +77,7 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
   }, [model]);
   useEffect(() => { controller.current?.update(visible, ownRate); }, [visible, ownRate]);
   useEffect(() => { controller.current?.focus(focus); }, [focus]);
-  useEffect(() => { controller.current?.select(selection?.row?.attemptId); }, [selection?.row?.attemptId]);
+  useEffect(() => { controller.current?.select(selection?.attempt?.attemptId); }, [selection?.attempt?.attemptId]);
   // own 계열만 갈아 끼운다. 캔버스를 다시 만들거나 범위를 되돌리지 않으므로 사용자의 확대·선택이 유지된다.
   useEffect(() => { controller.current?.setOwnSubmissions(ownPoints); }, [ownPoints]);
   // 후보 버튼은 현재 점 집합에 있는 제출만 보인다. 사업자·계정이 바뀌면 이전 제출의 비율·금액이 담긴 버튼이

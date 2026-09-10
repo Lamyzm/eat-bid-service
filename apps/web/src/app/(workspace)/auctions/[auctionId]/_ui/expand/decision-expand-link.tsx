@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useLayoutEffect, useRef } from 'react';
 import { Button } from '@/shared/ui/button';
 import { buildDecisionExpandRoute, type DecisionExpand, type DecisionSearch } from '../../_lib/decision-search-params';
+import { useDecisionRoute } from '../evidence-view';
 
 export function DecisionExpandLink({ auctionId, search, target }: {
   readonly auctionId: string;
@@ -15,6 +16,8 @@ export function DecisionExpandLink({ auctionId, search, target }: {
   // 비교집단만 모달로 열리고 자신의 닫기를 갖는다. 이 링크는 그 본문에서는 여는 방향만 맡는다.
   const expanded = search.expand === target && target !== '비교집단';
   const label = expanded ? '작게 보기' : '크게 보기';
+  // 근거 탭이 서버 왕복 없이 바뀜므로 확대 주소도 지금 보는 본문을 실어야 한다.
+  const route = useDecisionRoute();
   const link = useRef<HTMLAnchorElement>(null);
   const previousScroll = useRef<number | null>(null);
 
@@ -45,7 +48,7 @@ export function DecisionExpandLink({ auctionId, search, target }: {
       render={<Link
         ref={link}
         aria-label={label}
-        href={buildDecisionExpandRoute(auctionId, search, expanded ? null : target)}
+        href={route(buildDecisionExpandRoute(auctionId, search, expanded ? null : target))}
         replace={expanded}
         scroll={false}
         onClick={(event) => {

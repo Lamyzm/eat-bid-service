@@ -1,5 +1,6 @@
 /** @module 책임: 기관 회차 이력 계약 응답을 결정 화면 표가 그대로 렌더링할 표시 행·요약 문자열로 바꾸고, 보고 있는 공고 자신만 표에서 뺀다. */
 import { Temporal } from '@eatbid/domain';
+import type { BidObservationAttemptKey } from '@eatbid/contracts/api/v1/me';
 import type {
   MartCoverage,
   OrganizationAuctionAttempt,
@@ -57,6 +58,43 @@ export type HistoryPresentation = {
   readonly selectedItem: { readonly codeValueId: string; readonly label: string } | null;
   readonly cohort?: OrganizationAuctionAttemptsV1Response['meta']['cohort'];
 };
+
+/**
+ * 회차 하나를 가리키는 열쇠와 그 회차를 부르는 이름만 남긴 값이다. 명단 조회는 `attemptId`와 요약이 읽은
+ * `revisionId`로 하고 상세 머리글은 개찰일·품목으로 어느 회차인지 말한다.
+ *
+ * 표 전체 행을 client provider에 넘기면 같은 자료가 HTML과 RSC 페이로드에 두 벌 실린다. 선택이 필요로
+ * 하는 것은 열쇠뿐이므로 서버는 여기까지만 넘긴다(EAT-139).
+ */
+export type AttemptKey = {
+  readonly attemptId: string;
+  /** null이면 서버가 opt-in을 무시한 응답이다. 최신 명단으로 추정하지 않는다(ADR 0041 §1). */
+  readonly revisionId: string | null;
+  readonly openedText: string;
+  readonly itemLabel: string;
+};
+
+export function attemptKeys(rows: readonly HistoryRow[]): readonly AttemptKey[] {
+  return rows.map((row) => ({
+    attemptId: row.attemptId,
+    revisionId: row.revisionId,
+    openedText: row.openedText,
+    itemLabel: row.itemLabel
+  }));
+}
+
+/**
+ * 내 투찰 batch에 물어볼 회차 열쇠. 개찰 전 회차는 낼 명단 자체가 없어 빼고, revision이 하나라도 없는
+ * 응답은 서버가 opt-in을 무시한 것이므로 나머지 회차도 묻지 않는다 — 최신 revision으로 추정한 답은
+ * 그 요약이 말한 회차 결과와 다를 수 있다(ADR 0041 §1). 빈 배열은 "물어볼 회차 없음"이며 provider는
+ * 그 상태를 준비 안 됨으로 말한다.
+ */
+export function observableAttemptKeys(rows: readonly HistoryRow[]): readonly BidObservationAttemptKey[] {
+  if (rows.length === 0 || rows.some((row) => row.revisionId === null)) return [];
+  return rows
+    .filter((row) => row.openedAt != null)
+    .map((row) => ({ attemptId: row.attemptId, revisionId: row.revisionId! }));
+}
 
 const pad2 = (value: number): string => value.toString().padStart(2, '0');
 

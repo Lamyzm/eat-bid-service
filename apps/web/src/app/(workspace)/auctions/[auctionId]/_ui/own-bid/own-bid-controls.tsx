@@ -100,7 +100,7 @@ function StatusLine({
       return (
         <>
           {ownBid.businesses.length === 1 && selected ? <span className='font-semibold text-foreground'>{businessNumberDisplay(selected.businessNumber)}</span> : null}
-          <span data-slot='own-bid-summary'>{ownSummaryText(status.display.summary)}</span>
+          <span data-slot='own-bid-summary'>{ownSummaryText(status.summary)}</span>
         </>
       );
     }

@@ -8,7 +8,7 @@ import { CODE_SCHEME_NAMES } from '@eatbid/contracts/atoms/code-scheme-names';
 import { auctionQueries } from '@/api/auctions';
 import { Button } from '@/shared/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
-import type { HistoryRow } from '../_model/attempt-history';
+import type { AttemptKey } from '../_model/attempt-history';
 
 function withdrawalText(value: AuctionRosterV1Response['rows'][number]['withdrawal']): string {
   if (value === null) return '미확인';
@@ -26,19 +26,20 @@ function amountText(value: string): string {
   return fraction === undefined || fraction === '00' ? grouped : `${grouped}.${fraction}`;
 }
 export function AuctionRosterPanel({
-  row,
+  attempt,
   onClose,
   showCloseButton = true
 }: {
-  readonly row: HistoryRow;
+  /** 표·차트가 이미 그린 행이 아니라 그 회차의 열쇠와 이름만 받는다(EAT-139). */
+  readonly attempt: AttemptKey;
   readonly onClose: () => void;
   readonly showCloseButton?: boolean;
 }) {
   // 표와 차트가 읽은 요약의 revision을 그대로 전달한다. null이면 서버가 opt-in을 무시한 응답이라 최신 명단으로
   // 추정하지 않고 확인 불가로 닫는다(ADR 0041 §1). 최신 명단은 그 요약이 말한 회차 결과와 다를 수 있다.
   const query = useQuery({
-    ...auctionQueries.roster(row.attemptId, row.revisionId ?? undefined),
-    enabled: row.revisionId !== null
+    ...auctionQueries.roster(attempt.attemptId, attempt.revisionId ?? undefined),
+    enabled: attempt.revisionId !== null
   });
   const data = query.data;
   const panel = useRef<HTMLElement>(null);
@@ -69,7 +70,7 @@ export function AuctionRosterPanel({
           <p className='mb-1 text-xs text-muted-foreground'>선택한 과거 회차</p>
           <h3 className='text-base font-semibold'>참여 기록</h3>
           <p className='mt-1 text-xs text-muted-foreground'>
-            {row.openedText} · {row.itemLabel} · 회차 {row.attemptId}
+            {attempt.openedText} · {attempt.itemLabel} · 회차 {attempt.attemptId}
           </p>
         </div>
         {showCloseButton ? (
@@ -78,7 +79,7 @@ export function AuctionRosterPanel({
           </Button>
         ) : null}
       </div>
-      {row.revisionId === null ? (
+      {attempt.revisionId === null ? (
         <p className='py-6 text-sm' role='alert'>
           회차 해석을 확인하지 못해 기록을 열 수 없습니다. 화면을 새로 열어 주세요.
         </p>

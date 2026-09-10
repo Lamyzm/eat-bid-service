@@ -1,260 +1,109 @@
-/** @module 책임: 기관 회차 이력을 일반·확대 어디서나 같은 열·정렬·기록 진입으로 그리고 사용자가 값을 입력했을 때만 가정 계산 열을 붙인다. 몇 행을 넘길지는 상위 composition이 정한다. */
-'use client';
-
-import {
-  createColumnHelper,
-  flexRender,
-  getCoreRowModel,
-  useReactTable
-} from '@tanstack/react-table';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button } from '@/shared/ui/button';
-import { useAttemptSelection } from './attempt-selection';
+/** @module 책임: 기관 회차 이력을 일반·확대 어디서나 같은 열·정렬·기록 진입으로 그린다. 열의 머리글·정렬·고정·셀을 한 열 서술에서 파생하고, 몇 행을 넘길지는 상위 composition이 정한다. */
+import type { ReactNode } from 'react';
 
 import type { HistoryRow } from '../_model/attempt-history';
-import { toMilli } from '../_model/bid-rate';
-import { judgeRow, type RowVerdict } from '../_model/rehearsal';
-import { NO_RATE_PHRASE, ROW_VERDICT_PHRASE } from '../_model/verdict-vocabulary';
-import { useBidRate } from './bid-rate-context';
-
-const columnHelper = createColumnHelper<HistoryRow>();
-
-// 왼쪽 열은 사실, 마지막 열은 가정이다. 열 정렬·색 역할을 여기 한 곳에서만 정해 헤더와 셀이 어긋나지
-// 않게 한다. 파란 기운은 '내 값' 하나에만 건다.
-const CELL_CLASS: Record<string, string> = {
-  opened: 'text-[15px] font-medium',
-  item: 'text-[15px] font-medium',
-  winRate: 'text-right text-[15px] font-semibold tabular-nums',
-  secondRate: 'text-right text-[15px] font-medium tabular-nums',
-  list: 'text-right text-[15px] font-medium tabular-nums',
-  verdict: 'text-right text-[15px] tabular-nums'
-};
-
-const HEAD_CLASS: Record<string, string> = {
-  opened: 'text-left',
-  item: 'text-left',
-  winRate: 'text-right',
-  secondRate: 'text-right',
-  list: 'text-right',
-  verdict: 'text-right tabular-nums text-primary'
-};
-
-// 마지막 열은 원본 판정이 아니라 내 값과 낙찰값·그날 하한의 비교이므로 문구는 파생 서술 어휘에서만 가져온다(PDR-0002).
-const VERDICT_TEXT: Record<RowVerdict, string> = {
-  won: ROW_VERDICT_PHRASE.won.text,
-  missed: ROW_VERDICT_PHRASE.missed.text,
-  invalid: ROW_VERDICT_PHRASE.invalid.text,
-  unknown: ROW_VERDICT_PHRASE.unknown.text
-};
-
-// 첫 열(개찰)과 마지막 열(판정)은 표가 근거 열보다 넓을 때 양 끝에 고정된다. 고정 열이 아래 열을 덮으므로
-// 바탕이 불투명해야 한다. 판정 열의 primary 10% 기운을 반투명 `bg-primary/10`으로 두면 덮인 글자가 비치므로
-// 카드색과 미리 섞은 불투명 색 하나만 건다(다른 bg-* 유틸리티와 함께 두면 stylesheet 순서가 이긴다).
-const STICKY_EDGE: Record<string, string> = { opened: 'left-0', verdict: 'right-0' };
-const STICKY_BACKGROUND: Record<string, string> = {
-  verdict: 'bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))]'
-};
-const OPENED_EDGE_SHADOW = 'shadow-[14px_0_14px_-10px_rgb(0_0_0/0.3)]';
-const VERDICT_EDGE_SHADOW = 'shadow-[-14px_0_14px_-10px_rgb(0_0_0/0.3)]';
-
-type ScrollEdges = { readonly left: boolean; readonly right: boolean };
-
-/**
- * 이 표 컨테이너의 스크롤 상태 하나를 소유한다.
- *
- * 가로: 넘칠 때만 고정 열 안쪽에 그림자를 걸어 "이 밑에 열이 더 있다"를 알린다. 넘치지 않으면 아무 힌트도
- * 없어야 표가 열에 맞는 폭에서 장식이 남지 않는다(EAT-86).
- *
- * 세로: 확대를 닫으면 12행만 남아 컨테이너가 더 이상 세로로 넘치지 않고, 그 순간 브라우저가 `scrollTop`을
- * 0으로 잘라 버린다. 다시 확대해도 두 번째 페이지에서 보던 자리를 잃으므로, 넘치는 동안의 위치를 기억했다가
- * 다시 넘치게 되는 전환에서만 되돌린다. 사용자가 맨 위로 올린 것도 0으로 기억하므로 임의로 끌어내리지 않는다.
- * 조회 조건이 바뀌면 다른 집단이라 기억을 물려받으면 안 되는데, 그 초기화는 `HistoryCard`가 코호트 key로
- * 이 컴포넌트를 다시 만들어 처리한다(EAT-115).
- */
-function useTableScroll() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState<ScrollEdges>({ left: false, right: false });
-  const rememberedTop = useRef(0);
-  const wasScrollable = useRef(false);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const update = () => {
-      const left = node.scrollLeft > 1;
-      const right = node.scrollLeft + node.clientWidth < node.scrollWidth - 1;
-      const scrollable = node.scrollHeight > node.clientHeight + 1;
-      if (scrollable) {
-        if (wasScrollable.current) rememberedTop.current = node.scrollTop;
-        else node.scrollTop = Math.min(rememberedTop.current, node.scrollHeight - node.clientHeight);
-      }
-      wasScrollable.current = scrollable;
-      setEdges((previous) =>
-        previous.left === left && previous.right === right ? previous : { left, right }
-      );
-    };
-    update();
-    node.addEventListener('scroll', update, { passive: true });
-    // 폭·높이는 viewport뿐 아니라 손잡이 값(머리글 길이)·행 수·집중 모드 전환으로도 바뀌므로 컨테이너와 표
-    // 둘 다 관측한다. 확대 전환도 이 관측으로 도착하므로 별도 mode prop이 필요 없다.
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
-    observer?.observe(node);
-    if (node.firstElementChild) observer?.observe(node.firstElementChild);
-    return () => {
-      node.removeEventListener('scroll', update);
-      observer?.disconnect();
-    };
-  }, []);
-  return { ref, edges };
-}
+import { HistoryAttemptRow, HistoryRecordButton } from './history-selection';
+import { HistoryTableScroll } from './history-table-scroll';
+import { HistoryVerdictCell, HistoryVerdictHead } from './history-verdict';
 
 // 열 머리는 세로로도 고정한다. 확대 집중 모드의 긴 표가 안에서 스크롤할 때 열 이름이 남아야 하고,
-// 12행 표에는 세로 스크롤이 없어 보이는 차이가 없으므로 모드 boolean을 두지 않는다. 양 끝 고정 열은
-// 두 축이 만나는 모서리라 나머지 머리(z-20)와 본문 고정 셀(z-10)보다 위에 있어야 서로 덮지 않는다.
-function edgeClass(columnId: string, edges: ScrollEdges, isHeader: boolean) {
-  const edge = STICKY_EDGE[columnId];
-  if (!edge) return isHeader ? 'sticky top-0 z-20 bg-card' : '';
-  const shadow = columnId === 'opened'
-    ? (edges.left ? OPENED_EDGE_SHADOW : '')
-    : (edges.right ? VERDICT_EDGE_SHADOW : '');
-  const background = STICKY_BACKGROUND[columnId] ?? 'bg-card';
-  return `sticky ${edge} ${isHeader ? 'top-0 z-30' : 'z-10'} ${background} ${shadow}`;
-}
+// 12행 표에는 세로 스크롤이 없어 보이는 차이가 없으므로 모드 boolean을 두지 않는다.
+const HEAD_BASE = 'sticky top-0 border-b border-border bg-card px-2 py-2 text-[13px] font-semibold whitespace-nowrap text-muted-foreground xl:px-3';
+const CELL_BASE = 'border-b border-border/60 px-2 py-2 text-[15px] whitespace-nowrap group-last/row:border-b-0 xl:px-3';
 
-const VERDICT_CLASS: Record<RowVerdict, string> = {
-  won: 'text-primary font-semibold',
-  missed: 'text-muted-foreground',
-  invalid: 'text-destructive',
-  unknown: 'text-muted-foreground'
+// 첫 열(개찰)은 표가 근거 열보다 넓을 때 왼쪽 끝에 고정된다. 넘칠 때만 안쪽에 그림자를 걸어 "이 밑에 열이
+// 더 있다"를 알리고, 넘쳤다는 사실은 `HistoryTableScroll`이 컨테이너 attribute로 알려 준다(EAT-86).
+// 고정 열이 아래 열을 덮으므로 바탕이 불투명해야 하며, 두 축이 만나는 모서리인 머리는 나머지 머리(z-20)와
+// 본문 고정 셀(z-10)보다 위에 있어야 서로 덮지 않는다. 반대쪽 끝의 판정 열은 `history-verdict`가 같은 규칙으로 소유한다.
+const OPENED_EDGE = 'left-0 [[data-scroll-left]_&]:shadow-[14px_0_14px_-10px_rgb(0_0_0/0.3)]';
+
+type HistoryColumn = {
+  readonly id: string;
+  readonly header: string;
+  /** 왼쪽 열은 사실, 오른쪽 숫자 열은 같은 자릿수로 읽히도록 tabular-nums다. */
+  readonly align: 'text-left' | 'text-right';
+  /** 셀의 글꼴 무게. 낙찰률만 굵게 두어 표에서 가장 먼저 읽히게 한다. */
+  readonly weight: string;
+  /** 양 끝에 고정되는 열만 갖는다. 머리와 셀이 같은 고정·그림자 규칙을 쓴다. */
+  readonly edge?: string;
+  readonly cell: (row: HistoryRow) => ReactNode;
 };
 
-// 참여 수는 관측 사실이고 기록 열람은 사용자의 행동이다. 숫자 자체를 링크로 두면 무엇이 열리는지
-// 이름이 없어 작은 숫자를 눌러야 알 수 있으므로, 수는 그대로 두고 진입만 이름이 보이는 버튼으로
-// 분리한다. 화면 이름은 짧게 두되 aria-label은 어느 회차인지 말하도록 개찰일을 유지한다(EAT-115).
-// 하한 아래 수 같은 내부 세부는 주 표에서 걷고 오른쪽 명단 상세에서 실제 상태와 함께 읽는다.
-function ListCell({
-  row,
-  onOpen
-}: {
-  readonly row: HistoryRow;
-  readonly onOpen: (attemptId: string) => void;
-}) {
-  return (
-    <span className='flex items-center justify-end gap-2'>
-      <span className='tabular-nums'>{row.listCount ?? '—'}</span>
-      <Button
-        variant='link'
-        size='sm'
-        className='h-auto p-0'
-        onClick={() => onOpen(row.attemptId)}
-        aria-label={`${row.openedText} 회차 참여 기록 보기`}
-      >
-        기록 보기
-      </Button>
-    </span>
-  );
-}
+/**
+ * 열의 머리글·정렬·고정·셀을 한 줄에 모은다. 이 넷을 따로 둔 표로 관리하면 열 하나를 더할 때 네 곳을
+ * 맞춰야 하고, 하나를 빠뜨려도 className에 `undefined`가 들어갈 뿐 조용히 지나간다.
+ *
+ * 그날 하한·낙찰 업체는 사용자 결정에 따라 표시 열에서 뺐다. 파생 계산인 그날 하한의 가정 비교와 관측
+ * 사실인 낙찰 업체의 실제 참여 기록은 그대로 유지한다(EAT-115). 하한 아래 수 같은 내부 세부도 주 표에서
+ * 걷고 오른쪽 명단 상세에서 실제 상태와 함께 읽는다.
+ */
+const COLUMNS: readonly HistoryColumn[] = [
+  { id: 'opened', header: '개찰', align: 'text-left', weight: 'font-medium', edge: OPENED_EDGE, cell: (row) => row.openedText },
+  { id: 'item', header: '품목', align: 'text-left', weight: 'font-medium', cell: (row) => row.itemLabel },
+  // 축을 머리글에 적지 않으면 사정률 두 열과 투찰률 두 열이 같은 눈금으로 읽힌다. 남산초에서
+  // 두 축은 최대 2.19%p 벌어지므로 이 표기는 장식이 아니라 값의 의미다(AGENTS 15, PDR-0004).
+  { id: 'winRate', header: '낙찰률(사정률)', align: 'text-right', weight: 'font-semibold tabular-nums', cell: (row) => row.winRateText ?? '—' },
+  { id: 'secondRate', header: '2등가(사정률)', align: 'text-right', weight: 'font-medium tabular-nums', cell: (row) => row.secondRateText ?? '—' },
+  {
+    id: 'list',
+    header: '명단',
+    align: 'text-right',
+    weight: 'font-medium tabular-nums',
+    cell: (row) => (
+      <span className='flex items-center justify-end gap-2'>
+        <span className='tabular-nums'>{row.listCount ?? '—'}</span>
+        <HistoryRecordButton attemptId={row.attemptId} openedText={row.openedText} />
+      </span>
+    )
+  }
+];
 
-// 손잡이가 비어 있으면 마지막 열은 무엇을 하면 계산되는지만 말하고 어떤 값으로도 판정하지 않는다(EAT-84).
-function useHistoryColumns(
-  rateMilli: bigint | null,
-  rate: string | null,
-  onOpen: (attemptId: string) => void
-) {
-  return useMemo(
-    () => [
-      columnHelper.accessor('openedText', { id: 'opened', header: '개찰' }),
-      columnHelper.accessor('itemLabel', { id: 'item', header: '품목' }),
-      // 축을 머리글에 적지 않으면 사정률 두 열과 투찰률 두 열이 같은 눈금으로 읽힌다. 남산초에서
-      // 두 축은 최대 2.19%p 벌어지므로 이 표기는 장식이 아니라 값의 의미다(AGENTS 15, PDR-0004).
-      columnHelper.accessor((row) => row.winRateText ?? '—', {
-        id: 'winRate',
-        header: '낙찰률(사정률)'
-      }),
-      columnHelper.accessor((row) => row.secondRateText ?? '—', {
-        id: 'secondRate',
-        header: '2등가(사정률)'
-      }),
-      // 그날 하한·낙찰 업체는 사용자 결정에 따라 표시 열만 제거한다. 파생 계산인 그날 하한의
-      // 가정 비교와 관측 사실인 낙찰 업체의 실제 참여 기록은 그대로 유지한다(EAT-115).
-      columnHelper.display({
-        id: 'list',
-        header: '명단',
-        cell: (context) => <ListCell row={context.row.original} onOpen={onOpen} />
-      }),
-      columnHelper.display({
-        id: 'verdict',
-        header: rate === null ? NO_RATE_PHRASE.header.text : `${rate} 썼다면`,
-        cell: (context) => {
-          if (rateMilli === null)
-            return <span className={VERDICT_CLASS.unknown}>{NO_RATE_PHRASE.row.text}</span>;
-          const verdict = judgeRow(context.row.original, rateMilli);
-          return <span className={VERDICT_CLASS[verdict]}>{VERDICT_TEXT[verdict]}</span>;
-        }
-      })
-    ],
-    [rate, rateMilli, onOpen]
-  );
-}
-
-/** 응답의 최근 → 오래된 순을 그대로 그린다. 몇 행을 넘길지(일반 12행 / 확대 누적)는 `HistoryCard`가 정하고
- * 열 클릭 정렬은 넣지 않는다. 여기서 다시 자르면 확대에서 같은 표를 쓸 수 없다(EAT-115). */
+/**
+ * 행 값은 서버에서 이미 문자열로 만들어졌고 셀 안에서 브라우저가 필요한 것은 선택 표시·기록 진입·손잡이
+ * 판정 셋뿐이라 이 표는 server component다. 그 셋은 각각 client leaf가 맡고 표 자체는 서버에 남는다.
+ * 정렬·필터·가상화가 이 표에 생기기 전까지 headless 표 라이브러리를 다시 들이지 않는다 — 그 순간 표
+ * 전체가 브라우저로 넘어가고 hydration 비용이 따라온다(EAT-136·EAT-139).
+ *
+ * 응답의 최근 → 오래된 순을 그대로 그린다. 몇 행을 넘길지(일반 12행 / 확대 누적)는 `HistoryCard`가 정하고
+ * 열 클릭 정렬은 넣지 않는다. 여기서 다시 자르면 확대에서 같은 표를 쓸 수 없다(EAT-115).
+ */
 export function HistoryTable({ rows }: { readonly rows: readonly HistoryRow[] }) {
-  const selection = useAttemptSelection();
-  const { rate } = useBidRate();
-  const rateMilli = rate === null ? null : toMilli(rate);
-  const data = useMemo(() => [...rows], [rows]);
-  const columns = useHistoryColumns(rateMilli, rate, selection.select);
-  // oxlint-disable-next-line react/incompatible-library -- headless table 인스턴스는 함수를 돌려주지만 React Compiler는 annotation mode라 이 컴포넌트를 메모하지 않는다(apps/web AGENTS.md). "use memo"를 붙일 때 이 표를 함께 검증한다.
-  const table = useReactTable({ data, columns, state: { columnVisibility: { verdict: rate !== null } }, getCoreRowModel: getCoreRowModel() });
-
-  const { ref, edges } = useTableScroll();
-
   // 좁은 폭에서도 열이 근거 영역 안에 들어가도록 xl 아래에서는 셀 여백을 줄인다. 그래도 넘치면 페이지가
   // 아니라 이 컨테이너만 가로로 움직이고, 첫·마지막 열은 고정돼 판정 열이 잘려 보이지 않는다.
   // border-collapse에서는 sticky 셀이 행 테두리를 끌고 가지 못해 separate로 두고 테두리를 셀에 건다.
   return (
-    <div
-      ref={ref}
-      data-slot='history-table-scroll'
-      data-scroll-left={edges.left ? '' : undefined}
-      data-scroll-right={edges.right ? '' : undefined}
-      className='min-w-0 overflow-x-auto'
-    >
+    <HistoryTableScroll>
       <table className='w-full border-separate border-spacing-0'>
         <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th
-                  key={header.id}
-                  scope='col'
-                  className={`border-b border-border px-2 py-2 text-[13px] font-semibold whitespace-nowrap text-muted-foreground xl:px-3 ${HEAD_CLASS[header.column.id]} ${edgeClass(header.column.id, edges, true)}`}
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
+          <tr>
+            {COLUMNS.map((column) => (
+              <th
+                key={column.id}
+                scope='col'
+                className={`${HEAD_BASE} ${column.align} ${column.edge ? `${column.edge} z-30` : 'z-20'}`}
+              >
+                {column.header}
+              </th>
+            ))}
+            <HistoryVerdictHead />
+          </tr>
         </thead>
         <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr
-              key={row.id}
-              data-selected={row.original.attemptId === selection.row?.attemptId ? '' : undefined}
-              className='group/row data-selected:bg-primary/5'
-            >
-              {row.getVisibleCells().map((cell) => (
+          {rows.map((row) => (
+            <HistoryAttemptRow key={row.attemptId} attemptId={row.attemptId}>
+              {COLUMNS.map((column) => (
                 <td
-                  key={cell.id}
-                  className={`border-b border-border/60 px-2 py-2 whitespace-nowrap group-last/row:border-b-0 xl:px-3 ${CELL_CLASS[cell.column.id]} ${edgeClass(cell.column.id, edges, false)}`}
+                  key={column.id}
+                  className={`${CELL_BASE} ${column.align} ${column.weight} ${column.edge ? `sticky ${column.edge} z-10 bg-card` : ''}`}
                 >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  {column.cell(row)}
                 </td>
               ))}
-            </tr>
+              <HistoryVerdictCell dayFloorMilli={row.dayFloorMilli} awardedBidRateMilli={row.awardedBidRateMilli} />
+            </HistoryAttemptRow>
           ))}
         </tbody>
       </table>
-    </div>
+    </HistoryTableScroll>
   );
 }

@@ -8,7 +8,7 @@ import { AuctionRosterPanel } from './auction-roster-panel';
 import { DecisionTools } from './decision-tools';
 
 export function AuctionWorkspaceDock({ fallback }: { readonly fallback: ReactNode }) {
-  const { row, panel, close, returnFocus } = useAttemptSelection();
+  const { attempt, panel, close, returnFocus } = useAttemptSelection();
   return (
     <>
       <DockSlot slot='panel'>
@@ -19,10 +19,10 @@ export function AuctionWorkspaceDock({ fallback }: { readonly fallback: ReactNod
           returnFocus={returnFocus}
         >
           <div hidden={panel !== 'current'}>{fallback}</div>
-          {row && panel === 'record' ? (
+          {attempt && panel === 'record' ? (
             <AuctionRosterPanel
-              key={row.attemptId}
-              row={row}
+              key={attempt.attemptId}
+              attempt={attempt}
               onClose={close}
               showCloseButton={false}
             />

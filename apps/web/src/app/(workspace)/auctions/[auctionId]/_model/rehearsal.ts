@@ -33,6 +33,12 @@ function hasWinRate(row: HistoryRow): row is ObservedRateRow {
  */
 export type RowVerdict = 'won' | 'missed' | 'invalid' | 'unknown';
 
+/**
+ * 판정에 실제로 쓰는 값만 추린 입력이다. 표의 마지막 열은 client leaf가 그리므로 이 둘만 브라우저로
+ * 건너가고 나머지 행 필드는 서버에 남는다(EAT-139).
+ */
+export type RowVerdictInput = Pick<HistoryRow, 'dayFloorMilli' | 'awardedBidRateMilli'>;
+
 // eaT는 그날 하한 이상인 투찰 중 가장 낮은 투찰률이 낙찰한다. 손잡이 값이 실제 낙찰률 이하이면서
 // 하한을 밑돌지 않으면(같은 값은 추첨이므로 낙찰값 이하로 센다) 그 회차를 낙찰값 이하 회차로 센다.
 // 하한을 밑돈 회차는 낙찰값과 견줄 일이 없으므로 하한 비교가 먼저다.
@@ -40,7 +46,7 @@ export type RowVerdict = 'won' | 'missed' | 'invalid' | 'unknown';
 // 세 값이 모두 투찰률 축(분모 기초금액)이어야 한 비교식에 들어갈 수 있다(AGENTS 15). 표에 함께 보이는
 // 낙찰률 `winRateMilli`는 분모가 예정가격인 사정률이라 이 비교에 넣지 않는다. 남산초 실관측 92회차에서
 // 두 축은 전부 0.01%p 이상, 최대 2.19%p 벌어지고 90.000 손잡이에서는 92회차 중 42회차가 갈린다.
-export function judgeRow(row: HistoryRow, rateMilli: bigint): RowVerdict {
+export function judgeRow(row: RowVerdictInput, rateMilli: bigint): RowVerdict {
   // 그날 하한만 알면 하한 아래인지는 확정이다. 낙찰률이 없는 회차라도 이를 'unknown'으로 감추면
   // "하한보다 낮았을 회차"가 실제보다 적게 보인다.
   if (row.dayFloorMilli !== null && rateMilli < row.dayFloorMilli) return 'invalid';

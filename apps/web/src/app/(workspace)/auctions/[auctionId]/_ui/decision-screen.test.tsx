@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { fireEvent, render as renderUI, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { WorkspaceDockFixture } from '../__fixtures__/workspace-dock';
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
@@ -16,6 +17,19 @@ import { DecisionScreen } from './decision-screen';
 import { DecisionScreenSkeleton } from './decision-screen-skeleton';
 
 const render = (ui: ReactNode) => renderUI(ui, { wrapper: WorkspaceDockFixture });
+// 근거 탭이 주소의 `view`를 읽으므로 서버 markup 검사에도 route와 같은 자리에 nuqs adapter를 둔다.
+const markupOf = (ui: ReactNode) => renderToStaticMarkup(<NuqsTestingAdapter>{ui}</NuqsTestingAdapter>);
+
+/**
+ * 사용자가 실제로 보는 부분만 남긴 markup. 서버는 흐름·분포 두 본문을 함께 렌더해 두고 꺼진 쪽은
+ * `hidden`으로 접근성 트리에서도 빼므로, 화면 문구 검사는 켜진 본문만 센다(EAT-139).
+ */
+function shownMarkup(markup: string): string {
+  const host = document.createElement('div');
+  host.innerHTML = markup;
+  for (const hidden of host.querySelectorAll('[hidden]')) hidden.remove();
+  return host.innerHTML;
+}
 
 const searchOn = (view: DecisionView): DecisionSearch => ({
   period: '12개월',
@@ -84,7 +98,7 @@ const lockedDistribution: DecisionPageData['distribution'] = {
 
 describe('결정 화면', () => {
   test('서버 markup에 프레임·제목·상태 배지·근거 탭이 있다', () => {
-    const markup = renderToStaticMarkup(
+    const markup = markupOf(
       <DecisionScreen
         decision={decision()}
         search={search}
@@ -103,13 +117,15 @@ describe('결정 화면', () => {
   });
 
   test('금지 문구가 없다', () => {
-    const markup = renderToStaticMarkup(
-      <DecisionScreen
-        decision={decision()}
-        search={flowSearch}
-        history={readyHistory}
-        distribution={readyDistribution}
-      />
+    const markup = shownMarkup(
+      markupOf(
+        <DecisionScreen
+          decision={decision()}
+          search={flowSearch}
+          history={readyHistory}
+          distribution={readyDistribution}
+        />
+      )
     );
     for (const banned of ['NeaT', '탈락선', '밀림', '추천', '안전 구간'])
       expect(markup).not.toContain(banned);
@@ -356,7 +372,7 @@ describe('결정 화면', () => {
   });
 
   test('회차가 0건이거나 1건이어도 캡션에 NaN이 나오지 않는다', () => {
-    const none = renderToStaticMarkup(
+    const none = markupOf(
       <DecisionScreen
         decision={decision()}
         search={flowSearch}
@@ -379,7 +395,7 @@ describe('결정 화면', () => {
   });
 
   test('구매기관이 정규화되지 않은 공고는 흐름 탭에서 이유를 그대로 말한다', () => {
-    const markup = renderToStaticMarkup(
+    const markup = markupOf(
       <DecisionScreen
         decision={decision()}
         search={flowSearch}
@@ -441,7 +457,7 @@ describe('결정 화면', () => {
   });
 
   test('회차 이력 조회가 실패하면 빈 화면 대신 실패 사실을 말한다', () => {
-    const markup = renderToStaticMarkup(
+    const markup = markupOf(
       <DecisionScreen
         decision={decision()}
         search={flowSearch}

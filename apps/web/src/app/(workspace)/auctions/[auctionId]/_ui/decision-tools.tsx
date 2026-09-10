@@ -16,7 +16,7 @@ import {
 import { useAttemptSelection } from './attempt-selection';
 
 export function DecisionTools({ placement }: { readonly placement: 'top' | 'rail' }) {
-  const { row, panel, openCurrent, openRecord, close, setReturnFocus } = useAttemptSelection();
+  const { attempt, panel, openCurrent, openRecord, close, setReturnFocus } = useAttemptSelection();
   const trigger = useRef<HTMLButtonElement>(null);
   if (placement === 'top')
     return (
@@ -36,7 +36,7 @@ export function DecisionTools({ placement }: { readonly placement: 'top' | 'rail
               현재 공고 정보
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={!row}
+              disabled={!attempt}
               onClick={() => {
                 openRecord();
                 setReturnFocus(trigger.current);
@@ -61,7 +61,7 @@ export function DecisionTools({ placement }: { readonly placement: 'top' | 'rail
       </Button>
       <Button
         variant={panel === 'record' ? 'secondary' : 'ghost'}
-        disabled={!row}
+        disabled={!attempt}
         aria-label='선택 회차 기록'
         aria-expanded={panel === 'record'}
         onClick={panel === 'record' ? close : openRecord}

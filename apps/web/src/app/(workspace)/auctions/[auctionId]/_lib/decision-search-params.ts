@@ -106,6 +106,18 @@ export function buildDecisionViewRoute(auctionId: string, search: DecisionSearch
   return `${pathname}?${query.toString()}`;
 }
 
+/**
+ * 서버가 그린 주소의 `view`를 지금 보고 있는 본문으로 바꾼다. 흐름↔분포는 서버 왕복 없이 바뀌므로 서버가
+ * 아는 `view`는 한 걸음 지날 수 있고, 그대로 두면 조건·확대 링크가 사용자가 방금 고른 본문을 되돌린다(EAT-139).
+ */
+export function withDecisionView(route: DecisionRoute, view: DecisionView): DecisionRoute {
+  const separator = route.indexOf('?');
+  const pathname = route.slice(0, separator) as `/auctions/${string}`;
+  const query = new URLSearchParams(route.slice(separator + 1));
+  query.set('view', view);
+  return `${pathname}?${query.toString()}`;
+}
+
 /** 과거 회차 확대의 다음 페이지 링크. 열린 본문은 그대로 두고 페이지 수만 바꾼다. */
 export function buildDecisionHistoryPagesRoute(auctionId: string, search: DecisionSearch, pages: number): DecisionRoute {
   return buildDecisionViewRoute(auctionId, { ...search, expand: '과거 회차', pages }, search.view);
