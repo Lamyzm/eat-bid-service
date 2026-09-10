@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { SQL, is } from "drizzle-orm";
 import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
 import {
   auctionAttempt,
@@ -51,6 +52,19 @@ const checkExpression = (table: Parameters<typeof getTableConfig>[0], name: stri
 
   return new PgDialect().sqlToQuery(constraint.value).sql;
 };
+
+// 정렬 방향과 nulls 방향까지 함께 읽는다. 둘 중 하나만 달라도 planner는 server의 `order by`와 같은
+// pathkey로 보지 않아 index를 읽고도 정렬을 다시 한다.
+const indexColumnOrders = (table: Parameters<typeof getTableConfig>[0]) =>
+  Object.fromEntries(
+    getTableConfig(table).indexes.map((index) => [
+      index.config.name,
+      index.config.columns.map((column) =>
+        is(column, SQL)
+          ? "<expression>"
+          : `${column.name} ${column.indexConfig?.order} nulls ${column.indexConfig?.nulls}`),
+    ]),
+  );
 
 describe("canonical identity 불변식", () => {
   test("모든 canonical bigint 열은 bigint TypeScript mapping을 선언한다", () => {
@@ -264,5 +278,21 @@ describe("canonical identity 불변식", () => {
       "language",
       "observation_id",
     ]);
+  });
+
+  test("가장 나중 관측 라벨 조회 축을 server의 plain desc(nulls first)와 같은 index로 준다", () => {
+    expect(indexColumnOrders(codeLabelObservation)).toEqual({
+      code_label_observation_value_observed_idx: [
+        "code_value_id asc nulls last",
+        "observed_at desc nulls first",
+        "code_label_observation_id desc nulls first",
+      ],
+    });
+  });
+
+  test("organization identifier를 구매기관 organization_id 축으로도 찾는다", () => {
+    expect(indexColumnOrders(organizationIdentifier)).toEqual({
+      organization_identifier_organization_idx: ["organization_id asc nulls last"],
+    });
   });
 });

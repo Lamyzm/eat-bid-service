@@ -1,4 +1,4 @@
-import { bigint, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import { bigint, index, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
 import { rawObservation } from "../ingest/evidence.js";
 import { coreSchema } from "../namespaces.js";
 import { codeValue } from "./codes.js";
@@ -27,5 +27,11 @@ export const organizationIdentifier = coreSchema.table(
       .notNull()
       .references(() => rawObservation.observationId),
   },
-  (table) => [unique("organization_identifier_code_value_key").on(table.codeValueId)],
+  (table) => [
+    unique("organization_identifier_code_value_key").on(table.codeValueId),
+    // 명단·내 투찰의 purchaserObservedAtJoin(server auction-roster-query)은 revision의 구매기관
+    // organization_id로 이 표를 조인해 eat:organization code value를 찾는다. 위 unique key는 code_value_id
+    // 축이라 organization_id 축의 조인은 별도 index가 있어야 표 전체를 읽지 않는다.
+    index("organization_identifier_organization_idx").on(table.organizationId),
+  ],
 );
