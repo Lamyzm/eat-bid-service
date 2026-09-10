@@ -3,10 +3,12 @@ import { auctionV1Operations, auctionV1ResponseSchema } from '@eatbid/contracts/
 import {
   ACTIVATE_BUILD_PATH,
   COUNTS_PATH,
+  LINEAGE_PATH,
   RESET_PATH,
   activateNextBuild,
   countRequest,
   observedCounts,
+  observedLineage,
   resetObservations
 } from './cache-observability';
 import { auctionRosterResponse } from './auction-roster-fixture';
@@ -221,6 +223,7 @@ Bun.serve({
     // 관측·제어 경로는 계약 operation이 아니라 캐시 e2e가 쓰는 검증 표면이다. `__` 접두사로 공개
     // 경로와 겹치지 않게 두고, 요청 카운터보다 앞에 두어 제어 호출 자체가 카운트되지 않게 한다.
     if (pathname === COUNTS_PATH) return Response.json(observedCounts());
+    if (pathname === LINEAGE_PATH) return Response.json(observedLineage());
     if (pathname === ACTIVATE_BUILD_PATH) return Response.json({ activations: activateNextBuild() });
     if (pathname === RESET_PATH) {
       resetObservations();

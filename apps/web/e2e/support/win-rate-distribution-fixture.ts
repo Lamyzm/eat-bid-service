@@ -5,7 +5,7 @@ import {
   winRateDistributionV1ResponseSchema
 } from '@eatbid/contracts/api/v1/win-rate-distribution';
 
-import { activatedBuildId } from './cache-observability';
+import { serveBuildId } from './cache-observability';
 
 const operation = winRateDistributionV1Operations.find;
 
@@ -59,8 +59,8 @@ export function winRateDistributionResponse(request: Request): Response | undefi
       awardMethod: searchParams.get('awardMethod') ?? '31',
       binWidth: rate(searchParams.get('binWidth') ?? '0.010'),
       period: { from, to },
-      // 활성 build 전환을 재현할 수 있도록 요청 시점에 읽는다(캐시 e2e).
-      buildId: activatedBuildId(BASE_BUILD_ID),
+      // 활성 build 전환을 재현할 수 있도록 요청 시점에 읽고, 그 값을 이 조회가 내준 계보로 남긴다(캐시 e2e).
+      buildId: serveBuildId('winRateDistribution', BASE_BUILD_ID),
       sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
       calcVersion: 'mart-r1',
       computedAt: '2026-09-06T00:10:00Z',
