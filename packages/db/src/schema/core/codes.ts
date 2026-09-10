@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  index,
   text,
   timestamp,
   unique,
@@ -68,6 +69,19 @@ export const codeLabelObservation = coreSchema.table(
       table.label,
       table.language,
       table.observationId,
+    ),
+    // 공고 상세·열린 공고 목록·코드 조회는 행마다 lateral로 "이 code value의 가장 나중 관측 라벨 하나"를
+    // `where code_value_id = ? order by observed_at desc, code_label_observation_id desc limit 1`로 집는다
+    // (server의 codeReferenceJoin·regionReferenceJoin·DrizzleCodeReader.members). 재수집마다 관측이 쌓이므로
+    // 정렬을 index pathkey가 줘야 한다. 위 evidence key는 label·language가 관측 시각 앞에 있어 이 정렬을
+    // 못 주며, 명단·내 투찰의 `code_value_id = ? and observation_id = ?` 조회는 그 evidence key가 맡는다.
+    // `nullsFirst()`를 명시하는 이유: server SQL의 plain `desc`는 PostgreSQL에서 `desc nulls first`인데
+    // drizzle의 `desc()`만으로는 `DESC NULLS LAST`가 생성되고, 두 열이 not null이어도 planner는 nulls 방향이
+    // 다른 pathkey를 같은 정렬로 보지 않아 index를 읽고도 top-N sort를 다시 한다(EAT-153 EXPLAIN 실측).
+    index("code_label_observation_value_observed_idx").on(
+      table.codeValueId,
+      table.observedAt.desc().nullsFirst(),
+      table.codeLabelObservationId.desc().nullsFirst(),
     ),
   ],
 );

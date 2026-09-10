@@ -1,0 +1,2 @@
+CREATE INDEX "code_label_observation_value_observed_idx" ON "core"."code_label_observation" ("code_value_id","observed_at" DESC,"code_label_observation_id" DESC);--> statement-breakpoint
+CREATE INDEX "organization_identifier_organization_idx" ON "core"."organization_identifier" ("organization_id");
