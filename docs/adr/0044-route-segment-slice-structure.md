@@ -1,6 +1,6 @@
 # 0044 — route segment 내부를 기능 슬라이스로 나눈다
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-10
 - Amends: [ADR 0023](0023-nextjs-web-modular-boundaries.md)의 "한 route에서만 쓰는 presentation과
   interactive leaf는 route segment의 private `_model`/`_ui`/`_lib`가 소유한다" 조항. 여섯 층과 의존 방향,
