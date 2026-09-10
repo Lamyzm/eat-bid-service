@@ -1,4 +1,4 @@
-/** @module 책임: 열린 공고 목록 port를 활성 mart build 두 개의 조회와 스냅샷 행·기관 요약 매핑으로 구현한다. */
+/** @module 책임: 열린 공고 목록 port를 활성 mart build 두 개의 조회와 스냅샷 행·(기관, 하한율) 요약 매핑으로 구현한다. */
 import type {
   OpenAuctionListing,
   OpenAuctionOrgSummaryRecord,
@@ -61,9 +61,10 @@ export type OpenAuctionRow = Readonly<
 >;
 
 function orgSummary(row: OpenAuctionRow, hasOrgBuild: boolean): OpenAuctionOrgSummaryRecord | null {
-  // 활성 회차 요약 build가 없거나 그 build에 이 기관 회차가 없으면 요약 자체가 없다. 0으로 채우지 않는다 —
-  // "회차 0건"과 "요약이 아직 없음"은 다른 사실이다.
-  if (!hasOrgBuild || row.attempt_count === null || row.attempt_count === 0) return null;
+  // 코호트를 만들 수 없으면(활성 회차 요약 build 없음·기관 미확인·하한율 미관측) 요약 자체가 없다.
+  // 코호트는 있는데 회차가 0건인 것은 셀 수 있는 사실이라 null로 접지 않는다 —
+  // "이 하한에서 관측한 회차 0건"과 "요약이 아직 없음"은 화면이 다르게 말해야 한다.
+  if (!hasOrgBuild || row.attempt_count === null) return null;
   const lastOpenedAt = postgresInstant(row.last_round_opened_at);
   return {
     attemptCount: row.attempt_count,

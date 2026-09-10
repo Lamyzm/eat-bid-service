@@ -59,6 +59,24 @@ describe('열린 공고 표시 변환', () => {
     }, fixtureNow).orgSummary!.lastAwardedText).toBe('낙찰 미관측');
   });
 
+  test('같은 하한율에서 본 회차가 없는 행은 값을 지어내지 않고 그 사실을 말한다', () => {
+    // 요약의 코호트는 (기관, 하한율)이다. 코호트가 비어 있는 것과 요약 자체가 없는 것은 다른 사실이다.
+    const emptyCohort = presentOpenAuction({
+      ...todayRow,
+      orgSummary: { attemptCount: 0, medianListCount: null, listCountSampleCount: 0, lastRound: null }
+    }, fixtureNow);
+    expect(emptyCohort.orgSummary).toEqual({
+      attemptCount: 0,
+      medianListText: '—',
+      listCountSampleCount: 0,
+      lastAwardedText: '같은 하한 회차 없음',
+      lastOpenedText: '',
+      lastListText: ''
+    });
+    // 하한율을 관측하지 못한 행은 코호트를 만들 수 없어 요약 블록이 통째로 없다.
+    expect(presentOpenAuction(laterRow, fixtureNow).orgSummary).toBeNull();
+  });
+
   test('활성 build가 없는 것과 조건에 맞는 공고가 없는 것을 다른 종류로 낸다', () => {
     // build가 없으면 목록이 비어 있어도 "공고가 없다"고 말할 수 없다. 종류를 화면이 아니라 여기서 정한다.
     expect(presentOpenAuctionList(noSnapshotFixture, fixtureNow).view).toEqual({ kind: 'no-snapshot' });

@@ -1,4 +1,4 @@
-/** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 표가 그대로 쓰는 표시값(KST 마감·D-day·금액·미확인 문구·기관 요약)으로 바꾼다. */
+/** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 표가 그대로 쓰는 표시값(KST 마감·D-day·금액·미확인 문구·(기관, 하한율) 요약)으로 바꾼다. */
 import { Temporal } from '@eatbid/domain';
 import type { OpenAuction, OpenAuctionListV1Response } from '@eatbid/contracts/api/v1/auctions';
 
@@ -118,6 +118,18 @@ function presentRegion(region: OpenAuction['region']): OpenAuctionRowPresentatio
   return { sido: regionReference(region?.sido ?? null), sigungu: regionReference(region?.sigungu ?? null) };
 }
 
+/**
+ * 요약은 이 행의 하한율 코호트에서만 온다. 그래서 값을 못 낸 이유가 셋이고 사용자가 할 일이 서로 다르다.
+ * 같은 하한에서 본 회차가 아예 없는 것, 회차는 있는데 아직 개찰 전인 것, 개찰은 됐는데 낙찰을 관측하지
+ * 못한 것을 한 문구로 합치면 화면이 없는 사실을 말한다(AGENTS 3).
+ */
+function lastAwardedTextOf(summary: NonNullable<OpenAuction['orgSummary']>): string {
+  if (summary.attemptCount === 0) return '같은 하한 회차 없음';
+  if (summary.lastRound === null) return '개찰 회차 없음';
+  // 최근 낙찰은 투찰률 축(기초금액 분모)이다.
+  return summary.lastRound.awardedBidRate?.value ?? '낙찰 미관측';
+}
+
 function presentOrgSummary(summary: OpenAuction['orgSummary']): OpenAuctionRowPresentation['orgSummary'] {
   if (summary === null) return null;
   const last = summary.lastRound;
@@ -125,8 +137,7 @@ function presentOrgSummary(summary: OpenAuction['orgSummary']): OpenAuctionRowPr
     attemptCount: summary.attemptCount,
     medianListText: summary.medianListCount === null ? '—' : String(summary.medianListCount),
     listCountSampleCount: summary.listCountSampleCount,
-    // 최근 낙찰은 투찰률 축(기초금액 분모)이다. 낙찰을 관측하지 못한 회차와 개찰된 회차가 없는 기관을 다른 문구로 둔다.
-    lastAwardedText: last === null ? '개찰 회차 없음' : last.awardedBidRate === null ? '낙찰 미관측' : last.awardedBidRate.value,
+    lastAwardedText: lastAwardedTextOf(summary),
     lastOpenedText: last === null ? '' : kstDateTime(last.openedAt),
     lastListText: last === null || last.listCount === null
       ? ''

@@ -18,7 +18,8 @@ import { disposableDatabase } from "../../fixtures/disposable-database.fixture";
 import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
 // 시나리오: 201은 오늘 마감(관측 둘), 202는 내일 마감이고 상세가 아직 없음, 203은 기관·마감 미확인,
-// 204는 이미 마감, 205는 사흘 뒤 마감. 기관 41의 회차 요약은 개찰 셋(101·102)·미관측(103)·개찰 예정(104)이다.
+// 204는 이미 마감, 205는 사흘 뒤 마감이고 하한율만 88.000으로 다르다. 기관 41의 회차 요약은 전부 하한율
+// 90.000이며 개찰(101·102)·개찰 미관측(103)·개찰 예정(104)으로 나뉜다.
 const NOW = Temporal.Instant.from("2026-09-07T01:00:00Z");
 
 const seed = `
@@ -239,7 +240,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         },
       });
       expect(all.auctions[0]!.observedAt.toString()).toBe("2026-09-07T00:30:00Z");
-      // 기관 41의 요약: 회차 4, 명단 표본 [5, 17, 9] 중앙값 9, 최근 개찰 회차는 102(개찰 예정 104는 아직 아니다).
+      // 기관 41 · 하한율 90.000 코호트: 회차 4, 명단 표본 [5, 17, 9] 중앙값 9, 최근 개찰 회차는 102(개찰 예정 104는 아직 아니다).
       expect(all.auctions[0]!.orgSummary).toMatchObject({
         attemptCount: 4,
         medianListCount: 9,
@@ -266,6 +267,9 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       expect(all.auctions[2]!.region!.sigungu).toEqual({
         codeValueId: 44n, code: "48250", scheme: "eat:auction-location-sigungu", label: null,
       });
+      // 205는 하한율 88.000인데 기관 41의 회차는 전부 90.000이다. 다른 판의 값을 붙이지 않고 회차 0건으로 남는다.
+      expect(all.auctions[2]!.orgSummary)
+        .toEqual({ attemptCount: 0, medianListCount: null, listCountSampleCount: 0, lastRound: null });
       expect(all.auctions[3]).toMatchObject({ organization: null, closesAt: null, orgSummary: null });
       expect(all.snapshotLineage).toMatchObject({ buildId: 601n, calcVersion: "mart-r2", coverage: "partial" });
       expect(all.orgSummaryLineage).toMatchObject({ buildId: 501n, calcVersion: "mart-r1", coverage: "unknown" });

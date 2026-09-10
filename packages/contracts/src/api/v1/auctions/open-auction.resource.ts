@@ -1,4 +1,4 @@
-/** @module 책임: mart.open_auction_snapshot 한 행과 그 기관의 최근 회차 요약을 담는 열린 공고 resource 계약을 소유한다. */
+/** @module 책임: mart.open_auction_snapshot 한 행과 그 행의 (기관, 하한율) 코호트 요약을 담는 열린 공고 resource 계약을 소유한다. */
 import { z } from "zod";
 
 import { nonNegativeCountSchema } from "../../../atoms/count";
@@ -26,8 +26,8 @@ export const openAuctionRegionSchema = z.strictObject({
 }).meta({ id: "OpenAuctionRegion" });
 
 /**
- * 이 기관이 가장 최근에 개찰한 회차 하나다. 낙찰률·그날 하한·명단 수를 서로 다른 회차에서 뽑아 나란히
- * 놓으면 화면이 없는 회차를 말하게 되므로 다섯 값은 반드시 같은 회차에서 온다.
+ * 이 행과 같은 하한율에서 이 기관이 가장 최근에 개찰한 회차 하나다. 낙찰률·그날 하한·명단 수를 서로 다른
+ * 회차에서 뽑아 나란히 놓으면 화면이 없는 회차를 말하게 되므로 다섯 값은 반드시 같은 회차에서 온다.
  * 두 비율은 같은 축(기초금액 분모, numeric(9,4))이다. 사정률 축은 여기 싣지 않는다 — 분모가 예정가격이라
  * 사용자의 투찰률과 비교할 수 없다(AGENTS 15, PDR-0004).
  */
@@ -41,15 +41,22 @@ export const openAuctionLastRoundSchema = z.strictObject({
   belowDayFloorCount: nonNegativeCountSchema.nullable(),
 }).meta({ id: "OpenAuctionLastRound" });
 
-/** 행마다 실어 N+1을 만들지 않는다(architecture.md §3.3). 활성 org_round_summary build 하나에서만 센다. */
+/**
+ * 이 행의 `organization`과 `floorRate`가 함께 정하는 코호트 하나의 요약이다. 하한율이 다르면 그날 하한이
+ * 다른 자리에 서서 겹치지 않는 판이 되므로 같은 기관이라도 하한율을 섞지 않는다(screen-system §6.4.1,
+ * PDR-0004). 품목은 반대로 좁히지 않는다 — 하한율을 고정하면 품목별로 갈리는 것이 없어 표본만 줄어든다.
+ * 코호트를 만들 수 없는 행, 즉 기관 미확인이거나 `floorRate`가 미관측인 행은 이 블록이 통째로 null이다.
+ * 행마다 실어 N+1을 만들지 않으며(architecture.md §3.3) 활성 org_round_summary build 하나에서만 센다.
+ */
 export const openAuctionOrgSummarySchema = z.strictObject({
-  // 이 기관을 우리가 몇 회차나 관측했나. 아래 중앙값의 모집단이 아니다.
+  // 이 코호트에서 몇 회차를 관측했나. 아래 중앙값의 모집단이 아니며, 0은 "이 하한에서 본 회차가 아직
+  // 없다"는 셀 수 있는 사실이라 요약 없음(null)과 합치지 않는다.
   attemptCount: nonNegativeCountSchema,
   // 보통 참여. percentile_disc(0.5)라 실제 관측된 명단 수 하나이며 평균이 아니다.
   medianListCount: nonNegativeCountSchema.nullable(),
   // 위 중앙값을 만든 표본 수. 명단이 미관측인 회차는 빠지므로 attemptCount와 다를 수 있다(AGENTS 7).
   listCountSampleCount: nonNegativeCountSchema,
-  // 개찰 시각이 관측된 회차가 하나도 없으면 null이다.
+  // 이 코호트에서 개찰 시각이 관측된 회차가 하나도 없으면 null이다.
   lastRound: openAuctionLastRoundSchema.nullable(),
 }).meta({ id: "OpenAuctionOrgSummary" });
 
@@ -71,7 +78,7 @@ export const openAuctionRowSchema = z.strictObject({
   // 이 행을 만든 목록 관측 시각. 같은 build 안에서도 poll-open 실행이 여럿이라 행마다 다르다.
   observedAt: instantTextSchema,
   sourceLastChangedAt: instantTextSchema.nullable(),
-  // 활성 org_round_summary build에 이 기관 회차가 없으면 null이다. "회차 0건"과 "요약 없음"은 다른 사실이다.
+  // 코호트는 이 행의 기관과 하한율이 함께 정한다. "회차 0건"과 "요약 없음"은 다른 사실이라 합치지 않는다.
   orgSummary: openAuctionOrgSummarySchema.nullable(),
 }).meta({ id: "OpenAuction", description: "One open auction observed in mart.open_auction_snapshot with its organization's latest round summary." });
 

@@ -1,5 +1,5 @@
 /**
- * @module 책임: 열린 공고 목록이 활성 스냅샷 build에서 "열림"을 판정하고 keyset·표본 수·기관 요약을 읽는 SQL 조각을 소유한다.
+ * @module 책임: 열린 공고 목록이 활성 스냅샷 build에서 "열림"을 판정하고 keyset·표본 수·(기관, 하한율) 회차 요약을 읽는 SQL 조각을 소유한다.
  *
  * 세 조회(anchor 확인·페이지·표본 수)가 같은 "열림" 정의를 써야 한다. 정의가 두 곳에 있으면 표본 수와
  * 행이 서로 다른 코호트를 말하게 되므로 CTE 하나를 여기서만 만든다.
@@ -143,8 +143,12 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
     left join core.organization organization on organization.organization_id = open_rows.organization_id
     ${regionReferenceJoin(sql`open_rows.region_sido_code_value_id`, "region_sido")}
     ${regionReferenceJoin(sql`open_rows.region_sigungu_code_value_id`, "region_sigungu")}
-    -- 기관 요약은 활성 org_round_summary build 하나만 읽는다. percentile_disc는 실제 관측된 명단 수
-    -- 하나를 고르는 것이지 평균이 아니며, 명단이 미관측인 회차는 표본에서 빠진다(AGENTS 7).
+    -- 요약의 grain은 기관이 아니라 (기관, 하한율)이다. 하한율이 다르면 그날 하한이 다른 자리에 서서
+    -- 낙찰 투찰률도 참여 규모도 겹치지 않는 판이 되므로 한 기관 안에서도 섞지 않는다
+    -- (screen-system §6.4.1, PDR-0004). 품목은 반대로 좁히지 않는다 — 하한율과 명단 크기를 고정하면
+    -- 품목별 낙찰 사정률 중앙값이 0.041 안에 들어와 표본만 줄고 갈리는 것이 없다(2026-09-11 실측).
+    -- 활성 org_round_summary build 하나만 읽으며, percentile_disc는 실제 관측된 명단 수 하나를 고르는
+    -- 것이지 평균이 아니고 명단이 미관측인 회차는 표본에서 빠진다(AGENTS 7).
     left join lateral (
       select count(*)::int as attempt_count,
              (percentile_disc(0.5) within group (order by summary_row.list_count)
@@ -153,9 +157,10 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
         from mart.org_round_summary summary_row
        where summary_row.build_id = ${orgBuild}
          and summary_row.organization_id = open_rows.organization_id
-    ) summary on open_rows.organization_id is not null
-    -- 최근 회차의 다섯 값은 반드시 같은 회차에서 온다. 개찰 시각이 기준 시각을 지난 회차만 "개찰됨"이며
-    -- 미관측(null)은 개찰됐다고 단정할 수 없어 빠진다(AGENTS 3).
+         and summary_row.floor_rate = open_rows.floor_rate
+    ) summary on open_rows.organization_id is not null and open_rows.floor_rate is not null
+    -- 최근 회차의 다섯 값은 반드시 같은 회차에서 오고, 그 회차의 하한율은 이 행의 하한율과 같아야 한다.
+    -- 개찰 시각이 기준 시각을 지난 회차만 "개찰됨"이며 미관측(null)은 개찰됐다고 단정할 수 없어 빠진다(AGENTS 3).
     left join lateral (
       select round_row.auction_attempt_id,
              round_row.opened_at,
@@ -166,11 +171,12 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
         from mart.org_round_summary round_row
        where round_row.build_id = ${orgBuild}
          and round_row.organization_id = open_rows.organization_id
+         and round_row.floor_rate = open_rows.floor_rate
          and round_row.opened_at is not null
          and round_row.opened_at <= ${asOf}::timestamptz
        order by round_row.opened_at desc, round_row.auction_attempt_id desc
        limit 1
-    ) last_round on open_rows.organization_id is not null
+    ) last_round on open_rows.organization_id is not null and open_rows.floor_rate is not null
     -- null 마감을 infinity로 접어 정렬과 cursor 튜플 비교의 의미를 하나로 맞춘다. cursor 값은
     -- auctionAttemptId 하나이며 복합 문자열 cursor를 만들지 않는다(AGENTS 2).
     where (${query.cursor}::bigint is null

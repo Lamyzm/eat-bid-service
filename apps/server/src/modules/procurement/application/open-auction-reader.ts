@@ -1,11 +1,11 @@
-/** @module 책임: 열린 공고 목록 조회 port와 스냅샷 한 행·기관 최근 회차 요약의 application record 형태를 소유한다. */
+/** @module 책임: 열린 공고 목록 조회 port와 스냅샷 한 행·(기관, 하한율) 코호트 요약의 application record 형태를 소유한다. */
 import type { BaseRelativeBidRate, BidRate, Money, Temporal } from "@eatbid/domain";
 import type { CodeReferenceRecord } from "./auction-reader";
 import type { MartBuildLineage } from "./mart-build-lineage";
 
 /**
- * 이 기관이 가장 최근에 개찰한 회차 하나다. 다섯 값이 같은 회차에서 와야 화면이 없는 회차를 말하지
- * 않는다. 비율은 투찰률 축(기초금액 분모)이며 사정률 축은 여기 싣지 않는다(PDR-0004).
+ * 이 행과 같은 하한율에서 이 기관이 가장 최근에 개찰한 회차 하나다. 다섯 값이 같은 회차에서 와야 화면이
+ * 없는 회차를 말하지 않는다. 비율은 투찰률 축(기초금액 분모)이며 사정률 축은 여기 싣지 않는다(PDR-0004).
  */
 export interface OpenAuctionLastRoundRecord {
   readonly auctionAttemptId: bigint;
@@ -16,6 +16,10 @@ export interface OpenAuctionLastRoundRecord {
   readonly belowDayFloorCount: number | null;
 }
 
+/**
+ * (기관, 하한율) 코호트 하나의 요약이다. 코호트를 만들 수 없는 행 — 기관 미확인이거나 하한율 미관측 — 은
+ * `orgSummary`가 통째로 null이고, 코호트는 있는데 회차가 0건인 것은 `attemptCount = 0`으로 남긴다.
+ */
 export interface OpenAuctionOrgSummaryRecord {
   readonly attemptCount: number;
   readonly medianListCount: number | null;
