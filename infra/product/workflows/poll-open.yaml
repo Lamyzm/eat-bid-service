@@ -5,13 +5,18 @@ metadata:
   namespace: eatbid
 spec:
   schedules:
-    - "*/30 8-19 * * 1-5"
+    # 평일 08:00~19:50 KST 10분(2026-09-10, EAT-151). 신규 공고 노출 SLO 15분 = 주기 10 + 회차 실행 최대 5이며
+    # 근거와 5분으로 더 올릴 조건은 runtime 문서 §2.5다. 상세는 신규·변경 공고만 부르므로(ADR 0037) 주기를
+    # 올려 늘어나는 소스 호출은 회차당 목록 page 몇 장뿐이다.
+    - "*/10 8-19 * * 1-5"
   timezone: Asia/Seoul
   # 2026-09-05 수집 cutover(EAT-51). 항상 켜진 VM 클러스터(EAT-50)로 옮긴 뒤에야 suspend를 풀었다 —
   # Docker Desktop 시절에는 재부팅마다 스케줄이 끊겨 수집을 켜는 것이 의미가 없었다. 수집을 멈춰야 하면
   # 여기서 suspend: true로 되돌리고 그 이유를 커밋 메시지에 남긴다. 다른 곳에서 CronWorkflow를 만들지 않는다(AGENTS 9).
   suspend: false
   concurrencyPolicy: Forbid
+  # 주기와 같은 600초다. 실행이 10분을 넘기면 그 사이 tick은 Forbid로 만들어지지 않고, 끝난 뒤 마지막으로 놓친
+  # tick 하나만 이 창 안이라 늦게 만들어진다(Argo v4.0.8 shouldOutstandingWorkflowsBeRun). 회차는 겹치지 않는다.
   startingDeadlineSeconds: 600
   workflowSpec:
     workflowTemplateRef:

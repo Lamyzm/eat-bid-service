@@ -55,7 +55,7 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 
 | mode | 목적 | 초기 예약 |
 |---|---|---|
-| `poll-open` | 열린 공고·변경을 업무시간에 짧은 지연으로 반영. 상세는 목록 신호가 바뀐 공고만 다시 부른다(§2.4) | 약 30분, source 정책에 맞춰 조정 |
+| `poll-open` | 열린 공고·변경을 업무시간에 짧은 지연으로 반영. 상세는 목록 신호가 바뀐 공고만 다시 부른다(§2.4) | 평일 08:00~19:50 KST 10분 간격(§2.5). 신규 공고 노출 SLO 15분 |
 | `daily-reconcile` | 전체 상태·변경·개찰·낙찰을 재대조. 창 안 공고 전부의 상세를 부르는 강제 재호출이다 | 일 1회 |
 | `backfill` | 날짜×지역×상태 범위를 수동/운영 승인으로 채움 | ad hoc |
 | `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
@@ -174,6 +174,26 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   건너뛰게 한다. Argo v4.0.8은 건너뛴 task의 선언된 output에 default만 채운다.
 - 창 사이 중복 제거(§2.2)는 여전히 하지 않는다. 이 정책은 poll-open의 회차 사이 판단이며 backfill 창
   분할의 비용 모델(달력 월)을 바꾸지 않는다.
+
+### 2.5 poll-open 주기 10분과 신규 공고 노출 SLO 15분 (2026-09-10, EAT-151)
+
+**`poll-open`은 평일 08:00~19:50 KST에 10분마다 돈다(`*/10 8-19 * * 1-5`, `timezone: Asia/Seoul`).**
+2026-09-05 cutover의 30분 주기로는 신규 공고가 최대 35분 늦게 보였다(회차 실행 3~5분, 신규 공고 하루
+60→133건, [2026-09-10 걸어본 기록](../notes/2026-09-10-web-walkthrough.md) §5). 상세는 신규·변경 공고만
+부르므로(§2.4) 주기를 올려 늘어나는 소스 호출은 회차당 목록 page 1~2장뿐이며 하루 회차 수는 24→72다.
+
+- **SLO: 신규 공고가 eaT에 뜬 뒤 15분 안에 우리 화면에 보인다.** 근거는 주기 10분(공고가 tick 직후에 떠도
+  다음 tick까지 10분) + 회차 실행 최대 5분(discover→marts, 2026-09-10 실측 3~5분) = 15분이다. 발행·mart
+  활성화 직후의 web 캐시 무효화(ADR 0036)가 성공한다는 전제이며, 실패하면 위의 `cacheLife` 상한이 더해진다.
+- 실행이 10분을 넘기면 그 사이 tick은 `concurrencyPolicy: Forbid`로 만들어지지 않고, 실행이 끝나면 마지막으로
+  놓친 tick 하나만 `startingDeadlineSeconds`(600초 = 주기) 안이라 곧바로 늦게 만들어진다(Argo v4.0.8
+  `workflow/cron/operator.go`의 `shouldOutstandingWorkflowsBeRun`). 회차는 겹치지 않고 연달아 돌며, 그런
+  회차에 뜬 공고는 SLO를 넘길 수 있다.
+- 5분으로 더 올리는 것은 10분 주기로 몇 주 동안 회차 실행 시간(workflow status의 단계별 duration)과 소스 응답
+  시간(`ingest.request_unit.attempt_count`, `SOURCE_THROTTLED` 부재)을 관측해 실행이 주기의 절반을 안정적으로
+  밑돌고 소스가 늘어난 목록 호출을 제한 없이 받는 것이 확인된 뒤의 별도 결정이다.
+- `infra/tests/test_workflow_contract.py`가 schedule 문자열과 timezone을 단언한다. 화면의 "마지막 수집 · 다음
+  수집" 표시는 그 값을 주는 endpoint가 없어 이 변경의 범위가 아니다(EAT-124).
 
 ## 3. 실행 안전장치
 
