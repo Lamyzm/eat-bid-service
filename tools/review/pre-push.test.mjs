@@ -34,7 +34,7 @@ test("모든 push에 필수 테스트를 실행하고 main에만 아키텍처와
     }),
     0,
   );
-  assert.deepEqual(calls, ["test", "architecture:check", "review:origin/main"]);
+  assert.deepEqual(calls, ["test", "architecture:check", "build", "review:origin/main"]);
 });
 
 test("branch와 claim이 어긋난 push는 테스트를 돌리기 전에 막는다", async () => {
@@ -169,7 +169,8 @@ test("필수 gate와 AI advisory는 같은 격리 환경을 전달받는다", as
   });
 
   assert.equal(code, 0);
-  assert.equal(environments.length, 3);
+  // test, architecture:check, build, AI advisory 넷이다.
+  assert.equal(environments.length, 4);
   for (const environment of environments) {
     assert.equal(
       Object.keys(environment).some((name) => name.toUpperCase() === "GIT_INDEX_FILE"),

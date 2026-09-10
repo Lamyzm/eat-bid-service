@@ -1,4 +1,5 @@
 /** @module 책임: layout이 넘기는 계정 슬롯을 서버가 읽은 세션과 함께 조립해 브라우저가 같은 답을 다시 묻지 않게 한다. */
+import { connection } from 'next/server';
 import { Suspense } from 'react';
 
 import { getCurrentSessionFromServer } from '@/api/account/server';
@@ -20,6 +21,11 @@ function AccountSlotPending() {
 }
 
 async function ServerSessionAccountHub() {
+  // 세션을 읽기 전에 요청에 닿았음을 먼저 알린다. 전송 계약이 fetch보다 origin 해석을 앞세우므로
+  // (request-contract.ts의 requestTarget) prerender에서는 API_URL이 없어 suspend가 아니라 throw가 되고
+  // 빌드가 그 자리에서 멈춘다(2026-09-10 /login, EAT-163). 같은 파일의 /login loader는 searchParams를
+  // 먼저 await해 이 역할을 대신하므로 통과했다. 이 한 줄이 ADR 0028 2항의 격리를 유지한 채 그 차이를 메운다.
+  await connection();
   const read = await getCurrentSessionFromServer();
   // 인증 의존성이 없는 배포는 넘길 답이 없다. 그 사실은 브라우저의 같은 조회가 실패 상태로 말한다.
   return <AccountHub initialSession={read.kind === 'session' ? read.response : undefined} />;

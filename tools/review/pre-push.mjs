@@ -61,6 +61,10 @@ export async function runPrePush({
 
   const main = pushesMain(stdin);
   if (main && (await runRequired("architecture:check", childEnvironment)) !== 0) return 1;
+  // build는 main push에만 둔다. CI validate.yml은 셋을 다 돌리는데 이 gate에 build가 없어서, prerender에서만
+  // 터지는 결함이 main에 들어가 14시간 red로 남았다(2026-09-10 EAT-143 -> EAT-163). tsc와 bun test는
+  // next build의 prerender 경로를 태우지 않으므로 이 자리를 다른 검사로 대신할 수 없다.
+  if (main && (await runRequired("build", childEnvironment)) !== 0) return 1;
   if (!main && env.EATBID_AI_REVIEW !== "1") return 0;
 
   const baseRef = main ? "origin/main" : env.EATBID_REVIEW_BASE || "origin/main";
