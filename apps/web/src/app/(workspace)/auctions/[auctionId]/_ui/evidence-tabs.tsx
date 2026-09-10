@@ -151,11 +151,13 @@ export function EvidenceTabs({
           <DecisionExpandLink auctionId={auctionId} search={search} target='비교집단' />
         </EvidenceViewOnly>
       </div>
-      <EvidenceViewPanel view='비교집단' className='grid min-w-0 gap-3'>
+      {/* 자리는 카드와 같은 세로 flex다. grid로 두면 열 폭이 내용의 min-content로 잡혀, 오른쪽 상세를 열어
+          근거 열이 좁아질 때 차트·사다리가 카드 밖으로 밀린다(EAT-139 e2e 폭 검사). */}
+      <EvidenceViewPanel view='비교집단' className='flex min-w-0 flex-col gap-3'>
         <p className='text-[13px] font-medium text-muted-foreground'>{cohortNote(search.scope)}</p>
         <CohortBody auctionId={auctionId} search={search} distribution={distribution} />
       </EvidenceViewPanel>
-      <EvidenceViewPanel view='흐름' className='grid min-w-0 gap-3'>
+      <EvidenceViewPanel view='흐름' className='flex min-w-0 flex-col gap-3'>
         <FlowBody auctionId={auctionId} search={search} history={history} focus={search.expand === '흐름'} />
       </EvidenceViewPanel>
     </div>
