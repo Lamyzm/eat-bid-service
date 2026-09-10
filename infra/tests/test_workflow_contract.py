@@ -430,7 +430,7 @@ def test_DB_백업_CronWorkflow는_매시간_소유자로_덤프해_R2에_두고
         assert upload_env[key]["valueFrom"]["secretKeyRef"]["name"] == "eatbid-r2"
     upload_script = "".join(str(item) for item in _sequence(containers["upload"]["args"]))
     assert "backup/postgres/hourly" in upload_script and "backup/postgres/daily" in upload_script
-    assert "--min-age 168h" in upload_script and "--min-age 720h" in upload_script
+    assert "--min-age 48h" in upload_script and "--min-age 720h" in upload_script
 
 
 def test_WorkflowTemplate은_성공_파드를_즉시_지우고_끝난_Workflow를_TTL로_거둔다(

@@ -22,8 +22,12 @@ WAL 기반 지속 백업(wal-g)은 postgres 이미지 교체가 필요해 다중
 
 | 경로 | 주기 | 보존 |
 |---|---|---|
-| `backup/postgres/hourly/<UTC stamp>.dump` | 매시 | 7일(168h 지난 객체를 매 실행이 지움) |
+| `backup/postgres/hourly/<UTC stamp>.dump` | 매시 | 2일(48h 지난 객체를 매 실행이 지움) |
 | `backup/postgres/daily/<UTC stamp>.dump` | KST 03시 회차만 | 30일 |
+
+hourly가 2일인 이유: 손실 허용치가 1시간이므로 시간 단위로 되감을 일은 사고 직후 며칠이고, 그보다 오래된
+시점은 daily로 충분하다. 전체 덤프를 매시 쌓으므로 보존이 길면 같은 내용이 그대로 늘어난다. 덤프 1.35GB
+기준 7일은 227GB, 2일은 65GB이며 5년치 백필로 덤프가 5GB가 되면 840GB와 240GB로 벌어진다.
 
 파일명의 시각은 UTC이고 스케줄 판정은 KST다. 같은 실행이 두 폴더를 모두 정리하므로 별도 GC job이 없다.
 자격증명은 dataplane과 같은 `eatbid-r2` Secret을 쓰며(`backup/` prefix 쓰기), 덤프는 database 소유자 자격
