@@ -1348,7 +1348,7 @@
       },
       "OpenAuction": {
         "additionalProperties": false,
-        "description": "One open auction observed in mart.open_auction_snapshot with its organization's latest round summary.",
+        "description": "One open auction observed in mart.open_auction_snapshot with the round summary for its (organization, floor rate) cohort.",
         "properties": {
           "auctionAttemptId": {
             "$ref": "#/components/schemas/PositiveBigintText"

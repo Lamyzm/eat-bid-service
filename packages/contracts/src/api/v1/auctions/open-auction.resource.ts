@@ -80,7 +80,7 @@ export const openAuctionRowSchema = z.strictObject({
   sourceLastChangedAt: instantTextSchema.nullable(),
   // 코호트는 이 행의 기관과 하한율이 함께 정한다. "회차 0건"과 "요약 없음"은 다른 사실이라 합치지 않는다.
   orgSummary: openAuctionOrgSummarySchema.nullable(),
-}).meta({ id: "OpenAuction", description: "One open auction observed in mart.open_auction_snapshot with its organization's latest round summary." });
+}).meta({ id: "OpenAuction", description: "One open auction observed in mart.open_auction_snapshot with the round summary for its (organization, floor rate) cohort." });
 
 export type OpenAuction = z.infer<typeof openAuctionRowSchema>;
 export type OpenAuctionOrgSummary = z.infer<typeof openAuctionOrgSummarySchema>;
