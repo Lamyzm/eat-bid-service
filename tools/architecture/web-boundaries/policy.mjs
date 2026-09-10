@@ -11,6 +11,8 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   LEGACY_LIB_DIRECTORY: "legacy-lib-directory",
   LEGACY_IMPORT: "legacy-import",
   DUPLICATE_SOURCE_GROUP: "duplicate-source-group",
+  FEATURE_LIB_REACT: "feature-lib-react",
+  FEATURE_MODEL_JSX: "feature-model-jsx",
   FRONTEND_ENDPOINTS_MIRROR: "frontend-endpoints-mirror",
   ID_NUMBER_CONVERSION: "id-number-conversion",
   MANUAL_API_RESPONSE: "manual-api-response",
@@ -24,6 +26,7 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
   SHARED_CONTROL_RESPONSIBILITY: "shared-control-responsibility",
   SOURCE_FILE_SIZE: "source-file-size",
   TRANSPORT_RUNTIME_CROSS_IMPORT: "transport-runtime-cross-import",
+  UI_NON_RENDER_MODULE: "ui-non-render-module",
   UNCHECKED_JSON_CAST: "unchecked-json-cast",
   USE_CACHE_PLACEMENT: "use-cache-placement",
   USE_CACHE_USER_DATA: "use-cache-user-data",
@@ -36,12 +39,17 @@ export const WEB_BOUNDARY_RULES = Object.freeze({
 
 // legacy 위치·역참조 규칙은 "신규 파일을 받지 않고 새 edge를 만들지 않는다"는 규칙이므로 merge-base 이후
 // 변경된 파일에만 판정한다. 건드리지 않은 스타터 잔재는 보고하지 않고, 수정하는 순간 옮겨야 한다(ADR 0042).
+// segment 슬라이스 세 규칙도 같은 기준이다. ADR 0044-5가 기존 화면을 전면 이동이 아니라 건드리는 변경에서
+// 옮긴다고 정했으므로, 아직 옮기지 않은 화면의 `_ui`를 지금 실패로 만들지 않고 손대는 순간 판정한다.
 // 나머지 규칙은 파일이 언제 생겼든 예외 없이 판정한다.
 export const CHANGE_SCOPED_RULES = Object.freeze(
   new Set([
     WEB_BOUNDARY_RULES.LEGACY_IMPORT,
     WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY,
     WEB_BOUNDARY_RULES.LEGACY_LIB_DIRECTORY,
+    WEB_BOUNDARY_RULES.FEATURE_LIB_REACT,
+    WEB_BOUNDARY_RULES.FEATURE_MODEL_JSX,
+    WEB_BOUNDARY_RULES.UI_NON_RENDER_MODULE,
   ]),
 );
 
@@ -52,7 +60,7 @@ export const MIN_DUPLICATE_BYTES = 200;
 // legacy는 폴더를 옮기지 않고 import 방향으로만 격리한다. 신규 층이 스타터 수평 폴더를 다시 참조하면
 // 폴더 이동만으로 target-compliant처럼 보이는 상태가 되므로 여기서 역참조를 끊는다.
 // legacy route-private module(dashboard·welcome·s)도 canonical 층이 끌어다 쓰면 같은 역참조다.
-const CANONICAL_LAYER_PATH = /^apps\/web\/src\/(?:app\/\((?:workspace|auth)\)|shell|capabilities|api|shared|routing)\//;
+const CANONICAL_LAYER_PATH = /^apps\/web\/src\/(?:app\/\((?:workspace|auth)\)|shell|capabilities|entities|api|shared|routing)\//;
 const LEGACY_DIRECTORY_SPECIFIER = /^@\/(?:components|hooks|lib|config|types|app\/(?:dashboard|welcome|s))(?:\/|$)/;
 const LEGACY_DIRECTORY_PATH = /^apps\/web\/src\/(?:components|hooks|lib|config|types|app\/(?:dashboard|welcome|s))\//;
 
@@ -88,6 +96,31 @@ export function isLegacyIdentityScope(displayPath) {
 
 export function isLegacyRouteLiteral(text) {
   return LEGACY_ROUTE_PREFIX.test(text);
+}
+
+// ADR 0044는 route segment 안을 파일 유형이 아니라 변경 단위로 나눈다. 세 자리의 역할이 다르므로 경로로
+// 판정한다. lib은 React를 모르는 순수 함수, model은 JSX를 만들지 않는 상태·표시 변환, ui는 렌더링이다.
+// 이 규칙이 없으면 계산 모듈이 다시 표현 폴더에 쌓이고(ADR 0044 Context) 슬라이스 경계가 이름만 남는다.
+const SEGMENT_FEATURE_LIB_PATH = /^apps\/web\/src\/app\/.+\/_features\/[^/]+\/lib\//;
+const SEGMENT_FEATURE_MODEL_PATH = /^apps\/web\/src\/app\/.+\/_features\/[^/]+\/model\//;
+const SEGMENT_RENDER_PATH = /^apps\/web\/src\/app\/.+\/(?:_ui|_features\/[^/]+\/ui)\//;
+// React runtime과 그 하위 entry를 함께 막는다. 순수 함수 자리에는 hook도 type도 들어오지 않는다.
+const REACT_MODULE_SPECIFIER = /^react(?:-dom)?(?:\/|$)/;
+
+export function isSegmentFeatureLibPath(displayPath) {
+  return SEGMENT_FEATURE_LIB_PATH.test(displayPath);
+}
+
+export function isSegmentFeatureModelPath(displayPath) {
+  return SEGMENT_FEATURE_MODEL_PATH.test(displayPath);
+}
+
+export function isSegmentRenderPath(displayPath) {
+  return SEGMENT_RENDER_PATH.test(displayPath);
+}
+
+export function isReactModuleSpecifier(specifier) {
+  return REACT_MODULE_SPECIFIER.test(specifier.replaceAll("\\", "/"));
 }
 
 export function normalizeBytes(contents) {
