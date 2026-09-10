@@ -13,7 +13,8 @@
   사용자 결정 2026-09-04(게스트 모드 폐기, 권한별 화면 분리),
   사용자 결정 2026-09-09(로그인 → 내 사업자번호 → 직접 입력 위치 → 기존 차트의 실제 내 투찰),
   Linear EAT-138(로그인 게이트와 세션 쿠키 캐시), 사용자 결정 2026-09-10(공개 화면 없음),
-  `docs/notes/2026-09-10-web-walkthrough.md` §0·§4
+  `docs/notes/2026-09-10-web-walkthrough.md` §0·§4, Linear EAT-149(게이트 거부의 관측과 개인 응답
+  캐시 금지 목록의 파생)
 
 ## 2026-09-09 개정 요지
 
@@ -99,7 +100,11 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
   고정 event와 분류형 오류만 남기고 원문 문자열을 복사하지 않는다.
 - **사용자별 응답은 캐시하지 않는다.** 개인 operation 경로에는 guard보다 앞선 middleware가
   `Cache-Control: private, no-store`와 `Vary: cookie`를 붙인다. guard가 끊는 401·403과 의존성 장애 503에도
-  같은 헤더가 남아야 하므로 controller나 interceptor가 아니라 그 앞자리에 둔다.
+  같은 헤더가 남아야 하므로 controller나 interceptor가 아니라 그 앞자리에 둔다. 그 경로 목록은 registry를
+  골라 적지 않고 공개 registry의 versioned canonical operation 전부에서 파생한다. §12 이후 공개 화면이
+  없으므로 `/api/v1/**`에는 사용자 구분 없이 공유 캐시에 둬도 되는 응답이 없고, version-neutral인 health
+  probe와 provider가 자기 헤더를 붙이는 raw auth 전송만 밖에 남는다. `session`·`me` registry만 적던
+  목록은 EAT-138이 공유 read를 게이트 뒤로 옮길 때 따라가지 않았다(EAT-149).
 - `apps/web/src/proxy.ts`는 세션을 **검증하지** 않는다. Next middleware를 유일한 인가 지점으로 두는
   구조는 헤더 조작으로 우회된 전례가 있고(CVE-2025-29927, `x-middleware-subrequest`) Next 공식 문서도
   middleware를 단독 인증 경계로 쓰지 말라고 적는다. 2026-09-10 개정은 여기에 검증이 아닌 **쿠키 유무
@@ -273,7 +278,8 @@ web에는 Better Auth 클라이언트(`apps/web/src/lib/auth-client.ts`, basePat
   scheme·authority·개행 제어문자를 담지 않는 값만 통과시키고 그 외에는 기본 진입 경로로 대체한다.
   판정은 web과 auth callback 양쪽에서 같은 함수 하나를 쓴다. 열린 리디렉션을 만들지 않는다.
 - 인증 실패 응답에도 `x-request-id`가 실린다. 로그에는 `principal_id`만 남기고 이메일·세션 토큰·쿠키·
-  사업자등록번호를 남기지 않는다(`RedactingJsonLogger`, `runtime-and-deployment.md` §7).
+  사업자등록번호를 남기지 않는다(`RedactingJsonLogger`, `runtime-and-deployment.md` §7). guard가 끊은
+  요청의 서버 로그 한 줄은 §12의 "게이트가 끊은 요청도 로그에 남는다"가 정한다.
 
 ### 7. 등록된 사업자는 내 분석 기준이지 소유권 증명이 아니다
 
@@ -476,6 +482,17 @@ app.registered_business_location(
 **이 여섯에 403을 만들지 않는다.** 요구 수준이 `provider_session`이므로 app 계정 초기화 여부를 보지
 않는다. 초기화 미완료 사용자를 API에서 막으면 화면이 `/setup`으로 안내할 재료를 API 실패에서 다시 꺼내야
 하고, 그 판정은 이미 세션 계약이 상태로 말한다.
+
+**게이트가 끊은 요청도 로그에 남는다.** Nest는 guard를 interceptor보다 먼저 실행하므로 guard가 던진
+401·403·503은 완료 interceptor에 닿지 않고, `ProblemDetailsFilter`는 500과 defect만 기록했다. 게이트를
+세우는 순간 401이 이 서비스에서 가장 흔한 실패가 되는데 그것이 서버에 흔적을 남기지 않았다(EAT-149).
+그래서 filter가 완료 interceptor가 맡지 않은 응답에 한해 method·route template·status·요청 id의 요약
+(`request_rejected`)을 남긴다. 소유권은 interceptor가 응답마다 먼저 선언하므로 pipe·handler가 던진
+4xx는 완료 로그 한 줄로만 남고 두 경계가 같은 응답을 두 번 기록하지 않는다. 503만 원인 분류를 함께
+싣는다. 인증을 켜지 않은 배포와 DB 장애가 같은 status로 나오므로 로그에서는 갈려야 하고, 그러려면
+`PrincipalGuard`와 provider 세션 판정이 503에 원인을 그대로 실어야 한다. 쿠키·토큰·원문 URL·예외
+message는 어떤 필드로도 들어가지 않는다(§6). Express에서 닫히는 미매칭 404와 parser 400·413, raw auth
+전송의 503은 이 규칙 밖이며 아직 로그가 없다.
 
 **세션 쿠키 캐시를 켠다.** 게이트와 캐시는 한 쌍이다. 게이트를 세우면 화면 진입마다 세션 확인이 하나씩
 늘고, 캐시가 없으면 그 확인이 그대로 DB 조회가 된다. `session.cookieCache`를 60초로 켜고 서버 검증에서
