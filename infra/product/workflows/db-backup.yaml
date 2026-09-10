@@ -33,21 +33,40 @@ spec:
               mountPath: /work
           containers:
             - name: dump
-              # postgres Deployment와 같은 major. migrator 역할은 모든 schema를 소유해 전체 덤프를 읽을 수 있고
-              # 쓰기는 하지 않는다. custom format이라 부분 복원(schema 선택)이 가능하다(EAT-130 dev 첫 채움).
+              # postgres Deployment와 같은 major. custom format이라 부분 복원(schema 선택)이 가능하다(EAT-130 dev 첫 채움).
+              #
+              # database 소유자 자격을 쓴다. migrator는 app·core·ingest·mart만 소유하고 레거시 `public`
+              # 18개 표(2.9GB, firm_bids·school_roster 등)는 소유자가 `eatbid`라 LOCK TABLE에서 거부된다
+              # (2026-09-10 첫 스케줄 실행이 `permission denied for table account`로 실패, EAT-127).
+              # 재해 복구는 database 전체가 대상이므로 읽는 범위를 좁히는 대신 소유자로 읽는다.
+              # 덜 강한 전용 백업 역할은 Drizzle이 role을 만들어야 해 후속으로 둔다.
               image: postgres:16-alpine
               command: [sh, -c]
               args:
                 - |
                   set -eu
-                  pg_dump --format=custom --no-owner --no-privileges --file=/work/eatbid.dump "$DATABASE_URL"
+                  pg_dump --format=custom --no-owner --no-privileges --file=/work/eatbid.dump
                   ls -l /work/eatbid.dump
               env:
-                - name: DATABASE_URL
+                - name: PGHOST
+                  value: postgres
+                - name: PGPORT
+                  value: "5432"
+                - name: PGUSER
                   valueFrom:
                     secretKeyRef:
-                      name: eatbid-database-migrator
-                      key: DATABASE_URL
+                      name: eatbid-postgres-bootstrap
+                      key: POSTGRES_USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: eatbid-postgres-bootstrap
+                      key: POSTGRES_PASSWORD
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: eatbid-postgres-bootstrap
+                      key: POSTGRES_DB
               resources:
                 requests:
                   memory: 256Mi

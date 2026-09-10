@@ -26,8 +26,12 @@ WAL 기반 지속 백업(wal-g)은 postgres 이미지 교체가 필요해 다중
 | `backup/postgres/daily/<UTC stamp>.dump` | KST 03시 회차만 | 30일 |
 
 파일명의 시각은 UTC이고 스케줄 판정은 KST다. 같은 실행이 두 폴더를 모두 정리하므로 별도 GC job이 없다.
-자격증명은 dataplane과 같은 `eatbid-r2` Secret을 쓰며(`backup/` prefix 쓰기), 덤프는 소유자 역할
-`eatbid-database-migrator`의 `DATABASE_URL`로 읽는다. 둘의 이유는 [`secret-contract.md`](../../infra/product/secret-contract.md)에 있다.
+자격증명은 dataplane과 같은 `eatbid-r2` Secret을 쓰며(`backup/` prefix 쓰기), 덤프는 database 소유자 자격
+(`eatbid-postgres-bootstrap`)으로 읽는다. `eatbid_migrator`는 `app`·`core`·`ingest`·`mart`만 소유하고
+레거시 `public`의 18개 표(2.9GB)는 소유자가 database 소유자라 `LOCK TABLE`에서 거부된다. 재해 복구 대상은
+database 전체이므로 읽는 범위를 좁히지 않고 소유자로 읽는다. 둘의 이유는
+[`secret-contract.md`](../../infra/product/secret-contract.md)에 있다. 덜 강한 전용 백업 역할은 Drizzle이
+role을 만들어야 해 후속이다.
 
 ## 3. 백업이 실제로 되는지 보기
 

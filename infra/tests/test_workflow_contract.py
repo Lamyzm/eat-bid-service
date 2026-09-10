@@ -383,7 +383,7 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     assert "entrypoint: replay" not in rendered
 
 
-def test_DB_백업_CronWorkflow는_매시간_migrator로_덤프해_R2에_두고_소스와_템플릿을_건드리지_않는다(
+def test_DB_백업_CronWorkflow는_매시간_소유자로_덤프해_R2에_두고_소스와_템플릿을_건드리지_않는다(
     manifests: ManifestSet,
 ) -> None:
     """왜: 백업은 수집 파이프라인이 아니다. source semaphore·publication mutex·eatbid-dataplane 템플릿을
@@ -414,11 +414,15 @@ def test_DB_백업_CronWorkflow는_매시간_migrator로_덤프해_R2에_두고_
     dump_env = {
         _mapping(item)["name"]: _mapping(item) for item in _sequence(containers["dump"]["env"])
     }
-    # 전체 덤프는 모든 schema를 읽어야 하므로 소유자인 migrator 역할을 쓴다. api·dataplane 역할은 app·mart를 못 읽는다.
-    assert dump_env["DATABASE_URL"]["valueFrom"]["secretKeyRef"] == {
-        "name": "eatbid-database-migrator",
-        "key": "DATABASE_URL",
-    }
+    # 전체 덤프는 레거시 `public`까지 읽어야 한다. 그 표들의 소유자는 database 소유자라 migrator로는
+    # LOCK TABLE에서 거부된다(2026-09-10 실측). 그래서 provisioning Job과 같은 bootstrap 자격을 쓴다.
+    assert "DATABASE_URL" not in dump_env
+    for key in ("PGUSER", "PGPASSWORD", "PGDATABASE"):
+        assert dump_env[key]["valueFrom"]["secretKeyRef"]["name"] == "eatbid-postgres-bootstrap"
+    dump_script = "".join(str(item) for item in _sequence(containers["dump"]["args"]))
+    assert "--format=custom" in dump_script
+    # schema를 좁히면 레거시 표가 백업에서 조용히 빠진다. 재해 복구 대상은 database 전체다.
+    assert "--schema" not in dump_script
     upload_env = {
         _mapping(item)["name"]: _mapping(item) for item in _sequence(containers["upload"]["env"])
     }
@@ -1171,13 +1175,14 @@ def test_database_credential은_cross_assignment_없이_consumer별로_분리된
     assert _secret_ref(_env(dataplane, "DATABASE_URL"))[0] == "eatbid-database-dataplane"
 
     rendered = yaml.safe_dump_all(manifests.documents)
-    # db-provisioning은 database 소유자 자격이 필요해 postgres bootstrap Secret을 함께 읽는 유일한
-    # 두 번째 consumer다. 나머지 조합은 여기서 계속 막는다.
+    # db-provisioning(소유자 권한 회수)과 db-backup(레거시 public까지 읽는 전체 덤프)은 database 소유자
+    # 자격이 필요해 postgres bootstrap Secret을 읽는다. 나머지 조합은 여기서 계속 막는다.
     for kind, name, assigned in (
         ("Deployment", "postgres", "eatbid-postgres-bootstrap"),
         ("Deployment", "server", "eatbid-database-api"),
         ("Job", "eatbid-migration", "eatbid-database-migrator"),
         ("Job", "eatbid-db-provisioning", "eatbid-postgres-bootstrap"),
+        ("CronWorkflow", "eatbid-db-backup", "eatbid-postgres-bootstrap"),
     ):
         document = manifests.named(kind, name)
         text = yaml.safe_dump(document)
