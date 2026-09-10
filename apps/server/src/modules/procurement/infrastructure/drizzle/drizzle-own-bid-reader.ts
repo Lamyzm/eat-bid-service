@@ -19,13 +19,11 @@ import type {
   OwnBidSubmissionRecord,
 } from "../../application/own-bid-reader";
 import { transactionDatabase, type TransactionHandle } from "../../../../platform/database/unit-of-work";
+import { MAX_ROSTER_ROWS } from "../../domain/roster-limits";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
 import { ORG_ROUND_SUMMARY, readActiveMartBuildLineage } from "./drizzle-mart-build-reader";
 import { ownBidQuery } from "./own-bid-query";
 import { bigintValue, moneyValue, observedBidRateValue } from "./postgres-row-values";
-
-/** 한 회차 명단의 행 수 상한이며 원천 명단 계약과 같다. 회차별 상한이라 요청 크기와 무관하다. */
-const MAX_ROSTER_ROWS = 2048;
 
 type DbId = string | bigint;
 type PostgresTimestamp = Parameters<typeof postgresInstant>[0];

@@ -6,6 +6,7 @@ import {
 } from "../../application/auction-roster-reader";
 import type { CodeReferenceRecord } from "../../application/auction-reader";
 import { auctionId } from "../../domain/auction-id";
+import { MAX_ROSTER_ROWS } from "../../domain/roster-limits";
 import { auctionRosterQuery } from "./auction-roster-query";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
 import { bigintValue, moneyValue, observedBidRateValue } from "./postgres-row-values";
@@ -70,7 +71,7 @@ export class DrizzleAuctionRosterReader implements AuctionRosterReader {
     if (!first) return null;
     const submissions = rows.filter((row) => row.submission_id !== null);
     // sourceRosterSize는 다른 블록의 관측이라 행 수와 같다고 강제하지 않는다. 정규화된 명단 배열만 대조한다.
-    if (submissions.length > 2048 ||
+    if (submissions.length > MAX_ROSTER_ROWS ||
       (first.expected_count !== null && first.expected_count !== submissions.length) ||
       (first.expected_count === null && submissions.length !== 0) ||
       new Set(submissions.map((row) => row.roster_ordinal)).size !== submissions.length) {
