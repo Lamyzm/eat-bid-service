@@ -96,6 +96,10 @@ export function disposableDatabase(options: DisposableDatabaseOptions) {
     expect(remaining).toEqual([]);
   }
 
+  /**
+   * 단언 전에 container 기동·준비 대기·migration·seed·provisioning을 차례로 거쳐 `bun test --timeout`
+   * 기본값으로는 여유가 없으므로, 호출하는 test는 개별 timeout override를 반드시 넘긴다(2026-09-10 push gate 불안정).
+   */
   async function withDatabase<A>(work: (database: DisposableDatabase) => Promise<A>): Promise<A> {
     const name = `${ownedContainerPrefix}${Date.now()}`;
     let owner: ReturnType<typeof postgres> | undefined;
