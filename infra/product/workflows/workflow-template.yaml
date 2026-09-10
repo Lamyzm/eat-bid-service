@@ -23,7 +23,10 @@ spec:
     parameters:
       # mode는 CLI `discover --mode`로 그대로 전달되고 날짜 창은 CLI가 번역한다. poll-open과
       # daily-reconcile은 start-date/end-date를 비워 두어야 하며, backfill submit만 두 날짜를 채운다.
-      #   argo submit --from workflowtemplate/eatbid-dataplane -n eatbid \
+      # backfill은 source semaphore도 별도 key(eatbid-source-backfill)로 잡아야 스케줄 수집을 압도하지
+      # 않으므로 entrypoint를 backfill-pipeline으로 함께 바꾼다(2026-09-11, EAT-164 — 아래 discover·
+      # discover-backfill 주석).
+      #   argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint backfill-pipeline \
       #     -p mode=backfill -p start-date=20250901 -p end-date=20251130
       - name: mode
         value: poll-open
@@ -52,9 +55,14 @@ spec:
     - name: scheduled-pipeline
       dag:
         tasks:
-          - name: discover
+          # 각 task를 anchor로 남겨 backfill-pipeline(아래)이 discover·capture 둘만 backfill 전용
+          # template으로 바꾸고 나머지 넷은 정의를 그대로 재사용한다. semaphore key 분리 이유는
+          # infra/product/workflows/semaphore.yaml, template을 나눈 이유는 discover 주석을 본다.
+          - &task-discover
+            name: discover
             template: discover
-          - name: capture
+          - &task-capture
+            name: capture
             template: capture
             dependencies: [discover]
             # chunk 하나가 상세 pod 하나다. 건당 pod를 띄우면 건당 약 17초 중 10초가 pod 생성·종료
@@ -69,7 +77,8 @@ spec:
                   value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
                 - name: external-bid-ids-json
                   value: "{{item}}"
-          - name: normalize
+          - &task-normalize
+            name: normalize
             template: normalize
             dependencies: [capture]
             # 확장된 capture의 output parameter `observation-ids`가 chunk마다 하나씩 모인다. capture가
@@ -83,7 +92,8 @@ spec:
                   value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
                 - name: observation-ids-json
                   value: "{{item}}"
-          - name: validate
+          - &task-validate
+            name: validate
             template: validate
             dependencies: [normalize]
             arguments:
@@ -94,7 +104,8 @@ spec:
                   value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
                 - name: publication-id
                   value: "{{tasks.discover.outputs.parameters.publication-id}}"
-          - name: project
+          - &task-project
+            name: project
             template: project
             dependencies: [validate]
             arguments:
@@ -105,7 +116,8 @@ spec:
                   value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
                 - name: publication-id
                   value: "{{tasks.discover.outputs.parameters.publication-id}}"
-          - name: marts
+          - &task-marts
+            name: marts
             template: marts
             dependencies: [project]
             arguments:
@@ -116,6 +128,29 @@ spec:
                   value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
                 - name: publication-id
                   value: "{{tasks.discover.outputs.parameters.publication-id}}"
+
+    # ad hoc backfill 전용 DAG다(2026-09-11, EAT-164). Argo Workflows는 semaphore의
+    # `synchronization.semaphores[].configMapKeyRef.key`에 `{{workflow.parameters.mode}}` 같은 치환을
+    # 지원한다는 근거가 없다 — 공식 문서의 semaphore 예시는 모두 고정 문자열이고, dynamic key 요청
+    # (argoproj/argo-workflows#11890, 2023-09, 미해결)도 현재 semaphore key는 ConfigMap에 미리 정의된
+    # 고정 값만 받는다고 전제한다. 그래서 scheduled-pipeline과 같은 discover·capture template 안에서
+    # mode로 key를 바꾸는 대신, discover-backfill·capture-backfill이라는 변형을 따로 두고 이 DAG가
+    # 그것만 부른다. normalize·validate·project·marts는 scheduled-pipeline의 task 정의를 anchor로 그대로
+    # 공유한다 — semaphore가 없는 단계라 나눌 이유가 없다. backfill은 사람이
+    # `argo submit --from workflowtemplate/eatbid-dataplane --entrypoint backfill-pipeline
+    # -p mode=backfill ...`로 부르며 CronWorkflow로 스케줄하지 않는다 — infra/tests가 "backfill"이
+    # 어떤 CronWorkflow 렌더에도 없음을 고정한다.
+    - name: backfill-pipeline
+      dag:
+        tasks:
+          - <<: *task-discover
+            template: discover-backfill
+          - <<: *task-capture
+            template: capture-backfill
+          - *task-normalize
+          - *task-validate
+          - *task-project
+          - *task-marts
 
     # 정부 코드 reference 적재다. eaT 수집과 같은 template·이미지·serviceaccount로 돌지만 발견도
     # fan-out도 없다. 파일 하나가 곧 관측 하나이고 release 하나여서 단계가 둘뿐이다(ADR 0035).
@@ -210,12 +245,16 @@ spec:
                 - name: publication-id
                   value: "{{inputs.parameters.publication-id}}"
 
-    - name: discover
+    - &tmpl-discover
+      name: discover
+      # capacity를 live/backfill로 나눈 이유는 semaphore.yaml, discover-backfill로 template을 나눈
+      # 이유는 backfill-pipeline 주석(위)을 본다. discover-backfill은 이 template 전체를 anchor로
+      # 물려받고 synchronization만 바꾼다.
       synchronization:
         semaphores:
           - configMapKeyRef:
               name: eatbid-workflow-limits
-              key: eatbid-source-limit
+              key: eatbid-source-live
       outputs:
         parameters:
           # CLI `--result-dir`가 machine result의 key마다 남긴 파일이다. 뒤 단계는 이 값만 받는다.
@@ -360,7 +399,18 @@ spec:
                 name: eatbid-r2
                 key: R2_SECRET_ACCESS_KEY
 
-    - name: capture
+    # discover와 완전히 같은 container·outputs를 anchor로 물려받고 semaphore key만 backfill 전용으로
+    # 바꾼 변형이다. backfill-pipeline만 이 template을 부른다.
+    - <<: *tmpl-discover
+      name: discover-backfill
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-backfill
+
+    - &tmpl-capture
+      name: capture
       inputs:
         parameters:
           - name: source-release-id
@@ -369,10 +419,10 @@ spec:
       synchronization:
         semaphores:
           # semaphore는 chunk pod 단위로 잡힌다. chunk가 커져도 소스 동시 호출은 여전히 capacity를
-          # 넘지 않는다.
+          # 넘지 않는다. capacity를 live/backfill로 나눈 이유는 semaphore.yaml을 본다.
           - configMapKeyRef:
               name: eatbid-workflow-limits
-              key: eatbid-source-limit
+              key: eatbid-source-live
       outputs:
         parameters:
           - name: observation-ids
@@ -417,6 +467,16 @@ spec:
           - *env-r2-bucket
           - *env-r2-access-key
           - *env-r2-secret-key
+
+    # capture와 완전히 같은 inputs·outputs·container를 anchor로 물려받고 semaphore key만 backfill
+    # 전용으로 바꾼 변형이다. backfill-pipeline만 이 template을 부른다.
+    - <<: *tmpl-capture
+      name: capture-backfill
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-backfill
 
     - name: normalize
       inputs:
@@ -599,11 +659,12 @@ spec:
           - name: reference-parser-version
       synchronization:
         semaphores:
-          # eaT 수집과 같은 semaphore를 쓴다. 소스는 다르지만 이 클러스터가 밖으로 내는 동시 호출의
-          # 상한은 하나여야 운영이 그 값을 한 곳에서 본다.
+          # eaT 스케줄 수집과 같은 eatbid-source-live를 쓴다(2026-09-11, EAT-164). 월 1회·짧게 끝나는
+          # 실행이라 eatbid-source-backfill에 두면 backfill이 며칠 도는 동안 밀린다 — 기준정보는
+          # 드물어도 제때 도는 것이 backfill과 나란히 대기하는 것보다 값이 크다.
           - configMapKeyRef:
               name: eatbid-workflow-limits
-              key: eatbid-source-limit
+              key: eatbid-source-live
       outputs:
         parameters:
           - name: source-release-id

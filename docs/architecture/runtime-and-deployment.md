@@ -2,7 +2,7 @@
 id: RUNTIME-AND-DEPLOYMENT
 status: active
 canonical_for: argo-runtime-execution-and-deployment-topology
-last_reviewed: 2026-09-10
+last_reviewed: 2026-09-11
 review_trigger: argo-cd-or-workflows-topology-cluster-move-or-release-path-change
 ---
 
@@ -52,8 +52,10 @@ web 읽기 캐시 무효화는 **새 pod도 새 task도 아니다**. `project`�
 정부 코드 reference 적재는 같은 `WorkflowTemplate`의 별도 entrypoint `reference-pipeline`이다
 (ADR 0035). DAG는 `capture-reference`(공식 파일 GET → sha256 → R2 → `ingest.raw_observation` →
 `source_release` 봉인) → `project-reference`(`core.code_release`·`code_release_member`·`code_value`·
-`code_label_observation`·`code_mapping` 투영) 둘이며, source semaphore와 core 발행 mutex를 eaT 수집과
-공유한다. 별도 스케줄러·CronJob은 만들지 않는다(AGENTS 9). 같은 파일 sha256이면 release manifest
+`code_label_observation`·`code_mapping` 투영) 둘이며, `capture-reference`는 스케줄 수집과 같은
+`eatbid-source-live` semaphore를, `project-reference`는 core 발행 mutex를 eaT 수집과 공유한다(§3,
+2026-09-11 EAT-164 — 월 1회·짧게 끝나는 실행이라 backfill 전용 key에 두면 backfill이 며칠 도는 동안
+밀린다). 별도 스케줄러·CronJob은 만들지 않는다(AGENTS 9). 같은 파일 sha256이면 release manifest
 unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 
 `verify`(8)는 아직 별도 pod로 만들지 않는다. build의 `verified` 전이가 이미 저장된 행을 다시 세어
@@ -70,9 +72,12 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 | `reference` | 정부 공개 코드 파일을 새 code release로 적재 | 월 1회 (`reference-pipeline` entrypoint) |
 
 스케줄은 `CronWorkflow`로 선언하고 실제 네트워크 제한에 맞춰 조정한다. 수집 스케줄(`poll-open`·
-`daily-reconcile`)의 `workflowSpec.priority`는 ad hoc `backfill`의 기본값보다 높게 두어 같은 source
-semaphore 큐에서 backfill chunk보다 먼저 받게 한다(2026-09-07, EAT-93). `parser-version` 기본값은
-`eat-v3`다(2026-09-07, EAT-75; 그 전 `eat-v2`는 2026-09-06 EAT-69). 상세 응답의 명단·낙찰·재공고 블록을
+`daily-reconcile`)이 ad hoc `backfill`에 밀리지 않는 보장은 `workflowSpec.priority`가 아니라 source
+semaphore key 분리다 — 스케줄 수집은 `eatbid-source-live`, backfill은 `eatbid-source-backfill`을 잡아
+아예 같은 대기열에 서지 않는다(§3, 2026-09-11 EAT-164). `priority: 100`(2026-09-07, EAT-93)은 남아
+있지만 같은 key를 다투는 두 수집 스케줄 사이 순서로 역할이 좁아졌다 — §3이 그 경위를 설명한다.
+`parser-version` 기본값은 `eat-v3`다(2026-09-07, EAT-75; 그 전 `eat-v2`는 2026-09-06 EAT-69). 상세
+응답의 명단·낙찰·재공고 블록을
 읽는 version이 아니면 하한율·투찰·낙찰 core 테이블이 비어 있는 채로 발행되고, `eat-v3`는 같은 블록에
 참가제한지역 라벨을 더해 같은 `auction.v2`로 싣는다. 기본값 전환은 v0.1.21 이미지 배포 뒤의 별도 커밋으로 했다
 ([`collection-runbook.md`](../operations/collection-runbook.md) §2, [ADR 0038](../adr/0038-additive-ingestion-fields-and-parser-version.md)).
@@ -88,7 +93,7 @@ semaphore 큐에서 backfill chunk보다 먼저 받게 한다(2026-09-07, EAT-93
 |---|---|---|
 | `poll-open` | 오늘 하루 | CLI가 `--as-of`에서 번역, 인자로 주면 거부 |
 | `daily-reconcile` | 오늘-6일 ~ 오늘 | CLI가 `--as-of`에서 번역, 인자로 주면 거부 |
-| `backfill` | 사람이 지정 | `argo submit --from workflowtemplate/eatbid-dataplane -p mode=backfill -p start-date=YYYYMMDD -p end-date=YYYYMMDD` |
+| `backfill` | 사람이 지정 | `argo submit --from workflowtemplate/eatbid-dataplane --entrypoint backfill-pipeline -p mode=backfill -p start-date=YYYYMMDD -p end-date=YYYYMMDD` |
 
 단계 사이의 정체성은 `discover`가 workflow uid에서 결정적으로 파생해 output parameter로 넘긴다.
 `capture`는 `discover`의 `external-bid-id-chunks`로, `normalize`는 확장된 `capture`의
@@ -205,7 +210,13 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
 
 ## 3. 실행 안전장치
 
-- source 전역 semaphore를 둔다. 초기 capacity는 1이며 관측 후 늘린다.
+- source semaphore를 스케줄 수집·기준정보용 `eatbid-source-live`와 backfill 전용
+  `eatbid-source-backfill`로 나눈다(ConfigMap `eatbid-workflow-limits`, 각 capacity 1, 새로 시작하는
+  실행 기준 합 2). 상한 1로 시작해 관측 후 늘렸으나(2026-09-05) key 하나만 2로 올리면 대기열에
+  수백 묶음이 쌓인 backfill이 두 자리를 다 가져가므로 2026-09-11(EAT-164) 나눴다. 지금 ConfigMap
+  항목은 이 배포 시점에 이미 돌던 backfill이 스냅샷으로 쥔 과도기 key `eatbid-source-limit` 때문에
+  셋이지만(제거 조건은 semaphore.yaml), 동시 사용은 그 실행이 끝날 때까지도 여전히 2다. 아래에서 더
+  설명한다.
 - canonical publication/projector에는 mutex를 둬 서로 다른 실행의 활성화가 엇갈리지 않게 한다.
 - pod는 stateless다. hostPath, 로컬 SQLite, 공유 JSON 파일을 단계 계약으로 쓰지 않는다.
 - 각 실행/관측/로그에 `run_id`, correlation ID, Git SHA, image digest, parser/projector version을 남긴다.
@@ -241,11 +252,28 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   가진 지수 backoff로 직접 다시 보낸다. 응답이 오지 않은 실패만 다시 보내며, 응답이 도착한 뒤의
   전송 중단·decoding 실패·크기 초과는 다시 보내도 같은 결론이라 즉시 중단한다. 상한은 manifest가
   아니라 `SOURCE_RETRY_*` 설정이 소유한다(2026-09-06 backfill 실측, EAT-72).
-- backfill은 같은 source semaphore를 공유하되 정기 수집을 압도하지 못한다. semaphore 대기 큐는
-  `spec.priority` 내림차순 → 생성 시각 순이므로(Argo Workflows sync manager) 스케줄 CronWorkflow만
-  backfill 기본값보다 높은 priority를 갖고, 스케줄 실행의 최대 대기는 진행 중인 backfill chunk 하나의
-  길이다. WorkflowTemplate 자체에는 priority를 두지 않는다 — 거기 두면 backfill도 같은 값을 받는다
-  (2026-09-07 08:00 poll-open discover가 backfill 창 뒤에서 95분 기다린 실측, EAT-93).
+- **backfill은 정기 수집과 다른 source semaphore key를 쓴다**(`eatbid-source-backfill` vs
+  `eatbid-source-live`, `infra/product/workflows/semaphore.yaml`, 2026-09-11 EAT-164). 처음에는
+  `spec.priority`로 같은 semaphore 큐 안에서 backfill보다 앞세우는 방식이었다(2026-09-07, EAT-93).
+  그런데 2026-09-10 18:53 poll-open 회차는 그 priority를 가진 채로도 discover 이후 상세 수집
+  10묶음 중 8개가 backfill chunk(기본 priority 0) 뒤에서 2시간 대기하다 끝났다 — "대기 큐는 priority
+  내림차순 → 생성 시각 순"(Argo Workflows sync manager) 가정이 template 수준 semaphore에서는 실제로
+  지켜지지 않음을 보인 관측이며, 그 원인 규명은 이 변경의 범위가 아니다(EAT-164 non-goal). 그래서
+  보장을 priority가 아니라 key 분리로 옮겼다: `discover`·`capture`는 `eatbid-source-live`를 잡고,
+  `discover-backfill`·`capture-backfill`이라는 변형이 `eatbid-source-backfill`을 잡는다. 이 변형은
+  YAML anchor로 `discover`·`capture`의 `container`·`inputs`·`outputs`를 그대로 물려받고
+  `synchronization`만 다르다 — Argo semaphore의 `configMapKeyRef.key`가
+  `{{workflow.parameters.mode}}` 같은 workflow parameter 치환을 지원한다는 근거가 없어(공식 문서의
+  semaphore 예시는 모두 고정 문자열이고, dynamic key 요청인
+  [argoproj/argo-workflows#11890](https://github.com/argoproj/argo-workflows/issues/11890)도
+  2023-09 이후 미해결로 "semaphore key는 ConfigMap에 미리 정의된 고정 값만 받는다"는 현재 상태를
+  전제한다) 같은 template 안에서 mode로 key를 바꾸는 대신 template을 나눴다. backfill은
+  `WorkflowTemplate`의 별도 entrypoint `backfill-pipeline`으로 돌며(§2.1 표의 submit 명령),
+  `normalize`·`validate`·`project`·`marts`는 semaphore가 없는 단계라 `scheduled-pipeline`과 정의를
+  그대로 공유한다. `spec.priority: 100`(poll-open·daily-reconcile)은 남아 있지만 이제는 같은
+  `eatbid-source-live`를 다투는 두 수집 스케줄 사이 순서와 컨트롤러 큐 일반의 의미로 좁아졌다.
+  `replay`는 기존 raw를 새 parser/projector version으로 재해석만 하고 소스를 다시 부르지 않으므로
+  두 key 어느 쪽도 잡지 않는다.
 - `project`의 상주 메모리는 발행 크기가 아니라 batch 크기(500건, `core/projection_stream.py`가 소유)에
   비례한다. 잠금은 manifest·구성원 행 전체를 한 transaction에서 먼저 잡고 payload만 batch로 읽어
   투영·검증·기록하며, 발행(activate)은 여전히 마지막에 한 번이라 어느 batch에서 실패해도 공개되는 것은
