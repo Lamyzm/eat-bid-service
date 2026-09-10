@@ -48,8 +48,14 @@ R2 업로드와 일회용 postgres 복원을 확인했다. 결과는 §4.
 | `K8S_SECRET_EATBID_CLOUDFLARED_CREDS` | `eatbid/cloudflared-creds` | 524 |
 | `K8S_SECRET_EATBID_EATBID_AUTH` | `eatbid/eatbid-auth` | 608 |
 
-`eatbid-share`는 EAT-126이 미사용으로 폐기 중이라 올리지 않았다. `eatbid-infisical-operator`는 같은 경로의
-`INFISICAL_CLIENT_ID/SECRET`로 조립한다.
+`eatbid-share`는 EAT-126이 폐기 중이라 처음에 뺐으나, 같은 날 EAT-129 부트스트랩이 그 Secret 없이 멈춰
+(`main`의 server manifest가 아직 요구) 같은 형식으로 `K8S_SECRET_EATBID_EATBID_SHARE`(288 bytes)를 추가했다.
+목록에도 되돌렸다. `eatbid-infisical-operator`는 같은 경로의 `INFISICAL_CLIENT_ID/SECRET`로 조립한다.
+
+### 4.1.1 복구 사본 실사용 (2026-09-10 17:2x KST)
+
+EAT-129 새 클러스터 부트스트랩이 `-FromInfisical`로 이 사본에서 Secret 여섯을 재생성했다(operator identity 조립
+포함). 옛 클러스터 없이 세우는 경로가 실제로 동작함을 확인했다.
 
 ### 4.2 백업·복원 리허설 (2026-09-10 04:58~05:35 KST, 로컬)
 

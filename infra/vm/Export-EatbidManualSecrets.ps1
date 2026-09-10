@@ -12,7 +12,9 @@
   manifest(JSON: apiVersion·kind·type·metadata.name/namespace/labels·data)의 base64. base64 한 덩어리로 두는
   이유는 CLI 인자로 JSON 따옴표를 안전하게 넘기기 어렵고, 복원 쪽은 decode 뒤 kubectl apply만 하면 되기 때문이다.
 
-  eatbid-share는 올리지 않는다. EAT-126이 미사용으로 판정해 계약에서 지우는 중이다.
+  eatbid-share는 EAT-126이 미사용으로 판정해 계약에서 지우는 중이지만, 그 변경이 main에 들어가기 전까지는
+  server Deployment가 이 Secret을 요구해 없으면 부트스트랩이 멈춘다(2026-09-10 새 클러스터 실측). main에 있는
+  manifest만 사실이므로 목록에 둔다. EAT-126이 merge되면 아래 항목과 Bootstrap의 복사 줄을 함께 지운다.
 
 .EXAMPLE
   .\infra\vm\Export-EatbidManualSecrets.ps1 -SourceContext eatbid-vm
@@ -31,7 +33,8 @@ $manual = @(
   @{ Namespace = 'argocd'; Name = 'repo-eatbid' },
   @{ Namespace = 'eatbid'; Name = 'ghcr-pull' },
   @{ Namespace = 'eatbid'; Name = 'cloudflared-creds' },
-  @{ Namespace = 'eatbid'; Name = 'eatbid-auth' }
+  @{ Namespace = 'eatbid'; Name = 'eatbid-auth' },
+  @{ Namespace = 'eatbid'; Name = 'eatbid-share' }
 )
 
 foreach ($item in $manual) {
