@@ -681,10 +681,32 @@ SSOT, EAT-134 lint 이관, EAT-124 운영 뷰 ADR, 그리고 8-5의 진행 중 �
 - **EAT-151 후속 문서 정합(리뷰어가 직접).** `product-and-quality.md` §7의 35분을 15분으로 맞추고 근거·조정 조건의 소유를
   runtime 문서 §2.5에 두었다(`91c89887`, main `4d1833ee`). 8-4의 "둘의 관계" 질문은 대체로 닫는다: 측정 지점이 다른 두
   SLO가 아니라 하나의 SLO를 두 문서가 다르게 적고 있던 것이다.
-- **동시에 띄운 셋.** EAT-150(통합 테스트 timeout 누락·죽은 export), EAT-155(개발 전용 이메일 로그인·시드), EAT-152(ADR 0045
-  적용, 일곱 커밋). owned path가 겹치지 않게 150에는 `modules/**` 금지, 152에는 `database.tokens.ts`·통합 테스트·픽스처·
-  `platform/auth/**`·`environment.ts` 금지, 155에는 `modules/**` 수정 금지를 걸었다. 셋 다 좁은 테스트만 돌리고(152만
+- **동시에 띄운 넷.** EAT-150(통합 테스트 timeout 누락·죽은 export), EAT-155(개발 전용 이메일 로그인·시드), EAT-152(ADR 0045
+  적용), EAT-156(금지 문구 검사). owned path가 겹치지 않게 150에는 `modules/**` 금지, 152에는 `database.tokens.ts`·통합 테스트·
+  픽스처·`platform/auth/**`·`environment.ts` 금지, 155에는 `modules/**` 수정 금지를 걸었다. 넷 다 좁은 테스트만 돌리고(152만
   마지막에 전체 스위트 한 번) 판정은 병합 뒤 push 게이트 한 번으로 한다.
+
+### 2차 배치 리뷰 결과
+
+- **EAT-150(`517f69d1`).** 파일 3개, 통합 2·database 4·tsc 통과를 재실행으로 확인. 통합 테스트 15개 파일 전부 test 수만큼
+  override가 있다. 자체 harness를 공용 fixture로 바꾸면서 연결 역할이 owner→운영 `api`로 바뀐 것은 형제 테스트 관행이고
+  운영 권한까지 검증하므로 받아들였다. 남긴 것: 테스트·fixture 파일이 어느 tsconfig에도 없어 typecheck 게이트 밖(기존 공백).
+- **EAT-156(`0b386c8c`).** 리뷰 세 번. ① 에이전트가 넣은 '낙찰 확률·가능성' 금지는 ADR 0027(예측 승률은 경계 안)·0030과
+  충돌해 삭제. ② 원래 검사가 막던 홀로 선 "추천"·"권장" 라벨을 `(?![가-힣])`로 다시 잡게 함. ③ '자리 단정' 꼬리를 확정형
+  (`낙찰됩니다|낙찰된다|낙찰될 (것|겁니다)`)으로 좁혀 "낙찰될 확률" 승률 문구는 통과. 최종 규칙 8개, production diff 0,
+  세그먼트 303 pass. 교훈: 금지어 목록을 넓힐 때는 Accepted ADR의 허용 어휘와 대조해야 한다.
+- **EAT-155(`de85705f`).** 게이트 파일 넷 diff 0. 단위 18·e2e 3·기존 인증 통합 17(에이전트가 안 돌린 것을 내가 돌림)·웹 7 통과.
+  설계: `parseAuth`가 "넷 전부/전무"에서 "secret·URL + 로그인 방법 1개 이상"으로, Google 쌍은 `google | null`, dev login에서도
+  secret·URL 고정값 없음(세션 위조 경로 차단), `autoSignIn:false`(시드가 세션 행을 안 남김), 웹은 RSC에서 `NODE_ENV≠production
+  && EATBID_DEV_LOGIN==='true'`만 판정. 이메일 endpoint는 provider가 항상 등록하고 handler가 400 `EMAIL_PASSWORD_DISABLED`로
+  거부(acceptance의 "404 또는 미등록" 대신). 남긴 것: `docs/README.md` 목차 추가(다른 세션이 그 파일을 수정 중이라 보류),
+  `infra/product/secret-contract.md`에 비밀 아님 명시 여부, "dev login 켜짐" 시작 로그(lifecycle union 고정).
+- **EAT-152(`dec1a8b3`).** 커밋 10개를 결정 항목별로 읽음. `AuctionDependencyUnavailable`은 `ProcurementDependencyUnavailable`의
+  하위형이라 controller가 어느 쪽으로 잡아도 503. `wire.ts`는 ADR의 셋에 `bigintText`·축별 비율 봉투 셋을 더함(복제 2·4벌 제거).
+  식별자 범위 팩토리는 `packages/domain/identity/postgres-identity.ts`(모듈끼리 import 금지라 모듈 domain에 두면 세 번째 복제).
+  새 gate `server-boundaries`가 application의 wire 타입 import를 막는다(22개 통과). 내가 돌린 것: 단위 124, 경계 검사, OpenAPI
+  check, tools 테스트 10. 에이전트 전체 스위트 304 pass. 삭제된 테스트 제목 15개는 presenter 테스트 48개로 옮겨졌고 skip 0.
+- **push.** 넷을 합친 main(24 커밋)을 push 하나로 올린다. 게이트가 최종 판정이다.
 
 ## 9. 다음에 볼 것
 
