@@ -416,6 +416,22 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     assert "entrypoint: replay" not in cron_rendered
 
 
+def test_렌더된_어떤_이미지도_변환되지_않은_우리_이름으로_남지_않는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: kustomize의 이미지 변환은 kind별 경로 목록을 따른다. 새 kind를 더하면서 그 경로를 빼먹으면
+    이름이 그대로 남아 파드가 docker.io에서 `<이름>:latest`를 찾다 ImagePullBackOff로 멈춘다.
+    렌더 결과 전체를 훑어야 다음에 CronWorkflow가 아닌 kind가 늘어도 같은 함정을 잡는다(EAT-170)."""
+    unresolved: list[str] = []
+    for document in manifests.documents:
+        for mapping in _all_mappings(document):
+            image = mapping.get("image")
+            if isinstance(image, str) and image.startswith("eatbid-"):
+                unresolved.append(image)
+
+    assert unresolved == [], f"kustomize가 바꾸지 못한 이미지 이름: {sorted(set(unresolved))}"
+
+
 def test_감시_CronWorkflow는_수집_템플릿에_매이지_않고_알림_비밀만_추가로_받는다(
     manifests: ManifestSet,
 ) -> None:
@@ -437,7 +453,10 @@ def test_감시_CronWorkflow는_수집_템플릿에_매이지_않고_알림_비�
         _mapping(item) for item in _sequence(workflow_spec["templates"]) if _mapping(item)["name"] == "check"
     )
     container = _mapping(template["container"])
-    assert container["image"] == "eatbid-dataplane"
+    # 렌더된 이미지는 digest로 고정돼 있어야 한다. 여기서 이름을 그대로 단언하면 kustomize가 그 이름을
+    # 바꾸지 못한 사실을 통과시킨다. 2026-09-11 첫 회차가 docker.io에서 `eatbid-dataplane:latest`를
+    # 찾다 ImagePullBackOff로 멈췄는데, 이 단언이 이름이었기 때문에 테스트는 초록이었다.
+    assert str(container["image"]).startswith("ghcr.io/lamyzm/eatbid-dataplane@sha256:")
     command = "".join(str(item) for item in _sequence(container["args"]))
     assert "eatbid check-expectations" in command
     # release에 매이지 않는 명령이라 build-sha·source-release-id를 받지 않는다.

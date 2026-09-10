@@ -1,3 +1,8 @@
 images:
   - path: spec/templates[]/container/image
     kind: WorkflowTemplate
+  # CronWorkflow는 workflowSpec 아래에 templates를 한 겹 더 감싼다. 이 경로가 없으면 이미지 이름이
+  # 그대로 남아 파드가 docker.io에서 `eatbid-dataplane:latest`를 찾다 ImagePullBackOff로 멈춘다
+  # (2026-09-11 감시 첫 회차 실측, EAT-170). WorkflowTemplate 경로만으로는 덮이지 않는다.
+  - path: spec/workflowSpec/templates[]/container/image
+    kind: CronWorkflow
