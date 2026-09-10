@@ -304,3 +304,39 @@ where sr.source_release_id = :'source_release_id'::uuid;
 release는 `failed`, detail run은 같은 category의 `failed`, discovery run은 `validated` 그대로여야 한다.
 같은 category로 다시 내면 멱등하게 같은 결과를 돌려주고, 다른 category나 이미 `sealed`인 release는
 거부된다. 닫은 release의 창은 새 backfill로 다시 낸다.
+
+### 4.4 재부팅·컨트롤러 재시작이 남긴 semaphore 교착 풀기 (2026-09-10, EAT-129)
+
+노드 재부팅이나 controller 재시작이 capture 파드를 죽이면, 죽은 노드가 source semaphore 보유자로 남아
+이후 모든 수집이 대기한다. Argo controller는 시작할 때 각 Workflow의 `status.synchronization.holding`에서
+보유자를 다시 읽으므로 controller를 다시 재시작해도 같은 보유자가 복원되어 스스로는 풀리지 않는다.
+
+**증상.** `kubectl get wf`는 Running인데 실행 중인 수집 파드가 하나도 없고, 모든 capture 노드가
+`Waiting for eatbid/ConfigMap/eatbid-workflow-limits/eatbid-source-limit lock. Lock status: 0/1`이다.
+
+`powershell
+kubectl -n eatbid get wf <workflow-name> -o jsonpath='{.status.synchronization}'
+`
+
+`holding`의 보유자 노드 id가 이미 Failed인 노드면 교착이다. 같은 id가 `waiting`에도 함께 있으면 확실하다.
+
+**1단계 — 자물쇠를 쥔 workflow를 종료한다.** 그 run은 이미 capture 하나가 영구 실패라 발행에 이르지 못한다.
+원본은 R2와 `ingest.raw_observation`에 남고 열린 공고는 다음 회차가 다시 발견하므로 잃는 것이 없다.
+JSON 인용이 shell마다 깨지므로 patch는 파일로 넘긴다.
+
+`powershell
+'{"spec":{"shutdown":"Terminate"}}' | Set-Content -NoNewline shutdown.json
+kubectl -n eatbid patch wf <workflow-name> --type merge --patch (Get-Content shutdown.json -Raw)
+`
+
+controller 로그에 `Lock released … availableLocks=1`이 찍히면 풀린 것이다.
+
+**2단계 — 대기하던 workflow를 깨운다.** 자물쇠가 풀려도 대기 중이던 workflow는 스스로 다시 시도하지 않고
+controller가 그 workflow를 처리하지도 않는다. annotation을 덮어써 재조정을 유도한다.
+
+`powershell
+kubectl -n eatbid annotate wf <waiting-workflow> "eatbid.dev/nudge=$(Get-Date -Format o)" --overwrite
+`
+
+Pending이던 노드가 Running으로 바뀌고 파드가 뜨는지 확인한다. 남은 `planned` release는 §4.1로 확인하고
+§4.2 또는 §4.3으로 정리한다.

@@ -84,6 +84,29 @@ PATH의 `C:\WINDOWS\system32\bash.exe`(WSL)로 풀려 `execvpe(/bin/bash) failed
 19:09 KST `SUBMIT 20251101..20251130 건수=16915 workflow=eatbid-backfill-20251101-20251130-ptphk`가 prod에서
 Running임을 확인했다.
 
+## 6.3 재부팅이 남긴 semaphore 교착 (2026-09-10 21:00 KST 해소)
+
+§6의 재부팅이 capture 파드를 SIGTERM으로 죽였고(§6.1), 그 노드가 source semaphore 보유자로 남았다. Argo
+컨트롤러는 재시작할 때 각 Workflow의 `status.synchronization.holding`에서 보유자를 다시 읽으므로, 죽은 노드가
+계속 보유자로 복원되어 자물쇠가 영원히 풀리지 않았다. 같은 노드가 `holding`과 `waiting` 양쪽에 동시에
+들어가 자기 자신을 기다리는 모양이었다.
+
+| 항목 | 값 |
+|---|---|
+| 멈춘 구간 | 18:54 KST(재부팅) ~ 21:00 KST |
+| 막힌 것 | `eatbid-poll-open-1789033800`의 남은 capture 8개, `eatbid-backfill-20251101-20251130-ptphk` 전체 |
+| 실행 중이던 수집 파드 | 0개 (전부 Pending) |
+| 조치 | 막힌 poll-open에 `spec.shutdown: Terminate` patch |
+| 결과 | 컨트롤러가 `Lock released … availableLocks=1` 기록 |
+
+Terminate로 잃은 것은 없다. 그 회차는 이미 capture 1개가 영구 실패라 발행에 이르지 못하고, 받아둔 원본은 R2와
+`ingest.raw_observation`에 남으며, 열린 공고는 다음 회차가 다시 발견한다.
+
+**자물쇠가 풀려도 대기 중이던 Workflow는 스스로 깨어나지 않았다.** 백필은 `Lock status: 0/1` 문구를 문 채
+그대로 있었고 컨트롤러 로그에 그 workflow에 대한 처리가 없었다. annotation을 하나 덮어써(`kubectl annotate wf
+… --overwrite`) 재조정을 유도하자 discover가 곧바로 Running으로 넘어갔다. 이 두 단계는
+[`collection-runbook.md`](../../operations/collection-runbook.md) §4.4가 절차로 소유한다.
+
 ## 7. 남은 것
 
 - EAT-127 4번(PVC 100Gi·Recreate)은 EAT-126 뒤. 지금 새 클러스터 PVC 선언은 여전히 2Gi(local-path라 실제 제한 없음).
