@@ -95,10 +95,19 @@ describe("열린 공고 스냅샷 행 매핑", () => {
     expect(record.orgSummary).toBeNull();
   });
 
-  test("활성 회차 요약 build가 없거나 그 build에 기관 회차가 없으면 요약은 0이 아니라 null이다", () => {
+  test("활성 회차 요약 build가 없으면 요약은 null이고 코호트가 빈 회차 0건은 0으로 남는다", () => {
     expect(mapOpenAuctionRow(row, false).orgSummary).toBeNull();
-    expect(mapOpenAuctionRow({ ...row, attempt_count: 0, list_count_sample_count: 0, median_list_count: null }, true).orgSummary)
-      .toBeNull();
+    // 코호트를 만들 수 없는 행(기관 미확인·하한율 미관측)은 SQL이 요약 열을 통째로 null로 돌려준다.
+    expect(mapOpenAuctionRow({ ...row, attempt_count: null }, true).orgSummary).toBeNull();
+    // 코호트는 있는데 이 하한에서 본 회차가 0건인 것은 셀 수 있는 사실이라 요약 없음과 합치지 않는다.
+    expect(mapOpenAuctionRow({
+      ...row,
+      attempt_count: 0,
+      list_count_sample_count: 0,
+      median_list_count: null,
+      last_round_attempt_id: null,
+      last_round_opened_at: null,
+    }, true).orgSummary).toEqual({ attemptCount: 0, medianListCount: null, listCountSampleCount: 0, lastRound: null });
     // 회차는 있지만 개찰된 회차가 없으면 최근 회차만 null이다.
     const noRound = mapOpenAuctionRow({ ...row, last_round_attempt_id: null, last_round_opened_at: null }, true);
     expect(noRound.orgSummary).toMatchObject({ attemptCount: 17, lastRound: null });
