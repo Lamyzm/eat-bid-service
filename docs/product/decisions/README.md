@@ -1,3 +1,11 @@
+---
+id: PDR-INDEX
+status: active
+canonical_for: product-decision-record-index
+last_reviewed: 2026-09-11
+review_trigger: pdr-status-vocabulary-or-supersession-rule-change
+---
+
 # Product Decision Records
 
 PDR은 이미 내린 **제품 기획 판단**과 그 판단을 되돌릴 조건을 보존한다. 목표 구조나 코드 경계를
@@ -16,6 +24,7 @@ Active PDR은 소급 수정해 결론을 뒤집지 않는다. 판단이 바뀌�
 | [0002](0002-day-floor-is-derived.md) | 그날 하한은 관측값이 아니라 파생값이다 | Active | 하한율 × 추첨 예정가격으로 계산한다. `BID_STT`에 하한 미달 판정이 없으므로 표본·코호트·계산 버전과 함께만 발표한다 | EAT-42 |
 | [0003](0003-coverage-unknown.md) | 모집단 보유율은 모르면 `unknown`이라고 말한다 | Active | 지금 수집 구간에는 시도 축이 없어 그 grain의 분모를 낼 수 없다. `partial`로 뭉개면 화면이 "일부 수집됨"이라고 거짓말하므로 넷째 값을 둔다 | EAT-44 |
 | [0004](0004-order-book-axis-is-assessment-rate.md) | 호가창의 눈금은 사정률이고 내 값도 사정률로 받는다 | Active | 남산초 실측에서 같은 92건이 사정률 축 29칸에 모이고 투찰률 축 83칸으로 흩어진다. 마감 전에는 두 축 사이 변환의 입력(예정가격)이 없으므로 레일 손잡이를 사다리에 꽂지 않고 기본값도 두지 않는다 | EAT-38 |
+| [0005](0005-cohort-axis-is-floor-rate-and-list-size.md) | 비교집단을 가르는 축은 하한율과 명단 크기이고 품목이 아니다 | Active | 명단 크기 네 구간에서 낙찰 사정률 중앙값이 0.457 벌어지는데 같은 조건에서 품목은 0.041 안에 다 들어온다. 품목은 목록 필터이지 분석 축이 아니며, 좁히지 않는 쪽이 표본 8,016건으로 더 많이 말할 수 있다 | EAT-176 |
 
 ## 문서 사이의 역할
 
