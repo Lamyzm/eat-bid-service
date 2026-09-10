@@ -119,6 +119,28 @@ async function clickPointAt(page: Page, x: number, region: Locator): Promise<voi
   throw new Error('세로 방향 클릭으로 점을 맞히지 못했다');
 }
 
+/**
+ * EAT-165 acceptance의 핵심 증거다: fixture가 아니라 진짜 Nest 위에서 로그인한 사용자가 오늘 화면에
+ * 실제 공고 행을 본다는 것을 확인한다. `own-bid-e2e.ts`의 `seedOpenAuctionSnapshot`이 채운
+ * `mart.open_auction_snapshot` 한 행을 찾는다 — 그 기관명(`창원 남산초등학교`)은 seed가 심은 값이라
+ * 화면이 실제로 그 행을 그렸는지와 우연히 같은 문구가 있는지를 가른다. 독립된 context를 쓰는 이유는
+ * 아래 serial 스위트의 `firstPage` 상태(사업자 선택 등)를 건드리지 않기 위해서다.
+ */
+test.describe('오늘 화면의 실제 열린 공고', () => {
+  // 파일 아래쪽의 `test.describe.configure({ mode: 'serial' })`는 파일의 root suite에 적용되어 선언
+  // 순서와 무관하게 형제 describe에도 미칠 수 있다. 이 화면은 아래 결정 화면 스위트의 `firstPage` 상태와
+  // 무관하므로 실패해도 그 스위트를 건너뛰게 만들지 않도록 이 블록만 명시적으로 기본 모드로 되돌린다.
+  test.describe.configure({ mode: 'default' });
+
+  test('로그인한 사용자는 오늘 화면에서 열린 공고 행을 본다', async ({ browser }) => {
+    const context = await signedInContext(browser, requiredEnvironment('EATBID_E2E_SESSION_COOKIE_FIRST'));
+    const page = await context.newPage();
+    await page.goto('/today');
+    await expect(page.getByRole('row', { name: /창원 남산초등학교/ })).toBeVisible();
+    await context.close();
+  });
+});
+
 test.describe.configure({ mode: 'serial' });
 
 test.describe('결정 화면의 실제 내 투찰', () => {
@@ -136,15 +158,24 @@ test.describe('결정 화면의 실제 내 투찰', () => {
     await firstContext.close();
   });
 
-  test('미로그인은 로그인 안내만 보고 내 투찰을 묻지 않는다', async ({ browser }) => {
+  /**
+   * 이 검사는 원래 결정 화면 자체는 열리되 own-bid 패널만 "로그인 안내" 상태를 보이는 것을 확인했다.
+   * 2026-09-10 사용자 결정 이후 공개 화면이 없어지면서(ADR 0032 §12) 게이트가 결정 화면 진입 자체를
+   * 로그인으로 보내므로 그 전제가 사라졌다 — `openFlow`가 기다리는 흐름 캔버스는 이제 미로그인
+   * 방문자에게 영영 나타나지 않는다(EAT-165에서 실제로 120초 타임아웃으로 재현·발견). 검사를 현재
+   * 동작(login-gate.spec.ts와 같은 리디렉션)에 맞춰 다시 쓴다.
+   */
+  test('미로그인은 결정 화면 대신 로그인 화면으로 가고 내 투찰을 묻지 않는다', async ({ browser }) => {
     test.setTimeout(120_000);
     const guest = await browser.newContext();
     const page = await guest.newPage();
     const requests = observeRequests(page);
-    await openFlow(page);
-    await expect(controls(page)).toHaveAttribute('data-own-status', 'signed-out');
-    await expect(controls(page).getByRole('link', { name: 'Google로 로그인' })).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/auctions/${auctionId}`)}`);
-    await expect(figure(page)).toHaveAttribute('data-own-points', '0');
+    await page.goto(FLOW_PATH);
+    await expect(page).toHaveURL(new RegExp(`^${WEB_ORIGIN}/login\\?next=`));
+    // next는 proxy가 원래 요청 경로를 그대로 실은 값이다(FLOW_PATH의 view query는 이미 한 번 encode된
+    // 문자열이고, `next=`의 encode가 그 위에 한 겹 더 얹힐 뿐 안쪽 값을 다시 풀어내지 않는다). 회차 view
+    // query까지 잃지 않아야 로그인 뒤 같은 화면(흐름 탭)으로 돌아간다.
+    expect(new URL(page.url()).searchParams.get('next')).toBe(FLOW_PATH);
     expect(requests.posts).toHaveLength(0);
     await guest.close();
   });

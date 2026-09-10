@@ -85,7 +85,7 @@ test.describe('로그인 계정의 사업자 설정', () => {
     await secondContext.close();
   });
 
-  test('미로그인 방문자는 설정 대신 로그인 화면으로 가고 공개 화면은 그대로 열린다', async ({ browser }) => {
+  test('미로그인 방문자는 어떤 업무 화면도 못 보고 로그인 화면으로 간다', async ({ browser }) => {
     const guest = await browser.newContext();
     const page = await guest.newPage();
 
@@ -97,8 +97,10 @@ test.describe('로그인 계정의 사업자 설정', () => {
     await page.goto(`/setup?next=${ENCODED_AUCTION_PATH}`);
     await expect(page).toHaveURL(`${WEB_ORIGIN}/login?next=${ENCODED_AUCTION_PATH}`);
 
+    // 2026-09-10 사용자 결정 이후 공개 화면은 없다(ADR 0032 §12) — 오늘 화면도 로그인으로 보낸다.
+    // 로그인한 사용자가 실제로 공고 행을 보는 것은 own-bid.spec.ts의 real-Nest 검사가 증명한다(EAT-165).
     await page.goto('/today');
-    await expect(page.getByRole('region', { name: '열린 공고' })).toBeVisible();
+    await expect(page).toHaveURL(`${WEB_ORIGIN}/login?next=%2Ftoday`);
     await guest.close();
   });
 

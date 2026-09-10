@@ -1,4 +1,4 @@
-/** @module 책임: RSC에서만 쓰는 공고 ID 검증과 `use cache` 경계 안의 공고·열린 공고 목록 조회를 예상된 실패까지 결과 값으로 돌려주는 표면을 제공한다. */
+/** @module 책임: RSC에서만 쓰는 공고 ID 검증과 세션 쿠키를 실어 나르는 공고·열린 공고 목록 조회를 예상된 실패까지 결과 값으로 돌려주는 표면을 제공한다. */
 import 'server-only';
 
 import {
@@ -6,13 +6,9 @@ import {
   type AuctionV1Response,
   type OpenAuctionListV1Response
 } from '@eatbid/contracts/api/v1/auctions';
-import { cacheLife, cacheTag } from 'next/cache';
 
-import { READ_CACHE_LIFE } from '@/shared/lib/read-cache-life';
-
-import { serverRequest } from '../_transport/server-request.server';
+import { privateServerRequest } from '../_transport/private-server-request.server';
 import { isAuctionNotFoundError, isOpenAuctionCursorInvalidError } from './auction-resource-error';
-import { auctionReadCacheTags, openAuctionsReadCacheTags } from './cache-tags';
 import { getAuctionWith } from './get-auction';
 import { listOpenAuctionsWith, type OpenAuctionListInput } from './list-open-auctions';
 
@@ -21,28 +17,26 @@ export function parseAuctionId(auctionId: string): string {
 }
 
 /**
- * 없는 공고는 예외가 아니라 결과다. `use cache` 경계를 넘는 예외는 Flight로 옮겨지며 class 정체성을 잃어
- * 호출자가 `instanceof`로 404를 가려낼 수 없고, 그러면 `notFound()` 대신 error 경계가 뜬다. 캐시 함수는
- * 예상된 실패를 값으로 돌려준다.
+ * 없는 공고는 예외가 아니라 결과다. 이 union은 원래 `use cache` 경계를 넘는 예외가 Flight로 옮겨지며
+ * class 정체성을 잃는 문제(호출자가 `instanceof`로 404를 가려낼 수 없는 문제)를 피하려고 생겼다. 지금은
+ * `use cache`를 쓰지 않지만(아래 주석) 호출부(`_lib/load-auction-page.ts`)가 이미 이 결과 값 계약을
+ * 소비하므로 형태를 그대로 유지한다.
  */
 export type AuctionRead =
   | { readonly kind: 'auction'; readonly response: AuctionV1Response }
   | { readonly kind: 'not-found' };
 
 /**
- * 캐시 경계다. `use cache`의 인자는 직렬화 가능해야 하므로 `signal`은 여기서 받지 않는다. 취소 가능한
- * 조회가 필요한 호출자는 transport 독립 `getAuctionWith`를 그대로 쓴다.
- *
- * `not-found`도 하나의 결과라 캐시된다. 아직 발행되지 않은 공고를 열면 그 항목은 `READ_CACHE_LIFE`
- * 동안 없음으로 남고, 발행 push(`revalidateAuctionCache`)가 같은 태그를 지우는 순간 다시 보인다.
- * 그 밖의 실패는 캐시되지 않고 그대로 올라가 route error 경계가 받는다.
+ * 이 조회는 `ProviderSessionGuard`가 걸린 제품 데이터 읽기다(ADR 0032 §12). `use cache` 경계 안에서는
+ * 요청 쿠키를 읽을 수 없어(ADR 0028 §4) 게이트 앞에 익명으로 닿아 항상 401을 받는다 — 2026-09-10
+ * EAT-138이 게이트를 올린 뒤 EAT-165로 드러난 장애가 이 함수였다. 그래서 `use cache`·`cacheTag`·
+ * `cacheLife`를 모두 떼고 쿠키를 그대로 실어 나르는 `privateServerRequest`로 세션을 전달한다(ADR 0032
+ * §14). `cache-tags.ts`의 태그 함수와 `revalidate.ts`는 걷어내지 않았으니 그 파일에서 "왜 안 불리는지"를
+ * 확인할 수 있다.
  */
 export async function getAuctionFromServer(input: { readonly auctionId: string }): Promise<AuctionRead> {
-  'use cache';
-  cacheTag(...auctionReadCacheTags(input.auctionId));
-  cacheLife(READ_CACHE_LIFE);
   try {
-    return { kind: 'auction', response: await getAuctionWith(serverRequest, input) };
+    return { kind: 'auction', response: await getAuctionWith(privateServerRequest, input) };
   } catch (error) {
     if (isAuctionNotFoundError(error)) return { kind: 'not-found' };
     throw error;
@@ -55,16 +49,13 @@ export type OpenAuctionListRead =
   | { readonly kind: 'cursor-not-found' };
 
 /**
- * 열린 공고 목록의 캐시 경계다. 필터 조합이 그대로 캐시 키가 된다. 목록 멤버십은 서버 clock의
- * `asOf`에 걸려 있어 같은 build에서도 시간이 지나면 답이 달라지므로, 이 항목은 build 전환 push뿐
- * 아니라 `READ_CACHE_LIFE`의 유계 수명으로도 늙는다. 화면은 응답의 `meta.asOf`를 그대로 보여 준다.
+ * 열린 공고 목록도 같은 이유로 `use cache`를 쓰지 않는다(위 `getAuctionFromServer` 주석, EAT-165). 목록
+ * 멤버십은 서버 clock의 `asOf`에 걸려 있어 캐시가 있었어도 유계 수명 안에서만 유효했다. 화면은 응답의
+ * `meta.asOf`를 그대로 보여 준다.
  */
 export async function listOpenAuctionsFromServer(input: OpenAuctionListInput): Promise<OpenAuctionListRead> {
-  'use cache';
-  cacheTag(...openAuctionsReadCacheTags());
-  cacheLife(READ_CACHE_LIFE);
   try {
-    return { kind: 'page', response: await listOpenAuctionsWith(serverRequest, input) };
+    return { kind: 'page', response: await listOpenAuctionsWith(privateServerRequest, input) };
   } catch (error) {
     if (isOpenAuctionCursorInvalidError(error)) return { kind: 'cursor-not-found' };
     throw error;

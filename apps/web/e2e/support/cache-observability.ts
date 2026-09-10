@@ -19,16 +19,6 @@ export type ObservedRoute =
   | 'myBusinesses'
   | 'roster';
 
-/**
- * `use cache` 경계 뒤에 있는 공유 read다. 캐시 스위트는 이 셋만 견준다. 세션처럼 요청마다 다시 묻는
- * read를 같이 견주면 "캐시가 살아 있다"가 아니라 "아무도 화면을 열지 않았다"를 검사하게 된다.
- */
-export const CACHED_READ_ROUTES = [
-  'auction',
-  'organizationAttempts',
-  'winRateDistribution'
-] as const;
-
 const AUCTION_PATH_PATTERN = new RegExp(
   `^${auctionV1Operations.find.openApiPath.replace('{auctionId}', '[^/]+')}$`
 );
@@ -86,20 +76,11 @@ export function observedCounts(): Record<ObservedRoute, number> {
   };
 }
 
-/** 캐시 스위트가 견줄 부분만 남긴다. 이유는 `CACHED_READ_ROUTES` 주석에 있다. */
-export function cachedReadCounts(
-  observed: Record<ObservedRoute, number>
-): Record<(typeof CACHED_READ_ROUTES)[number], number> {
-  return {
-    auction: observed.auction,
-    organizationAttempts: observed.organizationAttempts,
-    winRateDistribution: observed.winRateDistribution
-  };
-}
-
 /**
- * 활성 build를 한 칸 옮긴다. 무효화 없이 이 값만 바뀌면 화면은 옛 계보를 계속 보여줘야 하고, 그
- * 사실이 "push가 필요하다"를 증명한다.
+ * 활성 build를 한 칸 옮긴다. 회차 이력·분포 읽기가 `use cache`를 쓰던 때는 무효화 push 없이 이 값만
+ * 바뀌면 화면이 옛 계보를 계속 보여줘야 "push가 필요하다"가 증명됐다. 그 read들이 `use cache`를
+ * 버린 뒤로는(ADR 0032 §14) push 없이 이 값만 옮겨도 다음 열람이 곧바로 새 계보를 읽는다 —
+ * `cache-invalidation.spec.ts`가 그 사실 자체를 고정한다.
  */
 export function activateNextBuild(): number {
   activations += 1;
@@ -111,9 +92,8 @@ export function activatedBuildId(baseBuildId: string): string {
 }
 
 /**
- * 지금 활성인 build id를 돌려주면서 이 조회가 그 계보를 실제로 내보냈다는 사실을 남긴다. 캐시가 살아
- * 있으면 요청 자체가 오지 않아 기록이 그대로이므로, e2e는 이 값 하나로 "옛 계보를 계속 본다"와
- * "무효화 뒤 새 계보를 읽었다"를 화면 문구 없이 가른다. 활성 build를 견주기만 하는 자리(409 판정)는
+ * 지금 활성인 build id를 돌려주면서 이 조회가 그 계보를 실제로 내보냈다는 사실을 남긴다. e2e는 이
+ * 값으로 "어느 계보를 읽었는가"를 화면 문구 없이 판정한다. 활성 build를 견주기만 하는 자리(409 판정)는
  * 응답을 내주는 것이 아니므로 `activatedBuildId`를 그대로 쓴다.
  */
 export function serveBuildId(route: MartBackedRoute, baseBuildId: string): string {
