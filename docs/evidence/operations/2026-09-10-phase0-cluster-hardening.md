@@ -50,7 +50,8 @@ R2 업로드와 일회용 postgres 복원을 확인했다. 결과는 §4.
 
 `eatbid-share`는 EAT-126이 폐기 중이라 처음에 뺐으나, 같은 날 EAT-129 부트스트랩이 그 Secret 없이 멈춰
 (`main`의 server manifest가 아직 요구) 같은 형식으로 `K8S_SECRET_EATBID_EATBID_SHARE`(288 bytes)를 추가했다.
-목록에도 되돌렸다. `eatbid-infisical-operator`는 같은 경로의 `INFISICAL_CLIENT_ID/SECRET`로 조립한다.
+목록에도 되돌렸다. 같은 날 저녁 EAT-126이 main에 들어가 server가 더는 요구하지 않으므로 목록에서 다시 뺐다(Infisical의
+사본은 남아 있으나 복원 대상이 아니다). `eatbid-infisical-operator`는 같은 경로의 `INFISICAL_CLIENT_ID/SECRET`로 조립한다.
 
 ### 4.1.1 복구 사본 실사용 (2026-09-10 17:2x KST)
 
