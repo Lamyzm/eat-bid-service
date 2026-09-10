@@ -363,3 +363,13 @@ test("병렬 에이전트 worktree인 .claude 디렉터리는 스캔하지 않�
     assert.match(result.stdout, /TypeScript 1개/);
   });
 });
+
+test("Python 대상도 드라이버가 열거해 다른 worktree를 스캔하지 않는다", () => {
+  withFixture({
+    ".claude/worktrees/agent-1/other_test.py": "def test_english_in_another_worktree():\n    assert True\n",
+    "own_test.py": "def test_이_체크아웃의_명세만_검사한다():\n    assert True\n",
+  }, (result) => {
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    assert.match(result.stdout, /Python 1개/);
+  });
+});

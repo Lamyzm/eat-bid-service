@@ -9,15 +9,6 @@ import sys
 from pathlib import Path
 
 
-EXCLUDED_DIRECTORIES = {
-    ".git",
-    ".next",
-    ".turbo",
-    ".venv",
-    "__pycache__",
-    "dist",
-    "node_modules",
-}
 ENGLISH_BEHAVIOR_WORDS = {
     "accepts", "allows", "blocks", "builds", "checks", "creates", "emits", "fails",
     "generates", "has", "is", "keeps", "maps", "parses", "preserves", "reads", "rejects",
@@ -63,18 +54,14 @@ def has_meaningful_korean_behavior(name: str) -> bool:
     return contains_hangul_syllable(final_word)
 
 
-def python_files(root: Path) -> list[Path]:
-    return sorted(
-        path
-        for path in root.rglob("*.py")
-        if not any(part in EXCLUDED_DIRECTORIES for part in path.relative_to(root).parts)
-    )
-
-
 def requested_files(root: Path) -> list[Path]:
-    """드라이버가 변경 경로만 넘기면 그 파일만 보고, 아니면 체크아웃 전체를 훑는다."""
+    """대상 열거는 드라이버가 혼자 소유한다.
+
+    왜: 이 검사기가 스스로 걸으면 제외 목록이 드라이버와 두 벌이 되고, 실제로 `.claude`가 한쪽에만 있어
+    다른 세션의 worktree까지 스캔했다. 그 worktree가 스캔 도중 지워지면 push가 통째로 깨진다(EAT-175).
+    """
     if "--paths-from-stdin" not in sys.argv[2:]:
-        return python_files(root)
+        raise SystemExit("대상 경로는 --paths-from-stdin으로 받는다. 이 검사기는 저장소를 스스로 걷지 않는다.")
     requested = json.load(sys.stdin)["paths"]
     return sorted(root / item for item in requested if (root / item).is_file())
 
@@ -88,6 +75,9 @@ def main() -> int:
         relative_path = path.relative_to(root).as_posix()
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative_path)
+        except FileNotFoundError:
+            # 열거와 읽기 사이에 사라진 파일은 위반이 아니다. 검사할 것이 없어졌을 뿐이다.
+            continue
         except (OSError, SyntaxError, UnicodeError) as error:
             violations.append(
                 {
