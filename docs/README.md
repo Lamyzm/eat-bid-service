@@ -1,7 +1,16 @@
+---
+id: DOCS-MAP
+status: active
+canonical_for: documentation-map-and-document-hierarchy-rules
+last_reviewed: 2026-09-09
+review_trigger: document-authority-location-or-docs-lint-rule-change
+---
+
 # eatbid 지식 지도
 
 이 파일은 `docs/`의 목차이자 문서 권위 지도다. 문서를 찾을 때 파일명 검색부터 하지 말고
 먼저 이 지도를 따라간다. 같은 질문에 답하는 권위 문서를 둘 이상 만들지 않는다.
+이 규칙은 문장이 아니라 `pnpm quality:check`의 docs-lint(`tools/quality/check-docs.mjs`)가 지킨다(§2.1).
 
 ## 1. 가장 먼저 읽을 것
 
@@ -22,6 +31,7 @@
 | Codex와 Claude가 구현을 번갈아 맡을 때 어떻게 안전하게 인계하는가? | [`operations/linear-agent-workflow.md#7-codex와-claude-사이-작업-인계`](operations/linear-agent-workflow.md#7-codex와-claude-사이-작업-인계) |
 | 비밀은 Infisical의 어느 환경·경로에 있고 어떻게 주입하는가? | [`operations/infisical.md`](operations/infisical.md) |
 | push한 코드가 어떻게 이미지가 되고 클러스터까지 가는가? | [`operations/main-authority-cutover.md`](operations/main-authority-cutover.md) |
+| Google OAuth client 없이 로컬에서 어떻게 실제 로그인을 하는가? | [`operations/local-dev-login.md`](operations/local-dev-login.md) |
 | 분석 우선 제품기획은 어떤 증거와 반증을 거쳤는가? | [`evidence/product-direction/2026-08-31-analysis-first-planning-audit.md`](evidence/product-direction/2026-08-31-analysis-first-planning-audit.md) |
 
 `AGENTS.md`는 헌법과 지도이고 백과사전이 아니다. 제품·아키텍처·실행계획의 상세 내용을
@@ -41,6 +51,29 @@
 | 조사·감사 증거 | 현재 `AUDIT-*`, `GATE-*`, `audit-source/`, `evidence/` | 관측 당시의 증거다. 제품·아키텍처 권위 문서가 아니다. 사실이 채택되면 권위 문서나 ADR로 승격한다. |
 | 생성 문서 | 향후 `docs/generated/` | 코드·스키마에서 다시 만든다. 사람이 직접 편집하지 않는다. |
 | 구현 계획 | `docs/superpowers/plans/` 등 | 실행 당시 기록으로 보존한다. 완료 후 현재 상태나 작업 status의 원천으로 사용하지 않는다. |
+
+### 2.1 새 문서가 통과해야 하는 docs-lint 규칙
+
+`docs/{product,architecture,operations,adr,governance}/**`가 대상이다. `AGENTS.md`와 `ARCHITECTURE.md`는
+CLAUDE.md가 그대로 import하는 지침이라 frontmatter 없이 링크·도달성 검사만 받는다.
+시안·목업·생성기 디렉터리(`prototypes`, `mockups`, `design-generators`)는 자산이라 제외한다.
+
+1. **frontmatter 필수.** `id`, `status`, `canonical_for`, `last_reviewed`(YYYY-MM-DD), `review_trigger`.
+   `status`는 `active | draft | exploration | superseded | archived | evidence`다. 권위가 아닌 문서는
+   `canonical_for: none`을 적는다. ADR·PDR은 대신 `- Status:`·`- Date:`·`- Supersedes:` 머리말을 쓰고
+   PDR은 `- Superseded-by:`도 필수다.
+2. **`canonical_for`는 저장소에서 유일하다.** 같은 질문의 권위 문서가 둘이면 둘 다 실패한다.
+3. **active 문서는 지도에서 도달할 수 있어야 한다.** `AGENTS.md` → `ARCHITECTURE.md` → 이 파일에서
+   상대 링크를 따라갈 수 있어야 한다. 하위 README나 ADR·PDR 색인을 거쳐도 된다.
+4. **ADR·PDR 대체는 양방향이다.** `Supersedes: 0020`처럼 번호나 링크 하나로 전체를 대체하면 원본의
+   `Status`는 `Superseded`, `Superseded-by`는 새 번호여야 한다. "…항목만 대체" 같은 부분 대체 문장은
+   양방향을 요구하지 않는다.
+5. **상대 링크는 파일과 heading 앵커가 실제로 있어야 한다.** 외부 URL은 검사하지 않는다.
+
+1번 머리말 규칙은 [ADR 0042](adr/0042-legacy-ledger-retirement-and-changed-scope-checks.md)의 변경 범위
+규칙이다. merge-base(main) 이후 신규·수정된 문서에만 요구하므로 건드리지 않은 기존 문서는 묻지 않고,
+고치는 순간 머리말을 넣는다. 2~5번은 예외 없이 전체 문서에서 판정한다. 기준 branch를 못 찾는 환경에서는
+1번만 경고로 내려가고 `--base <ref>`를 주면 실패로 판정한다. 예외 ledger는 없다.
 
 ## 3. 현재 문서 더미의 판정
 
@@ -80,5 +113,6 @@
 2. 살아 있는 delivery work는 Linear issue에 연결하고 중대형 행동 변경만 OpenSpec 파일럿 후보로
    분류한다.
 3. 완료된 실행계획이 현재 상태처럼 읽히지 않도록 history임을 표시한다.
-4. 링크·마지막 검토일·중복 권위를 검사하는 `docs-lint`를 CI에 추가한다. PDR의 `Superseded-by` 양방향 링크 무결성도 같은 검사에 포함한다.
+4. ~~링크·마지막 검토일·중복 권위를 검사하는 `docs-lint`를 CI에 추가한다.~~ 2026-09-09 EAT-116으로
+   구현했다(§2.1). 남은 것은 `last_reviewed` 경과 보고이며 5번의 doc-gardening과 함께 다룬다.
 5. 정기 doc-gardening 작업이 오래된 문서와 코드 불일치를 보고하게 한다.
