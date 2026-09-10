@@ -4,10 +4,10 @@
 import * as React from 'react';
 import { useTheme } from 'next-themes';
 
-import { Icons } from '@/components/icons';
-import { Button } from '@/components/ui/button';
-import { Kbd } from '@/components/ui/kbd';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Icons } from '@/shared/ui/icons';
+import { Button } from '@/shared/ui/button';
+import { Kbd } from '@/shared/ui/kbd';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/ui/tooltip';
 import { startThemeTransition } from './theme-transition';
 
 export function ThemeModeToggle() {

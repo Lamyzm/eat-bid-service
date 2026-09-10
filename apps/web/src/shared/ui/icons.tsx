@@ -1,3 +1,4 @@
+/** @module 책임: 화면이 아이콘을 이름 하나로 고르도록 tabler 아이콘 registry를 한곳에 모은다. */
 import {
   IconAdjustmentsHorizontal,
   IconAlertCircle,

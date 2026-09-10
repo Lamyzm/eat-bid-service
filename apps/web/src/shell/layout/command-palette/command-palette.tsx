@@ -16,10 +16,8 @@ import {
   CommandItem,
   CommandList,
   CommandShortcut
-} from '@/components/ui/command';
-import type { NavGroup, NavItem } from '@/types';
-import { navGroups } from '@/config/nav-config';
-import { useFilteredNavGroups } from '@/hooks/use-nav';
+} from '@/shared/ui/command';
+import { navGroups, type NavGroup, type NavItem } from '../nav-config';
 import {
   CommandPaletteContext,
   type CommandPaletteAction,
@@ -165,15 +163,14 @@ export function CommandPaletteRoot({
 
 export default function CommandPalette({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const filteredGroups = useFilteredNavGroups(navGroups);
   const { theme, setTheme } = useTheme();
   const { activeTheme, setActiveTheme } = useThemeConfig();
   const actions = useMemo(
     () => [
-      ...createNavigationActions(filteredGroups, (url) => router.push(url)),
+      ...createNavigationActions(navGroups, (url) => router.push(url)),
       ...createThemeActions({ theme, activeTheme, themes: THEMES, setTheme, setActiveTheme })
     ],
-    [activeTheme, filteredGroups, router, setActiveTheme, setTheme, theme]
+    [activeTheme, router, setActiveTheme, setTheme, theme]
   );
 
   return <CommandPaletteRoot actions={actions}>{children}</CommandPaletteRoot>;

@@ -1,9 +1,14 @@
 /** @module 책임: 전역 명령 palette를 여는 접근 가능한 검색형 trigger를 제공한다. */
 'use client';
-import { useCommandPalette } from '@/components/command-palette/context';
-import { Icons } from '@/components/icons';
-import { Button } from './ui/button';
+import { useCommandPalette } from './context';
+import { Icons } from '@/shared/ui/icons';
+import { Button } from '@/shared/ui/button';
 
+/**
+ * 아직 어떤 화면에도 mount하지 않는다. 현재 palette를 여는 수단은 Cmd/Ctrl+K뿐이고, 이 trigger를 header에
+ * 붙이는 것은 모든 업무 화면의 header가 바뀌는 제품 결정이라 배치 정리(EAT-148)와 같은 변경에서 하지 않는다.
+ * palette가 마우스로도 열려야 한다고 정하는 issue가 이 component를 header slot에 넣는다.
+ */
 export default function SearchInput() {
   const { openPalette } = useCommandPalette();
   return (

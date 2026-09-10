@@ -3,8 +3,8 @@
 
 import { useLayoutEffect } from 'react';
 
-import { SIDEBAR_STATE_ATTRIBUTE, readSidebarOpenCookie } from '@/shell/layout/sidebar-state';
-import { useSidebar } from '../ui/sidebar';
+import { SIDEBAR_STATE_ATTRIBUTE, readSidebarOpenCookie } from './sidebar-state';
+import { useSidebar } from '@/shared/ui/sidebar';
 
 export function SidebarOpenSync() {
   const { open, setOpen } = useSidebar();

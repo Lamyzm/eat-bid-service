@@ -1,5 +1,5 @@
 /** @module 책임: 전역 provider·font·toast·navigation progress를 static root HTML에 조립하고 theme cookie는 첫 paint 전 inline script로만 적용한다. */
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster } from '@/shared/ui/sonner';
 import { AppProviders } from '@/shell/providers/app-providers';
 import { fontVariables } from '@/shell/theme/font.config';
 import { SIDEBAR_COOKIE_NAME, SIDEBAR_STATE_ATTRIBUTE } from '@/shell/layout/sidebar-state';

@@ -1,3 +1,4 @@
+/** @module 책임: 펼침과 접힘을 오가는 영역의 root·trigger·panel을 data-slot 규약에 맞춰 감싼다. */
 'use client';
 
 import { Collapsible as CollapsiblePrimitive } from '@base-ui/react/collapsible';

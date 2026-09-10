@@ -1,3 +1,4 @@
+/** @module 책임: 현재 경로에서 만든 breadcrumb 항목을 header 폭에 맞춰 한 줄로 렌더링한다. */
 'use client';
 import {
   Breadcrumb,
@@ -6,9 +7,9 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator
-} from '@/components/ui/breadcrumb';
-import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
-import { Icons } from '@/components/icons';
+} from '@/shared/ui/breadcrumb';
+import { useBreadcrumbs } from './use-breadcrumbs';
+import { Icons } from '@/shared/ui/icons';
 import { Fragment } from 'react';
 
 export function Breadcrumbs() {

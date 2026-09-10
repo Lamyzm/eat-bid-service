@@ -1,8 +1,8 @@
 /** @module 책임: breadcrumb·theme control과 상위 layout이 주입한 control slot을 공통 workspace header에 배치한다. */
 import React, { Suspense } from 'react';
-import { SidebarTrigger } from '../ui/sidebar';
-import { Separator } from '../ui/separator';
-import { Breadcrumbs } from '../breadcrumbs';
+import { SidebarTrigger } from '@/shared/ui/sidebar';
+import { Separator } from '@/shared/ui/separator';
+import { Breadcrumbs } from './breadcrumbs';
 import { ThemeModeToggle, ThemeSelector } from '@/shell';
 import { SidebarOpenSync } from './sidebar-open-sync';
 

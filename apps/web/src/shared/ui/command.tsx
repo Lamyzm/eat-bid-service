@@ -1,17 +1,18 @@
+/** @module 책임: 검색 입력·목록·그룹·빈 결과로 이루어진 명령 목록 primitive를 dialog 형태까지 포함해 제공한다. */
 'use client';
 
 import * as React from 'react';
 import { Command as CommandPrimitive } from 'cmdk';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/cn';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle
-} from '@/components/ui/dialog';
-import { InputGroup, InputGroupAddon } from '@/components/ui/input-group';
+} from '@/shared/ui/dialog';
+import { InputGroup, InputGroupAddon } from '@/shared/ui/input-group';
 import { IconSearch, IconCheck } from '@tabler/icons-react';
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {

@@ -66,10 +66,14 @@
   존재하지 않는 placeholder와 `as Route` cast로 typecheck를 우회하지 않는다.
 - `routing`은 Next `Route` type과 `@eatbid/contracts` identifier atom만 소비한다. Nest API operation path,
   network 호출, query key나 server state를 화면 route builder에 섞지 않는다.
-- 아이콘은 `@/components/icons`에서만 가져온다. 단 canonical layer(`app/(workspace)`, `shell`, `capabilities`,
-  `api`, `shared`, `routing`)는 legacy-import gate 때문에 이 module을 직접 import할 수 없으므로, 필요한 아이콘을
-  `shared/ui`로 옮긴 뒤 사용한다. shell/theme·shell/layout의 기존 legacy import는 변경 범위 규칙 대상이라
-  건드리지 않으면 보고되지 않지만, 그 파일을 수정하는 변경에서는 함께 옮겨야 한다(ADR 0042).
+- `src/` 최상위는 ADR 0023의 여섯 층(`app`·`shell`·`capabilities`·`api`·`routing`·`shared`)과 Next가 요구하는
+  파일(`proxy.ts`·`instrumentation*.ts`·`styles`·ambient 선언만 두는 `types`)뿐이다. 스타터가 쓰던 수평 폴더
+  `components`·`hooks`·`lib`·`config`는 EAT-148에서 없앴으므로 다시 만들지 않는다. 범용 primitive는 `shared/ui`,
+  범용 helper와 hook은 `shared/lib`, 탐색·헤더·사이드바·명령 palette 같은 chrome은 `shell/layout`,
+  한 화면 전용은 그 segment의 private 폴더가 소유한다.
+- 아이콘은 `@/shared/ui/icons`의 registry에서 가져온다. `@tabler/icons-react`를 직접 import하는 자리는
+  `shared/ui` primitive뿐이며 route·capability·shell 화면은 registry를 거친다. 같은 층의
+  `shared/ui/workspace-icons`는 dock·계정 허브가 쓰는 좁은 재수출이라 registry와 함께 정리 대상이다.
 - 내부 bigint ID는 HTTP 경계에서 선행 0 없는 양의 10진 문자열이다. JavaScript `Number`로
   변환하지 않는다. 상세 계약은 ADR 0018을 따른다.
 - Button primitive는 시각·접근성·공통 press motion만 소유한다. 인증·권한·로깅·command는 capability의

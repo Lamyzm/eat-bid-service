@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { cleanup, render } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 
-import { SidebarProvider, useSidebar } from '@/components/ui/sidebar';
+import { SidebarProvider, useSidebar } from '@/shared/ui/sidebar';
 import { SIDEBAR_COOKIE_NAME, readSidebarOpenCookie } from './sidebar-state';
 
 function CollapseButton() {

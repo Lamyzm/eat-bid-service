@@ -1,3 +1,4 @@
+/** @module 책임: 전역 toast 알림이 현재 명암 모드와 popover 색을 따르도록 Sonner 출력 위치를 배치한다. */
 'use client';
 
 import { useTheme } from 'next-themes';

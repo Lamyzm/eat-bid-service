@@ -1,8 +1,9 @@
+/** @module 책임: 현재 위치 경로를 보여주는 breadcrumb nav·목록·항목·구분자·현재 페이지 표시 primitive를 제공한다. */
 import * as React from 'react';
 import { mergeProps } from '@base-ui/react/merge-props';
 import { useRender } from '@base-ui/react/use-render';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/cn';
 import { IconChevronRight, IconDots } from '@tabler/icons-react';
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<'nav'>) {
