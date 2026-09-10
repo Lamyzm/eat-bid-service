@@ -67,6 +67,23 @@ kubectl exec 경유 복원, restore.log ERROR 2건("current user cannot be dropp
 `shutdown /r` 18:54:16 KST. 노드 Ready 186초, Argo 셋 Synced/Healthy + `/today` 200까지 188초. 로그인 없음.
 portproxy·Tailscale·VM 자동 시작 모두 유지.
 
+## 6.1 전환 중 실패한 수집 회차 (원인 확정)
+
+| Workflow | 실패 | 원인 |
+|---|---|---|
+| `eatbid-poll-open-1789030800` (18:00 KST) | discover exit 64, `permission denied for schema ingest` | pg_dumpall 복원 뒤 migrator sync가 GRANT를 되돌리기 전에 CronWorkflow가 suspend:false로 들어와 1회 돌았다. 18:53 회차 discover는 성공. |
+| `eatbid-poll-open-1789033800` capture(1) | exit 143 (SIGTERM), wait 컨테이너에 `10.43.0.1:443 connection refused` | §6 재부팅 실증(18:54:16 KST)이 capture 파드를 죽였다. 나머지 capture는 재부팅 뒤 semaphore를 받아 계속 진행. |
+
+둘 다 전환 작업이 원인이며 재발 조건이 아니다. poll-open은 다음 회차가 열린 공고를 다시 발견하므로 별도 재실행은 하지 않는다.
+
+## 6.2 백필 운영 루프 재기동
+
+CTX만 바꿔 `Start-Process bash.exe supervisor.sh`로 올렸더니 supervisor 안의 `bash "$BASE/operator.sh"`가
+PATH의 `C:\WINDOWS\system32\bash.exe`(WSL)로 풀려 `execvpe(/bin/bash) failed`만 반복했다. supervisor의
+호출을 `"${BASH:-/usr/bin/bash}"`로 고치고 Git Bash `usr/bin`을 PATH 앞에 둔 채 재기동해
+19:09 KST `SUBMIT 20251101..20251130 건수=16915 workflow=eatbid-backfill-20251101-20251130-ptphk`가 prod에서
+Running임을 확인했다.
+
 ## 7. 남은 것
 
 - EAT-127 4번(PVC 100Gi·Recreate)은 EAT-126 뒤. 지금 새 클러스터 PVC 선언은 여전히 2Gi(local-path라 실제 제한 없음).
