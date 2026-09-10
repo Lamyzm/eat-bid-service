@@ -10,6 +10,7 @@ import {
   resetObservations
 } from './cache-observability';
 import { auctionRosterResponse } from './auction-roster-fixture';
+import { myBusinessesResponse } from './my-businesses-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
 import { sessionResponse } from './session-fixture';
 import { organizationAttemptsResponse } from './organization-attempts-fixture';
@@ -232,6 +233,11 @@ Bun.serve({
     // 모든 스위트가 화면이 아니라 게이트에서 멈춘다.
     const session = sessionResponse(request);
     if (session) return session;
+
+    // 설정 화면은 세션 다음에 등록 사업자 목록을 읽는다. 서버가 읽어 넘긴 목록이 첫 페인트에 있는지
+    // 보려면 이 응답이 있어야 한다.
+    const businesses = myBusinessesResponse(request);
+    if (businesses) return businesses;
 
     // 목록 경로는 `:auctionId` 경로보다 앞에서 본다. 경로가 다르므로 순서는 읽기 편의일 뿐이다.
     const openAuctions = openAuctionsResponse(request);

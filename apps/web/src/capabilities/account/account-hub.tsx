@@ -7,7 +7,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { toast } from 'sonner';
 
-import { isAccountDependencyUnavailableError } from '@/api/account';
+import {
+  isAccountDependencyUnavailableError,
+  type CurrentSessionV1Response
+} from '@/api/account';
 import { Button } from '@/shared/ui/button';
 import {
   DropdownMenu,
@@ -19,16 +22,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/shared/ui/dropdown-menu';
-import {
-  IconAlertTriangle,
-  IconLogin,
-  IconLogout,
-  IconSelector,
-  IconSettings,
-  IconUserCircle
-} from '@/shared/ui/workspace-icons';
+import { IconLogin, IconLogout, IconSettings } from '@/shared/ui/workspace-icons';
 import { isProviderAuthError, signInWithGoogle } from '@/shell/auth/auth-client';
 import { setupRouteWithReturn } from '@/shell/auth/return-path';
+import { AccountSlotFace } from './account-slot-face';
 import { useAccountSession, signOutAndDiscardAccountCache } from './use-account-session';
 
 /** 화면 문구는 세션 계약의 상태를 그대로 옮긴다. 여기서 새 역할 판정을 만들지 않는다(ADR 0032 §5). */
@@ -52,22 +49,35 @@ function accountDetail(view: ReturnType<typeof useAccountSession>): string {
  * `usePathname`은 dynamic param route의 static shell을 만드는 동안 suspend한다(ADR 0028). 읽기를 leaf로
  * 내려 계정 슬롯 자체는 prerender하고 돌아갈 경로만 request 시점에 streaming한다.
  */
-export function AccountHub() {
+interface AccountHubProps {
+  /** layout이 서버에서 읽어 넘긴 같은 요청의 세션이다. 없으면 브라우저가 직접 묻는다. */
+  readonly initialSession?: CurrentSessionV1Response;
+}
+
+export function AccountHub({ initialSession }: AccountHubProps) {
   return (
-    <Suspense fallback={<AccountMenu />}>
-      <CurrentPathAccountMenu />
+    <Suspense fallback={<AccountMenu initialSession={initialSession} />}>
+      <CurrentPathAccountMenu initialSession={initialSession} />
     </Suspense>
   );
 }
 
-function CurrentPathAccountMenu() {
+function CurrentPathAccountMenu({ initialSession }: AccountHubProps) {
   const pathname = usePathname();
   // 보던 화면에서 계정 설정으로 갔다가 그대로 돌아오게 한다. 값은 받는 쪽에서 한 번 더 판정한다.
-  return <AccountMenu returnPath={pathname === '/setup' ? undefined : pathname} />;
+  return (
+    <AccountMenu
+      returnPath={pathname === '/setup' ? undefined : pathname}
+      initialSession={initialSession}
+    />
+  );
 }
 
-function AccountMenu({ returnPath }: { readonly returnPath?: string }) {
-  const view = useAccountSession();
+function AccountMenu({
+  returnPath,
+  initialSession
+}: AccountHubProps & { readonly returnPath?: string }) {
+  const view = useAccountSession(initialSession);
   const client = useQueryClient();
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -109,12 +119,7 @@ function AccountMenu({ returnPath }: { readonly returnPath?: string }) {
         render={<Button variant='ghost' className='h-12 w-full justify-start px-2' />}
         aria-label='계정 메뉴'
       >
-        {unavailable ? <IconAlertTriangle className='size-5 shrink-0' /> : <IconUserCircle className='size-5 shrink-0' />}
-        <span className='grid min-w-0 flex-1 text-left leading-tight'>
-          <span className='truncate text-sm font-medium'>{accountTitle(view)}</span>
-          <span className='truncate text-xs text-muted-foreground'>{accountDetail(view)}</span>
-        </span>
-        <IconSelector className='ml-auto size-4' />
+        <AccountSlotFace title={accountTitle(view)} detail={accountDetail(view)} alert={unavailable} />
       </DropdownMenuTrigger>
       <DropdownMenuContent className='w-(--anchor-width) min-w-56 rounded-lg' side='top' align='start'>
         <DropdownMenuGroup>

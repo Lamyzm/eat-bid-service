@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { getCurrentSessionFromServer } from '@/api/account/server';
-import { AccountHub } from '@/capabilities/account';
+import { AccountHubSlot } from '@/capabilities/account/server';
 import {
   RETURN_PATH_HEADER,
   loginRouteWithReturn,
@@ -24,6 +24,10 @@ import { workspaceGateDecision } from './_model/session-gate';
  *
  * 자식 page는 이 판정보다 먼저 렌더를 시작할 수 있다. 그래도 데이터가 새지 않는 이유는 layout의
  * redirect가 아니라 Nest guard가 401을 돌려주기 때문이다(ADR 0032 §1).
+ *
+ * 같은 요청의 계정 슬롯도 이 답을 쓴다. 조회는 요청 범위 memo라 렌더 한 번에 세션 계약 조회도 한 번이며,
+ * 슬롯이 그 답을 브라우저 캐시의 첫 값으로 넘긴다. 조회를 layout 본문에서 시작해 promise로 나눠 주는
+ * 방법은 쓰지 않는다. `next dev`에서 그 배치는 화면 진입 자체를 깨뜨렸다(EAT-143에서 관측).
  */
 async function WorkspaceSessionGate() {
   // 게이트가 실어 보낸 요청 경로다. layout은 자기 URL을 받지 못하고, 받는 쪽에서 같은 함수로 한 번 더
@@ -42,7 +46,7 @@ async function WorkspaceSessionGate() {
 
 export default function WorkspaceLayout({ children }: { readonly children: React.ReactNode }) {
   return (
-    <ApplicationShell sidebarFooter={<AccountHub />}>
+    <ApplicationShell sidebarFooter={<AccountHubSlot />}>
       <Suspense fallback={null}>
         <WorkspaceSessionGate />
       </Suspense>

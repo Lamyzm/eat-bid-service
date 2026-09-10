@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 
+import type { CurrentSessionV1Response } from '@/api/account';
 import { useAccountSession } from '@/capabilities/account';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button, buttonVariants } from '@/shared/ui/button';
@@ -15,6 +16,8 @@ import { SetupScreenSkeleton } from './setup-screen-skeleton';
 interface SetupScreenProps {
   /** 서버가 이미 같은 앱 상대 경로로 좁힌 값이다. 없으면 돌아갈 곳을 만들지 않는다. */
   readonly returnPath?: string;
+  /** loader가 redirect 판정에 쓴 그 답이다. 브라우저가 같은 조회를 다시 보내지 않게 첫 값으로 넘긴다. */
+  readonly initialSession?: CurrentSessionV1Response;
 }
 
 function SetupFrame({ children }: { readonly children: React.ReactNode }) {
@@ -50,8 +53,8 @@ function ReturnLink({ returnPath }: { readonly returnPath: string }) {
   );
 }
 
-export function SetupScreen({ returnPath }: SetupScreenProps) {
-  const view = useAccountSession();
+export function SetupScreen({ returnPath, initialSession }: SetupScreenProps) {
+  const view = useAccountSession(initialSession);
 
   if (view.error != null) {
     return (

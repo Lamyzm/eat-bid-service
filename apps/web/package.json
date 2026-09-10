@@ -13,7 +13,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "bun test src --timeout 30000",
     "pretest:e2e:foundation": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build",
-    "test:e2e:foundation": "playwright test frontend-foundation.spec.ts login-gate.spec.ts",
+    "test:e2e:foundation": "playwright test frontend-foundation.spec.ts login-gate.spec.ts server-read-reuse.spec.ts",
     "pretest:e2e:decision": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build",
     "test:e2e:decision": "playwright test decision-screen.spec.ts",
     "pretest:e2e:today": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build",
