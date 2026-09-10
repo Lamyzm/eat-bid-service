@@ -50,17 +50,21 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         key="backfill-progress",
         title="실행 중인 backfill이 진행하고 있다",
         runbook="docs/operations/collection-runbook.md#44-재부팅컨트롤러-재시작이-남긴-semaphore-교착-풀기-2026-09-10-eat-129",
-        # 왜 request_unit의 최신 갱신을 보는가: workflow가 Running이어도 자물쇠에 막히면 아무 unit도
-        # 진행하지 않는다(2026-09-10 2시간 교착). 상태가 아니라 전진을 본다.
+        # 왜 관측의 최신 fetched_at을 보는가: workflow가 Running이어도 자물쇠에 막히면 아무것도
+        # 진행하지 않는다(2026-09-10 2시간 교착). 상태가 아니라 전진을 본다. `request_unit`에는 시각
+        # 컬럼이 없으므로(2026-09-11 실제 스키마 확인) 전진의 증거는 관측이 들어온 시각이다.
+        # run이 막 시작해 아직 관측이 없는 구간을 위반으로 보지 않도록 run의 시작 시각도 함께 본다.
         sql="""
             select r.run_id::text as run_id,
                    r.mode as mode,
-                   max(u.updated_at) as last_progress_at
+                   r.started_at as started_at,
+                   max(o.fetched_at) as last_observation_at
               from ingest.run r
-              join ingest.request_unit u using (run_id)
+              left join ingest.raw_observation o using (run_id)
              where r.status = 'running'
-             group by r.run_id, r.mode
-            having max(u.updated_at) < now() - %(stall_after)s::interval
+               and r.started_at < now() - %(stall_after)s::interval
+             group by r.run_id, r.mode, r.started_at
+            having coalesce(max(o.fetched_at), r.started_at) < now() - %(stall_after)s::interval
         """,
         parameters={"stall_after": "90 minutes"},
     ),
