@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from datetime import timedelta
 from functools import partial
 from types import TracebackType
@@ -10,6 +11,7 @@ from typing import Any, Self
 
 import httpx
 import psycopg
+from psycopg.rows import dict_row
 
 from eatbid.cache_revalidation import (
     WebCacheTarget,
@@ -22,6 +24,9 @@ from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
 from eatbid.failures.errors import PublicationFailedError
 from eatbid.failures.report import ApplicationConfigurationError
 from eatbid.ingest.models import CaptureRequest
+from eatbid.monitoring.notify import send_telegram
+from eatbid.monitoring.runner import MonitoringResult, run_expectation_check
+from eatbid.monitoring.store import R2StateStore
 from eatbid.ingest.postgres_normalization_repository import (
     PsycopgNormalizationRepository,
 )
@@ -78,6 +83,7 @@ class Application:
         mart_repository: Any = None,
         reference_http_client: Any = None,
         notify_cache: Any = None,
+        monitoring: Any = None,
         page_budget: int = 1,
     ) -> None:
         self._connection = connection
@@ -96,6 +102,9 @@ class Application:
         # 무효화 알림은 조립 시점에 주입한다. 설정이 없으면 None이고 파이프라인은 그 사실을 모른 채
         # 그대로 돈다 — 캐시 신선도는 발행의 성공 조건이 아니다(ADR 0036-3).
         self._notify_cache = notify_cache
+        # 감시는 수집 DAG의 일부가 아니라 운영자 entrypoint다. 조립 시점에 없으면 None이고, 그때는
+        # 명령이 실패한다. 없는 채로 성공하면 알림이 안 가는 상태가 정상으로 보인다.
+        self._monitoring = monitoring
         self._page_budget = page_budget
         self._closed = False
 
@@ -194,6 +203,14 @@ class Application:
                 validation.failure_category, publication_id=args.publication_id
             )
         return validation
+
+    def check_expectations(self, args: argparse.Namespace) -> Any:
+        # 운영자·스케줄 entrypoint다. 어떤 DAG에도 들지 않으며 수집 상태를 바꾸지 않고 읽기만 한다.
+        if self._monitoring is None:
+            raise RuntimeError(
+                "감시 알림 설정이 없습니다. TELEGRAM_BOT_TOKEN·TELEGRAM_CHAT_ID를 주입하십시오."
+            )
+        return self._monitoring.run()
 
     def fail_release(self, args: argparse.Namespace) -> Any:
         # 운영자 판정이다. planned는 같은 run으로 이어 갈 수 있는 상태라 어떤 단계도 자동으로 여기 오지
@@ -347,6 +364,52 @@ class Application:
                 raise
 
 
+class _MonitoringRunner:
+    """감시 한 회차에 필요한 것만 들고 있는 얇은 배선.
+
+    왜 별도 객체인가: 감시는 수집 repository를 하나도 쓰지 않는다. Application에 질의·저장소·알림을
+    따로 매달면 수집 조립과 감시 조립이 섞여 어느 쪽이 무엇을 쓰는지 흐려진다.
+    """
+
+    def __init__(self, *, connection: Any, state_store: Any, config: ApplicationSettings) -> None:
+        self._connection = connection
+        self._state_store = state_store
+        self._config = config
+
+    def _run_query(self, sql: str, parameters: Mapping[str, Any]) -> list[dict[str, Any]]:
+        with self._connection.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(sql, parameters)
+            return list(cursor.fetchall())
+
+    def _notify(self, text: str) -> None:
+        token = self._config.telegram_bot_token
+        chat_id = self._config.telegram_chat_id
+        if token is None or chat_id is None:
+            raise RuntimeError("감시 알림 대상이 없습니다.")
+        send_telegram(token=token.get_secret_value(), chat_id=chat_id, text=text)
+
+    def run(self) -> MonitoringResult:
+        return run_expectation_check(
+            run_query=self._run_query,
+            state_store=self._state_store,
+            notify=self._notify,
+            environment=self._config.environment_name,
+        )
+
+
+def _build_monitoring(config: ApplicationSettings, connection: Any) -> _MonitoringRunner | None:
+    if config.telegram_bot_token is None or config.telegram_chat_id is None:
+        return None
+    state_store = R2StateStore(
+        endpoint_url=str(config.r2_endpoint_url),
+        bucket=config.r2_bucket,
+        access_key_id=config.r2_access_key_id.get_secret_value(),
+        secret_access_key=config.r2_secret_access_key.get_secret_value(),
+        key=f"monitoring/{config.environment_name}/expectation-state.json",
+    )
+    return _MonitoringRunner(connection=connection, state_store=state_store, config=config)
+
+
 def build_application(config: ApplicationSettings) -> Application:
     dsn = config.database_url.get_secret_value()
     connection: Any = None
@@ -386,6 +449,7 @@ def build_application(config: ApplicationSettings) -> Application:
         connection=connection,
         http_client=http_client,
         raw_store=store,
+        monitoring=_build_monitoring(config, connection),
         ingest_repository=PsycopgObservationRepository(connection),
         release_repository=PsycopgSourceReleaseRepository(connection),
         normalization_repository=PsycopgNormalizationRepository(connection),

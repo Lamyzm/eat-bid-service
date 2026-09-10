@@ -17,6 +17,7 @@ from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.ingest.models import CapturedObservation
 from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
+from eatbid.monitoring.runner import MonitoringResult
 from eatbid.pipeline.capture import SourceThrottledError
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.normalize import DataQuarantinedError
@@ -30,7 +31,7 @@ FETCHED_AT = datetime(2026, 9, 1, 0, 0, tzinfo=UTC)
 
 class _기록애플리케이션:
     def __init__(self, *, error: Exception | None = None) -> None:
-        self.calls: list[tuple[str, UUID]] = []
+        self.calls: list[tuple[str, UUID | None]] = []
         self.captured: list[str] = []
         self.normalized: list[int] = []
         self.error = error
@@ -46,6 +47,13 @@ class _기록애플리케이션:
         if self.error is not None:
             raise self.error
         self.calls.append((command, args.source_release_id))
+
+    def check_expectations(self, args: Namespace) -> MonitoringResult:
+        # release에 매이지 않으므로 _record의 source_release_id 경로를 타지 않는다.
+        if self.error is not None:
+            raise self.error
+        self.calls.append(("check-expectations", None))
+        return MonitoringResult(evaluated=3, opened=("backfill-progress",), resolved=(), still_open=("backfill-progress",))
 
     def discover(self, args: Namespace) -> None: self._record("discover", args)
 
@@ -77,7 +85,13 @@ def _공통(command: str) -> list[str]:
             "--build-sha", SHA, "--parser-version", "eat-v1"]
 
 
+# 감시는 어떤 release에도 속하지 않는다. 지금의 DB 상태만 보므로 release·run 인수를 받지 않는다.
+RELEASE_SCOPED_COMMANDS = tuple(name for name in COMMAND_HANDLERS if name != "check-expectations")
+
+
 def _명령(command: str) -> list[str]:
+    if command == "check-expectations":
+        return [command]
     if command == "fail-release":
         # 운영자 판정 명령이라 run·parser version 같은 공통 인수가 없다.
         return [command, "--source-release-id", RELEASE_ID, "--build-sha", SHA,
@@ -110,9 +124,16 @@ def _명령(command: str) -> list[str]:
     return _공통(command) + extras[command]
 
 
-def test_모든_command가_UUID_source_release_id를_요구한다() -> None:
+def test_감시_command는_release에_매이지_않아_인수_없이_해석된다() -> None:
+    parsed = build_parser().parse_args(["check-expectations"])
+
+    assert parsed.command == "check-expectations"
+    assert not hasattr(parsed, "source_release_id")
+
+
+def test_release에_매인_command는_모두_UUID_source_release_id를_요구한다() -> None:
     parser = build_parser()
-    for command in COMMAND_HANDLERS:
+    for command in RELEASE_SCOPED_COMMANDS:
         missing = _명령(command)
         index = missing.index("--source-release-id")
         del missing[index:index + 2]
@@ -127,8 +148,9 @@ def test_모든_command가_UUID_source_release_id를_요구한다() -> None:
 @pytest.mark.parametrize("command", tuple(COMMAND_HANDLERS))
 def test_command_handler가_주입된_application_method를_실행하고_0을_반환한다(command: str) -> None:
     application = _기록애플리케이션()
+    expected_release = None if command == "check-expectations" else UUID(RELEASE_ID)
     assert main(_명령(command), application_factory=lambda _: application, settings=_설정()) == 0
-    assert application.calls == [(command, UUID(RELEASE_ID))]
+    assert application.calls == [(command, expected_release)]
     assert application.close_count == 1
 
 
@@ -608,9 +630,9 @@ RELEASE_COMMIT = "9c9ff63f479d03f0fbfcc036954e8470b182bb61"
 
 
 @pytest.mark.parametrize("build_sha", [RELEASE_COMMIT, SHA])
-def test_모든_command가_release_commit_40자와_64자_build_sha를_받는다(build_sha: str) -> None:
+def test_release에_매인_command는_release_commit_40자와_64자_build_sha를_받는다(build_sha: str) -> None:
     parser = build_parser()
-    for command in COMMAND_HANDLERS:
+    for command in RELEASE_SCOPED_COMMANDS:
         argv = _명령(command)
         argv[argv.index("--build-sha") + 1] = build_sha
 
