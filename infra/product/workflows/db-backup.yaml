@@ -87,7 +87,10 @@ spec:
                   if [ "$(TZ=Asia/Seoul date +%H)" = "03" ]; then
                     rclone copyto /work/eatbid.dump "r2:${R2_BUCKET}/backup/postgres/daily/${stamp}.dump" --s3-no-check-bucket
                   fi
-                  rclone delete "r2:${R2_BUCKET}/backup/postgres/hourly" --min-age 168h
+                  # hourly는 2일만 둔다. 손실 허용치가 1시간이라 시간 단위 사본이 필요한 구간은 사고 직후 며칠이고,
+                  # 그보다 오래된 시점은 daily 30일로 충분하다. 7일이면 덤프가 커질수록 R2에 같은 내용이 쌓인다
+                  # (덤프 1.35GB 기준 227GB → 65GB, 5년치 백필 뒤 5GB 가정이면 840GB → 240GB, EAT-127).
+                  rclone delete "r2:${R2_BUCKET}/backup/postgres/hourly" --min-age 48h
                   rclone delete "r2:${R2_BUCKET}/backup/postgres/daily" --min-age 720h
                   rclone lsl "r2:${R2_BUCKET}/backup/postgres/hourly" | tail -n 3
               env:
