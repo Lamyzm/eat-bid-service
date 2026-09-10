@@ -98,6 +98,12 @@ kubectl --context $TargetContext -n eatbid patch serviceaccount default -p '{"im
 # operator가 먼저 있어야 한다. Argo CD가 재시도하므로 순서는 시작 시간만 줄인다.
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\infisical-secrets-operator.application.yaml')
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\argo-workflows.application.yaml')
+# platform Application 둘은 automated 정책이 없다(운영 승인 뒤 수동 sync가 설계). 새 클러스터의 첫 sync는
+# 부트스트랩의 일부이므로 여기서 시작한다. 아래 Healthy 대기보다 앞에 있어야 한다 — 뒤에 두면 sync가 시작되지
+# 않아 대기가 600초 뒤 실패한다(2026-09-10 새 PC 실측, EAT-129). 이후 chart 버전 변경은 승인 뒤 같은 방식으로 sync한다.
+foreach ($app in 'infisical-secrets-operator', 'argo-workflows') {
+  kubectl --context $TargetContext -n argocd patch application $app --type merge -p '{"operation":{"initiatedBy":{"username":"bootstrap"},"sync":{"prune":true}}}' | Out-Null
+}
 # 새 클러스터에서는 eatbid Application의 PreSync hook(migration Job)이 본 동기화가 만들 InfisicalSecret보다
 # 먼저 돌아 migrator Secret이 없어 멈춘다. 옛 클러스터는 이전 sync가 남긴 Secret이 있어 드러나지 않던 순서
 # 문제다. 그래서 InfisicalSecret 선언을 Application보다 먼저 적용한다. operator가 이미 있어야 하므로 platform
@@ -124,12 +130,6 @@ if ($postgresOnly.Count -ne 3) { throw "postgres 리소스 셋을 렌더에서 �
 kubectl --context $TargetContext -n eatbid rollout status deploy/postgres --timeout=600s
 
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\argocd\application.yaml')
-
-# platform Application 둘은 automated 정책이 없다(운영 승인 뒤 수동 sync가 설계). 새 클러스터의 첫 sync는
-# 부트스트랩의 일부이므로 여기서 한 번 시작한다. 이후 chart 버전 변경은 승인 뒤 같은 방식으로 sync한다.
-foreach ($app in 'infisical-secrets-operator', 'argo-workflows') {
-  kubectl --context $TargetContext -n argocd patch application $app --type merge -p '{"operation":{"initiatedBy":{"username":"bootstrap"},"sync":{"prune":true}}}' | Out-Null
-}
 
 Write-Host '적용 완료. 동기화 확인: kubectl --context eatbid-vm get application -n argocd'
 Write-Host '다음: postgres가 뜨면 Migrate-EatbidPostgres.ps1 로 데이터를 옮기고, 그 뒤 cutover 절차(docs/operations/k3s-hyperv-vm.md)'
