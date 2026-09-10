@@ -1,9 +1,6 @@
-// docker PostgreSQL이 필요한 통합 테스트이며 `organization-attempts.integration.test.ts`와 같은 관행을 따른다.
+// docker PostgreSQL이 필요한 통합 테스트이며 `auction-roster.integration.test.ts`와 같은 공용 harness·관행을 따른다.
 import { describe, expect, test } from "bun:test";
-import { resolve } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
 import request from "supertest";
 import { auctionV1Operations } from "@eatbid/contracts";
 import { fixedClock, Temporal } from "@eatbid/domain";
@@ -17,27 +14,12 @@ import type {
 import { auctionId } from "../modules/procurement/domain/auction-id";
 import { DrizzleAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOpenAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-open-auction-reader";
+import { disposableDatabase } from "../../fixtures/disposable-database.fixture";
 import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
-
-const repositoryRoot = resolve(import.meta.dir, "../../../..");
-const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
-const postgresImage = "postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416";
-const taskLabel = "eatbid.task=eat39-open-auctions";
 
 // 시나리오: 201은 오늘 마감(관측 둘), 202는 내일 마감이고 상세가 아직 없음, 203은 기관·마감 미확인,
 // 204는 이미 마감, 205는 사흘 뒤 마감. 기관 41의 회차 요약은 개찰 셋(101·102)·미관측(103)·개찰 예정(104)이다.
 const NOW = Temporal.Instant.from("2026-09-07T01:00:00Z");
-
-async function docker(...args: string[]): Promise<string> {
-  const child = Bun.spawn(["docker", ...args], { cwd: repositoryRoot, stdout: "pipe", stderr: "pipe" });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  if (exitCode !== 0) throw new Error(`docker ${args[0]} failed: ${stderr.trim()}`);
-  return stdout.trim();
-}
 
 const seed = `
   insert into core.organization (organization_id, type, canonical_name)
@@ -188,43 +170,11 @@ const seed = `
   update mart.build set status = 'active', activated_at = '2026-09-07T00:11:00Z' where build_id = 601;
 `;
 
-async function withSeededDatabase(
-  work: (context: { readonly url: string; readonly client: ReturnType<typeof postgres> }) => Promise<void>,
-): Promise<void> {
-  const name = `eatbid-eat39-${process.pid}-${Date.now()}`;
-  let client: ReturnType<typeof postgres> | undefined;
-  await docker(
-    "run", "--detach", "--rm",
-    "--name", name,
-    "--label", taskLabel,
-    "--env", "POSTGRES_USER=eatbid_owner",
-    "--env", "POSTGRES_PASSWORD=owner-test-secret",
-    "--env", "POSTGRES_DB=eatbid_test",
-    "--publish", "127.0.0.1::5432",
-    postgresImage,
-  );
-  try {
-    const port = (await docker("port", name, "5432/tcp")).split(":").at(-1);
-    const url = `postgres://eatbid_owner:owner-test-secret@127.0.0.1:${port}/eatbid_test`;
-    client = postgres(url, { max: 4, connect_timeout: 2 });
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      try {
-        await client`select 1`;
-        break;
-      } catch {
-        await Bun.sleep(500);
-      }
-    }
-    await client`select 1`;
-    const failure = await migrate(drizzle({ client }), { migrationsFolder: migrationFolder });
-    if (failure) throw new Error(`Migration apply failed with ${failure.exitCode}`);
-    await client.unsafe(seed);
-    await work({ url, client });
-  } finally {
-    if (client) await client.end({ timeout: 1 }).catch(() => undefined);
-    await docker("rm", "--force", name).catch(() => undefined);
-  }
-}
+const { withDatabase, expectOwnedContainersCleanedUp } = disposableDatabase({
+  task: "eat39-open-auctions",
+  migrationApplyCount: 1,
+  seed: async (owner) => { await owner.unsafe(seed); },
+});
 
 function pageOf(listing: OpenAuctionListing): OpenAuctionPage {
   if (listing.kind !== "page") throw new Error(`expected a page but got ${listing.kind}`);
@@ -246,8 +196,8 @@ const ids = (page: OpenAuctionPage) => page.auctions.map((auction) => auction.au
 
 describe("공고 상세 참여 수 관측 PostgreSQL 경계", () => {
   test("최신 관측과 24시간 이상 앞선 가장 늦은 관측을 물린 build까지 읽고 관측 없는 공고는 null이다", async () => {
-    await withSeededDatabase(async ({ client }) => {
-      const reader = new DrizzleAuctionReader(drizzle({ client }));
+    await withDatabase(async ({ api }) => {
+      const reader = new DrizzleAuctionReader(drizzle({ client: api }));
       // 201: 활성 build의 00:30 관측(5)이 최신이고, 하루 전은 물린 build 602의 09-06 00:00 관측(1)이다.
       // 09-06 01:00 관측(2)은 최신에서 23시간 30분 앞이라 "어제"가 아니다.
       const open = await reader.findById(auctionId(201n));
@@ -262,13 +212,14 @@ describe("공고 상세 참여 수 관측 PostgreSQL 경계", () => {
       // 101: 목록 스냅샷에 잡힌 적 없는 개찰된 회차는 블록째 null이다.
       expect((await reader.findById(auctionId(101n)))?.participation).toBeNull();
     });
-  });
+    await expectOwnedContainersCleanedUp();
+  }, 180_000);
 });
 
 describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
   test("마감 임박 정렬·최신 관측 선택·필터·keyset 페이지·기관 요약이 실제 mart 행에서 맞는다", async () => {
-    await withSeededDatabase(async ({ url, client }) => {
-      const reader = new DrizzleOpenAuctionReader(drizzle({ client }));
+    await withDatabase(async ({ api, apiUrl }) => {
+      const reader = new DrizzleOpenAuctionReader(drizzle({ client: api }));
 
       // 마감 임박 순이며 마감 미확인(203)은 맨 뒤, 이미 마감된 204와 물린 build의 행은 없다.
       const all = pageOf(await reader.listOpen(baseQuery));
@@ -349,7 +300,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         .toEqual({ kind: "cursor-not-found", cursor: 9_007_199_254_740_993n });
 
       const runtime = await createApp({
-        environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: url }),
+        environment: parseEnvironment({ NODE_ENV: "test", PORT: "0", DATABASE_URL: apiUrl }),
         logWriter: () => undefined,
         clock: fixedClock(NOW),
         sessionAuthenticator: signedInSessionAuthenticator,
@@ -396,6 +347,6 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         await runtime.shutdown();
       }
     });
-    expect(await docker("ps", "-a", "--filter", `label=${taskLabel}`, "--format", "{{.Names}}")).toBe("");
+    await expectOwnedContainersCleanedUp();
   }, 180_000);
 });
