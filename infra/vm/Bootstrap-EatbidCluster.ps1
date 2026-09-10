@@ -129,7 +129,14 @@ if ($postgresOnly.Count -ne 3) { throw "postgres 리소스 셋을 렌더에서 �
 ($postgresOnly -join "`n---`n") | kubectl --context $TargetContext apply -f - | Out-Null
 kubectl --context $TargetContext -n eatbid rollout status deploy/postgres --timeout=600s
 
-kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\argocd\application.yaml')
+# eatbid Application은 자동 sync 없이 적용한다. automated로 적용하면 첫 sync가 cloudflared를 즉시 띄워 같은 터널의
+# 커넥터가 둘이 되고, 아직 server·web이 없는(migration hook 대기) 새 클러스터로 간 요청이 traefik 503을 받는다
+# (2026-09-10 새 PC 이전에서 약 10분 노출, EAT-129). 데이터 이전이 끝난 뒤 cutover 단계에서 원본 application.yaml
+# (automated)을 다시 적용해 첫 sync가 데이터 있는 상태에서 돌게 한다(docs/operations/k3s-hyperv-vm.md §5).
+$application = kubectl create -f (Join-Path $RepoRoot 'infra\argocd\application.yaml') --dry-run=client -o json | ConvertFrom-Json
+$application.spec.PSObject.Properties.Remove('syncPolicy')
+($application | ConvertTo-Json -Depth 20) | kubectl --context $TargetContext apply -f - | Out-Null
+Write-Host 'eatbid Application을 자동 sync 없이 적용했다. 데이터 이전 뒤 cutover에서 application.yaml을 다시 적용한다'
 
 Write-Host '적용 완료. 동기화 확인: kubectl --context eatbid-vm get application -n argocd'
 Write-Host '다음: postgres가 뜨면 Migrate-EatbidPostgres.ps1 로 데이터를 옮기고, 그 뒤 cutover 절차(docs/operations/k3s-hyperv-vm.md)'

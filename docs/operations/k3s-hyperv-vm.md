@@ -118,6 +118,10 @@ provisioning Job이 저장소의 상태로 다시 세운다.
 cloudflared는 같은 터널 자격증명으로 두 클러스터에서 동시에 붙을 수 있다. 그래서 순서는 "겹쳐 켜고 →
 확인하고 → 옛 것을 끈다"이며 중단 창이 없다.
 
+0. 4절 이전이 끝난 뒤에야 새 클러스터의 자동 sync를 켠다. 부트스트랩은 `eatbid` Application을 syncPolicy 없이
+   적용해 두므로 여기서 원본을 다시 적용한다: `kubectl --context <새 context> apply -f infra/argocd/application.yaml`.
+   순서를 바꿔 automated로 먼저 적용하면 cloudflared가 server·web보다 먼저 떠서 같은 터널의 요청 일부가 빈
+   클러스터로 가 503이 난다(2026-09-10 실측, EAT-129).
 1. VM의 `cloudflared`·`server`·`web`이 Ready인지 확인한다: `kubectl --context eatbid-vm get pods -n eatbid`.
 2. eatbid.net을 몇 번 호출해 두 클러스터가 번갈아 응답하는지, 오류가 없는지 본다.
 3. 마지막 덤프·복원을 한 번 더 돌린다(4절). 이 시점부터 옛 클러스터에는 쓰지 않는다.
