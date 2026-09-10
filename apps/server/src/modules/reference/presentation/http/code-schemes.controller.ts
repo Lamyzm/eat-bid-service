@@ -21,6 +21,7 @@ import {
   CodeReleaseNotFound,
   ListCodes,
 } from "../../application/list-codes";
+import { toListCodesResponse } from "./code-schemes.presenter";
 
 const operation = codeSchemeV1Operations.listCodes;
 
@@ -55,7 +56,11 @@ export class CodeSchemesController {
     @Query(new StandardSchemaPipe(operation.querySchema)) query: ListCodesQuery,
   ): Promise<ListCodesV1Response> {
     try {
-      return await this.effectRunner.run(this.listCodes.execute({ scheme, grain: query.grain ?? null }));
+      // use case는 내부 listing을 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toListCodesResponse(
+        scheme,
+        await this.effectRunner.run(this.listCodes.execute({ scheme, grain: query.grain ?? null })),
+      );
     } catch (error) {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
       // 체계 이름은 자유 문자열이라 자원별 404 코드를 만들지 않는다. 없는 체계는 일반 NOT_FOUND다.

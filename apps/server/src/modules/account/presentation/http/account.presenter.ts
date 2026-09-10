@@ -1,19 +1,24 @@
 /**
- * @module 책임: 계정 application record와 provider 주체를 공개 V1 응답 형태로 직렬화하고, 화면 표시용
- * 라벨의 길이·빈값 정책을 여기서 정한다.
+ * @module 책임: 계정 application record와 provider 주체를 공개 V1 응답으로 직렬화하는 순수 presenter이며, 화면
+ * 표시용 라벨의 길이·빈값 정책을 여기서 정한다.
  */
 import {
   accountLabelSchema,
   instantCodec,
+  type AccountInitializationV1Response,
   type AccountLabel,
+  type CurrentSessionV1Response,
+  type MyBusinessesV1Response,
+  type MyBusinessV1Response,
   type RegisteredBusiness,
   type WorkspaceSummary,
 } from "@eatbid/contracts";
 import type { Temporal } from "@eatbid/domain";
 import { z } from "zod";
-import { maskEmail, type AuthenticatedSubject } from "../../../platform/auth/auth-identity";
-import type { ResolvedWorkspace } from "../../../platform/auth/principal-reader";
-import type { RegisteredBusinessRecord } from "./account-repository";
+import { maskEmail, type AuthenticatedSubject } from "../../../../platform/auth/auth-identity";
+import type { ResolvedPrincipal, ResolvedWorkspace } from "../../../../platform/auth/principal-reader";
+import type { RegisteredBusinessRecord } from "../../application/account-repository";
+import type { CurrentSessionRecord } from "../../application/get-current-session";
 
 /**
  * 상한은 계약이 정하고 여기서 다시 적지 않는다. 두 값이 어긋나면 정상 세션이 응답 검증에서 500으로 끊긴다.
@@ -84,4 +89,31 @@ export function toRegisteredBusiness(record: RegisteredBusinessRecord): Register
       ? null
       : { addressText: record.location.addressText, updatedAt: instantText(record.location.updatedAt) },
   };
+}
+
+export function toCurrentSessionResponse(record: CurrentSessionRecord): CurrentSessionV1Response {
+  if (record.state === "unauthenticated") return { state: "unauthenticated" };
+  const account = toAccountLabel(record.subject);
+  if (record.state === "uninitialized") return { state: "uninitialized", account };
+  return {
+    state: "active",
+    account,
+    principalId: record.principal.principalId.toString(10),
+    workspace: toWorkspaceSummary(record.principal.workspace),
+  };
+}
+
+export function toAccountInitializationResponse(principal: ResolvedPrincipal): AccountInitializationV1Response {
+  return {
+    principalId: principal.principalId.toString(10),
+    workspace: toWorkspaceSummary(principal.workspace),
+  };
+}
+
+export function toMyBusinessesResponse(records: readonly RegisteredBusinessRecord[]): MyBusinessesV1Response {
+  return { businesses: records.map(toRegisteredBusiness) };
+}
+
+export function toMyBusinessResponse(record: RegisteredBusinessRecord): MyBusinessV1Response {
+  return { business: toRegisteredBusiness(record) };
 }
