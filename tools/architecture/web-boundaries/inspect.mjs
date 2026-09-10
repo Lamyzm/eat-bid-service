@@ -22,6 +22,10 @@ import {
   isLegacyLibPath,
   isLegacyRouteLiteral,
   isPublicApiEntry,
+  isReactModuleSpecifier,
+  isSegmentFeatureLibPath,
+  isSegmentFeatureModelPath,
+  isSegmentRenderPath,
   isTestOrFixture,
   isTransportPath,
   isTypeScriptSource,
@@ -168,7 +172,7 @@ function resourceFile(root, file) {
 }
 
 function isCanonicalMotionPath(root, file) {
-  return /^apps\/web\/src\/(?:capabilities|shared|shell|app\/\(workspace\))\//.test(
+  return /^apps\/web\/src\/(?:capabilities|entities|shared|shell|app\/\(workspace\))\//.test(
     display(root, file),
   );
 }
@@ -221,6 +225,22 @@ function usesRequestScopedInput(sourceFile) {
     }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)
       && REQUEST_SCOPED_CALLS.has(node.expression.text)) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+// 렌더링 여부는 확장자가 아니라 실제 JSX 노드로 판정한다. `.tsx`인데 계산만 하는 모듈도 표현 폴더의
+// 잘못된 거주자이고, JSX를 만드는 `.tsx` model도 같은 이유로 걸러야 한다.
+function containsJsx(sourceFile) {
+  let found = false;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) {
       found = true;
       return;
     }
@@ -369,6 +389,13 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths 
       if (!isCacheOwnerPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.USE_CACHE_PLACEMENT, file, "SourceFile", sourceFile, "use cache는 api/<resource>/server.ts의 read 함수에만 허용합니다.");
       if (usesRequestScopedInput(sourceFile)) add(findings, root, WEB_BOUNDARY_RULES.USE_CACHE_USER_DATA, file, "SourceFile", sourceFile, "use cache를 담은 파일은 cookies·headers 같은 요청별 입력을 읽을 수 없습니다.");
     }
+    // ADR 0044-1: 슬라이스 세 자리의 거주 조건. JSX 판정은 한 번만 하고 세 규칙이 나눠 쓴다.
+    if (isSegmentFeatureLibPath(displayPath) || isSegmentFeatureModelPath(displayPath) || isSegmentRenderPath(displayPath)) {
+      const jsx = containsJsx(sourceFile);
+      if (jsx && isSegmentFeatureLibPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.FEATURE_LIB_REACT, file, "SourceFile", sourceFile, "_features/<name>/lib은 React·hook·JSX 없는 순수 함수 자리입니다. 렌더링은 같은 슬라이스의 ui가 소유합니다.");
+      if (jsx && isSegmentFeatureModelPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.FEATURE_MODEL_JSX, file, "SourceFile", sourceFile, "_features/<name>/model은 상태·표시 변환만 담고 JSX를 만들 수 없습니다. 렌더링은 같은 슬라이스의 ui가 소유합니다.");
+      if (!jsx && isSegmentRenderPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.UI_NON_RENDER_MODULE, file, "SourceFile", sourceFile, "ui 폴더는 렌더링하는 모듈만 담습니다. 계산과 상태는 같은 슬라이스의 model·lib 또는 packages/domain으로 옮기세요.");
+    }
     if (isLegacyHooksPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_HOOKS_DIRECTORY, file, "SourceFile", sourceFile, "hooks/ 디렉터리는 신규 파일을 받지 않습니다. generic hook은 shared/lib/hooks, 그 외는 소비 slice 내부에 둡니다.");
     if (isLegacyLibPath(displayPath)) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_LIB_DIRECTORY, file, "SourceFile", sourceFile, "lib/ 디렉터리는 신규 파일을 받지 않습니다. generic helper는 shared/lib, 업무 값은 Server 계약 응답에 둡니다.");
     if (sourceFile.statements.some((statement) => ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression) && statement.expression.text === "use client") && /\/(?:page|layout)\.[cm]?tsx?$/.test(file.replaceAll("\\", "/"))) add(findings, root, WEB_BOUNDARY_RULES.ROUTE_CLIENT_COMPONENT, file, "SourceFile", sourceFile, "page.tsx와 layout.tsx는 Server Component를 기본으로 유지해야 합니다.");
@@ -390,6 +417,7 @@ export async function inspectWebBoundaries({ repoRoot, sourceRoot, changedPaths 
         // 의존 방향은 app → routing이다. routing이 route-private legacy builder를 re-export하는 shim은
         // 방향을 뒤집는 역참조이므로 예외 없이 거부한다.
         if (displayPath.startsWith("apps/web/src/routing/") && target && display(root, target).startsWith("apps/web/src/app/")) add(findings, root, WEB_BOUNDARY_RULES.LEGACY_IDENTITY_ROUTE, file, node, sourceFile, "routing 층은 app route-private module을 import 또는 re-export할 수 없습니다.");
+        if (isSegmentFeatureLibPath(displayPath) && moduleReference.known !== false && isReactModuleSpecifier(moduleReference.text)) add(findings, root, WEB_BOUNDARY_RULES.FEATURE_LIB_REACT, file, node, sourceFile, "_features/<name>/lib은 순수 함수 자리라 React를 import 또는 re-export할 수 없습니다. hook과 렌더링은 같은 슬라이스의 model·ui가 소유합니다.");
         if (layer?.layer === "shell" && targetLayer && ["api", "capabilities"].includes(targetLayer.layer)) add(findings, root, WEB_BOUNDARY_RULES.SHELL_BOUNDARY_IMPORT, file, node, sourceFile, "shell은 API resource나 capability를 import 또는 re-export할 수 없습니다.");
         if (layer?.layer === "capabilities" && targetLayer?.layer === "capabilities" && targetLayer.slice !== layer.slice && !/\/index\.[cm]?tsx?$/.test(target ?? "")) add(findings, root, WEB_BOUNDARY_RULES.CAPABILITY_INTERNAL_IMPORT, file, node, sourceFile, "capability 간에는 상대 capability의 public index만 사용할 수 있습니다.");
         if (layer?.layer === "api" && layer.slice && layer.slice !== "_transport" && targetLayer?.layer === "api" && targetLayer.slice && targetLayer.slice !== "_transport" && targetLayer.slice !== layer.slice) add(findings, root, WEB_BOUNDARY_RULES.API_RESOURCE_CROSS_IMPORT, file, node, sourceFile, "API resource는 다른 resource를 직접 import 또는 re-export할 수 없습니다.");

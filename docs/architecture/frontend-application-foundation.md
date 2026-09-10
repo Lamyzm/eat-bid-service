@@ -76,9 +76,12 @@ static shell을 dynamic 경계 안으로 끌어들이지 않으며, layout이 �
 session 상태를 shell로 올리지 않는다. 공고 상세처럼 route가 소유한 상태는 계속 route가 소유하고 shell dock
 slot은 배치만 맡는다. 계정·사업자 전환이 개인 자료 캐시를 섞지 않도록 사용자별 query key에 workspace와
 등록 사업자 ID를 포함하고, principal이 바뀌면 캐시를 비운다.
-한 route에서만 필요한 presentation과 interactive leaf는 segment private `_model`/`_ui`/`_lib`에 둔다.
-독립된 사용자 intent, command/permission/feedback lifecycle 또는 여러 resource orchestration이 생길 때만
-capability로 승격한다.
+한 route에서만 필요한 presentation과 interactive leaf는 그 segment의 private 폴더에 두고, 안쪽은 파일
+유형이 아니라 변경 단위로 나눈다(ADR 0044). `_widgets/`는 페이지 섹션 블록, `_features/<name>/{ui,model,lib}`는
+함께 바뀌는 기능 하나, `_lib/`는 segment 전체가 쓰는 조각이다. 아직 옮기지 않은 화면은 `_model`/`_ui`/`_lib`를
+유지하며 건드리는 변경에서 옮긴다. 도메인을 알지만 화면에 매이지 않은 표시 조각이 두 화면 이상에서 쓰이면
+`entities`로 올린다. 독립된 사용자 intent, command/permission/feedback lifecycle 또는 여러 resource
+orchestration이 생길 때만 capability로 승격한다.
 
 ## 2. route와 rendering
 
@@ -201,8 +204,11 @@ blocked capability로 남긴다. 첫 executable slice인 `/auctions/[auctionId]`
 ## 7. quality gate
 
 - import graph: reverse edge, cross-capability/API deep import, API resource 간 import와 source cycle을 거부한다.
-- legacy import: 신규 층(`app/(workspace)`, `shell`, `capabilities`, `api`, `shared`, `routing`)은
+- legacy import: 신규 층(`app/(workspace)`, `shell`, `capabilities`, `api`, `entities`, `shared`, `routing`)은
   `components/hooks/lib/config/types`를 import하지 않는다. 기존 edge는 그 파일을 수정하는 변경에서 함께 옮긴다.
+- segment 슬라이스: `_features/<name>/lib`은 React를 import하지 않고, `_features/<name>/model`은 JSX를 만들지
+  않으며, `_ui`와 `_features/<name>/ui`에는 렌더링하지 않는 모듈을 두지 않는다. 아직 옮기지 않은 화면을 지금
+  실패로 만들지 않도록 변경 범위에서 판정한다.
 - legacy 디렉터리: `hooks/`·`lib/`는 신규 파일을 받지 않고, 수정되는 기존 파일은 `shared/lib` 또는 소비
   slice로 옮긴다. client 업무 계산은 Server 계약 응답으로 대체하며 Web에 새로 만들지 않는다.
 - transport: network call 위치, client/server entry 분리와 runtime schema parse를 검사한다.

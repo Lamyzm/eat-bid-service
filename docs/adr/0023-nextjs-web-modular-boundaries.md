@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-08-31
 - Supersedes: 없음
+- Amended by: [ADR 0044](0044-route-segment-slice-structure.md) — route segment 내부를 기능 슬라이스로
+  나누고 `entities` 층을 추가한다. 아래 층 목록과 의존 방향에 그 결과를 반영했다.
 
 ## Context
 
@@ -24,18 +26,23 @@ calculation과 persistence를 섞는다. 같은 endpoint가 여러 화면에 필
 - `capabilities`: 사용자가 수행하는 독립 흐름
 - `api`: 계약 기반 resource request, Query Options와 server-state public entry
 - `routing`: 반복되는 동적 Next 화면 URL의 generated-route-checked builder
+- `entities`: 도메인을 알지만 화면에 매이지 않은 표시 조각
 - `shared`: 범용 config/lib/UI primitive
 
-한 route에서만 쓰는 presentation과 interactive leaf는 route segment의 private `_model`/`_ui`/`_lib`가
-소유한다. 단순 조회 화면을 capability로 포장하지 않는다. capability는 독립된 사용자 intent,
+한 route에서만 쓰는 presentation과 interactive leaf는 그 route segment가 소유하며, segment 안의 배치는
+ADR 0044가 정한다. 단순 조회 화면을 capability로 포장하지 않는다. capability는 독립된 사용자 intent,
 command/permission/feedback lifecycle 또는 여러 resource orchestration이 실제로 있을 때만 만든다.
+
+`entities`의 승격 조건은 하나다. **두 화면 이상에서 실제로 쓴다.** 미리 만들지 않는다. entity끼리 서로
+import하지 않으며, `shared`는 도메인을 모르는 primitive만, `capabilities`는 독립된 사용자 흐름만 유지한다.
 
 실제 내부 의존 방향은 다음과 같다.
 
 - `app → shell + capability public entry + api resource public/server entry`
-- `app route-private code → api resource public/server entry + shared`
+- `app route-private code → api resource public/server entry + entities + shared`
 - `shell → shared`
-- `capability → api resource public entry + shared`
+- `capability → api resource public entry + entities + shared`
+- `entities → shared + @eatbid/contracts`
 - `app + shell + capability → routing`
 - `api resource → api/_transport + shared + @eatbid/contracts`
 - `routing → Next Route type + @eatbid/contracts identifier atom`
@@ -69,7 +76,8 @@ route는 metadata, RSC read/prefetch와 shell model 주입에 한해 API resourc
 view만 렌더링한다.
 
 여러 route에서 같은 코드를 사용한다는 이유만으로 capability로 승격하지 않는다. 공통 server-state
-selector는 API resource, 범용 helper/primitive는 shared, 독립 사용자 행위만 capability가 소유한다.
+selector는 API resource, 도메인을 아는 표시 조각은 entities, 범용 helper/primitive는 shared, 독립 사용자
+행위만 capability가 소유한다.
 
 Server Component를 기본으로 하고 browser API, event, form 또는 Query subscription이 필요한 leaf만
 Client Component로 만든다. raw `fetch`와 `Response` body decode는 `api/_transport`만 수행하고 resource는

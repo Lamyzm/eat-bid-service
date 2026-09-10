@@ -12,11 +12,11 @@ import { createLoader } from 'nuqs/server';
 import { Suspense } from 'react';
 
 import { decisionSearchParsers } from './_lib/decision-search-params';
-import { observableAttemptKeys } from './_model/attempt-history';
-import { loadAuctionPage } from './_model/load-auction-page';
-import { DecisionScreen } from './_ui/decision-screen';
-import { DecisionScreenSkeleton } from './_ui/decision-screen-skeleton';
-import { OwnBidProvider } from './_ui/own-bid/own-bid-provider';
+import { observableAttemptKeys } from './_features/history/model/attempt-history';
+import { loadAuctionPage } from './_lib/load-auction-page';
+import { DecisionScreen } from './_widgets/decision-screen';
+import { DecisionScreenSkeleton } from './_widgets/decision-screen-skeleton';
+import { OwnBidProvider } from './_features/own-bid/ui/own-bid-provider';
 
 type AuctionPageProps = PageProps<'/auctions/[auctionId]'>;
 

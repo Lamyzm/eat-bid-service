@@ -50,7 +50,8 @@
   shell은 제품 endpoint를 읽지 않고 상위 layout이 전달한 serializable view를 렌더링한다.
 - segment의 여러 테스트가 함께 쓰는 test-only 표본과 렌더 도우미는 그 segment의 `__fixtures__`에 두며,
   production 모듈은 `__fixtures__`를 import하지 않는다.
-- 한 route에만 필요한 presentation과 interactive leaf는 segment private `_model`/`_ui`/`_lib`에 둔다.
+- 한 route에만 필요한 presentation과 interactive leaf는 그 segment의 private 폴더에 둔다. 안쪽 배치는
+  ADR 0044가 소유하며 아직 옮기지 않은 화면은 `_model`/`_ui`/`_lib`를 유지한다.
   단순 조회 화면이나 두 곳에서 쓴다는 이유만으로 capability를 만들지 않는다. 독립된 사용자 intent,
   command/permission/feedback lifecycle 또는 여러 resource orchestration이 있을 때만 승격한다.
 - raw `fetch`와 `Response` body decode는 `api/_transport`만 수행한다. resource는 승인된 request adapter에
@@ -66,11 +67,18 @@
   존재하지 않는 placeholder와 `as Route` cast로 typecheck를 우회하지 않는다.
 - `routing`은 Next `Route` type과 `@eatbid/contracts` identifier atom만 소비한다. Nest API operation path,
   network 호출, query key나 server state를 화면 route builder에 섞지 않는다.
-- `src/` 최상위는 ADR 0023의 여섯 층(`app`·`shell`·`capabilities`·`api`·`routing`·`shared`)과 Next가 요구하는
-  파일(`proxy.ts`·`instrumentation*.ts`·`styles`·ambient 선언만 두는 `types`)뿐이다. 스타터가 쓰던 수평 폴더
-  `components`·`hooks`·`lib`·`config`는 EAT-148에서 없앴으므로 다시 만들지 않는다. 범용 primitive는 `shared/ui`,
-  범용 helper와 hook은 `shared/lib`, 탐색·헤더·사이드바·명령 palette 같은 chrome은 `shell/layout`,
-  한 화면 전용은 그 segment의 private 폴더가 소유한다.
+- `src/` 최상위는 ADR 0023의 일곱 층(`app`·`shell`·`capabilities`·`api`·`routing`·`entities`·`shared`)과
+  Next가 요구하는 파일(`proxy.ts`·`instrumentation*.ts`·`styles`·ambient 선언만 두는 `types`)뿐이다. 스타터가
+  쓰던 수평 폴더 `components`·`hooks`·`lib`·`config`는 EAT-148에서 없앴으므로 다시 만들지 않는다. 범용
+  primitive는 `shared/ui`, 범용 helper와 hook은 `shared/lib`, 탐색·헤더·사이드바·명령 palette 같은 chrome은
+  `shell/layout`, 한 화면 전용은 그 segment의 private 폴더가 소유한다.
+- `entities`는 도메인을 알지만 화면에 매이지 않은 표시 조각의 자리다(ADR 0044-6). 올리는 조건은 하나,
+  **두 화면 이상에서 실제로 쓴다**이며 미리 만들지 않는다. entity끼리 서로 import하지 않는다. 한 화면만 쓰면
+  그 segment에 두고, 도메인을 모르는 primitive는 `shared`에 남긴다.
+- route segment 안은 파일 유형이 아니라 변경 단위로 나눈다(ADR 0044). `page.tsx`는 조회 주입과 조립만 하는
+  오케스트레이터, `_widgets/`는 페이지 섹션 블록, `_features/<name>/{ui,model,lib}`는 함께 바뀌는 기능 하나,
+  `_lib/`는 그 segment 전체가 쓰는 조각이다. `lib`는 React를 import하지 않고, `model`은 JSX를 만들지 않으며,
+  `ui`에는 렌더링하지 않는 모듈을 두지 않는다. 이 셋은 `lint:web-boundaries`가 변경 범위에서 검사한다.
 - 아이콘은 `@/shared/ui/icons`의 registry에서 가져온다. `@tabler/icons-react`를 직접 import하는 자리는
   `shared/ui` primitive뿐이며 route·capability·shell 화면은 registry를 거친다. 같은 층의
   `shared/ui/workspace-icons`는 dock·계정 허브가 쓰는 좁은 재수출이라 registry와 함께 정리 대상이다.

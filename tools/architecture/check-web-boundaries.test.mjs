@@ -316,6 +316,43 @@ test("변경 범위가 주어지면 legacy import·hooks·lib 규칙은 변경�
   assert.deepEqual(pairs(untouched.findings), [["raw-fetch", "apps/web/src/api/auctions/get.ts"]]);
 });
 
+test("슬라이스 세 자리는 lib의 React import·model의 JSX·ui의 비렌더 모듈을 각각 거부한다", async () => {
+  const segment = "apps/web/src/app/(workspace)/auctions/[auctionId]/_features/flow";
+  const report = await inspect({
+    [`${segment}/lib/create-chart.ts`]: "import { useMemo } from 'react';\nexport const build = () => useMemo;\n",
+    [`${segment}/lib/render-chart.tsx`]: "export const Frame = () => <figure />;\n",
+    [`${segment}/model/flow-series.tsx`]: "export const Badge = () => <span />;\n",
+    [`${segment}/ui/flow-range.ts`]: "export const range = (values: readonly number[]) => values.length;\n",
+  });
+
+  assert.deepEqual(report.findings.map((finding) => [finding.rule, finding.path]).sort(), [
+    ["feature-lib-react", `${segment}/lib/create-chart.ts`],
+    ["feature-lib-react", `${segment}/lib/render-chart.tsx`],
+    ["feature-model-jsx", `${segment}/model/flow-series.tsx`],
+    ["ui-non-render-module", `${segment}/ui/flow-range.ts`],
+  ].sort());
+});
+
+test("제자리에 있는 슬라이스 파일은 통과하고 아직 옮기지 않은 _ui 계산 모듈은 변경 범위 밖에서 보류한다", async () => {
+  const files = {
+    "apps/web/src/app/(workspace)/auctions/[auctionId]/_features/flow/lib/chart.ts": "export const build = (rows: readonly number[]) => rows.length;\n",
+    "apps/web/src/app/(workspace)/auctions/[auctionId]/_features/flow/model/series.ts": "import { useState } from 'react';\nexport const useSeries = () => useState(0);\n",
+    "apps/web/src/app/(workspace)/auctions/[auctionId]/_features/flow/ui/chart.tsx": "export const Chart = () => <figure />;\n",
+    "apps/web/src/app/(workspace)/today/_ui/today-range.ts": "export const range = (rows: readonly number[]) => rows.length;\n",
+  };
+
+  const scoped = await inspect(files, new Set(["apps/web/src/app/(workspace)/auctions/[auctionId]/_features/flow/ui/chart.tsx"]));
+  assert.deepEqual(scoped.findings, []);
+  assert.deepEqual(scoped.skipped.map((finding) => [finding.rule, finding.path]), [
+    ["ui-non-render-module", "apps/web/src/app/(workspace)/today/_ui/today-range.ts"],
+  ]);
+
+  const touched = await inspect(files, new Set(["apps/web/src/app/(workspace)/today/_ui/today-range.ts"]));
+  assert.deepEqual(touched.findings.map((finding) => [finding.rule, finding.path]), [
+    ["ui-non-render-module", "apps/web/src/app/(workspace)/today/_ui/today-range.ts"],
+  ]);
+});
+
 test("CLI는 기준 branch가 없으면 legacy 변경 범위 규칙을 경고로 보류하고 명시한 기준 뒤에는 변경 파일만 판정한다", () => {
   const subject = fixture({ "apps/web/src/hooks/use-old.ts": "export const useOld = () => 1;\n" });
   const git = (...args) => execFileSync("git", args, { cwd: subject.root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });

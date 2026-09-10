@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-import { summarizeItemLabel } from '@/shared/lib/item-label';
+import { summarizeItemLabel } from '@/entities/item/item-label';
 
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { ClosesTone, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
