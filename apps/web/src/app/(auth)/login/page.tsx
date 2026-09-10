@@ -11,6 +11,7 @@ import {
   setupRouteWithReturn
 } from '@/shell/auth/return-path';
 
+import { isDevLoginEnabled } from './_model/dev-login';
 import { LoginScreen } from './_ui/login-screen';
 import { LoginScreenSkeleton } from './_ui/login-screen-skeleton';
 
@@ -35,6 +36,11 @@ async function LoginLoader({ searchParams }: { readonly searchParams: LoginPageP
       returnPath={returnPath}
       authUnavailable={read.kind === 'auth-unavailable'}
       hasReturnScreen={isSameAppReturnPath(requested)}
+      // 환경은 module load가 아니라 요청 시점에 읽어 배포 runtime 주입을 따른다. 판정은 RSC에서만 한다.
+      devLoginEnabled={isDevLoginEnabled({
+        nodeEnv: process.env.NODE_ENV,
+        devLogin: process.env.EATBID_DEV_LOGIN
+      })}
     />
   );
 }

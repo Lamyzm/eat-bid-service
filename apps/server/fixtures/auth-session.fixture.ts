@@ -35,8 +35,8 @@ export function createTestAuth(client: DisposableDatabase["api"]): TestAuth {
     environment: {
       secret: testAuthSecret,
       baseUrl: "http://localhost:3000",
-      googleClientId: "test-client-id",
-      googleClientSecret: "test-client-secret",
+      google: { clientId: "test-client-id", clientSecret: "test-client-secret" },
+      devLoginEnabled: false,
       useSecureCookies: false,
     },
     database: createAuthDatabaseBinding({ database: drizzle({ client }) } as unknown as ManagedDatabase),

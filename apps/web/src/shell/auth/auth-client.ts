@@ -1,4 +1,4 @@
-/** @module 책임: provider 세션 수명주기 client 하나를 만들고 Google 로그인·로그아웃 호출의 실패를 그대로 드러낸다. */
+/** @module 책임: provider 세션 수명주기 client 하나를 만들고 Google·이메일 로그인과 로그아웃 호출의 실패를 그대로 드러낸다. */
 'use client';
 
 import { createAuthClient } from 'better-auth/react';
@@ -60,6 +60,29 @@ export async function signInWithGoogle(returnPath: unknown): Promise<void> {
     callbackURL: safeReturnPath(returnPath)
   });
   if (error) throw new ProviderAuthError('Google 로그인을 시작하지 못했습니다.', error);
+}
+
+export type EmailSignInOutcome = 'signed-in' | 'invalid-credentials';
+
+/**
+ * 개발 로그인 provider의 이메일·비밀번호 로그인이다. 서버는 `EATBID_DEV_LOGIN` 없이 이 방법을 열지 않으므로
+ * 화면의 폼 판정과 서버의 판정이 어긋나면 그 실패는 자격 오류가 아니라 `ProviderAuthError`로 드러난다.
+ * 자격 오류(401)만 값으로 돌려주는 이유는 화면이 그 경우에만 "입력을 확인하라"고 말할 수 있기 때문이다.
+ * 성공하면 provider client가 검증된 복귀 경로로 브라우저를 옮기므로 호출자는 이동을 따로 하지 않는다.
+ */
+export async function signInWithEmail(input: {
+  readonly email: string;
+  readonly password: string;
+  readonly returnPath: unknown;
+}): Promise<EmailSignInOutcome> {
+  const { error } = await authClient.signIn.email({
+    email: input.email,
+    password: input.password,
+    callbackURL: safeReturnPath(input.returnPath)
+  });
+  if (!error) return 'signed-in';
+  if (error.status === 401) return 'invalid-credentials';
+  throw new ProviderAuthError('이메일 로그인을 시작하지 못했습니다.', error);
 }
 
 /**

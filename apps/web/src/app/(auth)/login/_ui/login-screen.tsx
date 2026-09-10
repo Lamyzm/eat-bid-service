@@ -1,4 +1,7 @@
-/** @module 책임: Google 로그인 시작 하나만 담은 진입 화면과 그 실패·미설정 상태를 렌더한다. */
+/**
+ * @module 책임: Google 로그인 시작과, 개발 모드에서만 그 아래에 열리는 이메일 로그인 폼을 담은 진입 화면과 그
+ * 실패·미설정 상태를 렌더한다.
+ */
 'use client';
 
 import { useState } from 'react';
@@ -8,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { LoadingButton } from '@/shared/ui/loading-button';
 import { signInWithGoogle } from '@/shell/auth/auth-client';
 
+import { EmailLoginForm } from './email-login-form';
+
 interface LoginScreenProps {
   /** 서버가 이미 같은 앱 상대 경로로 좁힌 값이다. 화면은 이 값을 그대로 provider에 넘긴다. */
   readonly returnPath: string;
@@ -15,9 +20,14 @@ interface LoginScreenProps {
   readonly authUnavailable: boolean;
   /** 로그인 뒤 돌아갈 화면이 정해져 있으면 그 사실만 문장으로 알린다. */
   readonly hasReturnScreen: boolean;
+  /**
+   * RSC가 runtime 환경으로 판정한 값이다. 화면은 이 값을 다시 계산하지 않는다. 브라우저에서 환경을 읽으면
+   * 판정 자리가 둘이 되고 bundle에 운영 값이 실린다. 이 폼은 안내일 뿐 권위는 서버 provider 조립이다.
+   */
+  readonly devLoginEnabled: boolean;
 }
 
-export function LoginScreen({ returnPath, authUnavailable, hasReturnScreen }: LoginScreenProps) {
+export function LoginScreen({ returnPath, authUnavailable, hasReturnScreen, devLoginEnabled }: LoginScreenProps) {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -69,6 +79,7 @@ export function LoginScreen({ returnPath, authUnavailable, hasReturnScreen }: Lo
           >
             Google로 로그인
           </LoadingButton>
+          {devLoginEnabled ? <EmailLoginForm returnPath={returnPath} disabled={authUnavailable} /> : null}
         </CardContent>
       </Card>
     </div>
