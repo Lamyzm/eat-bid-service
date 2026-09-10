@@ -11,6 +11,7 @@ import { ProcurementDependencyUnavailable } from "../../application/failures";
 import { GetAuctionRoster } from "../../application/get-auction-roster";
 import { AuctionNotFound } from "../../application/find-auction";
 import { auctionId } from "../../domain/auction-id";
+import { toAuctionRosterResponse } from "./auction-roster.presenter";
 
 const operation = auctionV1Operations.roster;
 /**
@@ -43,7 +44,8 @@ export class AuctionRosterController {
       revisionId = query.revisionId === undefined ? null : BigInt(query.revisionId);
     } catch { throw new BadRequestException({ code: "VALIDATION_ERROR" }); }
     try {
-      return await this.runner.run(this.getRoster.execute({ auctionId: auctionId(id), revisionId }));
+      // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toAuctionRosterResponse(await this.runner.run(this.getRoster.execute({ auctionId: auctionId(id), revisionId })));
     } catch (error) {
       if (error instanceof AuctionNotFound) throw new NotFoundException({ code: "AUCTION_NOT_FOUND" });
       if (error instanceof ProcurementDependencyUnavailable) throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });

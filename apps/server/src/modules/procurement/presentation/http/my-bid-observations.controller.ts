@@ -37,6 +37,7 @@ import {
   type FindMyBidObservationsInput,
 } from "../../application/find-my-bid-observations";
 import { organizationId } from "../../domain/organization-id";
+import { toMyBidObservationsResponse } from "./my-bid-observations.presenter";
 
 const operation = myBidObservationV1Operations.findMyBidObservations;
 
@@ -85,7 +86,8 @@ export class MyBidObservationsController {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
-      return await this.effectRunner.run(this.findMyBidObservations.execute(input));
+      // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toMyBidObservationsResponse(await this.effectRunner.run(this.findMyBidObservations.execute(input)));
     } catch (error) {
       return translate(error);
     }

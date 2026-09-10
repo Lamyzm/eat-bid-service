@@ -33,6 +33,7 @@ import {
 } from "../../application/list-organization-auction-attempts";
 import { organizationId } from "../../domain/organization-id";
 import { kstMonth } from "../../domain/kst-month";
+import { toOrganizationAttemptsResponse } from "./organization.presenter";
 
 const operation = organizationV1Operations.listAuctionAttempts;
 
@@ -91,7 +92,8 @@ export class OrganizationController {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
-      return await this.effectRunner.run(this.listAttempts.execute(input));
+      // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toOrganizationAttemptsResponse(await this.effectRunner.run(this.listAttempts.execute(input)));
     } catch (error) {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
       if (error instanceof AttemptCursorInvalid || error instanceof AttemptAsOfInFuture) {

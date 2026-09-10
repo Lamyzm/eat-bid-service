@@ -1,4 +1,4 @@
-/** @module 책임: 내부 투찰 관측 record를 공개 V1 응답 값으로 직렬화한다. */
+/** @module 책임: 내 투찰 관측 조회 record를 공개 V1 응답으로 직렬화하는 순수 presenter다. */
 import {
   instantCodec,
   moneyCodec,
@@ -9,13 +9,16 @@ import {
   type MyBidSubmission,
 } from "@eatbid/contracts";
 import { z } from "zod";
-import type { MartBuildLineage } from "./mart-build-lineage";
+import type {
+  MyBidObservationsRecord,
+  MyBidObservationsSupplierRecord,
+} from "../../application/find-my-bid-observations";
 import type {
   OwnBidAttemptRecord,
   OwnBidProvenanceRecord,
   OwnBidSubmissionRecord,
-} from "./own-bid-reader";
-import { organizationIdToString, type OrganizationId } from "../domain/organization-id";
+} from "../../application/own-bid-reader";
+import { organizationIdToString } from "../../domain/organization-id";
 
 function submission(record: OwnBidSubmissionRecord): MyBidSubmission {
   return {
@@ -86,25 +89,33 @@ export function toAttemptObservation(record: OwnBidAttemptRecord): MyAttemptBidO
   }
 }
 
-export function toMyBidObservationsResponse(input: {
-  readonly registeredBusinessId: bigint;
-  readonly organizationId: OrganizationId;
-  readonly supplier: MyBidObservationSupplier;
-  readonly lineage: MartBuildLineage;
-}): MyBidObservationsV1Response {
+/**
+ * 대조된 party가 없으면 회차 목록 자리 자체를 만들지 않는다. 빈 배열은 "찾아봤지만 없었다"로 읽히고
+ * 그것은 우리가 하지 않은 미참여 판정이다(ADR 0032 §7).
+ */
+function supplier(record: MyBidObservationsSupplierRecord): MyBidObservationSupplier {
+  if (record.kind !== "observed") return { kind: record.kind };
   return {
-    businessId: input.registeredBusinessId.toString(10),
-    organizationId: organizationIdToString(input.organizationId),
-    supplier: input.supplier,
+    kind: "observed",
+    supplierPartyId: record.supplierPartyId.toString(10),
+    attempts: record.attempts.map(toAttemptObservation),
+  };
+}
+
+export function toMyBidObservationsResponse(record: MyBidObservationsRecord): MyBidObservationsV1Response {
+  return {
+    businessId: record.registeredBusinessId.toString(10),
+    organizationId: organizationIdToString(record.organizationId),
+    supplier: supplier(record.supplier),
     // 계보는 이 응답이 읽은 build 하나가 갖는다. 회차 이력 meta와 같은 조합이라 화면이 두 응답을
     // 같은 계보로 겹칠 수 있는지 스스로 확인한다(ADR 0034).
     meta: {
-      buildId: input.lineage.buildId.toString(10),
-      sourceReleaseId: input.lineage.sourceReleaseId,
-      calcVersion: input.lineage.calcVersion,
-      computedAt: z.encode(instantCodec, input.lineage.computedAt),
-      coverage: input.lineage.coverage,
-      regionScheme: input.lineage.regionScheme,
+      buildId: record.lineage.buildId.toString(10),
+      sourceReleaseId: record.lineage.sourceReleaseId,
+      calcVersion: record.lineage.calcVersion,
+      computedAt: z.encode(instantCodec, record.lineage.computedAt),
+      coverage: record.lineage.coverage,
+      regionScheme: record.lineage.regionScheme,
     },
   };
 }

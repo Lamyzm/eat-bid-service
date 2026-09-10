@@ -1,19 +1,6 @@
-/** @module 책임: 공고 조회의 예상 실패 분류와 application record→공개 V1 응답 직렬화를 소유한다. */
-import {
-  instantCodec,
-  moneyCodec,
-  type AuctionV1Response,
-  type CodeReference,
-} from "@eatbid/contracts";
-import type { Temporal } from "@eatbid/domain";
+/** @module 책임: 공고 한 건 조회 use case와 그 예상 실패 분류를 소유한다. */
 import { Effect } from "effect";
-import { z } from "zod";
-import type {
-  AuctionReader,
-  AuctionRecord,
-  CodeReferenceRecord,
-  ParticipationObservationRecord,
-} from "./auction-reader";
+import type { AuctionReader, AuctionRecord } from "./auction-reader";
 import { ProcurementDependencyUnavailable } from "./failures";
 import type { AuctionId } from "../domain/auction-id";
 import { auctionIdToString } from "../domain/auction-id";
@@ -42,79 +29,12 @@ export class AuctionDependencyUnavailable extends ProcurementDependencyUnavailab
   }
 }
 
-function instantText(value: Temporal.Instant | null): string | null {
-  return value === null ? null : z.encode(instantCodec, value);
-}
-
-function codeReference(value: CodeReferenceRecord | null): CodeReference | null {
-  // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
-  return value === null ? null : { ...value, codeValueId: value.codeValueId.toString(10) };
-}
-
-function participationObservation(
-  value: ParticipationObservationRecord,
-): NonNullable<AuctionV1Response["participation"]>["latest"] {
-  return { bidCount: value.bidCount, observedAt: z.encode(instantCodec, value.observedAt) };
-}
-
-export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
-  return {
-    identity: {
-      // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
-      auctionId: auctionIdToString(record.auctionId),
-      revisionId: record.revisionId.toString(10),
-      externalBidId: record.provenance.externalBidId,
-      displayBidNumber: record.displayBidNumber,
-      title: record.title,
-      status: record.status,
-    },
-    organization: record.organization === null ? null : {
-      organizationId: record.organization.organizationId.toString(10),
-      name: record.organization.name,
-      type: record.organization.type,
-    },
-    schedule: {
-      announcedAt: z.encode(instantCodec, record.announcedAt),
-      deadlineAt: instantText(record.deadlineAt),
-      openedAt: instantText(record.openedAt),
-    },
-    pricing: {
-      baseAmount: z.encode(moneyCodec, record.baseAmount),
-      plannedAmount: record.plannedAmount === null ? null : z.encode(moneyCodec, record.plannedAmount),
-    },
-    provenance: {
-      sourceSystem: record.provenance.sourceSystem,
-      observationId: record.provenance.observationId.toString(10),
-      normalizedRecordId: record.provenance.normalizedRecordId.toString(10),
-      contentSha256: record.provenance.contentSha256,
-    },
-    terms: record.terms === null ? null : {
-      // scale과 범위는 어댑터의 bidRateValue가 이미 닫았다. 여기서 다시 만들면 같은 불변식이 두 곳에
-      // 생겨 한쪽만 바뀔 때 조용히 갈라진다.
-      floorRate: record.terms.floorRate === null
-        ? null
-        : { value: record.terms.floorRate, unit: "percentage-points" },
-      awardMethod: codeReference(record.terms.awardMethod),
-    },
-    location: record.location === null ? null : {
-      sido: codeReference(record.location.sido),
-      sigungu: codeReference(record.location.sigungu),
-    },
-    classification: record.classification,
-    participation: record.participation === null ? null : {
-      latest: participationObservation(record.participation.latest),
-      dayEarlier: record.participation.dayEarlier === null
-        ? null
-        : participationObservation(record.participation.dayEarlier),
-    },
-  };
-}
-
 export class FindAuction {
   constructor(private readonly reader: AuctionReader) {}
 
+  /** 공개 응답이 아니라 내부 record를 돌려준다. wire 직렬화는 presentation의 presenter가 한다(ADR 0045 결정 1). */
   execute(input: FindAuctionInput): Effect.Effect<
-    AuctionV1Response,
+    AuctionRecord,
     AuctionNotFound | AuctionDependencyUnavailable,
     never
   > {
@@ -125,7 +45,7 @@ export class FindAuction {
     }).pipe(
       Effect.flatMap((record) => record === null
         ? Effect.fail(new AuctionNotFound(input.auctionId))
-        : Effect.succeed(toAuctionResponse(record))),
+        : Effect.succeed(record)),
     );
   }
 }
