@@ -2,7 +2,7 @@
 id: MAIN-AUTHORITY-CUTOVER
 status: active
 canonical_for: main-branch-authority-and-release-tag-publication
-last_reviewed: 2026-09-02
+last_reviewed: 2026-09-11
 review_trigger: build-trigger-argo-source-or-default-branch-change
 ---
 
@@ -28,6 +28,9 @@ private GitHub Free에는 branch protection API가 없다. 그래서 다음을 �
 서버가 막지 못하는 대신 세 겹으로 막는다. 로컬 `.githooks` pre-push, 읽기 전용 `validate.yml`,
 그리고 build workflow의 tag preflight다. 앞의 둘은 우회할 수 있고 마지막 하나만 우회할 수 없다.
 직접 `main`에 push해도 이미지는 발행되지 않으며, 발행은 tag를 만들어야만 시작된다.
+
+`validate.yml`이 실제로 무엇을 검사하는지, 그리고 그 `validate.yml`이 `main` push에서 실패하면 무엇을
+하는지는 [`ci-gate-failure-response.md`](ci-gate-failure-response.md)가 권위 문서다.
 
 `master`와 `rollback/pre-main-cutover-2026-09-01` tag는 관찰 기간이 끝나도 자동으로 지우지 않는다.
 

@@ -49,8 +49,21 @@ jobs:
       - name: 아키텍처와 생성 계약 drift 검사
         # base를 명시해야 origin/main이 없는 잘못된 checkout이 경고로 조용히 통과하지 않고 실패한다.
         run: pnpm architecture:check -- --base origin/main
+      - name: dataplane lint
+        # EAT-158: dataplane:test·lint·typecheck는 release tag에서만 도는 build.yml에만 있었다. PR
+        # 게이트가 파이썬 회귀를 릴리즈 시점까지 놓치지 않도록 여기서도 돈다. ruff는 수 초 안에 끝나므로
+        # 비싼 dataplane 테스트보다 먼저 돌려 실패를 빨리 드러낸다.
+        run: pnpm dataplane:lint
+      - name: dataplane 타입체크
+        run: pnpm dataplane:typecheck
       - name: 저장소 테스트
         run: pnpm test
+      - name: dataplane 테스트
+        # apps/dataplane/tests/integration 일부가 testcontainers로 Docker에 PostgreSQL을 띄우고 그 안에서
+        # `pnpm --filter @eatbid/db build`와 migration을 직접 실행한다(apps/dataplane/tests/integration/conftest.py).
+        # 그래서 dataplane만 따로 떼어 별도 job으로 병렬화해도 TypeScript workspace 설치를 다시 해야 해
+        # 이 job 안에서 이미 끝난 설치를 재사용하는 쪽이 더 싸다.
+        run: pnpm dataplane:test
       - name: TypeScript workspace 빌드
         run: pnpm build
 
@@ -80,3 +93,49 @@ jobs:
         run: pnpm --filter @eatbid/web test:e2e:foundation
       - name: 결정 화면 폭별 밀림 검증
         run: pnpm --filter @eatbid/web test:e2e:decision
+      - name: 오늘 화면 폭별 밀림 검증
+        # EAT-158: foundation·decision과 같은 dev 모드 fixture 서버라 비용이 같다(로컬 실측 8개 22.4초).
+        run: pnpm --filter @eatbid/web test:e2e:today
+      - name: 프로덕션 build 캐시·무효화·서버 read 재사용 검증
+        # EAT-158: next build && next start로 돈다(ADR 0036 §4 — dev는 `use cache` 수명이 달라 증거가
+        # 되지 않는다). server-read-reuse.spec.ts의 핵심 단언(서버가 세션을 정확히 한 번 읽는다, EAT-143의
+        # 보장)은 이 config에서만 조건이 참이 된다. "next build가 필요해 비싸다"고 가정했지만 실측하니
+        # 로컬에서 46초(다른 무거운 e2e와 동시 실행 중에도 Playwright 리포트 40.0초)라 게이트에 넣는다.
+        run: pnpm --filter @eatbid/web test:e2e:cache
+      - name: 인증 경계 검증(계정 격리·위조 요청 거부·로그아웃 세션 무효화)
+        # EAT-158: account-setup.spec.ts를 실제 migration DB·실제 Nest·실제 서명 세션 위에서 돌리는
+        # 유일한 경로다(ADR 0032 경계). apps/server/fixtures/disposable-database.fixture.ts가 docker
+        # run으로 자기 PostgreSQL container를 직접 띄우고 정리하므로 이 job에 별도 services: 컨테이너를
+        # 붙일 필요가 없다. ubuntu-latest에 이미 있는 Docker만 있으면 된다.
+        run: pnpm --filter @eatbid/web test:e2e:auth
+      - name: 내 투찰 화면 검증(등록·증거 대조 상태·mart build 전환)
+        # EAT-158 병합 시점 알림: 이 step은 지금 빨갛다. own-bid-e2e.ts의 smoke()가 인증 없이 공고
+        # 단건 조회를 부르는데, EAT-138이 그 controller에 class 레벨 guard를 달아 401이 난다(같은 문제로
+        # /today·결정 화면의 'use cache' 서버 read도 로그인한 사용자에게 깨져 있다 — 별도 이슈로 추적 중).
+        # smoke()도 이제 인증된 호출이어야 하므로 이 harness 자체의 수정이 필요하다. 그 수정이 들어오기
+        # 전에는 이 job이, 그래서 이 워크플로 전체가 실패한다. guard 수정과 함께 고칠 때까지 지우지 않는다.
+        run: pnpm --filter @eatbid/web test:e2e:own-bid
+
+  # EAT-158: 2026-09-10에 validate.yml이 13번의 병합 동안 빨간 상태였는데 아무도 보지 않았다. GitHub
+  # Free의 Actions 알림(Settings > Notifications > Actions)은 기본값이 "알리지 않음"이고 계정마다 개별로
+  # 켜야 하는 opt-in이라 그것만 믿지 않는다. main push가 실패하면 이 job이 이슈를 직접 열어 저장소 화면
+  # 자체에서 없앨 수 없는 신호를 남긴다. docs/operations/ci-gate-failure-response.md §4가 대응 절차다.
+  notify-main-failure:
+    name: main 실패를 이슈로 남긴다
+    needs: [repository, frontend-browser]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: 열린 이슈로 실패를 기록한다
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "main CI 실패: validate 워크플로 실행 ${{ github.run_id }}" \
+            --body "main push(${COMMIT_SHA})의 validate.yml이 실패했다. ${RUN_URL} 에서 어느 job이 실패했는지 확인하라. 대응 절차는 docs/operations/ci-gate-failure-response.md §4."
