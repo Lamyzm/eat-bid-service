@@ -1,3 +1,11 @@
+---
+id: RUNTIME-AND-DEPLOYMENT
+status: active
+canonical_for: argo-runtime-execution-and-deployment-topology
+last_reviewed: 2026-09-10
+review_trigger: argo-cd-or-workflows-topology-cluster-move-or-release-path-change
+---
+
 # 런타임·Argo·배포·운영
 
 ## 1. 책임 분리
