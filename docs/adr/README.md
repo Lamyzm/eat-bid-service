@@ -50,6 +50,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md) | Accepted | 삭제 전용 legacy ledger 넷 철거, merge-base 변경 범위 검사와 파일 머리 `@boundary-waiver`, 병렬 단일 드라이버 `architecture:check`와 `--changed` pre-commit (0020·0023·0035의 ledger 조항 대체) |
 | [0043](0043-session-lock-and-commit-boundary-guard.md) | Accepted | agent workflow 가드를 명령 가로채기 lease에서 worktree 세션 잠금(holder)과 pre-commit·pre-push의 branch↔claim 검사로 바꾸고, 명령 분류기·lease 만료·writer 결박을 삭제 (2026-08-30 workflow 설계 §4.1·§6과 0026 결정 3의 허용 목록 운영 대체) |
 | [0044](0044-route-segment-slice-structure.md) | Accepted | route segment 내부를 `_features/<name>/{ui,model,lib}`와 `_widgets/`로 나누고 `lib`의 React·`model`의 JSX·`ui`의 비렌더 모듈을 검사하며, 두 화면 이상이 쓰는 도메인 표시 조각을 위한 `entities/` 층을 둔다 ([0023](0023-nextjs-web-modular-boundaries.md)의 segment private 조항과 층 목록을 보완) |
+| [0045](0045-server-module-presentation-seam.md) | Accepted | 서버 모듈 안에서 wire 직렬화는 `presentation/http/*.presenter.ts`, 모듈 공통 wire 도우미는 `platform/http/wire.ts`, 캐시·재시도 장식자는 `infrastructure/<concern>/`, 모듈 공통 실패는 모듈 이름, 경계 숫자는 domain 상수가 소유한다 |
 
 ## 새 ADR 형식
 
