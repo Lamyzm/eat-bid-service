@@ -3,7 +3,7 @@
 import { Temporal } from '@eatbid/domain';
 import { organizationAuctionAttemptsV1ResponseSchema, organizationV1Operations } from '@eatbid/contracts/api/v1/organizations';
 
-import { activatedBuildId } from './cache-observability';
+import { activatedBuildId, serveBuildId } from './cache-observability';
 import namsanAttemptsFixture from './fixtures/namsan-attempts.json';
 
 const ORGANIZATION_ID = '3101';
@@ -172,11 +172,11 @@ export function organizationAttemptsResponse(request: Request): Response | null 
     attempts: page.map((attempt) => attemptResource(attempt, cohort !== undefined, query.includeRevision === 'true')),
     nextCursor: pageEnd < scoped.length ? page[page.length - 1]?.attemptId ?? null : null,
     // 서버와 같이 적용한 조건을 그대로 되돌려야 화면이 fixture에서도 같은 코호트를 읽는다.
-    // buildId는 활성 build 전환을 재현할 수 있도록 요청 시점에 읽는다(캐시 e2e).
+    // buildId는 활성 build 전환을 재현할 수 있도록 요청 시점에 읽고, 그 값을 이 조회가 내준 계보로 남긴다(캐시 e2e).
     meta: {
       ...LINEAGE,
       sampleCount: scoped.length,
-      buildId: activatedBuildId(BASE_BUILD_ID),
+      buildId: serveBuildId('organizationAttempts', BASE_BUILD_ID),
       item: query.item ?? null,
       opened: query.opened,
       asOf: query.opened === 'only' ? FIXTURE_AS_OF : null,
