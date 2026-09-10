@@ -64,6 +64,9 @@ export function DecisionExpandLink({ auctionId, search, target }: {
       size='default'
       className='ml-auto'
       data-slot='decision-expand-link'
+      // 어느 본문을 키우는 링크인지 배치에 남긴다. 집중 모드가 살지 않는 폭에서 흐름 진입만 감춰야 하는데,
+      // 같은 도구 줄의 분포 링크는 모달이라 그대로 살아 있어야 해서 라벨로는 구분할 수 없다(EAT-142).
+      data-expand-target={target}
     >
       {label}
     </Button>

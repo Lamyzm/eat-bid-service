@@ -18,11 +18,14 @@
 }
 
 /* 집중 모드는 접힌 본문이 비운 높이를 나머지 하나에 준다. 그 자리가 읽을 만할 때만 뜻이 있으므로 창이
-   낮으면 들어가지 않는다 — 낮은 창에서 뷰포트 높이를 강제하면 문서와 본문이 함께 세로로 스크롤해
-   같은 화면에 스크롤 소유자가 둘이 된다. 아래 높이 미만에서는 확대 주소도 일반 문서 흐름으로 읽고,
+   낮거나 좁으면 들어가지 않는다 — 낮은 창에서 뷰포트 높이를 강제하면 문서와 본문이 함께 세로로 스크롤해
+   같은 화면에 스크롤 소유자가 둘이 된다. 아래 크기 미만에서는 확대 주소도 일반 문서 흐름으로 읽고,
    접힌 본문 대신 요약·조건·확대 링크가 모두 문서 안에 남는다(EAT-115).
-   기준 640px은 공통 헤더(56·64px)를 뺀 뒤에도 이전 집중 모드의 최소 높이 580px 언저리가 남는 값이다. */
-@media (min-height: 640px) {
+   기준 높이 640px은 공통 헤더(56·64px)를 뺀 뒤에도 이전 집중 모드의 최소 높이 580px 언저리가 남는 값이다.
+   기준 폭 640px은 위 조건 줄이 sticky가 되는 선과 같다. 그보다 좁으면 제목·조건·탭과 범례·내 투찰·축 조작이
+   저마다 줄바꿈해 캔버스를 둘러싼 크롬이 창의 3분의 2를 차지한다. 집중 모드는 남는 높이를 캔버스에 주는
+   구조라서, 그 폭에서는 확대가 일반 보기의 고정 38dvh보다 작은 차트를 준다 — 확대가 축소가 된다(EAT-142). */
+@media (min-width: 640px) and (min-height: 640px) {
   /* 집중 모드의 공통 geometry. 중앙의 남은 높이를 키울 본문 하나에 돌려주고 문서 스크롤을 없앤다.
      어느 본문을 키우는지는 아래에서 data-focus 값이 정하며, 전역 오른쪽 상세와 가용 폭은 셸이 그대로 소유한다. */
   [data-slot='decision-screen'][data-focus] {
@@ -62,9 +65,17 @@
   [data-slot='decision-screen'][data-focus='history'] [data-slot='history-table-scroll'] { min-height: 0; overflow: auto; }
 }
 
-@media (max-width: 767px) and (min-height: 640px) {
+/* 집중 모드가 사는 폭 중 가장 좁은 구간이다. 도구 줄이 세 줄로 풀리면 그만큼 캔버스가 줄므로 두 줄로 묶는다. */
+@media (min-width: 640px) and (max-width: 767px) and (min-height: 640px) {
   [data-slot='decision-screen'][data-focus='flow'] [data-slot='evidence-toolbar'] { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
   [data-slot='decision-screen'][data-focus='flow'] [data-slot='evidence-toolbar'] > nav { grid-column: 1; grid-row: 1; }
   [data-slot='decision-screen'][data-focus='flow'] [data-slot='decision-expand-link'] { grid-column: 2; grid-row: 1; }
   [data-slot='decision-screen'][data-focus='flow'] [data-slot='evidence-toolbar'] > span { grid-column: 1 / -1; grid-row: 2; margin-left: 0; }
+}
+
+/* 확대할 자리가 없는 폭에서는 흐름 확대 진입을 내보내지 않는다. 눌러도 같은 차트가 그대로인 링크는
+   고장으로 읽힌다. 이미 열린 주소로 들어온 사람에게는 돌아갈 링크가 있어야 하므로 그때는 남긴다.
+   분포 확대는 모달이라, 과거 회차 확대는 12행 상한을 푸는 별개 효과가 있어 이 폭에서도 그대로 둔다. */
+@media (max-width: 639px) {
+  [data-slot='decision-screen']:not([data-focus='flow']) [data-slot='decision-expand-link'][data-expand-target='흐름'] { display: none; }
 }
