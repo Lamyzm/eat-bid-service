@@ -7,7 +7,9 @@ import {
   type Clock,
   type ElapsedMilliseconds,
 } from "@eatbid/domain";
-import { RedactingJsonLogger } from "../logging/logging.module";
+// records는 RedactingJsonLogger에 없다. 첫 테스트가 logger.records를 읽으므로 관측 전용
+// RecordingJsonLogger로 만든다(EAT-157).
+import { RecordingJsonLogger } from "../logging/logging.module";
 
 describe("shutdown coordinator 시간 경계", () => {
   test("wall clock deadline을 만들지 않고 branded 상대 grace를 tracker에 전달한다", async () => {
@@ -23,7 +25,7 @@ describe("shutdown coordinator 시간 경계", () => {
     };
     let ready = true;
     let closed = false;
-    const logger = new RedactingJsonLogger({
+    const logger = new RecordingJsonLogger({
       buildSha: "a".repeat(40),
       clock: sequenceClock,
       write: () => undefined,
@@ -58,7 +60,7 @@ describe("shutdown coordinator 시간 경계", () => {
     const { ShutdownCoordinator } = await import("./shutdown-coordinator");
     let waitCalls = 0;
     let closeCalls = 0;
-    const logger = new RedactingJsonLogger({
+    const logger = new RecordingJsonLogger({
       buildSha: "a".repeat(40),
       clock: fixedClock(Temporal.Instant.from("2026-08-30T09:00:00Z")),
       write: () => undefined,

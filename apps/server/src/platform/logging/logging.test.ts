@@ -7,7 +7,8 @@ describe("운영 logging", () => {
   test("완료 record에는 route template과 비민감 allowlist만 남긴다", async () => {
     const module = await import("./logging.module").catch(() => undefined);
     expect(module, "logging boundary must exist").toBeDefined();
-    const logger = new module!.RedactingJsonLogger({
+    // records는 RedactingJsonLogger에 없다. 관측이 필요한 이 assertion만 test 전용 RecordingJsonLogger로 만든다(EAT-157).
+    const logger = new module!.RecordingJsonLogger({
       buildSha: "a".repeat(40),
       clock,
       write: () => undefined,

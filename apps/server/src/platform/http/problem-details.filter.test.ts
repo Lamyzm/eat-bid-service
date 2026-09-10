@@ -9,7 +9,9 @@ import {
   type ArgumentsHost,
 } from "@nestjs/common";
 import { describe, expect, test } from "bun:test";
-import { RedactingJsonLogger } from "../logging/logging.module";
+// records는 RedactingJsonLogger에 없다. 이 파일의 두 테스트 모두 logger.records를 읽으므로
+// 관측 전용 RecordingJsonLogger로 만든다(EAT-157).
+import { RecordingJsonLogger } from "../logging/logging.module";
 import { fixedClock, Temporal } from "@eatbid/domain";
 import { ProblemDetailsFilter } from "./problem-details.filter";
 import { claimCompletionLog } from "./request-completion-log";
@@ -33,7 +35,7 @@ describe("Problem Details 상태 매핑", () => {
   });
 
   test("exception filter가 모든 status family에 application/problem+json을 내보낸다", () => {
-    const logger = new RedactingJsonLogger({
+    const logger = new RecordingJsonLogger({
       buildSha: "a".repeat(40),
       clock: fixedClock(Temporal.Instant.from("2026-08-30T09:00:00Z")),
       write: () => undefined,
@@ -72,7 +74,7 @@ describe("Problem Details 상태 매핑", () => {
   });
 
   test("완료 interceptor에 닿지 못한 거부만 요약 로그로 남기고 예외 message와 원문 URL은 싣지 않는다", () => {
-    const logger = new RedactingJsonLogger({
+    const logger = new RecordingJsonLogger({
       buildSha: "c".repeat(40),
       clock: fixedClock(Temporal.Instant.from("2026-09-10T09:00:00Z")),
       write: () => undefined,

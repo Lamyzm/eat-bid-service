@@ -10,6 +10,7 @@ import {
 import request from "supertest";
 import { createApp, type OperationalHttpApplication } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
+import { RecordingJsonLogger } from "../platform/logging/logging.module";
 
 @Controller("routing-probe")
 class RoutingProbeController {
@@ -30,15 +31,36 @@ const environment = (overrides: Record<string, string> = {}) => parseEnvironment
   ...overrides,
 });
 
+// 이 파일의 environment()는 NODE_ENV를 항상 "test"로 고정한다. create-app.ts는 그 값을 보고 records를
+// 보관하는 RecordingJsonLogger를 만들므로, 아래 단언들이 읽는 runtime.logger.records를 위해 그 사실을
+// 타입에 반영한다(EAT-157).
+type TestRuntime = OperationalHttpApplication & { readonly logger: RecordingJsonLogger };
+
+/**
+ * 캐스트가 아니라 실제 instanceof 검사다. create-app.ts의 test 분기가 지워지거나 바뀌면 records를 읽는
+ * 아래 테스트들이 알아보기 힘든 TypeError 대신 여기서 바로 이유가 드러나는 실패를 낸다. asserts 서명을
+ * 쓰는 이유: `if (!(runtime.logger instanceof RecordingJsonLogger)) throw`를 start() 본문에 인라인으로
+ * 두면 narrowing이 runtime.logger 경로에만 남고 반환하는 runtime 값 전체에는 퍼지지 않아
+ * `return { runtime, ... }`가 다시 타입 오류가 난다. asserts는 인자로 받은 변수 자체를 좁힌다.
+ */
+function assertRecordingRuntime(
+  runtime: OperationalHttpApplication,
+): asserts runtime is TestRuntime {
+  if (!(runtime.logger instanceof RecordingJsonLogger)) {
+    throw new Error("test runtime이 관측 가능한 RecordingJsonLogger를 주지 않았다: create-app.ts의 test 분기를 확인하라");
+  }
+}
+
 async function start(
   options: Parameters<typeof createApp>[0] = {},
-): Promise<{ runtime: OperationalHttpApplication; server: Server }> {
+): Promise<{ runtime: TestRuntime; server: Server }> {
   const runtime = await createApp({
     environment: environment(),
     logWriter: () => undefined,
     databaseReadiness: { isReady: () => true },
     ...options,
   });
+  assertRecordingRuntime(runtime);
   const server = await runtime.listen(0, "127.0.0.1");
   return { runtime, server };
 }
@@ -200,7 +222,7 @@ describe("운영 HTTP shell", () => {
   });
 
   test("raw pre-parser 삽입점 전에 context와 inflight lease 하나를 mount한다", async () => {
-    let runtime: OperationalHttpApplication | undefined;
+    let runtime: TestRuntime | undefined;
     const observations: Array<Record<string, unknown>> = [];
     const started = await start({
       environment: environment({ TRUST_PROXY_HOPS: "1" }),
