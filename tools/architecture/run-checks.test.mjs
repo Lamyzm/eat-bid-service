@@ -73,6 +73,14 @@ test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바�
     "semantic-values",
     "test-names",
   ]);
+  // 서버 모듈 경계 검사는 모듈 안 변경에만 붙는다. platform·bootstrap 변경은 그 검사를 고르지 않는다.
+  assert.deepEqual(ids(selectChecks({ changedPaths: ["apps/server/src/modules/procurement/application/find-auction.ts"] })), [
+    "http-operations",
+    "korean-comments",
+    "region-vocabulary",
+    "semantic-values",
+    "server-boundaries",
+  ]);
   assert.deepEqual(ids(selectChecks({ changedPaths: ["README.md", "docs/adr/0042.md"] })), []);
 
   const tooling = selectChecks({ changedPaths: ["tools/quality/check-korean-comments.mjs"] });
