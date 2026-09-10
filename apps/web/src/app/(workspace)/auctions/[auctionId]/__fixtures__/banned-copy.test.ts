@@ -39,6 +39,12 @@ describe('금지 문구 검사', () => {
     expect(rulesOf('<p>이 값이면 밀림</p>')).toEqual(['밀림 예측']);
   });
 
+  test('제목·칩에 홀로 선 추천·권장은 잡고 추천하지 않는다는 부정문은 통과한다', () => {
+    expect(rulesOf('<h2>추천</h2>')).toEqual(['추천 어휘']);
+    expect(rulesOf('<span class="chip">권장</span>')).toEqual(['추천 어휘']);
+    expect(rulesOf('<p>추천하지 않습니다</p>')).toEqual([]);
+  });
+
   test('강조 태그로 쪼개진 문장과 속성에 든 문구도 본다', () => {
     expect(rulesOf('<p><b>NeaT</b>에 넣으세요</p>')).toEqual(['NeaT 입력 지시']);
     expect(rulesOf('<input placeholder="추천값" value="">')).toEqual(['추천 어휘']);
