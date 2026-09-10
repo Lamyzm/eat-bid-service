@@ -3,11 +3,12 @@ import { expect, test } from '@playwright/test';
 const auctionId = process.env.EATBID_E2E_AUCTION_ID ?? '5796468';
 const flowUrl = `/auctions/${auctionId}?view=${encodeURIComponent('흐름')}`;
 
+// 640px은 집중 모드가 사는 가장 좁은 폭이다. 그 아래 휴대폰 폭은 아래 전용 검사가 본다(EAT-142).
 for (const viewport of [
   { width: 1920, height: 1080 },
   { width: 1280, height: 800 },
   { width: 1024, height: 768 },
-  { width: 375, height: 812 }
+  { width: 640, height: 812 }
 ]) {
   test(`${viewport.width}×${viewport.height} 크게보기는 같은 차트에 높이를 돌려주고 원래 보기로 복귀한다`, async ({ page }) => {
     test.setTimeout(90_000);
@@ -22,7 +23,8 @@ for (const viewport of [
     await page.getByRole('link', { name: '크게 보기', exact: true }).first().click();
     await expect(page.getByRole('link', { name: '작게 보기', exact: true })).toBeVisible();
     await expect(history).toBeHidden();
-    // 휴대폰은 제목·필터·조작부의 줄바꿈을 유지한다. 데스크톱의 확대 폭을 강제해 날짜축을 자르지 않는다.
+    // 좁은 폭은 제목·필터·조작부의 줄바꿈을 유지하므로 남는 높이가 작다. 데스크톱의 확대 폭을 강제해
+    // 날짜축을 자르지 않는다. 그래도 확대는 어느 폭에서나 일반 보기보다 큰 차트여야 한다.
     await expect.poll(async () => (await chart.boundingBox())!.height).toBeGreaterThan(normal.height + (viewport.width >= 768 ? 40 : 1));
     expect(await canvas.evaluate((node) => node.isConnected)).toBe(true);
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -39,6 +41,34 @@ for (const viewport of [
     await expect.poll(async () => Math.abs((await chart.boundingBox())!.height - normal.height)).toBeLessThan(2);
   });
 }
+
+/**
+ * 휴대폰 폭에서는 제목·조건·탭과 범례·내 투찰·축 조작이 저마다 줄바꿈해 캔버스를 둘러싼 크롬이 창의
+ * 3분의 2를 차지한다. 집중 모드는 남는 높이를 캔버스에 주는 구조라 그 폭의 확대는 일반 보기의 고정
+ * 38dvh보다 작은 차트를 준다 — 확대가 축소가 된다. 그래서 그 폭에서는 확대 자리를 만들지 않는다(EAT-142).
+ */
+test('375×812 휴대폰 폭은 흐름 확대를 제공하지 않고 확대 주소도 일반 문서 흐름으로 읽는다', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(flowUrl);
+  const chart = page.locator('[data-slot="flow-canvas"]');
+  await expect(chart.locator('canvas').first()).toBeVisible();
+  const normal = (await chart.boundingBox())!.height;
+
+  // 근거 카드의 흐름 확대 진입만 사라지고, 12행 상한을 푸는 과거 회차 확대는 이 폭에서도 남는다.
+  await expect(page.locator('[data-expand-target="흐름"]')).toBeHidden();
+  await expect(page.getByRole('link', { name: '크게 보기', exact: true })).toHaveCount(1);
+  await expect(page.locator('[data-expand-target="과거 회차"]')).toBeVisible();
+
+  // 공유받은 확대 주소로 바로 들어와도 차트는 일반 보기 높이를 지키고 과거 회차 표가 문서에 남는다.
+  await page.goto(`${flowUrl}&expand=${encodeURIComponent('흐름')}`);
+  await expect(chart.locator('canvas').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: '과거 회차', exact: true })).toBeVisible();
+  await expect.poll(async () => Math.abs((await chart.boundingBox())!.height - normal)).toBeLessThan(2);
+  // 되돌아갈 링크는 남긴다. 감춘 진입이 사용자를 확대 주소에 가두면 안 된다.
+  await page.getByRole('link', { name: '작게 보기', exact: true }).click();
+  await expect(page).not.toHaveURL(/expand=/);
+});
 
 test('확대 중 메뉴 Escape는 메뉴만 닫고 다음 Escape는 같은 필터를 유지하며 복귀한다', async ({ page }) => {
   test.setTimeout(90_000);
