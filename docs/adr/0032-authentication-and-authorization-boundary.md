@@ -1,7 +1,10 @@
 # 0032 — 인증·인가 경계와 등록된 사업자
 
 - Status: Accepted
-- Date: 2026-09-04 (2026-09-09 개정·확정, 2026-09-10 로그인 게이트 개정, 2026-09-10 개발 전용 provider 보완 §13)
+- Date: 2026-09-04 (2026-09-09 개정·확정, 2026-09-10 로그인 게이트 개정, 2026-09-10 개발 전용 provider 보완 §13,
+  2026-09-11 게이트 대상 `use cache` 정합 보완 §14)
+- Supersedes: 없음. 저장소에 없던 인증·인가 경계를 처음 도입하는 결정이며, 아래 관계 항목이 각 ADR과
+  맞물리는 지점을 정한다.
 - 관계: `0018`(application identity와 bigint wire)의 `identity_subject → principal_id` 해소를 런타임
   경계로 구체화한다. `0023`(web 모듈 경계)의 "shell은 session endpoint를 직접 읽지 않고 상위 layout이
   검증해 전달한다"를 실제 layout 규칙으로 확정한다. `0028`(Cache Components)의 Suspense·`use cache`
@@ -40,6 +43,17 @@
 정해졌으므로 유보의 전제가 없다. 새 §12가 그 줄과 화면 route 표를 대체하고, 2026-09-04 초안의
 "`proxy.ts`는 계속 no-op으로 두거나 삭제한다"를 함께 철회한다. 철회하는 것은 no-op 결정 하나이며
 "middleware를 유일한 인가 지점으로 삼지 않는다"는 판단은 그대로다.
+
+## 2026-09-11 보완 요지
+
+§12가 여섯 read의 요구 수준을 올린 지 하루 만에 `/today`와 결정 화면이 로그인 여부와 무관하게 열린
+공고를 못 불러오는 장애가 났다(EAT-165). 원인은 이 ADR의 결정이 아니라 그 결정을 구현이 따라가지 못한
+틈이었다 — `listOpenAuctions`·`findAuction`·`listOrganizationAuctionAttempts`·`findWinRateDistribution`의
+web server entry가 `0028`이 정한 `use cache` 경계 안에서 쿠키를 읽지 않는 transport로 Nest를 불렀다.
+`0028` §4와 이 ADR의 Consequences는 이미 "세션 의존 함수는 `use cache`를 쓰지 못한다"고 적었지만 §12는
+그 문장을 이 넷에 실제로 적용하는 일을 별도로 남기지 않았다. 새 §14가 그 정합을 확정한다: 게이트
+대상 제품 읽기는 `use cache`를 버리고 쿠키를 전달하는 `privateServerRequest`를 쓴다. 캐시 태그 장치는
+걷어내지 않고 쓰이지 않게 된 이유를 각 자리에 남긴다.
 
 ## Context
 
@@ -516,6 +530,9 @@ message는 어떤 필드로도 들어가지 않는다(§6). Express에서 닫히
 증상은 인증 결함이 아니라 성능 문제로 보여 원인을 찾기 어렵다. 반대로 캐시만 켜고 게이트를 세우지
 않으면 공고 데이터가 계속 공개된 채로 남는다.
 
+> 2026-09-11 보완: 이 여섯 중 `use cache` web wrapper가 있던 넷(`listOpenAuctions`·`findAuction`·
+> `listOrganizationAuctionAttempts`·`findWinRateDistribution`)의 캐시·쿠키 정합은 §14가 따로 정한다.
+
 ### 13. 개발 전용 이메일·비밀번호 provider (2026-09-10 보완, EAT-155)
 
 §12가 화면을 로그인 뒤로 옮기자 인증 환경변수 없이 띄운 로컬 개발이 오늘 화면 대신 로그인 화면을 보게 됐다.
@@ -559,6 +576,50 @@ Google OAuth client를 만들라는 요구와 같다. 이 절은 §1의 "가입 
 개발값으로 두었다면 `development`로 띄운 공유 환경의 세션이 위조 가능해졌을 것이고, 게이트에 우회를 두었다면
 그 분기를 켜는 설정 실수 하나가 공고 데이터 전체를 공개했을 것이다.
 
+### 14. use cache로 감싼 게이트 대상 읽기는 쿠키를 전달한다 (2026-09-11 보완, EAT-165)
+
+§12가 `listOpenAuctions`·`findAuction`·`getAuctionRoster`·`listOrganizationAuctionAttempts`·
+`findWinRateDistribution`·`listCodes`의 요구 수준을 `provider_session`으로 올릴 때, 그 중 넷
+(`listOpenAuctions`·`findAuction`·`listOrganizationAuctionAttempts`·`findWinRateDistribution`)의 web
+server entry(`apps/web/src/api/auctions/server.ts`, `api/organizations/server.ts`,
+`api/win-rate-distribution/server.ts`)가 이미 `use cache` 경계 안에서 쿠키를 읽지 않는
+`server-request.server.ts`로 Nest를 불렀다는 사실을 §12는 놓쳤다. `0028` §4는 `use cache` 경계
+안에서는 요청 쿠키를 읽을 수 없다고 이미 밝혔고 이 ADR의 Consequences도 "세션 의존 함수는
+`use cache`를 쓰지 못한다"고 이미 적었지만, §12는 그 문장을 이 넷에 실제로 적용하는 작업을 명시하지
+않고 암묵 전제로 남겼다. 결과: 게이트가 붙은 뒤 이 넷의 RSC 읽기는 로그인 여부와 무관하게 익명
+요청으로 Nest에 닿아 항상 401을 받았다(2026-09-10 EAT-138 배포 직후 발생, EAT-165 장애 대응에서
+발견·수정).
+
+**결정.** 이 넷과 앞으로 같은 결을 가질 게이트 대상 제품 읽기는 `use cache`를 쓰지 않고
+`privateServerRequest`(`api/_transport/private-server-request.server.ts`, `getCurrentSession`이 §1에서
+이미 쓰던 것과 같은 어댑터)로 요청 쿠키를 Nest에 그대로 전달한다. `cacheTag`·`cacheLife` 호출과 그
+결과로 걸리던 캐시 태그도 함께 뗀다 — 캐시 경계가 없으면 태그를 걸 자리가 없다.
+
+**대신 캐시 태그 장치를 걷어내지 않는다.** `cache-tags.ts`의 태그 파생 함수, `revalidate.ts`의
+`revalidateTag` 호출, `app/internal/cache/revalidate` route, dataplane build 전환 push는 모두 그대로
+둔다. 지금은 어느 caller도 그 태그로 `use cache` 항목을 만들지 않으므로 호출은 계속되지만 지울 대상이
+없는 무효화가 된다. 걷어내지 않는 이유는 두 가지다. 캐시 재도입이 필요해지는 날 — 예를 들어 replica가
+늘어 요청량이 아래 실측을 다시 넘는 날 — 다시 만드는 비용이 걷어내는 비용보다 크고, route가 이미
+dataplane의 공개 계약이라 같은 변경에서 지우면 별도 배포 순서 문제가 생긴다. 각 revalidate 함수
+자리에 이 사실과 이유를 주석으로 남긴다.
+
+**두 번째 인증 축(서비스 토큰)을 만들지 않는다.** 대안으로 web→Nest 내부 호출에 서비스 토큰이나 공유
+비밀을 발급해 게이트를 우회하고 `use cache`를 유지하는 방법을 검토했다. 기각 이유는 실측이다.
+2026-09-11 운영 복원본에서 잰 Nest 처리 시간은 공고 목록 39~131ms, 기관 이력 10~29ms, 분포 8~24ms이고,
+`use cache`가 벌어 줬을 이득은 이 넷 모두에서 그 정도(`READ_CACHE_LIFE`의 유계 수명 안에서만 유효했던
+이득이며 상시 절감이 아니다) 수준이다. 그 차이를 위해 "화면 접근은 proxy가 막고 제품 데이터 읽기는
+사용자 세션을 전달한다"는 하나의 규칙을 "세션 또는 서비스 토큰" 둘로 쪼개면, 토큰이 유출되거나 잘못
+배포되는 새 실패 모드가 하나 생기고 §12가 이미 명시한 "권위는 Nest guard 하나"라는 단순성이 깨진다.
+이 판단은 `AGENTS.md`의 "측정된 병목 없이 인프라를 늘리지 않는다"는 원칙과도 같다. (회차 명단 조회는
+1,851~2,178ms로 눈에 띄게 크지만 원인은 인덱스 부재이고 `use cache` 유무와 무관하므로 이 결정의
+근거에서 제외하고 별도 이슈로 넘긴다.)
+
+**영향받지 않는 나머지 둘.** `getAuctionRoster`는 지금 browser 쪽 `browserRequest` TanStack Query
+하나로만 소비되고 RSC `use cache` 경계에 들어간 적이 없다 — 브라우저가 보내는 요청은 same-origin
+쿠키를 이미 들고 있어 이 문제가 생기지 않는다. `listCodes`는 지금 web 어디에서도 부르지 않는다. 둘 중
+하나에 RSC read를 새로 추가하는 사람은 이 절의 규칙(`use cache` 금지, `privateServerRequest` 사용)을
+그대로 따른다.
+
 ## Consequences
 
 - 게스트 모드가 사라진다. `apps/web/src/lib/session.ts`의 localStorage 진실 원천과
@@ -584,6 +645,11 @@ Google OAuth client를 만들라는 요구와 같다. 이 절은 §1의 "가입 
 - (2026-09-10 보완) 인증 값이 없는 로컬은 여전히 503이지만, `EATBID_DEV_LOGIN=true`와 secret·base URL을 준
   로컬은 Google 없이 시드 계정으로 실제 로그인한다(§13). 그 대가로 provider의 이메일·비밀번호 endpoint가
   비운영 배포에서 열리며, 운영은 환경 검증이 그 플래그를 기동 실패로 바꾼다.
+- (2026-09-11 보완) `listOpenAuctions`·`findAuction`·`listOrganizationAuctionAttempts`·
+  `findWinRateDistribution`의 web server entry가 `use cache`를 잃으므로 이 네 read는 매 요청마다 Nest를
+  다시 부른다(§14). 대가는 요청당 39~131ms 안팎이고, 이득은 두 번째 인증 축을 만들지 않는 것과 게이트가
+  실제로 요구하는 수준을 코드가 그대로 따르는 것이다. 캐시 태그·`revalidateTag`·dataplane push는 남아
+  있지만 이 네 read에 대해서는 지울 대상이 없다.
 
 ## Rejected alternatives
 

@@ -14,7 +14,8 @@ import { createApp } from '../../server/src/bootstrap/create-app';
 import { parseEnvironment } from '../../server/src/platform/config/environment';
 import {
   WEB_CURRENT_AUCTION_ID,
-  withOwnBidWebDatabase
+  withOwnBidWebDatabase,
+  type OwnerClient
 } from '../../server/fixtures/own-bid-web.fixture';
 import {
   TARGET_ORGANIZATION_ID,
@@ -34,11 +35,48 @@ const WEB_ORIGIN = 'http://127.0.0.1:3147';
 const API_ORIGIN = 'http://127.0.0.1:4447';
 const API_PORT = 4447;
 const webDirectory = new URL('..', import.meta.url);
+/** `own-bid.fixture.ts`의 martSeed가 이미 만든 release다. 새 mart는 martName만 다르므로 그대로 재사용한다. */
+const EXISTING_SOURCE_RELEASE_ID = '00000000-0000-0000-0000-000000000401';
+/** `own-bid.fixture.ts`가 쓰는 601·602와 겹치지 않는, 이 스크립트 전용 build id다. */
+const OPEN_AUCTION_SNAPSHOT_BUILD_ID = 701n;
 
 function cookieValue(headers: Headers): string {
   const cookie = headers.get('cookie');
   if (!cookie) throw new Error('서명된 세션 쿠키가 필요합니다.');
   return cookie;
+}
+
+/**
+ * `own-bid.fixture.ts`의 base seed는 회차 이력 화면만 채우고 `mart.open_auction_snapshot`에는 행을
+ * 남기지 않는다(그 표는 `own-bid-web.fixture.ts`가 "mart에는 없다"고 명시한 WEB_CURRENT_AUCTION_ID의
+ * 몫이 아니다). `/today`가 실제로 공고 행을 그리는지 진짜 Nest로 확인하려면 이 mart의 최소 build가
+ * 있어야 하므로, `apps/server`를 건드리지 않고 이 owned e2e harness가 직접 만든다(EAT-165 acceptance:
+ * "로그인한 사용자가 /today에서 공고 행을 본다").
+ *
+ * `mart.build`에는 `building`으로만 시작해 `verified`→`active` 순서로만 전환하라는 trigger가 있고
+ * (`mart_build_transition`), mart 행 쓰기는 그 build가 `building`인 동안에만 허용된다
+ * (`enforce_mart_row_build_is_building`). `own-bid.fixture.ts`의 `martActivationSeed`와 같은 순서를
+ * 그대로 따른다. WEB_CURRENT_AUCTION_ID(8110)의 `core.auction_attempt`·`core.auction_revision`(9110)·
+ * `ingest.raw_observation`(6120)은 `own-bid-web.fixture.ts`가 이미 만들어 뒀으므로 그대로 참조한다.
+ */
+async function seedOpenAuctionSnapshot(owner: OwnerClient): Promise<void> {
+  const buildId = OPEN_AUCTION_SNAPSHOT_BUILD_ID;
+  await owner.unsafe(`
+    insert into mart.build
+      (build_id, mart_name, source_release_id, calc_version, builder_version, status, as_of, started_at)
+    overriding system value
+    values (${buildId}, 'open_auction_snapshot', '${EXISTING_SOURCE_RELEASE_ID}', 'mart-r1',
+      '${'a'.repeat(40)}', 'building', now(), now());
+    insert into mart.open_auction_snapshot
+      (build_id, auction_attempt_id, observed_at, observation_id, organization_id, bid_count,
+       closes_at, opens_at, announced_at, base_amount, currency, item_label, terms_revision_id, organization_label)
+    values (${buildId}, ${WEB_CURRENT_AUCTION_ID}, now(), 6120, ${TARGET_ORGANIZATION_ID}, 5,
+      now() + interval '1 day', now() + interval '1 day 3 hours', now() - interval '1 day',
+      2761700.00, 'KRW', '축산물', 9110, '창원 남산초등학교');
+    update mart.build set status = 'verified', computed_at = now(), row_count = 1 where build_id = ${buildId};
+    update mart.build set status = 'active', activated_at = now() where build_id = ${buildId};
+  `);
+  step(`오늘 화면용 open_auction_snapshot build ${buildId}를 활성화했다`);
 }
 
 function step(message: string): void {
@@ -48,16 +86,20 @@ function step(message: string): void {
 /**
  * Playwright 전에 seed가 화면의 전제를 실제로 만족하는지 본다. 공고 하나와 첫 페이지 60행·다음 페이지가 없으면
  * 브라우저 검사가 실패해도 seed 문제인지 화면 문제인지 가릴 수 없다.
+ *
+ * 두 조회 모두 `ProviderSessionGuard`가 걸려 있다(ADR 0032 §12). 쿠키 없이 부르면 seed 문제와 구분되지 않는
+ * 401을 그대로 받으므로, 화면과 같은 조건을 재현하려고 로그인한 계정의 서명 세션 쿠키를 실어 보낸다(EAT-165).
  */
-async function smoke(): Promise<void> {
+async function smoke(cookie: string): Promise<void> {
+  const headers = { cookie };
   const auctionPath = auctionV1Operations.find.buildPath({ path: { auctionId: String(WEB_CURRENT_AUCTION_ID) } });
-  const auction = await fetch(`${API_ORIGIN}${auctionPath}`);
+  const auction = await fetch(`${API_ORIGIN}${auctionPath}`, { headers });
   if (auction.status !== 200) throw new Error(`현재 공고 조회가 ${auction.status}입니다. seed를 확인하세요.`);
   const historyPath = organizationV1Operations.listAuctionAttempts.buildPath({
     path: { organizationId: String(TARGET_ORGANIZATION_ID) },
     query: { limit: 60, opened: 'only', includeRevision: 'true', floorRate: 'unknown', awardMethod: 'unknown' }
   });
-  const history = await fetch(`${API_ORIGIN}${historyPath}`);
+  const history = await fetch(`${API_ORIGIN}${historyPath}`, { headers });
   const body = (await history.json()) as { attempts: { revisionId?: string }[]; nextCursor: string | null; meta: { buildId: string | null } };
   if (history.status !== 200 || body.attempts.length !== 60 || body.nextCursor === null || body.meta.buildId === null) {
     throw new Error(`회차 이력 smoke 실패: status ${history.status}, rows ${body.attempts?.length}, nextCursor ${body.nextCursor}`);
@@ -125,10 +167,11 @@ try {
     });
     await runtime.listen(API_PORT, '127.0.0.1');
     step(`Nest 조립을 ${API_ORIGIN}에 연결`);
-    await smoke();
+    await smoke(cookieValue(first.headers));
     await registerFirstAccount(cookieValue(first.headers));
     // 등록 시점에는 하나였던 번호가 나중에 두 party로 갈린 상태를 만든다. 셋째 사업자의 "판정 불가" 문구 재료다.
     await observeConflictingSupplier(owner);
+    await seedOpenAuctionSnapshot(owner);
 
     // build 전환 제어. DB owner만 실행할 수 있고 harness 밖으로 나가지 않는다.
     const control = Bun.serve({
