@@ -1,3 +1,11 @@
+---
+id: ADR-INDEX
+status: active
+canonical_for: architecture-decision-record-index
+last_reviewed: 2026-09-11
+review_trigger: adr-status-vocabulary-or-supersession-rule-change
+---
+
 # Architecture Decision Records
 
 ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바꾸려면 기존 파일을 소급 수정하지
@@ -51,6 +59,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0043](0043-session-lock-and-commit-boundary-guard.md) | Accepted | agent workflow 가드를 명령 가로채기 lease에서 worktree 세션 잠금(holder)과 pre-commit·pre-push의 branch↔claim 검사로 바꾸고, 명령 분류기·lease 만료·writer 결박을 삭제 (2026-08-30 workflow 설계 §4.1·§6과 0026 결정 3의 허용 목록 운영 대체) |
 | [0044](0044-route-segment-slice-structure.md) | Accepted | route segment 내부를 `_features/<name>/{ui,model,lib}`와 `_widgets/`로 나누고 `lib`의 React·`model`의 JSX·`ui`의 비렌더 모듈을 검사하며, 두 화면 이상이 쓰는 도메인 표시 조각을 위한 `entities/` 층을 둔다 ([0023](0023-nextjs-web-modular-boundaries.md)의 segment private 조항과 층 목록을 보완) |
 | [0045](0045-server-module-presentation-seam.md) | Accepted | 서버 모듈 안에서 wire 직렬화는 `presentation/http/*.presenter.ts`, 모듈 공통 wire 도우미는 `platform/http/wire.ts`, 캐시·재시도 장식자는 `infrastructure/<concern>/`, 모듈 공통 실패는 모듈 이름, 경계 숫자는 domain 상수가 소유한다 |
+| [0046](0046-telemetry-wire-correlation-and-alert-origin.md) | Accepted | 계측은 OpenTelemetry 규격, 상관 식별자는 W3C trace context, 파이프라인 진실은 PostgreSQL이고 지표는 파생물이라 업무 알림은 DB에서 내며, 멈춤은 기대 문장으로 잡고 생존 확인만 클러스터 밖에 둔다 (저장·대시보드·프론트 오류 도구는 교체 가능한 자리) |
 
 ## 새 ADR 형식
 
