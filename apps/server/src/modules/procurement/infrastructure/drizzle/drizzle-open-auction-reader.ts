@@ -1,5 +1,4 @@
 /** @module 책임: 열린 공고 목록 port를 활성 mart build 두 개의 조회와 스냅샷 행·기관 요약 매핑으로 구현한다. */
-import type { CodeReferenceRecord } from "../../application/auction-reader";
 import type {
   OpenAuctionListing,
   OpenAuctionOrgSummaryRecord,
@@ -16,7 +15,14 @@ import {
   pageQuery,
   sampleCountQuery,
 } from "./open-auction-queries";
-import { baseRelativeBidRateValue, bidRateValue, bigintValue, moneyValue } from "./postgres-row-values";
+import {
+  baseRelativeBidRateValue,
+  bidRateValue,
+  bigintValue,
+  codeReferenceRecord,
+  moneyValue,
+  observedLabel,
+} from "./postgres-row-values";
 
 // driver 시간 표현은 AGENTS 17이 지정한 어댑터가 소유하므로 그 경계의 입력 타입을 그대로 파생한다.
 type PostgresTimestamp = Parameters<typeof postgresInstant>[0];
@@ -54,22 +60,6 @@ export type OpenAuctionRow = Readonly<
   & RegionColumns<"region_sigungu">
 >;
 
-// 공백뿐인 라벨은 관측된 것이 아니라 비어 있는 것이다. 기관 이름·품목·코드 라벨에 같은 규약을 쓴다.
-function observedLabel(value: string | null): string | null {
-  return value === null || value.trim() === "" ? null : value.trim();
-}
-
-function codeReference(
-  codeValueId: string | bigint | null,
-  code: string | null,
-  scheme: string | null,
-  label: string | null,
-): CodeReferenceRecord | null {
-  // 체계 없는 코드는 정체성이 아니다(AGENTS 6). 셋 중 하나라도 없으면 참조를 만들지 않는다.
-  if (codeValueId === null || code === null || scheme === null) return null;
-  return { codeValueId: bigintValue(codeValueId), code, scheme, label: observedLabel(label) };
-}
-
 function orgSummary(row: OpenAuctionRow, hasOrgBuild: boolean): OpenAuctionOrgSummaryRecord | null {
   // 활성 회차 요약 build가 없거나 그 build에 이 기관 회차가 없으면 요약 자체가 없다. 0으로 채우지 않는다 —
   // "회차 0건"과 "요약이 아직 없음"은 다른 사실이다.
@@ -95,8 +85,8 @@ export function mapOpenAuctionRow(row: OpenAuctionRow, hasOrgBuild: boolean): Op
   const observedAt = postgresInstant(row.observed_at);
   if (observedAt === null) throw new TypeError("Database observed timestamp is required");
   const region = {
-    sido: codeReference(row.region_sido_code_value_id, row.region_sido_code, row.region_sido_scheme, row.region_sido_label),
-    sigungu: codeReference(
+    sido: codeReferenceRecord(row.region_sido_code_value_id, row.region_sido_code, row.region_sido_scheme, row.region_sido_label),
+    sigungu: codeReferenceRecord(
       row.region_sigungu_code_value_id,
       row.region_sigungu_code,
       row.region_sigungu_scheme,

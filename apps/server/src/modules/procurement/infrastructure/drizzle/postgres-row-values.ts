@@ -1,4 +1,7 @@
-/** @module 책임: PostgreSQL 행의 식별자·금액·비율 문자열을 도메인 값으로 닫는 변환을 소유한다. */
+/**
+ * @module 책임: PostgreSQL 행의 식별자·금액·비율·라벨 문자열을 도메인 값으로 닫는 변환과 코드 참조 record
+ * 조립을 소유해, 같은 행 규약을 어댑터마다 다시 적지 않게 한다.
+ */
 import {
   baseRelativeBidRate,
   bidRate,
@@ -10,12 +13,32 @@ import {
   type Money,
   type ObservedBidRate,
 } from "@eatbid/domain";
+import type { CodeReferenceRecord } from "../../application/auction-reader";
 
 export function bigintValue(value: string | bigint): bigint {
   // 드라이버 설정에 따라 문자열로 오는 bigint도 Number를 거치지 않고 동일한 도메인 값으로 복원한다.
   const parsed = typeof value === "bigint" ? value : BigInt(value);
   if (parsed <= 0n) throw new TypeError("Database ID must be a positive bigint");
   return parsed;
+}
+
+/**
+ * 공백뿐인 라벨은 관측된 것이 아니라 비어 있는 것이다. 기관 이름·품목·업체명·코드 라벨이 같은 규약을
+ * 쓴다. 빈 문자열을 내보내면 화면이 이름 없는 것을 이름 있는 것처럼 그린다.
+ */
+export function observedLabel(value: string | null): string | null {
+  return value === null || value.trim() === "" ? null : value.trim();
+}
+
+/** 코드 문자열만 있고 체계를 모르는 참조는 만들지 않는다. 체계 없는 코드는 정체성이 아니다(AGENTS 6). */
+export function codeReferenceRecord(
+  codeValueId: string | bigint | null,
+  code: string | null,
+  scheme: string | null,
+  label: string | null,
+): CodeReferenceRecord | null {
+  if (codeValueId === null || code === null || scheme === null) return null;
+  return { codeValueId: bigintValue(codeValueId), code, scheme, label: observedLabel(label) };
 }
 
 export function moneyValue(amount: string | null, currency: string, required: true): Money;
