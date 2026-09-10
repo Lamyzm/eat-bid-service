@@ -8,7 +8,7 @@ import {
 import { NestFactory } from "@nestjs/core";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import { SwaggerModule } from "@nestjs/swagger";
-import { healthOperations, meV1OperationRegistry, sessionV1OperationRegistry } from "@eatbid/contracts";
+import { healthOperations, publicHttpOperationRegistry } from "@eatbid/contracts";
 import { systemClock, type Clock } from "@eatbid/domain";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
@@ -135,10 +135,14 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
     });
 
     // 개인 응답 경로는 guard보다 먼저 캐시 금지를 붙인다. guard가 끊는 401·403에도 헤더가 남아야 한다.
-    mountPrivateResponseHeaders(expressApplication, [
-      ...sessionV1OperationRegistry,
-      ...meV1OperationRegistry,
-    ]);
+    // 목록은 registry별로 적지 않고 versioned canonical operation 전부에서 파생한다. 공개 화면이 없으므로
+    // (ADR 0032 §12) `/api/v1/**`에는 사용자 구분 없이 공유 캐시에 둬도 되는 응답이 없고, registry를 골라
+    // 적던 목록은 공유 read가 게이트 뒤로 옮겨질 때 따라가지 않았다. version-neutral인 health probe와
+    // provider가 자기 헤더를 붙이는 raw auth 전송만 밖에 남는다.
+    mountPrivateResponseHeaders(
+      expressApplication,
+      publicHttpOperationRegistry.filter((operation) => operation.versioning.kind === "uri"),
+    );
 
     // 원문 바이트 서명 검증은 보안 헤더/CORS 뒤이면서 파서 앞이어야 하므로 이 슬롯을 고정한다.
     (options.mountPreParserRawTransport ?? createAuthTransportMount(auth))(expressApplication);

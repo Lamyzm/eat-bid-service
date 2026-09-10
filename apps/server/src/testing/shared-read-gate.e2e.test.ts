@@ -79,6 +79,9 @@ describe("공유 read 로그인 게이트", () => {
         // 재로그인 안내를 만들려면 소비자가 이 응답을 상관관계 ID와 함께 남길 수 있어야 한다.
         expect(typeof response.body.requestId).toBe("string");
         expect(response.body.requestId.length).toBeGreaterThan(0);
+        // 게이트 뒤로 옮겨진 read는 개인 응답이다. guard가 끊은 401도 공유 캐시에 남으면 안 된다.
+        expect([label, response.headers["cache-control"]]).toEqual([label, "private, no-store"]);
+        expect([label, (response.headers["vary"] ?? "").toLowerCase()]).toEqual([label, expect.stringContaining("cookie")]);
       }
     });
   });
@@ -89,6 +92,7 @@ describe("공유 read 로그인 게이트", () => {
       for (const [label, path] of sharedReadPaths) {
         const response = await request(server).get(path);
         expect([label, response.status]).toEqual([label, 503]);
+        expect([label, response.headers["cache-control"]]).toEqual([label, "private, no-store"]);
       }
     });
   });

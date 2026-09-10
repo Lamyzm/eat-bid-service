@@ -10,6 +10,7 @@ import type { ProblemCode, ProblemDetails } from "@eatbid/contracts";
 import type { Request, Response } from "express";
 import { RedactingJsonLogger } from "../logging/logging.module";
 import { requestIdOf } from "../request-context/request-context.middleware";
+import { completionLogClaimed, routeTemplate } from "./request-completion-log";
 
 type ProblemDefinition = Readonly<{ code: ProblemCode; slug: string; title: string }>;
 
@@ -106,12 +107,20 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         error: exception,
       });
     }
+    // guard가 끊은 요청은 완료 interceptor에 닿지 않아 여기가 유일한 기록 지점이다. interceptor가 이미
+    // 맡은 응답(pipe·handler가 던진 예외)은 finish 시점에 완료 로그가 남으므로 여기서 다시 남기지 않는다.
+    if (!completionLogClaimed(response)) {
+      this.logger.rejection({
+        requestId: problem.requestId,
+        method: request.method,
+        route: routeTemplate(request),
+        status: problem.status,
+        errorCode: problem.code,
+        // 503의 원인 분류는 defect 로그가 다루지 않는다(500만 다룬다). 4xx 예외에는 원인이 없어 stack 분류만
+        // 남으므로 싣지 않는다.
+        ...(problem.status === 503 ? { error: exception } : {}),
+      });
+    }
     response.status(problem.status).type("application/problem+json").send(problem);
   }
-}
-
-export function routeTemplate(request: Request): string {
-  // raw URL에는 query나 민감 식별자가 섞일 수 있으므로 로그에는 매칭된 템플릿만 남긴다.
-  const path = request.route?.path;
-  return typeof path === "string" ? `${request.baseUrl ?? ""}${path}` || "/" : "unmatched";
 }

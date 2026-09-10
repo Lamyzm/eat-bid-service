@@ -151,7 +151,7 @@ Nest request lifecycle의 실행 순서를 이용하되 각 extension point를 �
 | Controller | transport mapping, use case 한 번 호출 | Drizzle, cache, env, transaction |
 | Use case | orchestration, policy, UoW, typed expected failure | HTTP status/decorator |
 | Interceptor | timing, 완료 로그, response serialization | authentication, 핵심 업무 분기 |
-| Filter | error taxonomy → Problem Details | 오류를 성공 body로 숨김 |
+| Filter | error taxonomy → Problem Details, interceptor 앞에서 끝난 요청(guard 거부)의 요약 로그 | 오류를 성공 body로 숨김 |
 | Repository | 목적별 query/command와 DB error translation | HTTP DTO 반환, 다른 module table 임의 수정 |
 
 ## 5. Effect 사용 계약
@@ -279,7 +279,9 @@ status, duration_ms, error code다. raw URL/query/body, Authorization, Cookie, s
 사업자등록번호는 기본 수집하지 않는다. redaction test가 이 금지 목록을 fixture로 검증한다.
 Nest completion interceptor는 Nest-managed route만 담당한다. `/api/auth/*`는 동일 ALS request ID와
 inflight lease를 사용하는 전용 raw completion adapter가 route를 `/api/auth/*`로 고정해 정확히 한 번
-기록한다. 이 adapter는 provider의 status/header/body를 변형하지 않는다.
+기록한다. 이 adapter는 provider의 status/header/body를 변형하지 않는다. guard가 끊은 요청은 interceptor에
+닿지 않으므로 exception filter가 같은 allowlist 필드로 `request_rejected` 요약을 남기며, 소유권은
+interceptor가 응답마다 먼저 선언해 두 경계가 한 응답을 두 번 기록하지 않는다(ADR 0032 §12).
 
 ## 11. Bootstrap, health, shutdown
 

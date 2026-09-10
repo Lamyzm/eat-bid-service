@@ -48,6 +48,16 @@ export interface DefectFields {
   readonly error: unknown;
 }
 
+export interface RejectionFields {
+  readonly requestId: string;
+  readonly method: string;
+  readonly route: string;
+  readonly status: number;
+  readonly errorCode: string;
+  /** 503처럼 원인이 있는 거부만 싣는다. 분류형으로만 남기므로 driver message나 토큰이 기록에 들어오지 않는다. */
+  readonly error?: unknown;
+}
+
 function errorName(error: Error): SafeErrorRecord["errorName"] {
   if (error instanceof TypeError) return "TypeError";
   if (error instanceof SyntaxError) return "SyntaxError";
@@ -151,6 +161,21 @@ export class RedactingJsonLogger implements LoggerService {
       requestId: fields.requestId,
       route: fields.route,
       ...serializeSafeError(fields.error),
+    });
+  }
+
+  /**
+   * 완료 interceptor에 닿기 전에 끝난 요청(guard 거부)의 요약이다. 완료 로그와 같은 allowlist 필드만 남기고,
+   * 시작 시각을 모르는 자리라 소요 시간은 싣지 않는다. 헤더·쿠키·원문 URL은 어떤 필드로도 들어오지 않는다.
+   */
+  rejection(fields: RejectionFields): void {
+    this.emit("info", "request_rejected", {
+      requestId: fields.requestId,
+      method: fields.method,
+      route: fields.route,
+      status: fields.status,
+      errorCode: fields.errorCode,
+      ...(fields.error === undefined ? {} : serializeSafeError(fields.error)),
     });
   }
 

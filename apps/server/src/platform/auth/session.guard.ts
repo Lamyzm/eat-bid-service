@@ -49,8 +49,11 @@ async function authenticate(
   try {
     subject = await authenticator.authenticate(webHeadersOf(request));
   } catch (error) {
-    // 인증 의존성 장애를 401로 바꾸면 사용자는 자기 세션이 만료됐다고 읽고 재로그인을 반복한다.
-    if (error instanceof AuthDependencyUnavailable) throw new ServiceUnavailableException();
+    // 인증 의존성 장애를 401로 바꾸면 사용자는 자기 세션이 만료됐다고 읽고 재로그인을 반복한다. 503에 원인을
+    // 싣는 이유는 filter의 거부 로그가 그 분류를 남겨 provider 장애와 설정 누락을 구분하게 하기 위해서다.
+    if (error instanceof AuthDependencyUnavailable) {
+      throw new ServiceUnavailableException(undefined, { cause: error });
+    }
     throw error;
   }
   if (subject === null) throw new UnauthorizedException();
@@ -88,8 +91,11 @@ export class PrincipalGuard implements CanActivate {
     let principal: ResolvedPrincipal | null;
     try {
       principal = await this.reader.findBySubject(subject.subject);
-    } catch {
-      throw new ServiceUnavailableException();
+    } catch (error) {
+      // reader는 driver 오류를 typed failure로 바꾸지 않으므로(같은 port를 쓰는 use case도 catch-all로 감싼다)
+      // 여기서 DB 장애와 reader 결함을 타입으로 가르지 못한다. 대신 원인을 503에 실어 거부 로그의 오류 분류가
+      // 둘을 구분하게 한다. 원인 없는 503은 로그에서 "인증을 켜지 않은 배포"와 구분되지 않는다.
+      throw new ServiceUnavailableException(undefined, { cause: error });
     }
     if (principal === null) throw new ForbiddenException();
     request[principalKey] = principal;
