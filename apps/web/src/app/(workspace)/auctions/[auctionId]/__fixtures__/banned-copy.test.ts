@@ -39,6 +39,13 @@ describe('금지 문구 검사', () => {
     expect(rulesOf('<p>이 값이면 밀림</p>')).toEqual(['밀림 예측']);
   });
 
+  test('자리 단정은 낙찰 확정형만 잡고 낙찰될 확률 같은 승률 문구는 통과한다', () => {
+    expect(rulesOf('<p>이 값이면 낙찰됩니다</p>')).toEqual(['자리 단정']);
+    expect(rulesOf('<p>이 값이면 낙찰될 것입니다</p>')).toEqual(['자리 단정']);
+    // 예측 승률은 판단 재료로 경계 안에 있다(ADR 0027, ADR 0030).
+    expect(rulesOf('<p>이 값이면 낙찰될 확률 30%</p>')).toEqual([]);
+  });
+
   test('제목·칩에 홀로 선 추천·권장은 잡고 추천하지 않는다는 부정문은 통과한다', () => {
     expect(rulesOf('<h2>추천</h2>')).toEqual(['추천 어휘']);
     expect(rulesOf('<span class="chip">권장</span>')).toEqual(['추천 어휘']);
