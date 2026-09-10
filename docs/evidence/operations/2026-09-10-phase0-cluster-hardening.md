@@ -77,5 +77,30 @@ EAT-129 새 클러스터 부트스트랩이 `-FromInfisical`로 이 사본에서
 | `mart.build` | 214 | 214 |
 | `app.workspace` | 0 | 0 |
 
-이 리허설 객체는 hourly 보존 규칙(7일)에 따라 첫 스케줄 실행들이 지운다. 클러스터 안 첫 실행의 소요 시간과
-24시간 파드 수 관측은 main 반영 뒤 이 절에 덧붙인다.
+이 리허설 객체는 hourly 보존 규칙(7일)에 따라 첫 스케줄 실행들이 지운다. 24시간 파드 수 관측은 이 절에 덧붙인다.
+
+### 4.3 첫 스케줄 실행 실패와 자격 정정 (2026-09-10 22:05 KST)
+
+main 반영 뒤 첫 회차 `eatbid-db-backup-1789045500`이 1초 만에 실패했다.
+
+```
+pg_dump: error: query failed: ERROR:  permission denied for table account
+pg_dump: detail: Query was: LOCK TABLE app.…, core.…, public.account, … IN ACCESS SHARE MODE
+```
+
+`pg_dump`는 전체 덤프 앞에서 모든 표를 한 문장으로 `ACCESS SHARE` 잠그므로 하나라도 못 읽으면 그 자리에서
+끝난다. §4.2 리허설은 개발 PC에서 database 소유자 자격으로 돌려 이 경계를 지나쳤고, 클러스터 안에서만
+`eatbid_migrator`로 돌아 드러났다.
+
+| schema | 표 | 크기 | 소유자 |
+|---|---|---|---|
+| `core` | 24 | 2,627MB | `eatbid_migrator` |
+| `public` (레거시) | 18 | 2,887MB | database 소유자 |
+| `mart` | 5 | 2,053MB | `eatbid_migrator` |
+| `ingest` | 14 | 959MB | `eatbid_migrator` |
+| `app`·`drizzle` | 13 | 288kB | `eatbid_migrator` |
+
+레거시 `public`은 `firm_bids` 1,107만 행, `school_roster_cat` 142만 행 등 database의 34%다. schema를 좁혀
+덤프하면 이 구간이 백업에서 조용히 빠지므로, 범위를 좁히는 대신 provisioning Job과 같은
+`eatbid-postgres-bootstrap` 자격으로 읽도록 고쳤다. 계약 테스트는 `--schema` 사용을 막아 이 결정을 고정한다.
+권한이 더 좁은 전용 백업 역할은 role 생성이 Drizzle 소관이라 후속으로 둔다.
