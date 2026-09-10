@@ -27,6 +27,9 @@ param(
   [long]$DiskBytes = 100GB,
   [string]$K3sVersion = 'v1.35.5+k3s1',
   [string]$CloudImage = 'noble-server-cloudimg-amd64.img',
+  # 호스트 밖(다른 PC)에서 kubectl이 붙을 주소. 호스트의 Tailscale IP·LAN IP를 넣으면 k3s 인증서 SAN에
+  # 들어가 Expose-EatbidVm.ps1의 portproxy 경유 접속이 TLS 검증을 통과한다(EAT-129).
+  [string[]]$ExtraTlsSan = @(),
   [Parameter(Mandatory = $true)][string]$SshPublicKeyPath
 )
 
@@ -81,11 +84,14 @@ function Ensure-SeedIso {
   if ($publicKey -notmatch '^ssh-') { throw "ssh 공개키 형식이 아니다: $SshPublicKeyPath" }
   $seedDir = Join-Path $WorkDir 'seed'
   New-Item -ItemType Directory -Force $seedDir | Out-Null
+  # cloud-init YAML의 tls-san 목록 항목과 같은 들여쓰기(8칸)로 한 줄씩 붙인다. 비어 있으면 자리표시자만 지운다.
+  $extraSan = ($ExtraTlsSan | Where-Object { $_ } | ForEach-Object { "        - $_" }) -join "`n"
   $replacements = @{
     '${SSH_PUBLIC_KEY}' = $publicKey
     '${VM_IP}' = $VmIp
     '${GATEWAY_IP}' = $GatewayIp
     '${K3S_VERSION}' = $K3sVersion
+    '${EXTRA_TLS_SAN}' = $extraSan
   }
   foreach ($name in 'user-data', 'meta-data', 'network-config') {
     $content = Get-Content (Join-Path $cloudInitDir $name) -Raw

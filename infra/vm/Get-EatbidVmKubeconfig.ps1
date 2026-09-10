@@ -12,8 +12,12 @@ param(
   [string]$User = 'eatbid',
   [string]$SshKeyPath = "$env:USERPROFILE\.ssh\eatbid-vm",
   [string]$ContextName = 'eatbid-vm',
+  # kubeconfig의 server 주소. 같은 호스트에서는 VM IP, 다른 PC에서 쓰려면 호스트의 Tailscale·LAN IP
+  # (Expose-EatbidVm.ps1의 portproxy 주소)를 준다. -ExtraTlsSan에 넣은 값이어야 TLS 검증이 통과한다(EAT-129).
+  [string]$ServerAddress = '',
   [int]$TimeoutSeconds = 900
 )
+if (-not $ServerAddress) { $ServerAddress = $VmIp }
 
 $ErrorActionPreference = 'Stop'
 $sshArgs = @('-i', $SshKeyPath, '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', "$User@$VmIp")
@@ -31,7 +35,7 @@ if (-not $raw) { throw 'k3s.yaml을 읽지 못했다' }
 $kubeDir = Join-Path $env:USERPROFILE '.kube'
 New-Item -ItemType Directory -Force $kubeDir | Out-Null
 $target = Join-Path $kubeDir "$ContextName.yaml"
-$content = ($raw -join "`n").Replace('https://127.0.0.1:6443', "https://${VmIp}:6443").Replace('name: default', "name: $ContextName").Replace('cluster: default', "cluster: $ContextName").Replace('user: default', "user: $ContextName").Replace('current-context: default', "current-context: $ContextName")
+$content = ($raw -join "`n").Replace('https://127.0.0.1:6443', "https://${ServerAddress}:6443").Replace('name: default', "name: $ContextName").Replace('cluster: default', "cluster: $ContextName").Replace('user: default', "user: $ContextName").Replace('current-context: default', "current-context: $ContextName")
 [IO.File]::WriteAllText($target, $content, [Text.UTF8Encoding]::new($false))
 
 $mainConfig = Join-Path $kubeDir 'config'
