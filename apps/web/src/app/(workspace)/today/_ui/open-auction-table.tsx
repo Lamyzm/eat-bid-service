@@ -95,6 +95,11 @@ type OpenAuctionColumn = {
   readonly align: 'text-left' | 'text-right';
   /** 폭이 좁아질 때 접히는 규칙이다. 빈 문자열은 어느 폭에서나 보인다. */
   readonly visibility: string;
+  /**
+   * 머리글을 눈에서만 감추는 열이다. 행동 열은 화면에 머리글이 필요 없지만 이름이 없으면 그 열이 무엇인지
+   * 말하지 않는다. `th` 자체가 아니라 안쪽 문구만 감춰야 `scope` 연결과 열 폭이 그대로 남는다.
+   */
+  readonly headerHidden?: true;
   /** 셀 안에서 줄을 바꾸는 열이다. 나머지 숫자 열은 nowrap에 tabular-nums다. */
   readonly wraps?: true;
   readonly cell: (row: OpenAuctionRowPresentation, search: TodaySearch) => ReactNode;
@@ -119,9 +124,10 @@ const COLUMNS: readonly OpenAuctionColumn[] = [
   { id: 'lastAwarded', header: '최근 낙찰(투찰률)', align: 'text-right', visibility: 'hidden xl:table-cell', wraps: true, cell: (row) => <LastAwardedCell row={row} /> },
   {
     id: 'open',
-    header: '',
+    header: '열기',
     align: 'text-right',
     visibility: '',
+    headerHidden: true,
     cell: (row) => (
       <Link href={row.href} className='inline-flex h-8 items-center rounded-lg border border-border px-3 text-[13px] font-semibold whitespace-nowrap hover:bg-muted'>
         열기
@@ -142,7 +148,7 @@ export function OpenAuctionTable({ rows, search }: { readonly rows: readonly Ope
         <tr className='border-b border-border'>
           {COLUMNS.map((column) => (
             <th key={column.id} scope='col' className={`px-2 py-2 text-[13px] font-semibold whitespace-nowrap text-muted-foreground xl:px-3 ${column.align} ${column.visibility}`}>
-              {column.header}
+              {column.headerHidden ? <span className='sr-only'>{column.header}</span> : column.header}
             </th>
           ))}
         </tr>

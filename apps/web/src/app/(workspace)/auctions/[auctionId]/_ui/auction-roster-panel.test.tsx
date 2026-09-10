@@ -185,7 +185,7 @@ describe('회차 명단 상세', () => {
     expect(screen.container.querySelector('#decision-title')?.textContent).toBe(title);
     fireEvent.click(screen.getByRole('button', { name: '보조 패널 닫기' }));
     expect(screen.queryByRole('region', { name: '선택 회차 참여 기록' })).toBeNull();
-    expect(screen.getByLabelText('투찰률')).toBeTruthy();
+    expect(screen.getByLabelText('투찰률 눌러서 직접 입력')).toBeTruthy();
   });
   test('두 번째 페이지 회차도 기록을 열고 확대를 닫아도 그 선택과 누적 페이지를 유지한다', () => {
     // 첫 페이지만 선택 provider에 주면 두 번째 페이지 회차가 "조회 밖"으로 판정돼 고르는 즉시 풀린다(EAT-115).
@@ -303,6 +303,10 @@ describe('회차 명단 상세', () => {
     );
     expect(screen.getByText('낙찰실패')).toBeTruthy();
     expect(screen.getByText('철회')).toBeTruthy();
+    // 값만으로는 어느 항목인지 모른다. 맨 span의 aria-label은 무시되므로 이름을 sr-only 문구로 싣는다.
+    const label = screen.getByText('철회 여부');
+    expect(label.className).toContain('sr-only');
+    expect(label.nextElementSibling?.textContent).toBe('철회');
   });
   test('원천 계산용 자리표시자를 제출금액으로 보여주지 않고 관측 제출금액과 세 자리 비율을 보존한다', () => {
     const screen = render(

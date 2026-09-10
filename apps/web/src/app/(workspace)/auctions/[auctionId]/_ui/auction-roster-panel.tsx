@@ -154,7 +154,11 @@ export function AuctionRosterPanel({
                         </span>
                         <div className='mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground'>
                           <span>{submission.sourceStatus.label ?? '상태 미확인'}</span>
-                          <span aria-label='철회 여부'>
+                          {/* 맨 span은 role이 generic이라 aria-label이 무시되고, 역할을 줘 이름을 살리면 그 이름이
+                              "철회 아님"이라는 값 자체를 덮는다. 어느 항목인지는 값 앞의 sr-only 문구로 말한다.
+                              값과 같은 span에 넣지 않아야 값 문구가 그대로 남는다. */}
+                          <span className='sr-only'>철회 여부</span>
+                          <span>
                             {withdrawalText(submission.withdrawal)}
                           </span>
                         </div>

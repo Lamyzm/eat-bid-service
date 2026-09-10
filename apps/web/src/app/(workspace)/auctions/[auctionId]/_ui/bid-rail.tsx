@@ -124,14 +124,16 @@ export function BidRail({ decision, port = defaultPort, onRecord, rehearsal }: B
     <div className='flex flex-col gap-2.5 rounded-xl bg-card p-4 shadow-xs'>
       <span className='text-xl font-bold'>투찰</span>
       <div className='flex h-16 items-center rounded-lg bg-foreground/[0.04] px-4'>
+        {/* 이름은 이 label 하나가 만든다. 같은 입력에 aria-label을 겹치면 그쪽이 이겨 "눌러서 직접 입력"이
+            이름에서 빠진다. 두 줄 사이의 공백은 이름을 붙여 읽지 않게 하려는 것이고, 공백만 있는 텍스트는
+            flex 항목이 되지 않으므로 보이는 배치는 그대로다. */}
         <label htmlFor='bid-rate' className='flex flex-col'>
-          <span className='text-[15px] font-semibold text-muted-foreground'>투찰률</span>
+          <span className='text-[15px] font-semibold text-muted-foreground'>투찰률</span>{' '}
           <span className='text-[15px] font-medium text-muted-foreground'>눌러서 직접 입력</span>
         </label>
         {/* placeholder는 상태 이름이지 예시 값이 아니다. 숫자를 예로 보이면 그 숫자가 추천값으로 읽힌다. */}
         <input
           id='bid-rate'
-          aria-label='투찰률'
           inputMode='decimal'
           placeholder={NO_RATE_PHRASE.panel.text}
           value={draft}

@@ -10,7 +10,7 @@ description: Eatbid Web에 누르는 것·폼·표·모달·숨김 처리를 만
 키보드 사용자만 막히는 게 아니라 e2e의 `getByRole` 질의도, 화면 낭독기도, 다음 사람이 읽는 코드도 함께 어긋난다.
 
 아래는 새로 만든 규칙이 아니라 이 저장소가 이미 지키고 있는 형태를 성문화한 것이다. 각 항목은 저장소의
-실제 코드를 가리킨다. 어긋난 자리도 함께 적었다.
+실제 코드를 가리킨다.
 
 ## 0. 무엇이 이 문서 밖인가
 
@@ -54,23 +54,26 @@ description: Eatbid Web에 누르는 것·폼·표·모달·숨김 처리를 만
 | 켜고 끄는 토글 | `aria-pressed` | `flow-legend.tsx`의 계열 토글 |
 | 무언가를 여는 조작 | `aria-expanded` | `decision-tools.tsx`(전역 도크를 여는 버튼들) |
 | 그 자리에서 펼치는 조작 | `aria-expanded` + `aria-controls` | `rehearsal-panel.tsx`(바로 아래 상세를 가리킨다) |
-| 지금 고른 것 | `aria-current` | `today-filters.tsx`(칩), `evidence-view.tsx`(`'page'`), `order-book.tsx`(내 값 행), `condition-menu.tsx` |
+| 지금 고른 것 | `aria-current` | `today-filters.tsx`(칩), `evidence-view.tsx`(`'page'`), `order-book.tsx`(내 값 행), `history-selection.tsx`(회차 표 선택 행), `condition-menu.tsx` |
 
 **`aria-label`은 역할이 있는 요소에만 붙는다.** 맨 `div`·`span`은 role이 generic이라 이름이 무시된다.
-이름이 필요하면 `section`·`nav`·`figure`·`table`처럼 역할이 있는 요소로 감싼다. 저장소가 제대로 하는 자리는
-`today-frame.tsx`·`decision-frame.tsx`의 `<section aria-label>`, `decision-tools.tsx`의 `<nav aria-label>`,
-`flow-chart.tsx:89`의 `<figure aria-label>`이다.
+이름이 필요하면 `section`·`nav`·`figure`·`table`처럼 역할이 있는 요소로 감싸고, landmark를 하나 더 만들
+자리가 아니면 그 자리에 맞는 role을 준다. 저장소의 자리는 `today-frame.tsx`·`decision-frame.tsx`의
+`<section aria-label>`, `decision-tools.tsx`의 `<nav aria-label>`, `flow-chart.tsx`의 `<figure aria-label>`과
+캔버스의 `role='img'`, `decision-filters.tsx`의 조건 묶음 `role='group'`이다.
 
-**어긋난 자리.** `decision-filters.tsx:30`, `flow-chart.tsx:100`(차트 캔버스 `div`),
-`auction-roster-panel.tsx:157`(철회 여부 `span`)은 역할 없는 요소에 `aria-label`을 걸어 이름이 사라진다.
-그리고 회차 표의 선택 행은 `data-selected`만 갖는데(`history-selection.tsx`), 같은 "지금 이 행"을
-호가창은 `aria-current`로도 말한다(`order-book.tsx`). 같은 뜻을 두 화면이 다르게 말하고 있다.
+**이름이 값을 덮으면 안 되는 자리는 값 앞에 `sr-only` 문구를 둔다.** `철회 아님`·`미확인` 같은 값에 이름을
+붙이면 그 이름이 값 자체를 대신 읽힌다. 어느 항목인지는 값 앞의 숨은 문구가 말한다
+(`auction-roster-panel.tsx`의 철회 여부).
 
 ## 3. 폼
 
 **모든 입력에 연결된 라벨을 둔다.** id는 `useId`로 만들고 `htmlFor`로 잇는다
 (`app/(auth)/setup/_ui/business-location-form.tsx`). 한 화면에 하나뿐이라 고정 id가 안전한 자리는 리터럴을
 써도 된다(`my-rate-input.tsx`의 `my-rate`).
+
+**이름은 한 곳에서만 만든다.** 같은 입력에 `<label>`과 `aria-label`을 겹치면 `aria-label`이 이겨 라벨에만
+있는 문구가 이름에서 빠진다. 여러 줄짜리 라벨은 `<label>` 하나에 맡긴다(`bid-rail.tsx`의 투찰률 입력).
 
 **placeholder는 라벨이 아니다.** 채워 넣는 순간 사라지므로 이름을 담을 수 없다. `bid-rail.tsx`의 주석이
 같은 이유로 예시 숫자도 거부한다 — 예시 값은 추천값으로 읽힌다(AGENTS 8).
@@ -83,9 +86,6 @@ description: Eatbid Web에 누르는 것·폼·표·모달·숨김 처리를 만
 **진행 중은 비활성이 아니라 상태다.** `LoadingButton`은 `aria-busy`를 걸고 `role='status' aria-live='polite'`
 sr-only 문장으로 진행을 읽어 준다(`shared/ui/loading-button.tsx`). 새로 만드는 pending 버튼은 이것을 쓴다.
 
-**어긋난 자리.** `bid-rail.tsx`의 투찰률 입력은 `<label htmlFor='bid-rate'>`와 `aria-label='투찰률'`을 함께
-갖는데 `aria-label`이 이기므로 라벨의 "눌러서 직접 입력"이 이름에서 사라진다. 이름은 한 곳에서만 만든다.
-
 ## 4. 표
 
 **머리글에 `scope`를 준다.** 열 머리글은 `scope='col'`, 행 머리글은 `scope='row'`다
@@ -95,12 +95,13 @@ sr-only 문장으로 진행을 읽어 준다(`shared/ui/loading-button.tsx`). �
 모집단과 세는 대상을 말하고(`order-book.tsx`), 오늘 표와 과거 회차 표는 각각
 `<section aria-label='열린 공고'>`·`<section aria-label='과거 회차'>` 안에 산다.
 
-**열 이름을 `sr-only`로 숨기지 않는다.** `position: absolute`가 `thead`를 표 상자 밖으로 빼내 `scope` 연결이
-끊긴다. 시각적으로 낮추고 싶으면 표 흐름 안에 둔 채 글자 크기와 색만 낮춘다 — 이유는 `order-book.tsx`의
-주석에 이미 적혀 있다.
+**`th` 자체를 `sr-only`로 만들지 않는다.** `position: absolute`가 `thead`를 표 상자 밖으로 빼내 `scope` 연결이
+끊기고 열 폭이 사라진다. 시각적으로 낮추고 싶으면 표 흐름 안에 둔 채 글자 크기와 색만 낮춘다 — 이유는
+`order-book.tsx`의 주석에 이미 적혀 있다.
 
-**어긋난 자리.** `open-auction-table.tsx`의 마지막 `open` 열은 머리글이 빈 문자열이라 행동 열에 이름이 없다.
-`scope='col'`만 있고 읽을 것이 없는 `th`다.
+**읽을 것이 없는 `th`를 두지 않는다.** 머리글이 빈 문자열이면 `scope='col'`이 있어도 그 열이 무엇인지
+말하지 않는다. 행동 열처럼 화면에 머리글 문구가 필요 없는 자리는 `th`를 흐름에 그대로 둔 채 안쪽 문구만
+`sr-only`로 감싼다(`open-auction-table.tsx`의 `열기`).
 
 ## 5. 모달과 초점
 
