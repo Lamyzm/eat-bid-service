@@ -1,14 +1,16 @@
 import { expect, test } from '@playwright/test';
 
+import { VIEWPORT_WIDTH } from './support/viewports';
+
 const auctionId = process.env.EATBID_E2E_AUCTION_ID ?? '5796468';
 const flowUrl = `/auctions/${auctionId}?view=${encodeURIComponent('흐름')}`;
 
-// 640px은 집중 모드가 사는 가장 좁은 폭이다. 그 아래 휴대폰 폭은 아래 전용 검사가 본다(EAT-142).
+// sm 경계 폭은 집중 모드가 사는 가장 좁은 폭이다. 그 아래 휴대폰 폭은 아래 전용 검사가 본다(EAT-142).
 for (const viewport of [
-  { width: 1920, height: 1080 },
-  { width: 1280, height: 800 },
-  { width: 1024, height: 768 },
-  { width: 640, height: 812 }
+  { width: VIEWPORT_WIDTH.wideDesktop, height: 1080 },
+  { width: VIEWPORT_WIDTH.xl, height: 800 },
+  { width: VIEWPORT_WIDTH.lg, height: 768 },
+  { width: VIEWPORT_WIDTH.sm, height: 812 }
 ]) {
   test(`${viewport.width}×${viewport.height} 크게보기는 같은 차트에 높이를 돌려주고 원래 보기로 복귀한다`, async ({ page }) => {
     test.setTimeout(90_000);
@@ -25,14 +27,14 @@ for (const viewport of [
     await expect(history).toBeHidden();
     // 좁은 폭은 제목·필터·조작부의 줄바꿈을 유지하므로 남는 높이가 작다. 데스크톱의 확대 폭을 강제해
     // 날짜축을 자르지 않는다. 그래도 확대는 어느 폭에서나 일반 보기보다 큰 차트여야 한다.
-    await expect.poll(async () => (await chart.boundingBox())!.height).toBeGreaterThan(normal.height + (viewport.width >= 768 ? 40 : 1));
+    await expect.poll(async () => (await chart.boundingBox())!.height).toBeGreaterThan(normal.height + (viewport.width >= VIEWPORT_WIDTH.md ? 40 : 1));
     expect(await canvas.evaluate((node) => node.isConnected)).toBe(true);
     await expect(page.getByRole('dialog')).toHaveCount(0);
     const bounds = await chart.boundingBox();
     expect(bounds!.y).toBeGreaterThanOrEqual(0);
     expect(bounds!.y + bounds!.height).toBeLessThan(viewport.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
-    if (viewport.width >= 768) {
+    if (viewport.width >= VIEWPORT_WIDTH.md) {
       expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(viewport.height + 1);
     }
     await page.getByRole('link', { name: '작게 보기', exact: true }).click();
@@ -47,9 +49,9 @@ for (const viewport of [
  * 3분의 2를 차지한다. 집중 모드는 남는 높이를 캔버스에 주는 구조라 그 폭의 확대는 일반 보기의 고정
  * 38dvh보다 작은 차트를 준다 — 확대가 축소가 된다. 그래서 그 폭에서는 확대 자리를 만들지 않는다(EAT-142).
  */
-test('375×812 휴대폰 폭은 흐름 확대를 제공하지 않고 확대 주소도 일반 문서 흐름으로 읽는다', async ({ page }) => {
+test(`${VIEWPORT_WIDTH.phone}×812 휴대폰 폭은 흐름 확대를 제공하지 않고 확대 주소도 일반 문서 흐름으로 읽는다`, async ({ page }) => {
   test.setTimeout(90_000);
-  await page.setViewportSize({ width: 375, height: 812 });
+  await page.setViewportSize({ width: VIEWPORT_WIDTH.phone, height: 812 });
   await page.goto(flowUrl);
   const chart = page.locator('[data-slot="flow-canvas"]');
   await expect(chart.locator('canvas').first()).toBeVisible();
@@ -72,7 +74,7 @@ test('375×812 휴대폰 폭은 흐름 확대를 제공하지 않고 확대 주�
 
 test('확대 중 메뉴 Escape는 메뉴만 닫고 다음 Escape는 같은 필터를 유지하며 복귀한다', async ({ page }) => {
   test.setTimeout(90_000);
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width: VIEWPORT_WIDTH.xl, height: 800 });
   await page.goto(`${flowUrl}&expand=${encodeURIComponent('흐름')}`);
   await expect(page.getByRole('link', { name: '작게 보기', exact: true })).toBeVisible();
   await page.getByRole('button', { name: /^기간:/ }).click();
@@ -87,7 +89,7 @@ test('확대 중 메뉴 Escape는 메뉴만 닫고 다음 Escape는 같은 필�
 
 test('선택 회차와 현재 공고의 전역 패널은 확대·닫기 이후에도 같은 차트와 연결된다', async ({ page }) => {
   test.setTimeout(90_000);
-  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.setViewportSize({ width: VIEWPORT_WIDTH.wideDesktop, height: 1080 });
   await page.goto(flowUrl);
   const chart = page.locator('[data-slot="flow-canvas"]');
   await expect(chart.locator('canvas').first()).toBeVisible();
@@ -118,7 +120,7 @@ test('선택 회차와 현재 공고의 전역 패널은 확대·닫기 이후�
 
 test('스크롤한 위치에서 확대하고 돌아오면 필터와 원래 문서 위치를 유지한다', async ({ page }) => {
   test.setTimeout(90_000);
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width: VIEWPORT_WIDTH.xl, height: 800 });
   const originalUrl = `${flowUrl}&period=${encodeURIComponent('5년')}&floor=all`;
   await page.goto(originalUrl);
   await expect(page.locator('[data-slot="flow-canvas"] canvas').first()).toBeVisible();

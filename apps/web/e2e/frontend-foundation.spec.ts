@@ -1,6 +1,8 @@
 /** @module 책임: 공고 route가 공통 셸(테마·사이드바·에러 경계)과 계약 응답 전환을 계약대로 지키는지 검사한다. 화면 전용 표시 규칙은 decision-screen.spec.ts가 맡는다. */
 import { expect, test } from '@playwright/test';
 
+import { VIEWPORT_WIDTH } from './support/viewports';
+
 const SUCCESS_AUCTION_ID = '9007199254740993';
 const FAILURE_AUCTION_ID = '9007199254740994';
 const MISSING_AUCTION_ID = '9007199254740996';
@@ -114,4 +116,37 @@ test('색상 테마 선택은 DOM과 cookie에 남아 새로고침 뒤에도 유
   await page.reload({ waitUntil: 'commit' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'vercel');
   await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+});
+
+/**
+ * 보조 패널·도구 줄의 고정/overlay 분기는 CSS(`@variant xl`)와 JS(useWideWorkspace)가 같은 경계를 읽는다.
+ * 경계 양쪽 1px에서 봐야 둘 중 하나만 어긋나도 잡힌다(EAT-154).
+ */
+test('xl 경계에서 보조 패널은 경계 폭이면 본문 옆에 고정되고 1px 좁으면 Sheet로 열린다', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: VIEWPORT_WIDTH.xl, height: 900 });
+  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
+  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+
+  const rail = page.locator('[data-slot="workspace-tool-rail"]');
+  const headerTools = page.locator('[data-slot="workspace-header-tools"]');
+  const persistentPanel = page.locator('section[data-slot="responsive-dock"]');
+  await expect(rail).toBeVisible();
+  await expect(headerTools).toBeHidden();
+
+  await rail.getByRole('button', { name: '현재 공고 정보', exact: true }).click();
+  await expect(persistentPanel).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  // 고정 패널은 본문을 덮지 않고 본문 오른쪽 옆에 서며 viewport 안에 들어간다.
+  const panelBox = (await persistentPanel.boundingBox())!;
+  const pageBox = (await page.locator('[data-slot="workspace-page"]').boundingBox())!;
+  expect(panelBox.x).toBeGreaterThanOrEqual(pageBox.x + pageBox.width);
+  expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(VIEWPORT_WIDTH.xl);
+
+  // 같은 열림 상태에서 1px만 좁혀도 패널은 본문 옆 자리를 잃고 같은 내용이 Sheet로 열린다.
+  await page.setViewportSize({ width: VIEWPORT_WIDTH.xl - 1, height: 900 });
+  await expect(rail).toBeHidden();
+  await expect(headerTools).toBeVisible();
+  await expect(persistentPanel).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: '현재 공고 정보' })).toBeVisible();
 });

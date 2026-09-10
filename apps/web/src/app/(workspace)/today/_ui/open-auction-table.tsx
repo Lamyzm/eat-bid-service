@@ -109,8 +109,8 @@ type OpenAuctionColumn = {
  * 열의 머리글·정렬·접힘·줄바꿈·셀을 한 줄에 모은다. 이 넷을 따로 둔 표로 관리하면 열 하나를 더할 때
  * 네 곳을 맞춰야 하고, 하나를 빠뜨려도 className에 `undefined`가 들어갈 뿐 조용히 지나간다.
  *
- * 1440은 열 전부, 1024는 참여 수·최근 낙찰을 접고, 768은 기관·기초금액·마감·열기 넷만 남기고 품목·보통
- * 참여를 기관 셀 둘째 줄에 둔다(설계 §4.6). 잘린 desktop 표를 그대로 스크롤시키지 않는다.
+ * xl(1280 이상)은 열 전부, lg(1024 이상)는 참여 수·최근 낙찰을 접고, md(768 이상)는 기관·기초금액·마감·열기
+ * 넷만 남기고 품목·보통 참여를 기관 셀 둘째 줄에 둔다(설계 §4.6·§11). 잘린 desktop 표를 그대로 스크롤시키지 않는다.
  */
 const COLUMNS: readonly OpenAuctionColumn[] = [
   { id: 'organization', header: '기관', align: 'text-left', visibility: '', wraps: true, cell: (row, search) => <OrganizationCell row={row} search={search} /> },
