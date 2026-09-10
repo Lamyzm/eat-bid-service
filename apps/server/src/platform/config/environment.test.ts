@@ -89,8 +89,8 @@ describe("인증 environment", () => {
     expect(parseEnvironment({ ...production, ...authSource }).auth).toEqual({
       secret: authSecret,
       baseUrl: "https://app.eatbid.dev",
-      googleClientId: "client-id",
-      googleClientSecret: "client-secret",
+      google: { clientId: "client-id", clientSecret: "client-secret" },
+      devLoginEnabled: false,
       useSecureCookies: true,
     });
     expect(parseEnvironment(production).auth).toBeNull();
@@ -150,5 +150,75 @@ describe("인증 environment", () => {
       expect(() => parseEnvironment({ ...production, ...authSource, BETTER_AUTH_URL: url }), url)
         .toThrow();
     }
+  });
+});
+
+const devLoginSource = {
+  NODE_ENV: "development",
+  DATABASE_URL: "postgres://eatbid_api:dev-only@127.0.0.1:5432/eatbid_dev",
+  BETTER_AUTH_SECRET: authSecret,
+  BETTER_AUTH_URL: "http://localhost:3000",
+  EATBID_DEV_LOGIN: "true",
+} as const;
+
+describe("개발 로그인 environment", () => {
+  test("EATBID_DEV_LOGIN=true면 Google 자격 없이도 인증 설정이 존재하고 provider 조립이 개발 로그인을 켠다", async () => {
+    const { parseEnvironment } = await import("./environment");
+
+    expect(parseEnvironment(devLoginSource).auth).toEqual({
+      secret: authSecret,
+      baseUrl: "http://localhost:3000",
+      google: null,
+      devLoginEnabled: true,
+      useSecureCookies: false,
+    });
+    // Google 자격이 함께 있으면 둘 다 켜진다. 팀원이 OAuth client를 만든 뒤에도 시드 계정은 그대로 쓸 수 있다.
+    expect(parseEnvironment({ ...devLoginSource, ...authSource, BETTER_AUTH_URL: "http://localhost:3000" }).auth)
+      .toMatchObject({ google: { clientId: "client-id", clientSecret: "client-secret" }, devLoginEnabled: true });
+  });
+
+  test("production에서는 EATBID_DEV_LOGIN=true를 다른 값이 전부 정상이어도 거부한다", async () => {
+    const { parseEnvironment } = await import("./environment");
+
+    expect(() => parseEnvironment({ ...production, ...authSource, EATBID_DEV_LOGIN: "true" }))
+      .toThrow("Dev login cannot be enabled in production");
+    expect(() => parseEnvironment({ ...production, EATBID_DEV_LOGIN: "true" }))
+      .toThrow("Dev login cannot be enabled in production");
+    // 명시적으로 끈 값은 없는 것과 같다. 운영 배포가 값을 적어 두어도 기동을 막지 않는다.
+    expect(parseEnvironment({ ...production, ...authSource, EATBID_DEV_LOGIN: "false" }).auth)
+      .toMatchObject({ devLoginEnabled: false });
+  });
+
+  test("개발 로그인 없이 Google 쌍이 빠지면 지금처럼 거부하고, 쌍의 절반만 있으면 개발 로그인이 켜져도 거부한다", async () => {
+    const { parseEnvironment } = await import("./environment");
+    const secretAndUrl = {
+      NODE_ENV: "development",
+      DATABASE_URL: devLoginSource.DATABASE_URL,
+      BETTER_AUTH_SECRET: authSecret,
+      BETTER_AUTH_URL: "http://localhost:3000",
+    } as const;
+
+    // secret과 URL만 있는 배포는 로그인 화면이 열리는데 어떤 방법으로도 로그인할 수 없는 배포다.
+    expect(() => parseEnvironment(secretAndUrl)).toThrow("no sign-in method");
+    expect(() => parseEnvironment({ ...secretAndUrl, EATBID_DEV_LOGIN: "false" })).toThrow("no sign-in method");
+    expect(() => parseEnvironment({ ...devLoginSource, GOOGLE_CLIENT_ID: "client-id" }))
+      .toThrow("missing GOOGLE_CLIENT_SECRET");
+    expect(() => parseEnvironment({ ...devLoginSource, GOOGLE_CLIENT_SECRET: "client-secret" }))
+      .toThrow("missing GOOGLE_CLIENT_ID");
+  });
+
+  test("개발 로그인 모드에서도 secret과 base URL은 고정 개발값으로 대신하지 않는다", async () => {
+    const { parseEnvironment } = await import("./environment");
+
+    expect(() => parseEnvironment({ ...devLoginSource, BETTER_AUTH_SECRET: undefined }))
+      .toThrow("missing BETTER_AUTH_SECRET");
+    expect(() => parseEnvironment({ ...devLoginSource, BETTER_AUTH_URL: undefined }))
+      .toThrow("missing BETTER_AUTH_URL");
+    // 플래그 하나만 있는 배포도 "인증 없음"이 아니라 설정 누락이다. 조용히 null로 두면 화면은 503만 본다.
+    expect(() => parseEnvironment({
+      NODE_ENV: "development",
+      DATABASE_URL: devLoginSource.DATABASE_URL,
+      EATBID_DEV_LOGIN: "true",
+    })).toThrow("missing BETTER_AUTH_SECRET, BETTER_AUTH_URL");
   });
 });

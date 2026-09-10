@@ -50,9 +50,15 @@ export function createAuthInstance(input: AuthInstanceInput) {
         disableImplicitLinking: true,
       },
     },
-    // 이번 범위의 가입 방법은 Google 하나다. 이메일·비밀번호를 켜면 메일 발송·재설정·비밀번호 저장이
-    // 모두 이 슬라이스의 보안 표면이 된다.
-    emailAndPassword: { enabled: false },
+    /**
+     * 운영의 가입 방법은 Google 하나다. 이메일·비밀번호를 켜면 메일 발송·재설정·비밀번호 저장이 모두 보안
+     * 표면이 되므로 이 값은 환경 경계가 production에서 거부한 개발 전용 opt-in을 그대로 옮긴 것이고, 여기서
+     * `NODE_ENV`를 다시 보지 않는다. 판정 자리를 둘로 만들면 둘이 어긋난 배포가 생긴다(ADR 0032 §13).
+     *
+     * `autoSignIn`을 끄는 이유: 시드가 서버 API로 계정을 만들 때 아무도 들고 있지 않은 세션 행이 남지 않게
+     * 한다. 로그인 화면은 sign-in만 부르므로 로그인 흐름에는 영향이 없다.
+     */
+    emailAndPassword: { enabled: environment.devLoginEnabled, autoSignIn: false },
     session: {
       ...database.schemaOptions.session,
       /**
@@ -70,12 +76,16 @@ export function createAuthInstance(input: AuthInstanceInput) {
        */
       deferSessionRefresh: true,
     },
-    socialProviders: {
-      google: {
-        clientId: environment.googleClientId,
-        clientSecret: environment.googleClientSecret,
+    // Google 자격이 없는 개발 로그인 전용 로컬은 provider를 등록하지 않는다. 빈 자격으로 등록하면 로그인
+    // 버튼은 열리는데 Google 왕복이 실패하고, 그 실패는 사용자 오류처럼 보인다.
+    socialProviders: environment.google === null
+      ? {}
+      : {
+        google: {
+          clientId: environment.google.clientId,
+          clientSecret: environment.google.clientSecret,
+        },
       },
-    },
     // 콜백 URL 검증과 Origin 검사가 이 목록을 쓴다. 별도 목록을 만들면 두 곳이 갈라진다.
     trustedOrigins: [...input.trustedOrigins],
     advanced: {
