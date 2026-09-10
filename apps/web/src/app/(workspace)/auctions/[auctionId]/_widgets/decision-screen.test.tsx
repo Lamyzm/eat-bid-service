@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { attemptsFixture } from '../__fixtures__/attempts';
 import { fixtureNow, openAuctionFixture } from '../__fixtures__/auction';
+import { findBannedCopy } from '../__fixtures__/banned-copy';
 import { floor90DistributionFixture } from '../__fixtures__/distribution';
 import type { DecisionSearch, DecisionView } from '../_lib/decision-search-params';
 import { presentHistory } from '../_features/history/model/attempt-history';
@@ -117,18 +118,25 @@ describe('결정 화면', () => {
   });
 
   test('금지 문구가 없다', () => {
-    const markup = shownMarkup(
-      markupOf(
-        <DecisionScreen
-          decision={decision()}
-          search={flowSearch}
-          history={readyHistory}
-          distribution={readyDistribution}
-        />
-      )
-    );
-    for (const banned of ['NeaT', '탈락선', '밀림', '추천', '안전 구간'])
-      expect(markup).not.toContain(banned);
+    // 흐름·분포 두 본문을 각각 켜서 본다. 한쪽만 보면 꺼진 본문의 문구가 `hidden`에 가려 검사를 지나친다(EAT-156).
+    const shown = (bodySearch: DecisionSearch) =>
+      shownMarkup(
+        markupOf(
+          <DecisionScreen
+            decision={decision()}
+            search={bodySearch}
+            history={readyHistory}
+            distribution={readyDistribution}
+          />
+        )
+      );
+    const flow = shown(flowSearch);
+    const cohort = shown(search);
+    // 분포 본문의 분모 경고(PDR-0004)가 실제로 검사 대상에 들어왔는지 못 박는다. 단어 "NeaT"가 아니라 유도 문형을
+    // 잡아야 이 경고를 남긴 채 통과한다.
+    expect(cohort).toContain('NeaT에 넣는 투찰률과 분모가 다릅니다');
+    expect(findBannedCopy(flow)).toEqual([]);
+    expect(findBannedCopy(cohort)).toEqual([]);
   });
 
   test('중앙은 근거·과거 회차만 소유하고 보조 진입은 전역 위치에 둔다', () => {
