@@ -23,9 +23,19 @@ $ErrorActionPreference = 'Stop'
 $sshArgs = @('-i', $SshKeyPath, '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', "$User@$VmIp")
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+# 부팅 중인 VM에 ssh를 바로 걸면 Windows OpenSSH가 ConnectTimeout을 무시하고 매달린다(2026-09-10 새 PC에서
+# 2시간 넘게 hang, EAT-129). TCP 22가 열린 뒤에만 ssh를 부르고, ssh 자체도 job으로 감싸 제한 시간을 둔다.
+function Invoke-SshWithTimeout([string[]]$Arguments, [int]$Seconds) {
+  $job = Start-Job -ScriptBlock { param($a) & ssh @a 2>$null } -ArgumentList (, $Arguments)
+  if (Wait-Job $job -Timeout $Seconds) { $result = Receive-Job $job } else { $result = $null }
+  Remove-Job $job -Force
+  return $result
+}
 while ($true) {
-  $done = ssh @sshArgs 'test -f /var/lib/eatbid-cloud-init-done && echo ready' 2>$null
-  if ($done -eq 'ready') { break }
+  if ((Test-NetConnection -ComputerName $VmIp -Port 22 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
+    $done = Invoke-SshWithTimeout -Arguments ($sshArgs + 'test -f /var/lib/eatbid-cloud-init-done && echo ready') -Seconds 20
+    if ($done -eq 'ready') { break }
+  }
   if ((Get-Date) -gt $deadline) { throw "cloud-init 완료를 $TimeoutSeconds 초 안에 확인하지 못했다" }
   Start-Sleep -Seconds 10
 }
