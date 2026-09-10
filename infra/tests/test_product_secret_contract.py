@@ -30,6 +30,9 @@ EXPECTED_SECRET_PATHS = {
     # web 캐시 무효화 토큰. 부르는 쪽(dataplane)은 같은 값을 `/runtime/dataplane`에서 읽으므로
     # 이미 있는 `eatbid-database-dataplane`이 그 키를 함께 실어 온다(ADR 0036-7).
     "eatbid-cache-revalidate": "/runtime/web",
+    # 감시가 위반을 사람에게 보내는 경로. 봇 토큰은 환경 사이에 공유하고 대상 방만 환경별로 다르다.
+    # 유출돼도 그 방에 글을 쓰는 것 말고는 못 한다 — 클러스터나 DB에 닿지 않는다(ADR 0046 결정 6).
+    "eatbid-alerting": "/runtime/alerting",
 }
 
 

@@ -35,8 +35,8 @@ SHELL_STAGES = ("capture", "normalize", "validate", "project", "marts")
 # 정부 코드 reference 실행의 DAG task와 CLI 명령이다. 여기서는 단계 이름과 명령 이름이 같다.
 REFERENCE_COMMANDS = ("capture-reference", "project-reference")
 REFERENCE_TASKS = REFERENCE_COMMANDS
-# 운영자가 직접 entrypoint로 부르는 명령이다. 어떤 DAG도 task로 갖지 않는다(EAT-122).
-OPERATOR_COMMANDS = ("fail-release",)
+# 운영자·스케줄이 직접 entrypoint로 부르는 명령이다. 어떤 DAG도 task로 갖지 않는다(EAT-122, EAT-170).
+OPERATOR_COMMANDS = ("fail-release", "check-expectations")
 PYTHON_ENTRYPOINT_TEMPLATES = ("discover", "replay")
 # 피크 월 창의 `TOT_CNT` 실측 약 17,000에 여유를 둔 상한이다. discover는 `total_count`가
 # page size × page budget을 넘으면 창을 거부하므로 그 곱이 이 값 아래로 내려가면 월 백필이 막힌다.
@@ -151,8 +151,8 @@ def test_product와_base_render가_kind_구성을_유지한다(
     manifests: ManifestSet, base_manifests: ManifestSet
 ) -> None:
     assert manifests.kinds.count("WorkflowTemplate") == 1
-    # 수집 스케줄 셋 + DB 백업 하나. 백업은 소스를 부르지 않는 별개 계약이라 아래 백업 테스트가 따로 본다.
-    assert manifests.kinds.count("CronWorkflow") == 4
+    # 수집 스케줄 셋 + DB 백업 + 감시. 뒤의 둘은 소스를 부르지 않는 별개 계약이라 각자의 테스트가 본다.
+    assert manifests.kinds.count("CronWorkflow") == 5
     # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
     # 하는지 먼저 답해야 한다.
     assert manifests.kinds.count("Job") == 2
@@ -355,10 +355,11 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
 def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     manifests: ManifestSet,
 ) -> None:
+    # 백업과 감시는 수집 pipeline이 아니다. 수집을 멈춘 동안에도 돌아야 하므로 이 단언 밖에 둔다.
     cron_workflows = [
         cron
         for cron in manifests.of_kind("CronWorkflow")
-        if _metadata(cron)["name"] != "eatbid-db-backup"
+        if _metadata(cron)["name"] not in {"eatbid-db-backup", "eatbid-expectation-check"}
     ]
     assert {_metadata(cron)["name"] for cron in cron_workflows} == {
         "eatbid-poll-open",
@@ -413,6 +414,42 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     cron_rendered = yaml.safe_dump_all(cron_workflows)
     assert "backfill" not in cron_rendered
     assert "entrypoint: replay" not in cron_rendered
+
+
+def test_감시_CronWorkflow는_수집_템플릿에_매이지_않고_알림_비밀만_추가로_받는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 감시가 수집 WorkflowTemplate을 참조하면 수집을 멈춘 동안 감시도 함께 멈춘다. 정지해야 할
+    때 눈이 먼저 감기면 안 된다. 소스 semaphore도 쓰지 않아야 수집 대기에 막히지 않는다(EAT-170)."""
+    check = manifests.named("CronWorkflow", "eatbid-expectation-check")
+    spec = _spec(check)
+    assert spec["suspend"] is False
+    assert spec["concurrencyPolicy"] == "Forbid"
+    assert spec["timezone"] == "Asia/Seoul"
+
+    workflow_spec = _mapping(spec["workflowSpec"])
+    assert "workflowTemplateRef" not in workflow_spec
+    assert workflow_spec["podGC"] == {"strategy": "OnPodSuccess"}
+    rendered = yaml.safe_dump(check)
+    assert "semaphore" not in rendered and "mutex" not in rendered
+
+    template = next(
+        _mapping(item) for item in _sequence(workflow_spec["templates"]) if _mapping(item)["name"] == "check"
+    )
+    container = _mapping(template["container"])
+    assert container["image"] == "eatbid-dataplane"
+    command = "".join(str(item) for item in _sequence(container["args"]))
+    assert "eatbid check-expectations" in command
+    # release에 매이지 않는 명령이라 build-sha·source-release-id를 받지 않는다.
+    assert "--build-sha" not in command and "--source-release-id" not in command
+
+    assert _env(container, "EATBID_ENVIRONMENT")["value"] == "prod"
+    assert _secret_ref(_env(container, "DATABASE_URL")) == (
+        "eatbid-database-dataplane",
+        "DATABASE_URL",
+    )
+    for key in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+        assert _secret_ref(_env(container, key)) == ("eatbid-alerting", key)
 
 
 def test_DB_백업_CronWorkflow는_매시간_소유자로_덤프해_R2에_두고_소스와_템플릿을_건드리지_않는다(

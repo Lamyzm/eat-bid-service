@@ -13,6 +13,7 @@ product cutover; Argo CD and Argo Workflows only consume them.
 | `eatbid-cache-revalidate` | `EATBID_CACHE_REVALIDATE_TOKEN` | product operator / environment bootstrap | web (`POST /internal/cache/revalidate`) |
 | `eatbid-r2` | `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | storage operator / environment bootstrap | dataplane, `eatbid-db-backup` CronWorkflow(`backup/postgres/` prefix에 쓰기) |
 | `eatbid-auth` | `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | product operator / environment bootstrap | server |
+| `eatbid-alerting` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | product operator / Infisical `/runtime/alerting` | `eatbid-expectation-check` CronWorkflow. 봇 토큰은 환경 사이 공유, 대상 방은 환경별로 다르다 |
 | `cloudflared-creds` | `credentials.json` | network operator / environment bootstrap | cloudflared |
 | `ghcr-pull` | `.dockerconfigjson` | delivery operator / environment bootstrap | namespace default and dataplane ServiceAccounts |
 
@@ -80,3 +81,17 @@ CRUD, 시퀀스 `USAGE`/`SELECT`/`UPDATE`를 받고 `drizzle`은 읽기만 받�
 workload가 접근하지 않으므로 부여하지 않는다. 두 grantor(`eatbid_migrator`와 database 소유자)에
 대해 `ALTER DEFAULT PRIVILEGES`를 걸어 두므로 다음 migration이 만든 표나 덤프 복원이 만든 표에도
 같은 권한이 따라붙는다.
+
+## 감시 알림 대상의 환경 분리
+
+`eatbid-alerting`의 `TELEGRAM_BOT_TOKEN`은 환경 사이에 같은 값이고 `TELEGRAM_CHAT_ID`만 다르다. 봇을 둘로
+나누면 토큰이 둘이 되고 회전을 두 번 해야 하는데, 얻는 것이 없다. 방을 나누는 이유는 다르다. dev의 잦은 배포
+잡음이 운영 사고와 같은 자리에 오면 진짜 사고가 묻힌다(ADR 0046 결정 6).
+
+이 토큰이 유출돼도 할 수 있는 일은 그 방에 글을 쓰는 것뿐이다. 클러스터나 DB에 닿지 않는다. 그래서 회전
+절차는 다른 비밀보다 가볍다. 텔레그램에서 토큰을 재발급하고 `prod:/runtime/alerting`과
+`dev:/runtime/alerting` 두 경로의 `TELEGRAM_BOT_TOKEN`을 바꾸면 끝이다. 방 번호는 그대로 둔다.
+
+봇이 방 번호를 얻으려면 그 방에서 봇에게 닿는 메시지가 한 번은 있어야 한다. 봇의 개인정보 모드가 켜져 있으면
+일반 대화는 봇에게 가지 않으므로 `/start@<봇>`처럼 명령으로 보낸다. 개인정보 모드는 켠 채로 둔다. 감시는
+보내기만 하고 읽을 이유가 없다.
