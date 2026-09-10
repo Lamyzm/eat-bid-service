@@ -9,7 +9,11 @@ const STALE_CURSOR = '9007199254740990';
 
 async function overflowReport(page: Page) {
   return page.evaluate(() => {
-    const nodes = [...document.querySelectorAll('[data-slot="today-screen"] *')];
+    // `sr-only`는 이름만 접근성 트리에 싣는 1px 잘린 상자다. 화면에 그려지지 않으므로 밀림을 물을 대상이
+    // 아니고, 물으면 글자보다 좁은 상자가 늘 넘친 것으로 세어진다.
+    const nodes = [...document.querySelectorAll('[data-slot="today-screen"] *')].filter(
+      (node) => !node.classList.contains('sr-only')
+    );
     const overflow = nodes.filter((node) => {
       if (node.scrollWidth <= node.clientWidth + 1) return false;
       const overflowX = getComputedStyle(node).overflowX;
@@ -50,6 +54,23 @@ test.describe('오늘 화면 폭별 밀림', () => {
       expect(report.bodyWidth).toBeLessThanOrEqual(report.viewportWidth);
     });
   }
+});
+
+test.describe('오늘 화면 접근성 트리', () => {
+  test('행동 열 머리글은 화면에 없어도 이름으로 읽히고 열 폭은 그대로다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto('/today');
+    await page.getByText('마감 임박 순').waitFor();
+
+    // 이름 없는 `th`는 그 열이 무엇인지 말하지 않는다. 브라우저가 계산한 이름으로 확인한다.
+    const open = page.getByRole('columnheader', { name: '열기', exact: true });
+    await expect(open).toHaveCount(1);
+    // 감춘 것은 `th`가 아니라 안쪽 문구다. `th`가 표 흐름을 벗어나면 열 상자가 사라진다.
+    const headerBox = await open.boundingBox();
+    const cellBox = await page.locator('tbody tr').first().locator('td').last().boundingBox();
+    expect(headerBox!.width).toBeCloseTo(cellBox!.width, 0);
+  });
 });
 
 test.describe('오늘 화면 fixture', () => {

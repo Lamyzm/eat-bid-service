@@ -18,8 +18,12 @@ describe('열린 공고 표', () => {
     const rows = [...screen.container.querySelectorAll('tbody tr')];
     expect(rows.map((row) => row.getAttribute('data-closes'))).toEqual(['today', 'tomorrow', 'later', 'unknown']);
     const headers = [...screen.container.querySelectorAll('thead th')].map((node) => node.textContent);
-    // 내 기록은 인증 뒤에야 값이 생기는 열이라, 모든 행에 "없음"을 적어 사실처럼 보이게 두는 대신 비워 뒀다.
-    expect(headers).toEqual(['기관', '품목', '기초금액', '하한(사정률)', '마감', '참여 수', '보통 참여', '최근 낙찰(투찰률)', '']);
+    // 마지막 행동 열은 화면에 머리글을 두지 않지만 이름 없는 열은 그 열이 무엇인지 말하지 않는다.
+    // 감추는 것은 `th`가 아니라 안쪽 문구다. `th`가 표 흐름을 벗어나면 `scope` 연결과 열 폭이 깨진다.
+    expect(headers).toEqual(['기관', '품목', '기초금액', '하한(사정률)', '마감', '참여 수', '보통 참여', '최근 낙찰(투찰률)', '열기']);
+    const open = [...screen.container.querySelectorAll('thead th')].at(-1)!;
+    expect(open.getAttribute('scope')).toBe('col');
+    expect(open.firstElementChild?.className).toContain('sr-only');
   });
 
   test('오늘 마감 행에만 빨강을 붙이고 내일 마감은 amber이며 다른 열에는 상태색이 없다', () => {

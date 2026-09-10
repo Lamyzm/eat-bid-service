@@ -19,7 +19,7 @@ function renderRail(node: React.ReactNode, initialRate: string | null = '90.309'
 describe('투찰 rail 빈 상태(EAT-84)', () => {
   test('놓은 값이 없으면 손잡이가 비어 있고 넣을 금액·금액 복사·내 값 기록·단계 버튼이 멈춘다', () => {
     const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />, null);
-    expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('투찰률 눌러서 직접 입력') as HTMLInputElement).value).toBe('');
     expect(screen.container.textContent).not.toContain('90.000');
     expect(screen.getByText('값 없음')).toBeTruthy();
     expect((screen.getByRole('button', { name: '금액 복사' }) as HTMLButtonElement).disabled).toBe(true);
@@ -28,13 +28,13 @@ describe('투찰 rail 빈 상태(EAT-84)', () => {
     expect(step.disabled).toBe(true);
     // 눌러도 어떤 원점에서 출발하지 않는다. 원점을 두면 그것이 추천값이다.
     fireEvent.click(step);
-    expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('투찰률 눌러서 직접 입력') as HTMLInputElement).value).toBe('');
   });
 
   test('값을 직접 넣는 순간부터 금액이 계산되고 손잡이가 움직인다', async () => {
     const user = userEvent.setup();
     const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />, null);
-    const input = screen.getByLabelText('투찰률');
+    const input = screen.getByLabelText('투찰률 눌러서 직접 입력');
     await user.type(input, '90.309');
     fireEvent.blur(input);
     expect(screen.getByDisplayValue('90.309')).toBeTruthy();
@@ -48,7 +48,7 @@ describe('투찰 rail 빈 상태(EAT-84)', () => {
     const user = userEvent.setup();
     const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
     expect(window.location.search).toContain('rate=90.309');
-    const input = screen.getByLabelText('투찰률');
+    const input = screen.getByLabelText('투찰률 눌러서 직접 입력');
     // happy-dom에서 clear만으로는 React onChange가 오지 않는다(위 주석). 공백 한 글자를 쳐서 "지운 입력"을 만든다.
     await user.clear(input);
     await user.type(input, ' ');
@@ -60,12 +60,20 @@ describe('투찰 rail 빈 상태(EAT-84)', () => {
 
   test('형식이 틀린 URL rate는 고쳐 쓰지 않고 빈 상태로 시작한다', () => {
     const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />, '구십');
-    expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('투찰률 눌러서 직접 입력') as HTMLInputElement).value).toBe('');
     expect(screen.getByText('값 없음')).toBeTruthy();
   });
 });
 
 describe('투찰 rail', () => {
+  test('투찰률 입력의 이름은 라벨 한 곳에서만 나오고 눌러서 직접 입력까지 담는다', () => {
+    const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
+    // 같은 입력에 aria-label을 겹치면 그쪽이 이겨 라벨의 둘째 줄이 이름에서 빠진다.
+    const input = screen.getByRole('textbox', { name: '투찰률 눌러서 직접 입력' });
+    expect(input.hasAttribute('aria-label')).toBe(false);
+    expect(input.getAttribute('id')).toBe('bid-rate');
+  });
+
   test('손잡이를 누르면 투찰률과 넣을 금액이 같이 바뀐다', () => {
     const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
     expect(screen.getByText('2,494,063')).toBeTruthy();
@@ -82,7 +90,7 @@ describe('투찰 rail', () => {
   test('직접 입력한 값은 셋째 자리로 고정된다', async () => {
     const user = userEvent.setup();
     const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
-    const input = screen.getByLabelText('투찰률');
+    const input = screen.getByLabelText('투찰률 눌러서 직접 입력');
     await user.clear(input);
     await user.type(input, '90.3');
     fireEvent.blur(input);
@@ -92,7 +100,7 @@ describe('투찰 rail', () => {
   test('잘못된 값을 입력하면 이전 값을 지킨다', async () => {
     const user = userEvent.setup();
     const screen = renderRail(<BidRail decision={decision} port={createMemoryBidRecordPort()} />);
-    const input = screen.getByLabelText('투찰률');
+    const input = screen.getByLabelText('투찰률 눌러서 직접 입력');
     await user.clear(input);
     await user.type(input, '엉뚱');
     fireEvent.blur(input);

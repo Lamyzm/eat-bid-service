@@ -27,7 +27,10 @@ export function DecisionFilters({ decision, search, history }: {
   const item = normalizeItemParam(search.item);
   if (item !== null && !items.has(item)) items.set(item, '선택한 품목');
   return (
-    <div className='flex min-w-0 flex-wrap items-center gap-2' aria-label='분석 조건'>
+    // 맨 div는 role이 generic이라 aria-label이 무시된다. 이 줄은 함께 읽어야 하는 조건 조작 묶음이지
+    // 본문 영역이 아니므로 landmark를 하나 더 만들지 않고 이름을 갖는 group으로 둔다. 중앙 본문이 근거·과거
+    // 회차 두 section만 갖는다는 구조는 그대로다.
+    <div role='group' className='flex min-w-0 flex-wrap items-center gap-2' aria-label='분석 조건'>
       <span className='mr-1 text-sm font-semibold'>과거 이력</span>
       <ConditionMenu label='기간' value={search.period} choices={DECISION_PERIODS.map((period) => ({ label: period, href: route({ period }), selected: search.period === period }))} />
       <ConditionMenu label='하한율' value={floor === 'all' ? '전체' : floor === 'unknown' ? '미확인' : `${floor}%`} choices={floorChoices.map(({ value, label }) => ({ label, href: route({ floor: value }), selected: floor === value }))} />

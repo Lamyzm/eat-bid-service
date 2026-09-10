@@ -97,7 +97,9 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
       {model.calendar.length === 0 ? <p className='grid min-h-48 place-items-center text-sm text-muted-foreground'>선택한 조건의 낙찰 기록이 없습니다.</p> : error ? <p role='alert' className='text-sm text-muted-foreground'>차트를 불러오지 못했습니다. 아래 과거 회차 표에서 기록을 확인해 주세요.</p> : (
         <>
           {model.points.length === 0 ? <p className='text-sm text-muted-foreground'>선택한 조건의 낙찰 기록이 없습니다.</p> : null}
-          <div ref={element} data-slot='flow-canvas' aria-label='낙찰률 차트. 점을 누르거나 아래 회차 표에서 참여 기록을 여세요.' className='h-[clamp(260px,38dvh,440px)] min-w-0' />
+          {/* 엔진이 캔버스를 그려 넣는 자리다. 맨 div는 role이 generic이라 이름이 무시되므로 그림으로 선언해
+              대체 텍스트를 싣는다. 안의 캔버스에는 읽을 것이 없고 초점 대상도 없다. */}
+          <div ref={element} data-slot='flow-canvas' role='img' aria-label='낙찰률 차트. 점을 누르거나 아래 회차 표에서 참여 기록을 여세요.' className='h-[clamp(260px,38dvh,440px)] min-w-0' />
         </>
       )}
       <div className='min-h-8 text-xs text-muted-foreground' aria-live='polite'>

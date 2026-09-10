@@ -15,9 +15,12 @@ export function HistoryAttemptRow({
   readonly children: ReactNode;
 }) {
   const { attempt } = useAttemptSelection();
+  const selected = attempt?.attemptId === attemptId;
+  // 배경색과 data 속성은 눈으로만 "지금 이 행"을 말한다. 같은 뜻을 호가창의 내 값 줄과 같은 속성으로도 말한다.
   return (
     <tr
-      data-selected={attempt?.attemptId === attemptId ? '' : undefined}
+      aria-current={selected ? 'true' : undefined}
+      data-selected={selected ? '' : undefined}
       className='group/row data-selected:bg-primary/5'
     >
       {children}

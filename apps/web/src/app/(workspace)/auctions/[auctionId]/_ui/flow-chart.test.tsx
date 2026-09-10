@@ -14,6 +14,8 @@ describe('캔버스 흐름의 접근 가능한 표시와 조작', () => {
   test('같은 표시 모델의 정확한 분모와 표본을 보이고 SVG 그림을 복제하지 않는다', () => {
     const screen = show();
     expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
+    // 캔버스 자리는 맨 div가 아니라 이름을 가진 그림이다. 맨 div면 role이 generic이라 이름이 무시된다.
+    expect(screen.getByRole('img', { name: /^낙찰률 차트\./ })).toBe(screen.container.querySelector<HTMLElement>('[data-slot=flow-canvas]')!);
     expect(screen.getByText('예정가격 대비 · %')).toBeTruthy();
     expect(screen.getByText('20회 표시 · 조회 표본 92회')).toBeTruthy();
     expect(screen.container.querySelector('svg')).toBeNull();

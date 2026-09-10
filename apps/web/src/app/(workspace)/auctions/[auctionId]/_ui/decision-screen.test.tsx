@@ -297,7 +297,7 @@ describe('결정 화면', () => {
     expect(screen.queryByText('값을 넣으면 계산')).toBeNull();
     expect(screen.getByText('투찰률을 넣으면 지난 회차와 견줍니다')).toBeTruthy();
     expect(screen.queryByText('내 값 90.000')).toBeNull();
-    expect((screen.getByLabelText('투찰률') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('투찰률 눌러서 직접 입력') as HTMLInputElement).value).toBe('');
     expect(screen.container.textContent).not.toContain('90.000 썼다면');
   });
 
@@ -338,6 +338,8 @@ describe('결정 화면', () => {
         distribution={readyDistribution}
       />
     );
+    // 조건 묶음은 이름을 가진 group이다. 맨 div면 role이 generic이라 aria-label이 무시된다.
+    expect(screen.getByRole('group', { name: '분석 조건' })).toBeTruthy();
     const href = screen.getByRole('link', { name: '흐름' }).getAttribute('href') ?? '';
     const query = new URLSearchParams(href.slice(href.indexOf('?')));
     expect(query.get('view')).toBe('흐름');

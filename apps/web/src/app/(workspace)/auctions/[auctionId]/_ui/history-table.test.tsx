@@ -90,6 +90,8 @@ describe('과거 회차 표', () => {
     const selected = rows.filter((row) => row.hasAttribute('data-selected'));
     expect(selected).toHaveLength(1);
     expect(selected[0]).toBe(rows[1]!);
+    // 선택은 배경색과 data 속성만으로 말하지 않는다. 호가창의 내 값 줄과 같은 속성으로도 말한다.
+    expect(rows.filter((row) => row.getAttribute('aria-current') === 'true')).toEqual([rows[1]!]);
   });
 
   test('그날 하한을 밑도는 값이면 낙찰값과 견주지 않고 하한 아래로 적는다', () => {

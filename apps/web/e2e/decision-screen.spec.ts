@@ -58,7 +58,10 @@ async function overflowReport(page: Page, roots: readonly string[] = [SCREEN_ROO
         return [...root.querySelectorAll('*')];
       })
       // 닫힌 패널과 숨긴 관점은 상자가 없어 폭을 말할 수 없다. 열려 있는 내용만 센다.
-      .filter((node) => node.getClientRects().length > 0);
+      .filter((node) => node.getClientRects().length > 0)
+      // `sr-only`는 이름만 접근성 트리에 싣는 1px 잘린 상자다. 화면에 그려지지 않으므로 밀림을 물을 대상이
+      // 아니고, 물으면 글자보다 좁은 상자가 늘 넘친 것으로 세어진다.
+      .filter((node) => !node.classList.contains('sr-only'));
     // 과거 회차 표는 `overflow-x-auto`로 자기 안에서만 가로 스크롤되도록 설계됐다(history-table.tsx).
     // 그 컨테이너 자신의 scrollWidth > clientWidth는 페이지가 밀린 게 아니라 의도한 동작이라 제외한다.
     const overflow = nodes.filter((node) => {
@@ -555,7 +558,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
 
     // 투찰 레일과 "이 값이면"은 전역 오른쪽 패널이 소유한다. 열어야 손잡이가 접근성 트리에 나타난다.
     await openCurrentAuctionPanel(page);
-    await expect(page.getByRole('textbox', { name: '투찰률', exact: true })).toHaveValue('');
+    await expect(page.getByRole('textbox', { name: '투찰률 눌러서 직접 입력', exact: true })).toHaveValue('');
     await expect(page.getByRole('button', { name: '투찰률 0.001 올리기' })).toBeDisabled();
     await expect(page.getByText('이 값이면', { exact: true })).toBeVisible();
     await expect(page.getByText('투찰률을 넣으면 지난 회차와 견줍니다')).toBeVisible();
@@ -620,7 +623,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     const headerLast = page.locator('section[aria-label="과거 회차"] thead th').last();
     await expect(headerLast).toHaveText('명단');
 
-    const input = page.getByRole('textbox', { name: '투찰률', exact: true });
+    const input = page.getByRole('textbox', { name: '투찰률 눌러서 직접 입력', exact: true });
     await input.fill('90.000');
     await input.blur();
     await expect(headerLast).toHaveText('90.000 썼다면');
@@ -639,7 +642,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await waitForDecision(page);
     await expect(page.locator('section[aria-label="과거 회차"] thead th').last()).toHaveText('90.001 썼다면');
     await openCurrentAuctionPanel(page);
-    await expect(page.getByRole('textbox', { name: '투찰률', exact: true })).toHaveValue('90.001');
+    await expect(page.getByRole('textbox', { name: '투찰률 눌러서 직접 입력', exact: true })).toHaveValue('90.001');
   });
 
   // 시안 `상세 1440 · 실데이터 창원 남산초`(펼침 상태)·spec C-15의 rail 하단 두 요소다(EAT-87).
@@ -660,7 +663,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     const details = page.locator('#rehearsal-organization-details');
     await expect(details).toHaveCount(0);
 
-    const input = page.getByRole('textbox', { name: '투찰률', exact: true });
+    const input = page.getByRole('textbox', { name: '투찰률 눌러서 직접 입력', exact: true });
     await input.fill('90.000');
     await input.blur();
     await expect(rail.getByText('낙찰값 바로 위 0.1 안에')).toBeVisible();
@@ -682,5 +685,38 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     expect(report.overflow).toBe(0);
     expect(report.wrapped).toBe(0);
     expectDocumentFits(report, 1440);
+  });
+});
+
+/**
+ * 이름·역할·상태는 브라우저가 계산해야 사실이다. 맨 `div`·`span`에 걸린 `aria-label`이나 겹친 라벨은
+ * DOM에 그대로 남아 있어 markup 검사로는 통과하므로, 실제 접근성 트리를 role과 이름으로 물어 확인한다.
+ */
+test.describe('결정 화면 접근성 트리', () => {
+  test('조건 묶음·차트·투찰률 입력·선택 행·철회 항목이 이름과 상태로 읽힌다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
+    await waitForDecision(page);
+
+    // 조건 줄은 landmark가 아니라 이름을 가진 조작 묶음이다.
+    await expect(page.getByRole('group', { name: '분석 조건', exact: true })).toBeVisible();
+    // 캔버스 자리는 이름을 가진 그림이다. 맨 div면 role이 generic이라 이 질의가 아무것도 찾지 못한다.
+    await expect(page.getByRole('img', { name: /^낙찰률 차트\./ })).toBeVisible();
+
+    // 선택 행은 배경색과 data 속성만이 아니라 상태로도 "지금 이 행"을 말한다.
+    const history = page.locator('section[aria-label="과거 회차"]');
+    await waitForDockReady(page);
+    await history.getByRole('button', { name: /회차 참여 기록 보기$/ }).first().click();
+    const record = page.getByRole('region', { name: '선택 회차 참여 기록', exact: true });
+    await expect(record).toBeVisible();
+    await expect(history.locator('tbody tr[aria-current="true"]')).toHaveCount(1);
+    // 철회 값은 "철회 아님"·"미확인"만으로 어느 항목인지 말하지 못한다. 이름은 값 앞 문구가 싣는다.
+    await expect(record.getByText('철회 여부').first()).toBeAttached();
+
+    await openCurrentAuctionPanel(page);
+    await expect(page.getByRole('textbox', { name: '투찰률 눌러서 직접 입력', exact: true })).toBeVisible();
+    // 겹친 aria-label이 이기면 라벨의 둘째 줄이 이름에서 빠져 이 질의가 실패한다.
+    await expect(page.getByRole('textbox', { name: '투찰률', exact: true })).toHaveCount(0);
   });
 });
