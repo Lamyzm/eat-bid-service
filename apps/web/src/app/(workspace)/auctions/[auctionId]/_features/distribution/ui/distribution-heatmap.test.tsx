@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { render } from '@testing-library/react';
 
-import { floor90DistributionFixture } from '../../../__fixtures__/distribution';
+import { floor90DistributionFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/distribution';
 import { presentDistribution } from '../model/present-distribution';
 import { DistributionHeatmap } from './distribution-heatmap';
 

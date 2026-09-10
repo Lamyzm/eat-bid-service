@@ -3,11 +3,11 @@
 
 import { useState } from 'react';
 
-import type { HistoryRow } from '../../history/model/attempt-history';
+import type { HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
 import { summarizeOrganization } from '../model/organization-summary';
 import { rehearse, type Rehearsal } from '../model/rehearsal';
 import { NO_RATE_PHRASE, REHEARSAL_PHRASE } from '../model/verdict-vocabulary';
-import { useBidRate } from '../../../_lib/bid-rate-context';
+import { useBidRate } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate-context';
 
 // 칸 하나가 회차 하나다. 이보다 많아지면 칸이 1px 아래로 뭉개져 세는 뜻을 잃으므로 비율 막대로 바꾼다.
 const CELL_LIMIT = 24;

@@ -1,16 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 import { fireEvent, render } from '@testing-library/react';
 
-import { attemptsFixture } from '../../../__fixtures__/attempts';
-import { fixtureNow, openAuctionFixture } from '../../../__fixtures__/auction';
-import { createMemoryBidRecordPort } from '../../../_lib/bid-record-port';
-import { attemptKeys, presentHistory } from '../../history/model/attempt-history';
-import { presentDecision } from '../../../_lib/present-decision';
+import { attemptsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts';
+import { fixtureNow, openAuctionFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/auction';
+import { createMemoryBidRecordPort } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-record-port';
+import { attemptKeys, presentHistory } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
+import { presentDecision } from '@/app/(workspace)/auctions/[auctionId]/_lib/present-decision';
 import { FORBIDDEN_VERDICT_WORDS } from '../model/verdict-vocabulary';
-import { BidRail } from '../../../_widgets/bid-rail';
-import { BidRateProvider } from '../../../_lib/bid-rate-context';
-import { HistoryTable } from '../../history/ui/history-table';
-import { AttemptSelectionProvider } from '../../../_lib/attempt-selection';
+import { BidRail } from '@/app/(workspace)/auctions/[auctionId]/_widgets/bid-rail';
+import { BidRateProvider } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate-context';
+import { HistoryTable } from '@/app/(workspace)/auctions/[auctionId]/_features/history/ui/history-table';
+import { AttemptSelectionProvider } from '@/app/(workspace)/auctions/[auctionId]/_lib/attempt-selection';
 import { RehearsalPanel } from './rehearsal-panel';
 
 const rows = presentHistory(attemptsFixture, null).rows;

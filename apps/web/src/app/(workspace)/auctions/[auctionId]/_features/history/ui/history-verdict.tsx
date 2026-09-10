@@ -1,10 +1,10 @@
 /** @module 책임: 회차 표의 마지막 가정 계산 열을 손잡이 값에 맞춰 그리고, 값이 없는 동안은 열 자체를 없앤다. */
 'use client';
 
-import { toMilli } from '../../../_lib/bid-rate';
-import { judgeRow, type RowVerdict, type RowVerdictInput } from '../../rehearsal/model/rehearsal';
-import { ROW_VERDICT_PHRASE } from '../../rehearsal/model/verdict-vocabulary';
-import { useBidRate } from '../../../_lib/bid-rate-context';
+import { toMilli } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
+import { judgeRow, type RowVerdict, type RowVerdictInput } from '@/app/(workspace)/auctions/[auctionId]/_features/rehearsal/model/rehearsal';
+import { ROW_VERDICT_PHRASE } from '@/app/(workspace)/auctions/[auctionId]/_features/rehearsal/model/verdict-vocabulary';
+import { useBidRate } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate-context';
 
 // 마지막 열은 원본 판정이 아니라 내 값과 낙찰값·그날 하한의 비교이므로 문구는 파생 서술 어휘에서만 가져온다(PDR-0002).
 const VERDICT_TEXT: Record<RowVerdict, string> = {

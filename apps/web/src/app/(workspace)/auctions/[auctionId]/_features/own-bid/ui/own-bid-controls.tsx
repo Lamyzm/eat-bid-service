@@ -17,9 +17,9 @@ import {
 } from '@/shared/ui/dropdown-menu';
 import { IconSelector } from '@/shared/ui/workspace-icons';
 import { loginRouteWithReturn, setupRouteWithReturn } from '@/shell/auth/return-path';
-import type { DecisionSearch } from '../../../_lib/decision-search-params';
+import type { DecisionSearch } from '@/app/(workspace)/auctions/[auctionId]/_lib/decision-search-params';
 import { ownSummaryText } from '../model/own-bid-points';
-import { BuildRecovery } from '../../history/ui/history-build-recovery';
+import { BuildRecovery } from '@/app/(workspace)/auctions/[auctionId]/_features/history/ui/history-build-recovery';
 import { useOptionalOwnBid, type OwnBidStatus, type OwnBidValue } from '../model/own-bid-context';
 
 const linkClass = 'inline-flex h-8 items-center rounded-md bg-primary/10 px-2.5 font-semibold whitespace-nowrap text-primary';

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { attemptsFixture } from '../../../__fixtures__/attempts';
-import { openAuctionFixture } from '../../../__fixtures__/auction';
+import { attemptsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts';
+import { openAuctionFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/auction';
 import { presentHistory } from './attempt-history';
 import { presentOrgCadence } from './org-cadence';
 

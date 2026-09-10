@@ -4,7 +4,7 @@ import type { AuctionV1Response } from '@eatbid/contracts/api/v1/auctions';
 import { organizationV1Operations, type OrganizationAuctionAttemptsQuery } from '@eatbid/contracts/api/v1/organizations';
 import type { WinRateDistributionCohort } from '@/api/win-rate-distribution/index';
 
-import type { DecisionSearch } from '../../../_lib/decision-search-params';
+import type { DecisionSearch } from '@/app/(workspace)/auctions/[auctionId]/_lib/decision-search-params';
 
 /** 모집단 칩이 잠긴 이유. 화면은 셋을 서로 다른 문장으로 말해야 사용자가 할 일을 안다. */
 export type CohortLock =

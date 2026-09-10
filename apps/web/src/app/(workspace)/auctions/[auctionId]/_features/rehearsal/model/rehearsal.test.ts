@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import { attemptsFixture } from '../../../__fixtures__/attempts';
-import { presentHistory } from '../../history/model/attempt-history';
-import type { HistoryRow } from '../../history/model/attempt-history';
-import { toMilli } from '../../../_lib/bid-rate';
+import { attemptsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts';
+import { presentHistory } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
+import type { HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
+import { toMilli } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
 import { rehearse } from './rehearsal';
 
 function makeRow(

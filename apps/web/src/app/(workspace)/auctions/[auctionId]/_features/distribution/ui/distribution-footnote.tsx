@@ -2,7 +2,7 @@
 import { Temporal } from '@eatbid/domain';
 import type { WinRateDistributionMeta } from '@/api/win-rate-distribution/index';
 
-import type { DecisionSearch } from '../../../_lib/decision-search-params';
+import type { DecisionSearch } from '@/app/(workspace)/auctions/[auctionId]/_lib/decision-search-params';
 import { sampleSizeText } from '../model/sample-size';
 
 function computedAtText(instant: string | null): string | null {

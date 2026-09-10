@@ -30,8 +30,8 @@ mock.module('@/api/account/find-my-bid-observations', () => ({
 }));
 
 const { accountQueries } = await import('@/api/account/index');
-const { attemptsFixture } = await import('../../../__fixtures__/attempts');
-const { presentHistory, observableAttemptKeys } = await import('../../history/model/attempt-history');
+const { attemptsFixture } = await import('@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts');
+const { presentHistory, observableAttemptKeys } = await import('@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history');
 const { OwnBidProvider } = await import('./own-bid-provider');
 const { useOptionalOwnBid } = await import('../model/own-bid-context');
 type OwnBidValue = NonNullable<ReturnType<typeof useOptionalOwnBid>>;

@@ -72,6 +72,15 @@ export const CHECKS = Object.freeze([
     scope: [/\.(?:[cm]?[jt]sx?|py)$/i],
   },
   {
+    id: "import-depth",
+    label: "상대 경로 import 깊이",
+    script: "tools/architecture/check-import-depth.mjs",
+    weight: 2,
+    // 별칭 해석기가 있는 경로만 고른다. `apps/server`·`packages/contracts`를 왜 뺐는지는
+    // check-import-depth.mjs의 EXCLUDED_SCOPES와 ADR 0047이 소유한다.
+    scope: [/^apps\/web\/src\/.*\.[cm]?[jt]sx?$/i, /^packages\/(?:db|domain)\/src\/.*\.[cm]?tsx?$/i, /^tools\/.*\.[cm]?jsx?$/i],
+  },
+  {
     id: "docs",
     label: "문서 위계",
     script: "tools/quality/check-docs.mjs",

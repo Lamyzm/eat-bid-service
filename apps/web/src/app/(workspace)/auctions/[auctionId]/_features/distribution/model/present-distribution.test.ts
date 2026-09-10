@@ -4,7 +4,7 @@ import {
   emptyDistributionFixture,
   floor88DistributionFixture,
   floor90DistributionFixture
-} from '../../../__fixtures__/distribution';
+} from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/distribution';
 import { parseMyRate, presentDistribution } from './present-distribution';
 
 const national = { myRate: null, isRegionScope: false } as const;

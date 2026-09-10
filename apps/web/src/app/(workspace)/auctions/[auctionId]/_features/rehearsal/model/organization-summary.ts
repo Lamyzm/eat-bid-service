@@ -1,5 +1,5 @@
 /** @module 책임: 레일 "이 학교와 내 기록 더 보기" 펼침이 보이는 기관 요약(누적 회차·최근 낙찰·발주 주기)을 선택 품목 회차 이력에서 손잡이 값과 무관하게 순수 계산한다. */
-import type { HistoryRow } from '../../history/model/attempt-history';
+import type { HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
 
 export type OrganizationSummary = {
   /** 이 화면이 받은 선택 품목의 개찰 회차 수. 기관 전체 표본 수(meta)와 다르므로 그렇게 부르지 않는다. */

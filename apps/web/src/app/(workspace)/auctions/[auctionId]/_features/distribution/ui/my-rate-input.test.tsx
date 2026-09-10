@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type { DecisionSearch } from '../../../_lib/decision-search-params';
+import type { DecisionSearch } from '@/app/(workspace)/auctions/[auctionId]/_lib/decision-search-params';
 import { MyRateInput } from './my-rate-input';
 
 // happy-dom에서 fireEvent.change는 React onChange를 트리거하지 않는다(네이티브 값 추적기가 우회됨).

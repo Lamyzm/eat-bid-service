@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
-import { attemptsFixture } from '../../../__fixtures__/attempts';
-import { presentHistory } from '../../history/model/attempt-history';
-import type { HistoryRow } from '../../history/model/attempt-history';
+import { attemptsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts';
+import { presentHistory } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
+import type { HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
 import { summarizeOrganization } from './organization-summary';
 
 function makeRow(overrides: Partial<HistoryRow> & { readonly openedKstDay: number }): HistoryRow {

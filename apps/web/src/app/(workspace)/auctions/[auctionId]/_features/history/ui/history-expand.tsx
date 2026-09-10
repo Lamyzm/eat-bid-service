@@ -1,7 +1,7 @@
 /** @module 책임: 과거 회차 집중 모드에만 붙는 페이지 진입 줄 — 이어 붙인 표본 문구와 다음 페이지 링크, 이어 부르기 실패 사실을 소유한다. 회차 표 자체는 일반 보기와 같은 컴포넌트가 그린다. */
 import Link from 'next/link';
 
-import { buildDecisionHistoryPagesRoute, type DecisionSearch } from '../../../_lib/decision-search-params';
+import { buildDecisionHistoryPagesRoute, type DecisionSearch } from '@/app/(workspace)/auctions/[auctionId]/_lib/decision-search-params';
 import type { HistoryPresentation } from '../model/attempt-history';
 
 /**

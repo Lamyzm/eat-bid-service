@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { fireEvent, render } from '@testing-library/react';
 
-import { attemptsFixture } from '../../../__fixtures__/attempts';
+import { attemptsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts';
 import { attemptKeys, presentHistory } from '../model/attempt-history';
-import { FORBIDDEN_VERDICT_WORDS } from '../../rehearsal/model/verdict-vocabulary';
-import { BidRateProvider } from '../../../_lib/bid-rate-context';
+import { FORBIDDEN_VERDICT_WORDS } from '@/app/(workspace)/auctions/[auctionId]/_features/rehearsal/model/verdict-vocabulary';
+import { BidRateProvider } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate-context';
 import { HistoryTable } from './history-table';
-import { AttemptSelectionProvider } from '../../../_lib/attempt-selection';
+import { AttemptSelectionProvider } from '@/app/(workspace)/auctions/[auctionId]/_lib/attempt-selection';
 
 const presentation = presentHistory(attemptsFixture, null);
 

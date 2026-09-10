@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { boolean, getTableConfig, integer, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
-import { inspectAuthSchema } from "../../../tools/check-auth-schema.js";
-import { authAccount, authProviderTables, authRateLimit, authSession, authUser } from "./auth.js";
-import { authSchemaOptions, authTableNames } from "./auth-schema-options.js";
+import { inspectAuthSchema } from "./check-auth-schema.js";
+import { authAccount, authProviderTables, authRateLimit, authSession, authUser } from "../src/schema/app/auth.js";
+import { authSchemaOptions, authTableNames } from "../src/schema/app/auth-schema-options.js";
 
 const app = pgSchema("app");
 

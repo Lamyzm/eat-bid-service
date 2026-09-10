@@ -4,9 +4,9 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import { buildDecisionViewRoute, type DecisionSearch } from '../../../_lib/decision-search-params';
+import { buildDecisionViewRoute, type DecisionSearch } from '@/app/(workspace)/auctions/[auctionId]/_lib/decision-search-params';
 import { parseMyRate } from '../model/present-distribution';
-import { useDecisionRoute } from '../../../_widgets/evidence-view';
+import { useDecisionRoute } from '@/app/(workspace)/auctions/[auctionId]/_widgets/evidence-view';
 
 /**
  * 이 눈금은 사정률(분모 예정가격)이고 레일 손잡이는 투찰률(분모 기초금액)이다. 마감 전에는 예정가격이

@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { Button } from '@/shared/ui/button';
 
-import { useAttemptSelection } from '../../../_lib/attempt-selection';
+import { useAttemptSelection } from '@/app/(workspace)/auctions/[auctionId]/_lib/attempt-selection';
 
 /** 표의 한 행. 선택 표시만 브라우저가 정하므로 안의 셀은 서버가 그려 넘긴 것을 그대로 담는다. */
 export function HistoryAttemptRow({

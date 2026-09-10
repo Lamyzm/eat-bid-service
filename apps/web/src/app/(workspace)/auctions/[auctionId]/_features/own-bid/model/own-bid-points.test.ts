@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import type { MyAttemptBidObservation, MyBidSubmission } from '@eatbid/contracts/api/v1/me';
 
-import { attemptsFixture } from '../../../__fixtures__/attempts';
-import { presentHistory, type HistoryRow } from '../../history/model/attempt-history';
+import { attemptsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts';
+import { presentHistory, type HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
 import { buildOwnPoints, ownObservedRange, ownSummaryText, summarizeOwnAttempts } from './own-bid-points';
 
 // 물어본 회차 열쇠는 서버가 표 행에서 뽑아 provider에 넘기는 것과 같은 모양이다.

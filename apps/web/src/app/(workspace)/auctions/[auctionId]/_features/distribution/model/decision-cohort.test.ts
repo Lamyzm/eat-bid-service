@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { auctionFixture } from '../../../__fixtures__/auction';
-import type { DecisionSearch } from '../../../_lib/decision-search-params';
+import { auctionFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/auction';
+import type { DecisionSearch } from '@/app/(workspace)/auctions/[auctionId]/_lib/decision-search-params';
 import { cohortOf, periodOf } from './decision-cohort';
 
 const search: DecisionSearch = {

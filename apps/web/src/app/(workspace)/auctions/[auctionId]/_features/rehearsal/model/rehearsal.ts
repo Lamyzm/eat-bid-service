@@ -1,7 +1,7 @@
 /** @module 책임: 손잡이가 가리키는 투찰률을 선택 품목의 회차 이력에 적용해 "이 값이면" 낙찰값 이하·그날 하한 아래·낙찰값 바로 위 0.1 안 회차 수를 순수 계산한다. */
-import type { BidRate } from '../../../_lib/bid-rate';
-import { toMilli } from '../../../_lib/bid-rate';
-import type { HistoryRow } from '../../history/model/attempt-history';
+import type { BidRate } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
+import { toMilli } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
+import type { HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
 
 export type Rehearsal = {
   readonly total: number;

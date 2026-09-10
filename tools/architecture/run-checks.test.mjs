@@ -54,10 +54,18 @@ test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바�
   assert.deepEqual(ids(selectChecks({ changedPaths: ["apps/web/src/shell/nav.tsx"] })), [
     "contract-client-exports",
     "http-operations",
+    "import-depth",
     "korean-comments",
     "region-vocabulary",
     "semantic-values",
     "web-boundaries",
+  ]);
+  // 상대 경로 import 깊이 검사는 별칭 해석기가 있는 패키지에만 붙는다(ADR 0047).
+  assert.deepEqual(ids(selectChecks({ changedPaths: ["packages/db/src/schema/app/account.ts"] })), [
+    "import-depth",
+    "korean-comments",
+    "region-vocabulary",
+    "semantic-values",
   ]);
   assert.deepEqual(ids(selectChecks({ changedPaths: ["apps/dataplane/src/eatbid/cli.py"] })), [
     "contracts-python-models",

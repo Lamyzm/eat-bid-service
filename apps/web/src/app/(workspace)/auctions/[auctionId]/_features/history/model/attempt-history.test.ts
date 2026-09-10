@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { organizationAuctionAttemptsV1ResponseSchema } from '@eatbid/contracts/api/v1/organizations';
 
-import { attemptsFixture } from '../../../__fixtures__/attempts';
+import { attemptsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts';
 import { presentHistory } from './attempt-history';
-import { rehearse } from '../../rehearsal/model/rehearsal';
+import { rehearse } from '@/app/(workspace)/auctions/[auctionId]/_features/rehearsal/model/rehearsal';
 
 describe('기관 회차 이력 표시 모델', () => {
   test('코드 없는 원문 품목명도 표시하되 코드 필터와 집단 정체성으로 사용하지 않는다', () => {

@@ -2,9 +2,9 @@
 import type { UTCTimestamp } from 'lightweight-charts';
 import type { BidObservationAttemptKey, MyAttemptBidObservation } from '@eatbid/contracts/api/v1/me';
 
-import type { HistoryRow } from '../../history/model/attempt-history';
-import { amountText } from '../../../_lib/bid-rate';
-import { chartDay } from '../../flow/model/flow-chart-model';
+import type { HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
+import { amountText } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
+import { chartDay } from '@/app/(workspace)/auctions/[auctionId]/_features/flow/model/flow-chart-model';
 
 /** 내 party가 남긴 제출 한 행의 캔버스 좌표와 사람이 읽을 원문이다. DOM key는 submissionId를 쓴다. */
 export type OwnChartPoint = {

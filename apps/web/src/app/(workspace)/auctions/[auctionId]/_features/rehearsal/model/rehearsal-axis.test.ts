@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import type { OrganizationAuctionAttempt } from '@eatbid/contracts/api/v1/organizations';
 
-import { namsanRoundsFixture } from '../../../__fixtures__/namsan-rounds';
-import { presentHistory } from '../../history/model/attempt-history';
-import type { HistoryRow } from '../../history/model/attempt-history';
-import { toMilli, toMilliCeiling } from '../../../_lib/bid-rate';
+import { namsanRoundsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/namsan-rounds';
+import { presentHistory } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
+import type { HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
+import { toMilli, toMilliCeiling } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
 import { judgeRow, rehearse, type RowVerdict } from './rehearsal';
 
 const TEN_THOUSAND = BigInt(10000);

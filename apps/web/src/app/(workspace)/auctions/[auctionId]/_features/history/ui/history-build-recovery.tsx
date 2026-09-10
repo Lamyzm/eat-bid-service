@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 import { Button } from '@/shared/ui/button';
-import { buildDecisionHistoryReadRoute, type DecisionSearch } from '../../../_lib/decision-search-params';
+import { buildDecisionHistoryReadRoute, type DecisionSearch } from '@/app/(workspace)/auctions/[auctionId]/_lib/decision-search-params';
 
 /**
  * cached 주소에서 만난 409는 latest 주소로 한 번 옮긴다. latest에서 다시 만나면 버튼만 남기고 자동 이동을

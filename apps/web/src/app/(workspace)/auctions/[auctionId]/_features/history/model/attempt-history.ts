@@ -7,7 +7,7 @@ import type {
   OrganizationAuctionAttemptsV1Response
 } from '@eatbid/contracts/api/v1/organizations';
 
-import { amountText, toMilli, toMilliCeiling } from '../../../_lib/bid-rate';
+import { amountText, toMilli, toMilliCeiling } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
 
 export type HistoryRow = {
   readonly attemptId: string;
