@@ -56,6 +56,11 @@ Tunnel이며 이 절과 무관하다.
 .\infra\vm\Expose-EatbidVm.ps1        # 0.0.0.0:6443→VM:6443, 0.0.0.0:2222→VM:22, Tailscale·사설 LAN만 허용
 ```
 
+새 PC에 Docker가 없거나 기동하지 않으면(2026-09-10 실측) VHDX·seed ISO를 Docker가 있는 PC에서 만들어
+복사한다. 같은 인자에 `-ArtifactsOnly`를 붙여 `-WorkDir`에 산출물만 만들고, 두 파일을 새 PC의 `C:\VMs\eatbid`로
+`scp`한 뒤 새 PC에서 같은 명령을 `-ArtifactsOnly` 없이 실행하면 Docker 검사 없이 VM만 만든다. 공개키는 새
+PC의 것을 써야 그 PC에서 VM에 ssh가 된다.
+
 개발 PC(Tailscale 같은 계정): 새 PC의 `~/.kube/eatbid-prod.yaml`을 받아 `KUBECONFIG` 병합으로 합치고
 `kubectl --context eatbid-prod get nodes`가 TLS 검증을 통과하면 3절부터는 개발 PC에서 `-TargetContext
 eatbid-prod`로 진행한다. VM에 직접 ssh는 `ssh -p 2222 -i ~/.ssh/eatbid-vm eatbid@<호스트 IP>`이며 키는 VM을
