@@ -650,6 +650,22 @@ EAT-148 web 최상위 여섯 층 복원, EAT-133 의미 값 SSOT, EAT-134 lint �
 실행이 끝난 뒤 600초 안이면 **곧바로 늦게 만들어진다.** 주기와 deadline이 같아 사실상 catch-up 하나가 붙어
 회차가 연달아 돈다(겹치지는 않음). 원치 않으면 deadline을 줄이는 별도 결정이 필요하다.
 
+### 저녁 배치에서 새로 나온 후속 (아직 issue 아님)
+
+- **EAT-153이 찾은 인덱스 둘 더.** ① 명단 행 라벨 조회(`code_value_id = ? and observation_id = ?`)는 evidence key에서
+  `observation_id`가 4번째 열이라 lookup당 약 522 buffers·4.2ms(60k 관측 기준). 명단 2,049행이면 수 초. `(code_value_id,
+  observation_id)` 선행 인덱스 후보. ② `auction_revision`에 `auction_attempt_id` 선행 인덱스가 없어
+  `where auction_attempt_id = ? order by auction_revision_id desc limit 1`이 pair key를 backward scan한다. 오래된 공고일수록 길다.
+- **EAT-153 배포 주의.** `CREATE INDEX`가 비동시라 운영 `code_label_observation`(463만 행, 903MB)의 쓰기를 생성 시간만큼
+  막는다. 1분 안쪽으로 보지만 poll-open 실행(3~5분, 10분마다)과 겹치면 그 실행이 그만큼 기다린다. 릴리즈 시각을
+  수집 창 사이로 잡거나, 다음부터 큰 테이블 인덱스는 CONCURRENTLY 수기 마이그레이션(파티션 DDL 선례)으로.
+- **drizzle `.desc()`는 `DESC NULLS LAST`를 낸다.** 서버 SQL의 plain `desc`는 `NULLS FIRST`라 pathkey가 어긋나 인덱스를
+  읽고도 정렬을 다시 한다(실측 140.8ms vs 20.9ms). 정렬 인덱스를 만들 때는 `.nullsFirst()`를 명시한다. 테스트로 고정됨.
+- **EAT-154가 남긴 것.** `decision-layout.css` 16·28·69·79행의 원시 폭 640/767/639px가 남아 있다(결정 화면 경계 지시 때문).
+  `@variant sm`으로 바꾸면 폭 리터럴이 두 곳뿐이 된다. `screen-system.md` §11에서 "1280~1439 사업자 한 명 집중 보기"
+  문구가 사라졌다. 제품 의도로 남길 문장이면 되살린다. Tailwind 기본 rem 대신 px를 써서 글꼴을 키운 사용자에게는
+  경계가 예전보다 좁은 px에서 걸린다(JS와 일치시키려는 선택).
+
 ## 9. 다음에 볼 것
 
 `/auctions/[auctionId]`(진입·로더는 봄, 표시 모델·UI 남음) → `/login`·`/setup` → `shell`(레이아웃·dock·테마·명령 검색) → `components`·`shared`(UI 두 벌) → `api/` 층 → `packages/contracts`.
