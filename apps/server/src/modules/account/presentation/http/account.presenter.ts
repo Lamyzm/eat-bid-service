@@ -4,7 +4,6 @@
  */
 import {
   accountLabelSchema,
-  instantCodec,
   type AccountInitializationV1Response,
   type AccountLabel,
   type CurrentSessionV1Response,
@@ -13,10 +12,9 @@ import {
   type RegisteredBusiness,
   type WorkspaceSummary,
 } from "@eatbid/contracts";
-import type { Temporal } from "@eatbid/domain";
-import { z } from "zod";
 import { maskEmail, type AuthenticatedSubject } from "../../../../platform/auth/auth-identity";
 import type { ResolvedPrincipal, ResolvedWorkspace } from "../../../../platform/auth/principal-reader";
+import { bigintText, instantText } from "../../../../platform/http/wire";
 import type { RegisteredBusinessRecord } from "../../application/account-repository";
 import type { CurrentSessionRecord } from "../../application/get-current-session";
 
@@ -62,14 +60,10 @@ export function toAccountLabel(subject: AuthenticatedSubject): AccountLabel {
   };
 }
 
-function instantText(value: Temporal.Instant): string {
-  return z.encode(instantCodec, value);
-}
-
 export function toWorkspaceSummary(workspace: ResolvedWorkspace): WorkspaceSummary {
   return {
     // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
-    workspaceId: workspace.workspaceId.toString(10),
+    workspaceId: bigintText(workspace.workspaceId),
     name: workspace.name,
     role: workspace.role,
   };
@@ -77,13 +71,13 @@ export function toWorkspaceSummary(workspace: ResolvedWorkspace): WorkspaceSumma
 
 export function toRegisteredBusiness(record: RegisteredBusinessRecord): RegisteredBusiness {
   return {
-    businessId: record.registeredBusinessId.toString(10),
+    businessId: bigintText(record.registeredBusinessId),
     businessNumber: record.businessNumber,
     registeredAt: instantText(record.registeredAt),
     // 미관측과 증거 불일치를 "supplierPartyId: null"이 아니라 이름 있는 상태로 내보낸다. null은 화면에서
     // 쉽게 "참여 기록 없음"으로 읽히지만 앞은 자료 없음이고 뒤는 판정 불가다.
     supplier: record.supplier.kind === "linked"
-      ? { kind: "linked", supplierPartyId: record.supplier.supplierPartyId.toString(10) }
+      ? { kind: "linked", supplierPartyId: bigintText(record.supplier.supplierPartyId) }
       : { kind: record.supplier.kind },
     location: record.location === null
       ? null
@@ -98,14 +92,14 @@ export function toCurrentSessionResponse(record: CurrentSessionRecord): CurrentS
   return {
     state: "active",
     account,
-    principalId: record.principal.principalId.toString(10),
+    principalId: bigintText(record.principal.principalId),
     workspace: toWorkspaceSummary(record.principal.workspace),
   };
 }
 
 export function toAccountInitializationResponse(principal: ResolvedPrincipal): AccountInitializationV1Response {
   return {
-    principalId: principal.principalId.toString(10),
+    principalId: bigintText(principal.principalId),
     workspace: toWorkspaceSummary(principal.workspace),
   };
 }

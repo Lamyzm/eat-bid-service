@@ -1,11 +1,10 @@
 /** @module 책임: 낙찰률 분포 계산 결과(milli 정수 칸·요약)를 공개 V1 응답의 십진 문자열 봉투로 직렬화하는 순수 presenter다. */
-import {
-  instantCodec,
-  type DistributionBin,
-  type WinRateDistributionMeta,
-  type WinRateDistributionV1Response,
+import type {
+  DistributionBin,
+  WinRateDistributionMeta,
+  WinRateDistributionV1Response,
 } from "@eatbid/contracts";
-import { z } from "zod";
+import { bidRateWire, bigintText, martBuildLineageWire } from "../../../../platform/http/wire";
 import {
   rateMilliText,
   ratioMillionthsText,
@@ -15,6 +14,7 @@ import {
 import type { WinRateDistributionResult } from "../../application/find-win-rate-distribution";
 import { cohortOrganizationId, cohortRegionCodeValueId } from "../../domain/distribution-cohort";
 
+// 칸 경계는 BidRate 값이 아니라 milli 정수에서 만든 십진 문자열이라 축별 봉투 helper를 거치지 않는다.
 function binResource(bin: DistributionBinCount, widthMilli: bigint): DistributionBin {
   return {
     from: { value: rateMilliText(bin.lowerMilli), unit: "percentage-points" },
@@ -31,27 +31,22 @@ function boundaryResource(boundary: DistributionBinBoundary) {
 }
 
 function metaResource(result: WinRateDistributionResult): WinRateDistributionMeta {
-  const { input, period, lineage } = result;
-  const organizationIdentity = cohortOrganizationId(input.cohort);
-  const regionIdentity = cohortRegionCodeValueId(input.cohort);
+  const { input, period } = result;
   return {
+    // 계보는 행이 아니라 이 결과를 읽은 build 하나가 갖는다(ADR 0034). 보유율만은 build 전체가 아니라
+    // 요청한 코호트·기간의 달들에서 접은 최악값이라 계보의 값을 덮어쓴다.
+    ...martBuildLineageWire(result.lineage),
+    coverage: result.coverage,
     sampleCount: result.total.sampleCount,
     // 분포 mart에 품목 축이 없다는 사실을 자리를 비우는 대신 명시적 null로 말한다(설계 §3.2).
     item: null,
     scope: input.cohort.scope,
-    regionCodeValueId: regionIdentity === null ? null : regionIdentity.toString(10),
-    organizationId: organizationIdentity === null ? null : organizationIdentity.toString(10),
-    floorRate: { value: input.floorRate, unit: "percentage-points" },
-    awardMethod: input.awardMethodCodeValueId.toString(10),
-    binWidth: { value: input.binWidth, unit: "percentage-points" },
+    regionCodeValueId: bigintText(cohortRegionCodeValueId(input.cohort)),
+    organizationId: bigintText(cohortOrganizationId(input.cohort)),
+    floorRate: bidRateWire(input.floorRate),
+    awardMethod: bigintText(input.awardMethodCodeValueId),
+    binWidth: bidRateWire(input.binWidth),
     period: { from: period.from, to: period.to },
-    // 계보는 행이 아니라 이 결과를 읽은 build 하나가 갖는다(ADR 0034).
-    buildId: lineage === null ? null : lineage.buildId.toString(10),
-    sourceReleaseId: lineage?.sourceReleaseId ?? null,
-    calcVersion: lineage?.calcVersion ?? null,
-    computedAt: lineage === null ? null : z.encode(instantCodec, lineage.computedAt),
-    coverage: result.coverage,
-    regionScheme: lineage?.regionScheme ?? null,
   };
 }
 

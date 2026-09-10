@@ -1,25 +1,16 @@
 /** @module 책임: 코드 목록 조회 record를 공개 V1 응답으로 직렬화하는 순수 presenter다. */
-import {
-  instantCodec,
-  type ListCodesV1Response,
-  type RegionCodeV1,
-} from "@eatbid/contracts";
-import type { Temporal } from "@eatbid/domain";
-import { z } from "zod";
+import type { ListCodesV1Response, RegionCodeV1 } from "@eatbid/contracts";
+import { bigintText, instantText } from "../../../../platform/http/wire";
 import type { CodeReleaseListing, RegionCodeRecord } from "../../application/code-reader";
-
-function instantText(value: Temporal.Instant | null): string | null {
-  return value === null ? null : z.encode(instantCodec, value);
-}
 
 function toRegionCode(scheme: string, record: RegionCodeRecord): RegionCodeV1 {
   return {
     // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
-    codeValueId: record.codeValueId.toString(10),
+    codeValueId: bigintText(record.codeValueId),
     scheme,
     code: record.code,
     label: record.label,
-    parentCodeValueId: record.parentCodeValueId === null ? null : record.parentCodeValueId.toString(10),
+    parentCodeValueId: bigintText(record.parentCodeValueId),
     active: record.active,
     validFrom: instantText(record.validFrom),
     validTo: instantText(record.validTo),
@@ -32,7 +23,7 @@ export function toListCodesResponse(scheme: string, listing: CodeReleaseListing)
     scheme,
     codes: listing.codes.map((record) => toRegionCode(scheme, record)),
     meta: {
-      codeReleaseId: listing.release.codeReleaseId.toString(10),
+      codeReleaseId: bigintText(listing.release.codeReleaseId),
       sourceVersion: listing.release.sourceVersion,
       publishedAt: instantText(listing.release.publishedAt),
       promotedGrain: [...listing.release.promotedGrain],
