@@ -21,6 +21,7 @@ import { ProviderSessionGuard } from "../../../../platform/auth/session.guard";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
+import { ProcurementDependencyUnavailable } from "../../application/failures";
 import {
   AuctionDependencyUnavailable,
   AuctionNotFound,
@@ -28,6 +29,8 @@ import {
 } from "../../application/find-auction";
 import { ListOpenAuctions, OpenAuctionCursorInvalid } from "../../application/list-open-auctions";
 import { auctionId } from "../../domain/auction-id";
+import { toAuctionResponse } from "./auction.presenter";
+import { toOpenAuctionListResponse } from "./open-auction.presenter";
 
 const listOperation = auctionV1Operations.listOpen;
 
@@ -71,7 +74,8 @@ export class AuctionController {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
-      return await this.effectRunner.run(this.listOpenAuctions.execute({
+      // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toOpenAuctionListResponse(await this.effectRunner.run(this.listOpenAuctions.execute({
         regionCodeValueId,
         itemLabel: query.item ?? null,
         closesWithinHours: query.closesWithinHours ?? null,
@@ -79,13 +83,13 @@ export class AuctionController {
         baseAmountMax: query.baseAmountMax ?? null,
         cursor,
         limit: query.limit,
-      }));
+      })));
     } catch (error) {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
       if (error instanceof OpenAuctionCursorInvalid) {
         throw new BadRequestException({ code: "VALIDATION_ERROR" });
       }
-      if (error instanceof AuctionDependencyUnavailable) {
+      if (error instanceof ProcurementDependencyUnavailable) {
         throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
       }
       throw error;
@@ -114,7 +118,7 @@ export class AuctionController {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
-      return await this.effectRunner.run(this.findAuction.execute({ auctionId: auctionId(id) }));
+      return toAuctionResponse(await this.effectRunner.run(this.findAuction.execute({ auctionId: auctionId(id) })));
     } catch (error) {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
       if (error instanceof AuctionNotFound) {

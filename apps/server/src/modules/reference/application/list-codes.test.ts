@@ -1,13 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { listCodesV1ResponseSchema } from "@eatbid/contracts";
-import { Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import type { CodeReader, CodeReleaseListing, RegionCodeRecord } from "./code-reader";
 import {
   CodeDependencyUnavailable,
   CodeReleaseNotFound,
   ListCodes,
-  toListCodesResponse,
 } from "./list-codes";
 
 const SCHEME = "mois:administrative-region";
@@ -44,60 +41,11 @@ function readerDouble(overrides: Partial<CodeReader> = {}): CodeReader {
 }
 
 describe("코드 목록 조회 use case", () => {
-  test("release meta와 코드 행을 공개 V1 응답 계약으로 직렬화한다", () => {
-    const response = toListCodesResponse(SCHEME, listing([
-      codeRecord(),
-      codeRecord({
-        codeValueId: 1102n,
-        code: "1111000000",
-        label: "종로구",
-        parentCodeValueId: 1101n,
-        grain: "sigungu",
-        coordinate: null,
-      }),
-    ]));
-    expect(listCodesV1ResponseSchema.parse(response)).toEqual(response);
-    expect(response.codes[0]).toEqual({
-      codeValueId: "1101",
-      scheme: SCHEME,
-      code: "1100000000",
-      label: "서울특별시",
-      parentCodeValueId: null,
-      active: true,
-      validFrom: null,
-      validTo: null,
-      coordinate: { latitude: 37.5665, longitude: 126.978, crs: "EPSG:4326" },
-    });
-    expect(response.codes[1]?.parentCodeValueId).toBe("1101");
-    expect(response.meta).toEqual({
-      codeReleaseId: "7",
-      sourceVersion: "2026-09-06",
-      publishedAt: null,
-      promotedGrain: ["sido", "sigungu"],
-      codesWithoutCoordinateCount: 1,
-    });
-  });
-
-  test("원본이 준 유효기간만 canonical instant 문자열로 싣고 없으면 null로 남긴다", () => {
-    const response = toListCodesResponse(SCHEME, listing([
-      codeRecord({
-        validFrom: Temporal.Instant.from("2026-07-01T00:00:00Z"),
-        validTo: null,
-        active: false,
-      }),
-    ]));
-    expect(response.codes[0]?.validFrom).toBe("2026-07-01T00:00:00Z");
-    expect(response.codes[0]?.validTo).toBeNull();
-    expect(response.codes[0]?.active).toBe(false);
-  });
-
-  test("좌표 없는 코드 수를 숨기지 않고 meta가 센다", () => {
-    const response = toListCodesResponse(SCHEME, listing([
-      codeRecord({ coordinate: null }),
-      codeRecord({ codeValueId: 1102n, code: "1111000000", coordinate: null }),
-      codeRecord({ codeValueId: 1103n, code: "1114000000" }),
-    ]));
-    expect(response.meta.codesWithoutCoordinateCount).toBe(2);
+  test("활성 release의 listing을 wire로 바꾸지 않고 그대로 돌려준다", async () => {
+    const active = listing([codeRecord()]);
+    const listCodes = new ListCodes(readerDouble({ readActiveRelease: async () => active }));
+    // 직렬화는 presenter의 일이다. use case 결과에 십진 문자열이 섞이면 경계가 무너진 것이다.
+    expect(await Effect.runPromise(listCodes.execute({ scheme: SCHEME, grain: null }))).toBe(active);
   });
 
   test("활성 release가 없으면 빈 목록이 아니라 없음 실패다", async () => {

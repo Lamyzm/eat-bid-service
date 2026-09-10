@@ -1,35 +1,21 @@
-/** @module 책임: 낙찰률 분포 조회의 기본 기간·실패 분류와 mart record→공개 V1 응답 직렬화를 소유한다. */
-import {
-  instantCodec,
-  type DistributionBin,
-  type MartCoverage,
-  type WinRateDistributionMeta,
-  type WinRateDistributionV1Response,
-} from "@eatbid/contracts";
+/** @module 책임: 낙찰률 분포 조회 use case의 기본 기간·실패 분류와 mart 달×칸 읽기를 요청 폭의 분포 요약으로 계산하는 일을 소유한다. */
+import type { MartCoverage } from "@eatbid/contracts";
 import type { BidRate, Clock } from "@eatbid/domain";
 import { Effect } from "effect";
-import { z } from "zod";
 import {
-  rateMilliText,
   rateTextMilli,
-  ratioMillionthsText,
   summarizeDistribution,
-  type DistributionBinBoundary,
   type DistributionBinCount,
   type DistributionSummary,
 } from "./distribution-statistics";
-import { AuctionDependencyUnavailable } from "./find-auction";
+import { ProcurementDependencyUnavailable } from "./failures";
 import { OrganizationNotFound } from "./list-organization-auction-attempts";
 import type { MartBuildLineage } from "./mart-build-lineage";
 import type {
   DistributionReading,
   WinRateDistributionReader,
 } from "./win-rate-distribution-reader";
-import {
-  cohortOrganizationId,
-  cohortRegionCodeValueId,
-  type DistributionCohort,
-} from "../domain/distribution-cohort";
+import type { DistributionCohort } from "../domain/distribution-cohort";
 import {
   kstMonthOf,
   kstMonthsBetween,
@@ -48,6 +34,29 @@ export interface FindWinRateDistributionInput {
   readonly granularity: "total" | "month";
   // null은 "기간을 지정하지 않았다"이며 그때 기본 창은 계약이 아니라 이 use case가 정한다.
   readonly period: { readonly from: KstMonth; readonly to: KstMonth } | null;
+}
+
+/** 요청 기간의 한 달이다. 행이 없는 달도 자리를 가지며 보유율 행이 없으면 `none`이다(PDR-0003). */
+export interface DistributionMonthSummary {
+  readonly month: KstMonth;
+  readonly sampleCount: number;
+  readonly coverage: MartCoverage;
+  readonly bins: readonly DistributionBinCount[];
+}
+
+/**
+ * 요청 폭으로 다시 묶은 분포의 내부 결과다. 값은 전부 milli 정수와 도메인 값이며 십진 문자열 봉투는
+ * presenter가 만든다(ADR 0045 결정 1). `coverage`는 달들의 최악값이고 활성 build가 없으면 달도 계보도 없다.
+ */
+export interface WinRateDistributionResult {
+  readonly input: FindWinRateDistributionInput;
+  readonly period: { readonly from: KstMonth; readonly to: KstMonth };
+  /** 요청 칸 폭의 milli 정수다. 칸의 오른쪽 끝은 이 폭으로 계산한다. */
+  readonly widthMilli: bigint;
+  readonly total: DistributionSummary;
+  readonly months: readonly DistributionMonthSummary[];
+  readonly coverage: MartCoverage | null;
+  readonly lineage: MartBuildLineage | null;
 }
 
 /** 지역 코드값이 없는 모집단은 표본이 없는 모집단과 다르다. 빈 분포로 뭉개면 두 사실이 하나가 된다. */
@@ -79,66 +88,21 @@ const COVERAGE_RANK: Record<MartCoverage, number> = { none: 0, unknown: 1, parti
 
 type CohortCheck = Effect.Effect<
   void,
-  AuctionDependencyUnavailable | DistributionRegionNotFound | OrganizationNotFound,
+  ProcurementDependencyUnavailable | DistributionRegionNotFound | OrganizationNotFound,
   never
 >;
-
-function binResource(bin: DistributionBinCount, widthMilli: bigint): DistributionBin {
-  return {
-    from: { value: rateMilliText(bin.lowerMilli), unit: "percentage-points" },
-    to: { value: rateMilliText(bin.lowerMilli + widthMilli), unit: "percentage-points" },
-    count: bin.count,
-  };
-}
-
-function boundaryResource(boundary: DistributionBinBoundary) {
-  return {
-    from: { value: rateMilliText(boundary.fromMilli), unit: "percentage-points" } as const,
-    to: { value: rateMilliText(boundary.toMilli), unit: "percentage-points" } as const,
-  };
-}
 
 function worstCoverage(values: readonly MartCoverage[]): MartCoverage | null {
   if (values.length === 0) return null;
   return values.reduce((worst, value) => (COVERAGE_RANK[value] < COVERAGE_RANK[worst] ? value : worst));
 }
 
-function metaResource(
-  input: FindWinRateDistributionInput,
-  period: { readonly from: KstMonth; readonly to: KstMonth },
-  sampleCount: number,
-  coverage: MartCoverage | null,
-  lineage: MartBuildLineage | null,
-): WinRateDistributionMeta {
-  const organizationIdentity = cohortOrganizationId(input.cohort);
-  const regionIdentity = cohortRegionCodeValueId(input.cohort);
-  return {
-    sampleCount,
-    // 분포 mart에 품목 축이 없다는 사실을 자리를 비우는 대신 명시적 null로 말한다(설계 §3.2).
-    item: null,
-    scope: input.cohort.scope,
-    regionCodeValueId: regionIdentity === null ? null : regionIdentity.toString(10),
-    organizationId: organizationIdentity === null ? null : organizationIdentity.toString(10),
-    floorRate: { value: input.floorRate, unit: "percentage-points" },
-    awardMethod: input.awardMethodCodeValueId.toString(10),
-    binWidth: { value: input.binWidth, unit: "percentage-points" },
-    period: { from: period.from, to: period.to },
-    // 계보는 행이 아니라 이 결과를 읽은 build 하나가 갖는다(ADR 0034).
-    buildId: lineage === null ? null : lineage.buildId.toString(10),
-    sourceReleaseId: lineage?.sourceReleaseId ?? null,
-    calcVersion: lineage?.calcVersion ?? null,
-    computedAt: lineage === null ? null : z.encode(instantCodec, lineage.computedAt),
-    coverage,
-    regionScheme: lineage?.regionScheme ?? null,
-  };
-}
-
 export class FindWinRateDistribution {
   constructor(private readonly reader: WinRateDistributionReader, private readonly clock: Clock) {}
 
   execute(input: FindWinRateDistributionInput): Effect.Effect<
-    WinRateDistributionV1Response,
-    AuctionDependencyUnavailable | DistributionBinWidthInvalid | DistributionRegionNotFound | OrganizationNotFound,
+    WinRateDistributionResult,
+    ProcurementDependencyUnavailable | DistributionBinWidthInvalid | DistributionRegionNotFound | OrganizationNotFound,
     never
   > {
     const period = input.period ?? this.defaultPeriod();
@@ -151,9 +115,9 @@ export class FindWinRateDistribution {
           awardMethodCodeValueId: input.awardMethodCodeValueId,
           period,
         }),
-        catch: (cause) => new AuctionDependencyUnavailable(cause),
+        catch: (cause) => new ProcurementDependencyUnavailable(cause),
       })),
-      Effect.flatMap((reading) => this.serialize(input, period, reading)),
+      Effect.flatMap((reading) => this.summarize(input, period, reading)),
     );
   }
 
@@ -171,15 +135,15 @@ export class FindWinRateDistribution {
       : new DistributionRegionNotFound(cohort.regionCodeValueId);
     return Effect.tryPromise({
       try: () => this.reader.cohortExists(cohort),
-      catch: (cause): AuctionDependencyUnavailable => new AuctionDependencyUnavailable(cause),
+      catch: (cause): ProcurementDependencyUnavailable => new ProcurementDependencyUnavailable(cause),
     }).pipe(Effect.flatMap((exists): CohortCheck => exists ? Effect.succeed(undefined) : Effect.fail(missing)));
   }
 
-  private serialize(
+  private summarize(
     input: FindWinRateDistributionInput,
     period: { readonly from: KstMonth; readonly to: KstMonth },
     reading: DistributionReading,
-  ): Effect.Effect<WinRateDistributionV1Response, DistributionBinWidthInvalid, never> {
+  ): Effect.Effect<WinRateDistributionResult, DistributionBinWidthInvalid, never> {
     const widthMilli = rateTextMilli(input.binWidth);
     const stored = reading.storedBinWidthMilli;
     // 저장 폭보다 좁거나 배수가 아닌 칸은 만들 수 없다. 행이 없으면 검증할 대상 자체가 없다.
@@ -189,16 +153,18 @@ export class FindWinRateDistribution {
     // 활성 build가 없으면 계보도 달도 없다. 오류가 아니라 파생물이 아직 없는 정상 상태다(ADR 0011).
     if (reading.lineage === null) {
       return Effect.succeed({
-        bins: [],
-        medianBin: null,
-        modeRange: null,
+        input,
+        period,
+        widthMilli,
+        total: { bins: [], sampleCount: 0, medianBin: null, modeRange: null },
         months: [],
-        meta: metaResource(input, period, 0, null, null),
+        coverage: null,
+        lineage: null,
       });
     }
     const coverageByMonth = new Map(reading.coverage.map((entry) => [entry.month, entry.coverage] as const));
     const binsByMonth = new Map(reading.months.map((entry) => [entry.month, entry.bins] as const));
-    const months = kstMonthsBetween(period.from, period.to).map((month) => {
+    const months = kstMonthsBetween(period.from, period.to).map((month): DistributionMonthSummary => {
       const summary = summarizeDistribution(binsByMonth.get(month) ?? [], widthMilli);
       return {
         month,
@@ -206,7 +172,7 @@ export class FindWinRateDistribution {
         // 보유율 행이 없는 달은 "완전"이 아니라 `none`이다. 행이 없다는 것이 곧 none이며 그 번역은
         // 읽기 경로가 한다(PDR-0003).
         coverage: coverageByMonth.get(month) ?? ("none" as MartCoverage),
-        bins: input.granularity === "month" ? summary.bins.map((bin) => binResource(bin, widthMilli)) : null,
+        bins: summary.bins,
       };
     });
     const total: DistributionSummary = summarizeDistribution(
@@ -214,21 +180,13 @@ export class FindWinRateDistribution {
       widthMilli,
     );
     return Effect.succeed({
-      bins: total.bins.map((bin) => binResource(bin, widthMilli)),
-      medianBin: total.medianBin === null ? null : boundaryResource(total.medianBin),
-      modeRange: total.modeRange === null ? null : {
-        ...boundaryResource(total.modeRange),
-        count: total.modeRange.count,
-        share: { value: ratioMillionthsText(total.modeRange.shareMillionths), unit: "ratio" },
-      },
+      input,
+      period,
+      widthMilli,
+      total,
       months,
-      meta: metaResource(
-        input,
-        period,
-        total.sampleCount,
-        worstCoverage(months.map((month) => month.coverage)),
-        reading.lineage,
-      ),
+      coverage: worstCoverage(months.map((month) => month.coverage)),
+      lineage: reading.lineage,
     });
   }
 }

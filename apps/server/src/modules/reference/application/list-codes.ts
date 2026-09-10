@@ -1,13 +1,6 @@
-/** @module 책임: 코드 목록 조회의 예상 실패 분류와 application record→공개 V1 응답 직렬화를 소유한다. */
-import {
-  instantCodec,
-  type ListCodesV1Response,
-  type RegionCodeV1,
-} from "@eatbid/contracts";
-import type { Temporal } from "@eatbid/domain";
+/** @module 책임: 코드 목록 조회 use case와 그 예상 실패 분류를 소유한다. */
 import { Effect } from "effect";
-import { z } from "zod";
-import type { CodeReader, CodeReleaseListing, RegionCodeRecord } from "./code-reader";
+import type { CodeReader, CodeReleaseListing } from "./code-reader";
 
 export interface ListCodesInput {
   readonly scheme: string;
@@ -36,46 +29,12 @@ export class CodeDependencyUnavailable extends Error {
   }
 }
 
-function instantText(value: Temporal.Instant | null): string | null {
-  return value === null ? null : z.encode(instantCodec, value);
-}
-
-function toRegionCode(scheme: string, record: RegionCodeRecord): RegionCodeV1 {
-  return {
-    // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
-    codeValueId: record.codeValueId.toString(10),
-    scheme,
-    code: record.code,
-    label: record.label,
-    parentCodeValueId: record.parentCodeValueId === null ? null : record.parentCodeValueId.toString(10),
-    active: record.active,
-    validFrom: instantText(record.validFrom),
-    validTo: instantText(record.validTo),
-    coordinate: record.coordinate,
-  };
-}
-
-export function toListCodesResponse(scheme: string, listing: CodeReleaseListing): ListCodesV1Response {
-  return {
-    scheme,
-    codes: listing.codes.map((record) => toRegionCode(scheme, record)),
-    meta: {
-      codeReleaseId: listing.release.codeReleaseId.toString(10),
-      sourceVersion: listing.release.sourceVersion,
-      publishedAt: instantText(listing.release.publishedAt),
-      promotedGrain: [...listing.release.promotedGrain],
-      // 좌표 없는 코드 수를 응답이 직접 센다. 지도에 서지 않는 구가 몇 개인지는 숨기면 "그 지역에
-      // 공고가 없다"로 읽힌다(ADR 0035 Consequences).
-      codesWithoutCoordinateCount: listing.codes.filter((record) => record.coordinate === null).length,
-    },
-  };
-}
-
 export class ListCodes {
   constructor(private readonly reader: CodeReader) {}
 
+  /** 공개 응답이 아니라 활성 release의 내부 listing을 돌려준다. wire 직렬화는 presenter가 한다(ADR 0045 결정 1). */
   execute(input: ListCodesInput): Effect.Effect<
-    ListCodesV1Response,
+    CodeReleaseListing,
     CodeReleaseNotFound | CodeDependencyUnavailable,
     never
   > {
@@ -86,7 +45,7 @@ export class ListCodes {
     }).pipe(
       Effect.flatMap((listing) => listing === null
         ? Effect.fail(new CodeReleaseNotFound(input.scheme))
-        : Effect.succeed(toListCodesResponse(input.scheme, listing))),
+        : Effect.succeed(listing)),
     );
   }
 }

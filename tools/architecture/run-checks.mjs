@@ -51,6 +51,13 @@ export const CHECKS = Object.freeze([
     scope: [/^apps\/web\/src\//],
   },
   {
+    id: "server-boundaries",
+    label: "Server module 경계",
+    script: "tools/architecture/check-server-boundaries.mjs",
+    weight: 1,
+    scope: [/^apps\/server\/src\/modules\//],
+  },
+  {
     id: "contracts-python-models",
     label: "Python 생성 모델 drift",
     command: "pnpm contracts:python:check",

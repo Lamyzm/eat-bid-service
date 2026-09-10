@@ -2,7 +2,7 @@
 import { Module } from "@nestjs/common";
 import type { AuctionReader } from "./application/auction-reader";
 import type { AuctionRosterReader } from "./application/auction-roster-reader";
-import { CachedAuctionRosterReader } from "./application/cached-auction-roster-reader";
+import { CachedAuctionRosterReader } from "./infrastructure/caching/cached-auction-roster-reader";
 import { GetAuctionRoster } from "./application/get-auction-roster";
 import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
 import { FindAuction } from "./application/find-auction";
@@ -33,16 +33,26 @@ import {
 import type { Clock } from "@eatbid/domain";
 import { CLOCK } from "../../platform/clock/clock.module";
 
+/** 캐시로 감싼 명단 port의 모듈 내부 토큰이다. 내보내지 않아 다른 모듈이 캐시 여부에 기대지 못한다. */
+const CACHED_AUCTION_ROSTER_READER = Symbol("CACHED_AUCTION_ROSTER_READER");
+
 /**
- * 회차를 고정한 명단은 같은 값을 여러 사람이 반복해서 연다. 그 재사용을 use case가 아니라 port를 감싸
- * 두는 이유는, 저장소를 실제로 읽는지가 조회 port의 성질이고 use case는 그 사실을 알 필요가 없어서다.
- * provider가 하나뿐이라 이 재사용은 pod 하나의 수명 동안 유지된다.
+ * 회차를 고정한 명단은 같은 값을 여러 사람이 반복해서 연다. 그 재사용을 use case가 아니라 port를 감싼
+ * infrastructure 장식자가 맡고 모듈이 배선하는 이유는, 저장소를 실제로 읽는지가 조회 port의 성질이고
+ * use case는 port 인터페이스만 알아야 해서다(ADR 0045 결정 4). provider가 하나뿐이라 이 재사용은 pod
+ * 하나의 수명 동안 유지된다.
  */
+const cachedAuctionRosterReaderProvider = {
+  provide: CACHED_AUCTION_ROSTER_READER,
+  inject: [AUCTION_ROSTER_READER, CLOCK],
+  useFactory: (reader: AuctionRosterReader, clock: Clock): AuctionRosterReader =>
+    new CachedAuctionRosterReader(reader, clock),
+};
+
 const getAuctionRosterProvider = {
   provide: GetAuctionRoster,
-  inject: [AUCTION_ROSTER_READER, CLOCK],
-  useFactory: (reader: AuctionRosterReader, clock: Clock) =>
-    new GetAuctionRoster(new CachedAuctionRosterReader(reader, clock)),
+  inject: [CACHED_AUCTION_ROSTER_READER],
+  useFactory: (reader: AuctionRosterReader) => new GetAuctionRoster(reader),
 };
 
 const findAuctionProvider = {
@@ -89,6 +99,7 @@ const findMyBidObservationsProvider = {
     WinRateDistributionController,
   ],
   providers: [
+    cachedAuctionRosterReaderProvider,
     getAuctionRosterProvider,
     findAuctionProvider,
     listOrganizationAuctionAttemptsProvider,

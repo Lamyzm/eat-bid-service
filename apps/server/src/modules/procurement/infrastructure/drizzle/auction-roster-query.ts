@@ -1,6 +1,7 @@
 /** @module 책임: 선택 revision의 명단과 같은 원본 관측의 업체명·판정 라벨·관측 시각을 한 SQL snapshot으로 읽는다. */
 import { sql, type SQL } from "drizzle-orm";
 import type { AuctionRosterQuery } from "../../application/auction-roster-reader";
+import { ROSTER_QUERY_ROW_LIMIT } from "../../domain/roster-limits";
 
 /**
  * 구매기관 코드의 소유 체계다. 같은 기관이 학교 코드처럼 다른 소유기관의 식별자도 가질 수 있고 그
@@ -107,6 +108,6 @@ export function auctionRosterQuery(query: AuctionRosterQuery) {
     ) withdrawal_label on true
     left join core.award_decision award on award.auction_revision_id = r.auction_revision_id
     order by b.roster_ordinal asc
-    limit 2049
+    limit ${ROSTER_QUERY_ROW_LIMIT}
   `;
 }

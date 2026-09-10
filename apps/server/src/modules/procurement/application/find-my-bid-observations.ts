@@ -6,7 +6,6 @@
  * 등록의 기록을 돌려주거나, 방금 이어진 party의 기록을 미연결로 말하게 된다. 어느 쪽도 응답만 보고는
  * 알 수 없다.
  */
-import type { MyBidObservationSupplier, MyBidObservationsV1Response } from "@eatbid/contracts";
 import { Effect } from "effect";
 import type {
   RegisteredBusinessLookup,
@@ -17,9 +16,9 @@ import {
   RegisteredBusinessNotFound,
 } from "../../account/application/account-repository";
 import type { TransactionHandle, UnitOfWork } from "../../../platform/database/unit-of-work";
-import { AuctionDependencyUnavailable } from "./find-auction";
-import { toAttemptObservation, toMyBidObservationsResponse } from "./own-bid-presentation";
-import type { OwnBidAttemptKey, OwnBidReader } from "./own-bid-reader";
+import { ProcurementDependencyUnavailable } from "./failures";
+import type { MartBuildLineage } from "./mart-build-lineage";
+import type { OwnBidAttemptKey, OwnBidAttemptRecord, OwnBidReader } from "./own-bid-reader";
 import type { OrganizationId } from "../domain/organization-id";
 
 /**
@@ -56,17 +55,34 @@ export interface FindMyBidObservationsInput {
   readonly attempts: readonly OwnBidAttemptKey[];
 }
 
+/**
+ * 읽는 시점의 대조 상태다. 미관측과 증거 불일치를 회차 목록이 빈 "관측"으로 합치지 않는다. 빈 배열은
+ * "찾아봤지만 없었다"로 읽히고 그것은 우리가 하지 않은 미참여 판정이다(ADR 0032 §7).
+ */
+export type MyBidObservationsSupplierRecord =
+  | { readonly kind: "evidence-conflict" }
+  | { readonly kind: "unobserved" }
+  | {
+    readonly kind: "observed";
+    readonly supplierPartyId: bigint;
+    readonly attempts: readonly OwnBidAttemptRecord[];
+  };
+
+/** use case의 내부 결과다. 공개 응답으로의 직렬화는 presentation의 presenter가 한다(ADR 0045 결정 1). */
+export interface MyBidObservationsRecord {
+  readonly registeredBusinessId: bigint;
+  readonly organizationId: OrganizationId;
+  readonly supplier: MyBidObservationsSupplierRecord;
+  readonly lineage: MartBuildLineage;
+}
+
 type Outcome =
-  | { readonly kind: "response"; readonly response: MyBidObservationsV1Response }
+  | { readonly kind: "record"; readonly record: MyBidObservationsRecord }
   | { readonly kind: "not-found" }
   | { readonly kind: "forbidden" }
   | { readonly kind: "build-changed"; readonly activeBuildId: bigint | null }
   | { readonly kind: "attempts-not-in-build"; readonly missing: readonly OwnBidAttemptKey[] };
 
-/**
- * 대조된 party가 없으면 회차 목록 자리 자체를 만들지 않는다. 빈 배열은 "찾아봤지만 없었다"로 읽히고
- * 그것은 우리가 하지 않은 미참여 판정이다(ADR 0032 §7).
- */
 function supplierPartyOf(lookup: RegisteredBusinessLookup): bigint | null {
   return lookup.kind === "found" && lookup.business.supplier.kind === "linked"
     ? lookup.business.supplier.supplierPartyId
@@ -81,8 +97,8 @@ export class FindMyBidObservations {
   ) {}
 
   execute(input: FindMyBidObservationsInput): Effect.Effect<
-    MyBidObservationsV1Response,
-    AuctionDependencyUnavailable
+    MyBidObservationsRecord,
+    ProcurementDependencyUnavailable
     | OwnBidAttemptsNotInBuild
     | OwnBidBuildChanged
     | RegisteredBusinessForbidden
@@ -91,14 +107,14 @@ export class FindMyBidObservations {
   > {
     return Effect.tryPromise({
       try: () => this.readSnapshot.run((snapshot) => this.load(snapshot, input)),
-      catch: (cause) => new AuctionDependencyUnavailable(cause),
+      catch: (cause) => new ProcurementDependencyUnavailable(cause),
     }).pipe(Effect.flatMap((outcome): Effect.Effect<
-      MyBidObservationsV1Response,
+      MyBidObservationsRecord,
       OwnBidAttemptsNotInBuild | OwnBidBuildChanged | RegisteredBusinessForbidden | RegisteredBusinessNotFound,
       never
     > => {
       switch (outcome.kind) {
-        case "response": return Effect.succeed(outcome.response);
+        case "record": return Effect.succeed(outcome.record);
         case "not-found": return Effect.fail(new RegisteredBusinessNotFound());
         case "forbidden": return Effect.fail(new RegisteredBusinessForbidden());
         case "build-changed": return Effect.fail(new OwnBidBuildChanged(input.buildId, outcome.activeBuildId));
@@ -127,23 +143,19 @@ export class FindMyBidObservations {
     if (listing.kind === "build-changed") return { kind: "build-changed", activeBuildId: listing.activeBuildId };
     if (listing.kind === "attempts-not-in-build") return { kind: "attempts-not-in-build", missing: listing.missing };
 
-    const supplier: MyBidObservationSupplier = lookup.kind === "evidence-conflict"
+    const supplier: MyBidObservationsSupplierRecord = lookup.kind === "evidence-conflict"
       ? { kind: "evidence-conflict" }
       : supplierPartyId === null
         ? { kind: "unobserved" }
-        : {
-          kind: "observed",
-          supplierPartyId: supplierPartyId.toString(10),
-          attempts: listing.attempts.map(toAttemptObservation),
-        };
+        : { kind: "observed", supplierPartyId, attempts: listing.attempts };
     return {
-      kind: "response",
-      response: toMyBidObservationsResponse({
+      kind: "record",
+      record: {
         registeredBusinessId: input.registeredBusinessId,
         organizationId: input.organizationId,
         supplier,
         lineage: listing.lineage,
-      }),
+      },
     };
   }
 }

@@ -1,19 +1,22 @@
 /**
- * @module 책임: 계정 application record와 provider 주체를 공개 V1 응답 형태로 직렬화하고, 화면 표시용
- * 라벨의 길이·빈값 정책을 여기서 정한다.
+ * @module 책임: 계정 application record와 provider 주체를 공개 V1 응답으로 직렬화하는 순수 presenter이며, 화면
+ * 표시용 라벨의 길이·빈값 정책을 여기서 정한다.
  */
 import {
   accountLabelSchema,
-  instantCodec,
+  type AccountInitializationV1Response,
   type AccountLabel,
+  type CurrentSessionV1Response,
+  type MyBusinessesV1Response,
+  type MyBusinessV1Response,
   type RegisteredBusiness,
   type WorkspaceSummary,
 } from "@eatbid/contracts";
-import type { Temporal } from "@eatbid/domain";
-import { z } from "zod";
-import { maskEmail, type AuthenticatedSubject } from "../../../platform/auth/auth-identity";
-import type { ResolvedWorkspace } from "../../../platform/auth/principal-reader";
-import type { RegisteredBusinessRecord } from "./account-repository";
+import { maskEmail, type AuthenticatedSubject } from "../../../../platform/auth/auth-identity";
+import type { ResolvedPrincipal, ResolvedWorkspace } from "../../../../platform/auth/principal-reader";
+import { bigintText, instantText } from "../../../../platform/http/wire";
+import type { RegisteredBusinessRecord } from "../../application/account-repository";
+import type { CurrentSessionRecord } from "../../application/get-current-session";
 
 /**
  * 상한은 계약이 정하고 여기서 다시 적지 않는다. 두 값이 어긋나면 정상 세션이 응답 검증에서 500으로 끊긴다.
@@ -57,14 +60,10 @@ export function toAccountLabel(subject: AuthenticatedSubject): AccountLabel {
   };
 }
 
-function instantText(value: Temporal.Instant): string {
-  return z.encode(instantCodec, value);
-}
-
 export function toWorkspaceSummary(workspace: ResolvedWorkspace): WorkspaceSummary {
   return {
     // PostgreSQL bigint 식별자는 Number를 거치면 정밀도가 손실되므로 경계에서 십진 문자열로만 직렬화한다.
-    workspaceId: workspace.workspaceId.toString(10),
+    workspaceId: bigintText(workspace.workspaceId),
     name: workspace.name,
     role: workspace.role,
   };
@@ -72,16 +71,43 @@ export function toWorkspaceSummary(workspace: ResolvedWorkspace): WorkspaceSumma
 
 export function toRegisteredBusiness(record: RegisteredBusinessRecord): RegisteredBusiness {
   return {
-    businessId: record.registeredBusinessId.toString(10),
+    businessId: bigintText(record.registeredBusinessId),
     businessNumber: record.businessNumber,
     registeredAt: instantText(record.registeredAt),
     // 미관측과 증거 불일치를 "supplierPartyId: null"이 아니라 이름 있는 상태로 내보낸다. null은 화면에서
     // 쉽게 "참여 기록 없음"으로 읽히지만 앞은 자료 없음이고 뒤는 판정 불가다.
     supplier: record.supplier.kind === "linked"
-      ? { kind: "linked", supplierPartyId: record.supplier.supplierPartyId.toString(10) }
+      ? { kind: "linked", supplierPartyId: bigintText(record.supplier.supplierPartyId) }
       : { kind: record.supplier.kind },
     location: record.location === null
       ? null
       : { addressText: record.location.addressText, updatedAt: instantText(record.location.updatedAt) },
   };
+}
+
+export function toCurrentSessionResponse(record: CurrentSessionRecord): CurrentSessionV1Response {
+  if (record.state === "unauthenticated") return { state: "unauthenticated" };
+  const account = toAccountLabel(record.subject);
+  if (record.state === "uninitialized") return { state: "uninitialized", account };
+  return {
+    state: "active",
+    account,
+    principalId: bigintText(record.principal.principalId),
+    workspace: toWorkspaceSummary(record.principal.workspace),
+  };
+}
+
+export function toAccountInitializationResponse(principal: ResolvedPrincipal): AccountInitializationV1Response {
+  return {
+    principalId: bigintText(principal.principalId),
+    workspace: toWorkspaceSummary(principal.workspace),
+  };
+}
+
+export function toMyBusinessesResponse(records: readonly RegisteredBusinessRecord[]): MyBusinessesV1Response {
+  return { businesses: records.map(toRegisteredBusiness) };
+}
+
+export function toMyBusinessResponse(record: RegisteredBusinessRecord): MyBusinessV1Response {
+  return { business: toRegisteredBusiness(record) };
 }

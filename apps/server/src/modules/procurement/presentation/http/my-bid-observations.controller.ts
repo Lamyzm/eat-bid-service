@@ -29,7 +29,7 @@ import {
   RegisteredBusinessForbidden,
   RegisteredBusinessNotFound,
 } from "../../../account/application/account-repository";
-import { AuctionDependencyUnavailable } from "../../application/find-auction";
+import { ProcurementDependencyUnavailable } from "../../application/failures";
 import {
   FindMyBidObservations,
   OwnBidAttemptsNotInBuild,
@@ -37,6 +37,7 @@ import {
   type FindMyBidObservationsInput,
 } from "../../application/find-my-bid-observations";
 import { organizationId } from "../../domain/organization-id";
+import { toMyBidObservationsResponse } from "./my-bid-observations.presenter";
 
 const operation = myBidObservationV1Operations.findMyBidObservations;
 
@@ -85,7 +86,8 @@ export class MyBidObservationsController {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
-      return await this.effectRunner.run(this.findMyBidObservations.execute(input));
+      // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toMyBidObservationsResponse(await this.effectRunner.run(this.findMyBidObservations.execute(input)));
     } catch (error) {
       return translate(error);
     }
@@ -100,7 +102,7 @@ function translate(error: unknown): never {
   if (error instanceof RegisteredBusinessNotFound) throw new NotFoundException({ code: "NOT_FOUND" });
   // build 전환은 요청을 고쳐서 되는 일이 아니라 목록 전체를 버리고 다시 조회해야 하는 일이다.
   if (error instanceof OwnBidBuildChanged) throw new ConflictException({ code: "CONFLICT" });
-  if (error instanceof AuctionDependencyUnavailable) {
+  if (error instanceof ProcurementDependencyUnavailable) {
     throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
   }
   throw error;

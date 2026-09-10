@@ -19,13 +19,11 @@ import type {
   OwnBidSubmissionRecord,
 } from "../../application/own-bid-reader";
 import { transactionDatabase, type TransactionHandle } from "../../../../platform/database/unit-of-work";
+import { MAX_ROSTER_ROWS } from "../../domain/roster-limits";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
 import { ORG_ROUND_SUMMARY, readActiveMartBuildLineage } from "./drizzle-mart-build-reader";
 import { ownBidQuery } from "./own-bid-query";
-import { bigintValue, moneyValue, observedBidRateValue } from "./postgres-row-values";
-
-/** 한 회차 명단의 행 수 상한이며 원천 명단 계약과 같다. 회차별 상한이라 요청 크기와 무관하다. */
-const MAX_ROSTER_ROWS = 2048;
+import { bigintValue, moneyValue, observedBidRateValue, observedLabel } from "./postgres-row-values";
 
 type DbId = string | bigint;
 type PostgresTimestamp = Parameters<typeof postgresInstant>[0];
@@ -71,10 +69,6 @@ function provenanceOf(row: OwnBidRow): OwnBidProvenanceRecord {
   };
 }
 
-function label(value: string | null): string | null {
-  return value === null || value.trim() === "" ? null : value.trim();
-}
-
 function submissionOf(row: OwnBidRow): OwnBidSubmissionRecord {
   const rate = observedBidRateValue(row.bid_rate);
   if (row.submission_id === null || row.supplier_party_id === null
@@ -97,7 +91,7 @@ function submissionOf(row: OwnBidRow): OwnBidSubmissionRecord {
       codeValueId: bigintValue(row.status_id),
       code: row.status_code,
       scheme: row.status_scheme,
-      label: label(row.status_label),
+      label: observedLabel(row.status_label),
     },
   };
 }

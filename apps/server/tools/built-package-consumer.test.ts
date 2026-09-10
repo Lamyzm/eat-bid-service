@@ -9,7 +9,7 @@ test("빌드된 CommonJS server가 domain·contracts·db package를 실제 Node�
     const domain = require("@eatbid/domain");
     const contracts = require("@eatbid/contracts");
     const database = require("@eatbid/db");
-    const application = require("./dist/modules/procurement/application/find-auction.js");
+    const application = require("./dist/modules/procurement/presentation/http/auction.presenter.js");
 
     const record = {
       auctionId: 9007199254740993n,

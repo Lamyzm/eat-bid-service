@@ -7,9 +7,11 @@ import { ProviderSessionGuard } from "../../../../platform/auth/session.guard";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
+import { ProcurementDependencyUnavailable } from "../../application/failures";
 import { GetAuctionRoster } from "../../application/get-auction-roster";
-import { AuctionDependencyUnavailable, AuctionNotFound } from "../../application/find-auction";
+import { AuctionNotFound } from "../../application/find-auction";
 import { auctionId } from "../../domain/auction-id";
+import { toAuctionRosterResponse } from "./auction-roster.presenter";
 
 const operation = auctionV1Operations.roster;
 /**
@@ -42,10 +44,11 @@ export class AuctionRosterController {
       revisionId = query.revisionId === undefined ? null : BigInt(query.revisionId);
     } catch { throw new BadRequestException({ code: "VALIDATION_ERROR" }); }
     try {
-      return await this.runner.run(this.getRoster.execute({ auctionId: auctionId(id), revisionId }));
+      // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toAuctionRosterResponse(await this.runner.run(this.getRoster.execute({ auctionId: auctionId(id), revisionId })));
     } catch (error) {
       if (error instanceof AuctionNotFound) throw new NotFoundException({ code: "AUCTION_NOT_FOUND" });
-      if (error instanceof AuctionDependencyUnavailable) throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
+      if (error instanceof ProcurementDependencyUnavailable) throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
       // 무결성 실패는 503 재시도로 숨기지 않고 전역 결함 필터가 500으로 보고한다.
       throw error;
     }

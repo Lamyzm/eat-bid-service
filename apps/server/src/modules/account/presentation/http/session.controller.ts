@@ -9,6 +9,7 @@ import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { AccountDependencyUnavailable } from "../../application/account-repository";
 import { GetCurrentSession } from "../../application/get-current-session";
+import { toCurrentSessionResponse } from "./account.presenter";
 
 const operation = sessionV1Operations.getCurrentSession;
 
@@ -31,7 +32,8 @@ export class SessionController {
   @ResponseSchema(operation.successResponses[200].schema)
   async read(@Req() request: Request): Promise<CurrentSessionV1Response> {
     try {
-      return await this.effectRunner.run(this.getCurrentSession.execute(webHeadersOf(request)));
+      // use case는 판정 record를 돌려주고 표시 라벨·wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toCurrentSessionResponse(await this.effectRunner.run(this.getCurrentSession.execute(webHeadersOf(request))));
     } catch (error) {
       if (error instanceof AuthDependencyUnavailable || error instanceof AccountDependencyUnavailable) {
         throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });

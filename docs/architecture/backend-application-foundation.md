@@ -109,11 +109,16 @@ packages/db/src/schema/{ingest,core,app,mart}/
 
 ```text
 <feature>/
-├─ presentation/http/    # controller, route schema mapping
-├─ application/          # use case, port, application error
-├─ domain/               # entity/value/policy; framework-free
-└─ infrastructure/drizzle/ # repository implementation
+├─ presentation/http/    # controller, route schema mapping, <resource>.presenter.ts(record→wire 순수 직렬화)
+├─ application/          # use case, port, 내부 record, failures.ts(모듈 공통 typed failure)
+├─ domain/               # entity/value/policy/경계 상수; framework-free
+├─ infrastructure/drizzle/ # repository implementation, postgres-row-values(행 값 규약)
+└─ infrastructure/<concern>/ # 캐시·재시도처럼 port를 감싸는 기술 장식자; 모듈이 provider로 배선
 ```
+
+controller는 use case를 부른 뒤 presenter로 넘길 뿐이며 use case 파일은 wire 타입을 import하지 않는다. 모듈을
+가로지르는 wire 변환(시각 문자열·십진 식별자·비율 봉투·코드 참조·mart 계보)은 `platform/http/wire.ts` 한 벌이
+소유한다(ADR 0045). `tools/architecture/check-server-boundaries.mjs`가 application의 wire 타입 import를 막는다.
 
 ## 4. 한 요청의 책임 흐름
 

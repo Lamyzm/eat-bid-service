@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { DrizzleAuctionRosterReader } from "./drizzle-auction-roster-reader";
 import { auctionId } from "../../domain/auction-id";
+import { MAX_ROSTER_ROWS } from "../../domain/roster-limits";
 
 const submissionRow = {
   auction_id: "5270", revision_id: "4708", expected_count: 1, source_roster_size: 2,
@@ -50,6 +51,15 @@ describe("회차 명단 조회 경계", () => {
       const result = reader.find({ auctionId: auctionId(5270n), revisionId: null });
       await expect(result).rejects.toThrow("명단 관측 시각");
     }
+  });
+  test("명단 상한까지는 읽고 한 행이라도 넘으면 무결성 결함으로 격리한다", async () => {
+    const rosterOf = (size: number) => Array.from({ length: size }, (_row, ordinal) => ({
+      ...submissionRow, roster_ordinal: ordinal, expected_count: size, submission_id: String(1_000 + ordinal),
+    }));
+    const atLimit = new DrizzleAuctionRosterReader({ execute: async () => rosterOf(MAX_ROSTER_ROWS) });
+    expect((await atLimit.find({ auctionId: auctionId(5270n), revisionId: null }))?.rows).toHaveLength(MAX_ROSTER_ROWS);
+    const overLimit = new DrizzleAuctionRosterReader({ execute: async () => rosterOf(MAX_ROSTER_ROWS + 1) });
+    await expect(overLimit.find({ auctionId: auctionId(5270n), revisionId: null })).rejects.toThrow("명단");
   });
   test("중복 명단 좌표와 명단 밖 낙찰 좌표는 성공 응답에서 격리한다", async () => {
     for (const rows of [

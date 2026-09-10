@@ -1,13 +1,16 @@
 /**
  * @module 책임: 회차를 고정해 물은 명단 조회를 프로세스 안에서 (공고, revision) 키로 재사용해 같은 값을
- * 저장소에서 두 번 읽지 않게 하고, 그 재사용의 수명과 개수 상한을 소유한다.
+ * 저장소에서 두 번 읽지 않게 하는 port 장식자이며, 그 재사용의 수명과 개수 상한을 소유한다.
+ *
+ * application이 아니라 infrastructure에 있는 이유: 저장소를 실제로 읽는지는 조회 port의 성질이고 use case는
+ * port 인터페이스만 안다. 재시도·시간 제한 같은 다른 장식자도 같은 자리에 둔다(ADR 0045 결정 4).
  */
 import { Temporal, minutes, toMilliseconds, type Clock, type ElapsedMilliseconds } from "@eatbid/domain";
 import type {
   AuctionRosterQuery,
   AuctionRosterReader,
   AuctionRosterRecord,
-} from "./auction-roster-reader";
+} from "../../application/auction-roster-reader";
 
 /**
  * 명단은 개인 자료가 아니라 로그인한 사람이면 같은 값을 받는 공유 사실이므로 프로세스가 한 벌만 들고

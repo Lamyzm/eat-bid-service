@@ -9,6 +9,7 @@ import { FindWinRateDistribution } from "../modules/procurement/application/find
 import { kstMonth } from "../modules/procurement/domain/kst-month";
 import { organizationId } from "../modules/procurement/domain/organization-id";
 import { DrizzleWinRateDistributionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-win-rate-distribution-reader";
+import { toWinRateDistributionResponse } from "../modules/procurement/presentation/http/win-rate-distribution.presenter";
 
 const repositoryRoot = resolve(import.meta.dir, "../../../..");
 const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
@@ -275,5 +276,6 @@ async function runEffect(
   input: Parameters<FindWinRateDistribution["execute"]>[0],
 ) {
   const { EffectRunner } = await import("../platform/effect/effect-runner");
-  return new EffectRunner().run(useCase.execute(input));
+  // controller와 같은 순서다. use case의 내부 결과를 presenter가 공개 응답으로 직렬화한다(ADR 0045 결정 1).
+  return toWinRateDistributionResponse(await new EffectRunner().run(useCase.execute(input)));
 }

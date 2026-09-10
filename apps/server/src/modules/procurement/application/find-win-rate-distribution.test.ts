@@ -11,6 +11,7 @@ import {
 } from "./find-win-rate-distribution";
 import { OrganizationNotFound } from "./list-organization-auction-attempts";
 import type { WinRateDistributionReader } from "./win-rate-distribution-reader";
+import { toWinRateDistributionResponse } from "../presentation/http/win-rate-distribution.presenter";
 
 const clock = fixedClock(Temporal.Instant.from("2026-09-06T01:00:00Z"));
 
@@ -40,10 +41,30 @@ function readerDouble(overrides: Partial<WinRateDistributionReader>): WinRateDis
   };
 }
 
+// controller와 같은 순서로 use case의 내부 결과를 presenter로 닫는다. 아래 단언은 그 둘을 합친 공개 응답을 본다.
 const run = (reader: WinRateDistributionReader, input: Parameters<FindWinRateDistribution["execute"]>[0]) =>
-  new EffectRunner().run(new FindWinRateDistribution(reader, clock).execute(input));
+  new EffectRunner().run(new FindWinRateDistribution(reader, clock).execute(input)).then(toWinRateDistributionResponse);
 
 describe("낙찰률 분포 조회 use case", () => {
+  test("use case의 내부 결과는 milli 정수 칸과 도메인 값이며 십진 문자열 봉투를 만들지 않는다", async () => {
+    const reader = readerDouble({
+      readDistribution: async () => ({
+        months: [{ month: kstMonth("2026-09"), bins: [{ lowerMilli: 90_000n, count: 1 }, { lowerMilli: 90_005n, count: 2 }] }],
+        coverage: [{ month: kstMonth("2026-09"), coverage: "complete" }],
+        storedBinWidthMilli: 5n,
+        lineage,
+      }),
+    });
+    const result = await new EffectRunner().run(new FindWinRateDistribution(reader, clock).execute({
+      ...nationalInput, period: { from: kstMonth("2026-09"), to: kstMonth("2026-09") },
+    }));
+    expect(result.widthMilli).toBe(10n);
+    expect(result.total).toMatchObject({ sampleCount: 3, bins: [{ lowerMilli: 90_000n, count: 3 }] });
+    expect(result.months).toEqual([{ month: "2026-09", sampleCount: 3, coverage: "complete", bins: [{ lowerMilli: 90_000n, count: 3 }] }]);
+    expect(result.coverage).toBe("complete");
+    expect(result.lineage).toBe(lineage);
+  });
+
   test("활성 build가 없으면 오류가 아니라 계보가 전부 null인 빈 결과다", async () => {
     const response = await run(readerDouble({}), nationalInput);
     expect(response.bins).toEqual([]);

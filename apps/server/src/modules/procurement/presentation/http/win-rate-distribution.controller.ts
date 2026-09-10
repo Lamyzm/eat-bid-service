@@ -20,7 +20,7 @@ import { ProviderSessionGuard } from "../../../../platform/auth/session.guard";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
-import { AuctionDependencyUnavailable } from "../../application/find-auction";
+import { ProcurementDependencyUnavailable } from "../../application/failures";
 import {
   DistributionBinWidthInvalid,
   DistributionRegionNotFound,
@@ -31,6 +31,7 @@ import { OrganizationNotFound } from "../../application/list-organization-auctio
 import type { DistributionCohort } from "../../domain/distribution-cohort";
 import { kstMonth } from "../../domain/kst-month";
 import { organizationId } from "../../domain/organization-id";
+import { toWinRateDistributionResponse } from "./win-rate-distribution.presenter";
 
 const operation = winRateDistributionV1Operations.find;
 
@@ -101,7 +102,8 @@ export class WinRateDistributionController {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
-      return await this.effectRunner.run(this.findDistribution.execute(input));
+      // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toWinRateDistributionResponse(await this.effectRunner.run(this.findDistribution.execute(input)));
     } catch (error) {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
       if (error instanceof DistributionBinWidthInvalid) {
@@ -114,7 +116,7 @@ export class WinRateDistributionController {
       if (error instanceof DistributionRegionNotFound) {
         throw new NotFoundException({ code: "NOT_FOUND" });
       }
-      if (error instanceof AuctionDependencyUnavailable) {
+      if (error instanceof ProcurementDependencyUnavailable) {
         throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
       }
       throw error;

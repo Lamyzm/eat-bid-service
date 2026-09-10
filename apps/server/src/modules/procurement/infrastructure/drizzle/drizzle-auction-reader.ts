@@ -4,12 +4,11 @@ import { Temporal } from "@eatbid/domain";
 import type {
   AuctionReader,
   AuctionRecord,
-  CodeReferenceRecord,
   ParticipationObservationRecord,
 } from "../../application/auction-reader";
 import { auctionId, type AuctionId } from "../../domain/auction-id";
 import { dayEarlierParticipationJoin, latestParticipationJoin } from "./auction-participation-queries";
-import { bidRateValue, bigintValue, moneyValue } from "./postgres-row-values";
+import { bidRateValue, bigintValue, codeReferenceRecord, moneyValue, observedLabel } from "./postgres-row-values";
 
 export interface AuctionReadDatabase {
   execute(query: SQL): Promise<unknown>;
@@ -70,22 +69,6 @@ export function postgresInstant(value: Date | string | null): Temporal.Instant |
   }
 }
 
-// 공백뿐인 라벨은 관측된 것이 아니라 비어 있는 것이다. 기관 이름과 같은 규약을 코드 라벨에도 쓴다.
-function observedLabel(value: string | null): string | null {
-  return value === null || value.trim() === "" ? null : value.trim();
-}
-
-function codeReference(
-  codeValueId: string | bigint | null,
-  code: string | null,
-  scheme: string | null,
-  label: string | null,
-): CodeReferenceRecord | null {
-  // 코드 문자열만 있고 체계를 모르는 참조는 만들지 않는다. 체계 없는 코드는 정체성이 아니다(AGENTS 6).
-  if (codeValueId === null || code === null || scheme === null) return null;
-  return { codeValueId: bigintValue(codeValueId), code, scheme, label: observedLabel(label) };
-}
-
 // 블록 안이 전부 unknown이면 블록 자체가 없다. `{floorRate: null, awardMethod: null}`과 `null`이
 // 둘 다 같은 뜻으로 살면 화면이 어느 쪽을 "미확인"으로 다뤄야 하는지 두 번 판단하게 된다.
 function nullWhenEmpty<Block extends Record<string, unknown>>(block: Block): Block | null {
@@ -135,7 +118,7 @@ export function mapAuctionRow(row: AuctionRow): AuctionRecord {
     terms: nullWhenEmpty({
       // core numeric(6,3) 하한율은 사정률 축의 상수다. scale 불변식은 이 경계에서 한 번만 닫는다.
       floorRate: bidRateValue(row.floor_rate),
-      awardMethod: codeReference(
+      awardMethod: codeReferenceRecord(
         row.award_method_code_value_id,
         row.award_method_code,
         row.award_method_scheme,
@@ -143,13 +126,13 @@ export function mapAuctionRow(row: AuctionRow): AuctionRecord {
       ),
     }),
     location: nullWhenEmpty({
-      sido: codeReference(
+      sido: codeReferenceRecord(
         row.location_sido_code_value_id,
         row.location_sido_code,
         row.location_sido_scheme,
         row.location_sido_label,
       ),
-      sigungu: codeReference(
+      sigungu: codeReferenceRecord(
         row.location_sigungu_code_value_id,
         row.location_sigungu_code,
         row.location_sigungu_scheme,

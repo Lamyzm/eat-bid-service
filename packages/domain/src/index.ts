@@ -58,3 +58,5 @@ export {
   type Longitude,
   type Wgs84Coordinate,
 } from "./geo/coordinate.js";
+
+export { POSTGRES_SIGNED_BIGINT_MAX, positiveBigintIdentity } from "./identity/postgres-identity.js";

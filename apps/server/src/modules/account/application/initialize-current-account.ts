@@ -7,10 +7,9 @@
  * user라 재로그인해도 hook이 다시 돌지 않아 스스로 복구할 수 없다. 명시적 command는 몇 번을 불러도
  * 같은 결과이고 그 자체가 복구 경로다(ADR 0032 §2).
  */
-import type { AccountInitializationV1Response } from "@eatbid/contracts";
 import { Effect } from "effect";
+import type { ResolvedPrincipal } from "../../../platform/auth/principal-reader";
 import { AccountDependencyUnavailable, type AccountRepository } from "./account-repository";
-import { toWorkspaceSummary } from "./account-presentation";
 
 /**
  * 혼자 쓰는 사용자에게 조직 이름을 먼저 묻지 않는다. 그 화면은 아무 정보도 얻지 못하면서 가입을 한 단계
@@ -21,13 +20,11 @@ export const DEFAULT_WORKSPACE_NAME = "내 워크스페이스";
 export class InitializeCurrentAccount {
   constructor(private readonly repository: AccountRepository) {}
 
-  execute(subject: string): Effect.Effect<AccountInitializationV1Response, AccountDependencyUnavailable> {
+  /** 만들어진(또는 이미 있던) principal을 돌려준다. 공개 응답으로의 직렬화는 presenter가 한다(ADR 0045 결정 1). */
+  execute(subject: string): Effect.Effect<ResolvedPrincipal, AccountDependencyUnavailable> {
     return Effect.tryPromise({
       try: () => this.repository.initializeAccount({ subject, workspaceName: DEFAULT_WORKSPACE_NAME }),
       catch: (cause) => new AccountDependencyUnavailable(cause),
-    }).pipe(Effect.map((principal) => ({
-      principalId: principal.principalId.toString(10),
-      workspace: toWorkspaceSummary(principal.workspace),
-    })));
+    });
   }
 }

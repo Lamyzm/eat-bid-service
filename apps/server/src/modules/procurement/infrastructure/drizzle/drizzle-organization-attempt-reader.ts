@@ -16,6 +16,7 @@ import {
   bigintValue,
   moneyValue,
   observedBidRateValue,
+  observedLabel,
 } from "./postgres-row-values";
 
 // driver 시간 표현은 AGENTS 17이 지정한 어댑터가 소유하므로 그 경계의 입력 타입을 그대로 파생한다.
@@ -74,17 +75,18 @@ function cohortCondition(query: OrganizationAttemptQuery) {
 }
 
 export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptRecord {
+  // 라벨 없는 품목은 화면 계약을 만족하지 못한다. 라벨을 지어내지 않고 unknown으로 남긴다.
+  // 공백뿐인 라벨도 "없음"이다. 계약이 min(1)을 요구하므로 여기서 걸러야 유효한 mart 행이 500이 되지 않는다.
+  const itemLabel = observedLabel(row.item_label);
   return {
     attemptId: bigintValue(row.auction_attempt_id),
     revisionId: bigintValue(row.auction_revision_id),
     announcedAt: requiredInstant(row.announced_at, "announced"),
     openedAt: postgresInstant(row.opened_at),
-    // 라벨 없는 품목은 화면 계약을 만족하지 못한다. 라벨을 지어내지 않고 unknown으로 남긴다.
-    // 공백뿐인 라벨도 "없음"이다. 계약이 min(1)을 요구하므로 여기서 걸러야 유효한 mart 행이 500이 되지 않는다.
-    item: row.item_code_value_id === null || row.item_label === null || row.item_label.trim() === ""
+    item: row.item_code_value_id === null || itemLabel === null
       ? null
-      : { codeValueId: bigintValue(row.item_code_value_id), label: row.item_label.trim() },
-    itemLabel: row.item_label?.trim() || null,
+      : { codeValueId: bigintValue(row.item_code_value_id), label: itemLabel },
+    itemLabel,
     floorRate: bidRateValue(row.floor_rate),
     awardMethodCodeValueId: row.award_method_code_value_id === null ? null : bigintValue(row.award_method_code_value_id),
     baseAmount: moneyValue(row.base_amount, row.currency, true),

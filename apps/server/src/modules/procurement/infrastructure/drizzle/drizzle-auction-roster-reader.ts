@@ -6,9 +6,10 @@ import {
 } from "../../application/auction-roster-reader";
 import type { CodeReferenceRecord } from "../../application/auction-reader";
 import { auctionId } from "../../domain/auction-id";
+import { MAX_ROSTER_ROWS } from "../../domain/roster-limits";
 import { auctionRosterQuery } from "./auction-roster-query";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
-import { bigintValue, moneyValue, observedBidRateValue } from "./postgres-row-values";
+import { bigintValue, moneyValue, observedBidRateValue, observedLabel } from "./postgres-row-values";
 
 type DbId = string | bigint;
 type Timestamp = Parameters<typeof postgresInstant>[0];
@@ -28,9 +29,6 @@ type RosterRow = Readonly<{
   awarded_rate: string | null; runner_up_rate: string | null;
 }>;
 
-function label(value: string | null): string | null {
-  return value === null || value.trim() === "" ? null : value.trim();
-}
 function rate(value: string | null): ObservedBidRate {
   const parsed = observedBidRateValue(value);
   if (parsed === null) throw new AuctionRosterIntegrityError("명단 비율이 없습니다");
@@ -43,7 +41,7 @@ function withdrawal(row: RosterRow): CodeReferenceRecord | null {
   }
   return {
     codeValueId: bigintValue(row.withdrawal_id), code: row.withdrawal_code,
-    scheme: row.withdrawal_scheme, label: label(row.withdrawal_label),
+    scheme: row.withdrawal_scheme, label: observedLabel(row.withdrawal_label),
   };
 }
 function submission(row: RosterRow): RosterSubmissionRecord {
@@ -51,12 +49,12 @@ function submission(row: RosterRow): RosterSubmissionRecord {
   return {
     submissionId: bigintValue(row.submission_id), rosterOrdinal: row.roster_ordinal,
     supplierPartyId: bigintValue(row.supplier_party_id),
-    sourceSupplierAccountId: bigintValue(row.source_supplier_account_id), supplierName: label(row.supplier_name),
+    sourceSupplierAccountId: bigintValue(row.source_supplier_account_id), supplierName: observedLabel(row.supplier_name),
     amount: moneyValue(row.amount, row.currency, true),
     effectiveAmount: moneyValue(row.effective_amount, row.currency, false),
     bidRate: rate(row.bid_rate), rank: row.rank, submittedAt: postgresInstant(row.submitted_at),
     sourceStatus: { codeValueId: bigintValue(row.status_id), code: row.status_code,
-      scheme: row.status_scheme, label: label(row.status_label) },
+      scheme: row.status_scheme, label: observedLabel(row.status_label) },
     withdrawal: withdrawal(row),
   };
 }
@@ -70,7 +68,7 @@ export class DrizzleAuctionRosterReader implements AuctionRosterReader {
     if (!first) return null;
     const submissions = rows.filter((row) => row.submission_id !== null);
     // sourceRosterSize는 다른 블록의 관측이라 행 수와 같다고 강제하지 않는다. 정규화된 명단 배열만 대조한다.
-    if (submissions.length > 2048 ||
+    if (submissions.length > MAX_ROSTER_ROWS ||
       (first.expected_count !== null && first.expected_count !== submissions.length) ||
       (first.expected_count === null && submissions.length !== 0) ||
       new Set(submissions.map((row) => row.roster_ordinal)).size !== submissions.length) {

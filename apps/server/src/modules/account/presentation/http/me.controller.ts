@@ -44,6 +44,11 @@ import {
   ListMyBusinesses,
   RegisterMyBusiness,
 } from "../../application/manage-my-businesses";
+import {
+  toAccountInitializationResponse,
+  toMyBusinessesResponse,
+  toMyBusinessResponse,
+} from "./account.presenter";
 
 const initialize = meV1Operations.initializeCurrentAccount;
 const list = meV1Operations.listMyBusinesses;
@@ -92,7 +97,10 @@ export class MeController {
     @ProviderSubject() subject: AuthenticatedSubject,
   ): Promise<AccountInitializationV1Response> {
     try {
-      return await this.effectRunner.run(this.initializeCurrentAccount.execute(subject.subject));
+      // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
+      return toAccountInitializationResponse(
+        await this.effectRunner.run(this.initializeCurrentAccount.execute(subject.subject)),
+      );
     } catch (error) {
       return translate(error);
     }
@@ -107,7 +115,7 @@ export class MeController {
   @ResponseSchema(list.successResponses[200].schema)
   async list(@CurrentPrincipal() principal: ResolvedPrincipal): Promise<MyBusinessesV1Response> {
     try {
-      return await this.effectRunner.run(this.listMyBusinesses.execute(principal));
+      return toMyBusinessesResponse(await this.effectRunner.run(this.listMyBusinesses.execute(principal)));
     } catch (error) {
       return translate(error);
     }
@@ -128,9 +136,9 @@ export class MeController {
     @Body(new StandardSchemaPipe(register.bodySchema)) body: RegisterMyBusinessCommandInput,
   ): Promise<MyBusinessV1Response> {
     try {
-      return await this.effectRunner.run(
+      return toMyBusinessResponse(await this.effectRunner.run(
         this.registerMyBusiness.execute({ principal, businessNumber: body.businessNumber }),
-      );
+      ));
     } catch (error) {
       return translate(error);
     }
@@ -171,12 +179,12 @@ export class MeController {
     addressText: string | null,
   ): Promise<MyBusinessV1Response> {
     try {
-      return await this.effectRunner.run(this.changeMyBusinessLocation.execute({
+      return toMyBusinessResponse(await this.effectRunner.run(this.changeMyBusinessLocation.execute({
         principal,
         // path parameter는 계약이 검증한 canonical decimal text이므로 Number를 거치지 않고 bigint로 연다.
         registeredBusinessId: BigInt(businessId),
         addressText,
-      }));
+      })));
     } catch (error) {
       return translate(error);
     }
