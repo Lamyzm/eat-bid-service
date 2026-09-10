@@ -13,6 +13,29 @@ spec:
       valuesObject:
         singleNamespace: true
         createAggregateRoles: false
+        # 실행 로그를 파드보다 오래 살린다(ADR 0046 결정 7). podGC와 ttlStrategy가 파드를 지우므로
+        # 2026-09-10에는 성공한 백업 회차의 로그를 성공 직후가 아니면 읽을 수 없었다. Argo가 이미
+        # 가진 기능이고 꺼져 있었을 뿐이라 새 구성요소를 만들지 않는다.
+        #
+        # Argo 문서는 archiveLogs 대신 전용 로그 시스템을 권한다. 맞는 말이고 그것이 EAT-173·EAT-174가
+        # 가는 방향이다. 다만 그때까지 증거가 사라지는 것을 두고 볼 이유가 없어 먼저 켠다.
+        #
+        # 자격은 dataplane이 쓰는 것과 같은 `eatbid-r2`다. 컨트롤러가 같은 namespace에 있어 그대로 읽는다.
+        # raw 증거와 접두사를 나눈다. raw는 불변 원본이고 이것은 실행 흔적이라 성질이 다르다(AGENTS.md 1항).
+        artifactRepository:
+          archiveLogs: true
+          s3:
+            bucket: eatbid-lake
+            endpoint: eea3b61ab086ecd0c9034f40fa4d8b7f.r2.cloudflarestorage.com
+            region: auto
+            insecure: false
+            keyFormat: "workflow-logs/{{workflow.creationTimestamp.Y}}/{{workflow.creationTimestamp.m}}/{{workflow.name}}/{{pod.name}}"
+            accessKeySecret:
+              name: eatbid-r2
+              key: R2_ACCESS_KEY_ID
+            secretKeySecret:
+              name: eatbid-r2
+              key: R2_SECRET_ACCESS_KEY
         controller:
           clusterWorkflowTemplates:
             enabled: false

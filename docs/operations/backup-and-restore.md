@@ -78,6 +78,27 @@ docker rm -f eatbid-restore
 4. Argo CD sync 한 번. provisioning Job이 권한을 세우고 server readiness가 통과한다.
 5. `app`만 살리고 나머지를 R2에서 다시 만들고 싶으면 `pg_restore --schema=app`으로 좁힌 뒤 replay를 쓴다.
 
+## 4.9 실행 로그는 파드보다 오래 산다
+
+`podGC: OnPodSuccess`와 `ttlStrategy`가 파드를 지우므로 `kubectl logs`로는 성공 직후에만 읽을 수 있다.
+2026-09-10에 성공한 백업 회차의 로그를 그래서 못 읽었다. 이제 Argo가 실행 로그를 R2에 남긴다(EAT-172).
+
+| 항목 | 값 |
+|---|---|
+| 위치 | `workflow-logs/<연>/<월>/<workflow 이름>/<pod 이름>` |
+| 버킷 | `eatbid-lake` (raw와 같은 버킷, 접두사로 분리) |
+| 켜는 곳 | `infra/platform/argo-workflows.application.yaml`의 `artifactRepository` |
+
+지난 회차의 로그를 읽으려면 rclone으로 그 접두사를 본다. 이 경로는 불변 raw 증거와 성질이 다르므로
+`raw/`와 섞지 않는다. 보존 규칙과 삭제 권한을 따로 줄 수 있어야 한다.
+
+```powershell
+rclone lsl "r2:eatbid-lake/workflow-logs/2026/09/<workflow 이름>"
+```
+
+Argo 문서는 이 기능 대신 전용 로그 시스템을 권한다. 맞는 말이고 EAT-173·EAT-174가 그 방향이다. 그때까지
+증거가 사라지는 것을 두고 볼 이유가 없어 먼저 켠다.
+
 ## 5. 하지 않는 것
 
 - 덤프를 저장소나 개발 PC에 두지 않는다. 사본은 R2 하나다.

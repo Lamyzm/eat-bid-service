@@ -9,6 +9,8 @@ import yaml
 
 from infra.verify_argo_platform import verify_chart_render
 
+MONOREPO_ROOT = Path(__file__).parents[2]
+
 CONTROLLER = "eatbid-argo-workflows-workflow-controller"
 EXECUTOR = "eatbid-argo-workflows-workflow"
 CRD_INSTALLER = "eatbid-argo-workflows-crd-install"
@@ -286,3 +288,34 @@ def test_RBAC_attack을_거부한다(tmp_path: Path, attack: str) -> None:
 
     with pytest.raises(ValueError):
         _verify(tmp_path, documents)
+
+
+def _argo_workflows_values() -> dict[str, Any]:
+    application = MONOREPO_ROOT / "infra" / "platform" / "argo-workflows.application.yaml"
+    document = yaml.safe_load(application.read_text(encoding="utf-8"))
+    return document["spec"]["source"]["helm"]["valuesObject"]
+
+
+def test_실행_로그는_파드보다_오래_살도록_R2에_보관한다() -> None:
+    """왜: podGC와 ttlStrategy가 파드를 지운다. 2026-09-10에는 성공한 백업 회차의 로그를 성공 직후가
+    아니면 읽을 수 없었다. 보관을 끄면 사후 진단의 증거가 사라진다(ADR 0046 결정 7, EAT-172)."""
+    repository = _argo_workflows_values()["artifactRepository"]
+
+    assert repository["archiveLogs"] is True
+    s3 = repository["s3"]
+    assert s3["bucket"] == "eatbid-lake"
+    assert s3["insecure"] is False
+    # 자격은 dataplane이 쓰는 것과 같은 Secret이다. 새 수동 자산을 만들지 않는다.
+    assert s3["accessKeySecret"] == {"name": "eatbid-r2", "key": "R2_ACCESS_KEY_ID"}
+    assert s3["secretKeySecret"] == {"name": "eatbid-r2", "key": "R2_SECRET_ACCESS_KEY"}
+
+
+def test_실행_로그_경로는_불변_raw_증거와_섞이지_않는다() -> None:
+    """왜: raw는 파서가 틀려도 다시 만들 수 있는 불변 원본이고 실행 로그는 흔적이다. 성질이 다른 둘이
+    같은 접두사에 쌓이면 보존 규칙과 삭제 권한을 따로 줄 수 없다(AGENTS.md 1항)."""
+    key_format = _argo_workflows_values()["artifactRepository"]["s3"]["keyFormat"]
+
+    assert key_format.startswith("workflow-logs/")
+    assert not key_format.startswith("raw/")
+    # 회차마다 다른 자리에 쌓여야 뒤 회차가 앞 회차를 덮지 않는다.
+    assert "{{workflow.name}}" in key_format and "{{pod.name}}" in key_format
