@@ -1,8 +1,8 @@
 /** @module 책임: 탐색·헤더·전역 보조 영역과 command palette를 단일 main landmark의 공통 workspace shell로 조립한다. */
-import CommandPalette from '@/components/command-palette/command-palette';
-import AppSidebar from '@/components/layout/app-sidebar';
-import Header from '@/components/layout/header';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import CommandPalette from './command-palette/command-palette';
+import AppSidebar from './app-sidebar';
+import Header from './header';
+import { SidebarInset, SidebarProvider } from '@/shared/ui/sidebar';
 import { DockSlotHost, DockSlotsProvider } from '@/shared/ui/workspace-dock-slots';
 import { WorkspaceHeaderTools, WorkspaceToolRail } from './workspace-dock';
 import './workspace-layout.css';

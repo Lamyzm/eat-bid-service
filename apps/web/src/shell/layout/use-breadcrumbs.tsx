@@ -1,3 +1,4 @@
+/** @module 책임: 현재 pathname을 사람이 읽는 화면 이름 breadcrumb 목록으로 변환한다. */
 'use client';
 
 import { usePathname } from 'next/navigation';

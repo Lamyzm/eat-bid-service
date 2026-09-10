@@ -1,8 +1,9 @@
+/** @module 책임: 가리킨 요소를 짧게 설명하는 tooltip provider·trigger·popup primitive를 제공한다. */
 'use client';
 
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/cn';
 
 function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
   return <TooltipPrimitive.Provider data-slot='tooltip-provider' delay={delay} {...props} />;

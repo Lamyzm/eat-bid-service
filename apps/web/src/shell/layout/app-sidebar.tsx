@@ -1,6 +1,6 @@
 /** @module 책임: navigation 설정과 현재 경로를 접을 수 있는 application sidebar로 렌더링하고 footer는 상위 layout의 slot으로 받는다. */
 'use client';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/ui/collapsible';
 import {
   Sidebar,
   SidebarContent,
@@ -15,13 +15,12 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail
-} from '@/components/ui/sidebar';
-import { navGroups } from '@/config/nav-config';
-import { useFilteredNavGroups } from '@/hooks/use-nav';
+} from '@/shared/ui/sidebar';
+import { navGroups } from './nav-config';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import * as React from 'react';
-import { Icons } from '@/components/icons';
+import { Icons } from '@/shared/ui/icons';
 
 interface AppSidebarProps {
   /**
@@ -33,11 +32,9 @@ interface AppSidebarProps {
 
 /** pathname이 아직 없으면(static shell) 활성 표시 없이 같은 menu를 그린다. */
 function SidebarNavGroups({ pathname }: { readonly pathname: string | null }) {
-  const filteredGroups = useFilteredNavGroups(navGroups);
-
   return (
     <>
-      {filteredGroups.map((group) => (
+      {navGroups.map((group) => (
         <SidebarGroup key={group.label || 'ungrouped'} className='py-0'>
           {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
           <SidebarMenu>
@@ -60,7 +57,7 @@ function SidebarNavGroups({ pathname }: { readonly pathname: string | null }) {
                   >
                     {item.icon && <Icon />}
                     <span>{item.title}</span>
-                    <Icons.chevronRight className='ml-auto transition-transform duration-200 group-data-panel-open/collapsible:rotate-90' />
+                    <Icons.chevronRight className='ml-auto transition-transform duration-[var(--motion-duration-panel)] group-data-panel-open/collapsible:rotate-90' />
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SidebarMenuSub>

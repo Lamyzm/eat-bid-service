@@ -1,12 +1,13 @@
+/** @module 책임: 입력 요소와 앞뒤 addon·버튼·설명을 한 테두리 안에 묶는 입력 그룹 primitive를 제공한다. */
 'use client';
 
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/shared/lib/cn';
+import { Button } from '@/shared/ui/button';
+import { Input } from '@/shared/ui/input';
+import { Textarea } from '@/shared/ui/textarea';
 
 function InputGroup({ className, ...props }: React.ComponentProps<'div'>) {
   return (

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import SearchInput from '@/components/search-input';
+import SearchInput from './search-input';
 import {
   CommandPaletteRoot,
   createNavigationActions,

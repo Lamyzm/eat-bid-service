@@ -1,6 +1,7 @@
+/** @module 책임: 여러 줄을 입력받는 textarea primitive를 제공한다. */
 import * as React from 'react';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/cn';
 
 function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
   return (

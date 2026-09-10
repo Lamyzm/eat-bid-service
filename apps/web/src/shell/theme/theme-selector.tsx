@@ -1,9 +1,9 @@
 /** @module 책임: 사용 가능한 색상 theme 목록과 현재 선택을 전환 menu로 표현한다. */
 'use client';
 
-import { Icons } from '@/components/icons';
-import { Kbd } from '@/components/ui/kbd';
-import { Label } from '@/components/ui/label';
+import { Icons } from '@/shared/ui/icons';
+import { Kbd } from '@/shared/ui/kbd';
+import { Label } from '@/shared/ui/label';
 import {
   Select,
   SelectContent,
@@ -12,7 +12,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select';
+} from '@/shared/ui/select';
 import { useThemeConfig } from './active-theme';
 import { THEMES } from './theme.config';
 

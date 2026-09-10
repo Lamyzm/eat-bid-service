@@ -1,4 +1,5 @@
-import { cn } from '@/lib/utils';
+/** @module 책임: 단축키 글쇠 하나와 그 묶음을 나타내는 표시 primitive를 제공한다. */
+import { cn } from '@/shared/lib/cn';
 
 function Kbd({ className, ...props }: React.ComponentProps<'kbd'>) {
   return (
