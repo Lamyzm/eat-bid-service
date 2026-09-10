@@ -1,10 +1,12 @@
-/** @module 책임: 오늘 화면이 1440·1024·768 세 폭에서 표가 문서를 가로로 밀거나 nowrap 글자가 넘치지 않고
+/** @module 책임: 오늘 화면이 xl(시안 캔버스 폭)·lg·md 세 폭에서 표가 문서를 가로로 밀거나 nowrap 글자가 넘치지 않고
  * 렌더되는지, 마감 임박 순·D-0/D-1 상태색·필터 링크·사라진 cursor 복구가 fixture 그대로 동작하는지 검사한다.
  * 이 route는 RSC가 서버에서 계약을 조회하므로 fixture 서버가 응답한다. */
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-const WIDTHS = [1440, 1024, 768] as const;
+import { VIEWPORT_WIDTH } from './support/viewports';
+
+const WIDTHS = [VIEWPORT_WIDTH.designCanvas, VIEWPORT_WIDTH.lg, VIEWPORT_WIDTH.md] as const;
 const STALE_CURSOR = '9007199254740990';
 
 async function overflowReport(page: Page) {
@@ -59,7 +61,7 @@ test.describe('오늘 화면 폭별 밀림', () => {
 test.describe('오늘 화면 접근성 트리', () => {
   test('행동 열 머리글은 화면에 없어도 이름으로 읽히고 열 폭은 그대로다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto('/today');
     await page.getByText('마감 임박 순').waitFor();
 
@@ -76,7 +78,7 @@ test.describe('오늘 화면 접근성 트리', () => {
 test.describe('오늘 화면 fixture', () => {
   test('마감 임박 순으로 그리고 오늘 마감에만 빨강, 내일 마감에 amber를 건다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto('/today');
     await page.getByText('마감 임박 순').waitFor();
     await expect(page.getByRole('heading', { name: '오늘', level: 1 })).toBeVisible();
@@ -98,7 +100,7 @@ test.describe('오늘 화면 fixture', () => {
 
   test('품목 링크를 누르면 주소만 바뀌고 그 라벨 행만 남으며 조건 해제로 돌아온다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto('/today?closesWithinHours=168');
     await page.getByText('마감 임박 순').waitFor();
     // next dev는 처음 여는 주소를 그 자리에서 compile하므로 이동 완료를 기본 5초보다 길게 기다린다.

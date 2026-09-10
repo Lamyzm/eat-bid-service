@@ -1,0 +1,14 @@
+/* 화면 폭 경계의 유일한 원천이다. Tailwind 접두사(sm:·md:·lg:·xl:), 별도 CSS의 @variant, JS hook과 e2e
+   viewport가 모두 이 네 값을 읽는다. Tailwind 기본값과 같은 숫자라도 여기에 적어야 원천이 "기본값에 기댐"이
+   아니라 "우리가 정한 값"이 된다(EAT-154).
+   rem이 아니라 px인 이유: JS 쪽 판정(matchMedia·innerWidth)이 px라서, 브라우저 글꼴 크기 설정과 무관하게
+   CSS와 JS가 같은 폭에서 갈라져야 한다.
+   `--breakpoint-*: initial`은 Tailwind 기본 2xl(1536px)을 지운다. 쓰는 곳이 없고, 남기면 원천이 두 곳이 된다.
+   shared/lib/breakpoints.ts가 같은 숫자를 export하며 둘의 일치는 breakpoints.test.ts가 단언한다. */
+@theme {
+  --breakpoint-*: initial;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}

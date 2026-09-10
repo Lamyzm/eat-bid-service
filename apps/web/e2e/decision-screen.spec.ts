@@ -5,12 +5,14 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { VIEWPORT_WIDTH } from './support/viewports';
+
 // fixture 서버가 요청 시각 기준 상대 오프셋으로 매번 다시 계산해 주는 공고 id들이다.
 const OPEN_AUCTION_ID = '5796468';
 const CLOSED_AUCTION_ID = '5780681';
 // 긴 기관명 + 쉼표로 이어진 7개 품목 라벨. 운영에서 768폭 헤더 칩 줄을 75px 넘기게 한 재료다(EAT-82).
 const LONG_HEADER_AUCTION_ID = '5796470';
-const WIDTHS = [1440, 1280, 1024, 768] as const;
+const WIDTHS = [VIEWPORT_WIDTH.designCanvas, VIEWPORT_WIDTH.xl, VIEWPORT_WIDTH.lg, VIEWPORT_WIDTH.md] as const;
 const SCENARIOS = [
   { label: '진행 중', auctionId: OPEN_AUCTION_ID, status: '진행 중' },
   { label: '개찰 완료', auctionId: CLOSED_AUCTION_ID, status: '개찰 완료' }
@@ -184,7 +186,7 @@ const FIVE_YEAR_QUERY = `period=${encodeURIComponent('5년')}`;
 
 test.describe('비교집단 크게 보기 모달', () => {
   // 모달로 여는 본문은 이제 낙찰값 분포 하나뿐이다. 세 폭 모두에서 viewport 안에 들어가고 안쪽 히트맵이 페이지를 밀지 않아야 한다.
-  for (const width of [1440, 1024, 768] as const) {
+  for (const width of [VIEWPORT_WIDTH.designCanvas, VIEWPORT_WIDTH.lg, VIEWPORT_WIDTH.md] as const) {
     test(`${width}px 비교집단 모달이 viewport 안에서 넘치지 않는다`, async ({ page }) => {
       test.setTimeout(90_000);
       await page.setViewportSize({ width, height: 1000 });
@@ -208,7 +210,7 @@ test.describe('비교집단 크게 보기 모달', () => {
 test.describe('과거 회차 집중 모드', () => {
   test('크게 보기는 모달 대신 같은 본문을 키우고 ESC·뒤로 가기가 주소의 expand를 지우며 돌아온다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1000 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
     await waitForDecision(page);
 
@@ -235,7 +237,7 @@ test.describe('과거 회차 집중 모드', () => {
 
   test('12행 상한 없이 첫 페이지를 그리고 cursor로 이어 붙인 페이지는 닫아도 남는다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1000 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${expandQuery('과거 회차')}&${FIVE_YEAR_QUERY}`);
     const history = page.locator('section[aria-label="과거 회차"]');
     await history.getByText('이력 끝').or(history.getByRole('link', { name: '더 불러오기' })).waitFor();
@@ -272,7 +274,7 @@ test.describe('과거 회차 집중 모드', () => {
 
   test('두 번째 페이지 회차의 실제 명단을 열고 현재 공고·기록을 오가도 그 선택이 남는다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1000 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${expandQuery('과거 회차')}&${FIVE_YEAR_QUERY}&pages=2`);
     const history = page.locator('section[aria-label="과거 회차"]');
     await expect(history.locator('tbody tr')).toHaveCount(60, { timeout: 30_000 });
@@ -313,7 +315,7 @@ test.describe('과거 회차 집중 모드', () => {
 
   test('확대에서 내려 본 표 위치는 접었다 다시 펴도 남는다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 900 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${expandQuery('과거 회차')}&${FIVE_YEAR_QUERY}&pages=2`);
     const history = page.locator('section[aria-label="과거 회차"]');
     await expect(history.locator('tbody tr')).toHaveCount(60, { timeout: 30_000 });
@@ -337,7 +339,7 @@ test.describe('과거 회차 집중 모드', () => {
 
   // 창이 낮으면 집중 모드가 뷰포트 높이를 강제하지 않는다. 강제하면 문서와 표가 함께 세로로 스크롤해
   // 같은 화면에 스크롤 소유자가 둘이 된다(EAT-115).
-  for (const viewport of [{ width: 1024, height: 600 }, { width: 640, height: 480 }] as const) {
+  for (const viewport of [{ width: VIEWPORT_WIDTH.lg, height: 600 }, { width: VIEWPORT_WIDTH.sm, height: 480 }] as const) {
     test(`${viewport.width}×${viewport.height}에서는 확대가 문서 흐름으로 읽히고 표가 따로 스크롤하지 않는다`, async ({ page }) => {
       test.setTimeout(90_000);
       await page.setViewportSize(viewport);
@@ -368,7 +370,7 @@ test.describe('과거 회차 집중 모드', () => {
 test.describe('결정 화면 호가창 fixture', () => {
   test('남산초 실관측 코호트가 사다리 25줄과 요약·각주로 그려진다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${COHORT_VIEW_QUERY}`);
     await waitForDecision(page);
 
@@ -386,7 +388,7 @@ test.describe('결정 화면 호가창 fixture', () => {
 
   test('내 값을 놓으면 그 줄이 관통되고 낮게·위·같은 칸 수가 보인다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${COHORT_VIEW_QUERY}`);
     await waitForDecision(page);
 
@@ -405,7 +407,7 @@ test.describe('현재 공고 요약과 상세 진입', () => {
   // 관측 없는 값은 미확인이라고 말하는지 실제 브라우저에서 본다(EAT-90, EAT-115).
   test('본문 요약은 상태·공고 지역·마감·기초금액·하한만 읽고 나머지 수치는 이 공고 정보에서 읽는다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}`);
     await waitForDecision(page, '진행 중');
 
@@ -444,12 +446,12 @@ test.describe('현재 공고 요약과 상세 진입', () => {
     const report = await overflowReport(page, [SCREEN_ROOT, DOCK_ROOT]);
     expect(report.overflow).toBe(0);
     expect(report.wrapped).toBe(0);
-    expectDocumentFits(report, 1440);
+    expectDocumentFits(report, VIEWPORT_WIDTH.designCanvas);
   });
 
   test('개찰 완료 공고는 개찰 후 지난 시간을 읽고 비교 관측이 없어 증감 없이 기준 시각만 보인다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto(`/auctions/${CLOSED_AUCTION_ID}`);
     await waitForDecision(page, '개찰 완료');
 
@@ -465,7 +467,7 @@ test.describe('현재 공고 요약과 상세 진입', () => {
 
   test('넓은 화면에서도 키보드만으로 이 공고 정보를 열고 닫으며 초점이 그 버튼으로 돌아온다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1000 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
     await waitForDecision(page);
     await waitForDockReady(page);
@@ -497,7 +499,7 @@ test.describe('현재 공고 요약과 상세 진입', () => {
 
   test('좁은 화면에서는 같은 버튼이 Sheet를 열고 닫으면 초점이 버튼으로 돌아온다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 375, height: 812 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.phone, height: 812 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}`);
     await waitForDecision(page);
 
@@ -513,14 +515,14 @@ test.describe('현재 공고 요약과 상세 진입', () => {
     expect(await button.evaluate((node) => node === document.activeElement)).toBe(true);
 
     const report = await overflowReport(page);
-    expectDocumentFits(report, 375);
+    expectDocumentFits(report, VIEWPORT_WIDTH.phone);
   });
 });
 
 test.describe('결정 화면 근거 영역 fixture', () => {
   test('흐름 차트와 과거 회차 12행이 실데이터 모양 fixture로 그려진다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
     await waitForDecision(page);
 
@@ -567,9 +569,9 @@ test.describe('결정 화면 근거 영역 fixture', () => {
   // 1280에서 근거 열은 사이드바·rail을 뺀 636px인데 8열 표는 이보다 넓다. 표가 컨테이너 안에서만 움직여도
   // 마지막 판정 열이 화면 밖에 있으면 "열이 사라졌다"로 읽히므로, 첫·마지막 열은 고정돼 항상 보이고 덮인
   // 열이 있음을 그림자 힌트로 알려야 한다(EAT-86).
-  test('1280px에서 과거 회차 표의 판정 열이 잘리지 않고 보이며 넘친 쪽에 스크롤 힌트가 있다', async ({ page }) => {
+  test(`${VIEWPORT_WIDTH.xl}px에서 과거 회차 표의 판정 열이 잘리지 않고 보이며 넘친 쪽에 스크롤 힌트가 있다`, async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1280, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.xl, height: 1200 });
     // 판정 열은 손잡이 값이 있을 때만 있는 마지막 열이다. 그 열이 잘리는지 보려면 값을 놓고 열어야 한다.
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}&rate=90.000`);
     await waitForDecision(page);
@@ -608,12 +610,12 @@ test.describe('결정 화면 근거 영역 fixture', () => {
 
     const report = await overflowReport(page);
     expect(report.overflow).toBe(0);
-    expectDocumentFits(report, 1280);
+    expectDocumentFits(report, VIEWPORT_WIDTH.xl);
   });
 
   test('투찰률을 직접 넣은 뒤 손잡이를 누르면 표 마지막 열 헤더와 이 값이면 값이 함께 바뀌고 주소에 남는다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     // 0.001을 올렸을 때 판정이 갈리는 회차(그날 하한 90.0010)는 fixture 35번째 행이라 5년 창에서만 표본에 든다.
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}&${FIVE_YEAR_QUERY}`);
     await waitForDecision(page);
@@ -648,7 +650,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
   // 시안 `상세 1440 · 실데이터 창원 남산초`(펼침 상태)·spec C-15의 rail 하단 두 요소다(EAT-87).
   test('레일에 낙찰값 바로 위 0.1 안에 행이 있고 이 학교와 내 기록 더 보기를 펼치면 기관 요약이 넘침 없이 보인다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
     await waitForDecision(page);
     await openCurrentAuctionPanel(page);
@@ -684,7 +686,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     const report = await overflowReport(page, [SCREEN_ROOT, DOCK_ROOT]);
     expect(report.overflow).toBe(0);
     expect(report.wrapped).toBe(0);
-    expectDocumentFits(report, 1440);
+    expectDocumentFits(report, VIEWPORT_WIDTH.designCanvas);
   });
 });
 
@@ -695,7 +697,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
 test.describe('결정 화면 접근성 트리', () => {
   test('조건 묶음·차트·투찰률 입력·선택 행·철회 항목이 이름과 상태로 읽힌다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto(`/auctions/${OPEN_AUCTION_ID}${FLOW_VIEW_QUERY}`);
     await waitForDecision(page);
 
