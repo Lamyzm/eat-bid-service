@@ -21,6 +21,7 @@ import { ProviderSessionGuard } from "../../../../platform/auth/session.guard";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
+import { ProcurementDependencyUnavailable } from "../../application/failures";
 import {
   AuctionDependencyUnavailable,
   AuctionNotFound,
@@ -85,7 +86,7 @@ export class AuctionController {
       if (error instanceof OpenAuctionCursorInvalid) {
         throw new BadRequestException({ code: "VALIDATION_ERROR" });
       }
-      if (error instanceof AuctionDependencyUnavailable) {
+      if (error instanceof ProcurementDependencyUnavailable) {
         throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
       }
       throw error;

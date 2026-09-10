@@ -22,7 +22,7 @@ import { ProviderSessionGuard } from "../../../../platform/auth/session.guard";
 import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
-import { AuctionDependencyUnavailable } from "../../application/find-auction";
+import { ProcurementDependencyUnavailable } from "../../application/failures";
 import {
   AttemptAsOfInFuture,
   AttemptBuildChanged,
@@ -105,7 +105,7 @@ export class OrganizationController {
       if (error instanceof OrganizationNotFound) {
         throw new NotFoundException({ code: "ORGANIZATION_NOT_FOUND" });
       }
-      if (error instanceof AuctionDependencyUnavailable) {
+      if (error instanceof ProcurementDependencyUnavailable) {
         throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
       }
       throw error;

@@ -17,7 +17,7 @@ import {
   RegisteredBusinessNotFound,
 } from "../../account/application/account-repository";
 import type { TransactionHandle, UnitOfWork } from "../../../platform/database/unit-of-work";
-import { AuctionDependencyUnavailable } from "./find-auction";
+import { ProcurementDependencyUnavailable } from "./failures";
 import { toAttemptObservation, toMyBidObservationsResponse } from "./own-bid-presentation";
 import type { OwnBidAttemptKey, OwnBidReader } from "./own-bid-reader";
 import type { OrganizationId } from "../domain/organization-id";
@@ -82,7 +82,7 @@ export class FindMyBidObservations {
 
   execute(input: FindMyBidObservationsInput): Effect.Effect<
     MyBidObservationsV1Response,
-    AuctionDependencyUnavailable
+    ProcurementDependencyUnavailable
     | OwnBidAttemptsNotInBuild
     | OwnBidBuildChanged
     | RegisteredBusinessForbidden
@@ -91,7 +91,7 @@ export class FindMyBidObservations {
   > {
     return Effect.tryPromise({
       try: () => this.readSnapshot.run((snapshot) => this.load(snapshot, input)),
-      catch: (cause) => new AuctionDependencyUnavailable(cause),
+      catch: (cause) => new ProcurementDependencyUnavailable(cause),
     }).pipe(Effect.flatMap((outcome): Effect.Effect<
       MyBidObservationsV1Response,
       OwnBidAttemptsNotInBuild | OwnBidBuildChanged | RegisteredBusinessForbidden | RegisteredBusinessNotFound,

@@ -249,13 +249,13 @@ describe("ListOpenAuctions 조회 use case", () => {
 
   test("reader가 실패하면 DEPENDENCY_UNAVAILABLE로 번역한다", async () => {
     const { ListOpenAuctions } = await loadUseCase();
-    const { AuctionDependencyUnavailable } = await import("./find-auction");
+    const { ProcurementDependencyUnavailable } = await import("./failures");
     const useCase = new ListOpenAuctions({
       listOpen: async () => { throw new Error("database offline"); },
     }, clock);
     const failure = await new EffectRunner().run(useCase.execute(input))
       .then(() => undefined, (error: unknown) => error);
-    expect(failure).toBeInstanceOf(AuctionDependencyUnavailable);
+    expect(failure).toBeInstanceOf(ProcurementDependencyUnavailable);
     expect((failure as { code: string }).code).toBe("DEPENDENCY_UNAVAILABLE");
   });
 });

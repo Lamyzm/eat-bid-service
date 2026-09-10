@@ -14,6 +14,7 @@ import type {
   CodeReferenceRecord,
   ParticipationObservationRecord,
 } from "./auction-reader";
+import { ProcurementDependencyUnavailable } from "./failures";
 import type { AuctionId } from "../domain/auction-id";
 import { auctionIdToString } from "../domain/auction-id";
 
@@ -30,11 +31,13 @@ export class AuctionNotFound extends Error {
   }
 }
 
-export class AuctionDependencyUnavailable extends Error {
-  readonly code = "DEPENDENCY_UNAVAILABLE" as const;
-
+/**
+ * 공고 한 건 조회에만 쓰는 자원 이름 실패다. 모듈 공통 실패의 하위형이라 controller가 어느 쪽으로
+ * 잡아도 같은 503이며, 다른 use case는 이 이름을 빌리지 않고 모듈 공통 실패를 던진다(ADR 0045 결정 5).
+ */
+export class AuctionDependencyUnavailable extends ProcurementDependencyUnavailable {
   constructor(cause: unknown) {
-    super("Procurement repository is unavailable", { cause });
+    super(cause);
     this.name = "AuctionDependencyUnavailable";
   }
 }

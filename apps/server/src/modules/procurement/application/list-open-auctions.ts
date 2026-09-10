@@ -13,7 +13,7 @@ import type { BaseRelativeBidRate, Clock, Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
 import { z } from "zod";
 import type { CodeReferenceRecord } from "./auction-reader";
-import { AuctionDependencyUnavailable } from "./find-auction";
+import { ProcurementDependencyUnavailable } from "./failures";
 import type { MartBuildLineage } from "./mart-build-lineage";
 import type {
   OpenAuctionOrgSummaryRecord,
@@ -143,7 +143,7 @@ export class ListOpenAuctions {
 
   execute(input: ListOpenAuctionsInput): Effect.Effect<
     OpenAuctionListV1Response,
-    OpenAuctionCursorInvalid | AuctionDependencyUnavailable,
+    OpenAuctionCursorInvalid | ProcurementDependencyUnavailable,
     never
   > {
     // "열림"은 현재 시각의 함수라 정적 계약에 넣을 수 없다. 주입된 clock을 요청당 한 번만 읽어 페이지·표본
@@ -151,7 +151,7 @@ export class ListOpenAuctions {
     const query: OpenAuctionQuery = { ...input, asOf: this.clock.now() };
     return Effect.tryPromise({
       try: () => this.reader.listOpen(query),
-      catch: (cause) => new AuctionDependencyUnavailable(cause),
+      catch: (cause) => new ProcurementDependencyUnavailable(cause),
     }).pipe(
       Effect.flatMap((listing) => listing.kind === "page"
         ? Effect.succeed(toOpenAuctionListResponse(query, listing.page))

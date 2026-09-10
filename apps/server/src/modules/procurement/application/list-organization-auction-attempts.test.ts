@@ -251,7 +251,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
       });
   });
 
-  test("저장소 장애는 AuctionDependencyUnavailable로 번역하고 원문을 숨긴다", async () => {
+  test("저장소 장애는 모듈 공통 ProcurementDependencyUnavailable로 번역하고 원문을 숨긴다", async () => {
     const application = await import("./list-organization-auction-attempts");
     const runner = new EffectRunner();
     const existsFailure = new application.ListOrganizationAuctionAttempts({
@@ -259,7 +259,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
       listAttempts: async () => { throw new Error("unreachable"); },
     }, clock);
     await expect(runner.run(existsFailure.execute(query))).rejects.toMatchObject({
-      name: "AuctionDependencyUnavailable",
+      name: "ProcurementDependencyUnavailable",
       code: "DEPENDENCY_UNAVAILABLE",
     });
     const listFailure = new application.ListOrganizationAuctionAttempts({
@@ -267,7 +267,7 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
       listAttempts: async () => { throw new Error("credential=must-not-escape"); },
     }, clock);
     const failure = await runner.run(listFailure.execute(query)).catch((error: unknown) => error);
-    expect(failure).toMatchObject({ name: "AuctionDependencyUnavailable", code: "DEPENDENCY_UNAVAILABLE" });
+    expect(failure).toMatchObject({ name: "ProcurementDependencyUnavailable", code: "DEPENDENCY_UNAVAILABLE" });
     expect(String(failure)).not.toContain("must-not-escape");
   });
 });

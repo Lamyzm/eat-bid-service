@@ -3,7 +3,8 @@ import { instantCodec, moneyCodec, type AuctionRosterV1Response, type CodeRefere
 import { Effect } from "effect";
 import { z } from "zod";
 import { AuctionRosterIntegrityError, type AuctionRosterQuery, type AuctionRosterReader, type AuctionRosterRecord } from "./auction-roster-reader";
-import { AuctionDependencyUnavailable, AuctionNotFound } from "./find-auction";
+import { ProcurementDependencyUnavailable } from "./failures";
+import { AuctionNotFound } from "./find-auction";
 import type { CodeReferenceRecord } from "./auction-reader";
 
 function code(record: CodeReferenceRecord): CodeReference {
@@ -51,12 +52,12 @@ export function toAuctionRosterResponse(record: AuctionRosterRecord): AuctionRos
 export class GetAuctionRoster {
   constructor(private readonly reader: AuctionRosterReader) {}
   execute(query: AuctionRosterQuery): Effect.Effect<
-    AuctionRosterV1Response, AuctionNotFound | AuctionDependencyUnavailable | AuctionRosterIntegrityError
+    AuctionRosterV1Response, AuctionNotFound | ProcurementDependencyUnavailable | AuctionRosterIntegrityError
   > {
     return Effect.tryPromise({
       try: () => this.reader.find(query),
       catch: (cause) => cause instanceof AuctionRosterIntegrityError
-        ? cause : new AuctionDependencyUnavailable(cause),
+        ? cause : new ProcurementDependencyUnavailable(cause),
     }).pipe(Effect.flatMap((record) => record === null
       ? Effect.fail(new AuctionNotFound(query.auctionId))
       : Effect.succeed(toAuctionRosterResponse(record))));

@@ -84,9 +84,13 @@ describe("FindAuction 조회 use case", () => {
     });
   });
 
-  test("typed not-found와 의존성 실패를 구분한다", async () => {
+  test("typed not-found와 의존성 실패를 구분하고 공고 실패는 모듈 공통 실패의 하위형이다", async () => {
     const application = await import("./find-auction").catch(() => undefined);
     expect(application, "FindAuction use case must exist").toBeDefined();
+    const { ProcurementDependencyUnavailable } = await import("./failures");
+    // controller가 모듈 공통 실패로 잡아도 같은 503이어야 자원 이름 실패가 새 분기를 강요하지 않는다.
+    expect(new application!.AuctionDependencyUnavailable(new Error("offline")))
+      .toBeInstanceOf(ProcurementDependencyUnavailable);
     const runner = new EffectRunner();
     const missing = new application!.FindAuction({ findById: async () => null });
     await expect(runner.run(missing.execute({ auctionId: 41n }))).rejects.toMatchObject({

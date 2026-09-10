@@ -13,7 +13,7 @@ import {
 import { Temporal, type BaseRelativeBidRate, type BidRate, type Clock, type ObservedBidRate } from "@eatbid/domain";
 import { Effect } from "effect";
 import { z } from "zod";
-import { AuctionDependencyUnavailable } from "./find-auction";
+import { ProcurementDependencyUnavailable } from "./failures";
 import type {
   OrganizationAttemptListing,
   OrganizationAttemptPage,
@@ -206,7 +206,7 @@ export class ListOrganizationAuctionAttempts {
 
   execute(input: ListOrganizationAuctionAttemptsInput): Effect.Effect<
     OrganizationAuctionAttemptsV1Response,
-    AttemptAsOfInFuture | AttemptBuildChanged | AttemptCursorInvalid | OrganizationNotFound | AuctionDependencyUnavailable,
+    AttemptAsOfInFuture | AttemptBuildChanged | AttemptCursorInvalid | OrganizationNotFound | ProcurementDependencyUnavailable,
     never
   > {
     // "개찰됨"은 현재 시각의 함수라 정적 계약에 넣을 수 없다. 주입된 clock을 요청당 한 번만 읽어 페이지와
@@ -231,16 +231,16 @@ export class ListOrganizationAuctionAttempts {
     // 존재 확인을 먼저 끝내야 "기관이 없음"과 "이력이 아직 없음"이 같은 빈 목록으로 뭉개지지 않는다.
     return Effect.tryPromise({
       try: () => this.reader.exists(query.organizationId),
-      catch: (cause) => new AuctionDependencyUnavailable(cause),
+      catch: (cause) => new ProcurementDependencyUnavailable(cause),
     }).pipe(
       Effect.flatMap((exists): Effect.Effect<
         OrganizationAttemptListing,
-        OrganizationNotFound | AuctionDependencyUnavailable,
+        OrganizationNotFound | ProcurementDependencyUnavailable,
         never
       > => exists
         ? Effect.tryPromise({
           try: () => this.reader.listAttempts(query),
-          catch: (cause) => new AuctionDependencyUnavailable(cause),
+          catch: (cause) => new ProcurementDependencyUnavailable(cause),
         })
         : Effect.fail(new OrganizationNotFound(query.organizationId))),
       Effect.flatMap((listing): Effect.Effect<

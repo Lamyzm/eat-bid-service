@@ -18,7 +18,7 @@ import {
   type DistributionBinCount,
   type DistributionSummary,
 } from "./distribution-statistics";
-import { AuctionDependencyUnavailable } from "./find-auction";
+import { ProcurementDependencyUnavailable } from "./failures";
 import { OrganizationNotFound } from "./list-organization-auction-attempts";
 import type { MartBuildLineage } from "./mart-build-lineage";
 import type {
@@ -79,7 +79,7 @@ const COVERAGE_RANK: Record<MartCoverage, number> = { none: 0, unknown: 1, parti
 
 type CohortCheck = Effect.Effect<
   void,
-  AuctionDependencyUnavailable | DistributionRegionNotFound | OrganizationNotFound,
+  ProcurementDependencyUnavailable | DistributionRegionNotFound | OrganizationNotFound,
   never
 >;
 
@@ -138,7 +138,7 @@ export class FindWinRateDistribution {
 
   execute(input: FindWinRateDistributionInput): Effect.Effect<
     WinRateDistributionV1Response,
-    AuctionDependencyUnavailable | DistributionBinWidthInvalid | DistributionRegionNotFound | OrganizationNotFound,
+    ProcurementDependencyUnavailable | DistributionBinWidthInvalid | DistributionRegionNotFound | OrganizationNotFound,
     never
   > {
     const period = input.period ?? this.defaultPeriod();
@@ -151,7 +151,7 @@ export class FindWinRateDistribution {
           awardMethodCodeValueId: input.awardMethodCodeValueId,
           period,
         }),
-        catch: (cause) => new AuctionDependencyUnavailable(cause),
+        catch: (cause) => new ProcurementDependencyUnavailable(cause),
       })),
       Effect.flatMap((reading) => this.serialize(input, period, reading)),
     );
@@ -171,7 +171,7 @@ export class FindWinRateDistribution {
       : new DistributionRegionNotFound(cohort.regionCodeValueId);
     return Effect.tryPromise({
       try: () => this.reader.cohortExists(cohort),
-      catch: (cause): AuctionDependencyUnavailable => new AuctionDependencyUnavailable(cause),
+      catch: (cause): ProcurementDependencyUnavailable => new ProcurementDependencyUnavailable(cause),
     }).pipe(Effect.flatMap((exists): CohortCheck => exists ? Effect.succeed(undefined) : Effect.fail(missing)));
   }
 
