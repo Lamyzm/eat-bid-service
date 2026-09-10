@@ -334,7 +334,9 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     }
 
     expected_schedules = {
-        "eatbid-poll-open": "*/30 8-19 * * 1-5",
+        # 10분은 신규 공고 노출 SLO 15분(주기 10 + 회차 실행 최대 5, runtime §2.5, EAT-151)의 항이다.
+        # 주기를 바꾸는 커밋은 manifest·이 단언·SLO 문서를 함께 바꾼다.
+        "eatbid-poll-open": "*/10 8-19 * * 1-5",
         "eatbid-daily-reconcile": "0 7 * * *",
         "eatbid-reference-refresh": "0 5 1 * *",
     }
