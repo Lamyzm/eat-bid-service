@@ -85,7 +85,7 @@ test.describe('로그인 계정의 사업자 설정', () => {
     await secondContext.close();
   });
 
-  test('미로그인 방문자는 설정 대신 로그인 화면으로 가고 공개 화면은 그대로 열린다', async ({ browser }) => {
+  test('미로그인 방문자는 어떤 업무 화면에 가려 해도 그 경로를 담아 로그인 화면으로 간다', async ({ browser }) => {
     const guest = await browser.newContext();
     const page = await guest.newPage();
 
@@ -97,8 +97,9 @@ test.describe('로그인 계정의 사업자 설정', () => {
     await page.goto(`/setup?next=${ENCODED_AUCTION_PATH}`);
     await expect(page).toHaveURL(`${WEB_ORIGIN}/login?next=${ENCODED_AUCTION_PATH}`);
 
+    // 공개 화면 없음 정책(2026-09-10, EAT-138)이라 /today도 게이트를 통과하지 못하고 그 경로를 담아 로그인으로 간다.
     await page.goto('/today');
-    await expect(page.getByRole('region', { name: '열린 공고' })).toBeVisible();
+    await expect(page).toHaveURL(`${WEB_ORIGIN}/login?next=%2Ftoday`);
     await guest.close();
   });
 
