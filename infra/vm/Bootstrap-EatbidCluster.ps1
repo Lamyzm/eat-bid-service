@@ -98,6 +98,12 @@ kubectl --context $TargetContext -n eatbid patch serviceaccount default -p '{"im
 # operator가 먼저 있어야 한다. Argo CD가 재시도하므로 순서는 시작 시간만 줄인다.
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\infisical-secrets-operator.application.yaml')
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\argo-workflows.application.yaml')
+# platform Application 둘은 automated 정책이 없다(운영 승인 뒤 수동 sync가 설계). 새 클러스터의 첫 sync는
+# 부트스트랩의 일부이므로 여기서 시작한다. 아래 Healthy 대기보다 앞에 있어야 한다 — 뒤에 두면 sync가 시작되지
+# 않아 대기가 600초 뒤 실패한다(2026-09-10 새 PC 실측, EAT-129). 이후 chart 버전 변경은 승인 뒤 같은 방식으로 sync한다.
+foreach ($app in 'infisical-secrets-operator', 'argo-workflows') {
+  kubectl --context $TargetContext -n argocd patch application $app --type merge -p '{"operation":{"initiatedBy":{"username":"bootstrap"},"sync":{"prune":true}}}' | Out-Null
+}
 # 새 클러스터에서는 eatbid Application의 PreSync hook(migration Job)이 본 동기화가 만들 InfisicalSecret보다
 # 먼저 돌아 migrator Secret이 없어 멈춘다. 옛 클러스터는 이전 sync가 남긴 Secret이 있어 드러나지 않던 순서
 # 문제다. 그래서 InfisicalSecret 선언을 Application보다 먼저 적용한다. operator가 이미 있어야 하므로 platform
@@ -123,13 +129,14 @@ if ($postgresOnly.Count -ne 3) { throw "postgres 리소스 셋을 렌더에서 �
 ($postgresOnly -join "`n---`n") | kubectl --context $TargetContext apply -f - | Out-Null
 kubectl --context $TargetContext -n eatbid rollout status deploy/postgres --timeout=600s
 
-kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\argocd\application.yaml')
-
-# platform Application 둘은 automated 정책이 없다(운영 승인 뒤 수동 sync가 설계). 새 클러스터의 첫 sync는
-# 부트스트랩의 일부이므로 여기서 한 번 시작한다. 이후 chart 버전 변경은 승인 뒤 같은 방식으로 sync한다.
-foreach ($app in 'infisical-secrets-operator', 'argo-workflows') {
-  kubectl --context $TargetContext -n argocd patch application $app --type merge -p '{"operation":{"initiatedBy":{"username":"bootstrap"},"sync":{"prune":true}}}' | Out-Null
-}
+# eatbid Application은 자동 sync 없이 적용한다. automated로 적용하면 첫 sync가 cloudflared를 즉시 띄워 같은 터널의
+# 커넥터가 둘이 되고, 아직 server·web이 없는(migration hook 대기) 새 클러스터로 간 요청이 traefik 503을 받는다
+# (2026-09-10 새 PC 이전에서 약 10분 노출, EAT-129). 데이터 이전이 끝난 뒤 cutover 단계에서 원본 application.yaml
+# (automated)을 다시 적용해 첫 sync가 데이터 있는 상태에서 돌게 한다(docs/operations/k3s-hyperv-vm.md §5).
+$application = kubectl create -f (Join-Path $RepoRoot 'infra\argocd\application.yaml') --dry-run=client -o json | ConvertFrom-Json
+$application.spec.PSObject.Properties.Remove('syncPolicy')
+($application | ConvertTo-Json -Depth 20) | kubectl --context $TargetContext apply -f - | Out-Null
+Write-Host 'eatbid Application을 자동 sync 없이 적용했다. 데이터 이전 뒤 cutover에서 application.yaml을 다시 적용한다'
 
 Write-Host '적용 완료. 동기화 확인: kubectl --context eatbid-vm get application -n argocd'
 Write-Host '다음: postgres가 뜨면 Migrate-EatbidPostgres.ps1 로 데이터를 옮기고, 그 뒤 cutover 절차(docs/operations/k3s-hyperv-vm.md)'

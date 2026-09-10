@@ -12,16 +12,30 @@ param(
   [string]$User = 'eatbid',
   [string]$SshKeyPath = "$env:USERPROFILE\.ssh\eatbid-vm",
   [string]$ContextName = 'eatbid-vm',
+  # kubeconfig의 server 주소. 같은 호스트에서는 VM IP, 다른 PC에서 쓰려면 호스트의 Tailscale·LAN IP
+  # (Expose-EatbidVm.ps1의 portproxy 주소)를 준다. -ExtraTlsSan에 넣은 값이어야 TLS 검증이 통과한다(EAT-129).
+  [string]$ServerAddress = '',
   [int]$TimeoutSeconds = 900
 )
+if (-not $ServerAddress) { $ServerAddress = $VmIp }
 
 $ErrorActionPreference = 'Stop'
 $sshArgs = @('-i', $SshKeyPath, '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', "$User@$VmIp")
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+# 부팅 중인 VM에 ssh를 바로 걸면 Windows OpenSSH가 ConnectTimeout을 무시하고 매달린다(2026-09-10 새 PC에서
+# 2시간 넘게 hang, EAT-129). TCP 22가 열린 뒤에만 ssh를 부르고, ssh 자체도 job으로 감싸 제한 시간을 둔다.
+function Invoke-SshWithTimeout([string[]]$Arguments, [int]$Seconds) {
+  $job = Start-Job -ScriptBlock { param($a) & ssh @a 2>$null } -ArgumentList (, $Arguments)
+  if (Wait-Job $job -Timeout $Seconds) { $result = Receive-Job $job } else { $result = $null }
+  Remove-Job $job -Force
+  return $result
+}
 while ($true) {
-  $done = ssh @sshArgs 'test -f /var/lib/eatbid-cloud-init-done && echo ready' 2>$null
-  if ($done -eq 'ready') { break }
+  if ((Test-NetConnection -ComputerName $VmIp -Port 22 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
+    $done = Invoke-SshWithTimeout -Arguments ($sshArgs + 'test -f /var/lib/eatbid-cloud-init-done && echo ready') -Seconds 20
+    if ($done -eq 'ready') { break }
+  }
   if ((Get-Date) -gt $deadline) { throw "cloud-init 완료를 $TimeoutSeconds 초 안에 확인하지 못했다" }
   Start-Sleep -Seconds 10
 }
@@ -31,7 +45,7 @@ if (-not $raw) { throw 'k3s.yaml을 읽지 못했다' }
 $kubeDir = Join-Path $env:USERPROFILE '.kube'
 New-Item -ItemType Directory -Force $kubeDir | Out-Null
 $target = Join-Path $kubeDir "$ContextName.yaml"
-$content = ($raw -join "`n").Replace('https://127.0.0.1:6443', "https://${VmIp}:6443").Replace('name: default', "name: $ContextName").Replace('cluster: default', "cluster: $ContextName").Replace('user: default', "user: $ContextName").Replace('current-context: default', "current-context: $ContextName")
+$content = ($raw -join "`n").Replace('https://127.0.0.1:6443', "https://${ServerAddress}:6443").Replace('name: default', "name: $ContextName").Replace('cluster: default', "cluster: $ContextName").Replace('user: default', "user: $ContextName").Replace('current-context: default', "current-context: $ContextName")
 [IO.File]::WriteAllText($target, $content, [Text.UTF8Encoding]::new($false))
 
 $mainConfig = Join-Path $kubeDir 'config'

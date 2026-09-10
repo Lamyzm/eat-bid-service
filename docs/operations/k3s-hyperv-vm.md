@@ -41,6 +41,37 @@ curl.exe -L -o C:\VMs\eatbid\noble-server-cloudimg-amd64.img https://cloud-image
 `infra/vm/cloud-init/`이고 `${SSH_PUBLIC_KEY}`·`${VM_IP}`·`${GATEWAY_IP}`·`${K3S_VERSION}`을 스크립트가
 치환한다.
 
+### 2.1 다른 PC에 세울 때 (EAT-129, 2026-09-10)
+
+옛 클러스터와 새 VM이 서로 다른 PC에 있으면 각 VM은 자기 호스트의 NAT 뒤라 서로 보이지 않는다. 관리
+트래픽은 Tailscale로 호스트에 닿고, 호스트가 portproxy로 VM에 넘긴다. 공개 트래픽은 여전히 Cloudflare
+Tunnel이며 이 절과 무관하다.
+
+새 PC(관리자 PowerShell, `infra/vm`만 복사해도 된다. 저장소 전체는 private라 clone에 자격증명이 필요하다):
+
+```powershell
+# 호스트의 Tailscale IP와 LAN IP를 인증서 SAN에 넣는다. 나중에 바꾸려면 VM을 다시 만든다.
+.\infra\vm\New-EatbidVm.ps1 -SshPublicKeyPath C:\Users\<user>\.ssh\eatbid-vm.pub -ExtraTlsSan 100.100.253.75,192.168.219.43
+.\infra\vm\Get-EatbidVmKubeconfig.ps1 -ContextName eatbid-prod -ServerAddress 100.100.253.75
+.\infra\vm\Expose-EatbidVm.ps1        # 0.0.0.0:6443→VM:6443, 0.0.0.0:2222→VM:22, Tailscale·사설 LAN만 허용
+```
+
+새 PC에 Docker가 없거나 기동하지 않으면(2026-09-10 실측) VHDX·seed ISO를 Docker가 있는 PC에서 만들어
+복사한다. 같은 인자에 `-ArtifactsOnly`를 붙여 `-WorkDir`에 산출물만 만들고, 두 파일을 새 PC의 `C:\VMs\eatbid`로
+`scp`한 뒤 새 PC에서 같은 명령을 `-ArtifactsOnly` 없이 실행하면 Docker 검사 없이 VM만 만든다. 공개키는 새
+PC의 것을 써야 그 PC에서 VM에 ssh가 된다. Docker Desktop이 깔려만 있고 기동에 실패한 상태면
+`com.docker.backend`가 메모리 10GB 넘게 물고 VM 시작이 `0x800705AA`로 거부된다(2026-09-10 실측 13.7GB).
+운영 PC에서는 Docker Desktop을 지우거나 서비스·자동 시작을 끈다.
+
+개발 PC(Tailscale 같은 계정): 새 PC의 `~/.kube/eatbid-prod.yaml`을 받아 `KUBECONFIG` 병합으로 합치고
+`kubectl --context eatbid-prod get nodes`가 TLS 검증을 통과하면 3절부터는 개발 PC에서 `-TargetContext
+eatbid-prod`로 진행한다. VM에 직접 ssh는 `ssh -p 2222 -i ~/.ssh/eatbid-vm eatbid@<호스트 IP>`이며 키는 VM을
+만들 때 넣은 공개키의 짝이어야 한다.
+
+Windows 기본 OpenSSH 서버가 구버전이라 동작하지 않는 기기가 있었다(2026-09-10 `mw-vmhost`). 그 경우
+winget의 최신 OpenSSH나 다른 sshd를 쓰고 기본 기능은 다시 켜지 않는다. Tailscale은 `--unattended`로 붙여
+로그인 없이도 터널이 살아 있게 한다.
+
 ## 3. 부트스트랩
 
 ```powershell
@@ -87,16 +118,29 @@ provisioning Job이 저장소의 상태로 다시 세운다.
 cloudflared는 같은 터널 자격증명으로 두 클러스터에서 동시에 붙을 수 있다. 그래서 순서는 "겹쳐 켜고 →
 확인하고 → 옛 것을 끈다"이며 중단 창이 없다.
 
+0. 4절 이전이 끝난 뒤에야 새 클러스터의 자동 sync를 켠다. 부트스트랩은 `eatbid` Application을 syncPolicy 없이
+   적용해 두므로 여기서 원본을 다시 적용한다: `kubectl --context <새 context> apply -f infra/argocd/application.yaml`.
+   순서를 바꿔 automated로 먼저 적용하면 cloudflared가 server·web보다 먼저 떠서 같은 터널의 요청 일부가 빈
+   클러스터로 가 503이 난다(2026-09-10 실측, EAT-129).
 1. VM의 `cloudflared`·`server`·`web`이 Ready인지 확인한다: `kubectl --context eatbid-vm get pods -n eatbid`.
 2. eatbid.net을 몇 번 호출해 두 클러스터가 번갈아 응답하는지, 오류가 없는지 본다.
 3. 마지막 덤프·복원을 한 번 더 돌린다(4절). 이 시점부터 옛 클러스터에는 쓰지 않는다.
-4. 옛 클러스터의 cloudflared를 내린다: `kubectl --context k3d-eatbid -n eatbid scale deploy/cloudflared --replicas=0`.
-   Argo selfHeal이 되살리지 않도록 옛 클러스터의 Application `eatbid`는 먼저 `automated`를 끈다
-   (`kubectl --context k3d-eatbid -n argocd patch application eatbid --type merge -p '{"spec":{"syncPolicy":null}}'`).
-5. 호스트를 재부팅해 로그인 없이 `kubectl --context eatbid-vm get application -n argocd`가 Synced·Healthy이고
-   eatbid.net이 응답하는지 확인한다. 이것이 수용 기준이다.
-6. 다음 release tag(v0.1.8)로 build → 승격 커밋 → Argo sync가 사람 없이 끝나는 것을 확인한 뒤
-   `k3d cluster delete eatbid`로 옛 클러스터를 지운다. kubeconfig의 `k3d-eatbid` context도 지운다.
+4. 옛 클러스터를 내린다. 순서는 자동 sync 해제 → 수집 CronWorkflow suspend → 실행 중 Workflow 종료 →
+   cloudflared 0이다. 수집을 먼저 멈추지 않으면 겹쳐 켜진 동안 두 DB가 갈린다(2026-09-10 실측: 18:30 회차 직전).
+   ```powershell
+   kubectl --context <옛> -n argocd patch application eatbid --type merge -p '{"spec":{"syncPolicy":null}}'
+   kubectl --context <옛> -n eatbid patch cronwf eatbid-poll-open --type merge -p '{"spec":{"suspend":true}}'
+   kubectl --context <옛> -n eatbid patch cronwf eatbid-daily-reconcile --type merge -p '{"spec":{"suspend":true}}'
+   kubectl --context <옛> -n eatbid patch wf <실행 중> --type merge -p '{"spec":{"shutdown":"Terminate"}}'
+   kubectl --context <옛> -n eatbid scale deploy/cloudflared --replicas=0
+   ```
+   그 뒤 새 클러스터에 0번의 automated Application을 적용한다. 새 클러스터에 부트스트랩 뒤 수동으로 넣은
+   CronWorkflow suspend는 이 sync가 Git 값(false)으로 되돌려 수집이 새 클러스터에서 재개된다.
+5. 새 호스트를 재부팅해 로그인 없이 `kubectl --context <새> get application -n argocd`가 Synced·Healthy이고
+   eatbid.net이 응답하는지 확인한다. 이것이 수용 기준이다(2026-09-10 새 PC: 노드 Ready 186초, 전체 복구 188초).
+6. 다음 release tag로 build → 승격 커밋 → Argo sync가 사람 없이 끝나는 것을 확인한다. 옛 VM은 지우지 않고
+   dev로 전환한다(EAT-130). 개발 PC에서 백필 운영 루프를 쓰고 있었다면 그 스크립트의 kubectl context를
+   새 클러스터로 바꿔 다시 띄운다.
 
 되돌리기: 6 이전이면 옛 클러스터의 cloudflared replicas를 1로 올리고 VM의 cloudflared를 0으로 내린다.
 

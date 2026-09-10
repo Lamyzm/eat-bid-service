@@ -29,6 +29,9 @@ write_files:
       tls-san:
         - ${VM_IP}
         - eatbid-k3s
+        # 다른 PC에서 kubectl이 호스트 portproxy(Tailscale·LAN IP)를 거쳐 붙을 때 인증서 검증을 통과하려면
+        # 그 주소도 SAN에 있어야 한다. New-EatbidVm.ps1의 -ExtraTlsSan이 채운다(EAT-129). 비어 있으면 줄이 없다.
+${EXTRA_TLS_SAN}
       kubelet-arg:
         - "eviction-hard=imagefs.available<5%,nodefs.available<5%"
 runcmd:

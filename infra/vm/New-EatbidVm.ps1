@@ -27,6 +27,12 @@ param(
   [long]$DiskBytes = 100GB,
   [string]$K3sVersion = 'v1.35.5+k3s1',
   [string]$CloudImage = 'noble-server-cloudimg-amd64.img',
+  # 호스트 밖(다른 PC)에서 kubectl이 붙을 주소. 호스트의 Tailscale IP·LAN IP를 넣으면 k3s 인증서 SAN에
+  # 들어가 Expose-EatbidVm.ps1의 portproxy 경유 접속이 TLS 검증을 통과한다(EAT-129).
+  [string[]]$ExtraTlsSan = @(),
+  # VHDX·seed ISO만 만들고 VM은 만들지 않는다. Docker가 없는 기기(2026-09-10 새 PC는 Docker Desktop이 기동하지
+  # 않았다)에서는 산출물을 다른 PC에서 만들어 복사한 뒤 이 스크립트를 다시 돌리면 Docker 없이 VM만 만든다.
+  [switch]$ArtifactsOnly,
   [Parameter(Mandatory = $true)][string]$SshPublicKeyPath
 )
 
@@ -67,6 +73,7 @@ function Ensure-Network {
 
 function Ensure-Disk {
   if (Test-Path $vhdx) { Write-Host "디스크 재사용: $vhdx"; return }
+  Assert-Docker
   if (-not (Test-Path $image)) { throw "cloud 이미지가 없다: $image (https://cloud-images.ubuntu.com/noble/current/)" }
   # 컨테이너 안 경로는 /work다. Docker Desktop이 C:를 기본 공유하므로 WorkDir는 C: 아래여야 한다.
   docker run --rm -v "${WorkDir}:/work" alpine:3.20 sh -c "apk add --no-cache qemu-img >/dev/null 2>&1 && qemu-img convert -f qcow2 -O vhdx -o subformat=dynamic /work/$CloudImage /work/$VmName.vhdx"
@@ -77,15 +84,19 @@ function Ensure-Disk {
 
 function Ensure-SeedIso {
   if (Test-Path $seedIso) { Write-Host "seed ISO 재사용: $seedIso"; return }
+  Assert-Docker
   $publicKey = (Get-Content $SshPublicKeyPath -Raw).Trim()
   if ($publicKey -notmatch '^ssh-') { throw "ssh 공개키 형식이 아니다: $SshPublicKeyPath" }
   $seedDir = Join-Path $WorkDir 'seed'
   New-Item -ItemType Directory -Force $seedDir | Out-Null
+  # cloud-init YAML의 tls-san 목록 항목과 같은 들여쓰기(8칸)로 한 줄씩 붙인다. 비어 있으면 자리표시자만 지운다.
+  $extraSan = ($ExtraTlsSan | Where-Object { $_ } | ForEach-Object { "        - $_" }) -join "`n"
   $replacements = @{
     '${SSH_PUBLIC_KEY}' = $publicKey
     '${VM_IP}' = $VmIp
     '${GATEWAY_IP}' = $GatewayIp
     '${K3S_VERSION}' = $K3sVersion
+    '${EXTRA_TLS_SAN}' = $extraSan
   }
   foreach ($name in 'user-data', 'meta-data', 'network-config') {
     $content = Get-Content (Join-Path $cloudInitDir $name) -Raw
@@ -113,10 +124,11 @@ function New-EatbidVirtualMachine {
 }
 
 Assert-Admin
-Assert-Docker
 New-Item -ItemType Directory -Force $WorkDir | Out-Null
-Ensure-Network
+# Docker는 산출물이 없을 때만 필요하다(Ensure-Disk·Ensure-SeedIso 안에서 검사).
 Ensure-Disk
 Ensure-SeedIso
+if ($ArtifactsOnly) { Write-Host "산출물만 만들었다: $vhdx, $seedIso. 대상 PC의 WorkDir로 복사한 뒤 같은 인자로 다시 실행한다"; return }
+Ensure-Network
 # 함수 이름은 Hyper-V cmdlet(New-VM)과 대소문자만 다르면 자기 재귀가 되므로 반드시 구분되는 이름을 쓴다.
 New-EatbidVirtualMachine
