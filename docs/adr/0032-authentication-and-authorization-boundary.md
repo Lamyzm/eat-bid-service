@@ -1,7 +1,7 @@
 # 0032 — 인증·인가 경계와 등록된 사업자
 
 - Status: Accepted
-- Date: 2026-09-04 (2026-09-09 개정·확정, 2026-09-10 로그인 게이트 개정)
+- Date: 2026-09-04 (2026-09-09 개정·확정, 2026-09-10 로그인 게이트 개정, 2026-09-10 개발 전용 provider 보완 §13)
 - 관계: `0018`(application identity와 bigint wire)의 `identity_subject → principal_id` 해소를 런타임
   경계로 구체화한다. `0023`(web 모듈 경계)의 "shell은 session endpoint를 직접 읽지 않고 상위 layout이
   검증해 전달한다"를 실제 layout 규칙으로 확정한다. `0028`(Cache Components)의 Suspense·`use cache`
@@ -14,7 +14,7 @@
   사용자 결정 2026-09-09(로그인 → 내 사업자번호 → 직접 입력 위치 → 기존 차트의 실제 내 투찰),
   Linear EAT-138(로그인 게이트와 세션 쿠키 캐시), 사용자 결정 2026-09-10(공개 화면 없음),
   `docs/notes/2026-09-10-web-walkthrough.md` §0·§4, Linear EAT-149(게이트 거부의 관측과 개인 응답
-  캐시 금지 목록의 파생)
+  캐시 금지 목록의 파생), Linear EAT-155(로컬 개발 로그인, §13)
 
 ## 2026-09-09 개정 요지
 
@@ -516,6 +516,49 @@ message는 어떤 필드로도 들어가지 않는다(§6). Express에서 닫히
 증상은 인증 결함이 아니라 성능 문제로 보여 원인을 찾기 어렵다. 반대로 캐시만 켜고 게이트를 세우지
 않으면 공고 데이터가 계속 공개된 채로 남는다.
 
+### 13. 개발 전용 이메일·비밀번호 provider (2026-09-10 보완, EAT-155)
+
+§12가 화면을 로그인 뒤로 옮기자 인증 환경변수 없이 띄운 로컬 개발이 오늘 화면 대신 로그인 화면을 보게 됐다.
+서버는 `auth: null`로 부팅하고 게이트 대상 read가 503이므로 Consequences가 말한 대로 "로그인할 수 없는
+배포에서 업무 화면을 여는 방법은 없다". 설계상 의도된 결과지만, 매일 로컬에서 개발하는 사람에게는 팀원마다
+Google OAuth client를 만들라는 요구와 같다. 이 절은 §1의 "가입 방법은 Google 하나"를 운영에 대해서는 그대로
+두고 로컬에만 한 방법을 더한다.
+
+**게이트에 개발 우회를 넣지 않는다. 대신 로컬에서만 진짜 로그인이 되게 한다.** 보안 판정 코드에 "개발이면
+통과" 분기가 생기는 순간 운영에서 그 분기가 켜지는 사고 경로가 하나 생긴다(§9). 바꾸는 것은 provider 조립
+하나이고, 그렇게 얻은 세션은 §12의 세 겹을 운영과 같은 코드로 지난다.
+
+- `EATBID_DEV_LOGIN=true`(`SWAGGER_ENABLED`와 같은 `"true" | "false"` optional)일 때만 provider의
+  `emailAndPassword`를 켠다. 환경 경계가 production에서 이 값을 거부하므로(`Dev login cannot be enabled in
+  production`) 운영 배포가 이 방법을 여는 경로는 기동 실패뿐이다. provider 조립은 환경이 넘긴 boolean을 그대로
+  쓰고 `NODE_ENV`를 다시 보지 않는다. 판정 자리를 둘로 만들면 둘이 어긋난 배포가 생긴다.
+- 인증 설정의 존재 조건이 바뀐다. 이전의 "네 값 전부 또는 전무"는 "secret·base URL과 로그인 방법 하나 이상"이
+  된다. Google 쌍은 여전히 둘 다 있거나 둘 다 없어야 하고, 개발 로그인이 켜지면 Google 없이도 인증이 존재한다.
+  secret과 base URL은 개발 로그인 모드에서도 고정 개발값으로 대신하지 않는다. secret은 세션 쿠키와 서명된 세션
+  사본(§12)의 열쇠라 코드에 적힌 공개값이 되면 `NODE_ENV=development`로 띄운 어떤 배포에서든 세션을 위조할 수
+  있고, base URL은 `Secure` 판정과 콜백 origin의 근거라 기기마다 다르다. 둘을 빠뜨린 실수는 기동 시점에 한 줄로
+  드러나는 편이 낫다.
+- 가입은 화면에 없다. 시드 명령(`pnpm --filter @eatbid/server seed:dev-login`)이 `dev@eatbid.local` 하나를
+  provider 서버 API(`signUpEmail`)로 만들어 비밀번호 해시가 provider의 것과 같게 하고, 워크스페이스 초기화와
+  사업자 등록은 §2·§8의 명시적 command(계정 모듈 use case)를 호출만 한다. 시드는 멱등이며 production과 플래그
+  없는 배포에서는 DB에 닿기 전에 거부된다. sign-up의 `autoSignIn`을 꺼서 시드가 아무도 들고 있지 않은 세션
+  행을 남기지 않는다. 등록하는 사업자번호는 검증번호만 통과하는 합성값이라 실제 자료 사본 위에서 남의 참여
+  기록에 연결되지 않는다(§7).
+- web은 `NODE_ENV !== 'production'`이면서 web 쪽 `EATBID_DEV_LOGIN === 'true'`일 때만 로그인 화면의 Google
+  버튼 아래에 이메일·비밀번호 폼을 보인다. 판정은 RSC에서 요청 시점에 하고 브라우저 bundle에는 실리지 않는다.
+  폼은 안내일 뿐이며 권위는 서버의 provider 조립이다. 둘이 어긋나면 로그인이 실패로 드러날 뿐 열리지 않는다.
+- `proxy.ts`·`session-gate.ts`·`session.guard.ts`·`better-auth-session-authenticator.ts`는 바뀌지 않는다.
+  로컬 세션이 운영과 같은 코드 경로를 지나므로 인증 흐름 자체가 로컬에서 검증된다. 검사 실행이 쓰는
+  authenticator 주입 지점(§9)은 그대로 남으며 이 절이 그것을 대체하지 않는다.
+
+**기각한 대안.** `auth: null`일 때 게이트가 통과시키기 — 운영 오설정 한 번이 전면 개방이 된다(§9). 팀원마다
+로컬 Google OAuth client 만들기 — 동작하지만 설정 부담이 사람 수만큼 늘어 절차 문서
+(`docs/operations/local-dev-login.md`)에 대안으로만 적는다.
+
+**틀렸을 때 비용.** 플래그가 운영에 새어 들어가도 기동이 실패할 뿐 열리지 않는다. 반대로 secret을 고정
+개발값으로 두었다면 `development`로 띄운 공유 환경의 세션이 위조 가능해졌을 것이고, 게이트에 우회를 두었다면
+그 분기를 켜는 설정 실수 하나가 공고 데이터 전체를 공개했을 것이다.
+
 ## Consequences
 
 - 게스트 모드가 사라진다. `apps/web/src/lib/session.ts`의 localStorage 진실 원천과
@@ -538,6 +581,9 @@ message는 어떤 필드로도 들어가지 않는다(§6). Express에서 닫히
   바꾸는 변경은 이 ADR과 테스트를 같이 고쳐야 한다.
 - **잘못됐을 때 비용:** 인가 판정이 endpoint마다 흩어지면 새 계약 하나가 남의 워크스페이스 작성 자료를
   여는 사고가 나고, 그 사고는 로그에 정상 200으로 남아 사후에 찾기 어렵다.
+- (2026-09-10 보완) 인증 값이 없는 로컬은 여전히 503이지만, `EATBID_DEV_LOGIN=true`와 secret·base URL을 준
+  로컬은 Google 없이 시드 계정으로 실제 로그인한다(§13). 그 대가로 provider의 이메일·비밀번호 endpoint가
+  비운영 배포에서 열리며, 운영은 환경 검증이 그 플래그를 기동 실패로 바꾼다.
 
 ## Rejected alternatives
 
