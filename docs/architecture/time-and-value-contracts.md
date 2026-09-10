@@ -80,8 +80,10 @@ packages/domain/src/
 │  ├─ money.ts
 │  ├─ quantities.ts
 │  └─ rates.ts
-└─ geo/
-   └─ coordinate.ts
+├─ geo/
+│  └─ coordinate.ts
+└─ identity/
+   └─ postgres-identity.ts   # 양수 signed bigint 식별자 범위; 모듈 brand는 각 모듈 domain이 소유
 
 packages/contracts/src/
 ├─ atoms/
