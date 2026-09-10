@@ -77,8 +77,9 @@ export async function seedDevLogin(dependencies: DevLoginSeedDependencies): Prom
   const principal = await repository.findPrincipalBySubject(subject);
   if (principal === null) throw new Error("Dev login seed initialized the account but could not resolve its principal");
 
+  // use case는 공개 응답이 아니라 내부 record를 돌려준다(ADR 0045 결정 1). 십진 문자열은 이 명령의 출력 경계에서만 만든다.
   const listed = await effectRunner.run(new ListMyBusinesses(repository).execute(principal));
-  const alreadyRegistered = listed.businesses
+  const alreadyRegistered = listed
     .some((business) => business.businessNumber === DEV_LOGIN_ACCOUNT.businessNumber);
   if (!alreadyRegistered) {
     await effectRunner.run(new RegisterMyBusiness(repository).execute({
@@ -91,8 +92,8 @@ export async function seedDevLogin(dependencies: DevLoginSeedDependencies): Prom
     email: DEV_LOGIN_ACCOUNT.email,
     subject,
     user: existing === null ? "created" : "existing",
-    principalId: initialized.principalId,
-    workspaceId: initialized.workspace.workspaceId,
+    principalId: initialized.principalId.toString(10),
+    workspaceId: initialized.workspace.workspaceId.toString(10),
     business: alreadyRegistered ? "existing" : "registered",
   };
 }
