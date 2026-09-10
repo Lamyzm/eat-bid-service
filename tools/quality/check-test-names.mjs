@@ -426,15 +426,15 @@ function inspectTypeScript(sourceFile, checker) {
 }
 
 function runPythonChecker(pythonPaths) {
-  if (pythonPaths && pythonPaths.length === 0) return { declarationCount: 0, violations: [] };
+  if (pythonPaths.length === 0) return { declarationCount: 0, violations: [] };
   const candidates = process.env.PYTHON
     ? [process.env.PYTHON]
     : process.platform === "win32" ? ["python", "python3"] : ["python3", "python"];
   for (const executable of candidates) {
-    const result = spawnSync(executable, [pythonChecker, root, ...(pythonPaths ? ["--paths-from-stdin"] : [])], {
+    const result = spawnSync(executable, [pythonChecker, root, "--paths-from-stdin"], {
       encoding: "utf8",
       env: { ...process.env, PYTHONIOENCODING: "utf-8" },
-      input: pythonPaths ? JSON.stringify({ paths: pythonPaths }) : undefined,
+      input: JSON.stringify({ paths: pythonPaths }),
     });
     if (result.error?.code === "ENOENT") continue;
     if (result.error) throw result.error;
@@ -446,7 +446,13 @@ function runPythonChecker(pythonPaths) {
 
 const typescriptFiles = walk(root, (name) => javascriptExtensions.has(path.extname(name)))
   .filter((file) => !scopedPaths || scopedPaths.has(display(file)));
-const pythonPaths = scopedPaths ? [...scopedPaths].filter((item) => item.endsWith(".py")).sort() : undefined;
+// 대상 열거는 이 파일이 혼자 소유한다. Python 검사기가 스스로 걷게 두면 제외 목록이 두 벌이 되고, 실제로
+// `.claude`가 한쪽에만 있어 다른 세션의 worktree까지 스캔하다 그 worktree가 지워지면 push가 깨졌다(EAT-175).
+const pythonPaths = (
+  scopedPaths
+    ? [...scopedPaths].filter((item) => item.endsWith(".py"))
+    : walk(root, (name) => path.extname(name) === ".py").map(display)
+).sort();
 const compilerOptions = {
   allowJs: true,
   checkJs: false,
