@@ -7,6 +7,7 @@ import type { EmailSignInOutcome } from '@/shell/auth/auth-client';
 /** provider 왕복은 여기서 증명하지 않는다. 화면이 결과 값 하나를 어떤 문장으로 옮기는지만 본다. */
 let emailOutcome: EmailSignInOutcome | Error = 'signed-in';
 let emailAttempts: Array<{ email: string; password: string; returnPath: unknown }> = [];
+// 이 모듈을 mock하는 테스트 파일은 전부 같은 export 이름 집합을 둔다(use-account-session.test.tsx의 주석).
 mock.module('@/shell/auth/auth-client', () => ({
   signInWithGoogle: async () => undefined,
   signInWithEmail: async (input: { email: string; password: string; returnPath: unknown }) => {
