@@ -4,4 +4,15 @@ metadata:
   name: eatbid-workflow-limits
   namespace: eatbid
 data:
-  eatbid-source-limit: "1"
+  # 클러스터가 밖으로 내는 동시 source 호출 상한을 한 곳에서 본다는 의도는 그대로이고, 합은 2다
+  # (2026-09-11, EAT-164). 상한 1을 유지하면 poll-open·daily-reconcile·기준정보 수집이 대기 중인
+  # backfill chunk 수백 개 뒤에 줄을 서 신규 공고 노출 SLO 15분(EAT-151)이 깨진다 — 2026-09-10 18:53
+  # 회차는 discover까지만 마치고 상세 수집 10묶음 중 1개만 끝낸 채 2시간 만에 끝났다. 그렇다고 상한만
+  # 2로 올리면 대기열에 수백 묶음이 쌓인 backfill이 두 자리를 다 가져가므로 key를 나눈다.
+  #
+  # eatbid-source-live: 스케줄 수집(discover·capture)과 기준정보 수집(capture-reference)이 쓴다.
+  # 기준정보는 월 1회·짧게 끝나는 실행이라 backfill 쪽에 두면 backfill이 며칠 도는 동안 밀린다.
+  # eatbid-source-backfill: backfill 전용 discover-backfill·capture-backfill이 쓴다(workflow-template.yaml
+  # `backfill-pipeline`). replay는 기존 raw를 재해석만 하고 소스를 다시 부르지 않아 둘 다 잡지 않는다.
+  eatbid-source-live: "1"
+  eatbid-source-backfill: "1"

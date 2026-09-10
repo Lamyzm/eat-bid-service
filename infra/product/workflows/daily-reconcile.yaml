@@ -14,8 +14,9 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
-    # 스케줄 수집은 backfill(기본 priority 0)보다 먼저 source semaphore를 받는다. poll-open과 같은 값이며
-    # 근거는 그쪽 주석(EAT-93)이다.
+    # 보장은 이 priority가 아니라 source semaphore key 분리다(eatbid-source-live vs
+    # eatbid-source-backfill, 2026-09-11 EAT-164). poll-open과 같은 값이며 근거와 2026-09-10 관측은
+    # 그쪽 주석이다.
     priority: 100
     arguments:
       parameters:

@@ -258,16 +258,36 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     assert "retryStrategy" not in yaml.safe_dump(workflow_template)
     assert "artifact" not in yaml.safe_dump(workflow_template).lower()
 
-    source_limited = []
-    for name in ("discover", "capture"):
+    def _source_semaphore_key(name: str) -> tuple[str, str]:
         synchronization = _mapping(templates[name]["synchronization"])
         semaphores = [_mapping(item) for item in _sequence(synchronization["semaphores"])]
         key_ref = _mapping(semaphores[0]["configMapKeyRef"])
-        source_limited.append((key_ref["name"], key_ref["key"]))
-    assert source_limited == [
-        ("eatbid-workflow-limits", "eatbid-source-limit"),
-        ("eatbid-workflow-limits", "eatbid-source-limit"),
+        return (str(key_ref["name"]), str(key_ref["key"]))
+
+    # 스케줄 수집은 eatbid-source-live를 잡는다(2026-09-11, EAT-164). backfill 전용 discover-backfill·
+    # capture-backfill은 아래에서 eatbid-source-backfill을 잡는지, 그리고 template 필드만 다르고
+    # 나머지 정의는 완전히 같은지 확인한다 — 한 실행이 두 key를 동시에 잡지 않는다는 보장은 이
+    # 분리에서 나온다.
+    assert [_source_semaphore_key(name) for name in ("discover", "capture")] == [
+        ("eatbid-workflow-limits", "eatbid-source-live"),
+        ("eatbid-workflow-limits", "eatbid-source-live"),
     ]
+    assert [
+        _source_semaphore_key(name) for name in ("discover-backfill", "capture-backfill")
+    ] == [
+        ("eatbid-workflow-limits", "eatbid-source-backfill"),
+        ("eatbid-workflow-limits", "eatbid-source-backfill"),
+    ]
+    for live_name, backfill_name in (
+        ("discover", "discover-backfill"),
+        ("capture", "capture-backfill"),
+    ):
+        live_template = dict(templates[live_name])
+        backfill_template = dict(templates[backfill_name])
+        for mapping in (live_template, backfill_template):
+            mapping.pop("name", None)
+            mapping.pop("synchronization", None)
+        assert live_template == backfill_template, (live_name, backfill_name)
 
     project_sync = _mapping(templates["project"]["synchronization"])
     project_mutexes = [_mapping(item) for item in _sequence(project_sync["mutexes"])]
@@ -319,7 +339,9 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         )
 
     limit = manifests.named("ConfigMap", "eatbid-workflow-limits")
-    assert limit["data"] == {"eatbid-source-limit": "1"}
+    # 합이 2다(2026-09-11, EAT-164). key 하나만 올리면 backfill이 두 자리를 다 가져가므로 나눴다 —
+    # 이유는 semaphore.yaml.
+    assert limit["data"] == {"eatbid-source-live": "1", "eatbid-source-backfill": "1"}
     service_account = manifests.named("ServiceAccount", "eatbid-dataplane")
     assert service_account["imagePullSecrets"] == [{"name": "ghcr-pull"}]
 
@@ -378,9 +400,13 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         }
         assert parameters == {"mode": expected_modes[name]}
 
-    rendered = yaml.safe_dump_all(manifests.documents)
-    assert "backfill" not in rendered
-    assert "entrypoint: replay" not in rendered
+    # backfill·replay는 사람이 argo submit으로 부르는 ad hoc 실행이고 CronWorkflow로 스케줄하지
+    # 않는다. WorkflowTemplate 자체에는 EAT-164의 backfill-pipeline·discover-backfill·
+    # capture-backfill·eatbid-source-backfill처럼 "backfill"을 담은 정당한 이름이 있으므로, 전체
+    # manifest가 아니라 CronWorkflow 문서만으로 범위를 좁힌다.
+    cron_rendered = yaml.safe_dump_all(cron_workflows)
+    assert "backfill" not in cron_rendered
+    assert "entrypoint: replay" not in cron_rendered
 
 
 def test_DB_백업_CronWorkflow는_매시간_소유자로_덤프해_R2에_두고_소스와_템플릿을_건드리지_않는다(
@@ -448,10 +474,14 @@ def test_WorkflowTemplate은_성공_파드를_즉시_지우고_끝난_Workflow�
 def test_스케줄_CronWorkflow는_backfill_기본_우선순위보다_높다(
     manifests: ManifestSet,
 ) -> None:
-    """왜: source semaphore 대기 큐는 priority 내림차순 → 생성 시각 순이다(Argo v4.0.8
-    `workflow/sync/sync_manager.go`, `wf.Spec.Priority` 미지정은 0). `argo submit`으로 내는 backfill은
-    priority가 없으므로 스케줄 수집이 그보다 높지 않으면 backfill chunk 수백 개 뒤에 줄을 선다
-    (2026-09-07 08:00 poll-open discover 95분 대기, EAT-93)."""
+    """왜: 이 priority는 2026-09-07(EAT-93) 도입 당시엔 "대기 큐는 priority 내림차순 → 생성 시각
+    순"(Argo v4.0.8 `workflow/sync/sync_manager.go`, `wf.Spec.Priority` 미지정은 0)이라는 가정으로
+    backfill보다 스케줄 수집을 앞세우는 유일한 장치였다. 2026-09-10 18:53 poll-open 회차가 이 값을
+    가진 채로도 상세 수집 대부분이 backfill 뒤에서 2시간 묶여 그 가정이 template 수준 semaphore에서는
+    지켜지지 않음을 보였고, 원인 규명 없이 보장을 source semaphore key 분리로 옮겼다(EAT-164,
+    `test_backfill_pipeline은_discover_capture만_backfill_key로_바꾸고_나머지는_scheduled_pipeline과_공유한다`).
+    이 값 자체는 지우지 않는다 — 같은 key를 다투는 poll-open·daily-reconcile 사이 순서와 컨트롤러 큐
+    일반의 의미는 여전히 priority가 쥔다."""
     backfill_default_priority = 0
     scheduled = {
         str(_metadata(cron)["name"]): _mapping(_spec(cron)["workflowSpec"]).get("priority")
@@ -466,6 +496,57 @@ def test_스케줄_CronWorkflow는_backfill_기본_우선순위보다_높다(
     assert scheduled["eatbid-reference-refresh"] is None
     # WorkflowTemplate 자체에 priority를 두면 그 template으로 내는 backfill도 같은 값을 받아 구분이 사라진다.
     assert "priority" not in _spec(manifests.workflow_template("eatbid-dataplane"))
+
+
+def test_backfill_pipeline은_discover_capture만_backfill_key로_바꾸고_나머지는_scheduled_pipeline과_공유한다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 보장이 priority에서 source semaphore key 분리로 옮겨갔다(EAT-164, 위 우선순위 테스트).
+    한 실행이 eatbid-source-live·eatbid-source-backfill 두 key를 동시에 잡지 않는지, discover-backfill·
+    capture-backfill을 부르는 DAG가 backfill-pipeline뿐인지, normalize 이후 task는 scheduled-pipeline과
+    정의가 갈라지지 않았는지를 고정한다."""
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+
+    backfill_dag = _mapping(templates["backfill-pipeline"]["dag"])
+    backfill_tasks = [_mapping(task) for task in _sequence(backfill_dag["tasks"])]
+    assert [task["name"] for task in backfill_tasks] == list(SCHEDULED_TASKS)
+    assert [task["template"] for task in backfill_tasks] == [
+        "discover-backfill",
+        "capture-backfill",
+        "normalize",
+        "validate",
+        "project",
+        "marts",
+    ]
+
+    # discover·capture는 template 필드만 다르고 나머지(dependencies·withParam·arguments)는 두 DAG가
+    # 완전히 같은 task 정의를 anchor로 공유해야 한다. normalize·validate·project·marts는 필드까지
+    # 전부 같아야 한다 — semaphore가 없는 단계라 backfill 변형을 따로 둘 이유가 없다.
+    scheduled_tasks = {str(task["name"]): task for task in _dag_tasks(workflow_template)}
+    for task in backfill_tasks:
+        name = str(task["name"])
+        scheduled_task = dict(scheduled_tasks[name])
+        candidate = dict(task)
+        if name in ("discover", "capture"):
+            scheduled_task.pop("template", None)
+            candidate.pop("template", None)
+        assert candidate == scheduled_task, name
+
+    # discover-backfill·capture-backfill을 task template으로 부르는 DAG는 backfill-pipeline뿐이고,
+    # backfill-pipeline은 live 전용 discover·capture를 부르지 않는다. 한 실행이 두 semaphore key를
+    # 동시에 잡지 않는다는 보장은 이 배타성에서 나온다.
+    for name, template in templates.items():
+        dag = template.get("dag")
+        if dag is None:
+            continue
+        task_templates = {
+            str(_mapping(task)["template"]) for task in _sequence(_mapping(dag)["tasks"])
+        }
+        if name == "backfill-pipeline":
+            assert task_templates.isdisjoint({"discover", "capture"}), name
+        else:
+            assert task_templates.isdisjoint({"discover-backfill", "capture-backfill"}), name
 
 
 def _execute_replay_script(
@@ -562,14 +643,16 @@ def test_reference_pipeline이_수집과_투영_둘로만_돌고_예약_DAG를_�
         )
     assert set(project_arguments) == _input_names(templates["project-reference"])
 
-    # 수집은 eaT와 같은 source semaphore를, 투영은 core 발행 mutex를 쓴다. 새 semaphore를 만들지 않는다.
+    # 수집은 eaT 스케줄 수집과 같은 eatbid-source-live를, 투영은 core 발행 mutex를 쓴다. 새 semaphore를
+    # 만들지 않는다. backfill 전용 key(eatbid-source-backfill)에 두지 않는 이유는 월 1회·짧게 끝나는
+    # 실행이 며칠 도는 backfill 뒤에서 밀리면 안 되기 때문이다(2026-09-11, EAT-164).
     capture_sync = _mapping(templates["capture-reference"]["synchronization"])
     capture_semaphore = _mapping(
         _mapping(_sequence(capture_sync["semaphores"])[0])["configMapKeyRef"]
     )
     assert (capture_semaphore["name"], capture_semaphore["key"]) == (
         "eatbid-workflow-limits",
-        "eatbid-source-limit",
+        "eatbid-source-live",
     )
     project_sync = _mapping(templates["project-reference"]["synchronization"])
     assert [_mapping(item) for item in _sequence(project_sync["mutexes"])] == [
