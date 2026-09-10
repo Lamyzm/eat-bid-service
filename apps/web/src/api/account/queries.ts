@@ -21,7 +21,7 @@ import { listMyBusinessesWith } from './my-businesses';
  * principal과 workspace를 key에 담아 다른 계정이 같은 URL에서 앞 사람의 응답을 재사용하지 못하게 한다
  * (ADR 0032 §9). key가 같으면 캐시가 같다는 사실이 여기서 유일한 방어다.
  */
-const accountQueryKeys = {
+export const accountQueryKeys = {
   all: () => ['account'] as const,
   sessionRoot: () => [...accountQueryKeys.all(), 'session'] as const,
   session: (subject: string | null) => [...accountQueryKeys.sessionRoot(), subject] as const,

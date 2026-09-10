@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { act, render, type RenderResult } from '@testing-library/react';
 import type { CurrentSessionV1Response } from '@eatbid/contracts/api/v1/session';
+
+import { createQueryClient } from '@/shell/providers/query-client';
 
 /** provider가 관측한 주체만 바꿔 가며 주입한다. 실제 Google 왕복은 여기서 증명하지 않는다. */
 let providerSubject: string | null | undefined;
@@ -54,13 +56,17 @@ const firstBusinesses = {
   ]
 };
 
-function probe() {
+function probe(serverSession?: CurrentSessionV1Response) {
   const rendered: AccountSessionView[] = [];
   function Probe() {
-    rendered.push(useAccountSession());
+    rendered.push(useAccountSession(serverSession));
     return null;
   }
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // 전역 정책을 그대로 쓴다. staleTime이 0인 대역 client는 서버가 넘긴 답을 붙자마자 낡은 것으로 보아
+  // "브라우저가 다시 묻지 않는다"를 증명하지 못한다.
+  const client = createQueryClient({ notify: () => undefined, report: () => undefined });
+  const defaults = client.getDefaultOptions();
+  client.setDefaultOptions({ ...defaults, queries: { ...defaults.queries, retry: false } });
   // 같은 element 참조를 다시 넘기면 React가 재렌더를 건너뛴다. 전환을 관측하려면 매번 새로 만든다.
   const tree = () => (
     <QueryClientProvider client={client}>
@@ -68,6 +74,14 @@ function probe() {
     </QueryClientProvider>
   );
   return { rendered, client, tree };
+}
+
+/**
+ * 서버가 넘긴 답은 값의 정체성으로 "이미 썼는지"를 가린다. 검사마다 새 응답을 만들어야 앞 검사가 쓴
+ * 값이 다음 검사의 판정을 바꾸지 않는다.
+ */
+function serverRead(session: CurrentSessionV1Response): CurrentSessionV1Response {
+  return { ...session };
 }
 
 function last(rendered: readonly AccountSessionView[]): AccountSessionView {
@@ -117,6 +131,45 @@ describe('계정 세션 hook', () => {
     expect(pendingRequests).toHaveLength(0);
     expect(last(rendered).isPending).toBe(true);
     expect(last(rendered).session).toBeUndefined();
+  });
+
+  test('서버가 읽은 답을 받으면 같은 조회를 브라우저가 다시 보내지 않는다', async () => {
+    const { rendered, tree } = probe(serverRead(firstAccount));
+    providerSubject = 'provider-first';
+
+    await mount(tree());
+
+    expect(pendingRequests).toHaveLength(0);
+    expect(last(rendered).session).toEqual(firstAccount);
+    expect(last(rendered).principalId).toBe(firstAccount.principalId);
+  });
+
+  test('주체를 모르는 동안에는 서버가 읽은 답을 놓지 않는다', async () => {
+    const { rendered, client, tree } = probe(serverRead(firstAccount));
+
+    await mount(tree());
+
+    // 미관측 자리(`null`)를 채우면 주체가 밝혀진 뒤 그 값이 영영 읽히지 않는다.
+    expect(client.getQueryData(accountQueries.session(null).queryKey)).toBeUndefined();
+    expect(last(rendered).session).toBeUndefined();
+    expect(pendingRequests).toHaveLength(0);
+  });
+
+  test('서버가 읽은 답은 첫 주체에만 쓰고 계정이 바뀌면 다시 묻는다', async () => {
+    const { rendered, tree } = probe(serverRead(firstAccount));
+    providerSubject = 'provider-first';
+
+    const screen = await mount(tree());
+    expect(last(rendered).session).toEqual(firstAccount);
+
+    providerSubject = 'provider-second';
+    await settle(() => screen.rerender(tree()));
+
+    // 서버가 읽은 답은 그 요청의 쿠키 주체에 대한 답이다. 새 주체에 그대로 놓으면 남의 계정이 보인다.
+    expect(last(rendered).session).toBeUndefined();
+    expect(pendingRequests).toHaveLength(1);
+    await answer(secondAccount);
+    expect(last(rendered).session).toEqual(secondAccount);
   });
 
   test('다른 탭에서 계정이 바뀌면 중간에 미로그인 화면 없이 새 계정만 보여 준다', async () => {

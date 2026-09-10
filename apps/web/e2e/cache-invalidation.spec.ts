@@ -9,6 +9,7 @@ import {
   ACTIVATE_BUILD_PATH,
   COUNTS_PATH,
   RESET_PATH,
+  cachedReadCounts,
   type ObservedRoute
 } from './support/cache-observability';
 
@@ -47,14 +48,15 @@ test.describe('결정 화면 읽기 캐시와 무효화', () => {
     // acceptance 1: 같은 build에서 두 번째 열람은 Nest에 도달하지 않는다.
     await page.reload();
     await expect(page.getByText(flowCaption(BASE_BUILD_ID))).toBeVisible();
-    expect(await counts(request)).toEqual(first);
+    // 세션은 요청마다 다시 묻는 read라 재열람에도 늘어난다. 캐시가 사는지는 캐시된 read만 견준다.
+    expect(cachedReadCounts(await counts(request))).toEqual(cachedReadCounts(first));
 
     // push 없이 활성 build만 바뀌면 화면은 옛 계보를 계속 읽는다. 이 단계가 없으면 TTL이 우연히
     // 만료돼서 통과한 테스트와 구분되지 않는다.
     expect((await request.get(`${FIXTURE_ORIGIN}${ACTIVATE_BUILD_PATH}`)).status()).toBe(200);
     await page.reload();
     await expect(page.getByText(flowCaption(BASE_BUILD_ID))).toBeVisible();
-    expect(await counts(request)).toEqual(first);
+    expect(cachedReadCounts(await counts(request))).toEqual(cachedReadCounts(first));
 
     // acceptance 2: 무효화 뒤 첫 열람은 새 값이다.
     const revalidated = await request.post(REVALIDATE_URL, {
@@ -77,7 +79,7 @@ test.describe('결정 화면 읽기 캐시와 무효화', () => {
     await page.reload();
     await expect(page.getByText(flowCaption(BASE_BUILD_ID + 1))).toBeVisible();
     const settled = await counts(request);
-    expect(settled).toEqual(afterPush);
+    expect(cachedReadCounts(settled)).toEqual(cachedReadCounts(afterPush));
 
     // "0회"는 통과 여부가 아니라 숫자로 남아야 회귀를 사람이 읽을 수 있다. CI 로그와 PR evidence가
     // 같은 줄을 본다.

@@ -21,6 +21,9 @@ export default defineConfig({
   workers: 1,
   reporter: 'line',
   outputDir: 'test-results/foundation',
+  // 요청 수를 세는 스위트는 config가 어느 것이든 같은 이름으로 fixture origin을 찾는다. 스위트가 특정
+  // config 파일을 import하면 dev·프로덕션 두 config에서 같은 파일을 돌릴 수 없다.
+  metadata: { fixtureOrigin: FIXTURE_ORIGIN, productionBuild: false },
   use: {
     baseURL: WEB_ORIGIN,
     browserName: 'chromium',
