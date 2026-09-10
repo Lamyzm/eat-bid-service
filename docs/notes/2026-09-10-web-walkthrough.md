@@ -706,7 +706,13 @@ SSOT, EAT-134 lint 이관, EAT-124 운영 뷰 ADR, 그리고 8-5의 진행 중 �
   식별자 범위 팩토리는 `packages/domain/identity/postgres-identity.ts`(모듈끼리 import 금지라 모듈 domain에 두면 세 번째 복제).
   새 gate `server-boundaries`가 application의 wire 타입 import를 막는다(22개 통과). 내가 돌린 것: 단위 124, 경계 검사, OpenAPI
   check, tools 테스트 10. 에이전트 전체 스위트 304 pass. 삭제된 테스트 제목 15개는 presenter 테스트 48개로 옮겨졌고 skip 0.
-- **push.** 넷을 합친 main(24 커밋)을 push 하나로 올린다. 게이트가 최종 판정이다.
+- **push 1차 실패 → 수정 → 2차.** 넷을 합친 main(24 커밋)의 첫 push는 web 단위 스위트에서 떨어졌다(499 pass·1 fail·1 error):
+  `login-screen.test.tsx`가 link 단계에서 `Export named 'signInWithEmail' not found`. 원인은 bun `mock.module`의 성질이다.
+  `use-account-session.test.tsx`가 `@/shell/auth/auth-client`를 export 둘로 먼저 mock하면 bun은 이미 mock된 모듈의 namespace를
+  제자리에서 갱신하므로 뒤의 mock이 새 이름을 더하지 못한다. 파일 하나만 돌리면 통과하고 전체를 돌려야 보이는 결함이라
+  EAT-155의 좁은 검증이 놓쳤다. 리뷰어가 EAT-155 claim으로 두 mock의 export 집합을 같게 맞춰 504 pass로 만들고 다시 push.
+  **규칙 갱신:** web 변경 에이전트에게는 세그먼트 테스트가 아니라 `pnpm --filter @eatbid/web test` 전체(15초)를 돌리게 한다.
+  "좁은 테스트만"은 컨테이너를 띄우는 서버 통합·e2e에만 적용한다.
 
 ## 9. 다음에 볼 것
 
