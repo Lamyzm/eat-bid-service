@@ -8,11 +8,17 @@ import { createQueryClient } from '@/shell/providers/query-client';
 /** provider가 관측한 주체만 바꿔 가며 주입한다. 실제 Google 왕복은 여기서 증명하지 않는다. */
 let providerSubject: string | null | undefined;
 let signOutCount = 0;
+// 이 모듈을 mock하는 테스트 파일은 전부 같은 export 이름 집합을 둔다. bun은 한 실행 안에서 이미 mock된 모듈의
+// namespace를 제자리에서 갱신하므로, 뒤에 등록한 mock이 앞선 mock에 없던 이름을 더하지 못해 그 이름을 import하는
+// 모듈이 link 단계에서 깨진다(login-screen.test.tsx의 signInWithEmail이 그렇게 깨졌다).
 mock.module('@/shell/auth/auth-client', () => ({
   useProviderSubject: () => providerSubject,
   signOutFromProvider: async () => {
     signOutCount += 1;
-  }
+  },
+  signInWithGoogle: async () => undefined,
+  signInWithEmail: async () => 'signed-in',
+  isProviderAuthError: () => false
 }));
 
 /** 실제 query 경계와 실제 hook을 쓰고 transport만 대역으로 바꾼다. 응답 시점은 이 검사가 정한다. */
