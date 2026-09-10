@@ -211,9 +211,12 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
 ## 3. 실행 안전장치
 
 - source semaphore를 스케줄 수집·기준정보용 `eatbid-source-live`와 backfill 전용
-  `eatbid-source-backfill`로 나눈다(ConfigMap `eatbid-workflow-limits`, 각 capacity 1, 합 2). 상한
-  1로 시작해 관측 후 늘렸으나(2026-09-05) key 하나만 2로 올리면 대기열에 수백 묶음이 쌓인 backfill이
-  두 자리를 다 가져가므로 2026-09-11(EAT-164) 나눴다. 아래에서 더 설명한다.
+  `eatbid-source-backfill`로 나눈다(ConfigMap `eatbid-workflow-limits`, 각 capacity 1, 새로 시작하는
+  실행 기준 합 2). 상한 1로 시작해 관측 후 늘렸으나(2026-09-05) key 하나만 2로 올리면 대기열에
+  수백 묶음이 쌓인 backfill이 두 자리를 다 가져가므로 2026-09-11(EAT-164) 나눴다. 지금 ConfigMap
+  항목은 이 배포 시점에 이미 돌던 backfill이 스냅샷으로 쥔 과도기 key `eatbid-source-limit` 때문에
+  셋이지만(제거 조건은 semaphore.yaml), 동시 사용은 그 실행이 끝날 때까지도 여전히 2다. 아래에서 더
+  설명한다.
 - canonical publication/projector에는 mutex를 둬 서로 다른 실행의 활성화가 엇갈리지 않게 한다.
 - pod는 stateless다. hostPath, 로컬 SQLite, 공유 JSON 파일을 단계 계약으로 쓰지 않는다.
 - 각 실행/관측/로그에 `run_id`, correlation ID, Git SHA, image digest, parser/projector version을 남긴다.

@@ -339,9 +339,15 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         )
 
     limit = manifests.named("ConfigMap", "eatbid-workflow-limits")
-    # 합이 2다(2026-09-11, EAT-164). key 하나만 올리면 backfill이 두 자리를 다 가져가므로 나눴다 —
-    # 이유는 semaphore.yaml.
-    assert limit["data"] == {"eatbid-source-live": "1", "eatbid-source-backfill": "1"}
+    # 새로 시작하는 실행 기준 합은 2다(2026-09-11, EAT-164). key 하나만 올리면 backfill이 두 자리를
+    # 다 가져가므로 나눴다 — 이유는 semaphore.yaml. eatbid-source-limit은 이 배포 시점에 이미 돌던
+    # backfill이 쥐고 있는 과도기 key다 — 제거 조건은 같은 파일 주석과 아래
+    # test_eatbid_source_limit는_과도기_key이고_도는_backfill이_끝나면_지운다를 본다.
+    assert limit["data"] == {
+        "eatbid-source-live": "1",
+        "eatbid-source-backfill": "1",
+        "eatbid-source-limit": "1",
+    }
     service_account = manifests.named("ServiceAccount", "eatbid-dataplane")
     assert service_account["imagePullSecrets"] == [{"name": "ghcr-pull"}]
 
@@ -547,6 +553,31 @@ def test_backfill_pipeline은_discover_capture만_backfill_key로_바꾸고_나�
             assert task_templates.isdisjoint({"discover", "capture"}), name
         else:
             assert task_templates.isdisjoint({"discover-backfill", "capture-backfill"}), name
+
+
+def test_eatbid_source_limit는_과도기_key이고_도는_backfill이_끝나면_지운다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 2026-09-11 EAT-164 배포 시점에 이미 돌고 있던 backfill Workflow가 workflowTemplateRef
+    스냅샷에 옛 key eatbid-source-limit을 들고 있었다 — Argo는 실행 중 Workflow의 template을 다시
+    읽지 않지만 semaphore capacity는 chunk를 새로 잡을 때마다 ConfigMap을 live로 읽는다(2026-09-11
+    운영에서 `status.synchronization.holding`으로 확인). 그 실행이 끝나기 전에 이 key를 ConfigMap에서
+    지우면 다음 chunk를 잡으려는 순간의 동작이 검증되지 않고, 복구 수단인 fail-release CLI는 아직
+    없다(EAT-122). 이 테스트가 사라지는 날이 제거 조건(그 backfill이 끝나고 클러스터에 이 key를 쓰는
+    실행이 하나도 없는 날)이 충족된 날이라는 신호다 — 후속 정리는 별도 이슈로 추적한다."""
+    limit = manifests.named("ConfigMap", "eatbid-workflow-limits")
+    assert limit["data"]["eatbid-source-limit"] == "1"
+
+    # 새 template 중 어느 것도 이 key를 쓰지 않는다 — 이 배포 이후 새로 만들어지는 실행은 전부
+    # eatbid-source-live/eatbid-source-backfill로만 간다. 옛 key는 이 배포 이전에 이미 제출된, 아직
+    # 끝나지 않은 그 backfill의 스냅샷 안에만 남아 있다.
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+    for name in ("discover", "capture", "discover-backfill", "capture-backfill", "capture-reference"):
+        synchronization = _mapping(templates[name]["synchronization"])
+        semaphores = [_mapping(item) for item in _sequence(synchronization["semaphores"])]
+        key_ref = _mapping(semaphores[0]["configMapKeyRef"])
+        assert key_ref["key"] != "eatbid-source-limit", name
 
 
 def _execute_replay_script(
