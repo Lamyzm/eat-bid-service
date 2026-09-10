@@ -49,7 +49,8 @@ test("인자 해석은 pnpm이 넘기는 리터럴 --를 무시하고 알 수 �
 test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바뀌면 전부 고른다", () => {
   const ids = (selection) => selection.selected.map((check) => check.id).sort();
 
-  assert.deepEqual(ids(selectChecks({ changedPaths: ["docs/architecture/stack/README.md"] })), ["stack-docs"]);
+  // 문서 위계 검사(docs)는 docs/**.md 전체를 보므로 문서 전용 검사와 함께 선택된다.
+  assert.deepEqual(ids(selectChecks({ changedPaths: ["docs/architecture/stack/README.md"] })), ["docs", "stack-docs"]);
   assert.deepEqual(ids(selectChecks({ changedPaths: ["apps/web/src/shell/nav.tsx"] })), [
     "contract-client-exports",
     "http-operations",
@@ -65,7 +66,7 @@ test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바�
     "write-map",
   ]);
   assert.deepEqual(ids(selectChecks({ changedPaths: ["packages/db/drizzle/20260908180418_x/snapshot.json"] })), ["db-erd"]);
-  assert.deepEqual(ids(selectChecks({ changedPaths: ["docs/architecture/ingestion-write-map.md"] })), ["write-map"]);
+  assert.deepEqual(ids(selectChecks({ changedPaths: ["docs/architecture/ingestion-write-map.md"] })), ["docs", "write-map"]);
   assert.deepEqual(ids(selectChecks({ changedPaths: ["apps/server/src/app.test.ts"] })), [
     "http-operations",
     "korean-comments",
@@ -81,7 +82,9 @@ test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바�
     "semantic-values",
     "server-boundaries",
   ]);
-  assert.deepEqual(ids(selectChecks({ changedPaths: ["README.md", "docs/adr/0042.md"] })), []);
+  // 저장소 루트 README.md는 문서 지도의 대상이 아니라 어떤 검사도 고르지 않는다.
+  assert.deepEqual(ids(selectChecks({ changedPaths: ["README.md"] })), []);
+  assert.deepEqual(ids(selectChecks({ changedPaths: ["README.md", "docs/adr/0042.md"] })), ["docs"]);
 
   const tooling = selectChecks({ changedPaths: ["tools/quality/check-korean-comments.mjs"] });
   assert.equal(tooling.reason, "tooling");
