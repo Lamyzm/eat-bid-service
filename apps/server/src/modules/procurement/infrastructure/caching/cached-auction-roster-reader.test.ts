@@ -5,8 +5,8 @@ import type {
   AuctionRosterQuery,
   AuctionRosterReader,
   AuctionRosterRecord,
-} from "./auction-roster-reader";
-import { auctionId } from "../domain/auction-id";
+} from "../../application/auction-roster-reader";
+import { auctionId } from "../../domain/auction-id";
 
 /** 조회를 세는 대역이다. "저장소를 다시 읽었는가"가 추론이 아니라 관측이 되어야 한다. */
 function countingReader(): AuctionRosterReader & {
