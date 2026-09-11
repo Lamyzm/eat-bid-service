@@ -22,7 +22,7 @@ def parse_auction_terms(info: Mapping[str, str]) -> NormalizedAuctionTerms:
     비율뿐이고, 그날의 하한 금액은 추첨 결과에서 파생되는 별개의 관측 파생값이다(AGENTS 3·8).
 
     **이 값을 `ds_info` 밖에서 끌어오지 마라.** 같은 이름의 column이 목록 응답과 `ds_bidHistory`에도
-    있는데 그쪽은 `100 −` 하한율, 즉 여집합이다(`docs/SOURCE-FIELDS.md` T4). 두 응답의 값을 한 열에
+    있는데 그쪽은 `100 −` 하한율, 즉 여집합이다(`docs/audit-source/SOURCE-FIELDS.md` T4). 두 응답의 값을 한 열에
     쌓으면 하한율 분포가 조용히 두 봉우리로 갈라진다.
 
     `SUCBD_DECISION_MTHD_NM`은 "예정가격의 [90]%이상 입찰가 중 최저가 낙찰" 같은 렌더링된 문장이라

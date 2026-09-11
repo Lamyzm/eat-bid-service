@@ -6,23 +6,24 @@
 
 | 파일 | 무엇이 들어 있나 | 누가 쓰나 |
 |---|---|---|
-| [`docs/audit-source/generated/source-field-index.md`](audit-source/generated/source-field-index.md) | (dataset, 필드)마다 행수·채움률·고유값·값 예시·코드 함수성·파서 소비 | **생성기.** `pnpm source-fields:write` |
+| [`docs/audit-source/generated/source-field-index.md`](generated/source-field-index.md) | (dataset, 필드)마다 행수·채움률·고유값·값 예시·코드 함수성·파서 소비 | **생성기.** `pnpm source-fields:write` |
 | 이 파일 | 계산되지 않는 판단 — 같은 이름 다른 어휘, 축 구분, 모르는 채로 남은 것 | **사람.** 리뷰 대상이다 |
 
 ## 0. 이 파일의 규칙
 
 **이 파일에는 세는 값을 적지 않는다.** 건수·채움률·고유값·값 예시는 생성된 색인과
-[`AUDIT-SOURCE.md`](AUDIT-SOURCE.md)가 소유한다. 여기 숫자를 옮겨 적는 순간 그 숫자는 썩고,
+[`AUDIT-SOURCE.md`](../AUDIT-SOURCE.md)가 소유한다. 여기 숫자를 옮겨 적는 순간 그 숫자는 썩고,
 사전은 두 번째로 죽는다.
 
-같은 이름의 파일이 이 자리에 한 번 있었고 사라졌다. 손으로 유지하는 189필드 문서였기 때문이다.
-우리가 통제하지 않는 소스를 필드 단위로 서술하면 소스가 바뀔 때마다 문서가 조용히 거짓말을 한다.
-그래서 **세는 것은 생성기가 만들고 판단만 여기 남긴다.**
+같은 이름의 파일이 `docs/SOURCE-FIELDS.md`에 한 번 있었고 사라졌다. 손으로 유지하는 189필드
+문서였기 때문이다. 우리가 통제하지 않는 소스를 필드 단위로 서술하면 소스가 바뀔 때마다 문서가
+조용히 거짓말을 한다. 그래서 **세는 것은 생성기가 만들고 판단만 여기 남긴다.**
 
 **옛 참조 주의.** `ARCH-DATA.md`·`ARCH-DELIVERY.md`·`docs/superpowers/plans/`가 `SOURCE-FIELDS.md §8`이나
-`SOURCE-FIELDS.md:55` 같은 줄 번호로 인용하는 것은 **지워진 옛 파일**이고 이 파일의 절 번호가 아니다.
-그 인용이 가리키던 측정은 [`AUDIT-SOURCE.md`](AUDIT-SOURCE.md)가 전수로 다시 쟀다. 옛 인용을 이
-파일의 절로 읽지 마라.
+`SOURCE-FIELDS.md:55` 같은 줄 번호로 인용하는 것은 **그 지워진 옛 파일**이고 이 파일의 절 번호가 아니다.
+그래서 이 사전은 옛 경로를 되쓰지 않고 증거 옆(`docs/audit-source/`)에 두었다 — 옛 인용이 새 문서의
+엉뚱한 절로 이어지지 않게 하려는 것이다. 그 인용이 가리키던 측정은
+[`AUDIT-SOURCE.md`](../AUDIT-SOURCE.md)가 전수로 다시 쟀다.
 
 찾는 순서.
 
@@ -312,7 +313,7 @@
 사라진 뒤에도 정정만 남아 고칠 대상이 없었다. **이제 그 정정을 여기가 이어받는다** — 각 줄을
 지금 살아 있는 함정 항목과 짝짓는다.
 
-**실측 숫자는 옮기지 않는다.** 숫자의 권위는 [`AUDIT-SOURCE.md` §9](AUDIT-SOURCE.md)와 그 근거 절에
+**실측 숫자는 옮기지 않는다.** 숫자의 권위는 [`AUDIT-SOURCE.md` §9](../AUDIT-SOURCE.md)와 그 근거 절에
 그대로 있고, 여기는 "무엇을 잘못 알고 있었나"만 적는다(§0 규칙).
 
 | 옛 서술 | 실측 | 근거 |
@@ -356,7 +357,7 @@ pnpm source-fields:write
 
 `tools/architecture/generate-source-field-index.mjs`가 `docs/audit-source/census-detail.txt`,
 `census-list.txt`, `keys-ledger.txt`와 `apps/dataplane/src/eatbid/source/eat/`를 읽어
-[`docs/audit-source/generated/source-field-index.md`](audit-source/generated/source-field-index.md)를 만든다.
+[`docs/audit-source/generated/source-field-index.md`](generated/source-field-index.md)를 만든다.
 이 파일의 `### T*` 제목과 `걸린 자리:` 줄도 읽어 색인의 `함정` 칸을 만든다 —
 **함정을 추가하면 생성기를 다시 돌려라.**
 

@@ -10,7 +10,7 @@ const root = process.env.SOURCE_FIELD_INDEX_ROOT
 export const CENSUS_DETAIL = "docs/audit-source/census-detail.txt";
 export const CENSUS_LIST = "docs/audit-source/census-list.txt";
 export const KEYS_LEDGER = "docs/audit-source/keys-ledger.txt";
-export const JUDGEMENT_DOCUMENT = "docs/SOURCE-FIELDS.md";
+export const JUDGEMENT_DOCUMENT = "docs/audit-source/SOURCE-FIELDS.md";
 export const PARSER_DIRECTORY = "apps/dataplane/src/eatbid/source/eat";
 // 검토된 응답 계약이 (dataset, column)을 선언하는 유일한 파일이다. 나머지 파서 모듈과 달리 여기 적힌
 // column은 "소스가 준다고 관측했다"는 뜻이지 "파서가 읽는다"는 뜻이 아니라서 읽기 판정에서 제외한다.
@@ -330,7 +330,7 @@ export function buildIndex({
   }
   const trapMark = (key) =>
     (trapsByTarget.get(key) ?? [])
-      .map((trap) => `[${trap.id}](../../SOURCE-FIELDS.md#${trap.anchor})`)
+      .map((trap) => `[${trap.id}](../SOURCE-FIELDS.md#${trap.anchor})`)
       .join(" ");
 
   rows.sort(
@@ -343,7 +343,7 @@ export function buildIndex({
     "# 소스 필드 색인 (생성물)",
     "",
     "필드 이름 하나로 그 필드가 어느 dataset에 있고 얼마나 채워지며 코드로 써도 되는지, 우리가 읽는지를 찾는 표다.",
-    "**판단은 여기 없다.** 같은 이름 다른 어휘 같은 함정은 [`docs/SOURCE-FIELDS.md`](../../SOURCE-FIELDS.md)가 소유하고,",
+    "**판단은 여기 없다.** 같은 이름 다른 어휘 같은 함정은 [`docs/audit-source/SOURCE-FIELDS.md`](../SOURCE-FIELDS.md)가 소유하고,",
     "이 표의 `함정` 칸이 그 항목을 가리킨다. 이 파일의 숫자는 전부 기계 생성물에서 옮겨진 것이라 손으로 고치면 다음 실행에서 사라진다.",
     "",
     "| 무엇 | 어디서 | 규모 |",
@@ -360,7 +360,7 @@ export function buildIndex({
     "- `파서`의 `읽음`은 검토된 응답 계약이 그 dataset에 선언한 column이면서 파서 모듈이 그 이름을 문자열로 읽는다는 뜻이고, `계약`은 계약에만 있고 값을 해석하지 않는다는 뜻이다. 같은 이름이 여러 dataset에 선언되면 전부 `읽음`으로 찍히므로 dataset 단위 정확도는 계약 선언까지가 근거다.",
     "- census 표의 `우리` 열은 census를 만들던 2026-08-28 당시 파서 기준이라 이 표의 `파서` 칸과 다를 수 있다. **다르면 이 표가 현재다.**",
     "- 빈 `코드 판정`은 짝이 되는 이름 필드가 없어 재지 못했다는 뜻이지 코드가 아니라는 뜻이 아니다.",
-    "- **여기 없는 이름이 응답에 없다는 뜻은 아니다.** census 표는 값이 한 번이라도 온 키만 싣는다. 선언은 되는데 전 코퍼스에서 한 번도 안 채워지는 키(`CANCEL_REASON`이 그렇다)는 이 색인에 나타나지 않는다 — 그 목록은 `AUDIT-SOURCE.md` §3.1이 소유하고 [T12](../../SOURCE-FIELDS.md)가 가리킨다.",
+    "- **여기 없는 이름이 응답에 없다는 뜻은 아니다.** census 표는 값이 한 번이라도 온 키만 싣는다. 선언은 되는데 전 코퍼스에서 한 번도 안 채워지는 키(`CANCEL_REASON`이 그렇다)는 이 색인에 나타나지 않는다 — 그 목록은 `AUDIT-SOURCE.md` §3.1이 소유하고 [T12](../SOURCE-FIELDS.md)가 가리킨다.",
     "",
     "## 함정 대장",
     "",
@@ -370,7 +370,7 @@ export function buildIndex({
     "|---|---|---|",
     ...traps.map(
       (trap) =>
-        `| [${trap.id}](../../SOURCE-FIELDS.md#${trap.anchor}) | ${cell(trap.title)} | ${trap.targets.map((target) => `\`${target}\``).join(" ")} |`,
+        `| [${trap.id}](../SOURCE-FIELDS.md#${trap.anchor}) | ${cell(trap.title)} | ${trap.targets.map((target) => `\`${target}\``).join(" ")} |`,
     ),
     "",
     "## dataset 대장",

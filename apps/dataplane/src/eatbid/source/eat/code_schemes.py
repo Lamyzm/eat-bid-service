@@ -49,7 +49,7 @@ PLANNED_PRICE_TYPE = EatCodeScheme(
 # 낙찰자 결정 방법이다. 짝이 되는 라벨 `SUCBD_DECISION_MTHD_NM`은 렌더링된 문장이라 코드가 아니다.
 # 문장 안 대괄호에 하한율 숫자가 박혀 있어 `ds_info`의 어떤 코드도 이 이름을 결정하지 못한다. 결정
 # 방법은 이 코드와 `PLNPRCE_SUCBD_STD` 둘로만 정해지므로 **이름을 파싱하지 마라**
-# (`docs/SOURCE-FIELDS.md` T16). 목록 응답에서는 그 대괄호가 아예 비어 있다.
+# (`docs/audit-source/SOURCE-FIELDS.md` T16). 목록 응답에서는 그 대괄호가 아예 비어 있다.
 AWARD_METHOD = EatCodeScheme(
     "eat:award-method", "SUCBID_DCSN_MTH_CD", "SUCBD_DECISION_MTHD_NM"
 )
@@ -77,7 +77,7 @@ ORGANIZATION = EatCodeScheme("eat:organization", "PURR_CD", "PURR_NM")
 # 공고지역 시도·시군구다. 행정안전부 행정구역과 별개 체계이며 명시적 매핑 없이 같다고 보지 않는다
 # (AGENTS 6).
 #
-# ⚠ 지역은 두 축이다(`docs/SOURCE-FIELDS.md` T1). 여기 둘은 **급식을 먹는 학교가 어디 있는가**이고,
+# ⚠ 지역은 두 축이다(`docs/audit-source/SOURCE-FIELDS.md` T1). 여기 둘은 **급식을 먹는 학교가 어디 있는가**이고,
 # 아래 `ELIGIBILITY_AREA`는 **어느 지역 업체가 응찰할 수 있는가**다. 경기 공고의 참가제한지역이
 # 서울인 건이 실제로 있으므로 두 축을 같은 "지역"으로 묶으면 자격 판정이 틀린다. 자릿수가 비슷하다고
 # `SIDO_CD`와 `CTPV_CD`를 같은 값으로 보지도 마라 — 형식도 값 집합도 다르다(T2).
@@ -92,7 +92,7 @@ AUCTION_LOCATION_SIGUNGU = EatCodeScheme("eat:auction-location-sigungu", "SIGUNG
 
 # 참가제한지역이다. 공고지역과 같은 자릿수 문자열이 와도 다른 체계다(AGENTS 6).
 #
-# ⚠ 같은 블록의 `SGG_CD`를 시군구 코드로 쓰지 마라(`docs/SOURCE-FIELDS.md` T3). 전국 시군구보다
+# ⚠ 같은 블록의 `SGG_CD`를 시군구 코드로 쓰지 마라(`docs/audit-source/SOURCE-FIELDS.md` T3). 전국 시군구보다
 # 훨씬 적은 값으로 뭉쳐 있고 한 코드가 여러 이름을 갖는다. 짝인 `SGG_NM`은 두 글자로 잘린 이름과
 # 온전한 이름이 섞여 이름 매칭도 깨진다. 참가자격의 시군구는 `PDLC_CD`이고, 학교 위치의 시군구는
 # 위 `AUCTION_LOCATION_SIGUNGU`다 — 둘은 서로 다른 어휘다. `SGG_CD`라는 이름은 `ds_compList`와
