@@ -47,12 +47,16 @@ curl.exe -L -o C:\VMs\eatbid\noble-server-cloudimg-amd64.img https://cloud-image
 트래픽은 Tailscale로 호스트에 닿고, 호스트가 portproxy로 VM에 넘긴다. 공개 트래픽은 여전히 Cloudflare
 Tunnel이며 이 절과 무관하다.
 
-새 PC(관리자 PowerShell, `infra/vm`만 복사해도 된다. 저장소 전체는 private라 clone에 자격증명이 필요하다):
+호스트의 Tailscale IP·LAN IP·호스트명·ssh 계정은 이 저장소에 적지 않는다. 저장소가 공개라 한 번 적히면 되돌릴 수
+없고, 그 값들은 절차를 이해하는 데 필요하지 않다(EAT-191). 실제 값은 운영자가 Infisical이나 개인 메모에서 읽어
+아래 `<...>` 자리에 넣는다.
+
+새 PC(관리자 PowerShell, `infra/vm`만 복사해도 된다):
 
 ```powershell
 # 호스트의 Tailscale IP와 LAN IP를 인증서 SAN에 넣는다. 나중에 바꾸려면 VM을 다시 만든다.
-.\infra\vm\New-EatbidVm.ps1 -SshPublicKeyPath C:\Users\<user>\.ssh\eatbid-vm.pub -ExtraTlsSan 100.100.253.75,192.168.219.43
-.\infra\vm\Get-EatbidVmKubeconfig.ps1 -ContextName eatbid-prod -ServerAddress 100.100.253.75
+.\infra\vm\New-EatbidVm.ps1 -SshPublicKeyPath C:\Users\<user>\.ssh\eatbid-vm.pub -ExtraTlsSan <호스트 Tailscale IP>,<호스트 LAN IP>
+.\infra\vm\Get-EatbidVmKubeconfig.ps1 -ContextName eatbid-prod -ServerAddress <호스트 Tailscale IP>
 .\infra\vm\Expose-EatbidVm.ps1        # 0.0.0.0:6443→VM:6443, 0.0.0.0:2222→VM:22, Tailscale·사설 LAN만 허용
 ```
 
@@ -68,7 +72,7 @@ PC의 것을 써야 그 PC에서 VM에 ssh가 된다. Docker Desktop이 깔려�
 eatbid-prod`로 진행한다. VM에 직접 ssh는 `ssh -p 2222 -i ~/.ssh/eatbid-vm eatbid@<호스트 IP>`이며 키는 VM을
 만들 때 넣은 공개키의 짝이어야 한다.
 
-Windows 기본 OpenSSH 서버가 구버전이라 동작하지 않는 기기가 있었다(2026-09-10 `mw-vmhost`). 그 경우
+Windows 기본 OpenSSH 서버가 구버전이라 동작하지 않는 기기가 있었다(2026-09-10 운영 PC). 그 경우
 winget의 최신 OpenSSH나 다른 sshd를 쓰고 기본 기능은 다시 켜지 않는다. Tailscale은 `--unattended`로 붙여
 로그인 없이도 터널이 살아 있게 한다.
 
