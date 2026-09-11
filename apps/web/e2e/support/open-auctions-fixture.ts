@@ -29,6 +29,14 @@ const region = {
   sigungu: { codeValueId: '43', code: '48120', scheme: 'eat:auction-location-sigungu', label: '창원시' }
 };
 
+// 참가제한지역은 위 `region`(공고지역)과 다른 코드 체계다(AGENTS 6, ADR 0048). 목록 응답이 이 필드를
+// 늘 실으므로 fixture도 실어야 하고, `null`은 "제한 없음"이 아니라 관측하지 못했다는 뜻이라 두 상태를
+// 모두 재현한다. 운영 실측에서 미관측은 학교가 아닌 기관에 몰려 있었다(2026-09-11).
+const eligibilityAreas = [
+  { codeValueId: '9101', code: '15650', scheme: 'eat:eligibility-area', label: '경남/전체' },
+  { codeValueId: '9102', code: '15661', scheme: 'eat:eligibility-area', label: '경남/창원시' }
+];
+
 const summary = {
   attemptCount: 17,
   medianListCount: 5,
@@ -47,7 +55,7 @@ const summary = {
 // 긴 기관명·여러 품목 라벨은 운영에서 헤더 칩 줄을 밀었던 재료(EAT-82)와 같은 모양이다.
 function rows(now: number) {
   const observedAt = instantSecondsIso(now - 30 * 60 * 1_000);
-  const base = { termsRevisionId: '5796469', observedAt, sourceLastChangedAt: null, region, orgSummary: summary };
+  const base = { termsRevisionId: '5796469', observedAt, sourceLastChangedAt: null, region, eligibilityAreas, orgSummary: summary };
   return [
     {
       ...base,
@@ -68,6 +76,7 @@ function rows(now: number) {
       closesAt: instantSecondsIso(now + 26 * HOUR),
       baseAmount: { amount: '150000000.00', currency: 'KRW' },
       bidCount: null,
+      eligibilityAreas: null,
       orgSummary: { attemptCount: 3, medianListCount: null, listCountSampleCount: 0, lastRound: null }
     },
     {
@@ -77,6 +86,7 @@ function rows(now: number) {
       itemLabel: null,
       floorRate: null,
       region: null,
+      eligibilityAreas: null,
       termsRevisionId: null,
       closesAt: instantSecondsIso(now + 3 * 24 * HOUR),
       baseAmount: null,
@@ -112,9 +122,14 @@ export function openAuctionsResponse(request: Request): Response | null {
   const url = new URL(request.url);
   if (url.pathname !== operation.openApiPath) return null;
 
+  // query string은 값 하나와 값 여럿을 구분하지 못한다. 계약이 배열로 받는 필터만 `getAll`로 편다.
+  const parameters: Record<string, string | string[]> = Object.fromEntries(url.searchParams);
+  const selectedAreas = url.searchParams.getAll('eligibilityArea');
+  if (selectedAreas.length > 0) parameters.eligibilityArea = selectedAreas;
+
   let query: ReturnType<typeof operation.querySchema.parse>;
   try {
-    query = operation.querySchema.parse(Object.fromEntries(url.searchParams));
+    query = operation.querySchema.parse(parameters);
   } catch {
     return problemResponse(400, 'VALIDATION_ERROR', 'query가 유효하지 않음');
   }
@@ -123,12 +138,19 @@ export function openAuctionsResponse(request: Request): Response | null {
   }
 
   const now = Date.now();
-  // 서버와 같은 순서로 거른다: 품목 라벨 완전일치 → 지역 id → 기간. 표본 수는 거른 뒤의 전체 수다.
+  // 제한지역 필터는 고른 코드에 걸린 행과 **제한지역을 관측하지 못한 행**을 함께 남긴다. 미관측을 버리면
+  // 낼 수 있는 공고가 목록에서 사라진다(ADR 0048 결정 3).
+  const areaFilter = query.eligibilityArea ?? null;
+  const matchesArea = (row: ReturnType<typeof rows>[number]) => row.eligibilityAreas !== null
+    && row.eligibilityAreas.some((area) => areaFilter!.includes(area.codeValueId));
+
+  // 서버와 같은 순서로 거른다: 품목 라벨 완전일치 → 지역 id → 기간 → 제한지역. 표본 수는 거른 뒤의 전체 수다.
   const filtered = rows(now)
     .filter((row) => query.item === undefined || row.itemLabel === query.item)
     .filter((row) => query.region === undefined || row.region?.sido.codeValueId === query.region || row.region?.sigungu.codeValueId === query.region)
     .filter((row) => query.closesWithinHours === undefined
-      || (row.closesAt !== null && Date.parse(row.closesAt) <= now + query.closesWithinHours * HOUR));
+      || (row.closesAt !== null && Date.parse(row.closesAt) <= now + query.closesWithinHours * HOUR))
+    .filter((row) => areaFilter === null || row.eligibilityAreas === null || matchesArea(row));
 
   const body = openAuctionListV1ResponseSchema.parse({
     auctions: filtered.slice(0, query.limit),
@@ -137,6 +159,13 @@ export function openAuctionsResponse(request: Request): Response | null {
       sampleCount: filtered.length,
       asOf: instantSecondsIso(now),
       region: query.region ?? null,
+      eligibilityArea: areaFilter,
+      // 합은 언제나 sampleCount다. 매칭과 미관측을 하나로 합치면 화면이 확인되지 않은 행을 "고른 지역의
+      // 공고"라고 말하게 된다.
+      eligibilityMatchedCount: areaFilter === null ? null : filtered.filter(matchesArea).length,
+      eligibilityUnobservedCount: areaFilter === null
+        ? null
+        : filtered.filter((row) => row.eligibilityAreas === null).length,
       item: query.item ?? null,
       closesWithinHours: query.closesWithinHours ?? null,
       baseAmountMin: query.baseAmountMin ?? null,

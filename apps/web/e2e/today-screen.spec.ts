@@ -89,9 +89,13 @@ test.describe('오늘 화면 fixture', () => {
     await expect(rows.nth(1)).toHaveAttribute('data-closes', 'tomorrow');
     await expect(rows.nth(2)).toHaveAttribute('data-closes', 'later');
     await expect(rows.nth(3)).toHaveAttribute('data-closes', 'unknown');
-    await expect(page.locator('tbody .text-destructive')).toHaveCount(1);
-    await expect(page.locator('tbody .text-destructive')).toContainText('D-0');
-    await expect(page.locator('tbody .text-pushed')).toContainText('D-1');
+    // 상태 색은 마감 셀에만 붙는다. 셀을 지정하지 않고 색만 고르면 다른 칸이 같은 색을 쓰기 시작한 날
+    // 이 검사가 무엇을 보는지 모르는 채로 깨진다(2026-09-11 제한지역 미관측 배지).
+    await expect(page.locator('tbody [data-slot="closes"].text-destructive')).toHaveCount(1);
+    await expect(page.locator('tbody [data-slot="closes"].text-destructive')).toContainText('D-0');
+    await expect(page.locator('tbody [data-slot="closes"].text-pushed')).toHaveCount(1);
+    await expect(page.locator('tbody [data-slot="closes"].text-pushed')).toContainText('D-1');
+    await expect(page.locator('tbody .text-destructive, tbody .text-pushed')).toHaveCount(2);
     await expect(page.locator('[data-slot="today-screen"]')).not.toContainText('NaN');
     await expect(page.getByText('마감 미확인')).toBeVisible();
     await expect(page.getByText('기관 미확인')).toBeVisible();

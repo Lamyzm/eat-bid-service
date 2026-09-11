@@ -24,9 +24,6 @@ from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
 from eatbid.failures.errors import PublicationFailedError
 from eatbid.failures.report import ApplicationConfigurationError
 from eatbid.ingest.models import CaptureRequest
-from eatbid.monitoring.notify import send_telegram
-from eatbid.monitoring.runner import MonitoringResult, run_expectation_check
-from eatbid.monitoring.store import R2StateStore
 from eatbid.ingest.postgres_normalization_repository import (
     PsycopgNormalizationRepository,
 )
@@ -44,6 +41,9 @@ from eatbid.mart.open_auction_snapshot import open_auction_snapshot_filler
 from eatbid.mart.org_round_summary import fill_org_round_summary
 from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
 from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
+from eatbid.monitoring.notify import send_telegram
+from eatbid.monitoring.runner import MonitoringResult, run_expectation_check
+from eatbid.monitoring.store import R2StateStore
 from eatbid.pipeline.capture import capture
 from eatbid.pipeline.collection_window import resolve_collection_window
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release

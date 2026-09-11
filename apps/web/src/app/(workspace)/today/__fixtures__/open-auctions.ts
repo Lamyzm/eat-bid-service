@@ -79,6 +79,9 @@ export const laterRow: OpenAuction = {
   itemLabel: null,
   floorRate: null,
   region: null,
+  // 제한지역을 관측하지 못한 행이다. 화면이 이 상태를 "제한 없음"으로 바꿔 말하지 않는지, 그리고 상태
+  // 색을 빌려 쓰지 않는지를 이 행이 검사한다(ADR 0048 결정 3).
+  eligibilityAreas: null,
   termsRevisionId: null,
   // KST 2026-09-10 11:00.
   closesAt: '2026-09-10T02:00:00Z',

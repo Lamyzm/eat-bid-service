@@ -9,6 +9,10 @@ import type { ClosesTone, OpenAuctionRowPresentation } from '../_model/present-o
 
 // 빨강은 상태 색으로만 쓴다. 오늘 마감은 red, 내일 마감은 amber(주의)이며 그 밖의 셀·헤더·칩에는 쓰지 않는다
 // (screen-system §9.2, EAT-39 판정 F). 색과 함께 `D-0`·`D-1` 텍스트가 같이 있다.
+//
+// 상태 색을 다른 셀이 빌려 쓰면 색이 뜻을 잃는다. 제한지역 미관측이 한동안 amber를 쓰고 있었는데, 그건
+// 급한 일이 아니라 사실이라 색이 아니라 굵기로 드러낸다. 선택자도 함께 무너져서 마감 셀을 고르던 검사가
+// 미관측 배지를 같이 잡았다. 마감 셀에 `data-slot='closes'`를 둔 이유가 그것이다.
 const CLOSES_TONE: Record<ClosesTone, string> = {
   today: 'text-destructive font-bold',
   tomorrow: 'text-pushed font-bold',
@@ -37,7 +41,7 @@ function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresent
         )}
         {/* 제한지역은 공고지역과 다른 축이라 링크가 아니라 사실 표시다. 관측하지 못한 행은 그 사실을
             그대로 말한다 — 제한 없음으로 바꿔 적으면 낼 수 있는 공고가 목록에서 조용히 사라진다. */}
-        <span className={row.eligibilityText === null ? 'text-pushed' : undefined}>
+        <span className={row.eligibilityText === null ? 'font-semibold text-foreground' : undefined}>
           {row.eligibilityText === null ? '제한지역 미관측' : `제한 ${row.eligibilityText}`}
         </span>
         {/* 좁은 폭에서 접힌 품목·보통 참여를 둘째 줄에 둔다. */}
@@ -61,7 +65,7 @@ function ItemCell({ row, search }: { readonly row: OpenAuctionRowPresentation; r
 
 function ClosesCell({ row }: { readonly row: OpenAuctionRowPresentation }) {
   return (
-    <span className={`inline-flex items-baseline gap-1.5 whitespace-nowrap tabular-nums ${CLOSES_TONE[row.closes.tone]}`}>
+    <span data-slot='closes' className={`inline-flex items-baseline gap-1.5 whitespace-nowrap tabular-nums ${CLOSES_TONE[row.closes.tone]}`}>
       <span>{row.closes.label}</span>
       {row.closes.timeText ? <span className='text-[13px] font-medium'>{row.closes.timeText}</span> : null}
     </span>
