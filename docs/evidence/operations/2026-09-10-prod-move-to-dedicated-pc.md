@@ -15,11 +15,14 @@ review_trigger: prod-host-change
 | 항목 | 값 |
 |---|---|
 | 기기 | Windows 10 Pro, Ryzen 5 5600(6C/12T), **RAM 16GB(1슬롯)**, C: 250GB(여유 172GB) |
-| 관리 경로 | Tailscale `mw-vmhost` 100.100.253.75, ssh `k@`, LAN 192.168.219.43 |
+| 관리 경로 | Tailscale 호스트명·IP, ssh 전용 계정, 같은 공유기의 LAN IP |
 | VM | `eatbid-k3s` 6 vCPU·12GB·150GB(dynamic VHDX 2.19GB), k3s v1.35.5+k3s1, Ubuntu 24.04.5 |
-| tls-san | 172.30.0.10, eatbid-k3s, 100.100.253.75, 192.168.219.43 |
+| tls-san | 172.30.0.10, eatbid-k3s, 호스트 Tailscale IP, 호스트 LAN IP |
 | 노출 | 호스트 portproxy 0.0.0.0:6443→VM:6443, 2222→22, 방화벽 Tailscale·사설 LAN만 |
-| kubeconfig | 개발 PC context `eatbid-prod`(server 100.100.253.75:6443), TLS 검증 통과 |
+| kubeconfig | 개발 PC context `eatbid-prod`(server 호스트 Tailscale IP:6443), TLS 검증 통과 |
+
+관리 경로의 실제 주소·호스트명·ssh 계정은 저장소를 공개로 바꾸면서 걷었다
+([2026-09-11 노출면 실측](2026-09-11-repository-public-transition.md)).
 
 VHDX·seed ISO는 개발 PC에서 `-ArtifactsOnly`로 만들어 scp(224초). 새 PC Docker Desktop은 기동 실패 상태로
 `com.docker.backend`가 13.7GB를 점유해 VM 12GB 할당이 `0x800705AA`로 거부됐다. 프로세스 종료·자동 시작 해제 뒤
