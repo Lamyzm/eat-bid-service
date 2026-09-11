@@ -14,7 +14,7 @@ import {
   runMigration,
   runMigrationCli,
 } from "./migrate";
-import { expectedMigration } from "./version";
+import { expectedMigration, migrationNameInstant } from "./version";
 
 type JournalRow = {
   id: bigint;
@@ -98,6 +98,13 @@ describe("migration database session 경계", () => {
   });
 });
 
+// 기대 migration의 시각과 그 앞뒤를 `expectedMigration`에서 파생한다. 숫자를 손으로 적으면 다음 migration을
+// 낼 때마다 이 파일이 함께 깨지고, 그때 숫자만 고치면 무엇을 검증하는지가 흐려진다.
+const 기대시각 = migrationNameInstant(expectedMigration).epochMilliseconds;
+const 앞선시각 = (기대시각 + 2_000).toString();
+const 앞선이름 = `${new Date(기대시각 + 2_000).toISOString().replaceAll(/[-:T]/gu, "").slice(0, 14)}_unknown_future`;
+const 같은시각_다른이름 = `${expectedMigration.slice(0, 14)}_wrong_name`;
+
 describe("schema journal 검증", () => {
   test("빈 journal을 거부한다", async () => {
     await expect(assertSchemaVersion(journalDatabase(), expectedMigration)).rejects.toThrow(
@@ -124,7 +131,7 @@ describe("schema journal 검증", () => {
         journalDatabase({
           id: 5n,
           name: expectedMigration,
-          created_at: "1789075144000",
+          created_at: 기대시각.toString(),
         }),
         expectedMigration,
       ),
@@ -136,8 +143,8 @@ describe("schema journal 검증", () => {
       assertSchemaVersion(
         journalDatabase({
           id: 6n,
-          name: "20260910211906_unknown_future",
-          created_at: "1789075146000",
+          name: 앞선이름,
+          created_at: 앞선시각,
         }),
         expectedMigration,
       ),
@@ -149,8 +156,8 @@ describe("schema journal 검증", () => {
       assertSchemaVersion(
         journalDatabase({
           id: 6n,
-          name: "20260910211904_wrong_name",
-          created_at: "1789075144000",
+          name: 같은시각_다른이름,
+          created_at: 기대시각.toString(),
         }),
         expectedMigration,
       ),

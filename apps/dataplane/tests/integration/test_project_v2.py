@@ -403,3 +403,94 @@ def test_재입찰_사슬은_상대_공고에_revision_없는_attempt를_만든�
     assert {row[0] for row in links} <= {"parent", "chain_member"}
     # 아직 수집하지 않은 상대는 revision 0개인 attempt다. 그것은 오류가 아니라 관계로만 알려진 공고다.
     assert any(row[2] == 0 for row in links)
+
+
+def _발행한다(
+    pipeline_services: PipelineServices, *, body: bytes, external_bid_id: str
+) -> None:
+    """한 원본을 수집·정규화·검증·투영까지 돌린다."""
+    run_id = start_run(pipeline_services, parser_version=PARSER_VERSION)
+    observation_id = capture_detail(
+        pipeline_services, run_id=run_id, external_bid_id=external_bid_id, body=body
+    )
+    normalized = normalize_one(
+        pipeline_services, observation_id, parser_version=PARSER_VERSION
+    )
+    publication_id = uuid4()
+    assert (
+        validate_run(
+            run_id=normalized.run_id,
+            publication_id=publication_id,
+            validated_at=VALIDATED_AT,
+            repository=pipeline_services.publication_repository,
+        ).status
+        == "validated"
+    )
+    project_publication(
+        publication_id=publication_id,
+        projector_version=BUILD_SHA,
+        activated_at=ACTIVATED_AT,
+        repository=pipeline_services.projection_repository,
+    )
+
+
+def test_같은_계정이_사업자번호를_바꿔도_두_시점이_모두_발행된다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """왜: 2026-09-10~11에 2025-11 창(16,915건)이 두 번 통째로 버려졌다. 계정 200075(스마일푸드)가
+    2025-12 사이에 사업자번호를 바꿨는데, 계정이 party 하나를 영구히 가리킨다는 전제가 그 관측을
+    충돌로 판정했다. 사업자번호는 계정의 속성이 아니라 투찰 시점의 관측이다(ADR 0049)."""
+    원본 = ROSTER_FIXTURE.read_bytes()
+    계정 = b"880001"
+    원본 = re.sub(rb'<Col id="SHIPPER_CD">\d+</Col>', b'<Col id="SHIPPER_CD">' + 계정 + b"</Col>", 원본)
+    옛번호 = re.sub(rb'<Col id="BIZ_NO">[^<]*</Col>', b'<Col id="BIZ_NO">8800000001</Col>', 원본)
+    새번호 = re.sub(rb'<Col id="BIZ_NO">[^<]*</Col>', b'<Col id="BIZ_NO">8800000002</Col>', 원본)
+
+    앞선_공고 = uuid4().hex
+    나중_공고 = uuid4().hex
+    # 최근부터 수집하므로 새 번호가 먼저 저장된다. 과거 백필이 옛 번호를 나중에 만난다.
+    _발행한다(pipeline_services, body=새번호, external_bid_id=나중_공고)
+    _발행한다(pipeline_services, body=옛번호, external_bid_id=앞선_공고)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select bcv.code, count(distinct s.bid_submission_id)
+            from core.bid_submission s
+            join core.auction_attempt t using (auction_attempt_id)
+            join core.supplier_party p on p.supplier_party_id = s.supplier_party_id
+            join core.code_value bcv on bcv.code_value_id = p.business_number_code_value_id
+            where t.external_bid_id in (%s, %s)
+            group by bcv.code
+            order by bcv.code
+            """,
+            (앞선_공고, 나중_공고),
+        )
+        번호별 = cursor.fetchall()
+
+    # 두 시점이 각자의 업체로 남는다. 하나가 다른 하나를 덮지 않는다.
+    assert [row[0] for row in 번호별] == ["8800000001", "8800000002"]
+    assert all(row[1] > 0 for row in 번호별)
+
+
+def test_같은_계정과_같은_업체를_다시_보면_계정_행이_늘지_않는다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """왜: 짝으로 찾도록 바꾼 뒤에도 같은 짝의 재관측은 멱등해야 한다. 행이 늘면 명단이 계정을
+    중복으로 세고 경쟁자 수가 부푼다."""
+    원본 = ROSTER_FIXTURE.read_bytes()
+    원본 = re.sub(rb'<Col id="SHIPPER_CD">\d+</Col>', b'<Col id="SHIPPER_CD">880002</Col>', 원본)
+    원본 = re.sub(rb'<Col id="BIZ_NO">[^<]*</Col>', b'<Col id="BIZ_NO">8800000003</Col>', 원본)
+
+    _발행한다(pipeline_services, body=원본, external_bid_id=uuid4().hex)
+    _발행한다(pipeline_services, body=원본, external_bid_id=uuid4().hex)
+
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select count(*) from core.source_supplier_account a
+            join core.code_value acv on acv.code_value_id = a.account_code_value_id
+            where acv.code = '880002'
+            """
+        )
+        assert cursor.fetchone()[0] == 1

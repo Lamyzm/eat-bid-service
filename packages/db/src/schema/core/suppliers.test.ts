@@ -41,7 +41,7 @@ describe("참여 업체 identity 불변식", () => {
     expect(names).not.toContain("code_scheme_id");
   });
 
-  test("소스 계정은 계정 code value로 유일하고 한 업체에 여러 계정이 붙는다", () => {
+  test("소스 계정은 계정과 업체의 짝으로 유일해 한 계정이 시점에 따라 다른 업체로 관측된다", () => {
     expect(columnNames(sourceSupplierAccount)).toEqual([
       "source_supplier_account_id",
       "supplier_party_id",
@@ -56,7 +56,13 @@ describe("참여 업체 identity 불변식", () => {
       account_code_value_id: true,
       observation_id: true,
     });
-    expect(uniqueColumnSets(sourceSupplierAccount)).toContainEqual(["account_code_value_id"]);
+    // 계정 code value 단독 unique는 "이 계정은 영원히 한 업체"라는 거짓 주장이었다. 계정 200075가
+    // 사업자번호를 바꾸자 그 주장이 참인 관측 16,915건을 두 번 버렸다(ADR 0049).
+    expect(uniqueColumnSets(sourceSupplierAccount)).not.toContainEqual(["account_code_value_id"]);
+    expect(uniqueColumnSets(sourceSupplierAccount)).toContainEqual([
+      "account_code_value_id",
+      "supplier_party_id",
+    ]);
     expect(uniqueColumnSets(sourceSupplierAccount)).not.toContainEqual(["supplier_party_id"]);
     expect(foreignKeyColumnSets(sourceSupplierAccount)).toEqual(expect.arrayContaining([
       { columns: ["supplier_party_id"], foreignTable: "supplier_party" },

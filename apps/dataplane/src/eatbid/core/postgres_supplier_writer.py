@@ -61,22 +61,24 @@ class SupplierProjectionWriter:
             )
             code_values += inserted
 
-        existing = self._locked_account(cursor, account_code_value_id)
+        # 사업자번호가 있으면 party를 먼저 정한다. 그것이 이 관측이 말하는 업체이며, 계정은 시점에 따라
+        # 다른 업체로 관측될 수 있으므로 계정만으로 기존 행을 찾으면 안 된다(ADR 0049).
+        supplier_party_id, parties_inserted = self._resolve_party(
+            cursor,
+            business_number_code_value_id=business_number_code_value_id,
+            allow_insert=allow_insert,
+        )
+        existing = self._locked_account(cursor, account_code_value_id, supplier_party_id)
         if existing is not None:
-            resolved = self._verify_existing(
-                existing,
-                supplier=supplier,
-                business_number_code_value_id=business_number_code_value_id,
-            )
+            resolved = self._verify_existing(existing, supplier=supplier)
             return resolved, AppliedProjectionCounts(
-                code_values=code_values, code_labels=code_labels
+                code_values=code_values,
+                code_labels=code_labels,
+                supplier_parties=parties_inserted,
             )
         if not allow_insert:
             raise ProjectionContractError("published supplier account is missing")
 
-        supplier_party_id, parties_inserted = self._resolve_party(
-            cursor, business_number_code_value_id=business_number_code_value_id
-        )
         cursor.execute(
             """
             insert into core.source_supplier_account (
@@ -109,59 +111,72 @@ class SupplierProjectionWriter:
 
     @staticmethod
     def _locked_account(
-        cursor: psycopg.Cursor[Any], account_code_value_id: int
-    ) -> tuple[int, int, str, int | None] | None:
+        cursor: psycopg.Cursor[Any], account_code_value_id: int, supplier_party_id: int
+    ) -> tuple[int, int, str] | None:
+        """이 관측이 말하는 `(계정, party)` 짝의 행을 찾는다.
+
+        계정만으로 찾으면 같은 계정의 다른 시점 행이 걸린다. 그 행과 지금 관측이 다르다고 멈추던 것이
+        2025-11 창을 두 번 버린 원인이다(ADR 0049).
+        """
         cursor.execute(
             """
-            select a.source_supplier_account_id, a.supplier_party_id, a.source_system,
-                   p.business_number_code_value_id
+            select a.source_supplier_account_id, a.supplier_party_id, a.source_system
             from core.source_supplier_account a
-            join core.supplier_party p using (supplier_party_id)
-            where a.account_code_value_id = %s
-            for update of a, p
+            where a.account_code_value_id = %s and a.supplier_party_id = %s
+            for update of a
             """,
-            (account_code_value_id,),
+            (account_code_value_id, supplier_party_id),
         )
         row = cursor.fetchone()
         if row is None:
             return None
-        return (
-            int(row[0]),
-            int(row[1]),
-            str(row[2]),
-            int(row[3]) if row[3] is not None else None,
-        )
+        return (int(row[0]), int(row[1]), str(row[2]))
 
     @staticmethod
     def _verify_existing(
-        existing: tuple[int, int, str, int | None],
+        existing: tuple[int, int, str],
         *,
         supplier: SupplierAccountProjection,
-        business_number_code_value_id: int | None,
     ) -> ResolvedSupplier:
-        """이미 승격된 계정은 값을 다시 쓰지 않고 어긋남만 본다.
+        """이미 있는 `(계정, party)` 짝은 값을 다시 쓰지 않고 어긋남만 본다.
 
-        사업자번호가 이제서야 관측되었더라도 기존 party에 붙이지 않는다. 그 병합은 `code_mapping`과
-        같은 급의 명시적 reconciliation이며 이 경로의 권한 밖이다(ADR 0033 §1, AGENTS 3).
+        사업자번호 비교는 여기서 하지 않는다. 짝으로 찾았으므로 party는 정의상 일치한다. 남은 어긋남은
+        같은 계정 코드를 다른 소스가 쓰는 경우뿐이고, 그것은 코드 체계를 섞는 것이라 여전히 막는다
+        (AGENTS 6항).
         """
-        account_id, party_id, source_system, party_business_number = existing
+        account_id, party_id, source_system = existing
         if source_system != supplier.source_system:
             raise ProjectionContractError("persisted supplier account source differs")
-        if (
-            business_number_code_value_id is not None
-            and party_business_number is not None
-            and business_number_code_value_id != party_business_number
-        ):
-            raise ProjectionContractError("persisted supplier party identity conflicts")
         return ResolvedSupplier(
             source_supplier_account_id=account_id, supplier_party_id=party_id
         )
 
     @staticmethod
     def _resolve_party(
-        cursor: psycopg.Cursor[Any], *, business_number_code_value_id: int | None
+        cursor: psycopg.Cursor[Any],
+        *,
+        business_number_code_value_id: int | None,
+        allow_insert: bool,
     ) -> tuple[int, int]:
-        """사업자번호가 있으면 그것이 party의 유일 키이고, 없으면 이 계정이 자기 party를 갖는다."""
+        """사업자번호가 있으면 그것이 party의 유일 키이고, 없으면 이 관측이 자기 party를 갖는다.
+
+        `allow_insert`가 거짓인 검증 경로에서는 새 party를 만들지 않는다. 없으면 발행된 것과 다르다는
+        뜻이므로 그대로 어긋남으로 올린다.
+        """
+        if not allow_insert:
+            if business_number_code_value_id is None:
+                raise ProjectionContractError("published supplier party is missing")
+            cursor.execute(
+                """
+                select supplier_party_id from core.supplier_party
+                where business_number_code_value_id = %s
+                """,
+                (business_number_code_value_id,),
+            )
+            found = cursor.fetchone()
+            if found is None:
+                raise ProjectionContractError("published supplier party is missing")
+            return int(found[0]), 0
         if business_number_code_value_id is None:
             cursor.execute(
                 """
