@@ -1,4 +1,4 @@
-/** @module 책임: Linear issue 발행·claim·sync·release와 local worktree claim·session 잠금 명령을 조정한다. */
+/** @module 책임: Linear issue 발행·claim·sync·release, pull request 열기와 local worktree claim·session 잠금 명령을 조정한다. */
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,6 +16,7 @@ import {
   repositoryContext,
   targetRepositoryContext,
 } from "./runtime.mjs";
+import { runPullRequest } from "./pull-request.mjs";
 import { describeHolder, endWorktreeHolder, holderIsLive } from "./session.mjs";
 import {
   findWorktreesByIssue,
@@ -325,6 +326,7 @@ async function main() {
   if (command === "sync") return sync();
   if (command === "recover-lock") return recoverLock();
   if (command === "worktree") return worktree();
+  if (command === "pr") return runPullRequest();
   throw new Error(`Unknown workflow command: ${command ?? "missing"}`);
 }
 

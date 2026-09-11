@@ -32,7 +32,19 @@
 ## Decision
 
 1. **`main`은 서버가 보호한다.** 직접 push 금지, pull request 필수, required check 초록 필수, 병합 전
-   최신화 필수, force-push와 삭제 금지. 우회 권한을 아무에게도 주지 않는다.
+   최신화 필수, force-push와 삭제 금지. 사람에게는 우회 권한을 주지 않는다.
+
+   예외는 하나이고 기계다. 릴리스 publication workflow(`build.yml`의 promote)가 digest를 `main`에
+   normal push하는 경로에만 pull request 요구를 면제한다. 이것은 **검증 면제가 아니라 pull request
+   면제**다. 그 커밋은 사람이 읽을 소스를 담지 않고 `infra/envs/prod`의 digest 줄만 바꾸며, 같은
+   workflow의 test job이 그 커밋에서 이미 전체 gate를 통과했고, preflight가 tag가 현재 `origin/main`
+   HEAD를 가리키는지 증명한 뒤에만 실행된다. normal push이므로 그 사이 `main`이 움직였으면
+   non-fast-forward로 실패한다.
+
+   면제하지 않으면 digest 네 줄짜리 커밋 때문에 릴리스마다 전체 CI가 한 번 더 돌고, 이미 빌드·서명이
+   끝난 릴리스가 브라우저 테스트 흔들림 하나에 막히는 실패 경로가 새로 생긴다. 면제의 대가는 "이 경로가
+   무엇을 담는지"를 계속 참으로 유지하는 것이며, promote가 다른 파일을 건드리기 시작하면 이 결정을
+   다시 본다.
 
 2. **검증은 세 고리이고 고리마다 질문이 하나다.** 고리를 검사 범위가 아니라 답하는 질문으로 나눈다.
 
@@ -74,6 +86,9 @@
 - 결정 5의 계약 레인이 생기기 전까지 브라우저 스위트가 계약 결함도 잡는다. 그 기간에는 병합이 느리다.
 - 결정 1은 병합을 막지만 태그 레인 실패와 예약 실행 실패는 못 막는다. [ADR 0046](0046-telemetry-wire-correlation-and-alert-origin.md)
   결정 5의 "원격 `main`의 최신 CI가 초록이다" 기대는 여전히 필요하다.
+- 결정 1의 기계 예외는 릴리스 workflow가 `main`에 쓰기 권한을 계속 갖는다는 뜻이다. 그 권한을 가진
+  workflow는 `build.yml` 하나이며, 다른 workflow에 `contents: write`를 주는 변경은 이 결정을 다시 보는
+  변경이다.
 - `--no-verify`로 건너뛴 커밋도 pull request에서 같은 판정을 받는다. 로컬 훅은 편의가 되고 판정은 서버로
   간다. [ADR 0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md)의 변경 범위 규칙은 첫째
   고리에만 적용되고 둘째·셋째 고리는 전체를 본다.
@@ -86,7 +101,11 @@
 - **브라우저 스위트를 required에서 뺀다.** 오늘 main을 세운 결함 둘 중 하나를 못 잡는다. 느리다는 이유로
   잡히던 것을 놓는 교환이다.
 - **관리자 우회 권한을 둔다.** 급할 때 쓰려고 만들면 급한 날이 기본이 된다. 우회가 필요할 만큼 급한 상황은
-  ruleset을 잠시 끄는 것으로 충분히 드러나게 처리한다.
+  ruleset을 잠시 끄는 것으로 충분히 드러나게 처리한다. 결정 1의 기계 예외가 이것과 다른 점은 판단하는
+  주체가 없다는 것이다. 사람이 "이번만"이라고 정할 수 있는 자리가 아니다.
+- **릴리스 promote도 pull request로 연다.** 우회를 완전히 없애지만 digest 네 줄에 전체 CI를 한 번 더
+  물리고, 서명까지 끝난 릴리스를 브라우저 테스트가 막을 수 있게 된다. 릴리스를 자주 내자는 방향과
+  정면으로 부딪친다.
 - **merge queue를 쓴다.** 서로 초록인 pull request 둘이 합쳐져 빨개지는 경우를 막지만, 동시에 열리는
   pull request가 몇 개 수준이라 "병합 전 최신화" 요구로 같은 효과를 얻는다. 규모가 커지면 다시 본다.
 - **ADR 0024를 통째로 대체한다.** 0024의 결론(태그가 publication을 시작한다, `master`는 복구 기준)은 여전히

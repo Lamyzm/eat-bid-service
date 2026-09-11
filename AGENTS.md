@@ -116,8 +116,11 @@
   `pnpm contracts:python:check`를 check mode로 실행하라. CI에서 drift 확인 전에 pnpm/uv frozen install을
   완료하며 check mode는 추적된 생성물을 다시 쓰지 않는다.
 - 커밋마다 pre-commit hook이 `pnpm architecture:check -- --changed`로 merge-base 대비 변경 경로에 해당하는
-  검사만 병렬 실행한다. 전체 gate는 main push와 CI가 실행하며 `--no-verify`로 건너뛴 커밋도 거기서 같은
+  검사만 병렬 실행한다. 전체 gate는 pull request의 CI가 실행하며 `--no-verify`로 건너뛴 커밋도 거기서 같은
   판정을 받는다. 예외 ledger는 없고 기준 결정 규칙은 ADR 0042가 소유한다.
+- **`main`에 직접 push하지 않는다.** 서버가 거절한다. 작업이 끝나면 그 worktree에서 `pnpm workflow:pr`을
+  실행해 pull request를 열고, CI가 초록이면 자동으로 병합된다. 병합 판정은 CI 하나가 하며 로컬 push
+  게이트는 판정자가 아니다(ADR 0050).
 
 ## 필수 읽기 순서
 
