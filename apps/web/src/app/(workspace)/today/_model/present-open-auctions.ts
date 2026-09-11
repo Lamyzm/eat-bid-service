@@ -23,6 +23,11 @@ export type OpenAuctionRowPresentation = {
     readonly sido: { readonly codeValueId: string; readonly text: string } | null;
     readonly sigungu: { readonly codeValueId: string; readonly text: string } | null;
   };
+  /**
+   * 참가제한지역 표시값이다. `null`은 관측하지 못했다는 뜻이라 "제한 없음"으로 바꿔 적지 않는다.
+   * 화면은 이 값이 null인 행을 `제한지역 미관측`으로 부른다(AGENTS 3).
+   */
+  readonly eligibilityText: string | null;
   readonly baseAmountText: string;
   readonly closes: {
     readonly tone: ClosesTone;
@@ -57,6 +62,9 @@ export type OpenAuctionListView =
 export type OpenAuctionListPresentation = {
   readonly view: OpenAuctionListView;
   readonly sampleCount: number;
+  /** 참가제한지역 필터를 걸었을 때만 값이 있다. 필터가 없으면 묻지 않은 것이라 null이다. */
+  readonly eligibilityMatchedCount: number | null;
+  readonly eligibilityUnobservedCount: number | null;
   readonly asOfText: string;
   readonly lineageText: string;
   readonly nextCursor: string | null;
@@ -119,6 +127,17 @@ function presentRegion(region: OpenAuction['region']): OpenAuctionRowPresentatio
 }
 
 /**
+ * 제한지역이 여럿인 공고가 흔하다(실측 중앙값 11개, 최대 42개). 전부 나열하면 한 행이 표를 밀어내므로
+ * 첫 이름과 나머지 수로 접는다. 라벨이 관측되지 않은 코드는 지어낸 이름 대신 코드 문자열로 부른다.
+ */
+function presentEligibility(areas: OpenAuction['eligibilityAreas']): string | null {
+  if (areas === null || areas.length === 0) return null;
+  const first = areas[0]!;
+  const head = first.label ?? `코드 ${first.code}`;
+  return areas.length === 1 ? head : `${head} 외 ${areas.length - 1}`;
+}
+
+/**
  * 요약은 이 행의 하한율 코호트에서만 온다. 그래서 값을 못 낸 이유가 셋이고 사용자가 할 일이 서로 다르다.
  * 같은 하한에서 본 회차가 아예 없는 것, 회차는 있는데 아직 개찰 전인 것, 개찰은 됐는데 낙찰을 관측하지
  * 못한 것을 한 문구로 합치면 화면이 없는 사실을 말한다(AGENTS 3).
@@ -156,6 +175,7 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     // 관측되지 않은 하한율을 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3).
     floorRateText: auction.floorRate?.value ?? '미확인',
     region: presentRegion(auction.region),
+    eligibilityText: presentEligibility(auction.eligibilityAreas),
     baseAmountText: auction.baseAmount === null ? '미확인' : formatAmountText(auction.baseAmount.amount),
     closes: presentCloses(auction.closesAt, nowIso),
     bidCountText: auction.bidCount === null ? '—' : String(auction.bidCount),
@@ -187,6 +207,8 @@ export function presentOpenAuctionList(response: OpenAuctionListV1Response, nowI
   return {
     view: viewOf(response, nowIso),
     sampleCount: response.meta.sampleCount,
+    eligibilityMatchedCount: response.meta.eligibilityMatchedCount,
+    eligibilityUnobservedCount: response.meta.eligibilityUnobservedCount,
     asOfText: kstDateTime(response.meta.asOf),
     lineageText: lineageText(response),
     nextCursor: response.nextCursor

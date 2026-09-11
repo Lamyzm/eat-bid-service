@@ -3,6 +3,10 @@ import { DynamicModule, Global, Module, type Provider } from "@nestjs/common";
 import type { AccountRepository } from "../../modules/account/application/account-repository";
 import { DrizzleAccountRepository } from "../../modules/account/infrastructure/drizzle/drizzle-account-repository";
 import { DrizzleRegisteredBusinessReader } from "../../modules/account/infrastructure/drizzle/drizzle-registered-business-reader";
+import type { RegionPreferenceRepository } from "../../modules/account/application/region-preference-repository";
+import { DrizzleRegionPreferenceRepository } from "../../modules/account/infrastructure/drizzle/drizzle-region-preference-repository";
+import type { EligibilityAreaReader } from "../../modules/procurement/application/eligibility-area-reader";
+import { DrizzleEligibilityAreaReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-eligibility-area-reader";
 import { DrizzleOwnBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-own-bid-reader";
 import type { AuctionReader } from "../../modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
@@ -27,10 +31,12 @@ import {
   CODE_READER,
   DATABASE_CONNECTION,
   DATABASE_READINESS,
+  ELIGIBILITY_AREA_READER,
   OPEN_AUCTION_READER,
   ORGANIZATION_ATTEMPT_READER,
   OWN_BID_READER,
   READ_SNAPSHOT,
+  REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
   UNIT_OF_WORK,
   WIN_RATE_DISTRIBUTION_READER,
@@ -42,6 +48,8 @@ export interface DatabaseModuleOverrides {
   readonly connection?: ManagedDatabase;
   readonly readiness?: DatabaseReadiness;
   readonly accountRepository?: AccountRepository;
+  readonly regionPreferenceRepository?: RegionPreferenceRepository;
+  readonly eligibilityAreaReader?: EligibilityAreaReader;
   readonly auctionReader?: AuctionReader;
   readonly auctionRosterReader?: AuctionRosterReader;
   readonly openAuctionReader?: OpenAuctionReader;
@@ -142,6 +150,18 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): AccountRepository =>
           overrides.accountRepository ?? new DrizzleAccountRepository(connection.database),
       },
+      {
+        provide: REGION_PREFERENCE_REPOSITORY,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): RegionPreferenceRepository =>
+          overrides.regionPreferenceRepository ?? new DrizzleRegionPreferenceRepository(connection.database),
+      },
+      {
+        provide: ELIGIBILITY_AREA_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): EligibilityAreaReader =>
+          overrides.eligibilityAreaReader ?? new DrizzleEligibilityAreaReader(connection.database),
+      },
     ];
     return {
       global: true,
@@ -149,6 +169,8 @@ export class DatabaseModule {
       providers,
       exports: [
         ACCOUNT_REPOSITORY,
+        REGION_PREFERENCE_REPOSITORY,
+        ELIGIBILITY_AREA_READER,
         DATABASE_READINESS,
         UNIT_OF_WORK,
         READ_SNAPSHOT,

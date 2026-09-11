@@ -48,6 +48,10 @@ function openAuctionResource(record: OpenAuctionRecord): OpenAuction {
       sido: codeReferenceWire(record.region.sido),
       sigungu: codeReferenceWire(record.region.sigungu),
     },
+    // 관측하지 못한 제한지역은 빈 배열이 아니라 null로 실어 화면이 `제한지역 미관측`을 말하게 한다.
+    eligibilityAreas: record.eligibilityAreas === null
+      ? null
+      : record.eligibilityAreas.map((area) => codeReferenceWire(area)),
     termsRevisionId: bigintText(record.termsRevisionId),
     closesAt: instantText(record.closesAt),
     baseAmount: record.baseAmount === null ? null : z.encode(moneyCodec, record.baseAmount),
@@ -69,6 +73,12 @@ export function toOpenAuctionListResponse(result: OpenAuctionListResult): OpenAu
       // 재현된다(AGENTS 7).
       asOf: instantText(query.asOf),
       region: bigintText(query.regionCodeValueId),
+      eligibilityArea: query.eligibilityAreaCodeValueIds === null
+        ? null
+        : query.eligibilityAreaCodeValueIds.map((id) => bigintText(id)),
+      // 필터가 없을 때 0을 싣지 않는다. 0은 "아무것도 잡히지 않았다"이고 null은 "묻지 않았다"이다.
+      eligibilityMatchedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityMatchedCount,
+      eligibilityUnobservedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityUnobservedCount,
       item: query.itemLabel,
       closesWithinHours: query.closesWithinHours,
       baseAmountMin: query.baseAmountMin,

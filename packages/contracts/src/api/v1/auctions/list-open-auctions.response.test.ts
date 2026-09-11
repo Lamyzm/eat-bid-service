@@ -31,6 +31,10 @@ const row = {
     sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
     sigungu: null,
   },
+  eligibilityAreas: [
+    { codeValueId: "9101", code: "15000", scheme: "eat:eligibility-area", label: "경남/전체" },
+    { codeValueId: "9102", code: "15653", scheme: "eat:eligibility-area", label: "경남/김해시" },
+  ],
   termsRevisionId: "5796469",
   closesAt: "2026-09-08T02:00:00Z",
   baseAmount: { amount: "2761700.00", currency: "KRW" },
@@ -56,6 +60,9 @@ const meta = {
   sampleCount: 1,
   asOf: "2026-09-07T01:30:00Z",
   region: null,
+  eligibilityArea: null,
+  eligibilityMatchedCount: null,
+  eligibilityUnobservedCount: null,
   item: null,
   closesWithinHours: null,
   baseAmountMin: null,
@@ -99,6 +106,7 @@ describe("열린 공고 목록 계약", () => {
       itemLabel: null,
       floorRate: null,
       region: null,
+      eligibilityAreas: null,
       termsRevisionId: null,
       orgSummary: { attemptCount: 0, medianListCount: null, listCountSampleCount: 0, lastRound: null },
     }).success).toBe(true);
@@ -118,6 +126,17 @@ describe("열린 공고 목록 계약", () => {
     expect(openAuctionListQuerySchema.safeParse({ sort: "closesAt" }).success).toBe(false);
     expect(openAuctionListQuerySchema.safeParse({ region: "0" }).success).toBe(false);
     expect(openAuctionListQuerySchema.safeParse({ item: "" }).success).toBe(false);
+  });
+
+  test("참가제한지역 필터는 값 하나와 값 여럿을 같은 배열로 편다", () => {
+    // query string은 `?eligibilityArea=9102` 하나를 문자열로, 둘 이상을 배열로 준다. 계약이 그 차이를
+    // 흡수하지 않으면 코드 하나를 고른 사용자와 둘을 고른 사용자가 서로 다른 경로를 탄다.
+    expect(openAuctionListQuerySchema.parse({ eligibilityArea: "9102" }).eligibilityArea).toEqual(["9102"]);
+    expect(openAuctionListQuerySchema.parse({ eligibilityArea: ["9102", "9101"] }).eligibilityArea)
+      .toEqual(["9102", "9101"]);
+    expect(openAuctionListQuerySchema.parse({}).eligibilityArea).toBeUndefined();
+    expect(openAuctionListQuerySchema.safeParse({ eligibilityArea: [] }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ eligibilityArea: ["0"] }).success).toBe(false);
   });
 
   test("closesWithinHours는 0과 721을 거부하고 1과 720을 받는다", () => {

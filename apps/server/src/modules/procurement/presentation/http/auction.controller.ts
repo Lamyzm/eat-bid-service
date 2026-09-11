@@ -65,10 +65,15 @@ export class AuctionController {
     @Query(new StandardSchemaPipe(listOperation.querySchema)) query: OpenAuctionQuery,
   ): Promise<OpenAuctionListV1Response> {
     let regionCodeValueId: bigint | null;
+    let eligibilityAreaCodeValueIds: readonly bigint[] | null;
     let cursor: bigint | null;
     try {
       // 계약 검증 뒤에도 변환 자체는 예외를 낼 수 있으므로 transport 400 경계 안에서 닫는다.
       regionCodeValueId = query.region === undefined ? null : BigInt(query.region);
+      // 필터 없음(`null`)과 고른 지역이 없음(빈 배열)은 다른 요청이다. query에 key가 없으면 앞이다.
+      eligibilityAreaCodeValueIds = query.eligibilityArea === undefined
+        ? null
+        : query.eligibilityArea.map((value) => BigInt(value));
       cursor = query.cursor === undefined ? null : BigInt(query.cursor);
     } catch {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
@@ -77,6 +82,7 @@ export class AuctionController {
       // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
       return toOpenAuctionListResponse(await this.effectRunner.run(this.listOpenAuctions.execute({
         regionCodeValueId,
+        eligibilityAreaCodeValueIds,
         itemLabel: query.item ?? null,
         closesWithinHours: query.closesWithinHours ?? null,
         baseAmountMin: query.baseAmountMin ?? null,

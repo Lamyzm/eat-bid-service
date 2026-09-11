@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button, buttonVariants } from '@/shared/ui/button';
 import { isAuctionReturn, loginRouteWithReturn, returnRoute } from '@/shell/auth/return-path';
 
+import { RegionPreferenceCard } from '../_features/region-preference/ui/region-preference-card';
 import { AccountInitialization } from './account-initialization';
 import { MyBusinessesPanel } from './my-businesses-panel';
 import { SetupScreenSkeleton } from './setup-screen-skeleton';
@@ -29,9 +30,9 @@ function SetupFrame({ children }: { readonly children: React.ReactNode }) {
       className='mx-auto grid w-full max-w-2xl gap-4 px-3 py-6 sm:px-4'
     >
       <header>
-        <h1 id='setup-title' className='text-xl font-semibold'>내 사업자 설정</h1>
+        <h1 id='setup-title' className='text-xl font-semibold'>내 설정</h1>
         <p className='text-sm text-muted-foreground'>
-          등록한 사업자와 사업장 주소는 이 계정에 저장됩니다.
+          여기서 정한 것이 오늘 화면에 무엇이 보일지를 정합니다.
         </p>
       </header>
       {children}
@@ -105,6 +106,13 @@ export function SetupScreen({ returnPath, initialSession }: SetupScreenProps) {
   return (
     <SetupFrame>
       <MyBusinessesPanel
+        scope={{
+          principalId: view.session.principalId,
+          workspaceId: view.session.workspace.workspaceId
+        }}
+        canWrite={view.session.workspace.role === 'owner'}
+      />
+      <RegionPreferenceCard
         scope={{
           principalId: view.session.principalId,
           workspaceId: view.session.workspace.workspaceId

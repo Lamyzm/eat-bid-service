@@ -15,6 +15,7 @@ import {
 } from './find-my-bid-observations';
 import { getCurrentSessionWith } from './get-current-session';
 import { listMyBusinessesWith } from './my-businesses';
+import { getMyRegionPreferenceWith } from './region-preference';
 
 /**
  * 세션 조회는 principal을 아직 모르는 상태의 답이므로 개인 하위 트리 밖에 둔다. 그 아래의 개인 자료는
@@ -30,6 +31,8 @@ export const accountQueryKeys = {
     [...accountQueryKeys.privateRoot(), principalId, workspaceId] as const,
   businesses: (principalId: string, workspaceId: string) =>
     [...accountQueryKeys.workspace(principalId, workspaceId), 'businesses'] as const,
+  regionPreference: (principalId: string, workspaceId: string) =>
+    [...accountQueryKeys.workspace(principalId, workspaceId), 'region-preference'] as const,
   bidObservations: (
     principalId: string,
     workspaceId: string,
@@ -78,6 +81,13 @@ export function createAccountQueries(request: ContractRequest) {
       return queryOptions({
         queryKey: accountQueryKeys.businesses(scope.principalId, scope.workspaceId),
         queryFn: ({ signal }) => listMyBusinessesWith(request, { signal })
+      });
+    },
+    /** 개인 하위 트리 아래라 계정 전환·로그아웃의 폐기가 그대로 적용된다. */
+    regionPreference(scope: PrivateWorkspaceScope) {
+      return queryOptions({
+        queryKey: accountQueryKeys.regionPreference(scope.principalId, scope.workspaceId),
+        queryFn: ({ signal }) => getMyRegionPreferenceWith(request, { signal })
       });
     },
     /**

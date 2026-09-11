@@ -21,6 +21,11 @@ export const nullLineage = {
   regionScheme: null
 } as const;
 
+const eligibilityAreas = [
+  { codeValueId: '9101', code: '15000', scheme: 'eat:eligibility-area', label: '경남/전체' },
+  { codeValueId: '9102', code: '15653', scheme: 'eat:eligibility-area', label: '경남/김해시' }
+] as const;
+
 const region = {
   sido: { codeValueId: '41', code: '48', scheme: 'eat:auction-location-sido', label: '경상남도' },
   sigungu: { codeValueId: '43', code: '48120', scheme: 'eat:auction-location-sigungu', label: '창원시' }
@@ -32,6 +37,7 @@ export const todayRow: OpenAuction = {
   itemLabel: '축산',
   floorRate: { value: '90.000', unit: 'percentage-points' },
   region,
+  eligibilityAreas: [...eligibilityAreas],
   termsRevisionId: '5796469',
   // KST 2026-09-07 20:00 — 오늘 마감.
   closesAt: '2026-09-07T11:00:00Z',
@@ -94,6 +100,9 @@ export const openAuctionsFixture: OpenAuctionListV1Response = {
     sampleCount: 4,
     asOf: fixtureNow,
     region: null,
+    eligibilityArea: null,
+    eligibilityMatchedCount: null,
+    eligibilityUnobservedCount: null,
     item: null,
     closesWithinHours: null,
     baseAmountMin: null,

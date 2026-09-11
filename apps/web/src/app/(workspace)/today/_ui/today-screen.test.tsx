@@ -9,8 +9,14 @@ import { presentOpenAuctionList } from '../_model/present-open-auctions';
 import { TodayScreen } from './today-screen';
 import { TodayScreenSkeleton } from './today-screen-skeleton';
 
+const confirmedAreas = [
+  { codeValueId: '9101', code: '15000', label: '경남/전체' },
+  { codeValueId: '9102', code: '15653', label: '경남/김해시' }
+];
+
 const ready: TodayPageData = {
   nowIso: fixtureNow,
+  regionGate: { kind: 'applied', areas: confirmedAreas },
   search: EMPTY_TODAY_SEARCH,
   presentation: presentOpenAuctionList(openAuctionsFixture, fixtureNow),
   cursorReset: false
@@ -84,5 +90,32 @@ describe('오늘 화면', () => {
     expect(screen.getByRole('status', { name: '열린 공고를 불러오는 중' })).toBeTruthy();
     const labels = [...screen.container.querySelectorAll('section')].map((node) => node.getAttribute('aria-label'));
     expect(labels).toEqual(['조건', '열린 공고']);
+  });
+
+  test('지역 미설정이면 목록 대신 설정을 요청하고 전국 목록을 미리 보여 주지 않는다', () => {
+    const markup = renderToStaticMarkup(
+      <TodayScreen data={{ ...ready, regionGate: { kind: 'unset' }, presentation: null }} />
+    );
+    expect(markup).toContain('먼저 지역을 고르세요');
+    expect(markup).toContain('/setup?return=%2Ftoday');
+    expect(markup).not.toContain('마감 임박 순');
+  });
+
+  test('좁힌 결과 위에 무엇으로 좁혔는지와 전체 보기 출구가 남는다', () => {
+    const markup = renderToStaticMarkup(<TodayScreen data={ready} />);
+    // 이것은 필터이지 자격 판정이 아니다. 문구가 그 구분을 드러내야 한다(ADR 0048 결정 5).
+    expect(markup).toContain('내가 고른 지역의 공고');
+    expect(markup).not.toContain('낼 수 있는 공고');
+    expect(markup).toContain('경남/김해시');
+    expect(markup).toContain('전체 보기');
+    expect(markup).toContain('지역 바꾸기');
+  });
+
+  test('전체 보기 상태는 전국임을 말하고 내 지역으로 돌아갈 길을 둔다', () => {
+    const markup = renderToStaticMarkup(
+      <TodayScreen data={{ ...ready, regionGate: { kind: 'all-regions', areas: confirmedAreas } }} />
+    );
+    expect(markup).toContain('전국 공고');
+    expect(markup).toContain('내 지역만 보기');
   });
 });

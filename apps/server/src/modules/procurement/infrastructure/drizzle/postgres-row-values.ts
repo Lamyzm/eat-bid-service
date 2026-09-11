@@ -41,6 +41,32 @@ export function codeReferenceRecord(
   return { codeValueId: bigintValue(codeValueId), code, scheme, label: observedLabel(label) };
 }
 
+/**
+ * `json_agg`가 실어 온 참가제한지역 한 건이다. `code_value_id`가 문자열인 이유는 JSON 숫자가 bigint를
+ * 무손실로 담지 못하기 때문이며(ADR 0018), 그 문자열은 여기서 바로 bigint로 닫힌다.
+ */
+export interface EligibilityAreaJson {
+  readonly code_value_id: string;
+  readonly code: string;
+  readonly scheme: string;
+  readonly label: string | null;
+}
+
+/**
+ * 관측이 없으면 `json_agg`가 null을 준다. 그 null을 빈 배열로 바꾸지 않는 이유는 "제한이 없는 공고"와
+ * "제한지역을 관측하지 못한 공고"가 사용자에게 다른 사실이기 때문이다(AGENTS 3).
+ */
+export function eligibilityAreaRecords(
+  value: readonly EligibilityAreaJson[] | null,
+): readonly CodeReferenceRecord[] | null {
+  if (value === null) return null;
+  return value.map((entry) => {
+    const record = codeReferenceRecord(entry.code_value_id, entry.code, entry.scheme, entry.label);
+    if (record === null) throw new TypeError("Database eligibility area row is incomplete");
+    return record;
+  });
+}
+
 export function moneyValue(amount: string | null, currency: string, required: true): Money;
 export function moneyValue(amount: string | null, currency: string, required: false): Money | null;
 export function moneyValue(amount: string | null, currency: string, required: boolean): Money | null {

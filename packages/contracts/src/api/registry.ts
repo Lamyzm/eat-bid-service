@@ -2,8 +2,10 @@
 import { healthOperationRegistry } from "../operations/health";
 import { auctionV1OperationRegistry } from "./v1/auctions/operations";
 import { codeSchemeV1OperationRegistry } from "./v1/code-schemes/operations";
+import { eligibilityAreaV1OperationRegistry } from "./v1/eligibility-areas/operations";
 import { myBidObservationV1OperationRegistry } from "./v1/me/bid-observations.operations";
 import { meV1OperationRegistry } from "./v1/me/operations";
+import { myRegionPreferenceV1OperationRegistry } from "./v1/me/region-preference.operations";
 import { organizationV1OperationRegistry } from "./v1/organizations/operations";
 import { sessionV1OperationRegistry } from "./v1/session/operations";
 import { winRateDistributionV1OperationRegistry } from "./v1/win-rate-distribution/operations";
@@ -14,9 +16,13 @@ export const publicHttpOperationRegistry = createOperationRegistry([
   ...auctionV1OperationRegistry,
   ...organizationV1OperationRegistry,
   ...codeSchemeV1OperationRegistry,
+  ...eligibilityAreaV1OperationRegistry,
   ...winRateDistributionV1OperationRegistry,
   ...sessionV1OperationRegistry,
   ...meV1OperationRegistry,
+  // 같은 `me` resource라 개인 응답 헤더 prefix는 계정 registry가 이미 만든다. 관심 지역도 개인 상태이며
+  // 공개 registry에 함께 있어야 OpenAPI와 경계 검사가 이 두 operation을 본다.
+  ...myRegionPreferenceV1OperationRegistry,
   // 같은 `me` resource라 private 응답 헤더 prefix는 이미 계정 registry가 만든다. OpenAPI와 경계
   // 검사가 이 operation을 보려면 공개 registry에도 함께 있어야 한다.
   ...myBidObservationV1OperationRegistry,
