@@ -33,11 +33,17 @@ describe("canonical OpenAPI 산출물", () => {
       // 출처이므로 계약이 열린 사실이 여기 그대로 드러나야 하고, 구현이 붙는 변경에서 handler와
       // e2e가 같이 온다.
       "/api/v1/code-schemes/{scheme}/codes",
+      // 참가제한지역 선택 목록과 저장 전 미리보기다. `listCodes`가 활성 release 없는 체계를 404로 답하고
+      // 라벨을 필수로 요구해 이 축을 실을 수 없어서 별도 resource로 열렸다(ADR 0048 결정 8).
+      "/api/v1/eligibility-areas",
+      "/api/v1/eligibility-areas/coverage",
       // 한 path에 조회와 등록 두 method가 함께 있다. path item을 덮어쓰면 하나가 문서에서 사라진다.
       "/api/v1/me/businesses",
       "/api/v1/me/businesses/{businessId}/bid-observations",
       "/api/v1/me/businesses/{businessId}/location",
       "/api/v1/me/initialization",
+      // 조회와 통째 교체 두 method가 한 path에 있다. 부분 갱신 command는 만들지 않는다.
+      "/api/v1/me/region-preference",
       "/api/v1/organizations/{organizationId}/auction-attempts",
       "/api/v1/session",
       "/api/v1/win-rate-distribution",
@@ -55,13 +61,17 @@ describe("canonical OpenAPI 산출물", () => {
         "findWinRateDistribution",
         "getAuctionRoster",
         "getCurrentSession",
+        "getMyRegionPreference",
         "healthLive",
         "healthReady",
         "initializeCurrentAccount",
         "listCodes",
+        "listEligibilityAreas",
         "listMyBusinesses",
         "listOpenAuctions",
         "listOrganizationAuctionAttempts",
+        "previewRegionCoverage",
+        "putMyRegionPreference",
         "registerMyBusiness",
         "setMyBusinessLocation",
       ]);

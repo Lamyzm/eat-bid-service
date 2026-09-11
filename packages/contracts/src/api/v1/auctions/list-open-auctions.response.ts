@@ -5,6 +5,7 @@ import { nonNegativeCountSchema } from "../../../atoms/count";
 import { canonicalMoneyAmountSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
+import { maxEligibilityAreaSelection } from "../../../values/eligibility-area";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
 import { closesWithinHoursSchema } from "./list-open-auctions.query";
 import { openAuctionRowSchema } from "./open-auction.resource";
@@ -22,6 +23,17 @@ export const openAuctionListMetaSchema = z.strictObject({
   asOf: instantTextSchema,
   // 요청 필터를 그대로 되돌려 실어 sampleCount가 어느 코호트의 수인지 응답만으로 닫는다.
   region: positiveBigintTextSchema.nullable(),
+  eligibilityArea: z.array(positiveBigintTextSchema).max(maxEligibilityAreaSelection).nullable(),
+  /**
+   * 참가제한지역 필터를 걸었을 때 `sampleCount`가 어떻게 나뉘는지다. 필터가 없으면 둘 다 null이다.
+   *
+   * 나눠 싣는 이유는 두 수가 사용자에게 다른 뜻이기 때문이다. `eligibilityMatchedCount`는 고른 지역이
+   * 실제로 잡은 공고 수이고, `eligibilityUnobservedCount`는 제한지역을 관측하지 못해 버리지 않고 남긴
+   * 공고 수다. 둘을 합쳐 하나로 보이면 화면이 "내가 고른 지역의 공고"라고 말하면서 확인되지 않은 행을
+   * 그 안에 섞게 된다(AGENTS 3). 합은 언제나 `sampleCount`다.
+   */
+  eligibilityMatchedCount: nonNegativeCountSchema.nullable(),
+  eligibilityUnobservedCount: nonNegativeCountSchema.nullable(),
   item: z.string().min(1).max(512).nullable(),
   closesWithinHours: closesWithinHoursSchema.nullable(),
   baseAmountMin: canonicalMoneyAmountSchema.nullable(),

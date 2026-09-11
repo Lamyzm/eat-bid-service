@@ -45,6 +45,11 @@ export interface OpenAuctionRecord {
     readonly sido: CodeReferenceRecord | null;
     readonly sigungu: CodeReferenceRecord | null;
   } | null;
+  /**
+   * 참가제한지역 관측이다. 위 `region`(공고지역)과 다른 체계이며 섞어 읽지 않는다(AGENTS 6).
+   * `null`은 "제한 없음"이 아니라 관측하지 못했다는 뜻이다(AGENTS 3).
+   */
+  readonly eligibilityAreas: readonly CodeReferenceRecord[] | null;
   readonly termsRevisionId: bigint | null;
   readonly closesAt: Temporal.Instant | null;
   readonly baseAmount: Money | null;
@@ -61,6 +66,11 @@ export interface OpenAuctionQuery {
    */
   readonly asOf: Temporal.Instant;
   readonly regionCodeValueId: bigint | null;
+  /**
+   * 참가제한지역 필터다. `null`은 필터 없음이고 빈 배열은 "고른 지역이 없다"라서 서로 다른 요청이다.
+   * 저장된 코드 집합이 곧 매칭 집합이며 질의가 스스로 넓히지 않는다(ADR 0048 결정 2).
+   */
+  readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
   readonly itemLabel: string | null;
   readonly closesWithinHours: number | null;
   // canonical decimal text다. 통화가 하나뿐인 필터 경계라 Money로 감싸지 않고 어댑터가 numeric 비교로 닫는다.
@@ -79,6 +89,9 @@ export interface OpenAuctionPage {
   readonly auctions: readonly OpenAuctionRecord[];
   readonly nextCursor: bigint | null;
   readonly sampleCount: number;
+  /** 표본 안에서 고른 지역이 실제로 잡은 행 수와, 제한지역을 관측하지 못해 남긴 행 수다. 합이 표본 수다. */
+  readonly eligibilityMatchedCount: number;
+  readonly eligibilityUnobservedCount: number;
   readonly snapshotLineage: MartBuildLineage | null;
   readonly orgSummaryLineage: MartBuildLineage | null;
 }

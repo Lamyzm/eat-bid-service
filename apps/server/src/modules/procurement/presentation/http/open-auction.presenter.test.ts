@@ -14,6 +14,10 @@ const record: OpenAuctionRecord = {
     sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
     sigungu: null,
   },
+  eligibilityAreas: [
+    { codeValueId: 9_101n, code: "15000", scheme: "eat:eligibility-area", label: "경남/전체" },
+    { codeValueId: 9_102n, code: "15653", scheme: "eat:eligibility-area", label: "경남/김해시" },
+  ],
   termsRevisionId: 5_796_469n,
   closesAt: Temporal.Instant.from("2026-09-08T02:00:00Z"),
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
@@ -57,6 +61,7 @@ const nullLineageWire = {
 const query: OpenAuctionQuery = {
   asOf: Temporal.Instant.from("2026-09-07T01:30:00Z"),
   regionCodeValueId: null,
+  eligibilityAreaCodeValueIds: null,
   itemLabel: null,
   closesWithinHours: null,
   baseAmountMin: null,
@@ -66,7 +71,16 @@ const query: OpenAuctionQuery = {
 };
 
 function pageOf(overrides: Partial<OpenAuctionPage>): OpenAuctionPage {
-  return { auctions: [], nextCursor: null, sampleCount: 0, snapshotLineage: null, orgSummaryLineage: null, ...overrides };
+  return {
+    auctions: [],
+    nextCursor: null,
+    sampleCount: 0,
+    eligibilityMatchedCount: 0,
+    eligibilityUnobservedCount: 0,
+    snapshotLineage: null,
+    orgSummaryLineage: null,
+    ...overrides,
+  };
 }
 
 describe("열린 공고 목록 presenter", () => {
@@ -92,6 +106,10 @@ describe("열린 공고 목록 presenter", () => {
         sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
         sigungu: null,
       },
+      eligibilityAreas: [
+        { codeValueId: "9101", code: "15000", scheme: "eat:eligibility-area", label: "경남/전체" },
+        { codeValueId: "9102", code: "15653", scheme: "eat:eligibility-area", label: "경남/김해시" },
+      ],
       termsRevisionId: "5796469",
       closesAt: "2026-09-08T02:00:00Z",
       baseAmount: { amount: "2761700.00", currency: "KRW" },
@@ -116,6 +134,9 @@ describe("열린 공고 목록 presenter", () => {
       sampleCount: 70,
       asOf: "2026-09-07T01:30:00Z",
       region: null,
+      eligibilityArea: null,
+      eligibilityMatchedCount: null,
+      eligibilityUnobservedCount: null,
       item: null,
       closesWithinHours: null,
       baseAmountMin: null,
@@ -158,7 +179,16 @@ describe("열린 공고 목록 presenter", () => {
     const response = toOpenAuctionListResponse({
       query,
       page: pageOf({
-        auctions: [{ ...record, organization: null, orgSummary: null, region: null, itemLabel: null, floorRate: null, termsRevisionId: null }],
+        auctions: [{
+          ...record,
+          organization: null,
+          orgSummary: null,
+          region: null,
+          eligibilityAreas: null,
+          itemLabel: null,
+          floorRate: null,
+          termsRevisionId: null,
+        }],
         sampleCount: 1,
         snapshotLineage: lineage,
         orgSummaryLineage: lineage,
@@ -196,5 +226,37 @@ describe("열린 공고 목록 presenter", () => {
       baseAmountMin: "2000000.00",
       baseAmountMax: "3000000.00",
     });
+  });
+
+  test("참가제한지역 필터를 걸면 표본 수가 매칭과 미관측으로 나뉘어 실린다", () => {
+    const response = toOpenAuctionListResponse({
+      query: { ...query, eligibilityAreaCodeValueIds: [9_102n, 9_101n] },
+      page: pageOf({
+        sampleCount: 16,
+        eligibilityMatchedCount: 9,
+        eligibilityUnobservedCount: 7,
+        snapshotLineage: lineage,
+        orgSummaryLineage: lineage,
+      }),
+    });
+    expect(response.meta).toMatchObject({
+      sampleCount: 16,
+      eligibilityArea: ["9102", "9101"],
+      eligibilityMatchedCount: 9,
+      eligibilityUnobservedCount: 7,
+    });
+    // 두 수의 합이 표시 표본이다. 미관측을 매칭에 섞으면 화면 문장이 거짓이 된다.
+    expect(response.meta.eligibilityMatchedCount! + response.meta.eligibilityUnobservedCount!)
+      .toBe(response.meta.sampleCount);
+  });
+
+  test("필터가 없으면 분해 수를 0이 아니라 null로 실어 묻지 않은 것과 없는 것을 구분한다", () => {
+    const response = toOpenAuctionListResponse({
+      query,
+      page: pageOf({ sampleCount: 3, eligibilityUnobservedCount: 2, snapshotLineage: lineage }),
+    });
+    expect(response.meta.eligibilityArea).toBeNull();
+    expect(response.meta.eligibilityMatchedCount).toBeNull();
+    expect(response.meta.eligibilityUnobservedCount).toBeNull();
   });
 });

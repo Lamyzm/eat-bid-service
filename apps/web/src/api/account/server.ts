@@ -4,13 +4,14 @@
  */
 import 'server-only';
 
-import type { MyBusinessesV1Response } from '@eatbid/contracts/api/v1/me';
+import type { MyBusinessesV1Response, MyRegionPreferenceV1Response } from '@eatbid/contracts/api/v1/me';
 import type { CurrentSessionV1Response } from '@eatbid/contracts/api/v1/session';
 import { cache } from 'react';
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
 import { getCurrentSessionWith } from './get-current-session';
 import { listMyBusinessesWith } from './my-businesses';
+import { getMyRegionPreferenceWith } from './region-preference';
 import { isAccountDependencyUnavailableError } from './account-resource-error';
 import { accountQueryKeys, type PrivateWorkspaceScope } from './queries';
 
@@ -60,9 +61,31 @@ export const listMyBusinessesFromServer = cache(async function listMyBusinessesF
 });
 
 /**
+ * 관심 지역은 오늘 화면의 게이트 판정에 쓰인다. 읽지 못한 것과 확인하지 않은 것은 사용자가 할 일이
+ * 다르므로 합치지 않는다 — 읽지 못했으면 목록을 좁힐 근거가 없고, 확인하지 않았으면 설정을 요청해야 한다.
+ */
+export type MyRegionPreferenceRead =
+  | { readonly kind: 'preference'; readonly response: MyRegionPreferenceV1Response }
+  | { readonly kind: 'unread' };
+
+export const getMyRegionPreferenceFromServer = cache(
+  async function getMyRegionPreferenceFromServer(): Promise<MyRegionPreferenceRead> {
+    try {
+      return { kind: 'preference', response: await getMyRegionPreferenceWith(privateServerRequest) };
+    } catch {
+      return { kind: 'unread' };
+    }
+  }
+);
+
+/**
  * 서버가 읽은 목록을 브라우저 캐시의 어느 자리에 놓을지는 조회를 소유한 query factory가 정한다. 여기서
  * key를 새로 적으면 등록·주소 변경 뒤의 무효화가 다른 자리를 지우게 되어 화면이 옛 목록에 머문다.
  */
 export function myBusinessesCacheKey(scope: PrivateWorkspaceScope): readonly unknown[] {
   return accountQueryKeys.businesses(scope.principalId, scope.workspaceId);
+}
+
+export function myRegionPreferenceCacheKey(scope: PrivateWorkspaceScope): readonly unknown[] {
+  return accountQueryKeys.regionPreference(scope.principalId, scope.workspaceId);
 }

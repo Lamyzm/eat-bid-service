@@ -9,6 +9,9 @@ import { FindAuction } from "./application/find-auction";
 import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
 import { ListOpenAuctions } from "./application/list-open-auctions";
 import { ListOrganizationAuctionAttempts } from "./application/list-organization-auction-attempts";
+import type { EligibilityAreaReader } from "./application/eligibility-area-reader";
+import { ListEligibilityAreas, PreviewRegionCoverage } from "./application/preview-region-coverage";
+import { EligibilityAreaController } from "./presentation/http/eligibility-area.controller";
 import type { OpenAuctionReader } from "./application/open-auction-reader";
 import type { OrganizationAttemptReader } from "./application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "./application/win-rate-distribution-reader";
@@ -23,6 +26,7 @@ import type { UnitOfWork } from "../../platform/database/unit-of-work";
 import {
   AUCTION_READER,
   AUCTION_ROSTER_READER,
+  ELIGIBILITY_AREA_READER,
   OPEN_AUCTION_READER,
   ORGANIZATION_ATTEMPT_READER,
   OWN_BID_READER,
@@ -76,6 +80,20 @@ const findWinRateDistributionProvider = {
   useFactory: (reader: WinRateDistributionReader, clock: Clock) => new FindWinRateDistribution(reader, clock),
 };
 
+const listEligibilityAreasProvider = {
+  provide: ListEligibilityAreas,
+  inject: [ELIGIBILITY_AREA_READER],
+  useFactory: (reader: EligibilityAreaReader) => new ListEligibilityAreas(reader),
+};
+
+// 미리보기의 "오늘"과 "지난 90일"은 둘 다 현재 시각의 함수라 창의 양끝을 use case가 주입된 clock으로
+// 확정한다. SQL에서 `now()`를 부르면 세 숫자가 서로 다른 순간을 본다(AGENTS 17).
+const previewRegionCoverageProvider = {
+  provide: PreviewRegionCoverage,
+  inject: [ELIGIBILITY_AREA_READER, CLOCK],
+  useFactory: (reader: EligibilityAreaReader, clock: Clock) => new PreviewRegionCoverage(reader, clock),
+};
+
 const listOpenAuctionsProvider = {
   provide: ListOpenAuctions,
   inject: [OPEN_AUCTION_READER, CLOCK],
@@ -94,6 +112,7 @@ const findMyBidObservationsProvider = {
   controllers: [
     AuctionController,
     AuctionRosterController,
+    EligibilityAreaController,
     MyBidObservationsController,
     OrganizationController,
     WinRateDistributionController,
@@ -105,6 +124,8 @@ const findMyBidObservationsProvider = {
     listOrganizationAuctionAttemptsProvider,
     findWinRateDistributionProvider,
     listOpenAuctionsProvider,
+    listEligibilityAreasProvider,
+    previewRegionCoverageProvider,
     findMyBidObservationsProvider,
   ],
 })

@@ -20,8 +20,10 @@ import {
   bidRateValue,
   bigintValue,
   codeReferenceRecord,
+  eligibilityAreaRecords,
   moneyValue,
   observedLabel,
+  type EligibilityAreaJson,
 } from "./postgres-row-values";
 
 // driver 시간 표현은 AGENTS 17이 지정한 어댑터가 소유하므로 그 경계의 입력 타입을 그대로 파생한다.
@@ -46,6 +48,7 @@ export type OpenAuctionRow = Readonly<
     bid_count: number | null;
     observed_at: PostgresTimestamp;
     source_last_changed_at: PostgresTimestamp;
+    eligibility_areas: readonly EligibilityAreaJson[] | null;
     attempt_count: number | null;
     median_list_count: number | null;
     list_count_sample_count: number | null;
@@ -106,6 +109,7 @@ export function mapOpenAuctionRow(row: OpenAuctionRow, hasOrgBuild: boolean): Op
     // 하한율은 사정률 축의 상수이며 mart numeric(6,3)이다. scale 불변식은 이 경계에서 한 번만 닫는다.
     floorRate: bidRateValue(row.floor_rate),
     region: region.sido === null && region.sigungu === null ? null : region,
+    eligibilityAreas: eligibilityAreaRecords(row.eligibility_areas),
     termsRevisionId: row.terms_revision_id === null ? null : bigintValue(row.terms_revision_id),
     closesAt: postgresInstant(row.closes_at),
     // 금액이 있는데 통화가 없는 행은 DDL check가 막는다. 금액이 없으면 통화가 있어도 금액은 null이다.
@@ -117,6 +121,18 @@ export function mapOpenAuctionRow(row: OpenAuctionRow, hasOrgBuild: boolean): Op
   };
 }
 
+type OpenAuctionCountRow = Readonly<{
+  sample_count: number;
+  eligibility_matched_count: number;
+  eligibility_unobserved_count: number;
+}>;
+
+interface OpenAuctionCounts {
+  readonly sampleCount: number;
+  readonly eligibilityMatchedCount: number;
+  readonly eligibilityUnobservedCount: number;
+}
+
 export class DrizzleOpenAuctionReader implements OpenAuctionReader {
   constructor(private readonly database: AuctionReadDatabase) {}
 
@@ -125,7 +141,7 @@ export class DrizzleOpenAuctionReader implements OpenAuctionReader {
     if (query.cursor !== null && !(await this.hasCursorAnchor(query, query.cursor))) {
       return { kind: "cursor-not-found", cursor: query.cursor };
     }
-    const [rows, sampleCount, snapshotLineage, orgSummaryLineage] = await Promise.all([
+    const [rows, counts, snapshotLineage, orgSummaryLineage] = await Promise.all([
       this.pageRows(query),
       this.countRows(query),
       readActiveMartBuildLineage(this.database, OPEN_AUCTION_SNAPSHOT),
@@ -140,7 +156,9 @@ export class DrizzleOpenAuctionReader implements OpenAuctionReader {
       page: {
         auctions,
         nextCursor: hasMore ? auctions.at(-1)?.auctionAttemptId ?? null : null,
-        sampleCount,
+        sampleCount: counts.sampleCount,
+        eligibilityMatchedCount: counts.eligibilityMatchedCount,
+        eligibilityUnobservedCount: counts.eligibilityUnobservedCount,
         snapshotLineage,
         orgSummaryLineage,
       },
@@ -157,9 +175,14 @@ export class DrizzleOpenAuctionReader implements OpenAuctionReader {
     return Array.isArray(result) ? result as OpenAuctionRow[] : [];
   }
 
-  private async countRows(query: OpenAuctionQuery): Promise<number> {
+  private async countRows(query: OpenAuctionQuery): Promise<OpenAuctionCounts> {
     const result = await this.database.execute(sampleCountQuery(query));
-    const rows = Array.isArray(result) ? result as ReadonlyArray<{ sample_count: number }> : [];
-    return rows[0]?.sample_count ?? 0;
+    const rows = Array.isArray(result) ? result as ReadonlyArray<OpenAuctionCountRow> : [];
+    const row = rows[0];
+    return {
+      sampleCount: row?.sample_count ?? 0,
+      eligibilityMatchedCount: row?.eligibility_matched_count ?? 0,
+      eligibilityUnobservedCount: row?.eligibility_unobserved_count ?? 0,
+    };
   }
 }

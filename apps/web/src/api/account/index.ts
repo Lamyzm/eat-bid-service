@@ -5,6 +5,7 @@ import type {
   MyBusinessV1Response,
   AccountInitializationV1Response
 } from '@eatbid/contracts/api/v1/me';
+import type { MyRegionPreferenceV1Response } from '@eatbid/contracts/api/v1/me';
 import type { CurrentSessionV1Response } from '@eatbid/contracts/api/v1/session';
 
 import { browserRequest } from '../_transport/browser-request';
@@ -18,6 +19,7 @@ import {
   setMyBusinessLocationWith
 } from './my-businesses';
 import { createAccountQueries } from './queries';
+import { putMyRegionPreferenceWith } from './region-preference';
 
 export type {
   AccountLabel,
@@ -30,8 +32,10 @@ export type {
   MyBidSubmission,
   MyBusinessesV1Response,
   MyBusinessV1Response,
+  MyRegionPreferenceV1Response,
   RegisteredBusiness,
-  RegisteredBusinessLocation
+  RegisteredBusinessLocation,
+  WorkspaceRegionPreference
 } from '@eatbid/contracts/api/v1/me';
 export type { MyBidObservationsInput } from './find-my-bid-observations';
 export type { PrivateWorkspaceScope } from './queries';
@@ -90,6 +94,13 @@ export function clearMyBusinessLocation(input: {
   readonly signal?: AbortSignal;
 }): Promise<MyBusinessV1Response> {
   return clearMyBusinessLocationWith(browserRequest, input);
+}
+
+export function putMyRegionPreference(input: {
+  readonly codeValueIds: readonly string[];
+  readonly signal?: AbortSignal;
+}): Promise<MyRegionPreferenceV1Response> {
+  return putMyRegionPreferenceWith(browserRequest, input);
 }
 
 export const accountQueries = createAccountQueries(browserRequest);

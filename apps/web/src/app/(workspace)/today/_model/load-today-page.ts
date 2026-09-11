@@ -4,11 +4,12 @@ import {
   type OpenAuctionListV1Response
 } from '@eatbid/contracts/api/v1/auctions';
 
-import type { TodaySearch } from '../_lib/today-search-params';
+import { ALL_REGIONS_SCOPE, type TodaySearch } from '../_lib/today-search-params';
 import { presentOpenAuctionList, type OpenAuctionListPresentation } from './present-open-auctions';
 
 export type TodayListInput = {
   readonly region?: string;
+  readonly eligibilityArea?: readonly string[];
   readonly item?: string;
   readonly closesWithinHours?: number;
   readonly baseAmountMin?: string;
@@ -22,16 +23,40 @@ export type TodayListRead =
   | { readonly kind: 'page'; readonly response: OpenAuctionListV1Response }
   | { readonly kind: 'cursor-not-found' };
 
+/**
+ * 워크스페이스가 확인한 관심 지역이다. `confirmedAt`이 null이면 아직 묻지 않은 것이고, 확인했는데
+ * 목록이 비어 있으면 "지역으로 좁히지 않겠다"는 사용자의 선택이다. 셋을 한 값으로 합치면 화면이
+ * 설정 요청과 전국 목록을 구분하지 못한다.
+ */
+export type TodayRegionPreference = {
+  readonly areas: ReadonlyArray<{ readonly codeValueId: string; readonly code: string; readonly label: string | null }>;
+  readonly confirmedAt: string | null;
+};
+
 export type TodayPageDependencies = {
   readonly listOpenAuctions: (input: TodayListInput) => Promise<TodayListRead>;
   readonly now: () => string;
+  /** 서버가 읽지 못했으면 undefined다. 그때는 좁힐 근거가 없으므로 목록을 그대로 보여 준다. */
+  readonly regionPreference?: TodayRegionPreference;
 };
+
+/**
+ * 목록 자리에 무엇을 그릴지의 첫 갈림길이다. 지역을 아직 확인하지 않은 워크스페이스에는 목록 대신
+ * 설정을 요청한다 — 전국 404건을 그대로 쏟아 놓는 것이 이 화면이 하지 않기로 한 일이다.
+ */
+export type TodayRegionGate =
+  | { readonly kind: 'unset' }
+  | { readonly kind: 'applied'; readonly areas: TodayRegionPreference['areas'] }
+  | { readonly kind: 'all-regions'; readonly areas: TodayRegionPreference['areas'] }
+  | { readonly kind: 'unknown' };
 
 export type TodayPageData = {
   readonly nowIso: string;
+  readonly regionGate: TodayRegionGate;
   // URL에서 읽은 조건 가운데 계약이 받는 것만 남긴 값이다. 화면의 칩·링크는 이것을 기준으로 그린다.
   readonly search: TodaySearch;
-  readonly presentation: OpenAuctionListPresentation;
+  // 지역 미설정이면 목록을 조회하지 않으므로 표시 모델 자체가 없다.
+  readonly presentation: OpenAuctionListPresentation | null;
   // build 전환으로 cursor가 사라져 처음부터 다시 조회했다는 사실. 화면이 그 사실을 한 줄로 말한다.
   readonly cursorReset: boolean;
 };
@@ -48,6 +73,8 @@ function accepted<Value>(schema: { safeParse(value: unknown): { success: boolean
  */
 export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
   return {
+    // `scope`는 계약이 받는 값이 아니라 화면이 저장된 설정을 이번 조회에 걸지 말지를 정하는 스위치다.
+    scope: search.scope,
     region: accepted(shape.region, search.region),
     item: accepted(shape.item, search.item),
     closesWithinHours: accepted(shape.closesWithinHours, search.closesWithinHours),
@@ -57,9 +84,23 @@ export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
   };
 }
 
-function listInput(search: TodaySearch): TodayListInput {
+function regionGateOf(search: TodaySearch, preference: TodayRegionPreference | undefined): TodayRegionGate {
+  if (preference === undefined) return { kind: 'unknown' };
+  if (preference.confirmedAt === null) return { kind: 'unset' };
+  if (search.scope === ALL_REGIONS_SCOPE) return { kind: 'all-regions', areas: preference.areas };
+  return { kind: 'applied', areas: preference.areas };
+}
+
+function eligibilityAreaOf(gate: TodayRegionGate): readonly string[] | undefined {
+  // 확인했는데 고른 지역이 없는 상태도 필터를 건다. 그래야 "제한지역 미관측"만 남는 결과가 전국 목록과
+  // 다른 사실로 화면에 닿는다.
+  return gate.kind === 'applied' ? gate.areas.map((area) => area.codeValueId) : undefined;
+}
+
+function listInput(search: TodaySearch, gate: TodayRegionGate): TodayListInput {
   return {
     region: search.region ?? undefined,
+    eligibilityArea: eligibilityAreaOf(gate),
     item: search.item ?? undefined,
     closesWithinHours: search.closesWithinHours ?? undefined,
     baseAmountMin: search.baseAmountMin ?? undefined,
@@ -84,14 +125,26 @@ class TodayCursorStillInvalid extends Error {
 export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayPageDependencies): Promise<TodayPageData> {
   const nowIso = dependencies.now();
   const search = normalizeTodaySearch(rawSearch);
-  const first = await dependencies.listOpenAuctions(listInput(search));
+  const regionGate = regionGateOf(search, dependencies.regionPreference);
+  // 지역 미설정이면 목록을 아예 부르지 않는다. 화면이 그리지 않을 전국 목록을 받아 오는 것은 낭비이고,
+  // 받아 둔 값이 있으면 다음 사람이 그것을 그리고 싶어진다.
+  if (regionGate.kind === 'unset') {
+    return { nowIso, regionGate, search, presentation: null, cursorReset: false };
+  }
+  const first = await dependencies.listOpenAuctions(listInput(search, regionGate));
   if (first.kind === 'page') {
-    return { nowIso, search, presentation: presentOpenAuctionList(first.response, nowIso), cursorReset: false };
+    return { nowIso, regionGate, search, presentation: presentOpenAuctionList(first.response, nowIso), cursorReset: false };
   }
   // cursor 없는 조회가 cursor 오류로 답하면 계약이 깨진 것이다. 빈 목록으로 위장하지 않는다.
   if (search.cursor === null) throw new TodayCursorStillInvalid();
   const reset = { ...search, cursor: null };
-  const second = await dependencies.listOpenAuctions(listInput(reset));
+  const second = await dependencies.listOpenAuctions(listInput(reset, regionGate));
   if (second.kind !== 'page') throw new TodayCursorStillInvalid();
-  return { nowIso, search: reset, presentation: presentOpenAuctionList(second.response, nowIso), cursorReset: true };
+  return {
+    nowIso,
+    regionGate,
+    search: reset,
+    presentation: presentOpenAuctionList(second.response, nowIso),
+    cursorReset: true
+  };
 }

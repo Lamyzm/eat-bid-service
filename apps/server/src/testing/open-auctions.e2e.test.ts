@@ -21,6 +21,7 @@ const record: OpenAuctionRecord = {
     sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
     sigungu: { codeValueId: 43n, code: "48120", scheme: "eat:auction-location-sigungu", label: "창원시" },
   },
+  eligibilityAreas: [{ codeValueId: 9_101n, code: "15653", scheme: "eat:eligibility-area", label: "경남/김해시" }],
   termsRevisionId: 5_796_469n,
   closesAt: Temporal.Instant.from("2026-09-08T02:00:00Z"),
   baseAmount: krw(canonicalDecimal("2761700.00", 2)),
@@ -88,7 +89,15 @@ describe("열린 공고 목록 HTTP 경로", () => {
         observed.push(query);
         return {
           kind: "page",
-          page: { auctions: [record], nextCursor: 9_007_199_254_740_993n, sampleCount: 70, snapshotLineage: lineage, orgSummaryLineage: lineage },
+          page: {
+            auctions: [record],
+            nextCursor: 9_007_199_254_740_993n,
+            sampleCount: 70,
+            eligibilityMatchedCount: 0,
+            eligibilityUnobservedCount: 0,
+            snapshotLineage: lineage,
+            orgSummaryLineage: lineage,
+          },
         };
       },
     }, async (server) => {
@@ -97,6 +106,7 @@ describe("열린 공고 목록 HTTP 경로", () => {
       expect(observed).toEqual([{
         asOf: NOW,
         regionCodeValueId: null,
+        eligibilityAreaCodeValueIds: null,
         itemLabel: null,
         closesWithinHours: null,
         baseAmountMin: null,
@@ -113,6 +123,7 @@ describe("열린 공고 목록 HTTP 경로", () => {
           sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
           sigungu: { codeValueId: "43", code: "48120", scheme: "eat:auction-location-sigungu", label: "창원시" },
         },
+        eligibilityAreas: [{ codeValueId: "9101", code: "15653", scheme: "eat:eligibility-area", label: "경남/김해시" }],
         termsRevisionId: "5796469",
         closesAt: "2026-09-08T02:00:00Z",
         baseAmount: { amount: "2761700.00", currency: "KRW" },
@@ -148,11 +159,23 @@ describe("열린 공고 목록 HTTP 경로", () => {
     await withServer({
       listOpen: async (query) => {
         observed.push(query);
-        return { kind: "page", page: { auctions: [], nextCursor: null, sampleCount: 0, snapshotLineage: null, orgSummaryLineage: null } };
+        return {
+          kind: "page",
+          page: {
+            auctions: [],
+            nextCursor: null,
+            sampleCount: 0,
+            eligibilityMatchedCount: 0,
+            eligibilityUnobservedCount: 0,
+            snapshotLineage: null,
+            orgSummaryLineage: null,
+          },
+        };
       },
     }, async (server) => {
       const response = await request(server).get(listPath({
         region: "9007199254740993",
+        eligibilityArea: ["9101", "9100"],
         item: "축산",
         closesWithinHours: 72,
         baseAmountMin: "2000000.00",
@@ -164,6 +187,7 @@ describe("열린 공고 목록 HTTP 경로", () => {
       expect(observed).toEqual([{
         asOf: NOW,
         regionCodeValueId: 9_007_199_254_740_993n,
+        eligibilityAreaCodeValueIds: [9_101n, 9_100n],
         itemLabel: "축산",
         closesWithinHours: 72,
         baseAmountMin: "2000000.00",
@@ -176,6 +200,9 @@ describe("열린 공고 목록 HTTP 경로", () => {
         sampleCount: 0,
         asOf: "2026-09-07T01:30:00Z",
         region: "9007199254740993",
+        eligibilityArea: ["9101", "9100"],
+        eligibilityMatchedCount: 0,
+        eligibilityUnobservedCount: 0,
         item: "축산",
         closesWithinHours: 72,
         baseAmountMin: "2000000.00",

@@ -7,12 +7,15 @@ const page: OpenAuctionPage = {
   auctions: [],
   nextCursor: null,
   sampleCount: 0,
+  eligibilityMatchedCount: 0,
+  eligibilityUnobservedCount: 0,
   snapshotLineage: null,
   orgSummaryLineage: null,
 };
 
 const input = {
   regionCodeValueId: null,
+  eligibilityAreaCodeValueIds: null,
   itemLabel: null,
   closesWithinHours: null,
   baseAmountMin: null,

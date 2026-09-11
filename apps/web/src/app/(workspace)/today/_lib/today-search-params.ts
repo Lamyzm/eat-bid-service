@@ -4,6 +4,11 @@ import { createSerializer, parseAsInteger, parseAsString, type inferParserType }
 // 형식 검증(양의 정수 id, 소수 둘째 자리 금액, 1..720시간)은 여기서 하지 않는다. `_model/load-today-page.ts`의
 // loader가 계약 schema로 조회 직전에 걸러 무효 값을 null로 다루고, 네트워크 호출 전에 무효 요청을 없앤다.
 export const todaySearchParsers = {
+  /**
+   * `all`이면 워크스페이스가 확인한 관심 지역을 이번 조회에만 걸지 않는다. 저장된 설정은 그대로 두고
+   * 보는 범위만 넓히는 출구라서 저장 command가 아니라 주소 하나로 표현한다.
+   */
+  scope: parseAsString,
   region: parseAsString,
   item: parseAsString,
   closesWithinHours: parseAsInteger,
@@ -16,6 +21,7 @@ export const todaySearchParsers = {
 export type TodaySearch = Readonly<inferParserType<typeof todaySearchParsers>>;
 
 export const EMPTY_TODAY_SEARCH: TodaySearch = {
+  scope: null,
   region: null,
   item: null,
   closesWithinHours: null,
@@ -38,6 +44,9 @@ export const BASE_AMOUNT_PRESETS = [
   { label: '1,000만~3,000만', min: '10000000.00', max: '30000000.00' },
   { label: '3,000만 이상', min: '30000000.00', max: null }
 ] as const;
+
+/** 저장된 관심 지역을 이번 조회에서만 풀어 두는 값이다. 다른 문자열은 설정을 적용한 것과 같다. */
+export const ALL_REGIONS_SCOPE = 'all';
 
 export type TodayRoute = '/today' | `/today?${string}`;
 

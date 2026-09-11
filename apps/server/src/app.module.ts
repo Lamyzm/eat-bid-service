@@ -16,10 +16,12 @@ import type { ManagedDatabase } from "./platform/database/managed-database";
 import type { AuctionReader } from "./modules/procurement/application/auction-reader";
 import type { AuctionRosterReader } from "./modules/procurement/application/auction-roster-reader";
 import type { OpenAuctionReader } from "./modules/procurement/application/open-auction-reader";
+import type { EligibilityAreaReader } from "./modules/procurement/application/eligibility-area-reader";
 import type { OrganizationAttemptReader } from "./modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "./modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "./modules/reference/application/code-reader";
 import type { AccountRepository } from "./modules/account/application/account-repository";
+import type { RegionPreferenceRepository } from "./modules/account/application/region-preference-repository";
 import { AccountModule } from "./modules/account/account.module";
 import { ProcurementModule } from "./modules/procurement/procurement.module";
 import { ReferenceModule } from "./modules/reference/reference.module";
@@ -46,10 +48,12 @@ export class AppModule {
           auctionReader: runtime.auctionReader,
           auctionRosterReader: runtime.auctionRosterReader,
           openAuctionReader: runtime.openAuctionReader,
+          eligibilityAreaReader: runtime.eligibilityAreaReader,
           organizationAttemptReader: runtime.organizationAttemptReader,
           winRateDistributionReader: runtime.winRateDistributionReader,
           codeReader: runtime.codeReader,
           accountRepository: runtime.accountRepository,
+          regionPreferenceRepository: runtime.regionPreferenceRepository,
         }),
         AuthModule.forRuntime({ sessionAuthenticator: runtime.sessionAuthenticator ?? null }),
         HealthModule.forState(runtime.readiness),
@@ -72,10 +76,12 @@ export interface AppModuleRuntime {
   readonly auctionReader?: AuctionReader;
   readonly auctionRosterReader?: AuctionRosterReader;
   readonly openAuctionReader?: OpenAuctionReader;
+  readonly eligibilityAreaReader?: EligibilityAreaReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly codeReader?: CodeReader;
   readonly accountRepository?: AccountRepository;
+  readonly regionPreferenceRepository?: RegionPreferenceRepository;
   readonly connection?: ManagedDatabase;
   readonly sessionAuthenticator?: SessionAuthenticator | null;
   readonly testOnlyImports?: readonly Type[];

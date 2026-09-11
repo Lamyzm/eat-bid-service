@@ -5,6 +5,7 @@ import { nonNegativeCountSchema } from "../../../atoms/count";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { codeReferenceSchema } from "../../../values/code-reference";
+import { eligibilityAreaSchema, maxEligibilityAreaSelection } from "../../../values/eligibility-area";
 import { moneyWireSchema } from "../../../values/money";
 import { baseRelativeBidRateWireSchema, bidRateWireSchema } from "../../../values/rate";
 
@@ -70,6 +71,14 @@ export const openAuctionRowSchema = z.strictObject({
   // 사정률 축의 상수(하한율)다. 소스가 셋째 자리까지 표시하며 mart numeric(6,3)과 같다.
   floorRate: bidRateWireSchema.nullable(),
   region: openAuctionRegionSchema.nullable(),
+  /**
+   * 이 공고가 참가를 제한한 지역이다. 위 `region`(공고지역)과 **다른 체계**이며 섞어 읽지 않는다
+   * (AGENTS 6). `null`은 "제한이 없다"가 아니라 **관측하지 못했다**는 뜻이다. 열린 공고 404건 중 7건이
+   * 그런 상태였고 무작위 결측이 아니었다 — 학교가 아닌 기관(군수지원여단·항공안전단·요양센터)에 몰려
+   * 있었다(2026-09-11 실측). 제한 없음으로 단정하면 사장님이 낼 수 있는 공고가 목록에서 사라지므로
+   * 화면은 이 값을 `제한지역 미관측`으로 드러낸다(AGENTS 3, ADR 0048 결정 3).
+   */
+  eligibilityAreas: z.array(eligibilityAreaSchema).max(maxEligibilityAreaSelection).nullable(),
   termsRevisionId: positiveBigintTextSchema.nullable(),
   closesAt: instantTextSchema.nullable(),
   baseAmount: moneyWireSchema.nullable(),

@@ -18,7 +18,9 @@ const TARGET_DIRECTORIES = [
   "docs/governance",
 ];
 // 시안·목업·생성기 산출물은 문서가 아니라 자산이라 frontmatter를 요구하지 않는다.
-const EXCLUDED_DIRECTORY = /(?:^|\/)(?:prototypes?|mockups|design-generators)(?:\/|$)/u;
+// `generated`가 목록에 없어서 DB 스키마를 바꿀 때마다 ERD 재생성이 이 검사를 깨뜨렸다(EAT-167에서 관측).
+// 생성물에 `last_reviewed`를 적는 것은 사람이 검토한 적 없는 날짜를 적는 일이므로 자산으로 제외한다.
+const EXCLUDED_DIRECTORY = /(?:^|\/)(?:prototypes?|mockups|design-generators|generated)(?:\/|$)/u;
 const YAML_REQUIRED_FIELDS = ["id", "status", "canonical_for", "last_reviewed", "review_trigger"];
 const YAML_STATUSES = new Set(["active", "draft", "exploration", "superseded", "archived", "evidence"]);
 const ADR_STATUSES = new Set(["Proposed", "Accepted", "Deprecated", "Superseded"]);

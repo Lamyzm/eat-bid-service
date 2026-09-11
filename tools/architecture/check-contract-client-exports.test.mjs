@@ -47,6 +47,11 @@ const packageJson = JSON.stringify({
       import: "./src/api/v1/auctions/index.ts",
       default: "./src/api/v1/auctions/index.ts",
     },
+    "./api/v1/eligibility-areas": {
+      types: "./src/api/v1/eligibility-areas/index.ts",
+      import: "./src/api/v1/eligibility-areas/index.ts",
+      default: "./src/api/v1/eligibility-areas/index.ts",
+    },
     "./api/v1/me": {
       types: "./src/api/v1/me/index.ts",
       import: "./src/api/v1/me/index.ts",
@@ -129,6 +134,11 @@ test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", 
           import: "./src/api/v1/auctions/index.ts",
           default: "./src/api/v1/auctions/index.ts",
         },
+        "./api/v1/eligibility-areas": {
+          types: "./src/api/v1/eligibility-areas/index.ts",
+          import: "./src/api/v1/eligibility-areas/index.ts",
+          default: "./src/api/v1/eligibility-areas/index.ts",
+        },
         "./api/v1/me": {
           types: "./src/api/v1/me/index.ts",
           import: "./src/api/v1/me/index.ts",
@@ -190,6 +200,11 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
           types: "./dist/api/v1/auctions/index.d.ts",
           import: "./dist/api/v1/auctions/index.js",
           default: "./dist/api/v1/auctions/index.js",
+        },
+        "./api/v1/eligibility-areas": {
+          types: "./src/api/v1/eligibility-areas/index.ts",
+          import: "./src/api/v1/eligibility-areas/index.ts",
+          default: "./src/api/v1/eligibility-areas/index.ts",
         },
         "./api/v1/me": {
           types: "./src/api/v1/me/index.ts",

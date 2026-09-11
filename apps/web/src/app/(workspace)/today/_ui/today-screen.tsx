@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { EmptyState } from '@/shared/ui/empty-state';
 
+import { RegionScopeStrip, RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
 import { buildTodayRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
 import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
@@ -74,9 +75,11 @@ function OpenAuctionList({
   );
 }
 
-/** 목록 자리의 세 상태를 한 곳에서 고른다. 종류가 늘면 이 switch가 컴파일에서 막는다. */
+/** 목록 자리의 네 상태를 한 곳에서 고른다. 종류가 늘면 이 switch가 컴파일에서 막는다. */
 function TodayList({ data, regionText }: { readonly data: TodayPageData; readonly regionText: string | null }) {
   const { presentation, search } = data;
+  // 지역 미설정은 목록의 상태가 아니라 목록 앞의 상태다. 조회 자체를 하지 않았으므로 표시 모델이 없다.
+  if (presentation === null) return <RegionSetupRequest />;
   const view = presentation.view;
   switch (view.kind) {
     case 'no-snapshot':
@@ -90,20 +93,33 @@ function TodayList({ data, regionText }: { readonly data: TodayPageData; readonl
 
 export function TodayScreen({ data }: { readonly data: TodayPageData }) {
   const { presentation, search } = data;
-  const view = presentation.view;
-  const regionText = regionTextOf(view.kind === 'list' ? view.rows : [], search.region);
+  const view = presentation?.view ?? null;
+  const regionText = regionTextOf(view?.kind === 'list' ? view.rows : [], search.region);
   return (
     <TodayFrame
       header={
         <div className='flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'>
           <h1 id='today-title' className='text-xl font-bold tracking-tight'>오늘</h1>
-          {view.kind === 'no-snapshot' ? null : (
+          {presentation === null || view?.kind === 'no-snapshot' ? null : (
             <span className='text-[15px] font-semibold whitespace-nowrap text-muted-foreground'>열린 공고 {presentation.sampleCount}건</span>
           )}
-          <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>{presentation.asOfText} 기준</span>
+          {presentation === null ? null : (
+            <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>{presentation.asOfText} 기준</span>
+          )}
         </div>
       }
-      filters={<TodayFilters search={search} regionText={regionText} />}
+      filters={
+        <div className='grid min-w-0 gap-3'>
+          {/* 무엇으로 좁혔는지는 조건 칩보다 위, 목록 바로 앞에 계속 남는다(screen-system §6.4.1). */}
+          <RegionScopeStrip
+            gate={data.regionGate}
+            search={search}
+            matchedCount={presentation?.eligibilityMatchedCount ?? null}
+            unobservedCount={presentation?.eligibilityUnobservedCount ?? null}
+          />
+          {presentation === null ? null : <TodayFilters search={search} regionText={regionText} />}
+        </div>
+      }
       list={<TodayList data={data} regionText={regionText} />}
     />
   );

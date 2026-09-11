@@ -35,6 +35,11 @@ function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresent
             </Link>
           )
         )}
+        {/* 제한지역은 공고지역과 다른 축이라 링크가 아니라 사실 표시다. 관측하지 못한 행은 그 사실을
+            그대로 말한다 — 제한 없음으로 바꿔 적으면 낼 수 있는 공고가 목록에서 조용히 사라진다. */}
+        <span className={row.eligibilityText === null ? 'text-pushed' : undefined}>
+          {row.eligibilityText === null ? '제한지역 미관측' : `제한 ${row.eligibilityText}`}
+        </span>
         {/* 좁은 폭에서 접힌 품목·보통 참여를 둘째 줄에 둔다. */}
         <span className='lg:hidden'>{row.itemLabel === null ? '품목 미확인' : summarizeItemLabel(row.itemLabel).text}</span>
         {row.orgSummary ? <span className='lg:hidden'>보통 참여 {row.orgSummary.medianListText}</span> : null}

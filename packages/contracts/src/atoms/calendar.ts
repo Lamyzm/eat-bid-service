@@ -20,3 +20,19 @@ export const kstMonthTextSchema = z.string()
   });
 
 export type KstMonthText = z.infer<typeof kstMonthTextSchema>;
+
+/**
+ * KST 달력일 하나다. "몰리는 날"은 마감이 같은 KST 하루에 모인 공고 수라서 값의 정체가 시각이 아니라
+ * 달력 구간의 이름이다. `Instant`로 나르면 어느 시간대의 하루인지가 값에서 사라진다(AGENTS 15).
+ * 자릿수를 고정하는 이유는 달 atom과 같다 — 문자열 정렬이 곧 날짜 순서여야 한다.
+ */
+export const kstDateTextSchema = z.string()
+  .length(10)
+  .regex(/^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$/)
+  .meta({
+    id: "KstDateText",
+    description: "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+    example: "2026-06-22",
+  });
+
+export type KstDateText = z.infer<typeof kstDateTextSchema>;

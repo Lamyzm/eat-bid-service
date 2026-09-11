@@ -14,6 +14,7 @@ export * from "./atoms/source-code";
 export * from "./values/cache-tag";
 export * from "./values/code-reference";
 export * from "./values/coordinate";
+export * from "./values/eligibility-area";
 export * from "./values/region-code";
 export {
   martBuildLineageSchema,
@@ -25,6 +26,7 @@ export * from "./values/money";
 export * from "./values/provenance";
 export * from "./values/rate";
 export * from "./values/source-coded-value";
+export * from "./resources/account/region-preference";
 export * from "./resources/account/workspace";
 export * from "./resources/procurement/classification";
 export * from "./resources/procurement/identity";
@@ -46,6 +48,7 @@ export {
   type ListCodesMeta,
   type ListCodesV1Response,
 } from "./api/v1/code-schemes";
+export * from "./api/v1/eligibility-areas";
 export * from "./api/v1/me";
 export * from "./api/v1/session";
 export * from "./api/v1/win-rate-distribution";

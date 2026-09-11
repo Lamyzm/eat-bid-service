@@ -185,6 +185,7 @@ function pageOf(listing: OpenAuctionListing): OpenAuctionPage {
 const baseQuery: OpenAuctionQuery = {
   asOf: NOW,
   regionCodeValueId: null,
+  eligibilityAreaCodeValueIds: null,
   itemLabel: null,
   closesWithinHours: null,
   baseAmountMin: null,

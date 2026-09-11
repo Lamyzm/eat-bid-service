@@ -23,6 +23,10 @@ const row: OpenAuctionRow = {
   region_sigungu_code: null,
   region_sigungu_scheme: null,
   region_sigungu_label: null,
+  eligibility_areas: [
+    { code_value_id: "9101", code: "15000", scheme: "eat:eligibility-area", label: "경남/전체" },
+    { code_value_id: "9102", code: "15653", scheme: "eat:eligibility-area", label: "경남/김해시" },
+  ],
   attempt_count: 17,
   median_list_count: 5,
   list_count_sample_count: 12,
@@ -46,6 +50,11 @@ describe("열린 공고 스냅샷 행 매핑", () => {
       sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
       sigungu: null,
     });
+    // 참가제한지역은 공고지역과 다른 체계이며 행이 스스로 그 이름을 싣는다.
+    expect(record.eligibilityAreas).toEqual([
+      { codeValueId: 9_101n, code: "15000", scheme: "eat:eligibility-area", label: "경남/전체" },
+      { codeValueId: 9_102n, code: "15653", scheme: "eat:eligibility-area", label: "경남/김해시" },
+    ]);
     expect(record.orgSummary).toEqual({
       attemptCount: 17,
       medianListCount: 5,
@@ -86,6 +95,7 @@ describe("열린 공고 스냅샷 행 매핑", () => {
       list_count_sample_count: null,
       last_round_attempt_id: null,
       last_round_opened_at: null,
+      eligibility_areas: null,
     }, true);
     expect(record.organization).toBeNull();
     expect(record.itemLabel).toBeNull();
@@ -93,6 +103,8 @@ describe("열린 공고 스냅샷 행 매핑", () => {
     expect(record.region).toBeNull();
     expect(record.termsRevisionId).toBeNull();
     expect(record.orgSummary).toBeNull();
+    // 관측하지 못한 제한지역은 빈 배열이 아니라 null이다. 빈 배열은 "제한 없음"으로 읽힌다(AGENTS 3).
+    expect(record.eligibilityAreas).toBeNull();
   });
 
   test("활성 회차 요약 build가 없으면 요약은 null이고 코호트가 빈 회차 0건은 0으로 남는다", () => {

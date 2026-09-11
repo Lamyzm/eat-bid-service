@@ -11,7 +11,11 @@ declare const kstMonthBrand: unique symbol;
 export type KstMonth = string & { readonly [kstMonthBrand]: "KstMonth" };
 
 const KST_MONTH_PATTERN = /^[0-9]{4}-(?:0[1-9]|1[0-2])$/;
-const KST_TIME_ZONE = "Asia/Seoul";
+/**
+ * 제품의 달력 경계는 KST 하나다. 달과 날의 두 값이 서로 다른 시간대를 쓰면 같은 관측이 두 구간에
+ * 속하므로 시간대 이름은 여기 한 번만 선언하고 날 값(`kst-day.ts`)과 그 SQL 표현이 이것을 참조한다.
+ */
+export const KST_TIME_ZONE = "Asia/Seoul";
 
 export function kstMonth(value: string): KstMonth {
   if (!KST_MONTH_PATTERN.test(value)) throw new RangeError(`KST month must be YYYY-MM but was ${value}`);

@@ -1,5 +1,6 @@
 /** @module 책임: 오늘 RSC route에서 searchParams 접근을 Suspense 안 loader로 격리하고 열린 공고 목록 계약 조회 결과를 화면에 넘긴다. */
 import { systemClock } from '@eatbid/domain';
+import { getMyRegionPreferenceFromServer } from '@/api/account/server';
 import { listOpenAuctionsFromServer } from '@/api/auctions/server';
 import { createLoader } from 'nuqs/server';
 import { Suspense } from 'react';
@@ -17,8 +18,12 @@ const loadTodaySearch = createLoader(todaySearchParsers);
 
 async function TodayLoader({ searchParams }: { readonly searchParams: TodayPageProps['searchParams'] }) {
   const search = await loadTodaySearch(searchParams);
+  // 지역 설정은 목록을 부를지 말지를 정하므로 조회보다 먼저 읽는다. 읽지 못한 것과 확인하지 않은 것은
+  // 사용자가 할 일이 다르므로 loader가 두 상태를 구분해 넘긴다.
+  const preference = await getMyRegionPreferenceFromServer();
   const data = await loadTodayPage(search, {
     listOpenAuctions: listOpenAuctionsFromServer,
+    regionPreference: preference.kind === 'preference' ? preference.response.preference : undefined,
     // D-day는 요청 시각의 함수다. 컴포넌트 안에서 `Date`나 `Temporal.Now`를 부르지 않고 여기서 한 번 만든다.
     now: () => systemClock.now().toString()
   });

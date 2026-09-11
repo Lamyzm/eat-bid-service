@@ -60,6 +60,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0044](0044-route-segment-slice-structure.md) | Accepted | route segment 내부를 `_features/<name>/{ui,model,lib}`와 `_widgets/`로 나누고 `lib`의 React·`model`의 JSX·`ui`의 비렌더 모듈을 검사하며, 두 화면 이상이 쓰는 도메인 표시 조각을 위한 `entities/` 층을 둔다 ([0023](0023-nextjs-web-modular-boundaries.md)의 segment private 조항과 층 목록을 보완) |
 | [0045](0045-server-module-presentation-seam.md) | Accepted | 서버 모듈 안에서 wire 직렬화는 `presentation/http/*.presenter.ts`, 모듈 공통 wire 도우미는 `platform/http/wire.ts`, 캐시·재시도 장식자는 `infrastructure/<concern>/`, 모듈 공통 실패는 모듈 이름, 경계 숫자는 domain 상수가 소유한다 |
 | [0046](0046-telemetry-wire-correlation-and-alert-origin.md) | Accepted | 계측은 OpenTelemetry 규격, 상관 식별자는 W3C trace context, 파이프라인 진실은 PostgreSQL이고 지표는 파생물이라 업무 알림은 DB에서 내며, 멈춤은 기대 문장으로 잡고 생존 확인만 클러스터 밖에 둔다 (저장·대시보드·프론트 오류 도구는 교체 가능한 자리) |
+| [0048](0048-workspace-region-preference-on-eat-eligibility-areas.md) | Accepted | 워크스페이스 관심 지역을 eaT 참가제한지역 코드로 저장(행안부 canonical은 유지하고 매핑은 미룸), 계층은 조회가 아니라 선택 시점의 입력 보조, 제한지역 미관측은 목록에 남기고 표본 수를 매칭·미관측으로 분해, 저장 전 실제 조회 미리보기 |
 
 ## 새 ADR 형식
 

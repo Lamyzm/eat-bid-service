@@ -8,6 +8,13 @@ import { sql, type SQL } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type { OpenAuctionQuery } from "../../application/open-auction-reader";
 import { activeMartBuildId } from "./drizzle-mart-build-reader";
+import {
+  eligibilityAreaCodeCte,
+  eligibilityAreasLateral,
+  eligibilityMatchedExpression,
+  eligibilityObservedExpression,
+  matchedEligibilityAreaCte,
+} from "./eligibility-area-sql";
 
 export const OPEN_AUCTION_SNAPSHOT = "open_auction_snapshot";
 export const ORG_ROUND_SUMMARY = "org_round_summary";
@@ -29,8 +36,16 @@ function instantParameter(value: Temporal.Instant): string {
  */
 export function openRowsCte(query: OpenAuctionQuery): SQL {
   const asOf = instantParameter(query.asOf);
+  const eligibility = query.eligibilityAreaCodeValueIds;
+  // 필터가 없어도 두 판정 열은 그대로 만든다. 목록이 행마다 `제한지역 미관측`을 말해야 하고, 열이
+  // 조건부로 생기면 세 조회가 서로 다른 CTE 모양을 보게 된다.
+  const eligibilityFilter: SQL = eligibility === null
+    ? sql``
+    : sql` and (open_scope.eligibility_matched or not open_scope.eligibility_observed)`;
   return sql`
-    with snapshot as (
+    with ${eligibilityAreaCodeCte()},
+    ${matchedEligibilityAreaCte(eligibility ?? [])},
+    snapshot as (
       select distinct on (snapshot.auction_attempt_id)
         snapshot.auction_attempt_id,
         snapshot.organization_id,
@@ -50,19 +65,25 @@ export function openRowsCte(query: OpenAuctionQuery): SQL {
       where snapshot.build_id = ${activeMartBuildId(OPEN_AUCTION_SNAPSHOT)}
       order by snapshot.auction_attempt_id, snapshot.observed_at desc
     ),
-    open_rows as (
-      select snapshot.*
+    open_scope as (
+      select snapshot.*,
+             ${eligibilityObservedExpression(sql`snapshot.terms_revision_id`)} as eligibility_observed,
+             ${eligibilityMatchedExpression(sql`snapshot.terms_revision_id`)} as eligibility_matched
       from snapshot
-      where (snapshot.closes_at is null or snapshot.closes_at > ${asOf}::timestamptz)
+    ),
+    open_rows as (
+      select open_scope.*
+      from open_scope
+      where (open_scope.closes_at is null or open_scope.closes_at > ${asOf}::timestamptz)
         and (${query.closesWithinHours}::int is null
-             or (snapshot.closes_at is not null
-                 and snapshot.closes_at <= ${asOf}::timestamptz + make_interval(hours => ${query.closesWithinHours}::int)))
-        and (${query.baseAmountMin}::numeric is null or snapshot.base_amount >= ${query.baseAmountMin}::numeric)
-        and (${query.baseAmountMax}::numeric is null or snapshot.base_amount <= ${query.baseAmountMax}::numeric)
+             or (open_scope.closes_at is not null
+                 and open_scope.closes_at <= ${asOf}::timestamptz + make_interval(hours => ${query.closesWithinHours}::int)))
+        and (${query.baseAmountMin}::numeric is null or open_scope.base_amount >= ${query.baseAmountMin}::numeric)
+        and (${query.baseAmountMax}::numeric is null or open_scope.base_amount <= ${query.baseAmountMax}::numeric)
         and (${query.regionCodeValueId}::bigint is null
-             or snapshot.region_sido_code_value_id = ${query.regionCodeValueId}::bigint
-             or snapshot.region_sigungu_code_value_id = ${query.regionCodeValueId}::bigint)
-        and (${query.itemLabel}::text is null or snapshot.item_label = ${query.itemLabel}::text)
+             or open_scope.region_sido_code_value_id = ${query.regionCodeValueId}::bigint
+             or open_scope.region_sigungu_code_value_id = ${query.regionCodeValueId}::bigint)
+        and (${query.itemLabel}::text is null or open_scope.item_label = ${query.itemLabel}::text)${eligibilityFilter}
     )
   `;
 }
@@ -75,10 +96,15 @@ export function cursorAnchorQuery(query: OpenAuctionQuery, cursor: bigint): SQL 
 }
 
 export function sampleCountQuery(query: OpenAuctionQuery): SQL {
-  // 표본 수는 cursor와 무관해야 하므로 페이지 조건을 뺀 같은 CTE를 한 번 더 센다.
+  // 표본 수는 cursor와 무관해야 하므로 페이지 조건을 뺀 같은 CTE를 한 번 더 센다. 참가제한지역 판정
+  // 분해를 같은 조회에서 함께 세는 이유는, 따로 세면 화면이 말한 "9건 + 미관측 7건"의 합이 표시 행 수와
+  // 어긋날 수 있기 때문이다. 두 판정은 서로 배타적이다 — 관측하지 못한 행은 매칭될 수 없다.
   return sql`
     ${openRowsCte(query)}
-    select count(*)::int as sample_count from open_rows
+    select count(*)::int as sample_count,
+           count(*) filter (where open_rows.eligibility_matched)::int as eligibility_matched_count,
+           count(*) filter (where not open_rows.eligibility_observed)::int as eligibility_unobserved_count
+      from open_rows
   `;
 }
 
@@ -130,6 +156,7 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
       region_sigungu.code as region_sigungu_code,
       region_sigungu.scheme as region_sigungu_scheme,
       region_sigungu.label as region_sigungu_label,
+      eligibility.areas as eligibility_areas,
       summary.attempt_count,
       summary.median_list_count,
       summary.list_count_sample_count,
@@ -143,6 +170,7 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
     left join core.organization organization on organization.organization_id = open_rows.organization_id
     ${regionReferenceJoin(sql`open_rows.region_sido_code_value_id`, "region_sido")}
     ${regionReferenceJoin(sql`open_rows.region_sigungu_code_value_id`, "region_sigungu")}
+    ${eligibilityAreasLateral(sql`open_rows.terms_revision_id`, "eligibility")}
     -- 요약의 grain은 기관이 아니라 (기관, 하한율)이다. 하한율이 다르면 그날 하한이 다른 자리에 서서
     -- 낙찰 투찰률도 참여 규모도 겹치지 않는 판이 되므로 한 기관 안에서도 섞지 않는다
     -- (screen-system §6.4.1, PDR-0004). 품목은 반대로 좁히지 않는다 — 하한율과 명단 크기를 고정하면
