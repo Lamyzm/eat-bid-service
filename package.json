@@ -42,6 +42,7 @@
     "workflow:claim": "node tools/agent-workflow/infisical.mjs claim",
     "workflow:issue": "node tools/agent-workflow/infisical.mjs issue",
     "workflow:issues": "node tools/agent-workflow/infisical.mjs issue list",
+    "workflow:pr": "node tools/agent-workflow/cli.mjs pr",
     "workflow:release": "node tools/agent-workflow/cli.mjs release",
     "workflow:release:review": "node tools/agent-workflow/infisical.mjs release --review",
     "workflow:session": "node tools/agent-workflow/cli.mjs session",
