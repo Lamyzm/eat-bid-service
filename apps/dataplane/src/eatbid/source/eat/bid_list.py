@@ -107,7 +107,15 @@ def parse_bid_list_page(payload: bytes, *, parser_version: str) -> BidListPage:
 
 
 def _bid_list_row(row: Mapping[str, str]) -> BidListRow:
-    """목록 행의 검토된 column을 해석한다. 필수 column의 부재나 잘못된 값은 발견 전체의 계약 위반이다."""
+    """목록 행의 검토된 column을 해석한다. 필수 column의 부재나 잘못된 값은 발견 전체의 계약 위반이다.
+
+    목록 응답은 상세와 이름이 같은 column을 여럿 갖는데 **뜻이 같지 않다**(`docs/audit-source/SOURCE-FIELDS.md`).
+
+    - `PLNPRCE_SUCBD_STD`는 상세의 여집합(`100 −` 하한율)이라 읽지 않는다(T4). 하한율은 상세에서만 만든다.
+    - `SUCBD_DECISION_MTHD_NM`은 이름 그대로만 싣는다. 목록판은 대괄호 안이 비어 있어 하한율을
+      문장에서 복원할 수 없고, 상세판과 문자열도 다르다(T16).
+    - `LIMIT_CONDITION_NM`은 상세와 다른 짧은 문자열이라 이름으로 조인하면 깨진다(T8). 그래서 읽지 않는다.
+    """
     try:
         competitor_text = required_text(row, _COMPETITOR_COUNT_FIELD)
         if _NONNEGATIVE_DECIMAL.fullmatch(competitor_text) is None:

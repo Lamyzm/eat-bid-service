@@ -11,6 +11,11 @@
 | 엔드포인트 | Nexacro 앱 정의(`App_Desktop.xadl.js`)→ 비로그인 메뉴 데이터셋 → **화면 23개의 폼 파일 실측** → 미호출 엔드포인트 **실제 호출** |
 | 코드 함정 | 모든 `_CD`/`_ID`/`_STT` 필드에 대해 **같은 데이터셋 안 접두어 짝(`X_CD`→`X_NM`)이 함수인지** 전수 대조 |
 
+**필드 이름 하나로 찾고 싶다면 이 문서가 아니라 사전을 먼저 열어라.**
+[`docs/audit-source/SOURCE-FIELDS.md`](audit-source/SOURCE-FIELDS.md)가 판단(같은 이름 다른 어휘·축 구분·모르는 것)을,
+[생성된 색인](audit-source/generated/source-field-index.md)이 (dataset, 필드)마다의 측정값을 갖는다.
+이 문서는 그 판단들이 나온 **원본 감사 기록**이며 절 번호로 인용된다.
+
 원자료(기계 생성, 이 문서의 근거):
 `docs/audit-source/census-detail.txt` · `census-list.txt` · `invariants.txt` ·
 `code-name-pairs.txt` · `code-name-pairs2.txt` · `endpoints.json` ·
@@ -315,7 +320,18 @@ ds_pList ds_compList ds_areaList ds_schList ds_eftInfo ds_agreFee ds_elsgnCn ds_
 
 ---
 
-## 9. 문서가 틀렸던 것 — `docs/SOURCE-FIELDS.md` 정정
+## 9. 문서가 틀렸던 것 — 옛 필드 문서 정정
+
+이 절은 그때 존재하던 `docs/SOURCE-FIELDS.md`의 서술을 한 줄씩 정정한 것이다. 그 파일은 뒤에
+사라졌고 **한동안 고칠 대상이 없는 정정만 남아 있었다.**
+
+2026-09-11(EAT-182)에 사전을 다시 만들면서 이 표의 각 줄을
+[사전의 §3 정정 이력](audit-source/SOURCE-FIELDS.md)이 함정 항목과 짝지어 이어받았다.
+**실측 수치의 권위는 여기 그대로 남는다** — 사전은 숫자를 옮겨 적지 않고 이 절을 가리킨다.
+
+새 사전은 옛 경로를 되쓰지 않고 `docs/audit-source/SOURCE-FIELDS.md`에 있다. 다른 문서가 아직
+`SOURCE-FIELDS.md §8` 같은 줄 번호로 옛 파일을 인용하고 있어서, 같은 경로에 다른 내용을 놓으면
+그 인용이 엉뚱한 절로 이어진다.
 
 | 기존 서술 | 실측 |
 |---|---|
@@ -328,6 +344,9 @@ ds_pList ds_compList ds_areaList ds_schList ds_eftInfo ds_agreFee ds_elsgnCn ds_
 | 블록 채움률(`ds_bidHistory` 2.4% 등) | 전수: 2.76%. `ds_SelectUnionPurceTgtListR`은 "0.11 평균행"이 아니라 **3.74% 파일에서 평균 2.87행** |
 | `SIGUNGU_CD` "사용 예정(지역 축)" | 맞다. **다만 `ds_areaList`와 다른 축이다**(§8.5) |
 | (이 문서 §6.2) `EFT_ALL_AMT` "값이 같아 보인다" | **틀렸다.** 74.0%의 공고에서 다르고, 무효 투찰의 진짜 금액을 담고 있다 — §10.5 |
+
+**"우리가 읽는 건 10키"는 2026-08-28 당시의 옛 파서 기준이다.** 지금 무엇을 읽는지는
+[생성된 색인](audit-source/generated/source-field-index.md)의 `파서` 칸이 현재 코드에서 다시 계산한다.
 
 ---
 

@@ -19,6 +19,7 @@
     "architecture:check": "node tools/architecture/run-checks.mjs",
     "architecture:check:changed": "node tools/architecture/run-checks.mjs --changed",
     "architecture:erd:write": "node tools/architecture/generate-db-erd.mjs --write",
+    "source-fields:write": "node tools/architecture/generate-source-field-index.mjs",
     "lint:web-boundaries": "node tools/architecture/check-web-boundaries.mjs",
     "lint:region-vocabulary": "node tools/architecture/check-region-vocabulary.mjs",
     "lint:endpoints": "node tools/architecture/check-http-operations.mjs && node tools/architecture/check-contract-client-exports.mjs",
