@@ -360,6 +360,7 @@ export function buildIndex({
     "- `파서`의 `읽음`은 검토된 응답 계약이 그 dataset에 선언한 column이면서 파서 모듈이 그 이름을 문자열로 읽는다는 뜻이고, `계약`은 계약에만 있고 값을 해석하지 않는다는 뜻이다. 같은 이름이 여러 dataset에 선언되면 전부 `읽음`으로 찍히므로 dataset 단위 정확도는 계약 선언까지가 근거다.",
     "- census 표의 `우리` 열은 census를 만들던 2026-08-28 당시 파서 기준이라 이 표의 `파서` 칸과 다를 수 있다. **다르면 이 표가 현재다.**",
     "- 빈 `코드 판정`은 짝이 되는 이름 필드가 없어 재지 못했다는 뜻이지 코드가 아니라는 뜻이 아니다.",
+    "- **여기 없는 이름이 응답에 없다는 뜻은 아니다.** census 표는 값이 한 번이라도 온 키만 싣는다. 선언은 되는데 전 코퍼스에서 한 번도 안 채워지는 키(`CANCEL_REASON`이 그렇다)는 이 색인에 나타나지 않는다 — 그 목록은 `AUDIT-SOURCE.md` §3.1이 소유하고 [T12](../../SOURCE-FIELDS.md)가 가리킨다.",
     "",
     "## 함정 대장",
     "",
@@ -408,6 +409,23 @@ export function buildIndex({
     ];
     lines.push(`| ${columns.join(" | ")} |`);
   }
+
+  const indexed = new Set([
+    ...rows.map((row) => `${row.dataset}.${row.field}`),
+    ...datasets.map((dataset) => dataset.dataset),
+  ]);
+  const unmatched = [...trapsByTarget.keys()].filter((target) => !indexed.has(target)).sort(compare);
+
+  lines.push(
+    "",
+    "## 색인에 줄이 없는 걸린 자리",
+    "",
+    "판정 문서가 함정으로 지목했는데 위 표에 줄이 없는 자리다. **오타일 수도 있고 census가 싣지 않는 키일 수도 있다.**",
+    "선언만 되고 값이 한 번도 안 온 키와 우리가 부르지 않는 엔드포인트의 column이 여기 남는다.",
+    "",
+  );
+  if (unmatched.length === 0) lines.push("없다.");
+  else for (const target of unmatched) lines.push(`- \`${target}\``);
 
   lines.push("", "## 읽지 못한 줄", "");
   if (skipped.length === 0) {

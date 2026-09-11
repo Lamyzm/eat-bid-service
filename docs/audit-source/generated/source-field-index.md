@@ -19,6 +19,7 @@
 - `파서`의 `읽음`은 검토된 응답 계약이 그 dataset에 선언한 column이면서 파서 모듈이 그 이름을 문자열로 읽는다는 뜻이고, `계약`은 계약에만 있고 값을 해석하지 않는다는 뜻이다. 같은 이름이 여러 dataset에 선언되면 전부 `읽음`으로 찍히므로 dataset 단위 정확도는 계약 선언까지가 근거다.
 - census 표의 `우리` 열은 census를 만들던 2026-08-28 당시 파서 기준이라 이 표의 `파서` 칸과 다를 수 있다. **다르면 이 표가 현재다.**
 - 빈 `코드 판정`은 짝이 되는 이름 필드가 없어 재지 못했다는 뜻이지 코드가 아니라는 뜻이 아니다.
+- **여기 없는 이름이 응답에 없다는 뜻은 아니다.** census 표는 값이 한 번이라도 온 키만 싣는다. 선언은 되는데 전 코퍼스에서 한 번도 안 채워지는 키(`CANCEL_REASON`이 그렇다)는 이 색인에 나타나지 않는다 — 그 목록은 `AUDIT-SOURCE.md` §3.1이 소유하고 [T12](../../SOURCE-FIELDS.md)가 가리킨다.
 
 ## 함정 대장
 
@@ -32,9 +33,9 @@
 | [T4](../../SOURCE-FIELDS.md#t4-plnprce_sucbd_std는-상세와-목록이-여집합이다) | `PLNPRCE_SUCBD_STD`는 상세와 목록이 여집합이다 | `ds_info.PLNPRCE_SUCBD_STD` `ds_list.PLNPRCE_SUCBD_STD` `ds_bidHistory.PLNPRCE_SUCBD_STD` |
 | [T5](../../SOURCE-FIELDS.md#t5-ctdu_dtl_stat_cd는-상세와-계약현황의-값-범위가-다르다--같은-뜻인지-모른다) | `CTDU_DTL_STAT_CD`는 상세와 계약현황의 값 범위가 다르다 — 같은 뜻인지 모른다 | `ds_info.CTDU_STAT_CD` `ds_info.CTDU_DTL_STAT_CD` `ds_info.CTDU_SN` |
 | [T6](../../SOURCE-FIELDS.md#t6-mlfd_class_cdmlfd_class_nm은-분류가-아니라-자유-입력이다) | `MLFD_CLASS_CD`/`MLFD_CLASS_NM`은 분류가 아니라 자유 입력이다 | `ds_itemList.MLFD_CLASS_CD` `ds_itemList.MLFD_CLASS_NM` `ds_schList.MESG_CLSF_CD` `ds_schList.MESG_CLSF_NM` `ds_SelectUnionPurceTgtListR.S_MLFD_CLASS_NM` |
-| [T7](../../SOURCE-FIELDS.md#t7-ds_itemlist는-품목-목록이-아니다) | `ds_itemList`는 품목 목록이 아니다 | `ds_itemList` `ds_itemList.MLFD_NM` `ds_itemList.CNSLT_NO` `ds_itemList.ETN_BID_LINE_ID` `ds_itemList.STO_MNL_FILENAME` `ds_itemList.STO_MNL_FILEPATH` |
+| [T7](../../SOURCE-FIELDS.md#t7-ds_itemlist는-품목-목록이-아니다) | `ds_itemList`는 품목 목록이 아니다 | `ds_itemList` `ds_itemList.MLFD_NM` `ds_itemList.MLFD_STT` `ds_itemList.CNSLT_NO` `ds_itemList.ETN_BID_LINE_ID` `ds_mlsrItemInfo.MLSR_ITEM_YN` |
 | [T8](../../SOURCE-FIELDS.md#t8-limit_condition_nm은-상세와-목록이-다른-문자열이다) | `LIMIT_CONDITION_NM`은 상세와 목록이 다른 문자열이다 | `ds_info.LIMIT_CONDITION_NM` `ds_list.LIMIT_CONDITION_NM` `ds_bidHistory.LIMIT_CONDITION_NM` |
-| [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | 자격제한 코드는 하나가 아니라 넷이다 | `ds_info.QLFC_LMT_ITM_CD` `ds_info.QLFC_LMT_ITM_CD2` `ds_info.QLFC_LMT_ITM_CD3` `ds_info.QLFC_LMT_ITM_CD4` `ds_info.QLFC_LMT_ITM_CD_NM` `ds_info.ETC_QLFC_LMT_CN` |
+| [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | 자격제한 코드는 하나가 아니라 넷이다 | `ds_info.QLFC_LMT_ITM_CD` `ds_info.QLFC_LMT_ITM_CD2` `ds_info.QLFC_LMT_ITM_CD3` `ds_info.QLFC_LMT_ITM_CD4` `ds_info.QLFC_LMT_ITM_CD_NM` `ds_info.ETC_QLFC_LMT_CN` `ds_schList.QLFC_LMT_ITM_CD` `ds_SelectUnionPurceTgtListR.QLF_LIMIT_ITEM` |
 | [T10](../../SOURCE-FIELDS.md#t10-업체-사업자번호는-블록마다-하이픈이-다르다) | 업체 사업자번호는 블록마다 하이픈이 다르다 | `ds_bidList.BIZ_NO` `ds_bidList.SHIPPER_BRNO` `ds_compList.BRNO` `ds_bidList.SHIPPER_CD` `ds_bidList.SHIPPER_NM` |
 | [T11](../../SOURCE-FIELDS.md#t11-main_items와-main_item_nm은-공백만-다르다--그런데-그대로-비교하면-깨진다) | `MAIN_ITEMS`와 `MAIN_ITEM_NM`은 공백만 다르다 — 그런데 그대로 비교하면 깨진다 | `ds_info.MAIN_ITEMS` `ds_mainItemlist.MAIN_ITEM_NM` `ds_SelectUnionPurceTgtListR.ITEM_GB_NM` `ds_schList.ITEM_GB_NM` |
 | [T12](../../SOURCE-FIELDS.md#t12-사실이-아닌-필드--저장하면-안-되는-것과-한-번도-안-채워지는-것) | 사실이 아닌 필드 — 저장하면 안 되는 것과 한 번도 안 채워지는 것 | `ds_info.DATD_DIF` `ds_info.DATECOUNT5` `ds_info.DATECOUNT6` `ds_info.DATECOUNT7` `ds_info.REM_HOUR` `ds_info.REM_MIN` `ds_info.REM_SEC` `ds_info.TOTAL_SEC` `ds_info.CANCEL_REASON` `ds_info.BID_BGNG_DT1` `ds_info.BID_END_DT1` `ds_info.OPNG_DT1` `ds_eftInfo` |
@@ -271,10 +272,10 @@
 | `MLFD_DT` | `ds_itemList` | 96,116 | 100.0% | 724 |  | · |  | '20260518'×1,584 \| '20240617'×1,234 \| '20240913'×1,220 |
 | `MLFD_DT` | `ds_schList` | 10,713 | 100.0% | 332 |  | · |  | '2026-06-15'×301 \| '2026-06-17'×300 \| '2026-08-18'×294 |
 | `MLFD_NM` | `ds_itemList` | 96,116 | 100.0% | 12000+ |  | · | [T7](../../SOURCE-FIELDS.md#t7-ds_itemlist는-품목-목록이-아니다) | '2026년 6월 학교급식 식재료(공산품) 구입'×48 \| '11월 공산품 구입'×33 \| '6월 학교급식 식재료(공산품) 구입'×31 |
-| `MLFD_STT` | `ds_itemList` | 96,116 | 100.0% | 2 | →`MLFD_NM` 이름다중 2/2 | · |  | '004'×96,085 \| '006'×31 |
+| `MLFD_STT` | `ds_itemList` | 96,116 | 100.0% | 2 | →`MLFD_NM` 이름다중 2/2 | · | [T7](../../SOURCE-FIELDS.md#t7-ds_itemlist는-품목-목록이-아니다) | '004'×96,085 \| '006'×31 |
 | `MLSR_BGNG_YMD` | `ds_schList` | 10,713 | 100.0% | 283 |  | · |  | '20260901'×872 \| '20260701'×797 \| '20260601'×639 |
 | `MLSR_END_YMD` | `ds_schList` | 10,713 | 100.0% | 323 |  | · |  | '20260831'×854 \| '20260930'×746 \| '20260630'×589 |
-| `MLSR_ITEM_YN` | `ds_mlsrItemInfo` | 181,150 | 100.0% | 2 |  | · |  | 'Y'×100,251 \| 'N'×80,899 |
+| `MLSR_ITEM_YN` | `ds_mlsrItemInfo` | 181,150 | 100.0% | 2 |  | · | [T7](../../SOURCE-FIELDS.md#t7-ds_itemlist는-품목-목록이-아니다) | 'Y'×100,251 \| 'N'×80,899 |
 | `MN_TRMT_LMT_YN` | `ds_info` | 181,150 | 100.0% | 2 |  | · | [T13](../../SOURCE-FIELDS.md#t13-rbid_yn은-재입찰-신호가-아니다) | 'Y'×114,599 \| 'N'×66,551 |
 | `MRKT_EXMN_PRC` | `ds_schList` | 10,713 | 100.0% | 10578 |  | · |  | '1374500'×3 \| '686000'×3 \| '1448500'×2 |
 | `MRKT_EXMN_PRC_RLS_YN` | `ds_info` | 181,150 | 100.0% | 2 |  | · |  | 'N'×174,905 \| 'Y'×6,245 |
@@ -317,7 +318,7 @@
 | `PURR_NM` | `ds_list` | 35,079 | 100.0% | 1428 |  | · |  | '목포혜인여자고등학교'×108 \| '목포홍일고등학교'×108 \| '목포덕인고등학교'×108 |
 | `QLFCT_SCORE_SEQ` | `ds_info` | 181,150 | 100.0% | 12 |  | · |  | '0'×178,915 \| '11000'×999 \| '11'×684 |
 | `QLFC_LMT_ITM_CD` | `ds_info` | 181,150 | 100.0% | 2 | →`QLFC_LMT_ITM_CD_NM` 이름다중 0/2 | · | [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | '009'×149,722 \| '001'×31,428 |
-| `QLFC_LMT_ITM_CD` | `ds_schList` | 19,487 | 100.0% | 1 |  | · |  | '009'×19,487 |
+| `QLFC_LMT_ITM_CD` | `ds_schList` | 19,487 | 100.0% | 1 |  | · | [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | '009'×19,487 |
 | `QLFC_LMT_ITM_CD2` | `ds_info` | 181,150 | 100.0% | 2 |  | · | [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | '009'×133,078 \| '001'×48,072 |
 | `QLFC_LMT_ITM_CD2` | `ds_schList` | 19,487 | 100.0% | 1 |  | · |  | '009'×19,487 |
 | `QLFC_LMT_ITM_CD3` | `ds_info` | 181,150 | 100.0% | 2 |  | · | [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | '009'×152,823 \| '001'×28,327 |
@@ -325,7 +326,7 @@
 | `QLFC_LMT_ITM_CD4` | `ds_info` | 181,150 | 100.0% | 2 |  | · | [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | '009'×174,054 \| '001'×7,096 |
 | `QLFC_LMT_ITM_CD_NM` | `ds_info` | 181,150 | 100.0% | 2 |  | · | [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | '자격제한 없음'×149,722 \| 'HACCP인증업체로 참가자격을 제한합니다.'×31,428 |
 | `QLFC_LMT_YN` | `ds_info` | 179,036 | 100.0% | 2 |  | · |  | 'N'×112,195 \| 'Y'×66,841 |
-| `QLF_LIMIT_ITEM` | `ds_SelectUnionPurceTgtListR` | 19,487 | 100.0% | 1 |  | · |  | '009'×19,487 |
+| `QLF_LIMIT_ITEM` | `ds_SelectUnionPurceTgtListR` | 19,487 | 100.0% | 1 |  | · | [T9](../../SOURCE-FIELDS.md#t9-자격제한-코드는-하나가-아니라-넷이다) | '009'×19,487 |
 | `QLF_LIMIT_ITEM2` | `ds_SelectUnionPurceTgtListR` | 19,487 | 100.0% | 1 |  | · |  | '009'×19,487 |
 | `QLF_LIMIT_ITEM3` | `ds_SelectUnionPurceTgtListR` | 19,487 | 100.0% | 1 |  | · |  | '009'×19,487 |
 | `QLF_RESULT` | `ds_bidList` | 2,225 | 100.0% | 2 |  | 계약 |  | '001'×2,152 \| '002'×73 |
@@ -417,6 +418,13 @@
 | `WAIVER_CNT` | `ds_bidList` | 8,605,417 | 100.0% | 6 |  | 계약 |  | '0'×8,604,210 \| '1'×1,131 \| '2'×41 |
 | `WA_ARA_OFOE_YN` | `ds_info` | 181,150 | 100.0% | 1 |  | · |  | 'N'×181,150 |
 | `WITHDRAWAL_YN` | `ds_bidList` | 8,605,417 | 100.0% | 2 |  | 읽음 |  | 'N'×7,790,239 \| 'Y'×815,178 |
+
+## 색인에 줄이 없는 걸린 자리
+
+판정 문서가 함정으로 지목했는데 위 표에 줄이 없는 자리다. **오타일 수도 있고 census가 싣지 않는 키일 수도 있다.**
+선언만 되고 값이 한 번도 안 온 키와 우리가 부르지 않는 엔드포인트의 column이 여기 남는다.
+
+- `ds_info.CANCEL_REASON`
 
 ## 읽지 못한 줄
 

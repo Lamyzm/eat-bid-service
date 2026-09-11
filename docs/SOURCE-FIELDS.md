@@ -130,14 +130,16 @@
 
 ### T7. `ds_itemList`는 품목 목록이 아니다
 
-- 걸린 자리: `ds_itemList`, `ds_itemList.MLFD_NM`, `ds_itemList.CNSLT_NO`, `ds_itemList.ETN_BID_LINE_ID`, `ds_itemList.STO_MNL_FILENAME`, `ds_itemList.STO_MNL_FILEPATH`
+- 걸린 자리: `ds_itemList`, `ds_itemList.MLFD_NM`, `ds_itemList.MLFD_STT`, `ds_itemList.CNSLT_NO`, `ds_itemList.ETN_BID_LINE_ID`, `ds_mlsrItemInfo.MLSR_ITEM_YN`
 - 근거: `AUDIT-SOURCE.md` §3 · §3.1 · §10.1
 
 이름 때문에 "공고에 딸린 품목들"로 읽히지만 **급식 구매건 한 줄**이다. 이 블록은 한 응답에서
 1행을 넘은 적이 없고(§3), 다수품목은 이 블록으로 표현되지 않는다.
 
-- `MLFD_NM`이 그 구매건의 이름이다. 다만 상세 응답에서는 **전 코퍼스에서 한 번도 채워지지 않았다**(§3.1).
-  값이 오는 자리는 학교 회계 쪽이며 여기서는 빈 문자열이다.
+- **`MLFD_NM`이 그 구매건의 이름이다.** 이 블록에서는 100% 채워져 있고 "2026년 6월 학교급식
+  식재료(공산품) 구입" 같은 값이 온다.
+  **같은 이름이 `ds_info`에도 선언되는데 그쪽은 전 코퍼스에서 한 번도 채워지지 않는다**(§3.1).
+  `ds_info`에서 이 이름을 찾아 비어 있다고 "소스가 안 준다"로 결론 내면 틀린다 — 블록을 봐라.
 - `ETN_BID_LINE_ID`는 줄 번호지 코드가 아니다(§10.1).
 - `STO_MNL_FILENAME`·`STO_MNL_FILEPATH`(현품설명서)도 항상 빈칸이다. 현품설명서는
   `ds_info.ATCHFL_ID` + 첨부 엔드포인트로만 닿는다(§3.1 · §1.1).
@@ -156,18 +158,18 @@
 
 ### T9. 자격제한 코드는 하나가 아니라 넷이다
 
-- 걸린 자리: `ds_info.QLFC_LMT_ITM_CD`, `ds_info.QLFC_LMT_ITM_CD2`, `ds_info.QLFC_LMT_ITM_CD3`, `ds_info.QLFC_LMT_ITM_CD4`, `ds_info.QLFC_LMT_ITM_CD_NM`, `ds_info.ETC_QLFC_LMT_CN`
+- 걸린 자리: `ds_info.QLFC_LMT_ITM_CD`, `ds_info.QLFC_LMT_ITM_CD2`, `ds_info.QLFC_LMT_ITM_CD3`, `ds_info.QLFC_LMT_ITM_CD4`, `ds_info.QLFC_LMT_ITM_CD_NM`, `ds_info.ETC_QLFC_LMT_CN`, `ds_schList.QLFC_LMT_ITM_CD`, `ds_SelectUnionPurceTgtListR.QLF_LIMIT_ITEM`
 - 근거: `docs/audit-source/census-detail.txt` §ds_info · `AUDIT-SOURCE.md` §8.2
 
 `QLFC_LMT_ITM_CD` 하나만 보고 "자격제한 없음"으로 판정하면 2·3·4번 자리의 제한을 놓친다.
 넷은 채움 분포가 서로 다르다(색인의 `고유`·`값 예시` 칸을 보라).
 
-이름 필드 `QLFC_LMT_ITM_CD_NM`은 **첫 번째 코드에만 대응한다.** 2·3·4에 붙는 이름 필드는 없다.
-**나머지 셋의 코드가 무슨 제한을 뜻하는지는 확인하지 않았다** — 첫 번째 코드의 값 어휘와 같은지도
-재지 않았다.
+이름 필드는 `QLFC_LMT_ITM_CD_NM` 하나뿐이고 **짝 대조가 된 것은 첫 번째 코드뿐이다.** 2·3·4에 붙는
+이름 필드는 없다. **나머지 셋이 무슨 제한을 뜻하는지, 첫 번째와 같은 값 어휘인지는 확인하지 않았다.**
 
-같은 공고의 `ds_SelectUnionPurceTgtListR`에는 `QLF_LIMIT_ITEM`·`QLF_LIMIT_ITEM2`·`QLF_LIMIT_ITEM3`이라는
-**또 다른 이름**으로 세 자리가 온다. 같은 축인지 모른다.
+이름은 세 축에 흩어져 있다. 공동구매 블록(`ds_SelectUnionPurceTgtListR`)은 같은 세 자리를
+`QLF_LIMIT_ITEM`·`QLF_LIMIT_ITEM2`·`QLF_LIMIT_ITEM3`이라는 **또 다른 이름**으로 주고,
+`ds_schList`는 `QLFC_LMT_ITM_CD` 계열 이름을 쓴다. **셋이 같은 축인지 모른다.**
 
 기타 자격제한은 코드가 아니라 자유 텍스트(`ETC_QLFC_LMT_CN`)로 온다.
 
@@ -202,10 +204,15 @@
 
 1. **요청 시각에 따라 값이 바뀌는 카운트다운.** 같은 공고를 다시 받으면 달라진다. 사실이 아니므로
    저장하면 안 된다(§6.2).
-2. **선언은 되는데 전 코퍼스에서 한 번도 값이 안 오는 키.** `ds_info.CANCEL_REASON`,
-   `ds_itemList`의 현품설명서 파일 두 개, `ds_bidList`의 적격심사 점수 필드들이 그렇다(§3.1).
+2. **선언은 되는데 전 코퍼스에서 한 번도 값이 안 오는 키.** `ds_info`의 `CANCEL_REASON`·`MLFD_NM`,
+   `ds_itemList`의 `STO_MNL_FILENAME`·`STO_MNL_FILEPATH`(현품설명서), `ds_bidList`의 적격심사 점수
+   필드들이 그렇다. 전체 목록은 §3.1이 소유한다.
    **"필드가 있다"와 "값이 온다"는 다르다.** 적격심사 점수는 비로그인 응답으로는 못 본다 —
    로그인하면 오는지는 모른다(§11).
+
+   ⚠ **이 키들은 생성된 색인에 없다.** census 표가 값이 한 번이라도 온 키만 싣기 때문이다.
+   색인에서 이름을 못 찾았다고 "소스에 그 필드가 없다"로 결론 내지 마라 — §3.1을 함께 봐야 한다.
+   `ds_info.MLFD_NM`이 그 함정의 대표다. 같은 이름이 `ds_itemList`에서는 100% 채워진다(T7).
 3. **초 없는 중복.** `..._DT1`은 `..._DT`의 절단본이다(§6.2).
 
 `ds_eftInfo`는 전 코퍼스에서 컬럼 0개·행 0개다. 비어 있는 것이 정상이고 기다릴 것 없다(§3).
@@ -297,12 +304,16 @@
 | 계약현황·발주계획·견적요청의 코드 함수성 | 안 쟀다. 표본 1페이지만 봤다 | §10.7 |
 | `QLFC_LMT_ITM_CD2`~`CD4`의 값 어휘 | 넷이 따로 온다는 것까지 | T9 |
 | 계약현황 `SGG_CD`의 값 공간 | `ds_areaList`·`ds_compList`와 다르다는 것까지 | §8.4 → T3 |
+| `ds_info` 키 수가 안 맞는다 | §3.1이 적은 "값 등장" 키 수와 색인의 `ds_info` 줄 수가 하나 어긋난다. 어디서 갈리는지 **재보지 않았다.** 두 측정의 시점이 다른 것이 원인일 수 있으나 확인하지 않았다 | §3.1 |
 
 ## 3. 정정 이력 — 옛 문서가 틀렸던 것
 
 `AUDIT-SOURCE.md` §9가 이 자리에 있던 옛 `docs/SOURCE-FIELDS.md`를 정정하고 있었다. 그 파일이
-사라진 뒤에도 정정만 남아 고칠 대상이 없었으므로 **여기로 옮긴다.** 실측 열의 숫자는 옮기지 않고
-근거 절 번호로 보낸다.
+사라진 뒤에도 정정만 남아 고칠 대상이 없었다. **이제 그 정정을 여기가 이어받는다** — 각 줄을
+지금 살아 있는 함정 항목과 짝짓는다.
+
+**실측 숫자는 옮기지 않는다.** 숫자의 권위는 [`AUDIT-SOURCE.md` §9](AUDIT-SOURCE.md)와 그 근거 절에
+그대로 있고, 여기는 "무엇을 잘못 알고 있었나"만 적는다(§0 규칙).
 
 | 옛 서술 | 실측 | 근거 |
 |---|---|---|
@@ -310,13 +321,13 @@
 | `RBID_YN` = "재입찰 여부" | 오해를 부른다. 일반공고에서도 대부분 `Y`다. 재입찰 신호는 `CHG_TP_NM` | §6.1 → T13 |
 | `RNK2`·`RNK3` = "전부 상수" | 아니다. 셋이 서로 다르다 | §6.2 → T15 |
 | 목록의 `PLNPRCE_SUCBD_STD`는 "완전히 다른 값" | 여집합이다. 예외 0 | §4 → T4 |
-| `ds_info` 키 수 · `ds_bidList` "22키 미사용" | 선언 키 수와 값이 오는 키 수가 다르다. 정확한 수는 생성된 색인이 소유한다 | §3.1 |
-| 블록 채움률(표본 추정) | 전수로 다시 쟀다. 수는 색인이 소유한다 | §3 |
+| `ds_info` 키 수 · `ds_bidList` "22키 미사용" | 선언 키 수와 값이 오는 키 수가 다르다. 수는 §9·§3.1이, "우리가 읽는 키"는 색인의 `파서` 칸이 소유한다 | §3.1 → T12 |
+| 블록 채움률(표본 추정) | 전수로 다시 쟀다. 수는 색인의 dataset 대장이 소유한다 | §3 |
 | `SIGUNGU_CD` "사용 예정(지역 축)" | 맞다. 다만 `ds_areaList`와 **다른 축이다** | §8.5 → T1 |
 | `EFT_ALL_AMT` "`BID_CALC_AMT`와 값이 같아 보인다" | 틀렸다. 무효 투찰의 진짜 금액을 담는다 | §10.5 → T14 |
 
-`AUDIT-SOURCE.md` §6.2의 `EFT_ALL_AMT` 항목은 그 문서 §10.5가 자기 자신을 정정한 것이고,
-그 정정도 위 표 마지막 줄로 옮겨 왔다.
+마지막 줄은 옛 문서가 아니라 `AUDIT-SOURCE.md` §6.2가 자기 자신을 정정한 것이다(§10.5).
+감사 문서도 중간에 판정을 뒤집었으므로 그 줄도 함께 이어받는다.
 
 ## 4. 왜 이번에 게이트를 걸지 않았나
 
