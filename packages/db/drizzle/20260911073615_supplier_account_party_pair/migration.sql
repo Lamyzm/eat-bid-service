@@ -1,0 +1,2 @@
+ALTER TABLE "core"."source_supplier_account" DROP CONSTRAINT "source_supplier_account_code_value_key";--> statement-breakpoint
+ALTER TABLE "core"."source_supplier_account" ADD CONSTRAINT "source_supplier_account_code_party_key" UNIQUE("account_code_value_id","supplier_party_id");

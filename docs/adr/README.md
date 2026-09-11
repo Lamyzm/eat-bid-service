@@ -47,7 +47,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0030](0030-competitor-count-is-the-primary-material.md) | Accepted | 화면의 주인공을 경쟁자 수와 승률 곡선으로 (학교별 추이는 내리지 않고 자리만 뒤로) |
 | [0031](0031-decision-screen-frontend-rendering.md) | Accepted | 결정 화면의 상태 소유(nuqs)·직접 그린 차트·headless 표·측정 후 가상화 |
 | [0032](0032-authentication-and-authorization-boundary.md) | Accepted | 인증·인가 경계: Nest가 Better Auth(Google)를 마운트, principal bigint, 역할 owner\|member, 명시적 계정 초기화, 등록된 사업자는 워크스페이스 안에서만 유일하고 core 연결은 조회가 파생 |
-| [0033](0033-bid-submission-partitioning-and-supplier-core.md) | Accepted | 투찰·낙찰·업체 core 테이블 다섯, `core.bid_submission`의 개찰 연도 range 파티션, `auction.v2` 발행 개방 |
+| [0033](0033-bid-submission-partitioning-and-supplier-core.md) | Accepted | 투찰·낙찰·업체 core 테이블 다섯, `core.bid_submission`의 개찰 연도 range 파티션, `auction.v2` 발행 개방 (§1의 계정→party 영구 링크 전제는 [0049](0049-supplier-identity-is-observed-per-submission.md)가 대체) |
 | [0034](0034-mart-build-identity-and-atomic-activation.md) | Accepted | `mart.build` 빌드 원장, partial unique index 활성 포인터와 상태 trigger, mart 단위 전량 재빌드, build 속성으로서의 지역 코드 체계 |
 | [0035](0035-administrative-region-canonical-and-mapping.md) | Accepted | 행정안전부 법정동코드 canonical, 시도·시군구 grain, release별 계층, 별도 표의 좌표, 증거 기반 eaT 매핑 (재선언 ledger는 [0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md)로 철거) |
 | [0036](0036-read-cache-tags-and-invalidation-owner.md) | Accepted | 결정 화면 읽기 캐시의 안정 태그 어휘, dataplane이 부르는 web `/internal/cache/revalidate`, 유계 `cacheLife` (0031 7항 대체) |
@@ -62,6 +62,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0046](0046-telemetry-wire-correlation-and-alert-origin.md) | Accepted | 계측은 OpenTelemetry 규격, 상관 식별자는 W3C trace context, 파이프라인 진실은 PostgreSQL이고 지표는 파생물이라 업무 알림은 DB에서 내며, 멈춤은 기대 문장으로 잡고 생존 확인만 클러스터 밖에 둔다 (저장·대시보드·프론트 오류 도구는 교체 가능한 자리) |
 | [0047](0047-relative-import-depth-and-alias-resolution.md) | Accepted | 상대 경로 import는 `../` 한 단계까지, 별칭은 각 패키지의 module 체계가 이미 소유한 해석기(`apps/web`의 `@/`)만 쓰고 나머지는 구조로 해결하며, 해석기가 없는 `apps/server`·`packages/contracts`는 module format 정리를 조건으로 검사에서 뺀다 (판정은 [0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md)의 변경 범위) |
 | [0048](0048-workspace-region-preference-on-eat-eligibility-areas.md) | Accepted | 워크스페이스 관심 지역을 eaT 참가제한지역 코드로 저장(행안부 canonical은 유지하고 매핑은 미룸), 계층은 조회가 아니라 선택 시점의 입력 보조, 제한지역 미관측은 목록에 남기고 표본 수를 매칭·미관측으로 분해, 저장 전 실제 조회 미리보기 |
+| [0049](0049-supplier-identity-is-observed-per-submission.md) | Accepted | 사업자번호는 계정의 영구 속성이 아니라 투찰 시점의 관측이며, 계정→party 영구 링크를 없애고 그 시점의 party를 투찰이 소유한다 (0033 §1의 영구 링크 전제를 대체하고 party 유일 키는 유지) |
 
 ## 새 ADR 형식
 
