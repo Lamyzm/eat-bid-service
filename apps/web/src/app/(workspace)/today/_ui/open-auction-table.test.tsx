@@ -35,8 +35,13 @@ describe('열린 공고 표', () => {
     const amber = [...screen.container.querySelectorAll('.text-pushed')];
     expect(amber.length).toBe(1);
     expect(amber[0]!.textContent).toContain('D-1');
-    // 색은 마감 셀 안에만 있다. 헤더·기관·금액 셀에는 없다.
+    // 색은 마감 셀 안에만 있다. 헤더·기관·금액 셀에는 없다. 한동안 제한지역 미관측 배지가 amber를
+    // 빌려 쓰고 있었고, 그때 이 검사의 fixture에 미관측 행이 없어서 규칙이 깨진 것을 못 봤다.
+    for (const node of [...destructive, ...amber]) {
+      expect(node.closest('[data-slot="closes"]')).not.toBeNull();
+    }
     expect(screen.container.querySelectorAll('thead .text-destructive, thead .text-pushed').length).toBe(0);
+    expect(screen.container.textContent).toContain('제한지역 미관측');
   });
 
   test('기관 요약이 없는 행은 요약 열을 미확인으로 두고 행을 숨기지 않는다', () => {

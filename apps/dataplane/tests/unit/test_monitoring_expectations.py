@@ -5,7 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from eatbid.monitoring.expectations import EXPECTATIONS, Expectation, Violation, evaluate
+from eatbid.monitoring.expectations import (
+    EXPECTATIONS,
+    Expectation,
+    Violation,
+    evaluate,
+)
 from eatbid.monitoring.notify import format_message, format_resolution
 from eatbid.monitoring.runner import run_expectation_check
 from eatbid.monitoring.state import (
