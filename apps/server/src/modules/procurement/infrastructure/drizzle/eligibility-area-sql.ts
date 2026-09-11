@@ -62,11 +62,17 @@ export function eligibilityMatchedExpression(revisionColumn: SQL): SQL {
 }
 
 /**
- * 이 체계의 코드와 최신 관측 라벨을 질의당 한 번만 푸는 CTE다.
+ * 이 체계의 코드와 최신 관측 라벨을 한 이름으로 묶는 CTE다. 목록과 선택 화면이 라벨을 서로 다르게
+ * 고르면 같은 코드가 두 화면에서 다른 이름으로 불린다.
  *
- * 라벨을 행마다 다시 찾으면 100건짜리 페이지에서 코드 조회가 1,000번을 넘는다(공고당 제한지역이 실측
- * 중앙값 11개). 코드가 186개뿐이라 한 번 펼쳐 두고 재사용하는 편이 싸다. `left(code, 2)`는 그 시도의
- * `전체` 코드를 가리키는 접두사이며 선택 목록만 그것을 읽는다.
+ * **재사용을 강제하지는 않는다.** PostgreSQL은 한 번만 참조되는 CTE를 inline하므로 목록 질의에서는
+ * 행마다 라벨을 다시 찾는다. `materialized`를 붙이지 않는 이유는 그편이 실측에서 이기기 때문이다 —
+ * 라벨 조회는 `code_label_observation_value_observed_idx` 위 0.007ms짜리이고 페이지 하나에서 170회
+ * 남짓 돈다(복원본 build 212, 101행 페이지). 186행을 미리 펼쳐 index 없는 CTE scan으로 만드는 쪽이
+ * 오히려 비싸다. 반복 횟수를 줄이는 자리는 여기가 아니라 lateral을 페이지 행에만 돌리는
+ * `open-auction-queries.ts`의 `page_rows`다.
+ *
+ * `left(code, 2)`는 그 시도의 `전체` 코드를 가리키는 접두사이며 선택 목록만 그것을 읽는다.
  */
 export function eligibilityAreaCodeCte(): SQL {
   return sql`

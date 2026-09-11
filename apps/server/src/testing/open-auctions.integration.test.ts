@@ -322,6 +322,11 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
           sampleCount: 2,
           asOf: "2026-09-07T01:00:00Z",
           region: null,
+          // 참가제한지역으로 좁히지 않은 요청이라 세 값이 모두 null이다. 0이 아니다 — 0은 "걸렀는데
+          // 하나도 없다"는 사실이고 null은 "그 축으로 묻지 않았다"는 뜻이다(ADR 0048 결정 3).
+          eligibilityArea: null,
+          eligibilityMatchedCount: null,
+          eligibilityUnobservedCount: null,
           item: "축산",
           closesWithinHours: null,
           baseAmountMin: null,
