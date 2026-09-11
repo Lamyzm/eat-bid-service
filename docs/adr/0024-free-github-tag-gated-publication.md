@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-01
 - Supersedes: 없음
+- 이후 변경: [0050](0050-verification-authority-and-merge-gate.md)이 "branch protection을 쓸 수 없다"는 전제를, [0051](0051-dev-overlay-and-unsigned-main-image-lane.md)이 "유일한 canonical ref" 범위를 prod로 한정한다. 태그가 prod publication을 시작한다는 결론은 유지된다.
 
 ## Context
 
