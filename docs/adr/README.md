@@ -63,6 +63,8 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0047](0047-relative-import-depth-and-alias-resolution.md) | Accepted | 상대 경로 import는 `../` 한 단계까지, 별칭은 각 패키지의 module 체계가 이미 소유한 해석기(`apps/web`의 `@/`)만 쓰고 나머지는 구조로 해결하며, 해석기가 없는 `apps/server`·`packages/contracts`는 module format 정리를 조건으로 검사에서 뺀다 (판정은 [0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md)의 변경 범위) |
 | [0048](0048-workspace-region-preference-on-eat-eligibility-areas.md) | Accepted | 워크스페이스 관심 지역을 eaT 참가제한지역 코드로 저장(행안부 canonical은 유지하고 매핑은 미룸), 계층은 조회가 아니라 선택 시점의 입력 보조, 제한지역 미관측은 목록에 남기고 표본 수를 매칭·미관측으로 분해, 저장 전 실제 조회 미리보기 |
 | [0049](0049-supplier-identity-is-observed-per-submission.md) | Accepted | 사업자번호는 계정의 영구 속성이 아니라 투찰 시점의 관측이며, 계정→party 영구 링크를 없애고 그 시점의 party를 투찰이 소유한다 (0033 §1의 영구 링크 전제를 대체하고 party 유일 키는 유지) |
+| [0050](0050-verification-authority-and-merge-gate.md) | Accepted | `main`은 서버가 보호하고 병합 판정은 CI 하나만 하며, 검증은 질문이 다른 세 고리(작업 중·병합 전·릴리스)로 나뉘고 같은 검사를 두 고리에서 돌리지 않는다 (0024의 권한 근거를 대체하고 태그의 prod publication 결론은 유지) |
+| [0051](0051-dev-overlay-and-unsigned-main-image-lane.md) | Accepted | manifest를 `infra/base` + `infra/envs/{dev,prod}`로 가르고 이미지 레인을 둘(`main` 병합의 비서명 dev 레인, 태그의 서명 prod 레인)로 나누며 dev는 소스를 부르지 않는다 |
 
 ## 새 ADR 형식
 

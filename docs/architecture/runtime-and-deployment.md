@@ -383,8 +383,9 @@ GitHub monorepo
 ### 5.1 push에서 배포까지의 연결 (2026-09-02 확정)
 
 ```text
-main push
+pull request
   → validate.yml   architecture check · test · build · Playwright (읽기 전용, 발행 권한 없음)
+  → 초록이어야 main에 병합된다. 병합 판정은 여기 하나뿐이다(ADR 0050).
 
 release/v<semver> annotated tag push
   → build.yml preflight   tag가 annotated이고 peel한 commit이 현재 origin/main HEAD인지 확인
@@ -394,9 +395,13 @@ release/v<semver> annotated tag push
   → Argo CD               main의 infra/product를 동기화
 ```
 
-- **코드 권위는 `main`, 발행 권위는 tag다.** ADR 0024대로 GitHub Free에서는 branch를 서버가 보호할 수
-  없으므로 `main` push와 수동 실행에는 publication 권한을 주지 않는다. 불변 annotated tag
-  `release/v<MAJOR>.<MINOR>.<PATCH>`만 build workflow를 시작한다.
+- **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
+  pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
+  권위인 이유는 이제 branch를 못 막아서가 아니라 prod가 매 병합마다 움직이면 안 되기 때문이다. 불변
+  annotated tag `release/v<MAJOR>.<MINOR>.<PATCH>`만 build workflow를 시작한다.
+- **검증은 질문이 다른 세 고리다.** 작업 중(커밋 훅, 변경 범위)·병합 전(CI, pull request)·릴리스(CI,
+  tag). 같은 검사를 두 고리에서 돌리지 않으며, 로컬 push 게이트는 판정자가 아니라 main 직접 push를 먼저
+  거절하는 안내다.
 - **배포 대상은 `main`의 `infra/product` 하나다.** `infra/k8s/base`는 product overlay가 참조하는 기반일
   뿐 직접 동기화 대상이 아니다. base만 보면 WorkflowTemplate·CronWorkflow·migration Job·Secret 참조가
   클러스터에 존재하지 않는다.
@@ -411,6 +416,30 @@ release/v<semver> annotated tag push
   커밋해도 클러스터의 Application은 그대로이며, 실제 전환은 별도 승인 뒤 `kubectl apply`로 이뤄진다.
   절차는 [main-authority-cutover.md](../operations/main-authority-cutover.md)를 따른다.
 
+### 5.2 환경 둘과 이미지 레인 둘 (ADR 0051, 실행 중)
+
+[ADR 0051](../adr/0051-dev-overlay-and-unsigned-main-image-lane.md)이 결정한 모양이다. 아래 표의 dev 열은
+아직 서 있지 않으며 실행은 EAT-128·EAT-130이 소유한다.
+
+| | dev | prod |
+|---|---|---|
+| manifest | `infra/envs/dev` | `infra/envs/prod` |
+| 무엇이 이미지를 만드나 | `main` 병합 | annotated tag `release/v*` |
+| 이미지 태그 | `main-<sha>` | `v<semver>` |
+| 서명·증명 | 없음 | cosign + SLSA |
+| 수집 CronWorkflow | suspend | 동작 |
+| 데이터 | prod 덤프 첫 채움 + R2 replay | 실제 수집 |
+| 공개 주소 | `dev.eatbid.net` | `eatbid.net` |
+
+- 공통 manifest는 `infra/base`가 소유하고 환경은 overlay의 **값만** 다르다. 애플리케이션 코드와 workflow
+  정의에 환경 분기를 만들지 않는다([ADR 0046](../adr/0046-telemetry-wire-correlation-and-alert-origin.md)
+  결정 2와 같은 규칙이다).
+- 두 레인은 서로의 overlay 파일을 건드리지 않는다. dev overlay의 digest 커밋은 CI를 다시 돌리지 않고,
+  cosign identity regexp는 tag 레인에만 둔다.
+- dev는 eaT를 부르지 않는다. 한 소스에 붙는 클러스터는 하나뿐이다.
+- local은 환경이 아니라 개발자의 기계이며 dev의 DB를 본다. staging을 두지 않는다.
+- dev가 `main`을 따라가므로 ADR 0050의 `main` 보호가 선행 조건이다. 순서를 바꾸면 dev는 깨진 커밋을 더
+  빨리 배포하는 장치가 된다.
 ## 6. 배포 토폴로지
 
 초기 운영 환경은 이 PC의 Hyper-V VM `eatbid-k3s`에서 도는 단일 노드 k3s다(EAT-50). Docker Desktop의
@@ -458,7 +487,30 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 
 ## 8. 관측성과 운영
 
-처음부터 구조화 JSON 로그와 run/correlation ID를 사용한다. 최소 지표:
+권위는 [ADR 0046](../adr/0046-telemetry-wire-correlation-and-alert-origin.md)이다. 이 절은 그 결정이
+런타임에서 어떤 모양인지만 적는다.
+
+### 8.1 증거는 넷이고 주인이 다르다
+
+| 증거 | 무엇 | 어디 | 수명 |
+|---|---|---|---|
+| 원본 관측 | eaT 응답 원문 | R2 raw 객체 | 영구, 불변 |
+| 업무 사실 | 해석된 공고·투찰·낙찰 | PostgreSQL `ingest`·`core` | 영구, 권위 |
+| 실행 흔적 | Argo workflow 로그 | R2 `workflow-logs/` | 파드보다 오래 |
+| 런타임 신호 | 애플리케이션 로그·추적·지표 | collector로 내보냄 | 유실 가능한 사본 |
+
+앞의 셋은 이미 자리가 있다. 마지막 하나만 아직 목적지가 없어서 파드가 죽으면 사라진다. 그것을 채우는
+것이 EAT-173이다.
+
+### 8.2 규격과 상관 식별자
+
+- 계측 규격은 OpenTelemetry(OTLP)다. web·server·dataplane과 브라우저가 같은 규격으로 내보내고, 저장소
+  업체의 SDK를 제품 코드에 직접 심지 않는다.
+- 환경별 차이는 collector endpoint 값 하나뿐이다. dev에 별도 관측 스택을 세우지 않는다.
+- 프로세스 경계는 W3C `traceparent`로 잇는다. 모든 로그 줄에 `trace_id`와 `build_sha`를 달고, dataplane은
+  `run_id`와 `source_release_id`를 더 단다. 사람이 읽고 옮겨 적는 `x-request-id`는 유지한다.
+
+구조화 로그의 최소 필드는 그대로다.
 
 - source request/response count, latency, status
 - expected `TOT_CNT` 대비 discovered/captured/published count
@@ -468,8 +520,46 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 - active publication/build age
 - DB storage, connection, slow query, R2 write/read error
 
-초기에는 로그와 PostgreSQL run ledger로 시작할 수 있다. 운영 규모가 생기면 OpenTelemetry
-Collector, Prometheus/Grafana/Loki를 추가한다. 제품 경로에 특정 관측 벤더 SDK를 직접 결합하지 않는다.
+### 8.3 알림은 지표가 아니라 기대에서 난다
+
+파이프라인의 진실은 PostgreSQL이고 지표는 파생물이다. 그래서 업무 사실이 걸린 알림과 대시보드는 DB를
+읽는다. 지표에서 내면 지표 수집이 멈췄을 때 조용히 정상으로 보인다.
+
+사고는 대부분 예외가 아니라 **조용한 멈춤**이라 로그 수집으로는 안 잡힌다. 명시된 기대를 주기적으로
+평가한다. 각 기대는 대상·판정 질의·임계·대응 문서를 갖는다.
+
+| 기대 | 원천 | 상태 |
+|---|---|---|
+| 실행 중 backfill이 임계 시간 안에 진행했다 | PostgreSQL | 있음 |
+| 임계 나이를 넘은 `planned` release가 없다 | PostgreSQL | 있음 |
+| 수집이 임계 시간 안에 관측을 남겼다 | PostgreSQL | 있음 |
+| 마지막 성공 백업이 임계 시간 안에 있다 | PostgreSQL·Workflow | 없음 |
+| 노드와 Argo Application이 정상이다 | Kubernetes API | 없음 |
+| 원격 `main`의 최신 CI가 초록이다 | GitHub | 없음 |
+| 운영에 도는 image digest가 저장소가 가리키는 것과 같다 | Kubernetes API·저장소 | 없음 |
+
+마지막 줄은 ADR 0046 결정 5의 목록에 없던 것을 더한 것이다. 2026-09-11에 기대 검사 CronWorkflow가 15분마다
+실패했는데 원인이 "배포된 image가 그 명령을 모르는 옛 것"이었고, 그 사실을 알아챈 경로가 사람의 조회였다.
+저장소와 운영이 벌어진 것 자체가 기대로 표현될 수 있다.
+
+알림의 출처는 둘, 도착지는 하나다. 업무·파이프라인 기대는 클러스터 **안**에서 DB를 읽어 내고, 생존 확인은
+클러스터 **밖**에 둔다. 안에 있는 감시는 기계가 죽을 때 함께 죽는다. 생존 확인의 방향은 미는 쪽이다.
+밖에서 당기려면 Kubernetes API나 내부 지표를 외부에 열어야 하고 그것은 §7이 금지한다. 같은 창에서 생긴
+위반은 묶어서 한 번 보내고 해소될 때까지 반복하지 않는다.
+
+### 8.4 교체 가능한 자리
+
+아래는 이 시점의 선택이며 ADR을 바꾸지 않고 갈아끼운다. 갈아끼우기 쉽다는 사실 자체가 §8.2의 목적이다.
+
+| 자리 | 이 시점의 선택 | 켜는 조건 |
+|---|---|---|
+| 로그·지표·추적 저장 | OpenObserve(단일 바이너리, R2 backend, OTLP 수신) | R2 보관만으로 안 되는 조회가 두 번 필요할 때 |
+| 대시보드 | Grafana(PostgreSQL을 직접 datasource로) | §8.3의 기대와 알림이 동작한 뒤 |
+| 프론트 오류 분류 | Sentry SaaS | 운영자 아닌 사용자가 생길 때, 유입 제어와 같은 변경에서 |
+
+대시보드는 감시가 아니다. 사람이 볼 때만 값을 하므로 §8.3이 없는 상태에서 대시보드부터 만들지 않는다.
+Prometheus·Loki·Tempo·Grafana 넷을 전개하는 안은 12GB 단일 노드에서 DB와 메모리를 다투므로 각 신호를
+따로 키워야 할 규모가 증명된 뒤에 다시 본다.
 
 ## 9. 백업과 복구
 
@@ -492,12 +582,13 @@ Collector, Prometheus/Grafana/Loki를 추가한다. 제품 경로에 특정 관�
 - Argo Workflows, R2 raw, PostgreSQL, Drizzle migrations
 - Python `uv`, Pydantic, Ruff, Pyright, pytest
 - 구조화 로그, `pg_trgm`, Infisical 로컬 주입 계약, run/correlation ID
+- OpenTelemetry 계측과 W3C trace context, 기대 기반 알림(§8.2·§8.3)
 - Kubernetes Auth + External Secrets Operator는 실제 workload 전환 issue에서 도입
 
 측정 후 도입:
 
 - CloudNativePG 또는 managed PostgreSQL
-- OpenTelemetry Collector + Prometheus/Grafana/Loki
+- OpenObserve 단일 저장소(OTel 계측 자체는 보류가 아니라 §8.2의 기본값이다)
 - 복잡한 mart가 충분히 늘어난 뒤 dbt
 - 읽기 병목 뒤 read replica
 - PostgreSQL로 감당하기 어려운 반복 scan/외부 소비자가 증명된 뒤 Parquet export
