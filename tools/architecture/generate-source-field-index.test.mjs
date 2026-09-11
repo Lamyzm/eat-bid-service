@@ -4,19 +4,17 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { OUTPUT, buildIndex, generate } from "./generate-source-field-index.mjs";
 import {
   CENSUS_DETAIL,
   CENSUS_LIST,
   JUDGEMENT_DOCUMENT,
-  OUTPUT,
-  buildIndex,
-  generate,
   headingAnchor,
   isNamePairOf,
   parseCensusKeys,
   parseContractDatasets,
   parseTraps,
-} from "./generate-source-field-index.mjs";
+} from "./source-field-index/sources.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const read = (file) => readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n");
