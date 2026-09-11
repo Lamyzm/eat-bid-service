@@ -36,6 +36,10 @@ BID_LIST_DATASET = "ds_bidList"
 AWARDED_STATUS_CODE = "002"
 # 원본 순위 2를 그대로 2등으로 읽는다. "유효 투찰 중 두 번째"로 다시 세면 하한 판정을 우리가 만들게
 # 되는데, 소스에는 그 판정이 없다(AGENTS 3·8).
+#
+# 여기서 읽는 순위는 `RNK` 하나다. 같은 블록에 `RNK2`·`RNK3`가 더 있고 셋은 서로 다른 값이지만
+# **무엇이 다른지 모른다**(`docs/SOURCE-FIELDS.md` T15). 모르는 축을 섞지 않으려고 하나만 읽는다.
+# 낙찰자는 순위가 아니라 `BID_STT`가 정한다 — 공고당 정확히 한 행이다.
 _RUNNER_UP_RANK = 2
 _MAX_DRAW_NUMBERS = 8
 
@@ -63,6 +67,10 @@ def _submission(row: Mapping[str, str]) -> NormalizedBidSubmission:
     amount = optional_money(row, "BID_CALC_AMT")
     if amount is None:
         raise ValueError("BID_CALC_AMT is required on an observed roster row")
+    # `EFT_ALL_AMT`를 `BID_CALC_AMT`의 중복으로 보고 버리지 마라. 하한 미달 투찰에서 소스는
+    # `BID_CALC_AMT`를 1e13대 sentinel로 가리지만 `EFT_ALL_AMT`에는 실제 투찰금액을 남긴다
+    # (`docs/SOURCE-FIELDS.md` T14). 그래서 둘을 다른 자리에 싣는다. 이름이 비슷한 `ds_info`의
+    # `EFT_ALL_AMT_ENC`는 다른 블록의 다른 필드이고 의미를 모른다 — 여기로 끌어오지 마라.
     status = optional_scheme_value(row, BID_STATUS)
     if status is None:
         raise ValueError("BID_STT is required on an observed roster row")

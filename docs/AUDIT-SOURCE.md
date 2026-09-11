@@ -11,6 +11,11 @@
 | 엔드포인트 | Nexacro 앱 정의(`App_Desktop.xadl.js`)→ 비로그인 메뉴 데이터셋 → **화면 23개의 폼 파일 실측** → 미호출 엔드포인트 **실제 호출** |
 | 코드 함정 | 모든 `_CD`/`_ID`/`_STT` 필드에 대해 **같은 데이터셋 안 접두어 짝(`X_CD`→`X_NM`)이 함수인지** 전수 대조 |
 
+**필드 이름 하나로 찾고 싶다면 이 문서가 아니라 사전을 먼저 열어라.**
+[`docs/SOURCE-FIELDS.md`](SOURCE-FIELDS.md)가 판단(같은 이름 다른 어휘·축 구분·모르는 것)을,
+[생성된 색인](audit-source/generated/source-field-index.md)이 (dataset, 필드)마다의 측정값을 갖는다.
+이 문서는 그 판단들이 나온 **원본 감사 기록**이며 절 번호로 인용된다.
+
 원자료(기계 생성, 이 문서의 근거):
 `docs/audit-source/census-detail.txt` · `census-list.txt` · `invariants.txt` ·
 `code-name-pairs.txt` · `code-name-pairs2.txt` · `endpoints.json` ·
@@ -315,19 +320,16 @@ ds_pList ds_compList ds_areaList ds_schList ds_eftInfo ds_agreFee ds_elsgnCn ds_
 
 ---
 
-## 9. 문서가 틀렸던 것 — `docs/SOURCE-FIELDS.md` 정정
+## 9. 문서가 틀렸던 것 — 정정은 사전으로 옮겼다
 
-| 기존 서술 | 실측 |
-|---|---|
-| `MN_TRMT_LMT_YN` = "단독입찰 허용 여부" (§4.2) | **아니다.** `MAIN_ITEMS` 존재 여부와 **완전 동치**(183,777건 예외 0). 단독입찰은 `SGNS_BID_PRCS_MTHD_CD_NM` |
-| `RBID_YN` = "재입찰 여부" (§4.2) | **오해를 부른다.** 일반공고에서도 `Y`가 164,038건(91.7%). 재입찰 신호는 `CHG_TP_NM` |
-| `RNK2` · `RNK3` = "전부 상수" (§9.2) | **아니다.** 각각 363·366 고유값. `RNK`와도 다르다 |
-| 목록의 `PLNPRCE_SUCBD_STD`는 "완전히 다른 값" | **여집합(100−하한율)이다.** 예외 0 |
-| `ds_info` **107키** | **116키 선언 · 114키 값 등장** |
-| `ds_bidList` "22키 미사용" | **55키 선언 · 39키 값 등장 · 그중 우리가 읽는 건 10키** |
-| 블록 채움률(`ds_bidHistory` 2.4% 등) | 전수: 2.76%. `ds_SelectUnionPurceTgtListR`은 "0.11 평균행"이 아니라 **3.74% 파일에서 평균 2.87행** |
-| `SIGUNGU_CD` "사용 예정(지역 축)" | 맞다. **다만 `ds_areaList`와 다른 축이다**(§8.5) |
-| (이 문서 §6.2) `EFT_ALL_AMT` "값이 같아 보인다" | **틀렸다.** 74.0%의 공고에서 다르고, 무효 투찰의 진짜 금액을 담고 있다 — §10.5 |
+이 절은 그때 존재하던 `docs/SOURCE-FIELDS.md`의 서술을 한 줄씩 정정하고 있었다. 그 파일이 사라진
+뒤로는 **고칠 대상이 없는 정정만 남아 있었다.**
+
+2026-09-11(EAT-182)에 사전을 다시 만들면서 그 정정표를 **[`docs/SOURCE-FIELDS.md` §3 정정 이력](SOURCE-FIELDS.md)으로
+옮겼다.** 지운 것이 아니라 옮긴 것이고, 각 줄은 이 문서의 근거 절과 새 사전의 함정 항목을 함께 가리킨다.
+
+실측 수치의 권위는 그대로 이 문서(§3·§4·§6·§8·§10)와 `docs/audit-source/` 기계 생성물에 있다.
+필드 이름으로 찾는 일은 사전과 [생성된 색인](audit-source/generated/source-field-index.md)이 맡는다.
 
 ---
 

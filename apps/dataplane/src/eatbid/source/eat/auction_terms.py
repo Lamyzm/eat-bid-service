@@ -21,6 +21,10 @@ def parse_auction_terms(info: Mapping[str, str]) -> NormalizedAuctionTerms:
     90.000이 된다. 하한 금액이나 "하한 미달" 판정은 여기서 만들지 않는다 — 소스가 주는 것은 기준
     비율뿐이고, 그날의 하한 금액은 추첨 결과에서 파생되는 별개의 관측 파생값이다(AGENTS 3·8).
 
+    **이 값을 `ds_info` 밖에서 끌어오지 마라.** 같은 이름의 column이 목록 응답과 `ds_bidHistory`에도
+    있는데 그쪽은 `100 −` 하한율, 즉 여집합이다(`docs/SOURCE-FIELDS.md` T4). 두 응답의 값을 한 열에
+    쌓으면 하한율 분포가 조용히 두 봉우리로 갈라진다.
+
     `SUCBD_DECISION_MTHD_NM`은 "예정가격의 [90]%이상 입찰가 중 최저가 낙찰" 같은 렌더링된 문장이라
     코드 자리에 넣지 않는다. 짝이 되는 코드는 `ds_info`의 `SUCBID_DCSN_MTH_CD`이며 2026-09-04 레이크
     전수 238,306건 전부에 있다(003이 99%). 명단·이력 블록에 있는 `SUCBD_DECISION_MTHD`는 이름이
