@@ -32,19 +32,21 @@
 ## Decision
 
 1. **`main`은 서버가 보호한다.** 직접 push 금지, pull request 필수, required check 초록 필수, 병합 전
-   최신화 필수, force-push와 삭제 금지. 사람에게는 우회 권한을 주지 않는다.
+   최신화 필수, force-push와 삭제 금지. **우회 권한은 사람에게도 기계에도 없다.**
 
-   예외는 하나이고 기계다. 릴리스 publication workflow(`build.yml`의 promote)가 digest를 `main`에
-   normal push하는 경로에만 pull request 요구를 면제한다. 이것은 **검증 면제가 아니라 pull request
-   면제**다. 그 커밋은 사람이 읽을 소스를 담지 않고 `infra/envs/prod`의 digest 줄만 바꾸며, 같은
-   workflow의 test job이 그 커밋에서 이미 전체 gate를 통과했고, preflight가 tag가 현재 `origin/main`
-   HEAD를 가리키는지 증명한 뒤에만 실행된다. normal push이므로 그 사이 `main`이 움직였으면
-   non-fast-forward로 실패한다.
+   기계가 우회를 필요로 하지 않게 만드는 쪽을 택했다. 릴리스 publication은 digest를 `main`이 아니라
+   기계가 소유한 `deploy/prod`에 쓰고, Argo CD는 그 ref를 본다. `main`에 쓰는 경로가 아예 없으므로
+   면제할 것도 없다.
 
-   면제하지 않으면 digest 네 줄짜리 커밋 때문에 릴리스마다 전체 CI가 한 번 더 돌고, 이미 빌드·서명이
-   끝난 릴리스가 브라우저 테스트 흔들림 하나에 막히는 실패 경로가 새로 생긴다. 면제의 대가는 "이 경로가
-   무엇을 담는지"를 계속 참으로 유지하는 것이며, promote가 다른 파일을 건드리기 시작하면 이 결정을
-   다시 본다.
+   이 결정은 처음에 "릴리스 workflow에만 pull request 요구를 면제한다"로 적혀 있었고 그것은 틀렸다.
+   사용자 소유 저장소는 GitHub Actions를 ruleset의 bypass 주체로 등록할 수 없다(`Actor GitHub Actions
+   integration must be part of the ruleset source or owner organization`). 면제를 설정할 수 없다는
+   사실을 확인하기 전에 적은 문장이었다(2026-09-12, EAT-202).
+
+   promote가 스스로 pull request를 여는 안도 막힌다. `GITHUB_TOKEN`으로 만든 pull request는 재귀를
+   막기 위해 `pull_request` workflow를 띄우지 않으므로 required check가 붙지 않고 자동 병합이 영원히
+   멈춘다. 개인 access token을 두면 풀리지만 장기 생존 자격 하나가 생기고 그 토큰은 사실상 소유자
+   계정만큼의 것이 된다. 그 자격을 만들지 않는 쪽을 골랐다.
 
 2. **검증은 세 고리이고 고리마다 질문이 하나다.** 고리를 검사 범위가 아니라 답하는 질문으로 나눈다.
 
@@ -86,9 +88,16 @@
 - 결정 5의 계약 레인이 생기기 전까지 브라우저 스위트가 계약 결함도 잡는다. 그 기간에는 병합이 느리다.
 - 결정 1은 병합을 막지만 태그 레인 실패와 예약 실행 실패는 못 막는다. [ADR 0046](0046-telemetry-wire-correlation-and-alert-origin.md)
   결정 5의 "원격 `main`의 최신 CI가 초록이다" 기대는 여전히 필요하다.
-- 결정 1의 기계 예외는 릴리스 workflow가 `main`에 쓰기 권한을 계속 갖는다는 뜻이다. 그 권한을 가진
-  workflow는 `build.yml` 하나이며, 다른 workflow에 `contents: write`를 주는 변경은 이 결정을 다시 보는
-  변경이다.
+- 운영이 보는 ref가 `main`에서 `deploy/prod`로 옮겨간다. 덤으로 `main`의 `infra/product`를 고쳐도
+  운영이 즉시 움직이지 않는다. 운영은 릴리스가 `deploy/prod`를 옮길 때만 바뀌며, 이것은
+  [ADR 0051](0051-dev-overlay-and-unsigned-main-image-lane.md) 결정 5의 "prod는 이름 붙은 걸음으로
+  움직인다"를 구조로 만든 것이다.
+- `deploy/prod`는 기계가 소유한 파생 ref다. 매 릴리스의 digest 커밋이 그 릴리스 commit을 부모로 다시
+  서므로 fast-forward가 되지 않아 강제로 옮긴다. 그 push가 무엇을 담는지는 promote의 guard가 증명하며,
+  ref가 지워져도 릴리스 태그에서 다시 만들 수 있다.
+- `main`은 코드의 진실 원천으로 남고 배포 상태만 갈라진다. 두 ref가 어긋나 보일 수 있으므로 "운영에 도는
+  digest가 저장소가 가리키는 것과 같다" 기대가 무엇을 비교하는지 분명히 해야 한다. 비교 대상은
+  `deploy/prod`다.
 - `--no-verify`로 건너뛴 커밋도 pull request에서 같은 판정을 받는다. 로컬 훅은 편의가 되고 판정은 서버로
   간다. [ADR 0042](0042-legacy-ledger-retirement-and-changed-scope-checks.md)의 변경 범위 규칙은 첫째
   고리에만 적용되고 둘째·셋째 고리는 전체를 본다.
@@ -101,11 +110,13 @@
 - **브라우저 스위트를 required에서 뺀다.** 오늘 main을 세운 결함 둘 중 하나를 못 잡는다. 느리다는 이유로
   잡히던 것을 놓는 교환이다.
 - **관리자 우회 권한을 둔다.** 급할 때 쓰려고 만들면 급한 날이 기본이 된다. 우회가 필요할 만큼 급한 상황은
-  ruleset을 잠시 끄는 것으로 충분히 드러나게 처리한다. 결정 1의 기계 예외가 이것과 다른 점은 판단하는
-  주체가 없다는 것이다. 사람이 "이번만"이라고 정할 수 있는 자리가 아니다.
-- **릴리스 promote도 pull request로 연다.** 우회를 완전히 없애지만 digest 네 줄에 전체 CI를 한 번 더
-  물리고, 서명까지 끝난 릴리스를 브라우저 테스트가 막을 수 있게 된다. 릴리스를 자주 내자는 방향과
-  정면으로 부딪친다.
+  ruleset을 잠시 끄는 것으로 충분히 드러나게 처리한다.
+- **개인 access token으로 promote가 pull request를 열게 한다.** `GITHUB_TOKEN`의 재귀 방지를 우회해
+  required check가 붙게 만든다. 구조는 지금과 거의 같지만 장기 생존 자격 하나를 만들고, 그것은 사실상
+  소유자 계정만큼의 권한이 된다. 감시 대상이 하나 늘고 회수 절차가 필요해진다.
+- **릴리스 promote가 만든 pull request를 사람이 병합한다.** 새 자격도 아키텍처 변경도 없지만 릴리스를
+  자주 내자는 방향과 부딪친다. 자동화가 사람 한 번을 기다리는 지점이 생기면 릴리스 빈도가 그 사람의
+  가용성에 묶인다.
 - **merge queue를 쓴다.** 서로 초록인 pull request 둘이 합쳐져 빨개지는 경우를 막지만, 동시에 열리는
   pull request가 몇 개 수준이라 "병합 전 최신화" 요구로 같은 효과를 얻는다. 규모가 커지면 다시 본다.
 - **ADR 0024를 통째로 대체한다.** 0024의 결론(태그가 publication을 시작한다, `master`는 복구 기준)은 여전히

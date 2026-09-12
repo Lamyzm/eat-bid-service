@@ -545,7 +545,7 @@ def test_Cosign_검증은_release_tag_workflow_identity에_anchor된다() -> Non
         assert re.fullmatch(identity, rejected) is None
 
 
-def test_promotion은_tagged_main이_움직이면_normal_push전에_거부한다() -> None:
+def test_promotion은_main이_아니라_deploy_prod에_쓰고_guard를_먼저_통과한다() -> None:
     steps = _steps("promote")
     checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
     commands = [str(step.get("run", "")) for step in steps]
@@ -553,8 +553,11 @@ def test_promotion은_tagged_main이_움직이면_normal_push전에_거부한다
 
     assert _mapping(checkout["with"])["ref"] == "main"
     guard = next(index for index, command in enumerate(commands) if RELEASE_COMMIT in command and "rev-parse HEAD" in command)
-    push = next(index for index, command in enumerate(commands) if "git push origin HEAD:main" in command)
+    push = next(index for index, command in enumerate(commands) if "refs/heads/deploy/prod" in command)
     assert guard < push
-    # force나 upstream 없는 push는 race로 main이 움직여도 통과한다. normal push만 허용한다.
-    assert "--force" not in joined
-    assert "+refs/heads/main" not in joined
+    # main은 서버가 보호해 pull request만 받는다. 기계가 거기에 쓰는 경로가 남아 있으면 보호가 거짓이 된다.
+    assert "HEAD:main" not in joined
+    assert "origin main" not in joined
+    # deploy/prod는 매 릴리스마다 그 릴리스 commit을 부모로 다시 서므로 fast-forward가 되지 않는다.
+    # 기계가 소유한 파생 ref라 강제로 옮기며, 무엇을 옮기는지는 위 guard가 이미 증명했다.
+    assert "git push --force origin HEAD:refs/heads/deploy/prod" in joined

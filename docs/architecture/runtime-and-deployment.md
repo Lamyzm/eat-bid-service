@@ -391,8 +391,8 @@ release/v<semver> annotated tag push
   → build.yml preflight   tag가 annotated이고 peel한 commit이 현재 origin/main HEAD인지 확인
   → build.yml test/build  image 4종 build · scan · GHCR push · cosign sign/attest/verify
   → build.yml promote     main을 checkout해 release commit인지 확인한 뒤
-                          digest를 infra/product/kustomization.yaml에 커밋하고 main에 push
-  → Argo CD               main의 infra/product를 동기화
+                          digest를 infra/product/kustomization.yaml에 커밋하고 deploy/prod로 옮김
+  → Argo CD               deploy/prod의 infra/product를 동기화
 ```
 
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
@@ -402,9 +402,14 @@ release/v<semver> annotated tag push
 - **검증은 질문이 다른 세 고리다.** 작업 중(커밋 훅, 변경 범위)·병합 전(CI, pull request)·릴리스(CI,
   tag). 같은 검사를 두 고리에서 돌리지 않으며, 로컬 push 게이트는 판정자가 아니라 main 직접 push를 먼저
   거절하는 안내다.
-- **배포 대상은 `main`의 `infra/product` 하나다.** `infra/k8s/base`는 product overlay가 참조하는 기반일
-  뿐 직접 동기화 대상이 아니다. base만 보면 WorkflowTemplate·CronWorkflow·migration Job·Secret 참조가
-  클러스터에 존재하지 않는다.
+- **배포 대상은 `deploy/prod`의 `infra/product` 하나다.** `infra/k8s/base`는 product overlay가 참조하는
+  기반일 뿐 직접 동기화 대상이 아니다. base만 보면 WorkflowTemplate·CronWorkflow·migration Job·Secret
+  참조가 클러스터에 존재하지 않는다.
+- **운영이 보는 ref는 `main`이 아니다.** `main`은 서버가 보호해 pull request만 받으므로 릴리스 workflow가
+  digest를 거기 쓸 수 없다. digest는 기계가 소유한 `deploy/prod`로 가고 Argo CD가 그것을 본다
+  ([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md) 결정 1). 그래서 `main`의
+  `infra/product`를 고쳐도 운영은 즉시 움직이지 않는다. 운영은 릴리스가 `deploy/prod`를 옮길 때만 바뀐다.
+  `deploy/prod`는 파생 ref이며 지워져도 릴리스 태그에서 다시 만들 수 있다.
 - annotated tag를 push하면 `github.sha`가 commit이 아니라 tag object일 수 있다. image tag, `GIT_SHA`,
   revision label, SLSA `gitCommit`, promotion guard는 모두 preflight가 peel해 낸 commit 하나를 쓴다.
 - promote는 `git push origin HEAD:main` normal push다. tag 발행 뒤 `main`이 움직였다면 preflight 비교나
@@ -536,7 +541,7 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 | 마지막 성공 백업이 임계 시간 안에 있다 | PostgreSQL·Workflow | 없음 |
 | 노드와 Argo Application이 정상이다 | Kubernetes API | 없음 |
 | 원격 `main`의 최신 CI가 초록이다 | GitHub | 없음 |
-| 운영에 도는 image digest가 저장소가 가리키는 것과 같다 | Kubernetes API·저장소 | 없음 |
+| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 없음 |
 
 마지막 줄은 ADR 0046 결정 5의 목록에 없던 것을 더한 것이다. 2026-09-11에 기대 검사 CronWorkflow가 15분마다
 실패했는데 원인이 "배포된 image가 그 명령을 모르는 옛 것"이었고, 그 사실을 알아챈 경로가 사람의 조회였다.
