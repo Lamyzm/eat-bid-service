@@ -8,7 +8,7 @@
  */
 import { expect } from 'bun:test';
 import { auctionV1Operations } from '@eatbid/contracts/api/v1/auctions';
-import { meV1Operations } from '@eatbid/contracts/api/v1/me';
+import { meV1Operations, myRegionPreferenceV1Operations } from '@eatbid/contracts/api/v1/me';
 import { organizationV1Operations } from '@eatbid/contracts/api/v1/organizations';
 import { createApp } from '../../server/src/bootstrap/create-app';
 import { parseEnvironment } from '../../server/src/platform/config/environment';
@@ -39,6 +39,8 @@ const webDirectory = new URL('..', import.meta.url);
 const EXISTING_SOURCE_RELEASE_ID = '00000000-0000-0000-0000-000000000401';
 /** `own-bid.fixture.ts`가 쓰는 601·602와 겹치지 않는, 이 스크립트 전용 build id다. */
 const OPEN_AUCTION_SNAPSHOT_BUILD_ID = 701n;
+/** 지역 확인에 쓸 참가제한지역 코드다. code value id는 심은 뒤 읽어 쓴다 — 번호를 가정하면 다른 fixture가 같은 체계를 이미 만든 DB에서 조용히 어긋난다. */
+const ELIGIBILITY_AREA_CODE = '15661';
 
 function cookieValue(headers: Headers): string {
   const cookie = headers.get('cookie');
@@ -77,6 +79,54 @@ async function seedOpenAuctionSnapshot(owner: OwnerClient): Promise<void> {
     update mart.build set status = 'active', activated_at = now() where build_id = ${buildId};
   `);
   step(`오늘 화면용 open_auction_snapshot build ${buildId}를 활성화했다`);
+}
+
+/**
+ * 오늘 화면은 지역을 **확인한** 워크스페이스에만 목록을 그린다. 확인 행이 없으면 목록을 부르지도 않고
+ * 설정 요청을 그린다(EAT-167). seed가 확인하지 않으면 이 스위트는 "설정을 마친 사용자"가 아니라 "설정
+ * 앞에 선 사용자"를 재현한다.
+ *
+ * 확인은 SQL이 아니라 제품 endpoint로 한다. 화면이 보는 상태를 만드는 경로가 제품 경로와 다르면 그
+ * 경로가 깨져도 이 스위트가 알려 주지 않는다.
+ *
+ * 고른 지역과 seed 공고는 서로 무관해도 된다. seed 공고는 제한지역 미관측이라
+ * `eligibility_matched or not eligibility_observed`의 뒷항으로 남는다(ADR 0048 결정 3).
+ */
+async function confirmRegionPreference(owner: OwnerClient, cookie: string): Promise<void> {
+  // 체계와 코드가 이미 있을 수 있으므로 없을 때만 심고, 심은 결과를 다시 읽는다. 서버는 code value가
+  // 참가제한지역 체계에 실제로 있는지만 보고 없으면 400을 돌려주는데, 그 400은 본문 오류와 구분되지
+  // 않는다. 전제를 여기서 확인해 두면 실패가 어느 쪽인지 바로 말해 준다.
+  await owner.unsafe(`
+    insert into core.code_scheme (namespace, owner, version_policy, valid_time_policy)
+    values ('eat:eligibility-area', 'aT', 'source-managed', 'effective-dated')
+    on conflict (namespace) do nothing;
+    insert into core.code_value (code_scheme_id, code)
+    select scheme.code_scheme_id, '${ELIGIBILITY_AREA_CODE}'
+      from core.code_scheme scheme
+     where scheme.namespace = 'eat:eligibility-area'
+    on conflict do nothing;
+  `);
+  const found = await owner`
+    select code.code_value_id::text as code_value_id
+      from core.code_value code
+      join core.code_scheme scheme on scheme.code_scheme_id = code.code_scheme_id
+     where scheme.namespace = 'eat:eligibility-area' and code.code = ${ELIGIBILITY_AREA_CODE}
+  `;
+  const codeValueId = (found[0] as { code_value_id?: string } | undefined)?.code_value_id;
+  if (!codeValueId) throw new Error('참가제한지역 코드를 심지 못했습니다.');
+
+  const confirmed = await fetch(
+    `${API_ORIGIN}${myRegionPreferenceV1Operations.putMyRegionPreference.buildPath({ path: undefined })}`,
+    {
+      method: 'PUT',
+      headers: { origin: WEB_ORIGIN, cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ codeValueIds: [codeValueId] })
+    }
+  );
+  if (confirmed.status !== 200) {
+    throw new Error(`관심 지역 확인이 ${confirmed.status}입니다: ${await confirmed.text()}`);
+  }
+  step(`첫째 계정의 워크스페이스가 관심 지역 ${codeValueId}을 확인했다`);
 }
 
 function step(message: string): void {
@@ -169,6 +219,7 @@ try {
     step(`Nest 조립을 ${API_ORIGIN}에 연결`);
     await smoke(cookieValue(first.headers));
     await registerFirstAccount(cookieValue(first.headers));
+    await confirmRegionPreference(owner, cookieValue(first.headers));
     // 등록 시점에는 하나였던 번호가 나중에 두 party로 갈린 상태를 만든다. 셋째 사업자의 "판정 불가" 문구 재료다.
     await observeConflictingSupplier(owner);
     await seedOpenAuctionSnapshot(owner);
