@@ -19,15 +19,18 @@ review_trigger: build-trigger-argo-source-or-default-branch-change
 
 ## 2. 남는 위험
 
-private GitHub Free에는 branch protection API가 없다. 그래서 다음을 완료 조건으로 주장하지 않는다.
+**이 절의 전제는 2026-09-12에 사라졌다.** 저장소를 공개로 바꾸면서(EAT-191) ruleset과 required check를
+서버가 강제할 수 있게 됐고, [ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)이 그것을
+결정으로 올렸다. 아래 세 줄은 이제 완료 조건으로 주장할 수 있다.
 
 - 서버가 강제하는 protected `main`
 - required pull request와 required status check
-- `master` write freeze
+- 직접 push·force-push·삭제 금지
 
-서버가 막지 못하는 대신 세 겹으로 막는다. 로컬 `.githooks` pre-push, 읽기 전용 `validate.yml`,
-그리고 build workflow의 tag preflight다. 앞의 둘은 우회할 수 있고 마지막 하나만 우회할 수 없다.
-직접 `main`에 push해도 이미지는 발행되지 않으며, 발행은 tag를 만들어야만 시작된다.
+`master` write freeze는 여전히 주장하지 않는다. `master`는 복구 기준이며 publication 권위가 아니다.
+
+기계가 `main`에 쓰는 경로는 남기지 않았다. 릴리스 promote는 digest를 `deploy/prod`에 쓰고 Argo CD가
+그 ref를 본다. 발행은 여전히 tag를 만들어야만 시작된다.
 
 `validate.yml`이 실제로 무엇을 검사하는지, 그리고 그 `validate.yml`이 `main` push에서 실패하면 무엇을
 하는지는 [`ci-gate-failure-response.md`](ci-gate-failure-response.md)가 권위 문서다.
@@ -154,7 +157,7 @@ migration은 PreSync hook이므로 첫 sync 전에 `pgdata` snapshot 또는 `pg_
 | 되돌릴 대상 | 방법 |
 |---|---|
 | cluster Argo source | `infra/argocd/application.yaml`을 이전 source로 되돌려 같은 승인 절차로 apply |
-| 제품 digest | 이전 promote commit의 `infra/product/kustomization.yaml`을 복원하는 새 commit |
+| 제품 digest | 이전 릴리스의 digest 커밋으로 `deploy/prod`를 되돌린다. `main`은 건드리지 않는다 |
 | GitHub default branch | `gh repo edit Lamyzm/eat-bid-service --default-branch master` |
 | 코드 기준점 | `rollback/pre-main-cutover-2026-09-01` tag가 가리키는 전환 전 remote `master` commit |
 
