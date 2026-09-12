@@ -114,6 +114,17 @@ jobs:
         # 고쳤고 같은 변경에서 게이트가 걸린 서버 read도 세션을 싣도록 바꿨다. 이제 초록이며,
         # 로그인한 사용자가 실제로 공고 행을 보는 것을 이 step이 진짜 Nest 위에서 증명한다.
         run: pnpm --filter @eatbid/web test:e2e:own-bid
+      # 실패한 브라우저 검증은 locator 한 줄만 남기고 사라졌다. 2026-09-12에 같은 실패를 두고 로컬은
+      # 초록이고 CI는 빨간 상태였는데, 화면이 그 순간 무엇이었는지 볼 방법이 없어 코드로 역추적해야 했다.
+      # Playwright가 이미 만드는 trace와 화면 맥락을 올려 두면 다음 사람이 추측하지 않는다(EAT-201).
+      - name: 실패한 브라우저 검증의 증거를 올린다
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-evidence
+          path: apps/web/test-results
+          retention-days: 14
+          if-no-files-found: ignore
 
   # EAT-158: 2026-09-10에 validate.yml이 13번의 병합 동안 빨간 상태였는데 아무도 보지 않았다. GitHub
   # Free의 Actions 알림(Settings > Notifications > Actions)은 기본값이 "알리지 않음"이고 계정마다 개별로

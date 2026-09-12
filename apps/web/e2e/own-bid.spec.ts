@@ -294,7 +294,7 @@ test.describe('결정 화면의 실제 내 투찰', () => {
     await firstPage.screenshot({ path: 'test-results/own-bid/build-recovered.png', fullPage: true });
   });
 
-  test('로그아웃하면 점과 문구가 사라지고 다른 계정은 앞 계정의 점을 보지 못한다', async ({ browser }) => {
+  test('로그아웃하면 workspace를 떠나고 돌아와도 앞 계정의 점이 없으며 다른 계정도 그것을 보지 못한다', async ({ browser }) => {
     test.setTimeout(120_000);
     // 후보 버튼에 내 제출이 떠 있는 채로 로그아웃한다. 새 상태에는 앞 계정의 제출이 남으면 안 된다.
     await findDayX(firstPage, /내 투찰 89\.500%/);
@@ -306,9 +306,16 @@ test.describe('결정 화면의 실제 내 투찰', () => {
     await logout.waitFor();
     await logout.focus();
     await firstPage.keyboard.press('Enter');
-    await expect(controls(firstPage)).toHaveAttribute('data-own-status', 'signed-out');
-    await expect(figure(firstPage)).toHaveAttribute('data-own-points', '0');
-    await expect(candidateButtons(firstPage, /내 투찰/)).toHaveCount(0);
+
+    // 로그아웃하면 workspace layout의 게이트가 로그인 화면으로 보낸다(ADR 0032 §1). 그래서 "점이 0인
+    // 결정 화면"은 제품이 약속하는 상태가 아니라 refresh가 끝나기 전의 중간 상태다. 그 중간을 붙잡던
+    // 단언은 기계가 빠르면 통과하고 느리면 요소를 못 찾았다 — 로컬은 초록, CI는 빨강이었다(EAT-201).
+    await firstPage.waitForURL(/\/login\?next=/u, { timeout: 60_000 });
+    // 캐시나 뒤로 가기로도 앞 계정의 점이 남은 화면이 다시 열리지 않는다. 누출 여부는 여기서 본다.
+    await firstPage.goto(FLOW_PATH);
+    await firstPage.waitForURL(/\/login\?next=/u, { timeout: 60_000 });
+    await expect(figure(firstPage)).toHaveCount(0);
+    await expect(controls(firstPage)).toHaveCount(0);
 
     const secondContext = await signedInContext(browser, requiredEnvironment('EATBID_E2E_SESSION_COOKIE_SECOND'));
     await registerViaApi(secondContext, [unobservedNumber]);
