@@ -66,6 +66,8 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0050](0050-verification-authority-and-merge-gate.md) | Accepted | `main`은 서버가 보호하고 병합 판정은 CI 하나만 하며, 검증은 질문이 다른 세 고리(작업 중·병합 전·릴리스)로 나뉘고 같은 검사를 두 고리에서 돌리지 않는다 (0024의 권한 근거를 대체하고 태그의 prod publication 결론은 유지) |
 | [0051](0051-dev-overlay-and-unsigned-main-image-lane.md) | Accepted | manifest를 `infra/base` + `infra/envs/{dev,prod}`로 가르고 이미지 레인을 둘(`main` 병합의 비서명 dev 레인, 태그의 서명 prod 레인)로 나누며 dev는 소스를 부르지 않는다 |
 
+| [0052](0052-backfill-progress-recovery-and-advance.md) | Accepted | 백필의 발견 축은 날짜로 유지하고(아이디 밀도 10.08% 실측) 진도는 `ingest` 사실에서 파생하는 view 하나가 소유하며, 버려진 상세 대기열은 새 릴리스가 아이디로 이어받고 전진은 floor date를 선언한 CronWorkflow가 한다 |
+
 ## 새 ADR 형식
 
 ```markdown
