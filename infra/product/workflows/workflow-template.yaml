@@ -8,8 +8,13 @@ spec:
   serviceAccountName: eatbid-dataplane
   # fan-out 폭을 단일 노드 용량 아래로 묶는다. 2026-09-05 첫 backfill은 normalize 131개를 한꺼번에
   # 띄워 kubelet pod 상한(110)을 넘기고 postgres readiness까지 지연시켜 22건이 DB 연결 시간 초과로
-  # 죽었다. capture는 source semaphore로 이미 직렬이므로 이 값은 사실상 normalize 동시성이다.
-  parallelism: 4
+  # 죽었다.
+  #
+  # 16으로 올린다(2026-09-14, EAT-180). backfill capture semaphore가 8이 되면서 capture pod 여덟이 이
+  # 상한을 다 차지할 수 있고, 그러면 같은 창의 normalize가 뒤에서 굶는다. 8 + 8로 두 단계가 서로를
+  # 막지 않게 한다. kubelet 상한 110에서 여전히 멀다. 파드마다 psycopg 연결 하나를 여므로 16은 단일
+  # 노드 postgres의 기본 max_connections 100 안에 넉넉히 든다.
+  parallelism: 16
   # 완료 파드와 끝난 Workflow를 컨트롤러가 스스로 지운다. 2026-09-09 실측에서 Workflow 38개가 파드 6,561개를
   # 남겨 단일 노드 API 서버·etcd를 눌렀다(EAT-127). 성공한 파드는 즉시 지우고(로그는 단계 결과가 DB·R2에
   # 남으므로 파드가 증거가 아니다), 실패한 파드는 원인 확인을 위해 Workflow가 지워질 때까지 둔다.

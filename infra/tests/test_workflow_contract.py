@@ -343,9 +343,12 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     # 다 가져가므로 나눴다 — 이유는 semaphore.yaml. eatbid-source-limit은 이 배포 시점에 이미 돌던
     # backfill이 쥐고 있는 과도기 key다 — 제거 조건은 같은 파일 주석과 아래
     # test_eatbid_source_limit는_과도기_key이고_도는_backfill이_끝나면_지운다를 본다.
+    # backfill은 8이다(2026-09-14, EAT-180). semaphore가 chunk pod 단위라 이 값이 곧 소스 동시 호출
+    # 수이며, 램프업과 되돌리기가 이 숫자 하나로 이뤄진다 — 중단 조건은 semaphore.yaml 주석이 소유한다.
+    # live를 1로 고정하는 것은 신규 공고 노출 SLO가 그 lane에 걸려 있기 때문이다.
     assert limit["data"] == {
         "eatbid-source-live": "1",
-        "eatbid-source-backfill": "1",
+        "eatbid-source-backfill": "8",
         "eatbid-source-limit": "1",
     }
     service_account = manifests.named("ServiceAccount", "eatbid-dataplane")
