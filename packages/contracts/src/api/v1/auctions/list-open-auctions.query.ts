@@ -19,6 +19,17 @@ export const closesWithinHoursSchema = z.coerce.number().int().min(1).max(720);
 export const DEFAULT_OPEN_AUCTION_LIMIT = 50;
 
 /**
+ * 한 응답에 실을 수 있는 최대 행 수다. **query와 응답이 이 상수 하나를 함께 쓴다.**
+ *
+ * 나눠 적었다가 실제로 깨졌다. query만 200으로 넓히고 응답 배열이 100에 머물러 `limit=200`이
+ * 400도 아니고 500이 됐다. 서버가 허용한 요청의 응답이 자기 계약에서 거부된 것이다.
+ *
+ * 200인 근거는 성수기 실측이다. 시도 하나가 1,932행이라 한 응답에 다 실을 수 없고, 사용자의 기본
+ * 조건(김해 축산)은 성수기에도 62행이라 한 판에 들어간다.
+ */
+export const MAX_OPEN_AUCTION_LIMIT = 200;
+
+/**
  * 참가제한지역 필터다. query string은 값 하나와 값 여럿을 구분하지 못하므로(`?eligibilityArea=1`은
  * 문자열, `?eligibilityArea=1&eligibilityArea=2`는 배열) 파싱 직전에 한 번만 배열로 편다. 이 정규화를
  * 화면과 서버가 각자 하면 코드 하나를 고른 사용자와 둘을 고른 사용자가 서로 다른 경로를 타게 된다.
@@ -82,7 +93,7 @@ export const openAuctionListQuerySchema = z.strictObject({
   // 상한 200은 성수기 실측에서 나왔다. 시도 하나가 1,932행이라 한 응답에 다 실을 수 없고, 사용자의
   // 기본 조건(김해 축산)은 성수기에도 62행이라 한 판에 들어간다. 더보기를 두지 않으므로 화면은 넘는
   // 수를 `N건 중 200건`으로 적고 날짜·지역·검색이 좁히는 길이 된다.
-  limit: z.coerce.number().int().min(1).max(200).default(DEFAULT_OPEN_AUCTION_LIMIT),
+  limit: z.coerce.number().int().min(1).max(MAX_OPEN_AUCTION_LIMIT).default(DEFAULT_OPEN_AUCTION_LIMIT),
 });
 
 export type OpenAuctionListQuery = z.output<typeof openAuctionListQuerySchema>;

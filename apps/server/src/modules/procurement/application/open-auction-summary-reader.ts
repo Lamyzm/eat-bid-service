@@ -1,0 +1,63 @@
+/**
+ * @module 책임: 열린 공고 요약 조회의 application port와 화면이 세는 자리를 담은 내부 record를 소유한다.
+ *
+ * 목록 port와 나누는 이유는 세는 범위가 다르기 때문이다. 목록은 페이지를 돌려주고 요약은 필터를
+ * 만족하는 전체를 센다. 필터 atom은 같은 것을 쓰며 갈리면 축 줄의 건수와 목록의 행이 서로 다른
+ * 코호트를 말하게 된다.
+ */
+import type { BidRate, Temporal } from "@eatbid/domain";
+
+import type { MartBuildLineage } from "./mart-build-lineage";
+
+export interface OpenAuctionSummaryQuery {
+  /** "열림"의 기준 시각이다. use case가 주입된 clock에서 한 번 읽어 넘긴다(AGENTS 15·17). */
+  readonly asOf: Temporal.Instant;
+  readonly sidoCodeValueId: bigint | null;
+  readonly sigunguCodeValueIds: readonly bigint[] | null;
+  readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
+  readonly itemLabel: string | null;
+  readonly baseAmountMin: string | null;
+  readonly baseAmountMax: string | null;
+  /** 달력 창의 양끝이다. KST 달력일이며 창 밖 마감은 전체 수에는 들어가도 달력에는 없다. */
+  readonly calendarFrom: string;
+  readonly calendarTo: string;
+}
+
+/**
+ * 달력 칸 하나다. `count`는 지금 걸린 조건의 수이고 `releasedCount`는 지역 축만 남기고 품목·금액을
+ * 푼 수다. 둘이 같은 스캔에서 나와야 화면의 `2건 · 7건 중`이 같은 시각을 본다.
+ */
+export interface OpenAuctionCalendarDayRecord {
+  readonly date: string;
+  readonly count: number;
+  readonly releasedCount: number;
+}
+
+/** 결과 집합의 하한율 구성이다. 관측되지 않은 행은 `rate`가 null인 항목으로 함께 센다. */
+export interface OpenAuctionFloorShareRecord {
+  readonly rate: BidRate | null;
+  readonly count: number;
+}
+
+export interface OpenAuctionDayMarkRecord {
+  readonly date: string;
+  readonly count: number;
+}
+
+export interface OpenAuctionSummaryRecord {
+  readonly totalCount: number;
+  readonly organizationCount: number;
+  /** `진행중` 탭의 수는 여기 없다. 날짜 축을 받지 않는 요약이라 `totalCount`가 그 값이다. */
+  readonly openedTodayCount: number;
+  readonly closingTodayCount: number;
+  readonly floorShares: readonly OpenAuctionFloorShareRecord[];
+  readonly calendar: readonly OpenAuctionCalendarDayRecord[];
+  /** 결과가 0건이면 null이다. 관측이 없으므로 "지금"이라고 말할 수 없다. */
+  readonly latestObservedAt: Temporal.Instant | null;
+  readonly nextClosingDay: OpenAuctionDayMarkRecord | null;
+  readonly snapshotLineage: MartBuildLineage | null;
+}
+
+export interface OpenAuctionSummaryReader {
+  summarizeOpen(query: OpenAuctionSummaryQuery): Promise<OpenAuctionSummaryRecord>;
+}

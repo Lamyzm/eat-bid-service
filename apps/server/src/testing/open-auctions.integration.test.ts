@@ -11,9 +11,11 @@ import type {
   OpenAuctionPage,
   OpenAuctionQuery,
 } from "../modules/procurement/application/open-auction-reader";
+import type { OpenAuctionSummaryQuery } from "../modules/procurement/application/open-auction-summary-reader";
 import { auctionId } from "../modules/procurement/domain/auction-id";
 import { DrizzleAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOpenAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-open-auction-reader";
+import { DrizzleOpenAuctionSummaryReader } from "../modules/procurement/infrastructure/drizzle/drizzle-open-auction-summary-reader";
 import { disposableDatabase } from "../../fixtures/disposable-database.fixture";
 import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
@@ -380,6 +382,91 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       } finally {
         await runtime.shutdown();
       }
+    });
+    await expectOwnedContainersCleanedUp();
+  }, 180_000);
+});
+
+describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
+  test("요약과 목록이 같은 필터 위에서 같은 수를 세고 달력은 0건인 날도 칸을 남긴다", async () => {
+    await withDatabase(async ({ api }) => {
+      const database = drizzle({ client: api });
+      const summaryReader = new DrizzleOpenAuctionSummaryReader(database);
+      const listReader = new DrizzleOpenAuctionReader(database);
+      const summaryQuery: OpenAuctionSummaryQuery = {
+        asOf: NOW,
+        sidoCodeValueId: null,
+        sigunguCodeValueIds: null,
+        eligibilityAreaCodeValueIds: null,
+        itemLabel: null,
+        baseAmountMin: null,
+        baseAmountMax: null,
+        calendarFrom: "2026-09-07",
+        calendarTo: "2026-09-10",
+      };
+
+      const summary = await summaryReader.summarizeOpen(summaryQuery);
+
+      // 두 조회가 같은 열림 판정을 써야 축 줄의 건수와 목록의 행이 같은 코호트를 말한다. 취소된 206과
+      // 이미 마감된 204는 양쪽 모두에서 빠진다.
+      expect(summary.totalCount).toBe(pageOf(await listReader.listOpen(baseQuery)).sampleCount);
+      expect(summary.totalCount).toBe(4);
+      // 201·205는 기관 41, 202는 43, 203은 기관 미확인이라 기관 수는 행 수보다 적다.
+      expect(summary.organizationCount).toBe(2);
+      // 201이 09-07 14:00(KST) 마감이고 NOW가 같은 날 10시다. 205는 09-10, 202는 09-08이다.
+      expect(summary.closingTodayCount).toBe(1);
+      // 게시일은 스냅샷에 없으므로 이 축은 0이다. 0건이 아니라 게시일 미관측이라는 것은 화면이 말한다.
+      expect(summary.openedTodayCount).toBe(0);
+      expect(summary.nextClosingDay).toEqual({ date: "2026-09-07", count: 1 });
+
+      // 창의 날짜를 전부 낸다. 09-09는 한 건도 없지만 칸이 사라지지 않는다.
+      expect(summary.calendar.map((day) => [day.date, day.count])).toEqual([
+        ["2026-09-07", 1], ["2026-09-08", 1], ["2026-09-09", 0], ["2026-09-10", 1],
+      ]);
+      // 마감을 관측하지 못한 203은 어느 칸에도 안 들어가므로 칸의 합이 전체보다 작을 수 있다.
+      expect(summary.calendar.reduce((sum, day) => sum + day.count, 0)).toBe(3);
+
+      // 하한율이 갈리면 그날 하한이 다른 자리에 서는 다른 판이다. 관측 못 한 행도 버리지 않고 센다.
+      // 순서는 많은 것부터이고 동률은 하한율 오름차순으로 끊는다. 화면이 드문 쪽을 고를 수 있으려면
+      // 이 순서가 실행마다 같아야 한다.
+      expect(summary.floorShares.map((share) => [share.rate === null ? null : String(share.rate), share.count]))
+        .toEqual([[null, 2], ["88.000", 1], ["90.000", 1]]);
+      expect(summary.floorShares.reduce((sum, share) => sum + share.count, 0)).toBe(summary.totalCount);
+    });
+    await expectOwnedContainersCleanedUp();
+  }, 180_000);
+
+  test("지역과 품목으로 좁히면 요약과 목록이 함께 줄고 푼 수는 지역만 남긴 수다", async () => {
+    await withDatabase(async ({ api }) => {
+      const database = drizzle({ client: api });
+      const summaryReader = new DrizzleOpenAuctionSummaryReader(database);
+      const listReader = new DrizzleOpenAuctionReader(database);
+      const scoped: OpenAuctionSummaryQuery = {
+        asOf: NOW,
+        sidoCodeValueId: 41n,
+        sigunguCodeValueIds: null,
+        eligibilityAreaCodeValueIds: null,
+        itemLabel: "축산",
+        baseAmountMin: null,
+        baseAmountMax: null,
+        calendarFrom: "2026-09-07",
+        calendarTo: "2026-09-10",
+      };
+
+      const summary = await summaryReader.summarizeOpen(scoped);
+      const list = pageOf(await listReader.listOpen({
+        ...baseQuery, sidoCodeValueId: 41n, itemLabel: "축산",
+      }));
+
+      expect(summary.totalCount).toBe(list.sampleCount);
+      expect(summary.totalCount).toBe(2);
+      // `releasedCount`는 지역 축만 남기고 품목을 푼 수다. 화면의 `1건 · 1건 중`이 그 둘이며 푼 수가
+      // 건 수보다 작아지면 그 문장이 거짓이 된다.
+      for (const day of summary.calendar) {
+        expect(day.releasedCount).toBeGreaterThanOrEqual(day.count);
+      }
+      // 09-07은 축산 201 하나이고 시도 41에는 그날 다른 품목이 없어 둘이 같다.
+      expect(summary.calendar[0]).toEqual({ date: "2026-09-07", count: 1, releasedCount: 1 });
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);

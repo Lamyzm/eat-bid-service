@@ -8,7 +8,7 @@ import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { maxEligibilityAreaSelection } from "../../../values/eligibility-area";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
-import { closesWithinHoursSchema } from "./list-open-auctions.query";
+import { closesWithinHoursSchema, MAX_OPEN_AUCTION_LIMIT } from "./list-open-auctions.query";
 import { openAuctionRowSchema } from "./open-auction.resource";
 
 /**
@@ -49,7 +49,9 @@ export const openAuctionListMetaSchema = z.strictObject({
 }).meta({ id: "OpenAuctionListMeta" });
 
 export const openAuctionListV1ResponseSchema = z.strictObject({
-  auctions: z.array(openAuctionRowSchema).max(100),
+  // 상한은 query의 `limit` 최대치와 같은 상수를 쓴다. 둘이 어긋나면 서버가 허용한 요청의 응답이
+  // 검증에서 깨져 **정상 상태를 읽을 수 없게** 된다. `limit=200`이 실제로 500이 됐던 자리다(EAT-206).
+  auctions: z.array(openAuctionRowSchema).max(MAX_OPEN_AUCTION_LIMIT),
   nextCursor: positiveBigintTextSchema.nullable(),
   meta: openAuctionListMetaSchema,
 }).meta({ id: "EatbidApiV1OpenAuctions" });

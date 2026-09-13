@@ -27,6 +27,7 @@ describe("canonical OpenAPI 산출물", () => {
     expect(document.openapi).toBe("3.0.3");
     expect(Object.keys(document.paths).sort()).toEqual([
       "/api/v1/auctions",
+      "/api/v1/auctions/summary",
       "/api/v1/auctions/{auctionId}",
       "/api/v1/auctions/{auctionId}/roster",
       // listCodes는 EAT-57이 계약을 소유하고 Nest handler는 아직 없다. registry가 OpenAPI의 단일
@@ -74,6 +75,7 @@ describe("canonical OpenAPI 산출물", () => {
         "putMyRegionPreference",
         "registerMyBusiness",
         "setMyBusinessLocation",
+        "summarizeOpenAuctions",
       ]);
     // 성공 status를 200으로 고정하지 않는다. 생성 command는 201이며, 그 사실을 registry에서 읽는다.
     const successStatusById = new Map(publicHttpOperationRegistry

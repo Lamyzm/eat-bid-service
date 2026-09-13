@@ -36,6 +36,18 @@ export {
   type OpenAuctionLastRound,
   type OpenAuctionOrgSummary,
 } from "./open-auction.resource";
+export {
+  MAX_CALENDAR_WINDOW_DAYS,
+  openAuctionSummaryQuerySchema,
+  type OpenAuctionSummaryQuery,
+} from "./summarize-open-auctions.query";
+export {
+  openAuctionSummaryV1ResponseSchema,
+  type OpenAuctionCalendarDay,
+  type OpenAuctionFloorShare,
+  type OpenAuctionSummaryV1Response,
+  type OpenAuctionTabCounts,
+} from "./summarize-open-auctions.response";
 export { auctionV1OperationRegistry, auctionV1Operations } from "./operations";
 export * from "./get-auction-roster.response";
 export * from "./get-auction-roster.query";
