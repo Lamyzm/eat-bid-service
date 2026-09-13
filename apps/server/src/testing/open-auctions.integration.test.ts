@@ -39,7 +39,7 @@ const seed = `
          (103, 'eat', 'external-103'), (104, 'eat', 'external-104'),
          (201, 'eat', 'external-201'), (202, 'eat', 'external-202'),
          (203, 'eat', 'external-203'), (204, 'eat', 'external-204'),
-         (205, 'eat', 'external-205');
+         (205, 'eat', 'external-205'), (206, 'eat', 'external-206');
   insert into ingest.run
     (run_id, mode, status, build_sha, parser_version, started_at, ended_at,
      failure_category, expected_count, captured_count, published_count)
@@ -134,29 +134,35 @@ const seed = `
   insert into mart.open_auction_snapshot
     (build_id, auction_attempt_id, observed_at, observation_id, organization_id, bid_count,
      source_last_changed_at, closes_at, base_amount, currency, item_label, floor_rate,
-     region_sido_code_value_id, region_sigungu_code_value_id, organization_label, terms_revision_id)
+     region_sido_code_value_id, region_sigungu_code_value_id, organization_label, terms_revision_id,
+     source_status_label)
   values
     (601, 201, '2026-09-07T00:00:00Z', 303, 41, 3, '2026-09-06T23:00:00Z', '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중'),
     (601, 201, '2026-09-07T00:30:00Z', 304, 41, 5, '2026-09-07T00:10:00Z', '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중'),
+    -- 상태를 관측하지 못한 행은 숨기지 않는다. 이 열이 생기기 전 build의 행이 그렇다(AGENTS 3).
     (601, 202, '2026-09-07T00:30:00Z', 304, 43, 0, null, '2026-09-08T05:00:00Z',
-     10000000.00, 'KRW', null, null, null, null, '다른 학교', null),
+     10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null),
     (601, 203, '2026-09-07T00:30:00Z', 304, null, null, null, null,
-     500000.00, 'KRW', null, null, null, null, null, null),
+     500000.00, 'KRW', null, null, null, null, null, null, null),
     (601, 204, '2026-09-07T00:30:00Z', 304, 41, 7, null, '2026-09-06T05:00:00Z',
-     900000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+     900000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중'),
     (601, 205, '2026-09-07T00:30:00Z', 304, 41, 2, null, '2026-09-10T05:00:00Z',
-     43879200.00, 'KRW', '축산', 88.000, 41, 44, '창원 남산초등학교', 510),
+     43879200.00, 'KRW', '축산', 88.000, 41, 44, '창원 남산초등학교', 510, '진행중'),
+    -- 마감은 안 지났지만 목록이 취소로 표시한 행이다. 마감 순으로는 202와 205 사이에 서야 하는데
+    -- 열린 공고가 아니므로 목록에도 지역 미리보기 분모에도 안 들어간다(EAT-203).
+    (601, 206, '2026-09-07T00:30:00Z', 304, 41, 1, null, '2026-09-09T05:00:00Z',
+     3000000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '공고취소'),
     -- 물린 build의 행은 목록에 나오면 안 된다. 다만 참여 수 추이(공고 상세의 하루 전 관측)는 retain 안의
     -- 물린 build 행까지 같은 시계열로 읽는다(ADR 0034).
     (602, 202, '2026-09-06T00:30:00Z', 303, 43, 0, null, '2026-09-08T05:00:00Z',
-     10000000.00, 'KRW', null, null, null, null, '다른 학교', null),
+     10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null),
     (602, 201, '2026-09-06T00:00:00Z', 303, 41, 1, null, '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중'),
     -- 최신 관측에서 24시간이 안 되는 관측은 "어제"가 아니다.
     (602, 201, '2026-09-06T01:00:00Z', 303, 41, 2, null, '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509);
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중');
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)
@@ -224,6 +230,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       const reader = new DrizzleOpenAuctionReader(drizzle({ client: api }));
 
       // 마감 임박 순이며 마감 미확인(203)은 맨 뒤, 이미 마감된 204와 물린 build의 행은 없다.
+      // 취소된 206은 마감이 09-09라 202와 205 사이에 서야 하는데 열린 공고가 아니므로 빠진다(EAT-203).
       const all = pageOf(await reader.listOpen(baseQuery));
       expect(ids(all)).toEqual([201n, 202n, 205n, 203n]);
       expect(all.sampleCount).toBe(4);

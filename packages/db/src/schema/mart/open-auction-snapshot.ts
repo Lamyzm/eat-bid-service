@@ -45,6 +45,18 @@ export const openAuctionSnapshot = martSchema.table(
     itemLabel: text("item_label"),
     sourceStatusCodeValueId: bigint("source_status_code_value_id", { mode: "bigint" })
       .references(() => codeValue.codeValueId),
+    /**
+     * 목록 행이 표시한 상태 라벨이다. `진행중`·`공고취소`·`저장중`이 관측됐고 code scheme은 아직
+     * 없으므로 관측 라벨을 코드로 승격시키지 않는다(`item_label`과 같은 판단, EAT-44 §4.2).
+     *
+     * 상세가 아니라 목록에서 읽는 이유는 둘이다. 이 행의 grain이 목록 관측이라 `bid_count`와 같은
+     * 시점을 말하고, 상세를 아직 따지 않은 공고에도 값이 있다. 상세의 `identity.status`는 상세를
+     * 마지막으로 부른 때의 상태라 목록 행이 말하는 지금과 어긋날 수 있다.
+     *
+     * 비어 있으면 `확인 못 함`이지 열려 있다는 뜻이 아니다. 이 열이 생기기 전에 만든 build의 행이
+     * 그렇고, 읽는 쪽은 모르는 상태를 숨기지 않는다(AGENTS 3).
+     */
+    sourceStatusLabel: text("source_status_label"),
     // 아래 다섯 열은 목록이 아니라 같은 attempt의 최신 상세 해석에서 온다. 화면이 지역·품목으로
     // 거르고 하한을 보여 주려면 값이 필요한데, 요청마다 core를 lateral 조인하면 원본 점 조회가
     // 목록 경로로 새어 나온다. 그래서 빌드 시점에 한 번 조인해 싣는다(EAT-39 판정 A·B·C).

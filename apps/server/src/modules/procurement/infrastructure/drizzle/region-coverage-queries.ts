@@ -15,7 +15,7 @@ import {
   eligibilityObservedExpression,
   matchedEligibilityAreaCte,
 } from "./eligibility-area-sql";
-import { OPEN_AUCTION_SNAPSHOT } from "./open-auction-queries";
+import { OPEN_AUCTION_SNAPSHOT, openScopePredicate } from "./open-auction-queries";
 
 function instantParameter(value: Temporal.Instant): string {
   return value.toString();
@@ -37,7 +37,8 @@ export function coverageTodayQuery(input: {
       select distinct on (snapshot.auction_attempt_id)
         snapshot.auction_attempt_id,
         snapshot.terms_revision_id,
-        snapshot.closes_at
+        snapshot.closes_at,
+        snapshot.source_status_label
       from mart.open_auction_snapshot snapshot
       where snapshot.build_id = ${activeMartBuildId(OPEN_AUCTION_SNAPSHOT)}
       order by snapshot.auction_attempt_id, snapshot.observed_at desc
@@ -47,7 +48,7 @@ export function coverageTodayQuery(input: {
              ${eligibilityObservedExpression(sql`snapshot.terms_revision_id`)} as eligibility_observed,
              ${eligibilityMatchedExpression(sql`snapshot.terms_revision_id`)} as eligibility_matched
       from snapshot
-      where snapshot.closes_at is null or snapshot.closes_at > ${asOf}::timestamptz
+      where ${openScopePredicate(sql`snapshot`, asOf)}
     )
     select count(*)::int as nationwide_count,
            count(*) filter (where open_rows.eligibility_matched)::int as matched_count,

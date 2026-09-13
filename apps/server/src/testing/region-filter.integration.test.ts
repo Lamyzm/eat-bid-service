@@ -176,6 +176,11 @@ describe("참가제한지역 목록과 저장 전 미리보기 PostgreSQL 경계
       );
 
       expect(coverage.today).toEqual({ matchedCount: 9, unobservedCount: 7, nationwideCount: 17 });
+      // 미리보기의 분모와 목록의 표본 수가 같은 "열림"을 세야 한다. 두 조회가 각자 조건을 적어 두면
+      // 한쪽에만 판정이 붙는 날 같은 build를 읽는 두 화면이 서로 다른 전국 건수를 말한다. 미리보기는
+      // 그 수로 "17건이 9건이 된다"를 적으므로 어긋나면 그 문장이 거짓이 된다(EAT-203).
+      const nationwide = pageOf(await new DrizzleOpenAuctionReader(drizzle({ client: api })).listOpen(baseQuery));
+      expect(nationwide.sampleCount).toBe(coverage.today.nationwideCount);
       // 오늘 건수만 보면 이 제품이 쓸모없어 보인다. 성수기 하루가 같은 응답에 함께 있어야 한다.
       expect(coverage.window.peakDay).toEqual({ date: PEAK_DATE, count: PEAK_COUNT });
       expect(coverage.window.daysWithAuctions).toBe(DAYS_WITH_AUCTIONS);

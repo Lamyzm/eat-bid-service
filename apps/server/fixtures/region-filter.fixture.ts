@@ -30,6 +30,15 @@ const UNOBSERVED = [1011, 1012, 1013, 1014, 1015, 1016, 1017];
 export const OPEN_ATTEMPT_IDS = [...GIMHAE_ONLY, ...PROVINCE_WIDE, ...CHANGWON_ONLY, ...UNOBSERVED];
 
 /**
+ * 마감은 안 지났지만 목록이 `공고취소`로 표시한 공고 하나다. 도 전체로 열려 있어 조건을 안 걸면
+ * 열여덟 번째로 잡힐 자리인데 **열린 공고가 아니므로 목록에도 미리보기 분모에도 안 들어간다.**
+ *
+ * `OPEN_ATTEMPT_IDS`에 안 넣는 이유는 그 배열이 "이 build에서 열려 있는 수"를 뜻하고 여러 단언이
+ * 그 길이를 쓰기 때문이다. 스냅샷 행은 따로 하나 만든다(EAT-203).
+ */
+const CANCELLED = 1018;
+
+/**
  * 과거 창의 하루별 마감이다. 성수기 하루가 어떤 모양인지 묻는 질문이라 며칠을 서로 다른 크기로 둔다.
  * 마감(`deadline_at`) 기준인 이유는 사용자가 화면을 여는 날이 낼 것을 골라야 하는 날이기 때문이다.
  */
@@ -53,7 +62,7 @@ const OBSERVATION_ID = 3_167;
 const BUILD_ID = 6_167;
 
 const pastAttempts = [...PAST_DAYS.flatMap((day) => day.attemptIds), ...PAST_CHANGWON];
-const allAttempts = [...OPEN_ATTEMPT_IDS, ...pastAttempts];
+const allAttempts = [...OPEN_ATTEMPT_IDS, CANCELLED, ...pastAttempts];
 
 const revisionOf = (attemptId: number) => attemptId + 500_000;
 const recordOf = (attemptId: number) => attemptId + 700_000;
@@ -71,6 +80,9 @@ function areaOf(attemptId: number): readonly bigint[] {
   if (GIMHAE_ONLY.includes(attemptId)) return [GIMHAE];
   if (PROVINCE_WIDE.includes(attemptId)) return [GYEONGNAM_ALL];
   if (CHANGWON_ONLY.includes(attemptId) || PAST_CHANGWON.includes(attemptId)) return [CHANGWON];
+  // 취소된 공고도 도 전체로 열려 있다. 안 걸러지면 `matchedCount`와 `nationwideCount`가 함께 하나씩
+  // 늘어나므로 두 숫자가 동시에 이 행을 지킨다.
+  if (attemptId === CANCELLED) return [GYEONGNAM_ALL];
   if (pastAttempts.includes(attemptId)) return [GIMHAE];
   return [];
 }
@@ -147,13 +159,18 @@ export const regionFilterSeed = `
   insert into mart.open_auction_snapshot
     (build_id, auction_attempt_id, observed_at, observation_id, organization_id, bid_count,
      source_last_changed_at, closes_at, base_amount, currency, item_label, floor_rate,
-     region_sido_code_value_id, region_sigungu_code_value_id, organization_label, terms_revision_id)
+     region_sido_code_value_id, region_sigungu_code_value_id, organization_label, terms_revision_id,
+     source_status_label)
   values ${OPEN_ATTEMPT_IDS
     .map((id) => `(${BUILD_ID}, ${id}, '2026-09-07T00:30:00Z', ${OBSERVATION_ID}, 41, 3, null,
-      '2026-09-08T05:00:00Z', 1000000.00, 'KRW', '축산', 90.000, null, null, '김해 어느 학교', ${revisionOf(id)})`)
-    .join(",\n         ")};
+      '2026-09-08T05:00:00Z', 1000000.00, 'KRW', '축산', 90.000, null, null, '김해 어느 학교', ${revisionOf(id)},
+      '진행중')`)
+    .join(",\n         ")},
+         (${BUILD_ID}, ${CANCELLED}, '2026-09-07T00:30:00Z', ${OBSERVATION_ID}, 41, 1, null,
+      '2026-09-08T05:00:00Z', 1000000.00, 'KRW', '축산', 90.000, null, null, '김해 어느 학교',
+      ${revisionOf(CANCELLED)}, '공고취소');
   update mart.build set status = 'verified', computed_at = '2026-09-07T00:10:00Z',
-    row_count = ${OPEN_ATTEMPT_IDS.length} where build_id = ${BUILD_ID};
+    row_count = ${OPEN_ATTEMPT_IDS.length + 1} where build_id = ${BUILD_ID};
   update mart.build set status = 'active', activated_at = '2026-09-07T00:11:00Z' where build_id = ${BUILD_ID};
 `;
 

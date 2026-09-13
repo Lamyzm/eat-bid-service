@@ -19,6 +19,36 @@ import {
 export const OPEN_AUCTION_SNAPSHOT = "open_auction_snapshot";
 export const ORG_ROUND_SUMMARY = "org_round_summary";
 
+/**
+ * 목록이 이 라벨을 붙인 공고는 취소된 것이라 제출할 수 없다.
+ *
+ * 2026-09-13 build 436에서 마감 전 1,189행 중 **45행**이 이 상태였고 그대로 화면에 나왔다. 덕정초는
+ * 같은 마감 시각에 여섯 행이 섰는데 셋은 취소분, 셋은 같은 조건의 재공고였다. 어느 쪽에 내야 하는지
+ * 화면이 말할 수 없었다(EAT-203).
+ *
+ * **제외 목록으로 두고 허용 목록으로 뒤집지 않는다.** 허용 목록이면 소스에 새 라벨이 나타나는 순간
+ * 낼 수 있는 공고가 조용히 사라진다. 놓친 판은 되돌릴 수 없고 헛클릭은 되돌릴 수 있다. 같은 이유로
+ * 관측 못 한 상태(`null`)도 숨기지 않는다 — 이 열이 생기기 전 build의 행이 그렇다(AGENTS 3).
+ *
+ * 같은 관측에서 `저장중`도 8행 있었는데 제출할 수 있는 상태인지 아직 모르므로 빼지 않는다.
+ */
+const CANCELLED_STATUS_LABEL = "공고취소";
+
+/**
+ * 열림 판정의 술어 하나다. 지금 이걸 목록과 지역 미리보기 둘이 쓴다.
+ *
+ * 한 곳에 모으는 이유는 이 이슈가 그 위험을 실제로 보여 줬기 때문이다. 두 파일이 각자 `closes_at`
+ * 조건을 적어 두었고, 취소 판정을 목록에만 더했다면 **같은 활성 build를 읽는 두 화면이 서로 다른
+ * 전국 건수를 말했을 것이다.** 미리보기는 그 수로 "404건이 9건이 된다"를 적는다.
+ *
+ * `alias`는 `closes_at`과 `source_status_label`을 가진 CTE 이름이다.
+ */
+export function openScopePredicate(alias: SQL, asOf: string): SQL {
+  return sql`(${alias}.closes_at is null or ${alias}.closes_at > ${asOf}::timestamptz)
+    and (${alias}.source_status_label is null
+         or ${alias}.source_status_label <> ${CANCELLED_STATUS_LABEL}::text)`;
+}
+
 // Instant는 driver가 모르는 타입이라 ISO 문자열로 넘기고 SQL 쪽에서 timestamptz로 닫는다. Date를 거치면
 // 밀리초 아래가 잘리고 계층 경계를 `Date`로 통과시키는 셈이라 금지다(AGENTS 15).
 function instantParameter(value: Temporal.Instant): string {
@@ -27,7 +57,9 @@ function instantParameter(value: Temporal.Instant): string {
 
 /**
  * 열림의 정의다. 활성 스냅샷 build에서 attempt마다 `observed_at`이 가장 큰 관측 하나를 고르고, 그중
- * `closes_at > asOf`인 행이 열린 공고다. 마감을 관측하지 못한 행(null)은 목록에 남기되 정렬 맨 뒤에
+ * `closes_at > asOf`이면서 **목록이 취소로 표시하지 않은** 행이 열린 공고다. 마감이 지난 행은 원래
+ * 걸러졌지만 취소분은 안 걸러져서 화면에 나왔다(EAT-203).
+ * 마감을 관측하지 못한 행(null)은 목록에 남기되 정렬 맨 뒤에
  * 두고, 기간 필터가 있으면 그 행은 **제외**한다 — 기간을 지정한 사용자에게 마감 미확인 행을 섞어 주면
  * 그 필터가 무엇을 골랐는지 알 수 없다.
  *
@@ -60,7 +92,8 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
         snapshot.currency,
         snapshot.bid_count,
         snapshot.observed_at,
-        snapshot.source_last_changed_at
+        snapshot.source_last_changed_at,
+        snapshot.source_status_label
       from mart.open_auction_snapshot snapshot
       where snapshot.build_id = ${activeMartBuildId(OPEN_AUCTION_SNAPSHOT)}
       order by snapshot.auction_attempt_id, snapshot.observed_at desc
@@ -74,7 +107,7 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
     open_rows as (
       select open_scope.*
       from open_scope
-      where (open_scope.closes_at is null or open_scope.closes_at > ${asOf}::timestamptz)
+      where ${openScopePredicate(sql`open_scope`, asOf)}
         and (${query.closesWithinHours}::int is null
              or (open_scope.closes_at is not null
                  and open_scope.closes_at <= ${asOf}::timestamptz + make_interval(hours => ${query.closesWithinHours}::int)))
