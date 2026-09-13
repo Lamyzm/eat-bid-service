@@ -30,6 +30,20 @@ data:
   # `infra/tests/test_workflow_contract.py`의
   # `test_eatbid_source_limit는_과도기_key이고_도는_backfill이_끝나면_지운다`가 이 key를 단언하는
   # 동안은 아직 지우면 안 된다는 신호다. 후속 정리는 별도 이슈로 추적한다.
+  # backfill capacity를 4로 올린다(2026-09-14, EAT-180). semaphore는 chunk pod 단위로 잡히고 pod
+  # 하나가 50건을 순차로 부르므로, capacity가 곧 소스 동시 호출 수다 — 4면 정확히 4다. 코드의 건별
+  # 루프를 병렬화하지 않고 이 숫자로 같은 배수를 얻는다.
+  #
+  # 왜 지금 올리나. 2025-11 한 창이 7.2시간이고 5년이면 60창이라 직렬로는 약 360시간이다. 병목은
+  # 계산이 아니라 대기다 — 노드는 CPU 1%였고 건당 약 1.6초가 소스 왕복이다. 그리고 지금까지
+  # SOURCE_THROTTLED가 0건이라 여유가 얼마인지 한 번도 재지 않았다.
+  #
+  # 중단 조건: 429·403이 하나라도 나오면 이 값을 1로 되돌린다. 응답 p95가 직전 단계의 두 배를 넘으면
+  # 멈춘다. 되돌리기는 이 줄 하나이며 Argo가 capacity를 chunk마다 live로 읽으므로 즉시 듣는다.
+  # 다음 단계는 8이며 4가 한 창을 끝까지 성공시킨 실측을 evidence에 남긴 뒤에 올린다.
+  #
+  # live는 1을 유지한다. 사용자가 보는 신규 공고 노출 SLO가 거기 걸려 있고, 그 lane은 대기열이 길지
+  # 않아 동시성을 올릴 이유가 없다.
   eatbid-source-live: "1"
-  eatbid-source-backfill: "1"
+  eatbid-source-backfill: "4"
   eatbid-source-limit: "1"
