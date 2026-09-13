@@ -1,6 +1,7 @@
 /** @module 책임: 열린 공고 목록 조회의 공개 V1 응답 봉투와 두 mart 계보를 이름 붙여 싣는 meta 계약을 소유한다. */
 import { z } from "zod";
 
+import { kstDateTextSchema } from "../../../atoms/calendar";
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { canonicalMoneyAmountSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
@@ -22,7 +23,9 @@ export const openAuctionListMetaSchema = z.strictObject({
   // "열림"은 `closesAt > asOf`라는 판정이라 어느 시각 기준인지를 응답이 말해야 재현된다.
   asOf: instantTextSchema,
   // 요청 필터를 그대로 되돌려 실어 sampleCount가 어느 코호트의 수인지 응답만으로 닫는다.
-  region: positiveBigintTextSchema.nullable(),
+  // 지역 축은 2단이라 둘을 따로 싣는다. `sigungu`가 비고 `sido`만 있으면 그 시도 전체를 본 것이다.
+  sido: positiveBigintTextSchema.nullable(),
+  sigungu: z.array(positiveBigintTextSchema).max(31).nullable(),
   eligibilityArea: z.array(positiveBigintTextSchema).max(maxEligibilityAreaSelection).nullable(),
   /**
    * 참가제한지역 필터를 걸었을 때 `sampleCount`가 어떻게 나뉘는지다. 필터가 없으면 둘 다 null이다.
@@ -36,6 +39,9 @@ export const openAuctionListMetaSchema = z.strictObject({
   eligibilityUnobservedCount: nonNegativeCountSchema.nullable(),
   item: z.string().min(1).max(512).nullable(),
   closesWithinHours: closesWithinHoursSchema.nullable(),
+  // KST 달력일 축 둘. 시간 창과 뜻이 다르므로 되돌려 실을 때도 자리를 나눈다.
+  closesOn: kstDateTextSchema.nullable(),
+  announcedOn: kstDateTextSchema.nullable(),
   baseAmountMin: canonicalMoneyAmountSchema.nullable(),
   baseAmountMax: canonicalMoneyAmountSchema.nullable(),
   openAuctionSnapshotBuild: martBuildLineageSchema,

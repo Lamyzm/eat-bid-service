@@ -65,7 +65,12 @@ export interface OpenAuctionQuery {
    * SQL에서 부르지 않는다 — 그러면 같은 요청의 목록·표본 수가 서로 다른 시각을 본다(AGENTS 15·17).
    */
   readonly asOf: Temporal.Instant;
-  readonly regionCodeValueId: bigint | null;
+  /**
+   * 공고지역 축이다. **시도 하나 + 그 안의 시군구 여럿**이며 시군구만 단독으로 오지 않는다.
+   * 시군구가 비면 그 시도 전체이고, `sidoCodeValueId`가 `null`이면 지역 필터가 없다.
+   */
+  readonly sidoCodeValueId: bigint | null;
+  readonly sigunguCodeValueIds: readonly bigint[] | null;
   /**
    * 참가제한지역 필터다. `null`은 필터 없음이고 빈 배열은 "고른 지역이 없다"라서 서로 다른 요청이다.
    * 저장된 코드 집합이 곧 매칭 집합이며 질의가 스스로 넓히지 않는다(ADR 0048 결정 2).
@@ -73,6 +78,12 @@ export interface OpenAuctionQuery {
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
   readonly itemLabel: string | null;
   readonly closesWithinHours: number | null;
+  /**
+   * KST 달력일로 자르는 축 둘이다. 위 시간 창과 함께 올 수 없다 — 시간 창은 달력일을 대신하지 못한다.
+   * `announcedOnKst`는 상세에서 온 게시일을 보므로 상세를 아직 따지 않은 공고는 걸리지 않는다.
+   */
+  readonly closesOnKst: string | null;
+  readonly announcedOnKst: string | null;
   // canonical decimal text다. 통화가 하나뿐인 필터 경계라 Money로 감싸지 않고 어댑터가 numeric 비교로 닫는다.
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;

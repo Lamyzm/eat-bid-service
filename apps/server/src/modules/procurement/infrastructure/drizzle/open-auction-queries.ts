@@ -7,6 +7,8 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type { OpenAuctionQuery } from "../../application/open-auction-reader";
+import { KST_TIME_ZONE } from "../../domain/kst-month";
+import { bigintArrayLiteral } from "../../../../platform/database/sql-values";
 import { activeMartBuildId } from "./drizzle-mart-build-reader";
 import {
   eligibilityAreaCodeCte,
@@ -68,6 +70,9 @@ function instantParameter(value: Temporal.Instant): string {
  */
 export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL {
   const asOf = instantParameter(query.asOf);
+  // 빈 배열은 계약이 막으므로 여기 오는 것은 `null`이거나 하나 이상이다. null을 그대로 넘기면 위
+  // 술어의 `is null` 가지가 필터 없음을 뜻한다.
+  const sigungu = query.sigunguCodeValueIds === null ? null : bigintArrayLiteral(query.sigunguCodeValueIds);
   const eligibility = query.eligibilityAreaCodeValueIds;
   // 필터가 없어도 두 판정 열은 그대로 만든다. 목록이 행마다 `제한지역 미관측`을 말해야 하고, 열이
   // 조건부로 생기면 세 조회가 서로 다른 CTE 모양을 보게 된다.
@@ -88,6 +93,7 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
         snapshot.region_sigungu_code_value_id,
         snapshot.terms_revision_id,
         snapshot.closes_at,
+        snapshot.announced_at,
         snapshot.base_amount,
         snapshot.currency,
         snapshot.bid_count,
@@ -113,9 +119,17 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
                  and open_scope.closes_at <= ${asOf}::timestamptz + make_interval(hours => ${query.closesWithinHours}::int)))
         and (${query.baseAmountMin}::numeric is null or open_scope.base_amount >= ${query.baseAmountMin}::numeric)
         and (${query.baseAmountMax}::numeric is null or open_scope.base_amount <= ${query.baseAmountMax}::numeric)
-        and (${query.regionCodeValueId}::bigint is null
-             or open_scope.region_sido_code_value_id = ${query.regionCodeValueId}::bigint
-             or open_scope.region_sigungu_code_value_id = ${query.regionCodeValueId}::bigint)
+        and (${query.closesOnKst}::date is null
+             or (open_scope.closes_at at time zone ${KST_TIME_ZONE})::date = ${query.closesOnKst}::date)
+        -- 게시일은 상세에서만 온다. 상세를 아직 따지 않은 공고는 이 축으로 못 걸리며 그것이 0건과
+        -- 다른 사실이라는 것은 화면이 말한다(AGENTS 3).
+        and (${query.announcedOnKst}::date is null
+             or (open_scope.announced_at at time zone ${KST_TIME_ZONE})::date = ${query.announcedOnKst}::date)
+        -- 시도 하나가 담는 그릇이고 시군구는 그 안에서만 좁힌다. 시군구가 비면 그 시도 전체다.
+        and (${query.sidoCodeValueId}::bigint is null
+             or open_scope.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
+        and (${sigungu}::text is null
+             or open_scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
         and (${query.itemLabel}::text is null or open_scope.item_label = ${query.itemLabel}::text)${eligibilityFilter}
     )${extraCte}
   `;

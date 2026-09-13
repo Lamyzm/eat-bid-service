@@ -1,7 +1,7 @@
 /** @module 책임: 커밋된 Drizzle migration journal과 runtime schema version 비교에 쓰는 기준 시점을 소유한다. */
 import { parseInstantText, Temporal } from "@eatbid/domain";
 
-export const expectedMigration = "20260911073615_supplier_account_party_pair" as const;
+export const expectedMigration = "20260913145358_open_auction_announced_at" as const;
 
 export function migrationNameInstant(name: string): Temporal.Instant {
   const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name);

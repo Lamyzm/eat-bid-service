@@ -147,7 +147,10 @@ export function openAuctionsResponse(request: Request): Response | null {
   // 서버와 같은 순서로 거른다: 품목 라벨 완전일치 → 지역 id → 기간 → 제한지역. 표본 수는 거른 뒤의 전체 수다.
   const filtered = rows(now)
     .filter((row) => query.item === undefined || row.itemLabel === query.item)
-    .filter((row) => query.region === undefined || row.region?.sido.codeValueId === query.region || row.region?.sigungu.codeValueId === query.region)
+    // 지역은 시도 하나가 담는 그릇이고 시군구가 그 안에서 좁힌다. 서버와 같은 순서로 둘을 잇는다.
+    .filter((row) => query.sido === undefined || row.region?.sido.codeValueId === query.sido)
+    .filter((row) => query.sigungu === undefined
+      || (row.region !== null && query.sigungu.includes(row.region.sigungu.codeValueId)))
     .filter((row) => query.closesWithinHours === undefined
       || (row.closesAt !== null && Date.parse(row.closesAt) <= now + query.closesWithinHours * HOUR))
     .filter((row) => areaFilter === null || row.eligibilityAreas === null || matchesArea(row));
@@ -158,7 +161,10 @@ export function openAuctionsResponse(request: Request): Response | null {
     meta: {
       sampleCount: filtered.length,
       asOf: instantSecondsIso(now),
-      region: query.region ?? null,
+      sido: query.sido ?? null,
+      sigungu: query.sigungu === undefined ? null : [...query.sigungu],
+      closesOn: query.closesOn ?? null,
+      announcedOn: query.announcedOn ?? null,
       eligibilityArea: areaFilter,
       // 합은 언제나 sampleCount다. 매칭과 미관측을 하나로 합치면 화면이 확인되지 않은 행을 "고른 지역의
       // 공고"라고 말하게 된다.

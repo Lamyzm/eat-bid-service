@@ -38,6 +38,8 @@ export const openAuctionSnapshot = martSchema.table(
     sourceLastChangedAt: timestamp("source_last_changed_at", { withTimezone: true }),
     closesAt: timestamp("closes_at", { withTimezone: true }),
     opensAt: timestamp("opens_at", { withTimezone: true }),
+    // 목록에 없고 상세에서만 오는 값이라 아래 상세 파생 열들과 같은 계보를 탄다. `오늘 열린` 탭이
+    // 이 열 하나에 걸려 있고, 비면 그 탭은 "게시일 미관측"이지 0건이 아니다(EAT-206).
     announcedAt: timestamp("announced_at", { withTimezone: true }),
     baseAmount: martMoney("base_amount"),
     currency: char("currency", { length: 3 }),
@@ -97,6 +99,7 @@ export const openAuctionSnapshot = martSchema.table(
       "open_auction_snapshot_terms_lineage_required",
       sql`${table.termsRevisionId} is not null
         or (${table.floorRate} is null and ${table.itemLabel} is null
+          and ${table.announcedAt} is null
           and ${table.regionSidoCodeValueId} is null
           and ${table.regionSigunguCodeValueId} is null)`,
     ),

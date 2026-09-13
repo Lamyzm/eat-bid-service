@@ -1,6 +1,7 @@
 /** @module 책임: 열린 공고 목록 조회 query의 필터 atom과 그 조합 계약을 소유한다. */
 import { z } from "zod";
 
+import { kstDateTextSchema } from "../../../atoms/calendar";
 import { canonicalMoneyAmountSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { maxEligibilityAreaSelection } from "../../../values/eligibility-area";
@@ -28,28 +29,60 @@ export const eligibilityAreaFilterSchema = z.preprocess(
 );
 
 /**
- * 지역(`region`)은 **공고지역**이다. 활성 스냅샷 build가 선언한 체계
- * (`meta.openAuctionSnapshotBuild.regionScheme`)의 code value id 하나이며 시도·시군구 어느 축이든 그
- * id를 가진 행만 남는다. 라벨·이름으로는 거르지 않는다(AGENTS 2·6).
+ * 시군구 필터다. `eligibilityArea`와 같은 이유로 파싱 직전에 한 번만 배열로 편다 — query string이
+ * 값 하나와 값 여럿을 구분하지 못하기 때문이다.
+ *
+ * 상한 31은 시도 하나가 가진 시군구의 최대치다(경기 31개). 그보다 많이 고를 수 있으면 시도 하나라는
+ * 제약이 배열 길이로 새어 나간다.
+ */
+export const sigunguFilterSchema = z.preprocess(
+  (value) => (value === undefined ? undefined : Array.isArray(value) ? value : [value]),
+  z.array(positiveBigintTextSchema).min(1).max(31),
+);
+
+/**
+ * 지역은 **공고지역**이고 활성 스냅샷 build가 선언한 체계
+ * (`meta.openAuctionSnapshotBuild.regionScheme`)의 code value id다. 라벨·이름으로는 거르지 않는다
+ * (AGENTS 2·6).
+ *
+ * **축이 2단이며 `시도 하나 + 그 안의 시군구 여럿`이다.** 하나로 합쳐 `시도든 시군구든 그 id를 가진
+ * 행`으로 받던 것을 쪼갠 이유는 크기다. 2026-06-19 성수기 실측으로 시도 하나가 **1,932행**이라
+ * 사용자가 전국을 막기로 한 결정이 시도 여럿으로 우회된다. `sido`를 배열로 받지 않아 타입이 그
+ * 제약을 말하고, `sigungu`는 그 `sido` 안에 있어야 한다 — 아니면 400이다.
+ *
+ * 짝 검증은 지금 **활성 build에서 관측된 짝**으로만 한다. 스냅샷 행마다 두 축이 함께 있어 실제로 없는
+ * 조합은 걸러지지만 그 build에 안 나타난 조합은 못 가린다. 계층 자체의 검증은 행안부 매핑(EAT-100)이
+ * 들어와야 한다.
  *
  * `eligibilityArea`는 **참가제한지역**이며 위와 다른 체계다. 학교가 어디 있는지가 아니라 공고가 누구의
  * 참가를 허용하는지를 보는 축이라, 두 필터는 서로를 대체하지 않고 같은 요청에서 함께 걸릴 수 있다
  * (PDR-0001, ADR 0048). 고른 코드 하나가 만드는 매칭 집합은 `{그 코드, 그 코드의 시도 전체 코드}`이며
  * 그 확장은 서버가 한다 — 화면이 전국을 받아 client에서 자르지 않는다.
  *
- * 품목은 아직 code scheme이 없어 관측 라벨 완전일치다(EAT-39 판정 B).
+ * 품목은 아직 code scheme이 없어 관측 라벨 완전일치다(EAT-39 판정 B). 조각 여럿을 term으로 바꾸는
+ * 것은 EAT-66이 소유하므로 여기서 배열로 넓히지 않는다.
+ *
+ * `closesOn`·`announcedOn`은 **KST 달력일**이고 `closesWithinHours`는 **시간 창**이다. 이름이 단위를
+ * 소유하며(AGENTS 15) 섞어 쓸 수 없다 — 15시에 `24시간 안`을 물으면 내일 14시가 함께 걸리므로
+ * 달력일을 대신하지 못한다. `announcedOn`은 상세에서 온 게시일을 보며 목록 관측에는 그 값이 없다.
  */
 export const openAuctionListQuerySchema = z.strictObject({
   state: openAuctionStateSchema.default("open"),
-  region: positiveBigintTextSchema.optional(),
+  sido: positiveBigintTextSchema.optional(),
+  sigungu: sigunguFilterSchema.optional(),
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
   item: z.string().min(1).max(512).optional(),
   closesWithinHours: closesWithinHoursSchema.optional(),
+  closesOn: kstDateTextSchema.optional(),
+  announcedOn: kstDateTextSchema.optional(),
   // 통화는 계약이 KRW 하나이므로 봉투 없이 금액 문자열만 받고 서버가 numeric 비교로 닫는다.
   baseAmountMin: canonicalMoneyAmountSchema.optional(),
   baseAmountMax: canonicalMoneyAmountSchema.optional(),
   cursor: positiveBigintTextSchema.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(DEFAULT_OPEN_AUCTION_LIMIT),
+  // 상한 200은 성수기 실측에서 나왔다. 시도 하나가 1,932행이라 한 응답에 다 실을 수 없고, 사용자의
+  // 기본 조건(김해 축산)은 성수기에도 62행이라 한 판에 들어간다. 더보기를 두지 않으므로 화면은 넘는
+  // 수를 `N건 중 200건`으로 적고 날짜·지역·검색이 좁히는 길이 된다.
+  limit: z.coerce.number().int().min(1).max(200).default(DEFAULT_OPEN_AUCTION_LIMIT),
 });
 
 export type OpenAuctionListQuery = z.output<typeof openAuctionListQuerySchema>;

@@ -94,7 +94,7 @@ function TodayList({ data, regionText }: { readonly data: TodayPageData; readonl
 export function TodayScreen({ data }: { readonly data: TodayPageData }) {
   const { presentation, search } = data;
   const view = presentation?.view ?? null;
-  const regionText = regionTextOf(view?.kind === 'list' ? view.rows : [], search.region);
+  const regionText = regionTextOf(view?.kind === 'list' ? view.rows : [], search.sido);
   return (
     <TodayFrame
       header={

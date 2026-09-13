@@ -105,10 +105,13 @@ describe("열린 공고 목록 HTTP 경로", () => {
       expect(response.status).toBe(200);
       expect(observed).toEqual([{
         asOf: NOW,
-        regionCodeValueId: null,
+        sidoCodeValueId: null,
+        sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
         itemLabel: null,
         closesWithinHours: null,
+        closesOnKst: null,
+        announcedOnKst: null,
         baseAmountMin: null,
         baseAmountMax: null,
         cursor: null,
@@ -174,7 +177,8 @@ describe("열린 공고 목록 HTTP 경로", () => {
       },
     }, async (server) => {
       const response = await request(server).get(listPath({
-        region: "9007199254740993",
+        sido: "9007199254740993",
+        sigungu: ["9201", "9202"],
         eligibilityArea: ["9101", "9100"],
         item: "축산",
         closesWithinHours: 72,
@@ -186,10 +190,14 @@ describe("열린 공고 목록 HTTP 경로", () => {
       expect(response.status).toBe(200);
       expect(observed).toEqual([{
         asOf: NOW,
-        regionCodeValueId: 9_007_199_254_740_993n,
+        // bigint 경계를 넘는 시도 id가 문자열로 와서 손실 없이 변환되는 것을 이 자리가 지킨다.
+        sidoCodeValueId: 9_007_199_254_740_993n,
+        sigunguCodeValueIds: [9_201n, 9_202n],
         eligibilityAreaCodeValueIds: [9_101n, 9_100n],
         itemLabel: "축산",
         closesWithinHours: 72,
+        closesOnKst: null,
+        announcedOnKst: null,
         baseAmountMin: "2000000.00",
         baseAmountMax: "3000000.00",
         cursor: 5_796_468n,
@@ -199,12 +207,15 @@ describe("열린 공고 목록 HTTP 경로", () => {
       expect(response.body.meta).toEqual({
         sampleCount: 0,
         asOf: "2026-09-07T01:30:00Z",
-        region: "9007199254740993",
+        sido: "9007199254740993",
+        sigungu: ["9201", "9202"],
         eligibilityArea: ["9101", "9100"],
         eligibilityMatchedCount: 0,
         eligibilityUnobservedCount: 0,
         item: "축산",
         closesWithinHours: 72,
+        closesOn: null,
+        announcedOn: null,
         baseAmountMin: "2000000.00",
         baseAmountMax: "3000000.00",
         openAuctionSnapshotBuild: { buildId: null, sourceReleaseId: null, calcVersion: null, computedAt: null, coverage: null, regionScheme: null },
@@ -222,8 +233,12 @@ describe("열린 공고 목록 HTTP 경로", () => {
       },
     }, async (server) => {
       for (const invalid of [
-        "state=closed", "sort=closesAt", "limit=0", "limit=101", "closesWithinHours=0", "closesWithinHours=721",
-        "baseAmountMin=2000000", "region=0", "cursor=01", "item=",
+        "state=closed", "sort=closesAt", "limit=0", "limit=201", "closesWithinHours=0", "closesWithinHours=721",
+        "baseAmountMin=2000000", "sido=0", "cursor=01", "item=",
+        // 계약이 타입으로 못 막는 조합 둘. 시군구만 오면 어느 시도 안인지 알 수 없고, 달력일과 시간
+        // 창을 함께 보내면 두 축이 서로 다른 창을 뜻한다(EAT-206).
+        "sigungu=43", "closesOn=2026-09-07&closesWithinHours=72",
+        "closesOn=2026-9-7", "announcedOn=20260907",
       ]) {
         const response = await request(server).get(`/api/v1/auctions?${invalid}`);
         expect(response.status, invalid).toBe(400);

@@ -64,12 +64,16 @@ export class AuctionController {
   async listOpen(
     @Query(new StandardSchemaPipe(listOperation.querySchema)) query: OpenAuctionQuery,
   ): Promise<OpenAuctionListV1Response> {
-    let regionCodeValueId: bigint | null;
+    let sidoCodeValueId: bigint | null;
+    let sigunguCodeValueIds: readonly bigint[] | null;
     let eligibilityAreaCodeValueIds: readonly bigint[] | null;
     let cursor: bigint | null;
     try {
       // 계약 검증 뒤에도 변환 자체는 예외를 낼 수 있으므로 transport 400 경계 안에서 닫는다.
-      regionCodeValueId = query.region === undefined ? null : BigInt(query.region);
+      sidoCodeValueId = query.sido === undefined ? null : BigInt(query.sido);
+      sigunguCodeValueIds = query.sigungu === undefined
+        ? null
+        : query.sigungu.map((value) => BigInt(value));
       // 필터 없음(`null`)과 고른 지역이 없음(빈 배열)은 다른 요청이다. query에 key가 없으면 앞이다.
       eligibilityAreaCodeValueIds = query.eligibilityArea === undefined
         ? null
@@ -78,13 +82,24 @@ export class AuctionController {
     } catch {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
+    // 계약이 타입으로 못 막는 조합 둘을 여기서 닫는다. 시군구만 온 요청은 어느 시도 안인지 말하지 않고,
+    // 달력일과 시간 창을 함께 보낸 요청은 두 축이 서로 다른 창을 뜻해 무엇을 물은 것인지 알 수 없다.
+    if (sigunguCodeValueIds !== null && sidoCodeValueId === null) {
+      throw new BadRequestException({ code: "VALIDATION_ERROR" });
+    }
+    if (query.closesOn !== undefined && query.closesWithinHours !== undefined) {
+      throw new BadRequestException({ code: "VALIDATION_ERROR" });
+    }
     try {
       // use case는 내부 record를 돌려주고 wire 직렬화는 presenter가 한다(ADR 0045 결정 1).
       return toOpenAuctionListResponse(await this.effectRunner.run(this.listOpenAuctions.execute({
-        regionCodeValueId,
+        sidoCodeValueId,
+        sigunguCodeValueIds,
         eligibilityAreaCodeValueIds,
         itemLabel: query.item ?? null,
         closesWithinHours: query.closesWithinHours ?? null,
+        closesOnKst: query.closesOn ?? null,
+        announcedOnKst: query.announcedOn ?? null,
         baseAmountMin: query.baseAmountMin ?? null,
         baseAmountMax: query.baseAmountMax ?? null,
         cursor,

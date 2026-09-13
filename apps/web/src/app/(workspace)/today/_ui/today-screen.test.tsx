@@ -80,7 +80,7 @@ describe('오늘 화면', () => {
   });
 
   test('지역 조건 칩은 행에서 읽은 라벨로 이름을 보이고 해제 링크를 가진다', () => {
-    const screen = render(<TodayScreen data={{ ...ready, search: { ...EMPTY_TODAY_SEARCH, region: '43' } }} />);
+    const screen = render(<TodayScreen data={{ ...ready, search: { ...EMPTY_TODAY_SEARCH, sido: '43' } }} />);
     const chip = screen.getByRole('link', { name: /지역 창원시/ });
     expect(chip.getAttribute('href')).toBe('/today');
   });

@@ -88,6 +88,7 @@ update mart.open_auction_snapshot as snapshot
    set terms_revision_id = latest.auction_revision_id,
        floor_rate = latest.floor_rate,
        item_label = latest.item_label,
+       announced_at = latest.announced_at,
        region_sido_code_value_id = latest.sido_code_value_id,
        region_sigungu_code_value_id = latest.sigungu_code_value_id
   from (
@@ -95,6 +96,9 @@ update mart.open_auction_snapshot as snapshot
            revision.auction_attempt_id,
            revision.auction_revision_id,
            revision.floor_rate,
+           -- 게시일은 목록에 없다. 목록 행은 마감·참여·상태만 주므로 `오늘 열린` 축은 상세에서만
+           -- 온다. 없으면 그 탭이 성립하지 않는다(EAT-206).
+           (revision.source_payload #>> '{schedule,announcedAt}')::timestamptz as announced_at,
            -- 품목 code scheme이 아직 없다. 관측 라벨을 코드로 승격시키지 않는다(EAT-44 판정 §4.2).
            nullif(btrim(coalesce(
              revision.source_payload #>> '{classification,sourceCategoryLabel}', ''

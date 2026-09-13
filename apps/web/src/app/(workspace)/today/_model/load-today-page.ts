@@ -8,7 +8,7 @@ import { ALL_REGIONS_SCOPE, type TodaySearch } from '../_lib/today-search-params
 import { presentOpenAuctionList, type OpenAuctionListPresentation } from './present-open-auctions';
 
 export type TodayListInput = {
-  readonly region?: string;
+  readonly sido?: string;
   readonly eligibilityArea?: readonly string[];
   readonly item?: string;
   readonly closesWithinHours?: number;
@@ -75,7 +75,7 @@ export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
   return {
     // `scope`는 계약이 받는 값이 아니라 화면이 저장된 설정을 이번 조회에 걸지 말지를 정하는 스위치다.
     scope: search.scope,
-    region: accepted(shape.region, search.region),
+    sido: accepted(shape.sido, search.sido),
     item: accepted(shape.item, search.item),
     closesWithinHours: accepted(shape.closesWithinHours, search.closesWithinHours),
     baseAmountMin: accepted(shape.baseAmountMin, search.baseAmountMin),
@@ -99,7 +99,7 @@ function eligibilityAreaOf(gate: TodayRegionGate): readonly string[] | undefined
 
 function listInput(search: TodaySearch, gate: TodayRegionGate): TodayListInput {
   return {
-    region: search.region ?? undefined,
+    sido: search.sido ?? undefined,
     eligibilityArea: eligibilityAreaOf(gate),
     item: search.item ?? undefined,
     closesWithinHours: search.closesWithinHours ?? undefined,

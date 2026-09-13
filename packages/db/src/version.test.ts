@@ -9,11 +9,11 @@ import {
 
 describe("schema version 검증", () => {
   test("commit된 마지막 migration으로 고정한다", () => {
-    expect(expectedMigration).toBe("20260911073615_supplier_account_party_pair");
+    expect(expectedMigration).toBe("20260913145358_open_auction_announced_at");
   });
 
   test("migration 이름에 인코딩된 UTC Instant를 사용한다", () => {
-    expect(expectedMigrationInstant.toString()).toBe("2026-09-11T07:36:15Z");
+    expect(expectedMigrationInstant.toString()).toBe("2026-09-13T14:53:58Z");
     expect(migrationNameInstant(expectedMigration).equals(expectedMigrationInstant)).toBe(true);
   });
 

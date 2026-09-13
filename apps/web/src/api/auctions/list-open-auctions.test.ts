@@ -24,12 +24,15 @@ const emptyList: OpenAuctionListV1Response = {
   meta: {
     sampleCount: 0,
     asOf: '2026-09-07T01:00:00Z',
-    region: null,
+    sido: null,
+    sigungu: null,
     eligibilityArea: null,
     eligibilityMatchedCount: null,
     eligibilityUnobservedCount: null,
     item: null,
     closesWithinHours: null,
+    closesOn: null,
+    announcedOn: null,
     baseAmountMin: null,
     baseAmountMax: null,
     openAuctionSnapshotBuild: nullLineage,
@@ -62,13 +65,13 @@ describe('열린 공고 목록 resource 조회', () => {
       return emptyList;
     });
     await expect(
-      listOpenAuctionsWith(request, { region: '41', closesWithinHours: 72, signal: controller.signal })
+      listOpenAuctionsWith(request, { sido: '41', closesWithinHours: 72, signal: controller.signal })
     ).resolves.toEqual(emptyList);
     expect(inputs).toEqual([
       {
         operation: auctionV1Operations.listOpen,
         path: {},
-        query: { state: 'open', region: '41', closesWithinHours: 72, limit: 50 },
+        query: { state: 'open', sido: '41', closesWithinHours: 72, limit: 50 },
         signal: controller.signal
       }
     ]);
@@ -77,9 +80,10 @@ describe('열린 공고 목록 resource 조회', () => {
   test('계약이 거부하는 query는 네트워크 호출 전에 실패한다', async () => {
     for (const input of [
       { closesWithinHours: 0 },
-      { region: '01' },
+      { sido: '01' },
       { baseAmountMin: '2000000' },
-      { limit: 101 },
+      // 상한이 100에서 200으로 넓어졌으므로 거부되는 경계도 함께 옮긴다(EAT-206).
+      { limit: 201 },
       { item: '' }
     ]) {
       let fetchCount = 0;

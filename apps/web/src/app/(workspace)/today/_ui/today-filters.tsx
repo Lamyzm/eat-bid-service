@@ -31,7 +31,7 @@ function baseAmountLabel(search: TodaySearch): string | null {
 /** 결과 0 상태가 되풀이해 말하는 조건 문장. 조건이 없으면 null이다. */
 export function describeTodaySearch(search: TodaySearch, regionText: string | null): string | null {
   const parts: string[] = [];
-  if (search.region !== null) parts.push(`지역 ${regionText ?? `코드 ${search.region}`}`);
+  if (search.sido !== null) parts.push(`지역 ${regionText ?? `코드 ${search.sido}`}`);
   if (search.item !== null) parts.push(`품목 ${search.item}`);
   const period = PERIOD_PRESETS.find((preset) => preset.hours === search.closesWithinHours);
   if (search.closesWithinHours !== null) parts.push(`기간 ${period?.label ?? `${search.closesWithinHours}시간 안`}`);
@@ -48,9 +48,9 @@ export function describeTodaySearch(search: TodaySearch, regionText: string | nu
 export function TodayFilters({ search, regionText }: { readonly search: TodaySearch; readonly regionText: string | null }) {
   return (
     <div className='flex min-w-0 flex-wrap items-center gap-2'>
-      {search.region !== null ? (
-        <Chip href={buildTodayFilterRoute(search, { region: null })} active>
-          지역 {regionText ?? `코드 ${search.region}`} <span aria-hidden>×</span><span className='sr-only'>지역 조건 해제</span>
+      {search.sido !== null ? (
+        <Chip href={buildTodayFilterRoute(search, { sido: null })} active>
+          지역 {regionText ?? `코드 ${search.sido}`} <span aria-hidden>×</span><span className='sr-only'>지역 조건 해제</span>
         </Chip>
       ) : (
         <span className={`${CHIP} text-muted-foreground`}>지역 전체</span>

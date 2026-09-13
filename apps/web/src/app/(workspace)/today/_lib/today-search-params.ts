@@ -9,7 +9,7 @@ export const todaySearchParsers = {
    * 보는 범위만 넓히는 출구라서 저장 command가 아니라 주소 하나로 표현한다.
    */
   scope: parseAsString,
-  region: parseAsString,
+  sido: parseAsString,
   item: parseAsString,
   closesWithinHours: parseAsInteger,
   baseAmountMin: parseAsString,
@@ -22,7 +22,7 @@ export type TodaySearch = Readonly<inferParserType<typeof todaySearchParsers>>;
 
 export const EMPTY_TODAY_SEARCH: TodaySearch = {
   scope: null,
-  region: null,
+  sido: null,
   item: null,
   closesWithinHours: null,
   baseAmountMin: null,

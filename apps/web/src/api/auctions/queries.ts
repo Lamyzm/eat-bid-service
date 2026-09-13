@@ -39,7 +39,7 @@ export function createAuctionQueries(request: ContractRequest) {
     },
     open(input: OpenAuctionListInput) {
       const query = auctionV1Operations.listOpen.querySchema.parse({
-        region: input.region,
+        sido: input.sido,
         item: input.item,
         closesWithinHours: input.closesWithinHours,
         baseAmountMin: input.baseAmountMin,

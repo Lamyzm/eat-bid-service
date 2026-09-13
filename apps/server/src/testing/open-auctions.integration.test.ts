@@ -190,10 +190,13 @@ function pageOf(listing: OpenAuctionListing): OpenAuctionPage {
 
 const baseQuery: OpenAuctionQuery = {
   asOf: NOW,
-  regionCodeValueId: null,
+  sidoCodeValueId: null,
+  sigunguCodeValueIds: null,
   eligibilityAreaCodeValueIds: null,
   itemLabel: null,
   closesWithinHours: null,
+  closesOnKst: null,
+  announcedOnKst: null,
   baseAmountMin: null,
   baseAmountMax: null,
   cursor: null,
@@ -290,9 +293,20 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       expect(ids(upTo)).toEqual([201n, 203n]);
       expect(upTo.sampleCount).toBe(2);
       expect(ids(pageOf(await reader.listOpen({ ...baseQuery, baseAmountMin: "3000000.00" })))).toEqual([202n, 205n]);
-      // 지역은 시도·시군구 어느 축이든 그 id를 가진 행이다.
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, regionCodeValueId: 41n })))).toEqual([201n, 205n]);
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, regionCodeValueId: 43n })))).toEqual([201n]);
+      // 지역은 시도 하나가 담는 그릇이고 시군구가 그 안에서 좁힌다. 시군구를 비우면 시도 전체다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, sidoCodeValueId: 41n })))).toEqual([201n, 205n]);
+      expect(ids(pageOf(await reader.listOpen({
+        ...baseQuery, sidoCodeValueId: 41n, sigunguCodeValueIds: [43n],
+      })))).toEqual([201n]);
+      // 같은 시도 안에서 시군구 둘을 고르면 합집합이다. 공고 하나에 시군구가 하나라 겹쳐 세지 않는다.
+      expect(ids(pageOf(await reader.listOpen({
+        ...baseQuery, sidoCodeValueId: 41n, sigunguCodeValueIds: [43n, 44n],
+      })))).toEqual([201n, 205n]);
+      // KST 달력일 축은 시간 창과 다른 것을 센다. 201은 09-07 14:00(KST) 마감이고 205는 09-10이다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, closesOnKst: "2026-09-07" })))).toEqual([201n]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, closesOnKst: "2026-09-10" })))).toEqual([205n]);
+      // 게시일은 상세에서만 오므로 이 스냅샷 행들처럼 비어 있으면 이 축으로 한 건도 안 걸린다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, announcedOnKst: "2026-09-07" })))).toEqual([]);
       // 품목은 라벨 완전일치다.
       expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabel: "축산" })))).toEqual([201n, 205n]);
       expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabel: "축" })))).toEqual([]);
@@ -328,7 +342,8 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         expect(response.body.meta).toEqual({
           sampleCount: 2,
           asOf: "2026-09-07T01:00:00Z",
-          region: null,
+          sido: null,
+          sigungu: null,
           // 참가제한지역으로 좁히지 않은 요청이라 세 값이 모두 null이다. 0이 아니다 — 0은 "걸렀는데
           // 하나도 없다"는 사실이고 null은 "그 축으로 묻지 않았다"는 뜻이다(ADR 0048 결정 3).
           eligibilityArea: null,
@@ -336,6 +351,8 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
           eligibilityUnobservedCount: null,
           item: "축산",
           closesWithinHours: null,
+          closesOn: null,
+          announcedOn: null,
           baseAmountMin: null,
           baseAmountMax: null,
           openAuctionSnapshotBuild: {

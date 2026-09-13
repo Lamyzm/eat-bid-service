@@ -62,7 +62,7 @@ describe('열린 공고 표', () => {
 
   test('지역·품목 링크는 다른 조건을 지우지 않고 id·라벨로 조건을 더한다', () => {
     const screen = renderTable();
-    expect(screen.getAllByRole('link', { name: '창원시' })[0]!.getAttribute('href')).toBe('/today?region=43&closesWithinHours=72');
+    expect(screen.getAllByRole('link', { name: '창원시' })[0]!.getAttribute('href')).toBe('/today?sido=43&closesWithinHours=72');
     // 링크 문자열은 parser가 직렬화한 그대로다. 한글을 미리 퍼센트 인코딩하지 않아도 브라우저가 요청 전에
     // URL 규격대로 인코딩한다(주소창과 `location.href`는 인코딩된 형태다).
     expect(screen.getAllByRole('link', { name: '축산' })[0]!.getAttribute('href')).toBe('/today?item=축산&closesWithinHours=72');

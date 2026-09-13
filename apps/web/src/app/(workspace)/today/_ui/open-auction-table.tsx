@@ -34,7 +34,7 @@ function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresent
         {/* 지역 링크는 라벨이 아니라 code value id로 거른다. 라벨은 표시일 뿐이다(AGENTS 2·6). */}
         {[region.sido, region.sigungu].map((reference) =>
           reference === null ? null : (
-            <Link key={reference.codeValueId} href={buildTodayFilterRoute(search, { region: reference.codeValueId })} className='hover:underline'>
+            <Link key={reference.codeValueId} href={buildTodayFilterRoute(search, { sido: reference.codeValueId })} className='hover:underline'>
               {reference.text}
             </Link>
           )

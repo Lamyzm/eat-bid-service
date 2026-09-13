@@ -60,10 +60,13 @@ const nullLineageWire = {
 
 const query: OpenAuctionQuery = {
   asOf: Temporal.Instant.from("2026-09-07T01:30:00Z"),
-  regionCodeValueId: null,
+  sidoCodeValueId: null,
+  sigunguCodeValueIds: null,
   eligibilityAreaCodeValueIds: null,
   itemLabel: null,
   closesWithinHours: null,
+  closesOnKst: null,
+  announcedOnKst: null,
   baseAmountMin: null,
   baseAmountMax: null,
   cursor: null,
@@ -133,12 +136,15 @@ describe("열린 공고 목록 presenter", () => {
     expect(response.meta).toEqual({
       sampleCount: 70,
       asOf: "2026-09-07T01:30:00Z",
-      region: null,
+      sido: null,
+      sigungu: null,
       eligibilityArea: null,
       eligibilityMatchedCount: null,
       eligibilityUnobservedCount: null,
       item: null,
       closesWithinHours: null,
+      closesOn: null,
+      announcedOn: null,
       baseAmountMin: null,
       baseAmountMax: null,
       openAuctionSnapshotBuild: {
@@ -209,9 +215,10 @@ describe("열린 공고 목록 presenter", () => {
     const response = toOpenAuctionListResponse({
       query: {
         ...query,
-        regionCodeValueId: 41n,
+        sidoCodeValueId: 41n,
+        sigunguCodeValueIds: [43n, 44n],
         itemLabel: "축산",
-        closesWithinHours: 72,
+        closesOnKst: "2026-09-07",
         baseAmountMin: "2000000.00",
         baseAmountMax: "3000000.00",
         limit: 20,
@@ -220,9 +227,13 @@ describe("열린 공고 목록 presenter", () => {
     });
     expect(response.meta).toMatchObject({
       sampleCount: 0,
-      region: "41",
+      // 지역 축이 2단이라 시도와 시군구가 따로 실린다. 하나로 합치면 "경남 전체"와 "경남의 두 시"가
+      // 응답에서 같은 모양이 된다.
+      sido: "41",
+      sigungu: ["43", "44"],
       item: "축산",
-      closesWithinHours: 72,
+      closesOn: "2026-09-07",
+      closesWithinHours: null,
       baseAmountMin: "2000000.00",
       baseAmountMax: "3000000.00",
     });

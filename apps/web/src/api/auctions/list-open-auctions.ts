@@ -8,7 +8,7 @@ import type { ContractRequest } from '../_transport/request-contract';
 import { mapOpenAuctionListError } from './auction-resource-error';
 
 export type OpenAuctionListInput = {
-  readonly region?: string;
+  readonly sido?: string;
   /** 워크스페이스가 확인한 참가제한지역 code value id 목록이다. 비면 필터를 걸지 않는다. */
   readonly eligibilityArea?: readonly string[];
   readonly item?: string;
@@ -24,7 +24,7 @@ export async function listOpenAuctionsWith(
   input: OpenAuctionListInput & { readonly signal?: AbortSignal }
 ): Promise<OpenAuctionListV1Response> {
   const query = auctionV1Operations.listOpen.querySchema.parse({
-    region: input.region,
+    sido: input.sido,
     eligibilityArea: input.eligibilityArea,
     item: input.item,
     closesWithinHours: input.closesWithinHours,

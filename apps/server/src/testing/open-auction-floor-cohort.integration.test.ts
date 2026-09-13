@@ -161,10 +161,13 @@ function pageOf(listing: OpenAuctionListing): OpenAuctionPage {
 
 const baseQuery: OpenAuctionQuery = {
   asOf: NOW,
-  regionCodeValueId: null,
+  sidoCodeValueId: null,
+  sigunguCodeValueIds: null,
   eligibilityAreaCodeValueIds: null,
   itemLabel: null,
   closesWithinHours: null,
+  closesOnKst: null,
+  announcedOnKst: null,
   baseAmountMin: null,
   baseAmountMax: null,
   cursor: null,
