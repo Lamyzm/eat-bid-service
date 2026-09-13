@@ -30,9 +30,14 @@ data:
   # `infra/tests/test_workflow_contract.py`의
   # `test_eatbid_source_limit는_과도기_key이고_도는_backfill이_끝나면_지운다`가 이 key를 단언하는
   # 동안은 아직 지우면 안 된다는 신호다. 후속 정리는 별도 이슈로 추적한다.
-  # backfill capacity를 4로 올린다(2026-09-14, EAT-180). semaphore는 chunk pod 단위로 잡히고 pod
-  # 하나가 50건을 순차로 부르므로, capacity가 곧 소스 동시 호출 수다 — 4면 정확히 4다. 코드의 건별
-  # 루프를 병렬화하지 않고 이 숫자로 같은 배수를 얻는다.
+  # backfill capacity를 8로 올린다(2026-09-14, EAT-180). semaphore는 chunk pod 단위로 잡히고 pod
+  # 하나가 50건을 순차로 부르므로, capacity가 곧 소스 동시 호출 수다 — 8이면 정확히 8이다. 코드의
+  # 건별 루프를 병렬화하지 않고 이 숫자로 같은 배수를 얻는다.
+  #
+  # 4를 거치지 않고 8로 가는 이유는 직렬이 근거 없이 느리기 때문이다. 한 창 7.2시간은 건당 1.53초인데
+  # 그 대부분이 대기다. 노드는 CPU 1%였고 이 저장소가 소스를 부른 이래 SOURCE_THROTTLED가 0건이다.
+  # 상한이 어디인지 모르는 채로 1에 머무는 것이 가장 비싼 선택이다. 8도 소스 입장에서 큰 수가 아니고,
+  # 되돌리기가 이 줄 하나라 잘못 골랐을 때의 비용이 작다.
   #
   # 왜 지금 올리나. 2025-11 한 창이 7.2시간이고 5년이면 60창이라 직렬로는 약 360시간이다. 병목은
   # 계산이 아니라 대기다 — 노드는 CPU 1%였고 건당 약 1.6초가 소스 왕복이다. 그리고 지금까지
@@ -45,5 +50,5 @@ data:
   # live는 1을 유지한다. 사용자가 보는 신규 공고 노출 SLO가 거기 걸려 있고, 그 lane은 대기열이 길지
   # 않아 동시성을 올릴 이유가 없다.
   eatbid-source-live: "1"
-  eatbid-source-backfill: "4"
+  eatbid-source-backfill: "8"
   eatbid-source-limit: "1"
