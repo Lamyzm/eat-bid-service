@@ -1,11 +1,11 @@
-/** @module 책임: 열린 공고 행을 마감 임박 순 그대로 표로 그리고, 열의 정렬·폭별 접힘·줄바꿈을 한 열 서술에서 파생하며 상태색은 마감 셀의 D-0·D-1에만 건다. */
+/** @module 책임: 열린 공고 행을 마감 임박 순 그대로 순번·마감·기관·품목·기초금액·참여 여섯 칸으로 그리고, 열의 정렬·폭별 접힘·줄바꿈을 한 열 서술에서 파생하며 상태색은 마감 셀의 D-0·D-1에만 건다. */
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { summarizeItemLabel } from '@/entities/item/item-label';
 
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
-import type { ClosesTone, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
+import type { ClosesTone, FloorRateSpread, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
 
 // 빨강은 상태 색으로만 쓴다. 오늘 마감은 red, 내일 마감은 amber(주의)이며 그 밖의 셀·헤더·칩에는 쓰지 않는다
 // (screen-system §9.2, EAT-39 판정 F). 색과 함께 `D-0`·`D-1` 텍스트가 같이 있다.
@@ -26,9 +26,14 @@ function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresent
   const { organization, region } = row;
   return (
     <div className='grid min-w-0 gap-0.5'>
-      <span className={`line-clamp-2 break-keep wrap-anywhere text-[15px] font-semibold ${organization.tone === 'named' ? '' : 'text-muted-foreground'}`}>
+      {/* 행을 여는 자리는 기관 이름이다. 별도의 `열기` 열을 두면 모든 행에 같은 단어가 서른 번 서고,
+          그 열의 너비만큼 기관 이름이 줄어든다. */}
+      <Link
+        href={row.href}
+        className={`line-clamp-2 break-keep wrap-anywhere text-[15px] font-semibold hover:underline ${organization.tone === 'named' ? '' : 'text-muted-foreground'}`}
+      >
         {organization.text}
-      </span>
+      </Link>
       <span className={`flex flex-wrap gap-x-2 ${MUTED}`}>
         {organization.type !== null && organization.type !== 'unknown' ? <span>{organization.type}</span> : null}
         {/* 지역 링크는 라벨이 아니라 code value id로 거른다. 라벨은 표시일 뿐이다(AGENTS 2·6). */}
@@ -44,9 +49,8 @@ function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresent
         <span className={row.eligibilityText === null ? 'font-semibold text-foreground' : undefined}>
           {row.eligibilityText === null ? '제한지역 미관측' : `제한 ${row.eligibilityText}`}
         </span>
-        {/* 좁은 폭에서 접힌 품목·보통 참여를 둘째 줄에 둔다. */}
+        {/* 좁은 폭에서 접힌 품목을 둘째 줄에 둔다. 참여는 어느 폭에서나 제 열에 있다. */}
         <span className='lg:hidden'>{row.itemLabel === null ? '품목 미확인' : summarizeItemLabel(row.itemLabel).text}</span>
-        {row.orgSummary ? <span className='lg:hidden'>보통 참여 {row.orgSummary.medianListText}</span> : null}
       </span>
     </div>
   );
@@ -72,31 +76,51 @@ function ClosesCell({ row }: { readonly row: OpenAuctionRowPresentation }) {
   );
 }
 
-function MedianCell({ row }: { readonly row: OpenAuctionRowPresentation }) {
-  if (row.orgSummary === null) return <span className='text-muted-foreground'>—</span>;
+/**
+ * 오늘 몇 곳 들어왔는지와 그 판의 보통이 한 칸에 있다.
+ *
+ * 열을 나누지 않는 이유는 둘이 **함께 읽어야 뜻이 생기는 한 쌍**이기 때문이다. `0`만 보면 한산한
+ * 판인지 아직 안 찬 판인지 알 수 없다. 보통 17인 곳의 0과 보통 60인 곳의 0은 다른 말이다.
+ *
+ * 표본 수를 함께 적는다. 같은 `보통 68`이라도 다섯 회를 본 것과 열다섯 회를 본 것은 무게가
+ * 다르고, 표본 없는 중앙값을 화면에 내면 그 차이가 사라진다(AGENTS 7).
+ */
+function ParticipationCell({ row }: { readonly row: OpenAuctionRowPresentation }) {
   return (
-    <span className='whitespace-nowrap tabular-nums'>
-      {row.orgSummary.medianListText}
-      <span className={` ${MUTED}`}> n={row.orgSummary.listCountSampleCount}</span>
+    <span className='grid justify-items-end gap-0.5 tabular-nums'>
+      <span className='whitespace-nowrap'>{row.bidCountText}</span>
+      {row.orgSummary === null
+        ? null
+        : (
+            <span className={`${MUTED} whitespace-nowrap`}>
+              보통 {row.orgSummary.medianListText} · {row.orgSummary.listCountSampleCount}회
+            </span>
+          )}
     </span>
   );
 }
 
-function LastAwardedCell({ row }: { readonly row: OpenAuctionRowPresentation }) {
-  if (row.orgSummary === null) return <span className='text-muted-foreground'>—</span>;
-  // 첫 줄(값)만 nowrap이다. 둘째 줄의 개찰 시각·명단은 줄바꿈을 허용해 열 하나가 표를 카드 밖으로 밀지 않게 한다.
+/**
+ * 기초금액과, 이 목록에서 드문 하한일 때만 그 값이다.
+ *
+ * 하한을 열로 두지 않는 이유는 `summarizeFloorRates`가 소유한다. 여기서는 그 판정을 받아 적을 뿐이라
+ * 드문 값이 하나도 없는 흔한 경우에는 둘째 줄 자체가 없다.
+ */
+function BaseAmountCell({ row, rareRates }: { readonly row: OpenAuctionRowPresentation; readonly rareRates: ReadonlySet<string> }) {
   return (
     <span className='grid justify-items-end gap-0.5 tabular-nums'>
-      <span className='whitespace-nowrap'>{row.orgSummary.lastAwardedText}</span>
-      {row.orgSummary.lastOpenedText ? (
-        <span className={`${MUTED} whitespace-normal`}>
-          {row.orgSummary.lastOpenedText}
-          {row.orgSummary.lastListText ? ` · ${row.orgSummary.lastListText}` : ''}
-        </span>
-      ) : null}
+      <span className='whitespace-nowrap'>{row.baseAmountText}</span>
+      {rareRates.has(row.floorRateText) ? <span className={`${MUTED} whitespace-nowrap`}>하한 {row.floorRateText}</span> : null}
     </span>
   );
 }
+
+/** 셀이 행 하나만으로는 알 수 없는 것들이다. 순번은 목록에서의 자리고, 드문 하한은 목록 전체의 성질이다. */
+type OpenAuctionCellContext = {
+  readonly search: TodaySearch;
+  readonly rank: number;
+  readonly rareRates: ReadonlySet<string>;
+};
 
 type OpenAuctionColumn = {
   readonly id: string;
@@ -111,38 +135,27 @@ type OpenAuctionColumn = {
   readonly headerHidden?: true;
   /** 셀 안에서 줄을 바꾸는 열이다. 나머지 숫자 열은 nowrap에 tabular-nums다. */
   readonly wraps?: true;
-  readonly cell: (row: OpenAuctionRowPresentation, search: TodaySearch) => ReactNode;
+  readonly cell: (row: OpenAuctionRowPresentation, context: OpenAuctionCellContext) => ReactNode;
 };
 
 /**
  * 열의 머리글·정렬·접힘·줄바꿈·셀을 한 줄에 모은다. 이 넷을 따로 둔 표로 관리하면 열 하나를 더할 때
  * 네 곳을 맞춰야 하고, 하나를 빠뜨려도 className에 `undefined`가 들어갈 뿐 조용히 지나간다.
  *
- * xl(1280 이상)은 열 전부, lg(1024 이상)는 참여 수·최근 낙찰을 접고, md(768 이상)는 기관·기초금액·마감·열기
- * 넷만 남기고 품목·보통 참여를 기관 셀 둘째 줄에 둔다(설계 §4.6·§11). 잘린 desktop 표를 그대로 스크롤시키지 않는다.
+ * 여섯 칸이고 머리글은 다섯이다. 마감 임박 순이 이미 정해진 목록이라 순번은 `몇 번째로 닫히나`라는
+ * 뜻을 갖고, 그 열에는 부를 이름이 따로 없어 머리글을 눈에서만 감춘다.
+ *
+ * 하한은 열이 아니다(`summarizeFloorRates`). 최근 낙찰은 투찰률 축이라 사정률 축인 이 목록과 눈금이
+ * 다르고, 한 행을 고른 뒤에 볼 것이라 상세로 보낸다. 좁은 폭에서는 품목만 접어 기관 셀 둘째 줄로
+ * 내리고 나머지 다섯은 어느 폭에서나 남는다.
  */
 const COLUMNS: readonly OpenAuctionColumn[] = [
-  { id: 'organization', header: '기관', align: 'text-left', visibility: '', wraps: true, cell: (row, search) => <OrganizationCell row={row} search={search} /> },
-  { id: 'item', header: '품목', align: 'text-left', visibility: 'hidden lg:table-cell', cell: (row, search) => <ItemCell row={row} search={search} /> },
-  { id: 'baseAmount', header: '기초금액', align: 'text-right', visibility: '', cell: (row) => row.baseAmountText },
-  // 하한율은 사정률 축의 상수다. 축을 머리글에 적어 투찰률 축(최근 낙찰)과 같은 눈금으로 읽히지 않게 한다(PDR-0004).
-  { id: 'floorRate', header: '하한(사정률)', align: 'text-right', visibility: 'hidden lg:table-cell', cell: (row) => row.floorRateText },
-  { id: 'closes', header: '마감', align: 'text-right', visibility: '', cell: (row) => <ClosesCell row={row} /> },
-  { id: 'bidCount', header: '참여 수', align: 'text-right', visibility: 'hidden xl:table-cell', cell: (row) => row.bidCountText },
-  { id: 'medianList', header: '보통 참여', align: 'text-right', visibility: 'hidden lg:table-cell', cell: (row) => <MedianCell row={row} /> },
-  { id: 'lastAwarded', header: '최근 낙찰(투찰률)', align: 'text-right', visibility: 'hidden xl:table-cell', wraps: true, cell: (row) => <LastAwardedCell row={row} /> },
-  {
-    id: 'open',
-    header: '열기',
-    align: 'text-right',
-    visibility: '',
-    headerHidden: true,
-    cell: (row) => (
-      <Link href={row.href} className='inline-flex h-8 items-center rounded-lg border border-border px-3 text-[13px] font-semibold whitespace-nowrap hover:bg-muted'>
-        열기
-      </Link>
-    )
-  }
+  { id: 'rank', header: '순번', align: 'text-left', visibility: '', headerHidden: true, cell: (_row, context) => <span className={MUTED}>{context.rank}</span> },
+  { id: 'closes', header: '마감', align: 'text-left', visibility: '', cell: (row) => <ClosesCell row={row} /> },
+  { id: 'organization', header: '기관', align: 'text-left', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} /> },
+  { id: 'item', header: '품목', align: 'text-left', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
+  { id: 'baseAmount', header: '기초금액', align: 'text-right', visibility: '', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
+  { id: 'participation', header: '참여', align: 'text-right', visibility: '', cell: (row) => <ParticipationCell row={row} /> }
 ];
 
 /**
@@ -150,7 +163,17 @@ const COLUMNS: readonly OpenAuctionColumn[] = [
  * 정렬·필터·페이징이 이 화면의 표에 생기기 전까지 headless 표 라이브러리를 다시 들이지 않는다 —
  * 그 순간 표 전체가 브라우저로 넘어가고 hydration 비용이 따라온다.
  */
-export function OpenAuctionTable({ rows, search }: { readonly rows: readonly OpenAuctionRowPresentation[]; readonly search: TodaySearch }) {
+export function OpenAuctionTable({
+  rows,
+  search,
+  floorRates
+}: {
+  readonly rows: readonly OpenAuctionRowPresentation[];
+  readonly search: TodaySearch;
+  /** 하한 판정은 결과 집합의 성질이라 표가 혼자 정하지 않는다. 조건 줄과 같은 판정을 받아 쓴다. */
+  readonly floorRates: FloorRateSpread;
+}) {
+  const rareRates = floorRates.rareRates;
   return (
     <table className='w-full border-collapse'>
       <thead>
@@ -163,14 +186,14 @@ export function OpenAuctionTable({ rows, search }: { readonly rows: readonly Ope
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
+        {rows.map((row, index) => (
           <tr key={row.auctionAttemptId} data-closes={row.closes.tone} className='border-b border-border/60 last:border-0'>
             {COLUMNS.map((column) => (
               <td
                 key={column.id}
                 className={`px-2 py-2 align-top text-[15px] font-medium xl:px-3 ${column.align} ${column.visibility} ${column.wraps ? '' : 'whitespace-nowrap tabular-nums'}`}
               >
-                {column.cell(row, search)}
+                {column.cell(row, { search, rank: index + 1, rareRates })}
               </td>
             ))}
           </tr>

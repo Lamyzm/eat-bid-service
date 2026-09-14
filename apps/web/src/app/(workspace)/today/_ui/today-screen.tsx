@@ -6,7 +6,7 @@ import { EmptyState } from '@/shared/ui/empty-state';
 import { RegionScopeStrip, RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
 import { buildTodayRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
-import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
+import { summarizeFloorRates, type OpenAuctionListPresentation, type OpenAuctionRowPresentation } from '../_model/present-open-auctions';
 import { OpenAuctionTable } from './open-auction-table';
 import { TodayFrame } from './today-frame';
 import { TodayFilters, describeTodaySearch } from './today-filters';
@@ -52,6 +52,9 @@ function OpenAuctionList({
   readonly search: TodaySearch;
   readonly cursorReset: boolean;
 }) {
+  // 하한은 이 결과 집합의 성질이라 열이 아니라 조건 줄에 한 번 적는다. 표와 같은 판정을 써야
+  // 조건 줄이 세는 수와 행에 붙는 값이 어긋나지 않는다.
+  const floorRates = summarizeFloorRates(rows);
   return (
     <div className='overflow-hidden rounded-xl bg-card shadow-xs'>
       <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-4'>
@@ -59,11 +62,12 @@ function OpenAuctionList({
         <span className='text-[13px] font-semibold text-muted-foreground'>
           {rows.length}건 표시 · 전체 {presentation.sampleCount}건
         </span>
+        {floorRates.axisText === '' ? null : <span className='text-[13px] font-semibold text-muted-foreground'>{floorRates.axisText}</span>}
         {cursorReset ? <span className='text-[13px] font-semibold text-pushed'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
       </div>
       {/* 표본 수·계보·산출 시각은 각주가 아니라 표 위 한 줄이다(AGENTS 7). */}
       <p className='px-4 py-2 text-[13px] font-medium text-muted-foreground'>{presentation.lineageText}</p>
-      <OpenAuctionTable rows={rows} search={search} />
+      <OpenAuctionTable rows={rows} search={search} floorRates={floorRates} />
       {presentation.nextCursor !== null ? (
         <div className='flex justify-end px-4 py-3'>
           <Link href={buildTodayRoute({ ...search, cursor: presentation.nextCursor })} className={LINK}>

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixtureNow, laterRow, noSnapshotFixture, openAuctionsFixture, todayRow, tomorrowRow, unknownClosesRow } from '../__fixtures__/open-auctions';
-import { dDayOf, presentOpenAuction, presentOpenAuctionList } from './present-open-auctions';
+import { dDayOf, presentOpenAuction, presentOpenAuctionList, summarizeFloorRates } from './present-open-auctions';
 
 describe('열린 공고 표시 변환', () => {
   test('KST 자정 직전 마감은 오늘 마감으로 세고 시각만 보인다', () => {
@@ -41,7 +41,7 @@ describe('열린 공고 표시 변환', () => {
   test('금액은 천 단위 구분이고 기관 요약은 같은 회차의 낙찰률·명단을 짝지어 낸다', () => {
     const presented = presentOpenAuction(todayRow, fixtureNow);
     expect(presented.baseAmountText).toBe('2,761,700');
-    expect(presented.floorRateText).toBe('90.000');
+    expect(presented.floorRateText).toBe('90');
     expect(presented.region).toEqual({ sido: { codeValueId: '41', text: '경상남도' }, sigungu: { codeValueId: '43', text: '창원시' } });
     expect(presented.orgSummary).toEqual({
       attemptCount: 17,
@@ -94,5 +94,24 @@ describe('열린 공고 표시 변환', () => {
     expect(presentation.lineageText).toBe(
       '열린 공고 스냅샷 build 601 · mart-r2 · 09-07 10:00 산출 · 지역 체계 eat:auction-location-sigungu · 기관 회차 요약 build 501 · mart-r1'
     );
+  });
+  test('하한이 한 종류뿐이면 조건 줄 한 문장이 되고 행에 적을 값이 없다', () => {
+    const rows = [todayRow, tomorrowRow].map((auction) => presentOpenAuction(auction, fixtureNow));
+    const spread = summarizeFloorRates(rows);
+    // 같은 수를 행마다 적을 것이 아니라 한 번 적는다. 저장된 `90.000`의 소수부 0은 정밀도가 아니다.
+    expect(spread.axisText).toBe('하한 90');
+    expect(spread.rareRates.size).toBe(0);
+  });
+
+  test('하한이 여러 종류면 흔한 순으로 나눠 세고 드문 쪽만 행에 적는다', () => {
+    const rows = openAuctionsFixture.auctions.map((auction) => presentOpenAuction(auction, fixtureNow));
+    const spread = summarizeFloorRates(rows);
+    expect(spread.axisText).toBe('하한 90 · 2 / 미확인 · 2');
+    // 관측하지 못한 하한을 세지 않고 버리면 조건 줄의 합이 목록 건수와 달라진다(AGENTS 3·7).
+    expect([...spread.rareRates]).toEqual(['미확인']);
+  });
+
+  test('행이 없으면 하한에 대해 할 말이 없다', () => {
+    expect(summarizeFloorRates([])).toEqual({ axisText: '', rareRates: new Set() });
   });
 });
