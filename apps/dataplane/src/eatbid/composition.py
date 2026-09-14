@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Mapping
 from datetime import timedelta
 from functools import partial
+from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
@@ -41,6 +42,12 @@ from eatbid.mart.open_auction_snapshot import open_auction_snapshot_filler
 from eatbid.mart.org_round_summary import fill_org_round_summary
 from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
 from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
+from eatbid.monitoring.backup import (
+    BackupExpectation,
+    BackupObject,
+    evaluate_backups,
+)
+from eatbid.monitoring.cluster import evaluate_cluster
 from eatbid.monitoring.github import WorkflowExpectation, evaluate_workflows
 from eatbid.monitoring.notify import send_telegram
 from eatbid.monitoring.runner import (
@@ -48,7 +55,7 @@ from eatbid.monitoring.runner import (
     ViolationProbe,
     run_expectation_check,
 )
-from eatbid.monitoring.store import R2StateStore
+from eatbid.monitoring.store import R2BackupLister, R2StateStore
 from eatbid.pipeline.advance import CompletedWindow, next_window
 from eatbid.pipeline.capture import capture
 from eatbid.pipeline.collection_window import SEOUL_TIME, resolve_collection_window
@@ -223,7 +230,9 @@ class Application:
             )
             coverage = tuple(
                 CompletedWindow(
-                    start_date=str(row[0]), end_date=str(row[1]), is_complete=bool(row[2])
+                    start_date=str(row[0]),
+                    end_date=str(row[1]),
+                    is_complete=bool(row[2]),
                 )
                 for row in cursor.fetchall()
             )
@@ -401,10 +410,16 @@ class _MonitoringRunner:
     """
 
     def __init__(
-        self, *, connection: Any, state_store: Any, config: ApplicationSettings
+        self,
+        *,
+        connection: Any,
+        state_store: Any,
+        backup_lister: Any,
+        config: ApplicationSettings,
     ) -> None:
         self._connection = connection
         self._state_store = state_store
+        self._backup_lister = backup_lister
         self._config = config
 
     def _run_query(
@@ -445,10 +460,42 @@ class _MonitoringRunner:
         runs = payload.get("workflow_runs") if isinstance(payload, Mapping) else None
         return [run for run in runs or () if isinstance(run, Mapping)]
 
+    def _list_cluster_resources(self, path: str) -> list[Mapping[str, Any]]:
+        """클러스터 안에서 Kubernetes API를 읽는다.
+
+        왜 kubernetes client 패키지를 쓰지 않는가: 필요한 것이 GET 둘뿐이라 의존성 하나를 더하는 값이
+        없다. ServiceAccount token과 CA는 kubelet이 파드 안에 놓아 주며, 그 경로는 Kubernetes가
+        정한 자리다.
+
+        왜 token을 매번 읽는가: projected token은 만료 전에 파일이 갱신된다. 한 번 읽어 두면 오래 사는
+        프로세스에서 만료된 token을 계속 보내게 된다 — 감시는 15분마다 새로 뜨지만 그 가정에 기대지 않는다.
+        """
+        root = Path("/var/run/secrets/kubernetes.io/serviceaccount")
+        token = (root / "token").read_text(encoding="utf-8").strip()
+        response = httpx.get(
+            f"https://kubernetes.default.svc{path}",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            verify=str(root / "ca.crt"),
+            timeout=20.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        items = payload.get("items") if isinstance(payload, Mapping) else None
+        return [item for item in items or () if isinstance(item, Mapping)]
+
+    def _list_backup_objects(
+        self, expectation: BackupExpectation
+    ) -> list[BackupObject]:
+        return self._backup_lister.list(expectation.prefix)
+
     def _probes(self) -> tuple[ViolationProbe, ...]:
-        if self._config.github_repository is None:
-            return ()
-        return (lambda: evaluate_workflows(self._fetch_workflow_runs),)
+        probes: list[ViolationProbe] = [
+            lambda: evaluate_backups(self._list_backup_objects),
+            lambda: evaluate_cluster(self._list_cluster_resources),
+        ]
+        if self._config.github_repository is not None:
+            probes.append(lambda: evaluate_workflows(self._fetch_workflow_runs))
+        return tuple(probes)
 
     def run(self) -> MonitoringResult:
         return run_expectation_check(
@@ -472,8 +519,17 @@ def _build_monitoring(
         secret_access_key=config.r2_secret_access_key.get_secret_value(),
         key=f"monitoring/{config.environment_name}/expectation-state.json",
     )
+    backup_lister = R2BackupLister(
+        endpoint_url=str(config.r2_endpoint_url),
+        bucket=config.r2_bucket,
+        access_key_id=config.r2_access_key_id.get_secret_value(),
+        secret_access_key=config.r2_secret_access_key.get_secret_value(),
+    )
     return _MonitoringRunner(
-        connection=connection, state_store=state_store, config=config
+        connection=connection,
+        state_store=state_store,
+        backup_lister=backup_lister,
+        config=config,
     )
 
 
