@@ -21,6 +21,7 @@ export {
 } from "./participation.resource";
 export {
   DEFAULT_OPEN_AUCTION_LIMIT,
+  MAX_OPEN_AUCTION_LIMIT,
   openAuctionListQuerySchema,
   type OpenAuctionListQuery,
 } from "./list-open-auctions.query";

@@ -1,11 +1,12 @@
 /** @module 책임: 오늘 route의 URL 조건 검증·목록 조회·사라진 cursor의 한 번 재조회 분기와 표시 변환의 조립 순서를 소유한다. */
 import {
+  MAX_OPEN_AUCTION_LIMIT,
   openAuctionListQuerySchema,
   type OpenAuctionListV1Response,
   type OpenAuctionSummaryV1Response
 } from '@eatbid/contracts/api/v1/auctions';
 
-import { ALL_REGIONS_SCOPE, type TodaySearch } from '../_lib/today-search-params';
+import { ALL_REGIONS_SCOPE, normalizeAmountInput, type TodaySearch } from '../_lib/today-search-params';
 import { presentOpenAuctionList, type OpenAuctionListPresentation } from './present-open-auctions';
 import { calendarWindow, presentOpenSummary, type OpenSummaryPresentation } from './present-open-summary';
 
@@ -19,6 +20,7 @@ export type TodayListInput = {
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
   readonly cursor?: string;
+  readonly limit?: number;
 };
 
 /**
@@ -103,8 +105,8 @@ export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
     closesWithinHours: search.closesOn === null ? accepted(shape.closesWithinHours, search.closesWithinHours) : null,
     closesOn: accepted(shape.closesOn, search.closesOn),
     announcedOn: accepted(shape.announcedOn, search.announcedOn),
-    baseAmountMin: accepted(shape.baseAmountMin, search.baseAmountMin),
-    baseAmountMax: accepted(shape.baseAmountMax, search.baseAmountMax),
+    baseAmountMin: accepted(shape.baseAmountMin, normalizeAmountInput(search.baseAmountMin)),
+    baseAmountMax: accepted(shape.baseAmountMax, normalizeAmountInput(search.baseAmountMax)),
     cursor: accepted(shape.cursor, search.cursor)
   };
 }
@@ -132,7 +134,15 @@ function listInput(search: TodaySearch, gate: TodayRegionGate): TodayListInput {
     announcedOn: search.announcedOn ?? undefined,
     baseAmountMin: search.baseAmountMin ?? undefined,
     baseAmountMax: search.baseAmountMax ?? undefined,
-    cursor: search.cursor ?? undefined
+    cursor: search.cursor ?? undefined,
+    /**
+     * 화면은 언제나 상한만큼 요청한다. 더보기를 두지 않기로 했으므로(사용자 결정) 페이지를 나누면 못 보는
+     * 행이 생기고 그 사실이 화면에 안 남는다. 넘치면 목록이 `N건 중 200건`이라고 적고, 좁히는 길 셋
+     * (달력 칸·지역 칩·검색)이 이미 화면에 있다.
+     *
+     * 근거는 성수기 실측이다. 사용자의 기본 조건(김해 축산)이 06-19 성수기에 62행이라 한 판에 들어간다.
+     */
+    limit: MAX_OPEN_AUCTION_LIMIT
   };
 }
 

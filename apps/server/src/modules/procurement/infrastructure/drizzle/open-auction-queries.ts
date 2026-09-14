@@ -252,6 +252,11 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
     -- 품목별 낙찰 사정률 중앙값이 0.041 안에 들어와 표본만 줄고 갈리는 것이 없다(2026-09-11 실측).
     -- 활성 org_round_summary build 하나만 읽으며, percentile_disc는 실제 관측된 명단 수 하나를 고르는
     -- 것이지 평균이 아니고 명단이 미관측인 회차는 표본에서 빠진다(AGENTS 7).
+    --
+    -- 개찰 시각이 기준 시각을 지난 회차만 센다. mart에는 아직 안 열린 회차가 함께 실려 있어(2026-09-14
+    -- 실측: build 213의 75,721행 중 183행이 미래, 최대 2028-08-08) 자르지 않으면 아직 일어나지 않은
+    -- 판이 보통 참여의 모집단에 들어간다. 표본이 부풀고 중앙값이 옮겨 간다 — 덕정초가 자르기 전 20회,
+    -- 자른 뒤 14회다. 개찰 시각 미관측도 개찰됐다고 단정할 수 없어 함께 빠진다(AGENTS 3).
     left join lateral (
       select count(*)::int as attempt_count,
              (percentile_disc(0.5) within group (order by summary_row.list_count)
@@ -261,6 +266,8 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
        where summary_row.build_id = ${orgBuild}
          and summary_row.organization_id = page_rows.organization_id
          and summary_row.floor_rate = page_rows.floor_rate
+         and summary_row.opened_at is not null
+         and summary_row.opened_at <= ${asOf}::timestamptz
     ) summary on page_rows.organization_id is not null and page_rows.floor_rate is not null
     -- 최근 회차의 다섯 값은 반드시 같은 회차에서 오고, 그 회차의 하한율은 이 행의 하한율과 같아야 한다.
     -- 개찰 시각이 기준 시각을 지난 회차만 "개찰됨"이며 미관측(null)은 개찰됐다고 단정할 수 없어 빠진다(AGENTS 3).

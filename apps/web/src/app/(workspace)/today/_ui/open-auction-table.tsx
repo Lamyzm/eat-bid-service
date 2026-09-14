@@ -158,7 +158,7 @@ type OpenAuctionColumn = {
  */
 const COLUMNS: readonly OpenAuctionColumn[] = [
   { id: 'rank', header: '순번', align: 'text-left', width: '2.25rem', visibility: '', headerHidden: true, cell: (_row, context) => <span className={MUTED}>{context.rank}</span> },
-  { id: 'closes', header: '마감', align: 'text-left', width: '4.5rem', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
+  { id: 'closes', header: '마감', subheader: '개찰 한 시간 뒤', align: 'text-left', width: '5.5rem', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
   { id: 'organization', header: '기관', align: 'text-left', width: 'auto', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} /> },
   { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: '8rem', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
   { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: '8.5rem', visibility: '', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },

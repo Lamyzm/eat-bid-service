@@ -66,7 +66,7 @@ describe('오늘 화면', () => {
         }}
       />
     );
-    expect(screen.getByText('품목 축산 · 기간 72시간 안 · 기초금액 300만~1,000만 조건에서 열린 공고가 없습니다.')).toBeTruthy();
+    expect(screen.getByText('품목 축산 · 기간 72시간 안 · 기초금액 3,000,000~10,000,000 조건에서 열린 공고가 없습니다.')).toBeTruthy();
     expect(screen.getByRole('link', { name: '조건 모두 해제' }).getAttribute('href')).toBe('/today');
     expect(screen.container.querySelector('table')).toBeNull();
   });
@@ -96,11 +96,19 @@ describe('오늘 화면', () => {
     expect(screen.queryByText(/불러오지 못했습니다/)).toBeNull();
   });
 
-  test('cursor가 되돌려졌으면 그 사실을 한 줄로 말하고 다음 페이지 링크는 cursor를 싣는다', () => {
+  test('더보기를 두지 않고 못 보는 행이 생기면 그 수를 적는다', () => {
+    // 상한만큼 받아도 넘치면 못 보는 행이 생긴다. 좁히는 길 셋(달력 칸·지역 칩·검색)은 이미 화면에 있고
+    // 화면이 할 일은 몇 건을 못 보고 있는지 말하는 것뿐이다(사용자 결정).
+    const truncated = { ...openAuctionsFixture, meta: { ...openAuctionsFixture.meta, sampleCount: 1932 } };
+    const screen = render(<TodayScreen data={{ ...ready, presentation: presentOpenAuctionList(truncated, fixtureNow) }} />);
+    expect(screen.getByText('1932건 중 4건')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: '다음 공고 보기' })).toBeNull();
+  });
+
+  test('cursor가 되돌려졌으면 그 사실을 한 줄로 말한다', () => {
     const paged = { ...openAuctionsFixture, nextCursor: '5796472' };
     const screen = render(<TodayScreen data={{ ...ready, presentation: presentOpenAuctionList(paged, fixtureNow), cursorReset: true }} />);
     expect(screen.getByText('목록이 갱신되어 처음부터 다시 보입니다.')).toBeTruthy();
-    expect(screen.getByRole('link', { name: '다음 공고 보기' }).getAttribute('href')).toBe('/today?cursor=5796472');
   });
 
   test('지역 조건 칩은 행에서 읽은 라벨로 이름을 보이고 해제 링크를 가진다', () => {

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { EmptyState } from '@/shared/ui/empty-state';
 
 import { RegionScopeStrip, RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
-import { buildTodayFilterRoute, buildTodayRoute, type TodaySearch } from '../_lib/today-search-params';
+import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
 import { groupClosingDays } from '../_model/group-closing-days';
 import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
@@ -97,8 +97,12 @@ function OpenAuctionList({
   return (
     <div className='grid min-w-0'>
       <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 empty:hidden'>
+        {/* 더보기를 두지 않기로 했으므로(사용자 결정) 못 보는 행이 생기면 그 사실을 수로 적는다. 좁히는
+            길 셋(달력 칸·지역 칩·검색)은 이미 화면에 있다. */}
         {rows.length === presentation.sampleCount ? null : (
-          <span className='text-[13px] font-semibold text-muted-foreground'>{rows.length}건 표시</span>
+          <span className='text-[13px] font-semibold text-pushed'>
+            {presentation.sampleCount}건 중 {rows.length}건
+          </span>
         )}
         {cursorReset ? <span className='text-[13px] font-semibold text-pushed'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
       </div>
@@ -111,13 +115,6 @@ function OpenAuctionList({
           observedText={summary?.latestObservedText ?? null}
         />
       </div>
-      {presentation.nextCursor !== null ? (
-        <div className='flex justify-end pt-3'>
-          <Link href={buildTodayRoute({ ...search, cursor: presentation.nextCursor })} className={LINK}>
-            다음 공고 보기
-          </Link>
-        </div>
-      ) : null}
     </div>
   );
 }

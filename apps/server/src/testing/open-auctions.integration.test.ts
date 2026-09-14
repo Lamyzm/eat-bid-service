@@ -255,11 +255,13 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         },
       });
       expect(all.auctions[0]!.observedAt.toString()).toBe("2026-09-07T00:30:00Z");
-      // 기관 41 · 하한율 90.000 코호트: 회차 4, 명단 표본 [5, 17, 9] 중앙값 9, 최근 개찰 회차는 102(개찰 예정 104는 아직 아니다).
+      // 기관 41 · 하한율 90.000 코호트는 **기준 시각까지 개찰된 회차만** 센다. 네 회차 중 103은 개찰
+      // 시각이 미관측이고 104는 09-09라 NOW(09-07 10시 KST) 뒤다. 남는 것은 101·102 둘이고 명단 표본은
+      // [5, 17]이라 중앙값이 5다. 자르지 않으면 표본이 셋으로 부풀고 중앙값이 9로 옮겨 간다.
       expect(all.auctions[0]!.orgSummary).toMatchObject({
-        attemptCount: 4,
-        medianListCount: 9,
-        listCountSampleCount: 3,
+        attemptCount: 2,
+        medianListCount: 5,
+        listCountSampleCount: 2,
         lastRound: {
           auctionAttemptId: 102n,
           awardedBidRate: null,

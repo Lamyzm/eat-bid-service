@@ -38,20 +38,21 @@ export const EMPTY_TODAY_SEARCH: TodaySearch = {
   cursor: null
 };
 
-// 기간 프리셋은 등록된 값만 쓴다. 자유 입력 시간은 만들지 않는다. 24·72·168은 계약 상한 720 안이다.
-export const PERIOD_PRESETS = [
-  { label: '오늘 안', hours: 24 },
-  { label: '3일', hours: 72 },
-  { label: '일주일', hours: 168 }
-] as const;
-
-// 기초금액 프리셋도 등록된 경계만 쓴다. 경계 문자열은 계약의 소수 둘째 자리 고정 형식 그대로다.
-export const BASE_AMOUNT_PRESETS = [
-  { label: '300만 이하', min: null, max: '3000000.00' },
-  { label: '300만~1,000만', min: '3000000.00', max: '10000000.00' },
-  { label: '1,000만~3,000만', min: '10000000.00', max: '30000000.00' },
-  { label: '3,000만 이상', min: '30000000.00', max: null }
-] as const;
+/**
+ * 기초금액은 최소·최대 두 칸이고 구간 프리셋 버튼을 만들지 않는다.
+ *
+ * `300만`·`1,000만` 같은 경계는 우리가 고르는 값이고, 버튼으로 두면 그 정의를 우리가 소유하게 된다.
+ * 양끝이 다 필요한 근거는 실측이다 — 2026-09-13 전국 열린 공고 중 3,000만 이상이 328건(28%)인데
+ * 사용자가 실제로 낸 849건의 최대가 3,292만이라 그 위는 볼 일이 없다.
+ *
+ * 사람은 `3000000`처럼 적고 계약은 소수 둘째 자리를 고정한다. 자릿수만 다른 값을 무효로 버리면 입력이
+ * 조용히 사라지므로 여기서 한 번 맞춰 준다. 숫자가 아닌 입력은 그대로 계약이 거른다.
+ */
+export function normalizeAmountInput(value: string | null): string | null {
+  if (value === null) return null;
+  const digits = value.replaceAll(',', '').trim();
+  return /^\d+$/.test(digits) ? `${digits}.00` : value;
+}
 
 /** 저장된 관심 지역을 이번 조회에서만 풀어 두는 값이다. 다른 문자열은 설정을 적용한 것과 같다. */
 export const ALL_REGIONS_SCOPE = 'all';

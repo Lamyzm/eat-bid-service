@@ -59,13 +59,17 @@ describe('오늘 route loader', () => {
       closesWithinHours: undefined,
       closesOn: undefined,
       announcedOn: undefined,
-      baseAmountMin: undefined,
+      // `2000000`은 자릿수만 다른 값이라 버리지 않고 계약 형식으로 맞춰 보낸다.
+      baseAmountMin: '2000000.00',
       baseAmountMax: '3000000.00',
-      cursor: undefined
+      cursor: undefined,
+      // 더보기를 두지 않으므로 화면은 언제나 상한만큼 요청한다. 페이지를 나누면 못 보는 행이 생기고
+      // 그 사실이 화면에 안 남는다.
+      limit: 200
     }]);
     expect(data.search).toEqual({
       scope: null, sido: null, item: '축산', closesWithinHours: null, closesOn: null, announcedOn: null,
-      baseAmountMin: null, baseAmountMax: '3000000.00', cursor: null
+      baseAmountMin: '2000000.00', baseAmountMax: '3000000.00', cursor: null
     });
     expect(data.cursorReset).toBe(false);
     expect(data.presentation!.view.kind === 'list' ? data.presentation!.view.rows.length : 0).toBe(4);
@@ -194,5 +198,13 @@ describe('오늘 route loader', () => {
     const data = await loadTodayPage(EMPTY_TODAY_SEARCH, deps);
     expect(summaryInputs).toEqual([]);
     expect(data.summary).toBeNull();
+  });
+  test('사람이 적은 금액을 계약 형식으로 맞춰 준다', () => {
+    // 계약은 소수 둘째 자리를 고정한다. 자릿수만 다른 입력을 무효로 버리면 사용자가 적은 값이
+    // 조용히 사라진다. 숫자가 아닌 입력은 그대로 계약이 거른다.
+    expect(normalizeTodaySearch({ ...EMPTY_TODAY_SEARCH, baseAmountMin: '3000000', baseAmountMax: '10,000,000' }))
+      .toMatchObject({ baseAmountMin: '3000000.00', baseAmountMax: '10000000.00' });
+    expect(normalizeTodaySearch({ ...EMPTY_TODAY_SEARCH, baseAmountMin: '삼백만' }))
+      .toMatchObject({ baseAmountMin: null });
   });
 });

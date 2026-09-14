@@ -2,8 +2,8 @@
 import Link from 'next/link';
 
 import {
-  BASE_AMOUNT_PRESETS,
   buildTodayFilterRoute,
+  todaySearchParsers,
   type TodayRoute,
   type TodaySearch
 } from '../_lib/today-search-params';
@@ -13,11 +13,16 @@ const AXIS = 'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-[15px] f
 const AXIS_OFF = `${AXIS} text-muted-foreground hover:bg-foreground/5`;
 const AXIS_ON = `${AXIS} bg-primary/10 text-primary`;
 
+/** 계약의 소수 둘째 자리 고정 형식을 사람이 읽는 천 단위로 되돌린다. 반올림하지 않고 소수부만 뗀다. */
+function wonText(amount: string): string {
+  return amount.split('.')[0]!.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 function baseAmountLabel(search: TodaySearch): string | null {
-  const preset = BASE_AMOUNT_PRESETS.find((candidate) => candidate.min === search.baseAmountMin && candidate.max === search.baseAmountMax);
-  if (preset) return preset.label;
-  if (search.baseAmountMin === null && search.baseAmountMax === null) return null;
-  return `${search.baseAmountMin ?? ''}~${search.baseAmountMax ?? ''}`;
+  const { baseAmountMin: min, baseAmountMax: max } = search;
+  if (min === null && max === null) return null;
+  if (min !== null && max !== null) return `${wonText(min)}~${wonText(max)}`;
+  return min === null ? `${wonText(max!)} 이하` : `${wonText(min)} 이상`;
 }
 
 /**
@@ -54,37 +59,72 @@ function AxisChip({ name, value, href }: { readonly name: string; readonly value
   );
 }
 
+const AMOUNT_FIELD = 'h-9 w-full rounded-lg bg-foreground/5 px-3 text-[15px] font-semibold tabular-nums';
+
 /**
- * 금액 축이다. 여는 방식이 `details`인 것은 이 화면이 server component이기 때문이다 — 프리셋 넷을
- * 고르자고 표 위쪽을 통째로 브라우저로 넘기지 않는다.
+ * 금액 축이다. **최소·최대 두 칸이고 구간 프리셋 버튼을 만들지 않는다.**
  *
- * 프리셋을 줄줄이 펼쳐 두지 않는 이유는 축이 셋인데 그중 하나만 다섯 칸을 차지하면 줄이 금액 줄로
- * 보이기 때문이다. 고른 값은 버튼 자리에 그대로 남는다.
+ * `300만`·`1,000만` 같은 경계는 우리가 고르는 값이고, 버튼으로 두면 그 정의를 우리가 소유하게 된다.
+ * 양끝이 다 필요한 근거는 실측이다 — 전국 열린 공고 중 3,000만 이상이 28%인데 사용자가 실제로 낸
+ * 849건의 최대가 3,292만이라 그 위는 볼 일이 없다(2026-09-13).
+ *
+ * `details` 안의 GET form이라 이 화면이 server component로 남는다. 두 칸을 채우자고 표 위쪽을 통째로
+ * 브라우저로 넘기지 않는다. 지금 걸린 다른 조건은 hidden으로 함께 보내야 금액만 바꿨을 때 나머지가
+ * 조용히 풀리지 않는다. cursor는 일부러 빼서 조건이 바뀌면 처음부터 보게 한다.
  */
 function AmountAxis({ search }: { readonly search: TodaySearch }) {
   const label = baseAmountLabel(search);
+  const carried = (Object.keys(todaySearchParsers) as (keyof TodaySearch)[])
+    .filter((key) => key !== 'baseAmountMin' && key !== 'baseAmountMax' && key !== 'cursor')
+    .flatMap((key) => {
+      const value = search[key];
+      return value === null ? [] : [{ key, value }];
+    });
   return (
     <details className='relative'>
       <summary className={`${label === null ? AXIS_OFF : AXIS_ON} cursor-pointer list-none`}>
         금액{label === null ? '' : ` · ${label}`} <span aria-hidden>▾</span>
       </summary>
-      <div className='absolute top-full left-0 z-10 mt-1 grid w-56 gap-0.5 rounded-xl border border-border bg-card p-1 shadow-lg'>
-        <Link
-          href={buildTodayFilterRoute(search, { baseAmountMin: null, baseAmountMax: null })}
-          className={`rounded-lg px-3 py-1.5 text-[15px] font-medium hover:bg-muted ${label === null ? 'text-primary' : ''}`}
-        >
-          전체
-        </Link>
-        {BASE_AMOUNT_PRESETS.map((preset) => (
-          <Link
-            key={preset.label}
-            href={buildTodayFilterRoute(search, { baseAmountMin: preset.min, baseAmountMax: preset.max })}
-            className={`rounded-lg px-3 py-1.5 text-[15px] font-medium hover:bg-muted ${label === preset.label ? 'text-primary' : ''}`}
-          >
-            {preset.label}
-          </Link>
-        ))}
-      </div>
+      <form method='get' action='/today' className='absolute top-full left-0 z-10 mt-1 grid w-64 gap-2 rounded-xl border border-border bg-card p-3 shadow-lg'>
+        {carried.map(({ key, value }) => <input key={key} type='hidden' name={key} value={String(value)} />)}
+        <label className='grid gap-1 text-[13px] font-semibold text-muted-foreground'>
+          최소
+          <input
+            id='today-base-amount-min'
+            name='baseAmountMin'
+            type='text'
+            inputMode='numeric'
+            defaultValue={search.baseAmountMin === null ? '' : wonText(search.baseAmountMin)}
+            placeholder='제한 없음'
+            className={AMOUNT_FIELD}
+          />
+        </label>
+        <label className='grid gap-1 text-[13px] font-semibold text-muted-foreground'>
+          최대
+          <input
+            id='today-base-amount-max'
+            name='baseAmountMax'
+            type='text'
+            inputMode='numeric'
+            defaultValue={search.baseAmountMax === null ? '' : wonText(search.baseAmountMax)}
+            placeholder='제한 없음'
+            className={AMOUNT_FIELD}
+          />
+        </label>
+        <div className='flex gap-1.5'>
+          <button type='submit' className='inline-flex h-8 flex-1 items-center justify-center rounded-lg bg-primary text-[13px] font-semibold text-primary-foreground hover:bg-primary/90'>
+            적용
+          </button>
+          {label === null ? null : (
+            <Link
+              href={buildTodayFilterRoute(search, { baseAmountMin: null, baseAmountMax: null })}
+              className='inline-flex h-8 items-center rounded-lg bg-foreground/5 px-3 text-[13px] font-semibold hover:bg-foreground/10'
+            >
+              해제
+            </Link>
+          )}
+        </div>
+      </form>
     </details>
   );
 }

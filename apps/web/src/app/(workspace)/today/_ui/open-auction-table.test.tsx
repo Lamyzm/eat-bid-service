@@ -31,7 +31,7 @@ describe('열린 공고 표', () => {
     const headers = [...screen.container.querySelectorAll('thead th')].map((node) => node.textContent);
     // 순번 열은 화면에 머리글을 두지 않지만 이름 없는 열은 그 열이 무엇인지 말하지 않는다.
     // 감추는 것은 `th`가 아니라 안쪽 문구다. `th`가 표 흐름을 벗어나면 `scope` 연결과 열 폭이 깨진다.
-    expect(headers).toEqual(['순번', '마감', '기관2곳', '품목저장된 라벨', '기초금액저장된 값', '참여09-07 10:00 기준']);
+    expect(headers).toEqual(['순번', '마감개찰 한 시간 뒤', '기관2곳', '품목저장된 라벨', '기초금액저장된 값', '참여09-07 10:00 기준']);
     const rank = screen.container.querySelector('thead th')!;
     expect(rank.getAttribute('scope')).toBe('col');
     expect(rank.firstElementChild?.className).toContain('sr-only');
@@ -44,6 +44,9 @@ describe('열린 공고 표', () => {
     // 참여 수는 지금이 아니라 마지막 훑기의 값이다. 열 이름만으로는 그 사실이 안 보인다(AGENTS 7).
     expect(screen.getByText('09-07 10:00 기준')).toBeTruthy();
     expect(screen.getByText('저장된 라벨')).toBeTruthy();
+    // 개찰은 마감 한 시간 뒤다. 89,576회차 중 84,265건(94.1%)이 정확히 한 시간이고 p05·p95가 같다
+    // (2026-09-14 실측). 마감 시각만으로는 언제 결과가 나오는지 말하지 않는다.
+    expect(screen.getByText('개찰 한 시간 뒤')).toBeTruthy();
   });
 
   test('마감일이 바뀌는 자리에서 끊고 그 머리가 날짜·요일·남은 날과 두 건수를 말한다', () => {
