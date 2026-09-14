@@ -1,9 +1,9 @@
 # PDR-0005 — 비교집단을 가르는 축은 하한율과 명단 크기이고 품목이 아니다
 
-- Status: Active
+- Status: Superseded
 - Date: 2026-09-11
 - Supersedes: 없음
-- Superseded-by: 없음
+- Superseded-by: [PDR-0006](0006-institution-and-regional-analysis.md)
 - Linear: EAT-176
 
 ## 결정
