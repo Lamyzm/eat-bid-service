@@ -571,6 +571,14 @@ spec:
             value: "{{workflow.parameters.backfill-floor-date}}"
           - *env-result-dir
           - *env-database-url
+          # 이 명령은 view 하나를 읽을 뿐 R2를 건드리지 않는다. 그래도 다섯을 다 선언하는 이유는
+          # ApplicationSettings가 명령별이 아니라 프로세스 단위 설정이기 때문이다 — 넷이 빠지면
+          # 조립 전에 검증이 죽는다(2026-09-14 첫 전진 회차가 exit 64로 실패). fail-release도
+          # 같은 이유로 R2를 쓰지 않으면서 선언한다.
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
 
     # discover-backfill과 같은 container·semaphore인데, 부르는 쪽이 창을 입력으로 넘긴다. template
     # 정의는 anchor 하나를 공유하므로 창을 어디서 받느냐만 다르다.
