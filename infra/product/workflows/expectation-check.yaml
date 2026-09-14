@@ -39,6 +39,10 @@ spec:
           env:
             - name: EATBID_ENVIRONMENT
               value: prod
+            # CI·release 발행 판정의 대상. 공개 저장소라 토큰이 없다 — 봇 토큰을 GitHub 비밀값으로
+            # 복제하지 않으려고 물어보는 방향을 밖에서 안으로 잡았다. 값이 비면 그 기대는 평가하지 않는다.
+            - name: EATBID_GITHUB_REPOSITORY
+              value: Lamyzm/eat-bid-service
             # 읽기만 한다. dataplane 역할은 ingest·core에 쓰기 권한이 있지만 감시 질의는 select뿐이다.
             - name: DATABASE_URL
               valueFrom:
