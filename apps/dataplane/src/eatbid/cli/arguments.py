@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -38,6 +38,17 @@ def aware_datetime(value: str) -> datetime:
     if parsed.utcoffset() is None:
         raise argparse.ArgumentTypeError("must include a timezone offset")
     return parsed
+
+
+def collection_date(value: str) -> date:
+    """`YYYYMMDD` 여덟 자리만 받는다. 소스 목록 조회가 쓰는 모양 그대로이며, 다른 표기를 받아 주면
+    어느 표기가 참인지 두 곳에서 달라진다(AGENTS 15항)."""
+    if len(value) != 8 or not value.isdigit():
+        raise argparse.ArgumentTypeError("date must be YYYYMMDD")
+    try:
+        return date(int(value[0:4]), int(value[4:6]), int(value[6:8]))
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("date must be a real calendar date") from error
 
 
 def positive_id(value: str) -> int:
@@ -115,7 +126,7 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     for name, command in commands.items():
         # fail-release와 check-expectations는 특정 run에 매이지 않는 운영 entrypoint라 공통 인수를
         # 받지 않는다. 감시는 어떤 release에도 속하지 않고 지금의 DB 상태만 본다.
-        if name not in {"fail-release", "check-expectations"}:
+        if name not in {"fail-release", "check-expectations", "next-backfill-window"}:
             add_common_arguments(command)
 
     discover = commands["discover"]
@@ -184,6 +195,13 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
 
     # 운영자가 결론 없이 끝난 release를 닫는다. category는 죽은 pod의 exit code 어휘와 INTERRUPTED뿐이고
     # 그 밖의 값은 저장소에 닿기 전에 여기서 닫는다(EAT-122).
+    # 선언한 범위의 바닥이다. 이 값을 뒤로 미는 커밋 하나가 그 해의 수집을 시작시키며, 그 커밋이
+    # 운영자 승인이다(ADR 0052 결정 5).
+    next_window = commands["next-backfill-window"]
+    next_window.add_argument("--floor-date", required=True, type=collection_date)
+    next_window.add_argument("--as-of", required=True, type=aware_datetime)
+    next_window.add_argument("--result-dir", type=Path, default=None)
+
     fail_release = commands["fail-release"]
     fail_release.add_argument("--source-release-id", required=True, type=UUID)
     fail_release.add_argument("--build-sha", required=True, type=build_sha)

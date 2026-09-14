@@ -9,7 +9,8 @@ from zoneinfo import ZoneInfo
 
 from eatbid.ingest.repository import CollectionRunMode
 
-_SEOUL_TIME = ZoneInfo("Asia/Seoul")
+SEOUL_TIME = ZoneInfo("Asia/Seoul")
+_SEOUL_TIME = SEOUL_TIME
 _EAT_DATE_WIRE = "%Y%m%d"
 # 왜 6일인가. 2026-09-03 실측(docs/evidence/source-boundary/2026-09-03-collection-mode-windows.md)에서
 # 마감 뒤 소스 변경(LAST_CHG_DT)은 +5일에서 완전히 멎었다. 오늘을 포함한 7일 창은 관측된 최대치에

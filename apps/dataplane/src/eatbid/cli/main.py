@@ -27,6 +27,7 @@ from eatbid.failures.report import render_failure
 from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
 from eatbid.monitoring.runner import MonitoringResult
+from eatbid.pipeline.advance import BackfillWindow
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
 
@@ -63,6 +64,7 @@ class CliApplication(Protocol):
     def project_reference(self, args: argparse.Namespace) -> object: ...
     def fail_release(self, args: argparse.Namespace) -> object: ...
     def check_expectations(self, args: argparse.Namespace) -> object: ...
+    def next_backfill_window(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[
@@ -114,6 +116,18 @@ def _emit(payload: Mapping[str, object], args: argparse.Namespace) -> None:
 def _machine_result(method_name: str, result: object) -> dict[str, object] | None:
     if result is None:
         return None
+    if method_name == "next_backfill_window":
+        # 워크플로가 이 셋을 output parameter로 읽어 다음 단계에 넘긴다. 고를 창이 없으면 has_window가
+        # 거짓이고 뒤 단계는 실행되지 않는다.
+        if result is None:
+            return {"has_window": False, "start_date": "", "end_date": ""}
+        if not isinstance(result, BackfillWindow):
+            raise TypeError("next-backfill-window returned an invalid result")
+        return {
+            "has_window": True,
+            "start_date": result.start_date,
+            "end_date": result.end_date,
+        }
     if method_name == "discover":
         if not isinstance(result, DiscoveryResult):
             raise TypeError("discover returned an invalid result")
@@ -229,6 +243,9 @@ COMMAND_METHODS: Mapping[str, str] = {
     "fail-release": "fail_release",
     # 스케줄 entrypoint다. 수집 상태를 바꾸지 않고 기대만 평가해 위반을 알린다(EAT-170, ADR 0046).
     "check-expectations": "check_expectations",
+    # 예약 entrypoint다. 커버리지 사실만 읽어 다음에 채울 창 하나를 고르고 아무것도 바꾸지 않는다
+    # (EAT-209, ADR 0052 결정 4).
+    "next-backfill-window": "next_backfill_window",
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {

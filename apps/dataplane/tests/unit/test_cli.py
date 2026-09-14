@@ -48,6 +48,10 @@ class _기록애플리케이션:
             raise self.error
         self.calls.append((command, args.source_release_id))
 
+    def next_backfill_window(self, args: Namespace) -> None:
+        # 전진 판단도 release에 매이지 않는다.
+        self.calls.append(("next-backfill-window", None))
+
     def check_expectations(self, args: Namespace) -> MonitoringResult:
         # release에 매이지 않으므로 _record의 source_release_id 경로를 타지 않는다.
         if self.error is not None:
@@ -85,13 +89,19 @@ def _공통(command: str) -> list[str]:
             "--build-sha", SHA, "--parser-version", "eat-v1"]
 
 
-# 감시는 어떤 release에도 속하지 않는다. 지금의 DB 상태만 보므로 release·run 인수를 받지 않는다.
-RELEASE_SCOPED_COMMANDS = tuple(name for name in COMMAND_HANDLERS if name != "check-expectations")
+# 감시와 전진 판단은 어떤 release에도 속하지 않는다. 지금의 DB 상태만 보므로 release·run 인수를 받지
+# 않는다. 이 집합이 자라면 여기에 더한다 — 그것이 "이 명령은 무엇에도 매이지 않는다"의 선언이다.
+RELEASE_FREE_COMMANDS = frozenset({"check-expectations", "next-backfill-window"})
+RELEASE_SCOPED_COMMANDS = tuple(
+    name for name in COMMAND_HANDLERS if name not in RELEASE_FREE_COMMANDS
+)
 
 
 def _명령(command: str) -> list[str]:
     if command == "check-expectations":
         return [command]
+    if command == "next-backfill-window":
+        return [command, "--floor-date", "20250901", "--as-of", "2026-09-01T00:06:00Z"]
     if command == "fail-release":
         # 운영자 판정 명령이라 run·parser version 같은 공통 인수가 없다.
         return [command, "--source-release-id", RELEASE_ID, "--build-sha", SHA,
@@ -148,7 +158,7 @@ def test_release에_매인_command는_모두_UUID_source_release_id를_요구한
 @pytest.mark.parametrize("command", tuple(COMMAND_HANDLERS))
 def test_command_handler가_주입된_application_method를_실행하고_0을_반환한다(command: str) -> None:
     application = _기록애플리케이션()
-    expected_release = None if command == "check-expectations" else UUID(RELEASE_ID)
+    expected_release = None if command in RELEASE_FREE_COMMANDS else UUID(RELEASE_ID)
     assert main(_명령(command), application_factory=lambda _: application, settings=_설정()) == 0
     assert application.calls == [(command, expected_release)]
     assert application.close_count == 1

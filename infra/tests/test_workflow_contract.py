@@ -37,6 +37,9 @@ REFERENCE_COMMANDS = ("capture-reference", "project-reference")
 REFERENCE_TASKS = REFERENCE_COMMANDS
 # 운영자·스케줄이 직접 entrypoint로 부르는 명령이다. 어떤 DAG도 task로 갖지 않는다(EAT-122, EAT-170).
 OPERATOR_COMMANDS = ("fail-release", "check-expectations")
+# 전진 판단은 예약이 부르지만 운영자 명령과 달리 DAG의 첫 task이기도 하다. 창을 고르는 것과 그 창을
+# 수집하는 것이 한 실행 안에 있어야 고른 창이 어디로 새지 않는다(EAT-209).
+ADVANCE_COMMANDS = ("next-backfill-window",)
 PYTHON_ENTRYPOINT_TEMPLATES = ("discover", "replay")
 # 피크 월 창의 `TOT_CNT` 실측 약 17,000에 여유를 둔 상한이다. discover는 `total_count`가
 # page size × page budget을 넘으면 창을 거부하므로 그 곱이 이 값 아래로 내려가면 월 백필이 막힌다.
@@ -151,8 +154,10 @@ def test_product와_base_render가_kind_구성을_유지한다(
     manifests: ManifestSet, base_manifests: ManifestSet
 ) -> None:
     assert manifests.kinds.count("WorkflowTemplate") == 1
-    # 수집 스케줄 셋 + DB 백업 + 감시. 뒤의 둘은 소스를 부르지 않는 별개 계약이라 각자의 테스트가 본다.
-    assert manifests.kinds.count("CronWorkflow") == 5
+    # 수집 스케줄 셋 + 백필 전진 + DB 백업 + 감시. 백업과 감시는 소스를 부르지 않는 별개 계약이라
+    # 각자의 테스트가 본다. 백필 전진은 2026-09-14에 더했다 — 창을 고르는 판단이 사람에게 있는 동안
+    # 진도가 기록되지 않았고 실패한 백필의 남은 대기열이 열한 번 버려졌다(ADR 0052).
+    assert manifests.kinds.count("CronWorkflow") == 6
     # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
     # 하는지 먼저 답해야 한다.
     assert manifests.kinds.count("Job") == 2
@@ -240,6 +245,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         "build-marts",
         *REFERENCE_COMMANDS,
         *OPERATOR_COMMANDS,
+        *ADVANCE_COMMANDS,
     )
     assert "replay" in templates
     assert "marts" in templates
@@ -368,6 +374,7 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         "eatbid-poll-open",
         "eatbid-daily-reconcile",
         "eatbid-reference-refresh",
+        "eatbid-backfill-advance",
     }
 
     expected_schedules = {
@@ -376,11 +383,15 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         "eatbid-poll-open": "*/10 8-19 * * 1-5",
         "eatbid-daily-reconcile": "0 7 * * *",
         "eatbid-reference-refresh": "0 5 1 * *",
+        # 창 하나가 실측 15분이라 시간당 한 번이면 넉넉하다. Forbid가 겹침을 막으므로 도는 중의
+        # 회차는 아무것도 하지 않는다(EAT-209).
+        "eatbid-backfill-advance": "0 * * * *",
     }
     expected_modes = {
         "eatbid-poll-open": "poll-open",
         "eatbid-daily-reconcile": "daily-reconcile",
         "eatbid-reference-refresh": "reference",
+        "eatbid-backfill-advance": "backfill",
     }
     # 정부 코드 reference만 아직 멈춰 있다. 활성 release 하나가 화면 전체의 지역 모집단이 되므로
     # 아무도 확인하지 않은 파일이 스케줄로 먼저 들어오면 그것이 곧 기준이 된다(ADR 0035).
@@ -388,8 +399,12 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         "eatbid-poll-open": False,
         "eatbid-daily-reconcile": False,
         "eatbid-reference-refresh": True,
+        "eatbid-backfill-advance": False,
     }
-    expected_entrypoints = {"eatbid-reference-refresh": "reference-pipeline"}
+    expected_entrypoints = {
+        "eatbid-reference-refresh": "reference-pipeline",
+        "eatbid-backfill-advance": "advancing-backfill-pipeline",
+    }
     for cron in cron_workflows:
         name = str(_metadata(cron)["name"])
         spec = _spec(cron)
@@ -410,13 +425,16 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         }
         assert parameters == {"mode": expected_modes[name]}
 
-    # backfill·replay는 사람이 argo submit으로 부르는 ad hoc 실행이고 CronWorkflow로 스케줄하지
-    # 않는다. WorkflowTemplate 자체에는 EAT-164의 backfill-pipeline·discover-backfill·
-    # capture-backfill·eatbid-source-backfill처럼 "backfill"을 담은 정당한 이름이 있으므로, 전체
-    # manifest가 아니라 CronWorkflow 문서만으로 범위를 좁힌다.
+    # backfill이 CronWorkflow에 없어야 한다는 단언은 2026-09-14에 걷었다(ADR 0052). 사람이 창을 고르는
+    # 설계가 진도를 기록하지 않는 결과를 낳았고, 실패한 백필의 남은 대기열이 열한 번 버려지는 동안
+    # 아무도 몰랐다. 이제 전진은 예약이 하고 사람은 floor date를 선언한다.
+    #
+    # 대신 두 가지를 지킨다. 사람이 부르던 ad hoc 진입점(backfill-pipeline)은 그대로 남아 예약과 무관하게
+    # 특정 창을 돌릴 수 있고, replay는 여전히 스케줄하지 않는다 — 재해석은 언제 무엇을 다시 읽을지를
+    # 사람이 정해야 하는 판단이다.
     cron_rendered = yaml.safe_dump_all(cron_workflows)
-    assert "backfill" not in cron_rendered
     assert "entrypoint: replay" not in cron_rendered
+    assert "entrypoint: backfill-pipeline" not in cron_rendered
 
 
 def test_렌더된_어떤_이미지도_변환되지_않은_우리_이름으로_남지_않는다(
@@ -598,9 +616,13 @@ def test_backfill_pipeline은_discover_capture만_backfill_key로_바꾸고_나�
             candidate.pop("template", None)
         assert candidate == scheduled_task, name
 
-    # discover-backfill·capture-backfill을 task template으로 부르는 DAG는 backfill-pipeline뿐이고,
-    # backfill-pipeline은 live 전용 discover·capture를 부르지 않는다. 한 실행이 두 semaphore key를
-    # 동시에 잡지 않는다는 보장은 이 배타성에서 나온다.
+    # 백필 전용 template을 부르는 DAG와 live 전용을 부르는 DAG는 서로 배타적이다. 한 실행이 두
+    # semaphore key를 동시에 잡지 않는다는 보장이 이 배타성에서 나온다. 백필 계열 DAG는 둘이다 —
+    # 사람이 부르는 backfill-pipeline과 예약이 부르는 windowed-backfill-pipeline이며, 뒤의 것은 창을
+    # 앞 단계에서 받는 것만 다르다(EAT-209).
+    backfill_dags = {"backfill-pipeline", "windowed-backfill-pipeline"}
+    live_only = {"discover", "capture"}
+    backfill_only = {"discover-backfill", "capture-backfill", "discover-backfill-windowed"}
     for name, template in templates.items():
         dag = template.get("dag")
         if dag is None:
@@ -608,10 +630,14 @@ def test_backfill_pipeline은_discover_capture만_backfill_key로_바꾸고_나�
         task_templates = {
             str(_mapping(task)["template"]) for task in _sequence(_mapping(dag)["tasks"])
         }
-        if name == "backfill-pipeline":
-            assert task_templates.isdisjoint({"discover", "capture"}), name
+        if name in backfill_dags:
+            assert task_templates.isdisjoint(live_only), name
+        elif name == "advancing-backfill-pipeline":
+            # 창을 고르는 단계는 소스를 부르지 않으므로 어느 key도 잡지 않는다. 실제 수집은 중첩된
+            # windowed-backfill-pipeline이 한다.
+            assert task_templates.isdisjoint(live_only | backfill_only), name
         else:
-            assert task_templates.isdisjoint({"discover-backfill", "capture-backfill"}), name
+            assert task_templates.isdisjoint(backfill_only), name
 
 
 def test_eatbid_source_limit는_과도기_key이고_도는_backfill이_끝나면_지운다(
@@ -1235,7 +1261,7 @@ def test_project와_marts_container는_노드_아래의_메모리_requests와_li
         assert limit_gib <= node_allocatable_gib / 4, name
 
 
-def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
+def test_workflow_parameter는_mode_외에_backfill_창과_바닥만_추가로_받는다(
     manifests: ManifestSet,
 ) -> None:
     workflow_template = manifests.workflow_template("eatbid-dataplane")
@@ -1251,14 +1277,31 @@ def test_workflow_parameter는_mode_외에_backfill_창만_추가로_받는다(
         "start-date": "",
         "end-date": "",
         "release-name": "",
+        # 백필이 뒤로 갈 바닥이다. 이 값을 미는 커밋이 그 해의 수집을 시작시키며 그것이 운영자
+        # 승인이다(ADR 0052 결정 5). 전진 CronWorkflow만 읽는다.
+        "backfill-floor-date": "20250901",
     }
-    discover_env = _mapping(_templates(workflow_template)["discover"]["container"])
+    discover = _templates(workflow_template)["discover"]
+    discover_env = _mapping(discover["container"])
     assert _env(discover_env, "EATBID_WORKFLOW_MODE")["value"] == "{{workflow.parameters.mode}}"
-    assert _env(discover_env, "EATBID_START_DATE")["value"] == "{{workflow.parameters.start-date}}"
-    assert _env(discover_env, "EATBID_END_DATE")["value"] == "{{workflow.parameters.end-date}}"
     assert _env(discover_env, "EATBID_WORKFLOW_CREATED_AT")["value"] == (
         "{{workflow.creationTimestamp}}"
     )
+
+    # 창은 입력을 거쳐 들어온다. 기본값이 workflow 파라미터라 부르는 쪽이 넘기지 않으면 예전과 같고,
+    # 전진 pipeline만 앞 단계가 고른 창을 넘긴다(EAT-209). 이 간접이 없으면 창을 사람이 정해 주는
+    # 모양에서 벗어날 수 없다.
+    assert _env(discover_env, "EATBID_START_DATE")["value"] == "{{inputs.parameters.start-date}}"
+    assert _env(discover_env, "EATBID_END_DATE")["value"] == "{{inputs.parameters.end-date}}"
+    discover_inputs = {
+        str(item["name"]): item.get("value")
+        for item in _sequence(_mapping(discover["inputs"])["parameters"])
+        if isinstance(item, Mapping)
+    }
+    assert discover_inputs == {
+        "start-date": "{{workflow.parameters.start-date}}",
+        "end-date": "{{workflow.parameters.end-date}}",
+    }
 
 
 def test_replay_JSON_ID가_shell_확장_없이_fail_closed한다(
