@@ -15,7 +15,8 @@ export interface OpenAuctionSummaryQuery {
   readonly sidoCodeValueId: bigint | null;
   readonly sigunguCodeValueIds: readonly bigint[] | null;
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
-  readonly itemLabel: string | null;
+  /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
+  readonly itemLabels: readonly string[] | null;
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
   /** 달력 창의 양끝이다. KST 달력일이며 창 밖 마감은 전체 수에는 들어가도 달력에는 없다. */

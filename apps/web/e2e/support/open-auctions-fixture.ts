@@ -144,9 +144,11 @@ export function openAuctionsResponse(request: Request): Response | null {
   const matchesArea = (row: ReturnType<typeof rows>[number]) => row.eligibilityAreas !== null
     && row.eligibilityAreas.some((area) => areaFilter!.includes(area.codeValueId));
 
-  // 서버와 같은 순서로 거른다: 품목 라벨 완전일치 → 지역 id → 기간 → 제한지역. 표본 수는 거른 뒤의 전체 수다.
+  // 서버와 같은 순서로 거른다: 품목 조각 부분일치 → 지역 id → 기간 → 제한지역. 표본 수는 거른 뒤의 전체 수다.
   const filtered = rows(now)
-    .filter((row) => query.item === undefined || row.itemLabel === query.item)
+    // 조각 하나라도 라벨 안에 있으면 걸린다. 완전일치로 두면 합성 라벨(`육류 , 가금류`) 행이 빠진다.
+    .filter((row) => query.items === undefined
+      || (row.itemLabel !== null && query.items.some((fragment) => row.itemLabel!.includes(fragment))))
     // 지역은 시도 하나가 담는 그릇이고 시군구가 그 안에서 좁힌다. 서버와 같은 순서로 둘을 잇는다.
     .filter((row) => query.sido === undefined || row.region?.sido.codeValueId === query.sido)
     .filter((row) => query.sigungu === undefined
@@ -172,7 +174,7 @@ export function openAuctionsResponse(request: Request): Response | null {
       eligibilityUnobservedCount: areaFilter === null
         ? null
         : filtered.filter((row) => row.eligibilityAreas === null).length,
-      item: query.item ?? null,
+      items: query.items === undefined ? null : [...query.items],
       closesWithinHours: query.closesWithinHours ?? null,
       baseAmountMin: query.baseAmountMin ?? null,
       baseAmountMax: query.baseAmountMax ?? null,

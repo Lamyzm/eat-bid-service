@@ -34,7 +34,7 @@ function baseAmountLabel(search: TodaySearch): string | null {
 export function describeTodaySearch(search: TodaySearch, regionText: string | null): string | null {
   const parts: string[] = [];
   if (search.sido !== null) parts.push(`지역 ${regionText ?? `코드 ${search.sido}`}`);
-  if (search.item !== null) parts.push(`품목 ${search.item}`);
+  if (search.items !== null) parts.push(`품목 ${search.items.join(' · ')}`);
   if (search.closesOn !== null) parts.push(`마감 ${search.closesOn}`);
   if (search.announcedOn !== null) parts.push(`게시 ${search.announcedOn}`);
   if (search.closesWithinHours !== null) parts.push(`기간 ${search.closesWithinHours}시간 안`);
@@ -154,8 +154,8 @@ export function TodayFilters({
       ) : (
         <span className={`${AXIS} text-muted-foreground`}>지역 전체</span>
       )}
-      {search.item !== null ? (
-        <AxisChip name='품목' value={search.item} href={buildTodayFilterRoute(search, { item: null })} />
+      {search.items !== null ? (
+        <AxisChip name='품목' value={search.items.join(' · ')} href={buildTodayFilterRoute(search, { items: null })} />
       ) : (
         <span className={`${AXIS} text-muted-foreground`}>품목 전체</span>
       )}

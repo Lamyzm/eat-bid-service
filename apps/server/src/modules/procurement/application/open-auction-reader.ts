@@ -76,7 +76,8 @@ export interface OpenAuctionQuery {
    * 저장된 코드 집합이 곧 매칭 집합이며 질의가 스스로 넓히지 않는다(ADR 0048 결정 2).
    */
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
-  readonly itemLabel: string | null;
+  /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
+  readonly itemLabels: readonly string[] | null;
   readonly closesWithinHours: number | null;
   /**
    * KST 달력일로 자르는 축 둘이다. 위 시간 창과 함께 올 수 없다 — 시간 창은 달력일을 대신하지 못한다.

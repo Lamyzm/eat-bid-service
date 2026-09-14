@@ -17,7 +17,7 @@ import {
   eligibilityObservedExpression,
   matchedEligibilityAreaCte,
 } from "./eligibility-area-sql";
-import { OPEN_AUCTION_SNAPSHOT, openScopePredicate } from "./open-auction-queries";
+import { itemLabelPredicate, OPEN_AUCTION_SNAPSHOT, openScopePredicate } from "./open-auction-queries";
 
 function instantParameter(value: { toString(): string }): string {
   return value.toString();
@@ -78,7 +78,7 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       from region_scope scope
       where (${query.baseAmountMin}::numeric is null or scope.base_amount >= ${query.baseAmountMin}::numeric)
         and (${query.baseAmountMax}::numeric is null or scope.base_amount <= ${query.baseAmountMax}::numeric)
-        and (${query.itemLabel}::text is null or scope.item_label = ${query.itemLabel}::text)${eligibilityFilter}
+        and ${itemLabelPredicate(sql`scope`, query.itemLabels)}${eligibilityFilter}
     ),
     -- 두 집합을 날짜로 **한 번씩** 접는다. 달력 칸마다 세면 창 길이만큼 스캔이 늘어난다.
     scoped_by_day as (

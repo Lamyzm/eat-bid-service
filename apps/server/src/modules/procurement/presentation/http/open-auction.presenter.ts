@@ -82,7 +82,7 @@ export function toOpenAuctionListResponse(result: OpenAuctionListResult): OpenAu
       // 필터가 없을 때 0을 싣지 않는다. 0은 "아무것도 잡히지 않았다"이고 null은 "묻지 않았다"이다.
       eligibilityMatchedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityMatchedCount,
       eligibilityUnobservedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityUnobservedCount,
-      item: query.itemLabel,
+      items: query.itemLabels === null ? null : [...query.itemLabels],
       closesWithinHours: query.closesWithinHours,
       closesOn: query.closesOnKst,
       announcedOn: query.announcedOnKst,

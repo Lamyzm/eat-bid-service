@@ -30,7 +30,7 @@ const emptyList: OpenAuctionListV1Response = {
     eligibilityArea: null,
     eligibilityMatchedCount: null,
     eligibilityUnobservedCount: null,
-    item: null,
+    items: null,
     closesWithinHours: null,
     closesOn: null,
     announcedOn: null,
@@ -92,7 +92,7 @@ describe('열린 공고 목록 resource 조회', () => {
       sido: '41',
       sigungu: ['43'],
       eligibilityArea: ['9101'],
-      item: '축산',
+      items: ['육류', '가금류'],
       closesWithinHours: 72,
       closesOn: '2026-09-15',
       announcedOn: '2026-09-14',
@@ -129,7 +129,9 @@ describe('열린 공고 목록 resource 조회', () => {
       { baseAmountMin: '2000000' },
       // 상한이 100에서 200으로 넓어졌으므로 거부되는 경계도 함께 옮긴다(EAT-206).
       { limit: 201 },
-      { item: '' }
+      { items: [''] },
+      // 조각 열일곱은 관측된 라벨 가짓수보다 많다. 상한을 넘기면 네트워크에 닿기 전에 막는다.
+      { items: Array.from({ length: 17 }, (_, index) => `조각${index}`) }
     ]) {
       let fetchCount = 0;
       const request = createContractRequest({

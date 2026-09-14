@@ -13,7 +13,7 @@ import { calendarWindow, presentOpenSummary, type OpenSummaryPresentation } from
 export type TodayListInput = {
   readonly sido?: string;
   readonly eligibilityArea?: readonly string[];
-  readonly item?: string;
+  readonly items?: readonly string[];
   readonly closesWithinHours?: number;
   readonly closesOn?: string;
   readonly announcedOn?: string;
@@ -30,7 +30,7 @@ export type TodayListInput = {
 export type TodaySummaryInput = {
   readonly sido?: string;
   readonly eligibilityArea?: readonly string[];
-  readonly item?: string;
+  readonly items?: readonly string[];
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
   readonly calendarFrom: string;
@@ -99,7 +99,7 @@ export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
     // `scope`는 계약이 받는 값이 아니라 화면이 저장된 설정을 이번 조회에 걸지 말지를 정하는 스위치다.
     scope: search.scope,
     sido: accepted(shape.sido, search.sido),
-    item: accepted(shape.item, search.item),
+    items: accepted(shape.items, search.items),
     // 계약이 시간 창과 달력일을 함께 받지 않는다. 달력일이 있으면 시간 창을 버린다 — 탭·달력이 시간
     // 창보다 뒤에 눌린 조건이고, 둘을 함께 보내면 서버가 400으로 답해 화면 전체가 오류가 된다.
     closesWithinHours: search.closesOn === null ? accepted(shape.closesWithinHours, search.closesWithinHours) : null,
@@ -128,7 +128,7 @@ function listInput(search: TodaySearch, gate: TodayRegionGate): TodayListInput {
   return {
     sido: search.sido ?? undefined,
     eligibilityArea: eligibilityAreaOf(gate),
-    item: search.item ?? undefined,
+    items: search.items ?? undefined,
     closesWithinHours: search.closesWithinHours ?? undefined,
     closesOn: search.closesOn ?? undefined,
     announcedOn: search.announcedOn ?? undefined,
@@ -151,7 +151,7 @@ function summaryInput(search: TodaySearch, gate: TodayRegionGate, nowIso: string
   return {
     sido: search.sido ?? undefined,
     eligibilityArea: eligibilityAreaOf(gate),
-    item: search.item ?? undefined,
+    items: search.items ?? undefined,
     baseAmountMin: search.baseAmountMin ?? undefined,
     baseAmountMax: search.baseAmountMax ?? undefined,
     calendarFrom: window.from,

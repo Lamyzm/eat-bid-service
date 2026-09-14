@@ -52,6 +52,24 @@ export const sigunguFilterSchema = z.preprocess(
 );
 
 /**
+ * 품목 필터다. **조각 배열이고 부분일치 OR이다.**
+ *
+ * 완전일치로 두면 절반을 놓친다. 원천 라벨이 합성 문자열이라 `육류 , 가금류`처럼 한 칸에 여럿이 들어
+ * 있고, `item=육류`는 그 행을 못 잡는다 — 2026-09-14 dev 실측으로 열린 404행 중 **98행이 합성**이고
+ * `육류`는 단독 29행 뒤에 합성 45행을 더 갖는다.
+ *
+ * 묶음 이름(`축산`)은 받지 않는다. 묶음을 필터 값으로 받는 순간 그 정의를 우리가 소유하게 되므로
+ * 조각 원자로만 거른다(2026-09-13 결정). 품목 code scheme이 생기면 이 축은 코드로 옮겨 간다(EAT-66).
+ *
+ * 상한 16은 관측된 라벨 가짓수(dev 28종)보다 작고 한 행이 가진 최대 조각 수(8)의 두 배다. 조각 하나의
+ * 64자는 관측된 가장 긴 조각의 몇 배다 — 여기 문장이 들어오면 그것은 품목이 아니라 검색이다.
+ */
+export const itemsFilterSchema = z.preprocess(
+  (value) => (value === undefined ? undefined : Array.isArray(value) ? value : [value]),
+  z.array(z.string().min(1).max(64)).min(1).max(16),
+);
+
+/**
  * 지역은 **공고지역**이고 활성 스냅샷 build가 선언한 체계
  * (`meta.openAuctionSnapshotBuild.regionScheme`)의 code value id다. 라벨·이름으로는 거르지 않는다
  * (AGENTS 2·6).
@@ -82,7 +100,7 @@ export const openAuctionListQuerySchema = z.strictObject({
   sido: positiveBigintTextSchema.optional(),
   sigungu: sigunguFilterSchema.optional(),
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
-  item: z.string().min(1).max(512).optional(),
+  items: itemsFilterSchema.optional(),
   closesWithinHours: closesWithinHoursSchema.optional(),
   closesOn: kstDateTextSchema.optional(),
   announcedOn: kstDateTextSchema.optional(),

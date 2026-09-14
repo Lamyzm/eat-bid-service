@@ -6,6 +6,7 @@ import { canonicalMoneyAmountSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import {
   eligibilityAreaFilterSchema,
+  itemsFilterSchema,
   openAuctionStateSchema,
   sigunguFilterSchema,
 } from "./list-open-auctions.query";
@@ -30,7 +31,7 @@ export const openAuctionSummaryQuerySchema = z.strictObject({
   sido: positiveBigintTextSchema.optional(),
   sigungu: sigunguFilterSchema.optional(),
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
-  item: z.string().min(1).max(512).optional(),
+  items: itemsFilterSchema.optional(),
   baseAmountMin: canonicalMoneyAmountSchema.optional(),
   baseAmountMax: canonicalMoneyAmountSchema.optional(),
   calendarFrom: kstDateTextSchema,

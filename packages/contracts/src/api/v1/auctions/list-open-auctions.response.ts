@@ -37,7 +37,7 @@ export const openAuctionListMetaSchema = z.strictObject({
    */
   eligibilityMatchedCount: nonNegativeCountSchema.nullable(),
   eligibilityUnobservedCount: nonNegativeCountSchema.nullable(),
-  item: z.string().min(1).max(512).nullable(),
+  items: z.array(z.string().min(1).max(64)).max(16).nullable(),
   closesWithinHours: closesWithinHoursSchema.nullable(),
   // KST 달력일 축 둘. 시간 창과 뜻이 다르므로 되돌려 실을 때도 자리를 나눈다.
   closesOn: kstDateTextSchema.nullable(),

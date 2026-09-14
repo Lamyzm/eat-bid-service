@@ -1,5 +1,5 @@
 /** @module 책임: 오늘 화면 필터(지역·품목·기간·기초금액·cursor)를 URL search param으로 보존하는 nuqs parser와 필터 링크 빌더를 한 곳에서 소유한다. page.tsx의 Suspense loader가 서버에서 `createLoader`로 이 parser를 실행하므로 client 전용 'nuqs'가 아니라 'nuqs/server'에서 가져온다. */
-import { createSerializer, parseAsInteger, parseAsString, type inferParserType } from 'nuqs/server';
+import { createSerializer, parseAsArrayOf, parseAsInteger, parseAsString, type inferParserType } from 'nuqs/server';
 
 // 형식 검증(양의 정수 id, 소수 둘째 자리 금액, 1..720시간)은 여기서 하지 않는다. `_model/load-today-page.ts`의
 // loader가 계약 schema로 조회 직전에 걸러 무효 값을 null로 다루고, 네트워크 호출 전에 무효 요청을 없앤다.
@@ -10,7 +10,13 @@ export const todaySearchParsers = {
    */
   scope: parseAsString,
   sido: parseAsString,
-  item: parseAsString,
+  /**
+   * 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR).
+   *
+   * 원천 라벨이 `육류 , 가금류`처럼 합성 문자열이라 완전일치로는 절반을 놓친다. 조각을 쉼표로 이어
+   * 주소에 싣는데, 조각 자체는 그 쉼표로 나눈 것이라 다시 쉼표를 품을 수 없다.
+   */
+  items: parseAsArrayOf(parseAsString, ','),
   closesWithinHours: parseAsInteger,
   /**
    * KST 달력일 축 둘이다. 탭과 달력 칸이 이 둘로 표현된다 — 시간 창(`closesWithinHours`)과 다른 것을 세며
@@ -29,7 +35,7 @@ export type TodaySearch = Readonly<inferParserType<typeof todaySearchParsers>>;
 export const EMPTY_TODAY_SEARCH: TodaySearch = {
   scope: null,
   sido: null,
-  item: null,
+  items: null,
   closesWithinHours: null,
   closesOn: null,
   announcedOn: null,

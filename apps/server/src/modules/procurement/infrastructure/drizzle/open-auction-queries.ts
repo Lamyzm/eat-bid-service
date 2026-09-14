@@ -8,7 +8,7 @@ import { sql, type SQL } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type { OpenAuctionQuery } from "../../application/open-auction-reader";
 import { KST_TIME_ZONE } from "../../domain/kst-month";
-import { bigintArrayLiteral } from "../../../../platform/database/sql-values";
+import { bigintArrayLiteral, textArrayLiteral } from "../../../../platform/database/sql-values";
 import { activeMartBuildId } from "./drizzle-mart-build-reader";
 import {
   eligibilityAreaCodeCte,
@@ -49,6 +49,28 @@ export function openScopePredicate(alias: SQL, asOf: string): SQL {
   return sql`(${alias}.closes_at is null or ${alias}.closes_at > ${asOf}::timestamptz)
     and (${alias}.source_status_label is null
          or ${alias}.source_status_label <> ${CANCELLED_STATUS_LABEL}::text)`;
+}
+
+/**
+ * 품목 술어 하나다. **조각 하나라도 라벨 안에 들어 있으면 걸린다.**
+ *
+ * 완전일치를 쓰면 절반을 놓친다. 원천 라벨이 합성 문자열이라 한 칸에 `육류 , 가금류`가 함께 들어 있고
+ * `= '육류'`는 그 행을 못 잡는다(2026-09-14 dev 실측: 열린 404행 중 98행이 합성).
+ *
+ * `like`가 아니라 `strpos`인 이유는 조각이 사용자 입력이기 때문이다. `like`는 `%`와 `_`가 패턴
+ * 메타문자라 사용자가 적은 `100%`가 "무엇이든"으로 바뀐다. escape를 덧대는 대신 메타문자가 아예 없는
+ * 연산을 쓴다.
+ *
+ * 라벨을 관측하지 못한 행은 어느 조각으로도 안 걸린다. 미관측을 "안 맞음"과 합치는 것이 아니라, 이
+ * 축으로 물으면 답할 수 없는 행이라 빠지는 것이다(AGENTS 3).
+ */
+export function itemLabelPredicate(alias: SQL, labels: readonly string[] | null): SQL {
+  if (labels === null) return sql`true`;
+  const fragments = textArrayLiteral(labels);
+  return sql`exists (
+    select 1 from unnest(${fragments}::text[]) as fragment
+     where ${alias}.item_label is not null and strpos(${alias}.item_label, fragment) > 0
+  )`;
 }
 
 // Instant는 driver가 모르는 타입이라 ISO 문자열로 넘기고 SQL 쪽에서 timestamptz로 닫는다. Date를 거치면
@@ -130,7 +152,7 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
              or open_scope.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
         and (${sigungu}::text is null
              or open_scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
-        and (${query.itemLabel}::text is null or open_scope.item_label = ${query.itemLabel}::text)${eligibilityFilter}
+        and ${itemLabelPredicate(sql`open_scope`, query.itemLabels)}${eligibilityFilter}
     )${extraCte}
   `;
 }

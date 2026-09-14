@@ -59,14 +59,23 @@ function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresent
   );
 }
 
+/**
+ * 품목 칸이다. **링크가 거는 것은 라벨 전체가 아니라 조각 하나다.**
+ *
+ * 합성 라벨(`육류 , 가금류`)을 통째로 걸면 그 조합을 가진 행만 걸려 `육류`만 있는 행이 빠진다. 조각으로
+ * 걸면 부분일치라 둘 다 걸린다. 접힌 `외 N`은 조각이 아니라 접었다는 표시라 링크가 아니다.
+ */
 function ItemCell({ row, search }: { readonly row: OpenAuctionRowPresentation; readonly search: TodaySearch }) {
   if (row.itemLabel === null) return <span className='text-muted-foreground'>미확인</span>;
   const item = summarizeItemLabel(row.itemLabel);
-  // 품목은 아직 code scheme이 없어 관측 라벨 완전일치로 거른다(EAT-39 판정 B).
+  const head = item.parts[0]!;
   return (
-    <Link href={buildTodayFilterRoute(search, { item: row.itemLabel })} title={item.full ?? undefined} className='hover:underline'>
-      {item.text}
-    </Link>
+    <span title={item.full ?? undefined} className='inline-flex items-baseline gap-1'>
+      <Link href={buildTodayFilterRoute(search, { items: [head] })} className='hover:underline'>
+        {head}
+      </Link>
+      {item.parts.length > 1 ? <span className={MUTED}>외 {item.parts.length - 1}</span> : null}
+    </span>
   );
 }
 

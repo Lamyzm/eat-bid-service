@@ -23,7 +23,8 @@ export interface ListOpenAuctionsInput {
   readonly sidoCodeValueId: bigint | null;
   readonly sigunguCodeValueIds: readonly bigint[] | null;
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
-  readonly itemLabel: string | null;
+  /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
+  readonly itemLabels: readonly string[] | null;
   readonly closesWithinHours: number | null;
   readonly closesOnKst: string | null;
   readonly announcedOnKst: string | null;

@@ -1952,11 +1952,15 @@
             ],
             "nullable": true
           },
-          "item": {
-            "maxLength": 512,
-            "minLength": 1,
+          "items": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
             "nullable": true,
-            "type": "string"
+            "type": "array"
           },
           "openAuctionSnapshotBuild": {
             "additionalProperties": false,
@@ -2102,7 +2106,7 @@
           "eligibilityArea",
           "eligibilityMatchedCount",
           "eligibilityUnobservedCount",
-          "item",
+          "items",
           "closesWithinHours",
           "closesOn",
           "announcedOn",
@@ -3389,11 +3393,16 @@
           },
           {
             "in": "query",
-            "name": "item",
+            "name": "items",
             "schema": {
-              "maxLength": 512,
-              "minLength": 1,
-              "type": "string"
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array"
             }
           },
           {
@@ -3757,11 +3766,16 @@
           },
           {
             "in": "query",
-            "name": "item",
+            "name": "items",
             "schema": {
-              "maxLength": 512,
-              "minLength": 1,
-              "type": "string"
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array"
             }
           },
           {

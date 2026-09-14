@@ -144,6 +144,8 @@ describe('열린 공고 표', () => {
     expect(screen.getAllByRole('link', { name: '창원시' })[0]!.getAttribute('href')).toBe('/today?sido=43&closesWithinHours=72');
     // 링크 문자열은 parser가 직렬화한 그대로다. 한글을 미리 퍼센트 인코딩하지 않아도 브라우저가 요청 전에
     // URL 규격대로 인코딩한다(주소창과 `location.href`는 인코딩된 형태다).
-    expect(screen.getAllByRole('link', { name: '축산' })[0]!.getAttribute('href')).toBe('/today?item=축산&closesWithinHours=72');
+    // 품목 링크가 거는 것은 라벨 전체가 아니라 조각 하나다. 합성 라벨을 통째로 걸면 그 조합을 가진
+    // 행만 걸려 `육류`만 있는 행이 빠진다.
+    expect(screen.getAllByRole('link', { name: '축산' })[0]!.getAttribute('href')).toBe('/today?items=축산&closesWithinHours=72');
   });
 });

@@ -49,13 +49,13 @@ describe('오늘 route loader', () => {
   test('URL에 남은 잘못된 값은 무시하고 계약이 받는 조건만 조회에 넘긴다', async () => {
     const { inputs, dependencies: deps } = dependencies();
     const data = await loadTodayPage(
-      { scope: null, sido: '01', item: '축산', closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
+      { scope: null, sido: '01', items: ['축산'], closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
       deps
     );
     expect(inputs).toEqual([{
       sido: undefined,
       eligibilityArea: ['9101', '9102'],
-      item: '축산',
+      items: ['축산'],
       closesWithinHours: undefined,
       closesOn: undefined,
       announcedOn: undefined,
@@ -68,7 +68,7 @@ describe('오늘 route loader', () => {
       limit: 200
     }]);
     expect(data.search).toEqual({
-      scope: null, sido: null, item: '축산', closesWithinHours: null, closesOn: null, announcedOn: null,
+      scope: null, sido: null, items: ['축산'], closesWithinHours: null, closesOn: null, announcedOn: null,
       baseAmountMin: '2000000.00', baseAmountMax: '3000000.00', cursor: null
     });
     expect(data.cursorReset).toBe(false);
@@ -147,10 +147,10 @@ describe('오늘 route loader', () => {
 
   test('정규화는 계약 schema의 같은 필드로 판정한다', () => {
     expect(normalizeTodaySearch({
-      scope: null, sido: '9223372036854775807', item: 'x'.repeat(513), closesWithinHours: 0,
+      scope: null, sido: '9223372036854775807', items: ['x'.repeat(65)], closesWithinHours: 0,
       closesOn: null, announcedOn: null, baseAmountMin: '1.00', baseAmountMax: null, cursor: '5'
     })).toEqual({
-      scope: null, sido: '9223372036854775807', item: null, closesWithinHours: null,
+      scope: null, sido: '9223372036854775807', items: null, closesWithinHours: null,
       closesOn: null, announcedOn: null, baseAmountMin: '1.00', baseAmountMax: null, cursor: '5'
     });
   });
@@ -166,13 +166,13 @@ describe('오늘 route loader', () => {
 
   test('요약은 목록과 나란히 한 번만 부르고 날짜 축과 cursor를 넘기지 않는다', async () => {
     const { summaryInputs, dependencies: deps } = dependencies();
-    const data = await loadTodayPage({ ...EMPTY_TODAY_SEARCH, closesOn: '2026-09-08', item: '축산' }, deps);
+    const data = await loadTodayPage({ ...EMPTY_TODAY_SEARCH, closesOn: '2026-09-08', items: ['축산'] }, deps);
     // 탭이 세는 수는 탭을 누르기 전에도 보여야 한다. 고른 날짜로 요약까지 좁히면 오늘 마감 탭에서
     // 진행중 수가 자기 자신이 된다.
     expect(summaryInputs).toEqual([{
       sido: undefined,
       eligibilityArea: ['9101', '9102'],
-      item: '축산',
+      items: ['축산'],
       baseAmountMin: undefined,
       baseAmountMax: undefined,
       // 기준일 2026-09-07은 월요일이라 창이 그날 시작해 열넷째 날에 끝난다.

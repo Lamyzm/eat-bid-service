@@ -61,7 +61,7 @@ describe('오늘 화면', () => {
       <TodayScreen
         data={{
           ...ready,
-          search: { ...EMPTY_TODAY_SEARCH, item: '축산', closesWithinHours: 72, baseAmountMin: '3000000.00', baseAmountMax: '10000000.00' },
+          search: { ...EMPTY_TODAY_SEARCH, items: ['축산'], closesWithinHours: 72, baseAmountMin: '3000000.00', baseAmountMax: '10000000.00' },
           presentation: presentOpenAuctionList(empty, fixtureNow)
         }}
       />

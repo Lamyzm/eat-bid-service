@@ -197,7 +197,7 @@ const baseQuery: OpenAuctionQuery = {
   sidoCodeValueId: null,
   sigunguCodeValueIds: null,
   eligibilityAreaCodeValueIds: null,
-  itemLabel: null,
+  itemLabels: null,
   closesWithinHours: null,
   closesOnKst: null,
   announcedOnKst: null,
@@ -317,8 +317,14 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       // 게시일을 관측하지 못한 행은 어느 게시일로도 안 걸린다. 빈 값을 오늘로 채워 읽지 않는다(AGENTS 3).
       expect(ids(pageOf(await reader.listOpen({ ...baseQuery, announcedOnKst: "2026-09-08" })))).toEqual([]);
       // 품목은 라벨 완전일치다.
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabel: "축산" })))).toEqual([201n, 205n]);
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabel: "축" })))).toEqual([]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["축산"] })))).toEqual([201n, 205n]);
+      // 조각은 부분일치다. 라벨 한 칸에 여럿이 들어 있는 합성 행을 완전일치로는 못 잡는다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["축"] })))).toEqual([201n, 205n]);
+      // 조각 여럿은 OR이고, 라벨을 관측하지 못한 203은 어느 조각으로도 안 걸린다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["없는품목", "산"] })))).toEqual([201n, 205n]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["없는품목"] })))).toEqual([]);
+      // `%`는 패턴 메타문자가 아니라 글자 그대로다. like로 거르면 이 조각이 "무엇이든"이 된다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["%"] })))).toEqual([]);
 
       // cursor 페이지 둘을 이어 붙여도 순서와 중복이 없고 표본 수는 cursor 위치와 무관하다.
       const first = pageOf(await reader.listOpen({ ...baseQuery, limit: 2 }));
@@ -343,7 +349,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       const server = await runtime.listen(0, "127.0.0.1");
       try {
         const response = await request(server).get(
-          auctionV1Operations.listOpen.buildPath({ path: {}, query: { limit: 1, item: "축산" } }),
+          auctionV1Operations.listOpen.buildPath({ path: {}, query: { limit: 1, items: ["축산"] } }),
         );
         expect(response.status).toBe(200);
         expect(response.body.auctions.map((auction: { auctionAttemptId: string }) => auction.auctionAttemptId)).toEqual(["201"]);
@@ -358,7 +364,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
           eligibilityArea: null,
           eligibilityMatchedCount: null,
           eligibilityUnobservedCount: null,
-          item: "축산",
+          items: ["축산"],
           closesWithinHours: null,
           closesOn: null,
           announcedOn: null,
@@ -405,7 +411,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         sidoCodeValueId: null,
         sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
-        itemLabel: null,
+        itemLabels: null,
         baseAmountMin: null,
         baseAmountMax: null,
         calendarFrom: "2026-09-07",
@@ -455,7 +461,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         sidoCodeValueId: 41n,
         sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
-        itemLabel: "축산",
+        itemLabels: ["축산"],
         baseAmountMin: null,
         baseAmountMax: null,
         calendarFrom: "2026-09-07",
@@ -464,7 +470,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
 
       const summary = await summaryReader.summarizeOpen(scoped);
       const list = pageOf(await listReader.listOpen({
-        ...baseQuery, sidoCodeValueId: 41n, itemLabel: "축산",
+        ...baseQuery, sidoCodeValueId: 41n, itemLabels: ["축산"],
       }));
 
       expect(summary.totalCount).toBe(list.sampleCount);
