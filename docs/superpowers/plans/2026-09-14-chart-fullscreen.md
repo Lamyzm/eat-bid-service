@@ -60,6 +60,7 @@
 - Web 단위 검사: source 519건 + fixture 5건, 실패 0건.
 - 브라우저: `chart-fullscreen.spec.ts`, `flow-focus.spec.ts`, `decision-screen.spec.ts` 합계 48건 통과.
   토스 테마에서 전체 뷰포트와 375px→768×375 회전, 축·범례·뒤로 가기 보존을 포함한다.
+  CI가 호출하는 `apps/web/package.json`의 `test:e2e:decision`에도 이 세 스위트를 연결했다.
 - Web `typecheck`, `lint`, `build` 통과. lint에는 기존 다른 경로의 경고가 있고 빌드에는
   기존 Google Sans Flex fallback 경고가 있다. 오류로 세지 않으며 경고 없음으로 보고하지 않는다.
 - 변경 범위 `architecture:check -- --changed` 12개 통과, 최종 문서의 `quality:check` 3개 통과.
