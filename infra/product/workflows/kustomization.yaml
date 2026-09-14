@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - serviceaccount.yaml
+  - monitoring-rbac.yaml
   - semaphore.yaml
   - workflow-template.yaml
   - poll-open.yaml
