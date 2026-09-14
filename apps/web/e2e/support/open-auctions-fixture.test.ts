@@ -1,5 +1,7 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { auctionV1Operations, openAuctionListV1ResponseSchema } from '@eatbid/contracts/api/v1/auctions';
+
+import { presentOpenAuctionList } from '../../src/app/(workspace)/today/_model/present-open-auctions';
 
 import { openAuctionsResponse } from './open-auctions-fixture';
 
@@ -20,6 +22,27 @@ async function 본문(query: string) {
 // 검증하다 500을 냈다. 그 사실을 브라우저를 띄워야만 알 수 있었고 main이 11시간 빨갰다. 이 검사는 같은
 // 어긋남을 브라우저 없이 잡는다(ADR 0050 결정 5).
 describe('열린 공고 목록 fixture와 공개 계약', () => {
+  test('낮·밤·연말·자정에도 오늘과 내일 마감 행을 같은 KST 날짜 기준으로 재현한다', async () => {
+    for (const nowIso of [
+      '2026-09-14T00:00:00Z',
+      '2026-09-14T13:00:00Z',
+      '2026-12-31T14:59:59Z',
+      '2026-09-14T15:00:00Z'
+    ]) {
+      const clock = spyOn(Date, 'now').mockReturnValue(Date.parse(nowIso));
+      try {
+        const body = await 본문('limit=50&state=open');
+        const presentation = presentOpenAuctionList(body, nowIso);
+        if (presentation.view.kind !== 'list') throw new Error('목록 fixture가 목록을 반환해야 합니다.');
+        expect(presentation.view.rows.map((row) => row.closes.tone)).toEqual([
+          'today', 'tomorrow', 'later', 'unknown'
+        ]);
+      } finally {
+        clock.mockRestore();
+      }
+    }
+  });
+
   test('화면이 실제로 보내는 질의에 계약을 만족하는 목록을 낸다', async () => {
     const body = await 본문('limit=50&state=open');
 
