@@ -12,6 +12,12 @@ export const todaySearchParsers = {
   sido: parseAsString,
   item: parseAsString,
   closesWithinHours: parseAsInteger,
+  /**
+   * KST 달력일 축 둘이다. 탭과 달력 칸이 이 둘로 표현된다 — 시간 창(`closesWithinHours`)과 다른 것을 세며
+   * 계약이 둘을 함께 받지 않는다(controller가 400으로 막는다). 그래서 탭 링크는 시간 창을 함께 지운다.
+   */
+  closesOn: parseAsString,
+  announcedOn: parseAsString,
   baseAmountMin: parseAsString,
   baseAmountMax: parseAsString,
   cursor: parseAsString
@@ -25,6 +31,8 @@ export const EMPTY_TODAY_SEARCH: TodaySearch = {
   sido: null,
   item: null,
   closesWithinHours: null,
+  closesOn: null,
+  announcedOn: null,
   baseAmountMin: null,
   baseAmountMax: null,
   cursor: null

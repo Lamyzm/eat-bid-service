@@ -7,9 +7,11 @@ import { RegionScopeStrip, RegionSetupRequest } from '../_features/region-scope/
 import { buildTodayRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
 import { summarizeFloorRates, type OpenAuctionListPresentation, type OpenAuctionRowPresentation } from '../_model/present-open-auctions';
+import { kstToday } from '../_model/present-open-summary';
 import { OpenAuctionTable } from './open-auction-table';
 import { TodayFrame } from './today-frame';
 import { TodayFilters, describeTodaySearch } from './today-filters';
+import { TodayTabs } from './today-tabs';
 
 // 지역 칩의 표시 이름은 응답 행에서 읽는다. 지역 어휘 계약이 없는 동안 그 id의 라벨을 아는 곳은 행뿐이다.
 function regionTextOf(rows: readonly OpenAuctionRowPresentation[], region: string | null): string | null {
@@ -122,6 +124,10 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
             unobservedCount={presentation?.eligibilityUnobservedCount ?? null}
           />
           {presentation === null ? null : <TodayFilters search={search} regionText={regionText} />}
+          {/* 탭과 달력은 언제를 말하고 그 아래 축·목록이 무엇을 말한다. 조건과 목록이 붙어 있어야 한다. */}
+          {data.summary === null ? null : (
+            <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} />
+          )}
         </div>
       }
       list={<TodayList data={data} regionText={regionText} />}

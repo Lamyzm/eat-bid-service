@@ -9,10 +9,15 @@ import { mapOpenAuctionListError } from './auction-resource-error';
 
 export type OpenAuctionListInput = {
   readonly sido?: string;
+  /** 고른 시도 **안의** 시군구다. 시도 없이 보내면 어느 시도 안인지 말하지 않아 서버가 400으로 답한다. */
+  readonly sigungu?: readonly string[];
   /** 워크스페이스가 확인한 참가제한지역 code value id 목록이다. 비면 필터를 걸지 않는다. */
   readonly eligibilityArea?: readonly string[];
   readonly item?: string;
   readonly closesWithinHours?: number;
+  /** KST 달력일 축 둘이다. 계약이 시간 창과 마감 달력일을 함께 받지 않으므로 호출자가 하나만 넘긴다. */
+  readonly closesOn?: string;
+  readonly announcedOn?: string;
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
   readonly cursor?: string;
@@ -25,9 +30,12 @@ export async function listOpenAuctionsWith(
 ): Promise<OpenAuctionListV1Response> {
   const query = auctionV1Operations.listOpen.querySchema.parse({
     sido: input.sido,
+    sigungu: input.sigungu,
     eligibilityArea: input.eligibilityArea,
     item: input.item,
     closesWithinHours: input.closesWithinHours,
+    closesOn: input.closesOn,
+    announcedOn: input.announcedOn,
     baseAmountMin: input.baseAmountMin,
     baseAmountMax: input.baseAmountMax,
     cursor: input.cursor,

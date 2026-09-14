@@ -2,10 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import { render } from '@testing-library/react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { fixtureNow, noSnapshotFixture, openAuctionsFixture } from '../__fixtures__/open-auctions';
+import { fixtureNow, noSnapshotFixture, openAuctionsFixture, openSummaryFixture } from '../__fixtures__/open-auctions';
 import { EMPTY_TODAY_SEARCH } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
 import { presentOpenAuctionList } from '../_model/present-open-auctions';
+ import { presentOpenSummary } from '../_model/present-open-summary';
 import { TodayScreen } from './today-screen';
 import { TodayScreenSkeleton } from './today-screen-skeleton';
 
@@ -19,6 +20,7 @@ const ready: TodayPageData = {
   regionGate: { kind: 'applied', areas: confirmedAreas },
   search: EMPTY_TODAY_SEARCH,
   presentation: presentOpenAuctionList(openAuctionsFixture, fixtureNow),
+  summary: presentOpenSummary(openSummaryFixture, fixtureNow, EMPTY_TODAY_SEARCH),
   cursorReset: false
 };
 

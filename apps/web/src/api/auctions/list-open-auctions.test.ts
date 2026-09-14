@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   auctionV1Operations,
+  openAuctionListQuerySchema,
   type OpenAuctionListV1Response
 } from '@eatbid/contracts/api/v1/auctions';
 
@@ -75,6 +76,50 @@ describe('열린 공고 목록 resource 조회', () => {
         signal: controller.signal
       }
     ]);
+  });
+
+  /**
+   * 계약이 받는 필터를 어댑터가 하나라도 빠뜨리면 화면은 조용히 안 걸린 목록을 본다. 400도 아니고
+   * 빈 결과도 아니라서 눈으로는 "필터가 안 먹는다"로만 보인다. `closesOn`이 실제로 그렇게 빠져 있었다.
+   *
+   * 그래서 표본을 계약의 필드 목록과 맞춰 본다. 계약에 필드가 늘면 이 표가 먼저 실패하고, 표를 채우면
+   * 그 값이 전송되는지까지 이어서 검사한다.
+   */
+  test('계약이 받는 필터를 하나도 빠뜨리지 않고 transport로 넘긴다', async () => {
+    // `state`는 어댑터가 아니라 계약이 고정하는 값이고 `limit`은 기본값이 있다. 나머지는 전부 호출자 것이다.
+    const fixed = new Set(['state', 'limit']);
+    const samples: Record<string, unknown> = {
+      sido: '41',
+      sigungu: ['43'],
+      eligibilityArea: ['9101'],
+      item: '축산',
+      closesWithinHours: 72,
+      closesOn: '2026-09-15',
+      announcedOn: '2026-09-14',
+      baseAmountMin: '3000000.00',
+      baseAmountMax: '30000000.00',
+      cursor: '5796468'
+    };
+    const accepted = Object.keys(openAuctionListQuerySchema.shape).filter((key) => !fixed.has(key));
+    expect(accepted.filter((key) => !(key in samples))).toEqual([]);
+
+    const inputs: { query: Record<string, unknown> }[] = [];
+    const request = requestDouble(async (input) => {
+      inputs.push(input as { query: Record<string, unknown> });
+      return emptyList;
+    });
+    // 계약이 마감 시간 창과 마감 달력일을 함께 받지 않으므로 둘로 나눠 보낸다.
+    const { closesOn: _closesOn, ...withHours } = samples;
+    await listOpenAuctionsWith(request, withHours);
+    const { closesWithinHours: _hours, ...withDay } = samples;
+    await listOpenAuctionsWith(request, withDay);
+
+    // 계약 parse는 안 준 필드를 값 undefined인 key로 남기므로 그대로 펼치면 앞 호출의 값을 덮는다.
+    const sent: Record<string, unknown> = {};
+    for (const input of inputs) {
+      for (const [key, value] of Object.entries(input.query)) if (value !== undefined) sent[key] = value;
+    }
+    for (const key of accepted) expect(sent[key]).toEqual(samples[key]);
   });
 
   test('계약이 거부하는 query는 네트워크 호출 전에 실패한다', async () => {

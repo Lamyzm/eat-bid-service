@@ -1,20 +1,38 @@
 /** @module 책임: 오늘 route의 URL 조건 검증·목록 조회·사라진 cursor의 한 번 재조회 분기와 표시 변환의 조립 순서를 소유한다. */
 import {
   openAuctionListQuerySchema,
-  type OpenAuctionListV1Response
+  type OpenAuctionListV1Response,
+  type OpenAuctionSummaryV1Response
 } from '@eatbid/contracts/api/v1/auctions';
 
 import { ALL_REGIONS_SCOPE, type TodaySearch } from '../_lib/today-search-params';
 import { presentOpenAuctionList, type OpenAuctionListPresentation } from './present-open-auctions';
+import { calendarWindow, presentOpenSummary, type OpenSummaryPresentation } from './present-open-summary';
 
 export type TodayListInput = {
   readonly sido?: string;
   readonly eligibilityArea?: readonly string[];
   readonly item?: string;
   readonly closesWithinHours?: number;
+  readonly closesOn?: string;
+  readonly announcedOn?: string;
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
   readonly cursor?: string;
+};
+
+/**
+ * 요약 입력은 목록과 필터 atom을 공유하되 날짜 축과 cursor가 없다. 탭이 세는 수는 **탭을 누르기 전에도**
+ * 보여야 하므로, 지금 고른 날짜로 요약까지 좁히면 `오늘 마감` 탭에서 `진행중` 수가 자기 자신이 된다.
+ */
+export type TodaySummaryInput = {
+  readonly sido?: string;
+  readonly eligibilityArea?: readonly string[];
+  readonly item?: string;
+  readonly baseAmountMin?: string;
+  readonly baseAmountMax?: string;
+  readonly calendarFrom: string;
+  readonly calendarTo: string;
 };
 
 // 사라진 cursor는 예외가 아니라 결과다. 캐시된 server read가 예외의 class 정체성을 보존하지 못하므로
@@ -35,6 +53,7 @@ export type TodayRegionPreference = {
 
 export type TodayPageDependencies = {
   readonly listOpenAuctions: (input: TodayListInput) => Promise<TodayListRead>;
+  readonly summarizeOpenAuctions: (input: TodaySummaryInput) => Promise<OpenAuctionSummaryV1Response>;
   readonly now: () => string;
   /** 서버가 읽지 못했으면 undefined다. 그때는 좁힐 근거가 없으므로 목록을 그대로 보여 준다. */
   readonly regionPreference?: TodayRegionPreference;
@@ -57,6 +76,8 @@ export type TodayPageData = {
   readonly search: TodaySearch;
   // 지역 미설정이면 목록을 조회하지 않으므로 표시 모델 자체가 없다.
   readonly presentation: OpenAuctionListPresentation | null;
+  // 탭·달력·축 줄의 재료다. 목록과 같은 이유로 지역 미설정이면 없다.
+  readonly summary: OpenSummaryPresentation | null;
   // build 전환으로 cursor가 사라져 처음부터 다시 조회했다는 사실. 화면이 그 사실을 한 줄로 말한다.
   readonly cursorReset: boolean;
 };
@@ -77,7 +98,11 @@ export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
     scope: search.scope,
     sido: accepted(shape.sido, search.sido),
     item: accepted(shape.item, search.item),
-    closesWithinHours: accepted(shape.closesWithinHours, search.closesWithinHours),
+    // 계약이 시간 창과 달력일을 함께 받지 않는다. 달력일이 있으면 시간 창을 버린다 — 탭·달력이 시간
+    // 창보다 뒤에 눌린 조건이고, 둘을 함께 보내면 서버가 400으로 답해 화면 전체가 오류가 된다.
+    closesWithinHours: search.closesOn === null ? accepted(shape.closesWithinHours, search.closesWithinHours) : null,
+    closesOn: accepted(shape.closesOn, search.closesOn),
+    announcedOn: accepted(shape.announcedOn, search.announcedOn),
     baseAmountMin: accepted(shape.baseAmountMin, search.baseAmountMin),
     baseAmountMax: accepted(shape.baseAmountMax, search.baseAmountMax),
     cursor: accepted(shape.cursor, search.cursor)
@@ -103,9 +128,24 @@ function listInput(search: TodaySearch, gate: TodayRegionGate): TodayListInput {
     eligibilityArea: eligibilityAreaOf(gate),
     item: search.item ?? undefined,
     closesWithinHours: search.closesWithinHours ?? undefined,
+    closesOn: search.closesOn ?? undefined,
+    announcedOn: search.announcedOn ?? undefined,
     baseAmountMin: search.baseAmountMin ?? undefined,
     baseAmountMax: search.baseAmountMax ?? undefined,
     cursor: search.cursor ?? undefined
+  };
+}
+
+function summaryInput(search: TodaySearch, gate: TodayRegionGate, nowIso: string): TodaySummaryInput {
+  const window = calendarWindow(nowIso);
+  return {
+    sido: search.sido ?? undefined,
+    eligibilityArea: eligibilityAreaOf(gate),
+    item: search.item ?? undefined,
+    baseAmountMin: search.baseAmountMin ?? undefined,
+    baseAmountMax: search.baseAmountMax ?? undefined,
+    calendarFrom: window.from,
+    calendarTo: window.to
   };
 }
 
@@ -129,22 +169,37 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
   // 지역 미설정이면 목록을 아예 부르지 않는다. 화면이 그리지 않을 전국 목록을 받아 오는 것은 낭비이고,
   // 받아 둔 값이 있으면 다음 사람이 그것을 그리고 싶어진다.
   if (regionGate.kind === 'unset') {
-    return { nowIso, regionGate, search, presentation: null, cursorReset: false };
+    return { nowIso, regionGate, search, presentation: null, summary: null, cursorReset: false };
   }
-  const first = await dependencies.listOpenAuctions(listInput(search, regionGate));
+  // 둘을 나란히 부른다. 요약은 목록의 페이지가 아니라 조건 전체를 세므로 앞의 결과를 기다릴 이유가 없고,
+  // 순서대로 부르면 한 화면이 두 왕복 시간을 그대로 더한다.
+  const [first, summaryResponse] = await Promise.all([
+    dependencies.listOpenAuctions(listInput(search, regionGate)),
+    dependencies.summarizeOpenAuctions(summaryInput(search, regionGate, nowIso))
+  ]);
+  const summary = presentOpenSummary(summaryResponse, nowIso, search);
   if (first.kind === 'page') {
-    return { nowIso, regionGate, search, presentation: presentOpenAuctionList(first.response, nowIso), cursorReset: false };
+    return {
+      nowIso,
+      regionGate,
+      search,
+      presentation: presentOpenAuctionList(first.response, nowIso),
+      summary,
+      cursorReset: false
+    };
   }
   // cursor 없는 조회가 cursor 오류로 답하면 계약이 깨진 것이다. 빈 목록으로 위장하지 않는다.
   if (search.cursor === null) throw new TodayCursorStillInvalid();
   const reset = { ...search, cursor: null };
   const second = await dependencies.listOpenAuctions(listInput(reset, regionGate));
   if (second.kind !== 'page') throw new TodayCursorStillInvalid();
+  // 요약은 cursor를 받지 않으므로 다시 부르지 않는다. 같은 조건을 두 번 세는 일이 없다.
   return {
     nowIso,
     regionGate,
     search: reset,
     presentation: presentOpenAuctionList(second.response, nowIso),
+    summary,
     cursorReset: true
   };
 }
