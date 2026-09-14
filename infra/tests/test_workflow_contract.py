@@ -1502,3 +1502,33 @@ def test_fail_release_template은_DAG_밖의_운영자_entrypoint다(manifests: 
         "eatbid-database-dataplane",
         "DATABASE_URL",
     )
+
+
+def test_dataplane_container_template은_프로세스_설정_다섯을_모두_선언한다(
+    manifests: ManifestSet,
+) -> None:
+    """`ApplicationSettings`는 명령별이 아니라 프로세스 단위 설정이라 다섯이 모두 있어야 기동한다.
+
+    2026-09-14 첫 전진 회차가 exit 64로 죽었다. `next-backfill-window`는 view 하나만 읽어 R2를 쓰지
+    않는데, 설정 검증이 조립보다 먼저 돌아 R2 넷이 없다는 이유로 프로세스가 시작조차 못 했다. 기준은
+    그 명령이 값을 쓰느냐가 아니라 프로세스가 그 값 없이 뜨느냐이므로 template마다 예외를 두지 않는다.
+    """
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    required = {
+        "DATABASE_URL": "eatbid-database-dataplane",
+        "R2_ENDPOINT_URL": "eatbid-r2",
+        "R2_BUCKET": "eatbid-r2",
+        "R2_ACCESS_KEY_ID": "eatbid-r2",
+        "R2_SECRET_ACCESS_KEY": "eatbid-r2",
+    }
+    checked = 0
+    for name, template in _templates(workflow_template).items():
+        container = template.get("container")
+        if container is None:
+            continue
+        checked += 1
+        for key, secret in required.items():
+            assert _secret_ref(_env(_mapping(container), key)) == (secret, key), (
+                f"{name} template이 {key}를 선언하지 않았다"
+            )
+    assert checked > 0
