@@ -6,14 +6,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from .expectations import EXPECTATIONS, Expectation, QueryRunner, evaluate
+from .expectations import EXPECTATIONS, Expectation, QueryRunner, Violation, evaluate
 from .notify import format_message, format_resolution
 from .state import decode_state, diff_violations, encode_state
+
+ViolationProbe = Callable[[], Sequence[Violation]]
+"""DB 질의가 아닌 원천에서 위반을 읽어 오는 자리. 지금은 GitHub Actions 회차가 여기로 들어온다.
+
+왜 같은 회차에 합치는가: 억제와 해소 판정이 한 상태 파일에서 돌아야 하기 때문이다. 원천마다 감시를 따로
+두면 같은 사고가 여러 알림으로 쪼개지고, 그 사고가 하나인지 셋인지 받는 사람이 알 수 없다(ADR 0046 결정 6).
+"""
 
 
 class StateStore(Protocol):
@@ -40,11 +47,14 @@ def run_expectation_check(
     notify: Notifier,
     environment: str,
     expectations: Sequence[Expectation] = EXPECTATIONS,
+    probes: Sequence[ViolationProbe] = (),
     now: datetime | None = None,
 ) -> MonitoringResult:
     """한 회차를 돌린다. 새로 열린 위반과 해소된 위반만 알린다."""
     moment = (now or datetime.now(UTC)).isoformat()
     violations = evaluate(run_query, expectations)
+    for probe in probes:
+        violations.extend(probe())
     previous = decode_state(state_store.read())
     difference = diff_violations(violations, previous, now=moment)
 
@@ -55,7 +65,7 @@ def run_expectation_check(
 
     state_store.write(encode_state(difference.still_open, now=moment))
     return MonitoringResult(
-        evaluated=len(expectations),
+        evaluated=len(expectations) + len(probes),
         opened=tuple(violation.key for violation in difference.opened),
         resolved=difference.resolved,
         still_open=tuple(item.key for item in difference.still_open),

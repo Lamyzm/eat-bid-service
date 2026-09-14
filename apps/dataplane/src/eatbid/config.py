@@ -82,6 +82,11 @@ class ApplicationSettings(BaseSettings):
         None, validation_alias="TELEGRAM_BOT_TOKEN", repr=False
     )
     telegram_chat_id: str | None = Field(None, validation_alias="TELEGRAM_CHAT_ID")
+    # `owner/repo`. 비어 있으면 CI·발행 기대를 아예 평가하지 않는다. 배포 파이프라인을 보는 눈은 prod
+    # 클러스터 하나면 충분하고, dev까지 같은 저장소를 보면 같은 사고를 두 번 알린다.
+    github_repository: str | None = Field(
+        None, validation_alias="EATBID_GITHUB_REPOSITORY"
+    )
 
     @field_validator("database_url")
     @classmethod

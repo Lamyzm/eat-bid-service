@@ -41,8 +41,13 @@ from eatbid.mart.open_auction_snapshot import open_auction_snapshot_filler
 from eatbid.mart.org_round_summary import fill_org_round_summary
 from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
 from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
+from eatbid.monitoring.github import WorkflowExpectation, evaluate_workflows
 from eatbid.monitoring.notify import send_telegram
-from eatbid.monitoring.runner import MonitoringResult, run_expectation_check
+from eatbid.monitoring.runner import (
+    MonitoringResult,
+    ViolationProbe,
+    run_expectation_check,
+)
 from eatbid.monitoring.store import R2StateStore
 from eatbid.pipeline.advance import CompletedWindow, next_window
 from eatbid.pipeline.capture import capture
@@ -395,12 +400,16 @@ class _MonitoringRunner:
     따로 매달면 수집 조립과 감시 조립이 섞여 어느 쪽이 무엇을 쓰는지 흐려진다.
     """
 
-    def __init__(self, *, connection: Any, state_store: Any, config: ApplicationSettings) -> None:
+    def __init__(
+        self, *, connection: Any, state_store: Any, config: ApplicationSettings
+    ) -> None:
         self._connection = connection
         self._state_store = state_store
         self._config = config
 
-    def _run_query(self, sql: str, parameters: Mapping[str, Any]) -> list[dict[str, Any]]:
+    def _run_query(
+        self, sql: str, parameters: Mapping[str, Any]
+    ) -> list[dict[str, Any]]:
         with self._connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(sql, parameters)
             return list(cursor.fetchall())
@@ -412,16 +421,48 @@ class _MonitoringRunner:
             raise RuntimeError("감시 알림 대상이 없습니다.")
         send_telegram(token=token.get_secret_value(), chat_id=chat_id, text=text)
 
+    def _fetch_workflow_runs(
+        self, expectation: WorkflowExpectation
+    ) -> list[Mapping[str, Any]]:
+        """GitHub 공개 API에서 최근 회차만 읽는다. 저장소가 공개라 인증 헤더가 없다.
+
+        `per_page`를 작게 두는 이유는 판정에 최신 회차와 그 앞의 끝난 회차 하나면 충분하기 때문이다.
+        `exclude_pull_requests`는 PR 회차를 빼 원격 main의 판정에 다른 branch가 섞이지 않게 한다.
+        """
+        repository = self._config.github_repository
+        parameters: dict[str, Any] = {"per_page": 5, "exclude_pull_requests": "true"}
+        if expectation.branch is not None:
+            parameters["branch"] = expectation.branch
+        response = httpx.get(
+            f"https://api.github.com/repos/{repository}"
+            f"/actions/workflows/{expectation.workflow_file}/runs",
+            params=parameters,
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=20.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        runs = payload.get("workflow_runs") if isinstance(payload, Mapping) else None
+        return [run for run in runs or () if isinstance(run, Mapping)]
+
+    def _probes(self) -> tuple[ViolationProbe, ...]:
+        if self._config.github_repository is None:
+            return ()
+        return (lambda: evaluate_workflows(self._fetch_workflow_runs),)
+
     def run(self) -> MonitoringResult:
         return run_expectation_check(
             run_query=self._run_query,
             state_store=self._state_store,
             notify=self._notify,
             environment=self._config.environment_name,
+            probes=self._probes(),
         )
 
 
-def _build_monitoring(config: ApplicationSettings, connection: Any) -> _MonitoringRunner | None:
+def _build_monitoring(
+    config: ApplicationSettings, connection: Any
+) -> _MonitoringRunner | None:
     if config.telegram_bot_token is None or config.telegram_chat_id is None:
         return None
     state_store = R2StateStore(
@@ -431,7 +472,9 @@ def _build_monitoring(config: ApplicationSettings, connection: Any) -> _Monitori
         secret_access_key=config.r2_secret_access_key.get_secret_value(),
         key=f"monitoring/{config.environment_name}/expectation-state.json",
     )
-    return _MonitoringRunner(connection=connection, state_store=state_store, config=config)
+    return _MonitoringRunner(
+        connection=connection, state_store=state_store, config=config
+    )
 
 
 def build_application(config: ApplicationSettings) -> Application:
@@ -449,9 +492,7 @@ def build_application(config: ApplicationSettings) -> Application:
             write=config.source_write_timeout_seconds,
             pool=config.source_pool_timeout_seconds,
         )
-        http_client = EatHttpClient(
-            timeout=timeout, retry_policy=_retry_policy(config)
-        )
+        http_client = EatHttpClient(timeout=timeout, retry_policy=_retry_policy(config))
         reference_client = build_reference_client(timeout)
         store = R2RawObjectStore(
             R2Settings(
