@@ -31,6 +31,32 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
+  name: eatbid-monitoring-read-workflows
+  namespace: eatbid
+rules:
+  # cron 회차가 기동 전에 죽으면 ingest.run조차 만들지 못해 DB 질의로는 영영 안 보인다
+  # (2026-09-14 전진 cron이 설정 검증에서 exit 64로 매시 실패).
+  - apiGroups: [argoproj.io]
+    resources: [workflows]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eatbid-monitoring-read-workflows
+  namespace: eatbid
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: eatbid-monitoring-read-workflows
+subjects:
+  - kind: ServiceAccount
+    name: eatbid-dataplane
+    namespace: eatbid
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
   name: eatbid-monitoring-read-applications
   namespace: argocd
 rules:
