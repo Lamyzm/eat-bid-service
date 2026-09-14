@@ -37,8 +37,8 @@ describe('색상 theme provider(ActiveThemeProvider)', () => {
       </ActiveThemeProvider>
     );
 
-    await waitFor(() => expect(document.documentElement.getAttribute('data-theme')).toBe('eatbid'));
-    expect(screen.getByTestId('active-theme').textContent).toBe('eatbid');
-    expect(document.cookie).toContain('active_theme=eatbid');
+    await waitFor(() => expect(document.documentElement.getAttribute('data-theme')).toBe('toss'));
+    expect(screen.getByTestId('active-theme').textContent).toBe('toss');
+    expect(document.cookie).toContain('active_theme=toss');
   });
 });

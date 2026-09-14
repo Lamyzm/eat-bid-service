@@ -1,4 +1,21 @@
+---
+id: PRODUCT-NOTICE-DESIGN-FIDELITY
+status: active
+canonical_for: notice-prototype-and-implementation-comparison-evidence
+last_reviewed: 2026-09-14
+review_trigger: notice-prototype-or-implementation-acceptance-change
+---
+
 # 공고 분석 시안과 dev의 차이 — 2026-09-08
+
+## 2026-09-14 전체보기 요구 갱신
+
+아래 2026-09-08 인수 기록의 차트 높이 확대 정책은 EAT-214의 전체 뷰포트 요구로 대체한다.
+현행 명세는 [`screen-system.md`](screen-system.md), 이번 구현·검증 기록은
+[`전체보기 대조 계획`](../superpowers/plans/2026-09-14-chart-fullscreen.md)이 소유한다.
+이후 상세 MVP는 항상 시안·명세·구현을 같은 화면 크기·테마·조건으로 대조한다. `g-methods` 시안의
+기존 확대가 헤더·사이드바를 남기는 점은 최신 사용자 요구와 다르므로 그대로 복제하지 않는다.
+공고·수집 시점이 다른 시안과 실제 자료의 점 개수는 디자인 일치의 기준으로 삼지 않는다.
 
 ## 현재 판정과 문서 역할
 

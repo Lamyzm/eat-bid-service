@@ -1,6 +1,7 @@
 /** @module 책임: 열린 공고 목록 조회(listOpenAuctions) 하나만 재현하는 브라우저 검증 전용 fixture 응답기다.
  * auction-contract-fixture-server.ts가 300줄을 넘지 않도록 목록 응답만 이 모듈이 소유한다. */
 import { auctionV1Operations, openAuctionListV1ResponseSchema } from '@eatbid/contracts/api/v1/auctions';
+import { Temporal } from '@eatbid/domain';
 
 import { activatedBuildId } from './cache-observability';
 
@@ -51,7 +52,18 @@ const summary = {
   }
 };
 
-// 마감은 요청 시각 기준 상대 오프셋이라 실행 날짜와 무관하게 오늘·내일·사흘 뒤 행이 늘 재현된다.
+// D-day는 남은 시간이 아니라 KST 달력일이다. +2/+26시간은 밤 22시부터 다음 날짜가 되어 CI가
+// 실패하므로 요청일과 해당 날짜의 마지막 초를 기준으로 오늘·내일·사흘 뒤를 만든다.
+function closingDayEnd(now: number, daysAhead: number): string {
+  return Temporal.Instant.fromEpochMilliseconds(now)
+    .toZonedDateTimeISO('Asia/Seoul')
+    .startOfDay()
+    .add({ days: daysAhead + 1 })
+    .subtract({ seconds: 1 })
+    .toInstant()
+    .toString();
+}
+
 // 긴 기관명·여러 품목 라벨은 운영에서 헤더 칩 줄을 밀었던 재료(EAT-82)와 같은 모양이다.
 function rows(now: number) {
   const observedAt = instantSecondsIso(now - 30 * 60 * 1_000);
@@ -63,7 +75,7 @@ function rows(now: number) {
       organization: { organizationId: '3101', label: '창원 남산초등학교', type: 'unknown' },
       itemLabel: '축산',
       floorRate: { value: '90.000', unit: 'percentage-points' },
-      closesAt: instantSecondsIso(now + 2 * HOUR),
+      closesAt: closingDayEnd(now, 0),
       baseAmount: { amount: '2761700.00', currency: 'KRW' },
       bidCount: 5
     },
@@ -73,7 +85,7 @@ function rows(now: number) {
       organization: { organizationId: '3102', label: '금정구종합사회복지관식자재납품업체선정입찰공고기관', type: 'unknown' },
       itemLabel: '농산물 , 수산물 , 육류 , 가공식품 , 김치류 , 곡류 , 가금류',
       floorRate: { value: '88.000', unit: 'percentage-points' },
-      closesAt: instantSecondsIso(now + 26 * HOUR),
+      closesAt: closingDayEnd(now, 1),
       baseAmount: { amount: '150000000.00', currency: 'KRW' },
       bidCount: null,
       eligibilityAreas: null,
@@ -88,7 +100,7 @@ function rows(now: number) {
       region: null,
       eligibilityAreas: null,
       termsRevisionId: null,
-      closesAt: instantSecondsIso(now + 3 * 24 * HOUR),
+      closesAt: closingDayEnd(now, 3),
       baseAmount: null,
       bidCount: 0,
       orgSummary: null

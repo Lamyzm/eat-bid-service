@@ -1,6 +1,6 @@
 /** @module 책임: 서버 첫 화면과 클라이언트 선택기가 공유하는 허용 테마 목록과 기본값을 소유한다. */
 export const ACTIVE_THEME_COOKIE_NAME = 'active_theme';
-export const DEFAULT_THEME = 'eatbid';
+export const DEFAULT_THEME = 'toss';
 
 // 서버 cookie 검증과 클라이언트 선택기가 함께 쓰는 색상 테마 SSOT다.
 export const THEMES = [
