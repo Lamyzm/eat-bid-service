@@ -1,7 +1,7 @@
-<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20260913145358_open_auction_announced_at/snapshot.json -->
+<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20260914123330_workspace_filter_combination/snapshot.json -->
 # `core` 스키마 ERD
 
-Drizzle 마이그레이션 `20260913145358_open_auction_announced_at`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 18개.
+Drizzle 마이그레이션 `20260914123330_workspace_filter_combination`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 18개.
 다른 스키마의 표는 관계선에만 `schema__table`로 나타난다. 의미와 불변식은
 [domain-and-data.md](../domain-and-data.md)와 [수집 쓰기 지도](../ingestion-write-map.md)가 설명한다.
 
@@ -196,6 +196,8 @@ erDiagram
     code_release_member ||--o{ code_release_member : "code_release_id, parent_code_value_id"
     code_scheme ||--o{ code_release : "code_scheme_id"
     code_scheme ||--o{ code_value : "code_scheme_id"
+    code_value ||--o{ app__workspace_filter_combination : "sido_code_value_id"
+    code_value ||--o{ app__workspace_filter_combination_sigungu : "code_value_id"
     code_value ||--o{ app__workspace_region_preference_area : "code_value_id"
     code_value ||--o{ auction_attempt_link : "source_status_code_value_id"
     code_value ||--o{ auction_revision_code_value : "code_value_id"

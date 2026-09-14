@@ -64,7 +64,7 @@ const meta = {
   eligibilityArea: null,
   eligibilityMatchedCount: null,
   eligibilityUnobservedCount: null,
-  item: null,
+  items: null,
   closesWithinHours: null,
   closesOn: null,
   announcedOn: null,
@@ -128,7 +128,13 @@ describe("열린 공고 목록 계약", () => {
     expect(openAuctionListQuerySchema.safeParse({ state: "closed" }).success).toBe(false);
     expect(openAuctionListQuerySchema.safeParse({ sort: "closesAt" }).success).toBe(false);
     expect(openAuctionListQuerySchema.safeParse({ sido: "0" }).success).toBe(false);
-    expect(openAuctionListQuerySchema.safeParse({ item: "" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ items: [""] }).success).toBe(false);
+    // 조각 열일곱은 관측된 라벨 가짓수보다 많다. 상한이 열여섯인 이유는 한 행이 가진 최대 조각 수의 두 배다.
+    expect(openAuctionListQuerySchema.safeParse({
+      items: Array.from({ length: 17 }, (_, index) => `조각${index}`),
+    }).success).toBe(false);
+    // query string은 값 하나와 값 여럿을 구분하지 못한다. 파싱 직전에 한 번만 배열로 편다.
+    expect(openAuctionListQuerySchema.parse({ items: "육류" }).items).toEqual(["육류"]);
     // 시군구는 값 하나로 와도 배열로 펴진다. query string이 하나와 여럿을 구분하지 못하기 때문이다.
     expect(openAuctionListQuerySchema.parse({ sido: "41", sigungu: "43" }).sigungu).toEqual(["43"]);
     // KST 달력일은 형식이 고정이다. `2026-9-7` 같은 값은 날짜처럼 보여도 계약이 받지 않는다.
@@ -166,8 +172,8 @@ describe("열린 공고 목록 계약", () => {
     expect(auctionV1Operations.listOpen.buildPath({ path: {} })).toBe("/api/v1/auctions?limit=50&state=open");
     expect(auctionV1Operations.listOpen.buildPath({
       path: {},
-      query: { sido: "41", closesWithinHours: 72, cursor: "5796468", item: "축산" },
-    })).toBe("/api/v1/auctions?closesWithinHours=72&cursor=5796468&item=%EC%B6%95%EC%82%B0&limit=50&sido=41&state=open");
+      query: { sido: "41", closesWithinHours: 72, cursor: "5796468", items: ["축산"] },
+    })).toBe("/api/v1/auctions?closesWithinHours=72&cursor=5796468&items=%EC%B6%95%EC%82%B0&limit=50&sido=41&state=open");
     // 요약은 고정 segment가 path parameter보다 앞이라 `summary`가 공고 id로 먹히지 않는다.
     expect(auctionV1Operations.summarizeOpen.buildPath({
       path: {},
