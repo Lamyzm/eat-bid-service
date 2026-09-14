@@ -31,9 +31,13 @@ export type OpenAuctionRowPresentation = {
   readonly baseAmountText: string;
   readonly closes: {
     readonly tone: ClosesTone;
-    // `D-0`·`D-1`처럼 색과 함께 읽히는 텍스트다. 색만으로 상태를 말하지 않는다(screen-system §11).
+    // `오늘`·`내일`·`사흘 뒤`처럼 색과 함께 읽히는 텍스트다. 색만으로 상태를 말하지 않는다(screen-system §11).
     readonly label: string;
-    readonly timeText: string;
+    /**
+     * KST 시각만이다. 날짜는 행이 아니라 그 행이 속한 마감일 묶음 머리가 말한다 — 스무 행이 같은 날에
+     * 몰리는 목록에서 행마다 날짜를 적으면 같은 글자가 스무 번 서고 시각이 안 읽힌다.
+     */
+    readonly clockText: string;
     readonly dDay: number | null;
   };
   readonly bidCountText: string;
@@ -89,13 +93,22 @@ export function dDayOf(closesAt: string, nowIso: string): number {
   return today.until(closes, { largestUnit: 'days' }).days;
 }
 
+/**
+ * 남은 날을 한국어 날짜 세는 말로 적는다. `D-3`은 눈금이지 말이 아니라서 `사흘 뒤`보다 늦게 읽힌다.
+ * 열흘을 넘으면 세는 말이 오히려 낯설어져 숫자로 돌아간다.
+ */
+const DAY_AWAY = ['오늘', '내일', '모레', '사흘 뒤', '나흘 뒤', '닷새 뒤', '엿새 뒤', '이레 뒤', '여드레 뒤', '아흐레 뒤', '열흘 뒤'] as const;
+
+export function dayAwayText(dDay: number): string {
+  if (dDay <= 0) return DAY_AWAY[0];
+  return DAY_AWAY[dDay] ?? `${dDay}일 뒤`;
+}
+
 function presentCloses(closesAt: string | null, nowIso: string): OpenAuctionRowPresentation['closes'] {
-  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', timeText: '', dDay: null };
+  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null };
   const dDay = dDayOf(closesAt, nowIso);
-  // 오늘·내일 마감은 시각까지 보인다. 그 뒤는 날짜가 더 중요하다.
-  if (dDay <= 0) return { tone: 'today', label: 'D-0', timeText: kstTime(closesAt), dDay };
-  if (dDay === 1) return { tone: 'tomorrow', label: 'D-1', timeText: kstTime(closesAt), dDay };
-  return { tone: 'later', label: `D-${dDay}`, timeText: kstDateTime(closesAt), dDay };
+  const tone: ClosesTone = dDay <= 0 ? 'today' : dDay === 1 ? 'tomorrow' : 'later';
+  return { tone, label: dayAwayText(dDay), clockText: kstTime(closesAt), dDay };
 }
 
 function formatWon(amount: string): string {
@@ -169,41 +182,17 @@ function presentOrgSummary(summary: OpenAuction['orgSummary']): OpenAuctionRowPr
 /**
  * 저장된 하한율은 `90.000` 꼴이라 소수부의 0은 볼 이유가 없는 정밀도다. 관측된 자릿수가 의미를 갖는
  * 경우(`88.500`)는 그대로 남기고 뒤따르는 0만 뗀다. 반올림하지 않는다.
+ *
+ * 행과 요약이 같은 문자열을 만들어야 `드문 하한` 집합이 행에 붙는다. 그래서 이 함수 하나가 두 곳의
+ * 표기를 소유한다.
  */
-function formatFloorRate(value: string): string {
+export function formatFloorRate(value: string): string {
   if (!value.includes('.')) return value;
   return value.replace(/0+$/, '').replace(/\.$/, '');
 }
 
-/**
- * 하한율이 결과 집합의 속성인지 행의 속성인지는 값의 가짓수가 정한다.
- *
- * 한 종류뿐이면 그건 이 목록 전체에 대한 한 문장이다. 행마다 열을 내주고 같은 수를 서른 번 적을 일이
- * 아니라 조건 줄에 한 번 적는다. 열을 두고 칸만 비우는 것도 안 된다 — 한 번도 안 차는 열은 열로 읽히지
- * 않고 기초금액과 참여 사이의 빈 간격으로 읽힌다.
- *
- * 두 종류 이상이면 조건 줄이 나눠 세고 드문 쪽만 기초금액 칸 아래에 붙는다. 이때도 열을 새로 만들지
- * 않는다. 열이 생겼다 없어지면 표가 다시 짜여 보고 있던 줄을 놓친다.
- */
-export type FloorRateSpread = {
-  /** 조건 줄에 적는 한 문장이다. `하한 90` 또는 `하한 90 · 31 / 88 · 6`. */
-  readonly axisText: string;
-  /** 이 목록에서 드문 하한이라 행에 따로 적어야 하는 값들이다. 한 종류뿐이면 빈 집합이다. */
-  readonly rareRates: ReadonlySet<string>;
-};
-
-export function summarizeFloorRates(rows: readonly OpenAuctionRowPresentation[]): FloorRateSpread {
-  const counts = new Map<string, number>();
-  for (const row of rows) counts.set(row.floorRateText, (counts.get(row.floorRateText) ?? 0) + 1);
-  if (counts.size === 0) return { axisText: '', rareRates: new Set() };
-  // 정렬이 안정적이라 같은 수끼리는 목록에서 먼저 나온 하한이 앞에 온다. 같은 응답이면 같은 문장이다.
-  const ordered = [...counts].toSorted(([, a], [, b]) => b - a);
-  if (ordered.length === 1) return { axisText: `하한 ${ordered[0]![0]}`, rareRates: new Set() };
-  return {
-    axisText: `하한 ${ordered.map(([rate, count]) => `${rate} · ${count}`).join(' / ')}`,
-    rareRates: new Set(ordered.slice(1).map(([rate]) => rate))
-  };
-}
+/** 하한율을 관측하지 못한 행이 쓰는 표시값이다. 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3). */
+export const FLOOR_RATE_UNKNOWN = '미확인';
 
 export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAuctionRowPresentation {
   return {
@@ -212,7 +201,7 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     organization: presentOrganization(auction.organization),
     itemLabel: auction.itemLabel,
     // 관측되지 않은 하한율을 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3).
-    floorRateText: auction.floorRate === null ? '미확인' : formatFloorRate(auction.floorRate.value),
+    floorRateText: auction.floorRate === null ? FLOOR_RATE_UNKNOWN : formatFloorRate(auction.floorRate.value),
     region: presentRegion(auction.region),
     eligibilityText: presentEligibility(auction.eligibilityAreas),
     baseAmountText: auction.baseAmount === null ? '미확인' : formatAmountText(auction.baseAmount.amount),

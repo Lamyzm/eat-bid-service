@@ -22,13 +22,13 @@ function TabLink({ tab, href }: { readonly tab: TabPresentation; readonly href: 
     <Link
       href={href}
       aria-current={tab.active ? 'page' : undefined}
-      className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-[15px] font-semibold whitespace-nowrap ${
-        tab.active ? 'bg-foreground/8 text-foreground' : 'text-muted-foreground hover:bg-foreground/5'
+      className={`inline-flex items-baseline gap-1.5 whitespace-nowrap ${
+        tab.active ? 'text-[17px] font-bold text-foreground' : 'text-[17px] font-semibold text-muted-foreground hover:text-foreground'
       }`}
     >
       {tab.label}
       {/* 셀 수 없었던 수는 0이 아니라 `?`다. 0은 세었는데 없다는 말이라 사용자가 할 일이 다르다. */}
-      <span className={`tabular-nums ${tab.count === null ? 'text-muted-foreground' : ''}`}>
+      <span className={`text-[15px] tabular-nums ${tab.count === null ? 'text-muted-foreground' : ''}`}>
         {tab.count === null ? '?' : tab.count}
       </span>
     </Link>
@@ -36,8 +36,13 @@ function TabLink({ tab, href }: { readonly tab: TabPresentation; readonly href: 
 }
 
 /**
- * 달력 칸 하나다. 색 농도는 건수를 견준 것이고 수는 언제나 함께 적는다 — 농도만으로는 12건과 23건이
- * 같은 칸으로 보이고, 색을 못 보는 사용자에게는 아무 말도 하지 않는다.
+ * 달력 칸 하나다. 날짜가 왼쪽 위, 건수가 그 아래다.
+ *
+ * 가운데 정렬하지 않는 이유는 두 값의 자릿수가 다르기 때문이다. `7`과 `132`를 각각 가운데에 두면 두 줄이
+ * 서로 어긋나 칸마다 다른 자리에서 시작한다. 왼쪽에 맞추면 열네 칸의 눈금이 하나로 선다.
+ *
+ * 색 농도는 건수를 견준 것이고 수는 언제나 함께 적는다 — 농도만으로는 12건과 23건이 같은 칸으로 보이고,
+ * 색을 못 보는 사용자에게는 아무 말도 하지 않는다.
  */
 function CalendarCell({
   cell,
@@ -46,14 +51,17 @@ function CalendarCell({
   readonly cell: CalendarCellPresentation;
   readonly search: TodaySearch;
 }) {
-  const label = `${cell.date} ${cell.count}건`;
+  const base = 'grid h-12 content-center gap-0.5 rounded-md px-2 text-[13px] font-semibold tabular-nums';
   if (cell.tone === 'past') {
+    // 지나간 날은 0건이 아니다. 열린 공고만 세는 목록에서 어제의 0은 세어 본 결과가 아니라 질문 밖이다.
     return (
-      <span className='grid h-11 place-items-center rounded-md text-[13px] font-medium text-muted-foreground/40' aria-hidden>
-        {cell.dayText}
+      <span className={`${base} text-muted-foreground/40`} aria-hidden>
+        <span>{cell.dayText}</span>
+        <span className='font-medium'>지남</span>
       </span>
     );
   }
+  const filled = cell.tone === 'today' || cell.weight > 0;
   return (
     <Link
       href={buildTodayFilterRoute(search, {
@@ -61,21 +69,19 @@ function CalendarCell({
         announcedOn: null,
         closesWithinHours: null
       })}
-      aria-label={label}
+      aria-label={`${cell.date} ${cell.count}건`}
       aria-current={cell.selected ? 'date' : undefined}
-      className={`grid h-11 content-center justify-items-center rounded-md text-[13px] font-semibold tabular-nums ring-inset ${
-        cell.selected
-          ? 'ring-2 ring-primary'
-          : cell.tone === 'today'
-            ? 'ring-1 ring-border hover:ring-foreground/30'
-            : 'ring-0 hover:ring-1 hover:ring-border'
+      className={`${base} ring-inset ${cell.selected ? 'ring-2 ring-primary' : 'hover:ring-1 hover:ring-border'} ${
+        cell.tone === 'today' ? 'bg-primary text-primary-foreground' : filled ? '' : 'hover:bg-muted/60'
       }`}
-      // 농도는 관측된 최댓값을 분모로 한 비율이라 한산한 주와 바쁜 주가 같은 눈금 위에 있지 않다.
+      // 농도는 창 안 최댓값을 분모로 한 비율이라 한산한 주와 바쁜 주가 같은 눈금 위에 있지 않다.
       // 색은 그 주 안에서의 상대 크기만 말하고 절대 수는 칸의 숫자가 말한다.
-      style={cell.weight === 0 ? undefined : { backgroundColor: `color-mix(in oklab, var(--primary) ${Math.round(10 + cell.weight * 38)}%, transparent)` }}
+      style={cell.tone === 'today' || cell.weight === 0
+        ? undefined
+        : { backgroundColor: `color-mix(in oklab, var(--primary) ${Math.round(10 + cell.weight * 42)}%, transparent)` }}
     >
-      <span className={cell.tone === 'today' ? 'text-foreground' : 'text-muted-foreground'}>{cell.dayText}</span>
-      <span className={cell.count === 0 ? 'text-muted-foreground/50' : 'text-foreground'}>{cell.count}</span>
+      <span className={cell.tone === 'today' ? '' : 'text-muted-foreground'}>{cell.dayText}</span>
+      <span className={cell.tone === 'today' ? '' : cell.count === 0 ? 'text-muted-foreground/50' : 'text-foreground'}>{cell.count}</span>
     </Link>
   );
 }
@@ -91,8 +97,8 @@ export function TodayTabs({
   readonly today: string;
 }) {
   return (
-    <div className='grid gap-3'>
-      <div className='flex flex-wrap items-center gap-1'>
+    <div className='grid gap-2'>
+      <div className='flex flex-wrap items-baseline gap-x-5 gap-y-1'>
         {summary.tabs.map((tab) => (
           <TabLink key={tab.id} tab={tab} href={tabRoute(search, tab, today)} />
         ))}
@@ -102,8 +108,9 @@ export function TodayTabs({
         ) : null}
       </div>
       {/* 달력은 두 주치 격자라 폭이 넓어질수록 읽기 어려워진다. 목록과 달리 늘려서 얻는 것이 없다. */}
-      <div className='grid w-full max-w-xl gap-1 rounded-xl bg-card p-3 shadow-xs'>
-        <div className='grid grid-cols-7 text-center text-[13px] font-semibold text-muted-foreground'>
+      <div className='grid w-full max-w-2xl gap-1'>
+        <span className='px-2 text-[15px] font-semibold'>{summary.windowText}</span>
+        <div className='grid grid-cols-7 px-2 text-[13px] font-semibold text-muted-foreground'>
           {WEEKDAYS.map((day) => <span key={day}>{day}</span>)}
         </div>
         <div className='grid grid-cols-7 gap-0.5'>

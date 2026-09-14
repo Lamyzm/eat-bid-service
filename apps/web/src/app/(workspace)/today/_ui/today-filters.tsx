@@ -1,4 +1,4 @@
-/** @module 책임: 오늘 화면의 조건 칩(지역·품목·기간·기초금액)을 URL 링크로 그리고, 적용된 조건의 해제 링크와 조건 문장을 소유한다. */
+/** @module 책임: 오늘 화면의 축 줄(지역·품목·금액 버튼과 결과 건수·하한 구성)을 URL 링크로 그리고, 적용된 조건의 해제와 조건 문장을 소유한다. */
 import Link from 'next/link';
 
 import {
@@ -7,18 +7,11 @@ import {
   type TodayRoute,
   type TodaySearch
 } from '../_lib/today-search-params';
+import type { FloorRateSpread } from '../_model/present-open-summary';
 
-const CHIP = 'inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[15px] font-semibold whitespace-nowrap';
-const CHIP_OFF = `${CHIP} bg-foreground/5 text-foreground hover:bg-foreground/10`;
-const CHIP_ON = `${CHIP} bg-primary/10 text-primary`;
-
-function Chip({ href, active, children }: { readonly href: TodayRoute; readonly active: boolean; readonly children: React.ReactNode }) {
-  return (
-    <Link href={href} aria-current={active ? 'true' : undefined} className={active ? CHIP_ON : CHIP_OFF}>
-      {children}
-    </Link>
-  );
-}
+const AXIS = 'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-[15px] font-semibold whitespace-nowrap';
+const AXIS_OFF = `${AXIS} text-muted-foreground hover:bg-foreground/5`;
+const AXIS_ON = `${AXIS} bg-primary/10 text-primary`;
 
 function baseAmountLabel(search: TodaySearch): string | null {
   const preset = BASE_AMOUNT_PRESETS.find((candidate) => candidate.min === search.baseAmountMin && candidate.max === search.baseAmountMax);
@@ -46,49 +39,94 @@ export function describeTodaySearch(search: TodaySearch, regionText: string | nu
 }
 
 /**
- * 지역·품목 어휘를 내려주는 계약이 아직 없어 두 조건은 표의 행(지역·품목 링크)에서 고른다. 여기서는
- * 적용된 값과 해제만 보인다. 기간·기초금액은 등록된 프리셋이다. 칩을 감싸는 별도 컨테이너를 두지 않는다 —
- * flex-wrap은 직계 자식 단위로만 줄을 바꾼다(EAT-82).
+ * 값이 걸린 축이다. 이름과 값을 한 버튼 안에 함께 두고 누르면 해제한다.
+ *
+ * 이름과 값을 따로 두지 않는 이유는 축이 셋이기 때문이다. `지역`·`전체`를 나눠 적으면 여섯 조각이
+ * 나란히 서서 무엇이 무엇의 값인지 눈이 다시 짝지어야 한다.
  */
-export function TodayFilters({ search, regionText }: { readonly search: TodaySearch; readonly regionText: string | null }) {
+function AxisChip({ name, value, href }: { readonly name: string; readonly value: string; readonly href: TodayRoute }) {
   return (
-    <div className='flex min-w-0 flex-wrap items-center gap-2'>
+    <Link href={href} aria-current='true' className={AXIS_ON}>
+      {name} <span aria-hidden className='text-primary/50'>·</span> {value}
+      <span aria-hidden>×</span>
+      <span className='sr-only'>{name} 조건 해제</span>
+    </Link>
+  );
+}
+
+/**
+ * 금액 축이다. 여는 방식이 `details`인 것은 이 화면이 server component이기 때문이다 — 프리셋 넷을
+ * 고르자고 표 위쪽을 통째로 브라우저로 넘기지 않는다.
+ *
+ * 프리셋을 줄줄이 펼쳐 두지 않는 이유는 축이 셋인데 그중 하나만 다섯 칸을 차지하면 줄이 금액 줄로
+ * 보이기 때문이다. 고른 값은 버튼 자리에 그대로 남는다.
+ */
+function AmountAxis({ search }: { readonly search: TodaySearch }) {
+  const label = baseAmountLabel(search);
+  return (
+    <details className='relative'>
+      <summary className={`${label === null ? AXIS_OFF : AXIS_ON} cursor-pointer list-none`}>
+        금액{label === null ? '' : ` · ${label}`} <span aria-hidden>▾</span>
+      </summary>
+      <div className='absolute top-full left-0 z-10 mt-1 grid w-56 gap-0.5 rounded-xl border border-border bg-card p-1 shadow-lg'>
+        <Link
+          href={buildTodayFilterRoute(search, { baseAmountMin: null, baseAmountMax: null })}
+          className={`rounded-lg px-3 py-1.5 text-[15px] font-medium hover:bg-muted ${label === null ? 'text-primary' : ''}`}
+        >
+          전체
+        </Link>
+        {BASE_AMOUNT_PRESETS.map((preset) => (
+          <Link
+            key={preset.label}
+            href={buildTodayFilterRoute(search, { baseAmountMin: preset.min, baseAmountMax: preset.max })}
+            className={`rounded-lg px-3 py-1.5 text-[15px] font-medium hover:bg-muted ${label === preset.label ? 'text-primary' : ''}`}
+          >
+            {preset.label}
+          </Link>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+/**
+ * 축 줄이다. 왼쪽이 무엇으로 좁혔는지, 오른쪽이 그래서 몇 건인지다.
+ *
+ * 지역·품목 어휘를 내려주는 계약이 아직 없어 두 축은 값이 걸렸을 때만 버튼이 되고, 값을 고르는 일은
+ * 표의 행(지역·품목 링크)이 맡는다. 어휘가 생기면 금액 축과 같은 모양의 목록이 여기 붙는다(EAT-66·100).
+ */
+export function TodayFilters({
+  search,
+  regionText,
+  totalCount,
+  floorSpread
+}: {
+  readonly search: TodaySearch;
+  readonly regionText: string | null;
+  /** 조건을 만족하는 전체 건수다. 목록은 `limit`으로 끊기지만 이 수는 안 끊긴다. */
+  readonly totalCount: number | null;
+  readonly floorSpread: FloorRateSpread | null;
+}) {
+  return (
+    <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1'>
       {search.sido !== null ? (
-        <Chip href={buildTodayFilterRoute(search, { sido: null })} active>
-          지역 {regionText ?? `코드 ${search.sido}`} <span aria-hidden>×</span><span className='sr-only'>지역 조건 해제</span>
-        </Chip>
+        <AxisChip name='지역' value={regionText ?? `코드 ${search.sido}`} href={buildTodayFilterRoute(search, { sido: null })} />
       ) : (
-        <span className={`${CHIP} text-muted-foreground`}>지역 전체</span>
+        <span className={`${AXIS} text-muted-foreground`}>지역 전체</span>
       )}
       {search.item !== null ? (
-        <Chip href={buildTodayFilterRoute(search, { item: null })} active>
-          품목 {search.item} <span aria-hidden>×</span><span className='sr-only'>품목 조건 해제</span>
-        </Chip>
+        <AxisChip name='품목' value={search.item} href={buildTodayFilterRoute(search, { item: null })} />
       ) : (
-        <span className={`${CHIP} text-muted-foreground`}>품목 전체</span>
+        <span className={`${AXIS} text-muted-foreground`}>품목 전체</span>
       )}
-      {/* 기간 프리셋 줄은 마감 달력이 대신한다. 둘을 함께 두면 같은 것을 두 방식으로 말하게 되고, 계약이
-          시간 창과 달력일을 함께 받지 않아 한쪽을 누르면 다른 쪽이 조용히 풀린다. 달력은 `3일 안` 대신
-          그 사흘이 각각 몇 건인지를 보여 주므로 묶음보다 말하는 것이 많다. URL에 남은 값은 칩으로 남겨
-          해제할 자리를 준다. */}
-      {search.closesWithinHours === null ? null : (
-        <Chip href={buildTodayFilterRoute(search, { closesWithinHours: null })} active>
-          기간 {search.closesWithinHours}시간 안 <span aria-hidden>×</span><span className='sr-only'>기간 조건 해제</span>
-        </Chip>
-      )}
-      <span className='text-[13px] font-semibold text-muted-foreground'>기초금액</span>
-      <Chip href={buildTodayFilterRoute(search, { baseAmountMin: null, baseAmountMax: null })} active={search.baseAmountMin === null && search.baseAmountMax === null}>
-        전체
-      </Chip>
-      {BASE_AMOUNT_PRESETS.map((preset) => (
-        <Chip
-          key={preset.label}
-          href={buildTodayFilterRoute(search, { baseAmountMin: preset.min, baseAmountMax: preset.max })}
-          active={search.baseAmountMin === preset.min && search.baseAmountMax === preset.max}
-        >
-          {preset.label}
-        </Chip>
-      ))}
+      <AmountAxis search={search} />
+      {/* 하한은 열이 아니라 이 한 문장이다. 조건 전체를 센 값이라 페이지를 넘겨도 바뀌지 않는다. */}
+      <span className='ml-auto flex items-baseline gap-3'>
+        {floorSpread === null || floorSpread.axisText === '' ? null : (
+          <span className='text-[13px] font-medium text-muted-foreground'>{floorSpread.axisText}</span>
+        )}
+        {totalCount === null ? null : <span className='text-xl font-bold tabular-nums'>{totalCount}건</span>}
+      </span>
     </div>
   );
 }

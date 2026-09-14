@@ -6,7 +6,8 @@ import { EmptyState } from '@/shared/ui/empty-state';
 import { RegionScopeStrip, RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
 import { buildTodayFilterRoute, buildTodayRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
-import { summarizeFloorRates, type OpenAuctionListPresentation, type OpenAuctionRowPresentation } from '../_model/present-open-auctions';
+import { groupClosingDays } from '../_model/group-closing-days';
+import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
 import { kstToday, type OpenSummaryPresentation } from '../_model/present-open-summary';
 import { OpenAuctionTable } from './open-auction-table';
 import { TodayFrame } from './today-frame';
@@ -76,29 +77,43 @@ function OpenAuctionList({
   rows,
   presentation,
   search,
+  summary,
+  nowIso,
   cursorReset
 }: {
   readonly rows: readonly OpenAuctionRowPresentation[];
   readonly presentation: OpenAuctionListPresentation;
   readonly search: TodaySearch;
+  readonly summary: OpenSummaryPresentation | null;
+  readonly nowIso: string;
   readonly cursorReset: boolean;
 }) {
-  // 하한은 이 결과 집합의 성질이라 열이 아니라 조건 줄에 한 번 적는다. 표와 같은 판정을 써야
-  // 조건 줄이 세는 수와 행에 붙는 값이 어긋나지 않는다.
-  const floorRates = summarizeFloorRates(rows);
+  // 하한 판정은 축 줄과 표가 같은 값을 써야 조건 줄이 세는 수와 행에 붙는 값이 어긋나지 않는다.
+  // 요약이 소유하므로 여기서는 받아서 내려보내기만 한다.
+  const floorRates = summary?.floorSpread ?? { axisText: '', rareRates: new Set<string>() };
+  // 마감일 묶음은 행 순서를 바꾸지 않는다. 이미 마감 임박 순인 목록을 날짜가 바뀌는 자리에서 끊을 뿐이라
+  // `마감 임박 순`이라는 제목이 따로 필요 없어졌다 — 묶음 머리가 순서를 보여 준다.
+  const groups = groupClosingDays(rows, nowIso, summary);
   return (
     <div className='overflow-hidden rounded-xl bg-card shadow-xs'>
-      <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-4'>
-        <span className='text-xl font-bold'>마감 임박 순</span>
-        <span className='text-[13px] font-semibold text-muted-foreground'>
-          {rows.length}건 표시 · 전체 {presentation.sampleCount}건
-        </span>
-        {floorRates.axisText === '' ? null : <span className='text-[13px] font-semibold text-muted-foreground'>{floorRates.axisText}</span>}
+      <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-3 pb-1'>
+        {rows.length === presentation.sampleCount ? null : (
+          <span className='text-[13px] font-semibold text-muted-foreground'>{rows.length}건 표시</span>
+        )}
         {cursorReset ? <span className='text-[13px] font-semibold text-pushed'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
+        {/* 표본 수·계보·산출 시각은 각주가 아니라 표 위 한 줄이다(AGENTS 7). 축 줄이 이미 건수를 말하므로
+            여기서는 계보만 남기고 뒤로 밀어 목록을 읽는 눈이 먼저 걸리지 않게 한다. */}
+        <span className='ml-auto text-[13px] font-medium text-muted-foreground/70'>{presentation.lineageText}</span>
       </div>
-      {/* 표본 수·계보·산출 시각은 각주가 아니라 표 위 한 줄이다(AGENTS 7). */}
-      <p className='px-4 py-2 text-[13px] font-medium text-muted-foreground'>{presentation.lineageText}</p>
-      <OpenAuctionTable rows={rows} search={search} floorRates={floorRates} />
+      <div className='px-1'>
+        <OpenAuctionTable
+          groups={groups}
+          search={search}
+          floorRates={floorRates}
+          organizationCount={summary?.organizationCount ?? null}
+          observedText={summary?.latestObservedText ?? null}
+        />
+      </div>
       {presentation.nextCursor !== null ? (
         <div className='flex justify-end px-4 py-3'>
           <Link href={buildTodayRoute({ ...search, cursor: presentation.nextCursor })} className={LINK}>
@@ -122,7 +137,16 @@ function TodayList({ data, regionText }: { readonly data: TodayPageData; readonl
     case 'empty':
       return <EmptyResult search={search} regionText={regionText} summary={data.summary} />;
     case 'list':
-      return <OpenAuctionList rows={view.rows} presentation={presentation} search={search} cursorReset={data.cursorReset} />;
+      return (
+        <OpenAuctionList
+          rows={view.rows}
+          presentation={presentation}
+          search={search}
+          summary={data.summary}
+          nowIso={data.nowIso}
+          cursorReset={data.cursorReset}
+        />
+      );
   }
 }
 
@@ -152,7 +176,14 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
             matchedCount={presentation?.eligibilityMatchedCount ?? null}
             unobservedCount={presentation?.eligibilityUnobservedCount ?? null}
           />
-          {presentation === null ? null : <TodayFilters search={search} regionText={regionText} />}
+          {presentation === null ? null : (
+            <TodayFilters
+              search={search}
+              regionText={regionText}
+              totalCount={data.summary?.totalCount ?? null}
+              floorSpread={data.summary?.floorSpread ?? null}
+            />
+          )}
           {/* 탭과 달력은 언제를 말하고 그 아래 축·목록이 무엇을 말한다. 조건과 목록이 붙어 있어야 한다. */}
           {data.summary === null ? null : (
             <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} />

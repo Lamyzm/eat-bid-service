@@ -31,7 +31,8 @@ describe('오늘 화면', () => {
     expect(markup).toContain('aria-labelledby="today-title"');
     expect(markup).toContain('열린 공고 4건');
     expect(markup).toContain('09-07 10:30 기준');
-    expect(markup).toContain('마감 임박 순');
+    // 마감일 묶음 머리가 순서를 보여 주므로 `마감 임박 순`이라는 제목이 따로 없다.
+    expect(markup).toContain('9월 7일');
     expect(markup).toContain('열린 공고 스냅샷 build 601');
     for (const banned of ['무효', '추천', '안전 구간', '예측']) expect(markup).not.toContain(banned);
   });
@@ -118,7 +119,7 @@ describe('오늘 화면', () => {
     );
     expect(markup).toContain('먼저 지역을 고르세요');
     expect(markup).toContain('/setup?return=%2Ftoday');
-    expect(markup).not.toContain('마감 임박 순');
+    expect(markup).not.toContain('<table');
   });
 
   test('좁힌 결과 위에 무엇으로 좁혔는지와 전체 보기 출구가 남는다', () => {
