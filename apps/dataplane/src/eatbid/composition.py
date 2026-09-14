@@ -44,8 +44,9 @@ from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
 from eatbid.monitoring.notify import send_telegram
 from eatbid.monitoring.runner import MonitoringResult, run_expectation_check
 from eatbid.monitoring.store import R2StateStore
+from eatbid.pipeline.advance import CompletedWindow, next_window
 from eatbid.pipeline.capture import capture
-from eatbid.pipeline.collection_window import resolve_collection_window
+from eatbid.pipeline.collection_window import SEOUL_TIME, resolve_collection_window
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.pipeline.normalize import normalize_observation
@@ -203,6 +204,29 @@ class Application:
                 validation.failure_category, publication_id=args.publication_id
             )
         return validation
+
+    def next_backfill_window(self, args: argparse.Namespace) -> Any:
+        """다음에 채울 창 하나를 고른다. 아무것도 바꾸지 않는 읽기다.
+
+        판단의 재료는 `ingest.backfill_coverage` 하나다. 그 view가 "이 창은 끝났다"의 정의를 소유하고
+        전진 판단과 대시보드가 같은 답을 본다(ADR 0052 결정 2). 여기서 SQL을 따로 적으면 정의가
+        둘이 된다.
+        """
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "select window_start, window_end, is_complete from ingest.backfill_coverage"
+            )
+            coverage = tuple(
+                CompletedWindow(
+                    start_date=str(row[0]), end_date=str(row[1]), is_complete=bool(row[2])
+                )
+                for row in cursor.fetchall()
+            )
+        return next_window(
+            as_of=args.as_of.astimezone(SEOUL_TIME).date(),
+            floor=args.floor_date,
+            coverage=coverage,
+        )
 
     def check_expectations(self, args: argparse.Namespace) -> Any:
         # 운영자·스케줄 entrypoint다. 어떤 DAG에도 들지 않으며 수집 상태를 바꾸지 않고 읽기만 한다.
