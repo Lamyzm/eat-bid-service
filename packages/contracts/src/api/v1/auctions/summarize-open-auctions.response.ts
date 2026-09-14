@@ -14,9 +14,13 @@ import { bidRateWireSchema } from "../../../values/rate";
  *
  * 둘은 서로 겹칠 수 있고(오늘 게시돼 오늘 마감하는 공고) 둘 다 `totalCount`의 부분집합이라 합이
  * 전체가 되지 않는다. 합으로 쓰려는 화면이 없도록 이름을 다르게 둔다.
+ *
+ * **`openedToday`는 null일 수 있다.** 게시일은 목록 행에 없고 상세 revision에서만 오므로 아직 한 건도
+ * 관측하지 못한 build가 있다. 그때 0을 실으면 화면이 "오늘 새로 뜬 공고가 없다"고 말하지만 사실은
+ * 세지 못한 것이다. 둘은 사용자가 할 일이 서로 다르다(AGENTS 3).
  */
 export const openAuctionTabCountsSchema = z.strictObject({
-  openedToday: nonNegativeCountSchema,
+  openedToday: nonNegativeCountSchema.nullable(),
   closingToday: nonNegativeCountSchema,
 }).meta({ id: "OpenAuctionTabCounts" });
 
@@ -57,6 +61,11 @@ export const openAuctionSummaryV1ResponseSchema = z.strictObject({
   // 표 머리의 `기관 N곳`이다. 한 기관이 품목별로 여러 건을 내므로 행 수와 다르다.
   organizationCount: nonNegativeCountSchema,
   tabs: openAuctionTabCountsSchema,
+  /**
+   * 조건을 만족하는 행 가운데 게시일을 관측하지 못한 수다. `오늘 열린`이 부분만 센 수라는 사실을
+   * 화면이 이 값 하나로 말한다. `totalCount`와 같으면 아예 셀 수 없어 `tabs.openedToday`가 null이다.
+   */
+  announcedUnobservedCount: nonNegativeCountSchema,
   floorShares: z.array(openAuctionFloorShareSchema).max(64),
   // 요청한 달력 창의 날짜만 싣는다. 창 밖 마감은 `totalCount`에는 들어가도 여기 없다.
   calendar: z.array(openAuctionCalendarDaySchema).max(31),

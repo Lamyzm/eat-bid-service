@@ -113,6 +113,9 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       (select count(*) from scoped
         where scoped.announced_on_kst = (${asOf}::timestamptz at time zone ${KST_TIME_ZONE})::date)::int
         as opened_today_count,
+      -- 게시일은 목록 행이 주지 않아 상세를 딴 공고에만 있다. 못 센 수를 함께 내야 화면이 오늘 열린 수를
+      -- 부분만 센 수로 말할 수 있고, 이 수가 전체와 같으면 아예 셀 수 없다는 뜻이다(AGENTS 3).
+      (select count(*) from scoped where scoped.announced_at is null)::int as announced_unobserved_count,
       (select count(*) from scoped
         where scoped.closes_on_kst = (${asOf}::timestamptz at time zone ${KST_TIME_ZONE})::date)::int
         as closing_today_count,

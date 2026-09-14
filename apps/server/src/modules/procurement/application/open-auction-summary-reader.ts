@@ -49,6 +49,11 @@ export interface OpenAuctionSummaryRecord {
   readonly organizationCount: number;
   /** `진행중` 탭의 수는 여기 없다. 날짜 축을 받지 않는 요약이라 `totalCount`가 그 값이다. */
   readonly openedTodayCount: number;
+  /**
+   * 게시일을 관측하지 못한 행 수다. 게시일은 목록이 주지 않고 상세 revision에서만 오므로 한 건도
+   * 관측하지 못한 build가 있다. 이 수가 `totalCount`와 같으면 `오늘 열린`을 아예 셀 수 없다.
+   */
+  readonly announcedUnobservedCount: number;
   readonly closingTodayCount: number;
   readonly floorShares: readonly OpenAuctionFloorShareRecord[];
   readonly calendar: readonly OpenAuctionCalendarDayRecord[];

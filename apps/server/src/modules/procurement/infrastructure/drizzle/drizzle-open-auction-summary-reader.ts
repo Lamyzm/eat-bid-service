@@ -24,6 +24,7 @@ type SummaryRow = Readonly<{
   total_count: number;
   organization_count: number;
   opened_today_count: number;
+  announced_unobserved_count: number;
   closing_today_count: number;
   latest_observed_at: PostgresTimestamp | null;
   calendar: readonly { date: string; count: number; releasedCount: number }[] | null;
@@ -48,6 +49,7 @@ export class DrizzleOpenAuctionSummaryReader implements OpenAuctionSummaryReader
       totalCount: row.total_count,
       organizationCount: row.organization_count,
       openedTodayCount: row.opened_today_count,
+      announcedUnobservedCount: row.announced_unobserved_count,
       closingTodayCount: row.closing_today_count,
       floorShares: floorShares(row.floors),
       calendar: calendarDays(row.calendar),

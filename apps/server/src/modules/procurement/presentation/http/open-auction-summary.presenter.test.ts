@@ -33,6 +33,7 @@ const summary: OpenAuctionSummaryRecord = {
   totalCount: 11,
   organizationCount: 11,
   openedTodayCount: 0,
+  announcedUnobservedCount: 0,
   closingTodayCount: 2,
   floorShares: [
     { rate: bidRate(canonicalDecimal("90.000", 3)), count: 9 },
@@ -115,6 +116,7 @@ describe("열린 공고 요약 presenter", () => {
         totalCount: 0,
         organizationCount: 0,
         openedTodayCount: 0,
+        announcedUnobservedCount: 0,
         closingTodayCount: 0,
         floorShares: [],
         calendar: [{ date: "2026-09-14", count: 0, releasedCount: 0 }],
@@ -130,5 +132,30 @@ describe("열린 공고 요약 presenter", () => {
     expect(response.nextClosingDay).toBeNull();
     expect(response.totalCount).toBe(0);
     expect(response.meta.openAuctionSnapshotBuild.buildId).toBeNull();
+  });
+  test('게시일을 한 건도 관측하지 못하면 오늘 열린 수가 0이 아니라 null이다', () => {
+    // 게시일은 목록이 주지 않고 상세에서만 온다. 아직 채우지 않은 build에서 0을 실으면 화면이
+    // "오늘 새로 뜬 공고가 없다"고 말하지만 사실은 세지 못한 것이다(AGENTS 3).
+    const response = toOpenAuctionSummaryResponse({
+      query,
+      summary: { ...summary, announcedUnobservedCount: summary.totalCount },
+    });
+
+    expect(openAuctionSummaryV1ResponseSchema.parse(response)).toEqual(response);
+    expect(response.tabs.openedToday).toBeNull();
+    expect(response.announcedUnobservedCount).toBe(11);
+    // 마감일은 목록 행이 주므로 같은 build에서도 셀 수 있다. 둘을 한꺼번에 못 세는 것으로 묶지 않는다.
+    expect(response.tabs.closingToday).toBe(2);
+  });
+
+  test('게시일을 일부만 관측했으면 센 수를 그대로 싣고 못 센 수를 함께 낸다', () => {
+    const response = toOpenAuctionSummaryResponse({
+      query,
+      summary: { ...summary, openedTodayCount: 3, announcedUnobservedCount: 4 },
+    });
+
+    // 부분 관측을 null로 덮으면 실제로 센 셋이 사라진다. 화면이 `3건 · 게시일 미관측 4건`이라고 말한다.
+    expect(response.tabs.openedToday).toBe(3);
+    expect(response.announcedUnobservedCount).toBe(4);
   });
 });
