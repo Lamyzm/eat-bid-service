@@ -21,7 +21,9 @@ export function TodayFrame({ header, rail, filters, list }: TodayFrameProps) {
       <header className='min-w-0'>{header}</header>
       <div className='grid min-w-0 gap-x-6 gap-y-4 lg:grid-cols-[220px_minmax(0,780px)]'>
         <aside aria-label='내 조건' className='min-w-0'>{rail}</aside>
-        <div className='grid min-w-0 gap-3'>
+        {/* 표면은 하나다. 조건과 목록을 각각 카드에 담으면 테두리가 되풀이되면서 둘이 다른 화면처럼
+            갈라지고, 조건을 바꿀 때 눈이 두 면을 오간다(screen-system §9.1). */}
+        <div className='grid min-w-0 gap-3 rounded-xl bg-card p-4 shadow-xs'>
           <section aria-label='조건' className='min-w-0'>{filters}</section>
           <section aria-label='열린 공고' className='min-w-0'>{list}</section>
         </div>

@@ -246,7 +246,7 @@ export function OpenAuctionTable({
               {COLUMNS.map((column) => (
                 <td
                   key={column.id}
-                  className={`px-2 py-1.5 align-middle text-[15px] leading-tight font-semibold ${column.align} ${column.visibility} ${column.wraps ? '' : 'whitespace-nowrap tabular-nums'}`}
+                  className={`px-2 py-1 align-middle text-[15px] leading-tight font-semibold ${column.align} ${column.visibility} ${column.wraps ? '' : 'whitespace-nowrap tabular-nums'}`}
                 >
                   {column.cell(row, { search, rank: group.firstRank + index, rareRates })}
                 </td>

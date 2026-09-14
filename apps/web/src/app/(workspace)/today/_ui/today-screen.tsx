@@ -12,7 +12,7 @@ import { kstToday, type OpenSummaryPresentation } from '../_model/present-open-s
 import { OpenAuctionTable } from './open-auction-table';
 import { TodayFrame } from './today-frame';
 import { TodayFilters, describeTodaySearch } from './today-filters';
-import { TodayTabs } from './today-tabs';
+import { TodayCalendar, TodayTabs } from './today-tabs';
 
 // 지역 칩의 표시 이름은 응답 행에서 읽는다. 지역 어휘 계약이 없는 동안 그 id의 라벨을 아는 곳은 행뿐이다.
 function regionTextOf(rows: readonly OpenAuctionRowPresentation[], region: string | null): string | null {
@@ -95,14 +95,14 @@ function OpenAuctionList({
   // `마감 임박 순`이라는 제목이 따로 필요 없어졌다 — 묶음 머리가 순서를 보여 준다.
   const groups = groupClosingDays(rows, nowIso, summary);
   return (
-    <div className='overflow-hidden rounded-xl bg-card shadow-xs'>
-      <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-3 pb-1'>
+    <div className='grid min-w-0'>
+      <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 empty:hidden'>
         {rows.length === presentation.sampleCount ? null : (
           <span className='text-[13px] font-semibold text-muted-foreground'>{rows.length}건 표시</span>
         )}
         {cursorReset ? <span className='text-[13px] font-semibold text-pushed'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
       </div>
-      <div className='px-1'>
+      <div className='min-w-0'>
         <OpenAuctionTable
           groups={groups}
           search={search}
@@ -112,7 +112,7 @@ function OpenAuctionList({
         />
       </div>
       {presentation.nextCursor !== null ? (
-        <div className='flex justify-end px-4 py-3'>
+        <div className='flex justify-end pt-3'>
           <Link href={buildTodayRoute({ ...search, cursor: presentation.nextCursor })} className={LINK}>
             다음 공고 보기
           </Link>
@@ -156,9 +156,8 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
       header={
         <div className='flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'>
           <h1 id='today-title' className='text-xl font-bold tracking-tight'>오늘</h1>
-          {presentation === null || view?.kind === 'no-snapshot' ? null : (
-            <span className='text-[15px] font-semibold whitespace-nowrap text-muted-foreground'>열린 공고 {presentation.sampleCount}건</span>
-          )}
+          {/* 건수는 축 줄이 말한다. 머리에도 적으면 같은 수를 두 자리에 두는 page-level 숫자 hero가
+              둘이 되고, 언젠가 한쪽만 고쳐져 둘이 다른 말을 한다(screen-system §9.1). */}
           {presentation === null ? null : (
             <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>{presentation.asOfText} 기준</span>
           )}
@@ -184,7 +183,13 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
         </div>
       }
       filters={
-        <div className='grid min-w-0 gap-3'>
+        /* 탭 → 필터 → 달력 순서다. 필터는 부가 설정이 아니라 지금 화면의 모든 숫자가 어떤 집합을 세는지
+           선언하는 첫 reading group이고 탭 바로 아래에 온다(screen-system §6.4.1). 달력은 그 아래,
+           목록 바로 위다 — 조건과 목록이 붙어 있어야 한다. */
+        <div className='grid min-w-0 gap-2.5'>
+          {data.summary === null ? null : (
+            <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} />
+          )}
           {presentation === null ? null : (
             <TodayFilters
               search={search}
@@ -193,10 +198,7 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
               floorSpread={data.summary?.floorSpread ?? null}
             />
           )}
-          {/* 탭과 달력은 언제를 말하고 그 아래 축·목록이 무엇을 말한다. 조건과 목록이 붙어 있어야 한다. */}
-          {data.summary === null ? null : (
-            <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} />
-          )}
+          {data.summary === null ? null : <TodayCalendar summary={data.summary} search={search} />}
         </div>
       }
       list={<TodayList data={data} regionText={regionText} />}

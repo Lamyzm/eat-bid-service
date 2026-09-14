@@ -1,4 +1,4 @@
-/** @module 책임: 탭 셋과 2주 마감 달력을 링크로 그리고, 못 센 수를 0이 아니라 물음표로, 지나간 칸을 0건이 아니라 지남으로 표시한다. */
+/** @module 책임: 탭 셋과 2주 마감 달력을 각각 링크로 그리고, 못 센 수를 0이 아니라 물음표로, 지나간 칸을 0건이 아니라 지남으로 표시한다. */
 import Link from 'next/link';
 
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
@@ -86,6 +86,11 @@ function CalendarCell({
   );
 }
 
+/**
+ * 탭 줄이다. **필터(축 줄)보다 위**에 있어야 한다 — 필터는 부가 설정이 아니라 지금 화면의 모든 숫자가
+ * 어떤 집합을 세는지 선언하는 첫 reading group이고, 그 선언은 탭이 고른 판 안에서 읽힌다
+ * (screen-system §6.4.1).
+ */
 export function TodayTabs({
   summary,
   search,
@@ -97,25 +102,35 @@ export function TodayTabs({
   readonly today: string;
 }) {
   return (
-    <div className='grid gap-2'>
-      <div className='flex flex-wrap items-baseline gap-x-5 gap-y-1'>
-        {summary.tabs.map((tab) => (
-          <TabLink key={tab.id} tab={tab} href={tabRoute(search, tab, today)} />
-        ))}
-        {/* 게시일을 못 센 수는 `오늘 열린`의 물음표가 무엇 때문인지를 말한다. 0이면 적지 않는다. */}
-        {summary.announcedUnobservedCount > 0 ? (
-          <span className='text-[13px] font-medium text-muted-foreground'>게시일 미관측 {summary.announcedUnobservedCount}건</span>
-        ) : null}
+    <div className='flex flex-wrap items-baseline gap-x-5 gap-y-1'>
+      {summary.tabs.map((tab) => (
+        <TabLink key={tab.id} tab={tab} href={tabRoute(search, tab, today)} />
+      ))}
+      {/* 게시일을 못 센 수는 `오늘 열린`의 물음표가 무엇 때문인지를 말한다. 0이면 적지 않는다. */}
+      {summary.announcedUnobservedCount > 0 ? (
+        <span className='text-[13px] font-medium text-muted-foreground'>게시일 미관측 {summary.announcedUnobservedCount}건</span>
+      ) : null}
+    </div>
+  );
+}
+
+/** 마감 달력이다. 축 줄 아래, 목록 바로 위에 둔다 — 달력이 언제를 말하고 축이 무엇을 말한 뒤가 목록이다. */
+export function TodayCalendar({
+  summary,
+  search
+}: {
+  readonly summary: OpenSummaryPresentation;
+  readonly search: TodaySearch;
+}) {
+  return (
+    // 달력은 두 주치 격자라 폭이 넓어질수록 읽기 어려워진다. 목록과 달리 늘려서 얻는 것이 없다.
+    <div className='grid w-full max-w-2xl gap-1'>
+      <span className='px-2 text-[15px] font-semibold'>{summary.windowText}</span>
+      <div className='grid grid-cols-7 px-2 text-[13px] font-semibold text-muted-foreground'>
+        {WEEKDAYS.map((day) => <span key={day}>{day}</span>)}
       </div>
-      {/* 달력은 두 주치 격자라 폭이 넓어질수록 읽기 어려워진다. 목록과 달리 늘려서 얻는 것이 없다. */}
-      <div className='grid w-full max-w-2xl gap-1'>
-        <span className='px-2 text-[15px] font-semibold'>{summary.windowText}</span>
-        <div className='grid grid-cols-7 px-2 text-[13px] font-semibold text-muted-foreground'>
-          {WEEKDAYS.map((day) => <span key={day}>{day}</span>)}
-        </div>
-        <div className='grid grid-cols-7 gap-0.5'>
-          {summary.calendar.map((cell) => <CalendarCell key={cell.date} cell={cell} search={search} />)}
-        </div>
+      <div className='grid grid-cols-7 gap-0.5'>
+        {summary.calendar.map((cell) => <CalendarCell key={cell.date} cell={cell} search={search} />)}
       </div>
     </div>
   );

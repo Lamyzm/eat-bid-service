@@ -29,7 +29,9 @@ describe('오늘 화면', () => {
     const markup = renderToStaticMarkup(<TodayScreen data={ready} />);
     expect(markup).toContain('data-slot="today-screen"');
     expect(markup).toContain('aria-labelledby="today-title"');
-    expect(markup).toContain('열린 공고 4건');
+    // 건수는 축 줄이 한 번만 말한다. 머리에도 적으면 page-level 숫자 hero가 둘이 된다(screen-system §9.1).
+    expect(markup).toContain('>4건<');
+    expect(markup).not.toContain('열린 공고 4건');
     expect(markup).toContain('09-07 10:30 기준');
     // 마감일 묶음 머리가 순서를 보여 주므로 `마감 임박 순`이라는 제목이 따로 없다.
     expect(markup).toContain('9월 7일');
