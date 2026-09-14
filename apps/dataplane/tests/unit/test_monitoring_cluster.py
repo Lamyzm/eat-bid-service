@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from eatbid.monitoring.cluster import (
     APPLICATIONS_PATH,
     NODES_PATH,
+    WORKFLOWS_PATH,
     evaluate_cluster,
     judge_applications,
+    judge_cron_workflows,
     judge_nodes,
 )
+
+_지금 = datetime(2026, 9, 14, 12, 0, tzinfo=UTC)
 
 
 def _노드(
@@ -107,14 +112,107 @@ def test_Application이_하나도_없는_것을_이상_없음으로_읽지_않�
     assert [v.key for v in judge_applications([])] == ["argocd-application:empty"]
 
 
+def _회차(
+    *,
+    cron: str | None = "eatbid-backfill-advance",
+    phase: str = "Succeeded",
+    minutes_ago: int = 10,
+    name: str = "eatbid-backfill-advance-1789383600",
+    message: str = "",
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {
+        "name": name,
+        "creationTimestamp": (_지금 - timedelta(minutes=minutes_ago))
+        .isoformat()
+        .replace("+00:00", "Z"),
+    }
+    if cron is not None:
+        metadata["labels"] = {"workflows.argoproj.io/cron-workflow": cron}
+    return {"metadata": metadata, "status": {"phase": phase, "message": message}}
+
+
+def test_최근_회차가_성공이면_위반이_없다() -> None:
+    assert judge_cron_workflows([_회차()], now=_지금) == []
+
+
+def test_최근_회차가_실패하면_cron_이름으로_잡는다() -> None:
+    위반 = judge_cron_workflows(
+        [_회차(phase="Failed", message="main: Error (exit code 64)")], now=_지금
+    )
+
+    assert [v.key for v in 위반] == ["cron-workflow:eatbid-backfill-advance"]
+    assert "exit code 64" in 위반[0].detail
+
+
+def test_보존_편향_때문에_오래된_실패는_울리지_않는다() -> None:
+    # 성공은 1시간, 실패는 24시간 남는다. 뒤따른 성공들이 먼저 지워지므로 "남은 것 중 최신이 실패"는
+    # 시간이 지나면 반드시 참이 된다. 2026-09-14 21시에 poll-open이 정확히 그 모양이었다.
+    위반 = judge_cron_workflows(
+        [_회차(cron="eatbid-poll-open", phase="Failed", minutes_ago=370)], now=_지금
+    )
+
+    assert 위반 == []
+
+
+def test_성공이_실패보다_나중이면_위반이_아니다() -> None:
+    위반 = judge_cron_workflows(
+        [
+            _회차(phase="Failed", minutes_ago=70, name="옛회차"),
+            _회차(phase="Succeeded", minutes_ago=5, name="새회차"),
+        ],
+        now=_지금,
+    )
+
+    assert 위반 == []
+
+
+def test_실패가_성공보다_나중이면_위반이다() -> None:
+    위반 = judge_cron_workflows(
+        [
+            _회차(phase="Succeeded", minutes_ago=70, name="옛회차"),
+            _회차(phase="Failed", minutes_ago=5, name="새회차"),
+        ],
+        now=_지금,
+    )
+
+    assert [v.key for v in 위반] == ["cron-workflow:eatbid-backfill-advance"]
+    assert "새회차" in 위반[0].detail
+
+
+def test_사람이_제출한_회차는_보지_않는다() -> None:
+    # 다음 회차라는 것이 없고, 실패했다면 제출한 사람이 그 자리에서 본다.
+    assert judge_cron_workflows([_회차(cron=None, phase="Failed")], now=_지금) == []
+
+
+def test_cron마다_따로_본다() -> None:
+    위반 = judge_cron_workflows(
+        [
+            _회차(cron="가", phase="Failed", name="가회차"),
+            _회차(cron="나", phase="Succeeded", name="나회차"),
+            _회차(cron="다", phase="Error", name="다회차"),
+        ],
+        now=_지금,
+    )
+
+    assert sorted(v.key for v in 위반) == ["cron-workflow:가", "cron-workflow:다"]
+
+
+def test_남은_회차가_없으면_위반이_아니다() -> None:
+    # 성공이 TTL로 지워진 것과 한 번도 안 돈 것을 구분할 수 없고, 구분할 수 없는 것을 위반이라
+    # 부르면 매일 울린다.
+    assert judge_cron_workflows([], now=_지금) == []
+
+
 def test_한쪽_조회가_막혀도_다른_쪽_판정은_산다() -> None:
     # Application 읽기 권한만 빠져 있을 때 노드 상태까지 함께 모르는 상태가 되면 안 된다.
     def 조회(path: str) -> list[dict[str, Any]]:
         if path == APPLICATIONS_PATH:
             raise PermissionError("applications is forbidden")
+        if path == WORKFLOWS_PATH:
+            return []
         return [_노드(ready="False")]
 
-    위반 = evaluate_cluster(조회)
+    위반 = evaluate_cluster(조회, now=_지금)
 
     assert sorted(v.key for v in 위반) == [
         "argocd-application:check-failed",
@@ -122,8 +220,12 @@ def test_한쪽_조회가_막혀도_다른_쪽_판정은_산다() -> None:
     ]
 
 
-def test_둘_다_정상이면_아무것도_올리지_않는다() -> None:
+def test_셋_다_정상이면_아무것도_올리지_않는다() -> None:
     def 조회(path: str) -> list[dict[str, Any]]:
-        return [_노드()] if path == NODES_PATH else [_앱()]
+        if path == NODES_PATH:
+            return [_노드()]
+        if path == APPLICATIONS_PATH:
+            return [_앱()]
+        return [_회차()]
 
-    assert evaluate_cluster(조회) == []
+    assert evaluate_cluster(조회, now=_지금) == []

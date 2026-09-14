@@ -1,31 +1,37 @@
-"""모듈 책임: 노드와 Argo CD Application이 정상인지를 Kubernetes API가 준 상태만 보고 판정한다.
+"""모듈 책임: 노드·Argo CD Application·cron 회차가 정상인지를 Kubernetes API가 준 상태만 보고 판정한다.
 
-왜 이 둘인가: 2026-09-10에 옛 VM 노드가 28시간 죽어 있었고 사용자가 물어서 알았다. 노드가 죽으면 그 위의
-모든 기대가 함께 죽으므로 DB 질의로는 영영 못 잡는다. Application은 저장소와 클러스터가 벌어진 것을
-Argo CD가 이미 계산해 둔 답이다 — 우리가 manifest를 다시 비교하면 같은 질문에 답하는 자리가 둘이 된다.
+왜 이 셋인가: 전부 DB에 흔적을 남기지 않는 사고다. 2026-09-10에 옛 VM 노드가 28시간 죽어 있었고 사용자가
+물어서 알았다 — 노드가 죽으면 이상한 행이 생기는 게 아니라 새 행이 안 생긴다. Application은 저장소와
+클러스터가 벌어진 것을 Argo CD가 이미 계산해 둔 답이다. cron 회차는 기동 전에 죽으면 `ingest.run`조차
+만들지 못한다(2026-09-14 전진 cron이 설정 검증에서 exit 64).
 
-왜 판정이 순수 함수인가: Ready·Synced·Healthy의 경계는 클러스터 없이 검증할 수 있어야 한다. 조회는
+왜 판정이 순수 함수인가: Ready·Synced·실패의 경계는 클러스터 없이 검증할 수 있어야 한다. 조회는
 호출자가 넣는다.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .expectations import Violation
 
 __all__ = [
     "APPLICATION_RUNBOOK",
+    "CRON_FAILURE_WINDOW",
+    "CRON_RUNBOOK",
     "NODE_RUNBOOK",
     "ResourceLister",
     "evaluate_cluster",
     "judge_applications",
+    "judge_cron_workflows",
     "judge_nodes",
 ]
 
 NODE_RUNBOOK = "docs/operations/k3s-hyperv-vm.md"
 APPLICATION_RUNBOOK = "docs/operations/ci-gate-failure-response.md"
+CRON_RUNBOOK = "docs/operations/collection-runbook.md"
 
 ResourceLister = Callable[[str], Sequence[Mapping[str, Any]]]
 """API 경로 하나를 받아 그 목록의 `items`를 돌려준다. 경로를 문자열로 두는 이유는 노드와 Application이
@@ -33,6 +39,18 @@ ResourceLister = Callable[[str], Sequence[Mapping[str, Any]]]
 
 NODES_PATH = "/api/v1/nodes"
 APPLICATIONS_PATH = "/apis/argoproj.io/v1alpha1/namespaces/argocd/applications"
+WORKFLOWS_PATH = "/apis/argoproj.io/v1alpha1/namespaces/eatbid/workflows"
+
+CRON_LABEL = "workflows.argoproj.io/cron-workflow"
+
+# 실패한 회차가 이 시간 안에 만들어졌을 때만 위반으로 본다. 임의의 여유가 아니라 보존 정책이 강제하는
+# 값이다: 성공은 1시간, 실패는 24시간 남는다(ttlStrategy). 그래서 "남아 있는 것 중 가장 최근이 실패"는
+# 시간이 지나면 반드시 참이 된다 — 뒤따른 성공들이 먼저 지워지기 때문이다. 실제로 2026-09-14 21시에
+# poll-open은 05:50 실패 하나만 남아 있었고 그 뒤 성공 수십 회차는 이미 GC됐다.
+# 두 시간이면 매시 cron의 마지막 회차를 놓치지 않으면서 그 편향에 걸리지 않는다.
+CRON_FAILURE_WINDOW = timedelta(hours=2)
+
+_FAILED_PHASES: frozenset[str] = frozenset({"Failed", "Error"})
 
 
 def _name(resource: Mapping[str, Any]) -> str:
@@ -40,6 +58,72 @@ def _name(resource: Mapping[str, Any]) -> str:
     if isinstance(metadata, Mapping):
         return str(metadata.get("name") or "unknown")
     return "unknown"
+
+
+def _metadata(resource: Mapping[str, Any]) -> Mapping[str, Any]:
+    metadata = resource.get("metadata")
+    return metadata if isinstance(metadata, Mapping) else {}
+
+
+def _created_at(resource: Mapping[str, Any]) -> datetime | None:
+    raw = _metadata(resource).get("creationTimestamp")
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        moment = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+
+
+def judge_cron_workflows(
+    workflows: Sequence[Mapping[str, Any]],
+    *,
+    now: datetime,
+) -> list[Violation]:
+    """cron마다 가장 최근 회차 하나를 보고, 그것이 최근에 실패했으면 위반으로 돌려준다.
+
+    cron 라벨이 없는 Workflow는 보지 않는다. 사람이 직접 제출한 한 번짜리 실행이라 다음 회차라는 것이
+    없고, 실패했다면 제출한 사람이 그 자리에서 본다.
+
+    회차가 하나도 안 남은 cron은 위반이 아니다. 성공이 TTL로 지워진 것과 한 번도 안 돈 것을 여기서는
+    구분할 수 없고, 구분할 수 없는 것을 위반이라 부르면 매일 울린다. 회차를 아예 건너뛰는 사고는
+    `capture-freshness` 기대가 DB 쪽에서 따로 본다.
+    """
+    latest: dict[str, Mapping[str, Any]] = {}
+    for workflow in workflows:
+        labels = _metadata(workflow).get("labels")
+        cron = labels.get(CRON_LABEL) if isinstance(labels, Mapping) else None
+        if not isinstance(cron, str) or not cron:
+            continue
+        created = _created_at(workflow)
+        if created is None:
+            continue
+        current = latest.get(cron)
+        if current is None or created > (_created_at(current) or created):
+            latest[cron] = workflow
+
+    violations: list[Violation] = []
+    for cron, workflow in sorted(latest.items()):
+        status = workflow.get("status")
+        phase = str(status.get("phase") or "") if isinstance(status, Mapping) else ""
+        if phase not in _FAILED_PHASES:
+            continue
+        created = _created_at(workflow)
+        if created is None or now - created >= CRON_FAILURE_WINDOW:
+            continue
+        message = ""
+        if isinstance(status, Mapping):
+            message = str(status.get("message") or "")
+        violations.append(
+            Violation(
+                key=f"cron-workflow:{cron}",
+                title=f"{cron}의 최근 회차가 끝까지 갔다",
+                runbook=CRON_RUNBOOK,
+                detail=f"회차={_name(workflow)}, 상태={phase}, 사유={message or 'unknown'}",
+            )
+        )
+    return violations
 
 
 def judge_nodes(nodes: Sequence[Mapping[str, Any]]) -> list[Violation]:
@@ -140,12 +224,15 @@ def judge_applications(applications: Sequence[Mapping[str, Any]]) -> list[Violat
     return violations
 
 
-def evaluate_cluster(list_resources: ResourceLister) -> list[Violation]:
-    """노드와 Application을 조회해 위반만 돌려준다.
+def evaluate_cluster(
+    list_resources: ResourceLister, *, now: datetime | None = None
+) -> list[Violation]:
+    """노드·Application·cron 회차를 조회해 위반만 돌려준다.
 
-    둘을 따로 감싸는 이유는 한쪽 조회가 막혀도 다른 쪽 판정은 살아야 하기 때문이다. Application 읽기
+    셋을 따로 감싸는 이유는 한쪽 조회가 막혀도 나머지 판정은 살아야 하기 때문이다. Application 읽기
     권한만 빠져 있을 때 노드 상태까지 함께 모르는 상태가 되면 안 된다.
     """
+    moment = now or datetime.now(UTC)
     violations: list[Violation] = []
     for path, key, title, runbook, judge in (
         (NODES_PATH, "node-health", "노드가 정상이다", NODE_RUNBOOK, judge_nodes),
@@ -155,6 +242,13 @@ def evaluate_cluster(list_resources: ResourceLister) -> list[Violation]:
             "Argo CD Application이 저장소와 같고 정상이다",
             APPLICATION_RUNBOOK,
             judge_applications,
+        ),
+        (
+            WORKFLOWS_PATH,
+            "cron-workflow",
+            "cron의 최근 회차가 끝까지 갔다",
+            CRON_RUNBOOK,
+            lambda items: judge_cron_workflows(items, now=moment),
         ),
     ):
         try:
