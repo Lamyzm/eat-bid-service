@@ -56,6 +56,12 @@ spec:
         value: ""
       - name: release-name
         value: ""
+      # 백필이 뒤로 갈 바닥이다. 이 값을 미는 커밋 하나가 그 해의 수집을 시작시키고, 그 커밋이 운영자
+      # 승인이다(ADR 0052 결정 5). 전진 CronWorkflow만 읽으며 사람이 부르는 backfill-pipeline은 쓰지
+      # 않는다. 2025-09로 시작하는 이유는 지난 1년의 구멍을 먼저 메우기 위해서다 — 구멍은 숫자를 얇게
+      # 만드는 것이 아니라 틀리게 만든다(결정 6).
+      - name: backfill-floor-date
+        value: "20250901"
   templates:
     - name: scheduled-pipeline
       dag:
@@ -150,6 +156,54 @@ spec:
         tasks:
           - <<: *task-discover
             template: discover-backfill
+          - <<: *task-capture
+            template: capture-backfill
+          - *task-normalize
+          - *task-validate
+          - *task-project
+          - *task-marts
+
+    # 스스로 전진하는 백필이다(2026-09-14, EAT-209, ADR 0052 결정 4).
+    #
+    # 왜 새 진입점인가. backfill-pipeline은 창을 workflow 파라미터로 받는다 — 사람이 정해 주는 모양이다.
+    # 여기서는 첫 단계가 커버리지를 읽어 창을 정하고 그 결과를 뒤로 넘긴다. 기존 진입점을 고치지 않고
+    # 더하는 이유는 같은 template을 라이브 수집이 쓰기 때문이다. 고치면 그쪽이 함께 흔들린다.
+    #
+    # 고를 창이 없으면 `run`이 건너뛰어지고 workflow는 아무것도 하지 않은 채 성공한다. 그것이 "범위 안을
+    # 다 채웠다"의 정상 상태다.
+    - name: advancing-backfill-pipeline
+      dag:
+        tasks:
+          - name: decide
+            template: next-backfill-window
+          - name: run
+            template: windowed-backfill-pipeline
+            depends: decide
+            when: "{{tasks.decide.outputs.parameters.has-window}} == true"
+            arguments:
+              parameters:
+                - name: start-date
+                  value: "{{tasks.decide.outputs.parameters.start-date}}"
+                - name: end-date
+                  value: "{{tasks.decide.outputs.parameters.end-date}}"
+
+    # backfill-pipeline과 같은 DAG인데 창을 workflow 파라미터가 아니라 입력으로 받는다. discover만
+    # 그 차이를 알고 나머지 다섯은 정의를 그대로 재사용한다.
+    - name: windowed-backfill-pipeline
+      inputs:
+        parameters:
+          - name: start-date
+          - name: end-date
+      dag:
+        tasks:
+          - <<: *task-discover
+            template: discover-backfill-windowed
+            arguments:
+              parameters:
+                - name: start-date
+                  value: "{{inputs.parameters.start-date}}"
+                - name: end-date
+                  value: "{{inputs.parameters.end-date}}"
           - <<: *task-capture
             template: capture-backfill
           - *task-normalize
@@ -255,6 +309,14 @@ spec:
       # capacity를 live/backfill로 나눈 이유는 semaphore.yaml, discover-backfill로 template을 나눈
       # 이유는 backfill-pipeline 주석(위)을 본다. discover-backfill은 이 template 전체를 anchor로
       # 물려받고 synchronization만 바꾼다.
+      inputs:
+        parameters:
+          # 창을 입력으로 받되 기본값이 지금까지의 출처인 workflow 파라미터다. 부르는 쪽이 넘기지
+          # 않으면 동작이 예전과 같고, 전진 pipeline만 앞 단계가 고른 창을 넘긴다(EAT-209).
+          - name: start-date
+            value: "{{workflow.parameters.start-date}}"
+          - name: end-date
+            value: "{{workflow.parameters.end-date}}"
       synchronization:
         semaphores:
           - configMapKeyRef:
@@ -366,9 +428,9 @@ spec:
             name: EATBID_RESULT_DIR
             value: /tmp/eatbid
           - name: EATBID_START_DATE
-            value: "{{workflow.parameters.start-date}}"
+            value: "{{inputs.parameters.start-date}}"
           - name: EATBID_END_DATE
-            value: "{{workflow.parameters.end-date}}"
+            value: "{{inputs.parameters.end-date}}"
           - name: EATBID_RELEASE_NAME
             value: "{{workflow.parameters.release-name}}"
           - name: EATBID_DISCOVER_PAGE_SIZE
@@ -472,6 +534,53 @@ spec:
           - *env-r2-bucket
           - *env-r2-access-key
           - *env-r2-secret-key
+
+    # 다음에 채울 창 하나를 고른다. 커버리지 view만 읽고 아무것도 바꾸지 않으므로 source semaphore도
+    # core 발행 mutex도 잡지 않는다(EAT-209).
+    #
+    # floor-date를 뒤로 미는 커밋 하나가 그 해의 수집을 시작시킨다. 그 커밋이 운영자 승인이며, 매 실행을
+    # 사람이 허락하던 것을 범위 선언 한 번으로 옮긴 것이다(ADR 0052 결정 5).
+    - name: next-backfill-window
+      outputs:
+        parameters:
+          - name: has-window
+            valueFrom:
+              path: /tmp/eatbid/has_window
+              # 고를 창이 없으면 뒤 단계가 건너뛰어져야 한다. 기본값이 없으면 그 정상 상태가 실패가 된다.
+              default: "false"
+          - name: start-date
+            valueFrom:
+              path: /tmp/eatbid/start_date
+              default: ""
+          - name: end-date
+            valueFrom:
+              path: /tmp/eatbid/end_date
+              default: ""
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid next-backfill-window
+            --floor-date "$EATBID_BACKFILL_FLOOR_DATE"
+            --as-of "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            --result-dir "$EATBID_RESULT_DIR"
+        env:
+          - name: EATBID_BACKFILL_FLOOR_DATE
+            value: "{{workflow.parameters.backfill-floor-date}}"
+          - *env-result-dir
+          - *env-database-url
+
+    # discover-backfill과 같은 container·semaphore인데, 부르는 쪽이 창을 입력으로 넘긴다. template
+    # 정의는 anchor 하나를 공유하므로 창을 어디서 받느냐만 다르다.
+    - <<: *tmpl-discover
+      name: discover-backfill-windowed
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-backfill
 
     # capture와 완전히 같은 inputs·outputs·container를 anchor로 물려받고 semaphore key만 backfill
     # 전용으로 바꾼 변형이다. backfill-pipeline만 이 template을 부른다.
