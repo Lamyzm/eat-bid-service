@@ -37,10 +37,11 @@ describe('오늘 화면', () => {
     for (const banned of ['무효', '추천', '안전 구간', '예측']) expect(markup).not.toContain(banned);
   });
 
-  test('section 순서가 조건·열린 공고이고 rail이 없다', () => {
+  test('왼쪽 조건 기둥이 먼저 오고 그 뒤가 조건·열린 공고이며 오른쪽 rail은 없다', () => {
     const screen = render(<TodayScreen data={ready} />);
     const labels = [...screen.container.querySelectorAll('section, aside')].map((node) => node.getAttribute('aria-label'));
-    expect(labels).toEqual(['조건', '열린 공고']);
+    // 좁힌 조건은 목록 옆에 계속 남는다. 본문 위에 가로로 두면 스크롤할 때 사라져 자기 조건을 잊는다.
+    expect(labels).toEqual(['내 조건', '조건', '열린 공고']);
   });
 
   test('계보가 없으면 아직 만들어지지 않았다고 말하고 오류를 내지 않는다', () => {

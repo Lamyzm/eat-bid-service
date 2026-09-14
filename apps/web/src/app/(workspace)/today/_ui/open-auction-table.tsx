@@ -22,7 +22,7 @@ const CLOSES_TONE: Record<ClosesTone, string> = {
   unknown: 'text-muted-foreground'
 };
 
-const MUTED = 'text-[13px] font-medium text-muted-foreground';
+const MUTED = 'text-[13px] leading-tight font-medium text-muted-foreground';
 
 function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresentation; readonly search: TodaySearch }) {
   const { organization, region } = row;
@@ -126,6 +126,13 @@ type OpenAuctionColumn = {
    */
   readonly subheader?: string;
   readonly align: 'text-left' | 'text-right';
+  /**
+   * 고정 폭이다. `auto`인 열 하나가 남는 폭을 전부 가져간다.
+   *
+   * 표를 폭에 맡기면 본문이 넓어질수록 여섯 칸이 같이 벌어져 기관 이름과 기초금액 사이가 손가락 두 개만큼
+   * 떨어진다. 한 행을 읽는 데 눈이 가로로 두 번 움직이면 마감 임박 순이라는 세로 흐름이 끊긴다.
+   */
+  readonly width: string;
   /** 폭이 좁아질 때 접히는 규칙이다. 빈 문자열은 어느 폭에서나 보인다. */
   readonly visibility: string;
   /**
@@ -150,12 +157,12 @@ type OpenAuctionColumn = {
  * 보낸다. 좁은 폭에서는 품목만 접어 기관 셀 둘째 줄로 내리고 나머지 다섯은 어느 폭에서나 남는다.
  */
 const COLUMNS: readonly OpenAuctionColumn[] = [
-  { id: 'rank', header: '순번', align: 'text-left', visibility: '', headerHidden: true, cell: (_row, context) => <span className={MUTED}>{context.rank}</span> },
-  { id: 'closes', header: '마감', align: 'text-left', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
-  { id: 'organization', header: '기관', align: 'text-left', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} /> },
-  { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
-  { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', visibility: '', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
-  { id: 'participation', header: '참여', align: 'text-right', visibility: '', cell: (row) => <ParticipationCell row={row} /> }
+  { id: 'rank', header: '순번', align: 'text-left', width: '2.25rem', visibility: '', headerHidden: true, cell: (_row, context) => <span className={MUTED}>{context.rank}</span> },
+  { id: 'closes', header: '마감', align: 'text-left', width: '4.5rem', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
+  { id: 'organization', header: '기관', align: 'text-left', width: 'auto', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} /> },
+  { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: '8rem', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
+  { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: '8.5rem', visibility: '', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
+  { id: 'participation', header: '참여', align: 'text-right', width: '7rem', visibility: '', cell: (row) => <ParticipationCell row={row} /> }
 ];
 
 /**
@@ -167,7 +174,7 @@ const COLUMNS: readonly OpenAuctionColumn[] = [
 function DayHeadRow({ group, columns }: { readonly group: ClosingDayGroup; readonly columns: number }) {
   return (
     <tr className='border-b border-border/60 bg-muted/40'>
-      <th scope='colgroup' colSpan={columns} className='px-2 py-1.5 text-left font-semibold xl:px-3'>
+      <th scope='colgroup' colSpan={columns} className='px-2 py-1 text-left font-semibold'>
         <span data-slot='closes' className={`inline-flex flex-wrap items-baseline gap-x-2 ${CLOSES_TONE[group.tone]}`}>
           <span className='text-[15px]'>{group.dateText}</span>
           {group.awayText === '' ? null : <span className={MUTED}>{group.awayText}</span>}
@@ -206,13 +213,20 @@ export function OpenAuctionTable({
     participation: observedText === null ? undefined : `${observedText} 기준`
   };
   return (
-    <table className='w-full border-collapse'>
+    <table className='w-full table-fixed border-collapse'>
       <thead>
         <tr className='border-b border-border'>
           {COLUMNS.map((column) => {
             const subheader = subheaders[column.id] ?? column.subheader;
             return (
-              <th key={column.id} scope='col' className={`px-2 pb-1.5 align-top text-[13px] font-semibold whitespace-nowrap text-muted-foreground xl:px-3 ${column.align} ${column.visibility}`}>
+              <th
+                key={column.id}
+                scope='col'
+                // `colgroup`이 아니라 머리 칸이 폭을 정한다. `col`에 접힘 규칙을 걸면 `display:none`이 그 열을
+                // 격자에서 빼 버려 나머지 폭이 한 칸씩 밀린다.
+                style={column.width === 'auto' ? undefined : { width: column.width }}
+                className={`px-2 pb-1.5 align-top text-[13px] leading-tight font-semibold whitespace-nowrap text-muted-foreground ${column.align} ${column.visibility}`}
+              >
                 {column.headerHidden ? <span className='sr-only'>{column.header}</span> : (
                   <span className='grid gap-0.5'>
                     <span>{column.header}</span>
@@ -232,7 +246,7 @@ export function OpenAuctionTable({
               {COLUMNS.map((column) => (
                 <td
                   key={column.id}
-                  className={`px-2 py-1.5 align-top text-[15px] font-medium xl:px-3 ${column.align} ${column.visibility} ${column.wraps ? '' : 'whitespace-nowrap tabular-nums'}`}
+                  className={`px-2 py-1.5 align-middle text-[15px] leading-tight font-semibold ${column.align} ${column.visibility} ${column.wraps ? '' : 'whitespace-nowrap tabular-nums'}`}
                 >
                   {column.cell(row, { search, rank: group.firstRank + index, rareRates })}
                 </td>

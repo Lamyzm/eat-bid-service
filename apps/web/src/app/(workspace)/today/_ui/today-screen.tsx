@@ -101,9 +101,6 @@ function OpenAuctionList({
           <span className='text-[13px] font-semibold text-muted-foreground'>{rows.length}건 표시</span>
         )}
         {cursorReset ? <span className='text-[13px] font-semibold text-pushed'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
-        {/* 표본 수·계보·산출 시각은 각주가 아니라 표 위 한 줄이다(AGENTS 7). 축 줄이 이미 건수를 말하므로
-            여기서는 계보만 남기고 뒤로 밀어 목록을 읽는 눈이 먼저 걸리지 않게 한다. */}
-        <span className='ml-auto text-[13px] font-medium text-muted-foreground/70'>{presentation.lineageText}</span>
       </div>
       <div className='px-1'>
         <OpenAuctionTable
@@ -167,15 +164,27 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
           )}
         </div>
       }
-      filters={
-        <div className='grid min-w-0 gap-3'>
-          {/* 무엇으로 좁혔는지는 조건 칩보다 위, 목록 바로 앞에 계속 남는다(screen-system §6.4.1). */}
+      rail={
+        <div className='grid min-w-0 gap-5'>
+          {/* 무엇으로 좁혔는지는 목록 옆에 계속 남는다(screen-system §6.4.1). 본문 위에 가로로 두면 한 줄을
+              통째로 쓰면서 목록을 아래로 밀고, 스크롤하면 사라져 자기 조건을 잊는다. */}
           <RegionScopeStrip
             gate={data.regionGate}
             search={search}
             matchedCount={presentation?.eligibilityMatchedCount ?? null}
             unobservedCount={presentation?.eligibilityUnobservedCount ?? null}
           />
+          {/* 표본 수·계보·산출 시각을 숨기지 않는다(AGENTS 7). 표 위 한 줄로 두면 780px에서 두 줄로 넘쳐
+              목록을 읽는 눈이 먼저 걸리므로, 조건과 같은 기둥에 두어 목록 옆에 계속 남긴다. */}
+          {presentation === null ? null : (
+            <div className='grid gap-0.5 text-[13px] leading-tight font-medium text-muted-foreground/70'>
+              {presentation.lineageLines.map((line) => <span key={line}>{line}</span>)}
+            </div>
+          )}
+        </div>
+      }
+      filters={
+        <div className='grid min-w-0 gap-3'>
           {presentation === null ? null : (
             <TodayFilters
               search={search}

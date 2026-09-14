@@ -70,7 +70,7 @@ export type OpenAuctionListPresentation = {
   readonly eligibilityMatchedCount: number | null;
   readonly eligibilityUnobservedCount: number | null;
   readonly asOfText: string;
-  readonly lineageText: string;
+  readonly lineageLines: readonly string[];
   readonly nextCursor: string | null;
 };
 
@@ -211,17 +211,24 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
   };
 }
 
-function lineageText(response: OpenAuctionListV1Response): string {
+/**
+ * 계보를 한 문장으로 잇지 않고 줄로 나눈다. 780px 본문에서 한 문장은 두 줄로 넘쳐 표 위가 어수선해지고,
+ * 줄바꿈 자리가 폭에 따라 달라져 어디까지가 스냅샷 얘기인지 흐려진다.
+ *
+ * 지역 체계를 빼지 않는 이유는 eaT 공고지역·참가제한지역·행안부 행정구역이 서로 다른 체계이고, 어느
+ * 체계로 번역된 build인지가 목록의 지역 축이 무엇을 뜻하는지를 정하기 때문이다(AGENTS 6, ADR 0035).
+ */
+function lineageLines(response: OpenAuctionListV1Response): readonly string[] {
   const snapshot = response.meta.openAuctionSnapshotBuild;
   const summary = response.meta.orgRoundSummaryBuild;
-  const parts = [
+  const lines = [
     snapshot.buildId === null
       ? '열린 공고 스냅샷 없음'
       : `열린 공고 스냅샷 build ${snapshot.buildId} · ${snapshot.calcVersion} · ${kstDateTime(snapshot.computedAt!)} 산출`,
     snapshot.regionScheme === null ? null : `지역 체계 ${snapshot.regionScheme}`,
     summary.buildId === null ? '기관 회차 요약 없음' : `기관 회차 요약 build ${summary.buildId} · ${summary.calcVersion}`
   ];
-  return parts.filter((part): part is string => part !== null).join(' · ');
+  return lines.filter((line): line is string => line !== null);
 }
 
 // build가 없으면 목록이 비어 있어도 "조건에 맞는 공고가 없다"고 말할 수 없다. 그래서 build를 먼저 본다.
@@ -238,7 +245,7 @@ export function presentOpenAuctionList(response: OpenAuctionListV1Response, nowI
     eligibilityMatchedCount: response.meta.eligibilityMatchedCount,
     eligibilityUnobservedCount: response.meta.eligibilityUnobservedCount,
     asOfText: kstDateTime(response.meta.asOf),
-    lineageText: lineageText(response),
+    lineageLines: lineageLines(response),
     nextCursor: response.nextCursor
   };
 }

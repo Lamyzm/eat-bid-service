@@ -84,15 +84,18 @@ describe('열린 공고 표시 변환', () => {
     expect(presentOpenAuctionList(empty, fixtureNow).view).toEqual({ kind: 'empty' });
   });
 
-  test('목록 표시는 응답 순서를 그대로 두고 기준 시각과 두 build의 계보를 문장으로 낸다', () => {
+  test('목록 표시는 응답 순서를 그대로 두고 기준 시각과 두 build의 계보를 줄로 낸다', () => {
     const presentation = presentOpenAuctionList(openAuctionsFixture, fixtureNow);
     expect(presentation.view.kind).toBe('list');
     const rows = presentation.view.kind === 'list' ? presentation.view.rows : [];
     expect(rows.map((row) => row.auctionAttemptId)).toEqual(['5796468', '5796470', '5796471', '5796472']);
     expect(presentation.sampleCount).toBe(4);
     expect(presentation.asOfText).toBe('09-07 10:30');
-    expect(presentation.lineageText).toBe(
-      '열린 공고 스냅샷 build 601 · mart-r2 · 09-07 10:00 산출 · 지역 체계 eat:auction-location-sigungu · 기관 회차 요약 build 501 · mart-r1'
-    );
+    // 한 문장으로 이으면 좁은 기둥에서 줄바꿈 자리가 폭에 따라 달라져 어디까지가 스냅샷 얘기인지 흐려진다.
+    expect(presentation.lineageLines).toEqual([
+      '열린 공고 스냅샷 build 601 · mart-r2 · 09-07 10:00 산출',
+      '지역 체계 eat:auction-location-sigungu',
+      '기관 회차 요약 build 501 · mart-r1'
+    ]);
   });
 });

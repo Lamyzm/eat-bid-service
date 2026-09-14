@@ -19,11 +19,21 @@ export function TodayScreenSkeleton() {
             <Skeleton className='ml-auto h-5 w-24' />
           </div>
         }
+        rail={
+          <div className='grid gap-2'>
+            <Skeleton className='h-5 w-40' />
+            <Skeleton className='h-7 w-28 rounded-lg' />
+            <Skeleton className='h-4 w-36' />
+          </div>
+        }
         filters={
-          <div className='flex flex-wrap gap-2'>
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className='h-8 w-28 rounded-lg' />
-            ))}
+          <div className='grid gap-3'>
+            <div className='flex flex-wrap gap-2'>
+              {Array.from({ length: 3 }, (_, index) => (
+                <Skeleton key={index} className='h-9 w-28 rounded-lg' />
+              ))}
+            </div>
+            <Skeleton className='h-24 w-full max-w-2xl rounded-lg' />
           </div>
         }
         list={
