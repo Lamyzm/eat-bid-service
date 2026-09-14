@@ -88,19 +88,33 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         key="capture-freshness",
         title="영업시간에 열린 공고 수집이 멈추지 않았다",
         runbook="docs/operations/collection-runbook.md#44-재부팅컨트롤러-재시작이-남긴-semaphore-교착-풀기-2026-09-10-eat-129",
-        # poll-open은 평일 08~19시 KST에 10분마다 돈다. 그 창 안에서 마지막 성공 run이 너무 오래됐다면
+        # poll-open은 평일 08:00~19:50 KST에 10분마다 돈다. 그 창 안에서 마지막 run이 너무 오래됐다면
         # 회차가 통째로 건너뛰어지고 있다는 뜻이다(2026-09-10 여섯 회차 누락).
+        #
+        # 영업시간 판정이 where가 아니라 having에 있는 이유: where에 두면 창 밖에서 행이 하나도 남지
+        # 않고, 집계 질의는 그래도 한 행을 내므로 max()가 NULL이 되어 `is null` 가지가 참이 된다.
+        # 2026-09-14 21시에 실제로 그렇게 울렸다 — `last_poll_open_at=None`이 그 자국이다. 매일 저녁과
+        # 주말마다 나던 거짓 경보이며, 아침 첫 회차가 그것을 해소로 닫아 두 번씩 알렸다.
+        #
+        # 창을 9시부터 여는 이유: 이 검사는 :03에도 돈다. 8시로 열면 08:03 회차가 "45분 안의 run"으로
+        # 인정할 수 있는 것이 그날 08:00 회차 하나뿐이고, 그 회차가 조금만 늦어도 전날 19:50과 비교해
+        # 거짓 경보가 난다. 9시로 열면 08:20~09:00 회차들이 이미 쌓여 있다. 대가는 아침 전체가 죽은
+        # 사고를 한 시간 늦게 아는 것이다.
         sql="""
             select max(r.started_at) as last_poll_open_at
               from ingest.run r
              where r.mode = 'poll-open'
-               and extract(isodow from now() at time zone 'Asia/Seoul') <= 5
+            having extract(isodow from now() at time zone 'Asia/Seoul') <= 5
                and extract(hour from now() at time zone 'Asia/Seoul')
                    between %(window_start_hour)s and %(window_end_hour)s
-            having max(r.started_at) < now() - %(stall_after)s::interval
-                or max(r.started_at) is null
+               and (max(r.started_at) is null
+                    or max(r.started_at) < now() - %(stall_after)s::interval)
         """,
-        parameters={"window_start_hour": 8, "window_end_hour": 19, "stall_after": "45 minutes"},
+        parameters={
+            "window_start_hour": 9,
+            "window_end_hour": 19,
+            "stall_after": "45 minutes",
+        },
     ),
 )
 
