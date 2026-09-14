@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { EmptyState } from '@/shared/ui/empty-state';
 
 import { RegionScopeStrip, RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
-import { buildTodayRoute, type TodaySearch } from '../_lib/today-search-params';
+import { buildTodayFilterRoute, buildTodayRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
 import { summarizeFloorRates, type OpenAuctionListPresentation, type OpenAuctionRowPresentation } from '../_model/present-open-auctions';
-import { kstToday } from '../_model/present-open-summary';
+import { kstToday, type OpenSummaryPresentation } from '../_model/present-open-summary';
 import { OpenAuctionTable } from './open-auction-table';
 import { TodayFrame } from './today-frame';
 import { TodayFilters, describeTodaySearch } from './today-filters';
@@ -31,14 +31,43 @@ function NoSnapshot() {
   return <EmptyState title='열린 공고' status='수집 전' description='열린 공고 스냅샷이 아직 만들어지지 않았습니다.' />;
 }
 
-function EmptyResult({ search, regionText }: { readonly search: TodaySearch; readonly regionText: string | null }) {
+/**
+ * 0건인 날의 출구다. 조건을 자동으로 넓히지 않는다 — 사용자가 고른 날에 없다는 사실이 먼저고, 어디로
+ * 갈지는 사용자가 고른다.
+ *
+ * 다음 마감일은 요약이 세어 둔 값이라 여기서 다시 묻지 않는다. 요약은 날짜 축으로 좁히지 않으므로
+ * 0건인 날을 보고 있어도 마감이 있는 가장 이른 날을 말할 수 있다.
+ */
+function EmptyResult({
+  search,
+  regionText,
+  summary
+}: {
+  readonly search: TodaySearch;
+  readonly regionText: string | null;
+  readonly summary: OpenSummaryPresentation | null;
+}) {
   const sentence = describeTodaySearch(search, regionText);
+  const next = summary?.nextClosingDay ?? null;
   return (
     <EmptyState
       title='열린 공고'
       description={sentence === null ? '지금 열린 공고가 없습니다.' : `${sentence} 조건에서 열린 공고가 없습니다.`}
-      // 조건을 자동으로 넓히지 않는다. 사용자가 해제를 누른다.
-      action={sentence === null ? undefined : <Link href='/today' className={LINK}>조건 모두 해제</Link>}
+      action={
+        next === null && sentence === null ? undefined : (
+          <div className='flex flex-wrap gap-2'>
+            {next === null ? null : (
+              <Link
+                href={buildTodayFilterRoute(search, { closesOn: next.date, announcedOn: null, closesWithinHours: null })}
+                className={LINK}
+              >
+                마감이 가장 이른 날 {next.dayText} · {next.count}건
+              </Link>
+            )}
+            {sentence === null ? null : <Link href='/today' className={LINK}>조건 모두 해제</Link>}
+          </div>
+        )
+      }
     />
   );
 }
@@ -91,7 +120,7 @@ function TodayList({ data, regionText }: { readonly data: TodayPageData; readonl
     case 'no-snapshot':
       return <NoSnapshot />;
     case 'empty':
-      return <EmptyResult search={search} regionText={regionText} />;
+      return <EmptyResult search={search} regionText={regionText} summary={data.summary} />;
     case 'list':
       return <OpenAuctionList rows={view.rows} presentation={presentation} search={search} cursorReset={data.cursorReset} />;
   }

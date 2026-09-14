@@ -3,7 +3,6 @@ import Link from 'next/link';
 
 import {
   BASE_AMOUNT_PRESETS,
-  PERIOD_PRESETS,
   buildTodayFilterRoute,
   type TodayRoute,
   type TodaySearch
@@ -28,13 +27,19 @@ function baseAmountLabel(search: TodaySearch): string | null {
   return `${search.baseAmountMin ?? ''}~${search.baseAmountMax ?? ''}`;
 }
 
-/** 결과 0 상태가 되풀이해 말하는 조건 문장. 조건이 없으면 null이다. */
+/**
+ * 결과 0 상태가 되풀이해 말하는 조건 문장. 조건이 없으면 null이다.
+ *
+ * 날짜 축 둘을 빠뜨리면 달력에서 0건인 날을 골랐을 때 화면이 `지금 열린 공고가 없습니다`라고만 말하고
+ * 해제할 것도 못 내놓는다. 무엇 때문에 0인지를 문장이 말해야 사용자가 되돌릴 자리를 안다.
+ */
 export function describeTodaySearch(search: TodaySearch, regionText: string | null): string | null {
   const parts: string[] = [];
   if (search.sido !== null) parts.push(`지역 ${regionText ?? `코드 ${search.sido}`}`);
   if (search.item !== null) parts.push(`품목 ${search.item}`);
-  const period = PERIOD_PRESETS.find((preset) => preset.hours === search.closesWithinHours);
-  if (search.closesWithinHours !== null) parts.push(`기간 ${period?.label ?? `${search.closesWithinHours}시간 안`}`);
+  if (search.closesOn !== null) parts.push(`마감 ${search.closesOn}`);
+  if (search.announcedOn !== null) parts.push(`게시 ${search.announcedOn}`);
+  if (search.closesWithinHours !== null) parts.push(`기간 ${search.closesWithinHours}시간 안`);
   const amount = baseAmountLabel(search);
   if (amount !== null) parts.push(`기초금액 ${amount}`);
   return parts.length === 0 ? null : parts.join(' · ');
@@ -62,13 +67,15 @@ export function TodayFilters({ search, regionText }: { readonly search: TodaySea
       ) : (
         <span className={`${CHIP} text-muted-foreground`}>품목 전체</span>
       )}
-      <span className='text-[13px] font-semibold text-muted-foreground'>기간</span>
-      <Chip href={buildTodayFilterRoute(search, { closesWithinHours: null })} active={search.closesWithinHours === null}>전체</Chip>
-      {PERIOD_PRESETS.map((preset) => (
-        <Chip key={preset.hours} href={buildTodayFilterRoute(search, { closesWithinHours: preset.hours })} active={search.closesWithinHours === preset.hours}>
-          {preset.label}
+      {/* 기간 프리셋 줄은 마감 달력이 대신한다. 둘을 함께 두면 같은 것을 두 방식으로 말하게 되고, 계약이
+          시간 창과 달력일을 함께 받지 않아 한쪽을 누르면 다른 쪽이 조용히 풀린다. 달력은 `3일 안` 대신
+          그 사흘이 각각 몇 건인지를 보여 주므로 묶음보다 말하는 것이 많다. URL에 남은 값은 칩으로 남겨
+          해제할 자리를 준다. */}
+      {search.closesWithinHours === null ? null : (
+        <Chip href={buildTodayFilterRoute(search, { closesWithinHours: null })} active>
+          기간 {search.closesWithinHours}시간 안 <span aria-hidden>×</span><span className='sr-only'>기간 조건 해제</span>
         </Chip>
-      ))}
+      )}
       <span className='text-[13px] font-semibold text-muted-foreground'>기초금액</span>
       <Chip href={buildTodayFilterRoute(search, { baseAmountMin: null, baseAmountMax: null })} active={search.baseAmountMin === null && search.baseAmountMax === null}>
         전체

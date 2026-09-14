@@ -62,9 +62,27 @@ describe('오늘 화면', () => {
         }}
       />
     );
-    expect(screen.getByText('품목 축산 · 기간 3일 · 기초금액 300만~1,000만 조건에서 열린 공고가 없습니다.')).toBeTruthy();
+    expect(screen.getByText('품목 축산 · 기간 72시간 안 · 기초금액 300만~1,000만 조건에서 열린 공고가 없습니다.')).toBeTruthy();
     expect(screen.getByRole('link', { name: '조건 모두 해제' }).getAttribute('href')).toBe('/today');
     expect(screen.container.querySelector('table')).toBeNull();
+  });
+
+  test('달력에서 0건인 날을 골라도 무엇 때문에 0인지 말하고 마감이 가장 이른 날을 가리킨다', () => {
+    const empty = { ...openAuctionsFixture, auctions: [], meta: { ...openAuctionsFixture.meta, sampleCount: 0 } };
+    const screen = render(
+      <TodayScreen
+        data={{
+          ...ready,
+          search: { ...EMPTY_TODAY_SEARCH, closesOn: '2026-09-09' },
+          presentation: presentOpenAuctionList(empty, fixtureNow)
+        }}
+      />
+    );
+    // 고른 날을 문장이 되풀이하지 않으면 화면이 `지금 열린 공고가 없습니다`라고만 말해 되돌릴 자리를 감춘다.
+    expect(screen.getByText('마감 2026-09-09 조건에서 열린 공고가 없습니다.')).toBeTruthy();
+    // 다음에 갈 곳은 요약이 세어 둔 값이다. 조건을 자동으로 넓히지 않고 링크로만 내놓는다.
+    const next = screen.getByRole('link', { name: '마감이 가장 이른 날 오늘 · 1건' });
+    expect(next.getAttribute('href')).toBe('/today?closesOn=2026-09-07');
   });
 
   test('조건 없이 결과가 0이면 조회 불가와 다른 문구로 말한다', () => {

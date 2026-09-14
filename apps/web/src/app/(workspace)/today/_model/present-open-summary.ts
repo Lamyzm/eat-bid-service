@@ -76,6 +76,14 @@ function dayTextOf(date: Temporal.PlainDate, today: Temporal.PlainDate): string 
   return date.day === 1 ? `${date.month}/1` : String(date.day);
 }
 
+/**
+ * 달력 밖 문장에 쓰는 날짜다. 칸의 `15`는 요일 머리와 격자가 있어야 읽히는 글자라, 문장에 그대로 옮기면
+ * `마감이 가장 이른 날 15`처럼 무엇의 15인지 안 말하는 문구가 된다.
+ */
+function markTextOf(date: Temporal.PlainDate, today: Temporal.PlainDate): string {
+  return date.equals(today) ? '오늘' : `${pad2(date.month)}-${pad2(date.day)}`;
+}
+
 function kstDateTime(instant: string): string {
   const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO(KST);
   return `${pad2(zoned.month)}-${pad2(zoned.day)} ${pad2(zoned.hour)}:${pad2(zoned.minute)}`;
@@ -142,6 +150,6 @@ export function presentOpenSummary(
     latestObservedText: response.latestObservedAt === null ? null : kstDateTime(response.latestObservedAt),
     nextClosingDay: next === null
       ? null
-      : { date: next.date, dayText: dayTextOf(Temporal.PlainDate.from(next.date), today), count: next.count }
+      : { date: next.date, dayText: markTextOf(Temporal.PlainDate.from(next.date), today), count: next.count }
   };
 }
