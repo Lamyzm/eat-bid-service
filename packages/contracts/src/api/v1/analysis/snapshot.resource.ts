@@ -19,7 +19,7 @@ export const analysisSnapshotSchema = z.strictObject({
   builds: z.array(z.strictObject({
     purpose: z.enum(["observations", "distribution"]),
     lineage: analysisBuildLineageSchema,
-  })).min(1).max(2),
+  })).length(2),
 }).meta({
   id: "AnalysisSnapshot",
   description: "실제 입력을 검증한 공급자가 발급한 계보 묶음. 동일 시각이나 동일 build 번호만으로 정합성을 증명하지 않는다.",

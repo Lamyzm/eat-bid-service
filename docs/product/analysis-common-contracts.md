@@ -49,7 +49,8 @@ wire의 권위는 `packages/contracts/src/api/v1/analysis`, 의미 검증은
 
 `analysisFilterValueSchema.parse`는 wire 형태만 확인한다. 실제 읽기 adapter는
 `parseAnalysisFilterValue`로 날짜·범위를 검증하고, 서버가 해소한 선택지에
-`assertAnalysisFilterSupported`를 적용한다. 숫자 형태의 ID가 존재한다는 뜻은 아니다.
+`assertAnalysisFilterSupported`를 적용한다. 이 함수는 `parseAnalysisFilterOptions`로 선택지의
+보유 날짜도 실제 달력일·순서에 맞는지 검사한다. 숫자 형태의 ID가 존재한다는 뜻은 아니다.
 기관 존재·코드 체계 소속·활성 release·접근 권한은 실제 서버 조회에서 확인한다.
 클라이언트가 제출한 선택지로 지원 여부를 검사하지 않는다.
 
@@ -89,6 +90,7 @@ wire의 권위는 `packages/contracts/src/api/v1/analysis`, 의미 검증은
 
 snapshot은 sourceCutoffAt, issuedAt, expiresAt, observationPolicyVersion과
 관측 자료/분포의 이름 붙인 실제 martBuildLineage 참조를 가진다. 각 buildId는 달라도 된다.
+공통 ready 스냅샷에는 두 역할이 정확히 하나씩 있어야 한다. 한쪽만 준비됐다면 발급하지 않는다.
 sourceReleaseId와 calcVersion도 실제 값을 유지하며 같은 숫자로 치환하지 않는다.
 
 **발급자의 필수 조건:** 같은 기준 입력에서 같은 포함 정책과 revision 집합을 읽는 조합임을
@@ -109,6 +111,7 @@ freshness의 current는 관련 미반영 DB 발행이 없음을 확인한 상태
 최초 미반영 발행부터 15분 이내, delayed는 15분 초과다. 판정할 수 없으면 unknown이다.
 checkedAt과 oldestPendingPublicationAt을 기준으로 판단하며 computedAt이 오래됐다는 이유로 delayed로
 바꾸지 않는다. 원천 수집 지연은 이 15분 목표와 별개다. 상태 공급·대기열 확인은 EAT-220 소유다.
+공개 상태와 시각의 경계는 domain `analysisPublicationFreshness`를 통해 의미 parser에서도 검사한다.
 
 ## 호환성과 후속 연결
 

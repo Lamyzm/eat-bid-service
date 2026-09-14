@@ -1,5 +1,6 @@
 export { Temporal } from "./time/temporal.js";
 export { analysisDateRange, analysisListCountRange } from "./analysis/cohort-bounds.js";
+export { analysisPublicationFreshness } from "./analysis/publication-freshness.js";
 export { fixedClock, systemClock, type Clock } from "./time/clock.js";
 export {
   hours,

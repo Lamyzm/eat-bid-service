@@ -49,6 +49,14 @@ describe("공통 분석 필터 계약", () => {
     expect(() => assertAnalysisFilterSupported({ ...filter, floorRate: { value: "88.000", unit: "percentage-points" } }, options)).toThrow();
     expect(() => assertAnalysisFilterSupported({ ...filter, awardMethodCodeValueId: "999" }, options)).toThrow();
   });
+
+  test("지원 선택지의 보유 날짜도 실제 달력일과 순서를 검사한다", () => {
+    const filter = parseAnalysisFilterValue(analysisFilterFixture);
+    for (const period of [{ from: "2026-02-30", to: "2026-03-01" }, { from: "2026-03-01", to: "2026-02-01" }]) {
+      const options = analysisFilterOptionsSchema.parse({ ...analysisOptionsFixture, availablePeriods: { opened: period, announced: null } });
+      expect(() => assertAnalysisFilterSupported(filter, options)).toThrow();
+    }
+  });
 });
 
 describe("분석 표본과 스냅샷 계약", () => {
@@ -77,6 +85,21 @@ describe("분석 표본과 스냅샷 계약", () => {
     const national = { ...analysisMetaFixture, effectiveFilter: { ...analysisFilterFixture, comparisonScope: { kind: "national" } } };
     expect(() => parseAnalysisMeta(national)).toThrow();
     expect(parseAnalysisMeta({ ...national, overlapCount: 8 }).state).toBe("ready");
+  });
+
+  test("관측과 분포 중 어느 build라도 빠지면 공통 스냅샷을 발급하지 않는다", () => {
+    for (const build of analysisMetaFixture.snapshot.builds) {
+      expect(() => parseAnalysisMeta({ ...analysisMetaFixture, snapshot: { ...analysisMetaFixture.snapshot, builds: [build] } })).toThrow();
+    }
+  });
+
+  test("미반영 발행 15분 경계와 갱신 상태가 다르면 거부한다", () => {
+    const freshness = { checkedAt: "2026-09-14T01:15:00Z", oldestPendingPublicationAt: "2026-09-14T01:00:00Z" };
+    expect(parseAnalysisMeta({ ...analysisMetaFixture, freshness: { ...freshness, state: "updating" } }).state).toBe("ready");
+    expect(() => parseAnalysisMeta({ ...analysisMetaFixture, freshness: { ...freshness, state: "delayed" } })).toThrow();
+    const over = { ...freshness, checkedAt: "2026-09-14T01:15:00.001Z" };
+    expect(parseAnalysisMeta({ ...analysisMetaFixture, freshness: { ...over, state: "delayed" } }).state).toBe("ready");
+    expect(() => parseAnalysisMeta({ ...analysisMetaFixture, freshness: { ...over, state: "updating" } })).toThrow();
   });
 
   test("coverage 기간 누락·중복과 검사 시각보다 미래인 미반영 발행을 거부한다", () => {

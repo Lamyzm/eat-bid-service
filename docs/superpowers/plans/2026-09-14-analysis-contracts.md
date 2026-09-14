@@ -52,7 +52,7 @@ EAT-214 워크트리에서 계속 열어 두며 새 분석 데이터의 연결 �
 
 ## 검증 결과
 
-- contracts 187건, domain 전체 단위 검사와 타입 검사 통과. 새 분석 계약 11건·domain 경계 2건을 포함한다.
+- contracts 190건, domain 전체 단위 검사와 타입 검사 통과. 새 분석 계약 14건·domain 경계 2건을 포함한다.
   전국 전체에서 기관 표본이 빠지는 불일치도 수정 전 실패를 확인한 뒤 거부하도록 구현했다.
 - domain/contracts build, 수정 source lint, 전체 architecture 18개, JSON Schema/Python 생성물 check mode 통과.
 - `test:quality`의 Node 검사 202건 통과. Python은 공용 임시 폴더의 `pytest-current` 접근 거부가 생겨
@@ -61,3 +61,6 @@ EAT-214 워크트리에서 계속 열어 두며 새 분석 데이터의 연결 �
 - 새 browser export를 실제 계약 manifest와 검사 대상에 추가하면서 품질 검사의 synthetic manifest도 갱신했다.
   기존 금지 import·dist export 판정은 그대로 유지했다.
 - 새 operation/DDL/생성물 변경 없음. 실제 분석 API·DB 성능·사용자 화면 연결·유료 인가는 후속 인수 대상이다.
+- 최초 AI advisory에서 관측/분포 중 한쪽 build 누락, 15분과 상태 불일치, 선택지 날짜 검증 누락을
+  확인했다. 세 경계를 실패 fixture로 재현한 뒤 parser와 domain `analysis/publication-freshness.ts`로
+  보완했다. 15분 정확히는 updating, 그 다음 시점은 delayed다. 운영 스케줄러는 추가하지 않았다.

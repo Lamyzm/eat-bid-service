@@ -1,7 +1,7 @@
 /** @module 책임: 공통 분석 wire를 검증한 뒤 날짜·범위·지원 코드·표본과 스냅샷의 의미 경계를 검사한다. */
-import { analysisDateRange, analysisListCountRange, sampleCount, Temporal } from "@eatbid/domain";
+import { analysisDateRange, analysisListCountRange, analysisPublicationFreshness, sampleCount, Temporal } from "@eatbid/domain";
 import {
-  analysisFilterValueSchema, analysisMetaSchema,
+  analysisFilterValueSchema, analysisFilterOptionsSchema, analysisMetaSchema,
   type AnalysisFilterValue, type AnalysisFilterOptions, type AnalysisMeta,
 } from "../api/v1/analysis";
 
@@ -16,8 +16,18 @@ export function parseAnalysisFilterValue(input: unknown): AnalysisFilterValue {
   return filter;
 }
 
+/** 선택지의 관측 양끝도 사용자 입력과 같은 달력 규칙을 따른다. null은 확인되지 않은 범위로 유지한다. */
+export function parseAnalysisFilterOptions(input: unknown): AnalysisFilterOptions {
+  const options = analysisFilterOptionsSchema.parse(input);
+  for (const period of Object.values(options.availablePeriods)) {
+    if (period !== null) analysisDateRange(Temporal.PlainDate.from(period.from), Temporal.PlainDate.from(period.to));
+  }
+  return options;
+}
+
 /** 선택지는 같은 조회 시점의 서버 확인값이어야 한다. 사용자가 제출한 선택지나 라벨로 존재·권한을 판단하지 않는다. */
-export function assertAnalysisFilterSupported(filter: AnalysisFilterValue, options: AnalysisFilterOptions): void {
+export function assertAnalysisFilterSupported(filter: AnalysisFilterValue, inputOptions: AnalysisFilterOptions): void {
+  const options = parseAnalysisFilterOptions(inputOptions);
   const region = filter.comparisonScope;
   if (region.kind === "region" && !options.regions.some((value) => value.active && value.codeValueId === region.codeValueId && value.scheme === region.scheme)) {
     throw new RangeError("확인된 활성 공고지역이 아닙니다.");
@@ -60,8 +70,9 @@ export function parseAnalysisMeta(input: unknown): AnalysisMeta {
   }
   if (!nextDate.equals(Temporal.PlainDate.from(meta.effectiveFilter.period.to).add({ days: 1 }))) throw new RangeError("수집 상태가 조회 기간 전체를 설명하지 않습니다.");
   if (meta.freshness.state === "updating" || meta.freshness.state === "delayed") {
-    if (Temporal.Instant.compare(Temporal.Instant.from(meta.freshness.oldestPendingPublicationAt), Temporal.Instant.from(meta.freshness.checkedAt)) > 0) {
-      throw new RangeError("확인 시각보다 미래의 미반영 발행입니다.");
+    const expected = analysisPublicationFreshness(Temporal.Instant.from(meta.freshness.checkedAt), Temporal.Instant.from(meta.freshness.oldestPendingPublicationAt));
+    if (meta.freshness.state !== expected) {
+      throw new RangeError("미반영 발행의 경과와 갱신 상태가 다릅니다.");
     }
   }
   return meta;
