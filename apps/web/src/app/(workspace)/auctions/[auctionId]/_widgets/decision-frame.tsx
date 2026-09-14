@@ -1,6 +1,7 @@
 /** @module 책임: 전역 보조 공간과 독립된 분석 본문의 전체 폭, 실제 화면·skeleton의 section 순서, 어느 본문이 집중 모드인지를 제공한다. */
+import { ChartFullscreenFrame } from '@/shared/ui/chart-fullscreen-frame';
 
-/** 집중 모드로 키울 본문. 흐름 차트와 과거 회차 표는 같은 geometry를 쓰고 값만 다르다(EAT-115). */
+/** 흐름은 전체 뷰포트, 과거 회차는 기존 본문의 남는 높이를 사용한다. */
 export type DecisionFocus = 'flow' | 'history';
 
 type DecisionFrameProps = {
@@ -14,7 +15,9 @@ type DecisionFrameProps = {
 // 상세와 도구는 공통 레이아웃이 배치한다. 프레임은 차트·표를 다시 마운트하지 않고 주어진 폭을 쓴다.
 export function DecisionFrame({ header, filters, evidence, history, focus }: DecisionFrameProps) {
   return (
-    <div
+    <ChartFullscreenFrame
+      active={focus === 'flow'}
+      surface='workspace'
       data-slot='decision-screen'
       data-focus={focus}
       role='region'
@@ -35,6 +38,6 @@ export function DecisionFrame({ header, filters, evidence, history, focus }: Dec
           </section>
         </div>
       </div>
-    </div>
+    </ChartFullscreenFrame>
   );
 }
