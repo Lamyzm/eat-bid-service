@@ -560,3 +560,18 @@ def test_promotion은_main이_아니라_deploy_prod에_쓰고_guard를_먼저_�
     # deploy/prod는 매 릴리스마다 그 릴리스 commit을 부모로 다시 서므로 fast-forward가 되지 않는다.
     # 기계가 소유한 파생 ref라 강제로 옮기며, 무엇을 옮기는지는 위 guard가 이미 증명했다.
     assert "git push --force origin HEAD:refs/heads/deploy/prod" in joined
+
+
+def test_web_Sentry_값_셋은_두_레인_모두_빌드_인자로_들어가고_Dockerfile이_받는다() -> None:
+    """Sentry는 빌드 시점 값이라 manifest env로는 켜지지 않는다(EAT-232). 릴리스 레인과 dev 레인이 같은
+    repository variables를 넘기고 Dockerfile.web이 그것을 ARG로 받아야 한다. 비어 있으면 꺼진 채 빌드된다."""
+    dockerfile = (ROOT / "Dockerfile.web").read_text(encoding="utf-8")
+    release = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+    dev = (ROOT / ".github" / "workflows" / "dev-image.yml").read_text(encoding="utf-8")
+
+    for name in ("NEXT_PUBLIC_SENTRY_ORG", "NEXT_PUBLIC_SENTRY_PROJECT", "NEXT_PUBLIC_SENTRY_DSN"):
+        assert f'ARG {name}=""' in dockerfile, name
+        assert f"{name}=${{{{ vars.{name} }}}}" in release, name
+        assert f"{name}=${{{{ vars.{name} }}}}" in dev, name
+    # 비밀이 아니라 공개 식별자다. secrets로 넘기면 로그에서 가려져 "왜 안 켜졌나"를 볼 수 없다.
+    assert "secrets.NEXT_PUBLIC_SENTRY" not in release + dev
