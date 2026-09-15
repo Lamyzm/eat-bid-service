@@ -253,7 +253,7 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   전송 중단·decoding 실패·크기 초과는 다시 보내도 같은 결론이라 즉시 중단한다. 상한은 manifest가
   아니라 `SOURCE_RETRY_*` 설정이 소유한다(2026-09-06 backfill 실측, EAT-72).
 - **backfill은 정기 수집과 다른 source semaphore key를 쓴다**(`eatbid-source-backfill` vs
-  `eatbid-source-live`, `infra/product/workflows/semaphore.yaml`, 2026-09-11 EAT-164). 처음에는
+  `eatbid-source-live`, `infra/base/workflows/semaphore.yaml`, 2026-09-11 EAT-164). 처음에는
   `spec.priority`로 같은 semaphore 큐 안에서 backfill보다 앞세우는 방식이었다(2026-09-07, EAT-93).
   그런데 2026-09-10 18:53 poll-open 회차는 그 priority를 가진 채로도 discover 이후 상세 수집
   10묶음 중 8개가 backfill chunk(기본 priority 0) 뒤에서 2시간 대기하다 끝났다 — "대기 큐는 priority
@@ -365,7 +365,7 @@ GitHub monorepo
 - 환경에서 mutable `latest`를 쓰지 않고 digest로 고정한다.
 - migration은 동일 커밋에서 만든 image를 Argo CD Sync hook 또는 동등한 단일 실행 Job으로
   적용하며 timeout과 실패 상태를 가진다.
-- 런타임 역할의 권한도 저장소가 소유한다. `infra/product/db-provisioning.sql` 하나가 권위이고
+- 런타임 역할의 권한도 저장소가 소유한다. `infra/base/db-provisioning.sql` 하나가 권위이고
   hook Job이 migration 뒤·앱 앞 sync-wave에서 멱등하게 적용한다. 역할 생성과 비밀번호만 사람 단계로
   남으며, 사람이 psql로 넣은 GRANT는 다음 sync에 이 파일의 상태로 되돌아간다.
 - 애플리케이션은 기대 schema migration/version을 시작 시 확인한다.
@@ -375,7 +375,7 @@ GitHub monorepo
   하나라도 있으면 PostgreSQL이 단순 `CREATE TABLE ... PARTITION OF`를 거부하므로 그 순서를 문서가
   아니라 마이그레이션 파일이 소유한다
   ([ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §3). 파티션 자식도 `core`
-  스키마의 관계이므로 `infra/product/db-provisioning.sql`의 default privileges가 함께 따라오는지
+  스키마의 관계이므로 `infra/base/db-provisioning.sql`의 default privileges가 함께 따라오는지
   같은 변경에서 확인한다.
 - Workflow CRD/controller 같은 플랫폼 수명주기와 제품 배포를 별도 Argo CD application으로 둔다.
 - 초기에는 Argo Events, 내장 MinIO, 별도 workflow archive DB를 추가하지 않는다.
@@ -391,9 +391,25 @@ release/v<semver> annotated tag push
   → build.yml preflight   tag가 annotated이고 peel한 commit이 현재 origin/main HEAD인지 확인
   → build.yml test/build  image 4종 build · scan · GHCR push · cosign sign/attest/verify
   → build.yml promote     main을 checkout해 release commit인지 확인한 뒤
-                          digest를 infra/product/kustomization.yaml에 커밋하고 deploy/prod로 옮김
-  → Argo CD               deploy/prod의 infra/product를 동기화
+                          digest를 infra/envs/prod/kustomization.yaml에 커밋하고 deploy/prod로 옮김
+  → Argo CD               deploy/prod의 infra/envs/prod를 동기화
+
+main 병합
+  → dev-image.yml build   image 4종 build · GHCR push(main-<sha>, 서명 없음)
+  → dev-image.yml promote digest를 infra/envs/dev/kustomization.yaml에 커밋하고 deploy/dev로 옮김
+  → Argo CD               deploy/dev의 infra/envs/dev를 동기화
 ```
+
+- **환경은 둘이고 레인도 둘이다**([ADR 0051](../adr/0051-dev-overlay-and-unsigned-main-image-lane.md)).
+  공통 manifest는 `infra/base`가 소유하고 `infra/envs/{prod,dev}`는 값만 다르다. prod는 서명된 release
+  태그가 움직이고 dev는 main 병합이 움직인다. 두 레인은 서로의 overlay 파일을 건드리지 않는다.
+- **dev는 eaT를 부르지 않는다.** 소스에 붙는 클러스터는 하나뿐이어야 하므로 dev overlay가 CronWorkflow
+  전부를 suspend한다. 백업과 감시까지 멈추는 이유는 알림 방이 하나라서 dev가 울리면 운영 알림과 섞이기
+  때문이다.
+- **경로 전환은 두 단계다.** Argo CD Application이 `prune: true`로 `infra/product`를 보고 있어서 경로를
+  한 번에 옮기면 어느 쪽으로 해도 Argo가 "선언된 것이 없다"로 읽고 운영 리소스를 지운다. 전환 릴리스는
+  `infra/product`를 `infra/envs/prod`의 별칭으로 남겨 두 경로가 같은 것을 렌더하게 하고, Application을
+  바꾼 뒤에 별칭을 지운다. 둘이 같다는 사실은 `infra/tests/test_env_overlays.py`가 지킨다.
 
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
   pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
@@ -402,22 +418,22 @@ release/v<semver> annotated tag push
 - **검증은 질문이 다른 세 고리다.** 작업 중(커밋 훅, 변경 범위)·병합 전(CI, pull request)·릴리스(CI,
   tag). 같은 검사를 두 고리에서 돌리지 않으며, 로컬 push 게이트는 판정자가 아니라 main 직접 push를 먼저
   거절하는 안내다.
-- **배포 대상은 `deploy/prod`의 `infra/product` 하나다.** `infra/k8s/base`는 product overlay가 참조하는
+- **배포 대상은 `deploy/prod`의 `infra/envs/prod` 하나다.** `infra/base`는 overlay가 참조하는
   기반일 뿐 직접 동기화 대상이 아니다. base만 보면 WorkflowTemplate·CronWorkflow·migration Job·Secret
   참조가 클러스터에 존재하지 않는다.
 - **운영이 보는 ref는 `main`이 아니다.** `main`은 서버가 보호해 pull request만 받으므로 릴리스 workflow가
   digest를 거기 쓸 수 없다. digest는 기계가 소유한 `deploy/prod`로 가고 Argo CD가 그것을 본다
   ([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md) 결정 1). 그래서 `main`의
-  `infra/product`를 고쳐도 운영은 즉시 움직이지 않는다. 운영은 릴리스가 `deploy/prod`를 옮길 때만 바뀐다.
+  `infra/envs/prod`를 고쳐도 운영은 즉시 움직이지 않는다. 운영은 릴리스가 `deploy/prod`를 옮길 때만 바뀐다.
   `deploy/prod`는 파생 ref이며 지워져도 릴리스 태그에서 다시 만들 수 있다.
 - annotated tag를 push하면 `github.sha`가 commit이 아니라 tag object일 수 있다. image tag, `GIT_SHA`,
   revision label, SLSA `gitCommit`, promotion guard는 모두 preflight가 peel해 낸 commit 하나를 쓴다.
 - promote는 `git push origin HEAD:main` normal push다. tag 발행 뒤 `main`이 움직였다면 preflight 비교나
   non-fast-forward에서 멈추고, promote commit 자체는 tag가 아니므로 다시 빌드를 시작하지 않는다.
-- 비밀값은 Infisical이 소유하고 클러스터는 사본을 받는다. `infra/product/secrets.yaml`의 InfisicalSecret이
+- 비밀값은 Infisical이 소유하고 클러스터는 사본을 받는다. `infra/base/secrets.yaml`의 InfisicalSecret이
   경로와 Secret 이름만 선언하며 값은 저장소에 들어가지 않는다. operator 자신의 universal auth 자격증명만
   클러스터에 수동으로 두고 같은 값을 `prod:/platform/kubernetes`에 복구용으로 보관한다.
-- repository manifest 변경과 live cluster apply는 서로 다른 단계다. `infra/argocd/application.yaml`을
+- repository manifest 변경과 live cluster apply는 서로 다른 단계다. `infra/argocd/prod.application.yaml`을
   커밋해도 클러스터의 Application은 그대로이며, 실제 전환은 별도 승인 뒤 `kubectl apply`로 이뤄진다.
   절차는 [main-authority-cutover.md](../operations/main-authority-cutover.md)를 따른다.
 
@@ -486,7 +502,7 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
   ADR 0032 §12를 고치는 일이다.
 - 인증·권한 기능의 인수 검증은 운영 PostgreSQL과 `eatbid_api` 역할이 아니라 격리된 일회용
   PostgreSQL에서 한다. 운영 DB에 대고 검증하면 새 migration·역할·권한이 검증 대상이 아니라 사고가 된다.
-  fixture는 커밋된 migration과 배포되는 `infra/product/db-provisioning.sql`을 그대로 실행하는
+  fixture는 커밋된 migration과 배포되는 `infra/base/db-provisioning.sql`을 그대로 실행하는
   `apps/server/fixtures/disposable-database.fixture.ts`를 재사용한다.
 - raw bucket은 lifecycle/retention 변경을 운영 승인 대상으로 하고 삭제 권한을 일반 ingestor에서 뺀다.
 

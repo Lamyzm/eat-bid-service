@@ -151,7 +151,7 @@ describe("DDL package 권한 경계", () => {
 
 describe("활성 Kubernetes DDL 경로", () => {
   test("legacy schema ConfigMap을 생성하거나 mount하지 않는다", () => {
-    const baseDirectory = join(repositoryRoot, "infra/k8s/base");
+    const baseDirectory = join(repositoryRoot, "infra/base");
     const activeYaml = readdirSync(baseDirectory)
       .filter((name) => /\.ya?ml$/.test(name))
       .map((name) => readFileSync(join(baseDirectory, name), "utf8"))
@@ -162,7 +162,7 @@ describe("활성 Kubernetes DDL 경로", () => {
   });
 
   test("legacy db-migrate Job 문서를 완전히 제거한다", () => {
-    const documents = text("infra/k8s/base/app.yaml").split(/^---\s*$/m);
+    const documents = text("infra/base/app.yaml").split(/^---\s*$/m);
     const legacyJobs = documents.filter(
       (document) => /kind:\s*Job\b/.test(document) && /name:\s*db-migrate\b/.test(document),
     );

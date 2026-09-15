@@ -8,7 +8,7 @@ import yaml
 
 ROOT = Path(__file__).parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "build.yml"
-PRODUCT_KUSTOMIZATION = ROOT / "infra" / "product" / "kustomization.yaml"
+PRODUCT_KUSTOMIZATION = ROOT / "infra" / "envs" / "prod" / "kustomization.yaml"
 
 # publication은 tag push에서만 돌고, tag가 annotated면 github.sha는 commit이 아닐 수 있다.
 # 그래서 모든 소비자는 preflight가 peel해 낸 commit 하나만 참조해야 한다.
@@ -234,7 +234,7 @@ def test_CI가_full_SHA로_모든_artifact를_빌드하고_digest를_승격한�
     assert "${{ github.sha }}" not in workflow
     assert "${{ steps.publish.outputs.digest }}" in workflow
     assert "infra/update_image_digest.py" in workflow
-    assert "infra/product/kustomization.yaml" in workflow
+    assert "infra/envs/prod/kustomization.yaml" in workflow
     assert "infra/bump-image.py" not in workflow
     assert "git rev-parse --short" not in workflow
 
@@ -369,19 +369,18 @@ def test_product_manifest는_소비할_product_image_넷을_정확히_갖는다(
     manifest = yaml.safe_load(PRODUCT_KUSTOMIZATION.read_text(encoding="utf-8"))
     images = manifest["images"]
 
-    assert manifest["resources"] == [
-        "../k8s/base",
-        "migration.yaml",
-        "db-provisioning.yaml",
-        "secrets.yaml",
-        "internal-ingress.yaml",
-        "workflows",
-    ]
+    # overlay는 base 하나만 참조한다. 여기에 resource를 더하면 그 조각이 한 환경에만 존재하게 되고,
+    # 다른 환경에 같은 것을 손으로 복사하지 않으면 두 환경이 조용히 갈라진다.
+    assert manifest["resources"] == ["../../base"]
     # db-provisioning의 SQL은 generator로만 실린다. 손으로 쓴 ConfigMap이 끼어들면 저장소 파일과
-    # 클러스터 권한이 갈라진다.
-    assert [
-        generator["files"] for generator in manifest["configMapGenerator"]
-    ] == [["db-provisioning.sql"]]
+    # 클러스터 권한이 갈라진다. generator는 base가 소유한다 — 권한 집합은 환경 차이가 아니다.
+    base = yaml.safe_load(
+        (ROOT / "infra" / "base" / "kustomization.yaml").read_text(encoding="utf-8")
+    )
+    assert [generator["files"] for generator in base["configMapGenerator"]] == [
+        ["db-provisioning.sql"]
+    ]
+    assert "configMapGenerator" not in manifest
     assert {image["name"] for image in images} == {
         "eatbid-web",
         "eatbid-server",
