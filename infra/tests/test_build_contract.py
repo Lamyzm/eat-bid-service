@@ -560,3 +560,16 @@ def test_promotion은_main이_아니라_deploy_prod에_쓰고_guard를_먼저_�
     # deploy/prod는 매 릴리스마다 그 릴리스 commit을 부모로 다시 서므로 fast-forward가 되지 않는다.
     # 기계가 소유한 파생 ref라 강제로 옮기며, 무엇을 옮기는지는 위 guard가 이미 증명했다.
     assert "git push --force origin HEAD:refs/heads/deploy/prod" in joined
+
+
+def test_cosign_서명과_attest는_OIDC_일시_장애를_세_번까지_다시_시도한다() -> None:
+    """v0.1.32 발행이 `fetching ambient OIDC credentials`로 죽었고 재시도가 없어 사람이 다시 돌렸다(EAT-233).
+    세 단계 모두 같은 재시도 껍질을 가져야 하고, 마지막 시도 뒤에는 실패로 끝나야 한다."""
+    steps = _steps("build")
+    for step_id in ("sign", "attest-provenance", "attest-sbom"):
+        step = next(step for step in steps if step.get("id") == step_id)
+        script = str(step["run"])
+        assert "for attempt in 1 2 3" in script, step_id
+        assert "cosign" in script, step_id
+        assert "sleep 20" in script, step_id
+        assert script.rstrip().endswith("exit 1"), step_id
