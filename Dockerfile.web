@@ -12,6 +12,15 @@ COPY apps/web ./apps/web
 
 RUN pnpm install --frozen-lockfile
 ENV BUILD_STANDALONE=true
+# Sentry는 빌드 시점 값이다. next.config.ts의 withSentryConfig와 instrumentation*.ts의 Sentry.init이
+# NEXT_PUBLIC_*를 번들에 박으므로 manifest env로는 켜지지 않는다(2026-09-16 실측, EAT-232). 셋이 비면
+# 지금처럼 꺼진 채 빌드된다 — 값은 GitHub repository variables가 소유하고 build.yml이 넘긴다.
+ARG NEXT_PUBLIC_SENTRY_ORG=""
+ARG NEXT_PUBLIC_SENTRY_PROJECT=""
+ARG NEXT_PUBLIC_SENTRY_DSN=""
+ENV NEXT_PUBLIC_SENTRY_ORG=$NEXT_PUBLIC_SENTRY_ORG \
+    NEXT_PUBLIC_SENTRY_PROJECT=$NEXT_PUBLIC_SENTRY_PROJECT \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 RUN pnpm --filter @eatbid/web build
 
 FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:774b7d020b24214835769e24c3544835526cd0288f0b094eae48e8b2c2429a79 AS runtime
