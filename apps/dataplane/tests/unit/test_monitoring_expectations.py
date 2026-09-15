@@ -30,7 +30,9 @@ _기대_하나 = Expectation(
 
 
 def _응답(rows: Sequence[Mapping[str, Any]]):
-    def run_query(_sql: str, _parameters: Mapping[str, Any]) -> Sequence[Mapping[str, Any]]:
+    def run_query(
+        _sql: str, _parameters: Mapping[str, Any]
+    ) -> Sequence[Mapping[str, Any]]:
         return rows
 
     return run_query
@@ -41,12 +43,87 @@ def test_행이_없으면_기대는_만족한_것으로_본다() -> None:
 
 
 def test_돌아온_행마다_대응_문서를_붙인_위반을_만든다() -> None:
-    위반들 = evaluate(_응답([{"run_id": "r1", "last_progress_at": "2026-09-10T09:00:00Z"}]), [_기대_하나])
+    위반들 = evaluate(
+        _응답([{"run_id": "r1", "last_progress_at": "2026-09-10T09:00:00Z"}]),
+        [_기대_하나],
+    )
 
     assert len(위반들) == 1
     assert 위반들[0].key == "probe"
     assert "run_id=r1" in 위반들[0].detail
     assert 위반들[0].runbook == _기대_하나.runbook
+
+
+def test_여러_행이_나오면_행마다_다른_key를_준다() -> None:
+    # 같은 key를 쓰면 상태 파일이 key로 집합을 만들므로 한 행이 다른 행을 덮는다. 2026-09-06부터
+    # `running`으로 남은 reference run 하나가 실제로 이틀 동안 backfill 멈춤 감시를 눈멀게 했다.
+    기대 = Expectation(
+        key="probe",
+        title="탐침이 진행하고 있다",
+        runbook="docs/operations/collection-runbook.md",
+        sql="select 1",
+        parameters={},
+        key_columns=("run_id",),
+    )
+
+    위반들 = evaluate(_응답([{"run_id": "r1"}, {"run_id": "r2"}]), [기대])
+
+    assert sorted(v.key for v in 위반들) == ["probe:r1", "probe:r2"]
+
+
+def test_가르는_컬럼을_선언하지_않으면_기대_key를_그대로_쓴다() -> None:
+    위반들 = evaluate(_응답([{"count": 3}]), [_기대_하나])
+
+    assert [v.key for v in 위반들] == ["probe"]
+
+
+def test_가르는_컬럼이_결과에_없으면_unknown으로_채운다() -> None:
+    # 질의를 잘못 적었다는 이유로 감시를 멈추는 것보다 덜 알리는 쪽이 낫다.
+    기대 = Expectation(
+        key="probe",
+        title="탐침이 진행하고 있다",
+        runbook="docs/operations/collection-runbook.md",
+        sql="select 1",
+        parameters={},
+        key_columns=("run_id",),
+    )
+
+    위반들 = evaluate(_응답([{"다른컬럼": 1}]), [기대])
+
+    assert [v.key for v in 위반들] == ["probe:unknown"]
+
+
+def test_상태_문서는_알림_문구를_그대로_들고_있는다() -> None:
+    # 문구가 텔레그램에만 있으면 지금 무엇이 잘못됐는지는 그 방을 본 사람만 안다.
+    차이 = diff_violations(
+        [Violation(key="probe", title="제목", runbook="docs/x.md", detail="run_id=r1")],
+        [],
+        now="2026-09-16T00:00:00Z",
+    )
+
+    문서 = encode_state(차이.still_open, now="2026-09-16T00:00:00Z")
+
+    assert 문서["open"] == [
+        {
+            "key": "probe",
+            "first_seen_at": "2026-09-16T00:00:00Z",
+            "title": "제목",
+            "detail": "run_id=r1",
+            "runbook": "docs/x.md",
+        }
+    ]
+
+
+def test_문구가_없던_옛_문서도_읽는다() -> None:
+    # 이 필드를 더하기 전에 쓰인 문서가 R2에 남아 있다. 그것 때문에 열려 있던 위반이 전부 "새로 열림"으로
+    # 다시 알려지면 안 된다.
+    복원 = decode_state(
+        {"open": [{"key": "probe", "first_seen_at": "2026-09-12T20:18:10Z"}]}
+    )
+
+    assert [item.key for item in 복원] == ["probe"]
+    assert 복원[0].first_seen_at == "2026-09-12T20:18:10Z"
+    assert 복원[0].title == ""
 
 
 def test_질의가_실패하면_조용히_넘기지_않고_위반으로_올린다() -> None:
@@ -119,7 +196,9 @@ def test_여러_위반은_한_덩어리_문구로_묶어_하나의_사고로_읽
 
 def test_문구가_텔레그램_상한을_넘으면_잘렸다는_사실을_남긴다() -> None:
     위반들 = [
-        Violation(key=f"k{index}", title="긴 제목" * 40, runbook="docs/a.md", detail="d" * 200)
+        Violation(
+            key=f"k{index}", title="긴 제목" * 40, runbook="docs/a.md", detail="d" * 200
+        )
         for index in range(40)
     ]
 
