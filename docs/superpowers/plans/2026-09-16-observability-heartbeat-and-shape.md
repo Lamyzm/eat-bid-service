@@ -46,18 +46,22 @@ review_trigger: alert-origin-or-monitoring-storage-change
 | 단계 | 무엇 | 닫는 구멍 | 사용자 손 |
 |---|---|---|---|
 | 1 | 클러스터 밖으로 나가는 심장박동 | DB·노드·검사 자체가 죽었을 때의 침묵 | 제공자 계정, 핑 URL을 Infisical에 |
-| 2 | 회차마다 남기는 모양 지표 | 예상 못 한 사고("돌긴 도는데 0건") | 없음 |
-| 3 | 이미 있는 것을 연결 — Sentry, 서버 로그 보관, Grafana | 웹·서버가 깨져도 모르는 것, 파드 재시작이 로그를 지우는 것 | Sentry 프로젝트, DSN을 Infisical에 |
-| 4 | 워크플로 이름을 기록된 사실로 | 사고 뒤 네 군데를 손으로 오가는 것 | 없음 |
-| 5 | 배포 자가복구 | cosign 일시 장애, 빌드 중 병합 | 없음 |
-| 6 | 아키텍처를 단계별로 같이 훑기 | 이 문서가 모르는 구멍 | 함께 |
+| 2 | 로컬 Argo에 진짜 템플릿을 제출해 보는 층 + CI 게이트 | 단위·계약이 초록인데 운영에서만 죽는 버그 | 없음 |
+| 3 | 회차마다 남기는 모양 지표 | 예상 못 한 사고("돌긴 도는데 0건") | 없음 |
+| 4 | 이미 있는 것을 연결 — Sentry, 서버 로그 보관, Grafana | 웹·서버가 깨져도 모르는 것, 파드 재시작이 로그를 지우는 것 | Sentry 프로젝트, DSN을 Infisical에 |
+| 5 | 워크플로 이름을 기록된 사실로 | 사고 뒤 네 군데를 손으로 오가는 것 | 없음 |
+| 6 | 배포 자가복구 | cosign 일시 장애, 빌드 중 병합 | 없음 |
+| 7 | 아키텍처를 단계별로 같이 훑기 | 이 문서가 모르는 구멍 | 함께 |
 
 1이 먼저인 이유는 나머지 전부가 클러스터 안에 있기 때문이다. 안에 있는 것은 기계와 함께 죽는다.
-연기 감지기 없는 집을 감사하는 것이 6이므로 1을 앞에 둔다. 2가 3보다 앞인 이유는 새 스택 없이 이미 도는
-검사에 행 하나를 더하는 일이라 하루면 끝나고, 3의 Grafana가 그릴 대상이 그것이기 때문이다.
+연기 감지기 없는 집을 감사하는 것이 7이므로 1을 앞에 둔다. 2가 지표보다 앞인 이유는(2026-09-16 순서
+변경) 2026-09-14~15의 세 버그가 전부 단위 786개·계약 218개를 통과하고 운영에서만 죽었기 때문이다. 그것을
+잡는 유일한 층이 "진짜 Argo에 진짜 템플릿을 제출해 보는 것"이고, 그 층 없이 지표·로그·Grafana를 올리면
+그것들도 같은 방식으로 운영에서 처음 깨진다. 3이 4보다 앞인 이유는 새 스택 없이 이미 도는 검사에 행
+하나를 더하는 일이라 하루면 끝나고, 4의 Grafana가 그릴 대상이 그것이기 때문이다.
 
 **하지 않는 것.** 열 번째 기대를 더하는 것 — 예상한 것만 잡는 도구를 늘려도 예상 못 한 것은 못 잡는다.
-OTel 전체(EAT-173)를 지금 세우는 것 — 맞는 방향이지만 몇 주짜리이고 위의 1~3이 며칠에 80%를 준다.
+OTel 전체(EAT-173)를 지금 세우는 것 — 맞는 방향이지만 몇 주짜리이고 위의 1~4가 며칠에 80%를 준다.
 알림 수명주기를 Alertmanager로 옮기는 것 — 2026-09-15에 지금 구조를 유지하기로 정했다.
 
 ## 1단계 — 클러스터 밖으로 나가는 심장박동 (EAT-171)
@@ -118,7 +122,47 @@ Stack의 채팅 연동은 Slack·Teams뿐이라 그 가정이 틀렸다. 사용�
 변경이 없고 제공자 설정뿐이다. `/today`인 이유는 web의 readinessProbe가 보는 경로와 같아서, 살아 있다는
 정의를 두 곳에서 다르게 두지 않기 위해서다.
 
-## 2단계 — 회차마다 남기는 모양 지표
+## 2단계 — 로컬 Argo에 진짜 템플릿을 제출해 보는 층 (CI 게이트)
+
+**무엇.** 명령 하나, `pnpm workflow:argo-smoke`. k3d 클러스터를 띄우고 운영과 같은 버전의 Argo
+Workflows를 넣고, `infra/envs/dev`를 렌더해 적용하고, dataplane 이미지를 그 자리에서 빌드해 넣은 뒤
+`advancing-backfill-pipeline`을 제출한다. 판정은 `decide → run`의 `when` 조건이 실제로 통과해 `run`이
+`Skipped`가 아니라 실행되는가, 그리고 모든 container template의 파드가 설정 검증을 지나 기동하는가다.
+
+2026-09-14~15의 두 버그가 정확히 여기서 잡힌다. 환경변수 넷이 빠지면 파드가 exit 64로 죽고, `True ==
+true`면 `run`이 `Skipped`로 남는다. 둘 다 단위 테스트가 볼 수 없는 오케스트레이터의 의미론이다.
+
+**왜 dev 클러스터가 아니라 k3d인가.** EAT-130의 dev 클러스터는 "prod를 새 PC로 옮긴 뒤"가 전제라 지금
+없다. 그런데 파이프라인 검증에는 웹도 터널도 OAuth도 필요 없다. Argo Workflows 하나, WorkflowTemplate,
+일회용 Postgres, dataplane 이미지면 된다. 이 PC에 Docker Desktop과 k3d가 있고 `infra/k3d.yaml`이
+클러스터 모양을 기록해 두었다.
+
+**소스를 부르지 않는다.** `discover`가 eaT에 닿으면 안 된다(ADR 0051 결정 4). smoke는 `next-backfill-window`
+가 창을 고르고 `run` DAG가 **시작되는 것**까지만 본다. eaT 주소는 설정이 아니라 코드에 있으므로
+(`source/eat/registry.py`의 `EAT_ORIGIN = https://ns.eat.co.kr`) smoke 전용 patch가 파드에 `hostAliases`로
+`ns.eat.co.kr → 127.0.0.1`을 박는다. `discover` 파드는 뜨고 설정 검증을 지나 소스 연결에서 실패한다. 소스
+연결 실패(TRANSIENT_NETWORK, exit 69)와 파드가 못 뜬 것(CONFIGURATION, exit 64)은 exit code가 다르므로
+판정이 갈린다 — smoke가 보는 것은 `run`이 `Skipped`가 아니고 `discover`가 64가 아니라는 두 사실이다.
+
+**어디.**
+
+- `tools/agent-workflow/argo-smoke.mjs` — 순서: `k3d cluster create --config infra/k3d-smoke.yaml`,
+  Argo Workflows 설치(`infra/platform/argo-workflows.application.yaml`이 가리키는 chart·버전 그대로),
+  `kubectl kustomize infra/envs/dev | kubectl apply`, `docker build` + `k3d image import`, Secret 넷을
+  더미 값으로 생성, `argo submit --from workflowtemplate/eatbid-dataplane --entrypoint
+  advancing-backfill-pipeline`, 노드 phase 판정, 종료 시 클러스터 삭제.
+- `infra/k3d-smoke.yaml` — 운영용 `infra/k3d.yaml`과 다른 이름(`eatbid-smoke`), 포트 매핑 없음, PVC 없음.
+  운영 기록 파일을 건드리지 않는 이유는 그 파일 머리말이 "지금 도는 클러스터에 적용하지 마라"다.
+- `.github/workflows/validate.yml` — job `argo-smoke`. k3d는 Actions에서 2분이면 뜬다. dataplane 이미지
+  빌드가 캐시로 2~3분. PR 검증에 5분쯤 더 붙는다. 하루를 날린 버그 종류를 매 PR마다 잡는 값이다. ADR 0050
+  "CI가 유일한 판정자"에 맞게 필수 check로 둔다.
+- `docs/operations/collection-runbook.md` — "템플릿을 고쳤으면 smoke를 먼저" 한 절.
+
+**검사.** smoke 자체가 검사다. 고치기 전 `workflow-template.yaml`(env 넷 빠진 것)과 고치기 전
+`cli/main.py`(`str(True)`)로 각각 돌려 **실패하는 것**을 확인하고, 고친 뒤 통과하는 것을 확인한다. 검사가
+그 버그를 실제로 잡는다는 증거가 없으면 게이트가 아니라 장식이다.
+
+## 3단계 — 회차마다 남기는 모양 지표
 
 **무엇.** 이미 15분마다 DB에 붙는 `check-expectations`가 회차 끝에 **행 하나**를 남긴다. 알림의 근거가
 아니라 사람이 보는 모양이다(ADR 0046 결정 4는 지표로 판정하지 말라고 했지 지표를 두지 말라고 하지
@@ -143,14 +187,14 @@ Stack의 채팅 연동은 Slack·Teams뿐이라 그 가정이 틀렸다. 사용�
 bootstrap 절차에 한 줄 더한다. 쓰기 지도(`docs/architecture/ingestion-write-map.md`)에 `monitoring.round`
 의 소유자로 `check-expectations`를 적는다 — `write-map` gate가 이것을 요구한다.
 
-**왜 R2가 아닌가.** 3단계의 Grafana가 SQL로 바로 읽어야 하고, 상태 문서와 달리 이것은 덮어쓰는 값이
+**왜 R2가 아닌가.** 4단계의 Grafana가 SQL로 바로 읽어야 하고, 상태 문서와 달리 이것은 덮어쓰는 값이
 아니라 쌓이는 사실이다. 회차당 한 행, 하루 96행, 한 해 3만5천 행이라 보존 정책 없이 둔다.
 
 **검사.** 단위 — 열 아홉이 전부 채워지는지, 표본 0일 때 0으로(NULL이 아니라) 남는지. 통합 —
 `migrated_db`에 한 회차 돌려 행 하나. 운영 — 배포 하루 뒤 `select * from monitoring.round order by
 observed_at desc limit 96`이 96행이고 `runs_started_1h`가 영업시간에 6 안팎, 밤에 0~1이다.
 
-## 3단계 — 이미 있는 것을 연결한다
+## 4단계 — 이미 있는 것을 연결한다
 
 **3a. Sentry를 켠다.** 코드는 이미 있다. 빠진 것은 값 셋 — `NEXT_PUBLIC_SENTRY_ORG`,
 `NEXT_PUBLIC_SENTRY_PROJECT`, `SENTRY_DSN`. 새 InfisicalSecret `eatbid-sentry`(`/runtime/sentry`)를
@@ -163,7 +207,7 @@ Application, argo-workflows와 같은 모양). promtail이 `eatbid` namespace �
 서버가 이미 JSON 한 줄씩 쓰므로 파싱 규칙이 필요 없다. 보존 7일. 노드에 자리는 있다(0절).
 
 **3c. Grafana.** `infra/platform/grafana.application.yaml`. 데이터 소스 둘 — PostgreSQL(`eatbid_grafana`
-역할)과 Loki. 대시보드 하나를 provisioning으로 커밋한다: 2단계의 아홉 열이 각각 선 하나, 아래에 최근
+역할)과 Loki. 대시보드 하나를 provisioning으로 커밋한다: 3단계의 아홉 열이 각각 선 하나, 아래에 최근
 서버 로그. 접근은 내부 Ingress(`infra/base/internal-ingress.yaml`의 `ipAllowList` 뒤)이며 밖에 열지
 않는다(ADR 0012). 이것이 EAT-174다.
 
@@ -171,7 +215,7 @@ Application, argo-workflows와 같은 모양). promtail이 `eatbid` namespace �
 `Sentry.captureMessage('probe')`를 쳐 Sentry에 도착하는 것을 본다. 3b — 서버 파드를 재시작한 뒤
 Grafana에서 재시작 전 로그가 보인다. 3c — 대시보드 스크린샷을 `docs/evidence/operations/`에 남긴다.
 
-## 4단계 — 워크플로 이름을 기록된 사실로 (ADR 0046 결정 1의 다리)
+## 5단계 — 워크플로 이름을 기록된 사실로 (ADR 0046 결정 1의 다리)
 
 **무엇.** `ingest.run`에 `workflow_name text` 열. `discover`(run을 만드는 단계)가 `{{workflow.name}}`을
 env `EATBID_WORKFLOW_NAME`으로 받아 `--workflow-name`으로 넘기고 run 행에 쓴다. 알림 문구의 `detail`에
@@ -184,7 +228,7 @@ env `EATBID_WORKFLOW_NAME`으로 받아 `--workflow-name`으로 넘기고 run �
 인자, `ingest/postgres_repository.py`의 run 생성, `infra/base/workflows/workflow-template.yaml`의 discover
 env, `monitoring/expectations.py`의 `backfill-progress` SQL이 `workflow_name`을 함께 select.
 
-## 5단계 — 배포 자가복구
+## 6단계 — 배포 자가복구
 
 **5a. cosign 재시도.** `.github/workflows/build.yml`의 `cosign sign`·`attest`를 세 번까지 20초 간격으로
 다시 시도한다. OIDC 토큰 조회는 GitHub 쪽 일시 장애가 있고, 그때 사람이 `gh run rerun --failed`를 치는
@@ -196,7 +240,7 @@ workflow:release -- v0.1.N`으로 부른다. `docs/operations/collection-runbook
 runtime 문서 §5에 "릴리스 중 병합 금지"를 규칙으로 적는다. promote의 거부 자체는 맞는 동작이므로
 바꾸지 않는다.
 
-## 6단계 — 아키텍처를 단계별로 같이 훑는다
+## 7단계 — 아키텍처를 단계별로 같이 훑는다
 
 1단계가 운영에 들어간 뒤 한다. 여덟 단계(예약 → 발견 → 상세 → 해석 → 검증·봉인 → 발행 → 파생 → 배포)
 마다 셋을 묻는다 — 설계가 뭐라 하나, 실제로 뭐가 일어나나, **멈추면 어떻게 아나.** 각 단계를 열 때
@@ -209,14 +253,14 @@ runtime 문서 §5에 "릴리스 중 병합 금지"를 규칙으로 적는다. p
 | 언제 | 무엇 | 걸리는 시간 |
 |---|---|---|
 | 1단계 시작 | 제공자 계정, heartbeat check 하나(15분/유예 15분), HTTP check 하나(`eatbid.net/today`), 텔레그램 연결, 핑 URL을 Infisical `prod:/runtime/alerting`의 `HEARTBEAT_URL`에 | 15분 |
-| 3a | Sentry 프로젝트, DSN·org·project를 Infisical `prod:/runtime/sentry`에 | 10분 |
-| 2단계 | `eatbid_grafana` 역할 생성(operator bootstrap) | 5분 |
-| 6단계 | 같이 앉는 시간 | 단계당 20분 |
+| 4a | Sentry 프로젝트, DSN·org·project를 Infisical `prod:/runtime/sentry`에 | 10분 |
+| 3단계 | `eatbid_grafana` 역할 생성(operator bootstrap) | 5분 |
+| 7단계 | 같이 앉는 시간 | 단계당 20분 |
 
 나머지는 전부 코드와 manifest다.
 
 ## Non-goals
 
-OTel 계측(EAT-173) — 이 문서의 2·3단계가 자리를 비워 두고 값만 다른 형태로 나중에 들어온다. 상태
+OTel 계측(EAT-173) — 이 문서의 3·4단계가 자리를 비워 두고 값만 다른 형태로 나중에 들어온다. 상태
 페이지 공개 — EAT-171이 "사용자가 생긴 뒤"로 정했고 제공자가 부가로 주므로 그때 켠다. dev 환경의
 심장박동 — dev 클러스터가 생긴 뒤 같은 코드에 다른 URL이다. Alertmanager — 2026-09-15 결정으로 제외.
