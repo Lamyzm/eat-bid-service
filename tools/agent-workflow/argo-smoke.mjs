@@ -218,6 +218,11 @@ export async function runArgoSmoke({ cwd = process.cwd(), argv = process.argv.sl
       process.stdout.write(`▶ ${step.label}\n`);
       const { status } = run(root, step.command, step.args);
       if (status !== 0 && !step.allowFailure) throw new Error(`${step.label} 단계가 실패했습니다(exit ${status}).`);
+      // k3d의 wait는 서버 노드가 뜬 것까지만 본다. API discovery(helm이 첫 호출에서 한다)가 서기까지
+      // 몇 초가 더 걸리고, 그 사이 호출은 "unable to handle the request"다. discovery 자체가 되는지를 묻는다.
+      if (step.label === "cluster") {
+        waitFor(root, "kube-apiserver discovery", () => run(root, "kubectl", ["--context", CONTEXT, "api-resources"], { capture: true }).status === 0, { timeoutMs: 120_000, intervalMs: 3000 });
+      }
     }
 
     // 첫 apply는 Job 둘이 역할 부재로 죽는다(provisioning SQL이 역할 존재를 전제한다). postgres가 뜬 뒤
