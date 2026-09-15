@@ -196,24 +196,31 @@ observed_at desc limit 96`이 96행이고 `runs_started_1h`가 영업시간에 6
 
 ## 4단계 — 이미 있는 것을 연결한다
 
-**3a. Sentry를 켠다.** 코드는 이미 있다. 빠진 것은 값 셋 — `NEXT_PUBLIC_SENTRY_ORG`,
-`NEXT_PUBLIC_SENTRY_PROJECT`, `SENTRY_DSN`. 새 InfisicalSecret `eatbid-sentry`(`/runtime/sentry`)를
-`infra/base/secrets.yaml`에 더하고 web Deployment에 env로 준다. `test_product_secret_contract.py`의
-"여섯"이 "일곱"이 된다. 소스맵 업로드(`SENTRY_AUTH_TOKEN`, 빌드 시점)는 후속 — 지금은 스택이 minified여도
+**4a. Sentry를 켠다.** 코드는 이미 있다. 빠진 것은 값 셋 — `NEXT_PUBLIC_SENTRY_ORG`,
+`NEXT_PUBLIC_SENTRY_PROJECT`, `NEXT_PUBLIC_SENTRY_DSN`. **manifest env가 아니다** — `next.config.ts`의
+`withSentryConfig`와 `instrumentation*.ts`의 `Sentry.init`은 빌드 시점에 값을 읽으므로(2026-09-16 실측)
+`build.yml`의 web `build-args`와 `Dockerfile.web`의 `ARG`→`ENV`로 들어간다. 값은 공개 식별자라 GitHub
+repository variables에 둔다. 소스맵 업로드(`SENTRY_AUTH_TOKEN`)는 후속 — 지금은 스택이 minified여도
 "깨졌다"는 사실이 먼저다. 서버 쪽 Sentry(`@sentry/node`)는 그 다음이다.
 
-**3b. 서버 로그를 받아 둔다.** Loki + promtail을 `infra/platform/loki.application.yaml`로 올린다(Argo CD
-Application, argo-workflows와 같은 모양). promtail이 `eatbid` namespace 파드의 stdout을 Loki로 보낸다.
-서버가 이미 JSON 한 줄씩 쓰므로 파싱 규칙이 필요 없다. 보존 7일. 노드에 자리는 있다(0절).
+**4b. 서버 로그를 받아 둔다.** Loki+promtail이 아니라 **OpenObserve**다 — `runtime-and-deployment.md §8.4`가
+이미 이 시점의 선택으로 적어 둔 것이고(단일 바이너리, R2 backend), promtail chart는 deprecated이며 12GB
+한 노드에서 Loki 스택은 DB와 메모리를 다툰다. `infra/platform/openobserve.application.yaml`(chart
+`openobserve-standalone`, R2 `eatbid-lake/openobserve/`, 보존 14일)과 `fluent-bit.application.yaml`
+(DaemonSet, `eatbid` namespace 파드만 tail → `k8s` 스트림). 서버가 이미 JSON 한 줄씩 쓰므로 파싱 규칙이
+없다. 자격은 기존 `eatbid-r2`와 새 InfisicalSecret `eatbid-observability`(`/runtime/observability`).
 
-**3c. Grafana.** `infra/platform/grafana.application.yaml`. 데이터 소스 둘 — PostgreSQL(`eatbid_grafana`
-역할)과 Loki. 대시보드 하나를 provisioning으로 커밋한다: 3단계의 아홉 열이 각각 선 하나, 아래에 최근
-서버 로그. 접근은 내부 Ingress(`infra/base/internal-ingress.yaml`의 `ipAllowList` 뒤)이며 밖에 열지
-않는다(ADR 0012). 이것이 EAT-174다.
+**4c. Grafana.** `infra/platform/grafana.application.yaml`(grafana-community chart — grafana/helm-charts의
+것은 2026-01-30에 옮겨져 deprecated). 데이터 소스는 PostgreSQL(`eatbid_grafana` 읽기 역할, `monitoring`·
+`mart` SELECT만) 하나. 로그는 OpenObserve 자체 UI(`/internal/o2`)에서 본다. 대시보드 하나
+(`infra/base/observability/monitoring-round.json`)를 hash 없는 ConfigMap으로 provisioning한다: 3단계의
+아홉 열이 각각 패널 하나. 접근은 내부 Ingress `observability-internal`(`ipAllowList` 뒤)이며 밖에 열지
+않는다(ADR 0012). 이것이 EAT-174다. `eatbid_grafana` 역할은 provisioning이 요구하므로(없으면 RAISE)
+smoke도 같은 역할을 만든다.
 
-**검사.** 3a — 운영 web에 일부러 throw 하나를 넣은 릴리스를 내는 대신, 브라우저 콘솔에서
-`Sentry.captureMessage('probe')`를 쳐 Sentry에 도착하는 것을 본다. 3b — 서버 파드를 재시작한 뒤
-Grafana에서 재시작 전 로그가 보인다. 3c — 대시보드 스크린샷을 `docs/evidence/operations/`에 남긴다.
+**검사.** 4a — 브라우저 콘솔에서 `Sentry.captureMessage('probe')`를 쳐 Sentry에 도착하는 것을 본다.
+4b — 서버 파드를 재시작한 뒤 OpenObserve에서 재시작 전 로그가 보인다. 4c — 대시보드에 07:03 KST 이후
+회차가 선으로 보이는 스크린샷을 EAT-174에 남긴다.
 
 ## 5단계 — 워크플로 이름을 기록된 사실로 (ADR 0046 결정 1의 다리)
 

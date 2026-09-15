@@ -1,0 +1,66 @@
+# 로그·지표·추적 저장소. 서버·web 파드의 stdout이 재시작과 함께 사라지던 것을 여기 받아 둔다
+# (관측 계획 4단계, runtime-and-deployment.md §8.4의 "이 시점의 선택"). 단일 바이너리이고 데이터는 R2에
+# 두므로 12GB 한 노드에서 DB와 메모리를 다투지 않는다 — Loki·Prometheus 스택을 고르지 않은 이유다.
+#
+# 자격 둘은 모두 기존 물건이다. 객체 저장소는 dataplane과 같은 `eatbid-r2`(접두사만 `openobserve/`로
+# 나눈다 — raw는 불변 원본, 이것은 흔적이라 성질이 다르다), 루트 사용자는 Infisical `/runtime/observability`가
+# 실어 오는 `eatbid-observability`다. 값은 저장소에 없다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openobserve
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.openobserve.ai
+    chart: openobserve-standalone
+    targetRevision: 0.92.2
+    helm:
+      valuesObject:
+        # Service·StatefulSet 이름을 `openobserve`로 고정한다. 기본값은 release와 chart 이름을 이어 붙인
+        # `openobserve-openobserve-standalone`이라 Ingress·fluent-bit이 그 긴 이름을 알아야 한다.
+        fullnameOverride: openobserve
+        auth:
+          existingRootUserSecret:
+            name: eatbid-observability
+            emailKey: ZO_ROOT_USER_EMAIL
+            passwordKey: ZO_ROOT_USER_PASSWORD
+        extraEnv:
+          - name: ZO_S3_ACCESS_KEY
+            valueFrom: { secretKeyRef: { name: eatbid-r2, key: R2_ACCESS_KEY_ID } }
+          - name: ZO_S3_SECRET_KEY
+            valueFrom: { secretKeyRef: { name: eatbid-r2, key: R2_SECRET_ACCESS_KEY } }
+        config:
+          ZO_LOCAL_MODE: "true"
+          ZO_LOCAL_MODE_STORAGE: s3
+          ZO_S3_PROVIDER: s3
+          ZO_S3_SERVER_URL: https://eea3b61ab086ecd0c9034f40fa4d8b7f.r2.cloudflarestorage.com
+          ZO_S3_REGION_NAME: auto
+          ZO_S3_BUCKET_NAME: eatbid-lake
+          ZO_S3_BUCKET_PREFIX: openobserve/
+          # R2는 virtual-hosted style을 받지만 path style이 안전하다. HTTP/1만 쓰는 이유도 같다.
+          ZO_S3_FEATURE_FORCE_HOSTED_STYLE: "false"
+          ZO_S3_FEATURE_HTTP1_ONLY: "true"
+          # 로그는 사후 진단용이다. 2주면 사고 뒤 살펴볼 시간으로 충분하고 R2 비용이 보이지 않는다.
+          ZO_COMPACT_DATA_RETENTION_DAYS: "14"
+          # 내부 Ingress 경로 아래에서 UI를 서빙한다(base/observability-ingress.yaml).
+          ZO_BASE_URI: /internal/o2
+          ZO_TELEMETRY: "false"
+        # 로컬 디스크는 WAL과 캐시뿐이다. 데이터는 R2에 있다.
+        persistence:
+          enabled: true
+          size: 5Gi
+        resources:
+          requests: { cpu: 100m, memory: 256Mi }
+          limits: { memory: 1Gi }
+        ingress:
+          enabled: false
+        serviceMonitor:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: eatbid
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

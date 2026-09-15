@@ -377,9 +377,12 @@ def test_product_manifest는_소비할_product_image_넷을_정확히_갖는다(
     base = yaml.safe_load(
         (ROOT / "infra" / "base" / "kustomization.yaml").read_text(encoding="utf-8")
     )
-    assert [generator["files"] for generator in base["configMapGenerator"]] == [
-        ["db-provisioning.sql"]
-    ]
+    generators = {generator["name"]: generator for generator in base["configMapGenerator"]}
+    assert generators["eatbid-db-provisioning"]["files"] == ["db-provisioning.sql"]
+    assert "options" not in generators["eatbid-db-provisioning"]
+    # Grafana 대시보드만 이름을 고정한다 — chart가 이름으로 마운트하므로 hash가 붙으면 못 찾는다(EAT-174).
+    assert generators["eatbid-grafana-dashboards"]["options"] == {"disableNameSuffixHash": True}
+    assert set(generators) == {"eatbid-db-provisioning", "eatbid-grafana-dashboards"}
     assert "configMapGenerator" not in manifest
     assert {image["name"] for image in images} == {
         "eatbid-web",
