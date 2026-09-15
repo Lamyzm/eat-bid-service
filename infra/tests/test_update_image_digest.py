@@ -56,7 +56,7 @@ def test_지정한_image_digest만_교체하고_나머지_byte는_보존한다(
         "    newName: ghcr.io/lamyzm/eatbid-dataplane\r\n"
         "    digest: sha256:old # replace only this scalar\r\n"
         "resources:\r\n"
-        "  - ../k8s/base\r\n",
+        "  - ../../base\r\n",
     )
 
     update_digest(manifest, "eatbid-dataplane", VALID_DIGEST)
@@ -72,7 +72,7 @@ def test_지정한_image_digest만_교체하고_나머지_byte는_보존한다(
         "    newName: ghcr.io/lamyzm/eatbid-dataplane\r\n"
         f"    digest: {VALID_DIGEST} # replace only this scalar\r\n"
         "resources:\r\n"
-        "  - ../k8s/base\r\n"
+        "  - ../../base\r\n"
     ).encode("utf-8")
     assert manifest.read_bytes() == expected
 

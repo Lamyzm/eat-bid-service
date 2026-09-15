@@ -1,0 +1,29 @@
+# 운영 overlay다. 이 파일의 digest 네 줄은 사람이 쓰지 않는다 — release tag 레인의 promote 단계가
+# `infra/update_image_digest.py`로 갱신하고 `deploy/prod`에 밀어 넣는다(ADR 0051 결정 2).
+#
+# dev overlay의 digest는 main 레인이 따로 갱신하며 두 레인은 서로의 파일을 건드리지 않는다(결정 3).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - name: eatbid-web
+    newName: ghcr.io/lamyzm/eatbid-web
+    digest: sha256:d8a04107853da577ac1275a0f771797cacddd396078a45429ce4c473a7b05b93
+  - name: eatbid-server
+    newName: ghcr.io/lamyzm/eatbid-server
+    digest: sha256:0c6c0292fd12371c1f7d23cff6d9de8f18761f43c58895640fd71ef05961ee40
+  - name: eatbid-dataplane
+    newName: ghcr.io/lamyzm/eatbid-dataplane
+    digest: sha256:41b9ab30dc47fc5816a571a8140b02b3f64a9c699b1f1331e3022858b9c02fd3
+  - name: eatbid-migration
+    newName: ghcr.io/lamyzm/eatbid-migration
+    digest: sha256:e9b9fce488cc9a98cb4ddbd1353f06262cf4c84067d9b879a435e6fb75e818fa
+
+patches:
+  - path: patches/postgres-secret-env.patch.yaml
+  - path: patches/server-secret-env.patch.yaml
+  - path: patches/web-secret-env.patch.yaml
+  - path: patches/sync-waves.patch.yaml

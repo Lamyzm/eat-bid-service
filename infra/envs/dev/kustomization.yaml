@@ -1,0 +1,70 @@
+# dev overlay다. `main`이 병합될 때마다 비서명 `main-<sha>` 이미지를 받는다(ADR 0051 결정 2).
+#
+# dev는 eaT를 부르지 않는다. 소스에 붙는 클러스터는 하나뿐이어야 하므로 수집 CronWorkflow를 전부
+# suspend한다(결정 4). dev의 데이터는 prod 덤프 첫 채움과 R2 replay로 만든다. 감시 검사(expectation)와
+# 백업은 dev에서 의미가 없으므로 같이 멈춘다 — 알림 방이 하나라서 dev가 울리면 운영 알림과 섞인다.
+#
+# patch를 prod에서 복사해 온 이유: kustomize는 기본 load restriction에서 kustomization 디렉터리 밖의
+# 파일을 patch로 읽지 못한다. base에 두면 base가 prod 호스트명을 갖게 되므로 그쪽도 답이 아니다.
+# 복사본이 갈라지지 않게 지키는 것은 아래 렌더 검사다(infra/tests).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# 이 네 줄은 사람이 쓰지 않는다. main 레인이 `infra/update_image_digest.py`로 갱신한다. 초기값은
+# 전환 시점의 prod digest다 — dev가 처음부터 뜰 수 있어야 첫 main 병합 전에도 상태를 볼 수 있다.
+images:
+  - name: eatbid-web
+    newName: ghcr.io/lamyzm/eatbid-web
+    digest: sha256:d8a04107853da577ac1275a0f771797cacddd396078a45429ce4c473a7b05b93
+  - name: eatbid-server
+    newName: ghcr.io/lamyzm/eatbid-server
+    digest: sha256:0c6c0292fd12371c1f7d23cff6d9de8f18761f43c58895640fd71ef05961ee40
+  - name: eatbid-dataplane
+    newName: ghcr.io/lamyzm/eatbid-dataplane
+    digest: sha256:41b9ab30dc47fc5816a571a8140b02b3f64a9c699b1f1331e3022858b9c02fd3
+  - name: eatbid-migration
+    newName: ghcr.io/lamyzm/eatbid-migration
+    digest: sha256:e9b9fce488cc9a98cb4ddbd1353f06262cf4c84067d9b879a435e6fb75e818fa
+
+patches:
+  - path: patches/postgres-secret-env.patch.yaml
+  - path: patches/server-secret-env.patch.yaml
+  - path: patches/web-secret-env.patch.yaml
+  - path: patches/sync-waves.patch.yaml
+
+  # 비밀값은 Infisical의 dev 환경에서 온다. 일곱 개를 하나하나 적지 않고 kind로 한 번에 건다 —
+  # base에 InfisicalSecret이 늘어도 이 overlay를 고치지 않아야 두 곳이 갈라지지 않는다.
+  - target:
+      kind: InfisicalSecret
+    patch: |-
+      - op: replace
+        path: /spec/authentication/universalAuth/secretsScope/envSlug
+        value: dev
+
+  # 로그인 리디렉션이 돌아올 주소다. base는 prod 값을 들고 있으므로 여기서 덮는다. 위치가 아니라
+  # 이름으로 거는 이유는 env 목록에 항목이 하나 끼어들면 인덱스로 건 patch가 엉뚱한 값을 덮기 때문이다.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: server
+        namespace: eatbid
+      spec:
+        template:
+          spec:
+            containers:
+              - name: server
+                env:
+                  - name: BETTER_AUTH_URL
+                    value: "https://dev.eatbid.net"
+
+  # 수집·백업·감시를 전부 멈춘다. dev가 소스를 부르지 않는다는 결정이 manifest로 내려온 자리다.
+  - target:
+      kind: CronWorkflow
+    patch: |-
+      - op: replace
+        path: /spec/suspend
+        value: true

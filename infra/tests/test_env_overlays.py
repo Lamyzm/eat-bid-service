@@ -1,0 +1,122 @@
+"""모듈 책임: 환경 overlay가 base에서 무엇만 바꾸는지, 그리고 prod 렌더가 전환 전과 같은지 고정한다."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+from conftest import MONOREPO_ROOT, ManifestSet
+
+
+def _render_text(path: Path) -> str:
+    result = subprocess.run(
+        ["kubectl", "kustomize", str(path)],
+        capture_output=True,
+        check=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return result.stdout
+
+
+def test_product_별칭은_prod_overlay와_글자까지_같은_것을_낸다() -> None:
+    """Argo CD Application이 `deploy/prod`의 `infra/product`를 보고 `prune: true`다.
+
+    경로를 한 번에 옮기면 어느 쪽으로 해도 Argo가 "선언된 것이 없다"로 읽어 운영 리소스를 지운다.
+    전환 릴리스가 두 경로를 모두 싣고 둘이 같은 것을 내야 path를 언제 바꿔도 diff가 0이다.
+    이 검사가 참인 동안에만 그 전환이 안전하다.
+    """
+    별칭 = _render_text(MONOREPO_ROOT / "infra" / "product")
+    overlay = _render_text(MONOREPO_ROOT / "infra" / "envs" / "prod")
+
+    assert 별칭 == overlay
+
+
+def test_base만으로는_이미지를_당길_곳이_없다(base_manifests: ManifestSet) -> None:
+    """base에 digest가 있으면 환경 없이 배포하는 길이 생긴다.
+
+    base는 이름뿐인 이미지를 두고 overlay가 digest를 채운다. 그래야 "어느 환경인가"를 고르지 않고
+    배포하는 일이 구조적으로 불가능하다.
+    """
+    images = [
+        container["image"]
+        for document in base_manifests.of_kind("Deployment")
+        for container in document["spec"]["template"]["spec"]["containers"]  # type: ignore[index]
+    ]
+
+    assert images, "base에 Deployment가 없다 — 이 검사가 무엇도 지키지 못한다"
+    assert all("@sha256:" not in image for image in images)
+
+
+def test_dev는_소스를_부르지_않는다(dev_manifests: ManifestSet) -> None:
+    """eaT에 붙는 클러스터는 하나뿐이어야 한다(ADR 0051 결정 4).
+
+    백업과 감시까지 함께 멈추는 이유는 알림 방이 하나이기 때문이다. dev가 울리면 운영 알림과 섞여
+    사람이 어느 환경의 사고인지 알 수 없다.
+    """
+    crons = dev_manifests.of_kind("CronWorkflow")
+
+    assert crons, "dev에 CronWorkflow가 없다 — 이 검사가 무엇도 지키지 못한다"
+    for cron in crons:
+        assert cron["spec"]["suspend"] is True, cron["metadata"]["name"]  # type: ignore[index]
+
+
+def test_prod는_예약_수집을_멈추지_않는다(prod_manifests: ManifestSet) -> None:
+    수집 = {"eatbid-poll-open", "eatbid-daily-reconcile", "eatbid-backfill-advance"}
+    켜진것 = {
+        str(cron["metadata"]["name"])  # type: ignore[index]
+        for cron in prod_manifests.of_kind("CronWorkflow")
+        if cron["spec"]["suspend"] is False  # type: ignore[index]
+    }
+
+    assert 수집 <= 켜진것
+
+
+def test_dev의_비밀값은_Infisical_dev_환경에서_온다(dev_manifests: ManifestSet) -> None:
+    secrets = dev_manifests.of_kind("InfisicalSecret")
+
+    assert secrets, "dev에 InfisicalSecret이 없다 — 이 검사가 무엇도 지키지 못한다"
+    for secret in secrets:
+        scope = secret["spec"]["authentication"]["universalAuth"]["secretsScope"]  # type: ignore[index]
+        assert scope["envSlug"] == "dev", secret["metadata"]["name"]  # type: ignore[index]
+
+
+def test_prod의_비밀값은_prod_환경에서_온다(prod_manifests: ManifestSet) -> None:
+    for secret in prod_manifests.of_kind("InfisicalSecret"):
+        scope = secret["spec"]["authentication"]["universalAuth"]["secretsScope"]  # type: ignore[index]
+        assert scope["envSlug"] == "prod", secret["metadata"]["name"]  # type: ignore[index]
+
+
+def test_환경마다_공개_주소가_다르다(
+    prod_manifests: ManifestSet, dev_manifests: ManifestSet
+) -> None:
+    """같은 주소를 쓰면 dev 로그인이 운영 세션을 건드리고, 그 사고는 조용하다."""
+
+    def 주소(manifest_set: ManifestSet) -> set[str]:
+        server = manifest_set.named("Deployment", "server")
+        container = server["spec"]["template"]["spec"]["containers"][0]  # type: ignore[index]
+        return {
+            str(item["value"])
+            for item in container["env"]
+            if item.get("name") in {"BETTER_AUTH_URL", "CORS_ORIGINS"}
+        }
+
+    assert 주소(prod_manifests) == {"https://eatbid.net"}
+    assert 주소(dev_manifests) == {"https://dev.eatbid.net"}
+
+
+def test_두_레인은_서로의_overlay_파일을_건드리지_않는다() -> None:
+    """ADR 0051 결정 3이다. 한 레인이 다른 쪽 digest를 쓰면 dev 병합이 운영 이미지를 바꾼다."""
+    release = (MONOREPO_ROOT / ".github" / "workflows" / "build.yml").read_text(
+        encoding="utf-8"
+    )
+    dev = (MONOREPO_ROOT / ".github" / "workflows" / "dev-image.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "infra/envs/dev" not in release
+    assert "infra/envs/prod" not in dev
+    # 태그 레인만 서명한다. dev로 가는 이미지는 publication이 아니라 배포 후보다(결정 5).
+    assert "cosign" not in dev
+    assert "HEAD:refs/heads/deploy/dev" in dev
+    assert "HEAD:refs/heads/deploy/prod" not in dev

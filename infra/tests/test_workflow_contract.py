@@ -20,9 +20,9 @@ from eatbid.source.eat.registry import require
 from eatbid.source.eat.schema_contract import REVIEWED_EAT_SCHEMA_CONTRACTS
 
 ROOT = Path(__file__).parents[2]
-PRODUCT_KUSTOMIZATION = ROOT / "infra" / "product" / "kustomization.yaml"
+PRODUCT_KUSTOMIZATION = ROOT / "infra" / "envs" / "prod" / "kustomization.yaml"
 PLATFORM_APPLICATION = ROOT / "infra" / "platform" / "argo-workflows.application.yaml"
-LIVE_APPLICATION = ROOT / "infra" / "argocd" / "application.yaml"
+LIVE_APPLICATION = ROOT / "infra" / "argocd" / "prod.application.yaml"
 CLI = ROOT / "apps" / "dataplane" / "src" / "eatbid" / "cli" / "main.py"
 BUILD_WORKFLOW = ROOT / ".github" / "workflows" / "build.yml"
 
@@ -178,7 +178,7 @@ def test_live_application은_main의_product_composition을_소비한다() -> No
     assert application["spec"]["source"] == {
         "repoURL": "https://github.com/Lamyzm/eat-bid-service",
         "targetRevision": "deploy/prod",
-        "path": "infra/product",
+        "path": "infra/envs/prod",
     }
     # cutover는 source만 옮긴다. 자동 sync가 켜져 있으므로 수집 schedule은 계속 정지 상태여야 한다.
     assert application["spec"]["destination"] == {
@@ -1446,7 +1446,7 @@ def test_product가_정확히_image_넷을_소비하고_승격한다고_선언�
     )["run"]
     for image in PRODUCT_IMAGES:
         app = image.removeprefix("eatbid-")
-        assert f"infra/product/kustomization.yaml {image} \"$(cat digests/{app})\"" in promote
+        assert f"infra/envs/prod/kustomization.yaml {image} \"$(cat digests/{app})\"" in promote
 
 
 def test_platform_application은_최소_version으로_고정되고_live에_연결되지_않는다() -> None:
