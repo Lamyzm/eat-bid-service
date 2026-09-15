@@ -456,6 +456,8 @@ def test_감시_결과는_심장박동이_나갔는지를_함께_남긴다(
 
     printed = json.loads(capsys.readouterr().out)
     assert printed["heartbeat"] == "skipped"
+    # 회차 지표 행도 같은 이유로 남긴다 — 기록자가 빠진 채 오래 돌면 선이 끊긴 줄 모른다(EAT-227).
+    assert printed["round_recorded"] is False
 
 
 def test_전진_결과의_불리언은_Argo가_읽는_소문자로_적힌다(

@@ -100,3 +100,11 @@ test("Argo는 운영과 같은 chart 버전이고 archiveLogs만 끈다", () => 
   assert.equal(argo.args.includes("artifactRepository.archiveLogs=false"), true);
   assert.equal(argo.args.includes("workflow.serviceAccount.name=eatbid-dataplane"), true);
 });
+
+test("smoke 클러스터는 aggregated API를 등록하는 metrics-server를 끈다", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const config = await readFile(new URL("../../infra/k3d-smoke.yaml", import.meta.url), "utf8");
+
+  assert.equal(config.includes("--disable=metrics-server"), true);
+  assert.equal(config.includes("--disable=traefik"), true);
+});

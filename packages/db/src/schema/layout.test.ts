@@ -46,6 +46,13 @@ describe("schema module 배치", () => {
     expect(existsSync(path.join(schemaRoot, "mart.ts"))).toBe(false);
   });
 
+  test("monitoring aggregate는 회차 표 module 하나로 시작한다", () => {
+    for (const file of ["round.ts", "index.ts"]) {
+      expect(existsSync(path.join(schemaRoot, "monitoring", file))).toBe(true);
+    }
+    expect(existsSync(path.join(schemaRoot, "monitoring.ts"))).toBe(false);
+  });
+
   test("root·core index는 export 조립에만 사용한다", async () => {
     const rootIndex = await readFile(path.join(schemaRoot, "index.ts"), "utf8");
     const coreIndex = await readFile(path.join(schemaRoot, "core", "index.ts"), "utf8");

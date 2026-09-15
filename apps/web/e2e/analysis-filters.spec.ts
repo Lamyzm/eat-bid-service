@@ -88,9 +88,10 @@ test('새 상세의 휴대폰 조건 입력과 전체보기는 가로 화면을 
 
 test('새 상세는 잘못된 주소 조건을 기존 차트나 0건 결과로 대체하지 않는다', async ({ page }) => {
   await page.goto(analysisUrl + '?analysis=%7Bbad');
-  // 경보를 화면 전체에서 고르면 Next가 route 이동을 읽어 주려고 두는 빈 `role="alert"`까지 걸려
-  // strict mode가 둘을 본다. 그 상자가 붙는 시점이 hydration에 달려 있어 CI에서만 간헐로 깨졌다.
-  await expect(page.getByLabel('기관과 지역 비교조건').getByRole('alert')).toContainText('적용할 수 없는 비교조건');
+  // Next가 hydration 뒤 붙이는 route announcer(`__next-route-announcer__`)도 role=alert라 페이지 전역
+  // locator는 타이밍에 따라 둘로 풀린다(2026-09-15~16 main·PR 다섯 회차, EAT-228). 조건 오류는 폼 안의 것이다.
+  const form = page.getByRole('form', { name: '기관과 지역 비교조건' });
+  await expect(form.getByRole('alert')).toContainText('적용할 수 없는 비교조건');
   await expect(page.getByRole('heading', { name: '비교조건을 확인해 주세요' })).toBeVisible();
   await expect(page.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toHaveCount(0);
   await expect(page.getByText('표본 0건')).toHaveCount(0);
