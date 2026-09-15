@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from pydantic import ValidationError
+
 from eatbid.failures.errors import SourceContractError
 from eatbid.generated.code_vocabulary_v1 import (
     EatbidCodeVocabularyV1,
@@ -63,8 +65,11 @@ def parse_code_vocabulary(parsed: ParsedNexacro) -> EatbidCodeVocabularyV1:
             # 이름 없는 행은 어휘가 되지 못한다. 코드만 싣고 이름을 비워 두면 화면이 "이름이 아직
             # 안 온 코드"와 "이름이 없는 코드"를 구분하지 못한다. 세어서 드러내고 넘어간다.
             continue
-        entries.append(
-            NormalizedCodeVocabularyEntry.model_validate(
+        # 값 해석 실패를 계약 위반으로 닫는 이유: 그냥 새어 나가면 `failure_category_for_element`가
+        # 분류하지 못해 CONFIGURATION(우리 코드가 잘못됐다)으로 떨어진다. 소스가 모양을 바꾼 사건과
+        # 우리가 설정을 틀린 사건은 운영에서 하는 일이 다르다.
+        try:
+            entry = NormalizedCodeVocabularyEntry.model_validate(
                 {
                     "scheme": namespace,
                     "code": code,
@@ -74,7 +79,12 @@ def parse_code_vocabulary(parsed: ParsedNexacro) -> EatbidCodeVocabularyV1:
                     "validTo": _instant(row, _VALID_TO_FIELD),
                 }
             )
-        )
+        except (ValidationError, ValueError) as error:
+            raise SourceContractError(
+                f"eaT code list row is not readable "
+                f"[scheme={namespace} code={code} error={error}]"
+            ) from error
+        entries.append(entry)
     return EatbidCodeVocabularyV1.model_validate(
         {
             "sourceSystem": SOURCE_SYSTEM,

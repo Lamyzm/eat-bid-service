@@ -124,6 +124,14 @@ def test_사용_표시가_Y도_N도_아니면_추측하지_않고_멈춘다(use:
         parse_code_vocabulary(parse_nexacro(_response(_row(use=use, deleted=deleted))))
 
 
+@pytest.mark.parametrize("value", ["2026-09-16", "20260931", "2026091"])
+def test_읽을_수_없는_유효기간은_설정_실패가_아니라_계약_위반이다(value: str) -> None:
+    """왜 타입을 따지나. 그냥 새어 나가면 CONFIGURATION(우리 코드가 잘못됐다)으로 분류돼
+    exit code가 바뀌고, 운영이 소스 변경을 우리 설정 오류로 읽는다."""
+    with pytest.raises(SourceContractError, match="not readable"):
+        parse_code_vocabulary(parse_nexacro(_response(_row(valid_from=value))))
+
+
 def test_한_체계_안에서_같은_코드가_두_번_오면_우리가_고르지_않는다() -> None:
     rows = _row(name="경남") + _row(name="경상남도")
 
