@@ -13,7 +13,7 @@ product cutover; Argo CD and Argo Workflows only consume them.
 | `eatbid-cache-revalidate` | `EATBID_CACHE_REVALIDATE_TOKEN` | product operator / environment bootstrap | web (`POST /internal/cache/revalidate`) |
 | `eatbid-r2` | `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | storage operator / environment bootstrap | dataplane, `eatbid-db-backup` CronWorkflow(`backup/postgres/` prefix에 쓰기) |
 | `eatbid-auth` | `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | product operator / environment bootstrap | server |
-| `eatbid-alerting` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | product operator / Infisical `/runtime/alerting` | `eatbid-expectation-check` CronWorkflow. 봇 토큰은 환경 사이 공유, 대상 방은 환경별로 다르다 |
+| `eatbid-alerting` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `HEARTBEAT_URL` | product operator / Infisical `/runtime/alerting` | `eatbid-expectation-check` CronWorkflow. 봇 토큰은 환경 사이 공유, 대상 방과 심장박동 URL은 환경별로 다르다. `HEARTBEAT_URL`은 클러스터 밖 dead man's switch의 핑 주소이며 경로에 토큰이 들어 있어 값 자체가 자격이다(EAT-171) |
 | `cloudflared-creds` | `credentials.json` | network operator / environment bootstrap | cloudflared |
 | `ghcr-pull` | `.dockerconfigjson` | delivery operator / environment bootstrap | namespace default and dataplane ServiceAccounts |
 
