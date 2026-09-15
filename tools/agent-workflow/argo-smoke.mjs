@@ -60,7 +60,7 @@ const DUMMY_SECRETS = {
 // secret-contract.md의 절차에 그 줄이 없다(2026-09-16 smoke 2차 실행에서 실측 — 운영은 누군가 손으로 준
 // 상태다). smoke는 운영이 실제로 갖는 상태를 재현한다.
 const ROLES_SQL = [
-  ...["eatbid_migrator", "eatbid_api", "eatbid_dataplane"].map(
+  ...["eatbid_migrator", "eatbid_api", "eatbid_dataplane", "eatbid_grafana"].map(
     (role) => `create role ${role} login password 'smoke' nosuperuser nocreatedb nocreaterole noinherit;`,
   ),
   "grant create on database eatbid to eatbid_migrator;",
