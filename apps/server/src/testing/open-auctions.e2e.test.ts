@@ -108,7 +108,9 @@ describe("열린 공고 목록 HTTP 경로", () => {
         sidoCodeValueId: null,
         sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
-        itemLabel: null,
+        itemLabels: null,
+        includeUnknownItem: false,
+        onlyWithoutBids: false,
         closesWithinHours: null,
         closesOnKst: null,
         announcedOnKst: null,
@@ -157,7 +159,7 @@ describe("열린 공고 목록 HTTP 경로", () => {
     });
   });
 
-  test("region·item·기간·기초금액·cursor·limit query를 손실 없이 use case 입력으로 옮긴다", async () => {
+  test("지역·품목·참여·기간·기초금액·cursor·limit query를 손실 없이 use case 입력으로 옮긴다", async () => {
     const observed: OpenAuctionQuery[] = [];
     await withServer({
       listOpen: async (query) => {
@@ -180,7 +182,9 @@ describe("열린 공고 목록 HTTP 경로", () => {
         sido: "9007199254740993",
         sigungu: ["9201", "9202"],
         eligibilityArea: ["9101", "9100"],
-        item: "축산",
+        items: ["축산", "가금류"],
+        itemUnknown: "include",
+        bidState: "none",
         closesWithinHours: 72,
         baseAmountMin: "2000000.00",
         baseAmountMax: "3000000.00",
@@ -194,7 +198,9 @@ describe("열린 공고 목록 HTTP 경로", () => {
         sidoCodeValueId: 9_007_199_254_740_993n,
         sigunguCodeValueIds: [9_201n, 9_202n],
         eligibilityAreaCodeValueIds: [9_101n, 9_100n],
-        itemLabel: "축산",
+        itemLabels: ["축산", "가금류"],
+        includeUnknownItem: true,
+        onlyWithoutBids: true,
         closesWithinHours: 72,
         closesOnKst: null,
         announcedOnKst: null,
@@ -212,7 +218,9 @@ describe("열린 공고 목록 HTTP 경로", () => {
         eligibilityArea: ["9101", "9100"],
         eligibilityMatchedCount: 0,
         eligibilityUnobservedCount: 0,
-        item: "축산",
+        items: ["축산", "가금류"],
+        itemUnknown: "include",
+        bidState: "none",
         closesWithinHours: 72,
         closesOn: null,
         announcedOn: null,

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { auctionV1Operations } from "./operations";
 import { openAuctionListQuerySchema } from "./list-open-auctions.query";
-import { openAuctionListV1ResponseSchema } from "./list-open-auctions.response";
+import { openAuctionListMetaSchema, openAuctionListV1ResponseSchema } from "./list-open-auctions.response";
 import { openAuctionRowSchema } from "./open-auction.resource";
 
 const nullLineage = {
@@ -65,6 +65,8 @@ const meta = {
   eligibilityMatchedCount: null,
   eligibilityUnobservedCount: null,
   items: null,
+  itemUnknown: null,
+  bidState: null,
   closesWithinHours: null,
   closesOn: null,
   announcedOn: null,
@@ -75,6 +77,15 @@ const meta = {
 };
 
 describe("열린 공고 목록 계약", () => {
+  /**
+   * 표본 `meta`가 계약의 모든 키를 덮는지 본다. 축을 하나 더할 때 이 표본을 빠뜨리면 나머지 시험들이
+   * **옛 모양 위에서** 통과해 버리고, 깨지는 자리는 계약이 아니라 한참 뒤의 브라우저 검증이 된다
+   * (2026-09-15 `itemUnknown`·`bidState`가 그랬다).
+   */
+  test("표본 meta는 계약이 요구하는 키를 하나도 빠뜨리지 않는다", () => {
+    expect(Object.keys(meta).toSorted()).toEqual(Object.keys(openAuctionListMetaSchema.shape).toSorted());
+  });
+
   test("열린 공고 목록 응답은 계보 둘을 각각 전부 null로 허용한다", () => {
     const parsed = openAuctionListV1ResponseSchema.safeParse({
       auctions: [],
