@@ -34,3 +34,9 @@ options:
       - arg: --disable=traefik
         nodeFilters:
           - server:*
+      # metrics-server는 aggregated API(metrics.k8s.io)를 등록하고, 그 API가 아직 안 뜬 사이에 helm이
+      # discovery를 하면 "the server is currently unable to handle the request"로 죽는다(2026-09-16
+      # PR #34 CI 실측). smoke는 metrics를 쓰지 않으므로 aggregated API 자체를 없앤다.
+      - arg: --disable=metrics-server
+        nodeFilters:
+          - server:*

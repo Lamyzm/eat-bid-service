@@ -1,3 +1,11 @@
+---
+id: ARC42
+status: active
+canonical_for: arc42-whole-system-narrative
+last_reviewed: 2026-09-16
+review_trigger: system-boundary-or-monorepo-layout-change
+---
+
 # eatbid arc42
 
 ## 1. 소개와 목표
@@ -63,7 +71,7 @@ NeaT 실제 제출, eaT 원본 시스템, 인증 제공자, R2, GitHub/GHCR은 �
 | `packages/domain` | 언어 중립에 가까운 용어/불변식 | domain primitives/policies |
 | `packages/contracts` | HTTP 계약과 호환성 | schemas/DTOs |
 | `infra/platform` | Argo/DB/관측 기반 | GitOps manifests |
-| `infra/product` | 제품 배포·workflow templates | GitOps manifests |
+| `infra/base` + `infra/envs/{prod,dev,smoke}` | 제품 배포·workflow templates(base)와 환경 overlay | GitOps manifests |
 
 목표 모노레포 구조:
 

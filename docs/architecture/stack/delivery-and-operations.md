@@ -1,3 +1,11 @@
+---
+id: STACK-DELIVERY-AND-OPERATIONS
+status: active
+canonical_for: delivery-pipeline-and-operations-stack-selection
+last_reviewed: 2026-09-16
+review_trigger: ci-release-lane-or-gitops-source-change
+---
+
 # Delivery and operations audit
 
 Research was checked on 2026-08-29. “Foundation baseline” means the architectural
@@ -17,11 +25,11 @@ The repository now declares a delivery control chain in `.github/workflows/build
 frozen pnpm/uv installs, pinned Bun and uv executables, PostgreSQL 16 migration checks,
 four images built from one full Git SHA, pre-push Trivy severity scanning and SPDX SBOM
 generation, registry-digest resolution, and Cosign keyless signature plus SLSA v1/SPDX
-attestations with exact issuer/workflow-identity verification. `infra/product` owns
-the three currently consumed image digests; the migration image has no invented
+attestations with exact issuer/workflow-identity verification. `infra/envs/prod` owns
+the currently consumed image digests; the migration image has no invented
 workload yet. These are repository-declared controls, not production evidence: this
 branch has not run the GitHub workflow, published those images, or retained successful
-scan, attestation, signature, and verification records. 저장소의 Argo CD Application manifest는 `main`의 `infra/product`를
+scan, attestation, signature, and verification records. 저장소의 Argo CD Application manifest는 `deploy/prod`의 `infra/envs/prod`를
 선언하지만, live cluster가 그 source로 전환됐는지는 별도 승인 절차의 결과이며 이 문서가 아니라
 [main-authority-cutover.md](../../operations/main-authority-cutover.md)가 기록한다. The
 repository also still lacks production evidence for Kubernetes compatibility, an OTel
@@ -34,7 +42,7 @@ drill.
 |---|---|---|---|---|
 | Docker, BuildKit, buildx | Build web/server/dataplane/migration images from digest-pinned bases and one full Git SHA | [Docker BuildKit](https://docs.docker.com/build/buildkit/), [buildx](https://docs.docker.com/build/building/multi-platform/) | Adopted | Four non-root image definitions and the matrix contract exist; review on a base digest, target-platform, or build-context change. |
 | GitHub Actions | `main` push는 읽기 전용 `validate.yml`만, canonical annotated `release/v<semver>` tag push는 frozen TS/Python/migration gate 뒤 scan·SBOM·publish·Cosign sign/attest/verify·digest promotion을 실행한다 | [GitHub Actions documentation](https://docs.github.com/actions) | Adopted | ADR 0024대로 발행 경계는 tag다. GitHub Free에는 branch protection이 없으므로 protected-branch 실행을 완료 조건으로 삼지 않고, 성공한 release tag run 하나를 production evidence로 요구한다. permission·action·promotion 순서가 바뀔 때마다 재검토한다. |
-| Argo CD | 저장소 Application manifest는 `main`의 `infra/product`를 auto-sync하도록 선언돼 있다 | [Argo CD documentation](https://argo-cd.readthedocs.io/) | Adopted | manifest 전환과 live cluster apply는 별개다. 클러스터가 실제로 어느 source를 보는지는 [main-authority-cutover.md](../../operations/main-authority-cutover.md)의 승인 절차로만 바꾼다. product manifest가 승격되기 전에 재검토한다. |
+| Argo CD | 저장소 Application manifest는 `deploy/prod`의 `infra/envs/prod`를 auto-sync하도록 선언돼 있다 | [Argo CD documentation](https://argo-cd.readthedocs.io/) | Adopted | manifest 전환과 live cluster apply는 별개다. 클러스터가 실제로 어느 source를 보는지는 [main-authority-cutover.md](../../operations/main-authority-cutover.md)의 승인 절차로만 바꾼다. product manifest가 승격되기 전에 재검토한다. |
 | Argo Workflows | Run poll/reconcile/backfill/replay DAGs | [Argo Workflows documentation](https://argo-workflows.readthedocs.io/) | Adopted | Selected by ADR 0007; review when the first WorkflowTemplate is introduced. |
 | Helm as Argo source | Package third-party/platform charts through Argo CD | [Argo Helm source](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/) | Deferred | Use only where an upstream chart is the maintained source; trigger when installing a chart-based platform component. |
 | Kustomize | Product overlay pins web/server/dataplane by immutable digest; base owns no image tag policy | [Kustomize](https://kustomize.io/) | Adopted | This repository control renders locally, but Argo CD still points at the legacy base; review when the product application is wired and whenever an image consumer is added or removed. |

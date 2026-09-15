@@ -91,7 +91,7 @@ Copy-Secret -Namespace eatbid -Name eatbid-auth
 
 # migration Job·server·web은 default ServiceAccount로 돌고 manifest에 imagePullSecrets가 없다. 옛 클러스터는 이
 # SA를 손으로 패치해 두었고 그것이 미기록 자산이었다. 여기서 같은 패치를 기록된 절차로 남긴다.
-# 후속: infra/product manifest가 imagePullSecrets를 직접 선언하면 이 패치는 지운다.
+# 후속: infra/base manifest가 imagePullSecrets를 직접 선언하면 이 패치는 지운다.
 kubectl --context $TargetContext -n eatbid patch serviceaccount default -p '{"imagePullSecrets":[{"name":"ghcr-pull"}]}' | Out-Null
 
 # platform(Argo Workflows·Infisical operator) → product(eatbid) 순서. product는 InfisicalSecret CRD를 쓰므로
