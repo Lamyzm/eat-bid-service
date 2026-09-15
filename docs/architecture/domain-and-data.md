@@ -1,3 +1,11 @@
+---
+id: DOMAIN-AND-DATA
+status: active
+canonical_for: domain-model-ssot-and-code-schemes
+last_reviewed: 2026-09-16
+review_trigger: authority-schema-identity-or-code-scheme-change
+---
+
 # 도메인·데이터·코드 체계
 
 ## 1. 데이터 권위와 스키마 소유권
@@ -9,8 +17,10 @@
 | canonical facts | PostgreSQL `core` | 원본을 현재 규칙으로 해석한 업무 사실은 무엇인가? | 검증된 projector만 발행 |
 | user state | PostgreSQL `app` | 사용자가 무엇을 선택·기록·확인했는가? | API만 쓰기 |
 | analytics | PostgreSQL `mart` | 특정 기준시점/버전의 파생 분석은 무엇인가? | projector가 교체 가능하게 생성 |
+| operations shape | PostgreSQL `monitoring` | 감시 회차마다 시스템이 어떤 모양이었는가? | check-expectations가 회차당 한 행 append |
 
-각 사실의 권위 저장소는 하나다. R2 raw는 canonical 검색 모델이 아니고, `core`는 사용자 메모를
+각 사실의 권위 저장소는 하나다. `monitoring`은 권위 계층이 아니라 관측의 기록이다 — 위 넷을 읽어
+회차마다 센 값이며 판정(알림)의 근거로 쓰지 않는다(ADR 0046 결정 4). R2 raw는 canonical 검색 모델이 아니고, `core`는 사용자 메모를
 소유하지 않으며, `mart`는 원본 사실을 대신하지 않는다.
 
 권장 DB 역할은 `migrator`, `ingestor`, `projector`, `api`다. API는 `core`/`mart`를 읽고

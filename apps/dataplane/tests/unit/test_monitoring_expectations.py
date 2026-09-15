@@ -12,6 +12,7 @@ from eatbid.monitoring.expectations import (
     evaluate,
 )
 from eatbid.monitoring.notify import format_message, format_resolution
+from eatbid.monitoring.round import RoundMetrics
 from eatbid.monitoring.runner import run_expectation_check
 from eatbid.monitoring.state import (
     OpenViolation,
@@ -268,3 +269,45 @@ def test_위반이_사라지면_해소를_한_번_알린다() -> None:
 
     assert 회차.resolved == ("probe",)
     assert 보낸것[-1].startswith("[prod] 해소됨: probe")
+
+
+def test_판정과_알림이_끝난_뒤_지표_한_행을_기록자에게_넘긴다() -> None:
+    """지표는 알림의 근거가 아니다(ADR 0046 결정 4). 그래서 열린 위반 수와 걸린 시간은 판정이 끝난
+    값이고, 기록자가 없으면 회차는 지표 없이도 완전하다."""
+    기록: list[RoundMetrics] = []
+    순서: list[str] = []
+    시계 = iter([10.0, 10.25])
+
+    def run_query(sql: str, parameters: Mapping[str, Any]) -> Sequence[Mapping[str, Any]]:
+        return [{"run_id": "r1"}] if sql == _기대_하나.sql else []
+
+    def record(metrics: RoundMetrics) -> None:
+        순서.append("round")
+        기록.append(metrics)
+
+    회차 = run_expectation_check(
+        run_query=run_query,
+        state_store=_기억하는_저장소(),
+        notify=lambda _: 순서.append("notify"),
+        environment="prod",
+        expectations=[_기대_하나],
+        record_round=record,
+        clock=lambda: next(시계),
+    )
+
+    assert 회차.round_recorded is True
+    assert 순서 == ["notify", "round"]
+    assert (기록[0].environment, 기록[0].violations_open, 기록[0].check_duration_ms) == ("prod", 1, 250)
+    assert (기록[0].runs_started_1h, 기록[0].auctions_published_1h) == ({}, 0)
+
+
+def test_기록자가_없으면_지표_없이_회차가_끝난다() -> None:
+    회차 = run_expectation_check(
+        run_query=_응답([]),
+        state_store=_기억하는_저장소(),
+        notify=lambda _: None,
+        environment="prod",
+        expectations=[_기대_하나],
+    )
+
+    assert 회차.round_recorded is False
