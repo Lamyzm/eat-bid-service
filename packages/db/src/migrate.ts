@@ -1,3 +1,4 @@
+/** @module 책임: 커밋된 migration folder를 적용하고 schema version을 확인한 뒤 부트스트랩 시드를 순서대로 돌린다. */
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,6 +8,7 @@ import { migrate as drizzleMigrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { minutes, seconds, toMilliseconds } from "@eatbid/domain";
 
+import { seedAuctionItems } from "./seeds/auction-items.js";
 import { seedCodeSchemes } from "./seeds/code-schemes.js";
 import {
   expectedMigration,
@@ -151,7 +153,11 @@ export async function migrate(): Promise<void> {
       }
     },
     assertVersion: async (database, expected) => assertSchemaVersion(database, expected),
-    seed: async (database) => seedCodeSchemes(database),
+    // 순서가 있다. 품목 원자는 `eatbid:auction-item` 체계 행을 골라 심으므로 체계가 먼저 있어야 한다.
+    seed: async (database) => {
+      await seedCodeSchemes(database);
+      await seedAuctionItems(database);
+    },
     log: console.log,
   });
 }

@@ -17,6 +17,7 @@ const approvedNamespaces = [
   "eat:award-method",
   "eat:reserve-price-selection-flag",
   "eat:attempt-status",
+  "eatbid:auction-item",
 ];
 
 // eaT 상세 파서(`apps/dataplane/src/eatbid/source/eat/code_schemes.py`)가 싣는 여덟이다. 같은 목록을
@@ -117,6 +118,12 @@ const approvedCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  {
+    namespace: "eatbid:auction-item",
+    owner: "eatbid",
+    versionPolicy: "product-managed",
+    validTimePolicy: "effective-dated",
+  },
 ];
 
 describe("내장 code scheme seed", () => {
@@ -150,7 +157,7 @@ describe("내장 code scheme seed", () => {
     await seedCodeSchemes(db);
 
     expect([...rows.values()]).toEqual(approvedCodeSchemes);
-    expect(rows).toHaveLength(14);
+    expect(rows).toHaveLength(15);
     expect(conflictTargets).toEqual([codeScheme.namespace, codeScheme.namespace]);
   });
 
@@ -163,5 +170,22 @@ describe("내장 code scheme seed", () => {
     // 다시 namespace가 되면 같은 code scheme이 두 이름을 갖게 된다(AGENTS 2·6).
     const sourceColumnShaped = [...seeded].filter((namespace) => /[A-Z_]/.test(namespace.split(":")[1] ?? ""));
     expect(sourceColumnShaped).toEqual([]);
+  });
+
+  test("접두사가 소유자를 말한다 — 우리가 코드를 발급하는 체계만 eatbid 접두사를 쓴다", () => {
+    const ownerOfPrefix = new Map([
+      ["eat", "aT"],
+      ["mois", "Ministry of the Interior and Safety"],
+      ["neis", "Korea Education and Research Information Service"],
+      ["eatbid", "eatbid"],
+    ]);
+
+    for (const { namespace, owner, versionPolicy } of builtinCodeSchemes) {
+      const prefix = namespace.split(":")[0];
+      expect(ownerOfPrefix.get(prefix)).toBe(owner);
+      // 원천이 코드를 주는 체계만 원천이 판을 관리한다. 우리가 발급하는 체계에 `source-managed`를
+      // 적으면 eaT가 준 코드인 것처럼 읽힌다.
+      expect(versionPolicy).toBe(prefix === "eatbid" ? "product-managed" : "source-managed");
+    }
   });
 });

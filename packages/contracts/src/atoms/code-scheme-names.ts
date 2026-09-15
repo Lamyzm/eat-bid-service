@@ -13,6 +13,11 @@ export const CODE_SCHEME_NAMES = {
   eligibilityArea: "eat:eligibility-area",
   /** eaT 명단의 철회 여부. 낙찰 상태와 별도로 해석한다. */
   withdrawalFlag: "eat:withdrawal-flag",
+  /**
+   * 공고 품목 원자. 여기만 접두사가 `eatbid:`인 이유는 eaT가 품목을 라벨 문자열로만 주고 코드를 주지
+   * 않아 코드를 발급하는 주체가 우리이기 때문이다. 용어는 eaT의 것이고 우리가 만든 것은 식별자뿐이다.
+   */
+  auctionItem: "eatbid:auction-item",
 } as const;
 
 export type CodeSchemeName = (typeof CODE_SCHEME_NAMES)[keyof typeof CODE_SCHEME_NAMES];

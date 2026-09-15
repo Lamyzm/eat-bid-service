@@ -89,7 +89,24 @@ export const builtinCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  // 위 전부와 달리 이 체계만 owner가 우리다. eaT는 품목을 `MAIN_ITEMS` 라벨 문자열로만 주고 코드를
+  // 주지 않으므로, 코드를 발급하고 폐기하는 주체가 우리다. 접두사를 `eat:`로 두면 aT가 코드를 준 것처럼
+  // 보이므로 다른 체계와 같은 규칙(접두사 = 소유자)을 지켜 `eatbid:`로 부른다. 용어 자체는 eaT가
+  // 나눈 것이라 그대로 싣고, 우리가 만든 것은 코드뿐이라는 사실만 이름이 말한다(AGENTS 2·6).
+  {
+    namespace: "eatbid:auction-item",
+    owner: "eatbid",
+    versionPolicy: "product-managed",
+    validTimePolicy: "effective-dated",
+  },
 ] as const;
+
+/**
+ * 심은 namespace 중 하나여야 한다. 품목 원자 시드가 이 이름으로 체계 행을 골라 심으므로 배열에서
+ * 이름이 빠지거나 바뀌면 그 시드는 조용히 0행을 심는다. 타입으로 묶어 두면 그때 컴파일이 먼저 깨진다.
+ */
+type SeededNamespace = (typeof builtinCodeSchemes)[number]["namespace"];
+export const AUCTION_ITEM_SCHEME: SeededNamespace = "eatbid:auction-item";
 
 type CodeSchemeSeedDatabase = {
   insert: (table: typeof codeScheme) => {
