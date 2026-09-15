@@ -26,6 +26,7 @@ from eatbid.core.projection_models import (
 from eatbid.core.repository import ProjectionContractError
 from eatbid.source.eat.code_schemes import (
     ATTEMPT_STATUS,
+    AUCTION_ITEM_SCHEME,
     AUCTION_LOCATION_SIDO,
     AUCTION_LOCATION_SIGUNGU,
     AWARD_METHOD,
@@ -46,6 +47,9 @@ REVIEWED_CODE_ROLES = {
     ELIGIBILITY_AREA.namespace: "eligibility_area",
     AWARD_METHOD.namespace: "award_method",
     PLANNED_PRICE_TYPE.namespace: "planned_price_method",
+    # 유일하게 우리가 코드를 발급하는 체계다. 한 공고가 원자 여럿을 가지므로 같은 role이 한 revision에
+    # 여러 행으로 앉으며, 그 중복은 관계 표의 제약이 막는다.
+    AUCTION_ITEM_SCHEME: "item",
 }
 
 

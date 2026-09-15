@@ -21,6 +21,7 @@ from eatbid.core.projection_models import (
 from eatbid.core.projection_validation import validate_projection
 from eatbid.core.repository import FrozenPublicationMember, ProjectionContractError
 from eatbid.source.eat.code_schemes import (
+    AUCTION_ITEM_SCHEME,
     ATTEMPT_STATUS,
     AWARD_METHOD,
     BID_STATUS,
@@ -341,3 +342,60 @@ def _account_without_business_number() -> dict[str, object]:
         "businessNumber": None,
         "sourceSystem": "eat",
     }
+
+
+def _item_codes(projection) -> list[tuple[str, str]]:
+    return [
+        (reference.namespace, reference.code)
+        for reference in projection.code_refs
+        if reference.role == "item"
+    ]
+
+
+def _with_item_label(label: str | None) -> dict[str, object]:
+    payload = normalized_payload("bid-detail-roster.xml", ROSTER_BID_ID)
+    payload["classification"] = {
+        "sourceCategoryLabel": label,
+        "categorySource": "unknown" if label is None else "source_field",
+    }
+    return payload
+
+
+def test_품목_라벨이_없으면_품목_코드를_만들지_않는다() -> None:
+    """원천 결손을 원자 하나로 메우면 관측하지 못한 것과 관측한 것이 같은 모양이 된다(AGENTS 3)."""
+    projection = build_eat_auction_v2_projection(frozen_member())
+    validate_projection(projection)
+
+    assert _item_codes(projection) == []
+
+
+def test_품목_라벨_하나를_원자_코드_한_행으로_옮긴다() -> None:
+    projection = build_eat_auction_v2_projection(
+        frozen_member(normalized_payload=_with_item_label("육류"))
+    )
+    validate_projection(projection)
+
+    assert _item_codes(projection) == [(AUCTION_ITEM_SCHEME, "육류")]
+
+
+def test_합성_라벨을_원자_코드_여러_행으로_옮긴다() -> None:
+    """한 공고가 품목 여럿을 갖는다. 문자열 하나로 두면 `육류`를 고른 사람에게 이 공고가 안 보인다."""
+    projection = build_eat_auction_v2_projection(
+        frozen_member(normalized_payload=_with_item_label("육류 , 가금류"))
+    )
+    validate_projection(projection)
+
+    assert _item_codes(projection) == [
+        (AUCTION_ITEM_SCHEME, "육류"),
+        (AUCTION_ITEM_SCHEME, "가금류"),
+    ]
+
+
+def test_우리_어휘에_없는_낱말은_코드_행을_만들지_않고_아는_낱말만_옮긴다() -> None:
+    """모르는 낱말에 코드를 붙이면 없던 원자가 생기고, 예외를 올리면 원천이 낱말을 늘린 날 수집이 선다."""
+    projection = build_eat_auction_v2_projection(
+        frozen_member(normalized_payload=_with_item_label("육류 , 신선편의"))
+    )
+    validate_projection(projection)
+
+    assert _item_codes(projection) == [(AUCTION_ITEM_SCHEME, "육류")]

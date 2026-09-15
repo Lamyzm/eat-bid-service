@@ -12,6 +12,7 @@ from decimal import Decimal
 
 from pydantic import ValidationError
 
+from eatbid.core.auction_items import read_item_label
 from eatbid.core.models import ExternalCodeRef
 from eatbid.core.projection_models import (
     AWARDED_STATUS_CODE,
@@ -38,6 +39,7 @@ from eatbid.generated.ingestion_v2 import (
     SourceCodedValue,
 )
 from eatbid.source.eat.code_schemes import (
+    AUCTION_ITEM_SCHEME,
     AUCTION_LOCATION_SIDO,
     AUCTION_LOCATION_SIGUNGU,
     ELIGIBILITY_AREA,
@@ -167,8 +169,25 @@ def _code_refs(
         )
         for code in eligibility_codes
     )
+    refs.extend(_item_code_refs(record))
     refs.extend(_terms_code_refs(record))
     return tuple(refs)
+
+
+def _item_code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef, ...]:
+    """품목 라벨 한 문자열을 원자 코드 여러 행으로 읽는다.
+
+    우리 어휘에 없는 낱말은 코드 행을 만들지 않는다. 억지로 붙이면 없던 원자가 생기고, 대신 여기서
+    예외를 올리면 원천이 낱말 하나를 늘린 날 수집 전체가 선다. 지역이 이미 같은 판정을 했다 —
+    선언 체계로 번역되지 않는 코드는 빈 채로 둔다. 원본 라벨은 normalized record에 그대로 남으므로
+    어휘가 늘면 재수집 없이 재투영으로 채워지고, 빠진 수는 mart 빌드가 센다.
+    """
+    label = record.classification.source_category_label
+    reading = read_item_label(None if label is None else label.root)
+    return tuple(
+        ExternalCodeRef(namespace=AUCTION_ITEM_SCHEME, code=atom, role="item")
+        for atom in reading.atoms
+    )
 
 
 def _eligibility_labels(

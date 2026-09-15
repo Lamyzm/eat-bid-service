@@ -135,6 +135,25 @@ ALL_EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     *FOUNDATION_CODE_SCHEMES,
 )
 
+# 위 전부와 달리 이 체계만 `EatCodeScheme`이 아니다. eaT는 품목을 코드로 주지 않고 `MAIN_ITEMS` 라벨
+# 문자열 하나로만 주므로 짝지을 소스 column이 없고, 코드를 발급하는 주체가 우리다. 이름과 원자 목록의
+# 값 권위는 `packages/db/src/seeds/`이며 여기는 dataplane이 그 이름을 부르는 단일 참조점이다
+# (`tests/unit/test_code_schemes.py`가 두 파일을 읽어 일치를 고정한다).
+AUCTION_ITEM_SCHEME = "eatbid:auction-item"
+
+# 과거 전체 revision의 라벨을 쉼표로 쪼갠 결과가 이 여덟으로 닫힌다(2026-09-16 전수 실측). 순서는
+# 시드와 같게 두어 두 목록을 눈으로 대조할 수 있게 한다.
+AUCTION_ITEM_ATOMS: tuple[str, ...] = (
+    "가공식품",
+    "육류",
+    "농산물",
+    "수산물",
+    "가금류",
+    "김치류",
+    "곡류",
+    "우유류",
+)
+
 
 def optional_scheme_value(
     row: Mapping[str, str], scheme: EatCodeScheme
