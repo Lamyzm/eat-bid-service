@@ -14,12 +14,12 @@ from eatbid.core.build_identity import BUILD_SHA_PATTERN
 from eatbid.ingest.models import CaptureRequest, PlannedRequestUnit
 from eatbid.ingest.repository import (
     CaptureRunMode,
-    CollectionRunMode,
-    ReferenceRunMode,
     request_params_sha256,
 )
 
-_CAPTURE_RUN_MODES = set(get_args(CollectionRunMode)) | set(get_args(ReferenceRunMode))
+# 수집 run이 받을 수 있는 mode의 권위는 `CaptureRunMode` 하나다. 여기서 부분 목록을 다시 합치면
+# 새 mode를 열 때 Literal만 넓어지고 이 집합이 조용히 그것을 막는다.
+_CAPTURE_RUN_MODES = set(get_args(CaptureRunMode))
 
 
 class IngestIntegrityError(RuntimeError):

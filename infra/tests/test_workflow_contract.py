@@ -35,6 +35,10 @@ SHELL_STAGES = ("capture", "normalize", "validate", "project", "marts")
 # 정부 코드 reference 실행의 DAG task와 CLI 명령이다. 여기서는 단계 이름과 명령 이름이 같다.
 REFERENCE_COMMANDS = ("capture-reference", "project-reference")
 REFERENCE_TASKS = REFERENCE_COMMANDS
+# eaT 코드목록 실행의 DAG task와 CLI 명령이다. reference와 같은 두 단계 모양이지만 소스 경계가 달라
+# 별도 DAG·별도 semaphore 판정을 받는다(EAT-187).
+CODE_VOCABULARY_COMMANDS = ("capture-code-vocabulary", "project-code-vocabulary")
+CODE_VOCABULARY_TASKS = CODE_VOCABULARY_COMMANDS
 # 운영자·스케줄이 직접 entrypoint로 부르는 명령이다. 어떤 DAG도 task로 갖지 않는다(EAT-122, EAT-170).
 OPERATOR_COMMANDS = ("fail-release", "check-expectations")
 # 전진 판단은 예약이 부르지만 운영자 명령과 달리 DAG의 첫 task이기도 하다. 창을 고르는 것과 그 창을
@@ -244,6 +248,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         "replay",
         "build-marts",
         *REFERENCE_COMMANDS,
+        *CODE_VOCABULARY_COMMANDS,
         *OPERATOR_COMMANDS,
         *ADVANCE_COMMANDS,
     )
@@ -850,6 +855,163 @@ def _execute_reference_capture_script(
     monkeypatch.setattr(os, "execvp", capture_execvp)  # type: ignore[attr-defined]
     exec(compile(script, "<capture-reference-entrypoint>", "exec"), {})  # noqa: S102
     return captured
+
+
+SAMPLE_CODE_VOCABULARY_ENV = {
+    "BUILD_SHA": "a" * 64,
+    "EATBID_RUN_ID": "00000000-0000-0000-0000-000000000001",
+    "EATBID_SOURCE_RELEASE_ID": "00000000-0000-0000-0000-000000000002",
+    "EATBID_OBSERVATION_ID": "7",
+    "EATBID_PARSER_VERSION": "eat-v1",
+    "EATBID_RELEASE_NAME": "eat-code-vocabulary 2026-09-16",
+    "EATBID_WORKFLOW_CREATED_AT": "2026-09-16T05:00:00Z",
+    "EATBID_RESULT_DIR": "/tmp/eatbid",
+}
+
+
+def _execute_code_vocabulary_capture_script(
+    manifests: ManifestSet, monkeypatch: object, environment: Mapping[str, str]
+) -> list[str]:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    container = _mapping(
+        _templates(workflow_template)["capture-code-vocabulary"]["container"]
+    )
+    script = str(_sequence(container["args"])[0])
+    captured: list[str] = []
+
+    def capture_execvp(executable: str, argv: list[str]) -> None:
+        assert executable == "eatbid"
+        captured.extend(argv)
+
+    for key in list(SAMPLE_STAGE_ENV) + list(SAMPLE_CODE_VOCABULARY_ENV):
+        monkeypatch.delenv(key, raising=False)  # type: ignore[attr-defined]
+    for key, value in environment.items():
+        monkeypatch.setenv(key, value)  # type: ignore[attr-defined]
+    monkeypatch.setattr(os, "execvp", capture_execvp)  # type: ignore[attr-defined]
+    exec(compile(script, "<capture-code-vocabulary-entrypoint>", "exec"), {})  # noqa: S102
+    return captured
+
+
+def test_코드목록_pipeline이_수집과_투영_둘로만_돌고_예약_DAG를_바꾸지_않는다(
+    manifests: ManifestSet,
+) -> None:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+
+    # 예약 수집 DAG는 이 변경에서 그대로다. 어휘 적재가 공고 수집 순서를 건드리면 안 된다.
+    assert [task["name"] for task in _dag_tasks(workflow_template)] == list(SCHEDULED_TASKS)
+    assert _spec(workflow_template)["entrypoint"] == "scheduled-pipeline"
+
+    dag = _mapping(templates["code-vocabulary-pipeline"]["dag"])
+    tasks = [_mapping(task) for task in _sequence(dag["tasks"])]
+    assert [task["name"] for task in tasks] == list(CODE_VOCABULARY_TASKS)
+    assert [task["template"] for task in tasks] == list(CODE_VOCABULARY_TASKS)
+    assert tasks[0].get("dependencies", []) == []
+    assert tasks[1]["dependencies"] == ["capture-code-vocabulary"]
+    # 투영은 수집이 만든 release와 관측을 그대로 받는다. 두 단계가 각자 정체성을 지으면 같은
+    # 실행에서 다른 release를 가리킨다.
+    project_arguments = _task_arguments(tasks[1])
+    for name in ("source-release-id", "observation-id"):
+        assert project_arguments[name] == (
+            f"{{{{tasks.capture-code-vocabulary.outputs.parameters.{name}}}}}"
+        )
+    assert set(project_arguments) == _input_names(templates["project-code-vocabulary"])
+
+    # 어느 그룹을 묻는지는 workflow 파라미터가 아니다. 그룹 목록이 여기 있으면 manifest가 검토된
+    # 코드목록 표와 별개의 두 번째 원천이 된다.
+    assert "inputs" not in templates["capture-code-vocabulary"]
+
+    # 두 단계 모두 workflow의 parser-version을 그대로 쓴다. 그 기본값으로 코드목록 계약을 찾지 못하면
+    # 어휘 적재는 제출하는 순간 멈추고, 그 사실은 실행해 봐야만 드러난다.
+    template_parser_version = {
+        item["name"]: item["value"]
+        for item in _sequence(_mapping(_spec(workflow_template)["arguments"])["parameters"])
+        if isinstance(item, Mapping)
+    }["parser-version"]
+    assert require("code-list", parser_version=str(template_parser_version)).record_type == (
+        "code-vocabulary.v1"
+    )
+    for name in CODE_VOCABULARY_TASKS:
+        container = _mapping(templates[name]["container"])
+        assert _env(container, "EATBID_PARSER_VERSION")["value"] == (
+            "{{workflow.parameters.parser-version}}"
+        )
+
+    capture_sync = _mapping(templates["capture-code-vocabulary"]["synchronization"])
+    capture_semaphore = _mapping(
+        _mapping(_sequence(capture_sync["semaphores"])[0])["configMapKeyRef"]
+    )
+    assert (capture_semaphore["name"], capture_semaphore["key"]) == (
+        "eatbid-workflow-limits",
+        "eatbid-source-live",
+    )
+    project_sync = _mapping(templates["project-code-vocabulary"]["synchronization"])
+    assert [_mapping(item) for item in _sequence(project_sync["mutexes"])] == [
+        {"name": "eatbid-core-publication"}
+    ]
+
+
+def test_코드목록_수집은_workflow_uid로_release_정체성을_결정적으로_만든다(
+    manifests: ManifestSet, monkeypatch: object
+) -> None:
+    argv = _execute_code_vocabulary_capture_script(
+        manifests, monkeypatch, SAMPLE_CODE_VOCABULARY_ENV
+    )
+    parsed = build_parser().parse_args(argv[1:])
+    assert argv[0:2] == ["eatbid", "capture-code-vocabulary"]
+    assert parsed.run_id == UUID(SAMPLE_CODE_VOCABULARY_ENV["EATBID_RUN_ID"])
+    assert parsed.parser_version == "eat-v1"
+
+    again = _execute_code_vocabulary_capture_script(
+        manifests, monkeypatch, SAMPLE_CODE_VOCABULARY_ENV
+    )
+    assert _flag_value(again, "--source-release-id") == _flag_value(argv, "--source-release-id")
+    # 정부 파일 실행과 같은 workflow uid라도 다른 release 정체성을 만든다. 같은 값을 만들면 두 소스의
+    # release가 서로를 막는다.
+    reference = _execute_reference_capture_script(
+        manifests, monkeypatch, SAMPLE_REFERENCE_ENV
+    )
+    assert _flag_value(argv, "--source-release-id") != _flag_value(
+        reference, "--source-release-id"
+    )
+
+
+def test_코드목록_수집은_workflow_uid_없이_CLI를_부르지_않는다(
+    manifests: ManifestSet, monkeypatch: object
+) -> None:
+    for broken in ("", "not-a-uuid"):
+        with pytest.raises(SystemExit) as error:
+            _execute_code_vocabulary_capture_script(
+                manifests,
+                monkeypatch,
+                {**SAMPLE_CODE_VOCABULARY_ENV, "EATBID_RUN_ID": broken},
+            )
+        assert error.value.code == 64
+
+
+def test_코드목록_투영의_argv가_CLI_parser의_필수_인자를_모두_채운다(
+    manifests: ManifestSet,
+) -> None:
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    container = _mapping(
+        _templates(workflow_template)["project-code-vocabulary"]["container"]
+    )
+    command = str(_sequence(container["args"])[0])
+
+    argv = _render_shell_argv(command, SAMPLE_CODE_VOCABULARY_ENV)
+    assert argv[0:2] == ["eatbid", "project-code-vocabulary"]
+    parsed = build_parser().parse_args(argv[1:])
+    assert parsed.observation_id == 7
+    assert parsed.source_release_id == UUID(
+        SAMPLE_CODE_VOCABULARY_ENV["EATBID_SOURCE_RELEASE_ID"]
+    )
+
+    declared = {
+        str(item["name"])
+        for item in _sequence(container["env"])
+        if isinstance(item, Mapping)
+    }
+    assert set(SHELL_VARIABLE.findall(command)) - {"BUILD_SHA"} <= declared
 
 
 def _task_arguments(task: Mapping[str, object]) -> dict[str, str]:

@@ -55,6 +55,7 @@ export * from "./api/v1/me";
 export * from "./api/v1/session";
 export * from "./api/v1/win-rate-distribution";
 export * from "./ingestion/v1/normalized-code-release";
+export * from "./ingestion/v1/normalized-code-vocabulary";
 export * from "./ingestion/v1/resources/identity";
 export * from "./ingestion/v1/resources/buyer";
 export * from "./ingestion/v1/resources/location";

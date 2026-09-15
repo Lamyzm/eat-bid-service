@@ -1,0 +1,306 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Root xmlns="http://www.nexacroplatform.com/platform/dataset">
+	<Parameters>
+		<Parameter id="ErrorCode" type="int">0</Parameter>
+	</Parameters>
+	<Dataset id="ds_out">
+		<ColumnInfo>
+			<Column id="FRST_RGTR_ID" type="string" size="32" />
+			<Column id="FRST_REG_DT" type="string" size="32" />
+			<Column id="ITM_VL9" type="undefined" size="0" />
+			<Column id="ITM_VL8" type="undefined" size="0" />
+			<Column id="ITM_VL7" type="undefined" size="0" />
+			<Column id="ITM_VL6" type="string" size="32" />
+			<Column id="CMNS_GRP_CD" type="string" size="32" />
+			<Column id="ITM_VL5" type="undefined" size="0" />
+			<Column id="ITM_VL4" type="string" size="32" />
+			<Column id="ITM_VL3" type="undefined" size="0" />
+			<Column id="CMNS_CD" type="string" size="32" />
+			<Column id="VLD_END_YMD" type="string" size="32" />
+			<Column id="LAST_CHG_DT" type="string" size="32" />
+			<Column id="SRTNG_SEQN" type="bigdecimal" size="16" />
+			<Column id="LAST_CHGR_ID" type="string" size="32" />
+			<Column id="CMNS_CD_DSCRP" type="undefined" size="0" />
+			<Column id="VLD_BGNG_YMD" type="string" size="32" />
+			<Column id="DEL_YN" type="string" size="32" />
+			<Column id="USE_YN" type="string" size="32" />
+			<Column id="CMNS_CD_NM" type="string" size="32" />
+			<Column id="ITM_VL2" type="string" size="32" />
+			<Column id="ITM_VL1" type="string" size="32" />
+		</ColumnInfo>
+		<Rows>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-11-25 01:01:01</Col>
+				<Col id="ITM_VL6">Y</Col>
+				<Col id="CMNS_GRP_CD">BC016</Col>
+				<Col id="ITM_VL4">001</Col>
+				<Col id="CMNS_CD">001</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2023-01-31 18:52:14</Col>
+				<Col id="SRTNG_SEQN">4</Col>
+				<Col id="LAST_CHGR_ID">SC0003</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">교육청</Col>
+				<Col id="ITM_VL2">001</Col>
+				<Col id="ITM_VL1">N</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-11-25 01:01:01</Col>
+				<Col id="CMNS_GRP_CD">BC016</Col>
+				<Col id="ITM_VL5">Y</Col>
+				<Col id="ITM_VL4">002</Col>
+				<Col id="ITM_VL3">Y</Col>
+				<Col id="CMNS_CD">010</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2022-10-13 19:22:41</Col>
+				<Col id="SRTNG_SEQN">6</Col>
+				<Col id="LAST_CHGR_ID">SC0001</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">학교</Col>
+				<Col id="ITM_VL2">002</Col>
+				<Col id="ITM_VL1">Y</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-11-25 01:01:01</Col>
+				<Col id="CMNS_GRP_CD">BC016</Col>
+				<Col id="ITM_VL4">003</Col>
+				<Col id="CMNS_CD">004</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2022-03-08 15:43:08</Col>
+				<Col id="SRTNG_SEQN">11</Col>
+				<Col id="LAST_CHGR_ID">SC0001</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">군부대</Col>
+				<Col id="ITM_VL2">003</Col>
+				<Col id="ITM_VL1">Y</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">211214</Col>
+				<Col id="FRST_REG_DT">2023-05-02 15:42:14</Col>
+				<Col id="CMNS_GRP_CD">BC016</Col>
+				<Col id="ITM_VL4">003</Col>
+				<Col id="CMNS_CD">015</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2023-07-11 13:18:23</Col>
+				<Col id="SRTNG_SEQN">15</Col>
+				<Col id="LAST_CHGR_ID">SC0008</Col>
+				<Col id="VLD_BGNG_YMD">20230502</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">민간기관</Col>
+				<Col id="ITM_VL2">003</Col>
+				<Col id="ITM_VL1">Y</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-11-25 01:01:01</Col>
+				<Col id="CMNS_GRP_CD">BC016</Col>
+				<Col id="CMNS_CD">999</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2023-07-14 15:27:43</Col>
+				<Col id="SRTNG_SEQN">999</Col>
+				<Col id="LAST_CHGR_ID">SC0008</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">기타</Col>
+				<Col id="ITM_VL1">Y</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-11-25 01:01:01</Col>
+				<Col id="CMNS_GRP_CD">EP049</Col>
+				<Col id="CMNS_CD">003</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2023-06-19 13:28:51</Col>
+				<Col id="SRTNG_SEQN">3</Col>
+				<Col id="LAST_CHGR_ID">SC0001</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">입찰공고</Col>
+				<Col id="ITM_VL1">Y</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-11-25 01:01:01</Col>
+				<Col id="CMNS_GRP_CD">EP049</Col>
+				<Col id="CMNS_CD">007</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2023-06-19 13:28:51</Col>
+				<Col id="SRTNG_SEQN">11</Col>
+				<Col id="LAST_CHGR_ID">SC0001</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">낙찰</Col>
+				<Col id="ITM_VL1">Y</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-11-25 01:01:01</Col>
+				<Col id="CMNS_GRP_CD">EP049</Col>
+				<Col id="CMNS_CD">009</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2021-11-25 01:01:01</Col>
+				<Col id="SRTNG_SEQN">12</Col>
+				<Col id="LAST_CHGR_ID">ADMIN</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">유찰</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-11-25 01:01:01</Col>
+				<Col id="CMNS_GRP_CD">EP049</Col>
+				<Col id="CMNS_CD">999</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2021-11-25 01:01:01</Col>
+				<Col id="SRTNG_SEQN">999</Col>
+				<Col id="LAST_CHGR_ID">ADMIN</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">기타</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">MIG</Col>
+				<Col id="FRST_REG_DT">2022-07-08 01:17:05</Col>
+				<Col id="ITM_VL8">1</Col>
+				<Col id="CMNS_GRP_CD">SC066</Col>
+				<Col id="ITM_VL3">N</Col>
+				<Col id="CMNS_CD">1</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2022-07-08 01:17:05</Col>
+				<Col id="SRTNG_SEQN">1</Col>
+				<Col id="LAST_CHGR_ID">MIG</Col>
+				<Col id="VLD_BGNG_YMD">19000101</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">서울</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">MIG</Col>
+				<Col id="FRST_REG_DT">2022-07-08 01:17:05</Col>
+				<Col id="ITM_VL8">1</Col>
+				<Col id="CMNS_GRP_CD">SC066</Col>
+				<Col id="ITM_VL3">N</Col>
+				<Col id="CMNS_CD">8</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2022-07-08 01:17:05</Col>
+				<Col id="SRTNG_SEQN">8</Col>
+				<Col id="LAST_CHGR_ID">MIG</Col>
+				<Col id="VLD_BGNG_YMD">19000101</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">경기</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">MIG</Col>
+				<Col id="FRST_REG_DT">2022-07-08 01:17:05</Col>
+				<Col id="ITM_VL8">10</Col>
+				<Col id="CMNS_GRP_CD">SC066</Col>
+				<Col id="ITM_VL3">N</Col>
+				<Col id="CMNS_CD">15</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2022-07-08 01:17:05</Col>
+				<Col id="SRTNG_SEQN">15</Col>
+				<Col id="LAST_CHGR_ID">MIG</Col>
+				<Col id="VLD_BGNG_YMD">19000101</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">경남</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">afctadmin</Col>
+				<Col id="FRST_REG_DT">2026-07-01 03:01:40</Col>
+				<Col id="ITM_VL8">9</Col>
+				<Col id="CMNS_GRP_CD">SC066</Col>
+				<Col id="ITM_VL3">N</Col>
+				<Col id="CMNS_CD">18</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2026-07-01 03:01:40</Col>
+				<Col id="SRTNG_SEQN">18</Col>
+				<Col id="LAST_CHGR_ID">afctadmin</Col>
+				<Col id="VLD_BGNG_YMD">19000101</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">전남광주</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">MIG</Col>
+				<Col id="FRST_REG_DT">2022-07-08 01:17:05</Col>
+				<Col id="ITM_VL8">0</Col>
+				<Col id="CMNS_GRP_CD">SC066</Col>
+				<Col id="ITM_VL3">N</Col>
+				<Col id="CMNS_CD">0</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2022-07-08 01:17:05</Col>
+				<Col id="SRTNG_SEQN">19</Col>
+				<Col id="LAST_CHGR_ID">MIG</Col>
+				<Col id="VLD_BGNG_YMD">19000101</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">기타</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">MIG</Col>
+				<Col id="FRST_REG_DT">2010-04-14 18:06:38</Col>
+				<Col id="CMNS_GRP_CD">SC067</Col>
+				<Col id="ITM_VL3">N</Col>
+				<Col id="CMNS_CD">1</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2010-04-14 18:06:38</Col>
+				<Col id="SRTNG_SEQN">1</Col>
+				<Col id="LAST_CHGR_ID">MIG</Col>
+				<Col id="VLD_BGNG_YMD">19000101</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">강남구</Col>
+				<Col id="ITM_VL2">1</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">MIG</Col>
+				<Col id="FRST_REG_DT">2010-04-14 18:06:44</Col>
+				<Col id="CMNS_GRP_CD">SC067</Col>
+				<Col id="ITM_VL3">N</Col>
+				<Col id="CMNS_CD">653</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2010-04-14 18:06:44</Col>
+				<Col id="SRTNG_SEQN">230</Col>
+				<Col id="LAST_CHGR_ID">MIG</Col>
+				<Col id="VLD_BGNG_YMD">19000101</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">김해시</Col>
+				<Col id="ITM_VL2">15</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">MIG</Col>
+				<Col id="FRST_REG_DT">2010-04-14 18:06:44</Col>
+				<Col id="CMNS_GRP_CD">SC067</Col>
+				<Col id="ITM_VL3">N</Col>
+				<Col id="CMNS_CD">654</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2010-04-14 18:06:44</Col>
+				<Col id="SRTNG_SEQN">231</Col>
+				<Col id="LAST_CHGR_ID">MIG</Col>
+				<Col id="VLD_BGNG_YMD">19000101</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">남해군</Col>
+				<Col id="ITM_VL2">15</Col>
+			</Row>
+			</Rows>
+	</Dataset>
+</Root>

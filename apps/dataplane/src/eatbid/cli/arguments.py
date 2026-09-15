@@ -193,6 +193,23 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     project_reference.add_argument("--release-name", required=True)
     project_reference.add_argument("--projected-at", required=True, type=aware_datetime)
 
+    # eaT 코드목록도 발견도 fan-out도 없다. 어느 그룹을 묻는지는 인자가 아니라 검토된 코드목록 표가
+    # 정하므로(`source/eat/code_schemes.EAT_CODE_LIST_GROUPS`) 여기서는 실행 정체성과 시각만 받는다.
+    capture_code_vocabulary = commands["capture-code-vocabulary"]
+    capture_code_vocabulary.add_argument("--release-name", required=True)
+    capture_code_vocabulary.add_argument("--as-of", required=True, type=aware_datetime)
+    capture_code_vocabulary.add_argument(
+        "--started-at", required=True, type=aware_datetime
+    )
+
+    project_code_vocabulary = commands["project-code-vocabulary"]
+    project_code_vocabulary.add_argument(
+        "--observation-id", required=True, type=positive_id
+    )
+    project_code_vocabulary.add_argument(
+        "--projected-at", required=True, type=aware_datetime
+    )
+
     # 운영자가 결론 없이 끝난 release를 닫는다. category는 죽은 pod의 exit code 어휘와 INTERRUPTED뿐이고
     # 그 밖의 값은 저장소에 닿기 전에 여기서 닫는다(EAT-122).
     # 선언한 범위의 바닥이다. 이 값을 뒤로 미는 커밋 하나가 그 해의 수집을 시작시키며, 그 커밋이
