@@ -27,6 +27,10 @@ export const ingestRun = ingestSchema.table(
     // 공백으로 채워 저장해 run ledger 대조와 checkpoint 비교가 조용히 어긋난다.
     buildSha: varchar("build_sha", { length: 64 }).notNull(),
     parserVersion: varchar("parser_version", { length: 128 }).notNull(),
+    // 이 run을 만든 Argo Workflow의 이름. 릴리스 이름은 uid를, R2 로그는 이름을, 알림은 run_id를 들고 있어
+    // 셋을 잇는 물건이 Workflow 객체뿐이었고 그것은 TTL로 사라진다(ADR 0046 결정 1, EAT-231). NULL은
+    // "워크플로 밖에서 만들어졌거나 그 전에 만들어진 run"이며 유효한 상태다.
+    workflowName: text("workflow_name"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     failureCategory: varchar("failure_category", { length: 64 }),

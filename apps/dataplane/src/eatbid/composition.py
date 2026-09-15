@@ -154,6 +154,7 @@ class Application:
                 detail_run_id=args.detail_run_id,
                 mode=args.mode,
                 release_name=args.release_name,
+                workflow_name=args.workflow_name,
                 as_of=args.as_of,
                 build_sha=args.build_sha,
                 parser_version=args.parser_version,
