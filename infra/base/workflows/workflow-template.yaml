@@ -68,7 +68,7 @@ spec:
         tasks:
           # 각 task를 anchor로 남겨 backfill-pipeline(아래)이 discover·capture 둘만 backfill 전용
           # template으로 바꾸고 나머지 넷은 정의를 그대로 재사용한다. semaphore key 분리 이유는
-          # infra/product/workflows/semaphore.yaml, template을 나눈 이유는 discover 주석을 본다.
+          # infra/base/workflows/semaphore.yaml, template을 나눈 이유는 discover 주석을 본다.
           - &task-discover
             name: discover
             template: discover

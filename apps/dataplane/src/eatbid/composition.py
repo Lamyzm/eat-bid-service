@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import timedelta
 from functools import partial
 from pathlib import Path
@@ -49,6 +50,7 @@ from eatbid.monitoring.backup import (
 )
 from eatbid.monitoring.cluster import evaluate_cluster
 from eatbid.monitoring.github import WorkflowExpectation, evaluate_workflows
+from eatbid.monitoring.heartbeat import beat
 from eatbid.monitoring.notify import send_telegram
 from eatbid.monitoring.runner import (
     MonitoringResult,
@@ -540,13 +542,18 @@ class _MonitoringRunner:
         return tuple(probes)
 
     def run(self) -> MonitoringResult:
-        return run_expectation_check(
+        result = run_expectation_check(
             run_query=self._run_query,
             state_store=self._state_store,
             notify=self._notify,
             environment=self._config.environment_name,
             probes=self._probes(),
         )
+        # 회차가 끝까지 끝난 뒤에만 밖에 신호를 보낸다. 위에서 예외가 나면(텔레그램 전송 실패, 상태 문서
+        # 기록 실패) 여기에 닿지 않고, 그러면 바깥이 신호 끊김으로 알린다 — 그것이 의도다.
+        url = self._config.heartbeat_url
+        outcome = beat(url.get_secret_value() if url is not None else None)
+        return replace(result, heartbeat=outcome)
 
 
 def _build_monitoring(

@@ -458,6 +458,26 @@ class _발견결과애플리케이션(_기록애플리케이션):
         )
 
 
+def test_감시_결과는_심장박동이_나갔는지를_함께_남긴다(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # skipped와 sent를 구분해 남겨야 "URL이 없어서 안 나갔다"가 로그에서 보인다. 그 상태로 운영에 오래
+    # 있으면 바깥 감시가 켜져 있다고 믿는 채로 눈이 먼다(EAT-171).
+    application = _기록애플리케이션()
+
+    assert (
+        main(
+            _명령("check-expectations"),
+            application_factory=lambda _: application,
+            settings=_설정(),
+        )
+        == 0
+    )
+
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["heartbeat"] == "skipped"
+
+
 def test_전진_결과의_불리언은_Argo가_읽는_소문자로_적힌다(
     tmp_path: Path,
 ) -> None:

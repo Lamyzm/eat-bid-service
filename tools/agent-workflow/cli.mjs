@@ -16,6 +16,7 @@ import {
   repositoryContext,
   targetRepositoryContext,
 } from "./runtime.mjs";
+import { runArgoSmoke } from "./argo-smoke.mjs";
 import { runPullRequest } from "./pull-request.mjs";
 import { describeHolder, endWorktreeHolder, holderIsLive } from "./session.mjs";
 import {
@@ -327,6 +328,7 @@ async function main() {
   if (command === "recover-lock") return recoverLock();
   if (command === "worktree") return worktree();
   if (command === "pr") return runPullRequest();
+  if (command === "argo-smoke") return runArgoSmoke();
   throw new Error(`Unknown workflow command: ${command ?? "missing"}`);
 }
 

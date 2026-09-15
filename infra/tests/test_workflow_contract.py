@@ -495,6 +495,12 @@ def test_감시_CronWorkflow는_수집_템플릿에_매이지_않고_알림_비�
     )
     for key in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
         assert _secret_ref(_env(container, key)) == ("eatbid-alerting", key)
+    # 클러스터 밖 dead man's switch(EAT-171). 이 env가 빠지면 코드는 조용히 skipped로 끝나고 바깥
+    # 감시가 켜져 있다고 믿는 채로 눈이 먼다. 그래서 manifest가 값을 주는지를 계약으로 박는다.
+    assert _secret_ref(_env(container, "EATBID_HEARTBEAT_URL")) == (
+        "eatbid-alerting",
+        "HEARTBEAT_URL",
+    )
 
 
 def test_DB_백업_CronWorkflow는_매시간_소유자로_덤프해_R2에_두고_소스와_템플릿을_건드리지_않는다(
