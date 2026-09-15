@@ -136,10 +136,17 @@ type OpenAuctionColumn = {
   readonly subheader?: string;
   readonly align: 'text-left' | 'text-right';
   /**
-   * 고정 폭이다. `auto`인 열 하나가 남는 폭을 전부 가져간다.
+   * 고정 폭이다. `w-auto`인 열 하나가 남는 폭을 전부 가져간다.
    *
    * 표를 폭에 맡기면 본문이 넓어질수록 여섯 칸이 같이 벌어져 기관 이름과 기초금액 사이가 손가락 두 개만큼
    * 떨어진다. 한 행을 읽는 데 눈이 가로로 두 번 움직이면 마감 임박 순이라는 세로 흐름이 끊긴다.
+   *
+   * lg 폭은 셀 값이 아니라 **머리글 두 줄**이 정한다. 부제가 열보다 넓으면 옆 칸으로 흘러넘치므로
+   * `개찰 한 시간 뒤`(77px)와 `MM-DD HH:mm 기준`(98px)이 들어갈 만큼을 잡았다(2026-09-15 실측).
+   *
+   * 그 아래에서는 좁은 폭을 따로 준다. md(768)에서 셸 탐색을 빼면 표에 남는 폭이 398px뿐이라 lg 폭을
+   * 그대로 쓰면 고정 열 합이 자리를 다 먹고 기관 열이 18px로 무너진다(2026-09-15 실측). 그래서 폭을
+   * inline style이 아니라 breakpoint를 실을 수 있는 class로 둔다.
    */
   readonly width: string;
   /** 폭이 좁아질 때 접히는 규칙이다. 빈 문자열은 어느 폭에서나 보인다. */
@@ -166,12 +173,12 @@ type OpenAuctionColumn = {
  * 보낸다. 좁은 폭에서는 품목만 접어 기관 셀 둘째 줄로 내리고 나머지 다섯은 어느 폭에서나 남는다.
  */
 const COLUMNS: readonly OpenAuctionColumn[] = [
-  { id: 'rank', header: '순번', align: 'text-left', width: '2.25rem', visibility: '', headerHidden: true, cell: (_row, context) => <span className={MUTED}>{context.rank}</span> },
-  { id: 'closes', header: '마감', subheader: '개찰 한 시간 뒤', align: 'text-left', width: '5.5rem', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
-  { id: 'organization', header: '기관', align: 'text-left', width: 'auto', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} /> },
-  { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: '8rem', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
-  { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: '8.5rem', visibility: '', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
-  { id: 'participation', header: '참여', align: 'text-right', width: '7rem', visibility: '', cell: (row) => <ParticipationCell row={row} /> }
+  { id: 'rank', header: '순번', align: 'text-left', width: 'w-9', visibility: '', headerHidden: true, cell: (_row, context) => <span className={MUTED}>{context.rank}</span> },
+  { id: 'closes', header: '마감', subheader: '개찰 한 시간 뒤', align: 'text-left', width: 'w-14 lg:w-24', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
+  { id: 'organization', header: '기관', align: 'text-left', width: 'w-auto', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} /> },
+  { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: 'lg:w-28', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
+  { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: 'w-28 lg:w-32', visibility: '', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
+  { id: 'participation', header: '참여', align: 'text-right', width: 'w-26 lg:w-30', visibility: '', cell: (row) => <ParticipationCell row={row} /> }
 ];
 
 /**
@@ -233,13 +240,14 @@ export function OpenAuctionTable({
                 scope='col'
                 // `colgroup`이 아니라 머리 칸이 폭을 정한다. `col`에 접힘 규칙을 걸면 `display:none`이 그 열을
                 // 격자에서 빼 버려 나머지 폭이 한 칸씩 밀린다.
-                style={column.width === 'auto' ? undefined : { width: column.width }}
-                className={`px-2 pb-1.5 align-top text-[13px] leading-tight font-semibold whitespace-nowrap text-muted-foreground ${column.align} ${column.visibility}`}
+                className={`px-2 pb-1.5 align-top text-[13px] leading-tight font-semibold whitespace-nowrap text-muted-foreground ${column.align} ${column.width} ${column.visibility}`}
               >
                 {column.headerHidden ? <span className='sr-only'>{column.header}</span> : (
                   <span className='grid gap-0.5'>
                     <span>{column.header}</span>
-                    {subheader === undefined ? null : <span className='font-medium text-muted-foreground/70'>{subheader}</span>}
+                    {/* 부제는 lg부터다. 좁은 폭에서는 부제가 열보다 넓어 옆 칸으로 흘러넘치고, 계보는
+                        조건 기둥의 build 줄이 어느 폭에서나 말하고 있다(AGENTS 7). */}
+                    {subheader === undefined ? null : <span className='hidden font-medium text-muted-foreground/70 lg:block'>{subheader}</span>}
                   </span>
                 )}
               </th>
