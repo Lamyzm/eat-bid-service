@@ -406,10 +406,11 @@ main 병합
 - **dev는 eaT를 부르지 않는다.** 소스에 붙는 클러스터는 하나뿐이어야 하므로 dev overlay가 CronWorkflow
   전부를 suspend한다. 백업과 감시까지 멈추는 이유는 알림 방이 하나라서 dev가 울리면 운영 알림과 섞이기
   때문이다.
-- **경로 전환은 두 단계다.** Argo CD Application이 `prune: true`로 `infra/product`를 보고 있어서 경로를
-  한 번에 옮기면 어느 쪽으로 해도 Argo가 "선언된 것이 없다"로 읽고 운영 리소스를 지운다. 전환 릴리스는
-  `infra/product`를 `infra/envs/prod`의 별칭으로 남겨 두 경로가 같은 것을 렌더하게 하고, Application을
-  바꾼 뒤에 별칭을 지운다. 둘이 같다는 사실은 `infra/tests/test_env_overlays.py`가 지킨다.
+- **경로 전환은 두 단계였다.** Argo CD Application이 `prune: true`로 옛 `infra/product`를 보고 있어서
+  경로를 한 번에 옮기면 Argo가 "선언된 것이 없다"로 읽고 운영 리소스를 지운다. 그래서 v0.1.33까지
+  `infra/product`를 `infra/envs/prod`의 별칭으로 남겨 두 경로가 같은 것을 렌더하게 했고, 2026-09-16에
+  Application을 `infra/envs/prod`로 바꾼 뒤(diff는 path 한 줄, prune 0) 별칭을 지웠다. 같은 함정을 다시
+  만들지 않도록 `infra/tests/test_env_overlays.py`가 별칭이 없음을 지킨다.
 
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
   pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
