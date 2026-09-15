@@ -2,34 +2,15 @@
 
 from __future__ import annotations
 
-import subprocess
-from pathlib import Path
-
 from conftest import MONOREPO_ROOT, ManifestSet
 
 
-def _render_text(path: Path) -> str:
-    result = subprocess.run(
-        ["kubectl", "kustomize", str(path)],
-        capture_output=True,
-        check=True,
-        text=True,
-        encoding="utf-8",
-    )
-    return result.stdout
+def test_product_별칭은_더_이상_없다() -> None:
+    """전환이 끝났으므로 운영 렌더 경로는 `infra/envs/prod` 하나다.
 
-
-def test_product_별칭은_prod_overlay와_글자까지_같은_것을_낸다() -> None:
-    """Argo CD Application이 `deploy/prod`의 `infra/product`를 보고 `prune: true`다.
-
-    경로를 한 번에 옮기면 어느 쪽으로 해도 Argo가 "선언된 것이 없다"로 읽어 운영 리소스를 지운다.
-    전환 릴리스가 두 경로를 모두 싣고 둘이 같은 것을 내야 path를 언제 바꿔도 diff가 0이다.
-    이 검사가 참인 동안에만 그 전환이 안전하다.
+    별칭이 되살아나면 두 경로가 갈라질 수 있고, 어느 쪽이 운영인지 다시 물어야 한다.
     """
-    별칭 = _render_text(MONOREPO_ROOT / "infra" / "product")
-    overlay = _render_text(MONOREPO_ROOT / "infra" / "envs" / "prod")
-
-    assert 별칭 == overlay
+    assert not (MONOREPO_ROOT / "infra" / "product" / "kustomization.yaml").exists()
 
 
 def test_base만으로는_이미지를_당길_곳이_없다(base_manifests: ManifestSet) -> None:
