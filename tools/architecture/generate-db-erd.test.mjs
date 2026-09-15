@@ -135,5 +135,5 @@ test("--write는 사전순 마지막 snapshot으로 스키마별 파일을 쓰�
 
 test("추적된 ERD 생성물은 실제 snapshot과 같다", () => {
   const output = execFileSync(process.execPath, [generator, "--check"], { cwd: root, encoding: "utf8" });
-  assert.match(output, /스키마 4개/u);
+  assert.match(output, /스키마 5개/u);
 });

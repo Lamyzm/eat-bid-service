@@ -9,7 +9,7 @@ const root = process.env.WRITE_MAP_ROOT
 const sourceRoot = path.join(root, "apps", "dataplane", "src", "eatbid");
 const documentPath = path.join(root, "docs", "architecture", "ingestion-write-map.md");
 
-const SCHEMAS = "(?:ingest|core|mart|app)";
+const SCHEMAS = "(?:ingest|core|mart|app|monitoring)";
 // 리터럴 `schema.table`과 `schema.{name}` 같은 f-string 자리를 함께 잡는다. 자리표시자는 같은 모듈의
 // `table="..."` 리터럴로 푼다. 이름을 실행 시점에만 아는 쓰기는 지도에 실을 수 없으므로 실패다.
 const WRITE_STATEMENT = new RegExp(String.raw`\b(insert\s+into|update|delete\s+from)\s+(${SCHEMAS}\.(?:[a-z_]+|\{[a-z_]+\}))`, "giu");

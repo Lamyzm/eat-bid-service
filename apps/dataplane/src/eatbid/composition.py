@@ -52,6 +52,7 @@ from eatbid.monitoring.cluster import evaluate_cluster
 from eatbid.monitoring.github import WorkflowExpectation, evaluate_workflows
 from eatbid.monitoring.heartbeat import beat
 from eatbid.monitoring.notify import send_telegram
+from eatbid.monitoring.round import record_round
 from eatbid.monitoring.runner import (
     MonitoringResult,
     ViolationProbe,
@@ -541,6 +542,13 @@ class _MonitoringRunner:
             probes.append(lambda: evaluate_workflows(self._fetch_workflow_runs))
         return tuple(probes)
 
+    def _execute(self, sql: str, parameters: Mapping[str, Any]) -> None:
+        # 회차 지표 한 행. 연결은 autocommit이 아니므로 여기서 commit해야 행이 남는다 — 읽기 질의
+        # (_run_query)는 commit이 필요 없어 그쪽에는 없다.
+        with self._connection.cursor() as cursor:
+            cursor.execute(sql, parameters)
+        self._connection.commit()
+
     def run(self) -> MonitoringResult:
         result = run_expectation_check(
             run_query=self._run_query,
@@ -548,6 +556,7 @@ class _MonitoringRunner:
             notify=self._notify,
             environment=self._config.environment_name,
             probes=self._probes(),
+            record_round=lambda metrics: record_round(self._execute, metrics),
         )
         # 회차가 끝까지 끝난 뒤에만 밖에 신호를 보낸다. 위에서 예외가 나면(텔레그램 전송 실패, 상태 문서
         # 기록 실패) 여기에 닿지 않고, 그러면 바깥이 신호 끊김으로 알린다 — 그것이 의도다.

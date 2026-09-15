@@ -14,7 +14,7 @@ review_trigger: dataplane-write-target-or-transaction-boundary-change
 없애면 같은 커밋에서 그 표를 고쳐야 gate가 통과한다. 표·컬럼·외래키의 현재 모양은
 [생성된 ERD](generated/)가 보여 주며 `pnpm architecture:erd:write`로만 갱신한다.
 
-## 1. 저장 위치는 다섯 곳이고 각각 이유가 있다
+## 1. 저장 위치는 여섯 곳이고 각각 이유가 있다
 
 | 저장 위치 | 무엇을 담는가 | 왜 따로 두는가 | 근거 |
 |---|---|---|---|
@@ -23,6 +23,7 @@ review_trigger: dataplane-write-target-or-transaction-boundary-change
 | PostgreSQL `core` | 해석된 업무 사실(attempt·revision·기관·명단·낙찰·업체·코드) | 봉인·검증된 publication만 한 transaction으로 앉힌다 | ADR 0015, 0033, 0035, 0038 |
 | PostgreSQL `mart` | 결정 화면용 파생 표와 build ledger | 언제든 다시 만들 수 있고 활성 포인터 교체가 원자다 | ADR 0011, 0034 |
 | PostgreSQL `app` | 사용자·workspace·등록 사업자 | API만 쓴다. 수집기는 닿지 않는다 | ADR 0032 |
+| PostgreSQL `monitoring` | 감시 회차마다 남기는 모양 지표(`round`) | 진실 원천이 아니라 관측의 기록이다. 판정은 기대(expectations)가 하고 이 표는 사람이 보는 선이라 넷과 따로 둔다 | ADR 0046 결정 4, EAT-227 |
 
 `core.code_scheme`은 마이그레이션 seed(`packages/db/src/seeds/code-schemes.ts`)만 쓰고 수집기는 읽기만
 한다. 수집기가 `app`에 쓰는 경로는 없다.
@@ -59,6 +60,7 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | discover, capture | `ingest/postgres_repository.py` | `ingest.raw_blob`, `ingest.raw_observation`, `ingest.request_unit`, `ingest.run` |
 | discover, capture, capture-reference, capture-code-vocabulary | `storage/r2_store.py` | `R2 raw/{source}/{endpoint}/{sha256}.{xml\|txt}.gz` |
 | check-expectations | `monitoring/store.py` | `R2 monitoring/{환경}/expectation-state.json` (수집 단계가 아닌 운영 감시의 가변 상태. raw와 접두사·코드를 나눈다) |
+| check-expectations | `monitoring/round.py` | `monitoring.round` (회차당 한 행의 모양 지표. 판정·알림이 끝난 뒤 쓰며 알림의 근거가 아니다, EAT-227) |
 | capture, validate | `ingest/postgres_release_guards.py` | `ingest.source_release_observation`, `ingest.source_release_dataset` |
 | normalize, replay | `ingest/postgres_normalization_repository.py` | `ingest.normalization_attempt`, `ingest.normalization_attempt_record`, `ingest.normalized_record` |
 | validate, replay | `ingest/postgres_publication_repository.py` | `ingest.publication`, `ingest.publication_record`, `ingest.run` |

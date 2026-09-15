@@ -9,7 +9,7 @@ const root = process.env.DB_ERD_ROOT
 const migrationsDirectory = path.join(root, "packages", "db", "drizzle");
 const outputDirectory = path.join(root, "docs", "architecture", "generated");
 
-export const SCHEMAS = Object.freeze(["ingest", "core", "mart", "app"]);
+export const SCHEMAS = Object.freeze(["ingest", "core", "mart", "app", "monitoring"]);
 
 // mermaid erDiagram의 attribute type은 공백·괄호를 받지 않는다. 자주 나오는 PostgreSQL 타입은 읽기 쉬운
 // 별칭으로 바꾸고 나머지는 식별자 문자만 남긴다.
