@@ -394,6 +394,21 @@ def test_code_list_registry는_어휘_record_type을_공고_계약과_갈라_둔
     )
 
 
+def test_코드목록_계약은_검토된_parser_version_전부에_있다() -> None:
+    """실행 단위는 parser version 하나다. 공고 수집이 쓰는 version으로 코드목록을 부를 수 없으면
+    같은 workflow 파라미터로 어휘를 채울 수 없다."""
+    contracts = [
+        require("code-list", parser_version=version)
+        for version in ("eat-v1", "eat-v2", "eat-v3")
+    ]
+
+    assert {contract.record_type for contract in contracts} == {"code-vocabulary.v1"}
+    assert len({contract.schema_fingerprint for contract in contracts}) == 1
+    assert all(contract.transport is contracts[0].transport for contract in contracts)
+    with pytest.raises(SourceContractError, match="unknown-parser-version"):
+        require("code-list", parser_version="eat-v9")
+
+
 def test_code_list_payload는_검토된_그룹_넷을_한_요청으로_묻는다() -> None:
     params = build_code_list_params()
 

@@ -308,6 +308,12 @@ _EAT_V1_CODE_LIST = ReviewedSchemaContract(
     ),
 )
 
+# 코드목록 응답은 parser version마다 달라지지 않지만 실행 단위는 parser version 하나다. 같은 실행
+# 파라미터로 도는 workflow가 코드목록 계약을 못 찾으면 어휘 적재가 통째로 멈추므로, 목록 계약과 같은
+# 방식으로 같은 모양을 각 version 이름으로 다시 등록한다.
+_EAT_V2_CODE_LIST = replace(_EAT_V1_CODE_LIST, parser_version="eat-v2")
+_EAT_V3_CODE_LIST = replace(_EAT_V1_CODE_LIST, parser_version="eat-v3")
+
 REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
     {
         (contract.source, contract.endpoint, contract.parser_version): contract
@@ -319,6 +325,8 @@ REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
             _EAT_V3_BID_LIST_PAGE,
             _EAT_V3_BID_DETAIL,
             _EAT_V1_CODE_LIST,
+            _EAT_V2_CODE_LIST,
+            _EAT_V3_CODE_LIST,
         )
     }
 )

@@ -915,6 +915,22 @@ def test_코드목록_pipeline이_수집과_투영_둘로만_돌고_예약_DAG�
     # 코드목록 표와 별개의 두 번째 원천이 된다.
     assert "inputs" not in templates["capture-code-vocabulary"]
 
+    # 두 단계 모두 workflow의 parser-version을 그대로 쓴다. 그 기본값으로 코드목록 계약을 찾지 못하면
+    # 어휘 적재는 제출하는 순간 멈추고, 그 사실은 실행해 봐야만 드러난다.
+    template_parser_version = {
+        item["name"]: item["value"]
+        for item in _sequence(_mapping(_spec(workflow_template)["arguments"])["parameters"])
+        if isinstance(item, Mapping)
+    }["parser-version"]
+    assert require("code-list", parser_version=str(template_parser_version)).record_type == (
+        "code-vocabulary.v1"
+    )
+    for name in CODE_VOCABULARY_TASKS:
+        container = _mapping(templates[name]["container"])
+        assert _env(container, "EATBID_PARSER_VERSION")["value"] == (
+            "{{workflow.parameters.parser-version}}"
+        )
+
     capture_sync = _mapping(templates["capture-code-vocabulary"]["synchronization"])
     capture_semaphore = _mapping(
         _mapping(_sequence(capture_sync["semaphores"])[0])["configMapKeyRef"]

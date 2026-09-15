@@ -199,9 +199,11 @@ _RECORD_TYPES: Mapping[tuple[str, str], str] = MappingProxyType(
         ("bid-detail", "eat-v2"): "auction.v2",
         ("bid-detail", "eat-v3"): "auction.v2",
         # 코드목록은 공고 corpus가 아니라 어휘 한 벌이므로 record type도 공고 계약과 갈라 둔다.
-        # parser version이 eat-v1 하나뿐인 이유는 이 응답 해석에 아직 두 번째 검토본이 없기 때문이며,
-        # 공고 parser version과 같은 이름을 쓰는 것은 우연이 아니라 같은 소스의 같은 검토 세대다.
+        # 세 version에서 같은 이름인 이유는 목록과 같다 — 응답 해석이 version마다 달라지지 않는데
+        # 실행 단위는 parser version 하나라서, 셋 다 등록해야 어느 실행 파라미터로도 어휘가 돈다.
         ("code-list", "eat-v1"): "code-vocabulary.v1",
+        ("code-list", "eat-v2"): "code-vocabulary.v1",
+        ("code-list", "eat-v3"): "code-vocabulary.v1",
     }
 )
 
