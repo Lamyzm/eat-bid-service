@@ -86,3 +86,8 @@ def dev_manifests() -> ManifestSet:
 @pytest.fixture(scope="session")
 def base_manifests() -> ManifestSet:
     return _render(MONOREPO_ROOT / "infra" / "base")
+
+
+@pytest.fixture(scope="session")
+def smoke_manifests() -> ManifestSet:
+    return _render(MONOREPO_ROOT / "infra" / "envs" / "smoke")
