@@ -230,13 +230,14 @@ env, `monitoring/expectations.py`의 `backfill-progress` SQL이 `workflow_name`�
 
 ## 6단계 — 배포 자가복구
 
-**5a. cosign 재시도.** `.github/workflows/build.yml`의 `cosign sign`·`attest`를 세 번까지 20초 간격으로
+**6a. cosign 재시도.** `.github/workflows/build.yml`의 `cosign sign`·`attest`를 세 번까지 20초 간격으로
 다시 시도한다. OIDC 토큰 조회는 GitHub 쪽 일시 장애가 있고, 그때 사람이 `gh run rerun --failed`를 치는
 것이 지금 절차다.
 
-**5b. 빌드 중 병합 방지.** `tools/agent-workflow/release.mjs` — 태그를 만들기 전에 (1) `build.yml` 회차가
+**6b. 빌드 중 병합 방지.** `tools/agent-workflow/tag.mjs` — 태그를 만들기 전에 (1) `build.yml` 회차가
 `in_progress`이면 거부, (2) 열린 PR 가운데 auto-merge가 켜진 것이 있으면 목록을 보이고 거부. `pnpm
-workflow:release -- v0.1.N`으로 부른다. `docs/operations/collection-runbook.md`가 아니라 릴리스 절을 갖는
+workflow:tag -- v0.1.N`으로 부른다. `workflow:release`라는 이름은 이미 있고 뜻이 다르다 — issue claim을
+놓는 명령이다(`cli.mjs release`). 같은 낱말에 두 뜻을 주지 않는다. `docs/operations/collection-runbook.md`가 아니라 릴리스 절을 갖는
 runtime 문서 §5에 "릴리스 중 병합 금지"를 규칙으로 적는다. promote의 거부 자체는 맞는 동작이므로
 바꾸지 않는다.
 
