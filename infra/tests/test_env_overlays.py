@@ -2,34 +2,15 @@
 
 from __future__ import annotations
 
-import subprocess
-from pathlib import Path
-
 from conftest import MONOREPO_ROOT, ManifestSet
 
 
-def _render_text(path: Path) -> str:
-    result = subprocess.run(
-        ["kubectl", "kustomize", str(path)],
-        capture_output=True,
-        check=True,
-        text=True,
-        encoding="utf-8",
-    )
-    return result.stdout
+def test_product_별칭은_더_이상_없다() -> None:
+    """전환이 끝났으므로 운영 렌더 경로는 `infra/envs/prod` 하나다.
 
-
-def test_product_별칭은_prod_overlay와_글자까지_같은_것을_낸다() -> None:
-    """Argo CD Application이 `deploy/prod`의 `infra/product`를 보고 `prune: true`다.
-
-    경로를 한 번에 옮기면 어느 쪽으로 해도 Argo가 "선언된 것이 없다"로 읽어 운영 리소스를 지운다.
-    전환 릴리스가 두 경로를 모두 싣고 둘이 같은 것을 내야 path를 언제 바꿔도 diff가 0이다.
-    이 검사가 참인 동안에만 그 전환이 안전하다.
+    별칭이 되살아나면 두 경로가 갈라질 수 있고, 어느 쪽이 운영인지 다시 물어야 한다.
     """
-    별칭 = _render_text(MONOREPO_ROOT / "infra" / "product")
-    overlay = _render_text(MONOREPO_ROOT / "infra" / "envs" / "prod")
-
-    assert 별칭 == overlay
+    assert not (MONOREPO_ROOT / "infra" / "product" / "kustomization.yaml").exists()
 
 
 def test_base만으로는_이미지를_당길_곳이_없다(base_manifests: ManifestSet) -> None:
@@ -120,3 +101,62 @@ def test_두_레인은_서로의_overlay_파일을_건드리지_않는다() -> N
     assert "cosign" not in dev
     assert "HEAD:refs/heads/deploy/dev" in dev
     assert "HEAD:refs/heads/deploy/prod" not in dev
+
+
+def test_smoke는_dev의_파이프라인_조각만_남기고_소스_호스트를_묶는다(
+    smoke_manifests: ManifestSet,
+    dev_manifests: ManifestSet,
+) -> None:
+    """smoke가 통과하는 것과 dev가 뜨는 것이 같은 사실이어야 한다(EAT-226).
+
+    smoke는 dev를 물려받아 GHCR·터널·CRD가 필요한 것만 지운다. WorkflowTemplate·CronWorkflow·RBAC이 dev와
+    같지 않으면 로컬 초록이 운영의 증거가 아니다. eaT 호스트를 127.0.0.1로 묶는 것이 "소스를 부르지
+    않는다"(ADR 0051 결정 4)의 실행 방식이고, 그것이 빠지면 CI가 운영 소스를 두드린다.
+    """
+    kinds = set(smoke_manifests.kinds)
+    assert {"Ingress", "Middleware", "InfisicalSecret"}.isdisjoint(kinds)
+    assert {
+        document["metadata"]["name"]  # type: ignore[index]
+        for document in smoke_manifests.of_kind("Deployment")
+    } == {"postgres"}
+
+    template = smoke_manifests.workflow_template("eatbid-dataplane")
+    assert template["spec"]["hostAliases"] == [  # type: ignore[index]
+        {"ip": "127.0.0.1", "hostnames": ["ns.eat.co.kr"]}
+    ]
+
+    dev_template = dev_manifests.workflow_template("eatbid-dataplane")
+    assert _without_images(template) == _without_images(dev_template)
+
+    crons = smoke_manifests.of_kind("CronWorkflow")
+    assert crons and all(cron["spec"]["suspend"] is True for cron in crons)  # type: ignore[index]
+
+    images = {
+        container["image"]
+        for document in smoke_manifests.of_kind("Job") + smoke_manifests.of_kind("WorkflowTemplate")
+        for spec in _container_specs(document)
+        for container in spec
+    }
+    assert not any(image.startswith("ghcr.io/") for image in images), images
+    assert {"eatbid-dataplane:smoke", "eatbid-migration:smoke"} <= images
+
+
+def _container_specs(document: dict[str, object]) -> list[list[dict[str, str]]]:
+    if document["kind"] == "Job":
+        return [document["spec"]["template"]["spec"]["containers"]]  # type: ignore[index]
+    return [
+        [template["container"]]
+        for template in document["spec"]["templates"]  # type: ignore[index]
+        if "container" in template
+    ]
+
+
+def _without_images(template: dict[str, object]) -> list[dict[str, object]]:
+    """이미지 참조만 다르고 나머지 template 정의는 글자까지 같아야 한다."""
+    stripped: list[dict[str, object]] = []
+    for entry in template["spec"]["templates"]:  # type: ignore[index]
+        copy = dict(entry)
+        if "container" in copy:
+            copy["container"] = {k: v for k, v in copy["container"].items() if k != "image"}  # type: ignore[union-attr]
+        stripped.append(copy)
+    return stripped

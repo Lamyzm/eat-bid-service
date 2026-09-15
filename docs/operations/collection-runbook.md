@@ -167,7 +167,7 @@ DAG는 `discover`부터 시작하기 때문이다.
    ```powershell
    kubectl get workflowtemplate eatbid-dataplane -n eatbid -o jsonpath='{.spec.templates[?(@.name=="normalize")].container.image}'
    ```
-2. 그 뒤 **별도 커밋**으로 `infra/product/workflows/workflow-template.yaml`의 `parser-version` 기본값을
+2. 그 뒤 **별도 커밋**으로 `infra/base/workflows/workflow-template.yaml`의 `parser-version` 기본값을
    `eat-v3`로 올리고 `infra/tests/test_workflow_contract.py`의 기본값 assert를 같이 고친다. 이 커밋은
    EAT-75 branch에 넣지 않았다.
 3. 다음 `poll-open`부터 새 관측이 라벨을 싣는다. 확인:

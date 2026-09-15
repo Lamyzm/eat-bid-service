@@ -67,6 +67,29 @@ jobs:
       - name: TypeScript workspace 빌드
         run: pnpm build
 
+  argo-smoke:
+    name: 로컬 Argo에 진짜 템플릿 제출 검증
+    # 2026-09-14~15의 세 버그(템플릿 env 누락 → exit 64, str(True) → when 조건 항상 거짓)는 단위 786개와
+    # 계약 218개를 통과하고 운영에서만 죽었다. 오케스트레이터의 의미론은 오케스트레이터에서만 검증된다.
+    # 이 job이 그 층이다(EAT-226). 소스는 부르지 않는다 — overlay가 eaT 호스트를 127.0.0.1로 묶는다.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - name: pnpm 설치
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10.12.1'
+      - name: k3d 설치
+        # 버전을 박는다. 로컬(infra/k3d-smoke.yaml)과 같은 k3s를 같은 k3d로 띄워야 여기서 본 것이 거기서 본 것이다.
+        run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
+      - name: smoke
+        # helm·docker·kubectl은 ubuntu-latest에 있다. 이미지는 여기서 빌드한다 — GHCR은 익명 pull을 거부한다.
+        run: pnpm workflow:argo-smoke
+
   frontend-browser:
     name: 프론트엔드 browser 기반 검증
     runs-on: ubuntu-latest
@@ -132,7 +155,7 @@ jobs:
   # 자체에서 없앨 수 없는 신호를 남긴다. docs/operations/ci-gate-failure-response.md §4가 대응 절차다.
   notify-main-failure:
     name: main 실패를 이슈로 남긴다
-    needs: [repository, frontend-browser]
+    needs: [repository, frontend-browser, argo-smoke]
     if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

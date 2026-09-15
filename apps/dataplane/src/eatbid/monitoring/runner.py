@@ -38,6 +38,9 @@ class MonitoringResult:
     opened: tuple[str, ...]
     resolved: tuple[str, ...]
     still_open: tuple[str, ...]
+    # 클러스터 밖으로 나간 심장박동. `sent`/`skipped`이며 실패는 값이 아니라 예외다 — 조립부가 회차가
+    # 끝까지 끝난 뒤 채운다. 기본값이 skipped인 이유는 runner 자신은 밖을 모르기 때문이다.
+    heartbeat: str = "skipped"
 
 
 def run_expectation_check(
