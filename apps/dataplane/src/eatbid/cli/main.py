@@ -216,12 +216,18 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
 
 def _write_result_files(result_dir: Path, payload: Mapping[str, object]) -> None:
     """왜: workflow 실행기는 stdout이 아니라 파일에서 output parameter를 읽으므로 machine result의
-    key마다 파일 하나를 둔다. 목록 값은 JSON 배열이라 그대로 fan-out 입력이 된다."""
+    key마다 파일 하나를 둔다. 목록 값은 JSON 배열이라 그대로 fan-out 입력이 된다.
+
+    불리언도 JSON으로 적는다. `str(True)`는 `True`이고 Argo의 `when`은 `true`와 비교하므로 파이썬
+    표기를 그대로 내보내면 조건이 언제나 거짓이 된다. 2026-09-14~15에 전진 cron이 28시간 동안 매시
+    `Succeeded`로 끝나면서 `when 'True == true' evaluated false`로 본 단계를 통째로 건너뛰었다.
+    실패가 아니라 성공으로 보였기 때문에 어떤 감시도 그것을 잡지 못했다.
+    """
     result_dir.mkdir(parents=True, exist_ok=True)
     for key, value in payload.items():
         text = (
             json.dumps(value, separators=(",", ":"), sort_keys=True)
-            if isinstance(value, list | dict)
+            if isinstance(value, bool | list | dict)
             else str(value)
         )
         (result_dir / key).write_text(text, encoding="utf-8")
@@ -249,11 +255,7 @@ COMMAND_METHODS: Mapping[str, str] = {
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
-    name: (
-        _chunk_handler(name, method)
-        if name in CHUNK_COMMANDS
-        else _handler(method)
-    )
+    name: (_chunk_handler(name, method) if name in CHUNK_COMMANDS else _handler(method))
     for name, method in COMMAND_METHODS.items()
 }
 
@@ -271,9 +273,7 @@ def main(
     args = build_parser().parse_args(argv)
     try:
         settings = (
-            settings
-            if settings is not None
-            else ApplicationSettings.model_validate({})
+            settings if settings is not None else ApplicationSettings.model_validate({})
         )
         factory = application_factory
         if factory is None:

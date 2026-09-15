@@ -32,6 +32,11 @@
       "import": "./src/api/internal/index.ts",
       "default": "./src/api/internal/index.ts"
     },
+    "./api/v1/analysis": {
+      "types": "./src/api/v1/analysis/index.ts",
+      "import": "./src/api/v1/analysis/index.ts",
+      "default": "./src/api/v1/analysis/index.ts"
+    },
     "./api/v1/auctions": {
       "types": "./src/api/v1/auctions/index.ts",
       "import": "./src/api/v1/auctions/index.ts",
