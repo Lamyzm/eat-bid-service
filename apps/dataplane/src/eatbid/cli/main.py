@@ -14,6 +14,7 @@ from eatbid.cli.arguments import build_parser as build_argument_parser
 from eatbid.cli.chunks import CHUNK_COMMANDS, chunk_payload, run_chunk_command
 from eatbid.config import ApplicationSettings
 from eatbid.core.code_release_projection import CodeReleaseProjectionResult
+from eatbid.core.code_vocabulary_projection import CodeVocabularyProjectionResult
 from eatbid.failures.categories import (
     CONFIGURATION,
     DATA_QUARANTINED,
@@ -28,6 +29,7 @@ from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
 from eatbid.monitoring.runner import MonitoringResult
 from eatbid.pipeline.advance import BackfillWindow
+from eatbid.pipeline.code_vocabulary import CodeVocabularyCaptureResult
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
 
@@ -62,6 +64,8 @@ class CliApplication(Protocol):
     def build_marts(self, args: argparse.Namespace) -> object: ...
     def capture_reference(self, args: argparse.Namespace) -> object: ...
     def project_reference(self, args: argparse.Namespace) -> object: ...
+    def capture_code_vocabulary(self, args: argparse.Namespace) -> object: ...
+    def project_code_vocabulary(self, args: argparse.Namespace) -> object: ...
     def fail_release(self, args: argparse.Namespace) -> object: ...
     def check_expectations(self, args: argparse.Namespace) -> object: ...
     def next_backfill_window(self, args: argparse.Namespace) -> object: ...
@@ -172,6 +176,30 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "member_count": result.member_count,
             "members_without_parent": result.members_without_parent,
         }
+    if method_name == "capture_code_vocabulary":
+        if not isinstance(result, CodeVocabularyCaptureResult):
+            raise TypeError("capture-code-vocabulary returned an invalid result")
+        # 옮기지 못한 행 수를 실행 결과로 남긴다. 어휘가 통째로 활성 이름이 되므로 빠뜨린 행이
+        # 조용하면 화면은 이름 없는 코드를 "아직 안 받은 것"으로 오해한다.
+        return {
+            "content_sha256": result.content_sha256,
+            "observation_id": result.observation_id,
+            "source_release_id": str(result.source_release_id),
+            "entry_count": result.entry_count,
+            "excluded_row_count": result.excluded_row_count,
+            "release_name": result.release_name,
+        }
+    if method_name == "project_code_vocabulary":
+        if not isinstance(result, CodeVocabularyProjectionResult):
+            raise TypeError("project-code-vocabulary returned an invalid result")
+        # 소스가 그만 쓴다고 말한 코드 수를 함께 남긴다. 조용히 내려가면 화면에서 사라진 선택지가
+        # 왜 사라졌는지 되짚을 자리가 없다.
+        return {
+            "entry_count": result.entry_count,
+            "inserted_code_values": result.inserted_code_values,
+            "inserted_labels": result.inserted_labels,
+            "deactivated_code_values": result.deactivated_code_values,
+        }
     if method_name == "fail_release":
         if not isinstance(result, FailedSourceRelease):
             raise TypeError("fail-release returned an invalid result")
@@ -245,6 +273,10 @@ COMMAND_METHODS: Mapping[str, str] = {
     "build-marts": "build_marts",
     "capture-reference": "capture_reference",
     "project-reference": "project_reference",
+    # eaT가 자기 코드에 붙여 부르는 이름을 받아 core 어휘에 앉힌다. 공고 수집 DAG와 같은 이미지·같은
+    # run 정체성을 쓰되 발견·발행 corpus가 없어 두 단계로 끝난다(EAT-187).
+    "capture-code-vocabulary": "capture_code_vocabulary",
+    "project-code-vocabulary": "project_code_vocabulary",
     # 운영자 entrypoint다. DAG 단계가 아니라 사람이 planned release를 닫을 때만 부른다(EAT-122).
     "fail-release": "fail_release",
     # 스케줄 entrypoint다. 수집 상태를 바꾸지 않고 기대만 평가해 위반을 알린다(EAT-170, ADR 0046).

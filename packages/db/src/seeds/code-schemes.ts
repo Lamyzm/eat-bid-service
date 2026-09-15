@@ -89,6 +89,15 @@ export const builtinCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  // 구매기관 유형이다. eaT 공통 코드목록(BC016)에서만 관측되고 공고 응답에는 오지 않으므로
+  // `core.organization.type`과는 아직 잇지 않는다 —
+  // `apps/dataplane/src/eatbid/source/eat/code_schemes.py`의 `ORGANIZATION_TYPE`이 그 이유를 갖는다.
+  {
+    namespace: "eat:organization-type",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
 ] as const;
 
 type CodeSchemeSeedDatabase = {

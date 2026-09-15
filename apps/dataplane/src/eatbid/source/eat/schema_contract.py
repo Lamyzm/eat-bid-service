@@ -34,6 +34,31 @@ class ReviewedSchemaContract:
     def fingerprint(self) -> str:
         return schema_fingerprint(self.required_datasets)
 
+    def observed_fingerprint(
+        self, datasets: Mapping[str, tuple[Mapping[str, str], ...]]
+    ) -> str:
+        """관측된 응답에서 이 계약이 주장하는 부분만 골라 같은 규칙으로 지문을 만든다.
+
+        왜 응답 전체가 아니라 검토된 필수 부분집합인가. 2026-09-03 실측에서 같은 창의 상세 85건이 전체
+        모양 지문을 12가지로 갈랐다. 공고 유형에 따라 선택적 dataset이 붙거나 빠지기 때문이다. 전체
+        모양의 동일성을 계약으로 삼으면 어떤 live 수집도 발행되지 않고, 소스가 필드를 하나 늘릴 때마다
+        제품이 멈춘다.
+
+        계약이 주장해야 하는 것은 파서가 의존하는 필수 부분집합의 존재다. 그 교집합으로 계산하므로
+        필수 column이 하나라도 빠지면 값이 달라져 격리되고, 모르는 column이 더 있어도 해석하지 않으니
+        추측이 들어가지 않는다. 응답 전체 모양은 보존된 원본에서 언제든 다시 계산할 수 있다.
+        """
+        return schema_fingerprint(
+            {
+                dataset: [
+                    column
+                    for column in required
+                    if any(column in row for row in datasets.get(dataset, ()))
+                ]
+                for dataset, required in self.required_datasets.items()
+            }
+        )
+
 
 # 목록 dataset의 알려진 전체 column 38개다. 근거는 `docs/audit-source/census-list.txt`(아카이브 54개
 # 응답 35,079행 전수, 전 column 채움률 100%)와 2026-09-03 live 실측(EAT-34)이다. 파서가 읽지 않는
@@ -231,6 +256,58 @@ _EAT_V3_BID_DETAIL = replace(
 )
 _EAT_V3_BID_LIST_PAGE = replace(_EAT_V1_BID_LIST, parser_version="eat-v3")
 
+# 공통 코드목록 응답 `ds_out`의 알려진 전체 column 22개다. 근거는 2026-09-16 실측
+# (`SC066,SC067,EP049,BC016` 282행, `tests/fixtures/eat/code-list.xml`)이다. `ITM_VL1`~`ITM_VL9`는
+# 그룹마다 뜻이 다르고 채움률도 다르지만 전체 모양에는 둔다 — 소스가 column을 더하거나 빼는 변화를
+# 원본 대비로 알아채기 위해서다(목록·상세 계약과 같은 이유).
+_EAT_V1_CODE_LIST_COLUMNS = (
+    "CMNS_CD",
+    "CMNS_CD_DSCRP",
+    "CMNS_CD_NM",
+    "CMNS_GRP_CD",
+    "DEL_YN",
+    "FRST_REG_DT",
+    "FRST_RGTR_ID",
+    "ITM_VL1",
+    "ITM_VL2",
+    "ITM_VL3",
+    "ITM_VL4",
+    "ITM_VL5",
+    "ITM_VL6",
+    "ITM_VL7",
+    "ITM_VL8",
+    "ITM_VL9",
+    "LAST_CHGR_ID",
+    "LAST_CHG_DT",
+    "SRTNG_SEQN",
+    "USE_YN",
+    "VLD_BGNG_YMD",
+    "VLD_END_YMD",
+)
+
+_EAT_V1_CODE_LIST = ReviewedSchemaContract(
+    source="eat",
+    endpoint="code-list",
+    parser_version="eat-v1",
+    datasets=MappingProxyType({"ds_out": _EAT_V1_CODE_LIST_COLUMNS}),
+    # 파서가 읽는 여섯이다. 그룹·코드·이름이 없으면 어휘 항목 자체를 만들 수 없고, 사용·삭제 표시와
+    # 유효기간이 없으면 "지금 쓰는 코드인가"를 우리가 정하게 된다(AGENTS 3). `ITM_VL*`는 그룹마다
+    # 뜻이 달라 어느 것도 필수가 아니다.
+    required=MappingProxyType(
+        {
+            "ds_out": (
+                "CMNS_GRP_CD",
+                "CMNS_CD",
+                "CMNS_CD_NM",
+                "USE_YN",
+                "DEL_YN",
+                "VLD_BGNG_YMD",
+                "VLD_END_YMD",
+            )
+        }
+    ),
+)
+
 REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
     {
         (contract.source, contract.endpoint, contract.parser_version): contract
@@ -241,6 +318,7 @@ REVIEWED_EAT_SCHEMA_CONTRACTS = MappingProxyType(
             _EAT_V2_BID_DETAIL,
             _EAT_V3_BID_LIST_PAGE,
             _EAT_V3_BID_DETAIL,
+            _EAT_V1_CODE_LIST,
         )
     }
 )

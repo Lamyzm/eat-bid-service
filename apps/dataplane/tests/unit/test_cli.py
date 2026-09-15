@@ -100,6 +100,12 @@ class _기록애플리케이션:
     def project_reference(self, args: Namespace) -> None:
         self._record("project-reference", args)
 
+    def capture_code_vocabulary(self, args: Namespace) -> None:
+        self._record("capture-code-vocabulary", args)
+
+    def project_code_vocabulary(self, args: Namespace) -> None:
+        self._record("project-code-vocabulary", args)
+
     def fail_release(self, args: Namespace) -> None:
         self._record("fail-release", args)
 
@@ -230,6 +236,20 @@ def _명령(command: str) -> list[str]:
             "1",
             "--release-name",
             "legal-dong 2026-09-06",
+            "--projected-at",
+            "2026-09-01T00:05:00Z",
+        ],
+        "capture-code-vocabulary": [
+            "--release-name",
+            "eat-code-vocabulary 2026-09-16",
+            "--as-of",
+            "2026-09-01T00:00:00Z",
+            "--started-at",
+            "2026-09-01T00:00:00Z",
+        ],
+        "project-code-vocabulary": [
+            "--observation-id",
+            "1",
             "--projected-at",
             "2026-09-01T00:05:00Z",
         ],
