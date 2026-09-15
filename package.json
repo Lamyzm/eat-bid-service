@@ -48,6 +48,7 @@
     "workflow:session": "node tools/agent-workflow/cli.mjs session",
     "workflow:recover-lock": "node tools/agent-workflow/cli.mjs recover-lock",
     "workflow:worktree": "node tools/agent-workflow/cli.mjs worktree",
+    "workflow:argo-smoke": "node tools/agent-workflow/cli.mjs argo-smoke",
     "workflow:sync": "node tools/agent-workflow/infisical.mjs sync",
     "db:generate": "pnpm --filter @eatbid/db db:generate",
     "db:check": "pnpm --filter @eatbid/db db:check",

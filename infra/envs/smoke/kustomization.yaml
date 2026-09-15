@@ -1,0 +1,82 @@
+# smoke overlay. dev overlay를 그대로 물려받아 **파이프라인 조각만** 남긴다(EAT-226, 관측 계획 2단계).
+#
+# 왜 dev를 물려받나: smoke의 목적은 "진짜 Argo가 진짜 WorkflowTemplate을 받아 DAG를 시작하는가"이고, 그
+# 템플릿·CronWorkflow·Secret 참조·RBAC은 dev와 글자까지 같아야 뜻이 있다. 따로 적으면 smoke가 통과하는
+# 것과 dev가 뜨는 것이 다른 사실이 된다.
+#
+# 왜 빼나: web·server는 GHCR 이미지가 필요하고(익명 pull 거부, 2026-09-16 실측) smoke가 보지 않는다.
+# cloudflared는 터널 자격이 없다. Ingress·Middleware는 smoke가 Traefik을 끄므로 CRD가 없다. InfisicalSecret은
+# operator가 없어 CRD가 없다 — Secret은 스크립트가 더미 값으로 직접 만든다(값은 저장소에 없다).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../dev
+
+# 이미지를 그 자리에서 빌드한 로컬 태그로 바꾼다. dev의 digest는 GHCR에만 있다.
+images:
+  - name: ghcr.io/lamyzm/eatbid-dataplane
+    newName: eatbid-dataplane
+    newTag: smoke
+    digest: ""
+  - name: ghcr.io/lamyzm/eatbid-migration
+    newName: eatbid-migration
+    newTag: smoke
+    digest: ""
+
+patches:
+  - target: { kind: Deployment, name: web }
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: { name: web }
+  - target: { kind: Deployment, name: server }
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: { name: server }
+  - target: { kind: Deployment, name: cloudflared }
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: { name: cloudflared }
+  - target: { kind: ConfigMap, name: cloudflared-config }
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata: { name: cloudflared-config }
+  - target: { kind: Ingress }
+    patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata: { name: any }
+  - target: { kind: Middleware }
+    patch: |-
+      $patch: delete
+      apiVersion: traefik.io/v1alpha1
+      kind: Middleware
+      metadata: { name: any }
+  - target: { kind: InfisicalSecret }
+    patch: |-
+      $patch: delete
+      apiVersion: secrets.infisical.com/v1alpha1
+      kind: InfisicalSecret
+      metadata: { name: any }
+
+  # 소스를 부르지 않는다(ADR 0051 결정 4). eaT 주소는 설정이 아니라 코드에 있으므로(source/eat/registry.py의
+  # EAT_ORIGIN) 파드 수준에서 그 호스트를 127.0.0.1로 묶는다. discover는 설정 검증을 지나 연결에서
+  # TRANSIENT_NETWORK(exit 69)로 끝난다 — 그것이 "파드가 못 떴다"(exit 64)와 구분되는 정상 신호다.
+  - target: { kind: WorkflowTemplate, name: eatbid-dataplane }
+    patch: |-
+      apiVersion: argoproj.io/v1alpha1
+      kind: WorkflowTemplate
+      metadata: { name: eatbid-dataplane }
+      spec:
+        hostAliases:
+          - ip: "127.0.0.1"
+            hostnames: ["ns.eat.co.kr"]

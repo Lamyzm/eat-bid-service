@@ -120,3 +120,62 @@ def test_두_레인은_서로의_overlay_파일을_건드리지_않는다() -> N
     assert "cosign" not in dev
     assert "HEAD:refs/heads/deploy/dev" in dev
     assert "HEAD:refs/heads/deploy/prod" not in dev
+
+
+def test_smoke는_dev의_파이프라인_조각만_남기고_소스_호스트를_묶는다(
+    smoke_manifests: ManifestSet,
+    dev_manifests: ManifestSet,
+) -> None:
+    """smoke가 통과하는 것과 dev가 뜨는 것이 같은 사실이어야 한다(EAT-226).
+
+    smoke는 dev를 물려받아 GHCR·터널·CRD가 필요한 것만 지운다. WorkflowTemplate·CronWorkflow·RBAC이 dev와
+    같지 않으면 로컬 초록이 운영의 증거가 아니다. eaT 호스트를 127.0.0.1로 묶는 것이 "소스를 부르지
+    않는다"(ADR 0051 결정 4)의 실행 방식이고, 그것이 빠지면 CI가 운영 소스를 두드린다.
+    """
+    kinds = set(smoke_manifests.kinds)
+    assert {"Ingress", "Middleware", "InfisicalSecret"}.isdisjoint(kinds)
+    assert {
+        document["metadata"]["name"]  # type: ignore[index]
+        for document in smoke_manifests.of_kind("Deployment")
+    } == {"postgres"}
+
+    template = smoke_manifests.workflow_template("eatbid-dataplane")
+    assert template["spec"]["hostAliases"] == [  # type: ignore[index]
+        {"ip": "127.0.0.1", "hostnames": ["ns.eat.co.kr"]}
+    ]
+
+    dev_template = dev_manifests.workflow_template("eatbid-dataplane")
+    assert _without_images(template) == _without_images(dev_template)
+
+    crons = smoke_manifests.of_kind("CronWorkflow")
+    assert crons and all(cron["spec"]["suspend"] is True for cron in crons)  # type: ignore[index]
+
+    images = {
+        container["image"]
+        for document in smoke_manifests.of_kind("Job") + smoke_manifests.of_kind("WorkflowTemplate")
+        for spec in _container_specs(document)
+        for container in spec
+    }
+    assert not any(image.startswith("ghcr.io/") for image in images), images
+    assert {"eatbid-dataplane:smoke", "eatbid-migration:smoke"} <= images
+
+
+def _container_specs(document: dict[str, object]) -> list[list[dict[str, str]]]:
+    if document["kind"] == "Job":
+        return [document["spec"]["template"]["spec"]["containers"]]  # type: ignore[index]
+    return [
+        [template["container"]]
+        for template in document["spec"]["templates"]  # type: ignore[index]
+        if "container" in template
+    ]
+
+
+def _without_images(template: dict[str, object]) -> list[dict[str, object]]:
+    """이미지 참조만 다르고 나머지 template 정의는 글자까지 같아야 한다."""
+    stripped: list[dict[str, object]] = []
+    for entry in template["spec"]["templates"]:  # type: ignore[index]
+        copy = dict(entry)
+        if "container" in copy:
+            copy["container"] = {k: v for k, v in copy["container"].items() if k != "image"}  # type: ignore[union-attr]
+        stripped.append(copy)
+    return stripped
