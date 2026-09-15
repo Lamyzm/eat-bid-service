@@ -1,0 +1,27 @@
+[
+  {
+    "file": "design-distribution-earlier.jpg",
+    "bytes": 99491,
+    "sha256": "702d115ffb906f3d65ed08001cc6c3c60cfcdd402352076a09286568833073d9"
+  },
+  {
+    "file": "design-region-comparison-2.jpg",
+    "bytes": 81166,
+    "sha256": "53ad67d626d78580c2443e9ae161b6466ee2cc44a5274381dde1109c3b83d4ce"
+  },
+  {
+    "file": "implementation-fixture-desktop.png",
+    "bytes": 137436,
+    "sha256": "f31266fab0f5e038e7369df7254d1d56539c410ed6e1525bf46f1e1ff302edf4"
+  },
+  {
+    "file": "implementation-fixture-fullscreen.png",
+    "bytes": 84434,
+    "sha256": "ebb6d2e52bd86ea55d1b293567a6b918eb1e52414ebe5caa899afaf6fcc109c8"
+  },
+  {
+    "file": "implementation-fixture-mobile.png",
+    "bytes": 101210,
+    "sha256": "a131e5f28c9d185c94c17f90888e3cf591d2ce86cbcb158676406efc17e184a0"
+  }
+]

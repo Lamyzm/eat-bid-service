@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Mapping
 from datetime import timedelta
 from functools import partial
+from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
@@ -41,11 +42,23 @@ from eatbid.mart.open_auction_snapshot import open_auction_snapshot_filler
 from eatbid.mart.org_round_summary import fill_org_round_summary
 from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
 from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
+from eatbid.monitoring.backup import (
+    BackupExpectation,
+    BackupObject,
+    evaluate_backups,
+)
+from eatbid.monitoring.cluster import evaluate_cluster
+from eatbid.monitoring.github import WorkflowExpectation, evaluate_workflows
 from eatbid.monitoring.notify import send_telegram
-from eatbid.monitoring.runner import MonitoringResult, run_expectation_check
-from eatbid.monitoring.store import R2StateStore
+from eatbid.monitoring.runner import (
+    MonitoringResult,
+    ViolationProbe,
+    run_expectation_check,
+)
+from eatbid.monitoring.store import R2BackupLister, R2StateStore
+from eatbid.pipeline.advance import CompletedWindow, next_window
 from eatbid.pipeline.capture import capture
-from eatbid.pipeline.collection_window import resolve_collection_window
+from eatbid.pipeline.collection_window import SEOUL_TIME, resolve_collection_window
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.pipeline.normalize import normalize_observation
@@ -203,6 +216,31 @@ class Application:
                 validation.failure_category, publication_id=args.publication_id
             )
         return validation
+
+    def next_backfill_window(self, args: argparse.Namespace) -> Any:
+        """다음에 채울 창 하나를 고른다. 아무것도 바꾸지 않는 읽기다.
+
+        판단의 재료는 `ingest.backfill_coverage` 하나다. 그 view가 "이 창은 끝났다"의 정의를 소유하고
+        전진 판단과 대시보드가 같은 답을 본다(ADR 0052 결정 2). 여기서 SQL을 따로 적으면 정의가
+        둘이 된다.
+        """
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "select window_start, window_end, is_complete from ingest.backfill_coverage"
+            )
+            coverage = tuple(
+                CompletedWindow(
+                    start_date=str(row[0]),
+                    end_date=str(row[1]),
+                    is_complete=bool(row[2]),
+                )
+                for row in cursor.fetchall()
+            )
+        return next_window(
+            as_of=args.as_of.astimezone(SEOUL_TIME).date(),
+            floor=args.floor_date,
+            coverage=coverage,
+        )
 
     def check_expectations(self, args: argparse.Namespace) -> Any:
         # 운영자·스케줄 entrypoint다. 어떤 DAG에도 들지 않으며 수집 상태를 바꾸지 않고 읽기만 한다.
@@ -371,12 +409,22 @@ class _MonitoringRunner:
     따로 매달면 수집 조립과 감시 조립이 섞여 어느 쪽이 무엇을 쓰는지 흐려진다.
     """
 
-    def __init__(self, *, connection: Any, state_store: Any, config: ApplicationSettings) -> None:
+    def __init__(
+        self,
+        *,
+        connection: Any,
+        state_store: Any,
+        backup_lister: Any,
+        config: ApplicationSettings,
+    ) -> None:
         self._connection = connection
         self._state_store = state_store
+        self._backup_lister = backup_lister
         self._config = config
 
-    def _run_query(self, sql: str, parameters: Mapping[str, Any]) -> list[dict[str, Any]]:
+    def _run_query(
+        self, sql: str, parameters: Mapping[str, Any]
+    ) -> list[dict[str, Any]]:
         with self._connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(sql, parameters)
             return list(cursor.fetchall())
@@ -388,16 +436,80 @@ class _MonitoringRunner:
             raise RuntimeError("감시 알림 대상이 없습니다.")
         send_telegram(token=token.get_secret_value(), chat_id=chat_id, text=text)
 
+    def _fetch_workflow_runs(
+        self, expectation: WorkflowExpectation
+    ) -> list[Mapping[str, Any]]:
+        """GitHub 공개 API에서 최근 회차만 읽는다. 저장소가 공개라 인증 헤더가 없다.
+
+        `per_page`를 작게 두는 이유는 판정에 최신 회차와 그 앞의 끝난 회차 하나면 충분하기 때문이다.
+        `exclude_pull_requests`는 PR 회차를 빼 원격 main의 판정에 다른 branch가 섞이지 않게 한다.
+        """
+        repository = self._config.github_repository
+        parameters: dict[str, Any] = {"per_page": 5, "exclude_pull_requests": "true"}
+        if expectation.branch is not None:
+            parameters["branch"] = expectation.branch
+        response = httpx.get(
+            f"https://api.github.com/repos/{repository}"
+            f"/actions/workflows/{expectation.workflow_file}/runs",
+            params=parameters,
+            headers={"Accept": "application/vnd.github+json"},
+            timeout=20.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        runs = payload.get("workflow_runs") if isinstance(payload, Mapping) else None
+        return [run for run in runs or () if isinstance(run, Mapping)]
+
+    def _list_cluster_resources(self, path: str) -> list[Mapping[str, Any]]:
+        """클러스터 안에서 Kubernetes API를 읽는다.
+
+        왜 kubernetes client 패키지를 쓰지 않는가: 필요한 것이 GET 둘뿐이라 의존성 하나를 더하는 값이
+        없다. ServiceAccount token과 CA는 kubelet이 파드 안에 놓아 주며, 그 경로는 Kubernetes가
+        정한 자리다.
+
+        왜 token을 매번 읽는가: projected token은 만료 전에 파일이 갱신된다. 한 번 읽어 두면 오래 사는
+        프로세스에서 만료된 token을 계속 보내게 된다 — 감시는 15분마다 새로 뜨지만 그 가정에 기대지 않는다.
+        """
+        root = Path("/var/run/secrets/kubernetes.io/serviceaccount")
+        token = (root / "token").read_text(encoding="utf-8").strip()
+        response = httpx.get(
+            f"https://kubernetes.default.svc{path}",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            verify=str(root / "ca.crt"),
+            timeout=20.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        items = payload.get("items") if isinstance(payload, Mapping) else None
+        return [item for item in items or () if isinstance(item, Mapping)]
+
+    def _list_backup_objects(
+        self, expectation: BackupExpectation
+    ) -> list[BackupObject]:
+        return self._backup_lister.list(expectation.prefix)
+
+    def _probes(self) -> tuple[ViolationProbe, ...]:
+        probes: list[ViolationProbe] = [
+            lambda: evaluate_backups(self._list_backup_objects),
+            lambda: evaluate_cluster(self._list_cluster_resources),
+        ]
+        if self._config.github_repository is not None:
+            probes.append(lambda: evaluate_workflows(self._fetch_workflow_runs))
+        return tuple(probes)
+
     def run(self) -> MonitoringResult:
         return run_expectation_check(
             run_query=self._run_query,
             state_store=self._state_store,
             notify=self._notify,
             environment=self._config.environment_name,
+            probes=self._probes(),
         )
 
 
-def _build_monitoring(config: ApplicationSettings, connection: Any) -> _MonitoringRunner | None:
+def _build_monitoring(
+    config: ApplicationSettings, connection: Any
+) -> _MonitoringRunner | None:
     if config.telegram_bot_token is None or config.telegram_chat_id is None:
         return None
     state_store = R2StateStore(
@@ -407,7 +519,18 @@ def _build_monitoring(config: ApplicationSettings, connection: Any) -> _Monitori
         secret_access_key=config.r2_secret_access_key.get_secret_value(),
         key=f"monitoring/{config.environment_name}/expectation-state.json",
     )
-    return _MonitoringRunner(connection=connection, state_store=state_store, config=config)
+    backup_lister = R2BackupLister(
+        endpoint_url=str(config.r2_endpoint_url),
+        bucket=config.r2_bucket,
+        access_key_id=config.r2_access_key_id.get_secret_value(),
+        secret_access_key=config.r2_secret_access_key.get_secret_value(),
+    )
+    return _MonitoringRunner(
+        connection=connection,
+        state_store=state_store,
+        backup_lister=backup_lister,
+        config=config,
+    )
 
 
 def build_application(config: ApplicationSettings) -> Application:
@@ -425,9 +548,7 @@ def build_application(config: ApplicationSettings) -> Application:
             write=config.source_write_timeout_seconds,
             pool=config.source_pool_timeout_seconds,
         )
-        http_client = EatHttpClient(
-            timeout=timeout, retry_policy=_retry_policy(config)
-        )
+        http_client = EatHttpClient(timeout=timeout, retry_policy=_retry_policy(config))
         reference_client = build_reference_client(timeout)
         store = R2RawObjectStore(
             R2Settings(

@@ -1,4 +1,16 @@
+---
+id: PRODUCT-COHORT-V3-HISTORICAL-SPEC
+status: superseded
+canonical_for: historical-cohort-v3-design
+last_reviewed: 2026-09-14
+review_trigger: historical-cohort-spec-supersession-change
+---
+
 # 비교집단 탭 v3 기획 — 많이 나온 값을 모집단별로 본다
+
+> 2026-09-14: 이 문서는 종전 화면의 설계 기록이다. 새 상세 MVP의 비교지역·품목 적용·명단 범위·
+> 표본 노출은 [PDR-0006](../decisions/0006-institution-and-regional-analysis.md)과
+> [공통 분석 계약](../analysis-common-contracts.md)으로 대체한다. 아래 종전 요구를 새 계약에 혼합하지 않는다.
 
 작성 2026-09-04. 사용자 요구: 과거 회차(이 학교) 말고도 전국·도·시군·학교를 각각 모집단으로 두고
 "많이 나온 값"의 분포를 보고, 이번 달·지난 달 같은 기간으로 좁혀 본다. 사용자는 값이 몰린 자리를

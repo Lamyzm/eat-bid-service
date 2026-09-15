@@ -27,6 +27,7 @@ from eatbid.failures.report import render_failure
 from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
 from eatbid.monitoring.runner import MonitoringResult
+from eatbid.pipeline.advance import BackfillWindow
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
 
@@ -63,6 +64,7 @@ class CliApplication(Protocol):
     def project_reference(self, args: argparse.Namespace) -> object: ...
     def fail_release(self, args: argparse.Namespace) -> object: ...
     def check_expectations(self, args: argparse.Namespace) -> object: ...
+    def next_backfill_window(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[
@@ -114,6 +116,18 @@ def _emit(payload: Mapping[str, object], args: argparse.Namespace) -> None:
 def _machine_result(method_name: str, result: object) -> dict[str, object] | None:
     if result is None:
         return None
+    if method_name == "next_backfill_window":
+        # 워크플로가 이 셋을 output parameter로 읽어 다음 단계에 넘긴다. 고를 창이 없으면 has_window가
+        # 거짓이고 뒤 단계는 실행되지 않는다.
+        if result is None:
+            return {"has_window": False, "start_date": "", "end_date": ""}
+        if not isinstance(result, BackfillWindow):
+            raise TypeError("next-backfill-window returned an invalid result")
+        return {
+            "has_window": True,
+            "start_date": result.start_date,
+            "end_date": result.end_date,
+        }
     if method_name == "discover":
         if not isinstance(result, DiscoveryResult):
             raise TypeError("discover returned an invalid result")
@@ -202,12 +216,18 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
 
 def _write_result_files(result_dir: Path, payload: Mapping[str, object]) -> None:
     """왜: workflow 실행기는 stdout이 아니라 파일에서 output parameter를 읽으므로 machine result의
-    key마다 파일 하나를 둔다. 목록 값은 JSON 배열이라 그대로 fan-out 입력이 된다."""
+    key마다 파일 하나를 둔다. 목록 값은 JSON 배열이라 그대로 fan-out 입력이 된다.
+
+    불리언도 JSON으로 적는다. `str(True)`는 `True`이고 Argo의 `when`은 `true`와 비교하므로 파이썬
+    표기를 그대로 내보내면 조건이 언제나 거짓이 된다. 2026-09-14~15에 전진 cron이 28시간 동안 매시
+    `Succeeded`로 끝나면서 `when 'True == true' evaluated false`로 본 단계를 통째로 건너뛰었다.
+    실패가 아니라 성공으로 보였기 때문에 어떤 감시도 그것을 잡지 못했다.
+    """
     result_dir.mkdir(parents=True, exist_ok=True)
     for key, value in payload.items():
         text = (
             json.dumps(value, separators=(",", ":"), sort_keys=True)
-            if isinstance(value, list | dict)
+            if isinstance(value, bool | list | dict)
             else str(value)
         )
         (result_dir / key).write_text(text, encoding="utf-8")
@@ -229,14 +249,13 @@ COMMAND_METHODS: Mapping[str, str] = {
     "fail-release": "fail_release",
     # 스케줄 entrypoint다. 수집 상태를 바꾸지 않고 기대만 평가해 위반을 알린다(EAT-170, ADR 0046).
     "check-expectations": "check_expectations",
+    # 예약 entrypoint다. 커버리지 사실만 읽어 다음에 채울 창 하나를 고르고 아무것도 바꾸지 않는다
+    # (EAT-209, ADR 0052 결정 4).
+    "next-backfill-window": "next_backfill_window",
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
-    name: (
-        _chunk_handler(name, method)
-        if name in CHUNK_COMMANDS
-        else _handler(method)
-    )
+    name: (_chunk_handler(name, method) if name in CHUNK_COMMANDS else _handler(method))
     for name, method in COMMAND_METHODS.items()
 }
 
@@ -254,9 +273,7 @@ def main(
     args = build_parser().parse_args(argv)
     try:
         settings = (
-            settings
-            if settings is not None
-            else ApplicationSettings.model_validate({})
+            settings if settings is not None else ApplicationSettings.model_validate({})
         )
         factory = application_factory
         if factory is None:

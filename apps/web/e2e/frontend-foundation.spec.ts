@@ -67,7 +67,7 @@ test('server 응답은 cookie theme을 반영하지 않고 첫 paint 전 inline 
   await page.context().addCookies([{ name: 'active_theme', value: 'claude', url: baseURL! }]);
 
   const html = await (await page.request.get(`/auctions/${SUCCESS_AUCTION_ID}`)).text();
-  expect(html).toContain('data-theme="eatbid"');
+  expect(html).toContain('data-theme="toss"');
   expect(html).not.toContain('data-theme="claude"');
 
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
@@ -107,7 +107,7 @@ test('hydration 전에도 inline script가 접힘 폭을 적용한다', async ({
 
 test('색상 테마 선택은 DOM과 cookie에 남아 새로고침 뒤에도 유지된다', async ({ page }) => {
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'eatbid');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'toss');
 
   await page.getByLabel('색상 테마').click();
   await page.getByRole('option', { name: 'Vercel' }).click();

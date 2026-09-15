@@ -2,7 +2,7 @@
 id: PRODUCT-SCREEN-SYSTEM
 status: active
 canonical_for: product-information-architecture-and-screen-contracts
-last_reviewed: 2026-09-10
+last_reviewed: 2026-09-14
 review_trigger: product-navigation-core-work-surface-or-visual-language-change
 ---
 
@@ -12,6 +12,8 @@ review_trigger: product-navigation-core-work-surface-or-visual-language-change
 정의한다. 픽셀 단위 구현 명세나 디자인 시스템 코드의 대체물이 아니다. 분석 수치와 cohort 계약은
 [`decision-support.md`](decision-support.md), 제품 capability 순서는 [`roadmap.md`](roadmap.md)가
 권위다.
+
+시안과 구현의 대조 결과는 [`notice-design-fidelity.md`](notice-design-fidelity.md)에 기록한다.
 
 ## 1. 화면이 만들 경험
 
@@ -121,12 +123,17 @@ sidebar를 이 세 항목으로 바꾸는 시점은 `/work` route가 생기는 s
 
 공고 분석은 기본 보기부터 좌우 바깥 여백과 최대 폭 제한 없이 가용 폭을 모두 사용한다.
 글자·차트 축·조작 영역의 내부 여백은 유지한다. 홈·설정은 화면 목적에 맞는 읽기 폭을 유지한다.
-`크게 보기`는 폭 제한을 해제하는 별도 페이지가 아니라 같은 본문의 차트 높이 배분을 바꾸는 동작이다.
+차트 `크게 보기`는 브라우저 콘텐츠 뷰포트 전체를 사용한다(EAT-214, 2026-09-14 사용자 재확정).
+공통 헤더·사이드바·도구 줄과 바깥 여백·최대 폭을 없애고, 작은 제목·조건·범례·닫기 영역을 제외한
+가로·세로 공간을 차트에 준다. 흐름은 같은 캔버스와 필터·축·선택 상태를 유지하고, 분포 Popup도
+같은 전체보기 프레임으로 네 변을 채운다. 휴대폰과 낮은 창에서도 진입과 크기 재측정을 제공한다.
+전체보기의 현재 공고·선택 회차 진입은 차트 상단의 `상세 보기`에 두며, 열린 상세는 뷰포트 안의
+같은 보조 영역을 쓴다. Escape·닫기·뒤로 가기는 보던 조건과 초점을 복원한다.
 
 공고·기록 도구와 펼친 상세는 `ApplicationShell`의 공통 오른쪽 영역에 둔다. 중앙 공고 제목·필터보다
 아래에서 시작하는 route 내부 aside는 이 배치의 구현으로 보지 않는다. 도구 줄 64px, 상세 320px를
 기준으로 공통 헤더 아래부터 viewport 하단까지 배치하고 닫힌 상세는 너비를 차지하지 않는다.
-작은 화면의 진입도 공고 본문이 아닌 공통 헤더에 둔다.
+일반 보기의 작은 화면 진입도 공통 헤더에 둔다. 차트 전체보기에서는 위의 상단 진입을 사용한다.
 
 공통 레이아웃은 표시 위치와 크기만 소유한다. 선택한 회차·조회·명단은 공고 route가 소유하고,
 과거 회차 선택은 중앙의 분석 대상 공고를 바꾸지 않는다. 다른 route로 떠나면 해당 공고의 도구와
@@ -606,7 +613,7 @@ Team gate 이후에도 `BidWorkItem` grain은 바뀌지 않는다. 담당자·�
 | `xl` 이상 | 1280px~ | 목록 + persistent 판단 도크 또는 분석 main + 후보 rail. 오른쪽 도구 줄과 보조 패널이 본문 옆에 고정된다. 도크가 열린 폭에서도 세 사업자 비교에서 핵심 identity를 보기 위한 가로 scroll을 만들지 않는다. |
 | `lg` | 1024~1279px | 오른쪽 도구 줄을 숨기고 상단 진입으로 도크를 40~48% overlay로 열되 선택한 목록 행을 유지한다. |
 | `md` | 768~1023px | 목록과 도크를 master-detail 두 화면으로 전환한다. |
-| `sm` | 640~767px | 결정 화면의 집중 모드와 sticky 조건 줄이 사는 가장 좁은 폭이다(EAT-142). 나머지 배치는 작은 모바일과 같다. |
+| `sm` | 640~767px | 일반 보기의 sticky 조건 줄과 과거 회차 표 집중 모드가 시작한다. 차트 전체보기는 이 경계 아래에서도 제공한다(EAT-214). |
 | `sm` 미만 | ~639px | 작은 모바일: 마감·상태 확인과 메모 조회를 우선하며 복잡한 chart 편집을 축소한다. 잘린 desktop 표를 그대로 스크롤시키는 것을 제품 완료로 보지 않는다. |
 
 - 모든 상태는 WCAG AA contrast, 색 이외의 text/icon, 논리적 focus order를 가진다.

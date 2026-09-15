@@ -4,6 +4,7 @@
 import { Dialog } from '@base-ui/react/dialog';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { ChartFullscreenFrame } from '@/shared/ui/chart-fullscreen-frame';
 
 import { buildDecisionExpandRoute, type DecisionSearch } from '../_lib/decision-search-params';
 
@@ -41,18 +42,17 @@ export function ExpandDialog({
     <Dialog.Root open={open} onOpenChange={(next) => (next ? undefined : close())}>
       <Dialog.Portal>
         <Dialog.Backdrop className='fixed inset-0 z-50 bg-foreground/50' />
-        {/* 폭은 시안의 1400 상한을 따르되 viewport에서 좌우 여백 16을 남긴다. 본문이 세로로 길면 모달 안에서만
-            스크롤하고, 가로로 넓은 표·히트맵은 각자의 overflow-x 컨테이너 안에서 움직인다. */}
         <Dialog.Popup
+          render={<ChartFullscreenFrame active surface='overlay' />}
           data-slot='decision-expand'
-          className='fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-[1400px] min-w-0 -translate-x-1/2 -translate-y-1/2 grid-rows-[auto_1fr] gap-3 overflow-hidden rounded-2xl bg-card p-4 text-card-foreground shadow-lg outline-none sm:p-6'
+          className='z-50 grid grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden bg-card p-3 text-card-foreground outline-none sm:p-4'
         >
           <div className='grid min-w-0 gap-2'>
             <div className='flex min-w-0 items-start gap-3'>
               <div className='flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1'>
-                <Dialog.Title className='m-0 text-xl font-bold'>{title}</Dialog.Title>
+                <Dialog.Title className='m-0 text-base font-bold'>{title}</Dialog.Title>
                 {subtitle === null ? null : (
-                  <span className='min-w-0 text-[15px] font-medium text-muted-foreground'>{subtitle}</span>
+                  <span className='min-w-0 text-[13px] font-medium text-muted-foreground'>{subtitle}</span>
                 )}
               </div>
               <Dialog.Close className='inline-flex h-9 shrink-0 items-center rounded-md bg-foreground/5 px-3 text-[15px] font-semibold whitespace-nowrap'>
@@ -63,7 +63,7 @@ export function ExpandDialog({
               <Dialog.Description className='m-0 text-[13px] font-medium text-muted-foreground'>{note}</Dialog.Description>
             )}
           </div>
-          <div className='min-h-0 min-w-0 overflow-y-auto'>{children}</div>
+          <div className='min-h-0 min-w-0 overflow-auto'>{children}</div>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

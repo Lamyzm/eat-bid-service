@@ -37,6 +37,8 @@ export * from "./resources/procurement/schedule";
 export * from "./resources/procurement/terms";
 export * from "./codecs/money";
 export * from "./codecs/temporal";
+export * from "./codecs/analysis";
+export * from "./api/v1/analysis";
 export * from "./api/v1/auctions";
 export * from "./api/v1/organizations";
 export {

@@ -67,7 +67,7 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 |---|---|---|
 | `poll-open` | 열린 공고·변경을 업무시간에 짧은 지연으로 반영. 상세는 목록 신호가 바뀐 공고만 다시 부른다(§2.4) | 평일 08:00~19:50 KST 10분 간격(§2.5). 신규 공고 노출 SLO 15분 |
 | `daily-reconcile` | 전체 상태·변경·개찰·낙찰을 재대조. 창 안 공고 전부의 상세를 부르는 강제 재호출이다 | 일 1회 |
-| `backfill` | 날짜×지역×상태 범위를 수동/운영 승인으로 채움 | ad hoc |
+| `backfill` | 날짜×지역×상태 범위를 채움. 창을 고르는 판단은 사람이 아니라 예약이 하고 사람은 floor date를 선언한다([ADR 0052](../adr/0052-backfill-progress-recovery-and-advance.md)) | 전진 CronWorkflow |
 | `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
 | `reference` | 정부 공개 코드 파일을 새 code release로 적재 | 월 1회 (`reference-pipeline` entrypoint) |
 

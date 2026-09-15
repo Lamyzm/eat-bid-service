@@ -2,8 +2,6 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { cleanup, render, waitFor } from '@testing-library/react';
 
 import { ActiveThemeProvider, useThemeConfig } from './active-theme';
-// 기본 테마 값을 테스트에 손으로 적지 않는다. 적어 두면 기본을 바꾼 변경이 이 파일에서만 빨개진다.
-import { DEFAULT_THEME } from './theme.config';
 
 function ThemeProbe() {
   const { activeTheme } = useThemeConfig();
@@ -39,8 +37,8 @@ describe('색상 theme provider(ActiveThemeProvider)', () => {
       </ActiveThemeProvider>
     );
 
-    await waitFor(() => expect(document.documentElement.getAttribute('data-theme')).toBe(DEFAULT_THEME));
-    expect(screen.getByTestId('active-theme').textContent).toBe(DEFAULT_THEME);
-    expect(document.cookie).toContain(`active_theme=${DEFAULT_THEME}`);
+    await waitFor(() => expect(document.documentElement.getAttribute('data-theme')).toBe('toss'));
+    expect(screen.getByTestId('active-theme').textContent).toBe('toss');
+    expect(document.cookie).toContain('active_theme=toss');
   });
 });

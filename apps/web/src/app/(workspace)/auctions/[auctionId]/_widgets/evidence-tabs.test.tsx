@@ -9,6 +9,7 @@ import { presentHistory } from '../_features/history/model/attempt-history';
 import type { DecisionPageData } from '../_lib/load-auction-page';
 import { presentDistribution } from '../_features/distribution/model/present-distribution';
 import { BidRateProvider } from '../_lib/bid-rate-context';
+import { AttemptSelectionProvider } from '../_lib/attempt-selection';
 import { EvidenceTabs } from './evidence-tabs';
 import { EvidenceViews } from './evidence-view';
 
@@ -36,7 +37,9 @@ function renderEvidence({
     <NuqsTestingAdapter hasMemory onUrlUpdate={onUrlUpdate}>
       <BidRateProvider initialRate='90.000'>
         <EvidenceViews initialView={search.view} expanded={search.expand !== null}>
-          <EvidenceTabs auctionId='4821' search={search} history={history} distribution={cohort} />
+          <AttemptSelectionProvider attempts={[]}>
+            <EvidenceTabs auctionId='4821' search={search} history={history} distribution={cohort} />
+          </AttemptSelectionProvider>
         </EvidenceViews>
       </BidRateProvider>
     </NuqsTestingAdapter>

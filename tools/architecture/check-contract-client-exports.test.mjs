@@ -42,6 +42,11 @@ const packageJson = JSON.stringify({
       import: "./src/api/internal/index.ts",
       default: "./src/api/internal/index.ts",
     },
+    "./api/v1/analysis": {
+      types: "./src/api/v1/analysis/index.ts",
+      import: "./src/api/v1/analysis/index.ts",
+      default: "./src/api/v1/analysis/index.ts",
+    },
     "./api/v1/auctions": {
       types: "./src/api/v1/auctions/index.ts",
       import: "./src/api/v1/auctions/index.ts",
@@ -129,6 +134,11 @@ test("범용 api subpath의 dist와 server-only 전이 의존도 거부한다", 
           import: "./src/api/internal/index.ts",
           default: "./src/api/internal/index.ts",
         },
+        "./api/v1/analysis": {
+          types: "./src/api/v1/analysis/index.ts",
+          import: "./src/api/v1/analysis/index.ts",
+          default: "./src/api/v1/analysis/index.ts",
+        },
         "./api/v1/auctions": {
           types: "./src/api/v1/auctions/index.ts",
           import: "./src/api/v1/auctions/index.ts",
@@ -195,6 +205,11 @@ test("client subpath의 dist·domain·ingestion·server-only 전이 의존을 �
           types: "./src/api/internal/index.ts",
           import: "./src/api/internal/index.ts",
           default: "./src/api/internal/index.ts",
+        },
+        "./api/v1/analysis": {
+          types: "./src/api/v1/analysis/index.ts",
+          import: "./src/api/v1/analysis/index.ts",
+          default: "./src/api/v1/analysis/index.ts",
         },
         "./api/v1/auctions": {
           types: "./dist/api/v1/auctions/index.d.ts",

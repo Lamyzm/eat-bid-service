@@ -19,6 +19,7 @@ import { MyRateInput } from '../_features/distribution/ui/my-rate-input';
 import { OrderBook } from '../_features/distribution/ui/order-book';
 import { OrderBookSummary } from '../_features/distribution/ui/order-book-summary';
 import { OwnBidControls } from '../_features/own-bid/ui/own-bid-controls';
+import { DecisionTools } from './decision-tools';
 
 type HistoryState = DecisionPageData['history'];
 type DistributionState = DecisionPageData['distribution'];
@@ -145,6 +146,9 @@ export function EvidenceTabs({
         {/* 범례·확대 링크는 지금 보는 본문에만 뜻이 있다. 두 본문 몫을 미리 그려 두고 켜진 쪽만 남긴다. */}
         <EvidenceViewOnly view='흐름'>
           <FlowLegend />
+          <div data-slot='flow-fullscreen-tools' className='hidden'>
+            <DecisionTools placement='top' />
+          </div>
           <DecisionExpandLink auctionId={auctionId} search={search} target='흐름' />
         </EvidenceViewOnly>
         <EvidenceViewOnly view='비교집단'>

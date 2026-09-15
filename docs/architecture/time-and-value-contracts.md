@@ -1,3 +1,11 @@
+---
+id: ARCH-TIME-AND-VALUE-CONTRACTS
+status: active
+canonical_for: time-and-semantic-value-contract-boundaries
+last_reviewed: 2026-09-14
+review_trigger: time-or-semantic-value-contract-change
+---
+
 # 시간·정량 값·Zod 계약
 
 이 문서는 [ADR 0021](../adr/0021-zod-portable-contract-hub.md)을 구현 가능한 경계로
@@ -270,6 +278,16 @@ latitude/longitude는 finite number와 법정 범위를 검증한다. 좌표만�
 해결한다. 임시 이름 lookup 결과를 `core`에 직접 채우지 않는다.
 
 ## 7. Zod 계약 규율
+
+### 공통 분석 입력의 의미 검증
+
+`packages/contracts/src/api/v1/analysis`는 기관·eaT 공고지역 비교의 additive wire resource다.
+`codecs/analysis.ts`의 parser는 wire 검증 뒤 `packages/domain/src/analysis/cohort-bounds.ts`의
+Temporal KST 기간과 명단 수 규칙을 적용한다. portable schema에 runtime predicate를 넣지 않는다.
+상호 필드 정합성·코드 지원 여부·입력 build의 실재/일치 증명을 각각 나눠 검사하며, schema parse가
+마지막 두 사실까지 증명하지 않는다. 필드 의미와 공급자 의무는 [공통 분석 계약](../product/analysis-common-contracts.md)이 소유한다.
+
+### 공통 조립 규칙
 
 - `packages/contracts`의 interchange/public schema는 `z.strictObject`와 explicit bound를 사용한다.
 - `z.infer`/`z.input`/`z.output`만 TypeScript wire type을 만든다.

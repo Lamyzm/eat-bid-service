@@ -14,6 +14,26 @@
 @variant md {
   [data-workspace-shell] { --workspace-header-height: 56px; }
 }
+
+/* 차트가 같은 DOM 자리를 유지한 채 전체보기를 요청한다. 업무 route 이름을 읽거나 별도 셸을
+   복제하지 않는다. display:none은 탐색과 도구를 키보드·접근성 트리에서도 제외한다(EAT-214). */
+html:has([data-workspace-fullscreen='true']),
+body:has([data-workspace-fullscreen='true']) { overflow: hidden; }
+[data-slot='sidebar-wrapper']:has([data-workspace-fullscreen='true']) {
+  height: 100dvh; min-height: 0; overflow: hidden;
+}
+[data-slot='sidebar-wrapper']:has([data-workspace-fullscreen='true']) > :not([data-workspace-shell]),
+[data-workspace-shell]:has([data-workspace-fullscreen='true']) [data-slot='workspace-header'],
+[data-workspace-shell]:has([data-workspace-fullscreen='true']) [data-slot='workspace-tool-rail'] { display: none; }
+[data-workspace-shell]:has([data-workspace-fullscreen='true']) {
+  height: 100dvh; min-height: 0; margin: 0; border-radius: 0;
+}
+[data-workspace-shell]:has([data-workspace-fullscreen='true']) [data-slot='workspace-columns'] {
+  height: 100dvh; min-height: 0;
+}
+[data-workspace-shell]:has([data-workspace-fullscreen='true']) [data-dock-host='panel'] {
+  top: 0; height: 100dvh;
+}
 /* 보조 패널과 도구 줄이 본문 옆에 고정되는 xl 경계다. 같은 경계를 useWideWorkspace가 matchMedia로 읽어
    그 아래에서는 같은 내용을 Sheet로 연다. 둘이 어긋나면 패널이 두 번 그려지거나 아예 안 그려진다. */
 @variant xl {
