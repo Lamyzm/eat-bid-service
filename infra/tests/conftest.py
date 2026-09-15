@@ -64,9 +64,25 @@ def _render(path: Path) -> ManifestSet:
 
 @pytest.fixture(scope="session")
 def manifests() -> ManifestSet:
+    """운영이 실제로 받는 렌더다.
+
+    `infra/product`를 계속 보는 이유는 Argo CD Application이 아직 그 경로를 보고 있기 때문이다. 전환이
+    끝나면 이 fixture가 `infra/envs/prod`를 보고 별칭은 사라진다. 그 사이 둘이 같은 것을 낸다는 사실은
+    `test_env_overlays.py`가 지킨다.
+    """
     return _render(MONOREPO_ROOT / "infra" / "product")
 
 
 @pytest.fixture(scope="session")
+def prod_manifests() -> ManifestSet:
+    return _render(MONOREPO_ROOT / "infra" / "envs" / "prod")
+
+
+@pytest.fixture(scope="session")
+def dev_manifests() -> ManifestSet:
+    return _render(MONOREPO_ROOT / "infra" / "envs" / "dev")
+
+
+@pytest.fixture(scope="session")
 def base_manifests() -> ManifestSet:
-    return _render(MONOREPO_ROOT / "infra" / "k8s" / "base")
+    return _render(MONOREPO_ROOT / "infra" / "base")

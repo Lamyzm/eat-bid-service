@@ -6,7 +6,7 @@ from pathlib import Path
 from conftest import ManifestSet
 
 ROOT = Path(__file__).parents[2]
-PROVISIONING_SQL = ROOT / "infra" / "product" / "db-provisioning.sql"
+PROVISIONING_SQL = ROOT / "infra" / "base" / "db-provisioning.sql"
 
 JOB_NAME = "eatbid-db-provisioning"
 CONFIG_MAP_PREFIX = "eatbid-db-provisioning-"

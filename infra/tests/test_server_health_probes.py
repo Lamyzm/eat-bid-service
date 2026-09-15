@@ -7,7 +7,7 @@ WEB_APP_DIRECTORY = MONOREPO_ROOT / "apps" / "web" / "src" / "app"
 
 
 def _deployment_container(name: str) -> dict:
-    manifest = (MONOREPO_ROOT / "infra" / "k8s" / "base" / "app.yaml").read_text(encoding="utf-8")
+    manifest = (MONOREPO_ROOT / "infra" / "base" / "app.yaml").read_text(encoding="utf-8")
     documents = [document for document in yaml.safe_load_all(manifest) if document]
     deployment = next(
         document

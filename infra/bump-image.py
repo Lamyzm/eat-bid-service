@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-"""kustomization.yaml 의 images: 블록을 갱신한다. CI 가 배포 태그를 박는 자리.
+"""모듈 책임: kustomization의 `images:` 블록을 문자열 수준에서 갱신해 CI가 배포 태그를 박는 자리를 소유한다.
+
+kustomization.yaml 의 images: 블록을 갱신한다. CI 가 배포 태그를 박는 자리.
 
     python infra/bump-image.py --sha a1b2c3d eatbid-web eatbid-server
     python infra/bump-image.py --sha a1b2c3d --check       # 바꾸지 않고 현재값만
@@ -33,7 +35,7 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-KUST = Path(__file__).resolve().parent / "k8s" / "base" / "kustomization.yaml"
+KUST = Path(__file__).resolve().parent / "base" / "kustomization.yaml"
 REGISTRY = "ghcr.io/lamyzm"
 
 
