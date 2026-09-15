@@ -5,6 +5,10 @@ import { DrizzleAccountRepository } from "../../modules/account/infrastructure/d
 import { DrizzleRegisteredBusinessReader } from "../../modules/account/infrastructure/drizzle/drizzle-registered-business-reader";
 import type { RegionPreferenceRepository } from "../../modules/account/application/region-preference-repository";
 import { DrizzleRegionPreferenceRepository } from "../../modules/account/infrastructure/drizzle/drizzle-region-preference-repository";
+import type { FilterCombinationRepository } from "../../modules/account/application/filter-combination-repository";
+import { DrizzleFilterCombinationRepository } from "../../modules/account/infrastructure/drizzle/drizzle-filter-combination-repository";
+import type { OpenAuctionFilterCountsReader } from "../../modules/procurement/application/count-open-auctions-for-filters";
+import { DrizzleOpenAuctionFilterCountsReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-open-auction-filter-counts-reader";
 import type { EligibilityAreaReader } from "../../modules/procurement/application/eligibility-area-reader";
 import { DrizzleEligibilityAreaReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-eligibility-area-reader";
 import { DrizzleOwnBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-own-bid-reader";
@@ -35,6 +39,8 @@ import {
   DATABASE_READINESS,
   ELIGIBILITY_AREA_READER,
   OPEN_AUCTION_READER,
+  FILTER_COMBINATION_REPOSITORY,
+  OPEN_AUCTION_FILTER_COUNTS_READER,
   OPEN_AUCTION_SUMMARY_READER,
   ORGANIZATION_ATTEMPT_READER,
   OWN_BID_READER,
@@ -52,6 +58,8 @@ export interface DatabaseModuleOverrides {
   readonly readiness?: DatabaseReadiness;
   readonly accountRepository?: AccountRepository;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
+  readonly filterCombinationRepository?: FilterCombinationRepository;
+  readonly openAuctionFilterCountsReader?: OpenAuctionFilterCountsReader;
   readonly eligibilityAreaReader?: EligibilityAreaReader;
   readonly auctionReader?: AuctionReader;
   readonly auctionRosterReader?: AuctionRosterReader;
@@ -172,6 +180,18 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): EligibilityAreaReader =>
           overrides.eligibilityAreaReader ?? new DrizzleEligibilityAreaReader(connection.database),
       },
+      {
+        provide: FILTER_COMBINATION_REPOSITORY,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): FilterCombinationRepository =>
+          overrides.filterCombinationRepository ?? new DrizzleFilterCombinationRepository(connection.database),
+      },
+      {
+        provide: OPEN_AUCTION_FILTER_COUNTS_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): OpenAuctionFilterCountsReader =>
+          overrides.openAuctionFilterCountsReader ?? new DrizzleOpenAuctionFilterCountsReader(connection.database),
+      },
     ];
     return {
       global: true,
@@ -180,6 +200,8 @@ export class DatabaseModule {
       exports: [
         ACCOUNT_REPOSITORY,
         REGION_PREFERENCE_REPOSITORY,
+        FILTER_COMBINATION_REPOSITORY,
+        OPEN_AUCTION_FILTER_COUNTS_READER,
         ELIGIBILITY_AREA_READER,
         DATABASE_READINESS,
         UNIT_OF_WORK,

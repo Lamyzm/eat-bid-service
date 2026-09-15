@@ -14,6 +14,8 @@ export type OpenAuctionListInput = {
   /** 워크스페이스가 확인한 참가제한지역 code value id 목록이다. 비면 필터를 걸지 않는다. */
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
+  readonly itemUnknown?: 'include';
+  readonly bidState?: 'none';
   readonly closesWithinHours?: number;
   /** KST 달력일 축 둘이다. 계약이 시간 창과 마감 달력일을 함께 받지 않으므로 호출자가 하나만 넘긴다. */
   readonly closesOn?: string;
@@ -33,6 +35,8 @@ export async function listOpenAuctionsWith(
     sigungu: input.sigungu,
     eligibilityArea: input.eligibilityArea,
     items: input.items,
+    itemUnknown: input.itemUnknown,
+    bidState: input.bidState,
     closesWithinHours: input.closesWithinHours,
     closesOn: input.closesOn,
     announcedOn: input.announcedOn,

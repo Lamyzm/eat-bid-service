@@ -78,6 +78,10 @@ export interface OpenAuctionQuery {
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
   /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
   readonly itemLabels: readonly string[] | null;
+  /** 참이면 품목 축을 걸어도 라벨 미관측 행을 함께 낸다. 품목 축이 없으면 아무 일도 하지 않는다. */
+  readonly includeUnknownItem: boolean;
+  /** 참이면 관측된 참여 수가 0인 행만 낸다. 미관측(null)은 0이 아니라 못 센 것이라 빠진다. */
+  readonly onlyWithoutBids: boolean;
   readonly closesWithinHours: number | null;
   /**
    * KST 달력일로 자르는 축 둘이다. 위 시간 창과 함께 올 수 없다 — 시간 창은 달력일을 대신하지 못한다.

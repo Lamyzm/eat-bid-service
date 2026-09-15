@@ -64,13 +64,19 @@ export function openScopePredicate(alias: SQL, asOf: string): SQL {
  * 라벨을 관측하지 못한 행은 어느 조각으로도 안 걸린다. 미관측을 "안 맞음"과 합치는 것이 아니라, 이
  * 축으로 물으면 답할 수 없는 행이라 빠지는 것이다(AGENTS 3).
  */
-export function itemLabelPredicate(alias: SQL, labels: readonly string[] | null): SQL {
+export function itemLabelPredicate(
+  alias: SQL,
+  labels: readonly string[] | null,
+  includeUnknown = false,
+): SQL {
   if (labels === null) return sql`true`;
   const fragments = textArrayLiteral(labels);
-  return sql`exists (
+  const matched = sql`exists (
     select 1 from unnest(${fragments}::text[]) as fragment
      where ${alias}.item_label is not null and strpos(${alias}.item_label, fragment) > 0
   )`;
+  // 미관측을 함께 보려는 요청은 그 행이 안 맞는 것이 아니라 답할 수 없는 행임을 아는 요청이다.
+  return includeUnknown ? sql`(${alias}.item_label is null or ${matched})` : matched;
 }
 
 // Instant는 driver가 모르는 타입이라 ISO 문자열로 넘기고 SQL 쪽에서 timestamptz로 닫는다. Date를 거치면
@@ -152,7 +158,8 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
              or open_scope.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
         and (${sigungu}::text is null
              or open_scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
-        and ${itemLabelPredicate(sql`open_scope`, query.itemLabels)}${eligibilityFilter}
+        and ${itemLabelPredicate(sql`open_scope`, query.itemLabels, query.includeUnknownItem)}
+        and (not ${query.onlyWithoutBids}::boolean or open_scope.bid_count = 0)${eligibilityFilter}
     )${extraCte}
   `;
 }

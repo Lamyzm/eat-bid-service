@@ -19,3 +19,9 @@ export const WIN_RATE_DISTRIBUTION_READER = Symbol("WIN_RATE_DISTRIBUTION_READER
 export const CODE_READER = Symbol("CODE_READER");
 export const ACCOUNT_REPOSITORY = Symbol("ACCOUNT_REPOSITORY");
 export const REGION_PREFERENCE_REPOSITORY = Symbol("REGION_PREFERENCE_REPOSITORY");
+export const FILTER_COMBINATION_REPOSITORY = Symbol("FILTER_COMBINATION_REPOSITORY");
+/**
+ * 조합이 몇 건인지는 열린 공고를 세는 일이라 저장 port와 다른 토큰이다. 하나로 합치면 account의
+ * 저장 adapter가 mart를 읽게 되고 모듈 경계가 토큰에서 무너진다.
+ */
+export const OPEN_AUCTION_FILTER_COUNTS_READER = Symbol("OPEN_AUCTION_FILTER_COUNTS_READER");

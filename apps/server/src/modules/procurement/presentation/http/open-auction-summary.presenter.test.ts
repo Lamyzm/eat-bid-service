@@ -22,7 +22,7 @@ const query: OpenAuctionSummaryQuery = {
   sidoCodeValueId: null,
   sigunguCodeValueIds: null,
   eligibilityAreaCodeValueIds: null,
-  itemLabel: null,
+  itemLabels: null,
   baseAmountMin: null,
   baseAmountMax: null,
   calendarFrom: "2026-09-14",

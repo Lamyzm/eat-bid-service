@@ -108,6 +108,8 @@ export const openAuctionsFixture: OpenAuctionListV1Response = {
     eligibilityMatchedCount: null,
     eligibilityUnobservedCount: null,
     items: null,
+    itemUnknown: null,
+    bidState: null,
     closesWithinHours: null,
     closesOn: null,
     announcedOn: null,

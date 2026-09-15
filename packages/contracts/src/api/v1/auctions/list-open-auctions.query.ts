@@ -95,12 +95,30 @@ export const itemsFilterSchema = z.preprocess(
  * 소유하며(AGENTS 15) 섞어 쓸 수 없다 — 15시에 `24시간 안`을 물으면 내일 14시가 함께 걸리므로
  * 달력일을 대신하지 못한다. `announcedOn`은 상세에서 온 게시일을 보며 목록 관측에는 그 값이 없다.
  */
+/**
+ * 참여 축이다. **값이 `none` 하나뿐인 enum인 이유는 이것이 수 비교가 아니라 상태이기 때문이다.**
+ *
+ * `bidCountMax=0`으로 두면 참여 수를 관측하지 못한 행(`null`)이 어느 쪽인지 말하지 않는다. 아무도 안
+ * 들어온 판과 못 센 판은 사용자가 할 일이 다르므로(AGENTS 3) 이 축은 관측된 0만 고른다.
+ */
+export const bidStateFilterSchema = z.literal("none");
+
+/**
+ * 품목 미관측을 함께 볼지다. 품목 축을 걸면 라벨을 관측하지 못한 행이 조용히 빠지는데, 그 행은 낼 수
+ * 없는 공고가 아니라 우리가 아직 못 본 공고다. 이 값이 있으면 미관측도 함께 낸다.
+ *
+ * 품목 축이 없으면 아무 일도 하지 않는다 — 이미 전부 보고 있기 때문이다.
+ */
+export const itemUnknownFilterSchema = z.literal("include");
+
 export const openAuctionListQuerySchema = z.strictObject({
   state: openAuctionStateSchema.default("open"),
   sido: positiveBigintTextSchema.optional(),
   sigungu: sigunguFilterSchema.optional(),
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
   items: itemsFilterSchema.optional(),
+  itemUnknown: itemUnknownFilterSchema.optional(),
+  bidState: bidStateFilterSchema.optional(),
   closesWithinHours: closesWithinHoursSchema.optional(),
   closesOn: kstDateTextSchema.optional(),
   announcedOn: kstDateTextSchema.optional(),

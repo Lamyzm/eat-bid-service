@@ -20,8 +20,10 @@ export {
   type AuctionParticipationObservation,
 } from "./participation.resource";
 export {
+  bidStateFilterSchema,
   DEFAULT_OPEN_AUCTION_LIMIT,
   itemsFilterSchema,
+  itemUnknownFilterSchema,
   MAX_OPEN_AUCTION_LIMIT,
   openAuctionListQuerySchema,
   type OpenAuctionListQuery,

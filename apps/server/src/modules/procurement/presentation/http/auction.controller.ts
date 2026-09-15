@@ -117,6 +117,8 @@ export class AuctionController {
         sigunguCodeValueIds,
         eligibilityAreaCodeValueIds,
         itemLabels: query.items ?? null,
+        includeUnknownItem: query.itemUnknown !== undefined,
+        onlyWithoutBids: query.bidState !== undefined,
         closesWithinHours: query.closesWithinHours ?? null,
         closesOnKst: query.closesOn ?? null,
         announcedOnKst: query.announcedOn ?? null,

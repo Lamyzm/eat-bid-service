@@ -14,6 +14,8 @@ export type TodayListInput = {
   readonly sido?: string;
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
+  readonly itemUnknown?: 'include';
+  readonly bidState?: 'none';
   readonly closesWithinHours?: number;
   readonly closesOn?: string;
   readonly announcedOn?: string;
@@ -100,6 +102,8 @@ export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
     scope: search.scope,
     sido: accepted(shape.sido, search.sido),
     items: accepted(shape.items, search.items),
+    itemUnknown: accepted(shape.itemUnknown, search.itemUnknown),
+    bidState: accepted(shape.bidState, search.bidState),
     // 계약이 시간 창과 달력일을 함께 받지 않는다. 달력일이 있으면 시간 창을 버린다 — 탭·달력이 시간
     // 창보다 뒤에 눌린 조건이고, 둘을 함께 보내면 서버가 400으로 답해 화면 전체가 오류가 된다.
     closesWithinHours: search.closesOn === null ? accepted(shape.closesWithinHours, search.closesWithinHours) : null,
@@ -129,6 +133,8 @@ function listInput(search: TodaySearch, gate: TodayRegionGate): TodayListInput {
     sido: search.sido ?? undefined,
     eligibilityArea: eligibilityAreaOf(gate),
     items: search.items ?? undefined,
+    itemUnknown: search.itemUnknown === 'include' ? 'include' : undefined,
+    bidState: search.bidState === 'none' ? 'none' : undefined,
     closesWithinHours: search.closesWithinHours ?? undefined,
     closesOn: search.closesOn ?? undefined,
     announcedOn: search.announcedOn ?? undefined,

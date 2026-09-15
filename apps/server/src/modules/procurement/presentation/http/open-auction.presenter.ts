@@ -83,6 +83,8 @@ export function toOpenAuctionListResponse(result: OpenAuctionListResult): OpenAu
       eligibilityMatchedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityMatchedCount,
       eligibilityUnobservedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityUnobservedCount,
       items: query.itemLabels === null ? null : [...query.itemLabels],
+      itemUnknown: query.includeUnknownItem ? "include" : null,
+      bidState: query.onlyWithoutBids ? "none" : null,
       closesWithinHours: query.closesWithinHours,
       closesOn: query.closesOnKst,
       announcedOn: query.announcedOnKst,

@@ -17,6 +17,13 @@ export const todaySearchParsers = {
    * 주소에 싣는데, 조각 자체는 그 쉼표로 나눈 것이라 다시 쉼표를 품을 수 없다.
    */
   items: parseAsArrayOf(parseAsString, ','),
+  /**
+   * 품목 축을 걸어도 라벨 미관측 행을 함께 볼지다. 품목 축이 없으면 아무 일도 하지 않는다 — 이미 전부
+   * 보고 있기 때문이다. 미관측 행은 낼 수 없는 공고가 아니라 우리가 아직 못 본 공고다.
+   */
+  itemUnknown: parseAsString,
+  /** 참여 축이다. `none`은 관측된 참여 수가 0인 판이며 미관측(못 센 판)은 여기 안 들어온다. */
+  bidState: parseAsString,
   closesWithinHours: parseAsInteger,
   /**
    * KST 달력일 축 둘이다. 탭과 달력 칸이 이 둘로 표현된다 — 시간 창(`closesWithinHours`)과 다른 것을 세며
@@ -36,6 +43,8 @@ export const EMPTY_TODAY_SEARCH: TodaySearch = {
   scope: null,
   sido: null,
   items: null,
+  itemUnknown: null,
+  bidState: null,
   closesWithinHours: null,
   closesOn: null,
   announcedOn: null,
