@@ -87,6 +87,12 @@ class ApplicationSettings(BaseSettings):
     github_repository: str | None = Field(
         None, validation_alias="EATBID_GITHUB_REPOSITORY"
     )
+    # 클러스터 밖 dead man's switch의 핑 URL. 경로에 토큰이 들어 있어 사실상 쓰기 자격이므로 SecretStr이다.
+    # 선택인 이유는 텔레그램과 같다 — 수집 파드는 이 값 없이 떠야 한다. 감시 회차가 끝까지 끝난 뒤에만
+    # 친다(monitoring/heartbeat.py).
+    heartbeat_url: SecretStr | None = Field(
+        None, validation_alias="EATBID_HEARTBEAT_URL", repr=False
+    )
 
     @field_validator("database_url")
     @classmethod

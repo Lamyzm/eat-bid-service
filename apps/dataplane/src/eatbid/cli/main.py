@@ -193,6 +193,9 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "opened": list(result.opened),
             "resolved": list(result.resolved),
             "still_open": list(result.still_open),
+            # 밖으로 나간 심장박동. skipped와 sent를 구분해 남겨야 "URL이 없어서 안 나갔다"가 로그에서
+            # 보인다 — 그 상태로 운영에 오래 있으면 바깥 감시가 켜져 있다고 믿는 채로 눈이 먼다.
+            "heartbeat": result.heartbeat,
         }
     if method_name == "build_marts":
         if not isinstance(result, tuple) or any(

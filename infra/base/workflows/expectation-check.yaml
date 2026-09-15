@@ -79,3 +79,10 @@ spec:
                 secretKeyRef:
                   name: eatbid-alerting
                   key: TELEGRAM_CHAT_ID
+            # 클러스터 밖 dead man's switch. 회차가 끝까지 끝난 뒤 한 번 친다(ADR 0046 결정 6, EAT-171).
+            # 안에 있는 감시는 기계와 함께 죽으므로 신호가 끊긴 것을 바깥이 알린다. 환경별로 다른 check다.
+            - name: EATBID_HEARTBEAT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: eatbid-alerting
+                  key: HEARTBEAT_URL
