@@ -9,6 +9,8 @@ import { auctionRosterV1ResponseSchema } from "./get-auction-roster.response";
 import { auctionRosterQuerySchema } from "./get-auction-roster.query";
 import { DEFAULT_OPEN_AUCTION_LIMIT, openAuctionListQuerySchema } from "./list-open-auctions.query";
 import { openAuctionListV1ResponseSchema } from "./list-open-auctions.response";
+import { openAuctionSummaryQuerySchema } from "./summarize-open-auctions.query";
+import { openAuctionSummaryV1ResponseSchema } from "./summarize-open-auctions.response";
 
 /**
  * 공고 read는 전부 로그인 뒤에만 열린다. eatbid는 공개 화면이 없는 업무 도구이고, 그 판정의 권위는
@@ -61,6 +63,36 @@ export const auctionV1Operations = {
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
     },
   }),
+  /**
+   * 목록과 나누는 이유는 **세는 범위가 다르기** 때문이다. 목록은 `limit`으로 끊기고 요약은 필터를
+   * 만족하는 전체를 센다. 한 응답에 합치면 페이지를 넘길 때마다 같은 합계를 다시 계산하고, 2페이지에서
+   * 합계가 달라 보이는 사고가 난다.
+   *
+   * 반대로 세는 자리마다 endpoint를 두지도 않는다. 탭 셋·달력 칸·축 줄 건수·묶음 머리·0건 화면이 모두
+   * **같은 집합을 다르게 센 것**이라 한 번의 스캔으로 함께 나온다. 나누면 화면 하나가 조회를 일곱 번
+   * 하고 그 일곱이 서로 다른 시각을 볼 수 있다.
+   */
+  summarizeOpen: defineOperation({
+    method: "get",
+    versioning: { kind: "uri", prefix: "api", version: "1" },
+    route: { resource: "auctions", segments: ["summary"] },
+    operationId: "summarizeOpenAuctions",
+    implementationOwner: "server",
+    summary: "열린 공고를 같은 필터 위에서 세어 탭·달력·조건 줄이 쓰는 수를 한 번에 낸다",
+    tags: ["procurement"],
+    pathSchema: z.strictObject({}),
+    querySchema: openAuctionSummaryQuerySchema,
+    bodySchema: z.undefined(),
+    successResponses: {
+      200: { description: "열린 공고 요약 조회 성공", schema: openAuctionSummaryV1ResponseSchema },
+    },
+    problemResponses: {
+      400: { description: "query가 유효하지 않음", schema: problemDetailsSchema },
+      ...unauthenticatedProblemResponse,
+      500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
+      503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
+    },
+  }),
   find: defineOperation({
     method: "get",
     versioning: { kind: "uri", prefix: "api", version: "1" },
@@ -85,8 +117,11 @@ export const auctionV1Operations = {
   }),
 } as const;
 
+// `auctions/summary`가 `auctions/{auctionId}`보다 앞이다. 뒤에 두면 고정 segment가 path parameter에
+// 먹혀 요약 요청이 "summary라는 id의 공고"를 찾는 요청이 된다.
 export const auctionV1OperationRegistry = createOperationRegistry([
   auctionV1Operations.roster,
   auctionV1Operations.listOpen,
+  auctionV1Operations.summarizeOpen,
   auctionV1Operations.find,
 ] as const);

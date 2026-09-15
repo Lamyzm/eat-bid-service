@@ -15,6 +15,7 @@ import {
 } from './find-my-bid-observations';
 import { getCurrentSessionWith } from './get-current-session';
 import { listMyBusinessesWith } from './my-businesses';
+import { listFilterCombinationsWith } from './filter-combinations';
 import { getMyRegionPreferenceWith } from './region-preference';
 
 /**
@@ -33,6 +34,8 @@ export const accountQueryKeys = {
     [...accountQueryKeys.workspace(principalId, workspaceId), 'businesses'] as const,
   regionPreference: (principalId: string, workspaceId: string) =>
     [...accountQueryKeys.workspace(principalId, workspaceId), 'region-preference'] as const,
+  filterCombinations: (principalId: string, workspaceId: string) =>
+    [...accountQueryKeys.workspace(principalId, workspaceId), 'filter-combinations'] as const,
   bidObservations: (
     principalId: string,
     workspaceId: string,
@@ -88,6 +91,16 @@ export function createAccountQueries(request: ContractRequest) {
       return queryOptions({
         queryKey: accountQueryKeys.regionPreference(scope.principalId, scope.workspaceId),
         queryFn: ({ signal }) => getMyRegionPreferenceWith(request, { signal })
+      });
+    },
+    /**
+     * 저장된 조합이다. 건수는 여기 없다 — 건수는 지금 화면 조건에 따라 달라지는 파생값이라 조합 목록과
+     * 같은 캐시 항목에 두면 조건을 바꿀 때마다 목록까지 함께 버려진다.
+     */
+    filterCombinations(scope: PrivateWorkspaceScope) {
+      return queryOptions({
+        queryKey: accountQueryKeys.filterCombinations(scope.principalId, scope.workspaceId),
+        queryFn: ({ signal }) => listFilterCombinationsWith(request, { signal })
       });
     },
     /**

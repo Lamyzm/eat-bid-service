@@ -1,4 +1,4 @@
-import type { OpenAuction, OpenAuctionListV1Response } from '@eatbid/contracts/api/v1/auctions';
+import type { OpenAuction, OpenAuctionListV1Response, OpenAuctionSummaryV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 /** 오늘 화면 테스트가 같은 공개 계약 예시를 공유하는 fixture다. 기준 시각은 KST 2026-09-07 10:30이다. */
 export const fixtureNow = '2026-09-07T01:30:00Z';
@@ -102,12 +102,17 @@ export const openAuctionsFixture: OpenAuctionListV1Response = {
   meta: {
     sampleCount: 4,
     asOf: fixtureNow,
-    region: null,
+    sido: null,
+    sigungu: null,
     eligibilityArea: null,
     eligibilityMatchedCount: null,
     eligibilityUnobservedCount: null,
-    item: null,
+    items: null,
+    itemUnknown: null,
+    bidState: null,
     closesWithinHours: null,
+    closesOn: null,
+    announcedOn: null,
     baseAmountMin: null,
     baseAmountMax: null,
     openAuctionSnapshotBuild: lineage,
@@ -119,4 +124,43 @@ export const noSnapshotFixture: OpenAuctionListV1Response = {
   auctions: [],
   nextCursor: null,
   meta: { ...openAuctionsFixture.meta, sampleCount: 0, openAuctionSnapshotBuild: nullLineage, orgRoundSummaryBuild: nullLineage }
+};
+
+/**
+ * 요약 fixture다. 기준일 2026-09-07(월)이라 달력 창은 09-07~09-20 열네 칸이고 지나간 칸이 없다.
+ * 게시일은 한 건도 관측되지 않은 build를 재현한다 — `오늘 열린`이 0이 아니라 null인 경우다.
+ */
+export const openSummaryFixture: OpenAuctionSummaryV1Response = {
+  totalCount: 4,
+  organizationCount: 2,
+  tabs: { openedToday: null, closingToday: 1 },
+  announcedUnobservedCount: 4,
+  floorShares: [
+    { rate: { value: '90.000', unit: 'percentage-points' }, count: 2 },
+    { rate: null, count: 2 }
+  ],
+  calendar: [
+    { date: '2026-09-07', count: 1, releasedCount: 3 },
+    { date: '2026-09-08', count: 1, releasedCount: 2 },
+    { date: '2026-09-09', count: 0, releasedCount: 0 },
+    { date: '2026-09-10', count: 2, releasedCount: 5 },
+    { date: '2026-09-11', count: 0, releasedCount: 0 },
+    { date: '2026-09-12', count: 0, releasedCount: 0 },
+    { date: '2026-09-13', count: 0, releasedCount: 0 },
+    { date: '2026-09-14', count: 0, releasedCount: 0 },
+    { date: '2026-09-15', count: 0, releasedCount: 0 },
+    { date: '2026-09-16', count: 0, releasedCount: 0 },
+    { date: '2026-09-17', count: 0, releasedCount: 0 },
+    { date: '2026-09-18', count: 0, releasedCount: 0 },
+    { date: '2026-09-19', count: 0, releasedCount: 0 },
+    { date: '2026-09-20', count: 0, releasedCount: 0 }
+  ],
+  latestObservedAt: '2026-09-07T01:00:00Z',
+  nextClosingDay: { date: '2026-09-07', count: 1 },
+  meta: {
+    asOf: fixtureNow,
+    calendarFrom: '2026-09-07',
+    calendarTo: '2026-09-20',
+    openAuctionSnapshotBuild: lineage
+  }
 };

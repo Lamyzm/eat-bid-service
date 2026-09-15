@@ -38,6 +38,8 @@ export const openAuctionSnapshot = martSchema.table(
     sourceLastChangedAt: timestamp("source_last_changed_at", { withTimezone: true }),
     closesAt: timestamp("closes_at", { withTimezone: true }),
     opensAt: timestamp("opens_at", { withTimezone: true }),
+    // 목록에 없고 상세에서만 오는 값이라 아래 상세 파생 열들과 같은 계보를 탄다. `오늘 열린` 탭이
+    // 이 열 하나에 걸려 있고, 비면 그 탭은 "게시일 미관측"이지 0건이 아니다(EAT-206).
     announcedAt: timestamp("announced_at", { withTimezone: true }),
     baseAmount: martMoney("base_amount"),
     currency: char("currency", { length: 3 }),
@@ -45,6 +47,18 @@ export const openAuctionSnapshot = martSchema.table(
     itemLabel: text("item_label"),
     sourceStatusCodeValueId: bigint("source_status_code_value_id", { mode: "bigint" })
       .references(() => codeValue.codeValueId),
+    /**
+     * 목록 행이 표시한 상태 라벨이다. `진행중`·`공고취소`·`저장중`이 관측됐고 code scheme은 아직
+     * 없으므로 관측 라벨을 코드로 승격시키지 않는다(`item_label`과 같은 판단, EAT-44 §4.2).
+     *
+     * 상세가 아니라 목록에서 읽는 이유는 둘이다. 이 행의 grain이 목록 관측이라 `bid_count`와 같은
+     * 시점을 말하고, 상세를 아직 따지 않은 공고에도 값이 있다. 상세의 `identity.status`는 상세를
+     * 마지막으로 부른 때의 상태라 목록 행이 말하는 지금과 어긋날 수 있다.
+     *
+     * 비어 있으면 `확인 못 함`이지 열려 있다는 뜻이 아니다. 이 열이 생기기 전에 만든 build의 행이
+     * 그렇고, 읽는 쪽은 모르는 상태를 숨기지 않는다(AGENTS 3).
+     */
+    sourceStatusLabel: text("source_status_label"),
     // 아래 다섯 열은 목록이 아니라 같은 attempt의 최신 상세 해석에서 온다. 화면이 지역·품목으로
     // 거르고 하한을 보여 주려면 값이 필요한데, 요청마다 core를 lateral 조인하면 원본 점 조회가
     // 목록 경로로 새어 나온다. 그래서 빌드 시점에 한 번 조인해 싣는다(EAT-39 판정 A·B·C).
@@ -85,6 +99,7 @@ export const openAuctionSnapshot = martSchema.table(
       "open_auction_snapshot_terms_lineage_required",
       sql`${table.termsRevisionId} is not null
         or (${table.floorRate} is null and ${table.itemLabel} is null
+          and ${table.announcedAt} is null
           and ${table.regionSidoCodeValueId} is null
           and ${table.regionSigunguCodeValueId} is null)`,
     ),

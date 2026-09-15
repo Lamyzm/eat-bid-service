@@ -8,6 +8,8 @@ import { AuctionRosterController } from "./presentation/http/auction-roster.cont
 import { FindAuction } from "./application/find-auction";
 import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
 import { ListOpenAuctions } from "./application/list-open-auctions";
+import type { OpenAuctionSummaryReader } from "./application/open-auction-summary-reader";
+import { SummarizeOpenAuctions } from "./application/summarize-open-auctions";
 import { ListOrganizationAuctionAttempts } from "./application/list-organization-auction-attempts";
 import type { EligibilityAreaReader } from "./application/eligibility-area-reader";
 import { ListEligibilityAreas, PreviewRegionCoverage } from "./application/preview-region-coverage";
@@ -28,6 +30,7 @@ import {
   AUCTION_ROSTER_READER,
   ELIGIBILITY_AREA_READER,
   OPEN_AUCTION_READER,
+  OPEN_AUCTION_SUMMARY_READER,
   ORGANIZATION_ATTEMPT_READER,
   OWN_BID_READER,
   READ_SNAPSHOT,
@@ -100,6 +103,12 @@ const listOpenAuctionsProvider = {
   useFactory: (reader: OpenAuctionReader, clock: Clock) => new ListOpenAuctions(reader, clock),
 };
 
+const summarizeOpenAuctionsProvider = {
+  provide: SummarizeOpenAuctions,
+  inject: [OPEN_AUCTION_SUMMARY_READER, CLOCK],
+  useFactory: (reader: OpenAuctionSummaryReader, clock: Clock) => new SummarizeOpenAuctions(reader, clock),
+};
+
 // 등록 사업자 소유 판정과 mart 조회가 같은 스냅샷을 읽어야 하므로 use case가 읽기 경계도 함께 받는다.
 const findMyBidObservationsProvider = {
   provide: FindMyBidObservations,
@@ -124,6 +133,7 @@ const findMyBidObservationsProvider = {
     listOrganizationAuctionAttemptsProvider,
     findWinRateDistributionProvider,
     listOpenAuctionsProvider,
+    summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,
     previewRegionCoverageProvider,
     findMyBidObservationsProvider,

@@ -31,9 +31,13 @@ export type OpenAuctionRowPresentation = {
   readonly baseAmountText: string;
   readonly closes: {
     readonly tone: ClosesTone;
-    // `D-0`·`D-1`처럼 색과 함께 읽히는 텍스트다. 색만으로 상태를 말하지 않는다(screen-system §11).
+    // `오늘`·`내일`·`사흘 뒤`처럼 색과 함께 읽히는 텍스트다. 색만으로 상태를 말하지 않는다(screen-system §11).
     readonly label: string;
-    readonly timeText: string;
+    /**
+     * KST 시각만이다. 날짜는 행이 아니라 그 행이 속한 마감일 묶음 머리가 말한다 — 스무 행이 같은 날에
+     * 몰리는 목록에서 행마다 날짜를 적으면 같은 글자가 스무 번 서고 시각이 안 읽힌다.
+     */
+    readonly clockText: string;
     readonly dDay: number | null;
   };
   readonly bidCountText: string;
@@ -66,7 +70,7 @@ export type OpenAuctionListPresentation = {
   readonly eligibilityMatchedCount: number | null;
   readonly eligibilityUnobservedCount: number | null;
   readonly asOfText: string;
-  readonly lineageText: string;
+  readonly lineageLines: readonly string[];
   readonly nextCursor: string | null;
 };
 
@@ -89,13 +93,22 @@ export function dDayOf(closesAt: string, nowIso: string): number {
   return today.until(closes, { largestUnit: 'days' }).days;
 }
 
+/**
+ * 남은 날을 한국어 날짜 세는 말로 적는다. `D-3`은 눈금이지 말이 아니라서 `사흘 뒤`보다 늦게 읽힌다.
+ * 열흘을 넘으면 세는 말이 오히려 낯설어져 숫자로 돌아간다.
+ */
+const DAY_AWAY = ['오늘', '내일', '모레', '사흘 뒤', '나흘 뒤', '닷새 뒤', '엿새 뒤', '이레 뒤', '여드레 뒤', '아흐레 뒤', '열흘 뒤'] as const;
+
+export function dayAwayText(dDay: number): string {
+  if (dDay <= 0) return DAY_AWAY[0];
+  return DAY_AWAY[dDay] ?? `${dDay}일 뒤`;
+}
+
 function presentCloses(closesAt: string | null, nowIso: string): OpenAuctionRowPresentation['closes'] {
-  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', timeText: '', dDay: null };
+  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null };
   const dDay = dDayOf(closesAt, nowIso);
-  // 오늘·내일 마감은 시각까지 보인다. 그 뒤는 날짜가 더 중요하다.
-  if (dDay <= 0) return { tone: 'today', label: 'D-0', timeText: kstTime(closesAt), dDay };
-  if (dDay === 1) return { tone: 'tomorrow', label: 'D-1', timeText: kstTime(closesAt), dDay };
-  return { tone: 'later', label: `D-${dDay}`, timeText: kstDateTime(closesAt), dDay };
+  const tone: ClosesTone = dDay <= 0 ? 'today' : dDay === 1 ? 'tomorrow' : 'later';
+  return { tone, label: dayAwayText(dDay), clockText: kstTime(closesAt), dDay };
 }
 
 function formatWon(amount: string): string {
@@ -166,6 +179,21 @@ function presentOrgSummary(summary: OpenAuction['orgSummary']): OpenAuctionRowPr
   };
 }
 
+/**
+ * 저장된 하한율은 `90.000` 꼴이라 소수부의 0은 볼 이유가 없는 정밀도다. 관측된 자릿수가 의미를 갖는
+ * 경우(`88.500`)는 그대로 남기고 뒤따르는 0만 뗀다. 반올림하지 않는다.
+ *
+ * 행과 요약이 같은 문자열을 만들어야 `드문 하한` 집합이 행에 붙는다. 그래서 이 함수 하나가 두 곳의
+ * 표기를 소유한다.
+ */
+export function formatFloorRate(value: string): string {
+  if (!value.includes('.')) return value;
+  return value.replace(/0+$/, '').replace(/\.$/, '');
+}
+
+/** 하한율을 관측하지 못한 행이 쓰는 표시값이다. 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3). */
+export const FLOOR_RATE_UNKNOWN = '미확인';
+
 export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAuctionRowPresentation {
   return {
     auctionAttemptId: auction.auctionAttemptId,
@@ -173,7 +201,7 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     organization: presentOrganization(auction.organization),
     itemLabel: auction.itemLabel,
     // 관측되지 않은 하한율을 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3).
-    floorRateText: auction.floorRate?.value ?? '미확인',
+    floorRateText: auction.floorRate === null ? FLOOR_RATE_UNKNOWN : formatFloorRate(auction.floorRate.value),
     region: presentRegion(auction.region),
     eligibilityText: presentEligibility(auction.eligibilityAreas),
     baseAmountText: auction.baseAmount === null ? '미확인' : formatAmountText(auction.baseAmount.amount),
@@ -183,17 +211,24 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
   };
 }
 
-function lineageText(response: OpenAuctionListV1Response): string {
+/**
+ * 계보를 한 문장으로 잇지 않고 줄로 나눈다. 780px 본문에서 한 문장은 두 줄로 넘쳐 표 위가 어수선해지고,
+ * 줄바꿈 자리가 폭에 따라 달라져 어디까지가 스냅샷 얘기인지 흐려진다.
+ *
+ * 지역 체계를 빼지 않는 이유는 eaT 공고지역·참가제한지역·행안부 행정구역이 서로 다른 체계이고, 어느
+ * 체계로 번역된 build인지가 목록의 지역 축이 무엇을 뜻하는지를 정하기 때문이다(AGENTS 6, ADR 0035).
+ */
+function lineageLines(response: OpenAuctionListV1Response): readonly string[] {
   const snapshot = response.meta.openAuctionSnapshotBuild;
   const summary = response.meta.orgRoundSummaryBuild;
-  const parts = [
+  const lines = [
     snapshot.buildId === null
       ? '열린 공고 스냅샷 없음'
       : `열린 공고 스냅샷 build ${snapshot.buildId} · ${snapshot.calcVersion} · ${kstDateTime(snapshot.computedAt!)} 산출`,
     snapshot.regionScheme === null ? null : `지역 체계 ${snapshot.regionScheme}`,
     summary.buildId === null ? '기관 회차 요약 없음' : `기관 회차 요약 build ${summary.buildId} · ${summary.calcVersion}`
   ];
-  return parts.filter((part): part is string => part !== null).join(' · ');
+  return lines.filter((line): line is string => line !== null);
 }
 
 // build가 없으면 목록이 비어 있어도 "조건에 맞는 공고가 없다"고 말할 수 없다. 그래서 build를 먼저 본다.
@@ -210,7 +245,7 @@ export function presentOpenAuctionList(response: OpenAuctionListV1Response, nowI
     eligibilityMatchedCount: response.meta.eligibilityMatchedCount,
     eligibilityUnobservedCount: response.meta.eligibilityUnobservedCount,
     asOfText: kstDateTime(response.meta.asOf),
-    lineageText: lineageText(response),
+    lineageLines: lineageLines(response),
     nextCursor: response.nextCursor
   };
 }

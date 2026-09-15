@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 
-import { fixtureNow, noSnapshotFixture, openAuctionsFixture } from '../__fixtures__/open-auctions';
+import { fixtureNow, noSnapshotFixture, openAuctionsFixture, openSummaryFixture } from '../__fixtures__/open-auctions';
 import { EMPTY_TODAY_SEARCH } from '../_lib/today-search-params';
 import {
   loadTodayPage,
   normalizeTodaySearch,
   type TodayListInput,
   type TodayListRead,
-  type TodayRegionPreference
+  type TodayRegionPreference,
+  type TodaySummaryInput
 } from './load-today-page';
 
 // 확인한 워크스페이스다. 목록을 좁히는 근거는 저장된 코드 값 id이고 라벨은 표시용 관측이다.
@@ -24,12 +25,18 @@ const staleCursor: TodayListRead = { kind: 'cursor-not-found' };
 
 function dependencies(overrides: Partial<Parameters<typeof loadTodayPage>[1]> = {}) {
   const inputs: TodayListInput[] = [];
+  const summaryInputs: TodaySummaryInput[] = [];
   return {
     inputs,
+    summaryInputs,
     dependencies: {
       listOpenAuctions: async (input: TodayListInput) => {
         inputs.push(input);
         return page;
+      },
+      summarizeOpenAuctions: async (input: TodaySummaryInput) => {
+        summaryInputs.push(input);
+        return openSummaryFixture;
       },
       now: () => fixtureNow,
       regionPreference: confirmedPreference,
@@ -42,19 +49,31 @@ describe('오늘 route loader', () => {
   test('URL에 남은 잘못된 값은 무시하고 계약이 받는 조건만 조회에 넘긴다', async () => {
     const { inputs, dependencies: deps } = dependencies();
     const data = await loadTodayPage(
-      { scope: null, region: '01', item: '축산', closesWithinHours: 721, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
+      { scope: null, sido: '01', items: ['축산'], itemUnknown: null, bidState: null, closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
       deps
     );
     expect(inputs).toEqual([{
-      region: undefined,
+      sido: undefined,
       eligibilityArea: ['9101', '9102'],
-      item: '축산',
+      items: ['축산'],
+      itemUnknown: undefined,
+      bidState: undefined,
       closesWithinHours: undefined,
-      baseAmountMin: undefined,
+      closesOn: undefined,
+      announcedOn: undefined,
+      // `2000000`은 자릿수만 다른 값이라 버리지 않고 계약 형식으로 맞춰 보낸다.
+      baseAmountMin: '2000000.00',
       baseAmountMax: '3000000.00',
-      cursor: undefined
+      cursor: undefined,
+      // 더보기를 두지 않으므로 화면은 언제나 상한만큼 요청한다. 페이지를 나누면 못 보는 행이 생기고
+      // 그 사실이 화면에 안 남는다.
+      limit: 200
     }]);
-    expect(data.search).toEqual({ scope: null, region: null, item: '축산', closesWithinHours: null, baseAmountMin: null, baseAmountMax: '3000000.00', cursor: null });
+    expect(data.search).toEqual({
+      scope: null, sido: null, items: ['축산'], itemUnknown: null, bidState: null,
+      closesWithinHours: null, closesOn: null, announcedOn: null,
+      baseAmountMin: '2000000.00', baseAmountMax: '3000000.00', cursor: null
+    });
     expect(data.cursorReset).toBe(false);
     expect(data.presentation!.view.kind === 'list' ? data.presentation!.view.rows.length : 0).toBe(4);
   });
@@ -130,7 +149,66 @@ describe('오늘 route loader', () => {
   });
 
   test('정규화는 계약 schema의 같은 필드로 판정한다', () => {
-    expect(normalizeTodaySearch({ scope: null, region: '9223372036854775807', item: 'x'.repeat(513), closesWithinHours: 0, baseAmountMin: '1.00', baseAmountMax: null, cursor: '5' }))
-      .toEqual({ scope: null, region: '9223372036854775807', item: null, closesWithinHours: null, baseAmountMin: '1.00', baseAmountMax: null, cursor: '5' });
+    expect(normalizeTodaySearch({
+      scope: null, sido: '9223372036854775807', items: ['x'.repeat(65)], itemUnknown: null, bidState: null,
+      closesWithinHours: 0, closesOn: null, announcedOn: null, baseAmountMin: '1.00', baseAmountMax: null, cursor: '5'
+    })).toEqual({
+      scope: null, sido: '9223372036854775807', items: null, itemUnknown: null, bidState: null,
+      closesWithinHours: null, closesOn: null, announcedOn: null,
+      baseAmountMin: '1.00', baseAmountMax: null, cursor: '5'
+    });
+  });
+
+  test('달력일을 고르면 시간 창을 버린다. 둘을 함께 보내면 계약이 400으로 답한다', () => {
+    // 탭·달력이 시간 창보다 뒤에 눌린 조건이다. 서버가 거절할 요청을 화면이 아예 만들지 않는다.
+    expect(normalizeTodaySearch({ ...EMPTY_TODAY_SEARCH, closesWithinHours: 72, closesOn: '2026-09-08' }))
+      .toMatchObject({ closesWithinHours: null, closesOn: '2026-09-08' });
+    // 게시일 축은 마감 축이 아니라 다른 축이라 계약이 시간 창과 함께 받는다.
+    expect(normalizeTodaySearch({ ...EMPTY_TODAY_SEARCH, closesWithinHours: 72, announcedOn: '2026-09-07' }))
+      .toMatchObject({ closesWithinHours: 72, announcedOn: '2026-09-07' });
+  });
+
+  test('요약은 목록과 나란히 한 번만 부르고 날짜 축과 cursor를 넘기지 않는다', async () => {
+    const { summaryInputs, dependencies: deps } = dependencies();
+    const data = await loadTodayPage({ ...EMPTY_TODAY_SEARCH, closesOn: '2026-09-08', items: ['축산'] }, deps);
+    // 탭이 세는 수는 탭을 누르기 전에도 보여야 한다. 고른 날짜로 요약까지 좁히면 오늘 마감 탭에서
+    // 진행중 수가 자기 자신이 된다.
+    expect(summaryInputs).toEqual([{
+      sido: undefined,
+      eligibilityArea: ['9101', '9102'],
+      items: ['축산'],
+      baseAmountMin: undefined,
+      baseAmountMax: undefined,
+      // 기준일 2026-09-07은 월요일이라 창이 그날 시작해 열넷째 날에 끝난다.
+      calendarFrom: '2026-09-07',
+      calendarTo: '2026-09-20'
+    }]);
+    expect(data.summary!.tabs.map((tab) => [tab.id, tab.count, tab.active]))
+      .toEqual([['live', 4, false], ['openedToday', null, false], ['closingToday', 1, false]]);
+  });
+
+  test('사라진 cursor로 목록을 다시 불러도 요약은 다시 부르지 않는다', async () => {
+    const { summaryInputs, dependencies: deps } = dependencies({
+      listOpenAuctions: async (input) => (input.cursor === undefined ? page : staleCursor)
+    });
+    const data = await loadTodayPage({ ...EMPTY_TODAY_SEARCH, cursor: '5796468' }, deps);
+    // 요약은 cursor를 받지 않으므로 같은 조건을 두 번 셀 이유가 없다.
+    expect(summaryInputs.length).toBe(1);
+    expect(data.summary).not.toBeNull();
+  });
+
+  test('지역 미설정이면 요약도 조회하지 않는다', async () => {
+    const { summaryInputs, dependencies: deps } = dependencies({ regionPreference: { areas: [], confirmedAt: null } });
+    const data = await loadTodayPage(EMPTY_TODAY_SEARCH, deps);
+    expect(summaryInputs).toEqual([]);
+    expect(data.summary).toBeNull();
+  });
+  test('사람이 적은 금액을 계약 형식으로 맞춰 준다', () => {
+    // 계약은 소수 둘째 자리를 고정한다. 자릿수만 다른 입력을 무효로 버리면 사용자가 적은 값이
+    // 조용히 사라진다. 숫자가 아닌 입력은 그대로 계약이 거른다.
+    expect(normalizeTodaySearch({ ...EMPTY_TODAY_SEARCH, baseAmountMin: '3000000', baseAmountMax: '10,000,000' }))
+      .toMatchObject({ baseAmountMin: '3000000.00', baseAmountMax: '10000000.00' });
+    expect(normalizeTodaySearch({ ...EMPTY_TODAY_SEARCH, baseAmountMin: '삼백만' }))
+      .toMatchObject({ baseAmountMin: null });
   });
 });

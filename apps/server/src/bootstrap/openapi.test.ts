@@ -27,6 +27,7 @@ describe("canonical OpenAPI 산출물", () => {
     expect(document.openapi).toBe("3.0.3");
     expect(Object.keys(document.paths).sort()).toEqual([
       "/api/v1/auctions",
+      "/api/v1/auctions/summary",
       "/api/v1/auctions/{auctionId}",
       "/api/v1/auctions/{auctionId}/roster",
       // listCodes는 EAT-57이 계약을 소유하고 Nest handler는 아직 없다. registry가 OpenAPI의 단일
@@ -41,6 +42,9 @@ describe("canonical OpenAPI 산출물", () => {
       "/api/v1/me/businesses",
       "/api/v1/me/businesses/{businessId}/bid-observations",
       "/api/v1/me/businesses/{businessId}/location",
+      "/api/v1/me/filter-combinations",
+      "/api/v1/me/filter-combinations/counts",
+      "/api/v1/me/filter-combinations/{filterCombinationId}",
       "/api/v1/me/initialization",
       // 조회와 통째 교체 두 method가 한 path에 있다. 부분 갱신 command는 만들지 않는다.
       "/api/v1/me/region-preference",
@@ -56,6 +60,8 @@ describe("canonical OpenAPI 산출물", () => {
     expect(operationIds.sort())
       .toEqual([
         "clearMyBusinessLocation",
+        "countMyFilterCombinations",
+        "deleteMyFilterCombination",
         "findAuction",
         "findMyBidObservations",
         "findWinRateDistribution",
@@ -68,12 +74,15 @@ describe("canonical OpenAPI 산출물", () => {
         "listCodes",
         "listEligibilityAreas",
         "listMyBusinesses",
+        "listMyFilterCombinations",
         "listOpenAuctions",
         "listOrganizationAuctionAttempts",
         "previewRegionCoverage",
         "putMyRegionPreference",
         "registerMyBusiness",
+        "saveMyFilterCombination",
         "setMyBusinessLocation",
+        "summarizeOpenAuctions",
       ]);
     // 성공 status를 200으로 고정하지 않는다. 생성 command는 201이며, 그 사실을 registry에서 읽는다.
     const successStatusById = new Map(publicHttpOperationRegistry

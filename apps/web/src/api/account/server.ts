@@ -4,13 +4,23 @@
  */
 import 'server-only';
 
-import type { MyBusinessesV1Response, MyRegionPreferenceV1Response } from '@eatbid/contracts/api/v1/me';
+import type {
+  MyBusinessesV1Response,
+  MyFilterCombinationCountsV1Response,
+  MyFilterCombinationsV1Response,
+  MyRegionPreferenceV1Response
+} from '@eatbid/contracts/api/v1/me';
 import type { CurrentSessionV1Response } from '@eatbid/contracts/api/v1/session';
 import { cache } from 'react';
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
 import { getCurrentSessionWith } from './get-current-session';
 import { listMyBusinessesWith } from './my-businesses';
+import {
+  countFilterCombinationsWith,
+  listFilterCombinationsWith,
+  type FilterCombinationCountsInput
+} from './filter-combinations';
 import { getMyRegionPreferenceWith } from './region-preference';
 import { isAccountDependencyUnavailableError } from './account-resource-error';
 import { accountQueryKeys, type PrivateWorkspaceScope } from './queries';
@@ -77,6 +87,37 @@ export const getMyRegionPreferenceFromServer = cache(
     }
   }
 );
+
+/**
+ * 조합 건수는 못 읽어도 화면이 서야 한다. 조합은 탐색을 빠르게 하는 기둥이지 목록의 전제가 아니므로,
+ * 못 읽으면 기둥만 비우고 목록은 그대로 낸다. 실패를 0건으로 바꾸지 않는 이유는 그러면 화면이 "저장한
+ * 조합에 공고가 없다"고 거짓말하기 때문이다.
+ */
+export type FilterCombinationCountsRead =
+  | { readonly kind: 'counts'; readonly response: MyFilterCombinationCountsV1Response }
+  | { readonly kind: 'unread' };
+
+export type FilterCombinationsRead =
+  | { readonly kind: 'combinations'; readonly response: MyFilterCombinationsV1Response }
+  | { readonly kind: 'unread' };
+
+export async function listFilterCombinationsFromServer(): Promise<FilterCombinationsRead> {
+  try {
+    return { kind: 'combinations', response: await listFilterCombinationsWith(privateServerRequest) };
+  } catch {
+    return { kind: 'unread' };
+  }
+}
+
+export async function countFilterCombinationsFromServer(
+  input: FilterCombinationCountsInput
+): Promise<FilterCombinationCountsRead> {
+  try {
+    return { kind: 'counts', response: await countFilterCombinationsWith(privateServerRequest, input) };
+  } catch {
+    return { kind: 'unread' };
+  }
+}
 
 /**
  * 서버가 읽은 목록을 브라우저 캐시의 어느 자리에 놓을지는 조회를 소유한 query factory가 정한다. 여기서

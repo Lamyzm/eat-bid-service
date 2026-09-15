@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { ALL_REGIONS_SCOPE, buildTodayFilterRoute, type TodaySearch } from '@/app/(workspace)/today/_lib/today-search-params';
 import type { TodayRegionGate } from '@/app/(workspace)/today/_model/load-today-page';
 
-const LINK = 'inline-flex h-8 items-center rounded-lg bg-foreground/5 px-3 text-[15px] font-semibold hover:bg-foreground/10';
-const PILL = 'inline-flex h-7 items-center rounded-full bg-primary/10 px-3 text-[13px] font-semibold text-primary';
+const LINK = 'inline-flex h-8 items-center rounded-lg bg-foreground/5 px-3 text-[13px] font-semibold hover:bg-foreground/10';
+const PILL = 'inline-flex h-7 items-center rounded-lg bg-primary/10 px-2.5 text-[13px] font-semibold text-primary';
 
 /**
  * 지역 이름을 문자열로 조립해 키로 쓰지 않는다. 정체성은 `codeValueId`이고 이름은 사람이 확인할 표시값일
@@ -36,7 +36,7 @@ export function RegionScopeStrip({
   if (gate.kind === 'unknown' || gate.kind === 'unset') return null;
   const applied = gate.kind === 'applied';
   return (
-    <div className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-card px-4 py-3 shadow-xs'>
+    <div className='grid min-w-0 gap-2'>
       <span className='text-[15px] font-bold'>
         {applied ? '내가 고른 지역의 공고' : '전국 공고'}
       </span>
@@ -50,12 +50,12 @@ export function RegionScopeStrip({
         </span>
       )}
       {applied && matchedCount !== null ? (
-        <span className='text-[13px] font-semibold text-muted-foreground'>
+        <span className='text-[13px] font-medium text-muted-foreground'>
           {matchedCount}건
           {unobservedCount !== null && unobservedCount > 0 ? ` · 제한지역 미관측 ${unobservedCount}건 포함` : ''}
         </span>
       ) : null}
-      <span className='ml-auto flex flex-wrap gap-2'>
+      <span className='flex flex-wrap gap-1.5'>
         {applied ? (
           <Link href={buildTodayFilterRoute(search, { scope: ALL_REGIONS_SCOPE })} className={LINK}>전체 보기</Link>
         ) : (

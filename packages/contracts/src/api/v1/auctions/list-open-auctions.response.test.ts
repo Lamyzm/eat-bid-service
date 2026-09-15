@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { auctionV1Operations } from "./operations";
 import { openAuctionListQuerySchema } from "./list-open-auctions.query";
-import { openAuctionListV1ResponseSchema } from "./list-open-auctions.response";
+import { openAuctionListMetaSchema, openAuctionListV1ResponseSchema } from "./list-open-auctions.response";
 import { openAuctionRowSchema } from "./open-auction.resource";
 
 const nullLineage = {
@@ -59,12 +59,17 @@ const row = {
 const meta = {
   sampleCount: 1,
   asOf: "2026-09-07T01:30:00Z",
-  region: null,
+  sido: null,
+  sigungu: null,
   eligibilityArea: null,
   eligibilityMatchedCount: null,
   eligibilityUnobservedCount: null,
-  item: null,
+  items: null,
+  itemUnknown: null,
+  bidState: null,
   closesWithinHours: null,
+  closesOn: null,
+  announcedOn: null,
   baseAmountMin: null,
   baseAmountMax: null,
   openAuctionSnapshotBuild: lineage,
@@ -72,6 +77,15 @@ const meta = {
 };
 
 describe("열린 공고 목록 계약", () => {
+  /**
+   * 표본 `meta`가 계약의 모든 키를 덮는지 본다. 축을 하나 더할 때 이 표본을 빠뜨리면 나머지 시험들이
+   * **옛 모양 위에서** 통과해 버리고, 깨지는 자리는 계약이 아니라 한참 뒤의 브라우저 검증이 된다
+   * (2026-09-15 `itemUnknown`·`bidState`가 그랬다).
+   */
+  test("표본 meta는 계약이 요구하는 키를 하나도 빠뜨리지 않는다", () => {
+    expect(Object.keys(meta).toSorted()).toEqual(Object.keys(openAuctionListMetaSchema.shape).toSorted());
+  });
+
   test("열린 공고 목록 응답은 계보 둘을 각각 전부 null로 허용한다", () => {
     const parsed = openAuctionListV1ResponseSchema.safeParse({
       auctions: [],
@@ -124,8 +138,19 @@ describe("열린 공고 목록 계약", () => {
     expect(openAuctionListQuerySchema.parse({})).toEqual({ state: "open", limit: 50 });
     expect(openAuctionListQuerySchema.safeParse({ state: "closed" }).success).toBe(false);
     expect(openAuctionListQuerySchema.safeParse({ sort: "closesAt" }).success).toBe(false);
-    expect(openAuctionListQuerySchema.safeParse({ region: "0" }).success).toBe(false);
-    expect(openAuctionListQuerySchema.safeParse({ item: "" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ sido: "0" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ items: [""] }).success).toBe(false);
+    // 조각 열일곱은 관측된 라벨 가짓수보다 많다. 상한이 열여섯인 이유는 한 행이 가진 최대 조각 수의 두 배다.
+    expect(openAuctionListQuerySchema.safeParse({
+      items: Array.from({ length: 17 }, (_, index) => `조각${index}`),
+    }).success).toBe(false);
+    // query string은 값 하나와 값 여럿을 구분하지 못한다. 파싱 직전에 한 번만 배열로 편다.
+    expect(openAuctionListQuerySchema.parse({ items: "육류" }).items).toEqual(["육류"]);
+    // 시군구는 값 하나로 와도 배열로 펴진다. query string이 하나와 여럿을 구분하지 못하기 때문이다.
+    expect(openAuctionListQuerySchema.parse({ sido: "41", sigungu: "43" }).sigungu).toEqual(["43"]);
+    // KST 달력일은 형식이 고정이다. `2026-9-7` 같은 값은 날짜처럼 보여도 계약이 받지 않는다.
+    expect(openAuctionListQuerySchema.safeParse({ closesOn: "2026-9-7" }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ closesOn: "2026-09-07" }).success).toBe(true);
   });
 
   test("참가제한지역 필터는 값 하나와 값 여럿을 같은 배열로 편다", () => {
@@ -158,8 +183,13 @@ describe("열린 공고 목록 계약", () => {
     expect(auctionV1Operations.listOpen.buildPath({ path: {} })).toBe("/api/v1/auctions?limit=50&state=open");
     expect(auctionV1Operations.listOpen.buildPath({
       path: {},
-      query: { region: "41", closesWithinHours: 72, cursor: "5796468", item: "축산" },
-    })).toBe("/api/v1/auctions?closesWithinHours=72&cursor=5796468&item=%EC%B6%95%EC%82%B0&limit=50&region=41&state=open");
+      query: { sido: "41", closesWithinHours: 72, cursor: "5796468", items: ["축산"] },
+    })).toBe("/api/v1/auctions?closesWithinHours=72&cursor=5796468&items=%EC%B6%95%EC%82%B0&limit=50&sido=41&state=open");
+    // 요약은 고정 segment가 path parameter보다 앞이라 `summary`가 공고 id로 먹히지 않는다.
+    expect(auctionV1Operations.summarizeOpen.buildPath({
+      path: {},
+      query: { calendarFrom: "2026-09-07", calendarTo: "2026-09-20", sido: "41" },
+    })).toBe("/api/v1/auctions/summary?calendarFrom=2026-09-07&calendarTo=2026-09-20&sido=41&state=open");
     // 응답 schema는 operation이 가리키는 것과 같은 객체다.
     expect(auctionV1Operations.listOpen.successResponses[200].schema).toBe(openAuctionListV1ResponseSchema);
   });

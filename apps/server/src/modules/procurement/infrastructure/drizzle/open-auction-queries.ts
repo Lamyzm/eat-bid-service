@@ -7,6 +7,8 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type { OpenAuctionQuery } from "../../application/open-auction-reader";
+import { KST_TIME_ZONE } from "../../domain/kst-month";
+import { bigintArrayLiteral, textArrayLiteral } from "../../../../platform/database/sql-values";
 import { activeMartBuildId } from "./drizzle-mart-build-reader";
 import {
   eligibilityAreaCodeCte,
@@ -19,6 +21,64 @@ import {
 export const OPEN_AUCTION_SNAPSHOT = "open_auction_snapshot";
 export const ORG_ROUND_SUMMARY = "org_round_summary";
 
+/**
+ * 목록이 이 라벨을 붙인 공고는 취소된 것이라 제출할 수 없다.
+ *
+ * 2026-09-13 build 436에서 마감 전 1,189행 중 **45행**이 이 상태였고 그대로 화면에 나왔다. 덕정초는
+ * 같은 마감 시각에 여섯 행이 섰는데 셋은 취소분, 셋은 같은 조건의 재공고였다. 어느 쪽에 내야 하는지
+ * 화면이 말할 수 없었다(EAT-203).
+ *
+ * **제외 목록으로 두고 허용 목록으로 뒤집지 않는다.** 허용 목록이면 소스에 새 라벨이 나타나는 순간
+ * 낼 수 있는 공고가 조용히 사라진다. 놓친 판은 되돌릴 수 없고 헛클릭은 되돌릴 수 있다. 같은 이유로
+ * 관측 못 한 상태(`null`)도 숨기지 않는다 — 이 열이 생기기 전 build의 행이 그렇다(AGENTS 3).
+ *
+ * 같은 관측에서 `저장중`도 8행 있었는데 제출할 수 있는 상태인지 아직 모르므로 빼지 않는다.
+ */
+const CANCELLED_STATUS_LABEL = "공고취소";
+
+/**
+ * 열림 판정의 술어 하나다. 지금 이걸 목록과 지역 미리보기 둘이 쓴다.
+ *
+ * 한 곳에 모으는 이유는 이 이슈가 그 위험을 실제로 보여 줬기 때문이다. 두 파일이 각자 `closes_at`
+ * 조건을 적어 두었고, 취소 판정을 목록에만 더했다면 **같은 활성 build를 읽는 두 화면이 서로 다른
+ * 전국 건수를 말했을 것이다.** 미리보기는 그 수로 "404건이 9건이 된다"를 적는다.
+ *
+ * `alias`는 `closes_at`과 `source_status_label`을 가진 CTE 이름이다.
+ */
+export function openScopePredicate(alias: SQL, asOf: string): SQL {
+  return sql`(${alias}.closes_at is null or ${alias}.closes_at > ${asOf}::timestamptz)
+    and (${alias}.source_status_label is null
+         or ${alias}.source_status_label <> ${CANCELLED_STATUS_LABEL}::text)`;
+}
+
+/**
+ * 품목 술어 하나다. **조각 하나라도 라벨 안에 들어 있으면 걸린다.**
+ *
+ * 완전일치를 쓰면 절반을 놓친다. 원천 라벨이 합성 문자열이라 한 칸에 `육류 , 가금류`가 함께 들어 있고
+ * `= '육류'`는 그 행을 못 잡는다(2026-09-14 dev 실측: 열린 404행 중 98행이 합성).
+ *
+ * `like`가 아니라 `strpos`인 이유는 조각이 사용자 입력이기 때문이다. `like`는 `%`와 `_`가 패턴
+ * 메타문자라 사용자가 적은 `100%`가 "무엇이든"으로 바뀐다. escape를 덧대는 대신 메타문자가 아예 없는
+ * 연산을 쓴다.
+ *
+ * 라벨을 관측하지 못한 행은 어느 조각으로도 안 걸린다. 미관측을 "안 맞음"과 합치는 것이 아니라, 이
+ * 축으로 물으면 답할 수 없는 행이라 빠지는 것이다(AGENTS 3).
+ */
+export function itemLabelPredicate(
+  alias: SQL,
+  labels: readonly string[] | null,
+  includeUnknown = false,
+): SQL {
+  if (labels === null) return sql`true`;
+  const fragments = textArrayLiteral(labels);
+  const matched = sql`exists (
+    select 1 from unnest(${fragments}::text[]) as fragment
+     where ${alias}.item_label is not null and strpos(${alias}.item_label, fragment) > 0
+  )`;
+  // 미관측을 함께 보려는 요청은 그 행이 안 맞는 것이 아니라 답할 수 없는 행임을 아는 요청이다.
+  return includeUnknown ? sql`(${alias}.item_label is null or ${matched})` : matched;
+}
+
 // Instant는 driver가 모르는 타입이라 ISO 문자열로 넘기고 SQL 쪽에서 timestamptz로 닫는다. Date를 거치면
 // 밀리초 아래가 잘리고 계층 경계를 `Date`로 통과시키는 셈이라 금지다(AGENTS 15).
 function instantParameter(value: Temporal.Instant): string {
@@ -27,7 +87,9 @@ function instantParameter(value: Temporal.Instant): string {
 
 /**
  * 열림의 정의다. 활성 스냅샷 build에서 attempt마다 `observed_at`이 가장 큰 관측 하나를 고르고, 그중
- * `closes_at > asOf`인 행이 열린 공고다. 마감을 관측하지 못한 행(null)은 목록에 남기되 정렬 맨 뒤에
+ * `closes_at > asOf`이면서 **목록이 취소로 표시하지 않은** 행이 열린 공고다. 마감이 지난 행은 원래
+ * 걸러졌지만 취소분은 안 걸러져서 화면에 나왔다(EAT-203).
+ * 마감을 관측하지 못한 행(null)은 목록에 남기되 정렬 맨 뒤에
  * 두고, 기간 필터가 있으면 그 행은 **제외**한다 — 기간을 지정한 사용자에게 마감 미확인 행을 섞어 주면
  * 그 필터가 무엇을 골랐는지 알 수 없다.
  *
@@ -36,6 +98,9 @@ function instantParameter(value: Temporal.Instant): string {
  */
 export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL {
   const asOf = instantParameter(query.asOf);
+  // 빈 배열은 계약이 막으므로 여기 오는 것은 `null`이거나 하나 이상이다. null을 그대로 넘기면 위
+  // 술어의 `is null` 가지가 필터 없음을 뜻한다.
+  const sigungu = query.sigunguCodeValueIds === null ? null : bigintArrayLiteral(query.sigunguCodeValueIds);
   const eligibility = query.eligibilityAreaCodeValueIds;
   // 필터가 없어도 두 판정 열은 그대로 만든다. 목록이 행마다 `제한지역 미관측`을 말해야 하고, 열이
   // 조건부로 생기면 세 조회가 서로 다른 CTE 모양을 보게 된다.
@@ -56,11 +121,13 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
         snapshot.region_sigungu_code_value_id,
         snapshot.terms_revision_id,
         snapshot.closes_at,
+        snapshot.announced_at,
         snapshot.base_amount,
         snapshot.currency,
         snapshot.bid_count,
         snapshot.observed_at,
-        snapshot.source_last_changed_at
+        snapshot.source_last_changed_at,
+        snapshot.source_status_label
       from mart.open_auction_snapshot snapshot
       where snapshot.build_id = ${activeMartBuildId(OPEN_AUCTION_SNAPSHOT)}
       order by snapshot.auction_attempt_id, snapshot.observed_at desc
@@ -74,16 +141,25 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
     open_rows as (
       select open_scope.*
       from open_scope
-      where (open_scope.closes_at is null or open_scope.closes_at > ${asOf}::timestamptz)
+      where ${openScopePredicate(sql`open_scope`, asOf)}
         and (${query.closesWithinHours}::int is null
              or (open_scope.closes_at is not null
                  and open_scope.closes_at <= ${asOf}::timestamptz + make_interval(hours => ${query.closesWithinHours}::int)))
         and (${query.baseAmountMin}::numeric is null or open_scope.base_amount >= ${query.baseAmountMin}::numeric)
         and (${query.baseAmountMax}::numeric is null or open_scope.base_amount <= ${query.baseAmountMax}::numeric)
-        and (${query.regionCodeValueId}::bigint is null
-             or open_scope.region_sido_code_value_id = ${query.regionCodeValueId}::bigint
-             or open_scope.region_sigungu_code_value_id = ${query.regionCodeValueId}::bigint)
-        and (${query.itemLabel}::text is null or open_scope.item_label = ${query.itemLabel}::text)${eligibilityFilter}
+        and (${query.closesOnKst}::date is null
+             or (open_scope.closes_at at time zone ${KST_TIME_ZONE})::date = ${query.closesOnKst}::date)
+        -- 게시일은 상세에서만 온다. 상세를 아직 따지 않은 공고는 이 축으로 못 걸리며 그것이 0건과
+        -- 다른 사실이라는 것은 화면이 말한다(AGENTS 3).
+        and (${query.announcedOnKst}::date is null
+             or (open_scope.announced_at at time zone ${KST_TIME_ZONE})::date = ${query.announcedOnKst}::date)
+        -- 시도 하나가 담는 그릇이고 시군구는 그 안에서만 좁힌다. 시군구가 비면 그 시도 전체다.
+        and (${query.sidoCodeValueId}::bigint is null
+             or open_scope.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
+        and (${sigungu}::text is null
+             or open_scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
+        and ${itemLabelPredicate(sql`open_scope`, query.itemLabels, query.includeUnknownItem)}
+        and (not ${query.onlyWithoutBids}::boolean or open_scope.bid_count = 0)${eligibilityFilter}
     )${extraCte}
   `;
 }
@@ -205,6 +281,11 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
     -- 품목별 낙찰 사정률 중앙값이 0.041 안에 들어와 표본만 줄고 갈리는 것이 없다(2026-09-11 실측).
     -- 활성 org_round_summary build 하나만 읽으며, percentile_disc는 실제 관측된 명단 수 하나를 고르는
     -- 것이지 평균이 아니고 명단이 미관측인 회차는 표본에서 빠진다(AGENTS 7).
+    --
+    -- 개찰 시각이 기준 시각을 지난 회차만 센다. mart에는 아직 안 열린 회차가 함께 실려 있어(2026-09-14
+    -- 실측: build 213의 75,721행 중 183행이 미래, 최대 2028-08-08) 자르지 않으면 아직 일어나지 않은
+    -- 판이 보통 참여의 모집단에 들어간다. 표본이 부풀고 중앙값이 옮겨 간다 — 덕정초가 자르기 전 20회,
+    -- 자른 뒤 14회다. 개찰 시각 미관측도 개찰됐다고 단정할 수 없어 함께 빠진다(AGENTS 3).
     left join lateral (
       select count(*)::int as attempt_count,
              (percentile_disc(0.5) within group (order by summary_row.list_count)
@@ -214,6 +295,8 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
        where summary_row.build_id = ${orgBuild}
          and summary_row.organization_id = page_rows.organization_id
          and summary_row.floor_rate = page_rows.floor_rate
+         and summary_row.opened_at is not null
+         and summary_row.opened_at <= ${asOf}::timestamptz
     ) summary on page_rows.organization_id is not null and page_rows.floor_rate is not null
     -- 최근 회차의 다섯 값은 반드시 같은 회차에서 오고, 그 회차의 하한율은 이 행의 하한율과 같아야 한다.
     -- 개찰 시각이 기준 시각을 지난 회차만 "개찰됨"이며 미관측(null)은 개찰됐다고 단정할 수 없어 빠진다(AGENTS 3).

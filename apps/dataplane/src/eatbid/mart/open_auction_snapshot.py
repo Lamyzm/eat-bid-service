@@ -60,15 +60,19 @@ select identifier.organization_id
  where scheme.namespace = %(namespace)s and value.code = %(code)s
 """
 
+# 상태 라벨은 목록이 준 문자열 그대로 싣는다. 코드로 승격시키지 않는 이유는 `item_label`과 같다 —
+# 이 어휘의 code scheme이 아직 없고, 없는 체계를 여기서 만들면 그 정의를 mart가 소유하게 된다.
 _INSERT_SNAPSHOT_SQL = """
 insert into mart.open_auction_snapshot (
   build_id, auction_attempt_id, observed_at, observation_id, organization_id,
   bid_count, source_last_changed_at, closes_at, opens_at, announced_at,
-  base_amount, currency, item_code_value_id, item_label, source_status_code_value_id
+  base_amount, currency, item_code_value_id, item_label,
+  source_status_code_value_id, source_status_label
 ) values (
   %(build_id)s, %(auction_attempt_id)s, %(observed_at)s, %(observation_id)s,
   %(organization_id)s, %(bid_count)s, %(source_last_changed_at)s, %(closes_at)s,
-  null, null, %(base_amount)s, %(currency)s, null, null, null
+  null, null, %(base_amount)s, %(currency)s, null, null,
+  null, %(source_status_label)s
 )
 on conflict on constraint open_auction_snapshot_observation_grain_key do nothing
 """
@@ -84,6 +88,7 @@ update mart.open_auction_snapshot as snapshot
    set terms_revision_id = latest.auction_revision_id,
        floor_rate = latest.floor_rate,
        item_label = latest.item_label,
+       announced_at = latest.announced_at,
        region_sido_code_value_id = latest.sido_code_value_id,
        region_sigungu_code_value_id = latest.sigungu_code_value_id
   from (
@@ -91,6 +96,9 @@ update mart.open_auction_snapshot as snapshot
            revision.auction_attempt_id,
            revision.auction_revision_id,
            revision.floor_rate,
+           -- 게시일은 목록에 없다. 목록 행은 마감·참여·상태만 주므로 `오늘 열린` 축은 상세에서만
+           -- 온다. 없으면 그 탭이 성립하지 않는다(EAT-206).
+           (revision.source_payload #>> '{schedule,announcedAt}')::timestamptz as announced_at,
            -- 품목 code scheme이 아직 없다. 관측 라벨을 코드로 승격시키지 않는다(EAT-44 판정 §4.2).
            nullif(btrim(coalesce(
              revision.source_payload #>> '{classification,sourceCategoryLabel}', ''
@@ -208,6 +216,7 @@ def fill_open_auction_snapshot(
                         "closes_at": instant_datetime(row.deadline_at),
                         "base_amount": base_amount,
                         "currency": None if base_amount is None else "KRW",
+                        "source_status_label": row.status_name,
                     },
                 )
                 inserted += cursor.rowcount

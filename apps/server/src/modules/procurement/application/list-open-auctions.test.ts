@@ -16,7 +16,9 @@ const page: OpenAuctionPage = {
 const input = {
   regionCodeValueId: null,
   eligibilityAreaCodeValueIds: null,
-  itemLabel: null,
+  itemLabels: null,
+  includeUnknownItem: false,
+  onlyWithoutBids: false,
   closesWithinHours: null,
   baseAmountMin: null,
   baseAmountMax: null,
