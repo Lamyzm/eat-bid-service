@@ -26,6 +26,8 @@ async function 표를기다린다(page: Page) {
  */
 async function overflowReport(page: Page) {
   return page.evaluate(() => {
+    // inline 상자는 `scrollWidth`·`clientWidth`가 둘 다 0이라 여유를 픽셀로 물을 수 없다. 글꼴 metric
+    // 차이로 CI에서만 2px 모자라는 일은 검사가 아니라 열 폭에 여유를 두어 막는다(open-auction-table.tsx).
     const describe = (node: Element) =>
       `${node.tagName.toLowerCase()}.${node.className.toString().split(' ').slice(0, 3).join('.')}`
       + ` (${node.scrollWidth}>${node.clientWidth}) ${node.textContent?.trim().slice(0, 24) ?? ''}`;

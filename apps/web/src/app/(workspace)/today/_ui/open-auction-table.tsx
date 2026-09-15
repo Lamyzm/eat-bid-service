@@ -24,7 +24,16 @@ const CLOSES_TONE: Record<ClosesTone, string> = {
 
 const MUTED = 'text-[13px] leading-tight font-medium text-muted-foreground';
 
-function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresentation; readonly search: TodaySearch }) {
+function OrganizationCell({
+  row,
+  search,
+  rareRates
+}: {
+  readonly row: OpenAuctionRowPresentation;
+  readonly search: TodaySearch;
+  /** 좁은 폭에서 접힌 기초금액을 둘째 줄에 낼 때 드문 하한도 함께 적는다. */
+  readonly rareRates: ReadonlySet<string>;
+}) {
   const { organization, region } = row;
   // 지역 어휘 계약이 아직 없어 라벨을 관측하지 못한 지역이 있다. 그때 `코드 657`을 적으면 사용자가 읽을 수
   // 없는 글자가 기관 이름 아래 줄을 차지한다. 라벨이 있는 것만 보인다(EAT-100까지).
@@ -52,8 +61,15 @@ function OrganizationCell({ row, search }: { readonly row: OpenAuctionRowPresent
             세고 있으므로 행에는 관측하지 못한 경우만 남긴다 — 제한 없음으로 바꿔 적으면 낼 수 있는
             공고가 목록에서 조용히 사라진다. */}
         {row.eligibilityText === null ? <span className='font-semibold text-foreground'>제한지역 미관측</span> : null}
-        {/* 좁은 폭에서 접힌 품목을 둘째 줄에 둔다. 참여는 어느 폭에서나 제 열에 있다. */}
+        {/* 좁은 폭에서 접힌 품목과 기초금액을 둘째 줄에 둔다. 참여는 어느 폭에서나 제 열에 있다.
+            md(768)에서 셸 탐색을 빼면 표에 남는 폭이 398px뿐이라 여섯 칸을 다 세우면 기관 이름이 설
+            자리가 없다. 값을 지우는 것이 아니라 줄을 옮기는 것이라 읽을 것은 그대로 남는다. */}
         <span className='lg:hidden'>{row.itemLabel === null ? '품목 미확인' : summarizeItemLabel(row.itemLabel).text}</span>
+        <span className='tabular-nums lg:hidden'>{row.baseAmountText}</span>
+        {rareRates.has(row.floorRateText) ? <span className='tabular-nums lg:hidden'>하한 {row.floorRateText}</span> : null}
+        {row.orgSummary === null ? null : (
+          <span className='tabular-nums lg:hidden'>보통 {row.orgSummary.medianListText} · {row.orgSummary.listCountSampleCount}회</span>
+        )}
       </span>
     </div>
   );
@@ -107,10 +123,12 @@ function ParticipationCell({ row }: { readonly row: OpenAuctionRowPresentation }
   return (
     <span className='grid justify-items-end gap-0.5 tabular-nums'>
       <span className='whitespace-nowrap'>{row.bidCountText}</span>
+      {/* 보통과 표본 수는 lg부터 제 열에 선다. 그 아래에서는 참여 열이 수 하나만큼만 남고 이 한 쌍은
+          기관 셀 둘째 줄로 내려간다 — 좁은 폭에서 열을 유지하면 기관 이름이 설 자리가 없다. */}
       {row.orgSummary === null
         ? null
         : (
-            <span className={`${MUTED} whitespace-nowrap`}>
+            <span className={`${MUTED} hidden whitespace-nowrap lg:block`}>
               보통 {row.orgSummary.medianListText} · {row.orgSummary.listCountSampleCount}회
             </span>
           )}
@@ -143,10 +161,12 @@ type OpenAuctionColumn = {
    *
    * lg 폭은 셀 값이 아니라 **머리글 두 줄**이 정한다. 부제가 열보다 넓으면 옆 칸으로 흘러넘치므로
    * `개찰 한 시간 뒤`(77px)와 `MM-DD HH:mm 기준`(98px)이 들어갈 만큼을 잡았다(2026-09-15 실측).
+   * 글꼴이 기기마다 달라 딱 맞게 잡으면 CI에서만 2px이 모자라므로 열마다 10px 넘게 여유를 둔다.
    *
    * 그 아래에서는 좁은 폭을 따로 준다. md(768)에서 셸 탐색을 빼면 표에 남는 폭이 398px뿐이라 lg 폭을
    * 그대로 쓰면 고정 열 합이 자리를 다 먹고 기관 열이 18px로 무너진다(2026-09-15 실측). 그래서 폭을
-   * inline style이 아니라 breakpoint를 실을 수 있는 class로 둔다.
+   * inline style이 아니라 breakpoint를 실을 수 있는 class로 두고, 품목과 기초금액 두 열은 기관 셀
+   * 둘째 줄로 접는다.
    */
   readonly width: string;
   /** 폭이 좁아질 때 접히는 규칙이다. 빈 문자열은 어느 폭에서나 보인다. */
@@ -170,15 +190,15 @@ type OpenAuctionColumn = {
  *
  * 마감 칸은 시각만이다. 날짜는 묶음 머리가 한 번 말한다. 하한은 열이 아니다(요약의 `floorSpread`).
  * 최근 낙찰은 투찰률 축이라 사정률 축인 이 목록과 눈금이 다르고, 한 행을 고른 뒤에 볼 것이라 상세로
- * 보낸다. 좁은 폭에서는 품목만 접어 기관 셀 둘째 줄로 내리고 나머지 다섯은 어느 폭에서나 남는다.
+ * 보낸다. 좁은 폭에서는 품목과 기초금액을 접어 기관 셀 둘째 줄로 내리고 나머지 넷은 어느 폭에서나 남는다.
  */
 const COLUMNS: readonly OpenAuctionColumn[] = [
   { id: 'rank', header: '순번', align: 'text-left', width: 'w-9', visibility: '', headerHidden: true, cell: (_row, context) => <span className={MUTED}>{context.rank}</span> },
-  { id: 'closes', header: '마감', subheader: '개찰 한 시간 뒤', align: 'text-left', width: 'w-14 lg:w-24', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
-  { id: 'organization', header: '기관', align: 'text-left', width: 'w-auto', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} /> },
-  { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: 'lg:w-28', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
-  { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: 'w-28 lg:w-32', visibility: '', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
-  { id: 'participation', header: '참여', align: 'text-right', width: 'w-26 lg:w-30', visibility: '', cell: (row) => <ParticipationCell row={row} /> }
+  { id: 'closes', header: '마감', subheader: '개찰 한 시간 뒤', align: 'text-left', width: 'w-16 lg:w-26', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
+  { id: 'organization', header: '기관', align: 'text-left', width: 'w-auto', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} rareRates={context.rareRates} /> },
+  { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: 'lg:w-26', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
+  { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: 'lg:w-32', visibility: 'hidden lg:table-cell', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
+  { id: 'participation', header: '참여', align: 'text-right', width: 'w-16 lg:w-32', visibility: '', cell: (row) => <ParticipationCell row={row} /> }
 ];
 
 /**
