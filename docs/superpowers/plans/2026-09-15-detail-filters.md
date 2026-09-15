@@ -47,7 +47,8 @@
 - [x] architecture 전체 18개 통과. contracts JSON Schema/Python 생성물 check 포함
 - [x] Web lint 오류 0. 변경 밖 기존 경고 7개는 유지
 - [x] 실제 dev에서 공고 89의 새 경로·Toss 지면 확인
-- [ ] AI advisory 판정·PR 및 Linear 인계
+- [x] c47c31fe의 AI advisory finding 없음. PR #26 required CI 두 개 성공 후 0a0a1c68로 병합
+- [x] 2026-09-15 교대 시 Linear EAT-215 Done 갱신. [대화 없는 재개 인계](../../operations/handoffs/2026-09-15-detail-mvp.md)
 
 브라우저 첫 실행은 접근 가능한 제목의 공백에서 1건 실패해 실제 공백을 보완했다. tablist의 roving focus도
 lint에 맞춰 연결한 뒤 브라우저 3/3과 lint를 다시 확인했다. 이후 기관 ID가 있지만 이름만 없는 경우의
@@ -65,5 +66,6 @@ lint에 맞춰 연결한 뒤 브라우저 3/3과 lint를 다시 확인했다. �
 실제 공고 89는 기관 ID가 있어도 기관 이름, 공고지역·방식 라벨의 표시가 미확인이다.
 표제의 문자열로 그 값을 만들지 않았으며, 공급 계약과 코드 사전/표시 연결 확인이 필요하다.
 
-dev 실행: 3215 포트, PID 32968, 도구 세션 78699. 다른 서버 4400/3000은 변경하지 않았다.
+당시 dev 실행: 3215 포트, PID 32968, 도구 세션 78699. 다른 서버 4400/3000은 변경하지 않았다.
+2026-09-15 22:15 KST 재확인에서는 3215/4400/8769 listener가 없다. 이 기록을 현재 실행 증거로 쓰지 않는다.
 production build는 dev 시작 전에 종료해 같은 .next 디렉터리를 동시 사용하지 않았다.

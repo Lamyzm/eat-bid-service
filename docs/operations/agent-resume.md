@@ -1,13 +1,18 @@
 ---
+id: OPS-AGENT-RESUME
 status: active
-last_reviewed: 2026-09-10
+canonical_for: agent-resume-entrypoint
+last_reviewed: 2026-09-15
 review_trigger: agent-handoff-or-resume-change
 ---
 
 # 대화 없이 현재 작업 이어받기
 
 이 문서는 Codex 또는 Claude 세션이 종료돼도 저장소에서 작업을 다시 찾기 위한 실행 진입점이다.
-현재 인계 자료는 [2026-09-09 최소 MVP 인계](handoffs/2026-09-09-mvp.md)다.
+상세 MVP 교대는 [2026-09-15 상세 인계](handoffs/2026-09-15-detail-mvp.md)에서 시작한다.
+그 인계는 새 상세 화면·공통 분석·최종 URL 전환 작업의 복구 색인이다.
+전체 MVP의 다른 흐름은 [2026-09-09 최소 MVP 인계](handoffs/2026-09-09-mvp.md)도 함께 읽는다.
+인계에 적힌 완료·미완료는 관측이며 최신 상태를 덮어쓰지 않는다.
 그 자료는 관측 시점의 복구 색인이며 최신 상태·담당·승인 범위는 Linear, 실제 구현과 claim·세션 잠금은
 Git과 `workflow:doctor`로 재확인한다. 인계 파일 날짜가 최신 상태라는 보장은 없다.
 
