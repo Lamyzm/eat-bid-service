@@ -29,6 +29,11 @@ class Expectation:
     runbook: str
     sql: str
     parameters: Mapping[str, Any]
+    # 여러 행을 낼 수 있는 기대는 행을 가르는 컬럼을 적는다. 없으면 행마다 같은 key가 되고, 상태 파일은
+    # key로 집합을 만들므로 한 행이 다른 행을 덮어쓴다. 그러면 이미 열려 있는 위반 하나가 새로 생긴
+    # 위반을 통째로 가린다 — 2026-09-06부터 `running`으로 남은 reference run 하나가 실제로 이틀 동안
+    # backfill 멈춤 감시를 눈멀게 하고 있었다.
+    key_columns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -41,6 +46,18 @@ class Violation:
 
 def _detail(row: Mapping[str, Any]) -> str:
     return ", ".join(f"{name}={value}" for name, value in row.items())
+
+
+def _row_key(expectation: Expectation, row: Mapping[str, Any]) -> str:
+    """행마다 다른 key를 만든다. 가르는 컬럼을 선언하지 않은 기대는 기대 key를 그대로 쓴다.
+
+    선언한 컬럼이 결과에 없으면 `unknown`으로 채운다. 그 경우 여러 행이 다시 한 key로 합쳐지지만,
+    질의를 잘못 적었다는 이유로 감시를 멈추는 것보다는 덜 알리는 쪽이 낫다.
+    """
+    if not expectation.key_columns:
+        return expectation.key
+    parts = [str(row.get(column, "unknown")) for column in expectation.key_columns]
+    return ":".join([expectation.key, *parts])
 
 
 # 2026-09-10 사고 여섯 중 다섯이 예외가 아니라 조용한 멈춤이었다. 그 다섯을 이 목록이 직접 겨눈다.
@@ -67,6 +84,7 @@ EXPECTATIONS: tuple[Expectation, ...] = (
             having coalesce(max(o.fetched_at), r.started_at) < now() - %(stall_after)s::interval
         """,
         parameters={"stall_after": "90 minutes"},
+        key_columns=("run_id",),
     ),
     Expectation(
         key="planned-release-age",
@@ -144,7 +162,7 @@ def evaluate(
         for row in rows:
             violations.append(
                 Violation(
-                    key=expectation.key,
+                    key=_row_key(expectation, row),
                     title=expectation.title,
                     runbook=expectation.runbook,
                     detail=_detail(row),
