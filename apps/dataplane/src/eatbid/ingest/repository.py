@@ -23,10 +23,16 @@ CollectionRunMode = Literal["poll-open", "daily-reconcile", "backfill"]
 # run 정체성·실패 분류·관측 보존 규칙은 수집과 같으므로 run mode 목록에는 함께 두되, 창을 만드는
 # 목록과는 분리한다. 하나로 두면 `discover --mode reference`가 받아들여지고 창이 비어 버린다.
 ReferenceRunMode = Literal["reference"]
-# 두 목록의 합을 Literal로 다시 적는 이유: `Literal[...] | Literal[...]`은 `get_args`가 문자열이
-# 아니라 Literal 타입 둘을 돌려주어 값 검사가 조용히 통과한다. 셋이 어긋나지 않는지는
+# eaT가 자기 코드에 붙여 부르는 이름과 유효기간을 받아 오는 실행이다. `reference`와 합치지 않는 이유는
+# 소스 경계가 다르기 때문이다 — 실패 모양도, 어느 semaphore를 잡는지도, 무엇을 봉인하는지도 다르다.
+# 한 이름으로 묶으면 run 표가 "정부 파일을 받았다"와 "eaT 어휘를 받았다"를 구분하지 못한다.
+CodeVocabularyRunMode = Literal["code-vocabulary"]
+# 세 목록의 합을 Literal로 다시 적는 이유: `Literal[...] | Literal[...]`은 `get_args`가 문자열이
+# 아니라 Literal 타입들을 돌려주어 값 검사가 조용히 통과한다. 넷이 어긋나지 않는지는
 # `tests/unit/test_run_modes.py`가 고정한다.
-CaptureRunMode = Literal["poll-open", "daily-reconcile", "backfill", "reference"]
+CaptureRunMode = Literal[
+    "poll-open", "daily-reconcile", "backfill", "reference", "code-vocabulary"
+]
 
 
 def canonical_request_params(params: Mapping[str, str]) -> bytes:
@@ -61,6 +67,7 @@ class IngestRepository(Protocol):
         parser_version: str,
         started_at: datetime,
         expected_count: int,
+        workflow_name: str | None = None,
     ) -> None: ...
 
     def plan_request_unit(

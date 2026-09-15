@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "CodeLabel": {
+      "description": "Observed label text for a code value; never an identity.",
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "CodeScheme": {
+      "description": "Source-scoped scheme identifier; schemes are never compared implicitly.",
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "EatbidCodeVocabularyV1": {
+      "additionalProperties": false,
+      "description": "One sealed observation of a source-published code list, carried as code, name and validity.",
+      "properties": {
+        "dataset": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/NormalizedCodeVocabularyEntry"
+          },
+          "maxItems": 100000,
+          "type": "array"
+        },
+        "excludedRowCount": {
+          "$ref": "#/$defs/NonNegativeCount"
+        },
+        "sourceRowCount": {
+          "$ref": "#/$defs/NonNegativeCount"
+        },
+        "sourceSystem": {
+          "$ref": "#/$defs/SourceSystem"
+        }
+      },
+      "required": [
+        "sourceSystem",
+        "dataset",
+        "sourceRowCount",
+        "excludedRowCount",
+        "entries"
+      ],
+      "type": "object"
+    },
+    "InstantText": {
+      "description": "Canonical UTC ISO 8601 instant text ending in Z with at most nanosecond precision.",
+      "example": "2026-08-30T00:00:00Z",
+      "maxLength": 35,
+      "pattern": "^(?:(?:[0-9][0-9][2468][048]|[0-9][0-9][13579][26]|[0-9][0-9]0[48]|[02468][048]00|[13579][26]00)-02-29|[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|(?:02)-(?:0[1-9]|1[0-9]|2[0-8])))T(?:(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{0,8}[1-9])?(?:Z))$",
+      "type": "string"
+    },
+    "NonNegativeCount": {
+      "description": "Count of observed rows; JSON integer within PostgreSQL integer range.",
+      "maximum": 2147483647,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "NormalizedCodeVocabularyEntry": {
+      "additionalProperties": false,
+      "description": "One observed source code with the name and validity the source itself publishes for it.",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "code": {
+          "$ref": "#/$defs/SourceCode"
+        },
+        "label": {
+          "$ref": "#/$defs/CodeLabel"
+        },
+        "scheme": {
+          "$ref": "#/$defs/CodeScheme"
+        },
+        "validFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "validTo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstantText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "scheme",
+        "code",
+        "label",
+        "active",
+        "validFrom",
+        "validTo"
+      ],
+      "type": "object"
+    },
+    "SourceCode": {
+      "description": "Opaque source code text that preserves leading zeroes.",
+      "maxLength": 512,
+      "minLength": 1,
+      "type": "string"
+    },
+    "SourceSystem": {
+      "description": "Bounded identifier of the system that supplied an observation.",
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "$id": "EatbidCodeVocabularyV1",
+  "$ref": "#/$defs/EatbidCodeVocabularyV1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

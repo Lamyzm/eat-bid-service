@@ -1,0 +1,1 @@
+ALTER TABLE "ingest"."run" ADD COLUMN "workflow_name" text;
