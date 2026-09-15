@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { EmptyState } from '@/shared/ui/empty-state';
 
+import { CombinationRail } from '../_features/filter-combinations/ui/combination-rail';
 import { RegionScopeStrip, RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
@@ -170,6 +171,10 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
             matchedCount={presentation?.eligibilityMatchedCount ?? null}
             unobservedCount={presentation?.eligibilityUnobservedCount ?? null}
           />
+          {/* 조건을 바꿔 가며 판을 찾는 자리다. 매번 축 셋을 다시 누르면 탐색이 일이 된다(EAT-208). */}
+          {data.combinations === null ? null : (
+            <CombinationRail combinations={data.combinations} search={search} />
+          )}
           {/* 표본 수·계보·산출 시각을 숨기지 않는다(AGENTS 7). 표 위 한 줄로 두면 780px에서 두 줄로 넘쳐
               목록을 읽는 눈이 먼저 걸리므로, 조건과 같은 기둥에 두어 목록 옆에 계속 남긴다. */}
           {presentation === null ? null : (

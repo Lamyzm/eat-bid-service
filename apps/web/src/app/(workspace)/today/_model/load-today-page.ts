@@ -5,10 +5,21 @@ import {
   type OpenAuctionListV1Response,
   type OpenAuctionSummaryV1Response
 } from '@eatbid/contracts/api/v1/auctions';
+import {
+  maxFilterCombinations,
+  type MyFilterCombinationCountsV1Response,
+  type MyFilterCombinationsV1Response
+} from '@eatbid/contracts/api/v1/me';
 
 import { ALL_REGIONS_SCOPE, normalizeAmountInput, type TodaySearch } from '../_lib/today-search-params';
 import { presentOpenAuctionList, type OpenAuctionListPresentation } from './present-open-auctions';
-import { calendarWindow, presentOpenSummary, type OpenSummaryPresentation } from './present-open-summary';
+import { presentCombinations, type CombinationsPresentation } from './present-combinations';
+import {
+  calendarWindow,
+  kstToday,
+  presentOpenSummary,
+  type OpenSummaryPresentation
+} from './present-open-summary';
 
 export type TodayListInput = {
   readonly sido?: string;
@@ -55,9 +66,20 @@ export type TodayRegionPreference = {
   readonly confirmedAt: string | null;
 };
 
+/**
+ * 조합은 목록의 전제가 아니라 탐색을 빠르게 하는 기둥이다. 못 읽으면 기둥만 비우고 목록은 그대로 낸다 —
+ * 실패를 빈 목록으로 바꾸면 화면이 "저장한 조합이 없다"고 거짓말한다.
+ */
+export type TodayCombinationsRead = {
+  readonly combinations: MyFilterCombinationsV1Response['combinations'];
+  readonly counts: MyFilterCombinationCountsV1Response | null;
+};
+
 export type TodayPageDependencies = {
   readonly listOpenAuctions: (input: TodayListInput) => Promise<TodayListRead>;
   readonly summarizeOpenAuctions: (input: TodaySummaryInput) => Promise<OpenAuctionSummaryV1Response>;
+  /** 조합을 읽지 못한 배포에서도 화면이 서야 하므로 선택 의존이다. */
+  readonly readCombinations?: (input: TodaySummaryInput) => Promise<TodayCombinationsRead | null>;
   readonly now: () => string;
   /** 서버가 읽지 못했으면 undefined다. 그때는 좁힐 근거가 없으므로 목록을 그대로 보여 준다. */
   readonly regionPreference?: TodayRegionPreference;
@@ -82,6 +104,8 @@ export type TodayPageData = {
   readonly presentation: OpenAuctionListPresentation | null;
   // 탭·달력·축 줄의 재료다. 목록과 같은 이유로 지역 미설정이면 없다.
   readonly summary: OpenSummaryPresentation | null;
+  // 왼쪽 기둥의 재료다. 못 읽었으면 null이고 그때 기둥은 조합 자리를 비운다.
+  readonly combinations: CombinationsPresentation | null;
   // build 전환으로 cursor가 사라져 처음부터 다시 조회했다는 사실. 화면이 그 사실을 한 줄로 말한다.
   readonly cursorReset: boolean;
 };
@@ -185,15 +209,25 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
   // 지역 미설정이면 목록을 아예 부르지 않는다. 화면이 그리지 않을 전국 목록을 받아 오는 것은 낭비이고,
   // 받아 둔 값이 있으면 다음 사람이 그것을 그리고 싶어진다.
   if (regionGate.kind === 'unset') {
-    return { nowIso, regionGate, search, presentation: null, summary: null, cursorReset: false };
+    return {
+      nowIso, regionGate, search, presentation: null, summary: null, combinations: null, cursorReset: false
+    };
   }
   // 둘을 나란히 부른다. 요약은 목록의 페이지가 아니라 조건 전체를 세므로 앞의 결과를 기다릴 이유가 없고,
   // 순서대로 부르면 한 화면이 두 왕복 시간을 그대로 더한다.
-  const [first, summaryResponse] = await Promise.all([
+  const [first, summaryResponse, combinationsRead] = await Promise.all([
     dependencies.listOpenAuctions(listInput(search, regionGate)),
-    dependencies.summarizeOpenAuctions(summaryInput(search, regionGate, nowIso))
+    dependencies.summarizeOpenAuctions(summaryInput(search, regionGate, nowIso)),
+    dependencies.readCombinations?.(summaryInput(search, regionGate, nowIso)) ?? Promise.resolve(null)
   ]);
   const summary = presentOpenSummary(summaryResponse, nowIso, search);
+  const combinations = combinationsRead === null ? null : presentCombinations({
+    combinations: combinationsRead.combinations,
+    counts: combinationsRead.counts,
+    search,
+    today: kstToday(nowIso).toString(),
+    savedLimit: maxFilterCombinations
+  });
   if (first.kind === 'page') {
     return {
       nowIso,
@@ -201,6 +235,7 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
       search,
       presentation: presentOpenAuctionList(first.response, nowIso),
       summary,
+      combinations,
       cursorReset: false
     };
   }
@@ -216,6 +251,7 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
     search: reset,
     presentation: presentOpenAuctionList(second.response, nowIso),
     summary,
+    combinations,
     cursorReset: true
   };
 }

@@ -7,6 +7,7 @@ import 'server-only';
 import type {
   MyBusinessesV1Response,
   MyFilterCombinationCountsV1Response,
+  MyFilterCombinationsV1Response,
   MyRegionPreferenceV1Response
 } from '@eatbid/contracts/api/v1/me';
 import type { CurrentSessionV1Response } from '@eatbid/contracts/api/v1/session';
@@ -15,7 +16,11 @@ import { cache } from 'react';
 import { privateServerRequest } from '../_transport/private-server-request.server';
 import { getCurrentSessionWith } from './get-current-session';
 import { listMyBusinessesWith } from './my-businesses';
-import { countFilterCombinationsWith, type FilterCombinationCountsInput } from './filter-combinations';
+import {
+  countFilterCombinationsWith,
+  listFilterCombinationsWith,
+  type FilterCombinationCountsInput
+} from './filter-combinations';
 import { getMyRegionPreferenceWith } from './region-preference';
 import { isAccountDependencyUnavailableError } from './account-resource-error';
 import { accountQueryKeys, type PrivateWorkspaceScope } from './queries';
@@ -91,6 +96,18 @@ export const getMyRegionPreferenceFromServer = cache(
 export type FilterCombinationCountsRead =
   | { readonly kind: 'counts'; readonly response: MyFilterCombinationCountsV1Response }
   | { readonly kind: 'unread' };
+
+export type FilterCombinationsRead =
+  | { readonly kind: 'combinations'; readonly response: MyFilterCombinationsV1Response }
+  | { readonly kind: 'unread' };
+
+export async function listFilterCombinationsFromServer(): Promise<FilterCombinationsRead> {
+  try {
+    return { kind: 'combinations', response: await listFilterCombinationsWith(privateServerRequest) };
+  } catch {
+    return { kind: 'unread' };
+  }
+}
 
 export async function countFilterCombinationsFromServer(
   input: FilterCombinationCountsInput

@@ -21,6 +21,7 @@ const ready: TodayPageData = {
   search: EMPTY_TODAY_SEARCH,
   presentation: presentOpenAuctionList(openAuctionsFixture, fixtureNow),
   summary: presentOpenSummary(openSummaryFixture, fixtureNow, EMPTY_TODAY_SEARCH),
+  combinations: null,
   cursorReset: false
 };
 
