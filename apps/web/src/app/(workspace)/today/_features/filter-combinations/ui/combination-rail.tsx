@@ -63,7 +63,12 @@ export function CombinationRail({
           </span>
         </span>
         {combinations.saved.map((row) => <CombinationRow key={row.key} row={row} />)}
-        <SaveCombinationForm search={search} canSave={combinations.canSaveCurrent} full={full} />
+        <SaveCombinationForm
+          search={search}
+          canSave={combinations.canSaveCurrent}
+          full={full}
+          suggestedName={combinations.suggestedName}
+        />
       </div>
     </div>
   );

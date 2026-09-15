@@ -146,6 +146,16 @@ function regionGateOf(search: TodaySearch, preference: TodayRegionPreference | u
   return { kind: 'applied', areas: preference.areas };
 }
 
+/**
+ * 조합 이름에 쓸 지역 라벨이다. **고른 지역이 하나일 때만 이름이 있다** — 둘 이상이면 어느 것으로
+ * 불러도 나머지를 숨기게 되므로 이름을 만들지 않고 화면이 `내 지역`으로 물러선다. 라벨을 관측하지
+ * 못한 지역(EAT-100)도 이름이 없다.
+ */
+function regionTextOf(gate: TodayRegionGate): string | null {
+  if (gate.kind !== 'applied' || gate.areas.length !== 1) return null;
+  return gate.areas[0]!.label;
+}
+
 function eligibilityAreaOf(gate: TodayRegionGate): readonly string[] | undefined {
   // 확인했는데 고른 지역이 없는 상태도 필터를 건다. 그래야 "제한지역 미관측"만 남는 결과가 전국 목록과
   // 다른 사실로 화면에 닿는다.
@@ -226,7 +236,8 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
     counts: combinationsRead.counts,
     search,
     today: kstToday(nowIso).toString(),
-    savedLimit: maxFilterCombinations
+    savedLimit: maxFilterCombinations,
+    regionText: regionTextOf(regionGate)
   });
   if (first.kind === 'page') {
     return {

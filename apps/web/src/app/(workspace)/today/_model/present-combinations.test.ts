@@ -58,6 +58,7 @@ function present(search: TodaySearch, override: Partial<Parameters<typeof presen
     search,
     today: TODAY,
     savedLimit: 5,
+    regionText: '경남/김해시',
     ...override
   });
 }
@@ -69,18 +70,33 @@ describe('조합 기둥 표시 변환', () => {
     expect(presentation.saved[0]!.count).toBeNull();
   });
 
-  test('기본 넷의 이름과 건수는 계약의 열쇠 순서를 그대로 따른다', () => {
+  test('기본 넷은 오늘이 맨 위이고 관측된 지역 라벨로 부른다', () => {
     const presentation = present(currentSearch);
     expect(presentation.defaults.map((row) => [row.name, row.count])).toEqual([
-      ['내 지역 전부', 31],
-      ['오늘 마감', 4],
+      ['오늘 경남/김해시', 4],
+      ['경남/김해시 전부', 31],
       ['참여 0곳', 2],
       ['품목 미상 포함', 9]
     ]);
   });
 
+  test('고른 지역이 하나가 아니면 지역 이름을 지어내지 않는다', () => {
+    const presentation = present(currentSearch, { regionText: null });
+    expect(presentation.defaults.map((row) => row.name)).toEqual([
+      '오늘 내 지역',
+      '내 지역 전부',
+      '참여 0곳',
+      '품목 미상 포함'
+    ]);
+  });
+
+  test('저장 칸에 채울 이름은 축 이름을 빼고 값만 잇는다', () => {
+    expect(present(currentSearch).suggestedName).toBe('경남/김해시 · 육류 · 금액 이상');
+    expect(present(EMPTY_TODAY_SEARCH).suggestedName).toBe('');
+  });
+
   test('앞 둘은 조건을 지우고 뒤 둘은 지금 조건에 더한다', () => {
-    const [regionAll, closingToday, noBids, itemUnknown] = present(currentSearch).defaults;
+    const [closingToday, regionAll, noBids, itemUnknown] = present(currentSearch).defaults;
     expect(regionAll!.href).toBe('/today');
     expect(closingToday!.href).toBe(`/today?closesOn=${TODAY}`);
     expect(noBids!.href).toBe('/today?sido=48&items=육류&bidState=none&baseAmountMin=1000000.00');
@@ -88,7 +104,7 @@ describe('조합 기둥 표시 변환', () => {
   });
 
   test('전체 보기로 넓힌 상태는 기본 넷의 이동에도 따라간다', () => {
-    const [regionAll, closingToday] = present({ ...currentSearch, scope: 'all' }).defaults;
+    const [closingToday, regionAll] = present({ ...currentSearch, scope: 'all' }).defaults;
     expect(regionAll!.href).toBe('/today?scope=all');
     expect(closingToday!.href).toBe(`/today?scope=all&closesOn=${TODAY}`);
   });

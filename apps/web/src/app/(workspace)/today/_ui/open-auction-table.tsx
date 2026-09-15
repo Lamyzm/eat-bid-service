@@ -211,11 +211,13 @@ function DayHeadRow({ group, columns }: { readonly group: ClosingDayGroup; reado
   return (
     <tr className='border-b border-border/60 bg-muted/40'>
       <th scope='colgroup' colSpan={columns} className='px-2 py-1 text-left font-semibold'>
-        <span data-slot='closes' className={`inline-flex flex-wrap items-baseline gap-x-2 ${CLOSES_TONE[group.tone]}`}>
+        {/* 조건을 푼 수는 오른쪽 끝에 세운다. 날짜·요일·건수와 붙여 두면 네 값이 한 덩어리로 읽혀
+            `3건 13건 중`이 무엇과 무엇의 비교인지 눈이 다시 짝지어야 한다. */}
+        <span data-slot='closes' className={`flex flex-wrap items-baseline gap-x-2 ${CLOSES_TONE[group.tone]}`}>
           <span className='text-[15px]'>{group.dateText}</span>
           {group.awayText === '' ? null : <span className={MUTED}>{group.awayText}</span>}
           {group.count === null ? null : <span className='text-[13px] font-semibold tabular-nums'>{group.count}건</span>}
-          {group.releasedCount === null ? null : <span className={`${MUTED} tabular-nums`}>{group.releasedCount}건 중</span>}
+          {group.releasedCount === null ? null : <span className={`${MUTED} ml-auto tabular-nums`}>{group.releasedCount}건 중</span>}
         </span>
       </th>
     </tr>

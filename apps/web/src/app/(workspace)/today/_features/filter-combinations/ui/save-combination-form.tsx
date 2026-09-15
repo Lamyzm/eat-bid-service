@@ -29,12 +29,15 @@ function failureText(error: unknown): string {
 export function SaveCombinationForm({
   search,
   canSave,
-  full
+  full,
+  suggestedName
 }: {
   readonly search: TodaySearch;
   /** 지금 조건이 조건 없음이거나 이미 저장된 조합과 같으면 저장할 것이 없다. */
   readonly canSave: boolean;
   readonly full: boolean;
+  /** 지금 조건을 그대로 옮긴 이름이다. 사용자가 그대로 두거나 고쳐 쓴다. */
+  readonly suggestedName: string;
 }) {
   const router = useRouter();
   const inputId = useId();
@@ -63,10 +66,14 @@ export function SaveCombinationForm({
       <button
         type='button'
         disabled={!canSave || full}
-        onClick={() => setOpen(true)}
-        className='rounded-lg px-2.5 py-1.5 text-left text-[15px] font-medium text-muted-foreground hover:bg-foreground/5 disabled:pointer-events-none disabled:text-muted-foreground/40'
+        // 이름을 여는 순간 지금 조건으로 채운다. 열고 나서 채우면 사용자가 지운 이름이 되살아난다.
+        onClick={() => { setName(suggestedName); setOpen(true); }}
+        className='flex items-center gap-1.5 rounded-lg bg-foreground/[0.03] px-2.5 py-2 text-left text-[15px] font-medium text-muted-foreground hover:bg-foreground/[0.07] disabled:pointer-events-none disabled:text-muted-foreground/40'
       >
-        ＋ 이 조건 저장
+        {/* 상한에 걸려 잠긴 것과 저장할 조건이 없어 회색인 것은 사용자가 할 일이 다르다. 자물쇠는
+            `5 / 5`가 이미 말한 것을 버튼 자리에서 한 번 더 가리킨다. */}
+        {full ? <span aria-hidden>🔒</span> : <span aria-hidden>＋</span>}
+        이 조건 저장
       </button>
     );
   }
