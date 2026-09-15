@@ -46,6 +46,7 @@ class RawFirstDiscoveryPersistence:
             started_at=plan.started_at,
             # 첫 raw observation이 생기는 동안에도 count 불변식을 깨지 않는다.
             expected_count=1,
+            workflow_name=plan.workflow_name,
         )
 
     def plan_page(self, plan: DiscoveryPlan, page_number: int) -> PlannedRequestUnit:
@@ -85,6 +86,7 @@ class RawFirstDiscoveryPersistence:
             parser_version=plan.parser_version,
             started_at=plan.started_at,
             expected_count=expected_count,
+            workflow_name=plan.workflow_name,
         )
 
     def plan_detail(

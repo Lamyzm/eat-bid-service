@@ -1724,3 +1724,15 @@ def test_dataplane_container_template은_프로세스_설정_다섯을_모두_�
                 f"{name} template이 {key}를 선언하지 않았다"
             )
     assert checked > 0
+
+
+def test_discover는_workflow_이름을_env로_받아_run_행에_남긴다(manifests: ManifestSet) -> None:
+    """알림의 run_id, R2 로그의 workflow 이름, 릴리스의 uid를 잇는 유일한 물건이 Workflow 객체였고 그것은
+    TTL로 사라진다. discover가 이름을 run 행에 적어야 사후에 세 식별자가 만난다(ADR 0046 결정 1, EAT-231)."""
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    template = _templates(workflow_template)["discover"]
+    container = template["container"]
+    assert _env(container, "EATBID_WORKFLOW_NAME")["value"] == "{{workflow.name}}"
+    # 없을 때는 인자를 아예 빼야 한다 — 빈 문자열을 넘기면 "이름이 빈 워크플로"라는 거짓 사실이 남는다.
+    source = "\n".join(str(argument) for argument in container["args"])  # type: ignore[index]
+    assert '"--workflow-name", workflow_name] if (workflow_name := os.environ.get("EATBID_WORKFLOW_NAME")) else []' in source
