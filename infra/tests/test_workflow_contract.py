@@ -1504,6 +1504,30 @@ def test_fail_release_template은_DAG_밖의_운영자_entrypoint다(manifests: 
     )
 
 
+def test_전진_DAG의_조건은_CLI가_적는_소문자_불리언과_같은_글자다(
+    manifests: ManifestSet,
+) -> None:
+    """`when`이 비교하는 글자와 CLI가 파일에 적는 글자는 같은 계약의 양쪽이다.
+
+    2026-09-14~15에 전진 cron이 28시간 동안 매시 `Succeeded`로 끝나면서 본 단계를 통째로 건너뛰었다.
+    CLI가 `str(True)`로 `True`를 적었고 `when`은 `true`와 비교해 언제나 거짓이었다. 실패가 아니라
+    성공으로 보였기 때문에 어떤 감시도 그것을 잡지 못했다. 반대쪽 절반은 dataplane 단위 테스트가
+    `has_window` 파일의 내용이 정확히 `true`/`false`인지로 고정한다.
+    """
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    conditions = [
+        str(_mapping(task)["when"])
+        for template in _templates(workflow_template).values()
+        for task in _sequence(_mapping(template.get("dag") or {}).get("tasks", []))
+        if "when" in _mapping(task)
+    ]
+
+    assert conditions, "조건부 task가 하나도 없다 — 이 검사가 무엇도 지키지 못한다"
+    for condition in conditions:
+        assert "== true" in condition
+        assert "True" not in condition
+
+
 def test_dataplane_container_template은_프로세스_설정_다섯을_모두_선언한다(
     manifests: ManifestSet,
 ) -> None:
