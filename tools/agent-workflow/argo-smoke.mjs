@@ -224,9 +224,13 @@ export async function runArgoSmoke({ cwd = process.cwd(), argv = process.argv.sl
     // 역할을 만들고 Job만 지워 다시 apply한다 — manifest는 한 글자도 손대지 않는다.
     process.stdout.write("▶ apply(1차)\n");
     applyOverlay(root);
-    waitFor(root, "postgres", () => kubectl(root, ["rollout", "status", "deployment/postgres", "--timeout=10s"], { capture: true }).status === 0, { timeoutMs: 180_000 });
+    // rollout status나 socket pg_isready로는 부족하다. postgres 이미지는 initdb 뒤 init 스크립트용 임시 서버를
+    // unix socket에만 띄웠다가 내리고 진짜 서버를 다시 올린다. 그 사이 socket이 사라져 psql이
+    // "No such file or directory"로 죽는다(2026-09-16 main push 회차 실측 — PR 회차는 운으로 지나갔다).
+    // 임시 서버는 TCP를 듣지 않으므로 TCP로 준비를 묻고 roles도 TCP로 넣는다.
+    waitFor(root, "postgres", () => kubectl(root, ["exec", "deployment/postgres", "--", "pg_isready", "-h", "127.0.0.1", "-U", "eatbid"], { capture: true }).status === 0, { timeoutMs: 180_000 });
     process.stdout.write("▶ roles\n");
-    const roles = kubectl(root, ["exec", "deployment/postgres", "--", "psql", "-U", "eatbid", "-d", "eatbid", "-v", "ON_ERROR_STOP=1", "-c", ROLES_SQL], { capture: true });
+    const roles = kubectl(root, ["exec", "deployment/postgres", "--", "psql", "-h", "127.0.0.1", "-U", "eatbid", "-d", "eatbid", "-v", "ON_ERROR_STOP=1", "-c", ROLES_SQL], { capture: true });
     if (roles.status !== 0) throw new Error(`역할 생성 실패:\n${roles.stderr}`);
     kubectl(root, ["delete", "job", "eatbid-migration", "eatbid-db-provisioning", "--ignore-not-found"], { capture: true });
     process.stdout.write("▶ apply(2차)\n");
