@@ -67,6 +67,7 @@ class IngestRepository(Protocol):
         parser_version: str,
         started_at: datetime,
         expected_count: int,
+        workflow_name: str | None = None,
     ) -> None: ...
 
     def plan_request_unit(

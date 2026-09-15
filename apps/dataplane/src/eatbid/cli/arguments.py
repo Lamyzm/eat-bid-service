@@ -134,6 +134,8 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     # 모드가 창을 정한다. 날짜는 backfill에서만 받고 예약 모드에서는 --as-of의 서울 날짜로 번역한다.
     discover.add_argument("--mode", required=True, choices=COLLECTION_MODES)
     discover.add_argument("--release-name", required=True)
+    # 워크플로 안에서만 값이 있다. 없는 것은 "밖에서 돌렸다"는 사실이지 오류가 아니다(EAT-231).
+    discover.add_argument("--workflow-name", default=None)
     discover.add_argument("--as-of", required=True, type=aware_datetime)
     discover.add_argument("--started-at", required=True, type=aware_datetime)
     discover.add_argument("--completed-at", required=True, type=aware_datetime)

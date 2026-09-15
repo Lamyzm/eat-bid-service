@@ -88,6 +88,7 @@ describe("ingest identity 불변식", () => {
       "status",
       "build_sha",
       "parser_version",
+      "workflow_name",
       "started_at",
       "ended_at",
       "failure_category",

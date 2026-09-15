@@ -531,6 +531,10 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 - 환경별 차이는 collector endpoint 값 하나뿐이다. dev에 별도 관측 스택을 세우지 않는다.
 - 프로세스 경계는 W3C `traceparent`로 잇는다. 모든 로그 줄에 `trace_id`와 `build_sha`를 달고, dataplane은
   `run_id`와 `source_release_id`를 더 단다. 사람이 읽고 옮겨 적는 `x-request-id`는 유지한다.
+- **run 행이 Argo Workflow 이름을 든다**(`ingest.run.workflow_name`, 2026-09-16 EAT-231). 릴리스 이름은
+  workflow uid를, R2 보관 로그는 workflow 이름을, 알림은 `run_id`를 들고 있어 셋을 잇는 물건이 TTL로
+  사라지는 Workflow 객체뿐이었다. discover가 `{{workflow.name}}`을 run에 적고, `backfill-progress` 위반의
+  detail이 `logs=workflow-logs/<yyyy>/<mm>/<이름>/`을 함께 보낸다. 워크플로 밖에서 만든 run은 NULL이다.
 
 구조화 로그의 최소 필드는 그대로다.
 
