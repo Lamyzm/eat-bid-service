@@ -35,13 +35,14 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
 
   test("낙찰과 차순위의 100 초과 관측률을 각각 손실 없이 옮긴다", async () => {
     const { mapAttemptRow } = await import("./drizzle-organization-attempt-reader");
-    for (const value of ["100.001", "101.975", "102.297", "999999999999.999"]) {
+    // 음수도 관측이다(2026-03 창 명단의 -2507.667, ADR 0053). DB가 보존한 값을 어댑터가 거부하면 503이 된다.
+    for (const value of ["100.001", "101.975", "102.297", "999999999999.999", "-1.000", "-2507.667"]) {
       expect(mapAttemptRow({ ...row, awarded_assessment_rate: value }).winRate).toBe(value);
       expect(mapAttemptRow({ ...row, runner_up_assessment_rate: value }).secondRate).toBe(value);
     }
     expect(mapAttemptRow({ ...row, awarded_assessment_rate: null }).winRate).toBeNull();
     expect(mapAttemptRow(row).secondRate).toBeNull();
-    for (const value of ["-1.000", "102.2970", "102.29", "1000000000000.000"]) {
+    for (const value of ["-0.000", "102.2970", "102.29", "1000000000000.000"]) {
       expect(() => mapAttemptRow({ ...row, awarded_assessment_rate: value })).toThrow(TypeError);
       expect(() => mapAttemptRow({ ...row, runner_up_assessment_rate: value })).toThrow(TypeError);
     }

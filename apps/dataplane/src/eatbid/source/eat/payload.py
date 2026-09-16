@@ -9,6 +9,7 @@ from types import MappingProxyType
 from xml.etree import ElementTree
 
 from eatbid.failures.errors import SourceContractError
+from eatbid.source.eat.code_schemes import EAT_CODE_LIST_GROUP_CODES
 from eatbid.source.eat.xml import NEXACRO_DATASET_NAMESPACE
 
 _ASCII_DATE = re.compile(r"[0-9]{8}")
@@ -72,6 +73,13 @@ _LIST_FIELDS = frozenset(
     }
 )
 _DETAIL_FIELDS = frozenset({"ELCTRN_BID_ID"})
+_CODE_LIST_FIELDS = frozenset({"CMNS_GRP_CD", "RETV_DIV"})
+# 코드목록 요청은 그룹 번호를 쉼표로 이어 보낸다. 우리가 고른 표기가 아니라 eaT 콤보 컴포넌트가
+# 보내는 모양 그대로다(2026-09-16 `cmmCtpvSggCombo` 실측).
+CODE_LIST_GROUP_SEPARATOR = ","
+# `RETV_DIV`의 뜻은 모른다. 실측한 요청이 `N`이었고 그 값으로 282행을 받았다는 사실만 계약에 남긴다.
+# 다른 값이 무엇을 바꾸는지 확인하지 않았으므로 호출부가 고르게 열어 두지 않는다(AGENTS 3).
+CODE_LIST_RETRIEVAL_DIVISION = "N"
 
 
 def build_bid_list_page_params(
@@ -100,6 +108,22 @@ def build_bid_list_page_params(
 def build_bid_detail_params(external_bid_id: str) -> Mapping[str, str]:
     params = {"ELCTRN_BID_ID": external_bid_id}
     build_bid_detail_payload(params)
+    return MappingProxyType(params)
+
+
+def build_code_list_params() -> Mapping[str, str]:
+    """검토된 코드목록 그룹 전부를 한 요청으로 묻는 입력이다.
+
+    왜 그룹을 인자로 받지 않나. 요청 params는 `request_unit`의 멱등 열쇠이자 raw 관측의 정체성 일부다.
+    호출부가 그룹 부분집합을 고를 수 있으면 같은 코드 어휘가 여러 모양의 관측으로 흩어지고, "지금
+    활성인 어휘가 무엇인가"에 답하려면 그 조합들을 우리가 합성해야 한다. 그룹 목록을 바꾸는 것은
+    `code_schemes.EAT_CODE_LIST_GROUPS`를 고치는 커밋의 결정이다.
+    """
+    params = {
+        "CMNS_GRP_CD": CODE_LIST_GROUP_SEPARATOR.join(EAT_CODE_LIST_GROUP_CODES),
+        "RETV_DIV": CODE_LIST_RETRIEVAL_DIVISION,
+    }
+    build_code_list_payload(params)
     return MappingProxyType(params)
 
 
@@ -220,3 +244,25 @@ def build_bid_detail_payload(params: Mapping[str, str]) -> bytes:
             ("_ds_tranInfo", _TRANSACTION_FIELDS, "255"),
         )
     )
+
+
+def build_code_list_payload(params: Mapping[str, str]) -> bytes:
+    """코드목록 요청 하나를 직렬화한다. 검토되지 않은 그룹 번호는 전송 경계 앞에서 닫는다."""
+    _require_exact_fields("code-list", params, _CODE_LIST_FIELDS)
+    groups = params["CMNS_GRP_CD"].split(CODE_LIST_GROUP_SEPARATOR)
+    if (
+        params["RETV_DIV"] != CODE_LIST_RETRIEVAL_DIVISION
+        or len(groups) != len(set(groups))
+        or any(group not in EAT_CODE_LIST_GROUP_CODES for group in groups)
+    ):
+        raise _invalid("code-list")
+
+    # 필드 순서를 여기서 고정해 같은 입력이 언제나 같은 바이트가 되게 한다. 호출부의 dict 순서가
+    # payload로 새면 같은 질문이 두 모양의 요청이 된다.
+    query_fields = {
+        "CMNS_GRP_CD": params["CMNS_GRP_CD"],
+        "RETV_DIV": params["RETV_DIV"],
+    }
+    # 이 요청은 `_ds_tranInfo`를 보내지 않는다. 공통 코드 서비스는 NeaT 화면 거래가 아니라 콤보를
+    # 채우는 공용 조회라 실측 요청에도 그 dataset이 없었다. 다른 endpoint의 모양을 복제하지 않는다.
+    return _envelope((("ds_Param", query_fields, "256"),))

@@ -91,6 +91,32 @@ ADR 0035의 행안부 canonical 전환은 별개 가치로 남지만 지역 필�
 5. **`USE_YN='N'`인 코드는 라벨을 싣되 `active`를 내린다.** 과거 공고가 그 코드를 참조할 수 있으므로
    지우지 않는다.
 
+### 3.4.1 구현에서 갈라진 자리 (EAT-187, 2026-09-16 적재까지 완료)
+
+설계가 `normalized_record`를 적었지만 구현은 **release 봉인까지만** 간다. `ingest.normalized_record`는
+공고 발행 corpus의 단위이고(record type별 발행·검증·replay가 그 표에 매여 있다), 코드목록에는 발행
+corpus도 건별 격리 단위도 없다. 정부 코드 파일 실행(`pipeline/reference.py`)이 같은 이유로 이미
+raw → release 봉인 → core 투영 셋으로 돌고 있어 그 선례를 따랐다. 순서 규칙(raw가 먼저, 봉인되지 않은
+입력으로 canonical 행을 공개하지 않음)은 그대로다.
+
+**`code_release`를 만들지 않는다.** 만들 수 있었지만 만들면 안 된다. `mart/region_axis.py`는 선언한
+지역 체계에 `core.code_release`가 **있는지 없는지**를 축 전환 신호로 읽고, 기본 지역 체계가
+`eat:auction-location-sigungu`다. 시도와 시군구는 서로 다른 체계라 어느 한쪽에 release가 생기는 순간
+`open_auction_snapshot`의 다른 쪽 열이 전부 "체계 밖 코드"가 되어 mart 빌드가 멈춘다. 이름을 채우는
+일이 지역 축 전환을 촉발하면 안 되므로 어휘는 `code_value`와 `code_label_observation`에만 앉힌다.
+`tests/integration/test_code_vocabulary_pipeline.py`가 이 사실을 시험으로 고정한다.
+
+**`SC067`의 `ITM_VL2`(부모 시도 코드)는 싣지 않는다.** 관측된 사실이지만 담을 자리가 없다.
+`core.code_release_member.parent_code_value_id`의 복합 FK는 상위가 **같은 release 안의 member**일 것을
+요구하는데 시도와 시군구는 서로 다른 체계라 같은 release에 들어갈 수 없고, `core.code_mapping`은
+포함 관계가 아니라 등가 주장을 담는 표다. 담을 자리를 만드는 것은 스키마 결정이므로 별도 작업으로
+남긴다. 화면의 시도↔시군구 묶음은 `mart.open_auction_snapshot`이 두 열을 함께 갖고 있어 막히지 않는다.
+
+**유효기간 sentinel을 번역하지 않는다.** `VLD_END_YMD`가 `99991231`·`29991231`로 오지만 null로 바꾸지
+않는다. 바꾸는 순간 "소스가 끝을 말하지 않았다"와 "소스가 먼 끝을 말했다"가 한 값이 되고 그 차이를
+우리가 지운 사실이 어디에도 남지 않는다. 날짜는 다른 eaT 시각과 같은 규칙으로 서울 벽시각을 거쳐
+instant가 된다.
+
 ### 3.5 이 실행으로 함께 채워지는 것
 
 같은 endpoint에서 다른 그룹도 온다. 이번 범위에 넣는다.

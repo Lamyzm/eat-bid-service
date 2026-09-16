@@ -96,8 +96,8 @@ export function bidRateValue(value: string | null): BidRate | null {
 export function observedBidRateValue(value: string | null): ObservedBidRate | null {
   if (value === null) return null;
   try {
-    // 원천 사정률의 numeric(15,3)을 손실 없이 옮긴다. 100 초과는 파싱 실패나 미관측이 아니다.
-    return observedBidRate(canonicalDecimal(value, 3));
+    // 원천 사정률의 numeric(15,3)을 손실 없이 옮긴다. 100 초과도 음수도 파싱 실패나 미관측이 아니다(ADR 0053).
+    return observedBidRate(value);
   } catch (cause) {
     throw new TypeError("Database observed bid rate is invalid", { cause });
   }

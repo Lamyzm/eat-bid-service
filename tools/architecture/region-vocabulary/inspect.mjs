@@ -113,9 +113,25 @@ function isCoordinateObject(node) {
   return coordinateKeysOf(keys);
 }
 
+/**
+ * 체계 이름은 통째로 나타날 때만 "말했다"로 센다.
+ *
+ * 부분 문자열로 세면 `eat:organization-type`을 적은 줄이 `eat:organization`도 함께 말한 것이 되어,
+ * 한 체계를 선언한 자리가 두 체계를 잇는 질의로 잡힌다. 이름이 다른 이름의 접두사인 경우는 어휘가
+ * 자라면 언제든 다시 생긴다.
+ */
 function schemesInText(text, schemes) {
   const found = new Set();
-  for (const scheme of schemes) if (text.includes(scheme)) found.add(scheme);
+  for (const scheme of schemes) {
+    for (let at = text.indexOf(scheme); at !== -1; at = text.indexOf(scheme, at + 1)) {
+      const after = text[at + scheme.length];
+      if (after !== undefined && /[A-Za-z0-9:-]/.test(after)) continue;
+      const before = text[at - 1];
+      if (before !== undefined && /[A-Za-z0-9:-]/.test(before)) continue;
+      found.add(scheme);
+      break;
+    }
+  }
   return found;
 }
 

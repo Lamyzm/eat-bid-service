@@ -17,6 +17,7 @@ const approvedNamespaces = [
   "eat:award-method",
   "eat:reserve-price-selection-flag",
   "eat:attempt-status",
+  "eat:organization-type",
   "eatbid:auction-item",
 ];
 
@@ -119,6 +120,12 @@ const approvedCodeSchemes = [
     validTimePolicy: "effective-dated",
   },
   {
+    namespace: "eat:organization-type",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
     namespace: "eatbid:auction-item",
     owner: "eatbid",
     versionPolicy: "product-managed",
@@ -157,7 +164,8 @@ describe("내장 code scheme seed", () => {
     await seedCodeSchemes(db);
 
     expect([...rows.values()]).toEqual(approvedCodeSchemes);
-    expect(rows).toHaveLength(15);
+    // 기관유형(EAT-187)과 품목 원자(EAT-230)가 각각 하나씩 더해 열여섯이다.
+    expect(rows).toHaveLength(16);
     expect(conflictTargets).toEqual([codeScheme.namespace, codeScheme.namespace]);
   });
 
@@ -171,7 +179,6 @@ describe("내장 code scheme seed", () => {
     const sourceColumnShaped = [...seeded].filter((namespace) => /[A-Z_]/.test(namespace.split(":")[1] ?? ""));
     expect(sourceColumnShaped).toEqual([]);
   });
-
   test("접두사가 소유자를 말한다 — 우리가 코드를 발급하는 체계만 eatbid 접두사를 쓴다", () => {
     const ownerOfPrefix = new Map([
       ["eat", "aT"],

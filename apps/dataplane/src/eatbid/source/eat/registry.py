@@ -12,6 +12,7 @@ from eatbid.source.eat.payload import (
     build_bid_detail_payload,
     build_bid_list_page_params,
     build_bid_list_payload,
+    build_code_list_payload,
 )
 from eatbid.source.eat.schema_contract import (
     ReviewedSchemaContract,
@@ -21,6 +22,9 @@ from eatbid.source.eat.schema_contract import (
 EAT_ORIGIN = "https://ns.eat.co.kr"
 BID_LIST_MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 BID_DETAIL_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+# 2026-09-16 실측 응답이 154 KiB다. 상한을 넉넉히 두되 두지 않지는 않는다 — 소스가 다른 것을 주기
+# 시작했을 때 조용히 삼키면 어휘 전체가 그 응답으로 바뀐다.
+CODE_LIST_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 PayloadBuilder = Callable[[Mapping[str, str]], bytes]
 PageParamsBuilder = Callable[..., Mapping[str, str]]
@@ -168,6 +172,16 @@ EAT_ENDPOINT_TRANSPORTS: Mapping[str, EatEndpointTransport] = MappingProxyType(
             max_response_bytes=BID_DETAIL_MAX_RESPONSE_BYTES,
             _payload_builder=build_bid_detail_payload,
         ),
+        # eaT가 자기 코드에 붙여 부르는 이름과 유효기간을 주는 공용 조회다. 공고 응답이 아니므로
+        # 발견·fan-out이 없고 한 번의 왕복이 곧 관측 하나다(EAT-187).
+        "code-list": EatEndpointTransport(
+            endpoint="code-list",
+            origin=EAT_ORIGIN,
+            path="/cmmn/code/selectCodeListEhcache.do",
+            method="POST",
+            max_response_bytes=CODE_LIST_MAX_RESPONSE_BYTES,
+            _payload_builder=build_code_list_payload,
+        ),
     }
 )
 
@@ -184,6 +198,12 @@ _RECORD_TYPES: Mapping[tuple[str, str], str] = MappingProxyType(
         ("bid-detail", "eat-v1"): "auction.v1",
         ("bid-detail", "eat-v2"): "auction.v2",
         ("bid-detail", "eat-v3"): "auction.v2",
+        # 코드목록은 공고 corpus가 아니라 어휘 한 벌이므로 record type도 공고 계약과 갈라 둔다.
+        # 세 version에서 같은 이름인 이유는 목록과 같다 — 응답 해석이 version마다 달라지지 않는데
+        # 실행 단위는 parser version 하나라서, 셋 다 등록해야 어느 실행 파라미터로도 어휘가 돈다.
+        ("code-list", "eat-v1"): "code-vocabulary.v1",
+        ("code-list", "eat-v2"): "code-vocabulary.v1",
+        ("code-list", "eat-v3"): "code-vocabulary.v1",
     }
 )
 

@@ -48,6 +48,9 @@ class DiscoveryPlan:
     region_code: str
     page_size: int
     page_budget: int
+    # 이 발견을 돌린 Argo Workflow 이름. run 행에 남겨 알림·R2 로그·릴리스를 잇는다(EAT-231). 워크플로
+    # 밖(테스트·수동 실행)에서는 없으며 그것은 결함이 아니다.
+    workflow_name: str | None = None
 
     def __post_init__(self) -> None:
         if not all(

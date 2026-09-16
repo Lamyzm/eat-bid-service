@@ -89,6 +89,15 @@ export const builtinCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  // 구매기관 유형이다. eaT 공통 코드목록(BC016)에서만 관측되고 공고 응답에는 오지 않으므로
+  // `core.organization.type`과는 아직 잇지 않는다 —
+  // `apps/dataplane/src/eatbid/source/eat/code_schemes.py`의 `ORGANIZATION_TYPE`이 그 이유를 갖는다.
+  {
+    namespace: "eat:organization-type",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
   // 위 전부와 달리 이 체계만 owner가 우리다. eaT는 품목을 `MAIN_ITEMS` 라벨 문자열로만 주고 코드를
   // 주지 않으므로, 코드를 발급하고 폐기하는 주체가 우리다. 접두사를 `eat:`로 두면 aT가 코드를 준 것처럼
   // 보이므로 다른 체계와 같은 규칙(접두사 = 소유자)을 지켜 `eatbid:`로 부른다. 용어 자체는 eaT가

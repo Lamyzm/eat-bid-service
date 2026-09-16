@@ -134,6 +134,8 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     # 모드가 창을 정한다. 날짜는 backfill에서만 받고 예약 모드에서는 --as-of의 서울 날짜로 번역한다.
     discover.add_argument("--mode", required=True, choices=COLLECTION_MODES)
     discover.add_argument("--release-name", required=True)
+    # 워크플로 안에서만 값이 있다. 없는 것은 "밖에서 돌렸다"는 사실이지 오류가 아니다(EAT-231).
+    discover.add_argument("--workflow-name", default=None)
     discover.add_argument("--as-of", required=True, type=aware_datetime)
     discover.add_argument("--started-at", required=True, type=aware_datetime)
     discover.add_argument("--completed-at", required=True, type=aware_datetime)
@@ -192,6 +194,23 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     project_reference.add_argument("--observation-id", required=True, type=positive_id)
     project_reference.add_argument("--release-name", required=True)
     project_reference.add_argument("--projected-at", required=True, type=aware_datetime)
+
+    # eaT 코드목록도 발견도 fan-out도 없다. 어느 그룹을 묻는지는 인자가 아니라 검토된 코드목록 표가
+    # 정하므로(`source/eat/code_schemes.EAT_CODE_LIST_GROUPS`) 여기서는 실행 정체성과 시각만 받는다.
+    capture_code_vocabulary = commands["capture-code-vocabulary"]
+    capture_code_vocabulary.add_argument("--release-name", required=True)
+    capture_code_vocabulary.add_argument("--as-of", required=True, type=aware_datetime)
+    capture_code_vocabulary.add_argument(
+        "--started-at", required=True, type=aware_datetime
+    )
+
+    project_code_vocabulary = commands["project-code-vocabulary"]
+    project_code_vocabulary.add_argument(
+        "--observation-id", required=True, type=positive_id
+    )
+    project_code_vocabulary.add_argument(
+        "--projected-at", required=True, type=aware_datetime
+    )
 
     # 운영자가 결론 없이 끝난 release를 닫는다. category는 죽은 pod의 exit code 어휘와 INTERRUPTED뿐이고
     # 그 밖의 값은 저장소에 닿기 전에 여기서 닫는다(EAT-122).
