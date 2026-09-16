@@ -615,7 +615,9 @@ Team gate 이후에도 `BidWorkItem` grain은 바뀌지 않는다. 담당자·�
 열린 공고를 **마감 임박 순**으로 한 줄씩 보이고, eaT가 주지 않는 값(지난번·보통·참여)을 옆에 세우는 화면이다.
 투찰은 언제나 eaT에서 일어나므로 이 화면의 값어치는 "무엇을 열어 볼지"를 고르게 하는 데 있고, 화면이 값을 추천하지
 않는다(AGENTS 8). 시안은 `F:\eatbid-local\design\canvas\U9-List.dc.html`(2026-09-16 회전 U1~U10의 마지막)이며
-이 절이 시안보다 우선한다 — 시안이 이 절과 어긋나면 시안을 고친다.
+이 절이 시안보다 우선한다 — 시안이 이 절과 어긋나면 시안을 고친다. 목록의 grain·열을 처음 정한 근거는
+[`2026-09-16 오늘 화면 CSR 목록 설계`](../superpowers/specs/2026-09-16-today-screen-csr-list-design.md)이고 이 절은 그 뒤의
+결정(하한율은 열이 아니라 요약, 순번 열, EAT-241)까지 반영한 현재 계약이다 — 둘이 다르면 이 절이 맞다.
 
 **grain과 자료.** 활성 `mart.open_auction_snapshot` build의 회차(`AuctionAttempt`) 1행이다. 계보(build·release·계산
 버전·산출 시각)는 표 위 한 줄로 늘 보인다(AGENTS 7). 목록 상한은 200행이고 더보기는 없다 — 상한 밖의 행에는
