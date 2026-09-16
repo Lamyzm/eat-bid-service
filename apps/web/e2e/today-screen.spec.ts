@@ -87,7 +87,8 @@ test.describe('오늘 화면 접근성 트리', () => {
     // 묶음 머리가 시각·남은 시간·건수를 말하고 낭독기는 구획 이름으로 그 시각을 듣는다. fixture의 오늘 행은
     // 그날 23:59에 닫힌다(`closingDayEnd`).
     const list = page.getByRole('region', { name: '열린 공고' });
-    await expect(list.getByRole('region', { name: '오후 11시 59분 마감' })).toHaveCount(1);
+    // 다른 날 묶음(`9월 18일 금 · 오후 11시 59분 마감`)도 같은 시각을 품으므로 이름을 정확히 맞춘다.
+    await expect(list.getByRole('region', { name: '오후 11시 59분 마감', exact: true })).toHaveCount(1);
     await expect(list.locator('section[aria-label]')).toHaveCount(4);
     await expect(page.locator('table')).toHaveCount(0);
   });

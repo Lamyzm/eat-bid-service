@@ -96,7 +96,9 @@ function AuctionRow({ row, search }: { readonly row: OpenAuctionRowPresentation;
         <p className='flex min-w-0 flex-wrap items-baseline gap-x-2'>
           <Link
             href={row.href}
-            className={`min-w-0 break-keep text-[17px] font-bold tracking-[-0.025em] hover:underline ${row.organization.tone === 'named' ? '' : 'text-muted-foreground'}`}
+            // 띄어쓰기 없는 긴 기관명(복지관·납품업체선정 등 30자)이 md(768)에서 칸을 넘친다. 낱말 단위로 접되
+            // 한 낱말이 칸보다 길면 그 안에서 끊는다(CI 폭별 밀림 실측 364>240).
+            className={`min-w-0 break-keep wrap-anywhere text-[17px] font-bold tracking-[-0.025em] hover:underline ${row.organization.tone === 'named' ? '' : 'text-muted-foreground'}`}
           >
             {row.organization.text}
           </Link>
@@ -108,9 +110,10 @@ function AuctionRow({ row, search }: { readonly row: OpenAuctionRowPresentation;
           )}
         </p>
         <p className='mt-1 flex min-w-0 items-baseline gap-x-2 text-[14px] text-muted-foreground'>
-          {/* 제목은 한 줄이다. 두 줄로 흐르면 세 줄 카드가 네 줄이 되어 행마다 높이가 달라진다. 상세를 아직 따지
-              않은 공고는 제목이 없고 그 사실을 적는다 — 빈칸은 "제목이 없다"로 읽힌다(AGENTS 3). */}
-          <span className={`min-w-0 truncate ${row.title === null ? HINT : ''}`}>{row.title ?? '제목 미관측'}</span>
+          {/* 제목은 잘라 내지 않고 접는다. 말줄임(overflow hidden)은 좁은 폭에서 글자를 숨기고 폭별 밀림 검사도
+              그것을 넘침으로 읽는다(CI 실측 349>162). 넓은 폭에서는 한 줄이고 좁은 폭에서만 두 줄이 된다. 상세를
+              아직 따지 않은 공고는 제목이 없고 그 사실을 적는다 — 빈칸은 "제목이 없다"로 읽힌다(AGENTS 3). */}
+          <span className={`min-w-0 break-keep wrap-anywhere ${row.title === null ? HINT : ''}`}>{row.title ?? '제목 미관측'}</span>
           {/* 공고번호는 eaT로 건너가는 손잡이다. 마지막 한 걸음은 늘 "이 판을 eaT에서 연다"이다(EAT-248). */}
           {row.displayBidNo === null ? null : <span className='shrink-0 text-[13px]'><CopyBidNo value={row.displayBidNo} /></span>}
           {/* 제한지역은 공고지역과 다른 축이라 링크가 아니라 사실 표시다. 관측하지 못한 경우만 남긴다 — 제한

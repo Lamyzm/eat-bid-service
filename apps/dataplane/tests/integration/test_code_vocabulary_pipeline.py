@@ -71,7 +71,7 @@ def _parents(cursor) -> list[tuple[str, str]]:
         join core.code_value child on child.code_value_id = mapping.from_code_value_id
         join core.code_value parent on parent.code_value_id = mapping.to_code_value_id
         where mapping.relation = %s
-        order by child.code_value_id
+        order by child.code
         """,
         (PARENT_RELATION,),
     )
