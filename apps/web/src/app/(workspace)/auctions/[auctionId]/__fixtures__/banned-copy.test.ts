@@ -12,7 +12,7 @@ describe('금지 문구 검사', () => {
       '<span>추천하지 않습니다</span>',
       '<span>값을 넣으면 사다리에 줄이 그어집니다</span>',
       '<span>투찰률을 넣으면 지난 회차와 견줍니다</span>',
-      '<span>이 값이면</span><span>낙찰값이 이 값 이상이었던 회차</span><span>투찰률 축끼리 견줌</span>',
+      '<span>이 값이면</span><span>지난 15회 중 낙찰값이 이 값 이상</span><span>투찰률 축끼리 견줌</span>',
       '<span>90.000 기준</span><span>낙찰값 위</span>'
     ].join('');
     expect(findBannedCopy(markup)).toEqual([]);

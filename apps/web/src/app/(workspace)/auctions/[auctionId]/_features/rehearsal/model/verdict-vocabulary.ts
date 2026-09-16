@@ -41,12 +41,12 @@ export const ROW_VERDICT_PHRASE = {
  */
 export const REHEARSAL_PHRASE = {
   won: {
-    text: '낙찰값이 이 값 이상이었던 회차',
+    text: '낙찰값이 이 값 이상',
     sub: '투찰률 축끼리 견줌',
     basis: { kind: 'derived', comparedWith: 'awarded-bid-rate' }
   },
   belowDayFloor: {
-    text: '그날 하한이 이 값보다 높았던 회차',
+    text: '그날 하한이 이 값보다 높음',
     sub: '하한율 × 예정가로 계산',
     basis: { kind: 'derived', comparedWith: 'day-floor' }
   },
