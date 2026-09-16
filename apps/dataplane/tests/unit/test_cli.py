@@ -20,6 +20,7 @@ from eatbid.mart.models import MartBuildResult
 from eatbid.monitoring.runner import MonitoringResult
 from eatbid.pipeline.advance import BackfillWindow
 from eatbid.pipeline.capture import SourceThrottledError
+from eatbid.pipeline.contract_scan import ScanReport
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.normalize import DataQuarantinedError
 
@@ -109,6 +110,13 @@ class _기록애플리케이션:
     def fail_release(self, args: Namespace) -> None:
         self._record("fail-release", args)
 
+    def scan_contract(self, args: Namespace) -> ScanReport:
+        # 조사 명령은 release에 매이지 않고 보고서만 돌려준다(EAT-251).
+        if self.error is not None:
+            raise self.error
+        self.calls.append(("scan-contract", None))
+        return ScanReport(parser_version=args.parser_version, started_at=FETCHED_AT)
+
 
 def _공통(command: str) -> list[str]:
     return [
@@ -126,7 +134,9 @@ def _공통(command: str) -> list[str]:
 
 # 감시와 전진 판단은 어떤 release에도 속하지 않는다. 지금의 DB 상태만 보므로 release·run 인수를 받지
 # 않는다. 이 집합이 자라면 여기에 더한다 — 그것이 "이 명령은 무엇에도 매이지 않는다"의 선언이다.
-RELEASE_FREE_COMMANDS = frozenset({"check-expectations", "next-backfill-window"})
+RELEASE_FREE_COMMANDS = frozenset(
+    {"check-expectations", "next-backfill-window", "scan-contract"}
+)
 RELEASE_SCOPED_COMMANDS = tuple(
     name for name in COMMAND_HANDLERS if name not in RELEASE_FREE_COMMANDS
 )
@@ -135,6 +145,9 @@ RELEASE_SCOPED_COMMANDS = tuple(
 def _명령(command: str) -> list[str]:
     if command == "check-expectations":
         return [command]
+    if command == "scan-contract":
+        # 조사 명령이다. DB에 쓰지 않고 어떤 run에도 매이지 않는다(EAT-251).
+        return [command, "--parser-version", "eat-v3"]
     if command == "next-backfill-window":
         return [command, "--floor-date", "20250901", "--as-of", "2026-09-01T00:06:00Z"]
     if command == "fail-release":
@@ -261,6 +274,31 @@ def test_감시_command는_release에_매이지_않아_인수_없이_해석된�
     parsed = build_parser().parse_args(["check-expectations"])
 
     assert parsed.command == "check-expectations"
+    assert not hasattr(parsed, "source_release_id")
+
+
+def test_계약_조사_command는_parser_version과_창_범위만_받고_기본_상한을_갖는다() -> (
+    None
+):
+    parsed = build_parser().parse_args(
+        [
+            "scan-contract",
+            "--parser-version",
+            "eat-v3",
+            "--window-start",
+            "20250901",
+            "--window-end",
+            "20250930",
+        ]
+    )
+
+    assert parsed.command == "scan-contract"
+    assert (parsed.parser_version, parsed.window_start, parsed.window_end) == (
+        "eat-v3",
+        "20250901",
+        "20250930",
+    )
+    assert parsed.limit == 20000
     assert not hasattr(parsed, "source_release_id")
 
 
@@ -958,4 +996,9 @@ def test_discover의_workflow_이름은_선택_인자라_밖에서_돌릴_때_�
     parser = build_parser()
 
     assert parser.parse_args(_명령("discover")).workflow_name is None
-    assert parser.parse_args([*_명령("discover"), "--workflow-name", "eatbid-poll-open-1789504380"]).workflow_name == "eatbid-poll-open-1789504380"
+    assert (
+        parser.parse_args(
+            [*_명령("discover"), "--workflow-name", "eatbid-poll-open-1789504380"]
+        ).workflow_name
+        == "eatbid-poll-open-1789504380"
+    )

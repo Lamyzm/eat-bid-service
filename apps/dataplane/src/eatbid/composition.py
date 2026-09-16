@@ -71,6 +71,7 @@ from eatbid.pipeline.code_vocabulary import (
     project_code_vocabulary_observation,
 )
 from eatbid.pipeline.collection_window import SEOUL_TIME, resolve_collection_window
+from eatbid.pipeline.contract_scan import ScanCandidate, scan_candidates
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
 from eatbid.pipeline.normalize import normalize_observation
@@ -93,6 +94,38 @@ from eatbid.source.eat.http_client import EatHttpClient
 from eatbid.source.reference.mois_client import build_reference_client
 from eatbid.source.retry import TransientRetryPolicy
 from eatbid.storage.r2_store import R2RawObjectStore, R2Settings
+
+# 발행에 이르지 못한 상세 관측. 정규화된 적이 없거나 격리됐거나 정규화됐지만 revision이 없는 것 전부다. 창 범위는
+# 목록 요청 파라미터에서만 파생된다(backfill_coverage와 같은 자리). 관측마다 raw 객체 하나라 같은 공고가 여러 창에
+# 있으면 여러 번 보이며 그것이 맞다 — 보는 것은 공고가 아니라 raw다.
+_SCAN_CANDIDATES_SQL = """
+    select o.observation_id, b.object_key, o.content_sha256, u.request_params ->> 'ELCTRN_BID_ID'
+      from ingest.raw_observation o
+      join ingest.request_unit u on u.request_unit_id = o.request_unit_id
+      join ingest.raw_blob b on b.content_sha256 = o.content_sha256
+     where o.endpoint = 'bid-detail'
+       and u.request_params ? 'ELCTRN_BID_ID'
+       and not exists (
+             select 1
+               from ingest.normalized_record nr
+               join core.auction_revision ar on ar.normalized_record_id = nr.normalized_record_id
+              where nr.observation_id = o.observation_id
+           )
+       {window_filter}
+     order by o.observation_id
+     limit %(limit)s
+"""
+_SCAN_WINDOW_FILTER = """
+       and exists (
+             select 1
+               from ingest.source_release_observation so
+               join ingest.source_release_run sr on sr.source_release_id = so.source_release_id
+               join ingest.request_unit lu on lu.run_id = sr.run_id and lu.endpoint = 'bid-list'
+              where so.observation_id = o.observation_id
+                and lu.request_params ->> 'P_BID_BGNG_DT' >= %(window_start)s
+                and lu.request_params ->> 'P_BID_END_DT' <= %(window_end)s
+           )
+"""
 
 
 class Application:
@@ -299,6 +332,40 @@ class Application:
                 "감시 알림 설정이 없습니다. TELEGRAM_BOT_TOKEN·TELEGRAM_CHAT_ID를 주입하십시오."
             )
         return self._monitoring.run()
+
+    def scan_contract(self, args: argparse.Namespace) -> Any:
+        """운영자 entrypoint다. 발행되지 않은 상세 관측의 raw에 지금 파서를 돌려 격리 사유를 모은다. DB에 쓰지
+        않고 R2는 읽기만 한다(EAT-251). 창 범위를 주면 그 창의 release에 속한 관측만 본다."""
+        parameters: dict[str, Any] = {"limit": args.limit}
+        window_filter = ""
+        if args.window_start and args.window_end:
+            window_filter = _SCAN_WINDOW_FILTER
+            parameters.update(
+                {"window_start": args.window_start, "window_end": args.window_end}
+            )
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                _SCAN_CANDIDATES_SQL.format(window_filter=window_filter), parameters
+            )
+            candidates = [
+                ScanCandidate(
+                    observation_id=int(row[0]),
+                    object_key=str(row[1]),
+                    content_sha256=str(row[2]),
+                    external_bid_id=str(row[3]),
+                )
+                for row in cursor.fetchall()
+            ]
+        return scan_candidates(
+            candidates,
+            read_raw=self._store.read,
+            parser_version=args.parser_version,
+            now=datetime.now(UTC),
+            on_progress=lambda report: print(
+                f"scanned={report.scanned} ok={report.ok} quarantined={report.quarantined}",
+                flush=True,
+            ),
+        )
 
     def fail_release(self, args: argparse.Namespace) -> Any:
         # 운영자 판정이다. planned는 같은 run으로 이어 갈 수 있는 상태라 어떤 단계도 자동으로 여기 오지

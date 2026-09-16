@@ -30,6 +30,7 @@ from eatbid.mart.models import MartBuildResult
 from eatbid.monitoring.runner import MonitoringResult
 from eatbid.pipeline.advance import BackfillWindow
 from eatbid.pipeline.code_vocabulary import CodeVocabularyCaptureResult
+from eatbid.pipeline.contract_scan import ScanReport
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
 
@@ -156,6 +157,11 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "manifest_sha256": result.discovered_manifest_sha256,
             "source_release_id": str(result.source_release_id),
         }
+    if method_name == "scan_contract":
+        if not isinstance(result, ScanReport):
+            raise TypeError("scan-contract returned an invalid result")
+        # 보고서 전체를 한 문서로 낸다. 사유 목록은 JSON 배열이라 result-dir의 파일 하나로 그대로 남는다.
+        return result.to_document()
     if method_name == "capture_reference":
         if not isinstance(result, ReferenceCaptureResult):
             raise TypeError("capture-reference returned an invalid result")
@@ -285,6 +291,8 @@ COMMAND_METHODS: Mapping[str, str] = {
     "fail-release": "fail_release",
     # 스케줄 entrypoint다. 수집 상태를 바꾸지 않고 기대만 평가해 위반을 알린다(EAT-170, ADR 0046).
     "check-expectations": "check_expectations",
+    # 운영자 조사 entrypoint다. 받아 둔 raw에 지금 파서를 돌려 격리 사유를 한 번에 모은다. DB에 쓰지 않는다(EAT-251).
+    "scan-contract": "scan_contract",
     # 예약 entrypoint다. 커버리지 사실만 읽어 다음에 채울 창 하나를 고르고 아무것도 바꾸지 않는다
     # (EAT-209, ADR 0052 결정 4).
     "next-backfill-window": "next_backfill_window",
