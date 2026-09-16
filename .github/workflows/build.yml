@@ -353,25 +353,39 @@ jobs:
         env:
           IMAGE_NAME: ${{ steps.publish.outputs.name }}
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
-        run: cosign sign --yes "$IMAGE_NAME@$IMAGE_DIGEST"
+        # GitHub OIDC 토큰 조회가 가끔 죽는다(v0.1.32: "fetching ambient OIDC credentials: invalid character").
+        # 사람이 `gh run rerun --failed`를 치는 대신 세 번까지 20초 간격으로 다시 시도한다(EAT-233).
+        run: |
+          for attempt in 1 2 3; do
+            if cosign sign --yes "$IMAGE_NAME@$IMAGE_DIGEST"; then exit 0; fi
+            echo "cosign sign 실패 (시도 $attempt/3)" >&2
+            [ "$attempt" -lt 3 ] && sleep 20
+          done
+          exit 1
       - id: attest-provenance
         name: Attach SLSA provenance to the exact registry digest
         env:
           IMAGE_NAME: ${{ steps.publish.outputs.name }}
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
-        run: >-
-          cosign attest --yes --type slsaprovenance1
-          --predicate "provenance-${{ matrix.app }}.json"
-          "$IMAGE_NAME@$IMAGE_DIGEST"
+        run: |
+          for attempt in 1 2 3; do
+            if cosign attest --yes --type slsaprovenance1 --predicate "provenance-${{ matrix.app }}.json" "$IMAGE_NAME@$IMAGE_DIGEST"; then exit 0; fi
+            echo "cosign attest(provenance) 실패 (시도 $attempt/3)" >&2
+            [ "$attempt" -lt 3 ] && sleep 20
+          done
+          exit 1
       - id: attest-sbom
         name: Attach the scanned SPDX SBOM to the exact registry digest
         env:
           IMAGE_NAME: ${{ steps.publish.outputs.name }}
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
-        run: >-
-          cosign attest --yes --type spdxjson
-          --predicate "sbom-${{ matrix.app }}.spdx.json"
-          "$IMAGE_NAME@$IMAGE_DIGEST"
+        run: |
+          for attempt in 1 2 3; do
+            if cosign attest --yes --type spdxjson --predicate "sbom-${{ matrix.app }}.spdx.json" "$IMAGE_NAME@$IMAGE_DIGEST"; then exit 0; fi
+            echo "cosign attest(sbom) 실패 (시도 $attempt/3)" >&2
+            [ "$attempt" -lt 3 ] && sleep 20
+          done
+          exit 1
       - id: verify-signature
         name: Verify issuer and exact workflow identity on the signature
         env:

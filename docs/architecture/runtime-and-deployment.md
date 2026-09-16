@@ -412,6 +412,10 @@ main 병합
   Application을 `infra/envs/prod`로 바꾼 뒤(diff는 path 한 줄, prune 0) 별칭을 지웠다. 같은 함정을 다시
   만들지 않도록 `infra/tests/test_env_overlays.py`가 별칭이 없음을 지킨다.
 
+- **릴리스 중에는 병합하지 않는다.** promote는 태그 커밋이 그 시점 `origin/main`과 같을 때만 승격하므로,
+  빌드 12분 사이에 PR이 병합되면 발행이 버려진다(v0.1.30, 2026-09-15). 태그는 `pnpm workflow:tag -- vX.Y.Z`로
+  만들며, 이 명령은 release 빌드가 돌고 있거나 auto-merge가 켜진 PR이 열려 있으면 태그를 만들지 않는다
+  (EAT-233). cosign 서명·attest는 GitHub OIDC 일시 장애에 세 번까지 스스로 다시 시도한다.
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
   pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
   권위인 이유는 이제 branch를 못 막아서가 아니라 prod가 매 병합마다 움직이면 안 되기 때문이다. 불변
