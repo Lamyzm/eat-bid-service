@@ -416,6 +416,10 @@ main 병합
   빌드 12분 사이에 PR이 병합되면 발행이 버려진다(v0.1.30, 2026-09-15). 태그는 `pnpm workflow:tag -- vX.Y.Z`로
   만들며, 이 명령은 release 빌드가 돌고 있거나 auto-merge가 켜진 PR이 열려 있으면 태그를 만들지 않는다
   (EAT-233). cosign 서명·attest는 GitHub OIDC 일시 장애에 세 번까지 스스로 다시 시도한다.
+- **태그는 검증된 커밋에만 붙는다.** PR 검사가 초록이어도 병합 커밋의 `main` 회차는 따로 돌고, v0.1.36은 그
+  회차가 실패로 끝난 2분 뒤에 태그됐다(main은 9월 11일부터 빨간 채로 v0.1.33~36이 나갔다). 그래서
+  `workflow:tag`는 `origin/main` HEAD 커밋의 `validate.yml` 회차가 `success`일 때만 태그를 만든다. 장애를 고치는
+  배포까지 막으면 안 되므로 `--hotfix "<사유>"`를 주면 통과하되, 사유가 annotated tag 메시지에 남는다(EAT-242).
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
   pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
   권위인 이유는 이제 branch를 못 막아서가 아니라 prod가 매 병합마다 움직이면 안 되기 때문이다. 불변
