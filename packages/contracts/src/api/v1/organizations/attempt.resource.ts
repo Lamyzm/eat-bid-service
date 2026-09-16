@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
+import { auctionItemAtomSchema } from "../../../values/auction-item";
 import { instantTextSchema } from "../../../atoms/instant";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
 import { moneyWireSchema } from "../../../values/money";
@@ -30,9 +31,12 @@ export const organizationAuctionAttemptSchema = z.strictObject({
   revisionId: positiveBigintTextSchema.optional(),
   announcedAt: instantTextSchema,
   openedAt: instantTextSchema.nullable(),
+  // 회차의 품목 원자들(`mart.org_round_summary_item`)이다. null은 라벨 미관측, 빈 배열은 라벨은 있으나 전부
+  // 어휘 밖이라 `품목 미상`이다 — 다른 사실이라 한 값으로 접지 않는다(AGENTS 3). 단일 code_value id는 합성
+  // 라벨을 담지 못해 EAT-256에서 이 배열로 바꿨다. 원자 문자열은 어휘 코드이지 표시 라벨이 아니다.
+  items: z.array(auctionItemAtomSchema).nullable(),
   // 품목 라벨 상한은 기관 이름(AuctionOrganization.name)과 같은 512자다. 원본 라벨이 잘려 들어오는
   // 것보다 계약이 통째로 실패하는 편이 관측 사실을 왜곡하지 않는다.
-  item: z.strictObject({ codeValueId: positiveBigintTextSchema, label: z.string().min(1).max(512) }).nullable(),
   // 코드가 없어도 원문 라벨은 관측 사실이다. 누락은 구형 projection, null은 미관측이며
   // 이 문자열을 품목 ID·필터·집단 연결 키로 쓰지 않는다.
   itemLabel: z.string().min(1).max(512).nullable().optional(),
@@ -67,7 +71,7 @@ export const organizationAuctionAttemptsMetaSchema = martBuildLineageSchema.safe
   sampleCount: nonNegativeCountSchema,
   // 표본이 어떤 품목으로 좁혀졌는지는 응답만 보고 재현돼야 한다(AGENTS 7). 요청 query의 item을
   // 그대로 되돌려 싣고, 품목을 지정하지 않은 전체 조회는 null이다.
-  item: positiveBigintTextSchema.nullable(),
+  item: auctionItemAtomSchema.nullable(),
   // 표본이 개찰된 회차로 좁혀졌는지와 그 기준 시각도 응답만으로 재현돼야 한다. `asOf`는 `only`일 때
   // 서버가 비교한 clock 시각이고, `any`는 비교 자체가 없었으므로 null이다 — 없는 기준을 지어내지 않는다.
   opened: organizationAttemptOpenedFilterSchema,

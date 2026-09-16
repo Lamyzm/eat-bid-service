@@ -1,4 +1,5 @@
 /** @module 책임: 공고의 하한 원값과 조회된 기관 이력 코드로 적용 가능한 조건 메뉴를 조립한다. */
+import { AUCTION_ITEM_ATOMS } from '@eatbid/contracts/api/v1/auctions';
 import { DECISION_PERIODS, DECISION_SCOPES, buildDecisionFilterRoute, type DecisionSearch } from '../_lib/decision-search-params';
 import type { HistoryPresentation } from '../_features/history/model/attempt-history';
 import { historyFloorOf, normalizeItemParam } from '../_features/distribution/model/decision-cohort';
@@ -22,10 +23,12 @@ export function DecisionFilters({ decision, search, history }: {
     { value: 'all', label: '전체 하한율' },
     { value: 'unknown', label: '하한율 미확인' }
   ];
-  const items = new Map<string, string>();
-  for (const row of history?.rows ?? []) if (row.itemCodeValueId !== null) items.set(row.itemCodeValueId, row.itemLabel);
+  // 품목 메뉴는 조회된 회차들의 원자 합집합이다. 원자가 곧 어휘 코드라 라벨을 되추론할 자리가 없고, 순서는 회차 등장
+  // 순서가 아니라 오늘 화면 기둥과 같은 어휘 고정 순서라 화면마다 같은 자리에 같은 품목이 선다(EAT-256).
+  const items = new Set<string>();
+  for (const row of history?.rows ?? []) for (const atom of row.items ?? []) items.add(atom);
   const item = normalizeItemParam(search.item);
-  if (item !== null && !items.has(item)) items.set(item, '선택한 품목');
+  if (item !== null) items.add(item);
   return (
     // 맨 div는 role이 generic이라 aria-label이 무시된다. 이 줄은 함께 읽어야 하는 조건 조작 묶음이지
     // 본문 영역이 아니므로 landmark를 하나 더 만들지 않고 이름을 갖는 group으로 둔다. 중앙 본문이 근거·과거
@@ -34,9 +37,9 @@ export function DecisionFilters({ decision, search, history }: {
       <span className='mr-1 text-sm font-semibold'>과거 이력</span>
       <ConditionMenu label='기간' value={search.period} choices={DECISION_PERIODS.map((period) => ({ label: period, href: route({ period }), selected: search.period === period }))} />
       <ConditionMenu label='하한율' value={floor === 'all' ? '전체' : floor === 'unknown' ? '미확인' : `${floor}%`} choices={floorChoices.map(({ value, label }) => ({ label, href: route({ floor: value }), selected: floor === value }))} />
-      <ConditionMenu label='품목' value={item === null ? '전체 품목' : items.get(item) ?? '선택한 품목'} choices={[
+      <ConditionMenu label='품목' value={item ?? '전체 품목'} choices={[
         { label: '전체 품목', href: route({ item: null }), selected: item === null },
-        ...[...items].map(([id, label]) => ({ label, href: route({ item: id }), selected: item === id }))
+        ...AUCTION_ITEM_ATOMS.filter((atom) => items.has(atom)).map((atom) => ({ label: atom, href: route({ item: atom }), selected: item === atom }))
       ]} />
       {/* 모집단 범위는 분포에만 쓰인다. 어느 본문을 보는지가 브라우저 상태이므로 이 자리도 그것을 따라간다. */}
       <EvidenceViewOnly view='비교집단'>

@@ -53,9 +53,10 @@ spec:
       # 읽는다. mart-r5는 스냅샷 행마다 품목 원자 다리표(`open_auction_snapshot_item`)를 함께 만드는 규칙이다
       # (EAT-230) — 품목 축이 라벨 부분일치가 아니라 코드 조인으로 거른다. 옛 build를 덮어쓰지 않고 새 build로
       # 만들어 전환한다.
-      # mart-r6는 스냅샷이 단독입찰 처리 방법 코드를 함께 싣는 규칙이다(EAT-249).
+      # mart-r6는 스냅샷이 단독입찰 처리 방법 코드를 함께 싣는 규칙이다(EAT-249). mart-r7은 회차 요약의 품목이 단일 열이
+      # 아니라 다리표(`org_round_summary_item`)이고 낙찰률 분포의 빈 품목 축을 없앤 규칙이다(EAT-256).
       - name: calc-version
-        value: mart-r6
+        value: mart-r7
       - name: start-date
         value: ""
       - name: end-date

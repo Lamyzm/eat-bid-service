@@ -73,7 +73,7 @@ export class OrganizationController {
       // 계약 검증 뒤에도 변환 자체는 예외를 낼 수 있으므로 transport 400 경계 안에서 닫는다.
       input = {
         organizationId: organizationId(BigInt(rawId)),
-        itemCodeValueId: query.item === undefined ? null : BigInt(query.item),
+        itemAtom: query.item ?? null,
         cursor: query.cursor === undefined ? null : BigInt(query.cursor),
         limit: query.limit,
         opened: query.opened,

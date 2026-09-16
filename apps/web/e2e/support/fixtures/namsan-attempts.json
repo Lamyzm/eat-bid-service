@@ -5,10 +5,7 @@
       "attemptId": "5780681",
       "announcedAt": "2026-08-10T00:00:00Z",
       "openedAt": "2026-08-13T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -43,10 +40,7 @@
       "attemptId": "5778531",
       "announcedAt": "2026-07-27T00:00:00Z",
       "openedAt": "2026-07-30T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -81,10 +75,7 @@
       "attemptId": "5759918",
       "announcedAt": "2026-06-15T00:00:00Z",
       "openedAt": "2026-06-18T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -119,10 +110,7 @@
       "attemptId": "5744077",
       "announcedAt": "2026-05-18T00:00:00Z",
       "openedAt": "2026-05-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -157,10 +145,7 @@
       "attemptId": "5742662",
       "announcedAt": "2026-05-17T00:00:00Z",
       "openedAt": "2026-05-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -195,10 +180,7 @@
       "attemptId": "5728232",
       "announcedAt": "2026-04-18T00:00:00Z",
       "openedAt": "2026-04-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -233,10 +215,7 @@
       "attemptId": "5712860",
       "announcedAt": "2026-03-21T00:00:00Z",
       "openedAt": "2026-03-24T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -271,10 +250,7 @@
       "attemptId": "5708417",
       "announcedAt": "2026-03-16T00:00:00Z",
       "openedAt": "2026-03-19T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -309,10 +285,7 @@
       "attemptId": "5695331",
       "announcedAt": "2026-02-20T00:00:00Z",
       "openedAt": "2026-02-23T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -347,10 +320,7 @@
       "attemptId": "5688213",
       "announcedAt": "2026-01-24T00:00:00Z",
       "openedAt": "2026-01-27T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -385,10 +355,7 @@
       "attemptId": "5669545",
       "announcedAt": "2025-11-18T00:00:00Z",
       "openedAt": "2025-11-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -423,10 +390,7 @@
       "attemptId": "5669410",
       "announcedAt": "2025-11-17T00:00:00Z",
       "openedAt": "2025-11-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -455,10 +419,7 @@
       "attemptId": "5680681",
       "announcedAt": "2025-08-10T00:00:00Z",
       "openedAt": "2025-08-13T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -493,10 +454,7 @@
       "attemptId": "5678531",
       "announcedAt": "2025-07-27T00:00:00Z",
       "openedAt": "2025-07-30T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -531,10 +489,7 @@
       "attemptId": "5659918",
       "announcedAt": "2025-06-15T00:00:00Z",
       "openedAt": "2025-06-18T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -569,10 +524,7 @@
       "attemptId": "5644077",
       "announcedAt": "2025-05-18T00:00:00Z",
       "openedAt": "2025-05-21T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -607,10 +559,7 @@
       "attemptId": "5642662",
       "announcedAt": "2025-05-17T00:00:00Z",
       "openedAt": "2025-05-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -645,10 +594,7 @@
       "attemptId": "5628232",
       "announcedAt": "2025-04-18T00:00:00Z",
       "openedAt": "2025-04-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -683,10 +629,7 @@
       "attemptId": "5612860",
       "announcedAt": "2025-03-21T00:00:00Z",
       "openedAt": "2025-03-24T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -721,10 +664,7 @@
       "attemptId": "5608417",
       "announcedAt": "2025-03-16T00:00:00Z",
       "openedAt": "2025-03-19T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -759,10 +699,7 @@
       "attemptId": "5595331",
       "announcedAt": "2025-02-20T00:00:00Z",
       "openedAt": "2025-02-23T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -797,10 +734,7 @@
       "attemptId": "5588213",
       "announcedAt": "2025-01-24T00:00:00Z",
       "openedAt": "2025-01-27T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -835,10 +769,7 @@
       "attemptId": "5569545",
       "announcedAt": "2024-11-18T00:00:00Z",
       "openedAt": "2024-11-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -873,10 +804,7 @@
       "attemptId": "5569410",
       "announcedAt": "2024-11-17T00:00:00Z",
       "openedAt": "2024-11-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -905,10 +833,7 @@
       "attemptId": "5580681",
       "announcedAt": "2024-08-10T00:00:00Z",
       "openedAt": "2024-08-13T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -943,10 +868,7 @@
       "attemptId": "5578531",
       "announcedAt": "2024-07-27T00:00:00Z",
       "openedAt": "2024-07-30T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -981,10 +903,7 @@
       "attemptId": "5559918",
       "announcedAt": "2024-06-15T00:00:00Z",
       "openedAt": "2024-06-18T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1019,10 +938,7 @@
       "attemptId": "5544077",
       "announcedAt": "2024-05-18T00:00:00Z",
       "openedAt": "2024-05-21T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1057,10 +973,7 @@
       "attemptId": "5542662",
       "announcedAt": "2024-05-17T00:00:00Z",
       "openedAt": "2024-05-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1095,10 +1008,7 @@
       "attemptId": "5528232",
       "announcedAt": "2024-04-18T00:00:00Z",
       "openedAt": "2024-04-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1133,10 +1043,7 @@
       "attemptId": "5512860",
       "announcedAt": "2024-03-21T00:00:00Z",
       "openedAt": "2024-03-24T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1171,10 +1078,7 @@
       "attemptId": "5508417",
       "announcedAt": "2024-03-16T00:00:00Z",
       "openedAt": "2024-03-19T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1209,10 +1113,7 @@
       "attemptId": "5495331",
       "announcedAt": "2024-02-20T00:00:00Z",
       "openedAt": "2024-02-23T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1247,10 +1148,7 @@
       "attemptId": "5488213",
       "announcedAt": "2024-01-24T00:00:00Z",
       "openedAt": "2024-01-27T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1285,10 +1183,7 @@
       "attemptId": "5469545",
       "announcedAt": "2023-11-18T00:00:00Z",
       "openedAt": "2023-11-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1323,10 +1218,7 @@
       "attemptId": "5469410",
       "announcedAt": "2023-11-17T00:00:00Z",
       "openedAt": "2023-11-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1355,10 +1247,7 @@
       "attemptId": "5480681",
       "announcedAt": "2023-08-10T00:00:00Z",
       "openedAt": "2023-08-13T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1393,10 +1282,7 @@
       "attemptId": "5478531",
       "announcedAt": "2023-07-27T00:00:00Z",
       "openedAt": "2023-07-30T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1431,10 +1317,7 @@
       "attemptId": "5459918",
       "announcedAt": "2023-06-15T00:00:00Z",
       "openedAt": "2023-06-18T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1469,10 +1352,7 @@
       "attemptId": "5444077",
       "announcedAt": "2023-05-18T00:00:00Z",
       "openedAt": "2023-05-21T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1507,10 +1387,7 @@
       "attemptId": "5442662",
       "announcedAt": "2023-05-17T00:00:00Z",
       "openedAt": "2023-05-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1545,10 +1422,7 @@
       "attemptId": "5428232",
       "announcedAt": "2023-04-18T00:00:00Z",
       "openedAt": "2023-04-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1583,10 +1457,7 @@
       "attemptId": "5412860",
       "announcedAt": "2023-03-21T00:00:00Z",
       "openedAt": "2023-03-24T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1621,10 +1492,7 @@
       "attemptId": "5408417",
       "announcedAt": "2023-03-16T00:00:00Z",
       "openedAt": "2023-03-19T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1659,10 +1527,7 @@
       "attemptId": "5395331",
       "announcedAt": "2023-02-20T00:00:00Z",
       "openedAt": "2023-02-23T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1697,10 +1562,7 @@
       "attemptId": "5388213",
       "announcedAt": "2023-01-24T00:00:00Z",
       "openedAt": "2023-01-27T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1735,10 +1597,7 @@
       "attemptId": "5369545",
       "announcedAt": "2022-11-18T00:00:00Z",
       "openedAt": "2022-11-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1773,10 +1632,7 @@
       "attemptId": "5369410",
       "announcedAt": "2022-11-17T00:00:00Z",
       "openedAt": "2022-11-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1805,10 +1661,7 @@
       "attemptId": "5380681",
       "announcedAt": "2022-08-10T00:00:00Z",
       "openedAt": "2022-08-13T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1843,10 +1696,7 @@
       "attemptId": "5378531",
       "announcedAt": "2022-07-27T00:00:00Z",
       "openedAt": "2022-07-30T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1881,10 +1731,7 @@
       "attemptId": "5359918",
       "announcedAt": "2022-06-15T00:00:00Z",
       "openedAt": "2022-06-18T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1919,10 +1766,7 @@
       "attemptId": "5344077",
       "announcedAt": "2022-05-18T00:00:00Z",
       "openedAt": "2022-05-21T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1957,10 +1801,7 @@
       "attemptId": "5342662",
       "announcedAt": "2022-05-17T00:00:00Z",
       "openedAt": "2022-05-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -1995,10 +1836,7 @@
       "attemptId": "5328232",
       "announcedAt": "2022-04-18T00:00:00Z",
       "openedAt": "2022-04-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -2033,10 +1871,7 @@
       "attemptId": "5312860",
       "announcedAt": "2022-03-21T00:00:00Z",
       "openedAt": "2022-03-24T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -2071,10 +1906,7 @@
       "attemptId": "5308417",
       "announcedAt": "2022-03-16T00:00:00Z",
       "openedAt": "2022-03-19T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -2109,10 +1941,7 @@
       "attemptId": "5295331",
       "announcedAt": "2022-02-20T00:00:00Z",
       "openedAt": "2022-02-23T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -2147,10 +1976,7 @@
       "attemptId": "5288213",
       "announcedAt": "2022-01-24T00:00:00Z",
       "openedAt": "2022-01-27T04:00:00Z",
-      "item": {
-        "codeValueId": "8",
-        "label": "공산"
-      },
+      "items": ["가공식품"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -2185,10 +2011,7 @@
       "attemptId": "5269545",
       "announcedAt": "2021-11-18T00:00:00Z",
       "openedAt": "2021-11-21T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"
@@ -2223,10 +2046,7 @@
       "attemptId": "5269410",
       "announcedAt": "2021-11-17T00:00:00Z",
       "openedAt": "2021-11-20T04:00:00Z",
-      "item": {
-        "codeValueId": "7",
-        "label": "축산"
-      },
+      "items": ["육류"],
       "floorRate": {
         "value": "90.000",
         "unit": "percentage-points"

@@ -19,7 +19,7 @@ function makeRow(
     itemLabel: '축산',
     floorRateText: '87.745',
     baseAmountText: '2,761,700',
-    itemCodeValueId: '7',
+    items: ['육류'],
     winRateText: null,
     winRateMilli: null,
     awardedBidRateText: null,

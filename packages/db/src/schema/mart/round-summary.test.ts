@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { orgRoundSummary } from "./round-summary";
+import { orgRoundSummary, orgRoundSummaryItem } from "./round-summary";
 import {
   checkNames,
   columnNames,
@@ -87,7 +87,6 @@ describe("mart.org_round_summary 스키마", () => {
   test("읽기 인덱스가 build를 앞세우고 어댑터 정렬과 같은 순서를 갖는다", () => {
     expect(indexNames(orgRoundSummary)).toEqual([
       "org_round_summary_build_org_announced_idx",
-      "org_round_summary_build_org_item_announced_idx",
     ]);
 
     const sql = migrationSql(martTablesMigration);
@@ -117,5 +116,24 @@ describe("mart.org_round_summary 스키마", () => {
       expect(sql).toContain(`ON "mart"."${table}"`);
     }
     expect(sql).toContain('EXECUTE FUNCTION "mart"."enforce_mart_row_build_is_building"()');
+  });
+});
+
+describe("mart.org_round_summary_item 스키마", () => {
+  test("품목은 요약 열이 아니라 회차 grain에 매달린 다리표이며 요약 행과 함께 지워진다", () => {
+    const config = getTableConfig(orgRoundSummaryItem);
+
+    expect(config.schema).toBe("mart");
+    expect(columnNames(orgRoundSummary)).not.toContain("item_code_value_id");
+    expect(columnNames(orgRoundSummaryItem)).toEqual(["build_id", "auction_attempt_id", "item_code_value_id"]);
+    expect(config.primaryKeys[0]?.columns.map((column) => column.name)).toEqual([
+      "build_id",
+      "auction_attempt_id",
+      "item_code_value_id",
+    ]);
+    const summaryLink = config.foreignKeys.find((key) => key.reference().foreignTable === orgRoundSummary);
+    expect(summaryLink?.reference().columns.map((column) => column.name)).toEqual(["build_id", "auction_attempt_id"]);
+    expect(summaryLink?.onDelete).toBe("cascade");
+    expect(indexNames(orgRoundSummaryItem)).toEqual(["org_round_summary_item_build_code_idx"]);
   });
 });

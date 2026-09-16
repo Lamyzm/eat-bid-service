@@ -37,8 +37,8 @@ function splitAcrossMonths(bins: ReadonlyArray<readonly [string, number]>): stri
     const august = Math.floor(count / 2);
     const september = count - august;
     return [
-      ...(august > 0 ? [`(601, 'national', null, null, null, ${lower.startsWith("88") ? "88.000" : "90.000"}, 31, '2026-08-01', ${lower}, 0.010, ${august})`] : []),
-      ...(september > 0 ? [`(601, 'national', null, null, null, ${lower.startsWith("88") ? "88.000" : "90.000"}, 31, '2026-09-01', ${lower}, 0.010, ${september})`] : []),
+      ...(august > 0 ? [`(601, 'national', null, null, ${lower.startsWith("88") ? "88.000" : "90.000"}, 31, '2026-08-01', ${lower}, 0.010, ${august})`] : []),
+      ...(september > 0 ? [`(601, 'national', null, null, ${lower.startsWith("88") ? "88.000" : "90.000"}, 31, '2026-09-01', ${lower}, 0.010, ${september})`] : []),
     ];
   });
 }
@@ -47,12 +47,12 @@ const distributionRows = [
   ...splitAcrossMonths(NAMSAN_FLOOR_90),
   ...splitAcrossMonths(NAMSAN_FLOOR_88),
   // 네 모집단이 모두 실데이터로 응답하는지 보려면 지역·기관 행도 있어야 한다(acceptance 1).
-  "(601, 'province', 41, null, null, 90.000, 31, '2026-09-01', 90.000, 0.010, 9)",
-  "(601, 'province', 41, null, null, 90.000, 31, '2026-09-01', 90.020, 0.010, 3)",
-  "(601, 'district', 43, null, null, 90.000, 31, '2026-09-01', 90.000, 0.010, 5)",
-  "(601, 'organization', null, 3101, null, 90.000, 31, '2026-09-01', 90.010, 0.010, 4)",
+  "(601, 'province', 41, null, 90.000, 31, '2026-09-01', 90.000, 0.010, 9)",
+  "(601, 'province', 41, null, 90.000, 31, '2026-09-01', 90.020, 0.010, 3)",
+  "(601, 'district', 43, null, 90.000, 31, '2026-09-01', 90.000, 0.010, 5)",
+  "(601, 'organization', null, 3101, 90.000, 31, '2026-09-01', 90.010, 0.010, 4)",
   // 낙찰방식이 다른 코호트는 같은 사다리에 섞이면 안 된다(domain-and-data §3.4).
-  "(601, 'national', null, null, null, 90.000, 33, '2026-09-01', 90.000, 0.010, 77)",
+  "(601, 'national', null, null, 90.000, 33, '2026-09-01', 90.000, 0.010, 77)",
 ].join(",\n         ");
 
 const seed = `
@@ -78,16 +78,16 @@ const seed = `
     '${"a".repeat(40)}', 'eat:auction-location-sigungu', 'building',
     '2026-09-06T00:00:00Z', '2026-09-06T00:05:00Z');
   insert into mart.win_rate_distribution_monthly
-    (build_id, scope, region_code_value_id, organization_id, item_code_value_id,
+    (build_id, scope, region_code_value_id, organization_id,
      floor_rate, award_method_code_value_id, month_kst, bin_lower, bin_width, attempt_count)
   values ${distributionRows};
   -- planner가 index를 고를 만큼의 다른 코호트 행. 실측 EXPLAIN이 30행짜리 표에서 나오면 증거가 아니다.
   -- 하한율은 f1이, 달과 칸은 f2가 만들어 코호트 key가 겹치지 않는다. 88과 90은 위 실측 코호트가
   -- 이미 쓰고 있으므로 제외한다.
   insert into mart.win_rate_distribution_monthly
-    (build_id, scope, region_code_value_id, organization_id, item_code_value_id,
+    (build_id, scope, region_code_value_id, organization_id,
      floor_rate, award_method_code_value_id, month_kst, bin_lower, bin_width, attempt_count)
-  select 601, 'national', null, null, null,
+  select 601, 'national', null, null,
          (70 + f1)::numeric(6,3),
          31,
          (date '2025-10-01' + ((f2 % 12) || ' month')::interval)::date,
@@ -244,7 +244,6 @@ describe("mart 낙찰률 분포 PostgreSQL 경계", () => {
           and summary.scope = 'national'
           and summary.region_code_value_id is null
           and summary.organization_id is null
-          and summary.item_code_value_id is null
           and summary.floor_rate = 90.000::numeric
           and summary.award_method_code_value_id = 31::bigint
           and summary.month_kst between '2026-08-01'::date and '2026-09-01'::date

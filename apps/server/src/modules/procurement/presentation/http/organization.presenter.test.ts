@@ -13,7 +13,7 @@ const record: OrganizationAttemptRecord = {
   revisionId: 208n,
   announcedAt: Temporal.Instant.from("2026-09-01T00:00:00Z"),
   openedAt: null,
-  item: { codeValueId: 7n, label: "축산" },
+  items: ["육류"],
   itemLabel: "축산",
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
   awardMethodCodeValueId: null,
@@ -41,10 +41,10 @@ const lineage: MartBuildLineage = {
 
 const NOW = Temporal.Instant.from("2026-09-06T01:00:00Z");
 const input: ListOrganizationAuctionAttemptsInput = {
-  organizationId: organizationId(42n), itemCodeValueId: null, cursor: null, limit: 12, opened: "only",
+  organizationId: organizationId(42n), itemAtom: null, cursor: null, limit: 12, opened: "only",
 };
 const query: OrganizationAttemptQuery = {
-  organizationId: input.organizationId, itemCodeValueId: null, cursor: null, limit: 12,
+  organizationId: input.organizationId, itemAtom: null, cursor: null, limit: 12,
   expectedBuildId: null, openedAtOrBefore: NOW,
 };
 
@@ -64,7 +64,7 @@ describe("기관 회차 이력 presenter", () => {
       attemptId: "5796468",
       announcedAt: "2026-09-01T00:00:00Z",
       openedAt: null,
-      item: { codeValueId: "7", label: "축산" },
+      items: ["육류"],
       floorRate: { value: "90.000", unit: "percentage-points" },
       baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: { value: "90.309", unit: "percentage-points" },
@@ -92,9 +92,9 @@ describe("기관 회차 이력 presenter", () => {
 
   test("표본을 좁힌 품목과 개찰 기준을 meta에 되돌려 표본 수의 코호트를 응답만으로 닫는다", () => {
     const withItem = toOrganizationAttemptsResponse({
-      input: { ...input, itemCodeValueId: 7n }, query: { ...query, itemCodeValueId: 7n }, page: pageOf({ sampleCount: 20 }),
+      input: { ...input, itemAtom: "육류" }, query: { ...query, itemAtom: "육류" }, page: pageOf({ sampleCount: 20 }),
     });
-    expect(withItem.meta.item).toBe("7");
+    expect(withItem.meta.item).toBe("육류");
     expect(withItem.meta.sampleCount).toBe(20);
     // `any`는 기준 시각 자체가 없으므로 null이고, 이어 읽기는 첫 페이지가 쓴 시각을 그대로 되돌린다.
     const anyAttempt = toOrganizationAttemptsResponse({

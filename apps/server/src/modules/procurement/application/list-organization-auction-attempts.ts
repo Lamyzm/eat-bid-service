@@ -1,5 +1,5 @@
 /** @module 책임: 기관 회차 이력 조회 use case의 실패 분류와 개찰 필터·기간의 기준 시각 확정을 소유한다. */
-import type { OrganizationAttemptOpenedFilter } from "@eatbid/contracts";
+import type { AuctionItemAtom, OrganizationAttemptOpenedFilter } from "@eatbid/contracts";
 import { Temporal, type BidRate, type Clock } from "@eatbid/domain";
 import { Effect } from "effect";
 import { ProcurementDependencyUnavailable } from "./failures";
@@ -65,7 +65,7 @@ export class AttemptAsOfInFuture extends Error {
 /** HTTP query에서 온 조회 입력이다. 기준 시각은 여기 없고 use case가 clock에서 읽어 reader query로 옮긴다. */
 export interface ListOrganizationAuctionAttemptsInput {
   readonly organizationId: OrganizationId;
-  readonly itemCodeValueId: bigint | null;
+  readonly itemAtom: AuctionItemAtom | null;
   readonly cursor: bigint | null;
   readonly limit: number;
   readonly opened: OrganizationAttemptOpenedFilter;
@@ -112,7 +112,7 @@ export class ListOrganizationAuctionAttempts {
     }
     const query: OrganizationAttemptQuery = {
       organizationId: input.organizationId,
-      itemCodeValueId: input.itemCodeValueId,
+      itemAtom: input.itemAtom,
       cursor: input.cursor,
       limit: input.limit,
       expectedBuildId: input.expectedBuildId ?? null,

@@ -21,7 +21,7 @@ import { DrizzleOrganizationAttemptReader } from "../modules/procurement/infrast
 // 개찰 기준을 두지 않아야 두 build의 회차 집합 차이가 개찰 필터에 가려지지 않는다.
 const wholeHistory = {
   organizationId: organizationId(41n),
-  itemCodeValueId: null,
+  itemAtom: null,
   cursor: null,
   limit: 12,
   expectedBuildId: null,
@@ -42,7 +42,7 @@ describe("mart 발행 경합 아래 기관 회차 이력 build 정합성", () =>
       const beforePublish = new DrizzleOrganizationAttemptReader(stable);
       expect(await beforePublish.listAttempts({ ...wholeHistory, cursor: 104n }))
         .toEqual({ kind: "cursor-not-found", cursor: 104n });
-      expect(await beforePublish.listAttempts({ ...wholeHistory, cursor: 102n, itemCodeValueId: 7n }))
+      expect(await beforePublish.listAttempts({ ...wholeHistory, cursor: 102n, itemAtom: "육류" }))
         .toEqual({ kind: "cursor-not-found", cursor: 102n });
 
       // 첫 조회가 끝난 직후 501→502 발행이 완료된다. 남은 조회는 전부 502가 활성인 DB를 본다.

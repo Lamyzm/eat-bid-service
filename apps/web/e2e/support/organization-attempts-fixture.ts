@@ -19,7 +19,7 @@ type FixtureAttempt = {
   readonly openedAt: string | null;
   readonly floorRate: { readonly value: string } | null;
   readonly awardMethodCodeValueId: string | null;
-  readonly item: { readonly codeValueId: string } | null;
+  readonly items: readonly string[] | null;
 };
 
 const NAMSAN_ATTEMPTS = (namsanAttemptsFixture as { readonly attempts: readonly FixtureAttempt[] }).attempts;
@@ -80,7 +80,7 @@ function matchesQuery(attempt: FixtureAttempt, query: Query): boolean {
   if (query.opened === 'only' && !(attempt.openedAt !== null && attempt.openedAt <= FIXTURE_AS_OF)) return false;
   if (!matchesExact(attempt.floorRate?.value ?? null, query.floorRate)) return false;
   if (!matchesExact(attempt.awardMethodCodeValueId ?? null, query.awardMethod)) return false;
-  if (query.item !== undefined && attempt.item?.codeValueId !== query.item) return false;
+  if (query.item !== undefined && !(attempt.items?.includes(query.item) ?? false)) return false;
   if (query.from !== undefined || query.to !== undefined) {
     const month = openedKstMonth(attempt);
     if (month === null) return false;

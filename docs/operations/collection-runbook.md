@@ -424,7 +424,7 @@ mart는 발행마다 새 build로 통째 다시 만들고 이전 활성 build를
 행이 있으면 조각마다 위반 하나를 연다. 위반이 열린 동안 그 행들은 화면에서 `품목 미상`으로 보이고 품목 필터에 안
 걸린다. 할 일:
 
-1. 조각을 본다(읽기 전용). `select fragment, row_count from mart.build_vocabulary_gap gap join mart.build b using (build_id) where b.status = 'active' and b.mart_name = 'open_auction_snapshot'`.
+1. 조각을 본다(읽기 전용). `select fragment, row_count from mart.build_vocabulary_gap gap join mart.build b using (build_id) where b.status = 'active' and b.mart_name in ('open_auction_snapshot', 'org_round_summary')`. 스냅샷과 회차 요약이 같은 규칙으로 다리표를 채우므로 둘 다 본다(EAT-256).
 2. 원천이 새 원자를 보내기 시작한 것이면 `packages/db/src/seeds/auction-items.ts`와 `packages/contracts/src/values/auction-item.ts`,
    `apps/dataplane/src/eatbid/source/eat/code_schemes.py`의 목록을 함께 늘린다(셋이 같은 여덟을 읽는지 단위 시험이 고정한다).
    묶음 이름(`축산`)이나 오타처럼 원자가 아닌 것은 어휘에 넣지 않는다 — 그 판단은 설계 문서 §4.6(제목 추정) 층의 일이다.

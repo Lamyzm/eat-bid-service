@@ -34,7 +34,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       // 개찰 기준이 없으면(any) 개찰 예정·미관측 회차까지 전부 최근 순이다.
       const first = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
-        itemCodeValueId: null,
+        itemAtom: null,
         cursor: null,
         limit: 3,
         expectedBuildId: null,
@@ -46,7 +46,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       expect(first.attempts[0]!.openedAt!.toString()).toBe("2026-09-09T05:00:00Z");
       expect(first.attempts[1]!.openedAt).toBeNull();
       expect(first.attempts[1]).toMatchObject({
-        item: { codeValueId: 7n, label: "축산" },
+        items: ["육류"],
         floorRate: "90.000",
         baseAmount: { amount: "2761700.00", currency: "KRW" },
         winRate: null,
@@ -77,22 +77,22 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
 
       const second = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
-        itemCodeValueId: null,
+        itemAtom: null,
         cursor: first.nextCursor,
         limit: 2,
         expectedBuildId: null,
         openedAtOrBefore:null,
       }));
-      // 라벨 없는 품목은 코드가 있어도 unknown으로 남으며 표본 수는 cursor와 무관하게 같다.
+      // 라벨 없는 회차는 원자도 null이며 표본 수는 cursor와 무관하게 같다.
       expect(second.attempts.map((attempt) => attempt.attemptId)).toEqual([101n]);
-      expect(second.attempts[0]!.item).toBeNull();
+      expect(second.attempts[0]!.items).toBeNull();
       expect(second.nextCursor).toBeNull();
       expect(second.sampleCount).toBe(4);
 
       // 개찰 기준이 있으면 기준 이하로 개찰된 회차만이다. 개찰 예정(105)과 미관측(103)은 표본에서도 빠진다.
       const opened = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
-        itemCodeValueId: null,
+        itemAtom: null,
         cursor: null,
         limit: 12,
         expectedBuildId: null,
@@ -103,7 +103,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       // 개찰 시각과 같은 순간은 포함이다. 개찰 직후 회차가 다음 tick까지 표에서 사라지면 안 된다.
       const justOpened = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
-        itemCodeValueId: null,
+        itemAtom: null,
         cursor: null,
         limit: 12,
         expectedBuildId: null,
@@ -114,18 +114,19 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
 
       const filtered = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
-        itemCodeValueId: 7n,
+        itemAtom: "육류",
         cursor: null,
         limit: 12,
         expectedBuildId: null,
         openedAtOrBefore:null,
       }));
-      expect(filtered.attempts.map((attempt) => attempt.attemptId)).toEqual([105n, 103n, 101n]);
-      expect(filtered.sampleCount).toBe(3);
+      // 품목 필터는 다리표를 코드로 조인한다. 라벨 없는 101은 다리 행이 없어 어느 품목에도 안 걸린다.
+      expect(filtered.attempts.map((attempt) => attempt.attemptId)).toEqual([105n, 103n]);
+      expect(filtered.sampleCount).toBe(2);
 
       const empty = pageOf(await reader.listAttempts({
         organizationId: organizationId(43n),
-        itemCodeValueId: 9n,
+        itemAtom: "농산물",
         cursor: null,
         limit: 12,
         expectedBuildId: null,
@@ -137,7 +138,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       // 104는 기관 43의 회차이고 9007199254740993은 존재하지 않는다. 둘 다 빈 페이지가 아니라 명시적 실패다.
       expect(await reader.listAttempts({
         organizationId: organizationId(41n),
-        itemCodeValueId: null,
+        itemAtom: null,
         cursor: 104n,
         limit: 12,
         expectedBuildId: null,
@@ -145,7 +146,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       })).toEqual({ kind: "cursor-not-found", cursor: 104n });
       expect(await reader.listAttempts({
         organizationId: organizationId(41n),
-        itemCodeValueId: null,
+        itemAtom: null,
         cursor: 9_007_199_254_740_993n,
         limit: 12,
         expectedBuildId: null,
@@ -172,7 +173,7 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
           attemptId: "102",
           announcedAt: "2026-09-02T00:00:00Z",
           openedAt: "2026-09-04T05:00:00Z",
-          item: { codeValueId: "9", label: "농산" },
+          items: ["농산물"],
           floorRate: { value: "90.000", unit: "percentage-points" },
           baseAmount: { amount: "1000000.00", currency: "KRW" },
           winRate: { value: "90.309", unit: "percentage-points" },

@@ -20,7 +20,7 @@ from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 # 기간 조회는 월 행을 합산한다. rolling window 열을 두지 않는다.
 WIN_RATE_DISTRIBUTION_FILL_SQL = f"""
 insert into mart.win_rate_distribution_monthly (
-  build_id, scope, region_code_value_id, organization_id, item_code_value_id,
+  build_id, scope, region_code_value_id, organization_id,
   floor_rate, award_method_code_value_id, month_kst, bin_lower, bin_width, attempt_count
 )
 with {REGION_TRANSLATION_CTE.strip()},
@@ -91,8 +91,6 @@ select
   scope,
   region_code_value_id,
   organization_id,
-  -- 품목 code scheme이 아직 없다. 라벨을 코드로 승격시키지 않는다.
-  null::bigint,
   floor_rate,
   award_method_code_value_id,
   month_kst,
