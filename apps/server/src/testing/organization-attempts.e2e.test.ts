@@ -16,7 +16,7 @@ const attempt = {
   revisionId: 9_007_199_254_740_994n,
   announcedAt: Temporal.Instant.from("2026-09-01T00:00:00Z"),
   openedAt: Temporal.Instant.from("2026-09-02T02:00:00Z"),
-  item: { codeValueId: 7n, label: "축산" },
+  items: ["육류"],
   itemLabel: "축산",
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
   awardMethodCodeValueId: null,
@@ -83,7 +83,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
     await withServer({
       exists: async () => true,
       listAttempts: async () => ({ kind: "page", page: {
-        attempts: [{ ...attempt, item: null, itemLabel: "육류 , 가금류" }],
+        attempts: [{ ...attempt, items: ["가금류", "육류"], itemLabel: "육류 , 가금류" }],
         nextCursor: null, sampleCount: 1, lineage,
       } }),
     }, async (server) => {
@@ -95,7 +95,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       });
       const response = await request(server).get(path);
       expect(response.status).toBe(200);
-      expect(response.body.attempts[0]).toMatchObject({ item: null, itemLabel: "육류 , 가금류" });
+      expect(response.body.attempts[0]).toMatchObject({ items: ["가금류", "육류"], itemLabel: "육류 , 가금류" });
     });
   });
 
@@ -121,7 +121,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       // query를 생략하면 개찰된 회차만이며 그 기준은 clock 시각 하나다.
       expect(observed).toEqual([{
         organizationId: 9_007_199_254_740_993n,
-        itemCodeValueId: null,
+        itemAtom: null,
         cursor: null,
         limit: 12,
         // 고정을 요청하지 않은 조회는 지금 활성인 build를 읽는다.
@@ -134,7 +134,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
           attemptId: "9007199254740993",
           announcedAt: "2026-09-01T00:00:00Z",
           openedAt: "2026-09-02T02:00:00Z",
-          item: { codeValueId: "7", label: "축산" },
+          items: ["육류"],
           floorRate: { value: "90.000", unit: "percentage-points" },
           baseAmount: { amount: "2761700.00", currency: "KRW" },
           winRate: { value: "90.309", unit: "percentage-points" },
@@ -173,7 +173,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       },
     }, async (server) => {
       const response = await request(server).get(attemptsPath("42", {
-        item: "7",
+        item: "육류",
         cursor: "9007199254740993",
         limit: 200,
         opened: "any",
@@ -182,7 +182,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       // any는 개찰 여부로 거르지 않으므로 기준 시각 자체가 없다.
       expect(observed).toEqual([{
         organizationId: 42n,
-        itemCodeValueId: 7n,
+        itemAtom: "육류",
         cursor: 9_007_199_254_740_993n,
         limit: 200,
         expectedBuildId: null,
@@ -191,7 +191,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       // 이력이 비어도 요청 품목과 개찰 필터는 되돌아와야 표본 0이 어느 코호트의 0인지 응답만으로 닫힌다.
       expect(response.body.meta).toEqual({
         sampleCount: 0,
-        item: "7",
+        item: "육류",
         opened: "any",
         asOf: null,
         buildId: null,
@@ -219,7 +219,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
         expect(response.status, invalid).toBe(400);
         expect(response.body.code, invalid).toBe("VALIDATION_ERROR");
       }
-      for (const invalid of ["limit=0", "limit=201", "limit=abc", "item=0", "cursor=01", "unknown=1", "opened=all", "opened=true"]) {
+      for (const invalid of ["limit=0", "limit=201", "limit=abc", "item=0", "item=7", "item=%EC%B6%95%EC%82%B0", "cursor=01", "unknown=1", "opened=all", "opened=true"]) {
         const response = await request(server).get(`/api/v1/organizations/42/auction-attempts?${invalid}`);
         expect(response.status, invalid).toBe(400);
         expect(response.body.code, invalid).toBe("VALIDATION_ERROR");
@@ -318,7 +318,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       listAttempts: async () => ({
         kind: "page",
         page: {
-          attempts: [{ ...attempt, item: { codeValueId: 7n, label: "축".repeat(513) } }],
+          attempts: [{ ...attempt, items: ["축".repeat(513) as never] }],
           nextCursor: null,
           sampleCount: 1,
           lineage,

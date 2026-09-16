@@ -1,4 +1,5 @@
 /** @module 책임: 기관 회차 이력 조회 port와 mart 요약 한 행의 application record 형태를 소유한다. */
+import type { AuctionItemAtom } from "@eatbid/contracts";
 import type { BaseRelativeBidRate, BidRate, Money, ObservedBidRate, Temporal } from "@eatbid/domain";
 import type { MartBuildLineage } from "./mart-build-lineage";
 import type { OrganizationId } from "../domain/organization-id";
@@ -19,7 +20,11 @@ export interface OrganizationAttemptRecord {
   readonly revisionId: bigint;
   readonly announcedAt: Temporal.Instant;
   readonly openedAt: Temporal.Instant | null;
-  readonly item: { readonly codeValueId: bigint; readonly label: string } | null;
+  /**
+   * 회차의 품목 원자들(`mart.org_round_summary_item`)이다. null은 라벨 미관측, 빈 배열은 라벨은 있으나 전부
+   * 어휘 밖(품목 미상)이다 — 다른 사실이라 한 값으로 접지 않는다(AGENTS 3, EAT-256).
+   */
+  readonly items: readonly AuctionItemAtom[] | null;
   /** 품목 코드 유무와 무관한 원문 표시값이며 코호트 정체성이 아니다. */
   readonly itemLabel: string | null;
   readonly floorRate: BidRate | null;
@@ -38,7 +43,8 @@ export interface OrganizationAttemptRecord {
 
 export interface OrganizationAttemptQuery {
   readonly organizationId: OrganizationId;
-  readonly itemCodeValueId: bigint | null;
+  /** 다리표를 코드로 조인해 거르는 품목 원자다. null이면 품목으로 좁히지 않는다. */
+  readonly itemAtom: AuctionItemAtom | null;
   readonly cursor: bigint | null;
   readonly limit: number;
   /**

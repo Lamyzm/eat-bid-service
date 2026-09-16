@@ -34,7 +34,6 @@ export const winRateDistributionMonthly = martSchema.table(
     // 어떤 코드 체계인지는 열이 아니라 `mart.build.region_scheme`이 기록한다(AGENTS 6, ADR 0034).
     regionCodeValueId: bigint("region_code_value_id", { mode: "bigint" }).references(() => codeValue.codeValueId),
     organizationId: bigint("organization_id", { mode: "bigint" }).references(() => organization.organizationId),
-    itemCodeValueId: bigint("item_code_value_id", { mode: "bigint" }).references(() => codeValue.codeValueId),
     // 코호트 키다. 하한율 90과 88은 서로 다른 축이라 한 분포에 섞지 않는다.
     floorRate: observedRate("floor_rate").notNull(),
     // 코호트 키다. 단가입찰(`013`·`014`)의 사정률을 `003`과 섞지 않는다.
@@ -54,7 +53,6 @@ export const winRateDistributionMonthly = martSchema.table(
         table.scope,
         table.regionCodeValueId,
         table.organizationId,
-        table.itemCodeValueId,
         table.floorRate,
         table.awardMethodCodeValueId,
         table.monthKst,

@@ -26,10 +26,10 @@ const seed = `
   values (41, 'school', '창원 남산초등학교'), (43, 'school', '다른 학교');
   insert into core.code_scheme (code_scheme_id, namespace, owner, version_policy, valid_time_policy)
   overriding system value
-  values (11, 'eat.item', 'eat', 'immutable', 'open');
+  values (11, 'eatbid:auction-item', 'eatbid', 'immutable', 'open');
   insert into core.code_value (code_value_id, code_scheme_id, code)
   overriding system value
-  values (7, 11, 'livestock'), (9, 11, 'produce');
+  values (7, 11, '육류'), (9, 11, '농산물');
   insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
   overriding system value
   values (101, 'eat', 'external-101'), (102, 'eat', 'external-102'),
@@ -99,28 +99,31 @@ const seed = `
     '${"a".repeat(40)}', 'eat:auction-location-sigungu', 'building',
     '2026-09-04T00:00:00Z', '2026-09-04T00:05:00Z');
   insert into mart.org_round_summary
-    (build_id, auction_attempt_id, auction_revision_id, organization_id, item_code_value_id,
+    (build_id, auction_attempt_id, auction_revision_id, organization_id,
      item_label, announced_at, opened_at, floor_rate, award_method_code_value_id,
      base_amount, planned_amount, currency, awarded_assessment_rate, runner_up_assessment_rate,
      day_floor_amount, day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count,
      withdrawn_count, withdrawal_cohort_age_days, winner_supplier_party_id, supersedes_attempt_id,
      lineage_status, opened_month_kst)
   values
-    (501, 103, 207, 41, 7, '축산', '2026-09-03T00:00:00Z', null,
+    (501, 103, 207, 41, '축산', '2026-09-03T00:00:00Z', null,
      90.000, null, 2761700.00, null, 'KRW', null, null, null, null, null,
      17, 2, null, null, null, null, 'unknown', null),
-    (501, 102, 208, 41, 9, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
+    (501, 102, 208, 41, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
      90.000, null, 1000000.00, 990000.00, 'KRW', 90.309, 90.412,
      891000.00, 89.1000, 89.4059, 5, 0, 0, 1, 77, null, 'observed', '2026-09-01'),
-    (501, 101, 211, 41, 7, null, '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
+    (501, 101, 211, 41, null, '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
      null, null, 500000.00, null, 'KRW', 91.000, null, null, null, null,
      null, null, null, null, null, null, 'unknown', '2026-09-01'),
-    (501, 104, 212, 43, 7, '축산', '2026-09-05T00:00:00Z', null,
+    (501, 104, 212, 43, '축산', '2026-09-05T00:00:00Z', null,
      90.000, null, 900000.00, null, 'KRW', null, null, null, null, null,
      null, null, null, null, null, null, 'unknown', null),
-    (501, 105, 214, 41, 7, '축산', '2026-09-06T00:00:00Z', '2026-09-09T05:00:00Z',
+    (501, 105, 214, 41, '축산', '2026-09-06T00:00:00Z', '2026-09-09T05:00:00Z',
      90.000, null, 700000.00, null, 'KRW', null, null, null, null, null,
      null, null, null, null, null, null, 'unknown', '2026-09-01');
+  -- 품목은 열이 아니라 다리표다. 라벨 없는 101은 다리 행도 없다(EAT-256).
+  insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)
+  values (501, 103, 7), (501, 102, 9), (501, 104, 7), (501, 105, 7);
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)

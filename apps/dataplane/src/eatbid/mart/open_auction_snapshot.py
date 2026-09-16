@@ -14,17 +14,16 @@ build마다 봉인되지 않으면 같은 build를 두 번 읽은 화면이 서�
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from eatbid.core.auction_items import read_item_label
 from eatbid.core.projection_models import instant_datetime, money_decimal
+from eatbid.mart.item_bridge import fill_item_bridge
 from eatbid.mart.models import MartBuildPlan
 from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 from eatbid.source.eat.bid_list import parse_bid_list_page
-from eatbid.source.eat.code_schemes import AUCTION_ITEM_SCHEME, ORGANIZATION
+from eatbid.source.eat.code_schemes import ORGANIZATION
 from eatbid.storage.object_store import RawObjectStore
 
 LIST_ENDPOINT = "bid-list"
@@ -178,19 +177,11 @@ select open_auction_snapshot_id, item_label
 # 빌더가 어휘를 지어내지 않는다는 뜻이다.
 _INSERT_SNAPSHOT_ITEM_SQL = """
 insert into mart.open_auction_snapshot_item (open_auction_snapshot_id, item_code_value_id)
-select %(open_auction_snapshot_id)s, value.code_value_id
+select %(key)s, value.code_value_id
   from core.code_value as value
   join core.code_scheme as scheme on scheme.code_scheme_id = value.code_scheme_id
  where scheme.namespace = %(namespace)s and value.code = %(code)s
 on conflict do nothing
-"""
-
-# 같은 build에 다시 돌리면 같은 조각이 같은 수로 나오므로 덮어쓴다 — 재개한 빌드가 격리 수를 두 배로 만들지 않는다.
-_INSERT_VOCABULARY_GAP_SQL = """
-insert into mart.build_vocabulary_gap (build_id, scheme_namespace, fragment, row_count)
-values (%(build_id)s, %(namespace)s, %(fragment)s, %(row_count)s)
-on conflict on constraint build_vocabulary_gap_pkey
-do update set row_count = excluded.row_count
 """
 
 
@@ -287,36 +278,12 @@ def _fill_items(cursor: Any, *, build_id: int) -> None:
     """라벨 한 문자열을 원자 코드 여러 행으로 옮겨 다리표를 채운다.
 
     SQL에서 문자열을 쪼개지 않는다 — 쪼개기와 미매핑 격리의 규칙은 `read_item_label` 하나가 소유하고
-    core 투영도 같은 함수를 쓴다(EAT-230). 여기서 SQL로 다시 적으면 규칙이 두 곳이 되어 어느 날 둘이
-    다른 원자를 만든다. 미매핑 조각은 행을 만들지 않으며 원본 라벨은 `item_label`에 그대로 남는다.
+    core 투영과 회차 요약 빌더도 같은 함수를 쓴다(EAT-230·256). 미매핑 조각은 행을 만들지 않으며 원본
+    라벨은 `item_label`에 그대로 남는다.
     """
     cursor.execute(_ITEM_LABEL_ROWS_SQL, {"build_id": build_id})
-    rows = cursor.fetchall()
-    # 어휘 밖 조각은 다리 행을 만들지 않는 대신 여기서 센다. 세지 않으면 원천이 아홉째 낱말을 보내기
-    # 시작한 날 그 행은 조용히 `품목 미상`이 되고 아무도 모른다(AGENTS 3, EAT-255).
-    gap: Counter[str] = Counter()
-    for snapshot_id, label in rows:
-        reading = read_item_label(label)
-        for atom in reading.atoms:
-            cursor.execute(
-                _INSERT_SNAPSHOT_ITEM_SQL,
-                {
-                    "open_auction_snapshot_id": int(snapshot_id),
-                    "namespace": AUCTION_ITEM_SCHEME,
-                    "code": atom,
-                },
-            )
-        gap.update(reading.unmapped)
-    for fragment, row_count in sorted(gap.items()):
-        cursor.execute(
-            _INSERT_VOCABULARY_GAP_SQL,
-            {
-                "build_id": build_id,
-                "namespace": AUCTION_ITEM_SCHEME,
-                "fragment": fragment,
-                "row_count": row_count,
-            },
-        )
+    rows = [(int(snapshot_id), label) for snapshot_id, label in cursor.fetchall()]
+    fill_item_bridge(cursor, build_id=build_id, rows=rows, insert_sql=_INSERT_SNAPSHOT_ITEM_SQL)
 
 
 def _organization_id(cursor: Any, *, code: str | None) -> int | None:

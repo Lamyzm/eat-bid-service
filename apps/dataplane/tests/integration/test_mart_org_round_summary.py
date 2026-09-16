@@ -31,7 +31,7 @@ SUMMARY_COLUMNS = (
     "summary.day_floor_amount, summary.day_floor_bid_rate, summary.awarded_bid_rate, "
     "summary.list_count, summary.below_day_floor_count, summary.withdrawn_count, "
     "summary.withdrawal_cohort_age_days, summary.lineage_status, summary.opened_month_kst, "
-    "summary.auction_revision_id, summary.item_code_value_id, summary.item_label"
+    "summary.auction_revision_id, summary.item_label"
 )
 
 
@@ -89,7 +89,6 @@ def test_회차_요약_빌드가_명단과_낙찰을_한_행으로_요약한다(
         lineage_status,
         opened_month,
         _revision_id,
-        item_code_value_id,
         item_label,
     ) = rows[0]
 
@@ -105,8 +104,6 @@ def test_회차_요약_빌드가_명단과_낙찰을_한_행으로_요약한다(
     assert cohort_age_days is not None and cohort_age_days > 0
     assert lineage_status == "observed"
     assert opened_month.isoformat() == "2025-11-01"
-    # 품목 code scheme이 없으므로 코드를 지어내지 않고 관측 라벨만 싣는다.
-    assert item_code_value_id is None
     assert item_label is None or isinstance(item_label, str)
     # SQL과 사람이 읽는 파생 정의가 갈라지지 않는지 같은 입력으로 맞대어 본다.
     assert floor_amount == day_floor_amount(

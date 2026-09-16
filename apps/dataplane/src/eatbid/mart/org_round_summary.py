@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from eatbid.mart.item_bridge import fill_item_bridge
 from eatbid.mart.models import MartBuildPlan
 
 # 한 attempt의 "최신 revision"은 `auction_revision_id` 최대값이다. 관측 시각으로 고르지 않는 이유는
@@ -30,7 +31,7 @@ from eatbid.mart.models import MartBuildPlan
 ORG_ROUND_SUMMARY_FILL_SQL = """
 insert into mart.org_round_summary (
   build_id, auction_attempt_id, auction_revision_id, organization_id,
-  item_code_value_id, item_label, announced_at, opened_at, floor_rate,
+  item_label, announced_at, opened_at, floor_rate,
   award_method_code_value_id, base_amount, planned_amount, currency,
   awarded_assessment_rate, runner_up_assessment_rate,
   day_floor_amount, day_floor_bid_rate, awarded_bid_rate,
@@ -70,8 +71,8 @@ select
   latest.auction_attempt_id,
   latest.auction_revision_id,
   purchaser.organization_id,
-  -- 품목 code scheme이 아직 없다. 관측 라벨을 코드로 승격시키지 않고 라벨만 싣는다.
-  null::bigint,
+  -- 관측 라벨은 그대로 싣는다. 원자 코드는 열이 아니라 다리표 `org_round_summary_item`이며 `_fill_items`가
+  -- 같은 라벨을 `read_item_label`로 읽어 채운다(EAT-256).
   nullif(btrim(coalesce(
     latest.source_payload #>> '{classification,sourceCategoryLabel}', ''
   )), ''),
@@ -143,13 +144,43 @@ where latest.announced_at is not null
 """
 
 
+# 이 build의 요약 행 가운데 라벨이 있는 것만 읽는다. 라벨 없는 행은 원자도 없고 그것은 "품목 미상"이다.
+_ITEM_LABEL_ROWS_SQL = """
+select auction_attempt_id, item_label
+  from mart.org_round_summary
+ where build_id = %(build_id)s and item_label is not null
+ order by auction_attempt_id
+"""
+
+_INSERT_SUMMARY_ITEM_SQL = """
+insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)
+select %(build_id)s, %(key)s, value.code_value_id
+  from core.code_value as value
+  join core.code_scheme as scheme on scheme.code_scheme_id = value.code_scheme_id
+ where scheme.namespace = %(namespace)s and value.code = %(code)s
+on conflict do nothing
+"""
+
+
 def fill_org_round_summary(
     connection: Any, *, plan: MartBuildPlan, build_id: int
 ) -> int:
-    """이 build에 회차 요약을 전량 적재하고 적재한 행 수를 돌려준다."""
+    """이 build에 회차 요약을 전량 적재하고 적재한 행 수를 돌려준다.
+
+    품목 다리표는 요약 행 수를 바꾸지 않으므로 `verify_build`의 표본 검증과 어긋나지 않는다.
+    """
     with connection.cursor() as cursor:
         cursor.execute(
             ORG_ROUND_SUMMARY_FILL_SQL,
             {"build_id": build_id, "as_of": plan.as_of},
         )
-        return cursor.rowcount
+        row_count = cursor.rowcount
+        _fill_items(cursor, build_id=build_id)
+        return row_count
+
+
+def _fill_items(cursor: Any, *, build_id: int) -> None:
+    """라벨 한 문자열을 원자 코드 여러 행으로 옮겨 다리표를 채운다. 규칙은 스냅샷 빌더와 같은 함수다(EAT-256)."""
+    cursor.execute(_ITEM_LABEL_ROWS_SQL, {"build_id": build_id})
+    rows = [(int(attempt_id), label) for attempt_id, label in cursor.fetchall()]
+    fill_item_bridge(cursor, build_id=build_id, rows=rows, insert_sql=_INSERT_SUMMARY_ITEM_SQL)

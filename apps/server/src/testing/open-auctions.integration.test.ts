@@ -118,23 +118,23 @@ const seed = `
     '${"a".repeat(40)}', 'eat:auction-location-sigungu', 'building',
     '2026-09-06T00:00:00Z', '2026-09-06T00:05:00Z');
   insert into mart.org_round_summary
-    (build_id, auction_attempt_id, auction_revision_id, organization_id, item_code_value_id,
+    (build_id, auction_attempt_id, auction_revision_id, organization_id,
      item_label, announced_at, opened_at, floor_rate, award_method_code_value_id,
      base_amount, planned_amount, currency, awarded_assessment_rate, runner_up_assessment_rate,
      day_floor_amount, day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count,
      withdrawn_count, withdrawal_cohort_age_days, winner_supplier_party_id, supersedes_attempt_id,
      lineage_status, opened_month_kst)
   values
-    (501, 101, 505, 41, null, '축산', '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
+    (501, 101, 505, 41, '축산', '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
      90.000, null, 1000000.00, 990000.00, 'KRW', 90.309, 90.412,
      891000.00, 89.1000, 89.4059, 5, 0, 0, 1, null, null, 'observed', '2026-09-01'),
-    (501, 102, 506, 41, null, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
+    (501, 102, 506, 41, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
      90.000, null, 2000000.00, 1980000.00, 'KRW', null, null,
      1782000.00, 88.0350, null, 17, 2, null, null, null, null, 'unknown', '2026-09-01'),
-    (501, 103, 507, 41, null, '축산', '2026-09-03T00:00:00Z', null,
+    (501, 103, 507, 41, '축산', '2026-09-03T00:00:00Z', null,
      90.000, null, 500000.00, null, 'KRW', null, null, null, null, null,
      9, 1, null, null, null, null, 'unknown', null),
-    (501, 104, 508, 41, null, '축산', '2026-09-06T00:00:00Z', '2026-09-09T05:00:00Z',
+    (501, 104, 508, 41, '축산', '2026-09-06T00:00:00Z', '2026-09-09T05:00:00Z',
      90.000, null, 700000.00, null, 'KRW', null, null, null, null, null,
      null, null, null, null, null, null, 'unknown', '2026-09-01');
   insert into mart.open_auction_snapshot

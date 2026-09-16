@@ -20,7 +20,7 @@ const validAttempts: OrganizationAuctionAttemptsV1Response = {
       attemptId: '5796468',
       announcedAt: '2026-09-01T00:00:00Z',
       openedAt: '2026-09-04T05:00:00Z',
-      item: { codeValueId: '7', label: '축산' },
+      items: ['육류'],
       floorRate: { value: '87.745', unit: 'percentage-points' },
       baseAmount: { amount: '2761700.00', currency: 'KRW' },
       winRate: { value: '90.309', unit: 'percentage-points' },
@@ -107,7 +107,7 @@ describe('기관 회차 이력 resource 조회', () => {
     await expect(
       listOrganizationAuctionAttemptsWith(request, {
         organizationId: '3101',
-        item: '7',
+        item: '육류',
         limit: 60,
         signal: controller.signal
       })
@@ -116,7 +116,7 @@ describe('기관 회차 이력 resource 조회', () => {
       {
         operation: organizationV1Operations.listAuctionAttempts,
         path: { organizationId: '3101' },
-        query: { item: '7', limit: 60, opened: 'only' },
+        query: { item: '육류', limit: 60, opened: 'only' },
         signal: controller.signal
       }
     ]);
@@ -235,7 +235,7 @@ describe('기관 회차 이력 resource 조회', () => {
 
     const error = await listOrganizationAuctionAttemptsWith(request, {
       organizationId: '3101',
-      item: '7'
+      item: '육류'
     }).catch((reason: unknown) => reason);
     expect(isOrganizationCursorInvalidError(error)).toBe(false);
     expect(error).toBeInstanceOf(HttpProblemError);

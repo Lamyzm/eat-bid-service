@@ -27,7 +27,8 @@ export type HistoryRow = {
   readonly itemLabel: string;
   readonly floorRateText: string | null;
   readonly baseAmountText: string;
-  readonly itemCodeValueId: string | null;
+  /** 회차의 품목 원자들(어휘 코드). null은 라벨 미관측, 빈 배열은 라벨은 있으나 어휘 밖(품목 미상)이다. */
+  readonly items: readonly string[] | null;
   readonly awardMethodCodeValueId?: string | null;
   readonly winRateText: string | null;
   readonly winRateMilli: bigint | null;
@@ -55,7 +56,8 @@ export type HistoryPresentation = {
   readonly calcVersion: string | null;
   readonly coverage: MartCoverage | null;
   readonly regionScheme: string | null;
-  readonly selectedItem: { readonly codeValueId: string; readonly label: string } | null;
+  /** 주소의 품목 원자 그대로다. 원자는 어휘 코드라 라벨을 따로 찾지 않는다(EAT-256). */
+  readonly selectedItem: string | null;
   readonly cohort?: OrganizationAuctionAttemptsV1Response['meta']['cohort'];
 };
 
@@ -155,10 +157,10 @@ function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | 
     openedMonthText: openedMonthText(attempt),
     openedKstDay: openedKstDay(attempt),
     openedMonth: openedMonth(attempt),
-    itemLabel: attempt.itemLabel ?? attempt.item?.label ?? '미확인',
+    itemLabel: attempt.itemLabel ?? itemsText(attempt.items),
     floorRateText: attempt.floorRate?.value ?? null,
     baseAmountText: amountText(attempt.baseAmount.amount),
-    itemCodeValueId: attempt.item?.codeValueId ?? null,
+    items: attempt.items,
     awardMethodCodeValueId: attempt.awardMethodCodeValueId ?? null,
     winRateText: attempt.winRate?.value ?? null,
     winRateMilli: attempt.winRate ? toMilli(attempt.winRate.value) : null,
@@ -174,18 +176,16 @@ function presentRow(attempt: OrganizationAuctionAttempt, selectedItem: string | 
     winnerText: attempt.winnerSupplierPartyId ? `#${attempt.winnerSupplierPartyId}` : '—',
     listCount: attempt.listCount,
     belowDayFloorCount: attempt.belowDayFloorCount,
-    isSelectedItem: selectedItem === null || attempt.item?.codeValueId === selectedItem
+    // 회차 하나가 원자 여럿을 가지므로 "선택 품목의 회차"는 그 원자를 포함하는 회차다.
+    isSelectedItem: selectedItem === null || (attempt.items?.some((atom) => atom === selectedItem) ?? false)
   };
 }
 
-// 선택 품목이 이번 응답에 없으면(예: 다른 회차만 가진 codeValueId) 라벨을 알 수 없으므로 나머지
-// 필드와 같은 규약으로 '미확인'을 보인다.
-function resolveSelectedItem(
-  attempts: readonly OrganizationAuctionAttempt[],
-  selectedItem: string
-): { readonly codeValueId: string; readonly label: string } {
-  const match = attempts.find((attempt) => attempt.item?.codeValueId === selectedItem);
-  return { codeValueId: selectedItem, label: match?.item?.label ?? '미확인' };
+// 라벨 opt-in이 없는 응답은 원자 목록으로 품목을 말한다. 원자는 어휘 코드라 그대로 읽히고, 라벨은 있는데
+// 원자가 없는 회차는 어휘 밖이라 '품목 미상'이다 — 미관측('미확인')과 다른 사실이다(AGENTS 3).
+function itemsText(items: readonly string[] | null): string {
+  if (items === null) return '미확인';
+  return items.length === 0 ? '품목 미상' : items.join(' · ');
 }
 
 /**
@@ -213,7 +213,7 @@ export function presentHistory(
     calcVersion: response.meta.calcVersion,
     coverage: response.meta.coverage,
     regionScheme: response.meta.regionScheme,
-    selectedItem: selectedItem === null ? null : resolveSelectedItem(response.attempts, selectedItem),
+    selectedItem,
     cohort: response.meta.cohort
   };
 }

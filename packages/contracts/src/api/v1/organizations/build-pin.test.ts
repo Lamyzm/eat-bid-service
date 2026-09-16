@@ -11,7 +11,7 @@ describe("회차 이력 build 고정과 revision 노출 계약", () => {
     const attempt = organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element;
     const row = {
       attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: null,
-      item: null, floorRate: null, baseAmount: { amount: "2761700.00", currency: "KRW" },
+      items: null, floorRate: null, baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: null, secondRate: null, awardedBidRate: null, dayFloorRate: null,
       listCount: null, belowDayFloorCount: null,
       winnerSupplierPartyId: null, supersedesAttemptId: null,

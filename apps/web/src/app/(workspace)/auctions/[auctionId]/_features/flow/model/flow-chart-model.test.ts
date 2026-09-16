@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { attemptsFixture } from '../../../__fixtures__/attempts';
-import { presentHistory } from '../../history/model/attempt-history';
+import { attemptsFixture } from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/attempts';
+import { presentHistory } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
 import { buildFlowChartModel } from './flow-chart-model';
 import type { OrganizationAuctionAttempt } from '@eatbid/contracts/api/v1/organizations';
 
@@ -23,7 +23,7 @@ describe('기관 흐름 차트 데이터 경계', () => {
       row('5', '2026-07-05T00:00:00Z', { awardMethodCodeValueId: null }),
       row('4', '2026-07-04T00:00:00Z', { awardMethodCodeValueId: '32' }),
       row('3', '2026-07-03T00:00:00Z', { floorRate: { value: '88.000', unit: 'percentage-points' } }),
-      row('2', '2026-07-02T00:00:00Z', { item: null }),
+      row('2', '2026-07-02T00:00:00Z', { items: null }),
       row('1', '2026-07-01T00:00:00Z')
     ]);
     expect(result.series.every((series) => series.points.length === 1)).toBe(true);

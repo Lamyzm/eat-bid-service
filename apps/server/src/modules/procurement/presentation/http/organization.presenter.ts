@@ -47,9 +47,7 @@ function attemptResource(record: OrganizationAttemptRecord, projection: AttemptP
     revisionId: projection.includeRevision ? bigintText(record.revisionId) : undefined,
     announcedAt: instantText(record.announcedAt),
     openedAt: instantText(record.openedAt),
-    item: record.item === null
-      ? null
-      : { codeValueId: bigintText(record.item.codeValueId), label: record.item.label },
+    items: record.items === null ? null : [...record.items],
     itemLabel: projection.includeItemLabel ? record.itemLabel : undefined,
     // 세 비율은 축이 다르다(사정률 상수·관측 사정률·기초금액 분모). 봉투가 같아도 함수를 합치지 않는다.
     floorRate: bidRateWire(record.floorRate),
@@ -84,7 +82,7 @@ export function toOrganizationAttemptsResponse(result: OrganizationAttemptListRe
       ...martBuildLineageWire(page.lineage),
       sampleCount: page.sampleCount,
       // 표본을 좁힌 품목을 응답에 되돌려야 sampleCount가 어떤 코호트의 수인지 응답만으로 재현된다.
-      item: bigintText(query.itemCodeValueId),
+      item: query.itemAtom,
       // 표본이 개찰된 회차로 좁혀졌는지와 그 기준 시각을 되돌려야 sampleCount가 재현된다(AGENTS 7).
       opened: input.opened,
       asOf: instantText(query.openedAtOrBefore),

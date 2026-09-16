@@ -91,12 +91,12 @@ const webSeed = `
   update mart.org_round_summary set opened_at = now() - interval '9 days', floor_rate = null
    where build_id = ${NEXT_BUILD_ID} and auction_attempt_id = 8101;
   insert into mart.org_round_summary
-    (build_id, auction_attempt_id, auction_revision_id, organization_id, item_code_value_id, item_label, announced_at,
+    (build_id, auction_attempt_id, auction_revision_id, organization_id, item_label, announced_at,
      opened_at, floor_rate, award_method_code_value_id, base_amount, planned_amount, currency, awarded_assessment_rate,
      runner_up_assessment_rate, day_floor_amount, day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count,
      withdrawn_count, withdrawal_cohort_age_days, winner_supplier_party_id, supersedes_attempt_id, lineage_status,
      opened_month_kst)
-  select ${NEXT_BUILD_ID}, auction_attempt_id, auction_revision_id, organization_id, item_code_value_id, item_label,
+  select ${NEXT_BUILD_ID}, auction_attempt_id, auction_revision_id, organization_id, item_label,
      announced_at, opened_at, floor_rate, award_method_code_value_id, base_amount, planned_amount, currency,
      awarded_assessment_rate, runner_up_assessment_rate, day_floor_amount, day_floor_bid_rate, awarded_bid_rate,
      list_count, below_day_floor_count, withdrawn_count, withdrawal_cohort_age_days, winner_supplier_party_id,

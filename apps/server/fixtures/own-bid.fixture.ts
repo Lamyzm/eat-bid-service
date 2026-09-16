@@ -299,7 +299,7 @@ const bulkSummarySeed = `
 `;
 
 const summaryRow = (buildId: bigint, attempt: number, revision: number, organization: bigint, announced: string) =>
-  `(${buildId}, ${attempt}, ${revision}, ${organization}, null, null, '${announced}', null,`
+  `(${buildId}, ${attempt}, ${revision}, ${organization}, null, '${announced}', null,`
   + " 90.000, null, 500000.00, null, 'KRW', null, null, null, null, null, null, null,"
   + " null, null, null, null, 'observed', null)";
 
@@ -318,7 +318,7 @@ const martSeed = `
       '${"b".repeat(40)}', 'eat:auction-location-sido', 'building', '2026-09-07T00:00:00Z',
       '2026-09-07T00:05:00Z');
   insert into mart.org_round_summary
-    (build_id, auction_attempt_id, auction_revision_id, organization_id, item_code_value_id,
+    (build_id, auction_attempt_id, auction_revision_id, organization_id,
      item_label, announced_at, opened_at, floor_rate, award_method_code_value_id,
      base_amount, planned_amount, currency, awarded_assessment_rate, runner_up_assessment_rate,
      day_floor_amount, day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count,

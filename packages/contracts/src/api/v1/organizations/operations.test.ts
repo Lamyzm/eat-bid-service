@@ -26,9 +26,9 @@ describe("listOrganizationAuctionAttempts 계약", () => {
   test("경로와 query를 canonical 형태로 조립한다", () => {
     const path = organizationV1Operations.listAuctionAttempts.buildPath({
       path: { organizationId: "42" },
-      query: { limit: 60, cursor: "5796468", item: "7" },
+      query: { limit: 60, cursor: "5796468", item: "육류" },
     });
-    expect(path).toBe("/api/v1/organizations/42/auction-attempts?cursor=5796468&item=7&limit=60&opened=only");
+    expect(path).toBe("/api/v1/organizations/42/auction-attempts?cursor=5796468&item=%EC%9C%A1%EB%A5%98&limit=60&opened=only");
   });
 
   test("limit 기본값은 12이고 200을 넘으면 거부한다", () => {
@@ -71,10 +71,12 @@ describe("listOrganizationAuctionAttempts 계약", () => {
 
   test("meta는 요청 품목 echo를 요구하고 품목 없는 조회는 null이다", () => {
     const meta = organizationAuctionAttemptsV1ResponseSchema.shape.meta;
-    expect(meta.parse({ ...EMPTY_META, sampleCount: 3, item: "7" }).item).toBe("7");
+    expect(meta.parse({ ...EMPTY_META, sampleCount: 3, item: "육류" }).item).toBe("육류");
     const { item: _omitted, ...withoutItem } = EMPTY_META;
     expect(() => meta.parse({ ...withoutItem, sampleCount: 3 })).toThrow();
-    expect(() => meta.parse({ ...EMPTY_META, sampleCount: 3, item: "0" })).toThrow();
+    // 어휘 밖 문자열과 옛 code_value id는 품목이 아니다.
+    expect(() => meta.parse({ ...EMPTY_META, sampleCount: 3, item: "축산" })).toThrow();
+    expect(() => meta.parse({ ...EMPTY_META, sampleCount: 3, item: "7" })).toThrow();
   });
 
   test("meta는 build 계보를 build id와 봉인된 release id로 싣고 martRelease를 거부한다", () => {
@@ -101,20 +103,23 @@ describe("listOrganizationAuctionAttempts 계약", () => {
     const attempt = organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element;
     const row = {
       attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: null,
-      item: { codeValueId: "7", label: "가".repeat(512) },
+      items: ["육류"], itemLabel: "가".repeat(512),
       floorRate: null, baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: null, secondRate: null, awardedBidRate: null, dayFloorRate: null,
       listCount: null, belowDayFloorCount: null,
       winnerSupplierPartyId: null, supersedesAttemptId: null,
     };
-    expect(attempt.parse(row).item?.label).toHaveLength(512);
-    expect(() => attempt.parse({ ...row, item: { codeValueId: "7", label: "가".repeat(513) } })).toThrow();
+    expect(attempt.parse(row).itemLabel).toHaveLength(512);
+    expect(() => attempt.parse({ ...row, itemLabel: "가".repeat(513) })).toThrow();
+    // 품목 원자는 어휘 enum이다. 라벨 문자열을 원자 자리에 넣을 수 없다.
+    expect(() => attempt.parse({ ...row, items: ["축산"] })).toThrow();
+    expect(attempt.parse({ ...row, items: [] }).items).toEqual([]);
   });
 
   test("회차 행은 비율 단위와 금액 통화를 강제한다", () => {
     const row = {
       attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: "2026-09-04T05:00:00Z",
-      item: { codeValueId: "7", label: "축산" },
+      items: ["육류"],
       floorRate: { value: "90.000", unit: "percentage-points" },
       baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: { value: "90.309", unit: "percentage-points" },
@@ -144,7 +149,7 @@ describe("listOrganizationAuctionAttempts 계약", () => {
     const attempt = organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element;
     const row = {
       attemptId: "5796468", announcedAt: "2026-09-01T00:00:00Z", openedAt: "2026-09-04T05:00:00Z",
-      item: null, floorRate: { value: "90.000", unit: "percentage-points" },
+      items: null, floorRate: { value: "90.000", unit: "percentage-points" },
       baseAmount: { amount: "8888360.00", currency: "KRW" },
       winRate: null, secondRate: null, awardedBidRate: null,
       // 남산초 5669545의 그날 하한이다. 셋째 자리로 끊으면 89.959가 되어 원본의 넷째 자리를 잃는다.
@@ -161,7 +166,7 @@ describe("listOrganizationAuctionAttempts 계약", () => {
     // 남산초 5780681이다. 같은 낙찰 하나가 사정률 축에서는 90.010, 투찰률 축에서는 89.8460이다.
     const row = {
       attemptId: "5780681", announcedAt: "2026-08-10T00:00:00Z", openedAt: "2026-08-13T04:00:00Z",
-      item: { codeValueId: "7", label: "축산" },
+      items: ["육류"],
       floorRate: { value: "90.000", unit: "percentage-points" },
       baseAmount: { amount: "4986290.00", currency: "KRW" },
       winRate: { value: "90.010", unit: "percentage-points" },

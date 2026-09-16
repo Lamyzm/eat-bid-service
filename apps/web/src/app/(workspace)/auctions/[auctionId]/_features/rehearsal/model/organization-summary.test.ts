@@ -17,7 +17,7 @@ function makeRow(overrides: Partial<HistoryRow> & { readonly openedKstDay: numbe
     floorRateText: '87.745',
     baseAmountText: '2,761,700',
     itemLabel: '축산',
-    itemCodeValueId: '7',
+    items: ['육류'],
     winRateText: null,
     winRateMilli: null,
     awardedBidRateText: null,

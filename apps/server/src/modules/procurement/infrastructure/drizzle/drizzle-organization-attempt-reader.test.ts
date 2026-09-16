@@ -6,8 +6,8 @@ const row = {
   auction_revision_id: "208",
   announced_at: new Date("2026-09-01T00:00:00.000Z"),
   opened_at: null,
-  item_code_value_id: "7",
   item_label: "축산",
+  item_atoms: ["육류"],
   floor_rate: "90.000",
   award_method_code_value_id: null,
   base_amount: "2761700.00",
@@ -25,8 +25,8 @@ const row = {
 describe("DrizzleOrganizationAttemptReader row 경계", () => {
   test("품목 코드가 없어도 관측 라벨은 보존하고 코드 정체성을 만들지 않는다", async () => {
     const { mapAttemptRow } = await import("./drizzle-organization-attempt-reader");
-    const result = mapAttemptRow({ ...row, item_code_value_id: null, item_label: " 육류 , 가금류 " });
-    expect(result.item).toBeNull();
+    const result = mapAttemptRow({ ...row, item_atoms: ["가금류", "육류"], item_label: " 육류 , 가금류 " });
+    expect(result.items).toEqual(["가금류", "육류"]);
     expect(result.itemLabel).toBe("육류 , 가금류");
     for (const item_label of [null, "", "   "]) {
       expect(mapAttemptRow({ ...row, item_label }).itemLabel).toBeNull();
@@ -58,7 +58,7 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
       // 요약이 요약한 해석이다. 개인 투찰 조회가 이 값으로 명단을 찾으므로 최신 revision과 섞이면 안 된다.
       revisionId: 208n,
       openedAt: null,
-      item: { codeValueId: 7n, label: "축산" },
+      items: ["육류"],
       floorRate: "90.000",
       baseAmount: { amount: "2761700.00", currency: "KRW" },
       winRate: "90.309",
@@ -127,12 +127,14 @@ describe("DrizzleOrganizationAttemptReader row 경계", () => {
     expect(() => adapter.mapAttemptRow({ ...row, awarded_bid_rate: "88.302" } as never)).toThrow(TypeError);
   });
 
-  test("품목 코드나 라벨이 없으면 라벨을 지어내지 않고 item을 unknown으로 남긴다", async () => {
+  test("라벨이 없으면 원자도 null이고, 라벨은 있는데 원자가 없으면 빈 배열이며, 어휘 밖 원자는 거부한다", async () => {
     const adapter = await import("./drizzle-organization-attempt-reader");
-    expect(adapter.mapAttemptRow({ ...row, item_code_value_id: null } as never).item).toBeNull();
-    expect(adapter.mapAttemptRow({ ...row, item_label: null } as never).item).toBeNull();
-    expect(adapter.mapAttemptRow({ ...row, item_label: "   " } as never).item).toBeNull();
-    expect(adapter.mapAttemptRow({ ...row, item_label: " 축산 " } as never).item?.label).toBe("축산");
+    expect(adapter.mapAttemptRow({ ...row, item_atoms: null } as never).items).toEqual([]);
+    expect(adapter.mapAttemptRow({ ...row, item_label: null } as never).items).toBeNull();
+    expect(adapter.mapAttemptRow({ ...row, item_label: "   " } as never).items).toBeNull();
+    expect(adapter.mapAttemptRow({ ...row, item_label: " 축산 " } as never).itemLabel).toBe("축산");
+    // 다리표가 어휘 밖 코드를 가리키면 지어내지 않고 닫는다. 그것은 시드와 mart의 배포 순서 사고다.
+    expect(() => adapter.mapAttemptRow({ ...row, item_atoms: ["축산"] } as never)).toThrow(TypeError);
   });
 
   test("KRW가 아닌 통화와 scale이 다른 비율 문자열은 TypeError로 거부한다", async () => {

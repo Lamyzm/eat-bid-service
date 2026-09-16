@@ -33,19 +33,21 @@ const nextBuildSeed = `
     '${"b".repeat(40)}', 'eat:auction-location-sido', 'building',
     '2026-09-08T00:00:00Z', '2026-09-08T00:05:00Z');
   insert into mart.org_round_summary
-    (build_id, auction_attempt_id, auction_revision_id, organization_id, item_code_value_id,
+    (build_id, auction_attempt_id, auction_revision_id, organization_id,
      item_label, announced_at, opened_at, floor_rate, award_method_code_value_id,
      base_amount, planned_amount, currency, awarded_assessment_rate, runner_up_assessment_rate,
      day_floor_amount, day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count,
      withdrawn_count, withdrawal_cohort_age_days, winner_supplier_party_id, supersedes_attempt_id,
      lineage_status, opened_month_kst)
   values
-    (502, 102, 208, 41, 9, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
+    (502, 102, 208, 41, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
      90.000, null, 1000000.00, 990000.00, 'KRW', 91.500, 90.412,
      891000.00, 89.1000, 90.5940, ${NEXT_LIST_COUNT}, 3, 0, 4, 77, null, 'observed', '2026-09-01'),
-    (502, 101, 211, 41, 7, null, '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
+    (502, 101, 211, 41, null, '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
      null, null, 500000.00, null, 'KRW', 91.000, null, null, null, null,
      null, null, null, null, null, null, 'unknown', '2026-09-01');
+  insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)
+  values (502, 102, 9);
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)

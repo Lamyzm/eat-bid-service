@@ -80,7 +80,9 @@ export function cohortOf(
 }
 
 /** URL을 직접 편집한 값도 공개 식별자 계약으로 검증한다. 라벨로 ID를 추측하지 않는다. */
-export function normalizeItemParam(item: string | null): string | null {
+export type HistoryItemAtom = NonNullable<OrganizationAuctionAttemptsQuery['item']>;
+
+export function normalizeItemParam(item: string | null): HistoryItemAtom | null {
   const parsed = organizationV1Operations.listAuctionAttempts.querySchema.unwrap().shape.item.safeParse(item);
   return parsed.success ? parsed.data ?? null : null;
 }

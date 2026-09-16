@@ -6,15 +6,16 @@ import { presentHistory } from './attempt-history';
 import { rehearse } from '@/app/(workspace)/auctions/[auctionId]/_features/rehearsal/model/rehearsal';
 
 describe('기관 회차 이력 표시 모델', () => {
-  test('코드 없는 원문 품목명도 표시하되 코드 필터와 집단 정체성으로 사용하지 않는다', () => {
+  test('원문 품목명은 표시값이고 선택 품목 판정은 원자 집합의 포함 여부로 한다', () => {
     const response = organizationAuctionAttemptsV1ResponseSchema.parse({
       ...attemptsFixture,
-      attempts: [{ ...attemptsFixture.attempts[0]!, item: null, itemLabel: '육류 , 가금류' }]
+      attempts: [{ ...attemptsFixture.attempts[0]!, items: ['가금류', '육류'], itemLabel: '육류 , 가금류' }]
     });
     const row = presentHistory(response, null).rows[0]!;
     expect(row.itemLabel).toBe('육류 , 가금류');
-    expect(row.itemCodeValueId).toBeNull();
-    expect(presentHistory(response, '7').rows[0]?.isSelectedItem).toBe(false);
+    expect(row.items).toEqual(['가금류', '육류']);
+    expect(presentHistory(response, '농산물').rows[0]?.isSelectedItem).toBe(false);
+    expect(presentHistory(response, '가금류').rows[0]?.isSelectedItem).toBe(true);
   });
 
   test('요청한 revision을 행에 그대로 보존하고 없으면 최신으로 추정하지 않는다', () => {
@@ -86,14 +87,17 @@ describe('기관 회차 이력 표시 모델', () => {
     expect(presentation.rows[0]?.attemptId).toBe('1');
   });
 
-  test('품목이 없는 회차는 미확인으로 표시하고 코드값은 null이다', () => {
+  test('품목 라벨이 없는 회차는 미확인, 라벨은 있는데 어휘 밖이면 품목 미상이고 원자 없이 선택 품목에 걸리지 않는다', () => {
     const response = {
       ...attemptsFixture,
-      attempts: [{ ...attemptsFixture.attempts[0]!, item: null }]
+      attempts: [{ ...attemptsFixture.attempts[0]!, items: null }]
     };
     const presentation = presentHistory(response, null);
     expect(presentation.rows[0]?.itemLabel).toBe('미확인');
-    expect(presentation.rows[0]?.itemCodeValueId).toBeNull();
+    expect(presentation.rows[0]?.items).toBeNull();
+    const outside = presentHistory({ ...response, attempts: [{ ...attemptsFixture.attempts[0]!, items: [] }] }, '육류');
+    expect(outside.rows[0]?.itemLabel).toBe('품목 미상');
+    expect(outside.rows[0]?.isSelectedItem).toBe(false);
   });
 
   test('예정가격 미관측 회차는 그날 하한·하한 미만 수가 null이고 이 값이면 분모에서 빠진다', () => {
@@ -134,12 +138,12 @@ describe('기관 회차 이력 표시 모델', () => {
     expect(presentation.selectedItem).toBeNull();
   });
 
-  test('선택 품목이 있으면 일치하는 행만 표시하고 selectedItem에 라벨을 담는다', () => {
-    const presentation = presentHistory(attemptsFixture, '8');
+  test('선택 품목이 있으면 그 원자를 가진 행만 표시하고 selectedItem에 원자를 담는다', () => {
+    const presentation = presentHistory(attemptsFixture, '가공식품');
     const flags = presentation.rows.map((row) => row.isSelectedItem);
     expect(flags.some(Boolean)).toBe(true);
     expect(flags.filter(Boolean)).toHaveLength(3);
-    expect(presentation.selectedItem).toEqual({ codeValueId: '8', label: '공산' });
+    expect(presentation.selectedItem).toBe('가공식품');
   });
 
   test('낙찰자가 없으면 —, 있으면 #id로 표시한다', () => {

@@ -1,4 +1,5 @@
 /** @module 책임: 기관 회차 이력 port를 응답마다 하나로 고정한 mart.org_round_summary build의 keyset 조회와 행 매핑으로 구현한다. */
+import { AUCTION_ITEM_ATOMS, type AuctionItemAtom } from "@eatbid/contracts";
 import { sql } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type {
@@ -10,6 +11,7 @@ import type {
 import type { OrganizationId } from "../../domain/organization-id";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
 import { ORG_ROUND_SUMMARY, readActiveMartBuildLineage } from "./drizzle-mart-build-reader";
+import { itemAtomCte } from "./open-auction-queries";
 import {
   baseRelativeBidRateValue,
   bidRateValue,
@@ -27,8 +29,8 @@ type OrganizationAttemptRow = Readonly<{
   auction_revision_id: string | bigint;
   announced_at: PostgresTimestamp;
   opened_at: PostgresTimestamp;
-  item_code_value_id: string | bigint | null;
   item_label: string | null;
+  item_atoms: string[] | null;
   floor_rate: string | null;
   award_method_code_value_id: string | bigint | null;
   base_amount: string | null;
@@ -65,13 +67,27 @@ function cohortCondition(query: OrganizationAttemptQuery) {
     : method === "unknown" ? sql`summary.award_method_code_value_id is null`
       : sql`summary.award_method_code_value_id = ${method}::bigint`;
   return sql`${floorCondition} and ${methodCondition}
-    and (${query.itemCodeValueId}::bigint is null or summary.item_code_value_id = ${query.itemCodeValueId}::bigint)
+    and (${query.itemAtom}::text is null or exists (
+      select 1
+      from mart.org_round_summary_item bridge
+      join item_atom on item_atom.code_value_id = bridge.item_code_value_id
+      where bridge.build_id = summary.build_id
+        and bridge.auction_attempt_id = summary.auction_attempt_id
+        and item_atom.code = ${query.itemAtom}::text))
     and (${instantParameter(query.openedAtOrBefore)}::timestamptz is null
       or summary.opened_at <= ${instantParameter(query.openedAtOrBefore)}::timestamptz)
     and (${instantParameter(query.openedFrom ?? null)}::timestamptz is null
       or summary.opened_at >= ${instantParameter(query.openedFrom ?? null)}::timestamptz)
     and (${instantParameter(query.openedBefore ?? null)}::timestamptz is null
       or summary.opened_at < ${instantParameter(query.openedBefore ?? null)}::timestamptz)`;
+}
+
+function itemAtomsValue(value: readonly string[] | null): readonly AuctionItemAtom[] {
+  return (value ?? []).map((code) => {
+    // 다리표는 시드된 어휘(`eatbid:auction-item`)만 가리키므로 여기서 어긋나면 배포 순서 사고다. 지어내지 않고 닫는다.
+    if (!(AUCTION_ITEM_ATOMS as readonly string[]).includes(code)) throw new TypeError(`Unknown auction item atom ${code}`);
+    return code as AuctionItemAtom;
+  });
 }
 
 export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptRecord {
@@ -83,9 +99,8 @@ export function mapAttemptRow(row: OrganizationAttemptRow): OrganizationAttemptR
     revisionId: bigintValue(row.auction_revision_id),
     announcedAt: requiredInstant(row.announced_at, "announced"),
     openedAt: postgresInstant(row.opened_at),
-    item: row.item_code_value_id === null || itemLabel === null
-      ? null
-      : { codeValueId: bigintValue(row.item_code_value_id), label: itemLabel },
+    // 라벨을 관측하지 못한 회차는 원자도 없다(null). 라벨은 있는데 원자가 없으면 어휘 밖이라 빈 배열이다.
+    items: itemLabel === null ? null : itemAtomsValue(row.item_atoms),
     itemLabel,
     floorRate: bidRateValue(row.floor_rate),
     awardMethodCodeValueId: row.award_method_code_value_id === null ? null : bigintValue(row.award_method_code_value_id),
@@ -169,6 +184,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
 
   private async hasCursorAnchor(query: OrganizationAttemptQuery, buildId: bigint): Promise<boolean> {
     const result = await this.database.execute(sql`
+      with ${itemAtomCte()}
       select 1 as present
       from mart.org_round_summary summary
       where summary.build_id = ${buildId}::bigint
@@ -182,13 +198,18 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
 
   private async pageRows(query: OrganizationAttemptQuery, buildId: bigint): Promise<OrganizationAttemptRow[]> {
     const result = await this.database.execute(sql`
+      with ${itemAtomCte()}
       select
         summary.auction_attempt_id,
         summary.auction_revision_id,
         summary.announced_at,
         summary.opened_at,
-        summary.item_code_value_id,
         summary.item_label,
+        (select array_agg(item_atom.code order by item_atom.code)
+           from mart.org_round_summary_item bridge
+           join item_atom on item_atom.code_value_id = bridge.item_code_value_id
+          where bridge.build_id = summary.build_id
+            and bridge.auction_attempt_id = summary.auction_attempt_id) as item_atoms,
         summary.floor_rate,
         summary.award_method_code_value_id,
         summary.base_amount,
@@ -224,6 +245,7 @@ export class DrizzleOrganizationAttemptReader implements OrganizationAttemptRead
     // 표본 수는 cursor와 무관해야 하므로 페이지 조건을 뺀 같은 인덱스 범위를 한 번 더 센다. 개찰 기준은
     // 페이지와 같은 시각이어야 표본 수와 행이 같은 코호트를 말한다.
     const result = await this.database.execute(sql`
+      with ${itemAtomCte()}
       select count(*)::int as sample_count
       from mart.org_round_summary summary
       where summary.build_id = ${buildId}::bigint

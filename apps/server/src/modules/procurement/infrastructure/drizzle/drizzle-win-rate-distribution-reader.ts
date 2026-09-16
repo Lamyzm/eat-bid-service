@@ -138,8 +138,6 @@ export class DrizzleWinRateDistributionReader implements WinRateDistributionRead
       where summary.build_id = ${activeMartBuildId(WIN_RATE_DISTRIBUTION)}
         and summary.scope = ${query.cohort.scope}
         ${axisPredicate(query.cohort)}
-        -- 품목 축이 생기는 순간 이 술어가 없으면 같은 회차를 품목 행과 전체 행으로 두 번 센다.
-        and summary.item_code_value_id is null
         and summary.floor_rate = ${query.floorRate}::numeric
         and summary.award_method_code_value_id = ${query.awardMethodCodeValueId}::bigint
         and summary.month_kst between ${kstMonthFirstDayText(query.period.from)}::date
