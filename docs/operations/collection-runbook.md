@@ -351,7 +351,7 @@ Pending이던 노드가 Running으로 바뀌고 파드가 뜨는지 확인한다
 같은 원본이 같은 자리에서 다시 격리되므로(2026-03 창이 매시 16,469건을 두 번 다시 받았다) 전진 CronWorkflow는
 `ingest.backfill_coverage.failed_publications > 0`인 창을 고르지 않는다. 대신 `check-expectations`가
 `failed-publication-window` 위반을 창마다 하나씩 열어 두고, 그 위반은 replay가 성공해 창이 완결될 때까지 닫히지
-않는다. 할 일은 재수집이 아니다:
+않는다. 대상은 전진이 보는 달 전체 창뿐이며 poll-open의 하루 창은 보지 않는다(EAT-240). 할 일은 재수집이 아니다:
 
 1. 격리 사유를 본다(읽기 전용). `select quarantine_reason, count(*) from ingest.normalization_attempt where run_id = '<detail run>' and status = 'quarantined' group by 1`.
 2. 사유가 계약 쪽이면 파서·계약을 고치고 릴리스한다. 원본이 정말 계약 밖이면 그 관측은 격리로 남는 것이 맞고,
