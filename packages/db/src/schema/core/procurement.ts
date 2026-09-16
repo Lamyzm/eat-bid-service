@@ -65,6 +65,12 @@ export const auctionRevision = coreSchema.table(
   },
   (table) => [
     unique("auction_revision_normalized_record_key").on(table.normalizedRecordId),
+    // 예정가격 0은 금액이 아니라 "추첨된 적 없음"이며 core에는 null로 앉는다. 관측 0은 source_payload가 보존한다
+    // (EAT-199). 0을 열에 두면 `is not null` 조회가 그것을 금액으로 센다.
+    check(
+      "auction_revision_planned_amount_positive",
+      sql`${table.plannedAmount} is null or ${table.plannedAmount} > 0`,
+    ),
     // 명단·낙찰 행이 들고 있는 attempt가 revision의 attempt와 어긋나지 못하게 하는 복합 FK의 대상이다.
     unique("auction_revision_attempt_pair_key").on(table.auctionRevisionId, table.auctionAttemptId),
   ],

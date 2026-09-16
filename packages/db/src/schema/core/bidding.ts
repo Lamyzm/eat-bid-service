@@ -187,5 +187,10 @@ export const auctionAttemptLink = coreSchema.table(
       "auction_attempt_link_currency_required_with_amount",
       sql`(${table.baseAmount} is null and ${table.plannedAmount} is null) or ${table.currency} is not null`,
     ),
+    // 사슬 상대의 예정가격도 같은 해석이다: 0은 추첨된 적 없음이고 null로 앉는다(EAT-199).
+    check(
+      "auction_attempt_link_planned_amount_positive",
+      sql`${table.plannedAmount} is null or ${table.plannedAmount} > 0`,
+    ),
   ],
 );

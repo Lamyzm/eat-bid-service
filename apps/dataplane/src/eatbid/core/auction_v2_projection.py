@@ -28,6 +28,7 @@ from eatbid.core.projection_models import (
     bid_rate_decimal,
     instant_datetime,
     money_decimal,
+    observed_planned_amount,
 )
 from eatbid.core.repository import FrozenPublicationMember, ProjectionContractError
 from eatbid.generated.ingestion_v2 import (
@@ -124,7 +125,7 @@ def build_eat_auction_v2_projection(
         deadline_at=instant_datetime(record.schedule.deadline_at),
         opened_at=instant_datetime(record.schedule.opened_at),
         base_amount=money_decimal(record.pricing.base_amount),
-        planned_amount=money_decimal(record.pricing.planned_amount),
+        planned_amount=observed_planned_amount(record.pricing.planned_amount),
         floor_rate=_floor_rate(record),
         currency=_CURRENCY,
         source_payload=canonical_record_object(record),
@@ -217,9 +218,7 @@ def _eligibility_labels(
             raise ProjectionContractError(
                 "projection eligibility area scheme is not reviewed"
             )
-    return {
-        area.code: area.label.root for area in areas if area.label is not None
-    }
+    return {area.code: area.label.root for area in areas if area.label is not None}
 
 
 def _terms_code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef, ...]:
@@ -359,7 +358,7 @@ def _attempt_links(
 
 def _chain_link(link: NormalizedAttemptLink, *, relation: str) -> AttemptLinkProjection:
     base_amount = money_decimal(link.base_amount)
-    planned_amount = money_decimal(link.planned_amount)
+    planned_amount = observed_planned_amount(link.planned_amount)
     currency = next(
         (
             money.currency
@@ -372,7 +371,9 @@ def _chain_link(link: NormalizedAttemptLink, *, relation: str) -> AttemptLinkPro
         to_external_bid_id=link.external_bid_id,
         relation=relation,
         display_bid_no=(
-            link.display_bid_number.root if link.display_bid_number is not None else None
+            link.display_bid_number.root
+            if link.display_bid_number is not None
+            else None
         ),
         source_status=(
             _code(link.source_status) if link.source_status is not None else None

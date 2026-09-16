@@ -66,7 +66,9 @@ function cohortCondition(query: OrganizationAttemptQuery) {
   const methodCondition = method === undefined || method === "all" ? sql`true`
     : method === "unknown" ? sql`summary.award_method_code_value_id is null`
       : sql`summary.award_method_code_value_id = ${method}::bigint`;
+  // 격리된 회차(개찰이 공고보다 45일 넘게 뒤인 원천 날짜 오류)는 관측된 사실이 아니라 화면에 내지 않는다(EAT-199).
   return sql`${floorCondition} and ${methodCondition}
+    and summary.quarantine_reason is null
     and (${query.itemAtom}::text is null or exists (
       select 1
       from mart.org_round_summary_item bridge

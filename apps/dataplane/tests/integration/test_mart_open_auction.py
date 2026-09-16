@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -296,9 +297,7 @@ def test_조직은_관측된_코드로만_잇고_이름으로_만들지_않는�
 
     second_build, _ = build_mart(
         pipeline_services,
-        _plan(
-            pipeline_services, create_source_release(pipeline_services)
-        ),
+        _plan(pipeline_services, create_source_release(pipeline_services)),
         open_auction_snapshot_filler(pipeline_services.store),
     )
     del second_build
@@ -538,3 +537,44 @@ def test_같은_build를_다시_채워도_상세_조인_값이_같다(
     assert (first, second) == (1, 0)
     assert _terms_rows(pipeline_services, build_id) == before
     assert before[bid_id][0] == Decimal("90.125")
+
+
+def test_마감이_관측보다_45일_넘게_먼_목록_행은_스냅샷에_싣지_않는다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """왜 빼는가: 2028년 마감 같은 원천 날짜 오류 행은 `closes_at > now()` 조회에 영원히 남는 유령이 된다(EAT-199).
+
+    관측은 raw에 그대로 있고 스냅샷은 파생물이므로 싣지 않는 것이 격리다.
+    """
+    source_release_id = create_source_release(pipeline_services)
+    far_future = re.sub(
+        rb'(id="BID_END_DT">)\d{14}', rb"\g<1>20300914100000", _list_body()
+    )
+    assert far_future != _list_body()
+    run_id = start_run(pipeline_services, parser_version=LIST_PARSER_VERSION)
+    observation_id = capture_detail(
+        pipeline_services,
+        run_id=run_id,
+        external_bid_id=LISTED_BID_ID,
+        body=far_future,
+        endpoint=LIST_ENDPOINT,
+    )
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            "insert into ingest.source_release_run (source_release_id, run_id) values (%s, %s)",
+            (source_release_id, run_id),
+        )
+        cursor.execute(
+            "insert into ingest.source_release_observation "
+            "(source_release_id, observation_id) values (%s, %s)",
+            (source_release_id, observation_id),
+        )
+    pipeline_services.connection.commit()
+    plan = _plan(pipeline_services, source_release_id)
+
+    build_id, row_count = build_mart(
+        pipeline_services, plan, open_auction_snapshot_filler(pipeline_services.store)
+    )
+
+    assert row_count == 0
+    assert _snapshot_rows(pipeline_services, build_id) == []
