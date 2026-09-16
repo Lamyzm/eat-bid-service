@@ -55,11 +55,16 @@ join ingest.raw_observation o using (observation_id)
 where so.source_release_id = 'd3ae064e-4dff-53ce-af12-99ebec9ee3c4' and o.endpoint = 'bid-detail';
 ```
 
-결과 배열을 `observation-ids-json`에 그대로 넣는다. **크기 상한에 주의한다.** Argo는 Workflow 객체를
-etcd에 두고 1.5 MiB를 넘으면 status 갱신을 거부한다. 파라미터는 `spec.arguments`와 replay task의
-`inputs`, node status에 몇 번 복사되므로 16,410건(약 130 KB)은 들어가지만 그 열 배는 들어가지 않는다.
-한 release가 그보다 크면 관측 id 구간을 나눠 replay Workflow 여러 개로 내되, 각 replay는 자기 run·
-publication을 따로 갖고 같은 canonical revision을 재사용하므로 발행 사실은 중복되지 않는다(ADR 0015).
+결과 배열을 `observation-ids-json`에 넣되 **공백 없이 직렬화한다**(psql의 `json_agg`는 `, `로 잇는다 —
+PowerShell이면 `ConvertTo-Json -Compress`). **크기 상한은 파라미터 값 하나가 128 KiB(131,072바이트) 미만**이다.
+그보다 크면 Argo 컨트롤러가 파드 템플릿을 ConfigMap으로 내리려 하는데 컨트롤러 Role에 configmaps
+`create`가 없어 Workflow가 파드를 띄우기도 전에 `Error`로 끝난다(2026-09-16 실측: 16,469건이 공백 포함
+131,752바이트라 680바이트 넘겨 실패, run·publication 행은 남지 않음). 같은 값이 컨테이너 env 하나로도
+들어가므로 Linux의 인자 문자열 상한(`MAX_ARG_STRLEN`, 128 KiB)과도 같은 선이다. etcd의 1.5 MiB 상한은
+그보다 훨씬 뒤에 있어 실제로는 닿지 않는다.
+한 release가 그보다 크면 관측 id 구간을 나눠 replay Workflow 여러 개로 내되(각 구간에 새 publication-id),
+각 replay는 자기 run·publication을 따로 갖고 같은 canonical revision을 재사용하므로 발행 사실은 중복되지
+않는다(ADR 0015). `eatbid-core-publication` mutex가 replay 단계를 직렬화하므로 동시에 내도 된다.
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
