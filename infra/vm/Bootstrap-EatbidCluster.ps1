@@ -91,13 +91,18 @@ Copy-Secret -Namespace eatbid -Name eatbid-auth
 
 # migration Job·server·web은 default ServiceAccount로 돌고 manifest에 imagePullSecrets가 없다. 옛 클러스터는 이
 # SA를 손으로 패치해 두었고 그것이 미기록 자산이었다. 여기서 같은 패치를 기록된 절차로 남긴다.
-# 후속: infra/product manifest가 imagePullSecrets를 직접 선언하면 이 패치는 지운다.
+# 후속: infra/base manifest가 imagePullSecrets를 직접 선언하면 이 패치는 지운다.
 kubectl --context $TargetContext -n eatbid patch serviceaccount default -p '{"imagePullSecrets":[{"name":"ghcr-pull"}]}' | Out-Null
 
 # platform(Argo Workflows·Infisical operator) → product(eatbid) 순서. product는 InfisicalSecret CRD를 쓰므로
 # operator가 먼저 있어야 한다. Argo CD가 재시도하므로 순서는 시작 시간만 줄인다.
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\infisical-secrets-operator.application.yaml')
 kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\argo-workflows.application.yaml')
+# 관측 화면 셋(EAT-174). product 뒤에 와도 되지만 같은 namespace의 Secret(eatbid-r2·eatbid-observability)을
+# 읽으므로 product가 InfisicalSecret을 만든 뒤에 첫 sync를 걸어야 파드가 뜬다.
+kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\openobserve.application.yaml')
+kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\fluent-bit.application.yaml')
+kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\platform\grafana.application.yaml')
 # platform Application 둘은 automated 정책이 없다(운영 승인 뒤 수동 sync가 설계). 새 클러스터의 첫 sync는
 # 부트스트랩의 일부이므로 여기서 시작한다. 아래 Healthy 대기보다 앞에 있어야 한다 — 뒤에 두면 sync가 시작되지
 # 않아 대기가 600초 뒤 실패한다(2026-09-10 새 PC 실측, EAT-129). 이후 chart 버전 변경은 승인 뒤 같은 방식으로 sync한다.
@@ -109,13 +114,19 @@ foreach ($app in 'infisical-secrets-operator', 'argo-workflows') {
 # 문제다. 그래서 InfisicalSecret 선언을 Application보다 먼저 적용한다. operator가 이미 있어야 하므로 platform
 # sync 뒤에 온다. Argo가 같은 manifest를 다시 관리하므로 중복 소유는 아니다.
 kubectl --context $TargetContext -n argocd wait application/infisical-secrets-operator --for=jsonpath='{.status.health.status}'=Healthy --timeout=600s | Out-Null
-kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\product\secrets.yaml') | Out-Null
+kubectl --context $TargetContext apply -f (Join-Path $RepoRoot 'infra\base\secrets.yaml') | Out-Null
+
+# 관측 화면 셋은 위 InfisicalSecret이 만든 eatbid-observability·eatbid-r2 Secret을 읽는다. 그래서 platform
+# 둘보다 뒤, Secret 적용 뒤에 첫 sync를 건다(EAT-174).
+foreach ($app in 'openobserve', 'fluent-bit', 'grafana') {
+  kubectl --context $TargetContext -n argocd patch application $app --type merge -p '{"operation":{"initiatedBy":{"username":"bootstrap"},"sync":{"prune":true}}}' | Out-Null
+}
 
 # 같은 순서 문제의 두 번째 얼굴: PreSync migration Job은 DB가 있어야 하는데 postgres Deployment는 본 동기화가
 # 만든다. 빈 클러스터에서는 Job이 먼저 돌아 backoff로 실패하고 sync가 멈춘다. 그래서 렌더된 product
 # manifest에서 postgres Deployment·Service·PVC만 먼저 적용하고 Ready를 기다린다. 값은 Argo가 관리하는 것과
 # 같은 manifest이므로 이후 sync에서 drift가 없다. 근본 해결(migration을 Sync phase + sync-wave로)은 EAT-51.
-$rendered = kubectl kustomize (Join-Path $RepoRoot 'infra\product')
+$rendered = kubectl kustomize (Join-Path $RepoRoot 'infra\envs\prod')
 $postgresOnly = @()
 $current = @()
 foreach ($line in ($rendered + '---')) {
@@ -133,7 +144,7 @@ kubectl --context $TargetContext -n eatbid rollout status deploy/postgres --time
 # 커넥터가 둘이 되고, 아직 server·web이 없는(migration hook 대기) 새 클러스터로 간 요청이 traefik 503을 받는다
 # (2026-09-10 새 PC 이전에서 약 10분 노출, EAT-129). 데이터 이전이 끝난 뒤 cutover 단계에서 원본 application.yaml
 # (automated)을 다시 적용해 첫 sync가 데이터 있는 상태에서 돌게 한다(docs/operations/k3s-hyperv-vm.md §5).
-$application = kubectl create -f (Join-Path $RepoRoot 'infra\argocd\application.yaml') --dry-run=client -o json | ConvertFrom-Json
+$application = kubectl create -f (Join-Path $RepoRoot 'infra\argocd\prod.application.yaml') --dry-run=client -o json | ConvertFrom-Json
 $application.spec.PSObject.Properties.Remove('syncPolicy')
 ($application | ConvertTo-Json -Depth 20) | kubectl --context $TargetContext apply -f - | Out-Null
 Write-Host 'eatbid Application을 자동 sync 없이 적용했다. 데이터 이전 뒤 cutover에서 application.yaml을 다시 적용한다'

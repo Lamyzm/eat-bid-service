@@ -14,6 +14,7 @@ from eatbid.cli.arguments import build_parser as build_argument_parser
 from eatbid.cli.chunks import CHUNK_COMMANDS, chunk_payload, run_chunk_command
 from eatbid.config import ApplicationSettings
 from eatbid.core.code_release_projection import CodeReleaseProjectionResult
+from eatbid.core.code_vocabulary_projection import CodeVocabularyProjectionResult
 from eatbid.failures.categories import (
     CONFIGURATION,
     DATA_QUARANTINED,
@@ -27,6 +28,8 @@ from eatbid.failures.report import render_failure
 from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
 from eatbid.monitoring.runner import MonitoringResult
+from eatbid.pipeline.advance import BackfillWindow
+from eatbid.pipeline.code_vocabulary import CodeVocabularyCaptureResult
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
 
@@ -61,8 +64,11 @@ class CliApplication(Protocol):
     def build_marts(self, args: argparse.Namespace) -> object: ...
     def capture_reference(self, args: argparse.Namespace) -> object: ...
     def project_reference(self, args: argparse.Namespace) -> object: ...
+    def capture_code_vocabulary(self, args: argparse.Namespace) -> object: ...
+    def project_code_vocabulary(self, args: argparse.Namespace) -> object: ...
     def fail_release(self, args: argparse.Namespace) -> object: ...
     def check_expectations(self, args: argparse.Namespace) -> object: ...
+    def next_backfill_window(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[
@@ -114,6 +120,18 @@ def _emit(payload: Mapping[str, object], args: argparse.Namespace) -> None:
 def _machine_result(method_name: str, result: object) -> dict[str, object] | None:
     if result is None:
         return None
+    if method_name == "next_backfill_window":
+        # 워크플로가 이 셋을 output parameter로 읽어 다음 단계에 넘긴다. 고를 창이 없으면 has_window가
+        # 거짓이고 뒤 단계는 실행되지 않는다.
+        if result is None:
+            return {"has_window": False, "start_date": "", "end_date": ""}
+        if not isinstance(result, BackfillWindow):
+            raise TypeError("next-backfill-window returned an invalid result")
+        return {
+            "has_window": True,
+            "start_date": result.start_date,
+            "end_date": result.end_date,
+        }
     if method_name == "discover":
         if not isinstance(result, DiscoveryResult):
             raise TypeError("discover returned an invalid result")
@@ -158,6 +176,30 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "member_count": result.member_count,
             "members_without_parent": result.members_without_parent,
         }
+    if method_name == "capture_code_vocabulary":
+        if not isinstance(result, CodeVocabularyCaptureResult):
+            raise TypeError("capture-code-vocabulary returned an invalid result")
+        # 옮기지 못한 행 수를 실행 결과로 남긴다. 어휘가 통째로 활성 이름이 되므로 빠뜨린 행이
+        # 조용하면 화면은 이름 없는 코드를 "아직 안 받은 것"으로 오해한다.
+        return {
+            "content_sha256": result.content_sha256,
+            "observation_id": result.observation_id,
+            "source_release_id": str(result.source_release_id),
+            "entry_count": result.entry_count,
+            "excluded_row_count": result.excluded_row_count,
+            "release_name": result.release_name,
+        }
+    if method_name == "project_code_vocabulary":
+        if not isinstance(result, CodeVocabularyProjectionResult):
+            raise TypeError("project-code-vocabulary returned an invalid result")
+        # 소스가 그만 쓴다고 말한 코드 수를 함께 남긴다. 조용히 내려가면 화면에서 사라진 선택지가
+        # 왜 사라졌는지 되짚을 자리가 없다.
+        return {
+            "entry_count": result.entry_count,
+            "inserted_code_values": result.inserted_code_values,
+            "inserted_labels": result.inserted_labels,
+            "deactivated_code_values": result.deactivated_code_values,
+        }
     if method_name == "fail_release":
         if not isinstance(result, FailedSourceRelease):
             raise TypeError("fail-release returned an invalid result")
@@ -179,6 +221,10 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "opened": list(result.opened),
             "resolved": list(result.resolved),
             "still_open": list(result.still_open),
+            # 밖으로 나간 심장박동. skipped와 sent를 구분해 남겨야 "URL이 없어서 안 나갔다"가 로그에서
+            # 보인다 — 그 상태로 운영에 오래 있으면 바깥 감시가 켜져 있다고 믿는 채로 눈이 먼다.
+            "heartbeat": result.heartbeat,
+            "round_recorded": result.round_recorded,
         }
     if method_name == "build_marts":
         if not isinstance(result, tuple) or any(
@@ -202,12 +248,18 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
 
 def _write_result_files(result_dir: Path, payload: Mapping[str, object]) -> None:
     """왜: workflow 실행기는 stdout이 아니라 파일에서 output parameter를 읽으므로 machine result의
-    key마다 파일 하나를 둔다. 목록 값은 JSON 배열이라 그대로 fan-out 입력이 된다."""
+    key마다 파일 하나를 둔다. 목록 값은 JSON 배열이라 그대로 fan-out 입력이 된다.
+
+    불리언도 JSON으로 적는다. `str(True)`는 `True`이고 Argo의 `when`은 `true`와 비교하므로 파이썬
+    표기를 그대로 내보내면 조건이 언제나 거짓이 된다. 2026-09-14~15에 전진 cron이 28시간 동안 매시
+    `Succeeded`로 끝나면서 `when 'True == true' evaluated false`로 본 단계를 통째로 건너뛰었다.
+    실패가 아니라 성공으로 보였기 때문에 어떤 감시도 그것을 잡지 못했다.
+    """
     result_dir.mkdir(parents=True, exist_ok=True)
     for key, value in payload.items():
         text = (
             json.dumps(value, separators=(",", ":"), sort_keys=True)
-            if isinstance(value, list | dict)
+            if isinstance(value, bool | list | dict)
             else str(value)
         )
         (result_dir / key).write_text(text, encoding="utf-8")
@@ -225,18 +277,21 @@ COMMAND_METHODS: Mapping[str, str] = {
     "build-marts": "build_marts",
     "capture-reference": "capture_reference",
     "project-reference": "project_reference",
+    # eaT가 자기 코드에 붙여 부르는 이름을 받아 core 어휘에 앉힌다. 공고 수집 DAG와 같은 이미지·같은
+    # run 정체성을 쓰되 발견·발행 corpus가 없어 두 단계로 끝난다(EAT-187).
+    "capture-code-vocabulary": "capture_code_vocabulary",
+    "project-code-vocabulary": "project_code_vocabulary",
     # 운영자 entrypoint다. DAG 단계가 아니라 사람이 planned release를 닫을 때만 부른다(EAT-122).
     "fail-release": "fail_release",
     # 스케줄 entrypoint다. 수집 상태를 바꾸지 않고 기대만 평가해 위반을 알린다(EAT-170, ADR 0046).
     "check-expectations": "check_expectations",
+    # 예약 entrypoint다. 커버리지 사실만 읽어 다음에 채울 창 하나를 고르고 아무것도 바꾸지 않는다
+    # (EAT-209, ADR 0052 결정 4).
+    "next-backfill-window": "next_backfill_window",
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {
-    name: (
-        _chunk_handler(name, method)
-        if name in CHUNK_COMMANDS
-        else _handler(method)
-    )
+    name: (_chunk_handler(name, method) if name in CHUNK_COMMANDS else _handler(method))
     for name, method in COMMAND_METHODS.items()
 }
 
@@ -254,9 +309,7 @@ def main(
     args = build_parser().parse_args(argv)
     try:
         settings = (
-            settings
-            if settings is not None
-            else ApplicationSettings.model_validate({})
+            settings if settings is not None else ApplicationSettings.model_validate({})
         )
         factory = application_factory
         if factory is None:

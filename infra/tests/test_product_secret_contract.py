@@ -33,6 +33,9 @@ EXPECTED_SECRET_PATHS = {
     # 감시가 위반을 사람에게 보내는 경로. 봇 토큰은 환경 사이에 공유하고 대상 방만 환경별로 다르다.
     # 유출돼도 그 방에 글을 쓰는 것 말고는 못 한다 — 클러스터나 DB에 닿지 않는다(ADR 0046 결정 6).
     "eatbid-alerting": "/runtime/alerting",
+    # 관측 화면 셋의 자격(Grafana 관리자·eatbid_grafana 비밀번호·OpenObserve 루트). 클러스터 안 화면에만
+    # 닿고 원본·업무 사실을 쓰지 못한다(EAT-174).
+    "eatbid-observability": "/runtime/observability",
 }
 
 
@@ -57,7 +60,7 @@ def _infisical_secrets(manifests: ManifestSet) -> tuple[dict[str, Any], ...]:
     return manifests.of_kind("InfisicalSecret")
 
 
-def test_product_render가_선언한_InfisicalSecret_여섯을_그대로_갖는다(
+def test_product_render가_선언한_InfisicalSecret_여덟을_그대로_갖는다(
     manifests: ManifestSet,
 ) -> None:
     declared = {

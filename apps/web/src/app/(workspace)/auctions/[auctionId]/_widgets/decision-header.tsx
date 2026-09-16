@@ -54,7 +54,7 @@ export function DecisionHeader({ decision }: { readonly decision: DecisionPresen
   const deadline = deadlineFact(decision);
   return (
     <div className='grid min-w-0 gap-2'>
-      <div className='flex flex-wrap items-center gap-2'>
+      <div data-slot='decision-context-label' className='flex flex-wrap items-center gap-2'>
         <span className='text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>검토 중인 공고</span>
         <span
           data-slot='decision-status'

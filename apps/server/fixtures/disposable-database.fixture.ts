@@ -16,7 +16,7 @@ export const repositoryRoot = resolve(import.meta.dir, "../../..");
 export const migrationFolder = resolve(repositoryRoot, "packages/db/drizzle");
 // 배포되는 권한 선언 그 자체를 실행한다. fixture가 GRANT를 따로 적으면 readiness 계약이 통과해도
 // 클러스터에 같은 권한이 선다는 보장이 없어진다(2026-09-04 server 503, 2026-09-05 dataplane exit 64).
-export const provisioningSqlPath = resolve(repositoryRoot, "infra/product/db-provisioning.sql");
+export const provisioningSqlPath = resolve(repositoryRoot, "infra/base/db-provisioning.sql");
 const provisioningSql = readFileSync(provisioningSqlPath, "utf8");
 const postgresImage = "postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416";
 
@@ -145,6 +145,8 @@ export function disposableDatabase(options: DisposableDatabaseOptions) {
         create role eatbid_api login password 'api-test-secret'
           nosuperuser nocreatedb nocreaterole noinherit;
         create role eatbid_dataplane login password 'dataplane-test-secret'
+          nosuperuser nocreatedb nocreaterole noinherit;
+        create role eatbid_grafana login password 'grafana-test-secret'
           nosuperuser nocreatedb nocreaterole noinherit;
       `);
       await owner.unsafe(provisioningSql);

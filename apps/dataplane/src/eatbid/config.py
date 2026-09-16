@@ -82,6 +82,17 @@ class ApplicationSettings(BaseSettings):
         None, validation_alias="TELEGRAM_BOT_TOKEN", repr=False
     )
     telegram_chat_id: str | None = Field(None, validation_alias="TELEGRAM_CHAT_ID")
+    # `owner/repo`. 비어 있으면 CI·발행 기대를 아예 평가하지 않는다. 배포 파이프라인을 보는 눈은 prod
+    # 클러스터 하나면 충분하고, dev까지 같은 저장소를 보면 같은 사고를 두 번 알린다.
+    github_repository: str | None = Field(
+        None, validation_alias="EATBID_GITHUB_REPOSITORY"
+    )
+    # 클러스터 밖 dead man's switch의 핑 URL. 경로에 토큰이 들어 있어 사실상 쓰기 자격이므로 SecretStr이다.
+    # 선택인 이유는 텔레그램과 같다 — 수집 파드는 이 값 없이 떠야 한다. 감시 회차가 끝까지 끝난 뒤에만
+    # 친다(monitoring/heartbeat.py).
+    heartbeat_url: SecretStr | None = Field(
+        None, validation_alias="EATBID_HEARTBEAT_URL", repr=False
+    )
 
     @field_validator("database_url")
     @classmethod

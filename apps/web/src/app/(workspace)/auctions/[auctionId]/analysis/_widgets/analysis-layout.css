@@ -1,0 +1,168 @@
+/* @module 책임: 토스 토큰으로 연속 분석 지면과 상단 고정 조건, 화면 전체를 쓰는 분석 영역을 배치한다. */
+.analysis-screen {
+  --analysis-padding: clamp(18px, 2.5vw, 36px);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  background: var(--background);
+  color: var(--foreground);
+}
+.analysis-screen > [data-slot='analysis-header'] {
+  padding: 28px var(--analysis-padding) 26px;
+}
+[data-slot='analysis-sticky'] {
+  position: sticky;
+  top: var(--workspace-header-height);
+  z-index: 12;
+  background: var(--background);
+  border-block: 1px solid var(--border);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+.analysis-tabs-row {
+  min-height: 58px;
+  padding: 0 var(--analysis-padding);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.analysis-tabs-row [role='tab'] {
+  position: relative;
+  min-height: 58px;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.analysis-tabs-row [role='tab'][aria-selected='true'] {
+  color: var(--primary);
+}
+.analysis-tabs-row [role='tab'][aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--primary);
+}
+.analysis-tabs-row [role='tab']:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -4px;
+  border-radius: 4px;
+}
+.analysis-filter-form {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding: 14px var(--analysis-padding);
+  max-height: 60dvh;
+  overflow-y: auto;
+}
+.analysis-filter-help[open] {
+  flex-basis: 100%;
+}
+[data-slot='analysis-evidence'] {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 490px;
+  border-bottom: 1px solid var(--border);
+}
+.analysis-context-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 26px var(--analysis-padding) 10px;
+}
+.analysis-context-row > :first-child {
+  min-width: 0;
+  flex: 1;
+}
+.analysis-method-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.analysis-method-panel[hidden] {
+  display: none;
+}
+.analysis-empty-plot {
+  display: flex;
+  flex: 1;
+  min-height: 300px;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  text-align: center;
+}
+.analysis-history-heading {
+  padding: 30px var(--analysis-padding) 22px;
+}
+.analysis-history-scroll {
+  overflow-x: auto;
+}
+.analysis-history-table {
+  width: 100%;
+  min-width: 740px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.analysis-history-table th {
+  padding: 14px 20px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  text-align: left;
+  font-weight: 500;
+}
+.analysis-history-table th:first-child {
+  padding-left: var(--analysis-padding);
+}
+.analysis-history-table td {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+.analysis-screen[data-workspace-fullscreen='true'] {
+  height: 100dvh;
+  overflow: hidden;
+}
+.analysis-screen[data-workspace-fullscreen='true'] > [data-slot='analysis-header'],
+.analysis-screen[data-workspace-fullscreen='true'] > [data-slot='analysis-history'] {
+  display: none;
+}
+.analysis-screen[data-workspace-fullscreen='true'] > [data-slot='analysis-sticky'] {
+  position: static;
+  flex-shrink: 0;
+  border-top: 0;
+}
+.analysis-screen[data-workspace-fullscreen='true'] .analysis-filter-form {
+  max-height: 32dvh;
+}
+.analysis-screen[data-workspace-fullscreen='true'] > [data-slot='analysis-evidence'] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.analysis-screen[data-workspace-fullscreen='true'] .analysis-empty-plot {
+  min-height: 120px;
+}
+@media (max-width: 700px) {
+  .analysis-tabs-row > span {
+    display: none;
+  }
+  .analysis-tabs-row {
+    min-height: 52px;
+  }
+  .analysis-tabs-row [role='tab'] {
+    min-height: 52px;
+    font-size: 14px;
+  }
+  .analysis-context-row {
+    padding-top: 22px;
+  }
+}

@@ -222,7 +222,8 @@ describe("canonical OpenAPI 산출물", () => {
       .toMatchObject({ allOf: [{ $ref: "#/components/schemas/ObservedBidRate" }], nullable: true });
     expect(document.components.schemas.OrganizationAuctionAttempt.properties.floorRate)
       .toMatchObject({ allOf: [{ $ref: "#/components/schemas/BidRate" }], nullable: true });
-    expect(document.components.schemas.ObservedBidRateText).toMatchObject({ type: "string", maxLength: 16 });
+    // 음수 관측(-999999999999.999)까지 17자다(ADR 0053).
+    expect(document.components.schemas.ObservedBidRateText).toMatchObject({ type: "string", maxLength: 17 });
     expect(document.components.schemas.BidRateText).toMatchObject({ type: "string", maxLength: 7 });
   });
 

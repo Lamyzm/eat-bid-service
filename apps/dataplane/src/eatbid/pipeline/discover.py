@@ -48,6 +48,9 @@ class DiscoveryPlan:
     region_code: str
     page_size: int
     page_budget: int
+    # 이 발견을 돌린 Argo Workflow 이름. run 행에 남겨 알림·R2 로그·릴리스를 잇는다(EAT-231). 워크플로
+    # 밖(테스트·수동 실행)에서는 없으며 그것은 결함이 아니다.
+    workflow_name: str | None = None
 
     def __post_init__(self) -> None:
         if not all(
@@ -163,27 +166,50 @@ def discover_release(
         rows.extend(page.rows)
         seen = set(page.external_bid_ids)
 
+        # 소스는 최신순으로 주고 페이지가 정확히 이어진다(2026-09-14 원본 실측). 그래서 순회 중 목록이
+        # 자라면 새 공고가 맨 앞에 붙고 전체가 뒤로 밀려, 경계의 한 건이 두 번 읽힌다. 우리가 모은 집합은
+        # 페이지 1을 읽은 시점의 목록 그대로이며 빠진 건이 없다.
+        #
+        # 줄어드는 쪽은 다르다. 한 건이 목록에서 빠지면 뒤가 앞으로 당겨지고 경계의 한 건을 아무 신호
+        # 없이 놓친다. 그래서 이 방향만 실패로 닫는다(EAT-212).
+        latest_total = total_count
+        drift_pages = 0
         for page_number in range(2, required_pages + 1):
             observation, current = _fetch_page(
                 plan, page_number, repository, client
             )
             observations.append(observation)
-            if current.total_count != total_count:
-                raise SourceContractError("discovery total count changed between pages")
+            if current.total_count < latest_total:
+                raise SourceContractError("discovery total count shrank between pages")
+            if current.total_count > latest_total:
+                latest_total = current.total_count
+                drift_pages += 1
             _require_page_size(
                 current.external_bid_ids,
                 page_number,
                 required_pages,
                 total_count,
                 plan.page_size,
+                grew=drift_pages > 0,
             )
             duplicates = seen.intersection(current.external_bid_ids)
-            if duplicates:
+            # 목록이 자라지 않았는데 같은 ID가 두 페이지에 있으면 그것은 밀림이 아니라 소스가 같은 공고를
+            # 두 번 실은 것이다. 그 경우만 계약 위반으로 닫는다.
+            if duplicates and drift_pages == 0:
                 raise SourceContractError("discovery contains duplicate source IDs")
-            seen.update(current.external_bid_ids)
-            source_ids.extend(current.external_bid_ids)
-            rows.extend(current.rows)
+            fresh = tuple(
+                source_id
+                for source_id in current.external_bid_ids
+                if source_id not in seen
+            )
+            seen.update(fresh)
+            source_ids.extend(fresh)
+            rows.extend(
+                row for row in current.rows if row.external_bid_id in set(fresh)
+            )
 
+        # 비교 대상은 마지막에 본 총수가 아니라 페이지 1의 총수다. 자란 만큼은 우리가 읽기 전에 앞에
+        # 붙었으므로 이 회차의 집합에 들어오지 않는다. 그 사실은 drift로 남기고 다음 회차가 가져간다.
         if len(source_ids) != total_count:
             raise SourceContractError("discovery row total differs from source count")
         ordered_ids = tuple(sorted(source_ids, key=int))
@@ -270,13 +296,25 @@ def _require_page_size(
     required_pages: int,
     total_count: int,
     page_size: int,
+    *,
+    grew: bool = False,
 ) -> None:
-    expected = (
+    """마지막 페이지는 목록이 자란 만큼 더 실려 온다. 자라지 않았을 때만 정확한 수를 요구한다.
+
+    왜 상한만 보나. 목록이 커지면 마지막 페이지의 행 수가 `total_count`에서 계산한 값보다 커지는데
+    (2026-09-14 실측: 156 대신 157) 그것은 소스가 계약을 어긴 것이 아니라 그 사이 공고가 하나 올라온
+    것이다. 페이지 크기 자체는 여전히 상한이며 그것을 넘으면 계약 위반이다(EAT-212).
+    """
+    exact = (
         page_size
         if page_number < required_pages
         else total_count - page_size * (required_pages - 1)
     )
-    if len(source_ids) != expected:
+    if grew and page_number == required_pages:
+        if not exact <= len(source_ids) <= page_size:
+            raise SourceContractError("discovery page row count is out of range")
+        return
+    if len(source_ids) != exact:
         raise SourceContractError("discovery page row count is not exact")
 
 

@@ -2,7 +2,7 @@
 id: RUNTIME-AND-DEPLOYMENT
 status: active
 canonical_for: argo-runtime-execution-and-deployment-topology
-last_reviewed: 2026-09-11
+last_reviewed: 2026-09-16
 review_trigger: argo-cd-or-workflows-topology-cluster-move-or-release-path-change
 ---
 
@@ -67,7 +67,7 @@ unique가 두 번째 봉인을 막으므로 재실행이 안전하다.
 |---|---|---|
 | `poll-open` | 열린 공고·변경을 업무시간에 짧은 지연으로 반영. 상세는 목록 신호가 바뀐 공고만 다시 부른다(§2.4) | 평일 08:00~19:50 KST 10분 간격(§2.5). 신규 공고 노출 SLO 15분 |
 | `daily-reconcile` | 전체 상태·변경·개찰·낙찰을 재대조. 창 안 공고 전부의 상세를 부르는 강제 재호출이다 | 일 1회 |
-| `backfill` | 날짜×지역×상태 범위를 수동/운영 승인으로 채움 | ad hoc |
+| `backfill` | 날짜×지역×상태 범위를 채움. 창을 고르는 판단은 사람이 아니라 예약이 하고 사람은 floor date를 선언한다([ADR 0052](../adr/0052-backfill-progress-recovery-and-advance.md)) | 전진 CronWorkflow |
 | `replay` | 기존 raw를 새 parser/projector version으로 재해석 | ad hoc |
 | `reference` | 정부 공개 코드 파일을 새 code release로 적재 | 월 1회 (`reference-pipeline` entrypoint) |
 
@@ -253,7 +253,7 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   전송 중단·decoding 실패·크기 초과는 다시 보내도 같은 결론이라 즉시 중단한다. 상한은 manifest가
   아니라 `SOURCE_RETRY_*` 설정이 소유한다(2026-09-06 backfill 실측, EAT-72).
 - **backfill은 정기 수집과 다른 source semaphore key를 쓴다**(`eatbid-source-backfill` vs
-  `eatbid-source-live`, `infra/product/workflows/semaphore.yaml`, 2026-09-11 EAT-164). 처음에는
+  `eatbid-source-live`, `infra/base/workflows/semaphore.yaml`, 2026-09-11 EAT-164). 처음에는
   `spec.priority`로 같은 semaphore 큐 안에서 backfill보다 앞세우는 방식이었다(2026-09-07, EAT-93).
   그런데 2026-09-10 18:53 poll-open 회차는 그 priority를 가진 채로도 discover 이후 상세 수집
   10묶음 중 8개가 backfill chunk(기본 priority 0) 뒤에서 2시간 대기하다 끝났다 — "대기 큐는 priority
@@ -365,7 +365,7 @@ GitHub monorepo
 - 환경에서 mutable `latest`를 쓰지 않고 digest로 고정한다.
 - migration은 동일 커밋에서 만든 image를 Argo CD Sync hook 또는 동등한 단일 실행 Job으로
   적용하며 timeout과 실패 상태를 가진다.
-- 런타임 역할의 권한도 저장소가 소유한다. `infra/product/db-provisioning.sql` 하나가 권위이고
+- 런타임 역할의 권한도 저장소가 소유한다. `infra/base/db-provisioning.sql` 하나가 권위이고
   hook Job이 migration 뒤·앱 앞 sync-wave에서 멱등하게 적용한다. 역할 생성과 비밀번호만 사람 단계로
   남으며, 사람이 psql로 넣은 GRANT는 다음 sync에 이 파일의 상태로 되돌아간다.
 - 애플리케이션은 기대 schema migration/version을 시작 시 확인한다.
@@ -375,7 +375,7 @@ GitHub monorepo
   하나라도 있으면 PostgreSQL이 단순 `CREATE TABLE ... PARTITION OF`를 거부하므로 그 순서를 문서가
   아니라 마이그레이션 파일이 소유한다
   ([ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §3). 파티션 자식도 `core`
-  스키마의 관계이므로 `infra/product/db-provisioning.sql`의 default privileges가 함께 따라오는지
+  스키마의 관계이므로 `infra/base/db-provisioning.sql`의 default privileges가 함께 따라오는지
   같은 변경에서 확인한다.
 - Workflow CRD/controller 같은 플랫폼 수명주기와 제품 배포를 별도 Argo CD application으로 둔다.
 - 초기에는 Argo Events, 내장 MinIO, 별도 workflow archive DB를 추가하지 않는다.
@@ -391,10 +391,35 @@ release/v<semver> annotated tag push
   → build.yml preflight   tag가 annotated이고 peel한 commit이 현재 origin/main HEAD인지 확인
   → build.yml test/build  image 4종 build · scan · GHCR push · cosign sign/attest/verify
   → build.yml promote     main을 checkout해 release commit인지 확인한 뒤
-                          digest를 infra/product/kustomization.yaml에 커밋하고 deploy/prod로 옮김
-  → Argo CD               deploy/prod의 infra/product를 동기화
+                          digest를 infra/envs/prod/kustomization.yaml에 커밋하고 deploy/prod로 옮김
+  → Argo CD               deploy/prod의 infra/envs/prod를 동기화
+
+main 병합
+  → dev-image.yml build   image 4종 build · GHCR push(main-<sha>, 서명 없음)
+  → dev-image.yml promote digest를 infra/envs/dev/kustomization.yaml에 커밋하고 deploy/dev로 옮김
+  → Argo CD               deploy/dev의 infra/envs/dev를 동기화
 ```
 
+- **환경은 둘이고 레인도 둘이다**([ADR 0051](../adr/0051-dev-overlay-and-unsigned-main-image-lane.md)).
+  공통 manifest는 `infra/base`가 소유하고 `infra/envs/{prod,dev}`는 값만 다르다. prod는 서명된 release
+  태그가 움직이고 dev는 main 병합이 움직인다. 두 레인은 서로의 overlay 파일을 건드리지 않는다.
+- **dev는 eaT를 부르지 않는다.** 소스에 붙는 클러스터는 하나뿐이어야 하므로 dev overlay가 CronWorkflow
+  전부를 suspend한다. 백업과 감시까지 멈추는 이유는 알림 방이 하나라서 dev가 울리면 운영 알림과 섞이기
+  때문이다.
+- **경로 전환은 두 단계였다.** Argo CD Application이 `prune: true`로 옛 `infra/product`를 보고 있어서
+  경로를 한 번에 옮기면 Argo가 "선언된 것이 없다"로 읽고 운영 리소스를 지운다. 그래서 v0.1.33까지
+  `infra/product`를 `infra/envs/prod`의 별칭으로 남겨 두 경로가 같은 것을 렌더하게 했고, 2026-09-16에
+  Application을 `infra/envs/prod`로 바꾼 뒤(diff는 path 한 줄, prune 0) 별칭을 지웠다. 같은 함정을 다시
+  만들지 않도록 `infra/tests/test_env_overlays.py`가 별칭이 없음을 지킨다.
+
+- **릴리스 중에는 병합하지 않는다.** promote는 태그 커밋이 그 시점 `origin/main`과 같을 때만 승격하므로,
+  빌드 12분 사이에 PR이 병합되면 발행이 버려진다(v0.1.30, 2026-09-15). 태그는 `pnpm workflow:tag -- vX.Y.Z`로
+  만들며, 이 명령은 release 빌드가 돌고 있거나 auto-merge가 켜진 PR이 열려 있으면 태그를 만들지 않는다
+  (EAT-233). cosign 서명·attest는 GitHub OIDC 일시 장애에 세 번까지 스스로 다시 시도한다.
+- **태그는 검증된 커밋에만 붙는다.** PR 검사가 초록이어도 병합 커밋의 `main` 회차는 따로 돌고, v0.1.36은 그
+  회차가 실패로 끝난 2분 뒤에 태그됐다(main은 9월 11일부터 빨간 채로 v0.1.33~36이 나갔다). 그래서
+  `workflow:tag`는 `origin/main` HEAD 커밋의 `validate.yml` 회차가 `success`일 때만 태그를 만든다. 장애를 고치는
+  배포까지 막으면 안 되므로 `--hotfix "<사유>"`를 주면 통과하되, 사유가 annotated tag 메시지에 남는다(EAT-242).
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
   pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
   권위인 이유는 이제 branch를 못 막아서가 아니라 prod가 매 병합마다 움직이면 안 되기 때문이다. 불변
@@ -402,22 +427,22 @@ release/v<semver> annotated tag push
 - **검증은 질문이 다른 세 고리다.** 작업 중(커밋 훅, 변경 범위)·병합 전(CI, pull request)·릴리스(CI,
   tag). 같은 검사를 두 고리에서 돌리지 않으며, 로컬 push 게이트는 판정자가 아니라 main 직접 push를 먼저
   거절하는 안내다.
-- **배포 대상은 `deploy/prod`의 `infra/product` 하나다.** `infra/k8s/base`는 product overlay가 참조하는
+- **배포 대상은 `deploy/prod`의 `infra/envs/prod` 하나다.** `infra/base`는 overlay가 참조하는
   기반일 뿐 직접 동기화 대상이 아니다. base만 보면 WorkflowTemplate·CronWorkflow·migration Job·Secret
   참조가 클러스터에 존재하지 않는다.
 - **운영이 보는 ref는 `main`이 아니다.** `main`은 서버가 보호해 pull request만 받으므로 릴리스 workflow가
   digest를 거기 쓸 수 없다. digest는 기계가 소유한 `deploy/prod`로 가고 Argo CD가 그것을 본다
   ([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md) 결정 1). 그래서 `main`의
-  `infra/product`를 고쳐도 운영은 즉시 움직이지 않는다. 운영은 릴리스가 `deploy/prod`를 옮길 때만 바뀐다.
+  `infra/envs/prod`를 고쳐도 운영은 즉시 움직이지 않는다. 운영은 릴리스가 `deploy/prod`를 옮길 때만 바뀐다.
   `deploy/prod`는 파생 ref이며 지워져도 릴리스 태그에서 다시 만들 수 있다.
 - annotated tag를 push하면 `github.sha`가 commit이 아니라 tag object일 수 있다. image tag, `GIT_SHA`,
   revision label, SLSA `gitCommit`, promotion guard는 모두 preflight가 peel해 낸 commit 하나를 쓴다.
 - promote는 `git push origin HEAD:main` normal push다. tag 발행 뒤 `main`이 움직였다면 preflight 비교나
   non-fast-forward에서 멈추고, promote commit 자체는 tag가 아니므로 다시 빌드를 시작하지 않는다.
-- 비밀값은 Infisical이 소유하고 클러스터는 사본을 받는다. `infra/product/secrets.yaml`의 InfisicalSecret이
+- 비밀값은 Infisical이 소유하고 클러스터는 사본을 받는다. `infra/base/secrets.yaml`의 InfisicalSecret이
   경로와 Secret 이름만 선언하며 값은 저장소에 들어가지 않는다. operator 자신의 universal auth 자격증명만
   클러스터에 수동으로 두고 같은 값을 `prod:/platform/kubernetes`에 복구용으로 보관한다.
-- repository manifest 변경과 live cluster apply는 서로 다른 단계다. `infra/argocd/application.yaml`을
+- repository manifest 변경과 live cluster apply는 서로 다른 단계다. `infra/argocd/prod.application.yaml`을
   커밋해도 클러스터의 Application은 그대로이며, 실제 전환은 별도 승인 뒤 `kubectl apply`로 이뤄진다.
   절차는 [main-authority-cutover.md](../operations/main-authority-cutover.md)를 따른다.
 
@@ -486,7 +511,7 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
   ADR 0032 §12를 고치는 일이다.
 - 인증·권한 기능의 인수 검증은 운영 PostgreSQL과 `eatbid_api` 역할이 아니라 격리된 일회용
   PostgreSQL에서 한다. 운영 DB에 대고 검증하면 새 migration·역할·권한이 검증 대상이 아니라 사고가 된다.
-  fixture는 커밋된 migration과 배포되는 `infra/product/db-provisioning.sql`을 그대로 실행하는
+  fixture는 커밋된 migration과 배포되는 `infra/base/db-provisioning.sql`을 그대로 실행하는
   `apps/server/fixtures/disposable-database.fixture.ts`를 재사용한다.
 - raw bucket은 lifecycle/retention 변경을 운영 승인 대상으로 하고 삭제 권한을 일반 ingestor에서 뺀다.
 
@@ -514,6 +539,10 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 - 환경별 차이는 collector endpoint 값 하나뿐이다. dev에 별도 관측 스택을 세우지 않는다.
 - 프로세스 경계는 W3C `traceparent`로 잇는다. 모든 로그 줄에 `trace_id`와 `build_sha`를 달고, dataplane은
   `run_id`와 `source_release_id`를 더 단다. 사람이 읽고 옮겨 적는 `x-request-id`는 유지한다.
+- **run 행이 Argo Workflow 이름을 든다**(`ingest.run.workflow_name`, 2026-09-16 EAT-231). 릴리스 이름은
+  workflow uid를, R2 보관 로그는 workflow 이름을, 알림은 `run_id`를 들고 있어 셋을 잇는 물건이 TTL로
+  사라지는 Workflow 객체뿐이었다. discover가 `{{workflow.name}}`을 run에 적고, `backfill-progress` 위반의
+  detail이 `logs=workflow-logs/<yyyy>/<mm>/<이름>/`을 함께 보낸다. 워크플로 밖에서 만든 run은 NULL이다.
 
 구조화 로그의 최소 필드는 그대로다.
 
@@ -538,10 +567,11 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 | 실행 중 backfill이 임계 시간 안에 진행했다 | PostgreSQL | 있음 |
 | 임계 나이를 넘은 `planned` release가 없다 | PostgreSQL | 있음 |
 | 수집이 임계 시간 안에 관측을 남겼다 | PostgreSQL | 있음 |
-| 마지막 성공 백업이 임계 시간 안에 있다 | PostgreSQL·Workflow | 없음 |
-| 노드와 Argo Application이 정상이다 | Kubernetes API | 없음 |
-| 원격 `main`의 최신 CI가 초록이다 | GitHub | 없음 |
-| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 없음 |
+| 발행이 실패한 달 창이 replay를 기다린다(전진이 건너뛴 창) | PostgreSQL | 있음(ADR 0053, EAT-235·240) |
+| 마지막 성공 백업이 임계 시간 안에 있다 | R2 `backup/` 객체 목록 | 있음(EAT-196, `monitoring/backup.py`) |
+| 노드와 Argo Application이 정상이고 cron의 최근 회차가 끝까지 갔다 | Kubernetes API | 있음(EAT-196, `monitoring/cluster.py`). Application의 Healthy↔Degraded·Synced 이탈은 이 기대의 열림·해소로 텔레그램에 간다 |
+| 원격 `main`의 최신 CI가 초록이다 | GitHub | 있음(EAT-196, `monitoring/github.py`; 2026-09-16 `ci-main-green` 실측) |
+| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 있음 — 별도 질의가 아니라 Argo CD의 `Synced` 판정을 그대로 받는다(위 Application 기대) |
 
 마지막 줄은 ADR 0046 결정 5의 목록에 없던 것을 더한 것이다. 2026-09-11에 기대 검사 CronWorkflow가 15분마다
 실패했는데 원인이 "배포된 image가 그 명령을 모르는 옛 것"이었고, 그 사실을 알아챈 경로가 사람의 조회였다.
@@ -549,22 +579,27 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 
 알림의 출처는 둘, 도착지는 하나다. 업무·파이프라인 기대는 클러스터 **안**에서 DB를 읽어 내고, 생존 확인은
 클러스터 **밖**에 둔다. 안에 있는 감시는 기계가 죽을 때 함께 죽는다. 생존 확인의 방향은 미는 쪽이다.
-밖에서 당기려면 Kubernetes API나 내부 지표를 외부에 열어야 하고 그것은 §7이 금지한다. 같은 창에서 생긴
-위반은 묶어서 한 번 보내고 해소될 때까지 반복하지 않는다.
+밖에서 당기려면 Kubernetes API나 내부 지표를 외부에 열어야 하고 그것은 §7이 금지한다. 같은 회차에서 생긴
+위반은 묶어서 한 통으로 보낸다. 그러나 미해결이라고 침묵하지는 않는다 — critical은 60분마다 다시 울리고,
+나머지는 09:03 KST 아침 요약 한 통에 나이와 함께 실린다(ADR 0054 결정 1; "해소까지 반복 안 함"이 2026-09-16
+main 5일 방치를 만들었다). 열린 위반과 보낸 통은 `monitoring.violation`·`monitoring.notification` 표에 남아
+Grafana와 psql이 같은 것을 읽는다(ADR 0054 결정 2).
 
 ### 8.4 교체 가능한 자리
 
 아래는 이 시점의 선택이며 ADR을 바꾸지 않고 갈아끼운다. 갈아끼우기 쉽다는 사실 자체가 §8.2의 목적이다.
 
-| 자리 | 이 시점의 선택 | 켜는 조건 |
+| 자리 | 이 시점의 선택 | 상태 (2026-09-16) |
 |---|---|---|
-| 로그·지표·추적 저장 | OpenObserve(단일 바이너리, R2 backend, OTLP 수신) | R2 보관만으로 안 되는 조회가 두 번 필요할 때 |
-| 대시보드 | Grafana(PostgreSQL을 직접 datasource로) | §8.3의 기대와 알림이 동작한 뒤 |
-| 프론트 오류 분류 | Sentry SaaS | 운영자 아닌 사용자가 생길 때, 유입 제어와 같은 변경에서 |
+| 로그·지표·추적 저장 | OpenObserve(단일 바이너리, R2 `eatbid-lake/openobserve/`, 보존 14일) — `infra/platform/openobserve.application.yaml` | 켜짐. eatbid namespace 파드의 stdout을 fluent-bit DaemonSet이 `k8s` 스트림으로 보낸다(`fluent-bit.application.yaml`). UI는 `/internal/o2` |
+| 대시보드 | Grafana(grafana-community chart, PostgreSQL을 `eatbid_grafana` 읽기 역할로 직접 datasource) — `grafana.application.yaml` | 켜짐. `monitoring.round`의 아홉 열을 그리는 대시보드 하나를 `infra/base/observability/`가 provisioning한다. UI는 `/internal/grafana` |
+| 회차 지표 | `monitoring.round`(check-expectations가 회차당 한 행, EAT-227) | 켜짐(v0.1.34) |
+| 프론트 오류 분류 | Sentry SaaS — `@sentry/nextjs`는 빌드 시점 wrapper라 값 셋(`NEXT_PUBLIC_SENTRY_ORG/PROJECT/DSN`)은 manifest env가 아니라 릴리스 빌드 인자로 들어간다 | 계정과 값 대기 |
 
-대시보드는 감시가 아니다. 사람이 볼 때만 값을 하므로 §8.3이 없는 상태에서 대시보드부터 만들지 않는다.
-Prometheus·Loki·Tempo·Grafana 넷을 전개하는 안은 12GB 단일 노드에서 DB와 메모리를 다투므로 각 신호를
-따로 키워야 할 규모가 증명된 뒤에 다시 본다.
+대시보드는 감시가 아니다. 사람이 볼 때만 값을 하므로 §8.3의 기대·알림과 클러스터 밖 심장박동(EAT-171)이
+먼저 동작한 뒤에 켰다. 관측 화면 셋은 모두 `internal-allowlist` 뒤라 밖에서 열리지 않고(ADR 0012),
+자격은 InfisicalSecret `eatbid-observability` 하나다. Prometheus·Loki·Tempo 스택을 고르지 않은 이유는
+12GB 단일 노드에서 DB와 메모리를 다투기 때문이며, 그 규모가 증명되면 이 표의 자리만 갈아끼운다.
 
 ## 9. 백업과 복구
 

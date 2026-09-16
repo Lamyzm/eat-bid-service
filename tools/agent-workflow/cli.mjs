@@ -16,7 +16,9 @@ import {
   repositoryContext,
   targetRepositoryContext,
 } from "./runtime.mjs";
+import { runArgoSmoke } from "./argo-smoke.mjs";
 import { runPullRequest } from "./pull-request.mjs";
+import { runTag } from "./tag.mjs";
 import { describeHolder, endWorktreeHolder, holderIsLive } from "./session.mjs";
 import {
   findWorktreesByIssue,
@@ -327,6 +329,9 @@ async function main() {
   if (command === "recover-lock") return recoverLock();
   if (command === "worktree") return worktree();
   if (command === "pr") return runPullRequest();
+  if (command === "argo-smoke") return runArgoSmoke();
+  // `release`는 issue claim을 놓는 명령이라 릴리스 태그는 다른 이름을 쓴다(EAT-233).
+  if (command === "tag") return runTag();
   throw new Error(`Unknown workflow command: ${command ?? "missing"}`);
 }
 

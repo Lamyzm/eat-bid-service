@@ -14,7 +14,7 @@ const ORGANIZATION_CODE_SCHEME = "eat:organization";
  * 명단의 공개 `observedAt`이 될 원본 관측 시각을 core 안에서만 찾는다.
  *
  * 왜 `ingest.raw_observation.fetched_at`을 읽지 않는가: API 역할은 `ingest`를 전혀 읽지 못하고
- * (`infra/product/db-provisioning.sql`) 그 금지는 의도된 경계다. 대신 projector가 같은 transaction에서
+ * (`infra/base/db-provisioning.sql`) 그 금지는 의도된 경계다. 대신 projector가 같은 transaction에서
  * 필수 구매기관 라벨을 그 raw `fetched_at`으로 `core.code_label_observation.observed_at`에 투영하므로
  * (`postgres_projection_writer.apply` → `postgres_code_values.resolve_label`) 같은 값이 core에 이미 있다.
  *

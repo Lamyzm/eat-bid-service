@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { readdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   expectedMigration,
@@ -8,13 +11,25 @@ import {
 } from "./version";
 
 describe("schema version 검증", () => {
-  test("commit된 마지막 migration으로 고정한다", () => {
-    expect(expectedMigration).toBe("20260913145358_open_auction_announced_at");
+  // 이름을 손으로 적으면 migration을 낼 때마다 이 파일이 함께 깨지고, 그때 숫자만 고치면 무엇을
+  // 검증하는지가 흐려진다. 검증할 것은 "어느 migration인가"가 아니라 "커밋된 마지막 것과 같은가"다.
+  test("commit된 마지막 migration 디렉터리와 같다", () => {
+    const folder = resolve(dirname(fileURLToPath(import.meta.url)), "../drizzle");
+    const committed = readdirSync(folder, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+      .at(-1);
+
+    expect(expectedMigration).toBe(committed);
   });
 
   test("migration 이름에 인코딩된 UTC Instant를 사용한다", () => {
-    expect(expectedMigrationInstant.toString()).toBe("2026-09-13T14:53:58Z");
     expect(migrationNameInstant(expectedMigration).equals(expectedMigrationInstant)).toBe(true);
+    expect(expectedMigrationInstant.toString()).toBe(
+      `${expectedMigration.slice(0, 4)}-${expectedMigration.slice(4, 6)}-${expectedMigration.slice(6, 8)}`
+      + `T${expectedMigration.slice(8, 10)}:${expectedMigration.slice(10, 12)}:${expectedMigration.slice(12, 14)}Z`,
+    );
   });
 
   test("14자리 UTC prefix가 없는 migration 이름을 거부한다", () => {

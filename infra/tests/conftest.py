@@ -64,9 +64,25 @@ def _render(path: Path) -> ManifestSet:
 
 @pytest.fixture(scope="session")
 def manifests() -> ManifestSet:
-    return _render(MONOREPO_ROOT / "infra" / "product")
+    """운영이 실제로 받는 렌더다. Argo CD Application이 보는 경로와 같아야 한다(`infra/argocd/prod.application.yaml`)."""
+    return _render(MONOREPO_ROOT / "infra" / "envs" / "prod")
+
+
+@pytest.fixture(scope="session")
+def prod_manifests() -> ManifestSet:
+    return _render(MONOREPO_ROOT / "infra" / "envs" / "prod")
+
+
+@pytest.fixture(scope="session")
+def dev_manifests() -> ManifestSet:
+    return _render(MONOREPO_ROOT / "infra" / "envs" / "dev")
 
 
 @pytest.fixture(scope="session")
 def base_manifests() -> ManifestSet:
-    return _render(MONOREPO_ROOT / "infra" / "k8s" / "base")
+    return _render(MONOREPO_ROOT / "infra" / "base")
+
+
+@pytest.fixture(scope="session")
+def smoke_manifests() -> ManifestSet:
+    return _render(MONOREPO_ROOT / "infra" / "envs" / "smoke")

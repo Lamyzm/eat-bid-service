@@ -1,5 +1,5 @@
-"""모듈 책임: eaT 상세 파서가 싣는 code scheme의 의미 이름과 그 이름을 관측할 소스 column 짝의
-단일 권위를 갖고, 그 표대로 관측 코드를 읽는다."""
+"""모듈 책임: eaT 상세 파서가 싣는 code scheme의 의미 이름과 그 이름을 관측할 소스 column 짝, 그리고
+eaT 공통 코드목록 그룹이 어느 체계에 이름을 주는지의 단일 권위를 갖고, 그 표대로 관측 코드를 읽는다."""
 
 from __future__ import annotations
 
@@ -106,6 +106,15 @@ AUCTION_LOCATION_SIGUNGU = EatCodeScheme("eat:auction-location-sigungu", "SIGUNG
 # `eligibilityAreas`에 얹는다(ADR 0038).
 ELIGIBILITY_AREA = EatCodeScheme("eat:eligibility-area", "PDLC_CD", "PDLC_NM")
 
+# 구매기관의 유형이다. 이 체계는 상세 응답 어디에도 오지 않고 공통 코드목록(BC016)에서만 관측된다.
+# 그래서 column 짝도 코드목록의 것이며, 상세 파서는 이 체계를 읽지 않는다.
+#
+# ⚠ `core.organization.type`에 이 코드를 잇지 않는다. 잇는 데 필요한 것은 "이 구매기관이 저 유형이다"
+# 라는 관측인데 우리는 그것을 받은 적이 없다 — 상세의 `PURR_CD`·`PURR_NM` 어디에도 유형 코드가 없다.
+# 기관 이름에서 유형을 추정하는 것은 문자열을 정체성으로 쓰는 일이자 관측과 해석을 섞는 일이다
+# (AGENTS 2·3). 그 연결은 유형을 주는 관측을 찾은 뒤의 별도 작업이다.
+ORGANIZATION_TYPE = EatCodeScheme("eat:organization-type", "CMNS_CD", "CMNS_CD_NM")
+
 # 상세 파서가 `optional_scheme_value`로 직접 읽어 정규화 모델에 싣는 체계다.
 # 시드 `packages/db/src/seeds/code-schemes.ts`와 같은지 `tests/unit/test_code_schemes.py`가 고정한다.
 EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
@@ -130,10 +139,56 @@ FOUNDATION_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     ELIGIBILITY_AREA,
 )
 
+# 공통 코드목록에서만 관측되는 체계다. 위 두 표와 나누는 이유는 이 체계가 공고 응답의 column에서
+# 오지 않기 때문이며, 그래서 상세 파서도 core 발행 완결성 검사도 이 이름을 요구하지 않는다.
+CODE_LIST_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (ORGANIZATION_TYPE,)
+
 ALL_EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     *EAT_CODE_SCHEMES,
     *FOUNDATION_CODE_SCHEMES,
+    *CODE_LIST_CODE_SCHEMES,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class EatCodeListGroup:
+    """eaT 공통 코드목록 그룹 하나와 그것이 이름을 주는 code scheme의 짝이다.
+
+    왜 그룹 번호가 정체성이 아닌가. `SC066`은 eaT 운영 화면이 콤보를 채울 때 쓰는 요청 열쇠일 뿐이고,
+    같은 어휘를 다른 그룹 번호로 옮겨 실어도 우리가 이미 발행한 `(source_system, code_scheme, code)`는
+    그대로여야 한다. 그래서 정체성은 `scheme`이고 그룹 번호는 "지금 어디서 받고 있는가"다(AGENTS 2).
+    """
+
+    group_code: str
+    scheme: EatCodeScheme
+
+
+# 2026-09-16 실측으로 고정한 네 그룹이다. 그룹을 늘리는 것은 새 관측을 여는 결정이므로 이 표를 고치는
+# 커밋에서만 일어난다. 요청 payload도 이 표에서 나오므로 "무엇을 물었는가"와 "무엇으로 읽는가"가
+# 갈라지지 않는다.
+#
+# ⚠ `ITM_VL2`를 그룹에 상관없이 상위 코드로 읽지 마라. `SC067`에서는 부모 시도 코드가 맞지만
+# (`653=김해시`, `ITM_VL2=15`), `BC016`에서는 같은 자리가 `001`·`002`·`003`이라는 **묶음 번호**이고
+# 그 값은 BC016 코드가 아니다(`010 학교`의 `ITM_VL2=002`는 `002 광역지자체`를 가리키지 않는다).
+# 한 이름을 그룹에 상관없이 같은 뜻으로 읽으면 학교의 상위가 광역지자체가 된다(AGENTS 6).
+EAT_CODE_LIST_GROUPS: tuple[EatCodeListGroup, ...] = (
+    EatCodeListGroup("SC066", AUCTION_LOCATION_SIDO),
+    EatCodeListGroup("SC067", AUCTION_LOCATION_SIGUNGU),
+    EatCodeListGroup("EP049", ATTEMPT_STATUS),
+    EatCodeListGroup("BC016", ORGANIZATION_TYPE),
+)
+
+EAT_CODE_LIST_GROUP_CODES: tuple[str, ...] = tuple(
+    group.group_code for group in EAT_CODE_LIST_GROUPS
+)
+
+
+def code_list_scheme(group_code: str) -> EatCodeScheme | None:
+    """그룹 번호가 이름을 주는 체계를 돌려준다. 검토되지 않은 그룹은 `None`이다."""
+    for group in EAT_CODE_LIST_GROUPS:
+        if group.group_code == group_code:
+            return group.scheme
+    return None
 
 
 def optional_scheme_value(

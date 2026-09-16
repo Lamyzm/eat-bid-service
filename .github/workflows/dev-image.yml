@@ -1,0 +1,134 @@
+name: dev 이미지
+
+# main이 병합되면 서명 없는 `main-<sha>` 이미지를 만들어 dev overlay의 digest를 옮긴다(ADR 0051 결정 2).
+#
+# 왜 build.yml에 넣지 않았나. 이유가 둘이다. 첫째, build.yml은 ADR 0024가 "annotated tag만 publication을
+# 시작한다"로 못박은 파일이라 main push 트리거를 더하면 그 문장이 파일 안에서 흐려진다. 둘째, 감시가
+# build.yml의 마지막 회차로 "release 발행이 끝까지 갔다"를 판정하는데(EAT-196), 같은 파일에 main 레인을
+# 두면 dev 빌드 실패가 release 발행 실패로 보고된다.
+#
+# 이 레인은 서명도 증명도 하지 않는다. dev로 가는 이미지는 publication이 아니라 배포 후보이고, 운영에
+# 닿는 유일한 경로는 여전히 서명된 태그 레인이다(결정 5).
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  # 나중 커밋의 digest가 이겨야 한다. dev는 main을 따라가는 것이 전부이므로 중간 커밋의 이미지를
+  # 끝까지 만들 이유가 없다.
+  group: dev-image
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io/lamyzm
+
+jobs:
+  build:
+    if: ${{ github.repository == 'Lamyzm/eat-bid-service' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: web
+            context: .
+            dockerfile: ./Dockerfile.web
+          - app: server
+            context: .
+            dockerfile: ./Dockerfile.server
+          - app: dataplane
+            context: ./apps/dataplane
+            dockerfile: ./apps/dataplane/Dockerfile
+          - app: migration
+            context: .
+            dockerfile: ./packages/db/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:main-${{ github.sha }}
+          # dev 이미지도 같은 Sentry 값을 받는다 — dev 화면의 오류가 같은 프로젝트에 environment만 다르게
+          # 쌓여야 한다(EAT-232). 비어 있으면 꺼진 채 빌드된다.
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            NEXT_PUBLIC_SENTRY_ORG=${{ vars.NEXT_PUBLIC_SENTRY_ORG }}
+            NEXT_PUBLIC_SENTRY_PROJECT=${{ vars.NEXT_PUBLIC_SENTRY_PROJECT }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      - name: digest를 파일로 남긴다
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ steps.push.outputs.digest }}" > "digest-${{ matrix.app }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-digest-${{ matrix.app }}
+          path: digest-${{ matrix.app }}
+          retention-days: 1
+
+  promote:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dev-digest-*
+          path: digests
+          merge-multiple: true
+      - name: dev overlay의 digest 넷을 이 커밋의 이미지로 고정한다
+        run: |
+          set -euo pipefail
+          for app in web server dataplane migration; do
+            digest="$(tr -d '\r\n' < "digests/digest-$app")"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Invalid $app digest: $digest" >&2
+              exit 2
+            fi
+            python3 infra/update_image_digest.py \
+              --file infra/envs/dev/kustomization.yaml "eatbid-$app" "$digest"
+          done
+      - name: dev digest set을 deploy/dev에 올린다
+        env:
+          EATBID_DEV_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add infra/envs/dev/kustomization.yaml
+          # digest가 그대로여도 커밋을 만든다. dev가 보는 ref는 `deploy/dev`이므로 이미지가 같아도
+          # main의 새 manifest(workflow template, RBAC 같은)는 옮겨져야 한다.
+          git commit --allow-empty -m "deploy(dev): dev 이미지 digest를 ${EATBID_DEV_COMMIT}로 고정한다"
+          # main에 쓰지 않는다. main은 서버가 보호하고 이 저장소의 ruleset은 GitHub Actions를 우회
+          # 주체로 등록할 수 없다(EAT-194에서 실측). 릴리스 레인이 `deploy/prod`를 쓰는 것과 같은
+          # 이유이고, dev Application이 보는 ref도 같은 모양의 `deploy/dev`다.
+          #
+          # 매 회차의 digest 커밋은 그 main 커밋을 부모로 가져 이전 `deploy/dev`에서 fast-forward가
+          # 되지 않는다. 기계가 소유하고 언제든 다시 만들 수 있는 파생 ref라 강제로 옮긴다.
+          git push --force origin HEAD:refs/heads/deploy/dev

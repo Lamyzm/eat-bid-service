@@ -1,0 +1,173 @@
+{
+  "uid": "eatbid-monitoring-round",
+  "title": "eatbid 수집 회차 모양",
+  "description": "check-expectations가 15분마다 monitoring.round에 남기는 아홉 열. 판정의 근거가 아니라 사람이 보는 선이다(ADR 0046 결정 4, EAT-227·EAT-174).",
+  "tags": ["eatbid", "monitoring"],
+  "timezone": "Asia/Seoul",
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "환경",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+        "query": "select distinct environment from monitoring.round order by 1",
+        "refresh": 1,
+        "current": { "text": "prod", "value": "prod" },
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "최근 1시간 시작된 run (mode별)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "spanNulls": false } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select r.observed_at as time, m.key as metric, m.value::int as value from monitoring.round r, jsonb_each_text(r.runs_started_1h) m where r.environment = '$environment' and $__timeFilter(r.observed_at) order by 1, 2"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "최근 1시간 실패한 run (mode별)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select r.observed_at as time, m.key as metric, m.value::int as value from monitoring.round r, jsonb_each_text(r.runs_failed_1h) m where r.environment = '$environment' and $__timeFilter(r.observed_at) order by 1, 2"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "최근 1시간 발행된 revision",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select observed_at as time, auctions_published_1h as \"발행\" from monitoring.round where environment = '$environment' and $__timeFilter(observed_at) order by 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "지금 열린 공고 (활성 build)",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select observed_at as time, open_auctions_now as \"열린 공고\" from monitoring.round where environment = '$environment' and $__timeFilter(observed_at) order by 1"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "미완 백필 창",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select observed_at as time, backfill_windows_incomplete as \"미완 창\" from monitoring.round where environment = '$environment' and $__timeFilter(observed_at) order by 1"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "열린 위반",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter" } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select observed_at as time, violations_open as \"열린 위반\" from monitoring.round where environment = '$environment' and $__timeFilter(observed_at) order by 1"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "회차 소요 시간",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select observed_at as time, check_duration_ms as \"소요 ms\" from monitoring.round where environment = '$environment' and $__timeFilter(observed_at) order by 1"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "선택 구간의 회차 수 (15분마다 1)",
+      "description": "회차가 빠지면 선이 끊긴다. 이 수가 기대(구간 시간/15분)보다 적으면 검사 자체가 안 돈 것이다.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select count(*) as \"회차\" from monitoring.round where environment = '$environment' and $__timeFilter(observed_at)"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "최근 회차 아홉 열 그대로",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select observed_at, environment, runs_started_1h::text as runs_started_1h, runs_failed_1h::text as runs_failed_1h, auctions_published_1h, open_auctions_now, backfill_windows_incomplete, violations_open, check_duration_ms from monitoring.round where environment = '$environment' order by observed_at desc limit 16"
+        }
+      ]
+    }
+  ]
+}

@@ -36,12 +36,12 @@ export function DistributionHeatmap({
   const maxCount = Math.max(1, ...countsByMonth.flatMap((row) => row.cells));
 
   return (
-    <div className='min-w-0 overflow-x-auto'>
-      <table className='w-full min-w-[640px] border-separate border-spacing-0.5 text-[13px]'>
+    <div className='h-full min-h-0 min-w-0 overflow-x-auto overflow-y-auto'>
+      <table className='h-full w-full min-w-[640px] border-separate border-spacing-0.5 text-[13px]'>
         <caption className='pb-2 text-left font-medium text-muted-foreground'>
           달마다 값이 몰린 자리. 진할수록 낙찰 횟수가 많습니다.
         </caption>
-        <thead>
+        <thead className='h-8'>
           <tr>
             <th scope='col' className='text-left font-semibold whitespace-nowrap'>달</th>
             {columns.map((column) => (
@@ -57,7 +57,7 @@ export function DistributionHeatmap({
           {countsByMonth.map(({ month, cells }) => {
             const reason = month.coverage === null ? '분모 미확인' : COVERAGE_REASON[month.coverage];
             return (
-              <tr key={month.month} className={reason ? 'opacity-60' : undefined}>
+              <tr key={month.month} className={reason ? 'h-8 opacity-60' : 'h-8'}>
                 <th scope='row' className='pr-2 text-left font-semibold whitespace-nowrap tabular-nums'>
                   {month.month}
                 </th>

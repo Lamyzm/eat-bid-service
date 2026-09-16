@@ -5,7 +5,7 @@ import { VIEWPORT_WIDTH } from './support/viewports';
 const auctionId = process.env.EATBID_E2E_AUCTION_ID ?? '5796468';
 const flowUrl = `/auctions/${auctionId}?view=${encodeURIComponent('흐름')}`;
 
-// sm 경계 폭은 집중 모드가 사는 가장 좁은 폭이다. 그 아래 휴대폰 폭은 아래 전용 검사가 본다(EAT-142).
+// 화면 폭과 관계없이 같은 캔버스를 키운다. 휴대폰의 직접 진입은 아래에서 별도로 확인한다.
 for (const viewport of [
   { width: VIEWPORT_WIDTH.wideDesktop, height: 1080 },
   { width: VIEWPORT_WIDTH.xl, height: 800 },
@@ -44,12 +44,7 @@ for (const viewport of [
   });
 }
 
-/**
- * 휴대폰 폭에서는 제목·조건·탭과 범례·내 투찰·축 조작이 저마다 줄바꿈해 캔버스를 둘러싼 크롬이 창의
- * 3분의 2를 차지한다. 집중 모드는 남는 높이를 캔버스에 주는 구조라 그 폭의 확대는 일반 보기의 고정
- * 38dvh보다 작은 차트를 준다 — 확대가 축소가 된다. 그래서 그 폭에서는 확대 자리를 만들지 않는다(EAT-142).
- */
-test(`${VIEWPORT_WIDTH.phone}×812 휴대폰 폭은 흐름 확대를 제공하지 않고 확대 주소도 일반 문서 흐름으로 읽는다`, async ({ page }) => {
+test(`${VIEWPORT_WIDTH.phone}×812 휴대폰에서도 확대 링크와 공유받은 전체보기가 동작한다`, async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: VIEWPORT_WIDTH.phone, height: 812 });
   await page.goto(flowUrl);
@@ -57,17 +52,15 @@ test(`${VIEWPORT_WIDTH.phone}×812 휴대폰 폭은 흐름 확대를 제공하�
   await expect(chart.locator('canvas').first()).toBeVisible();
   const normal = (await chart.boundingBox())!.height;
 
-  // 근거 카드의 흐름 확대 진입만 사라지고, 12행 상한을 푸는 과거 회차 확대는 이 폭에서도 남는다.
-  await expect(page.locator('[data-expand-target="흐름"]')).toBeHidden();
-  await expect(page.getByRole('link', { name: '크게 보기', exact: true })).toHaveCount(1);
+  await expect(page.locator('[data-expand-target="흐름"]')).toBeVisible();
+  await expect(page.getByRole('link', { name: '크게 보기', exact: true })).toHaveCount(2);
   await expect(page.locator('[data-expand-target="과거 회차"]')).toBeVisible();
 
-  // 공유받은 확대 주소로 바로 들어와도 차트는 일반 보기 높이를 지키고 과거 회차 표가 문서에 남는다.
+  // 직접 진입도 탐색 공간을 차트에 주며 닫기는 같은 공고의 일반 보기로 돌아간다.
   await page.goto(`${flowUrl}&expand=${encodeURIComponent('흐름')}`);
   await expect(chart.locator('canvas').first()).toBeVisible();
-  await expect(page.getByRole('region', { name: '과거 회차', exact: true })).toBeVisible();
-  await expect.poll(async () => Math.abs((await chart.boundingBox())!.height - normal)).toBeLessThan(2);
-  // 되돌아갈 링크는 남긴다. 감춘 진입이 사용자를 확대 주소에 가두면 안 된다.
+  await expect(page.getByRole('region', { name: '과거 회차', exact: true })).toBeHidden();
+  await expect.poll(async () => (await chart.boundingBox())!.height).toBeGreaterThan(normal);
   await page.getByRole('link', { name: '작게 보기', exact: true }).click();
   await expect(page).not.toHaveURL(/expand=/);
 });
@@ -104,13 +97,15 @@ test('선택 회차와 현재 공고의 전역 패널은 확대·닫기 이후�
   const widthWithPanel = (await chart.boundingBox())!.width;
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(1081);
   const panel = page.locator('[data-slot="responsive-dock"]:visible');
-  expect((await panel.boundingBox())!.height).toBeLessThanOrEqual(1024);
+  expect((await panel.boundingBox())!.height).toBe(1080);
   await page.getByRole('button', { name: '보조 패널 닫기', exact: true }).click();
   await expect(record).toBeHidden();
   await expect.poll(async () => (await chart.boundingBox())!.width).toBeGreaterThan(widthWithPanel + 300);
-  await page.getByRole('button', { name: '현재 공고 정보', exact: true }).click();
+  await page.getByRole('button', { name: '상세 보기', exact: true }).click();
+  await page.getByRole('menuitem', { name: '현재 공고 정보', exact: true }).click();
   await expect(page.getByRole('region', { name: '현재 공고 사실', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '선택 회차 기록', exact: true }).click();
+  await page.getByRole('button', { name: '상세 보기', exact: true }).click();
+  await page.getByRole('menuitem', { name: '선택 회차 기록', exact: true }).click();
   await expect(record.locator('p').filter({ hasText: /회차 / })).toHaveText(selected!);
   await page.getByRole('link', { name: '작게 보기', exact: true }).click();
   await expect(page.getByRole('region', { name: '과거 회차', exact: true })).toBeVisible();

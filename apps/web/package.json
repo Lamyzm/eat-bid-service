@@ -15,7 +15,7 @@
     "pretest:e2e:foundation": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build",
     "test:e2e:foundation": "playwright test frontend-foundation.spec.ts login-gate.spec.ts server-read-reuse.spec.ts",
     "pretest:e2e:decision": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build",
-    "test:e2e:decision": "playwright test decision-screen.spec.ts",
+    "test:e2e:decision": "playwright test decision-screen.spec.ts flow-focus.spec.ts chart-fullscreen.spec.ts analysis-filters.spec.ts",
     "pretest:e2e:today": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build",
     "test:e2e:today": "playwright test today-screen.spec.ts",
     "pretest:e2e:cache": "pnpm --filter @eatbid/domain build && pnpm --filter @eatbid/contracts build",

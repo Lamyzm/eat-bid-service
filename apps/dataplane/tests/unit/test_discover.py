@@ -196,6 +196,39 @@ def test_page2_중복은_page3_HTTP_전에_실패한다() -> None:
     assert repository.release_plan is None
 
 
+def test_순회_중_목록이_자라_경계가_겹치면_한_번만_세고_회차는_성공한다() -> None:
+    """2026-09-14 운영 실측의 모양이다. 소스는 최신순으로 주므로 새 공고는 맨 앞에 붙고 전체가 뒤로
+    밀린다. 그래서 페이지 2의 마지막과 페이지 3의 첫 번째가 같은 공고가 되고 마지막 페이지가 한 행
+    더 실려 온다. 빠진 건은 없으므로 회차를 죽이지 않는다(EAT-212)."""
+    repository = _기록저장소()
+    # page_size 2, 첫 총수 5 → 3페이지. 마지막 페이지에서 총수가 6으로 자라고 "4"가 겹쳐 온다.
+    client = _쪽클라이언트(
+        (
+            _목록_xml(5, ("5", "4")),
+            _목록_xml(5, ("3", "2")),
+            _목록_xml(6, ("2", "1")),
+        )
+    )
+
+    result = discover_release(_계획(), repository, client)
+
+    # 겹친 "2"는 한 번만 센다. 집합 크기는 페이지 1의 총수와 같다.
+    assert result.external_bid_ids == ("1", "2", "3", "4", "5")
+    assert repository.detail_ids == ["1", "2", "3", "4", "5"]
+    assert repository.release_plan is not None
+
+
+def test_순회_중_목록이_줄면_경계의_한_건을_조용히_놓치므로_실패한다() -> None:
+    """줄어드는 쪽은 뒤가 앞으로 당겨져 경계의 한 건이 아무 신호 없이 사라진다. 이 방향은 막는다."""
+    repository = _기록저장소()
+    client = _쪽클라이언트((_목록_xml(5, ("5", "4")), _목록_xml(4, ("3", "2"))))
+
+    with pytest.raises(SourceContractError, match="shrank"):
+        discover_release(_계획(), repository, client)
+
+    assert repository.release_plan is None
+
+
 def test_0건_wire는_빈_manifest로_exact_complete_planned_release를_만든다() -> None:
     repository = _기록저장소()
     result = discover_release(_계획(), repository, _쪽클라이언트((_목록_xml(0, ()),)))

@@ -13,7 +13,8 @@ product cutover; Argo CD and Argo Workflows only consume them.
 | `eatbid-cache-revalidate` | `EATBID_CACHE_REVALIDATE_TOKEN` | product operator / environment bootstrap | web (`POST /internal/cache/revalidate`) |
 | `eatbid-r2` | `R2_ENDPOINT_URL`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | storage operator / environment bootstrap | dataplane, `eatbid-db-backup` CronWorkflow(`backup/postgres/` prefix에 쓰기) |
 | `eatbid-auth` | `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | product operator / environment bootstrap | server |
-| `eatbid-alerting` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | product operator / Infisical `/runtime/alerting` | `eatbid-expectation-check` CronWorkflow. 봇 토큰은 환경 사이 공유, 대상 방은 환경별로 다르다 |
+| `eatbid-observability` | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_DB_PASSWORD`(`eatbid_grafana` 역할), `ZO_ROOT_USER_EMAIL`, `ZO_ROOT_USER_PASSWORD` | product operator / Infisical `/runtime/observability` | Grafana·OpenObserve·fluent-bit(platform Application). 클러스터 안 화면에만 닿고 원본·업무 사실을 쓰지 못한다. 내부 Ingress 뒤라 밖에서 열리지 않는다(EAT-174) |
+| `eatbid-alerting` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `HEARTBEAT_URL` | product operator / Infisical `/runtime/alerting` | `eatbid-expectation-check` CronWorkflow. 봇 토큰은 환경 사이 공유, 대상 방과 심장박동 URL은 환경별로 다르다. `HEARTBEAT_URL`은 클러스터 밖 dead man's switch의 핑 주소이며 경로에 토큰이 들어 있어 값 자체가 자격이다(EAT-171) |
 | `cloudflared-creds` | `credentials.json` | network operator / environment bootstrap | cloudflared |
 | `ghcr-pull` | `.dockerconfigjson` | delivery operator / environment bootstrap | namespace default and dataplane ServiceAccounts |
 
@@ -45,10 +46,13 @@ Argo CD를 연결하기 전에 superuser로 다음을 한 번 수행한다.
 
 1. Infisical `prod:/runtime/migrator`·`/runtime/server`·`/runtime/dataplane`의 `DATABASE_URL`에
    담긴 비밀번호를 정한다. 값은 저장소에 들어가지 않는다.
-2. superuser(`prod:/runtime/postgres`의 `POSTGRES_USER`)로 접속해 세 역할을 만든다.
+2. superuser(`prod:/runtime/postgres`의 `POSTGRES_USER`)로 접속해 네 역할을 만든다.
    `CREATE ROLE eatbid_migrator LOGIN PASSWORD '...' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;`
-   를 `eatbid_api`, `eatbid_dataplane`까지 세 번 반복한다. 역할 이름은 SQL이 고정하고 있으므로
-   바꾸지 않는다.
+   를 `eatbid_api`, `eatbid_dataplane`, `eatbid_grafana`까지 네 번 반복한다. 역할 이름은 SQL이
+   고정하고 있으므로 바꾸지 않는다. `eatbid_grafana`의 비밀번호는 `prod:/runtime/observability`의
+   `GRAFANA_DB_PASSWORD`이며 이 역할은 `monitoring`·`mart`를 읽기만 한다(EAT-174).
+   migrator는 `CREATE SCHEMA`를 하므로 `GRANT CREATE ON DATABASE eatbid TO eatbid_migrator;`도 여기서 준다
+   (2026-09-16 smoke 실측 — 없으면 첫 migration이 drizzle 스키마를 못 만든다).
 3. Argo CD를 sync한다. migration이 schema를 세우고 provisioning Job이 권한을 세운다.
 
 `eatbid_api`가 얻는 정확한 권한과 금지 항목은 아래 절이 계속 권위를 가지며,

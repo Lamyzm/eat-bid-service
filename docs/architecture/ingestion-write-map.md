@@ -2,7 +2,7 @@
 id: INGESTION-WRITE-MAP
 status: active
 canonical_for: dataplane-write-targets-and-boundaries
-last_reviewed: 2026-09-11
+last_reviewed: 2026-09-16
 review_trigger: dataplane-write-target-or-transaction-boundary-change
 ---
 
@@ -14,7 +14,7 @@ review_trigger: dataplane-write-target-or-transaction-boundary-change
 없애면 같은 커밋에서 그 표를 고쳐야 gate가 통과한다. 표·컬럼·외래키의 현재 모양은
 [생성된 ERD](generated/)가 보여 주며 `pnpm architecture:erd:write`로만 갱신한다.
 
-## 1. 저장 위치는 다섯 곳이고 각각 이유가 있다
+## 1. 저장 위치는 여섯 곳이고 각각 이유가 있다
 
 | 저장 위치 | 무엇을 담는가 | 왜 따로 두는가 | 근거 |
 |---|---|---|---|
@@ -23,6 +23,7 @@ review_trigger: dataplane-write-target-or-transaction-boundary-change
 | PostgreSQL `core` | 해석된 업무 사실(attempt·revision·기관·명단·낙찰·업체·코드) | 봉인·검증된 publication만 한 transaction으로 앉힌다 | ADR 0015, 0033, 0035, 0038 |
 | PostgreSQL `mart` | 결정 화면용 파생 표와 build ledger | 언제든 다시 만들 수 있고 활성 포인터 교체가 원자다 | ADR 0011, 0034 |
 | PostgreSQL `app` | 사용자·workspace·등록 사업자 | API만 쓴다. 수집기는 닿지 않는다 | ADR 0032 |
+| PostgreSQL `monitoring` | 감시 회차마다 남기는 모양 지표(`round`) | 진실 원천이 아니라 관측의 기록이다. 판정은 기대(expectations)가 하고 이 표는 사람이 보는 선이라 넷과 따로 둔다 | ADR 0046 결정 4, EAT-227 |
 
 `core.code_scheme`은 마이그레이션 seed(`packages/db/src/seeds/code-schemes.ts`)만 쓰고 수집기는 읽기만
 한다. 수집기가 `app`에 쓰는 경로는 없다.
@@ -44,6 +45,8 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | `replay` | `run`(replay)·`replay_input`·`publication`, 그 뒤 `normalize`·`validate`·`project`와 같은 표 | 봉인된 release의 얼린 관측 manifest만 받는다. 같은 run 정체성으로 다시 실행하면 저장된 상태를 검증하고 이어 간다 | 재실행이 멱등이다 | ADR 0014, 0015 |
 | `capture-reference` | R2 코드 파일, `run`·`request_unit`·`raw_blob`·`raw_observation`, `source_release`(+`_dataset`·`_run`·`_observation`) | `capture`와 같은 저장 경계이되 파일 하나가 release 하나이며 즉시 봉인한다 | 파일 = release | ADR 0035 |
 | `project-reference` | `core.code_release`·`code_release_member`·`code_value`·`code_label_observation` | 한 transaction. Argo mutex `eatbid-core-publication`(공고 투영과 같은 `code_value`를 두고 경합하지 않게) | 활성 code release는 하나다 | ADR 0035 |
+| `capture-code-vocabulary` | R2 eaT 코드목록 응답, `run`·`request_unit`·`raw_blob`·`raw_observation`, `source_release`(+`_dataset`·`_run`·`_observation`) | `capture`와 같은 저장 경계이되 왕복 하나가 release 하나다. 응답 모양 검사는 raw 보존 뒤·봉인 전에 한다 | 왕복 = release | EAT-187 |
+| `project-code-vocabulary` | `core.code_value`(유효기간·사용 여부)·`code_label_observation` | 한 transaction. Argo mutex `eatbid-core-publication`(공고 투영과 같은 `code_value`를 두고 경합하지 않게). `code_release`를 만들지 않는 이유는 mart 지역 축이 release의 존재를 체계 전환 신호로 읽기 때문이다 | 라벨의 증거는 그 코드목록 관측이다 | EAT-187, ADR 0034 |
 
 ## 3. 모듈별 쓰기 대상
 
@@ -55,20 +58,23 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | discover | `ingest/postgres_run_planning.py` | `ingest.run`, `ingest.request_unit` |
 | discover | `ingest/postgres_release_repository.py` | `ingest.source_release`, `ingest.source_release_dataset`, `ingest.source_release_run`, `ingest.source_release_observation` |
 | discover, capture | `ingest/postgres_repository.py` | `ingest.raw_blob`, `ingest.raw_observation`, `ingest.request_unit`, `ingest.run` |
-| discover, capture, capture-reference | `storage/r2_store.py` | `R2 raw/{source}/{endpoint}/{sha256}.{xml\|txt}.gz` |
-| check-expectations | `monitoring/store.py` | `R2 monitoring/{환경}/expectation-state.json` (수집 단계가 아닌 운영 감시의 가변 상태. raw와 접두사·코드를 나눈다) |
+| discover, capture, capture-reference, capture-code-vocabulary | `storage/r2_store.py` | `R2 raw/{source}/{endpoint}/{sha256}.{xml\|txt}.gz` |
+| check-expectations | `monitoring/store.py` | `R2 monitoring/{환경}/expectation-state.json` (ADR 0054 이후 쓰지 않는다. 표가 비어 있을 때 한 번 읽어 이관하는 원본으로만 남았다) |
+| check-expectations | `monitoring/ledger.py` | `monitoring.violation`, `monitoring.notification` (위반의 수명과 보낸 통. 열린 행은 환경·키당 하나, 해소 행은 이력으로 보존, 전송 실패도 행. ADR 0054) |
+| check-expectations | `monitoring/round.py` | `monitoring.round` (회차당 한 행의 모양 지표. 판정·알림이 끝난 뒤 쓰며 알림의 근거가 아니다, EAT-227) |
 | capture, validate | `ingest/postgres_release_guards.py` | `ingest.source_release_observation`, `ingest.source_release_dataset` |
 | normalize, replay | `ingest/postgres_normalization_repository.py` | `ingest.normalization_attempt`, `ingest.normalization_attempt_record`, `ingest.normalized_record` |
 | validate, replay | `ingest/postgres_publication_repository.py` | `ingest.publication`, `ingest.publication_record`, `ingest.run` |
-| validate, fail-release, capture-reference | `ingest/postgres_release_sealing.py` | `ingest.source_release`, `ingest.run` |
+| validate, fail-release, capture-reference, capture-code-vocabulary | `ingest/postgres_release_sealing.py` | `ingest.source_release`, `ingest.run` |
 | replay | `ingest/postgres_replay_repository.py` | `ingest.run`, `ingest.replay_input`, `ingest.publication` |
 | project, replay | `core/postgres_repository.py` | `ingest.publication`, `ingest.run` |
 | project, replay | `core/postgres_projection_writer.py` | `core.organization`, `core.organization_identifier`, `core.auction_attempt`, `core.auction_revision`, `core.auction_organization`, `core.auction_revision_code_value` |
 | project, replay | `core/postgres_lineage_writer.py` | `core.auction_attempt_link`, `core.auction_attempt` |
 | project, replay | `core/postgres_roster_writer.py` | `core.bid_submission`, `core.award_decision` |
 | project, replay | `core/postgres_supplier_writer.py` | `core.source_supplier_account`, `core.supplier_party` |
-| project, replay, project-reference | `core/postgres_code_values.py` | `core.code_value`, `core.code_label_observation` |
+| project, replay, project-reference, project-code-vocabulary | `core/postgres_code_values.py` | `core.code_value`, `core.code_label_observation` |
 | project-reference | `core/code_release_projection.py` | `core.code_release`, `core.code_release_member` |
+| project-code-vocabulary | `core/code_vocabulary_projection.py` | `core.code_value` |
 | build-marts | `mart/postgres_repository.py` | `mart.build`, `mart.build_coverage` |
 | build-marts | `mart/build_coverage.py` | `mart.build_coverage` |
 | build-marts | `mart/org_round_summary.py` | `mart.org_round_summary` |
