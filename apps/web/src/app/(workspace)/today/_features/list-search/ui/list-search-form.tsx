@@ -13,8 +13,9 @@ export function ListSearchForm({ search }: { readonly search: ListSearchPresenta
       {/* 눈에는 placeholder가 같은 문구를 보이지만 placeholder는 채우면 사라지므로 이름은 label이 소유한다. */}
       <label htmlFor='today-search' className='sr-only'>{SEARCH_LABEL}</label>
       <div className='flex min-w-0 gap-1.5'>
-        {/* 시안 U9의 검색 칸은 달력 아래 한 줄, 둥근 muted 상자다. 조건 기둥이 아니라 본문에 있는 이유는 조건이 아니라
-            "이 조건 안에서 찾기"이기 때문이다 — 기둥에 두면 지역·품목과 같은 층으로 읽힌다. */}
+        {/* 시안 U9의 검색 칸은 달력 아래 한 줄, 둥근 muted 상자 하나다. 조건 기둥이 아니라 본문에 있는 이유는 조건이
+            아니라 "이 조건 안에서 찾기"이기 때문이다 — 기둥에 두면 지역·품목과 같은 층으로 읽힌다. 버튼은 없다 —
+            Enter가 제출이고 기초금액 칸과 같은 결정이다(EAT-261). */}
         <input
           id='today-search'
           name='q'
@@ -25,9 +26,6 @@ export function ListSearchForm({ search }: { readonly search: ListSearchPresenta
           autoComplete='off'
           className='h-11 min-w-0 flex-1 rounded-xl bg-foreground/5 px-4 text-[15px] font-medium placeholder:text-muted-foreground'
         />
-        <button type='submit' className='inline-flex h-11 shrink-0 items-center rounded-xl bg-foreground/5 px-4 text-[15px] font-semibold hover:bg-foreground/10'>
-          찾기
-        </button>
       </div>
       {search.active === null ? null : (
         <p className='flex flex-wrap items-baseline gap-x-2 text-[13px] font-semibold text-muted-foreground'>
