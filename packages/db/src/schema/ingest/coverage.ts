@@ -29,6 +29,10 @@ export const backfillCoverage = ingestSchema
     normalizedIds: bigint("normalized_ids", { mode: "bigint" }).notNull(),
     publishedIds: bigint("published_ids", { mode: "bigint" }).notNull(),
     isComplete: boolean("is_complete").notNull(),
+    // 이 창의 release 가운데 발행이 failed로 끝난 것의 수. 격리가 있어 validate가 거부한 창은 다시 받아도
+    // 같은 자리에서 다시 죽으므로 전진이 그 창을 고르면 안 된다 — 파서를 고친 뒤 replay가 답이다
+    // (2026-09-16 2026-03 창이 매시 재수집·재실패, EAT-235). replay가 성공하면 is_complete가 참이 된다.
+    failedPublications: bigint("failed_publications", { mode: "bigint" }).notNull(),
   })
   .as(sql`
     with window_release as (
@@ -41,6 +45,15 @@ export const backfillCoverage = ingestSchema
        where u.endpoint = 'bid-list'
          and u.request_params ? 'P_BID_BGNG_DT'
          and u.request_params ? 'P_BID_END_DT'
+    ),
+    failed_publication as (
+      select w.window_start,
+             w.window_end,
+             count(distinct p.publication_id) as failed_publications
+        from window_release w
+        join ingest.source_release_run sr on sr.source_release_id = w.source_release_id
+        join ingest.publication p on p.run_id = sr.run_id and p.status = 'failed'
+       group by w.window_start, w.window_end
     ),
     detail as (
       select w.window_start,
@@ -66,14 +79,17 @@ export const backfillCoverage = ingestSchema
         from detail
        group by window_start, window_end, external_bid_id
     )
-    select window_start,
-           window_end,
+    select r.window_start,
+           r.window_end,
            count(*) as discovered_ids,
-           count(*) filter (where captured) as captured_ids,
-           count(*) filter (where not captured) as uncaptured_ids,
-           count(*) filter (where normalized) as normalized_ids,
-           count(*) filter (where published) as published_ids,
-           count(*) filter (where published) = count(*) as is_complete
-      from rolled
-     group by window_start, window_end
+           count(*) filter (where r.captured) as captured_ids,
+           count(*) filter (where not r.captured) as uncaptured_ids,
+           count(*) filter (where r.normalized) as normalized_ids,
+           count(*) filter (where r.published) as published_ids,
+           count(*) filter (where r.published) = count(*) as is_complete,
+           coalesce(max(f.failed_publications), 0) as failed_publications
+      from rolled r
+      left join failed_publication f
+        on f.window_start = r.window_start and f.window_end = r.window_end
+     group by r.window_start, r.window_end
   `);

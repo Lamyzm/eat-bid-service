@@ -61,6 +61,12 @@ from eatbid.monitoring.runner import (
 from eatbid.monitoring.store import R2BackupLister, R2StateStore
 from eatbid.pipeline.advance import CompletedWindow, next_window
 from eatbid.pipeline.capture import capture
+from eatbid.pipeline.code_vocabulary import (
+    CodeVocabularyCapturePlan,
+    CodeVocabularyServices,
+    capture_code_vocabulary,
+    project_code_vocabulary_observation,
+)
 from eatbid.pipeline.collection_window import SEOUL_TIME, resolve_collection_window
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
@@ -148,6 +154,7 @@ class Application:
                 detail_run_id=args.detail_run_id,
                 mode=args.mode,
                 release_name=args.release_name,
+                workflow_name=args.workflow_name,
                 as_of=args.as_of,
                 build_sha=args.build_sha,
                 parser_version=args.parser_version,
@@ -229,13 +236,15 @@ class Application:
         """
         with self._connection.cursor() as cursor:
             cursor.execute(
-                "select window_start, window_end, is_complete from ingest.backfill_coverage"
+                "select window_start, window_end, is_complete, failed_publications"
+                " from ingest.backfill_coverage"
             )
             coverage = tuple(
                 CompletedWindow(
                     start_date=str(row[0]),
                     end_date=str(row[1]),
                     is_complete=bool(row[2]),
+                    failed_publications=int(row[3]),
                 )
                 for row in cursor.fetchall()
             )
@@ -334,6 +343,42 @@ class Application:
                 source_release_id=args.source_release_id,
                 observation_id=args.observation_id,
                 source_version=args.release_name,
+                projected_at=args.projected_at,
+            )
+
+    def capture_code_vocabulary(self, args: argparse.Namespace) -> Any:
+        return capture_code_vocabulary(
+            CodeVocabularyCapturePlan(
+                run_id=args.run_id,
+                source_release_id=args.source_release_id,
+                release_name=args.release_name,
+                build_sha=args.build_sha,
+                parser_version=args.parser_version,
+                as_of=args.as_of,
+                started_at=args.started_at,
+            ),
+            CodeVocabularyServices(
+                # 정부 파일용 client가 아니라 eaT client를 쓴다. 코드목록은 eaT의 검토된 헤더·warmup·
+                # 재시도 정책 안에서 도는 같은 소스의 호출이다.
+                http_client=self._http,
+                store=self._store,
+                ingest_repository=self._ingest,
+                release_repository=self._release,
+            ),
+        )
+
+    def project_code_vocabulary(self, args: argparse.Namespace) -> Any:
+        self._release.require_sealed(args.source_release_id)
+        self._release.require_observation_member(
+            args.source_release_id, args.observation_id
+        )
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            return project_code_vocabulary_observation(
+                cursor,
+                store=self._store,
+                source_release_id=args.source_release_id,
+                observation_id=args.observation_id,
+                parser_version=args.parser_version,
                 projected_at=args.projected_at,
             )
 

@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from eatbid.monitoring.expectations import EXPECTATIONS, evaluate
+from eatbid.monitoring.expectations import (
+    EXPECTATIONS,
+    MONTH_WINDOW_PREDICATE,
+    evaluate,
+)
 
 from .conftest import MigratedDatabase
 
@@ -42,6 +46,28 @@ def test_수집_신선도_기대는_영업시간_밖에서_울리지_않는다(
 
     # 표가 비어 있으므로 창 안이면 "한 번도 안 돌았다"가 진짜 위반이고, 창 밖이면 할 말이 없어야 한다.
     assert bool(rows) is 창_안
+
+
+def test_발행_실패_창_기대는_전진이_보는_달_전체_창만_고른다(
+    migrated_db: MigratedDatabase,
+) -> None:
+    """poll-open의 하루 창과 반달 창은 전진 대상이 아니므로 이 기대의 대상도 아니다.
+
+    2026-09-16 20260916 하루 창이 옛 이미지의 발행 실패 하나를 들고 하루 종일 완결이 오가며 위반을
+    열었다 닫았다 했다(EAT-240). 조건식을 view 밖에서 값 표에 걸어 실제 PostgreSQL 판정을 고정한다.
+    """
+    assert MONTH_WINDOW_PREDICATE in _기대("failed-publication-window").sql
+
+    with migrated_db.connect() as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "select window_start from (values"
+            " ('20260301', '20260331'), ('20260916', '20260916'), ('20260201', '20260228'),"
+            " ('20260101', '20260115'), ('20260401', '20260430'), ('20240201', '20240229')"
+            f") as w(window_start, window_end) where {MONTH_WINDOW_PREDICATE} order by 1"
+        )
+        picked = [row[0] for row in cursor.fetchall()]
+
+    assert picked == ["20240201", "20260201", "20260301", "20260401"]
 
 
 def test_모든_기대_질의가_빈_스키마에서도_실행된다(

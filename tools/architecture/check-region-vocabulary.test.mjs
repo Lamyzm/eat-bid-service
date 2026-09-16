@@ -127,6 +127,17 @@ test("한 질의가 두 체계를 code_mapping 없이 이으면 거부한다", (
   assert.ok(rules(report).includes("cross-scheme-join"));
 });
 
+test("다른 체계 이름의 접두사인 이름 하나만 적은 줄은 두 체계를 이은 것이 아니다", () => {
+  const report = inspect({
+    "packages/db/src/seeds/code-schemes.ts": SEED.replace(
+      '{ namespace: "eat:auction-location-sido" },',
+      '{ namespace: "eat:auction-location" },\n  { namespace: "eat:auction-location-sido" },',
+    ),
+    "apps/web/src/query.ts": "export const sql = `select 1 from t where a = 'eat:auction-location-sido'`;\n",
+  });
+  assert.deepEqual(rules(report).filter((rule) => rule === "cross-scheme-join"), []);
+});
+
 test("code_mapping을 거치는 질의는 두 체계를 함께 말할 수 있다", () => {
   const report = inspect({
     "apps/web/src/query.ts": "export const sql = `select 1 from core.code_mapping"

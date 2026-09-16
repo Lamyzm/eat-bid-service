@@ -259,6 +259,24 @@ spec:
                 - name: release-name
                   value: "{{tasks.capture-reference.outputs.parameters.release-name}}"
 
+    # eaT 코드목록도 발견도 fan-out도 없다. 왕복 하나가 곧 관측 하나이고 release 하나여서 단계가
+    # 둘뿐이다(EAT-187). 어느 그룹을 묻는지는 파라미터가 아니라 검토된 코드목록 표가 정하므로 이
+    # DAG는 실행 정체성만 나른다. 별도 CronJob이나 스케줄러를 만들지 않는다(AGENTS 9).
+    - name: code-vocabulary-pipeline
+      dag:
+        tasks:
+          - name: capture-code-vocabulary
+            template: capture-code-vocabulary
+          - name: project-code-vocabulary
+            template: project-code-vocabulary
+            dependencies: [capture-code-vocabulary]
+            arguments:
+              parameters:
+                - name: source-release-id
+                  value: "{{tasks.capture-code-vocabulary.outputs.parameters.source-release-id}}"
+                - name: observation-id
+                  value: "{{tasks.capture-code-vocabulary.outputs.parameters.observation-id}}"
+
     # replay는 ad hoc 실행이지만 core를 다시 앉힌 뒤 mart를 다시 만들지 않으면 화면이 옛 build를
     # 계속 읽는다. replay 전용 DAG를 따로 두어 예약 실행과 같은 marts task를 잇는다.
     - name: replay-pipeline
@@ -401,6 +419,8 @@ spec:
                 "--build-sha", os.environ["BUILD_SHA"],
                 "--parser-version", os.environ["EATBID_PARSER_VERSION"],
                 "--release-name", release_name,
+                # 워크플로 이름을 run 행에 남긴다 — 알림의 run_id에서 R2 로그 경로로 바로 가기 위해(EAT-231).
+                *(["--workflow-name", workflow_name] if (workflow_name := os.environ.get("EATBID_WORKFLOW_NAME")) else []),
                 "--as-of", created_at,
                 "--started-at", created_at,
                 "--completed-at", created_at,
@@ -415,6 +435,8 @@ spec:
         env:
           - name: EATBID_WORKFLOW_MODE
             value: "{{workflow.parameters.mode}}"
+          - name: EATBID_WORKFLOW_NAME
+            value: "{{workflow.name}}"
           - &env-run-id
             name: EATBID_RUN_ID
             value: "{{workflow.uid}}"
@@ -909,6 +931,125 @@ spec:
             value: "{{inputs.parameters.observation-id}}"
           - name: EATBID_RELEASE_NAME
             value: "{{inputs.parameters.release-name}}"
+          - *env-created-at
+          - *env-result-dir
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
+    - name: capture-code-vocabulary
+      synchronization:
+        semaphores:
+          # eaT 스케줄 수집과 같은 eatbid-source-live를 쓴다. 한 번의 왕복으로 끝나는 실행이라
+          # eatbid-source-backfill에 두면 며칠 도는 backfill 뒤에서 밀린다 — 어휘가 없으면 화면이
+          # 코드를 그대로 찍으므로 드물어도 제때 도는 것이 값이 크다.
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-live
+      outputs:
+        parameters:
+          - name: source-release-id
+            valueFrom:
+              path: /tmp/eatbid/source_release_id
+          - name: observation-id
+            valueFrom:
+              path: /tmp/eatbid/observation_id
+          - name: release-name
+            valueFrom:
+              path: /tmp/eatbid/release_name
+          - name: entry-count
+            valueFrom:
+              path: /tmp/eatbid/entry_count
+          - name: excluded-row-count
+            valueFrom:
+              path: /tmp/eatbid/excluded_row_count
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [python, -c]
+        args:
+          - |
+            import os
+            import sys
+            import uuid
+
+            def fail(message: str) -> None:
+                print(message, file=sys.stderr)
+                raise SystemExit(64)
+
+            try:
+                run_id = uuid.UUID(os.environ["EATBID_RUN_ID"])
+            except (KeyError, ValueError):
+                fail("EATBID_RUN_ID must be the workflow UUID")
+            created_at = os.environ.get("EATBID_WORKFLOW_CREATED_AT", "")
+            if not created_at:
+                fail("EATBID_WORKFLOW_CREATED_AT is required")
+
+            # release 정체성은 workflow uid에서 결정적으로 파생한다. 같은 pod가 다시 뜨면 새 정체성을
+            # 만들어 고아 release를 남기는 대신 같은 정체성으로 충돌해 멈춘다.
+            source_release_id = uuid.uuid5(run_id, "eatbid:code-vocabulary-release")
+            release_name = os.environ.get("EATBID_RELEASE_NAME") or f"eat-code-vocabulary {created_at} {run_id}"
+
+            argv = [
+                "eatbid", "capture-code-vocabulary",
+                "--run-id", str(run_id),
+                "--source-release-id", str(source_release_id),
+                "--release-name", release_name,
+                "--as-of", created_at,
+                "--started-at", created_at,
+                "--build-sha", os.environ["BUILD_SHA"],
+                "--parser-version", os.environ["EATBID_PARSER_VERSION"],
+                "--result-dir", os.environ["EATBID_RESULT_DIR"],
+            ]
+            os.execvp(argv[0], argv)
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: code-vocabulary
+          - *env-run-id
+          - *env-parser-version
+          - *env-created-at
+          - *env-result-dir
+          - name: EATBID_RELEASE_NAME
+            value: "{{workflow.parameters.release-name}}"
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
+    - name: project-code-vocabulary
+      inputs:
+        parameters:
+          - name: source-release-id
+          - name: observation-id
+      synchronization:
+        mutexes:
+          # core 발행과 같은 mutex다. 이름 한 벌을 앉히는 동안 공고 투영이 같은 code_value를 만들면
+          # 두 실행이 같은 행을 두고 다툰다.
+          - name: eatbid-core-publication
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid project-code-vocabulary --run-id "$EATBID_RUN_ID"
+            --source-release-id "$EATBID_SOURCE_RELEASE_ID"
+            --observation-id "$EATBID_OBSERVATION_ID"
+            --projected-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            --build-sha "$BUILD_SHA"
+            --parser-version "$EATBID_PARSER_VERSION"
+            --result-dir "$EATBID_RESULT_DIR"
+        env:
+          - name: EATBID_WORKFLOW_MODE
+            value: code-vocabulary
+          - *env-run-id
+          - *env-source-release-id
+          - *env-parser-version
+          - name: EATBID_OBSERVATION_ID
+            value: "{{inputs.parameters.observation-id}}"
           - *env-created-at
           - *env-result-dir
           - *env-database-url

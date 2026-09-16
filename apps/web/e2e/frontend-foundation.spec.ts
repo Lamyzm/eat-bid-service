@@ -7,9 +7,13 @@ const SUCCESS_AUCTION_ID = '9007199254740993';
 const FAILURE_AUCTION_ID = '9007199254740994';
 const MISSING_AUCTION_ID = '9007199254740996';
 const REDUCED_MOTION_AUCTION_ID = '9007199254741000';
+// 이 spec의 첫 테스트만 여는 ID다. `SUCCESS_AUCTION_ID`는 다른 spec도 열어 web의 `use cache`가 데워지면
+// 응답이 지연 없이 와 skeleton이 첫 조회 전에 사라졌다(main 회차 35045806415, EAT-239). fixture는 이 ID에
+// 1.5초 지연을 준다.
+const SHELL_AUCTION_ID = '9007199254740997';
 
 test('공고 화면은 공통 셸과 화면 전용 skeleton 뒤 계약 응답을 표시한다', async ({ page }) => {
-  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`, { waitUntil: 'commit' });
+  await page.goto(`/auctions/${SHELL_AUCTION_ID}`, { waitUntil: 'commit' });
   await expect(page.getByRole('status', { name: '공고 정보를 불러오는 중' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
   await expect(page.getByText('기초 1,234,567,890.50원')).toBeVisible();

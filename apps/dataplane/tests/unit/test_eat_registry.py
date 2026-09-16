@@ -6,6 +6,7 @@ from xml.etree import ElementTree
 import pytest
 
 from eatbid.failures.errors import SourceContractError
+from eatbid.source.eat.payload import build_code_list_params
 from eatbid.source.eat.registry import (
     EAT_ENDPOINT_TRANSPORTS,
     require,
@@ -35,13 +36,14 @@ def _dataset_row(payload: bytes, dataset_id: str) -> dict[str, str]:
     }
 
 
-def test_registry는_검토된_비로그인_endpoint_둘만_노출한다() -> None:
+def test_registry는_검토된_비로그인_endpoint_셋만_노출한다() -> None:
     transports = EAT_ENDPOINT_TRANSPORTS
     assert isinstance(transports, MappingProxyType)
-    assert set(transports) == {"bid-list", "bid-detail"}
+    assert set(transports) == {"bid-list", "bid-detail", "code-list"}
     assert {transport.path for transport in transports.values()} == {
         "/nm/ep/600/selectTmBidMBidPbancList.do",
         "/nm/ep/600/selectBidDtl.do",
+        "/cmmn/code/selectCodeListEhcache.do",
     }
     assert all(
         transport.origin == "https://ns.eat.co.kr" for transport in transports.values()
@@ -368,6 +370,74 @@ def test_bid_list_payload는_전체_상태와_전국_지역을_명시적으로_�
     params[field] = allowed
 
     require_transport("bid-list").build_payload(params)
+
+
+def test_code_list_registry는_어휘_record_type을_공고_계약과_갈라_둔다() -> None:
+    contract = require("code-list", parser_version="eat-v1")
+
+    assert contract.endpoint == "code-list"
+    assert contract.path == "/cmmn/code/selectCodeListEhcache.do"
+    assert contract.record_type == "code-vocabulary.v1"
+    assert contract.response_datasets == ("ds_out",)
+    assert len(contract.datasets["ds_out"]) == 22
+    assert set(contract.schema_contract.required_datasets["ds_out"]) == {
+        "CMNS_GRP_CD",
+        "CMNS_CD",
+        "CMNS_CD_NM",
+        "USE_YN",
+        "DEL_YN",
+        "VLD_BGNG_YMD",
+        "VLD_END_YMD",
+    }
+    assert contract.schema_fingerprint == reviewed_schema_fingerprint(
+        source="eat", endpoint="code-list", parser_version="eat-v1"
+    )
+
+
+def test_코드목록_계약은_검토된_parser_version_전부에_있다() -> None:
+    """실행 단위는 parser version 하나다. 공고 수집이 쓰는 version으로 코드목록을 부를 수 없으면
+    같은 workflow 파라미터로 어휘를 채울 수 없다."""
+    contracts = [
+        require("code-list", parser_version=version)
+        for version in ("eat-v1", "eat-v2", "eat-v3")
+    ]
+
+    assert {contract.record_type for contract in contracts} == {"code-vocabulary.v1"}
+    assert len({contract.schema_fingerprint for contract in contracts}) == 1
+    assert all(contract.transport is contracts[0].transport for contract in contracts)
+    with pytest.raises(SourceContractError, match="unknown-parser-version"):
+        require("code-list", parser_version="eat-v9")
+
+
+def test_code_list_payload는_검토된_그룹_넷을_한_요청으로_묻는다() -> None:
+    params = build_code_list_params()
+
+    assert dict(params) == {
+        "CMNS_GRP_CD": "SC066,SC067,EP049,BC016",
+        "RETV_DIV": "N",
+    }
+    assert _dataset_row(require_transport("code-list").build_payload(params), "ds_Param") == {
+        "CMNS_GRP_CD": "SC066,SC067,EP049,BC016",
+        "RETV_DIV": "N",
+    }
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"CMNS_GRP_CD": "SC066", "RETV_DIV": "Y"},
+        {"CMNS_GRP_CD": "SC066,SC066", "RETV_DIV": "N"},
+        {"CMNS_GRP_CD": "SC999", "RETV_DIV": "N"},
+        {"CMNS_GRP_CD": "SC066, SC067", "RETV_DIV": "N"},
+        {"CMNS_GRP_CD": "SC066"},
+        {"CMNS_GRP_CD": "SC066", "RETV_DIV": "N", "STM_ID": "NEAT"},
+    ],
+)
+def test_code_list_payload는_검토되지_않은_그룹과_조회구분을_거부한다(
+    params: dict[str, str],
+) -> None:
+    with pytest.raises(SourceContractError, match="invalid-params"):
+        require_transport("code-list").build_payload(params)
 
 
 def test_bid_list_payload는_시작일이_종료일보다_늦으면_거부한다() -> None:
