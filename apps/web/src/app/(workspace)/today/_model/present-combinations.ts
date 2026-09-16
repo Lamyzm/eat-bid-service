@@ -1,4 +1,4 @@
-/** @module 책임: 조합 건수 응답을 왼쪽 기둥이 그대로 쓰는 줄 목록(이름·건수·주소·켜짐)으로 바꾸고, 기본 넷의 문구를 화면 어휘로 소유한다. */
+/** @module 책임: 조합 건수 응답을 왼쪽 기둥이 그대로 쓰는 줄 목록(이름·건수·주소·켜짐)으로 바꾸고, 기본 셋의 문구를 화면 어휘로 소유한다. */
 import type { MyFilterCombinationCountsV1Response, MyFilterCombinationsV1Response } from '@eatbid/contracts/api/v1/me';
 
 import { buildTodayRoute, EMPTY_TODAY_SEARCH, type TodayRoute, type TodaySearch } from '../_lib/today-search-params';
@@ -10,7 +10,7 @@ export type CombinationRowPresentation = {
   readonly count: number | null;
   readonly href: TodayRoute;
   readonly active: boolean;
-  /** 저장된 조합만 지울 수 있다. 기본 넷은 저장된 것이 아니라 매번 파생하는 틀이다. */
+  /** 저장된 조합만 지울 수 있다. 기본 셋은 저장된 것이 아니라 매번 파생하는 틀이다. */
   readonly filterCombinationId: string | null;
 };
 
@@ -27,13 +27,17 @@ export type CombinationsPresentation = {
 type DefaultKey = MyFilterCombinationCountsV1Response['defaults'][number]['key'];
 
 /**
- * 기둥에 서는 순서다. **`오늘 <지역>`이 맨 위다** — 사장님이 아침에 여는 자리가 여기이고, 그 아래 셋은
- * 거기서 넓히거나(전부) 좁히는(참여·품목) 이동이다. 계약의 열쇠 순서가 아니라 이 목록이 순서를 정한다.
+ * 기둥에 서는 순서다. **`오늘 <지역>`이 맨 위다** — 사장님이 아침에 여는 자리가 여기이고, 그 아래 둘은
+ * 거기서 넓히거나(전부) 좁히는(품목) 이동이다. 계약의 열쇠 순서가 아니라 이 목록이 순서를 정한다.
+ *
+ * `noBids`(참여 0곳)는 계약이 세어 주지만 기둥에 세우지 않는다. 단독입찰을 허용하지 않는 공고가 대부분이라
+ * (2026-09-16 표본 30건 중 29건) 참여 0곳은 기회가 아니라 혼자 들어가면 유찰이라는 신호인데, 그 조건을
+ * 아직 읽지 않아 화면이 옆에 적어 줄 수 없다. 조건 자체(`bidState=none`)는 남아 있어 사용자가 직접 걸 수 있다.
  */
-const DEFAULT_ORDER: readonly DefaultKey[] = ['regionClosingToday', 'regionAll', 'noBids', 'itemUnknownIncluded'];
+const DEFAULT_ORDER: readonly DefaultKey[] = ['regionClosingToday', 'regionAll', 'itemUnknownIncluded'];
 
 /**
- * 기본 넷의 문구는 **화면이 소유한다.** 계약은 어느 이동인지를 열쇠로만 싣는다 — `오늘 김해`의 `김해`는
+ * 기본 셋의 문구는 **화면이 소유한다.** 계약은 어느 이동인지를 열쇠로만 싣는다 — `오늘 김해`의 `김해`는
  * 사장님 것이지 모두의 것이 아니라서 계약이 지어낼 수 없다.
  *
  * 지역 이름은 **관측된 라벨일 때만** 쓴다. 워크스페이스가 고른 지역이 하나면 그 라벨을 그대로 부르고,
@@ -49,7 +53,7 @@ function defaultName(key: DefaultKey, regionText: string | null): string {
 }
 
 /**
- * 기본 넷이 누르면 가는 자리다. 앞 둘은 **조건을 지우는** 이동이고 뒤 둘은 **지금 조건에 더하는** 이동이라
+ * 기본 셋이 누르면 가는 자리다. 앞 둘은 **조건을 지우는** 이동이고 뒤 하나는 **지금 조건에 더하는** 이동이라
  * 링크가 지우는 것과 남기는 것이 서로 다르다.
  */
 function defaultRoute(key: DefaultKey, search: TodaySearch, today: string): TodayRoute {

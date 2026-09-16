@@ -40,14 +40,27 @@ export type OpenAuctionRowPresentation = {
     readonly clockText: string;
     readonly dDay: number | null;
   };
+  /**
+   * 관측된 참여 수다. `0`은 빈 문자열이다 — 값을 버리는 것이 아니라 전면에 세우지 않는 것이다(사용자 결정
+   * 2026-09-16). 단독입찰을 허용하지 않는 공고가 대부분이라(표본 30건 중 29건) 0곳은 기회가 아니라 혼자
+   * 들어가면 유찰이라는 신호인데, 그 조건을 아직 읽지 않아 화면이 그 사실을 옆에 적어 줄 수 없다. 못 센
+   * 판(null)은 `—`라 둘이 섞이지 않는다.
+   */
   readonly bidCountText: string;
   readonly orgSummary: {
     readonly attemptCount: number;
     readonly medianListText: string;
     readonly listCountSampleCount: number;
-    readonly lastAwardedText: string;
-    readonly lastOpenedText: string;
-    readonly lastListText: string;
+    /**
+     * 같은 하한 코호트의 직전 회차다. 명단 수와 개찰일만 싣고 낙찰 투찰률은 싣지 않는다 — 같은 값이
+     * 행마다 서면 앵커링이다(decision-support §11). 실측으로 직전 회차는 보통(중앙값)에서 30% 넘게
+     * 벗어나는 행이 51.6%라 중앙값 옆에 따로 둘 값어치가 있다(2026-09-16).
+     */
+    readonly lastRound:
+      | { readonly kind: 'observed'; readonly listText: string; readonly dateText: string; readonly belowText: string | null }
+      // 없는 이유가 둘이고 사용자가 할 일이 다르다. 같은 하한에서 본 회차가 아예 없는 것과, 회차는
+      // 있는데 개찰 시각을 관측한 것이 없는 것을 한 문구로 합치면 화면이 없는 사실을 말한다(AGENTS 3).
+      | { readonly kind: 'none'; readonly text: string };
   } | null;
 };
 
@@ -150,32 +163,32 @@ function presentEligibility(areas: OpenAuction['eligibilityAreas']): string | nu
   return areas.length === 1 ? head : `${head} 외 ${areas.length - 1}`;
 }
 
-/**
- * 요약은 이 행의 하한율 코호트에서만 온다. 그래서 값을 못 낸 이유가 셋이고 사용자가 할 일이 서로 다르다.
- * 같은 하한에서 본 회차가 아예 없는 것, 회차는 있는데 아직 개찰 전인 것, 개찰은 됐는데 낙찰을 관측하지
- * 못한 것을 한 문구로 합치면 화면이 없는 사실을 말한다(AGENTS 3).
- */
-function lastAwardedTextOf(summary: NonNullable<OpenAuction['orgSummary']>): string {
-  if (summary.attemptCount === 0) return '같은 하한 회차 없음';
-  if (summary.lastRound === null) return '개찰 회차 없음';
-  // 최근 낙찰은 투찰률 축(기초금액 분모)이다.
-  return summary.lastRound.awardedBidRate?.value ?? '낙찰 미관측';
+// 개찰일은 날짜까지만이다. 44px 한 줄에서 시각은 자리만 먹고, 직전 회차가 언제였는지는 날로 충분하다.
+function kstDate(instant: string): string {
+  const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO(KST);
+  return `${pad2(zoned.month)}-${pad2(zoned.day)}`;
+}
+
+function presentLastRound(summary: NonNullable<OpenAuction['orgSummary']>): NonNullable<OpenAuctionRowPresentation['orgSummary']>['lastRound'] {
+  if (summary.attemptCount === 0) return { kind: 'none', text: '같은 하한 회차 없음' };
+  const last = summary.lastRound;
+  if (last === null) return { kind: 'none', text: '개찰 회차 없음' };
+  return {
+    kind: 'observed',
+    // 명단이 미관측인 회차는 0곳이 아니다. 0으로 적으면 아무도 안 들어온 판이 된다(AGENTS 3).
+    listText: last.listCount === null ? '명단 미관측' : `${last.listCount}곳`,
+    dateText: kstDate(last.openedAt),
+    belowText: last.belowDayFloorCount === null ? null : `하한 아래 ${last.belowDayFloorCount}`
+  };
 }
 
 function presentOrgSummary(summary: OpenAuction['orgSummary']): OpenAuctionRowPresentation['orgSummary'] {
   if (summary === null) return null;
-  const last = summary.lastRound;
   return {
     attemptCount: summary.attemptCount,
     medianListText: summary.medianListCount === null ? '—' : String(summary.medianListCount),
     listCountSampleCount: summary.listCountSampleCount,
-    lastAwardedText: lastAwardedTextOf(summary),
-    lastOpenedText: last === null ? '' : kstDateTime(last.openedAt),
-    lastListText: last === null || last.listCount === null
-      ? ''
-      : last.belowDayFloorCount === null
-        ? `명단 ${last.listCount}`
-        : `명단 ${last.listCount} · 하한 아래 ${last.belowDayFloorCount}`
+    lastRound: presentLastRound(summary)
   };
 }
 
@@ -206,7 +219,7 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     eligibilityText: presentEligibility(auction.eligibilityAreas),
     baseAmountText: auction.baseAmount === null ? '미확인' : formatAmountText(auction.baseAmount.amount),
     closes: presentCloses(auction.closesAt, nowIso),
-    bidCountText: auction.bidCount === null ? '—' : String(auction.bidCount),
+    bidCountText: auction.bidCount === null ? '—' : auction.bidCount === 0 ? '' : String(auction.bidCount),
     orgSummary: presentOrgSummary(auction.orgSummary)
   };
 }

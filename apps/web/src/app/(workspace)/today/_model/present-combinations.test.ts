@@ -66,18 +66,23 @@ function present(search: TodaySearch, override: Partial<Parameters<typeof presen
 describe('조합 기둥 표시 변환', () => {
   test('건수를 못 읽었으면 0이 아니라 비운다', () => {
     const presentation = present(currentSearch, { counts: null });
-    expect(presentation.defaults.map((row) => row.count)).toEqual([null, null, null, null]);
+    expect(presentation.defaults.map((row) => row.count)).toEqual([null, null, null]);
     expect(presentation.saved[0]!.count).toBeNull();
   });
 
-  test('기본 넷은 오늘이 맨 위이고 관측된 지역 라벨로 부른다', () => {
+  test('기본 셋은 오늘이 맨 위이고 관측된 지역 라벨로 부른다', () => {
     const presentation = present(currentSearch);
     expect(presentation.defaults.map((row) => [row.name, row.count])).toEqual([
       ['오늘 경남/김해시', 4],
       ['경남/김해시 전부', 31],
-      ['참여 0곳', 2],
       ['품목 미상 포함', 9]
     ]);
+  });
+
+  test('참여 0곳은 계약이 세어 주더라도 기둥에 세우지 않는다', () => {
+    // 단독입찰을 허용하지 않는 공고가 대부분이라 참여 0곳은 기회가 아니라 혼자 들어가면 유찰이라는
+    // 신호다. 그 조건을 아직 읽지 않아 옆에 적어 줄 수 없으므로 전면에 세우지 않는다(사용자 결정 2026-09-16).
+    expect(present(currentSearch).defaults.map((row) => row.key)).not.toContain('noBids');
   });
 
   test('고른 지역이 하나가 아니면 지역 이름을 지어내지 않는다', () => {
@@ -85,7 +90,6 @@ describe('조합 기둥 표시 변환', () => {
     expect(presentation.defaults.map((row) => row.name)).toEqual([
       '오늘 내 지역',
       '내 지역 전부',
-      '참여 0곳',
       '품목 미상 포함'
     ]);
   });
@@ -95,11 +99,10 @@ describe('조합 기둥 표시 변환', () => {
     expect(present(EMPTY_TODAY_SEARCH).suggestedName).toBe('');
   });
 
-  test('앞 둘은 조건을 지우고 뒤 둘은 지금 조건에 더한다', () => {
-    const [closingToday, regionAll, noBids, itemUnknown] = present(currentSearch).defaults;
+  test('앞 둘은 조건을 지우고 뒤 하나는 지금 조건에 더한다', () => {
+    const [closingToday, regionAll, itemUnknown] = present(currentSearch).defaults;
     expect(regionAll!.href).toBe('/today');
     expect(closingToday!.href).toBe(`/today?closesOn=${TODAY}`);
-    expect(noBids!.href).toBe('/today?sido=48&items=육류&bidState=none&baseAmountMin=1000000.00');
     expect(itemUnknown!.href).toBe('/today?sido=48&items=육류&itemUnknown=include&baseAmountMin=1000000.00');
   });
 

@@ -1,4 +1,4 @@
-/** @module 책임: 오늘 화면이 xl(시안 캔버스 폭)·lg·md 세 폭에서 표가 문서를 가로로 밀거나 nowrap 글자가 넘치지 않고
+/** @module 책임: 오늘 화면이 2xl(기둥이 옆에 붙는 가장 좁은 폭)·xl(시안 캔버스 폭)·lg·md 네 폭에서 표가 문서를 가로로 밀거나 nowrap 글자가 넘치지 않고
  * 렌더되는지, 마감일 묶음·D-0/D-1 상태색·탭·달력·품목 링크·사라진 cursor 복구가 fixture 그대로 동작하는지 검사한다.
  * 이 route는 RSC가 서버에서 목록과 요약 두 계약을 조회하므로 fixture 서버가 응답한다. */
 import { expect, test } from '@playwright/test';
@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test';
 
 import { VIEWPORT_WIDTH } from './support/viewports';
 
-const WIDTHS = [VIEWPORT_WIDTH.designCanvas, VIEWPORT_WIDTH.lg, VIEWPORT_WIDTH.md] as const;
+const WIDTHS = [VIEWPORT_WIDTH.xxl, VIEWPORT_WIDTH.designCanvas, VIEWPORT_WIDTH.lg, VIEWPORT_WIDTH.md] as const;
 const STALE_CURSOR = '9007199254740990';
 
 /** fixture 표본은 오늘·내일·사흘 뒤·마감 미확인 넷이라 묶음 머리도 넷이고 행도 넷이다. */

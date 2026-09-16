@@ -4,7 +4,7 @@
  */
 
 /** Tailwind 접두사와 같은 이름의 폭 경계(px). viewport 폭이 이 값 이상이면 그 계층이다. */
-export const BREAKPOINT_PX = { sm: 640, md: 768, lg: 1024, xl: 1280 } as const;
+export const BREAKPOINT_PX = { sm: 640, md: 768, lg: 1024, xl: 1280, '2xl': 1536 } as const;
 
 export type BreakpointName = keyof typeof BREAKPOINT_PX;
 

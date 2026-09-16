@@ -1,13 +1,11 @@
-/** @module 책임: 열린 공고 행을 마감일 묶음으로 끊어 순번·마감·기관·품목·기초금액·참여 여섯 칸으로 그리고, 열의 정렬·폭별 접힘·줄바꿈을 한 열 서술에서 파생하며 상태색은 묶음 머리의 오늘·내일에만 건다. */
-import Link from 'next/link';
+/** @module 책임: 열린 공고 행을 마감일 묶음으로 끊어 순번·마감·기관·품목·기초금액·참여·지난번·보통 여덟 칸을 44px 한 줄로 그리고, 열의 정렬·폭별 접힘·줄바꿈을 한 열 서술에서 파생하며 상태색은 묶음 머리의 오늘·내일에만 건다. */
 import type { ReactNode } from 'react';
 
-import { summarizeItemLabel } from '@/entities/item/item-label';
-
-import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
+import type { TodaySearch } from '../_lib/today-search-params';
 import type { ClosingDayGroup } from '../_model/group-closing-days';
 import type { ClosesTone, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
 import type { FloorRateSpread } from '../_model/present-open-summary';
+import { BaseAmountCell, ItemCell, LastRoundCell, MedianCell, MUTED, OrganizationCell } from './open-auction-cells';
 
 // 빨강은 상태 색으로만 쓴다. 오늘 마감은 red, 내일 마감은 amber(주의)이며 그 밖의 셀·헤더·칩에는 쓰지 않는다
 // (screen-system §9.2, EAT-39 판정 F). 색과 함께 `오늘`·`내일` 텍스트가 같이 있다.
@@ -21,120 +19,6 @@ const CLOSES_TONE: Record<ClosesTone, string> = {
   later: 'text-foreground',
   unknown: 'text-muted-foreground'
 };
-
-const MUTED = 'text-[13px] leading-tight font-medium text-muted-foreground';
-
-function OrganizationCell({
-  row,
-  search,
-  rareRates
-}: {
-  readonly row: OpenAuctionRowPresentation;
-  readonly search: TodaySearch;
-  /** 좁은 폭에서 접힌 기초금액을 둘째 줄에 낼 때 드문 하한도 함께 적는다. */
-  readonly rareRates: ReadonlySet<string>;
-}) {
-  const { organization, region } = row;
-  // 지역 어휘 계약이 아직 없어 라벨을 관측하지 못한 지역이 있다. 그때 `코드 657`을 적으면 사용자가 읽을 수
-  // 없는 글자가 기관 이름 아래 줄을 차지한다. 라벨이 있는 것만 보인다(EAT-100까지).
-  const places = [region.sido, region.sigungu].filter(
-    (reference): reference is NonNullable<typeof reference> => reference !== null && !reference.text.startsWith('코드 ')
-  );
-  return (
-    <div className='grid min-w-0 gap-0.5'>
-      {/* 행을 여는 자리는 기관 이름이다. 별도의 `열기` 열을 두면 모든 행에 같은 단어가 서른 번 서고,
-          그 열의 너비만큼 기관 이름이 줄어든다. */}
-      <Link
-        href={row.href}
-        className={`line-clamp-2 break-keep wrap-anywhere text-[15px] font-semibold hover:underline ${organization.tone === 'named' ? '' : 'text-muted-foreground'}`}
-      >
-        {organization.text}
-      </Link>
-      <span className={`flex flex-wrap gap-x-2 empty:hidden ${MUTED}`}>
-        {/* 지역 링크는 라벨이 아니라 code value id로 거른다. 라벨은 표시일 뿐이다(AGENTS 2·6). */}
-        {places.map((reference) => (
-          <Link key={reference.codeValueId} href={buildTodayFilterRoute(search, { sido: reference.codeValueId })} className='hover:underline'>
-            {reference.text}
-          </Link>
-        ))}
-        {/* 제한지역은 공고지역과 다른 축이라 링크가 아니라 사실 표시다. 관측한 제한은 위 조건 줄이 이미
-            세고 있으므로 행에는 관측하지 못한 경우만 남긴다 — 제한 없음으로 바꿔 적으면 낼 수 있는
-            공고가 목록에서 조용히 사라진다. */}
-        {row.eligibilityText === null ? <span className='font-semibold text-foreground'>제한지역 미관측</span> : null}
-        {/* 좁은 폭에서 접힌 품목과 기초금액을 둘째 줄에 둔다. 참여는 어느 폭에서나 제 열에 있다.
-            md(768)에서 셸 탐색을 빼면 표에 남는 폭이 398px뿐이라 여섯 칸을 다 세우면 기관 이름이 설
-            자리가 없다. 값을 지우는 것이 아니라 줄을 옮기는 것이라 읽을 것은 그대로 남는다. */}
-        <span className='lg:hidden'>{row.itemLabel === null ? '품목 미확인' : summarizeItemLabel(row.itemLabel).text}</span>
-        <span className='tabular-nums lg:hidden'>{row.baseAmountText}</span>
-        {rareRates.has(row.floorRateText) ? <span className='tabular-nums lg:hidden'>하한 {row.floorRateText}</span> : null}
-        {row.orgSummary === null ? null : (
-          <span className='tabular-nums lg:hidden'>보통 {row.orgSummary.medianListText} · {row.orgSummary.listCountSampleCount}회</span>
-        )}
-      </span>
-    </div>
-  );
-}
-
-/**
- * 품목 칸이다. **링크가 거는 것은 라벨 전체가 아니라 조각 하나다.**
- *
- * 합성 라벨(`육류 , 가금류`)을 통째로 걸면 그 조합을 가진 행만 걸려 `육류`만 있는 행이 빠진다. 조각으로
- * 걸면 부분일치라 둘 다 걸린다. 접힌 `외 N`은 조각이 아니라 접었다는 표시라 링크가 아니다.
- */
-function ItemCell({ row, search }: { readonly row: OpenAuctionRowPresentation; readonly search: TodaySearch }) {
-  if (row.itemLabel === null) return <span className='text-muted-foreground'>미확인</span>;
-  const item = summarizeItemLabel(row.itemLabel);
-  const head = item.parts[0]!;
-  return (
-    <span title={item.full ?? undefined} className='inline-flex items-baseline gap-1'>
-      <Link href={buildTodayFilterRoute(search, { items: [head] })} className='hover:underline'>
-        {head}
-      </Link>
-      {item.parts.length > 1 ? <span className={MUTED}>외 {item.parts.length - 1}</span> : null}
-    </span>
-  );
-}
-
-/**
- * 기초금액과, 이 목록에서 드문 하한일 때만 그 값이다.
- *
- * 하한을 열로 두지 않는 이유는 요약의 `floorSpread`가 소유한다. 여기서는 그 판정을 받아 적을 뿐이라
- * 드문 값이 하나도 없는 흔한 경우에는 둘째 줄 자체가 없다.
- */
-function BaseAmountCell({ row, rareRates }: { readonly row: OpenAuctionRowPresentation; readonly rareRates: ReadonlySet<string> }) {
-  return (
-    <span className='grid justify-items-end gap-0.5 tabular-nums'>
-      <span className='whitespace-nowrap'>{row.baseAmountText}</span>
-      {rareRates.has(row.floorRateText) ? <span className={`${MUTED} whitespace-nowrap`}>하한 {row.floorRateText}</span> : null}
-    </span>
-  );
-}
-
-/**
- * 오늘 몇 곳 들어왔는지와 그 판의 보통이 한 칸에 있다.
- *
- * 열을 나누지 않는 이유는 둘이 **함께 읽어야 뜻이 생기는 한 쌍**이기 때문이다. `0`만 보면 한산한
- * 판인지 아직 안 찬 판인지 알 수 없다. 보통 17인 곳의 0과 보통 60인 곳의 0은 다른 말이다.
- *
- * 표본 수를 함께 적는다. 같은 `보통 68`이라도 다섯 회를 본 것과 열다섯 회를 본 것은 무게가
- * 다르고, 표본 없는 중앙값을 화면에 내면 그 차이가 사라진다(AGENTS 7).
- */
-function ParticipationCell({ row }: { readonly row: OpenAuctionRowPresentation }) {
-  return (
-    <span className='grid justify-items-end gap-0.5 tabular-nums'>
-      <span className='whitespace-nowrap'>{row.bidCountText}</span>
-      {/* 보통과 표본 수는 lg부터 제 열에 선다. 그 아래에서는 참여 열이 수 하나만큼만 남고 이 한 쌍은
-          기관 셀 둘째 줄로 내려간다 — 좁은 폭에서 열을 유지하면 기관 이름이 설 자리가 없다. */}
-      {row.orgSummary === null
-        ? null
-        : (
-            <span className={`${MUTED} hidden whitespace-nowrap lg:block`}>
-              보통 {row.orgSummary.medianListText} · {row.orgSummary.listCountSampleCount}회
-            </span>
-          )}
-    </span>
-  );
-}
 
 /** 셀이 행 하나만으로는 알 수 없는 것들이다. 순번은 목록에서의 자리고, 드문 하한은 목록 전체의 성질이다. */
 type OpenAuctionCellContext = {
@@ -156,17 +40,18 @@ type OpenAuctionColumn = {
   /**
    * 고정 폭이다. `w-auto`인 열 하나가 남는 폭을 전부 가져간다.
    *
-   * 표를 폭에 맡기면 본문이 넓어질수록 여섯 칸이 같이 벌어져 기관 이름과 기초금액 사이가 손가락 두 개만큼
+   * 표를 폭에 맡기면 본문이 넓어질수록 칸이 같이 벌어져 기관 이름과 기초금액 사이가 손가락 두 개만큼
    * 떨어진다. 한 행을 읽는 데 눈이 가로로 두 번 움직이면 마감 임박 순이라는 세로 흐름이 끊긴다.
    *
-   * lg 폭은 셀 값이 아니라 **머리글 두 줄**이 정한다. 부제가 열보다 넓으면 옆 칸으로 흘러넘치므로
+   * 폭은 셀 값이 아니라 **머리글 두 줄**이 정한다. 부제가 열보다 넓으면 옆 칸으로 흘러넘치므로
    * `개찰 한 시간 뒤`(77px)와 `MM-DD HH:mm 기준`(98px)이 들어갈 만큼을 잡았다(2026-09-15 실측).
    * 글꼴이 기기마다 달라 딱 맞게 잡으면 CI에서만 2px이 모자라므로 열마다 10px 넘게 여유를 둔다.
+   * md(768)에서는 표에 448px뿐이라 그만큼을 줄 수 없어 부제를 감추고 열을 w-16·w-12로 좁힌다.
    *
-   * 그 아래에서는 좁은 폭을 따로 준다. md(768)에서 셸 탐색을 빼면 표에 남는 폭이 398px뿐이라 lg 폭을
-   * 그대로 쓰면 고정 열 합이 자리를 다 먹고 기관 열이 18px로 무너진다(2026-09-15 실측). 그래서 폭을
-   * inline style이 아니라 breakpoint를 실을 수 있는 class로 두고, 품목과 기초금액 두 열은 기관 셀
-   * 둘째 줄로 접는다.
+   * 여덟 칸이 다 서는 폭은 xl(1280)부터다. 조건 기둥이 옆에 붙는 것은 2xl(1536)부터라 xl에서는 표가 본문
+   * 폭 976px을 다 쓴다 — 기둥을 xl에서 옆에 두면 표가 708px뿐이라 여덟 칸의 기관 칸이 0이 된다(2026-09-16
+   * dev 실측). lg(1024)에서 셸 탐색을 빼면 표에 736px이 남아 여섯 칸까지 서고, md(768)에서는 398px뿐이라
+   * 넷만 선다. 접힌 칸은 지워지지 않고 기관 셀 둘째 줄로 내려간다.
    */
   readonly width: string;
   /** 폭이 좁아질 때 접히는 규칙이다. 빈 문자열은 어느 폭에서나 보인다. */
@@ -185,41 +70,67 @@ type OpenAuctionColumn = {
  * 열의 머리글·부제·정렬·접힘·줄바꿈·셀을 한 줄에 모은다. 이 여섯을 따로 둔 표로 관리하면 열 하나를 더할 때
  * 여섯 곳을 맞춰야 하고, 하나를 빠뜨려도 className에 `undefined`가 들어갈 뿐 조용히 지나간다.
  *
- * 여섯 칸이고 머리글은 다섯이다. 마감 임박 순이 이미 정해진 목록이라 순번은 `몇 번째로 닫히나`라는
+ * 여덟 칸이고 머리글은 일곱이다. 마감 임박 순이 이미 정해진 목록이라 순번은 `몇 번째로 닫히나`라는
  * 뜻을 갖고, 그 열에는 부를 이름이 따로 없어 머리글을 눈에서만 감춘다.
  *
  * 마감 칸은 시각만이다. 날짜는 묶음 머리가 한 번 말한다. 하한은 열이 아니다(요약의 `floorSpread`).
- * 최근 낙찰은 투찰률 축이라 사정률 축인 이 목록과 눈금이 다르고, 한 행을 고른 뒤에 볼 것이라 상세로
- * 보낸다. 좁은 폭에서는 품목과 기초금액을 접어 기관 셀 둘째 줄로 내리고 나머지 넷은 어느 폭에서나 남는다.
+ * 낙찰 투찰률은 열이 아니다 — 사정률 축인 이 목록과 눈금이 다르고 행마다 서면 앵커링이라 상세로 보낸다.
+ * 우리만 가진 값은 오른쪽 두 칸이다. 지난번은 개별 회차의 관측이고 보통은 코호트의 중앙값이라 갈라 둔다.
  */
 const COLUMNS: readonly OpenAuctionColumn[] = [
   { id: 'rank', header: '순번', align: 'text-left', width: 'w-9', visibility: '', headerHidden: true, cell: (_row, context) => <span className={MUTED}>{context.rank}</span> },
-  { id: 'closes', header: '마감', subheader: '개찰 한 시간 뒤', align: 'text-left', width: 'w-16 lg:w-26', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
+  { id: 'closes', header: '마감', subheader: '개찰 한 시간 뒤', align: 'text-left', width: 'w-16 lg:w-24', visibility: '', cell: (row) => <span className='tabular-nums'>{row.closes.clockText}</span> },
   { id: 'organization', header: '기관', align: 'text-left', width: 'w-auto', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} rareRates={context.rareRates} /> },
-  { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: 'lg:w-26', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
-  { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: 'lg:w-32', visibility: 'hidden lg:table-cell', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
-  { id: 'participation', header: '참여', align: 'text-right', width: 'w-16 lg:w-32', visibility: '', cell: (row) => <ParticipationCell row={row} /> }
+  { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: 'lg:w-24', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
+  { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: 'lg:w-28', visibility: 'hidden lg:table-cell', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
+  { id: 'participation', header: '참여', align: 'text-right', width: 'w-12 lg:w-28', visibility: '', cell: (row) => <span className='tabular-nums'>{row.bidCountText}</span> },
+  { id: 'lastRound', header: '지난번', subheader: '같은 하한 직전', align: 'text-right', width: 'xl:w-40', visibility: 'hidden xl:table-cell', cell: (row) => <LastRoundCell row={row} /> },
+  { id: 'median', header: '보통', subheader: '중앙값 · 표본', align: 'text-right', width: 'xl:w-24', visibility: 'hidden xl:table-cell', cell: (row) => <MedianCell row={row} /> }
 ];
+
+/**
+ * 묶음 머리가 걸치는 칸이다. 여덟 열을 한 칸으로 걸치면 열이 접힌 폭에서 브라우저가 보이지 않는 열의 자리를
+ * 빈 열로 만들어 남는 폭을 기관 칸과 셋이 나눠 갖는다(2026-09-16 실측: 1280 여섯 칸에서 기관 67px, 오른쪽에
+ * 133px 빈자리). 접힘 규칙이 같은 이웃 열끼리 걸치고 칸이 그 규칙을 그대로 받으면 열과 함께 사라진다.
+ */
+const HEAD_SPANS = COLUMNS.reduce<readonly { readonly visibility: string; readonly span: number }[]>((spans, column) => {
+  const last = spans.at(-1);
+  return last !== undefined && last.visibility === column.visibility
+    ? [...spans.slice(0, -1), { ...last, span: last.span + 1 }]
+    : [...spans, { visibility: column.visibility, span: 1 }];
+}, []);
+
+/** 조건을 푼 수가 서는 칸이다. 어느 폭에서나 보이는 마지막 칸이라 접힌 폭에서는 표의 오른쪽 끝이다. */
+const RELEASED_SPAN = HEAD_SPANS.map((span) => span.visibility).lastIndexOf('');
 
 /**
  * 마감일 묶음 머리다. 이 한 줄이 그 아래 행들의 날짜를 대신 말하므로 행의 마감 칸에는 시각만 남는다.
  *
  * `2건 · 7건 중`의 뒤쪽은 품목·금액을 푼 수다. 조건을 좁힌 채로도 그날 판이 얼마나 큰지 보이지 않으면
  * 사용자가 자기 조건이 무엇을 가렸는지 모른다. 셀 근거가 없는 날(달력 창 밖)은 수를 적지 않는다.
+ * 날짜·요일·건수와 붙여 두면 네 값이 한 덩어리로 읽혀 `3건 13건 중`이 무엇과 무엇의 비교인지 눈이 다시
+ * 짝지어야 하므로 오른쪽 칸에 따로 세운다.
  */
-function DayHeadRow({ group, columns }: { readonly group: ClosingDayGroup; readonly columns: number }) {
+function DayHeadRow({ group }: { readonly group: ClosingDayGroup }) {
+  const released = group.releasedCount === null ? null : <span className={`${MUTED} tabular-nums`}>{group.releasedCount}건 중</span>;
   return (
-    <tr className='border-b border-border/60 bg-muted/40'>
-      <th scope='colgroup' colSpan={columns} className='px-2 py-1 text-left font-semibold'>
-        {/* 조건을 푼 수는 오른쪽 끝에 세운다. 날짜·요일·건수와 붙여 두면 네 값이 한 덩어리로 읽혀
-            `3건 13건 중`이 무엇과 무엇의 비교인지 눈이 다시 짝지어야 한다. */}
-        <span data-slot='closes' className={`flex flex-wrap items-baseline gap-x-2 ${CLOSES_TONE[group.tone]}`}>
-          <span className='text-[15px]'>{group.dateText}</span>
-          {group.awayText === '' ? null : <span className={MUTED}>{group.awayText}</span>}
-          {group.count === null ? null : <span className='text-[13px] font-semibold tabular-nums'>{group.count}건</span>}
-          {group.releasedCount === null ? null : <span className={`${MUTED} ml-auto tabular-nums`}>{group.releasedCount}건 중</span>}
-        </span>
-      </th>
+    <tr className='h-9 bg-muted/40'>
+      {HEAD_SPANS.map((span, index) =>
+        index === 0 ? (
+          <th key={index} scope='colgroup' colSpan={span.span} className='px-2 text-left font-semibold xl:px-3'>
+            <span data-slot='closes' className={`flex flex-wrap items-baseline gap-x-2 ${CLOSES_TONE[group.tone]}`}>
+              <span>{group.dateText}</span>
+              {group.awayText === '' ? null : <span className={MUTED}>{group.awayText}</span>}
+              {group.count === null ? null : <span className='tabular-nums'>{group.count}건</span>}
+              {index === RELEASED_SPAN ? <span className='ml-auto'>{released}</span> : null}
+            </span>
+          </th>
+        ) : (
+          <td key={index} colSpan={span.span} className={`px-2 text-right xl:px-3 ${span.visibility}`}>
+            {index === RELEASED_SPAN ? released : null}
+          </td>
+        )
+      )}
     </tr>
   );
 }
@@ -228,6 +139,9 @@ function DayHeadRow({ group, columns }: { readonly group: ClosingDayGroup; reado
  * 행 값은 서버에서 이미 문자열로 만들어졌고 셀 안 상호작용은 링크뿐이라 이 표는 server component다.
  * 정렬·필터·페이징이 이 화면의 표에 생기기 전까지 headless 표 라이브러리를 다시 들이지 않는다 —
  * 그 순간 표 전체가 브라우저로 넘어가고 hydration 비용이 따라온다.
+ *
+ * 괘선을 긋지 않는다. 행을 가르는 것은 44px 높이의 리듬과 hover 면뿐이고, 날짜가 바뀌는 자리는 묶음 머리의
+ * 면이 가른다. 행마다 선을 그으면 성수기 하루 백 행이 선 백 개가 되어 글자보다 선이 먼저 읽힌다.
  */
 export function OpenAuctionTable({
   groups,
@@ -251,25 +165,21 @@ export function OpenAuctionTable({
     participation: observedText === null ? undefined : `${observedText} 기준`
   };
   return (
-    <table className='w-full table-fixed border-collapse'>
+    <table className='w-full table-fixed border-collapse text-[13px] font-semibold'>
       <thead>
-        <tr className='border-b border-border'>
+        <tr>
           {COLUMNS.map((column) => {
             const subheader = subheaders[column.id] ?? column.subheader;
             return (
               <th
                 key={column.id}
                 scope='col'
-                // `colgroup`이 아니라 머리 칸이 폭을 정한다. `col`에 접힘 규칙을 걸면 `display:none`이 그 열을
-                // 격자에서 빼 버려 나머지 폭이 한 칸씩 밀린다.
-                className={`px-2 pb-1.5 align-top text-[13px] leading-tight font-semibold whitespace-nowrap text-muted-foreground ${column.align} ${column.width} ${column.visibility}`}
+                className={`px-2 py-1.5 align-bottom whitespace-nowrap text-muted-foreground xl:px-3 ${column.align} ${column.width} ${column.visibility}`}
               >
                 {column.headerHidden ? <span className='sr-only'>{column.header}</span> : (
                   <span className='grid gap-0.5'>
                     <span>{column.header}</span>
-                    {/* 부제는 lg부터다. 좁은 폭에서는 부제가 열보다 넓어 옆 칸으로 흘러넘치고, 계보는
-                        조건 기둥의 build 줄이 어느 폭에서나 말하고 있다(AGENTS 7). */}
-                    {subheader === undefined ? null : <span className='hidden font-medium text-muted-foreground/70 lg:block'>{subheader}</span>}
+                    {subheader === undefined ? null : <span className={`${MUTED} hidden lg:block`}>{subheader}</span>}
                   </span>
                 )}
               </th>
@@ -277,23 +187,40 @@ export function OpenAuctionTable({
           })}
         </tr>
       </thead>
-      {groups.map((group) => (
-        <tbody key={group.key}>
-          <DayHeadRow group={group} columns={COLUMNS.length} />
-          {group.rows.map((row, index) => (
-            <tr key={row.auctionAttemptId} data-closes={row.closes.tone} className='border-b border-border/60 last:border-0'>
-              {COLUMNS.map((column) => (
-                <td
-                  key={column.id}
-                  className={`px-2 py-1 align-middle text-[15px] leading-tight font-semibold ${column.align} ${column.visibility} ${column.wraps ? '' : 'whitespace-nowrap tabular-nums'}`}
-                >
-                  {column.cell(row, { search, rank: group.firstRank + index, rareRates })}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      ))}
+      <tbody>
+        {groups.map((group) => (
+          <DayHeadRowGroup key={group.key} group={group} search={search} rareRates={rareRates} />
+        ))}
+      </tbody>
     </table>
+  );
+}
+
+/** 묶음 하나다. 머리 한 줄 뒤에 그 날의 행들이 온다. `tbody`를 묶음마다 두지 않는 이유는 열 폭 계산이 하나의 `tbody`를 전제하기 때문이다. */
+function DayHeadRowGroup({
+  group,
+  search,
+  rareRates
+}: {
+  readonly group: ClosingDayGroup;
+  readonly search: TodaySearch;
+  readonly rareRates: ReadonlySet<string>;
+}) {
+  return (
+    <>
+      <DayHeadRow group={group} />
+      {group.rows.map((row, index) => (
+        <tr key={row.auctionAttemptId} data-closes={row.closes.tone} className='h-11 hover:bg-muted/50'>
+          {COLUMNS.map((column) => (
+            <td
+              key={column.id}
+              className={`px-2 py-1 align-middle xl:px-3 ${column.align} ${column.visibility} ${column.wraps ? '' : 'whitespace-nowrap tabular-nums'}`}
+            >
+              {column.cell(row, { search, rank: group.firstRank + index, rareRates })}
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
   );
 }

@@ -1,4 +1,4 @@
-/** @module 책임: 왼쪽 기둥의 기본 넷과 내 조합 목록을 건수와 함께 링크로 그리고, 저장·삭제 자리를 그 아래에 둔다. */
+/** @module 책임: 왼쪽 기둥의 기본 셋과 내 조합 목록을 건수와 함께 링크로 그리고, 저장·삭제 자리를 그 아래에 둔다. */
 import Link from 'next/link';
 
 import type { TodaySearch } from '@/app/(workspace)/today/_lib/today-search-params';
@@ -36,7 +36,7 @@ function CombinationRow({ row }: { readonly row: CombinationRowPresentation }) {
 }
 
 /**
- * 조합 기둥이다. 기본 넷과 내 조합을 나눠 두는 이유는 **지울 수 있는 것이 다르기 때문**이다. 기본 넷은
+ * 조합 기둥이다. 기본 셋과 내 조합을 나눠 두는 이유는 **지울 수 있는 것이 다르기 때문**이다. 기본 셋은
  * 저장된 것이 아니라 사용자의 기본 필터에서 매번 파생하는 틀이라 지울 것이 없고, 지역을 바꾸면 따라
  * 바뀐다. 내 조합만 다섯이 상한이다.
  */

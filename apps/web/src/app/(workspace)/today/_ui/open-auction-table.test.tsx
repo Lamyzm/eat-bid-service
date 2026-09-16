@@ -24,14 +24,18 @@ function renderTable() {
 }
 
 describe('열린 공고 표', () => {
-  test('마감 임박 순서를 응답 순서 그대로 렌더하고 여섯 칸 중 순번만 머리글을 감춘다', () => {
+  test('마감 임박 순서를 응답 순서 그대로 렌더하고 여덟 칸 중 순번만 머리글을 감춘다', () => {
     const screen = renderTable();
     const rendered = [...screen.container.querySelectorAll('tbody tr[data-closes]')];
     expect(rendered.map((row) => row.getAttribute('data-closes'))).toEqual(['today', 'tomorrow', 'later', 'unknown']);
     const headers = [...screen.container.querySelectorAll('thead th')].map((node) => node.textContent);
     // 순번 열은 화면에 머리글을 두지 않지만 이름 없는 열은 그 열이 무엇인지 말하지 않는다.
     // 감추는 것은 `th`가 아니라 안쪽 문구다. `th`가 표 흐름을 벗어나면 `scope` 연결과 열 폭이 깨진다.
-    expect(headers).toEqual(['순번', '마감개찰 한 시간 뒤', '기관2곳', '품목저장된 라벨', '기초금액저장된 값', '참여09-07 10:00 기준']);
+    // 오른쪽 두 칸이 우리만 가진 값이다. 지난번은 개별 회차의 관측이고 보통은 코호트의 중앙값이라 갈라 둔다.
+    expect(headers).toEqual([
+      '순번', '마감개찰 한 시간 뒤', '기관2곳', '품목저장된 라벨', '기초금액저장된 값', '참여09-07 10:00 기준',
+      '지난번같은 하한 직전', '보통중앙값 · 표본'
+    ]);
     const rank = screen.container.querySelector('thead th')!;
     expect(rank.getAttribute('scope')).toBe('col');
     expect(rank.firstElementChild?.className).toContain('sr-only');
@@ -51,7 +55,8 @@ describe('열린 공고 표', () => {
 
   test('마감일이 바뀌는 자리에서 끊고 그 머리가 날짜·요일·남은 날과 두 건수를 말한다', () => {
     const screen = renderTable();
-    const heads = [...screen.container.querySelectorAll('tbody th[scope="colgroup"]')].map((node) => node.textContent);
+    // 조건을 푼 수는 접힌 열의 자리를 만들지 않으려고 같은 행의 다른 칸에 서므로 행 전체를 읽는다.
+    const heads = [...screen.container.querySelectorAll('tbody th[scope="colgroup"]')].map((node) => node.closest('tr')!.textContent);
     expect(heads).toEqual([
       '9월 7일월요일 · 오늘1건3건 중',
       '9월 8일화요일 · 내일1건2건 중',
@@ -88,15 +93,17 @@ describe('열린 공고 표', () => {
     expect(screen.container.textContent).toContain('제한지역 미관측');
   });
 
-  test('참여 수와 그 판의 보통이 한 칸에 있고 표본 수를 함께 적는다', () => {
+  test('참여·지난번·보통이 각자 열에 서고 참여 0은 비우며 보통에는 표본 수를 함께 적는다', () => {
     const screen = renderTable();
-    const cells = [...screen.container.querySelectorAll('tbody tr[data-closes] td:last-child')].map((cell) => cell.textContent);
-    // `5`만 보면 한산한 판인지 아직 안 찬 판인지 알 수 없다. 보통과 표본이 그 옆에 있어야 뜻이 생긴다.
-    expect(cells[0]).toBe('5보통 5 · 12회');
-    // 중앙값을 낼 회차가 없으면 `—`다. 0으로 채우면 화면이 없는 사실을 말한다.
-    expect(cells[1]).toBe('—보통 — · 0회');
-    // 요약 자체가 없는 행은 둘째 줄이 아예 없다. 참여 수 `0`은 관측된 값이라 그대로 남는다.
-    expect(cells[2]).toBe('0');
+    const column = (nth: number) =>
+      [...screen.container.querySelectorAll(`tbody tr[data-closes] td:nth-child(${nth})`)].slice(0, 3).map((cell) => cell.textContent);
+    // 참여 0은 빈 칸이다. 값을 버리는 것이 아니라 전면에 세우지 않는 것이며(사용자 결정 2026-09-16), 못 센
+    // 판의 `—`와 섞이지 않는다.
+    expect(column(6)).toEqual(['5', '—', '']);
+    // 지난번은 명단 수·개찰일·하한 아래 수까지이고 낙찰 투찰률은 없다. 개찰된 회차가 없으면 그 사실을 말한다.
+    expect(column(7)).toEqual(['17곳 · 09-02 · 하한 아래 2', '개찰 회차 없음', '—']);
+    // `5곳`만 보면 다섯 회를 본 것인지 열다섯 회를 본 것인지 알 수 없다. 중앙값을 낼 회차가 없으면 `—`다.
+    expect(column(8)).toEqual(['5곳 · 12회', '— · 0회', '—']);
   });
 
   test('하한이 갈려도 최빈값이 과반이 아니면 어느 행에도 적지 않는다', () => {
