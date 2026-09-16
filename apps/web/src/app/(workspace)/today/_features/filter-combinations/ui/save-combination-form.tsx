@@ -17,8 +17,8 @@ import { LoadingButton } from '@/shared/ui/loading-button';
  */
 function failureText(error: unknown): string {
   const code = (error as { readonly problem?: { readonly code?: string } } | null)?.problem?.code;
-  if (code === 'LIMIT_REACHED') return '저장한 조합이 다섯입니다. 하나를 지우고 다시 저장해 주세요.';
-  if (code === 'NAME_TAKEN') return '같은 이름의 조합이 이미 있습니다.';
+  if (code === 'LIMIT_REACHED') return '저장한 프리셋이 다섯입니다. 하나를 지우고 다시 저장해 주세요.';
+  if (code === 'NAME_TAKEN') return '같은 이름의 프리셋이 이미 있습니다.';
   return '저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
 }
 
@@ -33,7 +33,7 @@ export function SaveCombinationForm({
   suggestedName
 }: {
   readonly search: TodaySearch;
-  /** 지금 조건이 조건 없음이거나 이미 저장된 조합과 같으면 저장할 것이 없다. */
+  /** 지금 조건이 조건 없음이거나 이미 저장된 프리셋과 같으면 저장할 것이 없다. */
   readonly canSave: boolean;
   readonly full: boolean;
   /** 지금 조건을 그대로 옮긴 이름이다. 사용자가 그대로 두거나 고쳐 쓴다. */
@@ -86,7 +86,7 @@ export function SaveCombinationForm({
         if (trimmed !== '') save.mutate(trimmed);
       }}
     >
-      <Label htmlFor={inputId} className='text-[13px] font-medium text-muted-foreground'>조합 이름</Label>
+      <Label htmlFor={inputId} className='text-[13px] font-medium text-muted-foreground'>프리셋 이름</Label>
       <Input
         id={inputId}
         value={name}

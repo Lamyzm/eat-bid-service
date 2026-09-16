@@ -10,17 +10,18 @@ export function TodayScreenSkeleton() {
       <span className='sr-only'>열린 공고를 불러오는 중</span>
       <TodayFrame
         header={
-          <div className='flex items-center gap-3'>
+          /* 제목 → 머리 문장 → 기준 줄. 실제 머리와 같은 세 줄이라 로딩이 끝나도 목록이 아래로 밀리지 않는다. */
+          <div className='grid gap-2.5'>
             <h1 id='today-title' className='sr-only'>
               열린 공고를 불러오는 중
             </h1>
-            <Skeleton className='h-7 w-24' />
-            <Skeleton className='h-5 w-48' />
-            <Skeleton className='ml-auto h-5 w-24' />
+            <Skeleton className='h-8 w-16' />
+            <Skeleton className='h-6 w-full max-w-xl' />
+            <Skeleton className='h-4 w-64' />
           </div>
         }
         rail={
-          /* 조합 → 지역 → 품목 → 기초금액. 실제 기둥과 같은 순서라 로딩이 끝나도 자리가 움직이지 않는다. */
+          /* 프리셋 → 지역 → 품목 → 기초금액. 실제 기둥과 같은 순서라 로딩이 끝나도 자리가 움직이지 않는다. */
           <div className='grid gap-5'>
             {Array.from({ length: 3 }, (_, group) => (
               <div key={group} className='grid gap-1.5'>
@@ -34,13 +35,10 @@ export function TodayScreenSkeleton() {
           </div>
         }
         filters={
-          <div className='grid gap-3'>
-            <div className='flex flex-wrap gap-2'>
-              {Array.from({ length: 3 }, (_, index) => (
-                <Skeleton key={index} className='h-9 w-28 rounded-lg' />
-              ))}
-            </div>
-            <Skeleton className='h-24 w-full max-w-2xl rounded-lg' />
+          /* 달력 → 검색. 축 줄과 탭 줄은 없다(EAT-241·EAT-260). */
+          <div className='grid gap-2.5'>
+            <Skeleton className='h-28 w-full max-w-2xl rounded-lg' />
+            <Skeleton className='h-11 w-full rounded-xl' />
           </div>
         }
         list={

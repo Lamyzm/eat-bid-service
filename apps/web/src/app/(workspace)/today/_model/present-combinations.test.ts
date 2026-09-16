@@ -63,7 +63,7 @@ function present(search: TodaySearch, override: Partial<Parameters<typeof presen
   });
 }
 
-describe('조합 기둥 표시 변환', () => {
+describe('프리셋 기둥 표시 변환', () => {
   test('건수를 못 읽었으면 0이 아니라 비운다', () => {
     const presentation = present(currentSearch, { counts: null });
     expect(presentation.defaults.map((row) => row.count)).toEqual([null, null, null]);
@@ -73,8 +73,8 @@ describe('조합 기둥 표시 변환', () => {
   test('기본 셋은 오늘이 맨 위이고 관측된 지역 라벨로 부른다', () => {
     const presentation = present(currentSearch);
     expect(presentation.defaults.map((row) => [row.name, row.count])).toEqual([
-      ['오늘 경남/김해시', 4],
-      ['경남/김해시 전부', 31],
+      ['오늘 김해시', 4],
+      ['김해시 전체', 31],
       ['품목 미상 포함', 9]
     ]);
   });
@@ -89,7 +89,7 @@ describe('조합 기둥 표시 변환', () => {
     const presentation = present(currentSearch, { regionText: null });
     expect(presentation.defaults.map((row) => row.name)).toEqual([
       '오늘 내 지역',
-      '내 지역 전부',
+      '내 지역 전체',
       '품목 미상 포함'
     ]);
   });
@@ -147,3 +147,14 @@ describe('조합 기둥 표시 변환', () => {
     expect(presentation.saved[0]!.filterCombinationId).toBe('11');
   });
 });
+
+describe('프리셋 이름의 지역 줄임', () => {
+  test('시도/전체는 시도만, 시도/시군구는 시군구만 남기고 슬래시 없는 라벨은 그대로다', async () => {
+    const { shortRegionText } = await import('./present-combinations');
+    expect(shortRegionText('서울/전체')).toBe('서울');
+    expect(shortRegionText('경남/김해시')).toBe('김해시');
+    expect(shortRegionText('전남광주/전체')).toBe('전남광주');
+    expect(shortRegionText('코드 15000')).toBe('코드 15000');
+  });
+});
+

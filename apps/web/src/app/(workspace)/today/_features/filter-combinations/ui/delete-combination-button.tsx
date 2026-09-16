@@ -1,4 +1,4 @@
-/** @module 책임: 저장된 조합 하나를 지우는 command의 pending과 실패를 소유한다. */
+/** @module 책임: 저장된 프리셋 하나를 지우는 command의 pending과 실패를 소유한다. */
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
@@ -34,7 +34,7 @@ export function DeleteCombinationButton({
       className='ml-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted-foreground opacity-0 hover:bg-foreground/5 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-40'
     >
       <span aria-hidden>×</span>
-      <span className='sr-only'>{name} 조합 지우기</span>
+      <span className='sr-only'>{name} 프리셋 지우기</span>
     </button>
   );
 }

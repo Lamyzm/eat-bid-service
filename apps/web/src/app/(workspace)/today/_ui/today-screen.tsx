@@ -1,4 +1,4 @@
-/** @module 책임: 오늘 화면을 조립한다. 제목·기준 시각을 두고, 왼쪽 기둥에 조합과 조건 세 구역을, 본문에 탭·달력·목록을 세우며 목록 자리는 표시 모델이 정한 세 상태(계보 없음·결과 0·목록)를 그대로 고른다. */
+/** @module 책임: 오늘 화면을 조립한다. 제목 아래 머리 문장을 두고, 왼쪽 기둥에 프리셋과 조건 세 구역을, 본문에 달력·검색·목록을 세우며 목록 자리는 표시 모델이 정한 세 상태(계보 없음·결과 0·목록)를 그대로 고른다. */
 import Link from 'next/link';
 
 import { EmptyState } from '@/shared/ui/empty-state';
@@ -17,7 +17,8 @@ import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '..
 import { kstToday, type OpenSummaryPresentation } from '../_model/present-open-summary';
 import { OpenAuctionTable } from './open-auction-table';
 import { TodayFrame } from './today-frame';
-import { TodayCalendar, TodayTabs } from './today-tabs';
+import { TodayCalendar } from './today-tabs';
+import { TodayLede } from './today-lede';
 
 // 지역 칩의 표시 이름은 응답 행에서 읽는다. 지역 어휘 계약이 없는 동안 그 id의 라벨을 아는 곳은 행뿐이다.
 function regionTextOf(rows: readonly OpenAuctionRowPresentation[], region: string | null): string | null {
@@ -156,19 +157,19 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
   return (
     <TodayFrame
       header={
-        <div className='flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'>
-          <h1 id='today-title' className='text-xl font-bold tracking-tight'>오늘</h1>
-          {/* 건수는 축 줄이 말한다. 머리에도 적으면 같은 수를 두 자리에 두는 page-level 숫자 hero가
-              둘이 되고, 언젠가 한쪽만 고쳐져 둘이 다른 말을 한다(screen-system §9.1). */}
-          {presentation === null ? null : (
-            <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>{presentation.asOfText} 기준</span>
+        /* 제목 아래 한 문장이 이 화면의 유일한 숫자 hero다(U9). 탭 줄을 따로 두면 같은 수가 두 자리에 서고
+           언젠가 한쪽만 고쳐져 둘이 다른 말을 한다(screen-system §9.1). */
+        <div className='grid min-w-0 gap-2.5'>
+          <h1 id='today-title' className='text-[26px] font-extrabold tracking-[-0.04em]'>오늘</h1>
+          {data.summary === null ? null : (
+            <TodayLede summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} asOfText={presentation?.asOfText ?? null} />
           )}
         </div>
       }
       rail={
-        /* 2xl 아래에서는 기둥이 본문 위로 가므로 조합과 조건 세 구역을 가로로 펼친다. 세로로 쌓으면 1280에서
+        /* 2xl 아래에서는 기둥이 본문 위로 가므로 프리셋과 조건 세 구역을 가로로 펼친다. 세로로 쌓으면 1280에서
            목록이 첫 화면 밖으로 밀린다(2026-09-16 실측: 표가 y=1,100 아래). */
-        <div className='grid min-w-0 items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-1'>
+        <div className='grid min-w-0 items-start gap-5 lg:grid-cols-[252px_minmax(0,1fr)] 2xl:grid-cols-1'>
           {/* 조건을 바꿔 가며 판을 찾는 자리다. 매번 축 셋을 다시 누르면 탐색이 일이 된다(EAT-208). */}
           {data.combinations === null ? null : (
             <CombinationRail combinations={data.combinations} search={search} />
@@ -177,7 +178,7 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
               통째로 쓰면서 목록을 아래로 밀고, 스크롤하면 사라져 자기 조건을 잊는다. 지역·품목·기초금액
               세 구역은 시안 U9의 순서이고 건수는 요약이 "그 축 하나만 푼 집합"으로 센 수다(EAT-241). */}
           {data.regionGate.kind === 'unset' ? null : (
-            /* 조합이 없어도(읽기 실패·fixture) 조건은 둘째 칸에 선다. 첫 칸(240px)에 들어가면 세 구역이 70px로 눌린다
+            /* 프리셋이 없어도(읽기 실패·fixture) 조건은 둘째 칸에 선다. 첫 칸(240px)에 들어가면 세 구역이 70px로 눌린다
                (2026-09-16 e2e 실측). */
             <div className='min-w-0 lg:col-start-2 2xl:col-start-auto'>
               <ConditionRail rail={presentConditionRail({ search, summary: data.summary, gate: data.regionGate })} />
@@ -193,14 +194,11 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
         </div>
       }
       filters={
-        /* 탭 → 달력 → 검색 순서다. 조건은 왼쪽 기둥이 소유하고(EAT-241) 본문에는 축 줄을 두지 않는다 — 한 줄을
+        /* 문장 → 달력 → 검색 순서다. 조건은 왼쪽 기둥이 소유하고(EAT-241) 본문에는 축 줄을 두지 않는다 — 한 줄을
            통째로 쓰면서 목록을 아래로 밀고 `하한 N · N건`처럼 사용자가 지우라고 한 숫자가 거기 살았다. 달력은 탭
            아래, 검색은 달력 아래 목록 바로 위다(U9). 검색이 기둥이 아니라 본문에 있는 이유는 조건이 아니라
            "이 조건 안에서 찾기"이기 때문이다 — 상한 200건 밖의 행에 닿는 유일한 길이다(EAT-247). */
         <div className='grid min-w-0 gap-2.5'>
-          {data.summary === null ? null : (
-            <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} />
-          )}
           {data.summary === null ? null : <TodayCalendar summary={data.summary} search={search} />}
           {presentation === null ? null : (
             <ListSearchForm search={presentListSearch(search, presentation.view.kind === 'no-snapshot' ? null : presentation.sampleCount)} />

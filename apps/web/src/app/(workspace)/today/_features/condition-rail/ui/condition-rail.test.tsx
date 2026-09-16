@@ -46,12 +46,14 @@ describe('조건 기둥', () => {
     expect([...form.querySelectorAll('input[type="hidden"]')].map((node) => [node.getAttribute('name'), node.getAttribute('value')]))
       .toEqual([['sido', '41']]);
     expect(screen.getByRole('link', { name: '기본값으로' }).getAttribute('href')).toBe('/today?sido=41');
-    expect(screen.getByRole('button', { name: '적용' })).toBeTruthy();
+    // 버튼은 없다. Enter가 제출이고 시안에도 없다(사용자 결정 2026-09-17).
+    expect(screen.queryByRole('button', { name: '적용' })).toBeNull();
   });
 
-  test('참가제한 게이트는 지역 구역 아래 한 줄이고 전체 보기·지역 바꾸기 출구가 링크다', () => {
+  test('참가제한 게이트는 지역 구역 아래 출구 두 링크뿐이고 문장은 title로만 남는다', () => {
     const screen = renderRail(EMPTY_TODAY_SEARCH);
-    expect(screen.getByText('내가 고른 지역의 공고 · 경남/김해시')).toBeTruthy();
+    expect(screen.queryByText('내가 고른 지역의 공고 · 경남/김해시')).toBeNull();
+    expect(screen.getByTitle('내가 고른 지역의 공고 · 경남/김해시')).toBeTruthy();
     expect(screen.getByRole('link', { name: '전체 보기' }).getAttribute('href')).toBe('/today?scope=all');
     expect(screen.getByRole('link', { name: '지역 바꾸기' }).getAttribute('href')).toBe('/setup?return=%2Ftoday');
   });

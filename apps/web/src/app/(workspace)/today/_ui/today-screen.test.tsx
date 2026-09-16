@@ -31,10 +31,10 @@ describe('오늘 화면', () => {
     const markup = renderToStaticMarkup(<TodayScreen data={ready} />);
     expect(markup).toContain('data-slot="today-screen"');
     expect(markup).toContain('aria-labelledby="today-title"');
-    // 건수는 `진행중` 탭이 한 번만 말한다. 축 줄의 `하한 N · N건`은 사용자 결정으로 없앴고(EAT-241) 머리에도
-    // 적지 않는다 — 같은 수가 두 자리에 서면 page-level 숫자 hero가 둘이 된다(screen-system §9.1).
-    expect(markup).toContain('진행중');
-    expect(markup).not.toContain('>4건<');
+    // 건수는 머리 문장이 한 번만 말한다. 축 줄의 `하한 N · N건`은 사용자 결정으로 없앴고(EAT-241) 탭 줄도
+    // 없다(U9) — 같은 수가 두 자리에 서면 page-level 숫자 hero가 둘이 된다(screen-system §9.1).
+    expect(markup).toContain('진행중 </span><b');
+    expect(markup).toContain('셀 수 없어요');
     expect(markup).not.toContain('열린 공고 4건');
     expect(markup).not.toContain('하한 90');
     expect(markup).toContain('09-07 10:30 기준');

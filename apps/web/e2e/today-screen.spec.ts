@@ -122,18 +122,18 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.getByText('열린 공고 스냅샷 build 601', { exact: false })).toBeVisible();
   });
 
-  test('탭은 진행중 전체와 오늘 마감을 세고 못 센 게시일은 0이 아니라 물음표다', async ({ page }) => {
+  test('머리 문장은 진행중 전체와 오늘 마감을 세고 못 센 게시일은 0이 아니라 셀 수 없어요다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto('/today');
     await 표를기다린다(page);
 
-    await expect(page.getByRole('link', { name: '진행중 4' })).toBeVisible();
-    // fixture는 게시일을 한 건도 관측하지 못한 build라 `?`다. 0으로 적으면 "오늘 뜬 게 없다"는
+    await expect(page.getByRole('link', { name: '진행중 4건' })).toBeVisible();
+    // fixture는 게시일을 한 건도 관측하지 못한 build라 "셀 수 없어요"다. 0으로 적으면 "오늘 뜬 게 없다"는
     // 다른 사실을 말하게 된다(AGENTS 3).
-    await expect(page.getByRole('link', { name: '오늘 열린 ?' })).toBeVisible();
-    await expect(page.getByRole('link', { name: '오늘 마감 1' })).toBeVisible();
-    await expect(page.getByText('게시일 미관측 4건')).toBeVisible();
+    await expect(page.getByText('오늘 열린 공고는 셀 수 없어요.')).toBeVisible();
+    await expect(page.getByRole('link', { name: '오늘 마감 1건' })).toBeVisible();
+    await expect(page.getByText('게시일이 관측되지 않은 공고가 4건 있어요', { exact: false })).toBeVisible();
     // 축 줄은 없다(EAT-241). 전체 수는 `진행중` 탭이 한 번만 말하고 `하한 N · N건`은 사용자 결정으로 뺐다.
     await expect(page.getByText('4건', { exact: true })).toHaveCount(0);
     await expect(page.getByText(/하한 9\d/)).toHaveCount(0);
@@ -219,7 +219,7 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.locator(ROWS)).toHaveCount(1);
     await expect(page.getByText('지금 조건 안에서 “남산” · 1건')).toBeVisible();
     // 요약도 같은 검색어를 받아 탭이 표와 같은 수를 센다.
-    await expect(page.getByRole('link', { name: '진행중 1' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '진행중 1건' })).toBeVisible();
     // 공고번호는 행에서 복사 손잡이로 보인다. eaT 검색창에 붙여 넣는 값이다.
     await expect(page.getByRole('button', { name: '공고번호 복사 2026-0001' })).toBeVisible();
 
