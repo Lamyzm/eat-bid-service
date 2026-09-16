@@ -250,7 +250,7 @@ describe("canonical identity 불변식", () => {
     ]));
   });
 
-  test("낙찰 방식과 예정가격 방식을 검토된 code-value role로 허용한다", () => {
+  test("낙찰 방식·예정가격 방식·품목 원자를 검토된 code-value role로 허용한다", () => {
     const expression = checkExpression(auctionRevisionCodeValue, "auction_revision_code_value_role_allowed");
 
     for (const role of [
@@ -259,6 +259,8 @@ describe("canonical identity 불변식", () => {
       "eligibility_area",
       "award_method",
       "planned_price_method",
+      // 품목 원자 투영(EAT-230)이 쓰는 role이다. check에서 빠지면 투영이 CheckViolation으로 죽는다.
+      "item",
     ]) {
       expect(expression).toContain(`'${role}'`);
     }

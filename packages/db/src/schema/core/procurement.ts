@@ -101,9 +101,11 @@ export const auctionRevisionCodeValue = coreSchema.table(
   },
   (table) => [
     primaryKey({ columns: [table.auctionRevisionId, table.codeValueId, table.role] }),
+    // `item`은 품목 원자(`eatbid:auction-item`)다. 라벨 한 문자열이 원자 여러 행으로 투영되므로 한 revision에
+    // 같은 role 행이 여럿 서며, PK가 (revision, code, role)이라 그 다중성이 허용된다(EAT-230).
     check(
       "auction_revision_code_value_role_allowed",
-      sql`${table.role} in ('location_sido', 'location_sigungu', 'eligibility_area', 'award_method', 'planned_price_method')`,
+      sql`${table.role} in ('location_sido', 'location_sigungu', 'eligibility_area', 'award_method', 'planned_price_method', 'item')`,
     ),
   ],
 );
