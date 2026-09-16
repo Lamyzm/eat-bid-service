@@ -20,6 +20,8 @@ export interface OpenAuctionSummaryQuery {
   readonly itemLabels: readonly string[] | null;
   /** 품목 축이 걸렸을 때 라벨 미관측 행을 함께 셀지다. 목록과 같은 술어를 써야 두 수가 같은 집합을 말한다. */
   readonly includeUnknownItem: boolean;
+  /** 검색어다. 목록과 같은 술어(`searchPredicate`)라 검색 중에도 탭·달력·배지가 표와 같은 집합을 센다. */
+  readonly searchText: string | null;
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
   /** 달력 창의 양끝이다. KST 달력일이며 창 밖 마감은 전체 수에는 들어가도 달력에는 없다. */

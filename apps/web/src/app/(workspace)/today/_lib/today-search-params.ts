@@ -27,6 +27,11 @@ export const todaySearchParsers = {
    * 보고 있기 때문이다. 미관측 행은 낼 수 없는 공고가 아니라 우리가 아직 못 본 공고다.
    */
   itemUnknown: parseAsString,
+  /**
+   * 검색어다. 제목·기관 이름·공고번호 안의 부분일치이며 **지금 걸린 다른 조건 안에서만** 찾는다. 목록은
+   * 200건 상한이고 더보기가 없으므로 상한 밖 행에 닿는 길이 이것뿐이다(EAT-247).
+   */
+  q: parseAsString,
   /** 참여 축이다. `none`은 관측된 참여 수가 0인 판이며 미관측(못 센 판)은 여기 안 들어온다. */
   bidState: parseAsString,
   closesWithinHours: parseAsInteger,
@@ -50,6 +55,7 @@ export const EMPTY_TODAY_SEARCH: TodaySearch = {
   sigungu: null,
   items: null,
   itemUnknown: null,
+  q: null,
   bidState: null,
   closesWithinHours: null,
   closesOn: null,
@@ -100,4 +106,21 @@ export function buildTodayRoute(search: TodaySearch): TodayRoute {
 /** 조건 하나를 바꾸는 링크는 다른 조건을 지우지 않되 cursor만 되돌린다. */
 export function buildTodayFilterRoute(search: TodaySearch, patch: Partial<TodaySearch>): TodayRoute {
   return buildTodayRoute({ ...search, ...patch, cursor: null });
+}
+
+/**
+ * GET form이 조건 하나만 바꾸면서 나머지를 잃지 않게 hidden으로 함께 보낼 값들이다. form이 바꾸는 조건은
+ * `omit`으로 빼고, cursor는 조건이 바뀌면 뜻을 잃으므로 늘 뺀다. 배열은 parser의 쉼표 규칙 그대로 잇는다 —
+ * 링크와 form이 같은 인코딩을 써야 주소를 읽는 쪽이 둘을 구분하지 않는다.
+ */
+export function carriedTodaySearch(
+  search: TodaySearch,
+  omit: readonly (keyof TodaySearch)[]
+): readonly { readonly key: string; readonly value: string }[] {
+  return (Object.keys(todaySearchParsers) as (keyof TodaySearch)[])
+    .filter((key) => key !== 'cursor' && !omit.includes(key))
+    .flatMap((key) => {
+      const value = search[key];
+      return value === null ? [] : [{ key, value: String(value) }];
+    });
 }

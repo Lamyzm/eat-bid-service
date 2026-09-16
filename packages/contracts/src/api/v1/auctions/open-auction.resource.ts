@@ -69,6 +69,13 @@ export const openAuctionRowSchema = z.strictObject({
   // 아래 셋은 목록이 아니라 같은 공고의 최신 상세 해석에서 빌드 시점에 조인된 값이다(EAT-39 판정 A·B·C).
   // 아직 상세를 따지 않은 신규 공고는 셋 다 null이며 그 사실은 `termsRevisionId`가 함께 말한다.
   itemLabel: z.string().min(1).max(512).nullable(),
+  /**
+   * 원천이 표시하는 공고번호다. **표시·복사용이지 정체성이 아니다**(AGENTS 2) — 행의 정체성은
+   * `auctionAttemptId` 하나다. 우리는 eaT 옆에 두는 도구라 마지막 한 걸음이 늘 "이 판을 eaT에서 연다"인데,
+   * 번호가 없으면 학교 이름으로 다시 검색해야 하고 같은 학교의 A/B 판이 둘이면 거기서 또 헷갈린다(EAT-248).
+   * 상세에서 오는 값이라 아직 상세를 따지 않은 공고는 null이다.
+   */
+  displayBidNo: z.string().min(1).max(64).nullable(),
   // 사정률 축의 상수(하한율)다. 소스가 셋째 자리까지 표시하며 mart numeric(6,3)과 같다.
   floorRate: bidRateWireSchema.nullable(),
   region: openAuctionRegionSchema.nullable(),

@@ -6,6 +6,8 @@ import { EmptyState } from '@/shared/ui/empty-state';
 import { presentConditionRail } from '../_features/condition-rail/model/present-condition-rail';
 import { ConditionRail } from '../_features/condition-rail/ui/condition-rail';
 import { CombinationRail } from '../_features/filter-combinations/ui/combination-rail';
+import { presentListSearch } from '../_features/list-search/model/present-list-search';
+import { ListSearchForm } from '../_features/list-search/ui/list-search-form';
 import { RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
 import { describeTodaySearch } from '../_lib/describe-today-search';
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
@@ -191,14 +193,18 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
         </div>
       }
       filters={
-        /* 탭 → 달력 순서다. 조건은 왼쪽 기둥이 소유하고(EAT-241) 본문에는 축 줄을 두지 않는다 — 한 줄을 통째로
-           쓰면서 목록을 아래로 밀고 `하한 N · N건`처럼 사용자가 지우라고 한 숫자가 거기 살았다. 달력은 탭
-           아래, 목록 바로 위다. */
+        /* 탭 → 달력 → 검색 순서다. 조건은 왼쪽 기둥이 소유하고(EAT-241) 본문에는 축 줄을 두지 않는다 — 한 줄을
+           통째로 쓰면서 목록을 아래로 밀고 `하한 N · N건`처럼 사용자가 지우라고 한 숫자가 거기 살았다. 달력은 탭
+           아래, 검색은 달력 아래 목록 바로 위다(U9). 검색이 기둥이 아니라 본문에 있는 이유는 조건이 아니라
+           "이 조건 안에서 찾기"이기 때문이다 — 상한 200건 밖의 행에 닿는 유일한 길이다(EAT-247). */
         <div className='grid min-w-0 gap-2.5'>
           {data.summary === null ? null : (
             <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} />
           )}
           {data.summary === null ? null : <TodayCalendar summary={data.summary} search={search} />}
+          {presentation === null ? null : (
+            <ListSearchForm search={presentListSearch(search, presentation.view.kind === 'no-snapshot' ? null : presentation.sampleCount)} />
+          )}
         </div>
       }
       list={<TodayList data={data} regionText={regionText} />}

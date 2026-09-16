@@ -43,6 +43,7 @@ function openAuctionResource(record: OpenAuctionRecord): OpenAuction {
       type: record.organization.type,
     },
     itemLabel: record.itemLabel,
+    displayBidNo: record.displayBidNo,
     floorRate: bidRateWire(record.floorRate),
     region: record.region === null ? null : {
       sido: codeReferenceWire(record.region.sido),
@@ -84,6 +85,7 @@ export function toOpenAuctionListResponse(result: OpenAuctionListResult): OpenAu
       eligibilityUnobservedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityUnobservedCount,
       items: query.itemLabels === null ? null : [...query.itemLabels],
       itemUnknown: query.includeUnknownItem ? "include" : null,
+      q: query.searchText,
       bidState: query.onlyWithoutBids ? "none" : null,
       closesWithinHours: query.closesWithinHours,
       closesOn: query.closesOnKst,

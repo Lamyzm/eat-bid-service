@@ -16,6 +16,7 @@ export interface SummarizeOpenAuctionsInput {
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
   readonly itemLabels: readonly string[] | null;
   readonly includeUnknownItem: boolean;
+  readonly searchText: string | null;
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
   readonly calendarFrom: string;

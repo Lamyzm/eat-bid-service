@@ -5,7 +5,7 @@ import { wonText } from '@/app/(workspace)/today/_lib/describe-today-search';
 import {
   ALL_REGIONS_SCOPE,
   buildTodayFilterRoute,
-  todaySearchParsers,
+  carriedTodaySearch,
   type TodayRoute,
   type TodaySearch
 } from '@/app/(workspace)/today/_lib/today-search-params';
@@ -135,15 +135,9 @@ function itemSection(search: TodaySearch, counts: OpenSummaryPresentation['railC
 }
 
 function amountSection(search: TodaySearch): ConditionRailPresentation['amount'] {
-  const carried = (Object.keys(todaySearchParsers) as (keyof TodaySearch)[])
-    .filter((key) => key !== 'baseAmountMin' && key !== 'baseAmountMax' && key !== 'cursor')
-    .flatMap((key) => {
-      const value = search[key];
-      return value === null ? [] : [{ key, value: String(value) }];
-    });
   return {
     valueText: search.baseAmountMin === null ? '' : wonText(search.baseAmountMin),
-    carried,
+    carried: carriedTodaySearch(search, ['baseAmountMin', 'baseAmountMax']),
     clearHref: search.baseAmountMin === null && search.baseAmountMax === null
       ? null
       : buildTodayFilterRoute(search, { baseAmountMin: null, baseAmountMax: null })

@@ -49,7 +49,7 @@ describe('오늘 route loader', () => {
   test('URL에 남은 잘못된 값은 무시하고 계약이 받는 조건만 조회에 넘긴다', async () => {
     const { inputs, dependencies: deps } = dependencies();
     const data = await loadTodayPage(
-      { scope: null, sido: '01', sigungu: null, items: ['축산'], itemUnknown: null, bidState: null, closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
+      { scope: null, sido: '01', sigungu: null, items: ['축산'], itemUnknown: null, q: null, bidState: null, closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
       deps
     );
     expect(inputs).toEqual([{
@@ -70,12 +70,26 @@ describe('오늘 route loader', () => {
       limit: 200
     }]);
     expect(data.search).toEqual({
-      scope: null, sido: null, sigungu: null, items: ['축산'], itemUnknown: null, bidState: null,
+      scope: null, sido: null, sigungu: null, items: ['축산'], itemUnknown: null, q: null, bidState: null,
       closesWithinHours: null, closesOn: null, announcedOn: null,
       baseAmountMin: '2000000.00', baseAmountMax: '3000000.00', cursor: null
     });
     expect(data.cursorReset).toBe(false);
     expect(data.presentation!.view.kind === 'list' ? data.presentation!.view.rows.length : 0).toBe(4);
+  });
+
+  test('검색어는 양끝 공백을 걷어 목록과 요약 둘 다에 넘기고 공백뿐이면 검색이 아니다', async () => {
+    const { inputs, summaryInputs, dependencies: deps } = dependencies();
+    const data = await loadTodayPage({ ...EMPTY_TODAY_SEARCH, q: '  남산  ' }, deps);
+    expect(inputs[0]!.q).toBe('남산');
+    // 요약이 검색을 안 받으면 검색 중에 탭·달력·배지가 검색 전 집합을 센다.
+    expect(summaryInputs[0]!.q).toBe('남산');
+    expect(data.search.q).toBe('남산');
+
+    const { inputs: blankInputs, dependencies: blankDeps } = dependencies();
+    const blank = await loadTodayPage({ ...EMPTY_TODAY_SEARCH, q: '   ' }, blankDeps);
+    expect(blankInputs[0]!.q).toBeUndefined();
+    expect(blank.search.q).toBeNull();
   });
 
   test('cursor가 무효면 cursor 없이 한 번만 다시 조회하고 그 사실을 남긴다', async () => {
@@ -150,10 +164,10 @@ describe('오늘 route loader', () => {
 
   test('정규화는 계약 schema의 같은 필드로 판정한다', () => {
     expect(normalizeTodaySearch({
-      scope: null, sido: '9223372036854775807', sigungu: null, items: ['x'.repeat(65)], itemUnknown: null, bidState: null,
+      scope: null, sido: '9223372036854775807', sigungu: null, items: ['x'.repeat(65)], itemUnknown: null, q: null, bidState: null,
       closesWithinHours: 0, closesOn: null, announcedOn: null, baseAmountMin: '1.00', baseAmountMax: null, cursor: '5'
     })).toEqual({
-      scope: null, sido: '9223372036854775807', sigungu: null, items: null, itemUnknown: null, bidState: null,
+      scope: null, sido: '9223372036854775807', sigungu: null, items: null, itemUnknown: null, q: null, bidState: null,
       closesWithinHours: null, closesOn: null, announcedOn: null,
       baseAmountMin: '1.00', baseAmountMax: null, cursor: '5'
     });

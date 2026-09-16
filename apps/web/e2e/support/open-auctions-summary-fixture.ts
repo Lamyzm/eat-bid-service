@@ -109,6 +109,7 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
     eligibilityArea: query.eligibilityArea,
     items: query.items,
     itemUnknown: query.itemUnknown,
+    q: query.q,
     baseAmountMin: query.baseAmountMin,
     baseAmountMax: query.baseAmountMax
   });
@@ -116,6 +117,7 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
     sido: query.sido,
     sigungu: query.sigungu,
     eligibilityArea: query.eligibilityArea,
+    q: query.q,
     baseAmountMin: query.baseAmountMin,
     baseAmountMax: query.baseAmountMax
   });

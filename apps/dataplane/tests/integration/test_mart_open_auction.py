@@ -109,7 +109,8 @@ def _terms_rows(services: PipelineServices, build_id: int) -> dict[str, tuple]:
         """
         select attempt.external_bid_id, snapshot.floor_rate, snapshot.item_label,
                snapshot.region_sido_code_value_id, snapshot.region_sigungu_code_value_id,
-               snapshot.organization_label, snapshot.terms_revision_id
+               snapshot.organization_label, snapshot.terms_revision_id,
+               snapshot.title, snapshot.display_bid_no
           from mart.open_auction_snapshot as snapshot
           join core.auction_attempt as attempt
             on attempt.auction_attempt_id = snapshot.auction_attempt_id
@@ -128,6 +129,8 @@ def _seed_detail(
     organization_label: str,
     floor_rate: Decimal,
     item_label: str,
+    title: str = "합성 회차",
+    display_bid_no: str | None = None,
 ) -> tuple[int, int, int]:
     """목록에서 만들어질 attempt에 상세 해석 한 벌을 미리 심고 `(revision, 시도, 시군구)`를 준다."""
     evidence = seed_evidence(services)
@@ -156,6 +159,8 @@ def _seed_detail(
         sigungu_code_value_id=sigungu_code_value_id,
         external_bid_id=bid_id,
         item_label=item_label,
+        title=title,
+        display_bid_no=display_bid_no,
     )
     (row,) = fetch_all(
         services,
@@ -340,7 +345,7 @@ def test_물린_build의_스냅샷_행은_회수_시점_전에는_지워지지_�
     assert len(_snapshot_rows(pipeline_services, next_build)) == 1
 
 
-def test_상세가_있는_공고만_하한율_품목_지역_기관라벨로_채운다(
+def test_상세가_있는_공고만_하한율_품목_지역_기관라벨_제목_공고번호로_채운다(
     pipeline_services: PipelineServices,
 ) -> None:
     revision_id, sido, sigungu = _seed_detail(
@@ -350,6 +355,8 @@ def test_상세가_있는_공고만_하한율_품목_지역_기관라벨로_채�
         organization_label="합성 급식기관 관측명",
         floor_rate=Decimal("88.500"),
         item_label="축산",
+        title="  합성 급식기관 2학기 축산물 구매  ",
+        display_bid_no="2026-합성-0001",
     )
     source_release_id = create_source_release(pipeline_services)
     _seed_list_observation(
@@ -379,9 +386,12 @@ def test_상세가_있는_공고만_하한율_품목_지역_기관라벨로_채�
         sigungu,
         "합성 급식기관 관측명",
         revision_id,
+        # 제목은 검색이 읽는 값이라 양끝 공백을 걷어 싣는다. 공고번호는 표시값 그대로다(EAT-247·248).
+        "합성 급식기관 2학기 축산물 구매",
+        "2026-합성-0001",
     )
     # 아직 상세를 따지 않은 공고는 추측으로 메우지 않고 전부 미확인으로 남는다(AGENTS 3).
-    assert rows[BARE_BID_ID] == (None, None, None, None, None, None)
+    assert rows[BARE_BID_ID] == (None, None, None, None, None, None, None, None)
 
 
 def test_같은_attempt에_해석이_둘이면_나중_revision을_싣는다(
@@ -419,7 +429,7 @@ def test_같은_attempt에_해석이_둘이면_나중_revision을_싣는다(
         open_auction_snapshot_filler(pipeline_services.store),
     )
 
-    floor_rate, item_label, _, _, _, terms_revision_id = _terms_rows(
+    floor_rate, item_label, _, _, _, terms_revision_id, _, _ = _terms_rows(
         pipeline_services, build_id
     )[bid_id]
     assert (floor_rate, item_label) == (Decimal("89.250"), "수산")

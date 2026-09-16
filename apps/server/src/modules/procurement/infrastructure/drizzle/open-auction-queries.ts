@@ -79,6 +79,25 @@ export function itemLabelPredicate(
   return includeUnknown ? sql`(${alias}.item_label is null or ${matched})` : matched;
 }
 
+/**
+ * 검색 술어 하나다. **제목·기관 이름·공고번호 가운데 하나라도 검색어를 품으면 걸린다.**
+ *
+ * 세 열을 한 술어로 묶는 이유는 사용자가 무엇을 적을지 우리가 정하지 않기 때문이다. 학교 이름을 적는
+ * 사람과 eaT에서 본 번호를 붙여 넣는 사람이 같은 칸을 쓰며, 칸을 나누면 "어느 칸에 적어야 하나"가 일이
+ * 된다(U9 `학교 이름이나 공고로 찾기`). `strpos`인 이유는 품목 조각과 같다 — 사용자 입력에 `like`
+ * 메타문자를 열지 않는다.
+ *
+ * 세 열이 전부 미관측인 행(아직 상세를 따지 않았고 기관 라벨도 없는 행)은 어떤 검색어로도 안 걸린다.
+ * 검색은 "있는 글자에서 찾기"라 그 행이 안 맞는 것이 아니라 답할 수 없는 것이며, 그 사실은 검색 결과가
+ * 아니라 계보 줄이 말한다(AGENTS 3).
+ */
+export function searchPredicate(alias: SQL, text: string | null): SQL {
+  if (text === null) return sql`true`;
+  return sql`(strpos(coalesce(${alias}.title, ''), ${text}::text) > 0
+    or strpos(coalesce(${alias}.organization_label, ''), ${text}::text) > 0
+    or strpos(coalesce(${alias}.display_bid_no, ''), ${text}::text) > 0)`;
+}
+
 // Instant는 driver가 모르는 타입이라 ISO 문자열로 넘기고 SQL 쪽에서 timestamptz로 닫는다. Date를 거치면
 // 밀리초 아래가 잘리고 계층 경계를 `Date`로 통과시키는 셈이라 금지다(AGENTS 15).
 function instantParameter(value: Temporal.Instant): string {
@@ -116,6 +135,8 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
         snapshot.organization_id,
         snapshot.organization_label,
         snapshot.item_label,
+        snapshot.title,
+        snapshot.display_bid_no,
         snapshot.floor_rate,
         snapshot.region_sido_code_value_id,
         snapshot.region_sigungu_code_value_id,
@@ -159,6 +180,7 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
         and (${sigungu}::text is null
              or open_scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
         and ${itemLabelPredicate(sql`open_scope`, query.itemLabels, query.includeUnknownItem)}
+        and ${searchPredicate(sql`open_scope`, query.searchText)}
         and (not ${query.onlyWithoutBids}::boolean or open_scope.bid_count = 0)${eligibilityFilter}
     )${extraCte}
   `;
@@ -244,6 +266,7 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
       page_rows.organization_label,
       organization.type as organization_type,
       page_rows.item_label,
+      page_rows.display_bid_no,
       page_rows.floor_rate,
       page_rows.terms_revision_id,
       page_rows.closes_at,

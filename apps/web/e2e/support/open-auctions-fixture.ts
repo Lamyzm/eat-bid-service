@@ -71,6 +71,7 @@ export function openAuctionsResponse(request: Request): Response | null {
         : filtered.filter((row) => row.eligibilityAreas === null).length,
       items: query.items === undefined ? null : [...query.items],
       itemUnknown: query.itemUnknown ?? null,
+      q: query.q ?? null,
       bidState: query.bidState ?? null,
       closesWithinHours: query.closesWithinHours ?? null,
       baseAmountMin: query.baseAmountMin ?? null,

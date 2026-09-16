@@ -43,6 +43,21 @@ describe('오늘 화면', () => {
     for (const banned of ['무효', '추천', '안전 구간', '예측']) expect(markup).not.toContain(banned);
   });
 
+  test('달력 아래 검색 칸은 GET form이고 다른 조건을 hidden으로 함께 보내며 검색 중이면 범위와 건수를 말한다', () => {
+    const search = { ...EMPTY_TODAY_SEARCH, sido: '41', q: '남산' };
+    const screen = render(<TodayScreen data={{ ...ready, search }} />);
+    const form = screen.getByRole('search');
+    const input = screen.getByRole('searchbox', { name: '학교 이름이나 공고로 찾기' });
+    expect(input.getAttribute('name')).toBe('q');
+    expect(input.getAttribute('value')).toBe('남산');
+    expect(form.querySelector('input[type="hidden"][name="sido"]')?.getAttribute('value')).toBe('41');
+    // 검색은 다른 조건을 풀지 않는다. 그 사실과 건수를 문장이 말하고 지우기는 검색어만 뗀다.
+    expect(form.textContent).toContain('지금 조건 안에서 “남산” · 4건');
+    expect(screen.getByRole('link', { name: '검색 지우기' }).getAttribute('href')).toBe('/today?sido=41');
+    // 공고번호는 eaT로 건너가는 손잡이라 행에 보이고 누르면 복사된다. 상세를 아직 안 딴 행에는 없다.
+    expect(screen.getAllByRole('button', { name: '공고번호 복사 2026-0001' })).toHaveLength(2);
+  });
+
   test('왼쪽 조건 기둥이 먼저 오고 그 뒤가 조건·열린 공고이며 오른쪽 rail은 없다', () => {
     const screen = render(<TodayScreen data={ready} />);
     const labels = [...screen.container.querySelectorAll('section, aside')].map((node) => node.getAttribute('aria-label'));

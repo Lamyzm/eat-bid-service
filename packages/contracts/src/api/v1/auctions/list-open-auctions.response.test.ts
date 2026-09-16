@@ -3,6 +3,7 @@ import { auctionV1Operations } from "./operations";
 import { openAuctionListQuerySchema } from "./list-open-auctions.query";
 import { openAuctionListMetaSchema, openAuctionListV1ResponseSchema } from "./list-open-auctions.response";
 import { openAuctionRowSchema } from "./open-auction.resource";
+import { openAuctionSummaryQuerySchema } from "./summarize-open-auctions.query";
 
 const nullLineage = {
   buildId: null,
@@ -26,6 +27,7 @@ const row = {
   auctionAttemptId: "5796468",
   organization: { organizationId: "3101", label: "창원 남산초등학교", type: "unknown" },
   itemLabel: "축산",
+  displayBidNo: "2026-0001",
   floorRate: { value: "90.000", unit: "percentage-points" },
   region: {
     sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
@@ -66,6 +68,7 @@ const meta = {
   eligibilityUnobservedCount: null,
   items: null,
   itemUnknown: null,
+  q: null,
   bidState: null,
   closesWithinHours: null,
   closesOn: null,
@@ -162,6 +165,14 @@ describe("열린 공고 목록 계약", () => {
     expect(openAuctionListQuerySchema.parse({}).eligibilityArea).toBeUndefined();
     expect(openAuctionListQuerySchema.safeParse({ eligibilityArea: [] }).success).toBe(false);
     expect(openAuctionListQuerySchema.safeParse({ eligibilityArea: ["0"] }).success).toBe(false);
+  });
+
+  test("검색어는 양끝 공백을 걷어 내고 빈 값과 65자를 거부한다", () => {
+    expect(openAuctionListQuerySchema.parse({ q: "  남산초  " }).q).toBe("남산초");
+    expect(openAuctionListQuerySchema.safeParse({ q: "   " }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ q: "가".repeat(65) }).success).toBe(false);
+    // 요약도 같은 atom을 받는다. 한쪽만 받으면 검색 중에 탭·달력이 표와 다른 집합을 센다.
+    expect(openAuctionSummaryQuerySchema.parse({ q: "남산초", calendarFrom: "2026-09-07", calendarTo: "2026-09-10" }).q).toBe("남산초");
   });
 
   test("closesWithinHours는 0과 721을 거부하고 1과 720을 받는다", () => {

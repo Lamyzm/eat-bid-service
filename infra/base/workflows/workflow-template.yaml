@@ -46,10 +46,11 @@ spec:
       # 않으려면 새 값으로 새 build를 만들어야 하기 때문이다(ADR 0034).
       # mart-r2는 열린 공고 스냅샷이 최신 상세 해석의 하한율·품목·지역·기관 라벨을 함께 싣는
       # 계산 규칙이다(EAT-68). mart-r3는 예정가격이 0으로 관측된(추첨 전) 회차의 그날 하한·투찰률 축
-      # 낙찰률·하한 미만 수를 0이 아니라 null로 두는 규칙이다(EAT-74). 옛 build를 덮어쓰지 않고
-      # 새 build로 만들어 전환한다.
+      # 낙찰률·하한 미만 수를 0이 아니라 null로 두는 규칙이다(EAT-74). mart-r4는 열린 공고 스냅샷이
+      # 최신 상세 해석의 제목·공고번호를 함께 싣는 규칙이다(EAT-247·248) — 검색과 eaT 손잡이가 이 두 열을
+      # 읽는다. 옛 build를 덮어쓰지 않고 새 build로 만들어 전환한다.
       - name: calc-version
-        value: mart-r3
+        value: mart-r4
       - name: start-date
         value: ""
       - name: end-date

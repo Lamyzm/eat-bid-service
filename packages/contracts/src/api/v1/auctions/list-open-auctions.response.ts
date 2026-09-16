@@ -8,7 +8,7 @@ import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { maxEligibilityAreaSelection } from "../../../values/eligibility-area";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
-import { closesWithinHoursSchema, MAX_OPEN_AUCTION_LIMIT } from "./list-open-auctions.query";
+import { closesWithinHoursSchema, MAX_OPEN_AUCTION_LIMIT, searchTextSchema } from "./list-open-auctions.query";
 import { openAuctionRowSchema } from "./open-auction.resource";
 
 /**
@@ -39,6 +39,7 @@ export const openAuctionListMetaSchema = z.strictObject({
   eligibilityUnobservedCount: nonNegativeCountSchema.nullable(),
   items: z.array(z.string().min(1).max(64)).max(16).nullable(),
   itemUnknown: z.literal("include").nullable(),
+  q: searchTextSchema.nullable(),
   bidState: z.literal("none").nullable(),
   closesWithinHours: closesWithinHoursSchema.nullable(),
   // KST 달력일 축 둘. 시간 창과 뜻이 다르므로 되돌려 실을 때도 자리를 나눈다.

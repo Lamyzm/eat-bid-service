@@ -137,36 +137,43 @@ const seed = `
     (build_id, auction_attempt_id, observed_at, observation_id, organization_id, bid_count,
      source_last_changed_at, closes_at, base_amount, currency, item_label, floor_rate,
      region_sido_code_value_id, region_sigungu_code_value_id, organization_label, terms_revision_id,
-     source_status_label, announced_at)
+     source_status_label, announced_at, title, display_bid_no)
   values
     -- 게시일이 KST 09-07이라 NOW와 같은 날이다. 오늘 열린 축이 세는 단 한 건이다.
     (601, 201, '2026-09-07T00:00:00Z', 303, 41, 3, '2026-09-06T23:00:00Z', '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z'),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
+     '남산초 2학기 축산물 구매', '2026-0201'),
     (601, 201, '2026-09-07T00:30:00Z', 304, 41, 5, '2026-09-07T00:10:00Z', '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z'),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
+     '남산초 2학기 축산물 구매', '2026-0201'),
     -- 상태를 관측하지 못한 행은 숨기지 않는다. 이 열이 생기기 전 build의 행이 그렇다(AGENTS 3).
     -- 게시일을 관측하지 못한 두 행이다. 상세를 아직 안 딴 공고가 이렇게 남는다(AGENTS 3).
     (601, 202, '2026-09-07T00:30:00Z', 304, 43, 0, null, '2026-09-08T05:00:00Z',
-     10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null, null),
+     10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null, null, null, null),
     (601, 203, '2026-09-07T00:30:00Z', 304, null, null, null, null,
-     500000.00, 'KRW', null, null, null, null, null, null, null, null),
+     500000.00, 'KRW', null, null, null, null, null, null, null, null, null, null),
     (601, 204, '2026-09-07T00:30:00Z', 304, 41, 7, null, '2026-09-06T05:00:00Z',
-     900000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z'),
+     900000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
+     '남산초 1학기 축산물 구매', '2026-0204'),
     (601, 205, '2026-09-07T00:30:00Z', 304, 41, 2, null, '2026-09-10T05:00:00Z',
-     43879200.00, 'KRW', '축산', 88.000, 41, 44, '창원 남산초등학교', 510, '진행중', '2026-09-05T00:00:00Z'),
+     43879200.00, 'KRW', '축산', 88.000, 41, 44, '창원 남산초등학교', 510, '진행중', '2026-09-05T00:00:00Z',
+     '남산초 2학기 축산물 구매 재공고', '2026-0205'),
     -- 마감은 안 지났지만 목록이 취소로 표시한 행이다. 마감 순으로는 202와 205 사이에 서야 하는데
     -- 열린 공고가 아니므로 목록에도 지역 미리보기 분모에도 안 들어간다(EAT-203).
     (601, 206, '2026-09-07T00:30:00Z', 304, 41, 1, null, '2026-09-09T05:00:00Z',
-     3000000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '공고취소', '2026-09-07T00:00:00Z'),
+     3000000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '공고취소', '2026-09-07T00:00:00Z',
+     '남산초 2학기 축산물 구매 취소분', '2026-0206'),
     -- 물린 build의 행은 목록에 나오면 안 된다. 다만 참여 수 추이(공고 상세의 하루 전 관측)는 retain 안의
     -- 물린 build 행까지 같은 시계열로 읽는다(ADR 0034).
     (602, 202, '2026-09-06T00:30:00Z', 303, 43, 0, null, '2026-09-08T05:00:00Z',
-     10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null, null),
+     10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null, null, null, null),
     (602, 201, '2026-09-06T00:00:00Z', 303, 41, 1, null, '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null,
+     '남산초 2학기 축산물 구매', '2026-0201'),
     -- 최신 관측에서 24시간이 안 되는 관측은 "어제"가 아니다.
     (602, 201, '2026-09-06T01:00:00Z', 303, 41, 2, null, '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null);
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null,
+     '남산초 2학기 축산물 구매', '2026-0201');
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)
@@ -199,6 +206,7 @@ const baseQuery: OpenAuctionQuery = {
   eligibilityAreaCodeValueIds: null,
   itemLabels: null,
   includeUnknownItem: false,
+  searchText: null,
   onlyWithoutBids: false,
   closesWithinHours: null,
   closesOnKst: null,
@@ -249,6 +257,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         bidCount: 5,
         floorRate: "90.000",
         itemLabel: "축산",
+        displayBidNo: "2026-0201",
         termsRevisionId: 509n,
         organization: { organizationId: 41n, label: "창원 남산초등학교", type: "unknown" },
         region: {
@@ -277,6 +286,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       expect(all.auctions[1]).toMatchObject({
         organization: { organizationId: 43n, label: "다른 학교", type: "school" },
         itemLabel: null,
+        displayBidNo: null,
         floorRate: null,
         region: null,
         termsRevisionId: null,
@@ -368,6 +378,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
           eligibilityUnobservedCount: null,
           items: ["축산"],
           itemUnknown: null,
+          q: null,
           bidState: null,
           closesWithinHours: null,
           closesOn: null,
@@ -417,6 +428,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         eligibilityAreaCodeValueIds: null,
         itemLabels: null,
         includeUnknownItem: false,
+        searchText: null,
         baseAmountMin: null,
         baseAmountMax: null,
         calendarFrom: "2026-09-07",
@@ -481,6 +493,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         eligibilityAreaCodeValueIds: null,
         itemLabels: ["축산"],
         includeUnknownItem: false,
+        searchText: null,
         baseAmountMin: null,
         baseAmountMax: null,
         calendarFrom: "2026-09-07",
@@ -523,6 +536,47 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       expect(withUnknown.totalCount).toBe(pageOf(await listReader.listOpen({
         ...baseQuery, itemLabels: ["축산"], includeUnknownItem: true,
       })).sampleCount);
+    });
+    await expectOwnedContainersCleanedUp();
+  }, 180_000);
+
+  test("검색어는 제목·기관 이름·공고번호 안에서 부분일치로 찾고 요약과 목록이 같은 수를 센다", async () => {
+    await withDatabase(async ({ api }) => {
+      const database = drizzle({ client: api });
+      const listReader = new DrizzleOpenAuctionReader(database);
+      const summaryReader = new DrizzleOpenAuctionSummaryReader(database);
+      const search = (searchText: string) => listReader.listOpen({ ...baseQuery, searchText });
+
+      // 제목으로 — `재공고`는 205의 제목에만 있다. 취소분 206도 제목이 걸리지만 열린 공고가 아니라 빠진다.
+      expect(ids(pageOf(await search("재공고")))).toEqual([205n]);
+      // 공고번호로 — eaT에서 본 번호를 붙여 넣는 길이다. 물린 build(602)의 같은 번호는 안 걸린다.
+      expect(ids(pageOf(await search("2026-0201")))).toEqual([201n]);
+      // 기관 이름으로 — 202는 상세를 아직 안 따 제목·번호가 없지만 기관 라벨이 있어 걸린다.
+      expect(ids(pageOf(await search("다른 학교")))).toEqual([202n]);
+      // 셋 다 없는 203은 어떤 검색어로도 안 걸린다. 못 찾은 것이지 안 맞는 것이 아니다(AGENTS 3).
+      expect(ids(pageOf(await search("500000")))).toEqual([]);
+      // `like` 메타문자는 글자다. `%`를 적으면 "무엇이든"이 아니라 `%`가 든 제목을 찾는다.
+      expect(ids(pageOf(await search("%")))).toEqual([]);
+
+      // 요약은 목록과 같은 술어를 쓴다. 검색 중에 탭·달력·배지가 검색 전 집합을 세면 표와 다른 말을 한다.
+      const summary = await summaryReader.summarizeOpen({
+        asOf: NOW,
+        sidoCodeValueId: null,
+        sigunguCodeValueIds: null,
+        eligibilityAreaCodeValueIds: null,
+        itemLabels: null,
+        includeUnknownItem: false,
+        searchText: "남산초",
+        baseAmountMin: null,
+        baseAmountMax: null,
+        calendarFrom: "2026-09-07",
+        calendarTo: "2026-09-10",
+      });
+      const list = pageOf(await search("남산초"));
+      expect(ids(list)).toEqual([201n, 205n]);
+      expect(summary.totalCount).toBe(list.sampleCount);
+      // 검색은 어느 배지에서도 풀리지 않는다. 시도 배지가 검색을 풀고 세면 4가 되어 누르면 되는 수가 아니다.
+      expect(summary.sidoCounts.map((entry) => [entry.code, entry.count])).toEqual([["48", 2]]);
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);
