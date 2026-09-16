@@ -177,6 +177,31 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         key_columns=("source",),
     ),
     Expectation(
+        key="mart-reap-lag",
+        title="회수 시한이 하루 넘게 지난 mart build의 행이 아직 남아 있다",
+        runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
+        # 회수는 매일 04:30 KST 한 번이다(EAT-254). 시한을 하루 넘긴 행이 남아 있으면 그 회차가 돌지
+        # 않았거나 죽은 것이고, 그 사실을 디스크가 차서 아는 것은 너무 늦다 — 2026-09-16 실측 20GB 중
+        # 활성 build는 셋이었다. build당 index 탐색 하나라 900 build에도 싸다.
+        sql="""
+            select b.mart_name, count(*) as builds,
+                   min(b.retain_until) as oldest_retain_until
+              from mart.build b
+             where b.status = 'superseded'
+               and b.retain_until < now() - interval '1 day'
+               and (
+                 exists (select 1 from mart.org_round_summary r where r.build_id = b.build_id)
+                 or exists (select 1 from mart.win_rate_distribution_monthly r
+                             where r.build_id = b.build_id)
+                 or exists (select 1 from mart.open_auction_snapshot r where r.build_id = b.build_id)
+               )
+             group by b.mart_name
+             order by b.mart_name
+        """,
+        parameters={},
+        key_columns=("mart_name",),
+    ),
+    Expectation(
         key="failed-publication-window",
         title="발행이 실패한 백필 창이 replay를 기다리고 있다",
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",

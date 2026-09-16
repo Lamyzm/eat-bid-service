@@ -40,7 +40,7 @@ REFERENCE_TASKS = REFERENCE_COMMANDS
 CODE_VOCABULARY_COMMANDS = ("capture-code-vocabulary", "project-code-vocabulary")
 CODE_VOCABULARY_TASKS = CODE_VOCABULARY_COMMANDS
 # 운영자·스케줄이 직접 entrypoint로 부르는 명령이다. 어떤 DAG도 task로 갖지 않는다(EAT-122, EAT-170).
-OPERATOR_COMMANDS = ("fail-release", "check-expectations", "scan-contract")
+OPERATOR_COMMANDS = ("fail-release", "check-expectations", "scan-contract", "reap-marts")
 # 전진 판단은 예약이 부르지만 운영자 명령과 달리 DAG의 첫 task이기도 하다. 창을 고르는 것과 그 창을
 # 수집하는 것이 한 실행 안에 있어야 고른 창이 어디로 새지 않는다(EAT-209).
 ADVANCE_COMMANDS = ("next-backfill-window",)
@@ -161,7 +161,8 @@ def test_product와_base_render가_kind_구성을_유지한다(
     # 수집 스케줄 셋 + 백필 전진 + DB 백업 + 감시. 백업과 감시는 소스를 부르지 않는 별개 계약이라
     # 각자의 테스트가 본다. 백필 전진은 2026-09-14에 더했다 — 창을 고르는 판단이 사람에게 있는 동안
     # 진도가 기록되지 않았고 실패한 백필의 남은 대기열이 열한 번 버려졌다(ADR 0052).
-    assert manifests.kinds.count("CronWorkflow") == 6
+    # mart 회수는 2026-09-17에 더했다 — 물린 build 900개가 활성 셋의 여섯 배 디스크를 쥐고 있었다(EAT-254).
+    assert manifests.kinds.count("CronWorkflow") == 7
     # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
     # 하는지 먼저 답해야 한다.
     assert manifests.kinds.count("Job") == 2
@@ -373,7 +374,8 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     cron_workflows = [
         cron
         for cron in manifests.of_kind("CronWorkflow")
-        if _metadata(cron)["name"] not in {"eatbid-db-backup", "eatbid-expectation-check"}
+        if _metadata(cron)["name"]
+        not in {"eatbid-db-backup", "eatbid-expectation-check", "eatbid-mart-reap"}
     ]
     assert {_metadata(cron)["name"] for cron in cron_workflows} == {
         "eatbid-poll-open",
@@ -1736,3 +1738,30 @@ def test_discover는_workflow_이름을_env로_받아_run_행에_남긴다(manif
     # 없을 때는 인자를 아예 빼야 한다 — 빈 문자열을 넘기면 "이름이 빈 워크플로"라는 거짓 사실이 남는다.
     source = "\n".join(str(argument) for argument in container["args"])  # type: ignore[index]
     assert '"--workflow-name", workflow_name] if (workflow_name := os.environ.get("EATBID_WORKFLOW_NAME")) else []' in source
+
+def test_mart_회수_cron은_수집이_없는_새벽에_하루_한_번_템플릿의_reap_marts를_부른다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 1일 보존인 mart가 하루 66번 물리면서 900 build·20GB가 쌓였고 활성은 셋뿐이었다(EAT-254).
+    회수는 ADR 0034가 허용한 유일한 공개 mart 행 삭제라 어떤 수집 DAG에도 들지 않고 스케줄 하나가 부른다.
+    """
+    cron = next(
+        cron
+        for cron in manifests.of_kind("CronWorkflow")
+        if _metadata(cron)["name"] == "eatbid-mart-reap"
+    )
+    spec = _spec(cron)
+    assert spec["schedules"] == ["30 4 * * *"]
+    assert spec["timezone"] == "Asia/Seoul"
+    assert spec["suspend"] is False
+    assert spec["concurrencyPolicy"] == "Forbid"
+    workflow_spec = _mapping(spec["workflowSpec"])
+    assert _mapping(workflow_spec["workflowTemplateRef"])["name"] == "eatbid-dataplane"
+    assert workflow_spec["entrypoint"] == "reap-marts"
+
+    templates = _templates(manifests.workflow_template("eatbid-dataplane"))
+    reap = templates["reap-marts"]
+    # 활성화와 mutex를 다투지 않는다 — 잡으면 첫 회수가 그동안 화면의 build 전환을 막는다.
+    assert "synchronization" not in reap
+    args = " ".join(str(item) for item in _sequence(_mapping(reap["container"])["args"]))
+    assert "eatbid reap-marts" in args

@@ -17,6 +17,7 @@ from eatbid.failures.errors import SourceContractError, SourceUnavailableError
 from eatbid.ingest.models import CapturedObservation
 from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
+from eatbid.mart.reaper import ReapReport
 from eatbid.monitoring.runner import MonitoringResult
 from eatbid.pipeline.advance import BackfillWindow
 from eatbid.pipeline.capture import SourceThrottledError
@@ -117,6 +118,13 @@ class _기록애플리케이션:
         self.calls.append(("scan-contract", None))
         return ScanReport(parser_version=args.parser_version, started_at=FETCHED_AT)
 
+    def reap_marts(self, args: Namespace) -> ReapReport:
+        # 회수도 release에 매이지 않는다(EAT-254).
+        if self.error is not None:
+            raise self.error
+        self.calls.append(("reap-marts", None))
+        return ReapReport(as_of=args.as_of, reaped=())
+
 
 def _공통(command: str) -> list[str]:
     return [
@@ -135,7 +143,7 @@ def _공통(command: str) -> list[str]:
 # 감시와 전진 판단은 어떤 release에도 속하지 않는다. 지금의 DB 상태만 보므로 release·run 인수를 받지
 # 않는다. 이 집합이 자라면 여기에 더한다 — 그것이 "이 명령은 무엇에도 매이지 않는다"의 선언이다.
 RELEASE_FREE_COMMANDS = frozenset(
-    {"check-expectations", "next-backfill-window", "scan-contract"}
+    {"check-expectations", "next-backfill-window", "scan-contract", "reap-marts"}
 )
 RELEASE_SCOPED_COMMANDS = tuple(
     name for name in COMMAND_HANDLERS if name not in RELEASE_FREE_COMMANDS
@@ -150,6 +158,8 @@ def _명령(command: str) -> list[str]:
         return [command, "--parser-version", "eat-v3"]
     if command == "next-backfill-window":
         return [command, "--floor-date", "20250901", "--as-of", "2026-09-01T00:06:00Z"]
+    if command == "reap-marts":
+        return [command, "--as-of", "2026-09-01T00:06:00Z"]
     if command == "fail-release":
         # 운영자 판정 명령이라 run·parser version 같은 공통 인수가 없다.
         return [

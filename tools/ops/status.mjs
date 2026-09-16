@@ -47,6 +47,15 @@ export const QUERIES = [
                  to_char(release_after at time zone 'Asia/Seoul', 'MM-DD HH24:MI') as release_kst
             from ingest.source_hold where released_at is null and release_after > now()`,
   },
+  {
+    title: "회수 안 된 mart build (시한 지난 superseded, 매일 04:30 KST 회수)",
+    sql: `select b.mart_name, count(*) as expired_builds,
+                 to_char(min(b.retain_until) at time zone 'Asia/Seoul', 'MM-DD HH24:MI') as oldest_kst
+            from mart.build b
+           where b.status = 'superseded' and b.retain_until < now()
+             and exists (select 1 from mart.build_coverage c where c.build_id = b.build_id)
+           group by b.mart_name order by b.mart_name`,
+  },
 ];
 
 function psql(sql) {
