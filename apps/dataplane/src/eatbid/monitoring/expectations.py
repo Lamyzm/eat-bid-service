@@ -15,6 +15,19 @@ from typing import Any
 
 QueryRunner = Callable[[str, Mapping[str, Any]], Sequence[Mapping[str, Any]]]
 
+# `ingest.backfill_coverage`의 창 가운데 전진이 보는 것은 달 전체 창뿐이다(pipeline/advance.py의
+# month_windows). poll-open이 남기는 하루 창은 전진 대상이 아니므로 "전진이 건너뛴 창" 기대의 대상도
+# 아니다 — 실시간 창은 하루 종일 discover가 공고를 더해 완결이 열렸다 닫혔다 하므로 여기서 보면 회차마다
+# 열림·해소가 오간다(2026-09-16 20260916 창, EAT-240). 실시간 회차의 실패는 cron-workflow 기대가 든다.
+# 창 값은 소스 요청 파라미터의 YYYYMMDD 문자열이라 그 형식으로만 해석한다.
+MONTH_WINDOW_PREDICATE = """
+    window_start = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')), 'YYYYMMDD')
+    and window_end = to_char(
+        date_trunc('month', to_date(window_start, 'YYYYMMDD')) + interval '1 month' - interval '1 day',
+        'YYYYMMDD'
+    )
+"""
+
 
 @dataclass(frozen=True)
 class Expectation:
@@ -146,10 +159,12 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
         # 전진은 이런 창을 조용히 건너뛴다(ADR 0053 결정 3). 건너뛴다는 사실은 사람이 알아야 하고, 파서를
         # 고쳐 replay가 성공해 창이 완결될 때까지 열려 있는 것이 맞다. 창마다 위반 하나다.
-        sql="""
+        # 전진이 보는 달 전체 창만 본다(MONTH_WINDOW_PREDICATE).
+        sql=f"""
             select window_start, window_end, failed_publications, published_ids, discovered_ids
               from ingest.backfill_coverage
              where failed_publications > 0 and not is_complete
+               and ({MONTH_WINDOW_PREDICATE})
              order by window_start desc
         """,
         parameters={},
