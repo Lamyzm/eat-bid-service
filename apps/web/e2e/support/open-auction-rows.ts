@@ -75,6 +75,7 @@ export function rows(now: number) {
     {
       ...base,
       auctionAttemptId: '5796468',
+      title: '2026년 10월 학교급식 식재료(축산물) 구매 소액수의 견적 제출',
       organization: { organizationId: '3101', label: '창원 남산초등학교', type: 'unknown' },
       itemLabel: '육류 , 가금류',
       displayBidNo: '2026-0001',
@@ -87,6 +88,7 @@ export function rows(now: number) {
     {
       ...base,
       auctionAttemptId: '5796470',
+      title: '2026년 10월 급식 식재료 종합 구매 견적 제출 안내',
       organization: { organizationId: '3102', label: '금정구종합사회복지관식자재납품업체선정입찰공고기관', type: 'unknown' },
       itemLabel: '농산물 , 수산물 , 육류 , 가공식품 , 김치류 , 곡류 , 가금류',
       displayBidNo: '2026-0002',
@@ -101,6 +103,7 @@ export function rows(now: number) {
     {
       ...base,
       auctionAttemptId: '5796471',
+      title: null,
       organization: null,
       itemLabel: null,
       displayBidNo: null,
@@ -117,6 +120,7 @@ export function rows(now: number) {
     {
       ...base,
       auctionAttemptId: '5796472',
+      title: '김치류 구매',
       organization: { organizationId: '3103', label: null, type: 'school' },
       itemLabel: '김치류',
       displayBidNo: '2026-0004',
@@ -138,10 +142,11 @@ export type OpenAuctionFixtureRow = ReturnType<typeof rows>[number];
 export type OpenAuctionRowFilter = {
   readonly sido?: string;
   readonly sigungu?: readonly string[];
+  readonly regionUnknown?: 'include';
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly itemUnknown?: 'include';
-  /** 기관 이름·공고번호 안의 부분일치다. 제목은 wire에 없어 fixture는 두 열만 본다. */
+  /** 제목·기관 이름·공고번호 안의 부분일치다(서버와 같은 세 열). */
   readonly q?: string;
   readonly bidState?: 'none';
   readonly closesWithinHours?: number;
@@ -174,14 +179,18 @@ export function filterOpenAuctionRows(now: number, filter: OpenAuctionRowFilter)
         : filter.items.some((atom) => atomsOf(row.itemLabel!).includes(atom))))
     // 검색은 있는 글자에서 찾는다. 이름도 번호도 없는 행은 어떤 검색어로도 안 걸린다(AGENTS 3).
     .filter((row) => filter.q === undefined
+      || (row.title ?? '').includes(filter.q)
       || (row.organization?.label ?? '').includes(filter.q)
       || (row.displayBidNo ?? '').includes(filter.q))
     // 참여 0곳은 관측된 참여 수가 0인 판이다. 못 센 판(null)은 여기 안 들어온다.
     .filter((row) => filter.bidState === undefined || row.bidCount === 0)
     // 지역은 시도 하나가 담는 그릇이고 시군구가 그 안에서 좁힌다. 서버와 같은 순서로 둘을 잇는다.
-    .filter((row) => filter.sido === undefined || row.region?.sido.codeValueId === filter.sido)
+    // 지역 미상 포함은 시도 축이 걸렸을 때만 일하고, 지역 없는 행을 함께 남긴다(EAT-260).
+    .filter((row) => filter.sido === undefined || row.region?.sido.codeValueId === filter.sido
+      || (filter.regionUnknown === 'include' && row.region === null))
     .filter((row) => filter.sigungu === undefined
-      || (row.region !== null && filter.sigungu.includes(row.region.sigungu.codeValueId)))
+      || (row.region !== null && filter.sigungu.includes(row.region.sigungu.codeValueId))
+      || (filter.regionUnknown === 'include' && row.region === null))
     .filter((row) => filter.closesWithinHours === undefined
       || (row.closesAt !== null && Date.parse(row.closesAt) <= now + filter.closesWithinHours * HOUR))
     // 달력 칸이 고른 하루다. 마감을 관측하지 못한 행은 어느 날짜에도 속하지 않으므로 빠진다.

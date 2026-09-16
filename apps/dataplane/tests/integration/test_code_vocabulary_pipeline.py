@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from eatbid.core.code_vocabulary_projection import PARENT_RELATION
 from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
@@ -60,6 +61,21 @@ def _services(connection, body: bytes) -> CodeVocabularyServices:
         ingest_repository=PsycopgObservationRepository(connection),
         release_repository=PsycopgSourceReleaseRepository(connection),
     )
+
+
+def _parents(cursor) -> list[tuple[str, str]]:
+    cursor.execute(
+        """
+        select child.code, parent.code
+        from core.code_mapping mapping
+        join core.code_value child on child.code_value_id = mapping.from_code_value_id
+        join core.code_value parent on parent.code_value_id = mapping.to_code_value_id
+        where mapping.relation = %s
+        order by child.code
+        """,
+        (PARENT_RELATION,),
+    )
+    return [(row[0], row[1]) for row in cursor.fetchall()]
 
 
 def _label(cursor, namespace: str, code: str) -> tuple[str, bool] | None:
@@ -157,6 +173,14 @@ def test_투영이_보존된_원본을_다시_읽어_이름과_유효기간을_�
         assert _label(cursor, AUCTION_LOCATION_SIGUNGU.namespace, "653") == ("김해시", True)
         assert _label(cursor, ATTEMPT_STATUS.namespace, "007") == ("낙찰", True)
         assert _label(cursor, ORGANIZATION_TYPE.namespace, "010") == ("학교", True)
+        # 시군구 셋이 각자 소스가 말한 시도에 `parent`로 잇긴다. 근거는 이 코드목록 관측이다.
+        assert projected.inserted_mappings == 3
+        assert _parents(cursor) == [("1", "1"), ("653", "15"), ("654", "15")]
+        cursor.execute(
+            "select distinct evidence_observation_id, status from core.code_mapping where relation = %s",
+            (PARENT_RELATION,),
+        )
+        assert cursor.fetchall() == [(captured.observation_id, "observed")]
 
         cursor.execute(
             """
@@ -212,6 +236,8 @@ def test_같은_관측을_두_번_투영해도_행이_늘지_않는다(connectio
         assert first.inserted_labels == captured.entry_count
         assert again.inserted_labels == 0
         assert again.inserted_code_values == 0
+        assert first.inserted_mappings == 3
+        assert again.inserted_mappings == 0
         cursor.execute(
             """
             select count(*) from core.code_label_observation label

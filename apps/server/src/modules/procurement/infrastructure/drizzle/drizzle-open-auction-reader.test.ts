@@ -7,6 +7,7 @@ const row: OpenAuctionRow = {
   organization_label: " 창원 남산초등학교 ",
   organization_type: "unknown",
   item_label: "축산",
+  title: " 축산물 구매 ",
   display_bid_no: " 2026-0001 ",
   floor_rate: "90.000",
   terms_revision_id: "5796469",
@@ -52,6 +53,7 @@ describe("열린 공고 스냅샷 행 매핑", () => {
     expect(record.organization).toEqual({ organizationId: 3_101n, label: "창원 남산초등학교", type: "unknown" });
     // 공고번호도 관측 문자열이라 라벨과 같은 규칙으로 공백을 다듬는다. 정체성이 아니므로 숫자로 바꾸지 않는다.
     expect(record.displayBidNo).toBe("2026-0001");
+    expect(record.title).toBe("축산물 구매");
     // 단독입찰 처리 방법은 코드 참조 그대로다. 불리언으로 접으면 "허용함"과 "미관측"이 한 값이 된다(AGENTS 3).
     expect(record.soloBidMethod).toEqual({ codeValueId: 77n, code: "002", scheme: "eat:solo-bid-method", label: "단독입찰 허용안함" });
     expect(record.floorRate).toBe("90.000");
@@ -93,6 +95,7 @@ describe("열린 공고 스냅샷 행 매핑", () => {
       organization_label: null,
       organization_type: null,
       item_label: "   ",
+      title: null,
       display_bid_no: null,
       solo_bid_method_code_value_id: null,
       solo_bid_method_code: null,

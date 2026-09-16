@@ -41,6 +41,8 @@ export interface OpenAuctionRecord {
     readonly type: string;
   } | null;
   readonly itemLabel: string | null;
+  /** 원천이 표시하는 공고 제목 관측이다. 상세를 아직 따지 않은 공고는 null이다(EAT-260). */
+  readonly title: string | null;
   /** 원천이 표시하는 공고번호다. 표시·복사용 문자열이며 정체성은 `auctionAttemptId`다(AGENTS 2, EAT-248). */
   readonly displayBidNo: string | null;
   /** 단독입찰 처리 방법 코드 참조다. null은 미관측(eat-v4 전 해석)이지 "허용함"이 아니다(AGENTS 3, EAT-249). */
@@ -76,6 +78,8 @@ export interface OpenAuctionQuery {
    */
   readonly sidoCodeValueId: bigint | null;
   readonly sigunguCodeValueIds: readonly bigint[] | null;
+  /** 참이면 시도 축을 걸어도 공고지역 미관측 행을 함께 낸다. 시도 축이 없으면 아무 일도 하지 않는다(EAT-260). */
+  readonly includeUnknownRegion: boolean;
   /**
    * 참가제한지역 필터다. `null`은 필터 없음이고 빈 배열은 "고른 지역이 없다"라서 서로 다른 요청이다.
    * 저장된 코드 집합이 곧 매칭 집합이며 질의가 스스로 넓히지 않는다(ADR 0048 결정 2).

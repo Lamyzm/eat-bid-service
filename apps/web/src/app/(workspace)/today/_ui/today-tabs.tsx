@@ -1,39 +1,10 @@
-/** @module 책임: 탭 셋과 2주 마감 달력을 각각 링크로 그리고, 못 센 수를 0이 아니라 물음표로, 지나간 칸을 0건이 아니라 지남으로 표시한다. */
+/** @module 책임: 2주 마감 달력을 칸마다 링크로 그리고, 지나간 칸을 0건이 아니라 지남으로 표시한다. 머리 문장은 today-lede가 소유한다. */
 import Link from 'next/link';
 
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
-import type { CalendarCellPresentation, OpenSummaryPresentation, TabPresentation } from '../_model/present-open-summary';
+import type { CalendarCellPresentation, OpenSummaryPresentation } from '../_model/present-open-summary';
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const;
-
-/**
- * 탭이 고르는 것은 날짜 축이다. 시간 창과 함께 보내면 계약이 400으로 답하므로 탭 링크가 시간 창을 지운다.
- * 세 탭이 서로를 지우는 것도 여기서 한 번에 정해 링크마다 무엇을 남길지 다시 고르지 않게 한다.
- */
-function tabRoute(search: TodaySearch, tab: TabPresentation, today: string) {
-  const cleared = { closesOn: null, announcedOn: null, closesWithinHours: null };
-  if (tab.id === 'live') return buildTodayFilterRoute(search, cleared);
-  if (tab.id === 'openedToday') return buildTodayFilterRoute(search, { ...cleared, announcedOn: today });
-  return buildTodayFilterRoute(search, { ...cleared, closesOn: today });
-}
-
-function TabLink({ tab, href }: { readonly tab: TabPresentation; readonly href: ReturnType<typeof buildTodayFilterRoute> }) {
-  return (
-    <Link
-      href={href}
-      aria-current={tab.active ? 'page' : undefined}
-      className={`inline-flex items-baseline gap-1.5 whitespace-nowrap ${
-        tab.active ? 'text-[17px] font-bold text-foreground' : 'text-[17px] font-semibold text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      {tab.label}
-      {/* 셀 수 없었던 수는 0이 아니라 `?`다. 0은 세었는데 없다는 말이라 사용자가 할 일이 다르다. */}
-      <span className={`text-[15px] tabular-nums ${tab.count === null ? 'text-muted-foreground' : ''}`}>
-        {tab.count === null ? '?' : tab.count}
-      </span>
-    </Link>
-  );
-}
 
 /**
  * 달력 칸 하나다. 날짜가 왼쪽 위, 건수가 그 아래다.
@@ -89,34 +60,6 @@ function CalendarCell({
       <span className={cell.tone === 'today' ? '' : cell.weight > 0 ? 'text-foreground' : 'text-muted-foreground'}>{cell.dayText}</span>
       <span className={cell.tone === 'today' ? '' : cell.count === 0 ? 'text-muted-foreground' : 'text-foreground'}>{cell.count}</span>
     </Link>
-  );
-}
-
-/**
- * 탭 줄이다. **필터(축 줄)보다 위**에 있어야 한다 — 필터는 부가 설정이 아니라 지금 화면의 모든 숫자가
- * 어떤 집합을 세는지 선언하는 첫 reading group이고, 그 선언은 탭이 고른 판 안에서 읽힌다
- * (screen-system §6.4.1).
- */
-export function TodayTabs({
-  summary,
-  search,
-  today
-}: {
-  readonly summary: OpenSummaryPresentation;
-  readonly search: TodaySearch;
-  /** KST 오늘이다. 탭 링크가 넣을 날짜라 컴포넌트가 스스로 시계를 읽지 않는다(AGENTS 15). */
-  readonly today: string;
-}) {
-  return (
-    <div className='flex flex-wrap items-baseline gap-x-5 gap-y-1'>
-      {summary.tabs.map((tab) => (
-        <TabLink key={tab.id} tab={tab} href={tabRoute(search, tab, today)} />
-      ))}
-      {/* 게시일을 못 센 수는 `오늘 열린`의 물음표가 무엇 때문인지를 말한다. 0이면 적지 않는다. */}
-      {summary.announcedUnobservedCount > 0 ? (
-        <span className='text-[13px] font-medium text-muted-foreground'>게시일 미관측 {summary.announcedUnobservedCount}건</span>
-      ) : null}
-    </div>
   );
 }
 

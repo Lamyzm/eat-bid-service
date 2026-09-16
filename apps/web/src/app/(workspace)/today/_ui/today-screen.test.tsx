@@ -27,19 +27,22 @@ const ready: TodayPageData = {
 };
 
 describe('오늘 화면', () => {
-  test('서버 markup에 프레임·제목·기준 시각·조건·표가 있다', () => {
+  test('서버 markup에 프레임·제목·기준 시각·조건·카드 목록이 있다', () => {
     const markup = renderToStaticMarkup(<TodayScreen data={ready} />);
     expect(markup).toContain('data-slot="today-screen"');
     expect(markup).toContain('aria-labelledby="today-title"');
-    // 건수는 `진행중` 탭이 한 번만 말한다. 축 줄의 `하한 N · N건`은 사용자 결정으로 없앴고(EAT-241) 머리에도
-    // 적지 않는다 — 같은 수가 두 자리에 서면 page-level 숫자 hero가 둘이 된다(screen-system §9.1).
-    expect(markup).toContain('진행중');
-    expect(markup).not.toContain('>4건<');
+    // 건수는 머리 문장이 한 번만 말한다. 축 줄의 `하한 N · N건`은 사용자 결정으로 없앴고(EAT-241) 탭 줄도
+    // 없다(U9) — 같은 수가 두 자리에 서면 page-level 숫자 hero가 둘이 된다(screen-system §9.1).
+    expect(markup).toContain('진행중 </span><b');
+    expect(markup).toContain('셀 수 없어요');
     expect(markup).not.toContain('열린 공고 4건');
-    expect(markup).not.toContain('하한 90');
+    expect(markup).not.toContain('하한 90 ·');
+    // 하한은 축 줄이 아니라 행의 금액 아래 한 줄이다(U9).
+    expect(markup).toContain('하한 90%');
     expect(markup).toContain('09-07 10:30 기준');
-    // 마감일 묶음 머리가 순서를 보여 주므로 `마감 임박 순`이라는 제목이 따로 없다.
-    expect(markup).toContain('9월 7일');
+    // 마감 시각 묶음 머리가 순서를 보여 주므로 `마감 임박 순`이라는 제목이 따로 없고, 표도 없다.
+    expect(markup).toContain('오후 8시 마감');
+    expect(markup).not.toContain('<table');
     expect(markup).toContain('열린 공고 스냅샷 build 601');
     for (const banned of ['무효', '추천', '안전 구간', '예측']) expect(markup).not.toContain(banned);
   });
@@ -61,7 +64,10 @@ describe('오늘 화면', () => {
 
   test('왼쪽 조건 기둥이 먼저 오고 그 뒤가 조건·열린 공고이며 오른쪽 rail은 없다', () => {
     const screen = render(<TodayScreen data={ready} />);
-    const labels = [...screen.container.querySelectorAll('section, aside')].map((node) => node.getAttribute('aria-label'));
+    // 마감 시각 묶음도 `section`이지만 그것은 열린 공고 안의 구획이라 화면의 큰 구역이 아니다.
+    const labels = [...screen.container.querySelectorAll('section, aside')]
+      .filter((node) => node.parentElement?.closest('section[aria-label="열린 공고"]') === null)
+      .map((node) => node.getAttribute('aria-label'));
     // 좁힌 조건은 목록 옆에 계속 남는다. 본문 위에 가로로 두면 스크롤할 때 사라져 자기 조건을 잊는다.
     expect(labels).toEqual(['내 조건', '조건', '열린 공고']);
   });

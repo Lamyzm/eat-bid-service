@@ -40,6 +40,7 @@ export type OpenAuctionRow = Readonly<
     organization_label: string | null;
     organization_type: string | null;
     item_label: string | null;
+    title: string | null;
     display_bid_no: string | null;
     floor_rate: string | null;
     terms_revision_id: string | bigint | null;
@@ -108,6 +109,7 @@ export function mapOpenAuctionRow(row: OpenAuctionRow, hasOrgBuild: boolean): Op
       type: row.organization_type ?? "unknown",
     },
     itemLabel: observedLabel(row.item_label),
+    title: observedLabel(row.title),
     displayBidNo: observedLabel(row.display_bid_no),
     soloBidMethod: codeReferenceRecord(
       row.solo_bid_method_code_value_id,

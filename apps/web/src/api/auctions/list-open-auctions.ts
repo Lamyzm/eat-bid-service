@@ -11,6 +11,7 @@ export type OpenAuctionListInput = {
   readonly sido?: string;
   /** 고른 시도 **안의** 시군구다. 시도 없이 보내면 어느 시도 안인지 말하지 않아 서버가 400으로 답한다. */
   readonly sigungu?: readonly string[];
+  readonly regionUnknown?: 'include';
   /** 워크스페이스가 확인한 참가제한지역 code value id 목록이다. 비면 필터를 걸지 않는다. */
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
@@ -35,6 +36,7 @@ export async function listOpenAuctionsWith(
   const query = auctionV1Operations.listOpen.querySchema.parse({
     sido: input.sido,
     sigungu: input.sigungu,
+    regionUnknown: input.regionUnknown,
     eligibilityArea: input.eligibilityArea,
     items: input.items,
     itemUnknown: input.itemUnknown,

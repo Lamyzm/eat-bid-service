@@ -19,6 +19,10 @@ export const normalizedCodeVocabularyEntryV1Schema = z.strictObject({
   // 유효기간은 소스가 준 값이다. 주지 않으면 null이며 우리가 관측 시각으로 대신 채우지 않는다.
   validFrom: instantTextSchema.nullable(),
   validTo: instantTextSchema.nullable(),
+  // 소스가 이 코드의 상위라고 말한 코드다(`SC067` 시군구의 `ITM_VL2`가 `SC066` 시도 코드). 계층을 우리가
+  // 정하는 것이 아니라 소스가 그룹마다 다른 뜻으로 싣는 값이라, 어느 그룹에서 상위로 읽을지는 검토된 그룹
+  // 표가 정하고 여기에는 읽은 결과만 실린다. 상위를 말하지 않은 코드는 null이다(EAT-260).
+  parent: z.strictObject({ scheme: codeSchemeSchema, code: sourceCodeSchema }).nullable(),
 }).meta({
   id: "NormalizedCodeVocabularyEntry",
   description: "One observed source code with the name and validity the source itself publishes for it.",

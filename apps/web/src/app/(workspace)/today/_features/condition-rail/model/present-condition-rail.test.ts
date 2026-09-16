@@ -30,7 +30,12 @@ describe('조건 기둥 표시 모델', () => {
     expect(region.sigunguRows.map((row) => [row.label, row.countText, row.active])).toEqual([['창원시', '2', true], ['코드 48250', '1', false]]);
     expect(region.sigunguRows[0]!.href).toBe('/today?sido=41');
     expect(region.sigunguRows[1]!.href).toBe('/today?sido=41&sigungu=43,44');
-    expect(region.unobservedText).toBe('지역 미상 1');
+    // 지역 미상은 시도를 골랐을 때 켜고 끌 수 있는 줄이다(EAT-260). 켜면 시도·시군구는 그대로 남는다.
+    expect([region.unknownRow.label, region.unknownRow.countText, region.unknownRow.active]).toEqual(['지역 미상', '1', false]);
+    expect(region.unknownRow.href).toBe('/today?sido=41&sigungu=43&regionUnknown=include');
+    expect(rail({ ...EMPTY_TODAY_SEARCH, sido: '41', regionUnknown: 'include' }).region.unknownRow.active).toBe(true);
+    // 시도 축이 없으면 이미 전부 보고 있어 누를 것이 없다.
+    expect(rail(EMPTY_TODAY_SEARCH).region.unknownRow.href).toBeNull();
   });
 
   test('요약이 없으면 줄은 남되 건수가 비고 지역 미상은 말하지 않는다', () => {
@@ -38,7 +43,7 @@ describe('조건 기둥 표시 모델', () => {
     // 빈 건수는 0이 아니라 못 센 것이다. 0으로 채우면 화면이 없는 사실을 말한다.
     expect(presentation.item.rows.every((row) => row.countText === '')).toBe(true);
     expect(presentation.region.sigunguRows).toEqual([]);
-    expect(presentation.region.unobservedText).toBeNull();
+    expect(presentation.region.unknownRow.countText).toBe('');
   });
 
   test('품목 줄은 여덟 원자가 어휘 순서로 서고 0건도 남으며 누르면 조각 하나를 토글한다', () => {

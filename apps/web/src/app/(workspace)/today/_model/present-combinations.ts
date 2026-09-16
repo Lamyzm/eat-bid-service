@@ -1,4 +1,4 @@
-/** @module 책임: 조합 건수 응답을 왼쪽 기둥이 그대로 쓰는 줄 목록(이름·건수·주소·켜짐)으로 바꾸고, 기본 셋의 문구를 화면 어휘로 소유한다. */
+/** @module 책임: 프리셋(저장된 조건 한 벌) 건수 응답을 왼쪽 기둥이 그대로 쓰는 줄 목록(이름·건수·주소·켜짐)으로 바꾸고, 기본 셋의 문구를 화면 어휘로 소유한다. */
 import type { MyFilterCombinationCountsV1Response, MyFilterCombinationsV1Response } from '@eatbid/contracts/api/v1/me';
 
 import { buildTodayRoute, EMPTY_TODAY_SEARCH, type TodayRoute, type TodaySearch } from '../_lib/today-search-params';
@@ -37,17 +37,24 @@ type DefaultKey = MyFilterCombinationCountsV1Response['defaults'][number]['key']
 const DEFAULT_ORDER: readonly DefaultKey[] = ['regionClosingToday', 'regionAll', 'itemUnknownIncluded'];
 
 /**
- * 기본 셋의 문구는 **화면이 소유한다.** 계약은 어느 이동인지를 열쇠로만 싣는다 — `오늘 김해`의 `김해`는
+ * 기본 셋의 문구는 **화면이 소유한다.** 계약은 어느 이동인지를 열쇠로만 싣는다 — `오늘 김해시`의 `김해시`는
  * 사장님 것이지 모두의 것이 아니라서 계약이 지어낼 수 없다.
  *
- * 지역 이름은 **관측된 라벨일 때만** 쓴다. 워크스페이스가 고른 지역이 하나면 그 라벨을 그대로 부르고,
- * 둘 이상이면 어느 것으로 불러도 나머지를 숨기게 되므로 `내 지역`으로 물러선다. 라벨을 줄이거나 다듬지
- * 않는 이유는 그 순간 `경남/김해시`를 `김해`라 부르는 어휘를 우리가 소유하게 되기 때문이다.
+ * 지역 이름은 **관측된 라벨일 때만** 쓴다. 워크스페이스가 고른 지역이 하나면 그 라벨을 부르고, 둘 이상이면
+ * 어느 것으로 불러도 나머지를 숨기게 되므로 `내 지역`으로 물러선다. 라벨 `서울/전체`는 `서울`로, `경남/김해시`는
+ * `김해시`로 줄인다 — `오늘 서울/전체`·`서울/전체 전부`는 말이 아니다(사용자 결정 2026-09-17). 자르는 규칙은
+ * 라벨의 `/` 하나뿐이고 낱말을 바꾸지는 않는다.
  */
+export function shortRegionText(regionText: string): string {
+  const [sido, rest] = regionText.split('/', 2);
+  if (rest === undefined || rest === '') return regionText;
+  return rest === '전체' ? sido! : rest;
+}
+
 function defaultName(key: DefaultKey, regionText: string | null): string {
-  const region = regionText ?? '내 지역';
+  const region = regionText === null ? '내 지역' : shortRegionText(regionText);
   if (key === 'regionClosingToday') return `오늘 ${region}`;
-  if (key === 'regionAll') return `${region} 전부`;
+  if (key === 'regionAll') return `${region} 전체`;
   if (key === 'noBids') return '참여 0곳';
   return '품목 미상 포함';
 }

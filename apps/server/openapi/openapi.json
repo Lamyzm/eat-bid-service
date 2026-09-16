@@ -62,6 +62,20 @@
         "pattern": "^(?:[1-9][0-9]{0,17}|[1-8][0-9]{18}|9[01][0-9]{17}|92[01][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[01][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-7])$",
         "type": "string"
       },
+      "AuctionItemAtom": {
+        "description": "One of the eight eaT item label atoms; the code and the observed label are the same text.",
+        "enum": [
+          "육류",
+          "가금류",
+          "농산물",
+          "수산물",
+          "가공식품",
+          "김치류",
+          "곡류",
+          "우유류"
+        ],
+        "type": "string"
+      },
       "AuctionLocation": {
         "additionalProperties": false,
         "description": "Observed announcement-region codes of one auction revision in the source region scheme.",
@@ -955,6 +969,17 @@
             "maxItems": 64,
             "type": "array"
           },
+          "itemCounts": {
+            "items": {
+              "$ref": "#/components/schemas/OpenAuctionItemCount"
+            },
+            "maxItems": 8,
+            "minItems": 8,
+            "type": "array"
+          },
+          "itemUnobservedCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
           "latestObservedAt": {
             "allOf": [
               {
@@ -1053,6 +1078,23 @@
           "organizationCount": {
             "$ref": "#/components/schemas/NonNegativeCount"
           },
+          "regionUnobservedCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "sidoCounts": {
+            "items": {
+              "$ref": "#/components/schemas/OpenAuctionRegionCount"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "sigunguCounts": {
+            "items": {
+              "$ref": "#/components/schemas/OpenAuctionRegionCount"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
           "tabs": {
             "$ref": "#/components/schemas/OpenAuctionTabCounts"
           },
@@ -1066,6 +1108,11 @@
           "tabs",
           "announcedUnobservedCount",
           "floorShares",
+          "sidoCounts",
+          "sigunguCounts",
+          "regionUnobservedCount",
+          "itemCounts",
+          "itemUnobservedCount",
           "calendar",
           "latestObservedAt",
           "nextClosingDay",
@@ -1322,11 +1369,9 @@
           },
           "items": {
             "items": {
-              "maxLength": 64,
-              "minLength": 1,
-              "type": "string"
+              "$ref": "#/components/schemas/AuctionItemAtom"
             },
-            "maxItems": 16,
+            "maxItems": 8,
             "nullable": true,
             "type": "array"
           },
@@ -1922,6 +1967,12 @@
             ],
             "nullable": true
           },
+          "displayBidNo": {
+            "maxLength": 64,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
           "eligibilityAreas": {
             "items": {
               "$ref": "#/components/schemas/EligibilityArea"
@@ -1971,6 +2022,14 @@
             ],
             "nullable": true
           },
+          "soloBidMethod": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CodeReference"
+              }
+            ],
+            "nullable": true
+          },
           "sourceLastChangedAt": {
             "allOf": [
               {
@@ -1986,12 +2045,21 @@
               }
             ],
             "nullable": true
+          },
+          "title": {
+            "maxLength": 512,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
           "auctionAttemptId",
           "organization",
           "itemLabel",
+          "title",
+          "displayBidNo",
+          "soloBidMethod",
           "floorRate",
           "region",
           "eligibilityAreas",
@@ -2058,6 +2126,22 @@
         },
         "required": [
           "rate",
+          "count"
+        ],
+        "type": "object"
+      },
+      "OpenAuctionItemCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "item": {
+            "$ref": "#/components/schemas/AuctionItemAtom"
+          }
+        },
+        "required": [
+          "item",
           "count"
         ],
         "type": "object"
@@ -2191,11 +2275,9 @@
           },
           "items": {
             "items": {
-              "maxLength": 64,
-              "minLength": 1,
-              "type": "string"
+              "$ref": "#/components/schemas/AuctionItemAtom"
             },
-            "maxItems": 16,
+            "maxItems": 8,
             "nullable": true,
             "type": "array"
           },
@@ -2322,6 +2404,19 @@
             ],
             "type": "object"
           },
+          "q": {
+            "maxLength": 64,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "regionUnknown": {
+            "enum": [
+              "include"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
           "sampleCount": {
             "$ref": "#/components/schemas/NonNegativeCount"
           },
@@ -2352,6 +2447,8 @@
           "eligibilityUnobservedCount",
           "items",
           "itemUnknown",
+          "regionUnknown",
+          "q",
           "bidState",
           "closesWithinHours",
           "closesOn",
@@ -2445,6 +2542,22 @@
         "required": [
           "sido",
           "sigungu"
+        ],
+        "type": "object"
+      },
+      "OpenAuctionRegionCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "region": {
+            "$ref": "#/components/schemas/CodeReference"
+          }
+        },
+        "required": [
+          "region",
+          "count"
         ],
         "type": "object"
       },
@@ -2664,30 +2777,18 @@
             ],
             "nullable": true
           },
-          "item": {
-            "additionalProperties": false,
-            "nullable": true,
-            "properties": {
-              "codeValueId": {
-                "$ref": "#/components/schemas/PositiveBigintText"
-              },
-              "label": {
-                "maxLength": 512,
-                "minLength": 1,
-                "type": "string"
-              }
-            },
-            "required": [
-              "codeValueId",
-              "label"
-            ],
-            "type": "object"
-          },
           "itemLabel": {
             "maxLength": 512,
             "minLength": 1,
             "nullable": true,
             "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuctionItemAtom"
+            },
+            "nullable": true,
+            "type": "array"
           },
           "listCount": {
             "allOf": [
@@ -2749,7 +2850,7 @@
           "attemptId",
           "announcedAt",
           "openedAt",
-          "item",
+          "items",
           "floorRate",
           "baseAmount",
           "winRate",
@@ -2814,7 +2915,7 @@
           "item": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/PositiveBigintText"
+                "$ref": "#/components/schemas/AuctionItemAtom"
               }
             ],
             "nullable": true
@@ -3643,6 +3744,16 @@
           },
           {
             "in": "query",
+            "name": "regionUnknown",
+            "schema": {
+              "enum": [
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "eligibilityArea",
             "schema": {
               "items": {
@@ -3658,11 +3769,9 @@
             "name": "items",
             "schema": {
               "items": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
+                "$ref": "#/components/schemas/AuctionItemAtom"
               },
-              "maxItems": 16,
+              "maxItems": 8,
               "minItems": 1,
               "type": "array"
             }
@@ -3674,6 +3783,15 @@
               "enum": [
                 "include"
               ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
               "type": "string"
             }
           },
@@ -4036,6 +4154,16 @@
           },
           {
             "in": "query",
+            "name": "regionUnknown",
+            "schema": {
+              "enum": [
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "eligibilityArea",
             "schema": {
               "items": {
@@ -4051,13 +4179,30 @@
             "name": "items",
             "schema": {
               "items": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
+                "$ref": "#/components/schemas/AuctionItemAtom"
               },
-              "maxItems": 16,
+              "maxItems": 8,
               "minItems": 1,
               "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "itemUnknown",
+            "schema": {
+              "enum": [
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
             }
           },
           {
@@ -5064,13 +5209,20 @@
             "name": "items",
             "schema": {
               "items": {
-                "maxLength": 64,
-                "minLength": 1,
-                "type": "string"
+                "$ref": "#/components/schemas/AuctionItemAtom"
               },
-              "maxItems": 16,
+              "maxItems": 8,
               "minItems": 1,
               "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
             }
           },
           {
@@ -5374,7 +5526,7 @@
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/components/schemas/PositiveBigintText"
+                  "$ref": "#/components/schemas/AuctionItemAtom"
                 }
               ]
             }

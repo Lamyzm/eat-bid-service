@@ -13,7 +13,7 @@ import type { TodayRegionGate } from '@/app/(workspace)/today/_model/load-today-
 import type { OpenSummaryPresentation } from '@/app/(workspace)/today/_model/present-open-summary';
 
 /**
- * 기둥의 줄 하나다. `href`가 null이면 누를 것이 없는 사실 표시다 — 지역 미상은 걸 조건이 없고, 품목 축이
+ * 기둥의 줄 하나다. `href`가 null이면 누를 것이 없는 사실 표시다 — 시도 축이 없을 때의 지역 미상과 품목 축이
  * 없을 때의 품목 미상은 이미 보고 있다. `countText`가 빈 문자열이면 못 센 것이지 0이 아니다(AGENTS 3).
  */
 export type RailRow = {
@@ -30,7 +30,8 @@ export type ConditionRailPresentation = {
     readonly sidoText: string;
     readonly sidoRows: readonly RailRow[];
     readonly sigunguRows: readonly RailRow[];
-    readonly unobservedText: string | null;
+    /** 지역 미상 줄이다. 시도를 골랐을 때만 켜고 끌 수 있다 — 품목 미상과 같은 규칙이다(EAT-260). */
+    readonly unknownRow: RailRow;
     /**
      * 참가제한지역 게이트다. 공고지역과 다른 축이라 체크 목록이 아니라 한 줄 사실과 출구 둘로 남긴다 —
      * 이것은 필터이지 자격 판정이 아니다(ADR 0048 결정 5).
@@ -82,6 +83,9 @@ function regionSection(
     }))
   ];
   const selectedSido = sidoRows.find((row) => row.active && row.key !== 'all');
+  // 지역 미상 포함은 시도 축이 걸렸을 때만 일한다. 축이 없으면 이미 전부 보고 있어 누를 것이 없다.
+  // 값은 loader가 계약 schema로 걸러 `include` 아니면 null이다. 문자열이 아니라 있고 없음으로 읽는다.
+  const includeUnknown = search.regionUnknown !== null;
   return {
     sidoText: selectedSido?.label ?? '전체',
     sidoRows,
@@ -92,8 +96,13 @@ function regionSection(
       active: search.sigungu?.includes(entry.region.codeValueId) ?? false,
       href: buildTodayFilterRoute(search, { sigungu: toggled(search.sigungu, entry.region.codeValueId) })
     })),
-    // 지역 미상은 걸 조건이 없는 사실이다. 0이면 말하지 않는다 — 없는 결손을 적으면 다른 수 사이에서 무게를 갖는다.
-    unobservedText: counts === null || counts.regionUnobservedCount === 0 ? null : `지역 미상 ${counts.regionUnobservedCount}`,
+    unknownRow: {
+      key: 'unknown',
+      label: '지역 미상',
+      countText: countText(counts?.regionUnobservedCount ?? null),
+      active: search.sido !== null && includeUnknown,
+      href: search.sido === null ? null : buildTodayFilterRoute(search, { regionUnknown: includeUnknown ? null : 'include' })
+    },
     gate: gateOf(search, gate)
   };
 }

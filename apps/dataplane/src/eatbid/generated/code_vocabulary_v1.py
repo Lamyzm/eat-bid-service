@@ -24,6 +24,17 @@ class InstantText(RootModel[str]):
     """
 
 
+class Parent(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+        populate_by_name=True,
+    )
+    code: Annotated[str, Field(max_length=512, min_length=1)]
+    """Opaque source code text that preserves leading zeroes."""
+    scheme: Annotated[str, Field(max_length=128, min_length=1)]
+    """Source-scoped scheme identifier; schemes are never compared implicitly."""
+
+
 class NormalizedCodeVocabularyEntry(BaseModel):
     """One observed source code with the name and validity the source itself publishes for it."""
 
@@ -36,6 +47,7 @@ class NormalizedCodeVocabularyEntry(BaseModel):
     """Opaque source code text that preserves leading zeroes."""
     label: Annotated[str, Field(max_length=512, min_length=1)]
     """Observed label text for a code value; never an identity."""
+    parent: Parent | None
     scheme: Annotated[str, Field(max_length=128, min_length=1)]
     """Source-scoped scheme identifier; schemes are never compared implicitly."""
     valid_from: Annotated[InstantText | None, Field(alias='validFrom')]

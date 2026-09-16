@@ -24,6 +24,7 @@ import {
   itemUnobservedPredicate,
   OPEN_AUCTION_SNAPSHOT,
   openScopePredicate,
+  regionPredicate,
   searchPredicate,
 } from "./open-auction-queries";
 
@@ -41,6 +42,7 @@ function regionLabelCte(): SQL {
     region_label as (
       select code.code_value_id,
              code.code,
+             code.active,
              scheme.namespace as scheme,
              (select observation.label
                 from core.code_label_observation observation
@@ -58,7 +60,9 @@ function regionLabelCte(): SQL {
  * 한 요청이 도는 조회 하나다. 스캔은 `open_scope` 한 번이고 그 위에서 집합 넷이 갈린다.
  *
  * - `region_scope` — 지역 축만 건 집합. 달력의 `releasedCount`가 센다.
- * - `region_released` — 지역만 풀고 품목·금액·제한지역은 건 집합. 기둥의 시도·시군구·지역 미상 배지가 센다.
+ * - `region_released` — 지역과 게이트(참가제한지역)를 풀고 품목·금액은 건 집합. 기둥의 시도·시군구·지역 미상
+ *   배지가 센다. 게이트를 푸는 이유는 지역 축이 게이트와 독립으로 동작하기 때문이다(사용자 결정 2026-09-17) —
+ *   시도를 고르면 게이트가 풀리므로 배지도 그 수를 말해야 누르면 되는 수다.
  * - `item_released` — 품목만 풀고 지역·금액·제한지역은 건 집합. 기둥의 품목·품목 미상 배지가 센다.
  * - `scoped` — 전부 건 집합. 탭·달력 칸·하한 구성·기준 시각이 센다.
  *
@@ -122,16 +126,13 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
     region_scope as (
       select scope.*
       from open_scope scope
-      where (${query.sidoCodeValueId}::bigint is null
-             or scope.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
-        and (${sigungu}::text is null
-             or scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
+      where ${regionPredicate(sql`scope`, query.sidoCodeValueId, sigungu, query.includeUnknownRegion)}
     ),
     region_released as (
       select scope.*
       from open_scope scope
       where ${amountFilter}
-        and ${itemAtomPredicate(sql`scope`, query.itemAtoms, query.includeUnknownItem)}${eligibilityFilter}
+        and ${itemAtomPredicate(sql`scope`, query.itemAtoms, query.includeUnknownItem)}
     ),
     item_released as (
       select scope.*
@@ -143,21 +144,37 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       from item_released scope
       where ${itemAtomPredicate(sql`scope`, query.itemAtoms, query.includeUnknownItem)}
     ),
+    -- 어휘의 시도 전부가 0건까지 선다. 관측된 것만 세우면 화면이 "오늘 없다"와 "어휘에 없다"를 가르지 못한다
+    -- (사용자 결정 2026-09-17, EAT-260). 소스가 그만 쓴다고 말한 코드는 행이 있을 때만 남는다.
     sido_counts as (
-      select code.code_value_id, code.code, code.scheme, code.label, count(*)::int as count
-        from region_released released
-        join region_label code on code.code_value_id = released.region_sido_code_value_id
-       group by code.code_value_id, code.code, code.scheme, code.label
+      select code.code_value_id, code.code, code.scheme, code.label, count(released.auction_attempt_id)::int as count
+        from region_label code
+        left join region_released released on released.region_sido_code_value_id = code.code_value_id
+       where code.scheme = ${CODE_SCHEME_NAMES.auctionLocationSido}
+       group by code.code_value_id, code.code, code.scheme, code.label, code.active
+      having code.active or count(released.auction_attempt_id) > 0
     ),
-    -- 시군구는 고른 시도 안에서만 센다. 시도 없이 전국 시군구를 세우는 화면은 없고, 짝은 활성 build에서
-    -- 관측된 것뿐이라 0건인 시군구는 애초에 없다.
+    -- 시군구는 고른 시도 안에서만 센다. 어느 시군구가 그 시도 아래인지는 코드목록이 말한 상위(code_mapping의
+    -- parent 관계)이고 코드 자릿수로 추측하지 않는다(AGENTS 2·6). 상위가 아직 관측되지 않은 짝은 활성 build에서
+    -- 함께 관측된 행으로 남는다 — 어느 쪽이든 관측이다.
+    sigungu_parent as (
+      select mapping.from_code_value_id as code_value_id
+        from core.code_mapping mapping
+       where mapping.relation = 'parent'
+         and mapping.to_code_value_id = ${query.sidoCodeValueId}::bigint
+    ),
     sigungu_counts as (
-      select code.code_value_id, code.code, code.scheme, code.label, count(*)::int as count
-        from region_released released
-        join region_label code on code.code_value_id = released.region_sigungu_code_value_id
-       where ${query.sidoCodeValueId}::bigint is not null
+      select code.code_value_id, code.code, code.scheme, code.label, count(released.auction_attempt_id)::int as count
+        from region_label code
+        left join region_released released
+          on released.region_sigungu_code_value_id = code.code_value_id
          and released.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint
-       group by code.code_value_id, code.code, code.scheme, code.label
+       where ${query.sidoCodeValueId}::bigint is not null
+         and code.scheme = ${CODE_SCHEME_NAMES.auctionLocationSigungu}
+         and (code.code_value_id in (select sigungu_parent.code_value_id from sigungu_parent)
+              or released.auction_attempt_id is not null)
+       group by code.code_value_id, code.code, code.scheme, code.label, code.active
+      having code.active or count(released.auction_attempt_id) > 0
     ),
     -- 원자 하나의 수는 그 원자 코드가 다리표로 붙은 행 수다. 다리표는 (행, 원자) 한 쌍이 한 번뿐이라
     -- 합성 라벨 행도 원자마다 한 번만 센다.
@@ -220,16 +237,16 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       (select jsonb_agg(jsonb_build_object('rate', floors.rate::text, 'count', floors.count))
          from floors) as floors,
       -- code_value_id는 문자열로 싣는다. JSON 숫자는 bigint를 무손실로 담지 못한다(ADR 0018). 순서는
-      -- 많은 것부터이고 동률은 코드 순이라 실행마다 같다.
+      -- 소스의 코드 순(숫자 크기)이다 — 전부 세우는 목록이라 건수 순이면 고를 때마다 자리가 바뀐다.
       (select jsonb_agg(jsonb_build_object('codeValueId', sido_counts.code_value_id::text, 'code', sido_counts.code,
                                            'scheme', sido_counts.scheme, 'label', sido_counts.label,
                                            'count', sido_counts.count)
-                        order by sido_counts.count desc, sido_counts.code)
+                        order by length(sido_counts.code), sido_counts.code)
          from sido_counts) as sido_counts,
       (select jsonb_agg(jsonb_build_object('codeValueId', sigungu_counts.code_value_id::text, 'code', sigungu_counts.code,
                                            'scheme', sigungu_counts.scheme, 'label', sigungu_counts.label,
                                            'count', sigungu_counts.count)
-                        order by sigungu_counts.count desc, sigungu_counts.code)
+                        order by length(sigungu_counts.code), sigungu_counts.code)
          from sigungu_counts) as sigungu_counts,
       (select count(*) from region_released where region_released.region_sido_code_value_id is null)::int
         as region_unobserved_count,

@@ -7,19 +7,19 @@ describe('열린 공고 표시 변환', () => {
   test('KST 자정 직전 마감은 오늘 마감으로 세고 시각만 보인다', () => {
     // KST 2026-09-07 23:59 = UTC 14:59, 기준 시각은 KST 10:30.
     const presented = presentOpenAuction({ ...todayRow, closesAt: '2026-09-07T14:59:00Z' }, fixtureNow);
-    expect(presented.closes).toEqual({ tone: 'today', label: '오늘', clockText: '23:59', dDay: 0 });
+    expect(presented.closes).toEqual({ tone: 'today', label: '오늘', clockText: '23:59', dDay: 0, at: '2026-09-07T14:59:00Z' });
   });
 
   test('UTC로는 같은 날이지만 KST로 다음 날인 마감은 D-1이다', () => {
     expect(dDayOf(tomorrowRow.closesAt!, fixtureNow)).toBe(1);
     const presented = presentOpenAuction(tomorrowRow, fixtureNow);
-    expect(presented.closes).toEqual({ tone: 'tomorrow', label: '내일', clockText: '00:30', dDay: 1 });
+    expect(presented.closes).toEqual({ tone: 'tomorrow', label: '내일', clockText: '00:30', dDay: 1, at: tomorrowRow.closesAt });
     // 사흘 뒤는 날짜까지 보인다.
-    expect(presentOpenAuction(laterRow, fixtureNow).closes).toEqual({ tone: 'later', label: '사흘 뒤', clockText: '11:00', dDay: 3 });
+    expect(presentOpenAuction(laterRow, fixtureNow).closes).toEqual({ tone: 'later', label: '사흘 뒤', clockText: '11:00', dDay: 3, at: laterRow.closesAt });
   });
 
   test('마감을 관측하지 못한 행은 미확인이고 D-day가 없다', () => {
-    expect(presentOpenAuction(unknownClosesRow, fixtureNow).closes).toEqual({ tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null });
+    expect(presentOpenAuction(unknownClosesRow, fixtureNow).closes).toEqual({ tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null, at: null });
   });
 
   test('기관이 없는 행과 기관 이름만 없는 행은 다른 문구를 낸다', () => {
@@ -55,7 +55,7 @@ describe('열린 공고 표시 변환', () => {
       attemptCount: 17,
       medianListText: '5',
       listCountSampleCount: 12,
-      lastRound: { kind: 'observed', listText: '17곳', dateText: '09-02', belowText: '하한 아래 2' }
+      lastRound: { kind: 'observed', listText: '17곳', dateText: '09-02' }
     });
     // 개찰된 회차가 없는 기관과 명단을 관측하지 못한 회차는 다른 문구다. 0곳으로 채우면 아무도 안 들어온
     // 판이 된다(AGENTS 3).
@@ -66,7 +66,7 @@ describe('열린 공고 표시 변환', () => {
     expect(presentOpenAuction({
       ...todayRow,
       orgSummary: { ...todayRow.orgSummary!, lastRound: { ...todayRow.orgSummary!.lastRound!, listCount: null, belowDayFloorCount: null } }
-    }, fixtureNow).orgSummary!.lastRound).toEqual({ kind: 'observed', listText: '명단 미관측', dateText: '09-02', belowText: null });
+    }, fixtureNow).orgSummary!.lastRound).toEqual({ kind: 'observed', listText: '명단 미관측', dateText: '09-02' });
   });
 
   test('같은 하한율에서 본 회차가 없는 행은 값을 지어내지 않고 그 사실을 말한다', () => {

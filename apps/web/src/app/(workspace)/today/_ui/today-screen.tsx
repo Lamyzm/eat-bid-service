@@ -1,4 +1,4 @@
-/** @module 책임: 오늘 화면을 조립한다. 제목·기준 시각을 두고, 왼쪽 기둥에 조합과 조건 세 구역을, 본문에 탭·달력·목록을 세우며 목록 자리는 표시 모델이 정한 세 상태(계보 없음·결과 0·목록)를 그대로 고른다. */
+/** @module 책임: 오늘 화면을 조립한다. 제목 아래 머리 문장을 두고, 왼쪽 기둥에 프리셋과 조건 세 구역을, 본문에 달력·검색·마감 시각 묶음 카드 목록을 세우며 목록 자리는 표시 모델이 정한 세 상태(계보 없음·결과 0·목록)를 그대로 고른다. */
 import Link from 'next/link';
 
 import { EmptyState } from '@/shared/ui/empty-state';
@@ -12,12 +12,13 @@ import { RegionSetupRequest } from '../_features/region-scope/ui/region-scope-st
 import { describeTodaySearch } from '../_lib/describe-today-search';
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
-import { groupClosingDays } from '../_model/group-closing-days';
+import { groupClosingSlots } from '../_model/group-closing-slots';
 import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
 import { kstToday, type OpenSummaryPresentation } from '../_model/present-open-summary';
-import { OpenAuctionTable } from './open-auction-table';
+import { OpenAuctionCards } from './open-auction-cards';
 import { TodayFrame } from './today-frame';
-import { TodayCalendar, TodayTabs } from './today-tabs';
+import { TodayCalendar } from './today-tabs';
+import { TodayLede } from './today-lede';
 
 // 지역 칩의 표시 이름은 응답 행에서 읽는다. 지역 어휘 계약이 없는 동안 그 id의 라벨을 아는 곳은 행뿐이다.
 function regionTextOf(rows: readonly OpenAuctionRowPresentation[], region: string | null): string | null {
@@ -82,25 +83,20 @@ function OpenAuctionList({
   rows,
   presentation,
   search,
-  summary,
   nowIso,
   cursorReset
 }: {
   readonly rows: readonly OpenAuctionRowPresentation[];
   readonly presentation: OpenAuctionListPresentation;
   readonly search: TodaySearch;
-  readonly summary: OpenSummaryPresentation | null;
   readonly nowIso: string;
   readonly cursorReset: boolean;
 }) {
-  // 하한 판정은 축 줄과 표가 같은 값을 써야 조건 줄이 세는 수와 행에 붙는 값이 어긋나지 않는다.
-  // 요약이 소유하므로 여기서는 받아서 내려보내기만 한다.
-  const floorRates = summary?.floorSpread ?? { axisText: '', rareRates: new Set<string>() };
-  // 마감일 묶음은 행 순서를 바꾸지 않는다. 이미 마감 임박 순인 목록을 날짜가 바뀌는 자리에서 끊을 뿐이라
-  // `마감 임박 순`이라는 제목이 따로 필요 없어졌다 — 묶음 머리가 순서를 보여 준다.
-  const groups = groupClosingDays(rows, nowIso, summary);
+  // 마감 시각 묶음은 행 순서를 바꾸지 않는다. 이미 마감 임박 순인 목록을 시각이 바뀌는 자리에서 끊을 뿐이라
+  // `마감 임박 순`이라는 제목이 따로 필요 없다 — 묶음 머리가 순서를 보여 준다(U9).
+  const groups = groupClosingSlots(rows, nowIso);
   return (
-    <div className='grid min-w-0'>
+    <div className='grid min-w-0 gap-4'>
       <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 empty:hidden'>
         {/* 더보기를 두지 않기로 했으므로(사용자 결정) 못 보는 행이 생기면 그 사실을 수로 적는다. 좁히는
             길 셋(달력 칸·지역 칩·검색)은 이미 화면에 있다. */}
@@ -111,15 +107,7 @@ function OpenAuctionList({
         )}
         {cursorReset ? <span className='text-[13px] font-semibold text-pushed'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
       </div>
-      <div className='min-w-0'>
-        <OpenAuctionTable
-          groups={groups}
-          search={search}
-          floorRates={floorRates}
-          organizationCount={summary?.organizationCount ?? null}
-          observedText={summary?.latestObservedText ?? null}
-        />
-      </div>
+      <OpenAuctionCards groups={groups} search={search} />
     </div>
   );
 }
@@ -141,7 +129,6 @@ function TodayList({ data, regionText }: { readonly data: TodayPageData; readonl
           rows={view.rows}
           presentation={presentation}
           search={search}
-          summary={data.summary}
           nowIso={data.nowIso}
           cursorReset={data.cursorReset}
         />
@@ -156,19 +143,19 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
   return (
     <TodayFrame
       header={
-        <div className='flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'>
-          <h1 id='today-title' className='text-xl font-bold tracking-tight'>오늘</h1>
-          {/* 건수는 축 줄이 말한다. 머리에도 적으면 같은 수를 두 자리에 두는 page-level 숫자 hero가
-              둘이 되고, 언젠가 한쪽만 고쳐져 둘이 다른 말을 한다(screen-system §9.1). */}
-          {presentation === null ? null : (
-            <span className='ml-auto text-[13px] font-semibold whitespace-nowrap text-muted-foreground'>{presentation.asOfText} 기준</span>
+        /* 제목 아래 한 문장이 이 화면의 유일한 숫자 hero다(U9). 탭 줄을 따로 두면 같은 수가 두 자리에 서고
+           언젠가 한쪽만 고쳐져 둘이 다른 말을 한다(screen-system §9.1). */
+        <div className='grid min-w-0 gap-2.5'>
+          <h1 id='today-title' className='text-[26px] font-extrabold tracking-[-0.04em]'>오늘</h1>
+          {data.summary === null ? null : (
+            <TodayLede summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} asOfText={presentation?.asOfText ?? null} />
           )}
         </div>
       }
       rail={
-        /* 2xl 아래에서는 기둥이 본문 위로 가므로 조합과 조건 세 구역을 가로로 펼친다. 세로로 쌓으면 1280에서
+        /* xl 아래에서는 기둥이 본문 위로 가므로 프리셋과 조건 세 구역을 가로로 펼친다. 세로로 쌓으면 1024에서
            목록이 첫 화면 밖으로 밀린다(2026-09-16 실측: 표가 y=1,100 아래). */
-        <div className='grid min-w-0 items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-1'>
+        <div className='grid min-w-0 items-start gap-5 lg:grid-cols-[252px_minmax(0,1fr)] xl:grid-cols-1'>
           {/* 조건을 바꿔 가며 판을 찾는 자리다. 매번 축 셋을 다시 누르면 탐색이 일이 된다(EAT-208). */}
           {data.combinations === null ? null : (
             <CombinationRail combinations={data.combinations} search={search} />
@@ -177,30 +164,27 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
               통째로 쓰면서 목록을 아래로 밀고, 스크롤하면 사라져 자기 조건을 잊는다. 지역·품목·기초금액
               세 구역은 시안 U9의 순서이고 건수는 요약이 "그 축 하나만 푼 집합"으로 센 수다(EAT-241). */}
           {data.regionGate.kind === 'unset' ? null : (
-            /* 조합이 없어도(읽기 실패·fixture) 조건은 둘째 칸에 선다. 첫 칸(240px)에 들어가면 세 구역이 70px로 눌린다
+            /* 프리셋이 없어도(읽기 실패·fixture) 조건은 둘째 칸에 선다. 첫 칸(240px)에 들어가면 세 구역이 70px로 눌린다
                (2026-09-16 e2e 실측). */
-            <div className='min-w-0 lg:col-start-2 2xl:col-start-auto'>
+            <div className='min-w-0 lg:col-start-2 xl:col-start-auto'>
               <ConditionRail rail={presentConditionRail({ search, summary: data.summary, gate: data.regionGate })} />
             </div>
           )}
           {/* 표본 수·계보·산출 시각을 숨기지 않는다(AGENTS 7). 표 위 한 줄로 두면 780px에서 두 줄로 넘쳐
               목록을 읽는 눈이 먼저 걸리므로, 조건과 같은 기둥에 두어 목록 옆에 계속 남긴다. */}
           {presentation === null ? null : (
-            <div className='grid gap-0.5 text-[13px] leading-tight font-medium text-muted-foreground/70 lg:col-span-2 2xl:col-span-1'>
+            <div className='grid gap-0.5 text-[13px] leading-tight font-medium text-muted-foreground/70 lg:col-span-2 xl:col-span-1'>
               {presentation.lineageLines.map((line) => <span key={line}>{line}</span>)}
             </div>
           )}
         </div>
       }
       filters={
-        /* 탭 → 달력 → 검색 순서다. 조건은 왼쪽 기둥이 소유하고(EAT-241) 본문에는 축 줄을 두지 않는다 — 한 줄을
+        /* 문장 → 달력 → 검색 순서다. 조건은 왼쪽 기둥이 소유하고(EAT-241) 본문에는 축 줄을 두지 않는다 — 한 줄을
            통째로 쓰면서 목록을 아래로 밀고 `하한 N · N건`처럼 사용자가 지우라고 한 숫자가 거기 살았다. 달력은 탭
            아래, 검색은 달력 아래 목록 바로 위다(U9). 검색이 기둥이 아니라 본문에 있는 이유는 조건이 아니라
            "이 조건 안에서 찾기"이기 때문이다 — 상한 200건 밖의 행에 닿는 유일한 길이다(EAT-247). */
         <div className='grid min-w-0 gap-2.5'>
-          {data.summary === null ? null : (
-            <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} />
-          )}
           {data.summary === null ? null : <TodayCalendar summary={data.summary} search={search} />}
           {presentation === null ? null : (
             <ListSearchForm search={presentListSearch(search, presentation.view.kind === 'no-snapshot' ? null : presentation.sampleCount)} />

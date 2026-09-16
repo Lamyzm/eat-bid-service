@@ -16,6 +16,12 @@ export const todaySearchParsers = {
    */
   sigungu: parseAsArrayOf(parseAsString, ','),
   /**
+   * 시도 축을 걸어도 공고지역 미관측 행을 함께 볼지다. 품목 미상 포함과 같은 규칙이다 — 시도 축이 없으면
+   * 이미 전부 보고 있어 아무 일도 하지 않는다. 미관측 행은 다른 지역의 공고가 아니라 어디인지 아직 못 본
+   * 공고다(EAT-260).
+   */
+  regionUnknown: parseAsString,
+  /**
    * 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR).
    *
    * 원천 라벨이 `육류 , 가금류`처럼 합성 문자열이라 완전일치로는 절반을 놓친다. 조각을 쉼표로 이어
@@ -53,6 +59,7 @@ export const EMPTY_TODAY_SEARCH: TodaySearch = {
   scope: null,
   sido: null,
   sigungu: null,
+  regionUnknown: null,
   items: null,
   itemUnknown: null,
   q: null,

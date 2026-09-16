@@ -1,4 +1,4 @@
-/** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 표가 그대로 쓰는 표시값(KST 마감·D-day·금액·미확인 문구·(기관, 하한율) 요약)으로 바꾼다. */
+/** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 카드 목록이 그대로 쓰는 표시값(KST 마감·D-day·금액·미확인 문구·(기관, 하한율) 요약)으로 바꾼다. */
 import { Temporal } from '@eatbid/domain';
 import type { OpenAuction, OpenAuctionListV1Response } from '@eatbid/contracts/api/v1/auctions';
 
@@ -18,6 +18,8 @@ export type OpenAuctionRowPresentation = {
     readonly type: string | null;
   };
   readonly itemLabel: string | null;
+  /** 원천이 표시하는 공고 제목이다. 행 둘째 줄이며 상세를 아직 따지 않은 공고는 null이다(EAT-260). */
+  readonly title: string | null;
   /** 원천이 표시하는 공고번호다. 표시·복사용이며 상세를 아직 따지 않은 공고는 null이다(EAT-248). */
   readonly displayBidNo: string | null;
   readonly floorRateText: string;
@@ -41,6 +43,8 @@ export type OpenAuctionRowPresentation = {
      */
     readonly clockText: string;
     readonly dDay: number | null;
+    /** wire instant 그대로다. 마감 시각 묶음이 남은 시간을 셀 때 쓰고 화면에는 이 값이 직접 서지 않는다. */
+    readonly at: string | null;
   };
   /**
    * 관측된 참여 수다. `0`은 빈 문자열이다 — 값을 버리는 것이 아니라 전면에 세우지 않는 것이다(사용자 결정
@@ -59,7 +63,7 @@ export type OpenAuctionRowPresentation = {
      * 벗어나는 행이 51.6%라 중앙값 옆에 따로 둘 값어치가 있다(2026-09-16).
      */
     readonly lastRound:
-      | { readonly kind: 'observed'; readonly listText: string; readonly dateText: string; readonly belowText: string | null }
+      | { readonly kind: 'observed'; readonly listText: string; readonly dateText: string }
       // 없는 이유가 둘이고 사용자가 할 일이 다르다. 같은 하한에서 본 회차가 아예 없는 것과, 회차는
       // 있는데 개찰 시각을 관측한 것이 없는 것을 한 문구로 합치면 화면이 없는 사실을 말한다(AGENTS 3).
       | { readonly kind: 'none'; readonly text: string };
@@ -120,10 +124,10 @@ export function dayAwayText(dDay: number): string {
 }
 
 function presentCloses(closesAt: string | null, nowIso: string): OpenAuctionRowPresentation['closes'] {
-  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null };
+  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null, at: null };
   const dDay = dDayOf(closesAt, nowIso);
   const tone: ClosesTone = dDay <= 0 ? 'today' : dDay === 1 ? 'tomorrow' : 'later';
-  return { tone, label: dayAwayText(dDay), clockText: kstTime(closesAt), dDay };
+  return { tone, label: dayAwayText(dDay), clockText: kstTime(closesAt), dDay, at: closesAt };
 }
 
 function formatWon(amount: string): string {
@@ -179,8 +183,7 @@ function presentLastRound(summary: NonNullable<OpenAuction['orgSummary']>): NonN
     kind: 'observed',
     // 명단이 미관측인 회차는 0곳이 아니다. 0으로 적으면 아무도 안 들어온 판이 된다(AGENTS 3).
     listText: last.listCount === null ? '명단 미관측' : `${last.listCount}곳`,
-    dateText: kstDate(last.openedAt),
-    belowText: last.belowDayFloorCount === null ? null : `하한 아래 ${last.belowDayFloorCount}`
+    dateText: kstDate(last.openedAt)
   };
 }
 
@@ -215,6 +218,7 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     href: `/auctions/${encodeURIComponent(auction.auctionAttemptId)}`,
     organization: presentOrganization(auction.organization),
     itemLabel: auction.itemLabel,
+    title: auction.title,
     displayBidNo: auction.displayBidNo,
     // 관측되지 않은 하한율을 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3).
     floorRateText: auction.floorRate === null ? FLOOR_RATE_UNKNOWN : formatFloorRate(auction.floorRate.value),

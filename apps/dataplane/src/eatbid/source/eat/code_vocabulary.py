@@ -15,7 +15,11 @@ from eatbid.generated.code_vocabulary_v1 import (
     EatbidCodeVocabularyV1,
     NormalizedCodeVocabularyEntry,
 )
-from eatbid.source.eat.code_schemes import code_list_scheme
+from eatbid.source.eat.code_schemes import (
+    EatCodeListGroup,
+    code_list_group,
+    code_list_scheme,
+)
 from eatbid.source.eat.wire_text import canonical_instant_text, optional_text
 from eatbid.source.eat.wire_values_v2 import SOURCE_SYSTEM
 from eatbid.source.eat.xml import ParsedNexacro
@@ -52,7 +56,8 @@ def parse_code_vocabulary(parsed: ParsedNexacro) -> EatbidCodeVocabularyV1:
     entries: list[NormalizedCodeVocabularyEntry] = []
     seen: set[tuple[str, str]] = set()
     for row in rows:
-        namespace = _require_scheme(row)
+        group = _require_group(row)
+        namespace = group.scheme.namespace
         code = _required(row, _CODE_FIELD)
         key = (namespace, code)
         if key in seen:
@@ -77,6 +82,7 @@ def parse_code_vocabulary(parsed: ParsedNexacro) -> EatbidCodeVocabularyV1:
                     "active": _active(row),
                     "validFrom": _instant(row, _VALID_FROM_FIELD),
                     "validTo": _instant(row, _VALID_TO_FIELD),
+                    "parent": _parent(row, group),
                 }
             )
         except (ValidationError, ValueError) as error:
@@ -96,12 +102,31 @@ def parse_code_vocabulary(parsed: ParsedNexacro) -> EatbidCodeVocabularyV1:
     )
 
 
-def _require_scheme(row: Mapping[str, str]) -> str:
-    group = _required(row, _GROUP_FIELD)
-    scheme = code_list_scheme(group)
+def _require_group(row: Mapping[str, str]) -> EatCodeListGroup:
+    group_code = _required(row, _GROUP_FIELD)
+    group = code_list_group(group_code)
+    if group is None:
+        raise SourceContractError(f"eaT code list group is not reviewed [group={group_code}]")
+    return group
+
+
+def _parent(row: Mapping[str, str], group: EatCodeListGroup) -> dict[str, str] | None:
+    """소스가 이 행의 상위라고 적은 코드다. 그룹 표가 상위 column을 적은 그룹에서만 읽는다.
+
+    비어 있으면 `None`이다 — 상위를 말하지 않은 시군구를 우리가 코드 자릿수로 어느 시도에 넣는 순간
+    문자열이 정체성이 된다(AGENTS 2). 상위의 체계는 그룹 표가 짝지은 그룹의 체계다.
+    """
+    if group.parent_column is None or group.parent_group is None:
+        return None
+    code = optional_text(row, group.parent_column)
+    if code is None:
+        return None
+    scheme = code_list_scheme(group.parent_group)
     if scheme is None:
-        raise SourceContractError(f"eaT code list group is not reviewed [group={group}]")
-    return scheme.namespace
+        raise SourceContractError(
+            f"eaT code list parent group is not reviewed [group={group.parent_group}]"
+        )
+    return {"scheme": scheme.namespace, "code": code}
 
 
 def _required(row: Mapping[str, str], field: str) -> str:

@@ -53,7 +53,9 @@ def _row(
     deleted: str = "N",
     valid_from: str = "19000101",
     valid_to: str = "99991231",
+    parent: str | None = None,
 ) -> str:
+    parent_col = "" if parent is None else f'<Col id="ITM_VL2">{parent}</Col>'
     return (
         "<Row>"
         f'<Col id="CMNS_GRP_CD">{group}</Col>'
@@ -63,8 +65,26 @@ def _row(
         f'<Col id="DEL_YN">{deleted}</Col>'
         f'<Col id="VLD_BGNG_YMD">{valid_from}</Col>'
         f'<Col id="VLD_END_YMD">{valid_to}</Col>'
+        f"{parent_col}"
         "</Row>"
     )
+
+
+def test_시군구는_소스가_ITM_VL2로_말한_상위_시도를_체계와_코드로_싣는다() -> None:
+    vocabulary = _fixture_vocabulary()
+    김해시 = _entry(vocabulary, AUCTION_LOCATION_SIGUNGU.namespace, "653")
+    assert 김해시.parent is not None
+    assert (김해시.parent.scheme, 김해시.parent.code) == (AUCTION_LOCATION_SIDO.namespace, "15")
+    # 시도·상태·기관 유형은 상위를 읽지 않는다. `BC016`의 같은 자리는 묶음 번호라 상위가 아니다.
+    assert _entry(vocabulary, AUCTION_LOCATION_SIDO.namespace, "15").parent is None
+    assert _entry(vocabulary, ORGANIZATION_TYPE.namespace, "010").parent is None
+
+
+def test_상위를_말하지_않은_시군구는_코드_자릿수로_추측하지_않고_null이다() -> None:
+    vocabulary = parse_code_vocabulary(
+        parse_nexacro(_response(_row(group="SC067", code="653", name="김해시", parent=None)))
+    )
+    assert vocabulary.entries[0].parent is None
 
 
 def test_그룹_넷이_각자의_체계에_이름을_준다() -> None:

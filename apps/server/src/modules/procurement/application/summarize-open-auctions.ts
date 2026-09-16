@@ -14,6 +14,8 @@ import type {
 export interface SummarizeOpenAuctionsInput {
   readonly sidoCodeValueId: bigint | null;
   readonly sigunguCodeValueIds: readonly bigint[] | null;
+  /** 시도 축이 걸렸을 때 공고지역 미관측 행을 함께 낼지다. 목록과 요약이 같은 술어를 쓴다(EAT-260). */
+  readonly includeUnknownRegion: boolean;
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
   readonly itemAtoms: readonly AuctionItemAtom[] | null;
   readonly includeUnknownItem: boolean;

@@ -115,6 +115,7 @@ export class AuctionController {
       return toOpenAuctionListResponse(await this.effectRunner.run(this.listOpenAuctions.execute({
         sidoCodeValueId,
         sigunguCodeValueIds,
+        includeUnknownRegion: query.regionUnknown !== undefined,
         eligibilityAreaCodeValueIds,
         itemAtoms: query.items ?? null,
         includeUnknownItem: query.itemUnknown !== undefined,
@@ -179,6 +180,7 @@ export class AuctionController {
       return toOpenAuctionSummaryResponse(await this.effectRunner.run(this.summarizeOpenAuctions.execute({
         sidoCodeValueId,
         sigunguCodeValueIds,
+        includeUnknownRegion: query.regionUnknown !== undefined,
         eligibilityAreaCodeValueIds,
         itemAtoms: query.items ?? null,
         includeUnknownItem: query.itemUnknown !== undefined,

@@ -73,6 +73,29 @@
         "label": {
           "$ref": "#/$defs/CodeLabel"
         },
+        "parent": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "$ref": "#/$defs/SourceCode"
+                },
+                "scheme": {
+                  "$ref": "#/$defs/CodeScheme"
+                }
+              },
+              "required": [
+                "scheme",
+                "code"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "scheme": {
           "$ref": "#/$defs/CodeScheme"
         },
@@ -103,7 +126,8 @@
         "label",
         "active",
         "validFrom",
-        "validTo"
+        "validTo",
+        "parent"
       ],
       "type": "object"
     },

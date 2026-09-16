@@ -136,7 +136,8 @@ test.describe('오늘 화면의 실제 열린 공고', () => {
     const context = await signedInContext(browser, requiredEnvironment('EATBID_E2E_SESSION_COOKIE_FIRST'));
     const page = await context.newPage();
     await page.goto('/today');
-    await expect(page.getByRole('row', { name: /창원 남산초등학교/ })).toBeVisible();
+    // 목록은 표가 아니라 카드 행이다(EAT-260). 행의 정체는 `data-slot`이고 이름은 seed가 심은 기관명이다.
+    await expect(page.locator('[data-slot="auction-row"]', { hasText: '창원 남산초등학교' })).toBeVisible();
     await context.close();
   });
 });

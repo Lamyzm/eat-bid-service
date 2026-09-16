@@ -99,6 +99,7 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
   const released = filterOpenAuctionRows(now, {
     sido: query.sido,
     sigungu: query.sigungu,
+    regionUnknown: query.regionUnknown,
     eligibilityArea: query.eligibilityArea
   });
 
@@ -115,6 +116,7 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
   const itemReleased = filterOpenAuctionRows(now, {
     sido: query.sido,
     sigungu: query.sigungu,
+    regionUnknown: query.regionUnknown,
     eligibilityArea: query.eligibilityArea,
     q: query.q,
     baseAmountMin: query.baseAmountMin,
