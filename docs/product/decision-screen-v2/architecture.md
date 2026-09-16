@@ -1,3 +1,11 @@
+---
+id: PRODUCT-DECISION-SCREEN-V2-ARCHITECTURE
+status: evidence
+canonical_for: decision-screen-v2-materials-load-and-architecture-survey-2026-09-04
+last_reviewed: 2026-09-17
+review_trigger: decision-screen-materials-or-load-assumption-change
+---
+
 # 투찰 결정 화면 v2 — 재료·적재·아키텍처
 
 작성 2026-09-04. 근거: `docs/architecture/domain-and-data.md`, `c4.md`, `runtime-and-deployment.md`, `packages/db/src/schema`, `docs/experiments/2026-09-01-data-inventory.md`, `docs/ARCH-DATA.md` 1-6·§9, 2026-09-04 03:15 KST 클러스터 실측.
@@ -17,7 +25,7 @@
 | 흐름·과거 회차 | 회차별 낙찰률·2등 사정률·그날 하한·명단 수·하한 미만 수(파생)·낙찰 업체·재공고 관계 | `ds_bidList.*`(사정률·판정 코드·사업자), `ds_pList`(복수예정가격 후보), `ds_bidHistory`(재입찰 사슬) | 회차(AuctionAttempt) | eat-v2 계약이 읽는다. 블록 보유율 `ds_bidList` 99.999% · `ds_pList` 99.925% · `ds_bidHistory` 3.314% | `core.bid_submission`, `core.award_decision`, `core.supplier_party` → `mart.org_round_summary` | publish 뒤 mart 빌드 |
 | 호가창(비교집단) | 모집단 × 품목 × 하한율 × 월 × 0.01칸 낙찰 횟수, 표본, 최빈 구간 | `core.award_decision` 집계 | 월 × 칸 | — | `mart.win_rate_distribution_monthly` | publish 뒤 mart 빌드 |
 | 그날 하한 | 하한율 × 그 회차 예정가격, 그리고 명단 내 자리 | `ds_info.PLNPRCE_SUCBD_STD`(하한율) + `ds_pList` 선택 후보로 정해진 예정가격 | 회차 | eat-v2 계약이 읽는다(하한율·예정가격 모두 관측) | `core.auction_revision`(하한율), `core.award_decision`(예정가격) → `mart.org_round_summary` | **파생 계산**. 소스에 "하한 미달" 판정이 없으므로 관측값이 아니다 |
-| rail 이 값이면 | 지난 N회 낙찰됐을 회차, 그날 하한 미만이었을 회차, 보통 참여, 낙찰값 위 0.1 안 곳수 | `mart.org_round_summary` + `core.bid_submission` | 회차 | — | 위와 같음 | 요청 시 N ≤ 200행 계산 |
+| rail 이 값이면 | 손잡이 값을 기준으로 낙찰값이 그 값 이상인 회차, 그날 하한이 그 값보다 높은 회차, 보통 참여, 낙찰값 위 0.1 안 곳수(주어는 과거 회차다 — `decision-support.md` §9 금지 목록, EAT-236) | `mart.org_round_summary` + `core.bid_submission` | 회차 | — | 위와 같음 | 요청 시 N ≤ 200행 계산 |
 | 업체 탭 | 기관별 반복 참여 업체, 회차별 자리 | `ds_bidList.SHIPPER_CD` ↔ `SupplierParty` | 업체 × 회차 | eat-v2 계약이 읽는다 | `core.supplier_party`, `core.source_supplier_account` | 요청 시 |
 | 오늘 | 열린 공고 목록(목록 관측 + 빌드 시점에 조인한 최신 상세의 하한율·품목 라벨·지역 코드·기관 관측 라벨) + 기관 최근 회차 요약 + 내 기록 | `ds_list` + `core.auction_revision`(빌드 시 조인) + `mart.org_round_summary` + `app.bid_work_item` | 공고 | 목록 원본에는 품목·지역·하한이 없다. 상세를 딴 공고만 그 열이 채워지고 나머지는 미확인이다 | `mart.open_auction_snapshot`, `app` | poll-open. 지금 값이면 열은 EAT-47 뒤 |
 | 성적표·복기 | 사업자번호로 대조한 내 투찰·낙찰·하한 미만(파생)·2등 차이, 회차별 결과 | `ds_bidList`(사업자·사정률·판정 코드) ↔ 워크스페이스 사업자 | 사업자 × 회차, 월 | eat-v2 계약이 읽는다 | `mart.supplier_monthly_record` | publish 뒤 mart 빌드 |

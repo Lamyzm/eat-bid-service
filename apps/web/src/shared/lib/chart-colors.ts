@@ -70,18 +70,6 @@ export function chartFrame() {
   return { text: dark ? '#9aa5a0' : '#6b7570', border: dark ? '#3a423e' : '#d7ddd9' };
 }
 
-/** 시장 지도 버블 — 기대낙찰(연 공고 ÷ 업체) 단계색 (다크는 밝은 램프) */
-const BUBBLE_LIGHT = ['#a8cfc5', '#5bb8a4', '#149a80', '#0e7a63'] as const;
-const BUBBLE_DARK = ['#3d6a5f', '#3f9e88', '#4cc2a4', '#7adfc6'] as const;
-export function bubbleColor(expWin: number | null): string {
-  const ramp = isDark() ? BUBBLE_DARK : BUBBLE_LIGHT;
-  if (expWin == null) return isDark() ? '#5a655f' : '#9aa5a0';
-  if (expWin >= 30) return ramp[3];
-  if (expWin >= 15) return ramp[2];
-  if (expWin >= 7) return ramp[1];
-  return ramp[0];
-}
-
 /** 지도 타일 — 다크는 Esri Dark Gray Canvas (OSM 라이트 타일이 다크 화면을 찢는 문제.
  *  CARTO dark_matter는 API 키 워터마크가 떠서 제외) */
 export function mapTiles() {

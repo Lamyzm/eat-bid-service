@@ -29,7 +29,8 @@ function StatRow({
   return (
     <div className='grid grid-cols-[1fr_auto] items-baseline gap-x-4 border-t border-border py-[11px]'>
       <span className='flex min-w-0 flex-col gap-px'>
-        <span className='text-[15px] font-semibold'>{label}</span>
+        {/* 라벨이 넘치면 단어 단위로만 접는다. `회차`가 `회`/`차`로 갈리면 다른 말이 된다. */}
+        <span className='text-[15px] font-semibold break-keep'>{label}</span>
         {sub ? <span className='text-[15px] font-medium whitespace-nowrap text-muted-foreground'>{sub}</span> : null}
       </span>
       <span className={`text-[16px] font-semibold tabular-nums whitespace-nowrap ${tone ?? ''}`}>
@@ -164,7 +165,7 @@ export function RehearsalPanel({ rows }: { readonly rows: readonly HistoryRow[] 
             value={result.usualListCount === null ? '기록 없음' : `${result.usualListCount}곳`}
             tone={result.usualListCount === null ? 'text-muted-foreground' : undefined}
           />
-          {/* 낙찰값 이하였을 회차 중 낙찰값이 0.1%p 안에 붙어 있던 회차. 분모는 바로 위 낙찰 행의 값이다. */}
+          {/* 낙찰값이 이 값 이상이었던 회차 중 낙찰값이 0.1%p 안에 붙어 있던 회차. 분모는 바로 위 낙찰 행의 값이다. */}
           <StatRow
             label={REHEARSAL_PHRASE.nearAbove.text}
             sub={REHEARSAL_PHRASE.nearAbove.sub}

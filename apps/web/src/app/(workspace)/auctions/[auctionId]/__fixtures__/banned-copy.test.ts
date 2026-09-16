@@ -12,8 +12,8 @@ describe('금지 문구 검사', () => {
       '<span>추천하지 않습니다</span>',
       '<span>값을 넣으면 사다리에 줄이 그어집니다</span>',
       '<span>투찰률을 넣으면 지난 회차와 견줍니다</span>',
-      '<span>이 값이면</span><span>낙찰값 이하였을 회차</span><span>지금 값을 그때 냈다면</span>',
-      '<span>90.000 썼다면</span><span>낙찰값 위</span>'
+      '<span>이 값이면</span><span>지난 15회 중 낙찰값이 이 값 이상</span><span>투찰률 축끼리 견줌</span>',
+      '<span>90.000 기준</span><span>낙찰값 위</span>'
     ].join('');
     expect(findBannedCopy(markup)).toEqual([]);
   });
@@ -37,6 +37,14 @@ describe('금지 문구 검사', () => {
     expect(rulesOf('<p>90.010 ~ 90.030은 안전 구간입니다</p>')).toEqual(['안전 단정']);
     expect(rulesOf('<p>탈락선 90.005</p>')).toEqual(['탈락 예측']);
     expect(rulesOf('<p>이 값이면 밀림</p>')).toEqual(['밀림 예측']);
+  });
+
+  test('사용자 값이 주어인 반사실 서술과 기대낙찰은 잡고 과거 회차가 주어인 서술은 통과한다', () => {
+    expect(rulesOf('<p>90.000 썼다면</p>')).toEqual(['반사실 주어']);
+    expect(rulesOf('<p>지금 값을 그때 냈다면</p>')).toEqual(['반사실 주어']);
+    expect(rulesOf('<p>낙찰값 이하였을 회차</p>')).toEqual(['반사실 주어']);
+    expect(rulesOf('<p>기대낙찰 12</p>')).toEqual(['반사실 주어']);
+    expect(rulesOf('<p>낙찰값이 이 값 이상이었던 회차 7</p>')).toEqual([]);
   });
 
   test('자리 단정은 낙찰 확정형만 잡고 낙찰될 확률 같은 승률 문구는 통과한다', () => {

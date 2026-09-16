@@ -1,4 +1,4 @@
-/** @module 책임: 손잡이가 가리키는 투찰률을 선택 품목의 회차 이력에 적용해 "이 값이면" 낙찰값 이하·그날 하한 아래·낙찰값 바로 위 0.1 안 회차 수를 순수 계산한다. */
+/** @module 책임: 손잡이가 가리키는 투찰률을 기준으로 선택 품목의 과거 회차 가운데 낙찰값이 그 값 이상인 회차·그날 하한이 그 값보다 높은 회차·낙찰값이 바로 위 0.1 안인 회차 수를 순수 계산한다. */
 import type { BidRate } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
 import { toMilli } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate';
 import type { HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
@@ -7,10 +7,10 @@ export type Rehearsal = {
   readonly total: number;
   readonly won: number;
   readonly wonFlags: readonly boolean[];
-  /** 손잡이 값이 우리가 계산한 그날 하한보다 낮았을 회차 수. 소스 판정이 아니라 파생 서술이다(PDR-0002). */
+  /** 우리가 계산한 그날 하한이 손잡이 값보다 높았던 회차 수. 소스 판정이 아니라 파생 서술이다(PDR-0002). */
   readonly belowDayFloor: number;
   /**
-   * 낙찰값 이하였을 회차 중 낙찰값이 손잡이 값 바로 위 0.1%p 안에 있던 회차 수. 두 값이 모두 투찰률
+   * 낙찰값이 손잡이 값 이상이었던 회차 중 낙찰값이 그 값 바로 위 0.1%p 안에 있던 회차 수. 두 값이 모두 투찰률
    * 축이라야 차이를 %p로 말할 수 있으므로 `winRate`(사정률)로 대신 재지 않는다(PDR-0004).
    */
   readonly nearAbove: number;
@@ -48,7 +48,7 @@ export type RowVerdictInput = Pick<HistoryRow, 'dayFloorMilli' | 'awardedBidRate
 // 두 축은 전부 0.01%p 이상, 최대 2.19%p 벌어지고 90.000 손잡이에서는 92회차 중 42회차가 갈린다.
 export function judgeRow(row: RowVerdictInput, rateMilli: bigint): RowVerdict {
   // 그날 하한만 알면 하한 아래인지는 확정이다. 낙찰률이 없는 회차라도 이를 'unknown'으로 감추면
-  // "하한보다 낮았을 회차"가 실제보다 적게 보인다.
+  // "그날 하한이 이 값보다 높았던 회차"가 실제보다 적게 보인다.
   if (row.dayFloorMilli !== null && rateMilli < row.dayFloorMilli) return 'invalid';
   // 예정가격이 아직 관측되지 않아 축을 옮길 수 없는 회차다. 사정률로 대신 견주면 그 회차만
   // 다른 축의 답을 내므로 비교 불가로 남긴다(AGENTS 3·8).

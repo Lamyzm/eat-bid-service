@@ -34,8 +34,11 @@ export function HistoryVerdictHead() {
   const { rate } = useBidRate();
   if (rate === null) return null;
   return (
+    // 주어는 과거 회차다. "썼다면"은 내가 들어가 명단이 달라진 세계를 가정하는데 그 세계의 회차는 셀 수 없다
+    // (단독입찰 허용안함 29/30, AGENTS 3, EAT-236). 이 열은 손잡이 값을 기준으로 그 회차의 낙찰값·하한이 어느 쪽에
+    // 있었는지만 말한다.
     <th scope='col' className={HEAD_CLASS}>
-      {rate} 썼다면
+      {rate} 기준
     </th>
   );
 }

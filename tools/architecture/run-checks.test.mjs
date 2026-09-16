@@ -53,6 +53,7 @@ test("변경 경로는 scope가 닿는 검사만 고르고 검사 도구가 바�
   assert.deepEqual(ids(selectChecks({ changedPaths: ["docs/architecture/stack/README.md"] })), ["docs", "stack-docs"]);
   assert.deepEqual(ids(selectChecks({ changedPaths: ["apps/web/src/shell/nav.tsx"] })), [
     "contract-client-exports",
+    "decision-vocabulary",
     "http-operations",
     "import-depth",
     "korean-comments",
