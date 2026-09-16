@@ -1200,6 +1200,40 @@ spec:
           - *env-r2-access-key
           - *env-r2-secret-key
 
+    # 예약 entrypoint다(EAT-254). `retain_until`이 지난 superseded build의 mart 행을 회수한다 — ADR 0034가
+    # 허용한 유일한 공개 mart 행 삭제이며 build 원장 행은 남긴다. `eatbid-mart-build` mutex를 잡지 않는
+    # 이유: superseded는 종착 상태라 활성화와 같은 행을 다투지 않고, 잡으면 첫 회수(수천만 행)가 그동안
+    # 화면의 build 전환을 막는다. 대신 CronWorkflow가 수집이 없는 새벽에 부른다(mart-reap.yaml).
+    - name: reap-marts
+      outputs:
+        parameters:
+          - name: reaped-builds
+            valueFrom: { path: /tmp/eatbid/reaped_builds }
+          - name: deleted-rows
+            valueFrom: { path: /tmp/eatbid/deleted_rows }
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid reap-marts
+            --as-of "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            --result-dir "$EATBID_RESULT_DIR"
+        resources:
+          requests:
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        env:
+          - *env-result-dir
+          - *env-database-url
+          # R2는 쓰지 않지만 프로세스 설정은 명령별이 아니라 다섯이 다 있어야 뜬다(next-backfill-window 주석).
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
     # 운영자 entrypoint다. 어떤 DAG에도 들지 않고, 결론 없이 끝난 release를 planned → failed로 닫으며
     # 열린 run을 같은 category로 끝낸다(collection-runbook §4.3). onExit 같은 자동 핸들러로 걸지 않는
     # 이유는 planned가 같은 run으로 이어 갈 수 있는 상태이기 때문이다(EAT-122).

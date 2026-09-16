@@ -12,3 +12,4 @@ resources:
   - db-backup.yaml
   - expectation-check.yaml
   - backfill-advance.yaml
+  - mart-reap.yaml
