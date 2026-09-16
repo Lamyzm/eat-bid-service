@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
 from types import TracebackType
@@ -51,6 +51,7 @@ from eatbid.monitoring.backup import (
 from eatbid.monitoring.cluster import evaluate_cluster
 from eatbid.monitoring.github import WorkflowExpectation, evaluate_workflows
 from eatbid.monitoring.heartbeat import beat
+from eatbid.monitoring.ledger import PostgresViolationLedger
 from eatbid.monitoring.notify import send_telegram
 from eatbid.monitoring.round import record_round
 from eatbid.monitoring.runner import (
@@ -58,9 +59,16 @@ from eatbid.monitoring.runner import (
     ViolationProbe,
     run_expectation_check,
 )
+from eatbid.monitoring.state import decode_state
 from eatbid.monitoring.store import R2BackupLister, R2StateStore
 from eatbid.pipeline.advance import CompletedWindow, next_window
 from eatbid.pipeline.capture import capture
+from eatbid.pipeline.code_vocabulary import (
+    CodeVocabularyCapturePlan,
+    CodeVocabularyServices,
+    capture_code_vocabulary,
+    project_code_vocabulary_observation,
+)
 from eatbid.pipeline.collection_window import SEOUL_TIME, resolve_collection_window
 from eatbid.pipeline.discover import DiscoveryPlan, discover_release
 from eatbid.pipeline.discovery_persistence import RawFirstDiscoveryPersistence
@@ -148,6 +156,7 @@ class Application:
                 detail_run_id=args.detail_run_id,
                 mode=args.mode,
                 release_name=args.release_name,
+                workflow_name=args.workflow_name,
                 as_of=args.as_of,
                 build_sha=args.build_sha,
                 parser_version=args.parser_version,
@@ -229,13 +238,15 @@ class Application:
         """
         with self._connection.cursor() as cursor:
             cursor.execute(
-                "select window_start, window_end, is_complete from ingest.backfill_coverage"
+                "select window_start, window_end, is_complete, failed_publications"
+                " from ingest.backfill_coverage"
             )
             coverage = tuple(
                 CompletedWindow(
                     start_date=str(row[0]),
                     end_date=str(row[1]),
                     is_complete=bool(row[2]),
+                    failed_publications=int(row[3]),
                 )
                 for row in cursor.fetchall()
             )
@@ -334,6 +345,42 @@ class Application:
                 source_release_id=args.source_release_id,
                 observation_id=args.observation_id,
                 source_version=args.release_name,
+                projected_at=args.projected_at,
+            )
+
+    def capture_code_vocabulary(self, args: argparse.Namespace) -> Any:
+        return capture_code_vocabulary(
+            CodeVocabularyCapturePlan(
+                run_id=args.run_id,
+                source_release_id=args.source_release_id,
+                release_name=args.release_name,
+                build_sha=args.build_sha,
+                parser_version=args.parser_version,
+                as_of=args.as_of,
+                started_at=args.started_at,
+            ),
+            CodeVocabularyServices(
+                # 정부 파일용 client가 아니라 eaT client를 쓴다. 코드목록은 eaT의 검토된 헤더·warmup·
+                # 재시도 정책 안에서 도는 같은 소스의 호출이다.
+                http_client=self._http,
+                store=self._store,
+                ingest_repository=self._ingest,
+                release_repository=self._release,
+            ),
+        )
+
+    def project_code_vocabulary(self, args: argparse.Namespace) -> Any:
+        self._release.require_sealed(args.source_release_id)
+        self._release.require_observation_member(
+            args.source_release_id, args.observation_id
+        )
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            return project_code_vocabulary_observation(
+                cursor,
+                store=self._store,
+                source_release_id=args.source_release_id,
+                observation_id=args.observation_id,
+                parser_version=args.parser_version,
                 projected_at=args.projected_at,
             )
 
@@ -507,10 +554,33 @@ class _MonitoringRunner:
             cursor.execute(sql, parameters)
         self._connection.commit()
 
+    def _mutate(self, sql: str, parameters: Mapping[str, Any]) -> list[dict[str, Any]]:
+        # 위반 표 쓰기. `returning`이 있으면 그 행을 돌려주고, 없으면 빈 목록이다. 문장마다 commit하는 이유는
+        # 한 회차 안에서 insert한 id를 다음 문장이 바로 참조하고, 회차가 중간에 죽어도 그때까지의 기록은
+        # 남아야 하기 때문이다 — 기록이 없는 것보다 반쪽 기록이 낫다(ADR 0054).
+        with self._connection.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(sql, parameters)
+            rows = list(cursor.fetchall()) if cursor.description else []
+        self._connection.commit()
+        return rows
+
+    def _ledger(self) -> PostgresViolationLedger:
+        environment = self._config.environment_name
+        ledger = PostgresViolationLedger(
+            query=self._run_query, mutate=self._mutate, environment=environment
+        )
+        # R2 문서 시절의 열린 위반을 표가 비어 있을 때 한 번만 옮긴다(ADR 0054 결정 3). 처음 본 시각만
+        # 아는 값이고, 그것을 잃으면 "5일째"가 "방금"이 된다. 그 뒤로 R2 문서는 읽지도 쓰지도 않는다.
+        if ledger.is_empty():
+            inherited = decode_state(self._state_store.read())
+            if inherited:
+                ledger.import_open(inherited, now=datetime.now(UTC))
+        return ledger
+
     def run(self) -> MonitoringResult:
         result = run_expectation_check(
             run_query=self._run_query,
-            state_store=self._state_store,
+            ledger=self._ledger(),
             notify=self._notify,
             environment=self._config.environment_name,
             probes=self._probes(),

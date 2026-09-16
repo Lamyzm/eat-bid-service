@@ -26,6 +26,9 @@ class CompletedWindow:
     start_date: str
     end_date: str
     is_complete: bool
+    # 발행이 failed로 끝난 release 수. 0보다 크면 이 창은 다시 받을 일이 아니라 파서를 고친 뒤 replay할
+    # 일이다 — 같은 원본을 다시 받아도 같은 자리에서 다시 격리된다(EAT-235).
+    failed_publications: int = 0
 
 
 def _last_day(year: int, month: int) -> int:
@@ -77,11 +80,17 @@ def next_window(
     이 함수가 상태를 저장하지 않는 것이 핵심이다. 커서를 따로 두면 백필이 실패했을 때 커서만 앞서
     있어 그 구간이 영원히 비고, 그 어긋남을 알아낼 방법이 다시 없어진다(ADR 0052 결정 2).
     """
-    complete: Mapping[tuple[str, str], bool] = {
-        (row.start_date, row.end_date): row.is_complete for row in coverage
+    rows: Mapping[tuple[str, str], CompletedWindow] = {
+        (row.start_date, row.end_date): row for row in coverage
     }
     for window in month_windows(as_of=as_of, floor=floor):
-        if complete.get((window.start_date, window.end_date)) is True:
+        row = rows.get((window.start_date, window.end_date))
+        if row is not None and row.is_complete:
+            continue
+        # 발행 실패로 멈춘 창은 건너뛴다. 다시 받아도 같은 격리로 같은 자리에서 죽고(2026-09-16 2026-03 창,
+        # 매시 16,469건 재수집 두 번) 그 사이 뒤의 달은 영영 차례가 오지 않는다. 이 창은 replay가
+        # 해결하며, 그때까지 열려 있는 위반(`failed-publication-window`)이 사람에게 그 사실을 든다.
+        if row is not None and row.failed_publications > 0:
             continue
         return window
     return None

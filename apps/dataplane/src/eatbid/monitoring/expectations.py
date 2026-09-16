@@ -15,6 +15,19 @@ from typing import Any
 
 QueryRunner = Callable[[str, Mapping[str, Any]], Sequence[Mapping[str, Any]]]
 
+# `ingest.backfill_coverage`의 창 가운데 전진이 보는 것은 달 전체 창뿐이다(pipeline/advance.py의
+# month_windows). poll-open이 남기는 하루 창은 전진 대상이 아니므로 "전진이 건너뛴 창" 기대의 대상도
+# 아니다 — 실시간 창은 하루 종일 discover가 공고를 더해 완결이 열렸다 닫혔다 하므로 여기서 보면 회차마다
+# 열림·해소가 오간다(2026-09-16 20260916 창, EAT-240). 실시간 회차의 실패는 cron-workflow 기대가 든다.
+# 창 값은 소스 요청 파라미터의 YYYYMMDD 문자열이라 그 형식으로만 해석한다.
+MONTH_WINDOW_PREDICATE = """
+    window_start = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')), 'YYYYMMDD')
+    and window_end = to_char(
+        date_trunc('month', to_date(window_start, 'YYYYMMDD')) + interval '1 month' - interval '1 day',
+        'YYYYMMDD'
+    )
+"""
+
 
 @dataclass(frozen=True)
 class Expectation:
@@ -34,6 +47,10 @@ class Expectation:
     # 위반을 통째로 가린다 — 2026-09-06부터 `running`으로 남은 reference run 하나가 실제로 이틀 동안
     # backfill 멈춤 감시를 눈멀게 하고 있었다.
     key_columns: tuple[str, ...] = ()
+    # 재알림 정책이 매달리는 값이다(ADR 0054 결정 1). critical은 미해결이면 60분마다 다시 울리고, normal은
+    # 아침 요약에만 실린다. 기본이 normal인 이유는 새 기대를 더할 때 조용한 쪽이 안전하기 때문이다 —
+    # critical은 "지금 당장 사람이 움직여야 한다"는 뜻이고 그것은 선언으로 정한다.
+    severity: str = "normal"
 
 
 @dataclass(frozen=True)
@@ -42,6 +59,7 @@ class Violation:
     title: str
     runbook: str
     detail: str
+    severity: str = "normal"
 
 
 def _detail(row: Mapping[str, Any]) -> str:
@@ -71,16 +89,22 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         # 진행하지 않는다(2026-09-10 2시간 교착). 상태가 아니라 전진을 본다. `request_unit`에는 시각
         # 컬럼이 없으므로(2026-09-11 실제 스키마 확인) 전진의 증거는 관측이 들어온 시각이다.
         # run이 막 시작해 아직 관측이 없는 구간을 위반으로 보지 않도록 run의 시작 시각도 함께 본다.
+        # workflow_name이 있으면 R2 보관 로그 접두사를 detail에 함께 적는다. 알림을 받은 사람이 run_id로
+        # Workflow 객체를 찾을 필요 없이(TTL로 이미 없을 수 있다) 로그로 바로 간다(EAT-231).
         sql="""
             select r.run_id::text as run_id,
                    r.mode as mode,
                    r.started_at as started_at,
-                   max(o.fetched_at) as last_observation_at
+                   max(o.fetched_at) as last_observation_at,
+                   case when r.workflow_name is null then null
+                        else 'workflow-logs/' || to_char(r.started_at at time zone 'UTC', 'YYYY/MM')
+                             || '/' || r.workflow_name || '/'
+                   end as logs
               from ingest.run r
               left join ingest.raw_observation o using (run_id)
              where r.status = 'running'
                and r.started_at < now() - %(stall_after)s::interval
-             group by r.run_id, r.mode, r.started_at
+             group by r.run_id, r.mode, r.started_at, r.workflow_name
             having coalesce(max(o.fetched_at), r.started_at) < now() - %(stall_after)s::interval
         """,
         parameters={"stall_after": "90 minutes"},
@@ -105,6 +129,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="capture-freshness",
         title="영업시간에 열린 공고 수집이 멈추지 않았다",
+        # 실시간 수집이 멈추면 오늘의 공고가 화면에 없다. 사람이 지금 움직여야 하는 유일한 DB 기대다.
+        severity="critical",
         runbook="docs/operations/collection-runbook.md#44-재부팅컨트롤러-재시작이-남긴-semaphore-교착-풀기-2026-09-10-eat-129",
         # poll-open은 평일 08:00~19:50 KST에 10분마다 돈다. 그 창 안에서 마지막 run이 너무 오래됐다면
         # 회차가 통째로 건너뛰어지고 있다는 뜻이다(2026-09-10 여섯 회차 누락).
@@ -133,6 +159,23 @@ EXPECTATIONS: tuple[Expectation, ...] = (
             "window_end_hour": 19,
             "stall_after": "45 minutes",
         },
+    ),
+    Expectation(
+        key="failed-publication-window",
+        title="발행이 실패한 백필 창이 replay를 기다리고 있다",
+        runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
+        # 전진은 이런 창을 조용히 건너뛴다(ADR 0053 결정 3). 건너뛴다는 사실은 사람이 알아야 하고, 파서를
+        # 고쳐 replay가 성공해 창이 완결될 때까지 열려 있는 것이 맞다. 창마다 위반 하나다.
+        # 전진이 보는 달 전체 창만 본다(MONTH_WINDOW_PREDICATE).
+        sql=f"""
+            select window_start, window_end, failed_publications, published_ids, discovered_ids
+              from ingest.backfill_coverage
+             where failed_publications > 0 and not is_complete
+               and ({MONTH_WINDOW_PREDICATE})
+             order by window_start desc
+        """,
+        parameters={},
+        key_columns=("window_start",),
     ),
 )
 
@@ -166,6 +209,7 @@ def evaluate(
                     title=expectation.title,
                     runbook=expectation.runbook,
                     detail=_detail(row),
+                    severity=expectation.severity,
                 )
             )
     return violations

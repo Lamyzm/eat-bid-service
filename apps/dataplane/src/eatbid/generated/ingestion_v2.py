@@ -165,9 +165,13 @@ class ObservedBidRate(BaseModel):
     )
     unit: Literal['percentage-points']
     value: Annotated[
-        str, Field(max_length=16, pattern='^(?:0|[1-9][0-9]{0,11})\\.[0-9]{3}$')
+        str,
+        Field(
+            max_length=17,
+            pattern='^(?:(?:0|[1-9][0-9]{0,11})\\.[0-9]{3}|-(?:[1-9][0-9]{0,11}\\.[0-9]{3}|0\\.(?:[0-9]{2}[1-9]|[0-9][1-9][0-9]|[1-9][0-9]{2})))$',
+        ),
     ]
-    """Source-computed bid-rate percentage-points text with exactly three fractional digits and at most twelve integer digits; not capped at 100 because bids above the planned price are observed."""
+    """Source-computed bid-rate percentage-points text with exactly three fractional digits and at most twelve integer digits, optionally negative; not capped at 100 because bids above the planned price are observed, and negative values are observed too."""
 
 
 class ReservePriceRatio(BaseModel):

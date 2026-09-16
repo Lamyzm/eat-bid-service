@@ -1,0 +1,88 @@
+# 대시보드. PostgreSQL을 직접 datasource로 읽는다 — 파이프라인 상태의 사본을 만들지 않는다
+# (ADR 0046 결정 4·8, EAT-174). 대시보드는 감시가 아니다. 사람이 볼 때만 값을 하므로 알림 경로
+# (check-expectations → 텔레그램, heartbeat → Better Stack)와 어느 것도 공유하지 않는다.
+#
+# chart는 grafana-community다. grafana/helm-charts의 grafana chart는 2026-01-30에 그리로 옮겨졌고 옛
+# 저장소의 것은 deprecated 표시만 남아 있다.
+#
+# 접근은 내부 Ingress(`/internal/grafana`, base/observability-ingress.yaml) 뒤이며 밖에 열지 않는다
+# (ADR 0012). 관리자 비밀번호와 읽기 역할 비밀번호는 Infisical `/runtime/observability`에서 온다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: grafana
+    targetRevision: 13.2.5
+    helm:
+      valuesObject:
+        admin:
+          existingSecret: eatbid-observability
+          userKey: GRAFANA_ADMIN_USER
+          passwordKey: GRAFANA_ADMIN_PASSWORD
+        # datasource 비밀번호를 provisioning 파일에 적지 않고 env로 넘긴다($GRAFANA_DB_PASSWORD).
+        envFromSecret: eatbid-observability
+        grafana.ini:
+          server:
+            root_url: "%(protocol)s://%(domain)s/internal/grafana/"
+            serve_from_sub_path: true
+          analytics:
+            check_for_updates: false
+            reporting_enabled: false
+          news:
+            news_feed_enabled: false
+          users:
+            allow_sign_up: false
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: eatbid
+                type: grafana-postgresql-datasource
+                uid: eatbid-postgres
+                access: proxy
+                url: postgres:5432
+                user: eatbid_grafana
+                isDefault: true
+                editable: false
+                secureJsonData:
+                  password: $GRAFANA_DB_PASSWORD
+                jsonData:
+                  database: eatbid
+                  sslmode: disable
+                  postgresVersion: 1600
+                  timescaledb: false
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: eatbid
+                orgId: 1
+                folder: eatbid
+                type: file
+                disableDeletion: true
+                editable: false
+                options:
+                  path: /var/lib/grafana/dashboards/eatbid
+        # ConfigMap은 base/observability/kustomization이 만든다(이름 고정, hash 없음).
+        dashboardsConfigMaps:
+          eatbid: eatbid-grafana-dashboards
+        persistence:
+          enabled: false
+        resources:
+          requests: { cpu: 50m, memory: 128Mi }
+          limits: { memory: 512Mi }
+        testFramework:
+          enabled: false
+        ingress:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: eatbid
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

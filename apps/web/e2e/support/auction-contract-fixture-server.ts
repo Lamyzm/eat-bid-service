@@ -39,10 +39,17 @@ const SUCCESS_AUCTION_ID = '9007199254740993';
 const FAILURE_AUCTION_ID = '9007199254740994';
 const MISSING_AUCTION_ID = '9007199254740996';
 const REDUCED_MOTION_AUCTION_ID = '9007199254741000';
+// 공통 셸 검사 하나만 쓰는 ID다. 공고 조회는 web 서버의 `use cache` 뒤에 있어 다른 spec이 같은 ID를 먼저
+// 열면 두 번째 응답은 지연 없이 캐시에서 오고 skeleton이 첫 조회 전에 사라진다(2026-09-16 main 회차
+// 35045806415, EAT-239). 한 번만 열리는 ID여야 skeleton→본문 전환이 매번 관측된다.
+const SHELL_AUCTION_ID = '9007199254740997';
 const OPEN_AUCTION_ID = '5796468';
 const CLOSED_AUCTION_ID = '5780681';
 const LONG_HEADER_AUCTION_ID = '5796470';
 const SUCCESS_RESPONSE_DELAY_MILLISECONDS = 350;
+// 셸 검사는 dev 서버의 첫 route 컴파일과 세션 게이트 뒤에 skeleton이 흐르므로 350ms로는 CI runner에서
+// 본문이 같은 chunk에 실려 올 수 있다. 관측 창을 넉넉히 둔다.
+const SHELL_RESPONSE_DELAY_MILLISECONDS = 1_500;
 const REDUCED_MOTION_RESPONSE_DELAY_MILLISECONDS = 5_000;
 const OPEN_DEADLINE_OFFSET_MILLISECONDS = 24 * 60 * 60 * 1_000;
 const OPEN_OPENED_OFFSET_MILLISECONDS = 27 * 60 * 60 * 1_000;
@@ -263,6 +270,10 @@ Bun.serve({
     if (pathname === auctionPath(REDUCED_MOTION_AUCTION_ID)) {
       await Bun.sleep(REDUCED_MOTION_RESPONSE_DELAY_MILLISECONDS);
       return Response.json(auctionResponse(REDUCED_MOTION_AUCTION_ID));
+    }
+    if (pathname === auctionPath(SHELL_AUCTION_ID)) {
+      await Bun.sleep(SHELL_RESPONSE_DELAY_MILLISECONDS);
+      return Response.json(auctionResponse(SHELL_AUCTION_ID));
     }
     if (pathname === auctionPath(OPEN_AUCTION_ID)) return Response.json(openAuctionResponse(OPEN_AUCTION_ID));
     if (pathname === auctionPath(CLOSED_AUCTION_ID)) return Response.json(closedAuctionResponse(CLOSED_AUCTION_ID));

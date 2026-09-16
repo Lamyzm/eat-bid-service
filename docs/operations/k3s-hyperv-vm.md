@@ -85,7 +85,8 @@ kubectl --context eatbid-vm get application -n argocd
 
 Argo CD `v3.5.1`을 upstream manifest로 설치하고, Argo가 스스로 만들 수 없는 수동 Secret 다섯
 (`argocd/repo-eatbid`, `ghcr-pull`, `eatbid-infisical-operator`, `cloudflared-creds`, `eatbid-auth`)을
-옛 클러스터에서 복사한 뒤 `infra/platform`·`infra/argocd`의 Application 셋을 적용한다.
+옛 클러스터에서 복사한 뒤 `infra/platform`(argo-workflows·infisical-secrets-operator·openobserve·fluent-bit·grafana)과
+`infra/argocd`의 Application을 적용한다.
 나머지는 Argo CD가 `deploy/prod`의 `infra/envs/prod`로 세운다. 이유는 스크립트 머리말에 있다.
 
 옛 클러스터가 없을 때(재해 복구)는 `-FromInfisical`로 Infisical `prod:/platform/kubernetes`의 복구 사본에서

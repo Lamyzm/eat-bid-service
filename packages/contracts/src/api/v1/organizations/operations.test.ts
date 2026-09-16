@@ -123,11 +123,12 @@ describe("listOrganizationAuctionAttempts 계약", () => {
     };
     expect(organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element.parse(row)).toEqual(row);
     const attempt = organizationAuctionAttemptsV1ResponseSchema.shape.attempts.element;
-    for (const value of ["100.001", "101.975", "102.297", "999999999999.999"]) {
+    // 음수는 관측 사정률에만 열린다(ADR 0053). 하한율 floorRate는 아래에서 계속 거부한다.
+    for (const value of ["100.001", "101.975", "102.297", "999999999999.999", "-1.000"]) {
       expect(attempt.parse({ ...row, winRate: { value, unit: "percentage-points" } }).winRate?.value).toBe(value);
       expect(attempt.parse({ ...row, secondRate: { value, unit: "percentage-points" } }).secondRate?.value).toBe(value);
     }
-    for (const value of ["-1.000", "102.2970", "1000000000000.000"]) {
+    for (const value of ["-0.000", "102.2970", "1000000000000.000"]) {
       expect(() => attempt.parse({ ...row, winRate: { value, unit: "percentage-points" } })).toThrow();
       expect(() => attempt.parse({ ...row, secondRate: { value, unit: "percentage-points" } })).toThrow();
     }

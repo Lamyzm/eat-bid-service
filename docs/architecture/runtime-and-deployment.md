@@ -2,7 +2,7 @@
 id: RUNTIME-AND-DEPLOYMENT
 status: active
 canonical_for: argo-runtime-execution-and-deployment-topology
-last_reviewed: 2026-09-11
+last_reviewed: 2026-09-16
 review_trigger: argo-cd-or-workflows-topology-cluster-move-or-release-path-change
 ---
 
@@ -412,6 +412,14 @@ main 병합
   Application을 `infra/envs/prod`로 바꾼 뒤(diff는 path 한 줄, prune 0) 별칭을 지웠다. 같은 함정을 다시
   만들지 않도록 `infra/tests/test_env_overlays.py`가 별칭이 없음을 지킨다.
 
+- **릴리스 중에는 병합하지 않는다.** promote는 태그 커밋이 그 시점 `origin/main`과 같을 때만 승격하므로,
+  빌드 12분 사이에 PR이 병합되면 발행이 버려진다(v0.1.30, 2026-09-15). 태그는 `pnpm workflow:tag -- vX.Y.Z`로
+  만들며, 이 명령은 release 빌드가 돌고 있거나 auto-merge가 켜진 PR이 열려 있으면 태그를 만들지 않는다
+  (EAT-233). cosign 서명·attest는 GitHub OIDC 일시 장애에 세 번까지 스스로 다시 시도한다.
+- **태그는 검증된 커밋에만 붙는다.** PR 검사가 초록이어도 병합 커밋의 `main` 회차는 따로 돌고, v0.1.36은 그
+  회차가 실패로 끝난 2분 뒤에 태그됐다(main은 9월 11일부터 빨간 채로 v0.1.33~36이 나갔다). 그래서
+  `workflow:tag`는 `origin/main` HEAD 커밋의 `validate.yml` 회차가 `success`일 때만 태그를 만든다. 장애를 고치는
+  배포까지 막으면 안 되므로 `--hotfix "<사유>"`를 주면 통과하되, 사유가 annotated tag 메시지에 남는다(EAT-242).
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
   pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
   권위인 이유는 이제 branch를 못 막아서가 아니라 prod가 매 병합마다 움직이면 안 되기 때문이다. 불변
@@ -531,6 +539,10 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 - 환경별 차이는 collector endpoint 값 하나뿐이다. dev에 별도 관측 스택을 세우지 않는다.
 - 프로세스 경계는 W3C `traceparent`로 잇는다. 모든 로그 줄에 `trace_id`와 `build_sha`를 달고, dataplane은
   `run_id`와 `source_release_id`를 더 단다. 사람이 읽고 옮겨 적는 `x-request-id`는 유지한다.
+- **run 행이 Argo Workflow 이름을 든다**(`ingest.run.workflow_name`, 2026-09-16 EAT-231). 릴리스 이름은
+  workflow uid를, R2 보관 로그는 workflow 이름을, 알림은 `run_id`를 들고 있어 셋을 잇는 물건이 TTL로
+  사라지는 Workflow 객체뿐이었다. discover가 `{{workflow.name}}`을 run에 적고, `backfill-progress` 위반의
+  detail이 `logs=workflow-logs/<yyyy>/<mm>/<이름>/`을 함께 보낸다. 워크플로 밖에서 만든 run은 NULL이다.
 
 구조화 로그의 최소 필드는 그대로다.
 
@@ -555,10 +567,11 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 | 실행 중 backfill이 임계 시간 안에 진행했다 | PostgreSQL | 있음 |
 | 임계 나이를 넘은 `planned` release가 없다 | PostgreSQL | 있음 |
 | 수집이 임계 시간 안에 관측을 남겼다 | PostgreSQL | 있음 |
-| 마지막 성공 백업이 임계 시간 안에 있다 | PostgreSQL·Workflow | 없음 |
-| 노드와 Argo Application이 정상이다 | Kubernetes API | 없음 |
-| 원격 `main`의 최신 CI가 초록이다 | GitHub | 없음 |
-| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 없음 |
+| 발행이 실패한 달 창이 replay를 기다린다(전진이 건너뛴 창) | PostgreSQL | 있음(ADR 0053, EAT-235·240) |
+| 마지막 성공 백업이 임계 시간 안에 있다 | R2 `backup/` 객체 목록 | 있음(EAT-196, `monitoring/backup.py`) |
+| 노드와 Argo Application이 정상이고 cron의 최근 회차가 끝까지 갔다 | Kubernetes API | 있음(EAT-196, `monitoring/cluster.py`). Application의 Healthy↔Degraded·Synced 이탈은 이 기대의 열림·해소로 텔레그램에 간다 |
+| 원격 `main`의 최신 CI가 초록이다 | GitHub | 있음(EAT-196, `monitoring/github.py`; 2026-09-16 `ci-main-green` 실측) |
+| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 있음 — 별도 질의가 아니라 Argo CD의 `Synced` 판정을 그대로 받는다(위 Application 기대) |
 
 마지막 줄은 ADR 0046 결정 5의 목록에 없던 것을 더한 것이다. 2026-09-11에 기대 검사 CronWorkflow가 15분마다
 실패했는데 원인이 "배포된 image가 그 명령을 모르는 옛 것"이었고, 그 사실을 알아챈 경로가 사람의 조회였다.
@@ -566,22 +579,27 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 
 알림의 출처는 둘, 도착지는 하나다. 업무·파이프라인 기대는 클러스터 **안**에서 DB를 읽어 내고, 생존 확인은
 클러스터 **밖**에 둔다. 안에 있는 감시는 기계가 죽을 때 함께 죽는다. 생존 확인의 방향은 미는 쪽이다.
-밖에서 당기려면 Kubernetes API나 내부 지표를 외부에 열어야 하고 그것은 §7이 금지한다. 같은 창에서 생긴
-위반은 묶어서 한 번 보내고 해소될 때까지 반복하지 않는다.
+밖에서 당기려면 Kubernetes API나 내부 지표를 외부에 열어야 하고 그것은 §7이 금지한다. 같은 회차에서 생긴
+위반은 묶어서 한 통으로 보낸다. 그러나 미해결이라고 침묵하지는 않는다 — critical은 60분마다 다시 울리고,
+나머지는 09:03 KST 아침 요약 한 통에 나이와 함께 실린다(ADR 0054 결정 1; "해소까지 반복 안 함"이 2026-09-16
+main 5일 방치를 만들었다). 열린 위반과 보낸 통은 `monitoring.violation`·`monitoring.notification` 표에 남아
+Grafana와 psql이 같은 것을 읽는다(ADR 0054 결정 2).
 
 ### 8.4 교체 가능한 자리
 
 아래는 이 시점의 선택이며 ADR을 바꾸지 않고 갈아끼운다. 갈아끼우기 쉽다는 사실 자체가 §8.2의 목적이다.
 
-| 자리 | 이 시점의 선택 | 켜는 조건 |
+| 자리 | 이 시점의 선택 | 상태 (2026-09-16) |
 |---|---|---|
-| 로그·지표·추적 저장 | OpenObserve(단일 바이너리, R2 backend, OTLP 수신) | R2 보관만으로 안 되는 조회가 두 번 필요할 때 |
-| 대시보드 | Grafana(PostgreSQL을 직접 datasource로) | §8.3의 기대와 알림이 동작한 뒤 |
-| 프론트 오류 분류 | Sentry SaaS | 운영자 아닌 사용자가 생길 때, 유입 제어와 같은 변경에서 |
+| 로그·지표·추적 저장 | OpenObserve(단일 바이너리, R2 `eatbid-lake/openobserve/`, 보존 14일) — `infra/platform/openobserve.application.yaml` | 켜짐. eatbid namespace 파드의 stdout을 fluent-bit DaemonSet이 `k8s` 스트림으로 보낸다(`fluent-bit.application.yaml`). UI는 `/internal/o2` |
+| 대시보드 | Grafana(grafana-community chart, PostgreSQL을 `eatbid_grafana` 읽기 역할로 직접 datasource) — `grafana.application.yaml` | 켜짐. `monitoring.round`의 아홉 열을 그리는 대시보드 하나를 `infra/base/observability/`가 provisioning한다. UI는 `/internal/grafana` |
+| 회차 지표 | `monitoring.round`(check-expectations가 회차당 한 행, EAT-227) | 켜짐(v0.1.34) |
+| 프론트 오류 분류 | Sentry SaaS — `@sentry/nextjs`는 빌드 시점 wrapper라 값 셋(`NEXT_PUBLIC_SENTRY_ORG/PROJECT/DSN`)은 manifest env가 아니라 릴리스 빌드 인자로 들어간다 | 계정과 값 대기 |
 
-대시보드는 감시가 아니다. 사람이 볼 때만 값을 하므로 §8.3이 없는 상태에서 대시보드부터 만들지 않는다.
-Prometheus·Loki·Tempo·Grafana 넷을 전개하는 안은 12GB 단일 노드에서 DB와 메모리를 다투므로 각 신호를
-따로 키워야 할 규모가 증명된 뒤에 다시 본다.
+대시보드는 감시가 아니다. 사람이 볼 때만 값을 하므로 §8.3의 기대·알림과 클러스터 밖 심장박동(EAT-171)이
+먼저 동작한 뒤에 켰다. 관측 화면 셋은 모두 `internal-allowlist` 뒤라 밖에서 열리지 않고(ADR 0012),
+자격은 InfisicalSecret `eatbid-observability` 하나다. Prometheus·Loki·Tempo 스택을 고르지 않은 이유는
+12GB 단일 노드에서 DB와 메모리를 다투기 때문이며, 그 규모가 증명되면 이 표의 자리만 갈아끼운다.
 
 ## 9. 백업과 복구
 

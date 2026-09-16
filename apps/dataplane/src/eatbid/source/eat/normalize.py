@@ -29,7 +29,7 @@ from eatbid.source.eat.wire_text import (
     optional_text,
     required_text,
 )
-from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro, schema_fingerprint
+from eatbid.source.eat.xml import ParsedNexacro, parse_nexacro
 
 
 def _require_detail_schema(parser_version: str) -> ReviewedSchemaContract:
@@ -205,26 +205,9 @@ def _build_v2(
 def _contract_fingerprint(
     parsed: ParsedNexacro, schema: ReviewedSchemaContract
 ) -> str:
-    """왜 응답 전체가 아니라 검토된 필수 부분집합으로 계산하나.
-
-    2026-09-03 실측에서 같은 창의 상세 85건이 전체 모양 fingerprint를 12가지로 갈랐다. 공고 유형에
-    따라 선택적 dataset이 붙거나 빠지기 때문이다. 전체 모양의 동일성을 계약으로 삼으면 어떤 live
-    수집도 발행되지 않고, 소스가 필드를 하나 늘릴 때마다 제품이 멈춘다.
-
-    계약이 주장해야 하는 것은 파서가 의존하는 필수 부분집합의 존재다. 그 교집합으로 계산하므로
-    필수 column이 하나라도 빠지면 값이 달라져 격리되고, 모르는 column이 더 있어도 해석하지 않으니
-    추측이 들어가지 않는다. 응답 전체 모양은 보존된 원본에서 언제든 다시 계산할 수 있다.
-    """
-    return schema_fingerprint(
-        {
-            dataset: [
-                column
-                for column in required
-                if any(column in row for row in parsed.datasets.get(dataset, ()))
-            ]
-            for dataset, required in schema.required_datasets.items()
-        }
-    )
+    """지문 규칙 자체는 계약이 갖는다. 여기서 다시 적으면 코드목록 경계와 상세 경계가 "같은 응답을
+    같은 지문으로 부른다"는 사실을 각자 주장하게 된다."""
+    return schema.observed_fingerprint(parsed.datasets)
 
 
 def canonical_record_object(record: NormalizedAuctionRecord) -> dict[str, Any]:

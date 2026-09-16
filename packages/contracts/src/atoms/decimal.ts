@@ -40,13 +40,20 @@ export const bidRateTextSchema = z.string()
 // 넘고, 단가 입찰(낙찰 방식 013·014)에서 총액을 넣은 행은 수천만까지 튄다. 2026-09-04 전수 관측
 // 238,306건 중 21,339건이 100 초과, 최대 44,477,738.05다. 상한을 두면 관측을 격리하게 되므로
 // (AGENTS 3) 정밀도만 고정하고 100 상한은 두지 않는다. 하한율의 BidRate(0~100)는 별개다.
+// 음수도 받는다. 2026-03 창의 명단 3건에서 -2507.667·-3938.779·-9200.855가 관측됐고(EAT-235), 비음수로
+// 닫으면 그 6건이 창 전체 16,469건의 발행을 막았다. 값의 뜻(입력 오류인지 정정 표시인지)은 모르며 그
+// 판단은 분석 단계가 한다 — 관측을 우리가 만든 값으로 바꾸지 않는다(ADR 0053).
 export const observedBidRateTextSchema = z.string()
-  .max(16)
-  .regex(/^(?:0|[1-9][0-9]{0,11})\.[0-9]{3}$/)
+  .max(17)
+  // 부호 있는 0(-0.000)은 canonical이 아니다 — 0의 부호는 없다. lookaround를 쓰지 않는 이유는 이 정규식이
+  // 생성된 Python 모델(pydantic의 Rust regex)에도 그대로 실리기 때문이다 — 2026-09-16 smoke에서 lookahead가
+  // 모델 로드를 죽였다. 음수 쪽은 "정수부가 0이 아니거나 소수부가 000이 아닌" 경우를 풀어 적는다.
+  .regex(/^(?:(?:0|[1-9][0-9]{0,11})\.[0-9]{3}|-(?:[1-9][0-9]{0,11}\.[0-9]{3}|0\.(?:[0-9]{2}[1-9]|[0-9][1-9][0-9]|[1-9][0-9]{2})))$/)
   .meta({
     id: "ObservedBidRateText",
     description: "Source-computed bid-rate percentage-points text with exactly three fractional digits "
-      + "and at most twelve integer digits; not capped at 100 because bids above the planned price are observed.",
+      + "and at most twelve integer digits, optionally negative; not capped at 100 because bids above the "
+      + "planned price are observed, and negative values are observed too.",
   });
 
 // 투찰률 축이다. 분모가 예정가격인 사정률과 달리 기초금액을 분모로 쓰며, 소스가 관측한 값이 아니라

@@ -157,7 +157,9 @@ def canonical_observed_bid_rate_text(row: Mapping[str, str], field: str) -> str 
 
     예정가격 초과 투찰은 100을 넘고 단가 입찰의 총액 투찰은 수천만까지 튄다(2026-09-04 전수 관측
     최대 44,477,738.05). 상한 100으로 거부하면 관측을 격리하게 되므로 계약 정수부 12자리까지만
-    막는다. 하한율처럼 정의상 0~100인 값은 `canonical_bid_rate_text`를 그대로 쓴다.
+    막는다. 음수도 받는다 — 2026-03 창 명단에서 -2507.667 같은 값이 관측됐고 비음수로 닫으면 그 6건이
+    창 전체의 발행을 막았다(EAT-235, ADR 0053). 하한율처럼 정의상 0~100인 값은
+    `canonical_bid_rate_text`를 그대로 쓴다.
     """
     return _canonical_decimal_text(
         row,
@@ -166,6 +168,7 @@ def canonical_observed_bid_rate_text(row: Mapping[str, str], field: str) -> str 
         scale_digits=3,
         maximum=_OBSERVED_BID_RATE_MAXIMUM,
         unit="source bid rate",
+        allow_negative=True,
     )
 
 
@@ -195,6 +198,7 @@ def _canonical_decimal_text(
     scale_digits: int,
     maximum: Decimal,
     unit: str,
+    allow_negative: bool = False,
 ) -> str | None:
     value = optional_text(row, field)
     if value is None:
@@ -204,14 +208,17 @@ def _canonical_decimal_text(
     except InvalidOperation:
         raise ValueError(f"{field} must be {unit} decimal text") from None
     exponent = parsed.as_tuple().exponent
+    # 음수를 받는 값도 크기는 같은 상한 안이어야 한다. "-0.000"은 0과 같은 값이라 부호를 떼고 적는다.
     if (
         not parsed.is_finite()
-        or parsed.is_signed()
-        or parsed > maximum
+        or (parsed.is_signed() and not allow_negative)
+        or abs(parsed) > maximum
         or not isinstance(exponent, int)
         or exponent < -scale_digits
     ):
-        raise ValueError(
-            f"{field} must be a {unit} at most {maximum} at scale {scale_digits}"
-        )
-    return format(parsed.quantize(scale), "f")
+        bound = f"between -{maximum} and {maximum}" if allow_negative else f"at most {maximum}"
+        raise ValueError(f"{field} must be a {unit} {bound} at scale {scale_digits}")
+    quantized = parsed.quantize(scale)
+    if quantized == 0:
+        quantized = abs(quantized)
+    return format(quantized, "f")

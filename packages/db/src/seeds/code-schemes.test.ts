@@ -17,6 +17,7 @@ const approvedNamespaces = [
   "eat:award-method",
   "eat:reserve-price-selection-flag",
   "eat:attempt-status",
+  "eat:organization-type",
 ];
 
 // eaT 상세 파서(`apps/dataplane/src/eatbid/source/eat/code_schemes.py`)가 싣는 여덟이다. 같은 목록을
@@ -117,6 +118,12 @@ const approvedCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  {
+    namespace: "eat:organization-type",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
 ];
 
 describe("내장 code scheme seed", () => {
@@ -150,7 +157,7 @@ describe("내장 code scheme seed", () => {
     await seedCodeSchemes(db);
 
     expect([...rows.values()]).toEqual(approvedCodeSchemes);
-    expect(rows).toHaveLength(14);
+    expect(rows).toHaveLength(15);
     expect(conflictTargets).toEqual([codeScheme.namespace, codeScheme.namespace]);
   });
 
