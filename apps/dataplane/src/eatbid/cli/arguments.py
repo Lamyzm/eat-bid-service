@@ -84,7 +84,9 @@ def external_bid_id_chunk(value: str) -> tuple[str, ...]:
 
 def _external_bid_id(value: object, *, label: str) -> str:
     if not isinstance(value, str):
-        raise argparse.ArgumentTypeError(f"every value in {label} must be a JSON string")
+        raise argparse.ArgumentTypeError(
+            f"every value in {label} must be a JSON string"
+        )
     # 발견은 숫자 `ETN_BID_ID`를 int로 정렬해 manifest를 만든다. 같은 모양을 여기서도 요구해야
     # 목록이 만든 ID와 상세가 부르는 ID가 갈라지지 않는다.
     positive_id(value)
@@ -126,7 +128,12 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     for name, command in commands.items():
         # fail-release와 check-expectations는 특정 run에 매이지 않는 운영 entrypoint라 공통 인수를
         # 받지 않는다. 감시는 어떤 release에도 속하지 않고 지금의 DB 상태만 본다.
-        if name not in {"fail-release", "check-expectations", "next-backfill-window"}:
+        if name not in {
+            "fail-release",
+            "check-expectations",
+            "next-backfill-window",
+            "scan-contract",
+        }:
             add_common_arguments(command)
 
     discover = commands["discover"]
@@ -175,7 +182,9 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
 
     replay = commands["replay"]
     replay.add_argument("--publication-id", required=True, type=UUID)
-    replay.add_argument("--observation-id", required=True, action="append", type=positive_id)
+    replay.add_argument(
+        "--observation-id", required=True, action="append", type=positive_id
+    )
     for name in ("started-at", "normalized-at", "validated-at", "activated-at"):
         replay.add_argument(f"--{name}", required=True, type=aware_datetime)
 
@@ -221,6 +230,15 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     next_window.add_argument("--as-of", required=True, type=aware_datetime)
     next_window.add_argument("--result-dir", type=Path, default=None)
 
+    # 운영자 조사 entrypoint다(EAT-251). 어떤 run에도 매이지 않고 DB에 쓰지 않는다. 창 범위는 둘 다 주거나 둘 다
+    # 비운다 — 한쪽만 있는 범위는 "열린 구간"이 아니라 실수다.
+    scan_contract = commands["scan-contract"]
+    scan_contract.add_argument("--parser-version", required=True)
+    scan_contract.add_argument("--limit", type=int, default=20000)
+    scan_contract.add_argument("--window-start", default="")
+    scan_contract.add_argument("--window-end", default="")
+    scan_contract.add_argument("--result-dir", type=Path, default=None)
+
     fail_release = commands["fail-release"]
     fail_release.add_argument("--source-release-id", required=True, type=UUID)
     fail_release.add_argument("--build-sha", required=True, type=build_sha)
@@ -237,6 +255,8 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     build_marts.add_argument("--built-at", required=True, type=aware_datetime)
     build_marts.add_argument("--as-of", required=True, type=aware_datetime)
     # 반복 가능하며 생략하면 영향 범위가 고른다. 이름을 직접 주는 것이 언제나 이긴다.
-    build_marts.add_argument("--mart", action="append", choices=list(MART_NAMES), default=None)
+    build_marts.add_argument(
+        "--mart", action="append", choices=list(MART_NAMES), default=None
+    )
     build_marts.add_argument("--region-scheme", default=DEFAULT_REGION_SCHEME)
     return parser

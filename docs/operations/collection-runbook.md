@@ -375,4 +375,23 @@ Pending이던 노드가 Running으로 바뀌고 파드가 뜨는지 확인한다
 3. 소스 정책 위반이 우리 쪽 요청량이면 세마포어·페이지 크기·주기를 고쳐 릴리스한다. 보류는 시각이 지나면 스스로 풀린다 —
    손으로 `released_at`을 쓰지 않는다(수동 운영 쓰기 금지). 급하면 그것이 곧 "사람이 푸는 Workflow 진입점"이 필요하다는 뜻이고 별도 결정이다.
 4. 사람이 부르는 `backfill-pipeline`·`replay-pipeline`은 보류를 보지 않는다. replay는 소스를 부르지 않으므로 보류 중에도 안전하다.
+
+### 4.7 계약 빈틈을 한 번에 모으기 — `contract-scan` (2026-09-16, EAT-251)
+
+같은 부류의 격리(음수 사정률, 음수 투찰금액)가 달마다 하나씩 나오면 달마다 ADR·릴리스·replay를 반복한다. 이미
+R2에 있는 raw에 지금 파서를 한 번 돌리면 남은 빈틈을 미리 모을 수 있다. 소스 호출 0회, DB 쓰기 0회다.
+
+```powershell
+argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint contract-scan `
+  -p parser-version=eat-v3 -p limit=20000 -p window-start=20250901 -p window-end=20250930
+```
+
+- `window-start`·`window-end`를 비우면 발행에 이르지 못한 상세 관측 전부(정규화 안 됨·격리·revision 없음)를
+  `limit`까지 본다. 창을 주면 그 창의 release에 속한 관측만 본다.
+- 결과는 workflow output parameter `scanned`·`quarantined`·`reasons`(사유별 건수와 예시 공고 id 다섯)와
+  stdout이다. `ingest.normalization_attempt`에는 남지 않는다 — 실제 정규화 시도가 아니다.
+- 읽는 법: `reasons`의 한 줄이 곧 `quarantine_reason` 한 부류다. 계약 쪽이면 그 부류들을 하나의 ADR·릴리스로
+  묶어 고치고, 그 뒤 실패 창들을 §1.2 replay로 닫는다. 소스가 정말 계약 밖이면 격리가 맞고 창을 어떻게 닫을지는
+  별도 결정이다.
+- 검증: 2025-09 창(EAT-246)에 돌리면 음수 사정률 7건과 `EFT_ALL_AMT` 음수 1건이 그대로 나와야 한다.
 .

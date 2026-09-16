@@ -1141,6 +1141,60 @@ spec:
           - *env-r2-access-key
           - *env-r2-secret-key
 
+    # 운영자 조사 entrypoint다(EAT-251, collection-runbook §4.7). 발행에 이르지 못한 상세 관측의 raw에 지금
+    # 파서를 돌려 격리 사유 히스토그램을 만든다. DB에 쓰지 않고 R2는 읽기만 하며 소스를 부르지 않는다 —
+    # 그래서 semaphore도 mutex도 없다. 결과는 result-dir의 파일과 stdout이다.
+    - name: contract-scan
+      inputs:
+        parameters:
+          - name: parser-version
+            value: "{{workflow.parameters.parser-version}}"
+          - name: limit
+            value: "20000"
+          - name: window-start
+            value: ""
+          - name: window-end
+            value: ""
+      outputs:
+        parameters:
+          - name: scanned
+            valueFrom: { path: /tmp/eatbid/scanned }
+          - name: quarantined
+            valueFrom: { path: /tmp/eatbid/quarantined }
+          - name: reasons
+            valueFrom: { path: /tmp/eatbid/reasons }
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid scan-contract
+            --parser-version "$EATBID_PARSER_VERSION"
+            --limit "$EATBID_SCAN_LIMIT"
+            --window-start "$EATBID_WINDOW_START" --window-end "$EATBID_WINDOW_END"
+            --result-dir "$EATBID_RESULT_DIR"
+        resources:
+          requests:
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        env:
+          - name: EATBID_PARSER_VERSION
+            value: "{{inputs.parameters.parser-version}}"
+          - name: EATBID_SCAN_LIMIT
+            value: "{{inputs.parameters.limit}}"
+          - name: EATBID_WINDOW_START
+            value: "{{inputs.parameters.window-start}}"
+          - name: EATBID_WINDOW_END
+            value: "{{inputs.parameters.window-end}}"
+          - *env-result-dir
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
     # 운영자 entrypoint다. 어떤 DAG에도 들지 않고, 결론 없이 끝난 release를 planned → failed로 닫으며
     # 열린 run을 같은 category로 끝낸다(collection-runbook §4.3). onExit 같은 자동 핸들러로 걸지 않는
     # 이유는 planned가 같은 run으로 이어 갈 수 있는 상태이기 때문이다(EAT-122).
