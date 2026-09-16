@@ -21,8 +21,8 @@ from eatbid.core.projection_models import (
 from eatbid.core.projection_validation import validate_projection
 from eatbid.core.repository import FrozenPublicationMember, ProjectionContractError
 from eatbid.source.eat.code_schemes import (
-    AUCTION_ITEM_SCHEME,
     ATTEMPT_STATUS,
+    AUCTION_ITEM_SCHEME,
     AWARD_METHOD,
     BID_STATUS,
     BUSINESS_NUMBER,
