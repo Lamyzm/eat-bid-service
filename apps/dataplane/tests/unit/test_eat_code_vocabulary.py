@@ -10,8 +10,10 @@ from eatbid.source.eat.code_schemes import (
     ATTEMPT_STATUS,
     AUCTION_LOCATION_SIDO,
     AUCTION_LOCATION_SIGUNGU,
+    AWARD_METHOD,
     EAT_CODE_LIST_GROUPS,
     ORGANIZATION_TYPE,
+    PLANNED_PRICE_TYPE,
     code_list_scheme,
 )
 from eatbid.source.eat.code_vocabulary import parse_code_vocabulary
@@ -87,7 +89,7 @@ def test_상위를_말하지_않은_시군구는_코드_자릿수로_추측하�
     assert vocabulary.entries[0].parent is None
 
 
-def test_그룹_넷이_각자의_체계에_이름을_준다() -> None:
+def test_그룹_여섯이_각자의_체계에_이름을_준다() -> None:
     vocabulary = _fixture_vocabulary()
 
     assert {group.group_code for group in EAT_CODE_LIST_GROUPS} == {
@@ -95,11 +97,17 @@ def test_그룹_넷이_각자의_체계에_이름을_준다() -> None:
         "SC067",
         "EP049",
         "BC016",
+        "EP051",
+        "EP111",
     }
     assert _entry(vocabulary, AUCTION_LOCATION_SIDO.namespace, "15").label == "경남"
     assert _entry(vocabulary, AUCTION_LOCATION_SIGUNGU.namespace, "653").label == "김해시"
     assert _entry(vocabulary, ATTEMPT_STATUS.namespace, "007").label == "낙찰"
     assert _entry(vocabulary, ORGANIZATION_TYPE.namespace, "010").label == "학교"
+    # 낙찰 방식 이름은 코드북의 자리표시(`[]%`) 그대로다. 상세의 렌더링 문장을 파싱해 만들지 않는다(T16, EAT-200).
+    assert _entry(vocabulary, PLANNED_PRICE_TYPE.namespace, "002").label == "복수예정가격"
+    assert _entry(vocabulary, AWARD_METHOD.namespace, "003").label == "예정가격의 []%이상 입찰가 중 최저가 낙찰"
+    assert _entry(vocabulary, AWARD_METHOD.namespace, "007").label.startswith("지방계약법 적격심사(고시금액미만")
 
 
 def test_검토되지_않은_그룹은_이름을_주지_못한다() -> None:
@@ -184,7 +192,7 @@ def test_봉투는_원본_행_수와_제외_행_수로_어휘를_나눈다() -> 
     assert vocabulary.source_system == "eat"
     assert vocabulary.dataset == "ds_out"
     assert vocabulary.excluded_row_count == 0
-    assert vocabulary.source_row_count == len(vocabulary.entries) == 17
+    assert vocabulary.source_row_count == len(vocabulary.entries) == 22
 
 
 def test_빈_응답은_어휘가_비었다는_사실로_통과하지_않는다() -> None:

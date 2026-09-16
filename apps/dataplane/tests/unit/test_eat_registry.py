@@ -409,15 +409,15 @@ def test_코드목록_계약은_검토된_parser_version_전부에_있다() -> N
         require("code-list", parser_version="eat-v9")
 
 
-def test_code_list_payload는_검토된_그룹_넷을_한_요청으로_묻는다() -> None:
+def test_code_list_payload는_검토된_그룹_여섯을_한_요청으로_묻는다() -> None:
     params = build_code_list_params()
 
     assert dict(params) == {
-        "CMNS_GRP_CD": "SC066,SC067,EP049,BC016",
+        "CMNS_GRP_CD": "SC066,SC067,EP049,BC016,EP051,EP111",
         "RETV_DIV": "N",
     }
     assert _dataset_row(require_transport("code-list").build_payload(params), "ds_Param") == {
-        "CMNS_GRP_CD": "SC066,SC067,EP049,BC016",
+        "CMNS_GRP_CD": "SC066,SC067,EP049,BC016,EP051,EP111",
         "RETV_DIV": "N",
     }
 

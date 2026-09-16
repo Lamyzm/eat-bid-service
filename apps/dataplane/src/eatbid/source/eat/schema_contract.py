@@ -277,7 +277,7 @@ _EAT_V4_BID_DETAIL = replace(
 _EAT_V4_BID_LIST_PAGE = replace(_EAT_V1_BID_LIST, parser_version="eat-v4")
 
 # 공통 코드목록 응답 `ds_out`의 알려진 전체 column 22개다. 근거는 2026-09-16 실측
-# (`SC066,SC067,EP049,BC016` 282행, `tests/fixtures/eat/code-list.xml`)이다. `ITM_VL1`~`ITM_VL9`는
+# (`SC066,SC067,EP049,BC016` 282행, `tests/fixtures/eat/code-list.xml`; `EP051`·`EP111`도 같은 22열, 2026-09-17)이다. `ITM_VL1`~`ITM_VL9`는
 # 그룹마다 뜻이 다르고 채움률도 다르지만 전체 모양에는 둔다 — 소스가 column을 더하거나 빼는 변화를
 # 원본 대비로 알아채기 위해서다(목록·상세 계약과 같은 이유).
 _EAT_V1_CODE_LIST_COLUMNS = (
