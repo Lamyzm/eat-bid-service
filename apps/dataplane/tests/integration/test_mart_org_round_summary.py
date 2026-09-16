@@ -31,7 +31,7 @@ SUMMARY_COLUMNS = (
     "summary.day_floor_amount, summary.day_floor_bid_rate, summary.awarded_bid_rate, "
     "summary.list_count, summary.below_day_floor_count, summary.withdrawn_count, "
     "summary.withdrawal_cohort_age_days, summary.lineage_status, summary.opened_month_kst, "
-    "summary.auction_revision_id, summary.item_label"
+    "summary.auction_revision_id, summary.item_label, summary.quarantine_reason"
 )
 
 
@@ -48,7 +48,9 @@ def _publish_and_project(services: PipelineServices, body: bytes | None = None) 
     return external_bid_id
 
 
-def _rows_for(services: PipelineServices, build_id: int, external_bid_id: str) -> list[tuple]:
+def _rows_for(
+    services: PipelineServices, build_id: int, external_bid_id: str
+) -> list[tuple]:
     return fetch_all(
         services,
         f"""
@@ -90,6 +92,7 @@ def test_회차_요약_빌드가_명단과_낙찰을_한_행으로_요약한다(
         opened_month,
         _revision_id,
         item_label,
+        quarantine_reason,
     ) = rows[0]
 
     assert floor_rate == Decimal("90.000")
@@ -105,6 +108,7 @@ def test_회차_요약_빌드가_명단과_낙찰을_한_행으로_요약한다(
     assert lineage_status == "observed"
     assert opened_month.isoformat() == "2025-11-01"
     assert item_label is None or isinstance(item_label, str)
+    assert quarantine_reason is None
     # SQL과 사람이 읽는 파생 정의가 갈라지지 않는지 같은 입력으로 맞대어 본다.
     assert floor_amount == day_floor_amount(
         floor_rate=floor_rate, planned_amount=planned_amount
@@ -144,8 +148,12 @@ def test_하한_미만_수는_합성_명단에서_손으로_셀_수_있다(
     """
     lowered = (
         ROSTER_FIXTURE.read_bytes()
-        .replace(b'<Col id="SAJEONG_PCT">90.512</Col>', b'<Col id="SAJEONG_PCT">89.512</Col>')
-        .replace(b'<Col id="SAJEONG_PCT">90.567</Col>', b'<Col id="SAJEONG_PCT">89.567</Col>')
+        .replace(
+            b'<Col id="SAJEONG_PCT">90.512</Col>', b'<Col id="SAJEONG_PCT">89.512</Col>'
+        )
+        .replace(
+            b'<Col id="SAJEONG_PCT">90.567</Col>', b'<Col id="SAJEONG_PCT">89.567</Col>'
+        )
     )
     external_bid_id = _publish_and_project(pipeline_services, lowered)
     plan = mart_plan(create_source_release(pipeline_services))
@@ -160,19 +168,27 @@ def test_하한_미만_수는_합성_명단에서_손으로_셀_수_있다(
     assert row[7] == Decimal("88.0350")
 
 
-def test_예정가격_미관측_회차는_그날_하한과_하한_미만_수를_null로_두고_예정가격_관측은_보존한다(
+def test_예정가격_미관측_회차는_그날_하한과_하한_미만_수를_null로_두고_예정가격_관측은_payload에_보존한다(
     pipeline_services: PipelineServices,
 ) -> None:
     """왜 0인가: eaT는 추첨 전 공고의 `ELCTRN_BID_PLNPRC`를 빈 값이 아니라 `0`으로 보낸다(EAT-74).
 
-    정규화는 그 관측을 보존하므로 core에는 `0.00`이 앉는다. 하한 미만 행이 있는 명단에 그 0을
-    얹어, 파생값이 `0.0000`·`0`이라는 거짓 관측이 아니라 null이 되는지를 고정한다.
+    정규화와 `source_payload`는 그 관측을 보존하고 core의 `planned_amount`는 해석이라 null이다(EAT-199).
+    하한 미만 행이 있는 명단에 그 0을 얹어, 파생값이 `0.0000`·`0`이라는 거짓 관측이 아니라 null이
+    되는지를 고정한다.
     """
     unobserved = (
         ROSTER_FIXTURE.read_bytes()
-        .replace(b'<Col id="ELCTRN_BID_PLNPRC">6762461</Col>', b'<Col id="ELCTRN_BID_PLNPRC">0</Col>')
-        .replace(b'<Col id="SAJEONG_PCT">90.512</Col>', b'<Col id="SAJEONG_PCT">89.512</Col>')
-        .replace(b'<Col id="SAJEONG_PCT">90.567</Col>', b'<Col id="SAJEONG_PCT">89.567</Col>')
+        .replace(
+            b'<Col id="ELCTRN_BID_PLNPRC">6762461</Col>',
+            b'<Col id="ELCTRN_BID_PLNPRC">0</Col>',
+        )
+        .replace(
+            b'<Col id="SAJEONG_PCT">90.512</Col>', b'<Col id="SAJEONG_PCT">89.512</Col>'
+        )
+        .replace(
+            b'<Col id="SAJEONG_PCT">90.567</Col>', b'<Col id="SAJEONG_PCT">89.567</Col>'
+        )
     )
     external_bid_id = _publish_and_project(pipeline_services, unobserved)
     plan = mart_plan(create_source_release(pipeline_services))
@@ -180,10 +196,25 @@ def test_예정가격_미관측_회차는_그날_하한과_하한_미만_수를_
     build_id, _ = build_mart(pipeline_services, plan, fill_org_round_summary)
 
     (row,) = _rows_for(pipeline_services, build_id, external_bid_id)
-    # 관측은 관측대로 남는다. 0을 null로 고쳐 쓰면 소스가 0을 보냈다는 사실이 사라진다.
+    # core 열은 null이고 소스가 0을 보냈다는 사실은 revision의 source_payload에 남는다.
     assert row[0] == Decimal("90.000")
-    assert row[2] == Decimal("0.00")
+    assert row[2] is None
     assert row[9] == 7
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select revision.planned_amount, revision.source_payload #>> '{pricing,plannedAmount,amount}'
+              from core.auction_revision as revision
+              join core.auction_attempt as attempt using (auction_attempt_id)
+             where attempt.external_bid_id = %s
+             order by revision.auction_revision_id desc limit 1
+            """,
+            (external_bid_id,),
+        )
+        observed = cursor.fetchone()
+    assert observed is not None
+    assert observed[0] is None
+    assert observed[1] == "0.00"
     # 예정가격에서 파생하는 값은 전부 없음이다. 명단에 하한율 아래 행이 둘 있어도 셀 수 없다.
     assert row[6] is None
     assert row[7] is None
@@ -293,3 +324,72 @@ def test_revision이_없는_attempt는_회차로_발표하지_않는다(
         """,
     )
     assert row_count == eligible[0]
+
+
+def test_개찰이_공고보다_45일_넘게_뒤인_회차는_행을_남기되_격리_사유를_달아_화면이_세지_않게_한다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """왜 격리인가: 원천 payload가 2027·2028년 개찰 시각을 그대로 주는 회차가 5건 있고 전부 낙찰·명단이 없다.
+
+    낙찰이 있는 128,582회차의 최대 간격은 24.3일이라 45일 상한은 정상 회차를 걸지 않는다(EAT-199). 행을 지우면
+    무엇이 왜 걸렸는지 mart에서 볼 수 없으므로 사유만 단다.
+    """
+    external_bid_id = _publish_and_project(pipeline_services)
+    with pipeline_services.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            select revision.auction_attempt_id, revision.observation_id, revision.content_sha256,
+                   organization.organization_id
+              from core.auction_revision as revision
+              join core.auction_attempt as attempt using (auction_attempt_id)
+              join core.auction_organization as organization
+                on organization.auction_revision_id = revision.auction_revision_id
+               and organization.role = 'purchaser'
+             where attempt.external_bid_id = %s
+            """,
+            (external_bid_id,),
+        )
+        original = cursor.fetchone()
+        assert original is not None
+        cursor.execute(
+            """
+            insert into ingest.normalized_record
+              (observation_id, record_type, source_entity_id, normalized_payload,
+               parser_version, normalized_at)
+            values (%s, 'auction.v2', %s, '{}'::jsonb, 'eat-v2-later', now())
+            returning normalized_record_id
+            """,
+            (original[1], external_bid_id),
+        )
+        later_record = cursor.fetchone()
+        assert later_record is not None
+        cursor.execute(
+            """
+            insert into core.auction_revision
+              (auction_attempt_id, normalized_record_id, observation_id, content_sha256,
+               source_status, title, announced_at, opened_at, base_amount, planned_amount,
+               currency, source_payload)
+            values (%s, %s, %s, %s, 'OPEN', '개찰이 3년 뒤', now(), now() + interval '1100 days',
+                    111.00, null, 'KRW', '{}'::jsonb)
+            returning auction_revision_id
+            """,
+            (original[0], later_record[0], original[1], original[2]),
+        )
+        later_revision = cursor.fetchone()
+        assert later_revision is not None
+        cursor.execute(
+            "insert into core.auction_organization "
+            "(auction_revision_id, organization_id, role) values (%s, %s, 'purchaser')",
+            (later_revision[0], original[3]),
+        )
+    pipeline_services.connection.commit()
+
+    plan = mart_plan(create_source_release(pipeline_services))
+    build_id, _ = build_mart(pipeline_services, plan, fill_org_round_summary)
+
+    rows = _rows_for(pipeline_services, build_id, external_bid_id)
+    assert len(rows) == 1
+    assert rows[0][15] == later_revision[0]
+    # 계보와 격리는 다른 사실이다. 사슬은 모름(unknown)이고 격리 사유는 개찰 간격이다.
+    assert rows[0][13] == "unknown"
+    assert rows[0][17] == "opening-gap-over-45-days"

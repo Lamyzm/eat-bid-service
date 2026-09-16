@@ -143,7 +143,9 @@ def test_라벨_목록이_코드_목록과_어긋나면_투영하지_않고_끊�
 
     for candidate in candidates:
         with pytest.raises(ProjectionContractError):
-            build_eat_auction_v2_projection(labelled_member(normalized_payload=candidate))
+            build_eat_auction_v2_projection(
+                labelled_member(normalized_payload=candidate)
+            )
 
 
 def test_라벨이_비어_있는_행은_코드만_옮기고_격리하지_않는다() -> None:
@@ -188,7 +190,9 @@ def test_명단_행을_관측_순서_그대로_옮긴다() -> None:
     assert submissions[0].supplier.account.namespace == SUPPLIER_ACCOUNT.namespace
     assert submissions[0].supplier.account.code == "200000"
     assert submissions[0].supplier.business_number is not None
-    assert submissions[0].supplier.business_number.namespace == BUSINESS_NUMBER.namespace
+    assert (
+        submissions[0].supplier.business_number.namespace == BUSINESS_NUMBER.namespace
+    )
     assert submissions[0].draw_numbers == ("7", "3")
     assert submissions[0].currency == "KRW"
     assert submissions[0].amount == Decimal("6101000.00")
@@ -298,9 +302,7 @@ def test_재입찰_사슬은_상대_공고를_외부_id로만_싣는다() -> Non
     projection = build_eat_auction_v2_projection(
         frozen_member(
             source_entity_id=REBID_BID_ID,
-            normalized_payload=normalized_payload(
-                "bid-detail-rebid.xml", REBID_BID_ID
-            ),
+            normalized_payload=normalized_payload("bid-detail-rebid.xml", REBID_BID_ID),
         )
     )
     validate_projection(projection)
@@ -399,3 +401,27 @@ def test_우리_어휘에_없는_낱말은_코드_행을_만들지_않고_아는
     validate_projection(projection)
 
     assert _item_codes(projection) == [(AUCTION_ITEM_SCHEME, "육류")]
+
+
+def test_예정가격_0은_payload에_관측으로_남기되_core_해석은_null이다() -> None:
+    payload = normalized_payload("bid-detail-roster.xml", ROSTER_BID_ID)
+    pricing = payload["pricing"]
+    assert isinstance(pricing, dict)
+    planned = pricing["plannedAmount"]
+    assert isinstance(planned, dict)
+    projection = build_eat_auction_v2_projection(
+        frozen_member(
+            normalized_payload={
+                **payload,
+                "pricing": {**pricing, "plannedAmount": {**planned, "amount": "0.00"}},
+            }
+        )
+    )
+    validate_projection(projection)
+
+    # 0은 금액이 아니라 "추첨된 적 없음"이다. 관측은 payload가 지키고 core 열만 해석으로 비운다(EAT-199).
+    assert projection.planned_amount is None
+    assert projection.source_payload["pricing"]["plannedAmount"]["amount"] == "0.00"
+    assert build_eat_auction_v2_projection(frozen_member()).planned_amount == Decimal(
+        "6762461.00"
+    )

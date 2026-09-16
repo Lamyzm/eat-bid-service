@@ -192,7 +192,7 @@ describe("canonical column 계약", () => {
       [organization, []],
       [organizationIdentifier, []],
       [auctionAttempt, []],
-      [auctionRevision, []],
+      [auctionRevision, ["auction_revision_planned_amount_positive"]],
       [auctionOrganization, []],
       [auctionRevisionCodeValue, ["auction_revision_code_value_role_allowed"]],
     ] as const) {

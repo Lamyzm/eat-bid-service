@@ -79,6 +79,9 @@ export const orgRoundSummary = martSchema.table(
     // `ds_bidHistory` 보유율이 낮아 사슬 없음과 미확인을 한 값으로 숨기면 화면이 거짓말한다.
     lineageStatus: varchar("lineage_status", { length: 16, enum: ["observed", "unknown"] }).notNull(),
     openedMonthKst: date("opened_month_kst"),
+    // 문법은 통과했지만 업무적으로 불가능한 회차의 격리 사유다. null이 정상이다. 행을 지우지 않는 이유는 무엇이 왜
+    // 걸렸는지 mart에서 보여야 하기 때문이고, 화면 조회는 이 열이 null인 행만 읽는다(AGENTS 3, EAT-199).
+    quarantineReason: varchar("quarantine_reason", { length: 32, enum: ["opening-gap-over-45-days"] }),
   },
   (table) => [
     primaryKey({ columns: [table.buildId, table.auctionAttemptId] }),
@@ -92,6 +95,10 @@ export const orgRoundSummary = martSchema.table(
     check(
       "org_round_summary_lineage_status_allowed",
       sql`${table.lineageStatus} in ('observed', 'unknown')`,
+    ),
+    check(
+      "org_round_summary_quarantine_reason_allowed",
+      sql`${table.quarantineReason} is null or ${table.quarantineReason} in ('opening-gap-over-45-days')`,
     ),
     // 금액에 통화가 없으면 그 금액은 해석할 수 없는 숫자다(AGENTS 15).
     check(
