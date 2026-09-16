@@ -1,0 +1,187 @@
+{
+  "uid": "eatbid-ops-summary",
+  "title": "eatbid 운영 요약",
+  "description": "지금 열려 있는 위반과 그 나이, 마지막 검사가 언제였는지, 알림이 실제로 갔는지. 근거는 monitoring.violation·notification·round이며 전부 관측 시각과 함께 읽는다(ADR 0054, 설계 D6). 15분 주기 결과이므로 5초 새로고침이 실시간을 뜻하지 않는다.",
+  "tags": ["eatbid", "monitoring", "ops"],
+  "timezone": "Asia/Seoul",
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "환경",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+        "query": "select distinct environment from monitoring.round order by 1",
+        "refresh": 1,
+        "current": { "text": "prod", "value": "prod" },
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "마지막 검사로부터 지난 시간 (분)",
+      "description": "15분 주기다. 30분을 넘으면 검사 자체가 멈춘 것이고 Better Stack 심장박동이 밖에서 울린다.",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 20 }, { "color": "red", "value": 35 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select round(extract(epoch from now() - max(observed_at)) / 60) as \"분 전\" from monitoring.round where environment = '$environment'"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "열린 위반",
+      "description": "critical은 60분마다 다시 울리고, 나머지는 09:03 아침 요약에 실린다.",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 3 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select count(*) filter (where severity = 'critical') as \"critical\", count(*) filter (where severity <> 'critical') as \"normal\" from monitoring.violation where environment = '$environment' and resolved_at is null"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "가장 오래된 위반 (일)",
+      "description": "이 숫자가 5였던 날이 있었다(2026-09-11~16, ci-main-green). 그것이 이 대시보드가 생긴 이유다.",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 3 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select coalesce(max(extract(epoch from now() - first_seen_at)) / 86400, 0) as \"일\" from monitoring.violation where environment = '$environment' and resolved_at is null"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "마지막 알림 실패 (24시간)",
+      "description": "알림이 안 간 상태가 정상으로 보이면 안 된다. 0이 아니면 notification.error를 본다.",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select count(*) as \"실패\" from monitoring.notification where environment = '$environment' and not ok and sent_at > now() - interval '24 hours'"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "열린 위반과 나이",
+      "description": "observation = unobserved는 그 기대의 평가가 이번 회차에 실패해 상태를 물려받은 것이다. 해소가 아니다(EAT-242).",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 5 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select violation_key, severity, observation, first_seen_at, date_trunc('minute', now() - first_seen_at)::text as age, last_notified_at, title, detail, runbook from monitoring.violation where environment = '$environment' and resolved_at is null order by first_seen_at"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "열린 위반 수 (회차별)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "spanNulls": false } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select observed_at as time, violations_open as \"열린 위반\" from monitoring.round where environment = '$environment' and $__timeFilter(observed_at) order by 1"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "최근 해소 (7일)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select violation_key, severity, first_seen_at, resolved_at, date_trunc('minute', resolved_at - first_seen_at)::text as lasted from monitoring.violation where environment = '$environment' and resolved_at > now() - interval '7 days' order by resolved_at desc limit 30"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "최근 알림 (24시간)",
+      "description": "한 통에 묶인 위반은 같은 sent_at을 갖는다. 요약(digest)은 위반 없이 한 행이다.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 23 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select n.sent_at, n.kind, n.ok, coalesce(v.violation_key, '(요약)') as violation_key, n.error from monitoring.notification n left join monitoring.violation v using (violation_id) where n.environment = '$environment' and n.sent_at > now() - interval '24 hours' order by n.sent_at desc limit 60"
+        }
+      ]
+    }
+  ]
+}

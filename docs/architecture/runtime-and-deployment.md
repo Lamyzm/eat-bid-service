@@ -217,6 +217,12 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   항목은 이 배포 시점에 이미 돌던 backfill이 스냅샷으로 쥔 과도기 key `eatbid-source-limit` 때문에
   셋이지만(제거 조건은 semaphore.yaml), 동시 사용은 그 실행이 끝날 때까지도 여전히 2다. 아래에서 더
   설명한다.
+- **소스가 우리를 막으면 다음 정시 실행이 그 결정을 읽는다**(ADR 0055). `capture`가 403·429를 보면
+  `ingest.source_hold`에 보류를 적고, 길이는 지난 24시간의 보류 수로 15분부터 두 배씩 늘어 24시간에서 멈춘다.
+  전진의 `decide`는 열린 보류가 있으면 `has-window=false`로 조용히 건너뛰고, poll-open의 `discover`는 소스를
+  부르기 전에 `SOURCE_THROTTLED`(75)로 끝나 `cron-workflow` 위반이 사람에게 든다. 프로세스 안 재시도와
+  `retryStrategy`는 정시 실행의 경계를 넘지 못하므로 이 결정은 표에 있어야 한다. 사람이 부르는 백필·replay는
+  보류를 보지 않는다.
 - canonical publication/projector에는 mutex를 둬 서로 다른 실행의 활성화가 엇갈리지 않게 한다.
 - pod는 stateless다. hostPath, 로컬 SQLite, 공유 JSON 파일을 단계 계약으로 쓰지 않는다.
 - 각 실행/관측/로그에 `run_id`, correlation ID, Git SHA, image digest, parser/projector version을 남긴다.

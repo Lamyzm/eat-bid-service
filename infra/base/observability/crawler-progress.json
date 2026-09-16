@@ -1,0 +1,213 @@
+{
+  "uid": "eatbid-crawler-progress",
+  "title": "eatbid 크롤러 진척",
+  "description": "어느 창이 어디까지 갔고 어디서 멈췄나. 근거는 ingest.backfill_coverage(진도는 파생, ADR 0052)와 ingest.source_hold(결정은 저장, ADR 0055), 실패 발행의 run과 격리 사유다. 완료율은 원본 확보율과 발행 완료율 두 숫자로 나눈다 — 하나로 접으면 발행만 남은 창과 아직 받지 않은 창을 구분하지 못한다.",
+  "tags": ["eatbid", "crawler", "ops"],
+  "timezone": "Asia/Seoul",
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "달 창 원본 확보율",
+      "description": "전진이 보는 달 전체 창만 센다. 발견한 공고 중 상세를 R2에 보존한 비율.",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select sum(captured_ids)::float / nullif(sum(discovered_ids), 0) as \"원본 확보율\" from ingest.backfill_coverage where window_start = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')), 'YYYYMMDD') and window_end = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')) + interval '1 month' - interval '1 day', 'YYYYMMDD')"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "달 창 발행 완료율",
+      "description": "발견한 공고 중 core에 revision이 생긴 비율. 재시도 횟수는 세지 않는다.",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select sum(published_ids)::float / nullif(sum(discovered_ids), 0) as \"발행 완료율\" from ingest.backfill_coverage where window_start = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')), 'YYYYMMDD') and window_end = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')) + interval '1 month' - interval '1 day', 'YYYYMMDD')"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "미완결 달 창 / 발행 실패 창",
+      "description": "발행 실패 창은 전진이 건너뛰고 replay가 답이다(ADR 0053, runbook §4.5).",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select count(*) filter (where not is_complete) as \"미완결\", count(*) filter (where failed_publications > 0 and not is_complete) as \"발행 실패\" from ingest.backfill_coverage where window_start = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')), 'YYYYMMDD') and window_end = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')) + interval '1 month' - interval '1 day', 'YYYYMMDD')"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "열린 소스 보류",
+      "description": "0이 아니면 소스가 우리를 막고 있고 정시 수집이 소스를 부르지 않는다(ADR 0055).",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select count(*) as \"보류\" from ingest.source_hold where released_at is null and release_after > now()"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "달 창별 진도 (전진 대상)",
+      "description": "한 행이 한 달이다. 열이 단계를 따르므로 어느 단계에 일이 남았는지가 곧 무엇을 해야 하는지다(ADR 0052 결정 3).",
+      "gridPos": { "h": 12, "w": 14, "x": 0, "y": 5 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select window_start, window_end, discovered_ids, captured_ids, uncaptured_ids, normalized_ids, published_ids, failed_publications, is_complete from ingest.backfill_coverage where window_start = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')), 'YYYYMMDD') and window_end = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')) + interval '1 month' - interval '1 day', 'YYYYMMDD') order by window_start desc"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "하루 창 (실시간 poll-open, 최근 14)",
+      "description": "하루 창은 종일 discover가 공고를 더하므로 낮 동안 미완결이 정상이다. 전진 대상이 아니다.",
+      "gridPos": { "h": 12, "w": 10, "x": 14, "y": 5 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select window_start, discovered_ids, captured_ids, published_ids, failed_publications, is_complete from ingest.backfill_coverage where not (window_start = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')), 'YYYYMMDD') and window_end = to_char(date_trunc('month', to_date(window_start, 'YYYYMMDD')) + interval '1 month' - interval '1 day', 'YYYYMMDD')) order by window_start desc limit 14"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "최근 실패 발행 (7일) — run, 격리 사유 상위 3, 로그",
+      "description": "workflow_name을 누르면 OpenObserve에서 그 Workflow 파드들의 로그를 연다(파드 이름이 workflow 이름으로 시작한다). 격리 사유가 계약 쪽이면 파서를 고쳐 릴리스한 뒤 replay다(runbook §4.5).",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 17 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "workflow_name" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "OpenObserve 로그",
+                    "url": "/internal/o2/web/logs?stream_type=logs&stream=k8s&period=14d&refresh=Off&sql_mode=true&org_identifier=default&query=${__data.fields.log_query_b64}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "log_query_b64" }, "properties": [{ "id": "custom.hidden", "value": true }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select r.started_at, r.mode, r.workflow_name, r.failure_category, p.expected_count, p.publication_id, (select string_agg(reason || ' ×' || c, '; ') from (select left(na.quarantine_reason, 90) as reason, count(*) as c from ingest.normalization_attempt na where na.run_id = r.run_id and na.status = 'quarantined' group by 1 order by 2 desc limit 3) q) as quarantine, replace(encode(convert_to('select * from \"k8s\" where kubernetes_pod_name like ''' || coalesce(r.workflow_name, '-') || '%'' order by _timestamp desc', 'UTF8'), 'base64'), E'\\n', '') as log_query_b64 from ingest.publication p join ingest.run r using (run_id) where p.status = 'failed' and r.started_at > now() - interval '7 days' order by r.started_at desc limit 30"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "열린 소스 보류",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 27 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select hold_id, source, reason, detail, held_at, release_after, held_by_run_id from ingest.source_hold where released_at is null and release_after > now() order by release_after desc"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "최근 run (24시간)",
+      "description": "mode별로 무엇이 돌았고 어떻게 끝났나. workflow_name 링크는 위와 같다.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 33 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "eatbid-postgres" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "workflow_name" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "OpenObserve 로그",
+                    "url": "/internal/o2/web/logs?stream_type=logs&stream=k8s&period=14d&refresh=Off&sql_mode=true&org_identifier=default&query=${__data.fields.log_query_b64}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "log_query_b64" }, "properties": [{ "id": "custom.hidden", "value": true }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select r.started_at, r.ended_at, r.mode, r.status, r.failure_category, r.workflow_name, r.expected_count, r.captured_count, r.published_count, replace(encode(convert_to('select * from \"k8s\" where kubernetes_pod_name like ''' || coalesce(r.workflow_name, '-') || '%'' order by _timestamp desc', 'UTF8'), 'base64'), E'\\n', '') as log_query_b64 from ingest.run r where r.started_at > now() - interval '24 hours' order by r.started_at desc limit 60"
+        }
+      ]
+    }
+  ]
+}

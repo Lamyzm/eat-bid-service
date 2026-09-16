@@ -124,11 +124,52 @@ def test_대시보드는_monitoring_round의_아홉_열을_PostgreSQL_datasource
         assert column in all_sql, column
 
 
+OPS_DASHBOARDS = {
+    "ops-summary.json": ("eatbid-ops-summary", ("monitoring.violation", "monitoring.notification", "monitoring.round")),
+    "crawler-progress.json": (
+        "eatbid-crawler-progress",
+        ("ingest.backfill_coverage", "ingest.source_hold", "ingest.publication", "ingest.normalization_attempt"),
+    ),
+}
+
+
+@pytest.mark.parametrize("filename", sorted(OPS_DASHBOARDS))
+def test_운영_대시보드는_표를_PostgreSQL로_읽고_편집할_수_없으며_로그_링크는_workflow_이름으로_잇는다(
+    filename: str,
+) -> None:
+    """설계 D6·D7(EAT-245). 운영 요약은 위반·알림·회차 표를, 크롤러 진척은 진도 뷰·보류·발행·격리 사유를 읽는다.
+    로그 링크는 OpenObserve `k8s` 스트림의 파드 이름이 workflow 이름으로 시작한다는 사실로 잇는다 — 파드 라벨은
+    스트림에 없다(2026-09-16 실측)."""
+    uid, tables = OPS_DASHBOARDS[filename]
+    dashboard = json.loads((DASHBOARD.parent / filename).read_text(encoding="utf-8"))
+
+    assert dashboard["uid"] == uid
+    assert dashboard["editable"] is False
+    all_sql = " ".join(target["rawSql"] for panel in dashboard["panels"] for target in panel["targets"])
+    for panel in dashboard["panels"]:
+        assert panel["datasource"]["uid"] == "eatbid-postgres", panel["title"]
+    for table in tables:
+        assert table in all_sql, table
+    if filename == "crawler-progress.json":
+        links = [
+            link["url"]
+            for panel in dashboard["panels"]
+            for override in panel["fieldConfig"].get("overrides", [])
+            for prop in override["properties"]
+            if prop["id"] == "links"
+            for link in prop["value"]
+        ]
+        assert links and all(url.startswith("/internal/o2/web/logs?") for url in links)
+        assert "kubernetes_pod_name like" in all_sql
+
+
 def test_base는_대시보드_ConfigMap을_hash_없이_내고_내부_Ingress가_allowlist를_단다(
     prod_manifests: ManifestSet,
 ) -> None:
     configmap = prod_manifests.named("ConfigMap", "eatbid-grafana-dashboards")
     assert "monitoring-round.json" in configmap["data"]  # type: ignore[operator]
+    assert "ops-summary.json" in configmap["data"]  # type: ignore[operator]
+    assert "crawler-progress.json" in configmap["data"]  # type: ignore[operator]
 
     ingress = prod_manifests.named("Ingress", "observability-internal")
     annotations = ingress["metadata"]["annotations"]  # type: ignore[index]

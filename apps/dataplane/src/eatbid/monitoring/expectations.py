@@ -161,6 +161,22 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         },
     ),
     Expectation(
+        key="source-hold",
+        title="소스가 우리를 막아 정시 수집이 보류 중이다",
+        runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
+        # 열린 보류는 그 자체가 사고다 — 소스가 우리를 막고 있고 정시 수집이 소스를 부르지 않고 있다
+        # (ADR 0055 결정 4). 보류가 풀리면 해소되고, 하루 상한에 닿아 있으면 매시 재알림이 그 사실을 든다.
+        severity="critical",
+        sql="""
+            select source, reason, detail, held_at, release_after
+              from ingest.source_hold
+             where released_at is null and release_after > now()
+             order by release_after desc
+        """,
+        parameters={},
+        key_columns=("source",),
+    ),
+    Expectation(
         key="failed-publication-window",
         title="발행이 실패한 백필 창이 replay를 기다리고 있다",
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",

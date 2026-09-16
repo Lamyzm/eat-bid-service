@@ -4,3 +4,4 @@ export * from "./publication.js";
 export * from "./lineage.js";
 export * from "./release.js";
 export * from "./coverage.js";
+export * from "./source-hold.js";
