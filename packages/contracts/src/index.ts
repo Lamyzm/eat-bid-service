@@ -11,6 +11,7 @@ export * from "./atoms/geo";
 export { auctionIdPathSchema, positiveBigintTextSchema } from "./atoms/identifier";
 export * from "./atoms/instant";
 export * from "./atoms/source-code";
+export * from "./values/auction-item";
 export * from "./values/cache-tag";
 export * from "./values/code-reference";
 export * from "./values/coordinate";

@@ -5,6 +5,7 @@
  * 만족하는 전체를 센다. 필터 atom은 같은 것을 쓰며 갈리면 축 줄의 건수와 목록의 행이 서로 다른
  * 코호트를 말하게 된다.
  */
+import type { AuctionItemAtom } from "@eatbid/contracts";
 import type { BidRate, Temporal } from "@eatbid/domain";
 
 import type { MartBuildLineage } from "./mart-build-lineage";
@@ -40,6 +41,24 @@ export interface OpenAuctionFloorShareRecord {
   readonly count: number;
 }
 
+/**
+ * 지역 축을 푼 집합에서 센 공고지역 하나다. 라벨은 최신 관측이며 없으면 null이다 — 코드목록 수집
+ * (EAT-187)이 돌기 전의 DB가 그렇고, 그때도 항목은 남아야 한다(AGENTS 3).
+ */
+export interface OpenAuctionRegionCountRecord {
+  readonly codeValueId: bigint;
+  readonly code: string;
+  readonly scheme: string;
+  readonly label: string | null;
+  readonly count: number;
+}
+
+/** 품목 축을 푼 집합에서 원자 하나가 라벨에 들어 있는 행 수다. 여덟 원자 전부가 0을 포함해 온다. */
+export interface OpenAuctionItemCountRecord {
+  readonly item: AuctionItemAtom;
+  readonly count: number;
+}
+
 export interface OpenAuctionDayMarkRecord {
   readonly date: string;
   readonly count: number;
@@ -57,6 +76,16 @@ export interface OpenAuctionSummaryRecord {
   readonly announcedUnobservedCount: number;
   readonly closingTodayCount: number;
   readonly floorShares: readonly OpenAuctionFloorShareRecord[];
+  /**
+   * 조건 기둥의 배지 넷이다. 각각 **그 축 하나만 푼 집합**에서 센다 — 시도·시군구·지역 미상은 품목·금액·
+   * 제한지역을 유지한 채 지역을 풀고, 품목·품목 미상은 지역·금액·제한지역을 유지한 채 품목을 푼다.
+   * `sigunguCounts`는 `sidoCodeValueId`가 있을 때만 그 시도 안의 시군구다.
+   */
+  readonly sidoCounts: readonly OpenAuctionRegionCountRecord[];
+  readonly sigunguCounts: readonly OpenAuctionRegionCountRecord[];
+  readonly regionUnobservedCount: number;
+  readonly itemCounts: readonly OpenAuctionItemCountRecord[];
+  readonly itemUnobservedCount: number;
   readonly calendar: readonly OpenAuctionCalendarDayRecord[];
   /** 결과가 0건이면 null이다. 관측이 없으므로 "지금"이라고 말할 수 없다. */
   readonly latestObservedAt: Temporal.Instant | null;

@@ -5,11 +5,12 @@
  * 다르게 센 것**이라, 나누면 화면 하나가 조회를 일곱 번 하고 그 일곱이 서로 다른 시각을 볼 수 있다.
  * 열림 판정은 목록과 같은 술어를 쓴다(`openScopePredicate`).
  */
+import { AUCTION_ITEM_ATOMS, CODE_SCHEME_NAMES } from "@eatbid/contracts";
 import { sql, type SQL } from "drizzle-orm";
 
 import type { OpenAuctionSummaryQuery } from "../../application/open-auction-summary-reader";
 import { KST_TIME_ZONE } from "../../domain/kst-month";
-import { bigintArrayLiteral } from "../../../../platform/database/sql-values";
+import { bigintArrayLiteral, textArrayLiteral } from "../../../../platform/database/sql-values";
 import { activeMartBuildId } from "./drizzle-mart-build-reader";
 import {
   eligibilityAreaCodeCte,
@@ -24,11 +25,38 @@ function instantParameter(value: { toString(): string }): string {
 }
 
 /**
- * 한 요청이 도는 조회 하나다. 스캔은 `region_scope` 한 번이고 그 위에서 두 집합이 갈린다.
+ * 공고지역 코드의 최신 관측 라벨이다. 목록의 `regionReferenceJoin`과 같은 규칙(가장 최근 관측 하나)이라
+ * 기둥의 이름과 행의 이름이 갈리지 않는다. 라벨이 없는 코드도 남는다 — 코드목록 수집(EAT-187)이 아직
+ * 안 돈 DB에서 항목이 사라지면 그 지역의 공고가 기둥에서 보이지 않는다.
+ */
+function regionLabelCte(): SQL {
+  return sql`
+    region_label as (
+      select code.code_value_id,
+             code.code,
+             scheme.namespace as scheme,
+             (select observation.label
+                from core.code_label_observation observation
+               where observation.code_value_id = code.code_value_id
+               order by observation.observed_at desc, observation.code_label_observation_id desc
+               limit 1) as label
+        from core.code_value code
+        join core.code_scheme scheme on scheme.code_scheme_id = code.code_scheme_id
+       where scheme.namespace in (${CODE_SCHEME_NAMES.auctionLocationSido}, ${CODE_SCHEME_NAMES.auctionLocationSigungu})
+    )
+  `;
+}
+
+/**
+ * 한 요청이 도는 조회 하나다. 스캔은 `open_scope` 한 번이고 그 위에서 집합 넷이 갈린다.
  *
- * `region_scope`는 **지역 축만 건 집합**이고 `scoped`는 거기에 품목·금액·제한지역을 더한 집합이다.
- * 달력의 `releasedCount`가 앞을 세고 나머지가 전부 뒤를 세므로 두 집합이 같은 스캔에서 나와야
- * `2건 · 7건 중`의 두 수가 같은 시각을 본다.
+ * - `region_scope` — 지역 축만 건 집합. 달력의 `releasedCount`가 센다.
+ * - `region_released` — 지역만 풀고 품목·금액·제한지역은 건 집합. 기둥의 시도·시군구·지역 미상 배지가 센다.
+ * - `item_released` — 품목만 풀고 지역·금액·제한지역은 건 집합. 기둥의 품목·품목 미상 배지가 센다.
+ * - `scoped` — 전부 건 집합. 탭·달력 칸·하한 구성·기준 시각이 센다.
+ *
+ * 넷이 같은 스캔에서 나와야 `2건 · 7건 중`과 기둥의 `김해시 62`가 같은 시각을 본다. 배지가 "그 축 하나만
+ * 푼 수"인 이유는 그것이 누르면 되는 수이기 때문이다 — 다른 축까지 풀면 약속이 깨진다.
  *
  * 집계는 `filter (where ...)`로 한 번에 접는다. 탭 셋을 따로 세면 같은 행을 세 번 읽는다.
  */
@@ -39,9 +67,16 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
   const eligibilityFilter: SQL = eligibility === null
     ? sql``
     : sql` and (scope.eligibility_matched or not scope.eligibility_observed)`;
+  const amountFilter: SQL = sql`
+        (${query.baseAmountMin}::numeric is null or scope.base_amount >= ${query.baseAmountMin}::numeric)
+        and (${query.baseAmountMax}::numeric is null or scope.base_amount <= ${query.baseAmountMax}::numeric)`;
+  // 여덟 원자를 어휘 순서대로 세운다. 0건인 원자도 항목으로 남아야 화면이 "오늘 없다"와 "어휘에 없다"를
+  // 가른다. 부분일치 술어는 목록 필터와 같은 `strpos`다(`itemLabelPredicate`).
+  const atoms = textArrayLiteral([...AUCTION_ITEM_ATOMS]);
   return sql`
     with ${eligibilityAreaCodeCte()},
     ${matchedEligibilityAreaCte(eligibility ?? [])},
+    ${regionLabelCte()},
     snapshot as (
       select distinct on (snapshot.auction_attempt_id)
         snapshot.auction_attempt_id,
@@ -60,7 +95,7 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       where snapshot.build_id = ${activeMartBuildId(OPEN_AUCTION_SNAPSHOT)}
       order by snapshot.auction_attempt_id, snapshot.observed_at desc
     ),
-    region_scope as (
+    open_scope as (
       select snapshot.*,
              (snapshot.closes_at at time zone ${KST_TIME_ZONE})::date as closes_on_kst,
              (snapshot.announced_at at time zone ${KST_TIME_ZONE})::date as announced_on_kst,
@@ -68,17 +103,53 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
              ${eligibilityMatchedExpression(sql`snapshot.terms_revision_id`)} as eligibility_matched
       from snapshot
       where ${openScopePredicate(sql`snapshot`, asOf)}
-        and (${query.sidoCodeValueId}::bigint is null
-             or snapshot.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
+    ),
+    region_scope as (
+      select scope.*
+      from open_scope scope
+      where (${query.sidoCodeValueId}::bigint is null
+             or scope.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
         and (${sigungu}::text is null
-             or snapshot.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
+             or scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
+    ),
+    region_released as (
+      select scope.*
+      from open_scope scope
+      where ${amountFilter}
+        and ${itemLabelPredicate(sql`scope`, query.itemLabels)}${eligibilityFilter}
+    ),
+    item_released as (
+      select scope.*
+      from region_scope scope
+      where ${amountFilter}${eligibilityFilter}
     ),
     scoped as (
       select scope.*
-      from region_scope scope
-      where (${query.baseAmountMin}::numeric is null or scope.base_amount >= ${query.baseAmountMin}::numeric)
-        and (${query.baseAmountMax}::numeric is null or scope.base_amount <= ${query.baseAmountMax}::numeric)
-        and ${itemLabelPredicate(sql`scope`, query.itemLabels)}${eligibilityFilter}
+      from item_released scope
+      where ${itemLabelPredicate(sql`scope`, query.itemLabels)}
+    ),
+    sido_counts as (
+      select code.code_value_id, code.code, code.scheme, code.label, count(*)::int as count
+        from region_released released
+        join region_label code on code.code_value_id = released.region_sido_code_value_id
+       group by code.code_value_id, code.code, code.scheme, code.label
+    ),
+    -- 시군구는 고른 시도 안에서만 센다. 시도 없이 전국 시군구를 세우는 화면은 없고, 짝은 활성 build에서
+    -- 관측된 것뿐이라 0건인 시군구는 애초에 없다.
+    sigungu_counts as (
+      select code.code_value_id, code.code, code.scheme, code.label, count(*)::int as count
+        from region_released released
+        join region_label code on code.code_value_id = released.region_sigungu_code_value_id
+       where ${query.sidoCodeValueId}::bigint is not null
+         and released.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint
+       group by code.code_value_id, code.code, code.scheme, code.label
+    ),
+    item_counts as (
+      select atoms.item,
+             atoms.ordinal,
+             (select count(*) from item_released released
+               where released.item_label is not null and strpos(released.item_label, atoms.item) > 0)::int as count
+        from unnest(${atoms}::text[]) with ordinality as atoms(item, ordinal)
     ),
     -- 두 집합을 날짜로 **한 번씩** 접는다. 달력 칸마다 세면 창 길이만큼 스캔이 늘어난다.
     scoped_by_day as (
@@ -127,6 +198,24 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       -- 소수점 자리가 사라지고, 계약이 요구하는 scale 3에서 거부된다(AGENTS 15).
       (select jsonb_agg(jsonb_build_object('rate', floors.rate::text, 'count', floors.count))
          from floors) as floors,
+      -- code_value_id는 문자열로 싣는다. JSON 숫자는 bigint를 무손실로 담지 못한다(ADR 0018). 순서는
+      -- 많은 것부터이고 동률은 코드 순이라 실행마다 같다.
+      (select jsonb_agg(jsonb_build_object('codeValueId', sido_counts.code_value_id::text, 'code', sido_counts.code,
+                                           'scheme', sido_counts.scheme, 'label', sido_counts.label,
+                                           'count', sido_counts.count)
+                        order by sido_counts.count desc, sido_counts.code)
+         from sido_counts) as sido_counts,
+      (select jsonb_agg(jsonb_build_object('codeValueId', sigungu_counts.code_value_id::text, 'code', sigungu_counts.code,
+                                           'scheme', sigungu_counts.scheme, 'label', sigungu_counts.label,
+                                           'count', sigungu_counts.count)
+                        order by sigungu_counts.count desc, sigungu_counts.code)
+         from sigungu_counts) as sigungu_counts,
+      (select count(*) from region_released where region_released.region_sido_code_value_id is null)::int
+        as region_unobserved_count,
+      (select jsonb_agg(jsonb_build_object('item', item_counts.item, 'count', item_counts.count)
+                        order by item_counts.ordinal)
+         from item_counts) as item_counts,
+      (select count(*) from item_released where item_released.item_label is null)::int as item_unobserved_count,
       (select jsonb_build_object('date', next_day.date, 'count', next_day.count) from next_day) as next_closing_day
   `;
 }

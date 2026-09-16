@@ -4,6 +4,8 @@ import { z } from "zod";
 import { kstDateTextSchema } from "../../../atoms/calendar";
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { instantTextSchema } from "../../../atoms/instant";
+import { AUCTION_ITEM_ATOMS, auctionItemAtomSchema } from "../../../values/auction-item";
+import { codeReferenceSchema } from "../../../values/code-reference";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
 import { bidRateWireSchema } from "../../../values/rate";
 
@@ -49,6 +51,22 @@ export const openAuctionFloorShareSchema = z.strictObject({
   count: nonNegativeCountSchema,
 }).meta({ id: "OpenAuctionFloorShare" });
 
+/**
+ * 지역 축을 푼 집합에서 센 지역 하나의 건수다. `region`은 공고지역 체계의 코드 참조이고 라벨은 관측이
+ * 없으면 null이다 — 이름이 없다고 항목을 빼면 그 지역의 공고가 조건 기둥에서 사라진다(AGENTS 3).
+ * 참가제한지역과는 다른 축이다(AGENTS 6).
+ */
+export const openAuctionRegionCountSchema = z.strictObject({
+  region: codeReferenceSchema,
+  count: nonNegativeCountSchema,
+}).meta({ id: "OpenAuctionRegionCount" });
+
+/** 품목 축을 푼 집합에서 원자 하나가 라벨에 들어 있는 행 수다. 한 행이 여러 원자를 가지므로 합은 전체보다 클 수 있다. */
+export const openAuctionItemCountSchema = z.strictObject({
+  item: auctionItemAtomSchema,
+  count: nonNegativeCountSchema,
+}).meta({ id: "OpenAuctionItemCount" });
+
 /** 마감이 있는 가장 이른 날과 그날 건수다. 0건인 날 화면이 "다음에 갈 곳"으로 쓴다. */
 export const openAuctionDayMarkSchema = z.strictObject({
   date: kstDateTextSchema,
@@ -67,6 +85,26 @@ export const openAuctionSummaryV1ResponseSchema = z.strictObject({
    */
   announcedUnobservedCount: nonNegativeCountSchema,
   floorShares: z.array(openAuctionFloorShareSchema).max(64),
+  /**
+   * 조건 기둥의 건수 배지다. 넷 다 **지금 조건에서 그 축 하나만 푼 집합**을 센다 — 시도·시군구·지역 미상은
+   * 품목·금액·제한지역을 유지한 채 지역 축을 풀고, 품목·품목 미상은 지역·금액·제한지역을 유지한 채 품목
+   * 축을 푼다. "누르면 몇 건이 되나"를 말하는 수라 다른 축까지 함께 풀면 그 약속이 깨진다(EAT-241).
+   */
+  sidoCounts: z.array(openAuctionRegionCountSchema).max(64),
+  /**
+   * `sido`가 걸린 요청에서만 그 시도 안의 시군구다. 활성 build에서 관측된 짝만 서므로 0건인 시군구는
+   * 없고, `sido` 없이는 빈 배열이다 — 전국 시군구 235개를 기둥에 세우는 화면은 없다.
+   */
+  sigunguCounts: z.array(openAuctionRegionCountSchema).max(256),
+  /** 지역 축을 푼 집합에서 공고지역 시도를 관측하지 못한 행 수다. 기둥의 `지역 미상` 항목이다. */
+  regionUnobservedCount: nonNegativeCountSchema,
+  /**
+   * 원자 여덟 전부를 어휘 순서로 싣고 0도 싣는다. 0인 항목이 사라지면 사용자가 그 품목이 오늘 없는지
+   * 어휘에 없는지 알 수 없다.
+   */
+  itemCounts: z.array(openAuctionItemCountSchema).length(AUCTION_ITEM_ATOMS.length),
+  /** 품목 축을 푼 집합에서 라벨을 관측하지 못한 행 수다. 기둥의 `품목 미상` 항목이다. */
+  itemUnobservedCount: nonNegativeCountSchema,
   // 요청한 달력 창의 날짜만 싣는다. 창 밖 마감은 `totalCount`에는 들어가도 여기 없다.
   calendar: z.array(openAuctionCalendarDaySchema).max(31),
   /**
@@ -90,3 +128,5 @@ export type OpenAuctionSummaryV1Response = z.infer<typeof openAuctionSummaryV1Re
 export type OpenAuctionTabCounts = z.infer<typeof openAuctionTabCountsSchema>;
 export type OpenAuctionCalendarDay = z.infer<typeof openAuctionCalendarDaySchema>;
 export type OpenAuctionFloorShare = z.infer<typeof openAuctionFloorShareSchema>;
+export type OpenAuctionRegionCount = z.infer<typeof openAuctionRegionCountSchema>;
+export type OpenAuctionItemCount = z.infer<typeof openAuctionItemCountSchema>;

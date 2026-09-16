@@ -39,6 +39,21 @@ const summary: OpenAuctionSummaryRecord = {
     { rate: bidRate(canonicalDecimal("90.000", 3)), count: 9 },
     { rate: null, count: 2 },
   ],
+  sidoCounts: [
+    { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도", count: 10 },
+    // 라벨이 관측되지 않은 시도도 항목으로 남는다. 코드목록 수집 전의 DB가 그렇다(AGENTS 3).
+    { codeValueId: 42n, code: "47", scheme: "eat:auction-location-sido", label: null, count: 1 },
+  ],
+  sigunguCounts: [
+    { codeValueId: 43n, code: "48120", scheme: "eat:auction-location-sigungu", label: "창원시", count: 7 },
+    { codeValueId: 44n, code: "48250", scheme: "eat:auction-location-sigungu", label: "김해시", count: 3 },
+  ],
+  regionUnobservedCount: 0,
+  itemCounts: [
+    { item: "육류", count: 6 }, { item: "가금류", count: 4 }, { item: "농산물", count: 0 }, { item: "수산물", count: 0 },
+    { item: "가공식품", count: 1 }, { item: "김치류", count: 0 }, { item: "곡류", count: 0 }, { item: "우유류", count: 0 },
+  ],
+  itemUnobservedCount: 2,
   calendar: [
     { date: "2026-09-14", count: 2, releasedCount: 7 },
     { date: "2026-09-15", count: 0, releasedCount: 0 },
@@ -64,6 +79,23 @@ describe("열린 공고 요약 presenter", () => {
     expect(response.floorShares.reduce((sum, share) => sum + share.count, 0)).toBe(response.totalCount);
     expect(response.latestObservedAt).toBe("2026-09-14T00:30:00Z");
     expect(response.nextClosingDay).toEqual({ date: "2026-09-14", count: 2 });
+  });
+
+  test("조건 기둥의 배지는 코드 참조를 문자열 id로 옮기고 라벨 없는 지역과 0건 원자를 지우지 않는다", () => {
+    const response = toOpenAuctionSummaryResponse({ query, summary });
+
+    expect(openAuctionSummaryV1ResponseSchema.parse(response)).toEqual(response);
+    // bigint id는 wire에서 선행 0 없는 10진 문자열이다(ADR 0018). 라벨이 null인 항목도 그대로 남는다.
+    expect(response.sidoCounts).toEqual([
+      { region: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" }, count: 10 },
+      { region: { codeValueId: "42", code: "47", scheme: "eat:auction-location-sido", label: null }, count: 1 },
+    ]);
+    expect(response.sigunguCounts.map((entry) => [entry.region.label, entry.count])).toEqual([["창원시", 7], ["김해시", 3]]);
+    expect(response.regionUnobservedCount).toBe(0);
+    // 여덟 원자가 어휘 순서로 전부 오고 0건도 항목이다. 한 행이 여러 원자를 가지므로 합이 전체보다 클 수 있다.
+    expect(response.itemCounts.map((entry) => entry.item)).toEqual(["육류", "가금류", "농산물", "수산물", "가공식품", "김치류", "곡류", "우유류"]);
+    expect(response.itemCounts.filter((entry) => entry.count === 0)).toHaveLength(5);
+    expect(response.itemUnobservedCount).toBe(2);
   });
 
   test("진행중 탭 수를 따로 싣지 않고 tabs는 오늘 둘만 말한다", () => {

@@ -1,7 +1,7 @@
 /** @module 책임: 열린 공고 요약 결과(reader query와 집계)를 공개 V1 응답으로 직렬화하는 순수 presenter다. */
 import type { OpenAuctionSummaryV1Response } from "@eatbid/contracts";
 
-import { bidRateWire, instantText, martBuildLineageWire } from "../../../../platform/http/wire";
+import { bidRateWire, codeReferenceWire, instantText, martBuildLineageWire } from "../../../../platform/http/wire";
 import type { OpenAuctionSummaryResult } from "../../application/summarize-open-auctions";
 
 export function toOpenAuctionSummaryResponse(result: OpenAuctionSummaryResult): OpenAuctionSummaryV1Response {
@@ -24,6 +24,13 @@ export function toOpenAuctionSummaryResponse(result: OpenAuctionSummaryResult): 
       rate: share.rate === null ? null : bidRateWire(share.rate),
       count: share.count,
     })),
+    // 기둥 배지는 reader가 이미 "그 축 하나만 푼 집합"으로 세어 왔다. 여기서는 코드 참조를 wire로 옮길 뿐
+    // 수를 다시 세거나 합치지 않는다.
+    sidoCounts: summary.sidoCounts.map((entry) => ({ region: codeReferenceWire(entry), count: entry.count })),
+    sigunguCounts: summary.sigunguCounts.map((entry) => ({ region: codeReferenceWire(entry), count: entry.count })),
+    regionUnobservedCount: summary.regionUnobservedCount,
+    itemCounts: summary.itemCounts.map((entry) => ({ item: entry.item, count: entry.count })),
+    itemUnobservedCount: summary.itemUnobservedCount,
     calendar: summary.calendar.map((day) => ({
       date: day.date,
       count: day.count,

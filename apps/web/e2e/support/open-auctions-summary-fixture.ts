@@ -1,6 +1,6 @@
 /** @module 책임: 열린 공고 요약 조회(summarizeOpenAuctions) 하나만 재현하는 브라우저 검증 전용 fixture 응답기다.
  * 탭·달력·축 줄이 세는 수를 목록과 같은 표본 위에서 만들어 둘이 다른 말을 하지 않게 한다. */
-import { auctionV1Operations, openAuctionSummaryV1ResponseSchema } from '@eatbid/contracts/api/v1/auctions';
+import { AUCTION_ITEM_ATOMS, auctionV1Operations, openAuctionSummaryV1ResponseSchema } from '@eatbid/contracts/api/v1/auctions';
 import { Temporal } from '@eatbid/domain';
 
 import {
@@ -38,6 +38,25 @@ function floorShares(rows: readonly OpenAuctionFixtureRow[]) {
     else byRate.set(key, { rate: row.floorRate, count: 1 });
   }
   return [...byRate.values()].toSorted((left, right) => right.count - left.count);
+}
+
+/**
+ * 조건 기둥의 지역 배지다. 시도별·시군구별로 세고 순서는 많은 것부터, 동률은 코드 순이다(서버와 같다).
+ * 시군구는 고른 시도 안에서만 센다.
+ */
+function regionCounts(rows: readonly OpenAuctionFixtureRow[], axis: 'sido' | 'sigungu', withinSido: string | undefined) {
+  const byRegion = new Map<string, { region: NonNullable<OpenAuctionFixtureRow['region']>['sido']; count: number }>();
+  for (const row of rows) {
+    if (row.region === null) continue;
+    if (axis === 'sigungu' && (withinSido === undefined || row.region.sido.codeValueId !== withinSido)) continue;
+    const region = row.region[axis];
+    const entry = byRegion.get(region.codeValueId);
+    if (entry) entry.count += 1;
+    else byRegion.set(region.codeValueId, { region, count: 1 });
+  }
+  return [...byRegion.values()].toSorted((left, right) =>
+    right.count - left.count || (left.region.code < right.region.code ? -1 : left.region.code > right.region.code ? 1 : 0)
+  );
 }
 
 /** 그날 마감하는 행 수다. 마감을 관측하지 못한 행은 어느 날짜에도 속하지 않는다. */
@@ -84,6 +103,22 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
     eligibilityArea: query.eligibilityArea
   });
 
+  // 기둥 배지는 **그 축 하나만 푼 집합**을 센다. 지역 배지는 품목·금액·제한지역을 유지한 채 지역을 풀고,
+  // 품목 배지는 지역·금액·제한지역을 유지한 채 품목을 푼다 — 누르면 되는 수여야 한다.
+  const regionReleased = filterOpenAuctionRows(now, {
+    eligibilityArea: query.eligibilityArea,
+    items: query.items,
+    baseAmountMin: query.baseAmountMin,
+    baseAmountMax: query.baseAmountMax
+  });
+  const itemReleased = filterOpenAuctionRows(now, {
+    sido: query.sido,
+    sigungu: query.sigungu,
+    eligibilityArea: query.eligibilityArea,
+    baseAmountMin: query.baseAmountMin,
+    baseAmountMax: query.baseAmountMax
+  });
+
   const closingDays = [...new Set(
     filtered.filter((row) => row.closesAt !== null).map((row) => kstDateOf(row.closesAt!))
   )].toSorted();
@@ -103,6 +138,15 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
     },
     announcedUnobservedCount: filtered.length,
     floorShares: floorShares(filtered),
+    sidoCounts: regionCounts(regionReleased, 'sido', undefined),
+    sigunguCounts: regionCounts(regionReleased, 'sigungu', query.sido),
+    regionUnobservedCount: regionReleased.filter((row) => row.region === null).length,
+    // 여덟 원자 전부를 0까지 싣는다. 서버의 `strpos` 부분일치와 같은 판정이다.
+    itemCounts: AUCTION_ITEM_ATOMS.map((item) => ({
+      item,
+      count: itemReleased.filter((row) => row.itemLabel !== null && row.itemLabel.includes(item)).length
+    })),
+    itemUnobservedCount: itemReleased.filter((row) => row.itemLabel === null).length,
     calendar: calendarDates(query.calendarFrom, query.calendarTo).map((date) => ({
       date,
       count: closingOn(filtered, date),

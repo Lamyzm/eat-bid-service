@@ -139,6 +139,18 @@ export const openSummaryFixture: OpenAuctionSummaryV1Response = {
     { rate: { value: '90.000', unit: 'percentage-points' }, count: 2 },
     { rate: null, count: 2 }
   ],
+  // 조건 기둥의 배지다. 시도 41 안에 시군구 43·44가 서고, 44는 라벨을 관측하지 못한 코드다.
+  sidoCounts: [{ region: { codeValueId: '41', code: '48', scheme: 'eat:auction-location-sido', label: '경상남도' }, count: 3 }],
+  sigunguCounts: [
+    { region: { codeValueId: '43', code: '48120', scheme: 'eat:auction-location-sigungu', label: '창원시' }, count: 2 },
+    { region: { codeValueId: '44', code: '48250', scheme: 'eat:auction-location-sigungu', label: null }, count: 1 }
+  ],
+  regionUnobservedCount: 1,
+  itemCounts: [
+    { item: '육류', count: 2 }, { item: '가금류', count: 1 }, { item: '농산물', count: 1 }, { item: '수산물', count: 0 },
+    { item: '가공식품', count: 0 }, { item: '김치류', count: 0 }, { item: '곡류', count: 0 }, { item: '우유류', count: 0 }
+  ],
+  itemUnobservedCount: 1,
   calendar: [
     { date: '2026-09-07', count: 1, releasedCount: 3 },
     { date: '2026-09-08', count: 1, releasedCount: 2 },

@@ -3,6 +3,8 @@ import type {
   OpenAuctionCalendarDayRecord,
   OpenAuctionDayMarkRecord,
   OpenAuctionFloorShareRecord,
+  OpenAuctionItemCountRecord,
+  OpenAuctionRegionCountRecord,
   OpenAuctionSummaryQuery,
   OpenAuctionSummaryReader,
   OpenAuctionSummaryRecord,
@@ -29,7 +31,21 @@ type SummaryRow = Readonly<{
   latest_observed_at: PostgresTimestamp | null;
   calendar: readonly { date: string; count: number; releasedCount: number }[] | null;
   floors: readonly { rate: string | null; count: number }[] | null;
+  // code_value_id는 문자열이다. jsonb 숫자로 오면 driver가 bigint를 잃는다(ADR 0018).
+  sido_counts: readonly RegionCountRow[] | null;
+  sigungu_counts: readonly RegionCountRow[] | null;
+  region_unobserved_count: number;
+  item_counts: readonly { item: OpenAuctionItemCountRecord["item"]; count: number }[] | null;
+  item_unobserved_count: number;
   next_closing_day: { date: string; count: number } | null;
+}>;
+
+type RegionCountRow = Readonly<{
+  codeValueId: string;
+  code: string;
+  scheme: string;
+  label: string | null;
+  count: number;
 }>;
 
 export class DrizzleOpenAuctionSummaryReader implements OpenAuctionSummaryReader {
@@ -52,6 +68,11 @@ export class DrizzleOpenAuctionSummaryReader implements OpenAuctionSummaryReader
       announcedUnobservedCount: row.announced_unobserved_count,
       closingTodayCount: row.closing_today_count,
       floorShares: floorShares(row.floors),
+      sidoCounts: regionCounts(row.sido_counts),
+      sigunguCounts: regionCounts(row.sigungu_counts),
+      regionUnobservedCount: row.region_unobserved_count,
+      itemCounts: row.item_counts === null ? [] : row.item_counts.map((entry) => ({ item: entry.item, count: entry.count })),
+      itemUnobservedCount: row.item_unobserved_count,
       calendar: calendarDays(row.calendar),
       latestObservedAt: row.latest_observed_at === null ? null : postgresInstant(row.latest_observed_at),
       nextClosingDay: dayMark(row.next_closing_day),
@@ -71,6 +92,16 @@ function calendarDays(value: SummaryRow["calendar"]): readonly OpenAuctionCalend
 
 function floorShares(value: SummaryRow["floors"]): readonly OpenAuctionFloorShareRecord[] {
   return value === null ? [] : value.map((share) => ({ rate: bidRateValue(share.rate), count: share.count }));
+}
+
+function regionCounts(value: SummaryRow["sido_counts"]): readonly OpenAuctionRegionCountRecord[] {
+  return value === null ? [] : value.map((entry) => ({
+    codeValueId: BigInt(entry.codeValueId),
+    code: entry.code,
+    scheme: entry.scheme,
+    label: entry.label,
+    count: entry.count,
+  }));
 }
 
 function dayMark(value: SummaryRow["next_closing_day"]): OpenAuctionDayMarkRecord | null {

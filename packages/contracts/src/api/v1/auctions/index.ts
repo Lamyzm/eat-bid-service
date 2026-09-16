@@ -49,9 +49,12 @@ export {
   openAuctionSummaryV1ResponseSchema,
   type OpenAuctionCalendarDay,
   type OpenAuctionFloorShare,
+  type OpenAuctionItemCount,
+  type OpenAuctionRegionCount,
   type OpenAuctionSummaryV1Response,
   type OpenAuctionTabCounts,
 } from "./summarize-open-auctions.response";
+export { AUCTION_ITEM_ATOMS, auctionItemAtomSchema, type AuctionItemAtom } from "../../../values/auction-item";
 export { auctionV1OperationRegistry, auctionV1Operations } from "./operations";
 export * from "./get-auction-roster.response";
 export * from "./get-auction-roster.query";

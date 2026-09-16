@@ -451,6 +451,19 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       expect(summary.floorShares.map((share) => [share.rate === null ? null : String(share.rate), share.count]))
         .toEqual([[null, 2], ["88.000", 1], ["90.000", 1]]);
       expect(summary.floorShares.reduce((sum, share) => sum + share.count, 0)).toBe(summary.totalCount);
+
+      // 조건 기둥의 배지다. 조건이 없으니 지역 축을 푼 집합은 열린 넷 그대로이고, 시도가 있는 201·205만
+      // 시도 41에 서며 202·203은 지역 미상이다. 시도를 안 골랐으므로 시군구는 세우지 않는다.
+      expect(summary.sidoCounts).toEqual([
+        { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도", count: 2 },
+      ]);
+      expect(summary.sigunguCounts).toEqual([]);
+      expect(summary.regionUnobservedCount).toBe(2);
+      // `축산`은 원자가 아니라 묶음이라 어느 원자에도 안 붙는다. 그래도 여덟 항목은 0으로 전부 온다.
+      expect(summary.itemCounts.map((entry) => entry.item))
+        .toEqual(["육류", "가금류", "농산물", "수산물", "가공식품", "김치류", "곡류", "우유류"]);
+      expect(summary.itemCounts.every((entry) => entry.count === 0)).toBe(true);
+      expect(summary.itemUnobservedCount).toBe(2);
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);
@@ -486,6 +499,18 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       }
       // 09-07은 축산 201 하나이고 시도 41에는 그날 다른 품목이 없어 둘이 같다.
       expect(summary.calendar[0]).toEqual({ date: "2026-09-07", count: 1, releasedCount: 1 });
+
+      // 배지는 그 축 하나만 푼 수다. 시도 배지는 품목 `축산`을 유지한 채 지역을 푼 수라 201·205의 2이고,
+      // 시군구는 고른 시도 41 안에서만 선다 — 44는 라벨이 관측되지 않았지만 항목으로 남는다(AGENTS 3).
+      // 순서는 많은 것부터, 동률은 코드 순이다.
+      expect(summary.sidoCounts.map((entry) => [entry.code, entry.count])).toEqual([["48", 2]]);
+      expect(summary.sigunguCounts).toEqual([
+        { codeValueId: 43n, code: "48120", scheme: "eat:auction-location-sigungu", label: "창원시", count: 1 },
+        { codeValueId: 44n, code: "48250", scheme: "eat:auction-location-sigungu", label: null, count: 1 },
+      ]);
+      expect(summary.regionUnobservedCount).toBe(0);
+      // 품목 배지는 지역 41을 유지한 채 품목을 푼 수다. 그 집합(201·205)에는 라벨 없는 행이 없다.
+      expect(summary.itemUnobservedCount).toBe(0);
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);
