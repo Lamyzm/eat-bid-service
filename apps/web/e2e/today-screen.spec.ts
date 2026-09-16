@@ -134,8 +134,32 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.getByRole('link', { name: '오늘 열린 ?' })).toBeVisible();
     await expect(page.getByRole('link', { name: '오늘 마감 1' })).toBeVisible();
     await expect(page.getByText('게시일 미관측 4건')).toBeVisible();
-    // 축 줄의 건수는 목록이 끊기기 전의 전체 수다.
-    await expect(page.getByText('4건', { exact: true })).toBeVisible();
+    // 축 줄은 없다(EAT-241). 전체 수는 `진행중` 탭이 한 번만 말하고 `하한 N · N건`은 사용자 결정으로 뺐다.
+    await expect(page.getByText('4건', { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/하한 9\d/)).toHaveCount(0);
+  });
+
+  test('조건 기둥은 지역·품목 체크 줄에 그 축만 푼 건수를 달고 기초금액은 비어 있다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
+    await page.goto('/today?sido=41');
+    // 지역을 관측하지 못한 한 행은 시도로 좁히면 빠진다. 셋이 서면 표가 그려진 것이다.
+    await expect(page.locator(ROWS)).toHaveCount(3);
+
+    const rail = page.getByRole('complementary', { name: '내 조건' });
+    // 시군구는 고른 시도 안에서 관측된 짝뿐이고, 품목은 여덟 원자가 0건까지 전부 선다.
+    await expect(rail.getByRole('link', { name: '창원시 3' })).toBeVisible();
+    await expect(rail.getByRole('link', { name: '육류 1' })).toBeVisible();
+    await expect(rail.getByRole('link', { name: '우유류 0' })).toBeVisible();
+    // 품목 축이 없으면 미상은 이미 보고 있으므로 링크가 아니라 수다. 지역 미상은 걸 조건이 없는 사실이다.
+    await expect(rail.getByRole('link', { name: /품목 미상/ })).toHaveCount(0);
+    await expect(rail.getByText('품목 미상')).toBeVisible();
+    await expect(rail.getByText('지역 미상 1')).toBeVisible();
+    // 기초금액은 최소 한 칸이고 기본이 비어 있다(사용자 결정 2026-09-15).
+    const amount = rail.getByLabel('기초금액');
+    await expect(amount).toHaveValue('');
+    await expect(amount).toHaveAttribute('placeholder', '하한 없음');
+    await expect(rail.getByRole('link', { name: '기본값으로' })).toHaveCount(0);
   });
 
   test('달력 칸을 누르면 그날 마감만 남고 다시 누르면 풀린다', async ({ page }) => {
@@ -155,19 +179,25 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.locator(ROWS)).toHaveCount(4);
   });
 
-  test('품목 링크를 누르면 주소만 바뀌고 그 조각이 든 행만 남으며 조건 해제로 돌아온다', async ({ page }) => {
+  test('기둥의 품목 줄을 누르면 주소만 바뀌고 그 조각이 든 행만 남으며 다시 누르면 풀리고 미상을 더할 수 있다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto('/today?closesWithinHours=168');
     await expect(page.locator(ROWS)).toHaveCount(3);
+    const rail = page.getByRole('complementary', { name: '내 조건' });
     // next dev는 처음 여는 주소를 그 자리에서 compile하므로 이동 완료를 기본 5초보다 길게 기다린다.
-    await page.getByRole('link', { name: '축산', exact: true }).first().click();
-    await page.waitForURL(/items=%EC%B6%95%EC%82%B0/, { timeout: 60_000 });
+    await rail.getByRole('link', { name: '육류 1' }).click();
+    await page.waitForURL(/items=/, { timeout: 60_000 });
     await expect(page).toHaveURL(/closesWithinHours=168/);
     await expect(page.locator(ROWS)).toHaveCount(1);
 
-    // 켜진 축은 이름과 값을 한 버튼에 담고 누르면 해제한다.
-    await page.getByRole('link', { name: '품목 조건 해제' }).click();
+    // 품목 축이 걸리면 미상은 링크가 되고, 더하면 라벨 없는 행이 함께 선다.
+    await rail.getByRole('link', { name: '품목 미상 1' }).click();
+    await page.waitForURL(/itemUnknown=include/, { timeout: 60_000 });
+    await expect(page.locator(ROWS)).toHaveCount(2);
+
+    // 켜진 줄을 다시 누르면 그 조각만 풀린다. 미상 포함은 품목 축이 없으면 아무 일도 하지 않는다.
+    await rail.getByRole('link', { name: '육류 1' }).click();
     await page.waitForURL((url) => !url.search.includes('items='), { timeout: 60_000 });
     await expect(page).toHaveURL(/closesWithinHours=168/);
     await expect(page.locator(ROWS)).toHaveCount(3);

@@ -49,7 +49,7 @@ describe('오늘 route loader', () => {
   test('URL에 남은 잘못된 값은 무시하고 계약이 받는 조건만 조회에 넘긴다', async () => {
     const { inputs, dependencies: deps } = dependencies();
     const data = await loadTodayPage(
-      { scope: null, sido: '01', items: ['축산'], itemUnknown: null, bidState: null, closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
+      { scope: null, sido: '01', sigungu: null, items: ['축산'], itemUnknown: null, bidState: null, closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
       deps
     );
     expect(inputs).toEqual([{
@@ -70,7 +70,7 @@ describe('오늘 route loader', () => {
       limit: 200
     }]);
     expect(data.search).toEqual({
-      scope: null, sido: null, items: ['축산'], itemUnknown: null, bidState: null,
+      scope: null, sido: null, sigungu: null, items: ['축산'], itemUnknown: null, bidState: null,
       closesWithinHours: null, closesOn: null, announcedOn: null,
       baseAmountMin: '2000000.00', baseAmountMax: '3000000.00', cursor: null
     });
@@ -150,10 +150,10 @@ describe('오늘 route loader', () => {
 
   test('정규화는 계약 schema의 같은 필드로 판정한다', () => {
     expect(normalizeTodaySearch({
-      scope: null, sido: '9223372036854775807', items: ['x'.repeat(65)], itemUnknown: null, bidState: null,
+      scope: null, sido: '9223372036854775807', sigungu: null, items: ['x'.repeat(65)], itemUnknown: null, bidState: null,
       closesWithinHours: 0, closesOn: null, announcedOn: null, baseAmountMin: '1.00', baseAmountMax: null, cursor: '5'
     })).toEqual({
-      scope: null, sido: '9223372036854775807', items: null, itemUnknown: null, bidState: null,
+      scope: null, sido: '9223372036854775807', sigungu: null, items: null, itemUnknown: null, bidState: null,
       closesWithinHours: null, closesOn: null, announcedOn: null,
       baseAmountMin: '1.00', baseAmountMax: null, cursor: '5'
     });

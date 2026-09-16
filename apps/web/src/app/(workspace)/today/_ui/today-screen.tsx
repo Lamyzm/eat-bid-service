@@ -1,10 +1,13 @@
-/** @module 책임: 오늘 화면을 조립한다. 제목·기준 시각과 조건 칩을 두고, 목록 자리는 표시 모델이 정한 세 상태(계보 없음·결과 0·목록)를 그대로 고른다. */
+/** @module 책임: 오늘 화면을 조립한다. 제목·기준 시각을 두고, 왼쪽 기둥에 조합과 조건 세 구역을, 본문에 탭·달력·목록을 세우며 목록 자리는 표시 모델이 정한 세 상태(계보 없음·결과 0·목록)를 그대로 고른다. */
 import Link from 'next/link';
 
 import { EmptyState } from '@/shared/ui/empty-state';
 
+import { presentConditionRail } from '../_features/condition-rail/model/present-condition-rail';
+import { ConditionRail } from '../_features/condition-rail/ui/condition-rail';
 import { CombinationRail } from '../_features/filter-combinations/ui/combination-rail';
-import { RegionScopeStrip, RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
+import { RegionSetupRequest } from '../_features/region-scope/ui/region-scope-strip';
+import { describeTodaySearch } from '../_lib/describe-today-search';
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
 import { groupClosingDays } from '../_model/group-closing-days';
@@ -12,7 +15,6 @@ import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '..
 import { kstToday, type OpenSummaryPresentation } from '../_model/present-open-summary';
 import { OpenAuctionTable } from './open-auction-table';
 import { TodayFrame } from './today-frame';
-import { TodayFilters, describeTodaySearch } from './today-filters';
 import { TodayCalendar, TodayTabs } from './today-tabs';
 
 // 지역 칩의 표시 이름은 응답 행에서 읽는다. 지역 어휘 계약이 없는 동안 그 id의 라벨을 아는 곳은 행뿐이다.
@@ -162,43 +164,39 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
         </div>
       }
       rail={
-        <div className='grid min-w-0 gap-5'>
-          {/* 무엇으로 좁혔는지는 목록 옆에 계속 남는다(screen-system §6.4.1). 본문 위에 가로로 두면 한 줄을
-              통째로 쓰면서 목록을 아래로 밀고, 스크롤하면 사라져 자기 조건을 잊는다. */}
-          <RegionScopeStrip
-            gate={data.regionGate}
-            search={search}
-            matchedCount={presentation?.eligibilityMatchedCount ?? null}
-            unobservedCount={presentation?.eligibilityUnobservedCount ?? null}
-          />
+        /* 2xl 아래에서는 기둥이 본문 위로 가므로 조합과 조건 세 구역을 가로로 펼친다. 세로로 쌓으면 1280에서
+           목록이 첫 화면 밖으로 밀린다(2026-09-16 실측: 표가 y=1,100 아래). */
+        <div className='grid min-w-0 items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-1'>
           {/* 조건을 바꿔 가며 판을 찾는 자리다. 매번 축 셋을 다시 누르면 탐색이 일이 된다(EAT-208). */}
           {data.combinations === null ? null : (
             <CombinationRail combinations={data.combinations} search={search} />
           )}
+          {/* 무엇으로 좁혔는지는 목록 옆에 계속 남는다(screen-system §6.4.1). 본문 위에 가로로 두면 한 줄을
+              통째로 쓰면서 목록을 아래로 밀고, 스크롤하면 사라져 자기 조건을 잊는다. 지역·품목·기초금액
+              세 구역은 시안 U9의 순서이고 건수는 요약이 "그 축 하나만 푼 집합"으로 센 수다(EAT-241). */}
+          {data.regionGate.kind === 'unset' ? null : (
+            /* 조합이 없어도(읽기 실패·fixture) 조건은 둘째 칸에 선다. 첫 칸(240px)에 들어가면 세 구역이 70px로 눌린다
+               (2026-09-16 e2e 실측). */
+            <div className='min-w-0 lg:col-start-2 2xl:col-start-auto'>
+              <ConditionRail rail={presentConditionRail({ search, summary: data.summary, gate: data.regionGate })} />
+            </div>
+          )}
           {/* 표본 수·계보·산출 시각을 숨기지 않는다(AGENTS 7). 표 위 한 줄로 두면 780px에서 두 줄로 넘쳐
               목록을 읽는 눈이 먼저 걸리므로, 조건과 같은 기둥에 두어 목록 옆에 계속 남긴다. */}
           {presentation === null ? null : (
-            <div className='grid gap-0.5 text-[13px] leading-tight font-medium text-muted-foreground/70'>
+            <div className='grid gap-0.5 text-[13px] leading-tight font-medium text-muted-foreground/70 lg:col-span-2 2xl:col-span-1'>
               {presentation.lineageLines.map((line) => <span key={line}>{line}</span>)}
             </div>
           )}
         </div>
       }
       filters={
-        /* 탭 → 필터 → 달력 순서다. 필터는 부가 설정이 아니라 지금 화면의 모든 숫자가 어떤 집합을 세는지
-           선언하는 첫 reading group이고 탭 바로 아래에 온다(screen-system §6.4.1). 달력은 그 아래,
-           목록 바로 위다 — 조건과 목록이 붙어 있어야 한다. */
+        /* 탭 → 달력 순서다. 조건은 왼쪽 기둥이 소유하고(EAT-241) 본문에는 축 줄을 두지 않는다 — 한 줄을 통째로
+           쓰면서 목록을 아래로 밀고 `하한 N · N건`처럼 사용자가 지우라고 한 숫자가 거기 살았다. 달력은 탭
+           아래, 목록 바로 위다. */
         <div className='grid min-w-0 gap-2.5'>
           {data.summary === null ? null : (
             <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} />
-          )}
-          {presentation === null ? null : (
-            <TodayFilters
-              search={search}
-              regionText={regionText}
-              totalCount={data.summary?.totalCount ?? null}
-              floorSpread={data.summary?.floorSpread ?? null}
-            />
           )}
           {data.summary === null ? null : <TodayCalendar summary={data.summary} search={search} />}
         </div>

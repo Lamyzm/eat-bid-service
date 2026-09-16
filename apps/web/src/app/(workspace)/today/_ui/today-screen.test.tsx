@@ -30,9 +30,12 @@ describe('오늘 화면', () => {
     const markup = renderToStaticMarkup(<TodayScreen data={ready} />);
     expect(markup).toContain('data-slot="today-screen"');
     expect(markup).toContain('aria-labelledby="today-title"');
-    // 건수는 축 줄이 한 번만 말한다. 머리에도 적으면 page-level 숫자 hero가 둘이 된다(screen-system §9.1).
-    expect(markup).toContain('>4건<');
+    // 건수는 `진행중` 탭이 한 번만 말한다. 축 줄의 `하한 N · N건`은 사용자 결정으로 없앴고(EAT-241) 머리에도
+    // 적지 않는다 — 같은 수가 두 자리에 서면 page-level 숫자 hero가 둘이 된다(screen-system §9.1).
+    expect(markup).toContain('진행중');
+    expect(markup).not.toContain('>4건<');
     expect(markup).not.toContain('열린 공고 4건');
+    expect(markup).not.toContain('하한 90');
     expect(markup).toContain('09-07 10:30 기준');
     // 마감일 묶음 머리가 순서를 보여 주므로 `마감 임박 순`이라는 제목이 따로 없다.
     expect(markup).toContain('9월 7일');
@@ -112,10 +115,12 @@ describe('오늘 화면', () => {
     expect(screen.getByText('목록이 갱신되어 처음부터 다시 보입니다.')).toBeTruthy();
   });
 
-  test('지역 조건 칩은 행에서 읽은 라벨로 이름을 보이고 해제 링크를 가진다', () => {
-    const screen = render(<TodayScreen data={{ ...ready, search: { ...EMPTY_TODAY_SEARCH, sido: '43' } }} />);
-    const chip = screen.getByRole('link', { name: /지역 창원시/ });
-    expect(chip.getAttribute('href')).toBe('/today');
+  test('지역 조건은 축 줄 칩이 아니라 왼쪽 기둥의 지역 구역이 말하고 시군구 줄이 링크다', () => {
+    const screen = render(<TodayScreen data={{ ...ready, search: { ...EMPTY_TODAY_SEARCH, sido: '41' } }} />);
+    // 축 줄이 없어졌으므로 `지역 창원시 ×` 같은 해제 칩은 없다. 고른 시도는 기둥의 접힌 목록 머리가 말한다.
+    expect(screen.queryByRole('link', { name: /지역 조건 해제/ })).toBeNull();
+    expect(screen.getByRole('group', { name: '지역' }).textContent).toContain('경상남도');
+    expect(screen.getByRole('link', { name: '창원시 2' }).getAttribute('href')).toBe('/today?sido=41&sigungu=43');
   });
 
   test('skeleton은 같은 프레임과 section 순서를 가진다', () => {

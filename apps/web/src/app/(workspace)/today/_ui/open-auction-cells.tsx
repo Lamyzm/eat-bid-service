@@ -30,7 +30,8 @@ export function OrganizationCell({
     // xl(1280)에서는 이름과 보조 글자가 한 줄에 나란히 서고, 그 아래에서는 보조 글자가 둘째 줄로 내려온다.
     // 접힌 칸이 둘째 줄에 오는 폭에서만 행이 두 줄이 되고, 여덟 칸이 다 서는 폭에서는 44px 한 줄이다.
     // 나란히 설 자리가 모자라면 보조 글자가 줄을 바꾼다 — 기둥이 옆에 붙는 가장 좁은 2xl(1536)에서 기관 칸은
-    // 200px이라 지역·제한지역 글자를 줄이지 않으면 이름이 4px로 눌려 사라진다(2026-09-16 e2e 실측).
+    // 184px이라 지역·제한지역 글자를 줄이지 않으면 이름이 4px로 눌려 사라진다(2026-09-16 e2e 실측). 보조 글자
+    // 묶음도 줄어들 수 있어야 한다 — `shrink-0`이면 묶음 안의 낱말이 줄을 바꾸지 못하고 칸 밖으로 4px 샌다.
     <div className='grid min-w-0 gap-0.5 xl:flex xl:flex-wrap xl:items-baseline xl:gap-x-2 xl:gap-y-0.5'>
       {/* 행을 여는 자리는 기관 이름이다. 별도의 `열기` 열을 두면 모든 행에 같은 단어가 서른 번 서고,
           그 열의 너비만큼 기관 이름이 줄어든다. */}
@@ -40,7 +41,7 @@ export function OrganizationCell({
       >
         {organization.text}
       </Link>
-      <span className={`flex flex-wrap gap-x-2 empty:hidden xl:shrink-0 ${MUTED}`}>
+      <span className={`flex min-w-0 flex-wrap gap-x-2 empty:hidden ${MUTED}`}>
         {/* 지역 링크는 라벨이 아니라 code value id로 거른다. 라벨은 표시일 뿐이다(AGENTS 2·6). */}
         {places.map((reference) => (
           <Link key={reference.codeValueId} href={buildTodayFilterRoute(search, { sido: reference.codeValueId })} className='hover:underline'>

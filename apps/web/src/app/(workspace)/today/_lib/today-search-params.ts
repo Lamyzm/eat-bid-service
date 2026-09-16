@@ -11,6 +11,11 @@ export const todaySearchParsers = {
   scope: parseAsString,
   sido: parseAsString,
   /**
+   * 공고지역 시군구 code value id들이다. 시도 하나 안에서만 뜻이 있어 시도를 바꾸는 링크가 함께 지운다.
+   * 참가제한지역(설정의 `내가 고른 지역`)과 다른 축이다(AGENTS 6).
+   */
+  sigungu: parseAsArrayOf(parseAsString, ','),
+  /**
    * 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR).
    *
    * 원천 라벨이 `육류 , 가금류`처럼 합성 문자열이라 완전일치로는 절반을 놓친다. 조각을 쉼표로 이어
@@ -42,6 +47,7 @@ export type TodaySearch = Readonly<inferParserType<typeof todaySearchParsers>>;
 export const EMPTY_TODAY_SEARCH: TodaySearch = {
   scope: null,
   sido: null,
+  sigungu: null,
   items: null,
   itemUnknown: null,
   bidState: null,

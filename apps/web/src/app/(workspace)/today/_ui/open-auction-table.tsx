@@ -45,7 +45,8 @@ type OpenAuctionColumn = {
    *
    * 폭은 셀 값이 아니라 **머리글 두 줄**이 정한다. 부제가 열보다 넓으면 옆 칸으로 흘러넘치므로
    * `개찰 한 시간 뒤`(77px)와 `MM-DD HH:mm 기준`(98px)이 들어갈 만큼을 잡았다(2026-09-15 실측).
-   * 글꼴이 기기마다 달라 딱 맞게 잡으면 CI에서만 2px이 모자라므로 열마다 10px 넘게 여유를 둔다.
+   * 글꼴이 기기마다 달라 딱 맞게 잡으면 CI에서만 2px이 모자라므로 열마다 10px 넘게 여유를 둔다 — 참여 칸이
+   * w-28일 때 웹 글꼴이 안 실린 실행에서 부제가 1px 넘쳐 폭 검사가 깨졌다(2026-09-16 e2e 실측).
    * md(768)에서는 표에 448px뿐이라 그만큼을 줄 수 없어 부제를 감추고 열을 w-16·w-12로 좁힌다.
    *
    * 여덟 칸이 다 서는 폭은 xl(1280)부터다. 조건 기둥이 옆에 붙는 것은 2xl(1536)부터라 xl에서는 표가 본문
@@ -83,7 +84,7 @@ const COLUMNS: readonly OpenAuctionColumn[] = [
   { id: 'organization', header: '기관', align: 'text-left', width: 'w-auto', visibility: '', wraps: true, cell: (row, context) => <OrganizationCell row={row} search={context.search} rareRates={context.rareRates} /> },
   { id: 'item', header: '품목', subheader: '저장된 라벨', align: 'text-left', width: 'lg:w-24', visibility: 'hidden lg:table-cell', cell: (row, context) => <ItemCell row={row} search={context.search} /> },
   { id: 'baseAmount', header: '기초금액', subheader: '저장된 값', align: 'text-right', width: 'lg:w-28', visibility: 'hidden lg:table-cell', cell: (row, context) => <BaseAmountCell row={row} rareRates={context.rareRates} /> },
-  { id: 'participation', header: '참여', align: 'text-right', width: 'w-12 lg:w-28', visibility: '', cell: (row) => <span className='tabular-nums'>{row.bidCountText}</span> },
+  { id: 'participation', header: '참여', align: 'text-right', width: 'w-12 lg:w-32', visibility: '', cell: (row) => <span className='tabular-nums'>{row.bidCountText}</span> },
   { id: 'lastRound', header: '지난번', subheader: '같은 하한 직전', align: 'text-right', width: 'xl:w-40', visibility: 'hidden xl:table-cell', cell: (row) => <LastRoundCell row={row} /> },
   { id: 'median', header: '보통', subheader: '중앙값 · 표본', align: 'text-right', width: 'xl:w-24', visibility: 'hidden xl:table-cell', cell: (row) => <MedianCell row={row} /> }
 ];

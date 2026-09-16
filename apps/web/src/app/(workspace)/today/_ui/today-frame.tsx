@@ -27,7 +27,9 @@ export function TodayFrame({ header, rail, filters, list }: TodayFrameProps) {
         <aside aria-label='내 조건' className='min-w-0'>{rail}</aside>
         {/* 표면은 하나다. 조건과 목록을 각각 카드에 담으면 테두리가 되풀이되면서 둘이 다른 화면처럼
             갈라지고, 조건을 바꿀 때 눈이 두 면을 오간다(screen-system §9.1). */}
-        <div className='grid min-w-0 gap-3 rounded-xl bg-card p-4 shadow-xs'>
+        {/* 기둥이 옆에 붙는 폭에서 이 카드는 grid 행이라 기둥 높이만큼 늘어난다. 자동 행은 남는 높이를 나눠 갖기
+            때문에 `content-start`가 없으면 탭·달력과 표 사이가 기둥 길이만큼 벌어진다(2026-09-16 실측). */}
+        <div className='grid min-w-0 content-start gap-3 rounded-xl bg-card p-4 shadow-xs'>
           <section aria-label='조건' className='min-w-0'>{filters}</section>
           <section aria-label='열린 공고' className='min-w-0'>{list}</section>
         </div>

@@ -20,10 +20,17 @@ export function TodayScreenSkeleton() {
           </div>
         }
         rail={
-          <div className='grid gap-2'>
-            <Skeleton className='h-5 w-40' />
-            <Skeleton className='h-7 w-28 rounded-lg' />
-            <Skeleton className='h-4 w-36' />
+          /* 조합 → 지역 → 품목 → 기초금액. 실제 기둥과 같은 순서라 로딩이 끝나도 자리가 움직이지 않는다. */
+          <div className='grid gap-5'>
+            {Array.from({ length: 3 }, (_, group) => (
+              <div key={group} className='grid gap-1.5'>
+                <Skeleton className='h-4 w-12' />
+                {Array.from({ length: 3 }, (_, index) => (
+                  <Skeleton key={index} className='h-8 w-full rounded-lg' />
+                ))}
+              </div>
+            ))}
+            <Skeleton className='h-10 w-full rounded-lg' />
           </div>
         }
         filters={

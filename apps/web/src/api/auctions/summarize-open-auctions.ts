@@ -12,6 +12,7 @@ import type { ContractRequest } from '../_transport/request-contract';
  */
 export type OpenAuctionSummaryInput = {
   readonly sido?: string;
+  readonly sigungu?: readonly string[];
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly baseAmountMin?: string;
@@ -26,6 +27,7 @@ export async function summarizeOpenAuctionsWith(
 ): Promise<OpenAuctionSummaryV1Response> {
   const query = auctionV1Operations.summarizeOpen.querySchema.parse({
     sido: input.sido,
+    sigungu: input.sigungu,
     eligibilityArea: input.eligibilityArea,
     items: input.items,
     baseAmountMin: input.baseAmountMin,

@@ -23,6 +23,7 @@ import {
 
 export type TodayListInput = {
   readonly sido?: string;
+  readonly sigungu?: readonly string[];
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly itemUnknown?: 'include';
@@ -42,6 +43,7 @@ export type TodayListInput = {
  */
 export type TodaySummaryInput = {
   readonly sido?: string;
+  readonly sigungu?: readonly string[];
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly baseAmountMin?: string;
@@ -125,6 +127,8 @@ export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
     // `scope`는 계약이 받는 값이 아니라 화면이 저장된 설정을 이번 조회에 걸지 말지를 정하는 스위치다.
     scope: search.scope,
     sido: accepted(shape.sido, search.sido),
+    // 시군구는 시도 안에서만 뜻이 있다. 시도 없이 남은 시군구는 서버가 400으로 답하므로 여기서 함께 버린다.
+    sigungu: search.sido === null ? null : accepted(shape.sigungu, search.sigungu),
     items: accepted(shape.items, search.items),
     itemUnknown: accepted(shape.itemUnknown, search.itemUnknown),
     bidState: accepted(shape.bidState, search.bidState),
@@ -165,6 +169,7 @@ function eligibilityAreaOf(gate: TodayRegionGate): readonly string[] | undefined
 function listInput(search: TodaySearch, gate: TodayRegionGate): TodayListInput {
   return {
     sido: search.sido ?? undefined,
+    sigungu: search.sigungu ?? undefined,
     eligibilityArea: eligibilityAreaOf(gate),
     items: search.items ?? undefined,
     itemUnknown: search.itemUnknown === 'include' ? 'include' : undefined,
@@ -190,6 +195,7 @@ function summaryInput(search: TodaySearch, gate: TodayRegionGate, nowIso: string
   const window = calendarWindow(nowIso);
   return {
     sido: search.sido ?? undefined,
+    sigungu: search.sigungu ?? undefined,
     eligibilityArea: eligibilityAreaOf(gate),
     items: search.items ?? undefined,
     baseAmountMin: search.baseAmountMin ?? undefined,

@@ -107,6 +107,14 @@ export type OpenSummaryPresentation = {
    */
   readonly announcedUnobservedCount: number;
   readonly floorSpread: FloorRateSpread;
+  /**
+   * 조건 기둥의 배지 재료다. 요약이 "그 축 하나만 푼 집합"으로 세어 온 수를 그대로 넘기고, 줄과 링크로
+   * 만드는 일은 기둥의 표시 모델(`_features/condition-rail`)이 주소를 함께 보며 한다.
+   */
+  readonly railCounts: Pick<
+    OpenAuctionSummaryV1Response,
+    'sidoCounts' | 'sigunguCounts' | 'regionUnobservedCount' | 'itemCounts' | 'itemUnobservedCount'
+  >;
   /** `9월 14일 ~ 27일`. 칸에는 날짜 숫자만 있어 어느 달의 며칠인지를 이 한 줄이 말한다. */
   readonly windowText: string;
   readonly latestObservedText: string | null;
@@ -204,6 +212,13 @@ export function presentOpenSummary(
     organizationCount: response.organizationCount,
     announcedUnobservedCount: response.announcedUnobservedCount,
     floorSpread: floorSpread(response.floorShares),
+    railCounts: {
+      sidoCounts: response.sidoCounts,
+      sigunguCounts: response.sigunguCounts,
+      regionUnobservedCount: response.regionUnobservedCount,
+      itemCounts: response.itemCounts,
+      itemUnobservedCount: response.itemUnobservedCount
+    },
     windowText: windowTextOf(response.meta.calendarFrom, response.meta.calendarTo),
     latestObservedText: response.latestObservedAt === null ? null : kstDateTime(response.latestObservedAt),
     nextClosingDay: next === null
