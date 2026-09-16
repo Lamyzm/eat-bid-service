@@ -25,7 +25,7 @@ export const SOURCE_VERDICT_PHRASE = {
   '005': { text: '낙찰실패', basis: { kind: 'source', scheme: 'BID_STT', code: '005' } }
 } as const satisfies Record<'002' | '005', VerdictPhrase>;
 
-/** 표 마지막 열처럼 회차 하나에 붙는 "이 값을 그때 냈다면" 서술. `judgeRow`의 값과 1:1이다. */
+/** 표 마지막 열처럼 회차 하나에 붙는, 손잡이 값을 기준으로 그 회차의 낙찰값·하한이 어느 쪽에 있었는지의 서술. `judgeRow`의 값과 1:1이다. */
 export const ROW_VERDICT_PHRASE = {
   won: { text: '낙찰값 이하', basis: { kind: 'derived', comparedWith: 'awarded-bid-rate' } },
   missed: { text: '낙찰값 위', basis: { kind: 'derived', comparedWith: 'awarded-bid-rate' } },
@@ -34,17 +34,19 @@ export const ROW_VERDICT_PHRASE = {
 } as const satisfies Record<RowVerdict, VerdictPhrase>;
 
 /**
- * "이 값이면" 패널의 집계 행 문구. 그날 하한이 관측값이 아니라 계산값임을 부제가 밝힌다. 부제는 레일
- * 340px 안에서 값 열과 한 줄에 놓이므로 줄바꿈 없이 들어갈 길이를 지킨다.
+ * "이 값이면" 패널의 집계 행 문구. 주어는 언제나 과거 회차다 — "그때 냈다면"은 내가 들어가 명단이 달라진
+ * 세계를 가정하고 그 세계의 회차 수는 관측한 적이 없다(단독입찰 허용안함 29/30, AGENTS 3, EAT-236). 그날 하한이
+ * 관측값이 아니라 계산값임을 부제가 밝힌다. 부제는 레일 340px 안에서 값 열과 한 줄에 놓이므로 줄바꿈 없이
+ * 들어갈 길이를 지킨다.
  */
 export const REHEARSAL_PHRASE = {
   won: {
-    text: '낙찰값 이하였을 회차',
-    sub: '지금 값을 그때 냈다면',
+    text: '낙찰값이 이 값 이상이었던 회차',
+    sub: '투찰률 축끼리 견줌',
     basis: { kind: 'derived', comparedWith: 'awarded-bid-rate' }
   },
   belowDayFloor: {
-    text: '그날 하한보다 낮았을 회차',
+    text: '그날 하한이 이 값보다 높았던 회차',
     sub: '하한율 × 예정가로 계산',
     basis: { kind: 'derived', comparedWith: 'day-floor' }
   },

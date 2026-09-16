@@ -102,6 +102,13 @@ export const CHECKS = Object.freeze([
     scope: [/^(?:apps\/(?:web|server)|packages\/(?:contracts|db))\/src\/.*\.[cm]?tsx?$/i],
   },
   {
+    id: "decision-vocabulary",
+    label: "결정 어휘 금지",
+    script: "tools/architecture/check-decision-vocabulary.mjs",
+    weight: 1,
+    scope: [/^apps\/web\/src\/.*\.[cm]?tsx?$/i],
+  },
+  {
     id: "http-operations",
     label: "HTTP operation 경계",
     script: "tools/architecture/check-http-operations.mjs",

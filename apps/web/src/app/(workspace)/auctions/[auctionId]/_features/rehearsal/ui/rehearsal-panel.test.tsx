@@ -31,26 +31,26 @@ describe('이 값이면 패널', () => {
     expect(screen.getByText('이 값이면')).toBeTruthy();
     expect(screen.getByText('값 없음')).toBeTruthy();
     expect(screen.getByText('투찰률을 넣으면 지난 회차와 견줍니다')).toBeTruthy();
-    expect(screen.queryByText(/낙찰값 이하였을 회차/)).toBeNull();
+    expect(screen.queryByText(/이상이었던 회차/)).toBeNull();
     expect(screen.queryByText(/\d+회/)).toBeNull();
   });
 
-  test('지난 회차 수와 낙찰값 이하였을 회차를 칸 스트립과 함께 보인다', () => {
+  test('지난 회차 수와 낙찰값이 이 값 이상이었던 회차를 칸 스트립과 함께 보인다', () => {
     // 손잡이는 투찰률이라 비교 값도 투찰률 축이다. 예정가격을 모르는 5회차는 분모에서 빠진다.
     const screen = renderPanel('92.500');
-    expect(screen.getByText('지난 15회 중 낙찰값 이하였을 회차')).toBeTruthy();
+    expect(screen.getByText('지난 15회 중 낙찰값이 이 값 이상이었던 회차')).toBeTruthy();
     expect(screen.getByText('10회')).toBeTruthy();
-    expect(screen.getByText('지금 값을 그때 냈다면')).toBeTruthy();
+    expect(screen.getByText('투찰률 축끼리 견줌')).toBeTruthy();
   });
 
-  test('그날 하한보다 낮았을 회차가 없으면 그 행을 아예 만들지 않는다', () => {
+  test('그날 하한이 이 값보다 높았던 회차가 없으면 그 행을 아예 만들지 않는다', () => {
     const screen = renderPanel('92.500');
-    expect(screen.queryByText('그날 하한보다 낮았을 회차')).toBeNull();
+    expect(screen.queryByText('그날 하한이 이 값보다 높았던 회차')).toBeNull();
   });
 
-  test('그날 하한을 밑도는 값이면 하한보다 낮았을 회차를 같은 분모와 함께 센다', () => {
+  test('그날 하한을 밑도는 값이면 하한이 그 값보다 높았던 회차를 같은 분모와 함께 센다', () => {
     const screen = renderPanel('90.100');
-    const row = screen.getByText('그날 하한보다 낮았을 회차').closest('div');
+    const row = screen.getByText('그날 하한이 이 값보다 높았던 회차').closest('div');
     expect(row?.textContent).toContain('7회');
     expect(row?.textContent).toContain('15회 중');
     expect(screen.getByText('8회')).toBeTruthy();
@@ -76,7 +76,7 @@ describe('이 값이면 패널', () => {
         <RehearsalPanel rows={many} />
       </BidRateProvider>
     );
-    const won = screen.getByText('지난 30회 중 낙찰값 이하였을 회차').closest('div');
+    const won = screen.getByText('지난 30회 중 낙찰값이 이 값 이상이었던 회차').closest('div');
     expect(won?.textContent).toContain('16회');
     expect(won?.textContent).toContain('53%');
   });
@@ -149,12 +149,12 @@ describe('이 값이면 패널', () => {
         <AttemptSelectionProvider attempts={attemptKeys(rows)}><HistoryTable rows={rows} /></AttemptSelectionProvider>
       </BidRateProvider>
     );
-    expect(screen.getByText('92.760 썼다면')).toBeTruthy();
+    expect(screen.getByText('92.760 기준')).toBeTruthy();
     expect(screen.getByText('5회')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: '투찰률 0.001 올리기' }));
 
-    expect(screen.getByText('92.761 썼다면')).toBeTruthy();
+    expect(screen.getByText('92.761 기준')).toBeTruthy();
     expect(screen.getByText('4회')).toBeTruthy();
   });
 });

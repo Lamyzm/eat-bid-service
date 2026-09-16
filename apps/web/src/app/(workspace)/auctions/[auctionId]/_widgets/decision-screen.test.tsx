@@ -301,12 +301,12 @@ describe('결정 화면', () => {
       />
     );
     expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
-    expect(screen.queryByText(/썼다면/)).toBeNull();
+    expect(screen.queryByText(/^\d+\.\d{3} 기준$/)).toBeNull();
     expect(screen.queryByText('값을 넣으면 계산')).toBeNull();
     expect(screen.getByText('투찰률을 넣으면 지난 회차와 견줍니다')).toBeTruthy();
     expect(screen.queryByText('내 값 90.000')).toBeNull();
     expect((screen.getByLabelText('투찰률 눌러서 직접 입력') as HTMLInputElement).value).toBe('');
-    expect(screen.container.textContent).not.toContain('90.000 썼다면');
+    expect(screen.container.textContent).not.toContain('90.000 기준');
   });
 
   test('URL rate로 놓은 투찰률이 있으면 차트·과거 회차 표·이 값이면 패널을 그 값 하나로 함께 그린다', () => {
@@ -320,11 +320,11 @@ describe('결정 화면', () => {
       />
     );
     expect(screen.getByRole('figure', { name: '회차별 낙찰률 흐름' })).toBeTruthy();
-    expect(screen.getByText('90.000 썼다면')).toBeTruthy();
+    expect(screen.getByText('90.000 기준')).toBeTruthy();
     // 손잡이 값은 표의 마지막 열(투찰률 축)에만 쓰고 사정률 눈금인 흐름 차트에는 선으로 긋지 않는다(PDR-0004).
     expect(screen.queryByText('내 값 90.000')).toBeNull();
     // 품목 7의 17회차 중 예정가격이 관측된 15회차만 낙찰값과 견줄 수 있다.
-    expect(screen.getByText('지난 15회 중 낙찰값 이하였을 회차')).toBeTruthy();
+    expect(screen.getByText('지난 15회 중 낙찰값이 이 값 이상이었던 회차')).toBeTruthy();
   });
 
   test('탭 링크는 기간·모집단·품목 조건을 그대로 들고 간다', () => {

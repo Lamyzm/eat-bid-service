@@ -164,7 +164,7 @@ export function RehearsalPanel({ rows }: { readonly rows: readonly HistoryRow[] 
             value={result.usualListCount === null ? '기록 없음' : `${result.usualListCount}곳`}
             tone={result.usualListCount === null ? 'text-muted-foreground' : undefined}
           />
-          {/* 낙찰값 이하였을 회차 중 낙찰값이 0.1%p 안에 붙어 있던 회차. 분모는 바로 위 낙찰 행의 값이다. */}
+          {/* 낙찰값이 이 값 이상이었던 회차 중 낙찰값이 0.1%p 안에 붙어 있던 회차. 분모는 바로 위 낙찰 행의 값이다. */}
           <StatRow
             label={REHEARSAL_PHRASE.nearAbove.text}
             sub={REHEARSAL_PHRASE.nearAbove.sub}

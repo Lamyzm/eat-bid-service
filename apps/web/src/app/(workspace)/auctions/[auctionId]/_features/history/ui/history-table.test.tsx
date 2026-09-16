@@ -25,7 +25,7 @@ describe('과거 회차 표', () => {
   test('사용자가 값을 넣기 전에는 가정 계산 열 없이 관측 기록만 보인다', () => {
     const screen = renderTable(null);
     expect(screen.container.querySelector('thead th:last-child')?.textContent).toBe('명단');
-    expect(screen.queryByText(/썼다면/)).toBeNull();
+    expect(screen.queryByText(/^\d+\.\d{3} 기준$/)).toBeNull();
     expect(screen.queryByText('값을 넣으면 계산')).toBeNull();
     expect(screen.container.querySelectorAll('thead th').length).toBe(5);
   });
@@ -35,7 +35,7 @@ describe('과거 회차 표', () => {
     const screen = renderTable('90.000');
     expect(screen.container.querySelectorAll('tbody tr').length).toBe(presentation.rows.length);
     expect(presentation.rows.length).toBeGreaterThan(12);
-    expect(screen.getByText('90.000 썼다면')).toBeTruthy();
+    expect(screen.getByText('90.000 기준')).toBeTruthy();
 
     const three = renderTable('90.000', presentation.rows.slice(0, 3));
     expect(three.container.querySelectorAll('tbody tr').length).toBe(3);
@@ -52,7 +52,7 @@ describe('과거 회차 표', () => {
       '낙찰률(사정률)',
       '2등가(사정률)',
       '명단',
-      '90.000 썼다면'
+      '90.000 기준'
     ]);
   });
 
