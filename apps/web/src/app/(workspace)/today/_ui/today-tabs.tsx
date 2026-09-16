@@ -71,7 +71,11 @@ function CalendarCell({
       })}
       aria-label={`${cell.date} ${cell.count}건`}
       aria-current={cell.selected ? 'date' : undefined}
-      className={`${base} ring-inset ${cell.selected ? 'ring-2 ring-primary' : 'hover:ring-1 hover:ring-border'} ${
+      // 선택 링은 채움과 다른 역할의 색이어야 보인다. 오늘 칸은 primary로 차 있어 primary 링이 1:1로 사라지므로
+      // 그 칸만 primary-foreground 링을 쓴다(2026-09-16 실측, EAT-229). 링은 aria-current와 짝이라 색만으로 말하지 않는다.
+      className={`${base} ring-inset ${
+        cell.selected ? (cell.tone === 'today' ? 'ring-2 ring-primary-foreground' : 'ring-2 ring-primary') : 'hover:ring-1 hover:ring-border'
+      } ${
         cell.tone === 'today' ? 'bg-primary text-primary-foreground' : filled ? '' : 'hover:bg-muted/60'
       }`}
       // 농도는 창 안 최댓값을 분모로 한 비율이라 한산한 주와 바쁜 주가 같은 눈금 위에 있지 않다.
@@ -80,8 +84,10 @@ function CalendarCell({
         ? undefined
         : { backgroundColor: `color-mix(in oklab, var(--primary) ${Math.round(10 + cell.weight * 42)}%, transparent)` }}
     >
-      <span className={cell.tone === 'today' ? '' : 'text-muted-foreground'}>{cell.dayText}</span>
-      <span className={cell.tone === 'today' ? '' : cell.count === 0 ? 'text-muted-foreground/50' : 'text-foreground'}>{cell.count}</span>
+      {/* 농도가 실린 칸에서 muted 날짜는 2.66:1까지 떨어진다(52% 농도 실측). 바쁜 날일수록 날짜를 못 읽으면 안 되므로
+          채운 칸의 날짜는 본문 색이다. 빈 칸만 muted로 두어 날짜와 건수의 층을 유지한다(EAT-229). */}
+      <span className={cell.tone === 'today' ? '' : cell.weight > 0 ? 'text-foreground' : 'text-muted-foreground'}>{cell.dayText}</span>
+      <span className={cell.tone === 'today' ? '' : cell.count === 0 ? 'text-muted-foreground' : 'text-foreground'}>{cell.count}</span>
     </Link>
   );
 }
@@ -126,8 +132,10 @@ export function TodayCalendar({
     // 달력은 두 주치 격자라 폭이 넓어질수록 읽기 어려워진다. 목록과 달리 늘려서 얻는 것이 없다.
     <div className='grid w-full max-w-2xl gap-1'>
       <span className='px-2 text-[15px] font-semibold'>{summary.windowText}</span>
-      <div className='grid grid-cols-7 px-2 text-[13px] font-semibold text-muted-foreground'>
-        {WEEKDAYS.map((day) => <span key={day}>{day}</span>)}
+      {/* 요일 줄은 칸 격자와 같은 gap·같은 안쪽 여백이어야 요일이 칸 위에 선다. 묶음 여백만 주면 일곱 칸이 오른쪽으로 갈수록
+          어긋난다(2026-09-16 실측 최대 8px, EAT-229). */}
+      <div className='grid grid-cols-7 gap-0.5 text-[13px] font-semibold text-muted-foreground'>
+        {WEEKDAYS.map((day) => <span key={day} className='px-2'>{day}</span>)}
       </div>
       <div className='grid grid-cols-7 gap-0.5'>
         {summary.calendar.map((cell) => <CalendarCell key={cell.date} cell={cell} search={search} />)}
