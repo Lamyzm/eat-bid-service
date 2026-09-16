@@ -93,7 +93,7 @@ describe('열린 공고 카드 목록', () => {
     const screen = renderCards();
     const lines = [...screen.container.querySelectorAll('[data-slot="auction-row"] > div:first-child > p:last-child')].map((node) => node.textContent);
     expect(lines).toEqual([
-      '지금 5곳·지난번 17곳 (09-02) · 하한 아래 2·보통 5곳 12회 기준',
+      '지금 5곳·지난번 17곳 (09-02)·보통 5곳 12회 기준',
       '참여 미관측·지난번 개찰 회차 없음·보통 — 0회 기준',
       '아직 0곳',
       '아직 0곳'

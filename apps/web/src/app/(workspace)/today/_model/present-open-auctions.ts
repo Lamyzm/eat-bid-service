@@ -63,7 +63,7 @@ export type OpenAuctionRowPresentation = {
      * 벗어나는 행이 51.6%라 중앙값 옆에 따로 둘 값어치가 있다(2026-09-16).
      */
     readonly lastRound:
-      | { readonly kind: 'observed'; readonly listText: string; readonly dateText: string; readonly belowText: string | null }
+      | { readonly kind: 'observed'; readonly listText: string; readonly dateText: string }
       // 없는 이유가 둘이고 사용자가 할 일이 다르다. 같은 하한에서 본 회차가 아예 없는 것과, 회차는
       // 있는데 개찰 시각을 관측한 것이 없는 것을 한 문구로 합치면 화면이 없는 사실을 말한다(AGENTS 3).
       | { readonly kind: 'none'; readonly text: string };
@@ -183,8 +183,7 @@ function presentLastRound(summary: NonNullable<OpenAuction['orgSummary']>): NonN
     kind: 'observed',
     // 명단이 미관측인 회차는 0곳이 아니다. 0으로 적으면 아무도 안 들어온 판이 된다(AGENTS 3).
     listText: last.listCount === null ? '명단 미관측' : `${last.listCount}곳`,
-    dateText: kstDate(last.openedAt),
-    belowText: last.belowDayFloorCount === null ? null : `하한 아래 ${last.belowDayFloorCount}`
+    dateText: kstDate(last.openedAt)
   };
 }
 

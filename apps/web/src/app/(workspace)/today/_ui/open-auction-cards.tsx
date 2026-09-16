@@ -40,8 +40,9 @@ function SlotHead({ group }: { readonly group: ClosingSlotGroup }) {
 
 /**
  * 셋째 줄이다. 지금 명단 수 · 같은 하한 직전 회차 · 보통(중앙값과 표본)이며 셋 다 eaT가 주지 않는 값이라
- * 이 화면의 값어치가 여기에 있다. 낙찰 투찰률은 싣지 않는다 — 같은 값이 행마다 서면 앵커링이다
- * (decision-support §11).
+ * 이 화면의 값어치가 여기에 있다. 세 절뿐이다 — 직전 회차의 `하한 아래 N`은 표 시절의 값이고 넷째 절로 끼면
+ * 시안의 호흡이 무너진다(design-judge 반려 2026-09-17). 그 수는 결정 화면이 말한다. 낙찰 투찰률도 싣지
+ * 않는다 — 같은 값이 행마다 서면 앵커링이다(decision-support §11).
  */
 function SignalLine({ row }: { readonly row: OpenAuctionRowPresentation }) {
   const summary = row.orgSummary;
@@ -61,7 +62,6 @@ function SignalLine({ row }: { readonly row: OpenAuctionRowPresentation }) {
             <span className='whitespace-nowrap'>
               지난번 <span className={NUM}>{summary.lastRound.listText}</span>{' '}
               <span className='font-medium'>({summary.lastRound.dateText})</span>
-              {summary.lastRound.belowText === null ? null : <span className='font-medium'> · {summary.lastRound.belowText}</span>}
             </span>
           ) : <span className='whitespace-nowrap'>지난번 {summary.lastRound.text}</span>}
           {sep}

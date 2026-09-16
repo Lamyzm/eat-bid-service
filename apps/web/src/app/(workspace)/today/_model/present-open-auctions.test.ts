@@ -55,7 +55,7 @@ describe('열린 공고 표시 변환', () => {
       attemptCount: 17,
       medianListText: '5',
       listCountSampleCount: 12,
-      lastRound: { kind: 'observed', listText: '17곳', dateText: '09-02', belowText: '하한 아래 2' }
+      lastRound: { kind: 'observed', listText: '17곳', dateText: '09-02' }
     });
     // 개찰된 회차가 없는 기관과 명단을 관측하지 못한 회차는 다른 문구다. 0곳으로 채우면 아무도 안 들어온
     // 판이 된다(AGENTS 3).
@@ -66,7 +66,7 @@ describe('열린 공고 표시 변환', () => {
     expect(presentOpenAuction({
       ...todayRow,
       orgSummary: { ...todayRow.orgSummary!, lastRound: { ...todayRow.orgSummary!.lastRound!, listCount: null, belowDayFloorCount: null } }
-    }, fixtureNow).orgSummary!.lastRound).toEqual({ kind: 'observed', listText: '명단 미관측', dateText: '09-02', belowText: null });
+    }, fixtureNow).orgSummary!.lastRound).toEqual({ kind: 'observed', listText: '명단 미관측', dateText: '09-02' });
   });
 
   test('같은 하한율에서 본 회차가 없는 행은 값을 지어내지 않고 그 사실을 말한다', () => {

@@ -16,8 +16,9 @@ function tabRoute(search: TodaySearch, tab: TabPresentation, today: string) {
 }
 
 /**
- * 문장 속 수 하나다. 이름은 `진행중 4건`처럼 라벨과 수를 함께 갖고, 켜진 축은 밑줄로 말한다 — 색만으로 말하지
- * 않는다. 문장이 라벨을 이미 말한 자리(`오늘 열린 공고는 …`)에서는 라벨을 눈에서 숨기고 이름에만 남긴다.
+ * 문장 속 수 하나다. 이름은 `진행중 4건`처럼 라벨과 수를 함께 갖고, 켜진 축은 `aria-current`가 말한다. 상시 밑줄은
+ * 두지 않는다 — 시안의 문장은 굵기로만 수를 세우고, 어느 축이 켜졌는지는 달력 칸과 목록이 이미 보여 준다
+ * (design-judge 반려 2026-09-17). 문장이 라벨을 이미 말한 자리(`오늘 열린 공고는 …`)에서는 라벨을 눈에서 숨긴다.
  */
 function Count({
   tab,
@@ -32,7 +33,7 @@ function Count({
     <Link
       href={href}
       aria-current={tab.active ? 'page' : undefined}
-      className={`whitespace-nowrap hover:underline ${tab.active ? 'underline decoration-primary/40 decoration-2 underline-offset-4' : ''}`}
+      className='whitespace-nowrap hover:underline'
     >
       <span className={labelHidden ? 'sr-only' : undefined}>{tab.label} </span>
       <b className='font-extrabold text-foreground tabular-nums'>{tab.count}건</b>
