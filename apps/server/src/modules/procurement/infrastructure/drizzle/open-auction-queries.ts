@@ -352,6 +352,7 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
        where summary_row.build_id = ${orgBuild}
          and summary_row.organization_id = page_rows.organization_id
          and summary_row.floor_rate = page_rows.floor_rate
+         and summary_row.quarantine_reason is null
          and summary_row.opened_at is not null
          and summary_row.opened_at <= ${asOf}::timestamptz
     ) summary on page_rows.organization_id is not null and page_rows.floor_rate is not null
@@ -368,6 +369,7 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
        where round_row.build_id = ${orgBuild}
          and round_row.organization_id = page_rows.organization_id
          and round_row.floor_rate = page_rows.floor_rate
+         and round_row.quarantine_reason is null
          and round_row.opened_at is not null
          and round_row.opened_at <= ${asOf}::timestamptz
        order by round_row.opened_at desc, round_row.auction_attempt_id desc

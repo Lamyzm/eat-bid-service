@@ -82,6 +82,9 @@ describe("mart.org_round_summary 스키마", () => {
     expect(checks).toContain("org_round_summary_day_floor_requires_planned_amount");
     expect(checks).toContain("org_round_summary_below_day_floor_needs_floor_rate");
     expect(checks).toContain("org_round_summary_below_day_floor_within_list");
+    // 격리 사유는 정해진 낱말만 허용한다. 자유 문자열이면 어느 규칙이 걸었는지 조회로 재현할 수 없다(EAT-199).
+    expect(columnNames(orgRoundSummary)).toContain("quarantine_reason");
+    expect(checks).toContain("org_round_summary_quarantine_reason_allowed");
   });
 
   test("읽기 인덱스가 build를 앞세우고 어댑터 정렬과 같은 순서를 갖는다", () => {

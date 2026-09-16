@@ -34,7 +34,7 @@ const seed = `
   overriding system value
   values (101, 'eat', 'external-101'), (102, 'eat', 'external-102'),
          (103, 'eat', 'external-103'), (104, 'eat', 'external-104'),
-         (105, 'eat', 'external-105');
+         (105, 'eat', 'external-105'), (106, 'eat', 'external-106');
   insert into ingest.run
     (run_id, mode, status, build_sha, parser_version, started_at, ended_at,
      failure_category, expected_count, captured_count, published_count)
@@ -67,7 +67,8 @@ const seed = `
          (206, 203, 'auction.v1', 'external-102', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
          (209, 203, 'auction.v1', 'external-101', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
          (210, 203, 'auction.v1', 'external-104', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
-         (213, 203, 'auction.v1', 'external-105', '{}', 'eat-v1', '2026-09-03T00:00:40Z');
+         (213, 203, 'auction.v1', 'external-105', '{}', 'eat-v1', '2026-09-03T00:00:40Z'),
+         (215, 203, 'auction.v1', 'external-106', '{}', 'eat-v1', '2026-09-03T00:00:40Z');
   insert into core.auction_revision
     (auction_revision_id, auction_attempt_id, normalized_record_id, observation_id,
      content_sha256, display_bid_no, source_status, title, announced_at, deadline_at,
@@ -82,7 +83,9 @@ const seed = `
          (212, 104, 210, 203, '${"0".repeat(64)}', null, 'OPEN', '축산물 구매',
     '2026-09-05T00:00:00Z', null, null, 900000.00, null, 'KRW', '{}'),
          (214, 105, 213, 203, '${"1".repeat(64)}', null, 'OPEN', '축산물 구매',
-    '2026-09-06T00:00:00Z', null, '2026-09-09T05:00:00Z', 700000.00, null, 'KRW', '{}');
+    '2026-09-06T00:00:00Z', null, '2026-09-09T05:00:00Z', 700000.00, null, 'KRW', '{}'),
+         (216, 106, 215, 203, '${"2".repeat(64)}', null, 'OPEN', '축산물 구매',
+    '2026-09-01T00:00:00Z', null, '2029-09-03T05:00:00Z', 600000.00, null, 'KRW', '{}');
   insert into core.auction_organization (auction_revision_id, organization_id, role)
   values (207, 41, 'purchaser'), (207, 43, 'supplier-contact');
   insert into core.supplier_party (supplier_party_id, type, canonical_name)
@@ -104,23 +107,27 @@ const seed = `
      base_amount, planned_amount, currency, awarded_assessment_rate, runner_up_assessment_rate,
      day_floor_amount, day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count,
      withdrawn_count, withdrawal_cohort_age_days, winner_supplier_party_id, supersedes_attempt_id,
-     lineage_status, opened_month_kst)
+     lineage_status, opened_month_kst, quarantine_reason)
   values
     (501, 103, 207, 41, '축산', '2026-09-03T00:00:00Z', null,
      90.000, null, 2761700.00, null, 'KRW', null, null, null, null, null,
-     17, 2, null, null, null, null, 'unknown', null),
+     17, 2, null, null, null, null, 'unknown', null, null),
     (501, 102, 208, 41, '농산', '2026-09-02T00:00:00Z', '2026-09-04T05:00:00Z',
      90.000, null, 1000000.00, 990000.00, 'KRW', 90.309, 90.412,
-     891000.00, 89.1000, 89.4059, 5, 0, 0, 1, 77, null, 'observed', '2026-09-01'),
+     891000.00, 89.1000, 89.4059, 5, 0, 0, 1, 77, null, 'observed', '2026-09-01', null),
     (501, 101, 211, 41, null, '2026-09-01T00:00:00Z', '2026-09-03T05:00:00Z',
      null, null, 500000.00, null, 'KRW', 91.000, null, null, null, null,
-     null, null, null, null, null, null, 'unknown', '2026-09-01'),
+     null, null, null, null, null, null, 'unknown', '2026-09-01', null),
     (501, 104, 212, 43, '축산', '2026-09-05T00:00:00Z', null,
      90.000, null, 900000.00, null, 'KRW', null, null, null, null, null,
-     null, null, null, null, null, null, 'unknown', null),
+     null, null, null, null, null, null, 'unknown', null, null),
     (501, 105, 214, 41, '축산', '2026-09-06T00:00:00Z', '2026-09-09T05:00:00Z',
      90.000, null, 700000.00, null, 'KRW', null, null, null, null, null,
-     null, null, null, null, null, null, 'unknown', '2026-09-01');
+     null, null, null, null, null, null, 'unknown', '2026-09-01', null),
+    -- 개찰이 공고보다 3년 뒤인 원천 날짜 오류 회차. 행은 mart에 남되 격리돼 어떤 조회에도 세지지 않는다(EAT-199).
+    (501, 106, 216, 41, '축산', '2026-09-01T00:00:00Z', '2029-09-03T05:00:00Z',
+     90.000, null, 600000.00, null, 'KRW', null, null, null, null, null,
+     null, null, null, null, null, null, 'observed', '2029-09-01', 'opening-gap-over-45-days');
   -- 품목은 열이 아니라 다리표다. 라벨 없는 101은 다리 행도 없다(EAT-256).
   insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)
   values (501, 103, 7), (501, 102, 9), (501, 104, 7), (501, 105, 7);

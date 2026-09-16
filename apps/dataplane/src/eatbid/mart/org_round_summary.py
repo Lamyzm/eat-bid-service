@@ -13,6 +13,10 @@ from typing import Any
 
 from eatbid.mart.item_bridge import fill_item_bridge
 from eatbid.mart.models import MartBuildPlan
+from eatbid.mart.plausibility import (
+    IMPLAUSIBLE_OPENING_GAP_DAYS,
+    OPENING_GAP_QUARANTINE_REASON,
+)
 
 # 한 attempt의 "최신 revision"은 `auction_revision_id` 최대값이다. 관측 시각으로 고르지 않는 이유는
 # 같은 raw의 replay가 시각을 되돌릴 수 있기 때문이고, revision id는 identity라 append 순서로 단조롭다.
@@ -36,7 +40,8 @@ insert into mart.org_round_summary (
   awarded_assessment_rate, runner_up_assessment_rate,
   day_floor_amount, day_floor_bid_rate, awarded_bid_rate,
   list_count, below_day_floor_count, withdrawn_count, withdrawal_cohort_age_days,
-  winner_supplier_party_id, supersedes_attempt_id, lineage_status, opened_month_kst
+  winner_supplier_party_id, supersedes_attempt_id, lineage_status, opened_month_kst,
+  quarantine_reason
 )
 with latest as (
   select distinct on (revision.auction_attempt_id)
@@ -120,6 +125,13 @@ select
   case
     when latest.opened_at is not null
     then date_trunc('month', latest.opened_at at time zone 'Asia/Seoul')::date
+  end,
+  -- 개찰이 공고보다 상한(일)을 넘어 뒤인 회차는 관측된 사실로 발표하지 않는다. 행은 남겨 무엇이 왜 격리됐는지
+  -- 보이게 하고, 화면 조회가 이 열로 거른다(AGENTS 3, EAT-199). 계보(lineage_status)와는 다른 사실이다.
+  case
+    when latest.opened_at is not null
+         and latest.opened_at > latest.announced_at + make_interval(days => %(gap_days)s)
+    then %(quarantine_reason)s
   end
 from latest
 join core.auction_organization as purchaser
@@ -172,7 +184,12 @@ def fill_org_round_summary(
     with connection.cursor() as cursor:
         cursor.execute(
             ORG_ROUND_SUMMARY_FILL_SQL,
-            {"build_id": build_id, "as_of": plan.as_of},
+            {
+                "build_id": build_id,
+                "as_of": plan.as_of,
+                "gap_days": IMPLAUSIBLE_OPENING_GAP_DAYS,
+                "quarantine_reason": OPENING_GAP_QUARANTINE_REASON,
+            },
         )
         row_count = cursor.rowcount
         _fill_items(cursor, build_id=build_id)
@@ -183,4 +200,6 @@ def _fill_items(cursor: Any, *, build_id: int) -> None:
     """라벨 한 문자열을 원자 코드 여러 행으로 옮겨 다리표를 채운다. 규칙은 스냅샷 빌더와 같은 함수다(EAT-256)."""
     cursor.execute(_ITEM_LABEL_ROWS_SQL, {"build_id": build_id})
     rows = [(int(attempt_id), label) for attempt_id, label in cursor.fetchall()]
-    fill_item_bridge(cursor, build_id=build_id, rows=rows, insert_sql=_INSERT_SUMMARY_ITEM_SQL)
+    fill_item_bridge(
+        cursor, build_id=build_id, rows=rows, insert_sql=_INSERT_SUMMARY_ITEM_SQL
+    )

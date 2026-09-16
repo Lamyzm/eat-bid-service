@@ -31,7 +31,8 @@ describe("mart 기관 회차 이력 PostgreSQL 경계", () => {
       expect(await reader.exists(organizationId(41n))).toBe(true);
       expect(await reader.exists(organizationId(9_007_199_254_740_993n))).toBe(false);
 
-      // 개찰 기준이 없으면(any) 개찰 예정·미관측 회차까지 전부 최근 순이다.
+      // 개찰 기준이 없으면(any) 개찰 예정·미관측 회차까지 전부 최근 순이다. 격리된 106(개찰이 공고보다 3년 뒤)은
+      // 기준 없이도 표본에 들지 않는다(EAT-199).
       const first = pageOf(await reader.listAttempts({
         organizationId: organizationId(41n),
         itemAtom: null,

@@ -15,12 +15,14 @@ build마다 봉인되지 않으면 같은 build를 두 번 읽은 화면이 서�
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
 from eatbid.core.projection_models import instant_datetime, money_decimal
 from eatbid.mart.item_bridge import fill_item_bridge
 from eatbid.mart.models import MartBuildPlan
+from eatbid.mart.plausibility import IMPLAUSIBLE_OPENING_GAP_DAYS
 from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 from eatbid.source.eat.bid_list import parse_bid_list_page
 from eatbid.source.eat.code_schemes import ORGANIZATION
@@ -84,7 +86,10 @@ on conflict on constraint open_auction_snapshot_observation_grain_key do nothing
 #
 # 상세가 없는 공고는 아무 열도 채우지 않는다. `terms_revision_id`가 비면 나머지 파생 열도 비어야
 # 한다는 것은 표의 check가 강제한다.
-_FILL_TERMS_SQL = "with " + REGION_TRANSLATION_CTE.strip() + """
+_FILL_TERMS_SQL = (
+    "with "
+    + REGION_TRANSLATION_CTE.strip()
+    + """
 update mart.open_auction_snapshot as snapshot
    set terms_revision_id = latest.auction_revision_id,
        floor_rate = latest.floor_rate,
@@ -142,6 +147,7 @@ update mart.open_auction_snapshot as snapshot
  where snapshot.build_id = %(build_id)s
    and snapshot.auction_attempt_id = latest.auction_attempt_id
 """
+)
 
 # 기관 이름은 이 공고의 revision이 아니라 조직 코드에 매달린 관측이다. 그래서 상세가 아직 없는
 # 공고도 그 조직의 다른 관측에서 이름을 얻을 수 있고, `terms_revision_id` 계보에는 들어가지 않는다.
@@ -237,6 +243,13 @@ def fill_open_auction_snapshot(
                     ),
                 )
                 base_amount: Decimal | None = money_decimal(row.base_amount)
+                closes_at = instant_datetime(row.deadline_at)
+                # 마감이 관측보다 상한(일)을 넘어 먼 목록 행은 열린 공고가 아니라 원천의 날짜 오류다(2028년 마감 등).
+                # 싣지 않아야 `closes_at > now()`가 그 행을 영원히 집지 않는다. 관측 자체는 raw에 남는다(EAT-199).
+                if closes_at is not None and closes_at > fetched_at + timedelta(
+                    days=IMPLAUSIBLE_OPENING_GAP_DAYS
+                ):
+                    continue
                 cursor.execute(
                     _INSERT_SNAPSHOT_SQL,
                     {
@@ -247,7 +260,7 @@ def fill_open_auction_snapshot(
                         "organization_id": organization_id,
                         "bid_count": row.competitor_count,
                         "source_last_changed_at": instant_datetime(row.last_changed_at),
-                        "closes_at": instant_datetime(row.deadline_at),
+                        "closes_at": closes_at,
                         "base_amount": base_amount,
                         "currency": None if base_amount is None else "KRW",
                         "source_status_label": row.status_name,
@@ -283,7 +296,9 @@ def _fill_items(cursor: Any, *, build_id: int) -> None:
     """
     cursor.execute(_ITEM_LABEL_ROWS_SQL, {"build_id": build_id})
     rows = [(int(snapshot_id), label) for snapshot_id, label in cursor.fetchall()]
-    fill_item_bridge(cursor, build_id=build_id, rows=rows, insert_sql=_INSERT_SNAPSHOT_ITEM_SQL)
+    fill_item_bridge(
+        cursor, build_id=build_id, rows=rows, insert_sql=_INSERT_SNAPSHOT_ITEM_SQL
+    )
 
 
 def _organization_id(cursor: Any, *, code: str | None) -> int | None:

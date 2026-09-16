@@ -248,6 +248,7 @@ describe("재입찰 사슬(auction_attempt_link) 계약", () => {
     expect(checkNames(auctionAttemptLink)).toEqual([
       "auction_attempt_link_relation_allowed",
       "auction_attempt_link_currency_required_with_amount",
+      "auction_attempt_link_planned_amount_positive",
     ]);
   });
 
