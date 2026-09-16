@@ -2,7 +2,7 @@
 id: BACKUP-AND-RESTORE
 status: active
 canonical_for: postgres-backup-schedule-and-restore-procedure
-last_reviewed: 2026-09-10
+last_reviewed: 2026-09-16
 review_trigger: backup-schedule-retention-r2-layout-or-postgres-major-change
 ---
 
@@ -40,8 +40,8 @@ role을 만들어야 해 후속이다.
 ## 3. 백업이 실제로 되는지 보기
 
 ```powershell
-kubectl --context eatbid-vm -n eatbid get cronwf eatbid-db-backup
-kubectl --context eatbid-vm -n eatbid get wf -l workflows.argoproj.io/cron-workflow=eatbid-db-backup
+kubectl --context eatbid-prod -n eatbid get cronwf eatbid-db-backup
+kubectl --context eatbid-prod -n eatbid get wf -l workflows.argoproj.io/cron-workflow=eatbid-db-backup
 ```
 
 R2 쪽은 dataplane R2 자격증명으로 rclone을 쓴다. 값은 화면에 찍지 않는다.
@@ -57,17 +57,37 @@ infisical run --env=prod --path=/runtime/dataplane/r2 --projectId 0d794ce1-e0e3-
 
 ### 4.1 일회용 DB로 확인(리허설)
 
-```powershell
-docker run -d --name eatbid-restore -e POSTGRES_PASSWORD=restore -p 127.0.0.1:15499:5432 postgres:16-alpine
-# 덤프 내려받기(위 rclone으로 copyto ./eatbid.dump)
-docker cp .\eatbid.dump eatbid-restore:/tmp/eatbid.dump
-docker exec eatbid-restore sh -c "createdb -U postgres eatbid && pg_restore -U postgres -d eatbid --no-owner --no-privileges /tmp/eatbid.dump"
-docker exec eatbid-restore psql -U postgres -d eatbid -At -c "select count(*) from core.auction_attempt"
-docker rm -f eatbid-restore
+절차는 `tools/ops/restore-drill.sh`가 소유한다. 운영은 건드리지 않는다 — R2 읽기와 이 PC의 Docker만 쓰고,
+R2 자격은 클러스터 Secret에서 셸 변수로만 받는다. 검증 안 된 백업은 백업이 아니므로 이 리허설은 주기적으로
+반복한다(§4.3 기록).
+
+```bash
+tools/ops/restore-drill.sh download        # hourly의 최신 덤프를 받는다(덤프 이름을 주면 그것을)
+tools/ops/restore-drill.sh start           # postgres:16-alpine 일회용 컨테이너(복원 전용 설정, fsync 끔)
+tools/ops/restore-drill.sh restore         # createdb + pg_restore -j 4 --no-owner --no-privileges, 분리 실행
+tools/ops/restore-drill.sh status          # 진행 중이면 경과 초와 DB 크기, 끝났으면 exit·소요 초·오류 줄 수
+tools/ops/restore-drill.sh verify          # 핵심 표 행 수, drizzle 저널 마지막, DB 크기
+tools/ops/restore-drill.sh cleanup
 ```
 
-행 수가 원본의 같은 시각 값과 같아야 한다. `--no-owner --no-privileges`로 복원하므로 역할 권한은
-복원 뒤 `db-provisioning` Job이 저장소 상태로 다시 세운다.
+`verify`의 행 수를 운영의 같은 시각 값과 대조한다. 덤프 시각 뒤에 시작한 run이 있으면 그만큼 어긋나는 것이
+정상이다. `--no-owner --no-privileges`로 복원하므로 역할 권한은 복원 뒤 `db-provisioning` Job이 저장소
+상태로 다시 세운다. 컨테이너 설정(`fsync=off` 등)은 리허설 시간을 재기 위한 것이지 운영 값이 아니다.
+
+### 4.3 리허설 기록
+
+| 날짜 | 덤프 | 크기 | 내려받기 | 복원 | 대조 | 비고 |
+|---|---|---|---|---|---|---|
+| 2026-09-16 (EAT-250) | `hourly/20260916T121404Z.dump` | 4.20 GB (DB 33 GB) | 453초 | 489초, `pg_restore -j 4`, 오류 0 | `core.auction_attempt` 154,904 · `core.bid_submission` 9,891,757 · `ingest.run` 689 · `ingest.raw_observation` 451,766 — 운영과 정확히 같음. 저널 마지막 `20260916104017_ingest_source_hold`, 스키마 5개 | 이 PC(Docker Desktop, postgres:16-alpine, fsync 끔). 복원 뒤 DB 30 GB |
+
+이 기록이 말하는 숫자:
+
+- **RPO** — 덤프는 매시 5분 KST에 시작해 약 9분 걸린다. 최악의 손실은 약 70분(한 시간 + 덤프 시간)이다.
+  리허설 시점의 실제 나이는 10분이었다.
+- **RTO(데이터 부분)** — 내려받기 7.5분 + 복원 8.2분, 약 16분. 이 PC 기준이며 VM의 디스크와 네트워크는
+  다르다. §4.2의 "새 클러스터 세우기"는 아직 리허설하지 않았으므로 전체 RTO는 모른다. 다음 리허설의 대상이다.
+- 첫 리허설(2026-09-16)까지 이 백업은 한 번도 복원된 적이 없었다. 매시 성공하는 백업과 복원 가능한 백업은
+  다른 것이고, 이 표가 둘을 구분한다.
 
 ### 4.2 운영 클러스터로 복원(재해 복구)
 
@@ -101,6 +121,8 @@ Argo 문서는 이 기능 대신 전용 로그 시스템을 권한다. 맞는 �
 
 ## 5. 하지 않는 것
 
-- 덤프를 저장소나 개발 PC에 두지 않는다. 사본은 R2 하나다.
+- 덤프를 저장소나 개발 PC에 두지 않는다. 사본은 R2 하나다. 리허설이 개발 PC에 받은 덤프는 `restore-drill.sh cleanup`이
+  지우며, 리허설 사이에 남겨 두지 않는다.
 - 백업 파드에 semaphore·mutex·retry를 붙이지 않는다. 다음 정각에 다시 돈다.
-- 백업 성공을 복구 가능의 증거로 삼지 않는다. 분기마다 4.1을 한 번 돌린다.
+- 백업 성공을 복구 가능의 증거로 삼지 않는다. 달마다 §4.1을 한 번 돌리고 §4.3에 적는다. 첫 리허설은 2026-09-16이었고
+  그 전까지는 한 번도 복원된 적이 없었다.
