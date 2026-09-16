@@ -35,3 +35,5 @@ configMapGenerator:
       disableNameSuffixHash: true
     files:
       - observability/monitoring-round.json
+      - observability/ops-summary.json
+      - observability/crawler-progress.json
