@@ -391,6 +391,16 @@
               "type": "null"
             }
           ]
+        },
+        "soloBidMethod": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [

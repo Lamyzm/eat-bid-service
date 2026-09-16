@@ -98,6 +98,14 @@ export const builtinCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  // 단독입찰 처리 방법(`ds_info.SGNS_BID_PRCS_MTHD_CD`, 허용함/허용안함)이다. 참여 0곳의 뜻을 바꾸는 조건이라
+  // eat-v4 상세 파서가 읽는다(EAT-249).
+  {
+    namespace: "eat:solo-bid-method",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
   // 위 전부와 달리 이 체계만 owner가 우리다. eaT는 품목을 `MAIN_ITEMS` 라벨 문자열로만 주고 코드를
   // 주지 않으므로, 코드를 발급하고 폐기하는 주체가 우리다. 접두사를 `eat:`로 두면 aT가 코드를 준 것처럼
   // 보이므로 다른 체계와 같은 규칙(접두사 = 소유자)을 지켜 `eatbid:`로 부른다. 용어 자체는 eaT가

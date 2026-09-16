@@ -53,6 +53,12 @@ PLANNED_PRICE_TYPE = EatCodeScheme(
 AWARD_METHOD = EatCodeScheme(
     "eat:award-method", "SUCBID_DCSN_MTH_CD", "SUCBD_DECISION_MTHD_NM"
 )
+# 단독입찰 처리 방법이다. 값은 둘뿐이고(`허용안함`이 99.8%, 2026-09-16 전수 181,150건) 참여 0곳의 뜻을 바꾼다 —
+# 허용안함이면 혼자 들어가면 유찰이다. 라벨은 `_NM`이 함께 오므로 코드목록 없이도 이름이 관측된다(EAT-249).
+# 이름이 `SGNS`(single)로 시작해도 `MN_TRMT_LMT_YN`과 헷갈리지 마라 — 그쪽은 품목 존재 여부다(SOURCE-FIELDS T13).
+SOLO_BID_METHOD = EatCodeScheme(
+    "eat:solo-bid-method", "SGNS_BID_PRCS_MTHD_CD", "SGNS_BID_PRCS_MTHD_CD_NM"
+)
 
 # 복수예정가격 후보 15개 중 그 회차 추첨에 뽑혔는지(Y/N)다. "선택 여부"라는 의미는 실측으로 확인했다:
 # 전수 2,715,210행에 Y/N 두 값만 있고(`docs/audit-source/census-detail.txt`), 회차마다 정확히 4행이
@@ -124,6 +130,7 @@ EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     BUSINESS_NUMBER,
     PLANNED_PRICE_TYPE,
     AWARD_METHOD,
+    SOLO_BID_METHOD,
     RESERVE_PRICE_SELECTION_FLAG,
     ATTEMPT_STATUS,
 )

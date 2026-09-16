@@ -250,6 +250,9 @@ class NormalizedAuctionTerms(BaseModel):
     planned_price_method: Annotated[
         SourceCodedValue | None, Field(alias='plannedPriceMethod')
     ]
+    solo_bid_method: Annotated[SourceCodedValue | None, Field(alias='soloBidMethod')] = (
+        None
+    )
 
 
 class NormalizedLocationV2(BaseModel):

@@ -43,6 +43,8 @@ export interface OpenAuctionRecord {
   readonly itemLabel: string | null;
   /** 원천이 표시하는 공고번호다. 표시·복사용 문자열이며 정체성은 `auctionAttemptId`다(AGENTS 2, EAT-248). */
   readonly displayBidNo: string | null;
+  /** 단독입찰 처리 방법 코드 참조다. null은 미관측(eat-v4 전 해석)이지 "허용함"이 아니다(AGENTS 3, EAT-249). */
+  readonly soloBidMethod: CodeReferenceRecord | null;
   readonly floorRate: BidRate | null;
   readonly region: {
     readonly sido: CodeReferenceRecord | null;

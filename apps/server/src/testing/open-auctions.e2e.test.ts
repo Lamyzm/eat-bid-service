@@ -17,6 +17,7 @@ const record: OpenAuctionRecord = {
   organization: { organizationId: 3_101n, label: "창원 남산초등학교", type: "unknown" },
   itemLabel: "축산",
   displayBidNo: "2026-0001",
+  soloBidMethod: null,
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
   region: {
     sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
@@ -126,6 +127,7 @@ describe("열린 공고 목록 HTTP 경로", () => {
         organization: { organizationId: "3101", label: "창원 남산초등학교", type: "unknown" },
         itemLabel: "축산",
         displayBidNo: "2026-0001",
+        soloBidMethod: null,
         floorRate: { value: "90.000", unit: "percentage-points" },
         region: {
           sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },

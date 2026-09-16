@@ -73,6 +73,13 @@ export const openAuctionSnapshot = martSchema.table(
      */
     title: text("title"),
     displayBidNo: text("display_bid_no"),
+    /**
+     * 단독입찰 처리 방법(`eat:solo-bid-method`)이다. 참여 0곳의 뜻을 바꾸는 조건이라 싣는다 — 허용안함이면
+     * 혼자 들어가면 유찰이다(EAT-249). 최신 상세 해석의 `solo_bid_method` role 코드이며 `terms_revision_id`
+     * 계보를 탄다. eat-v4 전에 해석된 revision은 이 role이 없어 null이고 그것은 미관측이다(AGENTS 3).
+     */
+    soloBidMethodCodeValueId: bigint("solo_bid_method_code_value_id", { mode: "bigint" })
+      .references(() => codeValue.codeValueId),
     // 지역 축 둘은 같은 `mart.build.region_scheme` 안의 계층이지 두 체계가 아니다(ADR 0034, AGENTS 6).
     regionSidoCodeValueId: bigint("region_sido_code_value_id", { mode: "bigint" })
       .references(() => codeValue.codeValueId),
@@ -111,6 +118,7 @@ export const openAuctionSnapshot = martSchema.table(
         or (${table.floorRate} is null and ${table.itemLabel} is null
           and ${table.announcedAt} is null
           and ${table.title} is null and ${table.displayBidNo} is null
+          and ${table.soloBidMethodCodeValueId} is null
           and ${table.regionSidoCodeValueId} is null
           and ${table.regionSigunguCodeValueId} is null)`,
     ),

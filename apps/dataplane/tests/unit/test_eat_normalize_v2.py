@@ -305,3 +305,45 @@ def test_v1_canonical_payload가_봉인된_바이트를_그대로_낸다() -> No
         '"deadlineAt":"2025-06-19T06:00:00Z",'
         '"openedAt":"2025-06-20T01:30:00Z"}}'
     ).encode()
+
+
+def test_eat_v4는_단독입찰_처리_방법을_코드와_이름으로_싣고_v3는_키를_만들지_않는다() -> None:
+    """`SGNS_BID_PRCS_MTHD_CD`는 아카이브 fixture에 없는 열이라 ds_info 행에 끼워 넣어 읽는다(EAT-249)."""
+    solo_columns = (
+        b'<Col id="PLNPRCE_SUCBD_STD">90</Col>'
+        b'<Col id="SGNS_BID_PRCS_MTHD_CD">002</Col>'
+        b'<Col id="SGNS_BID_PRCS_MTHD_CD_NM">' + "단독입찰 허용안함".encode() + b"</Col>"
+    )
+    # Nexacro 파서는 `ColumnInfo`에 선언되지 않은 열을 거절하므로 선언과 값을 함께 끼운다.
+    payload = (
+        _payload("bid-detail-roster.xml")
+        .replace(
+            b'<Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />',
+            b'<Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />'
+            b'<Column id="SGNS_BID_PRCS_MTHD_CD" type="string" size="256" />'
+            b'<Column id="SGNS_BID_PRCS_MTHD_CD_NM" type="string" size="256" />',
+            1,
+        )
+        .replace(b'<Col id="PLNPRCE_SUCBD_STD">90</Col>', solo_columns, 1)
+    )
+    v3 = normalize_bid_detail(payload, external_bid_id="5669410", parser_version="eat-v3")
+    v4 = normalize_bid_detail(payload, external_bid_id="5669410", parser_version="eat-v4")
+
+    assert isinstance(v3, EatbidIngestionAuctionV2)
+    assert isinstance(v4, EatbidIngestionAuctionV2)
+    # 같은 계약이다. 단독입찰 처리 방법은 새 root가 아니라 `terms`의 가산 optional 필드다.
+    assert v4.contract_version == v3.contract_version
+    # v3는 이 열을 보지 않으므로 키 자체가 없다 — 봉인된 v3 payload의 바이트가 그대로다(ADR 0038).
+    assert v3.terms.solo_bid_method is None
+    assert b"soloBidMethod" not in canonical_payload(v3)
+    solo = v4.terms.solo_bid_method
+    assert solo is not None
+    assert (solo.code, solo.code_scheme) == ("002", "eat:solo-bid-method")
+    assert solo.label is not None and solo.label.root == "단독입찰 허용안함"
+    # 열이 없는 응답을 v4로 읽으면 "봤는데 없었다"의 null이다 — "안 봤다"(키 없음)와 다른 사실이다(AGENTS 3).
+    absent = normalize_bid_detail(
+        _payload("bid-detail-roster.xml"), external_bid_id="5669410", parser_version="eat-v4"
+    )
+    assert isinstance(absent, EatbidIngestionAuctionV2)
+    assert absent.terms.solo_bid_method is None
+    assert b'"soloBidMethod":null' in canonical_payload(absent)

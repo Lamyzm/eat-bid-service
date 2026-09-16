@@ -76,6 +76,12 @@ export const openAuctionRowSchema = z.strictObject({
    * 상세에서 오는 값이라 아직 상세를 따지 않은 공고는 null이다.
    */
   displayBidNo: z.string().min(1).max(64).nullable(),
+  /**
+   * 단독입찰 처리 방법(`eat:solo-bid-method`, 허용함/허용안함)이다. 참여 0곳의 뜻을 바꾼다 — 허용안함이면
+   * 혼자 들어가면 유찰이다(2026-09-16 실측 30건 중 29건, EAT-249). 코드 참조 그대로 싣고 불리언으로 접지
+   * 않는다: "허용함"과 "미관측"이 한 값이 되면 안 된다(AGENTS 3). eat-v4 전에 해석된 공고는 null이다.
+   */
+  soloBidMethod: codeReferenceSchema.nullable(),
   // 사정률 축의 상수(하한율)다. 소스가 셋째 자리까지 표시하며 mart numeric(6,3)과 같다.
   floorRate: bidRateWireSchema.nullable(),
   region: openAuctionRegionSchema.nullable(),
