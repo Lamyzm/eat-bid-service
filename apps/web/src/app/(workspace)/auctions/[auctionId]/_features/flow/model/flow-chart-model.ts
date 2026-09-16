@@ -1,7 +1,7 @@
 /** @module 책임: 기관 회차를 동일 조건의 추이 구간과 KST 달력 좌표로 바꾸며 원문 값과 중복 날짜를 보존한다. */
 import type { UTCTimestamp } from 'lightweight-charts';
-import type { HistoryPresentation, HistoryRow } from '../../history/model/attempt-history';
-import type { OwnChartPoint } from '../../own-bid/model/own-bid-points';
+import type { HistoryPresentation, HistoryRow } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
+import type { OwnChartPoint } from '@/app/(workspace)/auctions/[auctionId]/_features/own-bid/model/own-bid-points';
 
 export type FlowChartPoint = { readonly time: UTCTimestamp; readonly value: number; readonly row: HistoryRow };
 export type FlowChartSeries = { readonly points: readonly FlowChartPoint[]; readonly connected: boolean };
@@ -24,9 +24,16 @@ export type FlowInspection =
   | { readonly kind: 'win'; readonly point: FlowChartPoint }
   | { readonly kind: 'own'; readonly point: OwnChartPoint };
 
+// 품목은 원자 집합이라 "같은 품목"은 집합이 같다는 뜻이다. 미관측(null)과 어휘 밖(빈 집합)은 어느 회차와도
+// 같은 조건이 아니다 — 모르는 것을 같다고 잇지 않는다(AGENTS 3).
+function itemsKey(row: HistoryRow): string | null {
+  return row.items === null || row.items.length === 0 ? null : [...row.items].sort().join('|');
+}
+
 function sameConditions(a: HistoryRow, b: HistoryRow): boolean {
-  return a.itemCodeValueId !== null && a.floorRateText !== null && a.awardMethodCodeValueId != null
-    && a.itemCodeValueId === b.itemCodeValueId && a.floorRateText === b.floorRateText
+  const key = itemsKey(a);
+  return key !== null && a.floorRateText !== null && a.awardMethodCodeValueId != null
+    && key === itemsKey(b) && a.floorRateText === b.floorRateText
     && a.awardMethodCodeValueId === b.awardMethodCodeValueId;
 }
 

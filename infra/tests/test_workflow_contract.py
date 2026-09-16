@@ -1443,7 +1443,7 @@ def test_workflow_parameter는_mode_외에_backfill_창과_바닥만_추가로_�
     assert parameters == {
         "mode": "poll-open",
         "parser-version": "eat-v4",
-        "calc-version": "mart-r6",
+        "calc-version": "mart-r7",
         "start-date": "",
         "end-date": "",
         "release-name": "",

@@ -4,6 +4,7 @@ import { kstMonthTextSchema } from "../../../atoms/calendar";
 import { organizationAttemptAwardMethodFilterSchema, organizationAttemptFloorFilterSchema } from "./cohort.resource";
 
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
+import { auctionItemAtomSchema } from "../../../values/auction-item";
 import { instantTextSchema } from "../../../atoms/instant";
 import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation, pathParameter } from "../../operation";
@@ -58,7 +59,9 @@ function buildPinRule(
 }
 
 export const organizationAuctionAttemptsQuerySchema = z.strictObject({
-  item: positiveBigintTextSchema.optional(),
+  // 품목은 어휘의 원자 enum으로 받는다. code_value id를 받으면 화면이 라벨에서 ID를 되추론해야 하고 합성
+  // 라벨(`육류 , 가금류`) 회차는 어느 id로도 찾을 수 없다(AGENTS 2, EAT-256). 다리표를 코드로 조인한다.
+  item: auctionItemAtomSchema.optional(),
   // 기존 strict V1 소비자의 응답 shape를 유지한다. 새 표시값을 요청한 소비자에게만 확장한다.
   includeItemLabel: z.literal("true").optional(),
   // 개인 투찰 조회가 붙을 회차의 revision을 요청한 소비자에게만 싣는다(attempt.resource 참조).

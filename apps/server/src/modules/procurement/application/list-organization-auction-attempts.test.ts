@@ -15,7 +15,7 @@ const lineage = {
 } as const;
 
 const emptyPage: OrganizationAttemptPage = { attempts: [], nextCursor: null, sampleCount: 0, lineage };
-const query = { organizationId: organizationId(42n), itemCodeValueId: null, cursor: null, limit: 12, opened: "only" } as const;
+const query = { organizationId: organizationId(42n), itemAtom: null, cursor: null, limit: 12, opened: "only" } as const;
 
 // 개찰 기준 시각은 clock에서만 온다. 고정 clock이어야 reader에 넘긴 시각을 문자 그대로 검사할 수 있다.
 const NOW = Temporal.Instant.from("2026-09-06T01:00:00Z");
@@ -61,8 +61,8 @@ describe("ListOrganizationAuctionAttempts 조회 use case", () => {
       exists: async () => true,
       listAttempts: async () => ({ kind: "page", page: emptyPage }),
     }, clock);
-    const result = await new EffectRunner().run(useCase.execute({ ...query, itemCodeValueId: 7n }));
-    expect(result.query.itemCodeValueId).toBe(7n);
+    const result = await new EffectRunner().run(useCase.execute({ ...query, itemAtom: "육류" }));
+    expect(result.query.itemAtom).toBe("육류");
   });
 
   test("기관이 없으면 OrganizationNotFound로 실패하고 목록은 읽지 않는다", async () => {

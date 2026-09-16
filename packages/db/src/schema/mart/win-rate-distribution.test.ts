@@ -31,7 +31,6 @@ describe("mart.win_rate_distribution_monthly 스키마", () => {
         "scope",
         "region_code_value_id",
         "organization_id",
-        "item_code_value_id",
         "floor_rate",
         "award_method_code_value_id",
         "month_kst",

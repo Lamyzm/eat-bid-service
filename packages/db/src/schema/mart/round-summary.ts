@@ -4,7 +4,18 @@
  * 계보(어느 release·어느 계산 규칙·언제)는 이 표가 아니라 `mart.build`가 갖고, 여기에는 build 하나에
  * 매달린 회차 요약만 둔다(ADR 0034).
  */
-import { bigint, char, date, index, integer, primaryKey, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  char,
+  date,
+  foreignKey,
+  index,
+  integer,
+  primaryKey,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { check } from "drizzle-orm/pg-core";
 import { codeValue } from "../core/codes.js";
@@ -33,7 +44,7 @@ export const orgRoundSummary = martSchema.table(
     organizationId: bigint("organization_id", { mode: "bigint" })
       .notNull()
       .references(() => organization.organizationId),
-    itemCodeValueId: bigint("item_code_value_id", { mode: "bigint" }).references(() => codeValue.codeValueId),
+    // 관측 라벨이다. 품목 정체성은 다리표 `org_round_summary_item`이 갖고 이 문자열은 조인 키가 아니다(AGENTS 2).
     itemLabel: text("item_label"),
     announcedAt: timestamp("announced_at", { withTimezone: true }).notNull(),
     openedAt: timestamp("opened_at", { withTimezone: true }),
@@ -78,13 +89,6 @@ export const orgRoundSummary = martSchema.table(
       table.announcedAt.desc().nullsLast(),
       table.auctionAttemptId.desc().nullsLast(),
     ),
-    index("org_round_summary_build_org_item_announced_idx").on(
-      table.buildId,
-      table.organizationId,
-      table.itemCodeValueId,
-      table.announcedAt.desc().nullsLast(),
-      table.auctionAttemptId.desc().nullsLast(),
-    ),
     check(
       "org_round_summary_lineage_status_allowed",
       sql`${table.lineageStatus} in ('observed', 'unknown')`,
@@ -109,5 +113,38 @@ export const orgRoundSummary = martSchema.table(
       sql`${table.belowDayFloorCount} is null or ${table.listCount} is null
         or ${table.belowDayFloorCount} <= ${table.listCount}`,
     ),
+  ],
+);
+
+/**
+ * 회차 요약 한 행이 가진 품목 원자(`eatbid:auction-item`)들이다. 스냅샷의 `open_auction_snapshot_item`과
+ * 같은 이유로 열이 아니라 다리표다 — 원천 라벨 한 문자열(`육류 , 가금류`)은 원자 여러 개이고, 단일 열은
+ * "첫 원자"라는 거짓 정체성을 만든다(AGENTS 2, EAT-256).
+ *
+ * 결정 화면의 회차 코호트(품목 필터·흐름 차트의 같은 조건 판정)가 이 표를 코드로 조인해 거른다.
+ * `item_label`은 표시값으로 남고, 빌더가 그 라벨을 `read_item_label` 규칙으로 읽어 채운다. 어휘 밖
+ * 낱말은 행을 만들지 않으며 그 조각은 `build_vocabulary_gap`이 센다(AGENTS 3, EAT-255).
+ *
+ * 요약 행의 grain이 `(build_id, auction_attempt_id)`라 다리도 그 둘로 매달리고, 회수 때 요약 행과 함께
+ * 지워진다. 다리 행만 남으면 어느 build의 것인지 말할 수 없다.
+ */
+export const orgRoundSummaryItem = martSchema.table(
+  "org_round_summary_item",
+  {
+    buildId: bigint("build_id", { mode: "bigint" }).notNull(),
+    auctionAttemptId: bigint("auction_attempt_id", { mode: "bigint" }).notNull(),
+    itemCodeValueId: bigint("item_code_value_id", { mode: "bigint" })
+      .notNull()
+      .references(() => codeValue.codeValueId),
+  },
+  (table) => [
+    primaryKey({ columns: [table.buildId, table.auctionAttemptId, table.itemCodeValueId] }),
+    foreignKey({
+      name: "org_round_summary_item_summary_fkey",
+      columns: [table.buildId, table.auctionAttemptId],
+      foreignColumns: [orgRoundSummary.buildId, orgRoundSummary.auctionAttemptId],
+    }).onDelete("cascade"),
+    // 품목 필터는 원자에서 회차로 거꾸로 찾는다. PK는 회차→원자 순이라 이 방향의 인덱스가 따로 필요하다.
+    index("org_round_summary_item_build_code_idx").on(table.buildId, table.itemCodeValueId, table.auctionAttemptId),
   ],
 );

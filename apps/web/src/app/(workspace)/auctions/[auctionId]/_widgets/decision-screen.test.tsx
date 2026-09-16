@@ -54,7 +54,7 @@ const ready = (presentation: ReturnType<typeof presentHistory>): DecisionPageDat
 });
 // 두 번째 페이지까지 이어 붙인 조회. 첫 페이지는 그대로 두고 확대·선택만 누적 행을 본다.
 const mergedHistory = (): DecisionPageData['history'] => {
-  const presentation = presentHistory(attemptsFixture, '7');
+  const presentation = presentHistory(attemptsFixture, '육류');
   const merged = presentHistory(
     {
       ...attemptsFixture,
@@ -64,11 +64,11 @@ const mergedHistory = (): DecisionPageData['history'] => {
       ],
       nextCursor: '5'
     },
-    '7'
+    '육류'
   );
   return { state: 'ready', presentation, expanded: { presentation: merged, loadFailed: false } };
 };
-const readyHistory = ready(presentHistory(attemptsFixture, '7'));
+const readyHistory = ready(presentHistory(attemptsFixture, '육류'));
 // 회차가 거의 없는 기관(열린 공고 하나뿐인 학교)을 fixture 앞에서 잘라 만든다. 표본 수도 함께 줄여야
 // 부제가 실제로 그 기관을 말한 것이 된다.
 const historyOf = (count: number): DecisionPageData['history'] =>
@@ -332,7 +332,7 @@ describe('결정 화면', () => {
       period: '3개월',
       scope: '시군',
       view: '비교집단',
-      item: '7',
+      item: '육류',
       myRate: null,
       rate: null,
       expand: null,
@@ -353,7 +353,7 @@ describe('결정 화면', () => {
     expect(query.get('view')).toBe('흐름');
     expect(query.get('period')).toBe('3개월');
     expect(query.get('scope')).toBe('시군');
-    expect(query.get('item')).toBe('7');
+    expect(query.get('item')).toBe('육류');
   });
 
   test('과거 회차 캡션은 표가 실제로 그린 행 수를 적는다', () => {

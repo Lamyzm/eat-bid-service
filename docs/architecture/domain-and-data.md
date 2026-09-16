@@ -486,7 +486,7 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
 | 표 | grain | 읽는 화면 |
 |---|---|---|
 | `mart.org_round_summary` | `(build_id, auction_attempt_id)` | 결정(흐름·과거 회차·레일), 오늘(기관 요약) |
-| `mart.win_rate_distribution_monthly` | 대리키 + `(scope, region, org, item, floor_rate, award_method, month, bin)` | 결정(호가창), 비교집단 |
+| `mart.win_rate_distribution_monthly` | 대리키 + `(scope, region, org, floor_rate, award_method, month, bin)` | 결정(호가창), 비교집단 |
 | `mart.open_auction_snapshot` | `(build_id, auction_attempt_id, observed_at)` | 오늘(열린 공고), 결정(참여 수 추이) |
 
 `mart.open_auction_snapshot`은 목록 관측만으로 만들어지지 않는다. 목록에는 마감·기초금액·참여 수만
@@ -508,6 +508,15 @@ scheme_namespace, fragment, row_count)`에 build마다 남기고, 운영 기대 
 조각마다 알린다 — 없던 결손이 관측 결손(`품목 미상`)으로 보이지 않게 하기 위해서다(AGENTS 3, EAT-255). `organization_label`은 이
 공고의 revision이 아니라 조직 코드에 매달린 `core.code_label_observation`의 최신 관측이므로 계보에
 포함되지 않는다 — 이름은 표시값이고 조직 정체성은 여전히 code value가 갖는다.
+
+회차 요약의 품목도 같은 모양이다. `mart.org_round_summary`의 단일 열 `item_code_value_id`는 합성 라벨 회차를 담지 못해 운영에서
+늘 null이었고, 그 위의 결정 화면 품목 필터는 아무 행도 맞추지 못했다. `mart-r7`(EAT-256)부터 품목은 다리표
+`mart.org_round_summary_item(build_id, auction_attempt_id, item_code_value_id)`이며 빌더가 스냅샷과 같은 함수
+(`mart/item_bridge.py`)로 채우고 어휘 밖 조각은 같은 `build_vocabulary_gap`에 센다. 기관 회차 API의 `item` 질의는
+원자 enum이고 응답 행은 `items`(원자 배열, null은 라벨 미관측·빈 배열은 어휘 밖)를 싣는다. 결정 화면의 품목 메뉴·선택
+강조·흐름 차트의 "같은 조건" 판정은 이 집합으로 한다. 낙찰률 분포의 `item_code_value_id` 자리는 어떤 규칙도 채우지
+않던 죽은 코호트 축이라 같은 판에서 지웠다 — 품목 코호트가 필요해지면 새 calc_version에서 명시 축으로 다시 세운다
+(PDR-0004: 품목은 코호트를 좁히지 않는다).
 
 업체 성적표 mart(`supplier_monthly_record`)는 `app`의 workspace 모델이 확정된 뒤로 미뤘다. 대상
 집합이 "워크스페이스가 등록한 사업자"인데 그 표가 아직 없고, 전체 업체를 빌드하는 것은 명단이

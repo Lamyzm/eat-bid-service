@@ -3,14 +3,14 @@
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/button';
-import type { HistoryPresentation } from '../../history/model/attempt-history';
+import type { HistoryPresentation } from '@/app/(workspace)/auctions/[auctionId]/_features/history/model/attempt-history';
 import { buildFlowChartModel, type FlowInspection } from '../model/flow-chart-model';
 import { decideMyRateLine } from '../model/flow-series';
-import { buildOwnPoints, type OwnChartPoint } from '../../own-bid/model/own-bid-points';
-import { useBidRate } from '../../../_lib/bid-rate-context';
+import { buildOwnPoints, type OwnChartPoint } from '@/app/(workspace)/auctions/[auctionId]/_features/own-bid/model/own-bid-points';
+import { useBidRate } from '@/app/(workspace)/auctions/[auctionId]/_lib/bid-rate-context';
 import { useFlowSeriesVisibility } from './flow-legend';
-import { useOptionalAttemptSelection } from '../../../_lib/attempt-selection';
-import { useOptionalOwnBid } from '../../own-bid/model/own-bid-context';
+import { useOptionalAttemptSelection } from '@/app/(workspace)/auctions/[auctionId]/_lib/attempt-selection';
+import { useOptionalOwnBid } from '@/app/(workspace)/auctions/[auctionId]/_features/own-bid/model/own-bid-context';
 import type { FlowChartController } from '../lib/create-flow-chart';
 
 type Props = { readonly presentation: HistoryPresentation; readonly myRate: string | null; readonly focus?: boolean };
@@ -129,6 +129,6 @@ function FlowChartCanvas({ presentation, myRate, focus = false }: Props) {
 export function FlowChart(props: Props) {
   // 확대 주소만 바뀌면 같은 캔버스를 유지한다. 데이터 release·조건·표시 행이 바뀔 때만 범위를 초기화한다.
   // own 응답·사업자 ID는 여기에 넣지 않는다. 그 값이 바뀔 때 캔버스를 다시 만들면 사용자의 확대가 사라진다.
-  const revision = JSON.stringify([props.presentation.buildId, props.presentation.cohort, props.presentation.selectedItem?.codeValueId, props.presentation.rows.map((row) => [row.attemptId, row.winRateText, row.secondRateText])]);
+  const revision = JSON.stringify([props.presentation.buildId, props.presentation.cohort, props.presentation.selectedItem, props.presentation.rows.map((row) => [row.attemptId, row.winRateText, row.secondRateText])]);
   return <FlowChartCanvas key={revision} {...props} />;
 }

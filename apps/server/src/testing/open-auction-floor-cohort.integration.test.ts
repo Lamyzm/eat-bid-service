@@ -106,20 +106,20 @@ const seed = `
          (6010, 'open_auction_snapshot', '00000000-0000-0000-0000-000000000166', 'mart-r3',
     '${"a".repeat(40)}', null, 'building', '2026-09-10T00:00:00Z', '2026-09-10T00:05:00Z');
   insert into mart.org_round_summary
-    (build_id, auction_attempt_id, auction_revision_id, organization_id, item_code_value_id,
+    (build_id, auction_attempt_id, auction_revision_id, organization_id,
      item_label, announced_at, opened_at, floor_rate, award_method_code_value_id,
      base_amount, planned_amount, currency, awarded_assessment_rate, runner_up_assessment_rate,
      day_floor_amount, day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count,
      withdrawn_count, withdrawal_cohort_age_days, winner_supplier_party_id, supersedes_attempt_id,
      lineage_status, opened_month_kst)
   values
-    (5010, 6848, 5161, 1683, null, null, '2026-06-04T00:00:00Z', '2026-06-11T00:00:00Z',
+    (5010, 6848, 5161, 1683, null, '2026-06-04T00:00:00Z', '2026-06-11T00:00:00Z',
      88.000, null, 10000000.00, 9965400.00, 'KRW', 88.019, 88.061,
      8769552.00, 87.6955, 87.7144, 82, 20, null, null, null, null, 'observed', '2026-06-01'),
-    (5010, 6865, 5162, 1683, null, '육류 , 가금류', '2026-06-04T00:00:00Z', '2026-06-11T00:00:00Z',
+    (5010, 6865, 5162, 1683, '육류 , 가금류', '2026-06-04T00:00:00Z', '2026-06-11T00:00:00Z',
      90.000, null, 9000000.00, 8954000.00, 'KRW', 90.000, 90.043,
      8058600.00, 89.5400, 89.5400, 68, 19, null, null, null, null, 'observed', '2026-06-01'),
-    (5010, 7593, 5163, 1903, null, '육류', '2026-06-11T00:00:00Z', '2026-06-18T01:00:00Z',
+    (5010, 7593, 5163, 1903, '육류', '2026-06-11T00:00:00Z', '2026-06-18T01:00:00Z',
      90.000, null, 5000000.00, 4941845.00, 'KRW', 90.085, 90.132,
      4447660.50, 88.9532, 89.0372, 30, 5, null, null, null, null, 'observed', '2026-06-01');
   insert into mart.open_auction_snapshot
