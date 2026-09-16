@@ -22,6 +22,7 @@ import {
   itemUnobservedPredicate,
   OPEN_AUCTION_SNAPSHOT,
   openScopePredicate,
+  searchPredicate,
 } from "./open-auction-queries";
 
 function instantParameter(value: { toString(): string }): string {
@@ -41,6 +42,7 @@ function filterPredicate(filter: OpenAuctionFilterSet): SQL {
     and (${sigungu}::text is null
         or base.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
     and ${itemAtomPredicate(sql`base`, filter.itemAtoms)}
+    and ${searchPredicate(sql`base`, filter.searchText)}
     and (${filter.baseAmountMin}::numeric is null or base.base_amount >= ${filter.baseAmountMin}::numeric)
     and (${filter.baseAmountMax}::numeric is null or base.base_amount <= ${filter.baseAmountMax}::numeric)`;
 }
@@ -61,6 +63,7 @@ function itemRelaxedPredicate(filter: OpenAuctionFilterSet): SQL {
     and (${sigungu}::text is null
         or base.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
     and (${itemUnobservedPredicate(sql`base`)} or ${itemAtomPredicate(sql`base`, filter.itemAtoms)})
+    and ${searchPredicate(sql`base`, filter.searchText)}
     and (${filter.baseAmountMin}::numeric is null or base.base_amount >= ${filter.baseAmountMin}::numeric)
     and (${filter.baseAmountMax}::numeric is null or base.base_amount <= ${filter.baseAmountMax}::numeric)`;
 }
@@ -92,6 +95,9 @@ export function openAuctionFilterCountsQuerySql(query: OpenAuctionFilterCountsQu
         snapshot.open_auction_snapshot_id,
         snapshot.auction_attempt_id,
         snapshot.item_label,
+        snapshot.title,
+        snapshot.organization_label,
+        snapshot.display_bid_no,
         snapshot.bid_count,
         snapshot.region_sido_code_value_id,
         snapshot.region_sigungu_code_value_id,
