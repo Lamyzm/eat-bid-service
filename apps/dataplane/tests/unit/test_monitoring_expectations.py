@@ -111,6 +111,7 @@ def test_상태_문서는_알림_문구를_그대로_들고_있는다() -> None:
             "title": "제목",
             "detail": "run_id=r1",
             "runbook": "docs/x.md",
+            "observation": "observed",
         }
     ]
 
@@ -166,6 +167,98 @@ def test_사라진_위반은_해소로_보고하고_새_위반만_새로_보낸�
 
     assert [violation.key for violation in 결과.opened] == ["새것"]
     assert 결과.resolved == ("옛것",)
+
+
+def test_기대_평가에_실패한_회차는_그_기대의_열린_위반을_해소하지_않는다() -> None:
+    """질의가 예외로 끝나면 그 기대의 위반 행은 이번 회차에 하나도 없다. 그것은 사라진 것이 아니라
+    모르는 것이다(2026-09-16 코드 확인, EAT-242). 해소로 판정하면 "해소됨"이 나가고 다음 회차에 같은 위반이
+    새로 열린 것으로 first_seen_at이 초기화된다."""
+    현재 = [
+        Violation(
+            key="probe:check-failed",
+            title="기대 'probe'를 평가하지 못했다",
+            runbook="docs/x.md",
+            detail="OperationalError: 연결 끊김",
+        )
+    ]
+    이전 = [
+        OpenViolation(
+            key="probe:r1",
+            first_seen_at="2026-09-10T00:00:00Z",
+            title="탐침이 진행하고 있다",
+            detail="run=r1",
+        ),
+        OpenViolation(key="probe", first_seen_at="2026-09-09T00:00:00Z"),
+    ]
+
+    결과 = diff_violations(현재, 이전, now="2026-09-11T00:00:00Z")
+
+    assert 결과.resolved == ()
+    assert [violation.key for violation in 결과.opened] == ["probe:check-failed"]
+    남은 = {item.key: item for item in 결과.still_open}
+    assert set(남은) == {"probe:check-failed", "probe:r1", "probe"}
+    assert 남은["probe:r1"].first_seen_at == "2026-09-10T00:00:00Z"
+    assert 남은["probe:r1"].observation == "unobserved"
+    assert 남은["probe:r1"].detail == "run=r1"
+    assert 남은["probe"].observation == "unobserved"
+    assert 남은["probe:check-failed"].observation == "observed"
+
+
+def test_다른_기대의_위반_해소는_평가_실패와_무관하게_판정된다() -> None:
+    현재 = [
+        Violation(key="probe:check-failed", title="t", runbook="docs/x.md", detail="d")
+    ]
+    이전 = [
+        OpenViolation(key="probe:r1", first_seen_at="2026-09-10T00:00:00Z"),
+        OpenViolation(key="other:x", first_seen_at="2026-09-10T00:00:00Z"),
+        # 접두사가 겹쳐 보이는 다른 기대다. `probe`의 실패가 `probe-two`를 덮어쓰면 안 된다.
+        OpenViolation(key="probe-two:y", first_seen_at="2026-09-10T00:00:00Z"),
+    ]
+
+    결과 = diff_violations(현재, 이전, now="2026-09-11T00:00:00Z")
+
+    assert sorted(결과.resolved) == ["other:x", "probe-two:y"]
+    assert "probe:r1" in {item.key for item in 결과.still_open}
+
+
+def test_관측_안_됨으로_남은_위반은_회복된_회차에_first_seen_at을_이어간다() -> None:
+    첫_회차 = diff_violations(
+        [
+            Violation(
+                key="probe:check-failed", title="t", runbook="docs/x.md", detail="d"
+            )
+        ],
+        [OpenViolation(key="probe:r1", first_seen_at="2026-09-10T00:00:00Z")],
+        now="2026-09-11T00:00:00Z",
+    )
+    회복 = diff_violations(
+        [Violation(key="probe:r1", title="t", runbook="docs/x.md", detail="d")],
+        첫_회차.still_open,
+        now="2026-09-11T00:15:00Z",
+    )
+
+    assert 회복.opened == ()
+    assert 회복.resolved == ("probe:check-failed",)
+    assert [
+        (item.key, item.first_seen_at, item.observation) for item in 회복.still_open
+    ] == [("probe:r1", "2026-09-10T00:00:00Z", "observed")]
+
+
+def test_평가_실패_자체가_풀리면_그_위반만_해소된다() -> None:
+    결과 = diff_violations(
+        [],
+        [OpenViolation(key="probe:check-failed", first_seen_at="2026-09-11T00:00:00Z")],
+        now="2026-09-11T00:15:00Z",
+    )
+
+    assert 결과.resolved == ("probe:check-failed",)
+    assert 결과.still_open == ()
+
+
+def test_observation이_없는_옛_상태_문서는_관측된_것으로_읽는다() -> None:
+    복원 = decode_state({"open": [{"key": "probe", "first_seen_at": "t"}]})
+
+    assert 복원[0].observation == "observed"
 
 
 def test_저장된_상태가_깨져_있으면_빈_것으로_읽어_검사를_멈추지_않는다() -> None:
@@ -278,7 +371,9 @@ def test_판정과_알림이_끝난_뒤_지표_한_행을_기록자에게_넘긴
     순서: list[str] = []
     시계 = iter([10.0, 10.25])
 
-    def run_query(sql: str, parameters: Mapping[str, Any]) -> Sequence[Mapping[str, Any]]:
+    def run_query(
+        sql: str, parameters: Mapping[str, Any]
+    ) -> Sequence[Mapping[str, Any]]:
         return [{"run_id": "r1"}] if sql == _기대_하나.sql else []
 
     def record(metrics: RoundMetrics) -> None:
@@ -297,7 +392,11 @@ def test_판정과_알림이_끝난_뒤_지표_한_행을_기록자에게_넘긴
 
     assert 회차.round_recorded is True
     assert 순서 == ["notify", "round"]
-    assert (기록[0].environment, 기록[0].violations_open, 기록[0].check_duration_ms) == ("prod", 1, 250)
+    assert (
+        기록[0].environment,
+        기록[0].violations_open,
+        기록[0].check_duration_ms,
+    ) == ("prod", 1, 250)
     assert (기록[0].runs_started_1h, 기록[0].auctions_published_1h) == ({}, 0)
 
 
