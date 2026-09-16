@@ -293,6 +293,31 @@
    때문이며(§2), 그래서 `ELCTRN_BID_STT_NM`은 지금 코퍼스로는 잴 수 없다(§10.4).
    "값이 한 종뿐"을 "어휘가 한 종"으로 읽지 마라.
 
+### T18. 조사된 것과 파서가 읽는 것 사이에 간극이 있다 — 그 간극은 재파싱 비용이다
+
+- 걸린 자리: `ds_info` 전반. 특히 `SGNS_BID_PRCS_MTHD_CD_NM`, `DLVRY_STRT_DT`·`DLVRY_END_DT`·`DLVRY_TIME`·`DLVRY_END_TIME`·`DOG_ADDR`, `QLFC_LMT_YN`·`QLFC_LMT_ITM_CD_NM`, `VAT_INCL_YN`·`BGNG_PRC_RLS_YN`·`MRKT_EXMN_PRC_RLS_YN`
+- 근거: `generated/source-field-index.md`의 파서 소비 열 · `census-detail.txt`
+
+이 사전은 필드가 **무엇인지**를 판정하지만 파서가 **그것을 읽는지**는 말하지 않는다. 둘이 크게
+벌어져 있다. `ds_info`는 백 열이 넘고 대부분 채워지는데 수집 계약(`schema_contract.py`)이 주장하는
+것은 그중 열 몇 개다. 채움률과 값 예시는 생성 색인에 이미 있다 — 모르는 것이 아니라 안 가져오는 것이다.
+
+**이 간극을 "소스가 안 준다"로 읽으면 틀린다.** T7이 `ds_info.MLFD_NM`에서 같은 함정을 이미 적었다.
+색인의 파서 소비 열이 비어 있는 것은 우리 계약의 사정이지 원천의 사정이 아니다.
+
+간극을 메우는 비용은 **재수집이 아니라 재파싱**이다. raw 응답 전문이 보존되므로 새 parser version이
+지난 코퍼스까지 같이 채운다(ADR 0025 sealed membership). 그래서 "지금 안 읽으니 그 사실은 없다"는
+결론은 성립하지 않는다.
+
+제품 판단에 직결되면서 아직 안 읽는 축을 예로 남긴다. 값의 분포는 생성 색인이 소유한다.
+
+| 축 | 필드 | 왜 제품에 걸리나 |
+| --- | --- | --- |
+| 투찰 성립 | `SGNS_BID_PRCS_MTHD_CD_NM` | 단독입찰을 허용하지 않는 공고가 대부분이다. 화면이 이미 보여 주는 참여 수의 뜻이 바뀐다 |
+| 납품 | `DLVRY_*`, `DOG_ADDR` | 그 시각에 그곳까지 갈 수 있는지가 투찰 조건이다 |
+| 자격제한 | `QLFC_LMT_YN`, `QLFC_LMT_ITM_CD_NM` | 낼 수 없는 공고를 열기 전에 가른다(코드 넷의 구조는 T9) |
+| 금액 해석 | `VAT_INCL_YN`, `BGNG_PRC_RLS_YN`, `MRKT_EXMN_PRC_RLS_YN` | 기초금액을 보여 주면서 부가세 포함 여부와 공개 여부를 모른다 |
+
 ## 2. 모르는 채로 남은 것
 
 추측으로 채우지 않는다(AGENTS 3). 아래는 원본 감사가 모른다고 적은 것을 그대로 옮긴 것이며

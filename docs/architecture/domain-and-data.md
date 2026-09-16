@@ -204,7 +204,9 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
   `award_method`·`planned_price_method`로 각각 `eat:award-method`·`eat:planned-price-type` code value를
   가리킨다. 코호트 키를 `source_payload` jsonb 경로에 묶어 두지 않기 위한 것이며
   [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §6이 정했다. v1 record에는
-  `terms` 블록이 없어 v1 발행은 `floor_rate`가 null이고 두 role 관계를 만들지 않는다.
+  `terms` 블록이 없어 v1 발행은 `floor_rate`가 null이고 두 role 관계를 만들지 않는다. 품목은 role `item`으로
+  `eatbid:auction-item` 원자 code value를 가리키며, 라벨 한 문자열이 원자 여러 행으로 투영되므로 한 revision에
+  같은 role 행이 여럿 선다(EAT-230, 마이그레이션 `20260916114829_auction_revision_code_value_item_role`).
   `packages/db/src/schema/core/procurement.ts`가 DDL의 권위다.
 - **`AwardDecision`은 revision당 0 또는 1이다.** 근거는 전수 리포트의 `multiple_award_rows = 0`이며,
   위반이 관측되면 두 행을 만드는 것이 아니라 격리한다.

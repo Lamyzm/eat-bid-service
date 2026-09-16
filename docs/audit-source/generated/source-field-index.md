@@ -44,6 +44,7 @@
 | [T15](../SOURCE-FIELDS.md#t15-rnkrnk2rnk3는-서로-다른-순위이고-차이를-모른다) | `RNK`·`RNK2`·`RNK3`는 서로 다른 순위이고 차이를 모른다 | `ds_bidList.RNK` `ds_bidList.RNK2` `ds_bidList.RNK3` |
 | [T16](../SOURCE-FIELDS.md#t16-sucbd_decision_mthd_nm을-파싱하지-마라) | `SUCBD_DECISION_MTHD_NM`을 파싱하지 마라 | `ds_info.SUCBD_DECISION_MTHD_NM` `ds_info.SUCBID_DCSN_MTH_CD` `ds_list.SUCBD_DECISION_MTHD_NM` `ds_info.TP_NM` |
 | [T17](../SOURCE-FIELDS.md#t17-통제-어휘는-손으로-적지-말고-코드북에서-받는다) | 통제 어휘는 손으로 적지 말고 코드북에서 받는다 | `ds_info.BID_TYPE_CD` `ds_info.CNTRCT_FORM` `ds_info.CTRT_LAW_CD` `ds_info.PLNPRC_TYPE_CD` `ds_info.LMT_CNDTN_CD` `ds_list.ETN_BID_STT` `ds_info.ELCTRN_BID_STT_NM` |
+| [T18](../SOURCE-FIELDS.md#t18-조사된-것과-파서가-읽는-것-사이에-간극이-있다--그-간극은-재파싱-비용이다) | 조사된 것과 파서가 읽는 것 사이에 간극이 있다 — 그 간극은 재파싱 비용이다 | `ds_info` `SGNS_BID_PRCS_MTHD_CD_NM` `DLVRY_STRT_DT` `DLVRY_END_DT` `DLVRY_TIME` `DLVRY_END_TIME` `DOG_ADDR` `QLFC_LMT_YN` `QLFC_LMT_ITM_CD_NM` `VAT_INCL_YN` `BGNG_PRC_RLS_YN` `MRKT_EXMN_PRC_RLS_YN` |
 
 ## dataset 대장
 
@@ -51,7 +52,7 @@
 
 | dataset | 선언 | 선언% | 행보유 | 행보유% | 총행 | 평균행 | 함정 |
 |---|---|---|---|---|---|---|---|
-| `ds_info` | 181,150 | 100.0% | 181,150 | 100.00% | 181,150 | 1.00 |  |
+| `ds_info` | 181,150 | 100.0% | 181,150 | 100.00% | 181,150 | 1.00 | [T18](../SOURCE-FIELDS.md#t18-조사된-것과-파서가-읽는-것-사이에-간극이-있다--그-간극은-재파싱-비용이다) |
 | `ds_eftInfo` | 181,150 | 100.0% | 0 | 0.00% | 0 | 0.00 | [T12](../SOURCE-FIELDS.md#t12-사실이-아닌-필드--저장하면-안-되는-것과-한-번도-안-채워지는-것) |
 | `ds_mainItemlist` | 181,150 | 100.0% | 114,599 | 63.26% | 114,599 | 1.00 |  |
 | `ds_bidList` | 181,150 | 100.0% | 181,150 | 100.00% | 8,605,417 | 47.50 |  |
@@ -424,6 +425,17 @@
 판정 문서가 함정으로 지목했는데 위 표에 줄이 없는 자리다. **오타일 수도 있고 census가 싣지 않는 키일 수도 있다.**
 선언만 되고 값이 한 번도 안 온 키와 우리가 부르지 않는 엔드포인트의 column이 여기 남는다.
 
+- `BGNG_PRC_RLS_YN`
+- `DLVRY_END_DT`
+- `DLVRY_END_TIME`
+- `DLVRY_STRT_DT`
+- `DLVRY_TIME`
+- `DOG_ADDR`
+- `MRKT_EXMN_PRC_RLS_YN`
+- `QLFC_LMT_ITM_CD_NM`
+- `QLFC_LMT_YN`
+- `SGNS_BID_PRCS_MTHD_CD_NM`
+- `VAT_INCL_YN`
 - `ds_info.CANCEL_REASON`
 
 ## 읽지 못한 줄
