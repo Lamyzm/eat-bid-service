@@ -25,8 +25,12 @@ export type BidRate = PercentagePoints & {
   readonly [bidRateBrand]: "BidRate";
 };
 
-/** 예정가격 분모의 원천 관측은 100을 넘을 수 있어 bounded PercentagePoints와 분리한다. */
-export type ObservedBidRate = CanonicalDecimal & {
+/**
+ * 예정가격 분모의 원천 관측은 100을 넘을 수 있어 bounded PercentagePoints와 분리한다. 음수도 관측된다
+ * (2026-03 창 명단의 -2507.667 등, ADR 0053) — 그래서 부호 없는 CanonicalDecimal의 하위 타입이 아니라
+ * 부호를 가질 수 있는 별도 문자열 브랜드다. 산술이 필요하면 크기(`observedBidRateMagnitude`)로 내린다.
+ */
+export type ObservedBidRate = string & {
   readonly [observedBidRateBrand]: "ObservedBidRate";
 };
 
@@ -90,13 +94,25 @@ export function bidRate(value: CanonicalDecimal): BidRate {
   return value as BidRate;
 }
 
-/** 원천 관측을 절단하지 않되 canonical wire와 numeric(15,3)의 정밀도 경계는 유지한다. */
-export function observedBidRate(value: CanonicalDecimal): ObservedBidRate {
-  canonicalDecimal(value, 3);
-  if (value.length > 16) {
+/**
+ * 원천 관측을 절단하지 않되 canonical wire와 numeric(15,3)의 정밀도 경계는 유지한다. 앞의 `-` 하나까지
+ * 받는다 — 크기는 부호 없는 canonical decimal이어야 하고 `-0.000`은 canonical이 아니다(0의 부호는 없다).
+ */
+export function observedBidRate(value: string): ObservedBidRate {
+  const magnitude = value.startsWith("-") ? value.slice(1) : value;
+  canonicalDecimal(magnitude, 3);
+  if (magnitude.length > 16) {
     throw new RangeError("Observed bid rate must have at most twelve integer digits");
   }
+  if (value.startsWith("-") && /^0\.0+$/.test(magnitude)) {
+    throw new RangeError("Observed bid rate zero has no sign");
+  }
   return value as ObservedBidRate;
+}
+
+/** 부호를 뗀 크기. 비교·정렬처럼 산술이 필요한 소비자만 쓴다. */
+export function observedBidRateMagnitude(value: ObservedBidRate): CanonicalDecimal {
+  return canonicalDecimal(value.startsWith("-") ? value.slice(1) : value, 3);
 }
 
 /**

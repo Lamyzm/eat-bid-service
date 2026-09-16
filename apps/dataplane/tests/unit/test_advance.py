@@ -85,3 +85,30 @@ def test_범위_안이_모두_끝나면_아무것도_고르지_않는다() -> No
 def test_floor가_미래면_고를_창이_없다() -> None:
     assert month_windows(as_of=date(2026, 9, 14), floor=date(2027, 1, 1)) == ()
     assert next_window(as_of=date(2026, 9, 14), floor=date(2027, 1, 1), coverage=[]) is None
+
+
+def _발행실패(start: str, end: str) -> CompletedWindow:
+    return CompletedWindow(start_date=start, end_date=end, is_complete=False, failed_publications=1)
+
+
+def test_발행이_실패한_창은_건너뛰고_그_앞의_달로_간다() -> None:
+    # 2026-03 창을 매시 다시 받아 같은 격리로 다시 죽었다(EAT-235). 다시 받을 일이 아니라 replay할 일이다.
+    window = next_window(
+        as_of=date(2026, 9, 16),
+        floor=date(2026, 1, 1),
+        coverage=[_완결("20260801", "20260831"), _발행실패("20260301", "20260331")],
+    )
+
+    assert window is not None
+    assert (window.start_date, window.end_date) == ("20260701", "20260731")
+
+
+def test_발행_실패_창이_완결되면_다시_보지_않는다() -> None:
+    # replay가 성공하면 revision이 생겨 is_complete가 참이 된다. 실패 흔적은 남아도 할 일은 없다.
+    window = next_window(
+        as_of=date(2026, 4, 10),
+        floor=date(2026, 3, 1),
+        coverage=[CompletedWindow(start_date="20260301", end_date="20260331", is_complete=True, failed_publications=1)],
+    )
+
+    assert window is None

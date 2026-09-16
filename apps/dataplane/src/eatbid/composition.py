@@ -236,13 +236,15 @@ class Application:
         """
         with self._connection.cursor() as cursor:
             cursor.execute(
-                "select window_start, window_end, is_complete from ingest.backfill_coverage"
+                "select window_start, window_end, is_complete, failed_publications"
+                " from ingest.backfill_coverage"
             )
             coverage = tuple(
                 CompletedWindow(
                     start_date=str(row[0]),
                     end_date=str(row[1]),
                     is_complete=bool(row[2]),
+                    failed_publications=int(row[3]),
                 )
                 for row in cursor.fetchall()
             )

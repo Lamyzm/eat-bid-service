@@ -138,15 +138,25 @@ def test_계약_정수부_열세_자리_사정률은_거부한다() -> None:
         )
 
 
-def test_음수_사정률은_관측_상한을_없애도_거부한다() -> None:
-    with pytest.raises(ValueError, match="SAJEONG_PCT"):
-        parse_bid_roster(
+def test_음수_사정률도_관측값_그대로_싣는다() -> None:
+    # 2026-03 창 명단 3건이 -2507.667·-3938.779·-9200.855였다. 비음수로 닫으면 그 6건이 창 전체 16,469건의
+    # 발행을 막는다(EAT-235). 뜻은 모르고 그 판단은 분석 단계가 한다(ADR 0053).
+    def _bid_rate(value: str) -> str:
+        roster = parse_bid_roster(
             _detail(
                 "ds_bidList",
-                _row(SAJEONG_PCT="-1.000", BID_CALC_AMT="1000", BID_STT="005",
-                     SHIPPER_CD="1"),
+                _row(SAJEONG_PCT=value, BID_CALC_AMT="1000", BID_STT="005", SHIPPER_CD="1"),
             )
         )
+        return roster.submissions[0].bid_rate.value
+
+    assert _bid_rate("-2507.667") == "-2507.667"
+    assert _bid_rate("-1") == "-1.000"
+    # "-0"은 0과 같은 값이라 부호 없는 0으로 적는다 — 계약 정규식도 부호 있는 0을 받지 않는다.
+    assert _bid_rate("-0") == "0.000"
+    # 크기는 양수와 같은 상한이다.
+    with pytest.raises(ValueError, match="SAJEONG_PCT"):
+        _bid_rate("-1000000000000.000")
 
 
 def test_계약보다_정밀한_사정률은_반올림하지_않고_거부한다() -> None:
@@ -327,3 +337,18 @@ def test_사슬_블록이_없으면_빈_사슬이고_직전_차수도_없다() -
 
     assert lineage.links == []
     assert lineage.parent_external_bid_id is None
+
+
+def test_생성된_관측_사정률_모델은_음수를_받고_부호_있는_0은_거부한다() -> None:
+    # 생성 모델의 정규식은 pydantic의 Rust regex로 컴파일된다 — lookaround가 있으면 모델 로드 자체가 죽는다
+    # (2026-09-16 smoke 실측). 여기서 실제로 생성자를 불러 그 정규식이 살아 있는지도 함께 본다.
+    from pydantic import ValidationError
+
+    from eatbid.generated.ingestion_v2 import ObservedBidRate
+
+    assert ObservedBidRate(value="-2507.667", unit="percentage-points").value == "-2507.667"
+    assert ObservedBidRate(value="-0.001", unit="percentage-points").value == "-0.001"
+    assert ObservedBidRate(value="0.000", unit="percentage-points").value == "0.000"
+    for rejected in ("-0.000", "-1000000000000.000", "--1.000", "1.00"):
+        with pytest.raises(ValidationError):
+            ObservedBidRate(value=rejected, unit="percentage-points")
