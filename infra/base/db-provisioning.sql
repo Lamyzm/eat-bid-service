@@ -80,12 +80,13 @@ begin
           'to eatbid_dataplane';
   execute 'grant select on all tables in schema drizzle to eatbid_dataplane';
 
-  -- 감시 회차(check-expectations)가 monitoring.round에 회차당 한 행을 쌓는다(EAT-227). 덮어쓰지도
-  -- 지우지도 않으므로 INSERT와 SELECT만 준다. API 역할은 이 schema를 모른다.
+  -- 감시 회차(check-expectations)가 monitoring.round에 회차당 한 행을 쌓고(EAT-227), monitoring.violation의
+  -- 열린 행에 관측·해소·재알림 시각을 갱신한다(ADR 0054). 지우지는 않는다 — 해소된 위반은 이력이다.
+  -- API 역할은 이 schema를 모른다.
   execute 'grant usage on schema monitoring to eatbid_dataplane';
   execute 'revoke create on schema monitoring from eatbid_dataplane';
-  execute 'grant select, insert on all tables in schema monitoring to eatbid_dataplane';
-  execute 'revoke update, delete, truncate, references, trigger '
+  execute 'grant select, insert, update on all tables in schema monitoring to eatbid_dataplane';
+  execute 'revoke delete, truncate, references, trigger '
           'on all tables in schema monitoring from eatbid_dataplane';
 
   -- Grafana 역할: 화면이 읽는 monitoring(회차 지표)과 mart(파생 표)만, SELECT만. ingest·core·app은
@@ -103,7 +104,7 @@ begin
   foreach grantor in array array['eatbid_migrator', current_user] loop
     execute format(
       'alter default privileges for role %I in schema monitoring '
-      'grant select, insert on tables to eatbid_dataplane', grantor);
+      'grant select, insert, update on tables to eatbid_dataplane', grantor);
     execute format(
       'alter default privileges for role %I in schema monitoring, mart '
       'grant select on tables to eatbid_grafana', grantor);

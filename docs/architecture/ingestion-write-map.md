@@ -2,7 +2,7 @@
 id: INGESTION-WRITE-MAP
 status: active
 canonical_for: dataplane-write-targets-and-boundaries
-last_reviewed: 2026-09-11
+last_reviewed: 2026-09-16
 review_trigger: dataplane-write-target-or-transaction-boundary-change
 ---
 
@@ -59,7 +59,8 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | discover | `ingest/postgres_release_repository.py` | `ingest.source_release`, `ingest.source_release_dataset`, `ingest.source_release_run`, `ingest.source_release_observation` |
 | discover, capture | `ingest/postgres_repository.py` | `ingest.raw_blob`, `ingest.raw_observation`, `ingest.request_unit`, `ingest.run` |
 | discover, capture, capture-reference, capture-code-vocabulary | `storage/r2_store.py` | `R2 raw/{source}/{endpoint}/{sha256}.{xml\|txt}.gz` |
-| check-expectations | `monitoring/store.py` | `R2 monitoring/{환경}/expectation-state.json` (수집 단계가 아닌 운영 감시의 가변 상태. raw와 접두사·코드를 나눈다) |
+| check-expectations | `monitoring/store.py` | `R2 monitoring/{환경}/expectation-state.json` (ADR 0054 이후 쓰지 않는다. 표가 비어 있을 때 한 번 읽어 이관하는 원본으로만 남았다) |
+| check-expectations | `monitoring/ledger.py` | `monitoring.violation`, `monitoring.notification` (위반의 수명과 보낸 통. 열린 행은 환경·키당 하나, 해소 행은 이력으로 보존, 전송 실패도 행. ADR 0054) |
 | check-expectations | `monitoring/round.py` | `monitoring.round` (회차당 한 행의 모양 지표. 판정·알림이 끝난 뒤 쓰며 알림의 근거가 아니다, EAT-227) |
 | capture, validate | `ingest/postgres_release_guards.py` | `ingest.source_release_observation`, `ingest.source_release_dataset` |
 | normalize, replay | `ingest/postgres_normalization_repository.py` | `ingest.normalization_attempt`, `ingest.normalization_attempt_record`, `ingest.normalized_record` |
