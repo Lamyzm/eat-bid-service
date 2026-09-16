@@ -9,6 +9,7 @@ import { presentOpenAuctionList } from '../_model/present-open-auctions';
  import { presentOpenSummary } from '../_model/present-open-summary';
 import { TodayScreen } from './today-screen';
 import { TodayScreenSkeleton } from './today-screen-skeleton';
+import { TodayCalendar } from './today-tabs';
 
 const confirmedAreas = [
   { codeValueId: '9101', code: '15000', label: '경남/전체' },
@@ -170,5 +171,31 @@ describe('오늘 화면', () => {
     );
     expect(markup).toContain('전국 공고');
     expect(markup).toContain('내 지역만 보기');
+  });
+});
+
+describe('마감 달력', () => {
+  test('선택 링은 채움과 다른 색이고 채운 칸의 날짜는 본문 색이며 요일 줄이 칸과 같은 격자에 선다', () => {
+    const search = { ...EMPTY_TODAY_SEARCH, closesOn: '2026-09-07' };
+    const summary = presentOpenSummary(openSummaryFixture, fixtureNow, search);
+    const screen = render(<TodayCalendar summary={summary} search={search} />);
+
+    // 오늘 칸은 primary로 차 있으므로 primary 링은 보이지 않는다(1:1). 링은 primary-foreground여야 한다(EAT-229).
+    const today = screen.getByRole('link', { current: 'date' });
+    expect(today.className).toContain('bg-primary');
+    expect(today.className).toContain('ring-primary-foreground');
+    expect(today.className).not.toMatch(/ring-primary(\s|$)/);
+
+    // 건수가 있어 농도가 실린 칸(09-10, 2건)의 날짜는 muted가 아니라 본문 색이고, 빈 칸(09-09)은 muted다.
+    const busy = screen.getByRole('link', { name: '2026-09-10 2건' });
+    expect(busy.firstElementChild?.className).toContain('text-foreground');
+    const idle = screen.getByRole('link', { name: '2026-09-09 0건' });
+    expect(idle.firstElementChild?.className).toContain('text-muted-foreground');
+
+    // 요일 줄과 칸 격자는 같은 gap을 갖고 안쪽 여백은 칸 단위다. 그래야 요일이 칸 위에 선다.
+    const grids = [...screen.container.querySelectorAll('div.grid.grid-cols-7')];
+    expect(grids).toHaveLength(2);
+    expect(grids.every((grid) => grid.className.includes('gap-0.5'))).toBe(true);
+    expect([...grids[0]!.children].every((day) => day.className.includes('px-2'))).toBe(true);
   });
 });
