@@ -99,13 +99,14 @@ function OpenAuctionList({
     <div className='grid min-w-0 gap-4'>
       <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 empty:hidden'>
         {/* 더보기를 두지 않기로 했으므로(사용자 결정) 못 보는 행이 생기면 그 사실을 수로 적는다. 좁히는
-            길 셋(달력 칸·지역 칩·검색)은 이미 화면에 있다. */}
+            길 셋(달력 칸·지역 줄·검색)은 이미 화면에 있다. 상태색을 쓰지 않는다 — 상한은 급한 일이 아니라 사실이고
+            amber는 내일 마감의 색이다(screen-system §9.2, EAT-261). */}
         {rows.length === presentation.sampleCount ? null : (
-          <span className='text-[13px] font-semibold text-pushed'>
+          <span className='text-[13px] font-medium text-muted-foreground/70 tabular-nums'>
             {presentation.sampleCount}건 중 {rows.length}건
           </span>
         )}
-        {cursorReset ? <span className='text-[13px] font-semibold text-pushed'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
+        {cursorReset ? <span className='text-[13px] font-semibold text-muted-foreground'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
       </div>
       <OpenAuctionCards groups={groups} search={search} />
     </div>
