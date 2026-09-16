@@ -84,9 +84,10 @@ test.describe('오늘 화면 접근성 트리', () => {
     await page.goto('/today');
     await 표를기다린다(page);
 
-    // 묶음 머리가 시각·남은 시간·건수를 말하고 낭독기는 구획 이름으로 그 시각을 듣는다.
+    // 묶음 머리가 시각·남은 시간·건수를 말하고 낭독기는 구획 이름으로 그 시각을 듣는다. fixture의 오늘 행은
+    // 그날 23:59에 닫힌다(`closingDayEnd`).
     const list = page.getByRole('region', { name: '열린 공고' });
-    await expect(list.getByRole('region', { name: '오후 8시 마감' })).toHaveCount(1);
+    await expect(list.getByRole('region', { name: '오후 11시 59분 마감' })).toHaveCount(1);
     await expect(list.locator('section[aria-label]')).toHaveCount(4);
     await expect(page.locator('table')).toHaveCount(0);
   });
@@ -129,9 +130,10 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.getByText('오늘 열린 공고는 셀 수 없어요.')).toBeVisible();
     await expect(page.getByRole('link', { name: '오늘 마감 1건' })).toBeVisible();
     await expect(page.getByText('게시일이 관측되지 않은 공고가 4건 있어요', { exact: false })).toBeVisible();
-    // 축 줄은 없다(EAT-241). 전체 수는 `진행중` 탭이 한 번만 말하고 `하한 N · N건`은 사용자 결정으로 뺐다.
-    await expect(page.getByText('4건', { exact: true })).toHaveCount(0);
-    await expect(page.getByText(/하한 9\d/)).toHaveCount(0);
+    // 축 줄은 없다(EAT-241). 전체 수 `4건`은 머리 문장의 굵은 수 하나뿐이고 `하한 N · N건`은 사용자 결정으로 뺐다.
+    // 행의 `하한 90%`는 축 줄이 아니라 금액 아래 한 줄이다(U9).
+    await expect(page.getByText('4건', { exact: true })).toHaveCount(1);
+    await expect(page.getByText(/하한 9\d · \d+건/)).toHaveCount(0);
   });
 
   test('조건 기둥은 지역·품목 체크 줄에 그 축만 푼 건수를 달고 기초금액은 비어 있다', async ({ page }) => {

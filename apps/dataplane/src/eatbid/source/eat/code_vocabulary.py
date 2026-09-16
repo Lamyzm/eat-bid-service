@@ -15,7 +15,11 @@ from eatbid.generated.code_vocabulary_v1 import (
     EatbidCodeVocabularyV1,
     NormalizedCodeVocabularyEntry,
 )
-from eatbid.source.eat.code_schemes import EatCodeListGroup, code_list_group, code_list_scheme
+from eatbid.source.eat.code_schemes import (
+    EatCodeListGroup,
+    code_list_group,
+    code_list_scheme,
+)
 from eatbid.source.eat.wire_text import canonical_instant_text, optional_text
 from eatbid.source.eat.wire_values_v2 import SOURCE_SYSTEM
 from eatbid.source.eat.xml import ParsedNexacro

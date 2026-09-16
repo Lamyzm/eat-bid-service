@@ -88,7 +88,9 @@ function AuctionRow({ row, search }: { readonly row: OpenAuctionRowPresentation;
     <article
       data-slot='auction-row'
       data-closes={row.closes.tone}
-      className='-mx-3.5 grid gap-x-6 gap-y-2 rounded-xl px-3.5 py-4 hover:bg-muted/60 sm:grid-cols-[minmax(0,1fr)_200px] [&+&]:shadow-[inset_0_1px_0_var(--border)]'
+      // 음수 여백으로 행을 본문 밖으로 내밀지 않는다. 14px 내민 행이 부모의 scrollWidth를 늘려 폭별 밀림 검사가 넘침으로
+      // 읽는다(CI 실측 906>892). hover 면은 글자 가장자리에서 시작한다.
+      className='grid gap-x-6 gap-y-2 rounded-xl py-4 hover:bg-muted/60 sm:grid-cols-[minmax(0,1fr)_200px] [&+&]:shadow-[inset_0_1px_0_var(--border)]'
     >
       <div className='min-w-0'>
         <p className='flex min-w-0 flex-wrap items-baseline gap-x-2'>

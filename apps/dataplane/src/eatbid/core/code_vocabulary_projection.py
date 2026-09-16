@@ -24,7 +24,6 @@ from eatbid.generated.code_vocabulary_v1 import (
     NormalizedCodeVocabularyEntry,
 )
 
-
 # 시군구 → 시도처럼 소스가 스스로 말한 계층이다. 행안부 대조(`region_mapping.py`)의 `exact`·`overlaps`와
 # 다른 관계다 — 그쪽은 두 체계의 같은 구역을 잇고, 이쪽은 한 소스 안의 상하를 잇는다.
 PARENT_RELATION = "parent"

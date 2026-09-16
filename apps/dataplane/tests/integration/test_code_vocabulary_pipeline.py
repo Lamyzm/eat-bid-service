@@ -7,7 +7,6 @@ from uuid import uuid4
 import pytest
 
 from eatbid.core.code_vocabulary_projection import PARENT_RELATION
-from eatbid.core.repository import ProjectionContractError
 from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
