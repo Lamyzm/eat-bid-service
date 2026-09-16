@@ -164,6 +164,7 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
         snapshot.item_label,
         snapshot.title,
         snapshot.display_bid_no,
+        snapshot.solo_bid_method_code_value_id,
         snapshot.floor_rate,
         snapshot.region_sido_code_value_id,
         snapshot.region_sigungu_code_value_id,
@@ -310,6 +311,10 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
       region_sigungu.code as region_sigungu_code,
       region_sigungu.scheme as region_sigungu_scheme,
       region_sigungu.label as region_sigungu_label,
+      solo_bid_method.code_value_id as solo_bid_method_code_value_id,
+      solo_bid_method.code as solo_bid_method_code,
+      solo_bid_method.scheme as solo_bid_method_scheme,
+      solo_bid_method.label as solo_bid_method_label,
       eligibility.areas as eligibility_areas,
       summary.attempt_count,
       summary.median_list_count,
@@ -324,6 +329,8 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
     left join core.organization organization on organization.organization_id = page_rows.organization_id
     ${regionReferenceJoin(sql`page_rows.region_sido_code_value_id`, "region_sido")}
     ${regionReferenceJoin(sql`page_rows.region_sigungu_code_value_id`, "region_sigungu")}
+    -- 단독입찰 처리 방법도 코드 참조 하나라 지역과 같은 lateral로 닫는다(라벨은 최신 관측 하나, EAT-249).
+    ${regionReferenceJoin(sql`page_rows.solo_bid_method_code_value_id`, "solo_bid_method")}
     ${eligibilityAreasLateral(sql`page_rows.terms_revision_id`, "eligibility")}
     -- 요약의 grain은 기관이 아니라 (기관, 하한율)이다. 하한율이 다르면 그날 하한이 다른 자리에 서서
     -- 낙찰 투찰률도 참여 규모도 겹치지 않는 판이 되므로 한 기관 안에서도 섞지 않는다

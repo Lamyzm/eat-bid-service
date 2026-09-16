@@ -48,12 +48,15 @@ def _require_detail_schema(parser_version: str) -> ReviewedSchemaContract:
 _DETAIL_SCHEMAS: Mapping[str, ReviewedSchemaContract] = MappingProxyType(
     {
         version: _require_detail_schema(version)
-        for version in ("eat-v1", "eat-v2", "eat-v3")
+        for version in ("eat-v1", "eat-v2", "eat-v3", "eat-v4")
     }
 )
 # 참가제한지역 라벨(`PDLC_NM`)을 관측해 `location.eligibilityAreas`에 싣는 parser version이다. eat-v2는
 # 이 키를 쓰지 않아 봉인된 바이트가 그대로이고, 라벨을 원하는 관측은 eat-v3로 새로 정규화한다(ADR 0038).
-_AREA_LABEL_PARSER_VERSIONS = frozenset({"eat-v3"})
+_AREA_LABEL_PARSER_VERSIONS = frozenset({"eat-v3", "eat-v4"})
+# 단독입찰 처리 방법(`ds_info.SGNS_BID_PRCS_MTHD_CD`)을 `terms.soloBidMethod`에 싣는 parser version이다. 같은 이유로
+# eat-v3를 고치지 않고 이름을 더한다 — 키가 붙은 payload는 다른 바이트라 봉인된 관측의 재실행이 guard에 막힌다(EAT-249).
+_SOLO_BID_PARSER_VERSIONS = frozenset({"eat-v4"})
 
 
 class EatDetailValidationError(ValueError):
@@ -108,6 +111,7 @@ def normalize_bid_detail_payload(
                 info,
                 shared,
                 observe_area_labels=parser_version in _AREA_LABEL_PARSER_VERSIONS,
+                observe_solo_bid_method=parser_version in _SOLO_BID_PARSER_VERSIONS,
             )
         )
     except (InvalidOperation, ValidationError, ValueError) as error:
@@ -179,6 +183,7 @@ def _build_v2(
     shared: dict[str, Any],
     *,
     observe_area_labels: bool,
+    observe_solo_bid_method: bool = False,
 ) -> EatbidIngestionAuctionV2:
     roster = parse_bid_roster(parsed)
     if observe_area_labels:
@@ -194,7 +199,7 @@ def _build_v2(
     return EatbidIngestionAuctionV2(
         contract_version="eatbid.ingestion.auction.v2",
         **shared,
-        terms=parse_auction_terms(info),
+        terms=parse_auction_terms(info, observe_solo_bid_method=observe_solo_bid_method),
         roster=roster,
         award=parse_award_decision(parsed, roster),
         reserve_price_draw=parse_reserve_price_draw(parsed),

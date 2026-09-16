@@ -234,6 +234,8 @@ def _terms_code_refs(record: EatbidIngestionAuctionV2) -> tuple[ExternalCodeRef,
         for value, role in (
             (record.terms.planned_price_method, "planned_price_method"),
             (record.terms.award_method, "award_method"),
+            # eat-v4부터 읽는 단독입찰 처리 방법이다. 옛 payload에는 키가 없어 None이고 그것은 미관측이다.
+            (record.terms.solo_bid_method, "solo_bid_method"),
         )
         if value is not None
     )

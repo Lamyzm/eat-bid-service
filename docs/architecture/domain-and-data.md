@@ -202,7 +202,8 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
   `auction_revision.floor_rate numeric(6,3)`(null 허용, `PLNPRCE_SUCBD_STD` 관측 그대로)이고, 낙찰 방식
   (`SUCBID_DCSN_MTH_CD`)과 예정가격 방식(`PLNPRC_TYPE_CD`)은 `core.auction_revision_code_value`의 role
   `award_method`·`planned_price_method`로 각각 `eat:award-method`·`eat:planned-price-type` code value를
-  가리킨다. 코호트 키를 `source_payload` jsonb 경로에 묶어 두지 않기 위한 것이며
+  가리킨다. 단독입찰 처리 방법(`SGNS_BID_PRCS_MTHD_CD`)은 role `solo_bid_method`로 `eat:solo-bid-method`를 가리키며
+  eat-v4부터 관측된다 — 참여 0곳이 기회인지 유찰 신호인지를 가르는 조건이다(EAT-249). 코호트 키를 `source_payload` jsonb 경로에 묶어 두지 않기 위한 것이며
   [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §6이 정했다. v1 record에는
   `terms` 블록이 없어 v1 발행은 `floor_rate`가 null이고 두 role 관계를 만들지 않는다. 품목은 role `item`으로
   `eatbid:auction-item` 원자 code value를 가리키며, 라벨 한 문자열이 원자 여러 행으로 투영되므로 한 revision에

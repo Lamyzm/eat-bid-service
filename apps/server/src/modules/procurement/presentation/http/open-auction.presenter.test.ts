@@ -10,6 +10,7 @@ const record: OpenAuctionRecord = {
   organization: { organizationId: 3_101n, label: "창원 남산초등학교", type: "unknown" },
   itemLabel: "축산",
   displayBidNo: "2026-0001",
+  soloBidMethod: { codeValueId: 77n, code: "002", scheme: "eat:solo-bid-method", label: "단독입찰 허용안함" },
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
   region: {
     sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
@@ -109,6 +110,7 @@ describe("열린 공고 목록 presenter", () => {
       organization: { organizationId: "3101", label: "창원 남산초등학교", type: "unknown" },
       itemLabel: "축산",
       displayBidNo: "2026-0001",
+      soloBidMethod: { codeValueId: "77", code: "002", scheme: "eat:solo-bid-method", label: "단독입찰 허용안함" },
       floorRate: { value: "90.000", unit: "percentage-points" },
       region: {
         sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
@@ -201,6 +203,7 @@ describe("열린 공고 목록 presenter", () => {
           eligibilityAreas: null,
           itemLabel: null,
           displayBidNo: null,
+          soloBidMethod: null,
           floorRate: null,
           termsRevisionId: null,
         }],
@@ -216,6 +219,7 @@ describe("열린 공고 목록 presenter", () => {
       region: null,
       itemLabel: null,
       displayBidNo: null,
+      soloBidMethod: null,
       floorRate: null,
       termsRevisionId: null,
     });

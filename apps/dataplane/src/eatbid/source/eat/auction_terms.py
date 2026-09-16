@@ -9,12 +9,15 @@ from eatbid.generated.ingestion_v2 import NormalizedAuctionTerms
 from eatbid.source.eat.code_schemes import (
     AWARD_METHOD,
     PLANNED_PRICE_TYPE,
+    SOLO_BID_METHOD,
     optional_scheme_value,
 )
 from eatbid.source.eat.wire_values_v2 import optional_bid_rate
 
 
-def parse_auction_terms(info: Mapping[str, str]) -> NormalizedAuctionTerms:
+def parse_auction_terms(
+    info: Mapping[str, str], *, observe_solo_bid_method: bool = False
+) -> NormalizedAuctionTerms:
     """조건은 `ds_info`가 표시한 것만 읽는다.
 
     `PLNPRCE_SUCBD_STD`는 "90"처럼 정수로 오지만 계약 정밀도는 소수 셋째 자리이므로 손실 없이
@@ -31,8 +34,16 @@ def parse_auction_terms(info: Mapping[str, str]) -> NormalizedAuctionTerms:
     비슷할 뿐 `ds_info`에는 없는 다른 블록의 column이라 여기서 끌어오지 않는다 — 그러면 블록 사이의
     동일성을 우리가 단언하게 된다.
     """
+    # 단독입찰 처리 방법은 eat-v4부터 읽는다. 키를 아예 쓰지 않는 것과 null을 쓰는 것은 다른 사실이라
+    # (전자는 "이 version은 보지 않았다", 후자는 "봤는데 없었다") 옛 version에서는 키를 만들지 않는다 — `location.eligibilityAreas`와 같다(ADR 0038).
+    solo_bid = (
+        {"solo_bid_method": optional_scheme_value(info, SOLO_BID_METHOD)}
+        if observe_solo_bid_method
+        else {}
+    )
     return NormalizedAuctionTerms(
         floor_rate=optional_bid_rate(info, "PLNPRCE_SUCBD_STD"),
         planned_price_method=optional_scheme_value(info, PLANNED_PRICE_TYPE),
         award_method=optional_scheme_value(info, AWARD_METHOD),
+        **solo_bid,
     )

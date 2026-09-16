@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "58306846-df22-4b8d-83f8-eba1d5310b2b",
+  "id": "b4c483e4-3c6e-44ff-ac51-021e65bc7ab9",
   "prevIds": [
-    "d373722d-ee46-4a64-957f-f4ba31e75a20"
+    "3b4bf16d-1d01-40f5-89fd-4992b477a98a"
   ],
   "ddl": [
     {
@@ -5846,6 +5846,19 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "name": "solo_bid_method_code_value_id",
+      "entityType": "columns",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
       "name": "region_sido_code_value_id",
       "entityType": "columns",
       "schema": "mart",
@@ -8939,6 +8952,23 @@
     {
       "nameExplicit": false,
       "columns": [
+        "solo_bid_method_code_value_id"
+      ],
+      "schemaTo": "core",
+      "tableTo": "code_value",
+      "columnsTo": [
+        "code_value_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "open_auction_snapshot_4wMSobVjgtBv_fkey",
+      "entityType": "fks",
+      "schema": "mart",
+      "table": "open_auction_snapshot"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
         "region_sido_code_value_id"
       ],
       "schemaTo": "core",
@@ -10335,7 +10365,7 @@
       "table": "code_value_coordinate"
     },
     {
-      "value": "\"role\" in ('location_sido', 'location_sigungu', 'eligibility_area', 'award_method', 'planned_price_method', 'item')",
+      "value": "\"role\" in ('location_sido', 'location_sigungu', 'eligibility_area', 'award_method', 'planned_price_method', 'solo_bid_method', 'item')",
       "name": "auction_revision_code_value_role_allowed",
       "entityType": "checks",
       "schema": "core",
@@ -10566,7 +10596,7 @@
       "table": "open_auction_snapshot"
     },
     {
-      "value": "\"terms_revision_id\" is not null\n        or (\"floor_rate\" is null and \"item_label\" is null\n          and \"announced_at\" is null\n          and \"title\" is null and \"display_bid_no\" is null\n          and \"region_sido_code_value_id\" is null\n          and \"region_sigungu_code_value_id\" is null)",
+      "value": "\"terms_revision_id\" is not null\n        or (\"floor_rate\" is null and \"item_label\" is null\n          and \"announced_at\" is null\n          and \"title\" is null and \"display_bid_no\" is null\n          and \"solo_bid_method_code_value_id\" is null\n          and \"region_sido_code_value_id\" is null\n          and \"region_sigungu_code_value_id\" is null)",
       "name": "open_auction_snapshot_terms_lineage_required",
       "entityType": "checks",
       "schema": "mart",

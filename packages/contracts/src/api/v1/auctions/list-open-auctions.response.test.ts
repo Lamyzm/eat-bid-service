@@ -28,6 +28,7 @@ const row = {
   organization: { organizationId: "3101", label: "창원 남산초등학교", type: "unknown" },
   itemLabel: "축산",
   displayBidNo: "2026-0001",
+  soloBidMethod: { codeValueId: "77", code: "002", scheme: "eat:solo-bid-method", label: "단독입찰 허용안함" },
   floorRate: { value: "90.000", unit: "percentage-points" },
   region: {
     sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },

@@ -10,6 +10,13 @@ export const normalizedAuctionTermsSchema = z.strictObject({
   floorRate: bidRateWireSchema.nullable(),
   plannedPriceMethod: sourceCodedValueSchema.nullable(),
   awardMethod: sourceCodedValueSchema.nullable(),
+  /**
+   * 단독입찰 처리 방법(`ds_info.SGNS_BID_PRCS_MTHD_CD`, 허용함/허용안함)이다. 참여 0곳의 뜻을 바꾸는
+   * 조건이라 읽는다 — 허용안함이면 혼자 들어가면 유찰이다(2026-09-16 실측 30건 중 29건, EAT-249).
+   * optional인 이유는 `eligibilityAreas`와 같다: 이 필드가 생기기 전에 봉인된 v2·v3 payload에는 키가
+   * 없고, 그 payload를 읽는 쪽이 없는 키를 실패로 보면 replay 전의 관측이 전부 막힌다(ADR 0038).
+   */
+  soloBidMethod: sourceCodedValueSchema.nullable().optional(),
 }).meta({
   id: "NormalizedAuctionTerms",
   description: "Observed award terms: floor rate, reserve-price method and award method as source codes.",
