@@ -629,7 +629,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await input.fill('90.000');
     await input.blur();
     await expect(headerLast).toHaveText('90.000 기준');
-    await expect(page.getByText(/지난 \d+회 중 낙찰값 이하였을 회차/)).toBeVisible();
+    await expect(page.getByText(/지난 \d+회 중 낙찰값이 이 값 이상/)).toBeVisible();
     const rehearsalPanel = page.getByText('이 값이면', { exact: true }).locator('..');
     const before = await rehearsalPanel.innerText();
 
