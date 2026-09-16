@@ -97,18 +97,18 @@ const seed = `
   insert into mart.open_auction_snapshot
     (build_id, auction_attempt_id, observed_at, observation_id, organization_id, bid_count, closes_at,
      base_amount, currency, item_label, floor_rate, region_sido_code_value_id,
-     region_sigungu_code_value_id, terms_revision_id, source_status_label)
+     region_sigungu_code_value_id, terms_revision_id, source_status_label, title)
   values
     (901, 701, '2026-09-07T00:30:00Z', 393, null, 3, '2026-09-07T05:00:00Z',
-     2000000.00, 'KRW', '육류 , 가금류', 90.000, 41, 43, 801, '진행중'),
+     2000000.00, 'KRW', '육류 , 가금류', 90.000, 41, 43, 801, '진행중', '합성 육류 급식'),
     (901, 702, '2026-09-07T00:30:00Z', 393, null, 0, '2026-09-08T05:00:00Z',
-     50000000.00, 'KRW', '수산물', 90.000, 41, 44, 802, '진행중'),
+     50000000.00, 'KRW', '수산물', 90.000, 41, 44, 802, '진행중', '합성 수산 급식'),
     (901, 703, '2026-09-07T00:30:00Z', 393, null, 2, '2026-09-09T05:00:00Z',
-     3000000.00, 'KRW', null, 90.000, 42, null, 803, null),
+     3000000.00, 'KRW', null, 90.000, 42, null, 803, null, null),
     (901, 704, '2026-09-07T00:30:00Z', 393, null, 1, '2026-09-06T05:00:00Z',
-     1000000.00, 'KRW', '육류', 90.000, 41, 43, 804, '진행중'),
+     1000000.00, 'KRW', '육류', 90.000, 41, 43, 804, '진행중', '합성 육류 급식'),
     (901, 705, '2026-09-07T00:30:00Z', 393, null, 1, '2026-09-10T05:00:00Z',
-     1000000.00, 'KRW', '육류', 90.000, 41, 43, 805, '공고취소');
+     1000000.00, 'KRW', '육류', 90.000, 41, 43, 805, '공고취소', '합성 육류 급식');
   insert into mart.open_auction_snapshot_item (open_auction_snapshot_id, item_code_value_id)
   select snapshot.open_auction_snapshot_id, value.code_value_id
     from mart.open_auction_snapshot snapshot
@@ -261,6 +261,7 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
           sidoCodeValueId: 41n,
           sigunguCodeValueIds: null,
           itemAtoms: ["육류"],
+          searchText: null,
           baseAmountMin: null,
           baseAmountMax: null,
         },
@@ -268,6 +269,7 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
           sidoCodeValueId: combination.filter.sidoCodeValueId,
           sigunguCodeValueIds: combination.filter.sigunguCodeValueIds,
           itemAtoms: combination.filter.itemAtoms.length === 0 ? null : combination.filter.itemAtoms,
+          searchText: null,
           baseAmountMin: combination.filter.baseAmountMin,
           baseAmountMax: combination.filter.baseAmountMax,
         })),
@@ -285,6 +287,26 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
       // 저장 순서 그대로 짝지어 온다. 이름이 아니라 위치가 유일한 연결이다.
       expect(counts.saved).toEqual([2, 1]);
       expect(counts.snapshotLineage?.buildId).toBe(901n);
+
+      // 검색도 지금 화면 조건이다. `참여 0곳`·`품목 미상 포함` 링크는 검색어를 이어 가므로 그 수도 검색 안에서
+      // 세고, 관심 지역 둘과 저장 조합은 검색을 버리는 링크라 수가 그대로다(EAT-247).
+      const searched = await reader.countForFilters({
+        ...baseCounts,
+        current: {
+          sidoCodeValueId: 41n,
+          sigunguCodeValueIds: null,
+          itemAtoms: null,
+          searchText: "수산",
+          baseAmountMin: null,
+          baseAmountMax: null,
+        },
+        saved: [{ ...emptyFilter, sigunguCodeValueIds: null, itemAtoms: null, searchText: null, sidoCodeValueId: 41n }],
+      } satisfies OpenAuctionFilterCountsQuery);
+      expect(searched.regionAll).toBe(3);
+      // 제목에 `수산`이 든 702만 남고, 702는 참여 0이라 `참여 0곳`도 1이다.
+      expect(searched.noBids).toBe(1);
+      expect(searched.itemUnknownIncluded).toBe(1);
+      expect(searched.saved).toEqual([2]);
     });
     await expectOwnedContainersCleanedUp();
   }, 300_000);
