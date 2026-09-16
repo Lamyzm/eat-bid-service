@@ -100,6 +100,8 @@ mart는 파생물이라 stale이 정상 상태이므로(ADR 0011) 발행이 빌�
 - `eatbid_dataplane`이 `mart`에 DML 권한을 얻는다. `CREATE`는 주지 않는다.
 - superseded build의 회수는 `retain_until` 뒤 별도 단계다. `open_auction_snapshot`만 참여 수 추이가
   지난 24시간의 관측점을 보므로 이 창을 길게(기본 7일) 잡는다.
+  그 단계는 `reap-marts` CronWorkflow(매일 04:30 KST, EAT-254)다. 행만 지우고 원장 행은 남기며, 회수
+  여부는 "그 build의 행이 없다"로 파생한다 — 원장에 회수 열을 더하면 불변 규칙에 예외가 생긴다.
 
 ## Rejected alternatives
 

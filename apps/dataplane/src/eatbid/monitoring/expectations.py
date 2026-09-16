@@ -177,6 +177,31 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         key_columns=("source",),
     ),
     Expectation(
+        key="mart-reap-lag",
+        title="회수 시한이 하루 넘게 지난 mart build의 행이 아직 남아 있다",
+        runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
+        # 회수는 매일 04:30 KST 한 번이다(EAT-254). 시한을 하루 넘긴 행이 남아 있으면 그 회차가 돌지
+        # 않았거나 죽은 것이고, 그 사실을 디스크가 차서 아는 것은 너무 늦다 — 2026-09-16 실측 20GB 중
+        # 활성 build는 셋이었다. build당 index 탐색 하나라 900 build에도 싸다.
+        sql="""
+            select b.mart_name, count(*) as builds,
+                   min(b.retain_until) as oldest_retain_until
+              from mart.build b
+             where b.status = 'superseded'
+               and b.retain_until < now() - interval '1 day'
+               and (
+                 exists (select 1 from mart.org_round_summary r where r.build_id = b.build_id)
+                 or exists (select 1 from mart.win_rate_distribution_monthly r
+                             where r.build_id = b.build_id)
+                 or exists (select 1 from mart.open_auction_snapshot r where r.build_id = b.build_id)
+               )
+             group by b.mart_name
+             order by b.mart_name
+        """,
+        parameters={},
+        key_columns=("mart_name",),
+    ),
+    Expectation(
         key="failed-publication-window",
         title="발행이 실패한 백필 창이 replay를 기다리고 있다",
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
@@ -196,7 +221,7 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="item-vocabulary-gap",
         title="활성 스냅샷 build의 품목 라벨이 전부 어휘 안에 있다",
-        runbook="docs/operations/collection-runbook.md#48-품목-라벨에-어휘-밖-낱말이-나타났다--item-vocabulary-gap-2026-09-17-eat-255",
+        runbook="docs/operations/collection-runbook.md#49-품목-라벨에-어휘-밖-낱말이-나타났다--item-vocabulary-gap-2026-09-17-eat-255",
         # 어휘 밖 조각은 다리 행 없이 `품목 미상`이 된다. 전수 실측(2026-09-16)에서 0이었으므로 하나라도
         # 생기면 원천이 낱말을 늘린 것이고, 시드에 원자를 더해 재빌드하기 전까지 화면이 그만큼 틀린다(EAT-255).
         # 조각마다 위반 하나다 — 새 조각이 나타나면 이미 열린 위반에 가려지지 않는다.

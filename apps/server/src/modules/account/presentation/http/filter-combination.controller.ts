@@ -126,6 +126,7 @@ export class FilterCombinationController {
         sidoCodeValueId: query.sido === undefined ? null : BigInt(query.sido),
         sigunguCodeValueIds: bigints(query.sigungu),
         itemAtoms: query.items ?? null,
+        searchText: query.q ?? null,
         baseAmountMin: query.baseAmountMin ?? null,
         baseAmountMax: query.baseAmountMax ?? null,
       };
@@ -156,6 +157,8 @@ export class FilterCombinationController {
           sidoCodeValueId: combination.filter.sidoCodeValueId,
           sigunguCodeValueIds: combination.filter.sigunguCodeValueIds,
           itemAtoms: combination.filter.itemAtoms.length === 0 ? null : combination.filter.itemAtoms,
+          // 저장 조합은 검색을 담지 않는다. 조합 링크도 검색어를 버리므로 수와 클릭 결과가 같다.
+          searchText: null,
           baseAmountMin: combination.filter.baseAmountMin,
           baseAmountMax: combination.filter.baseAmountMax,
         })),

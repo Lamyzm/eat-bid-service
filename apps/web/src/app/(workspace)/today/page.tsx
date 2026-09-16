@@ -36,6 +36,8 @@ async function readTodayCombinations(input: TodaySummaryInput): Promise<TodayCom
       sido: input.sido,
       eligibilityArea: input.eligibilityArea,
       items: input.items,
+      // 검색은 지금 화면 조건이다. `품목 미상 포함`·`참여 0곳` 링크가 검색어를 이어 가므로 그 수도 검색 안에서 센다.
+      q: input.q,
       baseAmountMin: input.baseAmountMin,
       baseAmountMax: input.baseAmountMax
     })

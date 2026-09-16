@@ -133,6 +133,7 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
             "check-expectations",
             "next-backfill-window",
             "scan-contract",
+            "reap-marts",
         }:
             add_common_arguments(command)
 
@@ -238,6 +239,12 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     scan_contract.add_argument("--window-start", default="")
     scan_contract.add_argument("--window-end", default="")
     scan_contract.add_argument("--result-dir", type=Path, default=None)
+
+    # 예약 entrypoint다(EAT-254). 시한이 지난 superseded build의 행을 회수한다. 어느 build가 지났는지는
+    # `--as-of`가 정하므로 같은 시각으로 다시 부르면 같은 판단이다.
+    reap_marts = commands["reap-marts"]
+    reap_marts.add_argument("--as-of", required=True, type=aware_datetime)
+    reap_marts.add_argument("--result-dir", type=Path, default=None)
 
     fail_release = commands["fail-release"]
     fail_release.add_argument("--source-release-id", required=True, type=UUID)
