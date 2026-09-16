@@ -76,7 +76,7 @@ export function rows(now: number) {
       ...base,
       auctionAttemptId: '5796468',
       organization: { organizationId: '3101', label: '창원 남산초등학교', type: 'unknown' },
-      itemLabel: '축산',
+      itemLabel: '육류 , 가금류',
       displayBidNo: '2026-0001',
       floorRate: { value: '90.000', unit: 'percentage-points' },
       closesAt: closingDayEnd(now, 0),
@@ -115,7 +115,7 @@ export function rows(now: number) {
       ...base,
       auctionAttemptId: '5796472',
       organization: { organizationId: '3103', label: null, type: 'school' },
-      itemLabel: '김치',
+      itemLabel: '김치류',
       displayBidNo: '2026-0004',
       floorRate: { value: '90.000', unit: 'percentage-points' },
       closesAt: null,
@@ -146,6 +146,11 @@ export type OpenAuctionRowFilter = {
   readonly baseAmountMax?: string;
 };
 
+/** 라벨을 원자로 쪼갠다. 구분자는 원천 그대로 쉼표이고 양끝 공백은 뜻이 없다. */
+export function atomsOf(label: string): readonly string[] {
+  return label.split(',').map((part) => part.trim()).filter((part) => part.length > 0);
+}
+
 /** 제한지역에 걸린 행이다. 미관측은 여기서 false이며 호출부가 따로 남긴다. */
 export function matchesEligibilityArea(row: OpenAuctionFixtureRow, selected: readonly string[]): boolean {
   return row.eligibilityAreas !== null
@@ -156,12 +161,13 @@ export function matchesEligibilityArea(row: OpenAuctionFixtureRow, selected: rea
 export function filterOpenAuctionRows(now: number, filter: OpenAuctionRowFilter): OpenAuctionFixtureRow[] {
   const areaFilter = filter.eligibilityArea ?? null;
   return rows(now)
-    // 조각 하나라도 라벨 안에 있으면 걸린다. 완전일치로 두면 합성 라벨(`육류 , 가금류`) 행이 빠진다.
+    // 원자 하나라도 행의 원자 목록에 있으면 걸린다. 서버는 라벨을 쪼개지 않고 다리표를 코드로 조인하지만
+    // fixture는 wire 행만 가지므로 라벨을 쪼개 같은 뜻을 낸다(EAT-230).
     // 품목 미상 포함은 품목 축이 걸렸을 때만 일한다. 축이 없으면 이미 전부 보고 있다.
     .filter((row) => filter.items === undefined
       || (row.itemLabel === null
         ? filter.itemUnknown === 'include'
-        : filter.items.some((fragment) => row.itemLabel!.includes(fragment))))
+        : filter.items.some((atom) => atomsOf(row.itemLabel!).includes(atom))))
     // 검색은 있는 글자에서 찾는다. 이름도 번호도 없는 행은 어떤 검색어로도 안 걸린다(AGENTS 3).
     .filter((row) => filter.q === undefined
       || (row.organization?.label ?? '').includes(filter.q)

@@ -137,6 +137,9 @@ export function disposableDatabase(options: DisposableDatabaseOptions) {
         const failure = await migrate(ownerDatabase, { migrationsFolder: migrationFolder });
         if (failure) throw new Error(`Migration apply ${apply} failed with ${failure.exitCode}`);
       }
+      // 기준 어휘(코드 체계·품목 원자)는 여기서 심지 않는다. 운영 `migrate.ts`의 시드를 여기서 부르면 테스트가
+      // 고정 id로 심는 체계·코드와 pkey가 부딪힌다(2026-09-16 실측: `code_scheme_id=11`, `code_value_id=7503`).
+      // 어휘가 필요한 테스트는 지역 체계와 같은 방식으로 자기 seed에 고정 id로 심는다(EAT-230).
       await options.seed(owner);
       // 역할 생성만 fixture의 책임이고(비밀번호는 Infisical 소유) 권한은 배포 파일이 선언한다.
       await owner.unsafe(`

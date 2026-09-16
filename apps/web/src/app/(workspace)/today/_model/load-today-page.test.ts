@@ -49,13 +49,13 @@ describe('오늘 route loader', () => {
   test('URL에 남은 잘못된 값은 무시하고 계약이 받는 조건만 조회에 넘긴다', async () => {
     const { inputs, dependencies: deps } = dependencies();
     const data = await loadTodayPage(
-      { scope: null, sido: '01', sigungu: null, items: ['축산'], itemUnknown: null, q: null, bidState: null, closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
+      { scope: null, sido: '01', sigungu: null, items: ['육류'], itemUnknown: null, q: null, bidState: null, closesWithinHours: 721, closesOn: null, announcedOn: null, baseAmountMin: '2000000', baseAmountMax: '3000000.00', cursor: 'abc' },
       deps
     );
     expect(inputs).toEqual([{
       sido: undefined,
       eligibilityArea: ['9101', '9102'],
-      items: ['축산'],
+      items: ['육류'],
       itemUnknown: undefined,
       bidState: undefined,
       closesWithinHours: undefined,
@@ -70,7 +70,7 @@ describe('오늘 route loader', () => {
       limit: 200
     }]);
     expect(data.search).toEqual({
-      scope: null, sido: null, sigungu: null, items: ['축산'], itemUnknown: null, q: null, bidState: null,
+      scope: null, sido: null, sigungu: null, items: ['육류'], itemUnknown: null, q: null, bidState: null,
       closesWithinHours: null, closesOn: null, announcedOn: null,
       baseAmountMin: '2000000.00', baseAmountMax: '3000000.00', cursor: null
     });
@@ -184,13 +184,13 @@ describe('오늘 route loader', () => {
 
   test('요약은 목록과 나란히 한 번만 부르고 날짜 축과 cursor를 넘기지 않는다', async () => {
     const { summaryInputs, dependencies: deps } = dependencies();
-    const data = await loadTodayPage({ ...EMPTY_TODAY_SEARCH, closesOn: '2026-09-08', items: ['축산'] }, deps);
+    const data = await loadTodayPage({ ...EMPTY_TODAY_SEARCH, closesOn: '2026-09-08', items: ['육류'] }, deps);
     // 탭이 세는 수는 탭을 누르기 전에도 보여야 한다. 고른 날짜로 요약까지 좁히면 오늘 마감 탭에서
     // 진행중 수가 자기 자신이 된다.
     expect(summaryInputs).toEqual([{
       sido: undefined,
       eligibilityArea: ['9101', '9102'],
-      items: ['축산'],
+      items: ['육류'],
       baseAmountMin: undefined,
       baseAmountMax: undefined,
       // 기준일 2026-09-07은 월요일이라 창이 그날 시작해 열넷째 날에 끝난다.

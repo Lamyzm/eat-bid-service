@@ -19,7 +19,9 @@ import {
   matchedEligibilityAreaCte,
 } from "./eligibility-area-sql";
 import {
-  itemLabelPredicate,
+  itemAtomCte,
+  itemAtomPredicate,
+  itemUnobservedPredicate,
   OPEN_AUCTION_SNAPSHOT,
   openScopePredicate,
   searchPredicate,
@@ -79,14 +81,16 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
         and (${query.baseAmountMax}::numeric is null or scope.base_amount <= ${query.baseAmountMax}::numeric)
         and ${searchPredicate(sql`scope`, query.searchText)}`;
   // 여덟 원자를 어휘 순서대로 세운다. 0건인 원자도 항목으로 남아야 화면이 "오늘 없다"와 "어휘에 없다"를
-  // 가른다. 부분일치 술어는 목록 필터와 같은 `strpos`다(`itemLabelPredicate`).
+  // 가른다. 수는 목록 필터와 같은 다리표(`open_auction_snapshot_item`)에서 코드로 센다(EAT-230).
   const atoms = textArrayLiteral([...AUCTION_ITEM_ATOMS]);
   return sql`
     with ${eligibilityAreaCodeCte()},
     ${matchedEligibilityAreaCte(eligibility ?? [])},
     ${regionLabelCte()},
+    ${itemAtomCte()},
     snapshot as (
       select distinct on (snapshot.auction_attempt_id)
+        snapshot.open_auction_snapshot_id,
         snapshot.auction_attempt_id,
         snapshot.organization_id,
         snapshot.organization_label,
@@ -127,7 +131,7 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       select scope.*
       from open_scope scope
       where ${amountFilter}
-        and ${itemLabelPredicate(sql`scope`, query.itemLabels, query.includeUnknownItem)}${eligibilityFilter}
+        and ${itemAtomPredicate(sql`scope`, query.itemAtoms, query.includeUnknownItem)}${eligibilityFilter}
     ),
     item_released as (
       select scope.*
@@ -137,7 +141,7 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
     scoped as (
       select scope.*
       from item_released scope
-      where ${itemLabelPredicate(sql`scope`, query.itemLabels, query.includeUnknownItem)}
+      where ${itemAtomPredicate(sql`scope`, query.itemAtoms, query.includeUnknownItem)}
     ),
     sido_counts as (
       select code.code_value_id, code.code, code.scheme, code.label, count(*)::int as count
@@ -155,11 +159,17 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
          and released.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint
        group by code.code_value_id, code.code, code.scheme, code.label
     ),
+    -- 원자 하나의 수는 그 원자 코드가 다리표로 붙은 행 수다. 다리표는 (행, 원자) 한 쌍이 한 번뿐이라
+    -- 합성 라벨 행도 원자마다 한 번만 센다.
     item_counts as (
       select atoms.item,
              atoms.ordinal,
-             (select count(*) from item_released released
-               where released.item_label is not null and strpos(released.item_label, atoms.item) > 0)::int as count
+             (select count(*)
+                from item_released released
+                join mart.open_auction_snapshot_item bridge
+                  on bridge.open_auction_snapshot_id = released.open_auction_snapshot_id
+                join item_atom on item_atom.code_value_id = bridge.item_code_value_id
+               where item_atom.code = atoms.item)::int as count
         from unnest(${atoms}::text[]) with ordinality as atoms(item, ordinal)
     ),
     -- 두 집합을 날짜로 **한 번씩** 접는다. 달력 칸마다 세면 창 길이만큼 스캔이 늘어난다.
@@ -226,7 +236,7 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       (select jsonb_agg(jsonb_build_object('item', item_counts.item, 'count', item_counts.count)
                         order by item_counts.ordinal)
          from item_counts) as item_counts,
-      (select count(*) from item_released where item_released.item_label is null)::int as item_unobserved_count,
+      (select count(*) from item_released where ${itemUnobservedPredicate(sql`item_released`)})::int as item_unobserved_count,
       (select jsonb_build_object('date', next_day.date, 'count', next_day.count) from next_day) as next_closing_day
   `;
 }

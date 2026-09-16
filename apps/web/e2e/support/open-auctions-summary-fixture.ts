@@ -9,8 +9,7 @@ import {
   kstDateOf,
   lineage,
   type OpenAuctionFixtureRow,
-  type OpenAuctionRowFilter
-} from './open-auction-rows';
+  type OpenAuctionRowFilter, atomsOf } from './open-auction-rows';
 
 const operation = auctionV1Operations.summarizeOpen;
 
@@ -147,7 +146,8 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
     // 여덟 원자 전부를 0까지 싣는다. 서버의 `strpos` 부분일치와 같은 판정이다.
     itemCounts: AUCTION_ITEM_ATOMS.map((item) => ({
       item,
-      count: itemReleased.filter((row) => row.itemLabel !== null && row.itemLabel.includes(item)).length
+      // 서버의 다리표 조인과 같은 뜻이다 — 라벨 부분일치가 아니라 원자 단위로 센다(EAT-230).
+      count: itemReleased.filter((row) => row.itemLabel !== null && atomsOf(row.itemLabel).includes(item)).length
     })),
     itemUnobservedCount: itemReleased.filter((row) => row.itemLabel === null).length,
     calendar: calendarDates(query.calendarFrom, query.calendarTo).map((date) => ({

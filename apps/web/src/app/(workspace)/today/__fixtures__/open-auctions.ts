@@ -34,7 +34,7 @@ const region = {
 export const todayRow: OpenAuction = {
   auctionAttemptId: '5796468',
   organization: { organizationId: '3101', label: '창원 남산초등학교', type: 'unknown' },
-  itemLabel: '축산',
+  itemLabel: '육류 , 가금류',
   displayBidNo: '2026-0001',
   floorRate: { value: '90.000', unit: 'percentage-points' },
   region,

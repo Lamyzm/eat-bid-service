@@ -1,4 +1,5 @@
 /** @module 책임: 열린 공고 목록 조회 use case의 실패 분류와 "열림" 기준 시각 확정을 소유한다. */
+import type { AuctionItemAtom } from "@eatbid/contracts";
 import type { Clock } from "@eatbid/domain";
 import { Effect } from "effect";
 import { ProcurementDependencyUnavailable } from "./failures";
@@ -24,7 +25,7 @@ export interface ListOpenAuctionsInput {
   readonly sigunguCodeValueIds: readonly bigint[] | null;
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
   /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
-  readonly itemLabels: readonly string[] | null;
+  readonly itemAtoms: readonly AuctionItemAtom[] | null;
   readonly includeUnknownItem: boolean;
   readonly searchText: string | null;
   readonly onlyWithoutBids: boolean;

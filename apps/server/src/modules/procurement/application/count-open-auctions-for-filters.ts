@@ -4,6 +4,7 @@
  * 저장된 조합이 누구 것인지는 account가 소유하고, **몇 건인지는 여기가 소유한다.** 열린 공고 mart와
  * 열림 술어가 이 모듈에 있기 때문이다. 이 use case는 조합이라는 말을 모르고 필터 한 벌만 받는다.
  */
+import type { AuctionItemAtom } from "@eatbid/contracts";
 import { Effect } from "effect";
 
 import type { Clock, Temporal } from "@eatbid/domain";
@@ -15,7 +16,7 @@ import type { MartBuildLineage } from "./mart-build-lineage";
 export interface OpenAuctionFilterSet {
   readonly sidoCodeValueId: bigint | null;
   readonly sigunguCodeValueIds: readonly bigint[] | null;
-  readonly itemLabels: readonly string[] | null;
+  readonly itemAtoms: readonly AuctionItemAtom[] | null;
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
 }

@@ -16,7 +16,13 @@ import {
   eligibilityObservedExpression,
   matchedEligibilityAreaCte,
 } from "./eligibility-area-sql";
-import { itemLabelPredicate, OPEN_AUCTION_SNAPSHOT, openScopePredicate } from "./open-auction-queries";
+import {
+  itemAtomCte,
+  itemAtomPredicate,
+  itemUnobservedPredicate,
+  OPEN_AUCTION_SNAPSHOT,
+  openScopePredicate,
+} from "./open-auction-queries";
 
 function instantParameter(value: { toString(): string }): string {
   return value.toString();
@@ -34,7 +40,7 @@ function filterPredicate(filter: OpenAuctionFilterSet): SQL {
         or base.region_sido_code_value_id = ${filter.sidoCodeValueId}::bigint)
     and (${sigungu}::text is null
         or base.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
-    and ${itemLabelPredicate(sql`base`, filter.itemLabels)}
+    and ${itemAtomPredicate(sql`base`, filter.itemAtoms)}
     and (${filter.baseAmountMin}::numeric is null or base.base_amount >= ${filter.baseAmountMin}::numeric)
     and (${filter.baseAmountMax}::numeric is null or base.base_amount <= ${filter.baseAmountMax}::numeric)`;
 }
@@ -54,7 +60,7 @@ function itemRelaxedPredicate(filter: OpenAuctionFilterSet): SQL {
         or base.region_sido_code_value_id = ${filter.sidoCodeValueId}::bigint)
     and (${sigungu}::text is null
         or base.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
-    and (base.item_label is null or ${itemLabelPredicate(sql`base`, filter.itemLabels)})
+    and (${itemUnobservedPredicate(sql`base`)} or ${itemAtomPredicate(sql`base`, filter.itemAtoms)})
     and (${filter.baseAmountMin}::numeric is null or base.base_amount >= ${filter.baseAmountMin}::numeric)
     and (${filter.baseAmountMax}::numeric is null or base.base_amount <= ${filter.baseAmountMax}::numeric)`;
 }
@@ -80,8 +86,10 @@ export function openAuctionFilterCountsQuerySql(query: OpenAuctionFilterCountsQu
   return sql`
     with ${eligibilityAreaCodeCte()},
     ${matchedEligibilityAreaCte(eligibility ?? [])},
+    ${itemAtomCte()},
     snapshot as (
       select distinct on (snapshot.auction_attempt_id)
+        snapshot.open_auction_snapshot_id,
         snapshot.auction_attempt_id,
         snapshot.item_label,
         snapshot.bid_count,

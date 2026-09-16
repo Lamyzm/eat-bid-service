@@ -17,7 +17,7 @@ export interface OpenAuctionSummaryQuery {
   readonly sigunguCodeValueIds: readonly bigint[] | null;
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
   /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
-  readonly itemLabels: readonly string[] | null;
+  readonly itemAtoms: readonly AuctionItemAtom[] | null;
   /** 품목 축이 걸렸을 때 라벨 미관측 행을 함께 셀지다. 목록과 같은 술어를 써야 두 수가 같은 집합을 말한다. */
   readonly includeUnknownItem: boolean;
   /** 검색어다. 목록과 같은 술어(`searchPredicate`)라 검색 중에도 탭·달력·배지가 표와 같은 집합을 센다. */

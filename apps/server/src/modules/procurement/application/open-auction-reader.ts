@@ -1,4 +1,5 @@
 /** @module 책임: 열린 공고 목록 조회 port와 스냅샷 한 행·(기관, 하한율) 코호트 요약의 application record 형태를 소유한다. */
+import type { AuctionItemAtom } from "@eatbid/contracts";
 import type { BaseRelativeBidRate, BidRate, Money, Temporal } from "@eatbid/domain";
 import type { CodeReferenceRecord } from "./auction-reader";
 import type { MartBuildLineage } from "./mart-build-lineage";
@@ -79,7 +80,7 @@ export interface OpenAuctionQuery {
    */
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
   /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
-  readonly itemLabels: readonly string[] | null;
+  readonly itemAtoms: readonly AuctionItemAtom[] | null;
   /** 참이면 품목 축을 걸어도 라벨 미관측 행을 함께 낸다. 품목 축이 없으면 아무 일도 하지 않는다. */
   readonly includeUnknownItem: boolean;
   /** 검색어다. 제목·기관 이름·공고번호 안의 부분일치이며 다른 축 안에서만 찾는다. `null`은 검색 없음이다. */

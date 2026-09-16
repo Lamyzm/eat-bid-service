@@ -62,17 +62,16 @@ describe('열린 공고 목록 fixture와 공개 계약', () => {
 
   test('거르는 질의에서도 남은 행이 계약을 만족한다', async () => {
     const 지역만 = await 본문('limit=50&state=open&sido=41');
-    // 품목 조각은 부분일치다. `김치`는 라벨이 `김치`인 행과 합성 라벨 안의 `김치류`를 함께 남긴다 —
-    // 완전일치로 두면 합성 라벨 행이 통째로 사라진다(EAT-206).
-    const 품목만 = await 본문('limit=50&state=open&items=김치');
+    // 품목은 원자 코드다. `김치류`는 라벨이 `김치류`인 행과 합성 라벨 안에 `김치류`가 든 행을 함께 남긴다(EAT-230).
+    const 품목만 = await 본문('limit=50&state=open&items=김치류');
 
     expect(지역만.auctions.length).toBeGreaterThan(0);
     expect(품목만.auctions.length).toBe(2);
   });
 
   test('품목 미상 포함은 라벨을 관측하지 못한 행을 함께 남긴다', async () => {
-    const 축산만 = await 본문('limit=50&state=open&items=축산');
-    const 미상포함 = await 본문('limit=50&state=open&items=축산&itemUnknown=include');
+    const 축산만 = await 본문('limit=50&state=open&items=육류');
+    const 미상포함 = await 본문('limit=50&state=open&items=육류&itemUnknown=include');
 
     expect(축산만.auctions.every((auction) => auction.itemLabel !== null)).toBe(true);
     expect(미상포함.auctions.length).toBe(축산만.auctions.length + 1);

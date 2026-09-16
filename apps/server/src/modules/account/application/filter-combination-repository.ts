@@ -7,6 +7,7 @@
  * **건수는 여기 없다.** 조합이 몇 건인지는 열린 공고를 세는 일이고 그 mart와 열림 술어는 procurement가
  * 소유한다. 이 port는 "어떤 조합이 저장돼 있나"까지만 답한다.
  */
+import type { AuctionItemAtom } from "@eatbid/contracts";
 import type { Temporal } from "@eatbid/domain";
 
 /**
@@ -19,7 +20,7 @@ import type { Temporal } from "@eatbid/domain";
 export interface FilterCombinationFilterRecord {
   readonly sidoCodeValueId: bigint | null;
   readonly sigunguCodeValueIds: readonly bigint[];
-  readonly itemLabels: readonly string[];
+  readonly itemAtoms: readonly AuctionItemAtom[];
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
 }

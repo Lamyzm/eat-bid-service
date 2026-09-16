@@ -80,12 +80,12 @@ describe('오늘 화면', () => {
       <TodayScreen
         data={{
           ...ready,
-          search: { ...EMPTY_TODAY_SEARCH, items: ['축산'], closesWithinHours: 72, baseAmountMin: '3000000.00', baseAmountMax: '10000000.00' },
+          search: { ...EMPTY_TODAY_SEARCH, items: ['육류'], closesWithinHours: 72, baseAmountMin: '3000000.00', baseAmountMax: '10000000.00' },
           presentation: presentOpenAuctionList(empty, fixtureNow)
         }}
       />
     );
-    expect(screen.getByText('품목 축산 · 기간 72시간 안 · 기초금액 3,000,000~10,000,000 조건에서 열린 공고가 없습니다.')).toBeTruthy();
+    expect(screen.getByText('품목 육류 · 기간 72시간 안 · 기초금액 3,000,000~10,000,000 조건에서 열린 공고가 없습니다.')).toBeTruthy();
     expect(screen.getByRole('link', { name: '조건 모두 해제' }).getAttribute('href')).toBe('/today');
     expect(screen.container.querySelector('table')).toBeNull();
   });
