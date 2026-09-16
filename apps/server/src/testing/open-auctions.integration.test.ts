@@ -11,9 +11,11 @@ import type {
   OpenAuctionPage,
   OpenAuctionQuery,
 } from "../modules/procurement/application/open-auction-reader";
+import type { OpenAuctionSummaryQuery } from "../modules/procurement/application/open-auction-summary-reader";
 import { auctionId } from "../modules/procurement/domain/auction-id";
 import { DrizzleAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOpenAuctionReader } from "../modules/procurement/infrastructure/drizzle/drizzle-open-auction-reader";
+import { DrizzleOpenAuctionSummaryReader } from "../modules/procurement/infrastructure/drizzle/drizzle-open-auction-summary-reader";
 import { disposableDatabase } from "../../fixtures/disposable-database.fixture";
 import { signedInSessionAuthenticator } from "../../fixtures/session-authenticator.fixture";
 
@@ -39,7 +41,7 @@ const seed = `
          (103, 'eat', 'external-103'), (104, 'eat', 'external-104'),
          (201, 'eat', 'external-201'), (202, 'eat', 'external-202'),
          (203, 'eat', 'external-203'), (204, 'eat', 'external-204'),
-         (205, 'eat', 'external-205');
+         (205, 'eat', 'external-205'), (206, 'eat', 'external-206');
   insert into ingest.run
     (run_id, mode, status, build_sha, parser_version, started_at, ended_at,
      failure_category, expected_count, captured_count, published_count)
@@ -134,29 +136,37 @@ const seed = `
   insert into mart.open_auction_snapshot
     (build_id, auction_attempt_id, observed_at, observation_id, organization_id, bid_count,
      source_last_changed_at, closes_at, base_amount, currency, item_label, floor_rate,
-     region_sido_code_value_id, region_sigungu_code_value_id, organization_label, terms_revision_id)
+     region_sido_code_value_id, region_sigungu_code_value_id, organization_label, terms_revision_id,
+     source_status_label, announced_at)
   values
+    -- 게시일이 KST 09-07이라 NOW와 같은 날이다. 오늘 열린 축이 세는 단 한 건이다.
     (601, 201, '2026-09-07T00:00:00Z', 303, 41, 3, '2026-09-06T23:00:00Z', '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z'),
     (601, 201, '2026-09-07T00:30:00Z', 304, 41, 5, '2026-09-07T00:10:00Z', '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z'),
+    -- 상태를 관측하지 못한 행은 숨기지 않는다. 이 열이 생기기 전 build의 행이 그렇다(AGENTS 3).
+    -- 게시일을 관측하지 못한 두 행이다. 상세를 아직 안 딴 공고가 이렇게 남는다(AGENTS 3).
     (601, 202, '2026-09-07T00:30:00Z', 304, 43, 0, null, '2026-09-08T05:00:00Z',
-     10000000.00, 'KRW', null, null, null, null, '다른 학교', null),
+     10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null, null),
     (601, 203, '2026-09-07T00:30:00Z', 304, null, null, null, null,
-     500000.00, 'KRW', null, null, null, null, null, null),
+     500000.00, 'KRW', null, null, null, null, null, null, null, null),
     (601, 204, '2026-09-07T00:30:00Z', 304, 41, 7, null, '2026-09-06T05:00:00Z',
-     900000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+     900000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z'),
     (601, 205, '2026-09-07T00:30:00Z', 304, 41, 2, null, '2026-09-10T05:00:00Z',
-     43879200.00, 'KRW', '축산', 88.000, 41, 44, '창원 남산초등학교', 510),
+     43879200.00, 'KRW', '축산', 88.000, 41, 44, '창원 남산초등학교', 510, '진행중', '2026-09-05T00:00:00Z'),
+    -- 마감은 안 지났지만 목록이 취소로 표시한 행이다. 마감 순으로는 202와 205 사이에 서야 하는데
+    -- 열린 공고가 아니므로 목록에도 지역 미리보기 분모에도 안 들어간다(EAT-203).
+    (601, 206, '2026-09-07T00:30:00Z', 304, 41, 1, null, '2026-09-09T05:00:00Z',
+     3000000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '공고취소', '2026-09-07T00:00:00Z'),
     -- 물린 build의 행은 목록에 나오면 안 된다. 다만 참여 수 추이(공고 상세의 하루 전 관측)는 retain 안의
     -- 물린 build 행까지 같은 시계열로 읽는다(ADR 0034).
     (602, 202, '2026-09-06T00:30:00Z', 303, 43, 0, null, '2026-09-08T05:00:00Z',
-     10000000.00, 'KRW', null, null, null, null, '다른 학교', null),
+     10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null, null),
     (602, 201, '2026-09-06T00:00:00Z', 303, 41, 1, null, '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509),
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null),
     -- 최신 관측에서 24시간이 안 되는 관측은 "어제"가 아니다.
     (602, 201, '2026-09-06T01:00:00Z', 303, 41, 2, null, '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509);
+     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null);
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)
@@ -184,10 +194,15 @@ function pageOf(listing: OpenAuctionListing): OpenAuctionPage {
 
 const baseQuery: OpenAuctionQuery = {
   asOf: NOW,
-  regionCodeValueId: null,
+  sidoCodeValueId: null,
+  sigunguCodeValueIds: null,
   eligibilityAreaCodeValueIds: null,
-  itemLabel: null,
+  itemLabels: null,
+  includeUnknownItem: false,
+  onlyWithoutBids: false,
   closesWithinHours: null,
+  closesOnKst: null,
+  announcedOnKst: null,
   baseAmountMin: null,
   baseAmountMax: null,
   cursor: null,
@@ -224,6 +239,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       const reader = new DrizzleOpenAuctionReader(drizzle({ client: api }));
 
       // 마감 임박 순이며 마감 미확인(203)은 맨 뒤, 이미 마감된 204와 물린 build의 행은 없다.
+      // 취소된 206은 마감이 09-09라 202와 205 사이에 서야 하는데 열린 공고가 아니므로 빠진다(EAT-203).
       const all = pageOf(await reader.listOpen(baseQuery));
       expect(ids(all)).toEqual([201n, 202n, 205n, 203n]);
       expect(all.sampleCount).toBe(4);
@@ -241,11 +257,13 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         },
       });
       expect(all.auctions[0]!.observedAt.toString()).toBe("2026-09-07T00:30:00Z");
-      // 기관 41 · 하한율 90.000 코호트: 회차 4, 명단 표본 [5, 17, 9] 중앙값 9, 최근 개찰 회차는 102(개찰 예정 104는 아직 아니다).
+      // 기관 41 · 하한율 90.000 코호트는 **기준 시각까지 개찰된 회차만** 센다. 네 회차 중 103은 개찰
+      // 시각이 미관측이고 104는 09-09라 NOW(09-07 10시 KST) 뒤다. 남는 것은 101·102 둘이고 명단 표본은
+      // [5, 17]이라 중앙값이 5다. 자르지 않으면 표본이 셋으로 부풀고 중앙값이 9로 옮겨 간다.
       expect(all.auctions[0]!.orgSummary).toMatchObject({
-        attemptCount: 4,
-        medianListCount: 9,
-        listCountSampleCount: 3,
+        attemptCount: 2,
+        medianListCount: 5,
+        listCountSampleCount: 2,
         lastRound: {
           auctionAttemptId: 102n,
           awardedBidRate: null,
@@ -283,12 +301,32 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       expect(ids(upTo)).toEqual([201n, 203n]);
       expect(upTo.sampleCount).toBe(2);
       expect(ids(pageOf(await reader.listOpen({ ...baseQuery, baseAmountMin: "3000000.00" })))).toEqual([202n, 205n]);
-      // 지역은 시도·시군구 어느 축이든 그 id를 가진 행이다.
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, regionCodeValueId: 41n })))).toEqual([201n, 205n]);
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, regionCodeValueId: 43n })))).toEqual([201n]);
+      // 지역은 시도 하나가 담는 그릇이고 시군구가 그 안에서 좁힌다. 시군구를 비우면 시도 전체다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, sidoCodeValueId: 41n })))).toEqual([201n, 205n]);
+      expect(ids(pageOf(await reader.listOpen({
+        ...baseQuery, sidoCodeValueId: 41n, sigunguCodeValueIds: [43n],
+      })))).toEqual([201n]);
+      // 같은 시도 안에서 시군구 둘을 고르면 합집합이다. 공고 하나에 시군구가 하나라 겹쳐 세지 않는다.
+      expect(ids(pageOf(await reader.listOpen({
+        ...baseQuery, sidoCodeValueId: 41n, sigunguCodeValueIds: [43n, 44n],
+      })))).toEqual([201n, 205n]);
+      // KST 달력일 축은 시간 창과 다른 것을 센다. 201은 09-07 14:00(KST) 마감이고 205는 09-10이다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, closesOnKst: "2026-09-07" })))).toEqual([201n]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, closesOnKst: "2026-09-10" })))).toEqual([205n]);
+      // 게시일 축은 마감 축과 다른 것을 센다. 201은 09-07 게시에 09-07 마감, 205는 09-05 게시에 09-10 마감이다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, announcedOnKst: "2026-09-07" })))).toEqual([201n]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, announcedOnKst: "2026-09-05" })))).toEqual([205n]);
+      // 게시일을 관측하지 못한 행은 어느 게시일로도 안 걸린다. 빈 값을 오늘로 채워 읽지 않는다(AGENTS 3).
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, announcedOnKst: "2026-09-08" })))).toEqual([]);
       // 품목은 라벨 완전일치다.
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabel: "축산" })))).toEqual([201n, 205n]);
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabel: "축" })))).toEqual([]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["축산"] })))).toEqual([201n, 205n]);
+      // 조각은 부분일치다. 라벨 한 칸에 여럿이 들어 있는 합성 행을 완전일치로는 못 잡는다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["축"] })))).toEqual([201n, 205n]);
+      // 조각 여럿은 OR이고, 라벨을 관측하지 못한 203은 어느 조각으로도 안 걸린다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["없는품목", "산"] })))).toEqual([201n, 205n]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["없는품목"] })))).toEqual([]);
+      // `%`는 패턴 메타문자가 아니라 글자 그대로다. like로 거르면 이 조각이 "무엇이든"이 된다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["%"] })))).toEqual([]);
 
       // cursor 페이지 둘을 이어 붙여도 순서와 중복이 없고 표본 수는 cursor 위치와 무관하다.
       const first = pageOf(await reader.listOpen({ ...baseQuery, limit: 2 }));
@@ -313,7 +351,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       const server = await runtime.listen(0, "127.0.0.1");
       try {
         const response = await request(server).get(
-          auctionV1Operations.listOpen.buildPath({ path: {}, query: { limit: 1, item: "축산" } }),
+          auctionV1Operations.listOpen.buildPath({ path: {}, query: { limit: 1, items: ["축산"] } }),
         );
         expect(response.status).toBe(200);
         expect(response.body.auctions.map((auction: { auctionAttemptId: string }) => auction.auctionAttemptId)).toEqual(["201"]);
@@ -321,14 +359,19 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
         expect(response.body.meta).toEqual({
           sampleCount: 2,
           asOf: "2026-09-07T01:00:00Z",
-          region: null,
+          sido: null,
+          sigungu: null,
           // 참가제한지역으로 좁히지 않은 요청이라 세 값이 모두 null이다. 0이 아니다 — 0은 "걸렀는데
           // 하나도 없다"는 사실이고 null은 "그 축으로 묻지 않았다"는 뜻이다(ADR 0048 결정 3).
           eligibilityArea: null,
           eligibilityMatchedCount: null,
           eligibilityUnobservedCount: null,
-          item: "축산",
+          items: ["축산"],
+          itemUnknown: null,
+          bidState: null,
           closesWithinHours: null,
+          closesOn: null,
+          announcedOn: null,
           baseAmountMin: null,
           baseAmountMax: null,
           openAuctionSnapshotBuild: {
@@ -356,6 +399,130 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       } finally {
         await runtime.shutdown();
       }
+    });
+    await expectOwnedContainersCleanedUp();
+  }, 180_000);
+});
+
+describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
+  test("요약과 목록이 같은 필터 위에서 같은 수를 세고 달력은 0건인 날도 칸을 남긴다", async () => {
+    await withDatabase(async ({ api }) => {
+      const database = drizzle({ client: api });
+      const summaryReader = new DrizzleOpenAuctionSummaryReader(database);
+      const listReader = new DrizzleOpenAuctionReader(database);
+      const summaryQuery: OpenAuctionSummaryQuery = {
+        asOf: NOW,
+        sidoCodeValueId: null,
+        sigunguCodeValueIds: null,
+        eligibilityAreaCodeValueIds: null,
+        itemLabels: null,
+        includeUnknownItem: false,
+        baseAmountMin: null,
+        baseAmountMax: null,
+        calendarFrom: "2026-09-07",
+        calendarTo: "2026-09-10",
+      };
+
+      const summary = await summaryReader.summarizeOpen(summaryQuery);
+
+      // 두 조회가 같은 열림 판정을 써야 축 줄의 건수와 목록의 행이 같은 코호트를 말한다. 취소된 206과
+      // 이미 마감된 204는 양쪽 모두에서 빠진다.
+      expect(summary.totalCount).toBe(pageOf(await listReader.listOpen(baseQuery)).sampleCount);
+      expect(summary.totalCount).toBe(4);
+      // 201·205는 기관 41, 202는 43, 203은 기관 미확인이라 기관 수는 행 수보다 적다.
+      expect(summary.organizationCount).toBe(2);
+      // 201이 09-07 14:00(KST) 마감이고 NOW가 같은 날 10시다. 205는 09-10, 202는 09-08이다.
+      expect(summary.closingTodayCount).toBe(1);
+      // 201만 게시일이 KST 09-07이다. 취소된 206도 같은 날 게시됐지만 열린 집합에 없어 안 센다.
+      expect(summary.openedTodayCount).toBe(1);
+      // 202·203은 게시일을 관측하지 못했다. 못 센 수를 함께 내야 화면이 이 1건을 부분 집계로 말한다.
+      expect(summary.announcedUnobservedCount).toBe(2);
+      expect(summary.nextClosingDay).toEqual({ date: "2026-09-07", count: 1 });
+
+      // 창의 날짜를 전부 낸다. 09-09는 한 건도 없지만 칸이 사라지지 않는다.
+      expect(summary.calendar.map((day) => [day.date, day.count])).toEqual([
+        ["2026-09-07", 1], ["2026-09-08", 1], ["2026-09-09", 0], ["2026-09-10", 1],
+      ]);
+      // 마감을 관측하지 못한 203은 어느 칸에도 안 들어가므로 칸의 합이 전체보다 작을 수 있다.
+      expect(summary.calendar.reduce((sum, day) => sum + day.count, 0)).toBe(3);
+
+      // 하한율이 갈리면 그날 하한이 다른 자리에 서는 다른 판이다. 관측 못 한 행도 버리지 않고 센다.
+      // 순서는 많은 것부터이고 동률은 하한율 오름차순으로 끊는다. 화면이 드문 쪽을 고를 수 있으려면
+      // 이 순서가 실행마다 같아야 한다.
+      expect(summary.floorShares.map((share) => [share.rate === null ? null : String(share.rate), share.count]))
+        .toEqual([[null, 2], ["88.000", 1], ["90.000", 1]]);
+      expect(summary.floorShares.reduce((sum, share) => sum + share.count, 0)).toBe(summary.totalCount);
+
+      // 조건 기둥의 배지다. 조건이 없으니 지역 축을 푼 집합은 열린 넷 그대로이고, 시도가 있는 201·205만
+      // 시도 41에 서며 202·203은 지역 미상이다. 시도를 안 골랐으므로 시군구는 세우지 않는다.
+      expect(summary.sidoCounts).toEqual([
+        { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도", count: 2 },
+      ]);
+      expect(summary.sigunguCounts).toEqual([]);
+      expect(summary.regionUnobservedCount).toBe(2);
+      // `축산`은 원자가 아니라 묶음이라 어느 원자에도 안 붙는다. 그래도 여덟 항목은 0으로 전부 온다.
+      expect(summary.itemCounts.map((entry) => entry.item))
+        .toEqual(["육류", "가금류", "농산물", "수산물", "가공식품", "김치류", "곡류", "우유류"]);
+      expect(summary.itemCounts.every((entry) => entry.count === 0)).toBe(true);
+      expect(summary.itemUnobservedCount).toBe(2);
+    });
+    await expectOwnedContainersCleanedUp();
+  }, 180_000);
+
+  test("지역과 품목으로 좁히면 요약과 목록이 함께 줄고 푼 수는 지역만 남긴 수다", async () => {
+    await withDatabase(async ({ api }) => {
+      const database = drizzle({ client: api });
+      const summaryReader = new DrizzleOpenAuctionSummaryReader(database);
+      const listReader = new DrizzleOpenAuctionReader(database);
+      const scoped: OpenAuctionSummaryQuery = {
+        asOf: NOW,
+        sidoCodeValueId: 41n,
+        sigunguCodeValueIds: null,
+        eligibilityAreaCodeValueIds: null,
+        itemLabels: ["축산"],
+        includeUnknownItem: false,
+        baseAmountMin: null,
+        baseAmountMax: null,
+        calendarFrom: "2026-09-07",
+        calendarTo: "2026-09-10",
+      };
+
+      const summary = await summaryReader.summarizeOpen(scoped);
+      const list = pageOf(await listReader.listOpen({
+        ...baseQuery, sidoCodeValueId: 41n, itemLabels: ["축산"],
+      }));
+
+      expect(summary.totalCount).toBe(list.sampleCount);
+      expect(summary.totalCount).toBe(2);
+      // `releasedCount`는 지역 축만 남기고 품목을 푼 수다. 화면의 `1건 · 1건 중`이 그 둘이며 푼 수가
+      // 건 수보다 작아지면 그 문장이 거짓이 된다.
+      for (const day of summary.calendar) {
+        expect(day.releasedCount).toBeGreaterThanOrEqual(day.count);
+      }
+      // 09-07은 축산 201 하나이고 시도 41에는 그날 다른 품목이 없어 둘이 같다.
+      expect(summary.calendar[0]).toEqual({ date: "2026-09-07", count: 1, releasedCount: 1 });
+
+      // 배지는 그 축 하나만 푼 수다. 시도 배지는 품목 `축산`을 유지한 채 지역을 푼 수라 201·205의 2이고,
+      // 시군구는 고른 시도 41 안에서만 선다 — 44는 라벨이 관측되지 않았지만 항목으로 남는다(AGENTS 3).
+      // 순서는 많은 것부터, 동률은 코드 순이다.
+      expect(summary.sidoCounts.map((entry) => [entry.code, entry.count])).toEqual([["48", 2]]);
+      expect(summary.sigunguCounts).toEqual([
+        { codeValueId: 43n, code: "48120", scheme: "eat:auction-location-sigungu", label: "창원시", count: 1 },
+        { codeValueId: 44n, code: "48250", scheme: "eat:auction-location-sigungu", label: null, count: 1 },
+      ]);
+      expect(summary.regionUnobservedCount).toBe(0);
+      // 품목 배지는 지역 41을 유지한 채 품목을 푼 수다. 그 집합(201·205)에는 라벨 없는 행이 없다.
+      expect(summary.itemUnobservedCount).toBe(0);
+
+      // `품목 미상 포함`은 목록과 같은 술어다. 지역을 풀고 축산 + 미상을 세면 라벨 없는 202·203이 함께 들어와
+      // 넷이 되고, 이 수가 목록의 행 수와 같아야 탭·달력·배지가 표와 다른 말을 하지 않는다.
+      const withUnknown = await summaryReader.summarizeOpen({
+        ...scoped, sidoCodeValueId: null, includeUnknownItem: true,
+      });
+      expect(withUnknown.totalCount).toBe(4);
+      expect(withUnknown.totalCount).toBe(pageOf(await listReader.listOpen({
+        ...baseQuery, itemLabels: ["축산"], includeUnknownItem: true,
+      })).sampleCount);
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);

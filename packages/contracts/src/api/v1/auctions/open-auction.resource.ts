@@ -50,8 +50,9 @@ export const openAuctionLastRoundSchema = z.strictObject({
  * 행마다 실어 N+1을 만들지 않으며(architecture.md §3.3) 활성 org_round_summary build 하나에서만 센다.
  */
 export const openAuctionOrgSummarySchema = z.strictObject({
-  // 이 코호트에서 몇 회차를 관측했나. 아래 중앙값의 모집단이 아니며, 0은 "이 하한에서 본 회차가 아직
-  // 없다"는 셀 수 있는 사실이라 요약 없음(null)과 합치지 않는다.
+  // 이 코호트에서 **기준 시각까지 개찰된** 회차가 몇인가. 아직 안 열린 회차는 아직 일어나지 않은 판이라
+  // 세지 않는다 — 세면 표본이 부풀고 아래 중앙값이 옮겨 간다. 이 수는 아래 중앙값의 모집단이 아니며,
+  // 0은 "이 하한에서 개찰된 회차가 아직 없다"는 셀 수 있는 사실이라 요약 없음(null)과 합치지 않는다.
   attemptCount: nonNegativeCountSchema,
   // 보통 참여. percentile_disc(0.5)라 실제 관측된 명단 수 하나이며 평균이 아니다.
   medianListCount: nonNegativeCountSchema.nullable(),

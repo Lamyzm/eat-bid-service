@@ -4,6 +4,7 @@ import { auctionV1OperationRegistry } from "./v1/auctions/operations";
 import { codeSchemeV1OperationRegistry } from "./v1/code-schemes/operations";
 import { eligibilityAreaV1OperationRegistry } from "./v1/eligibility-areas/operations";
 import { myBidObservationV1OperationRegistry } from "./v1/me/bid-observations.operations";
+import { myFilterCombinationV1OperationRegistry } from "./v1/me/filter-combination.operations";
 import { meV1OperationRegistry } from "./v1/me/operations";
 import { myRegionPreferenceV1OperationRegistry } from "./v1/me/region-preference.operations";
 import { organizationV1OperationRegistry } from "./v1/organizations/operations";
@@ -26,5 +27,8 @@ export const publicHttpOperationRegistry = createOperationRegistry([
   // 같은 `me` resource라 private 응답 헤더 prefix는 이미 계정 registry가 만든다. OpenAPI와 경계
   // 검사가 이 operation을 보려면 공개 registry에도 함께 있어야 한다.
   ...myBidObservationV1OperationRegistry,
+  // 저장된 조건 조합도 개인 상태라 같은 `me` resource에 산다. 건수 operation이 `:filterCombinationId`보다
+  // 앞에 있어야 `counts`가 id로 먹히지 않는다 — registry 순서와 Nest handler 순서가 같아야 한다.
+  ...myFilterCombinationV1OperationRegistry,
   ...healthOperationRegistry,
 ] as const);

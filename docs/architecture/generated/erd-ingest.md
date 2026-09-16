@@ -1,7 +1,7 @@
-<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20260916012138_backfill_coverage_failed_publications/snapshot.json -->
+<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20260916104017_ingest_source_hold/snapshot.json -->
 # `ingest` 스키마 ERD
 
-Drizzle 마이그레이션 `20260916012138_backfill_coverage_failed_publications`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 14개.
+Drizzle 마이그레이션 `20260916104017_ingest_source_hold`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 15개.
 다른 스키마의 표는 관계선에만 `schema__table`로 나타난다. 의미와 불변식은
 [domain-and-data.md](../domain-and-data.md)와 [수집 쓰기 지도](../ingestion-write-map.md)가 설명한다.
 
@@ -94,6 +94,16 @@ erDiagram
         bigint expected_count
         bigint captured_count
         bigint published_count
+    }
+    source_hold {
+        bigint hold_id PK
+        varchar_32 source
+        varchar_32 reason
+        text detail
+        timestamptz held_at
+        uuid held_by_run_id
+        timestamptz release_after
+        timestamptz released_at
     }
     source_release {
         uuid source_release_id PK

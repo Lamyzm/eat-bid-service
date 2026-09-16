@@ -19,11 +19,28 @@ export function TodayScreenSkeleton() {
             <Skeleton className='ml-auto h-5 w-24' />
           </div>
         }
-        filters={
-          <div className='flex flex-wrap gap-2'>
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className='h-8 w-28 rounded-lg' />
+        rail={
+          /* 조합 → 지역 → 품목 → 기초금액. 실제 기둥과 같은 순서라 로딩이 끝나도 자리가 움직이지 않는다. */
+          <div className='grid gap-5'>
+            {Array.from({ length: 3 }, (_, group) => (
+              <div key={group} className='grid gap-1.5'>
+                <Skeleton className='h-4 w-12' />
+                {Array.from({ length: 3 }, (_, index) => (
+                  <Skeleton key={index} className='h-8 w-full rounded-lg' />
+                ))}
+              </div>
             ))}
+            <Skeleton className='h-10 w-full rounded-lg' />
+          </div>
+        }
+        filters={
+          <div className='grid gap-3'>
+            <div className='flex flex-wrap gap-2'>
+              {Array.from({ length: 3 }, (_, index) => (
+                <Skeleton key={index} className='h-9 w-28 rounded-lg' />
+              ))}
+            </div>
+            <Skeleton className='h-24 w-full max-w-2xl rounded-lg' />
           </div>
         }
         list={

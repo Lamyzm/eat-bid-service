@@ -2,7 +2,7 @@
 id: RUNTIME-AND-DEPLOYMENT
 status: active
 canonical_for: argo-runtime-execution-and-deployment-topology
-last_reviewed: 2026-09-11
+last_reviewed: 2026-09-16
 review_trigger: argo-cd-or-workflows-topology-cluster-move-or-release-path-change
 ---
 
@@ -217,6 +217,12 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
   항목은 이 배포 시점에 이미 돌던 backfill이 스냅샷으로 쥔 과도기 key `eatbid-source-limit` 때문에
   셋이지만(제거 조건은 semaphore.yaml), 동시 사용은 그 실행이 끝날 때까지도 여전히 2다. 아래에서 더
   설명한다.
+- **소스가 우리를 막으면 다음 정시 실행이 그 결정을 읽는다**(ADR 0055). `capture`가 403·429를 보면
+  `ingest.source_hold`에 보류를 적고, 길이는 지난 24시간의 보류 수로 15분부터 두 배씩 늘어 24시간에서 멈춘다.
+  전진의 `decide`는 열린 보류가 있으면 `has-window=false`로 조용히 건너뛰고, poll-open의 `discover`는 소스를
+  부르기 전에 `SOURCE_THROTTLED`(75)로 끝나 `cron-workflow` 위반이 사람에게 든다. 프로세스 안 재시도와
+  `retryStrategy`는 정시 실행의 경계를 넘지 못하므로 이 결정은 표에 있어야 한다. 사람이 부르는 백필·replay는
+  보류를 보지 않는다.
 - canonical publication/projector에는 mutex를 둬 서로 다른 실행의 활성화가 엇갈리지 않게 한다.
 - pod는 stateless다. hostPath, 로컬 SQLite, 공유 JSON 파일을 단계 계약으로 쓰지 않는다.
 - 각 실행/관측/로그에 `run_id`, correlation ID, Git SHA, image digest, parser/projector version을 남긴다.
@@ -416,6 +422,10 @@ main 병합
   빌드 12분 사이에 PR이 병합되면 발행이 버려진다(v0.1.30, 2026-09-15). 태그는 `pnpm workflow:tag -- vX.Y.Z`로
   만들며, 이 명령은 release 빌드가 돌고 있거나 auto-merge가 켜진 PR이 열려 있으면 태그를 만들지 않는다
   (EAT-233). cosign 서명·attest는 GitHub OIDC 일시 장애에 세 번까지 스스로 다시 시도한다.
+- **태그는 검증된 커밋에만 붙는다.** PR 검사가 초록이어도 병합 커밋의 `main` 회차는 따로 돌고, v0.1.36은 그
+  회차가 실패로 끝난 2분 뒤에 태그됐다(main은 9월 11일부터 빨간 채로 v0.1.33~36이 나갔다). 그래서
+  `workflow:tag`는 `origin/main` HEAD 커밋의 `validate.yml` 회차가 `success`일 때만 태그를 만든다. 장애를 고치는
+  배포까지 막으면 안 되므로 `--hotfix "<사유>"`를 주면 통과하되, 사유가 annotated tag 메시지에 남는다(EAT-242).
 - **코드 권위는 `main`, 발행 권위는 tag다.** `main`은 서버가 보호하며 직접 push를 받지 않고 CI가 초록인
   pull request로만 움직인다([ADR 0050](../adr/0050-verification-authority-and-merge-gate.md)). tag가 발행
   권위인 이유는 이제 branch를 못 막아서가 아니라 prod가 매 병합마다 움직이면 안 되기 때문이다. 불변
@@ -563,10 +573,11 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 | 실행 중 backfill이 임계 시간 안에 진행했다 | PostgreSQL | 있음 |
 | 임계 나이를 넘은 `planned` release가 없다 | PostgreSQL | 있음 |
 | 수집이 임계 시간 안에 관측을 남겼다 | PostgreSQL | 있음 |
-| 마지막 성공 백업이 임계 시간 안에 있다 | PostgreSQL·Workflow | 없음 |
-| 노드와 Argo Application이 정상이다 | Kubernetes API | 없음 |
-| 원격 `main`의 최신 CI가 초록이다 | GitHub | 없음 |
-| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 없음 |
+| 발행이 실패한 달 창이 replay를 기다린다(전진이 건너뛴 창) | PostgreSQL | 있음(ADR 0053, EAT-235·240) |
+| 마지막 성공 백업이 임계 시간 안에 있다 | R2 `backup/` 객체 목록 | 있음(EAT-196, `monitoring/backup.py`) |
+| 노드와 Argo Application이 정상이고 cron의 최근 회차가 끝까지 갔다 | Kubernetes API | 있음(EAT-196, `monitoring/cluster.py`). Application의 Healthy↔Degraded·Synced 이탈은 이 기대의 열림·해소로 텔레그램에 간다 |
+| 원격 `main`의 최신 CI가 초록이다 | GitHub | 있음(EAT-196, `monitoring/github.py`; 2026-09-16 `ci-main-green` 실측) |
+| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 있음 — 별도 질의가 아니라 Argo CD의 `Synced` 판정을 그대로 받는다(위 Application 기대) |
 
 마지막 줄은 ADR 0046 결정 5의 목록에 없던 것을 더한 것이다. 2026-09-11에 기대 검사 CronWorkflow가 15분마다
 실패했는데 원인이 "배포된 image가 그 명령을 모르는 옛 것"이었고, 그 사실을 알아챈 경로가 사람의 조회였다.
@@ -574,8 +585,11 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 
 알림의 출처는 둘, 도착지는 하나다. 업무·파이프라인 기대는 클러스터 **안**에서 DB를 읽어 내고, 생존 확인은
 클러스터 **밖**에 둔다. 안에 있는 감시는 기계가 죽을 때 함께 죽는다. 생존 확인의 방향은 미는 쪽이다.
-밖에서 당기려면 Kubernetes API나 내부 지표를 외부에 열어야 하고 그것은 §7이 금지한다. 같은 창에서 생긴
-위반은 묶어서 한 번 보내고 해소될 때까지 반복하지 않는다.
+밖에서 당기려면 Kubernetes API나 내부 지표를 외부에 열어야 하고 그것은 §7이 금지한다. 같은 회차에서 생긴
+위반은 묶어서 한 통으로 보낸다. 그러나 미해결이라고 침묵하지는 않는다 — critical은 60분마다 다시 울리고,
+나머지는 09:03 KST 아침 요약 한 통에 나이와 함께 실린다(ADR 0054 결정 1; "해소까지 반복 안 함"이 2026-09-16
+main 5일 방치를 만들었다). 열린 위반과 보낸 통은 `monitoring.violation`·`monitoring.notification` 표에 남아
+Grafana와 psql이 같은 것을 읽는다(ADR 0054 결정 2).
 
 ### 8.4 교체 가능한 자리
 

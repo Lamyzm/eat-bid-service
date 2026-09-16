@@ -2,7 +2,7 @@
 id: COLLECTION-RUNBOOK
 status: active
 canonical_for: collection-workflow-recovery-procedures
-last_reviewed: 2026-09-10
+last_reviewed: 2026-09-16
 review_trigger: workflow-template-stage-or-publication-lineage-change
 ---
 
@@ -357,4 +357,22 @@ Pending이던 노드가 Running으로 바뀌고 파드가 뜨는지 확인한다
 2. 사유가 계약 쪽이면 파서·계약을 고치고 릴리스한다. 원본이 정말 계약 밖이면 그 관측은 격리로 남는 것이 맞고,
    그때는 창을 어떻게 닫을지 별도 결정이다(부분 발행은 하지 않는다).
 3. 새 이미지가 배포된 뒤 §1.2 `replay-pipeline`으로 그 release를 다시 발행한다. revision이 생기면 view의
-   `is_complete`가 참이 되어 위반이 해소되고 전진은 다음 창으로 간다.
+   `is_complete`가 참이 되어 위반이 해소되고 전진은 다음 창으로 간다
+### 4.6 소스가 우리를 막으면 보류가 정시 실행을 멈춘다 — `source-hold` (2026-09-16, EAT-244, ADR 0055)
+
+`capture`가 403·429를 보면 run은 `SOURCE_THROTTLED`(75)로 닫히고 **같은 자리에서 `ingest.source_hold`에 보류가
+적힌다**. 길이는 지난 24시간의 보류 수로 15분 → 30분 → 60분 → … → 24시간이다. 보류가 열려 있는 동안:
+
+- 전진 CronWorkflow의 `decide`는 `has-window=false`를 내고 `run`을 건너뛴다. Workflow는 성공으로 끝난다.
+- poll-open·daily-reconcile의 `discover`는 소스를 부르기 전에 exit 75로 끝난다. run·release는 만들지 않는다.
+  Workflow는 실패로 남고 `cron-workflow:eatbid-poll-open` 위반이 critical로 열린다.
+- `source-hold` 기대(critical)가 보류 자체를 위반으로 든다. 풀리면 해소된다.
+
+할 일은 재시도가 아니다:
+
+1. 보류를 읽는다(읽기 전용). `select hold_id, detail, held_at, release_after from ingest.source_hold where released_at is null order by held_at desc limit 5`.
+2. `detail`의 응답 코드와 `held_by_run_id`로 그 run의 관측(`ingest.raw_observation`)을 보고 소스가 무엇을 돌려줬는지 R2 raw로 확인한다.
+3. 소스 정책 위반이 우리 쪽 요청량이면 세마포어·페이지 크기·주기를 고쳐 릴리스한다. 보류는 시각이 지나면 스스로 풀린다 —
+   손으로 `released_at`을 쓰지 않는다(수동 운영 쓰기 금지). 급하면 그것이 곧 "사람이 푸는 Workflow 진입점"이 필요하다는 뜻이고 별도 결정이다.
+4. 사람이 부르는 `backfill-pipeline`·`replay-pipeline`은 보류를 보지 않는다. replay는 소스를 부르지 않으므로 보류 중에도 안전하다.
+.

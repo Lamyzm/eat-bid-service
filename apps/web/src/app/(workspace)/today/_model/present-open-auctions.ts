@@ -31,19 +31,36 @@ export type OpenAuctionRowPresentation = {
   readonly baseAmountText: string;
   readonly closes: {
     readonly tone: ClosesTone;
-    // `D-0`·`D-1`처럼 색과 함께 읽히는 텍스트다. 색만으로 상태를 말하지 않는다(screen-system §11).
+    // `오늘`·`내일`·`사흘 뒤`처럼 색과 함께 읽히는 텍스트다. 색만으로 상태를 말하지 않는다(screen-system §11).
     readonly label: string;
-    readonly timeText: string;
+    /**
+     * KST 시각만이다. 날짜는 행이 아니라 그 행이 속한 마감일 묶음 머리가 말한다 — 스무 행이 같은 날에
+     * 몰리는 목록에서 행마다 날짜를 적으면 같은 글자가 스무 번 서고 시각이 안 읽힌다.
+     */
+    readonly clockText: string;
     readonly dDay: number | null;
   };
+  /**
+   * 관측된 참여 수다. `0`은 빈 문자열이다 — 값을 버리는 것이 아니라 전면에 세우지 않는 것이다(사용자 결정
+   * 2026-09-16). 단독입찰을 허용하지 않는 공고가 대부분이라(표본 30건 중 29건) 0곳은 기회가 아니라 혼자
+   * 들어가면 유찰이라는 신호인데, 그 조건을 아직 읽지 않아 화면이 그 사실을 옆에 적어 줄 수 없다. 못 센
+   * 판(null)은 `—`라 둘이 섞이지 않는다.
+   */
   readonly bidCountText: string;
   readonly orgSummary: {
     readonly attemptCount: number;
     readonly medianListText: string;
     readonly listCountSampleCount: number;
-    readonly lastAwardedText: string;
-    readonly lastOpenedText: string;
-    readonly lastListText: string;
+    /**
+     * 같은 하한 코호트의 직전 회차다. 명단 수와 개찰일만 싣고 낙찰 투찰률은 싣지 않는다 — 같은 값이
+     * 행마다 서면 앵커링이다(decision-support §11). 실측으로 직전 회차는 보통(중앙값)에서 30% 넘게
+     * 벗어나는 행이 51.6%라 중앙값 옆에 따로 둘 값어치가 있다(2026-09-16).
+     */
+    readonly lastRound:
+      | { readonly kind: 'observed'; readonly listText: string; readonly dateText: string; readonly belowText: string | null }
+      // 없는 이유가 둘이고 사용자가 할 일이 다르다. 같은 하한에서 본 회차가 아예 없는 것과, 회차는
+      // 있는데 개찰 시각을 관측한 것이 없는 것을 한 문구로 합치면 화면이 없는 사실을 말한다(AGENTS 3).
+      | { readonly kind: 'none'; readonly text: string };
   } | null;
 };
 
@@ -66,7 +83,7 @@ export type OpenAuctionListPresentation = {
   readonly eligibilityMatchedCount: number | null;
   readonly eligibilityUnobservedCount: number | null;
   readonly asOfText: string;
-  readonly lineageText: string;
+  readonly lineageLines: readonly string[];
   readonly nextCursor: string | null;
 };
 
@@ -89,13 +106,22 @@ export function dDayOf(closesAt: string, nowIso: string): number {
   return today.until(closes, { largestUnit: 'days' }).days;
 }
 
+/**
+ * 남은 날을 한국어 날짜 세는 말로 적는다. `D-3`은 눈금이지 말이 아니라서 `사흘 뒤`보다 늦게 읽힌다.
+ * 열흘을 넘으면 세는 말이 오히려 낯설어져 숫자로 돌아간다.
+ */
+const DAY_AWAY = ['오늘', '내일', '모레', '사흘 뒤', '나흘 뒤', '닷새 뒤', '엿새 뒤', '이레 뒤', '여드레 뒤', '아흐레 뒤', '열흘 뒤'] as const;
+
+export function dayAwayText(dDay: number): string {
+  if (dDay <= 0) return DAY_AWAY[0];
+  return DAY_AWAY[dDay] ?? `${dDay}일 뒤`;
+}
+
 function presentCloses(closesAt: string | null, nowIso: string): OpenAuctionRowPresentation['closes'] {
-  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', timeText: '', dDay: null };
+  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null };
   const dDay = dDayOf(closesAt, nowIso);
-  // 오늘·내일 마감은 시각까지 보인다. 그 뒤는 날짜가 더 중요하다.
-  if (dDay <= 0) return { tone: 'today', label: 'D-0', timeText: kstTime(closesAt), dDay };
-  if (dDay === 1) return { tone: 'tomorrow', label: 'D-1', timeText: kstTime(closesAt), dDay };
-  return { tone: 'later', label: `D-${dDay}`, timeText: kstDateTime(closesAt), dDay };
+  const tone: ClosesTone = dDay <= 0 ? 'today' : dDay === 1 ? 'tomorrow' : 'later';
+  return { tone, label: dayAwayText(dDay), clockText: kstTime(closesAt), dDay };
 }
 
 function formatWon(amount: string): string {
@@ -137,34 +163,49 @@ function presentEligibility(areas: OpenAuction['eligibilityAreas']): string | nu
   return areas.length === 1 ? head : `${head} 외 ${areas.length - 1}`;
 }
 
-/**
- * 요약은 이 행의 하한율 코호트에서만 온다. 그래서 값을 못 낸 이유가 셋이고 사용자가 할 일이 서로 다르다.
- * 같은 하한에서 본 회차가 아예 없는 것, 회차는 있는데 아직 개찰 전인 것, 개찰은 됐는데 낙찰을 관측하지
- * 못한 것을 한 문구로 합치면 화면이 없는 사실을 말한다(AGENTS 3).
- */
-function lastAwardedTextOf(summary: NonNullable<OpenAuction['orgSummary']>): string {
-  if (summary.attemptCount === 0) return '같은 하한 회차 없음';
-  if (summary.lastRound === null) return '개찰 회차 없음';
-  // 최근 낙찰은 투찰률 축(기초금액 분모)이다.
-  return summary.lastRound.awardedBidRate?.value ?? '낙찰 미관측';
+// 개찰일은 날짜까지만이다. 44px 한 줄에서 시각은 자리만 먹고, 직전 회차가 언제였는지는 날로 충분하다.
+function kstDate(instant: string): string {
+  const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO(KST);
+  return `${pad2(zoned.month)}-${pad2(zoned.day)}`;
+}
+
+function presentLastRound(summary: NonNullable<OpenAuction['orgSummary']>): NonNullable<OpenAuctionRowPresentation['orgSummary']>['lastRound'] {
+  if (summary.attemptCount === 0) return { kind: 'none', text: '같은 하한 회차 없음' };
+  const last = summary.lastRound;
+  if (last === null) return { kind: 'none', text: '개찰 회차 없음' };
+  return {
+    kind: 'observed',
+    // 명단이 미관측인 회차는 0곳이 아니다. 0으로 적으면 아무도 안 들어온 판이 된다(AGENTS 3).
+    listText: last.listCount === null ? '명단 미관측' : `${last.listCount}곳`,
+    dateText: kstDate(last.openedAt),
+    belowText: last.belowDayFloorCount === null ? null : `하한 아래 ${last.belowDayFloorCount}`
+  };
 }
 
 function presentOrgSummary(summary: OpenAuction['orgSummary']): OpenAuctionRowPresentation['orgSummary'] {
   if (summary === null) return null;
-  const last = summary.lastRound;
   return {
     attemptCount: summary.attemptCount,
     medianListText: summary.medianListCount === null ? '—' : String(summary.medianListCount),
     listCountSampleCount: summary.listCountSampleCount,
-    lastAwardedText: lastAwardedTextOf(summary),
-    lastOpenedText: last === null ? '' : kstDateTime(last.openedAt),
-    lastListText: last === null || last.listCount === null
-      ? ''
-      : last.belowDayFloorCount === null
-        ? `명단 ${last.listCount}`
-        : `명단 ${last.listCount} · 하한 아래 ${last.belowDayFloorCount}`
+    lastRound: presentLastRound(summary)
   };
 }
+
+/**
+ * 저장된 하한율은 `90.000` 꼴이라 소수부의 0은 볼 이유가 없는 정밀도다. 관측된 자릿수가 의미를 갖는
+ * 경우(`88.500`)는 그대로 남기고 뒤따르는 0만 뗀다. 반올림하지 않는다.
+ *
+ * 행과 요약이 같은 문자열을 만들어야 `드문 하한` 집합이 행에 붙는다. 그래서 이 함수 하나가 두 곳의
+ * 표기를 소유한다.
+ */
+export function formatFloorRate(value: string): string {
+  if (!value.includes('.')) return value;
+  return value.replace(/0+$/, '').replace(/\.$/, '');
+}
+
+/** 하한율을 관측하지 못한 행이 쓰는 표시값이다. 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3). */
+export const FLOOR_RATE_UNKNOWN = '미확인';
 
 export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAuctionRowPresentation {
   return {
@@ -173,27 +214,34 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     organization: presentOrganization(auction.organization),
     itemLabel: auction.itemLabel,
     // 관측되지 않은 하한율을 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3).
-    floorRateText: auction.floorRate?.value ?? '미확인',
+    floorRateText: auction.floorRate === null ? FLOOR_RATE_UNKNOWN : formatFloorRate(auction.floorRate.value),
     region: presentRegion(auction.region),
     eligibilityText: presentEligibility(auction.eligibilityAreas),
     baseAmountText: auction.baseAmount === null ? '미확인' : formatAmountText(auction.baseAmount.amount),
     closes: presentCloses(auction.closesAt, nowIso),
-    bidCountText: auction.bidCount === null ? '—' : String(auction.bidCount),
+    bidCountText: auction.bidCount === null ? '—' : auction.bidCount === 0 ? '' : String(auction.bidCount),
     orgSummary: presentOrgSummary(auction.orgSummary)
   };
 }
 
-function lineageText(response: OpenAuctionListV1Response): string {
+/**
+ * 계보를 한 문장으로 잇지 않고 줄로 나눈다. 780px 본문에서 한 문장은 두 줄로 넘쳐 표 위가 어수선해지고,
+ * 줄바꿈 자리가 폭에 따라 달라져 어디까지가 스냅샷 얘기인지 흐려진다.
+ *
+ * 지역 체계를 빼지 않는 이유는 eaT 공고지역·참가제한지역·행안부 행정구역이 서로 다른 체계이고, 어느
+ * 체계로 번역된 build인지가 목록의 지역 축이 무엇을 뜻하는지를 정하기 때문이다(AGENTS 6, ADR 0035).
+ */
+function lineageLines(response: OpenAuctionListV1Response): readonly string[] {
   const snapshot = response.meta.openAuctionSnapshotBuild;
   const summary = response.meta.orgRoundSummaryBuild;
-  const parts = [
+  const lines = [
     snapshot.buildId === null
       ? '열린 공고 스냅샷 없음'
       : `열린 공고 스냅샷 build ${snapshot.buildId} · ${snapshot.calcVersion} · ${kstDateTime(snapshot.computedAt!)} 산출`,
     snapshot.regionScheme === null ? null : `지역 체계 ${snapshot.regionScheme}`,
     summary.buildId === null ? '기관 회차 요약 없음' : `기관 회차 요약 build ${summary.buildId} · ${summary.calcVersion}`
   ];
-  return parts.filter((part): part is string => part !== null).join(' · ');
+  return lines.filter((line): line is string => line !== null);
 }
 
 // build가 없으면 목록이 비어 있어도 "조건에 맞는 공고가 없다"고 말할 수 없다. 그래서 build를 먼저 본다.
@@ -210,7 +258,7 @@ export function presentOpenAuctionList(response: OpenAuctionListV1Response, nowI
     eligibilityMatchedCount: response.meta.eligibilityMatchedCount,
     eligibilityUnobservedCount: response.meta.eligibilityUnobservedCount,
     asOfText: kstDateTime(response.meta.asOf),
-    lineageText: lineageText(response),
+    lineageLines: lineageLines(response),
     nextCursor: response.nextCursor
   };
 }

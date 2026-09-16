@@ -1,5 +1,5 @@
 /** @module 책임: 오늘 화면 필터(지역·품목·기간·기초금액·cursor)를 URL search param으로 보존하는 nuqs parser와 필터 링크 빌더를 한 곳에서 소유한다. page.tsx의 Suspense loader가 서버에서 `createLoader`로 이 parser를 실행하므로 client 전용 'nuqs'가 아니라 'nuqs/server'에서 가져온다. */
-import { createSerializer, parseAsInteger, parseAsString, type inferParserType } from 'nuqs/server';
+import { createSerializer, parseAsArrayOf, parseAsInteger, parseAsString, type inferParserType } from 'nuqs/server';
 
 // 형식 검증(양의 정수 id, 소수 둘째 자리 금액, 1..720시간)은 여기서 하지 않는다. `_model/load-today-page.ts`의
 // loader가 계약 schema로 조회 직전에 걸러 무효 값을 null로 다루고, 네트워크 호출 전에 무효 요청을 없앤다.
@@ -9,9 +9,33 @@ export const todaySearchParsers = {
    * 보는 범위만 넓히는 출구라서 저장 command가 아니라 주소 하나로 표현한다.
    */
   scope: parseAsString,
-  region: parseAsString,
-  item: parseAsString,
+  sido: parseAsString,
+  /**
+   * 공고지역 시군구 code value id들이다. 시도 하나 안에서만 뜻이 있어 시도를 바꾸는 링크가 함께 지운다.
+   * 참가제한지역(설정의 `내가 고른 지역`)과 다른 축이다(AGENTS 6).
+   */
+  sigungu: parseAsArrayOf(parseAsString, ','),
+  /**
+   * 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR).
+   *
+   * 원천 라벨이 `육류 , 가금류`처럼 합성 문자열이라 완전일치로는 절반을 놓친다. 조각을 쉼표로 이어
+   * 주소에 싣는데, 조각 자체는 그 쉼표로 나눈 것이라 다시 쉼표를 품을 수 없다.
+   */
+  items: parseAsArrayOf(parseAsString, ','),
+  /**
+   * 품목 축을 걸어도 라벨 미관측 행을 함께 볼지다. 품목 축이 없으면 아무 일도 하지 않는다 — 이미 전부
+   * 보고 있기 때문이다. 미관측 행은 낼 수 없는 공고가 아니라 우리가 아직 못 본 공고다.
+   */
+  itemUnknown: parseAsString,
+  /** 참여 축이다. `none`은 관측된 참여 수가 0인 판이며 미관측(못 센 판)은 여기 안 들어온다. */
+  bidState: parseAsString,
   closesWithinHours: parseAsInteger,
+  /**
+   * KST 달력일 축 둘이다. 탭과 달력 칸이 이 둘로 표현된다 — 시간 창(`closesWithinHours`)과 다른 것을 세며
+   * 계약이 둘을 함께 받지 않는다(controller가 400으로 막는다). 그래서 탭 링크는 시간 창을 함께 지운다.
+   */
+  closesOn: parseAsString,
+  announcedOn: parseAsString,
   baseAmountMin: parseAsString,
   baseAmountMax: parseAsString,
   cursor: parseAsString
@@ -22,28 +46,34 @@ export type TodaySearch = Readonly<inferParserType<typeof todaySearchParsers>>;
 
 export const EMPTY_TODAY_SEARCH: TodaySearch = {
   scope: null,
-  region: null,
-  item: null,
+  sido: null,
+  sigungu: null,
+  items: null,
+  itemUnknown: null,
+  bidState: null,
   closesWithinHours: null,
+  closesOn: null,
+  announcedOn: null,
   baseAmountMin: null,
   baseAmountMax: null,
   cursor: null
 };
 
-// 기간 프리셋은 등록된 값만 쓴다. 자유 입력 시간은 만들지 않는다. 24·72·168은 계약 상한 720 안이다.
-export const PERIOD_PRESETS = [
-  { label: '오늘 안', hours: 24 },
-  { label: '3일', hours: 72 },
-  { label: '일주일', hours: 168 }
-] as const;
-
-// 기초금액 프리셋도 등록된 경계만 쓴다. 경계 문자열은 계약의 소수 둘째 자리 고정 형식 그대로다.
-export const BASE_AMOUNT_PRESETS = [
-  { label: '300만 이하', min: null, max: '3000000.00' },
-  { label: '300만~1,000만', min: '3000000.00', max: '10000000.00' },
-  { label: '1,000만~3,000만', min: '10000000.00', max: '30000000.00' },
-  { label: '3,000만 이상', min: '30000000.00', max: null }
-] as const;
+/**
+ * 기초금액은 최소·최대 두 칸이고 구간 프리셋 버튼을 만들지 않는다.
+ *
+ * `300만`·`1,000만` 같은 경계는 우리가 고르는 값이고, 버튼으로 두면 그 정의를 우리가 소유하게 된다.
+ * 양끝이 다 필요한 근거는 실측이다 — 2026-09-13 전국 열린 공고 중 3,000만 이상이 328건(28%)인데
+ * 사용자가 실제로 낸 849건의 최대가 3,292만이라 그 위는 볼 일이 없다.
+ *
+ * 사람은 `3000000`처럼 적고 계약은 소수 둘째 자리를 고정한다. 자릿수만 다른 값을 무효로 버리면 입력이
+ * 조용히 사라지므로 여기서 한 번 맞춰 준다. 숫자가 아닌 입력은 그대로 계약이 거른다.
+ */
+export function normalizeAmountInput(value: string | null): string | null {
+  if (value === null) return null;
+  const digits = value.replaceAll(',', '').trim();
+  return /^\d+$/.test(digits) ? `${digits}.00` : value;
+}
 
 /** 저장된 관심 지역을 이번 조회에서만 풀어 두는 값이다. 다른 문자열은 설정을 적용한 것과 같다. */
 export const ALL_REGIONS_SCOPE = 'all';

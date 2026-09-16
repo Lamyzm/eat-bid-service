@@ -72,15 +72,22 @@ export function toOpenAuctionListResponse(result: OpenAuctionListResult): OpenAu
       // 열림 판정의 기준 시각과 요청 필터를 그대로 되돌려야 sampleCount가 어느 코호트의 수인지 응답만으로
       // 재현된다(AGENTS 7).
       asOf: instantText(query.asOf),
-      region: bigintText(query.regionCodeValueId),
+      sido: bigintText(query.sidoCodeValueId),
+      sigungu: query.sigunguCodeValueIds === null
+        ? null
+        : query.sigunguCodeValueIds.map((id) => bigintText(id)),
       eligibilityArea: query.eligibilityAreaCodeValueIds === null
         ? null
         : query.eligibilityAreaCodeValueIds.map((id) => bigintText(id)),
       // 필터가 없을 때 0을 싣지 않는다. 0은 "아무것도 잡히지 않았다"이고 null은 "묻지 않았다"이다.
       eligibilityMatchedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityMatchedCount,
       eligibilityUnobservedCount: query.eligibilityAreaCodeValueIds === null ? null : page.eligibilityUnobservedCount,
-      item: query.itemLabel,
+      items: query.itemLabels === null ? null : [...query.itemLabels],
+      itemUnknown: query.includeUnknownItem ? "include" : null,
+      bidState: query.onlyWithoutBids ? "none" : null,
       closesWithinHours: query.closesWithinHours,
+      closesOn: query.closesOnKst,
+      announcedOn: query.announcedOnKst,
       baseAmountMin: query.baseAmountMin,
       baseAmountMax: query.baseAmountMax,
       openAuctionSnapshotBuild: martBuildLineageWire(page.snapshotLineage),

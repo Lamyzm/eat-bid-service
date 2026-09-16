@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
 from types import TracebackType
@@ -26,6 +26,7 @@ from eatbid.core.postgres_repository import PsycopgCanonicalProjectionRepository
 from eatbid.failures.errors import PublicationFailedError
 from eatbid.failures.report import ApplicationConfigurationError
 from eatbid.ingest.models import CaptureRequest
+from eatbid.ingest.postgres_hold_repository import PsycopgSourceHoldRepository
 from eatbid.ingest.postgres_normalization_repository import (
     PsycopgNormalizationRepository,
 )
@@ -51,6 +52,7 @@ from eatbid.monitoring.backup import (
 from eatbid.monitoring.cluster import evaluate_cluster
 from eatbid.monitoring.github import WorkflowExpectation, evaluate_workflows
 from eatbid.monitoring.heartbeat import beat
+from eatbid.monitoring.ledger import PostgresViolationLedger
 from eatbid.monitoring.notify import send_telegram
 from eatbid.monitoring.round import record_round
 from eatbid.monitoring.runner import (
@@ -58,9 +60,10 @@ from eatbid.monitoring.runner import (
     ViolationProbe,
     run_expectation_check,
 )
+from eatbid.monitoring.state import decode_state
 from eatbid.monitoring.store import R2BackupLister, R2StateStore
 from eatbid.pipeline.advance import CompletedWindow, next_window
-from eatbid.pipeline.capture import capture
+from eatbid.pipeline.capture import SourceThrottledError, capture
 from eatbid.pipeline.code_vocabulary import (
     CodeVocabularyCapturePlan,
     CodeVocabularyServices,
@@ -80,6 +83,11 @@ from eatbid.pipeline.reference import (
 )
 from eatbid.pipeline.refetch_baseline import PsycopgRefetchBaselineReader
 from eatbid.pipeline.replay import ReplayServices, replay_observations
+from eatbid.pipeline.source_hold import (
+    EAT_SOURCE,
+    SCHEDULED_SOURCE_MODES,
+    SourceHeldError,
+)
 from eatbid.pipeline.validate import validate_run
 from eatbid.source.eat.http_client import EatHttpClient
 from eatbid.source.reference.mois_client import build_reference_client
@@ -106,8 +114,12 @@ class Application:
         reference_http_client: Any = None,
         notify_cache: Any = None,
         monitoring: Any = None,
+        hold_repository: Any = None,
         page_budget: int = 1,
     ) -> None:
+        # 소스 차단 보류(ADR 0055). 정시 실행은 소스를 부르기 전에 이것을 읽고, capture는 차단 응답을 보면
+        # 여기에 적는다. 없으면(테스트 조립) 보류를 모르는 채 돈다.
+        self._holds = hold_repository
         self._connection = connection
         self._http = http_client
         self._store = raw_store
@@ -135,6 +147,13 @@ class Application:
         return cls(connection=connection, http_client=http_client)
 
     def discover(self, args: argparse.Namespace) -> Any:
+        # 정시 수집은 열린 보류가 있으면 소스를 부르기 전에 끝난다. run도 release도 만들지 않는다. 실패로
+        # 남는 것이 의도다 — 오늘의 공고가 화면에 없는 것은 사람이 알아야 하고, 그 실패는 소스 호출 0회다
+        # (ADR 0055 결정 3).
+        if args.mode in SCHEDULED_SOURCE_MODES and self._holds is not None:
+            hold = self._holds.open_hold(EAT_SOURCE, now=datetime.now(UTC))
+            if hold is not None:
+                raise SourceHeldError(hold)
         persistence = RawFirstDiscoveryPersistence(
             ingest_repository=self._ingest,
             release_repository=self._release,
@@ -175,18 +194,30 @@ class Application:
         planned = self._release.load_preplanned_detail_request(
             args.source_release_id, args.run_id, args.external_bid_id
         )
-        observation = capture(
-            CaptureRequest(
-                request_unit_id=planned.request_unit_id,
-                run_id=planned.run_id,
-                source=planned.source,
-                endpoint=planned.endpoint,
-                params=planned.params,
-            ),
-            self._store,
-            self._ingest,
-            self._http,
-        )
+        try:
+            observation = capture(
+                CaptureRequest(
+                    request_unit_id=planned.request_unit_id,
+                    run_id=planned.run_id,
+                    source=planned.source,
+                    endpoint=planned.endpoint,
+                    params=planned.params,
+                ),
+                self._store,
+                self._ingest,
+                self._http,
+            )
+        except SourceThrottledError as error:
+            # 차단 응답을 본 자리에서 보류를 적는다. 다음 정시 실행이 이것을 읽어 소스를 부르지 않는다
+            # (ADR 0055 결정 2). 보류 때문에 안 부른 경우(SourceHeldError)는 새 보류가 아니다.
+            if self._holds is not None and not isinstance(error, SourceHeldError):
+                self._holds.record_throttle(
+                    source=planned.source,
+                    run_id=planned.run_id,
+                    detail=f"HTTP {error.status_code} on {planned.endpoint}",
+                    now=datetime.now(UTC),
+                )
+            raise
         self._release.ensure_captured_observation(
             args.source_release_id, args.run_id, observation.observation_id
         )
@@ -234,6 +265,13 @@ class Application:
         전진 판단과 대시보드가 같은 답을 본다(ADR 0052 결정 2). 여기서 SQL을 따로 적으면 정의가
         둘이 된다.
         """
+        # 열린 보류가 있으면 고를 창이 없다. 전진은 조용히 기다린다 — 백필은 하루 늦어도 되는 일이고, 소스를
+        # 부르지 않는 것이 목적이다(ADR 0055 결정 3). 보류 자체는 기대가 든다.
+        if (
+            self._holds is not None
+            and self._holds.open_hold(EAT_SOURCE, now=datetime.now(UTC)) is not None
+        ):
+            return None
         with self._connection.cursor() as cursor:
             cursor.execute(
                 "select window_start, window_end, is_complete, failed_publications"
@@ -552,10 +590,33 @@ class _MonitoringRunner:
             cursor.execute(sql, parameters)
         self._connection.commit()
 
+    def _mutate(self, sql: str, parameters: Mapping[str, Any]) -> list[dict[str, Any]]:
+        # 위반 표 쓰기. `returning`이 있으면 그 행을 돌려주고, 없으면 빈 목록이다. 문장마다 commit하는 이유는
+        # 한 회차 안에서 insert한 id를 다음 문장이 바로 참조하고, 회차가 중간에 죽어도 그때까지의 기록은
+        # 남아야 하기 때문이다 — 기록이 없는 것보다 반쪽 기록이 낫다(ADR 0054).
+        with self._connection.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(sql, parameters)
+            rows = list(cursor.fetchall()) if cursor.description else []
+        self._connection.commit()
+        return rows
+
+    def _ledger(self) -> PostgresViolationLedger:
+        environment = self._config.environment_name
+        ledger = PostgresViolationLedger(
+            query=self._run_query, mutate=self._mutate, environment=environment
+        )
+        # R2 문서 시절의 열린 위반을 표가 비어 있을 때 한 번만 옮긴다(ADR 0054 결정 3). 처음 본 시각만
+        # 아는 값이고, 그것을 잃으면 "5일째"가 "방금"이 된다. 그 뒤로 R2 문서는 읽지도 쓰지도 않는다.
+        if ledger.is_empty():
+            inherited = decode_state(self._state_store.read())
+            if inherited:
+                ledger.import_open(inherited, now=datetime.now(UTC))
+        return ledger
+
     def run(self) -> MonitoringResult:
         result = run_expectation_check(
             run_query=self._run_query,
-            state_store=self._state_store,
+            ledger=self._ledger(),
             notify=self._notify,
             environment=self._config.environment_name,
             probes=self._probes(),
@@ -634,6 +695,7 @@ def build_application(config: ApplicationSettings) -> Application:
         monitoring=_build_monitoring(config, connection),
         ingest_repository=PsycopgObservationRepository(connection),
         release_repository=PsycopgSourceReleaseRepository(connection),
+        hold_repository=PsycopgSourceHoldRepository(connection),
         normalization_repository=PsycopgNormalizationRepository(connection),
         publication_repository=PsycopgPublicationRepository(connection),
         replay_repository=PsycopgReplayRunRepository(connection),

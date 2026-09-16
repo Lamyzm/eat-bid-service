@@ -61,11 +61,30 @@ describe('열린 공고 목록 fixture와 공개 계약', () => {
   });
 
   test('거르는 질의에서도 남은 행이 계약을 만족한다', async () => {
-    const 지역만 = await 본문('limit=50&state=open&region=41');
-    const 품목만 = await 본문('limit=50&state=open&item=김치');
+    const 지역만 = await 본문('limit=50&state=open&sido=41');
+    // 품목 조각은 부분일치다. `김치`는 라벨이 `김치`인 행과 합성 라벨 안의 `김치류`를 함께 남긴다 —
+    // 완전일치로 두면 합성 라벨 행이 통째로 사라진다(EAT-206).
+    const 품목만 = await 본문('limit=50&state=open&items=김치');
 
     expect(지역만.auctions.length).toBeGreaterThan(0);
-    expect(품목만.auctions.length).toBe(1);
+    expect(품목만.auctions.length).toBe(2);
+  });
+
+  test('품목 미상 포함은 라벨을 관측하지 못한 행을 함께 남긴다', async () => {
+    const 축산만 = await 본문('limit=50&state=open&items=축산');
+    const 미상포함 = await 본문('limit=50&state=open&items=축산&itemUnknown=include');
+
+    expect(축산만.auctions.every((auction) => auction.itemLabel !== null)).toBe(true);
+    expect(미상포함.auctions.length).toBe(축산만.auctions.length + 1);
+    expect(미상포함.meta.itemUnknown).toBe('include');
+  });
+
+  test('참여 0곳은 관측된 참여 수가 0인 판만 남기고 못 센 판은 빼놓는다', async () => {
+    const body = await 본문('limit=50&state=open&bidState=none');
+
+    expect(body.auctions.length).toBeGreaterThan(0);
+    expect(body.auctions.every((auction) => auction.bidCount === 0)).toBe(true);
+    expect(body.meta.bidState).toBe('none');
   });
   test('제한지역을 고르면 매칭과 미관측이 나뉘고 둘의 합이 표본 수다', async () => {
     const body = await 본문('limit=50&state=open&eligibilityArea=9101');

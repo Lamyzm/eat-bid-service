@@ -14,6 +14,7 @@ import {
 import { auctionRosterResponse } from './auction-roster-fixture';
 import { myBusinessesResponse } from './my-businesses-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
+import { openAuctionSummaryResponse } from './open-auctions-summary-fixture';
 import { sessionResponse } from './session-fixture';
 import { organizationAttemptsResponse } from './organization-attempts-fixture';
 import { winRateDistributionResponse } from './win-rate-distribution-fixture';
@@ -252,6 +253,11 @@ Bun.serve({
     // 목록 경로는 `:auctionId` 경로보다 앞에서 본다. 경로가 다르므로 순서는 읽기 편의일 뿐이다.
     const openAuctions = openAuctionsResponse(request);
     if (openAuctions) return openAuctions;
+
+    // 오늘 화면은 목록과 요약을 나란히 읽고 요약 실패는 삼키지 않는다. 이 응답이 없으면 화면이
+    // 목록이 아니라 오류 경계에서 멈춘다.
+    const openAuctionSummary = openAuctionSummaryResponse(request);
+    if (openAuctionSummary) return openAuctionSummary;
 
     // 명단은 `:auctionId/roster`라 상세 경로와 구별되지만, 상세 분기가 pathname 완전 일치이므로 앞에 둔다.
     const roster = auctionRosterResponse(request);

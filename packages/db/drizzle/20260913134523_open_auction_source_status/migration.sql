@@ -1,0 +1,1 @@
+ALTER TABLE "mart"."open_auction_snapshot" ADD COLUMN "source_status_label" text;

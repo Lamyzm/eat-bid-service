@@ -81,10 +81,10 @@ describe('공고 Query Options', () => {
   test('열린 공고 목록 query key는 기본값까지 정규화된 필터를 담는다', () => {
     const queries = createAuctionQueries(requestDouble([]));
     expect(queries.openLists()).toEqual(['auctions', 'open']);
-    expect(Array.from(queries.open({ region: '41', closesWithinHours: 72 }).queryKey)).toEqual([
+    expect(Array.from(queries.open({ sido: '41', closesWithinHours: 72 }).queryKey)).toEqual([
       'auctions',
       'open',
-      { state: 'open', region: '41', closesWithinHours: 72, limit: 50 }
+      { state: 'open', sido: '41', closesWithinHours: 72, limit: 50 }
     ]);
     expect(queries.open({}).queryKey).toEqual(queries.open({ limit: 50 }).queryKey);
     expect(() => queries.open({ closesWithinHours: 721 })).toThrow();

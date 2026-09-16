@@ -1,12 +1,20 @@
 /** @module 책임: 오늘 RSC route에서 searchParams 접근을 Suspense 안 loader로 격리하고 열린 공고 목록 계약 조회 결과를 화면에 넘긴다. */
 import { systemClock } from '@eatbid/domain';
-import { getMyRegionPreferenceFromServer } from '@/api/account/server';
-import { listOpenAuctionsFromServer } from '@/api/auctions/server';
+import {
+  countFilterCombinationsFromServer,
+  getMyRegionPreferenceFromServer,
+  listFilterCombinationsFromServer
+} from '@/api/account/server';
+import { listOpenAuctionsFromServer, summarizeOpenAuctionsFromServer } from '@/api/auctions/server';
 import { createLoader } from 'nuqs/server';
 import { Suspense } from 'react';
 
 import { todaySearchParsers } from './_lib/today-search-params';
-import { loadTodayPage } from './_model/load-today-page';
+import {
+  loadTodayPage,
+  type TodayCombinationsRead,
+  type TodaySummaryInput
+} from './_model/load-today-page';
 import { TodayScreen } from './_ui/today-screen';
 import { TodayScreenSkeleton } from './_ui/today-screen-skeleton';
 
@@ -16,6 +24,29 @@ type TodayPageProps = PageProps<'/today'>;
 
 const loadTodaySearch = createLoader(todaySearchParsers);
 
+/**
+ * 조합 목록과 건수를 나란히 읽는다. 둘은 서로를 기다릴 이유가 없고, 건수를 목록에 이어 읽으면 왕복이
+ * 두 번 쌓인다. 어느 한쪽이라도 실패하면 기둥을 비운다 — 목록만 있고 건수가 없는 기둥은 조합의 값어치인
+ * "누르기 전에 몇 건인지"를 잃는다.
+ */
+async function readTodayCombinations(input: TodaySummaryInput): Promise<TodayCombinationsRead | null> {
+  const [combinations, counts] = await Promise.all([
+    listFilterCombinationsFromServer(),
+    countFilterCombinationsFromServer({
+      sido: input.sido,
+      eligibilityArea: input.eligibilityArea,
+      items: input.items,
+      baseAmountMin: input.baseAmountMin,
+      baseAmountMax: input.baseAmountMax
+    })
+  ]);
+  if (combinations.kind === 'unread') return null;
+  return {
+    combinations: combinations.response.combinations,
+    counts: counts.kind === 'counts' ? counts.response : null
+  };
+}
+
 async function TodayLoader({ searchParams }: { readonly searchParams: TodayPageProps['searchParams'] }) {
   const search = await loadTodaySearch(searchParams);
   // 지역 설정은 목록을 부를지 말지를 정하므로 조회보다 먼저 읽는다. 읽지 못한 것과 확인하지 않은 것은
@@ -23,6 +54,8 @@ async function TodayLoader({ searchParams }: { readonly searchParams: TodayPageP
   const preference = await getMyRegionPreferenceFromServer();
   const data = await loadTodayPage(search, {
     listOpenAuctions: listOpenAuctionsFromServer,
+    summarizeOpenAuctions: summarizeOpenAuctionsFromServer,
+    readCombinations: readTodayCombinations,
     regionPreference: preference.kind === 'preference' ? preference.response.preference : undefined,
     // D-day는 요청 시각의 함수다. 컴포넌트 안에서 `Date`나 `Temporal.Now`를 부르지 않고 여기서 한 번 만든다.
     now: () => systemClock.now().toString()

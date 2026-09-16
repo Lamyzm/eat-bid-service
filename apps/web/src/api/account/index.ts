@@ -3,6 +3,7 @@ import type {
   MyBidObservationsV1Response,
   MyBusinessesV1Response,
   MyBusinessV1Response,
+  MyFilterCombinationV1Response,
   AccountInitializationV1Response
 } from '@eatbid/contracts/api/v1/me';
 import type { MyRegionPreferenceV1Response } from '@eatbid/contracts/api/v1/me';
@@ -18,6 +19,11 @@ import {
   registerMyBusinessWith,
   setMyBusinessLocationWith
 } from './my-businesses';
+import {
+  deleteFilterCombinationWith,
+  saveFilterCombinationWith,
+  type SaveFilterCombinationInput
+} from './filter-combinations';
 import { createAccountQueries } from './queries';
 import { putMyRegionPreferenceWith } from './region-preference';
 
@@ -32,12 +38,15 @@ export type {
   MyBidSubmission,
   MyBusinessesV1Response,
   MyBusinessV1Response,
+  MyFilterCombinationsV1Response,
+  MyFilterCombinationV1Response,
   MyRegionPreferenceV1Response,
   RegisteredBusiness,
   RegisteredBusinessLocation,
   WorkspaceRegionPreference
 } from '@eatbid/contracts/api/v1/me';
 export type { MyBidObservationsInput } from './find-my-bid-observations';
+export type { FilterCombinationCountsInput, SaveFilterCombinationInput } from './filter-combinations';
 export type { PrivateWorkspaceScope } from './queries';
 export { discardAccountCache, discardOtherPrincipals, discardOtherSubjects } from './queries';
 export {
@@ -104,3 +113,15 @@ export function putMyRegionPreference(input: {
 }
 
 export const accountQueries = createAccountQueries(browserRequest);
+
+/**
+ * 조합 저장과 삭제다. 상한 초과와 이름 중복은 409로 오며 화면이 둘을 다른 문구로 안내한다 — 둘 다
+ * 잘못된 요청이 아니라 지금 저장 상태와의 충돌이라 사용자가 할 일이 다르다.
+ */
+export function saveFilterCombination(input: SaveFilterCombinationInput): Promise<MyFilterCombinationV1Response> {
+  return saveFilterCombinationWith(browserRequest, input);
+}
+
+export function deleteFilterCombination(input: { readonly filterCombinationId: string }): Promise<void> {
+  return deleteFilterCombinationWith(browserRequest, input);
+}

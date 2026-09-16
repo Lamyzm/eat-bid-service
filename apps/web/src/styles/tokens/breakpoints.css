@@ -3,7 +3,9 @@
    아니라 "우리가 정한 값"이 된다(EAT-154).
    rem이 아니라 px인 이유: JS 쪽 판정(matchMedia·innerWidth)이 px라서, 브라우저 글꼴 크기 설정과 무관하게
    CSS와 JS가 같은 폭에서 갈라져야 한다.
-   `--breakpoint-*: initial`은 Tailwind 기본 2xl(1536px)을 지운다. 쓰는 곳이 없고, 남기면 원천이 두 곳이 된다.
+   `--breakpoint-*: initial`은 Tailwind 기본값을 먼저 지우고 우리 값만 남긴다. 기본값에 기대면 원천이 두 곳이 된다.
+   2xl은 오늘 화면의 조건 기둥이 쓴다 — xl(1280)에서 기둥을 옆에 두면 표가 708px뿐이라 여덟 칸을 세우면
+   기관 칸이 0이 되고(2026-09-16 실측), 1536부터야 기둥 옆에 여덟 칸이 선다. 이 값을 쓰는 곳이 다시 없어지면 지운다.
    shared/lib/breakpoints.ts가 같은 숫자를 export하며 둘의 일치는 breakpoints.test.ts가 단언한다. */
 @theme {
   --breakpoint-*: initial;
@@ -11,4 +13,5 @@
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
   --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
 }

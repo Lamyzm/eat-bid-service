@@ -5,6 +5,10 @@ import { DrizzleAccountRepository } from "../../modules/account/infrastructure/d
 import { DrizzleRegisteredBusinessReader } from "../../modules/account/infrastructure/drizzle/drizzle-registered-business-reader";
 import type { RegionPreferenceRepository } from "../../modules/account/application/region-preference-repository";
 import { DrizzleRegionPreferenceRepository } from "../../modules/account/infrastructure/drizzle/drizzle-region-preference-repository";
+import type { FilterCombinationRepository } from "../../modules/account/application/filter-combination-repository";
+import { DrizzleFilterCombinationRepository } from "../../modules/account/infrastructure/drizzle/drizzle-filter-combination-repository";
+import type { OpenAuctionFilterCountsReader } from "../../modules/procurement/application/count-open-auctions-for-filters";
+import { DrizzleOpenAuctionFilterCountsReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-open-auction-filter-counts-reader";
 import type { EligibilityAreaReader } from "../../modules/procurement/application/eligibility-area-reader";
 import { DrizzleEligibilityAreaReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-eligibility-area-reader";
 import { DrizzleOwnBidReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-own-bid-reader";
@@ -12,11 +16,13 @@ import type { AuctionReader } from "../../modules/procurement/application/auctio
 import type { AuctionRosterReader } from "../../modules/procurement/application/auction-roster-reader";
 import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
 import type { OpenAuctionReader } from "../../modules/procurement/application/open-auction-reader";
+import type { OpenAuctionSummaryReader } from "../../modules/procurement/application/open-auction-summary-reader";
 import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
 import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "../../modules/reference/application/code-reader";
 import { DrizzleAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOpenAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-open-auction-reader";
+import { DrizzleOpenAuctionSummaryReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-open-auction-summary-reader";
 import { DrizzleOrganizationAttemptReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-organization-attempt-reader";
 import { DrizzleWinRateDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-win-rate-distribution-reader";
 import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzle/drizzle-code-reader";
@@ -33,6 +39,9 @@ import {
   DATABASE_READINESS,
   ELIGIBILITY_AREA_READER,
   OPEN_AUCTION_READER,
+  FILTER_COMBINATION_REPOSITORY,
+  OPEN_AUCTION_FILTER_COUNTS_READER,
+  OPEN_AUCTION_SUMMARY_READER,
   ORGANIZATION_ATTEMPT_READER,
   OWN_BID_READER,
   READ_SNAPSHOT,
@@ -49,10 +58,13 @@ export interface DatabaseModuleOverrides {
   readonly readiness?: DatabaseReadiness;
   readonly accountRepository?: AccountRepository;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
+  readonly filterCombinationRepository?: FilterCombinationRepository;
+  readonly openAuctionFilterCountsReader?: OpenAuctionFilterCountsReader;
   readonly eligibilityAreaReader?: EligibilityAreaReader;
   readonly auctionReader?: AuctionReader;
   readonly auctionRosterReader?: AuctionRosterReader;
   readonly openAuctionReader?: OpenAuctionReader;
+  readonly openAuctionSummaryReader?: OpenAuctionSummaryReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly codeReader?: CodeReader;
@@ -121,6 +133,12 @@ export class DatabaseModule {
           overrides.openAuctionReader ?? new DrizzleOpenAuctionReader(connection.database),
       },
       {
+        provide: OPEN_AUCTION_SUMMARY_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): OpenAuctionSummaryReader =>
+          overrides.openAuctionSummaryReader ?? new DrizzleOpenAuctionSummaryReader(connection.database),
+      },
+      {
         provide: AUCTION_ROSTER_READER,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): AuctionRosterReader =>
@@ -162,6 +180,18 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): EligibilityAreaReader =>
           overrides.eligibilityAreaReader ?? new DrizzleEligibilityAreaReader(connection.database),
       },
+      {
+        provide: FILTER_COMBINATION_REPOSITORY,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): FilterCombinationRepository =>
+          overrides.filterCombinationRepository ?? new DrizzleFilterCombinationRepository(connection.database),
+      },
+      {
+        provide: OPEN_AUCTION_FILTER_COUNTS_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): OpenAuctionFilterCountsReader =>
+          overrides.openAuctionFilterCountsReader ?? new DrizzleOpenAuctionFilterCountsReader(connection.database),
+      },
     ];
     return {
       global: true,
@@ -170,6 +200,8 @@ export class DatabaseModule {
       exports: [
         ACCOUNT_REPOSITORY,
         REGION_PREFERENCE_REPOSITORY,
+        FILTER_COMBINATION_REPOSITORY,
+        OPEN_AUCTION_FILTER_COUNTS_READER,
         ELIGIBILITY_AREA_READER,
         DATABASE_READINESS,
         UNIT_OF_WORK,
@@ -179,6 +211,7 @@ export class DatabaseModule {
         AUCTION_READER,
         AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,
+        OPEN_AUCTION_SUMMARY_READER,
         ORGANIZATION_ATTEMPT_READER,
         WIN_RATE_DISTRIBUTION_READER,
         CODE_READER,
