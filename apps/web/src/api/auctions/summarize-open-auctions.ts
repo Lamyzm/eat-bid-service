@@ -16,6 +16,8 @@ export type OpenAuctionSummaryInput = {
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly itemUnknown?: 'include';
+  /** 목록과 같은 검색어다. 요약이 안 받으면 검색 중에 탭·달력·배지가 표와 다른 집합을 센다. */
+  readonly q?: string;
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
   readonly calendarFrom: string;
@@ -32,6 +34,7 @@ export async function summarizeOpenAuctionsWith(
     eligibilityArea: input.eligibilityArea,
     items: input.items,
     itemUnknown: input.itemUnknown,
+    q: input.q,
     baseAmountMin: input.baseAmountMin,
     baseAmountMax: input.baseAmountMax,
     calendarFrom: input.calendarFrom,

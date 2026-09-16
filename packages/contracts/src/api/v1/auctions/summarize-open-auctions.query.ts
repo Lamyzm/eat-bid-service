@@ -9,6 +9,7 @@ import {
   itemsFilterSchema,
   itemUnknownFilterSchema,
   openAuctionStateSchema,
+  searchTextSchema,
   sigunguFilterSchema,
 } from "./list-open-auctions.query";
 
@@ -36,6 +37,8 @@ export const openAuctionSummaryQuerySchema = z.strictObject({
   // 목록이 받는 축이면 요약도 받는다. 빠지면 `품목 미상 포함`을 켰을 때 표의 행과 탭·달력·배지 수가
   // 서로 다른 집합을 말한다(2026-09-16 EAT-241에서 발견).
   itemUnknown: itemUnknownFilterSchema.optional(),
+  // 검색도 목록이 받는 축이다. 요약이 안 받으면 검색 중에 탭·달력·배지가 검색 전 집합을 센다(EAT-247).
+  q: searchTextSchema.optional(),
   baseAmountMin: canonicalMoneyAmountSchema.optional(),
   baseAmountMax: canonicalMoneyAmountSchema.optional(),
   calendarFrom: kstDateTextSchema,

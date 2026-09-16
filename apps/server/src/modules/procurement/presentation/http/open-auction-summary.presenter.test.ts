@@ -24,6 +24,7 @@ const query: OpenAuctionSummaryQuery = {
   eligibilityAreaCodeValueIds: null,
   itemLabels: null,
   includeUnknownItem: false,
+  searchText: null,
   baseAmountMin: null,
   baseAmountMax: null,
   calendarFrom: "2026-09-14",

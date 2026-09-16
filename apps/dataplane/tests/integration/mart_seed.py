@@ -198,6 +198,8 @@ def seed_round(
     planned_amount: Decimal = Decimal("1000000.00"),
     external_bid_id: str | None = None,
     item_label: str | None = None,
+    title: str = "합성 회차",
+    display_bid_no: str | None = None,
 ) -> int:
     """회차 하나를 core에 심고 attempt id를 돌려준다.
 
@@ -245,9 +247,9 @@ def seed_round(
             """
             insert into core.auction_revision
               (auction_attempt_id, normalized_record_id, observation_id, content_sha256,
-               source_status, title, announced_at, opened_at, floor_rate,
+               source_status, title, display_bid_no, announced_at, opened_at, floor_rate,
                base_amount, planned_amount, currency, source_payload)
-            values (%s, %s, %s, %s, 'CLOSED', '합성 회차', now(), %s, %s, %s, %s, 'KRW',
+            values (%s, %s, %s, %s, 'CLOSED', %s, %s, now(), %s, %s, %s, %s, 'KRW',
                     %s::jsonb)
             returning auction_revision_id
             """,
@@ -256,6 +258,8 @@ def seed_round(
                 record[0],
                 evidence.observation_id,
                 uuid4().hex + uuid4().hex,
+                title,
+                display_bid_no,
                 opened_at,
                 floor_rate,
                 base_amount,

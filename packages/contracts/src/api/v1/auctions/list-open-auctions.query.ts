@@ -111,6 +111,16 @@ export const bidStateFilterSchema = z.literal("none");
  */
 export const itemUnknownFilterSchema = z.literal("include");
 
+/**
+ * 검색어다. **제목·기관 이름·공고번호 안의 부분일치**이며 지금 걸린 다른 조건 안에서만 찾는다.
+ *
+ * 목록은 200건 상한이고 더보기를 두지 않으므로 상한 밖 행에 닿는 길이 이것뿐이다(EAT-206 결정,
+ * EAT-247). 술어는 품목 조각과 같은 `strpos`다 — 사용자 입력에 `like` 메타문자를 열지 않는다.
+ * 양끝 공백은 뜻이 없어 걷어 내고, 64자는 관측된 가장 긴 제목의 절반쯤이라 문장이 아니라 낱말을
+ * 받는 크기다. 전문 검색·형태소 분석은 만들지 않는다(AGENTS 11).
+ */
+export const searchTextSchema = z.string().trim().min(1).max(64);
+
 export const openAuctionListQuerySchema = z.strictObject({
   state: openAuctionStateSchema.default("open"),
   sido: positiveBigintTextSchema.optional(),
@@ -118,6 +128,7 @@ export const openAuctionListQuerySchema = z.strictObject({
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
   items: itemsFilterSchema.optional(),
   itemUnknown: itemUnknownFilterSchema.optional(),
+  q: searchTextSchema.optional(),
   bidState: bidStateFilterSchema.optional(),
   closesWithinHours: closesWithinHoursSchema.optional(),
   closesOn: kstDateTextSchema.optional(),

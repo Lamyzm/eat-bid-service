@@ -23,6 +23,7 @@ export function describeTodaySearch(search: TodaySearch, regionText: string | nu
   const parts: string[] = [];
   if (search.sido !== null) parts.push(`지역 ${regionText ?? `코드 ${search.sido}`}`);
   if (search.items !== null) parts.push(`품목 ${search.items.join(' · ')}`);
+  if (search.q !== null) parts.push(`검색 “${search.q}”`);
   if (search.closesOn !== null) parts.push(`마감 ${search.closesOn}`);
   if (search.announcedOn !== null) parts.push(`게시 ${search.announcedOn}`);
   if (search.closesWithinHours !== null) parts.push(`기간 ${search.closesWithinHours}시간 안`);

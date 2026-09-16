@@ -59,10 +59,20 @@ export const openAuctionSnapshot = martSchema.table(
      * 그렇고, 읽는 쪽은 모르는 상태를 숨기지 않는다(AGENTS 3).
      */
     sourceStatusLabel: text("source_status_label"),
-    // 아래 다섯 열은 목록이 아니라 같은 attempt의 최신 상세 해석에서 온다. 화면이 지역·품목으로
+    // 아래 열들은 목록이 아니라 같은 attempt의 최신 상세 해석에서 온다. 화면이 지역·품목으로
     // 거르고 하한을 보여 주려면 값이 필요한데, 요청마다 core를 lateral 조인하면 원본 점 조회가
     // 목록 경로로 새어 나온다. 그래서 빌드 시점에 한 번 조인해 싣는다(EAT-39 판정 A·B·C).
     floorRate: observedRate("floor_rate"),
+    /**
+     * 공고 제목과 표시용 공고번호다. 둘 다 검토된 목록 열이 아니라 상세 해석(`core.auction_revision`)에서
+     * 오므로 `terms_revision_id` 계보를 탄다.
+     *
+     * 제목은 검색의 대상이다. 목록은 200건 상한이라 상한 밖 행에 닿는 길이 검색뿐인데, 요청마다 core의
+     * 제목을 조인하면 원본 점 조회가 목록 경로로 새어 나온다(EAT-247). 공고번호는 정체성이 아니라 표시·복사용
+     * 문자열이다 — 사용자가 eaT로 건너갈 때 붙여 넣는 손잡이이며 조인 키로 쓰지 않는다(AGENTS 2, EAT-248).
+     */
+    title: text("title"),
+    displayBidNo: text("display_bid_no"),
     // 지역 축 둘은 같은 `mart.build.region_scheme` 안의 계층이지 두 체계가 아니다(ADR 0034, AGENTS 6).
     regionSidoCodeValueId: bigint("region_sido_code_value_id", { mode: "bigint" })
       .references(() => codeValue.codeValueId),
@@ -100,6 +110,7 @@ export const openAuctionSnapshot = martSchema.table(
       sql`${table.termsRevisionId} is not null
         or (${table.floorRate} is null and ${table.itemLabel} is null
           and ${table.announcedAt} is null
+          and ${table.title} is null and ${table.displayBidNo} is null
           and ${table.regionSidoCodeValueId} is null
           and ${table.regionSigunguCodeValueId} is null)`,
     ),

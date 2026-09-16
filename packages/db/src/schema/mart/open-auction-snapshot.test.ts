@@ -53,6 +53,9 @@ describe("mart.open_auction_snapshot 스키마", () => {
     expect(nullability.region_sido_code_value_id).toBe(false);
     expect(nullability.region_sigungu_code_value_id).toBe(false);
     expect(nullability.organization_label).toBe(false);
+    // 제목·공고번호도 상세에서 오므로 상세를 아직 따지 않은 공고는 비어 있어야 한다(EAT-247·248).
+    expect(nullability.title).toBe(false);
+    expect(nullability.display_bid_no).toBe(false);
     expect(nullability.terms_revision_id).toBe(false);
   });
 
