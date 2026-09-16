@@ -43,6 +43,7 @@ from eatbid.mart.models import MartBuildPlan, MartName
 from eatbid.mart.open_auction_snapshot import open_auction_snapshot_filler
 from eatbid.mart.org_round_summary import fill_org_round_summary
 from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
+from eatbid.mart.reaper import reap_expired_builds
 from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
 from eatbid.monitoring.backup import (
     BackupExpectation,
@@ -324,6 +325,14 @@ class Application:
             floor=args.floor_date,
             coverage=coverage,
         )
+
+    def reap_marts(self, args: argparse.Namespace) -> Any:
+        """예약 entrypoint다. `retain_until`이 지난 superseded build의 mart 행을 회수한다(EAT-254).
+
+        어떤 run에도 매이지 않고 build 원장 행은 건드리지 않는다. 활성 build와 mutex를 다투지 않는 이유는
+        superseded가 종착 상태이고 행 삭제는 표의 trigger가 build 상태로 다시 거르기 때문이다(ADR 0034).
+        """
+        return reap_expired_builds(self._connection, as_of=args.as_of)
 
     def check_expectations(self, args: argparse.Namespace) -> Any:
         # 운영자·스케줄 entrypoint다. 어떤 DAG에도 들지 않으며 수집 상태를 바꾸지 않고 읽기만 한다.

@@ -27,6 +27,7 @@ from eatbid.failures.categories import (
 from eatbid.failures.report import render_failure
 from eatbid.ingest.release_models import FailedSourceRelease
 from eatbid.mart.models import MartBuildResult
+from eatbid.mart.reaper import ReapReport
 from eatbid.monitoring.runner import MonitoringResult
 from eatbid.pipeline.advance import BackfillWindow
 from eatbid.pipeline.code_vocabulary import CodeVocabularyCaptureResult
@@ -70,6 +71,7 @@ class CliApplication(Protocol):
     def fail_release(self, args: argparse.Namespace) -> object: ...
     def check_expectations(self, args: argparse.Namespace) -> object: ...
     def next_backfill_window(self, args: argparse.Namespace) -> object: ...
+    def reap_marts(self, args: argparse.Namespace) -> object: ...
 
 
 CommandHandler = Callable[
@@ -161,6 +163,10 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
         if not isinstance(result, ScanReport):
             raise TypeError("scan-contract returned an invalid result")
         # 보고서 전체를 한 문서로 낸다. 사유 목록은 JSON 배열이라 result-dir의 파일 하나로 그대로 남는다.
+        return result.to_document()
+    if method_name == "reap_marts":
+        if not isinstance(result, ReapReport):
+            raise TypeError("reap-marts returned an invalid result")
         return result.to_document()
     if method_name == "capture_reference":
         if not isinstance(result, ReferenceCaptureResult):
@@ -293,6 +299,8 @@ COMMAND_METHODS: Mapping[str, str] = {
     "check-expectations": "check_expectations",
     # 운영자 조사 entrypoint다. 받아 둔 raw에 지금 파서를 돌려 격리 사유를 한 번에 모은다. DB에 쓰지 않는다(EAT-251).
     "scan-contract": "scan_contract",
+    # 예약 entrypoint다. `retain_until`이 지난 superseded build의 mart 행을 회수한다(EAT-254, ADR 0034).
+    "reap-marts": "reap_marts",
     # 예약 entrypoint다. 커버리지 사실만 읽어 다음에 채울 창 하나를 고르고 아무것도 바꾸지 않는다
     # (EAT-209, ADR 0052 결정 4).
     "next-backfill-window": "next_backfill_window",

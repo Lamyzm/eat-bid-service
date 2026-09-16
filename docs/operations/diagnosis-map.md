@@ -2,7 +2,7 @@
 id: DIAGNOSIS-MAP
 status: active
 canonical_for: operations-symptom-to-query-map
-last_reviewed: 2026-09-16
+last_reviewed: 2026-09-17
 review_trigger: monitoring-table-or-ingest-lineage-column-change
 ---
 
@@ -106,6 +106,17 @@ select hold_id, source, reason, detail, held_at, release_after
 ```
 
 열린 보류가 있으면 전진은 조용히 건너뛰고 poll-open은 소스를 부르지 않고 exit 75로 끝난다(ADR 0055).
+
+### "mart가 왜 크나, 회수가 도나"
+
+```sql
+select mart_name, status, count(*), min(retain_until) filter (where retain_until < now()) as oldest_expired
+  from mart.build group by 1, 2 order by 1, 2;
+```
+
+`superseded`이면서 `retain_until`이 지난 build의 행은 매일 04:30 KST `eatbid-mart-reap`이 지운다(runbook §4.8).
+행이 남아 하루를 넘기면 기대 `mart-reap-lag`이 연다. 표 크기는 `pg_total_relation_size('mart.<표>')`이며 지운
+뒤에도 파일은 줄지 않는다 — 재사용될 뿐이다.
 
 ### "이 run의 로그"
 

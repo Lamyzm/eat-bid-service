@@ -2,7 +2,7 @@
 id: COLLECTION-RUNBOOK
 status: active
 canonical_for: collection-workflow-recovery-procedures
-last_reviewed: 2026-09-16
+last_reviewed: 2026-09-17
 review_trigger: workflow-template-stage-or-publication-lineage-change
 ---
 
@@ -395,3 +395,23 @@ argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint cont
   별도 결정이다.
 - 검증: 2025-09 창(EAT-246)에 돌리면 음수 사정률 7건과 `EFT_ALL_AMT` 음수 1건이 그대로 나와야 한다.
 .
+### 4.8 물린 mart build의 행 회수 — `reap-marts` (2026-09-17, EAT-254)
+
+mart는 발행마다 새 build로 통째 다시 만들고 이전 활성 build를 `superseded`로 물린다(ADR 0034). 물린 build의
+행은 `retain_until`(회차 요약·낙찰률 분포 1일, 열린 공고 스냅샷 7일)까지만 필요하다. 2026-09-16 실측은 build
+901개 중 활성 3개, 만료 629개, mart 20GB였다.
+
+- 매일 04:30 KST `eatbid-mart-reap` CronWorkflow가 `reap-marts`를 부른다. 시한이 지난 superseded build의 mart
+  행과 보유율 행을 build마다 한 transaction으로 지우고 원장 `mart.build` 행은 계보로 남긴다. 어떤 수집 DAG에도
+  들지 않고 mutex도 잡지 않는다.
+- 결과는 workflow output parameter `reaped-builds`·`deleted-rows`와 stdout이다. 같은 날 다시 불러도 이미 행이
+  없는 build는 보고에 실리지 않는다.
+- 회수가 하루 넘게 밀리면 기대 `mart-reap-lag`이 연다. cron 회차가 죽었거나 suspend됐는지를 본다.
+- 손으로 부를 때:
+
+  ```powershell
+  argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint reap-marts
+  ```
+
+- 지운 행의 디스크는 PostgreSQL 안에서 재사용된다(autovacuum). 파일 크기를 줄여 OS에 돌려주는 것은 `VACUUM FULL`
+  이고 그동안 그 표를 잠그므로 별도 결정이다 — 이 절차는 그것을 하지 않는다.
