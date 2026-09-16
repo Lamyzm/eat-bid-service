@@ -2,7 +2,7 @@
 id: RUNTIME-AND-DEPLOYMENT
 status: active
 canonical_for: argo-runtime-execution-and-deployment-topology
-last_reviewed: 2026-09-11
+last_reviewed: 2026-09-16
 review_trigger: argo-cd-or-workflows-topology-cluster-move-or-release-path-change
 ---
 
@@ -563,10 +563,11 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 | 실행 중 backfill이 임계 시간 안에 진행했다 | PostgreSQL | 있음 |
 | 임계 나이를 넘은 `planned` release가 없다 | PostgreSQL | 있음 |
 | 수집이 임계 시간 안에 관측을 남겼다 | PostgreSQL | 있음 |
-| 마지막 성공 백업이 임계 시간 안에 있다 | PostgreSQL·Workflow | 없음 |
-| 노드와 Argo Application이 정상이다 | Kubernetes API | 없음 |
-| 원격 `main`의 최신 CI가 초록이다 | GitHub | 없음 |
-| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 없음 |
+| 발행이 실패한 달 창이 replay를 기다린다(전진이 건너뛴 창) | PostgreSQL | 있음(ADR 0053, EAT-235·240) |
+| 마지막 성공 백업이 임계 시간 안에 있다 | R2 `backup/` 객체 목록 | 있음(EAT-196, `monitoring/backup.py`) |
+| 노드와 Argo Application이 정상이고 cron의 최근 회차가 끝까지 갔다 | Kubernetes API | 있음(EAT-196, `monitoring/cluster.py`). Application의 Healthy↔Degraded·Synced 이탈은 이 기대의 열림·해소로 텔레그램에 간다 |
+| 원격 `main`의 최신 CI가 초록이다 | GitHub | 있음(EAT-196, `monitoring/github.py`; 2026-09-16 `ci-main-green` 실측) |
+| 운영에 도는 image digest가 `deploy/prod`가 가리키는 것과 같다 | Kubernetes API·저장소 | 있음 — 별도 질의가 아니라 Argo CD의 `Synced` 판정을 그대로 받는다(위 Application 기대) |
 
 마지막 줄은 ADR 0046 결정 5의 목록에 없던 것을 더한 것이다. 2026-09-11에 기대 검사 CronWorkflow가 15분마다
 실패했는데 원인이 "배포된 image가 그 명령을 모르는 옛 것"이었고, 그 사실을 알아챈 경로가 사람의 조회였다.
