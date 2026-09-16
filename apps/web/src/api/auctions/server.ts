@@ -4,13 +4,15 @@ import 'server-only';
 import {
   auctionV1Operations,
   type AuctionV1Response,
-  type OpenAuctionListV1Response
+  type OpenAuctionListV1Response,
+  type OpenAuctionSummaryV1Response
 } from '@eatbid/contracts/api/v1/auctions';
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
 import { isAuctionNotFoundError, isOpenAuctionCursorInvalidError } from './auction-resource-error';
 import { getAuctionWith } from './get-auction';
 import { listOpenAuctionsWith, type OpenAuctionListInput } from './list-open-auctions';
+import { summarizeOpenAuctionsWith, type OpenAuctionSummaryInput } from './summarize-open-auctions';
 
 export function parseAuctionId(auctionId: string): string {
   return auctionV1Operations.find.pathSchema.parse({ auctionId }).auctionId;
@@ -60,6 +62,18 @@ export async function listOpenAuctionsFromServer(input: OpenAuctionListInput): P
     if (isOpenAuctionCursorInvalidError(error)) return { kind: 'cursor-not-found' };
     throw error;
   }
+}
+
+/**
+ * 요약도 같은 세션 게이트 뒤에 있고 같은 `asOf`에 걸려 있어 목록과 같은 이유로 `use cache`를 쓰지 않는다.
+ *
+ * 예상된 실패가 없어 결과 union이 아니다. cursor를 받지 않으니 사라진 cursor가 없고, 조건이 아무것도
+ * 안 맞으면 그건 실패가 아니라 0을 센 결과다.
+ */
+export async function summarizeOpenAuctionsFromServer(
+  input: OpenAuctionSummaryInput
+): Promise<OpenAuctionSummaryV1Response> {
+  return await summarizeOpenAuctionsWith(privateServerRequest, input);
 }
 
 export { revalidateAuctionCache, revalidateOpenAuctionSnapshotCache } from './revalidate';

@@ -20,7 +20,11 @@ export {
   type AuctionParticipationObservation,
 } from "./participation.resource";
 export {
+  bidStateFilterSchema,
   DEFAULT_OPEN_AUCTION_LIMIT,
+  itemsFilterSchema,
+  itemUnknownFilterSchema,
+  MAX_OPEN_AUCTION_LIMIT,
   openAuctionListQuerySchema,
   type OpenAuctionListQuery,
 } from "./list-open-auctions.query";
@@ -36,6 +40,21 @@ export {
   type OpenAuctionLastRound,
   type OpenAuctionOrgSummary,
 } from "./open-auction.resource";
+export {
+  MAX_CALENDAR_WINDOW_DAYS,
+  openAuctionSummaryQuerySchema,
+  type OpenAuctionSummaryQuery,
+} from "./summarize-open-auctions.query";
+export {
+  openAuctionSummaryV1ResponseSchema,
+  type OpenAuctionCalendarDay,
+  type OpenAuctionFloorShare,
+  type OpenAuctionItemCount,
+  type OpenAuctionRegionCount,
+  type OpenAuctionSummaryV1Response,
+  type OpenAuctionTabCounts,
+} from "./summarize-open-auctions.response";
+export { AUCTION_ITEM_ATOMS, auctionItemAtomSchema, type AuctionItemAtom } from "../../../values/auction-item";
 export { auctionV1OperationRegistry, auctionV1Operations } from "./operations";
 export * from "./get-auction-roster.response";
 export * from "./get-auction-roster.query";

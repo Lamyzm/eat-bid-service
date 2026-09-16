@@ -627,6 +627,31 @@
         ],
         "type": "object"
       },
+      "DefaultCombinationCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "key": {
+            "$ref": "#/components/schemas/DefaultCombinationKey"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ],
+        "type": "object"
+      },
+      "DefaultCombinationKey": {
+        "enum": [
+          "regionAll",
+          "regionClosingToday",
+          "noBids",
+          "itemUnknownIncluded"
+        ],
+        "type": "string"
+      },
       "EatbidApiV1Auction": {
         "additionalProperties": false,
         "properties": {
@@ -888,7 +913,7 @@
             "items": {
               "$ref": "#/components/schemas/OpenAuction"
             },
-            "maxItems": 100,
+            "maxItems": 200,
             "type": "array"
           },
           "meta": {
@@ -906,6 +931,144 @@
         "required": [
           "auctions",
           "nextCursor",
+          "meta"
+        ],
+        "type": "object"
+      },
+      "EatbidApiV1OpenAuctionSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "announcedUnobservedCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "calendar": {
+            "items": {
+              "$ref": "#/components/schemas/OpenAuctionCalendarDay"
+            },
+            "maxItems": 31,
+            "type": "array"
+          },
+          "floorShares": {
+            "items": {
+              "$ref": "#/components/schemas/OpenAuctionFloorShare"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "latestObservedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstantText"
+              }
+            ],
+            "nullable": true
+          },
+          "meta": {
+            "additionalProperties": false,
+            "properties": {
+              "asOf": {
+                "$ref": "#/components/schemas/InstantText"
+              },
+              "calendarFrom": {
+                "$ref": "#/components/schemas/KstDateText"
+              },
+              "calendarTo": {
+                "$ref": "#/components/schemas/KstDateText"
+              },
+              "openAuctionSnapshotBuild": {
+                "additionalProperties": false,
+                "properties": {
+                  "buildId": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PositiveBigintText"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "calcVersion": {
+                    "maxLength": 32,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "computedAt": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/InstantText"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "coverage": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/MartCoverage"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "regionScheme": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "sourceReleaseId": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/SourceReleaseIdText"
+                      }
+                    ],
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "buildId",
+                  "sourceReleaseId",
+                  "calcVersion",
+                  "computedAt",
+                  "coverage",
+                  "regionScheme"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "asOf",
+              "calendarFrom",
+              "calendarTo",
+              "openAuctionSnapshotBuild"
+            ],
+            "type": "object"
+          },
+          "nextClosingDay": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OpenAuctionDayMark"
+              }
+            ],
+            "nullable": true
+          },
+          "organizationCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "tabs": {
+            "$ref": "#/components/schemas/OpenAuctionTabCounts"
+          },
+          "totalCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          }
+        },
+        "required": [
+          "totalCount",
+          "organizationCount",
+          "tabs",
+          "announcedUnobservedCount",
+          "floorShares",
+          "calendar",
+          "latestObservedAt",
+          "nextClosingDay",
           "meta"
         ],
         "type": "object"
@@ -1111,6 +1274,87 @@
         "maxLength": 512,
         "minLength": 1,
         "type": "string"
+      },
+      "FilterCombination": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/FilterCombinationFilter"
+          },
+          "filterCombinationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "filterCombinationId",
+          "name",
+          "filter",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "FilterCombinationFilter": {
+        "additionalProperties": false,
+        "properties": {
+          "baseAmountMax": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CanonicalMoneyAmount"
+              }
+            ],
+            "nullable": true
+          },
+          "baseAmountMin": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CanonicalMoneyAmount"
+              }
+            ],
+            "nullable": true
+          },
+          "items": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "nullable": true,
+            "type": "array"
+          },
+          "sido": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "sigungu": {
+            "items": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            },
+            "maxItems": 31,
+            "nullable": true,
+            "type": "array"
+          }
+        },
+        "required": [
+          "sido",
+          "sigungu",
+          "items",
+          "baseAmountMin",
+          "baseAmountMax"
+        ],
+        "type": "object"
       },
       "InstantText": {
         "description": "Canonical UTC ISO 8601 instant text ending in Z with at most nanosecond precision.",
@@ -1479,6 +1723,130 @@
         ],
         "type": "object"
       },
+      "MyFilterCombinationCountsV1Response": {
+        "additionalProperties": false,
+        "properties": {
+          "defaults": {
+            "items": {
+              "$ref": "#/components/schemas/DefaultCombinationCount"
+            },
+            "maxItems": 4,
+            "type": "array"
+          },
+          "meta": {
+            "additionalProperties": false,
+            "properties": {
+              "asOf": {
+                "$ref": "#/components/schemas/InstantText"
+              },
+              "openAuctionSnapshotBuild": {
+                "additionalProperties": false,
+                "properties": {
+                  "buildId": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PositiveBigintText"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "calcVersion": {
+                    "maxLength": 32,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "computedAt": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/InstantText"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "coverage": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/MartCoverage"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "regionScheme": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "sourceReleaseId": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/SourceReleaseIdText"
+                      }
+                    ],
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "buildId",
+                  "sourceReleaseId",
+                  "calcVersion",
+                  "computedAt",
+                  "coverage",
+                  "regionScheme"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "asOf",
+              "openAuctionSnapshotBuild"
+            ],
+            "type": "object"
+          },
+          "saved": {
+            "items": {
+              "$ref": "#/components/schemas/SavedCombinationCount"
+            },
+            "maxItems": 5,
+            "type": "array"
+          }
+        },
+        "required": [
+          "defaults",
+          "saved",
+          "meta"
+        ],
+        "type": "object"
+      },
+      "MyFilterCombinationsV1Response": {
+        "additionalProperties": false,
+        "properties": {
+          "combinations": {
+            "items": {
+              "$ref": "#/components/schemas/FilterCombination"
+            },
+            "maxItems": 5,
+            "type": "array"
+          }
+        },
+        "required": [
+          "combinations"
+        ],
+        "type": "object"
+      },
+      "MyFilterCombinationV1Response": {
+        "additionalProperties": false,
+        "properties": {
+          "combination": {
+            "$ref": "#/components/schemas/FilterCombination"
+          }
+        },
+        "required": [
+          "combination"
+        ],
+        "type": "object"
+      },
       "MyRegionPreferenceV1Response": {
         "additionalProperties": false,
         "properties": {
@@ -1637,6 +2005,63 @@
         ],
         "type": "object"
       },
+      "OpenAuctionCalendarDay": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "date": {
+            "$ref": "#/components/schemas/KstDateText"
+          },
+          "releasedCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          }
+        },
+        "required": [
+          "date",
+          "count",
+          "releasedCount"
+        ],
+        "type": "object"
+      },
+      "OpenAuctionDayMark": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "date": {
+            "$ref": "#/components/schemas/KstDateText"
+          }
+        },
+        "required": [
+          "date",
+          "count"
+        ],
+        "type": "object"
+      },
+      "OpenAuctionFloorShare": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "rate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BidRate"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "rate",
+          "count"
+        ],
+        "type": "object"
+      },
       "OpenAuctionLastRound": {
         "additionalProperties": false,
         "properties": {
@@ -1692,6 +2117,14 @@
       "OpenAuctionListMeta": {
         "additionalProperties": false,
         "properties": {
+          "announcedOn": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/KstDateText"
+              }
+            ],
+            "nullable": true
+          },
           "asOf": {
             "$ref": "#/components/schemas/InstantText"
           },
@@ -1707,6 +2140,21 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/CanonicalMoneyAmount"
+              }
+            ],
+            "nullable": true
+          },
+          "bidState": {
+            "enum": [
+              "none"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "closesOn": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/KstDateText"
               }
             ],
             "nullable": true
@@ -1741,9 +2189,20 @@
             ],
             "nullable": true
           },
-          "item": {
-            "maxLength": 512,
-            "minLength": 1,
+          "items": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "nullable": true,
+            "type": "array"
+          },
+          "itemUnknown": {
+            "enum": [
+              "include"
+            ],
             "nullable": true,
             "type": "string"
           },
@@ -1863,7 +2322,10 @@
             ],
             "type": "object"
           },
-          "region": {
+          "sampleCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "sido": {
             "allOf": [
               {
                 "$ref": "#/components/schemas/PositiveBigintText"
@@ -1871,19 +2333,29 @@
             ],
             "nullable": true
           },
-          "sampleCount": {
-            "$ref": "#/components/schemas/NonNegativeCount"
+          "sigungu": {
+            "items": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            },
+            "maxItems": 31,
+            "nullable": true,
+            "type": "array"
           }
         },
         "required": [
           "sampleCount",
           "asOf",
-          "region",
+          "sido",
+          "sigungu",
           "eligibilityArea",
           "eligibilityMatchedCount",
           "eligibilityUnobservedCount",
-          "item",
+          "items",
+          "itemUnknown",
+          "bidState",
           "closesWithinHours",
+          "closesOn",
+          "announcedOn",
           "baseAmountMin",
           "baseAmountMax",
           "openAuctionSnapshotBuild",
@@ -1981,6 +2453,27 @@
           "open"
         ],
         "type": "string"
+      },
+      "OpenAuctionTabCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "closingToday": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "openedToday": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "openedToday",
+          "closingToday"
+        ],
+        "type": "object"
       },
       "OrganizationAttemptCohort": {
         "additionalProperties": false,
@@ -2751,6 +3244,22 @@
         ],
         "type": "object"
       },
+      "SavedCombinationCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "filterCombinationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          }
+        },
+        "required": [
+          "filterCombinationId",
+          "count"
+        ],
+        "type": "object"
+      },
       "SourceCode": {
         "description": "Opaque source code text that preserves leading zeroes.",
         "maxLength": 512,
@@ -3111,13 +3620,25 @@
           },
           {
             "in": "query",
-            "name": "region",
+            "name": "sido",
             "schema": {
               "allOf": [
                 {
                   "$ref": "#/components/schemas/PositiveBigintText"
                 }
               ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sigungu",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "maxItems": 31,
+              "minItems": 1,
+              "type": "array"
             }
           },
           {
@@ -3134,10 +3655,35 @@
           },
           {
             "in": "query",
-            "name": "item",
+            "name": "items",
             "schema": {
-              "maxLength": 512,
-              "minLength": 1,
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "itemUnknown",
+            "schema": {
+              "enum": [
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bidState",
+            "schema": {
+              "enum": [
+                "none"
+              ],
               "type": "string"
             }
           },
@@ -3148,6 +3694,28 @@
               "maximum": 720,
               "minimum": 1,
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "closesOn",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/KstDateText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "announcedOn",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/KstDateText"
+                }
+              ]
             }
           },
           {
@@ -3188,7 +3756,7 @@
             "name": "limit",
             "schema": {
               "default": 50,
-              "maximum": 100,
+              "maximum": 200,
               "minimum": 1,
               "type": "integer"
             }
@@ -3422,6 +3990,170 @@
           }
         },
         "summary": "공고 회차의 실제 참여 명단을 조회한다",
+        "tags": [
+          "procurement"
+        ]
+      }
+    },
+    "/api/v1/auctions/summary": {
+      "get": {
+        "operationId": "summarizeOpenAuctions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/OpenAuctionState"
+                }
+              ],
+              "default": "open"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sido",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sigungu",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "maxItems": 31,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eligibilityArea",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "maxItems": 200,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "items",
+            "schema": {
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "baseAmountMin",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/CanonicalMoneyAmount"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "baseAmountMax",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/CanonicalMoneyAmount"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+            "in": "query",
+            "name": "calendarFrom",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/KstDateText"
+            }
+          },
+          {
+            "description": "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+            "in": "query",
+            "name": "calendarTo",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/KstDateText"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EatbidApiV1OpenAuctionSummary"
+                }
+              }
+            },
+            "description": "열린 공고 요약 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않음"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스를 사용할 수 없음"
+          }
+        },
+        "summary": "열린 공고를 같은 필터 위에서 세어 탭·달력·조건 줄이 쓰는 수를 한 번에 낸다",
         "tags": [
           "procurement"
         ]
@@ -4049,6 +4781,384 @@
           }
         },
         "summary": "등록한 사업자의 사업장 위치를 사용자가 적은 주소 문장으로 저장한다. 워크스페이스 owner만 바꿀 수 있고 해석된 행정구역 코드나 좌표로 바꾸지 않는다.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/v1/me/filter-combinations": {
+      "get": {
+        "operationId": "listMyFilterCombinations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyFilterCombinationsV1Response"
+                }
+              }
+            },
+            "description": "저장된 조합 조회 성공"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료 또는 남의 워크스페이스 자원"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "내 워크스페이스가 저장한 조건 조합을 만든 순서대로 조회한다. 기본 조합은 저장되지 않으므로 여기 없다.",
+        "tags": [
+          "account"
+        ]
+      },
+      "post": {
+        "operationId": "saveMyFilterCombination",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyFilterCombinationV1Response"
+                }
+              }
+            },
+            "description": "조합 저장 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "요청 본문이 유효하지 않거나 시도 없이 시군구만 보냄"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료 또는 남의 워크스페이스 자원"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "이미 5개를 저장했거나 같은 이름이 있음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "지금 조건에 이름을 붙여 저장한다. 워크스페이스당 5개가 상한이고 같은 이름을 두 번 저장할 수 없다.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/v1/me/filter-combinations/{filterCombinationId}": {
+      "delete": {
+        "operationId": "deleteMyFilterCombination",
+        "parameters": [
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "path",
+            "name": "filterCombinationId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "not": {}
+                }
+              }
+            },
+            "description": "조합 삭제 성공"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료 또는 남의 워크스페이스 자원"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "그 id의 조합이 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "저장한 조합 하나를 지운다. 남의 워크스페이스 조합은 403이다.",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/api/v1/me/filter-combinations/counts": {
+      "get": {
+        "operationId": "countMyFilterCombinations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/OpenAuctionState"
+                }
+              ],
+              "default": "open"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sido",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "sigungu",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "maxItems": 31,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eligibilityArea",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "maxItems": 200,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "items",
+            "schema": {
+              "items": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "baseAmountMin",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/CanonicalMoneyAmount"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "baseAmountMax",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/CanonicalMoneyAmount"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyFilterCombinationCountsV1Response"
+                }
+              }
+            },
+            "description": "조합 건수 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않거나 시군구만 보냄"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "신뢰하지 않는 Origin, 계정 초기화 미완료 또는 남의 워크스페이스 자원"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스 또는 인증 의존성을 사용할 수 없음"
+          }
+        },
+        "summary": "기본 넷과 저장된 조합의 건수를 한 번의 요청으로 센다. 기본 넷은 관심 지역과 지금 조건에서 파생하며 저장되지 않는다.",
         "tags": [
           "account"
         ]

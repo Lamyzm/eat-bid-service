@@ -15,3 +15,15 @@
 export function bigintArrayLiteral(values: readonly bigint[]): string {
   return `{${values.map((value) => value.toString(10)).join(",")}}`;
 }
+
+/**
+ * 문자열 목록을 PostgreSQL 배열 파라미터 하나로 옮긴다.
+ *
+ * bigint와 달리 원소가 사용자 입력이라 배열 리터럴을 손으로 이어 붙이면 `,`·`"`·`\`·`{`가 구분자로
+ * 읽혀 원소 경계가 밀린다. 그래서 원소마다 큰따옴표로 감싸고 `\`와 `"`만 escape한다 — PostgreSQL
+ * 배열 리터럴이 요구하는 것이 그 둘뿐이다. 빈 목록은 `{}`이고 어떤 행과도 매칭되지 않는다.
+ */
+export function textArrayLiteral(values: readonly string[]): string {
+  const quoted = values.map((value) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`);
+  return `{${quoted.join(",")}}`;
+}

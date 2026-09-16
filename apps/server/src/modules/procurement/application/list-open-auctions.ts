@@ -20,10 +20,16 @@ export class OpenAuctionCursorInvalid extends Error {
 
 /** HTTP query에서 온 조회 입력이다. 기준 시각은 여기 없고 use case가 clock에서 읽어 reader query로 옮긴다. */
 export interface ListOpenAuctionsInput {
-  readonly regionCodeValueId: bigint | null;
+  readonly sidoCodeValueId: bigint | null;
+  readonly sigunguCodeValueIds: readonly bigint[] | null;
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
-  readonly itemLabel: string | null;
+  /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
+  readonly itemLabels: readonly string[] | null;
+  readonly includeUnknownItem: boolean;
+  readonly onlyWithoutBids: boolean;
   readonly closesWithinHours: number | null;
+  readonly closesOnKst: string | null;
+  readonly announcedOnKst: string | null;
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
   readonly cursor: bigint | null;
