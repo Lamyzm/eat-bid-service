@@ -14,6 +14,7 @@ build마다 봉인되지 않으면 같은 build를 두 번 읽은 화면이 서�
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
@@ -184,6 +185,14 @@ select %(open_auction_snapshot_id)s, value.code_value_id
 on conflict do nothing
 """
 
+# 같은 build에 다시 돌리면 같은 조각이 같은 수로 나오므로 덮어쓴다 — 재개한 빌드가 격리 수를 두 배로 만들지 않는다.
+_INSERT_VOCABULARY_GAP_SQL = """
+insert into mart.build_vocabulary_gap (build_id, scheme_namespace, fragment, row_count)
+values (%(build_id)s, %(namespace)s, %(fragment)s, %(row_count)s)
+on conflict on constraint build_vocabulary_gap_pkey
+do update set row_count = excluded.row_count
+"""
+
 
 def open_auction_snapshot_filler(
     store: RawObjectStore,
@@ -283,8 +292,12 @@ def _fill_items(cursor: Any, *, build_id: int) -> None:
     """
     cursor.execute(_ITEM_LABEL_ROWS_SQL, {"build_id": build_id})
     rows = cursor.fetchall()
+    # 어휘 밖 조각은 다리 행을 만들지 않는 대신 여기서 센다. 세지 않으면 원천이 아홉째 낱말을 보내기
+    # 시작한 날 그 행은 조용히 `품목 미상`이 되고 아무도 모른다(AGENTS 3, EAT-255).
+    gap: Counter[str] = Counter()
     for snapshot_id, label in rows:
-        for atom in read_item_label(label).atoms:
+        reading = read_item_label(label)
+        for atom in reading.atoms:
             cursor.execute(
                 _INSERT_SNAPSHOT_ITEM_SQL,
                 {
@@ -293,6 +306,17 @@ def _fill_items(cursor: Any, *, build_id: int) -> None:
                     "code": atom,
                 },
             )
+        gap.update(reading.unmapped)
+    for fragment, row_count in sorted(gap.items()):
+        cursor.execute(
+            _INSERT_VOCABULARY_GAP_SQL,
+            {
+                "build_id": build_id,
+                "namespace": AUCTION_ITEM_SCHEME,
+                "fragment": fragment,
+                "row_count": row_count,
+            },
+        )
 
 
 def _organization_id(cursor: Any, *, code: str | None) -> int | None:

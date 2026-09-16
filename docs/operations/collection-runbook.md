@@ -415,3 +415,19 @@ mart는 발행마다 새 build로 통째 다시 만들고 이전 활성 build를
 
 - 지운 행의 디스크는 PostgreSQL 안에서 재사용된다(autovacuum). 파일 크기를 줄여 OS에 돌려주는 것은 `VACUUM FULL`
   이고 그동안 그 표를 잠그므로 별도 결정이다 — 이 절차는 그것을 하지 않는다.
+
+### 4.9 품목 라벨에 어휘 밖 낱말이 나타났다 — `item-vocabulary-gap` (2026-09-17, EAT-255)
+
+품목 원자 어휘(`eatbid:auction-item`, 원자 8개)는 2026-09-16 전수 실측에서 라벨 조각 90,906개를 빠짐없이 덮었다.
+그래도 빌더는 어휘 밖 조각을 **조용히 버리지 않는다** — 다리표(`open_auction_snapshot_item`)에 행을 만들지 않는
+대신 `mart.build_vocabulary_gap`에 조각과 행 수를 build마다 남기고, `check-expectations`가 활성 스냅샷 build에 그
+행이 있으면 조각마다 위반 하나를 연다. 위반이 열린 동안 그 행들은 화면에서 `품목 미상`으로 보이고 품목 필터에 안
+걸린다. 할 일:
+
+1. 조각을 본다(읽기 전용). `select fragment, row_count from mart.build_vocabulary_gap gap join mart.build b using (build_id) where b.status = 'active' and b.mart_name = 'open_auction_snapshot'`.
+2. 원천이 새 원자를 보내기 시작한 것이면 `packages/db/src/seeds/auction-items.ts`와 `packages/contracts/src/values/auction-item.ts`,
+   `apps/dataplane/src/eatbid/source/eat/code_schemes.py`의 목록을 함께 늘린다(셋이 같은 여덟을 읽는지 단위 시험이 고정한다).
+   묶음 이름(`축산`)이나 오타처럼 원자가 아닌 것은 어휘에 넣지 않는다 — 그 판단은 설계 문서 §4.6(제목 추정) 층의 일이다.
+3. 시드가 든 이미지가 배포되면 다음 build부터 다리 행이 생기고 격리 행이 사라져 위반이 닫힌다. 재수집·replay는 필요 없다
+   (원본 라벨은 `item_label`에 그대로 있다).
+

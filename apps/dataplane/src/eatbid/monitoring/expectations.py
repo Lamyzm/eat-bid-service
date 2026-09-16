@@ -218,6 +218,25 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         parameters={},
         key_columns=("window_start",),
     ),
+    Expectation(
+        key="item-vocabulary-gap",
+        title="활성 스냅샷 build의 품목 라벨이 전부 어휘 안에 있다",
+        runbook="docs/operations/collection-runbook.md#49-품목-라벨에-어휘-밖-낱말이-나타났다--item-vocabulary-gap-2026-09-17-eat-255",
+        # 어휘 밖 조각은 다리 행 없이 `품목 미상`이 된다. 전수 실측(2026-09-16)에서 0이었으므로 하나라도
+        # 생기면 원천이 낱말을 늘린 것이고, 시드에 원자를 더해 재빌드하기 전까지 화면이 그만큼 틀린다(EAT-255).
+        # 조각마다 위반 하나다 — 새 조각이 나타나면 이미 열린 위반에 가려지지 않는다.
+        sql="""
+            select gap.fragment, gap.row_count, gap.build_id
+              from mart.build_vocabulary_gap gap
+              join mart.build build on build.build_id = gap.build_id
+             where build.mart_name = 'open_auction_snapshot'
+               and build.status = 'active'
+               and gap.scheme_namespace = %(namespace)s
+             order by gap.row_count desc, gap.fragment
+        """,
+        parameters={"namespace": "eatbid:auction-item"},
+        key_columns=("fragment",),
+    ),
 )
 
 

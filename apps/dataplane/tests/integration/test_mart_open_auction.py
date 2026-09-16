@@ -421,6 +421,47 @@ def test_상세가_있는_공고만_하한율_품목_지역_기관라벨_제목_
     }
 
 
+def test_어휘_밖_조각은_다리_행을_만들지_않고_build마다_수를_남긴다(
+    pipeline_services: PipelineServices,
+) -> None:
+    bid_id = "9610620"
+    organization_code = "199153"
+    _seed_detail(
+        pipeline_services,
+        bid_id=bid_id,
+        organization_code=organization_code,
+        organization_label="합성 격리 기관",
+        floor_rate=Decimal("90.000"),
+        item_label="축산물A , 육류",
+    )
+    source_release_id = create_source_release(pipeline_services)
+    _seed_list_observation(
+        pipeline_services,
+        source_release_id,
+        bid_id=bid_id,
+        organization_code=organization_code,
+    )
+
+    build_id, _ = build_mart(
+        pipeline_services,
+        _plan(pipeline_services, source_release_id),
+        open_auction_snapshot_filler(pipeline_services.store),
+    )
+
+    # 어휘 안 원자만 다리에 앉고, 어휘 밖 `축산물A`는 격리 표에 조각과 행 수로 남는다(AGENTS 3, EAT-255).
+    assert _item_rows(pipeline_services, build_id) == {bid_id: ("육류",)}
+    assert fetch_all(
+        pipeline_services,
+        """
+        select scheme_namespace, fragment, row_count
+          from mart.build_vocabulary_gap
+         where build_id = %s
+         order by fragment
+        """,
+        (build_id,),
+    ) == [("eatbid:auction-item", "축산물A", 1)]
+
+
 def test_같은_attempt에_해석이_둘이면_나중_revision을_싣는다(
     pipeline_services: PipelineServices,
 ) -> None:
