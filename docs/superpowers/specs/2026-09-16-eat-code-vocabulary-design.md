@@ -209,9 +209,10 @@ instant가 된다.
 > (`mart-r5`), 빌더가 core 코드 행이 아니라 `item_label`을 `read_item_label`로 읽어 채운다 — replay 없이 다음
 > build부터 동작하며 규칙의 권위는 그 함수 하나다. 5는 목록·요약·조합 건수 셋에서 `itemAtomPredicate`(다리표
 > `exists` 조인)로 바꿨고 `strpos(item_label` 술어는 서버에 남아 있지 않다. 계약의 `items`는 원자 enum으로 좁혔고
-> 저장 조합(`app.workspace_filter_combination_item`)도 `item_code_value_id`를 가리킨다. 6은 아직이다 — 지금은
-> 미매핑 조각이 있으면 다리 행만 안 생기고 수는 세지 않는다. `org_round_summary.item_code_value_id`(단일 열)와 결정
-> 화면 코호트는 이 2차 밖이다.
+> 저장 조합(`app.workspace_filter_combination_item`)도 `item_code_value_id`를 가리킨다. 6은 EAT-255로 닫았다 — 빌더가
+> 어휘 밖 조각과 행 수를 `mart.build_vocabulary_gap(build_id, scheme_namespace, fragment, row_count)`에 남기고 운영 기대
+> `item-vocabulary-gap`이 활성 스냅샷 build에 행이 있으면 조각마다 알린다(대응은 `collection-runbook.md` §4.8).
+> `org_round_summary.item_code_value_id`(단일 열)와 결정 화면 코호트는 EAT-256, 제목 추정은 EAT-257이다.
 
 ### 4.5 관측률 72%는 원천 결손이 맞다 — 그러나 "왜 없는지"는 받을 수 있다
 

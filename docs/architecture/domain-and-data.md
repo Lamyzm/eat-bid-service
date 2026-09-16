@@ -502,7 +502,9 @@ null이다. `title`은 검색 술어가 읽는 열이고 `display_bid_no`는 표
 `item_label`을 `read_item_label` 규칙(core 투영과 같은 함수)으로 읽어 채운다 — 어휘 밖 낱말은 행을 만들지 않고
 원본 라벨은 `item_label`에 남는다. 오늘 화면의 품목 축·품목 배지·저장 조합 건수는 전부 이 표를 코드로 조인해
 세며 라벨 문자열을 더듬지 않는다. 저장 조합의 품목(`app.workspace_filter_combination_item`)도 같은 체계의
-`item_code_value_id`를 가리킨다. `organization_label`은 이
+`item_code_value_id`를 가리킨다. 어휘 밖 조각은 다리 행을 만들지 않는 대신 `mart.build_vocabulary_gap(build_id,
+scheme_namespace, fragment, row_count)`에 build마다 남기고, 운영 기대 `item-vocabulary-gap`이 활성 build에 행이 있으면
+조각마다 알린다 — 없던 결손이 관측 결손(`품목 미상`)으로 보이지 않게 하기 위해서다(AGENTS 3, EAT-255). `organization_label`은 이
 공고의 revision이 아니라 조직 코드에 매달린 `core.code_label_observation`의 최신 관측이므로 계보에
 포함되지 않는다 — 이름은 표시값이고 조직 정체성은 여전히 code value가 갖는다.
 
