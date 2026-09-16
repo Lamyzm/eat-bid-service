@@ -340,3 +340,16 @@ kubectl -n eatbid annotate wf <waiting-workflow> "eatbid.dev/nudge=$(Get-Date -F
 
 Pending이던 노드가 Running으로 바뀌고 파드가 뜨는지 확인한다. 남은 `planned` release는 §4.1로 확인하고
 §4.2 또는 §4.3으로 정리한다.
+### 4.5 발행이 실패한 창은 전진이 건너뛴다 — `failed-publication-window` (2026-09-16, EAT-235, ADR 0053)
+
+`validate`가 `DATA_QUARANTINED`(65)로 끝나면 release는 sealed, publication은 failed다. 같은 창을 다시 받아도
+같은 원본이 같은 자리에서 다시 격리되므로(2026-03 창이 매시 16,469건을 두 번 다시 받았다) 전진 CronWorkflow는
+`ingest.backfill_coverage.failed_publications > 0`인 창을 고르지 않는다. 대신 `check-expectations`가
+`failed-publication-window` 위반을 창마다 하나씩 열어 두고, 그 위반은 replay가 성공해 창이 완결될 때까지 닫히지
+않는다. 할 일은 재수집이 아니다:
+
+1. 격리 사유를 본다(읽기 전용). `select quarantine_reason, count(*) from ingest.normalization_attempt where run_id = '<detail run>' and status = 'quarantined' group by 1`.
+2. 사유가 계약 쪽이면 파서·계약을 고치고 릴리스한다. 원본이 정말 계약 밖이면 그 관측은 격리로 남는 것이 맞고,
+   그때는 창을 어떻게 닫을지 별도 결정이다(부분 발행은 하지 않는다).
+3. 새 이미지가 배포된 뒤 §1.2 `replay-pipeline`으로 그 release를 다시 발행한다. revision이 생기면 view의
+   `is_complete`가 참이 되어 위반이 해소되고 전진은 다음 창으로 간다.

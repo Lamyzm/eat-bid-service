@@ -140,6 +140,21 @@ EXPECTATIONS: tuple[Expectation, ...] = (
             "stall_after": "45 minutes",
         },
     ),
+    Expectation(
+        key="failed-publication-window",
+        title="발행이 실패한 백필 창이 replay를 기다리고 있다",
+        runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
+        # 전진은 이런 창을 조용히 건너뛴다(ADR 0053 결정 3). 건너뛴다는 사실은 사람이 알아야 하고, 파서를
+        # 고쳐 replay가 성공해 창이 완결될 때까지 열려 있는 것이 맞다. 창마다 위반 하나다.
+        sql="""
+            select window_start, window_end, failed_publications, published_ids, discovered_ids
+              from ingest.backfill_coverage
+             where failed_publications > 0 and not is_complete
+             order by window_start desc
+        """,
+        parameters={},
+        key_columns=("window_start",),
+    ),
 )
 
 

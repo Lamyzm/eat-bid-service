@@ -175,8 +175,12 @@ describe("eaT 정규화 공고 V2 수집 계약", () => {
 
     expect(normalizedAuctionV2Schema.safeParse(withBidRate("101.975")).success).toBe(true);
     expect(normalizedAuctionV2Schema.safeParse(withBidRate("44477738.050")).success).toBe(true);
-    expect(normalizedAuctionV2Schema.safeParse(withBidRate("-1.000")).success).toBe(false);
+    // 2026-03 창 명단에서 -2507.667이 관측됐다. 관측을 거부하면 창 전체 발행이 막힌다(ADR 0053).
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("-1.000")).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("-2507.667")).success).toBe(true);
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("-0.000")).success).toBe(false);
     expect(normalizedAuctionV2Schema.safeParse(withBidRate("1000000000000.000")).success).toBe(false);
+    expect(normalizedAuctionV2Schema.safeParse(withBidRate("-1000000000000.000")).success).toBe(false);
     expect(normalizedAuctionV2Schema.safeParse(withBidRate("100")).success).toBe(false);
   });
 

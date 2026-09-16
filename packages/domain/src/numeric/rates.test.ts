@@ -5,12 +5,32 @@ import {
   baseRelativeBidRate,
   bidRate,
   floorRate,
+  observedBidRate,
+  observedBidRateMagnitude,
   percentagePoints,
   percentagePointsToRatio,
   ratio,
   ratioToPercentagePoints,
   sharePercent,
 } from "./rates.js";
+
+describe("관측 사정률", () => {
+  test("100을 넘어도, 음수여도 관측 그대로 보존한다", () => {
+    // 2026-03 창 명단에서 -2507.667이 관측됐다(ADR 0053). 절단·치환하면 우리가 만든 값이 된다.
+    expect(observedBidRate("101.975")).toBe("101.975");
+    expect(observedBidRate("999999999999.999")).toBe("999999999999.999");
+    expect(observedBidRate("-2507.667")).toBe("-2507.667");
+    expect(observedBidRateMagnitude(observedBidRate("-2507.667"))).toBe("2507.667");
+  });
+
+  test("정밀도·정수부·부호 있는 0은 거부한다", () => {
+    expect(() => observedBidRate("90.21")).toThrow(RangeError);
+    expect(() => observedBidRate("1000000000000.000")).toThrow(RangeError);
+    expect(() => observedBidRate("-1000000000000.000")).toThrow(RangeError);
+    expect(() => observedBidRate("-0.000")).toThrow(RangeError);
+    expect(() => observedBidRate("--1.000")).toThrow(RangeError);
+  });
+});
 
 describe("의미가 분리된 정확 비율", () => {
   test("퍼센트포인트와 ratio의 닫힌 범위를 문자열 계수로 검증한다", () => {
