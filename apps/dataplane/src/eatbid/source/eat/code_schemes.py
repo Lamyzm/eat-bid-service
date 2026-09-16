@@ -193,9 +193,14 @@ class EatCodeListGroup:
     parent_group: str | None = None
 
 
-# 2026-09-16 실측으로 고정한 네 그룹이다. 그룹을 늘리는 것은 새 관측을 여는 결정이므로 이 표를 고치는
-# 커밋에서만 일어난다. 요청 payload도 이 표에서 나오므로 "무엇을 물었는가"와 "무엇으로 읽는가"가
+# 2026-09-16 실측으로 고정한 네 그룹에 2026-09-17 값까지 대조한 둘(`EP051` 예정가격 산정 방식,
+# `EP111` 낙찰자 결정 방법)을 더한 여섯 그룹이다. 그룹을 늘리는 것은 새 관측을 여는 결정이므로 이 표를
+# 고치는 커밋에서만 일어난다. 요청 payload도 이 표에서 나오므로 "무엇을 물었는가"와 "무엇으로 읽는가"가
 # 갈라지지 않는다.
+#
+# `EP111`의 이름(`예정가격의 []%이상 입찰가 중 최저가 낙찰`)에 든 대괄호는 코드북의 자리표시다. 상세의
+# `SUCBD_DECISION_MTHD_NM`은 그 자리에 하한율을 채운 렌더링 문장이라 이름이 아니다(SOURCE-FIELDS T16).
+# 코드북 이름이 방식의 이름이고, 하한율은 `PLNPRCE_SUCBD_STD`가 따로 준다(EAT-200).
 #
 # ⚠ `ITM_VL2`를 그룹에 상관없이 상위 코드로 읽지 마라. `SC067`에서는 부모 시도 코드가 맞지만
 # (`653=김해시`, `ITM_VL2=15`), `BC016`에서는 같은 자리가 `001`·`002`·`003`이라는 **묶음 번호**이고
@@ -206,6 +211,8 @@ EAT_CODE_LIST_GROUPS: tuple[EatCodeListGroup, ...] = (
     EatCodeListGroup("SC067", AUCTION_LOCATION_SIGUNGU, parent_column="ITM_VL2", parent_group="SC066"),
     EatCodeListGroup("EP049", ATTEMPT_STATUS),
     EatCodeListGroup("BC016", ORGANIZATION_TYPE),
+    EatCodeListGroup("EP051", PLANNED_PRICE_TYPE),
+    EatCodeListGroup("EP111", AWARD_METHOD),
 )
 
 EAT_CODE_LIST_GROUP_CODES: tuple[str, ...] = tuple(

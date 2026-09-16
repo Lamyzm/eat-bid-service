@@ -428,7 +428,8 @@ eaT 자신도 품목 드롭다운이 없고 **사용자가 `공고건명`으로 
 ## 5. 범위 밖
 
 - 화면 설계(필터 UI·검색·목록 구조). 이 문서가 끝나고 계약이 바뀐 뒤에 한다.
-- `eat:award-method`·`eat:planned-price-type` 이름. 그룹 번호를 아직 못 찾았다(EAT-200).
+- `eat:award-method`·`eat:planned-price-type` 이름. 그룹 번호는 2026-09-17에 `EP111`·`EP051`로 찾아 그룹 표에
+  더했다(EAT-200) — 이 문서의 범위 밖이었고 같은 경로를 탔다.
 - 참가제한지역(`eat:eligibility-area`). 다른 축이고 사용자 결정으로 뒤로 미뤘다.
 - 행안부 canonical 전환(ADR 0035). 별개 가치이며 선행 조건이 아니다.
 - NEIS 학교 코드 연결. `neis:school`은 코드 0개이고 검색에는 필요 없다.

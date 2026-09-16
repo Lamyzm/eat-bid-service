@@ -301,6 +301,76 @@
 				<Col id="CMNS_CD_NM">남해군</Col>
 				<Col id="ITM_VL2">15</Col>
 			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-10-01 00:00:00</Col>
+				<Col id="CMNS_GRP_CD">EP051</Col>
+				<Col id="CMNS_CD">001</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2021-10-01 00:00:00</Col>
+				<Col id="SRTNG_SEQN">1</Col>
+				<Col id="LAST_CHGR_ID">ADMIN</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">단일예정가격</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-10-01 00:00:00</Col>
+				<Col id="CMNS_GRP_CD">EP051</Col>
+				<Col id="CMNS_CD">002</Col>
+				<Col id="VLD_END_YMD">29991231</Col>
+				<Col id="LAST_CHG_DT">2021-10-01 00:00:00</Col>
+				<Col id="SRTNG_SEQN">2</Col>
+				<Col id="LAST_CHGR_ID">ADMIN</Col>
+				<Col id="VLD_BGNG_YMD">20211001</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">복수예정가격</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-10-25 00:00:00</Col>
+				<Col id="CMNS_GRP_CD">EP111</Col>
+				<Col id="CMNS_CD">003</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2021-10-25 00:00:00</Col>
+				<Col id="SRTNG_SEQN">2</Col>
+				<Col id="LAST_CHGR_ID">ADMIN</Col>
+				<Col id="VLD_BGNG_YMD">20211025</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">예정가격의 []%이상 입찰가 중 최저가 낙찰</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-10-25 00:00:00</Col>
+				<Col id="CMNS_GRP_CD">EP111</Col>
+				<Col id="CMNS_CD">005</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2021-10-25 00:00:00</Col>
+				<Col id="SRTNG_SEQN">3</Col>
+				<Col id="LAST_CHGR_ID">ADMIN</Col>
+				<Col id="VLD_BGNG_YMD">20211025</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">적격심사</Col>
+			</Row>
+			<Row>
+				<Col id="FRST_RGTR_ID">ADMIN</Col>
+				<Col id="FRST_REG_DT">2021-10-25 00:00:00</Col>
+				<Col id="CMNS_GRP_CD">EP111</Col>
+				<Col id="CMNS_CD">007</Col>
+				<Col id="VLD_END_YMD">99991231</Col>
+				<Col id="LAST_CHG_DT">2021-10-25 00:00:00</Col>
+				<Col id="SRTNG_SEQN">5</Col>
+				<Col id="LAST_CHGR_ID">ADMIN</Col>
+				<Col id="VLD_BGNG_YMD">20211025</Col>
+				<Col id="DEL_YN">N</Col>
+				<Col id="USE_YN">Y</Col>
+				<Col id="CMNS_CD_NM">지방계약법 적격심사(고시금액미만, 예정가격의 []%이상 입찰가 중 최저가)</Col>
+			</Row>
 			</Rows>
 	</Dataset>
 </Root>

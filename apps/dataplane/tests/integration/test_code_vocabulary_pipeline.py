@@ -103,7 +103,7 @@ def test_수집이_원본을_먼저_보존하고_release를_봉인한다(connect
 
     result = capture_code_vocabulary(plan, services)
 
-    assert result.entry_count == 17
+    assert result.entry_count == 22
     assert result.excluded_row_count == 0
     with connection.cursor() as cursor:
         cursor.execute(
