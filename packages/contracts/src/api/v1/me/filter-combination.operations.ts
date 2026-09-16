@@ -10,6 +10,7 @@ import { createOperationRegistry, defineOperation, pathParameter } from "../../o
 import {
   eligibilityAreaFilterSchema,
   itemsFilterSchema,
+  searchTextSchema,
   openAuctionStateSchema,
   sigunguFilterSchema,
 } from "../auctions/list-open-auctions.query";
@@ -44,6 +45,9 @@ export const filterCombinationCountsQuerySchema = z.strictObject({
   sigungu: sigunguFilterSchema.optional(),
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
   items: itemsFilterSchema.optional(),
+  // 검색도 "지금 화면 조건"이다. `noBids`·`itemUnknownIncluded` 링크가 검색어를 이어 가므로 그 수도 검색
+  // 안에서 세야 누르면 되는 수가 된다. 저장 조합·관심 지역 둘은 검색을 버리므로 이 값이 닿지 않는다(EAT-247).
+  q: searchTextSchema.optional(),
   baseAmountMin: canonicalMoneyAmountSchema.optional(),
   baseAmountMax: canonicalMoneyAmountSchema.optional(),
 }).meta({ id: "FilterCombinationCountsQuery" });

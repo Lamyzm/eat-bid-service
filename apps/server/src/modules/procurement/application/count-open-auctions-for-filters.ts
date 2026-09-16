@@ -17,6 +17,8 @@ export interface OpenAuctionFilterSet {
   readonly sidoCodeValueId: bigint | null;
   readonly sigunguCodeValueIds: readonly bigint[] | null;
   readonly itemAtoms: readonly AuctionItemAtom[] | null;
+  /** 검색어다. 지금 화면 조건에만 있고 저장 조합은 검색을 저장하지 않으므로 늘 null이다. */
+  readonly searchText: string | null;
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
 }

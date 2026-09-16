@@ -17,11 +17,13 @@ export type FilterCombinationCountsInput = {
   readonly sigungu?: readonly string[];
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
+  /** 검색어다. 건수에만 쓰이고 저장에는 실리지 않는다 — 저장 조합은 검색을 담지 않는다. */
+  readonly q?: string;
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
 };
 
-export type SaveFilterCombinationInput = FilterCombinationCountsInput & { readonly name: string };
+export type SaveFilterCombinationInput = Omit<FilterCombinationCountsInput, 'q'> & { readonly name: string };
 
 export async function listFilterCombinationsWith(
   request: ContractRequest,
@@ -43,6 +45,7 @@ export async function countFilterCombinationsWith(
     sigungu: input.sigungu,
     eligibilityArea: input.eligibilityArea,
     items: input.items,
+    q: input.q,
     baseAmountMin: input.baseAmountMin,
     baseAmountMax: input.baseAmountMax
   });
