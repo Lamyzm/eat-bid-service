@@ -34,6 +34,7 @@ from eatbid.source.eat.code_schemes import (
     BUSINESS_NUMBER,
     ELIGIBILITY_AREA,
     PLANNED_PRICE_TYPE,
+    SOLO_BID_METHOD,
     SUPPLIER_ACCOUNT,
     WITHDRAWAL_FLAG,
 )
@@ -47,6 +48,7 @@ REVIEWED_CODE_ROLES = {
     ELIGIBILITY_AREA.namespace: "eligibility_area",
     AWARD_METHOD.namespace: "award_method",
     PLANNED_PRICE_TYPE.namespace: "planned_price_method",
+    SOLO_BID_METHOD.namespace: "solo_bid_method",
     # 유일하게 우리가 코드를 발급하는 체계다. 한 공고가 원자 여럿을 가지므로 같은 role이 한 revision에
     # 여러 행으로 앉으며, 그 중복은 관계 표의 제약이 막는다.
     AUCTION_ITEM_SCHEME: "item",

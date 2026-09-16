@@ -259,6 +259,8 @@ describe("canonical identity 불변식", () => {
       "eligibility_area",
       "award_method",
       "planned_price_method",
+      // 단독입찰 처리 방법(EAT-249). 참여 0곳의 뜻을 바꾸는 조건이다.
+      "solo_bid_method",
       // 품목 원자 투영(EAT-230)이 쓰는 role이다. check에서 빠지면 투영이 CheckViolation으로 죽는다.
       "item",
     ]) {

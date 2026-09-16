@@ -18,10 +18,11 @@ const approvedNamespaces = [
   "eat:reserve-price-selection-flag",
   "eat:attempt-status",
   "eat:organization-type",
+  "eat:solo-bid-method",
   "eatbid:auction-item",
 ];
 
-// eaT 상세 파서(`apps/dataplane/src/eatbid/source/eat/code_schemes.py`)가 싣는 여덟이다. 같은 목록을
+// eaT 상세 파서(`apps/dataplane/src/eatbid/source/eat/code_schemes.py`)가 싣는 아홉이다. 같은 목록을
 // Python 쪽 `test_code_schemes.py`가 반대 방향으로 검사하므로 한쪽만 늘리면 반드시 실패한다.
 const eatDetailParserNamespaces = [
   "eat:bid-status",
@@ -30,6 +31,7 @@ const eatDetailParserNamespaces = [
   "eat:business-number",
   "eat:planned-price-type",
   "eat:award-method",
+  "eat:solo-bid-method",
   "eat:reserve-price-selection-flag",
   "eat:attempt-status",
 ];
@@ -126,6 +128,12 @@ const approvedCodeSchemes = [
     validTimePolicy: "effective-dated",
   },
   {
+    namespace: "eat:solo-bid-method",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
+  {
     namespace: "eatbid:auction-item",
     owner: "eatbid",
     versionPolicy: "product-managed",
@@ -165,7 +173,7 @@ describe("내장 code scheme seed", () => {
 
     expect([...rows.values()]).toEqual(approvedCodeSchemes);
     // 기관유형(EAT-187)과 품목 원자(EAT-230)가 각각 하나씩 더해 열여섯이다.
-    expect(rows).toHaveLength(16);
+    expect(rows).toHaveLength(17);
     expect(conflictTargets).toEqual([codeScheme.namespace, codeScheme.namespace]);
   });
 
