@@ -29,7 +29,7 @@ declare
   grantor text;
   db text := current_database();
 begin
-  foreach required_role in array array['eatbid_migrator', 'eatbid_api', 'eatbid_dataplane'] loop
+  foreach required_role in array array['eatbid_migrator', 'eatbid_api', 'eatbid_dataplane', 'eatbid_grafana'] loop
     if not exists (select 1 from pg_roles where rolname = required_role) then
       raise exception 'db-provisioning: 역할 %가 없다', required_role
         using hint = 'Infisical의 비밀번호로 역할을 먼저 만들어라(infra/product/secret-contract.md).';
@@ -88,10 +88,25 @@ begin
   execute 'revoke update, delete, truncate, references, trigger '
           'on all tables in schema monitoring from eatbid_dataplane';
 
+  -- Grafana 역할: 화면이 읽는 monitoring(회차 지표)과 mart(파생 표)만, SELECT만. ingest·core·app은
+  -- 닿지 않는다 — 대시보드가 원본이나 사용자 상태를 읽을 이유가 없고, 화면 자격이 새도 그 둘은
+  -- 안전해야 한다(ADR 0046 결정 4, EAT-174).
+  execute format('revoke all on database %I from eatbid_grafana', db);
+  execute format('grant connect on database %I to eatbid_grafana', db);
+  execute 'grant usage on schema monitoring, mart to eatbid_grafana';
+  execute 'revoke create on schema monitoring, mart, public from eatbid_grafana';
+  execute 'grant select on all tables in schema monitoring, mart to eatbid_grafana';
+  execute 'revoke insert, update, delete, truncate, references, trigger '
+          'on all tables in schema monitoring, mart from eatbid_grafana';
+  execute 'revoke all on schema ingest, core, app, drizzle from eatbid_grafana';
+
   foreach grantor in array array['eatbid_migrator', current_user] loop
     execute format(
       'alter default privileges for role %I in schema monitoring '
       'grant select, insert on tables to eatbid_dataplane', grantor);
+    execute format(
+      'alter default privileges for role %I in schema monitoring, mart '
+      'grant select on tables to eatbid_grafana', grantor);
     execute format(
       'alter default privileges for role %I in schema core, mart '
       'grant select on tables to eatbid_api', grantor);
