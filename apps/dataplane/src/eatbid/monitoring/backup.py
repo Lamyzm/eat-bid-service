@@ -81,6 +81,7 @@ def judge_backups(
                 title=f"{expectation.title} — 백업 객체가 하나도 없다",
                 runbook=expectation.runbook,
                 detail=f"prefix={expectation.prefix}",
+                severity="critical",
             )
         ]
 
@@ -92,6 +93,7 @@ def judge_backups(
         violations.append(
             Violation(
                 key=f"{expectation.key}:stale",
+                severity="critical",
                 title=f"{expectation.title} — 마지막 백업이 {hours}시간 전이다",
                 runbook=expectation.runbook,
                 detail=f"key={newest.key}, 크기={newest.size_bytes}바이트",

@@ -3,8 +3,8 @@
 왜 필요한가: 한 원인이 여러 기대를 동시에 깨뜨리고(2026-09-10 자물쇠 교착 하나가 셋), 해소되기 전까지
 매 회차 같은 위반이 다시 잡힌다. 그대로 보내면 같은 말이 반복돼 사람이 알림을 끄게 된다(ADR 0046 결정 6).
 
-왜 DB가 아닌가: 상태를 PostgreSQL에 두려면 표가 필요하고 DDL 작성자는 Drizzle 하나뿐이다(AGENTS.md 10항).
-감시가 스키마 변경을 요구하면 안 된다. 이미 배선된 R2에 작은 JSON 하나로 둔다.
+상태의 기준은 `monitoring.violation` 표다(ADR 0054 결정 2, ledger.py). 이 모듈의 encode/decode는 R2 문서 시절
+상태를 표로 옮기는 이관 읽기에만 남아 있다. 판정(diff_violations)은 저장 위치를 모르는 순수 함수다.
 
 관측하지 못한 것은 상태를 바꾸지 않는다: 어떤 기대의 질의가 예외로 끝나면 그 기대의 위반 행은 이번 회차에
 하나도 없다. 그것을 "사라졌다"로 읽으면 검사가 흔들릴 때마다 "해소됨"이 나가고 first_seen_at이 초기화된다
@@ -42,6 +42,15 @@ class OpenViolation:
     detail: str = ""
     runbook: str = ""
     observation: str = OBSERVED
+    # 아래 셋은 표(ADR 0054)가 든다. R2 문서 시절 상태에는 없으므로 기본값으로 읽힌다.
+    severity: str = "normal"
+    last_notified_at: str | None = None
+    violation_id: int | None = None
+
+    @property
+    def expectation_key(self) -> str:
+        """위반 key의 첫 마디가 기대 key다(expectations._row_key, cluster.judge_*, github, backup 모두 같은 꼴)."""
+        return self.key.split(":", 1)[0]
 
 
 @dataclass(frozen=True)
@@ -98,6 +107,16 @@ def diff_violations(
             detail=violation.detail,
             runbook=violation.runbook,
             observation=OBSERVED,
+            # 심각도는 이번 선언을 따른다. 분류가 바뀌면 열린 위반도 새 정책을 따라야 한다.
+            severity=violation.severity,
+            last_notified_at=(
+                previous_by_key[key].last_notified_at
+                if key in previous_by_key
+                else None
+            ),
+            violation_id=(
+                previous_by_key[key].violation_id if key in previous_by_key else None
+            ),
         )
         for key, violation in current_by_key.items()
     )
@@ -111,6 +130,9 @@ def diff_violations(
             detail=item.detail,
             runbook=item.runbook,
             observation=UNOBSERVED,
+            severity=item.severity,
+            last_notified_at=item.last_notified_at,
+            violation_id=item.violation_id,
         )
         for key, item in previous_by_key.items()
         if key not in current_by_key and _unobserved(key)

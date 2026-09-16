@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+import pytest
 
 from eatbid.monitoring.expectations import (
     EXPECTATIONS,
@@ -11,6 +15,7 @@ from eatbid.monitoring.expectations import (
     Violation,
     evaluate,
 )
+from eatbid.monitoring.ledger import AppliedDiff
 from eatbid.monitoring.notify import format_message, format_resolution
 from eatbid.monitoring.round import RoundMetrics
 from eatbid.monitoring.runner import run_expectation_check
@@ -306,62 +311,214 @@ def test_해소_문구는_환경과_해소된_key를_함께_적는다() -> None:
     assert format_resolution("dev", ["a", "b"]) == "[dev] 해소됨: a, b"
 
 
-class _기억하는_저장소:
-    def __init__(self, document: dict[str, Any] | None = None) -> None:
-        self.document = document
+class _기억하는_원장:
+    """표 대신 메모리에 같은 규칙으로 적는 원장. runner가 표에 무엇을 요구하는지가 이 클래스에 드러난다."""
 
-    def read(self) -> dict[str, Any] | None:
-        return self.document
+    def __init__(self) -> None:
+        self.rows: dict[int, OpenViolation] = {}
+        self.resolved: dict[str, int] = {}
+        self.notifications: list[tuple[str, tuple[int | None, ...], bool]] = []
+        self.digests_sent_at: list[datetime] = []
+        self._next = 1
 
-    def write(self, document: Mapping[str, Any]) -> None:
-        self.document = dict(document)
+    def read_open(self) -> tuple[OpenViolation, ...]:
+        return tuple(self.rows.values())
+
+    def apply(self, diff, *, now: datetime) -> AppliedDiff:
+        opened = {v.key for v in diff.opened}
+        still: list[OpenViolation] = []
+        for item in diff.still_open:
+            if item.key in opened:
+                item = replace(item, violation_id=self._next)
+                self._next += 1
+            assert item.violation_id is not None
+            self.rows[item.violation_id] = item
+            still.append(item)
+        resolved_ids: dict[str, int] = {}
+        for key in diff.resolved:
+            for violation_id, row in list(self.rows.items()):
+                if row.key == key:
+                    del self.rows[violation_id]
+                    resolved_ids[key] = violation_id
+        self.resolved.update(resolved_ids)
+        return AppliedDiff(still_open=tuple(still), resolved_ids=resolved_ids)
+
+    def mark_notified(self, violation_ids, *, at: datetime) -> None:
+        for violation_id in violation_ids:
+            self.rows[violation_id] = replace(
+                self.rows[violation_id], last_notified_at=at.isoformat()
+            )
+
+    def record_notification(self, *, kind, violation_ids, sent_at, ok, error) -> None:
+        self.notifications.append((kind, tuple(violation_ids), ok))
+        if kind == "digest" and ok:
+            self.digests_sent_at.append(sent_at)
+
+    def digest_sent_since(self, since: datetime) -> bool:
+        # 표와 같은 규칙: 그날 자정 이후에 보낸 요약이 있는가. 어제 보낸 것은 오늘을 막지 않는다.
+        return any(sent_at >= since for sent_at in self.digests_sent_at)
+
+
+_정오 = datetime(2026, 9, 16, 3, 0, tzinfo=UTC)  # 12:00 KST — 요약 시각이 아니다
 
 
 def test_한_회차는_새_위반만_알리고_다음_회차는_침묵한다() -> None:
     보낸것: list[str] = []
-    저장소 = _기억하는_저장소()
+    원장 = _기억하는_원장()
 
     첫회차 = run_expectation_check(
         run_query=_응답([{"run_id": "r1"}]),
-        state_store=저장소,
+        ledger=원장,
         notify=보낸것.append,
         environment="prod",
         expectations=[_기대_하나],
+        now=_정오,
     )
     둘째회차 = run_expectation_check(
         run_query=_응답([{"run_id": "r1"}]),
-        state_store=저장소,
+        ledger=원장,
         notify=보낸것.append,
         environment="prod",
         expectations=[_기대_하나],
+        now=_정오 + timedelta(minutes=15),
     )
 
     assert 첫회차.opened == ("probe",)
     assert 둘째회차.opened == ()
     assert len(보낸것) == 1
+    assert [kind for kind, _, _ in 원장.notifications] == ["opened"]
 
 
 def test_위반이_사라지면_해소를_한_번_알린다() -> None:
     보낸것: list[str] = []
-    저장소 = _기억하는_저장소()
+    원장 = _기억하는_원장()
 
     run_expectation_check(
         run_query=_응답([{"run_id": "r1"}]),
-        state_store=저장소,
+        ledger=원장,
         notify=보낸것.append,
         environment="prod",
         expectations=[_기대_하나],
+        now=_정오,
     )
     회차 = run_expectation_check(
         run_query=_응답([]),
-        state_store=저장소,
+        ledger=원장,
         notify=보낸것.append,
         environment="prod",
         expectations=[_기대_하나],
+        now=_정오 + timedelta(minutes=15),
     )
 
     assert 회차.resolved == ("probe",)
     assert 보낸것[-1].startswith("[prod] 해소됨: probe")
+    assert 원장.notifications[-1] == ("resolved", (1,), True)
+
+
+def test_미해결_critical은_간격이_지나면_다시_알리고_normal은_침묵한다() -> None:
+    """ "묶기"와 "재알림"은 별개다(ADR 0054 결정 1). 첫 통을 놓친 사람에게 critical은 60분 뒤 다시 말한다."""
+    보낸것: list[str] = []
+    원장 = _기억하는_원장()
+    critical = Expectation(
+        key="live",
+        title="실시간 수집이 돈다",
+        runbook="docs/x.md",
+        sql="select 1",
+        parameters={},
+        severity="critical",
+    )
+
+    run_expectation_check(
+        run_query=_응답([{"count": 1}]),
+        ledger=원장,
+        notify=보낸것.append,
+        environment="prod",
+        expectations=[critical, _기대_하나],
+        now=_정오,
+    )
+    조용한_회차 = run_expectation_check(
+        run_query=_응답([{"count": 1}]),
+        ledger=원장,
+        notify=보낸것.append,
+        environment="prod",
+        expectations=[critical, _기대_하나],
+        now=_정오 + timedelta(minutes=30),
+    )
+    다시_우는_회차 = run_expectation_check(
+        run_query=_응답([{"count": 1}]),
+        ledger=원장,
+        notify=보낸것.append,
+        environment="prod",
+        expectations=[critical, _기대_하나],
+        now=_정오 + timedelta(minutes=61),
+    )
+
+    assert 조용한_회차.repeated == ()
+    assert 다시_우는_회차.repeated == ("live",)
+    assert 보낸것[-1].startswith("[prod] 미해결 1건 (다시 알림)")
+    assert "1시간째" in 보낸것[-1]
+    assert "probe" not in 보낸것[-1]
+    assert len(보낸것) == 2
+
+
+def test_아침_요약은_그날_첫_9시_회차에_한_번만_나가고_열린_것_전부와_나이를_적는다() -> (
+    None
+):
+    보낸것: list[str] = []
+    원장 = _기억하는_원장()
+    아침 = datetime(2026, 9, 17, 0, 3, tzinfo=UTC)  # 09:03 KST
+
+    run_expectation_check(
+        run_query=_응답([{"run_id": "r1"}]),
+        ledger=원장,
+        notify=보낸것.append,
+        environment="prod",
+        expectations=[_기대_하나],
+        now=아침 - timedelta(days=5),
+    )
+    첫_아침_회차 = run_expectation_check(
+        run_query=_응답([{"run_id": "r1"}]),
+        ledger=원장,
+        notify=보낸것.append,
+        environment="prod",
+        expectations=[_기대_하나],
+        now=아침,
+    )
+    같은_아침_다음_회차 = run_expectation_check(
+        run_query=_응답([{"run_id": "r1"}]),
+        ledger=원장,
+        notify=보낸것.append,
+        environment="prod",
+        expectations=[_기대_하나],
+        now=아침 + timedelta(minutes=15),
+    )
+
+    assert 첫_아침_회차.digest_sent is True
+    assert 같은_아침_다음_회차.digest_sent is False
+    assert 보낸것[-1].startswith(
+        "[prod] 아침 요약: 열린 위반 1건, 가장 오래된 것 5일째 (probe)"
+    )
+    assert "[normal] probe" in 보낸것[-1]
+    assert 원장.notifications[-1] == ("digest", (), True)
+
+
+def test_전송이_실패하면_실패_행을_남기고_회차를_실패로_끝낸다() -> None:
+    원장 = _기억하는_원장()
+
+    def 막힌_전송(_: str) -> None:
+        raise RuntimeError("텔레그램 503")
+
+    with pytest.raises(RuntimeError):
+        run_expectation_check(
+            run_query=_응답([{"run_id": "r1"}]),
+            ledger=원장,
+            notify=막힌_전송,
+            environment="prod",
+            expectations=[_기대_하나],
+            now=_정오,
+        )
+
+    assert 원장.notifications == [("opened", (1,), False)]
 
 
 def test_판정과_알림이_끝난_뒤_지표_한_행을_기록자에게_넘긴다() -> None:
@@ -382,12 +539,13 @@ def test_판정과_알림이_끝난_뒤_지표_한_행을_기록자에게_넘긴
 
     회차 = run_expectation_check(
         run_query=run_query,
-        state_store=_기억하는_저장소(),
+        ledger=_기억하는_원장(),
         notify=lambda _: 순서.append("notify"),
         environment="prod",
         expectations=[_기대_하나],
         record_round=record,
         clock=lambda: next(시계),
+        now=_정오,
     )
 
     assert 회차.round_recorded is True
@@ -403,10 +561,11 @@ def test_판정과_알림이_끝난_뒤_지표_한_행을_기록자에게_넘긴
 def test_기록자가_없으면_지표_없이_회차가_끝난다() -> None:
     회차 = run_expectation_check(
         run_query=_응답([]),
-        state_store=_기억하는_저장소(),
+        ledger=_기억하는_원장(),
         notify=lambda _: None,
         environment="prod",
         expectations=[_기대_하나],
+        now=_정오,
     )
 
     assert 회차.round_recorded is False

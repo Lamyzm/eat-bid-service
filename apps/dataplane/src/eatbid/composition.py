@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
 from types import TracebackType
@@ -51,6 +51,7 @@ from eatbid.monitoring.backup import (
 from eatbid.monitoring.cluster import evaluate_cluster
 from eatbid.monitoring.github import WorkflowExpectation, evaluate_workflows
 from eatbid.monitoring.heartbeat import beat
+from eatbid.monitoring.ledger import PostgresViolationLedger
 from eatbid.monitoring.notify import send_telegram
 from eatbid.monitoring.round import record_round
 from eatbid.monitoring.runner import (
@@ -58,6 +59,7 @@ from eatbid.monitoring.runner import (
     ViolationProbe,
     run_expectation_check,
 )
+from eatbid.monitoring.state import decode_state
 from eatbid.monitoring.store import R2BackupLister, R2StateStore
 from eatbid.pipeline.advance import CompletedWindow, next_window
 from eatbid.pipeline.capture import capture
@@ -552,10 +554,33 @@ class _MonitoringRunner:
             cursor.execute(sql, parameters)
         self._connection.commit()
 
+    def _mutate(self, sql: str, parameters: Mapping[str, Any]) -> list[dict[str, Any]]:
+        # 위반 표 쓰기. `returning`이 있으면 그 행을 돌려주고, 없으면 빈 목록이다. 문장마다 commit하는 이유는
+        # 한 회차 안에서 insert한 id를 다음 문장이 바로 참조하고, 회차가 중간에 죽어도 그때까지의 기록은
+        # 남아야 하기 때문이다 — 기록이 없는 것보다 반쪽 기록이 낫다(ADR 0054).
+        with self._connection.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(sql, parameters)
+            rows = list(cursor.fetchall()) if cursor.description else []
+        self._connection.commit()
+        return rows
+
+    def _ledger(self) -> PostgresViolationLedger:
+        environment = self._config.environment_name
+        ledger = PostgresViolationLedger(
+            query=self._run_query, mutate=self._mutate, environment=environment
+        )
+        # R2 문서 시절의 열린 위반을 표가 비어 있을 때 한 번만 옮긴다(ADR 0054 결정 3). 처음 본 시각만
+        # 아는 값이고, 그것을 잃으면 "5일째"가 "방금"이 된다. 그 뒤로 R2 문서는 읽지도 쓰지도 않는다.
+        if ledger.is_empty():
+            inherited = decode_state(self._state_store.read())
+            if inherited:
+                ledger.import_open(inherited, now=datetime.now(UTC))
+        return ledger
+
     def run(self) -> MonitoringResult:
         result = run_expectation_check(
             run_query=self._run_query,
-            state_store=self._state_store,
+            ledger=self._ledger(),
             notify=self._notify,
             environment=self._config.environment_name,
             probes=self._probes(),

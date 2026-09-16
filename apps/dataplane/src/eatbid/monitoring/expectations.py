@@ -47,6 +47,10 @@ class Expectation:
     # 위반을 통째로 가린다 — 2026-09-06부터 `running`으로 남은 reference run 하나가 실제로 이틀 동안
     # backfill 멈춤 감시를 눈멀게 하고 있었다.
     key_columns: tuple[str, ...] = ()
+    # 재알림 정책이 매달리는 값이다(ADR 0054 결정 1). critical은 미해결이면 60분마다 다시 울리고, normal은
+    # 아침 요약에만 실린다. 기본이 normal인 이유는 새 기대를 더할 때 조용한 쪽이 안전하기 때문이다 —
+    # critical은 "지금 당장 사람이 움직여야 한다"는 뜻이고 그것은 선언으로 정한다.
+    severity: str = "normal"
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,7 @@ class Violation:
     title: str
     runbook: str
     detail: str
+    severity: str = "normal"
 
 
 def _detail(row: Mapping[str, Any]) -> str:
@@ -124,6 +129,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="capture-freshness",
         title="영업시간에 열린 공고 수집이 멈추지 않았다",
+        # 실시간 수집이 멈추면 오늘의 공고가 화면에 없다. 사람이 지금 움직여야 하는 유일한 DB 기대다.
+        severity="critical",
         runbook="docs/operations/collection-runbook.md#44-재부팅컨트롤러-재시작이-남긴-semaphore-교착-풀기-2026-09-10-eat-129",
         # poll-open은 평일 08:00~19:50 KST에 10분마다 돈다. 그 창 안에서 마지막 run이 너무 오래됐다면
         # 회차가 통째로 건너뛰어지고 있다는 뜻이다(2026-09-10 여섯 회차 누락).
@@ -202,6 +209,7 @@ def evaluate(
                     title=expectation.title,
                     runbook=expectation.runbook,
                     detail=_detail(row),
+                    severity=expectation.severity,
                 )
             )
     return violations
