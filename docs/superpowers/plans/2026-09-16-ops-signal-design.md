@@ -79,7 +79,7 @@ monitoring.violation
 monitoring.notification
   notification_id   bigint identity
   violation_id      bigint null     -- 요약은 null
-  kind              text            -- opened | repeat | resolved | digest | check-failed
+  kind              text            -- opened | repeat | resolved | digest (평가 실패는 그 자체가 위반 행이다)
   sent_at           timestamptz
   ok                boolean
   error             text null
