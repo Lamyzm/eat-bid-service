@@ -205,6 +205,14 @@ instant가 된다.
    `itemLabelPredicate`가 사라지고 id 배열 교집합이 들어온다.
 6. **격리 수를 센다.** 어느 원자에도 안 붙은 라벨 수를 마트 빌드가 세고, 0이 아니면 드러낸다.
 
+> **2026-09-16 2차 구현(EAT-230 2차).** 4는 단일 열이 아니라 다리표 `mart.open_auction_snapshot_item`으로 정했고
+> (`mart-r5`), 빌더가 core 코드 행이 아니라 `item_label`을 `read_item_label`로 읽어 채운다 — replay 없이 다음
+> build부터 동작하며 규칙의 권위는 그 함수 하나다. 5는 목록·요약·조합 건수 셋에서 `itemAtomPredicate`(다리표
+> `exists` 조인)로 바꿨고 `strpos(item_label` 술어는 서버에 남아 있지 않다. 계약의 `items`는 원자 enum으로 좁혔고
+> 저장 조합(`app.workspace_filter_combination_item`)도 `item_code_value_id`를 가리킨다. 6은 아직이다 — 지금은
+> 미매핑 조각이 있으면 다리 행만 안 생기고 수는 세지 않는다. `org_round_summary.item_code_value_id`(단일 열)와 결정
+> 화면 코호트는 이 2차 밖이다.
+
 ### 4.5 관측률 72%는 원천 결손이 맞다 — 그러나 "왜 없는지"는 받을 수 있다
 
 품목 라벨은 290/404(72%)만 관측되고 시도별 미상은 25~49%다(경기 49%). 우리 정규화가

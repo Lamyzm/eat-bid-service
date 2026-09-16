@@ -25,11 +25,15 @@ const seed = `
   overriding system value
   values (11, 'eat:auction-location-sido', 'eat', 'immutable', 'open'),
          (12, 'eat:auction-location-sigungu', 'eat', 'immutable', 'open'),
-         (21, 'eat:eligibility-area', 'eat', 'immutable', 'open');
+         (21, 'eat:eligibility-area', 'eat', 'immutable', 'open'),
+         -- 품목 원자 체계는 운영에서 시드가 심지만 이 seed의 다리표 삽입이 그보다 먼저 돌므로 여기서도 심는다.
+         (13, 'eatbid:auction-item', 'eatbid', 'product-managed', 'effective-dated');
   insert into core.code_value (code_value_id, code_scheme_id, code)
   overriding system value
   values (41, 11, '48'), (42, 11, '47'), (43, 12, '48120'), (44, 12, '48250'),
-         (9101, 21, '15000');
+         (9101, 21, '15000'),
+         (51, 13, '육류'), (52, 13, '가금류'), (53, 13, '농산물'), (54, 13, '수산물'),
+         (55, 13, '가공식품'), (56, 13, '김치류'), (57, 13, '곡류'), (58, 13, '우유류');
   insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
   overriding system value
   values (701, 'eat', 'external-701'), (702, 'eat', 'external-702'), (703, 'eat', 'external-703'),
@@ -105,6 +109,14 @@ const seed = `
      1000000.00, 'KRW', '육류', 90.000, 41, 43, 804, '진행중'),
     (901, 705, '2026-09-07T00:30:00Z', 393, null, 1, '2026-09-10T05:00:00Z',
      1000000.00, 'KRW', '육류', 90.000, 41, 43, 805, '공고취소');
+  insert into mart.open_auction_snapshot_item (open_auction_snapshot_id, item_code_value_id)
+  select snapshot.open_auction_snapshot_id, value.code_value_id
+    from mart.open_auction_snapshot snapshot
+    cross join lateral unnest(string_to_array(snapshot.item_label, ',')) as part
+    join core.code_value value on value.code = btrim(part)
+    join core.code_scheme scheme
+      on scheme.code_scheme_id = value.code_scheme_id and scheme.namespace = 'eatbid:auction-item'
+   where snapshot.build_id in (901);
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)
@@ -123,7 +135,7 @@ const { withDatabase, expectOwnedContainersCleanedUp } = disposableDatabase({
 const emptyFilter: FilterCombinationFilterRecord = {
   sidoCodeValueId: null,
   sigunguCodeValueIds: [],
-  itemLabels: [],
+  itemAtoms: [],
   baseAmountMin: null,
   baseAmountMax: null,
 };
@@ -201,7 +213,7 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
       const filter: FilterCombinationFilterRecord = {
         sidoCodeValueId: 41n,
         sigunguCodeValueIds: [43n, 44n],
-        itemLabels: ["육류", "가금류"],
+        itemAtoms: ["육류", "가금류"],
         baseAmountMin: "1000000.00",
         baseAmountMax: "30000000.00",
       };
@@ -217,7 +229,7 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
       // 자식 둘은 집합이라(PK가 (조합, 값)) 적은 순서가 사실이 아니다. 정렬해 돌려주는 이유는 같은 조건을
       // 저장한 두 조합이 같은 주소를 만들게 하기 위해서다 — 순서만 다른 두 URL은 같은 목록을 두 자리로
       // 쪼개고 캐시도 둘이 된다.
-      expect(read!.filter).toEqual({ ...filter, itemLabels: ["가금류", "육류"] });
+      expect(read!.filter).toEqual({ ...filter, itemAtoms: ["가금류", "육류"] });
     });
     await expectOwnedContainersCleanedUp();
   }, 300_000);
@@ -248,14 +260,14 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
         current: {
           sidoCodeValueId: 41n,
           sigunguCodeValueIds: null,
-          itemLabels: ["육류"],
+          itemAtoms: ["육류"],
           baseAmountMin: null,
           baseAmountMax: null,
         },
         saved: saved.map((combination) => ({
           sidoCodeValueId: combination.filter.sidoCodeValueId,
           sigunguCodeValueIds: combination.filter.sigunguCodeValueIds,
-          itemLabels: combination.filter.itemLabels.length === 0 ? null : combination.filter.itemLabels,
+          itemAtoms: combination.filter.itemAtoms.length === 0 ? null : combination.filter.itemAtoms,
           baseAmountMin: combination.filter.baseAmountMin,
           baseAmountMax: combination.filter.baseAmountMax,
         })),

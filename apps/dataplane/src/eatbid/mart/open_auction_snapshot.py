@@ -18,11 +18,12 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from eatbid.core.auction_items import read_item_label
 from eatbid.core.projection_models import instant_datetime, money_decimal
 from eatbid.mart.models import MartBuildPlan
 from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 from eatbid.source.eat.bid_list import parse_bid_list_page
-from eatbid.source.eat.code_schemes import ORGANIZATION
+from eatbid.source.eat.code_schemes import AUCTION_ITEM_SCHEME, ORGANIZATION
 from eatbid.storage.object_store import RawObjectStore
 
 LIST_ENDPOINT = "bid-list"
@@ -157,6 +158,27 @@ update mart.open_auction_snapshot as snapshot
 """
 
 
+# 이 build의 스냅샷 행 가운데 라벨이 있는 것만 읽는다. 라벨 없는 행은 원자도 없고 그것은 "품목 미상"이다.
+_ITEM_LABEL_ROWS_SQL = """
+select open_auction_snapshot_id, item_label
+  from mart.open_auction_snapshot
+ where build_id = %(build_id)s and item_label is not null
+ order by open_auction_snapshot_id
+"""
+
+# 원자 코드 → code_value id는 체계 이름으로 닫는다. 코드 문자열은 여러 체계에 있을 수 있어 체계 없이
+# 조인하면 다른 어휘의 같은 글자를 잡는다(AGENTS 2·6). 시드가 안 심은 원자는 행이 안 생기며 그것은
+# 빌더가 어휘를 지어내지 않는다는 뜻이다.
+_INSERT_SNAPSHOT_ITEM_SQL = """
+insert into mart.open_auction_snapshot_item (open_auction_snapshot_id, item_code_value_id)
+select %(open_auction_snapshot_id)s, value.code_value_id
+  from core.code_value as value
+  join core.code_scheme as scheme on scheme.code_scheme_id = value.code_scheme_id
+ where scheme.namespace = %(namespace)s and value.code = %(code)s
+on conflict do nothing
+"""
+
+
 def open_auction_snapshot_filler(
     store: RawObjectStore,
 ) -> Callable[..., int]:
@@ -243,6 +265,28 @@ def _fill_terms(connection: Any, *, build_id: int, region_scheme: str | None) ->
             {"build_id": build_id, "region_scheme": region_scheme},
         )
         cursor.execute(_FILL_ORGANIZATION_LABEL_SQL, {"build_id": build_id})
+        _fill_items(cursor, build_id=build_id)
+
+
+def _fill_items(cursor: Any, *, build_id: int) -> None:
+    """라벨 한 문자열을 원자 코드 여러 행으로 옮겨 다리표를 채운다.
+
+    SQL에서 문자열을 쪼개지 않는다 — 쪼개기와 미매핑 격리의 규칙은 `read_item_label` 하나가 소유하고
+    core 투영도 같은 함수를 쓴다(EAT-230). 여기서 SQL로 다시 적으면 규칙이 두 곳이 되어 어느 날 둘이
+    다른 원자를 만든다. 미매핑 조각은 행을 만들지 않으며 원본 라벨은 `item_label`에 그대로 남는다.
+    """
+    cursor.execute(_ITEM_LABEL_ROWS_SQL, {"build_id": build_id})
+    rows = cursor.fetchall()
+    for snapshot_id, label in rows:
+        for atom in read_item_label(label).atoms:
+            cursor.execute(
+                _INSERT_SNAPSHOT_ITEM_SQL,
+                {
+                    "open_auction_snapshot_id": int(snapshot_id),
+                    "namespace": AUCTION_ITEM_SCHEME,
+                    "code": atom,
+                },
+            )
 
 
 def _organization_id(cursor: Any, *, code: str | None) -> int | None:

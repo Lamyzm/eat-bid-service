@@ -31,10 +31,14 @@ const seed = `
   insert into core.code_scheme (code_scheme_id, namespace, owner, version_policy, valid_time_policy)
   overriding system value
   values (11, 'eat:auction-location-sido', 'eat', 'immutable', 'open'),
-         (12, 'eat:auction-location-sigungu', 'eat', 'immutable', 'open');
+         (12, 'eat:auction-location-sigungu', 'eat', 'immutable', 'open'),
+         -- 품목 원자 체계는 운영에서 시드가 심지만 이 seed의 다리표 삽입이 그보다 먼저 돌므로 여기서도 심는다.
+         (13, 'eatbid:auction-item', 'eatbid', 'product-managed', 'effective-dated');
   insert into core.code_value (code_value_id, code_scheme_id, code)
   overriding system value
-  values (41, 11, '48'), (43, 12, '48120'), (44, 12, '48250');
+  values (41, 11, '48'), (43, 12, '48120'), (44, 12, '48250'),
+         (51, 13, '육류'), (52, 13, '가금류'), (53, 13, '농산물'), (54, 13, '수산물'),
+         (55, 13, '가공식품'), (56, 13, '김치류'), (57, 13, '곡류'), (58, 13, '우유류');
   insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
   overriding system value
   values (101, 'eat', 'external-101'), (102, 'eat', 'external-102'),
@@ -141,10 +145,10 @@ const seed = `
   values
     -- 게시일이 KST 09-07이라 NOW와 같은 날이다. 오늘 열린 축이 세는 단 한 건이다.
     (601, 201, '2026-09-07T00:00:00Z', 303, 41, 3, '2026-09-06T23:00:00Z', '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
+     2761700.00, 'KRW', '육류 , 가금류', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
      '남산초 2학기 축산물 구매', '2026-0201'),
     (601, 201, '2026-09-07T00:30:00Z', 304, 41, 5, '2026-09-07T00:10:00Z', '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
+     2761700.00, 'KRW', '육류 , 가금류', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
      '남산초 2학기 축산물 구매', '2026-0201'),
     -- 상태를 관측하지 못한 행은 숨기지 않는다. 이 열이 생기기 전 build의 행이 그렇다(AGENTS 3).
     -- 게시일을 관측하지 못한 두 행이다. 상세를 아직 안 딴 공고가 이렇게 남는다(AGENTS 3).
@@ -153,27 +157,35 @@ const seed = `
     (601, 203, '2026-09-07T00:30:00Z', 304, null, null, null, null,
      500000.00, 'KRW', null, null, null, null, null, null, null, null, null, null),
     (601, 204, '2026-09-07T00:30:00Z', 304, 41, 7, null, '2026-09-06T05:00:00Z',
-     900000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
+     900000.00, 'KRW', '육류 , 가금류', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', '2026-09-07T00:00:00Z',
      '남산초 1학기 축산물 구매', '2026-0204'),
     (601, 205, '2026-09-07T00:30:00Z', 304, 41, 2, null, '2026-09-10T05:00:00Z',
-     43879200.00, 'KRW', '축산', 88.000, 41, 44, '창원 남산초등학교', 510, '진행중', '2026-09-05T00:00:00Z',
+     43879200.00, 'KRW', '육류 , 가금류', 88.000, 41, 44, '창원 남산초등학교', 510, '진행중', '2026-09-05T00:00:00Z',
      '남산초 2학기 축산물 구매 재공고', '2026-0205'),
     -- 마감은 안 지났지만 목록이 취소로 표시한 행이다. 마감 순으로는 202와 205 사이에 서야 하는데
     -- 열린 공고가 아니므로 목록에도 지역 미리보기 분모에도 안 들어간다(EAT-203).
     (601, 206, '2026-09-07T00:30:00Z', 304, 41, 1, null, '2026-09-09T05:00:00Z',
-     3000000.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '공고취소', '2026-09-07T00:00:00Z',
+     3000000.00, 'KRW', '육류 , 가금류', 90.000, 41, 43, '창원 남산초등학교', 509, '공고취소', '2026-09-07T00:00:00Z',
      '남산초 2학기 축산물 구매 취소분', '2026-0206'),
     -- 물린 build의 행은 목록에 나오면 안 된다. 다만 참여 수 추이(공고 상세의 하루 전 관측)는 retain 안의
     -- 물린 build 행까지 같은 시계열로 읽는다(ADR 0034).
     (602, 202, '2026-09-06T00:30:00Z', 303, 43, 0, null, '2026-09-08T05:00:00Z',
      10000000.00, 'KRW', null, null, null, null, '다른 학교', null, null, null, null, null),
     (602, 201, '2026-09-06T00:00:00Z', 303, 41, 1, null, '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null,
+     2761700.00, 'KRW', '육류 , 가금류', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null,
      '남산초 2학기 축산물 구매', '2026-0201'),
     -- 최신 관측에서 24시간이 안 되는 관측은 "어제"가 아니다.
     (602, 201, '2026-09-06T01:00:00Z', 303, 41, 2, null, '2026-09-07T05:00:00Z',
-     2761700.00, 'KRW', '축산', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null,
+     2761700.00, 'KRW', '육류 , 가금류', 90.000, 41, 43, '창원 남산초등학교', 509, '진행중', null,
      '남산초 2학기 축산물 구매', '2026-0201');
+  insert into mart.open_auction_snapshot_item (open_auction_snapshot_id, item_code_value_id)
+  select snapshot.open_auction_snapshot_id, value.code_value_id
+    from mart.open_auction_snapshot snapshot
+    cross join lateral unnest(string_to_array(snapshot.item_label, ',')) as part
+    join core.code_value value on value.code = btrim(part)
+    join core.code_scheme scheme
+      on scheme.code_scheme_id = value.code_scheme_id and scheme.namespace = 'eatbid:auction-item'
+   where snapshot.build_id in (601, 602);
   insert into mart.build_coverage
     (build_id, region_code_value_id, month_kst, expected_count, observed_count,
      normalized_count, quarantined_count, coverage)
@@ -204,7 +216,7 @@ const baseQuery: OpenAuctionQuery = {
   sidoCodeValueId: null,
   sigunguCodeValueIds: null,
   eligibilityAreaCodeValueIds: null,
-  itemLabels: null,
+  itemAtoms: null,
   includeUnknownItem: false,
   searchText: null,
   onlyWithoutBids: false,
@@ -256,7 +268,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       expect(all.auctions[0]).toMatchObject({
         bidCount: 5,
         floorRate: "90.000",
-        itemLabel: "축산",
+        itemLabel: "육류 , 가금류",
         displayBidNo: "2026-0201",
         termsRevisionId: 509n,
         organization: { organizationId: 41n, label: "창원 남산초등학교", type: "unknown" },
@@ -328,15 +340,13 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       expect(ids(pageOf(await reader.listOpen({ ...baseQuery, announcedOnKst: "2026-09-05" })))).toEqual([205n]);
       // 게시일을 관측하지 못한 행은 어느 게시일로도 안 걸린다. 빈 값을 오늘로 채워 읽지 않는다(AGENTS 3).
       expect(ids(pageOf(await reader.listOpen({ ...baseQuery, announcedOnKst: "2026-09-08" })))).toEqual([]);
-      // 품목은 라벨 완전일치다.
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["축산"] })))).toEqual([201n, 205n]);
-      // 조각은 부분일치다. 라벨 한 칸에 여럿이 들어 있는 합성 행을 완전일치로는 못 잡는다.
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["축"] })))).toEqual([201n, 205n]);
-      // 조각 여럿은 OR이고, 라벨을 관측하지 못한 203은 어느 조각으로도 안 걸린다.
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["없는품목", "산"] })))).toEqual([201n, 205n]);
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["없는품목"] })))).toEqual([]);
-      // `%`는 패턴 메타문자가 아니라 글자 그대로다. like로 거르면 이 조각이 "무엇이든"이 된다.
-      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemLabels: ["%"] })))).toEqual([]);
+      // 품목은 다리표의 원자 코드 조인이다. 합성 라벨(`육류 , 가금류`) 행은 두 원자 어느 쪽으로도 걸린다(EAT-230).
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemAtoms: ["육류"] })))).toEqual([201n, 205n]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemAtoms: ["가금류"] })))).toEqual([201n, 205n]);
+      // 원자 여럿은 OR이고, 원자가 하나도 없는 202·203은 어느 원자로도 안 걸린다.
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemAtoms: ["수산물", "가금류"] })))).toEqual([201n, 205n]);
+      expect(ids(pageOf(await reader.listOpen({ ...baseQuery, itemAtoms: ["수산물"] })))).toEqual([]);
+      // 어휘 밖 문자열(`축`)은 여기까지 오지 않는다 — 계약이 원자 enum이라 controller에서 400이다(list-open-auctions.response.test).
 
       // cursor 페이지 둘을 이어 붙여도 순서와 중복이 없고 표본 수는 cursor 위치와 무관하다.
       const first = pageOf(await reader.listOpen({ ...baseQuery, limit: 2 }));
@@ -361,7 +371,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
       const server = await runtime.listen(0, "127.0.0.1");
       try {
         const response = await request(server).get(
-          auctionV1Operations.listOpen.buildPath({ path: {}, query: { limit: 1, items: ["축산"] } }),
+          auctionV1Operations.listOpen.buildPath({ path: {}, query: { limit: 1, items: ["육류"] } }),
         );
         expect(response.status).toBe(200);
         expect(response.body.auctions.map((auction: { auctionAttemptId: string }) => auction.auctionAttemptId)).toEqual(["201"]);
@@ -376,7 +386,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
           eligibilityArea: null,
           eligibilityMatchedCount: null,
           eligibilityUnobservedCount: null,
-          items: ["축산"],
+          items: ["육류"],
           itemUnknown: null,
           q: null,
           bidState: null,
@@ -426,7 +436,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         sidoCodeValueId: null,
         sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
-        itemLabels: null,
+        itemAtoms: null,
         includeUnknownItem: false,
         searchText: null,
         baseAmountMin: null,
@@ -472,10 +482,11 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       ]);
       expect(summary.sigunguCounts).toEqual([]);
       expect(summary.regionUnobservedCount).toBe(2);
-      // `축산`은 원자가 아니라 묶음이라 어느 원자에도 안 붙는다. 그래도 여덟 항목은 0으로 전부 온다.
-      expect(summary.itemCounts.map((entry) => entry.item))
-        .toEqual(["육류", "가금류", "농산물", "수산물", "가공식품", "김치류", "곡류", "우유류"]);
-      expect(summary.itemCounts.every((entry) => entry.count === 0)).toBe(true);
+      // 여덟 원자가 어휘 순서대로 전부 온다. 합성 라벨(`육류 , 가금류`)의 201·205가 두 원자에 각각 한 번씩 서고
+      // 0건 원자도 항목으로 남는다 — 화면이 "오늘 없다"와 "어휘에 없다"를 갈라야 한다(EAT-230).
+      expect(summary.itemCounts.map((entry) => [entry.item, entry.count])).toEqual([
+        ["육류", 2], ["가금류", 2], ["농산물", 0], ["수산물", 0], ["가공식품", 0], ["김치류", 0], ["곡류", 0], ["우유류", 0],
+      ]);
       expect(summary.itemUnobservedCount).toBe(2);
     });
     await expectOwnedContainersCleanedUp();
@@ -491,7 +502,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         sidoCodeValueId: 41n,
         sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
-        itemLabels: ["축산"],
+        itemAtoms: ["육류"],
         includeUnknownItem: false,
         searchText: null,
         baseAmountMin: null,
@@ -502,7 +513,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
 
       const summary = await summaryReader.summarizeOpen(scoped);
       const list = pageOf(await listReader.listOpen({
-        ...baseQuery, sidoCodeValueId: 41n, itemLabels: ["축산"],
+        ...baseQuery, sidoCodeValueId: 41n, itemAtoms: ["육류"],
       }));
 
       expect(summary.totalCount).toBe(list.sampleCount);
@@ -534,7 +545,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       });
       expect(withUnknown.totalCount).toBe(4);
       expect(withUnknown.totalCount).toBe(pageOf(await listReader.listOpen({
-        ...baseQuery, itemLabels: ["축산"], includeUnknownItem: true,
+        ...baseQuery, itemAtoms: ["육류"], includeUnknownItem: true,
       })).sampleCount);
     });
     await expectOwnedContainersCleanedUp();
@@ -564,7 +575,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         sidoCodeValueId: null,
         sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
-        itemLabels: null,
+        itemAtoms: null,
         includeUnknownItem: false,
         searchText: "남산초",
         baseAmountMin: null,

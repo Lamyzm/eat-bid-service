@@ -121,6 +121,29 @@ def _terms_rows(services: PipelineServices, build_id: int) -> dict[str, tuple]:
     return {str(row[0]): row[1:] for row in rows}
 
 
+def _item_rows(services: PipelineServices, build_id: int) -> dict[str, tuple[str, ...]]:
+    """bid_id → 다리표에 붙은 원자 코드들(코드 순)이다. 다리 행이 없는 bid는 키가 없다."""
+    rows = fetch_all(
+        services,
+        """
+        select attempt.external_bid_id, value.code
+          from mart.open_auction_snapshot as snapshot
+          join core.auction_attempt as attempt
+            on attempt.auction_attempt_id = snapshot.auction_attempt_id
+          join mart.open_auction_snapshot_item as bridge
+            on bridge.open_auction_snapshot_id = snapshot.open_auction_snapshot_id
+          join core.code_value as value on value.code_value_id = bridge.item_code_value_id
+         where snapshot.build_id = %s
+         order by attempt.external_bid_id, value.code
+        """,
+        (build_id,),
+    )
+    out: dict[str, list[str]] = {}
+    for bid_id, code in rows:
+        out.setdefault(str(bid_id), []).append(str(code))
+    return {bid_id: tuple(codes) for bid_id, codes in out.items()}
+
+
 def _seed_detail(
     services: PipelineServices,
     *,
@@ -354,7 +377,7 @@ def test_상세가_있는_공고만_하한율_품목_지역_기관라벨_제목_
         organization_code=ENRICHED_ORGANIZATION_CODE,
         organization_label="합성 급식기관 관측명",
         floor_rate=Decimal("88.500"),
-        item_label="축산",
+        item_label="육류 , 가금류",
         title="  합성 급식기관 2학기 축산물 구매  ",
         display_bid_no="2026-합성-0001",
     )
@@ -381,7 +404,7 @@ def test_상세가_있는_공고만_하한율_품목_지역_기관라벨_제목_
     rows = _terms_rows(pipeline_services, build_id)
     assert rows[ENRICHED_BID_ID] == (
         Decimal("88.500"),
-        "축산",
+        "육류 , 가금류",
         sido,
         sigungu,
         "합성 급식기관 관측명",
@@ -392,6 +415,10 @@ def test_상세가_있는_공고만_하한율_품목_지역_기관라벨_제목_
     )
     # 아직 상세를 따지 않은 공고는 추측으로 메우지 않고 전부 미확인으로 남는다(AGENTS 3).
     assert rows[BARE_BID_ID] == (None, None, None, None, None, None, None, None)
+    # 라벨 한 문자열이 원자 코드 두 행으로 다리표에 앉는다. 라벨 없는 행은 다리 행이 없다(EAT-230).
+    assert _item_rows(pipeline_services, build_id) == {
+        ENRICHED_BID_ID: ("가금류", "육류"),
+    }
 
 
 def test_같은_attempt에_해석이_둘이면_나중_revision을_싣는다(

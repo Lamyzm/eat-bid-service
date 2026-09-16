@@ -4,7 +4,7 @@
  * 이 mart만 수명주기가 다르다. 참여 수 추이는 지난 관측점을 되돌아보므로 물린 build의 행을 곧바로
  * 지우지 않고 `mart.build.retain_until`이 지난 뒤에 회수한다(ADR 0034).
  */
-import { bigint, char, check, index, integer, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { bigint, char, check, index, integer, primaryKey, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { codeValue } from "../core/codes.js";
 import { organization } from "../core/organizations.js";
@@ -114,5 +114,33 @@ export const openAuctionSnapshot = martSchema.table(
           and ${table.regionSidoCodeValueId} is null
           and ${table.regionSigunguCodeValueId} is null)`,
     ),
+  ],
+);
+
+/**
+ * 스냅샷 행 하나가 가진 품목 원자(`eatbid:auction-item`)들이다. 라벨 한 문자열(`육류 , 가금류`)이 원자
+ * 여러 행으로 투영되므로 스냅샷 열이 아니라 다리표다.
+ *
+ * 이 표가 있어야 화면의 품목 축이 문자열 부분일치(`strpos`)가 아니라 코드 조인으로 거른다(AGENTS 2,
+ * EAT-230). `item_label`은 표시값으로 남고 정체성은 여기의 `item_code_value_id`다. 빌더가 `item_label`을
+ * `read_item_label` 규칙으로 읽어 채우며, 우리 어휘에 없는 낱말은 행을 만들지 않는다 — 원자가 하나도 없는
+ * 행은 "품목 미상"이고 그것은 라벨 없음과 같은 취급이다(AGENTS 3).
+ *
+ * 스냅샷 행이 회수되면 함께 지워진다. 다리 행만 남으면 어느 build의 것인지 말할 수 없다.
+ */
+export const openAuctionSnapshotItem = martSchema.table(
+  "open_auction_snapshot_item",
+  {
+    openAuctionSnapshotId: bigint("open_auction_snapshot_id", { mode: "bigint" })
+      .notNull()
+      .references(() => openAuctionSnapshot.openAuctionSnapshotId, { onDelete: "cascade" }),
+    itemCodeValueId: bigint("item_code_value_id", { mode: "bigint" })
+      .notNull()
+      .references(() => codeValue.codeValueId),
+  },
+  (table) => [
+    primaryKey({ columns: [table.openAuctionSnapshotId, table.itemCodeValueId] }),
+    // 품목 배지는 원자에서 스냅샷으로 거꾸로 센다(`item_counts`). PK는 스냅샷→원자 순이라 이 방향의 인덱스가 따로 필요하다.
+    index("open_auction_snapshot_item_code_idx").on(table.itemCodeValueId, table.openAuctionSnapshotId),
   ],
 );

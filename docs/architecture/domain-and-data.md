@@ -495,7 +495,14 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
 "최신"은 `auction_revision_id` 최대값이며 replay가 관측 시각을 되돌려도 append 순서는 단조롭다. 그 값을
 어느 해석에서 읽었는지는 `terms_revision_id`가 가리키고, 상세를 아직 따지 않은 공고는 이 열들과 계보가 모두
 null이다. `title`은 검색 술어가 읽는 열이고 `display_bid_no`는 표시·복사용 문자열이지 조인 키가 아니다
-(AGENTS 2). `organization_label`은 이
+(AGENTS 2).
+
+품목은 스냅샷 열이 아니라 다리표 `mart.open_auction_snapshot_item(open_auction_snapshot_id, item_code_value_id)`다
+(`mart-r5`, EAT-230). 원천 라벨 한 문자열(`육류 , 가금류`)이 `eatbid:auction-item` 원자 여러 행으로 투영되며, 빌더가
+`item_label`을 `read_item_label` 규칙(core 투영과 같은 함수)으로 읽어 채운다 — 어휘 밖 낱말은 행을 만들지 않고
+원본 라벨은 `item_label`에 남는다. 오늘 화면의 품목 축·품목 배지·저장 조합 건수는 전부 이 표를 코드로 조인해
+세며 라벨 문자열을 더듬지 않는다. 저장 조합의 품목(`app.workspace_filter_combination_item`)도 같은 체계의
+`item_code_value_id`를 가리킨다. `organization_label`은 이
 공고의 revision이 아니라 조직 코드에 매달린 `core.code_label_observation`의 최신 관측이므로 계보에
 포함되지 않는다 — 이름은 표시값이고 조직 정체성은 여전히 code value가 갖는다.
 

@@ -149,7 +149,8 @@ test.describe('오늘 화면 fixture', () => {
     const rail = page.getByRole('complementary', { name: '내 조건' });
     // 시군구는 고른 시도 안에서 관측된 짝뿐이고, 품목은 여덟 원자가 0건까지 전부 선다.
     await expect(rail.getByRole('link', { name: '창원시 3' })).toBeVisible();
-    await expect(rail.getByRole('link', { name: '육류 1' })).toBeVisible();
+    // 합성 라벨(`육류 , 가금류`) 행도 원자마다 한 번씩 센다 — 두 행이 육류를 갖는다(EAT-230).
+    await expect(rail.getByRole('link', { name: '육류 2' })).toBeVisible();
     await expect(rail.getByRole('link', { name: '우유류 0' })).toBeVisible();
     // 품목 축이 없으면 미상은 이미 보고 있으므로 링크가 아니라 수다. 지역 미상은 걸 조건이 없는 사실이다.
     await expect(rail.getByRole('link', { name: /품목 미상/ })).toHaveCount(0);
@@ -186,7 +187,7 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.locator(ROWS)).toHaveCount(3);
     const rail = page.getByRole('complementary', { name: '내 조건' });
     // next dev는 처음 여는 주소를 그 자리에서 compile하므로 이동 완료를 기본 5초보다 길게 기다린다.
-    await rail.getByRole('link', { name: '육류 1' }).click();
+    await rail.getByRole('link', { name: '수산물 1' }).click();
     await page.waitForURL(/items=/, { timeout: 60_000 });
     await expect(page).toHaveURL(/closesWithinHours=168/);
     await expect(page.locator(ROWS)).toHaveCount(1);
@@ -197,7 +198,7 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.locator(ROWS)).toHaveCount(2);
 
     // 켜진 줄을 다시 누르면 그 조각만 풀린다. 미상 포함은 품목 축이 없으면 아무 일도 하지 않는다.
-    await rail.getByRole('link', { name: '육류 1' }).click();
+    await rail.getByRole('link', { name: '수산물 1' }).click();
     await page.waitForURL((url) => !url.search.includes('items='), { timeout: 60_000 });
     await expect(page).toHaveURL(/closesWithinHours=168/);
     await expect(page.locator(ROWS)).toHaveCount(3);
@@ -230,8 +231,9 @@ test.describe('오늘 화면 fixture', () => {
 
   test('조건에 맞는 공고가 없으면 조건을 문장으로 되풀이하고 표를 그리지 않는다', async ({ page }) => {
     test.setTimeout(90_000);
-    await page.goto(`/today?items=${encodeURIComponent('없는 품목')}`);
-    await expect(page.getByText('품목 없는 품목 조건에서 열린 공고가 없습니다.')).toBeVisible();
+    // 어휘 밖 문자열은 계약이 거절해 loader가 버리므로 0건을 만들지 못한다. 어휘 안이되 fixture에 없는 원자로 묻는다.
+    await page.goto(`/today?items=${encodeURIComponent('우유류')}`);
+    await expect(page.getByText('품목 우유류 조건에서 열린 공고가 없습니다.')).toBeVisible();
     await expect(page.locator('table')).toHaveCount(0);
     await expect(page.getByRole('link', { name: '조건 모두 해제' })).toBeVisible();
   });

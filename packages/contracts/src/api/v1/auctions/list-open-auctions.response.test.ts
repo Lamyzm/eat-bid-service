@@ -143,9 +143,12 @@ describe("열린 공고 목록 계약", () => {
     expect(openAuctionListQuerySchema.safeParse({ sort: "closesAt" }).success).toBe(false);
     expect(openAuctionListQuerySchema.safeParse({ sido: "0" }).success).toBe(false);
     expect(openAuctionListQuerySchema.safeParse({ items: [""] }).success).toBe(false);
-    // 조각 열일곱은 관측된 라벨 가짓수보다 많다. 상한이 열여섯인 이유는 한 행이 가진 최대 조각 수의 두 배다.
+    // 품목은 여덟 원자의 코드다. 묶음(`축산`)이나 조각(`축`)은 어휘 밖이라 400이다(EAT-230).
+    expect(openAuctionListQuerySchema.safeParse({ items: ["축산"] }).success).toBe(false);
+    expect(openAuctionListQuerySchema.safeParse({ items: ["육류", "가금류"] }).success).toBe(true);
+    // 상한은 원자 수 여덟이다. 아홉이면 같은 원자를 되풀이 보낸 것뿐이다.
     expect(openAuctionListQuerySchema.safeParse({
-      items: Array.from({ length: 17 }, (_, index) => `조각${index}`),
+      items: Array.from({ length: 9 }, () => "육류"),
     }).success).toBe(false);
     // query string은 값 하나와 값 여럿을 구분하지 못한다. 파싱 직전에 한 번만 배열로 편다.
     expect(openAuctionListQuerySchema.parse({ items: "육류" }).items).toEqual(["육류"]);
@@ -194,8 +197,8 @@ describe("열린 공고 목록 계약", () => {
     expect(auctionV1Operations.listOpen.buildPath({ path: {} })).toBe("/api/v1/auctions?limit=50&state=open");
     expect(auctionV1Operations.listOpen.buildPath({
       path: {},
-      query: { sido: "41", closesWithinHours: 72, cursor: "5796468", items: ["축산"] },
-    })).toBe("/api/v1/auctions?closesWithinHours=72&cursor=5796468&items=%EC%B6%95%EC%82%B0&limit=50&sido=41&state=open");
+      query: { sido: "41", closesWithinHours: 72, cursor: "5796468", items: ["육류"] },
+    })).toBe("/api/v1/auctions?closesWithinHours=72&cursor=5796468&items=%EC%9C%A1%EB%A5%98&limit=50&sido=41&state=open");
     // 요약은 고정 segment가 path parameter보다 앞이라 `summary`가 공고 id로 먹히지 않는다.
     expect(auctionV1Operations.summarizeOpen.buildPath({
       path: {},

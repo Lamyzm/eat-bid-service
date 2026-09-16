@@ -85,11 +85,12 @@ export const workspaceFilterCombinationSigungu = appSchema.table(
 );
 
 /**
- * 조합이 고른 품목 조각이다. 코드가 아니라 관측 라벨의 조각이라 FK가 없다 — 품목 code scheme이 아직
- * 없기 때문이며(EAT-66) 생기면 이 표가 코드 참조로 바뀐다.
+ * 조합이 고른 품목 원자다. `eatbid:auction-item`의 code value를 가리키며 라벨 문자열을 저장하지 않는다
+ * (AGENTS 2, EAT-230). 라벨 조각으로 저장하던 표를 코드 참조로 바꿨고, 그때 운영에 저장된 행은 0이었다
+ * (2026-09-16 실측)라 데이터 이전 없이 열을 바꿨다.
  *
  * **묶음 이름(`축산`)은 저장하지 않는다.** 묶음을 저장하는 순간 그 정의를 우리가 소유하게 되고, 원천이
- * 묶음의 내용을 바꿔도 저장된 정의가 그대로 남는다. 저장도 표시도 조각 원자로만 한다.
+ * 묶음의 내용을 바꿔도 저장된 정의가 그대로 남는다. 저장도 표시도 원자로만 한다.
  */
 export const workspaceFilterCombinationItem = appSchema.table(
   "workspace_filter_combination_item",
@@ -97,10 +98,9 @@ export const workspaceFilterCombinationItem = appSchema.table(
     filterCombinationId: bigint("filter_combination_id", { mode: "bigint" })
       .notNull()
       .references(() => workspaceFilterCombination.filterCombinationId, { onDelete: "cascade" }),
-    label: text("label").notNull(),
+    itemCodeValueId: bigint("item_code_value_id", { mode: "bigint" })
+      .notNull()
+      .references(() => codeValue.codeValueId),
   },
-  (table) => [
-    primaryKey({ columns: [table.filterCombinationId, table.label] }),
-    check("workspace_filter_combination_item_label_present", sql`length(btrim(${table.label})) > 0`),
-  ],
+  (table) => [primaryKey({ columns: [table.filterCombinationId, table.itemCodeValueId] })],
 );

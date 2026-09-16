@@ -4,6 +4,7 @@
  * 세 조회(anchor 확인·페이지·표본 수)가 같은 "열림" 정의를 써야 한다. 정의가 두 곳에 있으면 표본 수와
  * 행이 서로 다른 코호트를 말하게 되므로 CTE 하나를 여기서만 만든다.
  */
+import { CODE_SCHEME_NAMES } from "@eatbid/contracts";
 import { sql, type SQL } from "drizzle-orm";
 import type { Temporal } from "@eatbid/domain";
 import type { OpenAuctionQuery } from "../../application/open-auction-reader";
@@ -52,31 +53,55 @@ export function openScopePredicate(alias: SQL, asOf: string): SQL {
 }
 
 /**
- * 품목 술어 하나다. **조각 하나라도 라벨 안에 들어 있으면 걸린다.**
- *
- * 완전일치를 쓰면 절반을 놓친다. 원천 라벨이 합성 문자열이라 한 칸에 `육류 , 가금류`가 함께 들어 있고
- * `= '육류'`는 그 행을 못 잡는다(2026-09-14 dev 실측: 열린 404행 중 98행이 합성).
- *
- * `like`가 아니라 `strpos`인 이유는 조각이 사용자 입력이기 때문이다. `like`는 `%`와 `_`가 패턴
- * 메타문자라 사용자가 적은 `100%`가 "무엇이든"으로 바뀐다. escape를 덧대는 대신 메타문자가 아예 없는
- * 연산을 쓴다.
- *
- * 라벨을 관측하지 못한 행은 어느 조각으로도 안 걸린다. 미관측을 "안 맞음"과 합치는 것이 아니라, 이
- * 축으로 물으면 답할 수 없는 행이라 빠지는 것이다(AGENTS 3).
+ * 품목 원자(`eatbid:auction-item`) 코드를 code value id로 닫는 CTE다. 술어와 배지가 같은 CTE를 읽어야
+ * "육류를 골랐을 때 남는 행"과 "육류 배지의 수"가 같은 원자를 말한다. 체계 이름으로 닫는 이유는 같은
+ * 글자가 다른 체계에도 있을 수 있기 때문이다(AGENTS 6).
  */
-export function itemLabelPredicate(
+export function itemAtomCte(): SQL {
+  return sql`
+    item_atom as (
+      select value.code_value_id, value.code
+        from core.code_value value
+        join core.code_scheme scheme on scheme.code_scheme_id = value.code_scheme_id
+       where scheme.namespace = ${CODE_SCHEME_NAMES.auctionItem}
+    )`;
+}
+
+/**
+ * 품목 술어 하나다. **고른 원자 하나라도 행의 다리표에 있으면 걸린다.**
+ *
+ * 라벨 문자열을 `strpos`로 더듬던 것을 코드 조인으로 바꿨다(EAT-230). 라벨 부분일치는 `축`이 `축산물`과
+ * `축제`를 함께 잡는 식으로 필터가 검색이 되고, 문자열이 정체성 노릇을 한다(AGENTS 2). 다리표는 빌더가
+ * `read_item_label` 규칙으로 채우므로 합성 라벨(`육류 , 가금류`)의 행은 두 원자 어느 쪽으로도 걸린다.
+ *
+ * 원자가 하나도 없는 행(라벨 미관측 또는 어휘 밖 낱말뿐)은 어느 원자로도 안 걸린다. 미관측을 "안 맞음"과
+ * 합치는 것이 아니라, 이 축으로 물으면 답할 수 없는 행이라 빠지는 것이다(AGENTS 3). `alias`는
+ * `open_auction_snapshot_id`를 가진 CTE 이름이고 `item_atom` CTE가 `with` 목록에 있어야 한다.
+ */
+export function itemAtomPredicate(
   alias: SQL,
-  labels: readonly string[] | null,
+  atoms: readonly string[] | null,
   includeUnknown = false,
 ): SQL {
-  if (labels === null) return sql`true`;
-  const fragments = textArrayLiteral(labels);
+  if (atoms === null) return sql`true`;
+  const codes = textArrayLiteral(atoms);
   const matched = sql`exists (
-    select 1 from unnest(${fragments}::text[]) as fragment
-     where ${alias}.item_label is not null and strpos(${alias}.item_label, fragment) > 0
+    select 1
+      from mart.open_auction_snapshot_item bridge
+      join item_atom on item_atom.code_value_id = bridge.item_code_value_id
+     where bridge.open_auction_snapshot_id = ${alias}.open_auction_snapshot_id
+       and item_atom.code = any(${codes}::text[])
   )`;
   // 미관측을 함께 보려는 요청은 그 행이 안 맞는 것이 아니라 답할 수 없는 행임을 아는 요청이다.
-  return includeUnknown ? sql`(${alias}.item_label is null or ${matched})` : matched;
+  return includeUnknown ? sql`(${itemUnobservedPredicate(alias)} or ${matched})` : matched;
+}
+
+/** 품목 원자가 하나도 없는 행이다. 요약의 `품목 미상` 배지와 목록의 `미상 포함`이 같은 정의를 쓴다. */
+export function itemUnobservedPredicate(alias: SQL): SQL {
+  return sql`not exists (
+    select 1 from mart.open_auction_snapshot_item bridge
+     where bridge.open_auction_snapshot_id = ${alias}.open_auction_snapshot_id
+  )`;
 }
 
 /**
@@ -129,8 +154,10 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
   return sql`
     with ${eligibilityAreaCodeCte()},
     ${matchedEligibilityAreaCte(eligibility ?? [])},
+    ${itemAtomCte()},
     snapshot as (
       select distinct on (snapshot.auction_attempt_id)
+        snapshot.open_auction_snapshot_id,
         snapshot.auction_attempt_id,
         snapshot.organization_id,
         snapshot.organization_label,
@@ -179,7 +206,7 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
              or open_scope.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
         and (${sigungu}::text is null
              or open_scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
-        and ${itemLabelPredicate(sql`open_scope`, query.itemLabels, query.includeUnknownItem)}
+        and ${itemAtomPredicate(sql`open_scope`, query.itemAtoms, query.includeUnknownItem)}
         and ${searchPredicate(sql`open_scope`, query.searchText)}
         and (not ${query.onlyWithoutBids}::boolean or open_scope.bid_count = 0)${eligibilityFilter}
     )${extraCte}

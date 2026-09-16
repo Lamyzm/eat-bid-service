@@ -1,7 +1,7 @@
 /**
  * @module 책임: 저장된 조건 조합의 조회·저장·삭제를 워크스페이스 경계 안에서, 상한 판정과 같은 트랜잭션으로 수행한다.
  */
-import { maxFilterCombinations } from "@eatbid/contracts";
+import { auctionItemAtomSchema, CODE_SCHEME_NAMES, maxFilterCombinations } from "@eatbid/contracts";
 import { sql } from "drizzle-orm";
 
 import type {
@@ -33,7 +33,8 @@ function toCombination(row: CombinationRow): FilterCombinationRecord {
       sidoCodeValueId: row.sido_code_value_id === null ? null : identifier(row.sido_code_value_id),
       // jsonb 배열이 비면 null로 오므로 여기서 한 번만 편다. 빈 배열과 null은 같은 뜻이다 — 안 골랐다.
       sigunguCodeValueIds: (row.sigungu ?? []).map((value) => identifier(String(value))),
-      itemLabels: [...(row.items ?? [])],
+      // 저장이 FK로 닫혀 있어 코드는 어휘 안이지만, wire enum으로 좁히는 것은 이 경계가 한 번만 한다.
+      itemAtoms: (row.items ?? []).map((code) => auctionItemAtomSchema.parse(code)),
       baseAmountMin: row.base_amount_min,
       baseAmountMax: row.base_amount_max,
     },
@@ -61,8 +62,10 @@ export async function listCombinations(
            (select jsonb_agg(sigungu.code_value_id order by sigungu.code_value_id)
               from app.workspace_filter_combination_sigungu sigungu
              where sigungu.filter_combination_id = combination.filter_combination_id) as sigungu,
-           (select jsonb_agg(item.label order by item.label)
+           -- 저장은 code value id이고 화면이 받는 값은 그 코드(원자 글자)다. 조인해서 코드로 되돌린다.
+           (select jsonb_agg(value.code order by value.code)
               from app.workspace_filter_combination_item item
+              join core.code_value value on value.code_value_id = item.item_code_value_id
              where item.filter_combination_id = combination.filter_combination_id) as items
       from app.workspace_filter_combination combination
      where combination.workspace_id = ${workspaceId}
@@ -83,11 +86,17 @@ async function insertChildren(
         from unnest(${bigintArrayLiteral(filter.sigunguCodeValueIds)}::bigint[]) as code_value_id
     `);
   }
-  if (filter.itemLabels.length > 0) {
+  if (filter.itemAtoms.length > 0) {
+    // 원자 글자를 그대로 저장하지 않고 `eatbid:auction-item` 체계의 code value id로 닫는다(AGENTS 2).
+    // 계약이 어휘 밖 값을 이미 거절하므로 조인이 비는 것은 시드가 안 돈 DB뿐이다.
     await database.execute(sql`
-      insert into app.workspace_filter_combination_item (filter_combination_id, label)
-      select ${filterCombinationId}, label
-        from unnest(${textArrayLiteral(filter.itemLabels)}::text[]) as label
+      insert into app.workspace_filter_combination_item (filter_combination_id, item_code_value_id)
+      select ${filterCombinationId}, value.code_value_id
+        from unnest(${textArrayLiteral(filter.itemAtoms)}::text[]) as atom(code)
+        join core.code_value value on value.code = atom.code
+        join core.code_scheme scheme
+          on scheme.code_scheme_id = value.code_scheme_id
+         and scheme.namespace = ${CODE_SCHEME_NAMES.auctionItem}
     `);
   }
 }
@@ -136,7 +145,7 @@ export async function saveCombination(
       combination: toCombination({
         ...row,
         sigungu: input.filter.sigunguCodeValueIds.map((value) => value.toString(10)),
-        items: input.filter.itemLabels,
+        items: input.filter.itemAtoms,
       }),
     };
   });

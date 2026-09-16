@@ -125,7 +125,7 @@ export class FilterCombinationController {
       current = {
         sidoCodeValueId: query.sido === undefined ? null : BigInt(query.sido),
         sigunguCodeValueIds: bigints(query.sigungu),
-        itemLabels: query.items ?? null,
+        itemAtoms: query.items ?? null,
         baseAmountMin: query.baseAmountMin ?? null,
         baseAmountMax: query.baseAmountMax ?? null,
       };
@@ -155,7 +155,7 @@ export class FilterCombinationController {
         saved: combinations.map((combination) => ({
           sidoCodeValueId: combination.filter.sidoCodeValueId,
           sigunguCodeValueIds: combination.filter.sigunguCodeValueIds,
-          itemLabels: combination.filter.itemLabels.length === 0 ? null : combination.filter.itemLabels,
+          itemAtoms: combination.filter.itemAtoms.length === 0 ? null : combination.filter.itemAtoms,
           baseAmountMin: combination.filter.baseAmountMin,
           baseAmountMax: combination.filter.baseAmountMax,
         })),
@@ -196,7 +196,7 @@ export class FilterCombinationController {
         filter: {
           sidoCodeValueId,
           sigunguCodeValueIds,
-          itemLabels: body.items ?? [],
+          itemAtoms: body.items ?? [],
           baseAmountMin: body.baseAmountMin ?? null,
           baseAmountMax: body.baseAmountMax ?? null,
         },

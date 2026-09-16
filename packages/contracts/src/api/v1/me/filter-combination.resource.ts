@@ -5,6 +5,7 @@ import { canonicalMoneyAmountSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { nonNegativeCountSchema } from "../../../atoms/count";
+import { AUCTION_ITEM_ATOMS, auctionItemAtomSchema } from "../../../values/auction-item";
 import { itemsFilterSchema, sigunguFilterSchema } from "../auctions/list-open-auctions.query";
 
 /**
@@ -26,7 +27,8 @@ export const maxFilterCombinations = 5;
 export const filterCombinationFilterSchema = z.strictObject({
   sido: positiveBigintTextSchema.nullable(),
   sigungu: z.array(positiveBigintTextSchema).max(31).nullable(),
-  items: z.array(z.string().min(1).max(64)).max(16).nullable(),
+  // 품목은 원자 코드다. 저장도 표시도 원자로만 하며 묶음 이름은 여기 들어오지 않는다(EAT-230).
+  items: z.array(auctionItemAtomSchema).max(AUCTION_ITEM_ATOMS.length).nullable(),
   baseAmountMin: canonicalMoneyAmountSchema.nullable(),
   baseAmountMax: canonicalMoneyAmountSchema.nullable(),
 }).meta({ id: "FilterCombinationFilter" });

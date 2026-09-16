@@ -4,6 +4,7 @@ import { z } from "zod";
 import { kstDateTextSchema } from "../../../atoms/calendar";
 import { canonicalMoneyAmountSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
+import { AUCTION_ITEM_ATOMS, auctionItemAtomSchema } from "../../../values/auction-item";
 import { maxEligibilityAreaSelection } from "../../../values/eligibility-area";
 
 // `closed`를 지원할 계획이 없어서가 아니라, 지원하지 않는 값을 계약에 적어 두면 화면이 그 값을 보낼 수
@@ -52,21 +53,19 @@ export const sigunguFilterSchema = z.preprocess(
 );
 
 /**
- * 품목 필터다. **조각 배열이고 부분일치 OR이다.**
- *
- * 완전일치로 두면 절반을 놓친다. 원천 라벨이 합성 문자열이라 `육류 , 가금류`처럼 한 칸에 여럿이 들어
- * 있고, `item=육류`는 그 행을 못 잡는다 — 2026-09-14 dev 실측으로 열린 404행 중 **98행이 합성**이고
- * `육류`는 단독 29행 뒤에 합성 45행을 더 갖는다.
+ * 품목 필터다. **원자 배열이고 OR이다.** 값은 `eatbid:auction-item` 체계의 코드이며 원자 하나라도 행에
+ * 붙어 있으면 걸린다 — 원천 라벨이 `육류 , 가금류`처럼 합성이라 mart가 행마다 원자 여러 개를 다리표로
+ * 갖고, 서버는 라벨 문자열이 아니라 그 코드로 조인한다(AGENTS 2, EAT-230).
  *
  * 묶음 이름(`축산`)은 받지 않는다. 묶음을 필터 값으로 받는 순간 그 정의를 우리가 소유하게 되므로
- * 조각 원자로만 거른다(2026-09-13 결정). 품목 code scheme이 생기면 이 축은 코드로 옮겨 간다(EAT-66).
+ * 원자로만 거른다(2026-09-13 결정). 어휘 밖 문자열은 400이다 — 예전처럼 부분일치로 받으면 `축`이
+ * `축산물`과 `축제`를 함께 잡는 식으로 필터가 검색이 된다.
  *
- * 상한 16은 관측된 라벨 가짓수(dev 28종)보다 작고 한 행이 가진 최대 조각 수(8)의 두 배다. 조각 하나의
- * 64자는 관측된 가장 긴 조각의 몇 배다 — 여기 문장이 들어오면 그것은 품목이 아니라 검색이다.
+ * 상한은 원자 수 8이다. 그보다 많이 고를 수 있으면 같은 원자를 되풀이 보낸 것뿐이다.
  */
 export const itemsFilterSchema = z.preprocess(
   (value) => (value === undefined ? undefined : Array.isArray(value) ? value : [value]),
-  z.array(z.string().min(1).max(64)).min(1).max(16),
+  z.array(auctionItemAtomSchema).min(1).max(AUCTION_ITEM_ATOMS.length),
 );
 
 /**

@@ -6,6 +6,7 @@ import { nonNegativeCountSchema } from "../../../atoms/count";
 import { canonicalMoneyAmountSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
+import { AUCTION_ITEM_ATOMS, auctionItemAtomSchema } from "../../../values/auction-item";
 import { maxEligibilityAreaSelection } from "../../../values/eligibility-area";
 import { martBuildLineageSchema } from "../../../values/mart-lineage";
 import { closesWithinHoursSchema, MAX_OPEN_AUCTION_LIMIT, searchTextSchema } from "./list-open-auctions.query";
@@ -37,7 +38,7 @@ export const openAuctionListMetaSchema = z.strictObject({
    */
   eligibilityMatchedCount: nonNegativeCountSchema.nullable(),
   eligibilityUnobservedCount: nonNegativeCountSchema.nullable(),
-  items: z.array(z.string().min(1).max(64)).max(16).nullable(),
+  items: z.array(auctionItemAtomSchema).max(AUCTION_ITEM_ATOMS.length).nullable(),
   itemUnknown: z.literal("include").nullable(),
   q: searchTextSchema.nullable(),
   bidState: z.literal("none").nullable(),

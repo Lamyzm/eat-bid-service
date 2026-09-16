@@ -48,9 +48,11 @@ spec:
       # 계산 규칙이다(EAT-68). mart-r3는 예정가격이 0으로 관측된(추첨 전) 회차의 그날 하한·투찰률 축
       # 낙찰률·하한 미만 수를 0이 아니라 null로 두는 규칙이다(EAT-74). mart-r4는 열린 공고 스냅샷이
       # 최신 상세 해석의 제목·공고번호를 함께 싣는 규칙이다(EAT-247·248) — 검색과 eaT 손잡이가 이 두 열을
-      # 읽는다. 옛 build를 덮어쓰지 않고 새 build로 만들어 전환한다.
+      # 읽는다. mart-r5는 스냅샷 행마다 품목 원자 다리표(`open_auction_snapshot_item`)를 함께 만드는 규칙이다
+      # (EAT-230) — 품목 축이 라벨 부분일치가 아니라 코드 조인으로 거른다. 옛 build를 덮어쓰지 않고 새 build로
+      # 만들어 전환한다.
       - name: calc-version
-        value: mart-r4
+        value: mart-r5
       - name: start-date
         value: ""
       - name: end-date

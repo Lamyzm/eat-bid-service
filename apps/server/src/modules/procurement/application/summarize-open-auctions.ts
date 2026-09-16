@@ -1,4 +1,5 @@
 /** @module 책임: 열린 공고 요약 use case가 기준 시각을 clock에서 한 번 읽어 reader query로 옮기는 경계를 소유한다. */
+import type { AuctionItemAtom } from "@eatbid/contracts";
 import { Effect } from "effect";
 import type { Clock } from "@eatbid/domain";
 
@@ -14,7 +15,7 @@ export interface SummarizeOpenAuctionsInput {
   readonly sidoCodeValueId: bigint | null;
   readonly sigunguCodeValueIds: readonly bigint[] | null;
   readonly eligibilityAreaCodeValueIds: readonly bigint[] | null;
-  readonly itemLabels: readonly string[] | null;
+  readonly itemAtoms: readonly AuctionItemAtom[] | null;
   readonly includeUnknownItem: boolean;
   readonly searchText: string | null;
   readonly baseAmountMin: string | null;

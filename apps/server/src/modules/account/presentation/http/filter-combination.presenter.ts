@@ -24,7 +24,7 @@ export function toFilterCombinationWire(record: FilterCombinationRecord): MyFilt
     filter: {
       sido: bigintText(record.filter.sidoCodeValueId),
       sigungu: emptyToNull(record.filter.sigunguCodeValueIds.map((value) => bigintText(value))),
-      items: emptyToNull(record.filter.itemLabels),
+      items: emptyToNull(record.filter.itemAtoms),
       baseAmountMin: record.filter.baseAmountMin,
       baseAmountMax: record.filter.baseAmountMax,
     },
