@@ -1,0 +1,23 @@
+# 관측 화면 둘(Grafana, OpenObserve)의 내부 Ingress. web-internal과 같은 규칙이다 — `internal-allowlist`
+# middleware가 pod 망·노드 망만 통과시키므로 Cloudflare 터널을 지나온 요청은 403이다(ADR 0012). 운영자는
+# `kubectl port-forward`나 VM 안에서 연다.
+#
+# backend Service 이름은 platform Application의 chart가 만든다(grafana, openobserve — fullnameOverride).
+# `infra/tests/test_observability.py`가 두 이름이 chart 렌더와 같은지 대조한다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: observability-internal
+  namespace: eatbid
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: eatbid-internal-allowlist@kubernetescrd
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /internal/grafana
+            pathType: Prefix
+            backend: { service: { name: grafana, port: { number: 80 } } }
+          - path: /internal/o2
+            pathType: Prefix
+            backend: { service: { name: openobserve, port: { number: 5080 } } }

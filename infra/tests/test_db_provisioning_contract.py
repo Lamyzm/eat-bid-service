@@ -26,6 +26,10 @@ REQUIRED_SQL_FRAGMENTS = (
     # mart 빌드는 dataplane이 실행하므로 mart DML이 필요하고, 런타임 DDL은 계속 금지다(ADR 0034).
     "grant select, insert, update, delete on all tables in schema ingest, core, mart ",
     "revoke create on schema ingest, core, mart, drizzle from eatbid_dataplane",
+    # Grafana는 회차 지표와 파생 표만 읽는다. 원본·업무 사실·사용자 상태에는 닿지 않는다(EAT-174).
+    "eatbid_grafana",
+    "grant select on all tables in schema monitoring, mart to eatbid_grafana",
+    "revoke all on schema ingest, core, app, drizzle from eatbid_grafana",
 )
 
 

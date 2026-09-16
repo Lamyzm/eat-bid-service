@@ -535,6 +535,10 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 - 환경별 차이는 collector endpoint 값 하나뿐이다. dev에 별도 관측 스택을 세우지 않는다.
 - 프로세스 경계는 W3C `traceparent`로 잇는다. 모든 로그 줄에 `trace_id`와 `build_sha`를 달고, dataplane은
   `run_id`와 `source_release_id`를 더 단다. 사람이 읽고 옮겨 적는 `x-request-id`는 유지한다.
+- **run 행이 Argo Workflow 이름을 든다**(`ingest.run.workflow_name`, 2026-09-16 EAT-231). 릴리스 이름은
+  workflow uid를, R2 보관 로그는 workflow 이름을, 알림은 `run_id`를 들고 있어 셋을 잇는 물건이 TTL로
+  사라지는 Workflow 객체뿐이었다. discover가 `{{workflow.name}}`을 run에 적고, `backfill-progress` 위반의
+  detail이 `logs=workflow-logs/<yyyy>/<mm>/<이름>/`을 함께 보낸다. 워크플로 밖에서 만든 run은 NULL이다.
 
 구조화 로그의 최소 필드는 그대로다.
 
@@ -577,15 +581,17 @@ Argo Workflows UI, PostgreSQL, metrics endpoint는 공용 인터넷에 직접 �
 
 아래는 이 시점의 선택이며 ADR을 바꾸지 않고 갈아끼운다. 갈아끼우기 쉽다는 사실 자체가 §8.2의 목적이다.
 
-| 자리 | 이 시점의 선택 | 켜는 조건 |
+| 자리 | 이 시점의 선택 | 상태 (2026-09-16) |
 |---|---|---|
-| 로그·지표·추적 저장 | OpenObserve(단일 바이너리, R2 backend, OTLP 수신) | R2 보관만으로 안 되는 조회가 두 번 필요할 때 |
-| 대시보드 | Grafana(PostgreSQL을 직접 datasource로) | §8.3의 기대와 알림이 동작한 뒤 |
-| 프론트 오류 분류 | Sentry SaaS | 운영자 아닌 사용자가 생길 때, 유입 제어와 같은 변경에서 |
+| 로그·지표·추적 저장 | OpenObserve(단일 바이너리, R2 `eatbid-lake/openobserve/`, 보존 14일) — `infra/platform/openobserve.application.yaml` | 켜짐. eatbid namespace 파드의 stdout을 fluent-bit DaemonSet이 `k8s` 스트림으로 보낸다(`fluent-bit.application.yaml`). UI는 `/internal/o2` |
+| 대시보드 | Grafana(grafana-community chart, PostgreSQL을 `eatbid_grafana` 읽기 역할로 직접 datasource) — `grafana.application.yaml` | 켜짐. `monitoring.round`의 아홉 열을 그리는 대시보드 하나를 `infra/base/observability/`가 provisioning한다. UI는 `/internal/grafana` |
+| 회차 지표 | `monitoring.round`(check-expectations가 회차당 한 행, EAT-227) | 켜짐(v0.1.34) |
+| 프론트 오류 분류 | Sentry SaaS — `@sentry/nextjs`는 빌드 시점 wrapper라 값 셋(`NEXT_PUBLIC_SENTRY_ORG/PROJECT/DSN`)은 manifest env가 아니라 릴리스 빌드 인자로 들어간다 | 계정과 값 대기 |
 
-대시보드는 감시가 아니다. 사람이 볼 때만 값을 하므로 §8.3이 없는 상태에서 대시보드부터 만들지 않는다.
-Prometheus·Loki·Tempo·Grafana 넷을 전개하는 안은 12GB 단일 노드에서 DB와 메모리를 다투므로 각 신호를
-따로 키워야 할 규모가 증명된 뒤에 다시 본다.
+대시보드는 감시가 아니다. 사람이 볼 때만 값을 하므로 §8.3의 기대·알림과 클러스터 밖 심장박동(EAT-171)이
+먼저 동작한 뒤에 켰다. 관측 화면 셋은 모두 `internal-allowlist` 뒤라 밖에서 열리지 않고(ADR 0012),
+자격은 InfisicalSecret `eatbid-observability` 하나다. Prometheus·Loki·Tempo 스택을 고르지 않은 이유는
+12GB 단일 노드에서 DB와 메모리를 다투기 때문이며, 그 규모가 증명되면 이 표의 자리만 갈아끼운다.
 
 ## 9. 백업과 복구
 

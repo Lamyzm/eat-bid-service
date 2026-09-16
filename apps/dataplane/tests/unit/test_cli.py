@@ -951,3 +951,11 @@ def test_replay_command는_release_commit_40자_build_sha를_받아_handler에_�
     assert [args.build_sha for args in application.replay_args] == [RELEASE_COMMIT]
     assert application.calls == [("replay", UUID(RELEASE_ID))]
     assert "CONFIGURATION" not in capsys.readouterr().err
+
+
+def test_discover의_workflow_이름은_선택_인자라_밖에서_돌릴_때_없어도_된다() -> None:
+    # 워크플로 밖(테스트·수동 실행)에서 만든 run은 이름이 없는 것이 사실이다. 필수로 두면 그 실행이 막힌다(EAT-231).
+    parser = build_parser()
+
+    assert parser.parse_args(_명령("discover")).workflow_name is None
+    assert parser.parse_args([*_명령("discover"), "--workflow-name", "eatbid-poll-open-1789504380"]).workflow_name == "eatbid-poll-open-1789504380"

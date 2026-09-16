@@ -146,6 +146,8 @@ export function disposableDatabase(options: DisposableDatabaseOptions) {
           nosuperuser nocreatedb nocreaterole noinherit;
         create role eatbid_dataplane login password 'dataplane-test-secret'
           nosuperuser nocreatedb nocreaterole noinherit;
+        create role eatbid_grafana login password 'grafana-test-secret'
+          nosuperuser nocreatedb nocreaterole noinherit;
       `);
       await owner.unsafe(provisioningSql);
       api = postgres(apiUrl, {

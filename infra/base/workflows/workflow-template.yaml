@@ -419,6 +419,8 @@ spec:
                 "--build-sha", os.environ["BUILD_SHA"],
                 "--parser-version", os.environ["EATBID_PARSER_VERSION"],
                 "--release-name", release_name,
+                # 워크플로 이름을 run 행에 남긴다 — 알림의 run_id에서 R2 로그 경로로 바로 가기 위해(EAT-231).
+                *(["--workflow-name", workflow_name] if (workflow_name := os.environ.get("EATBID_WORKFLOW_NAME")) else []),
                 "--as-of", created_at,
                 "--started-at", created_at,
                 "--completed-at", created_at,
@@ -433,6 +435,8 @@ spec:
         env:
           - name: EATBID_WORKFLOW_MODE
             value: "{{workflow.parameters.mode}}"
+          - name: EATBID_WORKFLOW_NAME
+            value: "{{workflow.name}}"
           - &env-run-id
             name: EATBID_RUN_ID
             value: "{{workflow.uid}}"

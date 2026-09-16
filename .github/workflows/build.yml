@@ -285,7 +285,14 @@ jobs:
           load: true
           push: false
           tags: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:${{ needs.preflight.outputs.release_commit }}
-          build-args: GIT_SHA=${{ needs.preflight.outputs.release_commit }}
+          # Sentry 값 셋은 web 이미지의 빌드 인자다(Dockerfile.web 주석, EAT-232). 공개 식별자라 secrets가
+          # 아니라 repository variables에 두고, 비어 있으면 web은 지금처럼 Sentry 없이 빌드된다. 다른
+          # 이미지는 이 인자를 소비하지 않아 경고만 낸다.
+          build-args: |
+            GIT_SHA=${{ needs.preflight.outputs.release_commit }}
+            NEXT_PUBLIC_SENTRY_ORG=${{ vars.NEXT_PUBLIC_SENTRY_ORG }}
+            NEXT_PUBLIC_SENTRY_PROJECT=${{ vars.NEXT_PUBLIC_SENTRY_PROJECT }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
           labels: |
             org.opencontainers.image.revision=${{ needs.preflight.outputs.release_commit }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

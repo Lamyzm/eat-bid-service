@@ -63,7 +63,13 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ env.REGISTRY }}/eatbid-${{ matrix.app }}:main-${{ github.sha }}
-          build-args: GIT_SHA=${{ github.sha }}
+          # dev 이미지도 같은 Sentry 값을 받는다 — dev 화면의 오류가 같은 프로젝트에 environment만 다르게
+          # 쌓여야 한다(EAT-232). 비어 있으면 꺼진 채 빌드된다.
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            NEXT_PUBLIC_SENTRY_ORG=${{ vars.NEXT_PUBLIC_SENTRY_ORG }}
+            NEXT_PUBLIC_SENTRY_PROJECT=${{ vars.NEXT_PUBLIC_SENTRY_PROJECT }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

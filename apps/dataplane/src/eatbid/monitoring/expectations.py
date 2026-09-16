@@ -71,16 +71,22 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         # 진행하지 않는다(2026-09-10 2시간 교착). 상태가 아니라 전진을 본다. `request_unit`에는 시각
         # 컬럼이 없으므로(2026-09-11 실제 스키마 확인) 전진의 증거는 관측이 들어온 시각이다.
         # run이 막 시작해 아직 관측이 없는 구간을 위반으로 보지 않도록 run의 시작 시각도 함께 본다.
+        # workflow_name이 있으면 R2 보관 로그 접두사를 detail에 함께 적는다. 알림을 받은 사람이 run_id로
+        # Workflow 객체를 찾을 필요 없이(TTL로 이미 없을 수 있다) 로그로 바로 간다(EAT-231).
         sql="""
             select r.run_id::text as run_id,
                    r.mode as mode,
                    r.started_at as started_at,
-                   max(o.fetched_at) as last_observation_at
+                   max(o.fetched_at) as last_observation_at,
+                   case when r.workflow_name is null then null
+                        else 'workflow-logs/' || to_char(r.started_at at time zone 'UTC', 'YYYY/MM')
+                             || '/' || r.workflow_name || '/'
+                   end as logs
               from ingest.run r
               left join ingest.raw_observation o using (run_id)
              where r.status = 'running'
                and r.started_at < now() - %(stall_after)s::interval
-             group by r.run_id, r.mode, r.started_at
+             group by r.run_id, r.mode, r.started_at, r.workflow_name
             having coalesce(max(o.fetched_at), r.started_at) < now() - %(stall_after)s::interval
         """,
         parameters={"stall_after": "90 minutes"},

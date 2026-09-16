@@ -69,6 +69,7 @@ class PostgresRunPlanningMixin:
         parser_version: str,
         started_at: datetime,
         expected_count: int,
+        workflow_name: str | None = None,
     ) -> None:
         require_nonnegative(expected_count, "expected_count")
         require_aware(started_at, "started_at")
@@ -87,10 +88,10 @@ class PostgresRunPlanningMixin:
                 """
                 insert into ingest.run (
                     run_id, mode, status, build_sha, parser_version, started_at,
-                    expected_count, captured_count, published_count
-                ) values (%s, %s, 'running', %s, %s, %s, %s, 0, 0)
+                    expected_count, captured_count, published_count, workflow_name
+                ) values (%s, %s, 'running', %s, %s, %s, %s, 0, 0, %s)
                 """,
-                (run_id, mode, build_sha, parser_version, started_at, expected_count),
+                (run_id, mode, build_sha, parser_version, started_at, expected_count, workflow_name),
             )
 
     def plan_request_unit(
