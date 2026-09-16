@@ -100,6 +100,14 @@ begin
   execute 'revoke insert, update, delete, truncate, references, trigger '
           'on all tables in schema monitoring, mart from eatbid_grafana';
   execute 'revoke all on schema ingest, core, app, drizzle from eatbid_grafana';
+  -- 크롤러 진척 대시보드(ADR 0054 설계 D6)가 읽는 ingest의 자리 다섯만 연다. 진도 뷰, 보류 결정, run·publication
+  -- 원장, 격리 사유다. raw 관측·요청 단위·정규화 본문에는 여전히 닿지 않으며 default privilege도 주지 않는다 —
+  -- ingest에 표가 늘어도 Grafana가 저절로 읽지 못하게 하는 것이 경계다.
+  execute 'grant usage on schema ingest to eatbid_grafana';
+  execute 'grant select on ingest.backfill_coverage, ingest.run, ingest.publication, ingest.normalization_attempt to eatbid_grafana';
+  if to_regclass('ingest.source_hold') is not null then
+    execute 'grant select on ingest.source_hold to eatbid_grafana';
+  end if;
 
   foreach grantor in array array['eatbid_migrator', current_user] loop
     execute format(

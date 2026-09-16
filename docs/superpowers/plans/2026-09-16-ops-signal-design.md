@@ -158,6 +158,11 @@ success**여야 한다. 아니면 거부한다. 오늘 v0.1.36은 main 회차가
 - **실패한 run 하나를 골라 링크를 눌러 그 파드의 로그가 실제로 나오는지 확인한다.** 안 나오면 그것이
   이 단계의 결과이고, 원인(fluent-bit 라벨, 보존, 검색 필드)을 고친다.
 - `backfill-progress` 위반의 `logs=` 열(R2 workflow-logs 경로)도 같은 방법으로 한 번 열어 본다.
+- **2026-09-16 실측(EAT-245).** `k8s` 스트림에는 파드 라벨(`kubernetes_labels_*`)이 없다. fluent-bit의 kubernetes
+  필터가 라벨을 싣지 않는다. 대신 `kubernetes_pod_name`이 있고 Argo 파드 이름은 `<workflow_name>-<단계>-<해시>`라
+  접두사 `like '<workflow_name>%'`로 잇는다. API로 실패한 poll-open(01:34 UTC)·전진·기대 검사 회차 셋 모두
+  로그가 나왔다. 대시보드 링크는 그 SQL을 base64로 실어 OpenObserve 검색 페이지를 연다(UI 파라미터 해석은 배포
+  뒤 브라우저로 한 번 더 확인).
 
 ### D8. AI 진입점 — 증상에서 질의로 가는 지도
 
