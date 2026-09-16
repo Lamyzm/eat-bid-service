@@ -58,6 +58,13 @@ spec:
           enabled: false
         serviceMonitor:
           enabled: false
+        # ZO_BASE_URI 아래로 옮겨진 health 경로. chart 기본값 /healthz는 404가 되어 liveness가 컨테이너를
+        # 계속 죽였다(2026-09-16 첫 배포 실측, 재시작 6회).
+        probes:
+          enabled: true
+          path: /internal/o2/healthz
+          o2ai:
+            enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: eatbid

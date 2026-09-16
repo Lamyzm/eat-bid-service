@@ -54,7 +54,8 @@ spec:
                 Match kube.*
                 Host openobserve
                 Port 5080
-                URI /api/default/k8s/_json
+                # ZO_BASE_URI(/internal/o2) 아래로 API도 옮겨진다. 루트 경로는 404였다(2026-09-16 첫 배포 실측).
+                URI /internal/o2/api/default/k8s/_json
                 Format json
                 Json_date_key _timestamp
                 Json_date_format iso8601

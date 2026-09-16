@@ -71,7 +71,8 @@ def test_fluent_bit은_eatbid_파드만_tail해_OpenObserve로_보낸다() -> No
     assert "Name systemd" not in config["inputs"]
     assert "Host openobserve" in config["outputs"]
     assert "Port 5080" in config["outputs"]
-    assert "URI /api/default/k8s/_json" in config["outputs"]
+    # ZO_BASE_URI 아래로 API도 옮겨진다. 루트 /api는 404다.
+    assert "URI /internal/o2/api/default/k8s/_json" in config["outputs"]
     # 비밀번호는 config 문자열이 아니라 env 참조다.
     assert "${O2_PASSWORD}" in config["outputs"]
     assert {env["valueFrom"]["secretKeyRef"]["name"] for env in values["env"]} == {"eatbid-observability"}
