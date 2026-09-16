@@ -7,6 +7,7 @@ const row: OpenAuctionRow = {
   organization_label: " 창원 남산초등학교 ",
   organization_type: "unknown",
   item_label: "축산",
+  display_bid_no: " 2026-0001 ",
   floor_rate: "90.000",
   terms_revision_id: "5796469",
   closes_at: "2026-09-08T02:00:00Z",
@@ -45,6 +46,8 @@ describe("열린 공고 스냅샷 행 매핑", () => {
     expect(record.observedAt.toString()).toBe("2026-09-07T00:30:00Z");
     expect(record.closesAt!.toString()).toBe("2026-09-08T02:00:00Z");
     expect(record.organization).toEqual({ organizationId: 3_101n, label: "창원 남산초등학교", type: "unknown" });
+    // 공고번호도 관측 문자열이라 라벨과 같은 규칙으로 공백을 다듬는다. 정체성이 아니므로 숫자로 바꾸지 않는다.
+    expect(record.displayBidNo).toBe("2026-0001");
     expect(record.floorRate).toBe("90.000");
     expect(record.region).toEqual({
       sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
@@ -84,6 +87,7 @@ describe("열린 공고 스냅샷 행 매핑", () => {
       organization_label: null,
       organization_type: null,
       item_label: "   ",
+      display_bid_no: null,
       floor_rate: null,
       terms_revision_id: null,
       region_sido_code_value_id: null,
@@ -99,6 +103,7 @@ describe("열린 공고 스냅샷 행 매핑", () => {
     }, true);
     expect(record.organization).toBeNull();
     expect(record.itemLabel).toBeNull();
+    expect(record.displayBidNo).toBeNull();
     expect(record.floorRate).toBeNull();
     expect(record.region).toBeNull();
     expect(record.termsRevisionId).toBeNull();

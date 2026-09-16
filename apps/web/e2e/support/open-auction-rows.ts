@@ -77,6 +77,7 @@ export function rows(now: number) {
       auctionAttemptId: '5796468',
       organization: { organizationId: '3101', label: '창원 남산초등학교', type: 'unknown' },
       itemLabel: '축산',
+      displayBidNo: '2026-0001',
       floorRate: { value: '90.000', unit: 'percentage-points' },
       closesAt: closingDayEnd(now, 0),
       baseAmount: { amount: '2761700.00', currency: 'KRW' },
@@ -87,6 +88,7 @@ export function rows(now: number) {
       auctionAttemptId: '5796470',
       organization: { organizationId: '3102', label: '금정구종합사회복지관식자재납품업체선정입찰공고기관', type: 'unknown' },
       itemLabel: '농산물 , 수산물 , 육류 , 가공식품 , 김치류 , 곡류 , 가금류',
+      displayBidNo: '2026-0002',
       floorRate: { value: '88.000', unit: 'percentage-points' },
       closesAt: closingDayEnd(now, 1),
       baseAmount: { amount: '150000000.00', currency: 'KRW' },
@@ -99,6 +101,7 @@ export function rows(now: number) {
       auctionAttemptId: '5796471',
       organization: null,
       itemLabel: null,
+      displayBidNo: null,
       floorRate: null,
       region: null,
       eligibilityAreas: null,
@@ -113,6 +116,7 @@ export function rows(now: number) {
       auctionAttemptId: '5796472',
       organization: { organizationId: '3103', label: null, type: 'school' },
       itemLabel: '김치',
+      displayBidNo: '2026-0004',
       floorRate: { value: '90.000', unit: 'percentage-points' },
       closesAt: null,
       baseAmount: { amount: '980200.00', currency: 'KRW' },
@@ -133,6 +137,8 @@ export type OpenAuctionRowFilter = {
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly itemUnknown?: 'include';
+  /** 기관 이름·공고번호 안의 부분일치다. 제목은 wire에 없어 fixture는 두 열만 본다. */
+  readonly q?: string;
   readonly bidState?: 'none';
   readonly closesWithinHours?: number;
   readonly closesOn?: string;
@@ -146,7 +152,7 @@ export function matchesEligibilityArea(row: OpenAuctionFixtureRow, selected: rea
     && row.eligibilityAreas.some((area) => selected.includes(area.codeValueId));
 }
 
-/** 서버와 같은 순서로 거른다: 품목 조각 부분일치 → 참여 → 지역 id → 기간 → 금액 → 제한지역. */
+/** 서버와 같은 순서로 거른다: 품목 조각 부분일치 → 검색 → 참여 → 지역 id → 기간 → 금액 → 제한지역. */
 export function filterOpenAuctionRows(now: number, filter: OpenAuctionRowFilter): OpenAuctionFixtureRow[] {
   const areaFilter = filter.eligibilityArea ?? null;
   return rows(now)
@@ -156,6 +162,10 @@ export function filterOpenAuctionRows(now: number, filter: OpenAuctionRowFilter)
       || (row.itemLabel === null
         ? filter.itemUnknown === 'include'
         : filter.items.some((fragment) => row.itemLabel!.includes(fragment))))
+    // 검색은 있는 글자에서 찾는다. 이름도 번호도 없는 행은 어떤 검색어로도 안 걸린다(AGENTS 3).
+    .filter((row) => filter.q === undefined
+      || (row.organization?.label ?? '').includes(filter.q)
+      || (row.displayBidNo ?? '').includes(filter.q))
     // 참여 0곳은 관측된 참여 수가 0인 판이다. 못 센 판(null)은 여기 안 들어온다.
     .filter((row) => filter.bidState === undefined || row.bidCount === 0)
     // 지역은 시도 하나가 담는 그릇이고 시군구가 그 안에서 좁힌다. 서버와 같은 순서로 둘을 잇는다.

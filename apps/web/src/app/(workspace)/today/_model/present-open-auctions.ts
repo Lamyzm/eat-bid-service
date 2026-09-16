@@ -18,6 +18,8 @@ export type OpenAuctionRowPresentation = {
     readonly type: string | null;
   };
   readonly itemLabel: string | null;
+  /** 원천이 표시하는 공고번호다. 표시·복사용이며 상세를 아직 따지 않은 공고는 null이다(EAT-248). */
+  readonly displayBidNo: string | null;
   readonly floorRateText: string;
   readonly region: {
     readonly sido: { readonly codeValueId: string; readonly text: string } | null;
@@ -213,6 +215,7 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     href: `/auctions/${encodeURIComponent(auction.auctionAttemptId)}`,
     organization: presentOrganization(auction.organization),
     itemLabel: auction.itemLabel,
+    displayBidNo: auction.displayBidNo,
     // 관측되지 않은 하한율을 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3).
     floorRateText: auction.floorRate === null ? FLOOR_RATE_UNKNOWN : formatFloorRate(auction.floorRate.value),
     region: presentRegion(auction.region),

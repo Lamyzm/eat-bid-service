@@ -89,6 +89,8 @@ update mart.open_auction_snapshot as snapshot
        floor_rate = latest.floor_rate,
        item_label = latest.item_label,
        announced_at = latest.announced_at,
+       title = latest.title,
+       display_bid_no = latest.display_bid_no,
        region_sido_code_value_id = latest.sido_code_value_id,
        region_sigungu_code_value_id = latest.sigungu_code_value_id
   from (
@@ -96,6 +98,10 @@ update mart.open_auction_snapshot as snapshot
            revision.auction_attempt_id,
            revision.auction_revision_id,
            revision.floor_rate,
+           -- 제목과 공고번호는 검토된 목록 열이 아니라 상세 해석에 있다. 제목은 검색이 읽고(EAT-247)
+           -- 공고번호는 eaT로 건너갈 때 붙여 넣는 표시값이다(EAT-248). 둘 다 이 revision 계보를 탄다.
+           nullif(btrim(revision.title), '') as title,
+           nullif(btrim(coalesce(revision.display_bid_no, '')), '') as display_bid_no,
            -- 게시일은 목록에 없다. 목록 행은 마감·참여·상태만 주므로 `오늘 열린` 축은 상세에서만
            -- 온다. 없으면 그 탭이 성립하지 않는다(EAT-206).
            (revision.source_payload #>> '{schedule,announcedAt}')::timestamptz as announced_at,

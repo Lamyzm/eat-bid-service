@@ -18,6 +18,7 @@ const input = {
   eligibilityAreaCodeValueIds: null,
   itemLabels: null,
   includeUnknownItem: false,
+  searchText: null,
   onlyWithoutBids: false,
   closesWithinHours: null,
   baseAmountMin: null,

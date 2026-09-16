@@ -40,6 +40,7 @@ export type OpenAuctionRow = Readonly<
     organization_label: string | null;
     organization_type: string | null;
     item_label: string | null;
+    display_bid_no: string | null;
     floor_rate: string | null;
     terms_revision_id: string | bigint | null;
     closes_at: PostgresTimestamp;
@@ -106,6 +107,7 @@ export function mapOpenAuctionRow(row: OpenAuctionRow, hasOrgBuild: boolean): Op
       type: row.organization_type ?? "unknown",
     },
     itemLabel: observedLabel(row.item_label),
+    displayBidNo: observedLabel(row.display_bid_no),
     // 하한율은 사정률 축의 상수이며 mart numeric(6,3)이다. scale 불변식은 이 경계에서 한 번만 닫는다.
     floorRate: bidRateValue(row.floor_rate),
     region: region.sido === null && region.sigungu === null ? null : region,

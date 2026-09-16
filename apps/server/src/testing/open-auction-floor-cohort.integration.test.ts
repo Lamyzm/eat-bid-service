@@ -166,6 +166,7 @@ const baseQuery: OpenAuctionQuery = {
   eligibilityAreaCodeValueIds: null,
   itemLabels: null,
   includeUnknownItem: false,
+  searchText: null,
   onlyWithoutBids: false,
   closesWithinHours: null,
   closesOnKst: null,

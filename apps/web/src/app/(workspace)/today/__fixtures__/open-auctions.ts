@@ -35,6 +35,7 @@ export const todayRow: OpenAuction = {
   auctionAttemptId: '5796468',
   organization: { organizationId: '3101', label: '창원 남산초등학교', type: 'unknown' },
   itemLabel: '축산',
+  displayBidNo: '2026-0001',
   floorRate: { value: '90.000', unit: 'percentage-points' },
   region,
   eligibilityAreas: [...eligibilityAreas],
@@ -77,6 +78,7 @@ export const laterRow: OpenAuction = {
   auctionAttemptId: '5796471',
   organization: null,
   itemLabel: null,
+  displayBidNo: null,
   floorRate: null,
   region: null,
   // 제한지역을 관측하지 못한 행이다. 화면이 이 상태를 "제한 없음"으로 바꿔 말하지 않는지, 그리고 상태
@@ -109,6 +111,7 @@ export const openAuctionsFixture: OpenAuctionListV1Response = {
     eligibilityUnobservedCount: null,
     items: null,
     itemUnknown: null,
+    q: null,
     bidState: null,
     closesWithinHours: null,
     closesOn: null,

@@ -203,6 +203,31 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.locator(ROWS)).toHaveCount(3);
   });
 
+  test('달력 아래 검색 칸에 적으면 지금 조건 안에서 이름·번호가 든 행만 남고 탭도 같은 수를 세며 지우면 돌아온다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
+    await page.goto('/today?closesWithinHours=168');
+    await expect(page.locator(ROWS)).toHaveCount(3);
+
+    const input = page.getByRole('searchbox', { name: '학교 이름이나 공고로 찾기' });
+    await input.fill('남산');
+    await input.press('Enter');
+    await page.waitForURL(/q=/, { timeout: 60_000 });
+    // 검색은 다른 조건을 풀지 않는다 — 기간 창이 그대로 주소에 남는다.
+    await expect(page).toHaveURL(/closesWithinHours=168/);
+    await expect(page.locator(ROWS)).toHaveCount(1);
+    await expect(page.getByText('지금 조건 안에서 “남산” · 1건')).toBeVisible();
+    // 요약도 같은 검색어를 받아 탭이 표와 같은 수를 센다.
+    await expect(page.getByRole('link', { name: '진행중 1' })).toBeVisible();
+    // 공고번호는 행에서 복사 손잡이로 보인다. eaT 검색창에 붙여 넣는 값이다.
+    await expect(page.getByRole('button', { name: '공고번호 복사 2026-0001' })).toBeVisible();
+
+    await page.getByRole('link', { name: '검색 지우기' }).click();
+    await page.waitForURL((url) => !url.search.includes('q='), { timeout: 60_000 });
+    await expect(page).toHaveURL(/closesWithinHours=168/);
+    await expect(page.locator(ROWS)).toHaveCount(3);
+  });
+
   test('조건에 맞는 공고가 없으면 조건을 문장으로 되풀이하고 표를 그리지 않는다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto(`/today?items=${encodeURIComponent('없는 품목')}`);

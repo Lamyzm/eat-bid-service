@@ -40,6 +40,8 @@ export interface OpenAuctionRecord {
     readonly type: string;
   } | null;
   readonly itemLabel: string | null;
+  /** 원천이 표시하는 공고번호다. 표시·복사용 문자열이며 정체성은 `auctionAttemptId`다(AGENTS 2, EAT-248). */
+  readonly displayBidNo: string | null;
   readonly floorRate: BidRate | null;
   readonly region: {
     readonly sido: CodeReferenceRecord | null;
@@ -80,6 +82,8 @@ export interface OpenAuctionQuery {
   readonly itemLabels: readonly string[] | null;
   /** 참이면 품목 축을 걸어도 라벨 미관측 행을 함께 낸다. 품목 축이 없으면 아무 일도 하지 않는다. */
   readonly includeUnknownItem: boolean;
+  /** 검색어다. 제목·기관 이름·공고번호 안의 부분일치이며 다른 축 안에서만 찾는다. `null`은 검색 없음이다. */
+  readonly searchText: string | null;
   /** 참이면 관측된 참여 수가 0인 행만 낸다. 미관측(null)은 0이 아니라 못 센 것이라 빠진다. */
   readonly onlyWithoutBids: boolean;
   readonly closesWithinHours: number | null;

@@ -5,6 +5,7 @@ import { summarizeItemLabel } from '@/entities/item/item-label';
 
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { OpenAuctionRowPresentation } from '../_model/present-open-auctions';
+import { CopyBidNo } from './copy-bid-no';
 
 // 글자 크기는 둘뿐이다. 판단값은 전부 13px 한 크기이고 위계는 크기가 아니라 굵기와 색으로만 만든다 —
 // 토스증권 목록이 열 칸을 13px/600 하나로 그리는 방식이다(2026-09-16 실측). 보조 줄은 12px 한 단 아래다.
@@ -42,6 +43,9 @@ export function OrganizationCell({
         {organization.text}
       </Link>
       <span className={`flex min-w-0 flex-wrap gap-x-2 empty:hidden ${MUTED}`}>
+        {/* 공고번호는 eaT로 건너가는 손잡이다. 우리는 eaT 옆에 두는 도구라 마지막 한 걸음이 늘 "이 판을 eaT에서
+            연다"인데, 번호가 없으면 학교 이름으로 다시 검색해야 한다. 정체성이 아니라 복사용 글자다(EAT-248). */}
+        {row.displayBidNo === null ? null : <CopyBidNo value={row.displayBidNo} />}
         {/* 지역 링크는 라벨이 아니라 code value id로 거른다. 라벨은 표시일 뿐이다(AGENTS 2·6). */}
         {places.map((reference) => (
           <Link key={reference.codeValueId} href={buildTodayFilterRoute(search, { sido: reference.codeValueId })} className='hover:underline'>

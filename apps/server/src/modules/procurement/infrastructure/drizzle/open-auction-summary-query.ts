@@ -18,7 +18,12 @@ import {
   eligibilityObservedExpression,
   matchedEligibilityAreaCte,
 } from "./eligibility-area-sql";
-import { itemLabelPredicate, OPEN_AUCTION_SNAPSHOT, openScopePredicate } from "./open-auction-queries";
+import {
+  itemLabelPredicate,
+  OPEN_AUCTION_SNAPSHOT,
+  openScopePredicate,
+  searchPredicate,
+} from "./open-auction-queries";
 
 function instantParameter(value: { toString(): string }): string {
   return value.toString();
@@ -67,9 +72,12 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
   const eligibilityFilter: SQL = eligibility === null
     ? sql``
     : sql` and (scope.eligibility_matched or not scope.eligibility_observed)`;
+  // 검색은 금액과 같은 자리의 축이다 — 기둥의 지역·품목 배지가 "그 축 하나만 푼 수"를 지키려면 검색은
+  // 어느 배지에서도 풀리지 않아야 한다. 검색을 풀고 세면 배지가 검색 전 집합을 말한다.
   const amountFilter: SQL = sql`
         (${query.baseAmountMin}::numeric is null or scope.base_amount >= ${query.baseAmountMin}::numeric)
-        and (${query.baseAmountMax}::numeric is null or scope.base_amount <= ${query.baseAmountMax}::numeric)`;
+        and (${query.baseAmountMax}::numeric is null or scope.base_amount <= ${query.baseAmountMax}::numeric)
+        and ${searchPredicate(sql`scope`, query.searchText)}`;
   // 여덟 원자를 어휘 순서대로 세운다. 0건인 원자도 항목으로 남아야 화면이 "오늘 없다"와 "어휘에 없다"를
   // 가른다. 부분일치 술어는 목록 필터와 같은 `strpos`다(`itemLabelPredicate`).
   const atoms = textArrayLiteral([...AUCTION_ITEM_ATOMS]);
@@ -81,7 +89,10 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       select distinct on (snapshot.auction_attempt_id)
         snapshot.auction_attempt_id,
         snapshot.organization_id,
+        snapshot.organization_label,
         snapshot.item_label,
+        snapshot.title,
+        snapshot.display_bid_no,
         snapshot.floor_rate,
         snapshot.region_sido_code_value_id,
         snapshot.region_sigungu_code_value_id,

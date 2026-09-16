@@ -15,6 +15,8 @@ export type OpenAuctionListInput = {
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly itemUnknown?: 'include';
+  /** 제목·기관 이름·공고번호 안의 부분일치 검색어다. 다른 축 안에서만 찾는다. */
+  readonly q?: string;
   readonly bidState?: 'none';
   readonly closesWithinHours?: number;
   /** KST 달력일 축 둘이다. 계약이 시간 창과 마감 달력일을 함께 받지 않으므로 호출자가 하나만 넘긴다. */
@@ -36,6 +38,7 @@ export async function listOpenAuctionsWith(
     eligibilityArea: input.eligibilityArea,
     items: input.items,
     itemUnknown: input.itemUnknown,
+    q: input.q,
     bidState: input.bidState,
     closesWithinHours: input.closesWithinHours,
     closesOn: input.closesOn,

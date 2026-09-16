@@ -26,6 +26,7 @@ export interface ListOpenAuctionsInput {
   /** 품목 조각들이다. 한 조각이라도 라벨 안에 들어 있으면 걸린다(부분일치 OR). */
   readonly itemLabels: readonly string[] | null;
   readonly includeUnknownItem: boolean;
+  readonly searchText: string | null;
   readonly onlyWithoutBids: boolean;
   readonly closesWithinHours: number | null;
   readonly closesOnKst: string | null;
