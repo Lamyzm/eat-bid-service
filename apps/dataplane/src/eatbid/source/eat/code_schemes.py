@@ -187,6 +187,10 @@ class EatCodeListGroup:
 
     group_code: str
     scheme: EatCodeScheme
+    # 이 그룹의 행이 상위 코드를 싣는 column과 그 상위가 속한 그룹이다. 둘 다 없으면 상위를 읽지 않는다.
+    # column 이름이 아니라 그룹마다 따로 적는 이유는 아래 경고 그대로다 — 같은 `ITM_VL2`가 그룹마다 다른 뜻이다.
+    parent_column: str | None = None
+    parent_group: str | None = None
 
 
 # 2026-09-16 실측으로 고정한 네 그룹이다. 그룹을 늘리는 것은 새 관측을 여는 결정이므로 이 표를 고치는
@@ -199,7 +203,7 @@ class EatCodeListGroup:
 # 한 이름을 그룹에 상관없이 같은 뜻으로 읽으면 학교의 상위가 광역지자체가 된다(AGENTS 6).
 EAT_CODE_LIST_GROUPS: tuple[EatCodeListGroup, ...] = (
     EatCodeListGroup("SC066", AUCTION_LOCATION_SIDO),
-    EatCodeListGroup("SC067", AUCTION_LOCATION_SIGUNGU),
+    EatCodeListGroup("SC067", AUCTION_LOCATION_SIGUNGU, parent_column="ITM_VL2", parent_group="SC066"),
     EatCodeListGroup("EP049", ATTEMPT_STATUS),
     EatCodeListGroup("BC016", ORGANIZATION_TYPE),
 )
@@ -209,12 +213,18 @@ EAT_CODE_LIST_GROUP_CODES: tuple[str, ...] = tuple(
 )
 
 
-def code_list_scheme(group_code: str) -> EatCodeScheme | None:
-    """그룹 번호가 이름을 주는 체계를 돌려준다. 검토되지 않은 그룹은 `None`이다."""
+def code_list_group(group_code: str) -> EatCodeListGroup | None:
+    """검토된 그룹 하나를 돌려준다. 검토되지 않은 그룹은 `None`이다."""
     for group in EAT_CODE_LIST_GROUPS:
         if group.group_code == group_code:
-            return group.scheme
+            return group
     return None
+
+
+def code_list_scheme(group_code: str) -> EatCodeScheme | None:
+    """그룹 번호가 이름을 주는 체계를 돌려준다. 검토되지 않은 그룹은 `None`이다."""
+    group = code_list_group(group_code)
+    return None if group is None else group.scheme
 
 
 def optional_scheme_value(

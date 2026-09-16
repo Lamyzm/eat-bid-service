@@ -12,6 +12,7 @@ const 경남 = {
   active: true,
   validFrom: "1900-01-01T00:00:00Z",
   validTo: "9999-12-31T00:00:00Z",
+  parent: null,
 } as const;
 
 const vocabulary = {
@@ -23,6 +24,20 @@ const vocabulary = {
 } as const;
 
 describe("소스 코드목록 ingestion wire", () => {
+  test("시군구 항목은 소스가 말한 상위 시도를 체계와 코드로 싣고 상위가 없는 항목은 null이다", () => {
+    const 김해시 = normalizedCodeVocabularyEntryV1Schema.parse({
+      ...경남,
+      scheme: "eat:auction-location-sigungu",
+      code: "653",
+      label: "김해시",
+      parent: { scheme: "eat:auction-location-sido", code: "15" },
+    });
+    expect(김해시.parent).toEqual({ scheme: "eat:auction-location-sido", code: "15" });
+    expect(normalizedCodeVocabularyEntryV1Schema.parse(경남).parent).toBeNull();
+    // 상위는 체계 없이 코드만으로 말할 수 없다. 코드 문자열은 체계 안에서만 뜻이 있다(AGENTS 2·6).
+    expect(normalizedCodeVocabularyEntryV1Schema.safeParse({ ...경남, parent: { code: "15" } }).success).toBe(false);
+  });
+
   test("어휘 항목은 체계와 선행 0을 함께 보존한다", () => {
     const entry = normalizedCodeVocabularyEntryV1Schema.parse({ ...경남, code: "001" });
     expect(entry.code).toBe("001");

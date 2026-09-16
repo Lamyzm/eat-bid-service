@@ -211,6 +211,7 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "inserted_code_values": result.inserted_code_values,
             "inserted_labels": result.inserted_labels,
             "deactivated_code_values": result.deactivated_code_values,
+            "inserted_mappings": result.inserted_mappings,
         }
     if method_name == "fail_release":
         if not isinstance(result, FailedSourceRelease):
