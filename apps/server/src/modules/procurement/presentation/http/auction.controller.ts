@@ -180,6 +180,7 @@ export class AuctionController {
         sigunguCodeValueIds,
         eligibilityAreaCodeValueIds,
         itemLabels: query.items ?? null,
+        includeUnknownItem: query.itemUnknown !== undefined,
         baseAmountMin: query.baseAmountMin ?? null,
         baseAmountMax: query.baseAmountMax ?? null,
         calendarFrom: query.calendarFrom,

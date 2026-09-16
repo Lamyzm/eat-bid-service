@@ -416,6 +416,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
         itemLabels: null,
+        includeUnknownItem: false,
         baseAmountMin: null,
         baseAmountMax: null,
         calendarFrom: "2026-09-07",
@@ -479,6 +480,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         sigunguCodeValueIds: null,
         eligibilityAreaCodeValueIds: null,
         itemLabels: ["축산"],
+        includeUnknownItem: false,
         baseAmountMin: null,
         baseAmountMax: null,
         calendarFrom: "2026-09-07",
@@ -511,6 +513,16 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       expect(summary.regionUnobservedCount).toBe(0);
       // 품목 배지는 지역 41을 유지한 채 품목을 푼 수다. 그 집합(201·205)에는 라벨 없는 행이 없다.
       expect(summary.itemUnobservedCount).toBe(0);
+
+      // `품목 미상 포함`은 목록과 같은 술어다. 지역을 풀고 축산 + 미상을 세면 라벨 없는 202·203이 함께 들어와
+      // 넷이 되고, 이 수가 목록의 행 수와 같아야 탭·달력·배지가 표와 다른 말을 하지 않는다.
+      const withUnknown = await summaryReader.summarizeOpen({
+        ...scoped, sidoCodeValueId: null, includeUnknownItem: true,
+      });
+      expect(withUnknown.totalCount).toBe(4);
+      expect(withUnknown.totalCount).toBe(pageOf(await listReader.listOpen({
+        ...baseQuery, itemLabels: ["축산"], includeUnknownItem: true,
+      })).sampleCount);
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);

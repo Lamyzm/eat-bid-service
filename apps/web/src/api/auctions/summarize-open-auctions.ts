@@ -15,6 +15,7 @@ export type OpenAuctionSummaryInput = {
   readonly sigungu?: readonly string[];
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
+  readonly itemUnknown?: 'include';
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
   readonly calendarFrom: string;
@@ -30,6 +31,7 @@ export async function summarizeOpenAuctionsWith(
     sigungu: input.sigungu,
     eligibilityArea: input.eligibilityArea,
     items: input.items,
+    itemUnknown: input.itemUnknown,
     baseAmountMin: input.baseAmountMin,
     baseAmountMax: input.baseAmountMax,
     calendarFrom: input.calendarFrom,

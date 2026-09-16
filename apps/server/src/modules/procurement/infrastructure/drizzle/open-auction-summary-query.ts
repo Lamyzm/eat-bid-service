@@ -116,7 +116,7 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
       select scope.*
       from open_scope scope
       where ${amountFilter}
-        and ${itemLabelPredicate(sql`scope`, query.itemLabels)}${eligibilityFilter}
+        and ${itemLabelPredicate(sql`scope`, query.itemLabels, query.includeUnknownItem)}${eligibilityFilter}
     ),
     item_released as (
       select scope.*
@@ -126,7 +126,7 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
     scoped as (
       select scope.*
       from item_released scope
-      where ${itemLabelPredicate(sql`scope`, query.itemLabels)}
+      where ${itemLabelPredicate(sql`scope`, query.itemLabels, query.includeUnknownItem)}
     ),
     sido_counts as (
       select code.code_value_id, code.code, code.scheme, code.label, count(*)::int as count

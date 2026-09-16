@@ -7,6 +7,7 @@ import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import {
   eligibilityAreaFilterSchema,
   itemsFilterSchema,
+  itemUnknownFilterSchema,
   openAuctionStateSchema,
   sigunguFilterSchema,
 } from "./list-open-auctions.query";
@@ -32,6 +33,9 @@ export const openAuctionSummaryQuerySchema = z.strictObject({
   sigungu: sigunguFilterSchema.optional(),
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
   items: itemsFilterSchema.optional(),
+  // 목록이 받는 축이면 요약도 받는다. 빠지면 `품목 미상 포함`을 켰을 때 표의 행과 탭·달력·배지 수가
+  // 서로 다른 집합을 말한다(2026-09-16 EAT-241에서 발견).
+  itemUnknown: itemUnknownFilterSchema.optional(),
   baseAmountMin: canonicalMoneyAmountSchema.optional(),
   baseAmountMax: canonicalMoneyAmountSchema.optional(),
   calendarFrom: kstDateTextSchema,

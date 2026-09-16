@@ -46,6 +46,7 @@ export type TodaySummaryInput = {
   readonly sigungu?: readonly string[];
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
+  readonly itemUnknown?: 'include';
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
   readonly calendarFrom: string;
@@ -198,6 +199,7 @@ function summaryInput(search: TodaySearch, gate: TodayRegionGate, nowIso: string
     sigungu: search.sigungu ?? undefined,
     eligibilityArea: eligibilityAreaOf(gate),
     items: search.items ?? undefined,
+    itemUnknown: search.itemUnknown === 'include' ? 'include' : undefined,
     baseAmountMin: search.baseAmountMin ?? undefined,
     baseAmountMax: search.baseAmountMax ?? undefined,
     calendarFrom: window.from,

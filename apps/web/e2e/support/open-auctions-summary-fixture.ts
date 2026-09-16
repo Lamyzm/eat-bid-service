@@ -108,6 +108,7 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
   const regionReleased = filterOpenAuctionRows(now, {
     eligibilityArea: query.eligibilityArea,
     items: query.items,
+    itemUnknown: query.itemUnknown,
     baseAmountMin: query.baseAmountMin,
     baseAmountMax: query.baseAmountMax
   });
