@@ -318,7 +318,7 @@ describe("기관 회차 이력 HTTP 경로", () => {
       listAttempts: async () => ({
         kind: "page",
         page: {
-          attempts: [{ ...attempt, itemLabel: "축".repeat(513) }],
+          attempts: [{ ...attempt, items: ["축".repeat(513) as never] }],
           nextCursor: null,
           sampleCount: 1,
           lineage,
