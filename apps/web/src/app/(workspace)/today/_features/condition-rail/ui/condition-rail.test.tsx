@@ -31,7 +31,8 @@ describe('조건 기둥', () => {
     const screen = renderRail(EMPTY_TODAY_SEARCH);
     expect(screen.queryByRole('link', { name: /품목 미상/ })).toBeNull();
     expect(screen.getByText('품목 미상')).toBeTruthy();
-    expect(screen.getByText('지역 미상 1')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /지역 미상/ })).toBeNull();
+    expect(screen.getByText('지역 미상')).toBeTruthy();
   });
 
   test('기초금액은 라벨이 연결된 한 칸이고 GET form이 다른 조건을 hidden으로 나르며 걸린 값은 기본값으로 되돌릴 수 있다', () => {

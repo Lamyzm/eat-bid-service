@@ -68,6 +68,26 @@ export function itemAtomCte(): SQL {
 }
 
 /**
+ * 지역 술어 하나다. 시도 하나가 담는 그릇이고 시군구는 그 안에서만 좁힌다. 시군구가 비면 그 시도 전체다.
+ *
+ * 미관측을 함께 보려는 요청은 그 행이 다른 지역이라는 뜻이 아니라 어디인지 답할 수 없는 행임을 아는
+ * 요청이다(AGENTS 3). 시도 축이 없으면 이미 전부 보고 있어 플래그가 하는 일이 없다. 목록·요약이 같은
+ * 술어를 써야 `지역 미상 포함`을 켰을 때 행 수와 문장·달력·배지가 같은 집합을 말한다(EAT-260).
+ */
+export function regionPredicate(
+  alias: SQL,
+  sidoCodeValueId: bigint | null,
+  sigunguLiteral: string | null,
+  includeUnknown: boolean,
+): SQL {
+  const unknown = includeUnknown ? sql` or ${alias}.region_sido_code_value_id is null` : sql``;
+  return sql`(${sidoCodeValueId}::bigint is null
+             or ${alias}.region_sido_code_value_id = ${sidoCodeValueId}::bigint${unknown})
+        and (${sigunguLiteral}::text is null
+             or ${alias}.region_sigungu_code_value_id = any(${sigunguLiteral}::bigint[])${unknown})`;
+}
+
+/**
  * 품목 술어 하나다. **고른 원자 하나라도 행의 다리표에 있으면 걸린다.**
  *
  * 라벨 문자열을 `strpos`로 더듬던 것을 코드 조인으로 바꿨다(EAT-230). 라벨 부분일치는 `축`이 `축산물`과
@@ -202,11 +222,7 @@ export function openRowsCte(query: OpenAuctionQuery, extraCte: SQL = sql``): SQL
         -- 다른 사실이라는 것은 화면이 말한다(AGENTS 3).
         and (${query.announcedOnKst}::date is null
              or (open_scope.announced_at at time zone ${KST_TIME_ZONE})::date = ${query.announcedOnKst}::date)
-        -- 시도 하나가 담는 그릇이고 시군구는 그 안에서만 좁힌다. 시군구가 비면 그 시도 전체다.
-        and (${query.sidoCodeValueId}::bigint is null
-             or open_scope.region_sido_code_value_id = ${query.sidoCodeValueId}::bigint)
-        and (${sigungu}::text is null
-             or open_scope.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
+        and ${regionPredicate(sql`open_scope`, query.sidoCodeValueId, sigungu, query.includeUnknownRegion)}
         and ${itemAtomPredicate(sql`open_scope`, query.itemAtoms, query.includeUnknownItem)}
         and ${searchPredicate(sql`open_scope`, query.searchText)}
         and (not ${query.onlyWithoutBids}::boolean or open_scope.bid_count = 0)${eligibilityFilter}
@@ -294,6 +310,7 @@ export function pageQuery(query: OpenAuctionQuery): SQL {
       page_rows.organization_label,
       organization.type as organization_type,
       page_rows.item_label,
+      page_rows.title,
       page_rows.display_bid_no,
       page_rows.floor_rate,
       page_rows.terms_revision_id,

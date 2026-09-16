@@ -74,9 +74,17 @@ describe('열린 공고 카드 목록', () => {
     expect(screen.getAllByText('품목 모름').length).toBe(2);
   });
 
-  test('둘째 줄은 지역 링크·공고번호 복사 손잡이·제한지역 미관측이고 라벨 없는 지역은 비운다', () => {
+  test('둘째 줄은 제목·공고번호 복사 손잡이·제한지역 미관측이고 지역은 행에 없다', () => {
     const screen = renderCards();
-    expect(screen.getAllByRole('link', { name: '창원시' })[0]!.getAttribute('href')).toBe('/today?sido=43&closesWithinHours=72');
+    const lines = [...screen.container.querySelectorAll('[data-slot="auction-row"] > div:first-child > p:nth-child(2)')].map((node) => node.textContent);
+    // 제목이 없는 행은 빈칸이 아니라 미관측이다. 지역은 기둥의 축이라 행에 적지 않는다(U9).
+    expect(lines).toEqual([
+      '2026년 10월 학교급식 식재료(축산물) 구매 소액수의 견적 제출공고번호 복사 2026-0001',
+      '제목 미관측공고번호 복사 2026-0001',
+      '제목 미관측제한지역 미관측',
+      '제목 미관측제한지역 미관측'
+    ]);
+    expect(screen.queryAllByRole('link', { name: '창원시' }).length).toBe(0);
     expect(screen.container.textContent).not.toContain('코드 ');
     expect(screen.getAllByRole('button', { name: '공고번호 복사 2026-0001' }).length).toBe(2);
   });

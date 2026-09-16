@@ -77,9 +77,8 @@ function RegionSection({ region }: { readonly region: ConditionRailPresentation[
         </div>
       </details>
       {region.sigunguRows.map((row) => <CheckRow key={row.key} row={row} />)}
-      {region.unobservedText === null ? null : (
-        <span className={`${ROW} font-medium text-muted-foreground`}>{region.unobservedText}</span>
-      )}
+      {/* 지역 미상은 품목 미상과 같은 줄이다. 시도를 골랐을 때만 링크가 되고, 그 전에는 수만 말한다. */}
+      <CheckRow row={region.unknownRow} />
       {region.gate === null ? null : (
         // 게이트(내 참가제한지역)는 목록 전체에 걸리는 설정이라 여기서는 넓히거나 바꾸는 손잡이만 작게 둔다.
         // 이것은 필터이지 자격 판정이 아니다. `낼 수 있는 공고`라고 적지 않는다(ADR 0048 결정 5).

@@ -58,6 +58,7 @@ export function openAuctionsResponse(request: Request): Response | null {
       asOf: instantSecondsIso(now),
       sido: query.sido ?? null,
       sigungu: query.sigungu === undefined ? null : [...query.sigungu],
+      regionUnknown: query.regionUnknown ?? null,
       closesOn: query.closesOn ?? null,
       announcedOn: query.announcedOn ?? null,
       eligibilityArea: areaFilter,

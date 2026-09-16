@@ -24,6 +24,7 @@ import {
 export type TodayListInput = {
   readonly sido?: string;
   readonly sigungu?: readonly string[];
+  readonly regionUnknown?: 'include';
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly itemUnknown?: 'include';
@@ -45,6 +46,7 @@ export type TodayListInput = {
 export type TodaySummaryInput = {
   readonly sido?: string;
   readonly sigungu?: readonly string[];
+  readonly regionUnknown?: 'include';
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly itemUnknown?: 'include';
@@ -133,6 +135,8 @@ export function normalizeTodaySearch(search: TodaySearch): TodaySearch {
     sido: accepted(shape.sido, search.sido),
     // 시군구는 시도 안에서만 뜻이 있다. 시도 없이 남은 시군구는 서버가 400으로 답하므로 여기서 함께 버린다.
     sigungu: search.sido === null ? null : accepted(shape.sigungu, search.sigungu),
+    // 지역 미상 포함도 시도 안에서만 뜻이 있다. 시도 없이 남으면 서버가 아무 일도 하지 않으므로 함께 버린다.
+    regionUnknown: search.sido === null ? null : accepted(shape.regionUnknown, search.regionUnknown),
     items: accepted(shape.items, search.items),
     itemUnknown: accepted(shape.itemUnknown, search.itemUnknown),
     // 공백만 적은 검색은 검색이 아니다. 계약이 양끝을 걷어 내므로 걷어 낸 값을 주소의 값으로 삼는다.
@@ -166,7 +170,11 @@ function regionTextOf(gate: TodayRegionGate): string | null {
   return gate.areas[0]!.label;
 }
 
-function eligibilityAreaOf(gate: TodayRegionGate): readonly string[] | undefined {
+function eligibilityAreaOf(gate: TodayRegionGate, search: TodaySearch): readonly string[] | undefined {
+  // 지역 축(공고지역)을 직접 골랐으면 게이트(참가제한지역)를 걸지 않는다. 둘은 다른 체계이고(AGENTS 6) 지역
+  // 필터는 게이트와 독립으로 동작한다(사용자 결정 2026-09-17, EAT-260) — 경남을 골랐는데 서울 게이트가 남아
+  // 있으면 "경남에 김해밖에 없다"는 거짓 목록이 된다.
+  if (search.sido !== null) return undefined;
   // 확인했는데 고른 지역이 없는 상태도 필터를 건다. 그래야 "제한지역 미관측"만 남는 결과가 전국 목록과
   // 다른 사실로 화면에 닿는다.
   return gate.kind === 'applied' ? gate.areas.map((area) => area.codeValueId) : undefined;
@@ -176,7 +184,8 @@ function listInput(search: TodaySearch, gate: TodayRegionGate): TodayListInput {
   return {
     sido: search.sido ?? undefined,
     sigungu: search.sigungu ?? undefined,
-    eligibilityArea: eligibilityAreaOf(gate),
+    regionUnknown: search.regionUnknown === null ? undefined : 'include',
+    eligibilityArea: eligibilityAreaOf(gate, search),
     items: search.items ?? undefined,
     itemUnknown: search.itemUnknown === 'include' ? 'include' : undefined,
     q: search.q ?? undefined,
@@ -203,7 +212,8 @@ function summaryInput(search: TodaySearch, gate: TodayRegionGate, nowIso: string
   return {
     sido: search.sido ?? undefined,
     sigungu: search.sigungu ?? undefined,
-    eligibilityArea: eligibilityAreaOf(gate),
+    regionUnknown: search.regionUnknown === null ? undefined : 'include',
+    eligibilityArea: eligibilityAreaOf(gate, search),
     items: search.items ?? undefined,
     itemUnknown: search.itemUnknown === 'include' ? 'include' : undefined,
     q: search.q ?? undefined,

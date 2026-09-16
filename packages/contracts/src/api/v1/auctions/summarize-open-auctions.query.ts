@@ -8,6 +8,7 @@ import {
   eligibilityAreaFilterSchema,
   itemsFilterSchema,
   itemUnknownFilterSchema,
+  regionUnknownFilterSchema,
   openAuctionStateSchema,
   searchTextSchema,
   sigunguFilterSchema,
@@ -32,6 +33,8 @@ export const openAuctionSummaryQuerySchema = z.strictObject({
   state: openAuctionStateSchema.default("open"),
   sido: positiveBigintTextSchema.optional(),
   sigungu: sigunguFilterSchema.optional(),
+  // 목록이 받는 축이면 요약도 받는다. 빠지면 `지역 미상 포함`을 켰을 때 행과 문장·달력·배지 수가 다른 집합을 말한다.
+  regionUnknown: regionUnknownFilterSchema.optional(),
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
   items: itemsFilterSchema.optional(),
   // 목록이 받는 축이면 요약도 받는다. 빠지면 `품목 미상 포함`을 켰을 때 표의 행과 탭·달력·배지 수가

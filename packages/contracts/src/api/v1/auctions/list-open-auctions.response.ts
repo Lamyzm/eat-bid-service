@@ -40,6 +40,7 @@ export const openAuctionListMetaSchema = z.strictObject({
   eligibilityUnobservedCount: nonNegativeCountSchema.nullable(),
   items: z.array(auctionItemAtomSchema).max(AUCTION_ITEM_ATOMS.length).nullable(),
   itemUnknown: z.literal("include").nullable(),
+  regionUnknown: z.literal("include").nullable(),
   q: searchTextSchema.nullable(),
   bidState: z.literal("none").nullable(),
   closesWithinHours: closesWithinHoursSchema.nullable(),

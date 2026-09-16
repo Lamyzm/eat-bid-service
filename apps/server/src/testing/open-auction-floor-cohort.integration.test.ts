@@ -163,6 +163,7 @@ const baseQuery: OpenAuctionQuery = {
   asOf: NOW,
   sidoCodeValueId: null,
   sigunguCodeValueIds: null,
+  includeUnknownRegion: false,
   eligibilityAreaCodeValueIds: null,
   itemAtoms: null,
   includeUnknownItem: false,

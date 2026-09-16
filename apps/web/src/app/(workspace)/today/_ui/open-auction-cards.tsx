@@ -1,4 +1,4 @@
-/** @module 책임: 열린 공고 행을 마감 시각 묶음 아래 세 줄 카드(기관·품목 / 지역·공고번호 / 지금·지난번·보통)와 오른쪽 금액·하한으로 그린다. 무엇을 묶고 어떤 글자를 쓸지는 표시 모델이 정하고 여기는 server component로 남는다. */
+/** @module 책임: 열린 공고 행을 마감 시각 묶음 아래 세 줄 카드(기관·품목 / 제목·공고번호 / 지금·지난번·보통)와 오른쪽 금액·하한으로 그린다. 무엇을 묶고 어떤 글자를 쓸지는 표시 모델이 정하고 여기는 server component로 남는다. */
 import Link from 'next/link';
 
 import { summarizeItemLabel } from '@/entities/item/item-label';
@@ -79,14 +79,11 @@ function SignalLine({ row }: { readonly row: OpenAuctionRowPresentation }) {
 /**
  * 행 하나다. 왼쪽 세 줄과 오른쪽 금액이다. 행을 여는 자리는 기관 이름이고 결정 화면을 가리킨다 — 별도의
  * `열기`를 두면 모든 행에 같은 단어가 서른 번 선다. 품목 링크는 라벨 전체가 아니라 첫 조각 하나를 건다 —
- * 합성 라벨을 통째로 걸면 `육류`만 있는 행이 빠진다(EAT-230). 지역 링크는 라벨이 아니라 code value id다.
+ * 합성 라벨을 통째로 걸면 `육류`만 있는 행이 빠진다(EAT-230). 지역은 행에 없다 — 기둥이 소유하는 축이고
+ * 행마다 적으면 같은 글자가 스무 번 선다(U9).
  */
 function AuctionRow({ row, search }: { readonly row: OpenAuctionRowPresentation; readonly search: TodaySearch }) {
   const item = row.itemLabel === null ? null : summarizeItemLabel(row.itemLabel);
-  // 라벨을 관측하지 못한 지역은 코드로 적지 않고 비운다. `코드 657`은 사용자가 읽을 수 없는 글자다.
-  const places = [row.region.sido, row.region.sigungu].filter(
-    (reference): reference is NonNullable<typeof reference> => reference !== null && !reference.text.startsWith('코드 ')
-  );
   return (
     <article
       data-slot='auction-row'
@@ -108,18 +105,16 @@ function AuctionRow({ row, search }: { readonly row: OpenAuctionRowPresentation;
             </span>
           )}
         </p>
-        <p className='mt-1 flex min-w-0 flex-wrap gap-x-2 text-[14px] text-muted-foreground'>
-          {places.map((reference) => (
-            <Link key={reference.codeValueId} href={buildTodayFilterRoute(search, { sido: reference.codeValueId })} className='hover:underline'>
-              {reference.text}
-            </Link>
-          ))}
+        <p className='mt-1 flex min-w-0 items-baseline gap-x-2 text-[14px] text-muted-foreground'>
+          {/* 제목은 한 줄이다. 두 줄로 흐르면 세 줄 카드가 네 줄이 되어 행마다 높이가 달라진다. 상세를 아직 따지
+              않은 공고는 제목이 없고 그 사실을 적는다 — 빈칸은 "제목이 없다"로 읽힌다(AGENTS 3). */}
+          <span className={`min-w-0 truncate ${row.title === null ? HINT : ''}`}>{row.title ?? '제목 미관측'}</span>
           {/* 공고번호는 eaT로 건너가는 손잡이다. 마지막 한 걸음은 늘 "이 판을 eaT에서 연다"이다(EAT-248). */}
-          {row.displayBidNo === null ? null : <CopyBidNo value={row.displayBidNo} />}
+          {row.displayBidNo === null ? null : <span className='shrink-0 text-[13px]'><CopyBidNo value={row.displayBidNo} /></span>}
           {/* 제한지역은 공고지역과 다른 축이라 링크가 아니라 사실 표시다. 관측하지 못한 경우만 남긴다 — 제한
               없음으로 바꿔 적으면 낼 수 있는 공고가 목록에서 조용히 사라진다. 급한 일이 아니라 사실이라 색이
               아니라 굵기로 드러낸다. */}
-          {row.eligibilityText === null ? <span className='font-semibold text-foreground'>제한지역 미관측</span> : null}
+          {row.eligibilityText === null ? <span className='shrink-0 font-semibold text-foreground'>제한지역 미관측</span> : null}
         </p>
         <SignalLine row={row} />
       </div>

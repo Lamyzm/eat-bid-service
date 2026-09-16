@@ -32,6 +32,7 @@ const emptyList: OpenAuctionListV1Response = {
     eligibilityUnobservedCount: null,
     items: null,
     itemUnknown: null,
+    regionUnknown: null,
     q: null,
     bidState: null,
     closesWithinHours: null,
@@ -94,6 +95,7 @@ describe('열린 공고 목록 resource 조회', () => {
     const samples: Record<string, unknown> = {
       sido: '41',
       sigungu: ['43'],
+      regionUnknown: 'include',
       eligibilityArea: ['9101'],
       items: ['육류', '가금류'],
       itemUnknown: 'include',

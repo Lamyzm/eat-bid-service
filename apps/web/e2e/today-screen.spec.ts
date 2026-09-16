@@ -147,10 +147,10 @@ test.describe('오늘 화면 fixture', () => {
     // 합성 라벨(`육류 , 가금류`) 행도 원자마다 한 번씩 센다 — 두 행이 육류를 갖는다(EAT-230).
     await expect(rail.getByRole('link', { name: '육류 2' })).toBeVisible();
     await expect(rail.getByRole('link', { name: '우유류 0' })).toBeVisible();
-    // 품목 축이 없으면 미상은 이미 보고 있으므로 링크가 아니라 수다. 지역 미상은 걸 조건이 없는 사실이다.
+    // 품목 축이 없으면 미상은 이미 보고 있으므로 링크가 아니라 수다. 지역 미상은 시도를 골랐으므로 켤 수 있는 줄이다.
     await expect(rail.getByRole('link', { name: /품목 미상/ })).toHaveCount(0);
     await expect(rail.getByText('품목 미상')).toBeVisible();
-    await expect(rail.getByText('지역 미상 1')).toBeVisible();
+    await expect(rail.getByRole('link', { name: '지역 미상 1' })).toBeVisible();
     // 기초금액은 최소 한 칸이고 기본이 비어 있다(사용자 결정 2026-09-15).
     const amount = rail.getByLabel('기초금액');
     await expect(amount).toHaveValue('');

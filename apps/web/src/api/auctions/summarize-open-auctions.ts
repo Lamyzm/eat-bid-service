@@ -13,6 +13,7 @@ import type { ContractRequest } from '../_transport/request-contract';
 export type OpenAuctionSummaryInput = {
   readonly sido?: string;
   readonly sigungu?: readonly string[];
+  readonly regionUnknown?: 'include';
   readonly eligibilityArea?: readonly string[];
   readonly items?: readonly string[];
   readonly itemUnknown?: 'include';
@@ -31,6 +32,7 @@ export async function summarizeOpenAuctionsWith(
   const query = auctionV1Operations.summarizeOpen.querySchema.parse({
     sido: input.sido,
     sigungu: input.sigungu,
+    regionUnknown: input.regionUnknown,
     eligibilityArea: input.eligibilityArea,
     items: input.items,
     itemUnknown: input.itemUnknown,

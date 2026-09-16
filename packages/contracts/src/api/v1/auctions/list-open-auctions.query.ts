@@ -111,6 +111,13 @@ export const bidStateFilterSchema = z.literal("none");
 export const itemUnknownFilterSchema = z.literal("include");
 
 /**
+ * 지역 미관측을 함께 볼지다. 시도 축을 걸면 공고지역을 관측하지 못한 행이 조용히 빠지는데, 그 행은 다른
+ * 지역의 공고가 아니라 어디인지 아직 못 본 공고다. 이 값이 있으면 미관측도 함께 낸다. 시도 축이 없으면
+ * 아무 일도 하지 않는다 — 이미 전부 보고 있기 때문이다(EAT-260).
+ */
+export const regionUnknownFilterSchema = z.literal("include");
+
+/**
  * 검색어다. **제목·기관 이름·공고번호 안의 부분일치**이며 지금 걸린 다른 조건 안에서만 찾는다.
  *
  * 목록은 200건 상한이고 더보기를 두지 않으므로 상한 밖 행에 닿는 길이 이것뿐이다(EAT-206 결정,
@@ -124,6 +131,7 @@ export const openAuctionListQuerySchema = z.strictObject({
   state: openAuctionStateSchema.default("open"),
   sido: positiveBigintTextSchema.optional(),
   sigungu: sigunguFilterSchema.optional(),
+  regionUnknown: regionUnknownFilterSchema.optional(),
   eligibilityArea: eligibilityAreaFilterSchema.optional(),
   items: itemsFilterSchema.optional(),
   itemUnknown: itemUnknownFilterSchema.optional(),

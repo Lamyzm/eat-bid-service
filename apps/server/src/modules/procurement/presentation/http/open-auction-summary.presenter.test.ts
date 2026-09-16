@@ -21,6 +21,7 @@ const query: OpenAuctionSummaryQuery = {
   asOf: Temporal.Instant.from("2026-09-14T01:00:00Z"),
   sidoCodeValueId: null,
   sigunguCodeValueIds: null,
+  includeUnknownRegion: false,
   eligibilityAreaCodeValueIds: null,
   itemAtoms: null,
   includeUnknownItem: false,

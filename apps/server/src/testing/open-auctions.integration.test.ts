@@ -36,7 +36,7 @@ const seed = `
          (13, 'eatbid:auction-item', 'eatbid', 'product-managed', 'effective-dated');
   insert into core.code_value (code_value_id, code_scheme_id, code)
   overriding system value
-  values (41, 11, '48'), (43, 12, '48120'), (44, 12, '48250'),
+  values (41, 11, '48'), (42, 11, '11'), (43, 12, '48120'), (44, 12, '48250'), (45, 12, '48170'),
          (51, 13, '육류'), (52, 13, '가금류'), (53, 13, '농산물'), (54, 13, '수산물'),
          (55, 13, '가공식품'), (56, 13, '김치류'), (57, 13, '곡류'), (58, 13, '우유류');
   insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
@@ -74,7 +74,13 @@ const seed = `
      '2026-09-07T00:30:00Z', 200, '${"c".repeat(64)}');
   insert into core.code_label_observation (code_value_id, label, language, observed_at, observation_id)
   values (41, '경상남도', 'ko', '2026-09-03T00:00:30Z', 303),
+         (42, '서울특별시', 'ko', '2026-09-03T00:00:30Z', 303),
          (43, '창원시', 'ko', '2026-09-03T00:00:30Z', 303);
+  -- 코드목록이 말한 시군구의 상위 시도다(EAT-260). 45(48170)는 어휘에는 있지만 열린 공고가 없는 시군구다.
+  insert into core.code_mapping (from_code_value_id, to_code_value_id, relation, valid_from, evidence_observation_id, status)
+  values (43, 41, 'parent', '2026-09-03T00:00:30Z', 303, 'observed'),
+         (44, 41, 'parent', '2026-09-03T00:00:30Z', 303, 'observed'),
+         (45, 41, 'parent', '2026-09-03T00:00:30Z', 303, 'observed');
   insert into ingest.normalized_record
     (normalized_record_id, observation_id, record_type, source_entity_id, normalized_payload,
      parser_version, normalized_at)
@@ -215,6 +221,7 @@ const baseQuery: OpenAuctionQuery = {
   asOf: NOW,
   sidoCodeValueId: null,
   sigunguCodeValueIds: null,
+  includeUnknownRegion: false,
   eligibilityAreaCodeValueIds: null,
   itemAtoms: null,
   includeUnknownItem: false,
@@ -388,6 +395,7 @@ describe("mart 열린 공고 목록 PostgreSQL 경계", () => {
           eligibilityUnobservedCount: null,
           items: ["육류"],
           itemUnknown: null,
+          regionUnknown: null,
           q: null,
           bidState: null,
           closesWithinHours: null,
@@ -435,6 +443,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         asOf: NOW,
         sidoCodeValueId: null,
         sigunguCodeValueIds: null,
+        includeUnknownRegion: false,
         eligibilityAreaCodeValueIds: null,
         itemAtoms: null,
         includeUnknownItem: false,
@@ -475,9 +484,11 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         .toEqual([[null, 2], ["88.000", 1], ["90.000", 1]]);
       expect(summary.floorShares.reduce((sum, share) => sum + share.count, 0)).toBe(summary.totalCount);
 
-      // 조건 기둥의 배지다. 조건이 없으니 지역 축을 푼 집합은 열린 넷 그대로이고, 시도가 있는 201·205만
-      // 시도 41에 서며 202·203은 지역 미상이다. 시도를 안 골랐으므로 시군구는 세우지 않는다.
+      // 조건 기둥의 배지다. 어휘의 시도 전부가 코드 순으로 서고 0건도 남는다 — 서울(42)은 열린 공고가 없지만
+      // 항목이다(EAT-260). 시도가 있는 201·205만 시도 41에 서며 202·203은 지역 미상이다. 시도를 안 골랐으므로
+      // 시군구는 세우지 않는다.
       expect(summary.sidoCounts).toEqual([
+        { codeValueId: 42n, code: "11", scheme: "eat:auction-location-sido", label: "서울특별시", count: 0 },
         { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도", count: 2 },
       ]);
       expect(summary.sigunguCounts).toEqual([]);
@@ -501,6 +512,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         asOf: NOW,
         sidoCodeValueId: 41n,
         sigunguCodeValueIds: null,
+        includeUnknownRegion: false,
         eligibilityAreaCodeValueIds: null,
         itemAtoms: ["육류"],
         includeUnknownItem: false,
@@ -527,11 +539,12 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       expect(summary.calendar[0]).toEqual({ date: "2026-09-07", count: 1, releasedCount: 1 });
 
       // 배지는 그 축 하나만 푼 수다. 시도 배지는 품목 `축산`을 유지한 채 지역을 푼 수라 201·205의 2이고,
-      // 시군구는 고른 시도 41 안에서만 선다 — 44는 라벨이 관측되지 않았지만 항목으로 남는다(AGENTS 3).
-      // 순서는 많은 것부터, 동률은 코드 순이다.
-      expect(summary.sidoCounts.map((entry) => [entry.code, entry.count])).toEqual([["48", 2]]);
+      // 시군구는 고른 시도 41 아래 — 코드목록이 말한 상위(`code_mapping` parent) — 전부가 코드 순으로 선다.
+      // 44는 라벨이 관측되지 않았지만 항목으로 남고(AGENTS 3), 45는 열린 공고가 없어도 0건으로 남는다(EAT-260).
+      expect(summary.sidoCounts.map((entry) => [entry.code, entry.count])).toEqual([["11", 0], ["48", 2]]);
       expect(summary.sigunguCounts).toEqual([
         { codeValueId: 43n, code: "48120", scheme: "eat:auction-location-sigungu", label: "창원시", count: 1 },
+        { codeValueId: 45n, code: "48170", scheme: "eat:auction-location-sigungu", label: null, count: 0 },
         { codeValueId: 44n, code: "48250", scheme: "eat:auction-location-sigungu", label: null, count: 1 },
       ]);
       expect(summary.regionUnobservedCount).toBe(0);
@@ -547,6 +560,23 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       expect(withUnknown.totalCount).toBe(pageOf(await listReader.listOpen({
         ...baseQuery, itemAtoms: ["육류"], includeUnknownItem: true,
       })).sampleCount);
+
+      // `지역 미상 포함`도 목록과 같은 술어다. 시도 41을 건 채 미상을 더하면 지역 없는 202·203이 함께 들어온다
+      // (EAT-260). 시도 축이 없으면 플래그가 하는 일이 없다.
+      const withUnknownRegion = await summaryReader.summarizeOpen({
+        ...scoped, itemAtoms: null, includeUnknownRegion: true,
+      });
+      expect(withUnknownRegion.totalCount).toBe(4);
+      expect(withUnknownRegion.totalCount).toBe(pageOf(await listReader.listOpen({
+        ...baseQuery, sidoCodeValueId: 41n, includeUnknownRegion: true,
+      })).sampleCount);
+      expect((await summaryReader.summarizeOpen({ ...scoped, itemAtoms: null, sidoCodeValueId: null, includeUnknownRegion: true })).totalCount).toBe(4);
+
+      // 지역 배지는 게이트(참가제한지역)와 독립이다. 매칭되는 제한지역이 없는 게이트를 걸어도 시도·시군구 수는
+      // 그대로다 — 시도를 고르는 순간 게이트가 풀리므로 배지도 그 수를 말해야 누르면 되는 수다(EAT-260).
+      const gated = await summaryReader.summarizeOpen({ ...scoped, itemAtoms: null, eligibilityAreaCodeValueIds: [9_999n] });
+      expect(gated.sidoCounts.map((entry) => [entry.code, entry.count])).toEqual([["11", 0], ["48", 2]]);
+      expect(gated.sigunguCounts.map((entry) => [entry.code, entry.count])).toEqual([["48120", 1], ["48170", 0], ["48250", 1]]);
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);
@@ -574,6 +604,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
         asOf: NOW,
         sidoCodeValueId: null,
         sigunguCodeValueIds: null,
+        includeUnknownRegion: false,
         eligibilityAreaCodeValueIds: null,
         itemAtoms: null,
         includeUnknownItem: false,
@@ -587,7 +618,7 @@ describe("mart 열린 공고 요약 PostgreSQL 경계", () => {
       expect(ids(list)).toEqual([201n, 205n]);
       expect(summary.totalCount).toBe(list.sampleCount);
       // 검색은 어느 배지에서도 풀리지 않는다. 시도 배지가 검색을 풀고 세면 4가 되어 누르면 되는 수가 아니다.
-      expect(summary.sidoCounts.map((entry) => [entry.code, entry.count])).toEqual([["48", 2]]);
+      expect(summary.sidoCounts.map((entry) => [entry.code, entry.count])).toEqual([["11", 0], ["48", 2]]);
     });
     await expectOwnedContainersCleanedUp();
   }, 180_000);

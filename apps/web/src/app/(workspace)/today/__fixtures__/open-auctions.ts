@@ -33,6 +33,7 @@ const region = {
 
 export const todayRow: OpenAuction = {
   auctionAttemptId: '5796468',
+  title: '2026년 10월 학교급식 식재료(축산물) 구매 소액수의 견적 제출',
   organization: { organizationId: '3101', label: '창원 남산초등학교', type: 'unknown' },
   itemLabel: '육류 , 가금류',
   displayBidNo: '2026-0001',
@@ -65,6 +66,7 @@ export const todayRow: OpenAuction = {
 export const tomorrowRow: OpenAuction = {
   ...todayRow,
   auctionAttemptId: '5796470',
+  title: null,
   organization: { organizationId: '3102', label: null, type: 'school' },
   itemLabel: '농산',
   // KST 2026-09-08 00:30 — UTC로는 같은 날(09-07 15:30)이지만 KST로 내일이다.
@@ -77,6 +79,7 @@ export const tomorrowRow: OpenAuction = {
 export const laterRow: OpenAuction = {
   ...todayRow,
   auctionAttemptId: '5796471',
+  title: null,
   organization: null,
   itemLabel: null,
   displayBidNo: null,
@@ -97,6 +100,7 @@ export const laterRow: OpenAuction = {
 export const unknownClosesRow: OpenAuction = {
   ...laterRow,
   auctionAttemptId: '5796472',
+  title: null,
   closesAt: null
 };
 
@@ -113,6 +117,7 @@ export const openAuctionsFixture: OpenAuctionListV1Response = {
     eligibilityUnobservedCount: null,
     items: null,
     itemUnknown: null,
+    regionUnknown: null,
     q: null,
     bidState: null,
     closesWithinHours: null,
