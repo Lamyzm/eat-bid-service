@@ -550,7 +550,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(historyTable.locator('tbody tr')).toHaveCount(12);
     // 손잡이는 값 없이 시작한다. 시작값이 있으면 표 머리글까지 번지는 추천값이 되므로 가정 계산 열 자체가 없다(AGENTS 8, EAT-84).
     await expect(historyTable.locator('thead th').last()).toHaveText('명단');
-    await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText('썼다면');
+    await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText(/d.d{3} 기준/);
 
     // 부제의 표시 회차 수는 서버 컴포넌트가 센다. 상한 상수를 'use client' 모듈에서 읽으면 서버 쪽에서
     // 숫자가 아니게 되어 NaN이 렌더된다(EAT-77). 단위 테스트는 RSC 경계를 재현하지 못하므로 실제
@@ -579,7 +579,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     const section = page.locator('section[aria-label="과거 회차"]');
     const scroller = section.locator('[data-slot="history-table-scroll"]');
     const headerLast = section.locator('table thead th').last();
-    await expect(headerLast).toHaveText('90.000 썼다면');
+    await expect(headerLast).toHaveText('90.000 기준');
     await expect(headerLast).toBeVisible();
 
     const geometry = await scroller.evaluate((node) => ({
@@ -628,21 +628,21 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     const input = page.getByRole('textbox', { name: '투찰률 눌러서 직접 입력', exact: true });
     await input.fill('90.000');
     await input.blur();
-    await expect(headerLast).toHaveText('90.000 썼다면');
+    await expect(headerLast).toHaveText('90.000 기준');
     await expect(page.getByText(/지난 \d+회 중 낙찰값 이하였을 회차/)).toBeVisible();
     const rehearsalPanel = page.getByText('이 값이면', { exact: true }).locator('..');
     const before = await rehearsalPanel.innerText();
 
     await page.getByRole('button', { name: '투찰률 0.001 올리기' }).click();
 
-    await expect(headerLast).toHaveText('90.001 썼다면');
+    await expect(headerLast).toHaveText('90.001 기준');
     expect(await rehearsalPanel.innerText()).not.toBe(before);
 
     // 놓은 값은 세션 동안 주소에 남아 새로 고쳐도 같은 값으로 그려진다(EAT-84).
     await expect(page).toHaveURL(/rate=90\.001/);
     await page.reload();
     await waitForDecision(page);
-    await expect(page.locator('section[aria-label="과거 회차"] thead th').last()).toHaveText('90.001 썼다면');
+    await expect(page.locator('section[aria-label="과거 회차"] thead th').last()).toHaveText('90.001 기준');
     await openCurrentAuctionPanel(page);
     await expect(page.getByRole('textbox', { name: '투찰률 눌러서 직접 입력', exact: true })).toHaveValue('90.001');
   });
