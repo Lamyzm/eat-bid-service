@@ -550,7 +550,7 @@ test.describe('결정 화면 근거 영역 fixture', () => {
     await expect(historyTable.locator('tbody tr')).toHaveCount(12);
     // 손잡이는 값 없이 시작한다. 시작값이 있으면 표 머리글까지 번지는 추천값이 되므로 가정 계산 열 자체가 없다(AGENTS 8, EAT-84).
     await expect(historyTable.locator('thead th').last()).toHaveText('명단');
-    await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText(/d.d{3} 기준/);
+    await expect(page.locator('[data-slot="decision-screen"]')).not.toContainText(/\d\.\d{3} 기준/);
 
     // 부제의 표시 회차 수는 서버 컴포넌트가 센다. 상한 상수를 'use client' 모듈에서 읽으면 서버 쪽에서
     // 숫자가 아니게 되어 NaN이 렌더된다(EAT-77). 단위 테스트는 RSC 경계를 재현하지 못하므로 실제
