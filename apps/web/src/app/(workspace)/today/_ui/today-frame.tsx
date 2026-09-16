@@ -11,16 +11,16 @@ type TodayFrameProps = {
  * 면이 각자 여백을 갖고 화면이 세 조각으로 갈라진다. 기둥은 252px에 오른쪽 선 하나, 본문은 1040px까지이고
  * 가운데 정렬하지 않는다 — 넓은 화면에서 목록이 오른쪽으로 떠 있으면 기둥과 목록 사이가 벌어진다.
  *
- * 기둥은 2xl(1536) 아래에서 본문 위로 내려온다. xl(1280)에서 옆에 두면 셸 탐색과 기둥을 뺀 본문이 708px뿐이라
- * 마감 묶음의 행이 두 줄로 접힌다(2026-09-16 실측).
+ * 기둥은 xl(1280)부터 옆에 서고 그 아래에서 본문 위로 내려온다. 표였을 때는 xl에서 본문이 708px뿐이라 여덟 칸이
+ * 접혀 2xl부터였지만(2026-09-16 실측), 카드 행은 그 폭에서 세 줄이 그대로 서므로 한 단계 아래로 내렸다(EAT-260).
  */
 export function TodayFrame({ header, rail, filters, list }: TodayFrameProps) {
   return (
-    <div data-slot='today-screen' role='region' aria-labelledby='today-title' className='grid w-full min-w-0 2xl:grid-cols-[252px_minmax(0,1fr)]'>
-      <aside aria-label='내 조건' className='min-w-0 border-b border-border px-4 py-5 2xl:border-r 2xl:border-b-0 2xl:py-6'>
+    <div data-slot='today-screen' role='region' aria-labelledby='today-title' className='grid w-full min-w-0 xl:grid-cols-[252px_minmax(0,1fr)]'>
+      <aside aria-label='내 조건' className='min-w-0 border-b border-border px-4 py-5 xl:border-r xl:border-b-0 xl:py-6'>
         {rail}
       </aside>
-      <div className='min-w-0 max-w-[1112px] px-4 py-5 sm:px-6 2xl:px-9 2xl:py-7'>
+      <div className='min-w-0 max-w-[1112px] px-4 py-5 sm:px-6 xl:px-9 xl:py-7'>
         <header className='min-w-0'>{header}</header>
         <div className='grid min-w-0 content-start gap-3 pt-5'>
           <section aria-label='조건' className='min-w-0'>{filters}</section>

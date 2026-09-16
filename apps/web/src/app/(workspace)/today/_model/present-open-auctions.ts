@@ -1,4 +1,4 @@
-/** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 표가 그대로 쓰는 표시값(KST 마감·D-day·금액·미확인 문구·(기관, 하한율) 요약)으로 바꾼다. */
+/** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 카드 목록이 그대로 쓰는 표시값(KST 마감·D-day·금액·미확인 문구·(기관, 하한율) 요약)으로 바꾼다. */
 import { Temporal } from '@eatbid/domain';
 import type { OpenAuction, OpenAuctionListV1Response } from '@eatbid/contracts/api/v1/auctions';
 
@@ -41,6 +41,8 @@ export type OpenAuctionRowPresentation = {
      */
     readonly clockText: string;
     readonly dDay: number | null;
+    /** wire instant 그대로다. 마감 시각 묶음이 남은 시간을 셀 때 쓰고 화면에는 이 값이 직접 서지 않는다. */
+    readonly at: string | null;
   };
   /**
    * 관측된 참여 수다. `0`은 빈 문자열이다 — 값을 버리는 것이 아니라 전면에 세우지 않는 것이다(사용자 결정
@@ -120,10 +122,10 @@ export function dayAwayText(dDay: number): string {
 }
 
 function presentCloses(closesAt: string | null, nowIso: string): OpenAuctionRowPresentation['closes'] {
-  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null };
+  if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null, at: null };
   const dDay = dDayOf(closesAt, nowIso);
   const tone: ClosesTone = dDay <= 0 ? 'today' : dDay === 1 ? 'tomorrow' : 'later';
-  return { tone, label: dayAwayText(dDay), clockText: kstTime(closesAt), dDay };
+  return { tone, label: dayAwayText(dDay), clockText: kstTime(closesAt), dDay, at: closesAt };
 }
 
 function formatWon(amount: string): string {

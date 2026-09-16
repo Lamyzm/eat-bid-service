@@ -134,8 +134,8 @@ function AmountSection({ amount }: { readonly amount: ConditionRailPresentation[
 
 export function ConditionRail({ rail }: { readonly rail: ConditionRailPresentation }) {
   return (
-    // 기둥이 본문 위로 가는 폭(2xl 미만)에서는 세 구역이 가로로 선다. 세로로 쌓으면 목록이 첫 화면 밖으로 밀린다.
-    <div className='grid min-w-0 items-start gap-5 md:grid-cols-3 2xl:grid-cols-1'>
+    // 기둥이 본문 위로 가는 폭(xl 미만)에서는 세 구역이 가로로 선다. 세로로 쌓으면 목록이 첫 화면 밖으로 밀린다.
+    <div className='grid min-w-0 items-start gap-5 md:grid-cols-3 xl:grid-cols-1'>
       <RegionSection region={rail.region} />
       <ItemSection item={rail.item} />
       <AmountSection amount={rail.amount} />
