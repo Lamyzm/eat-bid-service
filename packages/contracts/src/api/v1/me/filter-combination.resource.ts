@@ -6,7 +6,7 @@ import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { instantTextSchema } from "../../../atoms/instant";
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { AUCTION_ITEM_ATOMS, auctionItemAtomSchema } from "../../../values/auction-item";
-import { itemsFilterSchema, sigunguFilterSchema } from "../auctions/list-open-auctions.query";
+import { itemsFilterSchema, regionUnknownFilterSchema, sigunguFilterSchema } from "../auctions/list-open-auctions.query";
 
 /**
  * 워크스페이스당 저장할 수 있는 조합 수다. **응답 배열 상한과 저장 command가 이 상수 하나를 함께 쓴다.**
@@ -29,6 +29,14 @@ export const filterCombinationFilterSchema = z.strictObject({
   sigungu: z.array(positiveBigintTextSchema).max(31).nullable(),
   // 품목은 원자 코드다. 저장도 표시도 원자로만 하며 묶음 이름은 여기 들어오지 않는다(EAT-230).
   items: z.array(auctionItemAtomSchema).max(AUCTION_ITEM_ATOMS.length).nullable(),
+  /**
+   * 공고지역을 관측하지 못한 행까지 셀지다. 지역 축과 같이 저장한다 — 이 값이 지역 축의 모집단을 바꾸므로
+   * 빠뜨리면 같은 이름의 프리셋이 저장할 때와 불러올 때 다른 집합을 센다(EAT-267).
+   *
+   * 목록 query와 같은 어휘(`"include"` 또는 없음)를 쓴다. 여기서만 boolean으로 말하면 같은 사실을 두 가지
+   * 말로 적게 되고, 한쪽 뜻이 바뀌는 날 둘이 갈린다(AGENTS 16).
+   */
+  regionUnknown: z.literal("include").nullable(),
   baseAmountMin: canonicalMoneyAmountSchema.nullable(),
   baseAmountMax: canonicalMoneyAmountSchema.nullable(),
 }).meta({ id: "FilterCombinationFilter" });
@@ -50,6 +58,7 @@ export const saveFilterCombinationCommandSchema = z.strictObject({
   sido: positiveBigintTextSchema.optional(),
   sigungu: sigunguFilterSchema.optional(),
   items: itemsFilterSchema.optional(),
+  regionUnknown: regionUnknownFilterSchema.optional(),
   baseAmountMin: canonicalMoneyAmountSchema.optional(),
   baseAmountMax: canonicalMoneyAmountSchema.optional(),
 }).meta({ id: "SaveFilterCombinationCommand" });

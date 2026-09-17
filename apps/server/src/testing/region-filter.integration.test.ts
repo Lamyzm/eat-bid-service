@@ -47,6 +47,7 @@ const baseQuery: OpenAuctionQuery = {
   announcedOnKst: null,
   baseAmountMin: null,
   baseAmountMax: null,
+  regionUnknownIncluded: false,
   cursor: null,
   limit: 50,
 };

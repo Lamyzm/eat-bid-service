@@ -19,6 +19,8 @@ export type FilterCombinationCountsInput = {
   readonly items?: readonly string[];
   /** 검색어다. 건수에만 쓰이고 저장에는 실리지 않는다 — 저장 조합은 검색을 담지 않는다. */
   readonly q?: string;
+  /** 공고지역 미관측 행까지 셀지다. 지역 축의 모집단을 바꾸므로 지역과 함께 보낸다(EAT-267). */
+  readonly regionUnknown?: 'include';
   readonly baseAmountMin?: string;
   readonly baseAmountMax?: string;
 };
@@ -46,6 +48,7 @@ export async function countFilterCombinationsWith(
     eligibilityArea: input.eligibilityArea,
     items: input.items,
     q: input.q,
+    regionUnknown: input.regionUnknown,
     baseAmountMin: input.baseAmountMin,
     baseAmountMax: input.baseAmountMax
   });
@@ -66,6 +69,7 @@ export async function saveFilterCombinationWith(
     sido: input.sido,
     sigungu: input.sigungu,
     items: input.items,
+    regionUnknown: input.regionUnknown,
     baseAmountMin: input.baseAmountMin,
     baseAmountMax: input.baseAmountMax
   });

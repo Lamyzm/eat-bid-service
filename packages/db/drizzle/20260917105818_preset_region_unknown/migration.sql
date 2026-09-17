@@ -1,0 +1,1 @@
+ALTER TABLE "app"."workspace_filter_combination" ADD COLUMN "region_unknown_included" boolean DEFAULT false NOT NULL;

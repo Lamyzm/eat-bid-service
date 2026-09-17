@@ -21,6 +21,11 @@ export interface OpenAuctionFilterSet {
   readonly searchText: string | null;
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
+  /**
+   * 공고지역을 관측하지 못한 행까지 셀지다. 목록이 같은 축을 갖고 있어 여기서 빠뜨리면 조합 옆의 수와
+   * 그 조합을 눌렀을 때의 목록 수가 달라진다(EAT-267).
+   */
+  readonly regionUnknownIncluded: boolean;
 }
 
 export interface OpenAuctionFilterCountsQuery {

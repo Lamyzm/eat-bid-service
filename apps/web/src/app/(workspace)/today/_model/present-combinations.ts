@@ -93,6 +93,7 @@ function savedRoute(
     scope: search.scope,
     sido: combination.filter.sido,
     items: combination.filter.items,
+    regionUnknown: combination.filter.regionUnknown,
     baseAmountMin: combination.filter.baseAmountMin,
     baseAmountMax: combination.filter.baseAmountMax
   });
@@ -109,6 +110,8 @@ function sameFilter(
       && items.every((label, index) => label === search.items![index]);
   return combination.filter.sido === search.sido
     && sameItems
+    // 이 축이 다르면 세는 집합이 다르다. 빼고 비교하면 켜 둔 화면에서 꺼진 프리셋이 켜진 것처럼 보인다.
+    && combination.filter.regionUnknown === search.regionUnknown
     && combination.filter.baseAmountMin === search.baseAmountMin
     && combination.filter.baseAmountMax === search.baseAmountMax;
 }

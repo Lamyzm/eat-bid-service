@@ -22,6 +22,7 @@ import {
   itemUnobservedPredicate,
   OPEN_AUCTION_SNAPSHOT,
   openScopePredicate,
+  regionPredicate,
   searchPredicate,
 } from "./open-auction-queries";
 
@@ -37,10 +38,9 @@ function filterPredicate(filter: OpenAuctionFilterSet): SQL {
   const sigungu = filter.sigunguCodeValueIds === null || filter.sigunguCodeValueIds.length === 0
     ? null
     : bigintArrayLiteral(filter.sigunguCodeValueIds);
-  return sql`(${filter.sidoCodeValueId}::bigint is null
-        or base.region_sido_code_value_id = ${filter.sidoCodeValueId}::bigint)
-    and (${sigungu}::text is null
-        or base.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
+  // 지역 축은 목록과 같은 함수를 쓴다. 여기서 술어를 다시 적으면 `지역 미상 포함` 같은 축이 늘 때
+  // 한쪽만 고쳐지고 조합 옆의 수와 눌렀을 때의 목록이 갈린다(EAT-267).
+  return sql`${regionPredicate(sql`base`, filter.sidoCodeValueId, sigungu, filter.regionUnknownIncluded)}
     and ${itemAtomPredicate(sql`base`, filter.itemAtoms)}
     and ${searchPredicate(sql`base`, filter.searchText)}
     and (${filter.baseAmountMin}::numeric is null or base.base_amount >= ${filter.baseAmountMin}::numeric)
@@ -58,10 +58,7 @@ function itemRelaxedPredicate(filter: OpenAuctionFilterSet): SQL {
   const sigungu = filter.sigunguCodeValueIds === null || filter.sigunguCodeValueIds.length === 0
     ? null
     : bigintArrayLiteral(filter.sigunguCodeValueIds);
-  return sql`(${filter.sidoCodeValueId}::bigint is null
-        or base.region_sido_code_value_id = ${filter.sidoCodeValueId}::bigint)
-    and (${sigungu}::text is null
-        or base.region_sigungu_code_value_id = any(${sigungu}::bigint[]))
+  return sql`${regionPredicate(sql`base`, filter.sidoCodeValueId, sigungu, filter.regionUnknownIncluded)}
     and (${itemUnobservedPredicate(sql`base`)} or ${itemAtomPredicate(sql`base`, filter.itemAtoms)})
     and ${searchPredicate(sql`base`, filter.searchText)}
     and (${filter.baseAmountMin}::numeric is null or base.base_amount >= ${filter.baseAmountMin}::numeric)

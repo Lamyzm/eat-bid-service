@@ -20,6 +20,7 @@ type CombinationRow = Readonly<{
   sido_code_value_id: string | bigint | null;
   base_amount_min: string | null;
   base_amount_max: string | null;
+  region_unknown_included: boolean;
   created_at: string;
   sigungu: readonly (string | number)[] | null;
   items: readonly string[] | null;
@@ -37,6 +38,7 @@ function toCombination(row: CombinationRow): FilterCombinationRecord {
       itemAtoms: (row.items ?? []).map((code) => auctionItemAtomSchema.parse(code)),
       baseAmountMin: row.base_amount_min,
       baseAmountMax: row.base_amount_max,
+      regionUnknownIncluded: row.region_unknown_included,
     },
     createdAt: instantOf(row.created_at),
   };
@@ -58,6 +60,7 @@ export async function listCombinations(
            combination.sido_code_value_id,
            combination.base_amount_min::text as base_amount_min,
            combination.base_amount_max::text as base_amount_max,
+           combination.region_unknown_included,
            to_char(combination.created_at at time zone 'UTC', ${UTC_INSTANT_FORMAT}) as created_at,
            (select jsonb_agg(sigungu.code_value_id order by sigungu.code_value_id)
               from app.workspace_filter_combination_sigungu sigungu
@@ -127,13 +130,16 @@ export async function saveCombination(
 
     const inserted = rows<CombinationRow>(await transaction.execute(sql`
       insert into app.workspace_filter_combination
-        (workspace_id, name, sido_code_value_id, base_amount_min, base_amount_max, created_by_principal_id)
+        (workspace_id, name, sido_code_value_id, base_amount_min, base_amount_max,
+         region_unknown_included, created_by_principal_id)
       values (${input.workspaceId}, ${input.name}, ${input.filter.sidoCodeValueId},
               ${input.filter.baseAmountMin}::numeric, ${input.filter.baseAmountMax}::numeric,
+              ${input.filter.regionUnknownIncluded},
               ${input.principalId})
       returning filter_combination_id, name, sido_code_value_id,
                 base_amount_min::text as base_amount_min,
                 base_amount_max::text as base_amount_max,
+                region_unknown_included,
                 to_char(created_at at time zone 'UTC', ${UTC_INSTANT_FORMAT}) as created_at
     `));
     const row = inserted[0];

@@ -12,7 +12,7 @@
  * 이유로 워크스페이스 grain이다.
  */
 import { sql } from "drizzle-orm";
-import { bigint, check, numeric, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, numeric, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { codeValue } from "../core/codes.js";
 import { appSchema } from "../namespaces.js";
@@ -44,6 +44,15 @@ export const workspaceFilterCombination = appSchema.table(
      * 같은 트랜잭션에서 판정한다(`workspace_region_preference_area`와 같은 이유).
      */
     sidoCodeValueId: bigint("sido_code_value_id", { mode: "bigint" }).references(() => codeValue.codeValueId),
+    /**
+     * 공고지역을 관측하지 못한 행까지 셀지다. 지역 축과 **같이 저장해야 하는 이유**는 이 값이 지역 축의
+     * 모집단을 바꾸기 때문이다 — 켜 두고 저장한 조건을 불러왔을 때 꺼져 있으면 같은 이름의 프리셋이
+     * 다른 집합을 센다(EAT-267).
+     *
+     * 이 열이 생기기 전에 저장된 프리셋은 이 축을 아예 담지 않았으므로 `false`가 맞다. 관측이 아니라
+     * 사용자가 쓴 상태라 "안 봤다"는 자리가 없다(AGENTS 1의 `app` 소유권).
+     */
+    regionUnknownIncluded: boolean("region_unknown_included").notNull().default(false),
     // 통화는 계약이 KRW 하나라 금액만 저장한다. 소수 둘째 자리는 원천 기초금액의 정밀도 그대로다.
     baseAmountMin: numeric("base_amount_min", { precision: 18, scale: 2 }),
     baseAmountMax: numeric("base_amount_max", { precision: 18, scale: 2 }),
