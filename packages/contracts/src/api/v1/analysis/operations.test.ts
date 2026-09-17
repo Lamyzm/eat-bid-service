@@ -88,6 +88,16 @@ describe("분석 시간축 operation 계약", () => {
     expect(실패한자리({ ...기본질의, listCountMin: 24, listCountMax: 12 })).toContain("listCountMax");
   });
 
+  test("query로 오는 명단 경계는 문자열이며 그대로 통과한다", () => {
+    // 실제 요청의 query는 언제나 문자열이다. 숫자 리터럴로만 검사하면 `?listCountMin=12`가 형식 오류로
+    // 튕기는 것을 못 본다(2026-09-18 dev 실측).
+    expect(통과하나({ ...기본질의, listCountMin: "12", listCountMax: "24" })).toBe(true);
+    expect(실패한자리({ ...기본질의, listCountMin: "24", listCountMax: "12" })).toContain("listCountMax");
+    expect(통과하나({ ...기본질의, listCountMin: "열둘" })).toBe(false);
+    expect(통과하나({ ...기본질의, listCountMin: "12.5" })).toBe(false);
+    expect(통과하나({ ...기본질의, listCountMin: "-1" })).toBe(false);
+  });
+
   test("하한율은 0~100 축이라 관측 사정률의 100 초과 값을 받지 않는다", () => {
     expect(통과하나({ ...기본질의, floorRate: "88.500" })).toBe(true);
     // 사정률은 100을 넘지만 하한율은 정의상 넘지 않는다. 두 축을 한 atom으로 묶지 않는다(ADR 0040).

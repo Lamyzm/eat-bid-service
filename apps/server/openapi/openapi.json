@@ -530,7 +530,7 @@
               "type": "object"
             },
             "maxItems": 2,
-            "minItems": 2,
+            "minItems": 1,
             "type": "array"
           },
           "expiresAt": {
@@ -4445,22 +4445,18 @@
             "in": "query",
             "name": "listCountMin",
             "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/NonNegativeCount"
-                }
-              ]
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer"
             }
           },
           {
             "in": "query",
             "name": "listCountMax",
             "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/NonNegativeCount"
-                }
-              ]
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer"
             }
           },
           {

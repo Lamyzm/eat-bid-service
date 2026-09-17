@@ -87,10 +87,17 @@ describe("분석 표본과 스냅샷 계약", () => {
     expect(parseAnalysisMeta({ ...national, overlapCount: 8 }).state).toBe("ready");
   });
 
-  test("관측과 분포 중 어느 build라도 빠지면 공통 스냅샷을 발급하지 않는다", () => {
-    for (const build of analysisMetaFixture.snapshot.builds) {
-      expect(() => parseAnalysisMeta({ ...analysisMetaFixture, snapshot: { ...analysisMetaFixture.snapshot, builds: [build] } })).toThrow();
-    }
+  test("스냅샷은 관측 build를 반드시 싣고 읽지 않은 mart의 계보는 싣지 않는다", () => {
+    const [observations, distribution] = analysisMetaFixture.snapshot.builds;
+    const withBuilds = (builds: unknown) =>
+      parseAnalysisMeta({ ...analysisMetaFixture, snapshot: { ...analysisMetaFixture.snapshot, builds } });
+    // 분포 mart를 읽지 않는 조회는 그 계보를 싣지 않는다. 실으면 답이 그것에 의존한다고 말하는
+    // 것이고, 그 mart가 회수되면 답과 무관한 이유로 응답이 깨진다(EAT-198 측정).
+    expect(withBuilds([observations]).state).toBe("ready");
+    // 관측 build 없이 분포 build만 싣는 것은 어느 자료를 읽었는지 말하지 않는 것이다.
+    expect(() => withBuilds([distribution])).toThrow();
+    expect(() => withBuilds([observations, observations])).toThrow();
+    expect(() => withBuilds([])).toThrow();
   });
 
   test("미반영 발행 15분 경계와 갱신 상태가 다르면 거부한다", () => {

@@ -18,12 +18,14 @@ import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastruc
 import type { OpenAuctionReader } from "../../modules/procurement/application/open-auction-reader";
 import type { OpenAuctionSummaryReader } from "../../modules/procurement/application/open-auction-summary-reader";
 import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
+import type { AnalysisTimeSeriesReader } from "../../modules/procurement/application/analysis-time-series-reader";
 import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "../../modules/reference/application/code-reader";
 import { DrizzleAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOpenAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-open-auction-reader";
 import { DrizzleOpenAuctionSummaryReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-open-auction-summary-reader";
 import { DrizzleOrganizationAttemptReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-organization-attempt-reader";
+import { DrizzleAnalysisTimeSeriesReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-time-series-reader";
 import { DrizzleWinRateDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-win-rate-distribution-reader";
 import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzle/drizzle-code-reader";
 import type { Environment } from "../config/environment";
@@ -48,6 +50,7 @@ import {
   REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
   UNIT_OF_WORK,
+  ANALYSIS_TIME_SERIES_READER,
   WIN_RATE_DISTRIBUTION_READER,
 } from "./database.tokens";
 import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
@@ -67,6 +70,7 @@ export interface DatabaseModuleOverrides {
   readonly openAuctionSummaryReader?: OpenAuctionSummaryReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
+  readonly analysisTimeSeriesReader?: AnalysisTimeSeriesReader;
   readonly codeReader?: CodeReader;
 }
 
@@ -157,6 +161,12 @@ export class DatabaseModule {
           overrides.winRateDistributionReader ?? new DrizzleWinRateDistributionReader(connection.database),
       },
       {
+        provide: ANALYSIS_TIME_SERIES_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): AnalysisTimeSeriesReader =>
+          overrides.analysisTimeSeriesReader ?? new DrizzleAnalysisTimeSeriesReader(connection.database),
+      },
+      {
         provide: CODE_READER,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): CodeReader =>
@@ -214,6 +224,7 @@ export class DatabaseModule {
         OPEN_AUCTION_SUMMARY_READER,
         ORGANIZATION_ATTEMPT_READER,
         WIN_RATE_DISTRIBUTION_READER,
+        ANALYSIS_TIME_SERIES_READER,
         CODE_READER,
       ],
     };

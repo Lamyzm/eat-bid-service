@@ -31,6 +31,7 @@ import type { AuctionRosterReader } from "../modules/procurement/application/auc
 import type { OpenAuctionReader } from "../modules/procurement/application/open-auction-reader";
 import type { EligibilityAreaReader } from "../modules/procurement/application/eligibility-area-reader";
 import type { OrganizationAttemptReader } from "../modules/procurement/application/organization-attempt-reader";
+import type { AnalysisTimeSeriesReader } from "../modules/procurement/application/analysis-time-series-reader";
 import type { WinRateDistributionReader } from "../modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "../modules/reference/application/code-reader";
 import { ReadinessState } from "../platform/health/readiness-state";
@@ -63,6 +64,7 @@ export interface CreateAppOptions {
   readonly eligibilityAreaReader?: EligibilityAreaReader;
   readonly organizationAttemptReader?: OrganizationAttemptReader;
   readonly winRateDistributionReader?: WinRateDistributionReader;
+  readonly analysisTimeSeriesReader?: AnalysisTimeSeriesReader;
   readonly codeReader?: CodeReader;
   readonly accountRepository?: AccountRepository;
   readonly regionPreferenceRepository?: RegionPreferenceRepository;
@@ -189,6 +191,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Operati
         eligibilityAreaReader: options.eligibilityAreaReader,
         organizationAttemptReader: options.organizationAttemptReader,
         winRateDistributionReader: options.winRateDistributionReader,
+        analysisTimeSeriesReader: options.analysisTimeSeriesReader,
         codeReader: options.codeReader,
         accountRepository: options.accountRepository,
         regionPreferenceRepository: options.regionPreferenceRepository,

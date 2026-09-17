@@ -57,3 +57,12 @@ export function kstMonthsBetween(from: KstMonth, to: KstMonth): KstMonth[] {
 export function kstMonthFirstDayText(month: KstMonth): string {
   return `${month}-01`;
 }
+
+/**
+ * 그 달의 마지막 날이다. 달 하나를 양끝 포함 날짜 구간으로 말해야 하는 자리(분석의 달별 보유율)가
+ * 쓴다. 28·29·30·31을 직접 세지 않는 이유는 윤년 규칙을 우리가 두 번째로 구현하게 되기 때문이다.
+ */
+export function kstMonthLastDayText(month: KstMonth): string {
+  const yearMonth = Temporal.PlainYearMonth.from(month);
+  return `${month}-${yearMonth.daysInMonth.toString().padStart(2, "0")}`;
+}
