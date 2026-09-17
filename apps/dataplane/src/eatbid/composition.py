@@ -34,6 +34,7 @@ from eatbid.ingest.postgres_publication_repository import PsycopgPublicationRepo
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
 from eatbid.ingest.postgres_replay_repository import PsycopgReplayRunRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
+from eatbid.ingest.postgres_run_closure import close_projection_run
 from eatbid.mart.build_marts import (
     build_marts,
     publication_record_types,
@@ -449,7 +450,7 @@ class Application:
             args.source_release_id, args.observation_id
         )
         with self._connection.transaction(), self._connection.cursor() as cursor:
-            return project_reference(
+            result = project_reference(
                 cursor,
                 store=self._store,
                 source_id=args.source,
@@ -459,6 +460,14 @@ class Application:
                 source_version=args.release_name,
                 projected_at=args.projected_at,
             )
+            # 이 lane의 마지막 단계다. 여기서 닫지 않으면 run이 영원히 `running`으로 남는다(EAT-234).
+            close_projection_run(
+                cursor,
+                run_id=args.run_id,
+                ended_at=args.projected_at,
+                published_count=1,
+            )
+            return result
 
     def capture_code_vocabulary(self, args: argparse.Namespace) -> Any:
         return capture_code_vocabulary(
@@ -487,7 +496,7 @@ class Application:
             args.source_release_id, args.observation_id
         )
         with self._connection.transaction(), self._connection.cursor() as cursor:
-            return project_code_vocabulary_observation(
+            result = project_code_vocabulary_observation(
                 cursor,
                 store=self._store,
                 source_release_id=args.source_release_id,
@@ -495,6 +504,14 @@ class Application:
                 parser_version=args.parser_version,
                 projected_at=args.projected_at,
             )
+            # 관측 하나가 곧 회차인 lane이라 발행 단계가 없다. 투영이 끝난 자리에서 run을 닫는다(EAT-234).
+            close_projection_run(
+                cursor,
+                run_id=args.run_id,
+                ended_at=args.projected_at,
+                published_count=1,
+            )
+            return result
 
     def build_marts(self, args: argparse.Namespace) -> Any:
         record_types = publication_record_types(self._mart, args.publication_id)

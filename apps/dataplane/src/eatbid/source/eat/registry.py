@@ -196,11 +196,14 @@ _RECORD_TYPES: Mapping[tuple[str, str], str] = MappingProxyType(
         ("bid-list", "eat-v2"): "auction-discovery.v1",
         ("bid-list", "eat-v3"): "auction-discovery.v1",
         ("bid-list", "eat-v4"): "auction-discovery.v1",
+        ("bid-list", "eat-v5"): "auction-discovery.v1",
         ("bid-detail", "eat-v1"): "auction.v1",
         ("bid-detail", "eat-v2"): "auction.v2",
         ("bid-detail", "eat-v3"): "auction.v2",
         # eat-v4 상세도 `auction.v2`다 — 단독입찰 처리 방법은 가산 optional 필드이지 새 record type이 아니다(EAT-249).
         ("bid-detail", "eat-v4"): "auction.v2",
+        # eat-v5 상세도 같은 이유로 `auction.v2`다 — 게시 종류는 가산 optional 필드다(EAT-262).
+        ("bid-detail", "eat-v5"): "auction.v2",
         # 코드목록은 공고 corpus가 아니라 어휘 한 벌이므로 record type도 공고 계약과 갈라 둔다.
         # 세 version에서 같은 이름인 이유는 목록과 같다 — 응답 해석이 version마다 달라지지 않는데
         # 실행 단위는 parser version 하나라서, 셋 다 등록해야 어느 실행 파라미터로도 어휘가 돈다.
@@ -208,6 +211,7 @@ _RECORD_TYPES: Mapping[tuple[str, str], str] = MappingProxyType(
         ("code-list", "eat-v2"): "code-vocabulary.v1",
         ("code-list", "eat-v3"): "code-vocabulary.v1",
         ("code-list", "eat-v4"): "code-vocabulary.v1",
+        ("code-list", "eat-v5"): "code-vocabulary.v1",
     }
 )
 

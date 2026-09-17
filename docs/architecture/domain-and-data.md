@@ -100,6 +100,12 @@ erDiagram
   `ds_info.UP_ELCTRN_BID_ID`이며 관계 종류는 `chain_member`와 `parent` 둘이다
   ([ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §1).
 - 공고번호 접미사나 제목을 파싱해 차수를 만들지 않는다.
+- **재입찰 여부는 원천이 준 코드로 읽는다.** `ds_info.PBANC_CHG_GB_CD`(000 일반공고 / 001 변경공고 /
+  003 재입찰)가 `core.auction_revision_code_value`의 role `announcement_change_kind`로
+  `eat:announcement-change-kind` code value를 가리키며 eat-v5부터 관측된다(EAT-262). 이름이 "재입찰 여부"인
+  `RBID_YN`은 일반공고에서도 91.7%가 `Y`라 그것으로 거르면 거의 전부가 통과한다
+  (`docs/audit-source/SOURCE-FIELDS.md` T13). 사슬을 잇는 것은 여전히 `auction_attempt_link`이고 이 코드는
+  그 사슬 위에서 이 게시가 무엇인지를 말한다.
 - **사슬 상대는 내부 attempt id로만 잇는다.** 아직 수집하지 않은 상대에게도 `AuctionAttempt` identity
   행(`source_system`·`external_bid_id`만)을 먼저 발급하고 그 id로 관계를 만든다. 외부 문자열을 관계
   키로 들고 있다가 나중에 잇지 않는다(규칙 2).
@@ -203,7 +209,9 @@ code value가 짝인 label 관측이다. `organization_identifier.observation_id
   (`SUCBID_DCSN_MTH_CD`)과 예정가격 방식(`PLNPRC_TYPE_CD`)은 `core.auction_revision_code_value`의 role
   `award_method`·`planned_price_method`로 각각 `eat:award-method`·`eat:planned-price-type` code value를
   가리킨다. 단독입찰 처리 방법(`SGNS_BID_PRCS_MTHD_CD`)은 role `solo_bid_method`로 `eat:solo-bid-method`를 가리키며
-  eat-v4부터 관측된다 — 참여 0곳이 기회인지 유찰 신호인지를 가르는 조건이다(EAT-249). 코호트 키를 `source_payload` jsonb 경로에 묶어 두지 않기 위한 것이며
+  eat-v4부터 관측된다 — 참여 0곳이 기회인지 유찰 신호인지를 가르는 조건이다(EAT-249). 같은 표가 role
+  `announcement_change_kind`도 갖지만 그것은 낙찰 조건이 아니라 계보 사실이라 정규화 계약에서는 `terms`가 아니라
+  `lineage`가 싣는다(EAT-262, 위 `AuctionAttempt` 절). 코호트 키를 `source_payload` jsonb 경로에 묶어 두지 않기 위한 것이며
   [ADR 0033](../adr/0033-bid-submission-partitioning-and-supplier-core.md) §6이 정했다. v1 record에는
   `terms` 블록이 없어 v1 발행은 `floor_rate`가 null이고 두 role 관계를 만들지 않는다. 품목은 role `item`으로
   `eatbid:auction-item` 원자 code value를 가리키며, 라벨 한 문자열이 원자 여러 행으로 투영되므로 한 revision에

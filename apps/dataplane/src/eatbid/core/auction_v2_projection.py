@@ -172,6 +172,16 @@ def _code_refs(
     )
     refs.extend(_item_code_refs(record))
     refs.extend(_terms_code_refs(record))
+    # 게시 종류는 조건이 아니라 계보 사실이라 terms가 아니라 lineage에서 온다. eat-v5부터 읽으므로
+    # 옛 payload에는 키가 없고 그것은 미관측이다(EAT-262).
+    if record.lineage.change_kind is not None:
+        refs.append(
+            ExternalCodeRef(
+                namespace=record.lineage.change_kind.code_scheme,
+                code=record.lineage.change_kind.code,
+                role="announcement_change_kind",
+            )
+        )
     return tuple(refs)
 
 
