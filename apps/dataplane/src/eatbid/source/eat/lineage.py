@@ -1,5 +1,5 @@
-"""모듈 책임: eaT 상세의 `ds_bidHistory` 재입찰 사슬과 `ds_info`의 직전 차수 참조를 관측 그대로
-eat-v2 정규화 모델로 옮긴다."""
+"""모듈 책임: eaT 상세의 `ds_bidHistory` 재입찰 사슬과 `ds_info`의 직전 차수 참조·게시 종류를 관측
+그대로 eat-v2 정규화 모델로 옮긴다."""
 
 from __future__ import annotations
 
@@ -11,7 +11,11 @@ from eatbid.generated.ingestion_v2 import (
     NormalizedAttemptLink,
     NormalizedAuctionLineage,
 )
-from eatbid.source.eat.code_schemes import ATTEMPT_STATUS, optional_scheme_value
+from eatbid.source.eat.code_schemes import (
+    ANNOUNCEMENT_CHANGE_KIND,
+    ATTEMPT_STATUS,
+    optional_scheme_value,
+)
 from eatbid.source.eat.wire_text import optional_text, required_text
 from eatbid.source.eat.wire_values_v2 import optional_instant_text, optional_money
 from eatbid.source.eat.xml import ParsedNexacro
@@ -20,7 +24,7 @@ BID_HISTORY_DATASET = "ds_bidHistory"
 
 
 def parse_lineage(
-    parsed: ParsedNexacro, info: Mapping[str, str]
+    parsed: ParsedNexacro, info: Mapping[str, str], *, observe_change_kind: bool = False
 ) -> NormalizedAuctionLineage:
     """사슬을 원본 식별자로만 잇는다.
 
@@ -61,7 +65,15 @@ def parse_lineage(
             )
         )
     parent = optional_text(info, "UP_ELCTRN_BID_ID")
+    # 게시 종류는 eat-v5부터 읽는다. 키를 아예 쓰지 않는 것과 null을 쓰는 것은 다른 사실이라
+    # (전자는 "이 version은 보지 않았다", 후자는 "봤는데 없었다") 옛 version에서는 키를 만들지 않는다(ADR 0038).
+    change_kind = (
+        {"change_kind": optional_scheme_value(info, ANNOUNCEMENT_CHANGE_KIND)}
+        if observe_change_kind
+        else {}
+    )
     return NormalizedAuctionLineage(
         parent_external_bid_id=ExternalBidId(root=parent) if parent else None,
         links=links,
+        **change_kind,
     )

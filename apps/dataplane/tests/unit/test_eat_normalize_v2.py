@@ -347,3 +347,50 @@ def test_eat_v4는_단독입찰_처리_방법을_코드와_이름으로_싣고_v
     assert isinstance(absent, EatbidIngestionAuctionV2)
     assert absent.terms.solo_bid_method is None
     assert b'"soloBidMethod":null' in canonical_payload(absent)
+
+
+def test_eat_v5는_게시_종류를_계보에_싣고_v4는_키를_만들지_않는다() -> None:
+    """`PBANC_CHG_GB_CD`는 아카이브 fixture에 없는 열이라 ds_info 행에 끼워 넣어 읽는다(EAT-262).
+
+    재입찰 신호를 `RBID_YN`이나 이름 비교로 읽지 않는다는 판정(SOURCE-FIELDS T13)을 코드 자리에서 고정한다.
+    """
+    change_columns = (
+        b'<Col id="PLNPRCE_SUCBD_STD">90</Col>'
+        b'<Col id="PBANC_CHG_GB_CD">003</Col>'
+        b'<Col id="CHG_TP_NM">' + "재입찰".encode() + b"</Col>"
+    )
+    # Nexacro 파서는 `ColumnInfo`에 선언되지 않은 열을 거절하므로 선언과 값을 함께 끼운다.
+    payload = (
+        _payload("bid-detail-roster.xml")
+        .replace(
+            b'<Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />',
+            b'<Column id="PLNPRCE_SUCBD_STD" type="bigdecimal" size="16" />'
+            b'<Column id="PBANC_CHG_GB_CD" type="string" size="256" />'
+            b'<Column id="CHG_TP_NM" type="string" size="256" />',
+            1,
+        )
+        .replace(b'<Col id="PLNPRCE_SUCBD_STD">90</Col>', change_columns, 1)
+    )
+    v4 = normalize_bid_detail(payload, external_bid_id="5669410", parser_version="eat-v4")
+    v5 = normalize_bid_detail(payload, external_bid_id="5669410", parser_version="eat-v5")
+
+    assert isinstance(v4, EatbidIngestionAuctionV2)
+    assert isinstance(v5, EatbidIngestionAuctionV2)
+    # 같은 계약이다. 게시 종류는 새 root가 아니라 `lineage`의 가산 optional 필드다.
+    assert v5.contract_version == v4.contract_version
+    # v4는 이 열을 보지 않으므로 키 자체가 없다 — 봉인된 v4 payload의 바이트가 그대로다(ADR 0038).
+    assert v4.lineage.change_kind is None
+    assert b"changeKind" not in canonical_payload(v4)
+    change = v5.lineage.change_kind
+    assert change is not None
+    assert (change.code, change.code_scheme) == ("003", "eat:announcement-change-kind")
+    assert change.label is not None and change.label.root == "재입찰"
+    # v5도 단독입찰 처리 방법을 계속 읽는다. 새 version이 앞 version의 관측을 떨어뜨리면 replay가 사실을 잃는다.
+    assert b"soloBidMethod" in canonical_payload(v5)
+    # 열이 없는 응답을 v5로 읽으면 "봤는데 없었다"의 null이다 — "안 봤다"(키 없음)와 다른 사실이다(AGENTS 3).
+    absent = normalize_bid_detail(
+        _payload("bid-detail-roster.xml"), external_bid_id="5669410", parser_version="eat-v5"
+    )
+    assert isinstance(absent, EatbidIngestionAuctionV2)
+    assert absent.lineage.change_kind is None
+    assert b'"changeKind":null' in canonical_payload(absent)

@@ -106,6 +106,14 @@ export const builtinCodeSchemes = [
     versionPolicy: "source-managed",
     validTimePolicy: "effective-dated",
   },
+  // 게시 종류(`ds_info.PBANC_CHG_GB_CD`, 000 일반공고 / 001 변경공고 / 003 재입찰)다. 재입찰의 진짜 신호이며
+  // `RBID_YN`이 아니다(SOURCE-FIELDS T13). eat-v5 상세 파서가 읽는다(EAT-262).
+  {
+    namespace: "eat:announcement-change-kind",
+    owner: "aT",
+    versionPolicy: "source-managed",
+    validTimePolicy: "effective-dated",
+  },
   // 위 전부와 달리 이 체계만 owner가 우리다. eaT는 품목을 `MAIN_ITEMS` 라벨 문자열로만 주고 코드를
   // 주지 않으므로, 코드를 발급하고 폐기하는 주체가 우리다. 접두사를 `eat:`로 두면 aT가 코드를 준 것처럼
   // 보이므로 다른 체계와 같은 규칙(접두사 = 소유자)을 지켜 `eatbid:`로 부른다. 용어 자체는 eaT가

@@ -261,6 +261,8 @@ describe("canonical identity 불변식", () => {
       "planned_price_method",
       // 단독입찰 처리 방법(EAT-249). 참여 0곳의 뜻을 바꾸는 조건이다.
       "solo_bid_method",
+      // 게시 종류(EAT-262). 재입찰의 진짜 신호이며 `RBID_YN`이 아니다.
+      "announcement_change_kind",
       // 품목 원자 투영(EAT-230)이 쓰는 role이다. check에서 빠지면 투영이 CheckViolation으로 죽는다.
       "item",
     ]) {

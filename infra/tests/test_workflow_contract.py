@@ -229,7 +229,7 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     # eat-v3(EAT-75, 참가제한지역 라벨)는 명단에 라벨까지 더한다. 기본값 전환은 그 version을 아는
     # 이미지(v0.1.21)가 배포된 뒤의 별도 커밋으로 했다(EAT-95: 템플릿이 이미지보다 먼저 동기화되면
     # 옛 이미지가 모르는 version 이름을 받는다).
-    assert template_parser_version == "eat-v4"
+    assert template_parser_version == "eat-v5"
     assert template_parser_version in roster_parser_versions
     assert is_projectable_record_type(
         require("bid-detail", parser_version=template_parser_version).record_type
@@ -1442,7 +1442,7 @@ def test_workflow_parameter는_mode_외에_backfill_창과_바닥만_추가로_�
     }
     assert parameters == {
         "mode": "poll-open",
-        "parser-version": "eat-v4",
+        "parser-version": "eat-v5",
         "calc-version": "mart-r8",
         "start-date": "",
         "end-date": "",
