@@ -93,7 +93,7 @@ export const winRateDistributionV1Operations = {
     implementationOwner: "server",
     summary: "모집단·코호트별 낙찰 사정률 분포를 달 단위로 합산해 조회한다. 전국은 지역·기관 축이 없어야 하고,"
       + " 도·시군은 regionCodeValueId만, 이 기관은 organizationId만 가져야 한다. 기간은 양끝을 함께 지정하며 12개월을 넘을 수 없다.",
-    tags: ["procurement"],
+    tags: ["공고와 분석"],
     pathSchema: z.strictObject({}),
     querySchema: winRateDistributionQuerySchema,
     bodySchema: z.undefined(),
