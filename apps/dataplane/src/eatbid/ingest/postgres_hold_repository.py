@@ -44,7 +44,11 @@ class PsycopgSourceHoldRepository:
         self._connection = connection
 
     def open_hold(self, source: str, *, now: datetime) -> SourceHold | None:
-        with self._connection.cursor() as cursor:
+        # 읽기도 transaction 블록 안에서 한다. 이 조회는 정시 수집이 소스를 부르기 전 첫 DB 접근이라,
+        # 블록 없이 커서만 쓰면 psycopg가 연 암묵 transaction이 그대로 남는다. 그러면 뒤따르는 discover의
+        # 모든 쓰기가 savepoint로 감싸여 프로세스 종료 때 통째로 되돌아간다 — 단계는 성공으로 끝나고 행만
+        # 사라진다(2026-09-17 정시 수집 21시간 중단, EAT-264).
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(_OPEN_HOLD_SQL, {"source": source, "now": now})
             row = cursor.fetchone()
         if row is None:
