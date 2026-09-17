@@ -51,14 +51,16 @@ describe('열린 공고 카드 목록', () => {
     expect(rendered[0]!.textContent).not.toContain('20:00');
   });
 
-  test('묶음 머리는 시각·남은 시간·건수 한 줄이고 오늘 묶음에만 빨강, 내일 묶음에 amber가 붙는다', () => {
+  test('묶음 머리는 시각·남은 시간·건수 한 줄이고 상태색 없이 색 셋으로만 거리를 말한다', () => {
     const screen = renderCards();
     const heads = [...screen.container.querySelectorAll('[data-slot="closes"]')];
     expect(heads.map((node) => node.textContent)).toEqual(['오후 8시 마감', '9월 8일 화 · 오전 12시 30분 마감', '9월 10일 목 · 오전 11시 마감', '마감 미확인']);
-    expect([...screen.container.querySelectorAll('.text-destructive')].map((node) => node.textContent)).toEqual(['오후 8시 마감']);
-    expect([...screen.container.querySelectorAll('.text-pushed')].map((node) => node.textContent)).toEqual(['9월 8일 화 · 오전 12시 30분 마감']);
-    // 행 안에는 상태색이 없다. 제한지역 미관측은 색이 아니라 굵기다.
-    expect(screen.container.querySelectorAll('[data-slot="auction-row"] .text-destructive, [data-slot="auction-row"] .text-pushed').length).toBe(0);
+    // 오늘·내일은 본문, 그 뒤는 muted다. red·amber를 쓰지 않는다 — amber는 stale·부분 수집의 색이고,
+    // 오늘 마감이 0건인 날에는 첫 화면의 묶음 머리가 전부 `내일`이라 목록이 통째로 경고판이 된다(§9.2).
+    expect(heads.map((node) => node.className.includes('text-muted-foreground'))).toEqual([false, false, true, true]);
+    expect(screen.container.querySelectorAll('.text-destructive, .text-pushed').length).toBe(0);
+    // 급함은 색이 아니라 글자가 말한다. 색 이외의 신호가 늘 함께 있어야 한다(§11).
+    expect(screen.container.textContent).toContain('내일');
     expect(screen.container.textContent).toContain('제한지역 미관측');
   });
 
@@ -82,11 +84,24 @@ describe('열린 공고 카드 목록', () => {
       '2026년 10월 학교급식 식재료(축산물) 구매 소액수의 견적 제출공고번호 복사 2026-0001',
       '제목 미관측공고번호 복사 2026-0001',
       '제목 미관측제한지역 미관측',
-      '제목 미관측제한지역 미관측'
+      // 게시 종류가 재입찰인 행이다. 일반공고(97%)와 미관측에는 아무것도 적지 않는다(EAT-262).
+      '제목 미관측제한지역 미관측재입찰'
     ]);
     expect(screen.queryAllByRole('link', { name: '창원시' }).length).toBe(0);
     expect(screen.container.textContent).not.toContain('코드 ');
     expect(screen.getAllByRole('button', { name: '공고번호 복사 2026-0001' }).length).toBe(2);
+  });
+
+
+  test('재입찰과 변경공고만 행에 적고 일반공고와 미관측에는 적지 않는다', () => {
+    const screen = renderCards();
+    // 재입찰이면 이 판은 한 번 유찰되고 다시 열린 판이라 셋째 줄의 `지난번`을 다르게 읽는다(EAT-262).
+    expect(screen.getAllByText('재입찰').length).toBe(1);
+    // 나머지 셋은 미관측(eat-v5 전 해석)이라 아무 말도 하지 않는다 — 미관측을 일반공고로 접지 않는다(AGENTS 3).
+    expect(screen.queryAllByText('변경공고').length).toBe(0);
+    expect(screen.container.textContent).not.toContain('일반공고');
+    // 급한 일이 아니라 사실이라 색이 아니라 굵기다(screen-system §9.2).
+    expect(screen.container.querySelectorAll('[data-slot="auction-row"] .text-destructive').length).toBe(0);
   });
 
   test('단독입찰을 허용하지 않는 판만 0곳 옆에 그 뜻을 적는다', () => {

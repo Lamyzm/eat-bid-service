@@ -2,7 +2,7 @@
 import { Temporal } from '@eatbid/domain';
 import type { OpenAuctionSummaryV1Response } from '@eatbid/contracts/api/v1/auctions';
 
-import { FLOOR_RATE_UNKNOWN, formatFloorRate } from './present-open-auctions';
+import { FLOOR_RATE_UNKNOWN, formatFloorRate } from './today-formats';
 
 const KST = 'Asia/Seoul';
 

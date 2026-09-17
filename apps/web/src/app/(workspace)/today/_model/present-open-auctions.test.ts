@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixtureNow, laterRow, noSnapshotFixture, openAuctionsFixture, todayRow, tomorrowRow, unknownClosesRow } from '../__fixtures__/open-auctions';
-import { dDayOf, presentOpenAuction, presentOpenAuctionList } from './present-open-auctions';
+import { presentOpenAuction, presentOpenAuctionList } from './present-open-auctions';
+import { dDayOf } from './today-formats';
 
 describe('열린 공고 표시 변환', () => {
   test('KST 자정 직전 마감은 오늘 마감으로 세고 시각만 보인다', () => {

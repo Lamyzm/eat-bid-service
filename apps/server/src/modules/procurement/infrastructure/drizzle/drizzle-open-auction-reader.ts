@@ -64,6 +64,7 @@ export type OpenAuctionRow = Readonly<
   & RegionColumns<"region_sido">
   & RegionColumns<"region_sigungu">
   & RegionColumns<"solo_bid_method">
+  & RegionColumns<"announcement_change_kind">
 >;
 
 function orgSummary(row: OpenAuctionRow, hasOrgBuild: boolean): OpenAuctionOrgSummaryRecord | null {
@@ -116,6 +117,12 @@ export function mapOpenAuctionRow(row: OpenAuctionRow, hasOrgBuild: boolean): Op
       row.solo_bid_method_code,
       row.solo_bid_method_scheme,
       row.solo_bid_method_label,
+    ),
+    changeKind: codeReferenceRecord(
+      row.announcement_change_kind_code_value_id,
+      row.announcement_change_kind_code,
+      row.announcement_change_kind_scheme,
+      row.announcement_change_kind_label,
     ),
     // 하한율은 사정률 축의 상수이며 mart numeric(6,3)이다. scale 불변식은 이 경계에서 한 번만 닫는다.
     floorRate: bidRateValue(row.floor_rate),

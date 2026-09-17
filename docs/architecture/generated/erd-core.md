@@ -1,7 +1,7 @@
-<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20260917092744_announcement_change_kind/snapshot.json -->
+<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20260917095650_announcement_change_kind_snapshot/snapshot.json -->
 # `core` 스키마 ERD
 
-Drizzle 마이그레이션 `20260917092744_announcement_change_kind`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 18개.
+Drizzle 마이그레이션 `20260917095650_announcement_change_kind_snapshot`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 18개.
 다른 스키마의 표는 관계선에만 `schema__table`로 나타난다. 의미와 불변식은
 [domain-and-data.md](../domain-and-data.md)와 [수집 쓰기 지도](../ingestion-write-map.md)가 설명한다.
 
@@ -211,6 +211,7 @@ erDiagram
     code_value ||--o{ code_release_member : "code_value_id"
     code_value ||--o{ code_value_coordinate : "code_value_id"
     code_value ||--o{ mart__build_coverage : "region_code_value_id"
+    code_value ||--o{ mart__open_auction_snapshot : "announcement_change_kind_code_value_id"
     code_value ||--o{ mart__open_auction_snapshot : "item_code_value_id"
     code_value ||--o{ mart__open_auction_snapshot : "region_sido_code_value_id"
     code_value ||--o{ mart__open_auction_snapshot : "region_sigungu_code_value_id"

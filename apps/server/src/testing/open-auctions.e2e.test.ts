@@ -19,6 +19,7 @@ const record: OpenAuctionRecord = {
   title: "축산물 구매",
   displayBidNo: "2026-0001",
   soloBidMethod: null,
+  changeKind: null,
   floorRate: bidRate(canonicalDecimal("90.000", 3)),
   region: {
     sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
@@ -131,6 +132,7 @@ describe("열린 공고 목록 HTTP 경로", () => {
         title: "축산물 구매",
         displayBidNo: "2026-0001",
         soloBidMethod: null,
+        changeKind: null,
         floorRate: { value: "90.000", unit: "percentage-points" },
         region: {
           sido: { codeValueId: "41", code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },

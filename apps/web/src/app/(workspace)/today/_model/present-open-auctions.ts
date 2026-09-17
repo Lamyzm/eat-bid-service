@@ -1,9 +1,22 @@
-/** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 카드 목록이 그대로 쓰는 표시값(KST 마감·D-day·금액·미확인 문구·(기관, 하한율) 요약)으로 바꾼다. */
-import { Temporal } from '@eatbid/domain';
-import { SOLO_BID_NOT_ALLOWED_CODE, type OpenAuction, type OpenAuctionListV1Response } from '@eatbid/contracts/api/v1/auctions';
+/** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 카드 목록이 그대로 쓰는 표시값(행 갈래·미확인 문구·(기관, 하한율) 요약)으로 바꾼다. 사람이 읽는 시각·금액·하한율 표기 자체는 today-formats가 소유한다. */
+import {
+  ANNOUNCEMENT_AMENDED_CODE,
+  ANNOUNCEMENT_REBID_CODE,
+  SOLO_BID_NOT_ALLOWED_CODE,
+  type OpenAuction,
+  type OpenAuctionListV1Response
+} from '@eatbid/contracts/api/v1/auctions';
 
-const KST = 'Asia/Seoul';
-const pad2 = (value: number): string => value.toString().padStart(2, '0');
+import {
+  dDayOf,
+  dayAwayText,
+  formatAmountText,
+  formatFloorRate,
+  kstDate,
+  kstDateTime,
+  kstTime,
+  FLOOR_RATE_UNKNOWN
+} from './today-formats';
 
 export type ClosesTone = 'today' | 'tomorrow' | 'later' | 'unknown';
 
@@ -59,6 +72,13 @@ export type OpenAuctionRowPresentation = {
    * 해석)과 `allowed`가 다른 사실이고 화면이 할 말도 다르기 때문이다(AGENTS 3).
    */
   readonly soloBid: 'not-allowed' | 'allowed' | 'unknown';
+  /**
+   * 원천이 말한 게시 종류다. 재입찰이면 이 판은 한 번 유찰되고 다시 열린 판이라 셋째 줄의 `지난번`이 같은
+   * 판의 직전 시도일 수 있고, 변경공고면 같은 차수를 고쳐 다시 낸 것이다 — 사용자가 행을 다르게 읽는다.
+   * `regular`(일반공고 97%)에는 아무것도 적지 않는다. 97%에 붙는 표시는 신호가 아니라 배경이다.
+   * `unknown`(eat-v5 전 해석)을 `regular`와 합치지 않는 이유는 둘이 다른 사실이기 때문이다(AGENTS 3).
+   */
+  readonly changeKind: 'rebid' | 'amended' | 'regular' | 'unknown';
   readonly orgSummary: {
     readonly attemptCount: number;
     readonly medianListText: string;
@@ -99,52 +119,11 @@ export type OpenAuctionListPresentation = {
   readonly nextCursor: string | null;
 };
 
-/** wire instant를 KST `MM-DD HH:mm`으로. `Temporal.ZonedDateTimeISO` 필드를 직접 읽으므로 ambient `Date`나
- * 로케일 구현체별 Intl 자정 표기 차이에 기대지 않는다(`present-decision.ts`의 `kst()`와 같은 방식). */
-function kstDateTime(instant: string): string {
-  const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO(KST);
-  return `${pad2(zoned.month)}-${pad2(zoned.day)} ${pad2(zoned.hour)}:${pad2(zoned.minute)}`;
-}
-
-function kstTime(instant: string): string {
-  const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO(KST);
-  return `${pad2(zoned.hour)}:${pad2(zoned.minute)}`;
-}
-
-// D-day는 관측이 아니라 보는 시점에 대한 표현이라 계약이 아니라 화면이 계산한다. KST 달력일 차이다.
-export function dDayOf(closesAt: string, nowIso: string): number {
-  const closes = Temporal.Instant.from(closesAt).toZonedDateTimeISO(KST).toPlainDate();
-  const today = Temporal.Instant.from(nowIso).toZonedDateTimeISO(KST).toPlainDate();
-  return today.until(closes, { largestUnit: 'days' }).days;
-}
-
-/**
- * 남은 날을 한국어 날짜 세는 말로 적는다. `D-3`은 눈금이지 말이 아니라서 `사흘 뒤`보다 늦게 읽힌다.
- * 열흘을 넘으면 세는 말이 오히려 낯설어져 숫자로 돌아간다.
- */
-const DAY_AWAY = ['오늘', '내일', '모레', '사흘 뒤', '나흘 뒤', '닷새 뒤', '엿새 뒤', '이레 뒤', '여드레 뒤', '아흐레 뒤', '열흘 뒤'] as const;
-
-export function dayAwayText(dDay: number): string {
-  if (dDay <= 0) return DAY_AWAY[0];
-  return DAY_AWAY[dDay] ?? `${dDay}일 뒤`;
-}
-
 function presentCloses(closesAt: string | null, nowIso: string): OpenAuctionRowPresentation['closes'] {
   if (closesAt === null) return { tone: 'unknown', label: '마감 미확인', clockText: '', dDay: null, at: null };
   const dDay = dDayOf(closesAt, nowIso);
   const tone: ClosesTone = dDay <= 0 ? 'today' : dDay === 1 ? 'tomorrow' : 'later';
   return { tone, label: dayAwayText(dDay), clockText: kstTime(closesAt), dDay, at: closesAt };
-}
-
-function formatWon(amount: string): string {
-  return amount.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
-// wire 소수부가 0이면 볼 이유가 없는 정밀도라 생략하고, 0이 아니면 관측된 값 그대로 보인다(반올림하지 않는다).
-function formatAmountText(amount: string): string {
-  const [whole, fraction = ''] = amount.split('.');
-  const paddedFraction = (fraction + '00').slice(0, 2);
-  return paddedFraction === '00' ? formatWon(whole) : `${formatWon(whole)}.${paddedFraction}`;
 }
 
 function presentOrganization(organization: OpenAuction['organization']): OpenAuctionRowPresentation['organization'] {
@@ -176,11 +155,6 @@ function presentEligibility(areas: OpenAuction['eligibilityAreas']): string | nu
 }
 
 // 개찰일은 날짜까지만이다. 44px 한 줄에서 시각은 자리만 먹고, 직전 회차가 언제였는지는 날로 충분하다.
-function kstDate(instant: string): string {
-  const zoned = Temporal.Instant.from(instant).toZonedDateTimeISO(KST);
-  return `${pad2(zoned.month)}-${pad2(zoned.day)}`;
-}
-
 function presentLastRound(summary: NonNullable<OpenAuction['orgSummary']>): NonNullable<OpenAuctionRowPresentation['orgSummary']>['lastRound'] {
   if (summary.attemptCount === 0) return { kind: 'none', text: '같은 하한 회차 없음' };
   const last = summary.lastRound;
@@ -204,19 +178,16 @@ function presentOrgSummary(summary: OpenAuction['orgSummary']): OpenAuctionRowPr
 }
 
 /**
- * 저장된 하한율은 `90.000` 꼴이라 소수부의 0은 볼 이유가 없는 정밀도다. 관측된 자릿수가 의미를 갖는
- * 경우(`88.500`)는 그대로 남기고 뒤따르는 0만 뗀다. 반올림하지 않는다.
- *
- * 행과 요약이 같은 문자열을 만들어야 `드문 하한` 집합이 행에 붙는다. 그래서 이 함수 하나가 두 곳의
- * 표기를 소유한다.
+ * 게시 종류 코드를 화면의 갈래로 옮긴다. 라벨(`재입찰`)이 아니라 코드로 판정하는 이유는 이름이 정체성이
+ * 아니기 때문이다(AGENTS 2) — 원천이 문구를 다듬는 날 조용히 틀린다. 코드 셋 밖의 값은 `regular`가 아니라
+ * `unknown`이다: 모르는 코드를 일반공고로 접으면 화면이 없는 사실을 말한다.
  */
-export function formatFloorRate(value: string): string {
-  if (!value.includes('.')) return value;
-  return value.replace(/0+$/, '').replace(/\.$/, '');
+function presentChangeKind(value: OpenAuction['changeKind']): OpenAuctionRowPresentation['changeKind'] {
+  if (value === null) return 'unknown';
+  if (value.code === ANNOUNCEMENT_REBID_CODE) return 'rebid';
+  if (value.code === ANNOUNCEMENT_AMENDED_CODE) return 'amended';
+  return 'regular';
 }
-
-/** 하한율을 관측하지 못한 행이 쓰는 표시값이다. 0이나 90으로 채우면 화면이 없는 사실을 말한다(AGENTS 3). */
-export const FLOOR_RATE_UNKNOWN = '미확인';
 
 export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAuctionRowPresentation {
   return {
@@ -236,6 +207,7 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     soloBid: auction.soloBidMethod === null
       ? 'unknown'
       : auction.soloBidMethod.code === SOLO_BID_NOT_ALLOWED_CODE ? 'not-allowed' : 'allowed',
+    changeKind: presentChangeKind(auction.changeKind),
     orgSummary: presentOrgSummary(auction.orgSummary)
   };
 }

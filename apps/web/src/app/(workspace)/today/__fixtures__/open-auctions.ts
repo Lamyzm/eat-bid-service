@@ -38,6 +38,7 @@ export const todayRow: OpenAuction = {
   itemLabel: '육류 , 가금류',
   displayBidNo: '2026-0001',
   soloBidMethod: null,
+  changeKind: null,
   floorRate: { value: '90.000', unit: 'percentage-points' },
   region,
   eligibilityAreas: [...eligibilityAreas],
@@ -84,6 +85,7 @@ export const laterRow: OpenAuction = {
   itemLabel: null,
   displayBidNo: null,
   soloBidMethod: null,
+  changeKind: null,
   floorRate: null,
   region: null,
   // 제한지역을 관측하지 못한 행이다. 화면이 이 상태를 "제한 없음"으로 바꿔 말하지 않는지, 그리고 상태
@@ -105,7 +107,8 @@ export const unknownClosesRow: OpenAuction = {
   // 단독입찰을 허용하지 않는 판이다. 참여 0곳이 기회가 아니라 유찰 신호라는 것을 화면이 말하는지 이 행이
   // 검사한다(EAT-249). 상세를 읽었다는 뜻이므로 회차 식별자도 함께 둔다.
   termsRevisionId: '5796473',
-  soloBidMethod: { codeValueId: '77', code: '002', scheme: 'eat:solo-bid-method', label: '단독입찰 허용안함' }
+  soloBidMethod: { codeValueId: '77', code: '002', scheme: 'eat:solo-bid-method', label: '단독입찰 허용안함' },
+  changeKind: { codeValueId: '91', code: '003', scheme: 'eat:announcement-change-kind', label: '재입찰' }
 };
 
 export const openAuctionsFixture: OpenAuctionListV1Response = {

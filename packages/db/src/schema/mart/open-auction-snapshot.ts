@@ -80,6 +80,14 @@ export const openAuctionSnapshot = martSchema.table(
      */
     soloBidMethodCodeValueId: bigint("solo_bid_method_code_value_id", { mode: "bigint" })
       .references(() => codeValue.codeValueId),
+    /**
+     * 게시 종류(`eat:announcement-change-kind`, 000 일반공고 / 001 변경공고 / 003 재입찰)다. 재입찰의 진짜
+     * 신호라 싣는다 — `RBID_YN`은 일반공고에서도 91.7%가 `Y`다(SOURCE-FIELDS T13, EAT-262). 최신 상세
+     * 해석의 `announcement_change_kind` role 코드이며 `terms_revision_id` 계보를 탄다. eat-v5 전에 해석된
+     * revision은 이 role이 없어 null이고 그것은 미관측이다(AGENTS 3).
+     */
+    announcementChangeKindCodeValueId: bigint("announcement_change_kind_code_value_id", { mode: "bigint" })
+      .references(() => codeValue.codeValueId),
     // 지역 축 둘은 같은 `mart.build.region_scheme` 안의 계층이지 두 체계가 아니다(ADR 0034, AGENTS 6).
     regionSidoCodeValueId: bigint("region_sido_code_value_id", { mode: "bigint" })
       .references(() => codeValue.codeValueId),
@@ -119,6 +127,7 @@ export const openAuctionSnapshot = martSchema.table(
           and ${table.announcedAt} is null
           and ${table.title} is null and ${table.displayBidNo} is null
           and ${table.soloBidMethodCodeValueId} is null
+          and ${table.announcementChangeKindCodeValueId} is null
           and ${table.regionSidoCodeValueId} is null
           and ${table.regionSigunguCodeValueId} is null)`,
     ),

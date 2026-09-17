@@ -1,7 +1,8 @@
 /** @module 책임: 마감 임박 순 행을 KST 마감 시각(날짜+시각) 묶음으로 나누고, 묶음 머리가 말할 시각·남은 시간·건수와 날짜가 바뀌는 자리를 정한다. */
 import { Temporal } from '@eatbid/domain';
 
-import { dayAwayText, type ClosesTone, type OpenAuctionRowPresentation } from './present-open-auctions';
+import { type ClosesTone, type OpenAuctionRowPresentation } from './present-open-auctions';
+import { dayAwayText } from './today-formats';
 
 const KST = 'Asia/Seoul';
 const WEEKDAY = ['월', '화', '수', '목', '금', '토', '일'] as const;

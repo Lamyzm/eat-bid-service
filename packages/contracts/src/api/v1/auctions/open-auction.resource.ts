@@ -72,6 +72,19 @@ export const openAuctionOrgSummarySchema = z.strictObject({
  */
 export const SOLO_BID_NOT_ALLOWED_CODE = "002";
 
+/**
+ * 게시 종류 코드 둘이다(`eat:announcement-change-kind`). 전수 181,150건에서 `000` 일반공고 176,158 ·
+ * `003` 재입찰 3,122 · `001` 변경공고 1,870이다(`docs/audit-source/generated/source-field-index.md`의
+ * `PBANC_CHG_GB_CD`).
+ *
+ * **재입찰의 진짜 신호가 이 코드다.** 이름이 "재입찰 여부"인 `RBID_YN`은 일반공고에서도 91.7%가 `Y`라
+ * 그것으로 거르면 거의 전부가 통과한다(`docs/audit-source/SOURCE-FIELDS.md` T13). 라벨(`재입찰`)로 판정하지
+ * 않는 이유는 이름이 정체성이 아니기 때문이다(AGENTS 2). 화면이 이 값을 읽어 문구를 고르므로 판정은 계약이
+ * 한 번만 소유한다. 일반공고에는 상수를 두지 않는다 — 97%에 붙는 표시는 신호가 아니라 배경이다.
+ */
+export const ANNOUNCEMENT_REBID_CODE = "003";
+export const ANNOUNCEMENT_AMENDED_CODE = "001";
+
 export const openAuctionRowSchema = z.strictObject({
   auctionAttemptId: positiveBigintTextSchema,
   // 목록이 준 기관 코드가 core에 없으면 조직이 null로 남는다. "기관 없음"을 "이름 미확인"과 합치지 않는다.
@@ -97,6 +110,13 @@ export const openAuctionRowSchema = z.strictObject({
    * 않는다: "허용함"과 "미관측"이 한 값이 되면 안 된다(AGENTS 3). eat-v4 전에 해석된 공고는 null이다.
    */
   soloBidMethod: codeReferenceSchema.nullable(),
+  /**
+   * 게시 종류(`eat:announcement-change-kind`, 일반공고/변경공고/재입찰)다. 재입찰이면 이 판은 한 번 유찰되고
+   * 다시 열린 판이라 셋째 줄의 `지난번`이 같은 판의 직전 시도일 수 있다 — 사용자가 행을 다르게 읽는다(EAT-262).
+   * 코드 참조 그대로 싣고 불리언으로 접지 않는다: "일반공고"와 "미관측"이 한 값이 되면 안 된다(AGENTS 3).
+   * eat-v5 전에 해석된 공고는 null이다.
+   */
+  changeKind: codeReferenceSchema.nullable(),
   // 사정률 축의 상수(하한율)다. 소스가 셋째 자리까지 표시하며 mart numeric(6,3)과 같다.
   floorRate: bidRateWireSchema.nullable(),
   region: openAuctionRegionSchema.nullable(),

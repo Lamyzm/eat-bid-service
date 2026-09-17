@@ -58,8 +58,9 @@ spec:
       # mart-r6는 스냅샷이 단독입찰 처리 방법 코드를 함께 싣는 규칙이다(EAT-249). mart-r7은 회차 요약의 품목이 단일 열이
       # 아니라 다리표(`org_round_summary_item`)이고 낙찰률 분포의 빈 품목 축을 없앤 규칙이다(EAT-256). mart-r8은 개찰이
       # 공고보다 45일 넘게 뒤인 회차에 격리 사유를 달고 스냅샷이 그런 마감을 싣지 않는 규칙이다(EAT-199).
+      # mart-r9는 스냅샷이 게시 종류 코드를 함께 싣는 규칙이다(EAT-262).
       - name: calc-version
-        value: mart-r8
+        value: mart-r9
       - name: start-date
         value: ""
       - name: end-date
