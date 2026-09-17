@@ -67,6 +67,19 @@ export const orgRoundSummary = martSchema.table(
     // 파생·표시용. 낙찰 사정률을 같은 투찰률 축으로 옮긴 값이다.
     awardedBidRate: bidRate("awarded_bid_rate"),
     listCount: integer("list_count"),
+    /**
+     * 이 회차의 eaT 공고지역이다. **두 열인 이유는 시도와 시군구가 서로 다른 code scheme이기 때문이다**
+     * — 한 열에 담으면 같은 숫자가 어느 체계의 구역인지 말하지 않는다(AGENTS 6). `open_auction_snapshot`이
+     * 이미 같은 모양이다.
+     *
+     * 이 표에 지역을 두는 이유는 비교군 조회 때문이다. 지역으로 좁힌 비교를 요청마다 core로 조인하면
+     * 원본 점 조회가 분석 경로로 새어 나오고, 그것을 막으려고 mart를 둔 이유가 사라진다(EAT-39 판정 A·B·C).
+     * 선언한 체계로 번역되지 않는 코드는 null이며 그 행은 지역 모집단에서 빠진다(ADR 0035 결정 6).
+     */
+    regionSidoCodeValueId: bigint("region_sido_code_value_id", { mode: "bigint" })
+      .references(() => codeValue.codeValueId),
+    regionSigunguCodeValueId: bigint("region_sigungu_code_value_id", { mode: "bigint" })
+      .references(() => codeValue.codeValueId),
     // 파생. 사정률 축에서 `bid_rate < floor_rate`를 센다. 나눗셈이 없어 반올림 없이 정확하다.
     belowDayFloorCount: integer("below_day_floor_count"),
     withdrawnCount: integer("withdrawn_count"),
@@ -86,6 +99,26 @@ export const orgRoundSummary = martSchema.table(
   (table) => [
     primaryKey({ columns: [table.buildId, table.auctionAttemptId] }),
     // 서버 어댑터의 `order by`와 `nulls last`까지 같아야 planner가 정렬 없이 이 index의 pathkey를 쓴다.
+    /**
+     * 분석 비교군 집계가 타는 인덱스다. 모양은 2026-09-17 복원본 측정이 정했다 — 이 인덱스 없이
+     * 5.7년 전국 집계가 79ms에 buffer 134,649였고, 놓은 뒤 16.5ms에 707이 됐다.
+     *
+     * 등호로 거는 축(하한율·낙찰방식)을 앞에, 범위로 거는 축(개찰 시각·명단 수)을 뒤에 둔다. 순서를
+     * 뒤집으면 범위 스캔이 여러 번 열린다. 낙찰 사정률을 마지막 열로 실어 heap을 다시 읽지 않고,
+     * 낙찰 관측이 없는 행은 분석의 모집단이 아니라 부분 인덱스로 뺀다.
+     */
+    index("org_round_summary_analysis_cohort_idx")
+      .on(
+        table.buildId,
+        table.floorRate,
+        table.awardMethodCodeValueId,
+        table.openedAt,
+        table.listCount,
+        // 세는 값 자체를 마지막 열로 둔다. 이게 없으면 집계가 칸마다 heap을 다시 읽어 index-only 스캔이
+        // 깨진다. Drizzle이 `include`를 내지 않으므로 키 열로 싣는다.
+        table.awardedAssessmentRate,
+      )
+      .where(sql`${table.awardedAssessmentRate} is not null`),
     index("org_round_summary_build_org_announced_idx").on(
       table.buildId,
       table.organizationId,
