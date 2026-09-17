@@ -99,9 +99,19 @@ export function TimeSeriesChart({
     if (element === null) return;
     const render = () => draw(element, plot);
     render();
-    const observer = new ResizeObserver(render);
-    observer.observe(element);
-    return () => observer.disconnect();
+    const size = new ResizeObserver(render);
+    size.observe(element);
+    /*
+     * 캔버스는 CSS 변수를 못 읽어 그린 **순간의** 색을 들고 있다. 명암 모드나 색 테마를 바꿔도 다시
+     * 그리지 않으면 어두운 배경 위에 밝은 모드의 점이 그대로 남는다 — 화면의 나머지는 바뀌고 차트만
+     * 안 바뀐다. 테마는 root 요소의 class와 `data-theme`이 나르므로 그 둘을 본다.
+     */
+    const theme = new MutationObserver(render);
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    return () => {
+      size.disconnect();
+      theme.disconnect();
+    };
   }, [plot]);
   const density = plot.comparison.kind === 'density';
   const summary = `${organizationLabel} ${plot.targetCount}건, ${comparisonLabel} ${plot.comparisonCount}건`
