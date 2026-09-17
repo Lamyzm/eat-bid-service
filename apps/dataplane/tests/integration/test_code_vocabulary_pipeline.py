@@ -7,9 +7,11 @@ from uuid import uuid4
 import pytest
 
 from eatbid.core.code_vocabulary_projection import PARENT_RELATION
+from eatbid.core.repository import ProjectionContractError
 from eatbid.failures.errors import SourceContractError
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
+from eatbid.ingest.postgres_run_closure import close_projection_run
 from eatbid.pipeline.code_vocabulary import (
     CodeVocabularyCapturePlan,
     CodeVocabularyServices,
@@ -248,6 +250,36 @@ def test_같은_관측을_두_번_투영해도_행이_늘지_않는다(connectio
             (AUCTION_LOCATION_SIDO.namespace,),
         )
         assert cursor.fetchone()[0] == 5
+    connection.rollback()
+
+
+def test_투영이_끝나면_run이_published로_닫히고_두_번_닫으려_하면_멈춘다(connection) -> None:
+    """발행 단계가 없는 lane이라 투영이 run을 직접 닫는다. 닫지 않으면 `backfill-progress` 기대가
+    그 run을 영원히 "도는 회차"로 세어 위반이 안 닫힌다(EAT-234)."""
+    services = _services(connection, FIXTURE.read_bytes())
+    plan = _plan()
+    capture_code_vocabulary(plan, services)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "select status from ingest.run where run_id = %s", (str(plan.run_id),)
+        )
+        assert cursor.fetchone()[0] == "running"
+
+        close_projection_run(
+            cursor, run_id=plan.run_id, ended_at=CAPTURED_AT, published_count=1
+        )
+        cursor.execute(
+            "select status, published_count, ended_at is not null from ingest.run where run_id = %s",
+            (str(plan.run_id),),
+        )
+        assert cursor.fetchone() == ("published", 1, True)
+
+        # 두 번 닫히는 것은 우리가 실행 정체성을 잘못 넘겼다는 뜻이라 조용히 지나가지 않는다.
+        with pytest.raises(ProjectionContractError, match="not open for completion"):
+            close_projection_run(
+                cursor, run_id=plan.run_id, ended_at=CAPTURED_AT, published_count=1
+            )
     connection.rollback()
 
 
