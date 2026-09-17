@@ -132,8 +132,12 @@ def test_계약_정수부_열세_자리_사정률은_거부한다() -> None:
         parse_bid_roster(
             _detail(
                 "ds_bidList",
-                _row(SAJEONG_PCT="1000000000000.000", BID_CALC_AMT="1000",
-                     BID_STT="005", SHIPPER_CD="1"),
+                _row(
+                    SAJEONG_PCT="1000000000000.000",
+                    BID_CALC_AMT="1000",
+                    BID_STT="005",
+                    SHIPPER_CD="1",
+                ),
             )
         )
 
@@ -145,7 +149,12 @@ def test_음수_사정률도_관측값_그대로_싣는다() -> None:
         roster = parse_bid_roster(
             _detail(
                 "ds_bidList",
-                _row(SAJEONG_PCT=value, BID_CALC_AMT="1000", BID_STT="005", SHIPPER_CD="1"),
+                _row(
+                    SAJEONG_PCT=value,
+                    BID_CALC_AMT="1000",
+                    BID_STT="005",
+                    SHIPPER_CD="1",
+                ),
             )
         )
         return roster.submissions[0].bid_rate.value
@@ -164,8 +173,12 @@ def test_계약보다_정밀한_사정률은_반올림하지_않고_거부한다
         parse_bid_roster(
             _detail(
                 "ds_bidList",
-                _row(SAJEONG_PCT="90.2185", BID_CALC_AMT="1000", BID_STT="005",
-                     SHIPPER_CD="1"),
+                _row(
+                    SAJEONG_PCT="90.2185",
+                    BID_CALC_AMT="1000",
+                    BID_STT="005",
+                    SHIPPER_CD="1",
+                ),
             )
         )
 
@@ -192,8 +205,13 @@ def test_추첨번호가_십진수가_아니면_거부한다() -> None:
         parse_bid_roster(
             _detail(
                 "ds_bidList",
-                _row(SAJEONG_PCT="90.100", BID_CALC_AMT="1000", BID_STT="005",
-                     SHIPPER_CD="1", DRAW_NO="7, 삼"),
+                _row(
+                    SAJEONG_PCT="90.100",
+                    BID_CALC_AMT="1000",
+                    BID_STT="005",
+                    SHIPPER_CD="1",
+                    DRAW_NO="7, 삼",
+                ),
             )
         )
 
@@ -223,10 +241,20 @@ def test_명단이_비면_낙찰_판정도_없다() -> None:
 def test_낙찰_판정이_둘_이상이면_해석하지_않고_거부한다() -> None:
     parsed = _detail(
         "ds_bidList",
-        _row(SAJEONG_PCT="90.100", BID_CALC_AMT="1000", BID_STT="002", SHIPPER_CD="1",
-             RNK="1"),
-        _row(SAJEONG_PCT="90.200", BID_CALC_AMT="2000", BID_STT="002", SHIPPER_CD="2",
-             RNK="2"),
+        _row(
+            SAJEONG_PCT="90.100",
+            BID_CALC_AMT="1000",
+            BID_STT="002",
+            SHIPPER_CD="1",
+            RNK="1",
+        ),
+        _row(
+            SAJEONG_PCT="90.200",
+            BID_CALC_AMT="2000",
+            BID_STT="002",
+            SHIPPER_CD="2",
+            RNK="2",
+        ),
     )
     roster = parse_bid_roster(parsed)
 
@@ -246,9 +274,7 @@ def test_추첨_후보_넷의_평균이_관측된_예정가격과_같다() -> No
         if candidate.chosen.code == "Y"
     ]
     assert len(chosen) == 4
-    average = (sum(chosen) / len(chosen)).quantize(
-        Decimal(1), rounding=ROUND_HALF_UP
-    )
+    average = (sum(chosen) / len(chosen)).quantize(Decimal(1), rounding=ROUND_HALF_UP)
     assert average == Decimal(parsed.datasets["ds_info"][0]["ELCTRN_BID_PLNPRC"])
 
 
@@ -346,9 +372,72 @@ def test_생성된_관측_사정률_모델은_음수를_받고_부호_있는_0�
 
     from eatbid.generated.ingestion_v2 import ObservedBidRate
 
-    assert ObservedBidRate(value="-2507.667", unit="percentage-points").value == "-2507.667"
+    assert (
+        ObservedBidRate(value="-2507.667", unit="percentage-points").value
+        == "-2507.667"
+    )
     assert ObservedBidRate(value="-0.001", unit="percentage-points").value == "-0.001"
     assert ObservedBidRate(value="0.000", unit="percentage-points").value == "0.000"
     for rejected in ("-0.000", "-1000000000000.000", "--1.000", "1.00"):
         with pytest.raises(ValidationError):
             ObservedBidRate(value=rejected, unit="percentage-points")
+
+
+def _roster_row(**overrides: str) -> str:
+    columns = {
+        "SHIPPER_CD": "S001",
+        "BID_STT": "002",
+        "BID_CALC_AMT": "6101000",
+        "SAJEONG_PCT": "90.218",
+        "EFT_ALL_AMT": "6101000",
+        **overrides,
+    }
+    return _row(**columns)
+
+
+def test_계약_밖_유효금액은_그_칸만_모름이고_줄과_레코드는_산다() -> None:
+    """왜: 2026-09-17 명단 104줄 중 한 줄의 `3978476.348`이 원화 scale 2를 넘어 그 창 16,684건의 발행을
+    막았다. 이 칸은 부재를 이미 허용하고 분석이 부재와 계약 밖을 다르게 다루지 않으므로 모름으로
+    내린다(ADR 0056 결정 1)."""
+    parsed = _detail(
+        "ds_bidList",
+        _roster_row(EFT_ALL_AMT="3978476.348"),
+        _roster_row(SHIPPER_CD="S002"),
+    )
+    notes: list[str] = []
+
+    roster = parse_bid_roster(parsed, notes=notes)
+
+    assert len(roster.submissions) == 2
+    첫줄 = roster.submissions[0]
+    assert 첫줄.effective_amount is None
+    # 같은 줄의 나머지 관측은 그대로 살아 있다 — 모름이 된 것은 그 칸 하나뿐이다.
+    assert 첫줄.amount.amount == "6101000.00"
+    assert 첫줄.bid_rate.value == "90.218"
+    assert roster.submissions[1].effective_amount is not None
+    # 관용은 조용하지 않다(결정 3).
+    assert len(notes) == 1
+    assert "EFT_ALL_AMT" in notes[0]
+
+
+def test_정체성과_필수_사실은_관용을_받지_않는다() -> None:
+    """왜: 그 칸이 틀리면 이 줄이 무엇에 대한 관측인지 말할 수 없다. 모름으로 두면 우리가 만든 줄이
+    된다(ADR 0056 결정 2)."""
+    for 칸, 값 in (
+        ("BID_CALC_AMT", "3978476.348"),
+        ("SAJEONG_PCT", "9999999999999.1"),
+    ):
+        parsed = _detail("ds_bidList", _roster_row(**{칸: 값}))
+
+        with pytest.raises(ValueError):
+            parse_bid_roster(parsed, notes=[])
+
+
+def test_계약_밖_칸이_없으면_사유도_남지_않는다() -> None:
+    parsed = _detail("ds_bidList", _roster_row())
+    notes: list[str] = []
+
+    roster = parse_bid_roster(parsed, notes=notes)
+
+    assert roster.submissions[0].effective_amount is not None
+    assert notes == []

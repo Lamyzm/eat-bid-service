@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -128,6 +129,25 @@ _SCAN_WINDOW_FILTER = """
                 and lu.request_params ->> 'P_BID_END_DT' <= %(window_end)s
            )
 """
+
+
+def _log_tolerated(observation_id: int, reason: str) -> None:
+    """계약 밖이라 모름으로 내린 칸을 실행 로그에 남긴다(ADR 0056 결정 3).
+
+    machine result가 아니라 로그인 이유는 정규화가 CLI 경계로 값을 돌려주지 않기 때문이다. 이 줄은
+    계약이 아니라 기록이며, Argo가 파드 로그를 R2와 OpenObserve로 보내므로 회차별로 다시 볼 수 있다.
+    """
+    print(
+        json.dumps(
+            {
+                "event": "tolerated-out-of-contract-field",
+                "observation_id": observation_id,
+                "reason": reason,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
 
 
 class Application:
@@ -269,6 +289,7 @@ class Application:
             normalized_at=args.normalized_at,
             store=self._store,
             repository=self._normalization,
+            on_tolerated=_log_tolerated,
         )
 
     def validate(self, args: argparse.Namespace) -> Any:

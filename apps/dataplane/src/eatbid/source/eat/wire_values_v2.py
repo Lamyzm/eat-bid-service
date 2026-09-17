@@ -46,6 +46,21 @@ def optional_money(row: Mapping[str, str], field: str) -> Money | None:
     return Money(amount=amount, currency="KRW") if amount is not None else None
 
 
+def tolerated_money(
+    row: Mapping[str, str], field: str
+) -> tuple[Money | None, str | None]:
+    """계약 밖 금액을 모름으로 내리고 그 사유를 함께 돌려준다(ADR 0056 결정 1).
+
+    부재와 "있지만 계약 밖"을 같은 자리에 두는 이유는 분석이 둘을 다르게 다루지 않기 때문이다. 둘 다
+    그 줄의 그 금액을 모른다는 뜻이다. 사유를 함께 내보내는 이유는 결정 3이다 — 관용이 조용하면 소스
+    결함이 우리 눈에서 사라진다. 어느 칸이 이 관용을 받는지는 호출부가 열거하며 기본은 관용하지 않는다.
+    """
+    try:
+        return optional_money(row, field), None
+    except ValueError as error:
+        return None, str(error)
+
+
 def optional_nonnegative_count(
     row: Mapping[str, str], field: str
 ) -> NonNegativeCount | None:
@@ -55,9 +70,7 @@ def optional_nonnegative_count(
 
 def optional_bid_rate(row: Mapping[str, str], field: str) -> BidRate | None:
     value = canonical_bid_rate_text(row, field)
-    return (
-        BidRate(value=value, unit="percentage-points") if value is not None else None
-    )
+    return BidRate(value=value, unit="percentage-points") if value is not None else None
 
 
 def optional_observed_bid_rate(

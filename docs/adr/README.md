@@ -69,6 +69,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0053](0053-negative-observed-bid-rates-and-failed-window-advance.md) | Accepted | 관측 사정률(`ObservedBidRate`)은 음수도 보존하고(2026-03 창 명단의 -2507.667 등 6건이 창 전체 발행을 막았다), `backfill_coverage`가 발행 실패 수를 들어 전진이 그 창을 다시 받지 않으며 기대가 replay까지 그 사실을 든다 |
 | [0054](0054-violation-ledger-and-renotification.md) | Accepted | 위반은 `monitoring.violation`·`notification` 표에 이력으로 남고(R2 JSON은 이관 뒤 폐기), "한 통으로 묶기"는 유지하되 "해소까지 반복 안 함"은 폐기해 critical은 60분마다·나머지는 아침 요약으로 다시 든다. main이 5일 빨간 채 억제된 2026-09-16 실측 |
 | [0055](0055-source-hold-across-scheduled-runs.md) | Accepted | 소스가 우리를 막으면(`SOURCE_THROTTLED`) 그 결정을 `ingest.source_hold`에 지수 backoff로 적고 다음 정시 실행이 읽는다 — 전진은 조용히 건너뛰고 poll-open은 소스 호출 0회로 실패한다. "진도는 파생, 결정은 저장"(ADR 0052 경계 추가) |
+| [0056](0056-out-of-contract-auxiliary-observation-is-unknown.md) | Accepted | 보조 관측 한 칸이 계약 밖이면 그 칸만 `unknown`이고 줄·레코드·발행은 산다 — 첫 대상은 명단의 `EFT_ALL_AMT`. 정체성과 필수 사실은 관용하지 않으며 모름으로 내린 칸은 실행 로그에 남긴다 |
 | [0052](0052-backfill-progress-recovery-and-advance.md) | Accepted | 수집 단계마다 주소가 다르므로(목록은 날짜, 상세는 아이디, 정규화·발행은 관측·릴리스) 복구는 소스 요청이 0인 뒤 단계부터 보고, 발견 축은 날짜로 유지하며(아이디 밀도 10.08% 실측) 진도는 `ingest` 사실에서 파생하는 view 하나가 소유하고 전진은 floor date를 선언한 CronWorkflow가 한다 |
 
 ## 새 ADR 형식
