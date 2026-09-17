@@ -5,6 +5,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { createLoader } from 'nuqs/server';
 import { systemClock } from '@eatbid/domain';
 import { getAuctionFromServer, parseAuctionId } from '@/api/auctions/server';
+import { findAnalysisTimeSeriesFromServer } from '@/api/analysis/server';
 import { analysisSearchParsers } from './_lib/analysis-search';
 import { loadAnalysisPage } from './_lib/load-analysis-page';
 import { AnalysisScreen } from './_widgets/analysis-screen';
@@ -17,6 +18,7 @@ async function AnalysisLoader({ params, searchParams }: Props) {
   const data = await loadAnalysisPage(auctionId, search.analysis, {
     parseId: parseAuctionId,
     readAuction: getAuctionFromServer,
+    readTimeSeries: findAnalysisTimeSeriesFromServer,
     now: () => systemClock.now().toString()
   });
   if (!data) notFound();

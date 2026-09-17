@@ -11,13 +11,23 @@
 .analysis-screen > [data-slot='analysis-header'] {
   padding: 28px var(--analysis-padding) 26px;
 }
+/*
+ * 조건 막대는 자기가 낮아지는 폭에서만 붙어 있는다. 경계 64rem은 실측이 정했다 — 900px 높이에서
+ * 막대는 390px에서 539px, 640~1023px에서 483~489px이고 1024px부터 253px로 접힌다(2026-09-18 dev).
+ * 막대가 489px이면 남는 411px에 456px짜리 차트가 들어가지 않아, 어떤 스크롤 위치에서도 차트 아래쪽이
+ * 막대 뒤에 숨는다. 조건을 늘 보이게 하려다 결과를 못 보게 만드는 것은 뒤집힌 거래다.
+ */
 [data-slot='analysis-sticky'] {
-  position: sticky;
-  top: var(--workspace-header-height);
   z-index: 12;
   background: var(--background);
   border-block: 1px solid var(--border);
   box-shadow: 0 3px 8px color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+@media (min-width: 64rem) {
+  [data-slot='analysis-sticky'] {
+    position: sticky;
+    top: var(--workspace-header-height);
+  }
 }
 .analysis-tabs-row {
   min-height: 58px;

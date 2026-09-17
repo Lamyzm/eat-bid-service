@@ -4,6 +4,7 @@ import { presentAnalysisContext } from '../_features/analysis-filters/model/pres
 import { AnalysisFilters } from '../_features/analysis-filters/ui/analysis-filters';
 import { AnalysisResultsGate } from '../_features/analysis-filters/ui/analysis-results-gate';
 import { AnalysisWorkspace } from '../_features/analysis-view/ui/analysis-workspace';
+import { TimeSeriesPanel } from '../_features/time-series/ui/time-series-panel';
 import { AnalysisHeader } from './analysis-header';
 import { AnalysisContext, AnalysisHistoryPending, AnalysisPendingPlot } from './analysis-evidence';
 
@@ -25,12 +26,30 @@ export function AnalysisScreen({
       }
       context={
         <AnalysisResultsGate requestKey={data.applied.key}>
-          <AnalysisContext context={context} />
+          <AnalysisContext
+            context={context}
+            samples={
+              data.timeSeries?.kind === 'plot'
+                ? {
+                  target: data.timeSeries.plot.targetCount,
+                  comparison: data.timeSeries.plot.comparisonCount
+                }
+                : null
+            }
+          />
         </AnalysisResultsGate>
       }
       time={
         <AnalysisResultsGate requestKey={data.applied.key}>
-          <AnalysisPendingPlot kind='time' />
+          {data.timeSeries === null || context.state === 'invalid' ? (
+            <AnalysisPendingPlot kind='time' />
+          ) : (
+            <TimeSeriesPanel
+              view={data.timeSeries}
+              organizationLabel={context.organization}
+              comparisonLabel={`${context.comparison} 전체`}
+            />
+          )}
         </AnalysisResultsGate>
       }
       distribution={

@@ -1,7 +1,22 @@
 /** @module 책임: 새 분석 자료가 준비되기 전의 비교 맥락과 표본·자료 기준 미확인 상태를 표시한다. */
 import type { AnalysisContextView } from '../_features/analysis-filters/model/present-analysis-context';
 
-export function AnalysisContext({ context }: { readonly context: AnalysisContextView }) {
+/**
+ * 두 집단의 표본 수다. 조회하기 전이나 자료가 준비되지 않은 상태에서는 null이며, 그때 화면은 0이
+ * 아니라 미확인이라고 말한다 — 관측된 0건과 미발행은 사용자가 할 일이 다르다(AGENTS 3).
+ */
+export interface AnalysisSampleCounts {
+  readonly target: number;
+  readonly comparison: number;
+}
+
+export function AnalysisContext({
+  context,
+  samples
+}: {
+  readonly context: AnalysisContextView;
+  readonly samples: AnalysisSampleCounts | null;
+}) {
   if (context.state === 'invalid')
     return (
       <div>
@@ -25,11 +40,15 @@ export function AnalysisContext({ context }: { readonly context: AnalysisContext
       <dl className='mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs'>
         <div className='flex items-center gap-2'>
           <dt className='font-medium text-primary'>{context.organization}</dt>
-          <dd className='text-muted-foreground'>표본 미확인</dd>
+          <dd className='text-muted-foreground'>
+            {samples === null ? '표본 미확인' : `표본 ${samples.target}건`}
+          </dd>
         </div>
         <div className='flex items-center gap-2'>
           <dt>{context.comparison} 전체</dt>
-          <dd className='text-muted-foreground'>표본 미확인</dd>
+          <dd className='text-muted-foreground'>
+            {samples === null ? '표본 미확인' : `표본 ${samples.comparison}건`}
+          </dd>
         </div>
       </dl>
     </div>
