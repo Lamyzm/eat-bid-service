@@ -2,7 +2,6 @@
 import { z } from "zod";
 
 import { kstDateTextSchema } from "../../../atoms/calendar";
-import { nonNegativeCountSchema } from "../../../atoms/count";
 import { bidRateTextSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
@@ -92,6 +91,12 @@ function listCountRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
   if (listCountMin > listCountMax) reject(ctx, "listCountMax", "명단 범위는 최소가 최대보다 클 수 없습니다.");
 }
 
+/**
+ * 명단 경계는 query 문자열로 온다. 응답 쪽 개수 atom은 이미 JSON 정수라 그대로 쓰면 `listCountMin=12`가
+ * 형식 오류로 튕긴다(2026-09-18 dev 실측). 범위는 응답 atom과 같은 PostgreSQL integer 범위로 닫는다.
+ */
+const listCountQuerySchema = z.coerce.number().int().nonnegative().max(2_147_483_647);
+
 const analysisTimeSeriesQuerySchema = z.strictObject({
   organizationId: positiveBigintTextSchema,
   // 지금 보고 있는 공고의 회차다. 두 집단 모두에서 뺀다 — 자기 자신을 비교군에 넣으면 그 점이 자기
@@ -106,8 +111,8 @@ const analysisTimeSeriesQuerySchema = z.strictObject({
   // 하한율은 정의상 0~100이라 관측 사정률과 다른 atom을 쓴다. 미확인 값을 90으로 추정하지 않는다.
   floorRate: bidRateTextSchema,
   awardMethodCodeValueId: positiveBigintTextSchema,
-  listCountMin: nonNegativeCountSchema.optional(),
-  listCountMax: nonNegativeCountSchema.optional(),
+  listCountMin: listCountQuerySchema.optional(),
+  listCountMax: listCountQuerySchema.optional(),
   // 품목은 기관에만 적용한다. 비교군은 언제나 전체 품목이다(PDR-0006).
   targetItemCodeValueId: positiveBigintTextSchema.optional(),
 })

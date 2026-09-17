@@ -6,7 +6,9 @@ import { CachedAuctionRosterReader } from "./infrastructure/caching/cached-aucti
 import { GetAuctionRoster } from "./application/get-auction-roster";
 import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
 import { FindAuction } from "./application/find-auction";
+import { FindAnalysisTimeSeries } from "./application/find-analysis-time-series";
 import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
+import type { AnalysisTimeSeriesReader } from "./application/analysis-time-series-reader";
 import { ListOpenAuctions } from "./application/list-open-auctions";
 import type { OpenAuctionSummaryReader } from "./application/open-auction-summary-reader";
 import { SummarizeOpenAuctions } from "./application/summarize-open-auctions";
@@ -20,12 +22,14 @@ import type { WinRateDistributionReader } from "./application/win-rate-distribut
 import { AuctionController } from "./presentation/http/auction.controller";
 import { MyBidObservationsController } from "./presentation/http/my-bid-observations.controller";
 import { OrganizationController } from "./presentation/http/organization.controller";
+import { AnalysisController } from "./presentation/http/analysis.controller";
 import { WinRateDistributionController } from "./presentation/http/win-rate-distribution.controller";
 import { FindMyBidObservations } from "./application/find-my-bid-observations";
 import type { OwnBidReader } from "./application/own-bid-reader";
 import type { RegisteredBusinessReader } from "../account/application/registered-business-reader";
 import type { UnitOfWork } from "../../platform/database/unit-of-work";
 import {
+  ANALYSIS_TIME_SERIES_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
   ELIGIBILITY_AREA_READER,
@@ -83,6 +87,13 @@ const findWinRateDistributionProvider = {
   useFactory: (reader: WinRateDistributionReader, clock: Clock) => new FindWinRateDistribution(reader, clock),
 };
 
+// 스냅샷의 발급 시각과 유효 기간이 현재 시각의 함수라 이 use case도 clock을 받는다(AGENTS 17).
+const findAnalysisTimeSeriesProvider = {
+  provide: FindAnalysisTimeSeries,
+  inject: [ANALYSIS_TIME_SERIES_READER, CLOCK],
+  useFactory: (reader: AnalysisTimeSeriesReader, clock: Clock) => new FindAnalysisTimeSeries(reader, clock),
+};
+
 const listEligibilityAreasProvider = {
   provide: ListEligibilityAreas,
   inject: [ELIGIBILITY_AREA_READER],
@@ -119,6 +130,7 @@ const findMyBidObservationsProvider = {
 
 @Module({
   controllers: [
+    AnalysisController,
     AuctionController,
     AuctionRosterController,
     EligibilityAreaController,
@@ -132,6 +144,7 @@ const findMyBidObservationsProvider = {
     findAuctionProvider,
     listOrganizationAuctionAttemptsProvider,
     findWinRateDistributionProvider,
+    findAnalysisTimeSeriesProvider,
     listOpenAuctionsProvider,
     summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,

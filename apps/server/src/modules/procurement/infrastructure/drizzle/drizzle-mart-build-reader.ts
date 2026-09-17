@@ -5,6 +5,7 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { martCoverageSchema, type MartCoverage } from "@eatbid/contracts";
+import type { Temporal } from "@eatbid/domain";
 import type { MartBuildLineage } from "../../application/mart-build-lineage";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
 import { bigintValue } from "./postgres-row-values";
@@ -55,6 +56,23 @@ export function coverageValue(value: string | null): MartCoverage | null {
   // 계약이 모르는 보유율 값은 화면이 해석할 수 없다. 조용히 complete로 떨어뜨리는 대신 끊는다.
   if (!parsed.success) throw new TypeError(`Database mart coverage ${value} is not a known verdict`);
   return parsed.data;
+}
+
+/**
+ * 활성 build가 읽은 봉인 입력의 기준 시각이다. 계보 record와 함께 두지 않는 이유는 스냅샷을 발급하는
+ * 조회가 분석 하나뿐인데, 이 열을 공유 record에 더하면 mart를 읽는 모든 어댑터가 쓰지도 않는 값을
+ * 같이 들고 다니게 되기 때문이다. 같은 한 행을 보므로 계보와 같은 build를 가리킨다.
+ */
+export async function readActiveMartBuildAsOf(
+  database: AuctionReadDatabase,
+  martName: string,
+): Promise<Temporal.Instant | null> {
+  const result = await database.execute(sql`
+    select build.as_of from mart.build build
+     where build.mart_name = ${martName} and build.status = 'active'`);
+  const rows = Array.isArray(result) ? result as ReadonlyArray<{ as_of: PostgresTimestamp }> : [];
+  const row = rows[0];
+  return row === undefined ? null : postgresInstant(row.as_of);
 }
 
 export async function readActiveMartBuildLineage(
