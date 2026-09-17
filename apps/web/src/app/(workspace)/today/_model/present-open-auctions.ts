@@ -1,6 +1,6 @@
 /** @module 책임: 열린 공고 목록 계약 응답을 오늘 화면 카드 목록이 그대로 쓰는 표시값(KST 마감·D-day·금액·미확인 문구·(기관, 하한율) 요약)으로 바꾼다. */
 import { Temporal } from '@eatbid/domain';
-import type { OpenAuction, OpenAuctionListV1Response } from '@eatbid/contracts/api/v1/auctions';
+import { SOLO_BID_NOT_ALLOWED_CODE, type OpenAuction, type OpenAuctionListV1Response } from '@eatbid/contracts/api/v1/auctions';
 
 const KST = 'Asia/Seoul';
 const pad2 = (value: number): string => value.toString().padStart(2, '0');
@@ -53,6 +53,12 @@ export type OpenAuctionRowPresentation = {
    * 판(null)은 `—`라 둘이 섞이지 않는다.
    */
   readonly bidCountText: string;
+  /**
+   * 단독입찰 처리 방법이다. **참여 0곳의 뜻을 바꾼다** — `not-allowed`면 혼자 들어가면 유찰이라 0곳은
+   * 기회가 아니다(실측 181,150건 중 허용안함 180,703). boolean으로 접지 않는 이유는 `unknown`(eat-v4 전
+   * 해석)과 `allowed`가 다른 사실이고 화면이 할 말도 다르기 때문이다(AGENTS 3).
+   */
+  readonly soloBid: 'not-allowed' | 'allowed' | 'unknown';
   readonly orgSummary: {
     readonly attemptCount: number;
     readonly medianListText: string;
@@ -227,6 +233,9 @@ export function presentOpenAuction(auction: OpenAuction, nowIso: string): OpenAu
     baseAmountText: auction.baseAmount === null ? '미확인' : formatAmountText(auction.baseAmount.amount),
     closes: presentCloses(auction.closesAt, nowIso),
     bidCountText: auction.bidCount === null ? '—' : auction.bidCount === 0 ? '' : String(auction.bidCount),
+    soloBid: auction.soloBidMethod === null
+      ? 'unknown'
+      : auction.soloBidMethod.code === SOLO_BID_NOT_ALLOWED_CODE ? 'not-allowed' : 'allowed',
     orgSummary: presentOrgSummary(auction.orgSummary)
   };
 }

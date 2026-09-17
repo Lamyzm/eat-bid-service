@@ -124,11 +124,12 @@ export function rows(now: number) {
       organization: { organizationId: '3103', label: null, type: 'school' },
       itemLabel: '김치류',
       displayBidNo: '2026-0004',
-      soloBidMethod: null,
+      // 단독입찰을 허용하지 않는 판이다. 참여 0곳이 기회가 아니라 유찰 신호라는 것을 화면이 말하는지 이 행이 본다(EAT-249).
+      soloBidMethod: { codeValueId: '77', code: '002', scheme: 'eat:solo-bid-method', label: '단독입찰 허용안함' },
       floorRate: { value: '90.000', unit: 'percentage-points' },
       closesAt: null,
       baseAmount: { amount: '980200.00', currency: 'KRW' },
-      bidCount: 4
+      bidCount: 0
     }
   ];
 }
