@@ -75,7 +75,7 @@ export const meV1Operations = {
     implementationOwner: "server",
     summary: "유효한 provider 세션으로 principal·identity·개인 워크스페이스를 멱등하게 만든다."
       + " 이미 초기화된 계정에는 같은 관계를 그대로 돌려준다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: z.undefined(),
@@ -92,7 +92,7 @@ export const meV1Operations = {
     operationId: "listMyBusinesses",
     implementationOwner: "server",
     summary: "내 워크스페이스가 등록한 사업자를 원본 대조 결과·위치와 함께 조회한다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: z.undefined(),
@@ -109,7 +109,7 @@ export const meV1Operations = {
     implementationOwner: "server",
     summary: "사업자등록번호를 내 분석 기준으로 등록한다. 워크스페이스 owner만 등록할 수 있고, 원본에서"
       + " 아직 관측되지 않은 번호도 미연결로 보존하며 다른 워크스페이스의 등록과 충돌하지 않는다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: registerMyBusinessCommandSchema,
@@ -135,7 +135,7 @@ export const meV1Operations = {
     implementationOwner: "server",
     summary: "등록한 사업자의 사업장 위치를 사용자가 적은 주소 문장으로 저장한다. 워크스페이스 owner만"
       + " 바꿀 수 있고 해석된 행정구역 코드나 좌표로 바꾸지 않는다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: businessPathSchema,
     querySchema: z.undefined(),
     bodySchema: setMyBusinessLocationCommandSchema,
@@ -152,7 +152,7 @@ export const meV1Operations = {
     implementationOwner: "server",
     summary: "등록한 사업자의 위치를 미설정으로 되돌린다. 워크스페이스 owner만 바꿀 수 있고 미설정은"
       + " 빈 문자열이 아니라 값이 없는 상태다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: businessPathSchema,
     querySchema: z.undefined(),
     bodySchema: z.undefined(),

@@ -18,7 +18,8 @@ function tabRoute(search: TodaySearch, tab: TabPresentation, today: string) {
 /**
  * 문장 속 수 하나다. 이름은 `진행중 4건`처럼 라벨과 수를 함께 갖고, 켜진 축은 `aria-current`가 말한다. 상시 밑줄은
  * 두지 않는다 — 시안의 문장은 굵기로만 수를 세우고, 어느 축이 켜졌는지는 달력 칸과 목록이 이미 보여 준다
- * (design-judge 반려 2026-09-17). 문장이 라벨을 이미 말한 자리(`오늘 열린 공고는 …`)에서는 라벨을 눈에서 숨긴다.
+ * (design-judge 반려 2026-09-17). 문장이 라벨을 이미 말한 자리(`오늘 열린 공고는 …`)에서는 라벨을 링크
+ * 이름으로 옮긴다 — 숨긴 글자로 두면 낭독기가 같은 말을 두 번 읽는다.
  */
 function Count({
   tab,
@@ -33,9 +34,13 @@ function Count({
     <Link
       href={href}
       aria-current={tab.active ? 'page' : undefined}
+      // 문장이 라벨을 이미 말한 자리에서는 라벨을 `sr-only`로 한 번 더 적지 않고 링크 이름으로 옮긴다.
+      // 숨긴 글자를 문장 안에 두면 낭독기가 `오늘 열린 공고는 오늘 열린 11건이에요`로 같은 말을 두 번
+      // 읽는다(2026-09-18 dev 실측). `aria-label`은 링크 안의 글자를 대신하므로 이름은 그대로 자립한다.
+      aria-label={labelHidden ? `${tab.label} ${tab.count}건` : undefined}
       className='whitespace-nowrap hover:underline'
     >
-      <span className={labelHidden ? 'sr-only' : undefined}>{tab.label} </span>
+      {labelHidden ? null : <span>{tab.label} </span>}
       <b className='font-extrabold text-foreground tabular-nums'>{tab.count}건</b>
     </Link>
   );

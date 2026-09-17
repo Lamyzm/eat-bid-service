@@ -51,31 +51,33 @@ function CheckRow({ row }: { readonly row: RailRow }) {
 }
 
 /**
- * 지역 구역이다. 시도는 하나만 고르므로 목록을 접어 두고(`details`), 시군구는 그 시도 안에서 여럿을 켠다.
+ * 지역 구역이다. 시도는 하나만 고르고 시군구는 그 시도 안에서 여럿을 켠다.
+ *
+ * **시도 목록을 접지 않는다**(사용자 결정 2026-09-17). 접어 두면 고른 시도 하나만 보이고 나머지 열여덟이
+ * 삼각형 뒤로 숨는다. 지역을 자주 바꾸지 않더라도 **어떤 지역이 있는지가 안 보이는 것**이 문제다 — 화면이
+ * "경남밖에 없다"고 말하는 것처럼 읽힌다. 기본으로 어느 지역을 볼지는 저장된 관심 지역이 정하고, 그것과
+ * 목록을 펼쳐 두는 것은 다른 문제다.
+ *
+ * 목록이 길어지는 것은 받아들인다. 어휘 전체가 0건까지 서는 것이 이 축의 계약이고(§10.4), 기둥은 `xl`에서
+ * 자기 스크롤을 가지므로 길이가 본문을 밀지 않는다.
  */
 function RegionSection({ region }: { readonly region: ConditionRailPresentation['region'] }) {
   return (
     <div role='group' aria-label='지역' className={RAIL_SECTION}>
       <span className={RAIL_HEAD}>지역</span>
-      <details className='group px-0 py-1'>
-        <summary className='flex h-[42px] cursor-pointer list-none items-center justify-between rounded-lg bg-muted px-3 text-[15px] font-semibold'>
-          <span>{region.sidoText}</span>
-          <span aria-hidden className='text-muted-foreground'>▾</span>
-        </summary>
-        <div className='mt-1 grid gap-0.5'>
-          {region.sidoRows.map((row) => (
-            <Link
-              key={row.key}
-              href={row.href!}
-              aria-current={row.active ? 'true' : undefined}
-              className={`${ROW} ${row.active ? 'bg-accent font-bold text-accent-foreground' : 'font-medium hover:bg-foreground/5'}`}
-            >
-              <span className='min-w-0 flex-1 truncate'>{row.label}</span>
-              <span className='text-[14px] tabular-nums text-muted-foreground/70'>{row.countText}</span>
-            </Link>
-          ))}
-        </div>
-      </details>
+      <div className='grid gap-0.5'>
+        {region.sidoRows.map((row) => (
+          <Link
+            key={row.key}
+            href={row.href!}
+            aria-current={row.active ? 'true' : undefined}
+            className={`${ROW} ${row.active ? 'bg-accent font-bold text-accent-foreground' : 'font-medium hover:bg-foreground/5'}`}
+          >
+            <span className='min-w-0 flex-1 truncate'>{row.label}</span>
+            <span className='text-[14px] tabular-nums text-muted-foreground/70'>{row.countText}</span>
+          </Link>
+        ))}
+      </div>
       {region.sigunguRows.map((row) => <CheckRow key={row.key} row={row} />)}
       {/* 지역 미상은 품목 미상과 같은 줄이다. 시도를 골랐을 때만 링크가 되고, 그 전에는 수만 말한다. */}
       <CheckRow row={region.unknownRow} />

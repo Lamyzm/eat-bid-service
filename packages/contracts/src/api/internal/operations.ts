@@ -15,7 +15,7 @@ export const internalOperations = {
     operationId: "revalidateWebCache",
     implementationOwner: "web",
     summary: "발행·mart 활성화 뒤 web 읽기 캐시의 의미 범위를 무효화한다",
-    tags: ["internal"],
+    tags: ["내부 운영"],
     pathSchema: z.strictObject({}),
     querySchema: z.undefined(),
     bodySchema: revalidateWebCacheBodySchema,

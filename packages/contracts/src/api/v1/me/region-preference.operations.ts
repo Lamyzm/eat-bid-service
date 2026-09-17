@@ -45,7 +45,7 @@ export const myRegionPreferenceV1Operations = {
     implementationOwner: "server",
     summary: "내 워크스페이스가 확인한 관심 지역 목록과 확인 시각을 조회한다."
       + " 아직 확인하지 않은 워크스페이스는 빈 목록과 null 확인 시각을 받는다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: z.undefined(),
@@ -62,7 +62,7 @@ export const myRegionPreferenceV1Operations = {
     implementationOwner: "server",
     summary: "내 워크스페이스의 관심 지역 목록을 통째로 교체하고 확인 시각을 찍는다."
       + " owner만 바꿀 수 있고 참가제한지역 체계에 없는 코드는 거절한다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: putMyRegionPreferenceCommandSchema,
