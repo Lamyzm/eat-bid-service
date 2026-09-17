@@ -71,10 +71,13 @@ spec:
       # 승인이다(ADR 0052 결정 5). 전진 CronWorkflow만 읽으며 사람이 부르는 backfill-pipeline은 쓰지
       # 않는다. 2025-09로 시작한 이유는 지난 1년의 구멍을 먼저 메우기 위해서였다 — 구멍은 숫자를 얇게
       # 만드는 것이 아니라 틀리게 만든다(결정 6). 2026-09-16 그 1년이 닫혀(2025-09 한 창의 계약 결정만 남음)
-      # 2023-09로 민다(EAT-253). 연치당 core+ingest 약 10GB, 한 시간에 달 하나라 2년은 나흘이다. 2021까지는
-      # mart 옛 build 정리(EAT-254)로 디스크를 되찾은 뒤 다시 민다.
+      # 2023-09로 민다(EAT-253). 연치당 core+ingest 약 10GB, 한 시간에 달 하나라 2년은 나흘이다.
+      # 2026-09-17 그 조건이 충족돼 2021-09로 민다(EAT-269). mart 옛 build 회수(EAT-254)가 build 629개·
+      # 6,121만 행을 지우고 VACUUM FULL로 파일을 돌려받아 mart 20GB → 2.9GB, DB 34GB → 19GB, 볼륨 여유
+      # 84GB → 93GB가 됐다. 추가 2년은 약 20GB라 여유 안에 든다. 실패한 창은 바닥과 무관하게 남으므로
+      # replay로 따로 닫는다(ADR 0053).
       - name: backfill-floor-date
-        value: "20230901"
+        value: "20210901"
   templates:
     - name: scheduled-pipeline
       dag:

@@ -1449,7 +1449,7 @@ def test_workflow_parameter는_mode_외에_backfill_창과_바닥만_추가로_�
         "release-name": "",
         # 백필이 뒤로 갈 바닥이다. 이 값을 미는 커밋이 그 해의 수집을 시작시키며 그것이 운영자
         # 승인이다(ADR 0052 결정 5). 전진 CronWorkflow만 읽는다. 2026-09-16 1년치가 닫혀 3년으로 민다(EAT-253).
-        "backfill-floor-date": "20230901",
+        "backfill-floor-date": "20210901",
     }
     discover = _templates(workflow_template)["discover"]
     discover_env = _mapping(discover["container"])
