@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import psycopg
+
 from eatbid.ingest.postgres_hold_repository import PsycopgSourceHoldRepository
 
 from .conftest import MigratedDatabase
@@ -48,3 +50,25 @@ def test_차단을_보면_보류가_생기고_열린_보류만_읽히며_지난_
 
         # 다른 소스의 보류는 이 소스를 막지 않는다.
         assert 저장소.open_hold("other", now=t0 + timedelta(minutes=1)) is None
+
+
+def test_보류_조회는_transaction을_남기지_않아_뒤따르는_쓰기가_스스로_커밋된다(
+    migrated_db: MigratedDatabase,
+) -> None:
+    """왜: 이 조회는 정시 수집이 소스를 부르기 전 첫 DB 접근이다. 여기서 연 암묵 transaction이 남으면
+    뒤따르는 discover의 쓰기가 전부 savepoint가 되어 프로세스 종료 때 되돌아간다. 단계는 성공으로
+    끝나고 행만 사라지므로 어떤 실패 신호도 남지 않는다(2026-09-17 정시 수집 21시간 중단, EAT-264)."""
+    now = datetime(2026, 9, 17, 8, 0, tzinfo=UTC)
+    with migrated_db.connect() as connection:
+        저장소 = PsycopgSourceHoldRepository(connection)
+
+        저장소.open_hold("eat-idle", now=now)
+
+        assert connection.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+        # 열린 보류가 있어도 마찬가지다 — 행을 돌려주는 경로도 블록 안에서 끝나야 한다.
+        저장소.record_throttle(
+            source="eat-idle", run_id=None, detail="HTTP 429", now=now
+        )
+        저장소.open_hold("eat-idle", now=now + timedelta(minutes=1))
+
+        assert connection.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
