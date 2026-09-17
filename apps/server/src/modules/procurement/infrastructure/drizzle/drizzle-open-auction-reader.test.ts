@@ -29,6 +29,10 @@ const row: OpenAuctionRow = {
   solo_bid_method_code: "002",
   solo_bid_method_scheme: "eat:solo-bid-method",
   solo_bid_method_label: "단독입찰 허용안함",
+  announcement_change_kind_code_value_id: "91",
+  announcement_change_kind_code: "003",
+  announcement_change_kind_scheme: "eat:announcement-change-kind",
+  announcement_change_kind_label: "재입찰",
   eligibility_areas: [
     { code_value_id: "9101", code: "15000", scheme: "eat:eligibility-area", label: "경남/전체" },
     { code_value_id: "9102", code: "15653", scheme: "eat:eligibility-area", label: "경남/김해시" },
@@ -56,6 +60,8 @@ describe("열린 공고 스냅샷 행 매핑", () => {
     expect(record.title).toBe("축산물 구매");
     // 단독입찰 처리 방법은 코드 참조 그대로다. 불리언으로 접으면 "허용함"과 "미관측"이 한 값이 된다(AGENTS 3).
     expect(record.soloBidMethod).toEqual({ codeValueId: 77n, code: "002", scheme: "eat:solo-bid-method", label: "단독입찰 허용안함" });
+    // 게시 종류도 같은 코드 참조 모양이다. 라벨이 아니라 코드가 판정의 근거다(EAT-262).
+    expect(record.changeKind).toEqual({ codeValueId: 91n, code: "003", scheme: "eat:announcement-change-kind", label: "재입찰" });
     expect(record.floorRate).toBe("90.000");
     expect(record.region).toEqual({
       sido: { codeValueId: 41n, code: "48", scheme: "eat:auction-location-sido", label: "경상남도" },
@@ -101,6 +107,10 @@ describe("열린 공고 스냅샷 행 매핑", () => {
       solo_bid_method_code: null,
       solo_bid_method_scheme: null,
       solo_bid_method_label: null,
+      announcement_change_kind_code_value_id: null,
+      announcement_change_kind_code: null,
+      announcement_change_kind_scheme: null,
+      announcement_change_kind_label: null,
       floor_rate: null,
       terms_revision_id: null,
       region_sido_code_value_id: null,
@@ -118,6 +128,8 @@ describe("열린 공고 스냅샷 행 매핑", () => {
     expect(record.itemLabel).toBeNull();
     expect(record.displayBidNo).toBeNull();
     expect(record.soloBidMethod).toBeNull();
+    // eat-v5 전에 해석된 공고다. null은 미관측이지 일반공고가 아니다(AGENTS 3).
+    expect(record.changeKind).toBeNull();
     expect(record.floorRate).toBeNull();
     expect(record.region).toBeNull();
     expect(record.termsRevisionId).toBeNull();

@@ -46,6 +46,7 @@ function openAuctionResource(record: OpenAuctionRecord): OpenAuction {
     title: record.title,
     displayBidNo: record.displayBidNo,
     soloBidMethod: codeReferenceWire(record.soloBidMethod),
+    changeKind: codeReferenceWire(record.changeKind),
     floorRate: bidRateWire(record.floorRate),
     region: record.region === null ? null : {
       sido: codeReferenceWire(record.region.sido),

@@ -98,6 +98,7 @@ update mart.open_auction_snapshot as snapshot
        title = latest.title,
        display_bid_no = latest.display_bid_no,
        solo_bid_method_code_value_id = latest.solo_bid_method_code_value_id,
+       announcement_change_kind_code_value_id = latest.announcement_change_kind_code_value_id,
        region_sido_code_value_id = latest.sido_code_value_id,
        region_sigungu_code_value_id = latest.sigungu_code_value_id
   from (
@@ -121,7 +122,9 @@ update mart.open_auction_snapshot as snapshot
            province_axis.region_code_value_id as sido_code_value_id,
            district_axis.region_code_value_id as sigungu_code_value_id,
            -- 단독입찰 처리 방법은 eat-v4부터 관측되는 role이다. 옛 해석의 revision은 행이 없어 null이다(EAT-249).
-           solo_bid.code_value_id as solo_bid_method_code_value_id
+           solo_bid.code_value_id as solo_bid_method_code_value_id,
+           -- 게시 종류는 eat-v5부터 관측되는 role이다. 같은 이유로 옛 해석의 revision은 null이다(EAT-262).
+           change_kind.code_value_id as announcement_change_kind_code_value_id
       from core.auction_revision as revision
       left join core.auction_revision_code_value as sido
         on sido.auction_revision_id = revision.auction_revision_id
@@ -129,6 +132,9 @@ update mart.open_auction_snapshot as snapshot
       left join core.auction_revision_code_value as solo_bid
         on solo_bid.auction_revision_id = revision.auction_revision_id
        and solo_bid.role = 'solo_bid_method'
+      left join core.auction_revision_code_value as change_kind
+        on change_kind.auction_revision_id = revision.auction_revision_id
+       and change_kind.role = 'announcement_change_kind'
       left join core.auction_revision_code_value as sigungu
         on sigungu.auction_revision_id = revision.auction_revision_id
        and sigungu.role = 'location_sigungu'
@@ -142,7 +148,8 @@ update mart.open_auction_snapshot as snapshot
            )
      -- 한 revision에 같은 role의 코드가 둘 이상 관측되면 어느 것을 실었는지가 실행마다 달라진다.
      order by revision.auction_attempt_id, revision.auction_revision_id desc,
-              sido.code_value_id, sigungu.code_value_id, solo_bid.code_value_id
+              sido.code_value_id, sigungu.code_value_id, solo_bid.code_value_id,
+              change_kind.code_value_id
   ) as latest
  where snapshot.build_id = %(build_id)s
    and snapshot.auction_attempt_id = latest.auction_attempt_id

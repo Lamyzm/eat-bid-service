@@ -87,15 +87,18 @@ test.describe('오늘 화면 접근성 트리', () => {
     // 묶음 머리가 시각·남은 시간·건수를 말하고 낭독기는 구획 이름으로 그 시각을 듣는다. fixture의 오늘 행은
     // 그날 23:59에 닫힌다(`closingDayEnd`).
     const list = page.getByRole('region', { name: '열린 공고' });
-    // 다른 날 묶음(`9월 18일 금 · 오후 11시 59분 마감`)도 같은 시각을 품으므로 이름을 정확히 맞춘다.
-    await expect(list.getByRole('region', { name: '오후 11시 59분 마감', exact: true })).toHaveCount(1);
-    await expect(list.locator('section[aria-label]')).toHaveCount(4);
+    // 보이는 글자에서 날짜를 뺐으므로 시각 구획의 이름에는 날짜가 붙는다. 다른 날 같은 시각 묶음이
+    // 둘이면 이름이 같은 구획이 형제로 서서 낭독기가 어느 쪽인지 말하지 못한다.
+    await expect(list.getByRole('region', { name: '오늘 오후 11시 59분 마감', exact: true })).toHaveCount(1);
+    // 날짜 구획 넷과 그 안의 시각 구획 넷이다.
+    await expect(list.locator('section[aria-label]')).toHaveCount(8);
+    await expect(list.getByRole('region', { name: '오늘', exact: true })).toHaveCount(1);
     await expect(page.locator('table')).toHaveCount(0);
   });
 });
 
 test.describe('오늘 화면 fixture', () => {
-  test('마감일로 묶고 오늘 묶음에만 빨강, 내일 묶음에 amber를 건다', async ({ page }) => {
+  test('마감일로 묶고 날짜 머리가 붙어 따라오며 묶음 머리에 상태색을 쓰지 않는다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto('/today');
@@ -107,14 +110,27 @@ test.describe('오늘 화면 fixture', () => {
     await expect(rows.nth(1)).toHaveAttribute('data-closes', 'tomorrow');
     await expect(rows.nth(2)).toHaveAttribute('data-closes', 'later');
     await expect(rows.nth(3)).toHaveAttribute('data-closes', 'unknown');
-    // 상태 색은 묶음 머리에만 붙는다. 행마다 칠하면 같은 날 스무 행이 통째로 빨개져 임박이 상태가
-    // 아니라 배경이 된다. 셀을 지정하지 않고 색만 고르면 다른 칸이 같은 색을 쓰기 시작한 날 이 검사가
-    // 무엇을 보는지 모르는 채로 깨진다(2026-09-11 제한지역 미관측 배지).
-    await expect(page.locator('[data-slot="closes"].text-destructive')).toHaveCount(1);
-    await expect(page.locator('[data-slot="closes"].text-pushed')).toHaveCount(1);
-    await expect(page.locator('section[aria-label="열린 공고"] .text-destructive, section[aria-label="열린 공고"] .text-pushed')).toHaveCount(2);
+    // 목록 어디에도 상태색(red·amber)이 없다. amber는 stale·부분 수집의 색이고 마감이 가까운 것은
+    // 관측된 일정이다 — 오늘 마감이 0건인 날에는 묶음 머리가 전부 `내일`이라 목록이 통째로 경고판이
+    // 된다(§9.2, design-judge 반려 2026-09-17). 급함은 `9시간 뒤`·`내일` 글자와 마감 순 정렬이 말한다.
+    await expect(page.locator('section[aria-label="열린 공고"] .text-destructive, section[aria-label="열린 공고"] .text-pushed')).toHaveCount(0);
+    // 날짜는 한 단 위의 머리가 한 번만 말하고 그 머리는 스크롤을 따라 위에 붙는다. 시각 묶음 머리에는
+    // 날짜가 없다 — 하루치 서른 묶음이 같은 글자로 시작하면 날짜 경계가 안 읽힌다.
+    const dayHeads = page.locator('[data-slot="closes-day"]');
+    await expect(dayHeads.first()).toHaveText(/오늘/);
+    await expect(dayHeads).toHaveCount(4);
+    await expect(page.locator('[data-slot="closes"]').first()).toHaveText('오후 11시 59분 마감');
+    const dayTopBefore = await dayHeads.first().boundingBox();
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(300);
+    const dayTopAfter = await dayHeads.first().boundingBox();
+    expect(dayTopBefore).not.toBeNull();
+    expect(dayTopAfter).not.toBeNull();
+    // 붙어 있으면 스크롤한 만큼 올라가지 않는다. 자유롭게 흐르면 600px 그대로 올라간다.
+    expect(dayTopBefore!.y - dayTopAfter!.y).toBeLessThan(600);
     await expect(page.locator('[data-slot="today-screen"]')).not.toContainText('NaN');
-    await expect(page.getByText('마감 미확인')).toBeVisible();
+    // 마감을 관측하지 못한 묶음은 날짜 머리 한 곳에서만 그 사실을 말한다.
+    await expect(page.locator('[data-slot="closes-day"]', { hasText: '마감 미확인' })).toHaveCount(1);
     await expect(page.getByText('기관 미확인')).toBeVisible();
     await expect(page.getByText('열린 공고 스냅샷 build 601', { exact: false })).toBeVisible();
   });

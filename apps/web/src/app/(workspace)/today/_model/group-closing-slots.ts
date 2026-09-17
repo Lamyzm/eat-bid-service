@@ -1,7 +1,8 @@
-/** @module 책임: 마감 임박 순 행을 KST 마감 시각(날짜+시각) 묶음으로 나누고, 묶음 머리가 말할 시각·남은 시간·건수와 날짜가 바뀌는 자리를 정한다. */
+/** @module 책임: 마감 임박 순 행을 KST 날짜 묶음과 그 안의 시각 묶음 두 단으로 나누고, 두 머리가 각각 말할 날짜·시각·남은 시간·건수를 정한다. */
 import { Temporal } from '@eatbid/domain';
 
-import { dayAwayText, type ClosesTone, type OpenAuctionRowPresentation } from './present-open-auctions';
+import { type ClosesTone, type OpenAuctionRowPresentation } from './present-open-auctions';
+import { dayAwayText } from './today-formats';
 
 const KST = 'Asia/Seoul';
 const WEEKDAY = ['월', '화', '수', '목', '금', '토', '일'] as const;
@@ -17,17 +18,40 @@ const WEEKDAY = ['월', '화', '수', '목', '금', '토', '일'] as const;
 export type ClosingSlotGroup = {
   /** `YYYY-MM-DD HH:mm`이거나, 마감을 관측하지 못한 묶음의 `unknown`이다. */
   readonly key: string;
-  /** 오늘은 `오전 9시 마감`, 다른 날은 `9월 17일 목 · 오전 9시 마감`, 미관측은 `마감 미확인`이다. */
+  /**
+   * `오전 9시 마감`이다. **날짜를 붙이지 않는다** — 날짜는 한 단 위의 날짜 머리가 한 번만 말한다.
+   * 시각 묶음마다 `9월 18일 금 · `을 다시 적으면 하루치 서른 묶음이 같은 글자로 시작해 날짜가 바뀌는
+   * 자리가 안 읽힌다(사용자 지적 2026-09-17). 마감을 관측하지 못한 묶음은 `마감 미확인`이다.
+   */
   readonly titleText: string;
   /** 오늘은 `3시간 뒤`·`40분 뒤`·`지났어요`, 다른 날은 `내일`·`사흘 뒤`다. 미관측은 빈 문자열이다. */
   readonly awayText: string;
   readonly tone: ClosesTone;
   /** 이미 지난 시각의 묶음이다. 목록은 열린 공고만 싣지만 스냅샷 산출과 보는 시점 사이에 닫힌 것이 있다. */
   readonly past: boolean;
-  /** 앞 묶음과 날짜가 다른 첫 묶음이다. 여기서 날짜가 바뀌었다는 선을 긋는다. */
-  readonly newDay: boolean;
   readonly count: number;
   readonly rows: readonly OpenAuctionRowPresentation[];
+};
+
+/**
+ * 날짜 묶음 하나다. 시각 묶음 여럿을 담고 화면에서 그 위에 **붙어 따라오는 머리**가 된다 — 스무 행을
+ * 지나 스크롤해도 지금 보는 것이 언제 마감인지가 화면에서 사라지지 않는다.
+ *
+ * 날짜를 한 단 위로 올린 이유는 반복이다. 시각 묶음 머리마다 날짜를 적으면 하루치가 전부 같은 글자로
+ * 시작해 날짜 경계가 다른 경계와 구분되지 않는다. 날짜는 바뀔 때 한 번만 말한다.
+ */
+export type ClosingDayGroup = {
+  /** `YYYY-MM-DD`이거나 마감을 관측하지 못한 묶음의 `unknown`이다. */
+  readonly key: string;
+  /** 오늘은 `오늘`, 다른 날은 `9월 18일 금`, 미관측은 `마감 미확인`이다. */
+  readonly dayText: string;
+  /** 오늘과 미관측은 빈 문자열이고 다른 날은 `내일`·`사흘 뒤`다. 오늘의 급함은 시각 묶음이 시간으로 말한다. */
+  readonly awayText: string;
+  /** 이 날의 시각 묶음이 전부 지난 시각이다. */
+  readonly past: boolean;
+  /** 이 페이지에 실린 이 날의 행 수다. 목록 상한(200) 밖은 세지 않는다. */
+  readonly count: number;
+  readonly slots: readonly ClosingSlotGroup[];
 };
 
 /** `오전 9시`·`오후 3시 30분`. 24시간 눈금은 표의 글자이고 말은 오전·오후로 센다. */
@@ -60,10 +84,8 @@ export function groupClosingSlots(rows: readonly OpenAuctionRowPresentation[], n
       built[built.length - 1] = { ...last, rows: [...last.rows, row], count: last.count + 1 };
       return built;
     }
-    const lastDate = last === undefined ? null : last.key.slice(0, 10);
-    const thisDate = key === 'unknown' ? 'unknown' : key.slice(0, 10);
     if (closes === null) {
-      built.push({ key, titleText: '마감 미확인', awayText: '', tone: 'unknown', past: false, newDay: last !== undefined && lastDate !== thisDate, count: 1, rows: [row] });
+      built.push({ key, titleText: '마감 미확인', awayText: '', tone: 'unknown', past: false, count: 1, rows: [row] });
       return built;
     }
     const clock = `${koreanClockText(closes.hour, closes.minute)} 마감`;
@@ -71,13 +93,52 @@ export function groupClosingSlots(rows: readonly OpenAuctionRowPresentation[], n
     const away = isToday ? hoursAwayText(closes, now) : dayAwayText(row.closes.dDay ?? 0);
     built.push({
       key,
-      titleText: isToday ? clock : `${closes.month}월 ${closes.day}일 ${WEEKDAY[closes.dayOfWeek - 1]!} · ${clock}`,
+      titleText: clock,
       awayText: away,
       tone: row.closes.tone,
       past: away === '지났어요',
-      newDay: last !== undefined && lastDate !== thisDate,
       count: 1,
       rows: [row]
+    });
+    return built;
+  }, []);
+}
+
+/**
+ * 시각 묶음을 날짜로 다시 묶는다. 시각 묶음이 이미 마감 임박 순이라 같은 날은 붙어 있으므로 바뀌는
+ * 자리에서만 끊는다.
+ *
+ * 날짜 글자를 여기서 만드는 이유는 시각 묶음이 그것을 갖지 않기 때문이다 — 같은 사실을 두 곳에서
+ * 만들면 한쪽만 고쳐지는 날 화면이 두 말을 한다.
+ */
+export function groupClosingDays(slots: readonly ClosingSlotGroup[], nowIso: string): readonly ClosingDayGroup[] {
+  const today = Temporal.Instant.from(nowIso).toZonedDateTimeISO(KST).toPlainDate();
+  return slots.reduce<ClosingDayGroup[]>((built, slot) => {
+    const key = slot.key === 'unknown' ? 'unknown' : slot.key.slice(0, 10);
+    const last = built.at(-1);
+    if (last !== undefined && last.key === key) {
+      built[built.length - 1] = {
+        ...last,
+        slots: [...last.slots, slot],
+        count: last.count + slot.count,
+        past: last.past && slot.past
+      };
+      return built;
+    }
+    if (key === 'unknown') {
+      built.push({ key, dayText: '마감 미확인', awayText: '', past: slot.past, count: slot.count, slots: [slot] });
+      return built;
+    }
+    const date = Temporal.PlainDate.from(key);
+    const isToday = Temporal.PlainDate.compare(date, today) === 0;
+    built.push({
+      key,
+      dayText: isToday ? '오늘' : `${date.month}월 ${date.day}일 ${WEEKDAY[date.dayOfWeek - 1]!}`,
+      // 오늘의 급함은 `40분 뒤`처럼 시각 묶음이 시간으로 말하므로 날짜 머리는 되풀이하지 않는다.
+      awayText: isToday ? '' : dayAwayText(today.until(date, { largestUnit: 'days' }).days),
+      past: slot.past,
+      count: slot.count,
+      slots: [slot]
     });
     return built;
   }, []);

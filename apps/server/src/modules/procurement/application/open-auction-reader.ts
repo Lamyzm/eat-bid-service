@@ -47,6 +47,8 @@ export interface OpenAuctionRecord {
   readonly displayBidNo: string | null;
   /** 단독입찰 처리 방법 코드 참조다. null은 미관측(eat-v4 전 해석)이지 "허용함"이 아니다(AGENTS 3, EAT-249). */
   readonly soloBidMethod: CodeReferenceRecord | null;
+  /** 게시 종류 코드 참조다. null은 미관측(eat-v5 전 해석)이지 "일반공고"가 아니다(AGENTS 3, EAT-262). */
+  readonly changeKind: CodeReferenceRecord | null;
   readonly floorRate: BidRate | null;
   readonly region: {
     readonly sido: CodeReferenceRecord | null;
