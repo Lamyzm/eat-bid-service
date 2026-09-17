@@ -1,0 +1,5 @@
+ALTER TABLE "mart"."org_round_summary" ADD COLUMN "region_sido_code_value_id" bigint;--> statement-breakpoint
+ALTER TABLE "mart"."org_round_summary" ADD COLUMN "region_sigungu_code_value_id" bigint;--> statement-breakpoint
+CREATE INDEX "org_round_summary_analysis_cohort_idx" ON "mart"."org_round_summary" ("build_id","floor_rate","award_method_code_value_id","opened_at","list_count","awarded_assessment_rate") WHERE "awarded_assessment_rate" is not null;--> statement-breakpoint
+ALTER TABLE "mart"."org_round_summary" ADD CONSTRAINT "org_round_summary_0jxAI9NEiQip_fkey" FOREIGN KEY ("region_sido_code_value_id") REFERENCES "core"."code_value"("code_value_id");--> statement-breakpoint
+ALTER TABLE "mart"."org_round_summary" ADD CONSTRAINT "org_round_summary_M21kdn0vaqH6_fkey" FOREIGN KEY ("region_sigungu_code_value_id") REFERENCES "core"."code_value"("code_value_id");

@@ -73,7 +73,10 @@ REGION_COLUMNS: Mapping[MartName, tuple[tuple[str, str], ...]] = {
         ("mart.open_auction_snapshot", "region_sido_code_value_id"),
         ("mart.open_auction_snapshot", "region_sigungu_code_value_id"),
     ),
-    "org_round_summary": (),
+    "org_round_summary": (
+        ("mart.org_round_summary", "region_sido_code_value_id"),
+        ("mart.org_round_summary", "region_sigungu_code_value_id"),
+    ),
 }
 
 _REGION_AXIS_ENFORCED_SQL = """

@@ -393,3 +393,49 @@ def test_개찰이_공고보다_45일_넘게_뒤인_회차는_행을_남기되_�
     # 계보와 격리는 다른 사실이다. 사슬은 모름(unknown)이고 격리 사유는 개찰 간격이다.
     assert rows[0][13] == "unknown"
     assert rows[0][17] == "opening-gap-over-45-days"
+
+
+def test_회차_요약이_공고지역_두_열을_관측한_체계_그대로_싣는다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """지역을 비교군 조회가 쓰려면 이 표가 갖고 있어야 한다(EAT-198).
+
+    요청마다 core를 조인하면 원본 점 조회가 분석 경로로 새어 나오고, 그것을 막으려고 mart를 둔 이유가
+    사라진다. 시도와 시군구를 두 열로 두는 이유는 둘이 서로 다른 code scheme이기 때문이다(AGENTS 6).
+    """
+    external_bid_id = _publish_and_project(pipeline_services)
+    plan = mart_plan(create_source_release(pipeline_services))
+
+    build_id, _row_count = build_mart(pipeline_services, plan, fill_org_round_summary)
+
+    rows = fetch_all(
+        pipeline_services,
+        """
+        select observed_sido.code, observed_sigungu.code,
+               sido_scheme.namespace, sigungu_scheme.namespace
+          from mart.org_round_summary as summary
+          join core.auction_attempt as attempt
+            on attempt.auction_attempt_id = summary.auction_attempt_id
+          left join core.code_value as observed_sido
+            on observed_sido.code_value_id = summary.region_sido_code_value_id
+          left join core.code_scheme as sido_scheme
+            on sido_scheme.code_scheme_id = observed_sido.code_scheme_id
+          left join core.code_value as observed_sigungu
+            on observed_sigungu.code_value_id = summary.region_sigungu_code_value_id
+          left join core.code_scheme as sigungu_scheme
+            on sigungu_scheme.code_scheme_id = observed_sigungu.code_scheme_id
+         where summary.build_id = %s and attempt.external_bid_id = %s
+        """,
+        (build_id, external_bid_id),
+    )
+
+    assert len(rows) == 1
+    sido_code, sigungu_code, sido_namespace, sigungu_namespace = rows[0]
+    # 관측한 코드가 그대로 앉는다. 선언한 체계에 code release가 없으면 번역은 꺼진 채 전환 이전 상태로
+    # 남으며, 그 사실을 여기서 고정한다(`region_axis.py`).
+    assert sido_code is not None
+    assert sigungu_code is not None
+    # 두 열이 서로 다른 체계다. 한 열로 합치면 같은 숫자가 어느 체계의 구역인지 말하지 않는다.
+    assert sido_namespace == "eat:auction-location-sido"
+    assert sigungu_namespace == "eat:auction-location-sigungu"
+    assert sido_namespace != sigungu_namespace
