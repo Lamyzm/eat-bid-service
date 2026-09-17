@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from hashlib import sha256
 from uuid import UUID
@@ -43,13 +44,21 @@ def normalize_observation(
     normalized_at: datetime,
     store: RawObjectStore,
     repository: NormalizationRepository,
+    on_tolerated: Callable[[int, str], None] | None = None,
 ) -> StoredNormalizedRecord:
+    """계약 밖이라 모름으로 내린 칸은 `on_tolerated`로 알린다(ADR 0056 결정 3).
+
+    돌려주는 값에 싣지 않는 이유는 정규화가 CLI 경계로 값을 돌려주지 않기 때문이다(`cli/chunks.py`
+    `_normalized_fields`). 그 결정은 계약에 대한 것이고 이 콜백은 기록에 대한 것이라 서로 다투지 않는다.
+    """
     observation = repository.load_observation(
         processing_run_id=processing_run_id,
         observation_id=observation_id,
     )
     if observation.request_params != observation.planned_request_params:
-        raise RawObjectIntegrityError("observation request identity differs from its plan")
+        raise RawObjectIntegrityError(
+            "observation request identity differs from its plan"
+        )
     if parser_version != observation.processing_parser_version:
         raise RawObjectIntegrityError("parser version differs from the processing run")
     external_bid_id = observation.planned_request_params.get("ELCTRN_BID_ID")
@@ -77,6 +86,10 @@ def normalize_observation(
             attempted_at=normalized_at,
         )
         raise DataQuarantinedError(observation_id, str(error)) from error
+
+    if on_tolerated is not None:
+        for reason in normalized.tolerated:
+            on_tolerated(observation_id, reason)
 
     return repository.store_normalized(
         observation=observation,

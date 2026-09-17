@@ -75,6 +75,9 @@ NormalizedAuctionRecord = EatbidIngestionAuctionV1 | EatbidIngestionAuctionV2
 class NormalizedDetail:
     record: NormalizedAuctionRecord
     schema_fingerprint: str
+    # 계약 밖이라 모름으로 내린 칸의 사유다. 격리가 아니므로 발행을 막지 않지만 기록이 없으면 소스
+    # 결함이 우리 눈에서 사라진다(ADR 0056 결정 3). 비어 있는 것이 정상이다.
+    tolerated: tuple[str, ...] = ()
 
 
 def normalize_bid_detail(
@@ -102,6 +105,7 @@ def normalize_bid_detail_payload(
         )
     parsed = parse_nexacro(payload, require_ds_info=True)
     info = parsed.datasets["ds_info"][0]
+    tolerated: list[str] = []
     try:
         shared = _shared_auction_fields(parsed, info, external_bid_id)
         record: NormalizedAuctionRecord = (
@@ -113,6 +117,7 @@ def normalize_bid_detail_payload(
                 parsed,
                 info,
                 shared,
+                notes=tolerated,
                 observe_area_labels=parser_version in _AREA_LABEL_PARSER_VERSIONS,
                 observe_solo_bid_method=parser_version in _SOLO_BID_PARSER_VERSIONS,
                 observe_change_kind=parser_version in _CHANGE_KIND_PARSER_VERSIONS,
@@ -126,7 +131,9 @@ def normalize_bid_detail_payload(
             schema_fingerprint=_contract_fingerprint(parsed, schema),
         ) from error
     return NormalizedDetail(
-        record=record, schema_fingerprint=_contract_fingerprint(parsed, schema)
+        record=record,
+        schema_fingerprint=_contract_fingerprint(parsed, schema),
+        tolerated=tuple(tolerated),
     )
 
 
@@ -158,9 +165,7 @@ def _shared_auction_fields(
         },
         "schedule": {
             "announced_at": canonical_instant_text(info, "PBANC_YMD", "%Y%m%d"),
-            "deadline_at": canonical_instant_text(
-                info, "BID_END_DT", "%Y%m%d%H%M%S"
-            ),
+            "deadline_at": canonical_instant_text(info, "BID_END_DT", "%Y%m%d%H%M%S"),
             "opened_at": canonical_instant_text(info, "OPNG_DT", "%Y%m%d%H%M%S"),
         },
         "pricing": {
@@ -186,11 +191,12 @@ def _build_v2(
     info: Mapping[str, str],
     shared: dict[str, Any],
     *,
+    notes: list[str],
     observe_area_labels: bool,
     observe_solo_bid_method: bool = False,
     observe_change_kind: bool = False,
 ) -> EatbidIngestionAuctionV2:
-    roster = parse_bid_roster(parsed)
+    roster = parse_bid_roster(parsed, notes=notes)
     if observe_area_labels:
         # 키를 아예 쓰지 않는 것과 빈 목록을 쓰는 것은 다른 사실이다. 전자는 "이 version은 라벨을 보지
         # 않았다", 후자는 "참가제한지역이 없는 공고"이며 canonical 바이트도 그 차이를 그대로 남긴다.
@@ -204,7 +210,9 @@ def _build_v2(
     return EatbidIngestionAuctionV2(
         contract_version="eatbid.ingestion.auction.v2",
         **shared,
-        terms=parse_auction_terms(info, observe_solo_bid_method=observe_solo_bid_method),
+        terms=parse_auction_terms(
+            info, observe_solo_bid_method=observe_solo_bid_method
+        ),
         roster=roster,
         award=parse_award_decision(parsed, roster),
         reserve_price_draw=parse_reserve_price_draw(parsed),
@@ -212,9 +220,7 @@ def _build_v2(
     )
 
 
-def _contract_fingerprint(
-    parsed: ParsedNexacro, schema: ReviewedSchemaContract
-) -> str:
+def _contract_fingerprint(parsed: ParsedNexacro, schema: ReviewedSchemaContract) -> str:
     """지문 규칙 자체는 계약이 갖는다. 여기서 다시 적으면 코드목록 경계와 상세 경계가 "같은 응답을
     같은 지문으로 부른다"는 사실을 각자 주장하게 된다."""
     return schema.observed_fingerprint(parsed.datasets)

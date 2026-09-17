@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from eatbid.generated.ingestion_v2 import (
+    Money,
     NormalizedAwardDecision,
     NormalizedBidRoster,
     NormalizedBidSubmission,
@@ -26,6 +27,7 @@ from eatbid.source.eat.wire_values_v2 import (
     optional_money,
     optional_nonnegative_count,
     optional_observed_bid_rate,
+    tolerated_money,
 )
 from eatbid.source.eat.xml import ParsedNexacro
 
@@ -44,7 +46,9 @@ _RUNNER_UP_RANK = 2
 _MAX_DRAW_NUMBERS = 8
 
 
-def parse_bid_roster(parsed: ParsedNexacro) -> NormalizedBidRoster:
+def parse_bid_roster(
+    parsed: ParsedNexacro, *, notes: list[str] | None = None
+) -> NormalizedBidRoster:
     """명단 블록을 읽는다. 블록이 없으면 빈 명단이며 그것은 실패가 아니다(AGENTS 3).
 
     유찰·취소·개찰 전 공고에는 이 블록이 아예 없다. 부재를 격리로 취급하면 정상적인 공고 수집이
@@ -54,11 +58,13 @@ def parse_bid_roster(parsed: ParsedNexacro) -> NormalizedBidRoster:
     rows = parsed.datasets.get(BID_LIST_DATASET, ())
     return NormalizedBidRoster(
         source_roster_size=optional_nonnegative_count(info, "BID_CNT"),
-        submissions=[_submission(row) for row in rows],
+        submissions=[_submission(row, notes) for row in rows],
     )
 
 
-def _submission(row: Mapping[str, str]) -> NormalizedBidSubmission:
+def _submission(
+    row: Mapping[str, str], notes: list[str] | None = None
+) -> NormalizedBidSubmission:
     # `SAJEONG_PCT`는 소스가 계산한 값이라 예정가격 초과 투찰과 단가 입찰에서 100을 넘는다.
     # 하한율과 같은 0~100 타입으로 읽으면 그 관측이 통째로 격리된다(AGENTS 3).
     bid_rate = optional_observed_bid_rate(row, "SAJEONG_PCT")
@@ -78,7 +84,7 @@ def _submission(row: Mapping[str, str]) -> NormalizedBidSubmission:
         supplier_account=_supplier_account(row),
         submitted_at=optional_instant_text(row, "BID_DT", "%Y-%m-%d %H:%M:%S"),
         amount=amount,
-        effective_amount=optional_money(row, "EFT_ALL_AMT"),
+        effective_amount=_tolerated_effective_amount(row, notes),
         bid_rate=bid_rate,
         rank=optional_nonnegative_count(row, "RNK"),
         source_status=status,
@@ -86,6 +92,22 @@ def _submission(row: Mapping[str, str]) -> NormalizedBidSubmission:
         draw_numbers=_draw_numbers(row),
         observed_roster_size=optional_nonnegative_count(row, "TOTAL_NUM"),
     )
+
+
+def _tolerated_effective_amount(
+    row: Mapping[str, str], notes: list[str] | None
+) -> Money | None:
+    """계약 밖 `EFT_ALL_AMT`는 그 칸만 모름이고 줄과 레코드는 산다(ADR 0056 결정 1).
+
+    이 칸이 관용을 받는 이유는 부재를 이미 허용하고 있고, 분석이 부재와 "있지만 계약 밖"을 다르게
+    다루지 않기 때문이다. 같은 줄의 `SHIPPER_CD`·`BID_STT`·`BID_CALC_AMT`·`SAJEONG_PCT`는 관용하지
+    않는다 — 그 칸이 틀리면 이 줄이 무엇에 대한 관측인지 말할 수 없다(결정 2). 2026-09-17 실측에서
+    명단 104줄 중 한 줄의 `3978476.348`이 원화 scale 2를 넘어 그 창 16,684건의 발행을 막았다.
+    """
+    amount, reason = tolerated_money(row, "EFT_ALL_AMT")
+    if reason is not None and notes is not None:
+        notes.append(reason)
+    return amount
 
 
 def _supplier_account(row: Mapping[str, str]) -> NormalizedSupplierAccount:
