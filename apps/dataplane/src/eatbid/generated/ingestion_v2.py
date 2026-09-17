@@ -226,12 +226,13 @@ class NormalizedAttemptLink(BaseModel):
 
 
 class NormalizedAuctionLineage(BaseModel):
-    """Observed re-bid relations by source identifier only."""
+    """Observed re-bid relations by source identifier, with the source's own announcement change kind."""
 
     model_config = ConfigDict(
         extra='forbid',
         populate_by_name=True,
     )
+    change_kind: Annotated[SourceCodedValue | None, Field(alias='changeKind')] = None
     links: Annotated[list[NormalizedAttemptLink], Field(max_length=64)]
     parent_external_bid_id: Annotated[
         ExternalBidId | None, Field(alias='parentExternalBidId')

@@ -259,8 +259,18 @@
     },
     "NormalizedAuctionLineage": {
       "additionalProperties": false,
-      "description": "Observed re-bid relations by source identifier only.",
+      "description": "Observed re-bid relations by source identifier, with the source's own announcement change kind.",
       "properties": {
+        "changeKind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCodedValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "links": {
           "items": {
             "$ref": "#/$defs/NormalizedAttemptLink"

@@ -41,8 +41,10 @@ spec:
       # 모르는 이름을 받는다(EAT-95). 이미 봉인된 v1·v2 발행물은 그대로 두고 replay로 revision을 더한다.
       # eat-v4는 단독입찰 처리 방법(`SGNS_BID_PRCS_MTHD_CD`)을 `terms.soloBidMethod`로 싣는다(EAT-249). 봉인된 v3 발행물은 그대로
       # 두고 replay로 revision을 더한다.
+      # eat-v5는 게시 종류(`PBANC_CHG_GB_CD`)를 `lineage.changeKind`로 싣는다(EAT-262). 재입찰의 진짜 신호가 이 코드이며
+      # `RBID_YN`이 아니다. eat-v4는 이미 배포돼 정시 수집이 그 이름으로 payload를 봉인했으므로 고치지 않고 이름을 더한다.
       - name: parser-version
-        value: eat-v4
+        value: eat-v5
       # mart 계산 규칙의 version이다. parser-version과 같은 자리에 두는 이유는 둘 다 "이 실행이 어떤
       # 해석 규칙으로 만든 결과인가"를 기록하는 값이고, 규칙을 바꾼 배포가 옛 build를 조용히 덮어쓰지
       # 않으려면 새 값으로 새 build를 만들어야 하기 때문이다(ADR 0034).

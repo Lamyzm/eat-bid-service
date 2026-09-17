@@ -1,0 +1,1 @@
+ALTER TABLE "core"."auction_revision_code_value" DROP CONSTRAINT "auction_revision_code_value_role_allowed", ADD CONSTRAINT "auction_revision_code_value_role_allowed" CHECK ("role" in ('location_sido', 'location_sigungu', 'eligibility_area', 'award_method', 'planned_price_method', 'solo_bid_method', 'announcement_change_kind', 'item'));

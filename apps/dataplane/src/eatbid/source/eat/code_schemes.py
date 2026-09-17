@@ -59,6 +59,13 @@ AWARD_METHOD = EatCodeScheme(
 SOLO_BID_METHOD = EatCodeScheme(
     "eat:solo-bid-method", "SGNS_BID_PRCS_MTHD_CD", "SGNS_BID_PRCS_MTHD_CD_NM"
 )
+# 게시 종류다(000 일반공고 176,158 / 003 재입찰 3,122 / 001 변경공고 1,870, 2026-09-16 전수 181,150건).
+# **재입찰의 진짜 신호가 이것이다.** `RBID_YN`은 이름이 "재입찰 여부"인데 일반공고에서도 91.7%가 `Y`라
+# 그것으로 거르면 거의 전부가 통과한다(SOURCE-FIELDS T13). 이름(`CHG_TP_NM`)으로 비교하지 말고 코드로 비교하라 —
+# 코드와 이름이 3종 대 3종으로 완전결정이므로 코드목록 없이도 이름이 관측된다(EAT-262).
+ANNOUNCEMENT_CHANGE_KIND = EatCodeScheme(
+    "eat:announcement-change-kind", "PBANC_CHG_GB_CD", "CHG_TP_NM"
+)
 
 # 복수예정가격 후보 15개 중 그 회차 추첨에 뽑혔는지(Y/N)다. "선택 여부"라는 의미는 실측으로 확인했다:
 # 전수 2,715,210행에 Y/N 두 값만 있고(`docs/audit-source/census-detail.txt`), 회차마다 정확히 4행이
@@ -131,6 +138,7 @@ EAT_CODE_SCHEMES: tuple[EatCodeScheme, ...] = (
     PLANNED_PRICE_TYPE,
     AWARD_METHOD,
     SOLO_BID_METHOD,
+    ANNOUNCEMENT_CHANGE_KIND,
     RESERVE_PRICE_SELECTION_FLAG,
     ATTEMPT_STATUS,
 )
