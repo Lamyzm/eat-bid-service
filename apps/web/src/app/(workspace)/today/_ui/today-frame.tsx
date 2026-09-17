@@ -13,11 +13,20 @@ type TodayFrameProps = {
  *
  * 기둥은 xl(1280)부터 옆에 서고 그 아래에서 본문 위로 내려온다. 표였을 때는 xl에서 본문이 708px뿐이라 여덟 칸이
  * 접혀 2xl부터였지만(2026-09-16 실측), 카드 행은 그 폭에서 세 줄이 그대로 서므로 한 단계 아래로 내렸다(EAT-260).
+ *
+ * 옆에 서는 폭에서 기둥은 **화면에 붙어 자기 스크롤을 갖는다**(사용자 요청 2026-09-17). 목록은 200행까지 서므로
+ * 같이 흘러가면 조건을 바꾸려고 맨 위까지 되돌아와야 하는데, 조건은 "이 화면의 모든 수가 어떤 집합을 세는가"의
+ * 선언이라 수를 보는 동안 함께 보여야 한다(§6.4.1). 셸 머리가 이미 위에 붙어 있으므로 그 높이만큼 내려 앉으며,
+ * 같은 변수를 셸의 도구 줄도 쓴다(`workspace-layout.css`). `overscroll-contain`은 기둥 끝에서 본문이 딸려
+ * 스크롤되는 것을 막는다. 눕는 폭에서는 붙이지 않는다 — 좁은 화면에서 세로를 나눠 쓰면 둘 다 못 읽는다.
  */
 export function TodayFrame({ header, rail, filters, list }: TodayFrameProps) {
   return (
-    <div data-slot='today-screen' role='region' aria-labelledby='today-title' className='grid w-full min-w-0 xl:grid-cols-[252px_minmax(0,1fr)]'>
-      <aside aria-label='내 조건' className='min-w-0 border-b border-border px-4 py-5 xl:border-r xl:border-b-0 xl:py-6'>
+    <div data-slot='today-screen' role='region' aria-labelledby='today-title' className='grid w-full min-w-0 xl:grid-cols-[252px_minmax(0,1fr)] xl:items-start'>
+      <aside
+        aria-label='내 조건'
+        className='min-w-0 border-b border-border px-4 py-5 xl:sticky xl:top-[var(--workspace-header-height,0px)] xl:h-[calc(100dvh-var(--workspace-header-height,0px))] xl:overflow-y-auto xl:overscroll-contain xl:border-r xl:border-b-0 xl:py-6'
+      >
         {rail}
       </aside>
       <div className='min-w-0 max-w-[1112px] px-4 py-5 sm:px-6 xl:px-9 xl:py-7'>

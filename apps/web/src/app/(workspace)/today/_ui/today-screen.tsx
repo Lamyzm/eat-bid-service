@@ -12,7 +12,7 @@ import { RegionSetupRequest } from '../_features/region-scope/ui/region-scope-st
 import { describeTodaySearch } from '../_lib/describe-today-search';
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
 import type { TodayPageData } from '../_model/load-today-page';
-import { groupClosingSlots } from '../_model/group-closing-slots';
+import { groupClosingDays, groupClosingSlots } from '../_model/group-closing-slots';
 import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
 import { kstToday, type OpenSummaryPresentation } from '../_model/present-open-summary';
 import { OpenAuctionCards } from './open-auction-cards';
@@ -94,7 +94,7 @@ function OpenAuctionList({
 }) {
   // 마감 시각 묶음은 행 순서를 바꾸지 않는다. 이미 마감 임박 순인 목록을 시각이 바뀌는 자리에서 끊을 뿐이라
   // `마감 임박 순`이라는 제목이 따로 필요 없다 — 묶음 머리가 순서를 보여 준다(U9).
-  const groups = groupClosingSlots(rows, nowIso);
+  const days = groupClosingDays(groupClosingSlots(rows, nowIso), nowIso);
   return (
     <div className='grid min-w-0 gap-4'>
       <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 empty:hidden'>
@@ -108,7 +108,7 @@ function OpenAuctionList({
         )}
         {cursorReset ? <span className='text-[13px] font-semibold text-muted-foreground'>목록이 갱신되어 처음부터 다시 보입니다.</span> : null}
       </div>
-      <OpenAuctionCards groups={groups} search={search} />
+      <OpenAuctionCards days={days} search={search} />
     </div>
   );
 }

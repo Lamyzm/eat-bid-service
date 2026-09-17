@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { summarizeItemLabel } from '@/entities/item/item-label';
 
 import { buildTodayFilterRoute, type TodaySearch } from '../_lib/today-search-params';
-import type { ClosingSlotGroup } from '../_model/group-closing-slots';
+import type { ClosingDayGroup, ClosingSlotGroup } from '../_model/group-closing-slots';
 import type { ClosesTone, OpenAuctionRowPresentation } from '../_model/present-open-auctions';
 import { CopyBidNo } from './copy-bid-no';
 
@@ -31,15 +31,36 @@ const HINT = 'text-muted-foreground/70';
 const NUM = 'font-bold text-muted-foreground tabular-nums';
 
 /**
- * 묶음 머리다. 시각·남은 시간·건수 한 줄이 그 아래 행들의 마감을 대신 말한다. 날짜가 바뀌는 첫 묶음은
- * 위에 선을 긋고 더 띄운다 — 오늘과 내일 사이가 시각 사이와 같은 간격이면 열 묶음이 한 날로 읽힌다.
+ * 날짜 머리다. **스크롤을 따라 위에 붙는다** — 목록은 한 날에 백 행이 넘게 서므로, 붙어 있지 않으면 몇 줄만
+ * 내려도 지금 보는 것이 언제 마감인지가 화면에서 사라진다(사용자 요청 2026-09-17). 셸 머리가 이미 위에
+ * 붙어 있으므로 그 높이만큼 내려 앉고, 같은 변수를 셸의 도구 줄도 쓴다.
+ *
+ * 이 자리가 목록에서 가장 큰 글자다(18/800). 시각 묶음은 그 아래 14/700 muted로 낮춰 두 단이 서로 다른
+ * 무게를 갖게 한다 — 둘이 같은 무게면 날짜 경계가 시각 경계와 구분되지 않는다.
+ */
+function DayHead({ day }: { readonly day: ClosingDayGroup }) {
+  return (
+    <h3
+      data-slot='closes-day'
+      className={`sticky top-[var(--workspace-header-height,0px)] z-10 flex items-baseline gap-2.5 border-b border-border bg-background py-2.5 ${day.past ? HINT : ''}`}
+    >
+      <span className='text-[18px] font-extrabold tracking-[-0.03em]'>{day.dayText}</span>
+      {day.awayText === '' ? null : <span className='text-[14px] font-semibold text-muted-foreground'>{day.awayText}</span>}
+      <span className={`ml-auto text-[14px] font-semibold tabular-nums ${HINT}`}>{day.count}건</span>
+    </h3>
+  );
+}
+
+/**
+ * 시각 묶음 머리다. 시각·남은 시간·건수 한 줄이 그 아래 행들의 마감을 대신 말한다. 날짜는 적지 않는다 —
+ * 위의 날짜 머리가 한 번만 말한다.
  */
 function SlotHead({ group }: { readonly group: ClosingSlotGroup }) {
   const tone = group.past ? HINT : CLOSES_TONE[group.tone];
   return (
-    <div className={`flex items-baseline gap-2.5 ${group.newDay ? 'mt-9 border-t border-border pt-6' : 'mt-6'} first:mt-0`}>
-      <span data-slot='closes' className={`text-[18px] font-extrabold tracking-[-0.03em] ${tone}`}>{group.titleText}</span>
-      {group.awayText === '' ? null : <span className={`text-[14px] font-semibold ${group.past ? HINT : 'text-muted-foreground'}`}>{group.awayText}</span>}
+    <div className='mt-5 flex items-baseline gap-2.5 first:mt-3'>
+      <span data-slot='closes' className={`text-[14px] font-bold ${tone === 'text-foreground' ? 'text-muted-foreground' : tone}`}>{group.titleText}</span>
+      {group.awayText === '' ? null : <span className={`text-[14px] font-semibold ${HINT}`}>{group.awayText}</span>}
       <span className={`ml-auto text-[14px] font-semibold tabular-nums ${HINT}`}>{group.count}건</span>
     </div>
   );
@@ -167,17 +188,26 @@ function AuctionRow({ row, search }: { readonly row: OpenAuctionRowPresentation;
 
 /**
  * 행 값은 서버에서 이미 문자열로 만들어졌고 행 안 상호작용은 링크와 복사 손잡이뿐이라 목록은 server
- * component다. 괘선은 행 사이 1px 안쪽 선 하나뿐이고 날짜가 바뀌는 자리는 묶음 머리의 선이 가른다.
+ * component다. 괘선은 행 사이 1px 안쪽 선 하나이고, 날짜가 바뀌는 자리는 붙어 따라오는 날짜 머리가 가른다.
  */
-export function OpenAuctionCards({ groups, search }: { readonly groups: readonly ClosingSlotGroup[]; readonly search: TodaySearch }) {
+export function OpenAuctionCards({ days, search }: { readonly days: readonly ClosingDayGroup[]; readonly search: TodaySearch }) {
   return (
     <div className='min-w-0'>
-      {groups.map((group) => (
-        <section key={group.key} aria-label={group.titleText} className={group.past ? 'opacity-60' : undefined}>
-          <SlotHead group={group} />
-          <div className='mt-1.5'>
-            {group.rows.map((row) => <AuctionRow key={row.auctionAttemptId} row={row} search={search} />)}
-          </div>
+      {days.map((day) => (
+        <section key={day.key} aria-label={day.dayText} className={`mt-7 first:mt-0 ${day.past ? 'opacity-60' : ''}`}>
+          <DayHead day={day} />
+          {day.slots.map((group) => (
+            // 보이는 글자에서 날짜를 뺐으므로 접근 이름에는 붙인다. 다른 날 같은 시각 묶음이 둘이면
+            // 이름이 같은 구획이 형제로 서서 낭독기가 어느 쪽인지 말하지 못한다.
+            <section key={group.key} aria-label={`${day.dayText} ${group.titleText}`}>
+              {/* 마감을 관측하지 못한 묶음은 나눌 시각이 없다. 날짜 머리가 이미 `마감 미확인`이라 말했으므로
+                  같은 말을 한 줄 더 적지 않는다 — 두 단이 같은 문장이면 단이 둘인 이유가 사라진다. */}
+              {group.key === 'unknown' ? null : <SlotHead group={group} />}
+              <div className='mt-1.5'>
+                {group.rows.map((row) => <AuctionRow key={row.auctionAttemptId} row={row} search={search} />)}
+              </div>
+            </section>
+          ))}
         </section>
       ))}
     </div>
