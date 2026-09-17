@@ -13,11 +13,11 @@ from typing import Any
 
 from eatbid.mart.item_bridge import fill_item_bridge
 from eatbid.mart.models import MartBuildPlan
-from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 from eatbid.mart.plausibility import (
     IMPLAUSIBLE_OPENING_GAP_DAYS,
     OPENING_GAP_QUARANTINE_REASON,
 )
+from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 
 # 한 attempt의 "최신 revision"은 `auction_revision_id` 최대값이다. 관측 시각으로 고르지 않는 이유는
 # 같은 raw의 replay가 시각을 되돌릴 수 있기 때문이고, revision id는 identity라 append 순서로 단조롭다.
