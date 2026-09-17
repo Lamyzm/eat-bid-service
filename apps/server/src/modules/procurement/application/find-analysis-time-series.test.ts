@@ -7,6 +7,7 @@ import { kstDate } from "../domain/kst-day";
 import { organizationId } from "../domain/organization-id";
 import type { AnalysisTimeSeriesReader } from "./analysis-time-series-reader";
 import {
+  AnalysisRegionNotFound,
   FindAnalysisTimeSeries,
   timeResolutionOf,
   type FindAnalysisTimeSeriesInput,
@@ -55,6 +56,7 @@ const emptyReading = {
 function readerDouble(overrides: Partial<AnalysisTimeSeriesReader>): AnalysisTimeSeriesReader {
   return {
     organizationExists: async () => true,
+    regionExists: async () => true,
     readTimeSeries: async () => emptyReading,
     ...overrides,
   };
@@ -69,6 +71,29 @@ describe("분석 시간축 조회 use case", () => {
   test("없는 기관은 표본 0이 아니라 기관 없음으로 끊는다", async () => {
     const reader = readerDouble({ organizationExists: async () => false });
     await expect(run(reader)).rejects.toBeInstanceOf(OrganizationNotFound);
+  });
+
+  test("없는 비교 지역은 표본 0이 아니라 지역 없음으로 끊는다", async () => {
+    const reader = readerDouble({ regionExists: async () => false });
+    const region = {
+      ...input,
+      comparisonScope: { kind: "region", scheme: "eat:auction-location-sido", codeValueId: 48n },
+    } as const;
+    await expect(run(reader, region)).rejects.toBeInstanceOf(AnalysisRegionNotFound);
+    // 전국은 확인할 축이 없으므로 지역 조회를 열지 않는다.
+    await expect(run(reader)).resolves.toBeDefined();
+  });
+
+  test("지역 비교는 적용한 체계와 코드값을 그대로 되돌려 준다", async () => {
+    const response = await run(readerDouble({}), {
+      ...input,
+      comparisonScope: { kind: "region", scheme: "eat:auction-location-sigungu", codeValueId: 49n },
+    });
+    expect(response.meta.effectiveFilter.comparisonScope).toEqual({
+      kind: "region",
+      scheme: "eat:auction-location-sigungu",
+      codeValueId: "49",
+    });
   });
 
   test("활성 build가 없으면 축·점·비교군이 전부 null이고 표본 수를 0으로 채우지 않는다", async () => {

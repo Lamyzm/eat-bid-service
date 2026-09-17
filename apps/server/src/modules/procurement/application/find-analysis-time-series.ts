@@ -60,6 +60,19 @@ const SNAPSHOT_TTL_HOURS = 24;
 /** 관측의 정의에 붙인 판이다. "낙찰 판정 행의 사정률을 회차당 하나 센다"가 바뀌면 이 값이 바뀐다. */
 export const OBSERVATION_POLICY_VERSION = "awarded-attempt-v1";
 
+/**
+ * 비교 지역의 코드값이 그 체계 안에 없다는 사실이다. 표본 0의 빈 결과로 뭉개지 않는 이유는 사용자가
+ * 할 일이 다르기 때문이다 — 없는 지역은 조건을 고쳐야 하고, 표본 0은 기간이나 조건을 넓혀야 한다.
+ */
+export class AnalysisRegionNotFound extends Error {
+  readonly code = "NOT_FOUND" as const;
+
+  constructor(readonly scheme: string, readonly codeValueId: bigint) {
+    super(`Region code value ${codeValueId.toString(10)} was not found in ${scheme}`);
+    this.name = "AnalysisRegionNotFound";
+  }
+}
+
 export interface AnalysisPeriodInput {
   readonly from: KstDate;
   readonly to: KstDate;
@@ -179,14 +192,14 @@ export class FindAnalysisTimeSeries {
 
   execute(input: FindAnalysisTimeSeriesInput): Effect.Effect<
     AnalysisTimeSeriesResult,
-    ProcurementDependencyUnavailable | OrganizationNotFound,
+    ProcurementDependencyUnavailable | OrganizationNotFound | AnalysisRegionNotFound,
     never
   > {
     const from = kstDayStart(input.period.from);
     const before = kstDayAfter(input.period.to);
     const timeResolution = timeResolutionOf(periodDays(from, before));
-    // 존재 확인을 먼저 끝내야 "그 기관이 없음"과 "표본이 아직 없음"이 같은 빈 결과로 뭉개지지 않는다.
-    return this.assertOrganizationExists(input.targetOrganizationId).pipe(
+    // 존재 확인을 먼저 끝내야 "그 축이 없음"과 "표본이 아직 없음"이 같은 빈 결과로 뭉개지지 않는다.
+    return this.assertAxesExist(input).pipe(
       Effect.flatMap(() => Effect.tryPromise({
         try: () => this.reader.readTimeSeries({
           targetOrganizationId: input.targetOrganizationId,
@@ -211,17 +224,32 @@ export class FindAnalysisTimeSeries {
     );
   }
 
-  private assertOrganizationExists(organizationId: OrganizationId): Effect.Effect<
+  /** 기관과 비교 지역을 함께 확인한다. 전국은 확인할 축이 없으므로 조회를 한 번 더 열지 않는다. */
+  private assertAxesExist(input: FindAnalysisTimeSeriesInput): Effect.Effect<
     void,
-    ProcurementDependencyUnavailable | OrganizationNotFound,
+    ProcurementDependencyUnavailable | OrganizationNotFound | AnalysisRegionNotFound,
     never
   > {
+    const scope = input.comparisonScope;
+    const organization = this.exists(
+      () => this.reader.organizationExists(input.targetOrganizationId),
+      () => new OrganizationNotFound(input.targetOrganizationId),
+    );
+    if (scope.kind === "national") return organization;
+    return organization.pipe(Effect.flatMap(() => this.exists(
+      () => this.reader.regionExists(scope.scheme, scope.codeValueId),
+      () => new AnalysisRegionNotFound(scope.scheme, scope.codeValueId),
+    )));
+  }
+
+  private exists<Failure>(
+    read: () => Promise<boolean>,
+    missing: () => Failure,
+  ): Effect.Effect<void, ProcurementDependencyUnavailable | Failure, never> {
     return Effect.tryPromise({
-      try: () => this.reader.organizationExists(organizationId),
+      try: read,
       catch: (cause): ProcurementDependencyUnavailable => new ProcurementDependencyUnavailable(cause),
-    }).pipe(Effect.flatMap((exists) => exists
-      ? Effect.succeed(undefined)
-      : Effect.fail(new OrganizationNotFound(organizationId))));
+    }).pipe(Effect.flatMap((found) => found ? Effect.succeed(undefined) : Effect.fail(missing())));
   }
 
   private assemble(

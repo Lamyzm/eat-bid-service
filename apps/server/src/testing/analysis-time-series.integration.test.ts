@@ -19,6 +19,14 @@ const extraSeed = `
   overriding system value values (12, 'eat:award-method', 'eat', 'immutable', 'open');
   insert into core.code_value (code_value_id, code_scheme_id, code)
   overriding system value values (31, 12, '003');
+  -- 시도와 시군구는 서로 다른 code scheme이다. 두 체계에 같은 숫자를 두어, 체계를 안 보고 id만
+  -- 비교하는 회귀가 통과하지 못하게 만든다(AGENTS 6).
+  insert into core.code_scheme (code_scheme_id, namespace, owner, version_policy, valid_time_policy)
+  overriding system value
+  values (13, 'eat:auction-location-sido', 'eat', 'immutable', 'open'),
+         (14, 'eat:auction-location-sigungu', 'eat', 'immutable', 'open');
+  insert into core.code_value (code_value_id, code_scheme_id, code)
+  overriding system value values (48, 13, '48'), (49, 14, '48120'), (50, 14, '48250');
   insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
   overriding system value
   select id, 'eat', 'external-' || id from generate_series(200, 205) as id;
@@ -62,6 +70,16 @@ const extraSeed = `
    where build_id = 501 and auction_attempt_id = 106;
   insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)
   values (501, 200, 7), (501, 201, 9), (501, 202, 7);
+  -- 205는 지역이 번역되지 않은 회차다. 지역 모집단에서 빠지되 전국에는 남는다(ADR 0035 결정 6).
+  update mart.org_round_summary
+     set region_sido_code_value_id = 48,
+         region_sigungu_code_value_id = case when auction_attempt_id = 202 then 50 else 49 end
+   where build_id = 501 and auction_attempt_id between 200 and 204;
+  -- 그 지역의 판정이 기관 코호트의 판정과 갈리는 달을 만든다. 전국 행만 있는 8월은 지역 판정이 없다.
+  insert into mart.build_coverage
+    (build_id, region_code_value_id, month_kst, expected_count, observed_count,
+     normalized_count, quarantined_count, coverage)
+  values (501, 48, '2026-09-01', 10, 10, 10, 0, 'complete');
 `;
 
 const baseQuery = {
@@ -151,6 +169,44 @@ test("분석 시간축 질의가 KST 칸·명단 범위·품목 다리를 실제
 
     expect(await reader.organizationExists(41n)).toBe(true);
     expect(await reader.organizationExists(99_999n)).toBe(false);
+  }, async (client) => {
+    await client.unsafe(extraSeed);
+  });
+}, 180_000);
+
+test("지역 비교는 체계가 고른 열로만 좁히고 번역되지 않은 회차를 그 모집단에서 뺀다", async () => {
+  await withSeededDatabase(async ({ client }) => {
+    const reader = new DrizzleAnalysisTimeSeriesReader(drizzle({ client }));
+
+    const sido = await reader.readTimeSeries({
+      ...baseQuery,
+      comparisonScope: { kind: "region", scheme: "eat:auction-location-sido", codeValueId: 48n },
+    });
+    // 205는 지역이 번역되지 않아 전국 여섯 중 다섯만 이 모집단에 든다.
+    expect(sido.comparisonTotal).toBe(5);
+    expect(sido.targetTotal).toBe(3);
+    expect(sido.overlapCount).toBe(3);
+
+    const sigungu = await reader.readTimeSeries({
+      ...baseQuery,
+      comparisonScope: { kind: "region", scheme: "eat:auction-location-sigungu", codeValueId: 49n },
+    });
+    expect(sigungu.comparisonTotal).toBe(4);
+    // 기관의 셋 중 202는 다른 시군구라 겹치지 않는다. 지역 비교에서는 겹침이 기관 표본 수와 다르다.
+    expect(sigungu.overlapCount).toBe(2);
+    expect(sigungu.targetTotal).toBe(3);
+
+    // 같은 숫자라도 체계가 다르면 다른 구역이다. 48은 시도에만 있고 49는 시군구에만 있다(AGENTS 6).
+    expect(await reader.regionExists("eat:auction-location-sido", 48n)).toBe(true);
+    expect(await reader.regionExists("eat:auction-location-sido", 49n)).toBe(false);
+    expect(await reader.regionExists("eat:auction-location-sigungu", 49n)).toBe(true);
+    expect(await reader.regionExists("eat:auction-location-sigungu", 48n)).toBe(false);
+
+    // 비교군 보유율은 그 지역 행만 본다. 지역 행이 없는 달은 기관 쪽 판정으로 메우지 않는다.
+    expect(sido.coverage.map((entry) => [entry.month, entry.target, entry.comparison])).toEqual([
+      ["2026-08", "complete", "none"],
+      ["2026-09", "unknown", "complete"],
+    ]);
   }, async (client) => {
     await client.unsafe(extraSeed);
   });

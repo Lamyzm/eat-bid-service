@@ -5,6 +5,7 @@
  * 화면은 "밀도 합과 표본 수가 다르다"는 형태로만 그 사실을 보게 되고 원인을 알 수 없다.
  */
 import { sql, type SQL } from "drizzle-orm";
+import { CODE_SCHEME_NAMES } from "@eatbid/contracts";
 import { rateMilliText } from "../../application/distribution-statistics";
 import type { AnalysisTimeSeriesQuery } from "../../application/analysis-time-series-reader";
 import { KST_TIME_ZONE } from "../../domain/kst-month";
@@ -67,12 +68,19 @@ export function analysisTargetPredicate(query: AnalysisTimeSeriesQuery): SQL {
 }
 
 /**
- * 비교 모집단을 좁히는 조건이다. 전국은 좁히지 않으므로 빈 조각이다 — 지역 갈래는 mart의 공고지역
- * 열이 병합된 뒤에 여기 붙는다(EAT-198). 빈 조각을 두는 이유는 교집합 질의가 이 자리를 이미 쓰고 있어서,
- * 지역이 붙을 때 조건을 더할 곳이 한 군데로 남기 때문이다.
+ * 비교 모집단을 좁히는 조건이다. 전국은 좁히지 않으므로 빈 조각이다.
+ *
+ * 지역은 **체계가 열을 고른다.** 시도와 시군구가 서로 다른 code scheme이라 mart도 두 열이며, 코드값
+ * id만 보고 두 열을 함께 훑으면 같은 숫자가 두 체계의 구역으로 읽힌다(AGENTS 6, ADR 0035). 번역되지
+ * 않아 null인 행은 그 지역 모집단에 들지 않는다 — 매핑 없음은 행의 부재다(ADR 0035 결정 6).
  */
-export function analysisComparisonPredicate(_query: AnalysisTimeSeriesQuery): SQL {
-  return sql``;
+export function analysisComparisonPredicate(query: AnalysisTimeSeriesQuery): SQL {
+  const scope = query.comparisonScope;
+  if (scope.kind === "national") return sql``;
+  const column = scope.scheme === CODE_SCHEME_NAMES.auctionLocationSido
+    ? sql`summary.region_sido_code_value_id`
+    : sql`summary.region_sigungu_code_value_id`;
+  return sql`and ${column} = ${scope.codeValueId}::bigint`;
 }
 
 /** 사정률을 milli 정수로 올린 뒤 폭으로 내림한다. 나눗셈이 정수라 칸 경계가 행마다 흔들리지 않는다. */
@@ -139,14 +147,28 @@ export function analysisOverlapSql(query: AnalysisTimeSeriesQuery): SQL {
 /**
  * 요청 기간의 달별 보유율이다. 한 달에 여러 지역 행이 걸리므로 가장 나쁜 값을 고른다.
  *
- * 전국 비교군의 모집단은 모든 지역이라 기관 코호트와 같은 최악값을 쓴다. 분포 mart에 기관→지역 축이
- * 없어 그 기관의 회차가 어느 지역 수집에서 왔는지 말할 수 없는 사정도 같다. 전국 분모만 보면 가장
- * 낙관적인 값을 고르는 것이다.
+ * 기관 코호트는 그 달의 모든 지역 판정 중 최악값을 쓴다. 보유율 표에 기관 축이 없어 그 기관의 회차가
+ * 어느 지역 수집에서 왔는지 말할 수 없기 때문이며, 전국 분모만 보면 가장 낙관적인 값을 고르는 것이다.
+ * 전국 비교군의 모집단도 모든 지역이라 같은 값이고, 지역 비교군만 그 지역의 행으로 좁힌다.
+ *
+ * 지역 비교에서 그 달에 그 지역 행이 없으면 값이 없다. 그것을 기관 쪽 최악값으로 메우면 묻지 않은
+ * 모집단의 판정을 그 지역의 판정이라고 말하는 것이므로, null로 두고 번역은 use case가 한다(PDR-0003).
  */
-export function analysisCoverageSql(fromMonthFirstDay: string, toMonthFirstDay: string): SQL {
+export function analysisCoverageSql(
+  query: AnalysisTimeSeriesQuery,
+  fromMonthFirstDay: string,
+  toMonthFirstDay: string,
+): SQL {
+  const scope = query.comparisonScope;
+  const worst = worstCoverageOrder(sql`cov.coverage`);
+  const comparison = scope.kind === "national"
+    ? sql`(array_agg(cov.coverage order by ${worst}))[1]`
+    : sql`(array_agg(cov.coverage order by ${worst})
+             filter (where cov.region_code_value_id = ${scope.codeValueId}::bigint))[1]`;
   return sql`
     select to_char(cov.month_kst, 'YYYY-MM') as month_kst,
-           (array_agg(cov.coverage order by ${worstCoverageOrder(sql`cov.coverage`)}))[1] as coverage
+           (array_agg(cov.coverage order by ${worst}))[1] as target_coverage,
+           ${comparison} as comparison_coverage
       from mart.build_coverage cov
      where cov.build_id = ${ACTIVE_BUILD}
        and cov.month_kst >= ${fromMonthFirstDay}::date
