@@ -29,7 +29,7 @@ export const myBidObservationV1Operations = {
     summary: "내 워크스페이스가 등록한 사업자가 지정한 build·기관의 회차들에 실제로 남긴 투찰 관측을"
       + " 한 번에 조회한다. 원본 대조가 안 된 사업자, 명단에 없는 회차, 명단 자체가 미관측인 회차,"
       + " 증거가 어긋난 회차를 서로 다른 상태로 구분하며 미참여로 단정하지 않는다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.strictObject({ businessId: positiveBigintTextSchema }),
     querySchema: z.undefined(),
     bodySchema: findMyBidObservationsCommandSchema,

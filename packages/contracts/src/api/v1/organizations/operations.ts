@@ -92,7 +92,7 @@ export const organizationV1Operations = {
     summary: "기관의 회차 요약을 최근 순으로 조회한다. 하한율·낙찰 방식은 정확한 값/all/unknown으로 구분하고,"
       + " 개찰월 기간은 양끝을 함께 지정하며 60개월을 넘을 수 없다. 새 조건을 명시하면 조건 meta와 행별 낙찰 방식을 포함한다."
       + " 다음 페이지는 첫 응답의 buildId·asOf를 되돌려 보내 같은 build와 같은 개찰 기준 시각을 이어 읽는다.",
-    tags: ["procurement"],
+    tags: ["공고와 분석"],
     pathSchema: z.strictObject({ organizationId: positiveBigintTextSchema }),
     querySchema: organizationAuctionAttemptsQuerySchema.default({
       limit: DEFAULT_ATTEMPT_LIMIT,

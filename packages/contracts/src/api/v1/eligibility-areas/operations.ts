@@ -30,7 +30,7 @@ export const eligibilityAreaV1Operations = {
     implementationOwner: "server",
     summary: "공고가 참가를 제한할 때 쓰는 지역 코드를 시도 묶음으로 조회한다."
       + " 라벨이 관측되지 않은 코드도 감추지 않고 그 수를 meta에 싣는다.",
-    tags: ["reference"],
+    tags: ["코드 사전"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: z.undefined(),
@@ -47,7 +47,7 @@ export const eligibilityAreaV1Operations = {
     implementationOwner: "server",
     summary: `지역 선택 하나가 오늘 몇 건을 잡고 지난 ${REGION_COVERAGE_WINDOW_DAYS}일 중 몰리는 날 최대`
       + " 몇 건이었는지를 실제 조회로 답한다. 저장하지 않은 선택으로도 물을 수 있다.",
-    tags: ["reference"],
+    tags: ["코드 사전"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: previewRegionCoverageCommandSchema,

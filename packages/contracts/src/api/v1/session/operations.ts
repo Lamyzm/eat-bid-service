@@ -13,7 +13,7 @@ export const sessionV1Operations = {
     implementationOwner: "server",
     summary: "현재 요청의 세션 상태를 미로그인·초기화 미완료·활성 셋 중 하나로 조회한다."
       + " 이 조회는 어떤 행도 만들지 않는다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: z.undefined(),

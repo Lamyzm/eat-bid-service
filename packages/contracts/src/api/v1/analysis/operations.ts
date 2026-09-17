@@ -125,7 +125,7 @@ export const analysisV1Operations = {
     summary: "한 기관의 실제 낙찰점과 같은 조건의 지역·전국 관측을 시간축에서 함께 조회한다."
       + " 기관 점과 비교군을 한 응답으로 내며, 넓은 범위의 비교군은 실제 점이 아니라 관측 밀도로 온다."
       + " 기간은 양끝 포함 KST 달력일이고 명단 범위도 양끝 포함이다. 지역 비교는 코드 체계와 코드값을 함께 지정한다.",
-    tags: ["procurement"],
+    tags: ["공고와 분석"],
     pathSchema: z.strictObject({}),
     querySchema: analysisTimeSeriesQuerySchema,
     bodySchema: z.undefined(),

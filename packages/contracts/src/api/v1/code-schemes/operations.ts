@@ -20,7 +20,7 @@ export const codeSchemeV1Operations = {
     operationId: "listCodes",
     implementationOwner: "server",
     summary: "코드 체계의 활성 release에 속한 코드를 조회한다",
-    tags: ["reference"],
+    tags: ["코드 사전"],
     pathSchema: z.strictObject({ scheme: codeSchemeSchema }),
     querySchema: listCodesQuerySchema.default({}),
     bodySchema: z.undefined(),

@@ -88,7 +88,7 @@ export const myFilterCombinationV1Operations = {
     implementationOwner: "server",
     summary: "내 워크스페이스가 저장한 조건 조합을 만든 순서대로 조회한다."
       + " 기본 조합은 저장되지 않으므로 여기 없다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: z.undefined(),
@@ -110,7 +110,7 @@ export const myFilterCombinationV1Operations = {
     implementationOwner: "server",
     summary: "기본 넷과 저장된 조합의 건수를 한 번의 요청으로 센다."
       + " 기본 넷은 관심 지역과 지금 조건에서 파생하며 저장되지 않는다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: filterCombinationCountsQuerySchema,
     bodySchema: z.undefined(),
@@ -130,7 +130,7 @@ export const myFilterCombinationV1Operations = {
     implementationOwner: "server",
     summary: `지금 조건에 이름을 붙여 저장한다. 워크스페이스당 ${maxFilterCombinations}개가 상한이고`
       + " 같은 이름을 두 번 저장할 수 없다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: z.undefined(),
     querySchema: z.undefined(),
     bodySchema: saveFilterCombinationCommandSchema,
@@ -157,7 +157,7 @@ export const myFilterCombinationV1Operations = {
     operationId: "deleteMyFilterCombination",
     implementationOwner: "server",
     summary: "저장한 조합 하나를 지운다. 남의 워크스페이스 조합은 403이다.",
-    tags: ["account"],
+    tags: ["내 계정과 조건"],
     pathSchema: combinationPathSchema,
     querySchema: z.undefined(),
     bodySchema: z.undefined(),
