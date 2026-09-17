@@ -161,6 +161,10 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.locator(ROWS)).toHaveCount(3);
 
     const rail = page.getByRole('complementary', { name: '내 조건' });
+    // 시도 목록은 접히지 않는다. 고른 지역이 있어도 `전체`와 다른 시도가 **누르지 않고** 바로 보여야 한다 —
+    // 접어 두면 어떤 지역이 있는지 자체가 안 보인다(사용자 결정 2026-09-18).
+    await expect(rail.locator('details')).toHaveCount(0);
+    await expect(rail.getByRole('link', { name: '전체' })).toBeVisible();
     // 시군구는 고른 시도 안에서 관측된 짝뿐이고, 품목은 여덟 원자가 0건까지 전부 선다.
     await expect(rail.getByRole('link', { name: '창원시 3' })).toBeVisible();
     // 합성 라벨(`육류 , 가금류`) 행도 원자마다 한 번씩 센다 — 두 행이 육류를 갖는다(EAT-230).
