@@ -76,6 +76,7 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | project, replay | `core/postgres_supplier_writer.py` | `core.source_supplier_account`, `core.supplier_party` |
 | project, replay, project-reference, project-code-vocabulary | `core/postgres_code_values.py` | `core.code_value`, `core.code_label_observation` |
 | project-reference | `core/code_release_projection.py` | `core.code_release`, `core.code_release_member` |
+| project-reference, project-code-vocabulary | `ingest/postgres_run_closure.py` | `ingest.run` (발행 단계가 없는 두 lane의 run을 투영이 끝난 자리에서 published로 닫는다, EAT-234) |
 | project-code-vocabulary | `core/code_vocabulary_projection.py` | `core.code_value`, `core.code_mapping` (소스가 코드목록에서 말한 상위 코드를 parent 관계로. 시군구 → 시도, EAT-260) |
 | build-marts | `mart/postgres_repository.py` | `mart.build`, `mart.build_coverage` |
 | build-marts | `mart/build_coverage.py` | `mart.build_coverage` |
