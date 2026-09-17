@@ -89,6 +89,9 @@ describe("mart.org_round_summary 스키마", () => {
 
   test("읽기 인덱스가 build를 앞세우고 어댑터 정렬과 같은 순서를 갖는다", () => {
     expect(indexNames(orgRoundSummary)).toEqual([
+      // 분석 비교군 집계가 타는 인덱스다. 등호 축을 앞에, 범위 축을 뒤에 두고 세는 값을 마지막에 실어
+      // index-only 스캔이 되게 한다. 이 순서를 뒤집으면 범위 스캔이 여러 번 열린다(EAT-198 실측).
+      "org_round_summary_analysis_cohort_idx",
       "org_round_summary_build_org_announced_idx",
     ]);
 
@@ -97,6 +100,14 @@ describe("mart.org_round_summary 스키마", () => {
       'CREATE INDEX "org_round_summary_build_org_announced_idx" ON "mart"."org_round_summary" '
         + '("build_id","organization_id","announced_at" DESC NULLS LAST,"auction_attempt_id" DESC NULLS LAST)',
     );
+  });
+
+  test("회차 요약이 eaT 공고지역 두 열을 갖고 한 열로 합치지 않는다", () => {
+    // 시도와 시군구는 서로 다른 code scheme이라 한 열에 담으면 같은 숫자가 어느 체계의 구역인지
+    // 말하지 않는다(AGENTS 6). `open_auction_snapshot`이 이미 같은 모양이다.
+    expect(columnNames(orgRoundSummary)).toContain("region_sido_code_value_id");
+    expect(columnNames(orgRoundSummary)).toContain("region_sigungu_code_value_id");
+    expect(columnNames(orgRoundSummary)).not.toContain("region_code_value_id");
   });
 
   test("옛 표를 남기지 않고 build 계보를 가진 표로 교체한다", () => {

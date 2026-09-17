@@ -17,6 +17,7 @@ from eatbid.mart.plausibility import (
     IMPLAUSIBLE_OPENING_GAP_DAYS,
     OPENING_GAP_QUARANTINE_REASON,
 )
+from eatbid.mart.region_axis import REGION_TRANSLATION_CTE
 
 # 한 attempt의 "최신 revision"은 `auction_revision_id` 최대값이다. 관측 시각으로 고르지 않는 이유는
 # 같은 raw의 replay가 시각을 되돌릴 수 있기 때문이고, revision id는 identity라 append 순서로 단조롭다.
@@ -32,7 +33,7 @@ from eatbid.mart.plausibility import (
 # 예정가격에서 파생하는 값 — 그날 하한 금액·비율, 투찰률 축 낙찰률, 하한 미만 수 — 은 전부 null로
 # 둔다. 하한 미만 수까지 비우는 이유는 명단의 사정률이 예정가격 분모의 소스 계산값이라 예정가격이
 # 없는 회차에서는 그 부등식 자체가 성립하지 않기 때문이다(derivations.py).
-ORG_ROUND_SUMMARY_FILL_SQL = """
+ORG_ROUND_SUMMARY_FILL_SQL = f"""
 insert into mart.org_round_summary (
   build_id, auction_attempt_id, auction_revision_id, organization_id,
   item_label, announced_at, opened_at, floor_rate,
@@ -40,10 +41,12 @@ insert into mart.org_round_summary (
   awarded_assessment_rate, runner_up_assessment_rate,
   day_floor_amount, day_floor_bid_rate, awarded_bid_rate,
   list_count, below_day_floor_count, withdrawn_count, withdrawal_cohort_age_days,
+  region_sido_code_value_id, region_sigungu_code_value_id,
   winner_supplier_party_id, supersedes_attempt_id, lineage_status, opened_month_kst,
   quarantine_reason
 )
-with latest as (
+with {REGION_TRANSLATION_CTE.strip()},
+latest as (
   select distinct on (revision.auction_attempt_id)
          revision.auction_revision_id,
          revision.auction_attempt_id,
@@ -79,7 +82,7 @@ select
   -- 관측 라벨은 그대로 싣는다. 원자 코드는 열이 아니라 다리표 `org_round_summary_item`이며 `_fill_items`가
   -- 같은 라벨을 `read_item_label`로 읽어 채운다(EAT-256).
   nullif(btrim(coalesce(
-    latest.source_payload #>> '{classification,sourceCategoryLabel}', ''
+    latest.source_payload #>> '{{classification,sourceCategoryLabel}}', ''
   )), ''),
   latest.announced_at,
   latest.opened_at,
@@ -117,6 +120,10 @@ select
       - (latest.opened_at at time zone 'Asia/Seoul')::date
     )
   end,
+  -- 선언한 체계로 번역되지 않는 지역 코드는 null이다. 코드가 있는 척하면 화면이 다른 체계의 구역을
+  -- 이 build의 구역으로 읽는다(ADR 0035 결정 7, `open_auction_snapshot`과 같은 판정).
+  province_axis.region_code_value_id,
+  district_axis.region_code_value_id,
   award.supplier_party_id,
   parent.to_auction_attempt_id,
   -- `lineage` 블록이 있는 계약으로 정규화된 회차만 사슬을 관측한 것이다. 그 블록이 없는 계약의
@@ -143,6 +150,16 @@ left join core.award_decision as award
 left join core.auction_revision_code_value as award_method
   on award_method.auction_revision_id = latest.auction_revision_id
  and award_method.role = 'award_method'
+left join core.auction_revision_code_value as sido
+  on sido.auction_revision_id = latest.auction_revision_id
+ and sido.role = 'location_sido'
+left join core.auction_revision_code_value as sigungu
+  on sigungu.auction_revision_id = latest.auction_revision_id
+ and sigungu.role = 'location_sigungu'
+left join region_translation as province_axis
+  on province_axis.source_code_value_id = sido.code_value_id
+left join region_translation as district_axis
+  on district_axis.source_code_value_id = sigungu.code_value_id
 left join lateral (
   select link.to_auction_attempt_id
     from core.auction_attempt_link as link
@@ -189,6 +206,7 @@ def fill_org_round_summary(
                 "as_of": plan.as_of,
                 "gap_days": IMPLAUSIBLE_OPENING_GAP_DAYS,
                 "quarantine_reason": OPENING_GAP_QUARANTINE_REASON,
+                "region_scheme": plan.region_scheme,
             },
         )
         row_count = cursor.rowcount
