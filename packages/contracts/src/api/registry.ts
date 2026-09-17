@@ -7,6 +7,7 @@ import { myBidObservationV1OperationRegistry } from "./v1/me/bid-observations.op
 import { myFilterCombinationV1OperationRegistry } from "./v1/me/filter-combination.operations";
 import { meV1OperationRegistry } from "./v1/me/operations";
 import { myRegionPreferenceV1OperationRegistry } from "./v1/me/region-preference.operations";
+import { analysisV1OperationRegistry } from "./v1/analysis/operations";
 import { organizationV1OperationRegistry } from "./v1/organizations/operations";
 import { sessionV1OperationRegistry } from "./v1/session/operations";
 import { winRateDistributionV1OperationRegistry } from "./v1/win-rate-distribution/operations";
@@ -19,6 +20,8 @@ export const publicHttpOperationRegistry = createOperationRegistry([
   ...codeSchemeV1OperationRegistry,
   ...eligibilityAreaV1OperationRegistry,
   ...winRateDistributionV1OperationRegistry,
+  // 상세 분석 조회다. 기관 점과 비교군을 한 응답으로 내며 유료 인가가 붙는다(EAT-216).
+  ...analysisV1OperationRegistry,
   ...sessionV1OperationRegistry,
   ...meV1OperationRegistry,
   // 같은 `me` resource라 개인 응답 헤더 prefix는 계정 registry가 이미 만든다. 관심 지역도 개인 상태이며

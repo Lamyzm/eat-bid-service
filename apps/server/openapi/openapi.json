@@ -39,6 +39,578 @@
         ],
         "type": "object"
       },
+      "AnalysisComparisonSeries": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "points"
+                ],
+                "type": "string"
+              },
+              "points": {
+                "items": {
+                  "$ref": "#/components/schemas/AnalysisTargetPoint"
+                },
+                "maxItems": 8192,
+                "type": "array"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "points",
+              "truncated"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "cells": {
+                "items": {
+                  "$ref": "#/components/schemas/AnalysisDensityCell"
+                },
+                "maxItems": 32768,
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "density"
+                ],
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "cells",
+              "truncated"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
+      "AnalysisDensityCell": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "fromAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "rateFrom": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          },
+          "rateTo": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          },
+          "toAt": {
+            "$ref": "#/components/schemas/InstantText"
+          }
+        },
+        "required": [
+          "fromAt",
+          "toAt",
+          "rateFrom",
+          "rateTo",
+          "count"
+        ],
+        "type": "object"
+      },
+      "AnalysisFilterValue": {
+        "additionalProperties": false,
+        "properties": {
+          "awardMethodCodeValueId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "comparisonScope": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "national"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "codeValueId": {
+                    "$ref": "#/components/schemas/PositiveBigintText"
+                  },
+                  "kind": {
+                    "enum": [
+                      "region"
+                    ],
+                    "type": "string"
+                  },
+                  "scheme": {
+                    "enum": [
+                      "eat:auction-location-sido",
+                      "eat:auction-location-sigungu"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "scheme",
+                  "codeValueId"
+                ],
+                "type": "object"
+              }
+            ],
+            "type": "object"
+          },
+          "dateBasis": {
+            "enum": [
+              "opened",
+              "announced"
+            ],
+            "type": "string"
+          },
+          "excludeAttemptId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "floorRate": {
+            "$ref": "#/components/schemas/BidRate"
+          },
+          "listCountRange": {
+            "$ref": "#/components/schemas/AnalysisListCountRange"
+          },
+          "period": {
+            "$ref": "#/components/schemas/AnalysisPeriod"
+          },
+          "targetItemFilter": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "all"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "codeValueId": {
+                    "$ref": "#/components/schemas/PositiveBigintText"
+                  },
+                  "kind": {
+                    "enum": [
+                      "code"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "codeValueId"
+                ],
+                "type": "object"
+              }
+            ],
+            "type": "object"
+          },
+          "targetOrganizationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          }
+        },
+        "required": [
+          "targetOrganizationId",
+          "excludeAttemptId",
+          "period",
+          "dateBasis",
+          "comparisonScope",
+          "floorRate",
+          "awardMethodCodeValueId",
+          "listCountRange",
+          "targetItemFilter"
+        ],
+        "type": "object"
+      },
+      "AnalysisListCountRange": {
+        "additionalProperties": false,
+        "description": "철회 행 포함 관측 명단 크기. 양끝 포함, null 경계는 제한 없음.",
+        "properties": {
+          "max": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
+          },
+          "min": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "type": "object"
+      },
+      "AnalysisMeta": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "comparisonSampleCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "effectiveFilter": {
+                "$ref": "#/components/schemas/AnalysisFilterValue"
+              },
+              "freshness": {
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "checkedAt": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/InstantText"
+                          }
+                        ],
+                        "nullable": true
+                      },
+                      "state": {
+                        "enum": [
+                          "unknown"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "checkedAt"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "checkedAt": {
+                        "$ref": "#/components/schemas/InstantText"
+                      },
+                      "state": {
+                        "enum": [
+                          "current"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "checkedAt"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "checkedAt": {
+                        "$ref": "#/components/schemas/InstantText"
+                      },
+                      "oldestPendingPublicationAt": {
+                        "$ref": "#/components/schemas/InstantText"
+                      },
+                      "state": {
+                        "enum": [
+                          "updating",
+                          "delayed"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "checkedAt",
+                      "oldestPendingPublicationAt"
+                    ],
+                    "type": "object"
+                  }
+                ],
+                "type": "object"
+              },
+              "overlapCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              },
+              "periodCoverage": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "comparison": {
+                      "$ref": "#/components/schemas/MartCoverage"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/AnalysisPeriod"
+                    },
+                    "target": {
+                      "$ref": "#/components/schemas/MartCoverage"
+                    }
+                  },
+                  "required": [
+                    "period",
+                    "target",
+                    "comparison"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 4096,
+                "minItems": 1,
+                "type": "array"
+              },
+              "snapshot": {
+                "$ref": "#/components/schemas/AnalysisSnapshot"
+              },
+              "state": {
+                "enum": [
+                  "ready"
+                ],
+                "type": "string"
+              },
+              "targetSampleCount": {
+                "$ref": "#/components/schemas/NonNegativeCount"
+              }
+            },
+            "required": [
+              "state",
+              "effectiveFilter",
+              "snapshot",
+              "targetSampleCount",
+              "comparisonSampleCount",
+              "overlapCount",
+              "periodCoverage",
+              "freshness"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "effectiveFilter": {
+                "$ref": "#/components/schemas/AnalysisFilterValue"
+              },
+              "reason": {
+                "enum": [
+                  "snapshot-unavailable",
+                  "snapshot-expired",
+                  "input-unconfirmed"
+                ],
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "unavailable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "effectiveFilter",
+              "reason"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      },
+      "AnalysisPeriod": {
+        "additionalProperties": false,
+        "description": "양끝 포함 KST 날짜. 실제 달력일과 역전 여부는 의미 parser에서 검증한다.",
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/KstDateText"
+          },
+          "to": {
+            "$ref": "#/components/schemas/KstDateText"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "AnalysisSnapshot": {
+        "additionalProperties": false,
+        "description": "실제 입력을 검증한 공급자가 발급한 계보 묶음. 동일 시각이나 동일 build 번호만으로 정합성을 증명하지 않는다.",
+        "properties": {
+          "builds": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "lineage": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "buildId": {
+                      "$ref": "#/components/schemas/PositiveBigintText"
+                    },
+                    "calcVersion": {
+                      "maxLength": 32,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "computedAt": {
+                      "$ref": "#/components/schemas/InstantText"
+                    },
+                    "coverage": {
+                      "$ref": "#/components/schemas/MartCoverage"
+                    },
+                    "regionScheme": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sourceReleaseId": {
+                      "$ref": "#/components/schemas/SourceReleaseIdText"
+                    }
+                  },
+                  "required": [
+                    "buildId",
+                    "sourceReleaseId",
+                    "calcVersion",
+                    "computedAt",
+                    "coverage",
+                    "regionScheme"
+                  ],
+                  "type": "object"
+                },
+                "purpose": {
+                  "enum": [
+                    "observations",
+                    "distribution"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "purpose",
+                "lineage"
+              ],
+              "type": "object"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "issuedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "observationPolicyVersion": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sourceCutoffAt": {
+            "$ref": "#/components/schemas/InstantText"
+          }
+        },
+        "required": [
+          "sourceCutoffAt",
+          "issuedAt",
+          "expiresAt",
+          "observationPolicyVersion",
+          "builds"
+        ],
+        "type": "object"
+      },
+      "AnalysisTargetPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "assessmentRate": {
+            "$ref": "#/components/schemas/ObservedBidRate"
+          },
+          "attemptId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "plottedAt": {
+            "$ref": "#/components/schemas/InstantText"
+          },
+          "revisionId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          }
+        },
+        "required": [
+          "attemptId",
+          "revisionId",
+          "plottedAt",
+          "assessmentRate"
+        ],
+        "type": "object"
+      },
+      "AnalysisTimeSeriesAxis": {
+        "additionalProperties": false,
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/AnalysisPeriod"
+          },
+          "rateBinWidth": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObservedBidRate"
+              }
+            ],
+            "nullable": true
+          },
+          "timeResolution": {
+            "enum": [
+              "day",
+              "week",
+              "month"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "timeResolution",
+          "rateBinWidth"
+        ],
+        "type": "object"
+      },
       "AuctionClassification": {
         "additionalProperties": false,
         "description": "Observed source category label of one auction revision; a display fact, not a code or a join key.",
@@ -665,6 +1237,49 @@
           "itemUnknownIncluded"
         ],
         "type": "string"
+      },
+      "EatbidApiV1AnalysisTimeSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "axis": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisTimeSeriesAxis"
+              }
+            ],
+            "nullable": true
+          },
+          "comparison": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisComparisonSeries"
+              }
+            ],
+            "nullable": true
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AnalysisMeta"
+          },
+          "target": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisTargetPoint"
+            },
+            "maxItems": 8192,
+            "nullable": true,
+            "type": "array"
+          },
+          "targetTruncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "axis",
+          "target",
+          "targetTruncated",
+          "comparison",
+          "meta"
+        ],
+        "type": "object"
       },
       "EatbidApiV1Auction": {
         "additionalProperties": false,
@@ -1375,6 +1990,13 @@
             "nullable": true,
             "type": "array"
           },
+          "regionUnknown": {
+            "enum": [
+              "include"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
           "sido": {
             "allOf": [
               {
@@ -1396,6 +2018,7 @@
           "sido",
           "sigungu",
           "items",
+          "regionUnknown",
           "baseAmountMin",
           "baseAmountMax"
         ],
@@ -1959,6 +2582,14 @@
             ],
             "nullable": true
           },
+          "changeKind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CodeReference"
+              }
+            ],
+            "nullable": true
+          },
           "closesAt": {
             "allOf": [
               {
@@ -2060,6 +2691,7 @@
           "title",
           "displayBidNo",
           "soloBidMethod",
+          "changeKind",
           "floorRate",
           "region",
           "eligibilityAreas",
@@ -3703,6 +4335,224 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/v1/analysis/time-series": {
+      "get": {
+        "operationId": "findAnalysisTimeSeries",
+        "parameters": [
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "query",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          },
+          {
+            "in": "query",
+            "name": "excludeAttemptId",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/KstDateText"
+            }
+          },
+          {
+            "description": "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/KstDateText"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateBasis",
+            "required": true,
+            "schema": {
+              "enum": [
+                "opened",
+                "announced"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comparisonScope",
+            "required": true,
+            "schema": {
+              "enum": [
+                "national",
+                "region"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comparisonRegionScheme",
+            "schema": {
+              "enum": [
+                "eat:auction-location-sido",
+                "eat:auction-location-sigungu"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comparisonRegionCodeValueId",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Canonical bid-rate percentage-points text with exactly three fractional digits, matching numeric(6,3) mart columns; from 0.000 through 100.000.",
+            "in": "query",
+            "name": "floorRate",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BidRateText"
+            }
+          },
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "query",
+            "name": "awardMethodCodeValueId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          },
+          {
+            "in": "query",
+            "name": "listCountMin",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/NonNegativeCount"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "listCountMax",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/NonNegativeCount"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetItemCodeValueId",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EatbidApiV1AnalysisTimeSeries"
+                }
+              }
+            },
+            "description": "분석 시간축 조회 성공. 자료가 준비되지 않은 상태도 200이며 meta가 사유를 말한다"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않거나 비교 모집단과 지역 축의 짝, 기간 상한·순서, 명단 범위 순서를 어김"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "이 분석을 볼 수 있는 인가가 없음"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "요청한 기관·지역 코드값·낙찰 방식 코드값을 찾을 수 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스를 사용할 수 없음"
+          }
+        },
+        "summary": "한 기관의 실제 낙찰점과 같은 조건의 지역·전국 관측을 시간축에서 함께 조회한다. 기관 점과 비교군을 한 응답으로 내며, 넓은 범위의 비교군은 실제 점이 아니라 관측 밀도로 온다. 기간은 양끝 포함 KST 달력일이고 명단 범위도 양끝 포함이다. 지역 비교는 코드 체계와 코드값을 함께 지정한다.",
+        "tags": [
+          "procurement"
+        ]
+      }
+    },
     "/api/v1/auctions": {
       "get": {
         "operationId": "listOpenAuctions",
@@ -5222,6 +6072,16 @@
             "schema": {
               "maxLength": 64,
               "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "regionUnknown",
+            "schema": {
+              "enum": [
+                "include"
+              ],
               "type": "string"
             }
           },
