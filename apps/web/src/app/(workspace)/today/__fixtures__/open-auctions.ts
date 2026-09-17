@@ -101,7 +101,11 @@ export const unknownClosesRow: OpenAuction = {
   ...laterRow,
   auctionAttemptId: '5796472',
   title: null,
-  closesAt: null
+  closesAt: null,
+  // 단독입찰을 허용하지 않는 판이다. 참여 0곳이 기회가 아니라 유찰 신호라는 것을 화면이 말하는지 이 행이
+  // 검사한다(EAT-249). 상세를 읽었다는 뜻이므로 회차 식별자도 함께 둔다.
+  termsRevisionId: '5796473',
+  soloBidMethod: { codeValueId: '77', code: '002', scheme: 'eat:solo-bid-method', label: '단독입찰 허용안함' }
 };
 
 export const openAuctionsFixture: OpenAuctionListV1Response = {

@@ -36,6 +36,7 @@ export {
 } from "./list-open-auctions.response";
 export {
   openAuctionRowSchema,
+  SOLO_BID_NOT_ALLOWED_CODE,
   type OpenAuction,
   type OpenAuctionLastRound,
   type OpenAuctionOrgSummary,

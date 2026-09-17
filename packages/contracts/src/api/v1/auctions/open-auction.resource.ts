@@ -62,6 +62,16 @@ export const openAuctionOrgSummarySchema = z.strictObject({
   lastRound: openAuctionLastRoundSchema.nullable(),
 }).meta({ id: "OpenAuctionOrgSummary" });
 
+/**
+ * 단독입찰을 허용하지 않는 코드다(`eat:solo-bid-method`). 전수 181,150건에서 `002` 허용안함 180,703 ·
+ * `001` 허용함 447이다(`docs/audit-source/generated/source-field-index.md`의 `SGNS_BID_PRCS_MTHD_CD`).
+ *
+ * 이 코드 하나가 **참여 0곳의 뜻을 바꾼다** — 허용안함이면 혼자 들어가면 유찰이라 0곳은 기회가 아니다.
+ * 라벨(`단독입찰 허용안함`)로 판정하지 않는 이유는 이름이 정체성이 아니기 때문이다(AGENTS 2). 화면이
+ * 이 값을 읽어 문구를 고르므로 판정은 계약이 한 번만 소유한다.
+ */
+export const SOLO_BID_NOT_ALLOWED_CODE = "002";
+
 export const openAuctionRowSchema = z.strictObject({
   auctionAttemptId: positiveBigintTextSchema,
   // 목록이 준 기관 코드가 core에 없으면 조직이 null로 남는다. "기관 없음"을 "이름 미확인"과 합치지 않는다.

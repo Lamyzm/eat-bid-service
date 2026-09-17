@@ -89,6 +89,16 @@ describe('열린 공고 카드 목록', () => {
     expect(screen.getAllByRole('button', { name: '공고번호 복사 2026-0001' }).length).toBe(2);
   });
 
+  test('단독입찰을 허용하지 않는 판만 0곳 옆에 그 뜻을 적는다', () => {
+    const screen = renderCards();
+    // 같은 0곳이라도 허용안함이면 혼자 들어가면 유찰이라 기회가 아니다(EAT-249). 허용 여부를 못 본 판에는
+    // 적지 않는다 — 모르는 것을 아는 척하지 않는다(AGENTS 3).
+    expect(screen.getAllByText('(혼자면 유찰)').length).toBe(1);
+    const rows = [...screen.container.querySelectorAll('[data-slot="auction-row"] > div:first-child > p:last-child')];
+    expect(rows[2]!.textContent).toBe('아직 0곳');
+    expect(rows[3]!.textContent).toBe('아직 0곳 (혼자면 유찰)');
+  });
+
   test('셋째 줄은 지금·지난번·보통이고 참여 0은 아직 0곳이며 보통에는 표본 수가 붙는다', () => {
     const screen = renderCards();
     const lines = [...screen.container.querySelectorAll('[data-slot="auction-row"] > div:first-child > p:last-child')].map((node) => node.textContent);
@@ -96,7 +106,7 @@ describe('열린 공고 카드 목록', () => {
       '지금 5곳·지난번 17곳 (09-02)·보통 5곳 12회 기준',
       '참여 미관측·지난번 개찰 회차 없음·보통 — 0회 기준',
       '아직 0곳',
-      '아직 0곳'
+      '아직 0곳 (혼자면 유찰)'
     ]);
   });
 

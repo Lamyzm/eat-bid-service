@@ -50,9 +50,15 @@ function SignalLine({ row }: { readonly row: OpenAuctionRowPresentation }) {
   return (
     // 조각(지금·지난번·보통)은 통째로 줄을 바꾼다. 낱말 가운데서 끊기면 `24회 기 / 준`이 된다(1280 실측).
     <p className={`mt-[7px] flex flex-wrap items-baseline gap-y-0.5 text-[14px] ${HINT}`}>
-      {/* 참여 0은 `아직 0곳`이다. 기회가 아니라 혼자면 유찰이라는 신호일 수 있어 굵게 세우지 않는다(EAT-249).
-          못 센 판(`—`)은 0과 섞이지 않는다. */}
-      {row.bidCountText === '' ? <span className='whitespace-nowrap'>아직 <span className='tabular-nums'>0곳</span></span>
+      {/* 참여 0은 `아직 0곳`이다. 기회가 아니라 혼자면 유찰이라는 신호라서 굵게 세우지 않고, 단독입찰을
+          허용하지 않는 판이면 그 이유를 옆에 적는다(EAT-249). 허용하는 판과 아직 못 본 판에는 적지 않는다 —
+          우리가 모르는 것을 아는 척하지 않는다(AGENTS 3). 못 센 판(`—`)은 0과 섞이지 않는다. */}
+      {row.bidCountText === '' ? (
+        <span className='whitespace-nowrap'>
+          아직 <span className='tabular-nums'>0곳</span>
+          {row.soloBid === 'not-allowed' ? <span className='font-medium'> (혼자면 유찰)</span> : null}
+        </span>
+      )
         : row.bidCountText === '—' ? <span className='whitespace-nowrap'>참여 미관측</span>
         : <span className='whitespace-nowrap'>지금 <b className='font-bold text-foreground tabular-nums'>{row.bidCountText}곳</b></span>}
       {summary === null ? null : (
