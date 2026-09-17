@@ -55,12 +55,37 @@ def _escape_bare_ampersands(payload: bytes) -> bytes:
     """
     return _BARE_AMPERSAND.sub(b"&amp;", payload)
 
+
+# `<Col id="...">본문</Col>`의 본문만 고른다. 닫는 태그까지 non-greedy라 첫 `</Col>`에서 끊기고,
+# Col 경계 밖(Dataset·Row·ColumnInfo 구조)은 이 패턴에 걸리지 않는다.
+_COL_BODY = re.compile(rb"(<Col(?=[\s>])[^>]*>)(.*?)(</Col>)", re.DOTALL)
+
+
+def _escape_bare_angle_brackets(payload: bytes) -> bytes:
+    """왜 Col 본문의 `<`만 리터럴로 바꾸나.
+
+    2026-09-17 실측에서 기관이 기타 유의사항 칸에 `<연락처>`라고 꺾쇠를 그대로 입력했고 eaT가 그것을
+    이스케이프하지 않은 채 본문에 실어 보냈다. XML 파서는 그것을 여는 태그로 읽고 닫는 태그가 없어
+    payload 전체를 거부한다. 격리 하나가 회차 전체를 `DATA_QUARANTINED`로 만들므로 공고 하나의 오타가
+    그 회차의 모든 공고를 화면에서 지운다(EAT-268).
+
+    `&` 복구(위)와 같은 경계다. 원본 바이트는 R2에 그대로 남고 이 복구는 해석 단계에만 적용하며,
+    치환 방향이 태그를 리터럴로 만드는 쪽이라 구조 공격 표면이 늘지 않는다. Col 경계 밖은 건드리지
+    않으므로 Dataset·Row 구조가 깨진 payload는 그대로 거부된다.
+    """
+
+    def _literalize(match: re.Match[bytes]) -> bytes:
+        return match.group(1) + match.group(2).replace(b"<", b"&lt;") + match.group(3)
+
+    return _COL_BODY.sub(_literalize, payload)
+
+
 def parse_nexacro(payload: bytes, *, require_ds_info: bool = False) -> ParsedNexacro:
     if not isinstance(payload, bytes):
         raise TypeError("Nexacro payload must be bytes")
     try:
         root = ElementTree.fromstring(
-            _escape_bare_ampersands(payload),
+            _escape_bare_angle_brackets(_escape_bare_ampersands(payload)),
             forbid_dtd=True,
             forbid_entities=True,
             forbid_external=True,
@@ -151,8 +176,7 @@ def parse_nexacro(payload: bytes, *, require_ds_info: bool = False) -> ParsedNex
 
 def schema_fingerprint(schema: Mapping[str, Iterable[str]]) -> str:
     canonical_shape = {
-        dataset_id: sorted(set(column_ids))
-        for dataset_id, column_ids in schema.items()
+        dataset_id: sorted(set(column_ids)) for dataset_id, column_ids in schema.items()
     }
     canonical = json.dumps(
         canonical_shape, ensure_ascii=False, sort_keys=True, separators=(",", ":")
