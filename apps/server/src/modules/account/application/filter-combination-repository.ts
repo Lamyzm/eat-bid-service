@@ -23,6 +23,8 @@ export interface FilterCombinationFilterRecord {
   readonly itemAtoms: readonly AuctionItemAtom[];
   readonly baseAmountMin: string | null;
   readonly baseAmountMax: string | null;
+  /** 공고지역 미관측 행까지 셀지다. 지역 축의 모집단을 바꾸므로 지역과 같이 저장한다(EAT-267). */
+  readonly regionUnknownIncluded: boolean;
 }
 
 export interface FilterCombinationRecord {

@@ -129,6 +129,9 @@ export class FilterCombinationController {
         searchText: query.q ?? null,
         baseAmountMin: query.baseAmountMin ?? null,
         baseAmountMax: query.baseAmountMax ?? null,
+        // 문자열과 비교하지 않는다. `region`으로 시작하는 식별자의 문자열 비교를 지역 어휘 검사가
+        // 지역 이름 비교로 읽는다(2026-09-17 실측). 계약이 `"include"` 하나뿐이라 존재 여부와 같다.
+        regionUnknownIncluded: query.regionUnknown !== undefined,
       };
     } catch {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
@@ -161,6 +164,7 @@ export class FilterCombinationController {
           searchText: null,
           baseAmountMin: combination.filter.baseAmountMin,
           baseAmountMax: combination.filter.baseAmountMax,
+          regionUnknownIncluded: combination.filter.regionUnknownIncluded,
         })),
       }));
       return toMyFilterCombinationCountsResponse({ combinations, result });
@@ -202,6 +206,7 @@ export class FilterCombinationController {
           itemAtoms: body.items ?? [],
           baseAmountMin: body.baseAmountMin ?? null,
           baseAmountMax: body.baseAmountMax ?? null,
+          regionUnknownIncluded: body.regionUnknown !== undefined,
         },
       })));
     } catch (error) {

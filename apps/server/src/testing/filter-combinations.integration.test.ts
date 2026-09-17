@@ -138,6 +138,7 @@ const emptyFilter: FilterCombinationFilterRecord = {
   itemAtoms: [],
   baseAmountMin: null,
   baseAmountMax: null,
+  regionUnknownIncluded: false,
 };
 
 const baseCounts: Omit<OpenAuctionFilterCountsQuery, "current" | "saved"> = {
@@ -216,6 +217,7 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
         itemAtoms: ["육류", "가금류"],
         baseAmountMin: "1000000.00",
         baseAmountMax: "30000000.00",
+        regionUnknownIncluded: false,
       };
       const saved = await repository.saveCombination({
         workspaceId: 1n, principalId: 1n, name: "김해 축산", filter,
@@ -230,6 +232,36 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
       // 저장한 두 조합이 같은 주소를 만들게 하기 위해서다 — 순서만 다른 두 URL은 같은 목록을 두 자리로
       // 쪼개고 캐시도 둘이 된다.
       expect(read!.filter).toEqual({ ...filter, itemAtoms: ["가금류", "육류"] });
+    });
+    await expectOwnedContainersCleanedUp();
+  }, 300_000);
+
+  test("지역 미상 포함을 켜고 저장하면 불러올 때도 켜져 있다", async () => {
+    await withDatabase(async ({ api }) => {
+      const repository = new DrizzleFilterCombinationRepository(drizzle({ client: api }));
+      // 이 축이 빠지면 같은 이름의 프리셋이 저장할 때와 불러올 때 다른 집합을 센다 — 사용자는 저장한
+      // 조건을 불러왔다고 믿는데 수가 조용히 달라진다(EAT-267).
+      const saved = await repository.saveCombination({
+        workspaceId: 1n,
+        principalId: 1n,
+        name: "경남 + 지역 미상",
+        filter: { ...emptyFilter, sidoCodeValueId: 41n, regionUnknownIncluded: true },
+      });
+      expect(saved.kind).toBe("saved");
+
+      const [read] = await repository.listCombinations(1n);
+      expect(read!.filter.regionUnknownIncluded).toBe(true);
+
+      // 안 켜고 저장한 조합은 꺼진 채로 돌아온다. 이 열이 생기기 전에 저장된 프리셋도 같은 자리에 선다 —
+      // 그 축을 담지 않았으므로 켜져 있다고 말할 근거가 없다.
+      await repository.saveCombination({
+        workspaceId: 1n, principalId: 1n, name: "경남만", filter: { ...emptyFilter, sidoCodeValueId: 41n },
+      });
+      const both = await repository.listCombinations(1n);
+      expect(both.map((row) => [row.name, row.filter.regionUnknownIncluded])).toEqual([
+        ["경남 + 지역 미상", true],
+        ["경남만", false],
+      ]);
     });
     await expectOwnedContainersCleanedUp();
   }, 300_000);
@@ -264,6 +296,7 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
           searchText: null,
           baseAmountMin: null,
           baseAmountMax: null,
+          regionUnknownIncluded: false,
         },
         saved: saved.map((combination) => ({
           sidoCodeValueId: combination.filter.sidoCodeValueId,
@@ -272,6 +305,7 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
           searchText: null,
           baseAmountMin: combination.filter.baseAmountMin,
           baseAmountMax: combination.filter.baseAmountMax,
+          regionUnknownIncluded: false,
         })),
       } satisfies OpenAuctionFilterCountsQuery);
 
@@ -299,6 +333,7 @@ describe("저장된 조건 조합 PostgreSQL 경계", () => {
           searchText: "수산",
           baseAmountMin: null,
           baseAmountMax: null,
+          regionUnknownIncluded: false,
         },
         saved: [{ ...emptyFilter, sigunguCodeValueIds: null, itemAtoms: null, searchText: null, sidoCodeValueId: 41n }],
       } satisfies OpenAuctionFilterCountsQuery);

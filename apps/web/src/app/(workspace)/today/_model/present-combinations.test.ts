@@ -17,6 +17,7 @@ const savedCombination: MyFilterCombinationsV1Response['combinations'][number] =
     sido: '48',
     sigungu: null,
     items: ['육류'],
+    regionUnknown: null,
     baseAmountMin: '1000000.00',
     baseAmountMax: null
   },

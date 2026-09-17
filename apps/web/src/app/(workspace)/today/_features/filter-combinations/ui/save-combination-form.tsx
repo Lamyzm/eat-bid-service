@@ -51,7 +51,10 @@ export function SaveCombinationForm({
       sido: search.sido ?? undefined,
       items: search.items ?? undefined,
       baseAmountMin: search.baseAmountMin ?? undefined,
-      baseAmountMax: search.baseAmountMax ?? undefined
+      baseAmountMax: search.baseAmountMax ?? undefined,
+      // 지역 축의 모집단을 바꾸는 값이라 지역과 같이 저장한다. 빠뜨리면 켜 둔 채로 저장한 조건을
+      // 불러왔을 때 꺼져 있어 같은 이름의 프리셋이 다른 집합을 센다(EAT-267).
+      regionUnknown: search.regionUnknown === null ? undefined : 'include'
     }),
     onSuccess: () => {
       setName('');

@@ -27,6 +27,8 @@ export function toFilterCombinationWire(record: FilterCombinationRecord): MyFilt
       items: emptyToNull(record.filter.itemAtoms),
       baseAmountMin: record.filter.baseAmountMin,
       baseAmountMax: record.filter.baseAmountMax,
+      // 저장은 boolean이고 공개 어휘는 목록 query와 같은 `"include"`다. 여기서 한 번만 옮긴다.
+      regionUnknown: record.filter.regionUnknownIncluded ? "include" : null,
     },
     createdAt: instantText(record.createdAt),
   };
