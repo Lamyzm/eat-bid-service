@@ -1,6 +1,6 @@
 /** @module 책임: 시간축 표시 모델을 캔버스 한 장에 그리고 축 눈금과 요약 문장을 함께 낸다. */
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CHART } from '@/shared/lib/chart-colors';
 import type { TimeSeriesPlot } from '../model/present-time-series';
 
@@ -20,7 +20,9 @@ function cellAlpha(count: number, maxCount: number): number {
   return 0.18 + 0.72 * Math.sqrt(count / maxCount);
 }
 
-function draw(canvas: HTMLCanvasElement, plot: TimeSeriesPlot): void {
+function draw(canvas: HTMLCanvasElement, plot: TimeSeriesPlot, full: boolean): void {
+  const view = full ? plot.fullDomain : plot.domain;
+  const viewTicks = full ? plot.fullYTicks : plot.yTicks;
   const context = canvas.getContext('2d');
   if (context === null) return;
   const ratio = window.devicePixelRatio || 1;
@@ -33,14 +35,14 @@ function draw(canvas: HTMLCanvasElement, plot: TimeSeriesPlot): void {
 
   const plotWidth = Math.max(width - PAD.left - PAD.right, 1);
   const plotHeight = Math.max(height - PAD.top - PAD.bottom, 1);
-  const { xFrom, xTo, yFrom, yTo } = plot.domain;
+  const { xFrom, xTo, yFrom, yTo } = view;
   const px = (x: number) => PAD.left + scale(x, xFrom, xTo, plotWidth);
   // 캔버스의 y는 아래로 자란다. 사정률은 위로 자라야 하므로 여기서 한 번만 뒤집는다.
   const py = (y: number) => PAD.top + plotHeight - scale(y, yFrom, yTo, plotHeight);
 
   context.strokeStyle = CHART.volume;
   context.lineWidth = 1;
-  for (const tick of plot.yTicks) {
+  for (const tick of viewTicks) {
     const y = Math.round(py(tick.y)) + 0.5;
     context.beginPath();
     context.moveTo(PAD.left, y);
@@ -94,10 +96,13 @@ export function TimeSeriesChart({
   readonly comparisonLabel: string;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const [full, setFull] = useState(false);
+  const view = full ? plot.fullDomain : plot.domain;
+  const yTicks = full ? plot.fullYTicks : plot.yTicks;
   useEffect(() => {
     const element = canvas.current;
     if (element === null) return;
-    const render = () => draw(element, plot);
+    const render = () => draw(element, plot, full);
     render();
     const size = new ResizeObserver(render);
     size.observe(element);
@@ -112,26 +117,23 @@ export function TimeSeriesChart({
       size.disconnect();
       theme.disconnect();
     };
-  }, [plot]);
+  }, [plot, full]);
   const density = plot.comparison.kind === 'density';
   const summary = `${organizationLabel} ${plot.targetCount}건, ${comparisonLabel} ${plot.comparisonCount}건`
     + `(그중 ${plot.overlapCount}건은 이 기관의 기록)`;
   return (
-    <figure className='px-[var(--analysis-padding)] pb-2' aria-label='기관 낙찰점과 비교군 관측의 시간축'>
-      {/*
-        차트 높이는 조건 막대가 남겨 주는 자리 안에서 정한다. 1024px 이상에서 막대는 화면 위 309px까지를
-        붙들고 있으므로(2026-09-18 dev 실측) 900px 높이 화면에는 591px, 노트북에서 흔한 768px 높이에는
-        459px만 남는다. 여기에 범례까지 더한 도형이 들어가야 차트 위아래가 막대 뒤로 숨지 않는다.
-        좁은 폭에서 더 낮은 이유는 그 구간의 막대가 489px까지 부풀기 때문이다.
-      */}
-      <div className='relative h-[min(30vh,240px)] w-full lg:h-[min(42vh,360px)]'>
+    <figure
+      className='analysis-chart-figure px-[var(--analysis-padding)] pb-2'
+      aria-label='기관 낙찰점과 비교군 관측의 시간축'
+    >
+      <div className='analysis-chart-box'>
         <canvas ref={canvas} role='img' aria-label={summary} className='h-full w-full' />
-        {plot.yTicks.map((tick) => (
+        {yTicks.map((tick) => (
           <span
             key={tick.y}
             aria-hidden
             className='pointer-events-none absolute left-0 w-12 -translate-y-1/2 text-right text-[11px] tabular-nums whitespace-nowrap text-muted-foreground'
-            style={{ top: `calc(${PAD.top}px + (100% - ${PAD.top + PAD.bottom}px) * ${1 - tickRatio(tick.y, plot.domain.yFrom, plot.domain.yTo)})` }}
+            style={{ top: `calc(${PAD.top}px + (100% - ${PAD.top + PAD.bottom}px) * ${1 - tickRatio(tick.y, view.yFrom, view.yTo)})` }}
           >
             {tick.label}
           </span>
@@ -146,7 +148,7 @@ export function TimeSeriesChart({
             // 읽히지 않는다(390px 실측). 기간 자체는 조건 막대의 시작일·종료일이 이미 말한다.
             className={`pointer-events-none absolute bottom-0 text-[11px] tabular-nums whitespace-nowrap text-muted-foreground${edge ? '' : ' hidden sm:inline'}`}
             style={{
-              left: `calc(${PAD.left}px + (100% - ${PAD.left + PAD.right}px) * ${tickRatio(tick.x, plot.domain.xFrom, plot.domain.xTo)})`,
+              left: `calc(${PAD.left}px + (100% - ${PAD.left + PAD.right}px) * ${tickRatio(tick.x, view.xFrom, view.xTo)})`,
               transform: index === 0 ? 'none' : index === plot.xTicks.length - 1 ? 'translateX(-100%)' : 'translateX(-50%)'
             }}
           >
@@ -171,8 +173,46 @@ export function TimeSeriesChart({
         <span>세로축 사정률(%)</span>
         {plot.truncation === null ? null : <span className='text-foreground'>{plot.truncation}</span>}
       </figcaption>
+      <p className='mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground'>
+        <button
+          type='button'
+          aria-pressed={full}
+          onClick={() => setFull((current) => !current)}
+          className='rounded-md border border-border px-2 py-1 text-foreground'
+        >
+          {full ? '가운데 값만 보기' : '전체 값 보기'}
+        </button>
+        {outsideSentences(plot, organizationLabel, comparisonLabel, full).map((sentence) => (
+          <span key={sentence}>{sentence}</span>
+        ))}
+      </p>
     </figure>
   );
+}
+
+/**
+ * 축 밖으로 나간 관측을 문장으로 말한다. 기본 축은 가운데 덩어리에 맞춰 잘리므로 "안 보이는 점이
+ * 있다"는 사실을 화면이 직접 말하지 않으면 사용자는 그 점이 없는 줄 안다 — 그러면 우리가 관측을
+ * 숨긴 것이 된다. 전체 값 보기에서는 남는 것이 없으므로 아무 문장도 만들지 않는다.
+ */
+function outsideSentences(
+  plot: TimeSeriesPlot,
+  organizationLabel: string,
+  comparisonLabel: string,
+  full: boolean
+): readonly string[] {
+  if (full) return [];
+  const sentence = (title: string, target: number, comparison: number) => {
+    const parts = [
+      target === 0 ? null : `${organizationLabel} ${target}건`,
+      comparison === 0 ? null : `${comparisonLabel} ${comparison}건`
+    ].filter((part) => part !== null);
+    return parts.length === 0 ? null : `${title} ${parts.join(' · ')}`;
+  };
+  return [
+    sentence('위쪽 범위 밖', plot.outsideTarget.above, plot.outsideComparison.above),
+    sentence('아래쪽 범위 밖', plot.outsideTarget.below, plot.outsideComparison.below)
+  ].filter((line) => line !== null);
 }
 
 function tickRatio(value: number, from: number, to: number): number {

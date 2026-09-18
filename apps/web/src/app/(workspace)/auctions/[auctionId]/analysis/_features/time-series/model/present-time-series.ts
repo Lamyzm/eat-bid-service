@@ -34,12 +34,30 @@ export type TimeSeriesComparison =
   | { readonly kind: 'points'; readonly points: readonly TimeSeriesPoint[] }
   | { readonly kind: 'density'; readonly cells: readonly TimeSeriesCell[]; readonly maxCount: number };
 
+/** 축 밖으로 나간 관측 수다. */
+export interface OutsideCount {
+  readonly above: number;
+  readonly below: number;
+}
+
 export interface TimeSeriesPlot {
+  /** 가운데 덩어리에 맞춘 기본 축이다. 극단값 하나가 나머지를 뭉개지 않게 한다. */
   readonly domain: TimeSeriesDomain;
+  /**
+   * 관측 전부를 담는 축이다. `전체 값 보기`가 이 축으로 바꾼다.
+   *
+   * 서버에 다시 묻지 않고 두 축을 함께 싣는 이유는, 축을 넓히는 것이 **같은 질문의 다른 시야**이지
+   * 다른 질문이 아니기 때문이다. 다시 물으면 표본 수가 흔들려 보이고 사용자가 숫자를 못 믿는다.
+   */
+  readonly fullDomain: TimeSeriesDomain;
   readonly target: readonly TimeSeriesPoint[];
   readonly comparison: TimeSeriesComparison;
   readonly xTicks: readonly { readonly x: number; readonly label: string }[];
   readonly yTicks: readonly { readonly y: number; readonly label: string }[];
+  readonly fullYTicks: readonly { readonly y: number; readonly label: string }[];
+  /** 기본 축 밖으로 나간 수. 전체 값 보기에서는 0이 된다. */
+  readonly outsideTarget: OutsideCount;
+  readonly outsideComparison: OutsideCount;
   /** 잘려서 그리지 못한 것이 있다는 사실이다. 없으면 null이고, 있으면 그대로 화면에 적는다. */
   readonly truncation: string | null;
   readonly targetCount: number;
@@ -95,19 +113,60 @@ function targetPoint(point: AnalysisTargetPoint): TimeSeriesPoint {
   };
 }
 
+/** 사정률 하나와 그것이 대표하는 관측 수다. 밀도 칸은 한 자리가 여러 관측을 대표한다. */
+interface RateWeight {
+  readonly rate: number;
+  readonly count: number;
+}
+
+/** 관측 수로 가중한 분위수다. 밀도 칸 하나를 관측 하나로 세면 넓은 칸이 좁은 칸과 같은 무게를 갖는다. */
+function weightedQuantile(sorted: readonly RateWeight[], total: number, q: number): number {
+  let seen = 0;
+  const target = total * q;
+  for (const entry of sorted) {
+    seen += entry.count;
+    if (seen >= target) return entry.rate;
+  }
+  return sorted[sorted.length - 1]?.rate ?? 0;
+}
+
 /**
- * 사정률 축의 범위다. 두 집단의 관측을 모두 덮어야 한다 — 기관 점만 보고 잡으면 비교군의 극단값이
- * 그림 밖으로 나가고, 화면은 "범위 밖 극단값을 숨기지 않는다"는 약속을 어긴다(EAT-216 acceptance 4).
+ * 사정률 축의 범위다. **최솟값·최댓값으로 잡지 않는다.**
+ *
+ * 극단값 하나까지 담으려고 축을 늘리면 나머지 관측이 전부 바닥에 뭉친다 — 2026-09-18 dev에서 점 다섯
+ * 중 하나가 1.4%p 떨어져 있었고 나머지 넷이 한 줄로 붙어 읽히지 않았다. 축은 가운데 덩어리에 맞추고
+ * 밖으로 나간 것은 **세어서 글로 말한다**(시안이 쓰는 `위쪽 범위 밖: 기관 1건 · 지역 전체 395건`).
+ * 이것은 극단값을 숨기는 것이 아니다 — 숨기는 것은 세지 않고 안 그리는 쪽이고, 여기서는 수가 남고
+ * `전체 값 보기`로 즉시 되돌릴 수 있다.
  *
  * 관측이 한 점뿐이면 폭이 0이라 나눌 수 없으므로 최소 폭을 준다. 그 최소 폭은 사정률 칸 하나(0.1%p)의
  * 열 배이며, 한 점짜리 그림에서 눈금이 한 칸도 서지 않는 것을 막는 자리다.
  */
-function rateDomain(values: readonly number[]): { readonly yFrom: number; readonly yTo: number } {
-  const low = Math.min(...values);
-  const high = Math.max(...values);
+function rateDomain(weights: readonly RateWeight[]): TimeSeriesDomainRates {
+  const sorted = weights.toSorted((a, b) => a.rate - b.rate);
+  const total = sorted.reduce((sum, entry) => sum + entry.count, 0);
+  // 아래위 2%를 덜어 낸다. 더 깎으면 실제 분포의 꼬리가 잘리고, 덜 깎으면 극단값 하나가 축을 끈다.
+  const low = weightedQuantile(sorted, total, 0.02);
+  const high = weightedQuantile(sorted, total, 0.98);
   const span = Math.max(high - low, 1_000);
   const pad = Math.round(span * 0.08);
   return { yFrom: low - pad, yTo: high + pad };
+}
+
+interface TimeSeriesDomainRates {
+  readonly yFrom: number;
+  readonly yTo: number;
+}
+
+/** 축 밖으로 나간 관측 수다. 위아래를 나누는 이유는 사용자가 어느 쪽을 더 봐야 할지가 다르기 때문이다. */
+function countOutside(weights: readonly RateWeight[], domain: TimeSeriesDomainRates): OutsideCount {
+  let above = 0;
+  let below = 0;
+  for (const entry of weights) {
+    if (entry.rate > domain.yTo) above += entry.count;
+    else if (entry.rate < domain.yFrom) below += entry.count;
+  }
+  return { above, below };
 }
 
 /** 눈금은 다섯 자리를 넘지 않게 고른다. 더 촘촘하면 라벨이 겹치고 더 성기면 값을 읽을 수 없다. */
@@ -139,20 +198,37 @@ export function presentTimeSeries(
       count: cell.count
     }))
     : [];
-  const rates = [
-    ...targetPoints.map((point) => point.y),
-    ...comparisonPoints.map((point) => point.y),
-    ...cells.flatMap((cell) => [cell.y0, cell.y1])
+  const targetWeights: RateWeight[] = targetPoints.map((point) => ({ rate: point.y, count: 1 }));
+  // 밀도 칸은 칸 가운데를 그 칸 관측의 자리로 쓴다. 칸 폭이 0.1%p라 축을 잡는 데는 그 오차가
+  // 눈금 하나보다 작다.
+  const comparisonWeights: RateWeight[] = [
+    ...comparisonPoints.map((point) => ({ rate: point.y, count: 1 })),
+    ...cells.map((cell) => ({ rate: Math.round((cell.y0 + cell.y1) / 2), count: cell.count }))
   ];
+  const weights = [...targetWeights, ...comparisonWeights];
   // 두 집단이 모두 비었으면 그릴 축이 없다. 빈 그림에 눈금만 그려 두면 조건에 맞는 관측이 없다는
   // 사실이 그림의 여백으로 밀려난다.
-  if (rates.length === 0) return { kind: 'empty' };
+  if (weights.length === 0) return { kind: 'empty' };
   const xFrom = epochOf(`${axis.period.from}T00:00:00+09:00`);
   const xTo = epochOf(`${axis.period.to}T23:59:59+09:00`);
-  const { yFrom, yTo } = rateDomain(rates);
+  const { yFrom, yTo } = rateDomain(weights);
+  const everyRate = weights.map((entry) => entry.rate);
+  const fullLow = Math.min(...everyRate);
+  const fullHigh = Math.max(...everyRate);
+  const fullPad = Math.round(Math.max(fullHigh - fullLow, 1_000) * 0.08);
+  const fullDomain: TimeSeriesDomain = {
+    xFrom,
+    xTo,
+    yFrom: Math.min(yFrom, fullLow - fullPad),
+    yTo: Math.max(yTo, fullHigh + fullPad)
+  };
   return {
     kind: 'plot',
     plot: {
+      fullDomain,
+      fullYTicks: ticks(fullDomain.yFrom, fullDomain.yTo, 5, (y) => ({ y, label: rateText(Math.round(y)) })),
+      outsideTarget: countOutside(targetWeights, { yFrom, yTo }),
+      outsideComparison: countOutside(comparisonWeights, { yFrom, yTo }),
       domain: { xFrom, xTo, yFrom, yTo },
       target: targetPoints,
       comparison: comparison.kind === 'points'

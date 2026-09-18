@@ -31,7 +31,7 @@ export function AnalysisContext({
         <span className='mx-2 text-sm font-normal text-muted-foreground'>vs</span>{' '}
         {context.comparison} 전체
       </h2>
-      <p className='mt-2 text-xs leading-relaxed text-muted-foreground'>
+      <p className='analysis-context-summary mt-2 text-xs leading-relaxed text-muted-foreground'>
         {context.description} · {context.method}
       </p>
       <p className='mt-1 text-xs leading-relaxed text-muted-foreground'>

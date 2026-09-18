@@ -1,4 +1,4 @@
-/** @module 책임: 비교조건의 날짜·코드·명단 입력과 해당 필드의 오류를 같은 자리에 표시한다. */
+/** @module 책임: 비교조건의 날짜·코드·명단 입력과 해당 필드의 오류를 같은 줄에 표시한다. */
 'use client';
 import { useId } from 'react';
 import { Input } from '@/shared/ui/input';
@@ -15,10 +15,17 @@ type Props = {
   readonly errors: AnalysisDraftErrors;
   readonly change: (field: AnalysisTextField, value: string) => void;
   readonly changeComparison: (selection: string) => void;
+  /** 적어 넣는 칸을 떠났을 때 지금까지 적은 값을 보낸다. */
+  readonly commit: () => void;
 };
 const selectClass =
-  'h-9 max-w-full min-w-0 rounded-lg border border-input bg-background px-2.5 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  'h-8 max-w-44 min-w-0 rounded-lg border border-input bg-background px-2 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
+/**
+ * 라벨을 입력 **위**가 아니라 **옆**에 둔다. 조건이 열 개라 라벨을 쌓으면 그것만으로 한 줄(52px)이
+ * 더 생기고, 그만큼 차트가 화면 아래로 밀려 조건과 결과를 함께 볼 수 없다. 라벨 자체는 지우지
+ * 않는다 — `htmlFor` 연결이 이름이고, 이름이 없으면 무엇을 고르는지 아무도 모른다.
+ */
 function Field({
   label,
   error,
@@ -30,8 +37,8 @@ function Field({
 }) {
   const id = useId();
   return (
-    <div className='grid min-w-0 gap-1'>
-      <label htmlFor={id} className='text-xs font-medium text-muted-foreground'>
+    <div className='flex min-w-0 items-center gap-1.5'>
+      <label htmlFor={id} className='text-xs whitespace-nowrap text-muted-foreground'>
         {label}
       </label>
       {children(id, error ? `${id}-error` : undefined)}
@@ -46,7 +53,7 @@ function Field({
 
 export function AnalysisDateFields({ draft, errors, change }: Props) {
   return (
-    <div className='grid grid-cols-2 gap-2'>
+    <>
       <Field label='시작일' error={errors.from}>
         {(id, description) => (
           <Input
@@ -57,7 +64,7 @@ export function AnalysisDateFields({ draft, errors, change }: Props) {
             aria-invalid={!!errors.from}
             aria-describedby={description}
             onChange={(event) => change('from', event.target.value)}
-            className='h-9 w-36 max-w-full'
+            className='h-8 w-34 max-w-full'
           />
         )}
       </Field>
@@ -71,21 +78,25 @@ export function AnalysisDateFields({ draft, errors, change }: Props) {
             aria-invalid={!!errors.to}
             aria-describedby={description}
             onChange={(event) => change('to', event.target.value)}
-            className='h-9 w-36 max-w-full'
+            className='h-8 w-34 max-w-full'
           />
         )}
       </Field>
-    </div>
+    </>
   );
 }
 
-export function AnalysisConditionFields({ setup, draft, errors, change, changeComparison }: Props) {
+export function AnalysisConditionFields({
+  setup,
+  draft,
+  errors,
+  change,
+  changeComparison,
+  commit
+}: Props) {
   const itemOptions = setup.options.itemOptions;
   return (
-    <div
-      data-slot='analysis-condition-fields'
-      className='grid min-w-0 grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-7'
-    >
+    <>
       <Field label='날짜 기준'>
         {(id) => (
           <select
@@ -175,7 +186,8 @@ export function AnalysisConditionFields({ setup, draft, errors, change, changeCo
             aria-invalid={!!errors.min}
             aria-describedby={description}
             onChange={(event) => change('min', event.target.value)}
-            className='h-9'
+            onBlur={commit}
+            className='h-8 w-24'
           />
         )}
       </Field>
@@ -190,7 +202,8 @@ export function AnalysisConditionFields({ setup, draft, errors, change, changeCo
             aria-invalid={!!errors.max}
             aria-describedby={description}
             onChange={(event) => change('max', event.target.value)}
-            className='h-9'
+            onBlur={commit}
+            className='h-8 w-24'
           />
         )}
       </Field>
@@ -216,6 +229,6 @@ export function AnalysisConditionFields({ setup, draft, errors, change, changeCo
           </select>
         )}
       </Field>
-    </div>
+    </>
   );
 }

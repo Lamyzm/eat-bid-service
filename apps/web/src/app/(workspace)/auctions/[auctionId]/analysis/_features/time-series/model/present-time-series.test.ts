@@ -98,7 +98,7 @@ describe('분석 시간축 표시 모델', () => {
     expect(view.plot.target[0]?.label).toBe('2026-08-04 사정률 90.123%');
   });
 
-  test('세로 범위는 두 집단의 관측을 모두 덮는다', () => {
+  test('전체 축은 두 집단의 관측을 모두 덮는다', () => {
     const view = series({
       axis,
       target: [point('12', '2026-08-03T15:00:00Z', '90.000')],
@@ -118,9 +118,33 @@ describe('분석 시간축 표시 모델', () => {
     });
     if (view.kind !== 'plot') throw new Error('plot이어야 한다');
     // 비교군의 극단값이 그림 밖으로 나가면 "범위 밖 극단값을 숨기지 않는다"는 약속이 깨진다.
-    expect(view.plot.domain.yFrom).toBeLessThan(90_000);
-    expect(view.plot.domain.yTo).toBeGreaterThan(95_100);
+    expect(view.plot.fullDomain.yFrom).toBeLessThan(90_000);
+    expect(view.plot.fullDomain.yTo).toBeGreaterThan(95_100);
     expect(view.plot.comparison.kind).toBe('density');
+  });
+
+  test('기본 축은 가운데 덩어리에 맞추고 벗어난 관측은 수로 센다', () => {
+    // 한쪽으로 크게 벗어난 값 하나가 축을 늘리면 나머지 전부가 한 줄로 뭉개진다. 기본 축은 가운데에
+    // 맞추되 밀려난 관측은 숫자로 남아야 한다.
+    const crowd = Array.from({ length: 60 }, (_, index) =>
+      point(`c${index}`, '2026-08-10T01:00:00Z', '95.000')
+    );
+    const view = series({
+      axis,
+      target: [point('12', '2026-08-03T15:00:00Z', '90.000'), point('13', '2026-08-20T01:00:00Z', '130.000')],
+      targetTruncated: false,
+      comparison: { kind: 'points', points: crowd, truncated: false },
+      meta: readyMeta
+    });
+    if (view.kind !== 'plot') throw new Error('plot이어야 한다');
+    expect(view.plot.domain.yTo).toBeLessThan(130_000);
+    expect(view.plot.domain.yFrom).toBeGreaterThan(90_000);
+    expect(view.plot.outsideTarget).toEqual({ above: 1, below: 1 });
+    expect(view.plot.outsideComparison).toEqual({ above: 0, below: 0 });
+    // 전체 축으로 바꾸면 밀려난 것이 없다.
+    expect(view.plot.fullDomain.yTo).toBeGreaterThan(130_000);
+    expect(view.plot.fullDomain.yFrom).toBeLessThan(90_000);
+    expect(view.plot.fullYTicks).toHaveLength(5);
   });
 
   test('관측이 한 점뿐이어도 눈금이 설 최소 폭을 준다', () => {
