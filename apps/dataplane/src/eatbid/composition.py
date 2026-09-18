@@ -328,7 +328,7 @@ class Application:
             and self._holds.open_hold(EAT_SOURCE, now=datetime.now(UTC)) is not None
         ):
             return None
-        with self._connection.cursor() as cursor:
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 "select window_start, window_end, is_complete, failed_publications"
                 " from ingest.backfill_coverage"
@@ -374,7 +374,7 @@ class Application:
             parameters.update(
                 {"window_start": args.window_start, "window_end": args.window_end}
             )
-        with self._connection.cursor() as cursor:
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 _SCAN_CANDIDATES_SQL.format(window_filter=window_filter), parameters
             )
