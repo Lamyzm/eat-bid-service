@@ -2,7 +2,7 @@
 id: COLLECTION-RUNBOOK
 status: active
 canonical_for: collection-workflow-recovery-procedures
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-18
 review_trigger: workflow-template-stage-or-publication-lineage-change
 ---
 
@@ -395,6 +395,23 @@ argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint cont
   별도 결정이다.
 - 검증: 2025-09 창(EAT-246)에 돌리면 음수 사정률 7건과 `EFT_ALL_AMT` 음수 1건이 그대로 나와야 한다.
 .
+### 4.9 막힌 창은 예약이 스스로 다시 시도한다 — `replay-advance` (2026-09-18, EAT-274)
+
+발행이 실패한 창을 사람이 창마다 닫던 것을 기계로 옮겼다. 2026-09-17에 세 창(2025-03·04·09, 51,597건)을
+손으로 닫으면서 절차가 확립됐고, 백필이 2021-09까지 내려가는 동안 같은 일이 계속 생긴다.
+
+- 네 시간마다 25분에 `eatbid-replay-advance`가 돈다. 다시 시도할 창이 없으면 아무것도 하지 않고 성공한다.
+- **고르는 규칙은 하나다.** 실패한 publication을 만든 `build_sha`가 지금 이미지의 것과 다를 때만 고른다.
+  같은 이미지로 다시 돌리면 결과가 같으므로 무한 반복이 생기지 않는다. 바꿔 말해 **파서나 계약을 고쳐
+  배포하는 것이 곧 "이 창을 다시 시도한다"는 승인**이다. 손으로 제출할 일이 없다.
+- 이미 발행에 성공한 release는 후보에서 빠진다. 한 창이 여러 번 실패한 뒤 성공했다면 그 창은 닫힌 것이고
+  실패 기록은 진단용으로 남는다.
+- `replay`에 관측 id를 주지 않으면 그 release의 상세 관측 전부가 대상이다. 예약 경로가 그렇게 부른다.
+  사람이 부분 재처리를 할 때만 `--observation-id`를 준다(§1.2).
+
+계약을 고쳐 배포했는데도 같은 창이 계속 실패하면 원인이 그 계약이 아니다. §4.7 `contract-scan`으로 사유를
+모으고 남은 부류를 본다.
+
 ### 4.8 물린 mart build의 행 회수 — `reap-marts` (2026-09-17, EAT-254)
 
 mart는 발행마다 새 build로 통째 다시 만들고 이전 활성 build를 `superseded`로 물린다(ADR 0034). 물린 build의
