@@ -94,8 +94,12 @@ def test_격리_사유는_한_줄이고_파이프를_표에서_이스케이프�
     assert observation.quarantine_reason is not None
     assert "\n" not in observation.quarantine_reason
     assert "|" not in observation.quarantine_reason.replace("\\|", "")
-    # 계약 상한이 문장 끝에 오므로 중간에서 잘리면 독자가 잘린 숫자를 상한으로 읽는다.
-    assert observation.quarantine_reason.endswith("at scale 3")
+    # 걸린 조건이 값보다 앞에 온다. 메시지가 중간에서 잘려도 "왜 거부됐는가"는 남아야 하고,
+    # 잘린 숫자를 상한으로 오해하지 않아야 한다(EAT-273).
+    이유 = observation.quarantine_reason
+    assert "[scale=4>3]" in 이유
+    assert 이유.index("scale=4>3") < 이유.index("value=")
+    assert "90.2185" in 이유
 
 
 def test_추첨_평균은_예정가격이_쓴_자릿수로_반올림해_대조한다() -> None:

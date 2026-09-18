@@ -47,8 +47,22 @@ data:
   # 멈춘다. 되돌리기는 이 줄 하나이며 Argo가 capacity를 chunk마다 live로 읽으므로 즉시 듣는다.
   # 다음 단계는 8이며 4가 한 창을 끝까지 성공시킨 실측을 evidence에 남긴 뒤에 올린다.
   #
-  # live는 1을 유지한다. 사용자가 보는 신규 공고 노출 SLO가 거기 걸려 있고, 그 lane은 대기열이 길지
-  # 않아 동시성을 올릴 이유가 없다.
-  eatbid-source-live: "1"
+  # live를 1에서 2로 올린다(2026-09-18, EAT-275). 1로 두었던 근거는 "그 lane은 대기열이 길지 않다"
+  # 였는데 그것이 사실이 아니었다. 같은 lane에 daily-reconcile이 있고 그 대기열은 capture chunk
+  # 266개다. 2026-09-18 실측: daily-reconcile이 07:00 KST에 시작해 4시간 30분을 쥐는 동안 poll-open
+  # 08:00 회차의 discover가 `Lock status: 0/1`로 멈췄고, poll-open은 concurrencyPolicy가 Forbid라
+  # 08:10~11:20의 예정 회차 약 21개가 전부 건너뛰어졌다 — 영업시간 수집이 0건이 됐다. 두 실행은
+  # 스케줄상 매일 겹치므로 이것은 그날의 사고가 아니라 상시 구조다.
+  #
+  # EAT-164가 "상한만 2로 올리면 안 된다"고 적은 이유는 backfill 대기열이 수백 묶음이라 두 자리를 다
+  # 가져가기 때문이었다. daily-reconcile에는 그 이유가 적용되지 않는다 — chunk를 한 번에 하나만 잡는
+  # 것을 `status.synchronization.holding`의 보유자가 항상 하나인 것으로 확인했다. 그래서 2면
+  # daily-reconcile이 하나, poll-open이 나머지 하나를 쥔다.
+  #
+  # key를 나누는 대안(eatbid-source-reconcile)은 보장이 더 강하지만 Argo가 semaphore key 치환을
+  # 지원하지 않아 discover·capture template을 복제해야 한다. 이 lane의 소비자는 셋뿐이고
+  # capture-reference는 월 1회·짧으므로 capacity로 먼저 푼다. 부족하다는 실측이 나오면 그때 나눈다.
+  # 중단 조건: 소스가 429·403을 내면 1로 되돌린다. 되돌리기는 이 줄 하나다.
+  eatbid-source-live: "2"
   eatbid-source-backfill: "8"
   eatbid-source-limit: "1"
