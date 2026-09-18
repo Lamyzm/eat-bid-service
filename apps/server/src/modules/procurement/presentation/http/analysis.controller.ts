@@ -18,6 +18,7 @@ import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
 import { ProcurementDependencyUnavailable } from "../../application/failures";
+import type { AnalysisItemFilter } from "../../application/analysis-time-series-reader";
 import {
   AnalysisRegionNotFound,
   FindAnalysisTimeSeries,
@@ -48,6 +49,17 @@ function comparisonScopeOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput[
   };
 }
 
+/**
+ * 평평한 query 두 칸을 품목 조건 하나로 접는다. 계약의 `.check()`가 이미 `only`와 원자가 함께 오지
+ * 못하게 막았지만 타입은 그 사실을 모르므로, 여기서 판별 union으로 좁혀야 두 뜻이 섞인 값이 어댑터까지
+ * 내려갈 수 없다는 것이 타입으로도 닫힌다.
+ */
+function itemFilterOf(query: TimeSeriesQuery): AnalysisItemFilter {
+  if (query.itemUnknown === "only") return { kind: "unknown" };
+  if (query.items === undefined) return { kind: "all" };
+  return { kind: "atoms", atoms: query.items, unknown: query.itemUnknown === "include" };
+}
+
 function inputOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput {
   return {
     targetOrganizationId: organizationId(BigInt(query.organizationId)),
@@ -61,9 +73,7 @@ function inputOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput {
     awardMethodCodeValueId: BigInt(query.awardMethodCodeValueId),
     listCountMin: query.listCountMin ?? null,
     listCountMax: query.listCountMax ?? null,
-    targetItemCodeValueId: query.targetItemCodeValueId === undefined
-      ? null
-      : BigInt(query.targetItemCodeValueId),
+    itemFilter: itemFilterOf(query),
   };
 }
 

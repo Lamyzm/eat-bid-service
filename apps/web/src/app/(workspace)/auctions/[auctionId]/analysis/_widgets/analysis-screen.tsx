@@ -6,7 +6,26 @@ import { AnalysisResultsGate } from '../_features/analysis-filters/ui/analysis-r
 import { AnalysisWorkspace } from '../_features/analysis-view/ui/analysis-workspace';
 import { TimeSeriesPanel } from '../_features/time-series/ui/time-series-panel';
 import { AnalysisHeader } from './analysis-header';
-import { AnalysisContext, AnalysisHistoryPending, AnalysisPendingPlot } from './analysis-evidence';
+import type { TimeSeriesView } from '../_features/time-series/model/present-time-series';
+import {
+  AnalysisContext,
+  AnalysisHistoryPending,
+  AnalysisPendingPlot,
+  type AnalysisSampleCounts
+} from './analysis-evidence';
+
+/**
+ * 화면에 낼 표본 수다. 그린 그림이 없어도 조건에 맞는 관측이 0건이라는 **사실**은 있으므로 그때도
+ * 수를 낸다. 아직 발행되지 않은 자료만 미확인이다(AGENTS 3).
+ */
+function sampleCountsOf(view: TimeSeriesView | null): AnalysisSampleCounts | null {
+  if (view === null) return null;
+  if (view.kind === 'plot') {
+    return { target: view.plot.targetCount, comparison: view.plot.comparisonCount };
+  }
+  if (view.kind === 'empty') return { target: view.targetCount, comparison: view.comparisonCount };
+  return null;
+}
 
 export function AnalysisScreen({
   data
@@ -28,14 +47,7 @@ export function AnalysisScreen({
         <AnalysisResultsGate requestKey={data.applied.key}>
           <AnalysisContext
             context={context}
-            samples={
-              data.timeSeries?.kind === 'plot'
-                ? {
-                  target: data.timeSeries.plot.targetCount,
-                  comparison: data.timeSeries.plot.comparisonCount
-                }
-                : null
-            }
+            samples={sampleCountsOf(data.timeSeries)}
           />
         </AnalysisResultsGate>
       }

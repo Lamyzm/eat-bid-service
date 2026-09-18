@@ -20,8 +20,20 @@ export function draftOfAnalysis(filter: AnalysisFilterValue): AnalysisDraft {
     awardMethod: filter.awardMethodCodeValueId,
     min: filter.listCountRange.min === null ? '' : String(filter.listCountRange.min),
     max: filter.listCountRange.max === null ? '' : String(filter.listCountRange.max),
-    item: filter.targetItemFilter.kind === 'all' ? 'all' : filter.targetItemFilter.codeValueId
+    items: filter.itemFilter.kind === 'atoms' ? filter.itemFilter.atoms : [],
+    itemUnknown: filter.itemFilter.kind === 'unknown'
+      || (filter.itemFilter.kind === 'atoms' && filter.itemFilter.unknown)
   };
+}
+
+/**
+ * 고른 품목을 DTO로 옮긴다. 아무것도 안 고른 상태가 전체이며 그때만 미확인이 함께 들어간다 —
+ * 품목을 고른 사용자에게 고르지 않은 것까지 주지 않고, 고르지 않은 사용자에게서 3분의 1을 조용히
+ * 빼지도 않는다(PDR-0007).
+ */
+function itemFilterOf(draft: AnalysisDraft): AnalysisFilterValue['itemFilter'] {
+  if (draft.items.length === 0) return draft.itemUnknown ? { kind: 'unknown' } : { kind: 'all' };
+  return { kind: 'atoms', atoms: [...draft.items], unknown: draft.itemUnknown };
 }
 
 function countInput(raw: string): number | null | undefined {
@@ -63,13 +75,6 @@ export function validateAnalysisDraft(
     (option) => option.codeValueId === draft.awardMethod
   );
   if (!awardMethod) errors.awardMethod = '공고의 낙찰방식을 확인할 수 없어요.';
-  const items = setup.options.itemOptions;
-  if (
-    draft.item !== 'all' &&
-    (items.state !== 'ready' || !items.options.some((option) => option.codeValueId === draft.item))
-  ) {
-    errors.item = '현재 선택할 수 없는 기관 품목이에요.';
-  }
   if (setup.targetOrganizationId === null) errors.form = '구매기관을 확인한 뒤 비교할 수 있어요.';
   if (Object.keys(errors).length > 0) return { state: 'invalid', errors };
   const parsed = analysisFilterValueSchema.safeParse({
@@ -81,8 +86,7 @@ export function validateAnalysisDraft(
     floorRate,
     awardMethodCodeValueId: awardMethod?.codeValueId,
     listCountRange: { min, max },
-    targetItemFilter:
-      draft.item === 'all' ? { kind: 'all' } : { kind: 'code', codeValueId: draft.item }
+    itemFilter: itemFilterOf(draft)
   });
   return parsed.success
     ? { state: 'valid', filter: parsed.data }

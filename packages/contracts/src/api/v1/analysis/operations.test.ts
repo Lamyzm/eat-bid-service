@@ -123,7 +123,7 @@ describe("분석 시간축 operation 계약", () => {
           floorRate: { value: "90.000", unit: "percentage-points" },
           awardMethodCodeValueId: "31",
           listCountRange: { min: null, max: null },
-          targetItemFilter: { kind: "all" },
+          itemFilter: { kind: "all" },
         },
       },
     });

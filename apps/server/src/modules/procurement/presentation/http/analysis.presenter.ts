@@ -94,9 +94,10 @@ function filterResource(input: FindAnalysisTimeSeriesInput): AnalysisFilterValue
     floorRate: bidRateWire(input.floorRate),
     awardMethodCodeValueId: bigintText(input.awardMethodCodeValueId),
     listCountRange: { min: input.listCountMin, max: input.listCountMax },
-    targetItemFilter: input.targetItemCodeValueId === null
-      ? { kind: "all" }
-      : { kind: "code", codeValueId: bigintText(input.targetItemCodeValueId) },
+    // 포트는 읽기 전용 배열이고 wire 타입은 그렇지 않다. 같은 값을 복사해 경계에서만 형태를 맞춘다.
+    itemFilter: input.itemFilter.kind === "atoms"
+      ? { kind: "atoms", atoms: [...input.itemFilter.atoms], unknown: input.itemFilter.unknown }
+      : input.itemFilter,
   };
 }
 

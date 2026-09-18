@@ -1,6 +1,18 @@
 /** @module 책임: 비교조건의 날짜·코드·명단 입력과 해당 필드의 오류를 같은 줄에 표시한다. */
 'use client';
 import { useId } from 'react';
+import { AUCTION_ITEM_ATOMS } from '@eatbid/contracts/api/v1/auctions';
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue
+} from '@/shared/ui/combobox';
 import { Input } from '@/shared/ui/input';
 import type {
   AnalysisDraft,
@@ -15,9 +27,14 @@ type Props = {
   readonly errors: AnalysisDraftErrors;
   readonly change: (field: AnalysisTextField, value: string) => void;
   readonly changeComparison: (selection: string) => void;
+  readonly changeItems: (selection: readonly string[]) => void;
   /** 적어 넣는 칸을 떠났을 때 지금까지 적은 값을 보낸다. */
   readonly commit: () => void;
 };
+
+/** 목록에서 `품목 미확인`이 갖는 값이다. 원자 여덟과 한 목록에 서되 어휘에는 들어가지 않는다. */
+export const ITEM_UNKNOWN_VALUE = '품목 미확인';
+const ITEM_CHOICES = [...AUCTION_ITEM_ATOMS, ITEM_UNKNOWN_VALUE] as const;
 const selectClass =
   'h-8 max-w-44 min-w-0 rounded-lg border border-input bg-background px-2 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
@@ -47,6 +64,53 @@ function Field({
           {error}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * 품목은 여럿을 고르고 `품목 미확인`도 값이다. 아무것도 고르지 않은 상태가 전체이며 그 사실을
+ * placeholder가 말한다 — 빈 칸이 "아무것도 안 나온다"로 읽히면 사용자가 조건을 잘못 이해한다.
+ *
+ * 공고가 품목을 말하지 않은 회차가 3분의 1이라(PDR-0007) 그 값을 목록에 함께 세운다.
+ */
+function AnalysisItemField({ draft, changeItems }: Pick<Props, 'draft' | 'changeItems'>) {
+  const id = useId();
+  const selected = draft.itemUnknown ? [...draft.items, ITEM_UNKNOWN_VALUE] : [...draft.items];
+  return (
+    <div className='flex min-w-0 items-center gap-1.5'>
+      <span id={`${id}-label`} className='text-xs whitespace-nowrap text-muted-foreground'>
+        품목
+      </span>
+      <Combobox items={ITEM_CHOICES} multiple value={selected} onValueChange={changeItems}>
+        {/* 이름은 입력 하나가 갖는다. 담는 상자에도 같은 이름을 걸면 같은 이름의 요소가 둘이 된다. */}
+        <ComboboxChips className='max-w-72 min-w-40'>
+          <ComboboxValue>
+            {(value: readonly string[]) =>
+              value.map((item) => (
+                <ComboboxChip key={item} removeLabel={`${item} 조건 해제`}>
+                  {item}
+                </ComboboxChip>
+              ))
+            }
+          </ComboboxValue>
+          <ComboboxInput
+            id={id}
+            placeholder={selected.length === 0 ? '전체 품목' : ''}
+            aria-labelledby={`${id}-label`}
+          />
+        </ComboboxChips>
+        <ComboboxContent>
+          <ComboboxEmpty>그런 품목이 없어요</ComboboxEmpty>
+          <ComboboxList>
+            {(item: string) => (
+              <ComboboxItem key={item} value={item}>
+                {item}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
     </div>
   );
 }
@@ -92,9 +156,9 @@ export function AnalysisConditionFields({
   errors,
   change,
   changeComparison,
+  changeItems,
   commit
 }: Props) {
-  const itemOptions = setup.options.itemOptions;
   return (
     <>
       <Field label='날짜 기준'>
@@ -207,28 +271,7 @@ export function AnalysisConditionFields({
           />
         )}
       </Field>
-      <Field label='이 기관 품목' error={errors.item}>
-        {(id, description) => (
-          <select
-            id={id}
-            name='item'
-            className={selectClass}
-            value={draft.item}
-            aria-invalid={!!errors.item}
-            aria-describedby={description}
-            onChange={(event) => change('item', event.target.value)}
-          >
-            <option value='all'>전체 품목</option>
-            {itemOptions.state === 'ready'
-              ? itemOptions.options.map((item) => (
-                  <option key={item.codeValueId} value={item.codeValueId}>
-                    {item.label ?? '품목명 미확인'}
-                  </option>
-                ))
-              : null}
-          </select>
-        )}
-      </Field>
+      <AnalysisItemField draft={draft} changeItems={changeItems} />
     </>
   );
 }

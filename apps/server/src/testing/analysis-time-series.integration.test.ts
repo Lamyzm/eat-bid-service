@@ -68,6 +68,12 @@ const extraSeed = `
      set floor_rate = 90.000, award_method_code_value_id = 31, opened_at = '2026-08-03T20:00:00Z',
          awarded_assessment_rate = 90.400, list_count = 14
    where build_id = 501 and auction_attempt_id = 106;
+  -- 품목 원자는 우리 체계(`eatbid:auction-item`)의 코드값이다. 체계 없이 코드 문자열만 보고 조인하면
+  -- 다른 어휘의 같은 글자를 잡으므로, 술어가 체계를 닫는지 여기서 확인된다(AGENTS 2·6).
+  insert into core.code_scheme (code_scheme_id, namespace, owner, version_policy, valid_time_policy)
+  overriding system value values (15, 'eatbid:auction-item', 'product', 'immutable', 'open');
+  insert into core.code_value (code_value_id, code_scheme_id, code)
+  overriding system value values (7, 15, '육류'), (9, 15, '농산물');
   insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)
   values (501, 200, 7), (501, 201, 9), (501, 202, 7);
   -- 205는 지역이 번역되지 않은 회차다. 지역 모집단에서 빠지되 전국에는 남는다(ADR 0035 결정 6).
@@ -92,7 +98,7 @@ const baseQuery = {
   awardMethodCodeValueId: 31n,
   listCountMin: null,
   listCountMax: null,
-  targetItemCodeValueId: null,
+  itemFilter: { kind: "all" },
   comparisonScope: { kind: "national" },
   timeResolution: "day",
   rateBinWidthMilli: 100n,
@@ -131,10 +137,20 @@ test("분석 시간축 질의가 KST 칸·명단 범위·품목 다리를 실제
     expect(ranged.comparisonTotal).toBe(3);
     expect(ranged.overlapCount).toBe(1);
 
-    // 품목은 기관에만 걸린다. 비교군은 언제나 전체 품목이다(PDR-0006).
-    const item = await reader.readTimeSeries({ ...baseQuery, targetItemCodeValueId: 7n });
+    // 품목은 두 집단에 같게 걸린다. 기관만 걸리고 비교군이 전체 품목이면 두 집단이 다른 질문에
+    // 답한다(PDR-0007). 203~205는 다리 행이 없어 `품목 미확인`이다.
+    const item = await reader.readTimeSeries({ ...baseQuery, itemFilter: { kind: "atoms", atoms: ["육류"], unknown: false } });
     expect(item.targetPoints.map((point) => point.attemptId)).toEqual([200n, 202n]);
-    expect(item.comparisonTotal).toBe(6);
+    expect(item.comparisonTotal).toBe(2);
+
+    // 공고가 품목을 말하지 않은 회차만 보는 조건이다. 전체의 3분의 1이라 값으로 고를 수 있어야 한다.
+    const unknown = await reader.readTimeSeries({ ...baseQuery, itemFilter: { kind: "unknown" } });
+    expect(unknown.targetPoints).toEqual([]);
+    expect(unknown.comparisonTotal).toBe(3);
+
+    // 함께 보려는 요청은 둘의 합이며, 조용히 한쪽만 주지 않는다.
+    const both = await reader.readTimeSeries({ ...baseQuery, itemFilter: { kind: "atoms", atoms: ["육류"], unknown: true } });
+    expect(both.comparisonTotal).toBe(5);
 
     // 지금 보고 있는 회차는 두 집단 모두에서 빠진다.
     const excluded = await reader.readTimeSeries({ ...baseQuery, excludeAttemptId: 200n });

@@ -25,6 +25,7 @@ export function AnalysisFilters({
     errors: form.errors,
     change: form.change,
     changeComparison: form.changeComparison,
+    changeItems: form.changeItems,
     commit: form.commit
   };
   return (

@@ -6,8 +6,9 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { CODE_SCHEME_NAMES } from "@eatbid/contracts";
+import { textArrayLiteral } from "../../../../platform/database/sql-values";
 import { rateMilliText } from "../../application/distribution-statistics";
-import type { AnalysisTimeSeriesQuery } from "../../application/analysis-time-series-reader";
+import type { AnalysisItemFilter, AnalysisTimeSeriesQuery } from "../../application/analysis-time-series-reader";
 import { KST_TIME_ZONE } from "../../domain/kst-month";
 import { activeMartBuildId, ORG_ROUND_SUMMARY, worstCoverageOrder } from "./drizzle-mart-build-reader";
 
@@ -48,23 +49,44 @@ export function analysisBasePredicate(query: AnalysisTimeSeriesQuery): SQL {
   if (query.excludeAttemptId !== null) {
     parts.push(sql`and summary.auction_attempt_id <> ${query.excludeAttemptId}::bigint`);
   }
+  const item = itemPredicate(query.itemFilter);
+  if (item !== null) parts.push(item);
   return sql.join(parts, sql` `);
 }
 
+/** 이 회차에 품목 다리 행이 하나도 없다는 술어다. `품목 미확인`의 정의가 여기 한 곳에만 있다. */
+function itemBridgeAbsent(): SQL {
+  return sql`not exists (
+    select 1 from mart.org_round_summary_item bridge
+     where bridge.build_id = summary.build_id
+       and bridge.auction_attempt_id = summary.auction_attempt_id)`;
+}
+
 /**
- * 기관 쪽에만 걸리는 조건이다. 품목이 여기 있는 이유는 비교군이 언제나 전체 품목이기 때문이다(PDR-0006).
- * 품목은 열이 아니라 다리표로 거는데, 원천 라벨 한 문자열이 원자 여럿이라 단일 열은 "첫 원자"라는
- * 거짓 정체성을 만든다(AGENTS 2, EAT-256).
+ * 품목 술어다. **기본 술어에 있으므로 기관 점·비교 구름·겹침·밀도 전부에 같게 걸린다**(PDR-0007).
+ *
+ * 원자는 OR이다 — 하나라도 붙어 있으면 걸린다. 라벨 문자열이 아니라 코드로 조인하며 체계로 닫는다.
+ * 코드 문자열은 여러 체계에 있을 수 있어 체계 없이 조인하면 다른 어휘의 같은 글자를 잡는다(AGENTS 2·6).
  */
+function itemPredicate(filter: AnalysisItemFilter): SQL | null {
+  if (filter.kind === "all") return null;
+  if (filter.kind === "unknown") return sql`and ${itemBridgeAbsent()}`;
+  const matched = sql`exists (
+    select 1
+      from mart.org_round_summary_item bridge
+      join core.code_value value on value.code_value_id = bridge.item_code_value_id
+      join core.code_scheme scheme on scheme.code_scheme_id = value.code_scheme_id
+     where bridge.build_id = summary.build_id
+       and bridge.auction_attempt_id = summary.auction_attempt_id
+       and scheme.namespace = ${CODE_SCHEME_NAMES.auctionItem}
+       and value.code = any(${textArrayLiteral(filter.atoms)}::text[]))`;
+  // 미확인을 함께 보려는 요청은 그 회차가 조건에 안 맞는 것이 아니라 답할 수 없는 회차임을 아는 요청이다.
+  return filter.unknown ? sql`and (${matched} or ${itemBridgeAbsent()})` : sql`and ${matched}`;
+}
+
+/** 기관 쪽에만 걸리는 조건이다. 품목은 이제 두 집단 공통이라 기본 술어가 갖는다(PDR-0007). */
 export function analysisTargetPredicate(query: AnalysisTimeSeriesQuery): SQL {
-  const parts: SQL[] = [sql`and summary.organization_id = ${query.targetOrganizationId}::bigint`];
-  if (query.targetItemCodeValueId !== null) {
-    parts.push(sql`and exists (select 1 from mart.org_round_summary_item bridge
-      where bridge.build_id = summary.build_id
-        and bridge.auction_attempt_id = summary.auction_attempt_id
-        and bridge.item_code_value_id = ${query.targetItemCodeValueId}::bigint)`);
-  }
-  return sql.join(parts, sql` `);
+  return sql`and summary.organization_id = ${query.targetOrganizationId}::bigint`;
 }
 
 /**

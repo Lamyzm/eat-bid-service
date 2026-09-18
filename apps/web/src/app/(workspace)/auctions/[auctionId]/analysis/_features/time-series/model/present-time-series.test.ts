@@ -11,7 +11,7 @@ const filter = {
   floorRate: { value: '90.000', unit: 'percentage-points' },
   awardMethodCodeValueId: '31',
   listCountRange: { min: null, max: null },
-  targetItemFilter: { kind: 'all' }
+  itemFilter: { kind: 'all' }
 } as const;
 
 const lineage = {
@@ -82,6 +82,10 @@ describe('분석 시간축 표시 모델', () => {
       meta: { ...readyMeta, targetSampleCount: 0, comparisonSampleCount: 0, overlapCount: 0 }
     });
     expect(view.kind).toBe('empty');
+    // 그린 것이 없어도 "조건에 맞는 관측이 0건"은 사실이다. 수가 없으면 화면이 미발행과 같게 말한다.
+    if (view.kind !== 'empty') throw new Error('empty여야 한다');
+    expect(view.targetCount).toBe(0);
+    expect(view.comparisonCount).toBe(0);
   });
 
   test('사정률 십진 문자열을 milli 정수로 옮기고 부동소수를 거치지 않는다', () => {

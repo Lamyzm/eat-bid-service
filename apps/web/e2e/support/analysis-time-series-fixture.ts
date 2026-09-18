@@ -14,29 +14,45 @@ const rate = (value: string) => ({ value, unit: 'percentage-points' }) as const;
  * 가운데 값에 맞춘 기본 축과 `전체 값 보기`가 실제로 다른 그림을 그리는지 브라우저에서 보려면 축을
  * 끌고 갈 값 하나가 필요하다.
  */
-const TARGET_POINTS: ReadonlyArray<readonly [string, string, string]> = [
-  ['9101', '2026-03-12T01:30:00Z', '90.010'],
-  ['9102', '2026-04-23T01:30:00Z', '90.080'],
-  ['9103', '2026-05-28T01:30:00Z', '89.960'],
-  ['9104', '2026-07-09T01:30:00Z', '90.120'],
-  ['9105', '2026-08-20T01:30:00Z', '91.870']
+type FixturePoint = readonly [string, string, string, string | null];
+
+/** 네 번째 자리가 품목이다. `null`은 공고가 품목을 말하지 않은 회차(`품목 미확인`)다. */
+const TARGET_POINTS: readonly FixturePoint[] = [
+  ['9101', '2026-03-12T01:30:00Z', '90.010', '육류'],
+  ['9102', '2026-04-23T01:30:00Z', '90.080', '육류'],
+  ['9103', '2026-05-28T01:30:00Z', '89.960', '농산물'],
+  ['9104', '2026-07-09T01:30:00Z', '90.120', null],
+  ['9105', '2026-08-20T01:30:00Z', '91.870', '육류']
 ];
 
 /** 비교군은 좁은 기간이라 점으로 온다. 기관 점과 겹치는 둘을 포함해 `겹침` 수가 0이 아니게 둔다. */
-const COMPARISON_POINTS: ReadonlyArray<readonly [string, string, string]> = [
-  ['9101', '2026-03-12T01:30:00Z', '90.010'],
-  ['9102', '2026-04-23T01:30:00Z', '90.080'],
-  ['9201', '2026-03-20T01:30:00Z', '90.040'],
-  ['9202', '2026-04-02T01:30:00Z', '89.990'],
-  ['9203', '2026-05-15T01:30:00Z', '90.150'],
-  ['9204', '2026-06-11T01:30:00Z', '90.030'],
-  ['9205', '2026-07-24T01:30:00Z', '90.060'],
-  ['9206', '2026-08-06T01:30:00Z', '89.940'],
-  ['9207', '2026-09-02T01:30:00Z', '90.200']
+const COMPARISON_POINTS: readonly FixturePoint[] = [
+  ['9101', '2026-03-12T01:30:00Z', '90.010', '육류'],
+  ['9102', '2026-04-23T01:30:00Z', '90.080', '육류'],
+  ['9201', '2026-03-20T01:30:00Z', '90.040', '농산물'],
+  ['9202', '2026-04-02T01:30:00Z', '89.990', null],
+  ['9203', '2026-05-15T01:30:00Z', '90.150', '육류'],
+  ['9204', '2026-06-11T01:30:00Z', '90.030', '수산물'],
+  ['9205', '2026-07-24T01:30:00Z', '90.060', null],
+  ['9206', '2026-08-06T01:30:00Z', '89.940', '김치류'],
+  ['9207', '2026-09-02T01:30:00Z', '90.200', '육류']
 ];
 
-function pointOf([attemptId, plottedAt, value]: readonly [string, string, string]) {
+function pointOf([attemptId, plottedAt, value]: FixturePoint) {
   return { attemptId, revisionId: attemptId, plottedAt, assessmentRate: rate(value) };
+}
+
+/**
+ * 품목 조건을 **두 집단에 같게** 적용한다(PDR-0007). fixture가 기관 점만 거르면 브라우저에서
+ * "조건 막대는 육류인데 구름은 전체"인 상태가 통과해 버린다 — 고치려던 결함이 그것이다.
+ */
+function keptBy(filter: ReturnType<typeof effectiveFilterOf>['itemFilter']) {
+  return (point: FixturePoint): boolean => {
+    const item = point[3];
+    if (filter.kind === 'all') return true;
+    if (filter.kind === 'unknown') return item === null;
+    return item === null ? filter.unknown : filter.atoms.includes(item);
+  };
 }
 
 /**
@@ -51,7 +67,8 @@ function effectiveFilterOf(searchParams: URLSearchParams) {
         codeValueId: searchParams.get('comparisonRegionCodeValueId') ?? '41'
       }
     : { kind: 'national' as const };
-  const item = searchParams.get('targetItemCodeValueId');
+  const atoms = searchParams.getAll('items');
+  const unknown = searchParams.get('itemUnknown');
   const excludeAttemptId = searchParams.get('excludeAttemptId');
   const listCount = (key: string) => {
     const value = searchParams.get(key);
@@ -69,7 +86,9 @@ function effectiveFilterOf(searchParams: URLSearchParams) {
     floorRate: rate(searchParams.get('floorRate') ?? '90.000'),
     awardMethodCodeValueId: searchParams.get('awardMethodCodeValueId') ?? '31',
     listCountRange: { min: listCount('listCountMin'), max: listCount('listCountMax') },
-    targetItemFilter: item === null ? { kind: 'all' as const } : { kind: 'code' as const, codeValueId: item }
+    itemFilter: atoms.length === 0
+      ? (unknown === 'only' ? { kind: 'unknown' as const } : { kind: 'all' as const })
+      : { kind: 'atoms' as const, atoms, unknown: unknown === 'include' }
   };
 }
 
@@ -81,8 +100,9 @@ export function analysisTimeSeriesResponse(request: Request): Response | undefin
   // 명단 하한을 아주 높게 잡은 요청은 조건에 맞는 회차가 없는 상태다. 빈 배열과 0건은 `unavailable`과
   // 다른 갈래라 화면이 "조건을 풀어 보라"고 말해야 한다(AGENTS 3).
   const empty = (effectiveFilter.listCountRange.min ?? 0) > 100;
-  const target = empty ? [] : TARGET_POINTS.map(pointOf);
-  const comparison = empty ? [] : COMPARISON_POINTS.map(pointOf);
+  const kept = keptBy(effectiveFilter.itemFilter);
+  const target = empty ? [] : TARGET_POINTS.filter(kept).map(pointOf);
+  const comparison = empty ? [] : COMPARISON_POINTS.filter(kept).map(pointOf);
 
   return Response.json(analysisTimeSeriesV1ResponseSchema.parse({
     axis: {
@@ -115,7 +135,7 @@ export function analysisTimeSeriesResponse(request: Request): Response | undefin
       },
       targetSampleCount: target.length,
       comparisonSampleCount: comparison.length,
-      overlapCount: empty ? 0 : 2,
+      overlapCount: comparison.filter((point) => Number(point.attemptId) < 9200).length,
       periodCoverage: [{ period: effectiveFilter.period, target: 'unknown', comparison: 'unknown' }],
       freshness: { state: 'unknown', checkedAt: null }
     }

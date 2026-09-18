@@ -68,7 +68,7 @@ describe('기관·지역 비교조건 입력', () => {
     ).toBe(false);
   });
 
-  test('아직 고를 수 없는 전 기간과 기관 품목은 조작 자체가 말한다', () => {
+  test('아직 고를 수 없는 전 기간은 조작 자체가 말하고 품목은 안 고른 상태가 전체다', () => {
     const screen = render(
       <NuqsTestingAdapter>
         <AnalysisFilters setup={setup} applied={readAppliedAnalysis(null, setup)} />
@@ -78,7 +78,8 @@ describe('기관·지역 비교조건 입력', () => {
     const wholePeriod = screen.getByRole('button', { name: '전 기간' });
     expect(wholePeriod.hasAttribute('disabled')).toBe(true);
     expect(wholePeriod.getAttribute('title')).toBe('보유기간 확인 후 선택할 수 있어요');
-    expect(screen.getByLabelText('이 기관 품목').textContent).toBe('전체 품목');
+    // 빈 칸이 "아무것도 안 나온다"로 읽히지 않도록 무엇을 보고 있는지 칸이 직접 말한다.
+    expect(screen.getByLabelText('품목').getAttribute('placeholder')).toBe('전체 품목');
   });
 
   test('새 조건이 URL에 반영된 뒤에는 늦은 이전 응답의 자료를 표시하지 않는다', () => {

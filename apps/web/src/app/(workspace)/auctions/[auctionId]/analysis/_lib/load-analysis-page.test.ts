@@ -16,7 +16,7 @@ const appliedFilter = {
   floorRate: { value: '90.000', unit: 'percentage-points' },
   awardMethodCodeValueId: '31',
   listCountRange: { min: null, max: null },
-  targetItemFilter: { kind: 'all' }
+  itemFilter: { kind: 'all' }
 } as const;
 
 const emptySeries = {

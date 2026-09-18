@@ -35,8 +35,34 @@ test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체�
   await form.getByLabel('비교 공고지역').selectOption('national');
   await expect.poll(() => new URL(page.url()).searchParams.has('analysis')).toBe(true);
   await expect(page.getByRole('heading', { name: '창원 남산초등학교 vs 전국 전체' })).toBeVisible();
+  expect(JSON.parse(new URL(page.url()).searchParams.get('analysis')!).listCountRange).toEqual({
+    min: 24,
+    max: null
+  });
+  await form.getByLabel('명단 최소').fill('');
+  await form.getByLabel('명단 최소').blur();
+  // 조회가 도는 동안 목록을 열면 팝업이 다시 그려지며 떨어져 나간다. 주소가 앉고 **응답이 화면에
+  // 붙은 뒤**에 연다 — 주소는 낙관적으로 먼저 바뀌므로 주소만 기다리면 아직 도는 중이다.
+  await expect
+    .poll(() => JSON.parse(new URL(page.url()).searchParams.get('analysis')!).listCountRange)
+    .toEqual({ min: null, max: null });
+  await expect(page.getByText('비교조건을 적용하고 있어요.')).toHaveCount(0);
+  await expect(page.getByRole('img', { name: /5건.*9건/ })).toBeVisible();
+  // 품목은 두 집단에 같게 걸린다(PDR-0007). 기관만 줄고 구름이 그대로면 조건 막대가 말하는 것과
+  // 그린 것이 어긋난다. fixture의 `육류`는 기관 3건·비교군 4건이다.
+  await form.getByLabel('품목').click();
+  const beef = page.getByRole('option', { name: '육류', exact: true });
+  await expect(beef).toBeVisible();
+  await beef.click();
+  await expect
+    .poll(() => JSON.parse(new URL(page.url()).searchParams.get('analysis')!).itemFilter)
+    .toEqual({ kind: 'atoms', atoms: ['육류'], unknown: false });
+  await expect(page.getByRole('img', { name: /3건.*4건/ })).toBeVisible();
+  await form.getByRole('button', { name: '육류 조건 해제' }).click();
+  await expect
+    .poll(() => JSON.parse(new URL(page.url()).searchParams.get('analysis')!).itemFilter)
+    .toEqual({ kind: 'all' });
   const applied = new URL(page.url()).searchParams.get('analysis')!;
-  expect(JSON.parse(applied).listCountRange).toEqual({ min: 24, max: null });
   await page.getByRole('tab', { name: '시간별 추이' }).focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tab', { name: '낙찰값 분포' })).toBeFocused();
@@ -51,7 +77,7 @@ test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체�
   await expect(page.locator('[data-slot="workspace-header"]')).toBeVisible();
   await expect(page.getByRole('button', { name: '전체보기', exact: true })).toBeFocused();
   await page.reload();
-  await expect(page.getByLabel('명단 최소')).toHaveValue('24');
+  await expect(page.getByLabel('비교 공고지역')).toHaveValue('national');
   await expect(page.getByRole('tab', { name: '낙찰값 분포' })).toHaveAttribute(
     'aria-selected',
     'true'

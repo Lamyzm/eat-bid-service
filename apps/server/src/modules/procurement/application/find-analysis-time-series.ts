@@ -14,6 +14,7 @@ import type { MartBuildLineage } from "./mart-build-lineage";
 import type {
   AnalysisComparisonScope,
   AnalysisComparisonSeriesRecord,
+  AnalysisItemFilter,
   AnalysisMonthCoverage,
   AnalysisPointRecord,
   AnalysisTimeSeriesReader,
@@ -88,7 +89,7 @@ export interface FindAnalysisTimeSeriesInput {
   readonly awardMethodCodeValueId: bigint;
   readonly listCountMin: number | null;
   readonly listCountMax: number | null;
-  readonly targetItemCodeValueId: bigint | null;
+  readonly itemFilter: AnalysisItemFilter;
 }
 
 /** 서버가 실제로 적용한 눈금이다. 요청이 준 희망값이 아니라 상한까지 반영한 결과다. */
@@ -211,7 +212,7 @@ export class FindAnalysisTimeSeries {
           awardMethodCodeValueId: input.awardMethodCodeValueId,
           listCountMin: input.listCountMin,
           listCountMax: input.listCountMax,
-          targetItemCodeValueId: input.targetItemCodeValueId,
+          itemFilter: input.itemFilter,
           comparisonScope: input.comparisonScope,
           timeResolution,
           rateBinWidthMilli: RATE_BIN_WIDTH_MILLI,

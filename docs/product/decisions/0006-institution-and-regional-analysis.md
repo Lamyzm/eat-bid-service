@@ -1,9 +1,9 @@
 # PDR-0006 — 기관과 지역 전체를 같은 조건으로 비교한다
 
-- Status: Active
+- Status: Superseded
 - Date: 2026-09-14
 - Supersedes: [PDR-0005](0005-cohort-axis-is-floor-rate-and-list-size.md)
-- Superseded-by: 없음
+- Superseded-by: [PDR-0007](0007-item-condition-applies-to-every-population.md)
 - Linear: EAT-213, EAT-176
 
 ## 결정

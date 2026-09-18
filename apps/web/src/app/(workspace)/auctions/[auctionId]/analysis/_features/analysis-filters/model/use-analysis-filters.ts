@@ -2,7 +2,9 @@
 'use client';
 import { useQueryState } from 'nuqs';
 import { useState, useTransition } from 'react';
+import type { AuctionItemAtom } from '@eatbid/contracts/api/v1/auctions';
 import { analysisSearchParsers } from '@/app/(workspace)/auctions/[auctionId]/analysis/_lib/analysis-search';
+import { ITEM_UNKNOWN_VALUE } from '../ui/analysis-filter-fields';
 import { draftOfAnalysis, validateAnalysisDraft } from './analysis-filter-draft';
 import type {
   AnalysisDraft,
@@ -68,6 +70,20 @@ export function useAnalysisFilters(setup: AnalysisFilterSetup, applied: AppliedA
     setErrors({});
     apply(next);
   };
+  /**
+   * 고른 품목이다. `품목 미확인`은 어휘의 원자가 아니라 "다리 행이 없음"이라 목록에서만 같은 줄에
+   * 서고 초안에서는 따로 담는다 — 아홉째 원자로 섞으면 어휘가 우리 것이 된다(EAT-230 §4.3).
+   */
+  const changeItems = (selection: readonly string[]) => {
+    const next = {
+      ...draft,
+      items: selection.filter((value): value is AuctionItemAtom => value !== ITEM_UNKNOWN_VALUE),
+      itemUnknown: selection.includes(ITEM_UNKNOWN_VALUE)
+    };
+    setDraft(next);
+    setErrors({});
+    apply(next);
+  };
   /** 적어 넣는 칸을 떠났거나 Enter를 눌렀을 때다. 더 적을 뜻이 없으므로 지금 보낸다. */
   const commit = () => apply(draft);
   const selectPreset = (value: string) => {
@@ -78,5 +94,5 @@ export function useAnalysisFilters(setup: AnalysisFilterSetup, applied: AppliedA
     setErrors({});
     apply(next);
   };
-  return { draft, errors, pending, change, changeComparison, commit, selectPreset };
+  return { draft, errors, pending, change, changeComparison, changeItems, commit, selectPreset };
 }

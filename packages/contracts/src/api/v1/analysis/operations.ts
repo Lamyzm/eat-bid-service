@@ -4,6 +4,7 @@ import { z } from "zod";
 import { kstDateTextSchema } from "../../../atoms/calendar";
 import { bidRateTextSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
+import { AUCTION_ITEM_ATOMS, auctionItemAtomSchema } from "../../../values/auction-item";
 import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation } from "../../operation";
 import { analysisDateBasisSchema, analysisRegionSchemeSchema } from "./filter.resource";
@@ -28,7 +29,8 @@ type TimeSeriesQuery = {
   awardMethodCodeValueId: string;
   listCountMin?: number;
   listCountMax?: number;
-  targetItemCodeValueId?: string;
+  items?: readonly z.infer<typeof auctionItemAtomSchema>[];
+  itemUnknown?: "include" | "only";
 };
 
 function reject(ctx: z.core.ParsePayload<TimeSeriesQuery>, path: string, message: string): void {
@@ -92,10 +94,29 @@ function listCountRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
 }
 
 /**
+ * `only`는 품목을 말하지 않은 회차만 보겠다는 뜻이라 원자와 함께 올 수 없다. 둘을 함께 받으면 서버가
+ * "고른 원자" 아니면 "미확인"을 골라야 하고, 어느 쪽을 골라도 화면이 말한 조건과 다른 집합이 나온다.
+ */
+function itemRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
+  if (ctx.value.itemUnknown === "only" && ctx.value.items !== undefined) {
+    reject(ctx, "items", "품목 미확인만 보는 요청에는 품목 원자를 함께 지정할 수 없습니다.");
+  }
+}
+
+/**
  * 명단 경계는 query 문자열로 온다. 응답 쪽 개수 atom은 이미 JSON 정수라 그대로 쓰면 `listCountMin=12`가
  * 형식 오류로 튕긴다(2026-09-18 dev 실측). 범위는 응답 atom과 같은 PostgreSQL integer 범위로 닫는다.
  */
 const listCountQuerySchema = z.coerce.number().int().nonnegative().max(2_147_483_647);
+
+/**
+ * 품목 원자 목록이다. query string은 값 하나와 값 여럿을 구분하지 못하므로 파싱 직전에 한 번만 배열로
+ * 편다 — 오늘 화면의 `itemsFilterSchema`와 같은 이유, 같은 형태다.
+ */
+const analysisItemsQuerySchema = z.preprocess(
+  (value) => (value === undefined ? undefined : Array.isArray(value) ? value : [value]),
+  z.array(auctionItemAtomSchema).min(1).max(AUCTION_ITEM_ATOMS.length),
+);
 
 const analysisTimeSeriesQuerySchema = z.strictObject({
   organizationId: positiveBigintTextSchema,
@@ -113,12 +134,18 @@ const analysisTimeSeriesQuerySchema = z.strictObject({
   awardMethodCodeValueId: positiveBigintTextSchema,
   listCountMin: listCountQuerySchema.optional(),
   listCountMax: listCountQuerySchema.optional(),
-  // 품목은 기관에만 적용한다. 비교군은 언제나 전체 품목이다(PDR-0006).
-  targetItemCodeValueId: positiveBigintTextSchema.optional(),
+  // 품목은 기관·비교군·겹쳐 찍은 기관에 같게 걸린다(PDR-0007). 값은 오늘 화면과 같은 원자다.
+  items: analysisItemsQuerySchema.optional(),
+  /**
+   * 품목을 말하지 않은 회차를 어떻게 다룰지다. `include`는 고른 원자와 **함께**, `only`는 그것만이다.
+   * 둘 다 없으면 원자 조건만 걸린다. 전체(조건 없음)는 `items`도 이 값도 없는 상태다.
+   */
+  itemUnknown: z.enum(["include", "only"]).optional(),
 })
   .check(comparisonAxisRule)
   .check(periodRule)
-  .check(listCountRule);
+  .check(listCountRule)
+  .check(itemRule);
 
 export const analysisV1Operations = {
   findTimeSeries: defineOperation({

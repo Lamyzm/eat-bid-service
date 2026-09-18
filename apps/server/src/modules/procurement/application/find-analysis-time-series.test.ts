@@ -38,7 +38,7 @@ const input: FindAnalysisTimeSeriesInput = {
   awardMethodCodeValueId: 71n,
   listCountMin: 12,
   listCountMax: 24,
-  targetItemCodeValueId: null,
+  itemFilter: { kind: "all" as const },
 };
 
 const emptyReading = {
@@ -207,7 +207,7 @@ describe("분석 시간축 조회 use case", () => {
     const response = await run(readerDouble({}));
     expect(response.meta.effectiveFilter.listCountRange).toEqual({ min: 12, max: 24 });
     expect(response.meta.effectiveFilter.excludeAttemptId).toBe("89");
-    expect(response.meta.effectiveFilter.targetItemFilter).toEqual({ kind: "all" });
+    expect(response.meta.effectiveFilter.itemFilter).toEqual({ kind: "all" });
   });
 });
 

@@ -73,7 +73,11 @@ export interface TimeSeriesPlot {
 export type TimeSeriesView =
   | { readonly kind: 'cohort-not-found' }
   | { readonly kind: 'unavailable'; readonly reason: string }
-  | { readonly kind: 'empty' }
+  /**
+   * 조건에 맞는 관측이 없다. **표본 수를 함께 싣는다** — 관측된 0건과 아직 발행되지 않은 것은
+   * 사용자가 할 일이 다르고, 수가 없으면 화면이 둘을 `표본 미확인` 하나로 말한다(AGENTS 3).
+   */
+  | { readonly kind: 'empty'; readonly targetCount: number; readonly comparisonCount: number }
   | { readonly kind: 'plot'; readonly plot: TimeSeriesPlot };
 
 const KST = 'Asia/Seoul';
@@ -212,7 +216,13 @@ export function presentTimeSeries(
   const weights = [...targetWeights, ...comparisonWeights];
   // 두 집단이 모두 비었으면 그릴 축이 없다. 빈 그림에 눈금만 그려 두면 조건에 맞는 관측이 없다는
   // 사실이 그림의 여백으로 밀려난다.
-  if (weights.length === 0) return { kind: 'empty' };
+  if (weights.length === 0) {
+    return {
+      kind: 'empty',
+      targetCount: meta.targetSampleCount,
+      comparisonCount: meta.comparisonSampleCount
+    };
+  }
   const xFrom = epochOf(`${axis.period.from}T00:00:00+09:00`);
   const xTo = epochOf(`${axis.period.to}T23:59:59+09:00`);
   const { yFrom, yTo } = rateDomain(weights);

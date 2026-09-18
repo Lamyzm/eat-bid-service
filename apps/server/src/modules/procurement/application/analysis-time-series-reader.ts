@@ -1,5 +1,5 @@
 /** @module 책임: 분석 시간축 조회 port와 기관 실제 점·비교군 밀도·달별 보유율의 application record를 소유한다. */
-import { CODE_SCHEME_NAMES, type MartCoverage } from "@eatbid/contracts";
+import { CODE_SCHEME_NAMES, type AuctionItemAtom, type MartCoverage } from "@eatbid/contracts";
 import type { Temporal } from "@eatbid/domain";
 import type { KstMonth } from "../domain/kst-month";
 import type { MartBuildLineage } from "./mart-build-lineage";
@@ -18,8 +18,20 @@ export type AnalysisComparisonScope =
   | { readonly kind: "region"; readonly scheme: AnalysisRegionScheme; readonly codeValueId: bigint };
 
 /**
- * 두 집단에 **똑같이** 적용되는 조건이다. 기관 쪽에만 걸리는 것은 `targetOrganizationId`와
- * `targetItemCodeValueId`뿐이며, 품목이 그런 이유는 비교군이 언제나 전체 품목이기 때문이다(PDR-0006).
+ * 품목 조건이다. 값은 `eatbid:auction-item` 원자이며 다리표(`org_round_summary_item`)로 건다. 원천 라벨
+ * 한 문자열이 원자 여럿이라 단일 열은 "첫 원자"라는 거짓 정체성을 만든다(AGENTS 2, EAT-256).
+ *
+ * `unknown`은 다리 행이 아예 없는 회차다 — 공고가 품목을 말하지 않은 것이며 우리가 못 읽은 것이
+ * 아니다(2026-09-18 운영 실측 33.4%, `build_vocabulary_gap` 0행).
+ */
+export type AnalysisItemFilter =
+  | { readonly kind: "all" }
+  | { readonly kind: "atoms"; readonly atoms: readonly AuctionItemAtom[]; readonly unknown: boolean }
+  | { readonly kind: "unknown" };
+
+/**
+ * 두 집단에 **똑같이** 적용되는 조건이다. 기관 쪽에만 걸리는 것은 `targetOrganizationId` 하나다 —
+ * 품목까지 공통으로 옮긴 것이 PDR-0007이며, 조건 막대가 말하는 품목과 그린 구름이 어긋나지 않게 한다.
  *
  * 기간은 양끝을 포함한 KST 달력일이 아니라 **반열림 instant 구간**이다. 달력일을 어디서 시각으로 바꿀지는
  * 한 곳에서만 정해야 하고 그 자리는 use case다 — 조회가 날짜를 다시 해석하면 같은 요청이 두 경계를 갖는다.
@@ -41,7 +53,7 @@ export interface AnalysisTimeSeriesQuery {
   /** 양끝 포함. null 경계는 그쪽 제한 없음이며 `0~0`은 전체와 다른 조건이다. */
   readonly listCountMin: number | null;
   readonly listCountMax: number | null;
-  readonly targetItemCodeValueId: bigint | null;
+  readonly itemFilter: AnalysisItemFilter;
   readonly comparisonScope: AnalysisComparisonScope;
   readonly timeResolution: "day" | "week" | "month";
   readonly rateBinWidthMilli: bigint;

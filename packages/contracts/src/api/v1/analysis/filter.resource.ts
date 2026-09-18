@@ -4,6 +4,7 @@ import { CODE_SCHEME_NAMES } from "../../../atoms/code-scheme-names";
 import { kstDateTextSchema } from "../../../atoms/calendar";
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
+import { AUCTION_ITEM_ATOMS, auctionItemAtomSchema } from "../../../values/auction-item";
 import { bidRateWireSchema } from "../../../values/rate";
 
 export const analysisDateBasisSchema = z.enum(["opened", "announced"]);
@@ -20,16 +21,33 @@ export const analysisComparisonScopeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("national") }),
   z.strictObject({ kind: z.literal("region"), scheme: analysisRegionSchemeSchema, codeValueId: positiveBigintTextSchema }),
 ]);
-export const analysisTargetItemFilterSchema = z.discriminatedUnion("kind", [
+/**
+ * 품목 조건이다. **비교하는 모든 집단에 같게 걸린다**(PDR-0007). 기관 점만 거르고 비교군은 전체 품목이던
+ * 규칙(PDR-0006)을 대체한다 — 조건 막대가 `육류`라고 말하면서 구름이 전체 품목을 그리면 두 집단이 다른
+ * 질문에 답한다.
+ *
+ * 값은 `eatbid:auction-item` 원자다. 코드값 id가 아닌 이유는 오늘 화면이 이미 같은 어휘를 원자로 받고
+ * 있고(`itemsFilterSchema`), 원자 여덟은 계약 안에 있어 화면이 사전을 따로 묻지 않아도 되기 때문이다.
+ *
+ * `unknown`은 **품목 다리 행이 없는 회차**다. 원천이 품목을 말하지 않은 것이며 우리가 못 읽은 것이
+ * 아니다(2026-09-18 운영 실측: 전체의 33.4%, `build_vocabulary_gap` 0행). 3분의 1이 걸린 값이라 자동으로
+ * 넣지도 빼지도 않고 고르게 한다(AGENTS 3).
+ */
+export const analysisItemFilterSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("all") }),
-  z.strictObject({ kind: z.literal("code"), codeValueId: positiveBigintTextSchema }),
+  z.strictObject({
+    kind: z.literal("atoms"),
+    atoms: z.array(auctionItemAtomSchema).min(1).max(AUCTION_ITEM_ATOMS.length),
+    unknown: z.boolean(),
+  }),
+  z.strictObject({ kind: z.literal("unknown") }),
 ]);
 export const analysisListCountRangeSchema = z.strictObject({
   min: nonNegativeCountSchema.nullable(),
   max: nonNegativeCountSchema.nullable(),
 }).meta({ id: "AnalysisListCountRange", description: "철회 행 포함 관측 명단 크기. 양끝 포함, null 경계는 제한 없음." });
 
-/** 날짜 기준은 기간과 X축에 함께 적용한다. 품목은 기관에만 적용하며 비교군은 항상 전체 품목이다. */
+/** 날짜 기준은 기간과 X축에 함께 적용한다. 품목은 기관·비교군·겹쳐 찍은 기관에 같게 적용한다(PDR-0007). */
 export const analysisFilterValueSchema = z.strictObject({
   targetOrganizationId: positiveBigintTextSchema,
   excludeAttemptId: positiveBigintTextSchema.nullable(),
@@ -39,7 +57,7 @@ export const analysisFilterValueSchema = z.strictObject({
   floorRate: bidRateWireSchema,
   awardMethodCodeValueId: positiveBigintTextSchema,
   listCountRange: analysisListCountRangeSchema,
-  targetItemFilter: analysisTargetItemFilterSchema,
+  itemFilter: analysisItemFilterSchema,
 }).meta({ id: "AnalysisFilterValue" });
 
 export type AnalysisFilterValue = z.infer<typeof analysisFilterValueSchema>;

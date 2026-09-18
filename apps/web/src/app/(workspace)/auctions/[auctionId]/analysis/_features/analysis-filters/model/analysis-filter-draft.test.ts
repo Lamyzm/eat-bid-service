@@ -52,7 +52,25 @@ describe('공통 비교조건 초안과 적용', () => {
     expect(missing.presets.find((preset) => preset.value === 'all')?.period).toBeNull();
   });
 
-  test('관측 밖 지역과 미지원 기관 품목을 제출할 수 없다', () => {
+  test('고른 품목과 미확인은 DTO의 한 조건으로 접히고 빈 선택이 전체다', () => {
+    const all = validateAnalysisDraft(setup.initialDraft, setup);
+    if (all.state !== 'valid') throw new Error('전체 품목이어야 합니다');
+    expect(all.filter.itemFilter).toEqual({ kind: 'all' });
+
+    const atoms = validateAnalysisDraft(
+      { ...setup.initialDraft, items: ['육류', '가금류'], itemUnknown: true },
+      setup
+    );
+    if (atoms.state !== 'valid') throw new Error('품목 조건이어야 합니다');
+    expect(atoms.filter.itemFilter).toEqual({ kind: 'atoms', atoms: ['육류', '가금류'], unknown: true });
+
+    // 미확인만 고른 상태는 전체가 아니다. 전체로 접으면 3분의 1만 보려던 조건이 조용히 전부가 된다.
+    const unknown = validateAnalysisDraft({ ...setup.initialDraft, itemUnknown: true }, setup);
+    if (unknown.state !== 'valid') throw new Error('미확인 조건이어야 합니다');
+    expect(unknown.filter.itemFilter).toEqual({ kind: 'unknown' });
+  });
+
+  test('관측 밖 지역은 제출할 수 없다', () => {
     expect(
       validateAnalysisDraft(
         {
@@ -66,9 +84,6 @@ describe('공통 비교조건 초안과 적용', () => {
         setup
       ).state
     ).toBe('invalid');
-    expect(validateAnalysisDraft({ ...setup.initialDraft, item: '99' }, setup).state).toBe(
-      'invalid'
-    );
     const parsed = validateAnalysisDraft(
       {
         ...setup.initialDraft,

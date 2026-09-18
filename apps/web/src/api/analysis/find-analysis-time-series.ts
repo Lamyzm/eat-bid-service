@@ -25,6 +25,18 @@ export type AnalysisTimeSeriesQueryInput = OperationQueryInput<
  * "이 경계를 두지 않는다"이고 query에서 그것은 키가 아예 없는 것이다. null을 그대로 보내면 계약이
  * `strictObject`로 끊는다.
  */
+/**
+ * 품목 조건을 평평한 query 두 칸으로 편다. `전체`는 두 칸이 모두 없는 상태다 — null이나 빈 배열을
+ * 보내면 계약이 `strictObject`로 끊고, 보낸다 해도 "전체"와 "아무것도 안 고름"이 같아진다.
+ */
+function itemQueryOf(
+  filter: AnalysisFilterValue['itemFilter']
+): Partial<Pick<AnalysisTimeSeriesQueryInput, 'items' | 'itemUnknown'>> {
+  if (filter.kind === 'all') return {};
+  if (filter.kind === 'unknown') return { itemUnknown: 'only' };
+  return { items: filter.atoms, ...(filter.unknown ? { itemUnknown: 'include' as const } : {}) };
+}
+
 export function analysisTimeSeriesQueryOf(filter: AnalysisFilterValue): AnalysisTimeSeriesQueryInput {
   const scope = filter.comparisonScope;
   return {
@@ -41,9 +53,7 @@ export function analysisTimeSeriesQueryOf(filter: AnalysisFilterValue): Analysis
     awardMethodCodeValueId: filter.awardMethodCodeValueId,
     ...(filter.listCountRange.min === null ? {} : { listCountMin: filter.listCountRange.min }),
     ...(filter.listCountRange.max === null ? {} : { listCountMax: filter.listCountRange.max }),
-    ...(filter.targetItemFilter.kind === 'code'
-      ? { targetItemCodeValueId: filter.targetItemFilter.codeValueId }
-      : {})
+    ...itemQueryOf(filter.itemFilter)
   };
 }
 
