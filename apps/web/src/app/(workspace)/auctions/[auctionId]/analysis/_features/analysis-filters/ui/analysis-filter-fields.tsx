@@ -4,13 +4,12 @@ import { useId } from 'react';
 import { AUCTION_ITEM_ATOMS } from '@eatbid/contracts/api/v1/auctions';
 import {
   Combobox,
-  ComboboxChip,
-  ComboboxChips,
   ComboboxContent,
   ComboboxEmpty,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
+  ComboboxTrigger,
   ComboboxValue
 } from '@/shared/ui/combobox';
 import { Input } from '@/shared/ui/input';
@@ -69,49 +68,53 @@ function Field({
 }
 
 /**
+ * 고른 품목을 여닫이 한 줄로 줄인다. 칩을 여닫이 안에 담으면 고를수록 칸이 넓어지고, 그 폭이 조건
+ * 줄을 밀어 품목 칸만 다음 줄로 떨어진다(2026-09-18 실측). 고른 것 전부는 펼친 목록의 체크가 말하고
+ * 여닫이는 **폭이 변하지 않는 요약**만 맡는다.
+ */
+function itemSummary(value: readonly string[]): string {
+  if (value.length === 0) return '전체';
+  return value.length === 1 ? value[0]! : `${value[0]!} 외 ${value.length - 1}`;
+}
+
+/**
  * 품목은 여럿을 고르고 `품목 미확인`도 값이다. 아무것도 고르지 않은 상태가 전체이며 그 사실을
- * placeholder가 말한다 — 빈 칸이 "아무것도 안 나온다"로 읽히면 사용자가 조건을 잘못 이해한다.
+ * 여닫이와 목록 아래 문구가 함께 말한다 — 빈 칸이 "아무것도 안 나온다"로 읽히면 조건을 잘못 이해한다.
  *
- * 공고가 품목을 말하지 않은 회차가 3분의 1이라(PDR-0007) 그 값을 목록에 함께 세운다.
+ * 공고가 품목을 말하지 않은 회차가 3분의 1이라(PDR-0007) 그 값을 목록에 함께 세우되, 아홉째 품목으로
+ * 읽히지 않게 선으로 가른다.
  */
 function AnalysisItemField({ draft, changeItems }: Pick<Props, 'draft' | 'changeItems'>) {
-  const id = useId();
   const selected = draft.itemUnknown ? [...draft.items, ITEM_UNKNOWN_VALUE] : [...draft.items];
   return (
-    <div className='flex min-w-0 items-center gap-1.5'>
-      <span id={`${id}-label`} className='text-xs whitespace-nowrap text-muted-foreground'>
-        품목
-      </span>
-      <Combobox items={ITEM_CHOICES} multiple value={selected} onValueChange={changeItems}>
-        {/* 이름은 입력 하나가 갖는다. 담는 상자에도 같은 이름을 걸면 같은 이름의 요소가 둘이 된다. */}
-        <ComboboxChips className='max-w-72 min-w-40'>
-          <ComboboxValue>
-            {(value: readonly string[]) =>
-              value.map((item) => (
-                <ComboboxChip key={item} removeLabel={`${item} 조건 해제`}>
-                  {item}
-                </ComboboxChip>
-              ))
-            }
-          </ComboboxValue>
-          <ComboboxInput
-            id={id}
-            placeholder={selected.length === 0 ? '전체 품목' : ''}
-            aria-labelledby={`${id}-label`}
-          />
-        </ComboboxChips>
-        <ComboboxContent>
-          <ComboboxEmpty>그런 품목이 없어요</ComboboxEmpty>
-          <ComboboxList>
-            {(item: string) => (
-              <ComboboxItem key={item} value={item}>
-                {item}
-              </ComboboxItem>
-            )}
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
-    </div>
+    <Combobox items={ITEM_CHOICES} multiple value={selected} onValueChange={changeItems}>
+      {/*
+        이름을 직접 준다. 여닫이 안의 글자는 Base UI가 `aria-hidden`으로 덮어 이름이 비고, 이름 없는
+        조작은 화면 낭독기에서 무엇을 여는지 말하지 않는다. 보이는 글자와 같은 문장을 쓴다.
+      */}
+      <ComboboxTrigger className='w-40' aria-label={`품목 ${itemSummary(selected)}`}>
+        <span className='text-xs text-muted-foreground'>품목</span>
+        <ComboboxValue>{(value: readonly string[]) => itemSummary(value)}</ComboboxValue>
+      </ComboboxTrigger>
+      <ComboboxContent>
+        <ComboboxInput placeholder='품목 찾기' aria-label='품목 찾기' className='mb-1 h-8 w-full' />
+        <ComboboxEmpty>그런 품목이 없어요</ComboboxEmpty>
+        <ComboboxList>
+          {(item: string) => (
+            <ComboboxItem
+              key={item}
+              value={item}
+              className={item === ITEM_UNKNOWN_VALUE ? 'mt-1 border-t border-border pt-2' : undefined}
+            >
+              {item}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+        <p className='mt-1 border-t border-border px-2 pt-1.5 text-xs text-muted-foreground'>
+          아무것도 안 고르면 전체 품목이에요. 품목 미확인은 공고가 품목을 말하지 않은 회차예요.
+        </p>
+      </ComboboxContent>
+    </Combobox>
   );
 }
 

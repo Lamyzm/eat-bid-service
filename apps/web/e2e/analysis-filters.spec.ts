@@ -50,7 +50,7 @@ test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체�
   await expect(page.getByRole('img', { name: /5건.*9건/ })).toBeVisible();
   // 품목은 두 집단에 같게 걸린다(PDR-0007). 기관만 줄고 구름이 그대로면 조건 막대가 말하는 것과
   // 그린 것이 어긋난다. fixture의 `육류`는 기관 3건·비교군 4건이다.
-  await form.getByLabel('품목').click();
+  await form.getByRole('combobox', { name: '품목 전체' }).click();
   const beef = page.getByRole('option', { name: '육류', exact: true });
   await expect(beef).toBeVisible();
   await beef.click();
@@ -58,10 +58,19 @@ test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체�
     .poll(() => JSON.parse(new URL(page.url()).searchParams.get('analysis')!).itemFilter)
     .toEqual({ kind: 'atoms', atoms: ['육류'], unknown: false });
   await expect(page.getByRole('img', { name: /3건.*4건/ })).toBeVisible();
-  await form.getByRole('button', { name: '육류 조건 해제' }).click();
+  // 여닫이는 고른 것을 폭이 변하지 않는 요약으로 말한다. 다시 눌러 해제하면 전체로 돌아간다.
+  await page.keyboard.press('Escape');
+  const itemTrigger = form.getByRole('combobox', { name: '품목 육류' });
+  await expect(itemTrigger).toBeVisible();
+  await expect(page.getByText('비교조건을 적용하고 있어요.')).toHaveCount(0);
+  await itemTrigger.click();
+  const beefAgain = page.getByRole('option', { name: '육류', exact: true });
+  await expect(beefAgain).toBeVisible();
+  await beefAgain.click();
   await expect
     .poll(() => JSON.parse(new URL(page.url()).searchParams.get('analysis')!).itemFilter)
     .toEqual({ kind: 'all' });
+  await page.keyboard.press('Escape');
   const applied = new URL(page.url()).searchParams.get('analysis')!;
   await page.getByRole('tab', { name: '시간별 추이' }).focus();
   await page.keyboard.press('ArrowRight');
