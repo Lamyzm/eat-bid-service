@@ -119,19 +119,57 @@ def _resolve_seoul_wall_time(wall_time: datetime, field: str) -> datetime:
     return next(iter(candidates.values()))
 
 
+def _rejection_reasons(
+    parsed: Decimal,
+    exponent: object,
+    *,
+    maximum: Decimal | None,
+    scale_digits: int,
+    allow_negative: bool,
+) -> list[str]:
+    """왜 거부했는지를 조건별로 모은다.
+
+    계약 전문 대신 걸린 조건만 내보내는 이유는 2026-09-17에 같은 문구를 두 번 잘못 읽었기 때문이다.
+    "nonnegative KRW amount at scale 2"를 보고 음수를 의심했으나 실제 값은 양수였고 소수 자릿수가
+    원인이었다. 원본을 R2에서 꺼내 본 뒤에야 알았다(EAT-273).
+    """
+    reasons: list[str] = []
+    if not parsed.is_finite():
+        reasons.append("not-finite")
+        return reasons
+    if parsed.is_signed() and not allow_negative:
+        reasons.append("negative")
+    if maximum is not None and abs(parsed) > maximum:
+        reasons.append(f"magnitude>{maximum}")
+    if not isinstance(exponent, int):
+        reasons.append("no-exponent")
+    elif exponent < -scale_digits:
+        reasons.append(f"scale={-exponent}>{scale_digits}")
+    return reasons
+
+
+def _rejection_text(
+    field: str, value: str, reasons: list[str], *, unit: str = "KRW amount"
+) -> str:
+    """거부 사유에 실제 값을 함께 담는다. 이 계층은 소스 수치만 다루므로 값이 비밀이 아니다."""
+    return f"{field} rejected as {unit} [{', '.join(reasons)}] value={value!r}"
+
+
 def canonical_money_amount(row: Mapping[str, str], field: str) -> str | None:
     value = optional_text(row, field)
     if value is None:
         return None
     amount = Decimal(value)
     exponent = amount.as_tuple().exponent
-    if (
-        not amount.is_finite()
-        or amount.is_signed()
-        or not isinstance(exponent, int)
-        or exponent < -2
-    ):
-        raise ValueError(f"{field} must be a nonnegative KRW amount at scale 2")
+    rejected = _rejection_reasons(
+        amount,
+        exponent,
+        maximum=None,
+        scale_digits=2,
+        allow_negative=False,
+    )
+    if rejected:
+        raise ValueError(_rejection_text(field, value, rejected))
     return format(amount.quantize(_KRW_SCALE), "f")
 
 
@@ -209,15 +247,15 @@ def _canonical_decimal_text(
         raise ValueError(f"{field} must be {unit} decimal text") from None
     exponent = parsed.as_tuple().exponent
     # 음수를 받는 값도 크기는 같은 상한 안이어야 한다. "-0.000"은 0과 같은 값이라 부호를 떼고 적는다.
-    if (
-        not parsed.is_finite()
-        or (parsed.is_signed() and not allow_negative)
-        or abs(parsed) > maximum
-        or not isinstance(exponent, int)
-        or exponent < -scale_digits
-    ):
-        bound = f"between -{maximum} and {maximum}" if allow_negative else f"at most {maximum}"
-        raise ValueError(f"{field} must be a {unit} {bound} at scale {scale_digits}")
+    rejected = _rejection_reasons(
+        parsed,
+        exponent,
+        maximum=maximum,
+        scale_digits=scale_digits,
+        allow_negative=allow_negative,
+    )
+    if rejected:
+        raise ValueError(_rejection_text(field, value, rejected, unit=unit))
     quantized = parsed.quantize(scale)
     if quantized == 0:
         quantized = abs(quantized)
