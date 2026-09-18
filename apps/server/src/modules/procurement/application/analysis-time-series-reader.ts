@@ -1,11 +1,21 @@
 /** @module 책임: 분석 시간축 조회 port와 기관 실제 점·비교군 밀도·달별 보유율의 application record를 소유한다. */
-import type { MartCoverage } from "@eatbid/contracts";
+import { CODE_SCHEME_NAMES, type MartCoverage } from "@eatbid/contracts";
 import type { Temporal } from "@eatbid/domain";
 import type { KstMonth } from "../domain/kst-month";
 import type { MartBuildLineage } from "./mart-build-lineage";
 
-/** 비교 모집단이다. 지역 축은 mart의 지역 열이 병합된 뒤에 갈래로 붙는다(EAT-198). */
-export type AnalysisComparisonScope = { readonly kind: "national" };
+/**
+ * eaT 공고지역 축이다. 시도와 시군구는 **서로 다른 code scheme**이라 코드값 id만으로는 어느 체계의
+ * 구역인지 말하지 않는다. mart도 같은 이유로 두 열이며, 어느 열을 걸지는 이 체계가 정한다(AGENTS 6).
+ */
+export type AnalysisRegionScheme =
+  | typeof CODE_SCHEME_NAMES.auctionLocationSido
+  | typeof CODE_SCHEME_NAMES.auctionLocationSigungu;
+
+/** 비교 모집단이다. 전국은 좁히지 않고, 지역은 체계와 코드값을 함께 가져야 뜻이 닫힌다. */
+export type AnalysisComparisonScope =
+  | { readonly kind: "national" }
+  | { readonly kind: "region"; readonly scheme: AnalysisRegionScheme; readonly codeValueId: bigint };
 
 /**
  * 두 집단에 **똑같이** 적용되는 조건이다. 기관 쪽에만 걸리는 것은 `targetOrganizationId`와
@@ -106,5 +116,10 @@ export interface AnalysisTimeSeriesReading {
  */
 export interface AnalysisTimeSeriesReader {
   organizationExists(organizationId: bigint): Promise<boolean>;
+  /**
+   * 그 코드값이 **그 체계 안에** 있는지까지 본다. id만 확인하면 시군구 코드값을 시도로 받은 요청이
+   * 통과하고, 그 답은 조건에 맞는 관측이 없는 것처럼 보인다 — 실제로는 축을 잘못 물은 것이다(AGENTS 6).
+   */
+  regionExists(scheme: AnalysisRegionScheme, codeValueId: bigint): Promise<boolean>;
   readTimeSeries(query: AnalysisTimeSeriesQuery): Promise<AnalysisTimeSeriesReading>;
 }

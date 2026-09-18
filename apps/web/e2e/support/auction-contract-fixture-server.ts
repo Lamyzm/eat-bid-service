@@ -11,6 +11,7 @@ import {
   observedLineage,
   resetObservations
 } from './cache-observability';
+import { analysisTimeSeriesResponse } from './analysis-time-series-fixture';
 import { auctionRosterResponse } from './auction-roster-fixture';
 import { myBusinessesResponse } from './my-businesses-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
@@ -286,6 +287,11 @@ Bun.serve({
 
     const distributionResponse = winRateDistributionResponse(request);
     if (distributionResponse) return distributionResponse;
+
+    // 분석판은 공고를 읽은 직후 기본 조건의 시간축을 함께 읽는다. 이 응답이 없으면 화면이 조건 막대가
+    // 아니라 오류 경계에서 멈춘다(2026-09-18 CI 회차 35288060366).
+    const timeSeries = analysisTimeSeriesResponse(request);
+    if (timeSeries) return timeSeries;
 
     return new Response(null, { status: 404 });
   }

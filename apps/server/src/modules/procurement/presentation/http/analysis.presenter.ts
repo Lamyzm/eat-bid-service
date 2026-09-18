@@ -84,7 +84,13 @@ function filterResource(input: FindAnalysisTimeSeriesInput): AnalysisFilterValue
     excludeAttemptId: bigintText(input.excludeAttemptId),
     period: { from: input.period.from, to: input.period.to },
     dateBasis: input.dateBasis,
-    comparisonScope: { kind: "national" },
+    comparisonScope: input.comparisonScope.kind === "national"
+      ? { kind: "national" }
+      : {
+        kind: "region",
+        scheme: input.comparisonScope.scheme,
+        codeValueId: bigintText(input.comparisonScope.codeValueId),
+      },
     floorRate: bidRateWire(input.floorRate),
     awardMethodCodeValueId: bigintText(input.awardMethodCodeValueId),
     listCountRange: { min: input.listCountMin, max: input.listCountMax },

@@ -11,6 +11,7 @@ import type {
   AnalysisDensityCellRecord,
   AnalysisMonthCoverage,
   AnalysisPointRecord,
+  AnalysisRegionScheme,
   AnalysisTimeSeriesQuery,
   AnalysisTimeSeriesReader,
   AnalysisTimeSeriesReading,
@@ -49,7 +50,11 @@ type DensityRow = Readonly<{
   total_count: string | number | bigint;
 }>;
 
-type CoverageRow = Readonly<{ month_kst: string; coverage: string | null }>;
+type CoverageRow = Readonly<{
+  month_kst: string;
+  target_coverage: string | null;
+  comparison_coverage: string | null;
+}>;
 
 function countOf(value: string | number | bigint): number {
   const count = Number(value);
@@ -93,14 +98,17 @@ export function mapDensityRow(row: DensityRow): AnalysisDensityCellRecord {
 }
 
 /**
- * 전국 비교군의 모집단은 모든 지역이라 기관 코호트와 같은 최악값을 쓴다. 두 열로 나눠 두는 이유는
- * 지역 비교가 붙는 순간 두 값이 갈라지기 때문이며, 그때 화면의 해석을 바꾸지 않으려면 지금부터 자리가
- * 따로 있어야 한다. 판정이 없는 달은 행이 없다는 뜻이고 그 번역은 use case가 한다(PDR-0003).
+ * 두 집단의 판정을 따로 싣는다. 전국 비교군은 기관과 같은 최악값이지만 지역 비교군은 그 지역 행만
+ * 본다. 판정이 없는 자리는 행이 없다는 뜻이고 그 번역(`none`)은 use case가 한다(PDR-0003).
  */
 export function mapCoverageRow(row: CoverageRow): AnalysisMonthCoverage | null {
-  const coverage = coverageValue(row.coverage);
-  if (coverage === null) return null;
-  return { month: kstMonth(row.month_kst), target: coverage, comparison: coverage };
+  const target = coverageValue(row.target_coverage);
+  if (target === null) return null;
+  return {
+    month: kstMonth(row.month_kst),
+    target,
+    comparison: coverageValue(row.comparison_coverage) ?? "none",
+  };
 }
 
 export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader {
@@ -113,6 +121,18 @@ export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader
     return rows(result).length > 0;
   }
 
+  async regionExists(scheme: AnalysisRegionScheme, codeValueId: bigint): Promise<boolean> {
+    // 체계까지 조인해 확인한다. 코드값 id만 보면 시군구 코드를 시도로 물은 요청이 통과하고, 그 답은
+    // 조건에 맞는 관측이 없는 것처럼 보인다(AGENTS 6).
+    const result = await this.database.execute(sql`
+      select 1 as present
+        from core.code_value value
+        join core.code_scheme scheme on scheme.code_scheme_id = value.code_scheme_id
+       where value.code_value_id = ${codeValueId}::bigint and scheme.namespace = ${scheme}
+       limit 1`);
+    return rows(result).length > 0;
+  }
+
   async readTimeSeries(query: AnalysisTimeSeriesQuery): Promise<AnalysisTimeSeriesReading> {
     const fromMonth = kstMonthFirstDayText(kstMonthOf(query.from));
     // 반열림 구간의 끝은 다음 달 1일 0시일 수 있다. 1밀리초 앞의 시각으로 달을 고르지 않으면 요청하지
@@ -122,7 +142,7 @@ export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader
       this.database.execute(analysisPointsSql(query, "target", query.targetPointLimit)),
       this.database.execute(analysisDensitySql(query)),
       this.database.execute(analysisOverlapSql(query)),
-      this.database.execute(analysisCoverageSql(fromMonth, toMonth)),
+      this.database.execute(analysisCoverageSql(query, fromMonth, toMonth)),
       readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY),
       readActiveMartBuildAsOf(this.database, ORG_ROUND_SUMMARY),
     ]);
