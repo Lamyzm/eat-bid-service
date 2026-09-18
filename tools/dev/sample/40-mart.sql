@@ -20,7 +20,7 @@ values
    'eat:auction-location-sigungu', 'building', now() - interval '1 day', now() - interval '1 day'),
   (995003, 'org_round_summary', '9e000000-0000-4000-8000-000000000201',
    '9e000000-0000-4000-8000-000000000101', 'dev-sample-r1', repeat('9d', 20),
-   null, 'building', now() - interval '2 hours', now() - interval '2 hours'),
+   'eat:auction-location-sigungu', 'building', now() - interval '2 hours', now() - interval '2 hours'),
   (995004, 'win_rate_distribution_monthly', '9e000000-0000-4000-8000-000000000201',
    '9e000000-0000-4000-8000-000000000101', 'dev-sample-r1', repeat('9d', 20),
    'eat:auction-location-sigungu', 'building', now() - interval '2 hours', now() - interval '2 hours');
@@ -143,7 +143,8 @@ insert into mart.org_round_summary
    currency, awarded_assessment_rate, runner_up_assessment_rate, day_floor_amount,
    day_floor_bid_rate, awarded_bid_rate, list_count, below_day_floor_count, withdrawn_count,
    withdrawal_cohort_age_days, winner_supplier_party_id, supersedes_attempt_id,
-   lineage_status, opened_month_kst)
+   lineage_status, opened_month_kst,
+   region_sido_code_value_id, region_sigungu_code_value_id)
 select
   995003,
   revision.auction_attempt_id,
@@ -170,7 +171,11 @@ select
   award.supplier_party_id,
   null,
   case when link.from_auction_attempt_id is null then 'unknown' else 'observed' end,
-  date_trunc('month', revision.opened_at at time zone 'Asia/Seoul')::date
+  date_trunc('month', revision.opened_at at time zone 'Asia/Seoul')::date,
+  -- 지역은 두 열이다. 시도와 시군구가 서로 다른 code scheme이라 한 열에 담으면 같은 숫자가 어느
+  -- 체계의 구역인지 말하지 않는다(AGENTS 6). 분석의 지역 비교가 이 열을 읽는다(EAT-198).
+  sido.code_value_id,
+  sigungu.code_value_id
   from core.auction_revision revision
   join lateral (
     select
@@ -204,6 +209,16 @@ select
      where chain.to_auction_attempt_id = revision.auction_attempt_id
      limit 1
   ) link on true
+  left join lateral (
+    select code.code_value_id from core.auction_revision_code_value code
+     where code.auction_revision_id = revision.auction_revision_id and code.role = 'location_sido'
+     limit 1
+  ) sido on true
+  left join lateral (
+    select code.code_value_id from core.auction_revision_code_value code
+     where code.auction_revision_id = revision.auction_revision_id and code.role = 'location_sigungu'
+     limit 1
+  ) sigungu on true
  where revision.auction_attempt_id between 992001 and 992040;
 
 insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)

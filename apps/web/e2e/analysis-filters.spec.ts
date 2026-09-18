@@ -25,15 +25,14 @@ test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체�
   await expect
     .poll(async () => (await page.locator('[data-slot="analysis-sticky"]').boundingBox())!.y)
     .toBe(56);
-  await form.getByLabel('명단 최소').fill('24');
+  // 조건은 누르는 버튼 없이 적용된다. 적어 넣는 칸은 칸을 떠날 때 보내고, 잘못된 범위는 조회하지
+  // 않고 그 자리에서 설명한다.
   await form.getByLabel('명단 최대').fill('12');
-  await form.getByRole('button', { name: '조건 적용', exact: true }).click();
+  await form.getByLabel('명단 최소').fill('24');
+  await form.getByLabel('명단 최소').blur();
   await expect(form.getByText('최대 명단 수는 최소 이상이어야 해요.')).toBeVisible();
-  await expect(form.getByLabel('명단 최대')).toBeFocused();
-  expect(new URL(page.url()).searchParams.has('analysis')).toBe(false);
   await form.getByLabel('명단 최대').fill('');
   await form.getByLabel('비교 공고지역').selectOption('national');
-  await form.getByRole('button', { name: '조건 적용', exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has('analysis')).toBe(true);
   await expect(page.getByRole('heading', { name: '창원 남산초등학교 vs 전국 전체' })).toBeVisible();
   const applied = new URL(page.url()).searchParams.get('analysis')!;
@@ -70,12 +69,10 @@ test('새 상세의 휴대폰 조건 입력과 전체보기는 가로 화면을 
   const form = page.getByRole('form', { name: '기관과 지역 비교조건' });
   await form.getByRole('button', { name: '1개월', exact: true }).click();
   await form.getByLabel('날짜 기준').selectOption('announced');
-  await form.getByRole('button', { name: '조건 적용', exact: true }).scrollIntoViewIfNeeded();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
     VIEWPORT_WIDTH.phone
   );
   await page.screenshot({ path: testInfo.outputPath('새-상세-375.png'), fullPage: true });
-  await form.getByRole('button', { name: '조건 적용', exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has('analysis')).toBe(true);
   expect(JSON.parse(new URL(page.url()).searchParams.get('analysis')!).dateBasis).toBe('announced');
   await page.getByRole('button', { name: '전체보기', exact: true }).click();

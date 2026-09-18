@@ -19,6 +19,7 @@ import { ResponseSchema } from "../../../../platform/http/response-schema.interc
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
 import { ProcurementDependencyUnavailable } from "../../application/failures";
 import {
+  AnalysisRegionNotFound,
   FindAnalysisTimeSeries,
   type FindAnalysisTimeSeriesInput,
 } from "../../application/find-analysis-time-series";
@@ -32,27 +33,28 @@ const operation = analysisV1Operations.findTimeSeries;
 type TimeSeriesQuery = z.output<typeof operation.querySchema>;
 
 /**
- * 지역 비교는 mart의 공고지역 열이 활성 build에 실린 뒤에 열린다(EAT-198). 그 전까지 요청을 받아 전국으로
- * 조용히 떨어뜨리지 않는 이유는, 화면이 지역을 골랐는데 전국 답을 받으면 그 사실이 응답 어디에도 남지
- * 않기 때문이다. 계약이 이미 허용한 입력이므로 형식 오류가 아니라 아직 답할 수 없는 상태로 끊는다.
+ * 계약의 `.check()`가 이미 모집단과 지역 축의 짝을 강제했지만 타입은 그 사실을 모른다. 여기서 판별
+ * union으로 좁혀야 "지역인데 체계가 없는" 값이 어댑터까지 내려갈 수 없다는 것이 타입으로도 닫힌다.
  */
-class AnalysisRegionScopeUnsupported extends Error {
-  readonly code = "DEPENDENCY_UNAVAILABLE" as const;
-
-  constructor() {
-    super("Region-scoped analysis comparison is not available yet");
-    this.name = "AnalysisRegionScopeUnsupported";
+function comparisonScopeOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput["comparisonScope"] {
+  if (query.comparisonScope === "national") return { kind: "national" };
+  if (query.comparisonRegionScheme === undefined || query.comparisonRegionCodeValueId === undefined) {
+    throw new BadRequestException({ code: "VALIDATION_ERROR" });
   }
+  return {
+    kind: "region",
+    scheme: query.comparisonRegionScheme,
+    codeValueId: BigInt(query.comparisonRegionCodeValueId),
+  };
 }
 
 function inputOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput {
-  if (query.comparisonScope === "region") throw new AnalysisRegionScopeUnsupported();
   return {
     targetOrganizationId: organizationId(BigInt(query.organizationId)),
     excludeAttemptId: query.excludeAttemptId === undefined ? null : BigInt(query.excludeAttemptId),
     period: { from: kstDate(query.from), to: kstDate(query.to) },
     dateBasis: query.dateBasis,
-    comparisonScope: { kind: "national" },
+    comparisonScope: comparisonScopeOf(query),
     // scale 불변식은 domain factory가 확인한다. 계약이 3자리를 이미 강제했으므로 여기서 실패하면 계약과
     // 도메인이 갈라진 것이고, 그것은 조용히 넘길 수 없는 결함이다.
     floorRate: bidRate(canonicalDecimal(query.floorRate, 3)),
@@ -95,10 +97,7 @@ export class AnalysisController {
     try {
       // 계약 검증 뒤에도 변환 자체는 예외를 낼 수 있으므로 transport 경계 안에서 닫는다.
       input = inputOf(query);
-    } catch (error) {
-      if (error instanceof AnalysisRegionScopeUnsupported) {
-        throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
-      }
+    } catch {
       throw new BadRequestException({ code: "VALIDATION_ERROR" });
     }
     try {
@@ -108,6 +107,10 @@ export class AnalysisController {
       // use case의 예상 실패만 공개 taxonomy로 번역하고, 알 수 없는 결함은 전역 필터에 맡긴다.
       if (error instanceof OrganizationNotFound) {
         throw new NotFoundException({ code: "ORGANIZATION_NOT_FOUND" });
+      }
+      // 지역 코드값은 자원별 404 allowlist에 없다. 없는 지역은 일반 NOT_FOUND로 닫는다.
+      if (error instanceof AnalysisRegionNotFound) {
+        throw new NotFoundException({ code: "NOT_FOUND" });
       }
       if (error instanceof ProcurementDependencyUnavailable) {
         throw new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
