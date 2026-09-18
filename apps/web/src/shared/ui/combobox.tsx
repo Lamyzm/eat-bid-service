@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox';
 
 import { cn } from '@/shared/lib/cn';
-import { IconCheck, IconSelector, IconX } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconX } from '@tabler/icons-react';
 
 /**
  * 목록이 길고 고를 것이 여럿일 때 쓴다. `select`와 나눈 기준은 개수와 검색이다 — 여덟 개 남짓을 하나
@@ -86,8 +86,12 @@ function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Tr
       {...props}
     >
       {children}
+      {/*
+        내려 펼치는 조작이므로 아래쪽 화살표다. 위아래 화살표(⇕)는 값을 위아래로 고르는 조작의 기호라
+        같은 줄에 선 다른 조건 칸들과 다른 말을 한다.
+      */}
       <ComboboxPrimitive.Icon
-        render={<IconSelector className='pointer-events-none size-4 shrink-0 text-muted-foreground' />}
+        render={<IconChevronDown className='pointer-events-none size-4 shrink-0 text-muted-foreground' />}
       />
     </ComboboxPrimitive.Trigger>
   );
