@@ -180,6 +180,28 @@ spec:
           - *task-project
           - *task-marts
 
+    # 아침 재대조 전용 DAG다(2026-09-18, EAT-275). scheduled-pipeline과 단계는 완전히 같고 discover·
+    # capture만 재대조 전용 semaphore key를 쓰는 변형으로 바꾼다.
+    #
+    # 왜 나누나. 재대조와 poll-open이 같은 key를 쓰면 재대조가 도는 몇 시간 동안 정시 수집이 자리를
+    # 못 잡는다. capacity를 올려서는 풀리지 않는다 — 아직 Pending인 chunk가 pod를 기다리는 동안 이미
+    # semaphore를 쥐므로 chunk 수백 개가 자리를 전부 채운다(2026-09-18 v0.1.48로 실측). backfill을
+    # 나눈 것과 같은 이유이며 같은 방법이다.
+    #
+    # mode는 CronWorkflow가 daily-reconcile로 넘긴다. entrypoint를 비우면 scheduled-pipeline이 불려
+    # 다시 같은 key를 잡으므로 daily-reconcile.yaml이 entrypoint를 명시한다.
+    - name: reconcile-pipeline
+      dag:
+        tasks:
+          - <<: *task-discover
+            template: discover-reconcile
+          - <<: *task-capture
+            template: capture-reconcile
+          - *task-normalize
+          - *task-validate
+          - *task-project
+          - *task-marts
+
     # 스스로 전진하는 백필이다(2026-09-14, EAT-209, ADR 0052 결정 4).
     #
     # 왜 새 진입점인가. backfill-pipeline은 창을 workflow 파라미터로 받는다 — 사람이 정해 주는 모양이다.
@@ -561,6 +583,16 @@ spec:
               name: eatbid-workflow-limits
               key: eatbid-source-backfill
 
+    # discover와 같은 container·outputs를 anchor로 물려받고 semaphore key만 재대조 전용으로 바꾼
+    # 변형이다. reconcile-pipeline만 이 template을 부른다. 나눈 이유는 그 DAG 주석을 본다.
+    - <<: *tmpl-discover
+      name: discover-reconcile
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-reconcile
+
     - &tmpl-capture
       name: capture
       inputs:
@@ -740,6 +772,16 @@ spec:
           - configMapKeyRef:
               name: eatbid-workflow-limits
               key: eatbid-source-backfill
+
+    # capture와 같은 inputs·outputs·container를 anchor로 물려받고 semaphore key만 재대조 전용으로
+    # 바꾼 변형이다. reconcile-pipeline만 이 template을 부른다.
+    - <<: *tmpl-capture
+      name: capture-reconcile
+      synchronization:
+        semaphores:
+          - configMapKeyRef:
+              name: eatbid-workflow-limits
+              key: eatbid-source-reconcile
 
     - name: normalize
       inputs:

@@ -291,16 +291,26 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         ("eatbid-workflow-limits", "eatbid-source-backfill"),
         ("eatbid-workflow-limits", "eatbid-source-backfill"),
     ]
-    for live_name, backfill_name in (
+    # 아침 재대조도 자기 key를 쓴다(2026-09-18, EAT-275). 같은 key였을 때 재대조가 도는 네 시간 동안
+    # poll-open이 굶었다.
+    assert [
+        _source_semaphore_key(name) for name in ("discover-reconcile", "capture-reconcile")
+    ] == [
+        ("eatbid-workflow-limits", "eatbid-source-reconcile"),
+        ("eatbid-workflow-limits", "eatbid-source-reconcile"),
+    ]
+    for live_name, variant_name in (
         ("discover", "discover-backfill"),
         ("capture", "capture-backfill"),
+        ("discover", "discover-reconcile"),
+        ("capture", "capture-reconcile"),
     ):
         live_template = dict(templates[live_name])
-        backfill_template = dict(templates[backfill_name])
-        for mapping in (live_template, backfill_template):
+        variant_template = dict(templates[variant_name])
+        for mapping in (live_template, variant_template):
             mapping.pop("name", None)
             mapping.pop("synchronization", None)
-        assert live_template == backfill_template, (live_name, backfill_name)
+        assert live_template == variant_template, (live_name, variant_name)
 
     project_sync = _mapping(templates["project"]["synchronization"])
     project_mutexes = [_mapping(item) for item in _sequence(project_sync["mutexes"])]
@@ -358,12 +368,14 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
     # test_eatbid_source_limit는_과도기_key이고_도는_backfill이_끝나면_지운다를 본다.
     # backfill은 8이다(2026-09-14, EAT-180). semaphore가 chunk pod 단위라 이 값이 곧 소스 동시 호출
     # 수이며, 램프업과 되돌리기가 이 숫자 하나로 이뤄진다 — 중단 조건은 semaphore.yaml 주석이 소유한다.
-    # live는 2다(2026-09-18, EAT-275). 1이면 같은 lane의 daily-reconcile이 capture chunk 266개를
-    # 순차로 도는 동안 poll-open의 discover가 자리를 못 잡고, poll-open은 concurrencyPolicy가
-    # Forbid라 영업시간 회차가 통째로 건너뛰어진다 — 실측으로 4시간 30분 동안 수집 0건이었다.
-    # 2로 올려도 backfill lane은 그대로이므로 EAT-164가 막으려던 상황은 다시 생기지 않는다.
+    # live는 1이고 재대조는 자기 key를 쓴다(2026-09-18, EAT-275). 둘이 같은 key였을 때 재대조가 도는
+    # 네 시간 동안 poll-open이 자리를 못 잡았고 concurrencyPolicy가 Forbid라 영업시간 회차가 통째로
+    # 건너뛰어졌다 — 수집 0건이었다. capacity를 2로 올려 배포해 봤으나 아직 Pending인 chunk가 이미
+    # semaphore를 쥐기 때문에 대기열이 긴 재대조가 자리를 전부 채웠다(v0.1.48 실측). 그래서 capacity가
+    # 아니라 key로 나눈다 — EAT-164가 backfill에 한 것과 같은 방법이다.
     assert limit["data"] == {
-        "eatbid-source-live": "2",
+        "eatbid-source-live": "1",
+        "eatbid-source-reconcile": "2",
         "eatbid-source-backfill": "8",
         "eatbid-source-limit": "1",
     }
@@ -420,6 +432,10 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     expected_entrypoints = {
         "eatbid-reference-refresh": "reference-pipeline",
         "eatbid-backfill-advance": "advancing-backfill-pipeline",
+        # 재대조는 전용 진입점을 적어야 한다(2026-09-18, EAT-275). 비우면 기본값 scheduled-pipeline이
+        # 불려 poll-open과 같은 source semaphore key를 잡고, 재대조가 도는 몇 시간 동안 정시 수집이
+        # 굶는다. poll-open은 기본값을 쓰므로 여기 없는 것이 맞다.
+        "eatbid-daily-reconcile": "reconcile-pipeline",
     }
     for cron in cron_workflows:
         name = str(_metadata(cron)["name"])
@@ -451,6 +467,51 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
     cron_rendered = yaml.safe_dump_all(cron_workflows)
     assert "entrypoint: replay" not in cron_rendered
     assert "entrypoint: backfill-pipeline" not in cron_rendered
+
+
+def test_정시_수집과_아침_재대조는_같은_source_semaphore_key를_쓰지_않는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 두 CronWorkflow는 재대조 07:00, 정시 수집 08:00부터 10분마다라 매일 겹친다. 같은 key를
+    쓰면 재대조의 capture chunk 수백 개가 자리를 차지하는 동안 정시 수집이 대기열에 서고,
+    concurrencyPolicy가 Forbid라 그 사이 예정 회차가 실행되지 못한 채 통째로 사라진다.
+    2026-09-18 영업시간 네 시간 이상 신규 공고 수집이 0건이었다(EAT-275). capacity를 올리는 것으로는
+    막지 못한다 — 아직 Pending인 chunk가 pod를 기다리는 동안 이미 semaphore를 쥐므로 대기열이 긴 쪽이
+    자리를 계속 가져간다. 그래서 이 단언은 capacity가 아니라 key가 갈렸는지를 본다.
+    """
+    workflow_template = manifests.named("WorkflowTemplate", "eatbid-dataplane")
+    template_spec = _spec(workflow_template)
+    templates = {
+        str(template["name"]): _mapping(template)
+        for template in (_mapping(item) for item in _sequence(template_spec["templates"]))
+    }
+    default_entrypoint = str(template_spec["entrypoint"])
+
+    def _source_keys(entrypoint: str) -> set[str]:
+        """진입점 DAG가 부르는 template들이 잡는 source semaphore key를 모은다."""
+        dag = _mapping(templates[entrypoint]["dag"])
+        keys: set[str] = set()
+        for task in (_mapping(item) for item in _sequence(dag["tasks"])):
+            synchronization = templates[str(task["template"])].get("synchronization")
+            if not isinstance(synchronization, Mapping):
+                continue
+            for semaphore in (
+                _mapping(item) for item in _sequence(synchronization.get("semaphores", []))
+            ):
+                keys.add(str(_mapping(semaphore["configMapKeyRef"])["key"]))
+        return keys
+
+    def _entrypoint_of(cron_name: str) -> str:
+        workflow_spec = _mapping(_spec(manifests.named("CronWorkflow", cron_name))["workflowSpec"])
+        return str(workflow_spec.get("entrypoint") or default_entrypoint)
+
+    poll_open_keys = _source_keys(_entrypoint_of("eatbid-poll-open"))
+    reconcile_keys = _source_keys(_entrypoint_of("eatbid-daily-reconcile"))
+
+    # 둘 다 실제로 source semaphore를 잡아야 한다 — 비어 있으면 이 단언이 공허하게 통과한다.
+    assert poll_open_keys, poll_open_keys
+    assert reconcile_keys, reconcile_keys
+    assert poll_open_keys.isdisjoint(reconcile_keys), (poll_open_keys, reconcile_keys)
 
 
 def test_렌더된_어떤_이미지도_변환되지_않은_우리_이름으로_남지_않는다(
