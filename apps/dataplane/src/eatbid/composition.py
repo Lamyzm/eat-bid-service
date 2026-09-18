@@ -403,7 +403,10 @@ class Application:
                 for row in cursor.fetchall()
             )
         return select_replay_target(
-            candidates, build_sha=args.build_sha, run_id=args.run_id
+            candidates,
+            build_sha=args.build_sha,
+            run_id=args.run_id,
+            as_of=args.as_of,
         )
 
     def check_expectations(self, args: argparse.Namespace) -> Any:

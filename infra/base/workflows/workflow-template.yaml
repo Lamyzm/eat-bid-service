@@ -207,13 +207,13 @@ spec:
                 - name: publication-id
                   value: "{{tasks.decide.outputs.parameters.publication-id}}"
                 - name: started-at
-                  value: "{{workflow.creationTimestamp.RFC3339}}"
+                  value: "{{tasks.decide.outputs.parameters.started-at}}"
                 - name: normalized-at
-                  value: "{{workflow.creationTimestamp.RFC3339}}"
+                  value: "{{tasks.decide.outputs.parameters.normalized-at}}"
                 - name: validated-at
-                  value: "{{workflow.creationTimestamp.RFC3339}}"
+                  value: "{{tasks.decide.outputs.parameters.validated-at}}"
                 - name: activated-at
-                  value: "{{workflow.creationTimestamp.RFC3339}}"
+                  value: "{{tasks.decide.outputs.parameters.activated-at}}"
           - name: marts
             template: marts
             depends: run
@@ -642,6 +642,14 @@ spec:
             valueFrom:
               path: /tmp/eatbid/publication_id
               default: ""
+          - name: started-at
+            valueFrom: { path: /tmp/eatbid/started_at, default: "" }
+          - name: normalized-at
+            valueFrom: { path: /tmp/eatbid/normalized_at, default: "" }
+          - name: validated-at
+            valueFrom: { path: /tmp/eatbid/validated_at, default: "" }
+          - name: activated-at
+            valueFrom: { path: /tmp/eatbid/activated_at, default: "" }
       container:
         image: eatbid-dataplane
         imagePullPolicy: IfNotPresent
@@ -651,6 +659,7 @@ spec:
             exec eatbid next-replay-target
             --run-id "$EATBID_RUN_ID"
             --build-sha "$BUILD_SHA"
+            --as-of "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             --result-dir "$EATBID_RESULT_DIR"
         resources:
           requests:

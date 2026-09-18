@@ -123,7 +123,6 @@ class _기록애플리케이션:
         if self.error is not None:
             raise self.error
         self.calls.append(("next-replay-target", None))
-        return None
 
     def reap_marts(self, args: Namespace) -> ReapReport:
         # 회수도 release에 매이지 않는다(EAT-254).
@@ -175,7 +174,15 @@ def _명령(command: str) -> list[str]:
         return [command, "--as-of", "2026-09-01T00:06:00Z"]
     if command == "next-replay-target":
         # 다시 시도할 가치를 build_sha로 판단하므로 그 값만 받는다(EAT-274).
-        return [command, "--run-id", RUN_ID, "--build-sha", SHA]
+        return [
+            command,
+            "--run-id",
+            RUN_ID,
+            "--build-sha",
+            SHA,
+            "--as-of",
+            "2026-09-01T00:06:00Z",
+        ]
     if command == "fail-release":
         # 운영자 판정 명령이라 run·parser version 같은 공통 인수가 없다.
         return [

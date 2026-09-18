@@ -170,6 +170,10 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "source_release_id": str(result.source_release_id),
             "window_start": result.window_start,
             "publication_id": str(result.publication_id),
+            "started_at": result.started_at.isoformat().replace("+00:00", "Z"),
+            "normalized_at": result.normalized_at.isoformat().replace("+00:00", "Z"),
+            "validated_at": result.validated_at.isoformat().replace("+00:00", "Z"),
+            "activated_at": result.activated_at.isoformat().replace("+00:00", "Z"),
         }
     if method_name == "scan_contract":
         if not isinstance(result, ScanReport):

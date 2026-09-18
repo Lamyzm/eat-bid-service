@@ -254,6 +254,7 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     next_replay = commands["next-replay-target"]
     next_replay.add_argument("--run-id", required=True, type=UUID)
     next_replay.add_argument("--build-sha", required=True, type=build_sha)
+    next_replay.add_argument("--as-of", required=True, type=aware_datetime)
     next_replay.add_argument("--result-dir", type=Path, default=None)
 
     fail_release = commands["fail-release"]
