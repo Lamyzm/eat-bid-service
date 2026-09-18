@@ -1783,3 +1783,35 @@ def test_mart_회수_cron은_수집이_없는_새벽에_하루_한_번_템플릿
     assert "synchronization" not in reap
     args = " ".join(str(item) for item in _sequence(_mapping(reap["container"])["args"]))
     assert "eatbid reap-marts" in args
+
+
+def test_DAG_task는_부르는_template의_input을_하나도_빠뜨리지_않는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: Argo는 DAG task가 template의 기본값을 상속하지 않는다고 판정한다. 하나라도 빠지면 workflow가
+    노드를 만들기 전에 `inputs.parameters.X was not supplied`로 통째로 거부되고, 그러면 smoke는 "decide가
+    없다"만 보여 준다(2026-09-18 실측, EAT-274). 렌더 단계에서 잡는다."""
+    templates = _templates(manifests.workflow_template("eatbid-dataplane"))
+
+    for name, template in templates.items():
+        dag = template.get("dag")
+        if dag is None:
+            continue
+        for task in _sequence(_mapping(dag)["tasks"]):
+            task_map = _mapping(task)
+            called = templates.get(str(task_map.get("template", "")))
+            if called is None:
+                continue
+            required = {
+                str(_mapping(item)["name"])
+                for item in _sequence(_mapping(called.get("inputs", {})).get("parameters", []))
+                if "value" not in _mapping(item) and "valueFrom" not in _mapping(item)
+            }
+            supplied = {
+                str(_mapping(item)["name"])
+                for item in _sequence(
+                    _mapping(task_map.get("arguments", {})).get("parameters", [])
+                )
+            }
+            missing = required - supplied
+            assert not missing, f"{name}.{task_map.get('name')} -> {task_map.get('template')}: {missing}"

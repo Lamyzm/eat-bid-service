@@ -203,6 +203,12 @@ spec:
               parameters:
                 - name: source-release-id
                   value: "{{tasks.decide.outputs.parameters.source-release-id}}"
+                # 비운다 = release 전체를 재처리한다(EAT-274). DAG task는 template의 기본값을 상속하지
+                # 않고 모든 input을 넘겨야 하므로 빈 값을 명시한다 — 생략하면 spec 검증이 거부한다.
+                # 비운다 = release 전체를 재처리한다(EAT-274). DAG task는 template의 기본값을 상속하지
+                # 않고 모든 input을 넘겨야 하므로 빈 값을 명시한다 — 생략하면 spec 검증이 거부한다.
+                - name: observation-ids-json
+                  value: ""
                 # 실패한 publication id를 다시 쓰지 않는다. decide가 run에서 결정적으로 파생한다.
                 - name: publication-id
                   value: "{{tasks.decide.outputs.parameters.publication-id}}"
