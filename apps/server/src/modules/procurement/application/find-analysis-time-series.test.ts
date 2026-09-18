@@ -39,6 +39,7 @@ const input: FindAnalysisTimeSeriesInput = {
   listCountMin: 12,
   listCountMax: 24,
   itemFilter: { kind: "all" as const },
+  overlayOrganizationIds: [],
 };
 
 const emptyReading = {
@@ -48,6 +49,7 @@ const emptyReading = {
   comparisonTruncated: false,
   comparisonTotal: 0,
   overlapCount: 0,
+  overlays: [],
   coverage: [],
   lineage,
   sourceCutoffAt,

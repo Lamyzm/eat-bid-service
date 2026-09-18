@@ -3,6 +3,7 @@
 // 그리고 "밀도 합 = 비교군 표본 수"라는 acceptance 1의 등식은 실제 질의를 돌려야 닫힌다.
 import { expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/postgres-js";
+import { DrizzleAnalysisConditionOptionsReader } from "../modules/procurement/infrastructure/drizzle/drizzle-analysis-condition-options-reader";
 import { DrizzleAnalysisTimeSeriesReader } from "../modules/procurement/infrastructure/drizzle/drizzle-analysis-time-series-reader";
 import type { AnalysisTimeSeriesQuery } from "../modules/procurement/application/analysis-time-series-reader";
 import { kstDayAfter, kstDayStart, kstDate } from "../modules/procurement/domain/kst-day";
@@ -68,12 +69,8 @@ const extraSeed = `
      set floor_rate = 90.000, award_method_code_value_id = 31, opened_at = '2026-08-03T20:00:00Z',
          awarded_assessment_rate = 90.400, list_count = 14
    where build_id = 501 and auction_attempt_id = 106;
-  -- 품목 원자는 우리 체계(`eatbid:auction-item`)의 코드값이다. 체계 없이 코드 문자열만 보고 조인하면
-  -- 다른 어휘의 같은 글자를 잡으므로, 술어가 체계를 닫는지 여기서 확인된다(AGENTS 2·6).
-  insert into core.code_scheme (code_scheme_id, namespace, owner, version_policy, valid_time_policy)
-  overriding system value values (15, 'eatbid:auction-item', 'product', 'immutable', 'open');
-  insert into core.code_value (code_value_id, code_scheme_id, code)
-  overriding system value values (7, 15, '육류'), (9, 15, '농산물');
+  -- 품목 원자(코드값 7 육류·9 농산물)는 기본 fixture가 auction-item 체계에 이미 심는다. 여기서 다시
+  -- 심으면 체계 이름이 unique라 시드가 깨진다.
   insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)
   values (501, 200, 7), (501, 201, 9), (501, 202, 7);
   -- 205는 지역이 번역되지 않은 회차다. 지역 모집단에서 빠지되 전국에는 남는다(ADR 0035 결정 6).
@@ -99,6 +96,7 @@ const baseQuery = {
   listCountMin: null,
   listCountMax: null,
   itemFilter: { kind: "all" },
+  overlayOrganizationIds: [],
   comparisonScope: { kind: "national" },
   timeResolution: "day",
   rateBinWidthMilli: 100n,
@@ -223,6 +221,105 @@ test("지역 비교는 체계가 고른 열로만 좁히고 번역되지 않은 
       ["2026-08", "complete", "none"],
       ["2026-09", "unknown", "complete"],
     ]);
+  }, async (client) => {
+    await client.unsafe(extraSeed);
+  });
+}, 180_000);
+
+test("조건 사전은 축 하나만 푼 집합에서 지역·품목·기관을 세고 번역되지 않은 회차를 따로 센다", async () => {
+  await withSeededDatabase(async ({ client }) => {
+      const reader = new DrizzleAnalysisConditionOptionsReader(drizzle({ client }));
+      const baseOptions = {
+        targetOrganizationId: organizationId(41n),
+        excludeAttemptId: null,
+        from: kstDayStart(kstDate("2026-08-01")),
+        before: kstDayAfter(kstDate("2026-09-30")),
+        dateBasis: "opened",
+        floorRateMilli: 90_000n,
+        awardMethodCodeValueId: 31n,
+        listCountMin: null,
+        listCountMax: null,
+        itemFilter: { kind: "all" },
+        overlayOrganizationIds: [],
+        comparisonScope: { kind: "national" },
+        sido: null,
+        organizationQuery: null,
+        organizationLimit: 50,
+      } as const;
+
+      const all = await reader.readConditionOptions(baseOptions);
+      // 205는 공고지역이 번역되지 않은 회차다. 어느 시도에도 넣지 않고 따로 센다(ADR 0035 결정 6).
+      expect(all.sido.map((region) => [region.code, region.count])).toEqual([["48", 5]]);
+      expect(all.regionUnobservedCount).toBe(1);
+      expect(all.sigungu).toEqual([]);
+      // 품목 다리 행이 없는 셋이 `품목 미확인`이다. 원자는 어휘 순서로 여덟 전부가 0까지 실린다.
+      expect(all.items.filter((item) => item.count > 0).map((item) => [item.atom, item.count]))
+        .toEqual([["육류", 2], ["농산물", 1]]);
+      expect(all.items).toHaveLength(8);
+      expect(all.itemUnknownCount).toBe(3);
+      // 수가 같으면 이름 순이다. `다른 학교`가 `창원 남산초등학교`보다 앞이라 43이 먼저 선다.
+      expect(all.organizations.map((option) => [option.organizationId, option.count]))
+        .toEqual([[43n, 3], [41n, 3]]);
+      expect(all.organizationsTruncated).toBe(false);
+      expect(all.lineage?.buildId).toBe(501n);
+
+      // 시도를 고르면 그 시도 안의 시군구만 선다. 49는 넷, 50은 하나다.
+      const expanded = await reader.readConditionOptions({ ...baseOptions, sido: 48n });
+      expect(expanded.sigungu.map((region) => [region.code, region.count]))
+        .toEqual([["48120", 4], ["48250", 1]]);
+
+      // 품목을 걸어도 **품목 건수는 그 축을 푼 집합**에서 센다. 걸린 조건으로 세면 고른 품목만 남아
+      // "이걸로 바꾸면 몇 건"이라는 약속이 깨진다(EAT-241).
+      const filtered = await reader.readConditionOptions({
+        ...baseOptions,
+        itemFilter: { kind: "atoms", atoms: ["육류"], unknown: false },
+      });
+      expect(filtered.items.filter((item) => item.count > 0).map((item) => [item.atom, item.count]))
+        .toEqual([["육류", 2], ["농산물", 1]]);
+      // 반대로 기관 목록은 걸린 조건 그대로다. 고른 품목의 회차가 있는 기관만 겹쳐 찍을 수 있다.
+      expect(filtered.organizations.map((option) => option.organizationId)).toEqual([41n]);
+
+      // 지역을 좁히면 기관도 그 지역 안에서만 선다. 205는 지역이 없어 43의 수가 준다.
+      const inRegion = await reader.readConditionOptions({
+        ...baseOptions,
+        comparisonScope: { kind: "region", scheme: "eat:auction-location-sigungu", codeValueId: 49n },
+      });
+      expect(inRegion.organizations.map((option) => [option.organizationId, option.count]))
+        .toEqual([[43n, 2], [41n, 2]]);
+      // 지역 건수는 지역 축을 푼 집합이라 좁히기 전과 같다.
+      expect(inRegion.sido.map((region) => region.count)).toEqual([5]);
+
+      // 이름으로 좁힌다. 검색은 `strpos`라 `like` 메타문자가 열리지 않는다.
+      const searched = await reader.readConditionOptions({ ...baseOptions, organizationQuery: "없는이름" });
+      expect(searched.organizations).toEqual([]);
+  }, async (client) => {
+    await client.unsafe(extraSeed);
+  });
+}, 180_000);
+
+test("겹쳐 찍을 기관은 모집단을 바꾸지 않고 요청 순서대로 점만 더한다", async () => {
+  await withSeededDatabase(async ({ client }) => {
+    const reader = new DrizzleAnalysisTimeSeriesReader(drizzle({ client }));
+
+    const overlaid = await reader.readTimeSeries({ ...baseQuery, overlayOrganizationIds: [43n, 41n] });
+    // 표본 수는 그대로다. 표시 축이 모집단을 바꾸면 기관을 고를 때마다 수가 흔들린다(PDR-0007).
+    expect(overlaid.targetTotal).toBe(3);
+    expect(overlaid.comparisonTotal).toBe(6);
+    // 요청한 순서로 온다. 화면의 번호 배지가 사용자가 고른 순서를 말하기 때문이다.
+    expect(overlaid.overlays.map((series) => series.organizationId)).toEqual([43n, 41n]);
+    expect(overlaid.overlays.map((series) => series.name)).toEqual(["다른 학교", "창원 남산초등학교"]);
+    expect(overlaid.overlays.map((series) => series.points.map((point) => point.attemptId)))
+      .toEqual([[203n, 204n, 205n], [200n, 201n, 202n]]);
+    expect(overlaid.overlays.every((series) => !series.truncated)).toBe(true);
+
+    // 고른 기관의 회차가 조건에 하나도 없으면 빈 묶음으로 남는다. 목록에서 사라지면 사용자는 고르기가
+    // 실패한 것으로 읽지만, 실제로는 그 조건에 회차가 없는 것이다(AGENTS 3).
+    const missing = await reader.readTimeSeries({
+      ...baseQuery,
+      overlayOrganizationIds: [43n],
+      itemFilter: { kind: "atoms", atoms: ["농산물"], unknown: false },
+    });
+    expect(missing.overlays.map((series) => series.points.length)).toEqual([0]);
   }, async (client) => {
     await client.unsafe(extraSeed);
   });

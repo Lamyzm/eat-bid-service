@@ -42,6 +42,14 @@ export const analysisItemFilterSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("unknown") }),
 ]);
+/**
+ * 같은 그림에 겹쳐 찍을 다른 기관이다. **비교조건이 아니라 표시 축이다** — 이 값은 모집단을 바꾸지
+ * 않고 점만 더한다(PDR-0007). 비교조건에 넣으면 기관을 고를 때마다 표본 수가 흔들린다.
+ *
+ * 여섯이 상한인 이유는 색과 자리다. 시안 루프 실측에서 그보다 많으면 고리가 기관 점을 덮었다.
+ */
+export const analysisOverlayOrganizationIdsSchema = z.array(positiveBigintTextSchema).max(6);
+
 export const analysisListCountRangeSchema = z.strictObject({
   min: nonNegativeCountSchema.nullable(),
   max: nonNegativeCountSchema.nullable(),
@@ -58,6 +66,7 @@ export const analysisFilterValueSchema = z.strictObject({
   awardMethodCodeValueId: positiveBigintTextSchema,
   listCountRange: analysisListCountRangeSchema,
   itemFilter: analysisItemFilterSchema,
+  overlayOrganizationIds: analysisOverlayOrganizationIdsSchema,
 }).meta({ id: "AnalysisFilterValue" });
 
 export type AnalysisFilterValue = z.infer<typeof analysisFilterValueSchema>;

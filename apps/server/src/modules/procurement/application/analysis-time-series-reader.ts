@@ -40,7 +40,7 @@ export type AnalysisItemFilter =
  * `timeResolution`과 `rateBinWidthMilli`는 화면이 보낸 희망값이 아니라 **use case가 정해 내려보낸 눈금**이다.
  * 칸을 접는 일은 SQL이 하고(전국 5.7년이 23만 회차다) 무엇을 접을지는 application이 정한다.
  */
-export interface AnalysisTimeSeriesQuery {
+export interface AnalysisCohortQuery {
   readonly targetOrganizationId: bigint;
   /** 지금 보고 있는 회차다. 두 집단 모두에서 뺀다 — 자기 자신이 자기 분포를 만들면 안 된다. */
   readonly excludeAttemptId: bigint | null;
@@ -55,6 +55,19 @@ export interface AnalysisTimeSeriesQuery {
   readonly listCountMax: number | null;
   readonly itemFilter: AnalysisItemFilter;
   readonly comparisonScope: AnalysisComparisonScope;
+  /**
+   * 같은 그림에 겹쳐 찍을 다른 기관이다. 코호트 조건에 들어 있지만 **모집단을 좁히지 않는다** — 이
+   * 값이 바뀌어도 기관 점과 비교 구름의 수는 그대로다(PDR-0007).
+   */
+  readonly overlayOrganizationIds: readonly bigint[];
+}
+
+/**
+ * 시간축 조회다. 코호트 조건 위에 **use case가 정한 눈금과 상한**을 더한다. 조건 사전 조회가 이것을
+ * 쓰지 않는 이유는 칸을 접지도 점을 자르지도 않기 때문이다 — 쓰지 않는 값을 함께 들고 다니면 어느
+ * 것이 이 질의를 실제로 바꾸는지 읽는 사람이 알 수 없다.
+ */
+export interface AnalysisTimeSeriesQuery extends AnalysisCohortQuery {
   readonly timeResolution: "day" | "week" | "month";
   readonly rateBinWidthMilli: bigint;
   /** 이 수를 넘으면 기관 점을 자르고 잘렸다고 말한다. 자른 사실을 숨기고 그리지 않는다. */
@@ -80,6 +93,14 @@ export interface AnalysisDensityCellRecord {
   readonly fromAt: Temporal.Instant;
   readonly rateFromMilli: bigint;
   readonly count: number;
+}
+
+/** 겹쳐 찍은 기관 하나다. 이름은 관측이라 없을 수 있고, 없다고 묶음을 빼면 고른 기관이 사라진다. */
+export interface AnalysisOverlaySeriesRecord {
+  readonly organizationId: bigint;
+  readonly name: string | null;
+  readonly points: readonly AnalysisPointRecord[];
+  readonly truncated: boolean;
 }
 
 export type AnalysisComparisonSeriesRecord =
@@ -112,6 +133,8 @@ export interface AnalysisTimeSeriesReading {
   readonly comparisonTruncated: boolean;
   readonly comparisonTotal: number;
   readonly overlapCount: number;
+  /** 고른 순서가 아니라 요청한 순서로 온다. 화면의 번호 배지가 요청과 같은 순서를 써야 한다. */
+  readonly overlays: readonly AnalysisOverlaySeriesRecord[];
   readonly coverage: readonly AnalysisMonthCoverage[];
   readonly lineage: MartBuildLineage | null;
   /**

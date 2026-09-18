@@ -37,7 +37,7 @@ function instantParameter(value: { toString(): string }): string {
  * 기둥의 이름과 행의 이름이 갈리지 않는다. 라벨이 없는 코드도 남는다 — 코드목록 수집(EAT-187)이 아직
  * 안 돈 DB에서 항목이 사라지면 그 지역의 공고가 기둥에서 보이지 않는다.
  */
-function regionLabelCte(): SQL {
+export function regionLabelCte(): SQL {
   return sql`
     region_label as (
       select code.code_value_id,

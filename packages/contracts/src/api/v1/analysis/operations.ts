@@ -8,6 +8,7 @@ import { AUCTION_ITEM_ATOMS, auctionItemAtomSchema } from "../../../values/aucti
 import { problemDetailsSchema, unauthenticatedProblemResponse } from "../../../common/problem-details";
 import { createOperationRegistry, defineOperation } from "../../operation";
 import { analysisDateBasisSchema, analysisRegionSchemeSchema } from "./filter.resource";
+import { analysisConditionOptionsV1ResponseSchema } from "./condition-options.response";
 import { analysisTimeSeriesV1ResponseSchema } from "./find-analysis-time-series.response";
 
 /**
@@ -16,7 +17,7 @@ import { analysisTimeSeriesV1ResponseSchema } from "./find-analysis-time-series.
  */
 const MAX_PERIOD_DAYS = 1_900;
 
-type TimeSeriesQuery = {
+type AnalysisConditionQuery = {
   organizationId: string;
   excludeAttemptId?: string;
   from: string;
@@ -31,9 +32,14 @@ type TimeSeriesQuery = {
   listCountMax?: number;
   items?: readonly z.infer<typeof auctionItemAtomSchema>[];
   itemUnknown?: "include" | "only";
+  overlayOrganizationIds?: readonly string[];
 };
 
-function reject(ctx: z.core.ParsePayload<TimeSeriesQuery>, path: string, message: string): void {
+function reject(
+  ctx: z.core.ParsePayload<AnalysisConditionQuery>,
+  path: string,
+  message: string,
+): void {
   ctx.issues.push({ code: "custom", message, input: ctx.value, path: [path] });
 }
 
@@ -65,7 +71,7 @@ function dayOrdinal(date: string): number {
  * 코드값 id만 받으면 같은 숫자가 어느 체계의 구역인지 말하지 않고, 그 순간 화면이 다른 체계의 지역을
  * 이 조회의 지역으로 읽는다(AGENTS 6, ADR 0035).
  */
-function comparisonAxisRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
+function comparisonAxisRule<Query extends AnalysisConditionQuery>(ctx: z.core.ParsePayload<Query>): void {
   const { comparisonScope, comparisonRegionScheme, comparisonRegionCodeValueId } = ctx.value;
   if (comparisonScope === "national") {
     if (comparisonRegionScheme !== undefined) reject(ctx, "comparisonRegionScheme", "전국 비교는 지역 축을 갖지 않습니다.");
@@ -77,7 +83,7 @@ function comparisonAxisRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
 }
 
 /** 기간은 양끝 포함 KST 달력일이고 역전될 수 없다. 상한이 있어야 응답 크기와 DB 스캔 행 수가 닫힌다. */
-function periodRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
+function periodRule<Query extends AnalysisConditionQuery>(ctx: z.core.ParsePayload<Query>): void {
   const days = dayOrdinal(ctx.value.to) - dayOrdinal(ctx.value.from);
   if (days < 0) reject(ctx, "to", "기간은 시간순이어야 합니다.");
   else if (days + 1 > MAX_PERIOD_DAYS) reject(ctx, "to", `기간은 ${MAX_PERIOD_DAYS}일을 넘을 수 없습니다.`);
@@ -87,7 +93,7 @@ function periodRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
  * 명단 범위는 양끝 포함이고 한쪽 null은 그쪽 제한 없음이다. `0~0`은 전체와 다르다 — 명단이 0인 판만
  * 보겠다는 뜻이라 조건을 안 건 것과 같은 수가 나오면 안 된다(PDR-0006).
  */
-function listCountRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
+function listCountRule<Query extends AnalysisConditionQuery>(ctx: z.core.ParsePayload<Query>): void {
   const { listCountMin, listCountMax } = ctx.value;
   if (listCountMin === undefined || listCountMax === undefined) return;
   if (listCountMin > listCountMax) reject(ctx, "listCountMax", "명단 범위는 최소가 최대보다 클 수 없습니다.");
@@ -97,7 +103,7 @@ function listCountRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
  * `only`는 품목을 말하지 않은 회차만 보겠다는 뜻이라 원자와 함께 올 수 없다. 둘을 함께 받으면 서버가
  * "고른 원자" 아니면 "미확인"을 골라야 하고, 어느 쪽을 골라도 화면이 말한 조건과 다른 집합이 나온다.
  */
-function itemRule(ctx: z.core.ParsePayload<TimeSeriesQuery>): void {
+function itemRule<Query extends AnalysisConditionQuery>(ctx: z.core.ParsePayload<Query>): void {
   if (ctx.value.itemUnknown === "only" && ctx.value.items !== undefined) {
     reject(ctx, "items", "품목 미확인만 보는 요청에는 품목 원자를 함께 지정할 수 없습니다.");
   }
@@ -118,7 +124,12 @@ const analysisItemsQuerySchema = z.preprocess(
   z.array(auctionItemAtomSchema).min(1).max(AUCTION_ITEM_ATOMS.length),
 );
 
-const analysisTimeSeriesQuerySchema = z.strictObject({
+/**
+ * 시간축 조회와 조건 사전 조회가 **같은 코호트**를 말하려면 같은 조건을 받아야 한다. 한쪽에만 있는
+ * 축이 생기는 순간 조건 막대의 건수와 그림의 표본 수가 서로 다른 집합을 세게 된다. 그래서 공통 필드는
+ * 여기 한 번만 선언하고 두 schema가 나눠 쓴다.
+ */
+const analysisConditionFields = {
   organizationId: positiveBigintTextSchema,
   // 지금 보고 있는 공고의 회차다. 두 집단 모두에서 뺀다 — 자기 자신을 비교군에 넣으면 그 점이 자기
   // 분포를 만든다(PDR-0006).
@@ -141,6 +152,31 @@ const analysisTimeSeriesQuerySchema = z.strictObject({
    * 둘 다 없으면 원자 조건만 걸린다. 전체(조건 없음)는 `items`도 이 값도 없는 상태다.
    */
   itemUnknown: z.enum(["include", "only"]).optional(),
+  /**
+   * 겹쳐 찍을 기관이다. 값 하나와 값 여럿을 query string이 구분하지 못하므로 품목과 같은 방식으로 한 번만
+   * 배열로 편다. 모집단을 바꾸지 않으므로 이 값이 달라져도 표본 수는 그대로다.
+   */
+  overlayOrganizationIds: z.preprocess(
+    (value) => (value === undefined ? undefined : Array.isArray(value) ? value : [value]),
+    z.array(positiveBigintTextSchema).min(1).max(6),
+  ).optional(),
+} as const;
+
+const analysisTimeSeriesQuerySchema = z.strictObject(analysisConditionFields)
+  .check(comparisonAxisRule)
+  .check(periodRule)
+  .check(listCountRule)
+  .check(itemRule);
+
+/**
+ * 조건 사전은 같은 조건에 **두 가지만** 더 받는다. `sido`는 그 시도의 시군구를 함께 내라는 뜻이고,
+ * `organizationQuery`는 고른 지역 안에서 기관 이름을 좁히는 말이다. 검색어가 `strpos`인 이유는 오늘
+ * 화면과 같다 — 사용자 입력에 `like` 메타문자를 열지 않는다.
+ */
+const analysisConditionOptionsQuerySchema = z.strictObject({
+  ...analysisConditionFields,
+  sido: positiveBigintTextSchema.optional(),
+  organizationQuery: z.string().trim().min(1).max(64).optional(),
 })
   .check(comparisonAxisRule)
   .check(periodRule)
@@ -176,10 +212,40 @@ export const analysisV1Operations = {
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
     },
   }),
+  findConditionOptions: defineOperation({
+    method: "get",
+    versioning: { kind: "uri", prefix: "api", version: "1" },
+    route: { resource: "analysis", segments: ["condition-options"] },
+    operationId: "findAnalysisConditionOptions",
+    implementationOwner: "server",
+    summary: "지금 조건에서 고를 수 있는 비교 지역·기관·품목과 그 건수를 조회한다."
+      + " 지역과 품목의 건수는 그 축 하나만 푼 집합에서 세므로 \"이것으로 바꾸면 몇 건이 되나\"를 말한다."
+      + " 기관은 고른 비교 지역 안에서만 세고 검색어로 좁힌다.",
+    tags: ["공고와 분석"],
+    pathSchema: z.strictObject({}),
+    querySchema: analysisConditionOptionsQuerySchema,
+    bodySchema: z.undefined(),
+    successResponses: {
+      200: { description: "조건 사전 조회 성공", schema: analysisConditionOptionsV1ResponseSchema },
+    },
+    problemResponses: {
+      400: {
+        description: "query가 유효하지 않거나 비교 모집단과 지역 축의 짝, 기간 상한·순서, 명단 범위 순서를 어김",
+        schema: problemDetailsSchema,
+      },
+      ...unauthenticatedProblemResponse,
+      403: { description: "이 분석을 볼 수 있는 인가가 없음", schema: problemDetailsSchema },
+      404: { description: "요청한 기관·지역 코드값을 찾을 수 없음", schema: problemDetailsSchema },
+      500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
+      503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
+    },
+  }),
 } as const;
 
 export const analysisV1OperationRegistry = createOperationRegistry([
   analysisV1Operations.findTimeSeries,
+  analysisV1Operations.findConditionOptions,
 ] as const);
 
 export type AnalysisTimeSeriesQuery = z.infer<typeof analysisTimeSeriesQuerySchema>;
+export type AnalysisConditionOptionsQuery = z.infer<typeof analysisConditionOptionsQuerySchema>;
