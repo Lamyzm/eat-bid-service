@@ -66,6 +66,12 @@ export function toAnalysisConditionOptionsResponse(
 ): AnalysisConditionOptionsV1Response {
   const reading = result.reading;
   return {
+    selectedRegion: reading.selectedRegion === null ? null : {
+      region: regionReference(reading.selectedRegion.region),
+      parentSidoCodeValueId: reading.selectedRegion.parentSidoCodeValueId === null
+        ? null
+        : bigintText(reading.selectedRegion.parentSidoCodeValueId),
+    },
     sidoCounts: reading.sido.map(regionCount),
     sigunguCounts: reading.sigungu.map(regionCount),
     regionUnobservedCount: reading.regionUnobservedCount,

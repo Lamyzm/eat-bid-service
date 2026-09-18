@@ -2,6 +2,7 @@
 import type { loadAnalysisPage } from '../_lib/load-analysis-page';
 import { presentAnalysisContext } from '../_features/analysis-filters/model/present-analysis-context';
 import { AnalysisFilters } from '../_features/analysis-filters/ui/analysis-filters';
+import { AnalysisResetButton } from '../_features/analysis-filters/ui/analysis-reset-button';
 import { AnalysisResultsGate } from '../_features/analysis-filters/ui/analysis-results-gate';
 import { AnalysisWorkspace } from '../_features/analysis-view/ui/analysis-workspace';
 import { TimeSeriesPanel } from '../_features/time-series/ui/time-series-panel';
@@ -43,6 +44,7 @@ export function AnalysisScreen({
           applied={data.applied}
         />
       }
+      reset={<AnalysisResetButton />}
       context={
         <AnalysisResultsGate requestKey={data.applied.key}>
           <AnalysisContext

@@ -1,4 +1,5 @@
 /** @module 책임: 적용된 비교조건을 findAnalysisTimeSeries operation query로 옮기고 transport 독립 조회를 수행한다. */
+import type { AuctionItemAtom } from '@eatbid/contracts/api/v1/auctions';
 import {
   analysisV1Operations,
   type AnalysisFilterValue,
@@ -29,15 +30,18 @@ export type AnalysisTimeSeriesQueryInput = OperationQueryInput<
  * 품목 조건을 평평한 query 두 칸으로 편다. `전체`는 두 칸이 모두 없는 상태다 — null이나 빈 배열을
  * 보내면 계약이 `strictObject`로 끊고, 보낸다 해도 "전체"와 "아무것도 안 고름"이 같아진다.
  */
-function itemQueryOf(
-  filter: AnalysisFilterValue['itemFilter']
-): Partial<Pick<AnalysisTimeSeriesQueryInput, 'items' | 'itemUnknown'>> {
+function itemQueryOf(filter: AnalysisFilterValue['itemFilter']): {
+  readonly items?: readonly AuctionItemAtom[];
+  readonly itemUnknown?: 'include' | 'only';
+} {
   if (filter.kind === 'all') return {};
   if (filter.kind === 'unknown') return { itemUnknown: 'only' };
   return { items: filter.atoms, ...(filter.unknown ? { itemUnknown: 'include' as const } : {}) };
 }
 
-export function analysisTimeSeriesQueryOf(filter: AnalysisFilterValue): AnalysisTimeSeriesQueryInput {
+// 반환 타입을 적지 않는 이유는 계약의 입력 타입이 query string의 두 모양(값 하나·값 여럿)을 허용하려
+// `unknown`을 열어 두기 때문이다. 여기서 실제로 만드는 좁은 모양을 추론시켜야 소비자가 무엇을 받는지 안다.
+export function analysisTimeSeriesQueryOf(filter: AnalysisFilterValue) {
   const scope = filter.comparisonScope;
   return {
     organizationId: filter.targetOrganizationId,
@@ -53,7 +57,12 @@ export function analysisTimeSeriesQueryOf(filter: AnalysisFilterValue): Analysis
     awardMethodCodeValueId: filter.awardMethodCodeValueId,
     ...(filter.listCountRange.min === null ? {} : { listCountMin: filter.listCountRange.min }),
     ...(filter.listCountRange.max === null ? {} : { listCountMax: filter.listCountRange.max }),
-    ...itemQueryOf(filter.itemFilter)
+    ...itemQueryOf(filter.itemFilter),
+    // 겹쳐 찍을 기관은 모집단을 바꾸지 않지만 같은 요청에 실린다. 빈 배열을 보내면 계약이 최소 하나를
+    // 요구하며 끊으므로, 고른 것이 없으면 키를 만들지 않는다.
+    ...(filter.overlayOrganizationIds.length === 0
+      ? {}
+      : { overlayOrganizationIds: filter.overlayOrganizationIds })
   };
 }
 

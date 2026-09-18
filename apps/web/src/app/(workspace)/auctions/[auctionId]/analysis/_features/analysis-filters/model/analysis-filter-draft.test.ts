@@ -70,20 +70,22 @@ describe('공통 비교조건 초안과 적용', () => {
     expect(unknown.filter.itemFilter).toEqual({ kind: 'unknown' });
   });
 
-  test('관측 밖 지역은 제출할 수 없다', () => {
-    expect(
-      validateAnalysisDraft(
-        {
-          ...setup.initialDraft,
-          comparisonScope: {
-            kind: 'region',
-            codeValueId: '999',
-            scheme: 'eat:auction-location-sido'
-          }
-        },
-        setup
-      ).state
-    ).toBe('invalid');
+  test('이 공고에 없는 지역도 조건으로 담는다', () => {
+    // 비교 지역은 조건 사전 전체에서 고른다. 화면이 이 공고가 관측한 둘로 막으면 다른 시군구와 비교할
+    // 길이 없어진다. 없는 코드값의 판정은 서버가 하며 그때는 404다.
+    const other = validateAnalysisDraft(
+      {
+        ...setup.initialDraft,
+        comparisonScope: { kind: 'region', codeValueId: '999', scheme: 'eat:auction-location-sido' }
+      },
+      setup
+    );
+    if (other.state !== 'valid') throw new Error('다른 지역도 조건이 되어야 합니다');
+    expect(other.filter.comparisonScope).toEqual({
+      kind: 'region',
+      codeValueId: '999',
+      scheme: 'eat:auction-location-sido'
+    });
     const parsed = validateAnalysisDraft(
       {
         ...setup.initialDraft,
@@ -115,21 +117,23 @@ describe('공통 비교조건 초안과 적용', () => {
     ).toBe('invalid');
   });
 
-  test('지역 ID가 같아도 다른 코드 체계의 조건은 허용하지 않는다', () => {
+  test('지역 코드값은 체계와 함께 실려 다른 어휘로 읽히지 않는다', () => {
     const parsed = validateAnalysisDraft(setup.initialDraft, setup);
     if (parsed.state !== 'valid') throw new Error('유효한 조건이어야 합니다');
-    expect(
-      readAppliedAnalysis(
-        JSON.stringify({
-          ...parsed.filter,
-          comparisonScope: {
-            kind: 'region',
-            codeValueId: '41',
-            scheme: 'eat:auction-location-sigungu'
-          }
-        }),
-        setup
-      ).state
-    ).toBe('invalid');
+    // 같은 숫자가 시도에도 시군구에도 있다. 둘을 가르는 것은 함께 실린 체계이며, 그 짝이 실제로 있는
+    // 구역인지는 서버가 체계까지 조인해 확인한다(AGENTS 6).
+    const applied = readAppliedAnalysis(
+      JSON.stringify({
+        ...parsed.filter,
+        comparisonScope: { kind: 'region', codeValueId: '41', scheme: 'eat:auction-location-sigungu' }
+      }),
+      setup
+    );
+    if (applied.state !== 'pending') throw new Error('조건으로 읽혀야 합니다');
+    expect(applied.filter.comparisonScope).toEqual({
+      kind: 'region',
+      codeValueId: '41',
+      scheme: 'eat:auction-location-sigungu'
+    });
   });
 });

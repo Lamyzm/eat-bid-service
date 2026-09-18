@@ -6,8 +6,10 @@ import { CachedAuctionRosterReader } from "./infrastructure/caching/cached-aucti
 import { GetAuctionRoster } from "./application/get-auction-roster";
 import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
 import { FindAuction } from "./application/find-auction";
+import { FindAnalysisConditionOptions } from "./application/find-analysis-condition-options";
 import { FindAnalysisTimeSeries } from "./application/find-analysis-time-series";
 import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
+import type { AnalysisConditionOptionsReader } from "./application/analysis-condition-options-reader";
 import type { AnalysisTimeSeriesReader } from "./application/analysis-time-series-reader";
 import { ListOpenAuctions } from "./application/list-open-auctions";
 import type { OpenAuctionSummaryReader } from "./application/open-auction-summary-reader";
@@ -29,6 +31,7 @@ import type { OwnBidReader } from "./application/own-bid-reader";
 import type { RegisteredBusinessReader } from "../account/application/registered-business-reader";
 import type { UnitOfWork } from "../../platform/database/unit-of-work";
 import {
+  ANALYSIS_CONDITION_OPTIONS_READER,
   ANALYSIS_TIME_SERIES_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
@@ -94,6 +97,17 @@ const findAnalysisTimeSeriesProvider = {
   useFactory: (reader: AnalysisTimeSeriesReader, clock: Clock) => new FindAnalysisTimeSeries(reader, clock),
 };
 
+/**
+ * 조건 사전은 지역 축이 있는지도 확인해야 하므로 시간축 port를 함께 받는다. 존재 확인을 두 벌로 만들면
+ * 같은 질문에 두 곳이 다른 답을 낼 수 있다.
+ */
+const findAnalysisConditionOptionsProvider = {
+  provide: FindAnalysisConditionOptions,
+  inject: [ANALYSIS_CONDITION_OPTIONS_READER, ANALYSIS_TIME_SERIES_READER],
+  useFactory: (reader: AnalysisConditionOptionsReader, axes: AnalysisTimeSeriesReader) =>
+    new FindAnalysisConditionOptions(reader, axes),
+};
+
 const listEligibilityAreasProvider = {
   provide: ListEligibilityAreas,
   inject: [ELIGIBILITY_AREA_READER],
@@ -145,6 +159,7 @@ const findMyBidObservationsProvider = {
     listOrganizationAuctionAttemptsProvider,
     findWinRateDistributionProvider,
     findAnalysisTimeSeriesProvider,
+    findAnalysisConditionOptionsProvider,
     listOpenAuctionsProvider,
     summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,

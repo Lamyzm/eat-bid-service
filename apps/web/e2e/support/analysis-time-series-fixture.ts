@@ -38,6 +38,12 @@ const COMPARISON_POINTS: readonly FixturePoint[] = [
   ['9207', '2026-09-02T01:30:00Z', '90.200', '육류']
 ];
 
+/** 겹쳐 찍은 기관의 점이다. 기관 점과 겹치지 않는 자리에 둬 고리와 점이 따로 보이는지 확인한다. */
+const OVERLAY_POINTS: readonly FixturePoint[] = [
+  ['9301', '2026-03-30T01:30:00Z', '90.230', '육류'],
+  ['9302', '2026-06-18T01:30:00Z', '89.880', '육류']
+];
+
 function pointOf([attemptId, plottedAt, value]: FixturePoint) {
   return { attemptId, revisionId: attemptId, plottedAt, assessmentRate: rate(value) };
 }
@@ -86,6 +92,8 @@ function effectiveFilterOf(searchParams: URLSearchParams) {
     floorRate: rate(searchParams.get('floorRate') ?? '90.000'),
     awardMethodCodeValueId: searchParams.get('awardMethodCodeValueId') ?? '31',
     listCountRange: { min: listCount('listCountMin'), max: listCount('listCountMax') },
+    // 요청이 실은 표시 축을 그대로 비춘다. 빈 배열이면 고른 기관이 없다는 뜻이다.
+    overlayOrganizationIds: searchParams.getAll('overlayOrganizationIds'),
     itemFilter: atoms.length === 0
       ? (unknown === 'only' ? { kind: 'unknown' as const } : { kind: 'all' as const })
       : { kind: 'atoms' as const, atoms, unknown: unknown === 'include' }
@@ -113,6 +121,13 @@ export function analysisTimeSeriesResponse(request: Request): Response | undefin
     target,
     targetTruncated: false,
     comparison: { kind: 'points', points: comparison, truncated: false },
+    // 겹쳐 찍은 기관은 요청한 순서로 온다. 화면의 번호 배지가 사용자가 고른 순서를 말하기 때문이다.
+    overlays: searchParams.getAll('overlayOrganizationIds').map((organizationId, index) => ({
+      organizationId,
+      name: `겹쳐 찍은 기관 ${index + 1}`,
+      points: empty ? [] : OVERLAY_POINTS.map(pointOf),
+      truncated: false
+    })),
     meta: {
       state: 'ready',
       effectiveFilter,

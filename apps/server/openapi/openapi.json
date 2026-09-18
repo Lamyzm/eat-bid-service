@@ -197,13 +197,7 @@
           "floorRate": {
             "$ref": "#/components/schemas/BidRate"
           },
-          "listCountRange": {
-            "$ref": "#/components/schemas/AnalysisListCountRange"
-          },
-          "period": {
-            "$ref": "#/components/schemas/AnalysisPeriod"
-          },
-          "targetItemFilter": {
+          "itemFilter": {
             "oneOf": [
               {
                 "additionalProperties": false,
@@ -223,24 +217,61 @@
               {
                 "additionalProperties": false,
                 "properties": {
-                  "codeValueId": {
-                    "$ref": "#/components/schemas/PositiveBigintText"
+                  "atoms": {
+                    "items": {
+                      "$ref": "#/components/schemas/AuctionItemAtom"
+                    },
+                    "maxItems": 8,
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "kind": {
                     "enum": [
-                      "code"
+                      "atoms"
+                    ],
+                    "type": "string"
+                  },
+                  "unknown": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "atoms",
+                  "unknown"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "unknown"
                     ],
                     "type": "string"
                   }
                 },
                 "required": [
-                  "kind",
-                  "codeValueId"
+                  "kind"
                 ],
                 "type": "object"
               }
             ],
             "type": "object"
+          },
+          "listCountRange": {
+            "$ref": "#/components/schemas/AnalysisListCountRange"
+          },
+          "overlayOrganizationIds": {
+            "items": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            },
+            "maxItems": 6,
+            "type": "array"
+          },
+          "period": {
+            "$ref": "#/components/schemas/AnalysisPeriod"
           },
           "targetOrganizationId": {
             "$ref": "#/components/schemas/PositiveBigintText"
@@ -255,7 +286,24 @@
           "floorRate",
           "awardMethodCodeValueId",
           "listCountRange",
-          "targetItemFilter"
+          "itemFilter",
+          "overlayOrganizationIds"
+        ],
+        "type": "object"
+      },
+      "AnalysisItemCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "item": {
+            "$ref": "#/components/schemas/AuctionItemAtom"
+          }
+        },
+        "required": [
+          "item",
+          "count"
         ],
         "type": "object"
       },
@@ -453,6 +501,69 @@
         ],
         "type": "object"
       },
+      "AnalysisOrganizationOption": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "organizationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "region": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CodeReference"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "organizationId",
+          "name",
+          "region",
+          "count"
+        ],
+        "type": "object"
+      },
+      "AnalysisOverlaySeries": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "organizationId": {
+            "$ref": "#/components/schemas/PositiveBigintText"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisTargetPoint"
+            },
+            "maxItems": 2048,
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "organizationId",
+          "name",
+          "points",
+          "truncated"
+        ],
+        "type": "object"
+      },
       "AnalysisPeriod": {
         "additionalProperties": false,
         "description": "양끝 포함 KST 날짜. 실제 달력일과 역전 여부는 의미 parser에서 검증한다.",
@@ -467,6 +578,43 @@
         "required": [
           "from",
           "to"
+        ],
+        "type": "object"
+      },
+      "AnalysisRegionCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "region": {
+            "$ref": "#/components/schemas/CodeReference"
+          }
+        },
+        "required": [
+          "region",
+          "count"
+        ],
+        "type": "object"
+      },
+      "AnalysisSelectedRegion": {
+        "additionalProperties": false,
+        "properties": {
+          "parentSidoCodeValueId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              }
+            ],
+            "nullable": true
+          },
+          "region": {
+            "$ref": "#/components/schemas/CodeReference"
+          }
+        },
+        "required": [
+          "region",
+          "parentSidoCodeValueId"
         ],
         "type": "object"
       },
@@ -1238,6 +1386,136 @@
         ],
         "type": "string"
       },
+      "EatbidApiV1AnalysisConditionOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "itemCounts": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisItemCount"
+            },
+            "maxItems": 8,
+            "minItems": 8,
+            "type": "array"
+          },
+          "itemUnknownCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "meta": {
+            "additionalProperties": false,
+            "properties": {
+              "observationBuild": {
+                "additionalProperties": false,
+                "properties": {
+                  "buildId": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PositiveBigintText"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "calcVersion": {
+                    "maxLength": 32,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "computedAt": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/InstantText"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "coverage": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/MartCoverage"
+                      }
+                    ],
+                    "nullable": true
+                  },
+                  "regionScheme": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "sourceReleaseId": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/SourceReleaseIdText"
+                      }
+                    ],
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "buildId",
+                  "sourceReleaseId",
+                  "calcVersion",
+                  "computedAt",
+                  "coverage",
+                  "regionScheme"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "observationBuild"
+            ],
+            "type": "object"
+          },
+          "organizations": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisOrganizationOption"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "organizationsTruncated": {
+            "type": "boolean"
+          },
+          "regionUnobservedCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "selectedRegion": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisSelectedRegion"
+              }
+            ],
+            "nullable": true
+          },
+          "sidoCounts": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisRegionCount"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "sigunguCounts": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisRegionCount"
+            },
+            "maxItems": 256,
+            "type": "array"
+          }
+        },
+        "required": [
+          "selectedRegion",
+          "sidoCounts",
+          "sigunguCounts",
+          "regionUnobservedCount",
+          "itemCounts",
+          "itemUnknownCount",
+          "organizations",
+          "organizationsTruncated",
+          "meta"
+        ],
+        "type": "object"
+      },
       "EatbidApiV1AnalysisTimeSeries": {
         "additionalProperties": false,
         "properties": {
@@ -1260,6 +1538,14 @@
           "meta": {
             "$ref": "#/components/schemas/AnalysisMeta"
           },
+          "overlays": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisOverlaySeries"
+            },
+            "maxItems": 6,
+            "nullable": true,
+            "type": "array"
+          },
           "target": {
             "items": {
               "$ref": "#/components/schemas/AnalysisTargetPoint"
@@ -1277,6 +1563,7 @@
           "target",
           "targetTruncated",
           "comparison",
+          "overlays",
           "meta"
         ],
         "type": "object"
@@ -4335,6 +4622,264 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/v1/analysis/condition-options": {
+      "get": {
+        "operationId": "findAnalysisConditionOptions",
+        "parameters": [
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "query",
+            "name": "organizationId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          },
+          {
+            "in": "query",
+            "name": "excludeAttemptId",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/KstDateText"
+            }
+          },
+          {
+            "description": "Canonical KST calendar date text as YYYY-MM-DD; the day boundary is Asia/Seoul.",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/KstDateText"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateBasis",
+            "required": true,
+            "schema": {
+              "enum": [
+                "opened",
+                "announced"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comparisonScope",
+            "required": true,
+            "schema": {
+              "enum": [
+                "national",
+                "region"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comparisonRegionScheme",
+            "schema": {
+              "enum": [
+                "eat:auction-location-sido",
+                "eat:auction-location-sigungu"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comparisonRegionCodeValueId",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "description": "Canonical bid-rate percentage-points text with exactly three fractional digits, matching numeric(6,3) mart columns; from 0.000 through 100.000.",
+            "in": "query",
+            "name": "floorRate",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BidRateText"
+            }
+          },
+          {
+            "description": "Canonical positive decimal text for a PostgreSQL signed bigint; maximum 9223372036854775807. 9223372036854775808 is rejected.",
+            "in": "query",
+            "name": "awardMethodCodeValueId",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PositiveBigintText"
+            }
+          },
+          {
+            "in": "query",
+            "name": "listCountMin",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "listCountMax",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "items",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/AuctionItemAtom"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "itemUnknown",
+            "schema": {
+              "enum": [
+                "include",
+                "only"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "overlayOrganizationIds",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "maxItems": 6,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sido",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/PositiveBigintText"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "organizationQuery",
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EatbidApiV1AnalysisConditionOptions"
+                }
+              }
+            },
+            "description": "조건 사전 조회 성공"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "query가 유효하지 않거나 비교 모집단과 지역 축의 짝, 기간 상한·순서, 명단 범위 순서를 어김"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "유효한 세션이 없음"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "이 분석을 볼 수 있는 인가가 없음"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "요청한 기관·지역 코드값을 찾을 수 없음"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "예상하지 못한 서버 결함"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "데이터베이스를 사용할 수 없음"
+          }
+        },
+        "summary": "지금 조건에서 고를 수 있는 비교 지역·기관·품목과 그 건수를 조회한다. 지역과 품목의 건수는 그 축 하나만 푼 집합에서 세므로 \"이것으로 바꾸면 몇 건이 되나\"를 말한다. 기관은 고른 비교 지역 안에서만 세고 검색어로 좁힌다.",
+        "tags": [
+          "공고와 분석"
+        ]
+      }
+    },
     "/api/v1/analysis/time-series": {
       "get": {
         "operationId": "findAnalysisTimeSeries",
@@ -4461,13 +5006,37 @@
           },
           {
             "in": "query",
-            "name": "targetItemCodeValueId",
+            "name": "items",
             "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/PositiveBigintText"
-                }
-              ]
+              "items": {
+                "$ref": "#/components/schemas/AuctionItemAtom"
+              },
+              "maxItems": 8,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "itemUnknown",
+            "schema": {
+              "enum": [
+                "include",
+                "only"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "overlayOrganizationIds",
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/PositiveBigintText"
+              },
+              "maxItems": 6,
+              "minItems": 1,
+              "type": "array"
             }
           }
         ],

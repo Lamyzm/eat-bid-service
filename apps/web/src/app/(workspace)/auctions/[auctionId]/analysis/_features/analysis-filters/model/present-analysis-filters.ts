@@ -62,7 +62,8 @@ export function presentAnalysisFilters(
       min: '',
       max: '',
       items: [],
-      itemUnknown: false
+      itemUnknown: false,
+      overlayOrganizationIds: []
     }
   };
 }

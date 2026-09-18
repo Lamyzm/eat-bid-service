@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import type { AnalysisFilterValue } from '@eatbid/contracts/api/v1/analysis';
 import {
   auctionFixture,
   fixtureNow,
@@ -16,19 +17,25 @@ const appliedFilter = {
   floorRate: { value: '90.000', unit: 'percentage-points' },
   awardMethodCodeValueId: '31',
   listCountRange: { min: null, max: null },
-  itemFilter: { kind: 'all' }
-} as const;
+  itemFilter: { kind: 'all' },
+  overlayOrganizationIds: []
+} satisfies AnalysisFilterValue;
 
 const emptySeries = {
-  kind: 'series',
+  kind: 'series' as const,
   response: {
     axis: null,
     target: null,
     targetTruncated: false,
     comparison: null,
-    meta: { state: 'unavailable', reason: 'snapshot-unavailable', effectiveFilter: appliedFilter }
+    overlays: null,
+    meta: {
+      state: 'unavailable' as const,
+      reason: 'snapshot-unavailable' as const,
+      effectiveFilter: appliedFilter
+    }
   }
-} as const;
+};
 
 describe('새 상세의 공고 조회와 표시', () => {
   test('공고 한 건과 한 번의 시각으로 초기 비교조건을 만들고 그 조건으로만 시간축을 조회한다', async () => {

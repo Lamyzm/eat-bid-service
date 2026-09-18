@@ -11,6 +11,7 @@ export type {
   AnalysisTimeSeriesV1Response
 } from '@eatbid/contracts/api/v1/analysis';
 export type {
+  AnalysisFilterValue,
   AnalysisConditionOptionsV1Response,
   AnalysisItemCount,
   AnalysisOrganizationOption,

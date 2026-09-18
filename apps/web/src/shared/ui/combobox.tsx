@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox';
 
 import { cn } from '@/shared/lib/cn';
+import { controlPillClass, controlPillIconClass } from './control-pill';
 import { IconCheck, IconChevronDown, IconX } from '@tabler/icons-react';
 
 /**
@@ -58,12 +59,17 @@ function ComboboxChip({
   );
 }
 
+/**
+ * 팝업 안에서 목록을 좁히는 칸이다. 칸처럼 보이지 않으면 사용자는 거기에 적을 수 있다는 것을 모르고,
+ * 목록이 수백 줄인 기관 패널에서는 찾을 곳이 아예 없는 화면이 된다(2026-09-18 디자인 심사 반려).
+ * 칩 안에 들어가는 자리만 호출부에서 `border-0 bg-transparent`로 되돌린다.
+ */
 function ComboboxInput({ className, ...props }: ComboboxPrimitive.Input.Props) {
   return (
     <ComboboxPrimitive.Input
       data-slot='combobox-input'
       className={cn(
-        'min-w-16 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground',
+        'min-w-16 flex-1 rounded-lg border border-input bg-background px-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
         className
       )}
       {...props}
@@ -80,7 +86,8 @@ function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Tr
     <ComboboxPrimitive.Trigger
       data-slot='combobox-trigger'
       className={cn(
-        'flex h-8 w-fit min-w-0 items-center justify-between gap-1.5 rounded-lg border border-input bg-background px-2 text-sm font-medium whitespace-nowrap text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-50',
+        controlPillClass,
+        'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
         className
       )}
       {...props}
@@ -91,7 +98,7 @@ function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Tr
         같은 줄에 선 다른 조건 칸들과 다른 말을 한다.
       */}
       <ComboboxPrimitive.Icon
-        render={<IconChevronDown className='pointer-events-none size-4 shrink-0 text-muted-foreground' />}
+        render={<IconChevronDown className={controlPillIconClass} />}
       />
     </ComboboxPrimitive.Trigger>
   );
@@ -101,7 +108,7 @@ function ComboboxContent({
   className,
   children,
   side = 'bottom',
-  sideOffset = 4,
+  sideOffset = 6,
   align = 'start',
   ...props
 }: ComboboxPrimitive.Popup.Props &
@@ -117,7 +124,7 @@ function ComboboxContent({
         <ComboboxPrimitive.Popup
           data-slot='combobox-content'
           className={cn(
-            'max-h-(--available-height) w-(--anchor-width) min-w-52 origin-(--transform-origin) overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
+            'max-h-(--available-height) w-(--anchor-width) min-w-52 origin-(--transform-origin) overflow-y-auto rounded-lg bg-popover p-1 text-sm break-keep [overflow-wrap:anywhere] text-popover-foreground shadow-md ring-1 ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
             className
           )}
           {...props}

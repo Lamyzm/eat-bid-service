@@ -22,8 +22,13 @@ export type AnalysisDraft = {
    */
   readonly items: readonly AuctionItemAtom[];
   readonly itemUnknown: boolean;
+  /** 같은 그림에 겹쳐 찍을 기관이다. 조건이 아니라 표시 축이라 표본 수를 바꾸지 않는다(PDR-0007). */
+  readonly overlayOrganizationIds: readonly string[];
 };
-export type AnalysisTextField = Exclude<keyof AnalysisDraft, 'comparisonScope' | 'items' | 'itemUnknown'>;
+export type AnalysisTextField = Exclude<
+  keyof AnalysisDraft,
+  'comparisonScope' | 'items' | 'itemUnknown' | 'overlayOrganizationIds'
+>;
 export type AnalysisDraftErrors = Partial<Record<keyof AnalysisDraft | 'form', string>>;
 export type AnalysisPreset = {
   readonly value: string;

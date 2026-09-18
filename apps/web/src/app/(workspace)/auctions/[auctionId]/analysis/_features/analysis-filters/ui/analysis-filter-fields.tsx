@@ -1,18 +1,17 @@
-/** @module 책임: 비교조건의 날짜·코드·명단 입력과 해당 필드의 오류를 같은 줄에 표시한다. */
+/** @module 책임: 하나만 고르는 코드 조건을 같은 여닫이 껍데기에 담고 조회 기간 줄과 비교 조건 줄을 각각 조립한다. */
 'use client';
-import { useId } from 'react';
-import { AUCTION_ITEM_ATOMS } from '@eatbid/contracts/api/v1/auctions';
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-  ComboboxValue
-} from '@/shared/ui/combobox';
-import { Input } from '@/shared/ui/input';
+import { useId, type ReactNode } from 'react';
+import type { AnalysisFilterValue } from '@/api/analysis';
+import { cn } from '@/shared/lib/cn';
+import { controlPillClass, controlPillIconClass } from '@/shared/ui/control-pill';
+import { Icons } from '@/shared/ui/icons';
+import { floorText } from '../lib/condition-text';
+import { useConditionOptions } from '../model/use-condition-options';
+import { AnalysisItemField } from './analysis-item-field';
+import { AnalysisListCountField } from './analysis-list-count-field';
+import { AnalysisOrganizationField } from './analysis-organization-field';
+import { AnalysisPeriodField } from './analysis-period-field';
+import { AnalysisRegionField } from './analysis-region-field';
 import type {
   AnalysisDraft,
   AnalysisDraftErrors,
@@ -25,39 +24,78 @@ type Props = {
   readonly draft: AnalysisDraft;
   readonly errors: AnalysisDraftErrors;
   readonly change: (field: AnalysisTextField, value: string) => void;
-  readonly changeComparison: (selection: string) => void;
+  readonly changeComparison: (scope: AnalysisDraft['comparisonScope']) => void;
   readonly changeItems: (selection: readonly string[]) => void;
+  readonly changeOverlays: (selection: readonly string[]) => void;
+  /** 적용된 조건이다. 조건 사전은 이것으로 묻는다. 무효한 조건이면 null이라 묻지 않는다. */
+  readonly applied: AnalysisFilterValue | null;
   /** 적어 넣는 칸을 떠났을 때 지금까지 적은 값을 보낸다. */
   readonly commit: () => void;
 };
 
-/** 목록에서 `품목 미확인`이 갖는 값이다. 원자 여덟과 한 목록에 서되 어휘에는 들어가지 않는다. */
-export const ITEM_UNKNOWN_VALUE = '품목 미확인';
-const ITEM_CHOICES = [...AUCTION_ITEM_ATOMS, ITEM_UNKNOWN_VALUE] as const;
-const selectClass =
-  'h-8 max-w-44 min-w-0 rounded-lg border border-input bg-background px-2 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring';
-
 /**
- * 라벨을 입력 **위**가 아니라 **옆**에 둔다. 조건이 열 개라 라벨을 쌓으면 그것만으로 한 줄(52px)이
- * 더 생기고, 그만큼 차트가 화면 아래로 밀려 조건과 결과를 함께 볼 수 없다. 라벨 자체는 지우지
- * 않는다 — `htmlFor` 연결이 이름이고, 이름이 없으면 무엇을 고르는지 아무도 모른다.
+ * 여덟 개 남짓을 하나 고르는 자리는 네이티브 `select`가 가장 적은 조작으로 끝난다(폰에서는 OS 고르개가
+ * 뜬다). 다만 그대로 두면 같은 줄의 여닫이들과 테두리·화살표가 달라 보이므로, 껍데기만 공통 pill로
+ * 감싸고 `select`에서는 네이티브 화살표를 지운다. 라벨을 껍데기 **안**에 두는 이유도 같다 — 옆에 두면
+ * 다른 칸은 라벨이 테두리 안에 있고 이 칸만 밖에 있다.
  */
-function Field({
+function ConditionSelect({
   label,
+  labelOptional,
+  srLabel,
+  name,
+  value,
   error,
+  className,
+  onChange,
   children
 }: {
+  /** 눈에 보이는 라벨이다. 줄 라벨이 이미 그 말을 하는 칸은 비운다. */
   readonly label: string;
+  /** 좁은 폭에서 라벨을 눈에서만 감출지다. 값만으로 무엇을 고른 것인지 말하는 칸에만 준다. */
+  readonly labelOptional?: boolean;
+  /** 라벨을 비웠을 때 화면 낭독기가 읽을 이름이다. 보이지 않을 뿐 이름은 늘 있어야 한다. */
+  readonly srLabel?: string;
+  readonly name: string;
+  readonly value: string;
   readonly error?: string;
-  readonly children: (id: string, descriptionId: string | undefined) => React.ReactNode;
+  readonly className?: string;
+  readonly onChange: (value: string) => void;
+  readonly children: ReactNode;
 }) {
   const id = useId();
   return (
     <div className='flex min-w-0 items-center gap-1.5'>
-      <label htmlFor={id} className='text-xs whitespace-nowrap text-muted-foreground'>
-        {label}
-      </label>
-      {children(id, error ? `${id}-error` : undefined)}
+      <span
+        className={cn(
+          controlPillClass,
+          'focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
+          className
+        )}
+      >
+        <label
+          htmlFor={id}
+          className={
+            label === ''
+              ? 'sr-only'
+              : `text-xs whitespace-nowrap text-muted-foreground${labelOptional ? ' analysis-optional-label' : ''}`
+          }
+        >
+          {label === '' ? srLabel : label}
+        </label>
+        <select
+          id={id}
+          name={name}
+          value={value}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${id}-error` : undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className='min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-foreground outline-none'
+        >
+          {children}
+        </select>
+        <Icons.chevronDown aria-hidden className={controlPillIconClass} />
+      </span>
       {error ? (
         <p id={`${id}-error`} role='alert' className='text-xs text-destructive'>
           {error}
@@ -67,92 +105,35 @@ function Field({
   );
 }
 
-/**
- * 고른 품목을 여닫이 한 줄로 줄인다. 칩을 여닫이 안에 담으면 고를수록 칸이 넓어지고, 그 폭이 조건
- * 줄을 밀어 품목 칸만 다음 줄로 떨어진다(2026-09-18 실측). 고른 것 전부는 펼친 목록의 체크가 말하고
- * 여닫이는 **폭이 변하지 않는 요약**만 맡는다.
- */
-function itemSummary(value: readonly string[]): string {
-  if (value.length === 0) return '전체';
-  return value.length === 1 ? value[0]! : `${value[0]!} 외 ${value.length - 1}`;
-}
-
-/**
- * 품목은 여럿을 고르고 `품목 미확인`도 값이다. 아무것도 고르지 않은 상태가 전체이며 그 사실을
- * 여닫이와 목록 아래 문구가 함께 말한다 — 빈 칸이 "아무것도 안 나온다"로 읽히면 조건을 잘못 이해한다.
- *
- * 공고가 품목을 말하지 않은 회차가 3분의 1이라(PDR-0007) 그 값을 목록에 함께 세우되, 아홉째 품목으로
- * 읽히지 않게 선으로 가른다.
- */
-function AnalysisItemField({ draft, changeItems }: Pick<Props, 'draft' | 'changeItems'>) {
-  const selected = draft.itemUnknown ? [...draft.items, ITEM_UNKNOWN_VALUE] : [...draft.items];
-  return (
-    <Combobox items={ITEM_CHOICES} multiple value={selected} onValueChange={changeItems}>
-      {/*
-        이름을 직접 준다. 여닫이 안의 글자는 Base UI가 `aria-hidden`으로 덮어 이름이 비고, 이름 없는
-        조작은 화면 낭독기에서 무엇을 여는지 말하지 않는다. 보이는 글자와 같은 문장을 쓴다.
-      */}
-      <ComboboxTrigger className='w-40' aria-label={`품목 ${itemSummary(selected)}`}>
-        <span className='text-xs text-muted-foreground'>품목</span>
-        <ComboboxValue>{(value: readonly string[]) => itemSummary(value)}</ComboboxValue>
-      </ComboboxTrigger>
-      <ComboboxContent>
-        <ComboboxInput placeholder='품목 찾기' aria-label='품목 찾기' className='mb-1 h-8 w-full' />
-        <ComboboxEmpty>그런 품목이 없어요</ComboboxEmpty>
-        <ComboboxList>
-          {(item: string) => (
-            <ComboboxItem
-              key={item}
-              value={item}
-              className={item === ITEM_UNKNOWN_VALUE ? 'mt-1 border-t border-border pt-2' : undefined}
-            >
-              {item}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-        <p className='mt-1 border-t border-border px-2 pt-1.5 text-xs text-muted-foreground'>
-          아무것도 안 고르면 전체 품목이에요. 품목 미확인은 공고가 품목을 말하지 않은 회차예요.
-        </p>
-      </ComboboxContent>
-    </Combobox>
-  );
-}
-
-export function AnalysisDateFields({ draft, errors, change }: Props) {
+/** 조회 기간 줄의 칸들이다. 프리셋 칩은 이 줄의 주인인 `AnalysisFilters`가 직접 그린다. */
+export function AnalysisPeriodFields({ draft, errors, change }: Props) {
   return (
     <>
-      <Field label='시작일' error={errors.from}>
-        {(id, description) => (
-          <Input
-            id={id}
-            name='from'
-            type='date'
-            value={draft.from}
-            aria-invalid={!!errors.from}
-            aria-describedby={description}
-            onChange={(event) => change('from', event.target.value)}
-            className='h-8 w-34 max-w-full'
-          />
-        )}
-      </Field>
-      <Field label='종료일' error={errors.to}>
-        {(id, description) => (
-          <Input
-            id={id}
-            name='to'
-            type='date'
-            value={draft.to}
-            aria-invalid={!!errors.to}
-            aria-describedby={description}
-            onChange={(event) => change('to', event.target.value)}
-            className='h-8 w-34 max-w-full'
-          />
-        )}
-      </Field>
+      <AnalysisPeriodField draft={draft} errors={errors} change={change} />
+      {/*
+        날짜 기준은 기간을 무엇으로 세는지를 정하므로 기간 줄에 선다. 라벨 없이 값만 두는 이유는
+        기간 칸과 같다 — 줄 라벨이 이미 `조회 기간`이라고 말하고 있다.
+      */}
+      <ConditionSelect
+        label=''
+        srLabel='날짜 기준'
+        name='dateBasis'
+        value={draft.dateBasis}
+        className='w-24'
+        onChange={(value) => change('dateBasis', value)}
+      >
+        <option value='opened'>개찰일</option>
+        <option value='announced'>공고일</option>
+      </ConditionSelect>
     </>
   );
 }
 
+/**
+ * 비교 조건 줄의 칸들이다. 순서는 **무엇을 비교하느냐(지역)부터 어떻게 거르느냐**로 간다. 지역이
+ * 항상 이 줄의 첫 칸이어야 하는 이유는, 폭마다 다른 줄로 떠다니면 사용자가 그것이 조회 범위인지
+ * 비교 대상인지 매번 다시 읽어야 하기 때문이다(2026-09-18 디자인 심사).
+ */
 export function AnalysisConditionFields({
   setup,
   draft,
@@ -160,121 +141,57 @@ export function AnalysisConditionFields({
   change,
   changeComparison,
   changeItems,
-  commit
+  changeOverlays,
+  commit,
+  applied
 }: Props) {
+  // 품목 건수도 지역·기관과 같은 사전에서 온다. 같은 조건을 두 번 묻지 않도록 한 조회를 나눠 쓴다.
+  const { options } = useConditionOptions(applied, { sido: null, organizationQuery: null });
   return (
     <>
-      <Field label='날짜 기준'>
-        {(id) => (
-          <select
-            id={id}
-            name='dateBasis'
-            className={selectClass}
-            value={draft.dateBasis}
-            onChange={(event) => change('dateBasis', event.target.value)}
-          >
-            <option value='opened'>개찰일</option>
-            <option value='announced'>공고일</option>
-          </select>
-        )}
-      </Field>
-      <Field label='비교 공고지역' error={errors.comparisonScope}>
-        {(id, description) => (
-          <select
-            id={id}
-            name='comparisonScope'
-            className={selectClass}
-            value={
-              draft.comparisonScope.kind === 'national'
-                ? 'national'
-                : draft.comparisonScope.codeValueId
-            }
-            aria-invalid={!!errors.comparisonScope}
-            aria-describedby={description}
-            onChange={(event) => changeComparison(event.target.value)}
-          >
-            <option value='national'>전국</option>
-            {setup.options.regions.map((region) => (
-              <option key={region.codeValueId} value={region.codeValueId}>
-                {region.label ?? '지역명 미확인'}
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
-      <Field label='낙찰하한율' error={errors.floor}>
-        {(id, description) => (
-          <select
-            id={id}
-            name='floor'
-            className={selectClass}
-            value={draft.floor}
-            aria-invalid={!!errors.floor}
-            aria-describedby={description}
-            onChange={(event) => change('floor', event.target.value)}
-          >
-            {draft.floor === '' ? <option value=''>미확인</option> : null}
-            {setup.options.floorRates.map((floor) => (
-              <option key={floor.value} value={floor.value}>
-                {floor.value}%
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
-      <Field label='낙찰방식' error={errors.awardMethod}>
-        {(id, description) => (
-          <select
-            id={id}
-            name='awardMethod'
-            className={selectClass}
-            value={draft.awardMethod}
-            aria-invalid={!!errors.awardMethod}
-            aria-describedby={description}
-            onChange={(event) => change('awardMethod', event.target.value)}
-          >
-            {draft.awardMethod === '' ? <option value=''>미확인</option> : null}
-            {setup.options.awardMethods.map((method) => (
-              <option key={method.codeValueId} value={method.codeValueId}>
-                {method.label ?? '방식명 미확인'}
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
-      <Field label='명단 최소' error={errors.min}>
-        {(id, description) => (
-          <Input
-            id={id}
-            name='min'
-            inputMode='numeric'
-            value={draft.min}
-            placeholder='제한 없음'
-            aria-invalid={!!errors.min}
-            aria-describedby={description}
-            onChange={(event) => change('min', event.target.value)}
-            onBlur={commit}
-            className='h-8 w-24'
-          />
-        )}
-      </Field>
-      <Field label='명단 최대' error={errors.max}>
-        {(id, description) => (
-          <Input
-            id={id}
-            name='max'
-            inputMode='numeric'
-            value={draft.max}
-            placeholder='제한 없음'
-            aria-invalid={!!errors.max}
-            aria-describedby={description}
-            onChange={(event) => change('max', event.target.value)}
-            onBlur={commit}
-            className='h-8 w-24'
-          />
-        )}
-      </Field>
-      <AnalysisItemField draft={draft} changeItems={changeItems} />
+      <AnalysisRegionField
+        filter={applied}
+        scope={draft.comparisonScope}
+        changeComparison={changeComparison}
+      />
+      <ConditionSelect
+        label='하한'
+        name='floor'
+        value={draft.floor}
+        error={errors.floor}
+        className='w-26'
+        onChange={(value) => change('floor', value)}
+      >
+        {draft.floor === '' ? <option value=''>미확인</option> : null}
+        {setup.options.floorRates.map((floor) => (
+          <option key={floor.value} value={floor.value}>
+            {floorText(floor.value)}%
+          </option>
+        ))}
+      </ConditionSelect>
+      <ConditionSelect
+        label='방식'
+        labelOptional
+        name='awardMethod'
+        value={draft.awardMethod}
+        error={errors.awardMethod}
+        className='w-28 max-xl:w-20'
+        onChange={(value) => change('awardMethod', value)}
+      >
+        {draft.awardMethod === '' ? <option value=''>미확인</option> : null}
+        {setup.options.awardMethods.map((method) => (
+          <option key={method.codeValueId} value={method.codeValueId}>
+            {method.label ?? '방식명 미확인'}
+          </option>
+        ))}
+      </ConditionSelect>
+      <AnalysisListCountField draft={draft} errors={errors} change={change} commit={commit} />
+      <AnalysisItemField draft={draft} changeItems={changeItems} options={options} />
+      <AnalysisOrganizationField
+        filter={applied}
+        selected={draft.overlayOrganizationIds}
+        changeOverlays={changeOverlays}
+      />
     </>
   );
 }

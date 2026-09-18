@@ -22,7 +22,8 @@ export function draftOfAnalysis(filter: AnalysisFilterValue): AnalysisDraft {
     max: filter.listCountRange.max === null ? '' : String(filter.listCountRange.max),
     items: filter.itemFilter.kind === 'atoms' ? filter.itemFilter.atoms : [],
     itemUnknown: filter.itemFilter.kind === 'unknown'
-      || (filter.itemFilter.kind === 'atoms' && filter.itemFilter.unknown)
+      || (filter.itemFilter.kind === 'atoms' && filter.itemFilter.unknown),
+    overlayOrganizationIds: filter.overlayOrganizationIds
   };
 }
 
@@ -60,15 +61,8 @@ export function validateAnalysisDraft(
   if (min === undefined) errors.min = '0 이상의 정수를 입력해 주세요.';
   if (max === undefined) errors.max = '0 이상의 정수를 입력해 주세요.';
   if (min != null && max != null && min > max) errors.max = '최대 명단 수는 최소 이상이어야 해요.';
-  const scope = draft.comparisonScope;
-  const region =
-    scope.kind === 'region'
-      ? setup.options.regions.find(
-          (option) => option.codeValueId === scope.codeValueId && option.scheme === scope.scheme
-        )
-      : undefined;
-  if (scope.kind === 'region' && !region)
-    errors.comparisonScope = '확인된 공고지역을 선택해 주세요.';
+  // 지역은 이 공고가 관측한 둘이 아니라 조건 사전 전체에서 고른다. 존재 확인은 서버가 하며(없는 지역은
+  // 404) 화면이 자기가 아는 목록으로 막으면 다른 시군구와 비교할 길이 없어진다.
   const floorRate = setup.options.floorRates.find((value) => value.value === draft.floor);
   if (!floorRate) errors.floor = '공고의 하한율을 확인할 수 없어요.';
   const awardMethod = setup.options.awardMethods.find(
@@ -86,7 +80,8 @@ export function validateAnalysisDraft(
     floorRate,
     awardMethodCodeValueId: awardMethod?.codeValueId,
     listCountRange: { min, max },
-    itemFilter: itemFilterOf(draft)
+    itemFilter: itemFilterOf(draft),
+    overlayOrganizationIds: [...draft.overlayOrganizationIds]
   });
   return parsed.success
     ? { state: 'valid', filter: parsed.data }

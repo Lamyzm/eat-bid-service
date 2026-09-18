@@ -69,6 +69,12 @@ const extraSeed = `
      set floor_rate = 90.000, award_method_code_value_id = 31, opened_at = '2026-08-03T20:00:00Z',
          awarded_assessment_rate = 90.400, list_count = 14
    where build_id = 501 and auction_attempt_id = 106;
+  -- 시군구가 어느 시도에 속하는지는 소스가 스스로 말한 관계다(code_mapping의 parent). 우리가 코드
+  -- 숫자로 지어내지 않으므로, 사다리를 사전에서 세우려면 이 행이 있어야 한다(ADR 0035, EAT-187).
+  insert into core.code_mapping
+    (from_code_value_id, to_code_value_id, relation, valid_from, evidence_observation_id, status)
+  values (49, 48, 'parent', '2026-01-01T00:00:00Z', 203, 'observed'),
+         (50, 48, 'parent', '2026-01-01T00:00:00Z', 203, 'observed');
   -- 품목 원자(코드값 7 육류·9 농산물)는 기본 fixture가 auction-item 체계에 이미 심는다. 여기서 다시
   -- 심으면 체계 이름이 unique라 시드가 깨진다.
   insert into mart.org_round_summary_item (build_id, auction_attempt_id, item_code_value_id)
@@ -248,8 +254,12 @@ test("조건 사전은 축 하나만 푼 집합에서 지역·품목·기관을 
       } as const;
 
       const all = await reader.readConditionOptions(baseOptions);
-      // 205는 공고지역이 번역되지 않은 회차다. 어느 시도에도 넣지 않고 따로 센다(ADR 0035 결정 6).
+      // 전국 비교에는 고른 지역이 없다. 빈 자리를 코드값 0 같은 값으로 채우지 않는다.
+      expect(all.selectedRegion).toBeNull();
+      // 목록은 사전이 기준이라 조건에 회차가 없는 시도도 0으로 남는다. 0건이 사라지면 사용자는 그
+      // 지역이 없는 것인지 조건 때문에 빠진 것인지 알 수 없다.
       expect(all.sido.map((region) => [region.code, region.count])).toEqual([["48", 5]]);
+      // 205는 공고지역이 번역되지 않은 회차다. 어느 시도에도 넣지 않고 따로 센다(ADR 0035 결정 6).
       expect(all.regionUnobservedCount).toBe(1);
       expect(all.sigungu).toEqual([]);
       // 품목 다리 행이 없는 셋이 `품목 미확인`이다. 원자는 어휘 순서로 여덟 전부가 0까지 실린다.
@@ -267,6 +277,16 @@ test("조건 사전은 축 하나만 푼 집합에서 지역·품목·기관을 
       const expanded = await reader.readConditionOptions({ ...baseOptions, sido: 48n });
       expect(expanded.sigungu.map((region) => [region.code, region.count]))
         .toEqual([["48120", 4], ["48250", 1]]);
+
+      // 조건을 좁혀 회차가 하나도 없는 시군구도 목록에 0으로 남는다. 고를 수 있어야 "이 조건으로는
+      // 여기 자료가 없다"를 보고 조건을 풀 판단을 한다(시안 h-conditions의 회색 0건).
+      const narrowed = await reader.readConditionOptions({
+        ...baseOptions,
+        sido: 48n,
+        itemFilter: { kind: "atoms", atoms: ["농산물"], unknown: false },
+      });
+      expect(narrowed.sigungu.map((region) => [region.code, region.count]))
+        .toEqual([["48120", 1], ["48250", 0]]);
 
       // 품목을 걸어도 **품목 건수는 그 축을 푼 집합**에서 센다. 걸린 조건으로 세면 고른 품목만 남아
       // "이걸로 바꾸면 몇 건"이라는 약속이 깨진다(EAT-241).
@@ -288,6 +308,9 @@ test("조건 사전은 축 하나만 푼 집합에서 지역·품목·기관을 
         .toEqual([[43n, 2], [41n, 2]]);
       // 지역 건수는 지역 축을 푼 집합이라 좁히기 전과 같다.
       expect(inRegion.sido.map((region) => region.count)).toEqual([5]);
+      // 고른 시군구의 이름은 사전이 함께 준다. 화면이 코드값을 이름 자리에 적지 않아도 된다.
+      expect(inRegion.selectedRegion?.region.code).toBe("48120");
+      expect(inRegion.selectedRegion?.region.scheme).toBe("eat:auction-location-sigungu");
 
       // 이름으로 좁힌다. 검색은 `strpos`라 `like` 메타문자가 열리지 않는다.
       const searched = await reader.readConditionOptions({ ...baseOptions, organizationQuery: "없는이름" });

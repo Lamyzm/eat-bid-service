@@ -24,40 +24,75 @@ function withoutItemAxis(query: AnalysisConditionOptionsQuery): AnalysisCohortQu
 }
 
 /**
- * 시도별 건수와 지역 미확인 수를 한 번에 낸다. `null` 행을 따로 세는 이유는 그 회차가 다른 지역의
- * 것이 아니라 **어느 지역인지 아직 번역되지 않은** 회차이기 때문이다(ADR 0035 결정 6).
+ * 시도 목록이다. **사전이 기준이고 건수는 붙이는 값이다.**
+ *
+ * 회차에서 목록을 뽑으면 지금 조건에 맞는 회차가 없는 시도가 목록에서 사라진다. 그러면 사용자는 그
+ * 지역이 애초에 없는 것인지 조건 때문에 빠진 것인지 알 수 없고, "여기는 이 조건으로 0건이니 하한율을
+ * 풀어야겠다"는 판단의 재료도 사라진다(시안 `h-conditions`가 0건 시군구를 회색으로 세워 두는 이유).
+ * 그래서 `core`의 공고지역 코드를 왼쪽에 두고 건수를 왼쪽 조인으로 얹는다.
+ *
+ * 건수는 지역 축만 푼 집합에서 센다. 지역을 안 건 집합이라야 "이 지역으로 바꾸면 몇 건"이 된다.
+ *
+ * 순서는 소스의 코드 순이다. 전부 세우는 목록이라 건수 순으로 두면 조건을 바꿀 때마다 같은 지역의
+ * 자리가 옮겨 다니고, 사용자는 방금 본 곳을 다시 찾아야 한다(오늘 화면이 같은 이유로 코드 순이다).
  */
 export function analysisSidoCountSql(query: AnalysisConditionOptionsQuery): SQL {
   const released = withoutRegionAxis(query);
   return sql`
-    with ${regionLabelJoin()}
-    select summary.region_sido_code_value_id as code_value_id,
-           region.code as code,
-           region.label as label,
-           count(*) as row_count
-      from mart.org_round_summary summary
-      left join region_label region on region.code_value_id = summary.region_sido_code_value_id
-     where ${analysisBasePredicate(released)}
-     group by 1, 2, 3
-     order by 4 desc, 2`;
+    with ${regionLabelJoin()},
+    cohort as (
+      select summary.region_sido_code_value_id as code_value_id, count(*) as row_count
+        from mart.org_round_summary summary
+       where ${analysisBasePredicate(released)}
+       group by 1
+    )
+    select region.code_value_id, region.code, region.label,
+           coalesce(cohort.row_count, 0) as row_count
+      from region_label region
+      left join cohort on cohort.code_value_id = region.code_value_id
+     where region.scheme = ${CODE_SCHEME_NAMES.auctionLocationSido}
+       -- 소스가 그만 쓴다고 말한 코드는 이 조건에 회차가 있을 때만 남긴다. 오늘 화면과 같은 규칙이다.
+       and (region.active or coalesce(cohort.row_count, 0) > 0)
+     order by region.code`;
 }
 
-/** 고른 시도 안의 시군구다. 시도를 안 골랐으면 부르지 않는다 — 전국 시군구를 한 번에 세우지 않는다. */
+/** 지역 축을 푼 집합에서 공고지역을 번역하지 못한 회차 수다. 어느 지역에도 들지 않으므로 따로 센다. */
+export function analysisRegionUnobservedSql(query: AnalysisConditionOptionsQuery): SQL {
+  const released = withoutRegionAxis(query);
+  return sql`
+    select count(*) as row_count
+      from mart.org_round_summary summary
+     where ${analysisBasePredicate(released)}
+       and summary.region_sido_code_value_id is null`;
+}
+
+/**
+ * 고른 시도 안의 시군구다. 시도를 안 골랐으면 부르지 않는다 — 전국 시군구 201개를 한 번에 세우지
+ * 않는다. 부모 관계는 소스가 스스로 말한 `code_mapping`의 `parent`이며 코드 숫자로 지어내지 않는다.
+ *
+ * 여기도 사전이 기준이라 0건인 시군구가 목록에 남는다.
+ */
 export function analysisSigunguCountSql(query: AnalysisConditionOptionsQuery, sido: bigint): SQL {
   const released = withoutRegionAxis(query);
   return sql`
-    with ${regionLabelJoin()}
-    select summary.region_sigungu_code_value_id as code_value_id,
-           region.code as code,
-           region.label as label,
-           count(*) as row_count
-      from mart.org_round_summary summary
-      left join region_label region on region.code_value_id = summary.region_sigungu_code_value_id
-     where ${analysisBasePredicate(released)}
-       and summary.region_sido_code_value_id = ${sido}::bigint
-       and summary.region_sigungu_code_value_id is not null
-     group by 1, 2, 3
-     order by 4 desc, 2`;
+    with ${regionLabelJoin()},
+    cohort as (
+      select summary.region_sigungu_code_value_id as code_value_id, count(*) as row_count
+        from mart.org_round_summary summary
+       where ${analysisBasePredicate(released)}
+         and summary.region_sigungu_code_value_id is not null
+       group by 1
+    )
+    select region.code_value_id, region.code, region.label,
+           coalesce(cohort.row_count, 0) as row_count
+      from region_label region
+      join core.code_mapping parent
+        on parent.from_code_value_id = region.code_value_id and parent.relation = 'parent'
+      left join cohort on cohort.code_value_id = region.code_value_id
+     where region.scheme = ${CODE_SCHEME_NAMES.auctionLocationSigungu}
+       and parent.to_code_value_id = ${sido}::bigint
+       and (region.active or coalesce(cohort.row_count, 0) > 0)
+     order by region.code`;
 }
 
 /**
@@ -112,6 +147,26 @@ export function analysisOrganizationOptionSql(query: AnalysisConditionOptionsQue
 }
 
 /**
+ * 고른 비교 지역의 이름과 부모 시도다. 부모는 소스가 스스로 말한 상하 관계(`code_mapping`의 `parent`)로
+ * 읽는다 — 행정안전부 대조와 다른 관계이며, 우리가 코드 숫자로 지어내지 않는다(ADR 0035, EAT-187).
+ */
+export function analysisSelectedRegionSql(scheme: string, codeValueId: bigint): SQL {
+  return sql`
+    with ${regionLabelJoin()}
+    select region.code_value_id, region.code, region.label,
+           (select mapping.to_code_value_id
+              from core.code_mapping mapping
+             where mapping.from_code_value_id = region.code_value_id
+               and mapping.relation = 'parent'
+             limit 1) as parent_code_value_id
+      from region_label region
+      join core.code_value value on value.code_value_id = region.code_value_id
+      join core.code_scheme scheme on scheme.code_scheme_id = value.code_scheme_id
+     where region.code_value_id = ${codeValueId}::bigint
+       and scheme.namespace = ${scheme}`;
+}
+
+/**
  * 지역 라벨은 최신 관측 하나다. 목록·요약이 쓰는 규칙과 같아야 조건 막대의 이름과 그림의 이름이
  * 갈리지 않는다. 라벨이 없는 코드도 남긴다 — 코드목록 수집이 안 돈 DB에서 항목이 사라지면 그 지역의
  * 회차가 조건에서 보이지 않는다(AGENTS 3).
@@ -121,6 +176,8 @@ function regionLabelJoin(): SQL {
     region_label as (
       select code.code_value_id,
              code.code,
+             code.active,
+             scheme.namespace as scheme,
              (select observation.label
                 from core.code_label_observation observation
                where observation.code_value_id = code.code_value_id

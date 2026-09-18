@@ -20,7 +20,12 @@ function cellAlpha(count: number, maxCount: number): number {
   return 0.18 + 0.72 * Math.sqrt(count / maxCount);
 }
 
-function draw(canvas: HTMLCanvasElement, plot: TimeSeriesPlot, full: boolean): void {
+function draw(
+  canvas: HTMLCanvasElement,
+  plot: TimeSeriesPlot,
+  full: boolean,
+  pinned: string | null,
+): void {
   const view = full ? plot.fullDomain : plot.domain;
   const viewTicks = full ? plot.fullYTicks : plot.yTicks;
   const context = canvas.getContext('2d');
@@ -72,6 +77,23 @@ function draw(canvas: HTMLCanvasElement, plot: TimeSeriesPlot, full: boolean): v
     }
   }
 
+  /*
+   * 겹쳐 찍은 기관은 고리로 그린다. 여섯을 전부 채운 점으로 그리면 기관 점과 구별이 안 되고, 시안
+   * 루프 실측에서 고리 174개가 기관 점을 덮었다. 그래서 기본은 흐리고, 하나를 집으면 그것만 진해진다.
+   */
+  for (const series of plot.overlays) {
+    const focused = pinned === null || pinned === series.organizationId;
+    context.strokeStyle = CHART.second;
+    context.globalAlpha = focused ? 0.95 : 0.25;
+    context.lineWidth = focused ? 1.75 : 1;
+    for (const point of series.points) {
+      context.beginPath();
+      context.arc(px(point.x), py(point.y), 5, 0, Math.PI * 2);
+      context.stroke();
+    }
+    context.globalAlpha = 1;
+  }
+
   // 기관 점을 마지막에 그린다. 비교군 위에 서야 또렷하게 보인다.
   context.fillStyle = CHART.win;
   for (const point of plot.target) {
@@ -97,12 +119,17 @@ export function TimeSeriesChart({
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [full, setFull] = useState(false);
+  /**
+   * 집어 둔 기관이다. 여섯을 한꺼번에 진하게 그리면 어느 고리가 어느 기관인지 그림에서 읽히지 않는다.
+   * 하나를 집으면 그것만 진해지고 나머지는 자리만 남긴다.
+   */
+  const [pinned, setPinned] = useState<string | null>(null);
   const view = full ? plot.fullDomain : plot.domain;
   const yTicks = full ? plot.fullYTicks : plot.yTicks;
   useEffect(() => {
     const element = canvas.current;
     if (element === null) return;
-    const render = () => draw(element, plot, full);
+    const render = () => draw(element, plot, full, pinned);
     render();
     const size = new ResizeObserver(render);
     size.observe(element);
@@ -117,7 +144,7 @@ export function TimeSeriesChart({
       size.disconnect();
       theme.disconnect();
     };
-  }, [plot, full]);
+  }, [plot, full, pinned]);
   const density = plot.comparison.kind === 'density';
   const summary = `${organizationLabel} ${plot.targetCount}건, ${comparisonLabel} ${plot.comparisonCount}건`
     + `(그중 ${plot.overlapCount}건은 이 기관의 기록)`;
@@ -170,6 +197,28 @@ export function TimeSeriesChart({
           {comparisonLabel} {plot.comparisonCount}건{density ? ' · 진할수록 관측이 많아요' : ''}
         </span>
         <span>겹침 {plot.overlapCount}건</span>
+        {plot.overlays.map((series) => (
+          <button
+            key={series.organizationId}
+            type='button'
+            aria-pressed={pinned === series.organizationId}
+            onClick={() => setPinned((current) =>
+              current === series.organizationId ? null : series.organizationId)}
+            className='flex items-center gap-1.5 rounded-md px-1 py-0.5 aria-pressed:bg-accent aria-pressed:text-accent-foreground'
+          >
+            {/*
+              색을 JS 팔레트에서 읽지 않는다. 그 값은 테마를 아는 브라우저에서만 맞아 서버가 그린 것과
+              달라지고, React가 hydration 불일치로 잡는다(2026-09-18 dev 콘솔). 토큰을 그대로 쓴다.
+            */}
+            <span
+              aria-hidden
+              className='inline-flex size-4 items-center justify-center rounded-full border border-[var(--chart-3)] text-[10px] text-[var(--chart-3)]'
+            >
+              {series.index}
+            </span>
+            {series.label} {series.points.length}건{series.truncated ? ' 일부' : ''}
+          </button>
+        ))}
         <span>세로축 사정률(%)</span>
         {plot.truncation === null ? null : <span className='text-foreground'>{plot.truncation}</span>}
       </figcaption>

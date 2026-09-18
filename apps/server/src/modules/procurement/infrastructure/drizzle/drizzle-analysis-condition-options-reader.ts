@@ -12,11 +12,14 @@ import type {
   AnalysisItemCountRecord,
   AnalysisOrganizationOptionRecord,
   AnalysisRegionCountRecord,
+  AnalysisSelectedRegionRecord,
 } from "../../application/analysis-condition-options-reader";
 import type { AnalysisRegionScheme } from "../../application/analysis-time-series-reader";
 import {
   analysisItemCountSql,
   analysisOrganizationOptionSql,
+  analysisRegionUnobservedSql,
+  analysisSelectedRegionSql,
   analysisSidoCountSql,
   analysisSigunguCountSql,
 } from "./analysis-condition-options-query";
@@ -32,6 +35,13 @@ type RegionRow = Readonly<{
 }>;
 
 type ItemRow = Readonly<{ item_code: string | null; row_count: string | number | bigint }>;
+
+type SelectedRegionRow = Readonly<{
+  code_value_id: string | bigint;
+  code: string;
+  label: string | null;
+  parent_code_value_id: string | bigint | null;
+}>;
 
 type OrganizationRow = Readonly<{
   organization_id: string | bigint;
@@ -61,30 +71,26 @@ function observedName(value: string | null): string | null {
 }
 
 /**
- * 지역 행을 옮긴다. 코드값이 없는 행은 **지역 미확인**이며 지역 목록이 아니라 그 수로 간다 — 번역되지
- * 않은 회차를 어느 지역에 넣어도 그 지역의 수가 거짓이 된다(ADR 0035 결정 6).
+ * 지역 행을 옮긴다. 목록은 사전에서 오므로 **건수가 0인 지역도 그대로 남는다** — 0건이라는 사실이
+ * "이 조건으로는 여기 자료가 없다"는 판단의 재료다. 번역되지 않은 회차는 여기 없고 따로 센다
+ * (어느 지역에 넣어도 그 지역의 수가 거짓이 된다, ADR 0035 결정 6).
  */
 function mapRegionRows(
   read: ReadonlyArray<RegionRow>,
   scheme: AnalysisRegionScheme,
-): { readonly regions: readonly AnalysisRegionCountRecord[]; readonly unobserved: number } {
+): readonly AnalysisRegionCountRecord[] {
   const regions: AnalysisRegionCountRecord[] = [];
-  let unobserved = 0;
   for (const row of read) {
-    const count = countOf(row.row_count);
-    if (row.code_value_id === null || row.code === null) {
-      unobserved += count;
-      continue;
-    }
+    if (row.code_value_id === null || row.code === null) continue;
     regions.push({
       codeValueId: bigintValue(row.code_value_id),
       code: row.code,
       scheme,
       label: observedName(row.label),
-      count,
+      count: countOf(row.row_count),
     });
   }
-  return { regions, unobserved };
+  return regions;
 }
 
 /**
@@ -105,6 +111,28 @@ function mapItemRows(read: ReadonlyArray<ItemRow>): {
   return {
     items: AUCTION_ITEM_ATOMS.map((atom: AuctionItemAtom) => ({ atom, count: counted.get(atom) ?? 0 })),
     unknown,
+  };
+}
+
+/**
+ * 고른 지역의 이름과 부모 시도다. 코드값이 사전에 없으면 `null`이며, 그때 화면은 이름 대신 "지역
+ * 미확인"을 말한다 — 코드 숫자를 이름 자리에 적지 않는다(AGENTS 2·3).
+ */
+function mapSelectedRegion(
+  row: SelectedRegionRow | undefined,
+  scheme: AnalysisRegionScheme,
+): AnalysisSelectedRegionRecord | null {
+  if (row === undefined) return null;
+  return {
+    region: {
+      codeValueId: bigintValue(row.code_value_id),
+      code: row.code,
+      scheme,
+      label: observedName(row.label),
+    },
+    parentSidoCodeValueId: row.parent_code_value_id === null
+      ? null
+      : bigintValue(row.parent_code_value_id),
   };
 }
 
@@ -129,13 +157,18 @@ export class DrizzleAnalysisConditionOptionsReader implements AnalysisConditionO
   async readConditionOptions(
     query: AnalysisConditionOptionsQuery,
   ): Promise<AnalysisConditionOptionsReading> {
-    const [sido, sigungu, items, organizations, lineage] = await Promise.all([
+    const scope = query.comparisonScope;
+    const [sido, sigungu, unobserved, items, organizations, selected, lineage] = await Promise.all([
       this.database.execute(analysisSidoCountSql(query)),
       query.sido === null
         ? Promise.resolve([])
         : this.database.execute(analysisSigunguCountSql(query, query.sido)),
+      this.database.execute(analysisRegionUnobservedSql(query)),
       this.database.execute(analysisItemCountSql(query)),
       this.database.execute(analysisOrganizationOptionSql(query)),
+      scope.kind === "national"
+        ? Promise.resolve([])
+        : this.database.execute(analysisSelectedRegionSql(scope.scheme, scope.codeValueId)),
       readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY),
     ]);
     const sidoCounts = mapRegionRows(rows<RegionRow>(sido), CODE_SCHEME_NAMES.auctionLocationSido);
@@ -143,12 +176,18 @@ export class DrizzleAnalysisConditionOptionsReader implements AnalysisConditionO
       rows<RegionRow>(sigungu),
       CODE_SCHEME_NAMES.auctionLocationSigungu,
     );
+    const unobservedCount = countOf(
+      rows<{ row_count: string | number | bigint }>(unobserved)[0]?.row_count ?? 0,
+    );
     const itemCounts = mapItemRows(rows<ItemRow>(items));
     const organizationRows = rows<OrganizationRow>(organizations);
     return {
-      sido: sidoCounts.regions,
-      sigungu: sigunguCounts.regions,
-      regionUnobservedCount: sidoCounts.unobserved,
+      selectedRegion: scope.kind === "national"
+        ? null
+        : mapSelectedRegion(rows<SelectedRegionRow>(selected)[0], scope.scheme),
+      sido: sidoCounts,
+      sigungu: sigunguCounts,
+      regionUnobservedCount: unobservedCount,
       items: itemCounts.items,
       itemUnknownCount: itemCounts.unknown,
       organizations: organizationRows.slice(0, query.organizationLimit).map(mapOrganizationRow),

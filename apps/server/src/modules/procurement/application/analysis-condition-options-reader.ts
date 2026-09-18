@@ -38,6 +38,12 @@ export interface AnalysisItemCountRecord {
   readonly count: number;
 }
 
+/** 지금 고른 비교 지역이다. 전국이면 없다. */
+export interface AnalysisSelectedRegionRecord {
+  readonly region: Omit<AnalysisRegionCountRecord, "count">;
+  readonly parentSidoCodeValueId: bigint | null;
+}
+
 /**
  * 한 번의 조회가 돌려주는 것 전부다. 지역과 품목의 건수는 **그 축 하나만 푼 집합**에서 센다 —
  * "이것으로 바꾸면 몇 건이 되나"를 말하는 수라 다른 축까지 함께 풀면 그 약속이 깨진다(EAT-241).
@@ -46,6 +52,7 @@ export interface AnalysisItemCountRecord {
  * 상태이며, 화면은 시간축 쪽에서 이미 같은 사실을 듣는다(ADR 0011).
  */
 export interface AnalysisConditionOptionsReading {
+  readonly selectedRegion: AnalysisSelectedRegionRecord | null;
   readonly sido: readonly AnalysisRegionCountRecord[];
   readonly sigungu: readonly AnalysisRegionCountRecord[];
   readonly regionUnobservedCount: number;

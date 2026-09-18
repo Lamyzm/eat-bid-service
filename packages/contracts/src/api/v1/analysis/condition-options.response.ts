@@ -34,7 +34,21 @@ export const analysisItemCountSchema = z.strictObject({
   count: nonNegativeCountSchema,
 }).meta({ id: "AnalysisItemCount" });
 
+/**
+ * 지금 고른 비교 지역이다. 화면이 여닫이에 이름을 적고 어느 시도를 펼쳐 둘지 정하는 데 쓴다.
+ *
+ * 시군구를 고른 채 화면을 다시 열면 그 이름도 부모 시도도 화면에는 없다 — 사전은 요청한 시도의
+ * 시군구만 싣기 때문이다. 그 둘을 서버가 함께 주지 않으면 화면이 코드값을 이름 자리에 적게 된다.
+ * 전국이면 null이다.
+ */
+export const analysisSelectedRegionSchema = z.strictObject({
+  region: codeReferenceSchema,
+  /** 시군구를 골랐을 때 그 시군구가 속한 시도다. 시도를 골랐으면 null이다. */
+  parentSidoCodeValueId: positiveBigintTextSchema.nullable(),
+}).meta({ id: "AnalysisSelectedRegion" });
+
 export const analysisConditionOptionsV1ResponseSchema = z.strictObject({
+  selectedRegion: analysisSelectedRegionSchema.nullable(),
   /**
    * 활성 build에서 회차가 관측된 시도다. 사전의 시도 전부가 아니라 **고르면 실제로 무언가 나오는**
    * 시도만 선다 — 0건인 지역을 고르게 두면 사용자가 헛걸음한다.
@@ -60,5 +74,6 @@ export const analysisConditionOptionsV1ResponseSchema = z.strictObject({
 
 export type AnalysisConditionOptionsV1Response = z.infer<typeof analysisConditionOptionsV1ResponseSchema>;
 export type AnalysisRegionCount = z.infer<typeof analysisRegionCountSchema>;
+export type AnalysisSelectedRegion = z.infer<typeof analysisSelectedRegionSchema>;
 export type AnalysisOrganizationOption = z.infer<typeof analysisOrganizationOptionSchema>;
 export type AnalysisItemCount = z.infer<typeof analysisItemCountSchema>;
