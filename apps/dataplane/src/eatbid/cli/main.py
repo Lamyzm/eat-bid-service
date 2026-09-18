@@ -34,6 +34,7 @@ from eatbid.pipeline.code_vocabulary import CodeVocabularyCaptureResult
 from eatbid.pipeline.contract_scan import ScanReport
 from eatbid.pipeline.discover import DiscoveryResult
 from eatbid.pipeline.reference import ReferenceCaptureResult
+from eatbid.pipeline.replay_target import ReplayTarget
 
 # 왜: exit code와 DB failure_category는 하나의 어휘여야 한다. 숫자를 여기서 다시 적으면 프로세스가
 # 끝난 이유와 run 표에 남은 이유가 조용히 갈라진다. 권위는 `eatbid.failures.categories`다.
@@ -71,6 +72,7 @@ class CliApplication(Protocol):
     def fail_release(self, args: argparse.Namespace) -> object: ...
     def check_expectations(self, args: argparse.Namespace) -> object: ...
     def next_backfill_window(self, args: argparse.Namespace) -> object: ...
+    def next_replay_target(self, args: argparse.Namespace) -> object: ...
     def reap_marts(self, args: argparse.Namespace) -> object: ...
 
 
@@ -158,6 +160,20 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             ),
             "manifest_sha256": result.discovered_manifest_sha256,
             "source_release_id": str(result.source_release_id),
+        }
+    if method_name == "next_replay_target":
+        # 워크플로가 이 셋을 output parameter로 읽는다. 고를 것이 없으면 뒤 단계가 건너뛰어진다.
+        if not isinstance(result, ReplayTarget):
+            raise TypeError("next-replay-target returned an invalid result")
+        return {
+            "has_target": True,
+            "source_release_id": str(result.source_release_id),
+            "window_start": result.window_start,
+            "publication_id": str(result.publication_id),
+            "started_at": result.started_at.isoformat().replace("+00:00", "Z"),
+            "normalized_at": result.normalized_at.isoformat().replace("+00:00", "Z"),
+            "validated_at": result.validated_at.isoformat().replace("+00:00", "Z"),
+            "activated_at": result.activated_at.isoformat().replace("+00:00", "Z"),
         }
     if method_name == "scan_contract":
         if not isinstance(result, ScanReport):
@@ -305,6 +321,8 @@ COMMAND_METHODS: Mapping[str, str] = {
     # 예약 entrypoint다. 커버리지 사실만 읽어 다음에 채울 창 하나를 고르고 아무것도 바꾸지 않는다
     # (EAT-209, ADR 0052 결정 4).
     "next-backfill-window": "next_backfill_window",
+    # 예약 entrypoint다. 다시 시도할 가치가 있는 실패 창 하나를 고르고 아무것도 바꾸지 않는다(EAT-274).
+    "next-replay-target": "next_replay_target",
 }
 
 COMMAND_HANDLERS: Mapping[str, CommandHandler] = {

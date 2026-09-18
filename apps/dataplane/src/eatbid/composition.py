@@ -87,6 +87,7 @@ from eatbid.pipeline.reference import (
 )
 from eatbid.pipeline.refetch_baseline import PsycopgRefetchBaselineReader
 from eatbid.pipeline.replay import ReplayServices, replay_observations
+from eatbid.pipeline.replay_target import FailedPublication, select_replay_target
 from eatbid.pipeline.source_hold import (
     EAT_SOURCE,
     SCHEDULED_SOURCE_MODES,
@@ -148,6 +149,34 @@ def _log_tolerated(observation_id: int, reason: str) -> None:
             separators=(",", ":"),
         )
     )
+
+
+# 발행이 실패한 백필 창의 후보다. 창과 release를 잇는 방법은 `ingest.backfill_coverage` 뷰와 같다 —
+# 목록 요청의 날짜 파라미터가 그 release가 어느 창인지를 말하는 유일한 사실이다. 정의를 둘로 만들지
+# 않으려면 같은 근거를 써야 한다(EAT-274).
+_REPLAY_CANDIDATES_SQL = """
+with window_release as (
+    select distinct u.request_params ->> 'P_BID_BGNG_DT' as window_start,
+           sr.source_release_id
+      from ingest.request_unit u
+      join ingest.source_release_run sr on sr.run_id = u.run_id
+     where u.endpoint = 'bid-list'
+       and u.request_params ? 'P_BID_BGNG_DT'
+)
+select w.source_release_id, p.publication_id, r.build_sha, w.window_start
+  from window_release w
+  join ingest.source_release_run sr on sr.source_release_id = w.source_release_id
+  join ingest.publication p on p.run_id = sr.run_id and p.status = 'failed'
+  join ingest.run r on r.run_id = p.run_id
+  join ingest.source_release rel on rel.source_release_id = w.source_release_id
+ where rel.status = 'sealed'
+   and not exists (
+       select 1 from ingest.source_release_run sr2
+       join ingest.publication p2 on p2.run_id = sr2.run_id and p2.status = 'published'
+        where sr2.source_release_id = w.source_release_id
+   )
+ order by w.window_start desc
+"""
 
 
 class Application:
@@ -356,6 +385,30 @@ class Application:
         """
         return reap_expired_builds(self._connection, as_of=args.as_of)
 
+    def next_replay_target(self, args: argparse.Namespace) -> Any:
+        """다시 시도할 가치가 있는 실패 창 하나를 고른다. 아무것도 바꾸지 않는 읽기다(EAT-274).
+
+        이미 발행에 성공한 release는 후보에서 뺀다 — 한 창이 여러 번 실패한 뒤 성공했다면 그 창은
+        닫힌 것이고, 실패 기록은 진단용으로 남아 있을 뿐이다.
+        """
+        with self._connection.cursor() as cursor:
+            cursor.execute(_REPLAY_CANDIDATES_SQL)
+            candidates = tuple(
+                FailedPublication(
+                    source_release_id=row[0],
+                    publication_id=row[1],
+                    build_sha=str(row[2]),
+                    window_start=str(row[3]),
+                )
+                for row in cursor.fetchall()
+            )
+        return select_replay_target(
+            candidates,
+            build_sha=args.build_sha,
+            run_id=args.run_id,
+            as_of=args.as_of,
+        )
+
     def check_expectations(self, args: argparse.Namespace) -> Any:
         # 운영자·스케줄 entrypoint다. 어떤 DAG에도 들지 않으며 수집 상태를 바꾸지 않고 읽기만 한다.
         if self._monitoring is None:
@@ -422,13 +475,20 @@ class Application:
 
     def replay(self, args: argparse.Namespace) -> None:
         self._release.require_sealed(args.source_release_id)
+        # 목록을 주지 않으면 그 release의 상세 관측 전부가 대상이다(EAT-274). 저장소가 읽으므로
+        # workflow parameter 상한에 걸리지 않고 사람이 나눌 일도 없다.
+        observation_ids = (
+            tuple(args.observation_id)
+            if args.observation_id
+            else self._release.detail_observation_ids(args.source_release_id)
+        )
         self._release.require_observation_members(
-            args.source_release_id, tuple(args.observation_id)
+            args.source_release_id, observation_ids
         )
         replay_observations(
             run_id=args.run_id,
             publication_id=args.publication_id,
-            observation_ids=tuple(args.observation_id),
+            observation_ids=observation_ids,
             build_sha=args.build_sha,
             parser_version=args.parser_version,
             started_at=args.started_at,
