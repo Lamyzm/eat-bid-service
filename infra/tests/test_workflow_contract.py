@@ -43,7 +43,7 @@ CODE_VOCABULARY_TASKS = CODE_VOCABULARY_COMMANDS
 OPERATOR_COMMANDS = ("fail-release", "check-expectations", "scan-contract", "reap-marts")
 # 전진 판단은 예약이 부르지만 운영자 명령과 달리 DAG의 첫 task이기도 하다. 창을 고르는 것과 그 창을
 # 수집하는 것이 한 실행 안에 있어야 고른 창이 어디로 새지 않는다(EAT-209).
-ADVANCE_COMMANDS = ("next-backfill-window",)
+ADVANCE_COMMANDS = ("next-backfill-window", "next-replay-target")
 PYTHON_ENTRYPOINT_TEMPLATES = ("discover", "replay")
 # 피크 월 창의 `TOT_CNT` 실측 약 17,000에 여유를 둔 상한이다. discover는 `total_count`가
 # page size × page budget을 넘으면 창을 거부하므로 그 곱이 이 값 아래로 내려가면 월 백필이 막힌다.
@@ -162,7 +162,8 @@ def test_product와_base_render가_kind_구성을_유지한다(
     # 각자의 테스트가 본다. 백필 전진은 2026-09-14에 더했다 — 창을 고르는 판단이 사람에게 있는 동안
     # 진도가 기록되지 않았고 실패한 백필의 남은 대기열이 열한 번 버려졌다(ADR 0052).
     # mart 회수는 2026-09-17에 더했다 — 물린 build 900개가 활성 셋의 여섯 배 디스크를 쥐고 있었다(EAT-254).
-    assert manifests.kinds.count("CronWorkflow") == 7
+    # 재처리 전진은 2026-09-18에 더했다 — 막힌 창을 사람이 창마다 손으로 닫고 있었다(EAT-274).
+    assert manifests.kinds.count("CronWorkflow") == 8
     # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
     # 하는지 먼저 답해야 한다.
     assert manifests.kinds.count("Job") == 2
@@ -375,7 +376,12 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
         cron
         for cron in manifests.of_kind("CronWorkflow")
         if _metadata(cron)["name"]
-        not in {"eatbid-db-backup", "eatbid-expectation-check", "eatbid-mart-reap"}
+        not in {
+            "eatbid-db-backup",
+            "eatbid-expectation-check",
+            "eatbid-mart-reap",
+            "eatbid-replay-advance",
+        }
     ]
     assert {_metadata(cron)["name"] for cron in cron_workflows} == {
         "eatbid-poll-open",
@@ -1474,6 +1480,19 @@ def test_workflow_parameter는_mode_외에_backfill_창과_바닥만_추가로_�
     }
 
 
+def test_replay는_ID를_주지_않으면_release_전체를_재처리한다(
+    manifests: ManifestSet, monkeypatch: object
+) -> None:
+    """왜: 창 하나가 1만 6천 건이면 목록을 parameter로 넘길 때 128KiB 상한을 넘어 파드도 뜨지 못한다.
+    비워 두면 CLI가 저장소에서 직접 읽으므로 사람이 나눌 일이 없다(EAT-274)."""
+    argv = _execute_replay_script(manifests, monkeypatch, "")
+
+    assert argv[0:2] == ["eatbid", "replay"]
+    assert "--observation-id" not in argv
+    parsed = build_parser().parse_args(argv[1:])
+    assert parsed.observation_id is None
+
+
 def test_replay_JSON_ID가_shell_확장_없이_fail_closed한다(
     manifests: ManifestSet, monkeypatch: object
 ) -> None:
@@ -1485,7 +1504,6 @@ def test_replay_JSON_ID가_shell_확장_없이_fail_closed한다(
         "[-1]",
         "[true]",
         "[9223372036854775808]",
-        "",
         "not-json",
         "{}",
         '["*"]',

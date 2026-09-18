@@ -188,6 +188,44 @@ spec:
     #
     # 고를 창이 없으면 `run`이 건너뛰어지고 workflow는 아무것도 하지 않은 채 성공한다. 그것이 "범위 안을
     # 다 채웠다"의 정상 상태다.
+    # 고를 창이 없으면 `run`이 건너뛰어지고 workflow는 아무것도 하지 않은 채 성공한다. 그것이 "다시
+    # 시도할 것이 없다"의 정상 상태다. replay는 관측 목록을 받지 않고 release 전체를 재처리한다.
+    - name: advancing-replay-pipeline
+      dag:
+        tasks:
+          - name: decide
+            template: next-replay-target
+          - name: run
+            template: replay
+            depends: decide
+            when: "{{tasks.decide.outputs.parameters.has-target}} == true"
+            arguments:
+              parameters:
+                - name: source-release-id
+                  value: "{{tasks.decide.outputs.parameters.source-release-id}}"
+                # 실패한 publication id를 다시 쓰지 않는다. decide가 run에서 결정적으로 파생한다.
+                - name: publication-id
+                  value: "{{tasks.decide.outputs.parameters.publication-id}}"
+                - name: started-at
+                  value: "{{workflow.creationTimestamp.RFC3339}}"
+                - name: normalized-at
+                  value: "{{workflow.creationTimestamp.RFC3339}}"
+                - name: validated-at
+                  value: "{{workflow.creationTimestamp.RFC3339}}"
+                - name: activated-at
+                  value: "{{workflow.creationTimestamp.RFC3339}}"
+          - name: marts
+            template: marts
+            depends: run
+            arguments:
+              parameters:
+                - name: source-release-id
+                  value: "{{tasks.decide.outputs.parameters.source-release-id}}"
+                - name: detail-run-id
+                  value: "{{workflow.uid}}"
+                - name: publication-id
+                  value: "{{tasks.decide.outputs.parameters.publication-id}}"
+
     - name: advancing-backfill-pipeline
       dag:
         tasks:
@@ -301,7 +339,9 @@ spec:
         parameters:
           - name: source-release-id
           - name: publication-id
+          # 비우면 release 전체다(EAT-274). 사람이 부분 재처리할 때만 배열을 준다.
           - name: observation-ids-json
+            value: ""
           - name: started-at
           - name: normalized-at
           - name: validated-at
@@ -579,6 +619,53 @@ spec:
     #
     # floor-date를 뒤로 미는 커밋 하나가 그 해의 수집을 시작시킨다. 그 커밋이 운영자 승인이며, 매 실행을
     # 사람이 허락하던 것을 범위 선언 한 번으로 옮긴 것이다(ADR 0052 결정 5).
+    # 발행이 실패한 창 중 다시 시도할 가치가 있는 것 하나를 고른다(EAT-274). 가치의 정의는 코드가
+    # 갖는다 — 지금 이미지와 다른 이미지가 실패시킨 창만 고르므로 같은 결과를 무한히 반복하지 않는다.
+    # 아무것도 바꾸지 않는 읽기라 semaphore도 mutex도 없다.
+    - name: next-replay-target
+      outputs:
+        parameters:
+          - name: has-target
+            valueFrom:
+              path: /tmp/eatbid/has_target
+              # 고를 것이 없으면 뒤 단계가 건너뛰어져야 한다. 기본값이 없으면 그 정상 상태가 실패가 된다.
+              default: "false"
+          - name: source-release-id
+            valueFrom:
+              path: /tmp/eatbid/source_release_id
+              default: ""
+          - name: window-start
+            valueFrom:
+              path: /tmp/eatbid/window_start
+              default: ""
+          - name: publication-id
+            valueFrom:
+              path: /tmp/eatbid/publication_id
+              default: ""
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid next-replay-target
+            --run-id "$EATBID_RUN_ID"
+            --build-sha "$BUILD_SHA"
+            --result-dir "$EATBID_RESULT_DIR"
+        resources:
+          requests:
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        env:
+          - *env-run-id
+          - *env-result-dir
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
     - name: next-backfill-window
       outputs:
         parameters:
@@ -1102,21 +1189,27 @@ spec:
                 print(message, file=sys.stderr)
                 raise SystemExit(64)
 
-            try:
-                observation_ids = json.loads(os.environ["EATBID_OBSERVATION_IDS_JSON"])
-            except (KeyError, json.JSONDecodeError):
-                fail("observation-ids-json must be a JSON array")
-            if not isinstance(observation_ids, list) or not observation_ids:
-                fail("observation-ids-json must be a non-empty JSON array")
-            if any(
-                type(value) is not int
-                or value <= 0
-                or value > 9_223_372_036_854_775_807
-                for value in observation_ids
-            ):
-                fail("every observation ID must be a positive bigint")
-            if len(set(observation_ids)) != len(observation_ids):
-                fail("observation IDs must be unique")
+            # 비워 두면 그 release의 상세 관측 전부가 대상이고 CLI가 저장소에서 직접 읽는다(EAT-274).
+            # 목록을 여기로 넘기면 1만 6천 건에서 parameter 하나가 128KiB를 넘어 파드도 뜨지 못한다.
+            # 부분 재처리를 하는 사람은 지금처럼 배열을 준다.
+            raw_ids = os.environ.get("EATBID_OBSERVATION_IDS_JSON", "").strip()
+            observation_ids = []
+            if raw_ids:
+                try:
+                    observation_ids = json.loads(raw_ids)
+                except json.JSONDecodeError:
+                    fail("observation-ids-json must be a JSON array")
+                if not isinstance(observation_ids, list) or not observation_ids:
+                    fail("observation-ids-json must be a non-empty JSON array")
+                if any(
+                    type(value) is not int
+                    or value <= 0
+                    or value > 9_223_372_036_854_775_807
+                    for value in observation_ids
+                ):
+                    fail("every observation ID must be a positive bigint")
+                if len(set(observation_ids)) != len(observation_ids):
+                    fail("observation IDs must be unique")
 
             argv = [
                 "eatbid", "replay",

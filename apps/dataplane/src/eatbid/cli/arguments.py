@@ -134,6 +134,7 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
             "next-backfill-window",
             "scan-contract",
             "reap-marts",
+            "next-replay-target",
         }:
             add_common_arguments(command)
 
@@ -183,8 +184,10 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
 
     replay = commands["replay"]
     replay.add_argument("--publication-id", required=True, type=UUID)
+    # 비우면 그 release의 상세 관측 전부가 대상이다. 목록을 밖에서 넘기면 1만 6천 건에서 workflow
+    # parameter 상한(128KiB)을 넘어 사람이 나눠야 한다(EAT-274). 부분 재처리는 지금처럼 id를 준다.
     replay.add_argument(
-        "--observation-id", required=True, action="append", type=positive_id
+        "--observation-id", action="append", type=positive_id, default=None
     )
     for name in ("started-at", "normalized-at", "validated-at", "activated-at"):
         replay.add_argument(f"--{name}", required=True, type=aware_datetime)
@@ -245,6 +248,13 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     reap_marts = commands["reap-marts"]
     reap_marts.add_argument("--as-of", required=True, type=aware_datetime)
     reap_marts.add_argument("--result-dir", type=Path, default=None)
+
+    # 예약 entrypoint다(EAT-274). 발행이 실패한 창 중 지금 이미지와 다른 이미지가 실패시킨 것 하나를
+    # 고른다. 아무것도 바꾸지 않으며 고를 것이 없으면 그것도 정상이다.
+    next_replay = commands["next-replay-target"]
+    next_replay.add_argument("--run-id", required=True, type=UUID)
+    next_replay.add_argument("--build-sha", required=True, type=build_sha)
+    next_replay.add_argument("--result-dir", type=Path, default=None)
 
     fail_release = commands["fail-release"]
     fail_release.add_argument("--source-release-id", required=True, type=UUID)

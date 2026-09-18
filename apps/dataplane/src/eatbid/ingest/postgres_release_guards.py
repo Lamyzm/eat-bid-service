@@ -28,6 +28,7 @@ from eatbid.ingest.release_repository import (
 
 class PostgresReleaseGuardMixin:
     _connection: psycopg.Connection[Any]
+
     def require_observation_member(
         self, source_release_id: UUID, observation_id: int
     ) -> None:
@@ -55,6 +56,7 @@ class PostgresReleaseGuardMixin:
                 raise ReleaseNotFoundError("source release does not exist")
             if row[0] != "sealed":
                 raise ReleaseIncompleteError("source release is not sealed")
+
     def load_preplanned_detail_request(
         self, source_release_id: UUID, run_id: UUID, external_bid_id: str
     ) -> PlannedRequestUnit:
@@ -83,6 +85,7 @@ class PostgresReleaseGuardMixin:
         return PlannedRequestUnit(
             int(row[0]), run_id, "eat", "bid-detail", dict(row[1]), str(row[2])
         )
+
     def require_processing_observation(
         self, source_release_id: UUID, run_id: UUID, observation_id: int
     ) -> None:
@@ -132,11 +135,34 @@ class PostgresReleaseGuardMixin:
                 (source_release_id, observation_id),
             )
 
+    def detail_observation_ids(self, source_release_id: UUID) -> tuple[int, ...]:
+        """그 release의 상세 관측 전부를 순서대로 돌려준다.
+
+        왜 저장소가 읽어 주나: replay 대상이 1만 6천 건이면 workflow parameter 하나가 128KiB를 넘어
+        Argo가 파드도 띄우지 못한다(2026-09-16 실측 131,752바이트). 목록을 밖에서 넘기는 대신 여기서
+        읽으면 그 상한과 분할이 동시에 사라진다(EAT-274). 목록 page(`bid-list`)는 재처리 대상이
+        아니므로 endpoint로 거른다.
+        """
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                select o.observation_id
+                  from ingest.source_release_observation so
+                  join ingest.raw_observation o using (observation_id)
+                 where so.source_release_id = %s and o.endpoint = 'bid-detail'
+                 order by o.observation_id
+                """,
+                (source_release_id,),
+            )
+            return tuple(int(row[0]) for row in cursor.fetchall())
+
     def require_observation_members(
         self, source_release_id: UUID, observation_ids: tuple[int, ...]
     ) -> None:
         if not observation_ids or len(set(observation_ids)) != len(observation_ids):
-            raise ReleaseObservationMembershipError("replay corpus must be nonempty and unique")
+            raise ReleaseObservationMembershipError(
+                "replay corpus must be nonempty and unique"
+            )
         self._require_exact_count(
             """
             select count(*) from ingest.source_release_observation
@@ -189,7 +215,11 @@ class PostgresReleaseGuardMixin:
                 release_status = self._lock_release(cursor, source_release_id)
                 self._lock_detail_corpus(cursor, source_release_id, run_id)
                 row = self._detail_progress(cursor, source_release_id, run_id)
-                if row is None or int(row[0]) != int(row[1]) or int(row[0]) != int(row[2]):
+                if (
+                    row is None
+                    or int(row[0]) != int(row[1])
+                    or int(row[0]) != int(row[2])
+                ):
                     raise ReleaseIncompleteError(
                         "detail release corpus is not exact observed"
                     )
@@ -227,9 +257,7 @@ class PostgresReleaseGuardMixin:
             raise
 
     @staticmethod
-    def _lock_release(
-        cursor: psycopg.Cursor[Any], source_release_id: UUID
-    ) -> str:
+    def _lock_release(cursor: psycopg.Cursor[Any], source_release_id: UUID) -> str:
         cursor.execute(
             "select status from ingest.source_release "
             "where source_release_id = %s for update",
