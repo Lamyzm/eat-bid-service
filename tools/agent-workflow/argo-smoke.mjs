@@ -150,6 +150,12 @@ export function judgeSmoke(workflow) {
   const discover = byName("discover");
   const discoverExit = discover?.outputs?.exitCode ?? null;
   const reasons = [];
+  // 노드가 하나도 없으면 DAG가 돈 적이 없다는 뜻이고, 그때는 workflow 자신의 message가 유일한 단서다.
+  // 그것을 찍지 않으면 "decide가 없다"만 보이고 왜 없는지는 알 수 없어 추측으로 고치게 된다(EAT-274).
+  if (nodes.length === 0) {
+    const message = workflow?.status?.message ?? "(message 없음)";
+    reasons.push(`workflow가 노드 없이 끝났다 — spec이 거부됐을 수 있다: ${message}`);
+  }
   if (!decide || decide.phase !== "Succeeded") reasons.push(`decide가 Succeeded가 아니다: ${decide?.phase ?? "없음"}`);
   if (!run) reasons.push("run 노드가 없다");
   else if (run.phase === "Skipped" || run.phase === "Omitted") {
@@ -163,6 +169,7 @@ export function judgeSmoke(workflow) {
     ok: reasons.length === 0,
     reasons,
     nodes: { decide: decide?.phase ?? null, run: run?.phase ?? null, discoverExit },
+    workflowMessage: workflow?.status?.message ?? null,
   };
 }
 
