@@ -156,7 +156,11 @@ describe('분석 시간축 표시 모델', () => {
       meta: readyMeta
     });
     if (view.kind !== 'plot') throw new Error('plot이어야 한다');
-    expect(view.plot.domain.yTo - view.plot.domain.yFrom).toBeGreaterThan(0);
+    // 0.1%p 칸 열 개가 최소 폭이다. 더 좁히면 눈금 다섯 개가 아무 차이도 아닌 간격을 큰 차이처럼
+    // 보이게 만들고, 그 점이 축의 어디쯤인지도 알 수 없다.
+    expect(view.plot.domain.yTo - view.plot.domain.yFrom).toBeGreaterThanOrEqual(1_000);
+    expect(view.plot.domain.yFrom).toBeLessThan(90_000);
+    expect(view.plot.domain.yTo).toBeGreaterThan(90_000);
     expect(view.plot.yTicks).toHaveLength(5);
   });
 

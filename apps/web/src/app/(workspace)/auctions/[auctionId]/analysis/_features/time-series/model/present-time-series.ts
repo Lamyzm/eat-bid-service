@@ -150,7 +150,11 @@ function rateDomain(weights: readonly RateWeight[]): TimeSeriesDomainRates {
   const high = weightedQuantile(sorted, total, 0.98);
   const span = Math.max(high - low, 1_000);
   const pad = Math.round(span * 0.08);
-  return { yFrom: low - pad, yTo: high + pad };
+  // 덩어리를 가운데 두고 최소 폭을 지킨다. 양끝에만 여백을 더하면 한 점짜리 그림이 0.16%p까지
+  // 좁혀져, 눈금 다섯 개가 실제로는 아무 차이도 아닌 간격을 큰 차이처럼 보이게 만든다.
+  const center = (low + high) / 2;
+  const half = Math.round(span / 2) + pad;
+  return { yFrom: center - half, yTo: center + half };
 }
 
 interface TimeSeriesDomainRates {
