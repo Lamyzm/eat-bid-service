@@ -352,15 +352,18 @@ def test_workflow_template가_현재_CLI와_지속_가능한_boundary를_사용�
         )
 
     limit = manifests.named("ConfigMap", "eatbid-workflow-limits")
-    # 새로 시작하는 실행 기준 합은 2다(2026-09-11, EAT-164). key 하나만 올리면 backfill이 두 자리를
-    # 다 가져가므로 나눴다 — 이유는 semaphore.yaml. eatbid-source-limit은 이 배포 시점에 이미 돌던
+    # lane을 나눈 이유부터 본다(2026-09-11, EAT-164): key 하나만 올리면 backfill이 자리를 다
+    # 가져가므로 나눴다 — 이유는 semaphore.yaml. eatbid-source-limit은 이 배포 시점에 이미 돌던
     # backfill이 쥐고 있는 과도기 key다 — 제거 조건은 같은 파일 주석과 아래
     # test_eatbid_source_limit는_과도기_key이고_도는_backfill이_끝나면_지운다를 본다.
     # backfill은 8이다(2026-09-14, EAT-180). semaphore가 chunk pod 단위라 이 값이 곧 소스 동시 호출
     # 수이며, 램프업과 되돌리기가 이 숫자 하나로 이뤄진다 — 중단 조건은 semaphore.yaml 주석이 소유한다.
-    # live를 1로 고정하는 것은 신규 공고 노출 SLO가 그 lane에 걸려 있기 때문이다.
+    # live는 2다(2026-09-18, EAT-275). 1이면 같은 lane의 daily-reconcile이 capture chunk 266개를
+    # 순차로 도는 동안 poll-open의 discover가 자리를 못 잡고, poll-open은 concurrencyPolicy가
+    # Forbid라 영업시간 회차가 통째로 건너뛰어진다 — 실측으로 4시간 30분 동안 수집 0건이었다.
+    # 2로 올려도 backfill lane은 그대로이므로 EAT-164가 막으려던 상황은 다시 생기지 않는다.
     assert limit["data"] == {
-        "eatbid-source-live": "1",
+        "eatbid-source-live": "2",
         "eatbid-source-backfill": "8",
         "eatbid-source-limit": "1",
     }
