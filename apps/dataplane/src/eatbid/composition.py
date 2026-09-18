@@ -579,10 +579,27 @@ class Application:
                 self._reference_http.close()
             except Exception:  # noqa: BLE001 - provider detail은 숨긴다.
                 failure = True
+        # 저장되지 않은 채 끝나는 것을 여기서 막는다. psycopg는 열린 transaction을 조용히 되돌리고
+        # 닫으므로, 확인하지 않으면 단계가 exit 0으로 "성공"을 보고하면서 행은 하나도 남지 않는다.
+        # 2026-09-17에 정시 수집이 22시간 그렇게 멈췄고 어떤 단계도 실패로 보이지 않았다(EAT-264).
+        # 실수의 종류와 무관하게 이 자리 하나가 모든 명령의 조용한 롤백을 시끄러운 실패로 바꾼다.
+        uncommitted = False
+        try:
+            uncommitted = (
+                self._connection.info.transaction_status
+                is not psycopg.pq.TransactionStatus.IDLE
+            )
+        except Exception:  # noqa: BLE001 - 이미 끊긴 연결은 아래 close가 판정한다.
+            uncommitted = False
         try:
             self._connection.close()
         except Exception:  # noqa: BLE001 - DSN/provider detail은 숨긴다.
             failure = True
+        if uncommitted:
+            raise RuntimeError(
+                "database work was left uncommitted; the command reported success "
+                "but nothing was stored"
+            ) from None
         if failure:
             raise RuntimeError("application resources could not be closed") from None
 
