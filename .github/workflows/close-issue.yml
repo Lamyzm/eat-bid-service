@@ -17,6 +17,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   close:
@@ -31,9 +32,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.20.0'
+      # 같은 issue를 가리키는 열린 pull request가 남아 있으면 닫지 않는다. 그 판정에 필요한 branch
+      # 목록을 여기서 모아 넘긴다 — 스크립트가 GitHub API를 직접 부르지 않게 해 시험이 원격 없이 돈다.
+      - name: 열린 pull request의 branch 모으기
+        id: open-prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branches=$(gh pr list --state open --limit 100 --json headRefName --jq '[.[].headRefName] | join(",")')
+          echo "branches=$branches" >> "$GITHUB_OUTPUT"
       - name: issue 상태 옮기기
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
+          OPEN_PR_BRANCHES: ${{ steps.open-prs.outputs.branches }}
         run: node -e "import('./tools/agent-workflow/linear-close.mjs').then((m) => m.main())"

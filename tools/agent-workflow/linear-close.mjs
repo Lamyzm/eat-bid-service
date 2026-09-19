@@ -13,7 +13,7 @@ const LINEAR_ENDPOINT = "https://api.linear.app/graphql";
  * 왜 issue 상태를 먼저 보는가: 이미 완료인 issue를 다시 옮기면 Linear의 완료 시각이 병합 시각으로
  * 덮여 언제 끝났는지가 사라진다.
  */
-export function planIssueClose({ merged, branch, apiKeyPresent }) {
+export function planIssueClose({ merged, branch, apiKeyPresent, otherOpenBranches = [] }) {
   if (!merged) {
     return { act: false, reason: "병합되지 않은 pull request입니다." };
   }
@@ -21,10 +21,33 @@ export function planIssueClose({ merged, branch, apiKeyPresent }) {
   if (!issue) {
     return { act: false, reason: `branch ${branch}에 issue 식별자가 없습니다.` };
   }
+  // 한 issue가 pull request 하나로 끝나지 않는 경우가 있다. EAT-176은 #96·#101 둘이 걸렸고 첫 번째가
+  // 병합될 때 닫혔다면 나머지 작업이 완료된 issue 밑에서 진행됐을 것이다. 같은 issue를 가리키는 열린
+  // pull request가 남아 있으면 아직 끝난 것이 아니다.
+  const pending = otherOpenBranches.filter((other) => extractIssueIdentifier(other) === issue);
+  if (pending.length > 0) {
+    return {
+      act: false,
+      issue,
+      reason: `${issue}를 가리키는 열린 pull request가 남아 있습니다: ${pending.join(", ")}`,
+    };
+  }
   if (!apiKeyPresent) {
     return { act: false, issue, reason: `LINEAR_API_KEY가 없어 ${issue}를 옮기지 않았습니다.` };
   }
   return { act: true, issue, reason: `${issue}를 완료로 옮깁니다.` };
+}
+
+/**
+ * 하위 issue가 하나라도 열려 있으면 부모를 닫지 않는다.
+ *
+ * 왜: branch 이름은 "어느 issue의 작업인가"는 말해도 "그 issue가 끝났는가"는 말하지 않는다. epic은
+ * 특히 그렇다 — EAT-176은 하위가 13개이고 그중 8개가 열린 채로 자식 하나의 pull request가 병합된다.
+ * 잘못 닫힌 issue는 아무도 다시 보지 않지만 안 닫힌 issue는 다음 정리에서 눈에 띈다. 비용이
+ * 비대칭이므로 확신이 없으면 닫지 않는 쪽으로 기운다.
+ */
+export function openChildren(children) {
+  return children.filter((child) => child.state?.type !== "completed" && child.state?.type !== "canceled");
 }
 
 /**
@@ -63,6 +86,7 @@ const ISSUE_QUERY = `
       id
       identifier
       state { id name type }
+      children { nodes { identifier state { type } } }
       team { id states { nodes { id name type position } } }
     }
   }
@@ -82,6 +106,11 @@ export async function closeIssue({ apiKey, identifier, fetchImpl = fetch }) {
   if (issue.state?.type === "completed") {
     return { moved: false, reason: `${identifier}는 이미 ${issue.state.name}입니다.` };
   }
+  const stillOpen = openChildren(issue.children?.nodes ?? []);
+  if (stillOpen.length > 0) {
+    const names = stillOpen.map((child) => child.identifier).join(", ");
+    return { moved: false, reason: `${identifier}는 하위 issue ${stillOpen.length}개가 열려 있어 닫지 않습니다: ${names}` };
+  }
   const target = chooseCompletedState(issue.team?.states?.nodes ?? []);
   if (!target) {
     return { moved: false, reason: `${identifier}의 팀에 완료 상태가 없습니다.` };
@@ -95,7 +124,16 @@ export async function main() {
   const branch = process.env.PR_HEAD_REF ?? "";
   const merged = process.env.PR_MERGED === "true";
   const apiKey = process.env.LINEAR_API_KEY ?? "";
-  const plan = planIssueClose({ merged, branch, apiKeyPresent: apiKey.length > 0 });
+  const otherOpenBranches = (process.env.OPEN_PR_BRANCHES ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0 && name !== branch);
+  const plan = planIssueClose({
+    merged,
+    branch,
+    apiKeyPresent: apiKey.length > 0,
+    otherOpenBranches,
+  });
   if (!plan.act) {
     console.log(`건너뜀: ${plan.reason}`);
     return;
