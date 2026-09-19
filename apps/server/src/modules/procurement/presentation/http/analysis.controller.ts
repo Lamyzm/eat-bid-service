@@ -10,7 +10,11 @@ import {
   VERSION_NEUTRAL,
 } from "@nestjs/common";
 import { ApiOperation, ApiResponse } from "@nestjs/swagger";
-import { analysisV1Operations, type AnalysisTimeSeriesV1Response } from "@eatbid/contracts";
+import {
+  analysisV1Operations,
+  type AnalysisConditionOptionsV1Response,
+  type AnalysisTimeSeriesV1Response,
+} from "@eatbid/contracts";
 import { bidRate, canonicalDecimal } from "@eatbid/domain";
 import type { z } from "zod";
 import { ProviderSessionGuard } from "../../../../platform/auth/session.guard";
@@ -18,25 +22,35 @@ import { EffectRunner } from "../../../../platform/effect/effect-runner";
 import { ResponseSchema } from "../../../../platform/http/response-schema.interceptor";
 import { StandardSchemaPipe } from "../../../../platform/http/standard-schema.pipe";
 import { ProcurementDependencyUnavailable } from "../../application/failures";
+import type { AnalysisItemFilter } from "../../application/analysis-time-series-reader";
 import {
   AnalysisRegionNotFound,
   FindAnalysisTimeSeries,
   type FindAnalysisTimeSeriesInput,
 } from "../../application/find-analysis-time-series";
+import {
+  FindAnalysisConditionOptions,
+  type FindAnalysisConditionOptionsInput,
+} from "../../application/find-analysis-condition-options";
 import { OrganizationNotFound } from "../../application/list-organization-auction-attempts";
 import { kstDate } from "../../domain/kst-day";
 import { organizationId } from "../../domain/organization-id";
+import { toAnalysisConditionOptionsResponse } from "./analysis-condition-options.presenter";
 import { toAnalysisTimeSeriesResponse } from "./analysis.presenter";
 
 const operation = analysisV1Operations.findTimeSeries;
+const optionsOperation = analysisV1Operations.findConditionOptions;
 
 type TimeSeriesQuery = z.output<typeof operation.querySchema>;
+type ConditionOptionsQuery = z.output<typeof optionsOperation.querySchema>;
 
 /**
  * 계약의 `.check()`가 이미 모집단과 지역 축의 짝을 강제했지만 타입은 그 사실을 모른다. 여기서 판별
  * union으로 좁혀야 "지역인데 체계가 없는" 값이 어댑터까지 내려갈 수 없다는 것이 타입으로도 닫힌다.
  */
-function comparisonScopeOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput["comparisonScope"] {
+function comparisonScopeOf(
+  query: Pick<TimeSeriesQuery, "comparisonScope" | "comparisonRegionScheme" | "comparisonRegionCodeValueId">,
+): FindAnalysisTimeSeriesInput["comparisonScope"] {
   if (query.comparisonScope === "national") return { kind: "national" };
   if (query.comparisonRegionScheme === undefined || query.comparisonRegionCodeValueId === undefined) {
     throw new BadRequestException({ code: "VALIDATION_ERROR" });
@@ -46,6 +60,17 @@ function comparisonScopeOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput[
     scheme: query.comparisonRegionScheme,
     codeValueId: BigInt(query.comparisonRegionCodeValueId),
   };
+}
+
+/**
+ * 평평한 query 두 칸을 품목 조건 하나로 접는다. 계약의 `.check()`가 이미 `only`와 원자가 함께 오지
+ * 못하게 막았지만 타입은 그 사실을 모르므로, 여기서 판별 union으로 좁혀야 두 뜻이 섞인 값이 어댑터까지
+ * 내려갈 수 없다는 것이 타입으로도 닫힌다.
+ */
+function itemFilterOf(query: Pick<TimeSeriesQuery, "items" | "itemUnknown">): AnalysisItemFilter {
+  if (query.itemUnknown === "only") return { kind: "unknown" };
+  if (query.items === undefined) return { kind: "all" };
+  return { kind: "atoms", atoms: query.items, unknown: query.itemUnknown === "include" };
 }
 
 function inputOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput {
@@ -61,9 +86,8 @@ function inputOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput {
     awardMethodCodeValueId: BigInt(query.awardMethodCodeValueId),
     listCountMin: query.listCountMin ?? null,
     listCountMax: query.listCountMax ?? null,
-    targetItemCodeValueId: query.targetItemCodeValueId === undefined
-      ? null
-      : BigInt(query.targetItemCodeValueId),
+    itemFilter: itemFilterOf(query),
+    overlayOrganizationIds: (query.overlayOrganizationIds ?? []).map((value) => BigInt(value)),
   };
 }
 
@@ -79,6 +103,7 @@ function inputOf(query: TimeSeriesQuery): FindAnalysisTimeSeriesInput {
 export class AnalysisController {
   constructor(
     private readonly findTimeSeries: FindAnalysisTimeSeries,
+    private readonly findConditionOptions: FindAnalysisConditionOptions,
     private readonly effectRunner: EffectRunner,
   ) {}
 
@@ -118,4 +143,61 @@ export class AnalysisController {
       throw error;
     }
   }
+
+  @Get(optionsOperation.handlerPath)
+  @ApiOperation({ operationId: optionsOperation.operationId, summary: optionsOperation.summary })
+  @ApiResponse({ status: 200, description: optionsOperation.successResponses[200].description })
+  @ApiResponse({ status: 400, description: optionsOperation.problemResponses[400].description })
+  @ApiResponse({ status: 401, description: optionsOperation.problemResponses[401].description })
+  @ApiResponse({ status: 404, description: optionsOperation.problemResponses[404].description })
+  @ApiResponse({ status: 503, description: optionsOperation.problemResponses[503].description })
+  @ResponseSchema(optionsOperation.successResponses[200].schema)
+  async findConditionOptionsHandler(
+    @Query(new StandardSchemaPipe(optionsOperation.querySchema)) query: ConditionOptionsQuery,
+  ): Promise<AnalysisConditionOptionsV1Response> {
+    let input: FindAnalysisConditionOptionsInput;
+    try {
+      input = optionsInputOf(query);
+    } catch {
+      throw new BadRequestException({ code: "VALIDATION_ERROR" });
+    }
+    try {
+      return toAnalysisConditionOptionsResponse(
+        await this.effectRunner.run(this.findConditionOptions.execute(input)),
+      );
+    } catch (error) {
+      throw translate(error);
+    }
+  }
+}
+
+/**
+ * use case의 예상 실패만 공개 taxonomy로 번역하고 알 수 없는 결함은 전역 필터에 맡긴다. 두 handler가
+ * 같은 실패를 내므로 번역도 한 곳에서 한다 — 두 벌이면 한쪽만 고쳐져 같은 실패가 다른 상태로 나간다.
+ */
+function translate(error: unknown): unknown {
+  if (error instanceof OrganizationNotFound) return new NotFoundException({ code: "ORGANIZATION_NOT_FOUND" });
+  // 지역 코드값은 자원별 404 allowlist에 없다. 없는 지역은 일반 NOT_FOUND로 닫는다.
+  if (error instanceof AnalysisRegionNotFound) return new NotFoundException({ code: "NOT_FOUND" });
+  if (error instanceof ProcurementDependencyUnavailable) {
+    return new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
+  }
+  return error;
+}
+
+function optionsInputOf(query: ConditionOptionsQuery): FindAnalysisConditionOptionsInput {
+  return {
+    targetOrganizationId: organizationId(BigInt(query.organizationId)),
+    excludeAttemptId: query.excludeAttemptId === undefined ? null : BigInt(query.excludeAttemptId),
+    period: { from: kstDate(query.from), to: kstDate(query.to) },
+    dateBasis: query.dateBasis,
+    comparisonScope: comparisonScopeOf(query),
+    floorRate: bidRate(canonicalDecimal(query.floorRate, 3)),
+    awardMethodCodeValueId: BigInt(query.awardMethodCodeValueId),
+    listCountMin: query.listCountMin ?? null,
+    listCountMax: query.listCountMax ?? null,
+    itemFilter: itemFilterOf(query),
+    sido: query.sido === undefined ? null : BigInt(query.sido),
+    organizationQuery: query.organizationQuery ?? null,
+  };
 }

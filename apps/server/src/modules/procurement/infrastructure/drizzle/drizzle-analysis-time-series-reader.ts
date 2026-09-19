@@ -10,6 +10,7 @@ import type {
   AnalysisComparisonSeriesRecord,
   AnalysisDensityCellRecord,
   AnalysisMonthCoverage,
+  AnalysisOverlaySeriesRecord,
   AnalysisPointRecord,
   AnalysisRegionScheme,
   AnalysisTimeSeriesQuery,
@@ -21,6 +22,7 @@ import {
   analysisCoverageSql,
   analysisDensitySql,
   analysisOverlapSql,
+  analysisOverlayPointsSql,
   analysisPointsSql,
   DENSITY_CELL_LIMIT,
 } from "./analysis-time-series-query";
@@ -31,9 +33,16 @@ import {
   readActiveMartBuildAsOf,
   readActiveMartBuildLineage,
 } from "./drizzle-mart-build-reader";
+import { bigintArrayLiteral } from "../../../../platform/database/sql-values";
 import { bigintValue } from "./postgres-row-values";
 
 type PostgresTimestamp = Parameters<typeof postgresInstant>[0];
+
+/**
+ * 겹쳐 찍은 기관 하나가 그릴 수 있는 점의 수다. 여섯 기관이 각자 이만큼 가져도 계약 상한(2,048) 안이고,
+ * 5년치 한 기관이 이보다 많으면 그 기관은 점이 아니라 구름으로 보여야 한다 — 그때는 잘렸다고 말한다.
+ */
+const OVERLAY_POINT_LIMIT = 2_048;
 
 type PointRow = Readonly<{
   auction_attempt_id: string | bigint;
@@ -49,6 +58,8 @@ type DensityRow = Readonly<{
   cell_count: string | number | bigint;
   total_count: string | number | bigint;
 }>;
+
+type OverlayRow = PointRow & Readonly<{ organization_id: string | bigint }>;
 
 type CoverageRow = Readonly<{
   month_kst: string;
@@ -111,6 +122,38 @@ export function mapCoverageRow(row: CoverageRow): AnalysisMonthCoverage | null {
   };
 }
 
+/**
+ * 겹쳐 찍을 기관의 점을 요청한 순서로 묶는다. 요청 순서를 쓰는 이유는 화면의 번호 배지가 사용자가 고른
+ * 순서를 말하기 때문이다 — DB가 돌려준 순서로 묶으면 같은 기관의 번호가 조회마다 바뀐다.
+ *
+ * 점이 하나도 없는 기관도 묶음을 남긴다. 고른 기관이 목록에서 사라지면 사용자는 고르기가 실패한 것으로
+ * 읽지만, 실제로는 그 조건에 회차가 없는 것이다(AGENTS 3).
+ */
+export function groupOverlayRows(
+  requested: readonly bigint[],
+  read: ReadonlyArray<OverlayRow>,
+  names: ReadonlyMap<bigint, string | null>,
+  limitPerOrganization: number,
+): readonly AnalysisOverlaySeriesRecord[] {
+  const grouped = new Map<bigint, { points: AnalysisPointRecord[]; total: number }>();
+  for (const row of read) {
+    const organizationId = bigintValue(row.organization_id);
+    const bucket = grouped.get(organizationId) ?? { points: [], total: 0 };
+    bucket.points.push(mapPointRow(row));
+    bucket.total = countOf(row.total_count);
+    grouped.set(organizationId, bucket);
+  }
+  return requested.map((organizationId) => {
+    const bucket = grouped.get(organizationId);
+    return {
+      organizationId,
+      name: names.get(organizationId) ?? null,
+      points: bucket?.points ?? [],
+      truncated: (bucket?.total ?? 0) > limitPerOrganization,
+    };
+  });
+}
+
 export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader {
   constructor(private readonly database: AuctionReadDatabase) {}
 
@@ -138,14 +181,16 @@ export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader
     // 반열림 구간의 끝은 다음 달 1일 0시일 수 있다. 1밀리초 앞의 시각으로 달을 고르지 않으면 요청하지
     // 않은 달이 보유율 표에 한 줄 더 선다.
     const toMonth = kstMonthFirstDayText(kstMonthOf(query.before.subtract({ milliseconds: 1 })));
-    const [pointResult, densityResult, overlapResult, coverageResult, lineage, sourceCutoffAt] = await Promise.all([
-      this.database.execute(analysisPointsSql(query, "target", query.targetPointLimit)),
-      this.database.execute(analysisDensitySql(query)),
-      this.database.execute(analysisOverlapSql(query)),
-      this.database.execute(analysisCoverageSql(query, fromMonth, toMonth)),
-      readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY),
-      readActiveMartBuildAsOf(this.database, ORG_ROUND_SUMMARY),
-    ]);
+    const [pointResult, densityResult, overlapResult, coverageResult, overlays, lineage, sourceCutoffAt] =
+      await Promise.all([
+        this.database.execute(analysisPointsSql(query, "target", query.targetPointLimit)),
+        this.database.execute(analysisDensitySql(query)),
+        this.database.execute(analysisOverlapSql(query)),
+        this.database.execute(analysisCoverageSql(query, fromMonth, toMonth)),
+        this.overlays(query),
+        readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY),
+        readActiveMartBuildAsOf(this.database, ORG_ROUND_SUMMARY),
+      ]);
     const pointRows = rows<PointRow>(pointResult);
     const densityRows = rows<DensityRow>(densityResult);
     const comparisonTotal = totalOf(densityRows);
@@ -155,10 +200,39 @@ export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader
       ...await this.comparison(query, densityRows, comparisonTotal),
       comparisonTotal,
       overlapCount: countOf(rows<{ overlap_count: string | number | bigint }>(overlapResult)[0]?.overlap_count ?? 0),
+      overlays,
       coverage: rows<CoverageRow>(coverageResult).map(mapCoverageRow).filter((entry) => entry !== null),
       lineage,
       sourceCutoffAt,
     };
+  }
+
+  /**
+   * 겹쳐 찍을 기관의 점과 이름을 읽는다. 고른 기관이 없으면 질의를 열지 않는다 — 빈 배열로 물으면
+   * `any('{}')`가 한 행도 안 맞는 스캔을 한 번 더 돌린다.
+   *
+   * 이름을 mart가 아니라 `core.organization`에서 읽는 이유는 회차 요약에 기관 라벨 열이 없기 때문이고,
+   * 그것이 옳다 — 이름은 기관의 사실이지 그 회차의 사실이 아니다(AGENTS 1·2).
+   */
+  private async overlays(query: AnalysisTimeSeriesQuery): Promise<readonly AnalysisOverlaySeriesRecord[]> {
+    if (query.overlayOrganizationIds.length === 0) return [];
+    const [pointResult, nameResult] = await Promise.all([
+      this.database.execute(analysisOverlayPointsSql(query, OVERLAY_POINT_LIMIT)),
+      this.database.execute(sql`
+        select organization_id, canonical_name
+          from core.organization
+         where organization_id = any(${bigintArrayLiteral(query.overlayOrganizationIds)}::bigint[])`),
+    ]);
+    const names = new Map<bigint, string | null>(
+      rows<{ organization_id: string | bigint; canonical_name: string | null }>(nameResult)
+        .map((row) => [bigintValue(row.organization_id), row.canonical_name?.trim() || null]),
+    );
+    return groupOverlayRows(
+      query.overlayOrganizationIds,
+      rows<OverlayRow>(pointResult),
+      names,
+      OVERLAY_POINT_LIMIT,
+    );
   }
 
   /**

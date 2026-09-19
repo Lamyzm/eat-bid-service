@@ -9,6 +9,7 @@ import { AnalysisFrame } from '@/app/(workspace)/auctions/[auctionId]/analysis/_
 export function AnalysisWorkspace({
   header,
   filters,
+  reset,
   context,
   time,
   distribution,
@@ -16,6 +17,8 @@ export function AnalysisWorkspace({
 }: {
   readonly header: ReactNode;
   readonly filters: ReactNode;
+  /** 탭 줄 오른쪽 끝이다. 조건 막대는 폭이 모자라 되돌리는 조작을 담지 못한다. */
+  readonly reset: ReactNode;
   readonly context: ReactNode;
   readonly time: ReactNode;
   readonly distribution: ReactNode;
@@ -99,7 +102,7 @@ export function AnalysisWorkspace({
                 낙찰값 분포
               </button>
             </div>
-            <span className='text-xs text-muted-foreground'>기관 · 지역/전국 비교</span>
+            {reset}
           </div>
           {filters}
         </>

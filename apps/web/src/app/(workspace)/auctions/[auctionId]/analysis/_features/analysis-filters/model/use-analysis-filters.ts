@@ -2,7 +2,9 @@
 'use client';
 import { useQueryState } from 'nuqs';
 import { useState, useTransition } from 'react';
+import type { AuctionItemAtom } from '@eatbid/contracts/api/v1/auctions';
 import { analysisSearchParsers } from '@/app/(workspace)/auctions/[auctionId]/analysis/_lib/analysis-search';
+import { ITEM_UNKNOWN_VALUE } from '../ui/analysis-item-field';
 import { draftOfAnalysis, validateAnalysisDraft } from './analysis-filter-draft';
 import type {
   AnalysisDraft,
@@ -51,18 +53,29 @@ export function useAnalysisFilters(setup: AnalysisFilterSetup, applied: AppliedA
     setErrors({});
     if (!TYPED_FIELDS.has(field)) apply(next);
   };
-  const changeComparison = (selection: string) => {
-    const option = setup.options.regions.find((region) => region.codeValueId === selection);
-    if (selection !== 'national' && option === undefined) {
-      setErrors({ comparisonScope: '확인된 공고지역을 선택해 주세요.' });
-      return;
-    }
-    const next: AnalysisDraft = {
+  /** 고른 비교 지역이다. 목록이 사전에서 오므로 화면은 고른 값을 그대로 담고 존재 확인은 서버가 한다. */
+  const changeComparison = (scope: AnalysisDraft['comparisonScope']) => {
+    const next: AnalysisDraft = { ...draft, comparisonScope: scope };
+    setDraft(next);
+    setErrors({});
+    apply(next);
+  };
+  /** 겹쳐 찍을 기관이다. 조건이 아니라 표시 축이지만 주소에 함께 실려야 공유한 링크가 같은 그림을 연다. */
+  const changeOverlays = (selection: readonly string[]) => {
+    const next: AnalysisDraft = { ...draft, overlayOrganizationIds: [...selection] };
+    setDraft(next);
+    setErrors({});
+    apply(next);
+  };
+  /**
+   * 고른 품목이다. `품목 미확인`은 어휘의 원자가 아니라 "다리 행이 없음"이라 목록에서만 같은 줄에
+   * 서고 초안에서는 따로 담는다 — 아홉째 원자로 섞으면 어휘가 우리 것이 된다(EAT-230 §4.3).
+   */
+  const changeItems = (selection: readonly string[]) => {
+    const next = {
       ...draft,
-      comparisonScope:
-        option === undefined
-          ? { kind: 'national' }
-          : { kind: 'region', scheme: option.scheme, codeValueId: option.codeValueId }
+      items: selection.filter((value): value is AuctionItemAtom => value !== ITEM_UNKNOWN_VALUE),
+      itemUnknown: selection.includes(ITEM_UNKNOWN_VALUE)
     };
     setDraft(next);
     setErrors({});
@@ -78,5 +91,15 @@ export function useAnalysisFilters(setup: AnalysisFilterSetup, applied: AppliedA
     setErrors({});
     apply(next);
   };
-  return { draft, errors, pending, change, changeComparison, commit, selectPreset };
+  return {
+    draft,
+    errors,
+    pending,
+    change,
+    changeComparison,
+    changeItems,
+    changeOverlays,
+    commit,
+    selectPreset
+  };
 }

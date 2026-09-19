@@ -33,17 +33,35 @@ describe("공통 분석 필터 계약", () => {
     expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, comparisonItemFilter: { kind: "all" } }).success).toBe(false);
   });
 
-  test("미지원 품목은 전체만 허용하고 미확인 지역 ID를 기본 지역으로 치환하지 않는다", () => {
+  test("겹쳐 찍을 기관은 고른 순서를 지키고 여섯을 넘기면 거부한다", () => {
+    // 표시 축이라 표본 수를 바꾸지 않지만 주소에 실려 공유되므로 순서가 곧 색과 번호다.
+    const 셋 = parseAnalysisFilterValue({ ...analysisFilterFixture, overlayOrganizationIds: ["31", "12", "7"] });
+    expect(셋.overlayOrganizationIds).toEqual(["31", "12", "7"]);
+    expect(parseAnalysisFilterValue(analysisFilterFixture).overlayOrganizationIds).toEqual([]);
+    // 상한은 색과 자리가 감당하는 수다(PDR-0007). 넘긴 것을 조용히 자르면 무엇이 빠졌는지 알 수 없다.
+    const 일곱 = ["1", "2", "3", "4", "5", "6", "7"];
+    expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, overlayOrganizationIds: 일곱 }).success).toBe(false);
+    expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, overlayOrganizationIds: ["창원초"] }).success).toBe(false);
+  });
+
+  test("미확인 지역 ID를 기본 지역으로 치환하지 않는다", () => {
     const options = analysisFilterOptionsSchema.parse(analysisOptionsFixture);
     const filter = parseAnalysisFilterValue(analysisFilterFixture);
     expect(() => assertAnalysisFilterSupported(filter, options)).not.toThrow();
-    expect(() => assertAnalysisFilterSupported({ ...filter, targetItemFilter: { kind: "code", codeValueId: "91" } }, options)).toThrow();
     expect(() => assertAnalysisFilterSupported({ ...filter, comparisonScope: { kind: "region", scheme: "eat:auction-location-sido", codeValueId: "999" } }, options)).toThrow();
   });
 
-  test("검증된 기관 품목은 허용하고 비활성 지역·지원 밖 하한율과 방식은 거부한다", () => {
-    const options = analysisFilterOptionsSchema.parse({ ...analysisOptionsFixture, itemOptions: { state: "ready", options: [{ codeValueId: "91", scheme: "fixture:item", code: "01", label: "검증용 품목" }] } });
-    const filter = parseAnalysisFilterValue({ ...analysisFilterFixture, targetItemFilter: { kind: "code", codeValueId: "91" } });
+  test("품목 원자는 어휘 밖을 schema가 끊고 미확인만 보기는 원자와 함께 오지 못한다", () => {
+    expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, itemFilter: { kind: "atoms", atoms: ["육류", "김치류"], unknown: true } }).success).toBe(true);
+    expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, itemFilter: { kind: "unknown" } }).success).toBe(true);
+    // 어휘 밖 조각과 빈 선택은 값이 아니다. 빈 배열을 받으면 "전체"와 "아무것도 안 고름"이 같아진다.
+    expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, itemFilter: { kind: "atoms", atoms: ["축산"], unknown: false } }).success).toBe(false);
+    expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, itemFilter: { kind: "atoms", atoms: [], unknown: false } }).success).toBe(false);
+  });
+
+  test("비활성 지역·지원 밖 하한율과 방식은 거부한다", () => {
+    const options = analysisFilterOptionsSchema.parse(analysisOptionsFixture);
+    const filter = parseAnalysisFilterValue({ ...analysisFilterFixture, itemFilter: { kind: "atoms", atoms: ["육류"], unknown: false } });
     expect(() => assertAnalysisFilterSupported(filter, options)).not.toThrow();
     expect(() => assertAnalysisFilterSupported(filter, { ...options, regions: options.regions.map((region) => ({ ...region, active: false })) })).toThrow();
     expect(() => assertAnalysisFilterSupported({ ...filter, floorRate: { value: "88.000", unit: "percentage-points" } }, options)).toThrow();

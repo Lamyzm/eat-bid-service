@@ -6,8 +6,13 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import { CODE_SCHEME_NAMES } from "@eatbid/contracts";
+import { bigintArrayLiteral, textArrayLiteral } from "../../../../platform/database/sql-values";
 import { rateMilliText } from "../../application/distribution-statistics";
-import type { AnalysisTimeSeriesQuery } from "../../application/analysis-time-series-reader";
+import type {
+  AnalysisCohortQuery,
+  AnalysisItemFilter,
+  AnalysisTimeSeriesQuery,
+} from "../../application/analysis-time-series-reader";
 import { KST_TIME_ZONE } from "../../domain/kst-month";
 import { activeMartBuildId, ORG_ROUND_SUMMARY, worstCoverageOrder } from "./drizzle-mart-build-reader";
 
@@ -31,7 +36,7 @@ function dateColumn(dateBasis: "opened" | "announced"): SQL {
  * 명단 범위를 걸면 `list_count`가 null인 회차는 빠진다. 명단 크기를 모르는 판을 "범위 안"으로 세면
  * 미확인을 관측으로 바꾸는 것이다(AGENTS 3).
  */
-export function analysisBasePredicate(query: AnalysisTimeSeriesQuery): SQL {
+export function analysisBasePredicate(query: AnalysisCohortQuery): SQL {
   const date = dateColumn(query.dateBasis);
   const parts: SQL[] = [
     sql`summary.build_id = ${ACTIVE_BUILD}`,
@@ -48,23 +53,44 @@ export function analysisBasePredicate(query: AnalysisTimeSeriesQuery): SQL {
   if (query.excludeAttemptId !== null) {
     parts.push(sql`and summary.auction_attempt_id <> ${query.excludeAttemptId}::bigint`);
   }
+  const item = itemPredicate(query.itemFilter);
+  if (item !== null) parts.push(item);
   return sql.join(parts, sql` `);
 }
 
+/** 이 회차에 품목 다리 행이 하나도 없다는 술어다. `품목 미확인`의 정의가 여기 한 곳에만 있다. */
+function itemBridgeAbsent(): SQL {
+  return sql`not exists (
+    select 1 from mart.org_round_summary_item bridge
+     where bridge.build_id = summary.build_id
+       and bridge.auction_attempt_id = summary.auction_attempt_id)`;
+}
+
 /**
- * 기관 쪽에만 걸리는 조건이다. 품목이 여기 있는 이유는 비교군이 언제나 전체 품목이기 때문이다(PDR-0006).
- * 품목은 열이 아니라 다리표로 거는데, 원천 라벨 한 문자열이 원자 여럿이라 단일 열은 "첫 원자"라는
- * 거짓 정체성을 만든다(AGENTS 2, EAT-256).
+ * 품목 술어다. **기본 술어에 있으므로 기관 점·비교 구름·겹침·밀도 전부에 같게 걸린다**(PDR-0007).
+ *
+ * 원자는 OR이다 — 하나라도 붙어 있으면 걸린다. 라벨 문자열이 아니라 코드로 조인하며 체계로 닫는다.
+ * 코드 문자열은 여러 체계에 있을 수 있어 체계 없이 조인하면 다른 어휘의 같은 글자를 잡는다(AGENTS 2·6).
  */
-export function analysisTargetPredicate(query: AnalysisTimeSeriesQuery): SQL {
-  const parts: SQL[] = [sql`and summary.organization_id = ${query.targetOrganizationId}::bigint`];
-  if (query.targetItemCodeValueId !== null) {
-    parts.push(sql`and exists (select 1 from mart.org_round_summary_item bridge
-      where bridge.build_id = summary.build_id
-        and bridge.auction_attempt_id = summary.auction_attempt_id
-        and bridge.item_code_value_id = ${query.targetItemCodeValueId}::bigint)`);
-  }
-  return sql.join(parts, sql` `);
+function itemPredicate(filter: AnalysisItemFilter): SQL | null {
+  if (filter.kind === "all") return null;
+  if (filter.kind === "unknown") return sql`and ${itemBridgeAbsent()}`;
+  const matched = sql`exists (
+    select 1
+      from mart.org_round_summary_item bridge
+      join core.code_value value on value.code_value_id = bridge.item_code_value_id
+      join core.code_scheme scheme on scheme.code_scheme_id = value.code_scheme_id
+     where bridge.build_id = summary.build_id
+       and bridge.auction_attempt_id = summary.auction_attempt_id
+       and scheme.namespace = ${CODE_SCHEME_NAMES.auctionItem}
+       and value.code = any(${textArrayLiteral(filter.atoms)}::text[]))`;
+  // 미확인을 함께 보려는 요청은 그 회차가 조건에 안 맞는 것이 아니라 답할 수 없는 회차임을 아는 요청이다.
+  return filter.unknown ? sql`and (${matched} or ${itemBridgeAbsent()})` : sql`and ${matched}`;
+}
+
+/** 기관 쪽에만 걸리는 조건이다. 품목은 이제 두 집단 공통이라 기본 술어가 갖는다(PDR-0007). */
+export function analysisTargetPredicate(query: AnalysisCohortQuery): SQL {
+  return sql`and summary.organization_id = ${query.targetOrganizationId}::bigint`;
 }
 
 /**
@@ -74,7 +100,7 @@ export function analysisTargetPredicate(query: AnalysisTimeSeriesQuery): SQL {
  * id만 보고 두 열을 함께 훑으면 같은 숫자가 두 체계의 구역으로 읽힌다(AGENTS 6, ADR 0035). 번역되지
  * 않아 null인 행은 그 지역 모집단에 들지 않는다 — 매핑 없음은 행의 부재다(ADR 0035 결정 6).
  */
-export function analysisComparisonPredicate(query: AnalysisTimeSeriesQuery): SQL {
+export function analysisComparisonPredicate(query: AnalysisCohortQuery): SQL {
   const scope = query.comparisonScope;
   if (scope.kind === "national") return sql``;
   const column = scope.scheme === CODE_SCHEME_NAMES.auctionLocationSido
@@ -111,6 +137,36 @@ export function analysisPointsSql(query: AnalysisTimeSeriesQuery, scope: "target
      where ${analysisBasePredicate(query)} ${narrowing}
      order by ${date}, summary.auction_attempt_id
      limit ${limit}`;
+}
+
+/**
+ * 겹쳐 찍을 기관들의 점을 한 질의로 읽는다. 기관마다 따로 물으면 여섯 번의 왕복이 되고, 그 사이
+ * build가 바뀌면 한 그림 안의 점들이 서로 다른 발행을 보게 된다(ADR 0034).
+ *
+ * 기관별 상한은 `row_number`로 건다 — 전체를 자르면 앞선 기관이 상한을 다 쓰고 뒤 기관이 한 점도 못
+ * 받는다. 대상 기관 술어를 쓰지 않는 이유는 여기서 좁히는 것이 기관 축 하나뿐이기 때문이다.
+ */
+export function analysisOverlayPointsSql(query: AnalysisCohortQuery, limitPerOrganization: number): SQL {
+  const date = dateColumn(query.dateBasis);
+  const ids = bigintArrayLiteral(query.overlayOrganizationIds);
+  return sql`
+    select ranked.organization_id, ranked.auction_attempt_id, ranked.auction_revision_id,
+           ranked.plotted_at, ranked.awarded_assessment_rate, ranked.total_count
+      from (
+        select summary.organization_id,
+               summary.auction_attempt_id,
+               summary.auction_revision_id,
+               ${date} as plotted_at,
+               summary.awarded_assessment_rate,
+               count(*) over (partition by summary.organization_id) as total_count,
+               row_number() over (partition by summary.organization_id order by ${date},
+                                  summary.auction_attempt_id) as position
+          from mart.org_round_summary summary
+         where ${analysisBasePredicate(query)}
+           and summary.organization_id = any(${ids}::bigint[])
+      ) ranked
+     where ranked.position <= ${limitPerOrganization}
+     order by ranked.organization_id, ranked.plotted_at, ranked.auction_attempt_id`;
 }
 
 /**

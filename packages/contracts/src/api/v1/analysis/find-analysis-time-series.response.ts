@@ -4,6 +4,7 @@ import { z } from "zod";
 import { analysisMetaSchema } from "./meta.resource";
 import {
   analysisComparisonSeriesSchema,
+  analysisOverlaySeriesSchema,
   analysisTargetPointSchema,
   analysisTimeSeriesAxisSchema,
 } from "./time-series.resource";
@@ -24,6 +25,11 @@ export const analysisTimeSeriesV1ResponseSchema = z.strictObject({
   target: z.array(analysisTargetPointSchema).max(8192).nullable(),
   targetTruncated: z.boolean(),
   comparison: analysisComparisonSeriesSchema.nullable(),
+  /**
+   * 겹쳐 찍은 기관들이다. 고르지 않았으면 빈 배열이고, 자료가 준비되지 않았으면 `null`이다 — 빈 배열로
+   * 뭉개면 "안 골랐다"와 "아직 못 읽었다"가 화면에서 같아진다(AGENTS 3).
+   */
+  overlays: z.array(analysisOverlaySeriesSchema).max(6).nullable(),
   meta: analysisMetaSchema,
 }).meta({ id: "EatbidApiV1AnalysisTimeSeries" });
 

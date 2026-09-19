@@ -66,6 +66,20 @@ export const analysisComparisonSeriesSchema = z.discriminatedUnion("kind", [
  * 시간축의 눈금이다. 서버가 실제로 적용한 구간이며 요청이 준 희망값이 아니다 — 요청한 해상도를 그대로
  * 되돌려 주면 화면이 자기가 보낸 값을 확인할 뿐이고, 서버가 상한 때문에 거칠게 잡았다는 사실이 사라진다.
  */
+/**
+ * 겹쳐 찍은 기관 하나의 점 묶음이다. 기관마다 따로 싣는 이유는 화면이 색과 번호를 기관 단위로 주기
+ * 때문이다 — 한 배열에 섞어 보내면 화면이 다시 기관별로 갈라야 하고 그 갈래가 서버와 어긋날 수 있다.
+ *
+ * `name`은 관측 라벨이라 없을 수 있다. 이름이 없다고 묶음을 빼면 사용자가 고른 기관이 그림에서
+ * 조용히 사라진다(AGENTS 3).
+ */
+export const analysisOverlaySeriesSchema = z.strictObject({
+  organizationId: positiveBigintTextSchema,
+  name: z.string().min(1).max(256).nullable(),
+  points: z.array(analysisTargetPointSchema).max(2048),
+  truncated: z.boolean(),
+}).meta({ id: "AnalysisOverlaySeries" });
+
 export const analysisTimeResolutionSchema = z.enum(["day", "week", "month"]);
 
 export const analysisTimeSeriesAxisSchema = z.strictObject({
@@ -75,6 +89,7 @@ export const analysisTimeSeriesAxisSchema = z.strictObject({
   rateBinWidth: observedBidRateWireSchema.nullable(),
 }).meta({ id: "AnalysisTimeSeriesAxis" });
 
+export type AnalysisOverlaySeries = z.infer<typeof analysisOverlaySeriesSchema>;
 export type AnalysisTargetPoint = z.infer<typeof analysisTargetPointSchema>;
 export type AnalysisDensityCell = z.infer<typeof analysisDensityCellSchema>;
 export type AnalysisComparisonSeries = z.infer<typeof analysisComparisonSeriesSchema>;

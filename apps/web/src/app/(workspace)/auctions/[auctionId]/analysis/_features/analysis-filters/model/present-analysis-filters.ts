@@ -48,7 +48,6 @@ export function presentAnalysisFilters(
       regions,
       floorRates: auction.terms?.floorRate ? [auction.terms.floorRate] : [],
       awardMethods: auction.terms?.awardMethod ? [auction.terms.awardMethod] : [],
-      itemOptions: { state: 'unsupported' },
       availablePeriods: { opened: null, announced: null }
     },
     presets: [{ value: 'all', label: '전 기간', period: null }, ...presets],
@@ -62,7 +61,9 @@ export function presentAnalysisFilters(
       awardMethod: auction.terms?.awardMethod?.codeValueId ?? '',
       min: '',
       max: '',
-      item: 'all'
+      items: [],
+      itemUnknown: false,
+      overlayOrganizationIds: []
     }
   };
 }

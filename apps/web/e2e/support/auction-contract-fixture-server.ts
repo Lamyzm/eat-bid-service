@@ -11,6 +11,7 @@ import {
   observedLineage,
   resetObservations
 } from './cache-observability';
+import { analysisConditionOptionsResponse } from './analysis-condition-options-fixture';
 import { analysisTimeSeriesResponse } from './analysis-time-series-fixture';
 import { auctionRosterResponse } from './auction-roster-fixture';
 import { myBusinessesResponse } from './my-businesses-fixture';
@@ -292,6 +293,10 @@ Bun.serve({
     // 아니라 오류 경계에서 멈춘다(2026-09-18 CI 회차 35288060366).
     const timeSeries = analysisTimeSeriesResponse(request);
     if (timeSeries) return timeSeries;
+
+    // 조건 막대의 지역·기관·품목 목록은 브라우저가 따로 읽는다. 이 응답이 없으면 여닫이가 빈 채로 선다.
+    const conditionOptions = analysisConditionOptionsResponse(request);
+    if (conditionOptions) return conditionOptions;
 
     return new Response(null, { status: 404 });
   }

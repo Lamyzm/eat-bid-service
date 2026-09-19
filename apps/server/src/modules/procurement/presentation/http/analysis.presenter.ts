@@ -4,6 +4,7 @@ import type {
   AnalysisDensityCell,
   AnalysisFilterValue,
   AnalysisMeta,
+  AnalysisOverlaySeries,
   AnalysisSnapshot,
   AnalysisTargetPoint,
   AnalysisTimeSeriesV1Response,
@@ -11,6 +12,7 @@ import type {
 import { bidRateWire, bigintText, instantText } from "../../../../platform/http/wire";
 import type {
   AnalysisDensityCellRecord,
+  AnalysisOverlaySeriesRecord,
   AnalysisPointRecord,
 } from "../../application/analysis-time-series-reader";
 import { rateMilliText } from "../../application/distribution-statistics";
@@ -78,6 +80,15 @@ function comparisonResource(ready: AnalysisTimeSeriesReady): AnalysisComparisonS
   };
 }
 
+function overlayResource(series: AnalysisOverlaySeriesRecord): AnalysisOverlaySeries {
+  return {
+    organizationId: bigintText(series.organizationId),
+    name: series.name,
+    points: series.points.map(pointResource),
+    truncated: series.truncated,
+  };
+}
+
 function filterResource(input: FindAnalysisTimeSeriesInput): AnalysisFilterValue {
   return {
     targetOrganizationId: bigintText(input.targetOrganizationId),
@@ -94,9 +105,11 @@ function filterResource(input: FindAnalysisTimeSeriesInput): AnalysisFilterValue
     floorRate: bidRateWire(input.floorRate),
     awardMethodCodeValueId: bigintText(input.awardMethodCodeValueId),
     listCountRange: { min: input.listCountMin, max: input.listCountMax },
-    targetItemFilter: input.targetItemCodeValueId === null
-      ? { kind: "all" }
-      : { kind: "code", codeValueId: bigintText(input.targetItemCodeValueId) },
+    // 포트는 읽기 전용 배열이고 wire 타입은 그렇지 않다. 같은 값을 복사해 경계에서만 형태를 맞춘다.
+    itemFilter: input.itemFilter.kind === "atoms"
+      ? { kind: "atoms", atoms: [...input.itemFilter.atoms], unknown: input.itemFilter.unknown }
+      : input.itemFilter,
+    overlayOrganizationIds: input.overlayOrganizationIds.map((value) => bigintText(value)),
   };
 }
 
@@ -153,6 +166,8 @@ export function toAnalysisTimeSeriesResponse(result: AnalysisTimeSeriesResult): 
       target: null,
       targetTruncated: false,
       comparison: null,
+      // 빈 배열이 아니라 null이다. "안 골랐다"와 "아직 못 읽었다"를 화면에서 같게 만들지 않는다.
+      overlays: null,
       meta: { state: "unavailable", effectiveFilter: filterResource(result.input), reason: result.reason },
     };
   }
@@ -165,6 +180,7 @@ export function toAnalysisTimeSeriesResponse(result: AnalysisTimeSeriesResult): 
     target: result.targetPoints.map(pointResource),
     targetTruncated: result.targetTruncated,
     comparison: comparisonResource(result),
+    overlays: result.overlays.map(overlayResource),
     meta: metaResource(result),
   };
 }

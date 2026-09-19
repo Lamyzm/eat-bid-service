@@ -52,23 +52,40 @@ describe('공통 비교조건 초안과 적용', () => {
     expect(missing.presets.find((preset) => preset.value === 'all')?.period).toBeNull();
   });
 
-  test('관측 밖 지역과 미지원 기관 품목을 제출할 수 없다', () => {
-    expect(
-      validateAnalysisDraft(
-        {
-          ...setup.initialDraft,
-          comparisonScope: {
-            kind: 'region',
-            codeValueId: '999',
-            scheme: 'eat:auction-location-sido'
-          }
-        },
-        setup
-      ).state
-    ).toBe('invalid');
-    expect(validateAnalysisDraft({ ...setup.initialDraft, item: '99' }, setup).state).toBe(
-      'invalid'
+  test('고른 품목과 미확인은 DTO의 한 조건으로 접히고 빈 선택이 전체다', () => {
+    const all = validateAnalysisDraft(setup.initialDraft, setup);
+    if (all.state !== 'valid') throw new Error('전체 품목이어야 합니다');
+    expect(all.filter.itemFilter).toEqual({ kind: 'all' });
+
+    const atoms = validateAnalysisDraft(
+      { ...setup.initialDraft, items: ['육류', '가금류'], itemUnknown: true },
+      setup
     );
+    if (atoms.state !== 'valid') throw new Error('품목 조건이어야 합니다');
+    expect(atoms.filter.itemFilter).toEqual({ kind: 'atoms', atoms: ['육류', '가금류'], unknown: true });
+
+    // 미확인만 고른 상태는 전체가 아니다. 전체로 접으면 3분의 1만 보려던 조건이 조용히 전부가 된다.
+    const unknown = validateAnalysisDraft({ ...setup.initialDraft, itemUnknown: true }, setup);
+    if (unknown.state !== 'valid') throw new Error('미확인 조건이어야 합니다');
+    expect(unknown.filter.itemFilter).toEqual({ kind: 'unknown' });
+  });
+
+  test('이 공고에 없는 지역도 조건으로 담는다', () => {
+    // 비교 지역은 조건 사전 전체에서 고른다. 화면이 이 공고가 관측한 둘로 막으면 다른 시군구와 비교할
+    // 길이 없어진다. 없는 코드값의 판정은 서버가 하며 그때는 404다.
+    const other = validateAnalysisDraft(
+      {
+        ...setup.initialDraft,
+        comparisonScope: { kind: 'region', codeValueId: '999', scheme: 'eat:auction-location-sido' }
+      },
+      setup
+    );
+    if (other.state !== 'valid') throw new Error('다른 지역도 조건이 되어야 합니다');
+    expect(other.filter.comparisonScope).toEqual({
+      kind: 'region',
+      codeValueId: '999',
+      scheme: 'eat:auction-location-sido'
+    });
     const parsed = validateAnalysisDraft(
       {
         ...setup.initialDraft,
@@ -100,21 +117,23 @@ describe('공통 비교조건 초안과 적용', () => {
     ).toBe('invalid');
   });
 
-  test('지역 ID가 같아도 다른 코드 체계의 조건은 허용하지 않는다', () => {
+  test('지역 코드값은 체계와 함께 실려 다른 어휘로 읽히지 않는다', () => {
     const parsed = validateAnalysisDraft(setup.initialDraft, setup);
     if (parsed.state !== 'valid') throw new Error('유효한 조건이어야 합니다');
-    expect(
-      readAppliedAnalysis(
-        JSON.stringify({
-          ...parsed.filter,
-          comparisonScope: {
-            kind: 'region',
-            codeValueId: '41',
-            scheme: 'eat:auction-location-sigungu'
-          }
-        }),
-        setup
-      ).state
-    ).toBe('invalid');
+    // 같은 숫자가 시도에도 시군구에도 있다. 둘을 가르는 것은 함께 실린 체계이며, 그 짝이 실제로 있는
+    // 구역인지는 서버가 체계까지 조인해 확인한다(AGENTS 6).
+    const applied = readAppliedAnalysis(
+      JSON.stringify({
+        ...parsed.filter,
+        comparisonScope: { kind: 'region', codeValueId: '41', scheme: 'eat:auction-location-sigungu' }
+      }),
+      setup
+    );
+    if (applied.state !== 'pending') throw new Error('조건으로 읽혀야 합니다');
+    expect(applied.filter.comparisonScope).toEqual({
+      kind: 'region',
+      codeValueId: '41',
+      scheme: 'eat:auction-location-sigungu'
+    });
   });
 });

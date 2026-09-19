@@ -67,15 +67,71 @@
  * 조건은 한 줄로 흐르고 폭이 모자랄 때만 다음 줄로 넘어간다. 라벨을 쌓고 적용 버튼 줄을 두던
  * 이전 형태는 1024px에서 253px, 좁은 폭에서 489px까지 부풀어 결과를 화면 밖으로 밀어냈다.
  */
+/*
+ * 한국어는 어절 단위로 끊어야 읽힌다. 기본 줄바꿈은 `품목 미확인은 공고가 품목을 말하지 않` / `은
+ * 회차예요.`처럼 단어 가운데를 자른다(2026-09-18 디자인 심사 반려).
+ */
+.analysis-filter-form,
+.analysis-context-row {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
 .analysis-filter-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  gap: 8px;
+  padding: 10px var(--analysis-padding);
+  max-height: 40dvh;
+  overflow-y: auto;
+}
+/*
+ * 줄 안에서만 흐르고 줄끼리는 섞이지 않는다. 한 뭉치로 흘리면 폭에 따라 `지역`이 조회 기간 줄에
+ * 붙었다가 비교 조건 줄로 갔다가 하며 어느 묶음에 속한 조건인지가 폭마다 달라진다.
+ */
+.analysis-filter-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   min-width: 0;
-  gap: 8px 14px;
-  padding: 10px var(--analysis-padding);
-  max-height: 40dvh;
-  overflow-y: auto;
+  gap: 6px 6px;
+}
+/*
+ * 값 자체가 무엇을 고른 것인지 말하는 칸(`최저가`·`적격심사`)은 좁은 폭에서 라벨을 눈에서만 감춘다.
+ * 1024px에서 여섯 칸은 776px이고 쓸 수 있는 폭은 716px이라, 이 60px을 내주지 않으면 마지막 칸이
+ * 통째로 다음 줄로 떨어진다(2026-09-18 실측). 이름은 남으므로 화면 낭독기는 그대로 읽는다.
+ */
+@media (max-width: 79.99rem) {
+  .analysis-filter-row .analysis-optional-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
+/*
+ * 줄 라벨은 두 묶음을 가르는 기둥이다. 폭을 고정해야 두 줄의 첫 칸이 같은 x에서 시작하고, 그래야
+ * 라벨이 기둥으로 읽힌다. 좁은 폭에서는 기둥이 쓰는 60px이 조건 한 칸을 통째로 다음 줄로 밀기
+ * 때문에 접는다 — 그 폭에서도 두 줄은 서로 다른 행이고 각 줄의 `role='group'` 이름이 남는다.
+ */
+.analysis-filter-row-label {
+  display: none;
+  flex-shrink: 0;
+  width: 52px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--muted-foreground);
+}
+@media (min-width: 80rem) {
+  .analysis-filter-row-label {
+    display: block;
+  }
 }
 [data-slot='analysis-evidence'] {
   display: flex;

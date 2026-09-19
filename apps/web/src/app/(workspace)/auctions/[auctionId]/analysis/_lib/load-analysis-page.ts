@@ -12,6 +12,11 @@ import { presentAnalysisHeader } from './present-analysis-header';
 type Dependencies = {
   readonly parseId: (value: string) => string;
   readonly readAuction: (input: { readonly auctionId: string }) => Promise<AuctionRead>;
+  /**
+   * query 입력 타입을 그대로 쓰지 않고 이 조회가 실제로 만드는 값(`analysisTimeSeriesQueryOf`의 결과)만
+   * 받는다. 계약의 입력 타입에는 query string이 배열로도 값 하나로도 오는 자리가 `unknown`으로 열려
+   * 있어, 그것을 의존성 경계에 그대로 두면 시험이 무엇을 넘겨야 하는지 타입이 말하지 못한다.
+   */
   readonly readTimeSeries: (
     input: ReturnType<typeof analysisTimeSeriesQueryOf>
   ) => Promise<AnalysisTimeSeriesRead>;

@@ -34,10 +34,8 @@ export function assertAnalysisFilterSupported(filter: AnalysisFilterValue, input
   }
   if (!options.floorRates.some((rate) => rate.value === filter.floorRate.value)) throw new RangeError("지원하는 하한율이 아닙니다.");
   if (!options.awardMethods.some((method) => method.codeValueId === filter.awardMethodCodeValueId)) throw new RangeError("확인된 낙찰방식이 아닙니다.");
-  const item = filter.targetItemFilter;
-  if (item.kind === "code" && (options.itemOptions.state !== "ready" || !options.itemOptions.options.some((value) => value.codeValueId === item.codeValueId))) {
-    throw new RangeError("현재 지원하는 기관 품목 코드가 아닙니다.");
-  }
+  // 품목은 여기서 다시 확인하지 않는다. 값이 코드값 id가 아니라 계약 안의 원자 여덟이라 schema가
+  // 이미 어휘 밖을 끊었고, 서버가 확인해 줄 "지원 여부"라는 것이 따로 없다(PDR-0007).
 }
 
 /** 여러 mart의 build 번호는 달라도 된다. 실제 입력 집합 검증은 발급자가 수행하며 이 함수는 구조적 의미만 검증한다. */

@@ -35,7 +35,7 @@ export function AnalysisContext({
         {context.description} · {context.method}
       </p>
       <p className='mt-1 text-xs leading-relaxed text-muted-foreground'>
-        지역/전국 전체는 조건에 맞는 이 기관의 기록을 포함해요. 이 기관은 전체 품목이에요.
+        지역/전국 전체는 조건에 맞는 이 기관의 기록을 포함해요. 품목을 고르면 양쪽에 함께 걸려요.
       </p>
       <dl className='mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs'>
         <div className='flex items-center gap-2'>

@@ -7,14 +7,14 @@ export const analysisFilterFixture = {
   floorRate: { value: "90.000", unit: "percentage-points" },
   awardMethodCodeValueId: "71",
   listCountRange: { min: 12, max: 24 },
-  targetItemFilter: { kind: "all" },
+  itemFilter: { kind: "all" },
+  overlayOrganizationIds: [],
 } as const;
 
 export const analysisOptionsFixture = {
   regions: [{ codeValueId: "41", scheme: "eat:auction-location-sido", code: "48", label: "경상남도", parentCodeValueId: null, active: true }],
   floorRates: [{ value: "90.000", unit: "percentage-points" }],
   awardMethods: [{ codeValueId: "71", scheme: "eat:award-method", code: "001", label: "관측된 낙찰방식" }],
-  itemOptions: { state: "unsupported" },
   availablePeriods: { opened: { from: "2021-01-01", to: "2026-09-14" }, announced: null },
 } as const;
 
