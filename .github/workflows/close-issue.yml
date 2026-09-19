@@ -1,0 +1,39 @@
+name: 병합된 issue 닫기
+
+# 왜 필요한가: Linear의 GitHub 연동이 이 저장소에 붙어 있지 않아(webhook 0개) 병합해도 issue 상태가
+# 그대로 남는다. 2026-09-19 기준 열린 issue 140개 중 70개가 이미 main에 커밋이 들어간 것이었다.
+# 사람이 매번 손으로 옮기는 절차는 이미 실패했으므로 병합 뒤에 자동으로 돈다.
+#
+# LINEAR_API_KEY secret이 없으면 이 workflow는 이유를 남기고 통과한다 — 이미 병합된 변경에 빨간
+# 표시를 붙이지 않는다.
+
+on:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: close-issue-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  close:
+    name: Linear issue를 완료로 옮긴다
+    # 병합되지 않고 닫힌 pull request는 issue를 끝낸 것이 아니다.
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - name: issue 상태 옮기기
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+        run: node -e "import('./tools/agent-workflow/linear-close.mjs').then((m) => m.main())"
