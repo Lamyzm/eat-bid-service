@@ -14,6 +14,10 @@ spec:
   workflowSpec:
     workflowTemplateRef:
       name: eatbid-dataplane
+    # 재대조 전용 진입점이다(2026-09-18, EAT-275). 비우면 WorkflowTemplate 기본값인 scheduled-pipeline이
+    # 불려 poll-open과 같은 source semaphore key를 잡고, 재대조가 도는 몇 시간 동안 정시 수집이 자리를
+    # 못 잡는다. reconcile-pipeline은 단계가 같고 discover·capture만 eatbid-source-reconcile을 쓴다.
+    entrypoint: reconcile-pipeline
     # 보장은 이 priority가 아니라 source semaphore key 분리다(eatbid-source-live vs
     # eatbid-source-backfill, 2026-09-11 EAT-164). poll-open과 같은 값이며 근거와 2026-09-10 관측은
     # 그쪽 주석이다.
