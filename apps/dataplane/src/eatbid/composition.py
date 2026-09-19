@@ -391,7 +391,10 @@ class Application:
         이미 발행에 성공한 release는 후보에서 뺀다 — 한 창이 여러 번 실패한 뒤 성공했다면 그 창은
         닫힌 것이고, 실패 기록은 진단용으로 남아 있을 뿐이다.
         """
-        with self._connection.cursor() as cursor:
+        # 읽기도 transaction 블록 안에서 한다. 블록 없이 커서만 쓰면 psycopg가 연 암묵 transaction이
+        # 닫히지 않은 채 남고, close()의 가드가 그것을 "저장 안 된 채 끝났다"로 보고 실패시킨다
+        # (EAT-273). 이 명령은 아무것도 쓰지 않으므로 뒤이어 commit해 줄 사람도 없다.
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(_REPLAY_CANDIDATES_SQL)
             candidates = tuple(
                 FailedPublication(
@@ -702,7 +705,10 @@ class _MonitoringRunner:
     def _run_query(
         self, sql: str, parameters: Mapping[str, Any]
     ) -> list[dict[str, Any]]:
-        with self._connection.cursor(row_factory=dict_row) as cursor:
+        # 읽기지만 transaction 블록 안에서 한다. 지금까지 이 경로가 안 죽은 것은 같은 회차의
+        # _execute·_mutate가 뒤이어 commit해 close() 시점에 transaction이 이미 닫혀 있었기 때문이다.
+        # 쓸 것이 하나도 없는 회차가 오면 EAT-273의 가드에 그대로 걸린다 — 우연에 기대지 않는다.
+        with self._connection.transaction(), self._connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(sql, parameters)
             return list(cursor.fetchall())
 
