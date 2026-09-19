@@ -26,8 +26,13 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
+      # 기본 branch를 명시해 받는다. pull_request event의 기본 checkout은 그 pull request의 merge ref라,
+      # 규칙을 바꾸는 변경이 아직 main에 없는 pull request가 병합되면 **그 pull request 안의 옛 규칙**이
+      # 돈다. 무엇을 닫을지의 판단은 병합되는 변경이 아니라 main이 소유해야 한다.
       - name: checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
       - name: Node 설치
         uses: actions/setup-node@v4
         with:
