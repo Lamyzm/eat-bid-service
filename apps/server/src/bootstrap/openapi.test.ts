@@ -26,7 +26,8 @@ describe("canonical OpenAPI 산출물", () => {
     const document = JSON.parse(first) as any;
     expect(document.openapi).toBe("3.0.3");
     expect(Object.keys(document.paths).sort()).toEqual([
-      // 분석 시간축도 같은 이유로 계약만 먼저 열려 있다. Nest handler는 EAT-216의 다음 조각이 붙인다.
+      // 조건 사전 조회다. 비교 지역·품목·기관 여닫이 셋이 같은 조건을 세 번 묻지 않도록 한 응답을 나눠 쓴다.
+      "/api/v1/analysis/condition-options",
       "/api/v1/analysis/time-series",
       "/api/v1/auctions",
       "/api/v1/auctions/summary",
@@ -64,6 +65,7 @@ describe("canonical OpenAPI 산출물", () => {
         "clearMyBusinessLocation",
         "countMyFilterCombinations",
         "deleteMyFilterCombination",
+        "findAnalysisConditionOptions",
         "findAnalysisTimeSeries",
         "findAuction",
         "findMyBidObservations",

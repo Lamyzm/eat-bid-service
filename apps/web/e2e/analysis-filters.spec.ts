@@ -37,7 +37,16 @@ test('새 상세는 비교조건으로 바로 시작하고 적용·탭·전체�
   await page.getByLabel('명단 최소').blur();
   await expect(page.getByText('최대 명단 수는 최소 이상이어야 해요.')).toBeVisible();
   await page.getByLabel('명단 최대').fill('');
+  // 칸을 떠나는 것이 곧 보내는 것이다. Esc로 패널을 먼저 닫으면 칸이 사라진 뒤라 떠나는 일 자체가
+  // 일어나지 않고 적은 값이 주소에 안 앉는다(CI 실측: 옛 `{min:null,max:12}`가 그대로 남았다).
+  await page.getByLabel('명단 최대').blur();
+  await expect
+    .poll(() => JSON.parse(new URL(page.url()).searchParams.get('analysis') ?? '{}').listCountRange)
+    .toEqual({ min: 24, max: null });
   await page.keyboard.press('Escape');
+  // 결과가 화면에 붙은 뒤에 연다. 조회가 도는 동안 열면 사전 응답이 늦게 도착하며 목록이 다시
+  // 그려지고, 누르려던 줄이 DOM에서 떨어진다.
+  await expect(page.getByText('비교조건을 적용하고 있어요.')).toHaveCount(0);
   // 비교 지역은 사전에서 고른다. 여닫이를 열고 왼쪽 목록에서 전국을 고르면 그 자리에서 적용된다.
   await form.getByRole('combobox', { name: /^비교 지역/ }).click();
   // 이 조건에 회차가 없는 시도도 목록에 남는다. 지우면 사용자가 "없는 지역"과 "조건 때문에 빠진 지역"을

@@ -33,6 +33,17 @@ describe("공통 분석 필터 계약", () => {
     expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, comparisonItemFilter: { kind: "all" } }).success).toBe(false);
   });
 
+  test("겹쳐 찍을 기관은 고른 순서를 지키고 여섯을 넘기면 거부한다", () => {
+    // 표시 축이라 표본 수를 바꾸지 않지만 주소에 실려 공유되므로 순서가 곧 색과 번호다.
+    const 셋 = parseAnalysisFilterValue({ ...analysisFilterFixture, overlayOrganizationIds: ["31", "12", "7"] });
+    expect(셋.overlayOrganizationIds).toEqual(["31", "12", "7"]);
+    expect(parseAnalysisFilterValue(analysisFilterFixture).overlayOrganizationIds).toEqual([]);
+    // 상한은 색과 자리가 감당하는 수다(PDR-0007). 넘긴 것을 조용히 자르면 무엇이 빠졌는지 알 수 없다.
+    const 일곱 = ["1", "2", "3", "4", "5", "6", "7"];
+    expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, overlayOrganizationIds: 일곱 }).success).toBe(false);
+    expect(analysisFilterValueSchema.safeParse({ ...analysisFilterFixture, overlayOrganizationIds: ["창원초"] }).success).toBe(false);
+  });
+
   test("미확인 지역 ID를 기본 지역으로 치환하지 않는다", () => {
     const options = analysisFilterOptionsSchema.parse(analysisOptionsFixture);
     const filter = parseAnalysisFilterValue(analysisFilterFixture);

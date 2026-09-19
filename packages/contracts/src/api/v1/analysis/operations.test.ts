@@ -111,6 +111,9 @@ describe("분석 시간축 operation 계약", () => {
       target: null,
       targetTruncated: false,
       comparison: null,
+      // 겹쳐 찍은 기관도 자료가 없을 때는 "없다"를 배열로 말한다. 키 자체를 빼면 읽는 쪽이
+      // 아직 안 온 것인지 고른 기관이 없는 것인지 가릴 수 없다.
+      overlays: [],
       meta: {
         state: "unavailable",
         reason: "snapshot-unavailable",
@@ -124,6 +127,7 @@ describe("분석 시간축 operation 계약", () => {
           awardMethodCodeValueId: "31",
           listCountRange: { min: null, max: null },
           itemFilter: { kind: "all" },
+          overlayOrganizationIds: [],
         },
       },
     });

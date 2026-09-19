@@ -33,7 +33,16 @@ export function AnalysisListCountField({
   const error = errors.min ?? errors.max;
   const summary = listCountSummary(draft.min, draft.max);
   return (
-    <Popover>
+    /*
+      패널이 닫히면 적은 값을 보낸다. 칸을 떠나는 것만으로 보내면 Esc나 바깥 누르기로 닫을 때 칸이
+      먼저 사라져 떠나는 일 자체가 일어나지 않고, 적은 숫자가 조용히 버려진다(2026-09-18 CI 실측).
+      다른 조건은 고르는 즉시 적용되므로 이 칸만 "적었는데 안 걸리는" 예외가 되면 고장으로 읽힌다.
+    */
+    <Popover
+      onOpenChange={(open: boolean) => {
+        if (!open) commit();
+      }}
+    >
       <PopoverTrigger
         className='w-26 justify-start'
         aria-label={`명단 ${summary}`}

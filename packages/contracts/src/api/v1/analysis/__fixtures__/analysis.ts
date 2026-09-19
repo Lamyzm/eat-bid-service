@@ -8,6 +8,7 @@ export const analysisFilterFixture = {
   awardMethodCodeValueId: "71",
   listCountRange: { min: 12, max: 24 },
   itemFilter: { kind: "all" },
+  overlayOrganizationIds: [],
 } as const;
 
 export const analysisOptionsFixture = {
