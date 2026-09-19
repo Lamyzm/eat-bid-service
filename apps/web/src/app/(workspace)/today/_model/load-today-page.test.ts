@@ -46,6 +46,28 @@ function dependencies(overrides: Partial<Parameters<typeof loadTodayPage>[1]> = 
 }
 
 describe('오늘 route loader', () => {
+  test('요약이 실패해도 목록은 그대로 그린다', async () => {
+    const { dependencies: deps } = dependencies({
+      summarizeOpenAuctions: async () => {
+        throw new Error('Request timed out');
+      }
+    });
+    const data = await loadTodayPage(EMPTY_TODAY_SEARCH, deps);
+    expect(data.summary).toBeNull();
+    expect(data.presentation).not.toBeNull();
+  });
+
+  test('프리셋 조회가 실패해도 목록은 그대로 그린다', async () => {
+    const { dependencies: deps } = dependencies({
+      readCombinations: async () => {
+        throw new Error('Request timed out');
+      }
+    });
+    const data = await loadTodayPage(EMPTY_TODAY_SEARCH, deps);
+    expect(data.combinations).toBeNull();
+    expect(data.presentation).not.toBeNull();
+  });
+
   test('URL에 남은 잘못된 값은 무시하고 계약이 받는 조건만 조회에 넘긴다', async () => {
     const { inputs, dependencies: deps } = dependencies();
     const data = await loadTodayPage(

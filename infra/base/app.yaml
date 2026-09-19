@@ -26,11 +26,33 @@ spec:
       containers:
         - name: postgres
           image: postgres:16-alpine
+          # 기본값으로 두면 36GB DB가 캐시 128MB로 돈다. 2026-09-19 20시 KST에 외부 사용자가 열린 공고
+          # 목록을 못 봤고, 같은 조회가 208ms와 2,990ms를 오갔다 — 캐시에 있으면 빠르고 없으면 디스크다.
+          # 백필이 하루 종일 수백만 행을 쓰고 매시간 pg_dump가 표를 통째로 읽으므로(실측 표당 9초) 그
+          # 128MB는 계속 밀려난다. 같은 이유로 mart 회수 대상을 세는 감시 질의가 105초·285초 걸렸다.
+          #
+          # shared_buffers 2GB는 노드 12GB의 약 17%다. 표준 권고는 기계 RAM의 25%이지만 이 노드는
+          # web·server·Grafana·OpenObserve와 나눠 쓰므로 그보다 낮춰 잡는다. effective_cache_size는
+          # 할당이 아니라 계획 힌트이고, work_mem은 연결당·연산당이라 21개 연결 기준 최악 약 700MB다.
+          args:
+            - -c
+            - shared_buffers=2GB
+            - -c
+            - effective_cache_size=6GB
+            - -c
+            - work_mem=16MB
+            - -c
+            - maintenance_work_mem=512MB
           env:
             - { name: POSTGRES_USER, value: eatbid }
             - { name: POSTGRES_PASSWORD, value: eatbid }
             - { name: POSTGRES_DB, value: eatbid }
           ports: [{ containerPort: 5432 }]
+          # requests만 두고 memory limit은 두지 않는다. 한도에 닿으면 OOM killer가 진실의 주인을 죽여
+          # 제품 전체가 멎는다. requests가 있으면 QoS가 Burstable이 되어, 노드가 빡빡할 때 아직
+          # BestEffort인 백필 파드가 먼저 밀려난다 — 그 순서가 우리가 원하는 것이다.
+          resources:
+            requests: { cpu: 500m, memory: 3Gi }
           volumeMounts: [{ name: pgdata, mountPath: /var/lib/postgresql/data }]
           readinessProbe:
             exec: { command: ["pg_isready", "-U", "eatbid"] }
