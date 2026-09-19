@@ -1,0 +1,62 @@
+name: 병합된 issue 닫기
+
+# 왜 필요한가: Linear의 GitHub 연동이 이 저장소에 붙어 있지 않아(webhook 0개) 병합해도 issue 상태가
+# 그대로 남는다. 2026-09-19 기준 열린 issue 140개 중 70개가 이미 main에 커밋이 들어간 것이었다.
+# 사람이 매번 손으로 옮기는 절차는 이미 실패했으므로 병합 뒤에 자동으로 돈다.
+#
+# LINEAR_API_KEY secret이 없으면 이 workflow는 이유를 남기고 통과한다 — 이미 병합된 변경에 빨간
+# 표시를 붙이지 않는다.
+
+# 왜 `pull_request`가 아니라 `pull_request_target`인가: `pull_request` event는 workflow 정의와 checkout을
+# 둘 다 **그 pull request의 merge ref**에서 읽는다. 그러면 무엇을 닫을지의 판단을 병합되는 변경이
+# 소유하게 된다. 규칙을 강화해도 그 이전에 뻗은 branch가 병합되면 옛 규칙이 돌고, 더 나쁘게는 어떤
+# pull request든 이 파일에서 단계를 지워 자기가 닫을 것을 스스로 정할 수 있다.
+#
+# `pull_request_target`은 base branch의 정의를 base 맥락에서 돌린다. 판단이 main으로 돌아온다.
+# 대신 token이 강해지므로 **pull request의 코드를 절대 checkout하거나 실행하지 않는다**가 전제다.
+# 이 workflow가 하는 일은 Linear API 호출뿐이고 아래 checkout도 base branch로 고정한다.
+on:
+  pull_request_target:
+    types: [closed]
+
+concurrency:
+  group: close-issue-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  close:
+    name: Linear issue를 완료로 옮긴다
+    # 병합되지 않고 닫힌 pull request는 issue를 끝낸 것이 아니다.
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      # base branch를 명시해 받는다. `pull_request_target`의 기본값이 이미 base지만, event를 되돌리는
+      # 변경이 와도 pull request의 코드가 실행되지 않게 의도를 코드에 남긴다.
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      # 같은 issue를 가리키는 열린 pull request가 남아 있으면 닫지 않는다. 그 판정에 필요한 branch
+      # 목록을 여기서 모아 넘긴다 — 스크립트가 GitHub API를 직접 부르지 않게 해 시험이 원격 없이 돈다.
+      - name: 열린 pull request의 branch 모으기
+        id: open-prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branches=$(gh pr list --state open --limit 100 --json headRefName --jq '[.[].headRefName] | join(",")')
+          echo "branches=$branches" >> "$GITHUB_OUTPUT"
+      - name: issue 상태 옮기기
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          OPEN_PR_BRANCHES: ${{ steps.open-prs.outputs.branches }}
+        run: node -e "import('./tools/agent-workflow/linear-close.mjs').then((m) => m.main())"
