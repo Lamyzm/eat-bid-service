@@ -105,6 +105,12 @@ export function analysisTimeSeriesResponse(request: Request): Response | undefin
   if (pathname !== operation.openApiPath) return undefined;
 
   const effectiveFilter = effectiveFilterOf(searchParams);
+  /*
+    명단 상한 503은 "이 조회를 실패시켜 달라"는 표식이다. 조회 실패 갈래는 서버 렌더가 실제로 실패해야
+    나오는데, 그 호출은 RSC에서 일어나므로 브라우저 가로채기로는 만들 수 없다. 숫자를 status와 같게 둔
+    이유는 시험을 읽는 사람이 무엇을 흉내 내는지 바로 알게 하려는 것이다.
+  */
+  if (effectiveFilter.listCountRange.max === 503) return new Response(null, { status: 503 });
   // 명단 하한을 아주 높게 잡은 요청은 조건에 맞는 회차가 없는 상태다. 빈 배열과 0건은 `unavailable`과
   // 다른 갈래라 화면이 "조건을 풀어 보라"고 말해야 한다(AGENTS 3).
   const empty = (effectiveFilter.listCountRange.min ?? 0) > 100;

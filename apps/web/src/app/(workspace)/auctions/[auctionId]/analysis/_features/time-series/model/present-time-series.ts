@@ -90,6 +90,12 @@ export type TimeSeriesView =
   | { readonly kind: 'cohort-not-found' }
   | { readonly kind: 'unavailable'; readonly reason: string }
   /**
+   * 서버가 답을 못 준 상태다. `unavailable`과 나누는 이유는 **누가 무엇을 아는가**가 다르기 때문이다 —
+   * 그쪽은 서버가 "아직 발행 안 됐다"고 말해 준 사실이고, 이쪽은 우리가 아무것도 못 들은 것이다.
+   * 둘을 뭉치면 장애가 "자료 준비 중"으로 위장된다(AGENTS 3).
+   */
+  | { readonly kind: 'read-failed' }
+  /**
    * 조건에 맞는 관측이 없다. **표본 수를 함께 싣는다** — 관측된 0건과 아직 발행되지 않은 것은
    * 사용자가 할 일이 다르고, 수가 없으면 화면이 둘을 `표본 미확인` 하나로 말한다(AGENTS 3).
    */
@@ -135,9 +141,13 @@ function targetPoint(point: AnalysisTargetPoint): TimeSeriesPoint {
 
 
 export function presentTimeSeries(
-  read: { readonly kind: 'cohort-not-found' } | { readonly kind: 'series'; readonly response: AnalysisTimeSeriesV1Response }
+  read:
+    | { readonly kind: 'cohort-not-found' }
+    | { readonly kind: 'read-failed' }
+    | { readonly kind: 'series'; readonly response: AnalysisTimeSeriesV1Response }
 ): TimeSeriesView {
   if (read.kind === 'cohort-not-found') return { kind: 'cohort-not-found' };
+  if (read.kind === 'read-failed') return { kind: 'read-failed' };
   const { axis, target, comparison, meta, targetTruncated } = read.response;
   if (meta.state !== 'ready' || axis === null || target === null || comparison === null) {
     return {
