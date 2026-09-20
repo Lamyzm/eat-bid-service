@@ -167,6 +167,19 @@ class TodayCursorStillInvalid extends Error {
  * 없다는 결과는 잘못된 요청이 아니라 목록이 갱신됐다는 뜻이라 cursor 없이 한 번만 다시 조회한다.
  * 그 밖의 실패는 그대로 올려 route error 경계가 받는다.
  */
+
+/**
+ * 목록을 살리려고 삼킨 실패를 그 자리에서 남긴다.
+ *
+ * 왜 `console.error`인가: 이 코드는 Next server runtime에서 돌고 그 표준 출력이 곧 파드 로그다.
+ * 오류 추적기를 여기서 직접 부르면 route 하나가 관측 도구를 소유하게 되고, 그 선택이 다른 route와
+ * 갈린다. 지금 필요한 것은 "무엇이 왜 빠졌는가"가 어딘가에 남는 것이다.
+ */
+function reportDroppedRead(source: string, reason: unknown): void {
+  const message = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason);
+  console.error(`[today] ${source} 조회가 실패해 그 자리를 비웁니다: ${message}`);
+}
+
 export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayPageDependencies): Promise<TodayPageData> {
   const nowIso = dependencies.now();
   const search = normalizeTodaySearch(rawSearch);
@@ -193,6 +206,13 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
   // 목록 실패만 그대로 올린다. 목록이 없으면 보여 줄 것이 없으므로 그것은 진짜 실패다.
   if (listed.status === 'rejected') throw listed.reason;
   const first = listed.value;
+  // 거절을 값으로 바꾸면 Next가 더 이상 미처리 오류로 찍지 않는다. 그래서 여기서 직접 남긴다 —
+  // 2026-09-20에 `allSettled`로 바꾼 뒤 web 로그의 `TimeoutError`가 45분 9건에서 3시간 0건이 됐고,
+  // 그 사이 요약은 계속 실패하고 있었다. 화면이 조용해진 것보다 **아무 데도 안 남는 것**이 더 나쁘다.
+  if (summarized.status === 'rejected') reportDroppedRead('summarizeOpenAuctions', summarized.reason);
+  if (combinationsSettled.status === 'rejected') {
+    reportDroppedRead('readCombinations', combinationsSettled.reason);
+  }
   const summaryResponse = summarized.status === 'fulfilled' ? summarized.value : null;
   const combinationsRead = combinationsSettled.status === 'fulfilled' ? combinationsSettled.value : null;
   const summary = summaryResponse === null ? null : presentOpenSummary(summaryResponse, nowIso, search);
