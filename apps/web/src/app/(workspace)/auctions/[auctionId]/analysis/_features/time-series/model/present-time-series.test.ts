@@ -68,6 +68,12 @@ describe('분석 시간축 표시 모델', () => {
     expect(presentTimeSeries({ kind: 'cohort-not-found' })).toEqual({ kind: 'cohort-not-found' });
   });
 
+  test('조회가 실패한 것과 자료가 아직 없는 것을 다른 갈래로 말한다', () => {
+    // 서버가 "아직 발행 안 됐다"고 말해 준 것과, 우리가 아무것도 못 들은 것은 사용자가 할 일이 다르다.
+    expect(presentTimeSeries({ kind: 'read-failed' })).toEqual({ kind: 'read-failed' });
+    expect(presentTimeSeries({ kind: 'cohort-not-found' })).not.toEqual({ kind: 'read-failed' });
+  });
+
   test('자료가 아직 없으면 사용자가 할 일을 말하는 문구를 갖는다', () => {
     const view = series({
       axis: null,

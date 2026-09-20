@@ -159,14 +159,25 @@ def _log_tolerated(observation_id: int, reason: str) -> None:
 # 발행이 실패한 백필 창의 후보다. 창과 release를 잇는 방법은 `ingest.backfill_coverage` 뷰와 같다 —
 # 목록 요청의 날짜 파라미터가 그 release가 어느 창인지를 말하는 유일한 사실이다. 정의를 둘로 만들지
 # 않으려면 같은 근거를 써야 한다(EAT-274).
+#
+# **아직 안 채워진 창인지는 `ingest.backfill_coverage`가 말한다.** 이전 판은 그 판단을 자기 안에서
+# 다시 내렸다 — "이 release에 published publication이 없으면 미완"으로 봤다. 그러면 한 창을 뒤이은
+# 다른 release가 채운 경우를 못 본다. 2026-09-20 운영에서 후보 13개 중 위 열 개가 전부 이미
+# `is_complete`인 창이었고, 최신순으로 첫 하나를 고르는 규칙 탓에 매 회차가 끝난 창을 다시 발행하면서
+# 실제로 막힌 2024-07·08·10은 목록 맨 아래에서 차례를 못 받았다.
+#
+# 진도는 파생이고 그 view가 정의를 소유한다(ADR 0052 결정 2). 같은 사실을 두 곳이 계산하면 둘이
+# 갈리고, 갈린 쪽이 조용히 이긴다.
 _REPLAY_CANDIDATES_SQL = """
 with window_release as (
     select distinct u.request_params ->> 'P_BID_BGNG_DT' as window_start,
+           u.request_params ->> 'P_BID_END_DT' as window_end,
            sr.source_release_id
       from ingest.request_unit u
       join ingest.source_release_run sr on sr.run_id = u.run_id
      where u.endpoint = 'bid-list'
        and u.request_params ? 'P_BID_BGNG_DT'
+       and u.request_params ? 'P_BID_END_DT'
 )
 select w.source_release_id, p.publication_id, r.build_sha, w.window_start
   from window_release w
@@ -174,12 +185,10 @@ select w.source_release_id, p.publication_id, r.build_sha, w.window_start
   join ingest.publication p on p.run_id = sr.run_id and p.status = 'failed'
   join ingest.run r on r.run_id = p.run_id
   join ingest.source_release rel on rel.source_release_id = w.source_release_id
+  join ingest.backfill_coverage c
+    on c.window_start = w.window_start and c.window_end = w.window_end
  where rel.status = 'sealed'
-   and not exists (
-       select 1 from ingest.source_release_run sr2
-       join ingest.publication p2 on p2.run_id = sr2.run_id and p2.status = 'published'
-        where sr2.source_release_id = w.source_release_id
-   )
+   and not c.is_complete
  order by w.window_start desc
 """
 

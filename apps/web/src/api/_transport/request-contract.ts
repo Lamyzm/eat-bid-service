@@ -8,7 +8,7 @@ import {
   type PublicHttpOperation
 } from '@eatbid/contracts/api';
 import { parseApiOrigin } from './api-origin';
-import { ContractResponseError, HttpProblemError, HttpStatusError } from './http-problem';
+import { ContractResponseError, HttpProblemError, HttpStatusError, isUpstreamUnavailable } from './http-problem';
 import {
   sendWithResilience,
   type FetchImplementation,
@@ -26,6 +26,12 @@ export interface ContractRequest {
     signal?: AbortSignal;
   }): Promise<OperationSuccess<Operation>>;
   readonly isProblem: (error: unknown) => error is HttpProblemError;
+  /**
+   * 재시도까지 쓰고도 상대가 답을 못 준 실패다. resource가 status 숫자를 직접 세지 않고 이 판정을
+   * 요청 객체에서 받는 이유는, 무엇이 장애이고 무엇이 우리 결함인지가 transport가 만드는 오류 타입에
+   * 달려 있기 때문이다. 각 resource가 따로 세면 같은 사실이 화면마다 다른 뜻을 갖는다.
+   */
+  readonly isUpstreamUnavailable: (error: unknown) => boolean;
 }
 
 export interface ContractRequestOptions {
@@ -123,7 +129,8 @@ export function createContractRequest(options: ContractRequestOptions): Contract
         : parseFailure(input.operation, response);
     },
     {
-      isProblem: (error: unknown): error is HttpProblemError => error instanceof HttpProblemError
+      isProblem: (error: unknown): error is HttpProblemError => error instanceof HttpProblemError,
+      isUpstreamUnavailable
     }
   );
 }
