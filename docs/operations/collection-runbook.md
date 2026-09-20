@@ -310,6 +310,58 @@ release는 `failed`, detail run은 같은 category의 `failed`, discovery run은
 같은 category로 다시 내면 멱등하게 같은 결과를 돌려주고, 다른 category나 이미 `sealed`인 release는
 거부된다. 닫은 release의 창은 새 backfill로 다시 낸다.
 
+### 4.3.1 봉인 뒤 멎은 run 닫기 — `close-stalled-run`
+
+`fail-release`는 `planned` release만 닫는다. capture까지 성공해 release가 **봉인된 뒤** 프로세스가
+사라지면 그 run은 어느 경로로도 닫히지 않고 `running`으로 남아 `backfill-progress` 위반이 영원히 열려
+있다. 2026-09-19에 그런 run이 넷이었다.
+
+**넷의 이유가 서로 달랐다는 것이 이 절차의 전제다.**
+
+| 무엇이 남았나 | 참인 것 | `--outcome` |
+| -- | -- | -- |
+| 닫는 코드가 없던 시절의 코드목록 run | 투영은 실제로 끝났다 | `published` |
+| 운영자가 workflow를 멈춰 생긴 run | 일이 끝나지 않았다 | `failed` + `INTERRUPTED` |
+| 사람 승인을 기다리는 참조 파일 run | 아직 살아 있는 결정이다(ADR 0035) | **닫지 않는다** |
+
+한 규칙으로 뭉쳐 닫으면 셋 중 둘에 거짓을 적는다. 무엇이 참인지 **확인한 사람이** `--outcome`으로
+말한다. 확인 없이 부르지 않는다.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: eatbid-close-stalled-run-
+  namespace: eatbid
+spec:
+  workflowTemplateRef:
+    name: eatbid-dataplane
+  entrypoint: close-stalled-run
+  arguments:
+    parameters:
+      - name: run-id
+        value: <ingest.run의 run_id>
+      # published | failed
+      - name: outcome
+        value: failed
+      # failed일 때만 적는다. published에 적으면 거부된다.
+      - name: failure-category
+        value: INTERRUPTED
+```
+
+닫기 전에 무엇이 참인지 본다. 투영 결과가 실제로 들어갔는지는 그 lane이 만드는 행을 세어 확인한다.
+
+```sql
+select r.run_id, r.mode, r.started_at, max(o.fetched_at) as last_observation_at
+from ingest.run r left join ingest.raw_observation o using (run_id)
+where r.status = 'running'
+group by r.run_id, r.mode, r.started_at
+order by r.started_at;
+```
+
+명령은 **닫는 순간 전진을 한 번 더 본다.** 기대와 같은 90분 기준이며, 그 사이에 되살아난 run은 거부된다.
+이미 닫힌 run도 거부된다. 둘 다 사람이 옛 목록을 보고 산 실행을 죽이는 것을 막는 자리다.
+
 ### 4.4 재부팅·컨트롤러 재시작이 남긴 semaphore 교착 풀기 (2026-09-10, EAT-129)
 
 노드 재부팅이나 controller 재시작이 capture 파드를 죽이면, 죽은 노드가 source semaphore 보유자로 남아

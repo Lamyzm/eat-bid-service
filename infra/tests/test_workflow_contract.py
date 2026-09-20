@@ -40,7 +40,14 @@ REFERENCE_TASKS = REFERENCE_COMMANDS
 CODE_VOCABULARY_COMMANDS = ("capture-code-vocabulary", "project-code-vocabulary")
 CODE_VOCABULARY_TASKS = CODE_VOCABULARY_COMMANDS
 # 운영자·스케줄이 직접 entrypoint로 부르는 명령이다. 어떤 DAG도 task로 갖지 않는다(EAT-122, EAT-170).
-OPERATOR_COMMANDS = ("fail-release", "check-expectations", "scan-contract", "reap-marts")
+OPERATOR_COMMANDS = (
+    "fail-release",
+    # 멎은 run을 닫는다. fail-release가 planned release만 닫으므로 봉인 뒤 사라진 run은 이쪽이다(EAT-234).
+    "close-stalled-run",
+    "check-expectations",
+    "scan-contract",
+    "reap-marts",
+)
 # 전진 판단은 예약이 부르지만 운영자 명령과 달리 DAG의 첫 task이기도 하다. 창을 고르는 것과 그 창을
 # 수집하는 것이 한 실행 안에 있어야 고른 창이 어디로 새지 않는다(EAT-209).
 ADVANCE_COMMANDS = ("next-backfill-window", "next-replay-target")
