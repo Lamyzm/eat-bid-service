@@ -1,5 +1,5 @@
 /** @module 책임: 적용된 두 집단의 조건을 하나의 표시 모델로 만들어 차트·분포·이력에서 같은 설명을 쓴다. */
-import { appliedItemText, appliedOverlayText, floorText } from '../lib/condition-text';
+import { appliedItemText, appliedOverlayText, floorText, listCountText } from '../lib/condition-text';
 import type { AnalysisFilterSetup, AppliedAnalysis } from './analysis-filter-types';
 export function presentAnalysisContext(setup: AnalysisFilterSetup, applied: AppliedAnalysis) {
   if (applied.state === 'invalid')
@@ -18,9 +18,11 @@ export function presentAnalysisContext(setup: AnalysisFilterSetup, applied: Appl
         )?.label ?? '지역명 미확인');
   const range = filter.listCountRange;
   const count =
-    range.min === null && range.max === null
-      ? '명단 전체'
-      : '명단 ' + (range.min ?? '제한 없음') + '–' + (range.max ?? '제한 없음');
+    '명단 ' +
+    listCountText(
+      range.min === null ? null : String(range.min),
+      range.max === null ? null : String(range.max)
+    );
   /**
    * 조건 막대를 접는 폭(휴대폰)에서는 이 문장이 걸린 조건을 말하는 유일한 자리다. 기본값이 아닌
    * 것만 덧붙여, 무엇을 건드렸는지가 문장 길이에 드러나게 한다.

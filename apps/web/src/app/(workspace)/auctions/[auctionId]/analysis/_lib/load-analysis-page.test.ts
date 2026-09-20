@@ -72,6 +72,20 @@ describe('새 상세의 공고 조회와 표시', () => {
     expect(data?.header.facts[3]?.value).toBe('2026-09-04 14:00');
   });
 
+  test('시간축 조회가 실패해도 공고 정보와 비교조건은 그대로 선다', async () => {
+    // 차트 하나를 못 그린 일이 화면이 사라진 일이 되면 안 된다. 실패는 갈래로 오고 나머지는 남는다.
+    const data = await loadAnalysisPage('5796468', null, {
+      parseId: (id) => id,
+      readAuction: async () => ({ kind: 'auction', response: openAuctionFixture }),
+      readTimeSeries: async () => ({ kind: 'read-failed' }),
+      now: () => fixtureNow
+    });
+    expect(data?.timeSeries).toEqual({ kind: 'read-failed' });
+    expect(data?.header.organization).toBe('창원 남산초등학교');
+    expect(data?.applied.state).toBe('pending');
+    expect(data?.setup.presets.length).toBeGreaterThan(0);
+  });
+
   test('기관과 일정이 없으면 제목에서 추론하지 않고 미확인을 표시하며 정밀 금액을 보존한다', () => {
     const header = presentAnalysisHeader({ ...auctionFixture, organization: null });
     expect(header.organization).toBe('구매기관 미확인');

@@ -21,6 +21,20 @@ export function itemSelectionText(selected: readonly string[]): string {
 }
 
 /**
+ * 명단 범위를 사람이 읽는 말로 옮긴다. 여닫이 요약과 맥락 문장이 같은 값을 다르게 쓰면(`전체` 대
+ * `제한 없음–503`) 같은 화면이 두 어휘로 말하게 된다(2026-09-20 디자인 심사). 빈 문자열과 null은
+ * 둘 다 "이 경계를 두지 않는다"이므로 한 자리에서 받는다.
+ */
+export function listCountText(min: string | null, max: string | null): string {
+  const low = min === null || min === '' ? null : min;
+  const high = max === null || max === '' ? null : max;
+  if (low === null && high === null) return '전체';
+  if (low === null) return `${high}곳 이하`;
+  if (high === null) return `${low}곳 이상`;
+  return `${low}~${high}곳`;
+}
+
+/**
  * 조건 막대를 접은 폭에서는 맥락 문장이 걸린 조건을 대신 말한다. 기본값은 적지 않는다 — 전부 적으면
  * 문장이 두 줄이 되고, 그러면 무엇을 **건드렸는지**가 안 보인다. 반대로 건드린 조건을 빠뜨리면 걸린
  * 줄 모른 채 숫자를 읽게 되므로 기본값이 아닌 것은 반드시 적는다(2026-09-18 디자인 심사).

@@ -147,6 +147,26 @@ test('새 상세의 휴대폰 조건 입력과 전체보기는 가로 화면을 
   await expect(page.locator('[data-slot="workspace-header"]')).toBeVisible();
 });
 
+test('시간축 조회가 실패해도 공고 정보와 비교조건은 화면에 남는다', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 900 });
+  await page.goto(analysisUrl);
+  const form = page.getByRole('form', { name: '기관과 지역 비교조건' });
+  await expect(form).toBeVisible();
+  // fixture는 명단 상한 503을 받으면 그 status로 답한다. 재시도를 다 쓰고도 같은 답이 온다.
+  await form.getByRole('button', { name: /^명단/ }).click();
+  await page.getByLabel('명단 최대').fill('503');
+  await page.getByLabel('명단 최대').blur();
+  await page.keyboard.press('Escape');
+  // 차트 자리만 갈아입고 나머지는 그대로다 — 화면이 통째로 오류로 가지 않는다.
+  await expect(page.getByText('그림을 불러오지 못했어요')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('창원 남산초등학교');
+  await expect(form).toBeVisible();
+  await expect(form.getByRole('button', { name: /^명단/ })).toBeVisible();
+  // 조건을 고치라고 하지 않는다. 사용자가 고른 조건에는 잘못이 없다.
+  await expect(page.getByText('비교조건을 확인해 주세요')).toHaveCount(0);
+});
+
 test('새 상세는 잘못된 주소 조건을 기존 차트나 0건 결과로 대체하지 않는다', async ({ page }) => {
   await page.goto(analysisUrl + '?analysis=%7Bbad');
   // Next가 hydration 뒤 붙이는 route announcer(`__next-route-announcer__`)도 role=alert라 페이지 전역
