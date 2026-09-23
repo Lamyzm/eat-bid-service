@@ -45,7 +45,9 @@ def _insert_run(
 def test_전진이_멎은_run을_실패로_닫는다(migrated_db: MigratedDatabase) -> None:
     connection = migrated_db.connect()
     try:
-        run_id = _insert_run(connection, started_at=datetime.now(UTC) - timedelta(hours=5))
+        run_id = _insert_run(
+            connection, started_at=datetime.now(UTC) - timedelta(hours=5)
+        )
         with connection.transaction(), connection.cursor() as cursor:
             mode = close_stalled_run(
                 cursor,
@@ -58,18 +60,23 @@ def test_전진이_멎은_run을_실패로_닫는다(migrated_db: MigratedDataba
         assert mode == "backfill"
         with connection.cursor() as cursor:
             cursor.execute(
-                "select status, failure_category from ingest.run where run_id = %s", (run_id,)
+                "select status, failure_category from ingest.run where run_id = %s",
+                (run_id,),
             )
             assert cursor.fetchone() == ("failed", "INTERRUPTED")
     finally:
         connection.close()
 
 
-def test_일이_실제로_끝난_run은_성공으로_닫을_수_있다(migrated_db: MigratedDatabase) -> None:
+def test_일이_실제로_끝난_run은_성공으로_닫을_수_있다(
+    migrated_db: MigratedDatabase,
+) -> None:
     """멎은 run이 전부 실패인 것은 아니다. 닫는 코드가 없던 시절의 유물은 일이 끝난 뒤 남은 것이다."""
     connection = migrated_db.connect()
     try:
-        run_id = _insert_run(connection, started_at=datetime.now(UTC) - timedelta(days=3))
+        run_id = _insert_run(
+            connection, started_at=datetime.now(UTC) - timedelta(days=3)
+        )
         with connection.transaction(), connection.cursor() as cursor:
             close_stalled_run(
                 cursor,
@@ -81,7 +88,8 @@ def test_일이_실제로_끝난_run은_성공으로_닫을_수_있다(migrated_
             )
         with connection.cursor() as cursor:
             cursor.execute(
-                "select status, failure_category from ingest.run where run_id = %s", (run_id,)
+                "select status, failure_category from ingest.run where run_id = %s",
+                (run_id,),
             )
             assert cursor.fetchone() == ("published", None)
     finally:
@@ -92,17 +100,22 @@ def test_아직_전진하는_run은_닫지_않는다(migrated_db: MigratedDataba
     """기대가 멎음을 판정한 뒤 되살아난 run을 운영자가 죽이지 못하게 닫는 순간 한 번 더 본다."""
     connection = migrated_db.connect()
     try:
-        run_id = _insert_run(connection, started_at=datetime.now(UTC) - timedelta(minutes=5))
-        with pytest.raises(StalledRunCloseError, match="전진"):
-            with connection.transaction(), connection.cursor() as cursor:
-                close_stalled_run(
-                    cursor,
-                    run_id=run_id,
-                    outcome="failed",
-                    ended_at=datetime.now(UTC),
-                    failure_category="INTERRUPTED",
-                    stall_after=STALL_AFTER,
-                )
+        run_id = _insert_run(
+            connection, started_at=datetime.now(UTC) - timedelta(minutes=5)
+        )
+        with (
+            pytest.raises(StalledRunCloseError, match="전진"),
+            connection.transaction(),
+            connection.cursor() as cursor,
+        ):
+            close_stalled_run(
+                cursor,
+                run_id=run_id,
+                outcome="failed",
+                ended_at=datetime.now(UTC),
+                failure_category="INTERRUPTED",
+                stall_after=STALL_AFTER,
+            )
     finally:
         connection.close()
 
@@ -111,18 +124,23 @@ def test_이미_닫힌_run은_다시_닫지_않는다(migrated_db: MigratedDatab
     connection = migrated_db.connect()
     try:
         run_id = _insert_run(
-            connection, started_at=datetime.now(UTC) - timedelta(days=1), status="published"
+            connection,
+            started_at=datetime.now(UTC) - timedelta(days=1),
+            status="published",
         )
-        with pytest.raises(StalledRunCloseError):
-            with connection.transaction(), connection.cursor() as cursor:
-                close_stalled_run(
-                    cursor,
-                    run_id=run_id,
-                    outcome="failed",
-                    ended_at=datetime.now(UTC),
-                    failure_category="INTERRUPTED",
-                    stall_after=STALL_AFTER,
-                )
+        with (
+            pytest.raises(StalledRunCloseError),
+            connection.transaction(),
+            connection.cursor() as cursor,
+        ):
+            close_stalled_run(
+                cursor,
+                run_id=run_id,
+                outcome="failed",
+                ended_at=datetime.now(UTC),
+                failure_category="INTERRUPTED",
+                stall_after=STALL_AFTER,
+            )
     finally:
         connection.close()
 
@@ -130,35 +148,47 @@ def test_이미_닫힌_run은_다시_닫지_않는다(migrated_db: MigratedDatab
 def test_실패로_닫으면서_사유를_비우면_거부한다(migrated_db: MigratedDatabase) -> None:
     connection = migrated_db.connect()
     try:
-        run_id = _insert_run(connection, started_at=datetime.now(UTC) - timedelta(days=1))
-        with pytest.raises(StalledRunCloseError, match="failure_category"):
-            with connection.transaction(), connection.cursor() as cursor:
-                close_stalled_run(
-                    cursor,
-                    run_id=run_id,
-                    outcome="failed",
-                    ended_at=datetime.now(UTC),
-                    failure_category=None,
-                    stall_after=STALL_AFTER,
-                )
+        run_id = _insert_run(
+            connection, started_at=datetime.now(UTC) - timedelta(days=1)
+        )
+        with (
+            pytest.raises(StalledRunCloseError, match="failure_category"),
+            connection.transaction(),
+            connection.cursor() as cursor,
+        ):
+            close_stalled_run(
+                cursor,
+                run_id=run_id,
+                outcome="failed",
+                ended_at=datetime.now(UTC),
+                failure_category=None,
+                stall_after=STALL_AFTER,
+            )
     finally:
         connection.close()
 
 
-def test_성공으로_닫으면서_사유를_적으면_거부한다(migrated_db: MigratedDatabase) -> None:
+def test_성공으로_닫으면서_사유를_적으면_거부한다(
+    migrated_db: MigratedDatabase,
+) -> None:
     """성공에 실패 사유를 붙이면 그 표를 세는 사람이 무엇이 실제로 끝났는지 못 가린다."""
     connection = migrated_db.connect()
     try:
-        run_id = _insert_run(connection, started_at=datetime.now(UTC) - timedelta(days=1))
-        with pytest.raises(StalledRunCloseError, match="failure_category"):
-            with connection.transaction(), connection.cursor() as cursor:
-                close_stalled_run(
-                    cursor,
-                    run_id=run_id,
-                    outcome="published",
-                    ended_at=datetime.now(UTC),
-                    failure_category="INTERRUPTED",
-                    stall_after=STALL_AFTER,
-                )
+        run_id = _insert_run(
+            connection, started_at=datetime.now(UTC) - timedelta(days=1)
+        )
+        with (
+            pytest.raises(StalledRunCloseError, match="failure_category"),
+            connection.transaction(),
+            connection.cursor() as cursor,
+        ):
+            close_stalled_run(
+                cursor,
+                run_id=run_id,
+                outcome="published",
+                ended_at=datetime.now(UTC),
+                failure_category="INTERRUPTED",
+                stall_after=STALL_AFTER,
+            )
     finally:
         connection.close()

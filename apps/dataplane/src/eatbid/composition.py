@@ -37,6 +37,8 @@ from eatbid.ingest.postgres_replay_repository import PsycopgReplayRunRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
 from eatbid.ingest.postgres_run_closure import (
     close_projection_run,
+)
+from eatbid.ingest.postgres_run_closure import (
     # 같은 이름의 메서드가 아래에 있다. Python은 method 안에서 class namespace를 건너뛰므로 그냥 써도
     # 맞게 풀리지만, 읽는 사람이 재귀로 오해할 자리라 별칭을 준다.
     close_stalled_run as close_stalled_run_in,
