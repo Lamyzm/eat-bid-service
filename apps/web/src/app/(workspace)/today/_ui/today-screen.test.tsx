@@ -9,7 +9,7 @@ import { presentOpenAuctionList } from '../_model/present-open-auctions';
  import { presentOpenSummary } from '../_model/present-open-summary';
 import { TodayScreen } from './today-screen';
 import { TodayScreenSkeleton } from './today-screen-skeleton';
-import { TodayCalendar } from './today-tabs';
+import { TodayCalendar } from './today-calendar';
 
 const confirmedAreas = [
   { codeValueId: '9101', code: '15000', label: '경남/전체' },
@@ -22,6 +22,7 @@ const ready: TodayPageData = {
   search: EMPTY_TODAY_SEARCH,
   presentation: presentOpenAuctionList(openAuctionsFixture, fixtureNow),
   summary: presentOpenSummary(openSummaryFixture, fixtureNow, EMPTY_TODAY_SEARCH),
+  summaryUnavailable: false,
   combinations: null,
   cursorReset: false
 };
@@ -31,10 +32,16 @@ describe('오늘 화면', () => {
     const markup = renderToStaticMarkup(<TodayScreen data={ready} />);
     expect(markup).toContain('data-slot="today-screen"');
     expect(markup).toContain('aria-labelledby="today-title"');
-    // 건수는 머리 문장이 한 번만 말한다. 축 줄의 `하한 N · N건`은 사용자 결정으로 없앴고(EAT-241) 탭 줄도
-    // 없다(U9) — 같은 수가 두 자리에 서면 page-level 숫자 hero가 둘이 된다(screen-system §9.1).
-    expect(markup).toContain('진행중 </span><b');
-    expect(markup).toContain('셀 수 없어요');
+    // 건수는 머리의 탭 줄이 한 번만 말한다. 축 줄의 `하한 N · N건`은 사용자 결정으로 없앴고(EAT-241)
+    // 목록 위에도 같은 수를 다시 적지 않는다 — 숫자 hero가 둘이면 어느 쪽이 진짜인지 알 수 없다
+    // (screen-system §9.1).
+    expect(markup).toContain('aria-label="진행중 4건"');
+    expect(markup).toContain('aria-label="오늘 마감 1건"');
+    // 못 센 수는 0이 아니다. 탭을 지우지도 0으로 적지도 않고 수 자리만 바꾼다(AGENTS 3).
+    expect(markup).toContain('aria-label="오늘 열린 셀 수 없음"');
+    expect(markup).not.toContain('오늘 열린 0건');
+    // 켜진 축은 색만이 아니라 `aria-current`로도 말한다.
+    expect(markup).toContain('aria-current="page" aria-label="진행중 4건"');
     expect(markup).not.toContain('열린 공고 4건');
     expect(markup).not.toContain('하한 90 ·');
     // 하한은 축 줄이 아니라 행의 금액 아래 한 줄이다(U9).

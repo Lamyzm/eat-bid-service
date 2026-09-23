@@ -80,6 +80,17 @@ export function openAuctionSummaryResponse(request: Request): Response | null {
   const url = new URL(request.url);
   if (url.pathname !== operation.openApiPath) return null;
 
+  /*
+    기초금액 하한 503은 "이 조회를 실패시켜 달라"는 표식이다. 요약이 실패한 화면은 서버 렌더가 실제로
+    거절을 받아야 나오고 그 호출은 RSC에서 일어나므로 브라우저 가로채기로는 만들 수 없다. 숫자를
+    status와 같게 둔 이유는 시험을 읽는 사람이 무엇을 흉내 내는지 바로 알게 하려는 것이다.
+
+    `503.00`인 이유는 화면이 그 모양으로 보내기 때문이다 — 기초금액 경계는 소수 둘째 자리 고정 문자열이고
+    주소의 `503`은 `normalizeAmountInput`이 `503.00`으로 편다. 주소에 적은 값을 그대로 기다리면 표식이
+    영영 안 걸린다(2026-09-20 실측).
+  */
+  if (url.searchParams.get('baseAmountMin') === '503.00') return new Response(null, { status: 503 });
+
   const parameters: Record<string, string | string[]> = Object.fromEntries(url.searchParams);
   const selectedAreas = url.searchParams.getAll('eligibilityArea');
   if (selectedAreas.length > 0) parameters.eligibilityArea = selectedAreas;

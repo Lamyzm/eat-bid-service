@@ -17,8 +17,8 @@ import type { OpenAuctionListPresentation, OpenAuctionRowPresentation } from '..
 import { kstToday, type OpenSummaryPresentation } from '../_model/present-open-summary';
 import { OpenAuctionCards } from './open-auction-cards';
 import { TodayFrame } from './today-frame';
-import { TodayCalendar } from './today-tabs';
-import { TodayLede } from './today-lede';
+import { TodayCalendar } from './today-calendar';
+import { TodaySummaryUnavailable, TodayTabs } from './today-tabs';
 
 // 지역 칩의 표시 이름은 응답 행에서 읽는다. 지역 어휘 계약이 없는 동안 그 id의 라벨을 아는 곳은 행뿐이다.
 function regionTextOf(rows: readonly OpenAuctionRowPresentation[], region: string | null): string | null {
@@ -144,12 +144,15 @@ export function TodayScreen({ data }: { readonly data: TodayPageData }) {
   return (
     <TodayFrame
       header={
-        /* 제목 아래 한 문장이 이 화면의 유일한 숫자 hero다(U9). 탭 줄을 따로 두면 같은 수가 두 자리에 서고
-           언젠가 한쪽만 고쳐져 둘이 다른 말을 한다(screen-system §9.1). */
+        /* 제목 아래 탭 줄이 이 화면의 유일한 숫자 hero다. 같은 수를 목록 위에 다시 적지 않는다
+           (screen-system §9.1). U9의 한 문장을 탭으로 바꾼 이유는 `today-tabs.tsx`가 적는다. */
         <div className='grid min-w-0 gap-2.5'>
           <h1 id='today-title' className='text-[26px] font-extrabold tracking-[-0.04em]'>오늘</h1>
-          {data.summary === null ? null : (
-            <TodayLede summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} asOfText={presentation?.asOfText ?? null} />
+          {/* 못 받은 것과 묻지 않은 것을 가른다. 묻지 않은 것(지역 미설정)은 아래 본문이 이미 말한다. */}
+          {data.summaryUnavailable ? (
+            <TodaySummaryUnavailable asOfText={presentation?.asOfText ?? null} />
+          ) : data.summary === null ? null : (
+            <TodayTabs summary={data.summary} search={search} today={kstToday(data.nowIso).toString()} asOfText={presentation?.asOfText ?? null} />
           )}
         </div>
       }

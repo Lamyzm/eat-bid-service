@@ -25,6 +25,13 @@ export type RailRow = {
 };
 
 export type ConditionRailPresentation = {
+  /**
+   * 건수를 못 셌다는 사실이다. **품목과 지역이 서로 다르게 비기 때문에** 한 줄이 필요하다 — 품목은
+   * 어휘가 고정이라 줄이 남고 수만 비지만, 지역 줄은 관측에서 오므로 `전체` 하나만 남고 통째로
+   * 사라진다. 그것을 말하지 않으면 사용자는 "이 조건에 지역이 없다"로 읽는다(2026-09-20 운영에서
+   * 마감 달력이 같은 모양으로 사라졌고 사람이 먼저 발견했다).
+   */
+  readonly note: string | null;
   readonly region: {
     /** 시도 고르기의 현재 값이다. 안 골랐으면 `전체`다. */
     readonly sidoText: string;
@@ -160,6 +167,11 @@ export function presentConditionRail(input: {
 }): ConditionRailPresentation {
   const counts = input.summary?.railCounts ?? null;
   return {
+    // 지역을 아직 안 골라 묻지 않은 것과 묻고도 못 받은 것은 다르다. 전자는 본문이 이미 말한다.
+    note: input.summary === null && input.gate.kind !== 'unset'
+      // 머리 알림과 앞머리·끝맺음을 겹치지 않는다. 겹치면 한 화면이 같은 말을 두 번 한다.
+      ? '지역 목록과 건수를 지금은 셀 수 없어요.'
+      : null,
     region: regionSection(input.search, counts, input.gate),
     item: itemSection(input.search, counts),
     amount: amountSection(input.search)
