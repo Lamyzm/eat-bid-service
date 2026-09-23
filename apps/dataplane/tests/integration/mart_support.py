@@ -27,7 +27,12 @@ def create_source_release(services: PipelineServices) -> UUID:
               (source_release_id, source, release_name, status, as_of)
             values (%s, %s, %s, 'planned', %s)
             """,
-            (source_release_id, f"eat-{uuid4().hex}", f"release-{uuid4().hex}", MART_AS_OF),
+            (
+                source_release_id,
+                f"eat-{uuid4().hex}",
+                f"release-{uuid4().hex}",
+                MART_AS_OF,
+            ),
         )
     services.connection.commit()
     return source_release_id
@@ -128,7 +133,13 @@ def build_mart(
     return build_id, row_count
 
 
-def fetch_all(services: PipelineServices, statement: str, params: Any = None) -> list[tuple]:
-    with services.connection.cursor() as cursor:
+def fetch_all(
+    services: PipelineServices, statement: str, params: Any = None
+) -> list[tuple]:
+    # 읽기도 transaction 블록 안에서 한다. 블록 없이 커서만 쓰면 psycopg가 연 암묵 transaction이 남고,
+    # 뒤이은 투영이 "idle transaction이 필요하다"며 거부한다. 기존 시험은 투영 **뒤에만** 불러서 안 걸렸다가
+    # 2026-09-23 투영 앞에서 세어 보는 시험이 처음 밟았다 — 운영 코드에서 EAT-264·273·274로 세 번 고친
+    # 같은 결함이다. 바깥 transaction이 있으면 savepoint가 되어 그 안의 자료를 그대로 본다.
+    with services.connection.transaction(), services.connection.cursor() as cursor:
         cursor.execute(statement, params)
         return cursor.fetchall()

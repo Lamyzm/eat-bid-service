@@ -182,19 +182,52 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
         # 회수는 매일 04:30 KST 한 번이다(EAT-254). 시한을 하루 넘긴 행이 남아 있으면 그 회차가 돌지
         # 않았거나 죽은 것이고, 그 사실을 디스크가 차서 아는 것은 너무 늦다 — 2026-09-16 실측 20GB 중
-        # 활성 build는 셋이었다. build당 index 탐색 하나라 900 build에도 싸다.
+        # 활성 build는 셋이었다.
+        #
+        # **왜 build마다 묻지 않고 행이 있는 build를 먼저 뽑는가.** 이전 판은 시한 넘긴 build 하나하나를
+        # 세 표에 `exists`로 물었고 "build당 index 탐색 하나라 싸다"고 적었다. 2026-09-20 운영에서 한 회차가
+        # **766초** 걸렸다. win_rate 표가 3,200만 행인데 행이 있는 build는 27개뿐이라 planner가 build당
+        # 약 120만 행을 추정하고 seq scan을 골랐다 — 행이 있으면 첫 페이지에서 끝나지만, 이 질의가 묻는
+        # 974개 중 947개는 행이 **없어서** "없음"을 증명하려고 3,200만 행을 통째로 947번 훑었다. 게다가
+        # 그중 607개는 애초에 다른 표 소속이라 물을 이유가 없었다.
+        #
+        # 그래서 뒤집는다. 각 표에서 **행이 있는 build_id를** 선두 열 index로 건너뛰며 뽑는다(표마다
+        # build 수만큼의 index 탐색). 그 집합과 시한 넘긴 build를 대조한다. 같은 운영 자료에서 104ms다.
+        # 여전히 실제 행을 본다 — 회수가 "지웠다"고 적는 대신 행이 정말 남았는지를 묻는 것이 이 기대의 값이다.
         sql="""
+            with recursive
+              ors as (
+                (select build_id from mart.org_round_summary order by build_id limit 1)
+                union all
+                select (select r.build_id from mart.org_round_summary r
+                         where r.build_id > p.build_id order by r.build_id limit 1)
+                  from ors p where p.build_id is not null
+              ),
+              wrd as (
+                (select build_id from mart.win_rate_distribution_monthly order by build_id limit 1)
+                union all
+                select (select r.build_id from mart.win_rate_distribution_monthly r
+                         where r.build_id > p.build_id order by r.build_id limit 1)
+                  from wrd p where p.build_id is not null
+              ),
+              oas as (
+                (select build_id from mart.open_auction_snapshot order by build_id limit 1)
+                union all
+                select (select r.build_id from mart.open_auction_snapshot r
+                         where r.build_id > p.build_id order by r.build_id limit 1)
+                  from oas p where p.build_id is not null
+              ),
+              present as (
+                select build_id from ors where build_id is not null
+                union select build_id from wrd where build_id is not null
+                union select build_id from oas where build_id is not null
+              )
             select b.mart_name, count(*) as builds,
                    min(b.retain_until) as oldest_retain_until
               from mart.build b
+              join present p on p.build_id = b.build_id
              where b.status = 'superseded'
                and b.retain_until < now() - interval '1 day'
-               and (
-                 exists (select 1 from mart.org_round_summary r where r.build_id = b.build_id)
-                 or exists (select 1 from mart.win_rate_distribution_monthly r
-                             where r.build_id = b.build_id)
-                 or exists (select 1 from mart.open_auction_snapshot r where r.build_id = b.build_id)
-               )
              group by b.mart_name
              order by b.mart_name
         """,
