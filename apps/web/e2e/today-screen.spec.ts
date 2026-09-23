@@ -135,22 +135,42 @@ test.describe('오늘 화면 fixture', () => {
     await expect(page.getByText('열린 공고 스냅샷 build 601', { exact: false })).toBeVisible();
   });
 
-  test('머리 문장은 진행중 전체와 오늘 마감을 세고 못 센 게시일은 0이 아니라 셀 수 없어요다', async ({ page }) => {
+  test('머리 탭은 진행중 전체와 오늘 마감을 세고 못 센 게시일은 0이 아니라 셀 수 없음이다', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
     await page.goto('/today');
     await 표를기다린다(page);
 
     await expect(page.getByRole('link', { name: '진행중 4건' })).toBeVisible();
-    // fixture는 게시일을 한 건도 관측하지 못한 build라 "셀 수 없어요"다. 0으로 적으면 "오늘 뜬 게 없다"는
-    // 다른 사실을 말하게 된다(AGENTS 3).
-    await expect(page.getByText('오늘 열린 공고는 셀 수 없어요.')).toBeVisible();
+    // fixture는 게시일을 한 건도 관측하지 못한 build라 "셀 수 없음"이다. 0으로 적으면 "오늘 뜬 게 없다"는
+    // 다른 사실을 말하게 된다(AGENTS 3). 탭을 지우지도 않는다 — 수를 못 셌어도 축은 걸 수 있다.
+    await expect(page.getByRole('link', { name: '오늘 열린 셀 수 없음' })).toBeVisible();
     await expect(page.getByRole('link', { name: '오늘 마감 1건' })).toBeVisible();
     await expect(page.getByText('게시일이 관측되지 않은 공고가 4건 있어요', { exact: false })).toBeVisible();
-    // 축 줄은 없다(EAT-241). 전체 수 `4건`은 머리 문장의 굵은 수 하나뿐이고 `하한 N · N건`은 사용자 결정으로 뺐다.
+    // 축 줄은 없다(EAT-241). 전체 수 `4건`은 머리 탭의 수 하나뿐이고 `하한 N · N건`은 사용자 결정으로 뺐다.
     // 행의 `하한 90%`는 축 줄이 아니라 금액 아래 한 줄이다(U9).
     await expect(page.getByText('4건', { exact: true })).toHaveCount(1);
     await expect(page.getByText(/하한 9\d · \d+건/)).toHaveCount(0);
+  });
+
+  test('요약을 못 받으면 달력과 건수가 말없이 사라지지 않고 목록이 그대로임을 말한다', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: VIEWPORT_WIDTH.designCanvas, height: 1200 });
+    // fixture는 기초금액 하한 503을 받으면 그 status로 답한다. 목록은 성공하고 요약만 거절된다.
+    // 이 값은 목록에도 실제로 걸리는 조건이라 행 수가 줄어든다 — 그래서 수를 못박지 않고 살아 있는지만 본다.
+    await page.goto('/today?baseAmountMin=503');
+
+    // 자리를 그냥 비우면 사용자는 화면이 사라졌다고 읽는다(2026-09-20 운영에서 실제로 그렇게 읽혔다).
+    await expect(page.getByText('건수와 마감 달력을 지금은 셀 수 없어요')).toBeVisible();
+    // 없어진 것은 숫자만이 아니다 — 축을 바꾸는 수단 자체가 사라지므로 그것도 말한다.
+    await expect(page.getByText('날짜로 나눠 보기도 잠시 쉬어요', { exact: false })).toBeVisible();
+    await expect(page.getByText('아래 공고 목록은 그대로이고', { exact: false })).toBeVisible();
+    // 기둥은 본문과 다른 칸이라 머리 알림이 닿지 않는다. 지역 줄이 비는 자리에서 따로 말한다.
+    await expect(page.getByText('지역 목록과 건수를 지금은 셀 수 없어요')).toBeVisible();
+    // 목록은 살아 있다 — 한 조각의 실패가 화면 전체를 끌고 내려가지 않는다.
+    await expect(page.locator(ROWS).first()).toBeVisible();
+    // 조건을 고치라고 하지 않는다. 사용자가 고른 조건에는 잘못이 없다.
+    await expect(page.getByRole('link', { name: /^진행중/ })).toHaveCount(0);
   });
 
   test('조건 기둥은 지역·품목 체크 줄에 그 축만 푼 건수를 달고 기초금액은 비어 있다', async ({ page }) => {

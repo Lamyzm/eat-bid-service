@@ -137,6 +137,13 @@ export function ConditionRail({ rail }: { readonly rail: ConditionRailPresentati
   return (
     // 기둥이 본문 위로 가는 폭(xl 미만)에서는 세 구역이 가로로 선다. 세로로 쌓으면 목록이 첫 화면 밖으로 밀린다.
     <div className='grid min-w-0 items-start gap-5 md:grid-cols-3 xl:grid-cols-1'>
+      {/*
+        건수를 못 셌다는 말은 구역 셋 위에 한 번만 둔다. 지역 줄이 통째로 비는 것이 여기서만 보이므로
+        머리의 알림으로는 닿지 않는다 — 기둥은 본문과 다른 칸에 있다.
+      */}
+      {rail.note === null ? null : (
+        <p className='text-[13px] font-medium text-muted-foreground md:col-span-3 xl:col-span-1'>{rail.note}</p>
+      )}
       <RegionSection region={rail.region} />
       <ItemSection item={rail.item} />
       <AmountSection amount={rail.amount} />

@@ -113,6 +113,12 @@ export type TodayPageData = {
   readonly presentation: OpenAuctionListPresentation | null;
   // 탭·달력·축 줄의 재료다. 목록과 같은 이유로 지역 미설정이면 없다.
   readonly summary: OpenSummaryPresentation | null;
+  /**
+   * 요약을 **묻고도 못 받았다**는 사실이다. `summary === null` 하나로는 "지역을 아직 안 골라 묻지
+   * 않았다"와 구분되지 않아, 화면이 둘 다 자리를 비우고 아무 말도 하지 않았다 — 2026-09-20 운영에서
+   * 사용자가 "달력이 없어졌다"고 먼저 발견했다. 실패를 빈 상태로 위장하지 않는다(AGENTS 3).
+   */
+  readonly summaryUnavailable: boolean;
   // 왼쪽 기둥의 재료다. 못 읽었으면 null이고 그때 기둥은 조합 자리를 비운다.
   readonly combinations: CombinationsPresentation | null;
   // build 전환으로 cursor가 사라져 처음부터 다시 조회했다는 사실. 화면이 그 사실을 한 줄로 말한다.
@@ -188,7 +194,15 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
   // 받아 둔 값이 있으면 다음 사람이 그것을 그리고 싶어진다.
   if (regionGate.kind === 'unset') {
     return {
-      nowIso, regionGate, search, presentation: null, summary: null, combinations: null, cursorReset: false
+      nowIso,
+      regionGate,
+      search,
+      presentation: null,
+      summary: null,
+      // 묻지 않았으므로 못 받은 것이 아니다. 조건을 고르면 되는 상태이며 화면이 그것을 따로 말한다.
+      summaryUnavailable: false,
+      combinations: null,
+      cursorReset: false
     };
   }
   // 셋을 나란히 부른다. 요약은 목록의 페이지가 아니라 조건 전체를 세므로 앞의 결과를 기다릴 이유가 없고,
@@ -214,6 +228,8 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
     reportDroppedRead('readCombinations', combinationsSettled.reason);
   }
   const summaryResponse = summarized.status === 'fulfilled' ? summarized.value : null;
+  // 거절된 것만 "못 받았다"다. 지역 미설정으로 아예 묻지 않은 경로는 위에서 이미 돌아갔다.
+  const summaryUnavailable = summarized.status === 'rejected';
   const combinationsRead = combinationsSettled.status === 'fulfilled' ? combinationsSettled.value : null;
   const summary = summaryResponse === null ? null : presentOpenSummary(summaryResponse, nowIso, search);
   const combinations = combinationsRead === null ? null : presentCombinations({
@@ -231,6 +247,7 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
       search,
       presentation: presentOpenAuctionList(first.response, nowIso),
       summary,
+      summaryUnavailable,
       combinations,
       cursorReset: false
     };
@@ -247,6 +264,7 @@ export async function loadTodayPage(rawSearch: TodaySearch, dependencies: TodayP
     search: reset,
     presentation: presentOpenAuctionList(second.response, nowIso),
     summary,
+    summaryUnavailable,
     combinations,
     cursorReset: true
   };
