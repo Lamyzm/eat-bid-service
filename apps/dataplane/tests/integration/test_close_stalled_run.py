@@ -25,9 +25,12 @@ def _insert_run(
     *,
     started_at: datetime,
     status: str = "running",
+    expected_count: int = 1,
 ) -> str:
     # 종료 상태는 끝난 시각을 함께 요구한다(run_terminal_metadata). 열린 run만 비워 둘 수 있다.
     ended_at = None if status == "running" else started_at + timedelta(minutes=1)
+    # 기대 건수를 0으로 두면 "발행 0 = 기대 0"으로 제약이 우연히 맞아 published 닫기의 결함이 숨는다.
+    # 2026-09-23 운영의 코드목록 run이 기대 1·수집 1·발행 0이었고 거기서 처음 터졌다.
     run_id = str(uuid4())
     with connection.transaction(), connection.cursor() as cursor:
         cursor.execute(
@@ -35,9 +38,18 @@ def _insert_run(
             insert into ingest.run
                    (run_id, mode, status, build_sha, parser_version, started_at,
                     expected_count, captured_count, published_count, ended_at)
-            values (%s, 'backfill', %s, %s, 'eat-v5', %s, 0, 0, 0, %s)
+            values (%s, 'backfill', %s, %s, 'eat-v5', %s, %s, %s, %s, %s)
             """,
-            (run_id, status, "0" * 40, started_at, ended_at),
+            (
+                run_id,
+                status,
+                "0" * 40,
+                started_at,
+                expected_count,
+                expected_count,
+                expected_count if status == "published" else 0,
+                ended_at,
+            ),
         )
     return run_id
 
@@ -75,7 +87,9 @@ def test_일이_실제로_끝난_run은_성공으로_닫을_수_있다(
     connection = migrated_db.connect()
     try:
         run_id = _insert_run(
-            connection, started_at=datetime.now(UTC) - timedelta(days=3)
+            connection,
+            started_at=datetime.now(UTC) - timedelta(days=3),
+            expected_count=3,
         )
         with connection.transaction(), connection.cursor() as cursor:
             close_stalled_run(
@@ -86,12 +100,13 @@ def test_일이_실제로_끝난_run은_성공으로_닫을_수_있다(
                 failure_category=None,
                 stall_after=STALL_AFTER,
             )
-        with connection.cursor() as cursor:
+        with connection.transaction(), connection.cursor() as cursor:
             cursor.execute(
-                "select status, failure_category from ingest.run where run_id = %s",
+                "select status, failure_category, published_count"
+                "  from ingest.run where run_id = %s",
                 (run_id,),
             )
-            assert cursor.fetchone() == ("published", None)
+            assert cursor.fetchone() == ("published", None, 3)
     finally:
         connection.close()
 

@@ -79,7 +79,9 @@ def close_stalled_run(
     if outcome == "failed" and failure_category is None:
         raise StalledRunCloseError("failed로 닫으려면 failure_category가 필요하다")
     if outcome == "published" and failure_category is not None:
-        raise StalledRunCloseError("published로 닫을 때는 failure_category를 적지 않는다")
+        raise StalledRunCloseError(
+            "published로 닫을 때는 failure_category를 적지 않는다"
+        )
     cursor.execute(
         """
         select r.mode,
@@ -97,14 +99,20 @@ def close_stalled_run(
         raise StalledRunCloseError(
             f"run이 열려 있지 않거나 아직 전진하고 있다: {run_id}"
         )
+    # published는 "기대한 것이 모두 발행됐다"는 판정이라 발행 건수가 기대 건수와 같아야 한다
+    # (run_published_count_matches_expected). 운영자가 그렇게 확인했다는 것이 이 경로의 전제이므로
+    # 기대 건수를 그대로 옮긴다. failed는 발행 0이 규칙이고 열린 run은 이미 0이라 건드리지 않는다.
     cursor.execute(
         """
         update ingest.run
-           set status = %(status)s, ended_at = %(ended_at)s, failure_category = %(category)s
+           set status = %(status)s, ended_at = %(ended_at)s, failure_category = %(category)s,
+               published_count = case when %(outcome_is_published)s
+                                      then expected_count else published_count end
          where run_id = %(run_id)s and status = 'running'
         """,
         {
             "status": outcome,
+            "outcome_is_published": outcome == "published",
             "ended_at": ended_at,
             "category": failure_category,
             "run_id": run_id,
