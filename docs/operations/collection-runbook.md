@@ -362,6 +362,30 @@ order by r.started_at;
 명령은 **닫는 순간 전진을 한 번 더 본다.** 기대와 같은 90분 기준이며, 그 사이에 되살아난 run은 거부된다.
 이미 닫힌 run도 거부된다. 둘 다 사람이 옛 목록을 보고 산 실행을 죽이는 것을 막는 자리다.
 
+### 4.3.2 도는 workflow를 멈출 때 — 멈추는 것도 상태를 바꾸는 일이다
+
+사고 중에 자원을 되찾으려고 도는 workflow를 멈추는 일이 있다. **그 조치 자체가 교착을 만든다.**
+
+2026-09-19에 외부 사용자가 화면을 못 보자 도는 backfill을 `shutdown: Stop`으로 멈췄다. 그 workflow가
+`eatbid-source-backfill` 자리 넷을 **붙잡은 채** 끝났고, 다음 회차가 **21시간** 대기만 했다. 아무도
+몰랐다 — 대기는 실패가 아니라서 어떤 기대도 울리지 않는다.
+
+덧붙여 그 조치는 **원인도 아니었다.** 3초 시간 초과의 원인은 `shared_buffers` 128MB였다. 즉 효과 없는
+조치가 더 큰 정지를 만들었다.
+
+**멈추기 전에.** 그것이 정말 원인인지 먼저 잰다. 급하다고 추측으로 상태를 바꾸면 고치지 못한 채 새
+문제만 더한다.
+
+**멈춘 뒤에 반드시.** 자물쇠가 풀렸는지 그 자리에서 확인한다.
+
+```powershell
+kubectl -n eatbid get wf <stopped-workflow> -o jsonpath='{.status.synchronization}'
+kubectl -n eatbid get wf <waiting-workflow> -o jsonpath='{.status.synchronization}'
+```
+
+멈춘 workflow의 노드 id가 다른 workflow의 `waiting.holders`에 남아 있으면 교착이다. 그때는 §4.4로 푼다.
+`shutdown: Stop`은 workflow를 끝내지만 controller의 자물쇠 기억까지 지우지는 않는다.
+
 ### 4.4 재부팅·컨트롤러 재시작이 남긴 semaphore 교착 풀기 (2026-09-10, EAT-129)
 
 노드 재부팅이나 controller 재시작이 capture 파드를 죽이면, 죽은 노드가 source semaphore 보유자로 남아
@@ -397,6 +421,25 @@ kubectl -n eatbid annotate wf <waiting-workflow> "eatbid.dev/nudge=$(Get-Date -F
 
 Pending이던 노드가 Running으로 바뀌고 파드가 뜨는지 확인한다. 남은 `planned` release는 §4.1로 확인하고
 §4.2 또는 §4.3으로 정리한다.
+
+**2단계로 안 풀리면 — 자물쇠 주인을 지우고 controller를 재시작한다 (2026-09-20 실측).**
+
+위 두 단계는 자물쇠를 쥔 workflow가 **살아 있을 때**의 절차다. 이미 `Failed`로 끝난 workflow가 자물쇠를
+쥐고 있으면 `shutdown`을 더 걸 것이 없고 annotate로도 안 깨어난다. controller가 시작할 때 각 Workflow의
+`status.synchronization.holding`에서 보유자를 복원하므로 재시작만으로도 같은 보유자가 돌아온다.
+
+그래서 **읽을 대상 자체를 없앤 뒤** 재시작한다. 순서가 거꾸로면 효과가 없다.
+
+```powershell
+kubectl -n eatbid delete wf <자물쇠를 쥔 끝난 workflow>
+kubectl -n eatbid rollout restart deployment/argo-workflows-workflow-controller
+kubectl -n eatbid rollout status deployment/argo-workflows-workflow-controller
+```
+
+지우기 전에 잃을 것이 없는지 본다. 그 workflow의 관측은 R2와 `ingest.raw_observation`에 남고, 창의 진도는
+`ingest.backfill_coverage`가 따로 말한다. 지워지는 것은 Workflow 객체와 그 파드뿐이다.
+
+재시작 뒤 대기하던 workflow의 `status.synchronization`에 `holding`이 생기고 파드가 뜨면 풀린 것이다.
 ### 4.5 발행이 실패한 창은 전진이 건너뛴다 — `failed-publication-window` (2026-09-16, EAT-235, ADR 0053)
 
 `validate`가 `DATA_QUARANTINED`(65)로 끝나면 release는 sealed, publication은 failed다. 같은 창을 다시 받아도
