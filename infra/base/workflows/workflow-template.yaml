@@ -1399,6 +1399,44 @@ spec:
     # 운영자 entrypoint다. 어떤 DAG에도 들지 않고, 결론 없이 끝난 release를 planned → failed로 닫으며
     # 열린 run을 같은 category로 끝낸다(collection-runbook §4.3). onExit 같은 자동 핸들러로 걸지 않는
     # 이유는 planned가 같은 run으로 이어 갈 수 있는 상태이기 때문이다(EAT-122).
+    # 봉인된 release를 남긴 채 멎은 run을 운영자가 닫는다(EAT-234). fail-release가 `planned`만 닫으므로
+    # capture까지 성공한 뒤 프로세스가 사라진 run은 여기로 온다. 어떤 DAG도 이 template을 task로 갖지
+    # 않는다 — 무엇이 참인지 확인한 사람만 부른다.
+    - name: close-stalled-run
+      inputs:
+        parameters:
+          - name: run-id
+          - name: outcome
+          # failed일 때만 값을 준다. published에 실패 사유를 붙이면 CLI가 거부한다.
+          - name: failure-category
+            value: ""
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        command: [/bin/sh, -ec]
+        args:
+          # 빈 category를 인자로 넘기면 argparse의 choices가 거부하므로 값이 있을 때만 붙인다.
+          - >-
+            exec eatbid close-stalled-run
+            --run-id "$EATBID_RUN_ID"
+            --outcome "$EATBID_OUTCOME"
+            ${EATBID_FAILURE_CATEGORY:+--failure-category "$EATBID_FAILURE_CATEGORY"}
+            --ended-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            --result-dir "$EATBID_RESULT_DIR"
+        env:
+          - name: EATBID_RUN_ID
+            value: "{{inputs.parameters.run-id}}"
+          - name: EATBID_OUTCOME
+            value: "{{inputs.parameters.outcome}}"
+          - name: EATBID_FAILURE_CATEGORY
+            value: "{{inputs.parameters.failure-category}}"
+          - *env-result-dir
+          - *env-database-url
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
     - name: fail-release
       inputs:
         parameters:

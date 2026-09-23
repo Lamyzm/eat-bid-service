@@ -312,6 +312,9 @@ COMMAND_METHODS: Mapping[str, str] = {
     "project-code-vocabulary": "project_code_vocabulary",
     # 운영자 entrypoint다. DAG 단계가 아니라 사람이 planned release를 닫을 때만 부른다(EAT-122).
     "fail-release": "fail_release",
+    # 운영자 entrypoint다. fail-release가 planned release만 닫으므로, capture까지 성공해 release가
+    # 봉인된 뒤 프로세스가 사라진 run은 이쪽으로 닫는다(EAT-234).
+    "close-stalled-run": "close_stalled_run",
     # 스케줄 entrypoint다. 수집 상태를 바꾸지 않고 기대만 평가해 위반을 알린다(EAT-170, ADR 0046).
     "check-expectations": "check_expectations",
     # 운영자 조사 entrypoint다. 받아 둔 raw에 지금 파서를 돌려 격리 사유를 한 번에 모은다. DB에 쓰지 않는다(EAT-251).

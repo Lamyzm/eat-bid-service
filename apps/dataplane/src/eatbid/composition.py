@@ -35,7 +35,14 @@ from eatbid.ingest.postgres_publication_repository import PsycopgPublicationRepo
 from eatbid.ingest.postgres_release_repository import PsycopgSourceReleaseRepository
 from eatbid.ingest.postgres_replay_repository import PsycopgReplayRunRepository
 from eatbid.ingest.postgres_repository import PsycopgObservationRepository
-from eatbid.ingest.postgres_run_closure import close_projection_run
+from eatbid.ingest.postgres_run_closure import (
+    close_projection_run,
+)
+from eatbid.ingest.postgres_run_closure import (
+    # 같은 이름의 메서드가 아래에 있다. Python은 method 안에서 class namespace를 건너뛰므로 그냥 써도
+    # 맞게 풀리지만, 읽는 사람이 재귀로 오해할 자리라 별칭을 준다.
+    close_stalled_run as close_stalled_run_in,
+)
 from eatbid.mart.build_marts import (
     build_marts,
     publication_record_types,
@@ -462,6 +469,30 @@ class Application:
                 flush=True,
             ),
         )
+
+    def close_stalled_run(self, args: argparse.Namespace) -> Any:
+        """전진이 멎은 run을 운영자 판정으로 닫는다(EAT-234).
+
+        `fail-release`와 나눈 이유는 닫는 대상이 다르기 때문이다. 그쪽은 `planned` release를 닫으면서
+        딸린 run을 함께 닫는데, capture까지 성공해 release가 이미 봉인된 뒤 프로세스가 사라지면 그
+        경로가 닿지 않는다. 그런 run은 어느 쪽으로도 닫히지 않아 `backfill-progress` 위반이 영원히
+        열린 채 남는다.
+        """
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            mode = close_stalled_run_in(
+                cursor,
+                run_id=args.run_id,
+                outcome=args.outcome,
+                ended_at=args.ended_at,
+                failure_category=args.failure_category,
+                stall_after=args.stall_after,
+            )
+        return {
+            "run_id": str(args.run_id),
+            "mode": mode,
+            "outcome": args.outcome,
+            "failure_category": args.failure_category,
+        }
 
     def fail_release(self, args: argparse.Namespace) -> Any:
         # 운영자 판정이다. planned는 같은 run으로 이어 갈 수 있는 상태라 어떤 단계도 자동으로 여기 오지

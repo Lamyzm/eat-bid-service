@@ -131,6 +131,13 @@ class _기록애플리케이션:
         self.calls.append(("reap-marts", None))
         return ReapReport(as_of=args.as_of, reaped=())
 
+    def close_stalled_run(self, args: Namespace) -> dict[str, object]:
+        # 멎은 run을 닫는 것도 release에 매이지 않는다(EAT-234).
+        if self.error is not None:
+            raise self.error
+        self.calls.append(("close-stalled-run", None))
+        return {"run_id": str(args.run_id), "outcome": args.outcome}
+
 
 def _공통(command: str) -> list[str]:
     return [
@@ -155,6 +162,8 @@ RELEASE_FREE_COMMANDS = frozenset(
         "scan-contract",
         "reap-marts",
         "next-replay-target",
+        # 멎은 run 하나를 식별자로 닫는다. release가 이미 봉인된 뒤라 release에 매이지 않는다(EAT-234).
+        "close-stalled-run",
     }
 )
 RELEASE_SCOPED_COMMANDS = tuple(
@@ -172,6 +181,19 @@ def _명령(command: str) -> list[str]:
         return [command, "--floor-date", "20250901", "--as-of", "2026-09-01T00:06:00Z"]
     if command == "reap-marts":
         return [command, "--as-of", "2026-09-01T00:06:00Z"]
+    if command == "close-stalled-run":
+        # 무엇이 참인지는 확인한 사람이 outcome으로 말한다(EAT-234).
+        return [
+            command,
+            "--run-id",
+            RUN_ID,
+            "--outcome",
+            "failed",
+            "--failure-category",
+            "INTERRUPTED",
+            "--ended-at",
+            "2026-09-01T00:06:00Z",
+        ]
     if command == "next-replay-target":
         # 다시 시도할 가치를 build_sha로 판단하므로 그 값만 받는다(EAT-274).
         return [

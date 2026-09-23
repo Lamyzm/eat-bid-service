@@ -135,6 +135,7 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
             "scan-contract",
             "reap-marts",
             "next-replay-target",
+            "close-stalled-run",
         }:
             add_common_arguments(command)
 
@@ -256,6 +257,21 @@ def build_parser(command_names: Iterable[str]) -> argparse.ArgumentParser:
     next_replay.add_argument("--build-sha", required=True, type=build_sha)
     next_replay.add_argument("--as-of", required=True, type=aware_datetime)
     next_replay.add_argument("--result-dir", type=Path, default=None)
+
+    # 전진이 멎은 run을 운영자가 닫는다. fail-release는 `planned` release만 닫으므로, capture까지
+    # 성공해 release가 봉인된 뒤 프로세스가 사라진 run은 그 경로로 닫히지 않는다(EAT-234).
+    close_stalled = commands["close-stalled-run"]
+    close_stalled.add_argument("--run-id", required=True, type=UUID)
+    # 무엇이 참인지는 확인한 사람이 말한다. 멎은 run이 전부 실패인 것은 아니다 — 일이 실제로 끝났는데
+    # 닫는 코드가 없던 시절의 유물도 같은 모양으로 남는다.
+    close_stalled.add_argument("--outcome", required=True, choices=("published", "failed"))
+    close_stalled.add_argument(
+        "--failure-category", default=None, choices=sorted(OPERATOR_CLOSE_CATEGORIES)
+    )
+    close_stalled.add_argument("--ended-at", required=True, type=aware_datetime)
+    # 기대가 쓰는 값과 같게 둔다. 닫는 쪽이 더 너그러우면 아직 도는 run을 죽일 수 있다.
+    close_stalled.add_argument("--stall-after", default="90 minutes")
+    close_stalled.add_argument("--result-dir", type=Path, default=None)
 
     fail_release = commands["fail-release"]
     fail_release.add_argument("--source-release-id", required=True, type=UUID)
