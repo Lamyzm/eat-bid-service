@@ -105,7 +105,9 @@ class PsycopgMartBuildRepository:
         if created is None:
             raise MartBuildContractError("mart build insertion returned no identity")
         self._connection.commit()
-        return OpenedMartBuild(build_id=int(created[0]), status="building", row_count=None)
+        return OpenedMartBuild(
+            build_id=int(created[0]), status="building", row_count=None
+        )
 
     def _reopen(
         self, cursor: Any, plan: MartBuildPlan, existing: tuple[Any, ...]
@@ -227,7 +229,9 @@ class PsycopgMartBuildRepository:
 
     def publication_marts(self, publication_id: UUID) -> tuple[str, ...]:
         """그 발행이 실은 record type을 돌려준다. 영향 범위는 호출부가 이 이름으로 고른다."""
-        with self._connection.cursor() as cursor:
+        # 읽기도 transaction 블록 안에서 끝낸다. 블록 없이 커서만 쓰면 psycopg가 연 암묵 transaction이 남아
+        # 뒤따르는 쓰기가 savepoint가 된다(EAT-264).
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 _PUBLICATION_RECORD_TYPES_SQL, {"publication_id": publication_id}
             )
@@ -235,8 +239,7 @@ class PsycopgMartBuildRepository:
 
     def run_mode(self, run_id: UUID) -> str | None:
         """이 빌드를 부른 run의 mode를 돌려준다. run이 없으면 None이고 호출부가 모름으로 다룬다."""
-        with self._connection.cursor() as cursor:
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(_RUN_MODE_SQL, {"run_id": run_id})
             row = cursor.fetchone()
         return None if row is None else str(row[0])
-
