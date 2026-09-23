@@ -34,6 +34,17 @@ export function TimeSeriesPanel({
       );
     case 'unavailable':
       return <Notice title='아직 보여드릴 수 없어요' description={view.reason} />;
+    /*
+      조건을 고치라고 하지 않는다. 사용자가 고른 조건에는 잘못이 없고, 지금 할 수 있는 일은 기다렸다
+      다시 여는 것뿐이다. 위 공고 정보와 조건 막대는 그대로 서 있으므로 화면이 사라지지 않는다.
+    */
+    case 'read-failed':
+      return (
+        <Notice
+          title='그림을 불러오지 못했어요'
+          description='잠시 뒤 다시 열어 주세요. 조건은 그대로 두셔도 돼요.'
+        />
+      );
     case 'empty':
       return (
         <Notice

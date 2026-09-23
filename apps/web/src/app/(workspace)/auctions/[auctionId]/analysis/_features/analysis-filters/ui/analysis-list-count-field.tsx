@@ -3,15 +3,8 @@
 import { useId } from 'react';
 import { Input } from '@/shared/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover';
+import { listCountText } from '../lib/condition-text';
 import type { AnalysisDraft, AnalysisDraftErrors, AnalysisTextField } from '../model/analysis-filter-types';
-
-/** 닫힌 상태가 말해야 하는 것은 "지금 몇 곳짜리 회차를 보고 있나"다. 빈 칸 두 개는 그 말을 못 한다. */
-function listCountSummary(min: string, max: string): string {
-  if (min === '' && max === '') return '전체';
-  if (min === '') return `${max}곳 이하`;
-  if (max === '') return `${min}곳 이상`;
-  return `${min}~${max}곳`;
-}
 
 /**
  * 명단 규모는 최소·최대 두 칸이 한 조건이다. 두 칸을 조건 막대에 늘 펼쳐 두면 라벨까지 170px을
@@ -31,7 +24,7 @@ export function AnalysisListCountField({
 }) {
   const id = useId();
   const error = errors.min ?? errors.max;
-  const summary = listCountSummary(draft.min, draft.max);
+  const summary = listCountText(draft.min, draft.max);
   return (
     /*
       패널이 닫히면 적은 값을 보낸다. 칸을 떠나는 것만으로 보내면 Esc나 바깥 누르기로 닫을 때 칸이

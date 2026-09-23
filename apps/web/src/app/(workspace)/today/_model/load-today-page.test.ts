@@ -46,6 +46,24 @@ function dependencies(overrides: Partial<Parameters<typeof loadTodayPage>[1]> = 
 }
 
 describe('오늘 route loader', () => {
+  test('삼킨 실패는 그 자리에서 로그로 남긴다', async () => {
+    // 거절을 값으로 바꾸면 Next가 미처리 오류로 찍지 않는다. 아무 데도 안 남으면 다음에 같은 일이
+    // 났을 때 원인을 처음부터 다시 찾아야 한다(2026-09-20 실측).
+    const errors: string[] = [];
+    const original = console.error;
+    console.error = (message: unknown) => { errors.push(String(message)); };
+    try {
+      const { dependencies: deps } = dependencies({
+        summarizeOpenAuctions: async () => { throw new Error('Request timed out'); }
+      });
+      await loadTodayPage(EMPTY_TODAY_SEARCH, deps);
+    } finally {
+      console.error = original;
+    }
+    expect(errors.some((line) => line.includes('summarizeOpenAuctions'))).toBe(true);
+    expect(errors.some((line) => line.includes('Request timed out'))).toBe(true);
+  });
+
   test('요약이 실패해도 목록은 그대로 그린다', async () => {
     const { dependencies: deps } = dependencies({
       summarizeOpenAuctions: async () => {

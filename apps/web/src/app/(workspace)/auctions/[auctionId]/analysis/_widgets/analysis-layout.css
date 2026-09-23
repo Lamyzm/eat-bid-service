@@ -64,10 +64,6 @@
   border-radius: 4px;
 }
 /*
- * 조건은 한 줄로 흐르고 폭이 모자랄 때만 다음 줄로 넘어간다. 라벨을 쌓고 적용 버튼 줄을 두던
- * 이전 형태는 1024px에서 253px, 좁은 폭에서 489px까지 부풀어 결과를 화면 밖으로 밀어냈다.
- */
-/*
  * 한국어는 어절 단위로 끊어야 읽힌다. 기본 줄바꿈은 `품목 미확인은 공고가 품목을 말하지 않` / `은
  * 회차예요.`처럼 단어 가운데를 자른다(2026-09-18 디자인 심사 반려).
  */
@@ -76,6 +72,10 @@
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
+/*
+ * 막대는 줄의 열이고 조건은 줄 안에서만 흐른다. 라벨을 쌓고 적용 버튼 줄을 두던 이전 형태는
+ * 1024px에서 253px, 좁은 폭에서 489px까지 부풀어 결과를 화면 밖으로 밀어냈다.
+ */
 .analysis-filter-form {
   display: flex;
   flex-direction: column;
@@ -193,13 +193,18 @@
   height: auto;
   min-height: 200px;
 }
+/*
+ * 위로 붙인다. 차트 높이만 한 상자의 한가운데에 두면 1024x768에서 설명 문장이 화면 밖으로 나가고
+ * 사용자는 이유 대신 백지 160px만 본다(2026-09-20 디자인 심사 반려). 이 알림의 목적이 "왜 비었는지
+ * 말해 주기"라 보이지 않으면 아무 일도 안 한 것과 같다. 최소 높이도 차트가 아니라 글 기준이다.
+ */
 .analysis-empty-plot {
   display: flex;
   flex: 1;
-  min-height: 300px;
-  align-items: center;
+  min-height: 180px;
+  align-items: flex-start;
   justify-content: center;
-  padding: 40px 24px;
+  padding: 28px 24px 40px;
   text-align: center;
 }
 .analysis-history-heading {

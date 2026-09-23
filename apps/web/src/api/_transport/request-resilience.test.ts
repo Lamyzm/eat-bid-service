@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { auctionV1Operations } from '@eatbid/contracts/api/v1/auctions';
 import { meV1Operations } from '@eatbid/contracts/api/v1/me';
 import { milliseconds, seconds } from '@eatbid/domain';
-import { HttpProblemError, HttpStatusError } from './http-problem';
+import { ContractResponseError, HttpProblemError, HttpStatusError, isUpstreamUnavailable } from './http-problem';
 import { createContractRequest } from './request-contract';
 import { transportResilience, type TransportResilience } from './request-resilience';
 
@@ -170,6 +170,36 @@ describe('전송 계층 시간 제한과 재시도', () => {
     }
 
     expect(targets).toEqual(['/api/v1/auctions/9007199254740993']);
+  });
+
+  test('상대가 못 답한 실패만 장애로 가르고 우리 결함과 인증은 그대로 던지게 둔다', () => {
+    const problem = (status: number) =>
+      new HttpProblemError({
+        type: 'about:blank',
+        title: 't',
+        status,
+        code: 'INTERNAL_ERROR',
+        detail: null,
+        instance: null,
+        requestId: 'r'
+      } as never);
+    // 재시도를 다 쓰고도 같은 답을 받은 집합이다. 화면은 이것을 "잠시 뒤 다시"로 말할 수 있다.
+    for (const status of [500, 502, 503, 504, 408, 429]) {
+      expect(isUpstreamUnavailable(problem(status))).toBe(true);
+      expect(isUpstreamUnavailable(new HttpStatusError(status, 'r'))).toBe(true);
+    }
+    // 고쳐야 할 버그가 "잠시 뒤 다시" 뒤에 숨으면 안 된다.
+    for (const status of [400, 401, 403, 404, 409, 422]) {
+      expect(isUpstreamUnavailable(problem(status))).toBe(false);
+      expect(isUpstreamUnavailable(new HttpStatusError(status, 'r'))).toBe(false);
+    }
+    expect(isUpstreamUnavailable(new ContractResponseError('findAuction', 200))).toBe(false);
+    // 예산을 넘겨 끊긴 것과 응답 자체가 없었던 것은 상대가 못 답한 것이다.
+    const timeout = new Error('시간 초과');
+    timeout.name = 'TimeoutError';
+    expect(isUpstreamUnavailable(timeout)).toBe(true);
+    expect(isUpstreamUnavailable(new TypeError('fetch failed'))).toBe(true);
+    expect(isUpstreamUnavailable(new RangeError('계약 밖 값'))).toBe(false);
   });
 
   test('조립 지점별 예산은 서버 렌더가 브라우저보다 짧다', () => {
