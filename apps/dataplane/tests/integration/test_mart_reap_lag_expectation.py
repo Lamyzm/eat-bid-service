@@ -81,12 +81,22 @@ def _superseded_build_past_retention(services: PipelineServices) -> int:
     return previous
 
 
+def _count_for(answer: list[tuple[str, int]], mart_name: str) -> int:
+    return next((builds for name, builds in answer if name == mart_name), 0)
+
+
 def test_시한을_넘기고_행이_남은_물린_build를_잡는다(
     pipeline_services: PipelineServices,
 ) -> None:
+    # 통합 시험은 세션 DB 하나를 나눠 쓴다. 절대값을 단언하면 앞선 시험이 남긴 build에 따라 깨진다
+    # (2026-09-23 CI). 증가량도 정확히 1이 아니다 — 내 build를 활성화하는 순간 앞 시험의 활성 build가
+    # 함께 밀려나 둘이 늘 수 있다. 그래서 "적어도 내 것 하나는 잡는다"만 본다. 질의가 고장 나 늘 0을
+    # 내면 이것도 실패한다. 정확한 개수는 아래 이전 질의와의 대조 시험이 지킨다.
+    before = _count_for(_answer(pipeline_services, _current_sql()), "org_round_summary")
     _superseded_build_past_retention(pipeline_services)
+    after = _count_for(_answer(pipeline_services, _current_sql()), "org_round_summary")
 
-    assert _answer(pipeline_services, _current_sql()) == [("org_round_summary", 1)]
+    assert after >= before + 1
 
 
 def test_회수가_지운_뒤에는_울리지_않는다(pipeline_services: PipelineServices) -> None:
