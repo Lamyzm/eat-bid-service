@@ -9,6 +9,7 @@ import { CODE_SCHEME_NAMES } from "@eatbid/contracts";
 import type { AnalysisConditionOptionsQuery } from "../../application/analysis-condition-options-reader";
 import type { AnalysisCohortQuery } from "../../application/analysis-time-series-reader";
 import { analysisBasePredicate, analysisComparisonPredicate } from "./analysis-time-series-query";
+import { organizationLabelSql } from "./organization-label-sql";
 
 /** 기관 이름 검색의 상한이다. 넘으면 잘렸다고 말하고 화면이 검색어를 더 적으라고 안내한다. */
 export const ORGANIZATION_OPTION_LIMIT = 50;
@@ -125,24 +126,34 @@ export function analysisItemCountSql(query: AnalysisConditionOptionsQuery): SQL 
  * 하나를 고를 수밖에 없고, 고른 근거를 최근성으로 못박는다. 상한보다 한 줄 더 읽어 잘렸는지를 안다.
  */
 export function analysisOrganizationOptionSql(query: AnalysisConditionOptionsQuery): SQL {
+  // 이름은 기관별로 한 번만 고른다. 회차 행마다 라벨을 찾으면 같은 기관의 같은 조회를 회차 수만큼 반복한다.
   const search = query.organizationQuery === null
     ? sql``
-    : sql`and strpos(organization.canonical_name, ${query.organizationQuery}) > 0`;
+    : sql`where strpos(named.organization_name, ${query.organizationQuery}) > 0`;
   return sql`
-    with ${regionLabelJoin()}
-    select summary.organization_id as organization_id,
-           organization.canonical_name as organization_name,
-           count(*) as row_count,
-           (array_agg(summary.region_sigungu_code_value_id
-                      order by summary.opened_at desc nulls last))[1] as region_code_value_id,
-           (array_agg(region.code order by summary.opened_at desc nulls last))[1] as region_code,
-           (array_agg(region.label order by summary.opened_at desc nulls last))[1] as region_label
-      from mart.org_round_summary summary
-      join core.organization organization on organization.organization_id = summary.organization_id
-      left join region_label region on region.code_value_id = summary.region_sigungu_code_value_id
-     where ${analysisBasePredicate(query)} ${analysisComparisonPredicate(query)} ${search}
-     group by 1, 2
-     order by 3 desc, 2
+    with ${regionLabelJoin()},
+    grouped as (
+      select summary.organization_id as organization_id,
+             count(*) as row_count,
+             (array_agg(summary.region_sigungu_code_value_id
+                        order by summary.opened_at desc nulls last))[1] as region_code_value_id,
+             (array_agg(region.code order by summary.opened_at desc nulls last))[1] as region_code,
+             (array_agg(region.label order by summary.opened_at desc nulls last))[1] as region_label
+        from mart.org_round_summary summary
+        join core.organization organization on organization.organization_id = summary.organization_id
+        left join region_label region on region.code_value_id = summary.region_sigungu_code_value_id
+       where ${analysisBasePredicate(query)} ${analysisComparisonPredicate(query)}
+       group by 1
+    ),
+    named as (
+      select grouped.*, ${organizationLabelSql(sql`grouped.organization_id`)} as organization_name
+        from grouped
+    )
+    select named.organization_id, named.organization_name, named.row_count,
+           named.region_code_value_id, named.region_code, named.region_label
+      from named
+     ${search}
+     order by named.row_count desc, named.organization_name
      limit ${query.organizationLimit + 1}`;
 }
 

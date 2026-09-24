@@ -21,15 +21,18 @@ export async function docker(...args: string[]): Promise<string> {
 }
 
 const seed = `
+  -- 운영처럼 canonical_name은 비워 둔다. 이름은 기관 코드에 매달린 관측 라벨에만 있다(EAT-278). 여기에 이름을
+  -- 채우면 옛 자리를 읽는 코드가 시험에서만 이름을 보여 주고 운영에서는 비는 결함이 가려진다.
   insert into core.organization (organization_id, type, canonical_name)
   overriding system value
-  values (41, 'school', '창원 남산초등학교'), (43, 'school', '다른 학교');
+  values (41, 'school', null), (43, 'school', null);
   insert into core.code_scheme (code_scheme_id, namespace, owner, version_policy, valid_time_policy)
   overriding system value
-  values (11, 'eatbid:auction-item', 'eatbid', 'immutable', 'open');
+  values (11, 'eatbid:auction-item', 'eatbid', 'immutable', 'open'),
+         (19, 'eat:organization', 'eat', 'immutable', 'open');
   insert into core.code_value (code_value_id, code_scheme_id, code)
   overriding system value
-  values (7, 11, '육류'), (9, 11, '농산물');
+  values (7, 11, '육류'), (9, 11, '농산물'), (61, 19, 'ORG-41'), (63, 19, 'ORG-43');
   insert into core.auction_attempt (auction_attempt_id, source_system, external_bid_id)
   overriding system value
   values (101, 'eat', 'external-101'), (102, 'eat', 'external-102'),
@@ -59,6 +62,13 @@ const seed = `
   values
     (203, '00000000-0000-0000-0000-000000000041', 201, 'eat', '/auction', '{}',
      '2026-09-03T00:00:30Z', 200, '${"c".repeat(64)}');
+  insert into core.organization_identifier (organization_id, code_value_id, observation_id)
+  values (41, 61, 203), (43, 63, 203);
+  -- 41은 이름이 두 번 관측됐다. 나중 관측이 이긴다 — 옛 이름이 화면에 남으면 목록과 상세가 갈린다.
+  insert into core.code_label_observation (code_value_id, label, language, observed_at, observation_id)
+  values (61, '남산초(옛 이름)', 'und', '2026-09-02T00:00:00Z', 203),
+         (61, '창원 남산초등학교', 'und', '2026-09-03T00:00:30Z', 203),
+         (63, '다른 학교', 'und', '2026-09-03T00:00:30Z', 203);
   insert into ingest.normalized_record
     (normalized_record_id, observation_id, record_type, source_entity_id, normalized_payload,
      parser_version, normalized_at)
