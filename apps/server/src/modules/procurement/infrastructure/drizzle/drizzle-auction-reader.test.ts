@@ -96,7 +96,7 @@ describe("DrizzleAuctionReader row 경계", () => {
     expect(record.organization).toBeNull();
   });
 
-  test("공백뿐인 canonical_name은 기관 이름을 unknown으로 남긴다", async () => {
+  test("공백뿐인 관측 라벨은 기관 이름을 unknown으로 남긴다", async () => {
     const adapter = await import("./drizzle-auction-reader");
     const record = adapter.mapAuctionRow(cohortRow({ organization_name: "   " }));
     expect(record.organization).toEqual({ organizationId: 3101n, name: null, type: "school" });

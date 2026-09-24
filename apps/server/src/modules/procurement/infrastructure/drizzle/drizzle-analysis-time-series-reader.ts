@@ -27,6 +27,7 @@ import {
   DENSITY_CELL_LIMIT,
 } from "./analysis-time-series-query";
 import { postgresInstant, type AuctionReadDatabase } from "./drizzle-auction-reader";
+import { organizationLabelSql } from "./organization-label-sql";
 import {
   coverageValue,
   ORG_ROUND_SUMMARY,
@@ -211,21 +212,22 @@ export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader
    * 겹쳐 찍을 기관의 점과 이름을 읽는다. 고른 기관이 없으면 질의를 열지 않는다 — 빈 배열로 물으면
    * `any('{}')`가 한 행도 안 맞는 스캔을 한 번 더 돌린다.
    *
-   * 이름을 mart가 아니라 `core.organization`에서 읽는 이유는 회차 요약에 기관 라벨 열이 없기 때문이고,
-   * 그것이 옳다 — 이름은 기관의 사실이지 그 회차의 사실이 아니다(AGENTS 1·2).
+   * 이름을 mart가 아니라 core에서 읽는 이유는 회차 요약에 기관 라벨 열이 없기 때문이고, 그것이 옳다 —
+   * 이름은 기관의 사실이지 그 회차의 사실이 아니다(AGENTS 1·2). 오늘 목록과 같은 관측 라벨 규칙을 쓴다.
    */
   private async overlays(query: AnalysisTimeSeriesQuery): Promise<readonly AnalysisOverlaySeriesRecord[]> {
     if (query.overlayOrganizationIds.length === 0) return [];
     const [pointResult, nameResult] = await Promise.all([
       this.database.execute(analysisOverlayPointsSql(query, OVERLAY_POINT_LIMIT)),
       this.database.execute(sql`
-        select organization_id, canonical_name
-          from core.organization
-         where organization_id = any(${bigintArrayLiteral(query.overlayOrganizationIds)}::bigint[])`),
+        select organization.organization_id,
+               ${organizationLabelSql(sql`organization.organization_id`)} as organization_label
+          from core.organization organization
+         where organization.organization_id = any(${bigintArrayLiteral(query.overlayOrganizationIds)}::bigint[])`),
     ]);
     const names = new Map<bigint, string | null>(
-      rows<{ organization_id: string | bigint; canonical_name: string | null }>(nameResult)
-        .map((row) => [bigintValue(row.organization_id), row.canonical_name?.trim() || null]),
+      rows<{ organization_id: string | bigint; organization_label: string | null }>(nameResult)
+        .map((row) => [bigintValue(row.organization_id), row.organization_label?.trim() || null]),
     );
     return groupOverlayRows(
       query.overlayOrganizationIds,

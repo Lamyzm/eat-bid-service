@@ -315,6 +315,12 @@ test("조건 사전은 축 하나만 푼 집합에서 지역·품목·기관을 
       // 이름으로 좁힌다. 검색은 `strpos`라 `like` 메타문자가 열리지 않는다.
       const searched = await reader.readConditionOptions({ ...baseOptions, organizationQuery: "없는이름" });
       expect(searched.organizations).toEqual([]);
+      // 이름은 관측 라벨에서 찾는다. 운영의 canonical_name은 비어 있어 옛 자리로는 아무것도 못 찾았다(EAT-278).
+      // 옛 이름으로는 안 찾아진다 — 가장 나중 관측 하나만 그 기관의 이름이다.
+      const named = await reader.readConditionOptions({ ...baseOptions, organizationQuery: "남산" });
+      expect(named.organizations.map((option) => option.organizationId)).toEqual([41n]);
+      const stale = await reader.readConditionOptions({ ...baseOptions, organizationQuery: "옛 이름" });
+      expect(stale.organizations).toEqual([]);
   }, async (client) => {
     await client.unsafe(extraSeed);
   });

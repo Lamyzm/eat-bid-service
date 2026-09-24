@@ -8,6 +8,7 @@ import type {
 } from "../../application/auction-reader";
 import { auctionId, type AuctionId } from "../../domain/auction-id";
 import { dayEarlierParticipationJoin, latestParticipationJoin } from "./auction-participation-queries";
+import { organizationLabelSql } from "./organization-label-sql";
 import { bidRateValue, bigintValue, codeReferenceRecord, moneyValue, observedLabel } from "./postgres-row-values";
 
 export interface AuctionReadDatabase {
@@ -110,7 +111,7 @@ export function mapAuctionRow(row: AuctionRow): AuctionRecord {
       ? null
       : {
         organizationId: bigintValue(row.organization_id),
-        // 공백뿐인 canonical_name은 이름이 관측된 것이 아니라 비어 있는 것이다. 빈 문자열을 이름으로
+        // 공백뿐인 관측 라벨은 이름이 관측된 것이 아니라 비어 있는 것이다. 빈 문자열을 이름으로
         // 내보내면 화면이 이름 없는 기관을 이름 있는 기관처럼 그린다.
         name: observedLabel(row.organization_name),
         type: row.organization_type,
@@ -205,7 +206,7 @@ export class DrizzleAuctionReader implements AuctionReader {
         -- 품목 라벨은 관측 그대로의 문자열이며 회차 요약 mart가 읽는 자리와 같다. 코드가 아니다.
         revision.source_payload #>> '{classification,sourceCategoryLabel}' as item_label,
         purchaser_org.organization_id,
-        purchaser_org.canonical_name as organization_name,
+        ${organizationLabelSql(sql`purchaser_org.organization_id`)} as organization_name,
         purchaser_org.type as organization_type,
         award_method.code_value_id as award_method_code_value_id,
         award_method.code as award_method_code,
