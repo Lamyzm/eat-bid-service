@@ -107,7 +107,7 @@ def normalize_bid_detail_payload(
     info = parsed.datasets["ds_info"][0]
     tolerated: list[str] = []
     try:
-        shared = _shared_auction_fields(parsed, info, external_bid_id)
+        shared = _shared_auction_fields(parsed, info, external_bid_id, notes=tolerated)
         record: NormalizedAuctionRecord = (
             EatbidIngestionAuctionV1(
                 contract_version="eatbid.ingestion.auction.v1", **shared
@@ -138,7 +138,11 @@ def normalize_bid_detail_payload(
 
 
 def _shared_auction_fields(
-    parsed: ParsedNexacro, info: Mapping[str, str], external_bid_id: str
+    parsed: ParsedNexacro,
+    info: Mapping[str, str],
+    external_bid_id: str,
+    *,
+    notes: list[str],
 ) -> dict[str, Any]:
     """두 계약 버전이 같은 값을 갖는 부분을 JSON 모양 그대로 만든다.
 
@@ -161,7 +165,7 @@ def _shared_auction_fields(
         "location": {
             "sido_code": optional_text(info, "SIDO_CD"),
             "sigungu_code": optional_text(info, "SIGUNGU_CD"),
-            "eligibility_codes": list(_eligibility_codes(parsed)),
+            "eligibility_codes": list(_eligibility_codes(parsed, notes)),
         },
         "schedule": {
             "announced_at": canonical_instant_text(info, "PBANC_YMD", "%Y%m%d"),
@@ -248,14 +252,35 @@ def canonical_payload(record: NormalizedAuctionRecord) -> bytes:
     ).encode("utf-8")
 
 
-def _eligibility_codes(parsed: ParsedNexacro) -> tuple[str, ...]:
-    codes: list[str] = []
+def _distinct_area_rows(
+    parsed: ParsedNexacro, notes: list[str] | None = None
+) -> tuple[Mapping[str, str], ...]:
+    """같은 `PDLC_CD`가 다시 오면 뒷줄을 버리고 먼저 온 줄을 남긴다(ADR 0057).
+
+    지역의 정체성은 코드다(AGENTS 2). 같은 코드 두 줄은 같은 지역을 두 번 말한 것이지 두 사실이 아니다 —
+    기관이 시군구 하나를 고른 뒤 "도 전체"를 다시 고르면 그렇게 온다(2026-09 전남 공고 3건, 라벨은 `/` 앞뒤
+    공백만 달랐다). 예전엔 이것을 격리했고 격리 하나가 창 전체의 발행을 막았다. 참가제한지역 집합은 이 합침
+    으로 달라지지 않으므로 추측이 아니다. 라벨은 어느 쪽을 다듬어 고르지 않고 먼저 온 줄의 원문을 두며,
+    뒷줄의 라벨은 raw에 그대로 남는다. `notes`를 받은 호출만 합친 사실을 기록해 한 번만 남긴다.
+    """
+    seen: set[str] = set()
+    rows: list[Mapping[str, str]] = []
     for row in parsed.datasets.get("ds_areaList", ()):
         code = required_text(row, ELIGIBILITY_AREA.source_column)
-        if code in codes:
-            raise ValueError("duplicate PDLC_CD in ds_areaList")
-        codes.append(code)
-    return tuple(codes)
+        if code in seen:
+            if notes is not None:
+                notes.append(f"duplicate PDLC_CD {code} in ds_areaList kept first row")
+            continue
+        seen.add(code)
+        rows.append(row)
+    return tuple(rows)
+
+
+def _eligibility_codes(parsed: ParsedNexacro, notes: list[str]) -> tuple[str, ...]:
+    return tuple(
+        required_text(row, ELIGIBILITY_AREA.source_column)
+        for row in _distinct_area_rows(parsed, notes)
+    )
 
 
 def _eligibility_areas(parsed: ParsedNexacro) -> tuple[SourceCodedValue, ...]:
@@ -266,7 +291,7 @@ def _eligibility_areas(parsed: ParsedNexacro) -> tuple[SourceCodedValue, ...]:
     (AGENTS 3, ADR 0035 §라벨 정규화의 범위). 라벨이 빈 행은 코드만 남고 실패가 아니다.
     """
     areas: list[SourceCodedValue] = []
-    for row in parsed.datasets.get("ds_areaList", ()):
+    for row in _distinct_area_rows(parsed):
         area = optional_scheme_value(row, ELIGIBILITY_AREA)
         if area is None:
             raise ValueError("PDLC_CD is required")
