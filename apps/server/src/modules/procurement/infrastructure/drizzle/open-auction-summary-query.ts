@@ -178,16 +178,27 @@ export function openAuctionSummaryQuerySql(query: OpenAuctionSummaryQuery): SQL 
     ),
     -- 원자 하나의 수는 그 원자 코드가 다리표로 붙은 행 수다. 다리표는 (행, 원자) 한 쌍이 한 번뿐이라
     -- 합성 라벨 행도 원자마다 한 번만 센다.
+    --
+    -- **원자마다 세지 않고 한 번 접는다.** 원자별 상관 서브쿼리로 쓰면 플래너가 다리표 쪽을 1행으로
+    -- 추정하는데 실제로는 42,104행이라(다리표에 build 전부가 들어 있고 이 스캔에는 활성 build 조건이
+    -- 없다) nested loop을 골라 원자 하나당 9,372만 번을 비교하고 그것을 여덟 번 돈다. 2026-09-24 운영
+    -- 실측에서 요약 조회 76.0초 중 75.7초가 이 한 자리였다. 접어 두면 대상에서 다리표를 PK로 찾아가
+    -- 147ms가 되고 결과 행은 바이트까지 같다.
+    counted_items as (
+      select item_atom.code as item, count(*) as count
+        from item_released released
+        join mart.open_auction_snapshot_item bridge
+          on bridge.open_auction_snapshot_id = released.open_auction_snapshot_id
+        join item_atom on item_atom.code_value_id = bridge.item_code_value_id
+       group by item_atom.code
+    ),
+    -- 어휘는 왼쪽에 둔다. 0건인 원자가 여덟 자리를 지켜야 화면이 "오늘 없다"와 "어휘에 없다"를 가른다.
     item_counts as (
       select atoms.item,
              atoms.ordinal,
-             (select count(*)
-                from item_released released
-                join mart.open_auction_snapshot_item bridge
-                  on bridge.open_auction_snapshot_id = released.open_auction_snapshot_id
-                join item_atom on item_atom.code_value_id = bridge.item_code_value_id
-               where item_atom.code = atoms.item)::int as count
+             coalesce(counted_items.count, 0)::int as count
         from unnest(${atoms}::text[]) with ordinality as atoms(item, ordinal)
+        left join counted_items on counted_items.item = atoms.item
     ),
     -- 두 집합을 날짜로 **한 번씩** 접는다. 달력 칸마다 세면 창 길이만큼 스캔이 늘어난다.
     scoped_by_day as (
