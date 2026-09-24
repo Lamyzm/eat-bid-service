@@ -29,7 +29,12 @@ const COHORT_TERMS = {
 } as const;
 const COHORT_LOCATION = {
   sido: { codeValueId: '41', code: '48', scheme: 'eat:auction-location-sido', label: '경상남도' },
-  sigungu: { codeValueId: '43', code: '48120', scheme: 'eat:auction-location-sigungu', label: '창원시' }
+  sigungu: {
+    codeValueId: '43',
+    code: '48120',
+    scheme: 'eat:auction-location-sigungu',
+    label: '창원시'
+  }
 } as const;
 const COHORT_CLASSIFICATION = { itemLabel: '축산' } as const;
 
@@ -74,7 +79,7 @@ function auctionResponse(auctionId: string) {
       externalBidId: 'fixture-opaque-id',
       displayBidNumber: null,
       title: '급식 식재료',
-      status: 'OPEN'
+      status: '진행중'
     },
     organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
     schedule: {
@@ -111,7 +116,7 @@ function openAuctionResponse(auctionId: string) {
       externalBidId: 'fixture-open-opaque-id',
       displayBidNumber: null,
       title: '창원 남산초등학교 축산물 구매',
-      status: 'OPEN'
+      status: '진행중'
     },
     organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
     schedule: {
@@ -169,7 +174,7 @@ function closedAuctionResponse(auctionId: string) {
       externalBidId: 'fixture-closed-opaque-id',
       displayBidNumber: null,
       title: '개찰 완료 공고',
-      status: 'CLOSED'
+      status: '낙찰'
     },
     organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
     schedule: {
@@ -192,7 +197,10 @@ function closedAuctionResponse(auctionId: string) {
     classification: COHORT_CLASSIFICATION,
     // 마감 직전 관측 하나만 남은 개찰 완료 공고다. 하루 전 관측이 없으면 증감을 그리지 않는다.
     participation: {
-      latest: { bidCount: 13, observedAt: instantSecondsIso(now + CLOSED_DEADLINE_OFFSET_MILLISECONDS - 10 * 60 * 1000) },
+      latest: {
+        bidCount: 13,
+        observedAt: instantSecondsIso(now + CLOSED_DEADLINE_OFFSET_MILLISECONDS - 10 * 60 * 1000)
+      },
       dayEarlier: null
     }
   });
@@ -234,7 +242,8 @@ Bun.serve({
     // 경로와 겹치지 않게 두고, 요청 카운터보다 앞에 두어 제어 호출 자체가 카운트되지 않게 한다.
     if (pathname === COUNTS_PATH) return Response.json(observedCounts());
     if (pathname === LINEAGE_PATH) return Response.json(observedLineage());
-    if (pathname === ACTIVATE_BUILD_PATH) return Response.json({ activations: activateNextBuild() });
+    if (pathname === ACTIVATE_BUILD_PATH)
+      return Response.json({ activations: activateNextBuild() });
     if (pathname === RESET_PATH) {
       resetObservations();
       return new Response(null, { status: 204 });
@@ -277,9 +286,12 @@ Bun.serve({
       await Bun.sleep(SHELL_RESPONSE_DELAY_MILLISECONDS);
       return Response.json(auctionResponse(SHELL_AUCTION_ID));
     }
-    if (pathname === auctionPath(OPEN_AUCTION_ID)) return Response.json(openAuctionResponse(OPEN_AUCTION_ID));
-    if (pathname === auctionPath(CLOSED_AUCTION_ID)) return Response.json(closedAuctionResponse(CLOSED_AUCTION_ID));
-    if (pathname === auctionPath(LONG_HEADER_AUCTION_ID)) return Response.json(longHeaderAuctionResponse(LONG_HEADER_AUCTION_ID));
+    if (pathname === auctionPath(OPEN_AUCTION_ID))
+      return Response.json(openAuctionResponse(OPEN_AUCTION_ID));
+    if (pathname === auctionPath(CLOSED_AUCTION_ID))
+      return Response.json(closedAuctionResponse(CLOSED_AUCTION_ID));
+    if (pathname === auctionPath(LONG_HEADER_AUCTION_ID))
+      return Response.json(longHeaderAuctionResponse(LONG_HEADER_AUCTION_ID));
     if (pathname === auctionPath(FAILURE_AUCTION_ID)) return problemResponse(503);
     if (pathname === auctionPath(MISSING_AUCTION_ID)) return problemResponse(404);
 

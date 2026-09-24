@@ -50,7 +50,8 @@ select
   990003,
   lpad(to_hex(record.normalized_record_id), 64, '0'),
   'DEV-' || to_char(now(), 'YYYY') || '-' || lpad(spec.o::text, 4, '0'),
-  case when spec.o % 19 = 0 then 'CANCELLED' else 'OPEN' end,
+  -- 운영 source_status는 코드가 아니라 원천 한글 라벨이다. 영문 코드를 심으면 화면이 운영과 다른 분기를 탄다(EAT-279).
+  case when spec.o % 19 = 0 then '공고취소' else '진행중' end,
   coalesce(organization.canonical_name, '이름 미관측 기관') || ' '
     || coalesce(spec.item_label, '품목 미상') || ' 구매',
   spec.kst0 - (spec.o % 5) * interval '1 day' + interval '9 hours',
@@ -103,7 +104,7 @@ select
   990003,
   lpad(to_hex(record.normalized_record_id), 64, '0'),
   'DEV-PAST-' || lpad(spec.p::text, 4, '0'),
-  'CLOSED',
+  '낙찰',
   organization.canonical_name || ' ' || spec.item_label || ' 구매',
   spec.opened_at - interval '5 days',
   spec.opened_at - interval '3 hours',

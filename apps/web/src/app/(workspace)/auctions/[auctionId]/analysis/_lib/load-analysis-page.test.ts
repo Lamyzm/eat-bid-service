@@ -87,16 +87,32 @@ describe('새 상세의 공고 조회와 표시', () => {
   });
 
   test('기관과 일정이 없으면 제목에서 추론하지 않고 미확인을 표시하며 정밀 금액을 보존한다', () => {
-    const header = presentAnalysisHeader({ ...auctionFixture, organization: null });
+    const header = presentAnalysisHeader({ ...auctionFixture, organization: null }, fixtureNow);
     expect(header.organization).toBe('구매기관 미확인');
     expect(header.facts[0]?.value).toBe('9,007,199,254,740,993.5원');
     expect(header.facts[2]?.value).toBe('미확인');
     expect(
-      presentAnalysisHeader({
-        ...auctionFixture,
-        organization: { ...auctionFixture.organization, name: null }
-      }).organization
+      presentAnalysisHeader(
+        { ...auctionFixture, organization: { ...auctionFixture.organization, name: null } },
+        fixtureNow
+      ).organization
     ).toBe('기관명 미확인');
+  });
+
+  test('상태 칩은 원천 라벨을 번역하지 않고 옮기며 빈 라벨은 미확인이라고 말한다', () => {
+    // 운영 source_status는 코드가 아니라 원천 한글 문구다. 예전 판은 영문 코드만 알아 운영에서 늘 미확인이었다.
+    for (const label of ['입찰마감', '낙찰', '유찰', '공고취소', '저장중'])
+      expect(statusOf(label)).toBe(label);
+    expect(statusOf('  ')).toBe('공고 상태 미확인');
+  });
+
+  test('원천이 진행중이라 말해도 마감 시각이 지났으면 마감이 지났다는 사실을 함께 말한다', () => {
+    // fixtureNow는 2026-09-03T01:30:00Z다. 마감 순간은 이미 지난 것으로 본다.
+    expect(statusAtDeadline('2026-09-03T02:00:00Z')).toBe('진행중');
+    expect(statusAtDeadline('2026-09-03T01:30:00Z')).toBe('진행중 · 마감 지남');
+    expect(statusAtDeadline('2026-09-02T23:00:00Z')).toBe('진행중 · 마감 지남');
+    // 마감을 모르면 지났다고 말할 근거가 없다.
+    expect(statusAtDeadline(null)).toBe('진행중');
   });
 
   test('조건이 무효하면 시간축을 조회하지 않는다', async () => {
@@ -135,3 +151,21 @@ describe('새 상세의 공고 조회와 표시', () => {
     expect(reads).toBe(1);
   });
 });
+
+function statusOf(status: string): string {
+  return presentAnalysisHeader(
+    { ...auctionFixture, identity: { ...auctionFixture.identity, status } },
+    fixtureNow
+  ).status;
+}
+
+function statusAtDeadline(deadlineAt: string | null): string {
+  return presentAnalysisHeader(
+    {
+      ...auctionFixture,
+      identity: { ...auctionFixture.identity, status: '진행중' },
+      schedule: { ...auctionFixture.schedule, deadlineAt }
+    },
+    fixtureNow
+  ).status;
+}
