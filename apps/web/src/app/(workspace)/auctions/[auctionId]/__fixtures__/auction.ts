@@ -8,7 +8,8 @@ export const auctionFixture = {
     externalBidId: 'eat-opaque-id',
     displayBidNumber: 'EAT-2026-0001',
     title: '2026학년도 학교 급식 식재료 구매',
-    status: 'OPEN'
+    // 운영 source_status처럼 원천 한글 라벨이다. 영문 코드를 쓰면 화면이 운영과 다른 분기를 탄다(EAT-279).
+    status: '진행중'
   },
   organization: { organizationId: '3101', name: '창원 남산초등학교', type: 'school' },
   schedule: {
@@ -33,7 +34,12 @@ export const auctionFixture = {
   },
   location: {
     sido: { codeValueId: '41', code: '48', scheme: 'eat:auction-location-sido', label: '경상남도' },
-    sigungu: { codeValueId: '43', code: '48120', scheme: 'eat:auction-location-sigungu', label: '창원시' }
+    sigungu: {
+      codeValueId: '43',
+      code: '48120',
+      scheme: 'eat:auction-location-sigungu',
+      label: '창원시'
+    }
   },
   classification: { itemLabel: '축산' },
   // 목록 스냅샷에 잡힌 적 없는 공고다. 참여 수는 미확인이어야 한다.
@@ -43,8 +49,17 @@ export const auctionFixture = {
 /** 마감·개찰이 관측된 진행 중 공고. 2026-09-03T01:30Z(10:30 KST)에 보면 마감 24시간 30분 전이다. */
 export const openAuctionFixture = {
   ...auctionFixture,
-  identity: { ...auctionFixture.identity, auctionId: '5796468', revisionId: '5796469', title: '창원 남산초등학교 축산물 구매' },
-  schedule: { announcedAt: '2026-09-01T00:00:00Z', deadlineAt: '2026-09-04T02:00:00Z', openedAt: '2026-09-04T05:00:00Z' },
+  identity: {
+    ...auctionFixture.identity,
+    auctionId: '5796468',
+    revisionId: '5796469',
+    title: '창원 남산초등학교 축산물 구매'
+  },
+  schedule: {
+    announcedAt: '2026-09-01T00:00:00Z',
+    deadlineAt: '2026-09-04T02:00:00Z',
+    openedAt: '2026-09-04T05:00:00Z'
+  },
   pricing: { baseAmount: { amount: '2761700.00', currency: 'KRW' }, plannedAmount: null },
   // 목록 관측 BID_CNT다. fixtureNow 직전 관측 4곳, 하루 전 관측 2곳 → "09-03 10:00 기준 · 09-02 대비 +2".
   participation: {
@@ -56,8 +71,17 @@ export const openAuctionFixture = {
 /** 개찰이 끝난 공고. now가 openedAt 뒤다. */
 export const closedAuctionFixture = {
   ...openAuctionFixture,
-  identity: { ...openAuctionFixture.identity, auctionId: '5780681', revisionId: '5780682', status: 'CLOSED' },
-  schedule: { announcedAt: '2026-08-10T00:00:00Z', deadlineAt: '2026-08-13T02:00:00Z', openedAt: '2026-08-13T05:00:00Z' }
+  identity: {
+    ...openAuctionFixture.identity,
+    auctionId: '5780681',
+    revisionId: '5780682',
+    status: '낙찰'
+  },
+  schedule: {
+    announcedAt: '2026-08-10T00:00:00Z',
+    deadlineAt: '2026-08-13T02:00:00Z',
+    openedAt: '2026-08-13T05:00:00Z'
+  }
 } satisfies AuctionV1Response;
 
 export const fixtureNow = '2026-09-03T01:30:00Z';

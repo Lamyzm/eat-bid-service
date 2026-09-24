@@ -53,8 +53,7 @@ select
   spec.item_label,
   case
     when revision.auction_revision_id is null then null
-    when revision.source_status = 'CANCELLED' then '공고취소'
-    else '진행중'
+    else revision.source_status
   end,
   revision.floor_rate,
   revision.title,

@@ -6,7 +6,10 @@ import {
   presentAnalysisFilters,
   readAppliedAnalysis
 } from '../_features/analysis-filters/model/present-analysis-filters';
-import { presentTimeSeries, type TimeSeriesView } from '../_features/time-series/model/present-time-series';
+import {
+  presentTimeSeries,
+  type TimeSeriesView
+} from '../_features/time-series/model/present-time-series';
 import { presentAnalysisHeader } from './present-analysis-header';
 
 type Dependencies = {
@@ -35,10 +38,12 @@ export async function loadAnalysisPage(
   }
   const result = await dependencies.readAuction({ auctionId });
   if (result.kind === 'not-found') return null;
-  const setup = presentAnalysisFilters(result.response, dependencies.now());
+  // 조건 기본값과 상태 칩이 서로 다른 순간을 보지 않게 시각은 한 번만 읽는다.
+  const now = dependencies.now();
+  const setup = presentAnalysisFilters(result.response, now);
   const applied = readAppliedAnalysis(rawFilter, setup);
   return {
-    header: presentAnalysisHeader(result.response),
+    header: presentAnalysisHeader(result.response, now),
     setup,
     applied,
     timeSeries: await readTimeSeriesView(applied, dependencies)
@@ -54,5 +59,7 @@ async function readTimeSeriesView(
   dependencies: Dependencies
 ): Promise<TimeSeriesView | null> {
   if (applied.state !== 'pending') return null;
-  return presentTimeSeries(await dependencies.readTimeSeries(analysisTimeSeriesQueryOf(applied.filter)));
+  return presentTimeSeries(
+    await dependencies.readTimeSeries(analysisTimeSeriesQueryOf(applied.filter))
+  );
 }

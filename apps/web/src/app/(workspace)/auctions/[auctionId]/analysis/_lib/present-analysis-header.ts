@@ -33,8 +33,24 @@ function kst(value: string | null): string {
     String(date.minute).padStart(2, '0')
   );
 }
-export function presentAnalysisHeader(auction: AuctionV1Response): AnalysisHeaderView {
-  const status = { OPEN: '진행 중', CLOSED: '개찰 완료' }[auction.identity.status ?? ''];
+/**
+ * 상태 칩은 원천이 말한 라벨을 그대로 옮긴다. `source_status`는 코드가 아니라 원천 한글 문구(진행중·입찰마감·
+ * 낙찰·유찰·공고취소 …)라서, 우리 어휘로 번역하면 그 번역표가 곧 우리가 소유하는 정의가 된다. 예전 판은
+ * 영문 코드만 알아 운영에서 언제나 "공고 상태 미확인"이었다(EAT-279).
+ *
+ * 원천이 "진행중"이라 말해도 마감 시각이 지났으면 그 관측이 늦은 것일 수 있다. 라벨을 고치지 않고 마감이
+ * 지났다는 계산된 사실을 옆에 붙인다 — 첫 단어가 현재와 다르게 읽히지 않게 하되 원천 관측은 그대로 둔다.
+ */
+function statusText(label: string, deadlineAt: string | null, now: string): string {
+  const observed = label.trim();
+  if (!observed) return '공고 상태 미확인';
+  const deadlinePassed =
+    deadlineAt !== null &&
+    Temporal.Instant.compare(Temporal.Instant.from(now), Temporal.Instant.from(deadlineAt)) >= 0;
+  return observed === '진행중' && deadlinePassed ? '진행중 · 마감 지남' : observed;
+}
+export function presentAnalysisHeader(auction: AuctionV1Response, now: string): AnalysisHeaderView {
+  const status = statusText(auction.identity.status, auction.schedule.deadlineAt, now);
   return {
     organization:
       auction.organization?.name ?? (auction.organization ? '기관명 미확인' : '구매기관 미확인'),
@@ -43,7 +59,7 @@ export function presentAnalysisHeader(auction: AuctionV1Response): AnalysisHeade
       [auction.location?.sido?.label, auction.location?.sigungu?.label].filter(Boolean).join(' ') ||
       '공고지역 미확인',
     item: auction.classification?.itemLabel ?? '품목 미확인',
-    status: status ?? '공고 상태 미확인',
+    status,
     facts: [
       { label: '기초금액', value: moneyText(auction.pricing.baseAmount) },
       {
