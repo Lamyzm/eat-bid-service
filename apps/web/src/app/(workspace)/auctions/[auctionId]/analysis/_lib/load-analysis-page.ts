@@ -60,6 +60,7 @@ async function readTimeSeriesView(
 ): Promise<TimeSeriesView | null> {
   if (applied.state !== 'pending') return null;
   return presentTimeSeries(
-    await dependencies.readTimeSeries(analysisTimeSeriesQueryOf(applied.filter))
+    await dependencies.readTimeSeries(analysisTimeSeriesQueryOf(applied.filter)),
+    applied.filter.floorRate.value
   );
 }
