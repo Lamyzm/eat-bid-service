@@ -18,16 +18,16 @@ resources:
 images:
   - name: eatbid-web
     newName: ghcr.io/lamyzm/eatbid-web
-    digest: sha256:d8a04107853da577ac1275a0f771797cacddd396078a45429ce4c473a7b05b93
+    digest: sha256:b5057fe2b272c1dba5d9256ac067349fce1b08e6d34c8a3d58246ae323fbd5b3
   - name: eatbid-server
     newName: ghcr.io/lamyzm/eatbid-server
-    digest: sha256:0c6c0292fd12371c1f7d23cff6d9de8f18761f43c58895640fd71ef05961ee40
+    digest: sha256:862d96bc776650a1c412745a0bb89dd5634135a809304b4254920053427d11cb
   - name: eatbid-dataplane
     newName: ghcr.io/lamyzm/eatbid-dataplane
-    digest: sha256:41b9ab30dc47fc5816a571a8140b02b3f64a9c699b1f1331e3022858b9c02fd3
+    digest: sha256:015bec8a4537401c2bdf4502302842ce6dabdbeaf524060e33aa7f9433c47c95
   - name: eatbid-migration
     newName: ghcr.io/lamyzm/eatbid-migration
-    digest: sha256:e9b9fce488cc9a98cb4ddbd1353f06262cf4c84067d9b879a435e6fb75e818fa
+    digest: sha256:f6282e6177c629c35e7c6033e5f308915379fef4b1b06812aad565834684623e
 
 patches:
   - path: patches/postgres-secret-env.patch.yaml
