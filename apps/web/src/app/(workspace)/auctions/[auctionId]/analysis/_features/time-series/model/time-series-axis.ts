@@ -61,7 +61,10 @@ export function rateDomain(weights: readonly RateWeight[]): TimeSeriesDomainRate
 }
 
 /** 축 밖으로 나간 관측 수다. 위아래를 나누는 이유는 사용자가 어느 쪽을 더 봐야 할지가 다르기 때문이다. */
-export function countOutside(weights: readonly RateWeight[], domain: TimeSeriesDomainRates): OutsideCount {
+export function countOutside(
+  weights: readonly RateWeight[],
+  domain: TimeSeriesDomainRates
+): OutsideCount {
   let above = 0;
   let below = 0;
   for (const entry of weights) {
@@ -71,8 +74,58 @@ export function countOutside(weights: readonly RateWeight[], domain: TimeSeriesD
   return { above, below };
 }
 
+/**
+ * 사정률 눈금 간격 후보다(milli). 0.01·0.02·0.05·0.1·0.2·0.5·1·2·5·10·20·50%p에서만 끊는다.
+ *
+ * 범위를 다섯 등분하면 눈금이 88.504·88.852처럼 아무 의미 없는 값에 선다(2026-09-25 dev 실측). 사용자는
+ * 90.00·90.10 같은 자리에서 값을 읽고 하한과의 거리를 잰다 — 눈금이 그 자리에 서야 점의 값을 눈으로 읽는다.
+ */
+const RATE_TICK_STEPS = [
+  10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 20_000, 50_000
+] as const;
+
+/** 눈금이 `maxTicks`개를 넘지 않는 가장 촘촘한 간격이다. */
+export function rateTickStep(from: number, to: number, maxTicks = 6): number {
+  for (const step of RATE_TICK_STEPS) {
+    if (Math.floor(to / step) - Math.ceil(from / step) + 1 <= maxTicks) return step;
+  }
+  return RATE_TICK_STEPS[RATE_TICK_STEPS.length - 1];
+}
+
+/** 축 양끝을 눈금 간격의 배수로 넓힌다. 끝이 눈금이 아니면 맨 위·아래 점의 값을 읽을 기준이 없다. */
+export function snapRateDomain(domain: TimeSeriesDomainRates, step: number): TimeSeriesDomainRates {
+  return {
+    yFrom: Math.floor(domain.yFrom / step) * step,
+    yTo: Math.ceil(domain.yTo / step) * step
+  };
+}
+
+/** 간격의 배수 자리마다 눈금 하나다. */
+export function rateTicks<Value>(
+  from: number,
+  to: number,
+  step: number,
+  make: (value: number) => Value
+): Value[] {
+  const out: Value[] = [];
+  for (let value = Math.ceil(from / step) * step; value <= to; value += step) out.push(make(value));
+  return out;
+}
+
+/** 눈금 라벨의 소수 자릿수다. 0.1%p 간격에 셋째 자리까지 쓰면 `88.500`처럼 뜻 없는 0이 늘어난다. */
+export function rateTickDecimals(step: number): number {
+  if (step % 100 === 0) return 1;
+  if (step % 10 === 0) return 2;
+  return 3;
+}
+
 /** 눈금은 다섯 자리를 넘지 않게 고른다. 더 촘촘하면 라벨이 겹치고 더 성기면 값을 읽을 수 없다. */
-export function ticks<Value>(from: number, to: number, count: number, make: (value: number) => Value): Value[] {
+export function ticks<Value>(
+  from: number,
+  to: number,
+  count: number,
+  make: (value: number) => Value
+): Value[] {
   if (!(to > from)) return [make(from)];
   const step = (to - from) / (count - 1);
   return Array.from({ length: count }, (_, index) => make(from + step * index));

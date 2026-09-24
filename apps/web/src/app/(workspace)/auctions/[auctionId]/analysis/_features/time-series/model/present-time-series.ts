@@ -3,6 +3,10 @@ import { Temporal } from '@eatbid/domain';
 import {
   countOutside,
   rateDomain,
+  rateTickDecimals,
+  rateTickStep,
+  rateTicks,
+  snapRateDomain,
   ticks,
   type OutsideCount,
   type RateWeight
@@ -39,7 +43,11 @@ export interface TimeSeriesDomain {
 
 export type TimeSeriesComparison =
   | { readonly kind: 'points'; readonly points: readonly TimeSeriesPoint[] }
-  | { readonly kind: 'density'; readonly cells: readonly TimeSeriesCell[]; readonly maxCount: number };
+  | {
+      readonly kind: 'density';
+      readonly cells: readonly TimeSeriesCell[];
+      readonly maxCount: number;
+    };
 
 /**
  * 겹쳐 찍은 기관 하나다. 번호는 요청 순서이며 사용자가 고른 순서다 — 그림의 배지와 범례가 같은 번호를
@@ -68,6 +76,12 @@ export interface TimeSeriesPlot {
   readonly comparison: TimeSeriesComparison;
   readonly xTicks: readonly { readonly x: number; readonly label: string }[];
   readonly yTicks: readonly { readonly y: number; readonly label: string }[];
+  /**
+   * 적용된 조건의 하한율이다. 축 범위에 넣지 않는다 — 넣으면 하한과 낙찰점 사이가 멀 때 점들이 한 줄로
+   * 뭉친다. 대신 범위 안이면 선을 긋고 밖이면 어느 쪽 밖인지 글로 말한다. 사용자가 투찰을 판단하는
+   * 가장 중요한 기준선이 말없이 사라지면 안 된다.
+   */
+  readonly floor: { readonly y: number; readonly label: string } | null;
   readonly fullYTicks: readonly { readonly y: number; readonly label: string }[];
   /** 기본 축 밖으로 나간 수. 전체 값 보기에서는 0이 된다. */
   readonly outsideTarget: OutsideCount;
@@ -119,6 +133,12 @@ function rateText(milli: number): string {
   return `${sign}${Math.floor(magnitude / RATE_SCALE)}.${String(magnitude % RATE_SCALE).padStart(3, '0')}`;
 }
 
+/** 눈금 라벨이다. 간격이 0.1%p면 `88.5`, 0.01%p면 `88.50`처럼 간격이 말하는 자릿수까지만 쓴다. */
+function tickText(milli: number, step: number): string {
+  const text = rateText(milli);
+  return text.slice(0, text.length - (3 - rateTickDecimals(step)));
+}
+
 function epochOf(instantText: string): number {
   return Temporal.Instant.from(instantText).epochMilliseconds;
 }
@@ -139,12 +159,12 @@ function targetPoint(point: AnalysisTargetPoint): TimeSeriesPoint {
   };
 }
 
-
 export function presentTimeSeries(
   read:
     | { readonly kind: 'cohort-not-found' }
     | { readonly kind: 'read-failed' }
-    | { readonly kind: 'series'; readonly response: AnalysisTimeSeriesV1Response }
+    | { readonly kind: 'series'; readonly response: AnalysisTimeSeriesV1Response },
+  floorRate: string | null = null
 ): TimeSeriesView {
   if (read.kind === 'cohort-not-found') return { kind: 'cohort-not-found' };
   if (read.kind === 'read-failed') return { kind: 'read-failed' };
@@ -157,15 +177,16 @@ export function presentTimeSeries(
   }
   const targetPoints = target.map(targetPoint);
   const comparisonPoints = comparison.kind === 'points' ? comparison.points.map(targetPoint) : [];
-  const cells: TimeSeriesCell[] = comparison.kind === 'density'
-    ? comparison.cells.map((cell) => ({
-      x0: epochOf(cell.fromAt),
-      x1: epochOf(cell.toAt),
-      y0: rateMilli(cell.rateFrom.value),
-      y1: rateMilli(cell.rateTo.value),
-      count: cell.count
-    }))
-    : [];
+  const cells: TimeSeriesCell[] =
+    comparison.kind === 'density'
+      ? comparison.cells.map((cell) => ({
+          x0: epochOf(cell.fromAt),
+          x1: epochOf(cell.toAt),
+          y0: rateMilli(cell.rateFrom.value),
+          y1: rateMilli(cell.rateTo.value),
+          count: cell.count
+        }))
+      : [];
   const overlays: TimeSeriesOverlay[] = (read.response.overlays ?? []).map((series, index) => ({
     organizationId: series.organizationId,
     label: series.name ?? '기관명 미확인',
@@ -196,31 +217,38 @@ export function presentTimeSeries(
   }
   const xFrom = epochOf(`${axis.period.from}T00:00:00+09:00`);
   const xTo = epochOf(`${axis.period.to}T23:59:59+09:00`);
-  const { yFrom, yTo } = rateDomain(weights);
+  const center = rateDomain(weights);
+  const step = rateTickStep(center.yFrom, center.yTo);
+  const { yFrom, yTo } = snapRateDomain(center, step);
   const everyRate = weights.map((entry) => entry.rate);
   const fullLow = Math.min(...everyRate);
   const fullHigh = Math.max(...everyRate);
   const fullPad = Math.round(Math.max(fullHigh - fullLow, 1_000) * 0.08);
-  const fullDomain: TimeSeriesDomain = {
-    xFrom,
-    xTo,
+  const fullRates = {
     yFrom: Math.min(yFrom, fullLow - fullPad),
     yTo: Math.max(yTo, fullHigh + fullPad)
   };
+  const fullStep = rateTickStep(fullRates.yFrom, fullRates.yTo);
+  const fullDomain: TimeSeriesDomain = { xFrom, xTo, ...snapRateDomain(fullRates, fullStep) };
   return {
     kind: 'plot',
     plot: {
       fullDomain,
-      fullYTicks: ticks(fullDomain.yFrom, fullDomain.yTo, 5, (y) => ({ y, label: rateText(Math.round(y)) })),
+      fullYTicks: rateTicks(fullDomain.yFrom, fullDomain.yTo, fullStep, (y) => ({
+        y,
+        label: tickText(y, fullStep)
+      })),
       outsideTarget: countOutside(targetWeights, { yFrom, yTo }),
       outsideComparison: countOutside(comparisonWeights, { yFrom, yTo }),
       domain: { xFrom, xTo, yFrom, yTo },
       target: targetPoints,
-      comparison: comparison.kind === 'points'
-        ? { kind: 'points', points: comparisonPoints }
-        : { kind: 'density', cells, maxCount: Math.max(...cells.map((cell) => cell.count)) },
+      comparison:
+        comparison.kind === 'points'
+          ? { kind: 'points', points: comparisonPoints }
+          : { kind: 'density', cells, maxCount: Math.max(...cells.map((cell) => cell.count)) },
       xTicks: ticks(xFrom, xTo, 5, (x) => ({ x, label: kstDayText(x) })),
-      yTicks: ticks(yFrom, yTo, 5, (y) => ({ y, label: rateText(Math.round(y)) })),
+      yTicks: rateTicks(yFrom, yTo, step, (y) => ({ y, label: tickText(y, step) })),
+      floor: floorRate === null ? null : { y: rateMilli(floorRate), label: `하한 ${floorRate}` },
       truncation: truncationText(targetTruncated, comparison.truncated),
       overlays,
       targetCount: meta.targetSampleCount,
@@ -230,7 +258,9 @@ export function presentTimeSeries(
   };
 }
 
-function reasonText(reason: 'snapshot-unavailable' | 'snapshot-expired' | 'input-unconfirmed'): string {
+function reasonText(
+  reason: 'snapshot-unavailable' | 'snapshot-expired' | 'input-unconfirmed'
+): string {
   if (reason === 'input-unconfirmed') return '이 조건의 입력을 아직 확인하지 못했어요.';
   if (reason === 'snapshot-expired') return '자료 기준이 만료됐어요. 다시 조회해 주세요.';
   return '이 조건의 분석 자료가 아직 만들어지지 않았어요.';
@@ -241,7 +271,8 @@ function reasonText(reason: 'snapshot-unavailable' | 'snapshot-expired' | 'input
  * 좁히는 것)을 함께 적는다(EAT-216 acceptance 1·4).
  */
 function truncationText(targetTruncated: boolean, comparisonTruncated: boolean): string | null {
-  if (targetTruncated && comparisonTruncated) return '기관과 비교군 모두 일부만 그렸어요. 기간을 좁혀 주세요.';
+  if (targetTruncated && comparisonTruncated)
+    return '기관과 비교군 모두 일부만 그렸어요. 기간을 좁혀 주세요.';
   if (targetTruncated) return '기관 기록이 많아 일부만 그렸어요. 기간을 좁혀 주세요.';
   if (comparisonTruncated) return '비교군이 많아 일부만 그렸어요. 기간을 좁혀 주세요.';
   return null;

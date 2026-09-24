@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CHART } from '@/shared/lib/chart-colors';
 import type { TimeSeriesPlot } from '../model/present-time-series';
+import { floorInside, floorSentence, outsideSentences } from '../model/time-series-annotations';
 
 /** 축 라벨이 들어갈 여백이다. 캔버스 안쪽 좌표계와 바깥 눈금 라벨이 같은 값을 써야 눈금이 선과 맞는다. */
 const PAD = { left: 56, right: 12, top: 10, bottom: 26 } as const;
@@ -24,7 +25,7 @@ function draw(
   canvas: HTMLCanvasElement,
   plot: TimeSeriesPlot,
   full: boolean,
-  pinned: string | null,
+  pinned: string | null
 ): void {
   const view = full ? plot.fullDomain : plot.domain;
   const viewTicks = full ? plot.fullYTicks : plot.yTicks;
@@ -53,6 +54,19 @@ function draw(
     context.moveTo(PAD.left, y);
     context.lineTo(PAD.left + plotWidth, y);
     context.stroke();
+  }
+
+  if (floorInside(plot, view)) {
+    const y = Math.round(py(plot.floor!.y)) + 0.5;
+    context.save();
+    context.strokeStyle = CHART.floor;
+    context.lineWidth = 1.25;
+    context.setLineDash([4, 4]);
+    context.beginPath();
+    context.moveTo(PAD.left, y);
+    context.lineTo(PAD.left + plotWidth, y);
+    context.stroke();
+    context.restore();
   }
 
   if (plot.comparison.kind === 'density') {
@@ -139,15 +153,19 @@ export function TimeSeriesChart({
      * 안 바뀐다. 테마는 root 요소의 class와 `data-theme`이 나르므로 그 둘을 본다.
      */
     const theme = new MutationObserver(render);
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme']
+    });
     return () => {
       size.disconnect();
       theme.disconnect();
     };
   }, [plot, full, pinned]);
   const density = plot.comparison.kind === 'density';
-  const summary = `${organizationLabel} ${plot.targetCount}건, ${comparisonLabel} ${plot.comparisonCount}건`
-    + `(그중 ${plot.overlapCount}건은 이 기관의 기록)`;
+  const summary =
+    `${organizationLabel} ${plot.targetCount}건, ${comparisonLabel} ${plot.comparisonCount}건` +
+    `(그중 ${plot.overlapCount}건은 이 기관의 기록)`;
   return (
     <figure
       className='analysis-chart-figure px-[var(--analysis-padding)] pb-2'
@@ -160,33 +178,55 @@ export function TimeSeriesChart({
             key={tick.y}
             aria-hidden
             className='pointer-events-none absolute left-0 w-12 -translate-y-1/2 text-right text-[11px] tabular-nums whitespace-nowrap text-muted-foreground'
-            style={{ top: `calc(${PAD.top}px + (100% - ${PAD.top + PAD.bottom}px) * ${1 - tickRatio(tick.y, view.yFrom, view.yTo)})` }}
-          >
-            {tick.label}
-          </span>
-        ))}
-        {plot.xTicks.map((tick, index) => {
-          const edge = index === 0 || index === plot.xTicks.length - 1;
-          return (
-          <span
-            key={tick.x}
-            aria-hidden
-            // 좁은 폭에서는 양끝만 남긴다. 다섯 개를 다 두면 `YYYY-MM-DD` 라벨이 서로 겹쳐 어느 날짜도
-            // 읽히지 않는다(390px 실측). 기간 자체는 조건 막대의 시작일·종료일이 이미 말한다.
-            className={`pointer-events-none absolute bottom-0 text-[11px] tabular-nums whitespace-nowrap text-muted-foreground${edge ? '' : ' hidden sm:inline'}`}
             style={{
-              left: `calc(${PAD.left}px + (100% - ${PAD.left + PAD.right}px) * ${tickRatio(tick.x, view.xFrom, view.xTo)})`,
-              transform: index === 0 ? 'none' : index === plot.xTicks.length - 1 ? 'translateX(-100%)' : 'translateX(-50%)'
+              top: `calc(${PAD.top}px + (100% - ${PAD.top + PAD.bottom}px) * ${1 - tickRatio(tick.y, view.yFrom, view.yTo)})`
             }}
           >
             {tick.label}
           </span>
+        ))}
+        {floorInside(plot, view) ? (
+          <span
+            aria-hidden
+            className='pointer-events-none absolute right-3 -translate-y-full pb-0.5 text-[11px] font-medium tabular-nums text-destructive'
+            style={{
+              top: `calc(${PAD.top}px + (100% - ${PAD.top + PAD.bottom}px) * ${1 - tickRatio(plot.floor!.y, view.yFrom, view.yTo)})`
+            }}
+          >
+            {plot.floor!.label}
+          </span>
+        ) : null}
+        {plot.xTicks.map((tick, index) => {
+          const edge = index === 0 || index === plot.xTicks.length - 1;
+          return (
+            <span
+              key={tick.x}
+              aria-hidden
+              // 좁은 폭에서는 양끝만 남긴다. 다섯 개를 다 두면 `YYYY-MM-DD` 라벨이 서로 겹쳐 어느 날짜도
+              // 읽히지 않는다(390px 실측). 기간 자체는 조건 막대의 시작일·종료일이 이미 말한다.
+              className={`pointer-events-none absolute bottom-0 text-[11px] tabular-nums whitespace-nowrap text-muted-foreground${edge ? '' : ' hidden sm:inline'}`}
+              style={{
+                left: `calc(${PAD.left}px + (100% - ${PAD.left + PAD.right}px) * ${tickRatio(tick.x, view.xFrom, view.xTo)})`,
+                transform:
+                  index === 0
+                    ? 'none'
+                    : index === plot.xTicks.length - 1
+                      ? 'translateX(-100%)'
+                      : 'translateX(-50%)'
+              }}
+            >
+              {tick.label}
+            </span>
           );
         })}
       </div>
       <figcaption className='mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground'>
         <span className='flex items-center gap-1.5'>
-          <span aria-hidden className='inline-block size-2.5 rounded-full' style={{ background: 'var(--primary)' }} />
+          <span
+            aria-hidden
+            className='inline-block size-2.5 rounded-full'
+            style={{ background: 'var(--primary)' }}
+          />
           {organizationLabel} {plot.targetCount}건
         </span>
         <span className='flex items-center gap-1.5'>
@@ -202,8 +242,11 @@ export function TimeSeriesChart({
             key={series.organizationId}
             type='button'
             aria-pressed={pinned === series.organizationId}
-            onClick={() => setPinned((current) =>
-              current === series.organizationId ? null : series.organizationId)}
+            onClick={() =>
+              setPinned((current) =>
+                current === series.organizationId ? null : series.organizationId
+              )
+            }
             className='flex items-center gap-1.5 rounded-md px-1 py-0.5 aria-pressed:bg-accent aria-pressed:text-accent-foreground'
           >
             {/*
@@ -220,7 +263,9 @@ export function TimeSeriesChart({
           </button>
         ))}
         <span>세로축 사정률(%)</span>
-        {plot.truncation === null ? null : <span className='text-foreground'>{plot.truncation}</span>}
+        {plot.truncation === null ? null : (
+          <span className='text-foreground'>{plot.truncation}</span>
+        )}
       </figcaption>
       <p className='mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground'>
         <button
@@ -231,37 +276,15 @@ export function TimeSeriesChart({
         >
           {full ? '가운데 값만 보기' : '전체 값 보기'}
         </button>
+        {floorSentence(plot, view) === null ? null : (
+          <span className='text-destructive'>{floorSentence(plot, view)}</span>
+        )}
         {outsideSentences(plot, organizationLabel, comparisonLabel, full).map((sentence) => (
           <span key={sentence}>{sentence}</span>
         ))}
       </p>
     </figure>
   );
-}
-
-/**
- * 축 밖으로 나간 관측을 문장으로 말한다. 기본 축은 가운데 덩어리에 맞춰 잘리므로 "안 보이는 점이
- * 있다"는 사실을 화면이 직접 말하지 않으면 사용자는 그 점이 없는 줄 안다 — 그러면 우리가 관측을
- * 숨긴 것이 된다. 전체 값 보기에서는 남는 것이 없으므로 아무 문장도 만들지 않는다.
- */
-function outsideSentences(
-  plot: TimeSeriesPlot,
-  organizationLabel: string,
-  comparisonLabel: string,
-  full: boolean
-): readonly string[] {
-  if (full) return [];
-  const sentence = (title: string, target: number, comparison: number) => {
-    const parts = [
-      target === 0 ? null : `${organizationLabel} ${target}건`,
-      comparison === 0 ? null : `${comparisonLabel} ${comparison}건`
-    ].filter((part) => part !== null);
-    return parts.length === 0 ? null : `${title} ${parts.join(' · ')}`;
-  };
-  return [
-    sentence('위쪽 범위 밖', plot.outsideTarget.above, plot.outsideComparison.above),
-    sentence('아래쪽 범위 밖', plot.outsideTarget.below, plot.outsideComparison.below)
-  ].filter((line) => line !== null);
 }
 
 function tickRatio(value: number, from: number, to: number): number {

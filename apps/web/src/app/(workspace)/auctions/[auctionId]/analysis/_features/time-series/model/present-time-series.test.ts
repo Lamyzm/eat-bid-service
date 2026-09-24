@@ -82,7 +82,10 @@ describe('분석 시간축 표시 모델', () => {
       comparison: null,
       meta: { state: 'unavailable', effectiveFilter: filter, reason: 'snapshot-unavailable' }
     });
-    expect(view).toEqual({ kind: 'unavailable', reason: '이 조건의 분석 자료가 아직 만들어지지 않았어요.' });
+    expect(view).toEqual({
+      kind: 'unavailable',
+      reason: '이 조건의 분석 자료가 아직 만들어지지 않았어요.'
+    });
   });
 
   test('두 집단이 모두 비면 축을 만들지 않고 빈 상태로 말한다', () => {
@@ -121,13 +124,15 @@ describe('분석 시간축 표시 모델', () => {
       targetTruncated: false,
       comparison: {
         kind: 'density',
-        cells: [{
-          fromAt: '2026-08-03T15:00:00Z',
-          toAt: '2026-08-04T15:00:00Z',
-          rateFrom: { value: '95.000', unit: 'percentage-points' },
-          rateTo: { value: '95.100', unit: 'percentage-points' },
-          count: 7
-        }],
+        cells: [
+          {
+            fromAt: '2026-08-03T15:00:00Z',
+            toAt: '2026-08-04T15:00:00Z',
+            rateFrom: { value: '95.000', unit: 'percentage-points' },
+            rateTo: { value: '95.100', unit: 'percentage-points' },
+            count: 7
+          }
+        ],
         truncated: false
       },
       meta: readyMeta
@@ -147,7 +152,10 @@ describe('분석 시간축 표시 모델', () => {
     );
     const view = series({
       axis,
-      target: [point('12', '2026-08-03T15:00:00Z', '90.000'), point('13', '2026-08-20T01:00:00Z', '130.000')],
+      target: [
+        point('12', '2026-08-03T15:00:00Z', '90.000'),
+        point('13', '2026-08-20T01:00:00Z', '130.000')
+      ],
       targetTruncated: false,
       comparison: { kind: 'points', points: crowd, truncated: false },
       meta: readyMeta
@@ -160,7 +168,7 @@ describe('분석 시간축 표시 모델', () => {
     // 전체 축으로 바꾸면 밀려난 것이 없다.
     expect(view.plot.fullDomain.yTo).toBeGreaterThan(130_000);
     expect(view.plot.fullDomain.yFrom).toBeLessThan(90_000);
-    expect(view.plot.fullYTicks).toHaveLength(5);
+    expectRoundTicks(view.plot.fullYTicks, view.plot.fullDomain);
   });
 
   test('관측이 한 점뿐이어도 눈금이 설 최소 폭을 준다', () => {
@@ -177,7 +185,52 @@ describe('분석 시간축 표시 모델', () => {
     expect(view.plot.domain.yTo - view.plot.domain.yFrom).toBeGreaterThanOrEqual(1_000);
     expect(view.plot.domain.yFrom).toBeLessThan(90_000);
     expect(view.plot.domain.yTo).toBeGreaterThan(90_000);
-    expect(view.plot.yTicks).toHaveLength(5);
+    expectRoundTicks(view.plot.yTicks, view.plot.domain);
+  });
+
+  test('눈금은 사람이 읽는 자리(0.1%p 등)에 서고 축 양끝도 눈금이다', () => {
+    // 범위를 다섯 등분하면 88.504·88.852 같은 값에 눈금이 선다(2026-09-25 dev 실측). 점의 값을 읽을 기준이 없다.
+    const view = series({
+      axis,
+      target: [
+        point('12', '2026-08-03T15:00:00Z', '88.504'),
+        point('13', '2026-08-20T01:00:00Z', '89.896')
+      ],
+      targetTruncated: false,
+      comparison: { kind: 'points', points: [], truncated: false },
+      meta: readyMeta
+    });
+    if (view.kind !== 'plot') throw new Error('plot이어야 한다');
+    expectRoundTicks(view.plot.yTicks, view.plot.domain);
+    expect(view.plot.yTicks.map((tick) => tick.label)).toEqual([
+      '88.0',
+      '88.5',
+      '89.0',
+      '89.5',
+      '90.0',
+      '90.5'
+    ]);
+  });
+
+  test('하한은 축 범위를 늘리지 않고 표시 모델에 따로 실린다', () => {
+    const view = presentTimeSeries(
+      {
+        kind: 'series',
+        response: {
+          axis,
+          target: [point('12', '2026-08-03T15:00:00Z', '90.010')],
+          targetTruncated: false,
+          comparison: { kind: 'points', points: [], truncated: false },
+          meta: readyMeta,
+          overlays: []
+        }
+      },
+      '87.500'
+    );
+    if (view.kind !== 'plot') throw new Error('plot이어야 한다');
+    expect(view.plot.floor).toEqual({ y: 87_500, label: '하한 87.500' });
+    // 하한을 담으려고 축을 늘리면 낙찰점이 한 줄로 뭉친다. 범위 밖이라는 사실은 화면이 글로 말한다.
+    expect(view.plot.domain.yFrom).toBeGreaterThan(87_500);
   });
 
   test('잘린 사실은 그림이 아니라 글로 말하고 무엇을 하라고 적는다', () => {
@@ -217,3 +270,17 @@ describe('분석 시간축 표시 모델', () => {
     expect(view.plot.target).toHaveLength(1);
   });
 });
+
+/** 모든 눈금이 한 간격의 배수이고 축 양끝이 눈금과 같으며, 라벨이 읽을 만큼만 촘촘하다. */
+function expectRoundTicks(
+  ticks: readonly { readonly y: number; readonly label: string }[],
+  domain: { readonly yFrom: number; readonly yTo: number }
+): void {
+  expect(ticks.length).toBeGreaterThanOrEqual(2);
+  expect(ticks.length).toBeLessThanOrEqual(8);
+  const step = ticks[1]!.y - ticks[0]!.y;
+  expect([10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 20_000, 50_000]).toContain(step);
+  for (const tick of ticks) expect(tick.y % step).toBe(0);
+  expect(ticks[0]!.y).toBe(domain.yFrom);
+  expect(ticks.at(-1)!.y).toBe(domain.yTo);
+}
