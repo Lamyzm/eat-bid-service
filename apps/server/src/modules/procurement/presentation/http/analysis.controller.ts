@@ -15,6 +15,7 @@ import {
   analysisV1Operations,
   type AnalysisConditionOptionsV1Response,
   type AnalysisHistoryV1Response,
+  type AnalysisDistributionV1Response,
   type AnalysisTimeSeriesV1Response,
 } from "@eatbid/contracts";
 import { bidRate, canonicalDecimal } from "@eatbid/domain";
@@ -40,16 +41,22 @@ import {
   FindAnalysisHistory,
   type FindAnalysisHistoryInput,
 } from "../../application/find-analysis-history";
+import {
+  FindAnalysisDistribution,
+  type FindAnalysisDistributionInput,
+} from "../../application/find-analysis-distribution";
 import { OrganizationNotFound } from "../../application/list-organization-auction-attempts";
 import { kstDate } from "../../domain/kst-day";
 import { organizationId } from "../../domain/organization-id";
 import { toAnalysisConditionOptionsResponse } from "./analysis-condition-options.presenter";
 import { toAnalysisTimeSeriesResponse } from "./analysis.presenter";
 import { toAnalysisHistoryResponse } from "./analysis-history.presenter";
+import { toAnalysisDistributionResponse } from "./analysis-distribution.presenter";
 
 const operation = analysisV1Operations.findTimeSeries;
 const optionsOperation = analysisV1Operations.findConditionOptions;
 const historyOperation = analysisV1Operations.findHistory;
+const distributionOperation = analysisV1Operations.findDistribution;
 
 type TimeSeriesQuery = z.output<typeof operation.querySchema>;
 type ConditionOptionsQuery = z.output<typeof optionsOperation.querySchema>;
@@ -116,6 +123,7 @@ export class AnalysisController {
     private readonly findTimeSeries: FindAnalysisTimeSeries,
     private readonly findConditionOptions: FindAnalysisConditionOptions,
     private readonly findHistory: FindAnalysisHistory,
+    private readonly findDistribution: FindAnalysisDistribution,
     private readonly effectRunner: EffectRunner,
   ) {}
 
@@ -202,6 +210,32 @@ export class AnalysisController {
     }
     try {
       return toAnalysisHistoryResponse(await this.effectRunner.run(this.findHistory.execute(input)));
+    } catch (error) {
+      throw translate(error);
+    }
+  }
+
+  @Get(distributionOperation.handlerPath)
+  @ApiOperation({ operationId: distributionOperation.operationId, summary: distributionOperation.summary })
+  @ApiResponse({ status: 200, description: distributionOperation.successResponses[200].description })
+  @ApiResponse({ status: 400, description: distributionOperation.problemResponses[400].description })
+  @ApiResponse({ status: 401, description: distributionOperation.problemResponses[401].description })
+  @ApiResponse({ status: 404, description: distributionOperation.problemResponses[404].description })
+  @ApiResponse({ status: 503, description: distributionOperation.problemResponses[503].description })
+  @ResponseSchema(distributionOperation.successResponses[200].schema)
+  async findDistributionHandler(
+    @Query(new StandardSchemaPipe(distributionOperation.querySchema)) query: TimeSeriesQuery,
+  ): Promise<AnalysisDistributionV1Response> {
+    let input: FindAnalysisDistributionInput;
+    try {
+      // 조건은 시간축과 같은 query다. 같은 변환을 써야 두 그림이 같은 코호트를 말한다.
+      const { overlayOrganizationIds: _overlay, ...condition } = inputOf(query);
+      input = condition;
+    } catch {
+      throw new BadRequestException({ code: "VALIDATION_ERROR" });
+    }
+    try {
+      return toAnalysisDistributionResponse(await this.effectRunner.run(this.findDistribution.execute(input)));
     } catch (error) {
       throw translate(error);
     }

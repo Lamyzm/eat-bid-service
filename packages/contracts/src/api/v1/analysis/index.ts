@@ -15,4 +15,6 @@ export * from "./condition-options.response";
 export * from "./find-analysis-time-series.response";
 export * from "./history.resource";
 export * from "./find-analysis-history.response";
+export * from "./distribution.resource";
+export * from "./find-analysis-distribution.response";
 export * from "./operations";

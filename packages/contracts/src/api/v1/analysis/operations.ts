@@ -12,6 +12,7 @@ import { analysisConditionOptionsV1ResponseSchema } from "./condition-options.re
 import { analysisTimeSeriesV1ResponseSchema } from "./find-analysis-time-series.response";
 import { analysisHistoryV1ResponseSchema } from "./find-analysis-history.response";
 import { analysisHistoryPopulationSchema } from "./history.resource";
+import { analysisDistributionV1ResponseSchema } from "./find-analysis-distribution.response";
 
 /**
  * 기간 상한이다. 사용자는 5년까지 좁혀 보고 싶어 하므로 달 수가 아니라 날 수로 닫는다 — 달로 닫으면
@@ -299,12 +300,41 @@ export const analysisV1Operations = {
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
     },
   }),
+  findDistribution: defineOperation({
+    method: "get",
+    versioning: { kind: "uri", prefix: "api", version: "1" },
+    route: { resource: "analysis", segments: ["distribution"] },
+    operationId: "findAnalysisDistribution",
+    implementationOwner: "server",
+    summary: "시간축과 같은 조건에서 기관과 비교군의 낙찰 사정률이 어느 구간에 모였는지 같은 구간 경계로 센다."
+      + " 구간은 하한율에서 시작하는 0.1%p 폭 열 칸이며 그 아래·위의 건수를 따로 준다."
+      + " 각 집단의 전체 수가 함께 오므로 비중은 화면이 계산한다.",
+    tags: ["공고와 분석"],
+    pathSchema: z.strictObject({}),
+    querySchema: analysisTimeSeriesQuerySchema,
+    bodySchema: z.undefined(),
+    successResponses: {
+      200: { description: "분포 조회 성공. 자료가 없으면 빈 구간이며 meta가 기준 build를 말한다", schema: analysisDistributionV1ResponseSchema },
+    },
+    problemResponses: {
+      400: {
+        description: "query가 유효하지 않거나 비교 모집단과 지역 축의 짝, 기간 상한·순서, 명단 범위 순서를 어김",
+        schema: problemDetailsSchema,
+      },
+      ...unauthenticatedProblemResponse,
+      403: { description: "이 분석을 볼 수 있는 인가가 없음", schema: problemDetailsSchema },
+      404: { description: "요청한 기관·지역 코드값을 찾을 수 없음", schema: problemDetailsSchema },
+      500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
+      503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
+    },
+  }),
 } as const;
 
 export const analysisV1OperationRegistry = createOperationRegistry([
   analysisV1Operations.findTimeSeries,
   analysisV1Operations.findConditionOptions,
   analysisV1Operations.findHistory,
+  analysisV1Operations.findDistribution,
 ] as const);
 
 export type AnalysisTimeSeriesQuery = z.infer<typeof analysisTimeSeriesQuerySchema>;
