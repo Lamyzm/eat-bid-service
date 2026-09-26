@@ -5,8 +5,8 @@ import { AnalysisFilters } from '../_features/analysis-filters/ui/analysis-filte
 import { AnalysisResetButton } from '../_features/analysis-filters/ui/analysis-reset-button';
 import { AnalysisResultsGate } from '../_features/analysis-filters/ui/analysis-results-gate';
 import { AnalysisWorkspace } from '../_features/analysis-view/ui/analysis-workspace';
-import { TimeSeriesPanel } from '../_features/time-series/ui/time-series-panel';
 import { AnalysisHeader } from './analysis-header';
+import { AnalysisRoundInspector, LinkedTimeSeriesPanel } from './analysis-round-link';
 import type { TimeSeriesView } from '../_features/time-series/model/present-time-series';
 import {
   AnalysisContext,
@@ -34,6 +34,8 @@ export function AnalysisScreen({
   readonly data: NonNullable<Awaited<ReturnType<typeof loadAnalysisPage>>>;
 }) {
   const context = presentAnalysisContext(data.setup, data.applied);
+  // 분석 표본은 이 하한율로 걸러져 있으므로 고른 회차의 하한도 이 값이다.
+  const floorRate = data.applied.state === 'pending' ? data.applied.filter.floorRate.value : null;
   return (
     <AnalysisWorkspace
       header={<AnalysisHeader header={data.header} />}
@@ -47,10 +49,7 @@ export function AnalysisScreen({
       reset={<AnalysisResetButton />}
       context={
         <AnalysisResultsGate requestKey={data.applied.key}>
-          <AnalysisContext
-            context={context}
-            samples={sampleCountsOf(data.timeSeries)}
-          />
+          <AnalysisContext context={context} samples={sampleCountsOf(data.timeSeries)} />
         </AnalysisResultsGate>
       }
       time={
@@ -58,7 +57,7 @@ export function AnalysisScreen({
           {data.timeSeries === null || context.state === 'invalid' ? (
             <AnalysisPendingPlot kind='time' />
           ) : (
-            <TimeSeriesPanel
+            <LinkedTimeSeriesPanel
               view={data.timeSeries}
               organizationLabel={context.organization}
               comparisonLabel={`${context.comparison} 전체`}
@@ -76,6 +75,7 @@ export function AnalysisScreen({
           <AnalysisHistoryPending />
         </AnalysisResultsGate>
       }
+      inspector={<AnalysisRoundInspector view={data.timeSeries} floorRate={floorRate} />}
     />
   );
 }

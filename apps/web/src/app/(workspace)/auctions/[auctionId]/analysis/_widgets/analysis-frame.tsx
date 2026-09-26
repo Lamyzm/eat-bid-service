@@ -8,12 +8,17 @@ export function AnalysisFrame({
   toolbar,
   evidence,
   history,
+  inspector,
+  inspectorOpen = false,
   full = false
 }: {
   readonly header: ReactNode;
   readonly toolbar: ReactNode;
   readonly evidence: ReactNode;
   readonly history: ReactNode;
+  /** 고른 회차의 명단이다. 넓은 화면에서는 분석·이력 옆 열에 붙어 스크롤을 따라온다. */
+  readonly inspector?: ReactNode;
+  readonly inspectorOpen?: boolean;
   readonly full?: boolean;
 }) {
   return (
@@ -24,6 +29,7 @@ export function AnalysisFrame({
       className='analysis-screen'
       role='region'
       aria-label='공고 낙찰 분석'
+      data-inspector={inspectorOpen ? 'open' : 'closed'}
     >
       <header data-slot='analysis-header'>{header}</header>
       <div data-slot='analysis-sticky'>{toolbar}</div>
@@ -33,6 +39,7 @@ export function AnalysisFrame({
       <section data-slot='analysis-history' aria-label='전체 개찰 이력'>
         {history}
       </section>
+      {inspector === undefined ? null : <div data-slot='analysis-inspector'>{inspector}</div>}
     </ChartFullscreenFrame>
   );
 }

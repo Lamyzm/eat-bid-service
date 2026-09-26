@@ -1,135 +1,30 @@
 /** @module 책임: 시간축 표시 모델을 캔버스 한 장에 그리고 축 눈금과 요약 문장을 함께 낸다. */
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { CHART } from '@/shared/lib/chart-colors';
-import type { TimeSeriesPlot } from '../model/present-time-series';
+import type { TimeSeriesPlot, TimeSeriesPoint } from '../model/present-time-series';
+import { nearestTargetPoint } from '../model/time-series-hit';
+import { drawTimeSeries, PAD } from '../lib/draw-time-series';
 import { floorInside, floorSentence, outsideSentences } from '../model/time-series-annotations';
-
-/** 축 라벨이 들어갈 여백이다. 캔버스 안쪽 좌표계와 바깥 눈금 라벨이 같은 값을 써야 눈금이 선과 맞는다. */
-const PAD = { left: 56, right: 12, top: 10, bottom: 26 } as const;
-
-function scale(value: number, from: number, to: number, size: number): number {
-  return to === from ? size / 2 : ((value - from) / (to - from)) * size;
-}
-
-/**
- * 밀도 칸의 진하기다. 관측 수를 최대값으로 나눈 비율을 그대로 쓰면 1건짜리 칸이 거의 보이지 않아
- * "범위 밖 극단값을 숨기지 않는다"는 약속이 눈에서 깨진다. 제곱근으로 눌러 1건도 보이게 하고 최소
- * 진하기를 준다.
- */
-function cellAlpha(count: number, maxCount: number): number {
-  return 0.18 + 0.72 * Math.sqrt(count / maxCount);
-}
-
-function draw(
-  canvas: HTMLCanvasElement,
-  plot: TimeSeriesPlot,
-  full: boolean,
-  pinned: string | null
-): void {
-  const view = full ? plot.fullDomain : plot.domain;
-  const viewTicks = full ? plot.fullYTicks : plot.yTicks;
-  const context = canvas.getContext('2d');
-  if (context === null) return;
-  const ratio = window.devicePixelRatio || 1;
-  const width = canvas.clientWidth;
-  const height = canvas.clientHeight;
-  canvas.width = Math.round(width * ratio);
-  canvas.height = Math.round(height * ratio);
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  context.clearRect(0, 0, width, height);
-
-  const plotWidth = Math.max(width - PAD.left - PAD.right, 1);
-  const plotHeight = Math.max(height - PAD.top - PAD.bottom, 1);
-  const { xFrom, xTo, yFrom, yTo } = view;
-  const px = (x: number) => PAD.left + scale(x, xFrom, xTo, plotWidth);
-  // 캔버스의 y는 아래로 자란다. 사정률은 위로 자라야 하므로 여기서 한 번만 뒤집는다.
-  const py = (y: number) => PAD.top + plotHeight - scale(y, yFrom, yTo, plotHeight);
-
-  context.strokeStyle = CHART.volume;
-  context.lineWidth = 1;
-  for (const tick of viewTicks) {
-    const y = Math.round(py(tick.y)) + 0.5;
-    context.beginPath();
-    context.moveTo(PAD.left, y);
-    context.lineTo(PAD.left + plotWidth, y);
-    context.stroke();
-  }
-
-  if (floorInside(plot, view)) {
-    const y = Math.round(py(plot.floor!.y)) + 0.5;
-    context.save();
-    context.strokeStyle = CHART.floor;
-    context.lineWidth = 1.25;
-    context.setLineDash([4, 4]);
-    context.beginPath();
-    context.moveTo(PAD.left, y);
-    context.lineTo(PAD.left + plotWidth, y);
-    context.stroke();
-    context.restore();
-  }
-
-  if (plot.comparison.kind === 'density') {
-    context.fillStyle = CHART.volume;
-    for (const cell of plot.comparison.cells) {
-      const left = px(cell.x0);
-      const right = px(cell.x1);
-      const top = py(cell.y1);
-      const bottom = py(cell.y0);
-      context.globalAlpha = cellAlpha(cell.count, plot.comparison.maxCount);
-      // 폭이 1px 미만인 칸도 한 줄로는 보이게 한다. 0으로 그리면 관측이 있는 자리가 빈 자리가 된다.
-      context.fillRect(left, top, Math.max(right - left, 1), Math.max(bottom - top, 1));
-    }
-    context.globalAlpha = 1;
-  } else {
-    context.strokeStyle = CHART.volume;
-    context.lineWidth = 1.25;
-    for (const point of plot.comparison.points) {
-      context.beginPath();
-      context.arc(px(point.x), py(point.y), 3.5, 0, Math.PI * 2);
-      context.stroke();
-    }
-  }
-
-  /*
-   * 겹쳐 찍은 기관은 고리로 그린다. 여섯을 전부 채운 점으로 그리면 기관 점과 구별이 안 되고, 시안
-   * 루프 실측에서 고리 174개가 기관 점을 덮었다. 그래서 기본은 흐리고, 하나를 집으면 그것만 진해진다.
-   */
-  for (const series of plot.overlays) {
-    const focused = pinned === null || pinned === series.organizationId;
-    context.strokeStyle = CHART.second;
-    context.globalAlpha = focused ? 0.95 : 0.25;
-    context.lineWidth = focused ? 1.75 : 1;
-    for (const point of series.points) {
-      context.beginPath();
-      context.arc(px(point.x), py(point.y), 5, 0, Math.PI * 2);
-      context.stroke();
-    }
-    context.globalAlpha = 1;
-  }
-
-  // 기관 점을 마지막에 그린다. 비교군 위에 서야 또렷하게 보인다.
-  context.fillStyle = CHART.win;
-  for (const point of plot.target) {
-    context.beginPath();
-    context.arc(px(point.x), py(point.y), 4.5, 0, Math.PI * 2);
-    context.fill();
-  }
-}
 
 /**
  * 캔버스는 그리기 방식일 뿐 내용이 아니다. 내용은 `figcaption`의 문장과 축 라벨이 말하며, 캔버스에는
- * 같은 사실을 `role='img'` 이름으로 한 번 더 둔다. 점을 눌러 그 회차로 건너가는 선택은 아직 받을 곳이
- * 없어 만들지 않는다 — 아무 데도 닿지 않는 조작을 만들면 눌러 본 사람이 고장으로 읽는다.
+ * 같은 사실을 `role='img'` 이름으로 한 번 더 둔다.
+ *
+ * 기관 낙찰점을 누르면 그 회차의 명단이 사이드바에 열린다(EAT-219). 캔버스의 점은 초점을 받을 수 없으므로
+ * 키보드로는 아래 전체 개찰 이력의 행으로 같은 명단을 연다(EAT-218).
  */
 export function TimeSeriesChart({
   plot,
   organizationLabel,
-  comparisonLabel
+  comparisonLabel,
+  selectedAttemptId = null,
+  onSelectPoint
 }: {
   readonly plot: TimeSeriesPlot;
   readonly organizationLabel: string;
   readonly comparisonLabel: string;
+  readonly selectedAttemptId?: string | null;
+  readonly onSelectPoint?: (point: TimeSeriesPoint) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [full, setFull] = useState(false);
@@ -143,7 +38,7 @@ export function TimeSeriesChart({
   useEffect(() => {
     const element = canvas.current;
     if (element === null) return;
-    const render = () => draw(element, plot, full, pinned);
+    const render = () => drawTimeSeries(element, plot, full, pinned, selectedAttemptId);
     render();
     const size = new ResizeObserver(render);
     size.observe(element);
@@ -161,7 +56,23 @@ export function TimeSeriesChart({
       size.disconnect();
       theme.disconnect();
     };
-  }, [plot, full, pinned]);
+  }, [plot, full, pinned, selectedAttemptId]);
+  /** 누른 자리의 기관 낙찰점이다. 그리기와 같은 여백·축으로 좌표를 되짚는다. */
+  const pointAt = (event: {
+    readonly clientX: number;
+    readonly clientY: number;
+    readonly currentTarget: HTMLCanvasElement;
+  }) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const box = { width: rect.width, height: rect.height, pad: PAD };
+    return nearestTargetPoint(
+      plot.target,
+      view,
+      box,
+      event.clientX - rect.left,
+      event.clientY - rect.top
+    );
+  };
   const density = plot.comparison.kind === 'density';
   const summary =
     `${organizationLabel} ${plot.targetCount}건, ${comparisonLabel} ${plot.comparisonCount}건` +
@@ -172,7 +83,20 @@ export function TimeSeriesChart({
       aria-label='기관 낙찰점과 비교군 관측의 시간축'
     >
       <div className='analysis-chart-box'>
-        <canvas ref={canvas} role='img' aria-label={summary} className='h-full w-full' />
+        <canvas
+          ref={canvas}
+          role='img'
+          aria-label={summary}
+          className='h-full w-full data-[hit=true]:cursor-pointer'
+          onPointerMove={(event) => {
+            if (onSelectPoint !== undefined)
+              event.currentTarget.dataset.hit = String(pointAt(event) !== null);
+          }}
+          onClick={(event) => {
+            const point = pointAt(event);
+            if (point !== null) onSelectPoint?.(point);
+          }}
+        />
         {yTicks.map((tick) => (
           <span
             key={tick.y}

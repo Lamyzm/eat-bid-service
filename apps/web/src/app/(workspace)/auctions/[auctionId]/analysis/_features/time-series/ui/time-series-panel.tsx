@@ -1,5 +1,5 @@
 /** @module 책임: 시간축 표시 모델의 갈래마다 무엇을 보여줄지 고르고 그림은 캔버스 잎에 맡긴다. */
-import type { TimeSeriesView } from '../model/present-time-series';
+import type { TimeSeriesPoint, TimeSeriesView } from '../model/present-time-series';
 import { TimeSeriesChart } from './time-series-chart';
 
 function Notice({ title, description }: { readonly title: string; readonly description: string }) {
@@ -16,11 +16,17 @@ function Notice({ title, description }: { readonly title: string; readonly descr
 export function TimeSeriesPanel({
   view,
   organizationLabel,
-  comparisonLabel
+  comparisonLabel,
+  selectedAttemptId = null,
+  onSelectPoint
 }: {
   readonly view: TimeSeriesView;
   readonly organizationLabel: string;
   readonly comparisonLabel: string;
+  /** 명단을 연 회차다. 그림이 그 점을 고리로 표시한다. */
+  readonly selectedAttemptId?: string | null;
+  /** 기관 낙찰점을 눌렀을 때다. 없으면 점은 눌리지 않는다. */
+  readonly onSelectPoint?: (point: TimeSeriesPoint) => void;
 }) {
   switch (view.kind) {
     // 사용자가 할 일이 갈래마다 다르다. 조건을 고쳐야 하는 것과 기다려야 하는 것과 범위를 넓혀야
@@ -58,6 +64,8 @@ export function TimeSeriesPanel({
           plot={view.plot}
           organizationLabel={organizationLabel}
           comparisonLabel={comparisonLabel}
+          selectedAttemptId={selectedAttemptId}
+          onSelectPoint={onSelectPoint}
         />
       );
   }
