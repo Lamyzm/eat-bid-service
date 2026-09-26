@@ -6,7 +6,11 @@ import { AnalysisResetButton } from '../_features/analysis-filters/ui/analysis-r
 import { AnalysisResultsGate } from '../_features/analysis-filters/ui/analysis-results-gate';
 import { AnalysisWorkspace } from '../_features/analysis-view/ui/analysis-workspace';
 import { AnalysisHeader } from './analysis-header';
-import { AnalysisRoundInspector, LinkedTimeSeriesPanel } from './analysis-round-link';
+import {
+  AnalysisRoundInspector,
+  LinkedAnalysisHistory,
+  LinkedTimeSeriesPanel
+} from './analysis-round-link';
 import type { TimeSeriesView } from '../_features/time-series/model/present-time-series';
 import {
   AnalysisContext,
@@ -72,7 +76,15 @@ export function AnalysisScreen({
       }
       history={
         <AnalysisResultsGate requestKey={data.applied.key}>
-          <AnalysisHistoryPending />
+          {data.applied.state === 'pending' && context.state !== 'invalid' ? (
+            <LinkedAnalysisHistory
+              filter={data.applied.filter}
+              organizationLabel={context.organization}
+              comparisonLabel={`${context.comparison} 전체`}
+            />
+          ) : (
+            <AnalysisHistoryPending />
+          )}
         </AnalysisResultsGate>
       }
       inspector={<AnalysisRoundInspector view={data.timeSeries} floorRate={floorRate} />}

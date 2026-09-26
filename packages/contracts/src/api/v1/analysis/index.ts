@@ -13,4 +13,6 @@ export * from "./meta.resource";
 export * from "./time-series.resource";
 export * from "./condition-options.response";
 export * from "./find-analysis-time-series.response";
+export * from "./history.resource";
+export * from "./find-analysis-history.response";
 export * from "./operations";

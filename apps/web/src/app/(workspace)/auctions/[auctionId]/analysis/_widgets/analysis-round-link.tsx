@@ -1,9 +1,12 @@
 /**
  * @module 책임: 시간축 그림의 점 선택과 보조 패널의 회차 명단을 주소의 한 선택 상태로 잇는다.
  *
- * 둘은 서로 다른 기능 조각이라 서로를 import하지 않는다. 같은 주소 상태를 읽고 쓰는 이 위젯이 둘을 잇는다.
+ * 그림·이력·명단은 서로 다른 기능 조각이라 서로를 import하지 않는다. 같은 주소 상태를 읽고 쓰는 이 위젯이
+ * 셋을 잇는다. 이력의 줄은 캔버스 점에 초점을 둘 수 없는 키보드 사용자가 같은 명단을 여는 길이기도 하다.
  */
 'use client';
+import type { AnalysisFilterValue } from '@eatbid/contracts/api/v1/analysis';
+import { AnalysisHistory } from '../_features/history/ui/analysis-history';
 import { useRoundSelection } from '../_features/round-inspector/model/use-round-selection';
 import { RoundInspector } from '../_features/round-inspector/ui/round-inspector';
 import type { TimeSeriesView } from '../_features/time-series/model/present-time-series';
@@ -51,6 +54,27 @@ export function AnalysisRoundInspector({
       dateText={point?.dateText ?? null}
       floorRate={floorRate}
       onClose={clear}
+    />
+  );
+}
+
+export function LinkedAnalysisHistory({
+  filter,
+  organizationLabel,
+  comparisonLabel
+}: {
+  readonly filter: AnalysisFilterValue;
+  readonly organizationLabel: string;
+  readonly comparisonLabel: string;
+}) {
+  const { selected, select } = useRoundSelection();
+  return (
+    <AnalysisHistory
+      filter={filter}
+      organizationLabel={organizationLabel}
+      comparisonLabel={comparisonLabel}
+      selectedAttemptId={selected?.attemptId ?? null}
+      onSelectRow={(row) => select({ attemptId: row.attemptId, revisionId: row.revisionId })}
     />
   );
 }

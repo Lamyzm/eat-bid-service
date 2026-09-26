@@ -19,7 +19,8 @@ import type {
   AnalysisTimeSeriesReader,
 } from "./analysis-time-series-reader";
 import { rateTextMilli } from "./distribution-statistics";
-import { AnalysisRegionNotFound, type AnalysisPeriodInput } from "./find-analysis-time-series";
+import type { AnalysisPeriodInput } from "./find-analysis-time-series";
+import { assertAnalysisAxesExist, type AnalysisRegionNotFound } from "./analysis-axes";
 import { kstDayAfter, kstDayStart } from "../domain/kst-day";
 import type { OrganizationId } from "../domain/organization-id";
 
@@ -67,7 +68,7 @@ export class FindAnalysisConditionOptions {
     never
   > {
     // 존재 확인을 먼저 끝내야 "그 축이 없음"과 "조건에 맞는 회차가 없음"이 같은 빈 목록으로 뭉개지지 않는다.
-    return this.assertAxesExist(input).pipe(
+    return assertAnalysisAxesExist(this.axes, input.targetOrganizationId, input.comparisonScope).pipe(
       Effect.flatMap(() => Effect.tryPromise({
         try: () => this.reader.readConditionOptions({
           targetOrganizationId: input.targetOrganizationId,
@@ -92,32 +93,5 @@ export class FindAnalysisConditionOptions {
       })),
       Effect.map((reading) => ({ input, reading })),
     );
-  }
-
-  private assertAxesExist(input: FindAnalysisConditionOptionsInput): Effect.Effect<
-    void,
-    ProcurementDependencyUnavailable | OrganizationNotFound | AnalysisRegionNotFound,
-    never
-  > {
-    const scope = input.comparisonScope;
-    const organization = this.exists(
-      () => this.axes.organizationExists(input.targetOrganizationId),
-      () => new OrganizationNotFound(input.targetOrganizationId),
-    );
-    if (scope.kind === "national") return organization;
-    return organization.pipe(Effect.flatMap(() => this.exists(
-      () => this.axes.regionExists(scope.scheme, scope.codeValueId),
-      () => new AnalysisRegionNotFound(scope.scheme, scope.codeValueId),
-    )));
-  }
-
-  private exists<Failure>(
-    read: () => Promise<boolean>,
-    missing: () => Failure,
-  ): Effect.Effect<void, ProcurementDependencyUnavailable | Failure, never> {
-    return Effect.tryPromise({
-      try: read,
-      catch: (cause): ProcurementDependencyUnavailable => new ProcurementDependencyUnavailable(cause),
-    }).pipe(Effect.flatMap((found) => found ? Effect.succeed(undefined) : Effect.fail(missing())));
   }
 }

@@ -10,6 +10,8 @@ import { createOperationRegistry, defineOperation } from "../../operation";
 import { analysisDateBasisSchema, analysisRegionSchemeSchema } from "./filter.resource";
 import { analysisConditionOptionsV1ResponseSchema } from "./condition-options.response";
 import { analysisTimeSeriesV1ResponseSchema } from "./find-analysis-time-series.response";
+import { analysisHistoryV1ResponseSchema } from "./find-analysis-history.response";
+import { analysisHistoryPopulationSchema } from "./history.resource";
 
 /**
  * 기간 상한이다. 사용자는 5년까지 좁혀 보고 싶어 하므로 달 수가 아니라 날 수로 닫는다 — 달로 닫으면
@@ -183,6 +185,34 @@ const analysisConditionOptionsQuerySchema = z.strictObject({
   .check(listCountRule)
   .check(itemRule);
 
+/** 이력 한 페이지의 기본·상한 행 수다. 상한은 점 조회 관례(`limit ≤ 200`)와 같다. */
+const HISTORY_DEFAULT_LIMIT = 50;
+const HISTORY_MAX_LIMIT = 200;
+
+/**
+ * 전체 개찰 이력은 같은 조건에 **집단 하나와 페이지 위치**만 더 받는다. 조건을 따로 두면 표의 행과 그림의
+ * 표본이 서로 다른 집합이 된다. `expectedBuildId`는 첫 응답의 build를 되돌려 보내는 자리다 — 페이지 사이에
+ * build가 바뀌면 같은 회차가 두 번 나오거나 빠진다.
+ */
+const analysisHistoryQuerySchema = z.strictObject({
+  ...analysisConditionFields,
+  population: analysisHistoryPopulationSchema,
+  /** 앞 페이지 마지막 줄의 회차 id다. 그 회차의 날짜를 서버가 같은 build에서 읽어 다음 위치를 정한다. */
+  cursor: positiveBigintTextSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(HISTORY_MAX_LIMIT).default(HISTORY_DEFAULT_LIMIT),
+  expectedBuildId: positiveBigintTextSchema.optional(),
+})
+  .check(comparisonAxisRule)
+  .check(periodRule)
+  .check(listCountRule)
+  .check(itemRule)
+  .check((ctx) => {
+    // 커서는 어느 build의 줄인지를 함께 말해야 뜻이 있다. build 없이 온 커서는 다른 build에서 엉뚱한 자리를 가리킨다.
+    if (ctx.value.cursor !== undefined && ctx.value.expectedBuildId === undefined) {
+      ctx.issues.push({ code: "custom", input: ctx.value, path: ["expectedBuildId"], message: "cursor는 첫 응답의 buildId와 함께 지정해야 합니다." });
+    }
+  });
+
 export const analysisV1Operations = {
   findTimeSeries: defineOperation({
     method: "get",
@@ -240,12 +270,43 @@ export const analysisV1Operations = {
       503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
     },
   }),
+  findHistory: defineOperation({
+    method: "get",
+    versioning: { kind: "uri", prefix: "api", version: "1" },
+    route: { resource: "analysis", segments: ["history"] },
+    operationId: "findAnalysisHistory",
+    implementationOwner: "server",
+    summary: "시간축과 같은 조건의 전체 개찰 이력을 이 기관 또는 지역·전국 전체 중 한 집단에서 페이지로 조회한다."
+      + " 정렬은 조건의 날짜 기준 최신순이고 같은 날은 회차 id 역순이다."
+      + " 다음 페이지는 첫 응답의 buildId를 되돌려 보내 같은 build를 이어 읽는다.",
+    tags: ["공고와 분석"],
+    pathSchema: z.strictObject({}),
+    querySchema: analysisHistoryQuerySchema,
+    bodySchema: z.undefined(),
+    successResponses: {
+      200: { description: "이력 페이지 조회 성공. 자료가 없으면 빈 목록이며 meta가 기준 build를 말한다", schema: analysisHistoryV1ResponseSchema },
+    },
+    problemResponses: {
+      400: {
+        description: "query가 유효하지 않거나 조건 규칙을 어김, 또는 cursor가 이 조건·build의 줄이 아님",
+        schema: problemDetailsSchema,
+      },
+      ...unauthenticatedProblemResponse,
+      403: { description: "이 분석을 볼 수 있는 인가가 없음", schema: problemDetailsSchema },
+      404: { description: "요청한 기관·지역 코드값을 찾을 수 없음", schema: problemDetailsSchema },
+      409: { description: "고정을 요청한 mart build가 더 이상 활성이 아님. 첫 페이지부터 다시 읽는다", schema: problemDetailsSchema },
+      500: { description: "예상하지 못한 서버 결함", schema: problemDetailsSchema },
+      503: { description: "데이터베이스를 사용할 수 없음", schema: problemDetailsSchema },
+    },
+  }),
 } as const;
 
 export const analysisV1OperationRegistry = createOperationRegistry([
   analysisV1Operations.findTimeSeries,
   analysisV1Operations.findConditionOptions,
+  analysisV1Operations.findHistory,
 ] as const);
 
 export type AnalysisTimeSeriesQuery = z.infer<typeof analysisTimeSeriesQuerySchema>;
 export type AnalysisConditionOptionsQuery = z.infer<typeof analysisConditionOptionsQuerySchema>;
+export type AnalysisHistoryQuery = z.infer<typeof analysisHistoryQuerySchema>;

@@ -7,6 +7,8 @@ import { GetAuctionRoster } from "./application/get-auction-roster";
 import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
 import { FindAuction } from "./application/find-auction";
 import { FindAnalysisConditionOptions } from "./application/find-analysis-condition-options";
+import { FindAnalysisHistory } from "./application/find-analysis-history";
+import type { AnalysisHistoryReader } from "./application/analysis-history-reader";
 import { FindAnalysisTimeSeries } from "./application/find-analysis-time-series";
 import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
 import type { AnalysisConditionOptionsReader } from "./application/analysis-condition-options-reader";
@@ -32,6 +34,7 @@ import type { RegisteredBusinessReader } from "../account/application/registered
 import type { UnitOfWork } from "../../platform/database/unit-of-work";
 import {
   ANALYSIS_CONDITION_OPTIONS_READER,
+  ANALYSIS_HISTORY_READER,
   ANALYSIS_TIME_SERIES_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
@@ -108,6 +111,13 @@ const findAnalysisConditionOptionsProvider = {
     new FindAnalysisConditionOptions(reader, axes),
 };
 
+/** 전체 이력도 기관·지역 축이 있는지 같은 port로 확인한다. 세 조회가 같은 질문에 다른 답을 내지 않게 한다. */
+const findAnalysisHistoryProvider = {
+  provide: FindAnalysisHistory,
+  inject: [ANALYSIS_HISTORY_READER, ANALYSIS_TIME_SERIES_READER],
+  useFactory: (reader: AnalysisHistoryReader, axes: AnalysisTimeSeriesReader) => new FindAnalysisHistory(reader, axes),
+};
+
 const listEligibilityAreasProvider = {
   provide: ListEligibilityAreas,
   inject: [ELIGIBILITY_AREA_READER],
@@ -160,6 +170,7 @@ const findMyBidObservationsProvider = {
     findWinRateDistributionProvider,
     findAnalysisTimeSeriesProvider,
     findAnalysisConditionOptionsProvider,
+    findAnalysisHistoryProvider,
     listOpenAuctionsProvider,
     summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,
