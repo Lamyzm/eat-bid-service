@@ -11,6 +11,10 @@ import {
   type OutsideCount,
   type RateWeight
 } from './time-series-axis';
+import {
+  rateMilli,
+  rateText
+} from '@/app/(workspace)/auctions/[auctionId]/analysis/_lib/rate-milli';
 import type {
   AnalysisTimeSeriesV1Response,
   AnalysisTargetPoint
@@ -23,6 +27,8 @@ export interface TimeSeriesPoint {
   readonly attemptId: string;
   readonly revisionId: string;
   readonly label: string;
+  /** 개찰 기준 날짜(KST)다. 명단 사이드바가 어느 회차를 열었는지 제목으로 쓴다. */
+  readonly dateText: string;
 }
 
 /** 밀도 칸 하나다. 두 축 모두 반개구간이라 오른쪽·위쪽 끝은 다음 칸의 시작과 같다. */
@@ -117,22 +123,6 @@ export type TimeSeriesView =
   | { readonly kind: 'plot'; readonly plot: TimeSeriesPlot };
 
 const KST = 'Asia/Seoul';
-const RATE_SCALE = 1000;
-
-/** 소수 셋째 자리 고정 십진 문자열을 milli 정수로 옮긴다. 부동소수를 거치면 칸 경계가 흔들린다. */
-function rateMilli(text: string): number {
-  const match = /^(-?)([0-9]+)\.([0-9]{3})$/.exec(text);
-  if (match === null) throw new RangeError(`사정률 문자열의 형태가 계약과 다릅니다: ${text}`);
-  const magnitude = Number(match[2]) * RATE_SCALE + Number(match[3]);
-  return match[1] === '-' ? -magnitude : magnitude;
-}
-
-function rateText(milli: number): string {
-  const sign = milli < 0 ? '-' : '';
-  const magnitude = Math.abs(milli);
-  return `${sign}${Math.floor(magnitude / RATE_SCALE)}.${String(magnitude % RATE_SCALE).padStart(3, '0')}`;
-}
-
 /** 눈금 라벨이다. 간격이 0.1%p면 `88.5`, 0.01%p면 `88.50`처럼 간격이 말하는 자릿수까지만 쓴다. */
 function tickText(milli: number, step: number): string {
   const text = rateText(milli);
@@ -155,7 +145,8 @@ function targetPoint(point: AnalysisTargetPoint): TimeSeriesPoint {
     y: rateMilli(point.assessmentRate.value),
     attemptId: point.attemptId,
     revisionId: point.revisionId,
-    label: `${kstDayText(x)} 사정률 ${point.assessmentRate.value}%`
+    label: `${kstDayText(x)} 사정률 ${point.assessmentRate.value}%`,
+    dateText: kstDayText(x)
   };
 }
 

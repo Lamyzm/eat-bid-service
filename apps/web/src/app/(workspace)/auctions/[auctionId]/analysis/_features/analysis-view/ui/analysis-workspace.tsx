@@ -13,7 +13,8 @@ export function AnalysisWorkspace({
   context,
   time,
   distribution,
-  history
+  history,
+  inspector
 }: {
   readonly header: ReactNode;
   readonly filters: ReactNode;
@@ -23,11 +24,14 @@ export function AnalysisWorkspace({
   readonly time: ReactNode;
   readonly distribution: ReactNode;
   readonly history: ReactNode;
+  /** 고른 회차의 명단이다. 열림 여부는 주소의 회차 선택이 정한다. */
+  readonly inspector?: ReactNode;
 }) {
-  const [{ view, full }, setView] = useQueryStates(
+  const [{ view, full, round }, setView] = useQueryStates(
     {
       view: analysisSearchParsers.view,
-      full: analysisSearchParsers.full
+      full: analysisSearchParsers.full,
+      round: analysisSearchParsers.round
     },
     { shallow: true, history: 'replace', scroll: false }
   );
@@ -35,6 +39,21 @@ export function AnalysisWorkspace({
   const previousScroll = useRef<number | null>(null);
   const timeTab = useRef<HTMLButtonElement>(null);
   const distributionTab = useRef<HTMLButtonElement>(null);
+  /*
+   * 명단 패널은 조건 막대 바로 아래에 붙어야 한다. 막대 높이는 폭과 펼친 조건에 따라 253~539px로 바뀌므로
+   * (2026-09-18 실측) 숫자로 박지 않고 재서 CSS 변수로 넘긴다. 막대 뒤로 패널 머리가 숨으면 닫기 단추를 못 누른다.
+   */
+  useLayoutEffect(() => {
+    const sticky = document.querySelector<HTMLElement>("[data-slot='analysis-sticky']");
+    const screen = sticky?.closest<HTMLElement>('.analysis-screen');
+    if (!sticky || !screen) return;
+    const measure = () =>
+      screen.style.setProperty('--analysis-sticky-height', `${sticky.offsetHeight}px`);
+    measure();
+    const size = new ResizeObserver(measure);
+    size.observe(sticky);
+    return () => size.disconnect();
+  }, []);
   useLayoutEffect(() => {
     if (!full) {
       if (previousScroll.current !== null) {
@@ -148,6 +167,8 @@ export function AnalysisWorkspace({
         </>
       }
       history={history}
+      inspector={inspector}
+      inspectorOpen={round !== null}
     />
   );
 }
