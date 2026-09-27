@@ -114,7 +114,7 @@ jobs:
         run: pnpm --filter @eatbid/web exec playwright install --with-deps chromium
       - name: 공통 shell·loading·오류 경계 검증
         run: pnpm --filter @eatbid/web test:e2e:foundation
-      - name: 결정 화면 폭별 밀림 검증
+      - name: 공고 상세 화면 검증
         run: pnpm --filter @eatbid/web test:e2e:decision
       - name: 오늘 화면 폭별 밀림 검증
         # EAT-158: foundation·decision과 같은 dev 모드 fixture 서버라 비용이 같다(로컬 실측 8개 22.4초).
@@ -131,12 +131,6 @@ jobs:
         # run으로 자기 PostgreSQL container를 직접 띄우고 정리하므로 이 job에 별도 services: 컨테이너를
         # 붙일 필요가 없다. ubuntu-latest에 이미 있는 Docker만 있으면 된다.
         run: pnpm --filter @eatbid/web test:e2e:auth
-      - name: 내 투찰 화면 검증(등록·증거 대조 상태·mart build 전환)
-        # EAT-158이 이 step을 넣을 때는 빨간 상태였다. own-bid-e2e.ts의 smoke()가 인증 없이 공고를
-        # 조회해 EAT-138이 올린 guard에 401로 막혔기 때문이다. EAT-165가 그 harness를 로그인시켜
-        # 고쳤고 같은 변경에서 게이트가 걸린 서버 read도 세션을 싣도록 바꿨다. 이제 초록이며,
-        # 로그인한 사용자가 실제로 공고 행을 보는 것을 이 step이 진짜 Nest 위에서 증명한다.
-        run: pnpm --filter @eatbid/web test:e2e:own-bid
       # 실패한 브라우저 검증은 locator 한 줄만 남기고 사라졌다. 2026-09-12에 같은 실패를 두고 로컬은
       # 초록이고 CI는 빨간 상태였는데, 화면이 그 순간 무엇이었는지 볼 방법이 없어 코드로 역추적해야 했다.
       # Playwright가 이미 만드는 trace와 화면 맥락을 올려 두면 다음 사람이 추측하지 않는다(EAT-201).

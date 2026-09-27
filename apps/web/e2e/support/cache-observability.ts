@@ -1,5 +1,6 @@
 /** @module 책임: 캐시 e2e가 관측할 fixture 요청 수, 각 조회가 실제로 내준 mart 계보, 활성 build 전환을
  * 브라우저 밖에서 소유한다. 제품 코드는 이 파일을 import하지 않는다. */
+import { analysisV1Operations } from '@eatbid/contracts/api/v1/analysis';
 import { auctionV1Operations } from '@eatbid/contracts/api/v1/auctions';
 import { meV1Operations } from '@eatbid/contracts/api/v1/me';
 import { organizationV1Operations } from '@eatbid/contracts/api/v1/organizations';
@@ -15,6 +16,8 @@ export type ObservedRoute =
   | 'auction'
   | 'organizationAttempts'
   | 'winRateDistribution'
+  | 'analysisTimeSeries'
+  | 'analysisDistribution'
   | 'session'
   | 'myBusinesses'
   | 'roster';
@@ -29,6 +32,8 @@ const ORGANIZATION_PATH_PATTERN = new RegExp(
   `^${organizationV1Operations.listAuctionAttempts.openApiPath.replace('{organizationId}', '[^/]+')}$`
 );
 const DISTRIBUTION_PATH = winRateDistributionV1Operations.find.openApiPath;
+const ANALYSIS_TIME_SERIES_PATH = analysisV1Operations.findTimeSeries.openApiPath;
+const ANALYSIS_DISTRIBUTION_PATH = analysisV1Operations.findDistribution.openApiPath;
 const SESSION_PATH = sessionV1Operations.getCurrentSession.openApiPath;
 const MY_BUSINESSES_PATH = meV1Operations.listMyBusinesses.openApiPath;
 
@@ -36,7 +41,12 @@ const MY_BUSINESSES_PATH = meV1Operations.listMyBusinesses.openApiPath;
  * mart build를 응답 `meta`에 싣는 조회다. 계보 전환을 관측할 수 있는 자리가 여기뿐이라 다른 route는
  * 이 기록에 들어오지 않는다.
  */
-export const MART_BACKED_ROUTES = ['organizationAttempts', 'winRateDistribution'] as const;
+export const MART_BACKED_ROUTES = [
+  'organizationAttempts',
+  'winRateDistribution',
+  'analysisTimeSeries',
+  'analysisDistribution'
+] as const;
 
 export type MartBackedRoute = (typeof MART_BACKED_ROUTES)[number];
 
@@ -54,6 +64,8 @@ export function observedRoute(pathname: string): ObservedRoute | undefined {
   if (AUCTION_PATH_PATTERN.test(pathname)) return 'auction';
   if (ORGANIZATION_PATH_PATTERN.test(pathname)) return 'organizationAttempts';
   if (pathname === DISTRIBUTION_PATH) return 'winRateDistribution';
+  if (pathname === ANALYSIS_TIME_SERIES_PATH) return 'analysisTimeSeries';
+  if (pathname === ANALYSIS_DISTRIBUTION_PATH) return 'analysisDistribution';
   if (pathname === SESSION_PATH) return 'session';
   if (pathname === MY_BUSINESSES_PATH) return 'myBusinesses';
   return undefined;
@@ -70,6 +82,8 @@ export function observedCounts(): Record<ObservedRoute, number> {
     auction: counts.get('auction') ?? 0,
     organizationAttempts: counts.get('organizationAttempts') ?? 0,
     winRateDistribution: counts.get('winRateDistribution') ?? 0,
+    analysisTimeSeries: counts.get('analysisTimeSeries') ?? 0,
+    analysisDistribution: counts.get('analysisDistribution') ?? 0,
     session: counts.get('session') ?? 0,
     myBusinesses: counts.get('myBusinesses') ?? 0,
     roster: counts.get('roster') ?? 0
@@ -106,7 +120,9 @@ export function serveBuildId(route: MartBackedRoute, baseBuildId: string): strin
 export function observedLineage(): Record<MartBackedRoute, string | null> {
   return {
     organizationAttempts: servedBuilds.get('organizationAttempts') ?? null,
-    winRateDistribution: servedBuilds.get('winRateDistribution') ?? null
+    winRateDistribution: servedBuilds.get('winRateDistribution') ?? null,
+    analysisTimeSeries: servedBuilds.get('analysisTimeSeries') ?? null,
+    analysisDistribution: servedBuilds.get('analysisDistribution') ?? null
   };
 }
 

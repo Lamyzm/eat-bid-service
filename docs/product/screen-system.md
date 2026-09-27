@@ -306,9 +306,10 @@ neutral/slate, 저장 후보와 사용자 행동만 blue를 사용한다.
 ### 6.4 기관 이전 기록: 시간 산점도와 연결 표
 
 기관 이력은 옛 web 분석판의 좋은 자산을 계승하되 의미와 행동을 고친다. 옛 `dashboard/analysis` 분석판과
-`time-dot-chart`는 2026-09-10 main에서 legacy 화면 잔재로 제거됐고(commit `17672c64`), 시간 흐름과 기록 표는
-결정 화면의 [`flow-chart.tsx`](../../apps/web/src/app/(workspace)/auctions/[auctionId]/_features/flow/ui/flow-chart.tsx)와
-`_ui/expand/` 이력 표가 잇는다.
+`time-dot-chart`는 2026-09-10 main에서 legacy 화면 잔재로 제거됐다(commit `17672c64`). 그 뒤를 이은 결정 화면의
+흐름 차트와 이력 표도 2026-09-27 공고 상세 전환(EAT-224)에서 지웠고, 지금은 새 상세의
+[추이 그림](../../apps/web/src/app/(workspace)/auctions/[auctionId]/_features/time-series)과
+[전체 개찰 이력](../../apps/web/src/app/(workspace)/auctions/[auctionId]/_features/history)이 잇는다.
 2026-08-31 옛 로컬 화면에서 김해율하유치원은 전체 88회, 축산물 34회의 source-observed 기록을 제공했다.
 이 수치는 현재 구현 확인 예시이며 target architecture의 고정 fixture가 아니다.
 
