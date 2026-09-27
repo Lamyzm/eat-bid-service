@@ -45,7 +45,7 @@ import {
   FindAnalysisDistribution,
   type FindAnalysisDistributionInput,
 } from "../../application/find-analysis-distribution";
-import { OrganizationNotFound } from "../../application/list-organization-auction-attempts";
+import { OrganizationNotFound } from "../../application/organization-not-found";
 import { kstDate } from "../../domain/kst-day";
 import { organizationId } from "../../domain/organization-id";
 import { toAnalysisConditionOptionsResponse } from "./analysis-condition-options.presenter";

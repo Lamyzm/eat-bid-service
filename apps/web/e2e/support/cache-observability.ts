@@ -3,9 +3,7 @@
 import { analysisV1Operations } from '@eatbid/contracts/api/v1/analysis';
 import { auctionV1Operations } from '@eatbid/contracts/api/v1/auctions';
 import { meV1Operations } from '@eatbid/contracts/api/v1/me';
-import { organizationV1Operations } from '@eatbid/contracts/api/v1/organizations';
 import { sessionV1Operations } from '@eatbid/contracts/api/v1/session';
-import { winRateDistributionV1Operations } from '@eatbid/contracts/api/v1/win-rate-distribution';
 
 export const COUNTS_PATH = '/__counts';
 export const LINEAGE_PATH = '/__lineage';
@@ -14,8 +12,6 @@ export const RESET_PATH = '/__reset';
 
 export type ObservedRoute =
   | 'auction'
-  | 'organizationAttempts'
-  | 'winRateDistribution'
   | 'analysisTimeSeries'
   | 'analysisDistribution'
   | 'session'
@@ -28,10 +24,6 @@ const AUCTION_PATH_PATTERN = new RegExp(
 const ROSTER_PATH_PATTERN = new RegExp(
   `^${auctionV1Operations.roster.openApiPath.replace('{auctionId}', '[^/]+')}$`
 );
-const ORGANIZATION_PATH_PATTERN = new RegExp(
-  `^${organizationV1Operations.listAuctionAttempts.openApiPath.replace('{organizationId}', '[^/]+')}$`
-);
-const DISTRIBUTION_PATH = winRateDistributionV1Operations.find.openApiPath;
 const ANALYSIS_TIME_SERIES_PATH = analysisV1Operations.findTimeSeries.openApiPath;
 const ANALYSIS_DISTRIBUTION_PATH = analysisV1Operations.findDistribution.openApiPath;
 const SESSION_PATH = sessionV1Operations.getCurrentSession.openApiPath;
@@ -42,8 +34,6 @@ const MY_BUSINESSES_PATH = meV1Operations.listMyBusinesses.openApiPath;
  * 이 기록에 들어오지 않는다.
  */
 export const MART_BACKED_ROUTES = [
-  'organizationAttempts',
-  'winRateDistribution',
   'analysisTimeSeries',
   'analysisDistribution'
 ] as const;
@@ -62,8 +52,6 @@ export function observedRoute(pathname: string): ObservedRoute | undefined {
   // 명단은 `:auctionId/roster`라 상세 경로 pattern보다 먼저 본다.
   if (ROSTER_PATH_PATTERN.test(pathname)) return 'roster';
   if (AUCTION_PATH_PATTERN.test(pathname)) return 'auction';
-  if (ORGANIZATION_PATH_PATTERN.test(pathname)) return 'organizationAttempts';
-  if (pathname === DISTRIBUTION_PATH) return 'winRateDistribution';
   if (pathname === ANALYSIS_TIME_SERIES_PATH) return 'analysisTimeSeries';
   if (pathname === ANALYSIS_DISTRIBUTION_PATH) return 'analysisDistribution';
   if (pathname === SESSION_PATH) return 'session';
@@ -80,8 +68,6 @@ export function countRequest(pathname: string): void {
 export function observedCounts(): Record<ObservedRoute, number> {
   return {
     auction: counts.get('auction') ?? 0,
-    organizationAttempts: counts.get('organizationAttempts') ?? 0,
-    winRateDistribution: counts.get('winRateDistribution') ?? 0,
     analysisTimeSeries: counts.get('analysisTimeSeries') ?? 0,
     analysisDistribution: counts.get('analysisDistribution') ?? 0,
     session: counts.get('session') ?? 0,
@@ -119,8 +105,6 @@ export function serveBuildId(route: MartBackedRoute, baseBuildId: string): strin
 /** 아직 한 번도 내주지 않은 조회는 `null`이다. 0이나 기준 build로 채우면 "안 물었다"가 사라진다. */
 export function observedLineage(): Record<MartBackedRoute, string | null> {
   return {
-    organizationAttempts: servedBuilds.get('organizationAttempts') ?? null,
-    winRateDistribution: servedBuilds.get('winRateDistribution') ?? null,
     analysisTimeSeries: servedBuilds.get('analysisTimeSeries') ?? null,
     analysisDistribution: servedBuilds.get('analysisDistribution') ?? null
   };

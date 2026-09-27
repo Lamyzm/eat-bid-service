@@ -8,18 +8,14 @@ import { myFilterCombinationV1OperationRegistry } from "./v1/me/filter-combinati
 import { meV1OperationRegistry } from "./v1/me/operations";
 import { myRegionPreferenceV1OperationRegistry } from "./v1/me/region-preference.operations";
 import { analysisV1OperationRegistry } from "./v1/analysis/operations";
-import { organizationV1OperationRegistry } from "./v1/organizations/operations";
 import { sessionV1OperationRegistry } from "./v1/session/operations";
-import { winRateDistributionV1OperationRegistry } from "./v1/win-rate-distribution/operations";
 import { createOperationRegistry } from "./operation";
 
 // OpenAPI와 architecture 검사는 검토된 공개 operation registry 하나만 순회한다.
 export const publicHttpOperationRegistry = createOperationRegistry([
   ...auctionV1OperationRegistry,
-  ...organizationV1OperationRegistry,
   ...codeSchemeV1OperationRegistry,
   ...eligibilityAreaV1OperationRegistry,
-  ...winRateDistributionV1OperationRegistry,
   // 상세 분석 조회다. 기관 점과 비교군을 한 응답으로 내며 유료 인가가 붙는다(EAT-216).
   ...analysisV1OperationRegistry,
   ...sessionV1OperationRegistry,

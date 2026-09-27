@@ -1,4 +1,15 @@
+---
+id: PRODUCT-DECISION-SCREEN-V2-PAGES-ENDPOINTS-LOAD
+status: evidence
+canonical_for: decision-screen-v2-page-endpoint-contracts-and-backend-load-survey
+last_reviewed: 2026-09-27
+review_trigger: decision-screen-endpoint-or-load-assumption-change
+---
+
 # 페이지·컴포넌트별 엔드포인트 계약, 백엔드 부하, 아키텍처 결정
+
+> **2026-09-27 폐기 표시(EAT-224)**: 이 문서가 설명하는 기관 회차 이력 조회(`GET /api/v1/organizations/{organizationId}/auction-attempts`)와 낙찰률 분포 조회(`GET /api/v1/win-rate-distribution`)는 옛 공고 상세와 함께 폐기됐고, 새 상세는 분석 계약(`/api/v1/analysis/*`)을 쓴다. 두 mart와 dataplane의 무효화 push는 그대로다. 본문은 결정 당시의 기록으로 둔다.
+
 
 - 상태: 승인 (2026-09-04, 사용자). 계약 세부는 `packages/contracts` 구현 시 이 표를 기준으로 만들고, 표와
   다르게 만들면 이 문서를 같은 변경에서 고친다.

@@ -10,7 +10,7 @@ import { Effect } from "effect";
 import { assertAnalysisAxesExist, type AnalysisRegionNotFound } from "./analysis-axes";
 import { rateTextMilli } from "./distribution-statistics";
 import { ProcurementDependencyUnavailable } from "./failures";
-import { OrganizationNotFound } from "./list-organization-auction-attempts";
+import { OrganizationNotFound } from "./organization-not-found";
 import type { MartBuildLineage } from "./mart-build-lineage";
 import type {
   AnalysisComparisonScope,

@@ -6,7 +6,7 @@
  */
 import { Effect } from "effect";
 import { ProcurementDependencyUnavailable } from "./failures";
-import { OrganizationNotFound } from "./list-organization-auction-attempts";
+import { OrganizationNotFound } from "./organization-not-found";
 import type { AnalysisComparisonScope, AnalysisRegionScheme } from "./analysis-time-series-reader";
 import type { OrganizationId } from "../domain/organization-id";
 

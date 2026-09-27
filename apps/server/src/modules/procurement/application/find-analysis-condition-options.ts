@@ -8,7 +8,7 @@
 import { Effect } from "effect";
 import type { BidRate } from "@eatbid/domain";
 import { ProcurementDependencyUnavailable } from "./failures";
-import { OrganizationNotFound } from "./list-organization-auction-attempts";
+import { OrganizationNotFound } from "./organization-not-found";
 import type {
   AnalysisConditionOptionsReader,
   AnalysisConditionOptionsReading,

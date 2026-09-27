@@ -41,7 +41,6 @@ export * from "./codecs/temporal";
 export * from "./codecs/analysis";
 export * from "./api/v1/analysis";
 export * from "./api/v1/auctions";
-export * from "./api/v1/organizations";
 export {
   codeSchemeV1OperationRegistry,
   codeSchemeV1Operations,
@@ -54,7 +53,6 @@ export {
 export * from "./api/v1/eligibility-areas";
 export * from "./api/v1/me";
 export * from "./api/v1/session";
-export * from "./api/v1/win-rate-distribution";
 export * from "./ingestion/v1/normalized-code-release";
 export * from "./ingestion/v1/normalized-code-vocabulary";
 export * from "./ingestion/v1/resources/identity";

@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   auctionV1Operations,
-  organizationV1Operations,
   publicHttpOperationRegistry,
-  winRateDistributionV1Operations,
 } from "@eatbid/contracts";
 
 function openApiStringSchemaAccepts(
@@ -53,9 +51,7 @@ describe("canonical OpenAPI 산출물", () => {
       "/api/v1/me/initialization",
       // 조회와 통째 교체 두 method가 한 path에 있다. 부분 갱신 command는 만들지 않는다.
       "/api/v1/me/region-preference",
-      "/api/v1/organizations/{organizationId}/auction-attempts",
       "/api/v1/session",
-      "/api/v1/win-rate-distribution",
       "/health/live",
       "/health/ready",
     ]);
@@ -73,7 +69,6 @@ describe("canonical OpenAPI 산출물", () => {
         "findAnalysisTimeSeries",
         "findAuction",
         "findMyBidObservations",
-        "findWinRateDistribution",
         "getAuctionRoster",
         "getCurrentSession",
         "getMyRegionPreference",
@@ -85,7 +80,6 @@ describe("canonical OpenAPI 산출물", () => {
         "listMyBusinesses",
         "listMyFilterCombinations",
         "listOpenAuctions",
-        "listOrganizationAuctionAttempts",
         "previewRegionCoverage",
         "putMyRegionPreference",
         "registerMyBusiness",
@@ -159,88 +153,6 @@ describe("canonical OpenAPI 산출물", () => {
     });
     expect(auction.responses["404"].content["application/problem+json"].schema).toBeDefined();
     expect(auction.responses["503"].content["application/problem+json"].schema).toBeDefined();
-  });
-
-  test("낙찰률 분포 operation의 코호트 query parameter와 사정률 축 schema를 계약에서 파생한다", async () => {
-    const module = await import("./openapi");
-    const document = module.createOpenApiDocument() as any;
-    const distribution = document.paths[winRateDistributionV1Operations.find.path].get;
-    expect(distribution.operationId).toBe("findWinRateDistribution");
-    // `.check()`를 붙여도 query가 ZodObject로 남아야 parameter가 생긴다. union이면 조용히 0개가 된다.
-    expect(distribution.parameters.map((parameter: any) => [parameter.name, parameter.required ?? false]))
-      .toEqual([
-        ["scope", true],
-        ["regionCodeValueId", false],
-        ["organizationId", false],
-        ["floorRate", true],
-        ["awardMethod", true],
-        ["from", false],
-        ["to", false],
-        ["binWidth", false],
-        ["granularity", false],
-      ]);
-    expect(distribution.parameters[7].schema).toMatchObject({ default: "0.010" });
-    expect(distribution.parameters[8].schema).toMatchObject({ enum: ["total", "month"], default: "total" });
-    expect(distribution.responses["200"].content["application/json"].schema).toEqual({
-      $ref: "#/components/schemas/EatbidApiV1WinRateDistribution",
-    });
-    // 칸 경계는 100을 넘는 관측을 담는 축이고 하한율·칸 폭은 0~100으로 닫힌 축이다(AGENTS 15).
-    expect(document.components.schemas.WinRateDistributionBin.properties.from)
-      .toEqual({ $ref: "#/components/schemas/ObservedBidRate" });
-    expect(document.components.schemas.WinRateDistributionMeta.properties.floorRate)
-      .toEqual({ $ref: "#/components/schemas/BidRate" });
-    expect(document.components.schemas.WinRateDistributionModeRange.properties.share)
-      .toEqual({ $ref: "#/components/schemas/Ratio" });
-    expect(document.components.schemas.KstMonthText).toMatchObject({ type: "string", maxLength: 7 });
-  });
-
-  test("기관 회차 이력 operation의 path·query parameter와 응답 schema를 계약에서 파생한다", async () => {
-    const module = await import("./openapi");
-    const document = module.createOpenApiDocument() as any;
-    const attempts = document.paths[organizationV1Operations.listAuctionAttempts.path].get;
-    expect(attempts.operationId).toBe("listOrganizationAuctionAttempts");
-    expect(attempts.parameters.map((parameter: any) => [parameter.in, parameter.name, parameter.required ?? false]))
-      .toEqual([
-        ["path", "organizationId", true],
-        ["query", "item", false],
-        ["query", "includeItemLabel", false],
-        ["query", "includeRevision", false],
-        ["query", "expectedBuildId", false],
-        ["query", "asOf", false],
-        ["query", "cursor", false],
-        ["query", "limit", false],
-        ["query", "opened", false],
-        ["query", "floorRate", false],
-        ["query", "awardMethod", false],
-        ["query", "from", false],
-        ["query", "to", false],
-      ]);
-    expect(attempts.parameters[7].schema).toMatchObject({ type: "integer", minimum: 1, maximum: 200, default: 12 });
-    // 개찰 필터의 기본값이 문서에 드러나야 소비자가 "생략하면 개찰된 회차만"을 계약에서 읽는다.
-    expect(attempts.parameters[8].schema).toMatchObject({ type: "string", enum: ["only", "any"], default: "only" });
-    // 이어 읽기 고정은 build와 기준 시각 한 쌍이라 둘 다 문서에 있어야 소비자가 반쪽을 보내지 않는다.
-    expect(attempts.parameters[4].schema)
-      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/PositiveBigintText" }] });
-    expect(attempts.parameters[5].schema)
-      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/InstantText" }] });
-    expect(attempts.responses["409"].content["application/problem+json"].schema).toBeDefined();
-    expect(attempts.responses["200"].content["application/json"].schema).toEqual({
-      $ref: "#/components/schemas/EatbidApiV1OrganizationAuctionAttempts",
-    });
-    expect(attempts.responses["404"].content["application/problem+json"].schema).toBeDefined();
-    expect(document.components.schemas.EatbidApiV1OrganizationAuctionAttempts.properties).toMatchObject({
-      organizationId: { $ref: "#/components/schemas/PositiveBigintText" },
-      meta: { $ref: "#/components/schemas/OrganizationAuctionAttemptsMeta" },
-    });
-    expect(document.components.schemas.OrganizationAuctionAttempt.properties.winRate)
-      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/ObservedBidRate" }], nullable: true });
-    expect(document.components.schemas.OrganizationAuctionAttempt.properties.secondRate)
-      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/ObservedBidRate" }], nullable: true });
-    expect(document.components.schemas.OrganizationAuctionAttempt.properties.floorRate)
-      .toMatchObject({ allOf: [{ $ref: "#/components/schemas/BidRate" }], nullable: true });
-    // 음수 관측(-999999999999.999)까지 17자다(ADR 0053).
-    expect(document.components.schemas.ObservedBidRateText).toMatchObject({ type: "string", maxLength: 17 });
-    expect(document.components.schemas.BidRateText).toMatchObject({ type: "string", maxLength: 7 });
   });
 
   test("생성 OpenAPI의 식별자 schema가 signed bigint 경계를 기계적으로 강제한다", async () => {

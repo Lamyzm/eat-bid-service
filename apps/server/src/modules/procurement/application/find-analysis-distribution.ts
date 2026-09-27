@@ -13,7 +13,7 @@ import type { AnalysisComparisonScope, AnalysisItemFilter, AnalysisTimeSeriesRea
 import { rateTextMilli } from "./distribution-statistics";
 import { ProcurementDependencyUnavailable } from "./failures";
 import type { AnalysisPeriodInput } from "./find-analysis-time-series";
-import type { OrganizationNotFound } from "./list-organization-auction-attempts";
+import type { OrganizationNotFound } from "./organization-not-found";
 import type { MartBuildLineage } from "./mart-build-lineage";
 import { kstDayAfter, kstDayStart } from "../domain/kst-day";
 import type { OrganizationId } from "../domain/organization-id";
