@@ -4,6 +4,7 @@ import {
   analysisV1Operations,
   analysisTimeSeriesV1ResponseSchema
 } from '@eatbid/contracts/api/v1/analysis';
+import { serveBuildId } from './cache-observability';
 
 const operation = analysisV1Operations.findTimeSeries;
 
@@ -145,7 +146,8 @@ export function analysisTimeSeriesResponse(request: Request): Response | undefin
         builds: [{
           purpose: 'observations',
           lineage: {
-            buildId: '701',
+            // 캐시 e2e가 활성 build 전환 뒤 다음 열람이 새 계보를 읽는지 이 값으로 판정한다.
+            buildId: serveBuildId('analysisTimeSeries', '701'),
             sourceReleaseId: '0f5f5d3c-6a1b-4f2e-9c8d-1a2b3c4d5e6f',
             calcVersion: 'mart-r10',
             computedAt: '2026-09-18T00:10:00Z',

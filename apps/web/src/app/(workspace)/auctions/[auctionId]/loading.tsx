@@ -1,6 +1,5 @@
-/** @module 책임: 공고 segment의 최초 server loading을 화면 전용 skeleton 경계에 연결한다. */
-import { DecisionScreenSkeleton } from './_widgets/decision-screen-skeleton';
-
+/** @module 책임: 새 상세의 route 로딩을 실제 화면과 같은 skeleton에 연결한다. */
+import { AnalysisScreenSkeleton } from './_widgets/analysis-screen-skeleton';
 export default function Loading() {
-  return <DecisionScreenSkeleton />;
+  return <AnalysisScreenSkeleton />;
 }

@@ -1,4 +1,4 @@
-/** @module 책임: 공고 route가 공통 셸(테마·사이드바·에러 경계)과 계약 응답 전환을 계약대로 지키는지 검사한다. 화면 전용 표시 규칙은 decision-screen.spec.ts가 맡는다. */
+/** @module 책임: 공고 route가 공통 셸(테마·사이드바·에러 경계)과 계약 응답 전환을 계약대로 지키는지 검사한다. 화면 전용 표시 규칙은 analysis-filters.spec.ts가 맡는다. */
 import { expect, test } from '@playwright/test';
 
 import { VIEWPORT_WIDTH } from './support/viewports';
@@ -15,8 +15,8 @@ const SHELL_AUCTION_ID = '9007199254740997';
 test('공고 화면은 공통 셸과 화면 전용 skeleton 뒤 계약 응답을 표시한다', async ({ page }) => {
   await page.goto(`/auctions/${SHELL_AUCTION_ID}`, { waitUntil: 'commit' });
   await expect(page.getByRole('status', { name: '공고 정보를 불러오는 중' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
-  await expect(page.getByText('기초 1,234,567,890.50원')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
+  await expect(page.getByText('1,234,567,890.5원')).toBeVisible();
   await expect(page.getByLabel('색상 테마')).toBeVisible();
   await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
   await expect(page.locator('main')).toHaveCount(1);
@@ -47,7 +47,7 @@ test('유효하지 않거나 존재하지 않는 공고 ID는 같은 셸 안에�
 
 test('canonical 공고 화면의 header에는 legacy 지역 칩과 전역 설정 control이 없다', async ({ page }) => {
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
-  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
   await expect(page.getByRole('button', { name: '명암 모드 전환' })).toBeVisible();
   await expect(page.getByLabel('보는 지역')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '전역 설정' })).toHaveCount(0);
@@ -78,7 +78,7 @@ test('server 응답은 cookie theme을 반영하지 않고 첫 paint 전 inline 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
   await page.reload({ waitUntil: 'commit' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
-  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'claude');
 });
 
@@ -86,7 +86,7 @@ test('접힌 sidebar cookie는 shell을 static으로 둔 채 client에서 반영
   await page.context().addCookies([{ name: 'sidebar_state', value: 'false', url: baseURL! }]);
 
   await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
-  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
   await expect(page.locator('[data-slot="sidebar"][data-state]').first()).toHaveAttribute(
     'data-state',
     'collapsed'
@@ -119,38 +119,28 @@ test('색상 테마 선택은 DOM과 cookie에 남아 새로고침 뒤에도 유
 
   await page.reload({ waitUntil: 'commit' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'vercel');
-  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
 });
 
 /**
- * 보조 패널·도구 줄의 고정/overlay 분기는 CSS(`@variant xl`)와 JS(useWideWorkspace)가 같은 경계를 읽는다.
- * 경계 양쪽 1px에서 봐야 둘 중 하나만 어긋나도 잡힌다(EAT-154).
+ * 보조 패널의 고정/overlay 분기는 CSS(`@variant xl`)와 JS(useWideWorkspace)가 같은 경계를 읽는다.
+ * 경계 양쪽 1px에서 봐야 둘 중 하나만 어긋나도 잡힌다(EAT-154). 공고 상세의 보조 패널은 고른 회차의 명단이며
+ * 공유받은 주소처럼 회차를 주소로 연다.
  */
-test('xl 경계에서 보조 패널은 경계 폭이면 본문 옆에 고정되고 1px 좁으면 Sheet로 열린다', async ({ page }) => {
+test('xl 경계에서 회차 명단 패널은 경계 폭이면 화면 안에 고정되고 1px 좁으면 Sheet로 열린다', async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: VIEWPORT_WIDTH.xl, height: 900 });
-  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}`);
-  await expect(page.getByRole('heading', { name: '급식 식재료' })).toBeVisible();
+  await page.goto(`/auctions/${SUCCESS_AUCTION_ID}?round=9101&roundRevision=9101`);
+  await expect(page.getByRole('heading', { name: '창원 남산초등학교', level: 1 })).toBeVisible();
 
-  const rail = page.locator('[data-slot="workspace-tool-rail"]');
-  const headerTools = page.locator('[data-slot="workspace-header-tools"]');
   const persistentPanel = page.locator('section[data-slot="responsive-dock"]');
-  await expect(rail).toBeVisible();
-  await expect(headerTools).toBeHidden();
-
-  await rail.getByRole('button', { name: '현재 공고 정보', exact: true }).click();
   await expect(persistentPanel).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  // 고정 패널은 본문을 덮지 않고 본문 오른쪽 옆에 서며 viewport 안에 들어간다.
   const panelBox = (await persistentPanel.boundingBox())!;
-  const pageBox = (await page.locator('[data-slot="workspace-page"]').boundingBox())!;
-  expect(panelBox.x).toBeGreaterThanOrEqual(pageBox.x + pageBox.width);
   expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(VIEWPORT_WIDTH.xl);
 
-  // 같은 열림 상태에서 1px만 좁혀도 패널은 본문 옆 자리를 잃고 같은 내용이 Sheet로 열린다.
+  // 같은 열림 상태에서 1px만 좁혀도 패널은 고정 자리를 잃고 같은 내용이 Sheet로 열린다.
   await page.setViewportSize({ width: VIEWPORT_WIDTH.xl - 1, height: 900 });
-  await expect(rail).toBeHidden();
-  await expect(headerTools).toBeVisible();
   await expect(persistentPanel).toHaveCount(0);
-  await expect(page.getByRole('dialog', { name: '현재 공고 정보' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '선택한 회차 명단' })).toBeVisible();
 });
