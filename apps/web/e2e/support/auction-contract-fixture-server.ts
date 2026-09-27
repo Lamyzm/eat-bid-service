@@ -19,8 +19,6 @@ import { myBusinessesResponse } from './my-businesses-fixture';
 import { openAuctionsResponse } from './open-auctions-fixture';
 import { openAuctionSummaryResponse } from './open-auctions-summary-fixture';
 import { sessionResponse } from './session-fixture';
-import { organizationAttemptsResponse } from './organization-attempts-fixture';
-import { winRateDistributionResponse } from './win-rate-distribution-fixture';
 
 // 호가창이 코호트를 만들 재료다. 하한율 90·낙찰방식 003·경남 창원은 남산초 실관측 회차의 값이며
 // 이 셋이 없으면 비교집단 탭이 조회 자체를 만들지 못한다.
@@ -296,11 +294,7 @@ Bun.serve({
     if (pathname === auctionPath(FAILURE_AUCTION_ID)) return problemResponse(503);
     if (pathname === auctionPath(MISSING_AUCTION_ID)) return problemResponse(404);
 
-    const organizationResponse = organizationAttemptsResponse(request);
-    if (organizationResponse) return organizationResponse;
 
-    const distributionResponse = winRateDistributionResponse(request);
-    if (distributionResponse) return distributionResponse;
 
     // 분석판은 공고를 읽은 직후 기본 조건의 시간축을 함께 읽는다. 이 응답이 없으면 화면이 조건 막대가
     // 아니라 오류 경계에서 멈춘다(2026-09-18 CI 회차 35288060366).

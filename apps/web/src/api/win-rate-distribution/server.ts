@@ -1,27 +1,7 @@
-/** @module 책임: RSC에서만 쓰는, 세션 쿠키를 실어 나르는 낙찰률 분포 조회와 모집단 오류 판별 표면을 제공한다. */
+/** @module 책임: dataplane의 무효화 push가 부르는 `win_rate_distribution_monthly` mart 캐시 무효화 표면만 RSC 쪽에 남긴다.
+ *
+ * 옛 낙찰률 분포 조회는 옛 공고 상세와 함께 사라졌다(EAT-224). dataplane은 이 mart를 계속 만들고 build
+ * 전환마다 그 이름으로 push하므로, route의 공개 계약이 지울 대상이 없는 함수를 계속 부른다. */
 import 'server-only';
 
-import type { WinRateDistributionV1Response } from '@eatbid/contracts/api/v1/win-rate-distribution';
-
-import { privateServerRequest } from '../_transport/private-server-request.server';
-import { isDistributionCohortNotFoundError } from './distribution-resource-error';
-import {
-  findWinRateDistributionWith,
-  type WinRateDistributionCohort
-} from './find-win-rate-distribution';
-
-/**
- * 이 조회는 `ProviderSessionGuard`가 걸린 제품 데이터 읽기다(ADR 0032 §12). `use cache` 경계 안에서는
- * 요청 쿠키를 읽을 수 없어(ADR 0028 §4) 게이트 앞에 익명으로 닿아 항상 401을 받는다 — EAT-165가 잡은
- * 장애가 이 함수였다. `use cache`·`cacheTag`·`cacheLife`를 모두 떼고 쿠키를 그대로 실어 나르는
- * `privateServerRequest`로 세션을 전달한다(ADR 0032 §14). `cache-tags.ts`의 태그 함수와 `revalidate.ts`는
- * 걷어내지 않았으니 그 파일에서 "왜 안 불리는지"를 확인할 수 있다.
- */
-export async function findWinRateDistributionFromServer(
-  input: WinRateDistributionCohort
-): Promise<WinRateDistributionV1Response> {
-  return await findWinRateDistributionWith(privateServerRequest, input);
-}
-
-export { isDistributionCohortNotFoundError };
 export { revalidateWinRateDistributionCache } from './revalidate';

@@ -73,9 +73,21 @@ Web import가 사라졌다는 사실만으로 공개 endpoint를 바로 지우�
   옛 `own-bid.spec.ts`가 증명하던 "로그인한 사용자가 실제 Nest 위에서 공고 상세를 본다"도 그 후속 이슈에서
   새 상세 위로 되살린다.
 
-### 남은 일 (서버·계약 PR)
+### 2026-09-27 옛 조회 API 폐기 (EAT-224 둘째 PR)
 
-- 기관 회차(`organizations`)와 옛 낙찰률 분포(`win-rate-distribution`)의 Web adapter, 계약 operation,
-  Nest controller·reader, 무효화 route의 두 mart 항목과 dataplane의 push 호출, e2e 가짜 응답기를 함께
-  정리한다. 무효화 push는 운영 수집이 부르므로 dataplane과 Web route를 같은 변경에서 바꾼다.
+- 기관 회차 이력(`listOrganizationAuctionAttempts`)과 낙찰률 분포(`findWinRateDistribution`)의 계약·Nest
+  controller·use case·reader·presenter·테스트와 Web 조회 adapter·e2e 가짜 응답기를 지웠다. 새 분석 use case가
+  쓰던 `OrganizationNotFound`는 `application/organization-not-found.ts`로 옮겼다.
+- 두 mart(`org_round_summary`, `win_rate_distribution_monthly`)와 dataplane의 무효화 push는 그대로다. Web의
+  `revalidateOrgRoundSummaryCache`·`revalidateWinRateDistributionCache`는 지울 캐시가 없지만 push 계약을 받기
+  위해 남긴다(사용자 결정 2026-09-27). 지우면 route가 push에 500으로 답한다.
+- 공유 read 게이트 목록에서 두 옛 경로를 빼고 분석 조회 넷을 넣었다. 이전에는 분석 조회가 목록에 없어 게이트가
+  빠져도 테스트가 잡지 못했다.
+- 옛 API를 현재형으로 설명하던 ADR 0032·0036, PDR-0004, 결정 화면 v2 두 문서, 상세 MVP 인계 문서에는 폐기
+  표시 한 줄만 붙였다.
+
+### 남은 일
+
+- 투찰률 "이 값이면"과 내 투찰 기록 겹쳐 보기, 로그인 사용자의 real-Nest 상세 검증을 새 상세에 되살린다(EAT-283).
 - 셸의 도구 줄(`shell/layout/workspace-dock`)은 옛 상세만 도구를 등록했다. 남은 사용처를 확인하고 정리한다.
+- 무효화 push의 두 mart 항목을 route·계약·dataplane에서 함께 걷어낼지는 캐시가 다시 필요한지 보고 정한다.

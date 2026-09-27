@@ -1,7 +1,11 @@
 # 0036 — 결정 화면 읽기 캐시의 태그 어휘와 무효화 소유자
 
+> **2026-09-27 폐기 표시(EAT-224)**: 이 문서가 설명하는 기관 회차 이력 조회(`GET /api/v1/organizations/{organizationId}/auction-attempts`)와 낙찰률 분포 조회(`GET /api/v1/win-rate-distribution`)는 옛 공고 상세와 함께 폐기됐고, 새 상세는 분석 계약(`/api/v1/analysis/*`)을 쓴다. 두 mart와 dataplane의 무효화 push는 그대로다. 본문은 결정 당시의 기록으로 둔다.
+
+
 - Status: Accepted
 - Date: 2026-09-06
+- Supersedes: [ADR 0031](0031-decision-screen-frontend-rendering.md) 7항
 - 관계: [0031](0031-decision-screen-frontend-rendering.md) **7항을 대체한다.**
   [0028](0028-cache-components-and-self-hosted-cache.md) 4항의 `use cache` 범위 규칙 안에서 동작하며
   그 조건을 넓히지 않는다. [0023](0023-nextjs-web-modular-boundaries.md)이 web `route.ts`의 예외로
