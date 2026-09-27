@@ -28,6 +28,7 @@ describe("canonical OpenAPI 산출물", () => {
     expect(Object.keys(document.paths).sort()).toEqual([
       // 조건 사전 조회다. 비교 지역·품목·기관 여닫이 셋이 같은 조건을 세 번 묻지 않도록 한 응답을 나눠 쓴다.
       "/api/v1/analysis/condition-options",
+      "/api/v1/analysis/history",
       "/api/v1/analysis/time-series",
       "/api/v1/auctions",
       "/api/v1/auctions/summary",
@@ -66,6 +67,7 @@ describe("canonical OpenAPI 산출물", () => {
         "countMyFilterCombinations",
         "deleteMyFilterCombination",
         "findAnalysisConditionOptions",
+        "findAnalysisHistory",
         "findAnalysisTimeSeries",
         "findAuction",
         "findMyBidObservations",
