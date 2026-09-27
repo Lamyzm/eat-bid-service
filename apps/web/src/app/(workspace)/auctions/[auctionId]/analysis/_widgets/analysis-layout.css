@@ -229,10 +229,83 @@
 .analysis-history-table th:first-child {
   padding-left: var(--analysis-padding);
 }
-.analysis-history-table td {
+/* 준비 중 한 칸(colspan)만 넓게 가운데 둔다. 실제 회차 줄은 읽기 좋은 높이로 왼쪽 정렬한다. */
+.analysis-history-table td[colspan] {
   padding: 48px 20px;
   text-align: center;
   color: var(--muted-foreground);
+}
+/* 날짜와 사정률이 한 줄에서 꺾이면 읽히지 않는다. 좁아지면 줄을 꺾지 않고 표를 옆으로 민다. */
+.analysis-history-table th,
+.analysis-history-table td {
+  white-space: nowrap;
+}
+.analysis-history-table td {
+  padding: 11px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  max-width: 220px;
+}
+.analysis-history-table td:first-child {
+  padding-left: var(--analysis-padding);
+}
+.analysis-history-table tr[data-selected='true'] td {
+  background: var(--accent);
+}
+.analysis-history-open {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+.analysis-history-open:focus-visible,
+.analysis-history-list button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.analysis-history-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px var(--analysis-padding) 32px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.analysis-history-more {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px var(--analysis-padding) 32px;
+}
+/*
+ * 좁은 화면은 표를 옆으로 밀지 않고 한 회차를 두 줄로 쌓는다. 740px 표를 가로로 스크롤하면 날짜와
+ * 사정률이 같은 화면에 서지 않아 줄을 비교할 수 없다(2026-09-25 dev 390px 실측).
+ */
+.analysis-history-list {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.analysis-history-list li {
+  border-top: 1px solid var(--border);
+}
+.analysis-history-list li[data-selected='true'] {
+  background: var(--accent);
+}
+.analysis-history-list button {
+  display: block;
+  width: 100%;
+  padding: 12px var(--analysis-padding);
+  text-align: left;
+}
+@media (max-width: 47.99rem) {
+  .analysis-history-scroll:has(+ .analysis-history-list) {
+    display: none;
+  }
+  .analysis-history-list {
+    display: block;
+  }
 }
 .analysis-screen[data-workspace-fullscreen='true'] {
   height: 100dvh;

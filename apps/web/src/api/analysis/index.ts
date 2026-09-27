@@ -15,9 +15,17 @@ export type {
   AnalysisConditionOptionsV1Response,
   AnalysisItemCount,
   AnalysisOrganizationOption,
-  AnalysisRegionCount
+  AnalysisRegionCount,
+  AnalysisHistoryPopulation,
+  AnalysisHistoryRow,
+  AnalysisHistoryV1Response
 } from '@eatbid/contracts/api/v1/analysis';
-export { analysisTimeSeriesQueryOf, type AnalysisTimeSeriesQueryInput } from './find-analysis-time-series';
+export {
+  analysisTimeSeriesQueryOf,
+  type AnalysisTimeSeriesQueryInput
+} from './find-analysis-time-series';
+export { analysisHistoryConditionOf, type AnalysisHistoryCondition } from './find-analysis-history';
+export { isAnalysisSnapshotChangedError } from './analysis-resource-error';
 export {
   analysisConditionOptionsQueryOf,
   type AnalysisConditionOptionsQueryInput

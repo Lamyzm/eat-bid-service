@@ -7,6 +7,7 @@
 import type { MartCoverage } from "@eatbid/contracts";
 import type { BidRate, Clock, Temporal } from "@eatbid/domain";
 import { Effect } from "effect";
+import { assertAnalysisAxesExist, type AnalysisRegionNotFound } from "./analysis-axes";
 import { rateTextMilli } from "./distribution-statistics";
 import { ProcurementDependencyUnavailable } from "./failures";
 import { OrganizationNotFound } from "./list-organization-auction-attempts";
@@ -62,18 +63,8 @@ const SNAPSHOT_TTL_HOURS = 24;
 /** 관측의 정의에 붙인 판이다. "낙찰 판정 행의 사정률을 회차당 하나 센다"가 바뀌면 이 값이 바뀐다. */
 export const OBSERVATION_POLICY_VERSION = "awarded-attempt-v1";
 
-/**
- * 비교 지역의 코드값이 그 체계 안에 없다는 사실이다. 표본 0의 빈 결과로 뭉개지 않는 이유는 사용자가
- * 할 일이 다르기 때문이다 — 없는 지역은 조건을 고쳐야 하고, 표본 0은 기간이나 조건을 넓혀야 한다.
- */
-export class AnalysisRegionNotFound extends Error {
-  readonly code = "NOT_FOUND" as const;
-
-  constructor(readonly scheme: string, readonly codeValueId: bigint) {
-    super(`Region code value ${codeValueId.toString(10)} was not found in ${scheme}`);
-    this.name = "AnalysisRegionNotFound";
-  }
-}
+// 존재하지 않는 비교 지역의 실패는 세 분석 조회가 함께 쓴다. 기존 import 경로를 지키려 여기서 다시 내보낸다.
+export { AnalysisRegionNotFound } from "./analysis-axes";
 
 export interface AnalysisPeriodInput {
   readonly from: KstDate;
@@ -203,7 +194,7 @@ export class FindAnalysisTimeSeries {
     const before = kstDayAfter(input.period.to);
     const timeResolution = timeResolutionOf(periodDays(from, before));
     // 존재 확인을 먼저 끝내야 "그 축이 없음"과 "표본이 아직 없음"이 같은 빈 결과로 뭉개지지 않는다.
-    return this.assertAxesExist(input).pipe(
+    return assertAnalysisAxesExist(this.reader, input.targetOrganizationId, input.comparisonScope).pipe(
       Effect.flatMap(() => Effect.tryPromise({
         try: () => this.reader.readTimeSeries({
           targetOrganizationId: input.targetOrganizationId,
@@ -227,34 +218,6 @@ export class FindAnalysisTimeSeries {
       })),
       Effect.map((reading) => this.assemble(input, timeResolution, reading)),
     );
-  }
-
-  /** 기관과 비교 지역을 함께 확인한다. 전국은 확인할 축이 없으므로 조회를 한 번 더 열지 않는다. */
-  private assertAxesExist(input: FindAnalysisTimeSeriesInput): Effect.Effect<
-    void,
-    ProcurementDependencyUnavailable | OrganizationNotFound | AnalysisRegionNotFound,
-    never
-  > {
-    const scope = input.comparisonScope;
-    const organization = this.exists(
-      () => this.reader.organizationExists(input.targetOrganizationId),
-      () => new OrganizationNotFound(input.targetOrganizationId),
-    );
-    if (scope.kind === "national") return organization;
-    return organization.pipe(Effect.flatMap(() => this.exists(
-      () => this.reader.regionExists(scope.scheme, scope.codeValueId),
-      () => new AnalysisRegionNotFound(scope.scheme, scope.codeValueId),
-    )));
-  }
-
-  private exists<Failure>(
-    read: () => Promise<boolean>,
-    missing: () => Failure,
-  ): Effect.Effect<void, ProcurementDependencyUnavailable | Failure, never> {
-    return Effect.tryPromise({
-      try: read,
-      catch: (cause): ProcurementDependencyUnavailable => new ProcurementDependencyUnavailable(cause),
-    }).pipe(Effect.flatMap((found) => found ? Effect.succeed(undefined) : Effect.fail(missing())));
   }
 
   private assemble(

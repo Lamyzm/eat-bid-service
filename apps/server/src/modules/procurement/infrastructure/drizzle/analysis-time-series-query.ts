@@ -22,7 +22,7 @@ export const DENSITY_CELL_LIMIT = 32_768;
 const ACTIVE_BUILD = activeMartBuildId(ORG_ROUND_SUMMARY);
 
 /** X축이 쓰는 시각 열이다. 기간도 축도 같은 열을 써야 점이 자기 구간 밖에 서지 않는다. */
-function dateColumn(dateBasis: "opened" | "announced"): SQL {
+export function dateColumn(dateBasis: "opened" | "announced"): SQL {
   return dateBasis === "opened" ? sql`summary.opened_at` : sql`summary.announced_at`;
 }
 
@@ -36,10 +36,11 @@ function dateColumn(dateBasis: "opened" | "announced"): SQL {
  * 명단 범위를 걸면 `list_count`가 null인 회차는 빠진다. 명단 크기를 모르는 판을 "범위 안"으로 세면
  * 미확인을 관측으로 바꾸는 것이다(AGENTS 3).
  */
-export function analysisBasePredicate(query: AnalysisCohortQuery): SQL {
+export function analysisBasePredicate(query: AnalysisCohortQuery, build: SQL = ACTIVE_BUILD): SQL {
   const date = dateColumn(query.dateBasis);
   const parts: SQL[] = [
-    sql`summary.build_id = ${ACTIVE_BUILD}`,
+    // 기본은 그 순간의 활성 build다. 여러 페이지로 나눠 읽는 이력은 첫 페이지의 build를 받아 고정한다.
+    sql`summary.build_id = ${build}`,
     sql`and summary.quarantine_reason is null`,
     sql`and summary.awarded_assessment_rate is not null`,
     sql`and summary.floor_rate = ${rateMilliText(query.floorRateMilli)}::numeric`,
