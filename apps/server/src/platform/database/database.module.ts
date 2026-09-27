@@ -20,6 +20,7 @@ import type { OpenAuctionSummaryReader } from "../../modules/procurement/applica
 import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
 import type { AnalysisConditionOptionsReader } from "../../modules/procurement/application/analysis-condition-options-reader";
 import type { AnalysisHistoryReader } from "../../modules/procurement/application/analysis-history-reader";
+import type { AnalysisDistributionReader } from "../../modules/procurement/application/analysis-distribution-reader";
 import type { AnalysisTimeSeriesReader } from "../../modules/procurement/application/analysis-time-series-reader";
 import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "../../modules/reference/application/code-reader";
@@ -29,6 +30,7 @@ import { DrizzleOpenAuctionSummaryReader } from "../../modules/procurement/infra
 import { DrizzleOrganizationAttemptReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-organization-attempt-reader";
 import { DrizzleAnalysisConditionOptionsReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-condition-options-reader";
 import { DrizzleAnalysisHistoryReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-history-reader";
+import { DrizzleAnalysisDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-distribution-reader";
 import { DrizzleAnalysisTimeSeriesReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-time-series-reader";
 import { DrizzleWinRateDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-win-rate-distribution-reader";
 import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzle/drizzle-code-reader";
@@ -55,6 +57,7 @@ import {
   REGISTERED_BUSINESS_READER,
   UNIT_OF_WORK,
   ANALYSIS_CONDITION_OPTIONS_READER,
+  ANALYSIS_DISTRIBUTION_READER,
   ANALYSIS_HISTORY_READER,
   ANALYSIS_TIME_SERIES_READER,
   WIN_RATE_DISTRIBUTION_READER,
@@ -79,6 +82,7 @@ export interface DatabaseModuleOverrides {
   readonly analysisTimeSeriesReader?: AnalysisTimeSeriesReader;
   readonly analysisConditionOptionsReader?: AnalysisConditionOptionsReader;
   readonly analysisHistoryReader?: AnalysisHistoryReader;
+  readonly analysisDistributionReader?: AnalysisDistributionReader;
   readonly codeReader?: CodeReader;
 }
 
@@ -188,6 +192,12 @@ export class DatabaseModule {
           overrides.analysisHistoryReader ?? new DrizzleAnalysisHistoryReader(connection.database),
       },
       {
+        provide: ANALYSIS_DISTRIBUTION_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): AnalysisDistributionReader =>
+          overrides.analysisDistributionReader ?? new DrizzleAnalysisDistributionReader(connection.database),
+      },
+      {
         provide: CODE_READER,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): CodeReader =>
@@ -248,6 +258,7 @@ export class DatabaseModule {
         ANALYSIS_TIME_SERIES_READER,
         ANALYSIS_CONDITION_OPTIONS_READER,
         ANALYSIS_HISTORY_READER,
+        ANALYSIS_DISTRIBUTION_READER,
         CODE_READER,
       ],
     };

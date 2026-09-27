@@ -5,6 +5,7 @@ import { AnalysisFilters } from '../_features/analysis-filters/ui/analysis-filte
 import { AnalysisResetButton } from '../_features/analysis-filters/ui/analysis-reset-button';
 import { AnalysisResultsGate } from '../_features/analysis-filters/ui/analysis-results-gate';
 import { AnalysisWorkspace } from '../_features/analysis-view/ui/analysis-workspace';
+import { DistributionPanel } from '../_features/distribution/ui/distribution-panel';
 import { AnalysisHeader } from './analysis-header';
 import {
   AnalysisRoundInspector,
@@ -71,7 +72,15 @@ export function AnalysisScreen({
       }
       distribution={
         <AnalysisResultsGate requestKey={data.applied.key}>
-          <AnalysisPendingPlot kind='distribution' />
+          {data.distribution === null || context.state === 'invalid' ? (
+            <AnalysisPendingPlot kind='distribution' />
+          ) : (
+            <DistributionPanel
+              view={data.distribution}
+              organizationLabel={context.organization}
+              comparisonLabel={`${context.comparison} 전체`}
+            />
+          )}
         </AnalysisResultsGate>
       }
       history={

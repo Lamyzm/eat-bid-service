@@ -53,6 +53,8 @@ describe('새 상세의 공고 조회와 표시', () => {
         queries.push(query);
         return emptySeries;
       },
+      readDistribution: async () => ({ kind: 'read-failed' as const }),
+
       now: () => {
         clocks += 1;
         return fixtureNow;
@@ -78,6 +80,8 @@ describe('새 상세의 공고 조회와 표시', () => {
       parseId: (id) => id,
       readAuction: async () => ({ kind: 'auction', response: openAuctionFixture }),
       readTimeSeries: async () => ({ kind: 'read-failed' }),
+      readDistribution: async () => ({ kind: 'read-failed' as const }),
+
       now: () => fixtureNow
     });
     expect(data?.timeSeries).toEqual({ kind: 'read-failed' });
@@ -124,6 +128,8 @@ describe('새 상세의 공고 조회와 표시', () => {
         series += 1;
         return emptySeries;
       },
+      readDistribution: async () => ({ kind: 'read-failed' as const }),
+
       now: () => fixtureNow
     });
     // 무효 조건으로 보낸 요청은 400 왕복이 되고, 그때 화면이 보여야 할 것은 표본이 아니라 조건 안내다.
@@ -143,6 +149,8 @@ describe('새 상세의 공고 조회와 표시', () => {
         return { kind: 'not-found' } as const;
       },
       readTimeSeries: async () => emptySeries,
+      readDistribution: async () => ({ kind: 'read-failed' as const }),
+
       now: () => fixtureNow
     };
     expect(await loadAnalysisPage('bad', null, dependencies)).toBeNull();

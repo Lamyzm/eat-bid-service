@@ -1,10 +1,14 @@
-/** @module 책임: RSC에서만 쓰는, 세션 쿠키를 실어 나르는 분석 시간축 조회를 예상된 실패까지 결과 값으로 돌려준다. */
+/** @module 책임: RSC에서만 쓰는, 세션 쿠키를 실어 나르는 분석 시간축·분포 조회를 예상된 실패까지 결과 값으로 돌려준다. */
 import 'server-only';
 
-import type { AnalysisTimeSeriesV1Response } from '@eatbid/contracts/api/v1/analysis';
+import type {
+  AnalysisDistributionV1Response,
+  AnalysisTimeSeriesV1Response
+} from '@eatbid/contracts/api/v1/analysis';
 
 import { privateServerRequest } from '../_transport/private-server-request.server';
 import { isAnalysisCohortNotFoundError } from './analysis-resource-error';
+import { findAnalysisDistributionWith } from './find-analysis-distribution';
 import {
   findAnalysisTimeSeriesWith,
   type AnalysisTimeSeriesQueryInput
@@ -32,7 +36,31 @@ export async function findAnalysisTimeSeriesFromServer(
   input: AnalysisTimeSeriesQueryInput
 ): Promise<AnalysisTimeSeriesRead> {
   try {
-    return { kind: 'series', response: await findAnalysisTimeSeriesWith(privateServerRequest, input) };
+    return {
+      kind: 'series',
+      response: await findAnalysisTimeSeriesWith(privateServerRequest, input)
+    };
+  } catch (error) {
+    if (isAnalysisCohortNotFoundError(error)) return { kind: 'cohort-not-found' };
+    if (privateServerRequest.isUpstreamUnavailable(error)) return { kind: 'read-failed' };
+    throw error;
+  }
+}
+
+/** 분포 조회 결과다. 시간축과 같은 까닭으로 예상된 실패를 값으로 돌려준다 — 분포 하나를 못 그린 일이 화면이 사라진 일이 되면 안 된다. */
+export type AnalysisDistributionRead =
+  | { readonly kind: 'distribution'; readonly response: AnalysisDistributionV1Response }
+  | { readonly kind: 'cohort-not-found' }
+  | { readonly kind: 'read-failed' };
+
+export async function findAnalysisDistributionFromServer(
+  input: AnalysisTimeSeriesQueryInput
+): Promise<AnalysisDistributionRead> {
+  try {
+    return {
+      kind: 'distribution',
+      response: await findAnalysisDistributionWith(privateServerRequest, input)
+    };
   } catch (error) {
     if (isAnalysisCohortNotFoundError(error)) return { kind: 'cohort-not-found' };
     if (privateServerRequest.isUpstreamUnavailable(error)) return { kind: 'read-failed' };

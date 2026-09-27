@@ -8,6 +8,8 @@ import { AuctionRosterController } from "./presentation/http/auction-roster.cont
 import { FindAuction } from "./application/find-auction";
 import { FindAnalysisConditionOptions } from "./application/find-analysis-condition-options";
 import { FindAnalysisHistory } from "./application/find-analysis-history";
+import { FindAnalysisDistribution } from "./application/find-analysis-distribution";
+import type { AnalysisDistributionReader } from "./application/analysis-distribution-reader";
 import type { AnalysisHistoryReader } from "./application/analysis-history-reader";
 import { FindAnalysisTimeSeries } from "./application/find-analysis-time-series";
 import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
@@ -35,6 +37,7 @@ import type { UnitOfWork } from "../../platform/database/unit-of-work";
 import {
   ANALYSIS_CONDITION_OPTIONS_READER,
   ANALYSIS_HISTORY_READER,
+  ANALYSIS_DISTRIBUTION_READER,
   ANALYSIS_TIME_SERIES_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
@@ -118,6 +121,14 @@ const findAnalysisHistoryProvider = {
   useFactory: (reader: AnalysisHistoryReader, axes: AnalysisTimeSeriesReader) => new FindAnalysisHistory(reader, axes),
 };
 
+/** 분포도 기관·지역 축의 존재를 같은 port로 확인한다. */
+const findAnalysisDistributionProvider = {
+  provide: FindAnalysisDistribution,
+  inject: [ANALYSIS_DISTRIBUTION_READER, ANALYSIS_TIME_SERIES_READER],
+  useFactory: (reader: AnalysisDistributionReader, axes: AnalysisTimeSeriesReader) =>
+    new FindAnalysisDistribution(reader, axes),
+};
+
 const listEligibilityAreasProvider = {
   provide: ListEligibilityAreas,
   inject: [ELIGIBILITY_AREA_READER],
@@ -171,6 +182,7 @@ const findMyBidObservationsProvider = {
     findAnalysisTimeSeriesProvider,
     findAnalysisConditionOptionsProvider,
     findAnalysisHistoryProvider,
+    findAnalysisDistributionProvider,
     listOpenAuctionsProvider,
     summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,

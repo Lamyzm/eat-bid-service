@@ -12,6 +12,7 @@ import {
   resetObservations
 } from './cache-observability';
 import { analysisConditionOptionsResponse } from './analysis-condition-options-fixture';
+import { analysisDistributionResponse } from './analysis-distribution-fixture';
 import { analysisTimeSeriesResponse } from './analysis-time-series-fixture';
 import { auctionRosterResponse } from './auction-roster-fixture';
 import { myBusinessesResponse } from './my-businesses-fixture';
@@ -305,6 +306,10 @@ Bun.serve({
     // 아니라 오류 경계에서 멈춘다(2026-09-18 CI 회차 35288060366).
     const timeSeries = analysisTimeSeriesResponse(request);
     if (timeSeries) return timeSeries;
+
+    // 분포도 서버 렌더에서 시간축과 함께 읽는다. 없으면 화면 전체가 오류 경계로 간다(2026-09-27 CI 회차 36284600794).
+    const distribution = analysisDistributionResponse(request);
+    if (distribution) return distribution;
 
     // 조건 막대의 지역·기관·품목 목록은 브라우저가 따로 읽는다. 이 응답이 없으면 여닫이가 빈 채로 선다.
     const conditionOptions = analysisConditionOptionsResponse(request);

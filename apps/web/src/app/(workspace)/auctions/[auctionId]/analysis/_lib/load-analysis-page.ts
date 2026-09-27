@@ -1,6 +1,6 @@
-/** @module 책임: 새 상세에 필요한 공고 한 건과 적용된 조건의 시간축 자료를 읽고 기존 기관 이력·분포 조회와 분리한다. */
+/** @module 책임: 새 상세에 필요한 공고 한 건과 적용된 조건의 시간축·분포 자료를 읽고 기존 기관 이력·분포 조회와 분리한다. */
 import type { AuctionRead } from '@/api/auctions/server';
-import type { AnalysisTimeSeriesRead } from '@/api/analysis/server';
+import type { AnalysisDistributionRead, AnalysisTimeSeriesRead } from '@/api/analysis/server';
 import { analysisTimeSeriesQueryOf } from '@/api/analysis';
 import {
   presentAnalysisFilters,
@@ -10,6 +10,10 @@ import {
   presentTimeSeries,
   type TimeSeriesView
 } from '../_features/time-series/model/present-time-series';
+import {
+  presentDistribution,
+  type DistributionView
+} from '../_features/distribution/model/present-distribution';
 import { presentAnalysisHeader } from './present-analysis-header';
 
 type Dependencies = {
@@ -23,6 +27,10 @@ type Dependencies = {
   readonly readTimeSeries: (
     input: ReturnType<typeof analysisTimeSeriesQueryOf>
   ) => Promise<AnalysisTimeSeriesRead>;
+  /** 분포는 시간축과 같은 query를 받는다. 두 그림이 같은 코호트를 말해야 한다. */
+  readonly readDistribution: (
+    input: ReturnType<typeof analysisTimeSeriesQueryOf>
+  ) => Promise<AnalysisDistributionRead>;
   readonly now: () => string;
 };
 export async function loadAnalysisPage(
@@ -42,11 +50,17 @@ export async function loadAnalysisPage(
   const now = dependencies.now();
   const setup = presentAnalysisFilters(result.response, now);
   const applied = readAppliedAnalysis(rawFilter, setup);
+  // 두 그림은 서로를 기다리지 않는다. 같은 조건을 동시에 묻고, 한쪽 실패는 그쪽 갈래로만 남는다.
+  const [timeSeries, distribution] = await Promise.all([
+    readTimeSeriesView(applied, dependencies),
+    readDistributionView(applied, dependencies)
+  ]);
   return {
     header: presentAnalysisHeader(result.response, now),
     setup,
     applied,
-    timeSeries: await readTimeSeriesView(applied, dependencies)
+    timeSeries,
+    distribution
   };
 }
 
@@ -62,5 +76,15 @@ async function readTimeSeriesView(
   return presentTimeSeries(
     await dependencies.readTimeSeries(analysisTimeSeriesQueryOf(applied.filter)),
     applied.filter.floorRate.value
+  );
+}
+
+async function readDistributionView(
+  applied: Awaited<ReturnType<typeof readAppliedAnalysis>>,
+  dependencies: Dependencies
+): Promise<DistributionView | null> {
+  if (applied.state !== 'pending') return null;
+  return presentDistribution(
+    await dependencies.readDistribution(analysisTimeSeriesQueryOf(applied.filter))
   );
 }
