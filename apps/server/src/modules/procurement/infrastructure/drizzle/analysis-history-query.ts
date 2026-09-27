@@ -12,7 +12,7 @@ import {
   analysisTargetPredicate,
   dateColumn,
 } from "./analysis-time-series-query";
-import { organizationLabelSql } from "./organization-label-sql";
+import { organizationLabelSql, supplierPartyLabelSql } from "./organization-label-sql";
 
 function populationPredicate(query: AnalysisHistoryQuery): SQL {
   return query.population === "target" ? analysisTargetPredicate(query) : analysisComparisonPredicate(query);
@@ -64,12 +64,7 @@ export function analysisHistoryPageSql(query: AnalysisHistoryQuery): SQL {
       page.announced_at, page.opened_at, page.awarded_assessment_rate, page.runner_up_assessment_rate,
       page.list_count, page.below_day_floor_count, page.winner_supplier_party_id,
       -- 업체 이름도 관측 라벨이다. 그 업체의 원천 계정 코드에 매달린 가장 나중 라벨을 쓴다(AGENTS 2).
-      (select observation.label
-         from core.source_supplier_account account
-         join core.code_label_observation observation on observation.code_value_id = account.account_code_value_id
-        where account.supplier_party_id = page.winner_supplier_party_id
-        order by observation.observed_at desc, observation.code_label_observation_id desc
-        limit 1) as winner_name,
+      ${supplierPartyLabelSql(sql`page.winner_supplier_party_id`)} as winner_name,
       -- 품목 원자는 다리 행의 코드다. 다리 행이 없으면 null — 공고가 품목을 말하지 않은 것이다(PDR-0007).
       (select array_agg(code.code order by code.code)
          from mart.org_round_summary_item bridge
