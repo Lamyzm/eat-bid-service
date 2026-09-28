@@ -17,6 +17,8 @@ jobs:
   repository:
     name: 아키텍처·테스트·빌드 검증
     runs-on: ubuntu-latest
+    # 최근 성공 20회 최장 9.5분 → 3배 반올림(EAT-292). 매달린 job이 병합을 360분 막지 않게 한다.
+    timeout-minutes: 30
     steps:
       - name: 전체 이력 checkout
         uses: actions/checkout@v4
@@ -73,6 +75,9 @@ jobs:
     # 계약 218개를 통과하고 운영에서만 죽었다. 오케스트레이터의 의미론은 오케스트레이터에서만 검증된다.
     # 이 job이 그 층이다(EAT-226). 소스는 부르지 않는다 — overlay가 eaT 호스트를 127.0.0.1로 묶는다.
     runs-on: ubuntu-latest
+    # 최근 성공 20회 최장 5.4분 → 3배 반올림(EAT-292). PR #135에서 이 job이 취소를 무시하고 1시간 넘게
+    # 매달려 병합을 막았던 사고(2026-09-29)가 이 값을 넣는 이유다.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Node 설치
@@ -93,6 +98,8 @@ jobs:
   frontend-browser:
     name: 프론트엔드 browser 기반 검증
     runs-on: ubuntu-latest
+    # 최근 성공 20회 최장 5.2분 → 3배 반올림(EAT-292). 매달린 job이 병합을 360분 막지 않게 한다.
+    timeout-minutes: 20
     steps:
       - name: source checkout
         uses: actions/checkout@v4
@@ -152,6 +159,8 @@ jobs:
     needs: [repository, frontend-browser, argo-smoke]
     if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # 과거 3회 실행 모두 4초 안에 끝남 → 3배는 최소값 아래라 하한 15분(EAT-292).
+    timeout-minutes: 15
     permissions:
       issues: write
     steps:

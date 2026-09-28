@@ -17,6 +17,8 @@ env:
 jobs:
   preflight:
     runs-on: ubuntu-latest
+    # 최근 성공 20회 최장 1분 미만 → 3배는 최소값 아래라 하한 15분(EAT-292).
+    timeout-minutes: 15
     if: >-
       ${{
         github.event_name == 'push' &&
@@ -73,6 +75,8 @@ jobs:
   test:
     needs: preflight
     runs-on: ubuntu-latest
+    # 최근 성공 20회 최장 11.2분 → 3배(EAT-292). 매달린 job이 병합을 360분 막지 않게 한다.
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16-alpine
@@ -210,6 +214,8 @@ jobs:
   contract-portability:
     needs: preflight
     runs-on: windows-latest
+    # 최근 성공 20회 최장 3.3분 → 3배는 최소값 아래라 하한 15분(EAT-292).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         # 변경 범위 검사가 origin/main과의 merge-base를 구하려면 shallow clone이 아니라 main 이력이 필요하다.
@@ -243,6 +249,8 @@ jobs:
   build:
     needs: [preflight, test, contract-portability]
     runs-on: ubuntu-latest
+    # matrix 중 최근 성공 20회 최장은 server 5.2분 → 3배 반올림(EAT-292).
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
@@ -448,6 +456,8 @@ jobs:
   promote:
     needs: [preflight, build]
     runs-on: ubuntu-latest
+    # 최근 성공 20회 최장 0.2분 → 3배는 최소값 아래라 하한 15분(EAT-292).
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
