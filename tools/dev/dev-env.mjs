@@ -148,6 +148,8 @@ export function runtimeEnvironment(config) {
     CORS_ORIGINS: webOrigin,
     API_URL: `http://localhost:${config.EATBID_DEV_API_PORT}`,
     EATBID_DEV_LOGIN: "true",
+    // 로컬 dev는 로그인 화면에서 시드 계정으로 바로 들어간다(EAT-284). e2e와 운영에는 이 값이 없다.
+    EATBID_DEV_AUTO_LOGIN: "true",
     SWAGGER_ENABLED: "true",
     NEXT_PUBLIC_SENTRY_DISABLED: "1",
   };
