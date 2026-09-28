@@ -294,6 +294,28 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         key_columns=("publication_id",),
     ),
     Expectation(
+        key="unresolved-exclusion",
+        title="발행에서 뺀 공고가 아직 어느 revision도 얻지 못했다",
+        runbook="docs/operations/collection-runbook.md#410-발행에서-뺀-공고가-남아-있다--unresolved-exclusion-2026-09-29-eat-294-adr-0061",
+        # 레코드 범위의 위반은 창 전체를 막지 않고 원장의 제외로 빠진다(ADR 0061). 그 대가로 공개 뷰에 알려진
+        # 구멍이 생기고, 구멍은 이름이 붙어 있을 때만 허용된다 — 전진은 그런 창을 정산된 것으로 보고 다시 받지
+        # 않으므로 이 기대가 열려 있지 않으면 구멍이 조용히 굳는다. 계약을 고친 뒤 replay가 채우면 해소된다.
+        #
+        # 달 전체 창만 보지 않는 이유: 실시간 창의 제외도 같은 구멍이다. `failed-publication-window`가 하루 창을
+        # 빼는 까닭은 완결이 회차마다 오가서인데, 미해소 제외 수는 replay가 채우기 전에는 줄지 않으므로 여기서는
+        # 열림·해소가 오가지 않는다. 같은 시작일의 하루 창과 달 창이 한 key로 접히지 않게 끝일도 key에 넣는다.
+        # 심각도는 normal이라 아침 요약에 실린다(ADR 0054 결정 1) — 공개된 99.96%는 이미 보이고 있다.
+        sql="""
+            select window_start, window_end, unresolved_exclusions, excluded_ids,
+                   published_ids, discovered_ids
+              from ingest.backfill_coverage
+             where unresolved_exclusions > 0
+             order by window_start desc, window_end desc
+        """,
+        parameters={},
+        key_columns=("window_start", "window_end"),
+    ),
+    Expectation(
         key="item-vocabulary-gap",
         title="활성 mart build의 품목 라벨이 전부 어휘 안에 있다",
         runbook="docs/operations/collection-runbook.md#49-품목-라벨에-어휘-밖-낱말이-나타났다--item-vocabulary-gap-2026-09-17-eat-255",

@@ -901,16 +901,20 @@ def test_parser_version_mismatch가_publication을_차단한다(
     )
 
 
-def test_quarantine가_publication을_차단한다(pipeline_services: PipelineServices) -> None:
-    run_id = start_run(pipeline_services)
-    observation_id = capture_detail(
-        pipeline_services,
-        run_id=run_id,
-        external_bid_id=uuid4().hex,
-        body=b"<broken>",
-    )
-    with pytest.raises(DataQuarantinedError):
-        normalize_one(pipeline_services, observation_id)
+def test_허용_수를_넘은_quarantine가_publication을_차단한다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """기대 2건이면 허용 수는 1이다(ADR 0061 결정 3). 둘 다 격리되면 레코드 범위여도 창 전체가 실패한다."""
+    run_id = start_run(pipeline_services, expected_count=2)
+    for _ in range(2):
+        observation_id = capture_detail(
+            pipeline_services,
+            run_id=run_id,
+            external_bid_id=uuid4().hex,
+            body=b"<broken>",
+        )
+        with pytest.raises(DataQuarantinedError):
+            normalize_one(pipeline_services, observation_id)
     publication_id = uuid4()
 
     result = validate_run(

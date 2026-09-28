@@ -1,4 +1,4 @@
-"""재처리 대상 고르기가 무한 반복을 막는지 고정한다(EAT-274, EAT-296)."""
+"""재처리 대상 고르기가 무한 반복을 막는지 고정한다(EAT-274, EAT-296, EAT-294)."""
 
 from __future__ import annotations
 
@@ -179,3 +179,49 @@ def test_멈춘_창이_섞여_있어도_실패_창의_이미지_규칙은_그대
 
     assert 대상 is not None
     assert 대상.window_start == "20260101"
+
+
+def _제외_후보(build_sha: str, window_start: str = "20241001") -> FailedPublication:
+    return FailedPublication(
+        source_release_id=UUID(int=5),
+        publication_id=UUID(int=6),
+        build_sha=build_sha,
+        window_start=window_start,
+        state="excluded",
+    )
+
+
+def test_해소_안_된_제외를_지금_이미지가_마지막으로_시도했으면_고르지_않는다() -> None:
+    """왜: 같은 이미지로 다시 파싱하면 같은 격리가 나서 같은 제외가 적힌다(ADR 0061 결정 5). 발행은 성공한
+    창이라 이 규칙이 없으면 매 회차 16,000건 창을 헛되이 다시 돈다."""
+    assert (
+        select_replay_target(
+            (_제외_후보(지금이미지),), build_sha=지금이미지, run_id=실행, as_of=기준시각
+        )
+        is None
+    )
+
+
+def test_다른_이미지가_마지막으로_시도한_제외는_고른다() -> None:
+    """왜: 계약을 고친 이미지가 배포됐다는 뜻이고, 그 재파싱이 제외 자리를 채울 수 있다."""
+    대상 = select_replay_target(
+        (_제외_후보(옛이미지),), build_sha=지금이미지, run_id=실행, as_of=기준시각
+    )
+
+    assert 대상 is not None
+    assert 대상.source_release_id == UUID(int=5)
+    assert 대상.failed_publication_id == UUID(int=6)
+    assert 대상.publication_id == uuid5(실행, "eatbid:replay-publication")
+
+
+def test_제외_후보가_섞여도_멈춘_창의_규칙은_그대로다() -> None:
+    """EAT-296의 멈춤 규칙은 이미지를 보지 않는다. 앞에 선 제외 후보가 지금 이미지 것이면 건너뛰고 멈춘 창을 고른다."""
+    대상 = select_replay_target(
+        (_제외_후보(지금이미지, "20260920"), _멈춘_후보(지금이미지)),
+        build_sha=지금이미지,
+        run_id=실행,
+        as_of=기준시각,
+    )
+
+    assert 대상 is not None
+    assert 대상.source_release_id == UUID(int=3)

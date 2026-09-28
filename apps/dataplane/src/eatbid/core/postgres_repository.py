@@ -1,4 +1,4 @@
-"""모듈 책임: 발행 하나를 PostgreSQL에서 잠그고, 봉인된 구성원과 실행 상태가 서로 어긋나지 않는지
+"""모듈 책임: 발행 하나를 PostgreSQL에서 잠그고, 봉인된 구성원·제외 원장과 실행 상태가 서로 어긋나지 않는지
 확인한 뒤 core 투영과 발행 상태 전이를 한 트랜잭션으로 끝낸다.
 
 행을 쓰는 방법은 writer 모듈들이 갖고, 여기는 무엇을 어떤 순서로 잠그고 어떤 실패를 어떤 범주로
@@ -17,9 +17,18 @@ from uuid import UUID
 
 import psycopg
 
-from eatbid.core.models import AuctionProjection, ProjectResult
+from eatbid.core.models import (
+    AuctionProjection,
+    ProjectResult,
+    sealed_publication_fingerprint,
+)
 from eatbid.core.postgres_projection_writer import CanonicalProjectionWriter
-from eatbid.core.postgres_topology import LockedAuctionTopology, lock_auction_topology
+from eatbid.core.postgres_topology import (
+    LockedAuctionTopology,
+    LockedExclusion,
+    lock_auction_topology,
+    lock_publication_exclusions,
+)
 from eatbid.core.projection_models import AppliedProjectionCounts
 from eatbid.core.projection_stream import (
     PROJECTION_BATCH_SIZE,
@@ -62,6 +71,9 @@ class _PublicationState:
     expected_count: int
     normalized_count: int
     published_count: int
+    # 원장에 적고 뺀 레코드 수(ADR 0061). 발행되는 수는 언제나 `expected_count - excluded_count`다.
+    excluded_count: int
+    run_excluded_count: int
     validated_at: datetime | None
     activated_at: datetime | None
     canonical_fingerprint: str | None
@@ -222,12 +234,13 @@ class PsycopgCanonicalProjectionRepository:
                 "publication activation chronology is invalid"
             )
 
-        manifest_ids = self._lock_members(
+        manifest_ids, exclusions = self._lock_members(
             cursor,
             publication_id=publication_id,
             topology=topology,
             expected_count=state.expected_count,
             normalized_count=state.normalized_count,
+            excluded_count=state.excluded_count,
         )
         allow_insert = state.publication_status == "validated"
         writer = CanonicalProjectionWriter()
@@ -244,7 +257,7 @@ class PsycopgCanonicalProjectionRepository:
 
         # 구성원 행은 위에서 전부 잠갔고 여기서는 batch마다 payload만 다시 읽는다. 발행 전체를 한 번에
         # 올리면 16,000건 창에서 노드 메모리를 넘긴다(EAT-94). 한 transaction 안이므로 어느 batch에서
-        # 실패해도 공개되는 것은 없다.
+        # 실패해도 공개되는 것은 없다. 제외된 관측은 레코드가 없어 투영할 것이 없고, 원장은 지문에 봉인된다.
         streamed = project_member_batches(
             self._member_batches(
                 cursor, manifest_ids, run_parser_version=state.parser_version
@@ -253,7 +266,13 @@ class PsycopgCanonicalProjectionRepository:
             verify_output=self._verify_factory_output,
             apply=apply,
         )
-        fingerprint = streamed.canonical_fingerprint
+        fingerprint = sealed_publication_fingerprint(
+            streamed.canonical_fingerprint,
+            (
+                (exclusion.observation_id, exclusion.stage, exclusion.reason_code)
+                for exclusion in exclusions
+            ),
+        )
         applied = streamed.applied
 
         if state.publication_status == "published":
@@ -287,7 +306,7 @@ class PsycopgCanonicalProjectionRepository:
                 """
                 update ingest.run
                 set status = 'published', ended_at = %s,
-                    published_count = expected_count
+                    published_count = expected_count - excluded_count
                 where run_id = %s and status = 'validated'
                 """,
                 (effective_activated_at, state.run_id),
@@ -327,7 +346,8 @@ class PsycopgCanonicalProjectionRepository:
         cursor.execute(
             """
             select mode, started_at, status, build_sha, parser_version,
-                   expected_count, published_count, failure_category, ended_at
+                   expected_count, published_count, failure_category, ended_at,
+                   excluded_count
             from ingest.run where run_id = %s for no key update
             """,
             (run_id,),
@@ -345,7 +365,7 @@ class PsycopgCanonicalProjectionRepository:
             """
             select run_id, status, expected_count, normalized_count,
                    published_count, validated_at, activated_at,
-                   canonical_fingerprint, projector_version
+                   canonical_fingerprint, projector_version, excluded_count
             from ingest.publication where publication_id = %s for no key update
             """,
             (publication_id,),
@@ -369,6 +389,8 @@ class PsycopgCanonicalProjectionRepository:
                 expected_count=int(publication[2]),
                 normalized_count=int(publication[3]),
                 published_count=int(publication[4]),
+                excluded_count=int(publication[9]),
+                run_excluded_count=int(run[9]),
                 validated_at=publication[5],
                 activated_at=publication[6],
                 canonical_fingerprint=(
@@ -386,7 +408,15 @@ class PsycopgCanonicalProjectionRepository:
 
     @staticmethod
     def _verify_state_metadata(state: _PublicationState) -> None:
-        if state.validated_at is None or state.expected_count != state.normalized_count:
+        # 발행될 수는 기대에서 원장에 적은 제외를 뺀 것이다(ADR 0061). 제외가 0이면 이전의
+        # "기대 = 정규화 = 발행"과 같다.
+        publishable_count = state.expected_count - state.excluded_count
+        if (
+            state.validated_at is None
+            or state.excluded_count < 0
+            or state.normalized_count != publishable_count
+            or state.run_excluded_count != state.excluded_count
+        ):
             raise ProjectionContractError(
                 "publication validation metadata is incomplete"
             )
@@ -414,8 +444,8 @@ class PsycopgCanonicalProjectionRepository:
             or state.projector_version is None
             or state.ended_at is None
             or state.failure_category is not None
-            or state.published_count != state.expected_count
-            or state.run_published_count != state.expected_count
+            or state.published_count != publishable_count
+            or state.run_published_count != publishable_count
         ):
             raise ProjectionContractError(
                 "published publication metadata is inconsistent"
@@ -429,12 +459,18 @@ class PsycopgCanonicalProjectionRepository:
         topology: LockedAuctionTopology,
         expected_count: int,
         normalized_count: int,
-    ) -> tuple[int, ...]:
-        """봉인된 manifest와 구성원 행을 전부 잠그고 id만 돌려준다.
+        excluded_count: int,
+    ) -> tuple[tuple[int, ...], tuple[LockedExclusion, ...]]:
+        """봉인된 manifest·제외 원장과 구성원 행을 전부 잠그고 구성원 id와 원장 행을 돌려준다.
 
         잠금은 발행 전체를 한 번에 잡아야 한다 — batch마다 잠그면 뒤 batch를 잠그기 전에 다른 실행이
         앞 batch의 관측을 바꿀 수 있다. 대신 payload는 여기서 읽지 않는다. id 16,000개는 작지만
         payload 16,000개는 노드 메모리를 넘긴다(EAT-94).
+
+        구성원은 기대에서 제외를 뺀 수와 같아야 하고, 원장은 지금 격리된 시도의 관측과 정확히 같은
+        `normalize` 단계 행이어야 한다. 투영과 공개 재검증이 같은 대조를 거치므로 제외는 구성원과 함께
+        봉인된 사실이 된다(ADR 0061 결정 4). `project` 단계 제외는 이 경로가 아직 만들지 않으므로(EAT-295)
+        원장에 있으면 격리 관측과 어긋나 계약 위반으로 닫힌다.
         """
         cursor.execute(
             """
@@ -447,16 +483,29 @@ class PsycopgCanonicalProjectionRepository:
             (publication_id,),
         )
         manifest_ids = tuple(int(row[0]) for row in cursor.fetchall())
-        if len(manifest_ids) != expected_count or len(manifest_ids) != normalized_count:
+        if (
+            len(manifest_ids) != expected_count - excluded_count
+            or len(manifest_ids) != normalized_count
+        ):
             raise ProjectionContractError("publication manifest cardinality differs")
         if (
             len(topology.candidate_ids) != expected_count
-            or not topology.coherent
+            or not topology.settled
             or topology.member_ids != manifest_ids
         ):
             raise ProjectionContractError("publication candidate topology differs")
-        if not topology.candidate_ids:
-            return ()
+        exclusions = lock_publication_exclusions(cursor, publication_id=publication_id)
+        if (
+            len(exclusions) != excluded_count
+            or tuple(exclusion.observation_id for exclusion in exclusions)
+            != topology.quarantined_observation_ids
+            or any(exclusion.stage != "normalize" for exclusion in exclusions)
+        ):
+            raise ProjectionContractError(
+                "publication exclusion ledger differs from quarantined lineage"
+            )
+        if not manifest_ids:
+            return (), exclusions
 
         cursor.execute(
             """
@@ -475,7 +524,7 @@ class PsycopgCanonicalProjectionRepository:
             raise ProjectionContractError(
                 "publication member lineage differs from frozen manifest"
             )
-        return manifest_ids
+        return manifest_ids, exclusions
 
     def _member_batches(
         self,

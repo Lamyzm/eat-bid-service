@@ -79,6 +79,9 @@ begin
   execute 'grant usage, select, update on all sequences in schema ingest, core, mart '
           'to eatbid_dataplane';
   execute 'grant select on all tables in schema drizzle to eatbid_dataplane';
+  -- 발행 제외 원장(ingest.publication_exclusion, ADR 0061)을 validate가 쓰는 권한도 위 ingest 전체 DML과
+  -- 아래 migrator default privilege가 준다. 표마다 따로 주지 않는 이유는 수집 단계가 ingest의 어느 표에나 쓰는
+  -- 것이 이 역할의 정의라서다 — 표별 grant를 두면 새 표마다 빠뜨릴 자리가 생긴다.
 
   -- 감시 회차(check-expectations)가 monitoring.round에 회차당 한 행을 쌓고(EAT-227), monitoring.violation의
   -- 열린 행에 관측·해소·재알림 시각을 갱신한다(ADR 0054). 지우지는 않는다 — 해소된 위반은 이력이다.
@@ -100,13 +103,18 @@ begin
   execute 'revoke insert, update, delete, truncate, references, trigger '
           'on all tables in schema monitoring, mart from eatbid_grafana';
   execute 'revoke all on schema ingest, core, app, drizzle from eatbid_grafana';
-  -- 크롤러 진척 대시보드(ADR 0054 설계 D6)가 읽는 ingest의 자리 다섯만 연다. 진도 뷰, 보류 결정, run·publication
-  -- 원장, 격리 사유다. raw 관측·요청 단위·정규화 본문에는 여전히 닿지 않으며 default privilege도 주지 않는다 —
-  -- ingest에 표가 늘어도 Grafana가 저절로 읽지 못하게 하는 것이 경계다.
+  -- 크롤러 진척 대시보드(ADR 0054 설계 D6)가 읽는 ingest의 자리 여섯만 연다. 진도 뷰, 보류 결정, run·publication
+  -- 원장, 격리 사유, 발행 제외 원장(ADR 0061)이다. raw 관측·요청 단위·정규화 본문에는 여전히 닿지 않으며 default
+  -- privilege도 주지 않는다 — ingest에 표가 늘어도 Grafana가 저절로 읽지 못하게 하는 것이 경계다.
   execute 'grant usage on schema ingest to eatbid_grafana';
   execute 'grant select on ingest.backfill_coverage, ingest.run, ingest.publication, ingest.normalization_attempt to eatbid_grafana';
   if to_regclass('ingest.source_hold') is not null then
     execute 'grant select on ingest.source_hold to eatbid_grafana';
+  end if;
+  -- 발행에서 뺀 공고가 무엇이고 왜인지를 대시보드가 사유 코드별로 보여야 알려진 구멍이 이름을 갖는다(ADR 0061
+  -- 결정 5). 마이그레이션 전에 이 스크립트가 돌 수 있으므로 표가 있을 때만 준다.
+  if to_regclass('ingest.publication_exclusion') is not null then
+    execute 'grant select on ingest.publication_exclusion to eatbid_grafana';
   end if;
 
   foreach grantor in array array['eatbid_migrator', current_user] loop

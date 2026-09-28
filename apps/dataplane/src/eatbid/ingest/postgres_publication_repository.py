@@ -1,5 +1,5 @@
-"""모듈 책임: 실행 하나의 정규화 결과를 PostgreSQL에서 검증해 발행 manifest로 봉인하고, 소스 계약과
-완결성 판정의 실패를 실행 상태로 남긴다.
+"""모듈 책임: 실행 하나의 정규화 결과를 PostgreSQL에서 검증해 발행 manifest와 제외 원장으로 봉인하고, 소스
+계약과 완결성 판정의 실패를 실행 상태로 남긴다.
 """
 
 from __future__ import annotations
@@ -10,16 +10,23 @@ from uuid import UUID
 
 import psycopg
 
-from eatbid.core.postgres_topology import lock_auction_topology
+from eatbid.core.postgres_topology import (
+    LockedAuctionTopology,
+    lock_auction_topology,
+    lock_publication_exclusions,
+)
 from eatbid.failures.categories import (
     DATA_QUARANTINED,
     PRE_VALIDATION_FAILURE_CATEGORIES,
     PROJECTION_CONTRACT,
     SOURCE_CONTRACT,
 )
+from eatbid.ingest.postgres_publication_exclusion import record_normalize_exclusions
 from eatbid.ingest.publication_repository import (
     CompletenessValidator,
     PublicationValidation,
+    QuarantinedRecord,
+    RecordExclusion,
     SourceContractValidator,
 )
 from eatbid.source.eat.code_schemes import FOUNDATION_CODE_SCHEMES
@@ -80,6 +87,9 @@ class PsycopgPublicationRepository:
                 request_counts = (
                     (len(topology.candidate_ids), len(topology.candidate_ids)),
                 )
+            # 소스 계약은 해석에 성공한 시도에서만 센다. 격리된 시도의 지문은 그 관측 하나가 깨졌다는 기록이라
+            # 범위가 그 한 건이고(ADR 0061 결정 2), 그 격리가 레코드 범위인지는 완결 검증기가 사유로 가른다.
+            # 여기서 세면 XML 한 건이 깨질 때마다(지문이 없다) 창 전체가 소스 계약 위반으로 막힌다.
             schema_contract_violations = sum(
                 not source_contract_validator(
                     source=attempt.source,
@@ -88,26 +98,36 @@ class PsycopgPublicationRepository:
                     schema_fingerprint=attempt.schema_fingerprint,
                 )
                 for attempt in topology.current_attempts
+                if attempt.status != "quarantined"
             )
             source_entities = [member.source_entity_id for member in topology.members]
             duplicate_source_entities = len(source_entities) - len(set(source_entities))
             missing_schemes = self._missing_schemes(cursor)
+            # 시도가 없는 후보는 격리가 아니다. 격리 목록에 섞지 않으므로 "정규화 + 격리 = 관측" 등식과
+            # `settled`가 그것을 창 전체 결함으로 막는다.
             report = completeness_validator(
                 request_counts=request_counts,
+                expected_count=int(expected_count),
                 normalized=len(topology.members),
-                quarantined=(
-                    topology.quarantined_current_attempts
-                    + topology.missing_current_attempts
+                quarantined=tuple(
+                    QuarantinedRecord(
+                        observation_id=attempt.observation_id,
+                        reason=attempt.quarantine_reason or "",
+                    )
+                    for attempt in topology.quarantined_attempts
                 ),
                 duplicate_source_entities=duplicate_source_entities,
                 missing_code_schemes=missing_schemes,
                 schema_contract_violations=schema_contract_violations,
             )
+            # 저장소가 잠근 lineage로만 볼 수 있는 창 전체 결함이다(ADR 0061 결정 2): 실패한 요청, 기대 수와
+            # 다른 후보 수, parser_version 불일치, 시도 누락·격리에 붙은 구성원·모르는 record_type
+            # (`settled`가 `partial_coherent`로 본다). 격리 자체는 여기서 결함이 아니다.
             ledger_coherent = (
                 failed_requests == 0
                 and len(topology.candidate_ids) == int(expected_count)
                 and topology.parser_mismatches == 0
-                and topology.coherent
+                and topology.settled
             )
             if status in {"validated", "failed"}:
                 if status == "validated" and not (
@@ -126,8 +146,7 @@ class PsycopgPublicationRepository:
                         str(failure_category) if failure_category is not None else None
                     ),
                     run_ended_at=ended_at,
-                    current_normalized_count=len(topology.members),
-                    current_member_ids=topology.member_ids,
+                    topology=topology,
                 )
             if report.publishable and ledger_coherent:
                 consume_pending = self._consume_pending(
@@ -137,13 +156,14 @@ class PsycopgPublicationRepository:
                     expected_count=int(expected_count),
                     required=mode == "replay",
                 )
-                self._persist_validated(
+                excluded_count = self._persist_validated(
                     cursor,
                     run_id=run_id,
                     publication_id=publication_id,
                     validated_at=validated_at,
                     expected_count=int(expected_count),
-                    member_ids=topology.member_ids,
+                    topology=topology,
+                    exclusions=report.exclusions,
                     consume_pending=consume_pending,
                 )
                 return PublicationValidation(
@@ -153,6 +173,7 @@ class PsycopgPublicationRepository:
                     expected_count=int(expected_count),
                     normalized_count=len(topology.member_ids),
                     member_ids=topology.member_ids,
+                    excluded_count=excluded_count,
                 )
 
             consume_pending = self._consume_pending(
@@ -268,9 +289,24 @@ class PsycopgPublicationRepository:
         publication_id: UUID,
         validated_at: datetime,
         expected_count: int,
-        member_ids: tuple[int, ...],
+        topology: LockedAuctionTopology,
+        exclusions: tuple[RecordExclusion, ...],
         consume_pending: bool,
-    ) -> None:
+    ) -> int:
+        """구성원 manifest와 제외 원장을 같은 transaction에서 봉인하고 제외 수를 돌려준다.
+
+        제외는 지금 격리된 관측과 정확히 같아야 한다. 검증기가 격리마다 한 항목을 돌려주는 것을 믿지 않고
+        여기서 다시 대조하는 이유는 원장이 "기록된 결손"의 권위이기 때문이다(ADR 0061 결정 4).
+        """
+        member_ids = topology.member_ids
+        excluded_ids = tuple(exclusion.observation_id for exclusion in exclusions)
+        if (
+            excluded_ids != topology.quarantined_observation_ids
+            or len(member_ids) + len(excluded_ids) != expected_count
+        ):
+            raise PublicationIntegrityError(
+                "validated members and exclusions do not cover the expected count"
+            )
         if consume_pending:
             _transition_pending_publication(
                 cursor,
@@ -310,6 +346,9 @@ class PsycopgPublicationRepository:
         )
         if cursor.rowcount != 1:
             raise PublicationIntegrityError("run validation transition failed")
+        return record_normalize_exclusions(
+            cursor, publication_id=publication_id, run_id=run_id, exclusions=exclusions
+        )
 
     @staticmethod
     def _persist_failed(
@@ -364,14 +403,15 @@ class PsycopgPublicationRepository:
         run_expected_count: int,
         run_failure_category: str | None,
         run_ended_at: datetime | None,
-        current_normalized_count: int,
-        current_member_ids: tuple[int, ...],
+        topology: LockedAuctionTopology,
     ) -> PublicationValidation:
+        current_normalized_count = len(topology.members)
+        current_member_ids = topology.member_ids
         cursor.execute(
             """
             select publication_id, status, validated_at, activated_at,
                    expected_count, normalized_count, published_count,
-                   canonical_fingerprint, projector_version
+                   canonical_fingerprint, projector_version, excluded_count
             from ingest.publication where run_id = %s for no key update
             """,
             (run_id,),
@@ -447,6 +487,25 @@ class PsycopgPublicationRepository:
             raise PublicationIntegrityError(
                 "terminal publication member manifest differs from current lineage"
             )
+        # 제외도 구성원과 같은 규칙으로 봉인됐다. 검증을 통과한 발행이면 원장이 지금 격리된 관측과 정확히
+        # 같고, 검증 전에 실패한 발행은 제외를 적지 않는다.
+        excluded_ids = tuple(
+            exclusion.observation_id
+            for exclusion in lock_publication_exclusions(
+                cursor, publication_id=publication_id
+            )
+        )
+        expected_excluded_ids = (
+            topology.quarantined_observation_ids
+            if run_status == "validated" or run_failure_category == PROJECTION_CONTRACT
+            else ()
+        )
+        if excluded_ids != expected_excluded_ids or int(publication[9]) != len(
+            excluded_ids
+        ):
+            raise PublicationIntegrityError(
+                "terminal publication exclusions differ from current lineage"
+            )
         return PublicationValidation(
             publication_id=publication_id,
             run_id=run_id,
@@ -454,6 +513,7 @@ class PsycopgPublicationRepository:
             expected_count=int(publication[4]),
             normalized_count=int(publication[5]),
             member_ids=member_ids,
+            excluded_count=len(excluded_ids),
             # 재호출도 같은 typed failure로 끝나야 한다. run에 남은 category가 그 권위다.
             failure_category=(
                 run_failure_category if publication_status == "failed" else None

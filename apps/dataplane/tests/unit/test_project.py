@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from eatbid.core.models import AuctionProjection
+from eatbid.core.models import AuctionProjection, sealed_publication_fingerprint
 from eatbid.core.repository import FrozenPublicationMember, ProjectionContractError
 from eatbid.pipeline.project import (
     ProjectionFingerprintItem,
@@ -201,3 +201,24 @@ def test_projection_parser가_snake_case_generated_alias_payload를_거부한다
 
     with pytest.raises(ProjectionContractError, match="normalized payload"):
         parse_canonical_normalized_auction(canonical)
+
+
+def test_제외가_없으면_발행_지문은_구성원_지문_그대로다() -> None:
+    """이미 발행된 publication은 모두 제외가 0이다. 재검증이 옛 지문을 그대로 재현해야 한다(ADR 0061)."""
+    assert sealed_publication_fingerprint(EXPECTED_FINGERPRINT, ()) == EXPECTED_FINGERPRINT
+
+
+def test_제외가_있으면_원장이_지문에_봉인되고_순서와_무관하다() -> None:
+    원장 = ((12, "normalize", "SOURCE_XML_BROKEN"), (3, "normalize", "RECORD_CONTRACT_VIOLATION"))
+
+    봉인 = sealed_publication_fingerprint(EXPECTED_FINGERPRINT, 원장)
+
+    assert 봉인 != EXPECTED_FINGERPRINT
+    assert sealed_publication_fingerprint(EXPECTED_FINGERPRINT, reversed(원장)) == 봉인
+    # 무엇을 왜 뺐는지가 바뀌면 같은 구성원이어도 다른 발행이다.
+    assert (
+        sealed_publication_fingerprint(
+            EXPECTED_FINGERPRINT, ((12, "normalize", "SOURCE_NEXACRO_SHAPE"), 원장[1])
+        )
+        != 봉인
+    )

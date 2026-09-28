@@ -2,7 +2,7 @@
 id: INGESTION-WRITE-MAP
 status: active
 canonical_for: dataplane-write-targets-and-boundaries
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-29
 review_trigger: dataplane-write-target-or-transaction-boundary-change
 ---
 
@@ -38,7 +38,7 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | `discover` | R2 목록 page, `run`(발견 run과 상세 run), `request_unit`, `raw_blob`·`raw_observation`, `source_release`(+`_dataset`·`_run`·`_observation`) | repository 호출 하나가 짧은 transaction 하나다. 목록 page는 R2 put이 끝난 뒤에만 관측으로 기록된다. 상세 재호출 대상은 마지막 봉인 release와 대조해 좁힌다 | 발견한 숫자 ID manifest가 release의 expected가 된다 | ADR 0010, 0025, 0037 |
 | `capture` | R2 상세 응답, `raw_blob`·`raw_observation`, `request_unit`(예약·해제), `run`(실패 종료), `source_release_observation`, `source_release_dataset`(진행 수) | `reserve_capture`가 request_unit과 run을 `for update`로 잠근다. 같은 단위를 다시 돌리면 기존 canonical 관측을 돌려주고 소스를 부르지 않는다(resume). chunk pod 단위이며 소스 semaphore로 직렬이다 | 요청 단위당 canonical 관측 1건 | ADR 0010, 0014, EAT-122 |
 | `normalize` | `normalization_attempt`, `normalization_attempt_record`, `normalized_record` | 관측·publication record·request unit·blob을 `for update`로 잠근 한 transaction. 파싱 실패는 status `quarantined`와 사유를 가진 attempt 행이며 record를 만들지 않는다 | attempt는 run 범위이고 같은 payload는 같은 record다 | ADR 0014, 0038 |
-| `validate` | `source_release`(sealed 또는 failed)·`run`, `publication`·`publication_record` | 봉인이 먼저다. READ COMMITTED terminal transaction에서 release를 `for update`로 잠그고 `observed = expected`, `normalized + quarantined = observed`를 검사한다. 그다음 run을 잠그고 publication을 pending에서 validated 또는 failed로 옮긴다. failed면 그 category가 exit code다 | 격리가 있어도 관측 집합은 완결된다 | ADR 0025, EAT-122 |
+| `validate` | `source_release`(sealed 또는 failed)·`run`, `publication`·`publication_record`·`publication_exclusion` | 봉인이 먼저다. READ COMMITTED terminal transaction에서 release를 `for update`로 잠그고 `observed = expected`, `normalized + quarantined = observed`를 검사한다. 그다음 run을 잠그고 publication을 pending에서 validated 또는 failed로 옮긴다. 레코드 범위 격리가 허용 수 안이면 validated와 같은 transaction에서 격리마다 `normalize` 단계 제외 한 행을 적고 발행·run의 `excluded_count`를 원장 행 수와 맞춘다. failed면 그 category가 exit code다 | 격리가 있어도 관측 집합은 완결된다. `expected = normalized + excluded`이고 원장에 없는 결손은 없다 | ADR 0025, 0061, EAT-122 |
 | `fail-release`(운영자) | `source_release`(failed), `run`(닫힘) | 같은 terminal transaction. planned만 대상이고 같은 category 재실행은 멱등이다 | 어떤 단계도 자동으로 여기 오지 않는다 | EAT-122, [runbook §4.3](../operations/collection-runbook.md) |
 | `project` | `publication`(active 또는 failed)·`run`, `core.organization`·`organization_identifier`·`auction_attempt`·`auction_attempt_link`·`auction_revision`·`auction_organization`·`auction_revision_code_value`·`code_value`·`code_label_observation`·`bid_submission`·`award_decision`·`source_supplier_account`·`supplier_party` | publication과 run, 공고 topology, manifest 구성원을 순서대로 잠근 한 transaction. Argo mutex `eatbid-core-publication`. 실패 기록은 별도 연결로 남겨 되감기에서 살아남는다. 성공 뒤 web cache 무효화 요청은 부수 효과이며 성공 조건이 아니다 | 잠근 행 집합이 manifest와 같고 관계 집합을 검증한다 | ADR 0015, 0033, 0036, 0038 |
 | `build-marts` | `mart.build`(ledger)·`build_coverage`·`org_round_summary`·`win_rate_distribution_monthly`·`open_auction_snapshot`·`open_auction_snapshot_item`(스냅샷 행의 품목 원자 다리표)·`org_round_summary_item`(회차 요약 행의 품목 원자 다리표)·`build_vocabulary_gap`(어휘 밖 조각과 행 수), 그리고 스냅샷이 가리킬 `core.auction_attempt` 행 보장 | mart마다 build 행을 `for update`로 잡고 채움 → 검증 → 활성화 순서다. 활성화는 같은 mart의 active를 superseded로 바꾸고 verified를 active로 올리는 한 commit이다. Argo mutex `eatbid-mart-build` | 활성 포인터 교체가 원자이고 stale은 정상이다 | ADR 0011, 0034 |
@@ -67,6 +67,7 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | capture, validate | `ingest/postgres_release_guards.py` | `ingest.source_release_observation`, `ingest.source_release_dataset` |
 | normalize, replay | `ingest/postgres_normalization_repository.py` | `ingest.normalization_attempt`, `ingest.normalization_attempt_record`, `ingest.normalized_record` |
 | validate, replay | `ingest/postgres_publication_repository.py` | `ingest.publication`, `ingest.publication_record`, `ingest.run` |
+| validate, replay | `ingest/postgres_publication_exclusion.py` | `ingest.publication_exclusion`, `ingest.publication`, `ingest.run` (검증을 통과한 발행의 정규화 단계 제외 원장과 두 제외 수. 원장 행 수와 두 수가 같은지 같은 transaction에서 다시 센다, ADR 0061) |
 | validate, fail-release, capture-reference, capture-code-vocabulary | `ingest/postgres_release_sealing.py` | `ingest.source_release`, `ingest.run` |
 | replay | `ingest/postgres_replay_repository.py` | `ingest.run`, `ingest.replay_input`, `ingest.publication` |
 | project, replay | `core/postgres_repository.py` | `ingest.publication`, `ingest.run` |

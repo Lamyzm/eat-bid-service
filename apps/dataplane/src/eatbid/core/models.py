@@ -104,3 +104,26 @@ def canonical_projection_fingerprint(
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def sealed_publication_fingerprint(
+    member_fingerprint: str,
+    exclusions: Iterable[tuple[int, str, str]],
+) -> str:
+    """구성원 지문에 발행 제외 원장 `(observation_id, stage, reason_code)`를 봉인한 발행 지문이다(ADR 0061).
+
+    제외가 없으면 구성원 지문을 그대로 돌려준다. 이미 발행된 publication은 모두 제외가 0이라 그 지문을 다시
+    계산해도 같아야 하기 때문이다. 제외가 있으면 원장도 발행이 공개한 사실의 일부다 — 무엇을 뺐는지가 바뀌면
+    같은 구성원이어도 다른 발행이므로 재검증이 그것을 잡아야 한다. 관측 id는 발행 밖에서 뜻이 없지만
+    원장이 가리키는 것이 바로 그 관측이라 그대로 싣는다.
+    """
+    sealed = sorted(exclusions)
+    if not sealed:
+        return member_fingerprint
+    canonical = json.dumps(
+        {"excluded": sealed, "members": member_fingerprint},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()

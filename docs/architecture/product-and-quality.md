@@ -1,3 +1,11 @@
+---
+id: PRODUCT-AND-QUALITY
+status: active
+canonical_for: product-scope-and-quality-attribute-scenarios
+last_reviewed: 2026-09-29
+review_trigger: product-scope-or-quality-attribute-change
+---
+
 # 제품 범위와 품질 속성
 
 ## 1. 제품 명제
@@ -67,7 +75,7 @@ discovered
 | 3 | 완전성 | 목록 응답의 `TOT_CNT`와 수집 건수를 실행 단위로 대조하며 불일치 실행은 발행하지 않는다. |
 | 4 | 재현성 | 같은 raw 집합과 같은 코드 버전으로 normalize/project하면 동일한 canonical 결과가 나온다. |
 | 5 | 멱등성 | 동일 요청·관측·revision을 재실행해도 중복 업무 사실이나 작업 항목이 생기지 않는다. |
-| 6 | 원자성 | 부분 수집이나 일부 파싱 성공이 현재 공개 스냅샷을 덮어쓰지 않는다. |
+| 6 | 원자성 | 부분 수집이나 일부 파싱 성공이 현재 공개 스냅샷을 덮어쓰지 않는다. 예외는 원장에 적힌 레코드 범위 제외뿐이다 — 발행당 `min(50, max(1, floor(1% × N)))` 안에서 관측 하나에 갇힌 위반만 빼고, `expected = published + excluded`가 원장 행 수로 맞지 않거나 창 전체 결함이 있으면 발행 전체가 실패한다([ADR 0061](../adr/0061-record-scoped-exclusion.md)). |
 | 7 | 신선도 | 영업시간 중 신규 공고가 eaT에 뜬 뒤 화면에 보이기까지의 지연 p95는 15분 이하로 측정한다. 근거와 측정 방법은 [runtime-and-deployment §2.5](runtime-and-deployment.md#25-poll-open-주기-10분과-신규-공고-노출-slo-15분-2026-09-10-eat-151)가 소유한다. |
 | 8 | 정직성 | 알 수 없는 값은 `unknown`/격리 상태로 노출되고 이름·주소 추측으로 대체되지 않는다. |
 | 9 | 복구성 | raw와 사용자 상태는 백업되고 정기 restore drill을 통과한다. `core`/`mart`는 raw로 재구성 가능하다. |

@@ -449,7 +449,8 @@ kubectl -n eatbid rollout status deployment/argo-workflows-workflow-controller
 재시작 뒤 대기하던 workflow의 `status.synchronization`에 `holding`이 생기고 파드가 뜨면 풀린 것이다.
 ### 4.5 발행이 실패한 창은 전진이 건너뛴다 — `failed-publication-window` (2026-09-16, EAT-235, ADR 0053)
 
-`validate`가 `DATA_QUARANTINED`(65)로 끝나면 release는 sealed, publication은 failed다. 같은 창을 다시 받아도
+`validate`가 `DATA_QUARANTINED`(65)로 끝나면 release는 sealed, publication은 failed다. 격리가 레코드 범위이고
+허용 수 안이면 실패가 아니라 제외로 발행된다(§4.10, ADR 0061). 여기 오는 것은 그 밖의 경우다. 같은 창을 다시 받아도
 같은 원본이 같은 자리에서 다시 격리되므로(2026-03 창이 매시 16,469건을 두 번 다시 받았다) 전진 CronWorkflow는
 `ingest.backfill_coverage.failed_publications > 0`인 창을 고르지 않는다. 대신 `check-expectations`가
 `failed-publication-window` 위반을 창마다 하나씩 열어 두고, 그 위반은 replay가 성공해 창이 완결될 때까지 닫히지
@@ -457,7 +458,7 @@ kubectl -n eatbid rollout status deployment/argo-workflows-workflow-controller
 
 1. 격리 사유를 본다(읽기 전용). `select quarantine_reason, count(*) from ingest.normalization_attempt where run_id = '<detail run>' and status = 'quarantined' group by 1`.
 2. 사유가 계약 쪽이면 파서·계약을 고치고 릴리스한다. 원본이 정말 계약 밖이면 그 관측은 격리로 남는 것이 맞고,
-   그때는 창을 어떻게 닫을지 별도 결정이다(부분 발행은 하지 않는다).
+   그때는 창을 어떻게 닫을지 별도 결정이다(원장에 적지 않은 부분 발행은 하지 않는다).
 3. 새 이미지가 배포된 뒤 §1.2 `replay-pipeline`으로 그 release를 다시 발행한다. revision이 생기면 view의
    `is_complete`가 참이 되어 위반이 해소되고 전진은 다음 창으로 간다
 ### 4.6 소스가 우리를 막으면 보류가 정시 실행을 멈춘다 — `source-hold` (2026-09-16, EAT-244, ADR 0055)
@@ -512,6 +513,9 @@ argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint cont
   그 publication의 `validated_at` 뒤에 그 release의 관측으로 시작한 replay run이 하나라도 있으면 다시 고르지
   않는다. replay run은 `source_release_run`에 매이지 않으므로 `replay_input` → `source_release_observation`으로
   release를 찾는다. 그 뒤로도 미완결이면 `stale-validated-publication` 위반이 열려 있고 사람이 §1로 본다.
+- **해소되지 않은 제외가 남은 창도 후보다(2026-09-29, EAT-294, ADR 0061).** 발행은 성공했으므로 failed도 stalled도
+  아닌 `excluded` 상태이고, 규칙은 failed와 같다 — 해소 안 된 제외 관측을 마지막으로 시도한 run(그 제외를 적은 발행의
+  run이나 그 관측을 받은 replay run)의 이미지가 지금 이미지와 다를 때만 고른다. §4.10.
 - 이미 발행에 성공한 release는 후보에서 빠진다. 한 창이 여러 번 실패한 뒤 성공했다면 그 창은 닫힌 것이고
   실패 기록은 진단용으로 남는다.
 - `replay`에 관측 id를 주지 않으면 그 release의 상세 관측 전부가 대상이다. 예약 경로가 그렇게 부른다.
@@ -556,3 +560,22 @@ mart는 발행마다 새 build로 통째 다시 만들고 이전 활성 build를
 3. 시드가 든 이미지가 배포되면 다음 build부터 다리 행이 생기고 격리 행이 사라져 위반이 닫힌다. 재수집·replay는 필요 없다
    (원본 라벨은 `item_label`에 그대로 있다).
 
+
+### 4.10 발행에서 뺀 공고가 남아 있다 — `unresolved-exclusion` (2026-09-29, EAT-294, ADR 0061)
+
+`validate`는 관측 하나에 갇힌 격리(깨진 XML, Nexacro 구조, 상세 한 행이 아님, 한 칸의 계약 위반)를 창 전체
+실패로 만들지 않고 발행에서 뺀다. 허용 수는 발행마다 `min(50, max(1, floor(1% × 기대 수)))`이고, 뺀 공고는
+`ingest.publication_exclusion`에 `normalize` 단계로 한 행씩 적힌다. 이 창은 원장 덕에 `is_complete`라 전진이
+다시 받지 않는다. 대신 `check-expectations`가 revision을 못 얻은 제외가 있는 창마다 `unresolved-exclusion`(normal)을
+연다. 다음은 제외가 되지 않고 지금처럼 발행 전체를 실패시킨다: 허용 수 초과, 목록에 없는 격리 사유, 요청·기대
+수 불일치, 코드 체계 누락, `source_entity` 중복, `parser_version` 불일치, 모르는 `record_type`, 해석된 레코드의
+미검토 schema, chronology·fingerprint 불일치.
+
+1. 무엇을 뺐는지 본다(읽기 전용). `select e.reason_code, count(*), min(e.reason) from ingest.publication_exclusion e join ingest.publication p using (publication_id) where p.status = 'published' group by 1`.
+   창 하나면 `ingest.backfill_coverage`의 `excluded_ids`·`unresolved_exclusions`를 함께 본다.
+2. 사유가 계약 쪽이면 §4.7처럼 부류를 모아 파서·계약을 고치고 릴리스한다. 새 이미지가 배포되면 `replay-advance`가
+   그 창을 `excluded` 상태로 스스로 고른다 — 해소 안 된 제외를 마지막으로 시도한 이미지와 지금 이미지가 다를 때만이다.
+   같은 이미지로는 다시 고르지 않으므로 반복되지 않는다.
+3. 제외된 관측이 revision을 얻으면 해소되고 위반이 닫힌다. 원본이 정말 계약 밖이면 제외로 남는 것이 맞고, 위반을
+   계속 열어 둘지 닫을지는 별도 결정이다. 원장 행을 손으로 지우거나 `excluded_count`를 고치지 않는다 — 등식이
+   깨져 다음 재검증이 발행을 거부한다.

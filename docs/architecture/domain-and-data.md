@@ -454,6 +454,7 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   manifest만 소비한다.
 - projector fingerprint는 member별 `(source_system, external_bid_id, raw_content_sha256,
   parser_version, normalized_payload_sha256)` tuple만 정렬해 계산하며 bigint ID/행 순서는 포함하지 않는다.
+  제외가 있는 발행만 원장의 관측 ID를 함께 봉인한다(아래 ADR 0061 항).
 - replay resume, validation, projector는 `run → raw/topology → publication → publication_record` 순서로
   잠근다. projector는 canonical row와 revision-scoped bigint 관계를 insert-or-verify한 뒤 exact member
   count가 성공한 경우에만 한 transaction으로 `published`를 전환한다.
@@ -479,8 +480,14 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   `ingest.publication_exclusion`에 발행·관측·단계(`normalize`|`project`)·사유를 한 행으로 적는다. 창 전체
   결함(기대 수 불일치, 코드 체계 누락, `source_entity` 중복, parser version 불일치, 모르는 record type,
   chronology·fingerprint 불일치)이거나 제외가 발행당 `min(50, max(1, floor(1% × N)))`를 넘으면 발행 전체가
-  실패한다. 원장에 없는 결손은 허용하지 않는다. 제외를 실제로 적는 정규화·투영은 EAT-294에서 들어오며 그
-  전까지 `excluded_count`는 항상 0이라 등식은 이전의 `expected = normalized = published`와 같다.
+  실패한다. 원장에 없는 결손은 허용하지 않는다. 정규화 단계 제외는 validate가 검증과 같은 transaction에서
+  적는다(EAT-294). 레코드 범위는 격리 사유 문장의 열거표(`pipeline/exclusion_scope.py`)로 가르며 열거 밖의
+  사유는 창 전체 결함이다. 해석에 성공한 레코드의 미검토 schema는 창 전체 결함이고, 격리된 관측의 지문은 그
+  한 건의 기록이라 세지 않는다. 투영 단계 제외는 아직 없으므로(EAT-295) 원장의 `project` 행은 투영을 멈춘다.
+  제외가 0이면 모든 등식이 이전의 `expected = normalized = published`와 같다.
+- 제외가 있는 발행의 fingerprint는 구성원 fingerprint와 원장 `(observation_id, stage, reason_code)` 정렬
+  목록을 함께 봉인한 값이다. 제외가 0이면 구성원 fingerprint 그대로라 이미 발행된 publication의 재검증 값은
+  바뀌지 않는다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
 - deterministic projection 충돌은 core write를 rollback하고 `PROJECTION_CONTRACT`로 실패시키되 이전
   `validated_at`과 frozen member를 보존한다. 실패 표시는 fresh connection transaction으로 내구화하고,
