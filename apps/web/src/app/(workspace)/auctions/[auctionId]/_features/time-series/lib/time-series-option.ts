@@ -80,7 +80,9 @@ export function timeSeriesOption({
           id: 'comparison',
           type: 'scatter',
           data: pointData(plot.comparison.points),
-          symbolSize: 7,
+          // 이 기관 점(9)보다 크게 그린다. 이 기관의 회차는 비교 집단에도 들어 있어 같은 자리에 겹치는데,
+          // 고리가 작으면 이 기관 점 밑에 숨어 비교 집단이 하나도 안 보였다(2026-09-28 사용자 보고).
+          symbolSize: 13,
           itemStyle: { color: 'transparent', borderColor: CHART.volume, borderWidth: 1.25 },
           z: 1
         };
