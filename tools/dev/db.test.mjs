@@ -96,6 +96,9 @@ describe("합성 표본 자료 파일", () => {
       "30-auctions.sql",
       "35-bidding.sql",
       "40-mart.sql",
+      // 비교 집단은 활성 build에 행을 더할 수 없어 mart 상태 전이(49)보다 앞에 심는다(EAT-285).
+      "45-comparison.sql",
+      "49-mart-activate.sql",
       "50-workspace.sql",
     ]);
   });

@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-09-04
+- Supersedes: 없음. 이 ADR의 7항은 [0036](0036-read-cache-tags-and-invalidation-owner.md)이, 3항은 분석 그림에 한해
+  [0058](0058-analysis-charts-use-echarts.md)이 대체했다.
 - 관계: `0023`(web 모듈 경계와 상태 소유)을 결정 화면에 구체화한다. `0028`(Cache Components)의
   Suspense/searchParams 규칙은 그대로 구속한다. `0030`이 정한 우선순위(경쟁자 수·승률 곡선)를 화면
   순서의 근거로 쓴다.
@@ -29,11 +31,13 @@ lightweight-charts, shadcn data-table(TanStack Table) 래퍼, zustand가 남아 
    과거 회차)은 Suspense leaf에서 `api/_transport`로 계약 응답을 parse해 서버에서 렌더한다.
    클라이언트가 다시 부르는 것은 내 기록 저장·복사·새로고침처럼 사용자 행위가 있는 경우뿐이며
    그때만 `queryOptions`를 노출한다. Provider는 shell의 QueryClient와 theme 둘로 제한한다.
-3. **호가창과 흐름은 우리가 소유한 inline SVG/HTML 컴포넌트로 그린다.** recharts와
+3. ~~**호가창과 흐름은 우리가 소유한 inline SVG/HTML 컴포넌트로 그린다.** recharts와
    lightweight-charts는 새 코드에서 import하지 않고, legacy disposition Gate에서 제거한다.
    이유: 25단·60점 규모에 차트 라이브러리는 번들과 스타일 통제 비용만 크고, `currentColor`
    테마, tabular-nums, 내 값 행 강조, 키보드 접근을 디자인대로 맞추려면 직접 그리는 편이 짧다.
-   축·눈금·표본 수·산출 시각은 컴포넌트 props로 받아 `AGENTS.md` 7항을 화면에서 만족한다.
+   축·눈금·표본 수·산출 시각은 컴포넌트 props로 받아 `AGENTS.md` 7항을 화면에서 만족한다.~~
+   **[0058](0058-analysis-charts-use-echarts.md)이 분석 그림에 한해 이 항을 대체한다.** 시간별 추이는 이 기관 점 5천·
+   비교 밀도·겹친 기관을 한 그림에 그려 60점 전제와 다르고, 확대·이동·기간 선택을 직접 짜지 않는다.
 4. **표는 TanStack Table headless만 쓰고 렌더는 우리 table primitive로 한다.** shadcn data-table
    래퍼(`components/ui/table/*`, `use-data-table`)는 재사용하지 않는다. 정렬·열 정의·행 모델만
    TanStack에 맡기고, 페이지는 URL cursor(`nuqs`)가 소유한다.
