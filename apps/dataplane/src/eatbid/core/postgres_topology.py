@@ -128,7 +128,7 @@ def lock_auction_topology(
             join ingest.raw_observation o on o.observation_id = ri.observation_id
             where ri.run_id = %s
             order by o.observation_id
-            for update of ri, o
+            for no key update of ri, o
             """,
             (run_id,),
         )
@@ -136,7 +136,7 @@ def lock_auction_topology(
         cursor.execute(
             """
             select observation_id from ingest.raw_observation
-            where run_id = %s order by observation_id for update
+            where run_id = %s order by observation_id for no key update
             """,
             (run_id,),
         )
@@ -151,7 +151,7 @@ def lock_auction_topology(
         join ingest.raw_observation o using (observation_id)
         where a.run_id = %s
         order by a.observation_id, a.normalization_attempt_id
-        for update of a, o
+        for no key update of a, o
         """,
         (run_id,),
     )
@@ -184,7 +184,7 @@ def lock_auction_topology(
               on n.normalized_record_id = ar.normalized_record_id
             where a.normalization_attempt_id = any(%s)
             order by a.normalization_attempt_id, n.normalized_record_id
-            for update of a, ar, n
+            for no key update of a, ar, n
             """,
             (list(current_attempt_ids),),
         )

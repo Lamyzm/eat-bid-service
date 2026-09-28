@@ -158,7 +158,7 @@ class RosterProjectionWriter:
             select {_SUBMISSION_COLUMNS} from core.bid_submission
             where auction_revision_id = %s and roster_ordinal = %s
               and opened_at is not distinct from %s
-            for update
+            for no key update
             """,
             (revision_id, submission.roster_ordinal, projection.opened_at),
         )
@@ -224,7 +224,7 @@ class RosterProjectionWriter:
         cursor.execute(
             f"""
             select {_AWARD_COLUMNS} from core.award_decision
-            where auction_revision_id = %s for update
+            where auction_revision_id = %s for no key update
             """,
             (revision_id,),
         )
