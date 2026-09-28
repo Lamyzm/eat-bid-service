@@ -3,6 +3,7 @@ import {
   bigint,
   char,
   check,
+  integer,
   jsonb,
   text,
   timestamp,
@@ -40,6 +41,8 @@ export const normalizedRecord = ingestSchema.table(
 );
 
 // publish는 일부 결과를 노출하는 명령이 아니라 수량 일치·fingerprint·projector version을 모두 갖춘 원자적 gate다.
+// 수량 일치는 "기대 = 발행 + 원장에 적은 제외"다(ADR 0061). 제외가 0이면 기대·정규화·발행이 모두 같아야 하는
+// 이전 gate와 똑같고, 원장에 없는 결손은 여전히 통과하지 못한다.
 export const publication = ingestSchema.table(
   "publication",
   {
@@ -53,6 +56,9 @@ export const publication = ingestSchema.table(
     expectedCount: bigint("expected_count", { mode: "bigint" }).notNull(),
     normalizedCount: bigint("normalized_count", { mode: "bigint" }).notNull(),
     publishedCount: bigint("published_count", { mode: "bigint" }).notNull(),
+    // 발행에서 뺀 레코드 수이며 `ingest.publication_exclusion`의 이 발행 행 수와 같다(ADR 0061). 0이면 이전과
+    // 똑같이 전량 발행이다.
+    excludedCount: integer("excluded_count").notNull().default(0),
     canonicalFingerprint: char("canonical_fingerprint", { length: 64 }),
     projectorVersion: varchar("projector_version", { length: 128 }),
   },
@@ -62,6 +68,7 @@ export const publication = ingestSchema.table(
     check("publication_expected_count_nonnegative", sql`${table.expectedCount} >= 0`),
     check("publication_normalized_count_nonnegative", sql`${table.normalizedCount} >= 0`),
     check("publication_published_count_nonnegative", sql`${table.publishedCount} >= 0`),
+    check("publication_excluded_count_nonnegative", sql`${table.excludedCount} >= 0`),
     check(
       "publication_activation_chronology",
       sql`${table.activatedAt} is null or ${table.validatedAt} is null or ${table.activatedAt} >= ${table.validatedAt}`,
@@ -92,8 +99,9 @@ export const publication = ingestSchema.table(
       sql`${table.status} <> 'published' or (
         ${table.validatedAt} is not null
         and ${table.activatedAt} is not null
-        and ${table.expectedCount} = ${table.normalizedCount}
-        and ${table.normalizedCount} = ${table.publishedCount}
+        and ${table.expectedCount} = ${table.publishedCount} + ${table.excludedCount}
+        and ${table.normalizedCount} >= ${table.publishedCount}
+        and ${table.normalizedCount} <= ${table.expectedCount}
         and ${table.canonicalFingerprint} is not null
         and ${table.projectorVersion} is not null
       )`,

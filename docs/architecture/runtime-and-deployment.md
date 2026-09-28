@@ -244,7 +244,8 @@ release의 목록과 비교해 달라진 공고에만 만든다.** 결정과 요
 - **격리는 chunk의 실패가 아니다.** 격리는 그 관측의 최종 상태로 ledger에 남고(ADR 0014) release는
   격리 수를 포함해 봉인된다(ADR 0025). 그래서 normalize chunk는 격리만 남으면 0으로 끝나고 발행 가능
   여부는 `validate`가 정한다 — release를 먼저 봉인한 뒤 격리가 있으면 publication을 `DATA_QUARANTINED`로
-  실패시키고 프로세스도 그 category로 종료한다. chunk가 65로 죽으면 validate가 오지 못해 release가
+  실패시키고 프로세스도 그 category로 종료한다(레코드 범위 격리를 제외 원장에 적고 발행을 계속하는 것은
+  ADR 0061의 결정이며 EAT-294에서 구현한다 — 그 전까지는 지금 문장대로 동작한다). chunk가 65로 죽으면 validate가 오지 못해 release가
   영원히 `planned`로 남고 replay 입구도 막히므로 그렇게 하지 않는다(2026-09-10, EAT-122).
 - 단계는 run ledger에서 재개한다. `capture`는 같은 run에서 이미 `captured`인 상세 unit을 소스에 다시
   묻지 않고 기존 관측 id를 그대로 chunk 출력에 싣는다. 그래서 실패한 chunk pod만 다시 돌리면
@@ -332,7 +333,9 @@ exit category와 exit code:
 1. workflow 시작 시 `ingest.run`과 request unit 계획을 만든다.
 2. 응답을 R2에 성공적으로 기록한 뒤 observation을 완료한다.
 3. normalize 결과는 아직 공개되지 않은 staging 상태로 둔다.
-4. completeness와 도메인 불변식을 전부 통과하면 publication ID를 만든다.
+4. completeness와 도메인 불변식을 전부 통과하면 publication ID를 만든다. 레코드 범위의 위반은 그 레코드만
+   제외 원장(`ingest.publication_exclusion`)에 적고 뺄 수 있으며, 창 전체 결함이나 발행당 상한을 넘는 제외는
+   발행 전체를 막는다(ADR 0061). 원장에 없는 결손은 발행을 통과하지 못한다.
 5. 짧은 DB transaction에서 core revision과 active publication 포인터를 전환한다.
 6. 영향 범위 mart를 새 build ID로 생성·검증한 뒤 active build를 전환한다.
 7. 끝에서 source-to-core 지연, 건수, quarantine, mart freshness를 검증한다.

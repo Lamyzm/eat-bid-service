@@ -37,12 +37,15 @@ export const ingestRun = ingestSchema.table(
     expectedCount: bigint("expected_count", { mode: "bigint" }).notNull(),
     capturedCount: bigint("captured_count", { mode: "bigint" }).notNull(),
     publishedCount: bigint("published_count", { mode: "bigint" }).notNull(),
+    // 발행이 원장에 적고 뺀 레코드 수(ADR 0061). 발행된 run은 `expected = published + excluded`로 닫힌다.
+    excludedCount: integer("excluded_count").notNull().default(0),
   },
   (table) => [
     check("run_status_allowed", sql`${table.status} in ('planned', 'running', 'failed', 'validated', 'published')`),
     check("run_expected_count_nonnegative", sql`${table.expectedCount} >= 0`),
     check("run_captured_count_nonnegative", sql`${table.capturedCount} >= 0`),
     check("run_published_count_nonnegative", sql`${table.publishedCount} >= 0`),
+    check("run_excluded_count_nonnegative", sql`${table.excludedCount} >= 0`),
     check("run_end_chronology", sql`${table.endedAt} is null or ${table.endedAt} >= ${table.startedAt}`),
     check(
       "run_terminal_metadata",
@@ -64,7 +67,7 @@ export const ingestRun = ingestSchema.table(
       "run_published_count_matches_expected",
       sql`(
         ${table.status} = 'published'
-        and ${table.publishedCount} = ${table.expectedCount}
+        and ${table.publishedCount} + ${table.excludedCount} = ${table.expectedCount}
       ) or (
         ${table.status} <> 'published'
         and ${table.publishedCount} = 0

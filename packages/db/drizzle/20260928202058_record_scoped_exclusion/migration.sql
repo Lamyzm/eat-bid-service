@@ -1,49 +1,49 @@
-import { sql } from "drizzle-orm";
-import { bigint, boolean, text } from "drizzle-orm/pg-core";
-
-import { ingestSchema } from "../namespaces.js";
-
-/**
- * 백필이 어느 창까지, 어느 단계까지 갔는지를 `ingest` 사실에서 파생한다. 진도를 따로 저장하지 않는
- * 이유는 같은 질문에 답하는 자리가 둘이 되면 언젠가 어긋나고, 어긋난 순간 그것을 알아낼 방법이 다시
- * 없어지기 때문이다(ADR 0052 결정 2).
- *
- * 정의를 여기 하나만 두는 이유는 소비자가 둘이기 때문이다. 전진 판단을 하는 dataplane과 크롤러
- * 대시보드가 같은 SQL을 각자 적으면 한쪽만 고쳐지는 날이 온다.
- *
- * 열이 단계를 따르는 이유는 어느 단계에 일이 남았는지가 곧 무엇을 해야 하는지이기 때문이다. 하나의
- * 진행률로 접으면 발행만 남은 창(소스 호출 0)과 아직 받지 않은 창(창 하나에 한 시간)을 구분하지
- * 못한다(ADR 0052 결정 3).
- *
- * 세는 단위는 공고 아이디다. 릴리스가 같은 창을 여러 번 덮으므로 요청 단위를 더하면 중복된다. 그리고
- * 목록과 상세는 서로 다른 run에 기록되므로(`discover --detail-run-id`) 릴리스를 거쳐 이어야 한다 —
- * run으로 직접 이으면 상세가 0으로 보인다.
- */
-export const backfillCoverage = ingestSchema
-  .view("backfill_coverage", {
-    windowStart: text("window_start").notNull(),
-    windowEnd: text("window_end").notNull(),
-    discoveredIds: bigint("discovered_ids", { mode: "bigint" }).notNull(),
-    capturedIds: bigint("captured_ids", { mode: "bigint" }).notNull(),
-    uncapturedIds: bigint("uncaptured_ids", { mode: "bigint" }).notNull(),
-    normalizedIds: bigint("normalized_ids", { mode: "bigint" }).notNull(),
-    publishedIds: bigint("published_ids", { mode: "bigint" }).notNull(),
-    // 발행이 원장에 적고 뺀 공고 아이디 수(ADR 0061 결정 6). 발행 수에 섞지 않고 따로 든다 — 섞으면 화면과
-    // 전진이 "다 들어왔다"와 "빼고 다 들어왔다"를 구분하지 못한다.
-    excludedIds: bigint("excluded_ids", { mode: "bigint" }).notNull(),
-    // 제외된 관측 가운데 아직 어느 revision도 만들지 못한 것이 있는 공고 아이디 수. 계약을 고친 뒤 재파싱이
-    // 채울 대상이며 기대와 replay 후보가 이 값을 읽는다(ADR 0061 결정 5). 같은 공고의 옛 revision이 공개돼
-    // 있어도 새 관측이 빠졌으면 여기 남는다.
-    unresolvedExclusions: bigint("unresolved_exclusions", { mode: "bigint" }).notNull(),
-    // 모든 공고가 revision을 가졌거나 발행 원장에 제외로 적혔으면 참이다(ADR 0061 결정 5). 기록된 제외는
-    // 정산된 결손이라 전진이 그 창을 매시 다시 받지 않는다. 제외가 0이면 이전 정의와 같다.
-    isComplete: boolean("is_complete").notNull(),
-    // 이 창의 release 가운데 발행이 failed로 끝난 것의 수. 격리가 있어 validate가 거부한 창은 다시 받아도
-    // 같은 자리에서 다시 죽으므로 전진이 그 창을 고르면 안 된다 — 파서를 고친 뒤 replay가 답이다
-    // (2026-09-16 2026-03 창이 매시 재수집·재실패, EAT-235). replay가 성공하면 is_complete가 참이 된다.
-    failedPublications: bigint("failed_publications", { mode: "bigint" }).notNull(),
-  })
-  .as(sql`
+CREATE TABLE "ingest"."publication_exclusion" (
+	"publication_id" uuid,
+	"observation_id" bigint,
+	"normalized_record_id" bigint,
+	"stage" varchar(16) NOT NULL,
+	"reason_code" text NOT NULL,
+	"reason" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "publication_exclusion_pkey" PRIMARY KEY("publication_id","observation_id"),
+	CONSTRAINT "publication_exclusion_stage_allowed" CHECK ("stage" in ('normalize', 'project')),
+	CONSTRAINT "publication_exclusion_stage_record" CHECK ((
+        "stage" = 'normalize'
+        and "normalized_record_id" is null
+      ) or (
+        "stage" = 'project'
+        and "normalized_record_id" is not null
+      )),
+	CONSTRAINT "publication_exclusion_reason_code_nonempty" CHECK (char_length("reason_code") > 0),
+	CONSTRAINT "publication_exclusion_reason_bounded" CHECK (char_length("reason") <= 500)
+);
+--> statement-breakpoint
+DROP VIEW "ingest"."backfill_coverage";--> statement-breakpoint
+ALTER TABLE "ingest"."run" ADD COLUMN "excluded_count" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "ingest"."publication" ADD COLUMN "excluded_count" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "ingest"."publication_exclusion" ADD CONSTRAINT "publication_exclusion_n9kdQjqh5Gnu_fkey" FOREIGN KEY ("publication_id") REFERENCES "ingest"."publication"("publication_id");--> statement-breakpoint
+ALTER TABLE "ingest"."publication_exclusion" ADD CONSTRAINT "publication_exclusion_chZb97YuC6FV_fkey" FOREIGN KEY ("observation_id") REFERENCES "ingest"."raw_observation"("observation_id");--> statement-breakpoint
+ALTER TABLE "ingest"."publication_exclusion" ADD CONSTRAINT "publication_exclusion_uat3f1MuVR9h_fkey" FOREIGN KEY ("normalized_record_id") REFERENCES "ingest"."normalized_record"("normalized_record_id");--> statement-breakpoint
+ALTER TABLE "ingest"."run" ADD CONSTRAINT "run_excluded_count_nonnegative" CHECK ("excluded_count" >= 0);--> statement-breakpoint
+ALTER TABLE "ingest"."publication" ADD CONSTRAINT "publication_excluded_count_nonnegative" CHECK ("excluded_count" >= 0);--> statement-breakpoint
+ALTER TABLE "ingest"."run" DROP CONSTRAINT "run_published_count_matches_expected", ADD CONSTRAINT "run_published_count_matches_expected" CHECK ((
+        "status" = 'published'
+        and "published_count" + "excluded_count" = "expected_count"
+      ) or (
+        "status" <> 'published'
+        and "published_count" = 0
+      ));--> statement-breakpoint
+ALTER TABLE "ingest"."publication" DROP CONSTRAINT "publication_published_requires_gate", ADD CONSTRAINT "publication_published_requires_gate" CHECK ("status" <> 'published' or (
+        "validated_at" is not null
+        and "activated_at" is not null
+        and "expected_count" = "published_count" + "excluded_count"
+        and "normalized_count" >= "published_count"
+        and "normalized_count" <= "expected_count"
+        and "canonical_fingerprint" is not null
+        and "projector_version" is not null
+      ));--> statement-breakpoint
+CREATE VIEW "ingest"."backfill_coverage" AS (
     with window_release as (
       select distinct
              (u.request_params ->> 'P_BID_BGNG_DT') as window_start,
@@ -120,4 +120,4 @@ export const backfillCoverage = ingestSchema
       left join failed_publication f
         on f.window_start = r.window_start and f.window_end = r.window_end
      group by r.window_start, r.window_end
-  `);
+  );
