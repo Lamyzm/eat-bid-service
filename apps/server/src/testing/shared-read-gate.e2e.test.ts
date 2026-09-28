@@ -2,10 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
 import {
+  analysisV1Operations,
   auctionV1Operations,
   codeSchemeV1Operations,
-  organizationV1Operations,
-  winRateDistributionV1Operations,
 } from "@eatbid/contracts";
 import { createApp, type CreateAppOptions } from "../bootstrap/create-app";
 import { parseEnvironment } from "../platform/config/environment";
@@ -27,17 +26,11 @@ const sharedReadPaths: readonly (readonly [string, string])[] = [
   ["열린 공고 목록", auctionV1Operations.listOpen.buildPath({ path: {}, query: undefined })],
   ["공고 상세", auctionV1Operations.find.buildPath({ path: { auctionId: AUCTION_ID } })],
   ["회차 명단", auctionV1Operations.roster.buildPath({ path: { auctionId: AUCTION_ID }, query: {} })],
-  [
-    "기관 회차 이력",
-    organizationV1Operations.listAuctionAttempts.buildPath({ path: { organizationId: "41" } }),
-  ],
-  [
-    "낙찰률 분포",
-    winRateDistributionV1Operations.find.buildPath({
-      path: {},
-      query: { scope: "national", floorRate: "90.000", awardMethod: "31" },
-    }),
-  ],
+  // 분석 조회는 query 검증보다 게이트가 먼저라 조건 없이 불러도 401이어야 한다.
+  ["분석 시간축", analysisV1Operations.findTimeSeries.openApiPath],
+  ["분석 분포", analysisV1Operations.findDistribution.openApiPath],
+  ["분석 전체 이력", analysisV1Operations.findHistory.openApiPath],
+  ["분석 조건 목록", analysisV1Operations.findConditionOptions.openApiPath],
   [
     "코드 목록",
     codeSchemeV1Operations.listCodes.buildPath({

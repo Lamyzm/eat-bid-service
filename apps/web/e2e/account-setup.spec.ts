@@ -98,7 +98,8 @@ test.describe('로그인 계정의 사업자 설정', () => {
     await expect(page).toHaveURL(`${WEB_ORIGIN}/login?next=${ENCODED_AUCTION_PATH}`);
 
     // 2026-09-10 사용자 결정 이후 공개 화면은 없다(ADR 0032 §12) — 오늘 화면도 로그인으로 보낸다.
-    // 로그인한 사용자가 실제로 공고 행을 보는 것은 own-bid.spec.ts의 real-Nest 검사가 증명한다(EAT-165).
+    // 로그인한 사용자가 실제 Nest 위에서 공고 상세를 보는 검사는 옛 상세와 함께 지운 own-bid.spec.ts가
+    // 맡았다(EAT-165). 새 상세 위의 같은 검사는 내 투찰 기록을 다시 붙이는 EAT-283이 되살린다.
     await page.goto('/today');
     await expect(page).toHaveURL(`${WEB_ORIGIN}/login?next=%2Ftoday`);
     await guest.close();

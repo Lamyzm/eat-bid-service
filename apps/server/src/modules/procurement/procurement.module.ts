@@ -7,42 +7,40 @@ import { GetAuctionRoster } from "./application/get-auction-roster";
 import { AuctionRosterController } from "./presentation/http/auction-roster.controller";
 import { FindAuction } from "./application/find-auction";
 import { FindAnalysisConditionOptions } from "./application/find-analysis-condition-options";
+import { FindAnalysisHistory } from "./application/find-analysis-history";
+import { FindAnalysisDistribution } from "./application/find-analysis-distribution";
+import type { AnalysisDistributionReader } from "./application/analysis-distribution-reader";
+import type { AnalysisHistoryReader } from "./application/analysis-history-reader";
 import { FindAnalysisTimeSeries } from "./application/find-analysis-time-series";
-import { FindWinRateDistribution } from "./application/find-win-rate-distribution";
 import type { AnalysisConditionOptionsReader } from "./application/analysis-condition-options-reader";
 import type { AnalysisTimeSeriesReader } from "./application/analysis-time-series-reader";
 import { ListOpenAuctions } from "./application/list-open-auctions";
 import type { OpenAuctionSummaryReader } from "./application/open-auction-summary-reader";
 import { SummarizeOpenAuctions } from "./application/summarize-open-auctions";
-import { ListOrganizationAuctionAttempts } from "./application/list-organization-auction-attempts";
 import type { EligibilityAreaReader } from "./application/eligibility-area-reader";
 import { ListEligibilityAreas, PreviewRegionCoverage } from "./application/preview-region-coverage";
 import { EligibilityAreaController } from "./presentation/http/eligibility-area.controller";
 import type { OpenAuctionReader } from "./application/open-auction-reader";
-import type { OrganizationAttemptReader } from "./application/organization-attempt-reader";
-import type { WinRateDistributionReader } from "./application/win-rate-distribution-reader";
 import { AuctionController } from "./presentation/http/auction.controller";
 import { MyBidObservationsController } from "./presentation/http/my-bid-observations.controller";
-import { OrganizationController } from "./presentation/http/organization.controller";
 import { AnalysisController } from "./presentation/http/analysis.controller";
-import { WinRateDistributionController } from "./presentation/http/win-rate-distribution.controller";
 import { FindMyBidObservations } from "./application/find-my-bid-observations";
 import type { OwnBidReader } from "./application/own-bid-reader";
 import type { RegisteredBusinessReader } from "../account/application/registered-business-reader";
 import type { UnitOfWork } from "../../platform/database/unit-of-work";
 import {
   ANALYSIS_CONDITION_OPTIONS_READER,
+  ANALYSIS_HISTORY_READER,
+  ANALYSIS_DISTRIBUTION_READER,
   ANALYSIS_TIME_SERIES_READER,
   AUCTION_READER,
   AUCTION_ROSTER_READER,
   ELIGIBILITY_AREA_READER,
   OPEN_AUCTION_READER,
   OPEN_AUCTION_SUMMARY_READER,
-  ORGANIZATION_ATTEMPT_READER,
   OWN_BID_READER,
   READ_SNAPSHOT,
   REGISTERED_BUSINESS_READER,
-  WIN_RATE_DISTRIBUTION_READER,
 } from "../../platform/database/database.tokens";
 import type { Clock } from "@eatbid/domain";
 import { CLOCK } from "../../platform/clock/clock.module";
@@ -75,21 +73,8 @@ const findAuctionProvider = {
   useFactory: (reader: AuctionReader) => new FindAuction(reader),
 };
 
-// 개찰 필터의 기준 시각, 분포의 기본 기간, 열린 공고의 "열림" 판정은 현재 시각의 함수라 세 use case가
-// clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며 주입된 clock만 쓴다(AGENTS 17).
-const listOrganizationAuctionAttemptsProvider = {
-  provide: ListOrganizationAuctionAttempts,
-  inject: [ORGANIZATION_ATTEMPT_READER, CLOCK],
-  useFactory: (reader: OrganizationAttemptReader, clock: Clock) =>
-    new ListOrganizationAuctionAttempts(reader, clock),
-};
-
-const findWinRateDistributionProvider = {
-  provide: FindWinRateDistribution,
-  inject: [WIN_RATE_DISTRIBUTION_READER, CLOCK],
-  useFactory: (reader: WinRateDistributionReader, clock: Clock) => new FindWinRateDistribution(reader, clock),
-};
-
+// 열린 공고의 "열림" 판정은 현재 시각의 함수라 clock을 요구한다. `Temporal.Now` 직접 호출은 금지이며
+// 주입된 clock만 쓴다(AGENTS 17).
 // 스냅샷의 발급 시각과 유효 기간이 현재 시각의 함수라 이 use case도 clock을 받는다(AGENTS 17).
 const findAnalysisTimeSeriesProvider = {
   provide: FindAnalysisTimeSeries,
@@ -106,6 +91,21 @@ const findAnalysisConditionOptionsProvider = {
   inject: [ANALYSIS_CONDITION_OPTIONS_READER, ANALYSIS_TIME_SERIES_READER],
   useFactory: (reader: AnalysisConditionOptionsReader, axes: AnalysisTimeSeriesReader) =>
     new FindAnalysisConditionOptions(reader, axes),
+};
+
+/** 전체 이력도 기관·지역 축이 있는지 같은 port로 확인한다. 세 조회가 같은 질문에 다른 답을 내지 않게 한다. */
+const findAnalysisHistoryProvider = {
+  provide: FindAnalysisHistory,
+  inject: [ANALYSIS_HISTORY_READER, ANALYSIS_TIME_SERIES_READER],
+  useFactory: (reader: AnalysisHistoryReader, axes: AnalysisTimeSeriesReader) => new FindAnalysisHistory(reader, axes),
+};
+
+/** 분포도 기관·지역 축의 존재를 같은 port로 확인한다. */
+const findAnalysisDistributionProvider = {
+  provide: FindAnalysisDistribution,
+  inject: [ANALYSIS_DISTRIBUTION_READER, ANALYSIS_TIME_SERIES_READER],
+  useFactory: (reader: AnalysisDistributionReader, axes: AnalysisTimeSeriesReader) =>
+    new FindAnalysisDistribution(reader, axes),
 };
 
 const listEligibilityAreasProvider = {
@@ -149,17 +149,15 @@ const findMyBidObservationsProvider = {
     AuctionRosterController,
     EligibilityAreaController,
     MyBidObservationsController,
-    OrganizationController,
-    WinRateDistributionController,
   ],
   providers: [
     cachedAuctionRosterReaderProvider,
     getAuctionRosterProvider,
     findAuctionProvider,
-    listOrganizationAuctionAttemptsProvider,
-    findWinRateDistributionProvider,
     findAnalysisTimeSeriesProvider,
     findAnalysisConditionOptionsProvider,
+    findAnalysisHistoryProvider,
+    findAnalysisDistributionProvider,
     listOpenAuctionsProvider,
     summarizeOpenAuctionsProvider,
     listEligibilityAreasProvider,

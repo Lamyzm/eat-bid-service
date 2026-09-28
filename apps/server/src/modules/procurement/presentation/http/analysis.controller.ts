@@ -1,6 +1,7 @@
 /** @module 책임: 분석 시간축 HTTP 계약을 application Effect와 상태별 공개 응답으로 연결한다. */
 import {
   BadRequestException,
+  ConflictException,
   Controller,
   Get,
   NotFoundException,
@@ -13,6 +14,8 @@ import { ApiOperation, ApiResponse } from "@nestjs/swagger";
 import {
   analysisV1Operations,
   type AnalysisConditionOptionsV1Response,
+  type AnalysisHistoryV1Response,
+  type AnalysisDistributionV1Response,
   type AnalysisTimeSeriesV1Response,
 } from "@eatbid/contracts";
 import { bidRate, canonicalDecimal } from "@eatbid/domain";
@@ -32,17 +35,32 @@ import {
   FindAnalysisConditionOptions,
   type FindAnalysisConditionOptionsInput,
 } from "../../application/find-analysis-condition-options";
-import { OrganizationNotFound } from "../../application/list-organization-auction-attempts";
+import {
+  AnalysisHistoryBuildChanged,
+  AnalysisHistoryCursorInvalid,
+  FindAnalysisHistory,
+  type FindAnalysisHistoryInput,
+} from "../../application/find-analysis-history";
+import {
+  FindAnalysisDistribution,
+  type FindAnalysisDistributionInput,
+} from "../../application/find-analysis-distribution";
+import { OrganizationNotFound } from "../../application/organization-not-found";
 import { kstDate } from "../../domain/kst-day";
 import { organizationId } from "../../domain/organization-id";
 import { toAnalysisConditionOptionsResponse } from "./analysis-condition-options.presenter";
 import { toAnalysisTimeSeriesResponse } from "./analysis.presenter";
+import { toAnalysisHistoryResponse } from "./analysis-history.presenter";
+import { toAnalysisDistributionResponse } from "./analysis-distribution.presenter";
 
 const operation = analysisV1Operations.findTimeSeries;
 const optionsOperation = analysisV1Operations.findConditionOptions;
+const historyOperation = analysisV1Operations.findHistory;
+const distributionOperation = analysisV1Operations.findDistribution;
 
 type TimeSeriesQuery = z.output<typeof operation.querySchema>;
 type ConditionOptionsQuery = z.output<typeof optionsOperation.querySchema>;
+type HistoryQuery = z.output<typeof historyOperation.querySchema>;
 
 /**
  * 계약의 `.check()`가 이미 모집단과 지역 축의 짝을 강제했지만 타입은 그 사실을 모른다. 여기서 판별
@@ -104,6 +122,8 @@ export class AnalysisController {
   constructor(
     private readonly findTimeSeries: FindAnalysisTimeSeries,
     private readonly findConditionOptions: FindAnalysisConditionOptions,
+    private readonly findHistory: FindAnalysisHistory,
+    private readonly findDistribution: FindAnalysisDistribution,
     private readonly effectRunner: EffectRunner,
   ) {}
 
@@ -169,6 +189,77 @@ export class AnalysisController {
       throw translate(error);
     }
   }
+
+  @Get(historyOperation.handlerPath)
+  @ApiOperation({ operationId: historyOperation.operationId, summary: historyOperation.summary })
+  @ApiResponse({ status: 200, description: historyOperation.successResponses[200].description })
+  @ApiResponse({ status: 400, description: historyOperation.problemResponses[400].description })
+  @ApiResponse({ status: 401, description: historyOperation.problemResponses[401].description })
+  @ApiResponse({ status: 404, description: historyOperation.problemResponses[404].description })
+  @ApiResponse({ status: 409, description: historyOperation.problemResponses[409].description })
+  @ApiResponse({ status: 503, description: historyOperation.problemResponses[503].description })
+  @ResponseSchema(historyOperation.successResponses[200].schema)
+  async findHistoryHandler(
+    @Query(new StandardSchemaPipe(historyOperation.querySchema)) query: HistoryQuery,
+  ): Promise<AnalysisHistoryV1Response> {
+    let input: FindAnalysisHistoryInput;
+    try {
+      input = historyInputOf(query);
+    } catch {
+      throw new BadRequestException({ code: "VALIDATION_ERROR" });
+    }
+    try {
+      return toAnalysisHistoryResponse(await this.effectRunner.run(this.findHistory.execute(input)));
+    } catch (error) {
+      throw translate(error);
+    }
+  }
+
+  @Get(distributionOperation.handlerPath)
+  @ApiOperation({ operationId: distributionOperation.operationId, summary: distributionOperation.summary })
+  @ApiResponse({ status: 200, description: distributionOperation.successResponses[200].description })
+  @ApiResponse({ status: 400, description: distributionOperation.problemResponses[400].description })
+  @ApiResponse({ status: 401, description: distributionOperation.problemResponses[401].description })
+  @ApiResponse({ status: 404, description: distributionOperation.problemResponses[404].description })
+  @ApiResponse({ status: 503, description: distributionOperation.problemResponses[503].description })
+  @ResponseSchema(distributionOperation.successResponses[200].schema)
+  async findDistributionHandler(
+    @Query(new StandardSchemaPipe(distributionOperation.querySchema)) query: TimeSeriesQuery,
+  ): Promise<AnalysisDistributionV1Response> {
+    let input: FindAnalysisDistributionInput;
+    try {
+      // 조건은 시간축과 같은 query다. 같은 변환을 써야 두 그림이 같은 코호트를 말한다.
+      const { overlayOrganizationIds: _overlay, ...condition } = inputOf(query);
+      input = condition;
+    } catch {
+      throw new BadRequestException({ code: "VALIDATION_ERROR" });
+    }
+    try {
+      return toAnalysisDistributionResponse(await this.effectRunner.run(this.findDistribution.execute(input)));
+    } catch (error) {
+      throw translate(error);
+    }
+  }
+}
+
+/** 이력 요청을 application 입력으로 옮긴다. 조건은 다른 두 조회와 같은 변환을 쓴다. */
+function historyInputOf(query: HistoryQuery): FindAnalysisHistoryInput {
+  return {
+    targetOrganizationId: organizationId(BigInt(query.organizationId)),
+    excludeAttemptId: query.excludeAttemptId === undefined ? null : BigInt(query.excludeAttemptId),
+    period: { from: kstDate(query.from), to: kstDate(query.to) },
+    dateBasis: query.dateBasis,
+    comparisonScope: comparisonScopeOf(query),
+    floorRate: bidRate(canonicalDecimal(query.floorRate, 3)),
+    awardMethodCodeValueId: BigInt(query.awardMethodCodeValueId),
+    listCountMin: query.listCountMin ?? null,
+    listCountMax: query.listCountMax ?? null,
+    itemFilter: itemFilterOf(query),
+    population: query.population,
+    cursorAttemptId: query.cursor === undefined ? null : BigInt(query.cursor),
+    limit: query.limit,
+    expectedBuildId: query.expectedBuildId === undefined ? null : BigInt(query.expectedBuildId),
+  };
 }
 
 /**
@@ -182,6 +273,9 @@ function translate(error: unknown): unknown {
   if (error instanceof ProcurementDependencyUnavailable) {
     return new ServiceUnavailableException({ code: "DEPENDENCY_UNAVAILABLE" });
   }
+  // 요청 오류(다른 목록의 커서)와 기준이 사라진 것(build 교체)을 나눠야 화면이 고칠지 처음부터 다시 읽을지 안다.
+  if (error instanceof AnalysisHistoryCursorInvalid) return new BadRequestException({ code: "VALIDATION_ERROR" });
+  if (error instanceof AnalysisHistoryBuildChanged) return new ConflictException({ code: "CONFLICT" });
   return error;
 }
 

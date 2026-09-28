@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
 import request from "supertest";
 import {
+  analysisV1Operations,
   auctionV1Operations,
   codeSchemeV1Operations,
   healthOperations,
   meV1Operations,
-  winRateDistributionV1Operations,
   type PublicHttpOperation,
 } from "@eatbid/contracts";
 import { createApp, type CreateAppOptions } from "../bootstrap/create-app";
@@ -146,17 +146,15 @@ describe("로그인 게이트 거부의 관측", () => {
       expect(live.status).toBe(200);
 
       // query 위반은 pipe가 거부하며 pipe는 interceptor 안에서 돈다. 이 400에는 완료 로그만 있어야 한다.
-      const [base] = winRateDistributionV1Operations.find
-        .buildPath({ path: {}, query: { scope: "national", floorRate: "90.000", awardMethod: "31" } })
-        .split("?");
-      const invalid = await request(server).get(`${base}?scope=national&awardMethod=31&floorRate=raw-query-value`);
+      const base = analysisV1Operations.findDistribution.openApiPath;
+      const invalid = await request(server).get(`${base}?floorRate=raw-query-value`);
       expect(invalid.status).toBe(400);
 
       const completed = log.records("request_completed");
       expect(completed).toHaveLength(2);
       expect(completed[0]).toMatchObject({ route: nestRouteTemplate(healthOperations.live), status: 200 });
       expect(completed[1]).toMatchObject({
-        route: nestRouteTemplate(winRateDistributionV1Operations.find),
+        route: nestRouteTemplate(analysisV1Operations.findDistribution),
         status: 400,
         errorCode: "VALIDATION_ERROR",
       });

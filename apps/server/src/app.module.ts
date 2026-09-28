@@ -17,9 +17,7 @@ import type { AuctionReader } from "./modules/procurement/application/auction-re
 import type { AuctionRosterReader } from "./modules/procurement/application/auction-roster-reader";
 import type { OpenAuctionReader } from "./modules/procurement/application/open-auction-reader";
 import type { EligibilityAreaReader } from "./modules/procurement/application/eligibility-area-reader";
-import type { OrganizationAttemptReader } from "./modules/procurement/application/organization-attempt-reader";
 import type { AnalysisTimeSeriesReader } from "./modules/procurement/application/analysis-time-series-reader";
-import type { WinRateDistributionReader } from "./modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "./modules/reference/application/code-reader";
 import type { AccountRepository } from "./modules/account/application/account-repository";
 import type { RegionPreferenceRepository } from "./modules/account/application/region-preference-repository";
@@ -50,8 +48,6 @@ export class AppModule {
           auctionRosterReader: runtime.auctionRosterReader,
           openAuctionReader: runtime.openAuctionReader,
           eligibilityAreaReader: runtime.eligibilityAreaReader,
-          organizationAttemptReader: runtime.organizationAttemptReader,
-          winRateDistributionReader: runtime.winRateDistributionReader,
           analysisTimeSeriesReader: runtime.analysisTimeSeriesReader,
           codeReader: runtime.codeReader,
           accountRepository: runtime.accountRepository,
@@ -79,8 +75,6 @@ export interface AppModuleRuntime {
   readonly auctionRosterReader?: AuctionRosterReader;
   readonly openAuctionReader?: OpenAuctionReader;
   readonly eligibilityAreaReader?: EligibilityAreaReader;
-  readonly organizationAttemptReader?: OrganizationAttemptReader;
-  readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly analysisTimeSeriesReader?: AnalysisTimeSeriesReader;
   readonly codeReader?: CodeReader;
   readonly accountRepository?: AccountRepository;

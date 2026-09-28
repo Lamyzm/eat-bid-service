@@ -1,5 +1,8 @@
 # 0032 — 인증·인가 경계와 등록된 사업자
 
+> **2026-09-27 폐기 표시(EAT-224)**: 이 문서가 설명하는 기관 회차 이력 조회(`GET /api/v1/organizations/{organizationId}/auction-attempts`)와 낙찰률 분포 조회(`GET /api/v1/win-rate-distribution`)는 옛 공고 상세와 함께 폐기됐고, 새 상세는 분석 계약(`/api/v1/analysis/*`)을 쓴다. 두 mart와 dataplane의 무효화 push는 그대로다. 본문은 결정 당시의 기록으로 둔다.
+
+
 - Status: Accepted
 - Date: 2026-09-04 (2026-09-09 개정·확정, 2026-09-10 로그인 게이트 개정, 2026-09-10 개발 전용 provider 보완 §13,
   2026-09-11 게이트 대상 `use cache` 정합 보완 §14)

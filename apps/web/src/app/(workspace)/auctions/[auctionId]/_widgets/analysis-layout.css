@@ -1,0 +1,459 @@
+/* @module 책임: 토스 토큰으로 연속 분석 지면과 상단 고정 조건, 화면 전체를 쓰는 분석 영역을 배치한다. */
+.analysis-screen {
+  --analysis-padding: clamp(18px, 2.5vw, 36px);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  background: var(--background);
+  color: var(--foreground);
+}
+.analysis-screen > [data-slot='analysis-header'] {
+  padding: 28px var(--analysis-padding) 26px;
+}
+/*
+ * 조건 막대는 자기가 낮아지는 폭에서만 붙어 있는다. 경계 64rem은 실측이 정했다 — 900px 높이에서
+ * 막대는 390px에서 539px, 640~1023px에서 483~489px이고 1024px부터 253px로 접힌다(2026-09-18 dev).
+ * 막대가 489px이면 남는 411px에 456px짜리 차트가 들어가지 않아, 어떤 스크롤 위치에서도 차트 아래쪽이
+ * 막대 뒤에 숨는다. 조건을 늘 보이게 하려다 결과를 못 보게 만드는 것은 뒤집힌 거래다.
+ */
+[data-slot='analysis-sticky'] {
+  z-index: 12;
+  background: var(--background);
+  border-block: 1px solid var(--border);
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+@media (min-width: 64rem) {
+  [data-slot='analysis-sticky'] {
+    position: sticky;
+    top: var(--workspace-header-height);
+  }
+}
+.analysis-tabs-row {
+  min-height: 58px;
+  padding: 0 var(--analysis-padding);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.analysis-tabs-row [role='tab'] {
+  position: relative;
+  min-height: 58px;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.analysis-tabs-row [role='tab'][aria-selected='true'] {
+  color: var(--primary);
+}
+.analysis-tabs-row [role='tab'][aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--primary);
+}
+.analysis-tabs-row [role='tab']:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -4px;
+  border-radius: 4px;
+}
+/*
+ * 한국어는 어절 단위로 끊어야 읽힌다. 기본 줄바꿈은 `품목 미확인은 공고가 품목을 말하지 않` / `은
+ * 회차예요.`처럼 단어 가운데를 자른다(2026-09-18 디자인 심사 반려).
+ */
+.analysis-filter-form,
+.analysis-context-row {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+/*
+ * 막대는 줄의 열이고 조건은 줄 안에서만 흐른다. 라벨을 쌓고 적용 버튼 줄을 두던 이전 형태는
+ * 1024px에서 253px, 좁은 폭에서 489px까지 부풀어 결과를 화면 밖으로 밀어냈다.
+ */
+.analysis-filter-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  gap: 8px;
+  padding: 10px var(--analysis-padding);
+  max-height: 40dvh;
+  overflow-y: auto;
+}
+/*
+ * 줄 안에서만 흐르고 줄끼리는 섞이지 않는다. 한 뭉치로 흘리면 폭에 따라 `지역`이 조회 기간 줄에
+ * 붙었다가 비교 조건 줄로 갔다가 하며 어느 묶음에 속한 조건인지가 폭마다 달라진다.
+ */
+.analysis-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  gap: 6px 6px;
+}
+/*
+ * 값 자체가 무엇을 고른 것인지 말하는 칸(`최저가`·`적격심사`)은 좁은 폭에서 라벨을 눈에서만 감춘다.
+ * 1024px에서 여섯 칸은 776px이고 쓸 수 있는 폭은 716px이라, 이 60px을 내주지 않으면 마지막 칸이
+ * 통째로 다음 줄로 떨어진다(2026-09-18 실측). 이름은 남으므로 화면 낭독기는 그대로 읽는다.
+ */
+@media (max-width: 79.99rem) {
+  .analysis-filter-row .analysis-optional-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
+/*
+ * 줄 라벨은 두 묶음을 가르는 기둥이다. 폭을 고정해야 두 줄의 첫 칸이 같은 x에서 시작하고, 그래야
+ * 라벨이 기둥으로 읽힌다. 좁은 폭에서는 기둥이 쓰는 60px이 조건 한 칸을 통째로 다음 줄로 밀기
+ * 때문에 접는다 — 그 폭에서도 두 줄은 서로 다른 행이고 각 줄의 `role='group'` 이름이 남는다.
+ */
+.analysis-filter-row-label {
+  display: none;
+  flex-shrink: 0;
+  width: 52px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--muted-foreground);
+}
+@media (min-width: 80rem) {
+  .analysis-filter-row-label {
+    display: block;
+  }
+}
+[data-slot='analysis-evidence'] {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 490px;
+  border-bottom: 1px solid var(--border);
+}
+/*
+ * 아래 여백은 장식이 아니다. 지면 끝까지 내리면 조건 막대의 아래 모서리가 이 줄 위에 걸리는데,
+ * 여백이 좁으면 마지막 줄이 반토막 난 채 막대 밑으로 비어져 나와 화면이 깨진 것처럼 보인다
+ * (2026-09-18 dev 실측 11.6px). 경계가 글자가 아니라 빈자리에 떨어지게 한다.
+ */
+.analysis-context-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 26px var(--analysis-padding);
+}
+.analysis-context-row > :first-child {
+  min-width: 0;
+  flex: 1;
+}
+.analysis-method-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.analysis-method-panel[hidden] {
+  display: none;
+}
+/*
+ * 차트는 보통 지면에서 자기 높이를 갖고, 전체보기에서는 남는 자리를 전부 쓴다. 전체보기가
+ * 화면만 채우고 차트는 그대로면 "크게 보기"가 여백을 크게 보는 일이 된다.
+ */
+.analysis-chart-figure {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+.analysis-chart-box {
+  position: relative;
+  width: 100%;
+  height: min(30vh, 240px);
+}
+@media (min-width: 64rem) {
+  .analysis-chart-box {
+    height: min(40vh, 340px);
+  }
+}
+.analysis-screen[data-workspace-fullscreen='true'] .analysis-chart-figure {
+  flex: 1;
+  min-height: 0;
+}
+.analysis-screen[data-workspace-fullscreen='true'] .analysis-chart-box {
+  flex: 1;
+  height: auto;
+  min-height: 200px;
+}
+/*
+ * 위로 붙인다. 차트 높이만 한 상자의 한가운데에 두면 1024x768에서 설명 문장이 화면 밖으로 나가고
+ * 사용자는 이유 대신 백지 160px만 본다(2026-09-20 디자인 심사 반려). 이 알림의 목적이 "왜 비었는지
+ * 말해 주기"라 보이지 않으면 아무 일도 안 한 것과 같다. 최소 높이도 차트가 아니라 글 기준이다.
+ */
+.analysis-empty-plot {
+  display: flex;
+  flex: 1;
+  min-height: 180px;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 28px 24px 40px;
+  text-align: center;
+}
+.analysis-history-heading {
+  padding: 30px var(--analysis-padding) 22px;
+}
+.analysis-history-scroll {
+  overflow-x: auto;
+}
+.analysis-history-table {
+  width: 100%;
+  min-width: 740px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.analysis-history-table th {
+  padding: 14px 20px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  text-align: left;
+  font-weight: 500;
+}
+.analysis-history-table th:first-child {
+  padding-left: var(--analysis-padding);
+}
+/* 준비 중 한 칸(colspan)만 넓게 가운데 둔다. 실제 회차 줄은 읽기 좋은 높이로 왼쪽 정렬한다. */
+.analysis-history-table td[colspan] {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+/* 날짜와 사정률이 한 줄에서 꺾이면 읽히지 않는다. 좁아지면 줄을 꺾지 않고 표를 옆으로 민다. */
+.analysis-history-table th,
+.analysis-history-table td {
+  white-space: nowrap;
+}
+.analysis-history-table td {
+  padding: 11px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  max-width: 220px;
+}
+.analysis-history-table td:first-child {
+  padding-left: var(--analysis-padding);
+}
+.analysis-history-table tr[data-selected='true'] td {
+  background: var(--accent);
+}
+.analysis-history-open {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+.analysis-history-open:focus-visible,
+.analysis-history-list button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.analysis-history-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px var(--analysis-padding) 32px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.analysis-history-more {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px var(--analysis-padding) 32px;
+}
+/*
+ * 좁은 화면은 표를 옆으로 밀지 않고 한 회차를 두 줄로 쌓는다. 740px 표를 가로로 스크롤하면 날짜와
+ * 사정률이 같은 화면에 서지 않아 줄을 비교할 수 없다(2026-09-25 dev 390px 실측).
+ */
+.analysis-history-list {
+  display: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.analysis-history-list li {
+  border-top: 1px solid var(--border);
+}
+.analysis-history-list li[data-selected='true'] {
+  background: var(--accent);
+}
+.analysis-history-list button {
+  display: block;
+  width: 100%;
+  padding: 12px var(--analysis-padding);
+  text-align: left;
+}
+@media (max-width: 47.99rem) {
+  .analysis-history-scroll:has(+ .analysis-history-list) {
+    display: none;
+  }
+  .analysis-history-list {
+    display: block;
+  }
+}
+.analysis-screen[data-workspace-fullscreen='true'] {
+  height: 100dvh;
+  overflow: hidden;
+}
+.analysis-screen[data-workspace-fullscreen='true'] > [data-slot='analysis-header'],
+.analysis-screen[data-workspace-fullscreen='true'] > [data-slot='analysis-history'] {
+  display: none;
+}
+.analysis-screen[data-workspace-fullscreen='true'] > [data-slot='analysis-sticky'] {
+  position: static;
+  flex-shrink: 0;
+  border-top: 0;
+}
+.analysis-screen[data-workspace-fullscreen='true'] .analysis-filter-form {
+  max-height: 24dvh;
+}
+.analysis-screen[data-workspace-fullscreen='true'] > [data-slot='analysis-evidence'] {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+/*
+ * 전체보기에서는 맥락 줄이 제 높이만 쓰고 나머지를 차트에 넘긴다. 조건 요약 한 줄은 바로 위
+ * 조건 막대가 같은 값을 그대로 이고 있으므로 여기서는 접는다 — 같은 사실을 두 번 적느라 차트가
+ * 작아질 이유가 없다.
+ */
+.analysis-screen[data-workspace-fullscreen='true'] .analysis-context-row {
+  flex-shrink: 0;
+  padding: 14px var(--analysis-padding) 12px;
+}
+.analysis-screen[data-workspace-fullscreen='true'] .analysis-context-summary {
+  display: none;
+}
+.analysis-screen[data-workspace-fullscreen='true'] .analysis-empty-plot {
+  min-height: 120px;
+}
+@media (max-width: 700px) {
+  .analysis-tabs-row > span {
+    display: none;
+  }
+  .analysis-tabs-row {
+    min-height: 52px;
+  }
+  .analysis-tabs-row [role='tab'] {
+    min-height: 52px;
+    font-size: 14px;
+  }
+  .analysis-context-row {
+    padding-top: 22px;
+  }
+}
+
+/*
+ * 고른 회차의 명단. 넓은 화면(xl, 보조 패널 primitive와 같은 경계)에서는 분석·이력 오른쪽 열에 붙는다.
+ * 겹쳐 띄우지 않고 열을 나누는 이유는 명단을 보면서 그림의 점도 봐야 하기 때문이다 — 덮으면 고른 점이
+ * 패널 밑에 숨는다. 캔버스는 ResizeObserver로 줄어든 폭에 다시 그린다. 좁은 화면에서는 primitive가
+ * Sheet로 띄우므로 이 칸은 흐름에서 자리를 차지하지 않는다.
+ */
+@media (min-width: 80rem) {
+  .analysis-screen[data-inspector='open'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+    align-items: start;
+  }
+  .analysis-screen[data-inspector='open'] > [data-slot='analysis-header'],
+  .analysis-screen[data-inspector='open'] > [data-slot='analysis-sticky'] {
+    grid-column: 1 / -1;
+  }
+  .analysis-screen[data-inspector='open'] > [data-slot='analysis-evidence'],
+  .analysis-screen[data-inspector='open'] > [data-slot='analysis-history'] {
+    grid-column: 1;
+  }
+  .analysis-screen[data-inspector='open'] > [data-slot='analysis-inspector'] {
+    grid-column: 2;
+    grid-row: 3 / span 2;
+    position: sticky;
+    top: calc(var(--workspace-header-height) + var(--analysis-sticky-height, 0px) + 12px);
+    margin: 12px var(--analysis-padding) 12px 0;
+    max-height: calc(
+      100dvh - var(--workspace-header-height) - var(--analysis-sticky-height, 0px) - 24px
+    );
+    overflow-y: auto;
+  }
+}
+@media (max-width: 79.99rem) {
+  [data-slot='analysis-inspector'] {
+    display: contents;
+  }
+}
+
+/*
+ * 낙찰값 분포. 한 구간이 한 줄이고, 두 집단의 막대를 같은 줄에 위아래로 둔다. 막대 길이는 두 집단 중 가장 큰
+ * 비중에 맞춰 같은 척도다 — 집단마다 따로 맞추면 같은 길이가 다른 비중을 말한다.
+ */
+.analysis-distribution-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.analysis-distribution-table th,
+.analysis-distribution-table td {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+}
+.analysis-distribution-table thead th {
+  border-top: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+.analysis-distribution-table tbody th {
+  font-weight: 500;
+  text-align: left;
+  width: 1%;
+}
+.analysis-distribution-table tr[data-outside='true'] th {
+  color: var(--muted-foreground);
+}
+.analysis-distribution-bars {
+  width: 100%;
+  min-width: 120px;
+}
+.analysis-distribution-bars span {
+  display: block;
+  height: 7px;
+  min-width: 0;
+  border-radius: 2px;
+}
+.analysis-distribution-bars .comparison {
+  background: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+}
+.analysis-distribution-bars .target {
+  margin-top: 4px;
+  background: var(--primary);
+}
+.analysis-distribution-table tr[data-outside='true'] .analysis-distribution-bars span {
+  opacity: 0.55;
+}
+@media (max-width: 47.99rem) {
+  .analysis-distribution-table th,
+  .analysis-distribution-table td {
+    padding: 7px 6px;
+  }
+  .analysis-distribution-bars {
+    min-width: 56px;
+  }
+}

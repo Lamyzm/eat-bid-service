@@ -17,18 +17,18 @@ import type { AuctionRosterReader } from "../../modules/procurement/application/
 import { DrizzleAuctionRosterReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-roster-reader";
 import type { OpenAuctionReader } from "../../modules/procurement/application/open-auction-reader";
 import type { OpenAuctionSummaryReader } from "../../modules/procurement/application/open-auction-summary-reader";
-import type { OrganizationAttemptReader } from "../../modules/procurement/application/organization-attempt-reader";
 import type { AnalysisConditionOptionsReader } from "../../modules/procurement/application/analysis-condition-options-reader";
+import type { AnalysisHistoryReader } from "../../modules/procurement/application/analysis-history-reader";
+import type { AnalysisDistributionReader } from "../../modules/procurement/application/analysis-distribution-reader";
 import type { AnalysisTimeSeriesReader } from "../../modules/procurement/application/analysis-time-series-reader";
-import type { WinRateDistributionReader } from "../../modules/procurement/application/win-rate-distribution-reader";
 import type { CodeReader } from "../../modules/reference/application/code-reader";
 import { DrizzleAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-auction-reader";
 import { DrizzleOpenAuctionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-open-auction-reader";
 import { DrizzleOpenAuctionSummaryReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-open-auction-summary-reader";
-import { DrizzleOrganizationAttemptReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-organization-attempt-reader";
 import { DrizzleAnalysisConditionOptionsReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-condition-options-reader";
+import { DrizzleAnalysisHistoryReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-history-reader";
+import { DrizzleAnalysisDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-distribution-reader";
 import { DrizzleAnalysisTimeSeriesReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-analysis-time-series-reader";
-import { DrizzleWinRateDistributionReader } from "../../modules/procurement/infrastructure/drizzle/drizzle-win-rate-distribution-reader";
 import { DrizzleCodeReader } from "../../modules/reference/infrastructure/drizzle/drizzle-code-reader";
 import type { Environment } from "../config/environment";
 import type { DatabaseReadiness } from "../health/readiness-state";
@@ -46,15 +46,15 @@ import {
   FILTER_COMBINATION_REPOSITORY,
   OPEN_AUCTION_FILTER_COUNTS_READER,
   OPEN_AUCTION_SUMMARY_READER,
-  ORGANIZATION_ATTEMPT_READER,
   OWN_BID_READER,
   READ_SNAPSHOT,
   REGION_PREFERENCE_REPOSITORY,
   REGISTERED_BUSINESS_READER,
   UNIT_OF_WORK,
   ANALYSIS_CONDITION_OPTIONS_READER,
+  ANALYSIS_DISTRIBUTION_READER,
+  ANALYSIS_HISTORY_READER,
   ANALYSIS_TIME_SERIES_READER,
-  WIN_RATE_DISTRIBUTION_READER,
 } from "./database.tokens";
 import { createUnitOfWork, type UnitOfWork } from "./unit-of-work";
 
@@ -71,10 +71,10 @@ export interface DatabaseModuleOverrides {
   readonly auctionRosterReader?: AuctionRosterReader;
   readonly openAuctionReader?: OpenAuctionReader;
   readonly openAuctionSummaryReader?: OpenAuctionSummaryReader;
-  readonly organizationAttemptReader?: OrganizationAttemptReader;
-  readonly winRateDistributionReader?: WinRateDistributionReader;
   readonly analysisTimeSeriesReader?: AnalysisTimeSeriesReader;
   readonly analysisConditionOptionsReader?: AnalysisConditionOptionsReader;
+  readonly analysisHistoryReader?: AnalysisHistoryReader;
+  readonly analysisDistributionReader?: AnalysisDistributionReader;
   readonly codeReader?: CodeReader;
 }
 
@@ -153,18 +153,6 @@ export class DatabaseModule {
           overrides.auctionRosterReader ?? new DrizzleAuctionRosterReader(connection.database),
       },
       {
-        provide: ORGANIZATION_ATTEMPT_READER,
-        inject: [DATABASE_CONNECTION],
-        useFactory: (connection: ManagedDatabase): OrganizationAttemptReader =>
-          overrides.organizationAttemptReader ?? new DrizzleOrganizationAttemptReader(connection.database),
-      },
-      {
-        provide: WIN_RATE_DISTRIBUTION_READER,
-        inject: [DATABASE_CONNECTION],
-        useFactory: (connection: ManagedDatabase): WinRateDistributionReader =>
-          overrides.winRateDistributionReader ?? new DrizzleWinRateDistributionReader(connection.database),
-      },
-      {
         provide: ANALYSIS_TIME_SERIES_READER,
         inject: [DATABASE_CONNECTION],
         useFactory: (connection: ManagedDatabase): AnalysisTimeSeriesReader =>
@@ -176,6 +164,18 @@ export class DatabaseModule {
         useFactory: (connection: ManagedDatabase): AnalysisConditionOptionsReader =>
           overrides.analysisConditionOptionsReader
             ?? new DrizzleAnalysisConditionOptionsReader(connection.database),
+      },
+      {
+        provide: ANALYSIS_HISTORY_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): AnalysisHistoryReader =>
+          overrides.analysisHistoryReader ?? new DrizzleAnalysisHistoryReader(connection.database),
+      },
+      {
+        provide: ANALYSIS_DISTRIBUTION_READER,
+        inject: [DATABASE_CONNECTION],
+        useFactory: (connection: ManagedDatabase): AnalysisDistributionReader =>
+          overrides.analysisDistributionReader ?? new DrizzleAnalysisDistributionReader(connection.database),
       },
       {
         provide: CODE_READER,
@@ -233,10 +233,10 @@ export class DatabaseModule {
         AUCTION_ROSTER_READER,
         OPEN_AUCTION_READER,
         OPEN_AUCTION_SUMMARY_READER,
-        ORGANIZATION_ATTEMPT_READER,
-        WIN_RATE_DISTRIBUTION_READER,
         ANALYSIS_TIME_SERIES_READER,
         ANALYSIS_CONDITION_OPTIONS_READER,
+        ANALYSIS_HISTORY_READER,
+        ANALYSIS_DISTRIBUTION_READER,
         CODE_READER,
       ],
     };

@@ -8,6 +8,9 @@ review_trigger: decision-screen-materials-or-load-assumption-change
 
 # 투찰 결정 화면 v2 — 재료·적재·아키텍처
 
+> **2026-09-27 폐기 표시(EAT-224)**: 이 문서가 설명하는 기관 회차 이력 조회(`GET /api/v1/organizations/{organizationId}/auction-attempts`)와 낙찰률 분포 조회(`GET /api/v1/win-rate-distribution`)는 옛 공고 상세와 함께 폐기됐고, 새 상세는 분석 계약(`/api/v1/analysis/*`)을 쓴다. 두 mart와 dataplane의 무효화 push는 그대로다. 본문은 결정 당시의 기록으로 둔다.
+
+
 작성 2026-09-04. 근거: `docs/architecture/domain-and-data.md`, `c4.md`, `runtime-and-deployment.md`, `packages/db/src/schema`, `docs/experiments/2026-09-01-data-inventory.md`, `docs/ARCH-DATA.md` 1-6·§9, 2026-09-04 03:15 KST 클러스터 실측.
 
 ## 0. 한 문장

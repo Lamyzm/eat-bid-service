@@ -1,155 +1,68 @@
 import { describe, expect, test } from 'bun:test';
+import type { AnalysisDistributionV1Response } from '@eatbid/contracts/api/v1/analysis';
+import { presentDistribution } from './present-distribution';
 
-import {
-  emptyDistributionFixture,
-  floor88DistributionFixture,
-  floor90DistributionFixture
-} from '@/app/(workspace)/auctions/[auctionId]/__fixtures__/distribution';
-import { parseMyRate, presentDistribution } from './present-distribution';
+const rate = (value: string) => ({ value, unit: 'percentage-points' as const });
+const build = {
+  buildId: '501',
+  sourceReleaseId: null,
+  calcVersion: null,
+  computedAt: null,
+  coverage: null,
+  regionScheme: null
+};
 
-const national = { myRate: null, isRegionScope: false } as const;
+function response(
+  overrides: Partial<AnalysisDistributionV1Response> = {}
+): AnalysisDistributionV1Response {
+  return {
+    bins: [
+      { from: rate('90.000'), to: rate('90.100'), targetCount: 2, comparisonCount: 60 },
+      { from: rate('90.100'), to: rate('90.200'), targetCount: 1, comparisonCount: 20 }
+    ],
+    targetOutside: { below: 0, above: 1 },
+    comparisonOutside: { below: 5, above: 15 },
+    meta: { targetTotal: 4, comparisonTotal: 100, build },
+    ...overrides
+  };
+}
 
-const rowOf = (presentation: ReturnType<typeof presentDistribution>, from: string) =>
-  presentation.ladder?.rows.find((row) => row.fromText === from);
-
-describe('호가창 사다리 표시 모델', () => {
-  test('남산초 하한율 90 코호트의 최빈 칸·중앙 칸·비중을 사다리로 옮긴다', () => {
-    const presentation = presentDistribution(floor90DistributionFixture, national);
-    expect(presentation.state).toBe('ready');
-    expect(presentation.sampleCount).toBe(82);
-    expect(presentation.sampleLabel).toBeNull();
-    expect(presentation.ladder?.modeText).toBe('90.000 ~ 90.010');
-    expect(presentation.ladder?.modeSharePercentText).toBe('24%');
-    expect(presentation.ladder?.medianText).toBe('90.030 ~ 90.040');
-    expect(rowOf(presentation, '90.000')).toMatchObject({ count: 20, inModeRange: true, barRatio: 1 });
-    expect(rowOf(presentation, '90.030')).toMatchObject({ count: 8, inModeRange: false });
+describe('낙찰값 분포 표시', () => {
+  test('위에서 아래로 높은 사정률이고 맨 위는 구간 이상, 맨 아래는 하한 미만이다', () => {
+    const view = presentDistribution({ kind: 'distribution', response: response() });
+    if (view.kind !== 'plot') throw new Error('plot이어야 한다');
+    expect(view.rows.map((row) => row.label)).toEqual([
+      '90.2↑',
+      '90.1–90.2',
+      '90.0–90.1',
+      '하한 미만'
+    ]);
   });
 
-  test('하한율 88 코호트는 겹치지 않는 자리에서 따로 센다', () => {
-    const presentation = presentDistribution(floor88DistributionFixture, national);
-    expect(presentation.state).toBe('ready');
-    expect(presentation.sampleCount).toBe(10);
-    expect(presentation.sampleLabel).toBe('표본 적음');
-    expect(presentation.ladder?.modeText).toBe('88.000 ~ 88.010');
-    expect(presentation.ladder?.medianText).toBe('88.030 ~ 88.040');
-    expect(rowOf(presentation, '88.030')).toMatchObject({ count: 2 });
-    // 90 코호트의 칸은 이 사다리에 없다.
-    expect(rowOf(presentation, '90.000')).toBeUndefined();
+  test('비중의 분모는 구간 밖까지 포함한 집단 전체다', () => {
+    // 보이는 칸만으로 나누면 밖의 회차가 없는 것처럼 100%가 된다.
+    const view = presentDistribution({ kind: 'distribution', response: response() });
+    if (view.kind !== 'plot') throw new Error('plot이어야 한다');
+    const lowest = view.rows[2]!;
+    expect(lowest.comparisonShareText).toBe('60.0%');
+    expect(lowest.targetShareText).toBe('50.0%');
   });
 
-  test('창은 25줄이고 최빈 칸을 중심으로 잡히며 빈 칸은 0으로 채운다', () => {
-    const presentation = presentDistribution(floor90DistributionFixture, national);
-    expect(presentation.ladder?.rows).toHaveLength(25);
-    expect(presentation.ladder?.rows[0]?.fromText).toBe('89.880');
-    expect(presentation.ladder?.rows.at(-1)?.fromText).toBe('90.120');
-    // 89.880은 관측이 없는 칸이다. 사다리는 그 자리를 0으로 채운다.
-    expect(rowOf(presentation, '89.880')).toMatchObject({ count: 0, barRatio: 0 });
-    expect(rowOf(presentation, '90.090')).toMatchObject({ count: 0 });
+  test('막대 길이는 두 집단이 같은 척도를 쓰고 가장 큰 비중이 끝까지 찬다', () => {
+    const view = presentDistribution({ kind: 'distribution', response: response() });
+    if (view.kind !== 'plot') throw new Error('plot이어야 한다');
+    expect(view.rows[2]!.comparisonWidth).toBe(1);
+    expect(view.rows[2]!.targetWidth).toBeCloseTo(0.5 / 0.6, 5);
   });
 
-  test('창 밖 표본을 위·아래로 나눠 보고하고 합이 표본 수와 같다', () => {
-    const presentation = presentDistribution(floor90DistributionFixture, national);
-    const inWindow = (presentation.ladder?.rows ?? []).reduce((total, row) => total + row.count, 0);
-    const below = presentation.ladder?.belowWindowCount ?? 0;
-    const above = presentation.ladder?.aboveWindowCount ?? 0;
-    expect(below).toBe(0);
-    expect(above).toBeGreaterThan(0);
-    expect(inWindow + below + above).toBe(82);
-  });
-
-  test('내 값이 창 밖이면 창이 밀려 그 줄이 사다리에 들어온다', () => {
-    const presentation = presentDistribution(floor90DistributionFixture, {
-      myRate: '91.070',
-      isRegionScope: false
+  test('자료가 없으면 0으로 채우지 않고 준비 전이라고 말한다', () => {
+    const view = presentDistribution({
+      kind: 'distribution',
+      response: response({
+        bins: [],
+        meta: { targetTotal: 0, comparisonTotal: 0, build: { ...build, buildId: null } }
+      })
     });
-    expect(rowOf(presentation, '91.070')).toMatchObject({ isMyRate: true, count: 1 });
-    expect(presentation.ladder?.rows).toHaveLength(25);
-    expect(presentation.ladder?.rows.at(-1)?.fromText).toBe('91.070');
-  });
-
-  test('내 값 칸은 낮게에도 높게에도 넣지 않고 같은 칸으로 센다', () => {
-    const presentation = presentDistribution(floor90DistributionFixture, {
-      myRate: '90.0305',
-      isRegionScope: false
-    });
-    const myRate = presentation.ladder?.myRate;
-    // 넷째 자리는 사정률 관측 정밀도 밖이라 계약이 받지 않는다. 값을 지어내지 않고 없는 것으로 둔다.
-    expect(myRate).toBeNull();
-
-    const exact = presentDistribution(floor90DistributionFixture, { myRate: '90.03', isRegionScope: false });
-    expect(exact.ladder?.myRate).toEqual({
-      text: '90.030',
-      lowerCount: 36,
-      higherCount: 38,
-      sameCount: 8
-    });
-    expect((exact.ladder?.myRate?.lowerCount ?? 0) + (exact.ladder?.myRate?.higherCount ?? 0)
-      + (exact.ladder?.myRate?.sameCount ?? 0)).toBe(82);
-  });
-
-  test('잘못된 내 값 입력은 사다리를 오염시키지 않는다', () => {
-    for (const invalid of ['', '  ', 'abc', '-90', '90.0301', '1234', '90,03']) {
-      expect(parseMyRate(invalid), invalid).toBeNull();
-    }
-    expect(parseMyRate('90')).toBe(BigInt(90000));
-    expect(parseMyRate(' 90.03 ')).toBe(BigInt(90030));
-    expect(presentDistribution(floor90DistributionFixture, { myRate: 'abc', isRegionScope: false })
-      .ladder?.myRate).toBeNull();
-  });
-
-  test('활성 build가 없으면 사다리를 그리지 않고 그 사유를 말한다', () => {
-    const presentation = presentDistribution(emptyDistributionFixture, national);
-    expect(presentation.state).toBe('unknown');
-    expect(presentation.reason).toBe('아직 이 조건의 분포를 만든 적이 없습니다');
-    expect(presentation.ladder).toBeNull();
-    // 계보 meta는 unknown일 때도 그대로 남는다. 각주가 왜 비었는지 말할 수 있어야 한다(AGENTS 7).
-    expect(presentation.meta.period).toEqual({ from: '2026-08', to: '2026-09' });
-  });
-
-  test('표본이 없거나 10회차 미만이면 회색으로 두고 표본 수를 말한다', () => {
-    const noSample = {
-      ...floor90DistributionFixture,
-      bins: [],
-      medianBin: null,
-      modeRange: null,
-      meta: { ...floor90DistributionFixture.meta, sampleCount: 0 }
-    };
-    expect(presentDistribution(noSample, national)).toMatchObject({
-      state: 'unknown',
-      reason: '이 조건으로 낙찰된 회차가 아직 없습니다'
-    });
-
-    const scarce = {
-      ...floor90DistributionFixture,
-      meta: { ...floor90DistributionFixture.meta, sampleCount: 7 }
-    };
-    expect(presentDistribution(scarce, national)).toMatchObject({
-      state: 'unknown',
-      reason: '표본 7회차',
-      sampleLabel: '표본 부족'
-    });
-  });
-
-  test('지역 모집단은 코드 체계가 행안부가 아니면 잠기고 전국은 영향받지 않는다', () => {
-    expect(presentDistribution(floor90DistributionFixture, { myRate: null, isRegionScope: true }))
-      .toMatchObject({
-        state: 'unknown',
-        reason: '지역 코드 체계가 행안부 기준이 아닙니다(지금 수집 기준: eat:auction-location-sigungu)'
-      });
-    // 같은 응답이 전국 모집단에서는 그대로 그려진다(설계 §5.3·§6.3).
-    expect(presentDistribution(floor90DistributionFixture, national).state).toBe('ready');
-  });
-
-  test('행안부 체계여도 보유율이 complete가 아니면 지역 모집단은 잠긴다', () => {
-    const mois = {
-      ...floor90DistributionFixture,
-      meta: { ...floor90DistributionFixture.meta, regionScheme: 'mois:administrative-region' }
-    };
-    expect(presentDistribution(mois, { myRate: null, isRegionScope: true })).toMatchObject({
-      state: 'unknown',
-      reason: '이 기간·지역은 아직 수집되지 않았습니다'
-    });
-    const complete = { ...mois, meta: { ...mois.meta, coverage: 'complete' as const } };
-    expect(presentDistribution(complete, { myRate: null, isRegionScope: true }).state).toBe('ready');
+    expect(view.kind).toBe('unavailable');
   });
 });

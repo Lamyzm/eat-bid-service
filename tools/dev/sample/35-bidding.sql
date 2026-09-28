@@ -114,3 +114,43 @@ select
     on previous.auction_attempt_id = 992000 + ((revision.auction_attempt_id - 991000) % 40) + 1
  where revision.auction_attempt_id between 991001 and 991060
    and (revision.auction_attempt_id - 991000) % 11 = 0;
+
+-- 명단의 관측 시각은 그 회차 관측에 매달린 구매기관 라벨이 말한다(server `auction-roster-query`). 운영은 상세를
+-- 수집할 때마다 그 관측에 기관 라벨을 남기는데, 이 시드는 기관 라벨을 공용 관측(990004) 하나에만 두어 명단
+-- 조회가 "근거 라벨이 없다"로 멈췄다(2026-09-26 dev 실측, 새 상세 명단 사이드바 500). 회차 관측마다 같은
+-- 라벨을 남겨 운영과 같은 모양을 만든다. 라벨이 없는 기관(990006)은 그대로 둔다.
+insert into core.code_label_observation (code_value_id, label, language, observed_at, observation_id)
+select distinct identifier.code_value_id, base.label, 'ko', observation.fetched_at, revision.observation_id
+  from core.auction_revision revision
+  join core.auction_organization purchaser
+    on purchaser.auction_revision_id = revision.auction_revision_id and purchaser.role = 'purchaser'
+  join core.organization_identifier identifier on identifier.organization_id = purchaser.organization_id
+  join ingest.raw_observation observation on observation.observation_id = revision.observation_id
+  join core.code_label_observation base
+    on base.code_value_id = identifier.code_value_id and base.observation_id = 990004
+ where revision.auction_attempt_id between 991001 and 992040
+on conflict do nothing;
+
+-- 명단 행의 업체 이름·투찰 상태·철회 라벨도 같은 이유로 그 명단 관측에 매달린 라벨만 읽는다. 공용 관측에만
+-- 두거나 아예 없으면 새 상세 사이드바가 모든 업체를 "업체명 미확인"으로 그린다(2026-09-26 dev 실측). 운영에서
+-- 업체 이름은 원천 명단의 SHIPPER_NM이 그 관측에 남긴 라벨이다. 시드는 합성 업체 이름을 그 자리에 둔다.
+insert into core.code_label_observation (code_value_id, label, language, observed_at, observation_id)
+select distinct account.account_code_value_id, party.canonical_name, 'ko', observation.fetched_at, submission.observation_id
+  from core.bid_submission submission
+  join core.source_supplier_account account
+    on account.source_supplier_account_id = submission.source_supplier_account_id
+  join core.supplier_party party on party.supplier_party_id = account.supplier_party_id
+  join ingest.raw_observation observation on observation.observation_id = submission.observation_id
+ where party.canonical_name is not null
+on conflict do nothing;
+
+insert into core.code_label_observation (code_value_id, label, language, observed_at, observation_id)
+select distinct code.code_value_id, base.label, 'ko', observation.fetched_at, submission.observation_id
+  from core.bid_submission submission
+  join ingest.raw_observation observation on observation.observation_id = submission.observation_id
+  cross join lateral (
+    values (submission.source_status_code_value_id), (submission.withdrawal_code_value_id)
+  ) as code(code_value_id)
+  join core.code_label_observation base
+    on base.code_value_id = code.code_value_id and base.observation_id = 990004
+on conflict do nothing;

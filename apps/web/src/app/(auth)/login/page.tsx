@@ -11,7 +11,7 @@ import {
   setupRouteWithReturn
 } from '@/shell/auth/return-path';
 
-import { isDevLoginEnabled } from './_model/dev-login';
+import { isDevAutoLoginEnabled, isDevLoginEnabled } from './_model/dev-login';
 import { LoginScreen } from './_ui/login-screen';
 import { LoginScreenSkeleton } from './_ui/login-screen-skeleton';
 
@@ -40,6 +40,11 @@ async function LoginLoader({ searchParams }: { readonly searchParams: LoginPageP
       devLoginEnabled={isDevLoginEnabled({
         nodeEnv: process.env.NODE_ENV,
         devLogin: process.env.EATBID_DEV_LOGIN
+      })}
+      devAutoLogin={isDevAutoLoginEnabled({
+        nodeEnv: process.env.NODE_ENV,
+        devLogin: process.env.EATBID_DEV_LOGIN,
+        devAutoLogin: process.env.EATBID_DEV_AUTO_LOGIN
       })}
     />
   );

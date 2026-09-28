@@ -12,7 +12,7 @@ import {
   timeResolutionOf,
   type FindAnalysisTimeSeriesInput,
 } from "./find-analysis-time-series";
-import { OrganizationNotFound } from "./list-organization-auction-attempts";
+import { OrganizationNotFound } from "./organization-not-found";
 import { toAnalysisTimeSeriesResponse } from "../presentation/http/analysis.presenter";
 
 const clock = fixedClock(Temporal.Instant.from("2026-09-18T01:00:00Z"));

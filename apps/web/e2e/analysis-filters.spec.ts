@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { VIEWPORT_WIDTH } from './support/viewports';
 
 const auctionId = process.env.EATBID_E2E_AUCTION_ID ?? '5796468';
-const analysisUrl = `/auctions/${auctionId}/analysis`;
+const analysisUrl = `/auctions/${auctionId}`;
 test.beforeEach(async ({ context }) => {
   await context.addCookies([
     { name: 'active_theme', value: 'toss', domain: '127.0.0.1', path: '/' }

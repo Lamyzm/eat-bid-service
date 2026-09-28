@@ -145,9 +145,17 @@ export function analysisOrganizationOptionSql(query: AnalysisConditionOptionsQue
        where ${analysisBasePredicate(query)} ${analysisComparisonPredicate(query)}
        group by 1
     ),
-    named as (
-      select grouped.*, ${organizationLabelSql(sql`grouped.organization_id`)} as organization_name
+    -- 이름은 보여 줄 줄에만 붙인다. 검색어가 없으면 건수 순 상위만 나가므로 그 순위 안(같은 건수 포함)만
+    -- 이름을 찾는다 — 전국 6,326 기관 전부에 이름을 붙이면 한 번에 2초다(2026-09-27 운영 실측). 검색어가 있으면
+    -- 이름으로 걸러야 하므로 전부 붙인다. 같은 건수는 이름 순이라 경계의 같은 건수 기관까지 함께 이름을 붙인다.
+    ranked as (
+      select grouped.*, rank() over (order by grouped.row_count desc) as count_rank
         from grouped
+    ),
+    named as (
+      select ranked.*, ${organizationLabelSql(sql`ranked.organization_id`)} as organization_name
+        from ranked
+       where ${query.organizationQuery === null ? sql`ranked.count_rank <= ${query.organizationLimit + 1}` : sql`true`}
     )
     select named.organization_id, named.organization_name, named.row_count,
            named.region_code_value_id, named.region_code, named.region_label
