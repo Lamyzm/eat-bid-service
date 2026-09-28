@@ -5,7 +5,7 @@ import path from "node:path";
 
 export const CHANGED_PATHS_ENV = "EATBID_CHANGED_PATHS";
 export const CHANGED_BASE_ENV = "EATBID_CHANGED_BASE";
-export const DEFAULT_BASE_CANDIDATES = Object.freeze(["main", "origin/main"]);
+export const DEFAULT_BASE_CANDIDATES = Object.freeze(["origin/main", "main"]);
 const compare = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
 
 function git(repoRoot, args) {
@@ -36,7 +36,10 @@ function mergeBase(repoRoot, left, right) {
 
 /**
  * 기준 commit을 정한다. 명시한 base가 해석되지 않으면 조용히 약해지는 대신 설정 오류로 던진다.
- * 자동 탐색은 main → origin/main 순서로 HEAD와 다른 merge-base를 먼저 취한다. 둘 다 HEAD와 같으면
+ * 자동 탐색은 origin/main → main 순서로 HEAD와 다른 merge-base를 먼저 취한다. 여러 worktree를 쓰는
+ * 저장소에서 로컬 main은 루트 작업본이 쥔 채 갱신되지 않는 포인터라 믿을 수 없고, 그 뒤처진 main을
+ * 기준으로 삼으면 남이 이미 병합한 경로까지 범위에 섞인다. origin/main은 fetch가 늦어 오래돼도 범위가
+ * 넓어질 뿐 좁아지지 않으므로 먼저 본다. 로컬 main은 원격이 없는 저장소를 위한 대체 후보다. 둘 다 HEAD와 같으면
  * (main 자체이거나 branch에 아직 commit이 없는 경우) HEAD가 기준이 되어 작업 트리 변경만 범위가 된다.
  * 후보 branch가 하나도 없으면 unresolved이며, 그 처리는 호출한 검사기가 정한다.
  */
