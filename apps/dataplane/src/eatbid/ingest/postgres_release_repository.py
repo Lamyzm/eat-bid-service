@@ -133,7 +133,7 @@ class PsycopgSourceReleaseRepository(PostgresReleaseGuardMixin):
                        quarantined_count
                 from ingest.source_release_dataset
                 where source_release_id = %s and dataset = %s
-                for update
+                for no key update
                 """,
                 (source_release_id, progress.dataset),
             )
@@ -258,7 +258,7 @@ class PsycopgSourceReleaseRepository(PostgresReleaseGuardMixin):
     ) -> str:
         cursor.execute(
             "select source, status from ingest.source_release "
-            "where source_release_id = %s for update",
+            "where source_release_id = %s for no key update",
             (source_release_id,),
         )
         row = cursor.fetchone()

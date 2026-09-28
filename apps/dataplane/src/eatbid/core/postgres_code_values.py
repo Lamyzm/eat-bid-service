@@ -52,7 +52,7 @@ def resolve_code_value(
     cursor.execute(
         """
         select code_value_id from core.code_value
-        where code_scheme_id = %s and code = %s for update
+        where code_scheme_id = %s and code = %s for no key update
         """,
         (scheme_id, code),
     )
@@ -93,7 +93,7 @@ def resolve_label(
         select observed_at from core.code_label_observation
         where code_value_id = %s and label = %s and language = 'und'
           and observation_id = %s
-        for update
+        for no key update
         """,
         (code_value_id, label, observation_id),
     )

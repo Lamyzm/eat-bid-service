@@ -159,7 +159,7 @@ class CanonicalProjectionWriter:
             from core.organization_identifier oi
             join core.organization o using (organization_id)
             where oi.code_value_id = %s
-            for update of oi, o
+            for no key update of oi, o
             """,
             (code_value_id,),
         )
@@ -211,7 +211,7 @@ class CanonicalProjectionWriter:
         cursor.execute(
             """
             select auction_attempt_id from core.auction_attempt
-            where source_system = %s and external_bid_id = %s for update
+            where source_system = %s and external_bid_id = %s for no key update
             """,
             (projection.source_system, projection.external_bid_id),
         )
@@ -268,7 +268,7 @@ class CanonicalProjectionWriter:
                    content_sha256, display_bid_no, source_status, title,
                    announced_at, deadline_at, opened_at, base_amount,
                    planned_amount, floor_rate, currency, source_payload
-            from core.auction_revision where normalized_record_id = %s for update
+            from core.auction_revision where normalized_record_id = %s for no key update
             """,
             (projection.normalized_record_id,),
         )
@@ -322,7 +322,7 @@ class CanonicalProjectionWriter:
                 return 1
         cursor.execute(
             f"select 1 from core.{table} where auction_revision_id = %s "
-            f"and {columns.split(', ')[1]} = %s and role = %s for update",
+            f"and {columns.split(', ')[1]} = %s and role = %s for no key update",
             values,
         )
         if cursor.fetchone() is None:
@@ -339,7 +339,7 @@ class CanonicalProjectionWriter:
     ) -> None:
         cursor.execute(
             "select organization_id, role from core.auction_organization "
-            "where auction_revision_id = %s order by organization_id, role for update",
+            "where auction_revision_id = %s order by organization_id, role for no key update",
             (revision_id,),
         )
         organizations = {(int(row[0]), str(row[1])) for row in cursor.fetchall()}
@@ -347,7 +347,7 @@ class CanonicalProjectionWriter:
             raise ProjectionContractError("purchaser relationship set conflicts")
         cursor.execute(
             "select code_value_id, role from core.auction_revision_code_value "
-            "where auction_revision_id = %s order by code_value_id, role for update",
+            "where auction_revision_id = %s order by code_value_id, role for no key update",
             (revision_id,),
         )
         codes = {(int(row[0]), str(row[1])) for row in cursor.fetchall()}

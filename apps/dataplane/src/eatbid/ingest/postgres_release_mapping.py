@@ -15,7 +15,7 @@ def lock_observation_source(
     cursor: psycopg.Cursor[Any], observation_id: int
 ) -> str | None:
     cursor.execute(
-        "select source from ingest.raw_observation where observation_id = %s for update",
+        "select source from ingest.raw_observation where observation_id = %s for no key update",
         (observation_id,),
     )
     row = cursor.fetchone()
@@ -37,7 +37,7 @@ def load_release_observations(
           on observation.observation_id = member.observation_id
         where member.source_release_id = %s
         order by member.observation_id, observation.content_sha256
-        for update of observation
+        for no key update of observation
         """,
         (source_release_id,),
     )

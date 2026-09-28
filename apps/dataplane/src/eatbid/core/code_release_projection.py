@@ -154,7 +154,7 @@ def _existing_release(
         """
         select code_release_id, member_count from core.code_release
         where source_release_id = %s and code_scheme_id = %s
-        for update
+        for no key update
         """,
         (str(source_release_id), scheme_id),
     )

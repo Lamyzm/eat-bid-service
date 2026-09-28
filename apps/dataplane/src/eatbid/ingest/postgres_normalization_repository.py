@@ -1,3 +1,5 @@
+"""모듈 책임: 정규화할 관측을 PostgreSQL에서 읽어 오고, 그 결과(봉인 payload 또는 격리 사유)를 한 번만 기록하며 같은 관측·파서 키에 다른 결과가 오면 거부한다."""
+
 from __future__ import annotations
 
 import json
@@ -228,7 +230,7 @@ class PsycopgNormalizationRepository:
             from ingest.normalized_record
             where observation_id = %s and record_type = %s
               and source_entity_id = %s and parser_version = %s
-            for update
+            for no key update
             """,
             (observation_id, record_type, source_entity_id, parser_version),
         )
@@ -278,7 +280,7 @@ class PsycopgNormalizationRepository:
                    schema_fingerprint, quarantine_reason
             from ingest.normalization_attempt
             where run_id = %s and observation_id = %s and parser_version = %s
-            for update
+            for no key update
             """,
             (
                 observation.processing_run_id,
@@ -321,7 +323,7 @@ class PsycopgNormalizationRepository:
               on u.request_unit_id = o.request_unit_id and u.run_id = o.run_id
             join ingest.raw_blob b on b.content_sha256 = o.content_sha256
             where pr.run_id = %s and o.observation_id = %s
-            for update of pr, o, u, b
+            for no key update of pr, o, u, b
             """,
             (observation.processing_run_id, observation.observation_id),
         )
