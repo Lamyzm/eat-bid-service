@@ -12,7 +12,7 @@ import { init, use as registerEchartsModules, type ECharts } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useRef, useState } from 'react';
 import type { TimeSeriesPlot, TimeSeriesPoint } from '../model/present-time-series';
-import { TARGET_SERIES_ID, timeSeriesOption } from '../lib/time-series-option';
+import { CROWD_THRESHOLD, TARGET_SERIES_ID, timeSeriesOption } from '../lib/time-series-option';
 import { floorSentence, outsideSentences } from '../model/time-series-annotations';
 
 /** 손가락이 주 입력인 기기다. effect 안에서만 부르므로 서버 렌더에는 닿지 않는다. */
@@ -96,6 +96,8 @@ export function TimeSeriesChart({
   }, [plot, full, pinned, selectedAttemptId]);
 
   const density = plot.comparison.kind === 'density';
+  // 범례 표식은 그림과 같은 모양이어야 한다. 비교 점이 많으면 그림이 채운 점이라 범례도 채운 점이다.
+  const filled = density || plot.comparison.points.length > CROWD_THRESHOLD;
   const summary =
     `${organizationLabel} ${plot.targetCount}건, ${comparisonLabel} ${plot.comparisonCount}건` +
     `(그중 ${plot.overlapCount}건은 이 기관의 기록)`;
@@ -119,7 +121,7 @@ export function TimeSeriesChart({
         <span className='flex items-center gap-1.5'>
           <span
             aria-hidden
-            className={`inline-block size-2.5 ${density ? 'rounded-full bg-muted-foreground/45' : 'rounded-full border border-muted-foreground/60'}`}
+            className={`inline-block size-2.5 ${filled ? 'rounded-full bg-muted-foreground/45' : 'rounded-full border border-muted-foreground/60'}`}
           />
           {comparisonLabel} {plot.comparisonCount}건{density ? ' · 크고 진할수록 관측이 많아요' : ''}
         </span>

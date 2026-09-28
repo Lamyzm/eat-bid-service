@@ -10,7 +10,7 @@ import { format, type EChartsCoreOption } from 'echarts/core';
 import { rateText } from '@/app/(workspace)/auctions/[auctionId]/_lib/rate-milli';
 import { CHART, chartFrame } from '@/shared/lib/chart-colors';
 
-import type { TimeSeriesPlot, TimeSeriesPoint } from '../model/present-time-series';
+import type { TimeSeriesObservation, TimeSeriesPlot } from '../model/present-time-series';
 import { floorInside } from '../model/time-series-annotations';
 import { rateTickDecimals } from '../model/time-series-axis';
 
@@ -26,6 +26,9 @@ export interface TimeSeriesOptionInput {
   readonly coarsePointer?: boolean;
 }
 
+/** 비교 점이 이보다 많으면 고리 대신 작은 반투명 점으로 그린다. 고리 수백 개부터 서로 겹쳐 그물이 된다. */
+export const CROWD_THRESHOLD = 300;
+
 /** 점을 누르면 명단을 여는 계열의 id다. 클릭 이벤트가 이 id로 기관 점만 가려낸다. */
 export const TARGET_SERIES_ID = 'target';
 
@@ -39,7 +42,7 @@ function cellOpacity(count: number, maxCount: number): number {
   return 0.25 + 0.75 * Math.sqrt(count / maxCount);
 }
 
-function pointData(points: readonly TimeSeriesPoint[], suffix = '') {
+function pointData(points: readonly TimeSeriesObservation[], suffix = '') {
   return points.map((point) => ({ value: [point.x, point.y], name: `${point.label}${suffix}` }));
 }
 
@@ -76,16 +79,28 @@ export function timeSeriesOption({
           itemStyle: { color: CHART.volume },
           z: 1
         }
-      : {
-          id: 'comparison',
-          type: 'scatter',
-          data: pointData(plot.comparison.points),
-          // 이 기관 점(9)보다 크게 그린다. 이 기관의 회차는 비교 집단에도 들어 있어 같은 자리에 겹치는데,
-          // 고리가 작으면 이 기관 점 밑에 숨어 비교 집단이 하나도 안 보였다(2026-09-28 사용자 보고).
-          symbolSize: 13,
-          itemStyle: { color: 'transparent', borderColor: CHART.volume, borderWidth: 1.25 },
-          z: 1
-        };
+      : plot.comparison.points.length > CROWD_THRESHOLD
+        ? {
+            id: 'comparison',
+            type: 'scatter',
+            // 수천 건이면 작은 반투명 점으로 그린다. 고리로 그리면 서로 겹쳐 그물처럼 보였고(2026-09-28 dev 실측),
+            // 채운 반투명 점은 많이 몰린 자리가 겹쳐 저절로 진해져 밀도를 말한다.
+            data: pointData(plot.comparison.points),
+            symbolSize: 5,
+            itemStyle: { color: CHART.volume, opacity: 0.55 },
+            large: true,
+            z: 1
+          }
+        : {
+            id: 'comparison',
+            type: 'scatter',
+            data: pointData(plot.comparison.points),
+            // 이 기관 점(9)보다 크게 그린다. 이 기관의 회차는 비교 집단에도 들어 있어 같은 자리에 겹치는데,
+            // 고리가 작으면 이 기관 점 밑에 숨어 비교 집단이 하나도 안 보였다(2026-09-28 사용자 보고).
+            symbolSize: 13,
+            itemStyle: { color: 'transparent', borderColor: CHART.volume, borderWidth: 1.25 },
+            z: 1
+          };
 
   // 겹친 기관은 고리로 그린다. 하나를 집으면 그것만 진해지고 나머지는 자리만 남긴다.
   const overlays = plot.overlays.map((series) => {

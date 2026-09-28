@@ -1,5 +1,6 @@
 /** @module 책임: 분석 시간축 결과(milli 정수 점·칸)를 공개 V1 응답의 십진 문자열 봉투로 직렬화한다. */
 import type {
+  AnalysisComparisonObservation,
   AnalysisComparisonSeries,
   AnalysisDensityCell,
   AnalysisFilterValue,
@@ -65,9 +66,19 @@ function nextBucketText(cell: AnalysisDensityCellRecord, resolution: "day" | "we
   return instantText(shifted.toInstant());
 }
 
+/** 비교군 관측은 `[시각, 사정률]` 쌍이다. 식별자를 싣지 않는 이유는 계약(`AnalysisComparisonObservation`)이 말한다. */
+function observationResource(point: AnalysisPointRecord): AnalysisComparisonObservation {
+  return [instantText(point.plottedAt), rateMilliText(point.assessmentRateMilli)];
+}
+
 function comparisonResource(ready: AnalysisTimeSeriesReady): AnalysisComparisonSeries {
   if (ready.comparison.kind === "points") {
-    return { kind: "points", points: ready.comparison.points.map(pointResource), truncated: false };
+    return {
+      kind: "observations",
+      unit: "percentage-points",
+      observations: ready.comparison.points.map(observationResource),
+      truncated: false,
+    };
   }
   // 밀도로 낼 때만 폭이 있다. 축이 폭을 null로 말하는 상태와 칸이 있는 상태가 어긋나면 화면이 칸의
   // 오른쪽 끝을 스스로 지어내게 된다.

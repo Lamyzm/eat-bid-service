@@ -39,6 +39,21 @@
         ],
         "type": "object"
       },
+      "AnalysisComparisonObservation": {
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/InstantText"
+            },
+            {
+              "$ref": "#/components/schemas/ObservedBidRateText"
+            }
+          ]
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
+      },
       "AnalysisComparisonSeries": {
         "oneOf": [
           {
@@ -46,24 +61,31 @@
             "properties": {
               "kind": {
                 "enum": [
-                  "points"
+                  "observations"
                 ],
                 "type": "string"
               },
-              "points": {
+              "observations": {
                 "items": {
-                  "$ref": "#/components/schemas/AnalysisTargetPoint"
+                  "$ref": "#/components/schemas/AnalysisComparisonObservation"
                 },
-                "maxItems": 8192,
+                "maxItems": 65536,
                 "type": "array"
               },
               "truncated": {
                 "type": "boolean"
+              },
+              "unit": {
+                "enum": [
+                  "percentage-points"
+                ],
+                "type": "string"
               }
             },
             "required": [
               "kind",
-              "points",
+              "unit",
+              "observations",
               "truncated"
             ],
             "type": "object"

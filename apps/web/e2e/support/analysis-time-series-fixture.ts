@@ -127,7 +127,13 @@ export function analysisTimeSeriesResponse(request: Request): Response | undefin
     },
     target,
     targetTruncated: false,
-    comparison: { kind: 'points', points: comparison, truncated: false },
+    // 비교군은 식별자 없는 [시각, 사정률] 쌍이다(EAT-287).
+    comparison: {
+      kind: 'observations',
+      unit: 'percentage-points',
+      observations: comparison.map((point) => [point.plottedAt, point.assessmentRate.value]),
+      truncated: false
+    },
     // 겹쳐 찍은 기관은 요청한 순서로 온다. 화면의 번호 배지가 사용자가 고른 순서를 말하기 때문이다.
     overlays: searchParams.getAll('overlayOrganizationIds').map((organizationId, index) => ({
       organizationId,
