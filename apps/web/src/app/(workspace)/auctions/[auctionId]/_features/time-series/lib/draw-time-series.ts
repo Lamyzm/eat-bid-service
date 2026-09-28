@@ -24,6 +24,11 @@ function cellAlpha(count: number, maxCount: number): number {
   return 0.18 + 0.72 * Math.sqrt(count / maxCount);
 }
 
+/** 밀도 점의 반지름이다. 진하기와 같은 제곱근 척도로 키워 많이 몰린 자리가 크기로도 읽히게 한다. */
+function cellRadius(count: number, maxCount: number): number {
+  return 1.75 + 2.25 * Math.sqrt(count / maxCount);
+}
+
 export function drawTimeSeries(
   canvas: HTMLCanvasElement,
   plot: TimeSeriesPlot,
@@ -74,15 +79,20 @@ export function drawTimeSeries(
   }
 
   if (plot.comparison.kind === 'density') {
+    /*
+     * 칸 하나를 그 가운데의 점 하나로 그린다. 칸을 면으로 채우면 세로 0.1%p·가로 한 주(또는 한 달)라 몇 %p
+     * 폭의 축에서 가는 가로 막대가 되고, 운영처럼 비교군이 점 상한을 넘는 조건에서는 그림 전체가 가로줄로
+     * 읽혔다(2026-09-28 사용자 보고). 점으로 그리면 비교군이 점 구름으로 읽히고, 몇 건이 몰렸는지는 크기와
+     * 진하기가 말한다. 같은 주의 점이 한 세로줄에 서는 것은 서버가 그 해상도로 묶었다는 사실 그대로다.
+     */
     context.fillStyle = CHART.volume;
     for (const cell of plot.comparison.cells) {
-      const left = px(cell.x0);
-      const right = px(cell.x1);
-      const top = py(cell.y1);
-      const bottom = py(cell.y0);
+      const x = px((cell.x0 + cell.x1) / 2);
+      const y = py((cell.y0 + cell.y1) / 2);
       context.globalAlpha = cellAlpha(cell.count, plot.comparison.maxCount);
-      // 폭이 1px 미만인 칸도 한 줄로는 보이게 한다. 0으로 그리면 관측이 있는 자리가 빈 자리가 된다.
-      context.fillRect(left, top, Math.max(right - left, 1), Math.max(bottom - top, 1));
+      context.beginPath();
+      context.arc(x, y, cellRadius(cell.count, plot.comparison.maxCount), 0, Math.PI * 2);
+      context.fill();
     }
     context.globalAlpha = 1;
   } else {
