@@ -108,10 +108,18 @@ test("분석 시간축 질의가 KST 칸·명단 범위·품목 다리를 실제
       ["2026-09", "unknown", "unknown"],
     ]);
 
+    // 제외 공고 수는 보유율과 같은 활성 build에서 달마다 따로 읽힌다. 요청 기간 밖의 달은 읽지 않는다.
+    expect(all.exclusions.map((entry) => [entry.month, entry.excludedAuctionCount, entry.unresolvedAuctionCount]))
+      .toEqual([["2026-08", 2, 1]]);
+
     expect(await reader.organizationExists(41n)).toBe(true);
     expect(await reader.organizationExists(99_999n)).toBe(false);
   }, async (client) => {
     await client.unsafe(extraSeed);
+    await client.unsafe(`
+  insert into mart.build_exclusion_month (build_id, month_kst, excluded_auction_count, unresolved_auction_count)
+  values (501, '2026-08-01', 2, 1), (501, '2026-12-01', 5, 5);
+`);
   });
 }, 180_000);
 

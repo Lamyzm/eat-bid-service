@@ -38,7 +38,8 @@ const validAuction = {
   terms: null,
   location: null,
   classification: null,
-  participation: null
+  participation: null,
+  latestObservation: { state: 'reflected' }
 } as const;
 
 function requestDouble(

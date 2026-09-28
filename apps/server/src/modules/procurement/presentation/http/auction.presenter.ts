@@ -2,13 +2,26 @@
 import { moneyCodec, type AuctionV1Response } from "@eatbid/contracts";
 import { z } from "zod";
 import { bidRateWire, bigintText, codeReferenceWire, instantText } from "../../../../platform/http/wire";
-import type { AuctionRecord, ParticipationObservationRecord } from "../../application/auction-reader";
+import type {
+  AuctionRecord,
+  LatestObservationRecord,
+  ParticipationObservationRecord,
+} from "../../application/auction-reader";
 import { auctionIdToString } from "../../domain/auction-id";
 
 function participationObservation(
   value: ParticipationObservationRecord,
 ): NonNullable<AuctionV1Response["participation"]>["latest"] {
   return { bidCount: value.bidCount, observedAt: instantText(value.observedAt) };
+}
+
+function latestObservationResource(value: LatestObservationRecord): AuctionV1Response["latestObservation"] {
+  if (value.state !== "not-reflected") return { state: value.state };
+  return {
+    state: "not-reflected",
+    excludedObservedAt: instantText(value.excludedObservedAt),
+    reflectedObservedAt: instantText(value.reflectedObservedAt),
+  };
 }
 
 export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
@@ -51,6 +64,7 @@ export function toAuctionResponse(record: AuctionRecord): AuctionV1Response {
       sigungu: codeReferenceWire(record.location.sigungu),
     },
     classification: record.classification,
+    latestObservation: latestObservationResource(record.latestObservation),
     participation: record.participation === null ? null : {
       latest: participationObservation(record.participation.latest),
       dayEarlier: record.participation.dayEarlier === null

@@ -12,10 +12,13 @@ export interface AnalysisSampleCounts {
 
 export function AnalysisContext({
   context,
-  samples
+  samples,
+  exclusionNote = null
 }: {
   readonly context: AnalysisContextView;
   readonly samples: AnalysisSampleCounts | null;
+  /** 발행에서 뺀 공고가 이 기간에 있을 때의 문장이다. 표본 수 바로 아래에서 함께 읽혀야 한다. */
+  readonly exclusionNote?: string | null;
 }) {
   if (context.state === 'invalid')
     return (
@@ -51,6 +54,11 @@ export function AnalysisContext({
           </dd>
         </div>
       </dl>
+      {exclusionNote === null ? null : (
+        <p className='analysis-exclusion-note mt-2 text-xs leading-relaxed text-muted-foreground'>
+          {exclusionNote}
+        </p>
+      )}
     </div>
   );
 }

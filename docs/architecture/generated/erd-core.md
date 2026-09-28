@@ -1,7 +1,7 @@
-<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20260928202058_record_scoped_exclusion/snapshot.json -->
+<!-- 생성물이다. 직접 편집하지 않고 `pnpm architecture:erd:write`로 다시 만든다. 원천: packages/db/drizzle/20260928230639_mart_build_exclusion/snapshot.json -->
 # `core` 스키마 ERD
 
-Drizzle 마이그레이션 `20260928202058_record_scoped_exclusion`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 18개.
+Drizzle 마이그레이션 `20260928230639_mart_build_exclusion`의 snapshot에서 만든 표·컬럼·외래키 그림이다. 표 18개.
 다른 스키마의 표는 관계선에만 `schema__table`로 나타난다. 의미와 불변식은
 [domain-and-data.md](../domain-and-data.md)와 [수집 쓰기 지도](../ingestion-write-map.md)가 설명한다.
 
@@ -181,6 +181,7 @@ erDiagram
     auction_attempt ||--o{ auction_attempt_link : "from_auction_attempt_id"
     auction_attempt ||--o{ auction_attempt_link : "to_auction_attempt_id"
     auction_attempt ||--o{ auction_revision : "auction_attempt_id"
+    auction_attempt ||--o{ mart__build_stale_auction : "auction_attempt_id"
     auction_attempt ||--o{ mart__open_auction_snapshot : "auction_attempt_id"
     auction_attempt ||--o{ mart__org_round_summary : "auction_attempt_id"
     auction_attempt ||--o{ mart__org_round_summary : "supersedes_attempt_id"
@@ -189,6 +190,7 @@ erDiagram
     auction_revision ||--o{ auction_revision_code_value : "auction_revision_id"
     auction_revision ||--o{ award_decision : "auction_revision_id, auction_attempt_id"
     auction_revision ||--o{ bid_submission : "auction_revision_id, auction_attempt_id"
+    auction_revision ||--o{ mart__build_stale_auction : "auction_revision_id"
     auction_revision ||--o{ mart__open_auction_snapshot : "terms_revision_id"
     auction_revision ||--o{ mart__org_round_summary : "auction_revision_id"
     code_release ||--o{ code_release_member : "code_release_id"

@@ -165,7 +165,14 @@ export function analysisTimeSeriesResponse(request: Request): Response | undefin
       targetSampleCount: target.length,
       comparisonSampleCount: comparison.length,
       overlapCount: comparison.filter((point) => Number(point.attemptId) < 9200).length,
-      periodCoverage: [{ period: effectiveFilter.period, target: 'unknown', comparison: 'unknown' }],
+      periodCoverage: [
+        {
+          period: effectiveFilter.period,
+          target: 'unknown',
+          comparison: 'unknown',
+          exclusions: { excludedAuctionCount: 0, unresolvedAuctionCount: 0 }
+        }
+      ],
       freshness: { state: 'unknown', checkedAt: null }
     }
   }));

@@ -115,6 +115,16 @@ export interface AnalysisMonthCoverage {
 }
 
 /**
+ * 한 달에 발행 원장이 적고 뺀 공고 수다(ADR 0061 결정 6). 보유율 판정과 섞지 않고 따로 든다. 지역·기관 축이
+ * 없는 전국 수이며, 제외가 없는 달은 읽히지 않는다(use case가 0건으로 번역한다).
+ */
+export interface AnalysisMonthExclusions {
+  readonly month: KstMonth;
+  readonly excludedAuctionCount: number;
+  readonly unresolvedAuctionCount: number;
+}
+
+/**
  * 한 번의 조회가 돌려주는 것 전부다. **두 집단을 한 읽기에서 낸다** — 따로 읽으면 같은 조건인데 서로
  * 다른 build를 볼 수 있고, 교집합 수는 두 집단을 동시에 봐야 셀 수 있다(PDR-0006).
  *
@@ -136,6 +146,7 @@ export interface AnalysisTimeSeriesReading {
   /** 고른 순서가 아니라 요청한 순서로 온다. 화면의 번호 배지가 요청과 같은 순서를 써야 한다. */
   readonly overlays: readonly AnalysisOverlaySeriesRecord[];
   readonly coverage: readonly AnalysisMonthCoverage[];
+  readonly exclusions: readonly AnalysisMonthExclusions[];
   readonly lineage: MartBuildLineage | null;
   /**
    * 이 build가 읽은 봉인 입력의 기준 시각(`mart.build.as_of`)이다. 계보와 함께 오지만 공유 계보 record에

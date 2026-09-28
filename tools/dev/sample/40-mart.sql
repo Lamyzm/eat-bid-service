@@ -272,3 +272,14 @@ union all
 select 995003, null::bigint,
        (date_trunc('month', now() at time zone 'Asia/Seoul') - interval '1 month')::date,
        40, 40, 40, 0, 'unknown';
+
+-- 발행 제외의 화면 노출 재료다(EAT-295, ADR 0061). 운영에서는 dataplane 빌더가 ingest 원장에서 파생하지만 표본에는
+-- 원장이 없어 부속 행만 합성한다. 991001은 더 늦은 관측이 제외돼 옛 revision이 현행으로 남은 공고라 상세 제목 아래에
+-- "최신 관측 반영 안 됨" 문장이 뜬다. 이번 달에는 제외 공고 2건(그중 미해소 1건)이 있어 분석 표본 아래 문장이 뜬다.
+insert into mart.build_stale_auction
+  (build_id, auction_attempt_id, auction_revision_id, excluded_observed_at, reflected_observed_at)
+values (995003, 991001, 991001, now() - interval '30 minutes', now() - interval '2 hours');
+
+insert into mart.build_exclusion_month
+  (build_id, month_kst, excluded_auction_count, unresolved_auction_count)
+values (995003, date_trunc('month', now() at time zone 'Asia/Seoul')::date, 2, 1);

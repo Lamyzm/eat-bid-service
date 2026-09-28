@@ -10,6 +10,7 @@ import type {
   AnalysisComparisonSeriesRecord,
   AnalysisDensityCellRecord,
   AnalysisMonthCoverage,
+  AnalysisMonthExclusions,
   AnalysisOverlaySeriesRecord,
   AnalysisPointRecord,
   AnalysisRegionScheme,
@@ -20,6 +21,7 @@ import type {
 import { kstMonth, kstMonthFirstDayText, kstMonthOf } from "../../domain/kst-month";
 import {
   analysisCoverageSql,
+  analysisExclusionSql,
   analysisDensitySql,
   analysisOverlapSql,
   analysisOverlayPointsSql,
@@ -66,6 +68,12 @@ type CoverageRow = Readonly<{
   month_kst: string;
   target_coverage: string | null;
   comparison_coverage: string | null;
+}>;
+
+type ExclusionRow = Readonly<{
+  month_kst: string;
+  excluded_auction_count: string | number | bigint;
+  unresolved_auction_count: string | number | bigint;
 }>;
 
 function countOf(value: string | number | bigint): number {
@@ -120,6 +128,14 @@ export function mapCoverageRow(row: CoverageRow): AnalysisMonthCoverage | null {
     month: kstMonth(row.month_kst),
     target,
     comparison: coverageValue(row.comparison_coverage) ?? "none",
+  };
+}
+
+export function mapExclusionRow(row: ExclusionRow): AnalysisMonthExclusions {
+  return {
+    month: kstMonth(row.month_kst),
+    excludedAuctionCount: countOf(row.excluded_auction_count),
+    unresolvedAuctionCount: countOf(row.unresolved_auction_count),
   };
 }
 
@@ -182,12 +198,13 @@ export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader
     // 반열림 구간의 끝은 다음 달 1일 0시일 수 있다. 1밀리초 앞의 시각으로 달을 고르지 않으면 요청하지
     // 않은 달이 보유율 표에 한 줄 더 선다.
     const toMonth = kstMonthFirstDayText(kstMonthOf(query.before.subtract({ milliseconds: 1 })));
-    const [pointResult, densityResult, overlapResult, coverageResult, overlays, lineage, sourceCutoffAt] =
+    const [pointResult, densityResult, overlapResult, coverageResult, exclusionResult, overlays, lineage, sourceCutoffAt] =
       await Promise.all([
         this.database.execute(analysisPointsSql(query, "target", query.targetPointLimit)),
         this.database.execute(analysisDensitySql(query)),
         this.database.execute(analysisOverlapSql(query)),
         this.database.execute(analysisCoverageSql(query, fromMonth, toMonth)),
+        this.database.execute(analysisExclusionSql(fromMonth, toMonth)),
         this.overlays(query),
         readActiveMartBuildLineage(this.database, ORG_ROUND_SUMMARY),
         readActiveMartBuildAsOf(this.database, ORG_ROUND_SUMMARY),
@@ -203,6 +220,7 @@ export class DrizzleAnalysisTimeSeriesReader implements AnalysisTimeSeriesReader
       overlapCount: countOf(rows<{ overlap_count: string | number | bigint }>(overlapResult)[0]?.overlap_count ?? 0),
       overlays,
       coverage: rows<CoverageRow>(coverageResult).map(mapCoverageRow).filter((entry) => entry !== null),
+      exclusions: rows<ExclusionRow>(exclusionResult).map(mapExclusionRow),
       lineage,
       sourceCutoffAt,
     };

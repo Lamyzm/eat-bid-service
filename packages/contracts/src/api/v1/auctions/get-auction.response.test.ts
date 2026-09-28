@@ -35,6 +35,7 @@ describe("공개 공고 V1 응답 계약", () => {
       location: null,
       classification: null,
       participation: null,
+      latestObservation: { state: "reflected" },
     };
 
     expect(contract!.auctionV1ResponseSchema.parse(response)).toEqual(response);
@@ -67,6 +68,7 @@ describe("공개 공고 V1 응답 계약", () => {
         contentSha256: "a".repeat(64),
       },
       participation: null,
+      latestObservation: { state: "reflected" },
     };
 
     const observed = {
@@ -126,6 +128,7 @@ describe("공개 공고 V1 응답 계약", () => {
       terms: null,
       location: null,
       classification: null,
+      latestObservation: { state: "reflected" },
     };
     const observed = {
       ...base,
@@ -243,5 +246,19 @@ describe("공개 공고 V1 응답 계약", () => {
         plannedAmount: null,
       },
     });
+  });
+  test("최신 관측이 제외돼 반영되지 않았으면 두 관측 시각을 함께 싣고 판정 재료가 없으면 unknown이다", async () => {
+    const { auctionLatestObservationSchema } = await import("./latest-observation.resource");
+
+    const notReflected = {
+      state: "not-reflected",
+      excludedObservedAt: "2026-09-28T05:00:00Z",
+      reflectedObservedAt: "2026-09-27T05:00:00Z",
+    };
+    expect(auctionLatestObservationSchema.parse(notReflected)).toEqual(notReflected);
+    expect(auctionLatestObservationSchema.parse({ state: "unknown" })).toEqual({ state: "unknown" });
+    expect(auctionLatestObservationSchema.safeParse({ state: "not-reflected" }).success).toBe(false);
+    expect(auctionLatestObservationSchema.safeParse({ state: "reflected", excludedObservedAt: "2026-09-28T05:00:00Z" }).success)
+      .toBe(false);
   });
 });

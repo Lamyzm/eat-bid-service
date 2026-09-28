@@ -162,6 +162,7 @@ function metaResource(ready: AnalysisTimeSeriesReady): AnalysisMeta {
       period: { from: entry.from, to: entry.to },
       target: entry.target,
       comparison: entry.comparison,
+      exclusions: entry.exclusions,
     })),
     // 수집 지연을 아직 확인하지 않는다. 확인하지 않은 것을 `current`로 적으면 화면이 최신이라고 말한다.
     freshness: { state: "unknown", checkedAt: null },

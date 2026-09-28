@@ -24,6 +24,9 @@ ALLOWED_OUTSIDE_TRANSACTION: dict[str, str] = {
     "mart/build_coverage.py::fill_build_coverage": (
         "호출자(PsycopgMartBuildRepository.fill_build)가 트랜잭션을 연다 — 보유율은 빌더 행과 같은 원자 단위다"
     ),
+    "mart/build_exclusion.py::fill_build_exclusions": (
+        "호출자(PsycopgMartBuildRepository.fill_build)가 트랜잭션을 연다 — 제외 부속 행은 빌더 행과 같은 원자 단위다"
+    ),
     "mart/region_axis.py::assert_build_region_scheme": (
         "호출자(PsycopgMartBuildRepository.verify_build)가 트랜잭션을 연다 — 체계 검사 실패는 검증 전이와 함께 되감긴다"
     ),
