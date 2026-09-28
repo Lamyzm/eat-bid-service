@@ -29,6 +29,8 @@ jobs:
   build:
     if: ${{ github.repository == 'Lamyzm/eat-bid-service' }}
     runs-on: ubuntu-latest
+    # matrix 중 최근 성공 20회 최장은 server 3.8분 → 3배는 최소값 아래라 하한 15분(EAT-292).
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -90,6 +92,8 @@ jobs:
   promote:
     needs: build
     runs-on: ubuntu-latest
+    # 최근 성공 20회 최장 0.2분 → 3배는 최소값 아래라 하한 15분(EAT-292).
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
