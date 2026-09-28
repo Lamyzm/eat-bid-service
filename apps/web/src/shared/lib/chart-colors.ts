@@ -1,7 +1,7 @@
 /** @module 책임: 기존 차트·지도와 공고 분석이 공유하는 테마별 캔버스 색상 팔레트를 한 곳에서 제공한다. */
 /**
  * 차트 색 단일화 — DESIGN.md D-1
- * CSS 변수를 못 읽는 캔버스 라이브러리(lightweight-charts·leaflet)용 hex는 여기서만 정의한다.
+ * CSS 변수를 못 읽는 캔버스 라이브러리(ECharts·leaflet)용 hex는 여기서만 정의한다.
  * SVG 자작 차트는 계속 var(--primary) 등 토큰을 쓴다.
  * 다크/라이트는 getter가 접근 시점에 분기한다 — 새 hex를 화면 코드에 쓰지 않는다.
  */
@@ -63,7 +63,7 @@ export function myMarker(): string {
   return isDark() ? '#e8ece9' : '#111111';
 }
 
-/** lightweight-charts 축·테두리 (테마별) */
+/** 캔버스 그림(ECharts)의 축 글자·테두리 (테마별) */
 export function chartFrame() {
   const dark = isDark();
   if (isToss()) return { text: dark ? '#a5b1c2' : '#536176', border: dark ? '#353b45' : '#e5e8ec' };

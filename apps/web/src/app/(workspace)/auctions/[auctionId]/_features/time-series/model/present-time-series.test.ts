@@ -142,6 +142,9 @@ describe('분석 시간축 표시 모델', () => {
     expect(view.plot.fullDomain.yFrom).toBeLessThan(90_000);
     expect(view.plot.fullDomain.yTo).toBeGreaterThan(95_100);
     expect(view.plot.comparison.kind).toBe('density');
+    // 마우스를 올렸을 때의 문장은 KST 날짜와 칸의 사정률 범위·건수다. 하루짜리 칸은 날짜 하나다.
+    if (view.plot.comparison.kind !== 'density') throw new Error('density여야 한다');
+    expect(view.plot.comparison.cells[0]?.label).toBe('2026-08-04 사정률 95.000~95.100% · 7건');
   });
 
   test('기본 축은 가운데 덩어리에 맞추고 벗어난 관측은 수로 센다', () => {
