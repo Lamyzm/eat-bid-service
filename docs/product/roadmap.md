@@ -2,7 +2,7 @@
 id: PRODUCT-ROADMAP
 status: active
 canonical_for: product-direction-and-capability-gates
-last_reviewed: 2026-08-31
+last_reviewed: 2026-09-29
 review_trigger: product-scope-or-roadmap-gate-change
 ---
 
@@ -51,8 +51,9 @@ delivery acceptance로 사용하지 않는다.
 - 작은 표본에서 만든 전략 순위나 AI 정확도
 - 확인하지 못한 자격·품목·문서 값을 추측으로 확정하는 것
 
-현재 Accepted ADR에 따라 추천가·예측가·자동 투찰은 시스템 경계 밖이다. 사용자 후보의
-과거 replay와 중립적 관측 분포만 제공한다.
+현재 Accepted ADR에 따라 추천가·자동 투찰은 시스템 경계 밖이다. `예측 승률`은 ADR 0027의
+조건(조언이 아닌 재료, 불확실성·보정 상태 병기, 입찰 시점 관측값에만 조건화) 아래 판단 재료로
+허용되지만 아직 구현하지 않았다. 그 밖에는 사용자 후보의 과거 replay와 중립적 관측 분포만 제공한다.
 
 ## 2. 핵심 사용자와 사용 맥락
 
@@ -172,6 +173,11 @@ R1은 화면 수가 아니라 다음 capability 순서로 진행한다.
 5. **대조·복기:** NeaT 사용자 확인, source submission, 개찰 결과, reconciliation을 서로 다른
    사실로 연결한다.
 6. **유료 cycle:** 가족 외 사용자가 두 번째 실제 투찰 cycle에도 자발적으로 사용하고 결제한다.
+
+**현재 위치(2026-09-29 점검, 사용자 결정):** 1·2는 `BidWorkItem` 없이 공고 중심 화면(`/today`,
+공고 상세 분석)으로 먼저 전달됐다(EAT-106). 3·4·5는 코드가 없으며, 가족 외 파일럿(EAT-8)에서
+지금 화면이 실제 판단에 쓰이는지 확인한 뒤 계속할지 정한다. 그때까지 착수하지 않는다(보류).
+보류 사유는 가치 부정이 아니라 순서다 — 수집·발행 파이프라인의 신뢰(R0)를 먼저 굳힌다.
 
 분석 계약은 [`decision-support.md`](decision-support.md), 화면 계약은
 [`screen-system.md`](screen-system.md)가 소유한다. 51,793건 legacy model cache는 live corpus의
