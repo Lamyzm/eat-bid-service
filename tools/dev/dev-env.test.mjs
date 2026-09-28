@@ -96,6 +96,7 @@ describe("환경 우선순위와 파생 연결 문자열", () => {
     assert.equal(runtime.CORS_ORIGINS, "http://localhost:3000");
     assert.equal(runtime.API_URL, "http://localhost:4300");
     assert.equal(runtime.EATBID_DEV_LOGIN, "true");
+    assert.equal(runtime.EATBID_DEV_AUTO_LOGIN, "true");
     assert.equal(runtime.NODE_ENV, "development");
     assert.equal(runtime.PORT, undefined);
   });

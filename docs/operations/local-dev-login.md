@@ -1,6 +1,8 @@
 ---
+id: OPS-LOCAL-DEV-LOGIN
 status: active
-last_reviewed: 2026-09-10
+canonical_for: local-dev-login-flags-seed-account-and-auto-login
+last_reviewed: 2026-09-28
 review_trigger: dev-login-flag-seed-account-or-auth-environment-contract-change
 ---
 
@@ -17,6 +19,7 @@ guard)를 지난다. 결정과 이유는 [ADR 0032 §13](../adr/0032-authenticat
 | 변수 | 값 | 누가 읽는가 | 비고 |
 |---|---|---|---|
 | `EATBID_DEV_LOGIN` | `true` | server, web | 명시적 opt-in. `SWAGGER_ENABLED`처럼 `"true" \| "false"`이며 없으면 꺼짐. production은 server가 기동을 거부하고 web은 폼을 열지 않는다 |
+| `EATBID_DEV_AUTO_LOGIN` | `true` | web | `pnpm dev:local`만 켠다(EAT-284). 개발 로그인이 열려 있을 때 로그인 화면이 2절의 시드 계정으로 폼을 스스로 한 번 제출해 원래 화면으로 돌아간다. 게이트·세션 우회가 아니라 provider 로그인을 대신 누를 뿐이다. e2e는 켜지 않아 폼을 직접 다룬다 |
 | `BETTER_AUTH_SECRET` | 32자 이상 임의 문자열 | server | 세션 쿠키와 서명된 세션 사본의 서명 열쇠. 고정 개발값을 코드에 두지 않으므로 기기마다 직접 만든다(`openssl rand -base64 48`) |
 | `BETTER_AUTH_URL` | `http://localhost:3000` | server | 브라우저가 보는 web origin. 비운영에서는 loopback host의 http만 허용 |
 | `CORS_ORIGINS` | 생략 가능(기본 `http://localhost:3000`) | server | provider의 CSRF·콜백 검사도 이 목록을 쓴다. web 포트를 바꿨으면 함께 바꾼다 |

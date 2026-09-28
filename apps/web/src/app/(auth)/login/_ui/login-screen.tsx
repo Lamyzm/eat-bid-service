@@ -25,9 +25,17 @@ interface LoginScreenProps {
    * 판정 자리가 둘이 되고 bundle에 운영 값이 실린다. 이 폼은 안내일 뿐 권위는 서버 provider 조립이다.
    */
   readonly devLoginEnabled: boolean;
+  /** 로컬 dev에서 시드 계정으로 폼을 스스로 제출한다(EAT-284). */
+  readonly devAutoLogin?: boolean;
 }
 
-export function LoginScreen({ returnPath, authUnavailable, hasReturnScreen, devLoginEnabled }: LoginScreenProps) {
+export function LoginScreen({
+  returnPath,
+  authUnavailable,
+  hasReturnScreen,
+  devLoginEnabled,
+  devAutoLogin = false
+}: LoginScreenProps) {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -79,7 +87,7 @@ export function LoginScreen({ returnPath, authUnavailable, hasReturnScreen, devL
           >
             Google로 로그인
           </LoadingButton>
-          {devLoginEnabled ? <EmailLoginForm returnPath={returnPath} disabled={authUnavailable} /> : null}
+          {devLoginEnabled ? <EmailLoginForm returnPath={returnPath} disabled={authUnavailable} autoSubmit={devAutoLogin} /> : null}
         </CardContent>
       </Card>
     </div>

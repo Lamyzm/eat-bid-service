@@ -1,18 +1,22 @@
-/** @module 책임: 이메일·비밀번호 입력과 로그인 command 하나의 pending·실패 문구를 소유한다. */
+/** @module 책임: 이메일·비밀번호 입력과 로그인 command 하나의 pending·실패 문구, 로컬 dev의 시드 계정 자동 제출을 소유한다. */
 'use client';
 
-import { useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
 import { LoadingButton } from '@/shared/ui/loading-button';
 import { signInWithEmail } from '@/shell/auth/auth-client';
 
+import { DEV_LOGIN_ACCOUNT } from '../_model/dev-login';
+
 interface EmailLoginFormProps {
   /** 서버가 이미 같은 앱 상대 경로로 좁힌 값이다. 화면은 이 값을 그대로 provider에 넘긴다. */
   readonly returnPath: string;
   /** 인증 의존성이 없는 배포에서는 Google 버튼과 같은 이유로 제출할 수 없다. */
   readonly disabled: boolean;
+  /** 로컬 dev에서 시드 계정으로 한 번 스스로 제출한다. 실패하면 폼과 실패 문구가 그대로 남는다. */
+  readonly autoSubmit?: boolean;
 }
 
 type Failure = 'none' | 'invalid-credentials' | 'failed';
@@ -28,7 +32,7 @@ function failureText(failure: Failure): string | null {
   }
 }
 
-export function EmailLoginForm({ returnPath, disabled }: EmailLoginFormProps) {
+export function EmailLoginForm({ returnPath, disabled, autoSubmit = false }: EmailLoginFormProps) {
   const emailId = useId();
   const passwordId = useId();
   const messageId = useId();
@@ -37,14 +41,13 @@ export function EmailLoginForm({ returnPath, disabled }: EmailLoginFormProps) {
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<Failure>('none');
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const signIn = useCallback(async (credentials: { readonly email: string; readonly password: string }) => {
     // pending 중 재제출을 막는다. 성공 뒤에는 provider가 복귀 경로로 브라우저를 옮기므로 pending을 유지한다.
     if (pending) return;
     setPending(true);
     setFailure('none');
     try {
-      const outcome = await signInWithEmail({ email, password, returnPath });
+      const outcome = await signInWithEmail({ ...credentials, returnPath });
       if (outcome === 'invalid-credentials') {
         setFailure('invalid-credentials');
         setPending(false);
@@ -54,7 +57,23 @@ export function EmailLoginForm({ returnPath, disabled }: EmailLoginFormProps) {
       setFailure('failed');
       setPending(false);
     }
+  }, [pending, returnPath]);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await signIn({ email, password });
   }
+
+  // 자동 제출은 화면이 붙은 뒤 한 번뿐이다. 실패한 뒤 다시 제출하면 같은 실패를 되풀이하며 문구가 깜박인다.
+  const autoSubmitted = useRef(false);
+  useEffect(() => {
+    if (!autoSubmit || disabled || autoSubmitted.current) return;
+    autoSubmitted.current = true;
+    setEmail(DEV_LOGIN_ACCOUNT.email);
+    setPassword(DEV_LOGIN_ACCOUNT.password);
+    void signIn(DEV_LOGIN_ACCOUNT);
+    // pending이 바뀌면 signIn이 새로 만들어져 효과가 다시 돌지만, 위 ref가 첫 제출 하나만 남긴다.
+  }, [autoSubmit, disabled, signIn]);
 
   const message = failureText(failure);
   const describedBy = message === null ? undefined : messageId;
