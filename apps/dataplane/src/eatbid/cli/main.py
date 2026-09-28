@@ -58,6 +58,9 @@ class CliApplication(Protocol):
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None: ...
+    # 명령 method를 이름으로 부르는 유일한 입구다. 공유 DB 연결의 트랜잭션 경계 검사가 여기 걸려 있으므로
+    # (ADR 0059 결정 2) handler는 method를 직접 부르지 않는다.
+    def run_command(self, method_name: str, args: argparse.Namespace) -> object: ...
     def discover(self, args: argparse.Namespace) -> object: ...
     def capture(self, args: argparse.Namespace) -> object: ...
     def normalize(self, args: argparse.Namespace) -> None: ...
@@ -88,7 +91,7 @@ def _handler(method_name: str) -> CommandHandler:
         application: CliApplication,
         settings: ApplicationSettings | None,
     ) -> int:
-        result = getattr(application, method_name)(args)
+        result = application.run_command(method_name, args)
         payload = _machine_result(method_name, result)
         if payload is not None:
             _emit(payload, args)
@@ -106,8 +109,12 @@ def _chunk_handler(command_name: str, method_name: str) -> CommandHandler:
         application: CliApplication,
         settings: ApplicationSettings | None,
     ) -> int:
+        # 건마다 경계를 지난다. 한 건이 남긴 트랜잭션이 다음 건의 쓰기를 savepoint로 삼키지 않게 한다.
         outcome = run_chunk_command(
-            command, getattr(application, method_name), args, settings
+            command,
+            lambda item_args: application.run_command(method_name, item_args),
+            args,
+            settings,
         )
         _emit(chunk_payload(command, outcome), args)
         return outcome.exit_code

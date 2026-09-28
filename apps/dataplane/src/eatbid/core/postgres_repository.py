@@ -16,7 +16,6 @@ from typing import Any
 from uuid import UUID
 
 import psycopg
-from psycopg.pq import TransactionStatus
 
 from eatbid.core.models import AuctionProjection, ProjectResult
 from eatbid.core.postgres_projection_writer import CanonicalProjectionWriter
@@ -35,6 +34,7 @@ from eatbid.core.repository import (
     ProjectionTransactionScopeError,
     PublishedProjectionEvidence,
 )
+from eatbid.transaction_scope import require_idle
 
 PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
 
@@ -97,10 +97,11 @@ class PsycopgCanonicalProjectionRepository:
         activated_at: datetime,
         projection_factory: ProjectionFactory,
     ) -> ProjectResult:
-        if self._connection.info.transaction_status != TransactionStatus.IDLE:
-            raise ProjectionTransactionScopeError(
-                "projection requires an idle transaction owned by the repository"
-            )
+        require_idle(
+            self._connection,
+            message="projection requires an idle transaction owned by the repository",
+            error_type=ProjectionTransactionScopeError,
+        )
         for attempt in range(1, PROJECTION_DEADLOCK_ATTEMPTS + 1):
             try:
                 with self._connection.transaction(), self._connection.cursor() as cursor:
@@ -131,10 +132,11 @@ class PsycopgCanonicalProjectionRepository:
         projector_version: str,
         projection_factory: ProjectionFactory,
     ) -> PublishedProjectionEvidence:
-        if self._connection.info.transaction_status != TransactionStatus.IDLE:
-            raise ProjectionTransactionScopeError(
-                "projection verification requires an idle repository transaction"
-            )
+        require_idle(
+            self._connection,
+            message="projection verification requires an idle repository transaction",
+            error_type=ProjectionTransactionScopeError,
+        )
         with self._connection.transaction(), self._connection.cursor() as cursor:
             result = self._project_locked(
                 cursor,

@@ -10,12 +10,11 @@ from collections.abc import Callable, Mapping
 from typing import Any
 from uuid import UUID
 
-from psycopg.pq import TransactionStatus
-
 from eatbid.mart.build_coverage import fill_build_coverage
 from eatbid.mart.models import MartBuildPlan, MartName, OpenedMartBuild
 from eatbid.mart.region_axis import assert_build_region_scheme
 from eatbid.mart.repository import MartBuildContractError, MartTransactionScopeError
+from eatbid.transaction_scope import require_idle, rollback_leftover
 
 # build_id FK를 가진 표의 이름이다. 재개할 때 이전 행을 지우는 대상이며, 새 mart를 더하면 여기와
 # `MartName`이 함께 움직인다.
@@ -89,10 +88,11 @@ class PsycopgMartBuildRepository:
         self._builders = builders
 
     def _require_idle(self, operation: str) -> None:
-        if self._connection.info.transaction_status != TransactionStatus.IDLE:
-            raise MartTransactionScopeError(
-                f"mart {operation} requires an idle repository connection"
-            )
+        require_idle(
+            self._connection,
+            message=f"mart {operation} requires an idle repository connection",
+            error_type=MartTransactionScopeError,
+        )
 
     def open_build(self, plan: MartBuildPlan) -> OpenedMartBuild:
         key = {
@@ -233,11 +233,7 @@ class PsycopgMartBuildRepository:
         # 확인하는 이유는, 남은 트랜잭션이 이 build 행을 잠그고 있으면 아래 별도 연결이 그 잠금을
         # 끝없이 기다리고 실패는 기록되지 않기 때문이다. 끊긴 연결(UNKNOWN)은 되감을 수 없고 서버 쪽
         # 잠금도 세션과 함께 풀리므로 건드리지 않는다.
-        if self._connection.info.transaction_status in {
-            TransactionStatus.INTRANS,
-            TransactionStatus.INERROR,
-        }:
-            self._connection.rollback()
+        rollback_leftover(self._connection)
         connection = self._connect()
         try:
             with connection.transaction(), connection.cursor() as cursor:
