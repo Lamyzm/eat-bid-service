@@ -93,7 +93,7 @@ describe('분석 시간축 표시 모델', () => {
       axis,
       target: [],
       targetTruncated: false,
-      comparison: { kind: 'points', points: [], truncated: false },
+      comparison: { kind: 'observations', unit: 'percentage-points', observations: [], truncated: false },
       meta: { ...readyMeta, targetSampleCount: 0, comparisonSampleCount: 0, overlapCount: 0 }
     });
     expect(view.kind).toBe('empty');
@@ -108,13 +108,33 @@ describe('분석 시간축 표시 모델', () => {
       axis,
       target: [point('12', '2026-08-03T15:00:00Z', '90.123')],
       targetTruncated: false,
-      comparison: { kind: 'points', points: [], truncated: false },
+      comparison: { kind: 'observations', unit: 'percentage-points', observations: [], truncated: false },
       meta: readyMeta
     });
     if (view.kind !== 'plot') throw new Error('plot이어야 한다');
     expect(view.plot.target[0]?.y).toBe(90_123);
     // 점의 이름은 KST 달력일이다. UTC로 읽으면 하루가 밀린다.
     expect(view.plot.target[0]?.label).toBe('2026-08-04 사정률 90.123%');
+  });
+
+  test('비교군 관측은 실제 시각과 사정률 자리에 서고 마우스 올림 문장은 KST 날짜다', () => {
+    const view = series({
+      axis,
+      target: [point('12', '2026-08-03T15:00:00Z', '90.000')],
+      targetTruncated: false,
+      comparison: {
+        kind: 'observations',
+        unit: 'percentage-points',
+        observations: [['2026-08-04T01:30:00Z', '89.745']],
+        truncated: false
+      },
+      meta: readyMeta
+    });
+    if (view.kind !== 'plot' || view.plot.comparison.kind !== 'points') throw new Error('관측 점이어야 한다');
+    const [observation] = view.plot.comparison.points;
+    expect(observation?.x).toBe(Date.parse('2026-08-04T01:30:00Z'));
+    expect(observation?.y).toBe(89_745);
+    expect(observation?.label).toBe('2026-08-04 사정률 89.745%');
   });
 
   test('전체 축은 두 집단의 관측을 모두 덮는다', () => {
@@ -160,7 +180,7 @@ describe('분석 시간축 표시 모델', () => {
         point('13', '2026-08-20T01:00:00Z', '130.000')
       ],
       targetTruncated: false,
-      comparison: { kind: 'points', points: crowd, truncated: false },
+      comparison: { kind: 'observations', unit: 'percentage-points', observations: crowd.map((entry) => [entry.plottedAt, entry.assessmentRate.value] as const), truncated: false },
       meta: readyMeta
     });
     if (view.kind !== 'plot') throw new Error('plot이어야 한다');
@@ -179,7 +199,7 @@ describe('분석 시간축 표시 모델', () => {
       axis,
       target: [point('12', '2026-08-03T15:00:00Z', '90.000')],
       targetTruncated: false,
-      comparison: { kind: 'points', points: [], truncated: false },
+      comparison: { kind: 'observations', unit: 'percentage-points', observations: [], truncated: false },
       meta: readyMeta
     });
     if (view.kind !== 'plot') throw new Error('plot이어야 한다');
@@ -200,7 +220,7 @@ describe('분석 시간축 표시 모델', () => {
         point('13', '2026-08-20T01:00:00Z', '89.896')
       ],
       targetTruncated: false,
-      comparison: { kind: 'points', points: [], truncated: false },
+      comparison: { kind: 'observations', unit: 'percentage-points', observations: [], truncated: false },
       meta: readyMeta
     });
     if (view.kind !== 'plot') throw new Error('plot이어야 한다');
@@ -223,7 +243,7 @@ describe('분석 시간축 표시 모델', () => {
           axis,
           target: [point('12', '2026-08-03T15:00:00Z', '90.010')],
           targetTruncated: false,
-          comparison: { kind: 'points', points: [], truncated: false },
+          comparison: { kind: 'observations', unit: 'percentage-points', observations: [], truncated: false },
           meta: readyMeta,
           overlays: []
         }
@@ -241,7 +261,7 @@ describe('분석 시간축 표시 모델', () => {
       axis,
       target: [point('12', '2026-08-03T15:00:00Z', '90.000')],
       targetTruncated: true,
-      comparison: { kind: 'points', points: [], truncated: false },
+      comparison: { kind: 'observations', unit: 'percentage-points', observations: [], truncated: false },
       meta: readyMeta
     });
     if (truncated.kind !== 'plot') throw new Error('plot이어야 한다');
@@ -251,7 +271,7 @@ describe('분석 시간축 표시 모델', () => {
       axis,
       target: [point('12', '2026-08-03T15:00:00Z', '90.000')],
       targetTruncated: false,
-      comparison: { kind: 'points', points: [], truncated: false },
+      comparison: { kind: 'observations', unit: 'percentage-points', observations: [], truncated: false },
       meta: readyMeta
     });
     if (whole.kind !== 'plot') throw new Error('plot이어야 한다');
@@ -263,7 +283,7 @@ describe('분석 시간축 표시 모델', () => {
       axis,
       target: [point('12', '2026-08-03T15:00:00Z', '90.000')],
       targetTruncated: true,
-      comparison: { kind: 'points', points: [], truncated: false },
+      comparison: { kind: 'observations', unit: 'percentage-points', observations: [], truncated: false },
       meta: readyMeta
     });
     if (view.kind !== 'plot') throw new Error('plot이어야 한다');

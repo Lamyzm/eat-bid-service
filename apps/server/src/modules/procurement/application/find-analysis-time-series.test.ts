@@ -110,6 +110,28 @@ describe("분석 시간축 조회 use case", () => {
     expect(response.meta).not.toHaveProperty("targetSampleCount");
   });
 
+  test("비교군 점은 식별자 없는 [시각, 사정률] 쌍으로 실제 위치를 그대로 싣는다", async () => {
+    // 비교 점은 눌러서 명단으로 건너가는 대상이 아니라 쌍으로 접는다. 수만 건을 보내도 응답이 작아야 한다(EAT-287).
+    const plottedAt = Temporal.Instant.from("2026-08-04T01:30:00Z");
+    const reader = readerDouble({
+      readTimeSeries: async () => ({
+        ...emptyReading,
+        comparison: {
+          kind: "points",
+          points: [{ attemptId: 7n, revisionId: 8n, plottedAt, assessmentRateMilli: 89_745n }],
+        },
+        comparisonTotal: 1,
+      }),
+    });
+    const response = await run(reader);
+    expect(response.comparison).toEqual({
+      kind: "observations",
+      unit: "percentage-points",
+      observations: [["2026-08-04T01:30:00Z", "89.745"]],
+      truncated: false,
+    });
+  });
+
   test("자료가 준비됐는데 조건에 맞는 관측이 없으면 표본 0의 준비된 응답이다", async () => {
     const response = await run(readerDouble({}));
     expect(response.meta.state).toBe("ready");
