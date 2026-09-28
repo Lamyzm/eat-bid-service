@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -569,3 +571,39 @@ def test_기록자가_없으면_지표_없이_회차가_끝난다() -> None:
     )
 
     assert 회차.round_recorded is False
+
+
+def test_미해소_제외_기대는_창마다_normal로_열리고_runbook_절을_가리킨다() -> None:
+    """ADR 0061 결정 5: 이름 붙지 않은 제외는 허용되지 않는다. 전진이 그 창을 정산으로 보므로 이 기대가 유일한 신호다."""
+    기대 = next(item for item in EXPECTATIONS if item.key == "unresolved-exclusion")
+
+    assert 기대.severity == "normal"
+    assert "ingest.backfill_coverage" in 기대.sql
+    assert "unresolved_exclusions > 0" in 기대.sql
+    # 같은 시작일의 하루 창과 달 창이 한 위반으로 접히면 한쪽이 다른 쪽을 가린다.
+    assert 기대.key_columns == ("window_start", "window_end")
+
+    문서, _, 앵커 = 기대.runbook.partition("#")
+    제목들 = Path(__file__).parents[4].joinpath(문서).read_text(encoding="utf-8").splitlines()
+    슬러그 = {
+        re.sub(r"[^\w\- ]", "", line.lstrip("#").strip().lower()).replace(" ", "-")
+        for line in 제목들
+        if line.startswith("#")
+    }
+    assert 앵커 in 슬러그
+
+
+def test_미해소_제외_기대는_행이_있으면_창마다_다른_key로_위반을_만든다() -> None:
+    기대 = next(item for item in EXPECTATIONS if item.key == "unresolved-exclusion")
+    행들 = [
+        {"window_start": "20240901", "window_end": "20240930", "unresolved_exclusions": 3},
+        {"window_start": "20240901", "window_end": "20240901", "unresolved_exclusions": 1},
+    ]
+
+    위반들 = evaluate(lambda _sql, _params: 행들, (기대,))
+
+    assert sorted(v.key for v in 위반들) == [
+        "unresolved-exclusion:20240901:20240901",
+        "unresolved-exclusion:20240901:20240930",
+    ]
+    assert all(v.severity == "normal" for v in 위반들)

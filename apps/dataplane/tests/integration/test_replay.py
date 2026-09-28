@@ -109,8 +109,17 @@ def _insert_quarantined_attempt(
     return attempt_id
 
 
+# 격리가 발행을 실패시키는 경로를 재현하는 본문이다. ADR 0061 뒤로는 레코드 범위 격리가 허용 수
+# `min(50, max(1, floor(1% × N)))` 안이면 제외로 발행되므로, 실패 경로를 보려면 기대 2건을 둘 다 깨뜨려
+# 허용 수 1을 넘긴다.
+BROKEN = b"<broken>"
+
+
 def _capture_pair(
-    services: PipelineServices, *, first_body: bytes | None = None
+    services: PipelineServices,
+    *,
+    first_body: bytes | None = None,
+    second_body: bytes | None = None,
 ) -> tuple[int, int]:
     capture_run_id = start_run(services, expected_count=2)
     return (
@@ -124,6 +133,7 @@ def _capture_pair(
             services,
             run_id=capture_run_id,
             external_bid_id=f"replay-{uuid4().hex}",
+            body=second_body,
         ),
     )
 
@@ -507,7 +517,9 @@ def test_replay가_partial_checkpoint에서_단조롭게_재개한다(
 def test_replay가_여러_quarantined_checkpoint_중_하나를_불러와_재개한다(
     pipeline_services: PipelineServices,
 ) -> None:
-    observation_ids = _capture_pair(pipeline_services, first_body=b"<broken>")
+    observation_ids = _capture_pair(
+        pipeline_services, first_body=BROKEN, second_body=BROKEN
+    )
     run_id, publication_id = uuid4(), uuid4()
     _load_replay_state(
         pipeline_services,
@@ -716,8 +728,10 @@ def test_nonfrozen_replay_state가_extra_wrong_parser_attempt를_거부한다(
     pipeline_services: PipelineServices,
     state: str,
 ) -> None:
-    body = b"<broken>" if state == "quarantined" else None
-    observation_ids = _capture(pipeline_services, body=body)
+    body = BROKEN if state == "quarantined" else None
+    observation_ids = _capture(
+        pipeline_services, count=2 if state == "quarantined" else 1, body=body
+    )
     run_id, publication_id = uuid4(), uuid4()
     if state == "running":
         _load_replay_state(
@@ -834,7 +848,7 @@ def test_저장된_failed_replay는_publication_member를_숨기기_전에_typed
     foreign_observation = _capture(pipeline_services)
     foreign = normalize_one(pipeline_services, foreign_observation[0])
     if failure_kind == "quarantine":
-        replay_observations_ids = _capture(pipeline_services, body=b"<broken>")
+        replay_observations_ids = _capture(pipeline_services, count=2, body=BROKEN)
         expected_error = DataQuarantinedError
     else:
         replay_observations_ids = _capture(pipeline_services)
@@ -1364,7 +1378,7 @@ def test_일시적_database_failure는_terminal_state를_남기지_않고_전파
 def test_quarantined_replay가_data_failure를_저장하고_다시_던진다(
     pipeline_services: PipelineServices,
 ) -> None:
-    observation_ids = _capture(pipeline_services, body=b"<broken>")
+    observation_ids = _capture(pipeline_services, count=2, body=BROKEN)
     run_id, publication_id = uuid4(), uuid4()
 
     with pytest.raises(DataQuarantinedError) as caught:

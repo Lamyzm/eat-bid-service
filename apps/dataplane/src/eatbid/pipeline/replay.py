@@ -147,6 +147,9 @@ def replay_observations(
             )
         if validation.status != "validated":
             raise RuntimeError("replay validation returned an unsupported state")
+        # 격리가 있어도 검증이 통과했다면 그 격리는 상한 안의 레코드 범위라 원장의 제외로 봉인됐다(ADR 0061).
+        # 첫 격리 예외를 여기서 던지지 않는 이유는 그것이 이제 실패가 아니기 때문이다 — 던지면 계약을 고친 뒤
+        # 나머지 레코드를 되살리려는 replay가 한 건 때문에 다시 창 전체를 가린다(2024-10의 여덟 번 반복).
 
     projected = project_publication(
         publication_id=publication_id,

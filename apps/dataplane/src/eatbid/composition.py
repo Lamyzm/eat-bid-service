@@ -188,6 +188,14 @@ def _log_tolerated(observation_id: int, reason: str) -> None:
 # 고를지 말지는 `select_replay_target`이 정한다. replay run은 `source_release_run`에 매이지 않으므로 관측
 # 매니페스트(`replay_input`)를 release 관측(`source_release_observation`)에 대어 release를 찾는다. 두 표의
 # 기본 키가 (run, 관측)·(release, 관측)이라 replay run 수만큼의 index 탐색이다.
+#
+# **해소되지 않은 제외가 남은 창도 후보다(ADR 0061 결정 5, EAT-294).** 그 창은 원장 덕에 `is_complete`라 위
+# 갈래에는 걸리지 않지만, 계약을 고친 뒤 재파싱이 채울 자리가 남아 있다. 상태는 `excluded`이고 선택 규칙은
+# failed와 같다(이미지가 다를 때만). 그 이미지는 해소 안 된 제외 관측을 **마지막으로 시도한** run의 것이다 —
+# 그 관측을 제외로 적은 발행의 run과, 그 관측을 입력으로 받은 replay run 중 가장 늦게 시작한 것. 제외를 처음
+# 적은 이미지를 쓰면 새 이미지의 replay가 또 제외하거나 실패해도 옛 이미지 기준으로 매 회차 같은 창을 다시
+# 고른다. 이미 revision을 얻은 관측은 세지 않는다 — 같은 창의 다른 release가 채운 관측을 붙들고 있으면 그
+# release가 끝없이 뽑힌다. 관측 단위 해소 판정은 `backfill_coverage`의 `excluded_observation`과 같은 규칙이다.
 _REPLAY_CANDIDATES_SQL = """
 with window_release as (
     select distinct u.request_params ->> 'P_BID_BGNG_DT' as window_start,
@@ -198,7 +206,8 @@ with window_release as (
      where u.endpoint = 'bid-list'
        and u.request_params ? 'P_BID_BGNG_DT'
        and u.request_params ? 'P_BID_END_DT'
-)
+),
+blocked_candidate as (
 select w.source_release_id, p.publication_id, r.build_sha, w.window_start,
        case when p.status = 'failed' then 'failed' else 'stalled' end as state,
        p.validated_at,
@@ -229,7 +238,55 @@ select w.source_release_id, p.publication_id, r.build_sha, w.window_start,
     on c.window_start = w.window_start and c.window_end = w.window_end
  where rel.status = 'sealed'
    and not c.is_complete
- order by w.window_start desc
+),
+unresolved_exclusion as (
+    select distinct w.source_release_id, w.window_start, e.observation_id
+      from window_release w
+      join ingest.source_release rel
+        on rel.source_release_id = w.source_release_id and rel.status = 'sealed'
+      join ingest.backfill_coverage c
+        on c.window_start = w.window_start and c.window_end = w.window_end
+      join ingest.source_release_observation sro on sro.source_release_id = w.source_release_id
+      join ingest.publication_exclusion e on e.observation_id = sro.observation_id
+      join ingest.publication ep on ep.publication_id = e.publication_id and ep.status = 'published'
+     where c.unresolved_exclusions > 0
+       and not exists (
+           select 1
+             from ingest.normalized_record nr
+             join core.auction_revision rev on rev.normalized_record_id = nr.normalized_record_id
+            where nr.observation_id = e.observation_id
+       )
+),
+exclusion_attempt as (
+    select u.source_release_id, u.window_start, p.publication_id, r.build_sha, r.started_at
+      from unresolved_exclusion u
+      join ingest.publication_exclusion e on e.observation_id = u.observation_id
+      join ingest.publication p on p.publication_id = e.publication_id
+      join ingest.run r on r.run_id = p.run_id
+    union all
+    select u.source_release_id, u.window_start, p.publication_id, rr.build_sha, rr.started_at
+      from unresolved_exclusion u
+      join ingest.run rr on rr.mode = 'replay'
+      join ingest.replay_input ri on ri.run_id = rr.run_id and ri.observation_id = u.observation_id
+      join ingest.publication p on p.run_id = rr.run_id
+),
+excluded_candidate as (
+    select distinct on (source_release_id)
+           source_release_id, publication_id, build_sha, window_start,
+           'excluded' as state,
+           null::timestamptz as validated_at,
+           null::timestamptz as last_replay_started_at
+      from exclusion_attempt
+     order by source_release_id, started_at desc, publication_id
+)
+select source_release_id, publication_id, build_sha, window_start, state,
+       validated_at, last_replay_started_at
+  from (
+    select * from blocked_candidate
+    union all
+    select * from excluded_candidate
+  ) candidate
+ order by window_start desc
 """
 
 
@@ -470,10 +527,12 @@ class Application:
         return reap_expired_builds(self._connection, as_of=args.as_of)
 
     def next_replay_target(self, args: argparse.Namespace) -> Any:
-        """다시 시도할 가치가 있는 실패·멈춤 창 하나를 고른다. 아무것도 바꾸지 않는 읽기다(EAT-274, EAT-296).
+        """다시 시도할 가치가 있는 실패·멈춤·제외 창 하나를 고른다. 아무것도 바꾸지 않는 읽기다(EAT-274,
+        EAT-296, EAT-294).
 
-        이미 발행에 성공한 release는 후보에서 뺀다 — 한 창이 여러 번 실패한 뒤 성공했다면 그 창은
-        닫힌 것이고, 실패 기록은 진단용으로 남아 있을 뿐이다.
+        완결된 창의 실패 기록은 후보가 아니다 — 한 창이 여러 번 실패한 뒤 성공했다면 그 창은 닫힌 것이고,
+        실패 기록은 진단용으로 남아 있을 뿐이다. 다만 원장의 제외로 완결된 창은 해소되지 않은 제외가 남는 한
+        후보다(ADR 0061 결정 5).
         """
         # 읽기도 transaction 블록 안에서 한다. 블록 없이 커서만 쓰면 psycopg가 연 암묵 transaction이
         # 닫히지 않은 채 남고, close()의 가드가 그것을 "저장 안 된 채 끝났다"로 보고 실패시킨다

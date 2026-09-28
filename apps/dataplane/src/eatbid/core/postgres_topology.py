@@ -1,4 +1,4 @@
-"""모듈 책임: 한 공고의 시도·정규화·발행 구성원을 PostgreSQL에서 함께 잠그고, 그 묶음이
+"""모듈 책임: 한 공고의 시도·정규화·발행 구성원과 발행 제외 원장을 PostgreSQL에서 함께 잠그고, 그 묶음이
 발행 가능한 모양인지 판정한다."""
 
 from __future__ import annotations
@@ -21,6 +21,8 @@ class LockedNormalizationAttempt:
     source: str
     endpoint: str
     schema_fingerprint: str | None
+    # 격리된 시도만 값이 있다. 완결 검증기가 이 문장으로 레코드 범위인지 가른다(ADR 0061 결정 2).
+    quarantine_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,13 +93,35 @@ class LockedAuctionTopology:
         return True
 
     @property
+    def settled(self) -> bool:
+        """모든 후보가 현재 parser의 최종 시도를 정확히 하나씩 갖고, 격리된 시도는 구성원을 하나도 내지 않는다.
+
+        `coherent`와 따로 두는 이유: 발행이 격리를 원장의 제외로 넘길 수 있게 된 뒤에도(ADR 0061) 시도가
+        없는 후보나 격리됐는데 구성원이 붙은 시도는 여전히 lineage의 결함이다. 둘을 한 판정에 섞으면
+        "격리가 있다"와 "lineage가 깨졌다"가 같은 거짓이 되어 제외할 수 있는 창과 막아야 할 창을 가르지
+        못한다. 격리가 레코드 범위이고 상한 안인지는 이 판정이 아니라 완결 검증기가 본다.
+        """
+        return self.partial_coherent and len(self.attempts) == len(self.candidate_ids)
+
+    @property
     def coherent(self) -> bool:
-        """Require the partial invariant plus one normalized attempt per candidate."""
-        return (
-            self.partial_coherent
-            and len(self.attempts) == len(self.candidate_ids)
-            and all(attempt.status == "normalized" for attempt in self.attempts)
+        """Require the settled invariant plus one normalized attempt per candidate."""
+        return self.settled and all(
+            attempt.status == "normalized" for attempt in self.attempts
         )
+
+    @property
+    def quarantined_attempts(self) -> tuple[LockedNormalizationAttempt, ...]:
+        """현재 parser의 격리된 시도를 관측 순서로 돌려준다. 발행 제외 원장과 대조할 대상이다."""
+        return tuple(
+            attempt
+            for attempt in self.current_attempts
+            if attempt.status == "quarantined"
+        )
+
+    @property
+    def quarantined_observation_ids(self) -> tuple[int, ...]:
+        return tuple(attempt.observation_id for attempt in self.quarantined_attempts)
 
     @property
     def missing_current_attempts(self) -> int:
@@ -146,7 +170,7 @@ def lock_auction_topology(
         """
         select a.normalization_attempt_id, a.observation_id,
                a.parser_version, a.status, o.source, o.endpoint,
-               a.schema_fingerprint
+               a.schema_fingerprint, a.quarantine_reason
         from ingest.normalization_attempt a
         join ingest.raw_observation o using (observation_id)
         where a.run_id = %s
@@ -164,6 +188,7 @@ def lock_auction_topology(
             source=str(row[4]),
             endpoint=str(row[5]),
             schema_fingerprint=(str(row[6]) if row[6] is not None else None),
+            quarantine_reason=(str(row[7]) if row[7] is not None else None),
         )
         for row in cursor.fetchall()
     )
@@ -209,4 +234,41 @@ def lock_auction_topology(
         current_attempts=current_attempts,
         members=members,
         member_ids=tuple(sorted(member.normalized_record_id for member in members)),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LockedExclusion:
+    """발행 제외 원장의 한 행 중 봉인과 지문에 드는 부분이다."""
+
+    observation_id: int
+    stage: str
+    reason_code: str
+
+
+def lock_publication_exclusions(
+    cursor: psycopg.Cursor[Any], *, publication_id: UUID
+) -> tuple[LockedExclusion, ...]:
+    """발행 하나의 제외 원장 행을 잠그고 관측 id 오름차순으로 돌려준다.
+
+    검증·투영·replay 재개가 같은 질의로 원장을 읽어야 "봉인된 제외"가 한 정의가 된다. 호출자는 이 목록이
+    지금 격리된 시도의 관측과 정확히 같은지 대조한다 — 원장에 없는 결손이나 격리 없는 제외는 둘 다 발행을
+    멈춘다(ADR 0061 결정 4). 원장은 core가 아니라 ingest 표지만 core는 ingest 모듈을 부르지 않으므로
+    읽기는 lineage 잠금과 같은 이 모듈이 갖는다.
+    """
+    cursor.execute(
+        """
+        select observation_id, stage, reason_code
+        from ingest.publication_exclusion
+        where publication_id = %s
+        order by observation_id
+        for no key update
+        """,
+        (publication_id,),
+    )
+    return tuple(
+        LockedExclusion(
+            observation_id=int(row[0]), stage=str(row[1]), reason_code=str(row[2])
+        )
+        for row in cursor.fetchall()
     )

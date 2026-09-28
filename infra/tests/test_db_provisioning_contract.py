@@ -30,8 +30,11 @@ REQUIRED_SQL_FRAGMENTS = (
     "eatbid_grafana",
     "grant select on all tables in schema monitoring, mart to eatbid_grafana",
     "revoke all on schema ingest, core, app, drizzle from eatbid_grafana",
-    # 크롤러 진척 대시보드는 ingest의 자리 다섯만 읽는다. 전체 ingest도, default privilege도 아니다(EAT-245).
+    # 크롤러 진척 대시보드는 ingest의 자리 여섯만 읽는다(보류 결정·제외 원장은 표가 있을 때만). 전체 ingest도,
+    # default privilege도 아니다(EAT-245).
     "grant select on ingest.backfill_coverage, ingest.run, ingest.publication, ingest.normalization_attempt to eatbid_grafana",
+    # 발행에서 뺀 레코드의 원장도 같은 대시보드가 읽는다. 알려진 구멍은 보여야만 허용된다(ADR 0061, EAT-294).
+    "grant select on ingest.publication_exclusion to eatbid_grafana",
 )
 
 

@@ -1,5 +1,5 @@
 """모듈 책임: replay run의 정체성과 얼린 관측 manifest를 PostgreSQL에서 잠그고, 저장된 run·publication
-상태가 그 manifest와 어긋나지 않는지 판정한다.
+상태와 제외 원장이 그 manifest와 어긋나지 않는지 판정한다.
 """
 
 from __future__ import annotations
@@ -10,7 +10,11 @@ from uuid import UUID
 
 import psycopg
 
-from eatbid.core.postgres_topology import LockedAuctionTopology, lock_auction_topology
+from eatbid.core.postgres_topology import (
+    LockedAuctionTopology,
+    lock_auction_topology,
+    lock_publication_exclusions,
+)
 from eatbid.failures.categories import (
     DATA_QUARANTINED,
     PRE_VALIDATION_FAILURE_CATEGORIES,
@@ -176,10 +180,13 @@ class PsycopgReplayRunRepository:
 
         cursor.execute(
             """
-            select publication_id, status, validated_at, activated_at,
-                   expected_count, normalized_count, published_count,
-                   canonical_fingerprint, projector_version
-            from ingest.publication where run_id = %s for no key update
+            select p.publication_id, p.status, p.validated_at, p.activated_at,
+                   p.expected_count, p.normalized_count, p.published_count,
+                   p.canonical_fingerprint, p.projector_version,
+                   p.excluded_count, r.excluded_count
+            from ingest.publication p
+            join ingest.run r on r.run_id = p.run_id
+            where p.run_id = %s for no key update of p
             """,
             (run_id,),
         )
@@ -263,6 +270,11 @@ class PsycopgReplayRunRepository:
         publication_published = int(row[16])
         fingerprint = row[17]
         projector_version = row[18]
+        # 검증을 통과한 replay는 레코드 범위 격리를 원장의 제외로 넘겼을 수 있다(ADR 0061). 그 수는 발행과
+        # run이 같이 들고, 발행될 수는 기대에서 그것을 뺀 것이다. 검증 전의 상태는 제외를 적지 않는다.
+        excluded = int(row[19])
+        run_excluded = int(row[20])
+        publishable = expected_count - excluded
         topology_must_be_frozen = run_status in {"validated", "published"} or (
             run_status == "failed" and failure_category == PROJECTION_CONTRACT
         )
@@ -275,11 +287,15 @@ class PsycopgReplayRunRepository:
                 "replay partial topology contains structurally invalid lineage"
             )
         if topology_must_be_frozen and (
-            not topology.coherent or normalized_count != len(topology.member_ids)
+            not topology.settled
+            or normalized_count != len(topology.member_ids)
+            or excluded != len(topology.quarantined_attempts)
         ):
             raise ReplayIntegrityError(
                 "replay topology differs from the frozen publication lineage"
             )
+        if run_excluded != excluded or (not topology_must_be_frozen and excluded != 0):
+            raise ReplayIntegrityError("replay exclusion count is inconsistent")
         if run_status == "running":
             coherent = (
                 failure_category is None
@@ -298,12 +314,12 @@ class PsycopgReplayRunRepository:
                 and ended_at is None
                 and validated_at is not None
                 and activated_at is None
-                and normalized_count == expected_count
+                and normalized_count == publishable
                 and run_published == 0
                 and publication_published == 0
                 and fingerprint is None
                 and projector_version is None
-                and topology.coherent
+                and topology.settled
                 and normalized_count == len(topology.member_ids)
             )
         elif run_status == "published":
@@ -312,12 +328,12 @@ class PsycopgReplayRunRepository:
                 and ended_at is not None
                 and validated_at is not None
                 and activated_at is not None
-                and normalized_count == expected_count
-                and run_published == expected_count
-                and publication_published == expected_count
+                and normalized_count == publishable
+                and run_published == publishable
+                and publication_published == publishable
                 and fingerprint is not None
                 and projector_version is not None
-                and topology.coherent
+                and topology.settled
                 and normalized_count == len(topology.member_ids)
             )
         elif run_status == "failed":
@@ -335,8 +351,8 @@ class PsycopgReplayRunRepository:
                 coherent = (
                     base_coherent
                     and validated_at is not None
-                    and normalized_count == expected_count
-                    and topology.coherent
+                    and normalized_count == publishable
+                    and topology.settled
                     and normalized_count == len(topology.member_ids)
                 )
             elif failure_category in PRE_VALIDATION_FAILURE_CATEGORIES:
@@ -370,13 +386,24 @@ class PsycopgReplayRunRepository:
             (publication_id,),
         )
         persisted_members = tuple(int(row[0]) for row in cursor.fetchall())
-        if run_status in {"validated", "published"} or (
+        frozen = run_status in {"validated", "published"} or (
             run_status == "failed" and failure_category == PROJECTION_CONTRACT
-        ):
-            expected_members = topology.member_ids
-        else:
-            expected_members = ()
+        )
+        expected_members = topology.member_ids if frozen else ()
         if persisted_members != expected_members:
             raise ReplayIntegrityError(
                 "replay publication member manifest differs from current topology"
+            )
+        # 제외 원장도 구성원과 같은 규칙으로 얼어 있다. 검증을 통과한 상태에서만 행이 있고, 그 행은 지금
+        # 격리된 관측과 정확히 같다.
+        excluded_ids = tuple(
+            exclusion.observation_id
+            for exclusion in lock_publication_exclusions(
+                cursor, publication_id=publication_id
+            )
+        )
+        expected_excluded = topology.quarantined_observation_ids if frozen else ()
+        if excluded_ids != expected_excluded:
+            raise ReplayIntegrityError(
+                "replay publication exclusions differ from current topology"
             )
