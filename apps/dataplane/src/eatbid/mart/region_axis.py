@@ -156,7 +156,7 @@ def count_unmapped_region_codes(connection: Any, *, plan: MartBuildPlan) -> int:
     """
     if plan.region_scheme is None:
         return 0
-    with connection.cursor() as cursor:
+    with connection.transaction(), connection.cursor() as cursor:
         cursor.execute(_UNMAPPED_REGION_CODE_SQL, {"region_scheme": plan.region_scheme})
         row = cursor.fetchone()
         return 0 if row is None else int(row[0])
