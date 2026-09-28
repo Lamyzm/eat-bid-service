@@ -6,6 +6,7 @@ import {
   normalizationAttempt,
   normalizationAttemptRecord,
   publication,
+  publicationExclusion,
   publicationRecord,
   rawBlob,
   rawObservation,
@@ -39,6 +40,7 @@ describe("ingest identity 불변식", () => {
       normalizationAttempt,
       normalizationAttemptRecord,
       publicationRecord,
+      publicationExclusion,
       replayInput,
     ]) {
       for (const column of getTableConfig(table).columns.filter((candidate) => candidate.getSQLType() === "bigint")) {
@@ -95,6 +97,7 @@ describe("ingest identity 불변식", () => {
       "expected_count",
       "captured_count",
       "published_count",
+      "excluded_count",
     ]));
     expect(columnNames(requestUnit)).toEqual(expect.arrayContaining([
       "request_unit_id",
@@ -145,6 +148,7 @@ describe("ingest identity 불변식", () => {
       "expected_count",
       "normalized_count",
       "published_count",
+      "excluded_count",
       "canonical_fingerprint",
       "projector_version",
     ]));
@@ -216,6 +220,7 @@ describe("ingest identity 불변식", () => {
       "run_expected_count_nonnegative",
       "run_captured_count_nonnegative",
       "run_published_count_nonnegative",
+      "run_excluded_count_nonnegative",
       "run_end_chronology",
       "run_terminal_metadata",
       "run_published_count_matches_expected",
@@ -231,6 +236,7 @@ describe("ingest identity 불변식", () => {
       "publication_expected_count_nonnegative",
       "publication_normalized_count_nonnegative",
       "publication_published_count_nonnegative",
+      "publication_excluded_count_nonnegative",
       "publication_activation_chronology",
       "publication_validated_requires_validation_timestamp",
       "publication_canonical_fingerprint_sha256",
@@ -238,5 +244,43 @@ describe("ingest identity 불변식", () => {
       "publication_nonpublished_metadata_empty",
       "publication_published_requires_gate",
     ]));
+  });
+
+  test("발행 제외 원장은 발행과 관측 한 쌍마다 한 행이고 단계와 정규화 레코드를 함께 묶는다", () => {
+    const config = getTableConfig(publicationExclusion);
+
+    expect(columnNames(publicationExclusion)).toEqual([
+      "publication_id",
+      "observation_id",
+      "normalized_record_id",
+      "stage",
+      "reason_code",
+      "reason",
+      "created_at",
+    ]);
+    expect(config.primaryKeys.map((key) => key.columns.map((column) => column.name)))
+      .toEqual([["publication_id", "observation_id"]]);
+    expect(foreignKeyColumnSets(publicationExclusion)).toEqual(expect.arrayContaining([
+      { columns: ["publication_id"], foreignTable: "publication" },
+      { columns: ["observation_id"], foreignTable: "raw_observation" },
+      { columns: ["normalized_record_id"], foreignTable: "normalized_record" },
+    ]));
+    expect(config.columns.find((column) => column.name === "normalized_record_id")?.notNull).toBe(false);
+    expect(config.checks.map((constraint) => constraint.name)).toEqual(expect.arrayContaining([
+      "publication_exclusion_stage_allowed",
+      "publication_exclusion_stage_record",
+      "publication_exclusion_reason_code_nonempty",
+      "publication_exclusion_reason_bounded",
+    ]));
+  });
+
+  test("제외 수는 0을 기본으로 하는 not null integer라 제외가 없으면 이전 발행과 같다", () => {
+    for (const table of [ingestRun, publication]) {
+      const excludedCount = getTableConfig(table).columns.find((column) => column.name === "excluded_count");
+
+      expect(excludedCount?.getSQLType()).toBe("integer");
+      expect(excludedCount?.notNull).toBe(true);
+      expect(excludedCount?.default).toBe(0);
+    }
   });
 });

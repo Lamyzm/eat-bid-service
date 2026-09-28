@@ -474,6 +474,13 @@ revision을 재사용한다. 현행 뷰가 검증된 최신 revision을 선택�
   failed 상태는 외부 수정으로 승격하지 않는다. source/data failure는 빈 manifest를,
   projection failure는 coherent topology의 exact frozen manifest를 typed failure 반환보다 먼저 검증한다.
   source/data completeness failure는 incomplete일 수 있지만 partial structural coherence는 필수다.
+- 발행의 수량 등식은 `expected = published + excluded`다(ADR 0061). 제외할 수 있는 것은 레코드 범위의
+  위반뿐이고 단위는 정규화 레코드 한 건 전체(revision·품목·명단·낙찰·회차 연결)이며, 제외마다
+  `ingest.publication_exclusion`에 발행·관측·단계(`normalize`|`project`)·사유를 한 행으로 적는다. 창 전체
+  결함(기대 수 불일치, 코드 체계 누락, `source_entity` 중복, parser version 불일치, 모르는 record type,
+  chronology·fingerprint 불일치)이거나 제외가 발행당 `min(50, max(1, floor(1% × N)))`를 넘으면 발행 전체가
+  실패한다. 원장에 없는 결손은 허용하지 않는다. 제외를 실제로 적는 정규화·투영은 EAT-294에서 들어오며 그
+  전까지 `excluded_count`는 항상 0이라 등식은 이전의 `expected = normalized = published`와 같다.
 - 실패/불완전 실행은 원인과 raw를 보존하지만 현재 canonical snapshot을 바꾸지 않는다.
 - deterministic projection 충돌은 core write를 rollback하고 `PROJECTION_CONTRACT`로 실패시키되 이전
   `validated_at`과 frozen member를 보존한다. 실패 표시는 fresh connection transaction으로 내구화하고,

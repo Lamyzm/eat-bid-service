@@ -74,6 +74,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0058](0058-analysis-charts-use-echarts.md) | Accepted | 분석 그림은 Apache ECharts로 그린다 — 0031 3항을 분석 그림에 한해 대체. 트레이딩뷰는 같은 시각 여러 점을 거부하고, 그림이 중심인 제품이라 번들보다 기간 막대·선택·확대를 우선한다. 쓰지 않는 lightweight-charts·recharts는 지운다 |
 | [0052](0052-backfill-progress-recovery-and-advance.md) | Accepted | 수집 단계마다 주소가 다르므로(목록은 날짜, 상세는 아이디, 정규화·발행은 관측·릴리스) 복구는 소스 요청이 0인 뒤 단계부터 보고, 발견 축은 날짜로 유지하며(아이디 밀도 10.08% 실측) 진도는 `ingest` 사실에서 파생하는 view 하나가 소유하고 전진은 floor date를 선언한 CronWorkflow가 한다 |
 | [0059](0059-dataplane-transaction-ownership.md) | Accepted | dataplane 저장소는 읽기까지 명시적 트랜잭션 블록 안에서만 커서를 얻고 IDLE 연결에서만 시작하며, 실패는 원 연결을 먼저 되감은 뒤 별도 연결로 적는다. 상태 전이는 전이 행 수나 다시 센 값으로 대조하고, 관용구로만 있던 규칙은 정적 검사로 강제한다(EAT-264·273·274의 조용한 롤백 세 번) |
+| [0061](0061-record-scoped-exclusion.md) | Accepted | 레코드 한 건에 갇힌 위반은 그 정규화 레코드 전체만 발행에서 빼고 `ingest.publication_exclusion` 원장에 적는다 — 창 전체 결함은 여전히 발행을 막고, 허용 수는 `min(50, max(1, floor(1% × N)))`, 등식은 `expected = published + excluded`. 30일 발행 실패 22건이 모두 레코드 단위(최대 5건, 0.039%)였고 창 복구에 5~170시간이 걸렸다 (0053·0056의 부분 발행 기각 항과 0049 결정 6의 수량 등식을 대체) |
 
 ## 새 ADR 형식
 

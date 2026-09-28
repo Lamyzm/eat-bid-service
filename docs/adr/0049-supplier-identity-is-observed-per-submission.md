@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-09-11
 - Supersedes: [ADR 0033](0033-bid-submission-partitioning-and-supplier-core.md) §1의 "사업자번호를 가진 여러 `eat:supplier-account` 계정은 한 party에 붙는다"가 전제하던 **계정→party 영구 링크**. 같은 ADR의 party 유일 키(사업자번호)와 partitioning 결정은 유지한다.
+- 부분 대체: 결정 6의 수량 등식 `expected_count == published_count`는 [ADR 0061](0061-record-scoped-exclusion.md)이
+  `expected = published + excluded`로 대체했다. 신원 충돌을 격리가 아니라 해석으로 푸는 이 ADR의 결정은 그대로다.
 - 관련 작업: 2026-09-10~11 2025-11 창 두 번 실패, EAT-179
 
 ## Context
@@ -53,8 +55,11 @@ ProjectionContractError: persisted supplier party identity conflicts
 5. **투영은 충돌로 멈추지 않는다.** 같은 계정이 다른 번호로 나타나면 그 시점의 번호로 party를 해석해
    그대로 기록한다. 사람이 판단할 것이 없다 — 소스가 이미 답을 말했다.
 
-6. **부분 발행을 만들지 않는다.** 이 결정은 봉인된 멤버십(ADR 0014·0015)을 건드리지 않는다.
-   `expected_count == published_count`는 그대로이며, 16,915건이 온전히 발행된다.
+6. ~~**부분 발행을 만들지 않는다.** 이 결정은 봉인된 멤버십(ADR 0014·0015)을 건드리지 않는다.
+   `expected_count == published_count`는 그대로이며, 16,915건이 온전히 발행된다.~~
+   **[0061](0061-record-scoped-exclusion.md)이 이 항의 수량 등식을 대체한다.** 발행은 `expected = published + excluded`로
+   닫히고 레코드 범위의 위반은 원장에 적고 뺄 수 있다. 이 ADR의 신원 해석은 제외가 아니라 온전한 발행을 낳으므로
+   2025-11 창의 결론은 바뀌지 않는다.
 
 ## Consequences
 
