@@ -14,6 +14,14 @@ class MartBuildContractError(RuntimeError):
     """mart 빌드 입력이나 상태 전환이 build 원장의 계약과 어긋난다."""
 
 
+class MartTransactionScopeError(RuntimeError):
+    """mart 저장소가 자기 트랜잭션을 열려는데 연결에 이미 다른 트랜잭션이 열려 있다.
+
+    그대로 진행하면 psycopg가 우리 블록을 savepoint로 바꾸고, 바깥 트랜잭션이 되감길 때 우리 쓰기가
+    성공한 채로 사라진다(EAT-264·273·274, ADR 0059). 조용히 사라지는 대신 여기서 시끄럽게 멈춘다.
+    """
+
+
 class MartBuildRepository(Protocol):
     def open_build(self, plan: MartBuildPlan) -> OpenedMartBuild:
         """멱등 키로 build를 찾거나 만들고, 재개 가능한 build의 이전 행을 지운다."""
@@ -32,7 +40,10 @@ class MartBuildRepository(Protocol):
         ...
 
     def fail_build(self, build_id: int, failure_category: str) -> None:
-        """실패를 별도 연결의 트랜잭션에서 내구화한다. 활성 포인터는 움직이지 않는다."""
+        """실패를 별도 연결의 트랜잭션에서 내구화한다. 활성 포인터는 움직이지 않는다.
+
+        원 연결에 남은 트랜잭션은 먼저 되감는다. 남겨 두면 그 트랜잭션이 쥔 잠금을 별도 연결이 기다린다.
+        """
         ...
 
 
