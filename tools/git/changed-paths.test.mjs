@@ -76,6 +76,26 @@ test("main 자체에서는 origin/main보다 앞선 commit과 작업 트리 변�
   }
 });
 
+test("로컬 main이 origin/main보다 뒤처져 있으면 origin/main과의 merge-base를 기준으로 삼는다", () => {
+  const repo = repository();
+  try {
+    repo.commit("초기 코드", { "src/a.ts": "export const a = 1;\n" });
+    repo.git("checkout", "-q", "-b", "upstream");
+    const merged = repo.commit("다른 사람이 병합한 작업", { "src/merged.ts": "export const merged = 1;\n" });
+    repo.git("update-ref", "refs/remotes/origin/main", merged);
+    repo.git("checkout", "-q", "-b", "feature");
+    repo.commit("branch 작업", { "src/b.ts": "export const b = 2;\n" });
+
+    const base = resolveChangedBase({ repoRoot: repo.root });
+    assert.equal(base.kind, "merge-base");
+    assert.equal(base.ref, "origin/main");
+    assert.equal(base.commit, merged);
+    assert.deepEqual(listChangedPaths({ repoRoot: repo.root, baseCommit: base.commit }), ["src/b.ts"]);
+  } finally {
+    repo.close();
+  }
+});
+
 test("기준 branch가 하나도 없으면 unresolved를 돌려주고 명시한 base가 없으면 실패한다", () => {
   const repo = repository({ branch: "trunk" });
   try {

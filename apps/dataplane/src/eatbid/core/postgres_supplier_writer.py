@@ -123,7 +123,7 @@ class SupplierProjectionWriter:
             select a.source_supplier_account_id, a.supplier_party_id, a.source_system
             from core.source_supplier_account a
             where a.account_code_value_id = %s and a.supplier_party_id = %s
-            for update of a
+            for no key update of a
             """,
             (account_code_value_id, supplier_party_id),
         )
@@ -205,7 +205,7 @@ class SupplierProjectionWriter:
         cursor.execute(
             """
             select supplier_party_id from core.supplier_party
-            where business_number_code_value_id = %s for update
+            where business_number_code_value_id = %s for no key update
             """,
             (business_number_code_value_id,),
         )
