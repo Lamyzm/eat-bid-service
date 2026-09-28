@@ -1452,6 +1452,26 @@ def test_replay_DAG는_core를_다시_앉힌_뒤_같은_marts_task를_잇는다(
     assert marts_arguments["detail-run-id"] == "{{workflow.uid}}"
 
 
+def test_재처리_예약은_다시_할_창이_없으면_marts를_돌리지_않고_성공한다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 막힌 창이 없는 것이 정상이다. 그때 `run`은 건너뛰는데, `marts`가 짧은 `depends: run`이면
+    Skipped도 참이라 `decide`의 빈 출력을 들고 `build-marts`가 인자 검사에서 죽는다(EAT-282,
+    2026-09-25 20:25). 정상 회차가 빨갛게 끝나면 진짜 실패가 묻히므로 `run.Succeeded`에만 잇는다."""
+    workflow_template = manifests.workflow_template("eatbid-dataplane")
+    templates = _templates(workflow_template)
+    dag = _mapping(templates["advancing-replay-pipeline"]["dag"])
+    tasks = {str(_mapping(task)["name"]): _mapping(task) for task in _sequence(dag["tasks"])}
+
+    assert set(tasks) == {"decide", "run", "marts"}
+    # 고를 것이 있을 때만 run이 돈다.
+    assert tasks["run"]["depends"] == "decide"
+    assert tasks["run"]["when"] == "{{tasks.decide.outputs.parameters.has-target}} == true"
+    # marts는 run이 **성공했을 때만** 돈다. 건너뛰면 Omitted, 실패하면 Omitted이고 실패는 run이 말한다.
+    assert tasks["marts"]["depends"] == "run.Succeeded"
+    assert tasks["marts"]["template"] == "marts"
+
+
 def test_발행과_mart_활성화_단계만_web_캐시_무효화_설정을_받는다(
     manifests: ManifestSet,
 ) -> None:
