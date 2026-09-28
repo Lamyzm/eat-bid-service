@@ -46,6 +46,10 @@ class _기록애플리케이션:
     def __exit__(self, *args: object) -> None:
         self.close_count += 1
 
+    def run_command(self, method_name: str, args: Namespace) -> object:
+        # 실제 Application의 트랜잭션 경계는 DB 연결이 있어야 뜻이 있다. 이 대역은 dispatch만 흉내 낸다.
+        return getattr(self, method_name)(args)
+
     def _record(self, command: str, args: Namespace) -> None:
         if self.error is not None:
             raise self.error

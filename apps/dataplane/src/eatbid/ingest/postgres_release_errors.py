@@ -7,7 +7,6 @@ from uuid import UUID
 
 import psycopg
 from psycopg import IsolationLevel
-from psycopg.pq import TransactionStatus
 
 from eatbid.ingest.release_repository import (
     ReleaseDuplicateMemberError,
@@ -15,6 +14,7 @@ from eatbid.ingest.release_repository import (
     ReleaseMissingMemberError,
     ReleasePlanConflictError,
 )
+from eatbid.transaction_scope import require_idle
 
 MemberKind = Literal["run", "observation"]
 
@@ -29,10 +29,11 @@ _MEMBER_PRIMARY_KEYS = {
 
 
 def require_terminal_scope(connection: psycopg.Connection[object]) -> None:
-    if connection.info.transaction_status != TransactionStatus.IDLE:
-        raise ReleaseIsolationContractError(
-            "source release seal requires an idle repository connection"
-        )
+    require_idle(
+        connection,
+        message="source release seal requires an idle repository connection",
+        error_type=ReleaseIsolationContractError,
+    )
     configured = connection.isolation_level
     if configured not in {None, IsolationLevel.READ_COMMITTED}:
         raise ReleaseIsolationContractError(

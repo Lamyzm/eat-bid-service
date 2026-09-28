@@ -9,7 +9,6 @@ from typing import Any
 from uuid import UUID
 
 import psycopg
-from psycopg.pq import TransactionStatus
 
 from eatbid.core.postgres_topology import LockedAuctionTopology, lock_auction_topology
 from eatbid.failures.categories import (
@@ -21,6 +20,7 @@ from eatbid.ingest.replay_repository import (
     ReplayRunState,
     validate_replay_start,
 )
+from eatbid.transaction_scope import require_idle
 
 
 class ReplayIntegrityError(RuntimeError):
@@ -53,10 +53,11 @@ class PsycopgReplayRunRepository:
             parser_version=parser_version,
             started_at=started_at,
         )
-        if self._connection.info.transaction_status != TransactionStatus.IDLE:
-            raise ReplayTransactionScopeError(
-                "replay start requires an idle repository connection"
-            )
+        require_idle(
+            self._connection,
+            message="replay start requires an idle repository connection",
+            error_type=ReplayTransactionScopeError,
+        )
         try:
             with self._connection.transaction(), self._connection.cursor() as cursor:
                 cursor.execute(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -105,6 +106,11 @@ from eatbid.source.eat.http_client import EatHttpClient
 from eatbid.source.reference.mois_client import build_reference_client
 from eatbid.source.retry import TransientRetryPolicy
 from eatbid.storage.r2_store import R2RawObjectStore, R2Settings
+from eatbid.transaction_scope import (
+    UncommittedStepError,
+    require_idle,
+    rollback_leftover,
+)
 
 # 발행에 이르지 못한 상세 관측. 정규화된 적이 없거나 격리됐거나 정규화됐지만 revision이 없는 것 전부다. 창 범위는
 # 목록 요청 파라미터에서만 파생된다(backfill_coverage와 같은 자리). 관측마다 raw 객체 하나라 같은 공고가 여러 창에
@@ -245,6 +251,36 @@ class Application:
     @classmethod
     def for_test(cls, *, connection: Any, http_client: Any) -> Application:
         return cls(connection=connection, http_client=http_client)
+
+    def run_command(self, method_name: str, args: argparse.Namespace) -> Any:
+        """CLI가 명령(단계) 하나를 부르는 유일한 경계다. 앞뒤로 공유 연결이 비어 있는지 본다(ADR 0059 결정 2).
+
+        왜 close()만으로 부족한가: chunk 명령은 한 연결로 여러 건을 차례로 부르므로, 한 건이 남긴
+        트랜잭션 위에서 다음 건의 블록이 savepoint가 되어 그 쓰기가 성공한 채 사라진다. 프로세스 끝의
+        가드는 그것을 건이 다 지나간 뒤에야 본다.
+
+        예외가 나면 원 연결을 먼저 되감는다. 그 뒤에 도는 실패 기록(chunk 보고, CLI 최종 경계)이나
+        다음 건이 원 연결이 쥔 행 잠금을 기다리며 멈추지 않게 하려는 것이다. 원래 예외는 그대로
+        올리고, 남아 있던 트랜잭션은 그 예외의 note로만 덧붙인다 — 가드가 원인을 덮으면 안 된다.
+        """
+        require_idle(
+            self._connection,
+            message=(
+                f"database transaction was already open before command {method_name} started"
+            ),
+            error_type=UncommittedStepError,
+        )
+        try:
+            result = getattr(self, method_name)(args)
+        except Exception as error:
+            _rollback_after_failure(self._connection, error, method_name)
+            raise
+        if rollback_leftover(self._connection) is not None:
+            raise UncommittedStepError(
+                f"database work was left uncommitted by command {method_name}; "
+                "it reported success but nothing was stored"
+            )
+        return result
 
     def discover(self, args: argparse.Namespace) -> Any:
         # 정시 수집은 열린 보류가 있으면 소스를 부르기 전에 끝난다. run도 release도 만들지 않는다. 실패로
@@ -717,9 +753,13 @@ class Application:
     ) -> None:
         try:
             self.close()
-        except RuntimeError:
+        except RuntimeError as guard_error:
             if exc_value is None:
                 raise
+            # 이미 올라가는 예외가 진짜 원인이다. 가드의 판정은 버리지 않고 그 예외와 로그에 덧붙인다 —
+            # 삼키면 "실패했고 트랜잭션도 남겼다"는 사실 중 뒤쪽이 사라진다.
+            exc_value.add_note(f"while closing: {guard_error}")
+            _log_event("close-guard-after-failure", reason=str(guard_error))
 
 
 class _MonitoringRunner:
@@ -748,6 +788,12 @@ class _MonitoringRunner:
         # 읽기지만 transaction 블록 안에서 한다. 지금까지 이 경로가 안 죽은 것은 같은 회차의
         # _execute·_mutate가 뒤이어 commit해 close() 시점에 transaction이 이미 닫혀 있었기 때문이다.
         # 쓸 것이 하나도 없는 회차가 오면 EAT-273의 가드에 그대로 걸린다 — 우연에 기대지 않는다.
+        # _execute·_mutate가 문장마다 commit하므로(ADR 0054) 여기 올 때 연결은 늘 비어 있어야 한다.
+        require_idle(
+            self._connection,
+            message="monitoring query requires an idle connection",
+            error_type=RuntimeError,
+        )
         with self._connection.transaction(), self._connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(sql, parameters)
             return list(cursor.fetchall())
@@ -984,3 +1030,35 @@ def _close_ignoring_error(resource: Any) -> None:
         resource.close()
     except Exception:  # noqa: BLE001 - cleanup 상세를 provider 실패에 붙이지 않는다.
         return
+
+
+def _rollback_after_failure(connection: Any, error: Exception, method_name: str) -> None:
+    """실패한 명령이 남긴 트랜잭션을 되감고, 그 사실을 원래 예외에 덧붙인다. 원래 예외는 바꾸지 않는다."""
+    try:
+        leftover = rollback_leftover(connection)
+    except Exception as rollback_error:  # noqa: BLE001 - 되감기 실패가 원래 원인을 덮으면 안 된다.
+        # 예외 문장에는 DSN 같은 provider 상세가 실릴 수 있어 클래스 이름만 남긴다.
+        reason = f"rollback failed: {type(rollback_error).__name__}"
+        error.add_note(f"after command {method_name} failed, {reason}")
+        _log_event("rollback-after-failure-failed", command=method_name, reason=reason)
+        return
+    if leftover is not None:
+        error.add_note(
+            f"command {method_name} failed with a {leftover.name} transaction open; "
+            "it was rolled back"
+        )
+        _log_event(
+            "transaction-rolled-back-after-failure",
+            command=method_name,
+            status=leftover.name,
+        )
+
+
+def _log_event(event: str, **fields: str) -> None:
+    """트랜잭션 경계에서 본 사실을 stderr 한 줄 JSON으로 남긴다. stdout은 machine result의 자리라 쓰지 않는다."""
+    print(
+        json.dumps(
+            {"event": event, **fields}, sort_keys=True, separators=(",", ":")
+        ),
+        file=sys.stderr,
+    )

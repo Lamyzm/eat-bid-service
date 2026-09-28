@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import psycopg
+import pytest
+
 from eatbid.mart.org_round_summary import fill_org_round_summary
 from eatbid.mart.reaper import reap_expired_builds
+from eatbid.mart.repository import MartTransactionScopeError
 from eatbid.pipeline.project import project_publication
 
-from .conftest import PipelineServices
+from .conftest import MigratedDatabase, PipelineServices
 from .mart_support import (
     MART_COMPUTED_AT,
     build_mart,
@@ -131,3 +135,51 @@ def test_같은_시각으로_다시_부르면_이미_회수한_build는_보고�
 
     assert previous not in {item.build_id for item in second.reaped}
     assert second.to_document()["deleted_rows"] == 0
+
+
+def test_회수가_끝나면_연결에_열린_트랜잭션이_남지_않는다(
+    pipeline_services: PipelineServices, migrated_db: MigratedDatabase
+) -> None:
+    """build마다 명시적 블록으로 commit하므로 명령 경계의 IDLE 검사에 걸리지 않는다(ADR 0059)."""
+    _publish(pipeline_services)
+    release = create_source_release(pipeline_services)
+    previous, _ = build_mart(
+        pipeline_services,
+        mart_plan(release, calc_version="mart-r1"),
+        fill_org_round_summary,
+    )
+    build_mart(
+        pipeline_services,
+        mart_plan(release, calc_version="mart-r2"),
+        fill_org_round_summary,
+    )
+
+    report = reap_expired_builds(
+        pipeline_services.connection,
+        as_of=MART_COMPUTED_AT + RETENTION + timedelta(hours=1),
+    )
+
+    assert previous in {item.build_id for item in report.reaped}
+    assert (
+        pipeline_services.connection.info.transaction_status
+        is psycopg.pq.TransactionStatus.IDLE
+    )
+    # 다른 연결에서도 행이 사라져 보여야 build별 commit이 실제로 일어난 것이다.
+    with migrated_db.connect() as other, other.cursor() as cursor:
+        cursor.execute(
+            "select count(*) from mart.org_round_summary where build_id = %s",
+            (previous,),
+        )
+        assert cursor.fetchone() == (0,)
+
+
+def test_남의_트랜잭션_위에서는_회수를_시작하지_않는다(
+    pipeline_services: PipelineServices,
+) -> None:
+    """블록이 savepoint가 되면 build마다 commit한다는 보장이 거짓이 되므로 시작 전에 멈춘다."""
+    connection = pipeline_services.connection
+    with (
+        connection.transaction(),
+        pytest.raises(MartTransactionScopeError, match="mart reap"),
+    ):
+        reap_expired_builds(connection, as_of=MART_COMPUTED_AT)

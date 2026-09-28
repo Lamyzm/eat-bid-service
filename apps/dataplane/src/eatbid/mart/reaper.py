@@ -13,6 +13,8 @@ from datetime import datetime
 from typing import Any
 
 from eatbid.mart.models import MartName
+from eatbid.mart.repository import MartTransactionScopeError
+from eatbid.transaction_scope import require_idle
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,8 +81,17 @@ def reap_expired_builds(connection: Any, *, as_of: datetime) -> ReapReport:
     """시한이 지난 build를 하나씩 회수한다. build마다 commit하므로 중간에 죽어도 지운 만큼은 남고, 다시
     부르면 남은 것부터 이어 간다. 이미 행이 없는 build는 보고에 실리지 않는다 — 같은 명령을 매일 불러도
     보고는 그날 실제로 지운 것만 말한다."""
+    # 남의 트랜잭션 위에서 시작하면 아래 build별 블록이 savepoint가 되어 "build마다 commit"이 거짓이 된다.
+    # 바깥이 되감기면 지웠다고 보고한 행이 그대로 돌아온다(ADR 0059).
+    require_idle(
+        connection,
+        message="mart reap requires an idle repository connection",
+        error_type=MartTransactionScopeError,
+    )
     tables = {target.mart_name: target.table for target in REAP_TARGETS}
-    with connection.cursor() as cursor:
+    # 목록 읽기도 블록 안에서 끝낸다. 블록 없이 읽으면 psycopg가 연 암묵 트랜잭션이 첫 build의 삭제까지
+    # 이어져, 회수 단위가 "build 하나"가 아니라 "목록 + 첫 build"가 된다.
+    with connection.transaction(), connection.cursor() as cursor:
         cursor.execute(_EXPIRED_BUILDS_SQL, {"as_of": as_of})
         expired = [(int(row[0]), str(row[1]), row[2]) for row in cursor.fetchall()]
     reaped: list[ReapedBuild] = []
@@ -88,7 +99,8 @@ def reap_expired_builds(connection: Any, *, as_of: datetime) -> ReapReport:
         table = tables.get(mart_name)
         if table is None:
             raise ValueError(f"unknown mart in build ledger [mart={mart_name}]")
-        with connection.cursor() as cursor:
+        # build 하나의 회수가 한 단위다. 블록을 나가며 commit하므로 뒤 build에서 죽어도 여기까지는 남는다.
+        with connection.transaction(), connection.cursor() as cursor:
             cursor.execute(f"delete from mart.{table} where build_id = %s", (build_id,))
             rows_deleted = int(cursor.rowcount)
             # 보유율 행도 그 build의 산출물이다. 행이 없는 build의 보유율은 아무것도 설명하지 않는다.
@@ -96,7 +108,6 @@ def reap_expired_builds(connection: Any, *, as_of: datetime) -> ReapReport:
                 "delete from mart.build_coverage where build_id = %s", (build_id,)
             )
             coverage_deleted = int(cursor.rowcount)
-        connection.commit()
         if rows_deleted or coverage_deleted:
             reaped.append(
                 ReapedBuild(
