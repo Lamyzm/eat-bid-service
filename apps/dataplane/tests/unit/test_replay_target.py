@@ -1,8 +1,8 @@
-"""재처리 대상 고르기가 무한 반복을 막는지 고정한다(EAT-274)."""
+"""재처리 대상 고르기가 무한 반복을 막는지 고정한다(EAT-274, EAT-296)."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid5
 
 import pytest
@@ -21,6 +21,27 @@ def _후보(build_sha: str, window_start: str = "20241001") -> FailedPublication
         publication_id=UUID(int=2),
         build_sha=build_sha,
         window_start=window_start,
+        state="failed",
+    )
+
+
+멈춘시각 = 기준시각 - timedelta(hours=7)
+
+
+def _멈춘_후보(
+    build_sha: str,
+    *,
+    last_replay_started_at: datetime | None = None,
+    window_start: str = "20260916",
+) -> FailedPublication:
+    return FailedPublication(
+        source_release_id=UUID(int=3),
+        publication_id=UUID(int=4),
+        build_sha=build_sha,
+        window_start=window_start,
+        state="stalled",
+        validated_at=멈춘시각,
+        last_replay_started_at=last_replay_started_at,
     )
 
 
@@ -77,3 +98,84 @@ def test_지금_이미지를_모르면_판단하지_않는다() -> None:
         select_replay_target(
             (_후보(옛이미지),), build_sha="", run_id=실행, as_of=기준시각
         )
+
+
+def test_검증_뒤_멈춘_창은_지금_이미지가_만들었어도_한_번은_고른다() -> None:
+    """왜: 멈춤은 결정적인 결과가 아니라 교착 같은 중단이라 같은 이미지로 다시 돌려도 풀린다.
+    2026-09 daily-reconcile 두 창이 core.organization 교착으로 validated에 남았는데, failed만 보던
+    규칙은 그 창을 영원히 다시 시도하지 않았다(EAT-296)."""
+    대상 = select_replay_target(
+        (_멈춘_후보(지금이미지),), build_sha=지금이미지, run_id=실행, as_of=기준시각
+    )
+
+    assert 대상 is not None
+    assert 대상.window_start == "20260916"
+    assert 대상.failed_publication_id == UUID(int=4)
+    assert 대상.publication_id == uuid5(실행, "eatbid:replay-publication")
+
+
+def test_멈춘_창은_다른_이미지가_만들었어도_고른다() -> None:
+    assert (
+        select_replay_target(
+            (_멈춘_후보(옛이미지),), build_sha=지금이미지, run_id=실행, as_of=기준시각
+        )
+        is not None
+    )
+
+
+def test_멈춘_뒤_replay가_이미_있었으면_같은_창을_다시_고르지_않는다() -> None:
+    """왜: 그 replay도 멈췄다면 같은 멈춤을 무한히 되풀이할 뿐이다. 그때는 사람이 볼 차례이고 감시
+    기대 stale-validated-publication이 계속 열려 있다."""
+    후보들 = (
+        _멈춘_후보(지금이미지, last_replay_started_at=멈춘시각 + timedelta(hours=1)),
+    )
+
+    assert (
+        select_replay_target(후보들, build_sha=지금이미지, run_id=실행, as_of=기준시각)
+        is None
+    )
+
+
+def test_멈추기_전에_있던_replay는_멈춘_창을_막지_않는다() -> None:
+    후보들 = (_멈춘_후보(지금이미지, last_replay_started_at=멈춘시각 - timedelta(days=1)),)
+
+    assert (
+        select_replay_target(후보들, build_sha=지금이미지, run_id=실행, as_of=기준시각)
+        is not None
+    )
+
+
+def test_검증_시각이_없는_멈춘_후보는_판단하지_않고_건너뛴다() -> None:
+    """왜: validated인데 검증 시각이 없으면 ledger가 어긋난 것이다. 추측으로 고르지 않는다."""
+    후보 = FailedPublication(
+        source_release_id=UUID(int=3),
+        publication_id=UUID(int=4),
+        build_sha=지금이미지,
+        window_start="20260916",
+        state="stalled",
+    )
+
+    assert (
+        select_replay_target((후보,), build_sha=지금이미지, run_id=실행, as_of=기준시각)
+        is None
+    )
+
+
+def test_멈춘_창이_섞여_있어도_실패_창의_이미지_규칙은_그대로다() -> None:
+    """같은 이미지가 실패시킨 창은 여전히 건너뛰고, 멈춘 창이 있으면 그것을 고른다."""
+    후보들 = (
+        _후보(지금이미지, "20260301"),
+        _멈춘_후보(
+            지금이미지,
+            last_replay_started_at=멈춘시각 + timedelta(minutes=5),
+            window_start="20260201",
+        ),
+        _멈춘_후보(지금이미지, window_start="20260101"),
+    )
+
+    대상 = select_replay_target(
+        후보들, build_sha=지금이미지, run_id=실행, as_of=기준시각
+    )
+
+    assert 대상 is not None
+    assert 대상.window_start == "20260101"

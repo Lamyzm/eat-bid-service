@@ -95,7 +95,11 @@ from eatbid.pipeline.reference import (
 )
 from eatbid.pipeline.refetch_baseline import PsycopgRefetchBaselineReader
 from eatbid.pipeline.replay import ReplayServices, replay_observations
-from eatbid.pipeline.replay_target import FailedPublication, select_replay_target
+from eatbid.pipeline.replay_target import (
+    STALLED_VALIDATED_AFTER,
+    FailedPublication,
+    select_replay_target,
+)
 from eatbid.pipeline.source_hold import (
     EAT_SOURCE,
     SCHEDULED_SOURCE_MODES,
@@ -176,6 +180,14 @@ def _log_tolerated(observation_id: int, reason: str) -> None:
 #
 # 진도는 파생이고 그 view가 정의를 소유한다(ADR 0052 결정 2). 같은 사실을 두 곳이 계산하면 둘이
 # 갈리고, 갈린 쪽이 조용히 이긴다.
+#
+# **`validated`에 멈춘 publication도 후보다(EAT-296).** 검증 뒤 project가 결론 없이 죽으면 publication은
+# failed가 아니라 validated로 남고, failed만 보던 이전 판에서는 그런 창을 영원히 다시 시도하지 않았다
+# (2026-09 daily-reconcile 두 창, core.organization 교착). 기준 시각은 DB의 now()가 아니라 명령의 --as-of다 —
+# 같은 입력이면 같은 후보가 나와야 재현과 시험이 된다. 멈춘 뒤 replay가 있었는지는 여기서 시각만 모아 오고
+# 고를지 말지는 `select_replay_target`이 정한다. replay run은 `source_release_run`에 매이지 않으므로 관측
+# 매니페스트(`replay_input`)를 release 관측(`source_release_observation`)에 대어 release를 찾는다. 두 표의
+# 기본 키가 (run, 관측)·(release, 관측)이라 replay run 수만큼의 index 탐색이다.
 _REPLAY_CANDIDATES_SQL = """
 with window_release as (
     select distinct u.request_params ->> 'P_BID_BGNG_DT' as window_start,
@@ -187,10 +199,30 @@ with window_release as (
        and u.request_params ? 'P_BID_BGNG_DT'
        and u.request_params ? 'P_BID_END_DT'
 )
-select w.source_release_id, p.publication_id, r.build_sha, w.window_start
+select w.source_release_id, p.publication_id, r.build_sha, w.window_start,
+       case when p.status = 'failed' then 'failed' else 'stalled' end as state,
+       p.validated_at,
+       case when p.status = 'validated' then (
+           select max(rr.started_at)
+             from ingest.run rr
+            where rr.mode = 'replay'
+              and rr.started_at > p.validated_at
+              and exists (
+                  select 1
+                    from ingest.replay_input ri
+                    join ingest.source_release_observation sro
+                      on sro.observation_id = ri.observation_id
+                     and sro.source_release_id = w.source_release_id
+                   where ri.run_id = rr.run_id
+              )
+       ) end as last_replay_started_at
   from window_release w
   join ingest.source_release_run sr on sr.source_release_id = w.source_release_id
-  join ingest.publication p on p.run_id = sr.run_id and p.status = 'failed'
+  join ingest.publication p
+    on p.run_id = sr.run_id
+   and (p.status = 'failed'
+        or (p.status = 'validated'
+            and p.validated_at < %(as_of)s::timestamptz - %(stall_after)s::interval))
   join ingest.run r on r.run_id = p.run_id
   join ingest.source_release rel on rel.source_release_id = w.source_release_id
   join ingest.backfill_coverage c
@@ -438,7 +470,7 @@ class Application:
         return reap_expired_builds(self._connection, as_of=args.as_of)
 
     def next_replay_target(self, args: argparse.Namespace) -> Any:
-        """다시 시도할 가치가 있는 실패 창 하나를 고른다. 아무것도 바꾸지 않는 읽기다(EAT-274).
+        """다시 시도할 가치가 있는 실패·멈춤 창 하나를 고른다. 아무것도 바꾸지 않는 읽기다(EAT-274, EAT-296).
 
         이미 발행에 성공한 release는 후보에서 뺀다 — 한 창이 여러 번 실패한 뒤 성공했다면 그 창은
         닫힌 것이고, 실패 기록은 진단용으로 남아 있을 뿐이다.
@@ -447,13 +479,19 @@ class Application:
         # 닫히지 않은 채 남고, close()의 가드가 그것을 "저장 안 된 채 끝났다"로 보고 실패시킨다
         # (EAT-273). 이 명령은 아무것도 쓰지 않으므로 뒤이어 commit해 줄 사람도 없다.
         with self._connection.transaction(), self._connection.cursor() as cursor:
-            cursor.execute(_REPLAY_CANDIDATES_SQL)
+            cursor.execute(
+                _REPLAY_CANDIDATES_SQL,
+                {"as_of": args.as_of, "stall_after": STALLED_VALIDATED_AFTER},
+            )
             candidates = tuple(
                 FailedPublication(
                     source_release_id=row[0],
                     publication_id=row[1],
                     build_sha=str(row[2]),
                     window_start=str(row[3]),
+                    state=row[4],
+                    validated_at=row[5],
+                    last_replay_started_at=row[6],
                 )
                 for row in cursor.fetchall()
             )

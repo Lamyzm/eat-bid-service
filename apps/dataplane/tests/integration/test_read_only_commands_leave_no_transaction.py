@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from datetime import UTC, date, datetime
 from typing import Any
+from uuid import UUID
 
 import psycopg
 import pytest
@@ -36,7 +37,9 @@ def _read_only_application(connection: Any) -> Application:
 def _replay_target_args() -> argparse.Namespace:
     return argparse.Namespace(
         build_sha="0" * 40,
-        run_id="6f1a3c2e-5b7d-4a91-8c33-2d4e6f8a0b12",
+        # CLI는 --run-id를 UUID로 넘긴다(arguments.py). 문자열로 두면 후보가 하나라도 있을 때 uuid5에서
+        # 깨지는데, 후보가 없던 동안에는 그 경로를 타지 않아 드러나지 않았다(EAT-296).
+        run_id=UUID("6f1a3c2e-5b7d-4a91-8c33-2d4e6f8a0b12"),
         as_of=datetime(2026, 9, 18, 3, 25, 0, tzinfo=UTC),
     )
 

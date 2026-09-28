@@ -26,6 +26,13 @@ lineage 검사, 완화는 별도 결정), 수정된 새 이미지로 복구하�
 수 없다. 같은 raw를 새 build의 run으로 재정규화·검증·발행하는 것이 replay다. `entrypoint: project`(§1.3)는
 run을 만든 이미지와 **같은 `BUILD_SHA`**일 때만 쓰는 부차 경로다.
 
+**대부분은 손대기 전에 예약이 먼저 한 번 시도한다(2026-09-29, EAT-296).** `validated`인 채 6시간이 넘고 창이
+미완결인 publication은 감시 기대 `stale-validated-publication`이 publication마다 알린다(normal). 같은
+publication은 `replay-advance`(§4.9)의 후보이기도 해서 네 시간 안에 이미지와 무관하게 replay가 한 번 돈다.
+알림을 받으면 먼저 그 replay가 돌았는지 본다. 멈춘 뒤 replay가 있었는데도 창이 미완결이면 예약은 더
+시도하지 않으므로 그때부터 이 절차로 원인을 본다. 교착(`DeadlockDetected`)·직렬화 충돌·잠금 대기 초과로
+죽은 pod는 이제 exit 64(설정)가 아니라 69(일시 장애, `TRANSIENT_NETWORK`)로 끝난다.
+
 ### 1.1 전제 확인 (읽기 전용)
 
 ```sql
@@ -496,9 +503,15 @@ argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint cont
 손으로 닫으면서 절차가 확립됐고, 백필이 2021-09까지 내려가는 동안 같은 일이 계속 생긴다.
 
 - 네 시간마다 25분에 `eatbid-replay-advance`가 돈다. 다시 시도할 창이 없으면 아무것도 하지 않고 성공한다.
-- **고르는 규칙은 하나다.** 실패한 publication을 만든 `build_sha`가 지금 이미지의 것과 다를 때만 고른다.
+- **실패한 창을 고르는 규칙은 하나다.** 실패한 publication을 만든 `build_sha`가 지금 이미지의 것과 다를 때만 고른다.
   같은 이미지로 다시 돌리면 결과가 같으므로 무한 반복이 생기지 않는다. 바꿔 말해 **파서나 계약을 고쳐
   배포하는 것이 곧 "이 창을 다시 시도한다"는 승인**이다. 손으로 제출할 일이 없다.
+- **검증 뒤 멈춘 창도 후보다(2026-09-29, EAT-296).** project pod가 결론 없이 죽으면 publication은 `failed`가
+  아니라 `validated`에 남는다(2026-09 daily-reconcile 두 창, `core.organization` 교착). `validated`인 채 6시간이
+  넘고 창이 미완결이면 **이미지가 같아도** 고른다 — 멈춤은 결과가 아니라 중단이라 다시 돌리면 풀린다. 대신
+  그 publication의 `validated_at` 뒤에 그 release의 관측으로 시작한 replay run이 하나라도 있으면 다시 고르지
+  않는다. replay run은 `source_release_run`에 매이지 않으므로 `replay_input` → `source_release_observation`으로
+  release를 찾는다. 그 뒤로도 미완결이면 `stale-validated-publication` 위반이 열려 있고 사람이 §1로 본다.
 - 이미 발행에 성공한 release는 후보에서 빠진다. 한 창이 여러 번 실패한 뒤 성공했다면 그 창은 닫힌 것이고
   실패 기록은 진단용으로 남는다.
 - `replay`에 관측 id를 주지 않으면 그 release의 상세 관측 전부가 대상이다. 예약 경로가 그렇게 부른다.

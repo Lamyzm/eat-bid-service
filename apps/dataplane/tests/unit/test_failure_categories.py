@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
+from psycopg import errors as postgres_errors
 
 from eatbid.cli import exit_code_for_error
 from eatbid.failures.categories import (
@@ -143,3 +144,27 @@ def test_TRANSIENT_NETWORK는_replay로_복구하는_검증전_실패에_속한�
     assert {SOURCE_CONTRACT, DATA_QUARANTINED} <= PRE_VALIDATION_FAILURE_CATEGORIES
     # 검증을 통과한 뒤 publication을 얼린 실패는 부분 topology를 허용하지 않는다.
     assert PROJECTION_CONTRACT not in PRE_VALIDATION_FAILURE_CATEGORIES
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        postgres_errors.DeadlockDetected("deadlock detected"),
+        postgres_errors.SerializationFailure("could not serialize access"),
+        postgres_errors.LockNotAvailable("could not obtain lock"),
+    ],
+)
+def test_PostgreSQL_동시성_충돌은_설정_오류가_아니라_다시_돌리면_풀리는_일시_장애다(
+    error: Exception,
+) -> None:
+    """2026-09 daily-reconcile 두 창의 project가 core.organization 교착으로 죽었는데 exit 64로 남아
+    설정 사고처럼 보였다(EAT-296). 종료 코드와 기록 category가 같은 판정을 쓰는지도 함께 본다."""
+    assert failure_category_for_error(error) == TRANSIENT_NETWORK
+    assert exit_code_for_error(error) == 69
+
+
+def test_동시성_충돌이_아닌_PostgreSQL_오류는_여전히_설정_오류다() -> None:
+    assert (
+        failure_category_for_error(postgres_errors.UndefinedColumn("no such column"))
+        == "CONFIGURATION"
+    )
