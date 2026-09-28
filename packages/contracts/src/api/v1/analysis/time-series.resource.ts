@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { nonNegativeCountSchema } from "../../../atoms/count";
 import { instantTextSchema } from "../../../atoms/instant";
+import { observedBidRateTextSchema } from "../../../atoms/decimal";
 import { positiveBigintTextSchema } from "../../../atoms/identifier";
 import { observedBidRateWireSchema } from "../../../values/rate";
 import { analysisPeriodSchema } from "./filter.resource";
@@ -41,18 +42,32 @@ export const analysisDensityCellSchema = z.strictObject({
 }).meta({ id: "AnalysisDensityCell" });
 
 /**
- * 비교군이 무엇으로 오는지다. 좁은 범위에서는 실제 점이, 넓은 범위에서는 밀도가 온다.
+ * 비교군 관측 하나다. `[X축 시각, 사정률]` 한 쌍이 회차 하나다.
  *
- * 둘을 한 배열로 합치지 않는 이유는 사용자가 할 일이 다르기 때문이다. 점은 눌러서 그 회차로 건너가고
- * 밀도 칸은 눌러서 범위를 좁힌다. 한 모양으로 접으면 화면이 무엇을 눌렀는지 모른 채 둘 중 하나를 고르게 된다.
+ * 비교군은 **실제 위치**로 그린다. 칸의 가운데에 찍으면 점이 바둑판처럼 줄 맞춰 서서 실제 개찰일과 사정률을
+ * 말하지 못했다(2026-09-28 사용자 보고, EAT-287). 대신 수만 건을 보내야 하므로 회차 식별자를 싣지 않는다 —
+ * 비교 점은 눌러서 명단으로 건너가는 대상이 아니다(명단은 이 기관 점이 연다). 쌍으로 접은 이유는 크기다.
+ * 식별자까지 담은 점은 한 건에 약 120바이트라 5만 건이면 수 MB가 되고 첫 화면이 늦어진다.
+ */
+export const analysisComparisonObservationSchema = z
+  .tuple([instantTextSchema, observedBidRateTextSchema])
+  .meta({ id: "AnalysisComparisonObservation" });
+
+/**
+ * 비교군이 무엇으로 오는지다. 상한 안이면 실제 위치의 관측이, 넘으면 밀도가 온다.
+ *
+ * 둘을 한 배열로 합치지 않는 이유는 말하는 것이 다르기 때문이다. 관측은 회차 하나하나의 자리이고 밀도 칸은
+ * 구간 안의 수다. 한 모양으로 접으면 화면이 칸을 회차로 읽는다. 사정률 단위는 관측마다 붙이지 않고 묶음에
+ * 한 번 둔다(AGENTS 15).
  *
  * `truncated`는 상한에 걸려 잘렸다는 사실이다. **임의로 잘라 놓고 전체인 척하지 않는다** — 표본 수는
  * `AnalysisMeta`가 따로 말하므로 화면이 "몇 개 중 몇 개를 그렸는지"를 알 수 있다(AGENTS 3·7).
  */
 export const analysisComparisonSeriesSchema = z.discriminatedUnion("kind", [
   z.strictObject({
-    kind: z.literal("points"),
-    points: z.array(analysisTargetPointSchema).max(8192),
+    kind: z.literal("observations"),
+    unit: z.literal("percentage-points"),
+    observations: z.array(analysisComparisonObservationSchema).max(65536),
     truncated: z.boolean(),
   }),
   z.strictObject({
@@ -92,5 +107,6 @@ export const analysisTimeSeriesAxisSchema = z.strictObject({
 export type AnalysisOverlaySeries = z.infer<typeof analysisOverlaySeriesSchema>;
 export type AnalysisTargetPoint = z.infer<typeof analysisTargetPointSchema>;
 export type AnalysisDensityCell = z.infer<typeof analysisDensityCellSchema>;
+export type AnalysisComparisonObservation = z.infer<typeof analysisComparisonObservationSchema>;
 export type AnalysisComparisonSeries = z.infer<typeof analysisComparisonSeriesSchema>;
 export type AnalysisTimeSeriesAxis = z.infer<typeof analysisTimeSeriesAxisSchema>;

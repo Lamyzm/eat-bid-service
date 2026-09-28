@@ -1,16 +1,33 @@
-/** @module 책임: 시간축 표시 모델을 캔버스 한 장에 그리고 축 눈금과 요약 문장을 함께 낸다. */
+/** @module 책임: 시간축 표시 모델을 ECharts 그림으로 붙이고(확대·이동·기간 선택·마우스 올림) 범례와 요약 문장을 함께 낸다. */
 'use client';
+import { ScatterChart } from 'echarts/charts';
+import {
+  DataZoomComponent,
+  GridComponent,
+  MarkLineComponent,
+  ToolboxComponent,
+  TooltipComponent
+} from 'echarts/components';
+import { init, use as registerEchartsModules, type ECharts } from 'echarts/core';
+import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useRef, useState } from 'react';
 import type { TimeSeriesPlot, TimeSeriesPoint } from '../model/present-time-series';
-import { nearestTargetPoint } from '../model/time-series-hit';
-import { drawTimeSeries, PAD } from '../lib/draw-time-series';
-import { floorInside, floorSentence, outsideSentences } from '../model/time-series-annotations';
+import { CROWD_THRESHOLD, TARGET_SERIES_ID, timeSeriesOption } from '../lib/time-series-option';
+import { floorSentence, outsideSentences } from '../model/time-series-annotations';
+
+/** 손가락이 주 입력인 기기다. effect 안에서만 부르므로 서버 렌더에는 닿지 않는다. */
+function coarse(): boolean {
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
+// 쓰는 차트·컴포넌트만 등록한다. 전체 번들을 들이지 않는다(ADR 0058 결정 1).
+registerEchartsModules([ScatterChart, GridComponent, TooltipComponent, DataZoomComponent, MarkLineComponent, ToolboxComponent, CanvasRenderer]);
 
 /**
- * 캔버스는 그리기 방식일 뿐 내용이 아니다. 내용은 `figcaption`의 문장과 축 라벨이 말하며, 캔버스에는
- * 같은 사실을 `role='img'` 이름으로 한 번 더 둔다.
+ * 그림은 그리기 방식일 뿐 내용이 아니다. 내용은 `figcaption`의 문장이 말하며, 그림 자리에는 같은 사실을
+ * `role='img'` 이름으로 한 번 더 둔다.
  *
- * 기관 낙찰점을 누르면 그 회차의 명단이 사이드바에 열린다(EAT-219). 캔버스의 점은 초점을 받을 수 없으므로
+ * 기관 낙찰점을 누르면 그 회차의 명단이 사이드바에 열린다(EAT-219). 그림의 점은 초점을 받을 수 없으므로
  * 키보드로는 아래 전체 개찰 이력의 행으로 같은 명단을 연다(EAT-218).
  */
 export function TimeSeriesChart({
@@ -26,54 +43,61 @@ export function TimeSeriesChart({
   readonly selectedAttemptId?: string | null;
   readonly onSelectPoint?: (point: TimeSeriesPoint) => void;
 }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
+  const host = useRef<HTMLDivElement>(null);
+  const chart = useRef<ECharts | null>(null);
   const [full, setFull] = useState(false);
   /**
    * 집어 둔 기관이다. 여섯을 한꺼번에 진하게 그리면 어느 고리가 어느 기관인지 그림에서 읽히지 않는다.
    * 하나를 집으면 그것만 진해지고 나머지는 자리만 남긴다.
    */
   const [pinned, setPinned] = useState<string | null>(null);
-  const view = full ? plot.fullDomain : plot.domain;
-  const yTicks = full ? plot.fullYTicks : plot.yTicks;
+  // 클릭·테마 처리기는 그림을 만든 때가 아니라 그 순간의 입력을 봐야 한다.
+  const latest = useRef({ plot, onSelectPoint, full, pinned, selectedAttemptId });
   useEffect(() => {
-    const element = canvas.current;
+    latest.current = { plot, onSelectPoint, full, pinned, selectedAttemptId };
+  }, [plot, onSelectPoint, full, pinned, selectedAttemptId]);
+  const view = full ? plot.fullDomain : plot.domain;
+
+  // 그림은 브라우저에서 한 번만 만들고 떼어낼 때 버린다(ADR 0058 결정 5).
+  useEffect(() => {
+    const element = host.current;
     if (element === null) return;
-    const render = () => drawTimeSeries(element, plot, full, pinned, selectedAttemptId);
-    render();
-    const size = new ResizeObserver(render);
-    size.observe(element);
-    /*
-     * 캔버스는 CSS 변수를 못 읽어 그린 **순간의** 색을 들고 있다. 명암 모드나 색 테마를 바꿔도 다시
-     * 그리지 않으면 어두운 배경 위에 밝은 모드의 점이 그대로 남는다 — 화면의 나머지는 바뀌고 차트만
-     * 안 바뀐다. 테마는 root 요소의 class와 `data-theme`이 나르므로 그 둘을 본다.
-     */
-    const theme = new MutationObserver(render);
-    theme.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'data-theme']
+    const instance = init(element, null, { renderer: 'canvas' });
+    chart.current = instance;
+    instance.on('click', (params) => {
+      if (params.seriesId !== TARGET_SERIES_ID) return;
+      const point = latest.current.plot.target[params.dataIndex];
+      if (point !== undefined) latest.current.onSelectPoint?.(point);
     });
+    const size = new ResizeObserver(() => instance.resize());
+    size.observe(element);
+    // 테마는 root 요소의 class와 `data-theme`이 나른다. 바뀌면 그 순간의 색으로 다시 그린다.
+    // ECharts는 CSS 변수를 못 읽어 그린 순간의 색을 들고 있으므로, 테마가 바뀌면 그때의 색으로 다시 넣는다.
+    const theme = new MutationObserver(() => {
+      const { plot: current, full: wide, pinned: focus, selectedAttemptId: chosen } = latest.current;
+      instance.setOption(timeSeriesOption({ plot: current, full: wide, pinned: focus, selectedAttemptId: chosen, coarsePointer: coarse() }), {
+        replaceMerge: ['series']
+      });
+    });
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
     return () => {
       size.disconnect();
       theme.disconnect();
+      instance.dispose();
+      chart.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    // 계열만 갈아 끼운다. 통째로 바꾸면 사용자가 휠로 확대해 둔 기간이 점 하나 누를 때마다 풀린다.
+    chart.current?.setOption(timeSeriesOption({ plot, full, pinned, selectedAttemptId, coarsePointer: coarse() }), {
+      replaceMerge: ['series']
+    });
   }, [plot, full, pinned, selectedAttemptId]);
-  /** 누른 자리의 기관 낙찰점이다. 그리기와 같은 여백·축으로 좌표를 되짚는다. */
-  const pointAt = (event: {
-    readonly clientX: number;
-    readonly clientY: number;
-    readonly currentTarget: HTMLCanvasElement;
-  }) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const box = { width: rect.width, height: rect.height, pad: PAD };
-    return nearestTargetPoint(
-      plot.target,
-      view,
-      box,
-      event.clientX - rect.left,
-      event.clientY - rect.top
-    );
-  };
+
   const density = plot.comparison.kind === 'density';
+  // 범례 표식은 그림과 같은 모양이어야 한다. 비교 점이 많으면 그림이 채운 점이라 범례도 채운 점이다.
+  const filled = density || plot.comparison.points.length > CROWD_THRESHOLD;
   const summary =
     `${organizationLabel} ${plot.targetCount}건, ${comparisonLabel} ${plot.comparisonCount}건` +
     `(그중 ${plot.overlapCount}건은 이 기관의 기록)`;
@@ -83,66 +107,7 @@ export function TimeSeriesChart({
       aria-label='기관 낙찰점과 비교군 관측의 시간축'
     >
       <div className='analysis-chart-box'>
-        <canvas
-          ref={canvas}
-          role='img'
-          aria-label={summary}
-          className='h-full w-full data-[hit=true]:cursor-pointer'
-          onPointerMove={(event) => {
-            if (onSelectPoint !== undefined)
-              event.currentTarget.dataset.hit = String(pointAt(event) !== null);
-          }}
-          onClick={(event) => {
-            const point = pointAt(event);
-            if (point !== null) onSelectPoint?.(point);
-          }}
-        />
-        {yTicks.map((tick) => (
-          <span
-            key={tick.y}
-            aria-hidden
-            className='pointer-events-none absolute left-0 w-12 -translate-y-1/2 text-right text-[11px] tabular-nums whitespace-nowrap text-muted-foreground'
-            style={{
-              top: `calc(${PAD.top}px + (100% - ${PAD.top + PAD.bottom}px) * ${1 - tickRatio(tick.y, view.yFrom, view.yTo)})`
-            }}
-          >
-            {tick.label}
-          </span>
-        ))}
-        {floorInside(plot, view) ? (
-          <span
-            aria-hidden
-            className='pointer-events-none absolute right-3 -translate-y-full pb-0.5 text-[11px] font-medium tabular-nums text-destructive'
-            style={{
-              top: `calc(${PAD.top}px + (100% - ${PAD.top + PAD.bottom}px) * ${1 - tickRatio(plot.floor!.y, view.yFrom, view.yTo)})`
-            }}
-          >
-            {plot.floor!.label}
-          </span>
-        ) : null}
-        {plot.xTicks.map((tick, index) => {
-          const edge = index === 0 || index === plot.xTicks.length - 1;
-          return (
-            <span
-              key={tick.x}
-              aria-hidden
-              // 좁은 폭에서는 양끝만 남긴다. 다섯 개를 다 두면 `YYYY-MM-DD` 라벨이 서로 겹쳐 어느 날짜도
-              // 읽히지 않는다(390px 실측). 기간 자체는 조건 막대의 시작일·종료일이 이미 말한다.
-              className={`pointer-events-none absolute bottom-0 text-[11px] tabular-nums whitespace-nowrap text-muted-foreground${edge ? '' : ' hidden sm:inline'}`}
-              style={{
-                left: `calc(${PAD.left}px + (100% - ${PAD.left + PAD.right}px) * ${tickRatio(tick.x, view.xFrom, view.xTo)})`,
-                transform:
-                  index === 0
-                    ? 'none'
-                    : index === plot.xTicks.length - 1
-                      ? 'translateX(-100%)'
-                      : 'translateX(-50%)'
-              }}
-            >
-              {tick.label}
-            </span>
-          );
-        })}
+        <div ref={host} role='img' aria-label={summary} className='h-full w-full' />
       </div>
       <figcaption className='mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground'>
         <span className='flex items-center gap-1.5'>
@@ -156,9 +121,9 @@ export function TimeSeriesChart({
         <span className='flex items-center gap-1.5'>
           <span
             aria-hidden
-            className={`inline-block size-2.5 ${density ? 'rounded-[2px] bg-muted-foreground/45' : 'rounded-full border border-muted-foreground/60'}`}
+            className={`inline-block size-2.5 ${filled ? 'rounded-full bg-muted-foreground/45' : 'rounded-full border border-muted-foreground/60'}`}
           />
-          {comparisonLabel} {plot.comparisonCount}건{density ? ' · 진할수록 관측이 많아요' : ''}
+          {comparisonLabel} {plot.comparisonCount}건{density ? ' · 크고 진할수록 관측이 많아요' : ''}
         </span>
         <span>겹침 {plot.overlapCount}건</span>
         {plot.overlays.map((series) => (
@@ -200,6 +165,13 @@ export function TimeSeriesChart({
         >
           {full ? '가운데 값만 보기' : '전체 값 보기'}
         </button>
+        <button
+          type='button'
+          onClick={() => chart.current?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })}
+          className='rounded-md border border-border px-2 py-1 text-foreground'
+        >
+          전체 기간
+        </button>
         {floorSentence(plot, view) === null ? null : (
           <span className='text-destructive'>{floorSentence(plot, view)}</span>
         )}
@@ -211,6 +183,3 @@ export function TimeSeriesChart({
   );
 }
 
-function tickRatio(value: number, from: number, to: number): number {
-  return to === from ? 0.5 : (value - from) / (to - from);
-}

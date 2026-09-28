@@ -38,6 +38,8 @@ export interface TimeSeriesCell {
   readonly y0: number;
   readonly y1: number;
   readonly count: number;
+  /** 마우스를 올렸을 때 말할 문장이다. 칸은 반개구간이라 끝 날짜는 다음 칸 시작 하루 전이다. */
+  readonly label: string;
 }
 
 export interface TimeSeriesDomain {
@@ -47,8 +49,18 @@ export interface TimeSeriesDomain {
   readonly yTo: number;
 }
 
+/**
+ * 비교군 관측 하나다. 실제 위치(시각·사정률)와 마우스 올림 문장만 있고 회차 식별자는 없다 — 비교 점은 눌러서
+ * 명단으로 건너가는 대상이 아니다(계약 `AnalysisComparisonObservation`).
+ */
+export interface TimeSeriesObservation {
+  readonly x: number;
+  readonly y: number;
+  readonly label: string;
+}
+
 export type TimeSeriesComparison =
-  | { readonly kind: 'points'; readonly points: readonly TimeSeriesPoint[] }
+  | { readonly kind: 'points'; readonly points: readonly TimeSeriesObservation[] }
   | {
       readonly kind: 'density';
       readonly cells: readonly TimeSeriesCell[];
@@ -167,16 +179,32 @@ export function presentTimeSeries(
     };
   }
   const targetPoints = target.map(targetPoint);
-  const comparisonPoints = comparison.kind === 'points' ? comparison.points.map(targetPoint) : [];
+  const comparisonPoints: TimeSeriesObservation[] =
+    comparison.kind === 'observations'
+      ? comparison.observations.map(([plottedAt, rate]) => {
+          const x = epochOf(plottedAt);
+          return { x, y: rateMilli(rate), label: `${kstDayText(x)} 사정률 ${rate}%` };
+        })
+      : [];
   const cells: TimeSeriesCell[] =
     comparison.kind === 'density'
-      ? comparison.cells.map((cell) => ({
-          x0: epochOf(cell.fromAt),
-          x1: epochOf(cell.toAt),
-          y0: rateMilli(cell.rateFrom.value),
-          y1: rateMilli(cell.rateTo.value),
-          count: cell.count
-        }))
+      ? comparison.cells.map((cell) => {
+          const x0 = epochOf(cell.fromAt);
+          const x1 = epochOf(cell.toAt);
+          const first = kstDayText(x0);
+          // 끝은 다음 칸의 시작이라 1밀리초 앞이 이 칸의 마지막 날이다. 하루짜리 칸은 날짜 하나로 말한다.
+          const last = kstDayText(x1 - 1);
+          return {
+            x0,
+            x1,
+            y0: rateMilli(cell.rateFrom.value),
+            y1: rateMilli(cell.rateTo.value),
+            count: cell.count,
+            label:
+              `${first === last ? first : `${first}~${last}`} 사정률 ` +
+              `${cell.rateFrom.value}~${cell.rateTo.value}% · ${cell.count}건`
+          };
+        })
       : [];
   const overlays: TimeSeriesOverlay[] = (read.response.overlays ?? []).map((series, index) => ({
     organizationId: series.organizationId,
@@ -234,7 +262,7 @@ export function presentTimeSeries(
       domain: { xFrom, xTo, yFrom, yTo },
       target: targetPoints,
       comparison:
-        comparison.kind === 'points'
+        comparison.kind === 'observations'
           ? { kind: 'points', points: comparisonPoints }
           : { kind: 'density', cells, maxCount: Math.max(...cells.map((cell) => cell.count)) },
       xTicks: ticks(xFrom, xTo, 5, (x) => ({ x, label: kstDayText(x) })),
