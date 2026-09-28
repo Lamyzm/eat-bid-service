@@ -13,6 +13,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from eatbid.pipeline.replay_target import STALLED_VALIDATED_AFTER
+
 QueryRunner = Callable[[str, Mapping[str, Any]], Sequence[Mapping[str, Any]]]
 
 # `ingest.backfill_coverage`의 창 가운데 전진이 보는 것은 달 전체 창뿐이다(pipeline/advance.py의
@@ -250,6 +252,46 @@ EXPECTATIONS: tuple[Expectation, ...] = (
         """,
         parameters={},
         key_columns=("window_start",),
+    ),
+    Expectation(
+        key="stale-validated-publication",
+        title="검증을 통과한 발행이 project 없이 멈춰 있지 않다",
+        runbook="docs/operations/collection-runbook.md#1-실패한-publication을-재캡처-없이-다시-발행하기-2026-09-07-eat-94",
+        # 검증 뒤 project pod가 결론 없이 죽으면 publication은 failed가 아니라 validated로 남는다. failed만
+        # 보는 기대에는 이 창이 보이지 않았다 — 2026-09 daily-reconcile 두 창이 core.organization 교착으로
+        # 그렇게 멈췄고 사람이 prod를 뒤져서야 알았다(EAT-296). replay-advance가 멈춘 창을 한 번 다시 시도하지만,
+        # 그 시도가 성공해 창이 완결될 때까지는 사람이 알아야 한다. 창이 이미 다른 release로 채워졌으면 멈춘
+        # publication은 진단 기록일 뿐이라 알리지 않는다. 임계는 replay 후보와 같은 값이다(replay_target).
+        # 창을 달 전체로 좁히지 않는 이유: 멈춘 두 창이 daily-reconcile의 이레 창이었다.
+        sql="""
+            with window_release as (
+                select distinct u.request_params ->> 'P_BID_BGNG_DT' as window_start,
+                       u.request_params ->> 'P_BID_END_DT' as window_end,
+                       sr.source_release_id
+                  from ingest.request_unit u
+                  join ingest.source_release_run sr on sr.run_id = u.run_id
+                 where u.endpoint = 'bid-list'
+                   and u.request_params ? 'P_BID_BGNG_DT'
+                   and u.request_params ? 'P_BID_END_DT'
+            )
+            select p.publication_id::text as publication_id,
+                   r.mode as mode,
+                   w.window_start as window_start,
+                   w.window_end as window_end,
+                   p.validated_at as validated_at
+              from window_release w
+              join ingest.source_release_run sr on sr.source_release_id = w.source_release_id
+              join ingest.publication p on p.run_id = sr.run_id
+              join ingest.run r on r.run_id = p.run_id
+              join ingest.backfill_coverage c
+                on c.window_start = w.window_start and c.window_end = w.window_end
+             where p.status = 'validated'
+               and p.validated_at < now() - %(stall_after)s::interval
+               and not c.is_complete
+             order by p.validated_at, p.publication_id
+        """,
+        parameters={"stall_after": STALLED_VALIDATED_AFTER},
+        key_columns=("publication_id",),
     ),
     Expectation(
         key="item-vocabulary-gap",

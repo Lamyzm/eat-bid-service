@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from psycopg import errors as postgres_errors
+
 CONFIGURATION = "CONFIGURATION"
 DATA_QUARANTINED = "DATA_QUARANTINED"
 TRANSIENT_NETWORK = "TRANSIENT_NETWORK"
@@ -75,4 +77,19 @@ def failure_category_for_error(error: Exception) -> str:
         return TRANSIENT_NETWORK
     if isinstance(error, SourceContractError):
         return SOURCE_CONTRACT
+    # 왜: 교착·직렬화 충돌·잠금 대기 초과는 PostgreSQL이 "다른 transaction과 부딪혔으니 다시 하라"고
+    # 돌려주는 오류다. 코드나 설정을 고쳐야 한다는 뜻이 아니므로 CONFIGURATION(64)에 두면 운영이 원인을
+    # 반대로 읽는다 — 2026-09 daily-reconcile 두 창의 project가 core.organization 교착으로 죽었는데 exit 64로
+    # 남아 설정 사고처럼 보였다(EAT-296). 다시 돌리면 풀리는 일시 장애라는 점이 전송 실패와 같아 새 어휘를
+    # 만들지 않고 TRANSIENT_NETWORK(69)로 모은다. workflow는 exit code로 분기하지 않으므로 이동의 영향은
+    # 종료 코드와 기록되는 category뿐이다. 우리 예외로 감싼 경우는 감싼 쪽이 의미를 정했으므로 보지 않는다.
+    if isinstance(
+        error,
+        (
+            postgres_errors.DeadlockDetected,
+            postgres_errors.SerializationFailure,
+            postgres_errors.LockNotAvailable,
+        ),
+    ):
+        return TRANSIENT_NETWORK
     return CONFIGURATION

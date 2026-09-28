@@ -2,21 +2,35 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from psycopg.rows import dict_row
 
 from eatbid.composition import _REPLAY_CANDIDATES_SQL
+from eatbid.pipeline.replay_target import STALLED_VALIDATED_AFTER
 
 from .conftest import MigratedDatabase
 
 
-def test_재처리_후보_질의가_빈_스키마에서도_돌고_열_넷을_낸다(
+def test_재처리_후보_질의가_빈_스키마에서도_돌고_선택에_필요한_열을_낸다(
     migrated_db: MigratedDatabase,
 ) -> None:
     """composition이 실행하는 문장 그대로다. 열이나 뷰가 바뀌면 운영이 아니라 여기서 먼저 깨진다."""
     with migrated_db.connect() as connection, connection.cursor(row_factory=dict_row) as cursor:
-        cursor.execute(_REPLAY_CANDIDATES_SQL)
+        cursor.execute(
+            _REPLAY_CANDIDATES_SQL,
+            {"as_of": datetime(2026, 9, 29, tzinfo=UTC), "stall_after": STALLED_VALIDATED_AFTER},
+        )
         columns = [description.name for description in cursor.description or ()]
-        assert columns == ["source_release_id", "publication_id", "build_sha", "window_start"]
+        assert columns == [
+            "source_release_id",
+            "publication_id",
+            "build_sha",
+            "window_start",
+            "state",
+            "validated_at",
+            "last_replay_started_at",
+        ]
 
 
 def test_후보_질의가_커버리지_뷰를_근거로_쓴다() -> None:
