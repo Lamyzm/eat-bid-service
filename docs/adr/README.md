@@ -72,6 +72,7 @@ ADR은 이미 내린 결정과 그 대가를 보존한다. 목표 구조를 바�
 | [0056](0056-out-of-contract-auxiliary-observation-is-unknown.md) | Accepted | 보조 관측 한 칸이 계약 밖이면 그 칸만 `unknown`이고 줄·레코드·발행은 산다 — 첫 대상은 명단의 `EFT_ALL_AMT`. 정체성과 필수 사실은 관용하지 않으며 모름으로 내린 칸은 실행 로그에 남긴다 |
 | [0057](0057-duplicate-eligibility-area-code-is-one-area.md) | Accepted | 참가제한지역에 같은 `PDLC_CD`가 두 번 오면 같은 지역을 두 번 말한 것이다 — 먼저 온 줄을 남기고 합친 사실은 실행 로그에 남긴다. 판정은 코드 하나이고 라벨은 다듬지 않는다 |
 | [0052](0052-backfill-progress-recovery-and-advance.md) | Accepted | 수집 단계마다 주소가 다르므로(목록은 날짜, 상세는 아이디, 정규화·발행은 관측·릴리스) 복구는 소스 요청이 0인 뒤 단계부터 보고, 발견 축은 날짜로 유지하며(아이디 밀도 10.08% 실측) 진도는 `ingest` 사실에서 파생하는 view 하나가 소유하고 전진은 floor date를 선언한 CronWorkflow가 한다 |
+| [0059](0059-dataplane-transaction-ownership.md) | Accepted | dataplane 저장소는 읽기까지 명시적 트랜잭션 블록 안에서만 커서를 얻고 IDLE 연결에서만 시작하며, 실패는 원 연결을 먼저 되감은 뒤 별도 연결로 적는다. 상태 전이는 전이 행 수나 다시 센 값으로 대조하고, 관용구로만 있던 규칙은 정적 검사로 강제한다(EAT-264·273·274의 조용한 롤백 세 번) |
 
 ## 새 ADR 형식
 

@@ -10,10 +10,12 @@ from collections.abc import Callable, Mapping
 from typing import Any
 from uuid import UUID
 
+from psycopg.pq import TransactionStatus
+
 from eatbid.mart.build_coverage import fill_build_coverage
 from eatbid.mart.models import MartBuildPlan, MartName, OpenedMartBuild
 from eatbid.mart.region_axis import assert_build_region_scheme
-from eatbid.mart.repository import MartBuildContractError
+from eatbid.mart.repository import MartBuildContractError, MartTransactionScopeError
 
 # build_id FK를 가진 표의 이름이다. 재개할 때 이전 행을 지우는 대상이며, 새 mart를 더하면 여기와
 # `MartName`이 함께 움직인다.
@@ -30,6 +32,11 @@ RETENTION_DAYS: Mapping[MartName, int] = {
     "open_auction_snapshot": 7,
 }
 
+# 맨 `FOR UPDATE`가 맞다. core·ingest가 `FOR NO KEY UPDATE`로 내린 이유(EAT-286)는 mart 행을 넣을 때
+# 걸리는 `FOR KEY SHARE`와 충돌하지 않기 위해서였다. 여기서 잠근 build 행은 `_reopen`이 지울 수 있고
+# 지우기는 어차피 `FOR UPDATE` 수준 잠금을 요구하므로 약하게 잡아도 얻는 것이 없다. 같은 멱등 키의 동시
+# 개시를 이 행에서 줄 세우는 것이 의도이며, 이 행을 `FOR KEY SHARE`로 가리키는 것은 같은 build를 채우는
+# 자기 자신뿐이다(`tests/unit/test_row_lock_mode.py`가 이 경계를 고정한다).
 _FIND_BUILD_SQL = """
 select build_id, status, row_count
   from mart.build
@@ -64,6 +71,11 @@ class PsycopgMartBuildRepository:
     """왜 실패 기록만 별도 연결인가: 빌드 트랜잭션이 되감기면 실패 사실까지 함께 사라진다.
 
     core 투영 repository가 같은 이유로 같은 모양을 쓴다.
+
+    트랜잭션 소유권(ADR 0059): 모든 메서드는 연결이 IDLE인지 먼저 확인하고, 읽기까지 포함해
+    `transaction()` 블록 안에서만 커서를 얻는다. 블록은 정상 종료에 commit, 예외에 rollback하므로
+    어느 메서드가 실패해도 원 연결에 트랜잭션이 남지 않는다. 블록 없이 커서만 쓰면 psycopg가 연 암묵
+    트랜잭션이 남아, 다음 쓰기의 블록이 savepoint로 바뀌고 조용히 되감길 수 있다(EAT-264·273·274).
     """
 
     def __init__(
@@ -76,6 +88,12 @@ class PsycopgMartBuildRepository:
         self._connect = connect
         self._builders = builders
 
+    def _require_idle(self, operation: str) -> None:
+        if self._connection.info.transaction_status != TransactionStatus.IDLE:
+            raise MartTransactionScopeError(
+                f"mart {operation} requires an idle repository connection"
+            )
+
     def open_build(self, plan: MartBuildPlan) -> OpenedMartBuild:
         key = {
             "mart_name": plan.mart_name,
@@ -83,13 +101,13 @@ class PsycopgMartBuildRepository:
             "source_release_id": plan.source_release_id,
             "publication_id": plan.publication_id,
         }
-        with self._connection.cursor() as cursor:
+        self._require_idle("build open")
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(_FIND_BUILD_SQL, key)
             existing = cursor.fetchone()
             if existing is not None:
                 opened = self._reopen(cursor, plan, existing)
                 if opened is not None:
-                    self._connection.commit()
                     return opened
             cursor.execute(
                 _INSERT_BUILD_SQL,
@@ -102,9 +120,8 @@ class PsycopgMartBuildRepository:
                 },
             )
             created = cursor.fetchone()
-        if created is None:
-            raise MartBuildContractError("mart build insertion returned no identity")
-        self._connection.commit()
+            if created is None:
+                raise MartBuildContractError("mart build insertion returned no identity")
         return OpenedMartBuild(build_id=int(created[0]), status="building", row_count=None)
 
     def _reopen(
@@ -141,11 +158,14 @@ class PsycopgMartBuildRepository:
         builder = self._builders.get(plan.mart_name)
         if builder is None:
             raise MartBuildContractError(f"mart has no builder [mart={plan.mart_name}]")
-        row_count = builder(self._connection, plan=plan, build_id=build_id)
-        # 보유율은 같은 build의 사실이므로 같은 트랜잭션에서 쓴다. 지표만 발표되고 그 지표를
-        # 어디까지 믿어도 되는지가 빠지면 화면이 모르는 것을 아는 척한다(AGENTS 3).
-        fill_build_coverage(self._connection, plan=plan, build_id=build_id)
-        self._connection.commit()
+        self._require_idle("build fill")
+        # 빌더는 받은 연결로 커서만 연다. 트랜잭션은 여기서 하나로 연다 — 빌더가 도중에 무너지면 그
+        # build의 행과 보유율이 함께 되감기고, 원 연결은 실패를 기록하기 전에 이미 비어 있다.
+        with self._connection.transaction():
+            row_count = builder(self._connection, plan=plan, build_id=build_id)
+            # 보유율은 같은 build의 사실이므로 같은 트랜잭션에서 쓴다. 지표만 발표되고 그 지표를
+            # 어디까지 믿어도 되는지가 빠지면 화면이 모르는 것을 아는 척한다(AGENTS 3).
+            fill_build_coverage(self._connection, plan=plan, build_id=build_id)
         return row_count
 
     def verify_build(self, plan: MartBuildPlan, build_id: int, row_count: int) -> None:
@@ -157,15 +177,15 @@ class PsycopgMartBuildRepository:
         지역 축도 같은 자리에서 확인한다. 한 build는 한 체계이며, 선언한 체계 밖의 코드를 실은 build를
         올리면 화면이 한 사다리에서 두 체계의 지역을 함께 읽는다(설계 §6 전환의 불변식).
         """
-        assert_build_region_scheme(self._connection, plan=plan, build_id=build_id)
-        with self._connection.cursor() as cursor:
+        self._require_idle("build verification")
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            assert_build_region_scheme(self._connection, plan=plan, build_id=build_id)
             cursor.execute(
                 f"select count(*) from {MART_TABLES[plan.mart_name]} where build_id = %s",
                 (build_id,),
             )
             stored = cursor.fetchone()
             if stored is None or int(stored[0]) != row_count:
-                self._connection.rollback()
                 raise MartBuildContractError(
                     f"mart build row count differs from stored rows [build_id={build_id}]"
                 )
@@ -178,15 +198,14 @@ class PsycopgMartBuildRepository:
                 (plan.computed_at, row_count, build_id),
             )
             if cursor.rowcount != 1:
-                self._connection.rollback()
                 raise MartBuildContractError(
                     f"mart build was not building when verified [build_id={build_id}]"
                 )
-        self._connection.commit()
 
     def activate_build(self, plan: MartBuildPlan, build_id: int) -> None:
         retention = RETENTION_DAYS.get(plan.mart_name, 1)
-        with self._connection.cursor() as cursor:
+        self._require_idle("build activation")
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 """
                 update mart.build
@@ -204,15 +223,24 @@ class PsycopgMartBuildRepository:
                 (plan.computed_at, build_id),
             )
             if cursor.rowcount != 1:
+                # 블록이 되감으므로 위에서 물린 이전 active도 제자리로 돌아간다.
                 raise MartBuildContractError(
                     f"mart build was not verified when activated [build_id={build_id}]"
                 )
-        self._connection.commit()
 
     def fail_build(self, build_id: int, failure_category: str) -> None:
+        # 위 메서드들은 블록이 예외에 되감으므로 여기 올 때 원 연결은 보통 비어 있다. 그래도 먼저
+        # 확인하는 이유는, 남은 트랜잭션이 이 build 행을 잠그고 있으면 아래 별도 연결이 그 잠금을
+        # 끝없이 기다리고 실패는 기록되지 않기 때문이다. 끊긴 연결(UNKNOWN)은 되감을 수 없고 서버 쪽
+        # 잠금도 세션과 함께 풀리므로 건드리지 않는다.
+        if self._connection.info.transaction_status in {
+            TransactionStatus.INTRANS,
+            TransactionStatus.INERROR,
+        }:
+            self._connection.rollback()
         connection = self._connect()
         try:
-            with connection.cursor() as cursor:
+            with connection.transaction(), connection.cursor() as cursor:
                 cursor.execute(
                     """
                     update mart.build
@@ -221,13 +249,13 @@ class PsycopgMartBuildRepository:
                     """,
                     (failure_category, build_id),
                 )
-            connection.commit()
         finally:
             connection.close()
 
     def publication_marts(self, publication_id: UUID) -> tuple[str, ...]:
         """그 발행이 실은 record type을 돌려준다. 영향 범위는 호출부가 이 이름으로 고른다."""
-        with self._connection.cursor() as cursor:
+        self._require_idle("publication lookup")
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
                 _PUBLICATION_RECORD_TYPES_SQL, {"publication_id": publication_id}
             )
@@ -235,8 +263,8 @@ class PsycopgMartBuildRepository:
 
     def run_mode(self, run_id: UUID) -> str | None:
         """이 빌드를 부른 run의 mode를 돌려준다. run이 없으면 None이고 호출부가 모름으로 다룬다."""
-        with self._connection.cursor() as cursor:
+        self._require_idle("run mode lookup")
+        with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(_RUN_MODE_SQL, {"run_id": run_id})
             row = cursor.fetchone()
         return None if row is None else str(row[0])
-
