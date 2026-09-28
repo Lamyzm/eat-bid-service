@@ -111,7 +111,7 @@ class LineageProjectionWriter:
             select {_LINK_COLUMNS} from core.auction_attempt_link
             where auction_revision_id = %s and to_auction_attempt_id = %s
               and relation = %s
-            for update
+            for no key update
             """,
             (revision_id, target_id, link.relation),
         )
@@ -151,7 +151,7 @@ class LineageProjectionWriter:
         cursor.execute(
             """
             select auction_attempt_id from core.auction_attempt
-            where source_system = %s and external_bid_id = %s for update
+            where source_system = %s and external_bid_id = %s for no key update
             """,
             (source_system, external_bid_id),
         )

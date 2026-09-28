@@ -38,6 +38,17 @@ from eatbid.core.repository import (
 
 PROJECTION_CONTRACT = "PROJECTION_CONTRACT"
 
+# 교착으로 되돌려진 투영을 몇 번까지 다시 하나. 투영은 트랜잭션 하나라 PostgreSQL이 교착을 끊으며
+# 전부 되돌리므로 같은 입력으로 다시 해도 남는 것이 없다. 그래도 끝없이 돌리지 않는 이유는, 같은
+# 자리에서 거듭 교착한다면 일시적인 경합이 아니라 잠금 순서가 틀린 것이라 드러나야 하기 때문이다.
+#
+# 잠금 방식도 여기서 정한다. core·ingest의 행 잠금은 `FOR UPDATE`가 아니라 `FOR NO KEY UPDATE`다.
+# mart 표는 core·ingest 행을 외래키로 가리키고, 행을 넣을 때마다 PostgreSQL은 가리키는 행에
+# `FOR KEY SHARE`를 건다. `FOR UPDATE`는 그것과 충돌해 뮤텍스 밖에서 도는 mart 빌드와 교착했다
+# (2026-09-19~28에 7번, daily-reconcile 발행 둘이 통째로 버려짐, EAT-286). 투영은 잠근 행을 지우거나
+# 키를 바꾸지 않으므로 `FOR NO KEY UPDATE`로 잃는 보호가 없다. 규칙은 `test_row_lock_mode.py`가 지킨다.
+PROJECTION_DEADLOCK_ATTEMPTS = 3
+
 
 @dataclass(frozen=True, slots=True)
 class _PublicationState:
@@ -90,21 +101,28 @@ class PsycopgCanonicalProjectionRepository:
             raise ProjectionTransactionScopeError(
                 "projection requires an idle transaction owned by the repository"
             )
-        try:
-            with self._connection.transaction(), self._connection.cursor() as cursor:
-                return self._project_locked(
-                    cursor,
-                    publication_id=publication_id,
-                    projector_version=projector_version,
-                    activated_at=activated_at,
-                    projection_factory=projection_factory,
-                    require_published=False,
+        for attempt in range(1, PROJECTION_DEADLOCK_ATTEMPTS + 1):
+            try:
+                with self._connection.transaction(), self._connection.cursor() as cursor:
+                    return self._project_locked(
+                        cursor,
+                        publication_id=publication_id,
+                        projector_version=projector_version,
+                        activated_at=activated_at,
+                        projection_factory=projection_factory,
+                        require_published=False,
+                    )
+            except ProjectionContractError:
+                self._mark_projection_failed(
+                    publication_id=publication_id, failed_at=activated_at
                 )
-        except ProjectionContractError:
-            self._mark_projection_failed(
-                publication_id=publication_id, failed_at=activated_at
-            )
-            raise
+                raise
+            except psycopg.errors.DeadlockDetected:
+                # 마지막 시도까지 교착이면 그대로 올린다. 발행 실패로 표시하지 않는 이유는 계약 위반이
+                # 아니어서다 — 발행은 검증된 채로 남아 다음 실행이 그대로 다시 투영할 수 있어야 한다.
+                if attempt == PROJECTION_DEADLOCK_ATTEMPTS:
+                    raise
+        raise AssertionError("unreachable: the loop returns or raises")
 
     def verify_published_publication(
         self,
@@ -308,7 +326,7 @@ class PsycopgCanonicalProjectionRepository:
             """
             select mode, started_at, status, build_sha, parser_version,
                    expected_count, published_count, failure_category, ended_at
-            from ingest.run where run_id = %s for update
+            from ingest.run where run_id = %s for no key update
             """,
             (run_id,),
         )
@@ -326,7 +344,7 @@ class PsycopgCanonicalProjectionRepository:
             select run_id, status, expected_count, normalized_count,
                    published_count, validated_at, activated_at,
                    canonical_fingerprint, projector_version
-            from ingest.publication where publication_id = %s for update
+            from ingest.publication where publication_id = %s for no key update
             """,
             (publication_id,),
         )
@@ -422,7 +440,7 @@ class PsycopgCanonicalProjectionRepository:
             from ingest.publication_record
             where publication_id = %s
             order by normalized_record_id
-            for update
+            for no key update
             """,
             (publication_id,),
         )
@@ -446,7 +464,7 @@ class PsycopgCanonicalProjectionRepository:
             join ingest.raw_observation o using (observation_id)
             where pr.publication_id = %s
             order by n.normalized_record_id
-            for update of pr, n, o
+            for no key update of pr, n, o
             """,
             (publication_id,),
         )
@@ -466,7 +484,7 @@ class PsycopgCanonicalProjectionRepository:
     ) -> Iterator[tuple[MemberEvidence, ...]]:
         """잠근 구성원의 payload를 manifest 순서대로 batch씩 읽는다.
 
-        `for update`를 다시 붙이지 않는 이유는 이 transaction이 `_lock_members`에서 이미 그 행을 잠갔기
+        `for no key update`를 다시 붙이지 않는 이유는 이 transaction이 `_lock_members`에서 이미 그 행을 잠갔기
         때문이다. batch가 요청한 id와 돌아온 id가 하나라도 다르면 잠근 뒤에 행이 사라진 것이므로 계약
         위반으로 닫는다.
         """
@@ -582,7 +600,7 @@ class PsycopgCanonicalProjectionRepository:
         cursor.execute(
             """
             select status, started_at from ingest.run
-            where run_id = %s for update
+            where run_id = %s for no key update
             """,
             (run_id,),
         )
@@ -592,7 +610,7 @@ class PsycopgCanonicalProjectionRepository:
         cursor.execute(
             """
             select run_id, status, validated_at from ingest.publication
-            where publication_id = %s for update
+            where publication_id = %s for no key update
             """,
             (publication_id,),
         )

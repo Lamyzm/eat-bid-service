@@ -236,7 +236,7 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
                 """
                 select mode, status, failure_category, ended_at
                 from ingest.run where run_id = %s
-                for update
+                for no key update
                 """,
                 (run_id,),
             )
@@ -280,7 +280,7 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
             from ingest.request_unit unit
             join ingest.run run on run.run_id = unit.run_id
             where unit.request_unit_id = %s and unit.run_id = %s
-            for update of unit, run
+            for no key update of unit, run
             """,
             (request.request_unit_id, request.run_id),
         )
@@ -308,7 +308,7 @@ class PsycopgObservationRepository(PostgresRunPlanningMixin):
             select object_key, byte_length, content_type, content_encoding, stored_at
             from ingest.raw_blob
             where content_sha256 = %s
-            for update
+            for no key update
             """,
             (stored.content_sha256,),
         )

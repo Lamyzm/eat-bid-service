@@ -49,7 +49,7 @@ def seal_release_locked(
         select source, release_name, status, as_of
         from ingest.source_release
         where source_release_id = %s
-        for update
+        for no key update
         """,
         (source_release_id,),
     )
@@ -102,7 +102,7 @@ def require_sealed_release_locked(
     cursor.execute(
         """
         select source, release_name, status, as_of, manifest_sha256, sealed_at
-        from ingest.source_release where source_release_id = %s for update
+        from ingest.source_release where source_release_id = %s for no key update
         """,
         (source_release_id,),
     )
@@ -192,7 +192,7 @@ def fail_release_locked(
         select source, status, as_of, failure_category
         from ingest.source_release
         where source_release_id = %s
-        for update
+        for no key update
         """,
         (source_release_id,),
     )
@@ -223,7 +223,7 @@ def fail_release_locked(
         join ingest.run r on r.run_id = sr.run_id
         where sr.source_release_id = %s and r.status in ('planned', 'running')
         order by r.run_id
-        for update of r
+        for no key update of r
         """,
         (source_release_id,),
     )

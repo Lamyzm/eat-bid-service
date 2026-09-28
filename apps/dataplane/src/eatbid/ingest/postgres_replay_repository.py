@@ -103,7 +103,7 @@ class PsycopgReplayRunRepository:
             select r.mode, r.status, r.build_sha, r.parser_version, r.started_at,
                    r.expected_count, r.captured_count, r.published_count,
                    r.failure_category, r.ended_at
-            from ingest.run r where r.run_id = %s for update
+            from ingest.run r where r.run_id = %s for no key update
             """,
             (run_id,),
         )
@@ -135,7 +135,7 @@ class PsycopgReplayRunRepository:
                 """
                 select observation_id from ingest.raw_observation
                 where observation_id = any(%s)
-                order by observation_id for update
+                order by observation_id for no key update
                 """,
                 (list(manifest),),
             )
@@ -178,7 +178,7 @@ class PsycopgReplayRunRepository:
             select publication_id, status, validated_at, activated_at,
                    expected_count, normalized_count, published_count,
                    canonical_fingerprint, projector_version
-            from ingest.publication where run_id = %s for update
+            from ingest.publication where run_id = %s for no key update
             """,
             (run_id,),
         )
@@ -221,7 +221,7 @@ class PsycopgReplayRunRepository:
                 from ingest.normalization_attempt
                 where run_id = %s and parser_version = %s and status = 'quarantined'
                 order by observation_id, normalization_attempt_id
-                for update
+                for no key update
                 """,
                 (run_id, parser_version),
             )
@@ -364,7 +364,7 @@ class PsycopgReplayRunRepository:
             """
             select normalized_record_id from ingest.publication_record
             where publication_id = %s order by normalized_record_id
-            for update
+            for no key update
             """,
             (publication_id,),
         )

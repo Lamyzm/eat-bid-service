@@ -116,7 +116,7 @@ class PostgresReleaseGuardMixin:
                 where r.source_release_id = %s and r.status = 'planned'
                   and sr.run_id = %s and o.observation_id = %s
                   and o.endpoint = 'bid-detail'
-                for update of r, o
+                for no key update of r, o
                 """,
                 (source_release_id, run_id, observation_id),
             )
@@ -260,7 +260,7 @@ class PostgresReleaseGuardMixin:
     def _lock_release(cursor: psycopg.Cursor[Any], source_release_id: UUID) -> str:
         cursor.execute(
             "select status from ingest.source_release "
-            "where source_release_id = %s for update",
+            "where source_release_id = %s for no key update",
             (source_release_id,),
         )
         row = cursor.fetchone()
@@ -280,7 +280,7 @@ class PostgresReleaseGuardMixin:
             join ingest.request_unit u on u.run_id = sr.run_id
             where sr.source_release_id = %s and sr.run_id = %s
               and u.endpoint = 'bid-detail'
-            order by u.request_unit_id for update of u
+            order by u.request_unit_id for no key update of u
             """,
             (source_release_id, run_id),
         )

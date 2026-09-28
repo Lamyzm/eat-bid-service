@@ -109,7 +109,7 @@ class PostgresRunPlanningMixin:
         params_copy = dict(validated.params)
         with self._connection.transaction(), self._connection.cursor() as cursor:
             cursor.execute(
-                "select mode, status from ingest.run where run_id = %s for update",
+                "select mode, status from ingest.run where run_id = %s for no key update",
                 (run_id,),
             )
             run = cursor.fetchone()
@@ -139,7 +139,7 @@ class PostgresRunPlanningMixin:
                     from ingest.request_unit
                     where run_id = %s and source = %s and endpoint = %s
                       and request_params_hash = %s
-                    for update
+                    for no key update
                     """,
                     (run_id, source, endpoint, digest),
                 )
@@ -167,7 +167,7 @@ class PostgresRunPlanningMixin:
             cursor.execute(
                 """
                 select expected_count, captured_count, status
-                from ingest.run where run_id = %s for update
+                from ingest.run where run_id = %s for no key update
                 """,
                 (run_id,),
             )

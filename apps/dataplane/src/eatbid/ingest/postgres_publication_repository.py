@@ -54,7 +54,7 @@ class PsycopgPublicationRepository:
                 """
                 select mode, status, parser_version, expected_count,
                        failure_category, ended_at
-                from ingest.run where run_id = %s for update
+                from ingest.run where run_id = %s for no key update
                 """,
                 (run_id,),
             )
@@ -201,7 +201,7 @@ class PsycopgPublicationRepository:
             select publication_id, status, validated_at, activated_at,
                    expected_count, normalized_count, published_count,
                    canonical_fingerprint, projector_version
-            from ingest.publication where run_id = %s for update
+            from ingest.publication where run_id = %s for no key update
             """,
             (run_id,),
         )
@@ -237,7 +237,7 @@ class PsycopgPublicationRepository:
             """
             select expected_count, observed_count, status
             from ingest.request_unit where run_id = %s
-            order by request_unit_id for update
+            order by request_unit_id for no key update
             """,
             (run_id,),
         )
@@ -372,7 +372,7 @@ class PsycopgPublicationRepository:
             select publication_id, status, validated_at, activated_at,
                    expected_count, normalized_count, published_count,
                    canonical_fingerprint, projector_version
-            from ingest.publication where run_id = %s for update
+            from ingest.publication where run_id = %s for no key update
             """,
             (run_id,),
         )
@@ -433,7 +433,7 @@ class PsycopgPublicationRepository:
             """
             select normalized_record_id from ingest.publication_record
             where publication_id = %s order by normalized_record_id
-            for update
+            for no key update
             """,
             (publication_id,),
         )
