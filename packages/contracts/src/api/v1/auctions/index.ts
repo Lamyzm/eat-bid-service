@@ -14,6 +14,10 @@ export { codeReferenceSchema, type CodeReference } from "../../../values/code-re
 export { martCoverageSchema, type MartBuildLineageWire, type MartCoverage } from "../../../values/mart-lineage";
 export { auctionV1ResponseSchema, type AuctionV1Response } from "./get-auction.response";
 export {
+  auctionLatestObservationSchema,
+  type AuctionLatestObservation,
+} from "./latest-observation.resource";
+export {
   auctionParticipationObservationSchema,
   auctionParticipationSchema,
   type AuctionParticipation,

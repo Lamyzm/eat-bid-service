@@ -18,6 +18,20 @@ export interface ParticipationObservationRecord {
   readonly observedAt: Temporal.Instant;
 }
 
+/**
+ * 보여 주는 revision에 그 공고의 최신 관측이 반영됐는가다(ADR 0061 결정 5). 이미 공개된 공고의 더 늦은 관측이
+ * 발행에서 제외되면 옛 revision이 현행으로 남으므로, 화면이 그 사실을 말할 재료다. 판정 재료인 mart build가
+ * 없으면 `unknown`이며 `reflected`로 뭉개지 않는다(AGENTS 3).
+ */
+export type LatestObservationRecord =
+  | { readonly state: "reflected" }
+  | {
+    readonly state: "not-reflected";
+    readonly excludedObservedAt: Temporal.Instant;
+    readonly reflectedObservedAt: Temporal.Instant;
+  }
+  | { readonly state: "unknown" };
+
 export interface AuctionRecord {
   readonly auctionId: AuctionId;
   readonly revisionId: bigint;
@@ -58,6 +72,7 @@ export interface AuctionRecord {
     readonly latest: ParticipationObservationRecord;
     readonly dayEarlier: ParticipationObservationRecord | null;
   } | null;
+  readonly latestObservation: LatestObservationRecord;
   readonly provenance: {
     readonly sourceSystem: string;
     readonly externalBidId: string;

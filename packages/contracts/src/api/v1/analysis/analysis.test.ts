@@ -133,6 +133,18 @@ describe("분석 표본과 스냅샷 계약", () => {
     expect(() => parseAnalysisMeta({ ...analysisMetaFixture, freshness: { state: "updating", checkedAt: "2026-09-14T01:11:00Z", oldestPendingPublicationAt: "2026-09-14T02:00:00Z" } })).toThrow();
   });
 
+  test("달별 제외 공고 수를 보유율과 따로 싣고 미해소가 제외 수를 넘으면 거부한다", () => {
+    const segment = analysisMetaFixture.periodCoverage[0];
+    const withExclusions = { ...segment, exclusions: { excludedAuctionCount: 3, unresolvedAuctionCount: 2 } };
+    expect(parseAnalysisMeta({ ...analysisMetaFixture, periodCoverage: [withExclusions] }).state).toBe("ready");
+    expect(() => parseAnalysisMeta({
+      ...analysisMetaFixture,
+      periodCoverage: [{ ...segment, exclusions: { excludedAuctionCount: 1, unresolvedAuctionCount: 2 } }],
+    })).toThrow();
+    const { exclusions: _omitted, ...withoutExclusions } = segment;
+    expect(() => parseAnalysisMeta({ ...analysisMetaFixture, periodCoverage: [withoutExclusions] })).toThrow();
+  });
+
   test("wire 계약은 실행 predicate 없이 JSON Schema로 변환된다", () => {
     for (const schema of [analysisFilterValueSchema, analysisFilterOptionsSchema, analysisMetaSchema]) {
       expect(z.toJSONSchema(schema)).toHaveProperty("$schema");

@@ -60,8 +60,10 @@ spec:
       # 공고보다 45일 넘게 뒤인 회차에 격리 사유를 달고 스냅샷이 그런 마감을 싣지 않는 규칙이다(EAT-199).
       # mart-r9는 스냅샷이 게시 종류 코드를 함께 싣는 규칙이다(EAT-262). mart-r10은 회차 요약이 eaT 공고지역
       # 두 열을 함께 싣는 규칙이다(EAT-198) — 비교군을 지역으로 좁히는 분석이 요청마다 core를 조인하지 않게 한다.
+      # mart-r11은 build마다 발행 제외 원장에서 달별 제외 공고 수와 최신 관측 미반영 공고를 함께 싣는 규칙이다
+      # (EAT-295, ADR 0061) — 옛 build에는 그 부속 행이 없어 화면이 제외를 0건으로 읽으므로 새 build로 전환한다.
       - name: calc-version
-        value: mart-r10
+        value: mart-r11
       - name: start-date
         value: ""
       - name: end-date

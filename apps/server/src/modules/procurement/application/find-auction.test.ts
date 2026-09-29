@@ -20,6 +20,7 @@ const auction: AuctionRecord = {
   location: null,
   classification: null,
   participation: null,
+  latestObservation: { state: "reflected" },
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",

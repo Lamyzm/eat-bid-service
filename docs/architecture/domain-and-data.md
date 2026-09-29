@@ -562,6 +562,20 @@ scheme_namespace, fragment, row_count)`에 build마다 남기고, 운영 기대 
 unique index로 강제된다. 표본 수(`sample_n`)는 조회 시점의 코호트에 따라 달라지므로 행이 아니라
 응답이 싣는다. 자세한 것은 [ADR 0034](../adr/0034-mart-build-identity-and-atomic-activation.md)다.
 
+build마다 발행 제외 원장에서 파생한 부속 표 둘이 함께 실린다(`mart-r11`, EAT-295, [ADR 0061](../adr/0061-record-scoped-exclusion.md)
+결정 5·6). 서버는 core·mart만 읽고 원장과 관측 수신 시각은 ingest에만 있으므로, 화면이 제외를 말할 재료는 빌더가
+옮겨 싣는 수밖에 없다. 두 표 모두 이 build의 release가 아니라 원장 전체를 읽는다 — 제외는 발행마다 쌓이고 재파싱이
+해소하는 누적 상태라 촉발한 release만 보면 다른 창의 미해소 제외가 사라진다.
+
+| 표 | grain | 파생 근거 | 읽는 자리 |
+|---|---|---|---|
+| `mart.build_exclusion_month` | `(build_id, month_kst)` | published 발행의 원장 행 → 관측의 run이 속한 release의 목록 창(`P_BID_BGNG_DT`) 시작 달, 공고(`ELCTRN_BID_ID`) 단위로 센 `excluded_auction_count`와 그중 revision을 못 얻은 `unresolved_auction_count` | 분석 응답 `meta.periodCoverage[].exclusions` |
+| `mart.build_stale_auction` | `(build_id, auction_attempt_id)` | 해소 안 된 제외 관측이 같은 공고의 현행 revision(id 최대) 관측보다 늦게 받은 것일 때, 현행 `auction_revision_id`와 두 수신 시각 | 공고 응답 `latestObservation` |
+
+제외 수는 보유율 판정이나 표본 수와 한 비율로 접지 않는다. 해소 판정은 `ingest.backfill_coverage`와 같다(그 관측의
+정규화 레코드 하나라도 revision을 얻으면 해소). 미반영 행은 서버가 지금 보여 주는 revision과 `auction_revision_id`가
+같을 때만 읽는다.
+
 `mart.build_coverage`는 그 build가 읽은 (지역, 달) 구간의 모집단 보유율을 기록한다. 판정은
 `complete`·`partial`·`none`·`unknown` 넷이며 `unknown`은 그 축으로 나뉘어 수집되지 않아 분모를 낼 수
 없다는 뜻이다([PDR-0003](../product/decisions/0003-coverage-unknown.md)).

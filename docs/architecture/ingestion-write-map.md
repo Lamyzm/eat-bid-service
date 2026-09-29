@@ -79,13 +79,14 @@ CLI 명령 하나가 Argo `WorkflowTemplate`의 task 하나다([runtime-and-depl
 | project-reference | `core/code_release_projection.py` | `core.code_release`, `core.code_release_member` |
 | project-reference, project-code-vocabulary | `ingest/postgres_run_closure.py` | `ingest.run` (발행 단계가 없는 두 lane의 run을 투영이 끝난 자리에서 published로 닫는다, EAT-234) |
 | project-code-vocabulary | `core/code_vocabulary_projection.py` | `core.code_value`, `core.code_mapping` (소스가 코드목록에서 말한 상위 코드를 parent 관계로. 시군구 → 시도, EAT-260) |
-| build-marts | `mart/postgres_repository.py` | `mart.build`, `mart.build_coverage` |
+| build-marts | `mart/postgres_repository.py` | `mart.build`, `mart.build_coverage`, `mart.build_exclusion_month`, `mart.build_stale_auction` (재개할 때 이전 부속 행을 지운다) |
 | build-marts | `mart/build_coverage.py` | `mart.build_coverage` |
+| build-marts | `mart/build_exclusion.py` | `mart.build_exclusion_month`, `mart.build_stale_auction` (발행 제외 원장 전체에서 파생한 달별 제외 수와 최신 관측 미반영 공고, EAT-295, ADR 0061) |
 | build-marts | `mart/org_round_summary.py` | `mart.org_round_summary`, `mart.org_round_summary_item` |
 | build-marts | `mart/item_bridge.py` | `mart.build_vocabulary_gap` (스냅샷·회차 요약 빌더가 넘긴 다리표 insert를 실행하고 어휘 밖 조각을 센다, EAT-256) |
 | build-marts | `mart/win_rate_distribution.py` | `mart.win_rate_distribution_monthly` |
 | build-marts | `mart/open_auction_snapshot.py` | `mart.open_auction_snapshot`, `mart.open_auction_snapshot_item`, `core.auction_attempt` |
-| reap-marts | `mart/reaper.py` | `mart.org_round_summary`, `mart.win_rate_distribution_monthly`, `mart.open_auction_snapshot`, `mart.build_coverage` (시한이 지난 superseded build의 행 회수. 원장 build 행은 쓰지 않는다, EAT-254) |
+| reap-marts | `mart/reaper.py` | `mart.org_round_summary`, `mart.win_rate_distribution_monthly`, `mart.open_auction_snapshot`, `mart.build_coverage`, `mart.build_exclusion_month`, `mart.build_stale_auction` (시한이 지난 superseded build의 행 회수. 원장 build 행은 쓰지 않는다, EAT-254) |
 
 ### 진입점에 연결되지 않은 writer
 

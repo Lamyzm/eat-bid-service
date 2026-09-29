@@ -41,6 +41,9 @@ function cohortRow(overrides: Record<string, unknown>): never {
     participation_observed_at: null,
     participation_day_earlier_bid_count: null,
     participation_day_earlier_observed_at: null,
+    latest_observation_build_id: "501",
+    stale_excluded_observed_at: null,
+    stale_reflected_observed_at: null,
     ...overrides,
   } as never;
 }
@@ -191,5 +194,23 @@ describe("DrizzleAuctionReader row 경계", () => {
     expect(adapter.mapAuctionRow(cohortRow({})).participation).toBeNull();
     expect(() => adapter.mapAuctionRow(cohortRow({ participation_bid_count: 3 }))).toThrow(TypeError);
     expect(() => adapter.mapAuctionRow(cohortRow({ participation_observed_at: "2026-09-03T01:30:00Z" }))).toThrow(TypeError);
+  });
+  test("활성 build의 미반영 행이 있으면 두 관측 시각을, 없으면 반영됨을, build가 없으면 모름을 싣는다", async () => {
+    const { mapAuctionRow } = await import("./drizzle-auction-reader");
+
+    expect(mapAuctionRow(cohortRow({})).latestObservation).toEqual({ state: "reflected" });
+    expect(mapAuctionRow(cohortRow({ latest_observation_build_id: null })).latestObservation)
+      .toEqual({ state: "unknown" });
+    expect(mapAuctionRow(cohortRow({
+      stale_excluded_observed_at: new Date("2026-09-28T05:10:00.000Z"),
+      stale_reflected_observed_at: "2026-09-27T05:10:00Z",
+    })).latestObservation).toEqual({
+      state: "not-reflected",
+      excludedObservedAt: Temporal.Instant.from("2026-09-28T05:10:00Z"),
+      reflectedObservedAt: Temporal.Instant.from("2026-09-27T05:10:00Z"),
+    });
+    // 한쪽 시각만 있으면 mart 행의 not null 계약이 깨진 것이다. 반영됨으로 떨어뜨리지 않는다.
+    expect(() => mapAuctionRow(cohortRow({ stale_excluded_observed_at: "2026-09-28T05:10:00Z" })))
+      .toThrow("Database stale auction observation is incomplete");
   });
 });

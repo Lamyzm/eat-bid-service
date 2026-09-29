@@ -4,6 +4,7 @@ import { bidRate, canonicalDecimal, fixedClock, Temporal } from "@eatbid/domain"
 
 import { EffectRunner } from "../../../platform/effect/effect-runner";
 import { kstDate } from "../domain/kst-day";
+import { kstMonth } from "../domain/kst-month";
 import { organizationId } from "../domain/organization-id";
 import type { AnalysisTimeSeriesReader } from "./analysis-time-series-reader";
 import {
@@ -51,6 +52,7 @@ const emptyReading = {
   overlapCount: 0,
   overlays: [],
   coverage: [],
+  exclusions: [],
   lineage,
   sourceCutoffAt,
 } as const;
@@ -218,6 +220,27 @@ describe("분석 시간축 조회 use case", () => {
       { from: "2026-09-01", to: "2026-09-14" },
     ]);
     expect(response.meta.periodCoverage.every((entry) => entry.target === "none")).toBe(true);
+  });
+
+  test("제외 공고 수는 달마다 따로 싣고 원장에 행이 없는 달은 0건이다", async () => {
+    const response = await run(readerDouble({
+      readTimeSeries: async () => ({
+        ...emptyReading,
+        exclusions: [{ month: kstMonth("2026-08"), excludedAuctionCount: 3, unresolvedAuctionCount: 1 }],
+      }),
+    }), {
+      ...input,
+      period: { from: kstDate("2026-07-15"), to: kstDate("2026-09-14") },
+    });
+    if (response.meta.state !== "ready") throw new Error("ready 상태여야 한다");
+    expect(response.meta.periodCoverage.map((entry) => entry.exclusions)).toEqual([
+      { excludedAuctionCount: 0, unresolvedAuctionCount: 0 },
+      { excludedAuctionCount: 3, unresolvedAuctionCount: 1 },
+      { excludedAuctionCount: 0, unresolvedAuctionCount: 0 },
+    ]);
+    // 제외는 보유율 판정을 바꾸지 않는다. 한 비율로 섞지 않는다(ADR 0061 결정 6).
+    expect(response.meta.periodCoverage[1]?.target).toBe("none");
+    expect(parseAnalysisMeta(response.meta).state).toBe("ready");
   });
 
   test("준비된 meta는 계약의 의미 parser를 그대로 통과한다", async () => {

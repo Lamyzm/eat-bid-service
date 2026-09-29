@@ -43,7 +43,8 @@ export const auctionFixture = {
   },
   classification: { itemLabel: '축산' },
   // 목록 스냅샷에 잡힌 적 없는 공고다. 참여 수는 미확인이어야 한다.
-  participation: null
+  participation: null,
+  latestObservation: { state: 'reflected' }
 } satisfies AuctionV1Response;
 
 /** 마감·개찰이 관측된 진행 중 공고. 2026-09-03T01:30Z(10:30 KST)에 보면 마감 24시간 30분 전이다. */

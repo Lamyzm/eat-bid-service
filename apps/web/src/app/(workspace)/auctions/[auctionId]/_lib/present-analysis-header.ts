@@ -8,6 +8,11 @@ export type AnalysisHeaderView = {
   readonly location: string;
   readonly item: string;
   readonly status: string;
+  /**
+   * 보여 주는 내용 뒤에 받은 관측이 발행에서 빠졌을 때의 문장이다(ADR 0061 결정 5). 색이 아니라 문장으로
+   * 말한다 — 낡은 공고를 최신으로 읽게 두지 않는 것이 목적이라 색만으로는 그 뜻이 전해지지 않는다.
+   */
+  readonly latestObservation: { readonly title: string; readonly description: string } | null;
   readonly facts: readonly { readonly label: string; readonly value: string }[];
   readonly details: readonly { readonly label: string; readonly value: string }[];
 };
@@ -49,6 +54,18 @@ function statusText(label: string, deadlineAt: string | null, now: string): stri
     Temporal.Instant.compare(Temporal.Instant.from(now), Temporal.Instant.from(deadlineAt)) >= 0;
   return observed === '진행중' && deadlinePassed ? '진행중 · 마감 지남' : observed;
 }
+/** `reflected`와 `unknown`은 말할 것이 없다. 모르는 것을 "반영 안 됨"으로 경고하면 거짓 경보가 된다. */
+function latestObservationText(
+  observation: AuctionV1Response['latestObservation']
+): AnalysisHeaderView['latestObservation'] {
+  if (observation.state !== 'not-reflected') return null;
+  return {
+    title: '최신 관측 반영 안 됨',
+    description:
+      `eaT에서 ${kst(observation.excludedObservedAt)}에 받은 내용은 형식 문제로 반영하지 못했어요. ` +
+      `아래는 ${kst(observation.reflectedObservedAt)}에 받은 내용이라 지금 eaT와 다를 수 있어요.`
+  };
+}
 export function presentAnalysisHeader(auction: AuctionV1Response, now: string): AnalysisHeaderView {
   const status = statusText(auction.identity.status, auction.schedule.deadlineAt, now);
   return {
@@ -60,6 +77,7 @@ export function presentAnalysisHeader(auction: AuctionV1Response, now: string): 
       '공고지역 미확인',
     item: auction.classification?.itemLabel ?? '품목 미확인',
     status,
+    latestObservation: latestObservationText(auction.latestObservation),
     facts: [
       { label: '기초금액', value: moneyText(auction.pricing.baseAmount) },
       {

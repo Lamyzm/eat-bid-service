@@ -233,3 +233,20 @@ export function analysisCoverageSql(
      group by 1
      order by 1`;
 }
+
+/**
+ * 요청 기간의 달별 제외 공고 수다(ADR 0061 결정 6). 보유율과 같은 활성 build에서 읽어야 두 사실이 같은 시점을
+ * 말한다. 제외는 전국 수라 비교 범위를 걸지 않는다 — 원장에는 지역·기관 축이 없고, 그것을 지역별로 나눠 말하면
+ * 우리가 만든 귀속이 된다.
+ */
+export function analysisExclusionSql(fromMonthFirstDay: string, toMonthFirstDay: string): SQL {
+  return sql`
+    select to_char(excluded.month_kst, 'YYYY-MM') as month_kst,
+           excluded.excluded_auction_count,
+           excluded.unresolved_auction_count
+      from mart.build_exclusion_month excluded
+     where excluded.build_id = ${ACTIVE_BUILD}
+       and excluded.month_kst >= ${fromMonthFirstDay}::date
+       and excluded.month_kst <= ${toMonthFirstDay}::date
+     order by 1`;
+}

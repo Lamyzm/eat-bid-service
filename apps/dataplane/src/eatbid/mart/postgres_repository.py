@@ -11,6 +11,7 @@ from typing import Any
 from uuid import UUID
 
 from eatbid.mart.build_coverage import fill_build_coverage
+from eatbid.mart.build_exclusion import fill_build_exclusions
 from eatbid.mart.models import MartBuildPlan, MartName, OpenedMartBuild
 from eatbid.mart.region_axis import assert_build_region_scheme
 from eatbid.mart.repository import MartBuildContractError, MartTransactionScopeError
@@ -23,6 +24,15 @@ MART_TABLES: Mapping[MartName, str] = {
     "win_rate_distribution_monthly": "mart.win_rate_distribution_monthly",
     "open_auction_snapshot": "mart.open_auction_snapshot",
 }
+
+# 어느 mart든 build마다 함께 적는 부속 표(보유율·제외)다. 재개·회수가 build의 행을 지울 때 함께 지운다 — 하나라도
+# 빠지면 재개한 build가 같은 grain을 다시 넣다 끊기거나 남은 부속 행의 FK가 build 삭제를 막는다. 쓰기 지도 검사가
+# 표 이름을 리터럴로 읽으므로 문장을 그대로 적는다.
+_BUILD_SIDE_DELETES: tuple[str, ...] = (
+    "delete from mart.build_coverage where build_id = %s",
+    "delete from mart.build_exclusion_month where build_id = %s",
+    "delete from mart.build_stale_auction where build_id = %s",
+)
 
 # 물린 build의 행을 얼마나 오래 남기는가. 참여 수 추이가 지난 관측점을 읽는 mart만 길게 잡는다.
 RETENTION_DAYS: Mapping[MartName, int] = {
@@ -121,8 +131,12 @@ class PsycopgMartBuildRepository:
             )
             created = cursor.fetchone()
             if created is None:
-                raise MartBuildContractError("mart build insertion returned no identity")
-        return OpenedMartBuild(build_id=int(created[0]), status="building", row_count=None)
+                raise MartBuildContractError(
+                    "mart build insertion returned no identity"
+                )
+        return OpenedMartBuild(
+            build_id=int(created[0]), status="building", row_count=None
+        )
 
     def _reopen(
         self, cursor: Any, plan: MartBuildPlan, existing: tuple[Any, ...]
@@ -144,10 +158,9 @@ class PsycopgMartBuildRepository:
             f"delete from {MART_TABLES[plan.mart_name]} where build_id = %s",
             (build_id,),
         )
-        # 보유율 행도 이 build의 산출물이다. 남겨 두면 재개한 빌드가 같은 grain을 다시 넣다 끊긴다.
-        cursor.execute(
-            "delete from mart.build_coverage where build_id = %s", (build_id,)
-        )
+        # 보유율·제외 부속 행도 이 build의 산출물이다. 남겨 두면 재개한 빌드가 같은 grain을 다시 넣다 끊긴다.
+        for statement in _BUILD_SIDE_DELETES:
+            cursor.execute(statement, (build_id,))
         if status == "building":
             return OpenedMartBuild(build_id=build_id, status="building", row_count=None)
         # 실패한 build는 `failed → building` 전이가 없으므로 행과 함께 지우고 새로 연다.
@@ -166,6 +179,9 @@ class PsycopgMartBuildRepository:
             # 보유율은 같은 build의 사실이므로 같은 트랜잭션에서 쓴다. 지표만 발표되고 그 지표를
             # 어디까지 믿어도 되는지가 빠지면 화면이 모르는 것을 아는 척한다(AGENTS 3).
             fill_build_coverage(self._connection, plan=plan, build_id=build_id)
+            # 제외 사실도 같은 이유로 같은 트랜잭션이다. 지표가 발표됐는데 "무엇이 빠졌는가"가 빠지면 화면이
+            # 제외된 공고를 모르는 채로 표본을 말한다(ADR 0061 결정 6).
+            fill_build_exclusions(self._connection, plan=plan, build_id=build_id)
         return row_count
 
     def verify_build(self, plan: MartBuildPlan, build_id: int, row_count: int) -> None:

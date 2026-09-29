@@ -10,6 +10,7 @@ import {
   presentTimeSeries,
   type TimeSeriesView
 } from '../_features/time-series/model/present-time-series';
+import { presentExclusionNote } from '../_features/time-series/model/present-exclusion-note';
 import {
   presentDistribution,
   type DistributionView
@@ -51,7 +52,7 @@ export async function loadAnalysisPage(
   const setup = presentAnalysisFilters(result.response, now);
   const applied = readAppliedAnalysis(rawFilter, setup);
   // 두 그림은 서로를 기다리지 않는다. 같은 조건을 동시에 묻고, 한쪽 실패는 그쪽 갈래로만 남는다.
-  const [timeSeries, distribution] = await Promise.all([
+  const [series, distribution] = await Promise.all([
     readTimeSeriesView(applied, dependencies),
     readDistributionView(applied, dependencies)
   ]);
@@ -59,7 +60,8 @@ export async function loadAnalysisPage(
     header: presentAnalysisHeader(result.response, now),
     setup,
     applied,
-    timeSeries,
+    timeSeries: series?.view ?? null,
+    exclusionNote: series?.exclusionNote ?? null,
     distribution
   };
 }
@@ -71,12 +73,14 @@ export async function loadAnalysisPage(
 async function readTimeSeriesView(
   applied: Awaited<ReturnType<typeof readAppliedAnalysis>>,
   dependencies: Dependencies
-): Promise<TimeSeriesView | null> {
+): Promise<{ readonly view: TimeSeriesView; readonly exclusionNote: string | null } | null> {
   if (applied.state !== 'pending') return null;
-  return presentTimeSeries(
-    await dependencies.readTimeSeries(analysisTimeSeriesQueryOf(applied.filter)),
-    applied.filter.floorRate.value
-  );
+  const read = await dependencies.readTimeSeries(analysisTimeSeriesQueryOf(applied.filter));
+  return {
+    view: presentTimeSeries(read, applied.filter.floorRate.value),
+    // 제외 문장은 그림이 아니라 자료 기준의 사실이라 시간축 표시 모델과 따로 둔다.
+    exclusionNote: read.kind === 'series' ? presentExclusionNote(read.response) : null
+  };
 }
 
 async function readDistributionView(

@@ -41,7 +41,14 @@ const readyMeta = {
   targetSampleCount: 2,
   comparisonSampleCount: 40,
   overlapCount: 2,
-  periodCoverage: [{ period: filter.period, target: 'unknown', comparison: 'unknown' }],
+  periodCoverage: [
+    {
+      period: filter.period,
+      target: 'unknown',
+      comparison: 'unknown',
+      exclusions: { excludedAuctionCount: 0, unresolvedAuctionCount: 0 }
+    }
+  ],
   freshness: { state: 'unknown', checkedAt: null }
 } satisfies AnalysisMeta;
 

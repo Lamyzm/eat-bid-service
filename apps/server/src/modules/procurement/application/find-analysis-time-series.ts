@@ -18,6 +18,7 @@ import type {
   AnalysisItemFilter,
   AnalysisOverlaySeriesRecord,
   AnalysisMonthCoverage,
+  AnalysisMonthExclusions,
   AnalysisPointRecord,
   AnalysisTimeSeriesReader,
   AnalysisTimeSeriesReading,
@@ -157,6 +158,11 @@ export interface AnalysisCoverageSegment {
   readonly to: KstDate;
   readonly target: MartCoverage;
   readonly comparison: MartCoverage;
+  /** 그 달 전체의 제외 공고 수다. 조각이 요청 기간으로 잘려도 수는 달 단위다(ADR 0061 결정 6). */
+  readonly exclusions: {
+    readonly excludedAuctionCount: number;
+    readonly unresolvedAuctionCount: number;
+  };
 }
 
 /**
@@ -171,8 +177,12 @@ export function coverageSegments(
   period: AnalysisPeriodInput,
   months: readonly KstMonth[],
   read: readonly AnalysisMonthCoverage[],
+  exclusions: readonly AnalysisMonthExclusions[],
 ): readonly AnalysisCoverageSegment[] {
   const byMonth = new Map(read.map((entry) => [entry.month, entry] as const));
+  // 제외 행이 없는 달은 원장에 그 달의 제외가 없다는 뜻이라 0건이다. 보유율의 "행 없음 = none"과 번역이 다른
+  // 이유는, 제외 표는 build가 원장 전체를 읽어 제외가 있는 달만 적기 때문이다.
+  const excludedByMonth = new Map(exclusions.map((entry) => [entry.month, entry] as const));
   const missing: MartCoverage = "none";
   return months.map((month, index) => {
     const entry = byMonth.get(month);
@@ -181,6 +191,10 @@ export function coverageSegments(
       to: index === months.length - 1 ? period.to : kstDate(kstMonthLastDayText(month)),
       target: entry?.target ?? missing,
       comparison: entry?.comparison ?? missing,
+      exclusions: {
+        excludedAuctionCount: excludedByMonth.get(month)?.excludedAuctionCount ?? 0,
+        unresolvedAuctionCount: excludedByMonth.get(month)?.unresolvedAuctionCount ?? 0,
+      },
     };
   });
 }
@@ -256,7 +270,7 @@ export class FindAnalysisTimeSeries {
       comparisonTotal: reading.comparisonTotal,
       overlapCount: reading.overlapCount,
       overlays: reading.overlays,
-      coverage: coverageSegments(input.period, months, reading.coverage),
+      coverage: coverageSegments(input.period, months, reading.coverage, reading.exclusions),
     };
   }
 }

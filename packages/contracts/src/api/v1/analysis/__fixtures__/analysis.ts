@@ -42,6 +42,11 @@ export const analysisMetaFixture = {
   targetSampleCount: 8,
   comparisonSampleCount: 120,
   overlapCount: 6,
-  periodCoverage: [{ period: analysisFilterFixture.period, target: "unknown", comparison: "unknown" }],
+  periodCoverage: [{
+    period: analysisFilterFixture.period,
+    target: "unknown",
+    comparison: "unknown",
+    exclusions: { excludedAuctionCount: 0, unresolvedAuctionCount: 0 },
+  }],
   freshness: { state: "current", checkedAt: "2026-09-14T01:11:00Z" },
 } as const;

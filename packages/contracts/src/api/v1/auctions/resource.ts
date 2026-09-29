@@ -9,6 +9,7 @@ import { auctionPricingSchema } from "../../../resources/procurement/pricing";
 import { auctionScheduleSchema } from "../../../resources/procurement/schedule";
 import { auctionTermsSchema } from "../../../resources/procurement/terms";
 import { auctionProvenanceSchema } from "../../../values/provenance";
+import { auctionLatestObservationSchema } from "./latest-observation.resource";
 import { auctionParticipationSchema } from "./participation.resource";
 
 // 공개 응답은 수명주기별 resource를 닫아 내부 source payload나 저장소 열이 우발적으로 노출되지 않게 한다.
@@ -26,6 +27,9 @@ export const auctionResourceSchema = z.strictObject({
   // 참여 수는 상세가 아니라 목록 스냅샷(mart)에서 오는 관측이라 core 해석 블록들과 계보가 다르다.
   // 목록에 아직 잡히지 않은 공고는 null이며 화면은 "참여 미확인"으로 그린다.
   participation: auctionParticipationSchema.nullable(),
+  // 보여 주는 revision 뒤에 받은 관측이 발행에서 빠졌는지다. 판정은 core가 아니라 발행 원장에서 파생한 mart가
+  // 하므로 계보가 core 블록들과 다르다(ADR 0061 결정 5).
+  latestObservation: auctionLatestObservationSchema,
 }).meta({ id: "EatbidApiV1Auction" });
 
 export type AuctionResource = z.infer<typeof auctionResourceSchema>;

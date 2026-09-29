@@ -27,6 +27,7 @@ const publicAuction = {
   },
   classification: { itemLabel: "축산" },
   participation: null,
+  latestObservation: { state: "reflected" },
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",
@@ -110,6 +111,7 @@ describe("canonical procurement HTTP 경로", () => {
         },
         classification: { itemLabel: "축산" },
         participation: null,
+        latestObservation: { state: "reflected" },
       });
       expect(response.body).not.toHaveProperty("sourcePayload");
     });

@@ -748,6 +748,9 @@
                     "comparison": {
                       "$ref": "#/components/schemas/MartCoverage"
                     },
+                    "exclusions": {
+                      "$ref": "#/components/schemas/AnalysisPeriodExclusions"
+                    },
                     "period": {
                       "$ref": "#/components/schemas/AnalysisPeriod"
                     },
@@ -758,7 +761,8 @@
                   "required": [
                     "period",
                     "target",
-                    "comparison"
+                    "comparison",
+                    "exclusions"
                   ],
                   "type": "object"
                 },
@@ -899,6 +903,22 @@
         "required": [
           "from",
           "to"
+        ],
+        "type": "object"
+      },
+      "AnalysisPeriodExclusions": {
+        "additionalProperties": false,
+        "properties": {
+          "excludedAuctionCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          },
+          "unresolvedAuctionCount": {
+            "$ref": "#/components/schemas/NonNegativeCount"
+          }
+        },
+        "required": [
+          "excludedAuctionCount",
+          "unresolvedAuctionCount"
         ],
         "type": "object"
       },
@@ -1116,6 +1136,65 @@
           "우유류"
         ],
         "type": "string"
+      },
+      "AuctionLatestObservation": {
+        "description": "Whether the newest source observation of this auction is reflected in the shown revision, or was excluded from publication (ADR 0061).",
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "enum": [
+                  "reflected"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "excludedObservedAt": {
+                "$ref": "#/components/schemas/InstantText"
+              },
+              "reflectedObservedAt": {
+                "$ref": "#/components/schemas/InstantText"
+              },
+              "state": {
+                "enum": [
+                  "not-reflected"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "excludedObservedAt",
+              "reflectedObservedAt"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "state": {
+                "enum": [
+                  "unknown"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          }
+        ],
+        "type": "object"
       },
       "AuctionLocation": {
         "additionalProperties": false,
@@ -1960,6 +2039,9 @@
           "identity": {
             "$ref": "#/components/schemas/PublicAuctionIdentity"
           },
+          "latestObservation": {
+            "$ref": "#/components/schemas/AuctionLatestObservation"
+          },
           "location": {
             "allOf": [
               {
@@ -2011,7 +2093,8 @@
           "terms",
           "location",
           "classification",
-          "participation"
+          "participation",
+          "latestObservation"
         ],
         "type": "object"
       },

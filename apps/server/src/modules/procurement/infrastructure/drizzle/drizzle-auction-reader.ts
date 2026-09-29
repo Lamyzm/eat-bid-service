@@ -4,9 +4,11 @@ import { Temporal } from "@eatbid/domain";
 import type {
   AuctionReader,
   AuctionRecord,
+  LatestObservationRecord,
   ParticipationObservationRecord,
 } from "../../application/auction-reader";
 import { auctionId, type AuctionId } from "../../domain/auction-id";
+import { latestObservationBuildColumn, staleAuctionJoin } from "./auction-latest-observation-query";
 import { dayEarlierParticipationJoin, latestParticipationJoin } from "./auction-participation-queries";
 import { organizationLabelSql } from "./organization-label-sql";
 import { bidRateValue, bigintValue, codeReferenceRecord, moneyValue, observedLabel } from "./postgres-row-values";
@@ -46,6 +48,9 @@ type AuctionRow = Readonly<
     participation_observed_at: Date | string | null;
     participation_day_earlier_bid_count: number | null;
     participation_day_earlier_observed_at: Date | string | null;
+    latest_observation_build_id: string | bigint | null;
+    stale_excluded_observed_at: Date | string | null;
+    stale_reflected_observed_at: Date | string | null;
   }
   & CodeReferenceColumns<"award_method">
   & CodeReferenceColumns<"location_sido">
@@ -88,6 +93,20 @@ function participationObservation(
   const instant = postgresInstant(observedAt);
   if (bidCount === null || instant === null) throw new TypeError("Database participation observation is incomplete");
   return { bidCount, observedAt: instant };
+}
+
+// 두 시각은 한 행에서 함께 오거나 함께 없다. 한쪽만 있으면 mart 행의 not null 계약이 깨진 것이다.
+function latestObservation(
+  buildId: string | bigint | null,
+  excludedObservedAt: PostgresTimestamp,
+  reflectedObservedAt: PostgresTimestamp,
+): LatestObservationRecord {
+  if (buildId === null) return { state: "unknown" };
+  const excluded = postgresInstant(excludedObservedAt);
+  const reflected = postgresInstant(reflectedObservedAt);
+  if (excluded === null && reflected === null) return { state: "reflected" };
+  if (excluded === null || reflected === null) throw new TypeError("Database stale auction observation is incomplete");
+  return { state: "not-reflected", excludedObservedAt: excluded, reflectedObservedAt: reflected };
 }
 
 export function mapAuctionRow(row: AuctionRow): AuctionRecord {
@@ -148,6 +167,11 @@ export function mapAuctionRow(row: AuctionRow): AuctionRecord {
         row.participation_day_earlier_observed_at,
       ),
     },
+    latestObservation: latestObservation(
+      row.latest_observation_build_id,
+      row.stale_excluded_observed_at,
+      row.stale_reflected_observed_at,
+    ),
     provenance: {
       sourceSystem: row.source_system,
       externalBidId: row.external_bid_id,
@@ -228,7 +252,10 @@ export class DrizzleAuctionReader implements AuctionReader {
         participation.bid_count as participation_bid_count,
         participation.observed_at as participation_observed_at,
         participation_day_earlier.bid_count as participation_day_earlier_bid_count,
-        participation_day_earlier.observed_at as participation_day_earlier_observed_at
+        participation_day_earlier.observed_at as participation_day_earlier_observed_at,
+        ${latestObservationBuildColumn()} as latest_observation_build_id,
+        stale.excluded_observed_at as stale_excluded_observed_at,
+        stale.reflected_observed_at as stale_reflected_observed_at
       from core.auction_attempt attempt
       join core.auction_revision revision
         on revision.auction_attempt_id = attempt.auction_attempt_id
@@ -242,6 +269,7 @@ export class DrizzleAuctionReader implements AuctionReader {
       ${codeReferenceJoin("location_sigungu", "location_sigungu")}
       ${latestParticipationJoin("participation")}
       ${dayEarlierParticipationJoin("participation", "participation_day_earlier")}
+      ${staleAuctionJoin("stale")}
       where attempt.auction_attempt_id = ${id}
       order by revision.auction_revision_id desc, purchaser_org.organization_id asc
       limit 1

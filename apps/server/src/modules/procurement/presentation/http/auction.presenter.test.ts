@@ -30,6 +30,7 @@ const auction: AuctionRecord = {
     latest: { bidCount: 4, observedAt: Temporal.Instant.from("2026-09-03T01:30:00Z") },
     dayEarlier: { bidCount: 2, observedAt: Temporal.Instant.from("2026-09-02T01:00:00Z") },
   },
+  latestObservation: { state: "reflected" },
   provenance: {
     sourceSystem: "eat",
     externalBidId: "external-opaque-id",
@@ -83,7 +84,27 @@ describe("공고 조회 presenter", () => {
         latest: { bidCount: 4, observedAt: "2026-09-03T01:30:00Z" },
         dayEarlier: { bidCount: 2, observedAt: "2026-09-02T01:00:00Z" },
       },
+      latestObservation: { state: "reflected" },
     });
+  });
+
+  test("최신 관측이 제외돼 반영되지 않았으면 두 관측 시각을 wire 시각으로 싣는다", () => {
+    const response = toAuctionResponse({
+      ...auction,
+      latestObservation: {
+        state: "not-reflected",
+        excludedObservedAt: Temporal.Instant.from("2026-09-28T05:10:00Z"),
+        reflectedObservedAt: Temporal.Instant.from("2026-09-27T05:10:00Z"),
+      },
+    });
+    expect(auctionV1ResponseSchema.parse(response)).toEqual(response);
+    expect(response.latestObservation).toEqual({
+      state: "not-reflected",
+      excludedObservedAt: "2026-09-28T05:10:00Z",
+      reflectedObservedAt: "2026-09-27T05:10:00Z",
+    });
+    expect(toAuctionResponse({ ...auction, latestObservation: { state: "unknown" } }).latestObservation)
+      .toEqual({ state: "unknown" });
   });
 
   test("관측되지 않은 블록은 빈 값을 지어내지 않고 null 그대로 내보낸다", () => {

@@ -64,6 +64,10 @@ export function parseAnalysisMeta(input: unknown): AnalysisMeta {
     const to = Temporal.PlainDate.from(segment.period.to);
     analysisDateRange(from, to);
     if (!nextDate.equals(from)) throw new RangeError("수집 상태 기간에 누락 또는 중복이 있습니다.");
+    // 미해소는 원장에 적힌 제외의 부분집합이다. 거꾸로면 두 수를 서로 다른 원장에서 센 것이다.
+    if (segment.exclusions.unresolvedAuctionCount > segment.exclusions.excludedAuctionCount) {
+      throw new RangeError("미해소 제외 공고 수가 제외 공고 수를 넘습니다.");
+    }
     nextDate = to.add({ days: 1 });
   }
   if (!nextDate.equals(Temporal.PlainDate.from(meta.effectiveFilter.period.to).add({ days: 1 }))) throw new RangeError("수집 상태가 조회 기간 전체를 설명하지 않습니다.");

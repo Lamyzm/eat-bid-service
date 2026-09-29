@@ -15,10 +15,20 @@ export const analysisFreshnessSchema = z.discriminatedUnion("state", [
     oldestPendingPublicationAt: instantTextSchema,
   }),
 ]);
+/**
+ * 한 달에 발행 원장이 적고 뺀 공고 수다(ADR 0061 결정 6). 보유율 판정이나 표본 수와 한 비율로 접지 않고 따로
+ * 싣는다 — 섞으면 "다 들어왔다"와 "빼고 다 들어왔다"가 같은 값이 된다. 지역·기관 축이 없는 전국 수이며, 조각이
+ * 요청 기간으로 잘려도 그 달 전체의 수다. `unresolvedAuctionCount`는 그 가운데 아직 반영되지 못한 공고 수다.
+ */
+export const analysisPeriodExclusionsSchema = z.strictObject({
+  excludedAuctionCount: nonNegativeCountSchema,
+  unresolvedAuctionCount: nonNegativeCountSchema,
+}).meta({ id: "AnalysisPeriodExclusions" });
 export const analysisPeriodCoverageSchema = z.strictObject({
   period: analysisPeriodSchema,
   target: martCoverageSchema,
   comparison: martCoverageSchema,
+  exclusions: analysisPeriodExclusionsSchema,
 });
 
 /** 준비 불가에는 표본 수를 넣지 않는다. 관측된 0건과 미발행을 같은 숫자로 화면에 전달하지 않는다. */

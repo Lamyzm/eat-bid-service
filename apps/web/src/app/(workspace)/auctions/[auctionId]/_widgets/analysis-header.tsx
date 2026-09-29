@@ -16,6 +16,15 @@ export function AnalysisHeader({ header }: { readonly header: AnalysisHeaderView
         {header.organization}
       </h1>
       <p className='mt-2 text-sm leading-relaxed text-muted-foreground'>{header.title}</p>
+      {header.latestObservation === null ? null : (
+        <p
+          role='status'
+          className='mt-3 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs leading-relaxed'
+        >
+          <strong className='font-semibold'>{header.latestObservation.title}</strong>
+          <span className='text-muted-foreground'> · {header.latestObservation.description}</span>
+        </p>
+      )}
       <dl className='mt-5 flex flex-wrap gap-x-7 gap-y-3'>
         {header.facts.map((fact) => (
           <div key={fact.label} className='flex items-baseline gap-2'>

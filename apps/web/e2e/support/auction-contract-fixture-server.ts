@@ -52,6 +52,7 @@ const SHELL_AUCTION_ID = '9007199254740997';
 const OPEN_AUCTION_ID = '5796468';
 const CLOSED_AUCTION_ID = '5780681';
 const LONG_HEADER_AUCTION_ID = '5796470';
+const STALE_AUCTION_ID = '5796471';
 const SUCCESS_RESPONSE_DELAY_MILLISECONDS = 350;
 // 셸 검사는 dev 서버의 첫 route 컴파일과 세션 게이트 뒤에 skeleton이 흐르므로 350ms로는 CI runner에서
 // 본문이 같은 chunk에 실려 올 수 있다. 관측 창을 넉넉히 둔다.
@@ -99,7 +100,8 @@ function auctionResponse(auctionId: string) {
     terms: COHORT_TERMS,
     location: COHORT_LOCATION,
     classification: COHORT_CLASSIFICATION,
-    participation: null
+    participation: null,
+    latestObservation: { state: 'reflected' }
   });
 }
 
@@ -141,6 +143,21 @@ function openAuctionResponse(auctionId: string) {
     participation: {
       latest: { bidCount: 4, observedAt: instantSecondsIso(now - 30 * 60 * 1000) },
       dayEarlier: { bidCount: 2, observedAt: instantSecondsIso(now - 25 * 60 * 60 * 1000) }
+    },
+    latestObservation: { state: 'reflected' }
+  });
+}
+
+// 이미 공개된 공고의 더 늦은 관측이 발행에서 제외돼 옛 revision이 남은 공고다(ADR 0061 결정 5). 헤더가 그 사실을
+// 문장으로 말하는지 본다. 코호트는 진행 중 공고와 같아 분석 조회가 그대로 채워진다.
+function staleAuctionResponse(auctionId: string) {
+  const open = openAuctionResponse(auctionId);
+  return auctionV1ResponseSchema.parse({
+    ...open,
+    latestObservation: {
+      state: 'not-reflected',
+      excludedObservedAt: '2026-09-28T05:10:00Z',
+      reflectedObservedAt: '2026-09-27T23:40:00Z'
     }
   });
 }
@@ -201,7 +218,8 @@ function closedAuctionResponse(auctionId: string) {
         observedAt: instantSecondsIso(now + CLOSED_DEADLINE_OFFSET_MILLISECONDS - 10 * 60 * 1000)
       },
       dayEarlier: null
-    }
+    },
+    latestObservation: { state: 'reflected' }
   });
 }
 
@@ -291,6 +309,8 @@ Bun.serve({
       return Response.json(closedAuctionResponse(CLOSED_AUCTION_ID));
     if (pathname === auctionPath(LONG_HEADER_AUCTION_ID))
       return Response.json(longHeaderAuctionResponse(LONG_HEADER_AUCTION_ID));
+    if (pathname === auctionPath(STALE_AUCTION_ID))
+      return Response.json(staleAuctionResponse(STALE_AUCTION_ID));
     if (pathname === auctionPath(FAILURE_AUCTION_ID)) return problemResponse(503);
     if (pathname === auctionPath(MISSING_AUCTION_ID)) return problemResponse(404);
 

@@ -54,7 +54,11 @@ export function AnalysisScreen({
       reset={<AnalysisResetButton />}
       context={
         <AnalysisResultsGate requestKey={data.applied.key}>
-          <AnalysisContext context={context} samples={sampleCountsOf(data.timeSeries)} />
+          <AnalysisContext
+            context={context}
+            samples={sampleCountsOf(data.timeSeries)}
+            exclusionNote={data.exclusionNote}
+          />
         </AnalysisResultsGate>
       }
       time={

@@ -16,6 +16,15 @@ from eatbid.mart.models import MartName
 from eatbid.mart.repository import MartTransactionScopeError
 from eatbid.transaction_scope import require_idle
 
+# 어느 mart든 build마다 함께 적는 부속 표(보유율·제외)다. 재개·회수가 build의 행을 지울 때 함께 지운다 — 하나라도
+# 빠지면 재개한 build가 같은 grain을 다시 넣다 끊기거나 남은 부속 행의 FK가 build 삭제를 막는다. 쓰기 지도 검사가
+# 표 이름을 리터럴로 읽으므로 문장을 그대로 적는다.
+_BUILD_SIDE_DELETES: tuple[str, ...] = (
+    "delete from mart.build_coverage where build_id = %s",
+    "delete from mart.build_exclusion_month where build_id = %s",
+    "delete from mart.build_stale_auction where build_id = %s",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ReapTarget:
@@ -103,11 +112,11 @@ def reap_expired_builds(connection: Any, *, as_of: datetime) -> ReapReport:
         with connection.transaction(), connection.cursor() as cursor:
             cursor.execute(f"delete from mart.{table} where build_id = %s", (build_id,))
             rows_deleted = int(cursor.rowcount)
-            # 보유율 행도 그 build의 산출물이다. 행이 없는 build의 보유율은 아무것도 설명하지 않는다.
-            cursor.execute(
-                "delete from mart.build_coverage where build_id = %s", (build_id,)
-            )
-            coverage_deleted = int(cursor.rowcount)
+            # 보유율·제외 부속 행도 그 build의 산출물이다. 행이 없는 build의 부속 사실은 아무것도 설명하지 않는다.
+            coverage_deleted = 0
+            for statement in _BUILD_SIDE_DELETES:
+                cursor.execute(statement, (build_id,))
+                coverage_deleted += int(cursor.rowcount)
         if rows_deleted or coverage_deleted:
             reaped.append(
                 ReapedBuild(

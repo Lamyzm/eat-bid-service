@@ -579,3 +579,13 @@ mart는 발행마다 새 build로 통째 다시 만들고 이전 활성 build를
 3. 제외된 관측이 revision을 얻으면 해소되고 위반이 닫힌다. 원본이 정말 계약 밖이면 제외로 남는 것이 맞고, 위반을
    계속 열어 둘지 닫을지는 별도 결정이다. 원장 행을 손으로 지우거나 `excluded_count`를 고치지 않는다 — 등식이
    깨져 다음 재검증이 발행을 거부한다.
+
+**화면에서 어떻게 보이나(EAT-295).** 서버는 원장(ingest)을 읽지 않으므로 mart 빌더가 build마다 원장 전체에서 두
+부속 표를 파생한다(`mart-r11`부터). 이미 공개된 공고의 더 늦은 관측이 빠졌으면 `mart.build_stale_auction`에 한
+행이 생기고, 공고 상세 API의 `latestObservation`이 `not-reflected`가 되어 상세 화면 제목 아래에 "최신 관측 반영
+안 됨 · eaT에서 (빠진 관측 시각)에 받은 내용은 형식 문제로 반영하지 못했어요. 아래는 (지금 보이는 관측 시각)에 받은
+내용이라 지금 eaT와 다를 수 있어요."라는 문장이 뜬다. 달별 수는 `mart.build_exclusion_month`에 실려 분석 응답
+`meta.periodCoverage[].exclusions`로 나가고, 상세의 표본 수 아래에 "이 기간 전국 수집에서 원천 형식 문제로 발행에서
+뺀 공고가 N건 있어요(YYYY-MM n건, …)."가 보인다. 둘 다 활성 `org_round_summary` build 기준이라 replay로 해소돼도
+다음 mart build가 활성화될 때까지는 문장이 남는다. 표시가 원장과 다르면 먼저 활성 build의 `calc_version`이
+`mart-r11` 이상인지 본다 — 옛 build에는 부속 행이 없어 제외를 0건·반영됨으로 읽는다.
