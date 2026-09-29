@@ -15,9 +15,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .expectations import Violation
+from .explanation import Explanation
 
 CHECK_FAILED_SUFFIX = ":check-failed"
 OBSERVED = "observed"
@@ -46,6 +47,9 @@ class OpenViolation:
     severity: str = "normal"
     last_notified_at: str | None = None
     violation_id: int | None = None
+    # 이번 회차 선언에서 온 사람 말 설명. 표에 저장하지 않는다 — 설명은 선언이 소유하고, 문구를 바꾸면 열린
+    # 위반도 다음 회차부터 새 문구를 따라야 한다. 그래서 같음 비교에서도 뺀다.
+    explanation: Explanation | None = field(default=None, compare=False)
 
     @property
     def expectation_key(self) -> str:
@@ -117,6 +121,7 @@ def diff_violations(
             violation_id=(
                 previous_by_key[key].violation_id if key in previous_by_key else None
             ),
+            explanation=violation.explanation,
         )
         for key, violation in current_by_key.items()
     )
@@ -133,6 +138,7 @@ def diff_violations(
             severity=item.severity,
             last_notified_at=item.last_notified_at,
             violation_id=item.violation_id,
+            explanation=item.explanation,
         )
         for key, item in previous_by_key.items()
         if key not in current_by_key and _unobserved(key)

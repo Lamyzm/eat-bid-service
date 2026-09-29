@@ -56,6 +56,7 @@ from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
 from eatbid.mart.reaper import reap_expired_builds
 from eatbid.mart.win_rate_distribution import fill_win_rate_distribution
 from eatbid.monitoring.backup import (
+    BACKUP_EXPECTATIONS,
     BackupExpectation,
     BackupObject,
     evaluate_backups,
@@ -72,6 +73,7 @@ from eatbid.monitoring.runner import (
     run_expectation_check,
 )
 from eatbid.monitoring.state import decode_state
+from eatbid.monitoring.status_collect import StatusSources
 from eatbid.monitoring.store import R2BackupLister, R2StateStore
 from eatbid.pipeline.advance import CompletedWindow, next_window
 from eatbid.pipeline.capture import SourceThrottledError, capture
@@ -929,7 +931,7 @@ class _MonitoringRunner:
     def _list_cluster_resources(self, path: str) -> list[Mapping[str, Any]]:
         """클러스터 안에서 Kubernetes API를 읽는다.
 
-        왜 kubernetes client 패키지를 쓰지 않는가: 필요한 것이 GET 둘뿐이라 의존성 하나를 더하는 값이
+        왜 kubernetes client 패키지를 쓰지 않는가: 필요한 것이 목록 GET 몇 개뿐이라 의존성 하나를 더하는 값이
         없다. ServiceAccount token과 CA는 kubelet이 파드 안에 놓아 주며, 그 경로는 Kubernetes가
         정한 자리다.
 
@@ -953,6 +955,23 @@ class _MonitoringRunner:
         self, expectation: BackupExpectation
     ) -> list[BackupObject]:
         return self._backup_lister.list(expectation.prefix)
+
+    def _newest_backup(self) -> datetime | None:
+        objects = self._backup_lister.list(BACKUP_EXPECTATIONS[0].prefix)
+        return max((item.last_modified for item in objects), default=None)
+
+    @staticmethod
+    def _probe_http(url: str) -> int:
+        # 리다이렉트를 따라가지 않는다. kubelet readinessProbe처럼 3xx도 응답한 것으로 보고, 따라가다 로그인
+        # 화면 같은 다른 경로의 실패를 이 Service의 실패로 섞지 않는다.
+        return httpx.get(url, timeout=10.0, follow_redirects=False).status_code
+
+    def _status_sources(self) -> StatusSources:
+        return StatusSources(
+            list_resources=self._list_cluster_resources,
+            probe_http=self._probe_http,
+            newest_backup=self._newest_backup,
+        )
 
     def _probes(self) -> tuple[ViolationProbe, ...]:
         probes: list[ViolationProbe] = [
@@ -1001,6 +1020,7 @@ class _MonitoringRunner:
             environment=self._config.environment_name,
             probes=self._probes(),
             record_round=lambda metrics: record_round(self._execute, metrics),
+            status_sources=self._status_sources(),
         )
         # 회차가 끝까지 끝난 뒤에만 밖에 신호를 보낸다. 위에서 예외가 나면(텔레그램 전송 실패, 상태 문서
         # 기록 실패) 여기에 닿지 않고, 그러면 바깥이 신호 끊김으로 알린다 — 그것이 의도다.

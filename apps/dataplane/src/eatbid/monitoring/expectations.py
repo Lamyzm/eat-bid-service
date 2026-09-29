@@ -15,6 +15,8 @@ from typing import Any
 
 from eatbid.pipeline.replay_target import STALLED_VALIDATED_AFTER
 
+from .explanation import Explanation, check_failed_explanation, urgency_for
+
 QueryRunner = Callable[[str, Mapping[str, Any]], Sequence[Mapping[str, Any]]]
 
 # `ingest.backfill_coverage`의 창 가운데 전진이 보는 것은 달 전체 창뿐이다(pipeline/advance.py의
@@ -53,6 +55,17 @@ class Expectation:
     # 아침 요약에만 실린다. 기본이 normal인 이유는 새 기대를 더할 때 조용한 쪽이 안전하기 때문이다 —
     # critical은 "지금 당장 사람이 움직여야 한다"는 뜻이고 그것은 선언으로 정한다.
     severity: str = "normal"
+    # 알림 맨 앞에 서는 사람 말 두 문장. title은 "지켜야 할 것"을 적은 기대의 이름이라 어긋났을 때 무슨 일이
+    # 벌어졌는지·화면이 어떻게 틀리는지를 말하지 않는다. 선언된 기대에 둘이 비어 있으면 검사가 막는다.
+    what: str = ""
+    impact: str = ""
+
+    def explanation(self) -> Explanation:
+        return Explanation(
+            what=self.what or self.title,
+            impact=self.impact or "확인 못 함",
+            urgency=urgency_for(self.severity),
+        )
 
 
 @dataclass(frozen=True)
@@ -62,6 +75,9 @@ class Violation:
     runbook: str
     detail: str
     severity: str = "normal"
+    # 사람 말 설명. 없으면 문구가 title로 물러선다 — 검사용으로 손으로 만든 위반을 위한 여지이며, 운영
+    # 경로(기대·백업·클러스터·GitHub)가 만드는 위반은 전부 채운다(test_monitoring_explanation).
+    explanation: Explanation | None = None
 
 
 def _detail(row: Mapping[str, Any]) -> str:
@@ -86,6 +102,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="backfill-progress",
         title="실행 중인 backfill이 진행하고 있다",
+        what="과거 공고를 채우는 백필이 90분 넘게 한 건도 새로 받지 못한 채 멈춰 있습니다",
+        impact="5년치 과거 공고가 늦게 채워져 분석 화면의 과거 구간이 그만큼 비어 있습니다. 오늘 공고 수집에는 영향이 없습니다",
         runbook="docs/operations/collection-runbook.md#44-재부팅컨트롤러-재시작이-남긴-semaphore-교착-풀기-2026-09-10-eat-129",
         # 왜 관측의 최신 fetched_at을 보는가: workflow가 Running이어도 자물쇠에 막히면 아무것도
         # 진행하지 않는다(2026-09-10 2시간 교착). 상태가 아니라 전진을 본다. `request_unit`에는 시각
@@ -115,6 +133,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="planned-release-age",
         title="발행에 이르지 못한 release가 오래 쌓이지 않았다",
+        what="수집은 했는데 발행까지 가지 못한 묶음이 하루 넘게 여러 개 쌓였습니다",
+        impact="그 묶음에 든 공고가 화면에 나오지 않거나 옛 내용으로 보입니다",
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
         # 2026-09-10에 planned가 5일 동안 14건까지 쌓였는데 아무도 몰랐다. 세어보기 전에는 존재하지 않는
         # 사실이라 로그에도 오류 추적기에도 남지 않는다.
@@ -131,6 +151,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="capture-freshness",
         title="영업시간에 열린 공고 수집이 멈추지 않았다",
+        what="영업시간인데 정시 수집(poll-open)이 45분 넘게 돌지 않았습니다",
+        impact="오늘 새로 올라온 공고가 화면에 나타나지 않습니다",
         # 실시간 수집이 멈추면 오늘의 공고가 화면에 없다. 사람이 지금 움직여야 하는 유일한 DB 기대다.
         severity="critical",
         runbook="docs/operations/collection-runbook.md#44-재부팅컨트롤러-재시작이-남긴-semaphore-교착-풀기-2026-09-10-eat-129",
@@ -165,6 +187,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="source-hold",
         title="소스가 우리를 막아 정시 수집이 보류 중이다",
+        what="eaT가 우리 요청을 막아 정시 수집이 eaT를 부르지 않고 쉬는 중입니다",
+        impact="보류가 풀릴 때까지 새 공고와 변경 내용이 화면에 들어오지 않습니다",
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
         # 열린 보류는 그 자체가 사고다 — 소스가 우리를 막고 있고 정시 수집이 소스를 부르지 않고 있다
         # (ADR 0055 결정 4). 보류가 풀리면 해소되고, 하루 상한에 닿아 있으면 매시 재알림이 그 사실을 든다.
@@ -181,6 +205,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="mart-reap-lag",
         title="회수 시한이 하루 넘게 지난 mart build의 행이 아직 남아 있다",
+        what="지난 분석 결과를 지우는 정리 작업이 하루 넘게 밀려 옛 행이 남아 있습니다",
+        impact="화면은 그대로지만 DB 디스크가 계속 찹니다. 오래 두면 디스크가 가득 차 전부 멈춥니다",
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
         # 회수는 매일 04:30 KST 한 번이다(EAT-254). 시한을 하루 넘긴 행이 남아 있으면 그 회차가 돌지
         # 않았거나 죽은 것이고, 그 사실을 디스크가 차서 아는 것은 너무 늦다 — 2026-09-16 실측 20GB 중
@@ -239,6 +265,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="failed-publication-window",
         title="발행이 실패한 백필 창이 replay를 기다리고 있다",
+        what="과거 공고 한 달 치 묶음의 발행이 실패해 다시 돌리기를 기다리고 있습니다",
+        impact="그 달의 과거 공고가 화면과 분석에서 빠져 있습니다. 백필은 이 달을 건너뛰고 다음으로 넘어갑니다",
         runbook="docs/operations/collection-runbook.md#4-capturenormalize-단계가-죽은-실행-복구-2026-09-10-eat-122",
         # 전진은 이런 창을 조용히 건너뛴다(ADR 0053 결정 3). 건너뛴다는 사실은 사람이 알아야 하고, 파서를
         # 고쳐 replay가 성공해 창이 완결될 때까지 열려 있는 것이 맞다. 창마다 위반 하나다.
@@ -256,6 +284,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="stale-validated-publication",
         title="검증을 통과한 발행이 project 없이 멈춰 있지 않다",
+        what="검사를 통과한 발행이 화면 반영 단계 없이 멈춰 있습니다",
+        impact="그 기간 공고가 검사까지 끝났는데도 화면에 나오지 않습니다",
         runbook="docs/operations/collection-runbook.md#1-실패한-publication을-재캡처-없이-다시-발행하기-2026-09-07-eat-94",
         # 검증 뒤 project pod가 결론 없이 죽으면 publication은 failed가 아니라 validated로 남는다. failed만
         # 보는 기대에는 이 창이 보이지 않았다 — 2026-09 daily-reconcile 두 창이 core.organization 교착으로
@@ -296,6 +326,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="unresolved-exclusion",
         title="발행에서 뺀 공고가 아직 어느 revision도 얻지 못했다",
+        what="발행에서 뺀 공고가 아직 어느 판으로도 채워지지 않았습니다",
+        impact="빠진 공고 몇 건이 화면과 분석에서 보이지 않습니다. 나머지 공고는 정상으로 보입니다",
         runbook="docs/operations/collection-runbook.md#410-발행에서-뺀-공고가-남아-있다--unresolved-exclusion-2026-09-29-eat-294-adr-0061",
         # 레코드 범위의 위반은 창 전체를 막지 않고 원장의 제외로 빠진다(ADR 0061). 그 대가로 공개 뷰에 알려진
         # 구멍이 생기고, 구멍은 이름이 붙어 있을 때만 허용된다 — 전진은 그런 창을 정산된 것으로 보고 다시 받지
@@ -318,6 +350,8 @@ EXPECTATIONS: tuple[Expectation, ...] = (
     Expectation(
         key="item-vocabulary-gap",
         title="활성 mart build의 품목 라벨이 전부 어휘 안에 있다",
+        what="품목 이름에 우리가 모르는 낱말이 나타났습니다",
+        impact="그 품목이 화면에서 '품목 미상'으로 보이고 품목 필터에서 빠집니다",
         runbook="docs/operations/collection-runbook.md#49-품목-라벨에-어휘-밖-낱말이-나타났다--item-vocabulary-gap-2026-09-17-eat-255",
         # 어휘 밖 조각은 다리 행 없이 `품목 미상`이 된다. 전수 실측(2026-09-16)에서 0이었으므로 하나라도
         # 생기면 원천이 낱말을 늘린 것이고, 시드에 원자를 더해 재빌드하기 전까지 화면이 그만큼 틀린다(EAT-255).
@@ -357,6 +391,7 @@ def evaluate(
                     title=f"기대 '{expectation.title}'를 평가하지 못했다",
                     runbook=expectation.runbook,
                     detail=f"{type(error).__name__}: {error}",
+                    explanation=check_failed_explanation(expectation.title),
                 )
             )
             continue
@@ -368,6 +403,7 @@ def evaluate(
                     runbook=expectation.runbook,
                     detail=_detail(row),
                     severity=expectation.severity,
+                    explanation=expectation.explanation(),
                 )
             )
     return violations

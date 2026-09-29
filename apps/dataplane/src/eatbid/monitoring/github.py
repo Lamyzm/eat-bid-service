@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .expectations import Violation
+from .explanation import check_failed_explanation, explain
 
 __all__ = [
     "GITHUB_EXPECTATIONS",
@@ -55,6 +56,9 @@ class WorkflowExpectation:
     workflow_file: str
     branch: str | None
     stall_after: timedelta
+    # 빨강일 때 사람에게 하는 말. 멈춤(stalled)은 워크플로와 무관하게 "러너를 못 받는다"가 원인이라 공통 문구다.
+    what: str = ""
+    impact: str = ""
 
 
 GITHUB_EXPECTATIONS: tuple[WorkflowExpectation, ...] = (
@@ -67,6 +71,8 @@ GITHUB_EXPECTATIONS: tuple[WorkflowExpectation, ...] = (
         # 이 저장소의 가장 긴 회차가 browser 검증이고 그것이 15분대다. 45분을 넘겼다면 느린 것이 아니라
         # runner를 못 받고 있는 것이다.
         stall_after=timedelta(minutes=45),
+        what="main에 들어간 최신 변경의 자동 검증이 실패했습니다",
+        impact="다음 릴리스를 만들 수 없고, 열린 PR의 자동 병합도 막힙니다. 지금 사이트에는 영향이 없습니다",
     ),
     WorkflowExpectation(
         key="release-publication",
@@ -76,6 +82,8 @@ GITHUB_EXPECTATIONS: tuple[WorkflowExpectation, ...] = (
         branch=None,
         # 발행은 서명·빌드·promote까지 가므로 검증보다 길다.
         stall_after=timedelta(minutes=60),
+        what="최신 릴리스 빌드·발행이 끝까지 가지 못했습니다",
+        impact="새 버전이 운영에 올라가지 않았습니다. 사이트는 이전 버전으로 계속 돕니다",
     ),
 )
 
@@ -138,6 +146,10 @@ def judge_runs(
                     title=f"{expectation.title} — 회차가 {waited}분째 끝나지 않았다",
                     runbook=expectation.runbook,
                     detail=_describe(latest),
+                    explanation=explain(
+                        f"GitHub 자동 작업({expectation.workflow_file})이 {waited}분째 끝나지 않습니다",
+                        "실행기를 못 받고 있을 가능성이 큽니다(결제 한도 등). 그동안 검증·릴리스가 멈춥니다",
+                    ),
                 )
             )
 
@@ -156,6 +168,7 @@ def judge_runs(
                 title=expectation.title,
                 runbook=expectation.runbook,
                 detail=_describe(finished),
+                explanation=explain(expectation.what, expectation.impact),
             )
         )
     return violations
@@ -184,6 +197,7 @@ def evaluate_workflows(
                     title=f"기대 '{expectation.title}'를 평가하지 못했다",
                     runbook=expectation.runbook,
                     detail=f"{type(error).__name__}: {error}",
+                    explanation=check_failed_explanation(expectation.title),
                 )
             )
             continue

@@ -17,6 +17,7 @@ from eatbid.monitoring.expectations import (
     Violation,
     evaluate,
 )
+from eatbid.monitoring.explanation import Explanation
 from eatbid.monitoring.ledger import AppliedDiff
 from eatbid.monitoring.notify import format_message, format_resolution
 from eatbid.monitoring.round import RoundMetrics
@@ -290,9 +291,31 @@ def test_여러_위반은_한_덩어리_문구로_묶어_하나의_사고로_읽
 
     문구 = format_message("prod", 위반들)
 
-    assert 문구.startswith("[prod] 운영 기대 위반 2건")
+    assert 문구.startswith("[prod] 새 문제 2건")
     assert "첫째가 멈췄다" in 문구 and "둘째가 멈췄다" in 문구
     assert "대응: docs/a.md" in 문구
+
+
+def test_새_위반_문구는_사람_말을_앞세우고_내부_key와_detail은_맨_아래_한_줄로_둔다() -> None:
+    """EAT-299: key=value를 그대로 실으면 받는 사람이 화면에 무슨 뜻인지 다시 해석해야 했다."""
+    위반 = Violation(
+        key="capture-freshness",
+        title="영업시간에 열린 공고 수집이 멈추지 않았다",
+        runbook="docs/r.md",
+        detail="last_poll_open_at=2026-09-29 09:00",
+        severity="critical",
+        explanation=Explanation(what="수집이 멈췄다", impact="오늘 공고가 안 보인다", urgency="지금"),
+    )
+
+    줄들 = format_message("prod", [위반]).splitlines()
+
+    assert 줄들[2:] == [
+        "❌ 수집이 멈췄다",
+        "영향: 오늘 공고가 안 보인다",
+        "급함: 지금",
+        "대응: docs/r.md",
+        "내부: capture-freshness · last_poll_open_at=2026-09-29 09:00",
+    ]
 
 
 def test_문구가_텔레그램_상한을_넘으면_잘렸다는_사실을_남긴다() -> None:
@@ -309,8 +332,15 @@ def test_문구가_텔레그램_상한을_넘으면_잘렸다는_사실을_남�
     assert 문구.endswith("(길이 제한으로 잘림)")
 
 
-def test_해소_문구는_환경과_해소된_key를_함께_적는다() -> None:
-    assert format_resolution("dev", ["a", "b"]) == "[dev] 해소됨: a, b"
+def test_해소_문구는_기대_이름으로_말하고_key는_맨_아래에_적는다() -> None:
+    풀린것 = [
+        OpenViolation(key="a", first_seen_at="2026-09-11T00:00:00+00:00", title="첫째가 돈다"),
+        OpenViolation(key="b", first_seen_at="2026-09-11T00:00:00+00:00"),
+    ]
+
+    assert format_resolution("dev", 풀린것) == (
+        "[dev] 다시 정상 2건\n✅ 첫째가 돈다\n✅ b\n내부: a, b"
+    )
 
 
 class _기억하는_원장:
@@ -413,7 +443,7 @@ def test_위반이_사라지면_해소를_한_번_알린다() -> None:
     )
 
     assert 회차.resolved == ("probe",)
-    assert 보낸것[-1].startswith("[prod] 해소됨: probe")
+    assert 보낸것[-1] == "[prod] 다시 정상 1건\n✅ 탐침이 진행하고 있다\n내부: probe"
     assert 원장.notifications[-1] == ("resolved", (1,), True)
 
 
@@ -457,51 +487,90 @@ def test_미해결_critical은_간격이_지나면_다시_알리고_normal은_�
 
     assert 조용한_회차.repeated == ()
     assert 다시_우는_회차.repeated == ("live",)
-    assert 보낸것[-1].startswith("[prod] 미해결 1건 (다시 알림)")
-    assert "1시간째" in 보낸것[-1]
+    assert 보낸것[-1].startswith("[prod] 아직 안 풀린 문제 1건 (다시 알림)")
+    assert "❌ 1시간째 · " in 보낸것[-1]
     assert "probe" not in 보낸것[-1]
     assert len(보낸것) == 2
 
 
-def test_아침_요약은_그날_첫_9시_회차에_한_번만_나가고_열린_것_전부와_나이를_적는다() -> (
+def _기대만_답하는_질의(rows: Sequence[Mapping[str, Any]]):
+    """기대 질의에만 행을 주고 상태 보고의 집계 질의에는 빈 결과를 준다 — 보고가 기대 행을 집계로 잘못 읽지 않게."""
+
+    def run_query(sql: str, _parameters: Mapping[str, Any]) -> Sequence[Mapping[str, Any]]:
+        return rows if sql == _기대_하나.sql else []
+
+    return run_query
+
+
+def test_상태_보고는_08시10분과_20시10분_뒤_첫_회차에만_한_번씩_나가고_열린_문제와_나이를_적는다() -> (
     None
 ):
+    """옛 아침 요약(09시, 위반 목록뿐)을 대체한다(EAT-299). 원장이 보고 시각마다 한 번만 허락한다."""
     보낸것: list[str] = []
     원장 = _기억하는_원장()
-    아침 = datetime(2026, 9, 17, 0, 3, tzinfo=UTC)  # 09:03 KST
+    아침 = datetime(2026, 9, 16, 23, 18, tzinfo=UTC)  # 09-17 08:18 KST
+    저녁 = datetime(2026, 9, 17, 11, 18, tzinfo=UTC)  # 09-17 20:18 KST
 
-    run_expectation_check(
-        run_query=_응답([{"run_id": "r1"}]),
-        ledger=원장,
-        notify=보낸것.append,
-        environment="prod",
-        expectations=[_기대_하나],
-        now=아침 - timedelta(days=5),
+    def 회차(now: datetime):
+        return run_expectation_check(
+            run_query=_기대만_답하는_질의([{"run_id": "r1"}]),
+            ledger=원장,
+            notify=보낸것.append,
+            environment="prod",
+            expectations=[_기대_하나],
+            now=now,
+        )
+
+    # 보고 시각이 아닌 새벽 회차에 위반을 연다. 여기서 보고가 나가면 아래 셈이 흐려진다.
+    회차(아침 - timedelta(days=5, hours=3))
+    아침_보고 = 회차(아침)
+    같은_아침_다음_회차 = 회차(아침 + timedelta(minutes=15))
+    저녁_보고 = 회차(저녁)
+
+    assert (아침_보고.report_sent, 같은_아침_다음_회차.report_sent, 저녁_보고.report_sent) == (
+        True,
+        False,
+        True,
     )
-    첫_아침_회차 = run_expectation_check(
-        run_query=_응답([{"run_id": "r1"}]),
-        ledger=원장,
+    아침_문구 = 보낸것[1]
+    assert 아침_문구.startswith("[prod] 밤사이 상태 보고 · 09-16 20:10 ~ 09-17 08:10")
+    assert "⚠️ 5일째 · 탐침이 진행하고 있다" in 아침_문구
+    assert 보낸것[-1].startswith("[prod] 오늘 하루 상태 보고 · 09-17 00:00 ~ 09-17 20:10")
+    assert [kind for kind, _, _ in 원장.notifications] == ["opened", "digest", "digest"]
+
+
+def test_상태_보고는_위반이_없어도_나가고_조회_수단이_없는_구획은_확인_못_함으로_적는다() -> None:
+    보낸것: list[str] = []
+
+    회차 = run_expectation_check(
+        run_query=_기대만_답하는_질의([]),
+        ledger=_기억하는_원장(),
         notify=보낸것.append,
         environment="prod",
         expectations=[_기대_하나],
-        now=아침,
-    )
-    같은_아침_다음_회차 = run_expectation_check(
-        run_query=_응답([{"run_id": "r1"}]),
-        ledger=원장,
-        notify=보낸것.append,
-        environment="prod",
-        expectations=[_기대_하나],
-        now=아침 + timedelta(minutes=15),
+        now=datetime(2026, 9, 17, 11, 18, tzinfo=UTC),
     )
 
-    assert 첫_아침_회차.digest_sent is True
-    assert 같은_아침_다음_회차.digest_sent is False
-    assert 보낸것[-1].startswith(
-        "[prod] 아침 요약: 열린 위반 1건, 가장 오래된 것 5일째 (probe)"
+    assert 회차.report_sent is True
+    assert len(보낸것) == 1
+    assert "✅ 열린 문제 0건 — 없음" in 보낸것[0]
+    assert "확인 못 함(클러스터 조회 수단 없음)" in 보낸것[0]
+    assert "확인 못 함(백업 조회 수단 없음)" in 보낸것[0]
+
+
+def test_보고_시각이_아니면_상태_보고를_보내지_않는다() -> None:
+    보낸것: list[str] = []
+
+    회차 = run_expectation_check(
+        run_query=_기대만_답하는_질의([]),
+        ledger=_기억하는_원장(),
+        notify=보낸것.append,
+        environment="prod",
+        expectations=[_기대_하나],
+        now=_정오,
     )
-    assert "[normal] probe" in 보낸것[-1]
-    assert 원장.notifications[-1] == ("digest", (), True)
+
+    assert (회차.report_sent, 보낸것) == (False, [])
 
 
 def test_전송이_실패하면_실패_행을_남기고_회차를_실패로_끝낸다() -> None:

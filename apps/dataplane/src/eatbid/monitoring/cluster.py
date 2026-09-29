@@ -15,7 +15,17 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from .cluster_explanations import (
+    APPLICATION_DRIFT_EXPLANATION,
+    APPLICATION_EMPTY_EXPLANATION,
+    LIVE_CRON,
+    NODE_CORDONED_EXPLANATION,
+    NODE_EMPTY_EXPLANATION,
+    NODE_NOT_READY_EXPLANATION,
+    cron_explanation,
+)
 from .expectations import Violation
+from .explanation import check_failed_explanation
 
 __all__ = [
     "APPLICATION_RUNBOOK",
@@ -42,7 +52,6 @@ APPLICATIONS_PATH = "/apis/argoproj.io/v1alpha1/namespaces/argocd/applications"
 WORKFLOWS_PATH = "/apis/argoproj.io/v1alpha1/namespaces/eatbid/workflows"
 
 CRON_LABEL = "workflows.argoproj.io/cron-workflow"
-LIVE_CRON = "eatbid-poll-open"
 
 # 실패한 회차가 이 시간 안에 만들어졌을 때만 위반으로 본다. 임의의 여유가 아니라 보존 정책이 강제하는
 # 값이다: 성공은 1시간, 실패는 24시간 남는다(ttlStrategy). 그래서 "남아 있는 것 중 가장 최근이 실패"는
@@ -116,15 +125,17 @@ def judge_cron_workflows(
         message = ""
         if isinstance(status, Mapping):
             message = str(status.get("message") or "")
+        # 실시간 수집 회차만 critical이다. 전진·백업·감시 회차의 실패는 다음 회차나 다른 기대가 받고,
+        # poll-open이 멈추면 오늘의 공고가 화면에 없다(ADR 0054 결정 1).
+        severity = "critical" if cron == LIVE_CRON else "normal"
         violations.append(
             Violation(
                 key=f"cron-workflow:{cron}",
                 title=f"{cron}의 최근 회차가 끝까지 갔다",
                 runbook=CRON_RUNBOOK,
                 detail=f"회차={_name(workflow)}, 상태={phase}, 사유={message or 'unknown'}",
-                # 실시간 수집 회차만 critical이다. 전진·백업·감시 회차의 실패는 다음 회차나 다른 기대가 받고,
-                # poll-open이 멈추면 오늘의 공고가 화면에 없다(ADR 0054 결정 1).
-                severity="critical" if cron == LIVE_CRON else "normal",
+                severity=severity,
+                explanation=cron_explanation(cron, severity),
             )
         )
     return violations
@@ -144,6 +155,7 @@ def judge_nodes(nodes: Sequence[Mapping[str, Any]]) -> list[Violation]:
                 runbook=NODE_RUNBOOK,
                 detail="Kubernetes API가 노드를 하나도 돌려주지 않았다",
                 severity="critical",
+                explanation=NODE_EMPTY_EXPLANATION,
             )
         ]
 
@@ -170,6 +182,7 @@ def judge_nodes(nodes: Sequence[Mapping[str, Any]]) -> list[Violation]:
                     runbook=NODE_RUNBOOK,
                     detail=f"노드={name}, Ready={ready}",
                     severity="critical",
+                    explanation=NODE_NOT_READY_EXPLANATION,
                 )
             )
         elif unschedulable:
@@ -182,6 +195,7 @@ def judge_nodes(nodes: Sequence[Mapping[str, Any]]) -> list[Violation]:
                     runbook=NODE_RUNBOOK,
                     detail=f"노드={name}, cordon됨",
                     severity="critical",
+                    explanation=NODE_CORDONED_EXPLANATION,
                 )
             )
     return violations
@@ -202,6 +216,7 @@ def judge_applications(applications: Sequence[Mapping[str, Any]]) -> list[Violat
                 runbook=APPLICATION_RUNBOOK,
                 detail="Kubernetes API가 Application을 하나도 돌려주지 않았다",
                 severity="critical",
+                explanation=APPLICATION_EMPTY_EXPLANATION,
             )
         ]
 
@@ -228,6 +243,7 @@ def judge_applications(applications: Sequence[Mapping[str, Any]]) -> list[Violat
                     runbook=APPLICATION_RUNBOOK,
                     detail=f"application={name}, sync={sync}, health={health}",
                     severity="critical",
+                    explanation=APPLICATION_DRIFT_EXPLANATION,
                 )
             )
     return violations
@@ -269,6 +285,7 @@ def evaluate_cluster(
                     title=f"기대 '{title}'를 평가하지 못했다",
                     runbook=runbook,
                     detail=f"{type(error).__name__}: {error}",
+                    explanation=check_failed_explanation(title),
                 )
             )
             continue
