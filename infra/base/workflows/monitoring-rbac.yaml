@@ -54,6 +54,38 @@ subjects:
     name: eatbid-dataplane
     namespace: eatbid
 ---
+# 하루 두 번 상태 보고가 서버·웹이 Ready인지, 몇 번 재시작했는지, DB 볼륨이 얼마인지를 말하려면 이 셋이
+# 필요하다(EAT-299). 위반 판정에는 쓰지 않는다 — 보고가 "확인 못 함"으로 남지 않게 하는 읽기다.
+# eatbid namespace 안으로만 좁힌다. 실제 디스크 사용량은 kubelet 통계(nodes/proxy)에 있지만 그 권한은 노드의
+# 모든 파드에 명령을 보낼 수 있는 넓은 권한이라 주지 않는다. pods 읽기는 파드 spec의 평문 env를 보게 하지만,
+# 비밀값은 secretKeyRef라 이름만 보이고 값은 Secret 읽기 권한 없이 풀리지 않는다 — Secret은 여기 없다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eatbid-monitoring-read-workloads
+  namespace: eatbid
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods, persistentvolumeclaims]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eatbid-monitoring-read-workloads
+  namespace: eatbid
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: eatbid-monitoring-read-workloads
+subjects:
+  - kind: ServiceAccount
+    name: eatbid-dataplane
+    namespace: eatbid
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

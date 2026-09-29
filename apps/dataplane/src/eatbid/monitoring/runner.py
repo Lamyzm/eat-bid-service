@@ -3,9 +3,10 @@
 왜 회차 결과를 돌려주는가: 무엇이 새로 열렸고 무엇이 해소됐는지 남아야 한두 주 뒤에 기대 목록의 임계를
 다시 판단할 수 있다(ADR 0046 Consequences).
 
-왜 재알림과 요약이 여기 있는가: "한 회차의 위반을 한 통으로 묶는다"와 "미해결이어도 다시 보내지 않는다"는
+왜 재알림과 상태 보고가 여기 있는가: "한 회차의 위반을 한 통으로 묶는다"와 "미해결이어도 다시 보내지 않는다"는
 서로 다른 결정인데 한 문장에 묶여 5일 방치를 만들었다(ADR 0054 결정 1). 묶기는 그대로 두고, critical은
-간격마다, 나머지는 아침 요약으로 다시 든다.
+간격마다, 나머지는 하루 두 번 상태 보고로 다시 든다. 상태 보고는 옛 아침 요약을 대체하며 위반이 없어도
+구획마다 지금 괜찮은지를 말한다(EAT-299) — 위반 목록만으로는 "괜찮다"와 "감시가 눈멀었다"가 구분되지 않았다.
 """
 
 from __future__ import annotations
@@ -15,19 +16,20 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
-from zoneinfo import ZoneInfo
 
 from .expectations import EXPECTATIONS, Expectation, QueryRunner, Violation, evaluate
 from .ledger import AppliedDiff
 from .notify import (
-    format_digest,
     format_message,
     format_repeat,
     format_resolution,
     parse_instant,
 )
+from .report_schedule import report_slot
 from .round import RoundMetrics, collect_round_metrics
 from .state import OpenViolation, ViolationDiff, diff_violations
+from .status_collect import StatusSources, collect_status_report
+from .status_report import format_status_report
 
 RoundRecorder = Callable[[RoundMetrics], None]
 """회차 지표 한 행을 남기는 자리. 조립부가 DB 쓰기를 넣고, 검사에서는 목록에 모으는 함수를 넣는다."""
@@ -39,10 +41,13 @@ ViolationProbe = Callable[[], Sequence[Violation]]
 두면 같은 사고가 여러 알림으로 쪼개지고, 그 사고가 하나인지 셋인지 받는 사람이 알 수 없다(ADR 0046 결정 6).
 """
 
-SEOUL = ZoneInfo("Asia/Seoul")
 CRITICAL = "critical"
 REPEAT_AFTER = timedelta(hours=1)
-DIGEST_HOUR = 9
+
+STATUS_REPORT_KIND = "digest"
+"""상태 보고를 원장에 적는 kind. 옛 아침 요약의 자리를 그대로 잇는다 — 새 kind를 만들면 check 제약을 바꾸는
+마이그레이션이 필요하고, "보고가 이미 나갔나"를 묻는 행이 둘로 갈라진다. 하루 두 번 중복 없이는
+`digest_sent_since(보고 시각)`이 막는다(08:10 보고 뒤의 20:10 보고는 기준 시각이 달라 막히지 않는다)."""
 
 
 class ViolationLedger(Protocol):
@@ -73,7 +78,7 @@ class MonitoringResult:
     still_open: tuple[str, ...]
     # 이번 회차에 다시 알린 critical 위반의 key. 해소되지 않은 채 간격을 넘긴 것들이다.
     repeated: tuple[str, ...] = ()
-    digest_sent: bool = False
+    report_sent: bool = False
     # 클러스터 밖으로 나간 심장박동. `sent`/`skipped`이며 실패는 값이 아니라 예외다 — 조립부가 회차가
     # 끝까지 끝난 뒤 채운다. 기본값이 skipped인 이유는 runner 자신은 밖을 모르기 때문이다.
     heartbeat: str = "skipped"
@@ -117,14 +122,6 @@ def _repeat_due(item: OpenViolation, *, now: datetime, after: timedelta) -> bool
     return now - parse_instant(item.last_notified_at) >= after
 
 
-def _digest_window_start(now: datetime, *, hour: int) -> datetime | None:
-    """요약을 보낼 회차인지. 그날 `hour`시의 회차들만 후보이고, 그날 이미 보냈으면 표가 막는다."""
-    local = now.astimezone(SEOUL)
-    if local.hour != hour:
-        return None
-    return local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
-
-
 def run_expectation_check(
     *,
     run_query: QueryRunner,
@@ -137,9 +134,10 @@ def run_expectation_check(
     record_round: RoundRecorder | None = None,
     clock: Callable[[], float] = time.monotonic,
     repeat_after: timedelta = REPEAT_AFTER,
-    digest_hour: int = DIGEST_HOUR,
+    status_sources: StatusSources | None = None,
 ) -> MonitoringResult:
-    """한 회차를 돌린다. 새로 열린 위반과 해소된 위반을 알리고, 미해결 critical은 간격마다, 전체는 아침에 다시 든다."""
+    """한 회차를 돌린다. 새로 열린 위반과 해소된 위반을 알리고, 미해결 critical은 간격마다 다시 들며,
+    08:10·20:10 KST 뒤 첫 회차는 상태 보고를 보낸다. `status_sources`가 없으면 DB 밖 구획은 "확인 못 함"이다."""
     started = clock()
     observed_at = now or datetime.now(UTC)
     moment = observed_at.isoformat()
@@ -165,10 +163,13 @@ def run_expectation_check(
         )
         ledger.mark_notified([i for i in opened_ids if i is not None], at=observed_at)
     if difference.resolved:
+        resolved_keys = set(difference.resolved)
         _send(
             notify,
             ledger,
-            text=format_resolution(environment, difference.resolved),
+            text=format_resolution(
+                environment, [item for item in previous if item.key in resolved_keys]
+            ),
             kind="resolved",
             violation_ids=[
                 applied.resolved_ids.get(key) for key in difference.resolved
@@ -195,18 +196,26 @@ def run_expectation_check(
         )
         ledger.mark_notified([i for i in due_ids if i is not None], at=observed_at)
 
-    digest_sent = False
-    day_start = _digest_window_start(observed_at, hour=digest_hour)
-    if day_start is not None and not ledger.digest_sent_since(day_start):
+    report_sent = False
+    slot = report_slot(observed_at)
+    if slot is not None and not ledger.digest_sent_since(slot.due_at):
+        report = collect_status_report(
+            environment=environment,
+            slot=slot,
+            now=observed_at,
+            run_query=run_query,
+            sources=status_sources or StatusSources(),
+            problems=applied.still_open,
+        )
         _send(
             notify,
             ledger,
-            text=format_digest(environment, applied.still_open, observed_at),
-            kind="digest",
+            text=format_status_report(report),
+            kind=STATUS_REPORT_KIND,
             violation_ids=(),
             at=observed_at,
         )
-        digest_sent = True
+        report_sent = True
 
     # 지표 행은 판정과 알림이 모두 끝난 뒤에 남긴다. 판정 앞에 두면 지표 질의의 실패가 알림을 막고,
     # 지표는 알림의 근거가 아니다(ADR 0046 결정 4).
@@ -228,6 +237,6 @@ def run_expectation_check(
         resolved=difference.resolved,
         still_open=tuple(item.key for item in applied.still_open),
         repeated=tuple(item.key for item in due),
-        digest_sent=digest_sent,
+        report_sent=report_sent,
         round_recorded=round_recorded,
     )

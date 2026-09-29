@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from .expectations import Violation
+from .explanation import check_failed_explanation, explain
 
 __all__ = [
     "BACKUP_EXPECTATIONS",
@@ -45,6 +46,22 @@ class BackupExpectation:
 
 
 ObjectLister = Callable[[BackupExpectation], Sequence[BackupObject]]
+
+# 늦은 것·비어 있는 것·없는 것은 원인도 대응도 달라 key를 나눴고(judge_backups), 사람에게 하는 말도 다르다.
+BACKUP_MISSING_EXPLANATION = explain(
+    "DB 백업 파일이 하나도 없습니다",
+    "지금 DB가 망가지면 되살릴 방법이 없습니다",
+    severity="critical",
+)
+BACKUP_STALE_EXPLANATION = explain(
+    "DB 백업이 3시간 넘게 새로 만들어지지 않았습니다",
+    "지금 DB가 망가지면 마지막 백업 이후의 사용자 설정과 수집 결과를 잃습니다",
+    severity="critical",
+)
+BACKUP_TOO_SMALL_EXPLANATION = explain(
+    "마지막 DB 백업 파일이 비정상적으로 작습니다",
+    "그 백업으로는 복구가 안 될 가능성이 큽니다. 앞선 정상 백업만 믿을 수 있습니다",
+)
 
 
 BACKUP_EXPECTATIONS: tuple[BackupExpectation, ...] = (
@@ -82,6 +99,7 @@ def judge_backups(
                 runbook=expectation.runbook,
                 detail=f"prefix={expectation.prefix}",
                 severity="critical",
+                explanation=BACKUP_MISSING_EXPLANATION,
             )
         ]
 
@@ -97,6 +115,7 @@ def judge_backups(
                 title=f"{expectation.title} — 마지막 백업이 {hours}시간 전이다",
                 runbook=expectation.runbook,
                 detail=f"key={newest.key}, 크기={newest.size_bytes}바이트",
+                explanation=BACKUP_STALE_EXPLANATION,
             )
         )
     if newest.size_bytes < expectation.minimum_bytes:
@@ -111,6 +130,7 @@ def judge_backups(
                     f"key={newest.key}, 크기={newest.size_bytes}바이트, "
                     f"최소={expectation.minimum_bytes}바이트"
                 ),
+                explanation=BACKUP_TOO_SMALL_EXPLANATION,
             )
         )
     return violations
@@ -135,6 +155,7 @@ def evaluate_backups(
                     title=f"기대 '{expectation.title}'를 평가하지 못했다",
                     runbook=expectation.runbook,
                     detail=f"{type(error).__name__}: {error}",
+                    explanation=check_failed_explanation(expectation.title),
                 )
             )
             continue
