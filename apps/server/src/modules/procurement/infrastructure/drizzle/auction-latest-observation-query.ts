@@ -7,10 +7,11 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 
-// 제외 부속 행은 모든 mart build에 실리지만, 공고 사실이 바뀌면 반드시 다시 만들어지는 것이 회차 요약 mart라
-// 그 활성 build를 읽는다(발행이 auction record를 실으면 영향 범위에 늘 든다). 이름을 `drizzle-mart-build-reader`
+// 제외 부속 행은 모든 mart build에 실린다. 그중 가장 자주 다시 만들어지는 열린 공고 스냅샷의 활성 build를 읽는다 —
+// 정시 수집이 발행할 때마다 새 build가 되므로 미반영 표시가 한 회차 안에 따라온다. 회차 요약은 하루 몇 번의 예약으로만
+// 다시 만들어져 그 build를 읽으면 표시가 반나절 늦을 수 있다(ADR 0060 결정 3). 이름을 `drizzle-mart-build-reader`
 // 에서 가져오지 않는 이유는 그 모듈이 이 조각을 쓰는 공고 reader의 시간 경계를 import해 순환이 생기기 때문이다.
-const STALE_SOURCE_MART = "org_round_summary";
+const STALE_SOURCE_MART = "open_auction_snapshot";
 
 /** 판정 재료가 있는가다. 활성 build가 없으면 모른다고 말해야 하므로 행의 유무와 따로 싣는다. */
 export function latestObservationBuildColumn(): SQL {

@@ -108,7 +108,8 @@ kubectl create -n eatbid -f replay.yaml
 kubectl get workflow -n eatbid --sort-by=.metadata.creationTimestamp
 ```
 
-`replay-pipeline` DAG는 `replay` 뒤에 `marts`를 이어 활성 build까지 전환하므로 따로 부를 것이 없다.
+`replay-pipeline` DAG는 `replay`에서 끝난다. 다시 앉힌 core는 다음 `history-marts` 예약(§4.11)이 과거 기록 mart에
+반영한다. 바로 반영해야 하면 §4.11의 손으로 부르는 방법을 쓴다(2026-09-29, ADR 0060).
 `replay` pod는 `eatbid-core-publication` mutex를 잡고, 관측을 하나씩 R2에서 읽어 순차로 재정규화한다.
 정규화 결과는 결정적이라 기존 `normalized_record`를 재사용하고, `project`는 batch 스트리밍이라 상주
 메모리는 구성원 수에 비례하지 않는다.
@@ -159,7 +160,8 @@ spec:
 세 값은 실패한 workflow의 `discover` task output parameter에서 그대로 옮긴다. discovery run이 아니라
 **detail run** id다. Succeeded 뒤 §1.2의 확인 SQL을 이 publication id로 돌린다.
 
-이어서 `marts`를 같은 세 값으로 부른다(`entrypoint: marts`, 파라미터 동일). mart의 `--as-of`는 이
+이어서 `marts`를 같은 세 값으로 부른다(`entrypoint: marts`, 파라미터 동일). poll-open·daily-reconcile 발행이면
+열린 공고 스냅샷을 만들고, 그 밖의 발행이면 과거 기록 mart를 만든다(ADR 0060). mart의 `--as-of`는 이
 Workflow의 `creationTimestamp`이고 활성 build 전환은 여기서 일어난다(ADR 0034). 두 Workflow를 하나로
 묶지 않는 이유는 `workflowTemplateRef`를 쓰는 Workflow가 자기 template을 더할 수 없고 `scheduled-pipeline`
 DAG는 `discover`부터 시작하기 때문이다.
@@ -586,6 +588,39 @@ mart는 발행마다 새 build로 통째 다시 만들고 이전 활성 build를
 안 됨 · eaT에서 (빠진 관측 시각)에 받은 내용은 형식 문제로 반영하지 못했어요. 아래는 (지금 보이는 관측 시각)에 받은
 내용이라 지금 eaT와 다를 수 있어요."라는 문장이 뜬다. 달별 수는 `mart.build_exclusion_month`에 실려 분석 응답
 `meta.periodCoverage[].exclusions`로 나가고, 상세의 표본 수 아래에 "이 기간 전국 수집에서 원천 형식 문제로 발행에서
-뺀 공고가 N건 있어요(YYYY-MM n건, …)."가 보인다. 둘 다 활성 `org_round_summary` build 기준이라 replay로 해소돼도
-다음 mart build가 활성화될 때까지는 문장이 남는다. 표시가 원장과 다르면 먼저 활성 build의 `calc_version`이
+뺀 공고가 N건 있어요(YYYY-MM n건, …)."가 보인다. 미반영 표시는 활성 열린 공고 스냅샷 build, 달별 수는 활성 `org_round_summary` build 기준이다(ADR 0060 결정 3).
+replay로 해소돼도 미반영 표시는 다음 poll-open 스냅샷 build까지, 달별 수는 다음 `history-marts` 회차(§4.11)까지 남는다. 표시가 원장과 다르면 먼저 활성 build의 `calc_version`이
 `mart-r11` 이상인지 본다 — 옛 build에는 부속 행이 없어 제외를 0건·반영됨으로 읽는다.
+
+### 4.11 과거 기록 mart는 하루 네 번 — `history-marts` (2026-09-29, EAT-300, ADR 0060)
+
+발행 DAG의 `marts`는 열린 공고 스냅샷만 만든다. 회차 요약(`org_round_summary`+품목 다리표)과 낙찰률 분포
+(`win_rate_distribution_monthly`)는 `eatbid-history-marts` CronWorkflow가 매일 07:40·12:40·16:40·20:40 KST에
+`build-history-marts`로 만든다. 입력은 가장 늦게 발행된 publication이고, 그것을 같은 `calc_version`으로 이미 반영한
+활성 build가 있는 mart는 건너뛴다. 새 발행이 없으면 결과 `marts`가 빈 배열이고 성공이다 — 실패가 아니다.
+
+- 분석·기관 이력이 오늘 개찰을 안 보여 준다: 다음 회차 시각 전인지 먼저 본다. 지났으면 마지막 회차가 Succeeded인지,
+  그 결과의 `marts`가 비었는지 본다. 비었는데 새 발행이 있었다면 그 발행의 `activated_at`이 활성 build의 발행보다
+  이른지 본다(재처리 발행은 decide 시각을 쓰므로 늦게 커밋돼도 "최신"이 아닐 수 있다 — 다음 발행 뒤 회차가 반영한다).
+- mart별 계산 시간은 원장에서 읽는다(읽기 전용).
+
+  ```sql
+  select mart_name, build_id, status, fill_finished_at - fill_started_at as fill_duration
+    from mart.build
+   where fill_started_at is not null
+   order by build_id desc
+   limit 20;
+  ```
+
+  `fill_finished_at`이 null인 `building`/`failed` build는 채우다 끊긴 것이다. 이 열이 생기기 전(2026-09-29 이전)의
+  build는 둘 다 null이다.
+- 손으로 부를 때(예약을 기다리지 않고 지금 반영):
+
+  ```powershell
+  argo submit --from workflowtemplate/eatbid-dataplane -n eatbid --entrypoint history-marts
+  ```
+
+  같은 mutex `eatbid-mart-build`를 잡으므로 poll-open 스냅샷 단계와 겹치면 그쪽이 기다린다. 업무 시간에는 되도록
+  예약에 맡긴다.
+- 배포 주의: 이 변경의 마이그레이션(`mart.build` 열 추가)은 mart build가 도는 동안 `lock_timeout` 5초에 걸려 실패한다.
+  20:40 회차가 끝난 뒤(대략 21:30 이후, workflow 목록으로 확인)나 예약 회차 사이의 주말에 배포한다.

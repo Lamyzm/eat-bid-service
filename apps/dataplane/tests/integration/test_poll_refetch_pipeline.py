@@ -284,12 +284,9 @@ def test_poll_open_발행의_build_marts가_열린_공고_스냅샷_활성_build
         mart_repository=_mart_repository(pipeline_services, migrated_db),
     ).build_marts(_build_marts_인자(5, built_at=built_at))
 
-    # --mart 없이 발행의 record type(eat-v1 → auction.v1, 명단 없음)으로 골랐는데도 스냅샷이
-    # 따라온다. 분포는 v1 발행의 영향 범위가 아니라 빠진다.
-    assert {result.mart_name for result in results} == {
-        "org_round_summary",
-        "open_auction_snapshot",
-    }
+    # --mart 없이 run mode로 골랐다. poll-open 발행 뒤에는 스냅샷만 만들고 과거 기록 mart는 예약에
+    # 맡긴다(ADR 0060).
+    assert {result.mart_name for result in results} == {"open_auction_snapshot"}
     snapshot = next(r for r in results if r.mart_name == "open_auction_snapshot")
     assert snapshot.status == "active"
     with pipeline_services.connection.cursor() as cursor:
@@ -330,7 +327,10 @@ def test_backfill_발행의_build_marts는_열린_공고_스냅샷_build를_만�
         mart_repository=_mart_repository(pipeline_services, migrated_db),
     ).build_marts(_build_marts_인자(6, built_at=backfilled_at))
 
-    # core mart는 그대로 만들되 스냅샷 build 행 자체가 생기지 않는다 — 마감된 과거 공고로 활성
-    # 스냅샷을 물리면 오늘 화면이 빈다.
-    assert {result.mart_name for result in results} == {"org_round_summary"}
+    # 사람이 과거 창 발행으로 부르면 과거 기록 mart를 만들되 스냅샷 build 행 자체가 생기지 않는다 —
+    # 마감된 과거 공고로 활성 스냅샷을 물리면 오늘 화면이 빈다.
+    assert {result.mart_name for result in results} == {
+        "org_round_summary",
+        "win_rate_distribution_monthly",
+    }
     assert _스냅샷_build_수(pipeline_services, identity["publication_id"]) == 0

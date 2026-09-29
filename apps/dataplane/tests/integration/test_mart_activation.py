@@ -186,30 +186,38 @@ def test_실패한_build를_다시_열면_행과_함께_새로_시작한다(
     assert count[0] == 1
 
 
-def test_영향_범위는_발행이_실은_record_type과_run_mode가_고른다() -> None:
-    assert (
-        resolve_marts(requested=None, record_types=(), run_mode="poll-open") == MART_NAMES
+def test_채우기_시작과_끝을_workflow_시각이_아니라_DB_시계로_mart마다_남긴다(
+    pipeline_services: PipelineServices, migrated_db: MigratedDatabase
+) -> None:
+    """왜: `started_at`·`computed_at`·`activated_at`은 workflow가 한 번 찍은 같은 값이라 mart별 계산 시간을 말하지
+    못했다(EAT-300). 채우기 트랜잭션 안에서 흐르는 `clock_timestamp()`여야 둘의 차이가 실제 계산 시간이다."""
+    _publish(pipeline_services)
+    plan = mart_plan(create_source_release(pipeline_services))
+
+    def slow_builder(connection: object, *, plan: MartBuildPlan, build_id: int) -> int:
+        with connection.cursor() as cursor:  # type: ignore[attr-defined]
+            cursor.execute("select pg_sleep(0.2)")
+        return fill_org_round_summary(connection, plan=plan, build_id=build_id)
+
+    result = build_mart(
+        plan,
+        _repository(pipeline_services, migrated_db, builder=slow_builder),
+        failure_category="CONFIGURATION",
     )
-    # 열린 공고 스냅샷은 record type이 아니라 run mode가 고른다. 열린 공고를 읽는 run에서만 따라온다.
-    assert resolve_marts(
-        requested=None, record_types=("auction.v1",), run_mode="poll-open"
-    ) == ("org_round_summary", "open_auction_snapshot")
-    assert resolve_marts(
-        requested=None, record_types=("auction.v2",), run_mode="daily-reconcile"
-    ) == ("org_round_summary", "win_rate_distribution_monthly", "open_auction_snapshot")
-    assert resolve_marts(
-        requested=None, record_types=("auction.v2",), run_mode="backfill"
-    ) == ("org_round_summary", "win_rate_distribution_monthly")
-    # 이름을 직접 주면 언제나 그것이 이긴다.
-    assert resolve_marts(
-        requested=["open_auction_snapshot"], record_types=("auction.v2",), run_mode="backfill"
-    ) == ("open_auction_snapshot",)
-    # 모르는 record type을 조용히 무시하지 않는다. 화면이 옛 build를 계속 읽는 편이 더 나쁘다.
-    assert (
-        resolve_marts(requested=None, record_types=("auction.v9",), run_mode="poll-open")
-        == MART_NAMES
+
+    ((started, finished, workflow_started),) = fetch_all(
+        pipeline_services,
+        "select fill_started_at, fill_finished_at, started_at from mart.build where build_id = %s",
+        (result.build_id,),
     )
+    assert started is not None and finished is not None
+    assert (finished - started).total_seconds() >= 0.2
+    # workflow가 넘긴 시각과 다른 시계다. 같다면 여전히 한 값을 세 번 적는 것이다.
+    assert started != workflow_started
+
+
+def test_mart_이름을_모르면_빌드를_시작하기_전에_끊는다() -> None:
     with pytest.raises(MartBuildContractError):
-        resolve_marts(
-            requested=["supplier_monthly_record"], record_types=(), run_mode="poll-open"
-        )
+        resolve_marts(requested=["supplier_monthly_record"], run_mode="poll-open")
+    assert resolve_marts(requested=None, run_mode="poll-open") == ("open_auction_snapshot",)
+    assert set(resolve_marts(requested=None, run_mode="backfill")) < set(MART_NAMES)

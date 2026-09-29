@@ -146,6 +146,7 @@ spec:
                   value: "{{tasks.discover.outputs.parameters.detail-run-id}}"
                 - name: publication-id
                   value: "{{tasks.discover.outputs.parameters.publication-id}}"
+          # 열린 공고 스냅샷만 만든다. 과거 기록 mart는 history-marts 예약이 만든다(ADR 0060, marts template 주석).
           - &task-marts
             name: marts
             template: marts
@@ -165,8 +166,9 @@ spec:
     # (argoproj/argo-workflows#11890, 2023-09, 미해결)도 현재 semaphore key는 ConfigMap에 미리 정의된
     # 고정 값만 받는다고 전제한다. 그래서 scheduled-pipeline과 같은 discover·capture template 안에서
     # mode로 key를 바꾸는 대신, discover-backfill·capture-backfill이라는 변형을 따로 두고 이 DAG가
-    # 그것만 부른다. normalize·validate·project·marts는 scheduled-pipeline의 task 정의를 anchor로 그대로
-    # 공유한다 — semaphore가 없는 단계라 나눌 이유가 없다. backfill은 사람이
+    # 그것만 부른다. normalize·validate·project는 scheduled-pipeline의 task 정의를 anchor로 그대로
+    # 공유한다 — semaphore가 없는 단계라 나눌 이유가 없다. marts는 잇지 않는다 — backfill은 스냅샷을 만들지
+    # 않고(EAT-98) 과거 기록 mart는 history-marts 예약이 만든다(ADR 0060). backfill은 사람이
     # `argo submit --from workflowtemplate/eatbid-dataplane --entrypoint backfill-pipeline
     # -p mode=backfill ...`로 부르며 CronWorkflow로 스케줄하지 않는다 — infra/tests가 "backfill"이
     # 어떤 CronWorkflow 렌더에도 없음을 고정한다.
@@ -180,7 +182,6 @@ spec:
           - *task-normalize
           - *task-validate
           - *task-project
-          - *task-marts
 
     # 아침 재대조 전용 DAG다(2026-09-18, EAT-275). scheduled-pipeline과 단계는 완전히 같고 discover·
     # capture만 재대조 전용 semaphore key를 쓰는 변형으로 바꾼다.
@@ -214,6 +215,7 @@ spec:
     # 다 채웠다"의 정상 상태다.
     # 고를 창이 없으면 `run`이 건너뛰어지고 workflow는 아무것도 하지 않은 채 성공한다. 그것이 "다시
     # 시도할 것이 없다"의 정상 상태다. replay는 관측 목록을 받지 않고 release 전체를 재처리한다.
+    # 뒤에 marts를 잇지 않는다. 다시 앉힌 core는 다음 history-marts 예약이 반영한다(ADR 0060).
     - name: advancing-replay-pipeline
       dag:
         tasks:
@@ -244,20 +246,6 @@ spec:
                   value: "{{tasks.decide.outputs.parameters.validated-at}}"
                 - name: activated-at
                   value: "{{tasks.decide.outputs.parameters.activated-at}}"
-          - name: marts
-            template: marts
-            # `run.Succeeded`로 좁힌다. 짧은 `depends: run`은 `run`이 건너뛰어져도(Skipped) 참이라, 다시 할 창이
-            # 없는 정상 회차에서 `decide`의 빈 출력을 들고 `build-marts`가 인자 검사에서 죽었다(EAT-282,
-            # 2026-09-25 20:25). 막힌 창이 없는 것이 정상이므로 그때마다 빨갛게 끝나면 진짜 실패가 묻힌다.
-            depends: run.Succeeded
-            arguments:
-              parameters:
-                - name: source-release-id
-                  value: "{{tasks.decide.outputs.parameters.source-release-id}}"
-                - name: detail-run-id
-                  value: "{{workflow.uid}}"
-                - name: publication-id
-                  value: "{{tasks.decide.outputs.parameters.publication-id}}"
 
     - name: advancing-backfill-pipeline
       dag:
@@ -276,7 +264,7 @@ spec:
                   value: "{{tasks.decide.outputs.parameters.end-date}}"
 
     # backfill-pipeline과 같은 DAG인데 창을 workflow 파라미터가 아니라 입력으로 받는다. discover만
-    # 그 차이를 알고 나머지 다섯은 정의를 그대로 재사용한다.
+    # 그 차이를 알고 나머지 넷은 정의를 그대로 재사용한다.
     - name: windowed-backfill-pipeline
       inputs:
         parameters:
@@ -297,7 +285,6 @@ spec:
           - *task-normalize
           - *task-validate
           - *task-project
-          - *task-marts
 
     # 정부 코드 reference 적재다. eaT 수집과 같은 template·이미지·serviceaccount로 돌지만 발견도
     # fan-out도 없다. 파일 하나가 곧 관측 하나이고 release 하나여서 단계가 둘뿐이다(ADR 0035).
@@ -365,8 +352,8 @@ spec:
                 - name: observation-id
                   value: "{{tasks.capture-code-vocabulary.outputs.parameters.observation-id}}"
 
-    # replay는 ad hoc 실행이지만 core를 다시 앉힌 뒤 mart를 다시 만들지 않으면 화면이 옛 build를
-    # 계속 읽는다. replay 전용 DAG를 따로 두어 예약 실행과 같은 marts task를 잇는다.
+    # replay는 ad hoc 실행이다. core를 다시 앉힌 뒤의 mart는 여기서 만들지 않고 history-marts 예약이 최신 발행을
+    # 따라 만든다(ADR 0060). 한 발행을 바로 반영해야 하면 사람이 `eatbid build-marts --publication-id`를 부른다.
     - name: replay-pipeline
       inputs:
         parameters:
@@ -399,18 +386,6 @@ spec:
                   value: "{{inputs.parameters.validated-at}}"
                 - name: activated-at
                   value: "{{inputs.parameters.activated-at}}"
-          - name: marts
-            template: marts
-            dependencies: [replay]
-            arguments:
-              parameters:
-                - name: source-release-id
-                  value: "{{inputs.parameters.source-release-id}}"
-                # replay는 discovery 없이 workflow uid 하나로 돌므로 run 정체성이 그것뿐이다.
-                - name: detail-run-id
-                  value: "{{workflow.uid}}"
-                - name: publication-id
-                  value: "{{inputs.parameters.publication-id}}"
 
     - &tmpl-discover
       name: discover
@@ -905,6 +880,9 @@ spec:
           - *env-r2-access-key
           - *env-r2-secret-key
 
+    # 발행 DAG 뒤의 mart 단계다. poll-open·daily-reconcile 발행 뒤에만 붙고 열린 공고 스냅샷만 만든다 — 어느
+    # mart인지는 CLI가 run mode로 고른다. 과거 기록 mart(회차 요약·낙찰률 분포)를 여기서 함께 만들던 때 한 회차가
+    # 36~46분이 되어 10분 예약의 사이 회차가 경보 없이 건너뛰어졌다(2026-09-29, ADR 0060).
     - name: marts
       inputs:
         parameters:
@@ -1396,6 +1374,46 @@ spec:
           - *env-result-dir
           - *env-database-url
           # R2는 쓰지 않지만 프로세스 설정은 명령별이 아니라 다섯이 다 있어야 뜬다(next-backfill-window 주석).
+          - *env-r2-endpoint
+          - *env-r2-bucket
+          - *env-r2-access-key
+          - *env-r2-secret-key
+
+    # 예약 entrypoint다(EAT-300, ADR 0060). 과거 기록 mart(회차 요약·낙찰률 분포)를 최신 발행까지 반영해 다시
+    # 만든다. 입력 release·발행은 CLI가 원장에서 고르고, 최신 발행을 이미 반영한 활성 build가 있으면 아무것도 하지
+    # 않고 성공한다. 발행 DAG의 marts와 같은 mutex를 잡는다 — 두 build가 같은 mart의 활성 포인터를 동시에 옮기면
+    # 한쪽이 partial unique index에 끊기고, 같은 core를 동시에 전량 읽으면 단일 노드 DB가 두 배로 눌린다.
+    - name: history-marts
+      synchronization:
+        mutexes:
+          - name: eatbid-mart-build
+      container:
+        image: eatbid-dataplane
+        imagePullPolicy: IfNotPresent
+        # marts와 같은 한도다. 계산은 PostgreSQL 안에서 돌고 이 pod는 결과를 기다린다.
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 2Gi
+        command: [/bin/sh, -ec]
+        args:
+          - >-
+            exec eatbid build-history-marts
+            --calc-version "$EATBID_MART_CALC_VERSION"
+            --as-of "$EATBID_WORKFLOW_CREATED_AT"
+            --built-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            --build-sha "$BUILD_SHA" --parser-version "$EATBID_PARSER_VERSION"
+            --result-dir "$EATBID_RESULT_DIR"
+        env:
+          - name: EATBID_MART_CALC_VERSION
+            value: "{{workflow.parameters.calc-version}}"
+          - *env-parser-version
+          - *env-created-at
+          - *env-result-dir
+          - *env-web-internal-url
+          - *env-cache-revalidate-token
+          - *env-database-url
           - *env-r2-endpoint
           - *env-r2-bucket
           - *env-r2-access-key

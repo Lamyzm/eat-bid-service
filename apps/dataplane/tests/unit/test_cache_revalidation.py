@@ -18,7 +18,6 @@ from eatbid.cache_revalidation import (
     revalidate_web_cache,
 )
 from eatbid.composition import Application
-from eatbid.core.record_types import AUCTION_V2
 from eatbid.mart.models import OpenedMartBuild
 
 TOKEN = SecretStr("revalidate-fixture-token")
@@ -133,9 +132,6 @@ class _투영저장소:
 
 
 class _mart저장소:
-    def publication_marts(self, _publication_id: UUID) -> tuple[str, ...]:
-        return (AUCTION_V2,)
-
     def run_mode(self, _run_id: UUID) -> str | None:
         return "poll-open"
 
@@ -191,8 +187,8 @@ def test_활성_전환이_끝난_뒤_다시_만든_mart_이름만_알린다() ->
         )
     )
 
-    # poll-open run의 발행이라 열린 공고 스냅샷도 다시 만들고 무효화 범위에 들어간다.
-    rebuilt = ["org_round_summary", "win_rate_distribution_monthly", "open_auction_snapshot"]
+    # poll-open run의 발행 뒤에는 스냅샷만 다시 만들고 그것만 무효화 범위에 들어간다(ADR 0060).
+    rebuilt = ["open_auction_snapshot"]
     assert [result.mart_name for result in results] == rebuilt
     assert 기록 == [{"marts": rebuilt}]
 

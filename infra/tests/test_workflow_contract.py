@@ -47,6 +47,8 @@ OPERATOR_COMMANDS = (
     "check-expectations",
     "scan-contract",
     "reap-marts",
+    # 과거 기록 mart는 발행 DAG가 아니라 예약이 만든다(EAT-300, ADR 0060).
+    "build-history-marts",
 )
 # 전진 판단은 예약이 부르지만 운영자 명령과 달리 DAG의 첫 task이기도 하다. 창을 고르는 것과 그 창을
 # 수집하는 것이 한 실행 안에 있어야 고른 창이 어디로 새지 않는다(EAT-209).
@@ -170,7 +172,9 @@ def test_product와_base_render가_kind_구성을_유지한다(
     # 진도가 기록되지 않았고 실패한 백필의 남은 대기열이 열한 번 버려졌다(ADR 0052).
     # mart 회수는 2026-09-17에 더했다 — 물린 build 900개가 활성 셋의 여섯 배 디스크를 쥐고 있었다(EAT-254).
     # 재처리 전진은 2026-09-18에 더했다 — 막힌 창을 사람이 창마다 손으로 닫고 있었다(EAT-274).
-    assert manifests.kinds.count("CronWorkflow") == 8
+    # 과거 기록 mart 예약은 2026-09-29에 더했다 — 발행마다 만들던 mart가 정시 수집 한 회차를 36~46분으로 늘려
+    # 사이 회차가 건너뛰어졌다(EAT-300, ADR 0060).
+    assert manifests.kinds.count("CronWorkflow") == 9
     # migration(schema)과 db-provisioning(권한) 둘뿐이다. 여기를 늘리기 전에 새 Job이 왜 hook이어야
     # 하는지 먼저 답해야 한다.
     assert manifests.kinds.count("Job") == 2
@@ -402,6 +406,7 @@ def test_cron_workflow는_활성이고_pipeline만_schedule한다(
             "eatbid-db-backup",
             "eatbid-expectation-check",
             "eatbid-mart-reap",
+            "eatbid-history-marts",
             "eatbid-replay-advance",
         }
     ]
@@ -683,18 +688,18 @@ def test_backfill_pipeline은_discover_capture만_backfill_key로_바꾸고_나�
 
     backfill_dag = _mapping(templates["backfill-pipeline"]["dag"])
     backfill_tasks = [_mapping(task) for task in _sequence(backfill_dag["tasks"])]
-    assert [task["name"] for task in backfill_tasks] == list(SCHEDULED_TASKS)
+    # marts가 없다. backfill은 스냅샷을 만들지 않고 과거 기록 mart는 예약이 만든다(ADR 0060).
+    assert [task["name"] for task in backfill_tasks] == list(SCHEDULED_COMMANDS)
     assert [task["template"] for task in backfill_tasks] == [
         "discover-backfill",
         "capture-backfill",
         "normalize",
         "validate",
         "project",
-        "marts",
     ]
 
     # discover·capture는 template 필드만 다르고 나머지(dependencies·withParam·arguments)는 두 DAG가
-    # 완전히 같은 task 정의를 anchor로 공유해야 한다. normalize·validate·project·marts는 필드까지
+    # 완전히 같은 task 정의를 anchor로 공유해야 한다. normalize·validate·project는 필드까지
     # 전부 같아야 한다 — semaphore가 없는 단계라 backfill 변형을 따로 둘 이유가 없다.
     scheduled_tasks = {str(task["name"]): task for task in _dag_tasks(workflow_template)}
     for task in backfill_tasks:
@@ -1429,47 +1434,118 @@ def test_DAG는_discover_output으로_capture와_normalize를_fan_out한다(
         )
 
 
-def test_replay_DAG는_core를_다시_앉힌_뒤_같은_marts_task를_잇는다(
+def test_replay_DAG는_core만_다시_앉히고_mart는_예약에_맡긴다(
     manifests: ManifestSet,
 ) -> None:
-    """왜: replay가 core를 다시 앉혀도 mart를 다시 만들지 않으면 화면이 옛 build를 계속 읽는다."""
+    """왜: 과거 기록 mart를 발행마다 만들면 그 사이 mart mutex를 쥐어 정시 수집의 스냅샷 단계가 기다린다. replay가
+    다시 앉힌 core는 다음 history-marts 예약이 최신 발행을 따라 반영한다(ADR 0060)."""
     workflow_template = manifests.workflow_template("eatbid-dataplane")
     templates = _templates(workflow_template)
     dag = _mapping(templates["replay-pipeline"]["dag"])
     tasks = {str(_mapping(task)["name"]): _mapping(task) for task in _sequence(dag["tasks"])}
 
-    assert set(tasks) == {"replay", "marts"}
+    assert set(tasks) == {"replay"}
     assert tasks["replay"].get("dependencies", []) == []
-    assert tasks["marts"]["dependencies"] == ["replay"]
-    assert tasks["marts"]["template"] == "marts"
     # replay-pipeline이 받는 입력만으로 replay가 완전히 채워져야 ad hoc 실행이 CLI에서 멈추지 않는다.
     assert _input_names(templates["replay-pipeline"]) == _input_names(templates["replay"])
     for name, value in _task_arguments(tasks["replay"]).items():
         assert value == f"{{{{inputs.parameters.{name}}}}}", name
-    marts_arguments = _task_arguments(tasks["marts"])
-    assert set(marts_arguments) == _input_names(templates["marts"])
-    # replay는 discovery 없이 workflow uid 하나로 돈다.
-    assert marts_arguments["detail-run-id"] == "{{workflow.uid}}"
 
 
-def test_재처리_예약은_다시_할_창이_없으면_marts를_돌리지_않고_성공한다(
+def test_재처리_예약은_다시_할_창이_있을_때만_replay를_돌리고_mart를_잇지_않는다(
     manifests: ManifestSet,
 ) -> None:
-    """왜: 막힌 창이 없는 것이 정상이다. 그때 `run`은 건너뛰는데, `marts`가 짧은 `depends: run`이면
-    Skipped도 참이라 `decide`의 빈 출력을 들고 `build-marts`가 인자 검사에서 죽는다(EAT-282,
-    2026-09-25 20:25). 정상 회차가 빨갛게 끝나면 진짜 실패가 묻히므로 `run.Succeeded`에만 잇는다."""
+    """왜: 막힌 창이 없는 것이 정상이라 `run`은 자주 건너뛴다. 예전에는 뒤에 붙은 `marts`가 그 빈 출력을 들고
+    인자 검사에서 죽었다(EAT-282). 이제 mart는 예약이 만들므로 그 task 자체가 없다(ADR 0060)."""
     workflow_template = manifests.workflow_template("eatbid-dataplane")
     templates = _templates(workflow_template)
     dag = _mapping(templates["advancing-replay-pipeline"]["dag"])
     tasks = {str(_mapping(task)["name"]): _mapping(task) for task in _sequence(dag["tasks"])}
 
-    assert set(tasks) == {"decide", "run", "marts"}
+    assert set(tasks) == {"decide", "run"}
     # 고를 것이 있을 때만 run이 돈다.
     assert tasks["run"]["depends"] == "decide"
     assert tasks["run"]["when"] == "{{tasks.decide.outputs.parameters.has-target}} == true"
-    # marts는 run이 **성공했을 때만** 돈다. 건너뛰면 Omitted, 실패하면 Omitted이고 실패는 run이 말한다.
-    assert tasks["marts"]["depends"] == "run.Succeeded"
-    assert tasks["marts"]["template"] == "marts"
+
+
+def test_marts_단계는_열린_공고를_읽는_발행_DAG에만_붙는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 발행 뒤 mart 단계는 열린 공고 스냅샷만 만든다(CLI가 run mode로 고른다). backfill·replay DAG에 남아 있으면
+    할 일 없는 pod가 mart mutex를 잡고 줄을 서서 정시 수집의 스냅샷을 늦춘다(ADR 0060)."""
+    templates = _templates(manifests.workflow_template("eatbid-dataplane"))
+    with_marts = {
+        name
+        for name, template in templates.items()
+        if template.get("dag") is not None
+        and any(
+            _mapping(task)["template"] == "marts"
+            for task in _sequence(_mapping(template["dag"])["tasks"])
+        )
+    }
+    assert with_marts == {"scheduled-pipeline", "reconcile-pipeline"}
+
+
+def test_과거_기록_mart_예약은_하루_네_번_같은_mutex로_템플릿의_history_marts를_부른다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 회차 요약·낙찰률 분포를 발행마다 만들던 때 poll-open 한 회차가 36~46분이 되어 하루 72회 계획 중 5~24회만
+    돌았다(2026-09-29 운영 실측). 예약으로 옮기되 발행 DAG의 스냅샷과 같은 mutex를 잡아야 두 build가 같은 활성
+    포인터를 동시에 옮기지 않는다(ADR 0060). 시각의 근거는 history-marts.yaml 주석이 소유한다."""
+    cron = manifests.named("CronWorkflow", "eatbid-history-marts")
+    spec = _spec(cron)
+    assert spec["schedules"] == ["40 7,12,16,20 * * *"]
+    assert spec["timezone"] == "Asia/Seoul"
+    assert spec["suspend"] is False
+    assert spec["concurrencyPolicy"] == "Forbid"
+    workflow_spec = _mapping(spec["workflowSpec"])
+    assert _mapping(workflow_spec["workflowTemplateRef"])["name"] == "eatbid-dataplane"
+    assert workflow_spec["entrypoint"] == "history-marts"
+    # 정시 수집(100)보다 낮아야 같은 mutex를 기다릴 때 사용자가 보는 스냅샷이 먼저다.
+    priorities = {
+        str(_metadata(item)["name"]): _mapping(_spec(item)["workflowSpec"]).get("priority")
+        for item in manifests.of_kind("CronWorkflow")
+    }
+    assert isinstance(workflow_spec["priority"], int)
+    assert workflow_spec["priority"] < priorities["eatbid-poll-open"]
+
+    template = _templates(manifests.workflow_template("eatbid-dataplane"))["history-marts"]
+    mutexes = [_mapping(item) for item in _sequence(_mapping(template["synchronization"])["mutexes"])]
+    assert mutexes == [{"name": "eatbid-mart-build"}]
+    container = _mapping(template["container"])
+    command = str(_sequence(container["args"])[0])
+    argv = _render_shell_argv(command, SAMPLE_STAGE_ENV)
+    assert argv[0:2] == ["eatbid", "build-history-marts"]
+    parsed = build_parser().parse_args(argv[1:])
+    assert parsed.calc_version == SAMPLE_STAGE_ENV["EATBID_MART_CALC_VERSION"]
+    assert parsed.build_sha == SAMPLE_STAGE_ENV["BUILD_SHA"]
+    declared = {
+        str(item["name"]) for item in _sequence(container["env"]) if isinstance(item, Mapping)
+    }
+    assert set(SHELL_VARIABLE.findall(command)) - {"BUILD_SHA"} <= declared
+    assert _env(container, "EATBID_MART_CALC_VERSION")["value"] == (
+        "{{workflow.parameters.calc-version}}"
+    )
+    # mart를 활성화한 프로세스가 web 캐시를 무효화한다(ADR 0036-2).
+    assert _env(container, "EATBID_WEB_INTERNAL_URL")["value"] == "http://web"
+
+
+def test_mart_실행_시각은_다른_예약과_같은_분에_겹치지_않는다(
+    manifests: ManifestSet,
+) -> None:
+    """왜: 과거 기록 mart는 core 전량을 읽는다. 백업(pg_dump)·회수(대량 삭제)·전진 백필·재처리가 같은 분에 시작하면
+    단일 노드 DB를 함께 누른다. 감시는 읽기뿐이지만 같은 분에 두면 그 회차가 부하를 위반으로 오판한다."""
+    minutes: dict[str, set[str]] = {}
+    for cron in manifests.of_kind("CronWorkflow"):
+        (schedule,) = _sequence(_spec(cron)["schedules"])
+        minute = str(schedule).split()[0]
+        minutes[str(_metadata(cron)["name"])] = set(minute.split(","))
+    history = minutes.pop("eatbid-history-marts")
+    # 정시 수집은 10분 간격이라 어느 분과도 같은 10분 칸에 든다. 겹침은 그 회차의 스냅샷 단계가 mutex를 한 번
+    # 기다리는 것으로 받아들였다(history-marts.yaml 주석).
+    minutes.pop("eatbid-poll-open")
+    for name, other in minutes.items():
+        assert history.isdisjoint(other), name
 
 
 def test_발행과_mart_활성화_단계만_web_캐시_무효화_설정을_받는다(

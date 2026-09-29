@@ -31,6 +31,8 @@ describe("mart.build 스키마", () => {
       "as_of",
       "started_at",
       "computed_at",
+      "fill_started_at",
+      "fill_finished_at",
       "activated_at",
       "superseded_at",
       "row_count",
@@ -81,6 +83,14 @@ describe("mart.build 스키마", () => {
     expect(checks).toContain("mart_build_superseded_requires_timestamp");
     expect(checks).toContain("mart_build_failed_requires_category");
     expect(checks).toContain("mart_build_failed_is_never_activated");
+  });
+
+  test("채우기 시작·끝 시각은 선택이지만 끝이 시작보다 앞설 수 없다", () => {
+    const nullability = columnNullability(martBuild);
+
+    expect(nullability.fill_started_at).toBe(false);
+    expect(nullability.fill_finished_at).toBe(false);
+    expect(checkNames(martBuild)).toContain("mart_build_fill_chronology");
   });
 });
 

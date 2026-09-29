@@ -68,6 +68,7 @@ class CliApplication(Protocol):
     def project(self, args: argparse.Namespace) -> None: ...
     def replay(self, args: argparse.Namespace) -> None: ...
     def build_marts(self, args: argparse.Namespace) -> object: ...
+    def build_history_marts(self, args: argparse.Namespace) -> object: ...
     def capture_reference(self, args: argparse.Namespace) -> object: ...
     def project_reference(self, args: argparse.Namespace) -> object: ...
     def capture_code_vocabulary(self, args: argparse.Namespace) -> object: ...
@@ -262,11 +263,11 @@ def _machine_result(method_name: str, result: object) -> dict[str, object] | Non
             "heartbeat": result.heartbeat,
             "round_recorded": result.round_recorded,
         }
-    if method_name == "build_marts":
+    if method_name in {"build_marts", "build_history_marts"}:
         if not isinstance(result, tuple) or any(
             not isinstance(item, MartBuildResult) for item in result
         ):
-            raise TypeError("build-marts returned an invalid result")
+            raise TypeError(f"{method_name} returned an invalid result")
         # mart마다 한 줄이라 workflow가 어느 mart의 어느 build를 활성화했는지 파일로 읽는다.
         return {
             "marts": [
@@ -328,6 +329,9 @@ COMMAND_METHODS: Mapping[str, str] = {
     "scan-contract": "scan_contract",
     # 예약 entrypoint다. `retain_until`이 지난 superseded build의 mart 행을 회수한다(EAT-254, ADR 0034).
     "reap-marts": "reap_marts",
+    # 예약 entrypoint다. 최신 발행을 아직 반영하지 않은 과거 기록 mart만 다시 만든다. 새 발행이 없으면 빈 결과로
+    # 성공한다(EAT-300, ADR 0060).
+    "build-history-marts": "build_history_marts",
     # 예약 entrypoint다. 커버리지 사실만 읽어 다음에 채울 창 하나를 고르고 아무것도 바꾸지 않는다
     # (EAT-209, ADR 0052 결정 4).
     "next-backfill-window": "next_backfill_window",

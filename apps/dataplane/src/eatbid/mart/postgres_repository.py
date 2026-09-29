@@ -65,15 +65,19 @@ values (%(mart_name)s, %(source_release_id)s, %(publication_id)s, %(calc_version
 returning build_id
 """
 
-_PUBLICATION_RECORD_TYPES_SQL = """
-select distinct record.record_type
-  from ingest.publication_record as member
-  join ingest.normalized_record as record
-    on record.normalized_record_id = member.normalized_record_id
- where member.publication_id = %(publication_id)s
-"""
-
 _RUN_MODE_SQL = "select mode from ingest.run where run_id = %(run_id)s"
+
+# 채우기의 실제 시작·끝이다. `now()`는 트랜잭션 시작 시각에 멈춰 있어 한 트랜잭션 안의 두 값이 같아진다 —
+# 흐르는 `clock_timestamp()`여야 mart마다 계산에 걸린 시간이 남는다(EAT-300, ADR 0060). 시작은 읽어 두기만 하고
+# 두 값을 끝에 한 번에 쓴다. 시작에서 build 행을 고치면 채우는 수십 분 내내 그 행에 쓰기 잠금이 걸린다. 끊긴 채우기는
+# 되감기므로 끝이 null인 building build가 "채우다 끊겼다"의 흔적이 된다.
+_FILL_CLOCK_SQL = "select clock_timestamp()"
+
+_RECORD_FILL_SQL = """
+update mart.build
+   set fill_started_at = %s, fill_finished_at = clock_timestamp()
+ where build_id = %s and status = 'building'
+"""
 
 
 class PsycopgMartBuildRepository:
@@ -175,6 +179,7 @@ class PsycopgMartBuildRepository:
         # 빌더는 받은 연결로 커서만 연다. 트랜잭션은 여기서 하나로 연다 — 빌더가 도중에 무너지면 그
         # build의 행과 보유율이 함께 되감기고, 원 연결은 실패를 기록하기 전에 이미 비어 있다.
         with self._connection.transaction():
+            fill_started_at = self._fill_clock()
             row_count = builder(self._connection, plan=plan, build_id=build_id)
             # 보유율은 같은 build의 사실이므로 같은 트랜잭션에서 쓴다. 지표만 발표되고 그 지표를
             # 어디까지 믿어도 되는지가 빠지면 화면이 모르는 것을 아는 척한다(AGENTS 3).
@@ -182,7 +187,25 @@ class PsycopgMartBuildRepository:
             # 제외 사실도 같은 이유로 같은 트랜잭션이다. 지표가 발표됐는데 "무엇이 빠졌는가"가 빠지면 화면이
             # 제외된 공고를 모르는 채로 표본을 말한다(ADR 0061 결정 6).
             fill_build_exclusions(self._connection, plan=plan, build_id=build_id)
+            self._record_fill(build_id, fill_started_at)
         return row_count
+
+    # 아래 둘은 fill_build의 트랜잭션 안에서만 부른다. 시각이 행과 함께 되감겨야 끊긴 채우기가 끝난 것으로 적히지 않는다.
+    def _fill_clock(self) -> Any:
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            cursor.execute(_FILL_CLOCK_SQL)
+            row = cursor.fetchone()
+        if row is None:
+            raise MartBuildContractError("database clock returned no row")
+        return row[0]
+
+    def _record_fill(self, build_id: int, fill_started_at: Any) -> None:
+        with self._connection.transaction(), self._connection.cursor() as cursor:
+            cursor.execute(_RECORD_FILL_SQL, (fill_started_at, build_id))
+            if cursor.rowcount != 1:
+                raise MartBuildContractError(
+                    f"mart build was not building while filling [build_id={build_id}]"
+                )
 
     def verify_build(self, plan: MartBuildPlan, build_id: int, row_count: int) -> None:
         """행 수를 고정하기 전에 실제로 저장된 행을 다시 센다.
@@ -263,15 +286,6 @@ class PsycopgMartBuildRepository:
                 )
         finally:
             connection.close()
-
-    def publication_marts(self, publication_id: UUID) -> tuple[str, ...]:
-        """그 발행이 실은 record type을 돌려준다. 영향 범위는 호출부가 이 이름으로 고른다."""
-        self._require_idle("publication lookup")
-        with self._connection.transaction(), self._connection.cursor() as cursor:
-            cursor.execute(
-                _PUBLICATION_RECORD_TYPES_SQL, {"publication_id": publication_id}
-            )
-            return tuple(str(row[0]) for row in cursor.fetchall())
 
     def run_mode(self, run_id: UUID) -> str | None:
         """이 빌드를 부른 run의 mode를 돌려준다. run이 없으면 None이고 호출부가 모름으로 다룬다."""

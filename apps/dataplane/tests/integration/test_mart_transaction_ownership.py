@@ -14,6 +14,7 @@ import pytest
 from psycopg.pq import TransactionStatus
 
 from eatbid.mart.build_marts import build_mart
+from eatbid.mart.history_schedule import read_history_schedule
 from eatbid.mart.models import MartBuildPlan
 from eatbid.mart.org_round_summary import fill_org_round_summary
 from eatbid.mart.postgres_repository import PsycopgMartBuildRepository
@@ -52,13 +53,13 @@ def _build_state(services: PipelineServices, build_id: int) -> tuple[Any, ...]:
     return tuple(row)
 
 
-def test_발행_record_type과_run_mode를_읽은_뒤_연결에_트랜잭션이_남지_않는다(
+def test_run_mode와_예약_입력을_읽은_뒤_연결에_트랜잭션이_남지_않는다(
     pipeline_services: PipelineServices, migrated_db: MigratedDatabase
 ) -> None:
     repository = _repository(pipeline_services, migrated_db)
     connection = pipeline_services.connection
 
-    assert repository.publication_marts(uuid4()) == ()
+    read_history_schedule(connection)
     assert connection.info.transaction_status is TransactionStatus.IDLE
 
     assert repository.run_mode(uuid4()) is None

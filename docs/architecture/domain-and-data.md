@@ -562,6 +562,14 @@ scheme_namespace, fragment, row_count)`에 build마다 남기고, 운영 기대 
 unique index로 강제된다. 표본 수(`sample_n`)는 조회 시점의 코호트에 따라 달라지므로 행이 아니라
 응답이 싣는다. 자세한 것은 [ADR 0034](../adr/0034-mart-build-identity-and-atomic-activation.md)다.
 
+**언제 다시 만드는가(ADR 0060, EAT-300).** 열린 공고 스냅샷은 poll-open·daily-reconcile 발행마다 새 build가 된다.
+과거 기록 mart(`org_round_summary`+`org_round_summary_item`, `win_rate_distribution_monthly`)는 발행마다 만들지 않고
+예약 `eatbid-history-marts`가 매일 07:40·12:40·16:40·20:40 KST에 가장 늦게 발행된 publication을 입력으로 만든다 —
+그 build의 `publication_id`는 "여기까지 반영했다"는 계보이고 계산 범위는 여전히 core 전량이다. build 원장은
+workflow가 찍은 `started_at`·`computed_at`·`activated_at`과 별도로 채우기 트랜잭션의 실제 시작·끝
+`fill_started_at`·`fill_finished_at`(DB `clock_timestamp()`)을 갖는다. 끝이 null인 building build는 채우다 끊긴
+것이고, 이 열이 생기기 전의 build는 둘 다 null이다.
+
 build마다 발행 제외 원장에서 파생한 부속 표 둘이 함께 실린다(`mart-r11`, EAT-295, [ADR 0061](../adr/0061-record-scoped-exclusion.md)
 결정 5·6). 서버는 core·mart만 읽고 원장과 관측 수신 시각은 ingest에만 있으므로, 화면이 제외를 말할 재료는 빌더가
 옮겨 싣는 수밖에 없다. 두 표 모두 이 build의 release가 아니라 원장 전체를 읽는다 — 제외는 발행마다 쌓이고 재파싱이
@@ -570,7 +578,7 @@ build마다 발행 제외 원장에서 파생한 부속 표 둘이 함께 실린
 | 표 | grain | 파생 근거 | 읽는 자리 |
 |---|---|---|---|
 | `mart.build_exclusion_month` | `(build_id, month_kst)` | published 발행의 원장 행 → 관측의 run이 속한 release의 목록 창(`P_BID_BGNG_DT`) 시작 달, 공고(`ELCTRN_BID_ID`) 단위로 센 `excluded_auction_count`와 그중 revision을 못 얻은 `unresolved_auction_count` | 분석 응답 `meta.periodCoverage[].exclusions` |
-| `mart.build_stale_auction` | `(build_id, auction_attempt_id)` | 해소 안 된 제외 관측이 같은 공고의 현행 revision(id 최대) 관측보다 늦게 받은 것일 때, 현행 `auction_revision_id`와 두 수신 시각 | 공고 응답 `latestObservation` |
+| `mart.build_stale_auction` | `(build_id, auction_attempt_id)` | 해소 안 된 제외 관측이 같은 공고의 현행 revision(id 최대) 관측보다 늦게 받은 것일 때, 현행 `auction_revision_id`와 두 수신 시각 | 공고 응답 `latestObservation`(열린 공고 스냅샷의 활성 build, ADR 0060 결정 3) |
 
 제외 수는 보유율 판정이나 표본 수와 한 비율로 접지 않는다. 해소 판정은 `ingest.backfill_coverage`와 같다(그 관측의
 정규화 레코드 하나라도 revision을 얻으면 해소). 미반영 행은 서버가 지금 보여 주는 revision과 `auction_revision_id`가
